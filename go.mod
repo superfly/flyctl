@@ -4,6 +4,7 @@ go 1.12
 
 require (
 	github.com/machinebox/graphql v0.2.2
+	github.com/manifoldco/promptui v0.3.2
 	github.com/matryer/is v1.2.0 // indirect
 	github.com/mattn/go-runewidth v0.0.4 // indirect
 	github.com/mitchellh/go-homedir v1.1.0

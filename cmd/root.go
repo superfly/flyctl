@@ -2,15 +2,14 @@ package cmd
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v2"
+	"github.com/superfly/cli/auth"
 )
 
 var FlyToken string
+var FlyAPIBaseURL = "https://fly.io"
 
 var rootCmd = &cobra.Command{
 	Use:   "fly",
@@ -30,36 +29,23 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().StringVarP(&FlyToken, "token", "", storedAccessToken(), "fly api token")
+	rootCmd.PersistentFlags().StringVarP(&FlyToken, "token", "", accessToken(), "fly api token")
+
+	if base := os.Getenv("FLY_BASE_URL"); base != "" {
+		FlyAPIBaseURL = base
+	}
 }
 
-func storedAccessToken() string {
-	if accessToken, err := readCredentialsFile(); err == nil {
+func accessToken() string {
+	if token := os.Getenv("FLY_ACCESS_TOKEN"); token != "" {
+		return token
+	}
+
+	if accessToken, err := auth.GetSavedAccessToken(); err == nil {
 		return accessToken
 	}
 
-	return os.Getenv("FLY_ACCESS_TOKEN")
-}
-
-func readCredentialsFile() (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-
-	credentials := filepath.Join(homeDir, ".fly", "credentials.yml")
-	data, err := ioutil.ReadFile(credentials)
-	if err != nil {
-		return "", err
-	}
-
-	var credentialsData map[string]string
-	err = yaml.Unmarshal([]byte(data), &credentialsData)
-	if err != nil {
-		return "", err
-	}
-
-	return credentialsData["access_token"], nil
+	return ""
 }
 
 // initConfig reads in config file and ENV variables if set.

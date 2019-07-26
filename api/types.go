@@ -1,8 +1,9 @@
 package api
 
 type Query struct {
-	Apps Nodes `json:"apps"`
-	App  App   `json:"app"`
+	Apps        Nodes `json:"apps"`
+	App         App   `json:"app"`
+	CurrentUser User  `json:"currentUser"`
 }
 
 type Nodes struct {
@@ -39,4 +40,10 @@ type Allocation struct {
 	Region    string `json:"region"`
 	CreatedAt string `json:"createdAt"`
 	UpdatedAt string `json:"updatedAt"`
+}
+
+type User struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
 }
