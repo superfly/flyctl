@@ -4,9 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"strconv"
 
 	"github.com/machinebox/graphql"
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
+	"github.com/superfly/cli/api"
 )
 
 func init() {
@@ -25,7 +29,6 @@ var statusCmd = &cobra.Command{
 	// Long:  `All software has versions. This is flyctl`,
 	Run: func(cmd *cobra.Command, args []string) {
 		client := graphql.NewClient("https://fly.io/api/v2/graphql")
-		// make a request
 		req := graphql.NewRequest(`
   query($appId: String!) {
     app(id: $appId) {
@@ -55,22 +58,73 @@ var statusCmd = &cobra.Command{
   }
 `)
 
-		// set any variables
 		req.Var("appId", appID)
 
-		// set header fields
-		// req.Header.Set("Cache-Control", "no-cache")
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", FlyToken))
 
-		// define a Context for the request
 		ctx := context.Background()
 
-		// run it and capture the response
-		var respData interface{}
-		if err := client.Run(ctx, req, &respData); err != nil {
+		var data api.Query
+		if err := client.Run(ctx, req, &data); err != nil {
 			log.Fatal(err)
 		}
 
-		log.Println(respData)
+		app := data.App
+
+		renderAppInfo(app)
+
+		if len(app.Services) > 0 {
+			fmt.Println()
+			renderServicesList(app)
+			fmt.Println()
+			renderAllocationsList(app)
+		}
 	},
+}
+
+func renderAppInfo(app api.App) {
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetBorder(false)
+	table.SetColumnSeparator("")
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.AppendBulk([][]string{
+		[]string{"Name", app.Name},
+		[]string{"Owner", app.Organization.Slug},
+		[]string{"Version", strconv.Itoa(app.Version)},
+		[]string{"Runtime", app.Runtime},
+		[]string{"Status", app.Status},
+	})
+	if app.AppURL == "" {
+		table.Append([]string{"App URL", "N/A"})
+	} else {
+		table.Append([]string{"App URL", app.AppURL})
+	}
+
+	table.Render()
+}
+
+func renderServicesList(app api.App) {
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetBorder(false)
+	table.SetColumnSeparator("")
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+
+	for _, service := range app.Services {
+		table.Append([]string{service.Name, service.Status})
+	}
+
+	table.Render()
+}
+
+func renderAllocationsList(app api.App) {
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"Name", "Status", "Region", "Created", "Modified"})
+
+	for _, service := range app.Services {
+		for _, alloc := range service.Allications {
+			table.Append([]string{alloc.Name, alloc.Status, alloc.Region, alloc.CreatedAt, alloc.UpdatedAt})
+		}
+	}
+
+	table.Render()
 }

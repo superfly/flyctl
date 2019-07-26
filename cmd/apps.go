@@ -50,15 +50,15 @@ var appsCmd = &cobra.Command{
 
 		ctx := context.Background()
 
-		var respData api.Apps
-		if err := client.Run(ctx, req, &respData); err != nil {
+		var data api.Query
+		if err := client.Run(ctx, req, &data); err != nil {
 			log.Fatal(err)
 		}
 
 		table := tablewriter.NewWriter(os.Stdout)
 		table.SetHeader([]string{"Name", "Owner", "Runtime"})
 
-		for _, app := range respData.Apps.Nodes {
+		for _, app := range data.Apps.Nodes {
 			table.Append([]string{app.Name, app.Organization.Slug, app.Runtime})
 		}
 
