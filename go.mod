@@ -3,6 +3,7 @@ module github.com/superfly/cli
 go 1.12
 
 require (
+	github.com/BurntSushi/toml v0.3.1
 	github.com/machinebox/graphql v0.2.2
 	github.com/manifoldco/promptui v0.3.2
 	github.com/matryer/is v1.2.0 // indirect

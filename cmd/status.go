@@ -11,6 +11,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/superfly/cli/api"
+	"github.com/superfly/cli/manifest"
 )
 
 func init() {
@@ -57,6 +58,14 @@ var statusCmd = &cobra.Command{
     }
   }
 `)
+
+		if appID == "" {
+			manifest, err := manifest.LoadManifest("fly.toml")
+			if err != nil {
+				panic(err)
+			}
+			appID = manifest.AppID
+		}
 
 		req.Var("appId", appID)
 
