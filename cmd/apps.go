@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/superfly/cli/api"
 
@@ -20,6 +21,13 @@ var appsCmd = &cobra.Command{
 	// Short: "Print the version number of flyctl",
 	// Long:  `All software has versions. This is flyctl`,
 	Run: func(cmd *cobra.Command, args []string) {
+
+		if FlyToken == "" {
+			fmt.Println("Api token not found")
+			os.Exit(1)
+			return
+		}
+
 		client := graphql.NewClient("https://fly.io/api/v2/graphql")
 		// make a request
 		req := graphql.NewRequest(`

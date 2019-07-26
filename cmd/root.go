@@ -2,9 +2,12 @@ package cmd
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v2"
 )
 
 var FlyToken string
@@ -27,8 +30,36 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().StringVarP(&FlyToken, "token", "", os.Getenv("FLY_ACCESS_TOKEN"), "fly api token")
+	rootCmd.PersistentFlags().StringVarP(&FlyToken, "token", "", storedAccessToken(), "fly api token")
+}
 
+func storedAccessToken() string {
+	if accessToken, err := readCredentialsFile(); err == nil {
+		return accessToken
+	}
+
+	return os.Getenv("FLY_ACCESS_TOKEN")
+}
+
+func readCredentialsFile() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	credentials := filepath.Join(homeDir, ".fly", "credentials.yml")
+	data, err := ioutil.ReadFile(credentials)
+	if err != nil {
+		return "", err
+	}
+
+	var credentialsData map[string]string
+	err = yaml.Unmarshal([]byte(data), &credentialsData)
+	if err != nil {
+		return "", err
+	}
+
+	return credentialsData["access_token"], nil
 }
 
 // initConfig reads in config file and ENV variables if set.
