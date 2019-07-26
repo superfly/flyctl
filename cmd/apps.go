@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/olekukonko/tablewriter"
 	"github.com/superfly/cli/api"
 
 	"github.com/machinebox/graphql"
@@ -29,40 +30,38 @@ var appsCmd = &cobra.Command{
 		}
 
 		client := graphql.NewClient("https://fly.io/api/v2/graphql")
-		// make a request
+
 		req := graphql.NewRequest(`
     query {
         apps {
 					nodes {
 						id
 						name
+						organization { 
+							slug
+						}
 						runtime
 					}
         }
     }
 `)
 
-		// set any variables
-		// req.Var("key", "value")
-
-		// set header fields
-		// req.Header.Set("Cache-Control", "no-cache")
-
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", FlyToken))
 
-		// define a Context for the request
 		ctx := context.Background()
 
-		// run it and capture the response
 		var respData api.Apps
 		if err := client.Run(ctx, req, &respData); err != nil {
 			log.Fatal(err)
 		}
 
-		log.Println(respData)
+		table := tablewriter.NewWriter(os.Stdout)
+		table.SetHeader([]string{"Name", "Owner", "Runtime"})
 
 		for _, app := range respData.Apps.Nodes {
-			fmt.Println(app)
+			table.Append([]string{app.Name, app.Organization.Slug, app.Runtime})
 		}
+
+		table.Render()
 	},
 }
