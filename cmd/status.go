@@ -60,7 +60,7 @@ var statusCmd = &cobra.Command{
 
 		// set header fields
 		// req.Header.Set("Cache-Control", "no-cache")
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", FlyToken))
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", flyToken))
 
 		// define a Context for the request
 		ctx := context.Background()

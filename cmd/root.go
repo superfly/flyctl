@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var FlyToken string
+var flyToken string
 
 var rootCmd = &cobra.Command{
 	Use:   "fly",
@@ -26,9 +26,7 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-
-	rootCmd.PersistentFlags().StringVarP(&FlyToken, "token", "", os.Getenv("FLY_ACCESS_TOKEN"), "fly api token")
-
+	rootCmd.PersistentFlags().StringVarP(&flyToken, "token", "", os.Getenv("FLY_ACCESS_TOKEN"), "fly api token")
 }
 
 // initConfig reads in config file and ENV variables if set.

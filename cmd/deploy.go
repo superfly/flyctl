@@ -48,7 +48,7 @@ var deployCmd = &cobra.Command{
 			"image": "registry.hub.docker.com/michaeldwan/something:latest",
 		})
 
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", FlyToken))
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", flyToken))
 
 		ctx := context.Background()
 

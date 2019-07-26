@@ -7,7 +7,6 @@ import (
 
 	"github.com/superfly/cli/api"
 
-	"github.com/machinebox/graphql"
 	"github.com/spf13/cobra"
 )
 
@@ -20,40 +19,14 @@ var appsCmd = &cobra.Command{
 	// Short: "Print the version number of flyctl",
 	// Long:  `All software has versions. This is flyctl`,
 	Run: func(cmd *cobra.Command, args []string) {
-		client := graphql.NewClient("https://fly.io/api/v2/graphql")
-		// make a request
-		req := graphql.NewRequest(`
-    query {
-        apps {
-					nodes {
-						id
-						name
-						runtime
-					}
-        }
-    }
-`)
+		client := api.NewClient("https://fly.io", flyToken)
 
-		// set any variables
-		// req.Var("key", "value")
-
-		// set header fields
-		// req.Header.Set("Cache-Control", "no-cache")
-
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", FlyToken))
-
-		// define a Context for the request
-		ctx := context.Background()
-
-		// run it and capture the response
-		var respData api.Apps
-		if err := client.Run(ctx, req, &respData); err != nil {
+		apps, err := client.Apps(context.Background())
+		if err != nil {
 			log.Fatal(err)
 		}
 
-		log.Println(respData)
-
-		for _, app := range respData.Apps.Nodes {
+		for _, app := range apps.Apps.Nodes {
 			fmt.Println(app)
 		}
 	},
