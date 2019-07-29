@@ -22,11 +22,12 @@ changelog:
     exclude:
     - '^docs:'
     - '^test:'
-brew:
-  github:
-    owner: superfly
-    name: homebrew-brew
-  folder: Formula
-  homepage: https://fly.io
-  test: |
-    system "#{bin}/flyctl version"
+brews:
+  -
+    github:
+      owner: superfly
+      name: homebrew-brew
+    folder: Formula
+    homepage: https://fly.io
+    test: |
+      system "#{bin}/flyctl version"
