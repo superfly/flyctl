@@ -10,8 +10,8 @@ import (
 	"github.com/machinebox/graphql"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
-	"github.com/superfly/cli/api"
-	"github.com/superfly/cli/manifest"
+	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/manifest"
 )
 
 func init() {

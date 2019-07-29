@@ -8,7 +8,7 @@ import (
 
 	"github.com/machinebox/graphql"
 	"github.com/spf13/cobra"
-	"github.com/superfly/cli/api"
+	"github.com/superfly/flyctl/api"
 )
 
 // var appName string

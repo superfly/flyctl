@@ -1,4 +1,4 @@
-module github.com/superfly/cli
+module github.com/superfly/flyctl
 
 go 1.12
 

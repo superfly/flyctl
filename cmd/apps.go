@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/olekukonko/tablewriter"
-	"github.com/superfly/cli/api"
+	"github.com/superfly/flyctl/api"
 
 	"github.com/machinebox/graphql"
 	"github.com/spf13/cobra"

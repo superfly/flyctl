@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/cli/auth"
+	"github.com/superfly/flyctl/auth"
 )
 
 var FlyToken string
