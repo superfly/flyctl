@@ -9,6 +9,7 @@ type Query struct {
 type Nodes struct {
 	Nodes []App `json:"nodes"`
 }
+
 type App struct {
 	ID           string       `json:"id"`
 	Name         string       `json:"name"`
@@ -18,6 +19,7 @@ type App struct {
 	AppURL       string       `json:"appUrl"`
 	Organization Organization `json:"organization"`
 	Services     []Service    `json:"services"`
+	Secrets      []string     `json:"secrets"`
 }
 
 type Organization struct {
@@ -46,4 +48,19 @@ type User struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
 	Email string `json:"email"`
+}
+
+type SetSecretsInput struct {
+	AppID   string        `json:"appId"`
+	Secrets []SecretInput `json:"secrets"`
+}
+
+type SecretInput struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type UnsetSecretsInput struct {
+	AppID string   `json:"appId"`
+	Keys  []string `json:"keys"`
 }
