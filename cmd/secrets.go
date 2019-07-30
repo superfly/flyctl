@@ -1,22 +1,21 @@
 package cmd
 
 import (
+	"errors"
 	"log"
 	"os"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/manifest"
+	"github.com/superfly/flyctl/flyctl"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
-
-var appName string
 
 func init() {
 	rootCmd.AddCommand(secretsCmd)
-
-	secretsCmd.PersistentFlags().StringVarP(&appName, "app_name", "a", "", "fly app name")
+	addAppFlag(secretsCmd)
 }
 
 var secretsCmd = &cobra.Command{
@@ -24,13 +23,9 @@ var secretsCmd = &cobra.Command{
 	// Short: "Print the version number of flyctl",
 	// Long:  `All software has versions. This is flyctl`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-
+		appName := viper.GetString(flyctl.ConfigAppName)
 		if appName == "" {
-			manifest, err := manifest.LoadManifest("fly.toml")
-			if err != nil {
-				panic(err)
-			}
-			appName = manifest.AppID
+			return errors.New("No app provided")
 		}
 
 		client, err := api.NewClient()
@@ -38,13 +33,15 @@ var secretsCmd = &cobra.Command{
 			return err
 		}
 
-		req := client.NewRequest(`
+		query := `
 			query ($appName: String!) {
 				app(id: $appName) {
 					secrets
 				}
 			}
-		`)
+		`
+
+		req := client.NewRequest(query)
 
 		req.Var("appName", appName)
 

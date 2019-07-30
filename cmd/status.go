@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -9,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/manifest"
+	"github.com/superfly/flyctl/flyctl"
 )
 
 func init() {
@@ -30,49 +31,48 @@ var statusCmd = &cobra.Command{
 	// Short: "Print the version number of flyctl",
 	// Long:  `All software has versions. This is flyctl`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// panic(viper.GetString("api_base_url"))
+		appName := viper.GetString(flyctl.ConfigAppName)
+		if appName == "" {
+			return errors.New("No app provided")
+		}
+
+		fmt.Println(appName)
 
 		client, err := api.NewClient()
 		if err != nil {
 			return err
 		}
 
-		req := client.NewRequest(`
-  query($appId: String!) {
-    app(id: $appId) {
-      id
-      name
-      version
-      runtime
-      status
-      appUrl
-      organization {
-        slug
-      }
-      services {
-        id
-        name
-        status
-        allocations {
-          id
-          name
-          status
-          region
-          createdAt
-          updatedAt
-        }
-      }
-    }
-  }
-`)
-
-		if appID == "" {
-			manifest, err := manifest.LoadManifest("fly.toml")
-			if err != nil {
-				panic(err)
+		query := `
+			query($appId: String!) {
+				app(id: $appId) {
+					id
+					name
+					version
+					runtime
+					status
+					appUrl
+					organization {
+						slug
+					}
+					services {
+						id
+						name
+						status
+						allocations {
+							id
+							name
+							status
+							region
+							createdAt
+							updatedAt
+						}
+					}
+				}
 			}
-			appID = manifest.AppID
-		}
+		`
+
+		req := client.NewRequest(query)
 
 		req.Var("appId", appID)
 

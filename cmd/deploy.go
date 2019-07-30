@@ -1,17 +1,18 @@
 package cmd
 
 import (
+	"errors"
 	"log"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/manifest"
+	"github.com/superfly/flyctl/flyctl"
 )
 
 func init() {
 	rootCmd.AddCommand(deployCmd)
-
-	deployCmd.Flags().StringVarP(&appName, "app", "a", "", "App Name")
+	addAppFlag(deployCmd)
 }
 
 var deployCmd = &cobra.Command{
@@ -20,13 +21,9 @@ var deployCmd = &cobra.Command{
 	// Long:  `All software has versions. This is flyctl`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-
+		appName := viper.GetString(flyctl.ConfigAppName)
 		if appName == "" {
-			manifest, err := manifest.LoadManifest("fly.toml")
-			if err != nil {
-				panic(err)
-			}
-			appName = manifest.AppID
+			return errors.New("No app provided")
 		}
 
 		image := args[0]
@@ -36,25 +33,27 @@ var deployCmd = &cobra.Command{
 			return err
 		}
 
-		req := client.NewRequest(`
-  mutation($input: DeployImageInput!) {
-    deployImage(input: $input) {
-      deployment {
-        id
-        app {
-          runtime
-          status
-          appUrl
-        }
-        status
-        currentPhase
-        release {
-          version
-        }
-      }
-    }
-  }
-`)
+		query := `
+			mutation($input: DeployImageInput!) {
+				deployImage(input: $input) {
+					deployment {
+						id
+						app {
+							runtime
+							status
+							appUrl
+						}
+						status
+						currentPhase
+						release {
+							version
+						}
+					}
+				}
+			}
+		`
+
+		req := client.NewRequest(query)
 
 		req.Var("input", map[string]string{
 			"appId": appName,

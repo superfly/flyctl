@@ -7,7 +7,9 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 )
 
@@ -15,8 +17,7 @@ import (
 
 func init() {
 	secretsCmd.AddCommand(setSecretsCmd)
-
-	setSecretsCmd.PersistentFlags().StringVarP(&appName, "app_name", "a", "", "fly app name")
+	addAppFlag(setSecretsCmd)
 }
 
 var setSecretsCmd = &cobra.Command{
@@ -27,6 +28,10 @@ var setSecretsCmd = &cobra.Command{
 		return validateArgs(args)
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
+		appName := viper.GetString(flyctl.ConfigAppName)
+		if appName == "" {
+			return errors.New("No app provided")
+		}
 
 		input := api.SetSecretsInput{AppID: appName}
 
@@ -50,16 +55,18 @@ var setSecretsCmd = &cobra.Command{
 			return err
 		}
 
-		req := client.NewRequest(`
-		    mutation ($input: SetSecretsInput!) {
-					setSecrets(input: $input) {
-						deployment {
-							id
-							status
-						}
+		query := `
+			mutation ($input: SetSecretsInput!) {
+				setSecrets(input: $input) {
+					deployment {
+						id
+						status
 					}
 				}
-		`)
+			}
+		`
+
+		req := client.NewRequest(query)
 
 		req.Var("input", input)
 

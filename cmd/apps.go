@@ -26,20 +26,22 @@ func runApps(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	req := client.NewRequest(`
-			query {
-				apps {
-					nodes {
-						id
-						name
-						organization {
-							slug
-						}
-						runtime
+	query := `
+		query {
+			apps {
+				nodes {
+					id
+					name
+					organization {
+						slug
 					}
+					runtime
 				}
 			}
-		`)
+		}
+	`
+
+	req := client.NewRequest(query)
 
 	data, err := client.Run(req)
 	if err != nil {

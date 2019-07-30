@@ -10,6 +10,7 @@ import (
 const (
 	ConfigAPIAccessToken = "api_access_token"
 	ConfigAPIBaseURL     = "api_base_url"
+	ConfigAppName        = "app"
 )
 
 func InitConfig() {

@@ -25,13 +25,15 @@ var whoami = &cobra.Command{
 			return err
 		}
 
-		req := client.NewRequest(`
-    query {
-			currentUser {
-				email
+		query := `
+			query {
+				currentUser {
+					email
+				}
 			}
-    }
-`)
+		`
+
+		req := client.NewRequest(query)
 
 		data, err := client.Run(req)
 		if err != nil {
