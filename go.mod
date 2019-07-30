@@ -18,6 +18,7 @@ require (
 	github.com/kisielk/errcheck v1.2.0 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/kr/pty v1.1.8 // indirect
+	github.com/logrusorgru/aurora v0.0.0-20190428105938-cea283e61946
 	github.com/machinebox/graphql v0.2.2
 	github.com/magiconair/properties v1.8.1 // indirect
 	github.com/manifoldco/promptui v0.3.2

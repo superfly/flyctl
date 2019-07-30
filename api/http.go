@@ -2,24 +2,16 @@ package api
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"time"
 
-	"github.com/spf13/viper"
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/terminal"
 )
 
 func newHTTPClient() (*http.Client, error) {
-	var transport http.RoundTripper
-
-	if viper.GetBool(flyctl.ConfigTrace) {
-		transport = &LoggingTransport{
-			innerTransport: http.DefaultTransport,
-		}
-	} else {
-		transport = http.DefaultTransport
+	transport := &LoggingTransport{
+		innerTransport: http.DefaultTransport,
 	}
 
 	httpClient := &http.Client{
@@ -56,14 +48,14 @@ func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 }
 
 func (t *LoggingTransport) logRequest(req *http.Request) {
-	log.Printf("--> %s %s %s", req.Method, req.URL, req.Body)
+	terminal.Debugf("--> %s %s %s\n", req.Method, req.URL, req.Body)
 }
 
 func (t *LoggingTransport) logResponse(resp *http.Response) {
 	ctx := resp.Request.Context()
 	if start, ok := ctx.Value(contextKeyRequestStart).(time.Time); ok {
-		log.Printf("<-- %d %s (%s)", resp.StatusCode, resp.Request.URL, helpers.Duration(time.Now().Sub(start), 2))
+		terminal.Debugf("<-- %d %s (%s)\n", resp.StatusCode, resp.Request.URL, helpers.Duration(time.Now().Sub(start), 2))
 	} else {
-		log.Printf("<-- %d %s", resp.StatusCode, resp.Request.URL)
+		terminal.Debugf("<-- %d %s\n", resp.StatusCode, resp.Request.URL)
 	}
 }

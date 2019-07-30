@@ -5,24 +5,25 @@ import (
 	"os"
 
 	"github.com/spf13/viper"
+	"github.com/superfly/flyctl/terminal"
 )
 
 const (
 	ConfigAPIAccessToken = "api_access_token"
 	ConfigAPIBaseURL     = "api_base_url"
 	ConfigAppName        = "app"
-	ConfigTrace          = "trace"
+	ConfigVerboseOutput  = "verbose"
 )
 
 func InitConfig() {
-
 	viper.SetDefault(ConfigAPIBaseURL, "https://fly.io")
-	if token, err := GetSavedAccessToken(); err == nil {
-		viper.SetDefault(ConfigAPIAccessToken, token)
-	}
 
 	viper.SetEnvPrefix("FLY")
 	viper.AutomaticEnv()
+
+	if viper.GetBool("verbose") {
+		terminal.SetLogLevel(terminal.LevelDebug)
+	}
 
 	// if configFile != "" {
 	// 	viper.SetConfigFile(configFile)
@@ -38,8 +39,10 @@ func InitConfig() {
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
-	} else {
-		panic(err)
+		terminal.Debug("Using config file:", viper.ConfigFileUsed())
+	}
+
+	if token, err := GetSavedAccessToken(); err == nil {
+		viper.SetDefault(ConfigAPIAccessToken, token)
 	}
 }
