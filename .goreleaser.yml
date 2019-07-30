@@ -5,13 +5,22 @@ before:
 builds:
 - env:
   - CGO_ENABLED=0
+  goos:
+  - windows
+  - darwin
+  - linux
+  ignore:
+  - goos: darwin
+    goarch: 386
 archives:
 - replacements:
-    darwin: Darwin
+    darwin: macOS
     linux: Linux
     windows: Windows
     386: i386
     amd64: x86_64
+  files: [only-the-binary*]
+  wrap_in_directory: false
 checksum:
   name_template: 'checksums.txt'
 snapshot:
