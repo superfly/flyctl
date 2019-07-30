@@ -57,7 +57,7 @@ var loginCmd = &cobra.Command{
 			},
 		})
 
-		resp, err := http.Post(fmt.Sprintf("%s%s", FlyAPIBaseURL, "/api/v1/sessions"), "application/json", bytes.NewBuffer(postData))
+		resp, err := http.Post(fmt.Sprintf("%s%s", flyAPIBaseURL, "/api/v1/sessions"), "application/json", bytes.NewBuffer(postData))
 		if err != nil {
 			log.Fatalln(err)
 			os.Exit(1)

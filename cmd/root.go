@@ -5,11 +5,10 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/auth"
 )
 
-var FlyToken string
-var FlyAPIBaseURL = "https://fly.io"
+var flyToken string
+var flyAPIBaseURL string
 
 var rootCmd = &cobra.Command{
 	Use:   "fly",
@@ -28,24 +27,7 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-
-	rootCmd.PersistentFlags().StringVarP(&FlyToken, "token", "", accessToken(), "fly api token")
-
-	if base := os.Getenv("FLY_BASE_URL"); base != "" {
-		FlyAPIBaseURL = base
-	}
-}
-
-func accessToken() string {
-	if token := os.Getenv("FLY_ACCESS_TOKEN"); token != "" {
-		return token
-	}
-
-	if accessToken, err := auth.GetSavedAccessToken(); err == nil {
-		return accessToken
-	}
-
-	return ""
+	rootCmd.PersistentFlags().StringVarP(&flyToken, "token", "", os.Getenv("FLY_ACCESS_TOKEN"), "fly api token")
 }
 
 // initConfig reads in config file and ENV variables if set.

@@ -25,7 +25,7 @@ var whoami = &cobra.Command{
 	// Long:  `All software has versions. This is flyctl`,
 	Run: func(cmd *cobra.Command, args []string) {
 
-		if FlyToken == "" {
+		if flyToken == "" {
 			fmt.Println("Api token not found")
 			os.Exit(1)
 			return
@@ -41,7 +41,7 @@ var whoami = &cobra.Command{
     }
 `)
 
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", FlyToken))
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", flyToken))
 
 		ctx := context.Background()
 

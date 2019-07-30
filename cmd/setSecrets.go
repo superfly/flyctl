@@ -48,7 +48,7 @@ var setSecretsCmd = &cobra.Command{
 			input.Secrets = append(input.Secrets, api.SecretInput{Key: key, Value: value})
 		}
 
-		if FlyToken == "" {
+		if flyToken == "" {
 			fmt.Println("Api token not found")
 			os.Exit(1)
 			return
@@ -69,7 +69,7 @@ var setSecretsCmd = &cobra.Command{
 
 		req.Var("input", input)
 
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", FlyToken))
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", flyToken))
 
 		ctx := context.Background()
 

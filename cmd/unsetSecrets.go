@@ -30,7 +30,7 @@ var unsetSecretsCmd = &cobra.Command{
 		// fmt.Println(input)
 		// panic(input)
 
-		if FlyToken == "" {
+		if flyToken == "" {
 			fmt.Println("Api token not found")
 			os.Exit(1)
 			return
@@ -51,7 +51,7 @@ var unsetSecretsCmd = &cobra.Command{
 
 		req.Var("input", input)
 
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", FlyToken))
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", flyToken))
 
 		ctx := context.Background()
 
