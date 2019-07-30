@@ -1,4 +1,4 @@
-package auth
+package flyctl
 
 import (
 	"io/ioutil"

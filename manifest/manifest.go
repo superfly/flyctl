@@ -17,6 +17,9 @@ func LoadManifest(path string) (Manifest, error) {
 
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return out, nil
+		}
 		return out, err
 	}
 

@@ -1,16 +1,17 @@
 package cmd
 
 import (
-	"context"
-	"fmt"
 	"log"
 
-	"github.com/machinebox/graphql"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/manifest"
 )
 
 func init() {
 	rootCmd.AddCommand(deployCmd)
+
+	deployCmd.Flags().StringVarP(&appName, "app", "a", "", "App Name")
 }
 
 var deployCmd = &cobra.Command{
@@ -18,12 +19,24 @@ var deployCmd = &cobra.Command{
 	// Short: "Print the version number of flyctl",
 	// Long:  `All software has versions. This is flyctl`,
 	Args: cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println(args)
+	RunE: func(cmd *cobra.Command, args []string) error {
 
-		client := graphql.NewClient("https://fly.io/api/v2/graphql")
-		// make a request
-		req := graphql.NewRequest(`
+		if appName == "" {
+			manifest, err := manifest.LoadManifest("fly.toml")
+			if err != nil {
+				panic(err)
+			}
+			appName = manifest.AppID
+		}
+
+		image := args[0]
+
+		client, err := api.NewClient()
+		if err != nil {
+			return err
+		}
+
+		req := client.NewRequest(`
   mutation($input: DeployImageInput!) {
     deployImage(input: $input) {
       deployment {
@@ -44,19 +57,17 @@ var deployCmd = &cobra.Command{
 `)
 
 		req.Var("input", map[string]string{
-			"appId": "deno-test-1",
-			"image": "registry.hub.docker.com/michaeldwan/something:latest",
+			"appId": appName,
+			"image": image,
 		})
 
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", flyToken))
-
-		ctx := context.Background()
-
-		var respData interface{}
-		if err := client.Run(ctx, req, &respData); err != nil {
-			log.Fatal(err)
+		data, err := client.Run(req)
+		if err != nil {
+			return err
 		}
 
-		log.Println(respData)
+		log.Println(data)
+
+		return nil
 	},
 }

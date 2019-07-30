@@ -12,7 +12,8 @@ import (
 
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/auth"
+	"github.com/spf13/viper"
+	"github.com/superfly/flyctl/flyctl"
 )
 
 func init() {
@@ -23,7 +24,6 @@ var username string
 var password string
 
 func init() {
-	// loginCmd.Flags().StringVarP(&appID, "app", "a", "", "App id")
 }
 
 var loginCmd = &cobra.Command{
@@ -57,7 +57,9 @@ var loginCmd = &cobra.Command{
 			},
 		})
 
-		resp, err := http.Post(fmt.Sprintf("%s%s", flyAPIBaseURL, "/api/v1/sessions"), "application/json", bytes.NewBuffer(postData))
+		url := fmt.Sprintf("%s/api/v1/sessions", viper.GetString(flyctl.ConfigAPIBaseURL))
+
+		resp, err := http.Post(url, "application/json", bytes.NewBuffer(postData))
 		if err != nil {
 			log.Fatalln(err)
 			os.Exit(1)
@@ -83,7 +85,7 @@ var loginCmd = &cobra.Command{
 
 		accessToken := result["data"]["attributes"]["access_token"]
 
-		err = auth.SetSavedAccessToken(accessToken)
+		err = flyctl.SetSavedAccessToken(accessToken)
 		if err != nil {
 			log.Fatalln(err)
 		}

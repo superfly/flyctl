@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/auth"
+	"github.com/superfly/flyctl/flyctl"
 )
 
 func init() {
@@ -20,7 +20,7 @@ var logOut = &cobra.Command{
 	// Short: "Print the version number of flyctl",
 	// Long:  `All software has versions. This is flyctl`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := auth.ClearSavedAccessToken(); err != nil {
+		if err := flyctl.ClearSavedAccessToken(); err != nil {
 			log.Fatalln(err)
 		}
 

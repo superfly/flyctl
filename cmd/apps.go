@@ -1,10 +1,8 @@
 package cmd
 
 import (
-	"log"
 	"os"
 
-	"github.com/machinebox/graphql"
 	"github.com/olekukonko/tablewriter"
 	"github.com/superfly/flyctl/api"
 
@@ -19,10 +17,16 @@ var appsCmd = &cobra.Command{
 	Use: "apps",
 	// Short: "Print the version number of flyctl",
 	// Long:  `All software has versions. This is flyctl`,
-	Run: func(cmd *cobra.Command, args []string) {
-		client := api.NewClient("https://fly.io", flyToken)
+	RunE: runApps,
+}
 
-		req := graphql.NewRequest(`
+func runApps(cmd *cobra.Command, args []string) error {
+	client, err := api.NewClient()
+	if err != nil {
+		return err
+	}
+
+	req := client.NewRequest(`
 			query {
 				apps {
 					nodes {
@@ -37,19 +41,19 @@ var appsCmd = &cobra.Command{
 			}
 		`)
 
-		var resp api.Query
-		apps, err := client.Run(req, &resp)
-		if err != nil {
-			log.Fatal(err)
-		}
+	data, err := client.Run(req)
+	if err != nil {
+		return err
+	}
 
-		table := tablewriter.NewWriter(os.Stdout)
-		table.SetHeader([]string{"Name", "Owner", "Runtime"})
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"Name", "Owner", "Runtime"})
 
-		for _, app := range data.Apps.Nodes {
-			table.Append([]string{app.Name, app.Organization.Slug, app.Runtime})
-		}
+	for _, app := range data.Apps.Nodes {
+		table.Append([]string{app.Name, app.Organization.Slug, app.Runtime})
+	}
 
-		table.Render()
-	},
+	table.Render()
+
+	return nil
 }

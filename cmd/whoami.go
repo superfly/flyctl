@@ -1,12 +1,8 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
-	"log"
-	"os"
 
-	"github.com/machinebox/graphql"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 )
@@ -16,24 +12,20 @@ func init() {
 }
 
 func init() {
-	// whoami.Flags().StringVarP(&appID, "app", "a", "", "App id")
 }
 
 var whoami = &cobra.Command{
 	Use: "whoami",
 	// Short: "Print the version number of flyctl",
 	// Long:  `All software has versions. This is flyctl`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 
-		if flyToken == "" {
-			fmt.Println("Api token not found")
-			os.Exit(1)
-			return
+		client, err := api.NewClient()
+		if err != nil {
+			return err
 		}
 
-		client := graphql.NewClient("https://fly.io/api/v2/graphql")
-
-		req := graphql.NewRequest(`
+		req := client.NewRequest(`
     query {
 			currentUser {
 				email
@@ -41,15 +33,13 @@ var whoami = &cobra.Command{
     }
 `)
 
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", flyToken))
-
-		ctx := context.Background()
-
-		var data api.Query
-		if err := client.Run(ctx, req, &data); err != nil {
-			log.Fatal(err)
+		data, err := client.Run(req)
+		if err != nil {
+			return err
 		}
 
 		fmt.Printf("Current user: %s\n", data.CurrentUser.Email)
+
+		return nil
 	},
 }

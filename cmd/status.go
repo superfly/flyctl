@@ -1,15 +1,13 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 
-	"github.com/machinebox/graphql"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/manifest"
 )
@@ -21,16 +19,25 @@ func init() {
 var appID string
 
 func init() {
-	statusCmd.Flags().StringVarP(&appID, "app", "a", "", "App id")
+	statusCmd.Flags().StringP("app", "a", "", "App name")
+	viper.BindPFlags(statusCmd.Flags())
+	// viper.
+	// statusCmd.Flags().StringVarP(&appID, "app", "a", "", "App id")
 }
 
 var statusCmd = &cobra.Command{
 	Use: "status",
 	// Short: "Print the version number of flyctl",
 	// Long:  `All software has versions. This is flyctl`,
-	Run: func(cmd *cobra.Command, args []string) {
-		client := graphql.NewClient("https://fly.io/api/v2/graphql")
-		req := graphql.NewRequest(`
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// panic(viper.GetString("api_base_url"))
+
+		client, err := api.NewClient()
+		if err != nil {
+			return err
+		}
+
+		req := client.NewRequest(`
   query($appId: String!) {
     app(id: $appId) {
       id
@@ -69,27 +76,21 @@ var statusCmd = &cobra.Command{
 
 		req.Var("appId", appID)
 
-		// set header fields
-		// req.Header.Set("Cache-Control", "no-cache")
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", flyToken))
-
-		ctx := context.Background()
-
-		var data api.Query
-		if err := client.Run(ctx, req, &data); err != nil {
-			log.Fatal(err)
+		data, err := client.Run(req)
+		if err != nil {
+			return err
 		}
 
-		app := data.App
+		renderAppInfo(data.App)
 
-		renderAppInfo(app)
-
-		if len(app.Services) > 0 {
+		if len(data.App.Services) > 0 {
 			fmt.Println()
-			renderServicesList(app)
+			renderServicesList(data.App)
 			fmt.Println()
-			renderAllocationsList(app)
+			renderAllocationsList(data.App)
 		}
+
+		return nil
 	},
 }
 

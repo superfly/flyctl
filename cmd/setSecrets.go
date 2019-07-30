@@ -1,14 +1,11 @@
 package cmd
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 
-	"github.com/machinebox/graphql"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
@@ -29,7 +26,7 @@ var setSecretsCmd = &cobra.Command{
 	Args: func(cmd *cobra.Command, args []string) error {
 		return validateArgs(args)
 	},
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 
 		input := api.SetSecretsInput{AppID: appName}
 
@@ -48,15 +45,12 @@ var setSecretsCmd = &cobra.Command{
 			input.Secrets = append(input.Secrets, api.SecretInput{Key: key, Value: value})
 		}
 
-		if flyToken == "" {
-			fmt.Println("Api token not found")
-			os.Exit(1)
-			return
+		client, err := api.NewClient()
+		if err != nil {
+			return err
 		}
 
-		client := graphql.NewClient("https://fly.io/api/v2/graphql")
-
-		req := graphql.NewRequest(`
+		req := client.NewRequest(`
 		    mutation ($input: SetSecretsInput!) {
 					setSecrets(input: $input) {
 						deployment {
@@ -69,16 +63,14 @@ var setSecretsCmd = &cobra.Command{
 
 		req.Var("input", input)
 
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", flyToken))
-
-		ctx := context.Background()
-
-		var data api.Query
-		if err := client.Run(ctx, req, &data); err != nil {
-			log.Fatal(err)
+		data, err := client.Run(req)
+		if err != nil {
+			return err
 		}
 
 		log.Printf("%+v\n", data)
+
+		return nil
 	},
 }
 

@@ -1,15 +1,13 @@
 package cmd
 
 import (
-	"context"
-	"fmt"
 	"log"
 	"os"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/manifest"
 
-	"github.com/machinebox/graphql"
 	"github.com/spf13/cobra"
 )
 
@@ -25,33 +23,34 @@ var secretsCmd = &cobra.Command{
 	Use: "secrets",
 	// Short: "Print the version number of flyctl",
 	// Long:  `All software has versions. This is flyctl`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 
-		if flyToken == "" {
-			fmt.Println("Api token not found")
-			os.Exit(1)
-			return
-		}
-
-		client := graphql.NewClient("https://fly.io/api/v2/graphql")
-
-		req := graphql.NewRequest(`
-    query ($appName: String!) {
-			app(id: $appName) {
-				secrets
+		if appName == "" {
+			manifest, err := manifest.LoadManifest("fly.toml")
+			if err != nil {
+				panic(err)
 			}
+			appName = manifest.AppID
 		}
-`)
+
+		client, err := api.NewClient()
+		if err != nil {
+			return err
+		}
+
+		req := client.NewRequest(`
+			query ($appName: String!) {
+				app(id: $appName) {
+					secrets
+				}
+			}
+		`)
 
 		req.Var("appName", appName)
 
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", flyToken))
-
-		ctx := context.Background()
-
-		var data api.Query
-		if err := client.Run(ctx, req, &data); err != nil {
-			log.Fatal(err)
+		data, err := client.Run(req)
+		if err != nil {
+			return err
 		}
 
 		log.Println(data)
@@ -64,5 +63,7 @@ var secretsCmd = &cobra.Command{
 		}
 
 		table.Render()
+
+		return nil
 	},
 }
