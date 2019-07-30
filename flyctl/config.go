@@ -11,9 +11,11 @@ const (
 	ConfigAPIAccessToken = "api_access_token"
 	ConfigAPIBaseURL     = "api_base_url"
 	ConfigAppName        = "app"
+	ConfigTrace          = "trace"
 )
 
 func InitConfig() {
+
 	viper.SetDefault(ConfigAPIBaseURL, "https://fly.io")
 	if token, err := GetSavedAccessToken(); err == nil {
 		viper.SetDefault(ConfigAPIAccessToken, token)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/machinebox/graphql"
 	"github.com/spf13/viper"
@@ -21,11 +23,16 @@ func NewClient() (*Client, error) {
 		return nil, errors.New("No api access token available. Please login")
 	}
 
-	client := graphql.NewClient(fmt.Sprintf("%s/api/v2/graphql", viper.GetString(flyctl.ConfigAPIBaseURL)))
+	httpClient, _ := newHTTPClient()
+
+	url := fmt.Sprintf("%s/api/v2/graphql", viper.GetString(flyctl.ConfigAPIBaseURL))
+
+	client := graphql.NewClient(url, graphql.WithHTTPClient(httpClient))
 	return &Client{client, accessToken}, nil
 }
 
 func (c *Client) NewRequest(q string) *graphql.Request {
+	q = compactQueryString(q)
 	return graphql.NewRequest(q)
 }
 
@@ -38,5 +45,11 @@ func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Quer
 	var resp Query
 	err := c.client.Run(ctx, req, &resp)
 	return resp, err
+}
 
+var compactPattern = regexp.MustCompile(`\s+`)
+
+func compactQueryString(q string) string {
+	q = strings.TrimSpace(q)
+	return compactPattern.ReplaceAllString(q, " ")
 }

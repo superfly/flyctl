@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -11,8 +10,6 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 )
 
-var flyToken string
-var flyAPIBaseURL string
 var cfgFile string
 
 var appFlag *pflag.Flag
@@ -25,7 +22,7 @@ var rootCmd = &cobra.Command{
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	bindCommandFlags(rootCmd, 0)
+	bindCommandFlags(rootCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -33,26 +30,18 @@ func Execute() {
 	}
 }
 
-func bindCommandFlags(cmd *cobra.Command, depth int) {
-	fmt.Println(strings.Repeat(">", depth), cmd.Name())
-
+func bindCommandFlags(cmd *cobra.Command) {
 	if cmd.HasFlags() {
 		viper.BindPFlags(cmd.Flags())
-		cmd.Flags().VisitAll(func(flag *pflag.Flag) {
-			fmt.Println(strings.Repeat("-", depth+1), flag.Name)
-		})
 	}
 
 	if cmd.HasPersistentFlags() {
 		viper.BindPFlags(cmd.PersistentFlags())
-		cmd.PersistentFlags().VisitAll(func(flag *pflag.Flag) {
-			fmt.Println(strings.Repeat("-", depth+1), flag.Name)
-		})
 	}
 
 	if cmd.HasSubCommands() {
 		for _, subcmd := range cmd.Commands() {
-			bindCommandFlags(subcmd, depth+1)
+			bindCommandFlags(subcmd)
 		}
 	}
 }
@@ -61,7 +50,7 @@ func init() {
 	cobra.OnInitialize(flyctl.InitConfig)
 	rootCmd.PersistentFlags().StringP("access-token", "t", "", "Fly API Access Token")
 	viper.RegisterAlias("access-token", flyctl.ConfigAPIAccessToken)
-	// viper.BindPFlags(rootCmd.PersistentFlags())
+	rootCmd.PersistentFlags().Bool("trace", false, "trace api access")
 }
 
 func addAppFlag(cmd *cobra.Command) {

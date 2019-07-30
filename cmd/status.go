@@ -15,15 +15,8 @@ import (
 
 func init() {
 	rootCmd.AddCommand(statusCmd)
-}
 
-var appID string
-
-func init() {
-	statusCmd.Flags().StringP("app", "a", "", "App name")
-	viper.BindPFlags(statusCmd.Flags())
-	// viper.
-	// statusCmd.Flags().StringVarP(&appID, "app", "a", "", "App id")
+	addAppFlag(statusCmd)
 }
 
 var statusCmd = &cobra.Command{
@@ -44,8 +37,8 @@ var statusCmd = &cobra.Command{
 		}
 
 		query := `
-			query($appId: String!) {
-				app(id: $appId) {
+			query($appName: String!) {
+				app(name: $appName) {
 					id
 					name
 					version
@@ -74,7 +67,7 @@ var statusCmd = &cobra.Command{
 
 		req := client.NewRequest(query)
 
-		req.Var("appId", appID)
+		req.Var("appName", appName)
 
 		data, err := client.Run(req)
 		if err != nil {
