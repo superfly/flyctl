@@ -13,15 +13,14 @@ import (
 // var appName string
 
 func init() {
-	secretsCmd.AddCommand(unsetSecretsCmd)
-	addAppFlag(unsetSecretsCmd)
+	secretsCmd.AddCommand(secretsUnsetCmd)
+	addAppFlag(secretsUnsetCmd)
 }
 
-var unsetSecretsCmd = &cobra.Command{
-	Use: "unset",
-	// Short: "Print the version number of flyctl",
-	// Long:  `All software has versions. This is flyctl`,
-	Args: cobra.MinimumNArgs(1),
+var secretsUnsetCmd = &cobra.Command{
+	Use:   "unset [flags] NAME NAME ...",
+	Short: "remove encrypted secrets",
+	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		appName := viper.GetString(flyctl.ConfigAppName)
 		if appName == "" {

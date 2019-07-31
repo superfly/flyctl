@@ -8,16 +8,15 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(whoami)
+	authCmd.AddCommand(whoami)
 }
 
 func init() {
 }
 
 var whoami = &cobra.Command{
-	Use: "whoami",
-	// Short: "Print the version number of flyctl",
-	// Long:  `All software has versions. This is flyctl`,
+	Use:   "whoami",
+	Short: "print the currently authenticated user",
 	RunE: func(cmd *cobra.Command, args []string) error {
 
 		client, err := api.NewClient()

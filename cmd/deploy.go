@@ -16,10 +16,9 @@ func init() {
 }
 
 var deployCmd = &cobra.Command{
-	Use: "deploy",
-	// Short: "Print the version number of flyctl",
-	// Long:  `All software has versions. This is flyctl`,
-	Args: cobra.ExactArgs(1),
+	Use:   "deploy [flags] <image>",
+	Short: "deploy images to an app",
+	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		appName := viper.GetString(flyctl.ConfigAppName)
 		if appName == "" {

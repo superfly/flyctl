@@ -16,14 +16,26 @@ import (
 // var appName string
 
 func init() {
-	secretsCmd.AddCommand(setSecretsCmd)
-	addAppFlag(setSecretsCmd)
+	secretsCmd.AddCommand(secretsSetCmd)
+	addAppFlag(secretsSetCmd)
 }
 
-var setSecretsCmd = &cobra.Command{
-	Use: "set",
-	// Short: "Print the version number of flyctl",
-	// Long:  `All software has versions. This is flyctl`,
+var secretsSetCmd = &cobra.Command{
+	Use:   "set [flags] NAME=VALUE NAME=VALUE ...",
+	Short: "set encrypted secrets",
+	Long: `
+Set one or more encrypted secrets for an app.
+
+Secrets are provided to apps at runtime as ENV variables. Names are
+case sensitive and stored as-is, so ensure names are appropriate for 
+the application and vm environment.
+
+Any value that equals "-" will be assigned from STDIN instead of args.
+`,
+	Example: `flyctl secrets set FLY_ENV=production LOG_LEVEL=info
+echo "long text..." | flyctl secrets set LONG_TEXT=-
+flyctl secrets set FROM_A_FILE=- < file.txt
+`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		return validateArgs(args)
 	},

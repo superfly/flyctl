@@ -19,9 +19,8 @@ func init() {
 }
 
 var secretsCmd = &cobra.Command{
-	Use: "secrets",
-	// Short: "Print the version number of flyctl",
-	// Long:  `All software has versions. This is flyctl`,
+	Use:   "secrets",
+	Short: "manage app secrets",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		appName := viper.GetString(flyctl.ConfigAppName)
 		if appName == "" {

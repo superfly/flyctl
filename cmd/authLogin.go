@@ -17,7 +17,7 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(loginCmd)
+	authCmd.AddCommand(loginCmd)
 }
 
 var username string
@@ -27,9 +27,8 @@ func init() {
 }
 
 var loginCmd = &cobra.Command{
-	Use: "login",
-	// Short: "Print the version number of flyctl",
-	// Long:  `All software has versions. This is flyctl`,
+	Use:   "login",
+	Short: "create a session",
 	Run: func(cmd *cobra.Command, args []string) {
 		email, err := getEmail()
 		if err != nil {

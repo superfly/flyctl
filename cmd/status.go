@@ -20,9 +20,8 @@ func init() {
 }
 
 var statusCmd = &cobra.Command{
-	Use: "status",
-	// Short: "Print the version number of flyctl",
-	// Long:  `All software has versions. This is flyctl`,
+	Use:   "status",
+	Short: "show app status",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		appName := viper.GetString(flyctl.ConfigAppName)
 		if appName == "" {

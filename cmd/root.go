@@ -15,8 +15,8 @@ var cfgFile string
 var appFlag *pflag.Flag
 
 var rootCmd = &cobra.Command{
-	Short: "sort",
-	Long:  `long`,
+	Use:  "flyctl",
+	Long: `flycyl is a command line interface for the Fly.io platform`,
 }
 
 func Execute() {

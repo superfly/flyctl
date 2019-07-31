@@ -14,10 +14,9 @@ func init() {
 }
 
 var appsCmd = &cobra.Command{
-	Use: "apps",
-	// Short: "Print the version number of flyctl",
-	// Long:  `All software has versions. This is flyctl`,
-	RunE: runApps,
+	Use:   "apps",
+	Short: "list apps",
+	RunE:  runApps,
 }
 
 func runApps(cmd *cobra.Command, args []string) error {
