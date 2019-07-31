@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/flyctl"
 )
 
 func init() {
@@ -11,10 +12,9 @@ func init() {
 }
 
 var versionCmd = &cobra.Command{
-	Use: "version",
-	// Short: "Print the version number of flyctl",
-	// Long:  `All software has versions. This is flyctl`,
+	Use:   "version",
+	Short: "show flyctl version information",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("flyctl")
+		fmt.Printf("flyctl %s %s %s\n", flyctl.Version, flyctl.Commit, flyctl.BuildDate)
 	},
 }

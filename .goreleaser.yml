@@ -12,6 +12,10 @@ builds:
   ignore:
   - goos: darwin
     goarch: 386
+  ldflags:
+    - -X github.com/superfly/flyctl/flyctl.BuildDate={{.Date}} 
+    - -X github.com/superfly/flyctl/flyctl.Version={{ .Version }}
+    - -X github.com/superfly/flyctl/flyctl.Commit={{ .ShortCommit }}
 archives:
 - replacements:
     darwin: macOS
@@ -21,6 +25,7 @@ archives:
     amd64: x86_64
   files: [only-the-binary*]
   wrap_in_directory: false
+  format: gz
 checksum:
   name_template: 'checksums.txt'
 snapshot:
