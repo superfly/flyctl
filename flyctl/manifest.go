@@ -1,15 +1,29 @@
-package manifest
+package flyctl
 
 import (
+	"bufio"
+	"bytes"
 	"io/ioutil"
 	"log"
 	"os"
+	"path"
 
 	"github.com/BurntSushi/toml"
+	"github.com/superfly/flyctl/terminal"
 )
 
 type Manifest struct {
-	AppID string `toml:"app_id"`
+	AppName string `toml:"app"`
+}
+
+func DefaultManifestPath() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		terminal.Error(err)
+		return ""
+	}
+
+	return path.Join(cwd, "fly.toml")
 }
 
 func LoadManifest(path string) (Manifest, error) {
@@ -31,7 +45,13 @@ func LoadManifest(path string) (Manifest, error) {
 	return out, nil
 }
 
-func SaveManifest(path string, manifest Manifest) error {
+func (manifest *Manifest) RenderToString() string {
+	var buf bytes.Buffer
+	toml.NewEncoder(bufio.NewWriter(&buf)).Encode(&manifest)
+	return buf.String()
+}
+
+func (manifest *Manifest) Save(path string) error {
 	f, err := os.Create(path)
 	if err != nil {
 		panic(err)

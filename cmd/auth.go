@@ -4,11 +4,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func init() {
-	rootCmd.AddCommand(authCmd)
-}
+func newAuthCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "auth",
+		Short: "manage authentication",
+	}
 
-var authCmd = &cobra.Command{
-	Use:   "auth",
-	Short: "manage authentication",
+	cmd.AddCommand(newAuthWhoamiCommand())
+	cmd.AddCommand(newAuthLoginCommand())
+	cmd.AddCommand(newAuthLogoutCommand())
+
+	return cmd
 }

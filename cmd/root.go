@@ -4,19 +4,18 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/terminal"
 )
 
-var cfgFile string
-
-var appFlag *pflag.Flag
-
 var rootCmd = &cobra.Command{
 	Use:  "flyctl",
 	Long: `flycyl is a command line interface for the Fly.io platform`,
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		cmd.SilenceUsage = true
+		cmd.SilenceErrors = true
+	},
 }
 
 func Execute() {
@@ -36,12 +35,6 @@ func bindCommandFlags(cmd *cobra.Command) {
 	if cmd.HasPersistentFlags() {
 		viper.BindPFlags(cmd.PersistentFlags())
 	}
-
-	if cmd.HasSubCommands() {
-		for _, subcmd := range cmd.Commands() {
-			bindCommandFlags(subcmd)
-		}
-	}
 }
 
 func init() {
@@ -49,8 +42,13 @@ func init() {
 	rootCmd.PersistentFlags().StringP("access-token", "t", "", "Fly API Access Token")
 	viper.RegisterAlias(flyctl.ConfigAPIAccessToken, "access-token")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
-}
 
-func addAppFlag(cmd *cobra.Command) {
-	cmd.Flags().StringP("app", "a", "", "Fly app to run command against")
+	rootCmd.AddCommand(newAuthCommand())
+	rootCmd.AddCommand(newAppCreateCommand())
+	rootCmd.AddCommand(newAppListCommand())
+	rootCmd.AddCommand(newAppStatusCommand())
+	rootCmd.AddCommand(newAppDeployCommand())
+	rootCmd.AddCommand(newAppSecretsCommand())
+	rootCmd.AddCommand(newVersionCommand())
+	rootCmd.AddCommand(newAppDeploymentsListCommand())
 }

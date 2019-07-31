@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/manifoldco/promptui"
@@ -16,109 +14,129 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 )
 
-func init() {
-	authCmd.AddCommand(loginCmd)
+func newAuthLoginCommand() *cobra.Command {
+	login := &authLoginCommand{}
+
+	cmd := &cobra.Command{
+		Use:   "login",
+		Short: "create a session",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return login.Run(args)
+		},
+	}
+
+	f := cmd.Flags()
+	f.StringVarP(&login.email, "email", "e", "", "login email")
+	f.StringVarP(&login.password, "password", "p", "", "login password")
+	f.StringVarP(&login.oneTimePassword, "otp", "o", "", "one time password")
+
+	return cmd
 }
 
-var username string
-var password string
-
-func init() {
+type authLoginCommand struct {
+	email           string
+	password        string
+	oneTimePassword string
 }
 
-var loginCmd = &cobra.Command{
-	Use:   "login",
-	Short: "create a session",
-	Run: func(cmd *cobra.Command, args []string) {
-		email, err := getEmail()
-		if err != nil {
-			fmt.Println("Must provide an email")
-			os.Exit(1)
-		}
-		password, err := getPassword()
-		if err != nil {
-			fmt.Println("Must provide an email")
-			os.Exit(1)
-		}
+func (cmd *authLoginCommand) Run(args []string) error {
+	email := cmd.getEmail()
+	if email == "" {
+		return fmt.Errorf("Must provide an email")
+	}
+	password := cmd.getPassword()
+	if password == "" {
+		return fmt.Errorf("Must provide a password")
+	}
 
-		otp, err := getOneTimePassword()
-		if err != nil {
-			os.Exit(1)
-		}
+	otp := cmd.getOneTimePassword()
 
-		postData, _ := json.Marshal(map[string]interface{}{
-			"data": map[string]interface{}{
-				"attributes": map[string]string{
-					"email":    email,
-					"password": password,
-					"otp":      otp,
-				},
+	postData, _ := json.Marshal(map[string]interface{}{
+		"data": map[string]interface{}{
+			"attributes": map[string]string{
+				"email":    email,
+				"password": password,
+				"otp":      otp,
 			},
-		})
+		},
+	})
 
-		url := fmt.Sprintf("%s/api/v1/sessions", viper.GetString(flyctl.ConfigAPIBaseURL))
+	url := fmt.Sprintf("%s/api/v1/sessions", viper.GetString(flyctl.ConfigAPIBaseURL))
 
-		resp, err := http.Post(url, "application/json", bytes.NewBuffer(postData))
-		if err != nil {
-			log.Fatalln(err)
-			os.Exit(1)
-		}
-
-		if resp.StatusCode >= 500 {
-			fmt.Println("An unknown server error occured. Please try again.")
-			os.Exit(1)
-		}
-
-		if resp.StatusCode >= 400 {
-			fmt.Println("Incorrect email and password combination")
-			os.Exit(1)
-		}
-
-		defer resp.Body.Close()
-
-		var result map[string]map[string]map[string]string
-
-		json.NewDecoder(resp.Body).Decode(&result)
-
-		log.Println(result)
-
-		accessToken := result["data"]["attributes"]["access_token"]
-
-		err = flyctl.SetSavedAccessToken(accessToken)
-		if err != nil {
-			log.Fatalln(err)
-		}
-
-		fmt.Println(accessToken)
-	},
-}
-
-func getEmail() (string, error) {
-	prompt := promptui.Prompt{
-		Label:    "Email",
-		Validate: validatePresence,
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(postData))
+	if err != nil {
+		return err
 	}
 
-	return prompt.Run()
-}
-
-func getPassword() (string, error) {
-	prompt := promptui.Prompt{
-		Label:    "Password",
-		Validate: validatePresence,
-		Mask:     '*',
+	if resp.StatusCode >= 500 {
+		return errors.New("An unknown server error occured, please try again")
 	}
 
-	return prompt.Run()
-}
-
-func getOneTimePassword() (string, error) {
-	prompt := promptui.Prompt{
-		Label: "One Time Password (if any)",
-		Mask:  '*',
+	if resp.StatusCode >= 400 {
+		return errors.New("Incorrect email and password combination")
 	}
 
-	return prompt.Run()
+	defer resp.Body.Close()
+
+	var result map[string]map[string]map[string]string
+
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	accessToken := result["data"]["attributes"]["access_token"]
+
+	if err := flyctl.SetSavedAccessToken(accessToken); err != nil {
+		return err
+	}
+
+	fmt.Println("Session created")
+
+	return nil
+}
+
+func (cmd *authLoginCommand) getEmail() string {
+	if cmd.email == "" {
+		prompt := promptui.Prompt{
+			Label:    "Email",
+			Validate: validatePresence,
+		}
+
+		if val, err := prompt.Run(); err == nil {
+			cmd.email = val
+		}
+	}
+
+	return cmd.email
+}
+
+func (cmd *authLoginCommand) getPassword() string {
+	if cmd.password == "" {
+		prompt := promptui.Prompt{
+			Label:    "Password",
+			Validate: validatePresence,
+			Mask:     '*',
+		}
+
+		if val, err := prompt.Run(); err == nil {
+			cmd.password = val
+		}
+	}
+
+	return cmd.password
+}
+
+func (cmd *authLoginCommand) getOneTimePassword() string {
+	if cmd.oneTimePassword == "" {
+		prompt := promptui.Prompt{
+			Label: "One Time Password (if any)",
+			Mask:  '*',
+		}
+
+		if val, err := prompt.Run(); err == nil {
+			cmd.oneTimePassword = val
+		}
+	}
+
+	return cmd.oneTimePassword
 }
 
 func validatePresence(input string) error {

@@ -18,7 +18,7 @@ const (
 	LevelFatal
 )
 
-var level = LevelWarn
+var level = LevelInfo
 
 func SetLogLevel(lvl LogLevel) {
 	level = lvl

@@ -1,13 +1,31 @@
 package api
 
 type Query struct {
-	Apps        Nodes `json:"apps"`
-	App         App   `json:"app"`
-	CurrentUser User  `json:"currentUser"`
-}
+	Apps struct {
+		Nodes []App
+	}
+	App           App
+	CurrentUser   User
+	Organizations struct {
+		Nodes []Organization
+	}
 
-type Nodes struct {
-	Nodes []App `json:"nodes"`
+	// mutations
+	CreateApp struct {
+		App App
+	}
+
+	SetSecrets struct {
+		Deployment Deployment
+	}
+
+	UnsetSecrets struct {
+		Deployment Deployment
+	}
+
+	DeployImage struct {
+		Deployment Deployment
+	}
 }
 
 type App struct {
@@ -20,6 +38,9 @@ type App struct {
 	Organization Organization `json:"organization"`
 	Services     []Service    `json:"services"`
 	Secrets      []string     `json:"secrets"`
+	Deployments  struct {
+		Nodes []Deployment
+	}
 }
 
 type Organization struct {
@@ -50,6 +71,20 @@ type User struct {
 	Email string `json:"email"`
 }
 
+type Deployment struct {
+	ID           string
+	Number       int
+	CurrentPhase string
+	Description  string
+	InProgress   bool
+	Reason       string
+	Status       string
+	Trigger      string
+	User         User
+	CreatedAt    string
+	UpdatedAt    string
+}
+
 type SetSecretsInput struct {
 	AppID   string        `json:"appId"`
 	Secrets []SecretInput `json:"secrets"`
@@ -63,4 +98,7 @@ type SecretInput struct {
 type UnsetSecretsInput struct {
 	AppID string   `json:"appId"`
 	Keys  []string `json:"keys"`
+}
+
+type CreateAppInput struct {
 }

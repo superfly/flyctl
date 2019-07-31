@@ -7,24 +7,39 @@ import (
 	"github.com/superfly/flyctl/api"
 )
 
-func init() {
-	authCmd.AddCommand(whoami)
+func newAuthWhoamiCommand() *cobra.Command {
+	whoami := &authWhoamiCommand{}
+
+	cmd := &cobra.Command{
+		Use:   "whoami",
+		Short: "print the currently authenticated user",
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return whoami.Init()
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return whoami.Run(args)
+		},
+	}
+
+	return cmd
 }
 
-func init() {
+type authWhoamiCommand struct {
+	client *api.Client
 }
 
-var whoami = &cobra.Command{
-	Use:   "whoami",
-	Short: "print the currently authenticated user",
-	RunE: func(cmd *cobra.Command, args []string) error {
+func (cmd *authWhoamiCommand) Init() error {
+	client, err := api.NewClient()
+	if err != nil {
+		return err
+	}
+	cmd.client = client
 
-		client, err := api.NewClient()
-		if err != nil {
-			return err
-		}
+	return nil
+}
 
-		query := `
+func (cmd *authWhoamiCommand) Run(args []string) error {
+	query := `
 			query {
 				currentUser {
 					email
@@ -32,15 +47,14 @@ var whoami = &cobra.Command{
 			}
 		`
 
-		req := client.NewRequest(query)
+	req := cmd.client.NewRequest(query)
 
-		data, err := client.Run(req)
-		if err != nil {
-			return err
-		}
+	data, err := cmd.client.Run(req)
+	if err != nil {
+		return err
+	}
 
-		fmt.Printf("Current user: %s\n", data.CurrentUser.Email)
+	fmt.Printf("Current user: %s\n", data.CurrentUser.Email)
 
-		return nil
-	},
+	return nil
 }

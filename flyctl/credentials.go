@@ -2,7 +2,6 @@ package flyctl
 
 import (
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 
@@ -42,7 +41,14 @@ func ClearSavedAccessToken() error {
 		return err
 	}
 
-	return os.Remove(credentialsPath)
+	if err = os.Remove(credentialsPath); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
+	return nil
 }
 
 func loadCredentials() (credentials, error) {
@@ -54,7 +60,9 @@ func loadCredentials() (credentials, error) {
 	}
 
 	data, err := ioutil.ReadFile(credentialsPath)
-	if err != nil {
+	if os.IsNotExist(err) {
+		return credentials, nil
+	} else if err != nil {
 		return credentials, err
 	}
 
@@ -73,7 +81,7 @@ func saveCredentials(credentials credentials) error {
 	}
 
 	data, err := yaml.Marshal(&credentials)
-	log.Println(data)
+
 	if err != nil {
 		return err
 	}

@@ -1,41 +1,60 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strconv"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 )
 
-func init() {
-	rootCmd.AddCommand(statusCmd)
+func newAppStatusCommand() *cobra.Command {
+	status := &appStatusCommand{}
 
-	addAppFlag(statusCmd)
+	cmd := &cobra.Command{
+		Use:   "status",
+		Short: "show app status",
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return status.Init()
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return status.Run(args)
+		},
+	}
+
+	fs := cmd.Flags()
+	fs.StringVarP(&status.appName, "app", "a", "", `app to run command against`)
+
+	return cmd
 }
 
-var statusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "show app status",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		appName := viper.GetString(flyctl.ConfigAppName)
-		if appName == "" {
-			return errors.New("No app provided")
-		}
+type appStatusCommand struct {
+	client  *api.Client
+	appName string
+}
 
-		fmt.Println(appName)
+func (cmd *appStatusCommand) Init() error {
+	client, err := api.NewClient()
+	if err != nil {
+		return err
+	}
+	cmd.client = client
 
-		client, err := api.NewClient()
-		if err != nil {
-			return err
-		}
+	if cmd.appName == "" {
+		cmd.appName = flyctl.CurrentAppName()
+	}
+	if cmd.appName == "" {
+		return fmt.Errorf("no app specified")
+	}
 
-		query := `
+	return nil
+}
+
+func (cmd *appStatusCommand) Run(args []string) error {
+	query := `
 			query($appName: String!) {
 				app(name: $appName) {
 					id
@@ -64,26 +83,25 @@ var statusCmd = &cobra.Command{
 			}
 		`
 
-		req := client.NewRequest(query)
+	req := cmd.client.NewRequest(query)
 
-		req.Var("appName", appName)
+	req.Var("appName", cmd.appName)
 
-		data, err := client.Run(req)
-		if err != nil {
-			return err
-		}
+	data, err := cmd.client.Run(req)
+	if err != nil {
+		return err
+	}
 
-		renderAppInfo(data.App)
+	renderAppInfo(data.App)
 
-		if len(data.App.Services) > 0 {
-			fmt.Println()
-			renderServicesList(data.App)
-			fmt.Println()
-			renderAllocationsList(data.App)
-		}
+	if len(data.App.Services) > 0 {
+		fmt.Println()
+		renderServicesList(data.App)
+		fmt.Println()
+		renderAllocationsList(data.App)
+	}
 
-		return nil
-	},
+	return nil
 }
 
 func renderAppInfo(app api.App) {

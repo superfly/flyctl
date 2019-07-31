@@ -4,27 +4,42 @@ import (
 	"os"
 
 	"github.com/olekukonko/tablewriter"
-	"github.com/superfly/flyctl/api"
-
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
 )
 
-func init() {
-	rootCmd.AddCommand(appsCmd)
+func newAppListCommand() *cobra.Command {
+	list := &appListCommand{}
+
+	cmd := &cobra.Command{
+		Use:   "apps",
+		Short: "list apps",
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return list.Init()
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return list.Run(args)
+		},
+	}
+
+	return cmd
 }
 
-var appsCmd = &cobra.Command{
-	Use:   "apps",
-	Short: "list apps",
-	RunE:  runApps,
+type appListCommand struct {
+	client *api.Client
 }
 
-func runApps(cmd *cobra.Command, args []string) error {
+func (cmd *appListCommand) Init() error {
 	client, err := api.NewClient()
 	if err != nil {
 		return err
 	}
+	cmd.client = client
 
+	return nil
+}
+
+func (cmd *appListCommand) Run(args []string) error {
 	query := `
 		query {
 			apps {
@@ -38,11 +53,11 @@ func runApps(cmd *cobra.Command, args []string) error {
 				}
 			}
 		}
-	`
+		`
 
-	req := client.NewRequest(query)
+	req := cmd.client.NewRequest(query)
 
-	data, err := client.Run(req)
+	data, err := cmd.client.Run(req)
 	if err != nil {
 		return err
 	}

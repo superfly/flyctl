@@ -1,40 +1,61 @@
 package cmd
 
 import (
-	"errors"
+	"fmt"
 	"log"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 )
 
-// var appName string
+func newAppSecretsUnsetCommand() *cobra.Command {
+	unset := &appSecretsUnsetCommand{}
 
-func init() {
-	secretsCmd.AddCommand(secretsUnsetCmd)
-	addAppFlag(secretsUnsetCmd)
+	cmd := &cobra.Command{
+		Use:   "unset [flags] NAME NAME ...",
+		Short: "remove encrypted secrets",
+		Args:  cobra.MinimumNArgs(1),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return unset.Init(args)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return unset.Run(args)
+		},
+	}
+
+	fs := cmd.Flags()
+	fs.StringVarP(&unset.appName, "app", "a", "", `the app name to use`)
+
+	return cmd
 }
 
-var secretsUnsetCmd = &cobra.Command{
-	Use:   "unset [flags] NAME NAME ...",
-	Short: "remove encrypted secrets",
-	Args:  cobra.MinimumNArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		appName := viper.GetString(flyctl.ConfigAppName)
-		if appName == "" {
-			return errors.New("No app provided")
-		}
+type appSecretsUnsetCommand struct {
+	client  *api.Client
+	appName string
+}
 
-		input := api.UnsetSecretsInput{AppID: appName, Keys: args}
+func (cmd *appSecretsUnsetCommand) Init(args []string) error {
+	client, err := api.NewClient()
+	if err != nil {
+		return err
+	}
+	cmd.client = client
 
-		client, err := api.NewClient()
-		if err != nil {
-			return nil
-		}
+	if cmd.appName == "" {
+		cmd.appName = flyctl.CurrentAppName()
+	}
+	if cmd.appName == "" {
+		return fmt.Errorf("no app specified")
+	}
 
-		query := `
+	return nil
+}
+
+func (cmd *appSecretsUnsetCommand) Run(args []string) error {
+	input := api.UnsetSecretsInput{AppID: cmd.appName, Keys: args}
+
+	query := `
 			mutation ($input: UnsetSecretsInput!) {
 				unsetSecrets(input: $input) {
 					deployment {
@@ -45,16 +66,15 @@ var secretsUnsetCmd = &cobra.Command{
 			}
 		`
 
-		req := client.NewRequest(query)
-		req.Var("input", input)
+	req := cmd.client.NewRequest(query)
+	req.Var("input", input)
 
-		data, err := client.Run(req)
-		if err != nil {
-			return err
-		}
+	data, err := cmd.client.Run(req)
+	if err != nil {
+		return err
+	}
 
-		log.Printf("%+v\n", data)
+	log.Printf("%+v\n", data)
 
-		return nil
-	},
+	return nil
 }
