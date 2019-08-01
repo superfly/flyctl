@@ -88,7 +88,7 @@ func (cmd *appDeploymentsListCommand) Run(args []string) error {
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"#", "Status", "Reason", "Description", "User", "Created", "Modified"})
+	table.SetHeader([]string{"#", "Status", "Reason", "Description", "User", "Created"})
 
 	for _, deployment := range data.App.Deployments.Nodes {
 		table.Append([]string{
@@ -98,7 +98,6 @@ func (cmd *appDeploymentsListCommand) Run(args []string) error {
 			deployment.Description,
 			deployment.User.Email,
 			deployment.CreatedAt,
-			deployment.UpdatedAt,
 		})
 	}
 
