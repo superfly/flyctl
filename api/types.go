@@ -83,6 +83,9 @@ type Deployment struct {
 	User         User
 	CreatedAt    string
 	UpdatedAt    string
+	Release      struct {
+		Version int
+	}
 }
 
 type SetSecretsInput struct {

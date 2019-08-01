@@ -47,7 +47,7 @@ func init() {
 	rootCmd.AddCommand(newAppCreateCommand())
 	rootCmd.AddCommand(newAppListCommand())
 	rootCmd.AddCommand(newAppStatusCommand())
-	rootCmd.AddCommand(newAppDeployCommand())
+	rootCmd.AddCommand(newDeployCommand())
 	rootCmd.AddCommand(newAppSecretsCommand())
 	rootCmd.AddCommand(newVersionCommand())
 	rootCmd.AddCommand(newAppDeploymentsListCommand())
