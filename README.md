@@ -6,9 +6,7 @@ flyctl is a command line interface for fly.io
 
 ## Using a Package Manager
 
-### With [Homebrew](https://brew.sh)
-
-Homebrew is the preferred way to install `flyctl` on macOS:
+#### [Homebrew](https://brew.sh) (macOS, Linux, WSL)
 
 ```bash
 brew install superfly/tap/flyctl
