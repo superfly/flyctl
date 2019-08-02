@@ -49,7 +49,7 @@ snapcrafts:
   -
     id: flyctl
     name: flyctl
-    publish: true
+    # publish: true
     summary: Command line tools for the Fly.io platform.
     description: Fly’s global application platform runs your backend apps all over the world, auto scales based on actual load, and balances capacity to get your users the lowest latency possible.
     grade: stable
