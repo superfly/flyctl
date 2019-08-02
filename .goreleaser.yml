@@ -57,4 +57,9 @@ snapcrafts:
     license: Apache-2.0
     apps:
       flyctl:
-        plugs: ["home", "network", "personal-files"]
+        plugs: ["home", "network", "fly-config", "docker"]
+    plugs:
+      fly-config:
+        interface: personal-files
+        write:
+        - $HOME/.fly
