@@ -40,7 +40,7 @@ brews:
   -
     github:
       owner: superfly
-      name: homebrew-brew
+      name: homebrew-tap
     folder: Formula
     homepage: https://fly.io
     test: |
