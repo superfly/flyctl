@@ -25,7 +25,7 @@ archives:
     amd64: x86_64
   files: [only-the-binary*]
   wrap_in_directory: false
-  format: gz
+  format: tar.gz
 checksum:
   name_template: 'checksums.txt'
 snapshot:
