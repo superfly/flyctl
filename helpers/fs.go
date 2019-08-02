@@ -3,10 +3,17 @@ package helpers
 import "os"
 
 func FileExists(path string) bool {
-	if _, err := os.Stat(path); err != nil {
-		if os.IsNotExist(err) {
-			return false
-		}
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
 	}
-	return true
+	return !info.IsDir()
+}
+
+func DirectoryExists(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return info.IsDir()
 }

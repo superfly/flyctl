@@ -2,10 +2,14 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"path"
+	"strings"
 
 	"github.com/gosuri/uiprogress"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/docker"
 	"github.com/superfly/flyctl/flyctl"
 )
 
@@ -32,7 +36,7 @@ func newDeployCommand() *cobra.Command {
 
 type pushCommand struct {
 	apiClient    *api.Client
-	dockerClient *flyctl.DockerClient
+	dockerClient *docker.DockerClient
 	appName      string
 	imageRef     string
 	imageID      string
@@ -47,7 +51,7 @@ func (cmd *pushCommand) Init(args []string) error {
 	}
 	cmd.apiClient = client
 
-	docker, err := flyctl.NewDockerClient()
+	docker, err := docker.NewDockerClient()
 	if err != nil {
 		return err
 	}
@@ -66,17 +70,50 @@ func (cmd *pushCommand) Init(args []string) error {
 }
 
 func (cmd *pushCommand) Run(args []string) error {
-	fmt.Println("Locating image...")
-	if err := cmd.locateImageID(); err != nil {
-		return err
-	}
-	fmt.Println("-->", cmd.imageID)
+	cmd.imageTag = docker.NewDeploymentTag(cmd.appName)
 
-	fmt.Println("Creating deployment tag...")
-	if err := cmd.createDeploymentTag(); err != nil {
-		return err
+	buildPath := ""
+
+	if docker.IsDockerfilePath(cmd.imageRef) {
+		fmt.Println("we have a file, use the base dir and build!")
+		buildPath = path.Dir(cmd.imageRef)
+	} else if docker.IsDirContainingDockerfile(cmd.imageRef) {
+		fmt.Println("we have a directory containing a dockerfile")
+		buildPath = cmd.imageRef
+	} else if strings.HasPrefix(cmd.imageRef, ".") {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		buildPath = cwd
 	}
-	fmt.Println("-->", cmd.imageTag)
+
+	if buildPath != "" {
+		op := cmd.dockerClient.BuildImage(cmd.imageRef, cmd.imageTag)
+
+		for msg := range op.Status() {
+			fmt.Print(msg.Stream)
+		}
+
+		if op.Error() != nil {
+			return op.Error()
+		}
+		// } else if docker.IsRemoteImageReference(cmd.imageRef) {
+		// 	fmt.Println("it's a remote image, pull then deploy?")
+		// 	return nil
+	} else {
+		fmt.Println("Locating image...")
+		if err := cmd.locateImageID(); err != nil {
+			return err
+		}
+		fmt.Println("-->", cmd.imageID)
+
+		fmt.Println("Creating deployment tag...")
+		if err := cmd.createDeploymentTag(); err != nil {
+			return err
+		}
+		fmt.Println("-->", cmd.imageTag)
+	}
 
 	fmt.Println("Pushing image...")
 	if err := cmd.pushImage(); err != nil {
@@ -104,17 +141,17 @@ func (cmd *pushCommand) locateImageID() error {
 	if err != nil {
 		return err
 	}
-	cmd.imageID = img.ID
 
 	if img == nil {
 		return fmt.Errorf("Could not find a local image tagged %s", cmd.imageRef)
 	}
 
+	cmd.imageID = img.ID
+
 	return nil
 }
 
 func (cmd *pushCommand) createDeploymentTag() error {
-	cmd.imageTag = flyctl.NewDeploymentTag(cmd.appName)
 	return cmd.dockerClient.TagImage(cmd.imageID, cmd.imageTag)
 }
 
@@ -133,18 +170,10 @@ func (cmd *pushCommand) pushImage() error {
 		return fmt.Sprintf("--> layer %d of %d", doneLayers, layers)
 	})
 
-	for status := range op.Status() {
-		layers = status.LayerTotal
-		doneLayers = status.LayerComplete
-
-		total := int(float64(status.BytesComplete+status.LayerComplete) / float64(status.BytesTotal+status.LayerTotal) * 100)
-		if total < 0 {
-			total = 0
-		}
-		if total > 100 {
-			total = 100
-		}
-		bar.Set(total)
+	for msg := range op.Stream() {
+		layers = msg.LayersTotal
+		doneLayers = msg.LayersComplete
+		bar.Set(msg.Progress)
 	}
 
 	uiprogress.Stop()
