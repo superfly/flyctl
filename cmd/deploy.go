@@ -15,14 +15,16 @@ import (
 )
 
 func newDeployCommand() *cobra.Command {
-	deploy := &pushCommand{}
+	deploy := &pushCommand{
+		appContext: &flyctl.AppContext{},
+	}
 
 	cmd := &cobra.Command{
 		Use:   "deploy",
 		Short: "deploy a local image, remote image, or Dockerfile",
 		Args:  cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return deploy.Init(args)
+			return deploy.Init(cmd, args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return deploy.Run(args)
@@ -36,6 +38,7 @@ func newDeployCommand() *cobra.Command {
 }
 
 type pushCommand struct {
+	appContext   *flyctl.AppContext
 	apiClient    *api.Client
 	dockerClient *docker.DockerClient
 	appName      string
@@ -45,7 +48,7 @@ type pushCommand struct {
 	deployment   api.Deployment
 }
 
-func (cmd *pushCommand) Init(args []string) error {
+func (cmd *pushCommand) Init(x *cobra.Command, args []string) error {
 	client, err := api.NewClient()
 	if err != nil {
 		return err
@@ -58,12 +61,18 @@ func (cmd *pushCommand) Init(args []string) error {
 	}
 	cmd.dockerClient = docker
 
-	if cmd.appName == "" {
-		cmd.appName = flyctl.CurrentAppName()
+	if err := cmd.appContext.Init(x); err != nil {
+		return err
 	}
-	if cmd.appName == "" {
-		return fmt.Errorf("no app specified")
-	}
+
+	cmd.appName = cmd.appContext.AppName()
+
+	// if cmd.appName == "" {
+	// 	cmd.appName = flyctl.CurrentAppName()
+	// }
+	// if cmd.appName == "" {
+	// 	return fmt.Errorf("no app specified")
+	// }
 
 	cmd.imageRef = args[0]
 
@@ -71,11 +80,9 @@ func (cmd *pushCommand) Init(args []string) error {
 }
 
 func (cmd *pushCommand) Run(args []string) error {
-	cmd.imageTag = docker.NewDeploymentTag(cmd.appName)
+	cmd.imageTag = docker.NewDeploymentTag(cmd.appContext.AppName())
 
 	cmdOutput := os.Stderr
-
-	buildPath := ""
 
 	printHeader("Resolving image")
 
@@ -86,7 +93,13 @@ func (cmd *pushCommand) Run(args []string) error {
 
 	if buildPath != "" {
 		printHeader("Building image")
-		if err := cmd.dockerClient.BuildImage(buildPath, cmd.imageTag, cmdOutput); err != nil {
+
+		buildContext, err := docker.NewBuildContext(buildPath, cmd.imageTag)
+		if err != nil {
+			return err
+		}
+
+		if err := cmd.dockerClient.BuildImage(buildContext, cmdOutput); err != nil {
 			return err
 		}
 	} else {
@@ -115,7 +128,7 @@ func (cmd *pushCommand) Run(args []string) error {
 	fmt.Println("-->", "done")
 
 	printHeader("Cleaning")
-	if err := cmd.dockerClient.DeleteDeploymentImages(cmd.appName); err != nil {
+	if err := cmd.dockerClient.DeleteDeploymentImages(cmd.appContext.AppName()); err != nil {
 		return err
 	}
 	fmt.Println("-->", "done")

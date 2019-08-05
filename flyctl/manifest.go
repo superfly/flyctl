@@ -3,7 +3,7 @@ package flyctl
 import (
 	"bufio"
 	"bytes"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"path"
@@ -13,7 +13,12 @@ import (
 )
 
 type Manifest struct {
-	AppName string `toml:"app"`
+	AppName string            `toml:"app"`
+	Build   map[string]string `toml:"build"`
+}
+
+func (m *Manifest) Builder() string {
+	return m.Build["builder"]
 }
 
 func DefaultManifestPath() string {
@@ -26,23 +31,27 @@ func DefaultManifestPath() string {
 	return path.Join(cwd, "fly.toml")
 }
 
-func LoadManifest(path string) (Manifest, error) {
+func LoadManifestFromReader(reader io.Reader) (*Manifest, error) {
 	var out Manifest
 
-	data, err := ioutil.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return out, nil
-		}
-		return out, err
-	}
-
-	if _, err := toml.Decode(string(data), &out); err != nil {
+	if _, err := toml.DecodeReader(reader, &out); err != nil {
 		log.Fatalln(err)
-		return out, err
+		return nil, err
 	}
 
-	return out, nil
+	return &out, nil
+}
+
+func LoadManifest(path string) (*Manifest, error) {
+	file, err := os.Open(path)
+	switch {
+	case os.IsNotExist(err):
+		return nil, nil
+	case err != nil:
+		return nil, err
+	}
+
+	return LoadManifestFromReader(file)
 }
 
 func (manifest *Manifest) RenderToString() string {

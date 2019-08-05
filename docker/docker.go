@@ -129,21 +129,69 @@ func (c *DockerClient) DeleteDeploymentImages(appName string) error {
 	return nil
 }
 
-func (c *DockerClient) BuildImage(path, tag string, out io.Writer) error {
-	tarReader, tarWriter := io.Pipe()
+func (c *DockerClient) BuildImage(ctx *BuildContext, out io.Writer) error {
+	// tarReader, tarWriter := io.Pipe()
+
+	// ctx, err := newBuildContext(tarWriter)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// builders, err := NewBuilderRepo()
+	// if err != nil {
+	// 	return err
+	// }
+
+	// fmt.Println(options.Manifest)
+
+	// builder := options.Manifest.Builder()
+
+	// if builder != "" {
+	// 	if err := builders.Sync(); err != nil {
+	// 		return err
+	// 	}
+	// }
 
 	go func() {
-		defer tarWriter.Close()
+		defer ctx.Close()
 
-		if err := tarBuildContext(tarWriter, path); err != nil {
-			// if error occures here log and bail, the build will fail when the stream is closed
+		if err := ctx.Load(); err != nil {
+			panic(err)
 			terminal.Error(err)
-			return
 		}
+
+		// if builder != "" {
+		// 	fmt.Fprintln(out, "Build configuration detected, refreshing builders")
+
+		// 	fmt.Fprintf(out, "Loading resources for builder %s\n", builder)
+		// 	builderResourcesPath, err := builders.GetResourcesPath(builder)
+		// 	if err != nil {
+		// 		terminal.Error(err)
+		// 		return
+		// 	}
+
+		// 	// add builder to context
+		// 	fmt.Println("adding builder resources", builderResourcesPath)
+		// 	if err := ctx.AddAll(builderResourcesPath); err != nil {
+		// 		// if error occures here log and bail, the build will fail when the stream is closed
+		// 		terminal.Error(err)
+		// 		return
+		// 	}
+		// }
+
+		// if err := ctx.AddAll(options.SourceDir); err != nil {
+		// 	// if error occures here log and bail, the build will fail when the stream is closed
+		// 	terminal.Error(err)
+		// 	return
+		// }
 	}()
 
-	resp, err := c.docker.ImageBuild(c.ctx, tarReader, types.ImageBuildOptions{
-		Tags: []string{tag},
+	// fmt.Println("tag", options.Tag)
+
+	resp, err := c.docker.ImageBuild(c.ctx, ctx, types.ImageBuildOptions{
+		Tags:      []string{ctx.Tag},
+		BuildArgs: ctx.BuildArgs(),
+		NoCache:   true,
 	})
 	if err != nil {
 		return err

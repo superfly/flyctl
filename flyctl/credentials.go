@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/superfly/flyctl/helpers"
 	"gopkg.in/yaml.v2"
 )
 
@@ -93,34 +92,8 @@ func saveCredentials(credentials credentials) error {
 	return ioutil.WriteFile(credentialsPath, data, 0644)
 }
 
-func configDir() (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-
-	return filepath.Join(homeDir, ".fly"), nil
-}
-
-func ensureConfigDir() (string, error) {
-	dir, err := configDir()
-	if err != nil {
-		return "", err
-	}
-
-	if helpers.DirectoryExists(dir) {
-		return dir, nil
-	}
-
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return "", err
-	}
-
-	return dir, nil
-}
-
 func credentialsPath() (string, error) {
-	configDir, err := configDir()
+	configDir, err := ConfigDir()
 	if err != nil {
 		return "", err
 	}

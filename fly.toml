@@ -1,3 +1,9 @@
 # this example fly.toml file configures flyctl for an app
 
 app = "lingering-cloud-1737"
+
+
+[build]
+  builder = "deno"
+  entry_file = "./server.ts"
+  deno_version = "v0.13.0"

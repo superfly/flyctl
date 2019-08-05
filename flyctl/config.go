@@ -3,8 +3,10 @@ package flyctl
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/viper"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -45,4 +47,30 @@ func InitConfig() {
 	if token, err := GetSavedAccessToken(); err == nil {
 		viper.SetDefault(ConfigAPIAccessToken, token)
 	}
+}
+
+func ConfigDir() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(homeDir, ".fly"), nil
+}
+
+func ensureConfigDir() (string, error) {
+	dir, err := ConfigDir()
+	if err != nil {
+		return "", err
+	}
+
+	if helpers.DirectoryExists(dir) {
+		return dir, nil
+	}
+
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return "", err
+	}
+
+	return dir, nil
 }
