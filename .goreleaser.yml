@@ -45,21 +45,21 @@ brews:
     homepage: https://fly.io
     test: |
       system "#{bin}/flyctl version"
-snapcrafts:
-  -
-    id: flyctl
-    name: flyctl
-    # publish: true
-    summary: Command line tools for the Fly.io platform.
-    description: Fly’s global application platform runs your backend apps all over the world, auto scales based on actual load, and balances capacity to get your users the lowest latency possible.
-    grade: stable
-    confinement: strict
-    license: Apache-2.0
-    apps:
-      flyctl:
-        plugs: ["home", "network", "fly-config", "docker"]
-    plugs:
-      fly-config:
-        interface: personal-files
-        write:
-        - $HOME/.fly
+# snapcrafts:
+#   -
+#     id: flyctl
+#     name: flyctl
+#     # publish: true
+#     summary: Command line tools for the Fly.io platform.
+#     description: Fly’s global application platform runs your backend apps all over the world, auto scales based on actual load, and balances capacity to get your users the lowest latency possible.
+#     grade: stable
+#     confinement: strict
+#     license: Apache-2.0
+#     apps:
+#       flyctl:
+#         plugs: ["home", "network", "fly-config", "docker"]
+#     plugs:
+#       fly-config:
+#         interface: personal-files
+#         write:
+#         - $HOME/.fly
