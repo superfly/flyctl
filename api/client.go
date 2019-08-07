@@ -124,10 +124,16 @@ type getLogsResponse struct {
 	}
 }
 
-func GetAppLogs(appName string, nextToken string) ([]LogEntry, string, error) {
+func GetAppLogs(appName string, nextToken string, region string, instanceId string) ([]LogEntry, string, error) {
 
 	data := url.Values{}
 	data.Set("next_token", nextToken)
+	if instanceId != "" {
+		data.Set("instance", instanceId)
+	}
+	if region != "" {
+		data.Set("region", region)
+	}
 
 	url := fmt.Sprintf("%s/api/v1/apps/%s/logs?%s", viper.GetString(flyctl.ConfigAPIBaseURL), appName, data.Encode())
 

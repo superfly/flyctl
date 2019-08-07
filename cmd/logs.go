@@ -12,17 +12,31 @@ import (
 )
 
 func newAppLogsCommand() *Command {
-	return BuildCommand(runLogs, "logs", "view app logs", os.Stdout, true, requireAppName)
+	cmd := BuildCommand(runLogs, "logs", "view app logs", os.Stdout, true, requireAppName)
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "instance",
+		Shorthand:   "i",
+		Description: "Filter by instance ID",
+	})
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "region",
+		Shorthand:   "r",
+		Description: "Filter by region",
+	})
+
+	return cmd
 }
 
 func runLogs(ctx *CmdContext) error {
 	errorCount := 0
 	emptyCount := 0
+	instanceFilter, _ := ctx.Config.GetString("instance")
+	regionFilter, _ := ctx.Config.GetString("region")
 
 	nextToken := ""
 
 	for {
-		entries, token, err := api.GetAppLogs(ctx.AppName(), nextToken)
+		entries, token, err := api.GetAppLogs(ctx.AppName(), nextToken, regionFilter, instanceFilter)
 
 		if err != nil {
 			if api.IsNotAuthenticatedError(err) {
