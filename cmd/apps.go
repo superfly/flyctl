@@ -11,27 +11,10 @@ func newAppListCommand() *Command {
 }
 
 func runAppsList(ctx *CmdContext) error {
-	query := `
-		query {
-			apps {
-				nodes {
-					id
-					name
-					organization {
-						slug
-					}
-					runtime
-				}
-			}
-		}
-		`
-
-	req := ctx.FlyClient.NewRequest(query)
-
-	data, err := ctx.FlyClient.Run(req)
+	apps, err := ctx.FlyClient.GetApps()
 	if err != nil {
 		return err
 	}
 
-	return ctx.Render(&presenters.AppsPresenter{Apps: data.Apps.Nodes})
+	return ctx.Render(&presenters.AppsPresenter{Apps: apps})
 }

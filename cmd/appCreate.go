@@ -7,6 +7,7 @@ import (
 
 	"github.com/manifoldco/promptui"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/flyctl"
 )
 
@@ -68,38 +69,19 @@ func runAppCreate(ctx *CmdContext) error {
 		return fmt.Errorf("Error setting organization: %s", err)
 	}
 
-	q := `
-	  mutation($input: CreateAppInput!) {
-			createApp(input: $input) {
-				app {
-					id
-					name
-					runtime
-					appUrl
-				}
-			}
-		}
-	`
-
-	req := ctx.FlyClient.NewRequest(q)
-
-	req.Var("input", map[string]string{
-		"organizationId": org,
-		"runtime":        runtime,
-		"name":           name,
-	})
-
-	data, err := ctx.FlyClient.Run(req)
+	app, err := ctx.FlyClient.CreateApp(name, runtime, org)
 	if err != nil {
 		return err
 	}
 
-	newApp := data.CreateApp.App
+	fmt.Println("Created new app", app.Name)
 
-	fmt.Println("Created new app", newApp.Name)
+	if err := ctx.Render(&presenters.AppsPresenter{App: app}); err != nil {
+		return err
+	}
 
 	p := flyctl.NewProject(".")
-	p.SetAppName(newApp.Name)
+	p.SetAppName(app.Name)
 
 	if err := p.SafeWriteConfig(); err != nil {
 		fmt.Printf(

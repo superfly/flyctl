@@ -9,6 +9,7 @@ import (
 
 type ReleasePresenter struct {
 	Releases []api.Release
+	Release  *api.Release
 }
 
 func (p *ReleasePresenter) FieldNames() []string {
@@ -27,6 +28,10 @@ func (p *ReleasePresenter) FieldMap() map[string]string {
 
 func (p *ReleasePresenter) Records() []map[string]string {
 	out := []map[string]string{}
+
+	if p.Release != nil {
+		p.Releases = append(p.Releases, *p.Release)
+	}
 
 	for _, release := range p.Releases {
 		out = append(out, map[string]string{

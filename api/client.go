@@ -183,16 +183,21 @@ func (client *Client) GetOrganizations() ([]Organization, error) {
 	return data.Organizations.Nodes, nil
 }
 
-func (client *Client) DeployImage(appName, imageTag string) (*Deployment, error) {
+func (client *Client) DeployImage(appName, imageTag string) (*Release, error) {
 	query := `
 			mutation($input: DeployImageInput!) {
 				deployImage(input: $input) {
-					deployment {
+					release {
 						id
-						status
-						release {
-							version
+						version
+						reason
+						description
+						user {
+							id
+							email
+							name
 						}
+						createdAt
 					}
 				}
 			}
@@ -210,7 +215,33 @@ func (client *Client) DeployImage(appName, imageTag string) (*Deployment, error)
 		return nil, err
 	}
 
-	return &data.DeployImage.Deployment, nil
+	return &data.DeployImage.Release, nil
+}
+
+func (c *Client) GetApps() ([]App, error) {
+	query := `
+		query {
+			apps(type: "container") {
+				nodes {
+					id
+					name
+					organization {
+						slug
+					}
+					runtime
+				}
+			}
+		}
+		`
+
+	req := c.NewRequest(query)
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.Apps.Nodes, nil
 }
 
 func (c *Client) GetAppReleases(appName string, limit int) ([]Release, error) {
@@ -246,5 +277,130 @@ func (c *Client) GetAppReleases(appName string, limit int) ([]Release, error) {
 	}
 
 	return data.App.Releases.Nodes, nil
+}
 
+func (c *Client) SetSecrets(appName string, secrets map[string]string) (*Release, error) {
+	query := `
+		mutation($input: SetSecretsInput!) {
+			setSecrets(input: $input) {
+				release {
+					id
+					version
+					reason
+					description
+					user {
+						id
+						email
+						name
+					}
+					createdAt
+				}
+			}
+		}
+	`
+
+	input := SetSecretsInput{AppID: appName}
+	for k, v := range secrets {
+		input.Secrets = append(input.Secrets, SetSecretsInputSecret{Key: k, Value: v})
+	}
+
+	req := c.NewRequest(query)
+
+	req.Var("input", input)
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.SetSecrets.Release, nil
+}
+
+func (c *Client) UnsetSecrets(appName string, keys []string) (*Release, error) {
+	query := `
+		mutation($input: UnsetSecretsInput!) {
+			unsetSecrets(input: $input) {
+				release {
+					id
+					version
+					reason
+					description
+					user {
+						id
+						email
+						name
+					}
+					createdAt
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("input", UnsetSecretsInput{AppID: appName, Keys: keys})
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.UnsetSecrets.Release, nil
+}
+
+func (c *Client) GetAppSecrets(appName string) ([]Secret, error) {
+	query := `
+		query ($appName: String!) {
+			app(name: $appName) {
+				secrets {
+					name
+					digest
+					createdAt
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("appName", appName)
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.App.Secrets, nil
+}
+
+func (c *Client) CreateApp(name string, runtime string, orgId string) (*App, error) {
+	query := `
+		mutation($input: CreateAppInput!) {
+			createApp(input: $input) {
+				app {
+					id
+					name
+					organization {
+						slug
+					}
+					runtime
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("input", CreateAppInput{
+		Name:           name,
+		Runtime:        runtime,
+		OrganizationID: orgId,
+	})
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.CreateApp.App, nil
 }

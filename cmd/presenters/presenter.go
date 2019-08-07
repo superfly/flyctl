@@ -1,6 +1,7 @@
 package presenters
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/olekukonko/tablewriter"
@@ -36,6 +37,8 @@ func (p *Presenter) Render() error {
 	}
 
 	table.Render()
+
+	fmt.Println()
 
 	return nil
 }

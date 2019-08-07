@@ -19,14 +19,17 @@ type Query struct {
 
 	SetSecrets struct {
 		Deployment Deployment
+		Release    Release
 	}
 
 	UnsetSecrets struct {
 		Deployment Deployment
+		Release    Release
 	}
 
 	DeployImage struct {
 		Deployment Deployment
+		Release    Release
 	}
 }
 
@@ -39,7 +42,7 @@ type App struct {
 	AppURL       string
 	Organization Organization
 	Services     []Service
-	Secrets      []string
+	Secrets      []Secret
 	Deployments  struct {
 		Nodes []Deployment
 	}
@@ -93,22 +96,31 @@ type Deployment struct {
 	}
 }
 
-type SetSecretsInput struct {
-	AppID   string
-	Secrets []SecretInput
+type Secret struct {
+	Name      string
+	Digest    string
+	CreatedAt time.Time
 }
 
-type SecretInput struct {
-	Key   string
-	Value string
+type SetSecretsInput struct {
+	AppID   string                  `json:"appId"`
+	Secrets []SetSecretsInputSecret `json:"secrets"`
+}
+
+type SetSecretsInputSecret struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
 type UnsetSecretsInput struct {
-	AppID string
-	Keys  []string
+	AppID string   `json:"appId"`
+	Keys  []string `json:"keys"`
 }
 
 type CreateAppInput struct {
+	OrganizationID string `json:"organizationId"`
+	Runtime        string `json:"runtime"`
+	Name           string `json:"name"`
 }
 
 type LogEntry struct {

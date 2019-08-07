@@ -3,13 +3,11 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 
-	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/helpers"
 )
 
@@ -50,33 +48,12 @@ Any value that equals "-" will be assigned from STDIN instead of args.
 }
 
 func runListSecrets(ctx *CmdContext) error {
-	query := `
-			query ($appName: String!) {
-				app(id: $appName) {
-					secrets
-				}
-			}
-		`
-
-	req := ctx.FlyClient.NewRequest(query)
-
-	req.Var("appName", ctx.AppName())
-
-	data, err := ctx.FlyClient.Run(req)
+	secrets, err := ctx.FlyClient.GetAppSecrets(ctx.AppName())
 	if err != nil {
 		return err
 	}
 
-	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Name"})
-
-	for _, secret := range data.App.Secrets {
-		table.Append([]string{secret})
-	}
-
-	table.Render()
-
-	return nil
+	return ctx.Render(&presenters.SecretsPresenter{Secrets: secrets})
 }
 
 func runSetSecrets(ctx *CmdContext) error {
@@ -111,34 +88,12 @@ func runSetSecrets(ctx *CmdContext) error {
 		return errors.New("Requires at least one SECRET=VALUE pair")
 	}
 
-	input := api.SetSecretsInput{AppID: ctx.AppName()}
-	for Key, Value := range secrets {
-		input.Secrets = append(input.Secrets, api.SecretInput{Key, Value})
-	}
-
-	query := `
-			mutation ($input: SetSecretsInput!) {
-				setSecrets(input: $input) {
-					deployment {
-						id
-						status
-					}
-				}
-			}
-		`
-
-	req := ctx.FlyClient.NewRequest(query)
-
-	req.Var("input", input)
-
-	data, err := ctx.FlyClient.Run(req)
+	release, err := ctx.FlyClient.SetSecrets(ctx.AppName(), secrets)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("%+v\n", data)
-
-	return nil
+	return ctx.Render(&presenters.ReleasePresenter{Release: release})
 }
 
 func runSecretsUnset(ctx *CmdContext) error {
@@ -146,28 +101,10 @@ func runSecretsUnset(ctx *CmdContext) error {
 		return errors.New("Requires at least one secret name")
 	}
 
-	input := api.UnsetSecretsInput{AppID: ctx.AppName(), Keys: ctx.Args}
-
-	query := `
-			mutation ($input: UnsetSecretsInput!) {
-				unsetSecrets(input: $input) {
-					deployment {
-						id
-						status
-					}
-				}
-			}
-		`
-
-	req := ctx.FlyClient.NewRequest(query)
-	req.Var("input", input)
-
-	data, err := ctx.FlyClient.Run(req)
+	release, err := ctx.FlyClient.UnsetSecrets(ctx.AppName(), ctx.Args)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("%+v\n", data)
-
-	return nil
+	return ctx.Render(&presenters.ReleasePresenter{Release: release})
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/docker"
 )
 
@@ -76,7 +77,7 @@ func runDeploy(ctx *CmdContext) error {
 	fmt.Println("-->", "done")
 
 	printHeader("Releasing")
-	deployment, err := ctx.FlyClient.DeployImage(ctx.AppName(), imageTag)
+	release, err := ctx.FlyClient.DeployImage(ctx.AppName(), imageTag)
 	if err != nil {
 		return err
 	}
@@ -88,13 +89,7 @@ func runDeploy(ctx *CmdContext) error {
 	}
 	fmt.Println("-->", "done")
 
-	if deployment.Status == "succeeded" {
-		fmt.Printf("Deployment complete - v%d released\n", deployment.Release.Version)
-	} else {
-		fmt.Printf("Deployment failed - %s\n", deployment.Status)
-	}
-
-	return nil
+	return ctx.Render(&presenters.ReleasePresenter{Release: release})
 }
 
 func resolveBuildPath(imageRef string) (string, error) {
