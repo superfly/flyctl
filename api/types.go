@@ -36,7 +36,6 @@ type Query struct {
 type App struct {
 	ID           string
 	Name         string
-	Runtime      string
 	Status       string
 	Version      int
 	AppURL       string

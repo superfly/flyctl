@@ -22,7 +22,6 @@ func runAppStatus(ctx *CmdContext) error {
 					id
 					name
 					version
-					runtime
 					status
 					appUrl
 					organization {
@@ -75,7 +74,6 @@ func renderAppInfo(app api.App) {
 		[]string{"Name", app.Name},
 		[]string{"Owner", app.Organization.Slug},
 		[]string{"Version", strconv.Itoa(app.Version)},
-		[]string{"Runtime", app.Runtime},
 		[]string{"Status", app.Status},
 	})
 	if app.AppURL == "" {

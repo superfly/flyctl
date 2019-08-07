@@ -3,10 +3,8 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/manifoldco/promptui"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/flyctl"
 )
@@ -18,23 +16,11 @@ func newAppCreateCommand() *Command {
 		Description: "the app name to use",
 	})
 	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "runtime",
-		Description: `the runtime to use ("container" or "javascript")`,
-	})
-	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "org",
 		Description: `the organization that will own the app`,
 	})
 
 	return cmd
-}
-
-type appCreateCommand struct {
-	client  *api.Client
-	appName string
-	runtime string
-	orgID   string
-	orgSlug string
 }
 
 func runAppCreate(ctx *CmdContext) error {
@@ -46,30 +32,12 @@ func runAppCreate(ctx *CmdContext) error {
 		name, _ = prompt.Run()
 	}
 
-	runtime, _ := ctx.Config.GetString("runtime")
-	if runtime == "" {
-		prompt := promptui.Select{
-			Label: "Select Runtime",
-			Items: []string{"Container", "JavaScript"},
-		}
-		_, runtime, _ = prompt.Run()
-	}
-
-	switch strings.ToLower(runtime) {
-	case "container":
-		runtime = "FIRECRACKER"
-	case "javascript":
-		runtime = "NODEPROXY"
-	default:
-		return fmt.Errorf("Invalid runtime: %s", runtime)
-	}
-
 	org, err := setTargetOrg(ctx)
 	if err != nil {
 		return fmt.Errorf("Error setting organization: %s", err)
 	}
 
-	app, err := ctx.FlyClient.CreateApp(name, runtime, org)
+	app, err := ctx.FlyClient.CreateApp(name, org)
 	if err != nil {
 		return err
 	}

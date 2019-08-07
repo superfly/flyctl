@@ -228,7 +228,6 @@ func (c *Client) GetApps() ([]App, error) {
 					organization {
 						slug
 					}
-					runtime
 				}
 			}
 		}
@@ -373,7 +372,7 @@ func (c *Client) GetAppSecrets(appName string) ([]Secret, error) {
 	return data.App.Secrets, nil
 }
 
-func (c *Client) CreateApp(name string, runtime string, orgId string) (*App, error) {
+func (c *Client) CreateApp(name string, orgId string) (*App, error) {
 	query := `
 		mutation($input: CreateAppInput!) {
 			createApp(input: $input) {
@@ -383,7 +382,6 @@ func (c *Client) CreateApp(name string, runtime string, orgId string) (*App, err
 					organization {
 						slug
 					}
-					runtime
 				}
 			}
 		}
@@ -393,7 +391,7 @@ func (c *Client) CreateApp(name string, runtime string, orgId string) (*App, err
 
 	req.Var("input", CreateAppInput{
 		Name:           name,
-		Runtime:        runtime,
+		Runtime:        "FIRECRACKER",
 		OrganizationID: orgId,
 	})
 
