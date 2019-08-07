@@ -8,8 +8,9 @@ require (
 	github.com/Microsoft/go-winio v0.4.13 // indirect
 	github.com/alecthomas/units v0.0.0-20190717042225-c3de453c63f4 // indirect
 	github.com/briandowns/spinner v1.6.1
+	github.com/containerd/containerd v1.2.7 // indirect
 	github.com/docker/distribution v2.7.1+incompatible // indirect
-	github.com/docker/docker v1.14.0-0.20190319215453-e7b5f7dbe98c
+	github.com/docker/docker v0.7.3-0.20190807081956-3a4b51ebb8b6
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/dsnet/compress v0.0.1 // indirect
