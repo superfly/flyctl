@@ -55,7 +55,7 @@ func init() {
 		newAuthCommand(),
 		newAppStatusCommand(),
 		newAppListCommand(),
-		newAppDeploymentsListCommand(),
+		newAppReleasesListCommand(),
 		newAppLogsCommand(),
 		newAppSecretsCommand(),
 		newVersionCommand(),

@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/flyctl"
 )
 
@@ -69,6 +70,15 @@ func (ctx *CmdContext) AppName() string {
 	}
 
 	return ""
+}
+
+func (ctx *CmdContext) Render(presentable presenters.Presentable) error {
+	presenter := &presenters.Presenter{
+		Item: presentable,
+		Out:  os.Stdout,
+	}
+
+	return presenter.Render()
 }
 
 func newCmdContext(ns string, out io.Writer, args []string, initClient bool, initApp bool) (*CmdContext, error) {

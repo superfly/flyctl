@@ -3,7 +3,7 @@ package cmd
 import (
 	"os"
 
-	"github.com/olekukonko/tablewriter"
+	"github.com/superfly/flyctl/cmd/presenters"
 )
 
 func newAppListCommand() *Command {
@@ -33,14 +33,5 @@ func runAppsList(ctx *CmdContext) error {
 		return err
 	}
 
-	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Name", "Owner", "Runtime"})
-
-	for _, app := range data.Apps.Nodes {
-		table.Append([]string{app.Name, app.Organization.Slug, app.Runtime})
-	}
-
-	table.Render()
-
-	return nil
+	return ctx.Render(&presenters.AppsPresenter{Apps: data.Apps.Nodes})
 }

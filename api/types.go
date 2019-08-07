@@ -1,5 +1,7 @@
 package api
 
+import "time"
+
 type Query struct {
 	Apps struct {
 		Nodes []App
@@ -29,46 +31,49 @@ type Query struct {
 }
 
 type App struct {
-	ID           string       `json:"id"`
-	Name         string       `json:"name"`
-	Runtime      string       `json:"runtime"`
-	Status       string       `json:"status"`
-	Version      int          `json:"version"`
-	AppURL       string       `json:"appUrl"`
-	Organization Organization `json:"organization"`
-	Services     []Service    `json:"services"`
-	Secrets      []string     `json:"secrets"`
+	ID           string
+	Name         string
+	Runtime      string
+	Status       string
+	Version      int
+	AppURL       string
+	Organization Organization
+	Services     []Service
+	Secrets      []string
 	Deployments  struct {
 		Nodes []Deployment
+	}
+	Releases struct {
+		Nodes []Release
 	}
 }
 
 type Organization struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Slug string `json:"slug"`
+	ID   string
+	Name string
+	Slug string
 }
 
 type Service struct {
-	ID          string       `json:"id"`
-	Name        string       `json:"name"`
-	Status      string       `json:"status"`
-	Allications []Allocation `json:"allocations"`
+	ID          string
+	Name        string
+	Status      string
+	Allications []Allocation
 }
 
 type Allocation struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Status    string `json:"status"`
-	Region    string `json:"region"`
-	CreatedAt string `json:"createdAt"`
-	UpdatedAt string `json:"updatedAt"`
+	ID        string
+	Name      string
+	Status    string
+	Region    string
+	CreatedAt string
+	UpdatedAt string
 }
 
 type User struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	ID    string
+	Name  string
+	Email string
 }
 
 type Deployment struct {
@@ -89,18 +94,18 @@ type Deployment struct {
 }
 
 type SetSecretsInput struct {
-	AppID   string        `json:"appId"`
-	Secrets []SecretInput `json:"secrets"`
+	AppID   string
+	Secrets []SecretInput
 }
 
 type SecretInput struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
+	Key   string
+	Value string
 }
 
 type UnsetSecretsInput struct {
-	AppID string   `json:"appId"`
-	Keys  []string `json:"keys"`
+	AppID string
+	Keys  []string
 }
 
 type CreateAppInput struct {
@@ -114,4 +119,13 @@ type LogEntry struct {
 		Instance string
 		Region   string
 	}
+}
+
+type Release struct {
+	ID          string
+	Version     int
+	Reason      string
+	Description string
+	User        User
+	CreatedAt   time.Time
 }
