@@ -3,7 +3,9 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"os"
 
+	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
@@ -111,19 +113,17 @@ func BuildCommand(fn CmdRunFn, useText, helpText string, out io.Writer, initClie
 		}
 	}
 
-	flycmd.RunE = func(cmd *cobra.Command, args []string) error {
+	flycmd.Run = func(cmd *cobra.Command, args []string) {
 		ctx, err := newCmdContext(namespace(cmd), out, args, flycmd.requireSession, flycmd.requireAppName)
-		if err != nil {
-			return err
-		}
+		checkErr(err)
 
 		for _, init := range initializers {
-			if err := init(ctx); err != nil {
-				return err
-			}
+			err = init(ctx)
+			checkErr(err)
 		}
 
-		return fn(ctx)
+		err = fn(ctx)
+		checkErr(err)
 	}
 
 	return flycmd
@@ -165,4 +165,14 @@ func requireSession(val bool) func(*Command) {
 	return func(cmd *Command) {
 		cmd.requireSession = val
 	}
+}
+
+func checkErr(err error) {
+	if err == nil {
+		return
+	}
+
+	fmt.Println(aurora.Red("Error"), err)
+
+	os.Exit(1)
 }
