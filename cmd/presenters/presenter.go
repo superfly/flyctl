@@ -16,15 +16,31 @@ type Presentable interface {
 type Presenter struct {
 	Item Presentable
 	Out  io.Writer
+	Opts Options
+}
+
+type Options struct {
+	Vertical   bool
+	HideHeader bool
 }
 
 func (p *Presenter) Render() error {
+	if p.Opts.Vertical {
+		return p.renderFieldList()
+	}
+
+	return p.renderTable()
+}
+
+func (p *Presenter) renderTable() error {
 	table := tablewriter.NewWriter(p.Out)
 
 	cols := p.Item.FieldNames()
 	kvMap := p.Item.FieldMap()
 
-	table.SetHeader(cols)
+	if !p.Opts.HideHeader {
+		table.SetHeader(cols)
+	}
 	table.SetBorder(false)
 	table.SetAutoWrapText(false)
 
@@ -39,6 +55,27 @@ func (p *Presenter) Render() error {
 	table.Render()
 
 	fmt.Println()
+
+	return nil
+}
+
+func (p *Presenter) renderFieldList() error {
+	table := tablewriter.NewWriter(p.Out)
+
+	cols := p.Item.FieldNames()
+	kvMap := p.Item.FieldMap()
+
+	table.SetBorder(false)
+	table.SetColumnSeparator("=")
+
+	for _, kv := range p.Item.Records() {
+		for _, col := range cols {
+			table.Append([]string{col, kv[kvMap[col]]})
+		}
+		table.Render()
+
+		fmt.Println()
+	}
 
 	return nil
 }

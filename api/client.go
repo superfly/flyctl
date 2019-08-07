@@ -402,3 +402,36 @@ func (c *Client) CreateApp(name string, orgId string) (*App, error) {
 
 	return &data.CreateApp.App, nil
 }
+
+func (c *Client) GetAppServices(appName string) ([]Service, error) {
+	query := `
+		query($appName: String!) {
+			app(name: $appName) {
+				services {
+					id
+					name
+					status
+					allocations {
+						id
+						status
+						desiredStatus
+						region
+						createdAt
+						updatedAt
+					}
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("appName", appName)
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.App.Services, nil
+}

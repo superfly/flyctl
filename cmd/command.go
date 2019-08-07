@@ -81,6 +81,16 @@ func (ctx *CmdContext) Render(presentable presenters.Presentable) error {
 	return presenter.Render()
 }
 
+func (ctx *CmdContext) RenderEx(presentable presenters.Presentable, options presenters.Options) error {
+	presenter := &presenters.Presenter{
+		Item: presentable,
+		Out:  os.Stdout,
+		Opts: options,
+	}
+
+	return presenter.Render()
+}
+
 func newCmdContext(ns string, out io.Writer, args []string, initClient bool, initApp bool) (*CmdContext, error) {
 	ctx := &CmdContext{
 		NS:           ns,

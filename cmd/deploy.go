@@ -89,7 +89,7 @@ func runDeploy(ctx *CmdContext) error {
 	}
 	fmt.Println("-->", "done")
 
-	return ctx.Render(&presenters.ReleasePresenter{Release: release})
+	return ctx.Render(&presenters.Releases{Release: release})
 }
 
 func resolveBuildPath(imageRef string) (string, error) {

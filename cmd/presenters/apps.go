@@ -2,23 +2,23 @@ package presenters
 
 import "github.com/superfly/flyctl/api"
 
-type AppsPresenter struct {
+type Apps struct {
 	App  *api.App
 	Apps []api.App
 }
 
-func (p *AppsPresenter) FieldNames() []string {
+func (p *Apps) FieldNames() []string {
 	return []string{"Name", "Owner"}
 }
 
-func (p *AppsPresenter) FieldMap() map[string]string {
+func (p *Apps) FieldMap() map[string]string {
 	return map[string]string{
 		"Name":  "Name",
 		"Owner": "Owner",
 	}
 }
 
-func (p *AppsPresenter) Records() []map[string]string {
+func (p *Apps) Records() []map[string]string {
 	out := []map[string]string{}
 
 	if p.App != nil {

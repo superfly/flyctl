@@ -7,16 +7,16 @@ import (
 	"github.com/superfly/flyctl/api"
 )
 
-type ReleasePresenter struct {
+type Releases struct {
 	Releases []api.Release
 	Release  *api.Release
 }
 
-func (p *ReleasePresenter) FieldNames() []string {
+func (p *Releases) FieldNames() []string {
 	return []string{"Version", "Reason", "Description", "User", "Date"}
 }
 
-func (p *ReleasePresenter) FieldMap() map[string]string {
+func (p *Releases) FieldMap() map[string]string {
 	return map[string]string{
 		"Version":     "Version",
 		"Reason":      "Reason",
@@ -26,7 +26,7 @@ func (p *ReleasePresenter) FieldMap() map[string]string {
 	}
 }
 
-func (p *ReleasePresenter) Records() []map[string]string {
+func (p *Releases) Records() []map[string]string {
 	out := []map[string]string{}
 
 	if p.Release != nil {

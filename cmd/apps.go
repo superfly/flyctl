@@ -16,5 +16,5 @@ func runAppsList(ctx *CmdContext) error {
 		return err
 	}
 
-	return ctx.Render(&presenters.AppsPresenter{Apps: apps})
+	return ctx.Render(&presenters.Apps{Apps: apps})
 }

@@ -16,5 +16,5 @@ func runAppReleasesList(ctx *CmdContext) error {
 		return err
 	}
 
-	return ctx.Render(&presenters.ReleasePresenter{Releases: releases})
+	return ctx.Render(&presenters.Releases{Releases: releases})
 }

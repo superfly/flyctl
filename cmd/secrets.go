@@ -53,7 +53,7 @@ func runListSecrets(ctx *CmdContext) error {
 		return err
 	}
 
-	return ctx.Render(&presenters.SecretsPresenter{Secrets: secrets})
+	return ctx.Render(&presenters.Secrets{Secrets: secrets})
 }
 
 func runSetSecrets(ctx *CmdContext) error {
@@ -93,7 +93,7 @@ func runSetSecrets(ctx *CmdContext) error {
 		return err
 	}
 
-	return ctx.Render(&presenters.ReleasePresenter{Release: release})
+	return ctx.Render(&presenters.Releases{Release: release})
 }
 
 func runSecretsUnset(ctx *CmdContext) error {
@@ -106,5 +106,5 @@ func runSecretsUnset(ctx *CmdContext) error {
 		return err
 	}
 
-	return ctx.Render(&presenters.ReleasePresenter{Release: release})
+	return ctx.Render(&presenters.Releases{Release: release})
 }

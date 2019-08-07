@@ -4,15 +4,15 @@ import (
 	"github.com/superfly/flyctl/api"
 )
 
-type SecretsPresenter struct {
+type Secrets struct {
 	Secrets []api.Secret
 }
 
-func (p *SecretsPresenter) FieldNames() []string {
+func (p *Secrets) FieldNames() []string {
 	return []string{"Name", "Digest", "Date"}
 }
 
-func (p *SecretsPresenter) FieldMap() map[string]string {
+func (p *Secrets) FieldMap() map[string]string {
 	return map[string]string{
 		"Name":   "Name",
 		"Digest": "Digest",
@@ -20,7 +20,7 @@ func (p *SecretsPresenter) FieldMap() map[string]string {
 	}
 }
 
-func (p *SecretsPresenter) Records() []map[string]string {
+func (p *Secrets) Records() []map[string]string {
 	out := []map[string]string{}
 
 	for _, secret := range p.Secrets {

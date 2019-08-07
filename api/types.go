@@ -60,16 +60,16 @@ type Service struct {
 	ID          string
 	Name        string
 	Status      string
-	Allications []Allocation
+	Allocations []Allocation
 }
 
 type Allocation struct {
-	ID        string
-	Name      string
-	Status    string
-	Region    string
-	CreatedAt string
-	UpdatedAt string
+	ID            string
+	Status        string
+	DesiredStatus string
+	Region        string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type User struct {
