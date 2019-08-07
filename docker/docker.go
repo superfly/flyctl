@@ -41,7 +41,7 @@ type DockerClient struct {
 }
 
 func NewDockerClient() (*DockerClient, error) {
-	cli, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
+	cli, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation(), client.WithVersion("1.40"))
 	if err != nil {
 		return nil, err
 	}
