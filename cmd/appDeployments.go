@@ -1,60 +1,17 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 
 	"github.com/olekukonko/tablewriter"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flyctl"
-
-	"github.com/spf13/cobra"
 )
 
-func newAppDeploymentsListCommand() *cobra.Command {
-	list := &appDeploymentsListCommand{}
-
-	cmd := &cobra.Command{
-		Use:   "deployments",
-		Short: "list app deployments",
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return list.Init(args)
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return list.Run(args)
-		},
-	}
-
-	fs := cmd.Flags()
-	fs.StringVarP(&list.appName, "app", "a", "", `the app name to use`)
-
-	return cmd
+func newAppDeploymentsListCommand() *Command {
+	return BuildCommand(runAppDeploymentsList, "deployments", "list app deployments", os.Stdout, true, requireAppName)
 }
 
-type appDeploymentsListCommand struct {
-	client  *api.Client
-	appName string
-}
-
-func (cmd *appDeploymentsListCommand) Init(args []string) error {
-	client, err := api.NewClient()
-	if err != nil {
-		return err
-	}
-	cmd.client = client
-
-	if cmd.appName == "" {
-		cmd.appName = flyctl.CurrentAppName()
-	}
-	if cmd.appName == "" {
-		return fmt.Errorf("no app specified")
-	}
-
-	return nil
-}
-
-func (cmd *appDeploymentsListCommand) Run(args []string) error {
+func runAppDeploymentsList(ctx *CmdContext) error {
 	query := `
 			query ($appName: String!) {
 				app(id: $appName) {
@@ -78,11 +35,11 @@ func (cmd *appDeploymentsListCommand) Run(args []string) error {
 			}
 		`
 
-	req := cmd.client.NewRequest(query)
+	req := ctx.FlyClient.NewRequest(query)
 
-	req.Var("appName", cmd.appName)
+	req.Var("appName", ctx.AppName())
 
-	data, err := cmd.client.Run(req)
+	data, err := ctx.FlyClient.Run(req)
 	if err != nil {
 		return err
 	}

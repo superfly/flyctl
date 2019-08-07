@@ -1,23 +1,17 @@
 package cmd
 
-
 import (
 	"fmt"
+	"os"
 
-	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/flyctl"
 )
 
-func newVersionCommand() *cobra.Command {
-	cmd := &cobra.Command{
-	Use:   "version",
-	Short: "show flyctl version information",
-		Run: func(cmd *cobra.Command, args []string)  {
-			fmt.Printf("flyctl %s %s %s\n", flyctl.Version, flyctl.Commit, flyctl.BuildDate)
-		},
-	}
-
-	return cmd
+func newVersionCommand() *Command {
+	return BuildCommand(runVersion, "version", "show flyctl version information", os.Stdout, false)
 }
 
-
+func runVersion(ctx *CmdContext) error {
+	fmt.Printf("flyctl %s %s %s\n", flyctl.Version, flyctl.Commit, flyctl.BuildDate)
+	return nil
+}

@@ -4,42 +4,13 @@ import (
 	"os"
 
 	"github.com/olekukonko/tablewriter"
-	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
 )
 
-func newAppListCommand() *cobra.Command {
-	list := &appListCommand{}
-
-	cmd := &cobra.Command{
-		Use:   "apps",
-		Short: "list apps",
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return list.Init()
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return list.Run(args)
-		},
-	}
-
-	return cmd
+func newAppListCommand() *Command {
+	return BuildCommand(runAppsList, "apps", "list apps", os.Stdout, true)
 }
 
-type appListCommand struct {
-	client *api.Client
-}
-
-func (cmd *appListCommand) Init() error {
-	client, err := api.NewClient()
-	if err != nil {
-		return err
-	}
-	cmd.client = client
-
-	return nil
-}
-
-func (cmd *appListCommand) Run(args []string) error {
+func runAppsList(ctx *CmdContext) error {
 	query := `
 		query {
 			apps {
@@ -55,9 +26,9 @@ func (cmd *appListCommand) Run(args []string) error {
 		}
 		`
 
-	req := cmd.client.NewRequest(query)
+	req := ctx.FlyClient.NewRequest(query)
 
-	data, err := cmd.client.Run(req)
+	data, err := ctx.FlyClient.Run(req)
 	if err != nil {
 		return err
 	}

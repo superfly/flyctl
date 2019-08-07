@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -21,7 +20,7 @@ type BuildContext struct {
 	reader    io.Reader
 	writer    io.WriteCloser
 	tar       *tar.Writer
-	manifest  *flyctl.Manifest
+	project   *flyctl.Project
 	Tag       string
 	SourceDir string
 }
@@ -43,12 +42,12 @@ func NewBuildContext(sourceDir string, deploymentTag string) (*BuildContext, err
 		Tag:       deploymentTag,
 	}
 
-	manifest, err := flyctl.LoadManifest(path.Join(sourceDir, "fly.toml"))
+	project, err := flyctl.LoadProject(sourceDir)
 	if err != nil {
 		return nil, err
 	}
 
-	ctx.manifest = manifest
+	ctx.project = project
 
 	return ctx, nil
 }
@@ -61,42 +60,33 @@ func (ctx *BuildContext) Load() error {
 	defer ctx.tar.Close()
 	defer ctx.writer.Close()
 
-	builderName := ctx.manifest.Builder()
-
+	builderName := ctx.project.Builder()
 	if builderName != "" {
 		repo, err := NewBuilderRepo()
 		if err != nil {
 			return err
 		}
-
 		if err := repo.Sync(); err != nil {
 			return err
 		}
-
 		builder, err := repo.GetBuilder(builderName)
 		if err != nil {
 			return err
 		}
-
 		if err := ctx.addFiles(builder.path); err != nil {
 			return err
 		}
 	}
-
 	if err := ctx.addFiles(ctx.SourceDir); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func (ctx *BuildContext) BuildArgs() map[string]*string {
 	var args = map[string]*string{}
 
-	for k, v := range ctx.manifest.Build {
-		if k == "builder" {
-			continue
-		}
+	for k, v := range ctx.project.BuildArgs() {
 		k = strings.ToUpper(k)
 		// docker needs a string pointer. since ranges reuse variables we need to deref a copy
 		val := v
@@ -110,6 +100,7 @@ func (ctx *BuildContext) BuildArgs() map[string]*string {
 
 func (ctx *BuildContext) addFiles(sourceDir string) error {
 	err := filepath.Walk(sourceDir, func(fpath string, info os.FileInfo, err error) error {
+		fmt.Println("walk", fpath)
 		if err != nil {
 			return err
 		}
@@ -139,6 +130,7 @@ func (ctx *BuildContext) addFiles(sourceDir string) error {
 			Mode: 0600,
 			Size: info.Size(),
 		}
+
 		if err := ctx.tar.WriteHeader(hdr); err != nil {
 			return err
 		}

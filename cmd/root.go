@@ -1,12 +1,16 @@
 package cmd
 
 import (
+	"fmt"
+	"io/ioutil"
 	"os"
+	"path"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/terminal"
+	"gopkg.in/yaml.v2"
 )
 
 var rootCmd = &cobra.Command{
@@ -18,38 +22,94 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-func Execute() {
-	bindCommandFlags(rootCmd)
+var newRootCmd = &Command{
+	Command: &cobra.Command{
+		Use:  "flyctl",
+		Long: `flycyl is a command line interface for the Fly.io platform`,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			cmd.SilenceUsage = true
+			cmd.SilenceErrors = true
+		},
+	},
+}
 
-	if err := rootCmd.Execute(); err != nil {
+func Execute() {
+	if err := newRootCmd.Execute(); err != nil {
 		terminal.Error(err)
 		os.Exit(1)
 	}
 }
 
-func bindCommandFlags(cmd *cobra.Command) {
-	if cmd.HasFlags() {
-		viper.BindPFlags(cmd.Flags())
-	}
+func init() {
+	cobra.OnInitialize(initConfig)
 
-	if cmd.HasPersistentFlags() {
-		viper.BindPFlags(cmd.PersistentFlags())
-	}
+	newRootCmd.PersistentFlags().StringP("access-token", "t", "", "Fly API Access Token")
+	viper.BindPFlag(flyctl.ConfigAPIAccessToken, newRootCmd.PersistentFlags().Lookup("access-token"))
+	viper.BindEnv(flyctl.ConfigAPIAccessToken, "FLY_ACCESS_TOKEN")
+
+	newRootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
+	viper.BindPFlag(flyctl.ConfigVerboseOutput, newRootCmd.PersistentFlags().Lookup("verbose"))
+	viper.BindEnv(flyctl.ConfigVerboseOutput, "VERBOSE")
+
+	newRootCmd.AddCommand(
+		newAuthCommand(),
+		newAppStatusCommand(),
+		newAppListCommand(),
+		newAppDeploymentsListCommand(),
+		newAppLogsCommand(),
+		newAppSecretsCommand(),
+		newVersionCommand(),
+		newAppCreateCommand(),
+		newDeployCommand(),
+	)
 }
 
-func init() {
-	cobra.OnInitialize(flyctl.InitConfig)
-	rootCmd.PersistentFlags().StringP("access-token", "t", "", "Fly API Access Token")
-	viper.RegisterAlias(flyctl.ConfigAPIAccessToken, "access-token")
-	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
+func initConfig() {
+	// read in credentials.yml, maybe migrate to new config?
+	if err := loadConfig(); err != nil {
+		panic(err)
+	}
 
-	rootCmd.AddCommand(newAuthCommand())
-	rootCmd.AddCommand(newAppCreateCommand())
-	rootCmd.AddCommand(newAppListCommand())
-	rootCmd.AddCommand(newAppStatusCommand())
-	rootCmd.AddCommand(newDeployCommand())
-	rootCmd.AddCommand(newAppSecretsCommand())
-	rootCmd.AddCommand(newVersionCommand())
-	rootCmd.AddCommand(newAppDeploymentsListCommand())
-	rootCmd.AddCommand(newAppLogsCommand())
+	viper.SetDefault(flyctl.ConfigAPIBaseURL, "https://fly.io")
+
+	viper.SetEnvPrefix("FLY")
+	viper.AutomaticEnv()
+}
+
+func loadConfig() error {
+	configDir, err := flyctl.ConfigDir()
+	if err != nil {
+		return err
+	}
+
+	configFile := path.Join(configDir, "credentials.yml")
+
+	viper.SetConfigType("yaml")
+	viper.SetConfigFile(configFile)
+
+	if _, err := os.Stat(configFile); err == nil {
+		if err := viper.ReadInConfig(); err != nil {
+			return err
+		}
+	}
+
+	terminal.Debug("Read config file", viper.ConfigFileUsed())
+
+	return nil
+}
+
+func saveConfig() error {
+	out := map[string]string{}
+	if accessToken := viper.GetString(flyctl.ConfigAPIAccessToken); accessToken != "" {
+		out["access_token"] = accessToken
+	}
+
+	data, err := yaml.Marshal(&out)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(string(data))
+
+	return ioutil.WriteFile(viper.ConfigFileUsed(), data, 0644)
 }

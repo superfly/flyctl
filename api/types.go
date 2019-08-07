@@ -105,3 +105,13 @@ type UnsetSecretsInput struct {
 
 type CreateAppInput struct {
 }
+
+type LogEntry struct {
+	Timestamp string
+	Message   string
+	Level     string
+	Meta      struct {
+		Instance string
+		Region   string
+	}
+}

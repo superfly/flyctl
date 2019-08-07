@@ -6,54 +6,16 @@ import (
 	"strconv"
 
 	"github.com/olekukonko/tablewriter"
-	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flyctl"
 )
 
-func newAppStatusCommand() *cobra.Command {
-	status := &appStatusCommand{}
-
-	cmd := &cobra.Command{
-		Use:   "status",
-		Short: "show app status",
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return status.Init()
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return status.Run(args)
-		},
-	}
-
-	fs := cmd.Flags()
-	fs.StringVarP(&status.appName, "app", "a", "", `app to run command against`)
+func newAppStatusCommand() *Command {
+	cmd := BuildCommand(runAppStatus, "status", "show app status", os.Stdout, true, requireAppName)
 
 	return cmd
 }
 
-type appStatusCommand struct {
-	client  *api.Client
-	appName string
-}
-
-func (cmd *appStatusCommand) Init() error {
-	client, err := api.NewClient()
-	if err != nil {
-		return err
-	}
-	cmd.client = client
-
-	if cmd.appName == "" {
-		cmd.appName = flyctl.CurrentAppName()
-	}
-	if cmd.appName == "" {
-		return fmt.Errorf("no app specified")
-	}
-
-	return nil
-}
-
-func (cmd *appStatusCommand) Run(args []string) error {
+func runAppStatus(ctx *CmdContext) error {
 	query := `
 			query($appName: String!) {
 				app(name: $appName) {
@@ -83,11 +45,11 @@ func (cmd *appStatusCommand) Run(args []string) error {
 			}
 		`
 
-	req := cmd.client.NewRequest(query)
+	req := ctx.FlyClient.NewRequest(query)
 
-	req.Var("appName", cmd.appName)
+	req.Var("appName", ctx.AppName())
 
-	data, err := cmd.client.Run(req)
+	data, err := ctx.FlyClient.Run(req)
 	if err != nil {
 		return err
 	}
