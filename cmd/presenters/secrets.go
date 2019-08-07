@@ -12,14 +12,6 @@ func (p *Secrets) FieldNames() []string {
 	return []string{"Name", "Digest", "Date"}
 }
 
-func (p *Secrets) FieldMap() map[string]string {
-	return map[string]string{
-		"Name":   "Name",
-		"Digest": "Digest",
-		"Date":   "Date",
-	}
-}
-
 func (p *Secrets) Records() []map[string]string {
 	out := []map[string]string{}
 

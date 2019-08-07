@@ -14,10 +14,6 @@ func (p *AppInfo) FieldNames() []string {
 	return []string{"Name", "Owner", "Version", "Status", "URL"}
 }
 
-func (p *AppInfo) FieldMap() map[string]string {
-	return nil
-}
-
 func (p *AppInfo) Records() []map[string]string {
 	out := []map[string]string{}
 

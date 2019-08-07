@@ -16,16 +16,6 @@ func (p *Releases) FieldNames() []string {
 	return []string{"Version", "Reason", "Description", "User", "Date"}
 }
 
-func (p *Releases) FieldMap() map[string]string {
-	return map[string]string{
-		"Version":     "Version",
-		"Reason":      "Reason",
-		"Description": "Description",
-		"User":        "User",
-		"Date":        "Date",
-	}
-}
-
 func (p *Releases) Records() []map[string]string {
 	out := []map[string]string{}
 

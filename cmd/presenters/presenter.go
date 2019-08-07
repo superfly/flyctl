@@ -9,7 +9,6 @@ import (
 
 type Presentable interface {
 	FieldNames() []string
-	FieldMap() map[string]string
 	Records() []map[string]string
 }
 
@@ -36,7 +35,6 @@ func (p *Presenter) renderTable() error {
 	table := tablewriter.NewWriter(p.Out)
 
 	cols := p.Item.FieldNames()
-	kvMap := p.Item.FieldMap()
 
 	if !p.Opts.HideHeader {
 		table.SetHeader(cols)
@@ -47,7 +45,7 @@ func (p *Presenter) renderTable() error {
 	for _, kv := range p.Item.Records() {
 		fields := []string{}
 		for _, col := range cols {
-			fields = append(fields, kv[kvMap[col]])
+			fields = append(fields, kv[col])
 		}
 		table.Append(fields)
 	}
@@ -63,14 +61,13 @@ func (p *Presenter) renderFieldList() error {
 	table := tablewriter.NewWriter(p.Out)
 
 	cols := p.Item.FieldNames()
-	kvMap := p.Item.FieldMap()
 
 	table.SetBorder(false)
 	table.SetColumnSeparator("=")
 
 	for _, kv := range p.Item.Records() {
 		for _, col := range cols {
-			table.Append([]string{col, kv[kvMap[col]]})
+			table.Append([]string{col, kv[col]})
 		}
 		table.Render()
 

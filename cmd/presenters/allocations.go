@@ -10,18 +10,6 @@ func (p *Allocations) FieldNames() []string {
 	return []string{"ID", "Service", "Region", "Desired", "Status", "Created", "Modified"}
 }
 
-func (p *Allocations) FieldMap() map[string]string {
-	return map[string]string{
-		"ID":       "ID",
-		"Service":  "Service",
-		"Status":   "Status",
-		"Desired":  "Desired",
-		"Region":   "Region",
-		"Created":  "Created",
-		"Modified": "Modified",
-	}
-}
-
 func (p *Allocations) Records() []map[string]string {
 	out := []map[string]string{}
 

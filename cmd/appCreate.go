@@ -42,9 +42,10 @@ func runAppCreate(ctx *CmdContext) error {
 		return err
 	}
 
-	fmt.Println("Created new app", app.Name)
+	fmt.Println("New app created")
 
-	if err := ctx.Render(&presenters.Apps{App: app}); err != nil {
+	err = ctx.RenderEx(&presenters.AppInfo{App: *app}, presenters.Options{HideHeader: true, Vertical: true})
+	if err != nil {
 		return err
 	}
 

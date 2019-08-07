@@ -48,7 +48,11 @@ func (p *Project) WriteConfig() error {
 }
 
 func (p *Project) SafeWriteConfig() error {
-	return p.cfg.SafeWriteConfig()
+	err := p.cfg.SafeWriteConfig()
+	if os.IsNotExist(err) {
+		return p.WriteConfig()
+	}
+	return err
 }
 
 func (p *Project) WriteConfigToPath(filename string) error {

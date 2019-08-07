@@ -11,13 +11,6 @@ func (p *Apps) FieldNames() []string {
 	return []string{"Name", "Owner"}
 }
 
-func (p *Apps) FieldMap() map[string]string {
-	return map[string]string{
-		"Name":  "Name",
-		"Owner": "Owner",
-	}
-}
-
 func (p *Apps) Records() []map[string]string {
 	out := []map[string]string{}
 
