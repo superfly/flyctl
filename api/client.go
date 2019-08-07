@@ -249,6 +249,33 @@ func (c *Client) GetApps() ([]App, error) {
 	return data.Apps.Nodes, nil
 }
 
+func (c *Client) GetApp(appName string) (*App, error) {
+	query := `
+		query ($appName: String!) {
+			app(name: $appName) {
+				id
+				name
+				version
+				status
+				appUrl
+				organization {
+					slug
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+	req.Var("appName", appName)
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.App, nil
+}
+
 func (c *Client) GetAppReleases(appName string, limit int) ([]Release, error) {
 	query := `
 		query ($appName: String!, $limit: Int!) {

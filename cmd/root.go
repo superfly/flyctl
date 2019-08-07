@@ -13,16 +13,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var rootCmd = &cobra.Command{
-	Use:  "flyctl",
-	Long: `flycyl is a command line interface for the Fly.io platform`,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		cmd.SilenceUsage = true
-		cmd.SilenceErrors = true
-	},
-}
-
-var newRootCmd = &Command{
+var rootCmd = &Command{
 	Command: &cobra.Command{
 		Use:  "flyctl",
 		Long: `flycyl is a command line interface for the Fly.io platform`,
@@ -34,7 +25,7 @@ var newRootCmd = &Command{
 }
 
 func Execute() {
-	if err := newRootCmd.Execute(); err != nil {
+	if err := rootCmd.Execute(); err != nil {
 		terminal.Error(err)
 		os.Exit(1)
 	}
@@ -43,15 +34,15 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	newRootCmd.PersistentFlags().StringP("access-token", "t", "", "Fly API Access Token")
-	viper.BindPFlag(flyctl.ConfigAPIAccessToken, newRootCmd.PersistentFlags().Lookup("access-token"))
+	rootCmd.PersistentFlags().StringP("access-token", "t", "", "Fly API Access Token")
+	viper.BindPFlag(flyctl.ConfigAPIAccessToken, rootCmd.PersistentFlags().Lookup("access-token"))
 	viper.BindEnv(flyctl.ConfigAPIAccessToken, "FLY_ACCESS_TOKEN")
 
-	newRootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
-	viper.BindPFlag(flyctl.ConfigVerboseOutput, newRootCmd.PersistentFlags().Lookup("verbose"))
+	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
+	viper.BindPFlag(flyctl.ConfigVerboseOutput, rootCmd.PersistentFlags().Lookup("verbose"))
 	viper.BindEnv(flyctl.ConfigVerboseOutput, "VERBOSE")
 
-	newRootCmd.AddCommand(
+	rootCmd.AddCommand(
 		newAuthCommand(),
 		newAppStatusCommand(),
 		newAppListCommand(),
@@ -61,6 +52,7 @@ func init() {
 		newVersionCommand(),
 		newAppCreateCommand(),
 		newDeployCommand(),
+		newAppInfoCommand(),
 	)
 }
 
