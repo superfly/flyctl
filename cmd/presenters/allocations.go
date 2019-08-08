@@ -1,28 +1,32 @@
 package presenters
 
-import "github.com/superfly/flyctl/api"
+import (
+	"strconv"
+
+	"github.com/superfly/flyctl/api"
+)
 
 type Allocations struct {
-	Services []api.Service
+	Tasks []api.Task
 }
 
 func (p *Allocations) FieldNames() []string {
-	return []string{"ID", "Service", "Region", "Desired", "Status", "Created", "Modified"}
+	return []string{"ID", "Version", "Task", "Region", "Desired", "Status", "Created"}
 }
 
 func (p *Allocations) Records() []map[string]string {
 	out := []map[string]string{}
 
-	for _, service := range p.Services {
-		for _, alloc := range service.Allocations {
+	for _, task := range p.Tasks {
+		for _, alloc := range task.Allocations {
 			out = append(out, map[string]string{
-				"ID":       alloc.ID,
-				"Service":  service.Name,
-				"Status":   alloc.Status,
-				"Desired":  alloc.DesiredStatus,
-				"Region":   alloc.Region,
-				"Created":  formatRelativeTime(alloc.CreatedAt),
-				"Modified": formatRelativeTime(alloc.UpdatedAt),
+				"ID":      alloc.ID,
+				"Version": strconv.Itoa(alloc.Version),
+				"Task":    task.Name,
+				"Status":  alloc.Status,
+				"Desired": alloc.DesiredStatus,
+				"Region":  alloc.Region,
+				"Created": formatRelativeTime(alloc.CreatedAt),
 			})
 		}
 	}

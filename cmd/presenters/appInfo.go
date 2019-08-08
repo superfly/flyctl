@@ -11,7 +11,7 @@ type AppInfo struct {
 }
 
 func (p *AppInfo) FieldNames() []string {
-	return []string{"Name", "Owner", "Version", "Status", "URL"}
+	return []string{"Name", "Owner", "Version", "Status"}
 }
 
 func (p *AppInfo) Records() []map[string]string {
@@ -22,7 +22,6 @@ func (p *AppInfo) Records() []map[string]string {
 		"Owner":   p.App.Organization.Slug,
 		"Version": fmt.Sprintf("v%d", p.App.Version),
 		"Status":  p.App.Status,
-		"URL":     p.App.AppURL,
 	})
 
 	return out

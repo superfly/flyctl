@@ -40,13 +40,16 @@ type App struct {
 	Version      int
 	AppURL       string
 	Organization Organization
-	Services     []Service
+	Tasks        []Task
 	Secrets      []Secret
 	Deployments  struct {
 		Nodes []Deployment
 	}
 	Releases struct {
 		Nodes []Release
+	}
+	IPAddresses struct {
+		Nodes []IPAddress
 	}
 }
 
@@ -56,20 +59,36 @@ type Organization struct {
 	Slug string
 }
 
+type Task struct {
+	ID              string
+	Name            string
+	Status          string
+	ServicesSummary string
+	Services        []Service
+	Allocations     []Allocation
+}
+
 type Service struct {
-	ID          string
-	Name        string
-	Status      string
-	Allocations []Allocation
+	ID           string
+	Protocol     string
+	Port         int
+	InternalPort int
+	Filters      []string
 }
 
 type Allocation struct {
 	ID            string
+	Version       int
 	Status        string
 	DesiredStatus string
 	Region        string
 	CreatedAt     time.Time
-	UpdatedAt     time.Time
+}
+
+type IPAddress struct {
+	ID      string
+	Address string
+	Type    string
 }
 
 type User struct {

@@ -261,6 +261,23 @@ func (c *Client) GetApp(appName string) (*App, error) {
 				organization {
 					slug
 				}
+				tasks {
+					id
+					name
+					services {
+						protocol
+						port
+						internalPort
+						filters
+					}
+				}
+				ipAddresses {
+					nodes {
+						id
+						address
+						type
+					}
+				}
 			}
 		}
 	`
@@ -436,21 +453,22 @@ func (c *Client) CreateApp(name string, orgId string) (*App, error) {
 	return &data.CreateApp.App, nil
 }
 
-func (c *Client) GetAppServices(appName string) ([]Service, error) {
+func (c *Client) GetAppTasks(appName string) ([]Task, error) {
 	query := `
 		query($appName: String!) {
 			app(name: $appName) {
-				services {
+				tasks {
 					id
 					name
 					status
+					servicesSummary
 					allocations {
 						id
+						version
 						status
 						desiredStatus
 						region
 						createdAt
-						updatedAt
 					}
 				}
 			}
@@ -466,5 +484,5 @@ func (c *Client) GetAppServices(appName string) ([]Service, error) {
 		return nil, err
 	}
 
-	return data.App.Services, nil
+	return data.App.Tasks, nil
 }
