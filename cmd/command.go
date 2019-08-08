@@ -114,15 +114,18 @@ func newCmdContext(ns string, out io.Writer, args []string, initClient bool, ini
 type CmdOption func(*Command) InitializerFn
 type InitializerFn func(*CmdContext) error
 
-func BuildCommand(fn CmdRunFn, useText, helpText string, out io.Writer, initClient bool, options ...CmdOption) *Command {
+func BuildCommand(parent *Command, fn CmdRunFn, useText, helpText string, out io.Writer, initClient bool, options ...CmdOption) *Command {
 	flycmd := &Command{
+		requireSession: true,
 		Command: &cobra.Command{
 			Use:   useText,
 			Short: helpText,
 			Long:  helpText,
 		},
-		requireSession: true,
-		requireAppName: false,
+	}
+
+	if parent != nil {
+		parent.AddCommand(flycmd)
 	}
 
 	initializers := []InitializerFn{}
@@ -133,17 +136,19 @@ func BuildCommand(fn CmdRunFn, useText, helpText string, out io.Writer, initClie
 		}
 	}
 
-	flycmd.Run = func(cmd *cobra.Command, args []string) {
-		ctx, err := newCmdContext(namespace(cmd), out, args, flycmd.requireSession, flycmd.requireAppName)
-		checkErr(err)
+	if fn != nil {
+		flycmd.Run = func(cmd *cobra.Command, args []string) {
+			ctx, err := newCmdContext(namespace(cmd), out, args, flycmd.requireSession, flycmd.requireAppName)
+			checkErr(err)
 
-		for _, init := range initializers {
-			err = init(ctx)
+			for _, init := range initializers {
+				err = init(ctx)
+				checkErr(err)
+			}
+
+			err = fn(ctx)
 			checkErr(err)
 		}
-
-		err = fn(ctx)
-		checkErr(err)
 	}
 
 	return flycmd

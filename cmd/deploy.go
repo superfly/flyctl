@@ -14,7 +14,7 @@ import (
 )
 
 func newDeployCommand() *Command {
-	cmd := BuildCommand(runDeploy, "deploy", "deploy a local image, remote image, or Dockerfile", os.Stdout, true, requireAppName)
+	cmd := BuildCommand(nil, runDeploy, "deploy", "deploy a local image, remote image, or Dockerfile", os.Stdout, true, requireAppName)
 
 	cmd.Command.Args = cobra.ExactArgs(1)
 

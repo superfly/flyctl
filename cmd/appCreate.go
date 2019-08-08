@@ -10,7 +10,7 @@ import (
 )
 
 func newAppCreateCommand() *Command {
-	cmd := BuildCommand(runAppCreate, "create", "create a new app", os.Stdout, true)
+	cmd := BuildCommand(nil, runAppCreate, "create", "create a new app", os.Stdout, true)
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "name",
 		Description: "the app name to use",

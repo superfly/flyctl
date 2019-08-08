@@ -12,7 +12,8 @@ import (
 )
 
 func newAppLogsCommand() *Command {
-	cmd := BuildCommand(runLogs, "logs", "view app logs", os.Stdout, true, requireAppName)
+	cmd := BuildCommand(nil, runLogs, "logs", "view app logs", os.Stdout, true, requireAppName)
+
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "instance",
 		Shorthand:   "i",

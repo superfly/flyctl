@@ -9,25 +9,25 @@ import (
 )
 
 func newAppStatusCommand() *Command {
-	cmd := BuildCommand(runAppStatus, "status", "show app status", os.Stdout, true, requireAppName)
+	cmd := BuildCommand(nil, runAppStatus, "status", "show app status", os.Stdout, true, requireAppName)
 
 	return cmd
 }
 
 func runAppStatus(ctx *CmdContext) error {
-	services, err := ctx.FlyClient.GetAppServices(ctx.AppName())
+	tasks, err := ctx.FlyClient.GetAppTasks(ctx.AppName())
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(aurora.Bold("Services"))
-	err = ctx.RenderEx(&presenters.Services{Services: services}, presenters.Options{HideHeader: true})
+	fmt.Println(aurora.Bold("Tasks"))
+	err = ctx.RenderEx(&presenters.TaskSummary{Tasks: tasks}, presenters.Options{HideHeader: true})
 	if err != nil {
 		return err
 	}
 
 	fmt.Println(aurora.Bold("Allocations"))
-	err = ctx.Render(&presenters.Allocations{Services: services})
+	err = ctx.Render(&presenters.Allocations{Tasks: tasks})
 	if err != nil {
 		return err
 	}

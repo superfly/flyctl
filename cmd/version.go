@@ -8,7 +8,7 @@ import (
 )
 
 func newVersionCommand() *Command {
-	return BuildCommand(runVersion, "version", "show flyctl version information", os.Stdout, false)
+	return BuildCommand(nil, runVersion, "version", "show flyctl version information", os.Stdout, false)
 }
 
 func runVersion(ctx *CmdContext) error {

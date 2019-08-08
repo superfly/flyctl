@@ -9,7 +9,7 @@ import (
 )
 
 func newAppInfoCommand() *Command {
-	return BuildCommand(runAppInfo, "info", "show detailed app information", os.Stdout, true, requireAppName)
+	return BuildCommand(nil, runAppInfo, "info", "show detailed app information", os.Stdout, true, requireAppName)
 }
 
 func runAppInfo(ctx *CmdContext) error {

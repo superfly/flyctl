@@ -7,7 +7,7 @@ import (
 )
 
 func newAppListCommand() *Command {
-	return BuildCommand(runAppsList, "apps", "list apps", os.Stdout, true)
+	return BuildCommand(nil, runAppsList, "apps", "list apps", os.Stdout, true)
 }
 
 func runAppsList(ctx *CmdContext) error {

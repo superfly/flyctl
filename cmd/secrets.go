@@ -19,7 +19,7 @@ func newAppSecretsCommand() *Command {
 		},
 	}
 
-	list := BuildCommand(runListSecrets, "list", "list app secret names", os.Stdout, true, requireAppName)
+	BuildCommand(cmd, runListSecrets, "list", "list app secrets", os.Stdout, true, requireAppName)
 
 	setUse := "set [flags] NAME=VALUE NAME=VALUE ..."
 	setHelp := `
@@ -32,22 +32,21 @@ the application and vm environment.
 Any value that equals "-" will be assigned from STDIN instead of args.
 `
 
-	set := BuildCommand(runSetSecrets, setUse, setHelp, os.Stdout, true, requireAppName)
+	set := BuildCommand(cmd, runSetSecrets, setUse, setHelp, os.Stdout, true, requireAppName)
 	set.Command.Example = `flyctl secrets set FLY_ENV=production LOG_LEVEL=info
 	echo "long text..." | flyctl secrets set LONG_TEXT=-
 	flyctl secrets set FROM_A_FILE=- < file.txt
 	`
 	set.Command.Args = cobra.MinimumNArgs(1)
 
-	unset := BuildCommand(runSecretsUnset, "unset [flags] NAME NAME ...", "remove encrypted secrets", os.Stdout, true, requireAppName)
+	unset := BuildCommand(cmd, runSecretsUnset, "unset [flags] NAME NAME ...", "remove encrypted secrets", os.Stdout, true, requireAppName)
 	unset.Command.Args = cobra.MinimumNArgs(1)
-
-	cmd.AddCommand(list, set, unset)
 
 	return cmd
 }
 
 func runListSecrets(ctx *CmdContext) error {
+	fmt.Println(ctx.AppName())
 	secrets, err := ctx.FlyClient.GetAppSecrets(ctx.AppName())
 	if err != nil {
 		return err
