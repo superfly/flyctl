@@ -14,6 +14,7 @@ const originUrl = "https://github.com/superfly/builders"
 
 type BuilderRepo struct {
 	path string
+	repo *git.Repository
 }
 
 func NewBuilderRepo() (*BuilderRepo, error) {
@@ -22,11 +23,25 @@ func NewBuilderRepo() (*BuilderRepo, error) {
 		return nil, err
 	}
 
-	r := &BuilderRepo{
-		path: dir,
+	repo, err := git.PlainOpen(dir)
+	if err == git.ErrRepositoryNotExists {
+		repo, err = git.PlainClone(dir, false, &git.CloneOptions{
+			Depth:    1,
+			URL:      originUrl,
+			Progress: os.Stdout,
+		})
+
+	}
+	if err != nil {
+		return nil, err
 	}
 
-	return r, nil
+	out := &BuilderRepo{
+		path: dir,
+		repo: repo,
+	}
+
+	return out, nil
 }
 
 func buildersDir() (string, error) {
@@ -46,16 +61,7 @@ func (b *BuilderRepo) GetBuilder(name string) (builder, error) {
 }
 
 func (b *BuilderRepo) Sync() error {
-	repo, err := git.PlainOpen(b.path)
-	if err == git.ErrRepositoryNotExists {
-		repo, err = b.initBuildersRepo()
-	}
-
-	if err != nil {
-		return err
-	}
-
-	w, err := repo.Worktree()
+	w, err := b.repo.Worktree()
 	if err != nil {
 		return err
 	}
@@ -65,31 +71,20 @@ func (b *BuilderRepo) Sync() error {
 		return err
 	}
 
-	fmt.Printf("%+v\n", repo)
+	return nil
+}
 
-	ref, err := repo.Head()
+func (b *BuilderRepo) CurrentVersion() (string, error) {
+	ref, err := b.repo.Head()
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 
-	commit, err := repo.CommitObject(ref.Hash())
-
-	fmt.Println(commit)
-
-	return nil
+	return ref.Hash().String(), nil
 }
 
 func (b *BuilderRepo) Destroy() error {
 	return os.RemoveAll(b.path)
-}
-
-func (b *BuilderRepo) initBuildersRepo() (*git.Repository, error) {
-	repo, err := git.PlainClone(b.path, false, &git.CloneOptions{
-		Depth:    1,
-		URL:      originUrl,
-		Progress: os.Stdout,
-	})
-	return repo, err
 }
 
 type builder struct {

@@ -62,6 +62,9 @@ func (ctx *BuildContext) Load() error {
 
 	builderName := ctx.project.Builder()
 	if builderName != "" {
+		fmt.Println("Builder detected:", builderName)
+
+		fmt.Println("Refreshing builders...")
 		repo, err := NewBuilderRepo()
 		if err != nil {
 			return err
@@ -69,6 +72,7 @@ func (ctx *BuildContext) Load() error {
 		if err := repo.Sync(); err != nil {
 			return err
 		}
+
 		builder, err := repo.GetBuilder(builderName)
 		if err != nil {
 			return err
@@ -93,14 +97,11 @@ func (ctx *BuildContext) BuildArgs() map[string]*string {
 		args[k] = &val
 	}
 
-	fmt.Println(args)
-
 	return args
 }
 
 func (ctx *BuildContext) addFiles(sourceDir string) error {
 	err := filepath.Walk(sourceDir, func(fpath string, info os.FileInfo, err error) error {
-		fmt.Println("walk", fpath)
 		if err != nil {
 			return err
 		}
