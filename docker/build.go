@@ -126,11 +126,10 @@ func (ctx *BuildContext) addFiles(sourceDir string) error {
 		}
 		defer file.Close()
 
-		hdr := &tar.Header{
-			Name: relPath,
-			Mode: 0600,
-			Size: info.Size(),
-		}
+		info, _ = file.Stat()
+
+		hdr, err := tar.FileInfoHeader(info, "")
+		hdr.Name = relPath
 
 		if err := ctx.tar.WriteHeader(hdr); err != nil {
 			return err
