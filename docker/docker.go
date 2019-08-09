@@ -149,7 +149,6 @@ func (c *DockerClient) BuildImage(ctx *BuildContext, out io.Writer) error {
 		defer ctx.Close()
 
 		if err := ctx.Load(); err != nil {
-			panic(err)
 			terminal.Error(err)
 		}
 	}()
@@ -157,7 +156,7 @@ func (c *DockerClient) BuildImage(ctx *BuildContext, out io.Writer) error {
 	resp, err := c.docker.ImageBuild(c.ctx, ctx, types.ImageBuildOptions{
 		Tags:      []string{ctx.Tag},
 		BuildArgs: ctx.BuildArgs(),
-		NoCache:   true,
+		// NoCache:   true,
 	})
 
 	if err != nil {
