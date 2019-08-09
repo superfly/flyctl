@@ -46,7 +46,6 @@ Any value that equals "-" will be assigned from STDIN instead of args.
 }
 
 func runListSecrets(ctx *CmdContext) error {
-	fmt.Println(ctx.AppName())
 	secrets, err := ctx.FlyClient.GetAppSecrets(ctx.AppName())
 	if err != nil {
 		return err
