@@ -116,7 +116,7 @@ type InitializerFn func(*CmdContext) error
 
 func BuildCommand(parent *Command, fn CmdRunFn, useText, helpText string, out io.Writer, initClient bool, options ...CmdOption) *Command {
 	flycmd := &Command{
-		requireSession: true,
+		requireSession: initClient,
 		Command: &cobra.Command{
 			Use:   useText,
 			Short: helpText,
