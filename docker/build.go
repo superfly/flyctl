@@ -1,146 +1,191 @@
 package docker
 
 import (
-	"archive/tar"
+	"errors"
 	"fmt"
-	"io"
+	"io/ioutil"
+	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/helpers"
 )
 
-type BuildOptions struct {
-	SourceDir string
-	Tag       string
-}
-
-type BuildContext struct {
-	reader    io.Reader
-	writer    io.WriteCloser
-	tar       *tar.Writer
-	project   *flyctl.Project
-	Tag       string
-	SourceDir string
-}
-
-func (ctx *BuildContext) Read(p []byte) (n int, err error) {
-	return ctx.reader.Read(p)
-}
-
-func NewBuildContext(sourceDir string, deploymentTag string) (*BuildContext, error) {
-	reader, writer := io.Pipe()
-
-	tw := tar.NewWriter(writer)
-
-	ctx := &BuildContext{
-		SourceDir: sourceDir,
-		tar:       tw,
-		reader:    reader,
-		writer:    writer,
-		Tag:       deploymentTag,
+func (op *DeployOperation) BuildAndDeploy(sourceDir string) (*api.Release, error) {
+	if !op.DockerAvailable() {
+		return nil, fmt.Errorf("Cannot build and deploy '%s' without the docker daemon running", sourceDir)
 	}
 
-	project, err := flyctl.LoadProject(sourceDir)
+	buildDir, err := resolveBuildPath(sourceDir)
 	if err != nil {
 		return nil, err
 	}
 
-	ctx.project = project
-
-	return ctx, nil
-}
-
-func (ctx *BuildContext) Close() error {
-	return ctx.tar.Close()
-}
-
-func (ctx *BuildContext) Load() error {
-	defer ctx.tar.Close()
-	defer ctx.writer.Close()
-
-	builderName := ctx.project.Builder()
-	if builderName != "" {
-		fmt.Println("Builder detected:", builderName)
-
-		fmt.Println("Refreshing builders...")
-		repo, err := NewBuilderRepo()
-		if err != nil {
-			return err
-		}
-		if err := repo.Sync(); err != nil {
-			return err
-		}
-
-		builder, err := repo.GetBuilder(builderName)
-		if err != nil {
-			return err
-		}
-		if err := ctx.addFiles(builder.path); err != nil {
-			return err
-		}
+	project, err := flyctl.LoadProject(buildDir)
+	if err != nil {
+		return nil, err
 	}
-	if err := ctx.addFiles(ctx.SourceDir); err != nil {
-		return err
+
+	sources := []string{project.ProjectDir}
+
+	if project.Builder() != "" {
+		fmt.Println("Builder detected:", project.Builder())
+		builderPath, err := getBuilderPath(project.Builder())
+		if err != nil {
+			return nil, err
+		}
+		sources = append(sources, builderPath)
 	}
-	return nil
+
+	tempFile, err := writeSourceContextTempFile(sources)
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(tempFile)
+
+	file, err := os.Open(tempFile)
+	if err != nil {
+		return nil, err
+	}
+	tag := newDeploymentTag(op.AppName)
+
+	buildArgs := normalizeBuildArgs(project.BuildArgs())
+
+	if err := op.dockerClient.BuildImage(file, tag, buildArgs, op.out); err != nil {
+		return nil, err
+	}
+
+	if err := op.pushImage(tag); err != nil {
+		return nil, err
+	}
+
+	release, err := op.deployImage(tag)
+	if err != nil {
+		return nil, err
+	}
+
+	op.cleanDeploymentTags()
+
+	return release, nil
 }
 
-func (ctx *BuildContext) BuildArgs() map[string]*string {
-	var args = map[string]*string{}
+func (op *DeployOperation) StartRemoteBuild(sourceDir string) (*api.Build, error) {
+	sources := []string{sourceDir}
 
-	for k, v := range ctx.project.BuildArgs() {
+	tempFile, err := writeSourceContextTempFile(sources)
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(tempFile)
+
+	file, err := os.Open(tempFile)
+	if err != nil {
+		return nil, err
+	}
+
+	fi, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	uploadFileName := fmt.Sprintf("source-%d.tar.gz", time.Now().Unix())
+	getURL, putURL, err := op.apiClient.CreateSignedUrls(op.AppName, uploadFileName)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", putURL, file)
+	if err != nil {
+		return nil, err
+	}
+	req.ContentLength = fi.Size()
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 300 {
+		body, _ := ioutil.ReadAll(resp.Body)
+		return nil, fmt.Errorf("Error submitting build: %s", body)
+	}
+
+	build, err := op.apiClient.CreateBuild(op.AppName, getURL, "targz")
+	if err != nil {
+		return nil, err
+	}
+
+	return build, nil
+}
+
+func getBuilderPath(name string) (string, error) {
+	fmt.Println("Refreshing builders...")
+	repo, err := NewBuilderRepo()
+	if err != nil {
+		return "", err
+	}
+	if err := repo.Sync(); err != nil {
+		return "", err
+	}
+
+	builder, err := repo.GetBuilder(name)
+	if err != nil {
+		return "", err
+	}
+
+	return builder.path, nil
+}
+
+func normalizeBuildArgs(args map[string]string) map[string]*string {
+	var out = map[string]*string{}
+
+	for k, v := range args {
 		k = strings.ToUpper(k)
 		// docker needs a string pointer. since ranges reuse variables we need to deref a copy
 		val := v
-		args[k] = &val
+		out[k] = &val
 	}
 
-	return args
+	return out
 }
 
-func (ctx *BuildContext) addFiles(sourceDir string) error {
-	err := filepath.Walk(sourceDir, func(fpath string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
+func isDockerfilePath(imageName string) bool {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return false
+	}
 
-		switch {
-		case info.IsDir() && info.Name() == ".git":
-			return filepath.SkipDir
-		}
+	maybePath := path.Join(cwd, imageName)
 
-		if info.IsDir() {
-			return nil
-		}
+	return helpers.FileExists(maybePath)
+}
 
-		relPath, err := filepath.Rel(sourceDir, fpath)
-		if err != nil {
-			return err
-		}
+func isDirContainingDockerfile(imageName string) bool {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return false
+	}
 
-		file, err := os.Open(fpath)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
+	maybePath := path.Join(cwd, imageName, "Dockerfile")
 
-		info, _ = file.Stat()
+	return helpers.FileExists(maybePath)
+}
 
-		hdr, err := tar.FileInfoHeader(info, "")
-		hdr.Name = relPath
+func resolveBuildPath(imageRef string) (string, error) {
+	if isDockerfilePath(imageRef) {
+		fmt.Printf("found file at '%s'\n", imageRef)
+		return path.Dir(imageRef), nil
+	} else if isDirContainingDockerfile(imageRef) {
+		fmt.Printf("found Dockerfile in '%s'\n", imageRef)
+		return imageRef, nil
+	} else if strings.HasPrefix(imageRef, ".") {
+		fmt.Printf("'%s' is a local path\n", imageRef)
+		return filepath.Abs(imageRef)
+	}
 
-		if err := ctx.tar.WriteHeader(hdr); err != nil {
-			return err
-		}
-
-		if _, err := io.Copy(ctx.tar, file); err != nil {
-			return err
-		}
-
-		return nil
-	})
-
-	return err
+	return "", errors.New("Invalid build path")
 }

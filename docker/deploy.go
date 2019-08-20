@@ -4,15 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
-	"path"
-	"path/filepath"
-	"regexp"
-	"strings"
 
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -37,40 +31,24 @@ func NewDeployOperation(appName string, apiClient *api.Client, out io.Writer) (*
 		out:          out,
 	}
 
-	op.checkDocker()
+	op.dockerAvailable = op.dockerClient.Check() == nil
 
 	return op, nil
 }
 
-func (op *DeployOperation) checkDocker() {
-	if err := op.dockerClient.Check(); err != nil {
-		terminal.Warn("Error connecting to Docker, only public images can be deployed without docker:\n", err)
-		op.dockerAvailable = false
-		return
-	}
-	op.dockerAvailable = true
+func (op *DeployOperation) DockerAvailable() bool {
+	return op.dockerAvailable
 }
 
-func (op *DeployOperation) Deploy(imageRef string) (*api.Release, error) {
-	if !op.dockerAvailable {
-		return op.deployImageWithoutDocker(imageRef)
-		if isRemoteImageReference(imageRef) {
-			return op.deployImage(imageRef)
-		}
-		return nil, fmt.Errorf("Cannot deploy '%s' without the docker daemon running", imageRef)
+func (op *DeployOperation) DeployImage(imageRef string) (*api.Release, error) {
+	if op.dockerAvailable {
+		return op.deployImageWithDocker(imageRef)
 	}
+	return op.deployImageWithoutDocker(imageRef)
+}
 
-	var deploymentTag string
-
-	buildDir, err := resolveBuildPath(imageRef)
-	if err != nil {
-		return nil, err
-	}
-	if buildDir != "" {
-		deploymentTag, err = op.buildLocalPath(buildDir)
-	} else {
-		deploymentTag, err = op.resolveAndTagImageRef(imageRef)
-	}
+func (op *DeployOperation) deployImageWithDocker(imageRef string) (*api.Release, error) {
+	deploymentTag, err := op.resolveAndTagImageRef(imageRef)
 	if err != nil {
 		return nil, err
 	}
@@ -84,9 +62,10 @@ func (op *DeployOperation) Deploy(imageRef string) (*api.Release, error) {
 		return nil, err
 	}
 
-	go op.cleanDeploymentTags()
+	op.cleanDeploymentTags()
 
 	return release, nil
+
 }
 
 func (op *DeployOperation) deployImageWithoutDocker(imageRef string) (*api.Release, error) {
@@ -96,23 +75,6 @@ func (op *DeployOperation) deployImageWithoutDocker(imageRef string) (*api.Relea
 	}
 
 	return op.deployImage(ref.Repository())
-}
-
-func (op *DeployOperation) buildLocalPath(path string) (string, error) {
-	printHeader("Building image")
-
-	tag := NewDeploymentTag(op.AppName)
-
-	buildContext, err := NewBuildContext(path, tag)
-	if err != nil {
-		return "", err
-	}
-
-	if err := op.dockerClient.BuildImage(buildContext, op.out); err != nil {
-		return "", err
-	}
-
-	return tag, nil
 }
 
 func (op *DeployOperation) resolveAndTagImageRef(imageRef string) (string, error) {
@@ -129,7 +91,7 @@ func (op *DeployOperation) resolveAndTagImageRef(imageRef string) (string, error
 
 	fmt.Println("-->", img.ID)
 
-	imageTag := NewDeploymentTag(op.AppName)
+	imageTag := newDeploymentTag(op.AppName)
 
 	printHeader("Creating deployment tag")
 	if err := op.dockerClient.TagImage(img.ID, imageTag); err != nil {
@@ -170,53 +132,6 @@ func (op *DeployOperation) cleanDeploymentTags() {
 	if err != nil {
 		terminal.Debug("Error cleaning deployment tags", err)
 	}
-}
-
-var remotePattern = regexp.MustCompile(`^[\w\d-]+\.`)
-
-func isRemoteImageReference(imageName string) bool {
-	if strings.HasPrefix(imageName, ".") {
-		return false
-	}
-
-	return remotePattern.MatchString(imageName)
-}
-
-func isDockerfilePath(imageName string) bool {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return false
-	}
-
-	maybePath := path.Join(cwd, imageName)
-
-	return helpers.FileExists(maybePath)
-}
-
-func isDirContainingDockerfile(imageName string) bool {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return false
-	}
-
-	maybePath := path.Join(cwd, imageName, "Dockerfile")
-
-	return helpers.FileExists(maybePath)
-}
-
-func resolveBuildPath(imageRef string) (string, error) {
-	if isDockerfilePath(imageRef) {
-		fmt.Printf("found file at '%s'\n", imageRef)
-		return path.Dir(imageRef), nil
-	} else if isDirContainingDockerfile(imageRef) {
-		fmt.Printf("found Dockerfile in '%s'\n", imageRef)
-		return imageRef, nil
-	} else if strings.HasPrefix(imageRef, ".") {
-		fmt.Printf("'%s' is a local path\n", imageRef)
-		return filepath.Abs(imageRef)
-	}
-
-	return "", nil
 }
 
 func printHeader(message string) {

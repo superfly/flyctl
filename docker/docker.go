@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -18,7 +17,6 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/docker/docker/pkg/term"
-	"github.com/mholt/archiver"
 	dockerparser "github.com/novln/docker-parser"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/flyctl"
@@ -26,13 +24,13 @@ import (
 	"golang.org/x/net/context"
 )
 
-func NewDeploymentTag(appName string) string {
+func newDeploymentTag(appName string) string {
 	t := time.Now()
 
-	return fmt.Sprintf("%s%d", DeploymentTagPrefix(appName), t.Unix())
+	return fmt.Sprintf("%s%d", deploymentTagPrefix(appName), t.Unix())
 }
 
-func DeploymentTagPrefix(appName string) string {
+func deploymentTagPrefix(appName string) string {
 	return fmt.Sprintf("registry.fly.io/%s:deployment-", appName)
 }
 
@@ -84,7 +82,7 @@ func (c *DockerClient) Check() error {
 }
 
 func (c *DockerClient) ResolveImage(imageName string) (*types.ImageSummary, error) {
-	img, err := c.FindImage(imageName)
+	img, err := c.findImage(imageName)
 	if img != nil {
 		return img, nil
 	} else if err != nil {
@@ -102,7 +100,7 @@ func (c *DockerClient) ResolveImage(imageName string) (*types.ImageSummary, erro
 		return nil, err
 	}
 
-	return c.FindImage(imageName)
+	return c.findImage(imageName)
 }
 
 func (c *DockerClient) PullImage(imageName string, out io.Writer) error {
@@ -121,7 +119,7 @@ func (c *DockerClient) TagImage(sourceRef, tag string) error {
 }
 
 func (c *DockerClient) DeleteDeploymentImages(appName string) error {
-	tagPrefix := DeploymentTagPrefix(appName)
+	tagPrefix := deploymentTagPrefix(appName)
 
 	filters := filters.NewArgs()
 	filters.Add("reference", tagPrefix+"*")
@@ -144,18 +142,10 @@ func (c *DockerClient) DeleteDeploymentImages(appName string) error {
 	return nil
 }
 
-func (c *DockerClient) BuildImage(ctx *BuildContext, out io.Writer) error {
-	go func() {
-		defer ctx.Close()
-
-		if err := ctx.Load(); err != nil {
-			terminal.Error(err)
-		}
-	}()
-
-	resp, err := c.docker.ImageBuild(c.ctx, ctx, types.ImageBuildOptions{
-		Tags:      []string{ctx.Tag},
-		BuildArgs: ctx.BuildArgs(),
+func (c *DockerClient) BuildImage(tar io.Reader, tag string, buildArgs map[string]*string, out io.Writer) error {
+	resp, err := c.docker.ImageBuild(c.ctx, tar, types.ImageBuildOptions{
+		Tags:      []string{tag},
+		BuildArgs: buildArgs,
 		// NoCache:   true,
 	})
 
@@ -169,52 +159,9 @@ func (c *DockerClient) BuildImage(ctx *BuildContext, out io.Writer) error {
 	return jsonmessage.DisplayJSONMessagesStream(resp.Body, out, termFd, isTerm, nil)
 }
 
-func tarBuildContext(writer io.Writer, path string) error {
-	tar := archiver.Tar{
-		MkdirAll: true,
-	}
-
-	if err := tar.Create(writer); err != nil {
-		return err
-	}
-
-	err := filepath.Walk(path, func(fpath string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if info.IsDir() {
-			return nil
-		}
-
-		relPath, err := filepath.Rel(path, fpath)
-		if err != nil {
-			return err
-		}
-
-		file, err := os.Open(fpath)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-
-		err = tar.Write(archiver.File{
-			FileInfo: archiver.FileInfo{
-				FileInfo:   info,
-				CustomName: relPath,
-			},
-			ReadCloser: file,
-		})
-
-		return err
-	})
-
-	return err
-}
-
 var imageIDPattern = regexp.MustCompile("[a-f0-9]")
 
-func (c *DockerClient) FindImage(imageName string) (*types.ImageSummary, error) {
+func (c *DockerClient) findImage(imageName string) (*types.ImageSummary, error) {
 	ref, err := dockerparser.Parse(imageName)
 	if err != nil {
 		return nil, err

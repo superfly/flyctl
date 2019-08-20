@@ -31,6 +31,12 @@ type Query struct {
 		Deployment Deployment
 		Release    Release
 	}
+
+	CreateSignedUrl SignedUrls
+
+	CreateBuild struct {
+		Build Build
+	}
 }
 
 type App struct {
@@ -158,4 +164,18 @@ type Release struct {
 	Description string
 	User        User
 	CreatedAt   time.Time
+}
+
+type Build struct {
+	ID         string
+	InProgress bool
+	Status     string
+	User       User
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+type SignedUrls struct {
+	GetUrl string
+	PutUrl string
 }
