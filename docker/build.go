@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/denormal/go-gitignore"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
@@ -42,7 +43,7 @@ func (op *DeployOperation) BuildAndDeploy(sourceDir string) (*api.Release, error
 		sources = append(sources, builderPath)
 	}
 
-	tempFile, err := writeSourceContextTempFile(sources)
+	tempFile, err := writeSourceContextTempFile(sources, noopMatcher)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +78,26 @@ func (op *DeployOperation) BuildAndDeploy(sourceDir string) (*api.Release, error
 func (op *DeployOperation) StartRemoteBuild(sourceDir string) (*api.Build, error) {
 	sources := []string{sourceDir}
 
-	tempFile, err := writeSourceContextTempFile(sources)
+	matches, _ := recursivelyFindFilesInParents(".", ".gitignore")
+	exclude := noopMatcher
+	if len(matches) > 0 {
+		ignore, err := gitignore.NewFromFile(matches[0])
+		if err != nil {
+			return nil, err
+		}
+		exclude = func(path string, isDir bool) bool {
+			match := ignore.Relative(path, isDir)
+			if match != nil {
+				if match.Ignore() {
+					return true
+				}
+			}
+
+			return false
+		}
+	}
+
+	tempFile, err := writeSourceContextTempFile(sources, exclude)
 	if err != nil {
 		return nil, err
 	}
@@ -188,4 +208,25 @@ func resolveBuildPath(imageRef string) (string, error) {
 	}
 
 	return "", errors.New("Invalid build path")
+}
+
+func recursivelyFindFilesInParents(startingDir, name string) ([]string, error) {
+	matches := []string{}
+	dir, err := filepath.Abs(filepath.Clean(startingDir))
+	if err != nil {
+		return matches, err
+	}
+
+	for {
+		filename := filepath.Join(dir, name)
+		if _, err := os.Stat(filename); err == nil {
+			matches = append(matches, filename)
+		}
+		dir = filepath.Dir(dir)
+		if dir == "/" {
+			break
+		}
+	}
+
+	return matches, nil
 }

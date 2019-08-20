@@ -3,14 +3,19 @@ package docker
 import (
 	"archive/tar"
 	"compress/gzip"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 )
 
-func writeSourceContextTempFile(sources []string) (string, error) {
+type excludeMatcher func(path string, isDir bool) bool
+
+func noopMatcher(path string, isDir bool) bool {
+	return false
+}
+
+func writeSourceContextTempFile(sources []string, exclude excludeMatcher) (string, error) {
 	file, err := ioutil.TempFile("", "*")
 	if err != nil {
 		return "", err
@@ -18,14 +23,14 @@ func writeSourceContextTempFile(sources []string) (string, error) {
 	defer file.Close()
 	gzWriter := gzip.NewWriter(file)
 
-	if err := writeSourceContxt(gzWriter, sources); err != nil {
+	if err := writeSourceContxt(gzWriter, sources, exclude); err != nil {
 		return "", err
 	}
 
 	return file.Name(), nil
 }
 
-func writeSourceContxt(writer io.WriteCloser, sources []string) error {
+func writeSourceContxt(writer io.WriteCloser, sources []string, exclude excludeMatcher) error {
 	tw := tar.NewWriter(writer)
 	defer writer.Close()
 	defer tw.Close()
@@ -39,6 +44,13 @@ func writeSourceContxt(writer io.WriteCloser, sources []string) error {
 			switch {
 			case info.IsDir() && info.Name() == ".git":
 				return filepath.SkipDir
+			}
+
+			if exclude(fpath, info.IsDir()) {
+				if info.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
 			}
 
 			if info.IsDir() {
@@ -68,8 +80,6 @@ func writeSourceContxt(writer io.WriteCloser, sources []string) error {
 			if _, err := io.Copy(tw, file); err != nil {
 				return err
 			}
-
-			fmt.Println("Added", file.Name(), "=>", relPath)
 
 			return nil
 		})
