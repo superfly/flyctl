@@ -26,6 +26,8 @@ var rootCmd = &Command{
 }
 
 func Execute() {
+	defer flyctl.BackgroundTaskWG.Wait()
+
 	if err := rootCmd.Execute(); err != nil {
 		terminal.Error(err)
 		os.Exit(1)
@@ -33,6 +35,8 @@ func Execute() {
 }
 
 func init() {
+	flyctl.CheckForUpdate()
+
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringP("access-token", "t", "", "Fly API Access Token")
