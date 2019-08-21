@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/briandowns/spinner"
 	"github.com/denormal/go-gitignore"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
@@ -43,11 +44,17 @@ func (op *DeployOperation) BuildAndDeploy(sourceDir string) (*api.Release, error
 		sources = append(sources, builderPath)
 	}
 
+	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
+	s.Writer = os.Stderr
+	s.Prefix = "Creating build context... "
+	s.Start()
+
 	tempFile, err := writeSourceContextTempFile(sources, noopMatcher)
 	if err != nil {
 		return nil, err
 	}
 	defer os.Remove(tempFile)
+	s.Stop()
 
 	file, err := os.Open(tempFile)
 	if err != nil {
@@ -77,6 +84,11 @@ func (op *DeployOperation) BuildAndDeploy(sourceDir string) (*api.Release, error
 
 func (op *DeployOperation) StartRemoteBuild(sourceDir string) (*api.Build, error) {
 	sources := []string{sourceDir}
+
+	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
+	s.Writer = os.Stderr
+	s.Prefix = "Creating build context... "
+	s.Start()
 
 	matches, _ := recursivelyFindFilesInParents(".", ".gitignore")
 	exclude := noopMatcher
@@ -113,6 +125,10 @@ func (op *DeployOperation) StartRemoteBuild(sourceDir string) (*api.Build, error
 		return nil, err
 	}
 
+	s.Stop()
+
+	s.Prefix = "Submitting build..."
+
 	uploadFileName := fmt.Sprintf("source-%d.tar.gz", time.Now().Unix())
 	getURL, putURL, err := op.apiClient.CreateSignedUrls(op.AppName, uploadFileName)
 	if err != nil {
@@ -138,6 +154,7 @@ func (op *DeployOperation) StartRemoteBuild(sourceDir string) (*api.Build, error
 	if err != nil {
 		return nil, err
 	}
+	s.Stop()
 
 	return build, nil
 }
