@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/terminal"
 	"gopkg.in/yaml.v2"
@@ -53,6 +54,7 @@ func init() {
 		newAppCreateCommand(),
 		newDeployCommand(),
 		newAppInfoCommand(),
+		newBuildsCommand(),
 	)
 }
 
@@ -66,6 +68,8 @@ func initConfig() {
 
 	viper.SetEnvPrefix("FLY")
 	viper.AutomaticEnv()
+
+	api.SetBaseURL(viper.GetString(flyctl.ConfigAPIBaseURL))
 }
 
 func loadConfig() error {

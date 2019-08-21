@@ -3,10 +3,13 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"time"
 
+	"github.com/briandowns/spinner"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/docker"
+	"github.com/superfly/flyctl/flyctl"
 )
 
 func newDeployCommand() *Command {
@@ -42,7 +45,10 @@ func runDeploy(ctx *CmdContext) error {
 		sourceDir = ctx.Args[0]
 	}
 
+	fmt.Printf("Deploy source directory '%s'\n", sourceDir)
+
 	if op.DockerAvailable() {
+		fmt.Println("Docker daemon available, performing local build...")
 		release, err := op.BuildAndDeploy(sourceDir)
 		if err != nil {
 			return err
@@ -50,10 +56,33 @@ func runDeploy(ctx *CmdContext) error {
 		return ctx.RenderEx(&presenters.Releases{Release: release}, presenters.Options{Vertical: true})
 	}
 
+	fmt.Println("Docker daemon unavailable, performing remote build...")
+
 	build, err := op.StartRemoteBuild(sourceDir)
 	if err != nil {
 		return err
 	}
-	fmt.Println(build, err)
+
+	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
+	s.Writer = os.Stderr
+	s.Prefix = "Building "
+	s.Start()
+
+	logStream := flyctl.NewBuildLogStream(build.ID, ctx.FlyClient)
+
+	for line := range logStream.Fetch() {
+		s.Stop()
+		fmt.Println(line)
+		s.Start()
+	}
+
+	s.FinalMSG = fmt.Sprintf("Build complete - %s\n", logStream.Status())
+
+	s.Stop()
+
+	if err := logStream.Err(); err != nil {
+		return err
+	}
+
 	return nil
 }

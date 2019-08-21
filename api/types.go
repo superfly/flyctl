@@ -12,6 +12,8 @@ type Query struct {
 		Nodes []Organization
 	}
 
+	Build Build
+
 	// mutations
 	CreateApp struct {
 		App App
@@ -56,6 +58,9 @@ type App struct {
 	}
 	IPAddresses struct {
 		Nodes []IPAddress
+	}
+	Builds struct {
+		Nodes []Build
 	}
 }
 
@@ -171,6 +176,7 @@ type Build struct {
 	InProgress bool
 	Status     string
 	User       User
+	Logs       string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }

@@ -101,7 +101,7 @@ func newCmdContext(ns string, out io.Writer, args []string, initClient bool, ini
 	}
 
 	if initClient {
-		client, err := api.NewClient()
+		client, err := api.NewClient(viper.GetString(flyctl.ConfigAPIAccessToken))
 		if err != nil {
 			return nil, err
 		}

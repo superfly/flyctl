@@ -37,7 +37,7 @@ func runLogs(ctx *CmdContext) error {
 	nextToken := ""
 
 	for {
-		entries, token, err := api.GetAppLogs(ctx.AppName(), nextToken, regionFilter, instanceFilter)
+		entries, token, err := ctx.FlyClient.GetAppLogs(ctx.AppName(), nextToken, regionFilter, instanceFilter)
 
 		if err != nil {
 			if api.IsNotAuthenticatedError(err) {

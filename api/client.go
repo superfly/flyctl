@@ -12,27 +12,31 @@ import (
 	"strings"
 
 	"github.com/machinebox/graphql"
-	"github.com/spf13/viper"
-	"github.com/superfly/flyctl/flyctl"
 )
 
+var baseURL string
+
+func SetBaseURL(url string) {
+	baseURL = url
+}
+
 type Client struct {
+	httpClient  *http.Client
 	client      *graphql.Client
 	accessToken string
 }
 
-func NewClient() (*Client, error) {
-	accessToken := viper.GetString(flyctl.ConfigAPIAccessToken)
+func NewClient(accessToken string) (*Client, error) {
 	if accessToken == "" {
 		return nil, errors.New("No api access token available. Please login")
 	}
 
 	httpClient, _ := newHTTPClient()
 
-	url := fmt.Sprintf("%s/api/v2/graphql", viper.GetString(flyctl.ConfigAPIBaseURL))
+	url := fmt.Sprintf("%s/api/v2/graphql", baseURL)
 
 	client := graphql.NewClient(url, graphql.WithHTTPClient(httpClient))
-	return &Client{client, accessToken}, nil
+	return &Client{httpClient, client, accessToken}, nil
 }
 
 func (c *Client) NewRequest(q string) *graphql.Request {
@@ -88,7 +92,7 @@ func GetAccessToken(email, password, otp string) (string, error) {
 		},
 	})
 
-	url := fmt.Sprintf("%s/api/v1/sessions", viper.GetString(flyctl.ConfigAPIBaseURL))
+	url := fmt.Sprintf("%s/api/v1/sessions", baseURL)
 
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(postData))
 	if err != nil {
@@ -124,7 +128,7 @@ type getLogsResponse struct {
 	}
 }
 
-func GetAppLogs(appName string, nextToken string, region string, instanceId string) ([]LogEntry, string, error) {
+func (c *Client) GetAppLogs(appName string, nextToken string, region string, instanceId string) ([]LogEntry, string, error) {
 
 	data := url.Values{}
 	data.Set("next_token", nextToken)
@@ -135,11 +139,10 @@ func GetAppLogs(appName string, nextToken string, region string, instanceId stri
 		data.Set("region", region)
 	}
 
-	url := fmt.Sprintf("%s/api/v1/apps/%s/logs?%s", viper.GetString(flyctl.ConfigAPIBaseURL), appName, data.Encode())
+	url := fmt.Sprintf("%s/api/v1/apps/%s/logs?%s", baseURL, appName, data.Encode())
 
 	req, err := http.NewRequest("GET", url, nil)
-	accessToken := viper.GetString(flyctl.ConfigAPIAccessToken)
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
 
 	var result getLogsResponse
 
@@ -542,4 +545,72 @@ func (c *Client) CreateBuild(appId string, sourceUrl, sourceType string) (*Build
 	}
 
 	return &data.CreateBuild.Build, nil
+}
+
+func (c *Client) ListBuilds(appName string) ([]Build, error) {
+	query := `
+		query($appName: String!) {
+			app(name: $appName) {
+				builds {
+					nodes {
+						id
+						inProgress
+						status
+						user {
+							id
+							name
+							email
+						}
+						createdAt
+						updatedAt
+					}
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("appName", appName)
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.App.Builds.Nodes, nil
+}
+
+func (c *Client) GetBuild(buildId string) (*Build, error) {
+	query := `
+		query($id: ID!) {
+			build: node(id: $id) {
+				id
+				__typename
+				... on Build {
+					inProgress
+					status
+					logs
+					user {
+						id
+						name
+						email
+					}
+					createdAt
+					updatedAt
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("id", buildId)
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.Build, nil
 }
