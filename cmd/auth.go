@@ -22,7 +22,7 @@ func newAuthCommand() *Command {
 		},
 	}
 
-	whoami := BuildCommand(cmd, runWhoami, "whoami", "show the currently authenticated user", os.Stdout, true)
+	BuildCommand(cmd, runWhoami, "whoami", "show the currently authenticated user", os.Stdout, true)
 	login := BuildCommand(cmd, runLogin, "login", "log in a user", os.Stdout, false)
 	login.AddStringFlag(StringFlagOpts{
 		Name:        "email",
@@ -37,13 +37,7 @@ func newAuthCommand() *Command {
 		Description: "one time password",
 	})
 
-	logout := BuildCommand(cmd, runLogout, "logout", "log out the user", os.Stdout, true)
-
-	cmd.AddCommand(
-		whoami,
-		login,
-		logout,
-	)
+	BuildCommand(cmd, runLogout, "logout", "log out the user", os.Stdout, true)
 
 	return cmd
 }
