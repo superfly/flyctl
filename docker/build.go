@@ -18,25 +18,41 @@ import (
 	"github.com/superfly/flyctl/helpers"
 )
 
-func (op *DeployOperation) BuildAndDeploy(sourceDir string) (*api.Release, error) {
+type DockerfileSource uint
+
+const (
+	BuilderDockerfile DockerfileSource = iota
+	ProjectDockerfile
+	NoDockerfile
+)
+
+var ErrNoDockerfile = errors.New("Project does not contain a Dockerfile or specify a builder")
+var ErrDockerDaemon = errors.New("Docker daemon must be running to perform this action")
+
+func dockerfileSource(project *flyctl.Project) DockerfileSource {
+	if _, err := os.Stat(path.Join(project.ProjectDir, "Dockerfile")); err == nil {
+		return ProjectDockerfile
+	}
+	if project.Builder() != "" {
+		return BuilderDockerfile
+	}
+	return NoDockerfile
+}
+
+func (op *DeployOperation) BuildAndDeploy(project *flyctl.Project) (*api.Release, error) {
 	if !op.DockerAvailable() {
-		return nil, fmt.Errorf("Cannot build and deploy '%s' without the docker daemon running", sourceDir)
-	}
-
-	buildDir, err := resolveBuildPath(sourceDir)
-	if err != nil {
-		return nil, err
-	}
-
-	project, err := flyctl.LoadProject(buildDir)
-	if err != nil {
-		return nil, err
+		return nil, ErrDockerDaemon
 	}
 
 	sources := []string{project.ProjectDir}
 
-	if project.Builder() != "" {
-		fmt.Println("Builder detected:", project.Builder())
+	switch dockerfileSource(project) {
+	case NoDockerfile:
+		return nil, ErrNoDockerfile
+	case ProjectDockerfile:
+		fmt.Println("Using Dockerfile from project:", path.Join(project.ProjectDir, "Dockerfile"))
+	case BuilderDockerfile:
+		fmt.Println("Using Dockerfile from builder:", project.Builder())
 		builderPath, err := getBuilderPath(project.Builder())
 		if err != nil {
 			return nil, err
@@ -82,8 +98,12 @@ func (op *DeployOperation) BuildAndDeploy(sourceDir string) (*api.Release, error
 	return release, nil
 }
 
-func (op *DeployOperation) StartRemoteBuild(sourceDir string) (*api.Build, error) {
-	sources := []string{sourceDir}
+func (op *DeployOperation) StartRemoteBuild(project *flyctl.Project) (*api.Build, error) {
+	if dockerfileSource(project) == NoDockerfile {
+		return nil, ErrNoDockerfile
+	}
+
+	sources := []string{project.ProjectDir}
 
 	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
 	s.Writer = os.Stderr

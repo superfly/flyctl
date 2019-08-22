@@ -45,11 +45,16 @@ func runDeploy(ctx *CmdContext) error {
 		sourceDir = ctx.Args[0]
 	}
 
-	fmt.Printf("Deploy source directory '%s'\n", sourceDir)
+	project, err := flyctl.LoadProject(sourceDir)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Deploy source directory '%s'\n", project.ProjectDir)
 
 	if op.DockerAvailable() {
 		fmt.Println("Docker daemon available, performing local build...")
-		release, err := op.BuildAndDeploy(sourceDir)
+		release, err := op.BuildAndDeploy(project)
 		if err != nil {
 			return err
 		}
@@ -58,7 +63,7 @@ func runDeploy(ctx *CmdContext) error {
 
 	fmt.Println("Docker daemon unavailable, performing remote build...")
 
-	build, err := op.StartRemoteBuild(sourceDir)
+	build, err := op.StartRemoteBuild(project)
 	if err != nil {
 		return err
 	}
