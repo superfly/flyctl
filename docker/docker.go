@@ -135,7 +135,6 @@ func (c *DockerClient) DeleteDeploymentImages(appName string) error {
 			if err != nil {
 				terminal.Error("Error deleting image", err)
 			}
-			fmt.Println("Removed deployment image:", tag)
 		}
 	}
 
