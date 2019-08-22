@@ -258,7 +258,7 @@ func (c *Client) GetApp(appName string) (*App, error) {
 			app(name: $appName) {
 				id
 				name
-				version
+				deployed
 				status
 				appUrl
 				organization {
@@ -456,10 +456,11 @@ func (c *Client) CreateApp(name string, orgId string) (*App, error) {
 	return &data.CreateApp.App, nil
 }
 
-func (c *Client) GetAppTasks(appName string) ([]Task, error) {
+func (c *Client) GetAppWithTasks(appName string) (*App, error) {
 	query := `
 		query($appName: String!) {
 			app(name: $appName) {
+				deployed
 				tasks {
 					id
 					name
@@ -487,7 +488,7 @@ func (c *Client) GetAppTasks(appName string) ([]Task, error) {
 		return nil, err
 	}
 
-	return data.App.Tasks, nil
+	return &data.App, nil
 }
 
 func (c *Client) CreateSignedUrls(appId string, filename string) (getUrl string, putUrl string, err error) {

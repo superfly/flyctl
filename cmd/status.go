@@ -15,19 +15,24 @@ func newAppStatusCommand() *Command {
 }
 
 func runAppStatus(ctx *CmdContext) error {
-	tasks, err := ctx.FlyClient.GetAppTasks(ctx.AppName())
+	app, err := ctx.FlyClient.GetAppWithTasks(ctx.AppName())
 	if err != nil {
 		return err
 	}
 
+	if !app.Deployed {
+		fmt.Println(`App has not been deployed yet. Try running "flyctl deploy --image nginxdemos/hello"`)
+		return nil
+	}
+
 	fmt.Println(aurora.Bold("Tasks"))
-	err = ctx.RenderEx(&presenters.TaskSummary{Tasks: tasks}, presenters.Options{HideHeader: true})
+	err = ctx.RenderEx(&presenters.TaskSummary{Tasks: app.Tasks}, presenters.Options{HideHeader: true})
 	if err != nil {
 		return err
 	}
 
 	fmt.Println(aurora.Bold("Allocations"))
-	err = ctx.Render(&presenters.Allocations{Tasks: tasks})
+	err = ctx.Render(&presenters.Allocations{Tasks: app.Tasks})
 	if err != nil {
 		return err
 	}

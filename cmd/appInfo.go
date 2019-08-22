@@ -36,8 +36,8 @@ func runAppInfo(ctx *CmdContext) error {
 		return err
 	}
 
-	if app.Version == 0 {
-		fmt.Println(`App has not been deployed yet. Try running "flyctl deploy nginxdemos/hello"`)
+	if !app.Deployed {
+		fmt.Println(`App has not been deployed yet. Try running "flyctl deploy --image nginxdemos/hello"`)
 	}
 
 	return nil
