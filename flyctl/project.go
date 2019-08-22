@@ -82,6 +82,10 @@ func (c *Project) Builder() string {
 	return c.cfg.GetString("build.builder")
 }
 
+func (c *Project) SetBuilder(name string) {
+	c.cfg.Set("build.builder", name)
+}
+
 func (c *Project) BuildArgs() map[string]string {
 	args := c.cfg.GetStringMapString("build")
 	delete(args, "builder")

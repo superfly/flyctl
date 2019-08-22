@@ -19,6 +19,10 @@ func newAppCreateCommand() *Command {
 		Name:        "org",
 		Description: `the organization that will own the app`,
 	})
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "builder",
+		Description: `the builder to use when deploying this app`,
+	})
 
 	return cmd
 }
@@ -51,6 +55,9 @@ func runAppCreate(ctx *CmdContext) error {
 
 	p := flyctl.NewProject(".")
 	p.SetAppName(app.Name)
+	if builder, _ := ctx.Config.GetString("builder"); builder != "" {
+		p.SetBuilder(builder)
+	}
 
 	if err := p.SafeWriteConfig(); err != nil {
 		fmt.Printf(
