@@ -19,6 +19,7 @@ const NSRoot = "flyctl"
 
 type Config interface {
 	GetString(key string) (string, error)
+	GetBool(key string) bool
 }
 
 type config struct {
@@ -38,6 +39,12 @@ func (cfg *config) GetString(key string) (string, error) {
 	val := viper.GetString(fullKey)
 	// required check
 	return val, nil
+}
+
+func (cfg *config) GetBool(key string) bool {
+	fullKey := cfg.nsKey(key)
+
+	return viper.GetBool(fullKey)
 }
 
 func ConfigNS(ns string) Config {

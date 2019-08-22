@@ -3,6 +3,7 @@ module github.com/superfly/flyctl
 go 1.12
 
 require (
+	github.com/AlecAivazis/survey/v2 v2.0.2
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
 	github.com/BurntSushi/toml v0.3.1
 	github.com/Microsoft/go-winio v0.4.13 // indirect

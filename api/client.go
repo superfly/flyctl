@@ -615,3 +615,22 @@ func (c *Client) GetBuild(buildId string) (*Build, error) {
 
 	return &data.Build, nil
 }
+
+func (client *Client) DeleteApp(appName string) error {
+	query := `
+			mutation($appId: ID!) {
+				deleteApp(appId: $appId) {
+					organization {
+						id
+					}
+				}
+			}
+		`
+
+	req := client.NewRequest(query)
+
+	req.Var("appId", appName)
+
+	_, err := client.Run(req)
+	return err
+}

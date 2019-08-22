@@ -43,9 +43,23 @@ type StringFlagOpts struct {
 	Default     string
 }
 
+type BoolFlagOpts struct {
+	Name        string
+	Shorthand   string
+	Description string
+	Default     bool
+}
+
 func (c *Command) AddStringFlag(options StringFlagOpts) {
 	fullName := namespace(c.Command) + "." + options.Name
 	c.Flags().StringP(options.Name, options.Shorthand, options.Default, options.Description)
+
+	viper.BindPFlag(fullName, c.Flags().Lookup(options.Name))
+}
+
+func (c *Command) AddBoolFlag(options BoolFlagOpts) {
+	fullName := namespace(c.Command) + "." + options.Name
+	c.Flags().BoolP(options.Name, options.Shorthand, options.Default, options.Description)
 
 	viper.BindPFlag(fullName, c.Flags().Lookup(options.Name))
 }
