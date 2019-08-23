@@ -12,7 +12,7 @@ type Services struct {
 }
 
 func (p *Services) FieldNames() []string {
-	return []string{"Task", "Protocol", "Port", "Internal Port", "Filters"}
+	return []string{"Task", "Protocol", "Port", "Internal Port", "Handlers"}
 }
 
 func (p *Services) Records() []map[string]string {
@@ -25,7 +25,7 @@ func (p *Services) Records() []map[string]string {
 				"Protocol":      service.Protocol,
 				"Port":          strconv.Itoa(service.Port),
 				"Internal Port": strconv.Itoa(service.InternalPort),
-				"Filters":       strings.Join(service.Filters, " "),
+				"Handlers":      strings.Join(service.Filters, " "),
 			})
 		}
 	}
