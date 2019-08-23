@@ -1,18 +1,17 @@
 package flyctl
 
 import (
-	"os"
-	"path/filepath"
-
 	"github.com/spf13/viper"
-	"github.com/superfly/flyctl/helpers"
 )
 
 const (
-	ConfigAPIAccessToken = "access_token"
-	ConfigAPIBaseURL     = "api_base_url"
-	ConfigAppName        = "app"
-	ConfigVerboseOutput  = "verbose"
+	ConfigAPIAccessToken           = "access_token"
+	ConfigAPIBaseURL               = "api_base_url"
+	ConfigAppName                  = "app"
+	ConfigVerboseOutput            = "verbose"
+	ConfigUpdateCheckLatestVersion = "update_check.latest_version"
+	ConfigUpdateCheckTimestamp     = "update_check.timestamp"
+	ConfigUpdateCheckOptOut        = "update_check.out_out"
 )
 
 const NSRoot = "flyctl"
@@ -52,29 +51,3 @@ func ConfigNS(ns string) Config {
 }
 
 var FlyConfig Config = ConfigNS(NSRoot)
-
-func ConfigDir() (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-
-	return filepath.Join(homeDir, ".fly"), nil
-}
-
-func EnsureConfigDir() (string, error) {
-	dir, err := ConfigDir()
-	if err != nil {
-		return "", err
-	}
-
-	if helpers.DirectoryExists(dir) {
-		return dir, nil
-	}
-
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return "", err
-	}
-
-	return dir, nil
-}

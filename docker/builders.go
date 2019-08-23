@@ -45,11 +45,7 @@ func NewBuilderRepo() (*BuilderRepo, error) {
 }
 
 func buildersDir() (string, error) {
-	configDir, err := flyctl.ConfigDir()
-	if err != nil {
-		return "", err
-	}
-	return path.Join(configDir, "builders"), nil
+	return path.Join(flyctl.ConfigDir(), "builders"), nil
 }
 
 func (b *BuilderRepo) GetBuilder(name string) (builder, error) {

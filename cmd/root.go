@@ -2,16 +2,12 @@ package cmd
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
-	"path"
 
+	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/terminal"
-	"gopkg.in/yaml.v2"
 )
 
 var rootCmd = &Command{
@@ -28,15 +24,11 @@ var rootCmd = &Command{
 func Execute() {
 	defer flyctl.BackgroundTaskWG.Wait()
 
-	if err := rootCmd.Execute(); err != nil {
-		terminal.Error(err)
-		os.Exit(1)
-	}
+	err := rootCmd.Execute()
+	checkErr(err)
 }
 
 func init() {
-	flyctl.CheckForUpdate()
-
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringP("access-token", "t", "", "Fly API Access Token")
@@ -63,53 +55,22 @@ func init() {
 }
 
 func initConfig() {
-	// read in credentials.yml, maybe migrate to new config?
-	if err := loadConfig(); err != nil {
-		panic(err)
-	}
-
-	viper.SetDefault(flyctl.ConfigAPIBaseURL, "https://fly.io")
-
-	viper.SetEnvPrefix("FLY")
-	viper.AutomaticEnv()
-
-	api.SetBaseURL(viper.GetString(flyctl.ConfigAPIBaseURL))
+	flyctl.InitConfig()
+	flyctl.CheckForUpdate()
 }
 
-func loadConfig() error {
-	configDir, err := flyctl.ConfigDir()
-	if err != nil {
-		return err
+func checkErr(err error) {
+	if err == nil {
+		return
 	}
 
-	configFile := path.Join(configDir, "credentials.yml")
+	fmt.Println(aurora.Red("Error"), err)
 
-	viper.SetConfigType("yaml")
-	viper.SetConfigFile(configFile)
-
-	if _, err := os.Stat(configFile); err == nil {
-		if err := viper.ReadInConfig(); err != nil {
-			return err
-		}
-	}
-
-	terminal.Debug("Read config file", viper.ConfigFileUsed())
-
-	return nil
+	safeExit()
 }
 
-func saveConfig() error {
-	out := map[string]string{}
-	if accessToken := viper.GetString(flyctl.ConfigAPIAccessToken); accessToken != "" {
-		out["access_token"] = accessToken
-	}
+func safeExit() {
+	flyctl.BackgroundTaskWG.Wait()
 
-	data, err := yaml.Marshal(&out)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(string(data))
-
-	return ioutil.WriteFile(viper.ConfigFileUsed(), data, 0644)
+	os.Exit(1)
 }

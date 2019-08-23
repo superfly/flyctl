@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
@@ -204,14 +203,4 @@ func requireSession(val bool) func(*Command) {
 	return func(cmd *Command) {
 		cmd.requireSession = val
 	}
-}
-
-func checkErr(err error) {
-	if err == nil {
-		return
-	}
-
-	fmt.Println(aurora.Red("Error"), err)
-
-	os.Exit(1)
 }

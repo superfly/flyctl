@@ -3,110 +3,64 @@ package flyctl
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
-	"path"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/blang/semver"
 	"github.com/logrusorgru/aurora"
+	"github.com/spf13/viper"
 )
 
 var BackgroundTaskWG = &sync.WaitGroup{}
 
-type UpdateStatus struct {
-	LastUpdateCheck time.Time
-	LatestVersion   string
-	OptOut          bool
+func skipUpdateCheck() bool {
+	return Version == "" || viper.GetBool(ConfigUpdateCheckOptOut)
 }
 
-func (status UpdateStatus) updateAvailable() bool {
-	if status.LatestVersion == "" || Version == "" {
+func updateAvailable() bool {
+	if !viper.IsSet(ConfigUpdateCheckLatestVersion) {
 		return false
 	}
 
-	latestVersion, err := semver.Parse(status.LatestVersion)
+	lv, err := semver.Parse(viper.GetString(ConfigUpdateCheckLatestVersion))
 	if err != nil {
 		return false
 	}
-	currentVersion, err := semver.Parse(Version)
+	cv, err := semver.Parse(Version)
 	if err != nil {
 		return false
 	}
 
-	return latestVersion.GT(currentVersion)
+	return lv.GT(cv)
 }
 
 func CheckForUpdate() {
-	us := readCachedUpdateStatus()
-
-	if us.OptOut || Version == "" {
+	if skipUpdateCheck() {
 		return
 	}
 
-	go refreshUpdateStatus(us)
-
-	if us.updateAvailable() {
-		fmt.Println(aurora.Yellow(fmt.Sprintf("Update available %s -> %s", Version, us.LatestVersion)))
+	if updateAvailable() {
+		latestVersion := viper.GetString(ConfigUpdateCheckLatestVersion)
+		fmt.Println(aurora.Yellow(fmt.Sprintf("Update available %s -> %s", Version, latestVersion)))
 	}
 
-	if us.LatestVersion == "" || Version == "" {
-		return
+	lastCheck := viper.GetTime(ConfigUpdateCheckTimestamp)
+	if lastCheck.Add(1 * time.Hour).Before(time.Now()) {
+		go checkForRelease()
 	}
-
 }
 
-func refreshUpdateStatus(us UpdateStatus) {
-	if us.LastUpdateCheck.Add(1 * time.Hour).After(time.Now()) {
-		return
-	}
-
+func checkForRelease() {
 	BackgroundTaskWG.Add(1)
 	defer BackgroundTaskWG.Done()
 
 	if version, err := refreshGithubVersion(); err == nil {
-		us.LatestVersion = version
-		us.LastUpdateCheck = time.Now()
-		writeCachedUpdateStatus(us)
+		viper.Set(ConfigUpdateCheckLatestVersion, version)
+		viper.Set(ConfigUpdateCheckTimestamp, time.Now())
+		SaveConfig()
 	}
-}
-
-func readCachedUpdateStatus() UpdateStatus {
-	updateStatus := UpdateStatus{}
-
-	configDir, err := ConfigDir()
-	if err != nil {
-		return UpdateStatus{}
-	}
-
-	configFile := path.Join(configDir, "update.json")
-
-	bytes, err := ioutil.ReadFile(configFile)
-	if err != nil {
-		return updateStatus
-	}
-
-	json.Unmarshal(bytes, &updateStatus)
-
-	return updateStatus
-}
-
-func writeCachedUpdateStatus(status UpdateStatus) error {
-	configDir, err := ConfigDir()
-	if err != nil {
-		return nil
-	}
-
-	configFile := path.Join(configDir, "update.json")
-
-	bytes, err := json.Marshal(status)
-	if err != nil {
-		return err
-	}
-
-	return ioutil.WriteFile(configFile, bytes, 0644)
 }
 
 type githubReleaseResponse struct {

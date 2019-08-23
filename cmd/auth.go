@@ -94,13 +94,13 @@ func runLogin(ctx *CmdContext) error {
 
 	viper.Set(flyctl.ConfigAPIAccessToken, accessToken)
 
-	return saveConfig()
+	return flyctl.SaveConfig()
 }
 
 func runLogout(ctx *CmdContext) error {
 	viper.Set(flyctl.ConfigAPIAccessToken, "")
 
-	if err := saveConfig(); err != nil {
+	if err := flyctl.SaveConfig(); err != nil {
 		return err
 	}
 
