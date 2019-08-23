@@ -1,12 +1,10 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
-	"strings"
 
-	"github.com/manifoldco/promptui"
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
@@ -54,36 +52,38 @@ func runWhoami(ctx *CmdContext) error {
 func runLogin(ctx *CmdContext) error {
 	email, _ := ctx.Config.GetString("email")
 	if email == "" {
-		prompt := promptui.Prompt{
-			Label:    "Email",
-			Validate: validatePresence,
+		prompt := &survey.Input{
+			Message: "Email:",
 		}
-		email, _ = prompt.Run()
-	}
-	if email == "" {
-		return fmt.Errorf("Must provide an email")
+		if err := survey.AskOne(prompt, &email, survey.WithValidator(survey.Required)); err != nil {
+			if isInterrupt(err) {
+				return nil
+			}
+		}
 	}
 
 	password, _ := ctx.Config.GetString("password")
 	if password == "" {
-		prompt := promptui.Prompt{
-			Label:    "Password",
-			Mask:     '*',
-			Validate: validatePresence,
+		prompt := &survey.Password{
+			Message: "Password:",
 		}
-		password, _ = prompt.Run()
-	}
-	if password == "" {
-		return fmt.Errorf("Must provide a password")
+		if err := survey.AskOne(prompt, &password, survey.WithValidator(survey.Required)); err != nil {
+			if isInterrupt(err) {
+				return nil
+			}
+		}
 	}
 
 	otp, _ := ctx.Config.GetString("otp")
 	if otp == "" {
-		prompt := promptui.Prompt{
-			Label: "One Time Password (if any)",
-			Mask:  '*',
+		prompt := &survey.Password{
+			Message: "One Time Password (if any):",
 		}
-		otp, _ = prompt.Run()
+		if err := survey.AskOne(prompt, &otp); err != nil {
+			if isInterrupt(err) {
+				return nil
+			}
+		}
 	}
 
 	accessToken, err := api.GetAccessToken(email, password, otp)
@@ -106,12 +106,5 @@ func runLogout(ctx *CmdContext) error {
 
 	fmt.Println("Session removed")
 
-	return nil
-}
-
-func validatePresence(input string) error {
-	if strings.TrimSpace(input) == "" {
-		return errors.New("Cannot be empty")
-	}
 	return nil
 }
