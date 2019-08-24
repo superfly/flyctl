@@ -51,6 +51,7 @@ func init() {
 		newDeployCommand(),
 		newAppInfoCommand(),
 		newBuildsCommand(),
+		newDatabasesCommand(),
 	)
 }
 
