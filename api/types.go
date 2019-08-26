@@ -74,6 +74,9 @@ type App struct {
 	Builds struct {
 		Nodes []Build
 	}
+	Changes struct {
+		Nodes []AppChange
+	}
 }
 
 type Organization struct {
@@ -210,4 +213,17 @@ type Database struct {
 	VMURL        string
 	PublicURL    string
 	Organization Organization
+}
+
+type AppChange struct {
+	ID        string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	Actor     struct {
+		Type string
+	}
+	Status      string
+	Description string
+	Reason      string
+	User        User
 }
