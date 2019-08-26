@@ -7,6 +7,10 @@ import (
 	"github.com/superfly/flyctl/api"
 )
 
+func isInterrupt(err error) bool {
+	return err != nil && err.Error() == "interrupt"
+}
+
 func confirm(message string) bool {
 	confirm := false
 	prompt := &survey.Confirm{

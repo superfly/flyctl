@@ -8,6 +8,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmd/presenters"
+	"github.com/superfly/flyctl/flyctl"
 )
 
 func newAppListCommand() *Command {
@@ -20,6 +21,21 @@ func newAppListCommand() *Command {
 	}
 
 	BuildCommand(cmd, runAppsList, "list", "list apps", os.Stdout, true)
+
+	create := BuildCommand(cmd, runAppsCreate, "create", "create a new app", os.Stdout, true)
+	create.AddStringFlag(StringFlagOpts{
+		Name:        "name",
+		Description: "the app name to use",
+	})
+	create.AddStringFlag(StringFlagOpts{
+		Name:        "org",
+		Description: `the organization that will own the app`,
+	})
+	create.AddStringFlag(StringFlagOpts{
+		Name:        "builder",
+		Description: `the builder to use when deploying the app`,
+	})
+
 	delete := BuildCommand(cmd, runDestroyApp, "destroy", "permanently destroy an app", os.Stdout, true)
 	delete.Args = cobra.ExactArgs(1)
 	delete.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "accept all confirmations"})
@@ -58,6 +74,59 @@ func runDestroyApp(ctx *CmdContext) error {
 	}
 
 	fmt.Println("Destroyed app", appName)
+
+	return nil
+}
+
+func runAppsCreate(ctx *CmdContext) error {
+	name, _ := ctx.Config.GetString("name")
+	if name == "" {
+		prompt := &survey.Input{
+			Message: "App Name (leave blank to use an auto-generated name)",
+		}
+		if err := survey.AskOne(prompt, &name); err != nil {
+			if isInterrupt(err) {
+				return nil
+			}
+		}
+	}
+
+	targetOrgSlug, _ := ctx.Config.GetString("org")
+	org, err := selectOrganization(ctx.FlyClient, targetOrgSlug)
+
+	switch {
+	case isInterrupt(err):
+		return nil
+	case err != nil || org == nil:
+		return fmt.Errorf("Error setting organization: %s", err)
+	}
+
+	app, err := ctx.FlyClient.CreateApp(name, org.ID)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("New app created")
+
+	err = ctx.RenderEx(&presenters.AppInfo{App: *app}, presenters.Options{HideHeader: true, Vertical: true})
+	if err != nil {
+		return err
+	}
+
+	p := flyctl.NewProject(".")
+	p.SetAppName(app.Name)
+	if builder, _ := ctx.Config.GetString("builder"); builder != "" {
+		p.SetBuilder(builder)
+	}
+
+	if err := p.SafeWriteConfig(); err != nil {
+		fmt.Printf(
+			"Configure flyctl by placing the following in a fly.toml file:\n\n%s\n\n",
+			p.WriteConfigAsString(),
+		)
+	} else {
+		fmt.Println("Created fly.toml")
+	}
 
 	return nil
 }

@@ -47,7 +47,6 @@ func init() {
 		newAppLogsCommand(),
 		newAppSecretsCommand(),
 		newVersionCommand(),
-		newAppCreateCommand(),
 		newDeployCommand(),
 		newAppInfoCommand(),
 		newBuildsCommand(),
