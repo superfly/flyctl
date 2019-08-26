@@ -52,8 +52,9 @@ func (op *DeployOperation) BuildAndDeploy(project *flyctl.Project) (*api.Release
 	case ProjectDockerfile:
 		fmt.Println("Using Dockerfile from project:", path.Join(project.ProjectDir, "Dockerfile"))
 	case BuilderDockerfile:
-		fmt.Println("Using Dockerfile from builder:", project.Builder())
-		builderPath, err := getBuilderPath(project.Builder())
+		fmt.Println("Using builder:", project.Builder())
+		builderPath, err := fetchBuilder(project.Builder(), project.ProjectDir)
+		defer os.RemoveAll(builderPath)
 		if err != nil {
 			return nil, err
 		}
@@ -177,24 +178,6 @@ func (op *DeployOperation) StartRemoteBuild(project *flyctl.Project) (*api.Build
 	s.Stop()
 
 	return build, nil
-}
-
-func getBuilderPath(name string) (string, error) {
-	fmt.Println("Refreshing builders...")
-	repo, err := NewBuilderRepo()
-	if err != nil {
-		return "", err
-	}
-	if err := repo.Sync(); err != nil {
-		return "", err
-	}
-
-	builder, err := repo.GetBuilder(name)
-	if err != nil {
-		return "", err
-	}
-
-	return builder.path, nil
 }
 
 func normalizeBuildArgs(args map[string]string) map[string]*string {

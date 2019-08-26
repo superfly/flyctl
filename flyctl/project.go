@@ -31,13 +31,13 @@ func LoadProject(projectDir string) (*Project, error) {
 	file := path.Join(projectDir, "fly.toml")
 	v.SetConfigFile(file)
 
-	if err := v.ReadInConfig(); err != nil && os.IsNotExist(err) {
-		return nil, err
-	}
-
 	p := &Project{
 		cfg:        v,
 		ProjectDir: projectDir,
+	}
+
+	if err := v.ReadInConfig(); err != nil && !os.IsNotExist(err) {
+		return nil, err
 	}
 
 	return p, nil

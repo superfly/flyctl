@@ -8,6 +8,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmd/presenters"
+	"github.com/superfly/flyctl/docker"
 	"github.com/superfly/flyctl/flyctl"
 )
 
@@ -79,6 +80,16 @@ func runDestroyApp(ctx *CmdContext) error {
 }
 
 func runAppsCreate(ctx *CmdContext) error {
+	builder := ""
+
+	if namedBuilder, _ := ctx.Config.GetString("builder"); namedBuilder != "" {
+		url, err := docker.ResolveNamedBuilderURL(namedBuilder)
+		if err == docker.ErrUnknownBuilder {
+			return fmt.Errorf(`Unknown builder "%s". See %s for a list of builders.`, namedBuilder, docker.BuildersRepo)
+		}
+		builder = url
+	}
+
 	name, _ := ctx.Config.GetString("name")
 	if name == "" {
 		prompt := &survey.Input{
@@ -115,7 +126,7 @@ func runAppsCreate(ctx *CmdContext) error {
 
 	p := flyctl.NewProject(".")
 	p.SetAppName(app.Name)
-	if builder, _ := ctx.Config.GetString("builder"); builder != "" {
+	if builder != "" {
 		p.SetBuilder(builder)
 	}
 
