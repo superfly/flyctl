@@ -40,7 +40,11 @@ func (p *Presenter) renderTable() error {
 		table.SetHeader(cols)
 	}
 	table.SetBorder(false)
+	table.SetHeaderLine(false)
 	table.SetAutoWrapText(false)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table.SetColumnSeparator(" ")
 
 	for _, kv := range p.Item.Records() {
 		fields := []string{}
@@ -63,6 +67,7 @@ func (p *Presenter) renderFieldList() error {
 	cols := p.Item.FieldNames()
 
 	table.SetBorder(false)
+	table.SetAutoWrapText(false)
 	table.SetColumnSeparator("=")
 
 	for _, kv := range p.Item.Records() {
