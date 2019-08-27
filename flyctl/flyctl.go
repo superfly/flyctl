@@ -16,6 +16,10 @@ import (
 
 var configDir string
 
+func init() {
+	InitConfig()
+}
+
 func InitConfig() {
 	if err := initConfigDir(); err != nil {
 		fmt.Println("Error accessing config directory at $HOME/.fly", err)

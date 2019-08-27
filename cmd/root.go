@@ -29,7 +29,7 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
+	initConfig()
 
 	rootCmd.PersistentFlags().StringP("access-token", "t", "", "Fly API Access Token")
 	viper.BindPFlag(flyctl.ConfigAPIAccessToken, rootCmd.PersistentFlags().Lookup("access-token"))

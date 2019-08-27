@@ -48,12 +48,12 @@ func CheckForUpdate() {
 
 	lastCheck := viper.GetTime(ConfigUpdateCheckTimestamp)
 	if lastCheck.Add(1 * time.Hour).Before(time.Now()) {
+		BackgroundTaskWG.Add(1)
 		go checkForRelease()
 	}
 }
 
 func checkForRelease() {
-	BackgroundTaskWG.Add(1)
 	defer BackgroundTaskWG.Done()
 
 	if version, err := refreshGithubVersion(); err == nil {
