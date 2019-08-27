@@ -15,7 +15,7 @@ func newAppStatusCommand() *Command {
 }
 
 func runAppStatus(ctx *CmdContext) error {
-	app, err := ctx.FlyClient.GetAppWithTasks(ctx.AppName())
+	app, err := ctx.FlyClient.GetAppStatus(ctx.AppName())
 	if err != nil {
 		return err
 	}
@@ -27,6 +27,18 @@ func runAppStatus(ctx *CmdContext) error {
 
 	fmt.Println(aurora.Bold("Tasks"))
 	err = ctx.RenderEx(&presenters.TaskSummary{Tasks: app.Tasks}, presenters.Options{HideHeader: true})
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(aurora.Bold("Latest Deployment"))
+	err = ctx.RenderEx(&presenters.DeploymentStatus{Status: &app.DeploymentStatus}, presenters.Options{Vertical: true})
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(aurora.Bold("Deployment Status"))
+	err = ctx.Render(&presenters.DeploymentTaskStatus{Tasks: app.DeploymentStatus.Tasks})
 	if err != nil {
 		return err
 	}

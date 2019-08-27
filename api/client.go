@@ -456,7 +456,7 @@ func (c *Client) CreateApp(name string, orgId string) (*App, error) {
 	return &data.CreateApp.App, nil
 }
 
-func (c *Client) GetAppWithTasks(appName string) (*App, error) {
+func (c *Client) GetAppStatus(appName string) (*App, error) {
 	query := `
 		query($appName: String!) {
 			app(name: $appName) {
@@ -473,6 +473,22 @@ func (c *Client) GetAppWithTasks(appName string) (*App, error) {
 						desiredStatus
 						region
 						createdAt
+					}
+				}
+				deploymentStatus {
+					id
+					status
+					description
+					inProgress
+					tasks {
+						name
+						promoted
+						progressDeadline
+						desired
+						canaries
+						placed
+						healthy
+						unhealthy
 					}
 				}
 			}

@@ -77,6 +77,7 @@ type App struct {
 	Changes struct {
 		Nodes []AppChange
 	}
+	DeploymentStatus DeploymentStatus
 }
 
 type Organization struct {
@@ -226,4 +227,23 @@ type AppChange struct {
 	Description string
 	Reason      string
 	User        User
+}
+
+type DeploymentStatus struct {
+	ID          string
+	Status      string
+	Description string
+	InProgress  bool
+	Tasks       []TaskDeploymentStatus
+}
+
+type TaskDeploymentStatus struct {
+	Name             string
+	Promoted         bool
+	ProgressDeadline time.Time
+	Canaries         int
+	Desired          int
+	Healthy          int
+	Unhealthy        int
+	Placed           int
 }
