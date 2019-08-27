@@ -59,6 +59,7 @@ type App struct {
 	Status       string
 	Deployed     bool
 	AppURL       string
+	Version      int
 	Organization Organization
 	Tasks        []Task
 	Secrets      []Secret

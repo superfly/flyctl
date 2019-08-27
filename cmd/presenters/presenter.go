@@ -69,6 +69,7 @@ func (p *Presenter) renderFieldList() error {
 	table.SetBorder(false)
 	table.SetAutoWrapText(false)
 	table.SetColumnSeparator("=")
+	table.SetColumnAlignment([]int{tablewriter.ALIGN_DEFAULT, tablewriter.ALIGN_LEFT})
 
 	for _, kv := range p.Item.Records() {
 		for _, col := range cols {

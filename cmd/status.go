@@ -20,6 +20,12 @@ func runAppStatus(ctx *CmdContext) error {
 		return err
 	}
 
+	fmt.Println(aurora.Bold("App"))
+	err = ctx.RenderEx(&presenters.AppInfo{App: *app}, presenters.Options{HideHeader: true, Vertical: true})
+	if err != nil {
+		return err
+	}
+
 	if !app.Deployed {
 		fmt.Println(`App has not been deployed yet. Try running "flyctl deploy --image nginxdemos/hello"`)
 		return nil

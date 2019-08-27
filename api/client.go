@@ -260,6 +260,7 @@ func (c *Client) GetApp(appName string) (*App, error) {
 				name
 				deployed
 				status
+				version
 				appUrl
 				organization {
 					slug
@@ -460,7 +461,15 @@ func (c *Client) GetAppStatus(appName string) (*App, error) {
 	query := `
 		query($appName: String!) {
 			app(name: $appName) {
+				id
+				name
 				deployed
+				status
+				version
+				appUrl
+				organization {
+					slug
+				}
 				tasks {
 					id
 					name
