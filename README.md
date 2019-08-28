@@ -47,10 +47,10 @@ flyctl auth login
 2. List your apps
 
 ```bash
-flyctl apps
+flyctl apps list
 ```
 
-2. Interact with an app
+2. View app status
 
 ```bash
 flyctl status -a {app-name}
