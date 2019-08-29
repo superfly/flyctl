@@ -137,10 +137,11 @@ func (op *DeployOperation) StartRemoteBuild(project *flyctl.Project) (*api.Build
 		return nil, err
 	}
 
-	ctxFile, err := buildContext.Archive()
+	archive, err := buildContext.Archive()
 	if err != nil {
 		return nil, err
 	}
+	defer archive.Close()
 	s.Stop()
 
 	s.Prefix = "Submitting build..."
@@ -151,11 +152,11 @@ func (op *DeployOperation) StartRemoteBuild(project *flyctl.Project) (*api.Build
 		return nil, err
 	}
 
-	req, err := http.NewRequest("PUT", putURL, ctxFile)
+	req, err := http.NewRequest("PUT", putURL, archive.File)
 	if err != nil {
 		return nil, err
 	}
-	req.ContentLength = ctxFile.Size
+	req.ContentLength = archive.Size
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
