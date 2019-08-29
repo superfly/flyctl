@@ -12,10 +12,11 @@ import (
 	"time"
 
 	"github.com/briandowns/spinner"
-	"github.com/denormal/go-gitignore"
+	"github.com/docker/docker/builder/dockerignore"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/terminal"
 )
 
 type DockerfileSource uint
@@ -44,7 +45,27 @@ func (op *DeployOperation) BuildAndDeploy(project *flyctl.Project) (*api.Release
 		return nil, ErrDockerDaemon
 	}
 
-	sources := []string{project.ProjectDir}
+	buildContext, err := NewBuildContext()
+	if err != nil {
+		return nil, err
+	}
+	defer buildContext.Close()
+
+	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
+	s.Writer = os.Stderr
+	s.Prefix = "Creating build context... "
+	s.Start()
+
+	excludes, err := readDockerignore(project.ProjectDir)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := buildContext.AddSource(project.ProjectDir, excludes); err != nil {
+		return nil, err
+	}
+
+	s.Stop()
 
 	switch dockerfileSource(project) {
 	case NoDockerfile:
@@ -58,30 +79,22 @@ func (op *DeployOperation) BuildAndDeploy(project *flyctl.Project) (*api.Release
 		if err != nil {
 			return nil, err
 		}
-		sources = append(sources, builderPath)
+		if err := buildContext.AddSource(builderPath, []string{}); err != nil {
+			return nil, err
+		}
 	}
 
-	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
-	s.Writer = os.Stderr
-	s.Prefix = "Creating build context... "
-	s.Start()
-
-	tempFile, err := writeSourceContextTempFile(sources, noopMatcher)
+	archive, err := buildContext.Archive()
 	if err != nil {
 		return nil, err
 	}
-	defer os.Remove(tempFile)
-	s.Stop()
+	defer archive.Close()
 
-	file, err := os.Open(tempFile)
-	if err != nil {
-		return nil, err
-	}
 	tag := newDeploymentTag(op.AppName)
 
 	buildArgs := normalizeBuildArgs(project.BuildArgs())
 
-	if err := op.dockerClient.BuildImage(file, tag, buildArgs, op.out); err != nil {
+	if err := op.dockerClient.BuildImage(archive.File, tag, buildArgs, op.out); err != nil {
 		return nil, err
 	}
 
@@ -104,48 +117,30 @@ func (op *DeployOperation) StartRemoteBuild(project *flyctl.Project) (*api.Build
 		return nil, ErrNoDockerfile
 	}
 
-	sources := []string{project.ProjectDir}
+	buildContext, err := NewBuildContext()
+	if err != nil {
+		return nil, err
+	}
+	defer buildContext.Close()
 
 	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
 	s.Writer = os.Stderr
 	s.Prefix = "Creating build context... "
 	s.Start()
 
-	matches, _ := recursivelyFindFilesInParents(".", ".gitignore")
-	exclude := noopMatcher
-	if len(matches) > 0 {
-		ignore, err := gitignore.NewFromFile(matches[0])
-		if err != nil {
-			return nil, err
-		}
-		exclude = func(path string, isDir bool) bool {
-			match := ignore.Relative(path, isDir)
-			if match != nil {
-				if match.Ignore() {
-					return true
-				}
-			}
-
-			return false
-		}
-	}
-
-	tempFile, err := writeSourceContextTempFile(sources, exclude)
-	if err != nil {
-		return nil, err
-	}
-	defer os.Remove(tempFile)
-
-	file, err := os.Open(tempFile)
+	excludes, err := readGitignore(project.ProjectDir)
 	if err != nil {
 		return nil, err
 	}
 
-	fi, err := file.Stat()
-	if err != nil {
+	if err := buildContext.AddSource(project.ProjectDir, excludes); err != nil {
 		return nil, err
 	}
 
+	ctxFile, err := buildContext.Archive()
+	if err != nil {
+		return nil, err
+	}
 	s.Stop()
 
 	s.Prefix = "Submitting build..."
@@ -156,11 +151,11 @@ func (op *DeployOperation) StartRemoteBuild(project *flyctl.Project) (*api.Build
 		return nil, err
 	}
 
-	req, err := http.NewRequest("PUT", putURL, file)
+	req, err := http.NewRequest("PUT", putURL, ctxFile)
 	if err != nil {
 		return nil, err
 	}
-	req.ContentLength = fi.Size()
+	req.ContentLength = ctxFile.Size
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -249,4 +244,28 @@ func recursivelyFindFilesInParents(startingDir, name string) ([]string, error) {
 	}
 
 	return matches, nil
+}
+
+func readDockerignore(workingDir string) ([]string, error) {
+	file, err := os.Open(path.Join(workingDir, ".dockerignore"))
+	if os.IsNotExist(err) {
+		return []string{}, nil
+	} else if err != nil {
+		terminal.Warn("Error reading dockerignore", err)
+		return []string{}, nil
+	}
+
+	return dockerignore.ReadAll(file)
+}
+
+func readGitignore(workingDir string) ([]string, error) {
+	file, err := os.Open(path.Join(workingDir, ".gitignore"))
+	if os.IsNotExist(err) {
+		return []string{}, nil
+	} else if err != nil {
+		terminal.Warn("Error reading gitignore", err)
+		return []string{}, nil
+	}
+
+	return dockerignore.ReadAll(file)
 }
