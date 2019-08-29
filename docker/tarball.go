@@ -7,23 +7,23 @@ import (
 	"github.com/docker/docker/pkg/archive"
 )
 
-type BuildContext struct {
+type buildContext struct {
 	workingDir string
 }
 
-func NewBuildContext() (*BuildContext, error) {
+func newBuildContext() (*buildContext, error) {
 	tempDir, err := ioutil.TempDir("", "")
 	if err != nil {
 		return nil, err
 	}
-	return &BuildContext{workingDir: tempDir}, nil
+	return &buildContext{workingDir: tempDir}, nil
 }
 
-func (b *BuildContext) Close() error {
+func (b *buildContext) Close() error {
 	return os.RemoveAll(b.workingDir)
 }
 
-func (b *BuildContext) AddSource(path string, excludes []string) error {
+func (b *buildContext) AddSource(path string, excludes []string) error {
 	reader, err := archive.TarWithOptions(path, &archive.TarOptions{
 		Compression:     archive.Uncompressed,
 		ExcludePatterns: excludes,
@@ -36,7 +36,7 @@ func (b *BuildContext) AddSource(path string, excludes []string) error {
 	return archive.Unpack(reader, b.workingDir, &archive.TarOptions{})
 }
 
-func (b *BuildContext) Archive() (*archive.TempArchive, error) {
+func (b *buildContext) Archive() (*archive.TempArchive, error) {
 	reader, err := archive.Tar(b.workingDir, archive.Gzip)
 	if err != nil {
 		return nil, err

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -17,7 +16,6 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -47,7 +45,7 @@ func (op *DeployOperation) BuildAndDeploy(project *flyctl.Project) (*api.Release
 		return nil, ErrDockerDaemon
 	}
 
-	buildContext, err := NewBuildContext()
+	buildContext, err := newBuildContext()
 	if err != nil {
 		return nil, err
 	}
@@ -102,6 +100,7 @@ func (op *DeployOperation) BuildAndDeploy(project *flyctl.Project) (*api.Release
 		return nil, err
 	}
 
+	printImageSize(uint64(img.Size))
 
 	if err := op.pushImage(tag); err != nil {
 		return nil, err
@@ -122,7 +121,7 @@ func (op *DeployOperation) StartRemoteBuild(project *flyctl.Project) (*api.Build
 		return nil, ErrNoDockerfile
 	}
 
-	buildContext, err := NewBuildContext()
+	buildContext, err := newBuildContext()
 	if err != nil {
 		return nil, err
 	}
@@ -194,64 +193,6 @@ func normalizeBuildArgs(args map[string]string) map[string]*string {
 	return out
 }
 
-func isDockerfilePath(imageName string) bool {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return false
-	}
-
-	maybePath := path.Join(cwd, imageName)
-
-	return helpers.FileExists(maybePath)
-}
-
-func isDirContainingDockerfile(imageName string) bool {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return false
-	}
-
-	maybePath := path.Join(cwd, imageName, "Dockerfile")
-
-	return helpers.FileExists(maybePath)
-}
-
-func resolveBuildPath(imageRef string) (string, error) {
-	if isDockerfilePath(imageRef) {
-		fmt.Printf("found file at '%s'\n", imageRef)
-		return path.Dir(imageRef), nil
-	} else if isDirContainingDockerfile(imageRef) {
-		fmt.Printf("found Dockerfile in '%s'\n", imageRef)
-		return imageRef, nil
-	} else if strings.HasPrefix(imageRef, ".") {
-		fmt.Printf("'%s' is a local path\n", imageRef)
-		return filepath.Abs(imageRef)
-	}
-
-	return "", errors.New("Invalid build path")
-}
-
-func recursivelyFindFilesInParents(startingDir, name string) ([]string, error) {
-	matches := []string{}
-	dir, err := filepath.Abs(filepath.Clean(startingDir))
-	if err != nil {
-		return matches, err
-	}
-
-	for {
-		filename := filepath.Join(dir, name)
-		if _, err := os.Stat(filename); err == nil {
-			matches = append(matches, filename)
-		}
-		dir = filepath.Dir(dir)
-		if dir == "/" {
-			break
-		}
-	}
-
-	return matches, nil
-}
-
 func readDockerignore(workingDir string) ([]string, error) {
 	file, err := os.Open(path.Join(workingDir, ".dockerignore"))
 	if os.IsNotExist(err) {
@@ -262,9 +203,6 @@ func readDockerignore(workingDir string) ([]string, error) {
 	}
 
 	return dockerignore.ReadAll(file)
-}
-func printImageSize(size uint64) {
-	fmt.Println(aurora.Bold(fmt.Sprintf("Image size: %s", humanize.Bytes(size))))
 }
 
 func readGitignore(workingDir string) ([]string, error) {
@@ -277,4 +215,8 @@ func readGitignore(workingDir string) ([]string, error) {
 	}
 
 	return dockerignore.ReadAll(file)
+}
+
+func printImageSize(size uint64) {
+	fmt.Println(aurora.Bold(fmt.Sprintf("Image size: %s", humanize.Bytes(size))))
 }
