@@ -13,6 +13,8 @@ import (
 
 	"github.com/briandowns/spinner"
 	"github.com/docker/docker/builder/dockerignore"
+	"github.com/dustin/go-humanize"
+	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
@@ -94,9 +96,12 @@ func (op *DeployOperation) BuildAndDeploy(project *flyctl.Project) (*api.Release
 
 	buildArgs := normalizeBuildArgs(project.BuildArgs())
 
-	if err := op.dockerClient.BuildImage(archive.File, tag, buildArgs, op.out); err != nil {
+	img, err := op.dockerClient.BuildImage(archive.File, tag, buildArgs, op.out)
+
+	if err != nil {
 		return nil, err
 	}
+
 
 	if err := op.pushImage(tag); err != nil {
 		return nil, err
@@ -257,6 +262,9 @@ func readDockerignore(workingDir string) ([]string, error) {
 	}
 
 	return dockerignore.ReadAll(file)
+}
+func printImageSize(size uint64) {
+	fmt.Println(aurora.Bold(fmt.Sprintf("Image size: %s", humanize.Bytes(size))))
 }
 
 func readGitignore(workingDir string) ([]string, error) {

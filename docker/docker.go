@@ -141,7 +141,7 @@ func (c *DockerClient) DeleteDeploymentImages(appName string) error {
 	return nil
 }
 
-func (c *DockerClient) BuildImage(tar io.Reader, tag string, buildArgs map[string]*string, out io.Writer) error {
+func (c *DockerClient) BuildImage(tar io.Reader, tag string, buildArgs map[string]*string, out io.Writer) (*types.ImageSummary, error) {
 	resp, err := c.docker.ImageBuild(c.ctx, tar, types.ImageBuildOptions{
 		Tags:      []string{tag},
 		BuildArgs: buildArgs,
@@ -149,13 +149,17 @@ func (c *DockerClient) BuildImage(tar io.Reader, tag string, buildArgs map[strin
 	})
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	termFd, isTerm := term.GetFdInfo(os.Stderr)
 
-	return jsonmessage.DisplayJSONMessagesStream(resp.Body, out, termFd, isTerm, nil)
+	if err := jsonmessage.DisplayJSONMessagesStream(resp.Body, out, termFd, isTerm, nil); err != nil {
+		return nil, err
+	}
+
+	return c.findImage(tag)
 }
 
 var imageIDPattern = regexp.MustCompile("[a-f0-9]")

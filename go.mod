@@ -16,6 +16,7 @@ require (
 	github.com/docker/docker v0.7.3-0.20190807081956-3a4b51ebb8b6
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
+	github.com/dustin/go-humanize v1.0.0
 	github.com/google/go-cmp v0.3.0 // indirect
 	github.com/gorilla/mux v1.7.3 // indirect
 	github.com/hashicorp/go-getter v1.3.0
