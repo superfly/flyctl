@@ -236,6 +236,7 @@ type DeploymentStatus struct {
 	Description string
 	InProgress  bool
 	Tasks       []TaskDeploymentStatus
+	CreatedAt   time.Time
 }
 
 type TaskDeploymentStatus struct {

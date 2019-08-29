@@ -9,7 +9,7 @@ type DeploymentStatus struct {
 }
 
 func (p *DeploymentStatus) FieldNames() []string {
-	return []string{"Status", "Description"}
+	return []string{"Status", "Description", "Timestamp"}
 }
 
 func (p *DeploymentStatus) Records() []map[string]string {
@@ -18,6 +18,7 @@ func (p *DeploymentStatus) Records() []map[string]string {
 	out = append(out, map[string]string{
 		"Status":      p.Status.Status,
 		"Description": p.Status.Description,
+		"Timestamp":   formatRelativeTime(p.Status.CreatedAt),
 	})
 
 	return out

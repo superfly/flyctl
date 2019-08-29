@@ -234,8 +234,12 @@ func (c *Client) GetApps() ([]App, error) {
 				nodes {
 					id
 					name
+					deployed
 					organization {
 						slug
+					}
+					deploymentStatus {
+						createdAt
 					}
 				}
 			}
@@ -489,6 +493,7 @@ func (c *Client) GetAppStatus(appName string) (*App, error) {
 					status
 					description
 					inProgress
+					createdAt
 					tasks {
 						name
 						promoted

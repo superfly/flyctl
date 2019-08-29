@@ -8,7 +8,7 @@ type Apps struct {
 }
 
 func (p *Apps) FieldNames() []string {
-	return []string{"Name", "Owner"}
+	return []string{"Name", "Owner", "Latest Deploy"}
 }
 
 func (p *Apps) Records() []map[string]string {
@@ -19,9 +19,15 @@ func (p *Apps) Records() []map[string]string {
 	}
 
 	for _, app := range p.Apps {
+		latestDeploy := ""
+		if app.Deployed {
+			latestDeploy = formatRelativeTime(app.DeploymentStatus.CreatedAt)
+		}
+
 		out = append(out, map[string]string{
-			"Name":  app.Name,
-			"Owner": app.Organization.Slug,
+			"Name":          app.Name,
+			"Owner":         app.Organization.Slug,
+			"Latest Deploy": latestDeploy,
 		})
 	}
 
