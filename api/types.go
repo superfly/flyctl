@@ -51,6 +51,10 @@ type Query struct {
 	DestroyDatabase struct {
 		Organization Organization
 	}
+
+	AddCertificate struct {
+		Certificate AppCertificate
+	}
 }
 
 type App struct {
@@ -78,7 +82,11 @@ type App struct {
 	Changes struct {
 		Nodes []AppChange
 	}
+	Certificates struct {
+		Nodes []AppCertificate
+	}
 	DeploymentStatus DeploymentStatus
+	Certificate      AppCertificate
 }
 
 type Organization struct {
@@ -248,4 +256,15 @@ type TaskDeploymentStatus struct {
 	Healthy          int
 	Unhealthy        int
 	Placed           int
+}
+
+type AppCertificate struct {
+	ID                     string
+	AcmeDNSConfigured      bool
+	CertificateAuthority   string
+	CertificateRequestedAt time.Time
+	DNSProvider            string
+	DNSValidationTarget    string
+	Hostname               string
+	Source                 string
 }
