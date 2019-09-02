@@ -55,6 +55,8 @@ type Query struct {
 	AddCertificate struct {
 		Certificate AppCertificate
 	}
+
+	DeleteCertificate DeleteCertificatePayload
 }
 
 type App struct {
@@ -267,4 +269,9 @@ type AppCertificate struct {
 	DNSValidationTarget    string
 	Hostname               string
 	Source                 string
+}
+
+type DeleteCertificatePayload struct {
+	App         App
+	Certificate AppCertificate
 }

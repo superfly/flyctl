@@ -950,3 +950,31 @@ func (c *Client) AddCertificate(appName string, hostname string) (*AppCertificat
 
 	return &data.AddCertificate.Certificate, nil
 }
+
+func (c *Client) DeleteCertificate(appName string, hostname string) (*DeleteCertificatePayload, error) {
+	query := `
+		mutation($appId: ID!, $hostname: String!) {
+			deleteCertificate(appId: $appId, hostname: $hostname) {
+				app {
+					name
+				}
+				certificate {
+					hostname
+					id
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("appId", appName)
+	req.Var("hostname", hostname)
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.DeleteCertificate, nil
+}
