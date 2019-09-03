@@ -2,6 +2,9 @@ module github.com/superfly/flyctl
 
 go 1.12
 
+// thrift (a dep through go-getter) moved to github. This is needed until it's updated
+replace git.apache.org/thrift.git => github.com/apache/thrift v0.0.0-20180902110319-2566ecd5d999
+
 require (
 	github.com/AlecAivazis/survey/v2 v2.0.2
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
