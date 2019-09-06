@@ -9,6 +9,7 @@ const (
 	ConfigAPIBaseURL               = "api_base_url"
 	ConfigAppName                  = "app"
 	ConfigVerboseOutput            = "verbose"
+	ConfigRegistryHost             = "registry_host"
 	ConfigUpdateCheckLatestVersion = "update_check.latest_version"
 	ConfigUpdateCheckTimestamp     = "update_check.timestamp"
 	ConfigUpdateCheckOptOut        = "update_check.out_out"

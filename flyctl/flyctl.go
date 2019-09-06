@@ -62,6 +62,7 @@ func initViper() {
 	}
 
 	viper.SetDefault(ConfigAPIBaseURL, "https://fly.io")
+	viper.SetDefault(ConfigRegistryHost, "registry.fly.io")
 
 	viper.SetEnvPrefix("FLY")
 	viper.AutomaticEnv()

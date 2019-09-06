@@ -31,7 +31,8 @@ func newDeploymentTag(appName string) string {
 }
 
 func deploymentTagPrefix(appName string) string {
-	return fmt.Sprintf("registry.fly.io/%s:deployment-", appName)
+	registry := viper.GetString(flyctl.ConfigRegistryHost)
+	return fmt.Sprintf("%s/%s:deployment-", registry, appName)
 }
 
 type DockerClient struct {
