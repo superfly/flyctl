@@ -64,6 +64,7 @@ type App struct {
 	Name         string
 	Status       string
 	Deployed     bool
+	Hostname     string
 	AppURL       string
 	Version      int
 	Organization Organization

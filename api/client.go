@@ -235,6 +235,7 @@ func (c *Client) GetApps() ([]App, error) {
 					id
 					name
 					deployed
+					hostname
 					organization {
 						slug
 					}
@@ -262,6 +263,7 @@ func (c *Client) GetApp(appName string) (*App, error) {
 			app(name: $appName) {
 				id
 				name
+				hostname
 				deployed
 				status
 				version
