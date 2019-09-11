@@ -27,7 +27,6 @@ func (p *AppInfo) Records() []map[string]string {
 
 	if len(p.App.Hostname) > 0 {
 		info["Hostname"] = aurora.Underline("https://" + p.App.Hostname).String()
-		aurora.
 	} else {
 		info["Hostname"] = "<empty>"
 	}
