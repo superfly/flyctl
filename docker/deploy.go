@@ -41,9 +41,9 @@ func (op *DeployOperation) DockerAvailable() bool {
 }
 
 func (op *DeployOperation) DeployImage(imageRef string) (*api.Release, error) {
-	if op.dockerAvailable {
-		return op.deployImageWithDocker(imageRef)
-	}
+	//if op.dockerAvailable {
+	//	return op.deployImageWithDocker(imageRef)
+	//}
 	return op.deployImageWithoutDocker(imageRef)
 }
 
