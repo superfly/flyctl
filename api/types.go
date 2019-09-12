@@ -90,6 +90,7 @@ type App struct {
 	}
 	DeploymentStatus DeploymentStatus
 	Certificate      AppCertificate
+	Services         []Service
 }
 
 type Organization struct {
@@ -107,16 +108,17 @@ type Task struct {
 	Name            string
 	Status          string
 	ServicesSummary string
-	Services        []Service
+	Services        []TaskService
 	Allocations     []Allocation
 }
 
-type Service struct {
+type TaskService struct {
 	ID           string
 	Protocol     string
 	Port         int
 	InternalPort int
 	Filters      []string
+	Description  string
 }
 
 type Allocation struct {
@@ -275,4 +277,20 @@ type AppCertificate struct {
 type DeleteCertificatePayload struct {
 	App         App
 	Certificate AppCertificate
+}
+
+type DeployImageInput struct {
+	AppID    string
+	Image    string
+	Services []Service
+}
+
+// mostly duplicate of TaskService but works with the deployImage mutation.
+// clean up when we figure out groups/tasks/services
+type Service struct {
+	Protocol     string
+	Port         int
+	InternalPort int
+	Handlers     []string
+	Description  string
 }

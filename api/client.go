@@ -192,7 +192,7 @@ func (client *Client) GetOrganizations() ([]Organization, error) {
 	return data.Organizations.Nodes, nil
 }
 
-func (client *Client) DeployImage(appName, imageTag string) (*Release, error) {
+func (client *Client) DeployImage(input DeployImageInput) (*Release, error) {
 	query := `
 			mutation($input: DeployImageInput!) {
 				deployImage(input: $input) {
@@ -214,10 +214,7 @@ func (client *Client) DeployImage(appName, imageTag string) (*Release, error) {
 
 	req := client.NewRequest(query)
 
-	req.Var("input", map[string]string{
-		"appId": appName,
-		"image": imageTag,
-	})
+	req.Var("input", input)
 
 	data, err := client.Run(req)
 	if err != nil {
@@ -979,4 +976,31 @@ func (c *Client) DeleteCertificate(appName string, hostname string) (*DeleteCert
 	}
 
 	return &data.DeleteCertificate, nil
+}
+
+func (c *Client) GetAppServices(appName string) ([]Service, error) {
+	query := `
+		query($appName: String!) {
+			app(name: $appName) {
+				services {
+					protocol
+					port
+					internalPort
+					handlers
+					description
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("appName", appName)
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.App.Services, nil
 }
