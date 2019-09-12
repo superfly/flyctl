@@ -471,6 +471,7 @@ func (c *Client) GetAppStatus(appName string) (*App, error) {
 				name
 				deployed
 				status
+				hostname
 				version
 				appUrl
 				organization {
