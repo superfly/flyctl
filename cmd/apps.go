@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/docker"
-	"github.com/superfly/flyctl/flyctl"
 )
 
 func newAppListCommand() *Command {
@@ -124,20 +123,14 @@ func runAppsCreate(ctx *CmdContext) error {
 		return err
 	}
 
-	p := flyctl.NewProject(".")
-	p.SetAppName(app.Name)
+	project, err := initConfigFromApp(ctx, app.Name, ".")
+	if err != nil {
+		return err
+	}
+
 	if builder != "" {
-		p.SetBuilder(builder)
+		project.SetBuilder(builder)
 	}
 
-	if err := p.SafeWriteConfig(); err != nil {
-		fmt.Printf(
-			"Configure flyctl by placing the following in a fly.toml file:\n\n%s\n\n",
-			p.WriteConfigAsString(),
-		)
-	} else {
-		fmt.Println("Created fly.toml")
-	}
-
-	return nil
+	return writeConfigWithPrompt(project)
 }

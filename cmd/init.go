@@ -23,19 +23,28 @@ func runAppInit(ctx *CmdContext) error {
 		path = ctx.Args[0]
 	}
 
+	project, err := initConfigFromApp(ctx, ctx.AppName(), path)
+	if err != nil {
+		return err
+	}
+
+	return writeConfigWithPrompt(project)
+}
+
+func initConfigFromApp(ctx *CmdContext, appName, path string) (*flyctl.Project, error) {
 	path, err := flyctl.ResolveConfigFileFromPath(path)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	app, err := ctx.FlyClient.GetApp(ctx.AppName())
+	app, err := ctx.FlyClient.GetApp(appName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	services, err := ctx.FlyClient.GetAppServices(ctx.AppName())
+	services, err := ctx.FlyClient.GetAppServices(appName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	project := flyctl.NewProject(path)
@@ -54,6 +63,10 @@ func runAppInit(ctx *CmdContext) error {
 
 	project.SetServices(cfgServices)
 
+	return project, nil
+}
+
+func writeConfigWithPrompt(project *flyctl.Project) error {
 	if exists, _ := flyctl.ConfigFileExistsAtPath(project.ConfigFilePath()); exists {
 		if !confirm(fmt.Sprintf("Overwrite config file '%s'", project.ConfigFilePath())) {
 			return nil
@@ -66,7 +79,7 @@ func runAppInit(ctx *CmdContext) error {
 
 	fmt.Println(aurora.Faint(project.WriteConfigAsString()))
 
-	path = helpers.PathRelativeToCWD(project.ConfigFilePath())
+	path := helpers.PathRelativeToCWD(project.ConfigFilePath())
 	fmt.Println("Wrote config file", path)
 
 	return nil
