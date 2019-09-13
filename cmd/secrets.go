@@ -58,7 +58,7 @@ func runSetSecrets(ctx *CmdContext) error {
 	secrets := make(map[string]string)
 
 	for _, pair := range ctx.Args {
-		parts := strings.Split(pair, "=")
+		parts := strings.SplitN(pair, "=", 2)
 		if len(parts) != 2 {
 			return fmt.Errorf("Secrets must be provided as NAME=VALUE pairs (%s is invalid)", pair)
 		}
@@ -73,10 +73,6 @@ func runSetSecrets(ctx *CmdContext) error {
 				return fmt.Errorf("Error reading stdin for '%s': %s", parts[0], err)
 			}
 			value = inval
-		}
-
-		if value == "" {
-			return fmt.Errorf("Secret `%s` is empty", parts[0])
 		}
 
 		secrets[key] = value
