@@ -1,6 +1,9 @@
 package helpers
 
-import "os"
+import (
+	"os"
+	"path/filepath"
+)
 
 func FileExists(path string) bool {
 	info, err := os.Stat(path)
@@ -16,4 +19,16 @@ func DirectoryExists(path string) bool {
 		return false
 	}
 	return info.IsDir()
+}
+
+func PathRelativeToCWD(path string) string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return path
+	}
+	path, err = filepath.Rel(cwd, path)
+	if err != nil {
+		return path
+	}
+	return path
 }

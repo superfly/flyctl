@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/terminal"
 )
 
 type CmdRunFn func(*CmdContext) error
@@ -124,7 +125,11 @@ func newCmdContext(ns string, out io.Writer, args []string, initClient bool, ini
 	return ctx, nil
 }
 
-type CmdOption func(*Command) InitializerFn
+type Initializer struct {
+	Setup  InitializerFn
+	PreRun InitializerFn
+}
+type CmdOption func(*Command) Initializer
 type InitializerFn func(*CmdContext) error
 
 func BuildCommand(parent *Command, fn CmdRunFn, useText, helpText string, out io.Writer, initClient bool, options ...CmdOption) *Command {
@@ -141,11 +146,11 @@ func BuildCommand(parent *Command, fn CmdRunFn, useText, helpText string, out io
 		parent.AddCommand(flycmd)
 	}
 
-	initializers := []InitializerFn{}
+	initializers := []Initializer{}
 
 	for _, o := range options {
-		if initFn := o(flycmd); initFn != nil {
-			initializers = append(initializers, initFn)
+		if i := o(flycmd); i.Setup != nil || i.PreRun != nil {
+			initializers = append(initializers, i)
 		}
 	}
 
@@ -155,8 +160,15 @@ func BuildCommand(parent *Command, fn CmdRunFn, useText, helpText string, out io
 			checkErr(err)
 
 			for _, init := range initializers {
-				err = init(ctx)
-				checkErr(err)
+				if init.Setup != nil {
+					checkErr(init.Setup(ctx))
+				}
+			}
+
+			for _, init := range initializers {
+				if init.PreRun != nil {
+					checkErr(init.PreRun(ctx))
+				}
 			}
 
 			err = fn(ctx)
@@ -167,7 +179,7 @@ func BuildCommand(parent *Command, fn CmdRunFn, useText, helpText string, out io
 	return flycmd
 }
 
-func requireAppName(cmd *Command) InitializerFn {
+func requireAppName(cmd *Command) Initializer {
 	cmd.requireAppName = true
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "app",
@@ -175,27 +187,45 @@ func requireAppName(cmd *Command) InitializerFn {
 		Description: "app to operate on",
 	})
 
-	return func(ctx *CmdContext) error {
-		if p, err := flyctl.LoadProject("."); err == nil {
-			ctx.Project = p
-		}
+	return Initializer{
+		Setup: func(ctx *CmdContext) error {
+			if p, err := flyctl.LoadProject("./fly.toml"); err == nil {
+				ctx.Project = p
+			}
 
-		if ctx.AppName() == "" {
-			return fmt.Errorf("No app specified")
-		}
-		return nil
+			if ctx.AppName() == "" {
+				return fmt.Errorf("No app specified")
+			}
+			return nil
+		},
 	}
 }
 
-func requireProject(cmd *Command) InitializerFn {
-	return func(ctx *CmdContext) error {
-		p, err := flyctl.LoadProject(".")
-		if err != nil {
-			return err
-		}
-		ctx.Project = p
+func loadProject(cmd *Command) Initializer {
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "config",
+		Shorthand:   "c",
+		Description: "path to app config file",
+		Default:     "./fly.toml",
+	})
 
-		return nil
+	return Initializer{
+		Setup: func(ctx *CmdContext) error {
+			cfgPath, _ := ctx.Config.GetString("config")
+			p, err := flyctl.LoadProject(cfgPath)
+			if err != nil {
+				return err
+			}
+			ctx.Project = p
+
+			return nil
+		},
+		PreRun: func(ctx *CmdContext) error {
+			if ctx.AppName() != ctx.Project.AppName() {
+				terminal.Warnf("App name flag (%s) does not match the config file (%s)\n", ctx.AppName(), ctx.Project.AppName())
+			}
+			return nil
+		},
 	}
 }
 

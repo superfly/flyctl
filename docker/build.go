@@ -90,7 +90,7 @@ func (op *DeployOperation) BuildAndDeploy(project *flyctl.Project) (*api.Release
 	}
 	defer archive.Close()
 
-	tag := newDeploymentTag(op.AppName)
+	tag := newDeploymentTag(op.AppName())
 
 	buildArgs := normalizeBuildArgs(project.BuildArgs())
 
@@ -151,7 +151,7 @@ func (op *DeployOperation) StartRemoteBuild(project *flyctl.Project) (*api.Build
 	s.Prefix = "Submitting build..."
 
 	uploadFileName := fmt.Sprintf("source-%d.tar.gz", time.Now().Unix())
-	getURL, putURL, err := op.apiClient.CreateSignedUrls(op.AppName, uploadFileName)
+	getURL, putURL, err := op.apiClient.CreateSignedUrls(op.AppName(), uploadFileName)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +171,7 @@ func (op *DeployOperation) StartRemoteBuild(project *flyctl.Project) (*api.Build
 		return nil, fmt.Errorf("Error submitting build: %s", body)
 	}
 
-	build, err := op.apiClient.CreateBuild(op.AppName, getURL, "targz")
+	build, err := op.apiClient.CreateBuild(op.AppName(), getURL, "targz")
 	if err != nil {
 		return nil, err
 	}

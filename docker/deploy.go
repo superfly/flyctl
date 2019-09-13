@@ -4,9 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -15,10 +17,11 @@ type DeployOperation struct {
 	apiClient       *api.Client
 	dockerAvailable bool
 	out             io.Writer
-	AppName         string
+	appName         string
+	Project         *flyctl.Project
 }
 
-func NewDeployOperation(appName string, apiClient *api.Client, out io.Writer) (*DeployOperation, error) {
+func NewDeployOperation(appName string, project *flyctl.Project, apiClient *api.Client, out io.Writer) (*DeployOperation, error) {
 	dockerClient, err := NewDockerClient()
 	if err != nil {
 		return nil, err
@@ -27,13 +30,20 @@ func NewDeployOperation(appName string, apiClient *api.Client, out io.Writer) (*
 	op := &DeployOperation{
 		dockerClient: dockerClient,
 		apiClient:    apiClient,
-		AppName:      appName,
+		Project:      project,
 		out:          out,
 	}
 
 	op.dockerAvailable = op.dockerClient.Check() == nil
 
 	return op, nil
+}
+
+func (op *DeployOperation) AppName() string {
+	if op.appName != "" {
+		return op.appName
+	}
+	return op.Project.AppName()
 }
 
 func (op *DeployOperation) DockerAvailable() bool {
@@ -91,7 +101,7 @@ func (op *DeployOperation) resolveAndTagImageRef(imageRef string) (string, error
 
 	fmt.Println("-->", img.ID)
 
-	imageTag := newDeploymentTag(op.AppName)
+	imageTag := newDeploymentTag(op.Project.AppName())
 
 	printHeader("Creating deployment tag")
 	if err := op.dockerClient.TagImage(img.ID, imageTag); err != nil {
@@ -118,8 +128,37 @@ func (op *DeployOperation) pushImage(imageTag string) error {
 }
 
 func (op *DeployOperation) deployImage(imageTag string) (*api.Release, error) {
+	input := api.DeployImageInput{AppID: op.AppName(), Image: imageTag}
+
+	if op.Project != nil {
+		projectServices := op.Project.Services()
+
+		if len(projectServices) > 0 {
+			printHeader("Registering Services")
+
+			services := []api.Service{}
+
+			for _, s := range op.Project.Services() {
+				handlers := "none"
+				if len(s.Handlers) > 0 {
+					handlers = strings.Join(s.Handlers, " ")
+				}
+
+				fmt.Printf("  %s %d --> %s %d (handlers: %s)\n", s.Protocol, s.Port, s.Protocol, s.InternalPort, handlers)
+				services = append(services, api.Service{
+					Protocol:     strings.ToUpper(s.Protocol),
+					Port:         s.Port,
+					InternalPort: s.InternalPort,
+					Handlers:     s.Handlers,
+				})
+			}
+
+			input.Services = &services
+		}
+	}
+
 	printHeader("Deploying Image")
-	release, err := op.apiClient.DeployImage(op.AppName, imageTag)
+	release, err := op.apiClient.DeployImage(input)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +167,7 @@ func (op *DeployOperation) deployImage(imageTag string) (*api.Release, error) {
 }
 
 func (op *DeployOperation) cleanDeploymentTags() {
-	err := op.dockerClient.DeleteDeploymentImages(op.AppName)
+	err := op.dockerClient.DeleteDeploymentImages(op.AppName())
 	if err != nil {
 		terminal.Debug("Error cleaning deployment tags", err)
 	}

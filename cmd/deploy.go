@@ -13,7 +13,7 @@ import (
 )
 
 func newDeployCommand() *Command {
-	cmd := BuildCommand(nil, runDeploy, "deploy", "deploy a local image, remote image, or Dockerfile", os.Stdout, true, requireAppName)
+	cmd := BuildCommand(nil, runDeploy, "deploy", "deploy a local image, remote image, or Dockerfile", os.Stdout, true, requireAppName, loadProject)
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "image",
 		Shorthand:   "i",
@@ -26,7 +26,7 @@ func newDeployCommand() *Command {
 }
 
 func runDeploy(ctx *CmdContext) error {
-	op, err := docker.NewDeployOperation(ctx.AppName(), ctx.FlyClient, ctx.Out)
+	op, err := docker.NewDeployOperation(ctx.AppName(), ctx.Project, ctx.FlyClient, ctx.Out)
 	if err != nil {
 		return err
 	}

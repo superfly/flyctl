@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"os"
 	"path"
+	"path/filepath"
 
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/viper"
@@ -15,25 +16,29 @@ type Project struct {
 	cfg        *viper.Viper
 }
 
-func NewProject(projectDir string) *Project {
+func NewProject(configFile string) *Project {
 	v := viper.New()
-	file := path.Join(projectDir, "fly.toml")
-	v.SetConfigFile(file)
+	v.SetConfigFile(configFile)
 
 	return &Project{
 		cfg:        v,
-		ProjectDir: projectDir,
+		ProjectDir: path.Dir(configFile),
 	}
 }
 
-func LoadProject(projectDir string) (*Project, error) {
+func LoadProject(configFile string) (*Project, error) {
+	configFile, err := ResolveConfigFileFromPath(configFile)
+	if err != nil {
+		return nil, err
+	}
+
 	v := viper.New()
-	file := path.Join(projectDir, "fly.toml")
-	v.SetConfigFile(file)
+	v.SetConfigFile(configFile)
+	v.SetConfigType("toml")
 
 	p := &Project{
 		cfg:        v,
-		ProjectDir: projectDir,
+		ProjectDir: path.Dir(configFile),
 	}
 
 	if err := v.ReadInConfig(); err != nil && !os.IsNotExist(err) {
@@ -44,6 +49,10 @@ func LoadProject(projectDir string) (*Project, error) {
 }
 
 func (p *Project) WriteConfig() error {
+	if err := os.MkdirAll(path.Dir(p.cfg.ConfigFileUsed()), 0777); err != nil {
+		return err
+	}
+
 	return p.cfg.WriteConfig()
 }
 
@@ -66,28 +75,85 @@ func (p *Project) WriteConfigAsString() string {
 	return buf.String()
 }
 
-func (c *Project) AppName() string {
-	return c.cfg.GetString("app")
+func (p *Project) ConfigFilePath() string {
+	return p.cfg.ConfigFileUsed()
 }
 
-func (c *Project) SetAppName(name string) {
-	c.cfg.Set("app", name)
+func (p *Project) AppName() string {
+	return p.cfg.GetString("app")
 }
 
-func (c *Project) HasBuildConfig() bool {
-	return c.cfg.IsSet("build")
+func (p *Project) SetAppName(name string) {
+	p.cfg.Set("app", name)
 }
 
-func (c *Project) Builder() string {
-	return c.cfg.GetString("build.builder")
+func (p *Project) HasBuildConfig() bool {
+	return p.cfg.IsSet("build")
 }
 
-func (c *Project) SetBuilder(name string) {
-	c.cfg.Set("build.builder", name)
+func (p *Project) Builder() string {
+	return p.cfg.GetString("build.builder")
 }
 
-func (c *Project) BuildArgs() map[string]string {
-	args := c.cfg.GetStringMapString("build")
+func (p *Project) SetBuilder(name string) {
+	p.cfg.Set("build.builder", name)
+}
+
+func (p *Project) BuildArgs() map[string]string {
+	args := p.cfg.GetStringMapString("build")
 	delete(args, "builder")
 	return args
+}
+
+func (p *Project) Services() []Service {
+	services := []Service{}
+	p.cfg.UnmarshalKey("services", &services)
+	return services
+}
+
+func (p *Project) SetServices(services []Service) {
+	s := []map[string]interface{}{}
+
+	for _, x := range services {
+		s = append(s, map[string]interface{}{
+			"protocol":      x.Protocol,
+			"port":          x.Port,
+			"internal_port": x.InternalPort,
+			"handlers":      x.Handlers,
+		})
+	}
+
+	p.cfg.Set("services", s)
+}
+
+type Service struct {
+	Protocol     string   `mapstructure:"protocol"`
+	Port         int      `mapstructure:"port"`
+	InternalPort int      `mapstructure:"internal_port"`
+	Handlers     []string `mapstructure:"handlers"`
+}
+
+const defaultConfigFileName = "fly.toml"
+
+func ResolveConfigFileFromPath(p string) (string, error) {
+	p, err := filepath.Abs(p)
+	if err != nil {
+		return "", err
+	}
+
+	// path is a directory, append default config file name
+	if filepath.Ext(p) == "" {
+		p = path.Join(p, defaultConfigFileName)
+	}
+
+	return p, nil
+}
+
+func ConfigFileExistsAtPath(p string) (bool, error) {
+	p, err := ResolveConfigFileFromPath(p)
+	if err != nil {
+		return false, err
+	}
+	_, err = os.Stat(p)
+	return !os.IsNotExist(err), nil
 }

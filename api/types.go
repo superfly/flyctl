@@ -280,17 +280,16 @@ type DeleteCertificatePayload struct {
 }
 
 type DeployImageInput struct {
-	AppID    string
-	Image    string
-	Services []Service
+	AppID    string     `json:"appId"`
+	Image    string     `json:"image"`
+	Services *[]Service `json:"services"`
 }
 
 // mostly duplicate of TaskService but works with the deployImage mutation.
 // clean up when we figure out groups/tasks/services
 type Service struct {
-	Protocol     string
-	Port         int
-	InternalPort int
-	Handlers     []string
-	Description  string
+	Protocol     string   `json:"protocol"`
+	Port         int      `json:"port"`
+	InternalPort int      `json:"internalPort"`
+	Handlers     []string `json:"handlers"`
 }

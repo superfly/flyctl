@@ -6,3 +6,15 @@ app = "lingering-cloud-1737"
   builder = "github.com/superfly/builders//deno"
   entry_file = "./server.ts"
   deno_version = "v0.13.0"
+
+[[services]]
+  handlers = ["HTTP"]
+  internal_port = 8080
+  port = 80
+  protocol = "TCP"
+
+[[services]]
+  handlers = ["TLS","HTTP"]
+  internal_port = 8080
+  port = 443
+  protocol = "TCP"
