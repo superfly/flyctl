@@ -12,8 +12,9 @@ import (
 )
 
 type Project struct {
-	ProjectDir string
-	cfg        *viper.Viper
+	ProjectDir       string
+	cfg              *viper.Viper
+	configFileLoaded bool
 }
 
 func NewProject(configFile string) *Project {
@@ -41,8 +42,13 @@ func LoadProject(configFile string) (*Project, error) {
 		ProjectDir: path.Dir(configFile),
 	}
 
-	if err := v.ReadInConfig(); err != nil && !os.IsNotExist(err) {
-		return nil, err
+	err = v.ReadInConfig()
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return nil, err
+		}
+	} else {
+		p.configFileLoaded = true
 	}
 
 	return p, nil
@@ -73,6 +79,10 @@ func (p *Project) WriteConfigAsString() string {
 	var buf bytes.Buffer
 	toml.NewEncoder(bufio.NewWriter(&buf)).Encode(p.cfg.AllSettings())
 	return buf.String()
+}
+
+func (p *Project) ConfigFileLoaded() bool {
+	return p.configFileLoaded
 }
 
 func (p *Project) ConfigFilePath() string {

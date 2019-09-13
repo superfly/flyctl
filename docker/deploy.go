@@ -30,8 +30,9 @@ func NewDeployOperation(appName string, project *flyctl.Project, apiClient *api.
 	op := &DeployOperation{
 		dockerClient: dockerClient,
 		apiClient:    apiClient,
-		Project:      project,
 		out:          out,
+		appName:      appName,
+		Project:      project,
 	}
 
 	op.dockerAvailable = op.dockerClient.Check() == nil

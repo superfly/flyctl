@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -9,6 +10,8 @@ import (
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/flyctl"
 )
+
+var ErrAbort = errors.New("abort")
 
 var rootCmd = &Command{
 	Command: &cobra.Command{
@@ -67,7 +70,9 @@ func checkErr(err error) {
 		return
 	}
 
-	fmt.Println(aurora.Red("Error"), err)
+	if err != ErrAbort {
+		fmt.Println(aurora.Red("Error"), err)
+	}
 
 	safeExit()
 }

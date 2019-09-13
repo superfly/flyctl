@@ -13,7 +13,7 @@ import (
 )
 
 func newDeployCommand() *Command {
-	cmd := BuildCommand(nil, runDeploy, "deploy", "deploy a local image, remote image, or Dockerfile", os.Stdout, true, requireAppName, loadProject)
+	cmd := BuildCommand(nil, runDeploy, "deploy", "deploy a local image, remote image, or Dockerfile", os.Stdout, true, requireAppName, loadProjectFromPathInFirstArg)
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "image",
 		Shorthand:   "i",
@@ -48,6 +48,9 @@ func runDeploy(ctx *CmdContext) error {
 	project, err := flyctl.LoadProject(sourceDir)
 	if err != nil {
 		return err
+	}
+	if project.ConfigFileLoaded() {
+		fmt.Printf("App config file '%s'\n", project.ConfigFilePath())
 	}
 
 	fmt.Printf("Deploy source directory '%s'\n", project.ProjectDir)

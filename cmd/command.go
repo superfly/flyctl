@@ -18,7 +18,6 @@ type CmdRunFn func(*CmdContext) error
 type Command struct {
 	*cobra.Command
 	requireSession bool
-	requireAppName bool
 }
 
 // AddCommand adds subcommands to this command
@@ -105,7 +104,7 @@ func (ctx *CmdContext) RenderEx(presentable presenters.Presentable, options pres
 	return presenter.Render()
 }
 
-func newCmdContext(ns string, out io.Writer, args []string, initClient bool, initApp bool) (*CmdContext, error) {
+func newCmdContext(ns string, out io.Writer, args []string, initClient bool) (*CmdContext, error) {
 	ctx := &CmdContext{
 		NS:           ns,
 		Config:       flyctl.ConfigNS(ns),
@@ -156,7 +155,7 @@ func BuildCommand(parent *Command, fn CmdRunFn, useText, helpText string, out io
 
 	if fn != nil {
 		flycmd.Run = func(cmd *cobra.Command, args []string) {
-			ctx, err := newCmdContext(namespace(cmd), out, args, flycmd.requireSession, flycmd.requireAppName)
+			ctx, err := newCmdContext(namespace(cmd), out, args, flycmd.requireSession)
 			checkErr(err)
 
 			for _, init := range initializers {
@@ -180,7 +179,6 @@ func BuildCommand(parent *Command, fn CmdRunFn, useText, helpText string, out io
 }
 
 func requireAppName(cmd *Command) Initializer {
-	cmd.requireAppName = true
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "app",
 		Shorthand:   "a",
@@ -193,6 +191,9 @@ func requireAppName(cmd *Command) Initializer {
 				ctx.Project = p
 			}
 
+			return nil
+		},
+		PreRun: func(ctx *CmdContext) error {
 			if ctx.AppName() == "" {
 				return fmt.Errorf("No app specified")
 			}
@@ -201,17 +202,14 @@ func requireAppName(cmd *Command) Initializer {
 	}
 }
 
-func loadProject(cmd *Command) Initializer {
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "config",
-		Shorthand:   "c",
-		Description: "path to app config file",
-		Default:     "./fly.toml",
-	})
-
+func loadProjectFromPathInFirstArg(cmd *Command) Initializer {
 	return Initializer{
 		Setup: func(ctx *CmdContext) error {
-			cfgPath, _ := ctx.Config.GetString("config")
+			cfgPath := "."
+			if len(ctx.Args) > 0 {
+				cfgPath = ctx.Args[0]
+			}
+
 			p, err := flyctl.LoadProject(cfgPath)
 			if err != nil {
 				return err
@@ -221,9 +219,18 @@ func loadProject(cmd *Command) Initializer {
 			return nil
 		},
 		PreRun: func(ctx *CmdContext) error {
-			if ctx.AppName() != ctx.Project.AppName() {
-				terminal.Warnf("App name flag (%s) does not match the config file (%s)\n", ctx.AppName(), ctx.Project.AppName())
+			if ctx.Project == nil {
+				return nil
 			}
+
+			if ctx.Project.ConfigFileLoaded() && ctx.Project.AppName() != "" && ctx.Project.AppName() != ctx.AppName() {
+				terminal.Warnf("app flag '%s' does not match app name in config file '%s'\n", ctx.AppName(), ctx.Project.AppName())
+
+				if !confirm(fmt.Sprintf("Continue deploying to '%s'", ctx.AppName())) {
+					return ErrAbort
+				}
+			}
+
 			return nil
 		},
 	}
