@@ -16,7 +16,7 @@ func newAuthCommand() *Command {
 		Command: &cobra.Command{
 			Use:   "auth",
 			Short: "manage authentication",
-			Long:  "manage authentication",
+			Long:  "Authenticate with Fly (and logout if you need to). Start with the \"login\" subcommand.",
 		},
 	}
 

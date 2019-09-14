@@ -15,8 +15,9 @@ var ErrAbort = errors.New("abort")
 
 var rootCmd = &Command{
 	Command: &cobra.Command{
-		Use:  "flyctl",
-		Long: `flycyl is a command line interface for the Fly.io platform`,
+		Use:   "flyctl",
+		Short: "The Fly CLI",
+		Long:  `flycyl is a command line interface for the Fly.io platform`,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			cmd.SilenceUsage = true
 			cmd.SilenceErrors = true
@@ -24,6 +25,9 @@ var rootCmd = &Command{
 	},
 }
 
+func GetRootCommand() *cobra.Command {
+	return rootCmd.Command
+}
 func Execute() {
 	defer flyctl.BackgroundTaskWG.Wait()
 

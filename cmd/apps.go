@@ -16,7 +16,7 @@ func newAppListCommand() *Command {
 		Command: &cobra.Command{
 			Use:   "apps",
 			Short: "manage apps",
-			Long:  "manage apps",
+			Long:  "Manage your Fly applications. You'll usually start with the \"create\" subcommand.",
 		},
 	}
 
