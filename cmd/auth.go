@@ -79,7 +79,9 @@ func runLogin(ctx *CmdContext) error {
 }
 
 func runWebLogin(ctx *CmdContext) error {
-	cliAuth, err := api.StartCLISessionWebAuth("go test")
+	name, _ := os.Hostname()
+
+	cliAuth, err := api.StartCLISessionWebAuth(name)
 	if err != nil {
 		return err
 	}
