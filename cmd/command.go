@@ -73,6 +73,15 @@ type CmdContext struct {
 	Project      *flyctl.Project
 }
 
+func (ctx *CmdContext) InitApiClient() error {
+	client, err := api.NewClient(viper.GetString(flyctl.ConfigAPIAccessToken))
+	if err != nil {
+		return err
+	}
+	ctx.FlyClient = client
+	return nil
+}
+
 func (ctx *CmdContext) AppName() string {
 	if name, _ := ctx.Config.GetString(flyctl.ConfigAppName); name != "" {
 		return name
@@ -114,11 +123,9 @@ func newCmdContext(ns string, out io.Writer, args []string, initClient bool) (*C
 	}
 
 	if initClient {
-		client, err := api.NewClient(viper.GetString(flyctl.ConfigAPIAccessToken))
-		if err != nil {
+		if err := ctx.InitApiClient(); err != nil {
 			return nil, err
 		}
-		ctx.FlyClient = client
 	}
 
 	return ctx, nil
