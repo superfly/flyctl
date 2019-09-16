@@ -91,7 +91,7 @@ func runWebLogin(ctx *CmdContext) error {
 	}
 
 	select {
-	case <-time.After(15 * time.Second):
+	case <-time.After(15 * time.Minute):
 		return errors.New("Login expired, please try again")
 	case cliAuth = <-waitForCLISession(cliAuth.ID):
 	}
