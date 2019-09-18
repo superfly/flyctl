@@ -224,6 +224,7 @@ type Database struct {
 	ID           string
 	BackendID    string
 	Name         string
+	Engine       string
 	CreatedAt    time.Time
 	VMURL        string
 	PublicURL    string

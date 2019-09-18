@@ -8,7 +8,7 @@ type Databases struct {
 }
 
 func (p *Databases) FieldNames() []string {
-	return []string{"ID", "Name", "Owner"}
+	return []string{"ID", "Name", "Engine", "Owner"}
 }
 
 func (p *Databases) Records() []map[string]string {
@@ -20,9 +20,10 @@ func (p *Databases) Records() []map[string]string {
 
 	for _, db := range p.Databases {
 		out = append(out, map[string]string{
-			"ID":    db.ID,
-			"Name":  db.Name,
-			"Owner": db.Organization.Slug,
+			"ID":     db.ID,
+			"Name":   db.Name,
+			"Engine": db.Engine,
+			"Owner":  db.Organization.Slug,
 		})
 	}
 

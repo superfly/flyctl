@@ -709,6 +709,7 @@ func (client *Client) GetDatabases() ([]Database, error) {
 					id
 					backendId
 					name
+					engine
 					organization {
 						id
 						name
@@ -739,6 +740,7 @@ func (client *Client) GetDatabase(databaseId string) (*Database, error) {
 				... on Database {
 					backendId
 					name
+					engine
 					vmUrl
 					publicUrl
 					organization {
@@ -764,7 +766,7 @@ func (client *Client) GetDatabase(databaseId string) (*Database, error) {
 	return &data.Database, nil
 }
 
-func (c *Client) CreateDatabase(orgID string, name string) (*Database, error) {
+func (c *Client) CreateDatabase(orgID string, name string, engine string) (*Database, error) {
 	query := `
 		mutation($input: CreateDatabaseInput!) {
 			createDatabase(input: $input) {
@@ -772,6 +774,7 @@ func (c *Client) CreateDatabase(orgID string, name string) (*Database, error) {
 					id
 					backendId
 					name
+					engine
 					vmUrl
 					publicUrl
 					organization {
@@ -789,6 +792,7 @@ func (c *Client) CreateDatabase(orgID string, name string) (*Database, error) {
 
 	req.Var("input", map[string]string{
 		"organizationId": orgID,
+		"engine":         strings.ToUpper(engine),
 		"name":           name,
 	})
 

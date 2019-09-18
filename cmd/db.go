@@ -40,6 +40,8 @@ func runDatabasesList(ctx *CmdContext) error {
 	return ctx.Render(&presenters.Databases{Databases: dbs})
 }
 
+var dbEngines = []string{"cockroachdb", "redis"}
+
 func runCreateDatabase(ctx *CmdContext) error {
 	name, _ := ctx.Config.GetString("name")
 	if name == "" {
@@ -50,6 +52,22 @@ func runCreateDatabase(ctx *CmdContext) error {
 			if isInterrupt(err) {
 				return nil
 			}
+			return err
+		}
+	}
+
+	engine, _ := ctx.Config.GetString("engine")
+	if engine == "" {
+		prompt := &survey.Select{
+			Message:  "Select engine:",
+			Options:  dbEngines,
+			PageSize: 15,
+		}
+		if err := survey.AskOne(prompt, &engine); err != nil {
+			if isInterrupt(err) {
+				return nil
+			}
+			return err
 		}
 	}
 
@@ -63,7 +81,7 @@ func runCreateDatabase(ctx *CmdContext) error {
 		return fmt.Errorf("Error setting organization: %s", err)
 	}
 
-	db, err := ctx.FlyClient.CreateDatabase(org.ID, name)
+	db, err := ctx.FlyClient.CreateDatabase(org.ID, name, engine)
 	if err != nil {
 		return err
 	}
