@@ -27,6 +27,7 @@ func newAuthCommand() *Command {
 	}
 
 	BuildCommand(cmd, runWhoami, "whoami", "show the currently authenticated user", os.Stdout, true)
+	BuildCommand(cmd, runAuthToken, "token", "show the current auth token", os.Stdout, true)
 
 	login := BuildCommand(cmd, runLogin, "login", "log in a user", os.Stdout, false)
 	login.AddBoolFlag(BoolFlagOpts{
@@ -202,6 +203,14 @@ func runLogout(ctx *CmdContext) error {
 	}
 
 	fmt.Println("Session removed")
+
+	return nil
+}
+
+func runAuthToken(ctx *CmdContext) error {
+	token, _ := ctx.GlobalConfig.GetString(flyctl.ConfigAPIToken)
+
+	fmt.Println(token)
 
 	return nil
 }
