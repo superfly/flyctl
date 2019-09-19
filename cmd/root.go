@@ -40,11 +40,9 @@ func init() {
 
 	rootCmd.PersistentFlags().StringP("access-token", "t", "", "Fly API Access Token")
 	viper.BindPFlag(flyctl.ConfigAPIToken, rootCmd.PersistentFlags().Lookup("access-token"))
-	viper.BindEnv(flyctl.ConfigAPIToken, "FLY_ACCESS_TOKEN")
 
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
 	viper.BindPFlag(flyctl.ConfigVerboseOutput, rootCmd.PersistentFlags().Lookup("verbose"))
-	viper.BindEnv(flyctl.ConfigVerboseOutput, "VERBOSE")
 
 	rootCmd.AddCommand(
 		newAuthCommand(),
