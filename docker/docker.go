@@ -51,7 +51,7 @@ func NewDockerClient() (*DockerClient, error) {
 		return nil, err
 	}
 
-	accessToken := viper.GetString(flyctl.ConfigAPIAccessToken)
+	accessToken := viper.GetString(flyctl.ConfigAPIToken)
 
 	authConfig := types.AuthConfig{
 		Username:      accessToken,

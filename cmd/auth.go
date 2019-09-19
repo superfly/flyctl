@@ -102,7 +102,7 @@ func runWebLogin(ctx *CmdContext) error {
 		return errors.New("Unable to log in, please try again")
 	}
 
-	viper.Set(flyctl.ConfigAPIAccessToken, cliAuth.AccessToken)
+	viper.Set(flyctl.ConfigAPIToken, cliAuth.AccessToken)
 	if err := flyctl.SaveConfig(); err != nil {
 		return err
 	}
@@ -189,13 +189,13 @@ func runInteractiveLogin(ctx *CmdContext) error {
 		return err
 	}
 
-	viper.Set(flyctl.ConfigAPIAccessToken, accessToken)
+	viper.Set(flyctl.ConfigAPIToken, accessToken)
 
 	return flyctl.SaveConfig()
 }
 
 func runLogout(ctx *CmdContext) error {
-	viper.Set(flyctl.ConfigAPIAccessToken, "")
+	viper.Set(flyctl.ConfigAPIToken, "")
 
 	if err := flyctl.SaveConfig(); err != nil {
 		return err

@@ -74,7 +74,7 @@ type CmdContext struct {
 }
 
 func (ctx *CmdContext) InitApiClient() error {
-	client, err := api.NewClient(viper.GetString(flyctl.ConfigAPIAccessToken))
+	client, err := api.NewClient(viper.GetString(flyctl.ConfigAPIToken))
 	if err != nil {
 		return err
 	}

@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	ConfigAPIAccessToken           = "access_token"
+	ConfigAPIToken                 = "access_token"
 	ConfigAPIBaseURL               = "api_base_url"
 	ConfigAppName                  = "app"
 	ConfigVerboseOutput            = "verbose"
