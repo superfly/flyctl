@@ -11,6 +11,9 @@ require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/Microsoft/go-winio v0.4.13 // indirect
 	github.com/Microsoft/hcsshim v0.8.6 // indirect
+	github.com/PuerkitoBio/rehttp v1.0.0
+	github.com/aybabtme/iocontrol v0.0.0-20150809002002-ad15bcfc95a0 // indirect
+	github.com/benbjohnson/clock v0.0.0-20161215174838-7dc76406b6d3 // indirect
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/briandowns/spinner v1.6.1
 	github.com/containerd/containerd v1.2.7 // indirect
@@ -22,6 +25,7 @@ require (
 	github.com/dustin/go-humanize v1.0.0
 	github.com/google/go-cmp v0.3.0 // indirect
 	github.com/gorilla/mux v1.7.3 // indirect
+	github.com/hashicorp/go-cleanhttp v0.5.1 // indirect
 	github.com/hashicorp/go-getter v1.3.0
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/kr/pty v1.1.8 // indirect

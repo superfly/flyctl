@@ -5,13 +5,20 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/PuerkitoBio/rehttp"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/terminal"
 )
 
 func newHTTPClient() (*http.Client, error) {
+	retryTransport := rehttp.NewTransport(
+		http.DefaultTransport,
+		rehttp.RetryAll(rehttp.RetryMaxRetries(3), rehttp.RetryTemporaryErr()),
+		rehttp.ExpJitterDelay(100*time.Millisecond, 1*time.Second),
+	)
+
 	transport := &LoggingTransport{
-		innerTransport: http.DefaultTransport,
+		innerTransport: retryTransport,
 	}
 
 	httpClient := &http.Client{
