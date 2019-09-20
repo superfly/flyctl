@@ -10,12 +10,13 @@ import (
 
 func newAppStatusCommand() *Command {
 	cmd := BuildCommand(nil, runAppStatus, "status", "show app status", os.Stdout, true, requireAppName)
+	cmd.AddBoolFlag(BoolFlagOpts{Name: "all", Description: "show completed allocations"})
 
 	return cmd
 }
 
 func runAppStatus(ctx *CmdContext) error {
-	app, err := ctx.FlyClient.GetAppStatus(ctx.AppName())
+	app, err := ctx.FlyClient.GetAppStatus(ctx.AppName(), ctx.Config.GetBool("all"))
 	if err != nil {
 		return err
 	}

@@ -460,9 +460,9 @@ func (c *Client) CreateApp(name string, orgId string) (*App, error) {
 	return &data.CreateApp.App, nil
 }
 
-func (c *Client) GetAppStatus(appName string) (*App, error) {
+func (c *Client) GetAppStatus(appName string, showComplete bool) (*App, error) {
 	query := `
-		query($appName: String!) {
+		query($appName: String!, $showComplete: Boolean!) {
 			app(name: $appName) {
 				id
 				name
@@ -479,7 +479,7 @@ func (c *Client) GetAppStatus(appName string) (*App, error) {
 					name
 					status
 					servicesSummary
-					allocations {
+					allocations(complete: $showComplete) {
 						id
 						version
 						status
@@ -510,8 +510,8 @@ func (c *Client) GetAppStatus(appName string) (*App, error) {
 	`
 
 	req := c.NewRequest(query)
-
 	req.Var("appName", appName)
+	req.Var("showComplete", showComplete)
 
 	data, err := c.Run(req)
 	if err != nil {
