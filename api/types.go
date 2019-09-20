@@ -124,6 +124,7 @@ type TaskService struct {
 type Allocation struct {
 	ID            string
 	Version       int
+	LatestVersion bool
 	Status        string
 	DesiredStatus string
 	Region        string

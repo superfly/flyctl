@@ -482,6 +482,7 @@ func (c *Client) GetAppStatus(appName string, showComplete bool) (*App, error) {
 					allocations(complete: $showComplete) {
 						id
 						version
+						latestVersion
 						status
 						desiredStatus
 						region
