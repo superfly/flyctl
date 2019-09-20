@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/PuerkitoBio/rehttp"
@@ -13,7 +14,15 @@ import (
 func newHTTPClient() (*http.Client, error) {
 	retryTransport := rehttp.NewTransport(
 		http.DefaultTransport,
-		rehttp.RetryAll(rehttp.RetryMaxRetries(3), rehttp.RetryTemporaryErr()),
+		rehttp.RetryAll(
+			rehttp.RetryMaxRetries(3),
+			rehttp.RetryAny(
+				rehttp.RetryTemporaryErr(),
+				rehttp.RetryIsErr(func(err error) bool {
+					return strings.Contains(err.Error(), "INTERNAL_ERROR")
+				}),
+			),
+		),
 		rehttp.ExpJitterDelay(100*time.Millisecond, 1*time.Second),
 	)
 
