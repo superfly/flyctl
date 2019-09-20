@@ -19,7 +19,7 @@ func newHTTPClient() (*http.Client, error) {
 			rehttp.RetryAny(
 				rehttp.RetryTemporaryErr(),
 				rehttp.RetryIsErr(func(err error) bool {
-					return strings.Contains(err.Error(), "INTERNAL_ERROR")
+					return err != nil && strings.Contains(err.Error(), "INTERNAL_ERROR")
 				}),
 			),
 		),
