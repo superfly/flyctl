@@ -224,6 +224,7 @@ type SignedUrls struct {
 type Database struct {
 	ID           string
 	BackendID    string
+	Key          string
 	Name         string
 	Engine       string
 	CreatedAt    time.Time

@@ -16,7 +16,7 @@ func (p *DatabaseInfo) Records() []map[string]string {
 	out := []map[string]string{}
 
 	out = append(out, map[string]string{
-		"ID":         p.Database.BackendID,
+		"ID":         p.Database.Key,
 		"Name":       p.Database.Name,
 		"Engine":     p.Database.Engine,
 		"Owner":      p.Database.Organization.Slug,

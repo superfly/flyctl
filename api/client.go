@@ -709,6 +709,7 @@ func (client *Client) GetDatabases() ([]Database, error) {
 				nodes {
 					id
 					backendId
+					key
 					name
 					engine
 					organization {
@@ -732,32 +733,30 @@ func (client *Client) GetDatabases() ([]Database, error) {
 	return data.Databases.Nodes, nil
 }
 
-func (client *Client) GetDatabase(databaseId string) (*Database, error) {
+func (client *Client) GetDatabase(key string) (*Database, error) {
 	q := `
-		query($databaseId: ID!) {
-			database: node(id: $databaseId) {
+		query($key: String!) {
+			database(key: $key) {
 				id
-				__typename
-				... on Database {
-					backendId
+				backendId
+				key
+				name
+				engine
+				vmUrl
+				publicUrl
+				organization {
+					id
 					name
-					engine
-					vmUrl
-					publicUrl
-					organization {
-						id
-						name
-						slug
-					}
-					createdAt
+					slug
 				}
+				createdAt
 			}
 		}
 	`
 
 	req := client.NewRequest(q)
 
-	req.Var("databaseId", databaseId)
+	req.Var("key", key)
 
 	data, err := client.Run(req)
 	if err != nil {

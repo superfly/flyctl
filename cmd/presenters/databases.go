@@ -20,7 +20,7 @@ func (p *Databases) Records() []map[string]string {
 
 	for _, db := range p.Databases {
 		out = append(out, map[string]string{
-			"ID":     db.ID,
+			"ID":     db.Key,
 			"Name":   db.Name,
 			"Engine": db.Engine,
 			"Owner":  db.Organization.Slug,
