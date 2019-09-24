@@ -25,8 +25,8 @@ func newDatabasesCommand() *Command {
 	delete.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "accept all confirmations"})
 
 	BuildCommand(cmd, runCreateDatabase, "create", "create database", os.Stdout, true)
-	info := BuildCommand(cmd, runDatabaseInfo, "info", "show detailed database information", os.Stdout, true)
-	info.Args = cobra.ExactArgs(1)
+	show := BuildCommand(cmd, runDatabaseShow, "show", "show detailed database information", os.Stdout, true)
+	show.Args = cobra.ExactArgs(1)
 
 	return cmd
 }
@@ -96,7 +96,7 @@ func runCreateDatabase(ctx *CmdContext) error {
 	return nil
 }
 
-func runDatabaseInfo(ctx *CmdContext) error {
+func runDatabaseShow(ctx *CmdContext) error {
 	id := ctx.Args[0]
 
 	db, err := ctx.FlyClient.GetDatabase(id)
