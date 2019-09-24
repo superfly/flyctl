@@ -1,8 +1,6 @@
 package presenters
 
 import (
-	"strconv"
-
 	"github.com/superfly/flyctl/api"
 )
 
@@ -11,7 +9,7 @@ type Certificates struct {
 }
 
 func (p *Certificates) FieldNames() []string {
-	return []string{"Hostname", "Configured", "Requested At"}
+	return []string{"Hostname", "Created At", "Status"}
 }
 
 func (p *Certificates) Records() []map[string]string {
@@ -19,9 +17,9 @@ func (p *Certificates) Records() []map[string]string {
 
 	for _, cert := range p.Certificates {
 		out = append(out, map[string]string{
-			"Hostname":     cert.Hostname,
-			"Configured":   strconv.FormatBool(cert.AcmeDNSConfigured),
-			"Requested At": formatRelativeTime(cert.CertificateRequestedAt),
+			"Hostname":   cert.Hostname,
+			"Created At": formatRelativeTime(cert.CreatedAt),
+			"Status":     cert.ClientStatus,
 		})
 	}
 

@@ -266,14 +266,23 @@ type TaskDeploymentStatus struct {
 }
 
 type AppCertificate struct {
-	ID                     string
-	AcmeDNSConfigured      bool
-	CertificateAuthority   string
-	CertificateRequestedAt time.Time
-	DNSProvider            string
-	DNSValidationTarget    string
-	Hostname               string
-	Source                 string
+	ID                        string
+	AcmeDNSConfigured         bool
+	CertificateAuthority      string
+	CreatedAt                 time.Time
+	DNSProvider               string
+	DNSValidationInstructions string
+	DNSValidationHostname     string
+	DNSValidationTarget       string
+	Hostname                  string
+	Source                    string
+	ClientStatus              string
+	Issued                    struct {
+		Nodes []struct {
+			ExpiresAt time.Time
+			Type      string
+		}
+	}
 }
 
 type DeleteCertificatePayload struct {

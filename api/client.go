@@ -836,14 +836,9 @@ func (c *Client) GetAppCertificates(appName string) ([]AppCertificate, error) {
 			app(name: $appName) {
 				certificates {
 					nodes {
-						acmeDnsConfigured
-						certificateAuthority
-						certificateRequestedAt
-						dnsProvider
-						dnsValidationTarget
+						createdAt
 						hostname
-						id
-						source
+						clientStatus
 					}
 				}
 			}
@@ -869,12 +864,21 @@ func (c *Client) GetAppCertificate(appName string, hostname string) (*AppCertifi
 				certificate(hostname: $hostname) {
 					acmeDnsConfigured
 					certificateAuthority
-					certificateRequestedAt
+					createdAt
 					dnsProvider
+					dnsValidationInstructions
+					dnsValidationHostname
 					dnsValidationTarget
 					hostname
 					id
 					source
+					clientStatus
+					issued {
+						nodes {
+							type
+							expiresAt
+						}
+					}
 				}
 			}
 		}
@@ -900,13 +904,21 @@ func (c *Client) CheckAppCertificate(appName string, hostname string) (*AppCerti
 				certificate(hostname: $hostname) {
 					acmeDnsConfigured
 					certificateAuthority
-					certificateRequestedAt
+					createdAt
 					dnsProvider
+					dnsValidationInstructions
+					dnsValidationHostname
 					dnsValidationTarget
 					hostname
 					id
 					source
-					check
+					clientStatus
+					issued {
+						nodes {
+							type
+							expiresAt
+						}
+					}
 				}
 			}
 		}
