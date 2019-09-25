@@ -52,6 +52,9 @@ func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Quer
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
 	var resp Query
 	err := c.client.Run(ctx, req, &resp)
+	if err != nil && strings.HasPrefix(err.Error(), "graphql: ") {
+		return resp, errors.New(strings.TrimPrefix(err.Error(), "graphql: "))
+	}
 	return resp, err
 }
 
