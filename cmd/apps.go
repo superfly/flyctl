@@ -9,6 +9,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/docker"
+	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/helpers"
 )
 
 func newAppListCommand() *Command {
@@ -39,6 +41,9 @@ func newAppListCommand() *Command {
 	delete := BuildCommand(cmd, runDestroyApp, "destroy", "permanently destroy an app", os.Stdout, true)
 	delete.Args = cobra.ExactArgs(1)
 	delete.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "accept all confirmations"})
+
+	initConfig := BuildCommand(cmd, runAppInit, "init-config [PATH]", "initialize a fly.toml file from an existing app", os.Stdout, true)
+	initConfig.Args = cobra.MaximumNArgs(1)
 
 	return cmd
 }
@@ -133,4 +138,72 @@ func runAppsCreate(ctx *CmdContext) error {
 	}
 
 	return writeConfigWithPrompt(project)
+}
+
+func runAppInit(ctx *CmdContext) error {
+	path := "."
+	if len(ctx.Args) == 1 {
+		path = ctx.Args[0]
+	}
+
+	project, err := initConfigFromApp(ctx, ctx.AppName(), path)
+	if err != nil {
+		return err
+	}
+
+	return writeConfigWithPrompt(project)
+}
+
+func initConfigFromApp(ctx *CmdContext, appName, path string) (*flyctl.Project, error) {
+	path, err := flyctl.ResolveConfigFileFromPath(path)
+	if err != nil {
+		return nil, err
+	}
+
+	app, err := ctx.FlyClient.GetApp(appName)
+	if err != nil {
+		return nil, err
+	}
+
+	services, err := ctx.FlyClient.GetAppServices(appName)
+	if err != nil {
+		return nil, err
+	}
+
+	project := flyctl.NewProject(path)
+	project.SetAppName(app.Name)
+
+	cfgServices := []flyctl.Service{}
+
+	for _, s := range services {
+		cfgServices = append(cfgServices, flyctl.Service{
+			Protocol:     s.Protocol,
+			Port:         s.Port,
+			InternalPort: s.InternalPort,
+			Handlers:     s.Handlers,
+		})
+	}
+
+	project.SetServices(cfgServices)
+
+	return project, nil
+}
+
+func writeConfigWithPrompt(project *flyctl.Project) error {
+	if exists, _ := flyctl.ConfigFileExistsAtPath(project.ConfigFilePath()); exists {
+		if !confirm(fmt.Sprintf("Overwrite config file '%s'", project.ConfigFilePath())) {
+			return nil
+		}
+	}
+
+	if err := project.WriteConfig(); err != nil {
+		return err
+	}
+
+	fmt.Println(aurora.Faint(project.WriteConfigAsString()))
+
+	path := helpers.PathRelativeToCWD(project.ConfigFilePath())
+	fmt.Println("Wrote config file", path)
+
+	return nil
 }
