@@ -3,9 +3,7 @@
 app = "lingering-cloud-1737"
 
 [build]
-  builder = "github.com/superfly/builders//deno"
-  entry_file = "./server.ts"
-  deno_version = "v0.13.0"
+  builder = "github.com/superfly/builders//static"
 
 [[services]]
   handlers = ["HTTP"]
