@@ -134,7 +134,7 @@ func (c *DockerClient) DeleteDeploymentImages(appName string) error {
 		for _, tag := range image.RepoTags {
 			_, err := c.docker.ImageRemove(c.ctx, tag, types.ImageRemoveOptions{PruneChildren: true})
 			if err != nil {
-				terminal.Error("Error deleting image", err)
+				terminal.Debug("Error deleting image", err)
 			}
 		}
 	}
