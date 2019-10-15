@@ -1008,6 +1008,20 @@ func (c *Client) GetAppServices(appName string) ([]Service, error) {
 					internalPort
 					handlers
 					description
+					checks {
+						name
+						interval
+						timeout
+						type
+						httpPath
+						httpMethod
+						httpHeaders {
+							name
+							value
+						}
+						httpProtocol
+						httpTlsSkipVerify
+					}
 				}
 			}
 		}

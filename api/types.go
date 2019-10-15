@@ -304,4 +304,22 @@ type Service struct {
 	Port         int      `json:"port"`
 	InternalPort int      `json:"internalPort"`
 	Handlers     []string `json:"handlers"`
+	Checks       []Check  `json:"checks"`
+}
+
+type Check struct {
+	Type              string       `json:"type"`
+	Name              *string      `json:"name"`
+	Interval          *uint64      `json:"interval"`
+	Timeout           *uint64      `json:"timeout"`
+	HTTPMethod        *string      `json:"httpMethod"`
+	HTTPPath          *string      `json:"httpPath"`
+	HTTPProtocol      *string      `json:"httpProtocol"`
+	HTTPSkipTLSVerify *bool        `json:"httpTlsSkipVerify"`
+	HTTPHeaders       []HTTPHeader `json:"httpHeaders"`
+}
+
+type HTTPHeader struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }

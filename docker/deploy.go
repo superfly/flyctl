@@ -137,21 +137,15 @@ func (op *DeployOperation) deployImage(imageTag string) (*api.Release, error) {
 		if len(projectServices) > 0 {
 			printHeader("Registering Services")
 
-			services := []api.Service{}
+			services := op.Project.Services()
 
-			for _, s := range op.Project.Services() {
+			for _, s := range services {
 				handlers := "none"
 				if len(s.Handlers) > 0 {
 					handlers = strings.Join(s.Handlers, " ")
 				}
 
 				fmt.Printf("  %s %d --> %s %d (handlers: %s)\n", s.Protocol, s.Port, s.Protocol, s.InternalPort, handlers)
-				services = append(services, api.Service{
-					Protocol:     strings.ToUpper(s.Protocol),
-					Port:         s.Port,
-					InternalPort: s.InternalPort,
-					Handlers:     s.Handlers,
-				})
 			}
 
 			input.Services = &services

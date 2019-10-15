@@ -6,9 +6,14 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/spf13/cast"
 	"github.com/spf13/viper"
+	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/terminal"
 )
 
 type Project struct {
@@ -115,32 +120,192 @@ func (p *Project) BuildArgs() map[string]string {
 	return args
 }
 
-func (p *Project) Services() []Service {
-	services := []Service{}
-	p.cfg.UnmarshalKey("services", &services)
+func (p *Project) Services() []api.Service {
+	services := []api.Service{}
+	cfgServices, ok := p.cfg.Get("services").([]interface{})
+	if ok {
+		for _, in := range cfgServices {
+			inSvc := in.(map[string]interface{})
+			svc := api.Service{}
+			if val, ok := inSvc["protocol"]; ok {
+				svc.Protocol = strings.ToUpper(cast.ToString(val))
+			}
+			if val, ok := inSvc["port"]; ok {
+				svc.Port = cast.ToInt(val)
+			}
+			if val, ok := inSvc["internal_port"]; ok {
+				svc.InternalPort = cast.ToInt(val)
+			}
+			if val, ok := inSvc["handlers"]; ok {
+				for _, handler := range cast.ToStringSlice(val) {
+					svc.Handlers = append(svc.Handlers, strings.ToUpper(handler))
+				}
+			}
+
+			if val, ok := inSvc["tcp_check"]; ok {
+				for _, val := range cast.ToSlice(val) {
+					checkIn := cast.ToStringMap(val)
+					check := api.Check{
+						Type: "TCP",
+					}
+					if val, ok := checkIn["name"]; ok {
+						check.Name = new(string)
+						*check.Name = cast.ToString(val)
+					}
+					if val, ok := checkIn["interval"]; ok {
+						duration, err := time.ParseDuration(cast.ToString(val))
+						if err != nil {
+							terminal.Warnf("Error parsing check interval '%s': %s", val, err)
+							continue
+						}
+						check.Interval = new(uint64)
+						*check.Interval = uint64(duration.Milliseconds())
+					}
+					if val, ok := checkIn["timeout"]; ok {
+						duration, err := time.ParseDuration(cast.ToString(val))
+						if err != nil {
+							terminal.Warnf("Error parsing check timeout '%s': %s", val, err)
+							continue
+						}
+						check.Timeout = new(uint64)
+						*check.Timeout = uint64(duration.Milliseconds())
+					}
+					svc.Checks = append(svc.Checks, check)
+				}
+			}
+
+			if val, ok := inSvc["http_check"]; ok {
+				for _, val := range cast.ToSlice(val) {
+					checkIn := cast.ToStringMap(val)
+					check := api.Check{
+						Type: "HTTP",
+					}
+					if val, ok := checkIn["name"]; ok {
+						check.Name = new(string)
+						*check.Name = cast.ToString(val)
+					}
+					if val, ok := checkIn["interval"]; ok {
+						duration, err := time.ParseDuration(cast.ToString(val))
+						if err != nil {
+							terminal.Warnf("Error parsing check interval '%s': %s", val, err)
+							continue
+						}
+						check.Interval = new(uint64)
+						*check.Interval = uint64(duration.Milliseconds())
+					}
+					if val, ok := checkIn["timeout"]; ok {
+						duration, err := time.ParseDuration(cast.ToString(val))
+						if err != nil {
+							terminal.Warnf("Error parsing check timeout '%s': %s", val, err)
+							continue
+						}
+						check.Timeout = new(uint64)
+						*check.Timeout = uint64(duration.Milliseconds())
+					}
+
+					if val, ok := checkIn["method"]; ok {
+						check.HTTPMethod = new(string)
+						*check.HTTPMethod = strings.ToUpper(cast.ToString(val))
+					}
+					if val, ok := checkIn["path"]; ok {
+						check.HTTPPath = new(string)
+						*check.HTTPPath = cast.ToString(val)
+					}
+					if val, ok := checkIn["protocol"]; ok {
+						check.HTTPProtocol = new(string)
+						*check.HTTPProtocol = strings.ToUpper(cast.ToString(val))
+					}
+					if val, ok := checkIn["skip_verify_tls"]; ok {
+						check.HTTPSkipTLSVerify = new(bool)
+						*check.HTTPSkipTLSVerify = cast.ToBool(val)
+					}
+					if val, ok := checkIn["headers"]; ok {
+						for n, v := range cast.ToStringMapString(val) {
+							check.HTTPHeaders = append(check.HTTPHeaders, api.HTTPHeader{Name: n, Value: v})
+						}
+					}
+					svc.Checks = append(svc.Checks, check)
+				}
+			}
+
+			services = append(services, svc)
+		}
+
+	}
+
 	return services
 }
 
-func (p *Project) SetServices(services []Service) {
+func (p *Project) SetServices(services []api.Service) {
 	s := []map[string]interface{}{}
 
 	for _, x := range services {
-		s = append(s, map[string]interface{}{
-			"protocol":      x.Protocol,
+		svc := map[string]interface{}{
+			"protocol":      strings.ToLower(x.Protocol),
 			"port":          x.Port,
 			"internal_port": x.InternalPort,
-			"handlers":      x.Handlers,
-		})
+		}
+
+		handlers := []string{}
+		for _, handler := range x.Handlers {
+			handlers = append(handlers, strings.ToLower(handler))
+		}
+		svc["handlers"] = handlers
+
+		tcpChecks := []interface{}{}
+		httpChecks := []interface{}{}
+
+		for _, check := range x.Checks {
+			x := map[string]interface{}{}
+
+			if check.Name != nil {
+				x["name"] = *check.Name
+			}
+
+			if check.Interval != nil {
+				x["interval"] = time.Duration(*check.Interval * uint64(time.Millisecond.Nanoseconds())).String()
+			}
+
+			if check.Timeout != nil {
+				x["timeout"] = time.Duration(*check.Timeout * uint64(time.Millisecond.Nanoseconds())).String()
+			}
+
+			if check.Type == "TCP" {
+				tcpChecks = append(tcpChecks, x)
+			} else if check.Type == "HTTP" {
+				if check.HTTPMethod != nil {
+					x["method"] = strings.ToLower(*check.HTTPMethod)
+				}
+				if check.HTTPPath != nil {
+					x["path"] = *check.HTTPPath
+				}
+				if check.HTTPProtocol != nil {
+					x["protocol"] = strings.ToLower(*check.HTTPProtocol)
+				}
+				if check.HTTPSkipTLSVerify != nil {
+					x["skip_verify_tls"] = *check.HTTPSkipTLSVerify
+				}
+				if len(check.HTTPHeaders) > 0 {
+					headers := map[string]string{}
+					for _, header := range check.HTTPHeaders {
+						headers[header.Name] = header.Value
+					}
+				}
+				httpChecks = append(httpChecks, x)
+			}
+		}
+
+		if len(tcpChecks) > 0 {
+			svc["tcp_check"] = tcpChecks
+		}
+		if len(httpChecks) > 0 {
+			svc["http_check"] = httpChecks
+		}
+
+		s = append(s, svc)
 	}
 
 	p.cfg.Set("services", s)
-}
-
-type Service struct {
-	Protocol     string   `mapstructure:"protocol"`
-	Port         int      `mapstructure:"port"`
-	InternalPort int      `mapstructure:"internal_port"`
-	Handlers     []string `mapstructure:"handlers"`
 }
 
 const defaultConfigFileName = "fly.toml"
