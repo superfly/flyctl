@@ -42,8 +42,8 @@ func newAppListCommand() *Command {
 	delete.Args = cobra.ExactArgs(1)
 	delete.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "accept all confirmations"})
 
-	initConfig := BuildCommand(cmd, runAppInit, "init-config [PATH]", "initialize a fly.toml file from an existing app", os.Stdout, true)
-	initConfig.Args = cobra.MaximumNArgs(1)
+	initConfig := BuildCommand(cmd, runAppInit, "init-config [APP] [PATH]", "initialize a fly.toml file from an existing app", os.Stdout, true)
+	initConfig.Args = cobra.RangeArgs(1, 2)
 
 	return cmd
 }
@@ -141,12 +141,14 @@ func runAppsCreate(ctx *CmdContext) error {
 }
 
 func runAppInit(ctx *CmdContext) error {
+	appName := ctx.Args[0]
+
 	path := "."
-	if len(ctx.Args) == 1 {
-		path = ctx.Args[0]
+	if len(ctx.Args) == 2 {
+		path = ctx.Args[1]
 	}
 
-	project, err := initConfigFromApp(ctx, ctx.AppName(), path)
+	project, err := initConfigFromApp(ctx, appName, path)
 	if err != nil {
 		return err
 	}
@@ -172,19 +174,7 @@ func initConfigFromApp(ctx *CmdContext, appName, path string) (*flyctl.Project, 
 
 	project := flyctl.NewProject(path)
 	project.SetAppName(app.Name)
-
-	cfgServices := []flyctl.Service{}
-
-	for _, s := range services {
-		cfgServices = append(cfgServices, flyctl.Service{
-			Protocol:     s.Protocol,
-			Port:         s.Port,
-			InternalPort: s.InternalPort,
-			Handlers:     s.Handlers,
-		})
-	}
-
-	project.SetServices(cfgServices)
+	project.SetServices(services)
 
 	return project, nil
 }
