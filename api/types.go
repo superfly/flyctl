@@ -24,18 +24,15 @@ type Query struct {
 	}
 
 	SetSecrets struct {
-		Deployment Deployment
-		Release    Release
+		Release Release
 	}
 
 	UnsetSecrets struct {
-		Deployment Deployment
-		Release    Release
+		Release Release
 	}
 
 	DeployImage struct {
-		Deployment Deployment
-		Release    Release
+		Release Release
 	}
 
 	CreateSignedUrl SignedUrls
@@ -70,10 +67,7 @@ type App struct {
 	Organization Organization
 	Tasks        []Task
 	Secrets      []Secret
-	Deployments  struct {
-		Nodes []Deployment
-	}
-	Releases struct {
+	Releases     struct {
 		Nodes []Release
 	}
 	IPAddresses struct {
@@ -141,23 +135,6 @@ type User struct {
 	ID    string
 	Name  string
 	Email string
-}
-
-type Deployment struct {
-	ID           string
-	Number       int
-	CurrentPhase string
-	Description  string
-	InProgress   bool
-	Reason       string
-	Status       string
-	Trigger      string
-	User         User
-	CreatedAt    string
-	UpdatedAt    string
-	Release      struct {
-		Version int
-	}
 }
 
 type Secret struct {
