@@ -56,7 +56,7 @@ func (p *Presenter) renderTable() error {
 
 	table.Render()
 
-	fmt.Println()
+	fmt.Fprintln(p.Out)
 
 	return nil
 }
@@ -77,7 +77,7 @@ func (p *Presenter) renderFieldList() error {
 		}
 		table.Render()
 
-		fmt.Println()
+		fmt.Fprintln(p.Out)
 	}
 
 	return nil

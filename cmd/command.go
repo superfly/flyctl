@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
@@ -111,6 +112,38 @@ func (ctx *CmdContext) RenderEx(presentable presenters.Presentable, options pres
 	}
 
 	return presenter.Render()
+}
+
+type PresenterOption struct {
+	Presentable presenters.Presentable
+	Vertical    bool
+	HideHeader  bool
+	Title       string
+}
+
+func (ctx *CmdContext) RenderView(views ...PresenterOption) (lines uint, err error) {
+	w := terminal.LineCounter{W: os.Stdout}
+
+	for _, v := range views {
+		presenter := &presenters.Presenter{
+			Item: v.Presentable,
+			Out:  &w,
+			Opts: presenters.Options{
+				Vertical:   v.Vertical,
+				HideHeader: v.HideHeader,
+			},
+		}
+
+		if v.Title != "" {
+			fmt.Fprintln(&w, aurora.Bold(v.Title))
+		}
+
+		if err = presenter.Render(); err != nil {
+			break
+		}
+	}
+
+	return w.LinesWritten(), err
 }
 
 func newCmdContext(ns string, out io.Writer, args []string, initClient bool) (*CmdContext, error) {

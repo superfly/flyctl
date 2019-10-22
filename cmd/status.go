@@ -39,13 +39,13 @@ func runAppStatus(ctx *CmdContext) error {
 	}
 
 	fmt.Println(aurora.Bold("Latest Deployment"))
-	err = ctx.RenderEx(&presenters.DeploymentStatus{Status: &app.DeploymentStatus}, presenters.Options{Vertical: true})
+	err = ctx.RenderEx(&presenters.ReleaseDetails{Release: app.CurrentRelease}, presenters.Options{Vertical: true})
 	if err != nil {
 		return err
 	}
 
 	fmt.Println(aurora.Bold("Deployment Status"))
-	err = ctx.Render(&presenters.DeploymentTaskStatus{Tasks: app.DeploymentStatus.Tasks})
+	err = ctx.Render(&presenters.DeploymentTaskStatus{Release: *app.CurrentRelease})
 	if err != nil {
 		return err
 	}

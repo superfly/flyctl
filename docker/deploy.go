@@ -152,12 +152,11 @@ func (op *DeployOperation) deployImage(imageTag string) (*api.Release, error) {
 		}
 	}
 
-	printHeader("Deploying Image")
+	printHeader("Creating Release")
 	release, err := op.apiClient.DeployImage(input)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("-->", "done")
 	return release, err
 }
 

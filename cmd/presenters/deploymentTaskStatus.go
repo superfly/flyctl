@@ -7,17 +7,20 @@ import (
 )
 
 type DeploymentTaskStatus struct {
-	Tasks []api.TaskDeploymentStatus
+	Release api.Release
 }
 
 func (p *DeploymentTaskStatus) FieldNames() []string {
-	return []string{"Name", "Promoted", "Desired", "Canaries", "Placed", "Healthy", "Unhealthy", "Progress Deadline"}
+	if p.Release.DeploymentStrategy == "canary" {
+		return []string{"Name", "Promoted", "Desired", "Canaries", "Placed", "Healthy", "Unhealthy", "Progress Deadline"}
+	}
+	return []string{"Name", "Desired", "Placed", "Healthy", "Unhealthy", "Progress Deadline"}
 }
 
 func (p *DeploymentTaskStatus) Records() []map[string]string {
 	out := []map[string]string{}
 
-	for _, task := range p.Tasks {
+	for _, task := range p.Release.Deployment.Tasks {
 		out = append(out, map[string]string{
 			"Name":              task.Name,
 			"Promoted":          strconv.FormatBool(task.Promoted),

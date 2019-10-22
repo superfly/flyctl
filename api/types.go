@@ -57,17 +57,19 @@ type Query struct {
 }
 
 type App struct {
-	ID           string
-	Name         string
-	Status       string
-	Deployed     bool
-	Hostname     string
-	AppURL       string
-	Version      int
-	Organization Organization
-	Tasks        []Task
-	Secrets      []Secret
-	Releases     struct {
+	ID             string
+	Name           string
+	Status         string
+	Deployed       bool
+	Hostname       string
+	AppURL         string
+	Version        int
+	Release        *Release
+	Organization   Organization
+	Tasks          []Task
+	Secrets        []Secret
+	CurrentRelease *Release
+	Releases       struct {
 		Nodes []Release
 	}
 	IPAddresses struct {
@@ -82,9 +84,8 @@ type App struct {
 	Certificates struct {
 		Nodes []AppCertificate
 	}
-	DeploymentStatus DeploymentStatus
-	Certificate      AppCertificate
-	Services         []Service
+	Certificate AppCertificate
+	Services    []Service
 }
 
 type Organization struct {
@@ -175,12 +176,17 @@ type LogEntry struct {
 }
 
 type Release struct {
-	ID          string
-	Version     int
-	Reason      string
-	Description string
-	User        User
-	CreatedAt   time.Time
+	ID                 string
+	Version            int
+	Stable             bool
+	InProgress         bool
+	Reason             string
+	Description        string
+	Status             string
+	DeploymentStrategy string
+	Deployment         DeploymentStatus
+	User               User
+	CreatedAt          time.Time
 }
 
 type Build struct {

@@ -313,6 +313,9 @@ func (c *Client) GetAppReleases(appName string, limit int) ([]Release, error) {
 						version
 						reason
 						description
+						reason
+						status
+						stable
 						user {
 							id
 							email
@@ -336,6 +339,103 @@ func (c *Client) GetAppReleases(appName string, limit int) ([]Release, error) {
 	}
 
 	return data.App.Releases.Nodes, nil
+}
+
+func (c *Client) GetAppCurrentRelease(appName string) (*Release, error) {
+	query := `
+		query ($appName: String!) {
+			app(name: $appName) {
+				currentRelease {
+					version
+					stable
+					inProgress
+					description
+					status
+					reason
+					revertedTo
+					deploymentStrategy
+					createdAt
+					user {
+						email
+					}
+					deployment {
+						status
+						description
+						tasks {
+							name
+							placed
+							healthy
+							desired
+							canaries
+							promoted
+							unhealthy
+							progressDeadline
+						}
+					}
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("appName", appName)
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.App.CurrentRelease, nil
+}
+
+func (c *Client) GetAppReleaseVersion(appName string, version int) (*Release, error) {
+	query := `
+		query ($appName: String!, $version: Int!) {
+			app(name: $appName) {
+				release(version: $version) {
+					version
+					stable
+					inProgress
+					description
+					status
+					reason
+					revertedTo
+					deploymentStrategy
+					createdAt
+					user {
+						email
+					}
+					deployment {
+						status
+						description
+						tasks {
+							name
+							placed
+							healthy
+							desired
+							canaries
+							promoted
+							unhealthy
+							progressDeadline
+						}
+					}
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("appName", appName)
+	req.Var("version", version)
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.App.Release, nil
 }
 
 func (c *Client) SetSecrets(appName string, secrets map[string]string) (*Release, error) {
@@ -492,21 +592,32 @@ func (c *Client) GetAppStatus(appName string, showComplete bool) (*App, error) {
 						createdAt
 					}
 				}
-				deploymentStatus {
-					id
-					status
-					description
+				currentRelease {
+					version
+					stable
 					inProgress
+					description
+					status
+					reason
+					revertedTo
+					deploymentStrategy
+					user {
+						email
+					}
 					createdAt
-					tasks {
-						name
-						promoted
-						progressDeadline
-						desired
-						canaries
-						placed
-						healthy
-						unhealthy
+					deployment {
+						status
+						description
+						tasks {
+							name
+							placed
+							healthy
+							desired
+							canaries
+							promoted
+							unhealthy
+							progressDeadline
+						}
 					}
 				}
 			}
