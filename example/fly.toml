@@ -6,13 +6,9 @@ app = "lingering-cloud-1737"
   builder = "github.com/superfly/builders//static"
 
 [[services]]
-  handlers = ["HTTP"]
-  internal_port = 8080
-  port = 80
   protocol = "TCP"
-
-[[services]]
-  handlers = ["TLS","HTTP"]
   internal_port = 8080
-  port = 443
-  protocol = "TCP"
+  [port.80]
+    handlers = ["HTTP"]
+  [port.443]
+    handlers = ["TLS","HTTP"]
