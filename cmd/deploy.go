@@ -167,7 +167,7 @@ func watchDeployment(ctx *CmdContext) error {
 		aec.EraseDisplay(aec.EraseModes.Tail)
 
 		lastRelease = app.CurrentRelease.Version
-		lastReleaseLines, err = ctx.RenderView(
+		lastReleaseLines, err = ctx.RenderViewWithCount(
 			PresenterOption{
 				Presentable: &presenters.ReleaseDetails{Release: app.CurrentRelease},
 				Vertical:    true,

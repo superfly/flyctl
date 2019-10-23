@@ -121,13 +121,11 @@ type PresenterOption struct {
 	Title       string
 }
 
-func (ctx *CmdContext) RenderView(views ...PresenterOption) (lines uint, err error) {
-	w := terminal.LineCounter{W: os.Stdout}
-
+func (ctx *CmdContext) render(out io.Writer, views ...PresenterOption) error {
 	for _, v := range views {
 		presenter := &presenters.Presenter{
 			Item: v.Presentable,
-			Out:  &w,
+			Out:  out,
 			Opts: presenters.Options{
 				Vertical:   v.Vertical,
 				HideHeader: v.HideHeader,
@@ -135,14 +133,24 @@ func (ctx *CmdContext) RenderView(views ...PresenterOption) (lines uint, err err
 		}
 
 		if v.Title != "" {
-			fmt.Fprintln(&w, aurora.Bold(v.Title))
+			fmt.Fprintln(out, aurora.Bold(v.Title))
 		}
 
-		if err = presenter.Render(); err != nil {
-			break
+		if err := presenter.Render(); err != nil {
+			return err
 		}
 	}
 
+	return nil
+}
+
+func (ctx *CmdContext) RenderView(views ...PresenterOption) (err error) {
+	return ctx.render(ctx.Out, views...)
+}
+
+func (ctx *CmdContext) RenderViewWithCount(views ...PresenterOption) (uint, error) {
+	w := terminal.LineCounter{W: os.Stdout}
+	err := ctx.render(&w, views...)
 	return w.LinesWritten(), err
 }
 

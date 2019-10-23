@@ -54,6 +54,14 @@ type Query struct {
 	}
 
 	DeleteCertificate DeleteCertificatePayload
+
+	AllocateIPAddress struct {
+		App       App
+		IPAddress IPAddress
+	}
+	ReleaseIPAddress struct {
+		App App
+	}
 }
 
 type App struct {
@@ -75,7 +83,8 @@ type App struct {
 	IPAddresses struct {
 		Nodes []IPAddress
 	}
-	Builds struct {
+	IPAddress *IPAddress
+	Builds    struct {
 		Nodes []Build
 	}
 	Changes struct {
@@ -127,9 +136,10 @@ type Allocation struct {
 }
 
 type IPAddress struct {
-	ID      string
-	Address string
-	Type    string
+	ID        string
+	Address   string
+	Type      string
+	CreatedAt time.Time
 }
 
 type User struct {
@@ -305,4 +315,13 @@ type Check struct {
 type HTTPHeader struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
+}
+
+type AllocateIPAddressInput struct {
+	AppID string `json:"appId"`
+	Type  string `json:"type"`
+}
+
+type ReleaseIPAddressInput struct {
+	IPAddressID string `json:"ipAddressId"`
 }

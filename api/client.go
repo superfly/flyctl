@@ -286,6 +286,7 @@ func (c *Client) GetApp(appName string) (*App, error) {
 						id
 						address
 						type
+						createdAt
 					}
 				}
 			}

@@ -9,6 +9,9 @@ import (
 func formatRelativeTime(t time.Time) string {
 	if t.Before(time.Now()) {
 		dur := time.Since(t)
+		if dur.Seconds() < 1 {
+			return "just now"
+		}
 		if dur.Seconds() < 60 {
 			return fmt.Sprintf("%ds ago", int64(dur.Seconds()))
 		}

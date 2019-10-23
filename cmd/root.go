@@ -59,6 +59,7 @@ func init() {
 		newAppHistoryCommand(),
 		newCertificatesCommand(),
 		newDocsCommand(),
+		newIPAddressesCommand(),
 	)
 }
 
