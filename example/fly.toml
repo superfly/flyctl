@@ -6,13 +6,25 @@ app = "lingering-cloud-1737"
   builder = "github.com/superfly/builders//static"
 
 [[services]]
-  handlers = ["HTTP"]
+  handlers = ["http"]
   internal_port = 8080
   port = 80
-  protocol = "TCP"
+  protocol = "tcp"
+
+  [[services.http_check]]
+    interval = "10s"
+    name = "check-0b904b65497f"
+    timeout = "2s"
+    method = "get"
+    path = "/"
 
 [[services]]
-  handlers = ["TLS","HTTP"]
+  handlers = ["tls","http"]
   internal_port = 8080
   port = 443
-  protocol = "TCP"
+  protocol = "tcp"
+
+  [[services.tcp_check]]
+    interval = "10s"
+    name = "check-acc6f00a5300"
+    timeout = "2s"
