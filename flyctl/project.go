@@ -144,14 +144,16 @@ func (p *Project) Services() []api.Service {
 					port := api.PortHandler{
 						Port: portN,
 					}
+
 					portHandler := cast.ToStringMap(val)
 
+					handlers := []string{}
 					if val, ok := portHandler["handlers"]; ok {
-
 						for _, handler := range cast.ToStringSlice(val) {
-							port.Handlers = append(port.Handlers, strings.ToUpper(handler))
+							handlers = append(handlers, strings.ToUpper(handler))
 						}
 					}
+					port.Handlers = handlers
 					svc.Ports = append(svc.Ports, port)
 				}
 			}

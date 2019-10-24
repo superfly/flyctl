@@ -1,6 +1,6 @@
 # this example fly.toml file configures flyctl for an app
 
-app = "lingering-cloud-1737"
+app = "damp-fire-3810"
 
 [build]
   builder = "github.com/superfly/builders//static"
@@ -8,17 +8,17 @@ app = "lingering-cloud-1737"
 [[services]]
   protocol = "TCP"
   internal_port = 8080
-  [port.80]
+  [services.port.80]
     handlers = ["HTTP"]
-  [port.443]
+  [services.port.443]
     handlers = ["TLS","HTTP"]
-  [http_check]
+  [[services.http_check]]
     interval = "10s"
     name = "check-0b904b65497f"
     timeout = "2s"
     method = "get"
     path = "/"
-  [tcp_check]
+  [[services.tcp_check]]
     interval = "10s"
     name = "check-acc6f00a5300"
     timeout = "2s"
