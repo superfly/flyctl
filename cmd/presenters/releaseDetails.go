@@ -7,7 +7,7 @@ import (
 )
 
 type ReleaseDetails struct {
-	Release *api.Release
+	Release api.Release
 }
 
 func (p *ReleaseDetails) FieldNames() []string {

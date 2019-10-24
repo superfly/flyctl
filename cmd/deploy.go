@@ -9,7 +9,6 @@ import (
 	"github.com/briandowns/spinner"
 	"github.com/logrusorgru/aurora"
 	"github.com/mattn/go-isatty"
-	"github.com/morikuni/aec"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
@@ -128,8 +127,8 @@ func watchDeployment(ctx *CmdContext) error {
 	fmt.Println(aurora.Faint("You can detach the terminal anytime without stopping the deployment"))
 	fmt.Println()
 
-	var lastRelease int
-	var lastReleaseLines uint
+	var previousRelease *api.Release
+	var currentRelease *api.Release
 
 	var app *api.App
 	var err error
@@ -138,48 +137,50 @@ func watchDeployment(ctx *CmdContext) error {
 	s.Prefix = "Deploying "
 	s.Start()
 
+	if runtime.GOOS != "windows" {
+		ctx.Terminal.HideCursor()
+		defer ctx.Terminal.ShowCursor()
+	}
+
 	for {
-		app, err = ctx.FlyClient.GetAppStatus(ctx.AppName(), false)
-		if err != nil {
-			return err
+		previousRelease = currentRelease
+		if currentRelease != nil && currentRelease.InProgress {
+			release, err := ctx.FlyClient.GetAppReleaseVersion(ctx.AppName(), currentRelease.Version)
+			if err != nil {
+				fmt.Println(err)
+			}
+			currentRelease = release
+		} else {
+			app, err = ctx.FlyClient.GetAppStatus(ctx.AppName(), false)
+			if err != nil {
+				return err
+			}
+			currentRelease = app.CurrentRelease
 		}
 
 		s.Lock()
 
-		if runtime.GOOS != "windows" {
-			// hides the cursor
-			fmt.Print("\033[?25l")
-		}
+		// move to the start of the column to overwrite the status indicator
+		ctx.Terminal.Column(0)
 
-		// move to the start of the column
-		fmt.Print(aec.Column(0))
-
-		if lastRelease == app.CurrentRelease.Version {
-			if lastReleaseLines > 0 {
-				fmt.Print(aec.Up(lastReleaseLines))
-			}
+		if previousRelease != nil && previousRelease.Version != currentRelease.Version {
+			ctx.Terminal.ResetPosition()
 		} else {
-			// last deployment failed, overwrite status message with a new blank line
-			fmt.Print(aec.Up(1))
-			fmt.Println()
+			ctx.Terminal.Overwrite()
 		}
 
-		aec.EraseDisplay(aec.EraseModes.Tail)
-
-		lastRelease = app.CurrentRelease.Version
-		lastReleaseLines, err = ctx.RenderViewWithCount(
+		err = ctx.RenderView(PresenterOption{
+			Presentable: &presenters.ReleaseDetails{Release: *currentRelease},
+			Vertical:    true,
+		},
 			PresenterOption{
-				Presentable: &presenters.ReleaseDetails{Release: app.CurrentRelease},
-				Vertical:    true,
-			},
-			PresenterOption{
-				Presentable: &presenters.DeploymentTaskStatus{Release: *app.CurrentRelease},
+				Presentable: &presenters.DeploymentTaskStatus{Release: *currentRelease},
 			},
 		)
 
 		s.Unlock()
 
-		if !app.CurrentRelease.InProgress && app.CurrentRelease.Stable {
+		if !currentRelease.InProgress && currentRelease.Stable {
 			break
 		} else {
 			time.Sleep(1 * time.Second)

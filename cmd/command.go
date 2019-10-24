@@ -72,6 +72,7 @@ type CmdContext struct {
 	Out          io.Writer
 	FlyClient    *api.Client
 	Project      *flyctl.Project
+	Terminal     *terminal.Terminal
 }
 
 func (ctx *CmdContext) InitApiClient() error {
@@ -145,13 +146,11 @@ func (ctx *CmdContext) render(out io.Writer, views ...PresenterOption) error {
 }
 
 func (ctx *CmdContext) RenderView(views ...PresenterOption) (err error) {
-	return ctx.render(ctx.Out, views...)
+	return ctx.render(ctx.Terminal, views...)
 }
 
-func (ctx *CmdContext) RenderViewWithCount(views ...PresenterOption) (uint, error) {
-	w := terminal.LineCounter{W: os.Stdout}
-	err := ctx.render(&w, views...)
-	return w.LinesWritten(), err
+func (ctx *CmdContext) RenderViewW(w io.Writer, views ...PresenterOption) error {
+	return ctx.render(w, views...)
 }
 
 func newCmdContext(ns string, out io.Writer, args []string, initClient bool) (*CmdContext, error) {
@@ -161,6 +160,7 @@ func newCmdContext(ns string, out io.Writer, args []string, initClient bool) (*C
 		GlobalConfig: flyctl.FlyConfig,
 		Out:          out,
 		Args:         args,
+		Terminal:     terminal.NewTerminal(out),
 	}
 
 	if initClient {

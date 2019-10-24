@@ -57,7 +57,7 @@ func runShowReleaseDetails(ctx *CmdContext) error {
 func renderReleaseDetails(ctx *CmdContext, release *api.Release) error {
 	return ctx.RenderView(
 		PresenterOption{
-			Presentable: &presenters.ReleaseDetails{Release: release},
+			Presentable: &presenters.ReleaseDetails{Release: *release},
 			Vertical:    true,
 		},
 		PresenterOption{
