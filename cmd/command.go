@@ -72,6 +72,7 @@ type CmdContext struct {
 	Out          io.Writer
 	FlyClient    *api.Client
 	Project      *flyctl.Project
+	Terminal     *terminal.Terminal
 }
 
 func (ctx *CmdContext) InitApiClient() error {
@@ -121,13 +122,11 @@ type PresenterOption struct {
 	Title       string
 }
 
-func (ctx *CmdContext) RenderView(views ...PresenterOption) (lines uint, err error) {
-	w := terminal.LineCounter{W: os.Stdout}
-
+func (ctx *CmdContext) render(out io.Writer, views ...PresenterOption) error {
 	for _, v := range views {
 		presenter := &presenters.Presenter{
 			Item: v.Presentable,
-			Out:  &w,
+			Out:  out,
 			Opts: presenters.Options{
 				Vertical:   v.Vertical,
 				HideHeader: v.HideHeader,
@@ -135,15 +134,23 @@ func (ctx *CmdContext) RenderView(views ...PresenterOption) (lines uint, err err
 		}
 
 		if v.Title != "" {
-			fmt.Fprintln(&w, aurora.Bold(v.Title))
+			fmt.Fprintln(out, aurora.Bold(v.Title))
 		}
 
-		if err = presenter.Render(); err != nil {
-			break
+		if err := presenter.Render(); err != nil {
+			return err
 		}
 	}
 
-	return w.LinesWritten(), err
+	return nil
+}
+
+func (ctx *CmdContext) RenderView(views ...PresenterOption) (err error) {
+	return ctx.render(ctx.Terminal, views...)
+}
+
+func (ctx *CmdContext) RenderViewW(w io.Writer, views ...PresenterOption) error {
+	return ctx.render(w, views...)
 }
 
 func newCmdContext(ns string, out io.Writer, args []string, initClient bool) (*CmdContext, error) {
@@ -153,6 +160,7 @@ func newCmdContext(ns string, out io.Writer, args []string, initClient bool) (*C
 		GlobalConfig: flyctl.FlyConfig,
 		Out:          out,
 		Args:         args,
+		Terminal:     terminal.NewTerminal(out),
 	}
 
 	if initClient {

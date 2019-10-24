@@ -12,3 +12,13 @@ app = "lingering-cloud-1737"
     handlers = ["HTTP"]
   [port.443]
     handlers = ["TLS","HTTP"]
+  [http_check]
+    interval = "10s"
+    name = "check-0b904b65497f"
+    timeout = "2s"
+    method = "get"
+    path = "/"
+  [tcp_check]
+    interval = "10s"
+    name = "check-acc6f00a5300"
+    timeout = "2s"

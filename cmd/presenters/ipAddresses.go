@@ -9,7 +9,7 @@ type IPAddresses struct {
 }
 
 func (p *IPAddresses) FieldNames() []string {
-	return []string{"Address", "Type"}
+	return []string{"Type", "Address", "Created At"}
 }
 
 func (p *IPAddresses) Records() []map[string]string {
@@ -17,8 +17,9 @@ func (p *IPAddresses) Records() []map[string]string {
 
 	for _, ip := range p.IPAddresses {
 		out = append(out, map[string]string{
-			"Address": ip.Address,
-			"Type":    ip.Type,
+			"Address":    ip.Address,
+			"Type":       ip.Type,
+			"Created At": formatRelativeTime(ip.CreatedAt),
 		})
 	}
 

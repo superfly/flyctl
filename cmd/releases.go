@@ -55,15 +55,13 @@ func runShowReleaseDetails(ctx *CmdContext) error {
 }
 
 func renderReleaseDetails(ctx *CmdContext, release *api.Release) error {
-	_, err := ctx.RenderView(
+	return ctx.RenderView(
 		PresenterOption{
-			Presentable: &presenters.ReleaseDetails{Release: release},
+			Presentable: &presenters.ReleaseDetails{Release: *release},
 			Vertical:    true,
 		},
 		PresenterOption{
 			Presentable: &presenters.DeploymentTaskStatus{Release: *release},
 		},
 	)
-
-	return err
 }
