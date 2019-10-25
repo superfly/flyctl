@@ -119,9 +119,8 @@ type Task struct {
 type TaskService struct {
 	ID           string
 	Protocol     string
-	Port         int
+	Ports        []PortHandler
 	InternalPort int
-	Filters      []string
 	Description  string
 }
 

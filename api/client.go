@@ -280,9 +280,11 @@ func (c *Client) GetApp(appName string) (*App, error) {
 					name
 					services {
 						protocol
-						port
+						ports {
+							port
+							handlers
+						}
 						internalPort
-						filters
 					}
 				}
 				ipAddresses {
