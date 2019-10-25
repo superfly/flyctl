@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -130,15 +131,30 @@ func (p *Project) Services() []api.Service {
 			if val, ok := inSvc["protocol"]; ok {
 				svc.Protocol = strings.ToUpper(cast.ToString(val))
 			}
-			if val, ok := inSvc["port"]; ok {
-				svc.Port = cast.ToInt(val)
-			}
 			if val, ok := inSvc["internal_port"]; ok {
 				svc.InternalPort = cast.ToInt(val)
 			}
-			if val, ok := inSvc["handlers"]; ok {
-				for _, handler := range cast.ToStringSlice(val) {
-					svc.Handlers = append(svc.Handlers, strings.ToUpper(handler))
+			if val, ok := inSvc["port"]; ok {
+				for rawPort, val := range cast.ToStringMap(val) {
+					portN, err := strconv.Atoi(rawPort)
+					if err != nil {
+						terminal.Warnf("Error parsing port number '%s': %s", rawPort, err)
+						continue
+					}
+					port := api.PortHandler{
+						Port: portN,
+					}
+
+					portHandler := cast.ToStringMap(val)
+
+					handlers := []string{}
+					if val, ok := portHandler["handlers"]; ok {
+						for _, handler := range cast.ToStringSlice(val) {
+							handlers = append(handlers, strings.ToUpper(handler))
+						}
+					}
+					port.Handlers = handlers
+					svc.Ports = append(svc.Ports, port)
 				}
 			}
 
@@ -242,15 +258,21 @@ func (p *Project) SetServices(services []api.Service) {
 	for _, x := range services {
 		svc := map[string]interface{}{
 			"protocol":      strings.ToLower(x.Protocol),
-			"port":          x.Port,
 			"internal_port": x.InternalPort,
 		}
 
-		handlers := []string{}
-		for _, handler := range x.Handlers {
-			handlers = append(handlers, strings.ToLower(handler))
+		ports := []interface{}{}
+		for _, port := range x.Ports {
+			x := map[string]interface{}{}
+			x["port"] = port.Port
+			handlers := []string{}
+			for _, handler := range port.Handlers {
+				handlers = append(handlers, strings.ToLower(handler))
+			}
+			x["handlers"] = handlers
+			ports = append(ports, port)
 		}
-		svc["handlers"] = handlers
+		svc["ports"] = ports
 
 		tcpChecks := []interface{}{}
 		httpChecks := []interface{}{}

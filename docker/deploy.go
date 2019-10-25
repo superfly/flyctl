@@ -140,12 +140,14 @@ func (op *DeployOperation) deployImage(imageTag string) (*api.Release, error) {
 			services := op.Project.Services()
 
 			for _, s := range services {
-				handlers := "none"
-				if len(s.Handlers) > 0 {
-					handlers = strings.Join(s.Handlers, " ")
-				}
+				for _, p := range s.Ports {
+					handlers := "none"
+					if len(p.Handlers) > 0 {
+						handlers = strings.Join(p.Handlers, " ")
+					}
 
-				fmt.Printf("  %s %d --> %s %d (handlers: %s)\n", s.Protocol, s.Port, s.Protocol, s.InternalPort, handlers)
+					fmt.Printf("  %s %d --> %s %d (handlers: %s)\n", s.Protocol, p.Port, s.Protocol, s.InternalPort, handlers)
+				}
 			}
 
 			input.Services = &services
