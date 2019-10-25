@@ -243,7 +243,7 @@ func (c *Client) GetApps() ([]App, error) {
 					organization {
 						slug
 					}
-					deploymentStatus {
+					currentRelease {
 						createdAt
 					}
 				}
