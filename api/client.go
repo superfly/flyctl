@@ -1122,9 +1122,11 @@ func (c *Client) GetAppServices(appName string) ([]Service, error) {
 			app(name: $appName) {
 				services {
 					protocol
-					port
+					ports {
+						port
+						handlers
+					}
 					internalPort
-					handlers
 					description
 					checks {
 						name

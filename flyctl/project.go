@@ -261,18 +261,15 @@ func (p *Project) SetServices(services []api.Service) {
 			"internal_port": x.InternalPort,
 		}
 
-		ports := []interface{}{}
+		ports := map[string]interface{}{}
 		for _, port := range x.Ports {
-			x := map[string]interface{}{}
-			x["port"] = port.Port
 			handlers := []string{}
 			for _, handler := range port.Handlers {
 				handlers = append(handlers, strings.ToLower(handler))
 			}
-			x["handlers"] = handlers
-			ports = append(ports, port)
+			ports[strconv.Itoa(port.Port)] = map[string]interface{}{"handlers": handlers}
 		}
-		svc["ports"] = ports
+		svc["port"] = ports
 
 		tcpChecks := []interface{}{}
 		httpChecks := []interface{}{}
