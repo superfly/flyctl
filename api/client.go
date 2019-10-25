@@ -24,9 +24,10 @@ type Client struct {
 	httpClient  *http.Client
 	client      *graphql.Client
 	accessToken string
+	userAgent   string
 }
 
-func NewClient(accessToken string) (*Client, error) {
+func NewClient(accessToken string, version string) (*Client, error) {
 	if accessToken == "" {
 		return nil, errors.New("No api access token available. Please login")
 	}
@@ -36,7 +37,8 @@ func NewClient(accessToken string) (*Client, error) {
 	url := fmt.Sprintf("%s/api/v2/graphql", baseURL)
 
 	client := graphql.NewClient(url, graphql.WithHTTPClient(httpClient))
-	return &Client{httpClient, client, accessToken}, nil
+	userAgent := fmt.Sprintf("flyctl/%s", version)
+	return &Client{httpClient, client, accessToken, userAgent}, nil
 }
 
 func (c *Client) NewRequest(q string) *graphql.Request {
@@ -50,6 +52,8 @@ func (c *Client) Run(req *graphql.Request) (Query, error) {
 
 func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Query, error) {
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
+	req.Header.Set("User-Agent", c.userAgent)
+
 	var resp Query
 	err := c.client.Run(ctx, req, &resp)
 	if err != nil && strings.HasPrefix(err.Error(), "graphql: ") {
