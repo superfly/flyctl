@@ -3,6 +3,7 @@ package flyctl
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"os"
 	"path"
 	"path/filepath"
@@ -158,6 +159,36 @@ func (p *Project) Services() []api.Service {
 				}
 			}
 
+			soft, hard := 20, 25
+			if val, ok := inSvc["concurrency"]; ok {
+				if v, e := cast.ToIntE(val); e == nil {
+					soft, hard = v, v
+				} else {
+					sh := strings.Split(cast.ToString(val), ",")
+					if len(sh) > 1 {
+						if v, e := strconv.Atoi(sh[0]); e == nil {
+							soft, hard = v, v
+						} else {
+							terminal.Warnf("Error parsing concurrency number '%s': %s", sh[0], e)
+						}
+					} else if len(sh) == 1 {
+						if s, e := strconv.Atoi(sh[0]); e == nil {
+							if h, e := strconv.Atoi(sh[1]); e == nil {
+								soft = s
+								hard = h
+							} else {
+								terminal.Warnf("Error parsing hard concurrency number '%s': %s", sh[0], e)
+							}
+						} else {
+							terminal.Warnf("Error parsing soft concurrency number '%s': %s", sh[0], e)
+						}
+
+					}
+				}
+			}
+
+			svc.SoftConcurrency, svc.HardConcurrency = soft, hard
+
 			if val, ok := inSvc["tcp_check"]; ok {
 				for _, val := range cast.ToSlice(val) {
 					checkIn := cast.ToStringMap(val)
@@ -270,6 +301,8 @@ func (p *Project) SetServices(services []api.Service) {
 			ports[strconv.Itoa(port.Port)] = map[string]interface{}{"handlers": handlers}
 		}
 		svc["port"] = ports
+
+		svc["concurrency"] = fmt.Sprintf("%d,%d", x.SoftConcurrency, x.HardConcurrency)
 
 		tcpChecks := []interface{}{}
 		httpChecks := []interface{}{}

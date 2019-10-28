@@ -280,6 +280,8 @@ func (c *Client) GetApp(appName string) (*App, error) {
 					name
 					services {
 						protocol
+						softConcurrency
+						hardConcurrency
 						ports {
 							port
 							handlers
@@ -1122,6 +1124,8 @@ func (c *Client) GetAppServices(appName string) ([]Service, error) {
 			app(name: $appName) {
 				services {
 					protocol
+					softConcurrency
+					hardConcurrency
 					ports {
 						port
 						handlers

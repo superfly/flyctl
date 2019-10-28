@@ -8,6 +8,7 @@ app = "damp-fire-3810"
 [[services]]
   protocol = "TCP"
   internal_port = 8080
+  concurrency = "50,70"
   [services.port.80]
     handlers = ["HTTP"]
   [services.port.443]
