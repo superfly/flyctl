@@ -195,10 +195,6 @@ func (p *Project) Services() []api.Service {
 					check := api.Check{
 						Type: "TCP",
 					}
-					if val, ok := checkIn["name"]; ok {
-						check.Name = new(string)
-						*check.Name = cast.ToString(val)
-					}
 					if val, ok := checkIn["interval"]; ok {
 						duration, err := time.ParseDuration(cast.ToString(val))
 						if err != nil {
@@ -226,10 +222,6 @@ func (p *Project) Services() []api.Service {
 					checkIn := cast.ToStringMap(val)
 					check := api.Check{
 						Type: "HTTP",
-					}
-					if val, ok := checkIn["name"]; ok {
-						check.Name = new(string)
-						*check.Name = cast.ToString(val)
 					}
 					if val, ok := checkIn["interval"]; ok {
 						duration, err := time.ParseDuration(cast.ToString(val))
@@ -309,10 +301,6 @@ func (p *Project) SetServices(services []api.Service) {
 
 		for _, check := range x.Checks {
 			x := map[string]interface{}{}
-
-			if check.Name != nil {
-				x["name"] = *check.Name
-			}
 
 			if check.Interval != nil {
 				x["interval"] = time.Duration(*check.Interval * uint64(time.Millisecond.Nanoseconds())).String()

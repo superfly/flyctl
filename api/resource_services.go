@@ -15,7 +15,6 @@ func (c *Client) GetAppServices(appName string) ([]Service, error) {
 					internalPort
 					description
 					checks {
-						name
 						interval
 						timeout
 						type
