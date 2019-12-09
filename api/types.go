@@ -307,7 +307,6 @@ type PortHandler struct {
 
 type Check struct {
 	Type              string       `json:"type"`
-	Name              *string      `json:"name"`
 	Interval          *uint64      `json:"interval"`
 	Timeout           *uint64      `json:"timeout"`
 	HTTPMethod        *string      `json:"httpMethod"`
