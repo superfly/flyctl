@@ -180,6 +180,7 @@ func initConfigFromApp(ctx *CmdContext, appName, path string) (*flyctl.Project, 
 }
 
 func writeConfigWithPrompt(project *flyctl.Project) error {
+
 	if exists, _ := flyctl.ConfigFileExistsAtPath(project.ConfigFilePath()); exists {
 		if !confirm(fmt.Sprintf("Overwrite config file '%s'", project.ConfigFilePath())) {
 			return nil
@@ -190,7 +191,8 @@ func writeConfigWithPrompt(project *flyctl.Project) error {
 		return err
 	}
 
-	fmt.Println(aurora.Faint(project.WriteConfigAsString()))
+	// Commented to silence the console echo of the config file
+	//fmt.Println(aurora.Faint(project.WriteConfigAsString()))
 
 	path := helpers.PathRelativeToCWD(project.ConfigFilePath())
 	fmt.Println("Wrote config file", path)
