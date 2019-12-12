@@ -91,7 +91,9 @@ func (c *Client) CreateApp(name string, orgId string) (*App, error) {
 					organization {
 						slug
 					}
-					definition
+					config {
+						definition
+					}
 				}
 			}
 		}

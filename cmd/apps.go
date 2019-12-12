@@ -101,7 +101,6 @@ func runAppsCreate(ctx *CmdContext) error {
 			}
 		}
 	}
-	newAppConfig.AppName = name
 
 	targetOrgSlug, _ := ctx.Config.GetString("org")
 	org, err := selectOrganization(ctx.FlyClient, targetOrgSlug)
@@ -117,6 +116,7 @@ func runAppsCreate(ctx *CmdContext) error {
 	if err != nil {
 		return err
 	}
+	newAppConfig.AppName = app.Name
 	newAppConfig.Definition = app.Config.Definition
 
 	fmt.Println("New app created")
@@ -124,6 +124,14 @@ func runAppsCreate(ctx *CmdContext) error {
 	err = ctx.RenderEx(&presenters.AppInfo{App: *app}, presenters.Options{HideHeader: true, Vertical: true})
 	if err != nil {
 		return err
+	}
+
+	if ctx.ConfigFile == "" {
+		newCfgFile, err := flyctl.ResolveConfigFileFromPath(ctx.WorkingDir)
+		if err != nil {
+			return err
+		}
+		ctx.ConfigFile = newCfgFile
 	}
 
 	return writeAppConfig(ctx.ConfigFile, newAppConfig)

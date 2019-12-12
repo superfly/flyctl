@@ -184,15 +184,17 @@ func ResolveConfigFileFromPath(p string) (string, error) {
 		return p, nil
 	}
 
-	if helpers.FileExists(path.Join(p, defaultConfigFileName)) {
-		return path.Join(p, defaultConfigFileName), nil
-	}
+	return path.Join(p, defaultConfigFileName), nil
+
+	// if helpers.FileExists(path.Join(p, defaultConfigFileName)) {
+	// 	return path.Join(p, defaultConfigFileName), nil
+	// }
 
 	// if helpers.FileExists(path.Join(p, deprecatedConfigFileName)) {
 	// 	return path.Join(p, deprecatedConfigFileName), nil
 	// }
 
-	return "", nil
+	// return "", nil
 }
 
 func ConfigFormatFromPath(p string) ConfigFormat {
