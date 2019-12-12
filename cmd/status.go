@@ -16,7 +16,7 @@ func newAppStatusCommand() *Command {
 }
 
 func runAppStatus(ctx *CmdContext) error {
-	app, err := ctx.FlyClient.GetAppStatus(ctx.AppName(), ctx.Config.GetBool("all"))
+	app, err := ctx.FlyClient.GetAppStatus(ctx.AppName, ctx.Config.GetBool("all"))
 	if err != nil {
 		return err
 	}

@@ -60,6 +60,7 @@ func init() {
 		newCertificatesCommand(),
 		newDocsCommand(),
 		newIPAddressesCommand(),
+		newConfigCommand(),
 	)
 }
 

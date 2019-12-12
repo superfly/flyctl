@@ -16,6 +16,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -23,24 +24,24 @@ type DockerfileSource uint
 
 const (
 	BuilderDockerfile DockerfileSource = iota
-	ProjectDockerfile
+	CwdDockerfile
 	NoDockerfile
 )
 
 var ErrNoDockerfile = errors.New("Project does not contain a Dockerfile or specify a builder")
 var ErrDockerDaemon = errors.New("Docker daemon must be running to perform this action")
 
-func dockerfileSource(project *flyctl.Project) DockerfileSource {
-	if _, err := os.Stat(path.Join(project.ProjectDir, "Dockerfile")); err == nil {
-		return ProjectDockerfile
+func dockerfileSource(cwd string, appConfig *flyctl.AppConfig) DockerfileSource {
+	if helpers.FileExists(path.Join(cwd, "Dockerfile")) {
+		return CwdDockerfile
 	}
-	if project.Builder() != "" {
+	if appConfig.Build != nil && appConfig.Build.Builder != "" {
 		return BuilderDockerfile
 	}
 	return NoDockerfile
 }
 
-func (op *DeployOperation) BuildAndDeploy(project *flyctl.Project) (*api.Release, error) {
+func (op *DeployOperation) BuildAndDeploy(cwd string, appConfig *flyctl.AppConfig) (*api.Release, error) {
 	if !op.DockerAvailable() {
 		return nil, ErrDockerDaemon
 	}
@@ -56,26 +57,28 @@ func (op *DeployOperation) BuildAndDeploy(project *flyctl.Project) (*api.Release
 	s.Prefix = "Creating build context... "
 	s.Start()
 
-	excludes, err := readDockerignore(project.ProjectDir)
+	excludes, err := readDockerignore(cwd)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := buildContext.AddSource(project.ProjectDir, excludes); err != nil {
+	if err := buildContext.AddSource(cwd, excludes); err != nil {
 		return nil, err
 	}
 
 	s.Stop()
 
-	switch dockerfileSource(project) {
+	switch dockerfileSource(cwd, appConfig) {
 	case NoDockerfile:
 		return nil, ErrNoDockerfile
-	case ProjectDockerfile:
-		fmt.Println("Using Dockerfile from project:", path.Join(project.ProjectDir, "Dockerfile"))
+	case CwdDockerfile:
+		fmt.Println("Using Dockerfile from working directory:", path.Join(cwd, "Dockerfile"))
 	case BuilderDockerfile:
-		fmt.Println("Using builder:", project.Builder())
-		builderPath, err := fetchBuilder(project.Builder(), project.ProjectDir)
+		builder := appConfig.Build.Builder
+		fmt.Println("Using builder:", builder)
+		builderPath, err := fetchBuilder(builder, cwd)
 		defer os.RemoveAll(builderPath)
+
 		if err != nil {
 			return nil, err
 		}
@@ -92,7 +95,7 @@ func (op *DeployOperation) BuildAndDeploy(project *flyctl.Project) (*api.Release
 
 	tag := newDeploymentTag(op.AppName())
 
-	buildArgs := normalizeBuildArgs(project.BuildArgs())
+	buildArgs := normalizeBuildArgs(appConfig)
 
 	img, err := op.dockerClient.BuildImage(archive.File, tag, buildArgs, op.out)
 
@@ -116,8 +119,8 @@ func (op *DeployOperation) BuildAndDeploy(project *flyctl.Project) (*api.Release
 	return release, nil
 }
 
-func (op *DeployOperation) StartRemoteBuild(project *flyctl.Project) (*api.Build, error) {
-	if dockerfileSource(project) == NoDockerfile {
+func (op *DeployOperation) StartRemoteBuild(cwd string, appConfig *flyctl.AppConfig) (*api.Build, error) {
+	if dockerfileSource(cwd, appConfig) == NoDockerfile {
 		return nil, ErrNoDockerfile
 	}
 
@@ -132,12 +135,12 @@ func (op *DeployOperation) StartRemoteBuild(project *flyctl.Project) (*api.Build
 	s.Prefix = "Creating build context... "
 	s.Start()
 
-	excludes, err := readGitignore(project.ProjectDir)
+	excludes, err := readGitignore(cwd)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := buildContext.AddSource(project.ProjectDir, excludes); err != nil {
+	if err := buildContext.AddSource(cwd, excludes); err != nil {
 		return nil, err
 	}
 
@@ -180,14 +183,16 @@ func (op *DeployOperation) StartRemoteBuild(project *flyctl.Project) (*api.Build
 	return build, nil
 }
 
-func normalizeBuildArgs(args map[string]string) map[string]*string {
+func normalizeBuildArgs(appConfig *flyctl.AppConfig) map[string]*string {
 	var out = map[string]*string{}
 
-	for k, v := range args {
-		k = strings.ToUpper(k)
-		// docker needs a string pointer. since ranges reuse variables we need to deref a copy
-		val := v
-		out[k] = &val
+	if appConfig.Build != nil {
+		for k, v := range appConfig.Build.Args {
+			k = strings.ToUpper(k)
+			// docker needs a string pointer. since ranges reuse variables we need to deref a copy
+			val := v
+			out[k] = &val
+		}
 	}
 
 	return out

@@ -13,7 +13,7 @@ func newAppInfoCommand() *Command {
 }
 
 func runAppInfo(ctx *CmdContext) error {
-	app, err := ctx.FlyClient.GetApp(ctx.AppName())
+	app, err := ctx.FlyClient.GetApp(ctx.AppName)
 	if err != nil {
 		return err
 	}

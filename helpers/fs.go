@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"os"
+	"path"
 	"path/filepath"
 )
 
@@ -31,4 +32,11 @@ func PathRelativeToCWD(path string) string {
 		return path
 	}
 	return path
+}
+
+func MkdirAll(pathname string) error {
+	if path.Ext(pathname) != "" {
+		pathname = filepath.Dir(pathname)
+	}
+	return os.MkdirAll(pathname, 0777)
 }

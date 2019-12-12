@@ -19,7 +19,7 @@ func newAppReleasesListCommand() *Command {
 }
 
 func runAppReleasesList(ctx *CmdContext) error {
-	releases, err := ctx.FlyClient.GetAppReleases(ctx.AppName(), 25)
+	releases, err := ctx.FlyClient.GetAppReleases(ctx.AppName, 25)
 	if err != nil {
 		return err
 	}
@@ -28,7 +28,7 @@ func runAppReleasesList(ctx *CmdContext) error {
 }
 
 func runShowCurrentReleaseDetails(ctx *CmdContext) error {
-	release, err := ctx.FlyClient.GetAppCurrentRelease(ctx.AppName())
+	release, err := ctx.FlyClient.GetAppCurrentRelease(ctx.AppName)
 	if err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ func runShowReleaseDetails(ctx *CmdContext) error {
 		return err
 	}
 
-	release, err := ctx.FlyClient.GetAppReleaseVersion(ctx.AppName(), version)
+	release, err := ctx.FlyClient.GetAppReleaseVersion(ctx.AppName, version)
 	if err != nil {
 		return err
 	}

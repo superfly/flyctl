@@ -29,7 +29,7 @@ func newIPAddressesCommand() *Command {
 }
 
 func runIPAddressesList(ctx *CmdContext) error {
-	ipAddresses, err := ctx.FlyClient.GetIPAddresses(ctx.AppName())
+	ipAddresses, err := ctx.FlyClient.GetIPAddresses(ctx.AppName)
 	if err != nil {
 		return err
 	}
@@ -48,7 +48,7 @@ func runAllocateIPAddressV6(ctx *CmdContext) error {
 }
 
 func runAllocateIPAddress(ctx *CmdContext, addrType string) error {
-	appName := ctx.AppName()
+	appName := ctx.AppName
 
 	ipAddress, err := ctx.FlyClient.AllocateIPAddress(appName, addrType)
 	if err != nil {
@@ -61,7 +61,7 @@ func runAllocateIPAddress(ctx *CmdContext, addrType string) error {
 }
 
 func runReleaseIPAddress(ctx *CmdContext) error {
-	appName := ctx.AppName()
+	appName := ctx.AppName
 	address := ctx.Args[0]
 
 	if ip := net.ParseIP(address); ip == nil {

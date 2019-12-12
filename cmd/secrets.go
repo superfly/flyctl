@@ -46,7 +46,7 @@ Any value that equals "-" will be assigned from STDIN instead of args.
 }
 
 func runListSecrets(ctx *CmdContext) error {
-	secrets, err := ctx.FlyClient.GetAppSecrets(ctx.AppName())
+	secrets, err := ctx.FlyClient.GetAppSecrets(ctx.AppName)
 	if err != nil {
 		return err
 	}
@@ -82,7 +82,7 @@ func runSetSecrets(ctx *CmdContext) error {
 		return errors.New("Requires at least one SECRET=VALUE pair")
 	}
 
-	release, err := ctx.FlyClient.SetSecrets(ctx.AppName(), secrets)
+	release, err := ctx.FlyClient.SetSecrets(ctx.AppName, secrets)
 	if err != nil {
 		return err
 	}
@@ -95,7 +95,7 @@ func runSecretsUnset(ctx *CmdContext) error {
 		return errors.New("Requires at least one secret name")
 	}
 
-	release, err := ctx.FlyClient.UnsetSecrets(ctx.AppName(), ctx.Args)
+	release, err := ctx.FlyClient.UnsetSecrets(ctx.AppName, ctx.Args)
 	if err != nil {
 		return err
 	}

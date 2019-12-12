@@ -33,7 +33,7 @@ func newCertificatesCommand() *Command {
 }
 
 func runCertsList(ctx *CmdContext) error {
-	certs, err := ctx.FlyClient.GetAppCertificates(ctx.AppName())
+	certs, err := ctx.FlyClient.GetAppCertificates(ctx.AppName)
 	if err != nil {
 		return err
 	}
@@ -44,7 +44,7 @@ func runCertsList(ctx *CmdContext) error {
 func runCertShow(ctx *CmdContext) error {
 	hostname := ctx.Args[0]
 
-	cert, err := ctx.FlyClient.GetAppCertificate(ctx.AppName(), hostname)
+	cert, err := ctx.FlyClient.GetAppCertificate(ctx.AppName, hostname)
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func runCertShow(ctx *CmdContext) error {
 func runCertCheck(ctx *CmdContext) error {
 	hostname := ctx.Args[0]
 
-	cert, err := ctx.FlyClient.CheckAppCertificate(ctx.AppName(), hostname)
+	cert, err := ctx.FlyClient.CheckAppCertificate(ctx.AppName, hostname)
 	if err != nil {
 		return err
 	}
@@ -66,7 +66,7 @@ func runCertCheck(ctx *CmdContext) error {
 func runCertAdd(ctx *CmdContext) error {
 	hostname := ctx.Args[0]
 
-	cert, err := ctx.FlyClient.AddCertificate(ctx.AppName(), hostname)
+	cert, err := ctx.FlyClient.AddCertificate(ctx.AppName, hostname)
 	if err != nil {
 		return err
 	}
@@ -80,7 +80,7 @@ func runCertDelete(ctx *CmdContext) error {
 	if !ctx.Config.GetBool("yes") {
 		confirm := false
 		prompt := &survey.Confirm{
-			Message: fmt.Sprintf("Remove certificate %s from app %s?", hostname, ctx.AppName()),
+			Message: fmt.Sprintf("Remove certificate %s from app %s?", hostname, ctx.AppName),
 		}
 		survey.AskOne(prompt, &confirm)
 
@@ -89,7 +89,7 @@ func runCertDelete(ctx *CmdContext) error {
 		}
 	}
 
-	cert, err := ctx.FlyClient.DeleteCertificate(ctx.AppName(), hostname)
+	cert, err := ctx.FlyClient.DeleteCertificate(ctx.AppName, hostname)
 	if err != nil {
 		return err
 	}

@@ -4,13 +4,17 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
+	"path/filepath"
 
 	"github.com/logrusorgru/aurora"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -71,8 +75,12 @@ type CmdContext struct {
 	Args         []string
 	Out          io.Writer
 	FlyClient    *api.Client
-	Project      *flyctl.Project
 	Terminal     *terminal.Terminal
+	WorkingDir   string
+	ConfigFile   string
+
+	AppName   string
+	AppConfig *flyctl.AppConfig
 }
 
 func (ctx *CmdContext) InitApiClient() error {
@@ -82,18 +90,6 @@ func (ctx *CmdContext) InitApiClient() error {
 	}
 	ctx.FlyClient = client
 	return nil
-}
-
-func (ctx *CmdContext) AppName() string {
-	if name, _ := ctx.Config.GetString(flyctl.ConfigAppName); name != "" {
-		return name
-	}
-
-	if ctx.Project != nil {
-		return ctx.Project.AppName()
-	}
-
-	return ""
 }
 
 func (ctx *CmdContext) Render(presentable presenters.Presentable) error {
@@ -163,6 +159,12 @@ func newCmdContext(ns string, out io.Writer, args []string, initClient bool) (*C
 		Terminal:     terminal.NewTerminal(out),
 	}
 
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, errors.Wrap(err, "Error resolving working directory")
+	}
+	ctx.WorkingDir = cwd
+
 	if initClient {
 		if err := ctx.InitApiClient(); err != nil {
 			return nil, err
@@ -230,57 +232,92 @@ func requireAppName(cmd *Command) Initializer {
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "app",
 		Shorthand:   "a",
-		Description: "app to operate on",
+		Description: "app name to operate on",
+	})
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "config",
+		Shorthand:   "c",
+		Description: "path to an app config file or directory containing one",
+		Default:     "./fly.toml",
 	})
 
 	return Initializer{
 		Setup: func(ctx *CmdContext) error {
-			if p, err := flyctl.LoadProject("./fly.toml"); err == nil {
-				ctx.Project = p
+			// resolve the config file path
+			configPath, _ := ctx.Config.GetString("config")
+			if configPath == "" {
+				configPath = ctx.WorkingDir
 			}
-
-			return nil
-		},
-		PreRun: func(ctx *CmdContext) error {
-			if ctx.AppName() == "" {
-				return fmt.Errorf("No app specified")
-			}
-			return nil
-		},
-	}
-}
-
-func loadProjectFromPathInFirstArg(cmd *Command) Initializer {
-	return Initializer{
-		Setup: func(ctx *CmdContext) error {
-			cfgPath := "."
-			if len(ctx.Args) > 0 {
-				cfgPath = ctx.Args[0]
-			}
-
-			p, err := flyctl.LoadProject(cfgPath)
+			resolvedPath, err := flyctl.ResolveConfigFileFromPath(configPath)
 			if err != nil {
 				return err
 			}
-			ctx.Project = p
+			ctx.ConfigFile = resolvedPath
+
+			// load the config file if it exists
+			if helpers.FileExists(ctx.ConfigFile) {
+				terminal.Debug("Loading app config from", ctx.ConfigFile)
+				appConfig, err := flyctl.LoadAppConfig(ctx.ConfigFile)
+				if err != nil {
+					return err
+				}
+				ctx.AppConfig = appConfig
+			}
+
+			// set the app name if provided
+			appName, _ := ctx.Config.GetString("app")
+			if appName != "" {
+				ctx.AppName = appName
+			} else if ctx.AppConfig != nil {
+				ctx.AppName = ctx.AppConfig.AppName
+			}
 
 			return nil
 		},
 		PreRun: func(ctx *CmdContext) error {
-			if ctx.Project == nil {
+			if ctx.AppName == "" {
+				return fmt.Errorf("No app specified")
+			}
+
+			if ctx.AppConfig == nil {
 				return nil
 			}
 
-			if ctx.Project.ConfigFileLoaded() && ctx.Project.AppName() != "" && ctx.Project.AppName() != ctx.AppName() {
-				terminal.Warnf("app flag '%s' does not match app name in config file '%s'\n", ctx.AppName(), ctx.Project.AppName())
+			if ctx.AppConfig.AppName != "" && ctx.AppConfig.AppName != ctx.AppName {
+				terminal.Warnf("app flag '%s' does not match app name in config file '%s'\n", ctx.AppName, ctx.AppConfig.AppName)
 
-				if !confirm(fmt.Sprintf("Continue deploying to '%s'", ctx.AppName())) {
+				if !confirm(fmt.Sprintf("Continue using '%s'", ctx.AppName)) {
 					return ErrAbort
 				}
 			}
 
 			return nil
 		},
+	}
+}
+
+func workingDirectoryFromArg(index int) func(*Command) Initializer {
+	return func(cmd *Command) Initializer {
+		return Initializer{
+			Setup: func(ctx *CmdContext) error {
+				if len(ctx.Args) <= index {
+					return fmt.Errorf("cannot resolve working directory from arg %d, not enough args", index)
+				}
+				wd := ctx.Args[index]
+
+				if !path.IsAbs(wd) {
+					wd = path.Join(ctx.WorkingDir, wd)
+				}
+
+				abs, err := filepath.Abs(wd)
+				if err != nil {
+					return err
+				}
+				ctx.WorkingDir = abs
+
+				return nil
+			},
+		}
 	}
 }
 

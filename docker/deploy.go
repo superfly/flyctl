@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/api"
@@ -18,10 +17,10 @@ type DeployOperation struct {
 	dockerAvailable bool
 	out             io.Writer
 	appName         string
-	Project         *flyctl.Project
+	appConfig       *flyctl.AppConfig
 }
 
-func NewDeployOperation(appName string, project *flyctl.Project, apiClient *api.Client, out io.Writer) (*DeployOperation, error) {
+func NewDeployOperation(appName string, appConfig *flyctl.AppConfig, apiClient *api.Client, out io.Writer) (*DeployOperation, error) {
 	dockerClient, err := NewDockerClient()
 	if err != nil {
 		return nil, err
@@ -32,7 +31,7 @@ func NewDeployOperation(appName string, project *flyctl.Project, apiClient *api.
 		apiClient:    apiClient,
 		out:          out,
 		appName:      appName,
-		Project:      project,
+		appConfig:    appConfig,
 	}
 
 	op.dockerAvailable = op.dockerClient.Check() == nil
@@ -44,7 +43,7 @@ func (op *DeployOperation) AppName() string {
 	if op.appName != "" {
 		return op.appName
 	}
-	return op.Project.AppName()
+	return op.appConfig.AppName
 }
 
 func (op *DeployOperation) DockerAvailable() bool {
@@ -57,6 +56,10 @@ func (op *DeployOperation) DeployImage(imageRef string) (*api.Release, error) {
 	//}
 	return op.deployImageWithoutDocker(imageRef)
 }
+
+// func (op *DeployOperation) validateConfig() error {
+// 	op.
+// }
 
 func (op *DeployOperation) deployImageWithDocker(imageRef string) (*api.Release, error) {
 	deploymentTag, err := op.resolveAndTagImageRef(imageRef)
@@ -102,7 +105,7 @@ func (op *DeployOperation) resolveAndTagImageRef(imageRef string) (string, error
 
 	fmt.Println("-->", img.ID)
 
-	imageTag := newDeploymentTag(op.Project.AppName())
+	imageTag := newDeploymentTag(op.appConfig.AppName)
 
 	printHeader("Creating deployment tag")
 	if err := op.dockerClient.TagImage(img.ID, imageTag); err != nil {
@@ -131,27 +134,9 @@ func (op *DeployOperation) pushImage(imageTag string) error {
 func (op *DeployOperation) deployImage(imageTag string) (*api.Release, error) {
 	input := api.DeployImageInput{AppID: op.AppName(), Image: imageTag}
 
-	if op.Project != nil {
-		projectServices := op.Project.Services()
-
-		if len(projectServices) > 0 {
-			printHeader("Registering Services")
-
-			services := op.Project.Services()
-
-			for _, s := range services {
-				for _, p := range s.Ports {
-					handlers := "none"
-					if len(p.Handlers) > 0 {
-						handlers = strings.Join(p.Handlers, " ")
-					}
-
-					fmt.Printf("  %s %d --> %s %d (handlers: %s)\n", s.Protocol, p.Port, s.Protocol, s.InternalPort, handlers)
-				}
-			}
-
-			input.Services = &services
-		}
+	if op.appConfig != nil && len(op.appConfig.Definition) > 0 {
+		x := api.Definition(op.appConfig.Definition)
+		input.Definition = &x
 	}
 
 	printHeader("Creating Release")

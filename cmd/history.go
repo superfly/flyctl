@@ -11,7 +11,7 @@ func newAppHistoryCommand() *Command {
 }
 
 func runAppHistory(ctx *CmdContext) error {
-	changes, err := ctx.FlyClient.GetAppChanges(ctx.AppName())
+	changes, err := ctx.FlyClient.GetAppChanges(ctx.AppName)
 	if err != nil {
 		return err
 	}

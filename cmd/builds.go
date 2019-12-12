@@ -25,7 +25,7 @@ func newBuildsCommand() *Command {
 }
 
 func runListBuilds(ctx *CmdContext) error {
-	builds, err := ctx.FlyClient.ListBuilds(ctx.AppName())
+	builds, err := ctx.FlyClient.ListBuilds(ctx.AppName)
 	if err != nil {
 		return err
 	}

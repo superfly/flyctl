@@ -17,7 +17,7 @@ import (
 )
 
 func newDeployCommand() *Command {
-	cmd := BuildCommand(nil, runDeploy, "deploy", "deploy a local image, remote image, or Dockerfile", os.Stdout, true, requireAppName, loadProjectFromPathInFirstArg)
+	cmd := BuildCommand(nil, runDeploy, "deploy", "deploy a local image, remote image, or Dockerfile", os.Stdout, true, workingDirectoryFromArg(0), requireAppName)
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "image",
 		Shorthand:   "i",
@@ -34,7 +34,7 @@ func newDeployCommand() *Command {
 }
 
 func runDeploy(ctx *CmdContext) error {
-	op, err := docker.NewDeployOperation(ctx.AppName(), ctx.Project, ctx.FlyClient, ctx.Out)
+	op, err := docker.NewDeployOperation(ctx.AppName, ctx.AppConfig, ctx.FlyClient, ctx.Out)
 	if err != nil {
 		return err
 	}
@@ -47,25 +47,11 @@ func runDeploy(ctx *CmdContext) error {
 		return renderRelease(ctx, release)
 	}
 
-	sourceDir := "."
-
-	if len(ctx.Args) > 0 {
-		sourceDir = ctx.Args[0]
-	}
-
-	project, err := flyctl.LoadProject(sourceDir)
-	if err != nil {
-		return err
-	}
-	if project.ConfigFileLoaded() {
-		fmt.Printf("App config file '%s'\n", project.ConfigFilePath())
-	}
-
-	fmt.Printf("Deploy source directory '%s'\n", project.ProjectDir)
+	fmt.Printf("Deploy source directory '%s'\n", ctx.WorkingDir)
 
 	if op.DockerAvailable() {
 		fmt.Println("Docker daemon available, performing local build...")
-		release, err := op.BuildAndDeploy(project)
+		release, err := op.BuildAndDeploy(ctx.WorkingDir, ctx.AppConfig)
 		if err != nil {
 			return err
 		}
@@ -75,7 +61,7 @@ func runDeploy(ctx *CmdContext) error {
 
 	fmt.Println("Docker daemon unavailable, performing remote build...")
 
-	build, err := op.StartRemoteBuild(project)
+	build, err := op.StartRemoteBuild(ctx.WorkingDir, ctx.AppConfig)
 	if err != nil {
 		return err
 	}
@@ -145,13 +131,13 @@ func watchDeployment(ctx *CmdContext) error {
 	for {
 		previousRelease = currentRelease
 		if currentRelease != nil && currentRelease.InProgress {
-			release, err := ctx.FlyClient.GetAppReleaseVersion(ctx.AppName(), currentRelease.Version)
+			release, err := ctx.FlyClient.GetAppReleaseVersion(ctx.AppName, currentRelease.Version)
 			if err != nil {
 				fmt.Println(err)
 			}
 			currentRelease = release
 		} else {
-			app, err = ctx.FlyClient.GetAppStatus(ctx.AppName(), false)
+			app, err = ctx.FlyClient.GetAppStatus(ctx.AppName, false)
 			if err != nil {
 				return err
 			}

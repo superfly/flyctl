@@ -5,6 +5,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/helpers"
 )
 
 func isInterrupt(err error) bool {
@@ -54,4 +55,11 @@ func selectOrganization(client *api.Client, slug string) (*api.Organization, err
 	}
 
 	return &orgs[selectedOrg], nil
+}
+
+func confirmFileOverwrite(filename string) bool {
+	if helpers.FileExists(filename) {
+		return confirm(fmt.Sprintf("Overwrite file '%s'", filename))
+	}
+	return true
 }

@@ -10,7 +10,6 @@ import (
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/docker"
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/helpers"
 )
 
 func newAppListCommand() *Command {
@@ -41,9 +40,6 @@ func newAppListCommand() *Command {
 	delete := BuildCommand(cmd, runDestroyApp, "destroy", "permanently destroy an app", os.Stdout, true)
 	delete.Args = cobra.ExactArgs(1)
 	delete.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "accept all confirmations"})
-
-	initConfig := BuildCommand(cmd, runAppInit, "init-config [APP] [PATH]", "initialize a fly.toml file from an existing app", os.Stdout, true)
-	initConfig.Args = cobra.RangeArgs(1, 2)
 
 	return cmd
 }
@@ -84,14 +80,14 @@ func runDestroyApp(ctx *CmdContext) error {
 }
 
 func runAppsCreate(ctx *CmdContext) error {
-	builder := ""
+	newAppConfig := flyctl.NewAppConfig()
 
 	if namedBuilder, _ := ctx.Config.GetString("builder"); namedBuilder != "" {
 		url, err := docker.ResolveNamedBuilderURL(namedBuilder)
 		if err == docker.ErrUnknownBuilder {
 			return fmt.Errorf(`Unknown builder "%s". See %s for a list of builders.`, namedBuilder, docker.BuildersRepo)
 		}
-		builder = url
+		newAppConfig.Build = &flyctl.Build{Builder: url}
 	}
 
 	name, _ := ctx.Config.GetString("name")
@@ -105,6 +101,7 @@ func runAppsCreate(ctx *CmdContext) error {
 			}
 		}
 	}
+	newAppConfig.AppName = name
 
 	targetOrgSlug, _ := ctx.Config.GetString("org")
 	org, err := selectOrganization(ctx.FlyClient, targetOrgSlug)
@@ -120,6 +117,7 @@ func runAppsCreate(ctx *CmdContext) error {
 	if err != nil {
 		return err
 	}
+	newAppConfig.Definition = app.Config.Definition
 
 	fmt.Println("New app created")
 
@@ -128,72 +126,5 @@ func runAppsCreate(ctx *CmdContext) error {
 		return err
 	}
 
-	project, err := initConfigFromApp(ctx, app.Name, ".")
-	if err != nil {
-		return err
-	}
-
-	if builder != "" {
-		project.SetBuilder(builder)
-	}
-
-	return writeConfigWithPrompt(project)
-}
-
-func runAppInit(ctx *CmdContext) error {
-	appName := ctx.Args[0]
-
-	path := "."
-	if len(ctx.Args) == 2 {
-		path = ctx.Args[1]
-	}
-
-	project, err := initConfigFromApp(ctx, appName, path)
-	if err != nil {
-		return err
-	}
-
-	return writeConfigWithPrompt(project)
-}
-
-func initConfigFromApp(ctx *CmdContext, appName, path string) (*flyctl.Project, error) {
-	path, err := flyctl.ResolveConfigFileFromPath(path)
-	if err != nil {
-		return nil, err
-	}
-
-	app, err := ctx.FlyClient.GetApp(appName)
-	if err != nil {
-		return nil, err
-	}
-
-	services, err := ctx.FlyClient.GetAppServices(appName)
-	if err != nil {
-		return nil, err
-	}
-
-	project := flyctl.NewProject(path)
-	project.SetAppName(app.Name)
-	project.SetServices(services)
-
-	return project, nil
-}
-
-func writeConfigWithPrompt(project *flyctl.Project) error {
-	if exists, _ := flyctl.ConfigFileExistsAtPath(project.ConfigFilePath()); exists {
-		if !confirm(fmt.Sprintf("Overwrite config file '%s'", project.ConfigFilePath())) {
-			return nil
-		}
-	}
-
-	if err := project.WriteConfig(); err != nil {
-		return err
-	}
-
-	fmt.Println(aurora.Faint(project.WriteConfigAsString()))
-
-	path := helpers.PathRelativeToCWD(project.ConfigFilePath())
-	fmt.Println("Wrote config file", path)
-
-	return nil
+	return writeAppConfig(ctx.ConfigFile, newAppConfig)
 }

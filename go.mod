@@ -27,6 +27,8 @@ require (
 	github.com/gorilla/mux v1.7.3 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.1 // indirect
 	github.com/hashicorp/go-getter v1.3.0
+	github.com/hashicorp/hcl v1.0.0
+	github.com/hashicorp/hcl/v2 v2.1.0
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/kr/pty v1.1.8 // indirect
 	github.com/logrusorgru/aurora v0.0.0-20190428105938-cea283e61946
@@ -34,6 +36,7 @@ require (
 	github.com/magiconair/properties v1.8.1 // indirect
 	github.com/matryer/is v1.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.8
+	github.com/mitchellh/mapstructure v1.1.2
 	github.com/morikuni/aec v0.0.0-20170113033406-39771216ff4c
 	github.com/novln/docker-parser v0.0.0-20190306203532-b3f122c6978e
 	github.com/olekukonko/tablewriter v0.0.1
@@ -41,6 +44,7 @@ require (
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/opencontainers/runc v0.1.1 // indirect
 	github.com/pelletier/go-toml v1.4.0 // indirect
+	github.com/pkg/errors v0.8.1
 	github.com/sirupsen/logrus v1.4.2 // indirect
 	github.com/skratchdot/open-golang v0.0.0-20190402232053-79abb63cd66e
 	github.com/spf13/afero v1.2.2 // indirect
@@ -49,10 +53,10 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/viper v1.4.0
 	github.com/stretchr/testify v1.3.0
+	github.com/zclconf/go-cty v1.1.0
 	golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4 // indirect
 	golang.org/x/net v0.0.0-20190724013045-ca1201d0de80
 	golang.org/x/sys v0.0.0-20190801041406-cbf593c0f2f3 // indirect
-	golang.org/x/text v0.3.2 // indirect
 	google.golang.org/genproto v0.0.0-20190716160619-c506a9f90610 // indirect
 	google.golang.org/grpc v1.22.1 // indirect
 	gopkg.in/yaml.v2 v2.2.2

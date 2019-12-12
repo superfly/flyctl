@@ -64,6 +64,8 @@ type Query struct {
 	}
 }
 
+type Definition map[string]interface{}
+
 type App struct {
 	ID             string
 	Name           string
@@ -95,6 +97,15 @@ type App struct {
 	}
 	Certificate AppCertificate
 	Services    []Service
+	Config      AppConfig
+	ParseConfig AppConfig
+}
+
+type AppConfig struct {
+	Definition Definition
+	Services   []Service
+	Valid      bool
+	Errors     []string
 }
 
 type Organization struct {
@@ -284,9 +295,10 @@ type DeleteCertificatePayload struct {
 }
 
 type DeployImageInput struct {
-	AppID    string     `json:"appId"`
-	Image    string     `json:"image"`
-	Services *[]Service `json:"services"`
+	AppID      string      `json:"appId"`
+	Image      string      `json:"image"`
+	Services   *[]Service  `json:"services"`
+	Definition *Definition `json:"definition"`
 }
 
 // mostly duplicate of TaskService but works with the deployImage mutation.
