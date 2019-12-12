@@ -39,6 +39,15 @@ func runDeploy(ctx *CmdContext) error {
 		return err
 	}
 
+	parsedCfg, err := op.ValidateConfig()
+	if err != nil {
+		return err
+	}
+
+	if parsedCfg.Valid {
+		printAppConfigServices("  ", *parsedCfg)
+	}
+
 	if imageRef, _ := ctx.Config.GetString("image"); imageRef != "" {
 		release, err := op.DeployImage(imageRef)
 		if err != nil {

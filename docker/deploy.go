@@ -57,9 +57,28 @@ func (op *DeployOperation) DeployImage(imageRef string) (*api.Release, error) {
 	return op.deployImageWithoutDocker(imageRef)
 }
 
-// func (op *DeployOperation) validateConfig() error {
-// 	op.
-// }
+func (op *DeployOperation) ValidateConfig() (*api.AppConfig, error) {
+	if op.appConfig == nil || !op.appConfig.HasDefinition() {
+		return nil, nil
+	}
+
+	printHeader("Validating app configuration")
+
+	parsedConfig, err := op.apiClient.ParseConfig(op.appName, op.appConfig.Definition)
+	if err != nil {
+		return nil, err
+	}
+
+	if !parsedConfig.Valid {
+		return nil, errors.New("App configuration is not valid")
+	}
+
+	op.appConfig.Definition = parsedConfig.Definition
+
+	fmt.Println("-->", "done")
+
+	return parsedConfig, nil
+}
 
 func (op *DeployOperation) deployImageWithDocker(imageRef string) (*api.Release, error) {
 	deploymentTag, err := op.resolveAndTagImageRef(imageRef)

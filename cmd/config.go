@@ -8,6 +8,7 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 )
@@ -72,14 +73,26 @@ func runValidateConfig(ctx *CmdContext) error {
 		return nil
 	}
 
-	fmt.Println()
+	printAppConfigErrors(*serverCfg)
 
-	for _, error := range serverCfg.Errors {
+	return errors.New("App configuration is not valid")
+}
+
+func printAppConfigErrors(cfg api.AppConfig) {
+	fmt.Println()
+	for _, error := range cfg.Errors {
 		fmt.Println("   ", aurora.Red("✘").String(), error)
 	}
 	fmt.Println()
+}
 
-	return errors.New("App configuration is not valid")
+func printAppConfigServices(prefix string, cfg api.AppConfig) {
+	if len(cfg.Services) > 0 {
+		fmt.Println(prefix, "Services")
+		for _, svc := range cfg.Services {
+			fmt.Println(prefix, "  ", svc.Description)
+		}
+	}
 }
 
 func writeAppConfig(path string, appConfig *flyctl.AppConfig) error {

@@ -65,6 +65,10 @@ func LoadAppConfig(configFile string) (*AppConfig, error) {
 	return &appConfig, err
 }
 
+func (ac *AppConfig) HasDefinition() bool {
+	return len(ac.Definition) > 0
+}
+
 func (ac *AppConfig) WriteTo(w io.Writer, format ConfigFormat) error {
 	switch format {
 	case TOMLFormat:

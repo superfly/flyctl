@@ -304,6 +304,7 @@ type DeployImageInput struct {
 // mostly duplicate of TaskService but works with the deployImage mutation.
 // clean up when we figure out groups/tasks/services
 type Service struct {
+	Description     string        `json:"description"`
 	Protocol        string        `json:"protocol"`
 	InternalPort    int           `json:"internalPort"`
 	Ports           []PortHandler `json:"ports"`

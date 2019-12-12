@@ -228,6 +228,8 @@ func BuildCommand(parent *Command, fn CmdRunFn, useText, helpText string, out io
 	return flycmd
 }
 
+const defaultConfigFilePath = "./fly.toml"
+
 func requireAppName(cmd *Command) Initializer {
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "app",
@@ -238,7 +240,7 @@ func requireAppName(cmd *Command) Initializer {
 		Name:        "config",
 		Shorthand:   "c",
 		Description: "path to an app config file or directory containing one",
-		Default:     "./fly.toml",
+		Default:     defaultConfigFilePath,
 	})
 
 	return Initializer{
@@ -246,7 +248,14 @@ func requireAppName(cmd *Command) Initializer {
 			// resolve the config file path
 			configPath, _ := ctx.Config.GetString("config")
 			if configPath == "" {
-				configPath = ctx.WorkingDir
+				configPath = defaultConfigFilePath
+			}
+			if !filepath.IsAbs(configPath) {
+				absConfigPath, err := filepath.Abs(filepath.Join(ctx.WorkingDir, configPath))
+				if err != nil {
+					return err
+				}
+				configPath = absConfigPath
 			}
 			resolvedPath, err := flyctl.ResolveConfigFileFromPath(configPath)
 			if err != nil {
