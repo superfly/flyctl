@@ -36,8 +36,6 @@ func Execute() {
 }
 
 func init() {
-	initConfig()
-
 	rootCmd.PersistentFlags().StringP("access-token", "t", "", "Fly API Access Token")
 	viper.BindPFlag(flyctl.ConfigAPIToken, rootCmd.PersistentFlags().Lookup("access-token"))
 
@@ -62,6 +60,8 @@ func init() {
 		newIPAddressesCommand(),
 		newConfigCommand(),
 	)
+
+	initConfig()
 }
 
 func initConfig() {

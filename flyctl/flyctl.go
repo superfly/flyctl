@@ -16,10 +16,6 @@ import (
 
 var configDir string
 
-func init() {
-	InitConfig()
-}
-
 func InitConfig() {
 	if err := initConfigDir(); err != nil {
 		fmt.Println("Error accessing config directory at $HOME/.fly", err)
@@ -84,14 +80,14 @@ func loadConfig() error {
 
 	err := viper.ReadInConfig()
 	if err == nil {
-		terminal.Debug("Loaded config from", viper.ConfigFileUsed())
+		terminal.Debug("Loaded flyctl config from", viper.ConfigFileUsed())
 		return nil
 	}
 
 	if os.IsNotExist(err) {
 		if migrateLegacyConfig() {
 			if err := SaveConfig(); err != nil {
-				terminal.Debug("error writing config", err)
+				terminal.Debug("error writing flyctl config", err)
 			}
 		}
 		return nil

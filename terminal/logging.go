@@ -2,6 +2,8 @@ package terminal
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/logrusorgru/aurora"
 )
@@ -9,14 +11,26 @@ import (
 type LogLevel int
 
 const (
-	LevelTrace LogLevel = iota
-	LevelDebug
+	LevelDebug LogLevel = iota
 	LevelInfo
 	LevelWarn
 	LevelError
-	LevelCritical
-	LevelFatal
 )
+
+func init() {
+	switch strings.ToLower(os.Getenv("LOG_LEVEL")) {
+	case "debug":
+		SetLogLevel(LevelDebug)
+	case "info":
+		SetLogLevel(LevelInfo)
+	case "warn":
+		SetLogLevel(LevelWarn)
+	case "error":
+		SetLogLevel(LevelError)
+	default:
+		SetLogLevel(LevelInfo)
+	}
+}
 
 var level = LevelInfo
 
