@@ -189,5 +189,11 @@ func watchDeployment(ctx *CmdContext) error {
 
 	s.Stop()
 
+	fmt.Println(aurora.Bold("App"))
+	err = ctx.RenderEx(&presenters.AppInfo{App: *app}, presenters.Options{HideHeader: true, Vertical: true})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
