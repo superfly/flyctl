@@ -1,6 +1,7 @@
 package flyctl
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,7 +18,6 @@ type ConfigFormat string
 
 const (
 	TOMLFormat        ConfigFormat = ".toml"
-	JSONFormat                     = ".json"
 	UnsupportedFormat              = ""
 )
 
@@ -73,11 +73,9 @@ func (ac *AppConfig) WriteTo(w io.Writer, format ConfigFormat) error {
 	switch format {
 	case TOMLFormat:
 		return ac.marshalTOML(w)
-	case JSONFormat:
-		return ac.marshalJSON(w)
 	}
 
-	return nil
+	return fmt.Errorf("Unsupported format: %s", format)
 }
 
 func (ac *AppConfig) unmarshalTOML(r io.Reader) error {
@@ -87,6 +85,10 @@ func (ac *AppConfig) unmarshalTOML(r io.Reader) error {
 		return err
 	}
 
+	return ac.unmarshalNativeMap(data)
+}
+
+func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 	if appName, ok := (data["app"]).(string); ok {
 		ac.AppName = appName
 	}
@@ -100,10 +102,9 @@ func (ac *AppConfig) unmarshalTOML(r io.Reader) error {
 			if k == "builder" {
 				b.Builder = fmt.Sprint(v)
 			} else if k == "args" {
-				argsBlock, ok := v.(map[string]string)
-				if ok {
-					for ak, av := range argsBlock {
-						b.Args[ak] = fmt.Sprint(av)
+				if argMap, ok := v.(map[string]interface{}); ok {
+					for argK, argV := range argMap {
+						b.Args[argK] = fmt.Sprint(argV)
 					}
 				}
 			} else {
@@ -143,18 +144,21 @@ func (ac AppConfig) marshalTOML(w io.Writer) error {
 	}
 
 	if len(ac.Definition) > 0 {
+		// roundtrip through json encoder to convert float64 numbers to json.Number, otherwise numbers are floats in toml
+		var buf bytes.Buffer
+		json.NewEncoder(&buf).Encode(ac.Definition)
+		d := json.NewDecoder(&buf)
+		d.UseNumber()
+		if err := d.Decode(&ac.Definition); err != nil {
+			return err
+		}
+
 		if err := encoder.Encode(ac.Definition); err != nil {
 			return err
 		}
 	}
 
 	return nil
-}
-
-func (ac *AppConfig) marshalJSON(w io.Writer) error {
-	encoder := json.NewEncoder(w)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(ac)
 }
 
 func (ac *AppConfig) WriteToFile(filename string) error {
@@ -185,24 +189,12 @@ func ResolveConfigFileFromPath(p string) (string, error) {
 	}
 
 	return path.Join(p, defaultConfigFileName), nil
-
-	// if helpers.FileExists(path.Join(p, defaultConfigFileName)) {
-	// 	return path.Join(p, defaultConfigFileName), nil
-	// }
-
-	// if helpers.FileExists(path.Join(p, deprecatedConfigFileName)) {
-	// 	return path.Join(p, deprecatedConfigFileName), nil
-	// }
-
-	// return "", nil
 }
 
 func ConfigFormatFromPath(p string) ConfigFormat {
 	switch path.Ext(p) {
 	case ".toml":
 		return TOMLFormat
-	case ".json":
-		return JSONFormat
 	}
 	return UnsupportedFormat
 }
