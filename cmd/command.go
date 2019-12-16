@@ -310,7 +310,8 @@ func workingDirectoryFromArg(index int) func(*Command) Initializer {
 		return Initializer{
 			Setup: func(ctx *CmdContext) error {
 				if len(ctx.Args) <= index {
-					return fmt.Errorf("cannot resolve working directory from arg %d, not enough args", index)
+					return nil
+					// return fmt.Errorf("cannot resolve working directory from arg %d, not enough args", index)
 				}
 				wd := ctx.Args[index]
 
