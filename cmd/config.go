@@ -22,7 +22,7 @@ func newConfigCommand() *Command {
 	}
 
 	BuildCommand(cmd, runViewConfig, "show", "view an app's configuration", os.Stdout, true, requireAppName)
-	BuildCommand(cmd, runPullConfig, "pull", "update an app config file", os.Stdout, true, requireAppName)
+	BuildCommand(cmd, runSaveConfig, "save", "update and save an app config file", os.Stdout, true, requireAppName)
 	BuildCommand(cmd, runValidateConfig, "validate", "validate an app config file", os.Stdout, true, requireAppName)
 
 	return cmd
@@ -41,7 +41,7 @@ func runViewConfig(ctx *CmdContext) error {
 	return nil
 }
 
-func runPullConfig(ctx *CmdContext) error {
+func runSaveConfig(ctx *CmdContext) error {
 	if ctx.AppConfig == nil {
 		ctx.AppConfig = flyctl.NewAppConfig()
 	}
@@ -51,6 +51,7 @@ func runPullConfig(ctx *CmdContext) error {
 	if err != nil {
 		return err
 	}
+
 	ctx.AppConfig.Definition = serverCfg.Definition
 
 	return writeAppConfig(ctx.ConfigFile, ctx.AppConfig)
