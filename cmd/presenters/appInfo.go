@@ -3,7 +3,6 @@ package presenters
 import (
 	"strconv"
 
-	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/api"
 )
 
@@ -26,7 +25,7 @@ func (p *AppInfo) Records() []map[string]string {
 	}
 
 	if len(p.App.Hostname) > 0 {
-		info["Hostname"] = aurora.Underline("https://" + p.App.Hostname).String()
+		info["Hostname"] = p.App.Hostname
 	} else {
 		info["Hostname"] = "<empty>"
 	}
