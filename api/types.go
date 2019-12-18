@@ -11,12 +11,8 @@ type Query struct {
 	Organizations struct {
 		Nodes []Organization
 	}
-	Databases struct {
-		Nodes []Database
-	}
 
-	Build    Build
-	Database Database
+	Build Build
 
 	// mutations
 	CreateApp struct {
@@ -39,14 +35,6 @@ type Query struct {
 
 	CreateBuild struct {
 		Build Build
-	}
-
-	CreateDatabase struct {
-		Database Database
-	}
-
-	DestroyDatabase struct {
-		Organization Organization
 	}
 
 	AddCertificate struct {
@@ -112,10 +100,6 @@ type Organization struct {
 	ID   string
 	Name string
 	Slug string
-
-	Databases struct {
-		Nodes []Database
-	}
 }
 
 type Task struct {
@@ -222,18 +206,6 @@ type Build struct {
 type SignedUrls struct {
 	GetUrl string
 	PutUrl string
-}
-
-type Database struct {
-	ID           string
-	BackendID    string
-	Key          string
-	Name         string
-	Engine       string
-	CreatedAt    time.Time
-	VMURL        string
-	PublicURL    string
-	Organization Organization
 }
 
 type AppChange struct {

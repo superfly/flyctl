@@ -53,7 +53,6 @@ func init() {
 		newDeployCommand(),
 		newAppInfoCommand(),
 		newBuildsCommand(),
-		newDatabasesCommand(),
 		newAppHistoryCommand(),
 		newCertificatesCommand(),
 		newDocsCommand(),
