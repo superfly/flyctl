@@ -26,6 +26,9 @@ archives:
   files: [only-the-binary*]
   wrap_in_directory: false
   format: tar.gz
+- id: binary
+  format: binary
+  files: [only-the-binary*]
 checksum:
   name_template: 'checksums.txt'
 snapshot:
