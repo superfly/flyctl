@@ -58,8 +58,8 @@ func (op *DeployOperation) DeployImage(imageRef string) (*api.Release, error) {
 }
 
 func (op *DeployOperation) ValidateConfig() (*api.AppConfig, error) {
-	if op.appConfig == nil || !op.appConfig.HasDefinition() {
-		return nil, nil
+	if op.appConfig == nil {
+		op.appConfig = flyctl.NewAppConfig()
 	}
 
 	printHeader("Validating app configuration")
