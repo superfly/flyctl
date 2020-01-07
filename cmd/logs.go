@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/docstrings"
 	"math"
 	"os"
 	"time"
@@ -12,8 +13,10 @@ import (
 )
 
 func newAppLogsCommand() *Command {
-	cmd := BuildCommand(nil, runLogs, "logs", "view app logs", os.Stdout, true, requireAppName)
+	logsStrings := docstrings.Get("logs")
+	cmd := BuildCommand(nil, runLogs, logsStrings.Usage, logsStrings.Short, logsStrings.Long, true, os.Stdout, requireAppName)
 
+	// TODO: Move flag descriptions into the docStrings
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "instance",
 		Shorthand:   "i",

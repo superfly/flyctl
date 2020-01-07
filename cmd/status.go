@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/docstrings"
 	"os"
 
 	"github.com/logrusorgru/aurora"
@@ -9,8 +10,11 @@ import (
 )
 
 func newAppStatusCommand() *Command {
-	cmd := BuildCommand(nil, runAppStatus, "status", "show app status", os.Stdout, true, requireAppName)
-	cmd.AddBoolFlag(BoolFlagOpts{Name: "all", Description: "show completed allocations"})
+	statusStrings := docstrings.Get("status")
+	cmd := BuildCommand(nil, runAppStatus, statusStrings.Usage, statusStrings.Short, statusStrings.Long, true, os.Stdout, requireAppName)
+
+	//TODO: Move flag descriptions to docstrings
+	cmd.AddBoolFlag(BoolFlagOpts{Name: "all", Description: "Show completed allocations"})
 
 	return cmd
 }
@@ -28,7 +32,7 @@ func runAppStatus(ctx *CmdContext) error {
 	}
 
 	if !app.Deployed {
-		fmt.Println(`App has not been deployed yet. Try running "flyctl deploy --image nginxdemos/hello"`)
+		fmt.Println(`App has not been deployed yet.`)
 		return nil
 	}
 

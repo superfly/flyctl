@@ -4,31 +4,41 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/superfly/flyctl/docstrings"
 	"os"
 
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/src/flyctl"
 )
 
 func newConfigCommand() *Command {
+
+	configStrings := docstrings.Get("config")
+
 	cmd := &Command{
 		Command: &cobra.Command{
-			Use:   "config",
-			Short: "manage app configuration",
+			Use:   configStrings.Usage,
+			Short: configStrings.Short,
+			Long:  configStrings.Long,
 		},
 	}
 
-	BuildCommand(cmd, runViewConfig, "show", "view an app's configuration", os.Stdout, true, requireAppName)
-	BuildCommand(cmd, runSaveConfig, "save", "update and save an app config file", os.Stdout, true, requireAppName)
-	BuildCommand(cmd, runValidateConfig, "validate", "validate an app config file", os.Stdout, true, requireAppName)
+	configDisplayStrings := docstrings.Get("config.display")
+	BuildCommand(cmd, runDisplayConfig, configDisplayStrings.Usage, configDisplayStrings.Short, configDisplayStrings.Long, true, os.Stdout, requireAppName)
+
+	configSaveStrings := docstrings.Get("config.save")
+	BuildCommand(cmd, runSaveConfig, configSaveStrings.Usage, configSaveStrings.Short, configSaveStrings.Long, true, os.Stdout, requireAppName)
+
+	configValidateStrings := docstrings.Get("config.validate")
+	BuildCommand(cmd, runValidateConfig, configValidateStrings.Usage, configValidateStrings.Short, configValidateStrings.Long, true, os.Stdout, requireAppName)
 
 	return cmd
 }
 
-func runViewConfig(ctx *CmdContext) error {
+func runDisplayConfig(ctx *CmdContext) error {
 	cfg, err := ctx.FlyClient.GetConfig(ctx.AppName)
 	if err != nil {
 		return err

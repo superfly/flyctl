@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"github.com/superfly/flyctl/docstrings"
 	"os"
 	"strings"
 
@@ -12,34 +13,31 @@ import (
 )
 
 func newAppSecretsCommand() *Command {
+
+	secretsStrings := docstrings.Get("secrets")
 	cmd := &Command{
 		Command: &cobra.Command{
-			Use:   "secrets",
-			Short: "manage app secrets",
+			Use:   secretsStrings.Usage,
+			Short: secretsStrings.Short,
+			Long:  secretsStrings.Long,
 		},
 	}
 
-	BuildCommand(cmd, runListSecrets, "list", "list app secrets", os.Stdout, true, requireAppName)
+	secretsListStrings := docstrings.Get("secrets.list")
+	BuildCommand(cmd, runListSecrets, secretsListStrings.Usage, secretsListStrings.Short, secretsListStrings.Long, true, os.Stdout, requireAppName)
 
-	setUse := "set [flags] NAME=VALUE NAME=VALUE ..."
-	setHelp := `
-Set one or more encrypted secrets for an app.
+	secretsSetStrings := docstrings.Get("secrets.set")
+	set := BuildCommand(cmd, runSetSecrets, secretsSetStrings.Usage, secretsSetStrings.Short, secretsSetStrings.Long, true, os.Stdout, requireAppName)
 
-Secrets are provided to apps at runtime as ENV variables. Names are
-case sensitive and stored as-is, so ensure names are appropriate for 
-the application and vm environment.
-
-Any value that equals "-" will be assigned from STDIN instead of args.
-`
-
-	set := BuildCommand(cmd, runSetSecrets, setUse, setHelp, os.Stdout, true, requireAppName)
+	//TODO: Move examples into docstrings
 	set.Command.Example = `flyctl secrets set FLY_ENV=production LOG_LEVEL=info
 	echo "long text..." | flyctl secrets set LONG_TEXT=-
 	flyctl secrets set FROM_A_FILE=- < file.txt
 	`
 	set.Command.Args = cobra.MinimumNArgs(1)
 
-	unset := BuildCommand(cmd, runSecretsUnset, "unset [flags] NAME NAME ...", "remove encrypted secrets", os.Stdout, true, requireAppName)
+	secretsUnsetStrings := docstrings.Get("secrets.unset")
+	unset := BuildCommand(cmd, runSecretsUnset, secretsUnsetStrings.Usage, secretsUnsetStrings.Short, secretsUnsetStrings.Long, true, os.Stdout, requireAppName)
 	unset.Command.Args = cobra.MinimumNArgs(1)
 
 	return cmd

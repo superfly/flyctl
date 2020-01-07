@@ -13,8 +13,8 @@ import (
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/src/flyctl"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -181,13 +181,13 @@ type Initializer struct {
 type CmdOption func(*Command) Initializer
 type InitializerFn func(*CmdContext) error
 
-func BuildCommand(parent *Command, fn CmdRunFn, useText, helpText string, out io.Writer, initClient bool, options ...CmdOption) *Command {
+func BuildCommand(parent *Command, fn CmdRunFn, usageText string, shortHelpText string, longHelpText string, initClient bool, out io.Writer, options ...CmdOption) *Command {
 	flycmd := &Command{
 		requireSession: initClient,
 		Command: &cobra.Command{
-			Use:   useText,
-			Short: helpText,
-			Long:  helpText,
+			Use:   usageText,
+			Short: shortHelpText,
+			Long:  longHelpText,
 		},
 	}
 
@@ -231,15 +231,17 @@ func BuildCommand(parent *Command, fn CmdRunFn, useText, helpText string, out io
 const defaultConfigFilePath = "./fly.toml"
 
 func requireAppName(cmd *Command) Initializer {
+	// TODO: Add Flags to docStrings
+
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "app",
 		Shorthand:   "a",
-		Description: "app name to operate on",
+		Description: "App name to operate on",
 	})
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "config",
 		Shorthand:   "c",
-		Description: "path to an app config file or directory containing one",
+		Description: "Path to an app config file or directory containing one",
 		Default:     defaultConfigFilePath,
 	})
 

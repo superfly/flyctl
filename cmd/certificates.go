@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/docstrings"
 	"os"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -11,22 +12,34 @@ import (
 )
 
 func newCertificatesCommand() *Command {
+	certsStrings := docstrings.Get("certs")
+
 	cmd := &Command{
 		Command: &cobra.Command{
-			Use:   "certs",
-			Short: "manage certificates",
+			Use:   certsStrings.Usage,
+			Short: certsStrings.Short,
+			Long:  certsStrings.Long,
 		},
 	}
 
-	BuildCommand(cmd, runCertsList, "list", "list certificates for an app", os.Stdout, true, requireAppName)
-	add := BuildCommand(cmd, runCertAdd, "create <hostname>", "create a new certificate", os.Stdout, true, requireAppName)
-	add.Command.Args = cobra.ExactArgs(1)
-	delete := BuildCommand(cmd, runCertDelete, "delete <hostname>", "delete new certificate", os.Stdout, true, requireAppName)
+	certsListStrings := docstrings.Get("certs.list")
+	BuildCommand(cmd, runCertsList, certsListStrings.Usage, certsListStrings.Short, certsListStrings.Long, true, os.Stdout, requireAppName)
+
+	certsCreateStrings := docstrings.Get("certs.create")
+	create := BuildCommand(cmd, runCertAdd, certsCreateStrings.Usage, certsCreateStrings.Short, certsCreateStrings.Long, true, os.Stdout, requireAppName)
+	create.Command.Args = cobra.ExactArgs(1)
+
+	certsDeleteStrings := docstrings.Get("certs.delete")
+	delete := BuildCommand(cmd, runCertDelete, certsDeleteStrings.Usage, certsDeleteStrings.Short, certsDeleteStrings.Long, true, os.Stdout, requireAppName)
 	delete.Command.Args = cobra.ExactArgs(1)
 	delete.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "accept all confirmations"})
-	show := BuildCommand(cmd, runCertShow, "show <hostname>", "show detailed certificate info", os.Stdout, true, requireAppName)
+
+	certsShowStrings := docstrings.Get("certs.show")
+	show := BuildCommand(cmd, runCertShow, certsShowStrings.Usage, certsShowStrings.Short, certsShowStrings.Long, true, os.Stdout, requireAppName)
 	show.Command.Args = cobra.ExactArgs(1)
-	check := BuildCommand(cmd, runCertCheck, "check <hostname>", "check dns configuration", os.Stdout, true, requireAppName)
+
+	certsCheckStrings := docstrings.Get("certs.check")
+	check := BuildCommand(cmd, runCertCheck, certsCheckStrings.Usage, certsCheckStrings.Short, certsCheckStrings.Long, true, os.Stdout, requireAppName)
 	check.Command.Args = cobra.ExactArgs(1)
 
 	return cmd

@@ -2,13 +2,15 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/docstrings"
 	"os"
 
 	"github.com/skratchdot/open-golang/open"
 )
 
 func newDocsCommand() *Command {
-	return BuildCommand(nil, runLaunchDocs, "docs", "view documentation", os.Stdout, false)
+	docsStrings := docstrings.Get("docs")
+	return BuildCommand(nil, runLaunchDocs, docsStrings.Usage, docsStrings.Short, docsStrings.Long, false, os.Stdout)
 }
 
 const docsURL = "https://fly.io/docs/future/"
