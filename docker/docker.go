@@ -19,7 +19,7 @@ import (
 	"github.com/docker/docker/pkg/term"
 	dockerparser "github.com/novln/docker-parser"
 	"github.com/spf13/viper"
-	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/src/flyctl"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/net/context"
 )

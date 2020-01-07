@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/src/flyctl"
 	"github.com/superfly/flyctl/terminal"
 )
 

@@ -13,7 +13,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/docker"
-	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/src/flyctl"
 )
 
 func newDeployCommand() *Command {

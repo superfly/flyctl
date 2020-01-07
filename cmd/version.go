@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/src/flyctl"
 )
 
 func newVersionCommand() *Command {
