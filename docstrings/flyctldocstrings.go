@@ -237,7 +237,7 @@ Versions can be seen in the output of ~~~flyctl releases~~~.
 [secrets]
 usage="secrets"
 shortHelp="Manage app secrets"
-longHelp="""Manage application secrets with tbe set and unset commands. 
+longHelp="""Manage application secrets with the set and unset commands. 
 
 Secrets are provided to apps at runtime as ENV variables. Names are
 case sensitive and stored as-is, so ensure names are appropriate for 
