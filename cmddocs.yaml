@@ -1,0 +1,251 @@
+apps:
+  long: |
+    The Apps commands focus on managing your Fly applications.
+    Start with the "create" command to register your application.
+    The "list" command will list all currently registered applications.
+  short: Manage apps
+  usage: apps
+apps.create:
+  long: |
+    The create command will both register a new application with the Fly platform and create the fly.toml
+    file which controls how the application will be deployed.
+  short: Create a new application
+  usage: create
+apps.destroy:
+  long: |
+    The ~~~apps destroy~~~ command will remove an application from the fly platform.
+  short: Permanently destroys an app
+  usage: destroy
+apps.init-config:
+  long: |
+    Using an existing app, create a fly.toml file
+  short: Initialize a fly.toml file from an existing app
+  usage: init-config [APP] [PATH]
+apps.list:
+  long: |
+    List the applications currently registered for this user. The list will include all organizations the user
+    is a member of. Each application will be shown with tis name, owner and when it was last deployed.
+  short: List applications
+  usage: list
+auth:
+  long: |+
+    Authenticate with Fly (and logout if you need to).
+
+    Start with the "login" subcommand.
+
+  short: Manage authentication
+  usage: auth
+auth.login:
+  long: |
+    Log in a user to the Fly platform. Supports browser-based, email/password and one-time-password
+    authentication. Defaults to using browser-based authentication.
+  short: Log in a user
+  usage: login
+auth.logout:
+  long: |
+    Log out the currently logged in user. To continue interacting with Fly, the user must log in again.
+  short: Log out the currently logged in user
+  usage: logout
+auth.token:
+  long: |
+    Shows the authentication token that is currently in use.
+  short: Show the current auth token
+  usage: token
+auth.whoami:
+  long: ""
+  short: Show the currently authenticated user
+  usage: whoami
+builds:
+  long: |
+    Fly Builds are templates to make developing Fly applications easier. The builds commands
+  short: Work with Fly Builds
+  usage: builds
+builds.list:
+  long: ""
+  short: List builds
+  usage: list
+builds.logs:
+  long: ""
+  short: Show logs associated with builds
+  usage: logs
+certs:
+  long: |
+    Manage certificates associated with a deployed application.
+  short: Manage certificates
+  usage: certs
+certs.check:
+  long: |
+    Checks the DNS configuration for the specified hostname.
+  short: Checks DNS configuration
+  usage: check <hostname>
+certs.create:
+  long: |
+    Creates a certificate for an application. Takes a hostname as a parameter for the certificate.
+  short: Create a certificate for an application
+  usage: create <hostname>
+certs.delete:
+  long: |
+    Deletes a certificate from an application. Takes hostname as a parameter to locate the certificate.
+  short: Delete certificate
+  usage: delete <hostname>
+certs.list:
+  long: |
+    List the certificates associated with a deployed applications.
+  short: List certificates for an application
+  usage: list
+certs.show:
+  long: |
+    Shows detailed certificate information for an application. Takes hostname as a parameter to locate the
+    certificate.
+  short: Shows detailed certificate information
+  usage: show <hostname>
+config:
+  long: ""
+  short: Manage application configuration
+  usage: config
+config.display:
+  long: |
+    Display an application's configuration
+  short: Display an app's configuration
+  usage: display
+config.save:
+  long: |
+    Update and save an application's config file
+  short: Update and save an app's config file
+  usage: save
+config.validate:
+  long: |
+    Validate an application's config file
+  short: Validate an app's config file
+  usage: validate
+deploy:
+  long: |
+    Deploy an application to the Fly platform. The application can be a local image, remote image or defined in
+    a Dockerfile.
+
+    Use the image/i flag to specify a local or remote image to deploy.
+
+    Use the detach flag to return immediately from starting the deployment rather than monitoring the deployment progress.
+  short: Deploy an application to the Fly platform
+  usage: deploy
+docs:
+  long: |
+    View documentation on the Fly.io website. This command will open a browser to view the content.
+  short: View documentation
+  usage: docs
+flyctl:
+  long: |
+    flyctl is a command line interface to the Fly.io platform.
+
+    It allows users to manage authentication, application creation, deployment, network configuration, logging and more
+    with just the one command.
+  short: The Fly CLI
+  usage: flyctl
+history:
+  long: |
+    List the history of changes in the application.
+  short: List app's change history
+  usage: history
+info:
+  long: |
+    Shows information about the application on the Fly platform
+
+    Information includes the application's
+    * name, owner, version, status and hostname
+    * services
+    * IP addresses
+  short: Show detailed app information
+  usage: info
+ips:
+  long: |
+    Manage IP addresses for applications.
+  short: Manage IP addresses for apps
+  usage: ips
+ips.allocate-v4:
+  long: |
+    Allocates an IPv4 address to the application.
+  short: Allocate an IPv4 address
+  usage: allocate-v4
+ips.allocate-v6:
+  long: |
+    Allocates an IPv6 address to the application.
+  short: Allocate an IPv6 address
+  usage: allocate-v6
+ips.list:
+  long: |
+    Lists the IP addresses allocated to the application.
+  short: List allocated IP addresses
+  usage: list
+ips.release:
+  long: |
+    Releases an IP address from the application.
+  short: Release an IP address
+  usage: release [ADDRESS]
+logs:
+  long: |
+    View application logs as generated by the application running on the Fly platform.
+
+    Logs can be filtered to a specific instance using the instance/i flag or to all instances running in a specific
+    region using the region/r flag.
+  short: View app logs
+  usage: logs
+releases:
+  long: |
+    List all the releases of the application onto the Fly platform, including type, when, success/fail and
+    which user triggered the release.
+  short: List app releases
+  usage: releases
+releases.latest:
+  long: |
+    Show details of the most recent release.
+  short: Show details for latest release
+  usage: latest
+releases.show:
+  long: |
+    Show the release details for a specific release. A version parameter identifies which release is required.
+    Versions can be seen in the output of ~~~flyctl releases~~~.
+  short: Show details for a specific release
+  usage: show [VERSION]
+secrets:
+  long: |
+    Manage application secrets with the set and unset commands.
+
+    Secrets are provided to apps at runtime as ENV variables. Names are
+    case sensitive and stored as-is, so ensure names are appropriate for
+    the application and vm environment.
+  short: Manage app secrets
+  usage: secrets
+secrets.list:
+  long: |
+    List the secrets available to the application. It shows each secret's name, a digest of the its value and
+    the time the secret was last set. The actual value of the secret is only available to the application.
+  short: Lists the secrets available to the App
+  usage: list
+secrets.set:
+  long: |
+    Set one or more encrypted secrets for an application.
+
+    Secrets are provided to apps at runtime as ENV variables. Names are
+    case sensitive and stored as-is, so ensure names are appropriate for
+    the application and vm environment.
+
+    Any value that equals "-" will be assigned from STDIN instead of args.
+  short: Set one or more encrypted secrets for an app
+  usage: set [flags] NAME=VALUE NAME=VALUE ...
+secrets.unset:
+  long: |
+    Remove encrypted secrets from the application. Unsetting a secret removes its availability to
+    the application.
+  short: Remove encrypted secrets from app
+  usage: unset [flags] NAME NAME ...
+status:
+  long: |
+    Show the application's current status including application details, tasks, most recent deployment details
+    and in which regions it is currently allocated.
+  short: Show app status
+  usage: status
+version:
+  long: |
+    Shows version information for the flyctl command itself, including version number and build date.
+  short: Show flyctl version information
+  usage: version
