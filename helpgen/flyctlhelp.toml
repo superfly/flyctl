@@ -1,0 +1,278 @@
+[flyctl]
+usage="flyctl"
+shortHelp="The Fly CLI"
+longHelp="""flyctl is a command line interface to the Fly.io platform.
+
+It allows users to manage authentication, application creation, deployment, network configuration, logging and more
+with just the one command.
+"""
+
+
+[info]
+usage="info"
+shortHelp="Show detailed app information"
+longHelp="""Shows information about the application on the Fly platform
+
+Information includes the application's
+* name, owner, version, status and hostname
+* services
+* IP addresses
+"""
+
+
+[apps]
+usage="apps"
+shortHelp="Manage apps"
+longHelp="""The Apps commands focus on managing your Fly applications.
+Start with the "create" command to register your application.
+The "list" command will list all currently registered applications.
+"""
+[apps.list]
+usage="list"
+shortHelp="List applications"
+longHelp="""List the applications currently registered for this user. The list will include all organizations the user
+is a member of. Each application will be shown with tis name, owner and when it was last deployed.
+"""
+[apps.create]
+usage="create"
+shortHelp="Create a new application"
+longHelp="""The create command will both register a new application with the Fly platform and create the fly.toml
+file which controls how the application will be deployed.
+"""
+[apps.destroy]
+usage="destroy"
+shortHelp="Permanently destroys an app"
+longHelp="""The ~~~apps destroy~~~ command will remove an application from the fly platform.
+"""
+[apps.init-config]
+usage="init-config [APP] [PATH]"
+shortHelp="Initialize a fly.toml file from an existing app"
+longHelp="""Using an existing app, create a fly.toml file
+"""
+
+
+[auth]
+usage="auth"
+shortHelp="Manage authentication"
+longHelp="""Authenticate with Fly (and logout if you need to).
+
+Start with the "login" subcommand.
+
+"""
+[auth.whoami]
+usage="whoami"
+shortHelp="Show the currently authenticated user"
+longHelp="""
+"""
+[auth.token]
+usage="token"
+shortHelp="Show the current auth token"
+longHelp="""Shows the authentication token that is currently in use.
+"""
+[auth.login]
+usage="login"
+shortHelp="Log in a user"
+longHelp="""Log in a user to the Fly platform. Supports browser-based, email/password and one-time-password
+authentication. Defaults to using browser-based authentication.
+"""
+[auth.logout]
+usage="logout"
+shortHelp="Log out the currently logged in user"
+longHelp="""Log out the currently logged in user. To continue interacting with Fly, the user must log in again.
+"""
+
+
+[builds]
+usage="builds"
+shortHelp="Work with Fly Builds"
+longHelp="""Fly Builds are templates to make developing Fly applications easier. The builds commands
+"""
+[builds.list]
+usage="list"
+shortHelp="List builds"
+longHelp="""
+"""
+[builds.logs]
+usage="logs"
+shortHelp="Show logs associated with builds"
+longHelp="""
+"""
+
+
+[certs]
+usage="certs"
+shortHelp="Manage certificates"
+longHelp="""Manage certificates associated with a deployed application.
+"""
+[certs.list]
+usage="list"
+shortHelp="List certificates for an application"
+longHelp="""List the certificates associated with a deployed applications.
+"""
+[certs.create]
+usage="create <hostname>"
+shortHelp="Create a certificate for an application"
+longHelp="""Creates a certificate for an application. Takes a hostname as a parameter for the certificate.
+"""
+[certs.delete]
+usage="delete <hostname>"
+shortHelp="Delete certificate"
+longHelp="""Deletes a certificate from an application. Takes hostname as a parameter to locate the certificate.
+"""
+[certs.show]
+usage="show <hostname>"
+shortHelp="Shows detailed certificate information"
+longHelp="""Shows detailed certificate information for an application. Takes hostname as a parameter to locate the
+certificate.
+"""
+[certs.check]
+usage="check <hostname>"
+shortHelp="Checks DNS configuration"
+longHelp="""Checks the DNS configuration for the specified hostname.
+"""
+
+
+[config]
+usage="config"
+shortHelp="Manage application configuration"
+longHelp="""
+"""
+[config.display]
+usage="display"
+shortHelp="Display an app's configuration"
+longHelp="""Display an application's configuration
+"""
+[config.save]
+usage="save"
+shortHelp="Update and save an app's config file"
+longHelp="""Update and save an application's config file
+"""
+[config.validate]
+usage="validate"
+shortHelp="Validate an app's config file"
+longHelp="""Validate an application's config file
+"""
+
+
+[deploy]
+usage="deploy"
+shortHelp="Deploy an application to the Fly platform"
+longHelp="""Deploy an application to the Fly platform. The application can be a local image, remote image or defined in
+a Dockerfile.
+
+Use the image/i flag to specify a local or remote image to deploy.
+
+Use the detach flag to return immediately from starting the deployment rather than monitoring the deployment progress.
+"""
+
+[docs]
+usage="docs"
+shortHelp="View documentation"
+longHelp="""View documentation on the Fly.io website. This command will open a browser to view the content.
+"""
+
+[history]
+usage="history"
+shortHelp="List app's change history"
+longHelp="""List the history of changes in the application.
+"""
+
+[ips]
+usage="ips"
+shortHelp="Manage IP addresses for apps"
+longHelp="""Manage IP addresses for applications.
+"""
+[ips.list]
+usage="list"
+shortHelp="List allocated IP addresses"
+longHelp="""Lists the IP addresses allocated to the application.
+"""
+[ips.allocate-v4]
+usage="allocate-v4"
+shortHelp="Allocate an IPv4 address"
+longHelp="""Allocates an IPv4 address to the application.
+"""
+[ips.allocate-v6]
+usage="allocate-v6"
+shortHelp="Allocate an IPv6 address"
+longHelp="""Allocates an IPv6 address to the application.
+"""
+[ips.release]
+usage="release [ADDRESS]"
+shortHelp="Release an IP address"
+longHelp="""Releases an IP address from the application.
+"""
+
+[logs]
+usage="logs"
+shortHelp="View app logs"
+longHelp="""View application logs as generated by the application running on the Fly platform.
+
+Logs can be filtered to a specific instance using the instance/i flag or to all instances running in a specific
+region using the region/r flag.
+"""
+
+
+[releases]
+usage="releases"
+shortHelp="List app releases"
+longHelp="""List all the releases of the application onto the Fly platform, including type, when, success/fail and
+which user triggered the release.
+"""
+[releases.latest]
+usage="latest"
+shortHelp="Show details for latest release"
+longHelp="""Show details of the most recent release.
+"""
+[releases.show]
+usage="show [VERSION]"
+shortHelp="Show details for a specific release"
+longHelp="""Shw the release details for a specific release. A version parameter identifies which release is required.
+Versions can be seen in the output of ~~~flyctl releases~~~.
+"""
+
+[secrets]
+usage="secrets"
+shortHelp="Manage app secrets"
+longHelp="""Manage application secrets with the set and unset commands.
+
+Secrets are provided to apps at runtime as ENV variables. Names are
+case sensitive and stored as-is, so ensure names are appropriate for
+the application and vm environment.
+"""
+[secrets.list]
+usage="list"
+shortHelp="Lists the secrets available to the App"
+longHelp="""List the secrets available to the application. It shows each secret's name, a digest of the its value and
+the time the secret was last set. The actual value of the secret is only available to the application.
+"""
+[secrets.set]
+usage="set [flags] NAME=VALUE NAME=VALUE ..."
+shortHelp="Set one or more encrypted secrets for an app"
+longHelp="""Set one or more encrypted secrets for an application.
+
+Secrets are provided to apps at runtime as ENV variables. Names are
+case sensitive and stored as-is, so ensure names are appropriate for
+the application and vm environment.
+
+Any value that equals "-" will be assigned from STDIN instead of args.
+"""
+[secrets.unset]
+usage="unset [flags] NAME NAME ..."
+shortHelp="Remove encrypted secrets from app"
+longHelp="""Remove encrypted secrets from the application. Unsetting a secret removes its availability to
+the application.
+"""
+
+[status]
+usage="status"
+shortHelp="Show app status"
+longHelp="""Show the application's current status including application details, tasks, most recent deployment details
+and in which regions it is currently allocated.
+"""
+
+[version]
+usage="version"
+shortHelp="Show flyctl version information"
+longHelp="""Shows version information for the flyctl command itself, including version number and build date.
+"""
