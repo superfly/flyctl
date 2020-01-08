@@ -7,7 +7,7 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/src/flyctl"
+	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/terminal"
 )
 

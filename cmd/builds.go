@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmd/presenters"
-	"github.com/superfly/flyctl/src/flyctl"
+	"github.com/superfly/flyctl/flyctl"
 )
 
 func newBuildsCommand() *Command {

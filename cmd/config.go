@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/src/flyctl"
+	"github.com/superfly/flyctl/flyctl"
 )
 
 func newConfigCommand() *Command {
