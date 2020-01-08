@@ -5,6 +5,7 @@ import (
 	"github.com/pelletier/go-toml"
 	"log"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -18,11 +19,11 @@ func main() {
 
 	mapped := tree.ToMap()
 
-	fmt.Println("package docstrings\n\nvar docstrings=map[string]KeyStrings{")
+	fmt.Println("package docstrings\n\nfunc Get(key string) KeyStrings {switch(key) {")
 
 	dumpMap("", mapped)
 
-	fmt.Println("}")
+	fmt.Println("}\npanic(\"unknown command key \" + key)\n}")
 }
 
 func dumpMap(prefix string, m map[string]interface{}) {
@@ -31,7 +32,8 @@ func dumpMap(prefix string, m map[string]interface{}) {
 		usage := m["usage"].(string)
 		short := m["shortHelp"].(string)
 		long := m["longHelp"].(string)
-		fmt.Printf("    \"%s\":KeyStrings{\"%s\",\"%s\",\n    `%s`,\n},\n", prefix, usage, short, long)
+		fmt.Printf("case \"%s\":\nreturn KeyStrings{\"%s\",\"%s\",\n    `%s`,\n}\n",
+			prefix, strings.TrimSpace(usage), strings.TrimSpace(short), strings.TrimSpace(long))
 	}
 
 	for k, v := range m {
@@ -43,9 +45,9 @@ func dumpMap(prefix string, m map[string]interface{}) {
 				dumpMap(k, v.(map[string]interface{}))
 			}
 		case string:
-			// Nothing to do
+		// Nothing to do
 		default:
-			fmt.Println("Node ", node, " not handled")
+			fmt.Fprintln(os.Stderr, "Node ", node, " not handled")
 		}
 	}
 }

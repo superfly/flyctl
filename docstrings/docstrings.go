@@ -1,6 +1,6 @@
 package docstrings
 
-//go:generate ruby ../scripts/generate_cmd_docs.rb ../cmddocs.yaml ./gen.go
+//go:generate make -C .. cmddocs
 
 type KeyStrings struct {
 	Usage string
