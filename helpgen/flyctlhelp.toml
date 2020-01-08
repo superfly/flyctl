@@ -227,7 +227,7 @@ longHelp="""Show details of the most recent release.
 [releases.show]
 usage="show [VERSION]"
 shortHelp="Show details for a specific release"
-longHelp="""Shw the release details for a specific release. A version parameter identifies which release is required.
+longHelp="""Show the release details for a specific release. A version parameter identifies which release is required.
 Versions can be seen in the output of ~~~flyctl releases~~~.
 """
 
