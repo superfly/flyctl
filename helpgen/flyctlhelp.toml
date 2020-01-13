@@ -34,18 +34,18 @@ longHelp="""List the applications currently registered for this user. The list w
 is a member of. Each application will be shown with tis name, owner and when it was last deployed.
 """
 [apps.create]
-usage="create"
+usage="create [APPNAME]"
 shortHelp="Create a new application"
 longHelp="""The create command will both register a new application with the Fly platform and create the fly.toml
 file which controls how the application will be deployed.
 """
 [apps.destroy]
-usage="destroy"
+usage="destroy [APPNAME]"
 shortHelp="Permanently destroys an app"
-longHelp="""The ~~~apps destroy~~~ command will remove an application from the fly platform.
+longHelp="""The apps destroy command will remove an application from the fly platform.
 """
 [apps.init-config]
-usage="init-config [APP] [PATH]"
+usage="init-config [APPNAME] [PATH]"
 shortHelp="Initialize a fly.toml file from an existing app"
 longHelp="""Using an existing app, create a fly.toml file
 """
@@ -228,7 +228,7 @@ longHelp="""Show details of the most recent release.
 usage="show [VERSION]"
 shortHelp="Show details for a specific release"
 longHelp="""Show the release details for a specific release. A version parameter identifies which release is required.
-Versions can be seen in the output of ~~~flyctl releases~~~.
+Versions can be seen in the output of flyctl releases.
 """
 
 [secrets]
