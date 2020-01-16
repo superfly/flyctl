@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"runtime"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -11,7 +10,6 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/docker"
 	"github.com/superfly/flyctl/flyctl"
 )
@@ -120,69 +118,8 @@ func watchDeployment(ctx *CmdContext) error {
 
 	fmt.Println(aurora.Blue("==>"), "Monitoring Deployment")
 	fmt.Println(aurora.Faint("You can detach the terminal anytime without stopping the deployment"))
-	fmt.Println()
 
-	var previousRelease *api.Release
-	var currentRelease *api.Release
-
-	var app *api.App
-	var err error
-
-	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
-	s.Prefix = "Deploying "
-	s.Start()
-
-	if runtime.GOOS != "windows" {
-		ctx.Terminal.HideCursor()
-		defer ctx.Terminal.ShowCursor()
-	}
-
-	for {
-		previousRelease = currentRelease
-		if currentRelease != nil && currentRelease.InProgress {
-			release, err := ctx.FlyClient.GetAppReleaseVersion(ctx.AppName, currentRelease.Version)
-			if err != nil {
-				fmt.Println(err)
-			}
-			currentRelease = release
-		} else {
-			app, err = ctx.FlyClient.GetAppStatus(ctx.AppName, false)
-			if err != nil {
-				return err
-			}
-			currentRelease = app.CurrentRelease
-		}
-
-		s.Lock()
-
-		// move to the start of the column to overwrite the status indicator
-		ctx.Terminal.Column(0)
-
-		if previousRelease != nil && previousRelease.Version != currentRelease.Version {
-			ctx.Terminal.ResetPosition()
-		} else {
-			ctx.Terminal.Overwrite()
-		}
-
-		err = ctx.RenderView(PresenterOption{
-			Presentable: &presenters.ReleaseDetails{Release: *currentRelease},
-			Vertical:    true,
-		},
-			PresenterOption{
-				Presentable: &presenters.DeploymentTaskStatus{Release: *currentRelease},
-			},
-		)
-
-		s.Unlock()
-
-		if !currentRelease.InProgress && currentRelease.Stable {
-			break
-		} else {
-			time.Sleep(1 * time.Second)
-		}
-	}
-
-	s.Stop()
-
-	return nil
+	monitor := flyctl.NewDeploymentMonitor(ctx.FlyClient, ctx.AppName)
+	monitor.DisplayCompact(ctx.Out)
+	return monitor.Error()
 }
