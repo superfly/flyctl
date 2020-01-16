@@ -83,10 +83,13 @@ type App struct {
 	Certificates struct {
 		Nodes []AppCertificate
 	}
-	Certificate AppCertificate
-	Services    []Service
-	Config      AppConfig
-	ParseConfig AppConfig
+	Certificate            AppCertificate
+	Services               []Service
+	Config                 AppConfig
+	ParseConfig            AppConfig
+	Allocations            []AllocationStatus
+	DeploymentStatus       *DeploymentStatus
+	LatestDeploymentStatus *DeploymentStatus
 }
 
 type AppConfig struct {
@@ -222,12 +225,19 @@ type AppChange struct {
 }
 
 type DeploymentStatus struct {
-	ID          string
-	Status      string
-	Description string
-	InProgress  bool
-	Tasks       []TaskDeploymentStatus
-	CreatedAt   time.Time
+	ID             string
+	Status         string
+	Description    string
+	InProgress     bool
+	Successful     bool
+	Tasks          []TaskDeploymentStatus
+	CreatedAt      time.Time
+	Allocations    []AllocationStatus
+	Version        int
+	DesiredCount   int
+	PlacedCount    int
+	HealthyCount   int
+	UnhealthyCount int
 }
 
 type TaskDeploymentStatus struct {
@@ -313,4 +323,33 @@ type AllocateIPAddressInput struct {
 
 type ReleaseIPAddressInput struct {
 	IPAddressID string `json:"ipAddressId"`
+}
+
+type AllocationStatus struct {
+	ID            string
+	IDShort       string
+	Version       int
+	Region        string
+	Status        string
+	DesiredStatus string
+	Healthy       bool
+	Canary        bool
+	Failed        bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	Checks        []CheckState
+	Events        []AllocationEvent
+}
+
+type AllocationEvent struct {
+	Timestamp time.Time
+	Type      string
+	Message   string
+}
+
+type CheckState struct {
+	Name        string
+	Status      string
+	Output      string
+	ServiceName string
 }
