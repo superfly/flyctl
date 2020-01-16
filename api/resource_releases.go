@@ -134,4 +134,3 @@ func (c *Client) GetAppReleaseVersion(appName string, version int) (*Release, er
 
 	return data.App.Release, nil
 }
-

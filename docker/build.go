@@ -16,8 +16,8 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/terminal"
 )
 
