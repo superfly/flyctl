@@ -4,6 +4,7 @@
 *.dll
 *.so
 *.dylib
+bin/
 
 # Test binary, built with `go test -c`
 *.test
@@ -21,3 +22,4 @@ dist/
 
 # generated docs
 out
+docstrings/gen.go

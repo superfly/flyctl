@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/docstrings"
 	"os"
 
 	"github.com/logrusorgru/aurora"
@@ -9,7 +10,8 @@ import (
 )
 
 func newAppInfoCommand() *Command {
-	return BuildCommand(nil, runAppInfo, "info", "show detailed app information", os.Stdout, true, requireAppName)
+	ks := docstrings.Get("info")
+	return BuildCommand(nil, runAppInfo, ks.Usage, ks.Short, ks.Long, true, os.Stdout, requireAppName)
 }
 
 func runAppInfo(ctx *CmdContext) error {

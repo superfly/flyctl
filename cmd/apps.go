@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/docstrings"
 	"os"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -13,33 +14,44 @@ import (
 )
 
 func newAppListCommand() *Command {
+
+	appsStrings := docstrings.Get("apps")
+
 	cmd := &Command{
 		Command: &cobra.Command{
-			Use:   "apps",
-			Short: "manage apps",
-			Long:  "Manage your Fly applications. You'll usually start with the \"create\" subcommand.",
+			Use:   appsStrings.Usage,
+			Short: appsStrings.Short,
+			Long:  appsStrings.Long,
 		},
 	}
 
-	BuildCommand(cmd, runAppsList, "list", "list apps", os.Stdout, true)
+	appsListStrings := docstrings.Get("apps.list")
 
-	create := BuildCommand(cmd, runAppsCreate, "create", "create a new app", os.Stdout, true)
+	BuildCommand(cmd, runAppsList, appsListStrings.Usage, appsListStrings.Short, appsListStrings.Long, true, os.Stdout)
+
+	appsCreateStrings := docstrings.Get("apps.create")
+
+	create := BuildCommand(cmd, runAppsCreate, appsCreateStrings.Usage, appsCreateStrings.Short, appsCreateStrings.Long, true, os.Stdout)
+
+	// TODO: Move flag descriptions into the docStrings
 	create.AddStringFlag(StringFlagOpts{
 		Name:        "name",
-		Description: "the app name to use",
+		Description: "The app name to use",
 	})
 	create.AddStringFlag(StringFlagOpts{
 		Name:        "org",
-		Description: `the organization that will own the app`,
+		Description: `The organization that will own the app`,
 	})
 	create.AddStringFlag(StringFlagOpts{
 		Name:        "builder",
-		Description: `the builder to use when deploying the app`,
+		Description: `The builder to use when deploying the app`,
 	})
 
-	delete := BuildCommand(cmd, runDestroyApp, "destroy", "permanently destroy an app", os.Stdout, true)
-	delete.Args = cobra.ExactArgs(1)
-	delete.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "accept all confirmations"})
+	appsDestroyStrings := docstrings.Get("apps.destroy")
+	destroy := BuildCommand(cmd, runDestroyApp, appsDestroyStrings.Usage, appsDestroyStrings.Short, appsDestroyStrings.Long, true, os.Stdout)
+	destroy.Args = cobra.ExactArgs(1)
+	// TODO: Move flag descriptions into the docStrings
+	destroy.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "Accept all confirmations"})
 
 	return cmd
 }

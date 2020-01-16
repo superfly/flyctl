@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/superfly/flyctl/docstrings"
 	"os"
 	"strconv"
 	"strings"
@@ -11,9 +12,14 @@ import (
 )
 
 func newAppReleasesListCommand() *Command {
-	cmd := BuildCommand(nil, runAppReleasesList, "releases", "list app releases", os.Stdout, true, requireAppName)
-	BuildCommand(cmd, runShowCurrentReleaseDetails, "latest", "show latest release", os.Stdout, true, requireAppName)
-	show := BuildCommand(cmd, runShowReleaseDetails, "show [VERSION]", "show detailed release information", os.Stdout, true, requireAppName)
+	releasesStrings := docstrings.Get("releases")
+	cmd := BuildCommand(nil, runAppReleasesList, releasesStrings.Usage, releasesStrings.Short, releasesStrings.Long, true, os.Stdout, requireAppName)
+
+	releasesLatestStrings := docstrings.Get("releases.latest")
+	BuildCommand(cmd, runShowCurrentReleaseDetails, releasesLatestStrings.Usage, releasesLatestStrings.Short, releasesLatestStrings.Long, true, os.Stdout, requireAppName)
+
+	releasesShowStrings := docstrings.Get("releases.show")
+	show := BuildCommand(cmd, runShowReleaseDetails, releasesShowStrings.Usage, releasesShowStrings.Short, releasesShowStrings.Long, true, os.Stdout, requireAppName)
 	show.Args = cobra.ExactArgs(1)
 	return cmd
 }

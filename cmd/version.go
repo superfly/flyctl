@@ -2,13 +2,15 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/docstrings"
 	"os"
 
 	"github.com/superfly/flyctl/flyctl"
 )
 
 func newVersionCommand() *Command {
-	return BuildCommand(nil, runVersion, "version", "show flyctl version information", os.Stdout, false)
+	versionStrings := docstrings.Get("version")
+	return BuildCommand(nil, runVersion, versionStrings.Usage, versionStrings.Short, versionStrings.Long, false, os.Stdout)
 }
 
 func runVersion(ctx *CmdContext) error {

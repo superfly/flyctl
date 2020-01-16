@@ -17,7 +17,7 @@ var rootCmd = &Command{
 	Command: &cobra.Command{
 		Use:   "flyctl",
 		Short: "The Fly CLI",
-		Long:  `flycyl is a command line interface for the Fly.io platform`,
+		Long:  `flyctl is a command line interface for the Fly.io platform`,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			cmd.SilenceUsage = true
 			cmd.SilenceErrors = true

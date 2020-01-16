@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/docstrings"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -10,15 +11,20 @@ import (
 )
 
 func newBuildsCommand() *Command {
+	buildsStrings := docstrings.Get("builds")
+
 	cmd := &Command{
 		Command: &cobra.Command{
-			Use:   "builds",
-			Short: "interact with builds",
+			Use:   buildsStrings.Usage,
+			Short: buildsStrings.Short,
+			Long:  buildsStrings.Long,
 		},
 	}
 
-	BuildCommand(cmd, runListBuilds, "list", "list builds", os.Stdout, true, requireAppName)
-	logs := BuildCommand(cmd, runBuildLogs, "logs", "show build logs", os.Stdout, true, requireAppName)
+	buildsListStrings := docstrings.Get("builds.list")
+	BuildCommand(cmd, runListBuilds, buildsListStrings.Usage, buildsListStrings.Short, buildsListStrings.Long, true, os.Stdout, requireAppName)
+	buildsLogsStrings := docstrings.Get("builds.logs")
+	logs := BuildCommand(cmd, runBuildLogs, buildsLogsStrings.Usage, buildsLogsStrings.Short, buildsLogsStrings.Long, true, os.Stdout, requireAppName)
 	logs.Command.Args = cobra.ExactArgs(1)
 
 	return cmd

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/docstrings"
 	"os"
 	"runtime"
 	"time"
@@ -17,7 +18,9 @@ import (
 )
 
 func newDeployCommand() *Command {
-	cmd := BuildCommand(nil, runDeploy, "deploy", "deploy a local image, remote image, or Dockerfile", os.Stdout, true, workingDirectoryFromArg(0), requireAppName)
+
+	deployStrings := docstrings.Get("deploy")
+	cmd := BuildCommand(nil, runDeploy, deployStrings.Usage, deployStrings.Short, deployStrings.Long, true, os.Stdout, workingDirectoryFromArg(0), requireAppName)
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "image",
 		Shorthand:   "i",

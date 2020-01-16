@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"github.com/superfly/flyctl/docstrings"
 	"os"
 	"time"
 
@@ -18,37 +19,46 @@ import (
 )
 
 func newAuthCommand() *Command {
+
+	authStrings := docstrings.Get("auth")
+
 	cmd := &Command{
 		Command: &cobra.Command{
-			Use:   "auth",
-			Short: "manage authentication",
-			Long:  "Authenticate with Fly (and logout if you need to). Start with the \"login\" subcommand.",
+			Use:   authStrings.Usage,
+			Short: authStrings.Short,
+			Long:  authStrings.Long,
 		},
 	}
+	authWhoamiStrings := docstrings.Get("auth.whoami")
+	BuildCommand(cmd, runWhoami, authWhoamiStrings.Usage, authWhoamiStrings.Short, authWhoamiStrings.Long, true, os.Stdout)
 
-	BuildCommand(cmd, runWhoami, "whoami", "show the currently authenticated user", os.Stdout, true)
-	BuildCommand(cmd, runAuthToken, "token", "show the current auth token", os.Stdout, true)
+	authTokenStrings := docstrings.Get("auth.token")
+	BuildCommand(cmd, runAuthToken, authTokenStrings.Usage, authTokenStrings.Short, authTokenStrings.Long, true, os.Stdout)
 
-	login := BuildCommand(cmd, runLogin, "login", "log in a user", os.Stdout, false)
+	authLoginStrings := docstrings.Get("auth.login")
+	login := BuildCommand(cmd, runLogin, authLoginStrings.Usage, authLoginStrings.Short, authLoginStrings.Long, false, os.Stdout)
+
+	// TODO: Move flag descriptions into the docStrings
 	login.AddBoolFlag(BoolFlagOpts{
 		Name:        "interactive",
 		Shorthand:   "i",
-		Description: "log in with an email and password interactively",
+		Description: "Log in with an email and password interactively",
 	})
 	login.AddStringFlag(StringFlagOpts{
 		Name:        "email",
-		Description: "login email",
+		Description: "Login email",
 	})
 	login.AddStringFlag(StringFlagOpts{
 		Name:        "password",
-		Description: "login password",
+		Description: "Login password",
 	})
 	login.AddStringFlag(StringFlagOpts{
 		Name:        "otp",
-		Description: "one time password",
+		Description: "One time password",
 	})
 
-	BuildCommand(cmd, runLogout, "logout", "log out the user", os.Stdout, true)
+	authLogoutStrings := docstrings.Get("auth.logout")
+	BuildCommand(cmd, runLogout, authLogoutStrings.Usage, authLogoutStrings.Short, authLogoutStrings.Long, true, os.Stdout)
 
 	return cmd
 }
