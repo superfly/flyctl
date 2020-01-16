@@ -1,5 +1,5 @@
 cmddocs:
-	go run helpgen/helpgen.go helpgen/flyctlhelp.toml | gofmt -s > docstrings/gen.go
+	sh scripts/helpgen.sh
 
 generate:
 	go generate ./...

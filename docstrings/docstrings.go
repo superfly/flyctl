@@ -1,6 +1,6 @@
 package docstrings
 
-//go:generate make -C .. cmddocs
+//go:generate sh ../scripts/helpgen.sh
 
 type KeyStrings struct {
 	Usage string
