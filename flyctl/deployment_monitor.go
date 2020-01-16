@@ -380,5 +380,5 @@ func formatHealthChecksSummary(allocs ...api.AllocationStatus) string {
 		checkStr += ", " + fmt.Sprintf("%d critical", crit)
 	}
 
-	return "heahth checks: " + checkStr
+	return "health checks: " + checkStr
 }
