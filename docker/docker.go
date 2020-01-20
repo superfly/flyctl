@@ -181,16 +181,19 @@ func (c *DockerClient) BuildImage(tar io.Reader, tag string, buildArgs map[strin
 		return nil, err
 	}
 
+	defer func(id string) {
+		err := c.docker.ContainerRemove(c.ctx, id, types.ContainerRemoveOptions{})
+		if err != nil {
+			fmt.Printf("Failed to clean temporary docker container %s\n", id)
+		}
+	}(cont.ID)
+
 	fmt.Println("Exporting rootfs")
 	r, err := c.docker.ContainerExport(c.ctx, cont.ID)
 	if err != nil {
 		return nil, err
 	}
 	defer r.Close()
-
-	defer func(id string) {
-		c.docker.ContainerRemove(c.ctx, id, types.ContainerRemoveOptions{})
-	}(cont.ID)
 
 	fmt.Println("Importing image config")
 
