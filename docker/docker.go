@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
@@ -142,7 +143,7 @@ func (c *DockerClient) DeleteDeploymentImages(appName string) error {
 	return nil
 }
 
-func (c *DockerClient) BuildImage(tar io.Reader, tag string, buildArgs map[string]*string, out io.Writer) (*types.ImageSummary, error) {
+func (c *DockerClient) BuildImage(tar io.Reader, tag string, buildArgs map[string]*string, out io.Writer, squash bool) (*types.ImageSummary, error) {
 	resp, err := c.docker.ImageBuild(c.ctx, tar, types.ImageBuildOptions{
 		Tags:      []string{tag},
 		BuildArgs: buildArgs,
@@ -160,7 +161,80 @@ func (c *DockerClient) BuildImage(tar io.Reader, tag string, buildArgs map[strin
 		return nil, err
 	}
 
-	return c.findImage(tag)
+	img, err := c.findImage(tag)
+	if err != nil {
+		return nil, err
+	}
+
+	if !squash {
+		return img, err
+	}
+
+	printHeader("Squashing image")
+
+	fmt.Println("Creating temporary container")
+
+	cont, err := c.docker.ContainerCreate(c.ctx, &container.Config{
+		Image: img.ID,
+	}, nil, nil, "")
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("Exporting rootfs")
+	r, err := c.docker.ContainerExport(c.ctx, cont.ID)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	defer func(id string) {
+		c.docker.ContainerRemove(c.ctx, id, types.ContainerRemoveOptions{})
+	}(cont.ID)
+
+	fmt.Println("Applying USER, ENTRYPOINT and CMD")
+
+	contJSON, err := c.docker.ContainerInspect(c.ctx, cont.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	entrypoint := []string{}
+	for _, e := range contJSON.Config.Entrypoint {
+		entrypoint = append(entrypoint, fmt.Sprintf("%q", e))
+	}
+
+	cmd := []string{}
+	for _, c := range contJSON.Config.Cmd {
+		cmd = append(cmd, fmt.Sprintf("%q", c))
+	}
+
+	fmt.Println("Importing flat image")
+	j, err := c.docker.ImageImport(c.ctx, types.ImageImportSource{
+		Source:     r,
+		SourceName: "-",
+	}, tag, types.ImageImportOptions{Changes: []string{
+		fmt.Sprintf("ENTRYPOINT [%s]", strings.Join(entrypoint, ",")),
+		fmt.Sprintf("CMD [%s]", strings.Join(cmd, ",")),
+		fmt.Sprintf("USER %s", contJSON.Config.User),
+	}})
+	if err != nil {
+		return nil, err
+	}
+	defer j.Close()
+
+	// fmt.Println("RESP DECODE")
+	// var respBody interface{}
+	// err = json.NewDecoder(j).Decode(&respBody)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// fmt.Println("DEBUGGING RESP BODY", respBody)
+
+	fmt.Println("--> done")
+
+	return img, err
 }
 
 var imageIDPattern = regexp.MustCompile("[a-f0-9]")
