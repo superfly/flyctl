@@ -192,7 +192,7 @@ func (c *DockerClient) BuildImage(tar io.Reader, tag string, buildArgs map[strin
 		c.docker.ContainerRemove(c.ctx, id, types.ContainerRemoveOptions{})
 	}(cont.ID)
 
-	fmt.Println("Applying USER, ENTRYPOINT and CMD")
+	fmt.Println("Importing image config")
 
 	contJSON, err := c.docker.ContainerInspect(c.ctx, cont.ID)
 	if err != nil {
@@ -209,28 +209,37 @@ func (c *DockerClient) BuildImage(tar io.Reader, tag string, buildArgs map[strin
 		cmd = append(cmd, fmt.Sprintf("%q", c))
 	}
 
-	fmt.Println("Importing flat image")
+	importOpts := types.ImageImportOptions{}
+
+	if len(entrypoint) > 0 {
+		fmt.Println("Importing ENTRYPOINT")
+		importOpts.Changes = append(importOpts.Changes, fmt.Sprintf("ENTRYPOINT [%s]", strings.Join(entrypoint, ",")))
+	}
+
+	if len(cmd) > 0 {
+		fmt.Println("Importing CMD")
+		importOpts.Changes = append(importOpts.Changes, fmt.Sprintf("CMD [%s]", strings.Join(cmd, ",")))
+	}
+
+	if contJSON.Config.User != "" {
+		fmt.Println("Importing USER")
+		importOpts.Changes = append(importOpts.Changes, fmt.Sprintf("USER %s", contJSON.Config.User))
+	}
+
+	if len(contJSON.Config.Env) > 0 {
+		fmt.Println("Importing ENV")
+		importOpts.Changes = append(importOpts.Changes, fmt.Sprintf("ENV %s", strings.Join(contJSON.Config.Env, " ")))
+	}
+
+	fmt.Println("Creating squashed image")
 	j, err := c.docker.ImageImport(c.ctx, types.ImageImportSource{
 		Source:     r,
 		SourceName: "-",
-	}, tag, types.ImageImportOptions{Changes: []string{
-		fmt.Sprintf("ENTRYPOINT [%s]", strings.Join(entrypoint, ",")),
-		fmt.Sprintf("CMD [%s]", strings.Join(cmd, ",")),
-		fmt.Sprintf("USER %s", contJSON.Config.User),
-	}})
+	}, tag, importOpts)
 	if err != nil {
 		return nil, err
 	}
 	defer j.Close()
-
-	// fmt.Println("RESP DECODE")
-	// var respBody interface{}
-	// err = json.NewDecoder(j).Decode(&respBody)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// fmt.Println("DEBUGGING RESP BODY", respBody)
 
 	fmt.Println("--> done")
 
