@@ -2,7 +2,12 @@ echo "Running doc/main.go"
 go run doc/main.go
 
 echo "Cleaning up output"
-sed -i 's/```/~~~/g' out/*.md
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  sed -i "" -e 's/```/~~~/g' out/*.md
+else
+  sed -i 's/```/~~~/g' out/*.md
+fi
+
 if [ "$1" ]
     then
         echo "rsync to $1"
