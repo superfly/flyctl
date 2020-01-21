@@ -23,3 +23,9 @@ dist/
 # generated docs
 out
 docstrings/gen.go
+/.idea/.gitignore
+/.idea/dictionaries/dj.xml
+/.idea/flyctl.iml
+/.idea/misc.xml
+/.idea/modules.xml
+/.idea/vcs.xml

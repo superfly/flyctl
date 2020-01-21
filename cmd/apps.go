@@ -32,6 +32,7 @@ func newAppListCommand() *Command {
 	appsCreateStrings := docstrings.Get("apps.create")
 
 	create := BuildCommand(cmd, runAppsCreate, appsCreateStrings.Usage, appsCreateStrings.Short, appsCreateStrings.Long, true, os.Stdout)
+	create.Args = cobra.RangeArgs(0, 1)
 
 	// TODO: Move flag descriptions into the docStrings
 	create.AddStringFlag(StringFlagOpts{
@@ -92,6 +93,12 @@ func runDestroyApp(ctx *CmdContext) error {
 }
 
 func runAppsCreate(ctx *CmdContext) error {
+	var appName = ""
+
+	if len(ctx.Args) > 0 {
+		appName = ctx.Args[0]
+	}
+
 	newAppConfig := flyctl.NewAppConfig()
 
 	if namedBuilder, _ := ctx.Config.GetString("builder"); namedBuilder != "" {
@@ -103,6 +110,15 @@ func runAppsCreate(ctx *CmdContext) error {
 	}
 
 	name, _ := ctx.Config.GetString("name")
+
+	if name != "" && appName != "" {
+		return fmt.Errorf(`Two app names specified %s and %s. Select and specify only one.`, appName, name)
+	}
+
+	if name == "" && appName != "" {
+		name = appName
+	}
+
 	if name == "" {
 		prompt := &survey.Input{
 			Message: "App Name (leave blank to use an auto-generated name)",
@@ -112,6 +128,8 @@ func runAppsCreate(ctx *CmdContext) error {
 				return nil
 			}
 		}
+	} else {
+		fmt.Printf("Selected App Name: %s\n", name)
 	}
 
 	targetOrgSlug, _ := ctx.Config.GetString("org")
