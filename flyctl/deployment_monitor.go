@@ -78,9 +78,7 @@ func (dm *DeploymentMonitor) Start() <-chan *DeploymentStatus {
 				currentID = deployment.ID
 			}
 
-			// if currentDeployment != nil {
 			currentDeployment.Update(deployment)
-			// }
 
 			if !deployment.InProgress && currentDeployment != nil {
 				// deployment is complete, close out and reset for next iteration

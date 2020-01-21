@@ -103,10 +103,6 @@ func runDeploy(ctx *CmdContext) error {
 	return watchDeployment(ctx)
 }
 
-func watchBuildLogs(ctx *CmdContext, build *api.Build) {
-
-}
-
 func renderRelease(ctx *CmdContext, release *api.Release) error {
 	fmt.Printf("Release v%d created\n", release.Version)
 
