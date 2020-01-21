@@ -27,7 +27,7 @@ type DeploymentMonitor struct {
 	err    error
 }
 
-var pollInterval = 1 * time.Second
+var pollInterval = 750 * time.Millisecond
 
 func (dm *DeploymentMonitor) Start() <-chan *DeploymentStatus {
 	statusCh := make(chan *DeploymentStatus)
