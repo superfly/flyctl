@@ -27,6 +27,8 @@ type DeploymentMonitor struct {
 	err    error
 }
 
+var pollInterval = 1 * time.Second
+
 func (dm *DeploymentMonitor) Start() <-chan *DeploymentStatus {
 	statusCh := make(chan *DeploymentStatus)
 
@@ -37,6 +39,7 @@ func (dm *DeploymentMonitor) Start() <-chan *DeploymentStatus {
 		currentID := ""
 		prevID := ""
 		num := 0
+		startTime := time.Now()
 
 		for {
 			deployment, err := dm.client.GetDeploymentStatus(dm.AppID, currentID)
@@ -47,9 +50,13 @@ func (dm *DeploymentMonitor) Start() <-chan *DeploymentStatus {
 			}
 
 			if deployment == nil {
-				fmt.Println("No deployment available")
-				// nothing to show, break
-				break
+				if time.Now().After(startTime.Add(5 * time.Second)) {
+					fmt.Println("No deployment available")
+					// nothing to show after 5 seconds, break
+					break
+				}
+				time.Sleep(pollInterval)
+				continue
 			}
 
 			if deployment.ID == prevID {
@@ -83,7 +90,7 @@ func (dm *DeploymentMonitor) Start() <-chan *DeploymentStatus {
 				currentID = ""
 			}
 
-			time.Sleep(1 * time.Second)
+			time.Sleep(pollInterval)
 		}
 	}()
 
