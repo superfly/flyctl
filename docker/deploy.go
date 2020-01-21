@@ -109,7 +109,7 @@ func (op *DeployOperation) deployImageWithoutDocker(imageRef string) (*api.Relea
 		return nil, err
 	}
 
-	return op.deployImage(ref.Repository())
+	return op.deployImage(ref.Remote())
 }
 
 func (op *DeployOperation) resolveAndTagImageRef(imageRef string) (string, error) {
