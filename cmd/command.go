@@ -273,6 +273,8 @@ func requireAppName(cmd *Command) Initializer {
 					return err
 				}
 				ctx.AppConfig = appConfig
+			} else {
+				ctx.AppConfig = flyctl.NewAppConfig()
 			}
 
 			// set the app name if provided
