@@ -214,6 +214,9 @@ func BuildCommand(parent *Command, fn CmdRunFn, usageText string, shortHelpText 
 				}
 			}
 
+			terminal.Debugf("Working Directory: %s\n", ctx.WorkingDir)
+			terminal.Debugf("App Config File: %s\n", ctx.ConfigFile)
+
 			for _, init := range initializers {
 				if init.PreRun != nil {
 					checkErr(init.PreRun(ctx))
@@ -328,6 +331,10 @@ func workingDirectoryFromArg(index int) func(*Command) Initializer {
 					return err
 				}
 				ctx.WorkingDir = abs
+
+				if !helpers.DirectoryExists(ctx.WorkingDir) {
+					return fmt.Errorf("working directory '%s' not found", ctx.WorkingDir)
+				}
 
 				return nil
 			},
