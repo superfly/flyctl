@@ -28,6 +28,9 @@ func newDeployCommand() *Command {
 		Name:        "detach",
 		Description: "Return immediately instead of monitoring deployment progress",
 	})
+	cmd.AddBoolFlag(BoolFlagOpts{
+		Name: "squash",
+	})
 
 	cmd.Command.Args = cobra.MaximumNArgs(1)
 
@@ -35,7 +38,7 @@ func newDeployCommand() *Command {
 }
 
 func runDeploy(ctx *CmdContext) error {
-	op, err := docker.NewDeployOperation(ctx.AppName, ctx.AppConfig, ctx.FlyClient, ctx.Out)
+	op, err := docker.NewDeployOperation(ctx.AppName, ctx.AppConfig, ctx.FlyClient, ctx.Out, ctx.Config.GetBool("squash"))
 	if err != nil {
 		return err
 	}

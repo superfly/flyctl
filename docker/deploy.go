@@ -18,9 +18,10 @@ type DeployOperation struct {
 	out             io.Writer
 	appName         string
 	appConfig       *flyctl.AppConfig
+	squash          bool
 }
 
-func NewDeployOperation(appName string, appConfig *flyctl.AppConfig, apiClient *api.Client, out io.Writer) (*DeployOperation, error) {
+func NewDeployOperation(appName string, appConfig *flyctl.AppConfig, apiClient *api.Client, out io.Writer, squash bool) (*DeployOperation, error) {
 	dockerClient, err := NewDockerClient()
 	if err != nil {
 		return nil, err
@@ -32,6 +33,7 @@ func NewDeployOperation(appName string, appConfig *flyctl.AppConfig, apiClient *
 		out:          out,
 		appName:      appName,
 		appConfig:    appConfig,
+		squash:       squash,
 	}
 
 	op.dockerAvailable = op.dockerClient.Check() == nil

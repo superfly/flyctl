@@ -98,7 +98,7 @@ func (op *DeployOperation) BuildAndDeploy(cwd string, appConfig *flyctl.AppConfi
 
 	buildArgs := normalizeBuildArgs(appConfig)
 
-	img, err := op.dockerClient.BuildImage(archive.File, tag, buildArgs, op.out)
+	img, err := op.dockerClient.BuildImage(archive.File, tag, buildArgs, op.out, op.squash)
 
 	if err != nil {
 		return nil, err

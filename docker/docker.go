@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
@@ -142,7 +143,7 @@ func (c *DockerClient) DeleteDeploymentImages(appName string) error {
 	return nil
 }
 
-func (c *DockerClient) BuildImage(tar io.Reader, tag string, buildArgs map[string]*string, out io.Writer) (*types.ImageSummary, error) {
+func (c *DockerClient) BuildImage(tar io.Reader, tag string, buildArgs map[string]*string, out io.Writer, squash bool) (*types.ImageSummary, error) {
 	resp, err := c.docker.ImageBuild(c.ctx, tar, types.ImageBuildOptions{
 		Tags:      []string{tag},
 		BuildArgs: buildArgs,
@@ -160,7 +161,92 @@ func (c *DockerClient) BuildImage(tar io.Reader, tag string, buildArgs map[strin
 		return nil, err
 	}
 
-	return c.findImage(tag)
+	img, err := c.findImage(tag)
+	if err != nil {
+		return nil, err
+	}
+
+	if !squash {
+		return img, err
+	}
+
+	printHeader("Squashing image")
+
+	fmt.Println("Creating temporary container")
+
+	cont, err := c.docker.ContainerCreate(c.ctx, &container.Config{
+		Image: img.ID,
+	}, nil, nil, "")
+	if err != nil {
+		return nil, err
+	}
+
+	defer func(id string) {
+		err := c.docker.ContainerRemove(c.ctx, id, types.ContainerRemoveOptions{})
+		if err != nil {
+			fmt.Printf("Failed to clean temporary docker container %s\n", id)
+		}
+	}(cont.ID)
+
+	fmt.Println("Exporting rootfs")
+	r, err := c.docker.ContainerExport(c.ctx, cont.ID)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	fmt.Println("Importing image config")
+
+	contJSON, err := c.docker.ContainerInspect(c.ctx, cont.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	entrypoint := []string{}
+	for _, e := range contJSON.Config.Entrypoint {
+		entrypoint = append(entrypoint, fmt.Sprintf("%q", e))
+	}
+
+	cmd := []string{}
+	for _, c := range contJSON.Config.Cmd {
+		cmd = append(cmd, fmt.Sprintf("%q", c))
+	}
+
+	importOpts := types.ImageImportOptions{}
+
+	if len(entrypoint) > 0 {
+		fmt.Println("Importing ENTRYPOINT")
+		importOpts.Changes = append(importOpts.Changes, fmt.Sprintf("ENTRYPOINT [%s]", strings.Join(entrypoint, ",")))
+	}
+
+	if len(cmd) > 0 {
+		fmt.Println("Importing CMD")
+		importOpts.Changes = append(importOpts.Changes, fmt.Sprintf("CMD [%s]", strings.Join(cmd, ",")))
+	}
+
+	if contJSON.Config.User != "" {
+		fmt.Println("Importing USER")
+		importOpts.Changes = append(importOpts.Changes, fmt.Sprintf("USER %s", contJSON.Config.User))
+	}
+
+	if len(contJSON.Config.Env) > 0 {
+		fmt.Println("Importing ENV")
+		importOpts.Changes = append(importOpts.Changes, fmt.Sprintf("ENV %s", strings.Join(contJSON.Config.Env, " ")))
+	}
+
+	fmt.Println("Creating squashed image")
+	j, err := c.docker.ImageImport(c.ctx, types.ImageImportSource{
+		Source:     r,
+		SourceName: "-",
+	}, tag, importOpts)
+	if err != nil {
+		return nil, err
+	}
+	defer j.Close()
+
+	fmt.Println("--> done")
+
+	return img, err
 }
 
 var imageIDPattern = regexp.MustCompile("[a-f0-9]")
