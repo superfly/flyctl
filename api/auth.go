@@ -13,11 +13,12 @@ type CLISessionAuth struct {
 	AccessToken string `json:"access_token"`
 }
 
-func StartCLISessionWebAuth(machineName string) (CLISessionAuth, error) {
+func StartCLISessionWebAuth(machineName string, signup bool) (CLISessionAuth, error) {
 	var result CLISessionAuth
 
-	postData, _ := json.Marshal(map[string]string{
-		"name": machineName,
+	postData, _ := json.Marshal(map[string]interface{}{
+		"name":   machineName,
+		"signup": signup,
 	})
 
 	url := fmt.Sprintf("%s/api/v1/cli_sessions", baseURL)

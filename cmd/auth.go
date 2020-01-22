@@ -60,6 +60,9 @@ func newAuthCommand() *Command {
 	authLogoutStrings := docstrings.Get("auth.logout")
 	BuildCommand(cmd, runLogout, authLogoutStrings.Usage, authLogoutStrings.Short, authLogoutStrings.Long, true, os.Stdout)
 
+	authSignupStrings := docstrings.Get("auth.signup")
+	BuildCommand(cmd, runSignup, authSignupStrings.Usage, authSignupStrings.Short, authSignupStrings.Long, false, os.Stdout)
+
 	return cmd
 }
 
@@ -86,13 +89,17 @@ func runLogin(ctx *CmdContext) error {
 		return runInteractiveLogin(ctx)
 	}
 
-	return runWebLogin(ctx)
+	return runWebLogin(ctx, false)
 }
 
-func runWebLogin(ctx *CmdContext) error {
+func runSignup(ctx *CmdContext) error {
+	return runWebLogin(ctx, true)
+}
+
+func runWebLogin(ctx *CmdContext, signup bool) error {
 	name, _ := os.Hostname()
 
-	cliAuth, err := api.StartCLISessionWebAuth(name)
+	cliAuth, err := api.StartCLISessionWebAuth(name, signup)
 	if err != nil {
 		return err
 	}

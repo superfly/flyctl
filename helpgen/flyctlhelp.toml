@@ -80,7 +80,11 @@ usage="logout"
 shortHelp="Log out the currently logged in user"
 longHelp="""Log out the currently logged in user. To continue interacting with Fly, the user must log in again.
 """
-
+[auth.signup]
+usage="signup"
+shortHelp="Create a new fly account"
+longHelp="""Create a new fly account.
+"""
 
 [builds]
 usage="builds"
