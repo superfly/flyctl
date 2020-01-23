@@ -44,6 +44,11 @@ usage="destroy [APPNAME]"
 shortHelp="Permanently destroys an app"
 longHelp="""The apps destroy command will remove an application from the fly platform.
 """
+[apps.move]
+usage="move [APPNAME]"
+shortHelp="Move an app to another organization"
+longHelp="""The apps move command will move an app to another organization the current user belongs to.
+"""
 [apps.init-config]
 usage="init-config [APPNAME] [PATH]"
 shortHelp="Initialize a fly.toml file from an existing app"

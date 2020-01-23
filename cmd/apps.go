@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/superfly/flyctl/docstrings"
 	"os"
+
+	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/docstrings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/logrusorgru/aurora"
@@ -53,6 +55,16 @@ func newAppListCommand() *Command {
 	destroy.Args = cobra.ExactArgs(1)
 	// TODO: Move flag descriptions into the docStrings
 	destroy.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "Accept all confirmations"})
+
+	appsMoveStrings := docstrings.Get("apps.move")
+	move := BuildCommand(cmd, runAppsMove, appsMoveStrings.Usage, appsMoveStrings.Short, appsMoveStrings.Long, true, os.Stdout)
+	move.Args = cobra.ExactArgs(1)
+	// TODO: Move flag descriptions into the docStrings
+	move.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "Accept all confirmations"})
+	move.AddStringFlag(StringFlagOpts{
+		Name:        "org",
+		Description: `The organization to move the app to`,
+	})
 
 	return cmd
 }
@@ -165,4 +177,46 @@ func runAppsCreate(ctx *CmdContext) error {
 	}
 
 	return writeAppConfig(ctx.ConfigFile, newAppConfig)
+}
+
+func runAppsMove(ctx *CmdContext) error {
+	appName := ctx.Args[0]
+
+	targetOrgSlug, _ := ctx.Config.GetString("org")
+	org, err := selectOrganization(ctx.FlyClient, targetOrgSlug)
+
+	switch {
+	case isInterrupt(err):
+		return nil
+	case err != nil || org == nil:
+		return fmt.Errorf("Error setting organization: %s", err)
+	}
+
+	app, err := ctx.FlyClient.GetApp(appName)
+	if err != nil {
+		return errors.Wrap(err, "Error fetching app")
+	}
+
+	if !ctx.Config.GetBool("yes") {
+		fmt.Println(aurora.Red("Are you sure you want to move this app?"))
+
+		confirm := false
+		prompt := &survey.Confirm{
+			Message: fmt.Sprintf("Move %s from %s to %s?", appName, app.Organization.Slug, org.Slug),
+		}
+		survey.AskOne(prompt, &confirm)
+
+		if !confirm {
+			return nil
+		}
+	}
+
+	app, err = ctx.FlyClient.MoveApp(appName, org.ID)
+	if err != nil {
+		return errors.WithMessage(err, "Failed to move app")
+	}
+
+	fmt.Printf("Successfully moved %s to %s\n", appName, org.Slug)
+
+	return nil
 }

@@ -133,3 +133,25 @@ func (client *Client) DeleteApp(appName string) error {
 	_, err := client.Run(req)
 	return err
 }
+
+func (client *Client) MoveApp(appName string, orgID string) (*App, error) {
+	query := `
+		mutation ($input: MoveAppInput!) {
+			moveApp(input: $input) {
+				app {
+					id
+				}
+			}
+		}
+	`
+
+	req := client.NewRequest(query)
+
+	req.Var("input", map[string]string{
+		"appId":          appName,
+		"organizationId": orgID,
+	})
+
+	data, err := client.Run(req)
+	return &data.App, err
+}
