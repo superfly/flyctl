@@ -32,6 +32,30 @@ func (client *Client) DeployImage(input DeployImageInput) (*Release, error) {
 	return &data.DeployImage.Release, nil
 }
 
+func (client *Client) OptimizeImage(appId string, image string) (string, error) {
+	query := `
+			mutation($input: OptimizeImageInput!) {
+				optimizeImage(input: $input) {
+					status
+				}
+			}
+		`
+
+	req := client.NewRequest(query)
+
+	req.Var("input", map[string]string{
+		"appId": appId,
+		"image": image,
+	})
+
+	data, err := client.Run(req)
+	if err != nil {
+		return "", err
+	}
+
+	return data.OptimizeImage.Status, nil
+}
+
 func (c *Client) GetDeploymentStatus(appName string, deploymentID string) (*DeploymentStatus, error) {
 	query := `
 		query ($appName: String!, $deploymentId: ID!) {

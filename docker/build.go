@@ -110,6 +110,10 @@ func (op *DeployOperation) BuildAndDeploy(cwd string, appConfig *flyctl.AppConfi
 		return nil, err
 	}
 
+	if err := op.optimizeImage(tag); err != nil {
+		return nil, err
+	}
+
 	release, err := op.deployImage(tag)
 	if err != nil {
 		return nil, err

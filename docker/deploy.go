@@ -4,7 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"time"
 
+	"github.com/briandowns/spinner"
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
@@ -92,6 +95,10 @@ func (op *DeployOperation) deployImageWithDocker(imageRef string) (*api.Release,
 		return nil, err
 	}
 
+	if err := op.optimizeImage(deploymentTag); err != nil {
+		return nil, err
+	}
+
 	release, err := op.deployImage(deploymentTag)
 	if err != nil {
 		return nil, err
@@ -106,6 +113,10 @@ func (op *DeployOperation) deployImageWithDocker(imageRef string) (*api.Release,
 func (op *DeployOperation) deployImageWithoutDocker(imageRef string) (*api.Release, error) {
 	ref, err := checkManifest(imageRef, "")
 	if err != nil {
+		return nil, err
+	}
+
+	if err := op.optimizeImage(ref.Remote()); err != nil {
 		return nil, err
 	}
 
@@ -149,6 +160,28 @@ func (op *DeployOperation) pushImage(imageTag string) error {
 	}
 	fmt.Println("-->", "done")
 
+	return nil
+}
+
+func (op *DeployOperation) optimizeImage(imageTag string) error {
+	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
+	s.Writer = os.Stderr
+	s.Prefix = "Optimizing image... "
+	s.Start()
+
+	for {
+		status, err := op.apiClient.OptimizeImage(op.AppName(), imageTag)
+		if err != nil {
+			return err
+		}
+		if status != "in_progress" {
+			break
+		}
+
+		time.Sleep(1 * time.Second)
+	}
+
+	s.Stop()
 	return nil
 }
 

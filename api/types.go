@@ -31,6 +31,10 @@ type Query struct {
 		Release Release
 	}
 
+	OptimizeImage struct {
+		Status string
+	}
+
 	CreateSignedUrl SignedUrls
 
 	CreateBuild struct {
