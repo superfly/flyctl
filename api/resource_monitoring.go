@@ -1,8 +1,8 @@
 package api
 
-func (c *Client) GetAppStatus(appName string, showComplete bool) (*App, error) {
+func (c *Client) GetAppStatus(appName string, showCompleted bool) (*App, error) {
 	query := `
-		query($appName: String!, $showComplete: Boolean!) {
+		query($appName: String!, $showCompleted: Boolean!) {
 			app(name: $appName) {
 				id
 				name
@@ -14,48 +14,32 @@ func (c *Client) GetAppStatus(appName string, showComplete bool) (*App, error) {
 				organization {
 					slug
 				}
-				tasks {
+				deploymentStatus {
 					id
-					name
 					status
-					servicesSummary
-					allocations(complete: $showComplete) {
-						id
-						version
-						latestVersion
-						status
-						desiredStatus
-						region
-						createdAt
-					}
-				}
-				currentRelease {
 					version
-					stable
-					inProgress
 					description
+					placedCount
+					promoted
+					desiredCount
+					healthyCount
+					unhealthyCount
+				}
+				allocations(showCompleted: $showCompleted) {
+					id
+					idShort
+					version
+					latestVersion
 					status
-					reason
-					revertedTo
-					deploymentStrategy
-					user {
-						email
-					}
+					desiredStatus
+					totalCheckCount
+					passingCheckCount
+					warningCheckCount
+					criticalCheckCount
 					createdAt
-					deployment {
-						status
-						description
-						tasks {
-							name
-							placed
-							healthy
-							desired
-							canaries
-							promoted
-							unhealthy
-							progressDeadline
-						}
-					}
+					updatedAt
+					canary
+					region
 				}
 			}
 		}
@@ -63,7 +47,7 @@ func (c *Client) GetAppStatus(appName string, showComplete bool) (*App, error) {
 
 	req := c.NewRequest(query)
 	req.Var("appName", appName)
-	req.Var("showComplete", showComplete)
+	req.Var("showCompleted", showCompleted)
 
 	data, err := c.Run(req)
 	if err != nil {

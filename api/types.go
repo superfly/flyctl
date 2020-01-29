@@ -87,13 +87,12 @@ type App struct {
 	Certificates struct {
 		Nodes []AppCertificate
 	}
-	Certificate            AppCertificate
-	Services               []Service
-	Config                 AppConfig
-	ParseConfig            AppConfig
-	Allocations            []AllocationStatus
-	DeploymentStatus       *DeploymentStatus
-	LatestDeploymentStatus *DeploymentStatus
+	Certificate      AppCertificate
+	Services         []Service
+	Config           AppConfig
+	ParseConfig      AppConfig
+	Allocations      []AllocationStatus
+	DeploymentStatus *DeploymentStatus
 }
 
 type AppConfig struct {
@@ -330,19 +329,24 @@ type ReleaseIPAddressInput struct {
 }
 
 type AllocationStatus struct {
-	ID            string
-	IDShort       string
-	Version       int
-	Region        string
-	Status        string
-	DesiredStatus string
-	Healthy       bool
-	Canary        bool
-	Failed        bool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	Checks        []CheckState
-	Events        []AllocationEvent
+	ID                 string
+	IDShort            string
+	Version            int
+	Region             string
+	Status             string
+	DesiredStatus      string
+	Healthy            bool
+	Canary             bool
+	Failed             bool
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Checks             []CheckState
+	Events             []AllocationEvent
+	LatestVersion      bool
+	PassingCheckCount  int
+	WarningCheckCount  int
+	CriticalCheckCount int
+	Transitioning      bool
 }
 
 type AllocationEvent struct {

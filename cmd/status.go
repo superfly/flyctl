@@ -36,26 +36,20 @@ func runAppStatus(ctx *CmdContext) error {
 		return nil
 	}
 
-	fmt.Println(aurora.Bold("Tasks"))
-	err = ctx.RenderEx(&presenters.TaskSummary{Tasks: app.Tasks}, presenters.Options{HideHeader: true})
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(aurora.Bold("Latest Deployment"))
-	err = ctx.RenderEx(&presenters.ReleaseDetails{Release: *app.CurrentRelease}, presenters.Options{Vertical: true})
-	if err != nil {
-		return err
-	}
-
 	fmt.Println(aurora.Bold("Deployment Status"))
-	err = ctx.Render(&presenters.DeploymentTaskStatus{Release: *app.CurrentRelease})
+	err = ctx.RenderView(PresenterOption{
+		Presentable: &presenters.DeploymentStatus{Status: app.DeploymentStatus},
+		Vertical:    true,
+	})
+
 	if err != nil {
 		return err
 	}
 
 	fmt.Println(aurora.Bold("Allocations"))
-	err = ctx.Render(&presenters.Allocations{Tasks: app.Tasks})
+	err = ctx.RenderView(PresenterOption{
+		Presentable: &presenters.Allocations{Allocations: app.Allocations},
+	})
 	if err != nil {
 		return err
 	}
