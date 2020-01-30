@@ -45,6 +45,7 @@ type StringFlagOpts struct {
 	Shorthand   string
 	Description string
 	Default     string
+	EnvName     string
 }
 
 type BoolFlagOpts struct {
@@ -52,6 +53,7 @@ type BoolFlagOpts struct {
 	Shorthand   string
 	Description string
 	Default     bool
+	EnvName     string
 }
 
 func (c *Command) AddStringFlag(options StringFlagOpts) {
@@ -59,6 +61,10 @@ func (c *Command) AddStringFlag(options StringFlagOpts) {
 	c.Flags().StringP(options.Name, options.Shorthand, options.Default, options.Description)
 
 	viper.BindPFlag(fullName, c.Flags().Lookup(options.Name))
+
+	if options.EnvName != "" {
+		viper.BindEnv(fullName, options.EnvName)
+	}
 }
 
 func (c *Command) AddBoolFlag(options BoolFlagOpts) {
@@ -66,6 +72,10 @@ func (c *Command) AddBoolFlag(options BoolFlagOpts) {
 	c.Flags().BoolP(options.Name, options.Shorthand, options.Default, options.Description)
 
 	viper.BindPFlag(fullName, c.Flags().Lookup(options.Name))
+
+	if options.EnvName != "" {
+		viper.BindEnv(fullName, options.EnvName)
+	}
 }
 
 type CmdContext struct {
@@ -240,12 +250,14 @@ func requireAppName(cmd *Command) Initializer {
 		Name:        "app",
 		Shorthand:   "a",
 		Description: "App name to operate on",
+		EnvName:     "FLY_APP",
 	})
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "config",
 		Shorthand:   "c",
 		Description: "Path to an app config file or directory containing one",
 		Default:     defaultConfigFilePath,
+		EnvName:     "FLY_APP_CONFIG",
 	})
 
 	return Initializer{
