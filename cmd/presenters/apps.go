@@ -1,6 +1,8 @@
 package presenters
 
-import "github.com/superfly/flyctl/api"
+import (
+	"github.com/superfly/flyctl/api"
+)
 
 type Apps struct {
 	App  *api.App
@@ -20,7 +22,7 @@ func (p *Apps) Records() []map[string]string {
 
 	for _, app := range p.Apps {
 		latestDeploy := ""
-		if app.Deployed {
+		if app.Deployed && app.CurrentRelease != nil {
 			latestDeploy = formatRelativeTime(app.CurrentRelease.CreatedAt)
 		}
 
