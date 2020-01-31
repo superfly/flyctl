@@ -13,7 +13,7 @@ func newDocsCommand() *Command {
 	return BuildCommand(nil, runLaunchDocs, docsStrings.Usage, docsStrings.Short, docsStrings.Long, false, os.Stdout)
 }
 
-const docsURL = "https://fly.io/docs/future/"
+const docsURL = "https://fly.io/docs/"
 
 func runLaunchDocs(ctx *CmdContext) error {
 	fmt.Println("Opening", docsURL)
