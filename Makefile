@@ -1,5 +1,5 @@
-cmddocs:
-	sh scripts/helpgen.sh
+cmddocs: generate
+	sh scripts/generate_docs.sh
 
 generate:
 	go generate ./...
