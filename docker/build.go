@@ -6,11 +6,14 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/signal"
 	"path"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/briandowns/spinner"
+	"github.com/buildpacks/pack"
 	"github.com/docker/docker/builder/dockerignore"
 	"github.com/docker/docker/pkg/fileutils"
 	"github.com/dustin/go-humanize"
@@ -19,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/terminal"
+	"golang.org/x/net/context"
 )
 
 type DockerfileSource uint
@@ -103,6 +107,96 @@ func (op *DeployOperation) BuildAndDeploy(cwd string, appConfig *flyctl.AppConfi
 	if err != nil {
 		return nil, err
 	}
+
+	printImageSize(uint64(img.Size))
+
+	if err := op.pushImage(tag); err != nil {
+		return nil, err
+	}
+
+	if err := op.optimizeImage(tag); err != nil {
+		return nil, err
+	}
+
+	release, err := op.deployImage(tag)
+	if err != nil {
+		return nil, err
+	}
+
+	op.cleanDeploymentTags()
+
+	return release, nil
+}
+
+func initPackClient() pack.Client {
+	client, err := pack.NewClient()
+	if err != nil {
+		panic(err)
+		// exitError(logger, err)
+	}
+	return *client
+}
+
+func createCancellableContext() context.Context {
+	signals := make(chan os.Signal)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		<-signals
+		cancel()
+	}()
+
+	return ctx
+}
+
+func (op *DeployOperation) PackAndDeploy(cwd string, appConfig *flyctl.AppConfig, builder string, buildpacks []string) (*api.Release, error) {
+	if !op.DockerAvailable() {
+		return nil, ErrDockerDaemon
+	}
+
+	tag := newDeploymentTag(op.AppName())
+
+	c := initPackClient()
+	fmt.Println("client", c)
+
+	cc := createCancellableContext()
+	imageName := tag
+
+	err := c.Build(cc, pack.BuildOptions{
+		AppPath: cwd,
+		Builder: builder,
+		// AdditionalMirrors: getMirrors(cfg),
+		// RunImage:          flags.RunImage,
+		// Env:               env,
+		Image: imageName,
+		// Publish:           flags.Publish,
+		// NoPull:            flags.NoPull,
+		// ClearCache:        flags.ClearCache,
+		Buildpacks: buildpacks,
+		// ContainerConfig: pack.ContainerConfig{
+		// 	Network: flags.Network,
+		// },
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("Image built", imageName)
+
+	img, err := op.dockerClient.findImage(imageName)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// buildArgs := normalizeBuildArgs(appConfig)
+
+	// img, err := op.dockerClient.BuildImage(archive.File, tag, buildArgs, op.out, op.squash)
+
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	printImageSize(uint64(img.Size))
 

@@ -22,6 +22,8 @@ type DeployOperation struct {
 	appName         string
 	appConfig       *flyctl.AppConfig
 	squash          bool
+	builder         string
+	buildpacks      []string
 }
 
 func NewDeployOperation(appName string, appConfig *flyctl.AppConfig, apiClient *api.Client, out io.Writer, squash bool) (*DeployOperation, error) {

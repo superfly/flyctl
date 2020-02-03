@@ -2,9 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/superfly/flyctl/docstrings"
 	"os"
 	"time"
+
+	"github.com/superfly/flyctl/docstrings"
 
 	"github.com/briandowns/spinner"
 	"github.com/logrusorgru/aurora"
@@ -30,6 +31,14 @@ func newDeployCommand() *Command {
 	})
 	cmd.AddBoolFlag(BoolFlagOpts{
 		Name: "squash",
+	})
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "builder",
+		Description: "Buildpack builder",
+	})
+	cmd.AddStringSliceFlag(StringSliceFlagOpts{
+		Name:        "buildpack",
+		Description: "buildpack",
 	})
 
 	cmd.Command.Args = cobra.MaximumNArgs(1)
@@ -64,9 +73,22 @@ func runDeploy(ctx *CmdContext) error {
 
 	if op.DockerAvailable() {
 		fmt.Println("Docker daemon available, performing local build...")
-		release, err := op.BuildAndDeploy(ctx.WorkingDir, ctx.AppConfig)
-		if err != nil {
-			return err
+
+		buildpackBuilder, _ := ctx.Config.GetString("builder")
+		var release *api.Release
+		if buildpackBuilder != "" {
+			buildpacks := ctx.Config.GetStringSlice("buildpack")
+			r, err := op.PackAndDeploy(ctx.WorkingDir, ctx.AppConfig, buildpackBuilder, buildpacks)
+			if err != nil {
+				return err
+			}
+			release = r
+		} else {
+			r, err := op.BuildAndDeploy(ctx.WorkingDir, ctx.AppConfig)
+			if err != nil {
+				return err
+			}
+			release = r
 		}
 
 		return renderRelease(ctx, release)

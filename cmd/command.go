@@ -78,6 +78,30 @@ func (c *Command) AddBoolFlag(options BoolFlagOpts) {
 	}
 }
 
+type StringSliceFlagOpts struct {
+	Name        string
+	Shorthand   string
+	Description string
+	Default     []string
+	EnvName     string
+}
+
+func (c *Command) AddStringSliceFlag(options StringSliceFlagOpts) {
+	fullName := namespace(c.Command) + "." + options.Name
+
+	if options.Shorthand != "" {
+		c.Flags().StringSliceP(options.Name, options.Shorthand, options.Default, options.Description)
+	} else {
+		c.Flags().StringSlice(options.Name, options.Default, options.Description)
+	}
+
+	viper.BindPFlag(fullName, c.Flags().Lookup(options.Name))
+
+	if options.EnvName != "" {
+		viper.BindEnv(fullName, options.EnvName)
+	}
+}
+
 type CmdContext struct {
 	Config       flyctl.Config
 	GlobalConfig flyctl.Config
