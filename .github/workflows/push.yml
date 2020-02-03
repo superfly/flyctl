@@ -1,16 +1,17 @@
-on: 
-  create:
-    branches:
-      - master
+on:
+  push:
     tags:
-      - v*
-name: Release
+      - 'v*'
+name: Build and Release
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@master
-    - name: goreleaser
+    - name: Checkout 
+      uses: actions/checkout@master
+    - name: Unshallow
+      run: git fetch --prune --unshallow
+    - name: Release
       uses: docker://goreleaser/goreleaser
       env:
         GORELEASER_GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
