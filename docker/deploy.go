@@ -9,6 +9,7 @@ import (
 
 	"github.com/briandowns/spinner"
 	"github.com/logrusorgru/aurora"
+	"github.com/mattn/go-isatty"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/terminal"
@@ -166,10 +167,16 @@ func (op *DeployOperation) pushImage(imageTag string) error {
 }
 
 func (op *DeployOperation) optimizeImage(imageTag string) error {
-	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
-	s.Writer = os.Stderr
-	s.Prefix = "Optimizing image... "
-	s.Start()
+	printHeader("Optimizing image")
+	defer fmt.Println("-->", "done")
+
+	if isatty.IsTerminal(os.Stdout.Fd()) {
+		s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
+		s.Writer = os.Stderr
+		s.Prefix = "building fs... "
+		s.Start()
+		defer s.Stop()
+	}
 
 	for {
 		status, err := op.apiClient.OptimizeImage(op.AppName(), imageTag)
@@ -183,7 +190,6 @@ func (op *DeployOperation) optimizeImage(imageTag string) error {
 		time.Sleep(1 * time.Second)
 	}
 
-	s.Stop()
 	return nil
 }
 
