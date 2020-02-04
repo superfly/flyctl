@@ -136,14 +136,23 @@ func watchDeployment(ctx *CmdContext) error {
 		return nil
 	}
 
-	if !isatty.IsTerminal(os.Stdout.Fd()) {
-		return nil
-	}
-
 	fmt.Println(aurora.Blue("==>"), "Monitoring Deployment")
 	fmt.Println(aurora.Faint("You can detach the terminal anytime without stopping the deployment"))
 
 	monitor := flyctl.NewDeploymentMonitor(ctx.FlyClient, ctx.AppName)
-	monitor.DisplayCompact(ctx.Out)
-	return monitor.Error()
+	if isatty.IsTerminal(os.Stdout.Fd()) {
+		monitor.DisplayCompact(ctx.Out)
+	} else {
+		monitor.DisplayVerbose(ctx.Out)
+	}
+
+	if err := monitor.Error(); err != nil {
+		return err
+	}
+
+	if !monitor.Success() {
+		return ErrAbort
+	}
+
+	return nil
 }

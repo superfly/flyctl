@@ -23,8 +23,9 @@ func NewDeploymentMonitor(client *api.Client, appID string) *DeploymentMonitor {
 type DeploymentMonitor struct {
 	AppID string
 
-	client *api.Client
-	err    error
+	client  *api.Client
+	err     error
+	success bool
 }
 
 var pollInterval = 750 * time.Millisecond
@@ -60,6 +61,7 @@ func (dm *DeploymentMonitor) Start() <-chan *DeploymentStatus {
 			}
 
 			if deployment.ID == prevID {
+				dm.success = deployment.Successful
 				// deployment already done, bail
 				break
 			}
@@ -93,6 +95,10 @@ func (dm *DeploymentMonitor) Start() <-chan *DeploymentStatus {
 	}()
 
 	return statusCh
+}
+
+func (dm *DeploymentMonitor) Success() bool {
+	return dm.success
 }
 
 func (dm *DeploymentMonitor) Error() error {
