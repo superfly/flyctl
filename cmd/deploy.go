@@ -25,7 +25,7 @@ func newDeployCommand() *Command {
 		Shorthand:   "i",
 		Description: "Image tag or id to deploy",
 	})
-	cmd.AddStringFlag(StringFlagOpts{
+	cmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "detach",
 		Description: "Return immediately instead of monitoring deployment progress",
 	})
