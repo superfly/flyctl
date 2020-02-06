@@ -28,8 +28,7 @@ import (
 type DockerfileSource uint
 
 const (
-	BuilderDockerfile DockerfileSource = iota
-	CwdDockerfile
+	CwdDockerfile DockerfileSource = iota
 	NoDockerfile
 )
 
@@ -40,15 +39,19 @@ func dockerfileSource(cwd string, appConfig *flyctl.AppConfig) DockerfileSource 
 	if helpers.FileExists(path.Join(cwd, "Dockerfile")) {
 		return CwdDockerfile
 	}
-	if appConfig.Build != nil && appConfig.Build.Builder != "" {
-		return BuilderDockerfile
-	}
 	return NoDockerfile
 }
 
 func (op *DeployOperation) BuildAndDeploy(cwd string, appConfig *flyctl.AppConfig) (*api.Release, error) {
 	if !op.DockerAvailable() {
 		return nil, ErrDockerDaemon
+	}
+
+	switch dockerfileSource(cwd, appConfig) {
+	case NoDockerfile:
+		return nil, ErrNoDockerfile
+	case CwdDockerfile:
+		fmt.Println("Using Dockerfile from working directory:", path.Join(cwd, "Dockerfile"))
 	}
 
 	buildContext, err := newBuildContext()
@@ -72,25 +75,6 @@ func (op *DeployOperation) BuildAndDeploy(cwd string, appConfig *flyctl.AppConfi
 	}
 
 	s.Stop()
-
-	switch dockerfileSource(cwd, appConfig) {
-	case NoDockerfile:
-		return nil, ErrNoDockerfile
-	case CwdDockerfile:
-		fmt.Println("Using Dockerfile from working directory:", path.Join(cwd, "Dockerfile"))
-	case BuilderDockerfile:
-		builder := appConfig.Build.Builder
-		fmt.Println("Using builder:", builder)
-		builderPath, err := fetchBuilder(builder, cwd)
-		defer os.RemoveAll(builderPath)
-
-		if err != nil {
-			return nil, err
-		}
-		if err := buildContext.AddSource(builderPath, []string{}); err != nil {
-			return nil, err
-		}
-	}
 
 	archive, err := buildContext.Archive()
 	if err != nil {

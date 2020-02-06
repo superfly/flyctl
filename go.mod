@@ -18,11 +18,11 @@ require (
 	github.com/containerd/continuity v0.0.0-20200107194136-26c1120b8d41 // indirect
 	github.com/docker/docker v1.4.2-0.20200103225628-a9507c6f7662
 	github.com/dustin/go-humanize v1.0.0
-	github.com/hashicorp/go-getter v1.3.0
 	github.com/logrusorgru/aurora v0.0.0-20190428105938-cea283e61946
 	github.com/machinebox/graphql v0.2.3-0.20181106130121-3a9253180225
 	github.com/matryer/is v1.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.12
+	github.com/mattn/go-runewidth v0.0.4 // indirect
 	github.com/morikuni/aec v1.0.0
 	github.com/novln/docker-parser v0.0.0-20190306203532-b3f122c6978e
 	github.com/olekukonko/tablewriter v0.0.1

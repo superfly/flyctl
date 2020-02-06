@@ -11,7 +11,6 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmd/presenters"
-	"github.com/superfly/flyctl/docker"
 	"github.com/superfly/flyctl/flyctl"
 )
 
@@ -47,7 +46,7 @@ func newAppListCommand() *Command {
 	})
 	create.AddStringFlag(StringFlagOpts{
 		Name:        "builder",
-		Description: `The builder to use when deploying the app`,
+		Description: `The Cloud Native Buildpacks builder to use when deploying the app`,
 	})
 
 	appsDestroyStrings := docstrings.Get("apps.destroy")
@@ -113,12 +112,8 @@ func runAppsCreate(ctx *CmdContext) error {
 
 	newAppConfig := flyctl.NewAppConfig()
 
-	if namedBuilder, _ := ctx.Config.GetString("builder"); namedBuilder != "" {
-		url, err := docker.ResolveNamedBuilderURL(namedBuilder)
-		if err == docker.ErrUnknownBuilder {
-			return fmt.Errorf(`Unknown builder "%s". See %s for a list of builders.`, namedBuilder, docker.BuildersRepo)
-		}
-		newAppConfig.Build = &flyctl.Build{Builder: url}
+	if builder, _ := ctx.Config.GetString("builder"); builder != "" {
+		newAppConfig.Build = &flyctl.Build{Builder: builder}
 	}
 
 	name, _ := ctx.Config.GetString("name")
