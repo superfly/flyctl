@@ -150,7 +150,7 @@ func createCancellableContext() context.Context {
 	return ctx
 }
 
-func (op *DeployOperation) PackAndDeploy(cwd string, appConfig *flyctl.AppConfig, builder string, buildpacks []string) (*api.Release, error) {
+func (op *DeployOperation) PackAndDeploy(cwd string, appConfig *flyctl.AppConfig) (*api.Release, error) {
 	if !op.DockerAvailable() {
 		return nil, ErrDockerDaemon
 	}
@@ -158,25 +158,15 @@ func (op *DeployOperation) PackAndDeploy(cwd string, appConfig *flyctl.AppConfig
 	tag := newDeploymentTag(op.AppName())
 
 	c := initPackClient()
-	fmt.Println("client", c)
 
 	cc := createCancellableContext()
 	imageName := tag
 
 	err := c.Build(cc, pack.BuildOptions{
-		AppPath: cwd,
-		Builder: builder,
-		// AdditionalMirrors: getMirrors(cfg),
-		// RunImage:          flags.RunImage,
-		// Env:               env,
-		Image: imageName,
-		// Publish:           flags.Publish,
-		// NoPull:            flags.NoPull,
-		// ClearCache:        flags.ClearCache,
-		Buildpacks: buildpacks,
-		// ContainerConfig: pack.ContainerConfig{
-		// 	Network: flags.Network,
-		// },
+		AppPath:    cwd,
+		Builder:    appConfig.Build.Builder,
+		Image:      imageName,
+		Buildpacks: appConfig.Build.Buildpacks,
 	})
 
 	if err != nil {
@@ -186,17 +176,6 @@ func (op *DeployOperation) PackAndDeploy(cwd string, appConfig *flyctl.AppConfig
 	fmt.Println("Image built", imageName)
 
 	img, err := op.dockerClient.findImage(imageName)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// buildArgs := normalizeBuildArgs(appConfig)
-
-	// img, err := op.dockerClient.BuildImage(archive.File, tag, buildArgs, op.out, op.squash)
-
-	// if err != nil {
-	// 	return nil, err
-	// }
 
 	printImageSize(uint64(img.Size))
 

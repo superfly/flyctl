@@ -32,14 +32,6 @@ func newDeployCommand() *Command {
 	cmd.AddBoolFlag(BoolFlagOpts{
 		Name: "squash",
 	})
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "builder",
-		Description: "Buildpack builder",
-	})
-	cmd.AddStringSliceFlag(StringSliceFlagOpts{
-		Name:        "buildpack",
-		Description: "buildpack",
-	})
 
 	cmd.Command.Args = cobra.MaximumNArgs(1)
 
@@ -74,11 +66,9 @@ func runDeploy(ctx *CmdContext) error {
 	if op.DockerAvailable() {
 		fmt.Println("Docker daemon available, performing local build...")
 
-		buildpackBuilder, _ := ctx.Config.GetString("builder")
 		var release *api.Release
-		if buildpackBuilder != "" {
-			buildpacks := ctx.Config.GetStringSlice("buildpack")
-			r, err := op.PackAndDeploy(ctx.WorkingDir, ctx.AppConfig, buildpackBuilder, buildpacks)
+		if ctx.AppConfig.Build.Builder != "" {
+			r, err := op.PackAndDeploy(ctx.WorkingDir, ctx.AppConfig)
 			if err != nil {
 				return err
 			}

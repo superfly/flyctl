@@ -29,8 +29,9 @@ type AppConfig struct {
 }
 
 type Build struct {
-	Builder string
-	Args    map[string]string
+	Builder    string
+	Args       map[string]string
+	Buildpacks []string
 }
 
 func NewAppConfig() *AppConfig {
@@ -96,18 +97,26 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 
 	if buildConfig, ok := (data["build"]).(map[string]interface{}); ok {
 		b := Build{
-			Args: map[string]string{},
+			Args:       map[string]string{},
+			Buildpacks: []string{},
 		}
 		for k, v := range buildConfig {
-			if k == "builder" {
+			switch k {
+			case "builder":
 				b.Builder = fmt.Sprint(v)
-			} else if k == "args" {
+			case "buildpacks":
+				if bpSlice, ok := v.([]interface{}); ok {
+					for _, argV := range bpSlice {
+						b.Buildpacks = append(b.Buildpacks, fmt.Sprint(argV))
+					}
+				}
+			case "args":
 				if argMap, ok := v.(map[string]interface{}); ok {
 					for argK, argV := range argMap {
 						b.Args[argK] = fmt.Sprint(argV)
 					}
 				}
-			} else {
+			default:
 				b.Args[k] = fmt.Sprint(v)
 			}
 		}
@@ -132,6 +141,9 @@ func (ac AppConfig) marshalTOML(w io.Writer) error {
 	if ac.Build != nil && ac.Build.Builder != "" {
 		buildData := map[string]interface{}{
 			"builder": ac.Build.Builder,
+		}
+		if len(ac.Build.Buildpacks) > 0 {
+			buildData["buildpacks"] = ac.Build.Buildpacks
 		}
 		if len(ac.Build.Args) > 0 {
 			buildData["args"] = ac.Build.Args
