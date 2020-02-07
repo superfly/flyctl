@@ -67,7 +67,7 @@ func runDeploy(ctx *CmdContext) error {
 		fmt.Println("Docker daemon available, performing local build...")
 
 		var release *api.Release
-		if ctx.AppConfig.Build.Builder != "" {
+		if ctx.AppConfig.Build != nil && ctx.AppConfig.Build.Builder != "" {
 			r, err := op.PackAndDeploy(ctx.WorkingDir, ctx.AppConfig)
 			if err != nil {
 				return err
