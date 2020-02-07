@@ -2,8 +2,9 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/superfly/flyctl/docstrings"
 	"os"
+
+	"github.com/superfly/flyctl/docstrings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmd/presenters"
@@ -39,12 +40,13 @@ func runListBuilds(ctx *CmdContext) error {
 	return ctx.Render(&presenters.Builds{Builds: builds})
 }
 
-func runBuildLogs(ctx *CmdContext) error {
-	buildID := ctx.Args[0]
+func runBuildLogs(cc *CmdContext) error {
+	ctx := createCancellableContext()
+	buildID := cc.Args[0]
 
-	logs := flyctl.NewBuildLogStream(buildID, ctx.FlyClient)
+	logs := flyctl.NewBuildLogStream(buildID, cc.FlyClient)
 
-	for line := range logs.Fetch() {
+	for line := range logs.Fetch(ctx) {
 		fmt.Println(line)
 	}
 

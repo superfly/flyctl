@@ -70,6 +70,10 @@ func (ac *AppConfig) HasDefinition() bool {
 	return len(ac.Definition) > 0
 }
 
+func (ac *AppConfig) HasBuilder() bool {
+	return ac.Build != nil && ac.Build.Builder != ""
+}
+
 func (ac *AppConfig) WriteTo(w io.Writer, format ConfigFormat) error {
 	switch format {
 	case TOMLFormat:

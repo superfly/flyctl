@@ -13,9 +13,11 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/terminal"
+	"golang.org/x/net/context"
 )
 
 type DeployOperation struct {
+	ctx             context.Context
 	dockerClient    *DockerClient
 	apiClient       *api.Client
 	dockerAvailable bool
@@ -23,17 +25,16 @@ type DeployOperation struct {
 	appName         string
 	appConfig       *flyctl.AppConfig
 	squash          bool
-	builder         string
-	buildpacks      []string
 }
 
-func NewDeployOperation(appName string, appConfig *flyctl.AppConfig, apiClient *api.Client, out io.Writer, squash bool) (*DeployOperation, error) {
+func NewDeployOperation(ctx context.Context, appName string, appConfig *flyctl.AppConfig, apiClient *api.Client, out io.Writer, squash bool) (*DeployOperation, error) {
 	dockerClient, err := NewDockerClient()
 	if err != nil {
 		return nil, err
 	}
 
 	op := &DeployOperation{
+		ctx:          ctx,
 		dockerClient: dockerClient,
 		apiClient:    apiClient,
 		out:          out,
@@ -42,7 +43,7 @@ func NewDeployOperation(appName string, appConfig *flyctl.AppConfig, apiClient *
 		squash:       squash,
 	}
 
-	op.dockerAvailable = op.dockerClient.Check() == nil
+	op.dockerAvailable = op.dockerClient.Check(ctx) == nil
 
 	return op, nil
 }
@@ -114,7 +115,7 @@ func (op *DeployOperation) deployImageWithDocker(imageRef string) (*api.Release,
 }
 
 func (op *DeployOperation) deployImageWithoutDocker(imageRef string) (*api.Release, error) {
-	ref, err := checkManifest(imageRef, "")
+	ref, err := checkManifest(op.ctx, imageRef, "")
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +130,7 @@ func (op *DeployOperation) deployImageWithoutDocker(imageRef string) (*api.Relea
 func (op *DeployOperation) resolveAndTagImageRef(imageRef string) (string, error) {
 	printHeader("Resolving image")
 
-	img, err := op.dockerClient.ResolveImage(imageRef)
+	img, err := op.dockerClient.ResolveImage(op.ctx, imageRef)
 	if err != nil {
 		return "", err
 	}
@@ -143,7 +144,7 @@ func (op *DeployOperation) resolveAndTagImageRef(imageRef string) (string, error
 	imageTag := newDeploymentTag(op.appConfig.AppName)
 
 	printHeader("Creating deployment tag")
-	if err := op.dockerClient.TagImage(img.ID, imageTag); err != nil {
+	if err := op.dockerClient.TagImage(op.ctx, img.ID, imageTag); err != nil {
 		return "", err
 	}
 	fmt.Println("-->", imageTag)
@@ -158,7 +159,7 @@ func (op *DeployOperation) pushImage(imageTag string) error {
 		return errors.New("invalid image reference")
 	}
 
-	if err := op.dockerClient.PushImage(imageTag, op.out); err != nil {
+	if err := op.dockerClient.PushImage(op.ctx, imageTag, op.out); err != nil {
 		return err
 	}
 	fmt.Println("-->", "done")
@@ -178,19 +179,23 @@ func (op *DeployOperation) optimizeImage(imageTag string) error {
 		defer s.Stop()
 	}
 
+	delay := 0 * time.Second
+
 	for {
-		status, err := op.apiClient.OptimizeImage(op.AppName(), imageTag)
-		if err != nil {
-			return err
+		select {
+		case <-time.After(delay):
+			status, err := op.apiClient.OptimizeImage(op.AppName(), imageTag)
+			if err != nil {
+				return err
+			}
+			if status != "in_progress" {
+				return nil
+			}
+			delay = 1 * time.Second
+		case <-op.ctx.Done():
+			return op.ctx.Err()
 		}
-		if status != "in_progress" {
-			break
-		}
-
-		time.Sleep(1 * time.Second)
 	}
-
-	return nil
 }
 
 func (op *DeployOperation) deployImage(imageTag string) (*api.Release, error) {
@@ -210,7 +215,7 @@ func (op *DeployOperation) deployImage(imageTag string) (*api.Release, error) {
 }
 
 func (op *DeployOperation) cleanDeploymentTags() {
-	err := op.dockerClient.DeleteDeploymentImages(op.AppName())
+	err := op.dockerClient.DeleteDeploymentImages(op.ctx, op.AppName())
 	if err != nil {
 		terminal.Debug("Error cleaning deployment tags", err)
 	}

@@ -6,10 +6,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"os/signal"
 	"path"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -22,7 +20,6 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/terminal"
-	"golang.org/x/net/context"
 )
 
 type DockerfileSource uint
@@ -40,6 +37,10 @@ func dockerfileSource(cwd string, appConfig *flyctl.AppConfig) DockerfileSource 
 		return CwdDockerfile
 	}
 	return NoDockerfile
+}
+
+func (op *DeployOperation) HasDockerfile(cwd string) bool {
+	return helpers.FileExists(path.Join(cwd, "Dockerfile"))
 }
 
 func (op *DeployOperation) BuildAndDeploy(cwd string, appConfig *flyctl.AppConfig) (*api.Release, error) {
@@ -86,7 +87,7 @@ func (op *DeployOperation) BuildAndDeploy(cwd string, appConfig *flyctl.AppConfi
 
 	buildArgs := normalizeBuildArgs(appConfig)
 
-	img, err := op.dockerClient.BuildImage(archive.File, tag, buildArgs, op.out, op.squash)
+	img, err := op.dockerClient.BuildImage(op.ctx, archive.File, tag, buildArgs, op.out, op.squash)
 
 	if err != nil {
 		return nil, err
@@ -121,19 +122,6 @@ func initPackClient() pack.Client {
 	return *client
 }
 
-func createCancellableContext() context.Context {
-	signals := make(chan os.Signal)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
-	ctx, cancel := context.WithCancel(context.Background())
-
-	go func() {
-		<-signals
-		cancel()
-	}()
-
-	return ctx
-}
-
 func (op *DeployOperation) PackAndDeploy(cwd string, appConfig *flyctl.AppConfig) (*api.Release, error) {
 	if !op.DockerAvailable() {
 		return nil, ErrDockerDaemon
@@ -143,10 +131,9 @@ func (op *DeployOperation) PackAndDeploy(cwd string, appConfig *flyctl.AppConfig
 
 	c := initPackClient()
 
-	cc := createCancellableContext()
 	imageName := tag
 
-	err := c.Build(cc, pack.BuildOptions{
+	err := c.Build(op.ctx, pack.BuildOptions{
 		AppPath:    cwd,
 		Builder:    appConfig.Build.Builder,
 		Image:      imageName,
@@ -159,7 +146,7 @@ func (op *DeployOperation) PackAndDeploy(cwd string, appConfig *flyctl.AppConfig
 
 	fmt.Println("Image built", imageName)
 
-	img, err := op.dockerClient.findImage(imageName)
+	img, err := op.dockerClient.findImage(op.ctx, imageName)
 
 	printImageSize(uint64(img.Size))
 

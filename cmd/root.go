@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -73,11 +75,29 @@ func checkErr(err error) {
 		return
 	}
 
-	if err != ErrAbort {
+	if !isCancelledError(err) {
 		fmt.Println(aurora.Red("Error"), err)
 	}
 
 	safeExit()
+}
+
+func isCancelledError(err error) bool {
+	if err == ErrAbort {
+		return true
+	}
+
+	if err == context.Canceled {
+		return true
+	}
+
+	if merr, ok := err.(*multierror.Error); ok {
+		if len(merr.Errors) == 1 && merr.Errors[0] == context.Canceled {
+			return true
+		}
+	}
+
+	return false
 }
 
 func safeExit() {

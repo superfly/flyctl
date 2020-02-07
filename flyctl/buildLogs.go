@@ -1,6 +1,7 @@
 package flyctl
 
 import (
+	"context"
 	"strings"
 	"time"
 
@@ -26,42 +27,52 @@ func (b *BuildLogStream) Status() string {
 	return b.build.Status
 }
 
-func (b *BuildLogStream) Fetch() <-chan string {
+func (b *BuildLogStream) Fetch(ctx context.Context) <-chan string {
 	out := make(chan string, 0)
 
 	go func() {
 		defer close(out)
 
 		pos := 0
-		errors := 0
+		var interval time.Duration
 		for {
-			build, err := b.client.GetBuild(b.buildID)
-			if err != nil {
-				errors++
-				if errors < 3 {
-					continue
-				} else {
+			select {
+			case <-time.After(interval):
+				interval = 1 * time.Second
+				build, err := fetchBuild(b.client, b.buildID)
+				if err != nil {
 					b.err = err
-					break
+					return
 				}
+				b.build = build
+
+				lines := strings.Split(strings.TrimSpace(build.Logs), "\n")
+
+				if len(lines) > pos {
+					out <- strings.Join(lines[pos:], "\n")
+					pos = len(lines)
+				}
+
+				if !build.InProgress {
+					return
+				}
+			case <-ctx.Done():
+				b.err = ctx.Err()
+				return
 			}
-			errors = 0
-			b.build = build
-
-			lines := strings.Split(strings.TrimSpace(build.Logs), "\n")
-
-			if len(lines) > pos {
-				out <- strings.Join(lines[pos:], "\n")
-				pos = len(lines)
-			}
-
-			if !build.InProgress {
-				break
-			}
-
-			time.Sleep(1 * time.Second)
 		}
 	}()
 
 	return out
+}
+
+func fetchBuild(client *api.Client, buildID string) (build *api.Build, err error) {
+	for attempts := 0; attempts < 3; attempts++ {
+		build, err = client.GetBuild(buildID)
+		if err == nil {
+			break
+		}
+	}
+
+	return build, err
 }

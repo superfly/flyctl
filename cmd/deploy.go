@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
 
 	"github.com/superfly/flyctl/docstrings"
+	"github.com/superfly/flyctl/terminal"
 
 	"github.com/briandowns/spinner"
 	"github.com/logrusorgru/aurora"
@@ -17,7 +19,6 @@ import (
 )
 
 func newDeployCommand() *Command {
-
 	deployStrings := docstrings.Get("deploy")
 	cmd := BuildCommand(nil, runDeploy, deployStrings.Usage, deployStrings.Short, deployStrings.Long, true, os.Stdout, workingDirectoryFromArg(0), requireAppName)
 	cmd.AddStringFlag(StringFlagOpts{
@@ -38,8 +39,9 @@ func newDeployCommand() *Command {
 	return cmd
 }
 
-func runDeploy(ctx *CmdContext) error {
-	op, err := docker.NewDeployOperation(ctx.AppName, ctx.AppConfig, ctx.FlyClient, ctx.Out, ctx.Config.GetBool("squash"))
+func runDeploy(cc *CmdContext) error {
+	ctx := createCancellableContext()
+	op, err := docker.NewDeployOperation(ctx, cc.AppName, cc.AppConfig, cc.FlyClient, cc.Out, cc.Config.GetBool("squash"))
 	if err != nil {
 		return err
 	}
@@ -53,40 +55,45 @@ func runDeploy(ctx *CmdContext) error {
 		printAppConfigServices("  ", *parsedCfg)
 	}
 
-	if imageRef, _ := ctx.Config.GetString("image"); imageRef != "" {
+	if imageRef, _ := cc.Config.GetString("image"); imageRef != "" {
 		release, err := op.DeployImage(imageRef)
 		if err != nil {
 			return err
 		}
-		return renderRelease(ctx, release)
+		return renderRelease(ctx, cc, release)
 	}
 
-	fmt.Printf("Deploy source directory '%s'\n", ctx.WorkingDir)
+	fmt.Printf("Deploy source directory '%s'\n", cc.WorkingDir)
 
 	if op.DockerAvailable() {
 		fmt.Println("Docker daemon available, performing local build...")
 
 		var release *api.Release
-		if ctx.AppConfig.Build != nil && ctx.AppConfig.Build.Builder != "" {
-			r, err := op.PackAndDeploy(ctx.WorkingDir, ctx.AppConfig)
+		if op.HasDockerfile(cc.WorkingDir) {
+			if cc.AppConfig.HasBuilder() {
+				terminal.Warn("Project contains both a Dockerfile and a builder, using Dockerfile")
+			}
+			r, err := op.BuildAndDeploy(cc.WorkingDir, cc.AppConfig)
+			if err != nil {
+				return err
+			}
+			release = r
+		} else if cc.AppConfig.HasBuilder() {
+			r, err := op.PackAndDeploy(cc.WorkingDir, cc.AppConfig)
 			if err != nil {
 				return err
 			}
 			release = r
 		} else {
-			r, err := op.BuildAndDeploy(ctx.WorkingDir, ctx.AppConfig)
-			if err != nil {
-				return err
-			}
-			release = r
+			return docker.ErrNoDockerfile
 		}
 
-		return renderRelease(ctx, release)
+		return renderRelease(ctx, cc, release)
 	}
 
 	fmt.Println("Docker daemon unavailable, performing remote build...")
 
-	build, err := op.StartRemoteBuild(ctx.WorkingDir, ctx.AppConfig)
+	build, err := op.StartRemoteBuild(cc.WorkingDir, cc.AppConfig)
 	if err != nil {
 		return err
 	}
@@ -96,44 +103,45 @@ func runDeploy(ctx *CmdContext) error {
 	s.Prefix = "Building "
 	s.Start()
 
-	logStream := flyctl.NewBuildLogStream(build.ID, ctx.FlyClient)
+	logStream := flyctl.NewBuildLogStream(build.ID, cc.FlyClient)
 
-	for line := range logStream.Fetch() {
+	defer func() {
+		s.FinalMSG = fmt.Sprintf("Build complete - %s\n", logStream.Status())
+		s.Stop()
+	}()
+
+	for line := range logStream.Fetch(ctx) {
 		s.Stop()
 		fmt.Println(line)
 		s.Start()
 	}
 
-	s.FinalMSG = fmt.Sprintf("Build complete - %s\n", logStream.Status())
-
-	s.Stop()
-
 	if err := logStream.Err(); err != nil {
 		return err
 	}
 
-	return watchDeployment(ctx)
+	return watchDeployment(ctx, cc)
 }
 
-func renderRelease(ctx *CmdContext, release *api.Release) error {
+func renderRelease(ctx context.Context, cc *CmdContext, release *api.Release) error {
 	fmt.Printf("Release v%d created\n", release.Version)
 
-	return watchDeployment(ctx)
+	return watchDeployment(ctx, cc)
 }
 
-func watchDeployment(ctx *CmdContext) error {
-	if ctx.Config.GetBool("detach") {
+func watchDeployment(ctx context.Context, cc *CmdContext) error {
+	if cc.Config.GetBool("detach") {
 		return nil
 	}
 
 	fmt.Println(aurora.Blue("==>"), "Monitoring Deployment")
 	fmt.Println(aurora.Faint("You can detach the terminal anytime without stopping the deployment"))
 
-	monitor := flyctl.NewDeploymentMonitor(ctx.FlyClient, ctx.AppName)
+	monitor := flyctl.NewDeploymentMonitor(cc.FlyClient, cc.AppName)
 	if isatty.IsTerminal(os.Stdout.Fd()) {
-		monitor.DisplayCompact(ctx.Out)
+		monitor.DisplayCompact(ctx, cc.Out)
 	} else {
-		monitor.DisplayVerbose(ctx.Out)
+		monitor.DisplayVerbose(ctx, cc.Out)
 	}
 
 	if err := monitor.Error(); err != nil {

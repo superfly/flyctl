@@ -1,6 +1,8 @@
 package flyctl
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -9,9 +11,14 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/morikuni/aec"
 	"github.com/superfly/flyctl/api"
 )
+
+var ErrNoDeployment = errors.New("No deployment available")
+var errDeploymentNotReady = errors.New("Deployment not ready")
+var errDeploymentComplete = errors.New("Deployment is already complete")
 
 func NewDeploymentMonitor(client *api.Client, appID string) *DeploymentMonitor {
 	return &DeploymentMonitor{
@@ -31,44 +38,51 @@ type DeploymentMonitor struct {
 
 var pollInterval = 750 * time.Millisecond
 
-func (dm *DeploymentMonitor) Start() <-chan *DeploymentStatus {
+func (dm *DeploymentMonitor) Start(ctx context.Context) <-chan *DeploymentStatus {
 	statusCh := make(chan *DeploymentStatus)
 
 	go func() {
-		defer close(statusCh)
-
 		var currentDeployment *DeploymentStatus
+
+		defer func() {
+			if currentDeployment != nil {
+				currentDeployment.Close()
+			}
+
+			close(statusCh)
+		}()
+
 		currentID := ""
 		prevID := ""
 		num := 0
 		startTime := time.Now()
 
-		for {
+		var delay time.Duration
+
+		processFn := func() error {
 			deployment, err := dm.client.GetDeploymentStatus(dm.AppID, currentID)
 			if err != nil {
-				fmt.Println("got err", err)
-				dm.err = err
-				break
+				return err
 			}
 
+			// wait for a deployment for up to 10 seconds. Could be due to a delay submitting the job or because
+			// there is no active deployment
 			if deployment == nil {
-				if time.Now().After(startTime.Add(5 * time.Second)) {
-					fmt.Println("No deployment available")
-					// nothing to show after 5 seconds, break
-					break
+				if time.Now().After(startTime.Add(10 * time.Second)) {
+					// nothing to show after 10 seconds, break
+					return ErrNoDeployment
 				}
-				time.Sleep(pollInterval)
-				continue
+				return errDeploymentNotReady
 			}
 
 			if deployment.ID == prevID {
 				// deployment already done, bail
-				break
+				return errDeploymentComplete
 			}
 
 			if currentDeployment == nil && !deployment.InProgress {
 				// wait for deployment (new deployment not yet created)
-				continue
+				return errDeploymentNotReady
 			}
 
 			// this is a new deployment
@@ -95,7 +109,32 @@ func (dm *DeploymentMonitor) Start() <-chan *DeploymentStatus {
 				currentID = ""
 			}
 
-			time.Sleep(pollInterval)
+			return nil
+		}
+
+		for {
+			select {
+			case <-time.After(delay):
+				switch err := processFn(); err {
+				case nil:
+					// we're still monitoring, ensure the poll interval is > 0 and continue
+					delay = pollInterval
+				case errDeploymentComplete:
+					// we're done, exit
+					return
+				case errDeploymentNotReady:
+					// we're waiting for a deployment, set the poll interval to a small value and continue
+					delay = pollInterval / 2
+				default:
+					dm.err = multierror.Append(err)
+					return
+				}
+			case <-ctx.Done():
+				if ctx.Err() != nil {
+					dm.err = multierror.Append(dm.err, ctx.Err())
+				}
+				return
+			}
 		}
 	}()
 
@@ -114,8 +153,8 @@ func (dm *DeploymentMonitor) Error() error {
 	return dm.err
 }
 
-func (dm *DeploymentMonitor) DisplayVerbose(w io.Writer) {
-	for deployment := range dm.Start() {
+func (dm *DeploymentMonitor) DisplayVerbose(ctx context.Context, w io.Writer) {
+	for deployment := range dm.Start(ctx) {
 		if deployment.number > 1 {
 			fmt.Fprintln(w)
 		}
@@ -133,8 +172,8 @@ func (dm *DeploymentMonitor) DisplayVerbose(w io.Writer) {
 	}
 }
 
-func (dm *DeploymentMonitor) DisplayCompact(w io.Writer) {
-	for deployment := range dm.Start() {
+func (dm *DeploymentMonitor) DisplayCompact(ctx context.Context, w io.Writer) {
+	for deployment := range dm.Start(ctx) {
 		if deployment.number > 1 {
 			fmt.Fprintln(w)
 		}

@@ -1,11 +1,14 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path"
 	"path/filepath"
+	"syscall"
 
 	"github.com/logrusorgru/aurora"
 	"github.com/pkg/errors"
@@ -382,4 +385,17 @@ func requireSession(val bool) func(*Command) {
 	return func(cmd *Command) {
 		cmd.requireSession = val
 	}
+}
+
+func createCancellableContext() context.Context {
+	signals := make(chan os.Signal)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		<-signals
+		cancel()
+	}()
+
+	return ctx
 }

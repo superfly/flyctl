@@ -37,7 +37,6 @@ func deploymentTagPrefix(appName string) string {
 }
 
 type DockerClient struct {
-	ctx          context.Context
 	docker       *client.Client
 	registryAuth string
 }
@@ -66,7 +65,6 @@ func NewDockerClient() (*DockerClient, error) {
 	authStr := base64.URLEncoding.EncodeToString(encodedJSON)
 
 	c := &DockerClient{
-		ctx:          context.Background(),
 		docker:       cli,
 		registryAuth: authStr,
 	}
@@ -74,8 +72,8 @@ func NewDockerClient() (*DockerClient, error) {
 	return c, nil
 }
 
-func (c *DockerClient) Check() error {
-	_, err := c.docker.Ping(c.ctx)
+func (c *DockerClient) Check(ctx context.Context) error {
+	_, err := c.docker.Ping(ctx)
 	if err != nil {
 		return err
 	}
@@ -83,8 +81,8 @@ func (c *DockerClient) Check() error {
 	return nil
 }
 
-func (c *DockerClient) ResolveImage(imageName string) (*types.ImageSummary, error) {
-	img, err := c.findImage(imageName)
+func (c *DockerClient) ResolveImage(ctx context.Context, imageName string) (*types.ImageSummary, error) {
+	img, err := c.findImage(ctx, imageName)
 	if img != nil {
 		return img, nil
 	} else if err != nil {
@@ -98,15 +96,15 @@ func (c *DockerClient) ResolveImage(imageName string) (*types.ImageSummary, erro
 		return nil, err
 	}
 
-	if err := c.PullImage(ref.Remote(), os.Stdout); err != nil {
+	if err := c.PullImage(ctx, ref.Remote(), os.Stdout); err != nil {
 		return nil, err
 	}
 
-	return c.findImage(imageName)
+	return c.findImage(ctx, imageName)
 }
 
-func (c *DockerClient) PullImage(imageName string, out io.Writer) error {
-	resp, err := c.docker.ImagePull(c.ctx, imageName, types.ImagePullOptions{})
+func (c *DockerClient) PullImage(ctx context.Context, imageName string, out io.Writer) error {
+	resp, err := c.docker.ImagePull(ctx, imageName, types.ImagePullOptions{})
 	if err != nil {
 		return err
 	}
@@ -116,24 +114,24 @@ func (c *DockerClient) PullImage(imageName string, out io.Writer) error {
 	return jsonmessage.DisplayJSONMessagesStream(resp, out, termFd, isTerm, nil)
 }
 
-func (c *DockerClient) TagImage(sourceRef, tag string) error {
-	return c.docker.ImageTag(c.ctx, sourceRef, tag)
+func (c *DockerClient) TagImage(ctx context.Context, sourceRef, tag string) error {
+	return c.docker.ImageTag(ctx, sourceRef, tag)
 }
 
-func (c *DockerClient) DeleteDeploymentImages(appName string) error {
+func (c *DockerClient) DeleteDeploymentImages(ctx context.Context, appName string) error {
 	tagPrefix := deploymentTagPrefix(appName)
 
 	filters := filters.NewArgs()
 	filters.Add("reference", tagPrefix+"*")
 
-	images, err := c.docker.ImageList(c.ctx, types.ImageListOptions{Filters: filters})
+	images, err := c.docker.ImageList(ctx, types.ImageListOptions{Filters: filters})
 	if err != nil {
 		return err
 	}
 
 	for _, image := range images {
 		for _, tag := range image.RepoTags {
-			_, err := c.docker.ImageRemove(c.ctx, tag, types.ImageRemoveOptions{PruneChildren: true})
+			_, err := c.docker.ImageRemove(ctx, tag, types.ImageRemoveOptions{PruneChildren: true})
 			if err != nil {
 				terminal.Debug("Error deleting image", err)
 			}
@@ -143,8 +141,8 @@ func (c *DockerClient) DeleteDeploymentImages(appName string) error {
 	return nil
 }
 
-func (c *DockerClient) BuildImage(tar io.Reader, tag string, buildArgs map[string]*string, out io.Writer, squash bool) (*types.ImageSummary, error) {
-	resp, err := c.docker.ImageBuild(c.ctx, tar, types.ImageBuildOptions{
+func (c *DockerClient) BuildImage(ctx context.Context, tar io.Reader, tag string, buildArgs map[string]*string, out io.Writer, squash bool) (*types.ImageSummary, error) {
+	resp, err := c.docker.ImageBuild(ctx, tar, types.ImageBuildOptions{
 		Tags:      []string{tag},
 		BuildArgs: buildArgs,
 		// NoCache:   true,
@@ -161,7 +159,7 @@ func (c *DockerClient) BuildImage(tar io.Reader, tag string, buildArgs map[strin
 		return nil, err
 	}
 
-	img, err := c.findImage(tag)
+	img, err := c.findImage(ctx, tag)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +172,7 @@ func (c *DockerClient) BuildImage(tar io.Reader, tag string, buildArgs map[strin
 
 	fmt.Println("Creating temporary container")
 
-	cont, err := c.docker.ContainerCreate(c.ctx, &container.Config{
+	cont, err := c.docker.ContainerCreate(ctx, &container.Config{
 		Image: img.ID,
 	}, nil, nil, "")
 	if err != nil {
@@ -182,14 +180,14 @@ func (c *DockerClient) BuildImage(tar io.Reader, tag string, buildArgs map[strin
 	}
 
 	defer func(id string) {
-		err := c.docker.ContainerRemove(c.ctx, id, types.ContainerRemoveOptions{})
+		err := c.docker.ContainerRemove(ctx, id, types.ContainerRemoveOptions{})
 		if err != nil {
 			fmt.Printf("Failed to clean temporary docker container %s\n", id)
 		}
 	}(cont.ID)
 
 	fmt.Println("Exporting rootfs")
-	r, err := c.docker.ContainerExport(c.ctx, cont.ID)
+	r, err := c.docker.ContainerExport(ctx, cont.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +195,7 @@ func (c *DockerClient) BuildImage(tar io.Reader, tag string, buildArgs map[strin
 
 	fmt.Println("Importing image config")
 
-	contJSON, err := c.docker.ContainerInspect(c.ctx, cont.ID)
+	contJSON, err := c.docker.ContainerInspect(ctx, cont.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +233,7 @@ func (c *DockerClient) BuildImage(tar io.Reader, tag string, buildArgs map[strin
 	}
 
 	fmt.Println("Creating squashed image")
-	j, err := c.docker.ImageImport(c.ctx, types.ImageImportSource{
+	j, err := c.docker.ImageImport(ctx, types.ImageImportSource{
 		Source:     r,
 		SourceName: "-",
 	}, tag, importOpts)
@@ -251,7 +249,7 @@ func (c *DockerClient) BuildImage(tar io.Reader, tag string, buildArgs map[strin
 
 var imageIDPattern = regexp.MustCompile("[a-f0-9]")
 
-func (c *DockerClient) findImage(imageName string) (*types.ImageSummary, error) {
+func (c *DockerClient) findImage(ctx context.Context, imageName string) (*types.ImageSummary, error) {
 	ref, err := dockerparser.Parse(imageName)
 	if err != nil {
 		return nil, err
@@ -259,7 +257,7 @@ func (c *DockerClient) findImage(imageName string) (*types.ImageSummary, error) 
 
 	isID := imageIDPattern.MatchString(imageName)
 
-	images, err := c.docker.ImageList(c.ctx, types.ImageListOptions{})
+	images, err := c.docker.ImageList(ctx, types.ImageListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -302,8 +300,8 @@ func (c *DockerClient) findImage(imageName string) (*types.ImageSummary, error) 
 	return nil, nil
 }
 
-func (c *DockerClient) PushImage(imageName string, out io.Writer) error {
-	resp, err := c.docker.ImagePush(c.ctx, imageName, types.ImagePushOptions{RegistryAuth: c.registryAuth})
+func (c *DockerClient) PushImage(ctx context.Context, imageName string, out io.Writer) error {
+	resp, err := c.docker.ImagePush(ctx, imageName, types.ImagePushOptions{RegistryAuth: c.registryAuth})
 	if err != nil {
 		return err
 	}
@@ -313,7 +311,7 @@ func (c *DockerClient) PushImage(imageName string, out io.Writer) error {
 	return jsonmessage.DisplayJSONMessagesStream(resp, out, termFd, isTerm, nil)
 }
 
-func checkManifest(imageRef string, token string) (*dockerparser.Reference, error) {
+func checkManifest(ctx context.Context, imageRef string, token string) (*dockerparser.Reference, error) {
 	ref, err := dockerparser.Parse(imageRef)
 	if err != nil {
 		return nil, err
@@ -325,7 +323,7 @@ func checkManifest(imageRef string, token string) (*dockerparser.Reference, erro
 	}
 	url := fmt.Sprintf("https://%s/v2/%s/manifests/%s", registry, ref.ShortName(), ref.Tag())
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	req.Header.Add("Accept", "application/vnd.docker.distribution.manifest.v2+json")
 	if token != "" {
 		req.Header.Add("Authorization", "Bearer "+token)
@@ -345,7 +343,7 @@ func checkManifest(imageRef string, token string) (*dockerparser.Reference, erro
 	if resp.StatusCode == 401 && ref.Registry() == "docker.io" && token == "" {
 		token, _ := getDockerHubToken(ref.ShortName())
 		if token != "" {
-			return checkManifest(imageRef, token)
+			return checkManifest(ctx, imageRef, token)
 		}
 	}
 
