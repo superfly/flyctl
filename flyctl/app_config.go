@@ -191,6 +191,29 @@ func (ac *AppConfig) WriteToFile(filename string) error {
 	return ac.WriteTo(file, ConfigFormatFromPath(filename))
 }
 
+func (ac *AppConfig) SetPorts(internal int, external int) bool {
+	if services, ok := ac.Definition["services"].([]interface{}); ok {
+		if len(services) == 0 {
+			return false
+		}
+
+		if service, ok := services[0].(map[string]interface{}); ok {
+			if ports, ok := service["ports"].([]interface{}); ok {
+				if len(ports) == 0 {
+					return false
+				}
+				if port, ok := ports[0].(map[string]interface{}); ok {
+					service["internal_port"] = internal
+					port["port"] = external
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
 const defaultConfigFileName = "fly.toml"
 
 func ResolveConfigFileFromPath(p string) (string, error) {
