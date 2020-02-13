@@ -240,6 +240,12 @@ longHelp="""Show the release details for a specific release. A version parameter
 Versions can be seen in the output of flyctl releases.
 """
 
+[scale]
+usage="scale [flags] REGION=COUNT REGION=COUNT ..."
+shortHelp="Change region placement and instance count"
+longHelp="""Manually configure the region placement and instance count for an app.
+"""
+
 [secrets]
 usage="secrets"
 shortHelp="Manage app secrets"
@@ -285,3 +291,4 @@ usage="version"
 shortHelp="Show flyctl version information"
 longHelp="""Shows version information for the flyctl command itself, including version number and build date.
 """
+

@@ -54,6 +54,11 @@ type Query struct {
 	ReleaseIPAddress struct {
 		App App
 	}
+	ScaleApp struct {
+		App       App
+		Placement []RegionPlacement
+		Delta     []ScaleRegionChange
+	}
 }
 
 type Definition map[string]interface{}
@@ -326,6 +331,27 @@ type AllocateIPAddressInput struct {
 
 type ReleaseIPAddressInput struct {
 	IPAddressID string `json:"ipAddressId"`
+}
+
+type ScaleAppInput struct {
+	AppID   string             `json:"appId"`
+	Regions []ScaleRegionInput `json:"regions"`
+}
+
+type ScaleRegionInput struct {
+	Region string `json:"region"`
+	Count  int    `json:"count"`
+}
+
+type ScaleRegionChange struct {
+	Region    string
+	FromCount int
+	ToCount   int
+}
+
+type RegionPlacement struct {
+	Region string
+	Count  int
 }
 
 type AllocationStatus struct {

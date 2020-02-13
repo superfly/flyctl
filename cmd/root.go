@@ -60,6 +60,7 @@ func init() {
 		newDocsCommand(),
 		newIPAddressesCommand(),
 		newConfigCommand(),
+		newAppScaleCommand(),
 	)
 
 	initConfig()
