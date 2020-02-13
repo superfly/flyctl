@@ -2,16 +2,15 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-
-	"github.com/pkg/errors"
-	"github.com/superfly/flyctl/docstrings"
-
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/logrusorgru/aurora"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmd/presenters"
+	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
+	"os"
+	"strconv"
 )
 
 func newAppListCommand() *Command {
@@ -40,10 +39,18 @@ func newAppListCommand() *Command {
 		Name:        "name",
 		Description: "The app name to use",
 	})
+
 	create.AddStringFlag(StringFlagOpts{
 		Name:        "org",
 		Description: `The organization that will own the app`,
 	})
+
+	create.AddStringFlag(StringFlagOpts{
+		Name:        "port",
+		Shorthand:   "p",
+		Description: "Internal port on application to connect to external services",
+	})
+
 	create.AddStringFlag(StringFlagOpts{
 		Name:        "builder",
 		Description: `The Cloud Native Buildpacks builder to use when deploying the app`,
@@ -105,9 +112,22 @@ func runDestroyApp(ctx *CmdContext) error {
 
 func runAppsCreate(ctx *CmdContext) error {
 	var appName = ""
+	var internalPort = 0
 
 	if len(ctx.Args) > 0 {
 		appName = ctx.Args[0]
+	}
+
+	configPort, _ := ctx.Config.GetString("port")
+
+	// If ports set, validate
+	if configPort != "" {
+		var err error
+
+		internalPort, err = strconv.Atoi(configPort)
+		if err != nil {
+			return fmt.Errorf(`-p ports must be numeric`)
+		}
 	}
 
 	newAppConfig := flyctl.NewAppConfig()
@@ -155,6 +175,10 @@ func runAppsCreate(ctx *CmdContext) error {
 	}
 	newAppConfig.AppName = app.Name
 	newAppConfig.Definition = app.Config.Definition
+
+	if configPort != "" {
+		newAppConfig.SetInternalPort(internalPort)
+	}
 
 	fmt.Println("New app created")
 
