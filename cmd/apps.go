@@ -11,7 +11,6 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"os"
 	"strconv"
-	"strings"
 )
 
 func newAppListCommand() *Command {
