@@ -47,9 +47,9 @@ func newAppListCommand() *Command {
 	})
 
 	create.AddStringFlag(StringFlagOpts{
-		Name:        "ports",
+		Name:        "port",
 		Shorthand:   "p",
-		Description: "Port definition in docker run style (8080:80/internal:external)",
+		Description: "Internal port on application to connect to external services",
 	})
 
 	create.AddStringFlag(StringFlagOpts{
@@ -114,29 +114,18 @@ func runDestroyApp(ctx *CmdContext) error {
 func runAppsCreate(ctx *CmdContext) error {
 	var appName = ""
 	var internalPort = 0
-	var externalPort = 0
 
 	if len(ctx.Args) > 0 {
 		appName = ctx.Args[0]
 	}
 
-	configPorts, _ := ctx.Config.GetString("ports")
+	configPort, _ := ctx.Config.GetString("port")
 
 	// If ports set, validate
-	if configPorts != "" {
+	if configPort != "" {
 		var err error
 
-		ports := strings.Split(configPorts, ":")
-
-		if len(ports) != 2 {
-			return fmt.Errorf(`-p flag requires argument in port:port format`)
-		}
-
-		internalPort, err = strconv.Atoi(ports[0])
-		if err != nil {
-			return fmt.Errorf(`-p ports must be numeric`)
-		}
-		externalPort, err = strconv.Atoi(ports[1])
+		internalPort, err = strconv.Atoi(configPort)
 		if err != nil {
 			return fmt.Errorf(`-p ports must be numeric`)
 		}
@@ -188,8 +177,8 @@ func runAppsCreate(ctx *CmdContext) error {
 	newAppConfig.AppName = app.Name
 	newAppConfig.Definition = app.Config.Definition
 
-	if configPorts != "" {
-		newAppConfig.SetPorts(internalPort, externalPort)
+	if configPort != "" {
+		newAppConfig.SetInternalPort(internalPort)
 	}
 
 	fmt.Println("New app created")
