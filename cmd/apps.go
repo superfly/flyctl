@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -46,9 +47,9 @@ func newAppListCommand() *Command {
 	})
 
 	create.AddStringFlag(StringFlagOpts{
-		Name:        "internalport",
+		Name:        "ports",
 		Shorthand:   "p",
-		Description: "Port",
+		Description: "Port definition in docker run style (8080:80/internal:external)",
 	})
 
 	create.AddStringFlag(StringFlagOpts{
@@ -112,25 +113,33 @@ func runDestroyApp(ctx *CmdContext) error {
 
 func runAppsCreate(ctx *CmdContext) error {
 	var appName = ""
-	var internalPort = ""
-	var externalPort = ""
+	var internalPort = 0
+	var externalPort = 0
 
 	if len(ctx.Args) > 0 {
 		appName = ctx.Args[0]
 	}
 
-	ports, _ := ctx.Config.GetString("internalport")
+	configPorts, _ := ctx.Config.GetString("ports")
 
 	// If ports set, validate
-	if ports != "" {
-		ports := strings.Split(internalport, ":")
+	if configPorts != "" {
+		var err error
+
+		ports := strings.Split(configPorts, ":")
 
 		if len(ports) != 2 {
 			return fmt.Errorf(`-p flag requires argument in port:port format`)
 		}
 
-		internalPort = ports[0]
-		externalPort = ports[1]
+		internalPort, err = strconv.Atoi(ports[0])
+		if err != nil {
+			return fmt.Errorf(`-p ports must be numeric`)
+		}
+		externalPort, err = strconv.Atoi(ports[1])
+		if err != nil {
+			return fmt.Errorf(`-p ports must be numeric`)
+		}
 	}
 
 	newAppConfig := flyctl.NewAppConfig()
@@ -179,7 +188,7 @@ func runAppsCreate(ctx *CmdContext) error {
 	newAppConfig.AppName = app.Name
 	newAppConfig.Definition = app.Config.Definition
 
-	if ports != "" {
+	if configPorts != "" {
 		newAppConfig.SetPorts(internalPort, externalPort)
 	}
 
