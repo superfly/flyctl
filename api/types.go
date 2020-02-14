@@ -73,7 +73,6 @@ type App struct {
 	Version        int
 	Release        *Release
 	Organization   Organization
-	Tasks          []Task
 	Secrets        []Secret
 	CurrentRelease *Release
 	Releases       struct {
@@ -111,23 +110,6 @@ type Organization struct {
 	ID   string
 	Name string
 	Slug string
-}
-
-type Task struct {
-	ID              string
-	Name            string
-	Status          string
-	ServicesSummary string
-	Services        []TaskService
-	Allocations     []Allocation
-}
-
-type TaskService struct {
-	ID           string
-	Protocol     string
-	Ports        []PortHandler
-	InternalPort int
-	Description  string
 }
 
 type Allocation struct {
@@ -238,7 +220,6 @@ type DeploymentStatus struct {
 	Description    string
 	InProgress     bool
 	Successful     bool
-	Tasks          []TaskDeploymentStatus
 	CreatedAt      time.Time
 	Allocations    []AllocationStatus
 	Version        int
@@ -246,17 +227,6 @@ type DeploymentStatus struct {
 	PlacedCount    int
 	HealthyCount   int
 	UnhealthyCount int
-}
-
-type TaskDeploymentStatus struct {
-	Name             string
-	Promoted         bool
-	ProgressDeadline time.Time
-	Canaries         int
-	Desired          int
-	Healthy          int
-	Unhealthy        int
-	Placed           int
 }
 
 type AppCertificate struct {
@@ -291,8 +261,6 @@ type DeployImageInput struct {
 	Definition *Definition `json:"definition"`
 }
 
-// mostly duplicate of TaskService but works with the deployImage mutation.
-// clean up when we figure out groups/tasks/services
 type Service struct {
 	Description     string        `json:"description"`
 	Protocol        string        `json:"protocol"`

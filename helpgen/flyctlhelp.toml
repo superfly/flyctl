@@ -228,17 +228,6 @@ shortHelp="List app releases"
 longHelp="""List all the releases of the application onto the Fly platform, including type, when, success/fail and
 which user triggered the release.
 """
-[releases.latest]
-usage="latest"
-shortHelp="Show details for latest release"
-longHelp="""Show details of the most recent release.
-"""
-[releases.show]
-usage="show [VERSION]"
-shortHelp="Show details for a specific release"
-longHelp="""Show the release details for a specific release. A version parameter identifies which release is required.
-Versions can be seen in the output of flyctl releases.
-"""
 
 [scale]
 usage="scale [flags] REGION=COUNT REGION=COUNT ..."

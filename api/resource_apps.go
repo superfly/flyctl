@@ -44,18 +44,13 @@ func (c *Client) GetApp(appName string) (*App, error) {
 				organization {
 					slug
 				}
-				tasks {
-					id
-					name
-					services {
-						protocol
-						softConcurrency
-						hardConcurrency
-						ports {
-							port
-							handlers
-						}
-						internalPort
+				services {
+					description
+					protocol
+					internalPort
+					ports {
+						port
+						handlers
 					}
 				}
 				ipAddresses {

@@ -2,8 +2,9 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/superfly/flyctl/docstrings"
 	"os"
+
+	"github.com/superfly/flyctl/docstrings"
 
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/cmd/presenters"
@@ -27,7 +28,7 @@ func runAppInfo(ctx *CmdContext) error {
 	}
 
 	fmt.Println(aurora.Bold("Services"))
-	err = ctx.Render(&presenters.Services{Tasks: app.Tasks})
+	err = ctx.Render(&presenters.Services{Services: app.Services})
 	if err != nil {
 		return err
 	}

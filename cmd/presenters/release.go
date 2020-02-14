@@ -13,7 +13,7 @@ type Releases struct {
 }
 
 func (p *Releases) FieldNames() []string {
-	return []string{"Version", "Type", "Status", "Description", "User", "Date"}
+	return []string{"Version", "Stable", "Type", "Status", "Description", "User", "Date"}
 }
 
 func (p *Releases) Records() []map[string]string {
@@ -25,8 +25,8 @@ func (p *Releases) Records() []map[string]string {
 
 	for _, release := range p.Releases {
 		out = append(out, map[string]string{
-			"Version": fmt.Sprintf("v%d", release.Version),
-			// "Stable":      fmt.Sprintf("%t", release.Stable),
+			"Version":     fmt.Sprintf("v%d", release.Version),
+			"Stable":      fmt.Sprintf("%t", release.Stable),
 			"Status":      release.Status,
 			"Type":        formatReleaseReason(release.Reason),
 			"Description": formatReleaseDescription(release),
