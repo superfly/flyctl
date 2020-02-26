@@ -14,6 +14,10 @@ type Query struct {
 
 	Build Build
 
+	Platform struct {
+		Regions []Region
+	}
+
 	// mutations
 	CreateApp struct {
 		App App
@@ -354,4 +358,11 @@ type CheckState struct {
 	Status      string
 	Output      string
 	ServiceName string
+}
+
+type Region struct {
+	Code      string
+	Name      string
+	Latitude  float32
+	Longitude float32
 }

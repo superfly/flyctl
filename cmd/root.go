@@ -61,6 +61,7 @@ func init() {
 		newIPAddressesCommand(),
 		newConfigCommand(),
 		newAppScaleCommand(),
+		newPlatformCommand(),
 	)
 
 	initConfig()

@@ -221,6 +221,18 @@ Logs can be filtered to a specific instance using the instance/i flag or to all 
 region using the region/r flag.
 """
 
+[platform]
+usage="platform"
+shortHelp="Fly platform information"
+longHelp="""View information about the fly.io platform.
+"""
+
+[platform.regions]
+usage="regions"
+shortHelp="List regions"
+longHelp="""View a list of regions
+"""
+
 
 [releases]
 usage="releases"
