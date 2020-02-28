@@ -28,7 +28,7 @@ type Client struct {
 
 func NewClient(accessToken string, version string) (*Client, error) {
 	if accessToken == "" {
-		return nil, errors.New("No api access token available. Please login")
+		return nil, errors.New("No api access token available. Please login with 'flyctl auth signup' or 'flyctl auth login'")
 	}
 
 	httpClient, _ := newHTTPClient()
