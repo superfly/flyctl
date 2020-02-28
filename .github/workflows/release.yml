@@ -2,9 +2,9 @@ on:
   push:
     tags:
       - "v*"
-name: Build and Release
+name: Release
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
