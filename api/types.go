@@ -16,6 +16,7 @@ type Query struct {
 
 	Platform struct {
 		Regions []Region
+		VMSizes []VMSize
 	}
 
 	// mutations
@@ -101,6 +102,7 @@ type App struct {
 	ParseConfig      AppConfig
 	Allocations      []AllocationStatus
 	DeploymentStatus *DeploymentStatus
+	VMSize           VMSize
 }
 
 type AppConfig struct {
@@ -365,4 +367,13 @@ type Region struct {
 	Name      string
 	Latitude  float32
 	Longitude float32
+}
+
+type VMSize struct {
+	Name        string
+	CPUCores    float32
+	MemoryGB    float32
+	MemoryMB    int
+	PriceMonth  float32
+	PriceSecond float32
 }

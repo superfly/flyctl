@@ -233,6 +233,11 @@ shortHelp="List regions"
 longHelp="""View a list of regions
 """
 
+[platform.vmsizes]
+usage="vm-sizes"
+shortHelp="List VM Sizes"
+longHelp="""View a list of VM sizes
+"""
 
 [releases]
 usage="releases"
