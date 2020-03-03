@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
-	"strings"
 
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/api"
@@ -53,21 +53,42 @@ func runScaleRegions(ctx *CmdContext) error {
 		input.ResetRegions = api.BoolPointer(true)
 	}
 
+	pattern := regexp.MustCompile("^(?P<region>[a-z]{3})(=(?P<count>\\d+))?(@(?P<weight>\\d+))?$")
+
 	for _, pair := range ctx.Args {
-		parts := strings.SplitN(pair, "=", 2)
-		if len(parts) != 2 {
-			return fmt.Errorf("Changes must be provided as REGION=COUNT pairs (%s is invalid)", pair)
+		if !pattern.MatchString(pair) {
+			return fmt.Errorf("Argument '%s' is invalid", pair)
 		}
 
-		val, err := strconv.Atoi(parts[1])
-		if err != nil {
-			return fmt.Errorf("Counts must be numbers (%s is invalid)", pair)
+		names := pattern.SubexpNames()
+		region := api.AutoscaleRegionConfigInput{}
+
+		for idx, match := range pattern.FindStringSubmatch(pair) {
+			if len(match) == 0 {
+				continue
+			}
+
+			switch names[idx] {
+			case "region":
+				region.Code = match
+			case "count":
+				fmt.Println("handling count", match)
+				val, err := strconv.Atoi(match)
+				if err != nil || val <= 0 {
+					return fmt.Errorf("Counts must be integers greater than 0 (%s is invalid)", pair)
+				}
+				region.MinCount = api.IntPointer(val)
+			case "weight":
+				fmt.Println("handling weight", match)
+				val, err := strconv.Atoi(match)
+				if err != nil || val <= 0 {
+					return fmt.Errorf("Weights must be numbers greater than 0 (%s is invalid)", pair)
+				}
+				region.Weight = api.IntPointer(val)
+			}
 		}
 
-		input.Regions = append(input.Regions, api.AutoscaleRegionConfigInput{
-			Code:     parts[0],
-			MinCount: api.IntPointer(val),
-		})
+		input.Regions = append(input.Regions, region)
 	}
 
 	if len(input.Regions) > 0 || input.ResetRegions != nil {
