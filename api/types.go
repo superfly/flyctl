@@ -64,6 +64,15 @@ type Query struct {
 		Placement []RegionPlacement
 		Delta     []ScaleRegionChange
 	}
+
+	UpdateAutoscaleConfig struct {
+		App App
+	}
+
+	SetVMSize struct {
+		App    App
+		VMSize *VMSize
+	}
 }
 
 type Definition map[string]interface{}
@@ -102,6 +111,7 @@ type App struct {
 	ParseConfig      AppConfig
 	Allocations      []AllocationStatus
 	DeploymentStatus *DeploymentStatus
+	Autoscaling      *AutoscalingConfig
 	VMSize           VMSize
 }
 
@@ -369,6 +379,37 @@ type Region struct {
 	Longitude float32
 }
 
+type AutoscalingConfig struct {
+	BalanceRegions bool
+	Enabled        bool
+	MaxCount       int
+	MinCount       int
+	Regions        []AutoscalingRegionConfig
+}
+
+type AutoscalingRegionConfig struct {
+	Code     string
+	MinCount int
+	Weight   int
+}
+
+type UpdateAutoscaleConfigInput struct {
+	AppID          string                       `json:"appId"`
+	Enabled        *bool                        `json:"enabled"`
+	MinCount       *int                         `json:"minCount"`
+	MaxCount       *int                         `json:"maxCount"`
+	BalanceRegions *bool                        `json:"balanceRegions"`
+	ResetRegions   *bool                        `json:"resetRegions"`
+	Regions        []AutoscaleRegionConfigInput `json:"regions"`
+}
+
+type AutoscaleRegionConfigInput struct {
+	Code     string `json:"code"`
+	MinCount *int   `json:"minCount"`
+	Weight   *int   `json:"weight"`
+	Reset    *bool  `json:"reset"`
+}
+
 type VMSize struct {
 	Name        string
 	CPUCores    float32
@@ -376,4 +417,9 @@ type VMSize struct {
 	MemoryMB    int
 	PriceMonth  float32
 	PriceSecond float32
+}
+
+type SetVMSizeInput struct {
+	AppID    string `json:"appId"`
+	SizeName string `json:"sizeName"`
 }

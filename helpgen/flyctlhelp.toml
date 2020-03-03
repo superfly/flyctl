@@ -247,9 +247,21 @@ which user triggered the release.
 """
 
 [scale]
-usage="scale [flags] REGION=COUNT REGION=COUNT ..."
-shortHelp="Change region placement and instance count"
-longHelp="""Manually configure the region placement and instance count for an app.
+usage="scale"
+shortHelp="Scale application resources"
+longHelp="""Scale application resources
+"""
+
+[scale.regions]
+usage="regions [flags] REGION=COUNT REGION=COUNT ..."
+shortHelp="Configure region placement"
+longHelp="""Configure the region placement rules and instance count for an app. Shows the current autoscaling configuration if no arguments are given.
+"""
+
+[scale.vm]
+usage="vm [flags] [SIZE]"
+shortHelp="Scale the VM size"
+longHelp="""Change the size of the VM. Shows the current VM size if no arguments are given.
 """
 
 [secrets]
