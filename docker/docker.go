@@ -264,6 +264,9 @@ func (c *DockerClient) findImage(ctx context.Context, imageName string) (*types.
 
 	if isID {
 		for _, img := range images {
+			if len(img.ID) < len(imageName)+7 {
+				continue
+			}
 			if img.ID[7:7+len(imageName)] == imageName {
 				terminal.Debug("Found image by id", imageName)
 				return &img, nil
