@@ -50,7 +50,9 @@ func (c *Client) GetAppLogs(appName string, nextToken string, region string, ins
 
 	defer resp.Body.Close()
 
-	json.NewDecoder(resp.Body).Decode(&result)
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return entries, "", err
+	}
 
 	for _, d := range result.Data {
 		entries = append(entries, d.Attributes)
