@@ -28,17 +28,18 @@ func newScaleCommand() *Command {
 	regionCmdStrings := docstrings.Get("scale.regions")
 	regionsCmd := BuildCommand(cmd, runScaleRegions, regionCmdStrings.Usage, regionCmdStrings.Short, regionCmdStrings.Long, true, os.Stdout, requireAppName)
 	regionsCmd.AddBoolFlag(BoolFlagOpts{
-		Name:        "reset",
-		Description: "Reset existing region configs before applying changes",
+		Name:        "reset-all",
+		Description: "Reset all regions before applying changes",
+	})
+	regionsCmd.AddStringSliceFlag(StringSliceFlagOpts{
+		Name:        "reset-region",
+		Shorthand:   "x",
+		Description: "Reset a region. Can be specified multiple times.",
 	})
 
 	vmCmdStrings := docstrings.Get("scale.vm")
 	vmCmd := BuildCommand(cmd, runScaleVM, vmCmdStrings.Usage, vmCmdStrings.Short, vmCmdStrings.Long, true, os.Stdout, requireAppName)
 	vmCmd.Args = cobra.RangeArgs(0, 1)
-	vmCmd.AddBoolFlag(BoolFlagOpts{
-		Name:        "reset",
-		Description: "Reset existing region configurations before applying changes",
-	})
 
 	return cmd
 }
@@ -49,7 +50,7 @@ func runScaleRegions(ctx *CmdContext) error {
 		Regions: []api.AutoscaleRegionConfigInput{},
 	}
 
-	if ctx.Config.GetBool("reset") {
+	if ctx.Config.GetBool("reset-all") {
 		input.ResetRegions = api.BoolPointer(true)
 	}
 
@@ -89,6 +90,13 @@ func runScaleRegions(ctx *CmdContext) error {
 		}
 
 		input.Regions = append(input.Regions, region)
+	}
+
+	for _, region := range ctx.Config.GetStringSlice("reset-region") {
+		input.Regions = append(input.Regions, api.AutoscaleRegionConfigInput{
+			Code:  region,
+			Reset: api.BoolPointer(true),
+		})
 	}
 
 	if len(input.Regions) > 0 || input.ResetRegions != nil {
