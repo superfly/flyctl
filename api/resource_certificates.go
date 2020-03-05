@@ -33,6 +33,8 @@ func (c *Client) GetAppCertificate(appName string, hostname string) (*AppCertifi
 			app(name: $appName) {
 				certificate(hostname: $hostname) {
 					acmeDnsConfigured
+					acmeAlpnConfigured
+					configured
 					certificateAuthority
 					createdAt
 					dnsProvider
@@ -73,6 +75,8 @@ func (c *Client) CheckAppCertificate(appName string, hostname string) (*AppCerti
 			app(name: $appName) {
 				certificate(hostname: $hostname) {
 					acmeDnsConfigured
+					acmeAlpnConfigured
+					configured
 					certificateAuthority
 					createdAt
 					dnsProvider
@@ -113,6 +117,8 @@ func (c *Client) AddCertificate(appName string, hostname string) (*AppCertificat
 			addCertificate(appId: $appId, hostname: $hostname) {
 				certificate {
 					acmeDnsConfigured
+					acmeAlpnConfigured
+					configured
 					certificateAuthority
 					certificateRequestedAt
 					dnsProvider

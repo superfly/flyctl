@@ -26,7 +26,7 @@ func (p *Certificate) Records() []map[string]string {
 
 	out = append(out, map[string]string{
 		"Hostname":                    p.Certificate.Hostname,
-		"Configured":                  strconv.FormatBool(p.Certificate.AcmeDNSConfigured),
+		"Configured":                  strconv.FormatBool(p.Certificate.Configured),
 		"Certificate Authority":       p.Certificate.CertificateAuthority,
 		"DNS Provider":                p.Certificate.DNSProvider,
 		"DNS Validation Instructions": p.Certificate.DNSValidationInstructions,

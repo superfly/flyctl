@@ -248,6 +248,8 @@ type DeploymentStatus struct {
 type AppCertificate struct {
 	ID                        string
 	AcmeDNSConfigured         bool
+	AcmeALPNConfigured        bool
+	Configured                bool
 	CertificateAuthority      string
 	CreatedAt                 time.Time
 	DNSProvider               string
