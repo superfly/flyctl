@@ -62,6 +62,7 @@ func init() {
 		newConfigCommand(),
 		newScaleCommand(),
 		newPlatformCommand(),
+		newCurlCommand(),
 	)
 
 	initConfig()

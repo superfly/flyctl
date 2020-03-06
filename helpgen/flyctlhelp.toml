@@ -140,6 +140,12 @@ shortHelp="Checks DNS configuration"
 longHelp="""Checks the DNS configuration for the specified hostname.
 """
 
+[curl]
+usage="curl <url>"
+shortHelp="Run a performance test against a url"
+longHelp="""Run a performance test againt a url
+"""
+
 
 [config]
 usage="config"
