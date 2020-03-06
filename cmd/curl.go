@@ -22,7 +22,7 @@ func newCurlCommand() *Command {
 	curlStrings := docstrings.Get("curl")
 	cmd := BuildCommand(nil, runCurl, curlStrings.Usage, curlStrings.Short, curlStrings.Long, true, os.Stdout)
 	cmd.Args = cobra.ExactArgs(1)
-
+	cmd.Hidden = true
 	return cmd
 }
 
