@@ -57,7 +57,7 @@ func initViper() {
 		fmt.Println("Error loading config", err)
 	}
 
-	viper.SetDefault(ConfigAPIBaseURL, "https://fly.io")
+	viper.SetDefault(ConfigAPIBaseURL, "https://api.fly.io")
 	viper.SetDefault(ConfigRegistryHost, "registry.fly.io")
 	// viper.RegisterAlias("access_token", ConfigAPIToken)
 	viper.BindEnv(ConfigAPIToken, "FLY_ACCESS_TOKEN")
