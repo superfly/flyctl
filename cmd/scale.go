@@ -75,15 +75,15 @@ func runScaleRegions(ctx *CmdContext) error {
 			case "count":
 				fmt.Println("handling count", match)
 				val, err := strconv.Atoi(match)
-				if err != nil || val <= 0 {
-					return fmt.Errorf("Counts must be integers greater than 0 (%s is invalid)", pair)
+				if err != nil || val < 0 {
+					return fmt.Errorf("Counts must be 0 or more (%s is invalid)", pair)
 				}
 				region.MinCount = api.IntPointer(val)
 			case "weight":
 				fmt.Println("handling weight", match)
 				val, err := strconv.Atoi(match)
-				if err != nil || val <= 0 {
-					return fmt.Errorf("Weights must be numbers greater than 0 (%s is invalid)", pair)
+				if err != nil || val < 0 || val > 100 {
+					return fmt.Errorf("Weights must be between 0 and 100 (%s is invalid)", pair)
 				}
 				region.Weight = api.IntPointer(val)
 			}
