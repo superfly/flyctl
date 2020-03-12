@@ -18,6 +18,7 @@ require (
 	github.com/containerd/continuity v0.0.0-20200107194136-26c1120b8d41 // indirect
 	github.com/docker/docker v1.4.2-0.20200103225628-a9507c6f7662
 	github.com/dustin/go-humanize v1.0.0
+	github.com/getsentry/sentry-go v0.5.1
 	github.com/hashicorp/go-multierror v0.0.0-20161216184304-ed905158d874
 	github.com/logrusorgru/aurora v0.0.0-20190428105938-cea283e61946
 	github.com/machinebox/graphql v0.2.3-0.20181106130121-3a9253180225
@@ -34,8 +35,8 @@ require (
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/viper v1.4.0
 	github.com/stretchr/testify v1.4.0
-	golang.org/x/net v0.0.0-20190724013045-ca1201d0de80
-	gopkg.in/yaml.v2 v2.2.2
+	golang.org/x/net v0.0.0-20190827160401-ba9fcec4b297
+	gopkg.in/yaml.v2 v2.2.4
 )
 
 replace github.com/BurntSushi/toml => github.com/michaeldwan/toml v0.3.2-0.20191213213541-3c5ced72b6f3
