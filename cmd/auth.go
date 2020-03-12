@@ -3,9 +3,11 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"github.com/superfly/flyctl/docstrings"
 	"os"
 	"time"
+
+	"github.com/superfly/flyctl/docstrings"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/briandowns/spinner"
@@ -30,13 +32,13 @@ func newAuthCommand() *Command {
 		},
 	}
 	authWhoamiStrings := docstrings.Get("auth.whoami")
-	BuildCommand(cmd, runWhoami, authWhoamiStrings.Usage, authWhoamiStrings.Short, authWhoamiStrings.Long, true, os.Stdout)
+	BuildCommand(cmd, runWhoami, authWhoamiStrings.Usage, authWhoamiStrings.Short, authWhoamiStrings.Long, os.Stdout, requireSession)
 
 	authTokenStrings := docstrings.Get("auth.token")
-	BuildCommand(cmd, runAuthToken, authTokenStrings.Usage, authTokenStrings.Short, authTokenStrings.Long, true, os.Stdout)
+	BuildCommand(cmd, runAuthToken, authTokenStrings.Usage, authTokenStrings.Short, authTokenStrings.Long, os.Stdout, requireSession)
 
 	authLoginStrings := docstrings.Get("auth.login")
-	login := BuildCommand(cmd, runLogin, authLoginStrings.Usage, authLoginStrings.Short, authLoginStrings.Long, false, os.Stdout)
+	login := BuildCommand(cmd, runLogin, authLoginStrings.Usage, authLoginStrings.Short, authLoginStrings.Long, os.Stdout)
 
 	// TODO: Move flag descriptions into the docStrings
 	login.AddBoolFlag(BoolFlagOpts{
@@ -58,16 +60,16 @@ func newAuthCommand() *Command {
 	})
 
 	authLogoutStrings := docstrings.Get("auth.logout")
-	BuildCommand(cmd, runLogout, authLogoutStrings.Usage, authLogoutStrings.Short, authLogoutStrings.Long, true, os.Stdout)
+	BuildCommand(cmd, runLogout, authLogoutStrings.Usage, authLogoutStrings.Short, authLogoutStrings.Long, os.Stdout, requireSession)
 
 	authSignupStrings := docstrings.Get("auth.signup")
-	BuildCommand(cmd, runSignup, authSignupStrings.Usage, authSignupStrings.Short, authSignupStrings.Long, false, os.Stdout)
+	BuildCommand(cmd, runSignup, authSignupStrings.Usage, authSignupStrings.Short, authSignupStrings.Long, os.Stdout)
 
 	return cmd
 }
 
 func runWhoami(ctx *CmdContext) error {
-	user, err := ctx.FlyClient.GetCurrentUser()
+	user, err := ctx.Client.API().GetCurrentUser()
 	if err != nil {
 		return err
 	}
@@ -125,11 +127,11 @@ func runWebLogin(ctx *CmdContext, signup bool) error {
 		return err
 	}
 
-	if err := ctx.InitApiClient(); err != nil {
-		return err
+	if !ctx.Client.InitApi() {
+		return client.ErrNoAuthToken
 	}
 
-	user, err := ctx.FlyClient.GetCurrentUser()
+	user, err := ctx.Client.API().GetCurrentUser()
 	if err != nil {
 		return err
 	}

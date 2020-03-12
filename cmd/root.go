@@ -11,9 +11,11 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/client"
 )
 
 var ErrAbort = errors.New("abort")
+var flyctlClient *client.Client
 
 var rootCmd = &Command{
 	Command: &cobra.Command{
@@ -23,6 +25,8 @@ var rootCmd = &Command{
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			cmd.SilenceUsage = true
 			cmd.SilenceErrors = true
+
+			flyctlClient = client.NewClient()
 		},
 	},
 }

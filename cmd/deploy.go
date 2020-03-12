@@ -20,7 +20,7 @@ import (
 
 func newDeployCommand() *Command {
 	deployStrings := docstrings.Get("deploy")
-	cmd := BuildCommand(nil, runDeploy, deployStrings.Usage, deployStrings.Short, deployStrings.Long, true, os.Stdout, workingDirectoryFromArg(0), requireAppName)
+	cmd := BuildCommand(nil, runDeploy, deployStrings.Usage, deployStrings.Short, deployStrings.Long, os.Stdout, workingDirectoryFromArg(0), requireSession, requireAppName)
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "image",
 		Shorthand:   "i",
@@ -41,7 +41,7 @@ func newDeployCommand() *Command {
 
 func runDeploy(cc *CmdContext) error {
 	ctx := createCancellableContext()
-	op, err := docker.NewDeployOperation(ctx, cc.AppName, cc.AppConfig, cc.FlyClient, cc.Out, cc.Config.GetBool("squash"))
+	op, err := docker.NewDeployOperation(ctx, cc.AppName, cc.AppConfig, cc.Client.API(), cc.Out, cc.Config.GetBool("squash"))
 	if err != nil {
 		return err
 	}
@@ -103,7 +103,7 @@ func runDeploy(cc *CmdContext) error {
 	s.Prefix = "Building "
 	s.Start()
 
-	logStream := flyctl.NewBuildLogStream(build.ID, cc.FlyClient)
+	logStream := flyctl.NewBuildLogStream(build.ID, cc.Client.API())
 
 	defer func() {
 		s.FinalMSG = fmt.Sprintf("Build complete - %s\n", logStream.Status())
@@ -137,7 +137,7 @@ func watchDeployment(ctx context.Context, cc *CmdContext) error {
 	fmt.Println(aurora.Blue("==>"), "Monitoring Deployment")
 	fmt.Println(aurora.Faint("You can detach the terminal anytime without stopping the deployment"))
 
-	monitor := flyctl.NewDeploymentMonitor(cc.FlyClient, cc.AppName)
+	monitor := flyctl.NewDeploymentMonitor(cc.Client.API(), cc.AppName)
 	if isatty.IsTerminal(os.Stdout.Fd()) {
 		monitor.DisplayCompact(ctx, cc.Out)
 	} else {

@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/superfly/flyctl/docstrings"
 	"os"
+
+	"github.com/superfly/flyctl/docstrings"
 
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
@@ -27,19 +28,19 @@ func newConfigCommand() *Command {
 	}
 
 	configDisplayStrings := docstrings.Get("config.display")
-	BuildCommand(cmd, runDisplayConfig, configDisplayStrings.Usage, configDisplayStrings.Short, configDisplayStrings.Long, true, os.Stdout, requireAppName)
+	BuildCommand(cmd, runDisplayConfig, configDisplayStrings.Usage, configDisplayStrings.Short, configDisplayStrings.Long, os.Stdout, requireSession, requireAppName)
 
 	configSaveStrings := docstrings.Get("config.save")
-	BuildCommand(cmd, runSaveConfig, configSaveStrings.Usage, configSaveStrings.Short, configSaveStrings.Long, true, os.Stdout, requireAppName)
+	BuildCommand(cmd, runSaveConfig, configSaveStrings.Usage, configSaveStrings.Short, configSaveStrings.Long, os.Stdout, requireSession, requireAppName)
 
 	configValidateStrings := docstrings.Get("config.validate")
-	BuildCommand(cmd, runValidateConfig, configValidateStrings.Usage, configValidateStrings.Short, configValidateStrings.Long, true, os.Stdout, requireAppName)
+	BuildCommand(cmd, runValidateConfig, configValidateStrings.Usage, configValidateStrings.Short, configValidateStrings.Long, os.Stdout, requireSession, requireAppName)
 
 	return cmd
 }
 
 func runDisplayConfig(ctx *CmdContext) error {
-	cfg, err := ctx.FlyClient.GetConfig(ctx.AppName)
+	cfg, err := ctx.Client.API().GetConfig(ctx.AppName)
 	if err != nil {
 		return err
 	}
@@ -57,7 +58,7 @@ func runSaveConfig(ctx *CmdContext) error {
 	}
 	ctx.AppConfig.AppName = ctx.AppName
 
-	serverCfg, err := ctx.FlyClient.GetConfig(ctx.AppName)
+	serverCfg, err := ctx.Client.API().GetConfig(ctx.AppName)
 	if err != nil {
 		return err
 	}
@@ -74,7 +75,7 @@ func runValidateConfig(ctx *CmdContext) error {
 
 	fmt.Println("Validating", ctx.ConfigFile)
 
-	serverCfg, err := ctx.FlyClient.ParseConfig(ctx.AppName, ctx.AppConfig.Definition)
+	serverCfg, err := ctx.Client.API().ParseConfig(ctx.AppName, ctx.AppConfig.Definition)
 	if err != nil {
 		return err
 	}

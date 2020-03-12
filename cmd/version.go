@@ -11,7 +11,7 @@ import (
 
 func newVersionCommand() *Command {
 	versionStrings := docstrings.Get("version")
-	version := BuildCommand(nil, runVersion, versionStrings.Usage, versionStrings.Short, versionStrings.Long, false, os.Stdout)
+	version := BuildCommand(nil, runVersion, versionStrings.Usage, versionStrings.Short, versionStrings.Long, os.Stdout)
 	version.AddStringFlag(StringFlagOpts{
 		Name:        "completions",
 		Shorthand:   "c",

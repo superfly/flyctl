@@ -2,10 +2,11 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/superfly/flyctl/docstrings"
 	"math"
 	"os"
 	"time"
+
+	"github.com/superfly/flyctl/docstrings"
 
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/api"
@@ -14,7 +15,7 @@ import (
 
 func newAppLogsCommand() *Command {
 	logsStrings := docstrings.Get("logs")
-	cmd := BuildCommand(nil, runLogs, logsStrings.Usage, logsStrings.Short, logsStrings.Long, true, os.Stdout, requireAppName)
+	cmd := BuildCommand(nil, runLogs, logsStrings.Usage, logsStrings.Short, logsStrings.Long, os.Stdout, requireSession, requireAppName)
 
 	// TODO: Move flag descriptions into the docStrings
 	cmd.AddStringFlag(StringFlagOpts{
@@ -40,7 +41,7 @@ func runLogs(ctx *CmdContext) error {
 	nextToken := ""
 
 	for {
-		entries, token, err := ctx.FlyClient.GetAppLogs(ctx.AppName, nextToken, regionFilter, instanceFilter)
+		entries, token, err := ctx.Client.API().GetAppLogs(ctx.AppName, nextToken, regionFilter, instanceFilter)
 
 		if err != nil {
 			if api.IsNotAuthenticatedError(err) {

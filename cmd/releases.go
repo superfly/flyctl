@@ -10,12 +10,12 @@ import (
 
 func newAppReleasesListCommand() *Command {
 	releasesStrings := docstrings.Get("releases")
-	cmd := BuildCommand(nil, runAppReleasesList, releasesStrings.Usage, releasesStrings.Short, releasesStrings.Long, true, os.Stdout, requireAppName)
+	cmd := BuildCommand(nil, runAppReleasesList, releasesStrings.Usage, releasesStrings.Short, releasesStrings.Long, os.Stdout, requireSession, requireAppName)
 	return cmd
 }
 
 func runAppReleasesList(ctx *CmdContext) error {
-	releases, err := ctx.FlyClient.GetAppReleases(ctx.AppName, 25)
+	releases, err := ctx.Client.API().GetAppReleases(ctx.AppName, 25)
 	if err != nil {
 		return err
 	}

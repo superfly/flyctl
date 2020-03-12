@@ -2,8 +2,9 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/superfly/flyctl/docstrings"
 	"os"
+
+	"github.com/superfly/flyctl/docstrings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/logrusorgru/aurora"
@@ -23,30 +24,30 @@ func newCertificatesCommand() *Command {
 	}
 
 	certsListStrings := docstrings.Get("certs.list")
-	BuildCommand(cmd, runCertsList, certsListStrings.Usage, certsListStrings.Short, certsListStrings.Long, true, os.Stdout, requireAppName)
+	BuildCommand(cmd, runCertsList, certsListStrings.Usage, certsListStrings.Short, certsListStrings.Long, os.Stdout, requireSession, requireAppName)
 
 	certsCreateStrings := docstrings.Get("certs.create")
-	create := BuildCommand(cmd, runCertAdd, certsCreateStrings.Usage, certsCreateStrings.Short, certsCreateStrings.Long, true, os.Stdout, requireAppName)
+	create := BuildCommand(cmd, runCertAdd, certsCreateStrings.Usage, certsCreateStrings.Short, certsCreateStrings.Long, os.Stdout, requireSession, requireAppName)
 	create.Command.Args = cobra.ExactArgs(1)
 
 	certsDeleteStrings := docstrings.Get("certs.delete")
-	delete := BuildCommand(cmd, runCertDelete, certsDeleteStrings.Usage, certsDeleteStrings.Short, certsDeleteStrings.Long, true, os.Stdout, requireAppName)
+	delete := BuildCommand(cmd, runCertDelete, certsDeleteStrings.Usage, certsDeleteStrings.Short, certsDeleteStrings.Long, os.Stdout, requireSession, requireAppName)
 	delete.Command.Args = cobra.ExactArgs(1)
 	delete.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "accept all confirmations"})
 
 	certsShowStrings := docstrings.Get("certs.show")
-	show := BuildCommand(cmd, runCertShow, certsShowStrings.Usage, certsShowStrings.Short, certsShowStrings.Long, true, os.Stdout, requireAppName)
+	show := BuildCommand(cmd, runCertShow, certsShowStrings.Usage, certsShowStrings.Short, certsShowStrings.Long, os.Stdout, requireSession, requireAppName)
 	show.Command.Args = cobra.ExactArgs(1)
 
 	certsCheckStrings := docstrings.Get("certs.check")
-	check := BuildCommand(cmd, runCertCheck, certsCheckStrings.Usage, certsCheckStrings.Short, certsCheckStrings.Long, true, os.Stdout, requireAppName)
+	check := BuildCommand(cmd, runCertCheck, certsCheckStrings.Usage, certsCheckStrings.Short, certsCheckStrings.Long, os.Stdout, requireSession, requireAppName)
 	check.Command.Args = cobra.ExactArgs(1)
 
 	return cmd
 }
 
 func runCertsList(ctx *CmdContext) error {
-	certs, err := ctx.FlyClient.GetAppCertificates(ctx.AppName)
+	certs, err := ctx.Client.API().GetAppCertificates(ctx.AppName)
 	if err != nil {
 		return err
 	}
@@ -57,7 +58,7 @@ func runCertsList(ctx *CmdContext) error {
 func runCertShow(ctx *CmdContext) error {
 	hostname := ctx.Args[0]
 
-	cert, err := ctx.FlyClient.GetAppCertificate(ctx.AppName, hostname)
+	cert, err := ctx.Client.API().GetAppCertificate(ctx.AppName, hostname)
 	if err != nil {
 		return err
 	}
@@ -68,7 +69,7 @@ func runCertShow(ctx *CmdContext) error {
 func runCertCheck(ctx *CmdContext) error {
 	hostname := ctx.Args[0]
 
-	cert, err := ctx.FlyClient.CheckAppCertificate(ctx.AppName, hostname)
+	cert, err := ctx.Client.API().CheckAppCertificate(ctx.AppName, hostname)
 	if err != nil {
 		return err
 	}
@@ -79,7 +80,7 @@ func runCertCheck(ctx *CmdContext) error {
 func runCertAdd(ctx *CmdContext) error {
 	hostname := ctx.Args[0]
 
-	cert, err := ctx.FlyClient.AddCertificate(ctx.AppName, hostname)
+	cert, err := ctx.Client.API().AddCertificate(ctx.AppName, hostname)
 	if err != nil {
 		return err
 	}
@@ -102,7 +103,7 @@ func runCertDelete(ctx *CmdContext) error {
 		}
 	}
 
-	cert, err := ctx.FlyClient.DeleteCertificate(ctx.AppName, hostname)
+	cert, err := ctx.Client.API().DeleteCertificate(ctx.AppName, hostname)
 	if err != nil {
 		return err
 	}

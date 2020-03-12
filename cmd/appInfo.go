@@ -12,11 +12,11 @@ import (
 
 func newAppInfoCommand() *Command {
 	ks := docstrings.Get("info")
-	return BuildCommand(nil, runAppInfo, ks.Usage, ks.Short, ks.Long, true, os.Stdout, requireAppName)
+	return BuildCommand(nil, runAppInfo, ks.Usage, ks.Short, ks.Long, os.Stdout, requireSession, requireAppName)
 }
 
 func runAppInfo(ctx *CmdContext) error {
-	app, err := ctx.FlyClient.GetApp(ctx.AppName)
+	app, err := ctx.Client.API().GetApp(ctx.AppName)
 	if err != nil {
 		return err
 	}

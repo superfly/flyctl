@@ -2,9 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/superfly/flyctl/docstrings"
 	"net"
 	"os"
+
+	"github.com/superfly/flyctl/docstrings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -23,23 +24,23 @@ func newIPAddressesCommand() *Command {
 	}
 
 	ipsListStrings := docstrings.Get("ips.list")
-	BuildCommand(cmd, runIPAddressesList, ipsListStrings.Usage, ipsListStrings.Short, ipsListStrings.Long, true, os.Stdout, requireAppName)
+	BuildCommand(cmd, runIPAddressesList, ipsListStrings.Usage, ipsListStrings.Short, ipsListStrings.Long, os.Stdout, requireSession, requireAppName)
 
 	ipsAllocateV4Strings := docstrings.Get("ips.allocate-v4")
-	BuildCommand(cmd, runAllocateIPAddressV4, ipsAllocateV4Strings.Usage, ipsAllocateV4Strings.Short, ipsAllocateV4Strings.Long, true, os.Stdout, requireAppName)
+	BuildCommand(cmd, runAllocateIPAddressV4, ipsAllocateV4Strings.Usage, ipsAllocateV4Strings.Short, ipsAllocateV4Strings.Long, os.Stdout, requireSession, requireAppName)
 
 	ipsAllocateV6Strings := docstrings.Get("ips.allocate-v6")
-	BuildCommand(cmd, runAllocateIPAddressV6, ipsAllocateV6Strings.Usage, ipsAllocateV6Strings.Short, ipsAllocateV6Strings.Long, true, os.Stdout, requireAppName)
+	BuildCommand(cmd, runAllocateIPAddressV6, ipsAllocateV6Strings.Usage, ipsAllocateV6Strings.Short, ipsAllocateV6Strings.Long, os.Stdout, requireSession, requireAppName)
 
 	ipsReleaseStrings := docstrings.Get("ips.release")
-	release := BuildCommand(cmd, runReleaseIPAddress, ipsReleaseStrings.Usage, ipsReleaseStrings.Short, ipsReleaseStrings.Long, true, os.Stdout, requireAppName)
+	release := BuildCommand(cmd, runReleaseIPAddress, ipsReleaseStrings.Usage, ipsReleaseStrings.Short, ipsReleaseStrings.Long, os.Stdout, requireSession, requireAppName)
 	release.Args = cobra.ExactArgs(1)
 
 	return cmd
 }
 
 func runIPAddressesList(ctx *CmdContext) error {
-	ipAddresses, err := ctx.FlyClient.GetIPAddresses(ctx.AppName)
+	ipAddresses, err := ctx.Client.API().GetIPAddresses(ctx.AppName)
 	if err != nil {
 		return err
 	}
@@ -60,7 +61,7 @@ func runAllocateIPAddressV6(ctx *CmdContext) error {
 func runAllocateIPAddress(ctx *CmdContext, addrType string) error {
 	appName := ctx.AppName
 
-	ipAddress, err := ctx.FlyClient.AllocateIPAddress(appName, addrType)
+	ipAddress, err := ctx.Client.API().AllocateIPAddress(appName, addrType)
 	if err != nil {
 		return err
 	}
@@ -78,12 +79,12 @@ func runReleaseIPAddress(ctx *CmdContext) error {
 		return fmt.Errorf("Invalid IP address: '%s'", address)
 	}
 
-	ipAddress, err := ctx.FlyClient.FindIPAddress(appName, address)
+	ipAddress, err := ctx.Client.API().FindIPAddress(appName, address)
 	if err != nil {
 		return err
 	}
 
-	if err := ctx.FlyClient.ReleaseIPAddress(ipAddress.ID); err != nil {
+	if err := ctx.Client.API().ReleaseIPAddress(ipAddress.ID); err != nil {
 		return err
 	}
 

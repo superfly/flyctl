@@ -23,16 +23,16 @@ func newBuildsCommand() *Command {
 	}
 
 	buildsListStrings := docstrings.Get("builds.list")
-	BuildCommand(cmd, runListBuilds, buildsListStrings.Usage, buildsListStrings.Short, buildsListStrings.Long, true, os.Stdout, requireAppName)
+	BuildCommand(cmd, runListBuilds, buildsListStrings.Usage, buildsListStrings.Short, buildsListStrings.Long, os.Stdout, requireSession, requireAppName)
 	buildsLogsStrings := docstrings.Get("builds.logs")
-	logs := BuildCommand(cmd, runBuildLogs, buildsLogsStrings.Usage, buildsLogsStrings.Short, buildsLogsStrings.Long, true, os.Stdout, requireAppName)
+	logs := BuildCommand(cmd, runBuildLogs, buildsLogsStrings.Usage, buildsLogsStrings.Short, buildsLogsStrings.Long, os.Stdout, requireSession, requireAppName)
 	logs.Command.Args = cobra.ExactArgs(1)
 
 	return cmd
 }
 
 func runListBuilds(ctx *CmdContext) error {
-	builds, err := ctx.FlyClient.ListBuilds(ctx.AppName)
+	builds, err := ctx.Client.API().ListBuilds(ctx.AppName)
 	if err != nil {
 		return err
 	}
@@ -44,7 +44,7 @@ func runBuildLogs(cc *CmdContext) error {
 	ctx := createCancellableContext()
 	buildID := cc.Args[0]
 
-	logs := flyctl.NewBuildLogStream(buildID, cc.FlyClient)
+	logs := flyctl.NewBuildLogStream(buildID, cc.Client.API())
 
 	for line := range logs.Fetch(ctx) {
 		fmt.Println(line)

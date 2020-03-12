@@ -14,10 +14,10 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -25,7 +25,6 @@ type CmdRunFn func(*CmdContext) error
 
 type Command struct {
 	*cobra.Command
-	requireSession bool
 }
 
 // AddCommand adds subcommands to this command
@@ -106,27 +105,18 @@ func (c *Command) AddStringSliceFlag(options StringSliceFlagOpts) {
 }
 
 type CmdContext struct {
+	Client       *client.Client
 	Config       flyctl.Config
 	GlobalConfig flyctl.Config
 	NS           string
 	Args         []string
 	Out          io.Writer
-	FlyClient    *api.Client
 	Terminal     *terminal.Terminal
 	WorkingDir   string
 	ConfigFile   string
 
 	AppName   string
 	AppConfig *flyctl.AppConfig
-}
-
-func (ctx *CmdContext) InitApiClient() error {
-	client, err := api.NewClient(viper.GetString(flyctl.ConfigAPIToken), flyctl.Version)
-	if err != nil {
-		return err
-	}
-	ctx.FlyClient = client
-	return nil
 }
 
 func (ctx *CmdContext) Render(presentable presenters.Presentable) error {
@@ -186,8 +176,9 @@ func (ctx *CmdContext) RenderViewW(w io.Writer, views ...PresenterOption) error 
 	return ctx.render(w, views...)
 }
 
-func newCmdContext(ns string, out io.Writer, args []string, initClient bool) (*CmdContext, error) {
+func newCmdContext(ns string, out io.Writer, args []string) (*CmdContext, error) {
 	ctx := &CmdContext{
+		Client:       flyctlClient,
 		NS:           ns,
 		Config:       flyctl.ConfigNS(ns),
 		GlobalConfig: flyctl.FlyConfig,
@@ -202,12 +193,6 @@ func newCmdContext(ns string, out io.Writer, args []string, initClient bool) (*C
 	}
 	ctx.WorkingDir = cwd
 
-	if initClient {
-		if err := ctx.InitApiClient(); err != nil {
-			return nil, err
-		}
-	}
-
 	return ctx, nil
 }
 
@@ -218,9 +203,8 @@ type Initializer struct {
 type CmdOption func(*Command) Initializer
 type InitializerFn func(*CmdContext) error
 
-func BuildCommand(parent *Command, fn CmdRunFn, usageText string, shortHelpText string, longHelpText string, initClient bool, out io.Writer, options ...CmdOption) *Command {
+func BuildCommand(parent *Command, fn CmdRunFn, usageText string, shortHelpText string, longHelpText string, out io.Writer, options ...CmdOption) *Command {
 	flycmd := &Command{
-		requireSession: initClient,
 		Command: &cobra.Command{
 			Use:   usageText,
 			Short: shortHelpText,
@@ -242,7 +226,7 @@ func BuildCommand(parent *Command, fn CmdRunFn, usageText string, shortHelpText 
 
 	if fn != nil {
 		flycmd.Run = func(cmd *cobra.Command, args []string) {
-			ctx, err := newCmdContext(namespace(cmd), out, args, flycmd.requireSession)
+			ctx, err := newCmdContext(namespace(cmd), out, args)
 			checkErr(err)
 
 			for _, init := range initializers {
@@ -269,6 +253,20 @@ func BuildCommand(parent *Command, fn CmdRunFn, usageText string, shortHelpText 
 }
 
 const defaultConfigFilePath = "./fly.toml"
+
+func requireSession(cmd *Command) Initializer {
+	return Initializer{
+		PreRun: func(ctx *CmdContext) error {
+			if !ctx.Client.Authenticated() {
+				return client.ErrNoAuthToken
+			}
+
+			// TODO: prompt to begin auth
+
+			return nil
+		},
+	}
+}
 
 func requireAppName(cmd *Command) Initializer {
 	// TODO: Add Flags to docStrings
@@ -378,12 +376,6 @@ func workingDirectoryFromArg(index int) func(*Command) Initializer {
 				return nil
 			},
 		}
-	}
-}
-
-func requireSession(val bool) func(*Command) {
-	return func(cmd *Command) {
-		cmd.requireSession = val
 	}
 }
 

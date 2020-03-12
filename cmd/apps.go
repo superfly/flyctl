@@ -2,6 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"strconv"
+
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/logrusorgru/aurora"
 	"github.com/pkg/errors"
@@ -9,8 +12,6 @@ import (
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
-	"os"
-	"strconv"
 )
 
 func newAppListCommand() *Command {
@@ -27,11 +28,11 @@ func newAppListCommand() *Command {
 
 	appsListStrings := docstrings.Get("apps.list")
 
-	BuildCommand(cmd, runAppsList, appsListStrings.Usage, appsListStrings.Short, appsListStrings.Long, true, os.Stdout)
+	BuildCommand(cmd, runAppsList, appsListStrings.Usage, appsListStrings.Short, appsListStrings.Long, os.Stdout, requireSession)
 
 	appsCreateStrings := docstrings.Get("apps.create")
 
-	create := BuildCommand(cmd, runAppsCreate, appsCreateStrings.Usage, appsCreateStrings.Short, appsCreateStrings.Long, true, os.Stdout)
+	create := BuildCommand(cmd, runAppsCreate, appsCreateStrings.Usage, appsCreateStrings.Short, appsCreateStrings.Long, os.Stdout, requireSession)
 	create.Args = cobra.RangeArgs(0, 1)
 
 	// TODO: Move flag descriptions into the docStrings
@@ -57,13 +58,13 @@ func newAppListCommand() *Command {
 	})
 
 	appsDestroyStrings := docstrings.Get("apps.destroy")
-	destroy := BuildCommand(cmd, runDestroyApp, appsDestroyStrings.Usage, appsDestroyStrings.Short, appsDestroyStrings.Long, true, os.Stdout)
+	destroy := BuildCommand(cmd, runDestroyApp, appsDestroyStrings.Usage, appsDestroyStrings.Short, appsDestroyStrings.Long, os.Stdout, requireSession)
 	destroy.Args = cobra.ExactArgs(1)
 	// TODO: Move flag descriptions into the docStrings
 	destroy.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "Accept all confirmations"})
 
 	appsMoveStrings := docstrings.Get("apps.move")
-	move := BuildCommand(cmd, runAppsMove, appsMoveStrings.Usage, appsMoveStrings.Short, appsMoveStrings.Long, true, os.Stdout)
+	move := BuildCommand(cmd, runAppsMove, appsMoveStrings.Usage, appsMoveStrings.Short, appsMoveStrings.Long, os.Stdout, requireSession)
 	move.Args = cobra.ExactArgs(1)
 	// TODO: Move flag descriptions into the docStrings
 	move.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "Accept all confirmations"})
@@ -76,7 +77,7 @@ func newAppListCommand() *Command {
 }
 
 func runAppsList(ctx *CmdContext) error {
-	apps, err := ctx.FlyClient.GetApps()
+	apps, err := ctx.Client.API().GetApps()
 	if err != nil {
 		return err
 	}
@@ -101,7 +102,7 @@ func runDestroyApp(ctx *CmdContext) error {
 		}
 	}
 
-	if err := ctx.FlyClient.DeleteApp(appName); err != nil {
+	if err := ctx.Client.API().DeleteApp(appName); err != nil {
 		return err
 	}
 
@@ -160,7 +161,7 @@ func runAppsCreate(ctx *CmdContext) error {
 	}
 
 	targetOrgSlug, _ := ctx.Config.GetString("org")
-	org, err := selectOrganization(ctx.FlyClient, targetOrgSlug)
+	org, err := selectOrganization(ctx.Client.API(), targetOrgSlug)
 
 	switch {
 	case isInterrupt(err):
@@ -169,7 +170,7 @@ func runAppsCreate(ctx *CmdContext) error {
 		return fmt.Errorf("Error setting organization: %s", err)
 	}
 
-	app, err := ctx.FlyClient.CreateApp(name, org.ID)
+	app, err := ctx.Client.API().CreateApp(name, org.ID)
 	if err != nil {
 		return err
 	}
@@ -202,7 +203,7 @@ func runAppsMove(ctx *CmdContext) error {
 	appName := ctx.Args[0]
 
 	targetOrgSlug, _ := ctx.Config.GetString("org")
-	org, err := selectOrganization(ctx.FlyClient, targetOrgSlug)
+	org, err := selectOrganization(ctx.Client.API(), targetOrgSlug)
 
 	switch {
 	case isInterrupt(err):
@@ -211,7 +212,7 @@ func runAppsMove(ctx *CmdContext) error {
 		return fmt.Errorf("Error setting organization: %s", err)
 	}
 
-	app, err := ctx.FlyClient.GetApp(appName)
+	app, err := ctx.Client.API().GetApp(appName)
 	if err != nil {
 		return errors.Wrap(err, "Error fetching app")
 	}
@@ -230,7 +231,7 @@ func runAppsMove(ctx *CmdContext) error {
 		}
 	}
 
-	app, err = ctx.FlyClient.MoveApp(appName, org.ID)
+	app, err = ctx.Client.API().MoveApp(appName, org.ID)
 	if err != nil {
 		return errors.WithMessage(err, "Failed to move app")
 	}

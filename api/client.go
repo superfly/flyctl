@@ -26,9 +26,9 @@ type Client struct {
 	userAgent   string
 }
 
-func NewClient(accessToken string, version string) (*Client, error) {
+func NewClient(accessToken string, version string) *Client {
 	if accessToken == "" {
-		return nil, errors.New("No api access token available. Please login")
+		panic("Access token cannot be blank")
 	}
 
 	httpClient, _ := newHTTPClient()
@@ -37,7 +37,7 @@ func NewClient(accessToken string, version string) (*Client, error) {
 
 	client := graphql.NewClient(url, graphql.WithHTTPClient(httpClient))
 	userAgent := fmt.Sprintf("flyctl/%s", version)
-	return &Client{httpClient, client, accessToken, userAgent}, nil
+	return &Client{httpClient, client, accessToken, userAgent}
 }
 
 func (c *Client) NewRequest(q string) *graphql.Request {

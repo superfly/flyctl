@@ -3,9 +3,10 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"github.com/superfly/flyctl/docstrings"
 	"os"
 	"strings"
+
+	"github.com/superfly/flyctl/docstrings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmd/presenters"
@@ -24,10 +25,10 @@ func newAppSecretsCommand() *Command {
 	}
 
 	secretsListStrings := docstrings.Get("secrets.list")
-	BuildCommand(cmd, runListSecrets, secretsListStrings.Usage, secretsListStrings.Short, secretsListStrings.Long, true, os.Stdout, requireAppName)
+	BuildCommand(cmd, runListSecrets, secretsListStrings.Usage, secretsListStrings.Short, secretsListStrings.Long, os.Stdout, requireSession, requireAppName)
 
 	secretsSetStrings := docstrings.Get("secrets.set")
-	set := BuildCommand(cmd, runSetSecrets, secretsSetStrings.Usage, secretsSetStrings.Short, secretsSetStrings.Long, true, os.Stdout, requireAppName)
+	set := BuildCommand(cmd, runSetSecrets, secretsSetStrings.Usage, secretsSetStrings.Short, secretsSetStrings.Long, os.Stdout, requireSession, requireAppName)
 
 	//TODO: Move examples into docstrings
 	set.Command.Example = `flyctl secrets set FLY_ENV=production LOG_LEVEL=info
@@ -37,14 +38,14 @@ func newAppSecretsCommand() *Command {
 	set.Command.Args = cobra.MinimumNArgs(1)
 
 	secretsUnsetStrings := docstrings.Get("secrets.unset")
-	unset := BuildCommand(cmd, runSecretsUnset, secretsUnsetStrings.Usage, secretsUnsetStrings.Short, secretsUnsetStrings.Long, true, os.Stdout, requireAppName)
+	unset := BuildCommand(cmd, runSecretsUnset, secretsUnsetStrings.Usage, secretsUnsetStrings.Short, secretsUnsetStrings.Long, os.Stdout, requireSession, requireAppName)
 	unset.Command.Args = cobra.MinimumNArgs(1)
 
 	return cmd
 }
 
 func runListSecrets(ctx *CmdContext) error {
-	secrets, err := ctx.FlyClient.GetAppSecrets(ctx.AppName)
+	secrets, err := ctx.Client.API().GetAppSecrets(ctx.AppName)
 	if err != nil {
 		return err
 	}
@@ -80,7 +81,7 @@ func runSetSecrets(ctx *CmdContext) error {
 		return errors.New("Requires at least one SECRET=VALUE pair")
 	}
 
-	release, err := ctx.FlyClient.SetSecrets(ctx.AppName, secrets)
+	release, err := ctx.Client.API().SetSecrets(ctx.AppName, secrets)
 	if err != nil {
 		return err
 	}
@@ -93,7 +94,7 @@ func runSecretsUnset(ctx *CmdContext) error {
 		return errors.New("Requires at least one secret name")
 	}
 
-	release, err := ctx.FlyClient.UnsetSecrets(ctx.AppName, ctx.Args)
+	release, err := ctx.Client.API().UnsetSecrets(ctx.AppName, ctx.Args)
 	if err != nil {
 		return err
 	}

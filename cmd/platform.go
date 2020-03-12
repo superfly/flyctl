@@ -20,16 +20,16 @@ func newPlatformCommand() *Command {
 		},
 	}
 	regionsStrings := docstrings.Get("platform.regions")
-	BuildCommand(cmd, runPlatformRegions, regionsStrings.Usage, regionsStrings.Short, regionsStrings.Long, true, os.Stdout)
+	BuildCommand(cmd, runPlatformRegions, regionsStrings.Usage, regionsStrings.Short, regionsStrings.Long, os.Stdout, requireSession)
 
 	vmSizesStrings := docstrings.Get("platform.vmsizes")
-	BuildCommand(cmd, runPlatformVMSizes, vmSizesStrings.Usage, vmSizesStrings.Short, vmSizesStrings.Long, true, os.Stdout)
+	BuildCommand(cmd, runPlatformVMSizes, vmSizesStrings.Usage, vmSizesStrings.Short, vmSizesStrings.Long, os.Stdout, requireSession)
 
 	return cmd
 }
 
 func runPlatformRegions(ctx *CmdContext) error {
-	regions, err := ctx.FlyClient.PlatformRegions()
+	regions, err := ctx.Client.API().PlatformRegions()
 	if err != nil {
 		return err
 	}
@@ -40,7 +40,7 @@ func runPlatformRegions(ctx *CmdContext) error {
 }
 
 func runPlatformVMSizes(ctx *CmdContext) error {
-	sizes, err := ctx.FlyClient.PlatformVMSizes()
+	sizes, err := ctx.Client.API().PlatformVMSizes()
 	if err != nil {
 		return err
 	}

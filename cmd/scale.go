@@ -26,7 +26,7 @@ func newScaleCommand() *Command {
 	}
 
 	regionCmdStrings := docstrings.Get("scale.regions")
-	regionsCmd := BuildCommand(cmd, runScaleRegions, regionCmdStrings.Usage, regionCmdStrings.Short, regionCmdStrings.Long, true, os.Stdout, requireAppName)
+	regionsCmd := BuildCommand(cmd, runScaleRegions, regionCmdStrings.Usage, regionCmdStrings.Short, regionCmdStrings.Long, os.Stdout, requireSession, requireAppName)
 	regionsCmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "reset-all",
 		Description: "Reset all regions before applying changes",
@@ -38,7 +38,7 @@ func newScaleCommand() *Command {
 	})
 
 	vmCmdStrings := docstrings.Get("scale.vm")
-	vmCmd := BuildCommand(cmd, runScaleVM, vmCmdStrings.Usage, vmCmdStrings.Short, vmCmdStrings.Long, true, os.Stdout, requireAppName)
+	vmCmd := BuildCommand(cmd, runScaleVM, vmCmdStrings.Usage, vmCmdStrings.Short, vmCmdStrings.Long, os.Stdout, requireSession, requireAppName)
 	vmCmd.Args = cobra.RangeArgs(0, 1)
 
 	return cmd
@@ -99,7 +99,7 @@ func runScaleRegions(ctx *CmdContext) error {
 
 	if len(input.Regions) > 0 || input.ResetRegions != nil {
 		fmt.Println("Updating autoscaling config...")
-		config, err := ctx.FlyClient.UpdateAutoscaleConfig(input)
+		config, err := ctx.Client.API().UpdateAutoscaleConfig(input)
 
 		if err != nil {
 			return err
@@ -108,7 +108,7 @@ func runScaleRegions(ctx *CmdContext) error {
 		return renderAutoscalingConfig(ctx, config)
 	}
 
-	config, err := ctx.FlyClient.AppAutoscalingConfig(ctx.AppName)
+	config, err := ctx.Client.API().AppAutoscalingConfig(ctx.AppName)
 
 	if err != nil {
 		return err
@@ -144,7 +144,7 @@ func renderAutoscalingConfig(cc *CmdContext, config *api.AutoscalingConfig) erro
 
 func runScaleVM(ctx *CmdContext) error {
 	if len(ctx.Args) == 0 {
-		size, err := ctx.FlyClient.AppVMSize(ctx.AppName)
+		size, err := ctx.Client.API().AppVMSize(ctx.AppName)
 		if err != nil {
 			return err
 		}
@@ -160,7 +160,7 @@ func runScaleVM(ctx *CmdContext) error {
 
 	sizeName := ctx.Args[0]
 
-	size, err := ctx.FlyClient.SetAppVMSize(ctx.AppName, sizeName)
+	size, err := ctx.Client.API().SetAppVMSize(ctx.AppName, sizeName)
 	if err != nil {
 		return err
 	}

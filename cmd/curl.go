@@ -20,7 +20,7 @@ import (
 
 func newCurlCommand() *Command {
 	curlStrings := docstrings.Get("curl")
-	cmd := BuildCommand(nil, runCurl, curlStrings.Usage, curlStrings.Short, curlStrings.Long, true, os.Stdout)
+	cmd := BuildCommand(nil, runCurl, curlStrings.Usage, curlStrings.Short, curlStrings.Long, os.Stdout, requireSession)
 	cmd.Args = cobra.ExactArgs(1)
 	cmd.Hidden = true
 	return cmd
@@ -48,7 +48,7 @@ type TimingRequest struct {
 }
 
 func runCurl(ctx *CmdContext) error {
-	regions, err := ctx.FlyClient.PlatformRegions()
+	regions, err := ctx.Client.API().PlatformRegions()
 	if err != nil {
 		panic(err)
 	}
