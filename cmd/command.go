@@ -56,6 +56,7 @@ type BoolFlagOpts struct {
 	Description string
 	Default     bool
 	EnvName     string
+	Hidden      bool
 }
 
 func (c *Command) AddStringFlag(options StringFlagOpts) {
@@ -73,7 +74,9 @@ func (c *Command) AddBoolFlag(options BoolFlagOpts) {
 	fullName := namespace(c.Command) + "." + options.Name
 	c.Flags().BoolP(options.Name, options.Shorthand, options.Default, options.Description)
 
-	viper.BindPFlag(fullName, c.Flags().Lookup(options.Name))
+	flag := c.Flags().Lookup(options.Name)
+	flag.Hidden = options.Hidden
+	viper.BindPFlag(fullName, flag)
 
 	if options.EnvName != "" {
 		viper.BindEnv(fullName, options.EnvName)

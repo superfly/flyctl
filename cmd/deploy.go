@@ -6,16 +6,16 @@ import (
 	"os"
 	"time"
 
-	"github.com/superfly/flyctl/docstrings"
-	"github.com/superfly/flyctl/terminal"
-
 	"github.com/briandowns/spinner"
+	"github.com/dustin/go-humanize"
 	"github.com/logrusorgru/aurora"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/docker"
+	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/terminal"
 )
 
 func newDeployCommand() *Command {
@@ -32,6 +32,10 @@ func newDeployCommand() *Command {
 	})
 	cmd.AddBoolFlag(BoolFlagOpts{
 		Name: "squash",
+	})
+	cmd.AddBoolFlag(BoolFlagOpts{
+		Name:   "build-only",
+		Hidden: true,
 	})
 
 	cmd.Command.Args = cobra.MaximumNArgs(1)
@@ -68,25 +72,53 @@ func runDeploy(cc *CmdContext) error {
 	if op.DockerAvailable() {
 		fmt.Println("Docker daemon available, performing local build...")
 
-		var release *api.Release
+		var image docker.Image
+
 		if op.HasDockerfile(cc.WorkingDir) {
+			fmt.Println("Building Dockerfile")
 			if cc.AppConfig.HasBuilder() {
 				terminal.Warn("Project contains both a Dockerfile and a builder, using Dockerfile")
 			}
-			r, err := op.BuildAndDeploy(cc.WorkingDir, cc.AppConfig)
+
+			img, err := op.BuildWithDocker(cc.WorkingDir, cc.AppConfig)
 			if err != nil {
 				return err
 			}
-			release = r
+			image = *img
 		} else if cc.AppConfig.HasBuilder() {
-			r, err := op.PackAndDeploy(cc.WorkingDir, cc.AppConfig)
+			fmt.Println("Building with buildpacks")
+			img, err := op.BuildWithPack(cc.WorkingDir, cc.AppConfig)
 			if err != nil {
 				return err
 			}
-			release = r
+			image = *img
 		} else {
 			return docker.ErrNoDockerfile
 		}
+
+		fmt.Printf("Image: %+v\n", image.Tag)
+		fmt.Println(aurora.Bold(fmt.Sprintf("Image size: %s", humanize.Bytes(uint64(image.Size)))))
+
+		if err := op.PushImage(image); err != nil {
+			return err
+		}
+
+		if cc.Config.GetBool("build-only") {
+			fmt.Printf("Image: %s\n", image.Tag)
+
+			return nil
+		}
+
+		if err := op.OptimizeImage(image); err != nil {
+			return err
+		}
+
+		release, err := op.Deploy(image)
+		if err != nil {
+			return err
+		}
+
+		op.cleanDeploymentTags()
 
 		return renderRelease(ctx, cc, release)
 	}

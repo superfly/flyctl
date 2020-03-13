@@ -108,7 +108,7 @@ func (op *DeployOperation) deployImageWithDocker(imageRef string) (*api.Release,
 		return nil, err
 	}
 
-	op.cleanDeploymentTags()
+	op.CleanDeploymentTags()
 
 	return release, nil
 
@@ -198,6 +198,10 @@ func (op *DeployOperation) optimizeImage(imageTag string) error {
 	}
 }
 
+func (op *DeployOperation) Deploy(image Image) (*api.Release, error) {
+	return op.deployImage(image.Tag)
+}
+
 func (op *DeployOperation) deployImage(imageTag string) (*api.Release, error) {
 	input := api.DeployImageInput{AppID: op.AppName(), Image: imageTag}
 
@@ -214,7 +218,7 @@ func (op *DeployOperation) deployImage(imageTag string) (*api.Release, error) {
 	return release, err
 }
 
-func (op *DeployOperation) cleanDeploymentTags() {
+func (op *DeployOperation) CleanDeploymentTags() {
 	err := op.dockerClient.DeleteDeploymentImages(op.ctx, op.AppName())
 	if err != nil {
 		terminal.Debug("Error cleaning deployment tags", err)

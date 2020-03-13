@@ -19,7 +19,7 @@ func NewClient() *Client {
 }
 
 type Client struct {
-	api    *api.Client
+	api *api.Client
 }
 
 func (c *Client) API() *api.Client {
