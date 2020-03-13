@@ -118,7 +118,7 @@ func runDeploy(cc *CmdContext) error {
 			return err
 		}
 
-		op.cleanDeploymentTags()
+		op.CleanDeploymentTags()
 
 		return renderRelease(ctx, cc, release)
 	}
