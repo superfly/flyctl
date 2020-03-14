@@ -26,7 +26,7 @@ import (
 )
 
 func newDeploymentTag(appName string) string {
-	if tag := os.Getenv("FLY_BUILD_IMAGE_TAG"); tag != "" {
+	if tag := os.Getenv("FLY_IMAGE_REF"); tag != "" {
 		return tag
 	}
 
