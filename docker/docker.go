@@ -26,6 +26,10 @@ import (
 )
 
 func newDeploymentTag(appName string) string {
+	if tag := os.Getenv("FLY_BUILD_IMAGE_TAG"); tag != "" {
+		return tag
+	}
+
 	t := time.Now()
 
 	return fmt.Sprintf("%s%d", deploymentTagPrefix(appName), t.Unix())
