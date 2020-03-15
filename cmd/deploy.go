@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/docker"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/builds"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -67,14 +68,19 @@ func runDeploy(cc *CmdContext) error {
 		return renderRelease(ctx, cc, release)
 	}
 
+	buildSource := docker.ImageSource(cc.WorkingDir, cc.AppConfig)
+	if buildSource == docker.SourceNone {
+		return docker.ErrNoDockerfile
+	}
+
 	fmt.Printf("Deploy source directory '%s'\n", cc.WorkingDir)
+
+	var image docker.Image
 
 	if op.DockerAvailable() {
 		fmt.Println("Docker daemon available, performing local build...")
 
-		var image docker.Image
-
-		if op.HasDockerfile(cc.WorkingDir) {
+		if buildSource == docker.SourceDockerfile {
 			fmt.Println("Building Dockerfile")
 			if cc.AppConfig.HasBuilder() {
 				terminal.Warn("Project contains both a Dockerfile and a builder, using Dockerfile")
@@ -85,15 +91,13 @@ func runDeploy(cc *CmdContext) error {
 				return err
 			}
 			image = *img
-		} else if cc.AppConfig.HasBuilder() {
+		} else if buildSource == docker.SourceBuildpacks {
 			fmt.Println("Building with buildpacks")
 			img, err := op.BuildWithPack(cc.WorkingDir, cc.AppConfig)
 			if err != nil {
 				return err
 			}
 			image = *img
-		} else {
-			return docker.ErrNoDockerfile
 		}
 
 		fmt.Printf("Image: %+v\n", image.Tag)
@@ -109,50 +113,51 @@ func runDeploy(cc *CmdContext) error {
 			return nil
 		}
 
-		if err := op.OptimizeImage(image); err != nil {
-			return err
-		}
+	} else {
+		fmt.Println("Docker daemon unavailable, performing remote build...")
 
-		release, err := op.Deploy(image)
+		build, err := op.StartRemoteBuild(cc.WorkingDir, cc.AppConfig)
 		if err != nil {
 			return err
 		}
 
-		op.CleanDeploymentTags()
+		s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
+		s.Writer = os.Stderr
+		s.Prefix = "Building "
+		s.Start()
 
-		return renderRelease(ctx, cc, release)
+		buildMonitor := builds.NewBuildMonitor(build.ID, cc.Client.API())
+		for line := range buildMonitor.Logs(ctx) {
+			s.Stop()
+			fmt.Println(line)
+			s.Start()
+		}
+
+		s.FinalMSG = fmt.Sprintf("Build complete - %s\n", buildMonitor.Status())
+		s.Stop()
+
+		if err := buildMonitor.Err(); err != nil {
+			return err
+		}
+
+		build = buildMonitor.Build()
+		image = docker.Image{
+			Tag: build.Image,
+		}
 	}
 
-	fmt.Println("Docker daemon unavailable, performing remote build...")
+	if err := op.OptimizeImage(image); err != nil {
+		return err
+	}
 
-	build, err := op.StartRemoteBuild(cc.WorkingDir, cc.AppConfig)
+	release, err := op.Deploy(image)
 	if err != nil {
 		return err
 	}
 
-	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
-	s.Writer = os.Stderr
-	s.Prefix = "Building "
-	s.Start()
+	op.CleanDeploymentTags()
 
-	logStream := flyctl.NewBuildLogStream(build.ID, cc.Client.API())
-
-	defer func() {
-		s.FinalMSG = fmt.Sprintf("Build complete - %s\n", logStream.Status())
-		s.Stop()
-	}()
-
-	for line := range logStream.Fetch(ctx) {
-		s.Stop()
-		fmt.Println(line)
-		s.Start()
-	}
-
-	if err := logStream.Err(); err != nil {
-		return err
-	}
-
-	return watchDeployment(ctx, cc)
+	return renderRelease(ctx, cc, release)
 }
 
 func renderRelease(ctx context.Context, cc *CmdContext, release *api.Release) error {

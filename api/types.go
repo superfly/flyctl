@@ -208,6 +208,7 @@ type Build struct {
 	Status     string
 	User       User
 	Logs       string
+	Image      string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }

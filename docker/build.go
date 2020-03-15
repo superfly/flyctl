@@ -22,22 +22,26 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-type DockerfileSource uint
+type Source uint
 
 const (
-	CwdDockerfile DockerfileSource = iota
-	NoDockerfile
+	SourceDockerfile Source = iota
+	SourceBuildpacks
+	SourceNone
 )
 
 var ErrNoDockerfile = errors.New("Project does not contain a Dockerfile or specify a builder")
 var ErrDockerDaemon = errors.New("Docker daemon must be running to perform this action")
 var ErrNoBuildpackBuilder = errors.New("No buildpack builder")
 
-func dockerfileSource(cwd string, appConfig *flyctl.AppConfig) DockerfileSource {
+func ImageSource(cwd string, appConfig *flyctl.AppConfig) Source {
 	if helpers.FileExists(path.Join(cwd, "Dockerfile")) {
-		return CwdDockerfile
+		return SourceDockerfile
 	}
-	return NoDockerfile
+	if appConfig.HasBuilder() {
+		return SourceBuildpacks
+	}
+	return SourceNone
 }
 
 func (op *DeployOperation) HasDockerfile(cwd string) bool {
@@ -55,10 +59,10 @@ func (op *DeployOperation) BuildWithDocker(cwd string, appConfig *flyctl.AppConf
 		return nil, ErrDockerDaemon
 	}
 
-	switch dockerfileSource(cwd, appConfig) {
-	case NoDockerfile:
+	switch ImageSource(cwd, appConfig) {
+	case SourceNone:
 		return nil, ErrNoDockerfile
-	case CwdDockerfile:
+	case SourceDockerfile:
 		fmt.Println("Using Dockerfile from working directory:", path.Join(cwd, "Dockerfile"))
 	}
 
@@ -114,10 +118,10 @@ func (op *DeployOperation) BuildAndDeploy(cwd string, appConfig *flyctl.AppConfi
 		return nil, ErrDockerDaemon
 	}
 
-	switch dockerfileSource(cwd, appConfig) {
-	case NoDockerfile:
+	switch ImageSource(cwd, appConfig) {
+	case SourceNone:
 		return nil, ErrNoDockerfile
-	case CwdDockerfile:
+	case SourceDockerfile:
 		fmt.Println("Using Dockerfile from working directory:", path.Join(cwd, "Dockerfile"))
 	}
 
@@ -286,7 +290,7 @@ func (op *DeployOperation) PackAndDeploy(cwd string, appConfig *flyctl.AppConfig
 }
 
 func (op *DeployOperation) StartRemoteBuild(cwd string, appConfig *flyctl.AppConfig) (*api.Build, error) {
-	if dockerfileSource(cwd, appConfig) == NoDockerfile {
+	if ImageSource(cwd, appConfig) == SourceNone {
 		return nil, ErrNoDockerfile
 	}
 
@@ -340,7 +344,7 @@ func (op *DeployOperation) StartRemoteBuild(cwd string, appConfig *flyctl.AppCon
 		return nil, fmt.Errorf("Error submitting build: %s", body)
 	}
 
-	build, err := op.apiClient.CreateBuild(op.AppName(), getURL, "targz")
+	build, err := op.apiClient.CreateBuild(op.AppName(), getURL, "targz", "flyctl_build_only")
 	if err != nil {
 		return nil, err
 	}
