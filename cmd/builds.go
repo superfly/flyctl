@@ -5,10 +5,10 @@ import (
 	"os"
 
 	"github.com/superfly/flyctl/docstrings"
+	"github.com/superfly/flyctl/internal/builds"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmd/presenters"
-	"github.com/superfly/flyctl/flyctl"
 )
 
 func newBuildsCommand() *Command {
@@ -44,9 +44,9 @@ func runBuildLogs(cc *CmdContext) error {
 	ctx := createCancellableContext()
 	buildID := cc.Args[0]
 
-	logs := flyctl.NewBuildLogStream(buildID, cc.Client.API())
+	logs := builds.NewBuildMonitor(buildID, cc.Client.API())
 
-	for line := range logs.Fetch(ctx) {
+	for line := range logs.Logs(ctx) {
 		fmt.Println(line)
 	}
 
