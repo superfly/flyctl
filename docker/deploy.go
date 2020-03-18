@@ -27,7 +27,7 @@ type DeployOperation struct {
 	squash          bool
 }
 
-func NewDeployOperation(ctx context.Context, appName string, appConfig *flyctl.AppConfig, apiClient *api.Client, out io.Writer, squash bool) (*DeployOperation, error) {
+func NewDeployOperation(ctx context.Context, appName string, appConfig *flyctl.AppConfig, apiClient *api.Client, out io.Writer, squash bool, remoteOnly bool) (*DeployOperation, error) {
 	dockerClient, err := NewDockerClient()
 	if err != nil {
 		return nil, err
@@ -43,7 +43,7 @@ func NewDeployOperation(ctx context.Context, appName string, appConfig *flyctl.A
 		squash:       squash,
 	}
 
-	op.dockerAvailable = op.dockerClient.Check(ctx) == nil
+	op.dockerAvailable = !remoteOnly && op.dockerClient.Check(ctx) == nil
 
 	return op, nil
 }

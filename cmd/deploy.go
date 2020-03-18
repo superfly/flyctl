@@ -38,6 +38,10 @@ func newDeployCommand() *Command {
 		Name:   "build-only",
 		Hidden: true,
 	})
+	cmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "remote-only",
+		Description: "Perform builds remotely without using the local docker daemon",
+	})
 
 	cmd.Command.Args = cobra.MaximumNArgs(1)
 
@@ -46,7 +50,7 @@ func newDeployCommand() *Command {
 
 func runDeploy(cc *CmdContext) error {
 	ctx := createCancellableContext()
-	op, err := docker.NewDeployOperation(ctx, cc.AppName, cc.AppConfig, cc.Client.API(), cc.Out, cc.Config.GetBool("squash"))
+	op, err := docker.NewDeployOperation(ctx, cc.AppName, cc.AppConfig, cc.Client.API(), cc.Out, cc.Config.GetBool("squash"), cc.Config.GetBool("remote-only"))
 	if err != nil {
 		return err
 	}
