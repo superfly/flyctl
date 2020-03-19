@@ -10,7 +10,7 @@ with just the one command.
 
 [info]
 usage="info"
-shortHelp="Show detailed app information"
+shortHelp="Show detailed App information"
 longHelp="""Shows information about the application on the Fly platform
 
 Information includes the application's
@@ -22,79 +22,72 @@ Information includes the application's
 
 [apps]
 usage="apps"
-shortHelp="Manage apps"
-longHelp="""The Apps commands focus on managing your Fly applications.
-Start with the "create" command to register your application.
-The "list" command will list all currently registered applications.
+shortHelp="Manage Apps"
+longHelp="""The **apps** commands focus on managing your Fly applications.
+Start with the **create** command to register your application.
+The **list** command will list all currently registered applications.
 """
 [apps.list]
 usage="list"
 shortHelp="List applications"
-longHelp="""List the applications currently registered for this user. The list will include all organizations the user
-is a member of. Each application will be shown with tis name, owner and when it was last deployed.
+longHelp="""The **apps list** command will show the applications currently registered and available to this user. The list will include applications from all the organizations the user is a member of. Each application will be shown with its name, owner and when it was last deployed.
 """
 [apps.create]
 usage="create [APPNAME]"
 shortHelp="Create a new application"
-longHelp="""The create command will both register a new application with the Fly platform and create the fly.toml
-file which controls how the application will be deployed.
+longHelp="""The **apps create** command will both register a new application with the Fly platform and create the fly.toml file which controls how the application will be deployed. The **--builder** flag allows a cloud native buildpack to be specified which will be used instead of a Dockerfile to create the application image when it is deployed.
 """
 [apps.destroy]
 usage="destroy [APPNAME]"
-shortHelp="Permanently destroys an app"
-longHelp="""The apps destroy command will remove an application from the fly platform.
+shortHelp="Permanently destroys an App"
+longHelp="""The **apps destroy** command will remove an application from the Fly platform.
 """
 [apps.move]
 usage="move [APPNAME]"
-shortHelp="Move an app to another organization"
-longHelp="""The apps move command will move an app to another organization the current user belongs to.
+shortHelp="Move an App to another organization"
+longHelp="""The **apps move** command will move an application to another organization the current user belongs to.
 """
-[apps.init-config]
-usage="init-config [APPNAME] [PATH]"
-shortHelp="Initialize a fly.toml file from an existing app"
-longHelp="""Using an existing app, create a fly.toml file
-"""
+
 
 
 [auth]
 usage="auth"
 shortHelp="Manage authentication"
 longHelp="""Authenticate with Fly (and logout if you need to).
-
-Start with the "login" subcommand.
-
+If you do not have an account, start with the **auth signup** command.
+If you do have and account, begin with the **auth login** subcommand.
 """
 [auth.whoami]
 usage="whoami"
 shortHelp="Show the currently authenticated user"
-longHelp="""
+longHelp="""Displays the users email address/service identity currently authenticated and in use.
 """
 [auth.token]
 usage="token"
 shortHelp="Show the current auth token"
-longHelp="""Shows the authentication token that is currently in use.
+longHelp="""Shows the authentication token that is currently in use. This can be used as an authentication token with API services, independent of flyctl.
 """
 [auth.login]
 usage="login"
 shortHelp="Log in a user"
-longHelp="""Log in a user to the Fly platform. Supports browser-based, email/password and one-time-password
+longHelp="""Logs a user into the Fly platform. Supports browser-based, email/password and one-time-password
 authentication. Defaults to using browser-based authentication.
 """
 [auth.logout]
 usage="logout"
-shortHelp="Log out the currently logged in user"
-longHelp="""Log out the currently logged in user. To continue interacting with Fly, the user must log in again.
+shortHelp="Logs out the currently logged in user"
+longHelp="""Log the currently logged-in user out of the Fly platform. To continue interacting with Fly, the user will need to log in again.
 """
 [auth.signup]
 usage="signup"
 shortHelp="Create a new fly account"
-longHelp="""Create a new fly account.
+longHelp="""Creates a new fly account. The command opens the browser and sends the user to a form to provide appropriate credentials.
 """
 
 [builds]
 usage="builds"
 shortHelp="Work with Fly Builds"
-longHelp="""Fly Builds are templates to make developing Fly applications easier. The builds commands
+longHelp="""Fly Builds are templates to make developing Fly applications easier.
 """
 [builds.list]
 usage="list"
@@ -111,16 +104,16 @@ longHelp="""
 [certs]
 usage="certs"
 shortHelp="Manage certificates"
-longHelp="""Manage certificates associated with a deployed application.
+longHelp="""Manages the certificates associated with a deployed application. Certificates are created by associating a hostname/domain with the application. When Fly is then able to validate that hostname/domain, the platform gets certificates issued for the hostname/domain by Let's Encrypt.
 """
 [certs.list]
 usage="list"
-shortHelp="List certificates for an application"
-longHelp="""List the certificates associated with a deployed applications.
+shortHelp="List certificates for an App."
+longHelp="""List the certificates associated with a deployed application.
 """
 [certs.create]
 usage="create <hostname>"
-shortHelp="Create a certificate for an application"
+shortHelp="Create a certificate for an App."
 longHelp="""Creates a certificate for an application. Takes a hostname as a parameter for the certificate.
 """
 [certs.delete]
@@ -137,65 +130,64 @@ certificate.
 [certs.check]
 usage="check <hostname>"
 shortHelp="Checks DNS configuration"
-longHelp="""Checks the DNS configuration for the specified hostname.
+longHelp="""Checks the DNS configuration for the specified hostname. Displays results in the same format as the **show** command.
 """
 
 [curl]
 usage="curl <url>"
 shortHelp="Run a performance test against a url"
-longHelp="""Run a performance test againt a url
+longHelp="""Run a performance test againt a url.
 """
 
 
 [config]
 usage="config"
-shortHelp="Manage application configuration"
-longHelp="""
+shortHelp="Manage an Apps configuration"
+longHelp="""The **config** commands allow you to work with an application's configuration.
 """
 [config.display]
 usage="display"
-shortHelp="Display an app's configuration"
-longHelp="""Display an application's configuration
+shortHelp="Display an App's configuration"
+longHelp="""Display an application's configuration. The configuration is presented as in JSON format. The configuration data is retrieved from the Fly service.
 """
 [config.save]
 usage="save"
-shortHelp="Update and save an app's config file"
-longHelp="""Update and save an application's config file
+shortHelp="Save an App's config file"
+longHelp="""Save an application's configuration locally. The configuration data is retrieved from the Fly service and saved in TOML format.
 """
 [config.validate]
 usage="validate"
-shortHelp="Validate an app's config file"
-longHelp="""Validate an application's config file
+shortHelp="Validate an App's config file"
+longHelp="""Validates an application's config file against the Fly platform to ensure it is correct and meaningful to the platform. 
 """
 
 
 [deploy]
 usage="deploy"
-shortHelp="Deploy an application to the Fly platform"
-longHelp="""Deploy an application to the Fly platform. The application can be a local image, remote image or defined in
-a Dockerfile.
+shortHelp="Deploy an App to the Fly platform"
+longHelp="""Deploy an application to the Fly platform. The application can be a local image, remote image, defined in a Dockerfile or use a CNB Buildpack.
 
-Use the image/i flag to specify a local or remote image to deploy.
+Use the --image/-i flag to specify a local or remote image to deploy.
 
-Use the detach flag to return immediately from starting the deployment rather than monitoring the deployment progress.
+Use the --detach flag to return immediately from starting the deployment rather than monitoring the deployment progress.
 """
 
 [docs]
 usage="docs"
-shortHelp="View documentation"
-longHelp="""View documentation on the Fly.io website. This command will open a browser to view the content.
+shortHelp="View Fly documentation"
+longHelp="""View Fly documentation on the Fly.io website. This command will open a browser to view the content.
 """
 
 [history]
 usage="history"
-shortHelp="List app's change history"
-longHelp="""List the history of changes in the application.
+shortHelp="List an App's change history"
+longHelp="""List the history of changes in the application. Includes autoscaling events and their results.
 """
 
 [ips]
 usage="ips"
-shortHelp="Manage IP addresses for apps"
-longHelp="""Manage IP addresses for applications.
+shortHelp="Manage IP addresses for Apps"
+longHelp="""The **ips** commands manage IP addresses for applications. An application can have a number of IP addresses associated with it and this family of commands allows you to list, allocate and release those addresses. It supports both IPv4 and IPv6 addresses.
 """
 [ips.list]
 usage="list"
@@ -220,77 +212,78 @@ longHelp="""Releases an IP address from the application.
 
 [logs]
 usage="logs"
-shortHelp="View app logs"
+shortHelp="View App logs"
 longHelp="""View application logs as generated by the application running on the Fly platform.
 
-Logs can be filtered to a specific instance using the instance/i flag or to all instances running in a specific
-region using the region/r flag.
+Logs can be filtered to a specific instance using the --instance/-i flag or to all instances running in a specific
+region using the --region/-r flag.
 """
 
 [platform]
 usage="platform"
 shortHelp="Fly platform information"
-longHelp="""View information about the fly.io platform.
+longHelp="""The **platform** commands are for users looking for information about the fly.io platform.
 """
 
 [platform.regions]
 usage="regions"
 shortHelp="List regions"
-longHelp="""View a list of regions
+longHelp="""View a list of regions where Fly has edges and/or datacenters
 """
 
 [platform.vmsizes]
 usage="vm-sizes"
 shortHelp="List VM Sizes"
-longHelp="""View a list of VM sizes
+longHelp="""View a list of VM sizes which can be used with the **flyctl scale vm** command
 """
 
 [releases]
 usage="releases"
-shortHelp="List app releases"
+shortHelp="List App releases"
 longHelp="""List all the releases of the application onto the Fly platform, including type, when, success/fail and
 which user triggered the release.
 """
 
 [scale]
 usage="scale"
-shortHelp="Scale application resources"
+shortHelp="Scale App resources"
 longHelp="""Scale application resources
 """
 
 [scale.regions]
 usage="regions [flags] REGION=COUNT REGION=COUNT ..."
-shortHelp="Configure region placement"
-longHelp="""Configure the region placement rules and instance count for an app. Shows the current autoscaling configuration if no arguments are given.
+shortHelp="Configure region placement for an App"
+longHelp="""Configure the region placement rules and instance count for an application. Shows the current autoscaling configuration if no arguments are given.
 """
 
 [scale.vm]
 usage="vm [flags] [SIZE]"
-shortHelp="Scale the VM size"
-longHelp="""Change the size of the VM. Shows the current VM size if no arguments are given.
+shortHelp="Scale the VM size for an App."
+longHelp="""Change the size of the VM to the named size for an application. Shows the application's current VM size if no arguments are given. 
+
+Supported sizes and their names are shown with the command **flyctl platform vm-sizes**.
 """
 
 [secrets]
 usage="secrets"
-shortHelp="Manage app secrets"
+shortHelp="Manage App secrets"
 longHelp="""Manage application secrets with the set and unset commands.
 
-Secrets are provided to apps at runtime as ENV variables. Names are
+Secrets are provided to applications at runtime as ENV variables. Names are
 case sensitive and stored as-is, so ensure names are appropriate for
 the application and vm environment.
 """
 [secrets.list]
 usage="list"
 shortHelp="Lists the secrets available to the App"
-longHelp="""List the secrets available to the application. It shows each secret's name, a digest of the its value and
-the time the secret was last set. The actual value of the secret is only available to the application.
+longHelp="""List the secrets available to the application. It shows each secret's name, a digest of the its value and the time the secret was last set. The actual value of the secret is only available to the application.
 """
 [secrets.set]
 usage="set [flags] NAME=VALUE NAME=VALUE ..."
-shortHelp="Set one or more encrypted secrets for an app"
+shortHelp="Set one or more encrypted secrets for an App"
 longHelp="""Set one or more encrypted secrets for an application.
 
-Secrets are provided to apps at runtime as ENV variables. Names are
+Secrets are provided to application at runtime as ENV variables. Names are
 case sensitive and stored as-is, so ensure names are appropriate for
 the application and vm environment.
 
@@ -298,21 +291,21 @@ Any value that equals "-" will be assigned from STDIN instead of args.
 """
 [secrets.unset]
 usage="unset [flags] NAME NAME ..."
-shortHelp="Remove encrypted secrets from app"
+shortHelp="Remove encrypted secrets from an App"
 longHelp="""Remove encrypted secrets from the application. Unsetting a secret removes its availability to
 the application.
 """
 
 [status]
 usage="status"
-shortHelp="Show app status"
+shortHelp="Show App status"
 longHelp="""Show the application's current status including application details, tasks, most recent deployment details
 and in which regions it is currently allocated.
 """
 
 [version]
 usage="version"
-shortHelp="Show flyctl version information"
+shortHelp="Show version information for the flyctl command"
 longHelp="""Shows version information for the flyctl command itself, including version number and build date.
 """
 
