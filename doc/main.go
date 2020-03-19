@@ -86,7 +86,7 @@ func GenMarkdownCustom(cmd *cobra.Command, w io.Writer, linkHandler func(string)
 		long = short
 	}
 
-	buf.WriteString("## " + name + "\n\n")
+	buf.WriteString("# _" + name + "_\n\n")
 	buf.WriteString(short + "\n\n")
 
 	buf.WriteString("### About\n\n")
