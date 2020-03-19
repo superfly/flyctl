@@ -34,7 +34,7 @@ type TimingResponse struct {
 	TimeNameLookup    float64 `json:"time_namelookup"`
 	TimeConnect       float64 `json:"time_connect"`
 	TimePreTransfer   float64 `json:"time_pretransfer"`
-	TimeAppConnect    float64 `json:"time_appconnect`
+	TimeAppConnect    float64 `json:"time_appconnect"`
 	TimeStartTransfer float64 `json:"time_starttransfer"`
 	HTTPVersion       string  `json:"http_version"`
 	RemoteIP          string  `json:"remote_ip"`
@@ -217,4 +217,3 @@ func colorizeTiming(val float64, greenCutoff float64, yellowCutoff float64) inte
 
 	return aurora.Colorize(humanize.FtoaWithDigits(val, 3), color)
 }
-
