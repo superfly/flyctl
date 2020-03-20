@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/superfly/flyctl/docstrings"
@@ -32,7 +33,13 @@ func newAuthCommand() *Command {
 		},
 	}
 	authWhoamiStrings := docstrings.Get("auth.whoami")
-	BuildCommand(cmd, runWhoami, authWhoamiStrings.Usage, authWhoamiStrings.Short, authWhoamiStrings.Long, os.Stdout, requireSession)
+	whoami := BuildCommand(cmd, runWhoami, authWhoamiStrings.Usage, authWhoamiStrings.Short, authWhoamiStrings.Long, os.Stdout, requireSession)
+
+	whoami.AddBoolFlag(BoolFlagOpts{
+		Name:        "orgs",
+		Shorthand:   "o",
+		Description: "List organization memberships",
+	})
 
 	authTokenStrings := docstrings.Get("auth.token")
 	BuildCommand(cmd, runAuthToken, authTokenStrings.Usage, authTokenStrings.Short, authTokenStrings.Long, os.Stdout, requireSession)
@@ -74,6 +81,18 @@ func runWhoami(ctx *CmdContext) error {
 		return err
 	}
 	fmt.Printf("Current user: %s\n", user.Email)
+
+	if ctx.Config.GetBool("orgs") {
+		orgs, err := ctx.Client.API().GetOrganizations()
+		if err != nil {
+			return err
+		}
+		fmt.Printf("\n%-16s %-32s\n", "Org", "Name")
+		fmt.Printf("%16s %32s\n", strings.Repeat("-", 16), strings.Repeat("-", 32))
+		for _, org := range orgs {
+			fmt.Printf("%-16s %-32s\n", org.Slug, org.Name)
+		}
+	}
 	return nil
 }
 
