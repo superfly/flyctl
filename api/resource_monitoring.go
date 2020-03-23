@@ -40,6 +40,9 @@ func (c *Client) GetAppStatus(appName string, showCompleted bool) (*App, error) 
 					updatedAt
 					canary
 					region
+					checks {
+						status
+					}
 				}
 			}
 		}
@@ -76,6 +79,7 @@ func (c *Client) GetAllocationStatus(appName string, allocID string, logLimit in
 					updatedAt
 					canary
 					region
+					restarts
 					checks {
 						status
 						output

@@ -344,6 +344,7 @@ type AllocationStatus struct {
 	Healthy            bool
 	Canary             bool
 	Failed             bool
+	Restarts           int
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 	Checks             []CheckState

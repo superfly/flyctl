@@ -1,14 +1,13 @@
 package cmd
 
 import (
-	"fmt"
 	"math"
 	"os"
 	"time"
 
+	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/docstrings"
 
-	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -40,6 +39,8 @@ func runLogs(ctx *CmdContext) error {
 
 	nextToken := ""
 
+	logPresenter := presenters.LogPresenter{}
+
 	for {
 		entries, token, err := ctx.Client.API().GetAppLogs(ctx.AppName, nextToken, regionFilter, instanceFilter)
 
@@ -64,7 +65,7 @@ func runLogs(ctx *CmdContext) error {
 		} else {
 			emptyCount = 0
 
-			printLogEntries(entries)
+			logPresenter.FPrint(ctx.Out, entries)
 
 			if token != "" {
 				nextToken = token
@@ -84,29 +85,4 @@ func sleep(backoffCount int) {
 	}
 	terminal.Debug("backoff ms:", sleepTime)
 	time.Sleep(time.Duration(sleepTime) * time.Millisecond)
-}
-
-func printLogEntries(entries []api.LogEntry) {
-	for _, entry := range entries {
-		fmt.Printf(
-			"%s %s %s [%s] %s\n",
-			aurora.Faint(entry.Timestamp),
-			entry.Meta.Instance,
-			aurora.Green(entry.Meta.Region),
-			aurora.Colorize(entry.Level, levelColor(entry.Level)),
-			entry.Message,
-		)
-	}
-}
-
-func levelColor(level string) aurora.Color {
-	switch level {
-	case "debug":
-		return aurora.CyanFg
-	case "info":
-		return aurora.BlueFg
-	case "warning":
-		return aurora.MagentaFg
-	}
-	return aurora.RedFg
 }
