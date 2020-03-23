@@ -109,7 +109,8 @@ type App struct {
 	Services         []Service
 	Config           AppConfig
 	ParseConfig      AppConfig
-	Allocations      []AllocationStatus
+	Allocations      []*AllocationStatus
+	Allocation       *AllocationStatus
 	DeploymentStatus *DeploymentStatus
 	Autoscaling      *AutoscalingConfig
 	VMSize           VMSize
@@ -126,16 +127,6 @@ type Organization struct {
 	ID   string
 	Name string
 	Slug string
-}
-
-type Allocation struct {
-	ID            string
-	Version       int
-	LatestVersion bool
-	Status        string
-	DesiredStatus string
-	Region        string
-	CreatedAt     time.Time
 }
 
 type IPAddress struct {
@@ -182,6 +173,8 @@ type LogEntry struct {
 	Timestamp string
 	Message   string
 	Level     string
+	Instance  string
+	Region    string
 	Meta      struct {
 		Instance string
 		Region   string
@@ -238,7 +231,7 @@ type DeploymentStatus struct {
 	InProgress     bool
 	Successful     bool
 	CreatedAt      time.Time
-	Allocations    []AllocationStatus
+	Allocations    []*AllocationStatus
 	Version        int
 	DesiredCount   int
 	PlacedCount    int
@@ -360,6 +353,7 @@ type AllocationStatus struct {
 	WarningCheckCount  int
 	CriticalCheckCount int
 	Transitioning      bool
+	RecentLogs         []LogEntry
 }
 
 type AllocationEvent struct {

@@ -303,6 +303,12 @@ longHelp="""Show the application's current status including application details,
 and in which regions it is currently allocated.
 """
 
+[status.alloc]
+usage="alloc [alloc-id]"
+shortHelp="Show allocation status"
+longHelp="""Show the allocation's current status including logs, checks, and events.
+"""
+
 [version]
 usage="version"
 shortHelp="Show version information for the flyctl command"

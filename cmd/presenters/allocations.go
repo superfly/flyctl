@@ -10,7 +10,7 @@ import (
 )
 
 type Allocations struct {
-	Allocations []api.AllocationStatus
+	Allocations []*api.AllocationStatus
 }
 
 func (p *Allocations) FieldNames() []string {
@@ -35,14 +35,14 @@ func (p *Allocations) Records() []map[string]string {
 			"Desired":       alloc.DesiredStatus,
 			"Region":        alloc.Region,
 			"Created":       formatRelativeTime(alloc.CreatedAt),
-			"Health Checks": formatHealthChecksSummary(&alloc),
+			"Health Checks": formatHealthChecksSummary(alloc),
 		})
 	}
 
 	return out
 }
 
-func hasMultipleVersions(allocations []api.AllocationStatus) bool {
+func hasMultipleVersions(allocations []*api.AllocationStatus) bool {
 	var v int
 	for _, alloc := range allocations {
 		if v != 0 && v != alloc.Version {
@@ -82,7 +82,7 @@ func formatHealthChecksSummary(alloc *api.AllocationStatus) string {
 	return b.String()
 }
 
-func formatStatus(alloc api.AllocationStatus) string {
+func formatStatus(alloc *api.AllocationStatus) string {
 	if alloc.Transitioning {
 		return aurora.Bold(alloc.Status).String()
 	}

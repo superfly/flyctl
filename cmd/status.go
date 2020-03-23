@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/segmentio/textio"
+	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/docstrings"
 
 	"github.com/logrusorgru/aurora"
@@ -17,6 +20,9 @@ func newAppStatusCommand() *Command {
 	//TODO: Move flag descriptions to docstrings
 	cmd.AddBoolFlag(BoolFlagOpts{Name: "all", Description: "Show completed allocations"})
 
+	allocStatusStrings := docstrings.Get("status.alloc")
+	allocStatusCmd := BuildCommand(cmd, runAllocStatus, allocStatusStrings.Usage, allocStatusStrings.Short, allocStatusStrings.Long, os.Stdout, requireSession, requireAppName)
+	allocStatusCmd.Args = cobra.ExactArgs(1)
 	return cmd
 }
 
@@ -56,6 +62,50 @@ func runAppStatus(ctx *CmdContext) error {
 	if err != nil {
 		return err
 	}
+
+	return nil
+}
+
+func runAllocStatus(ctx *CmdContext) error {
+	alloc, err := ctx.Client.API().GetAllocationStatus(ctx.AppName, ctx.Args[0], 25)
+	if err != nil {
+		return err
+	}
+
+	if alloc == nil {
+		return api.ErrNotFound
+	}
+
+	err = ctx.RenderView(
+		PresenterOption{
+			Title: "Allocation",
+			Presentable: &presenters.Allocations{
+				Allocations: []*api.AllocationStatus{alloc},
+			},
+			Vertical: true,
+		},
+		PresenterOption{
+			Title: "Recent Events",
+			Presentable: &presenters.AllocationEvents{
+				Events: alloc.Events,
+			},
+		},
+		PresenterOption{
+			Title: "Checks",
+			Presentable: &presenters.AllocationChecks{
+				Checks: alloc.Checks,
+			},
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(aurora.Bold("Reccent Logs"))
+	p := textio.NewPrefixWriter(ctx.Out, "  ")
+	logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
+	logPresenter.FPrint(p, alloc.RecentLogs)
+	p.Flush()
 
 	return nil
 }
