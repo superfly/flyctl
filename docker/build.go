@@ -113,76 +113,6 @@ func (op *DeployOperation) BuildWithDocker(cwd string, appConfig *flyctl.AppConf
 	return image, nil
 }
 
-func (op *DeployOperation) BuildAndDeploy(cwd string, appConfig *flyctl.AppConfig) (*api.Release, error) {
-	if !op.DockerAvailable() {
-		return nil, ErrDockerDaemon
-	}
-
-	switch ImageSource(cwd, appConfig) {
-	case SourceNone:
-		return nil, ErrNoDockerfile
-	case SourceDockerfile:
-		fmt.Println("Using Dockerfile from working directory:", path.Join(cwd, "Dockerfile"))
-	}
-
-	buildContext, err := newBuildContext()
-	if err != nil {
-		return nil, err
-	}
-	defer buildContext.Close()
-
-	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
-	s.Writer = os.Stderr
-	s.Prefix = "Creating build context... "
-	s.Start()
-
-	excludes, err := readDockerignore(cwd)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := buildContext.AddSource(cwd, excludes); err != nil {
-		return nil, err
-	}
-
-	s.Stop()
-
-	archive, err := buildContext.Archive()
-	if err != nil {
-		return nil, err
-	}
-	defer archive.Close()
-
-	tag := newDeploymentTag(op.AppName())
-
-	buildArgs := normalizeBuildArgs(appConfig)
-
-	img, err := op.dockerClient.BuildImage(op.ctx, archive.File, tag, buildArgs, op.out, op.squash)
-
-	if err != nil {
-		return nil, err
-	}
-
-	printImageSize(uint64(img.Size))
-
-	if err := op.pushImage(tag); err != nil {
-		return nil, err
-	}
-
-	if err := op.optimizeImage(tag); err != nil {
-		return nil, err
-	}
-
-	release, err := op.deployImage(tag)
-	if err != nil {
-		return nil, err
-	}
-
-	op.CleanDeploymentTags()
-
-	return release, nil
-}
-
 func initPackClient() pack.Client {
 	client, err := pack.NewClient()
 	if err != nil {
@@ -241,52 +171,6 @@ func (op *DeployOperation) PushImage(image Image) error {
 
 func (op *DeployOperation) OptimizeImage(image Image) error {
 	return op.optimizeImage(image.Tag)
-}
-
-func (op *DeployOperation) PackAndDeploy(cwd string, appConfig *flyctl.AppConfig) (*api.Release, error) {
-	if !op.DockerAvailable() {
-		return nil, ErrDockerDaemon
-	}
-
-	tag := newDeploymentTag(op.AppName())
-
-	c := initPackClient()
-
-	imageName := tag
-
-	err := c.Build(op.ctx, pack.BuildOptions{
-		AppPath:    cwd,
-		Builder:    appConfig.Build.Builder,
-		Image:      imageName,
-		Buildpacks: appConfig.Build.Buildpacks,
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	fmt.Println("Image built", imageName)
-
-	img, err := op.dockerClient.findImage(op.ctx, imageName)
-
-	printImageSize(uint64(img.Size))
-
-	if err := op.pushImage(tag); err != nil {
-		return nil, err
-	}
-
-	if err := op.optimizeImage(tag); err != nil {
-		return nil, err
-	}
-
-	release, err := op.deployImage(tag)
-	if err != nil {
-		return nil, err
-	}
-
-	op.CleanDeploymentTags()
-
-	return release, nil
 }
 
 func (op *DeployOperation) StartRemoteBuild(cwd string, appConfig *flyctl.AppConfig) (*api.Build, error) {
