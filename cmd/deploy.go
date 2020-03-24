@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -47,6 +48,11 @@ func newDeployCommand() *Command {
 		Description: "Perform builds remotely without using the local docker daemon",
 	})
 
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "strategy",
+		Description: "The strategy for replacing running instances. Options are canary, rolling, or simple. Default is canary",
+	})
+
 	cmd.Command.Args = cobra.MaximumNArgs(1)
 
 	return cmd
@@ -68,8 +74,16 @@ func runDeploy(cc *CmdContext) error {
 		printAppConfigServices("  ", *parsedCfg)
 	}
 
+	var strategy = docker.DefaultDeploymentStrategy
+	if val, _ := cc.Config.GetString("strategy"); val != "" {
+		strategy, err = docker.ParseDeploymentStrategy(val)
+		if err != nil {
+			return err
+		}
+	}
+
 	if imageRef, _ := cc.Config.GetString("image"); imageRef != "" {
-		release, err := op.DeployImage(imageRef)
+		release, err := op.DeployImage(imageRef, strategy)
 		if err != nil {
 			return err
 		}
@@ -158,7 +172,7 @@ func runDeploy(cc *CmdContext) error {
 		return err
 	}
 
-	release, err := op.Deploy(image)
+	release, err := op.Deploy(image, strategy)
 	if err != nil {
 		return err
 	}
@@ -170,6 +184,10 @@ func runDeploy(cc *CmdContext) error {
 
 func renderRelease(ctx context.Context, cc *CmdContext, release *api.Release) error {
 	fmt.Printf("Release v%d created\n", release.Version)
+
+	if strings.ToLower(release.DeploymentStrategy) == string(docker.ImmediateDeploymentStrategy) {
+		return nil
+	}
 
 	return watchDeployment(ctx, cc)
 }

@@ -9,6 +9,7 @@ func (client *Client) DeployImage(input DeployImageInput) (*Release, error) {
 						version
 						reason
 						description
+						deploymentStrategy
 						user {
 							id
 							email

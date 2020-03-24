@@ -271,6 +271,7 @@ type DeployImageInput struct {
 	Image      string      `json:"image"`
 	Services   *[]Service  `json:"services"`
 	Definition *Definition `json:"definition"`
+	Strategy   *string     `json:"strategy"`
 }
 
 type Service struct {

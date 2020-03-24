@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -59,11 +60,33 @@ func (op *DeployOperation) DockerAvailable() bool {
 	return op.dockerAvailable
 }
 
-func (op *DeployOperation) DeployImage(imageRef string) (*api.Release, error) {
+type DeploymentStrategy string
+
+const (
+	CanaryDeploymentStrategy    DeploymentStrategy = "canary"
+	RollingDeploymentStrategy   DeploymentStrategy = "rolling"
+	ImmediateDeploymentStrategy DeploymentStrategy = "immediate"
+	DefaultDeploymentStrategy   DeploymentStrategy = ""
+)
+
+func ParseDeploymentStrategy(val string) (DeploymentStrategy, error) {
+	switch val {
+	case "canary":
+		return CanaryDeploymentStrategy, nil
+	case "rolling":
+		return RollingDeploymentStrategy, nil
+	case "immediate":
+		return ImmediateDeploymentStrategy, nil
+	default:
+		return "", fmt.Errorf("Unknown deployment strategy '%s'", val)
+	}
+}
+
+func (op *DeployOperation) DeployImage(imageRef string, strategy DeploymentStrategy) (*api.Release, error) {
 	//if op.dockerAvailable {
 	//	return op.deployImageWithDocker(imageRef)
 	//}
-	return op.deployImageWithoutDocker(imageRef)
+	return op.deployImageWithoutDocker(imageRef, strategy)
 }
 
 func (op *DeployOperation) ValidateConfig() (*api.AppConfig, error) {
@@ -89,7 +112,7 @@ func (op *DeployOperation) ValidateConfig() (*api.AppConfig, error) {
 	return parsedConfig, nil
 }
 
-func (op *DeployOperation) deployImageWithDocker(imageRef string) (*api.Release, error) {
+func (op *DeployOperation) deployImageWithDocker(imageRef string, strategy DeploymentStrategy) (*api.Release, error) {
 	deploymentTag, err := op.resolveAndTagImageRef(imageRef)
 	if err != nil {
 		return nil, err
@@ -103,7 +126,7 @@ func (op *DeployOperation) deployImageWithDocker(imageRef string) (*api.Release,
 		return nil, err
 	}
 
-	release, err := op.deployImage(deploymentTag)
+	release, err := op.deployImage(deploymentTag, strategy)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +137,7 @@ func (op *DeployOperation) deployImageWithDocker(imageRef string) (*api.Release,
 
 }
 
-func (op *DeployOperation) deployImageWithoutDocker(imageRef string) (*api.Release, error) {
+func (op *DeployOperation) deployImageWithoutDocker(imageRef string, strategy DeploymentStrategy) (*api.Release, error) {
 	ref, err := checkManifest(op.ctx, imageRef, "")
 	if err != nil {
 		return nil, err
@@ -124,7 +147,7 @@ func (op *DeployOperation) deployImageWithoutDocker(imageRef string) (*api.Relea
 		return nil, err
 	}
 
-	return op.deployImage(ref.Remote())
+	return op.deployImage(ref.Remote(), strategy)
 }
 
 func (op *DeployOperation) resolveAndTagImageRef(imageRef string) (string, error) {
@@ -198,12 +221,15 @@ func (op *DeployOperation) optimizeImage(imageTag string) error {
 	}
 }
 
-func (op *DeployOperation) Deploy(image Image) (*api.Release, error) {
-	return op.deployImage(image.Tag)
+func (op *DeployOperation) Deploy(image Image, strategy DeploymentStrategy) (*api.Release, error) {
+	return op.deployImage(image.Tag, strategy)
 }
 
-func (op *DeployOperation) deployImage(imageTag string) (*api.Release, error) {
+func (op *DeployOperation) deployImage(imageTag string, strategy DeploymentStrategy) (*api.Release, error) {
 	input := api.DeployImageInput{AppID: op.AppName(), Image: imageTag}
+	if strategy != DefaultDeploymentStrategy {
+		input.Strategy = api.StringPointer(strings.ToUpper(string(strategy)))
+	}
 
 	if op.appConfig != nil && len(op.appConfig.Definition) > 0 {
 		x := api.Definition(op.appConfig.Definition)
@@ -211,6 +237,9 @@ func (op *DeployOperation) deployImage(imageTag string) (*api.Release, error) {
 	}
 
 	printHeader("Creating Release")
+	if strategy != DefaultDeploymentStrategy {
+		fmt.Fprintln(op.out, "Deployment Strategy:", strategy)
+	}
 	release, err := op.apiClient.DeployImage(input)
 	if err != nil {
 		return nil, err

@@ -7,3 +7,7 @@ func IntPointer(val int) *int {
 func BoolPointer(val bool) *bool {
 	return &val
 }
+
+func StringPointer(val string) *string {
+	return &val
+}
