@@ -11,6 +11,11 @@ flyctl is a command line interface for fly.io
 ```bash
 brew install superfly/tap/flyctl
 ```
+To upgrade to the latest version:
+
+```bash
+brew upgrade superfly/tap/flyctl
+```
 
 ## Install Script
 
