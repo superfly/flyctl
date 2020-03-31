@@ -74,6 +74,7 @@ func (op *DeployOperation) BuildWithDocker(cwd string, appConfig *flyctl.AppConf
 	if err != nil {
 		return nil, err
 	}
+	excludes = append(excludes, "fly.toml")
 
 	if err := buildContext.AddSource(cwd, excludes); err != nil {
 		return nil, err
