@@ -47,10 +47,13 @@ func newDeployCommand() *Command {
 		Name:        "remote-only",
 		Description: "Perform builds remotely without using the local docker daemon",
 	})
-
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "strategy",
 		Description: "The strategy for replacing running instances. Options are canary, rolling, or immediate. Default is canary",
+	})
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "dockerfile",
+		Description: "Path to a Dockerfile. Defaults to Dockerfile in the working directory.",
 	})
 
 	cmd.Command.Args = cobra.MaximumNArgs(1)
@@ -90,9 +93,24 @@ func runDeploy(cc *CmdContext) error {
 		return renderRelease(ctx, cc, release)
 	}
 
-	buildSource := docker.ImageSource(cc.WorkingDir, cc.AppConfig)
-	if buildSource == docker.SourceNone {
+	var dockerfilePath string
+
+	if dockerfile, _ := cc.Config.GetString("dockerfile"); dockerfile != "" {
+		dockerfilePath = dockerfile
+	}
+
+	if dockerfilePath == "" {
+		dockerfilePath = docker.ResolveDockerfile(cc.WorkingDir)
+	}
+
+	if dockerfilePath == "" && !cc.AppConfig.HasBuilder() {
 		return docker.ErrNoDockerfile
+	}
+
+	if cc.AppConfig.HasBuilder() {
+		if dockerfilePath != "" {
+			terminal.Warn("Project contains both a Dockerfile and buildpacks, using buildpacks")
+		}
 	}
 
 	fmt.Printf("Deploy source directory '%s'\n", cc.WorkingDir)
@@ -102,20 +120,17 @@ func runDeploy(cc *CmdContext) error {
 	if op.DockerAvailable() {
 		fmt.Println("Docker daemon available, performing local build...")
 
-		if buildSource == docker.SourceDockerfile {
-			fmt.Println("Building Dockerfile")
-			if cc.AppConfig.HasBuilder() {
-				terminal.Warn("Project contains both a Dockerfile and a builder, using Dockerfile")
-			}
-
-			img, err := op.BuildWithDocker(cc.WorkingDir, cc.AppConfig)
+		if cc.AppConfig.HasBuilder() {
+			fmt.Println("Building with buildpacks")
+			img, err := op.BuildWithPack(cc.WorkingDir, cc.AppConfig)
 			if err != nil {
 				return err
 			}
 			image = *img
-		} else if buildSource == docker.SourceBuildpacks {
-			fmt.Println("Building with buildpacks")
-			img, err := op.BuildWithPack(cc.WorkingDir, cc.AppConfig)
+		} else {
+			fmt.Println("Building Dockerfile")
+
+			img, err := op.BuildWithDocker(cc.WorkingDir, cc.AppConfig, dockerfilePath)
 			if err != nil {
 				return err
 			}
@@ -138,7 +153,7 @@ func runDeploy(cc *CmdContext) error {
 	} else {
 		fmt.Println("Docker daemon unavailable, performing remote build...")
 
-		build, err := op.StartRemoteBuild(cc.WorkingDir, cc.AppConfig)
+		build, err := op.StartRemoteBuild(cc.WorkingDir, cc.AppConfig, dockerfilePath)
 		if err != nil {
 			return err
 		}
