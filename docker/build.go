@@ -31,6 +31,10 @@ func ResolveDockerfile(cwd string) string {
 	if helpers.FileExists(dockerfilePath) {
 		return dockerfilePath
 	}
+	dockerfilePath = path.Join(cwd, "dockerfile")
+	if helpers.FileExists(dockerfilePath) {
+		return dockerfilePath
+	}
 	return ""
 }
 
@@ -110,7 +114,6 @@ func initPackClient() pack.Client {
 	client, err := pack.NewClient()
 	if err != nil {
 		panic(err)
-		// exitError(logger, err)
 	}
 	return *client
 }
@@ -292,7 +295,7 @@ func trimExcludes(excludes []string) []string {
 	}
 
 	if match, _ := fileutils.Matches("Dockerfile", excludes); match {
-		excludes = append(excludes, "!Dockerfile")
+		excludes = append(excludes, "![Dd]ockerfile")
 	}
 
 	return excludes
