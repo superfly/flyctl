@@ -256,7 +256,6 @@ func normalizeBuildArgs(appConfig *flyctl.AppConfig, extra map[string]string) ma
 
 	if appConfig.Build != nil {
 		for k, v := range appConfig.Build.Args {
-			k = strings.ToUpper(k)
 			// docker needs a string pointer. since ranges reuse variables we need to deref a copy
 			val := v
 			out[k] = &val
