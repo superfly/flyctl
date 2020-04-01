@@ -232,7 +232,14 @@ func (op *DeployOperation) StartRemoteBuild(cwd string, appConfig *flyctl.AppCon
 		return nil, fmt.Errorf("Error submitting build: %s", body)
 	}
 
-	build, err := op.apiClient.CreateBuild(op.AppName(), getURL, "targz", "flyctl_build_only")
+	input := api.StartBuildInput{
+		AppID:      op.AppName(),
+		SourceURL:  getURL,
+		SourceType: "targz",
+		BuildType:  api.StringPointer("flyctl_v1"),
+	}
+
+	build, err := op.apiClient.StartBuild(input)
 	if err != nil {
 		return nil, err
 	}
