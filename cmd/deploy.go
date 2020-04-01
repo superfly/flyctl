@@ -55,6 +55,10 @@ func newDeployCommand() *Command {
 		Name:        "dockerfile",
 		Description: "Path to a Dockerfile. Defaults to Dockerfile in the working directory.",
 	})
+	cmd.AddStringSliceFlag(StringSliceFlagOpts{
+		Name:        "build-arg",
+		Description: "Set of build time variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
+	})
 
 	cmd.Command.Args = cobra.MaximumNArgs(1)
 
@@ -91,6 +95,15 @@ func runDeploy(cc *CmdContext) error {
 			return err
 		}
 		return renderRelease(ctx, cc, release)
+	}
+
+	buildArgs := map[string]string{}
+	for _, arg := range cc.Config.GetStringSlice("build-arg") {
+		parts := strings.Split(arg, "=")
+		if len(parts) != 2 {
+			return fmt.Errorf("Invalid build-arg '%s': must be in the format NAME=VALUE", arg)
+		}
+		buildArgs[parts[0]] = parts[1]
 	}
 
 	var dockerfilePath string
@@ -130,7 +143,7 @@ func runDeploy(cc *CmdContext) error {
 		} else {
 			fmt.Println("Building Dockerfile")
 
-			img, err := op.BuildWithDocker(cc.WorkingDir, cc.AppConfig, dockerfilePath)
+			img, err := op.BuildWithDocker(cc.WorkingDir, cc.AppConfig, dockerfilePath, buildArgs)
 			if err != nil {
 				return err
 			}
@@ -153,7 +166,7 @@ func runDeploy(cc *CmdContext) error {
 	} else {
 		fmt.Println("Docker daemon unavailable, performing remote build...")
 
-		build, err := op.StartRemoteBuild(cc.WorkingDir, cc.AppConfig, dockerfilePath)
+		build, err := op.StartRemoteBuild(cc.WorkingDir, cc.AppConfig, dockerfilePath, buildArgs)
 		if err != nil {
 			return err
 		}

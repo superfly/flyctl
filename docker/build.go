@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -44,7 +43,7 @@ type Image struct {
 	Size int64
 }
 
-func (op *DeployOperation) BuildWithDocker(cwd string, appConfig *flyctl.AppConfig, dockerfilePath string) (*Image, error) {
+func (op *DeployOperation) BuildWithDocker(cwd string, appConfig *flyctl.AppConfig, dockerfilePath string, buildArgs map[string]string) (*Image, error) {
 	if !op.DockerAvailable() {
 		return nil, ErrDockerDaemon
 	}
@@ -94,9 +93,9 @@ func (op *DeployOperation) BuildWithDocker(cwd string, appConfig *flyctl.AppConf
 
 	tag := newDeploymentTag(op.AppName())
 
-	buildArgs := normalizeBuildArgs(appConfig)
+	normalizedBuildArgs := normalizeBuildArgs(appConfig, buildArgs)
 
-	img, err := op.dockerClient.BuildImage(op.ctx, archive.File, tag, buildArgs, op.out, op.squash)
+	img, err := op.dockerClient.BuildImage(op.ctx, archive.File, tag, normalizedBuildArgs, op.out, op.squash)
 
 	if err != nil {
 		return nil, err
@@ -170,7 +169,7 @@ func (op *DeployOperation) OptimizeImage(image Image) error {
 	return op.optimizeImage(image.Tag)
 }
 
-func (op *DeployOperation) StartRemoteBuild(cwd string, appConfig *flyctl.AppConfig, dockerfilePath string) (*api.Build, error) {
+func (op *DeployOperation) StartRemoteBuild(cwd string, appConfig *flyctl.AppConfig, dockerfilePath string, buildArgs map[string]string) (*api.Build, error) {
 	buildContext, err := newBuildContext()
 	if err != nil {
 		return nil, err
@@ -239,6 +238,10 @@ func (op *DeployOperation) StartRemoteBuild(cwd string, appConfig *flyctl.AppCon
 		BuildType:  api.StringPointer("flyctl_v1"),
 	}
 
+	for name, val := range buildArgs {
+		input.BuildArgs = append(input.BuildArgs, api.BuildArgInput{Name: name, Value: val})
+	}
+
 	build, err := op.apiClient.StartBuild(input)
 	if err != nil {
 		return nil, err
@@ -248,7 +251,7 @@ func (op *DeployOperation) StartRemoteBuild(cwd string, appConfig *flyctl.AppCon
 	return build, nil
 }
 
-func normalizeBuildArgs(appConfig *flyctl.AppConfig) map[string]*string {
+func normalizeBuildArgs(appConfig *flyctl.AppConfig, extra map[string]string) map[string]*string {
 	var out = map[string]*string{}
 
 	if appConfig.Build != nil {
@@ -258,6 +261,12 @@ func normalizeBuildArgs(appConfig *flyctl.AppConfig) map[string]*string {
 			val := v
 			out[k] = &val
 		}
+	}
+
+	for name, value := range extra {
+		// docker needs a string pointer. since ranges reuse variables we need to deref a copy
+		val := value
+		out[name] = &val
 	}
 
 	return out
