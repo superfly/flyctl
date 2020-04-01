@@ -262,10 +262,12 @@ func normalizeBuildArgs(appConfig *flyctl.AppConfig, extra map[string]string) ma
 		}
 	}
 
-	for name, value := range extra {
-		// docker needs a string pointer. since ranges reuse variables we need to deref a copy
-		val := value
-		out[name] = &val
+	if extra != nil {
+		for name, value := range extra {
+			// docker needs a string pointer. since ranges reuse variables we need to deref a copy
+			val := value
+			out[name] = &val
+		}
 	}
 
 	return out
