@@ -23,29 +23,29 @@ Information includes the application's
 [apps]
 usage="apps"
 shortHelp="Manage Apps"
-longHelp="""The **apps** commands focus on managing your Fly applications.
-Start with the **create** command to register your application.
-The **list** command will list all currently registered applications.
+longHelp="""The APPS commands focus on managing your Fly applications.
+Start with the CREATE command to register your application.
+The LIST command will list all currently registered applications.
 """
 [apps.list]
 usage="list"
 shortHelp="List applications"
-longHelp="""The **apps list** command will show the applications currently registered and available to this user. The list will include applications from all the organizations the user is a member of. Each application will be shown with its name, owner and when it was last deployed.
+longHelp="""The APPS LIST command will show the applications currently registered and available to this user. The list will include applications from all the organizations the user is a member of. Each application will be shown with its name, owner and when it was last deployed.
 """
 [apps.create]
 usage="create [APPNAME]"
 shortHelp="Create a new application"
-longHelp="""The **apps create** command will both register a new application with the Fly platform and create the fly.toml file which controls how the application will be deployed. The **--builder** flag allows a cloud native buildpack to be specified which will be used instead of a Dockerfile to create the application image when it is deployed.
+longHelp="""The APPS CREATE command will both register a new application with the Fly platform and create the fly.toml file which controls how the application will be deployed. The --builder flag allows a cloud native buildpack to be specified which will be used instead of a Dockerfile to create the application image when it is deployed.
 """
 [apps.destroy]
 usage="destroy [APPNAME]"
 shortHelp="Permanently destroys an App"
-longHelp="""The **apps destroy** command will remove an application from the Fly platform.
+longHelp="""The APPS DESTROY command will remove an application from the Fly platform.
 """
 [apps.move]
 usage="move [APPNAME]"
 shortHelp="Move an App to another organization"
-longHelp="""The **apps move** command will move an application to another organization the current user belongs to.
+longHelp="""The APPS MOVE command will move an application to another organization the current user belongs to.
 """
 
 
@@ -54,8 +54,8 @@ longHelp="""The **apps move** command will move an application to another organi
 usage="auth"
 shortHelp="Manage authentication"
 longHelp="""Authenticate with Fly (and logout if you need to).
-If you do not have an account, start with the **auth signup** command.
-If you do have and account, begin with the **auth login** subcommand.
+If you do not have an account, start with the AUTH SIGNUP command.
+If you do have and account, begin with the AUTH LOGIN subcommand.
 """
 [auth.whoami]
 usage="whoami"
@@ -130,7 +130,7 @@ certificate.
 [certs.check]
 usage="check <hostname>"
 shortHelp="Checks DNS configuration"
-longHelp="""Checks the DNS configuration for the specified hostname. Displays results in the same format as the **show** command.
+longHelp="""Checks the DNS configuration for the specified hostname. Displays results in the same format as the SHOW command.
 """
 
 [curl]
@@ -143,7 +143,7 @@ longHelp="""Run a performance test againt a url.
 [config]
 usage="config"
 shortHelp="Manage an Apps configuration"
-longHelp="""The **config** commands allow you to work with an application's configuration.
+longHelp="""The CONFIG commands allow you to work with an application's configuration.
 """
 [config.display]
 usage="display"
@@ -187,7 +187,7 @@ longHelp="""List the history of changes in the application. Includes autoscaling
 [ips]
 usage="ips"
 shortHelp="Manage IP addresses for Apps"
-longHelp="""The **ips** commands manage IP addresses for applications. An application can have a number of IP addresses associated with it and this family of commands allows you to list, allocate and release those addresses. It supports both IPv4 and IPv6 addresses.
+longHelp="""The IPS commands manage IP addresses for applications. An application can have a number of IP addresses associated with it and this family of commands allows you to list, allocate and release those addresses. It supports both IPv4 and IPv6 addresses.
 """
 [ips.list]
 usage="list"
@@ -222,7 +222,7 @@ region using the --region/-r flag.
 [platform]
 usage="platform"
 shortHelp="Fly platform information"
-longHelp="""The **platform** commands are for users looking for information about the fly.io platform.
+longHelp="""The PLATFORM commands are for users looking for information about the fly.io platform.
 """
 
 [platform.regions]
@@ -234,7 +234,7 @@ longHelp="""View a list of regions where Fly has edges and/or datacenters
 [platform.vmsizes]
 usage="vm-sizes"
 shortHelp="List VM Sizes"
-longHelp="""View a list of VM sizes which can be used with the **flyctl scale vm** command
+longHelp="""View a list of VM sizes which can be used with the FLYCTL SCALE VM command
 """
 
 [releases]
@@ -261,7 +261,7 @@ usage="vm [flags] [SIZE]"
 shortHelp="Scale the VM size for an App."
 longHelp="""Change the size of the VM to the named size for an application. Shows the application's current VM size if no arguments are given. 
 
-Supported sizes and their names are shown with the command **flyctl platform vm-sizes**.
+Supported sizes and their names are shown with the command FLYCTL PLATFORM VM-SIZES.
 """
 
 [secrets]
