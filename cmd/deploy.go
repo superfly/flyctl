@@ -135,7 +135,7 @@ func runDeploy(cc *CmdContext) error {
 
 		if cc.AppConfig.HasBuilder() {
 			fmt.Println("Building with buildpacks")
-			img, err := op.BuildWithPack(cc.WorkingDir, cc.AppConfig)
+			img, err := op.BuildWithPack(cc.WorkingDir, cc.AppConfig, buildArgs)
 			if err != nil {
 				return err
 			}

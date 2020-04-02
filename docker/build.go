@@ -118,7 +118,7 @@ func initPackClient() pack.Client {
 	return *client
 }
 
-func (op *DeployOperation) BuildWithPack(cwd string, appConfig *flyctl.AppConfig) (*Image, error) {
+func (op *DeployOperation) BuildWithPack(cwd string, appConfig *flyctl.AppConfig, buildArgs map[string]string) (*Image, error) {
 	if !op.DockerAvailable() {
 		return nil, ErrDockerDaemon
 	}
@@ -133,11 +133,21 @@ func (op *DeployOperation) BuildWithPack(cwd string, appConfig *flyctl.AppConfig
 
 	imageName := tag
 
+	env := map[string]string{}
+
+	for name, val := range appConfig.Build.Args {
+		env[name] = val
+	}
+	for name, val := range buildArgs {
+		env[name] = val
+	}
+
 	err := c.Build(op.ctx, pack.BuildOptions{
 		AppPath:    cwd,
 		Builder:    appConfig.Build.Builder,
 		Image:      imageName,
 		Buildpacks: appConfig.Build.Buildpacks,
+		Env:        env,
 	})
 
 	if err != nil {
