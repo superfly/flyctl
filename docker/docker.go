@@ -331,6 +331,9 @@ func checkManifest(ctx context.Context, imageRef string, token string) (*dockerp
 	url := fmt.Sprintf("https://%s/v2/%s/manifests/%s", registry, ref.ShortName(), ref.Tag())
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
 	req.Header.Add("Accept", "application/vnd.docker.distribution.manifest.v2+json")
 	if token != "" {
 		req.Header.Add("Authorization", "Bearer "+token)

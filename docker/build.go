@@ -157,6 +157,9 @@ func (op *DeployOperation) BuildWithPack(cwd string, appConfig *flyctl.AppConfig
 	fmt.Println("Image built", imageName)
 
 	img, err := op.dockerClient.findImage(op.ctx, imageName)
+	if err != nil {
+		return nil, err
+	}
 
 	if err != nil {
 		return nil, err
