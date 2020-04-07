@@ -25,7 +25,6 @@ type DeployOperation struct {
 	out             io.Writer
 	appName         string
 	appConfig       *flyctl.AppConfig
-	squash          bool
 }
 
 func NewDeployOperation(ctx context.Context, appName string, appConfig *flyctl.AppConfig, apiClient *api.Client, out io.Writer, squash bool, remoteOnly bool) (*DeployOperation, error) {
@@ -41,7 +40,6 @@ func NewDeployOperation(ctx context.Context, appName string, appConfig *flyctl.A
 		out:          out,
 		appName:      appName,
 		appConfig:    appConfig,
-		squash:       squash,
 	}
 
 	op.dockerAvailable = !remoteOnly && op.dockerClient.Check(ctx) == nil

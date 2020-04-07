@@ -13,8 +13,6 @@ import (
 	"github.com/buildpacks/pack"
 	"github.com/docker/docker/builder/dockerignore"
 	"github.com/docker/docker/pkg/fileutils"
-	"github.com/dustin/go-humanize"
-	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
@@ -95,7 +93,7 @@ func (op *DeployOperation) BuildWithDocker(cwd string, appConfig *flyctl.AppConf
 
 	normalizedBuildArgs := normalizeBuildArgs(appConfig, buildArgs)
 
-	img, err := op.dockerClient.BuildImage(op.ctx, archive.File, tag, normalizedBuildArgs, op.out, op.squash)
+	img, err := op.dockerClient.BuildImage(op.ctx, archive.File, tag, normalizedBuildArgs, op.out)
 
 	if err != nil {
 		return nil, err
@@ -330,8 +328,4 @@ func trimExcludes(excludes []string) []string {
 	}
 
 	return excludes
-}
-
-func printImageSize(size uint64) {
-	fmt.Println(aurora.Bold(fmt.Sprintf("Image size: %s", humanize.Bytes(size))))
 }

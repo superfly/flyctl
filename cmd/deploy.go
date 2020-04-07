@@ -37,9 +37,6 @@ func newDeployCommand() *Command {
 		Description: "Return immediately instead of monitoring deployment progress",
 	})
 	cmd.AddBoolFlag(BoolFlagOpts{
-		Name: "squash",
-	})
-	cmd.AddBoolFlag(BoolFlagOpts{
 		Name:   "build-only",
 		Hidden: true,
 	})
