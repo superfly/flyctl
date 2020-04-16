@@ -71,6 +71,9 @@ func runDeploy(cc *CmdContext) error {
 
 	parsedCfg, err := op.ValidateConfig()
 	if err != nil {
+		for _, error := range parsedCfg.Errors {
+			fmt.Println("   ", aurora.Red("✘").String(), error)
+		}
 		return err
 	}
 
