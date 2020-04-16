@@ -101,7 +101,7 @@ func runAllocStatus(ctx *CmdContext) error {
 		return err
 	}
 
-	fmt.Println(aurora.Bold("Reccent Logs"))
+	fmt.Println(aurora.Bold("Recent Logs"))
 	p := textio.NewPrefixWriter(ctx.Out, "  ")
 	logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
 	logPresenter.FPrint(p, alloc.RecentLogs)
