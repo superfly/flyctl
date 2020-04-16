@@ -96,11 +96,11 @@ func (op *DeployOperation) ValidateConfig() (*api.AppConfig, error) {
 
 	parsedConfig, err := op.apiClient.ParseConfig(op.appName, op.appConfig.Definition)
 	if err != nil {
-		return nil, err
+		return parsedConfig, err
 	}
 
 	if !parsedConfig.Valid {
-		return nil, errors.New("App configuration is not valid")
+		return parsedConfig, errors.New("App configuration is not valid")
 	}
 
 	op.appConfig.Definition = parsedConfig.Definition
