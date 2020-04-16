@@ -42,7 +42,7 @@ type Query struct {
 
 	CreateSignedUrl SignedUrls
 
-	CreateBuild struct {
+	StartBuild struct {
 		Build Build
 	}
 
@@ -421,4 +421,17 @@ type VMSize struct {
 type SetVMSizeInput struct {
 	AppID    string `json:"appId"`
 	SizeName string `json:"sizeName"`
+}
+
+type StartBuildInput struct {
+	AppID      string          `json:"appId"`
+	SourceURL  string          `json:"sourceUrl"`
+	SourceType string          `json:"sourceType"`
+	BuildType  *string         `json:"buildType"`
+	BuildArgs  []BuildArgInput `json:"buildArgs"`
+}
+
+type BuildArgInput struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }

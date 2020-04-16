@@ -25,7 +25,6 @@ type DeployOperation struct {
 	out             io.Writer
 	appName         string
 	appConfig       *flyctl.AppConfig
-	squash          bool
 }
 
 func NewDeployOperation(ctx context.Context, appName string, appConfig *flyctl.AppConfig, apiClient *api.Client, out io.Writer, squash bool, remoteOnly bool) (*DeployOperation, error) {
@@ -41,7 +40,6 @@ func NewDeployOperation(ctx context.Context, appName string, appConfig *flyctl.A
 		out:          out,
 		appName:      appName,
 		appConfig:    appConfig,
-		squash:       squash,
 	}
 
 	op.dockerAvailable = !remoteOnly && op.dockerClient.Check(ctx) == nil
@@ -98,11 +96,11 @@ func (op *DeployOperation) ValidateConfig() (*api.AppConfig, error) {
 
 	parsedConfig, err := op.apiClient.ParseConfig(op.appName, op.appConfig.Definition)
 	if err != nil {
-		return nil, err
+		return parsedConfig, err
 	}
 
 	if !parsedConfig.Valid {
-		return nil, errors.New("App configuration is not valid")
+		return parsedConfig, errors.New("App configuration is not valid")
 	}
 
 	op.appConfig.Definition = parsedConfig.Definition

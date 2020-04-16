@@ -7,45 +7,32 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/briandowns/spinner"
 	"github.com/buildpacks/pack"
 	"github.com/docker/docker/builder/dockerignore"
 	"github.com/docker/docker/pkg/fileutils"
-	"github.com/dustin/go-humanize"
-	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/terminal"
 )
 
-type Source uint
-
-const (
-	SourceDockerfile Source = iota
-	SourceBuildpacks
-	SourceNone
-)
-
 var ErrNoDockerfile = errors.New("Project does not contain a Dockerfile or specify a builder")
 var ErrDockerDaemon = errors.New("Docker daemon must be running to perform this action")
 var ErrNoBuildpackBuilder = errors.New("No buildpack builder")
 
-func ImageSource(cwd string, appConfig *flyctl.AppConfig) Source {
-	if helpers.FileExists(path.Join(cwd, "Dockerfile")) {
-		return SourceDockerfile
+func ResolveDockerfile(cwd string) string {
+	dockerfilePath := path.Join(cwd, "Dockerfile")
+	if helpers.FileExists(dockerfilePath) {
+		return dockerfilePath
 	}
-	if appConfig.HasBuilder() {
-		return SourceBuildpacks
+	dockerfilePath = path.Join(cwd, "dockerfile")
+	if helpers.FileExists(dockerfilePath) {
+		return dockerfilePath
 	}
-	return SourceNone
-}
-
-func (op *DeployOperation) HasDockerfile(cwd string) bool {
-	return helpers.FileExists(path.Join(cwd, "Dockerfile"))
+	return ""
 }
 
 type Image struct {
@@ -54,17 +41,20 @@ type Image struct {
 	Size int64
 }
 
-func (op *DeployOperation) BuildWithDocker(cwd string, appConfig *flyctl.AppConfig) (*Image, error) {
+func (op *DeployOperation) BuildWithDocker(cwd string, appConfig *flyctl.AppConfig, dockerfilePath string, buildArgs map[string]string) (*Image, error) {
 	if !op.DockerAvailable() {
 		return nil, ErrDockerDaemon
 	}
 
-	switch ImageSource(cwd, appConfig) {
-	case SourceNone:
-		return nil, ErrNoDockerfile
-	case SourceDockerfile:
-		fmt.Println("Using Dockerfile from working directory:", path.Join(cwd, "Dockerfile"))
+	if dockerfilePath == "" {
+		dockerfilePath = ResolveDockerfile(cwd)
 	}
+
+	if dockerfilePath == "" {
+		return nil, ErrNoDockerfile
+	}
+
+	fmt.Println("Using Dockerfile:", dockerfilePath)
 
 	buildContext, err := newBuildContext()
 	if err != nil {
@@ -81,8 +71,13 @@ func (op *DeployOperation) BuildWithDocker(cwd string, appConfig *flyctl.AppConf
 	if err != nil {
 		return nil, err
 	}
+	excludes = append(excludes, "fly.toml")
 
 	if err := buildContext.AddSource(cwd, excludes); err != nil {
+		return nil, err
+	}
+
+	if err := buildContext.AddSource(dockerfilePath, nil); err != nil {
 		return nil, err
 	}
 
@@ -96,9 +91,9 @@ func (op *DeployOperation) BuildWithDocker(cwd string, appConfig *flyctl.AppConf
 
 	tag := newDeploymentTag(op.AppName())
 
-	buildArgs := normalizeBuildArgs(appConfig)
+	normalizedBuildArgs := normalizeBuildArgs(appConfig, buildArgs)
 
-	img, err := op.dockerClient.BuildImage(op.ctx, archive.File, tag, buildArgs, op.out, op.squash)
+	img, err := op.dockerClient.BuildImage(op.ctx, archive.File, tag, normalizedBuildArgs, op.out)
 
 	if err != nil {
 		return nil, err
@@ -117,12 +112,11 @@ func initPackClient() pack.Client {
 	client, err := pack.NewClient()
 	if err != nil {
 		panic(err)
-		// exitError(logger, err)
 	}
 	return *client
 }
 
-func (op *DeployOperation) BuildWithPack(cwd string, appConfig *flyctl.AppConfig) (*Image, error) {
+func (op *DeployOperation) BuildWithPack(cwd string, appConfig *flyctl.AppConfig, buildArgs map[string]string) (*Image, error) {
 	if !op.DockerAvailable() {
 		return nil, ErrDockerDaemon
 	}
@@ -137,11 +131,21 @@ func (op *DeployOperation) BuildWithPack(cwd string, appConfig *flyctl.AppConfig
 
 	imageName := tag
 
+	env := map[string]string{}
+
+	for name, val := range appConfig.Build.Args {
+		env[name] = val
+	}
+	for name, val := range buildArgs {
+		env[name] = val
+	}
+
 	err := c.Build(op.ctx, pack.BuildOptions{
 		AppPath:    cwd,
 		Builder:    appConfig.Build.Builder,
 		Image:      imageName,
 		Buildpacks: appConfig.Build.Buildpacks,
+		Env:        env,
 	})
 
 	if err != nil {
@@ -151,6 +155,9 @@ func (op *DeployOperation) BuildWithPack(cwd string, appConfig *flyctl.AppConfig
 	fmt.Println("Image built", imageName)
 
 	img, err := op.dockerClient.findImage(op.ctx, imageName)
+	if err != nil {
+		return nil, err
+	}
 
 	if err != nil {
 		return nil, err
@@ -173,11 +180,7 @@ func (op *DeployOperation) OptimizeImage(image Image) error {
 	return op.optimizeImage(image.Tag)
 }
 
-func (op *DeployOperation) StartRemoteBuild(cwd string, appConfig *flyctl.AppConfig) (*api.Build, error) {
-	if ImageSource(cwd, appConfig) == SourceNone {
-		return nil, ErrNoDockerfile
-	}
-
+func (op *DeployOperation) StartRemoteBuild(cwd string, appConfig *flyctl.AppConfig, dockerfilePath string, buildArgs map[string]string) (*api.Build, error) {
 	buildContext, err := newBuildContext()
 	if err != nil {
 		return nil, err
@@ -196,6 +199,17 @@ func (op *DeployOperation) StartRemoteBuild(cwd string, appConfig *flyctl.AppCon
 
 	if err := buildContext.AddSource(cwd, excludes); err != nil {
 		return nil, err
+	}
+
+	if dockerfilePath != "" {
+		dockerfile, err := os.Open(dockerfilePath)
+		if err != nil {
+			return nil, err
+		}
+		defer dockerfile.Close()
+		if err := buildContext.AddFile("Dockerfile", dockerfile); err != nil {
+			return nil, err
+		}
 	}
 
 	archive, err := buildContext.Archive()
@@ -228,7 +242,18 @@ func (op *DeployOperation) StartRemoteBuild(cwd string, appConfig *flyctl.AppCon
 		return nil, fmt.Errorf("Error submitting build: %s", body)
 	}
 
-	build, err := op.apiClient.CreateBuild(op.AppName(), getURL, "targz", "flyctl_build_only")
+	input := api.StartBuildInput{
+		AppID:      op.AppName(),
+		SourceURL:  getURL,
+		SourceType: "targz",
+		BuildType:  api.StringPointer("flyctl_v1"),
+	}
+
+	for name, val := range buildArgs {
+		input.BuildArgs = append(input.BuildArgs, api.BuildArgInput{Name: name, Value: val})
+	}
+
+	build, err := op.apiClient.StartBuild(input)
 	if err != nil {
 		return nil, err
 	}
@@ -237,15 +262,22 @@ func (op *DeployOperation) StartRemoteBuild(cwd string, appConfig *flyctl.AppCon
 	return build, nil
 }
 
-func normalizeBuildArgs(appConfig *flyctl.AppConfig) map[string]*string {
+func normalizeBuildArgs(appConfig *flyctl.AppConfig, extra map[string]string) map[string]*string {
 	var out = map[string]*string{}
 
 	if appConfig.Build != nil {
 		for k, v := range appConfig.Build.Args {
-			k = strings.ToUpper(k)
 			// docker needs a string pointer. since ranges reuse variables we need to deref a copy
 			val := v
 			out[k] = &val
+		}
+	}
+
+	if extra != nil {
+		for name, value := range extra {
+			// docker needs a string pointer. since ranges reuse variables we need to deref a copy
+			val := value
+			out[name] = &val
 		}
 	}
 
@@ -292,12 +324,8 @@ func trimExcludes(excludes []string) []string {
 	}
 
 	if match, _ := fileutils.Matches("Dockerfile", excludes); match {
-		excludes = append(excludes, "!Dockerfile")
+		excludes = append(excludes, "![Dd]ockerfile")
 	}
 
 	return excludes
-}
-
-func printImageSize(size uint64) {
-	fmt.Println(aurora.Bold(fmt.Sprintf("Image size: %s", humanize.Bytes(size))))
 }
