@@ -304,7 +304,7 @@ func watchDeployment(ctx context.Context, cc *CmdContext) error {
 					return err
 				}
 
-				fmt.Fprintln(p, aurora.Bold("Reccent Logs"))
+				fmt.Fprintln(p, aurora.Bold("Recent Logs"))
 				logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
 				logPresenter.FPrint(p, alloc.RecentLogs)
 				p.Flush()
