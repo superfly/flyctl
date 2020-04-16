@@ -291,12 +291,13 @@ Shows the current autoscaling configuration if no arguments are given.
 """
 
 [scale.vm]
-usage="vm [flags] [SIZE]"
-shortHelp="Scale the VM size for an App."
-longHelp="""Change the size of the VM to the named size for an application. 
-Shows the application's current VM size if no arguments are given. 
+usage="vm [flags] [SIZENAME]"
+shortHelp="Change an App's VM to a named size (eg micro-1x, micro-2x, cpu1mem1..."
+longHelp="""Change an application's VM size to one of the named VM sizes. Shows the application's current VM size if no arguments are given. 
 
-Supported sizes and their names are shown with the command FLYCTL PLATFORM VM-SIZES.
+Size names include micro-1x, micro-2x, cpu1mem1, cpu2mem2, cpu4mem4 and cpu8mem8.
+
+For a full list of supported sizes, with names and pricing details, use the command FLYCTL PLATFORM VM-SIZES.
 """
 
 [secrets]
