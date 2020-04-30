@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/superfly/flyctl/docker"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/internal/client"
 
@@ -39,6 +40,9 @@ func newAuthCommand() *Command {
 
 	authLoginStrings := docstrings.Get("auth.login")
 	login := BuildCommand(cmd, runLogin, authLoginStrings.Usage, authLoginStrings.Short, authLoginStrings.Long, os.Stdout)
+
+	authDockerStrings := docstrings.Get("auth.docker")
+	BuildCommand(cmd, runAuthDocker, authDockerStrings.Usage, authDockerStrings.Short, authDockerStrings.Long, os.Stdout)
 
 	// TODO: Move flag descriptions into the docStrings
 	login.AddBoolFlag(BoolFlagOpts{
@@ -230,6 +234,25 @@ func runAuthToken(ctx *CmdContext) error {
 	token, _ := ctx.GlobalConfig.GetString(flyctl.ConfigAPIToken)
 
 	fmt.Println(token)
+
+	return nil
+}
+
+func runAuthDocker(cc *CmdContext) error {
+	ctx := createCancellableContext()
+
+	dockerClient, err := docker.NewDockerClient()
+	if err != nil {
+		return fmt.Errorf("Docker daemon unavailable: %s", err)
+	}
+
+	token, _ := cc.GlobalConfig.GetString(flyctl.ConfigAPIToken)
+	authConfig := docker.RegistryAuth(token)
+	if _, err := dockerClient.Client().RegistryLogin(ctx, authConfig); err != nil {
+		return err
+	}
+
+	fmt.Println("Authentication successful. You can now tag and push images to registry.fly.io/{your-app}")
 
 	return nil
 }

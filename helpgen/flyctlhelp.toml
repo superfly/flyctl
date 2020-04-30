@@ -98,6 +98,11 @@ shortHelp="Create a new fly account"
 longHelp="""Creates a new fly account. The command opens the browser 
 and sends the user to a form to provide appropriate credentials.
 """
+[auth.docker]
+usage="docker"
+shortHelp="Authenticate docker"
+longHelp="""Adds registry.fly.io to the docker daemon's authenticated registries. This allows you to push images directly to fly from the docker cli.
+"""
 
 [builds]
 usage="builds"

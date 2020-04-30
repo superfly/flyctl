@@ -51,6 +51,10 @@ type DockerClient struct {
 	registryAuth string
 }
 
+func (c *DockerClient) Client() *client.Client {
+	return c.docker
+}
+
 func NewDockerClient() (*DockerClient, error) {
 	cli, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation(), client.WithVersion("1.40"))
 	if err != nil {
@@ -62,12 +66,7 @@ func NewDockerClient() (*DockerClient, error) {
 	}
 
 	accessToken := viper.GetString(flyctl.ConfigAPIToken)
-
-	authConfig := types.AuthConfig{
-		Username:      accessToken,
-		Password:      "x",
-		ServerAddress: "registry.fly.io",
-	}
+	authConfig := RegistryAuth(accessToken)
 	encodedJSON, err := json.Marshal(authConfig)
 	if err != nil {
 		return nil, err
@@ -348,6 +347,14 @@ func checkManifest(ctx context.Context, imageRef string, token string) (*dockerp
 	}
 
 	return nil, fmt.Errorf("Unable to access image %s: %s", imageRef, resp.Status)
+}
+
+func RegistryAuth(token string) types.AuthConfig {
+	return types.AuthConfig{
+		Username:      token,
+		Password:      "x",
+		ServerAddress: "registry.fly.io",
+	}
 }
 
 func getDockerHubToken(imageName string) (string, error) {
