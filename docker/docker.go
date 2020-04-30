@@ -307,7 +307,7 @@ func (c *DockerClient) PushImage(ctx context.Context, imageName string, out io.W
 	return jsonmessage.DisplayJSONMessagesStream(resp, out, termFd, isTerm, nil)
 }
 
-func checkManifest(ctx context.Context, imageRef string, token string) (*dockerparser.Reference, error) {
+func CheckManifest(ctx context.Context, imageRef string, token string) (*dockerparser.Reference, error) {
 	ref, err := dockerparser.Parse(imageRef)
 	if err != nil {
 		return nil, err
@@ -342,7 +342,7 @@ func checkManifest(ctx context.Context, imageRef string, token string) (*dockerp
 	if resp.StatusCode == 401 && ref.Registry() == "docker.io" && token == "" {
 		token, _ := getDockerHubToken(ref.ShortName())
 		if token != "" {
-			return checkManifest(ctx, imageRef, token)
+			return CheckManifest(ctx, imageRef, token)
 		}
 	}
 

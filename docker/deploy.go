@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/briandowns/spinner"
+	"github.com/dustin/go-humanize"
 	"github.com/logrusorgru/aurora"
 	"github.com/mattn/go-isatty"
 	"github.com/superfly/flyctl/api"
@@ -80,13 +81,6 @@ func ParseDeploymentStrategy(val string) (DeploymentStrategy, error) {
 	}
 }
 
-func (op *DeployOperation) DeployImage(imageRef string, strategy DeploymentStrategy) (*api.Release, error) {
-	//if op.dockerAvailable {
-	//	return op.deployImageWithDocker(imageRef)
-	//}
-	return op.deployImageWithoutDocker(imageRef, strategy)
-}
-
 func (op *DeployOperation) ValidateConfig() (*api.AppConfig, error) {
 	if op.appConfig == nil {
 		op.appConfig = flyctl.NewAppConfig()
@@ -110,67 +104,69 @@ func (op *DeployOperation) ValidateConfig() (*api.AppConfig, error) {
 	return parsedConfig, nil
 }
 
-func (op *DeployOperation) deployImageWithDocker(imageRef string, strategy DeploymentStrategy) (*api.Release, error) {
-	deploymentTag, err := op.resolveAndTagImageRef(imageRef)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := op.pushImage(deploymentTag); err != nil {
-		return nil, err
-	}
-
-	if err := op.optimizeImage(deploymentTag); err != nil {
-		return nil, err
-	}
-
-	release, err := op.deployImage(deploymentTag, strategy)
-	if err != nil {
-		return nil, err
-	}
-
-	op.CleanDeploymentTags()
-
-	return release, nil
-
-}
-
-func (op *DeployOperation) deployImageWithoutDocker(imageRef string, strategy DeploymentStrategy) (*api.Release, error) {
-	ref, err := checkManifest(op.ctx, imageRef, "")
-	if err != nil {
-		return nil, err
-	}
-
-	if err := op.optimizeImage(ref.Remote()); err != nil {
-		return nil, err
-	}
-
-	return op.deployImage(ref.Remote(), strategy)
-}
-
-func (op *DeployOperation) resolveAndTagImageRef(imageRef string) (string, error) {
+func (op *DeployOperation) ResolveImage(ctx context.Context, imageRef string) (*Image, error) {
 	printHeader("Resolving image")
 
-	img, err := op.dockerClient.ResolveImage(op.ctx, imageRef)
+	if op.DockerAvailable() {
+		imgSummary, err := op.dockerClient.findImage(ctx, imageRef)
+		if err != nil {
+			return nil, err
+		}
+
+		if imgSummary == nil {
+			goto ResolveWithoutDocker
+		}
+
+		fmt.Printf("Image ID: %+v\n", imgSummary.ID)
+		fmt.Println(aurora.Bold(fmt.Sprintf("Image size: %s", humanize.Bytes(uint64(imgSummary.Size)))))
+
+		fmt.Println("--> done")
+
+		printHeader("Creating deployment tag")
+		tag := newDeploymentTag(op.appName)
+		if err := op.dockerClient.TagImage(op.ctx, imgSummary.ID, tag); err != nil {
+			return nil, err
+		}
+		fmt.Println("-->", tag)
+
+		image := &Image{
+			ID:   imgSummary.ID,
+			Size: imgSummary.Size,
+			Tag:  tag,
+		}
+
+		if err := op.PushImage(*image); err != nil {
+			return nil, err
+		}
+
+		return image, nil
+	}
+
+ResolveWithoutDocker:
+	img, err := op.resolveImageWithoutDocker(ctx, imageRef)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-
 	if img == nil {
-		return "", fmt.Errorf("Could not resolve image %s", imageRef)
+		return nil, fmt.Errorf("Could not find image '%s'", imageRef)
 	}
 
-	fmt.Println("-->", img.ID)
+	fmt.Println("-->", img.Tag)
 
-	imageTag := newDeploymentTag(op.appConfig.AppName)
+	return img, nil
+}
 
-	printHeader("Creating deployment tag")
-	if err := op.dockerClient.TagImage(op.ctx, img.ID, imageTag); err != nil {
-		return "", err
+func (op *DeployOperation) resolveImageWithoutDocker(ctx context.Context, imageRef string) (*Image, error) {
+	ref, err := CheckManifest(op.ctx, imageRef, "")
+	if err != nil {
+		return nil, err
 	}
-	fmt.Println("-->", imageTag)
 
-	return imageTag, nil
+	image := Image{
+		Tag: ref.Repository(),
+	}
+
+	return &image, nil
 }
 
 func (op *DeployOperation) pushImage(imageTag string) error {

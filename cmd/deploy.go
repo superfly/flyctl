@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -89,118 +90,126 @@ func runDeploy(cc *CmdContext) error {
 		}
 	}
 
+	var image *docker.Image
+
 	if imageRef, _ := cc.Config.GetString("image"); imageRef != "" {
-		release, err := op.DeployImage(imageRef, strategy)
+		// image specified, resolve it, tagging and pushing if docker+local
+		fmt.Printf("Deploying image: %s\n", imageRef)
+
+		img, err := op.ResolveImage(ctx, imageRef)
 		if err != nil {
 			return err
 		}
-		return renderRelease(ctx, cc, release)
-	}
-
-	buildArgs := map[string]string{}
-	for _, arg := range cc.Config.GetStringSlice("build-arg") {
-		parts := strings.Split(arg, "=")
-		if len(parts) != 2 {
-			return fmt.Errorf("Invalid build-arg '%s': must be in the format NAME=VALUE", arg)
+		image = img
+	} else {
+		// no image specified, build one
+		buildArgs := map[string]string{}
+		for _, arg := range cc.Config.GetStringSlice("build-arg") {
+			parts := strings.Split(arg, "=")
+			if len(parts) != 2 {
+				return fmt.Errorf("Invalid build-arg '%s': must be in the format NAME=VALUE", arg)
+			}
+			buildArgs[parts[0]] = parts[1]
 		}
-		buildArgs[parts[0]] = parts[1]
-	}
 
-	var dockerfilePath string
+		var dockerfilePath string
 
-	if dockerfile, _ := cc.Config.GetString("dockerfile"); dockerfile != "" {
-		dockerfilePath = dockerfile
-	}
-
-	if dockerfilePath == "" {
-		dockerfilePath = docker.ResolveDockerfile(cc.WorkingDir)
-	}
-
-	if dockerfilePath == "" && !cc.AppConfig.HasBuilder() {
-		return docker.ErrNoDockerfile
-	}
-
-	if cc.AppConfig.HasBuilder() {
-		if dockerfilePath != "" {
-			terminal.Warn("Project contains both a Dockerfile and buildpacks, using buildpacks")
+		if dockerfile, _ := cc.Config.GetString("dockerfile"); dockerfile != "" {
+			dockerfilePath = dockerfile
 		}
-	}
 
-	fmt.Printf("Deploy source directory '%s'\n", cc.WorkingDir)
+		if dockerfilePath == "" {
+			dockerfilePath = docker.ResolveDockerfile(cc.WorkingDir)
+		}
 
-	var image docker.Image
-
-	if op.DockerAvailable() {
-		fmt.Println("Docker daemon available, performing local build...")
+		if dockerfilePath == "" && !cc.AppConfig.HasBuilder() {
+			return docker.ErrNoDockerfile
+		}
 
 		if cc.AppConfig.HasBuilder() {
-			fmt.Println("Building with buildpacks")
-			img, err := op.BuildWithPack(cc.WorkingDir, cc.AppConfig, buildArgs)
-			if err != nil {
+			if dockerfilePath != "" {
+				terminal.Warn("Project contains both a Dockerfile and buildpacks, using buildpacks")
+			}
+		}
+
+		fmt.Printf("Deploy source directory '%s'\n", cc.WorkingDir)
+
+		if op.DockerAvailable() {
+			fmt.Println("Docker daemon available, performing local build...")
+
+			if cc.AppConfig.HasBuilder() {
+				fmt.Println("Building with buildpacks")
+				img, err := op.BuildWithPack(cc.WorkingDir, cc.AppConfig, buildArgs)
+				if err != nil {
+					return err
+				}
+				image = img
+			} else {
+				fmt.Println("Building Dockerfile")
+
+				img, err := op.BuildWithDocker(cc.WorkingDir, cc.AppConfig, dockerfilePath, buildArgs)
+				if err != nil {
+					return err
+				}
+				image = img
+			}
+
+			fmt.Printf("Image: %+v\n", image.Tag)
+			fmt.Println(aurora.Bold(fmt.Sprintf("Image size: %s", humanize.Bytes(uint64(image.Size)))))
+
+			if err := op.PushImage(*image); err != nil {
 				return err
 			}
-			image = *img
+
+			if cc.Config.GetBool("build-only") {
+				fmt.Printf("Image: %s\n", image.Tag)
+
+				return nil
+			}
+
 		} else {
-			fmt.Println("Building Dockerfile")
+			fmt.Println("Docker daemon unavailable, performing remote build...")
 
-			img, err := op.BuildWithDocker(cc.WorkingDir, cc.AppConfig, dockerfilePath, buildArgs)
+			build, err := op.StartRemoteBuild(cc.WorkingDir, cc.AppConfig, dockerfilePath, buildArgs)
 			if err != nil {
 				return err
 			}
-			image = *img
-		}
 
-		fmt.Printf("Image: %+v\n", image.Tag)
-		fmt.Println(aurora.Bold(fmt.Sprintf("Image size: %s", humanize.Bytes(uint64(image.Size)))))
-
-		if err := op.PushImage(image); err != nil {
-			return err
-		}
-
-		if cc.Config.GetBool("build-only") {
-			fmt.Printf("Image: %s\n", image.Tag)
-
-			return nil
-		}
-
-	} else {
-		fmt.Println("Docker daemon unavailable, performing remote build...")
-
-		build, err := op.StartRemoteBuild(cc.WorkingDir, cc.AppConfig, dockerfilePath, buildArgs)
-		if err != nil {
-			return err
-		}
-
-		s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
-		s.Writer = os.Stderr
-		s.Prefix = "Building "
-		s.Start()
-
-		buildMonitor := builds.NewBuildMonitor(build.ID, cc.Client.API())
-		for line := range buildMonitor.Logs(ctx) {
-			s.Stop()
-			fmt.Println(line)
+			s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
+			s.Writer = os.Stderr
+			s.Prefix = "Building "
 			s.Start()
-		}
 
-		s.FinalMSG = fmt.Sprintf("Build complete - %s\n", buildMonitor.Status())
-		s.Stop()
+			buildMonitor := builds.NewBuildMonitor(build.ID, cc.Client.API())
+			for line := range buildMonitor.Logs(ctx) {
+				s.Stop()
+				fmt.Println(line)
+				s.Start()
+			}
 
-		if err := buildMonitor.Err(); err != nil {
-			return err
-		}
+			s.FinalMSG = fmt.Sprintf("Build complete - %s\n", buildMonitor.Status())
+			s.Stop()
 
-		build = buildMonitor.Build()
-		image = docker.Image{
-			Tag: build.Image,
+			if err := buildMonitor.Err(); err != nil {
+				return err
+			}
+
+			build = buildMonitor.Build()
+			image = &docker.Image{
+				Tag: build.Image,
+			}
 		}
 	}
 
-	if err := op.OptimizeImage(image); err != nil {
+	if image == nil {
+		return errors.New("Could not find an image to deploy")
+	}
+
+	if err := op.OptimizeImage(*image); err != nil {
 		return err
 	}
 
-	release, err := op.Deploy(image, strategy)
+	release, err := op.Deploy(*image, strategy)
 	if err != nil {
 		return err
 	}
