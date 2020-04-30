@@ -56,7 +56,7 @@ func (c *DockerClient) Client() *client.Client {
 }
 
 func NewDockerClient() (*DockerClient, error) {
-	cli, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation(), client.WithVersion("1.40"))
+	cli, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, err
 	}
