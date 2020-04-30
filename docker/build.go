@@ -89,11 +89,9 @@ func (op *DeployOperation) BuildWithDocker(cwd string, appConfig *flyctl.AppConf
 	}
 	defer archive.Close()
 
-	tag := newDeploymentTag(op.AppName())
-
 	normalizedBuildArgs := normalizeBuildArgs(appConfig, buildArgs)
 
-	img, err := op.dockerClient.BuildImage(op.ctx, archive.File, tag, normalizedBuildArgs, op.out)
+	img, err := op.dockerClient.BuildImage(op.ctx, archive.File, op.imageTag, normalizedBuildArgs, op.out)
 
 	if err != nil {
 		return nil, err
@@ -101,7 +99,7 @@ func (op *DeployOperation) BuildWithDocker(cwd string, appConfig *flyctl.AppConf
 
 	image := &Image{
 		ID:   img.ID,
-		Tag:  tag,
+		Tag:  op.imageTag,
 		Size: img.Size,
 	}
 
@@ -125,11 +123,7 @@ func (op *DeployOperation) BuildWithPack(cwd string, appConfig *flyctl.AppConfig
 		return nil, ErrNoBuildpackBuilder
 	}
 
-	tag := newDeploymentTag(op.AppName())
-
 	c := initPackClient()
-
-	imageName := tag
 
 	env := map[string]string{}
 
@@ -143,7 +137,7 @@ func (op *DeployOperation) BuildWithPack(cwd string, appConfig *flyctl.AppConfig
 	err := c.Build(op.ctx, pack.BuildOptions{
 		AppPath:    cwd,
 		Builder:    appConfig.Build.Builder,
-		Image:      imageName,
+		Image:      op.imageTag,
 		Buildpacks: appConfig.Build.Buildpacks,
 		Env:        env,
 	})
@@ -152,9 +146,9 @@ func (op *DeployOperation) BuildWithPack(cwd string, appConfig *flyctl.AppConfig
 		return nil, err
 	}
 
-	fmt.Println("Image built", imageName)
+	fmt.Println("Image built", op.imageTag)
 
-	img, err := op.dockerClient.findImage(op.ctx, imageName)
+	img, err := op.dockerClient.findImage(op.ctx, op.imageTag)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +159,7 @@ func (op *DeployOperation) BuildWithPack(cwd string, appConfig *flyctl.AppConfig
 
 	image := &Image{
 		ID:   img.ID,
-		Tag:  tag,
+		Tag:  op.imageTag,
 		Size: img.Size,
 	}
 

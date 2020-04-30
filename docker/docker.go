@@ -31,19 +31,18 @@ import (
 	buildkitClient "github.com/moby/buildkit/client"
 )
 
-func newDeploymentTag(appName string) string {
+func newDeploymentTag(appName string, label string) string {
 	if tag := os.Getenv("FLY_IMAGE_REF"); tag != "" {
 		return tag
 	}
 
-	t := time.Now()
+	if label == "" {
+		label = fmt.Sprintf("deployment-%d", time.Now().Unix())
+	}
 
-	return fmt.Sprintf("%s%d", deploymentTagPrefix(appName), t.Unix())
-}
-
-func deploymentTagPrefix(appName string) string {
 	registry := viper.GetString(flyctl.ConfigRegistryHost)
-	return fmt.Sprintf("%s/%s:deployment-", registry, appName)
+
+	return fmt.Sprintf("%s/%s:%s", registry, appName, label)
 }
 
 type DockerClient struct {
@@ -127,11 +126,9 @@ func (c *DockerClient) TagImage(ctx context.Context, sourceRef, tag string) erro
 	return c.docker.ImageTag(ctx, sourceRef, tag)
 }
 
-func (c *DockerClient) DeleteDeploymentImages(ctx context.Context, appName string) error {
-	tagPrefix := deploymentTagPrefix(appName)
-
+func (c *DockerClient) DeleteDeploymentImages(ctx context.Context, tag string) error {
 	filters := filters.NewArgs()
-	filters.Add("reference", tagPrefix+"*")
+	filters.Add("reference", tag)
 
 	images, err := c.docker.ImageList(ctx, types.ImageListOptions{Filters: filters})
 	if err != nil {

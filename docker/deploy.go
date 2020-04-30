@@ -26,9 +26,10 @@ type DeployOperation struct {
 	out             io.Writer
 	appName         string
 	appConfig       *flyctl.AppConfig
+	imageTag        string
 }
 
-func NewDeployOperation(ctx context.Context, appName string, appConfig *flyctl.AppConfig, apiClient *api.Client, out io.Writer, squash bool, remoteOnly bool) (*DeployOperation, error) {
+func NewDeployOperation(ctx context.Context, appName string, appConfig *flyctl.AppConfig, apiClient *api.Client, out io.Writer, squash bool, remoteOnly bool, imageLabel string) (*DeployOperation, error) {
 	dockerClient, err := NewDockerClient()
 	if err != nil {
 		return nil, err
@@ -41,6 +42,7 @@ func NewDeployOperation(ctx context.Context, appName string, appConfig *flyctl.A
 		out:          out,
 		appName:      appName,
 		appConfig:    appConfig,
+		imageTag:     newDeploymentTag(appName, imageLabel),
 	}
 
 	op.dockerAvailable = !remoteOnly && op.dockerClient.Check(ctx) == nil
@@ -123,16 +125,15 @@ func (op *DeployOperation) ResolveImage(ctx context.Context, imageRef string) (*
 		fmt.Println("--> done")
 
 		printHeader("Creating deployment tag")
-		tag := newDeploymentTag(op.appName)
-		if err := op.dockerClient.TagImage(op.ctx, imgSummary.ID, tag); err != nil {
+		if err := op.dockerClient.TagImage(op.ctx, imgSummary.ID, op.imageTag); err != nil {
 			return nil, err
 		}
-		fmt.Println("-->", tag)
+		fmt.Println("-->", op.imageTag)
 
 		image := &Image{
 			ID:   imgSummary.ID,
 			Size: imgSummary.Size,
-			Tag:  tag,
+			Tag:  op.imageTag,
 		}
 
 		if err := op.PushImage(*image); err != nil {
@@ -242,7 +243,7 @@ func (op *DeployOperation) deployImage(imageTag string, strategy DeploymentStrat
 }
 
 func (op *DeployOperation) CleanDeploymentTags() {
-	err := op.dockerClient.DeleteDeploymentImages(op.ctx, op.AppName())
+	err := op.dockerClient.DeleteDeploymentImages(op.ctx, op.imageTag)
 	if err != nil {
 		terminal.Debug("Error cleaning deployment tags", err)
 	}

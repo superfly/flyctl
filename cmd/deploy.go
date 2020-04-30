@@ -57,6 +57,10 @@ func newDeployCommand() *Command {
 		Name:        "build-arg",
 		Description: "Set of build time variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
 	})
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "image-label",
+		Description: "Image label to use when tagging and pushing to the fly registry. Defaults to \"deployment-{timestamp}\".",
+	})
 
 	cmd.Command.Args = cobra.MaximumNArgs(1)
 
@@ -65,7 +69,8 @@ func newDeployCommand() *Command {
 
 func runDeploy(cc *CmdContext) error {
 	ctx := createCancellableContext()
-	op, err := docker.NewDeployOperation(ctx, cc.AppName, cc.AppConfig, cc.Client.API(), cc.Out, cc.Config.GetBool("squash"), cc.Config.GetBool("remote-only"))
+	imageLabel, _ := cc.Config.GetString("image-label")
+	op, err := docker.NewDeployOperation(ctx, cc.AppName, cc.AppConfig, cc.Client.API(), cc.Out, cc.Config.GetBool("squash"), cc.Config.GetBool("remote-only"), imageLabel)
 	if err != nil {
 		return err
 	}
