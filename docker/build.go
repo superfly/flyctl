@@ -77,8 +77,15 @@ func (op *DeployOperation) BuildWithDocker(cwd string, appConfig *flyctl.AppConf
 		return nil, err
 	}
 
-	if err := buildContext.AddSource(dockerfilePath, nil); err != nil {
-		return nil, err
+	if dockerfilePath != "" {
+		dockerfile, err := os.Open(dockerfilePath)
+		if err != nil {
+			return nil, err
+		}
+		defer dockerfile.Close()
+		if err := buildContext.AddFile("Dockerfile", dockerfile); err != nil {
+			return nil, err
+		}
 	}
 
 	s.Stop()
