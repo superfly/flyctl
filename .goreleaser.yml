@@ -30,6 +30,12 @@ archives:
   - id: binary
     format: binary
     files: [only-the-binary*]
+    replacements:
+      darwin: macOS
+      linux: Linux
+      windows: Windows
+      386: i386
+      amd64: x86_64
 checksum:
   name_template: "checksums.txt"
 snapshot:
