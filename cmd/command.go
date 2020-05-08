@@ -83,6 +83,28 @@ func (c *Command) AddBoolFlag(options BoolFlagOpts) {
 	}
 }
 
+type IntFlagOpts struct {
+	Name        string
+	Shorthand   string
+	Description string
+	Default     int
+	EnvName     string
+	Hidden      bool
+}
+
+func (c *Command) AddIntFlag(options IntFlagOpts) {
+	fullName := namespace(c.Command) + "." + options.Name
+	c.Flags().IntP(options.Name, options.Shorthand, options.Default, options.Description)
+
+	flag := c.Flags().Lookup(options.Name)
+	flag.Hidden = options.Hidden
+	viper.BindPFlag(fullName, flag)
+
+	if options.EnvName != "" {
+		viper.BindEnv(fullName, options.EnvName)
+	}
+}
+
 type StringSliceFlagOpts struct {
 	Name        string
 	Shorthand   string
