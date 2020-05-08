@@ -73,6 +73,11 @@ type Query struct {
 		App    App
 		VMSize *VMSize
 	}
+
+	ConfigureRegions struct {
+		App     App
+		Regions []Region
+	}
 }
 
 type Definition map[string]interface{}
@@ -114,6 +119,7 @@ type App struct {
 	DeploymentStatus *DeploymentStatus
 	Autoscaling      *AutoscalingConfig
 	VMSize           VMSize
+	Regions          *[]Region
 }
 
 type AppConfig struct {
@@ -434,4 +440,10 @@ type StartBuildInput struct {
 type BuildArgInput struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
+}
+
+type ConfigureRegionsInput struct {
+	AppID        string   `json:"appId"`
+	AllowRegions []string `json:"allowRegions"`
+	DenyRegions  []string `json:"denyRegions"`
 }

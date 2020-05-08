@@ -275,6 +275,31 @@ shortHelp="List VM Sizes"
 longHelp="""View a list of VM sizes which can be used with the FLYCTL SCALE VM command
 """
 
+[regions]
+usage="regions"
+shortHelp="Manage regions"
+longHelp="""Configure the region placement rules for an application.
+"""
+
+[regions.add]
+usage="add REGION ..."
+shortHelp="Allow the app to run in the provided regions"
+longHelp="""Allow the app to run in one or more regions
+"""
+
+[regions.remove]
+usage="remove REGION ..."
+shortHelp="Prevent the app from running in the provided regions"
+longHelp="""Prevent the app from running in the provided regions
+"""
+
+[regions.list]
+usage="list"
+shortHelp="Shows the list if regions the app is allowed to run in"
+longHelp="""Shows the list if regions the app is allowed to run in.
+"""
+
+
 [releases]
 usage="releases"
 shortHelp="List App releases"
@@ -286,13 +311,6 @@ including type, when, success/fail and which user triggered the release.
 usage="scale"
 shortHelp="Scale App resources"
 longHelp="""Scale application resources
-"""
-
-[scale.regions]
-usage="regions [flags] REGION=COUNT REGION=COUNT ..."
-shortHelp="Configure region placement for an App"
-longHelp="""Configure the region placement rules and instance count for an application. 
-Shows the current autoscaling configuration if no arguments are given.
 """
 
 [scale.vm]
