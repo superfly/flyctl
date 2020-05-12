@@ -73,7 +73,7 @@ func actualScale(ctx *CmdContext, balanceRegions bool, setParamsOnly bool) error
 	for _, pair := range ctx.Args {
 		parts := strings.SplitN(pair, "=", 2)
 		if len(parts) != 2 {
-			return fmt.Errorf("Secrets must be provided as NAME=VALUE pairs (%s is invalid)", pair)
+			return fmt.Errorf("Scale parameters must be provided as NAME=VALUE pairs (%s is invalid)", pair)
 		}
 		key := parts[0]
 		value := parts[1]
