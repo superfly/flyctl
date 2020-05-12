@@ -140,7 +140,7 @@ func runAppsCreate(ctx *CmdContext) error {
 	name, _ := ctx.Config.GetString("name")
 
 	if name != "" && appName != "" {
-		return fmt.Errorf(`Two app names specified %s and %s. Select and specify only one.`, appName, name)
+		return fmt.Errorf(`two app names specified %s and %s. Select and specify only one`, appName, name)
 	}
 
 	if name == "" && appName != "" {

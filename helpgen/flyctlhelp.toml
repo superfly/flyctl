@@ -104,24 +104,6 @@ shortHelp="Authenticate docker"
 longHelp="""Adds registry.fly.io to the docker daemon's authenticated registries. This allows you to push images directly to fly from the docker cli.
 """
 
-[autoscale]
-usage="autoscale"
-shortHelp="Manage app autoscaling"
-longHelp="""Manage app autoscaling
-"""
-
-[autoscale.configure]
-usage="configure"
-shortHelp="Configure autoscaling rules"
-longHelp="""Configure autoscaling rules
-"""
-
-[autoscale.show]
-usage="show"
-shortHelp="View the autoscaling configuration"
-longHelp="""View the current autoscaling configuration
-"""
-
 [builds]
 usage="builds"
 shortHelp="Work with Fly Builds"
@@ -329,6 +311,39 @@ including type, when, success/fail and which user triggered the release.
 usage="scale"
 shortHelp="Scale App resources"
 longHelp="""Scale application resources
+"""
+
+[scale.balanced]
+usage="balanced"
+shortHelp="Configure a traffic balanced App with params (min=int max=int)"
+longHelp="""Configure the App to balance regions based on traffic with given parameters:
+
+min=int - minimum number of instances to be allocated from region pool. 
+max=int - maximum number of instances to be allocated from region pool.
+"""
+
+[scale.standard]
+usage="standard"
+shortHelp="Configure a standard balanced App with params (min=int max=int)"
+longHelp="""Configure the App without traffic balancing with the given parameters:
+
+min=int - minimum number of instances to be allocated from region pool. 
+max=int - maximum number of instances to be allocated from region pool.
+"""
+
+[scale.show]
+usage="show"
+shortHelp="Show current scaling configuration"
+longHelp="""Show current scaling configuration
+"""
+
+[scale.set]
+usage="set"
+shortHelp="Set current models scaling parameters"
+longHelp="""Allows the setting of the current models scaling parameters:
+
+min=int - minimum number of instances to be allocated from region pool. 
+max=int - maximum number of instances to be allocated from region pool.
 """
 
 [scale.vm]

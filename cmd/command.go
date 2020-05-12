@@ -21,8 +21,10 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
+// CmdRunFn - Run function for commands which takes a command context
 type CmdRunFn func(*CmdContext) error
 
+// Command - Wrapper for a cobra command
 type Command struct {
 	*cobra.Command
 }
@@ -42,6 +44,7 @@ func namespace(c *cobra.Command) string {
 	return parentName + "." + c.Name()
 }
 
+// StringFlagOpts - options for string flags
 type StringFlagOpts struct {
 	Name        string
 	Shorthand   string
@@ -50,6 +53,7 @@ type StringFlagOpts struct {
 	EnvName     string
 }
 
+// BoolFlagOpts - options for boolean flags
 type BoolFlagOpts struct {
 	Name        string
 	Shorthand   string
@@ -59,6 +63,7 @@ type BoolFlagOpts struct {
 	Hidden      bool
 }
 
+// AddStringFlag - Add a string flag to a command
 func (c *Command) AddStringFlag(options StringFlagOpts) {
 	fullName := namespace(c.Command) + "." + options.Name
 	c.Flags().StringP(options.Name, options.Shorthand, options.Default, options.Description)
@@ -70,6 +75,7 @@ func (c *Command) AddStringFlag(options StringFlagOpts) {
 	}
 }
 
+// AddBoolFlag - Add a boolean flag for a command
 func (c *Command) AddBoolFlag(options BoolFlagOpts) {
 	fullName := namespace(c.Command) + "." + options.Name
 	c.Flags().BoolP(options.Name, options.Shorthand, options.Default, options.Description)
@@ -83,6 +89,7 @@ func (c *Command) AddBoolFlag(options BoolFlagOpts) {
 	}
 }
 
+// IntFlagOpts - options for integer flags
 type IntFlagOpts struct {
 	Name        string
 	Shorthand   string
@@ -92,6 +99,7 @@ type IntFlagOpts struct {
 	Hidden      bool
 }
 
+// AddIntFlag - Add an integer flag to a command
 func (c *Command) AddIntFlag(options IntFlagOpts) {
 	fullName := namespace(c.Command) + "." + options.Name
 	c.Flags().IntP(options.Name, options.Shorthand, options.Default, options.Description)
@@ -105,6 +113,7 @@ func (c *Command) AddIntFlag(options IntFlagOpts) {
 	}
 }
 
+// StringSliceFlagOpts - options a string slice flag
 type StringSliceFlagOpts struct {
 	Name        string
 	Shorthand   string
@@ -113,6 +122,7 @@ type StringSliceFlagOpts struct {
 	EnvName     string
 }
 
+// AddStringSliceFlag - add a string slice flag to a command
 func (c *Command) AddStringSliceFlag(options StringSliceFlagOpts) {
 	fullName := namespace(c.Command) + "." + options.Name
 
@@ -129,6 +139,7 @@ func (c *Command) AddStringSliceFlag(options StringSliceFlagOpts) {
 	}
 }
 
+// CmdContext - context passed to commands being run
 type CmdContext struct {
 	Client       *client.Client
 	Config       flyctl.Config
@@ -144,6 +155,7 @@ type CmdContext struct {
 	AppConfig *flyctl.AppConfig
 }
 
+// Render - Render a presentable structure via the context
 func (ctx *CmdContext) Render(presentable presenters.Presentable) error {
 	presenter := &presenters.Presenter{
 		Item: presentable,
@@ -153,6 +165,7 @@ func (ctx *CmdContext) Render(presentable presenters.Presentable) error {
 	return presenter.Render()
 }
 
+// RenderEx - Render a presentable structure via the context with additional options
 func (ctx *CmdContext) RenderEx(presentable presenters.Presentable, options presenters.Options) error {
 	presenter := &presenters.Presenter{
 		Item: presentable,
@@ -163,6 +176,7 @@ func (ctx *CmdContext) RenderEx(presentable presenters.Presentable, options pres
 	return presenter.Render()
 }
 
+// PresenterOption - options for RenderEx, RenderView, render etc...
 type PresenterOption struct {
 	Presentable presenters.Presentable
 	Vertical    bool
@@ -193,10 +207,12 @@ func (ctx *CmdContext) render(out io.Writer, views ...PresenterOption) error {
 	return nil
 }
 
+// RenderView - render a view through the context to the terminal
 func (ctx *CmdContext) RenderView(views ...PresenterOption) (err error) {
 	return ctx.render(ctx.Terminal, views...)
 }
 
+// RenderViewW - render a view to a Writer
 func (ctx *CmdContext) RenderViewW(w io.Writer, views ...PresenterOption) error {
 	return ctx.render(w, views...)
 }
@@ -221,13 +237,19 @@ func newCmdContext(ns string, out io.Writer, args []string) (*CmdContext, error)
 	return ctx, nil
 }
 
+// Initializer - Retains Setup and PreRun functions
 type Initializer struct {
 	Setup  InitializerFn
 	PreRun InitializerFn
 }
+
+// CmdOption - A wrapper for an Initializer function that takes a command
 type CmdOption func(*Command) Initializer
+
+// InitializerFn - A wrapper for an Initializer function that takes a command context
 type InitializerFn func(*CmdContext) error
 
+// BuildCommand - builds a functioning Command using all the initializers
 func BuildCommand(parent *Command, fn CmdRunFn, usageText string, shortHelpText string, longHelpText string, out io.Writer, options ...CmdOption) *Command {
 	flycmd := &Command{
 		Command: &cobra.Command{
