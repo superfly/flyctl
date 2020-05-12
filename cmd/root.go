@@ -31,9 +31,12 @@ var rootCmd = &Command{
 	},
 }
 
+// GetRootCommand - root for commands
 func GetRootCommand() *cobra.Command {
 	return rootCmd.Command
 }
+
+// Execute - root command execution
 func Execute() {
 	defer flyctl.BackgroundTaskWG.Wait()
 
@@ -68,7 +71,6 @@ func init() {
 		newPlatformCommand(),
 		newCurlCommand(),
 		newRegionsCommand(),
-		newAutoscaleCommand(),
 	)
 
 	initConfig()

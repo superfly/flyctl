@@ -26,6 +26,7 @@ func newCurlCommand() *Command {
 	return cmd
 }
 
+// TimingResponse - Results from timing a curl operations
 type TimingResponse struct {
 	Err               error
 	HTTPCode          int     `json:"http_code"`
@@ -42,6 +43,7 @@ type TimingResponse struct {
 	Region            string  `json:"region"`
 }
 
+// TimingRequest - Request to time a curl operation
 type TimingRequest struct {
 	URL    string `json:"url"`
 	Region string `json:"region"`

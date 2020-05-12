@@ -44,17 +44,25 @@ func newAutoscaleCommand() *Command {
 }
 
 func runAutoscaleConfigure(ctx *CmdContext) error {
+	currentcfg, err := ctx.Client.API().AppAutoscalingConfig(ctx.AppName)
+
 	input := api.UpdateAutoscaleConfigInput{AppID: ctx.AppName}
 	if ctx.Config.IsSet("min-count") {
 		input.MinCount = api.IntPointer(ctx.Config.GetInt("min-count"))
+	} else {
+		input.MinCount = &currentcfg.MinCount
 	}
 
 	if ctx.Config.IsSet("max-count") {
 		input.MaxCount = api.IntPointer(ctx.Config.GetInt("max-count"))
+	} else {
+		input.MaxCount = &currentcfg.MaxCount
 	}
 
 	if ctx.Config.IsSet("balance-regions") {
 		input.BalanceRegions = api.BoolPointer(ctx.Config.GetBool("balance-regions"))
+	} else {
+		input.BalanceRegions = &currentcfg.BalanceRegions
 	}
 
 	cfg, err := ctx.Client.API().UpdateAutoscaleConfig(input)
