@@ -337,6 +337,15 @@ shortHelp="Show current scaling configuration"
 longHelp="""Show current scaling configuration
 """
 
+[scale.set]
+usage="set"
+shortHelp="Set current models scaling parameters"
+longHelp="""Allows the setting of the current models scaling parameters:
+
+min=int - minimum number of instances to be allocated from region pool. 
+max=int - maximum number of instances to be allocated from region pool.
+"""
+
 [scale.vm]
 usage="vm [flags] [SIZENAME]"
 shortHelp="Change an App's VM to a named size (eg micro-1x, micro-2x, cpu1mem1..."

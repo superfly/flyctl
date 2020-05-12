@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -36,6 +37,10 @@ func newScaleCommand() *Command {
 	standardCmd := BuildCommand(cmd, runStandardScale, standardCmdStrings.Usage, standardCmdStrings.Short, standardCmdStrings.Long, os.Stdout, requireSession, requireAppName)
 	standardCmd.Args = cobra.RangeArgs(0, 2)
 
+	setCmdStrings := docstrings.Get("scale.set")
+	setCmd := BuildCommand(cmd, runSetParamsOnly, setCmdStrings.Usage, setCmdStrings.Short, setCmdStrings.Long, os.Stdout, requireSession, requireAppName)
+	setCmd.Args = cobra.RangeArgs(0, 2)
+
 	showCmdStrings := docstrings.Get("scale.show")
 	BuildCommand(cmd, runShow, showCmdStrings.Usage, showCmdStrings.Short, showCmdStrings.Long, os.Stdout, requireSession, requireAppName)
 
@@ -43,14 +48,18 @@ func newScaleCommand() *Command {
 }
 
 func runBalanceScale(ctx *CmdContext) error {
-	return actualScale(ctx, true)
+	return actualScale(ctx, true, false)
 }
 
 func runStandardScale(ctx *CmdContext) error {
-	return actualScale(ctx, false)
+	return actualScale(ctx, false, false)
 }
 
-func actualScale(ctx *CmdContext, balanceRegions bool) error {
+func runSetParamsOnly(ctx *CmdContext) error {
+	return actualScale(ctx, false, true)
+}
+
+func actualScale(ctx *CmdContext, balanceRegions bool, setParamsOnly bool) error {
 	currentcfg, err := ctx.Client.API().AppAutoscalingConfig(ctx.AppName)
 
 	newcfg := api.UpdateAutoscaleConfigInput{AppID: ctx.AppName}
@@ -94,15 +103,19 @@ func actualScale(ctx *CmdContext, balanceRegions bool) error {
 		}
 		maxintval := int(maxint64val)
 		newcfg.MaxCount = &maxintval
-		delete(kvargs, "min")
+		delete(kvargs, "max")
 	}
 
 	if len(kvargs) != 0 {
 		unusedkeys := ""
 		for k := range kvargs {
-			unusedkeys = unusedkeys + ", " + k
+			if unusedkeys == "" {
+				unusedkeys = k
+			} else {
+				unusedkeys = unusedkeys + ", " + k
+			}
 		}
-		return errors.New("unrecognised parameters in command " + unusedkeys)
+		return errors.New("unrecognised parameters in command:" + unusedkeys)
 	}
 
 	cfg, err := ctx.Client.API().UpdateAutoscaleConfig(newcfg)
@@ -110,7 +123,7 @@ func actualScale(ctx *CmdContext, balanceRegions bool) error {
 		return err
 	}
 
-	printAutoscaleConfig(ctx.Out, cfg)
+	printScaleConfig(ctx.Out, cfg)
 
 	return nil
 }
@@ -159,10 +172,25 @@ func runShow(ctx *CmdContext) error {
 		return err
 	}
 
-	fmt.Fprintln(ctx.Out, "Balance Regions:", cfg.BalanceRegions)
+	if cfg.BalanceRegions {
+		fmt.Fprintln(ctx.Out, "Scale Mode: Balanced")
+	} else {
+		fmt.Fprintln(ctx.Out, "Scale Mode: Standard")
+	}
 	fmt.Fprintln(ctx.Out, "Min Count:", cfg.MinCount)
 	fmt.Fprintln(ctx.Out, "Max Count:", cfg.MaxCount)
-	fmt.Println("Size:", size.Name)
+	fmt.Println("VM Size:", size.Name)
 
 	return nil
+}
+
+func printScaleConfig(w io.Writer, cfg *api.AutoscalingConfig) {
+
+	if cfg.BalanceRegions {
+		fmt.Fprintln(w, "Scale Mode: Balanced")
+	} else {
+		fmt.Fprintln(w, "Scale Mode: Standard")
+	}
+	fmt.Fprintln(w, "Min Count:", cfg.MinCount)
+	fmt.Fprintln(w, "Max Count:", cfg.MaxCount)
 }
