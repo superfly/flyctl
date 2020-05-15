@@ -135,12 +135,11 @@ func runScaleVM(ctx *CmdContext) error {
 			return err
 		}
 
-		fmt.Println("Size:", size.Name)
-		fmt.Println("CPU Cores:", size.CPUCores)
-		fmt.Println("Memory (GB):", size.MemoryGB)
-		fmt.Println("Memory (MB):", size.MemoryMB)
-		fmt.Println("Price (Month):", size.PriceMonth)
-		fmt.Println("Price (Second):", size.PriceSecond)
+		fmt.Printf("%15s: %s\n", "Size", size.Name)
+		fmt.Printf("%15s: %s\n", "CPU Cores", formatCores(size))
+		fmt.Printf("%15s: %s\n", "Memory", formatMemory(size))
+		fmt.Printf("%15s: $%f\n", "Price (Month)", size.PriceMonth)
+		fmt.Printf("%15s: $%f\n", "Price (Second)", size.PriceSecond)
 		return nil
 	}
 
@@ -152,13 +151,10 @@ func runScaleVM(ctx *CmdContext) error {
 	}
 
 	fmt.Println("Scaled VM size to", size.Name)
-
-	fmt.Println("Size:", size.Name)
-	fmt.Println("CPU Cores:", size.CPUCores)
-	fmt.Println("Memory (GB):", size.MemoryGB)
-	fmt.Println("Memory (MB):", size.MemoryMB)
-	fmt.Println("Price (Month):", size.PriceMonth)
-	fmt.Println("Price (Second):", size.PriceSecond)
+	fmt.Printf("%15s: %s\n", "CPU Cores", formatCores(size))
+	fmt.Printf("%15s: %s\n", "Memory", formatMemory(size))
+	fmt.Printf("%15s: $%f\n", "Price (Month)", size.PriceMonth)
+	fmt.Printf("%15s: $%f\n", "Price (Second)", size.PriceSecond)
 	return nil
 }
 
@@ -172,25 +168,39 @@ func runShow(ctx *CmdContext) error {
 		return err
 	}
 
-	if cfg.BalanceRegions {
-		fmt.Fprintln(ctx.Out, "Scale Mode: Balanced")
-	} else {
-		fmt.Fprintln(ctx.Out, "Scale Mode: Standard")
-	}
-	fmt.Fprintln(ctx.Out, "Min Count:", cfg.MinCount)
-	fmt.Fprintln(ctx.Out, "Max Count:", cfg.MaxCount)
-	fmt.Println("VM Size:", size.Name)
+	printScaleConfig(ctx.Out, cfg)
+
+	fmt.Fprintf(ctx.Out, "%15s: %s\n", "VM Size", size.Name)
 
 	return nil
 }
 
 func printScaleConfig(w io.Writer, cfg *api.AutoscalingConfig) {
 
+	mode := "Unknown"
+
 	if cfg.BalanceRegions {
-		fmt.Fprintln(w, "Scale Mode: Balanced")
+		mode = "Balanced"
 	} else {
-		fmt.Fprintln(w, "Scale Mode: Standard")
+		mode = "Standard"
 	}
-	fmt.Fprintln(w, "Min Count:", cfg.MinCount)
-	fmt.Fprintln(w, "Max Count:", cfg.MaxCount)
+
+	fmt.Fprintf(w, "%15s: %s\n", "Scale Mode", mode)
+	fmt.Fprintf(w, "%15s: %d\n", "Min Count", cfg.MinCount)
+	fmt.Fprintf(w, "%15s: %d\n", "Max Count", cfg.MaxCount)
+}
+
+// TODO: Move these funcs (also in presenters.VMSizes into presentation package)
+func formatCores(size api.VMSize) string {
+	if size.CPUCores < 1.0 {
+		return fmt.Sprintf("%.2f", size.CPUCores)
+	}
+	return fmt.Sprintf("%d", int(size.CPUCores))
+}
+
+func formatMemory(size api.VMSize) string {
+	if size.MemoryGB < 1.0 {
+		return fmt.Sprintf("%d MB", size.MemoryMB)
+	}
+	return fmt.Sprintf("%d GB", int(size.MemoryGB))
 }
