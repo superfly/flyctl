@@ -71,6 +71,7 @@ func init() {
 		newPlatformCommand(),
 		newCurlCommand(),
 		newRegionsCommand(),
+		newOpenCommand(),
 	)
 
 	initConfig()

@@ -19,6 +19,11 @@ Information includes the application's
 * IP addresses
 """
 
+[open]
+usage="open"
+shortHelp="Open browser to current deployed application"
+longHelp="""Open browser to current deployed application.
+"""
 
 [apps]
 usage="apps"
