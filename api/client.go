@@ -33,7 +33,7 @@ func NewClient(accessToken string, version string) *Client {
 
 	httpClient, _ := newHTTPClient()
 
-	url := fmt.Sprintf("%s/api/v2/graphql", baseURL)
+	url := fmt.Sprintf("%s/graphql", baseURL)
 
 	client := graphql.NewClient(url, graphql.WithHTTPClient(httpClient))
 	userAgent := fmt.Sprintf("flyctl/%s", version)
