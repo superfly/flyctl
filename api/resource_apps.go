@@ -3,7 +3,7 @@ package api
 func (c *Client) GetApps() ([]App, error) {
 	query := `
 		query {
-			apps(type: "container") {
+			apps(type: "container", first: 200) {
 				nodes {
 					id
 					name
@@ -28,6 +28,26 @@ func (c *Client) GetApps() ([]App, error) {
 	}
 
 	return data.Apps.Nodes, nil
+}
+
+func (c *Client) GetAppID(appName string) (string, error) {
+	query := `
+		query ($appName: String!) {
+			app(name: $appName) {
+				id
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+	req.Var("appName", appName)
+
+	data, err := c.Run(req)
+	if err != nil {
+		return "", err
+	}
+
+	return data.App.ID, nil
 }
 
 func (c *Client) GetApp(appName string) (*App, error) {
