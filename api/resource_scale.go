@@ -62,10 +62,10 @@ func (c *Client) UpdateAutoscaleConfig(input UpdateAutoscaleConfigInput) (*Autos
 	return data.UpdateAutoscaleConfig.App.Autoscaling, nil
 }
 
-func (c *Client) AppAutoscalingConfig(appID string) (*AutoscalingConfig, error) {
+func (c *Client) AppAutoscalingConfig(appName string) (*AutoscalingConfig, error) {
 	query := `
-		query($appId: String!) {
-			app(id: $appId) {
+		query($appName: String!) {
+			app(name: $appName) {
 				autoscaling {
 					enabled
 					minCount
@@ -83,7 +83,7 @@ func (c *Client) AppAutoscalingConfig(appID string) (*AutoscalingConfig, error) 
 
 	req := c.NewRequest(query)
 
-	req.Var("appId", appID)
+	req.Var("appName", appName)
 
 	data, err := c.Run(req)
 	if err != nil {
@@ -93,10 +93,10 @@ func (c *Client) AppAutoscalingConfig(appID string) (*AutoscalingConfig, error) 
 	return data.App.Autoscaling, nil
 }
 
-func (c *Client) AppVMSize(appID string) (VMSize, error) {
+func (c *Client) AppVMSize(appName string) (VMSize, error) {
 	query := `
-		query($appId: String!) {
-			app(id: $appId) {
+		query($appName: String!) {
+			app(name: $appName) {
 				vmSize {
 					name
 					cpuCores
@@ -111,7 +111,7 @@ func (c *Client) AppVMSize(appID string) (VMSize, error) {
 
 	req := c.NewRequest(query)
 
-	req.Var("appId", appID)
+	req.Var("appName", appName)
 
 	data, err := c.Run(req)
 	if err != nil {
