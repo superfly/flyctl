@@ -29,6 +29,10 @@ func newRegionsCommand() *Command {
 	removeCmd := BuildCommand(cmd, runRegionsRemove, removeStrings.Usage, removeStrings.Short, removeStrings.Long, os.Stdout, requireSession, requireAppName)
 	removeCmd.Args = cobra.MinimumNArgs(1)
 
+	setStrings := docstrings.Get("regions.set")
+	setCmd := BuildCommand(cmd, runRegionsSet, setStrings.Usage, setStrings.Short, setStrings.Long, os.Stdout, requireSession, requireAppName)
+	setCmd.Args = cobra.MinimumNArgs(1)
+
 	listStrings := docstrings.Get("regions.list")
 	BuildCommand(cmd, runRegionsList, listStrings.Usage, listStrings.Short, listStrings.Long, os.Stdout, requireSession, requireAppName)
 
@@ -46,10 +50,7 @@ func runRegionsAdd(ctx *CmdContext) error {
 		return err
 	}
 
-	fmt.Println("Allowed Regions:")
-	for _, r := range regions {
-		fmt.Printf("  %s  %s\n", r.Code, r.Name)
-	}
+	printRegions(ctx, regions)
 
 	return nil
 }
@@ -65,10 +66,59 @@ func runRegionsRemove(ctx *CmdContext) error {
 		return err
 	}
 
-	fmt.Println("Allowed Regions:")
-	for _, r := range regions {
-		fmt.Printf("  %s  %s\n", r.Code, r.Name)
+	printRegions(ctx, regions)
+
+	return nil
+}
+
+func runRegionsSet(ctx *CmdContext) error {
+	addList := make([]string, 0)
+	delList := make([]string, 0)
+
+	// Get the Region List
+	regions, err := ctx.Client.API().ListAppRegions(ctx.AppName)
+	if err != nil {
+		return err
 	}
+
+	for _, r := range ctx.Args {
+		found := false
+		for _, er := range regions {
+			if r == er.Code {
+				found = true
+				break
+			}
+		}
+		if !found {
+			addList = append(addList, r)
+		}
+	}
+
+	for _, er := range regions {
+		found := false
+		for _, r := range ctx.Args {
+			if r == er.Code {
+				found = true
+				break
+			}
+		}
+		if !found {
+			delList = append(delList, er.Code)
+		}
+	}
+
+	input := api.ConfigureRegionsInput{
+		AppID:        ctx.AppName,
+		AllowRegions: addList,
+		DenyRegions:  delList,
+	}
+
+	newregions, err := ctx.Client.API().ConfigureRegions(input)
+	if err != nil {
+		return err
+	}
+
+	printRegions(ctx, newregions)
 
 	return nil
 }
@@ -79,10 +129,29 @@ func runRegionsList(ctx *CmdContext) error {
 		return err
 	}
 
-	fmt.Println("Allowed Regions:")
-	for _, r := range regions {
-		fmt.Printf("  %s  %s\n", r.Code, r.Name)
-	}
+	printRegions(ctx, regions)
 
 	return nil
+}
+
+func printRegions(ctx *CmdContext, regions []api.Region) {
+
+	if ctx.Verbose {
+		fmt.Println("Current Region Pool:")
+	} else {
+		fmt.Printf("Region Pool: ")
+	}
+
+	for _, r := range regions {
+		if ctx.Verbose {
+			fmt.Printf("  %s  %s\n", r.Code, r.Name)
+		} else {
+			fmt.Printf("%s ", r.Code)
+		}
+	}
+
+	if !ctx.Verbose {
+		fmt.Println()
+	}
+
 }

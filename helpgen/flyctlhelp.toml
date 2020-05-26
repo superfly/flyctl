@@ -298,6 +298,12 @@ shortHelp="Prevent the app from running in the provided regions"
 longHelp="""Prevent the app from running in the provided regions
 """
 
+[regions.set]
+usage="set REGION ..."
+shortHelp="Sets the region pool with provided regions"
+longHelp="""Sets the region pool with provided regions
+"""
+
 [regions.list]
 usage="list"
 shortHelp="Shows the list if regions the app is allowed to run in"
