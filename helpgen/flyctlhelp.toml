@@ -298,10 +298,10 @@ shortHelp="Prevent the app from running in the provided regions"
 longHelp="""Prevent the app from running in the provided regions
 """
 
-[regions.replace]
-usage="replace REGION ..."
-shortHelp="Replace the region pool for the app with provided regions"
-longHelp="""Replace the region pool for the app with provided regions
+[regions.set]
+usage="set REGION ..."
+shortHelp="Sets the region pool with provided regions"
+longHelp="""Sets the region pool with provided regions
 """
 
 [regions.list]

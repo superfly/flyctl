@@ -150,9 +150,9 @@ type CmdContext struct {
 	Terminal     *terminal.Terminal
 	WorkingDir   string
 	ConfigFile   string
-
-	AppName   string
-	AppConfig *flyctl.AppConfig
+	Verbose      bool
+	AppName      string
+	AppConfig    *flyctl.AppConfig
 }
 
 // Render - Render a presentable structure via the context
@@ -331,6 +331,13 @@ func requireAppName(cmd *Command) Initializer {
 		Default:     defaultConfigFilePath,
 		EnvName:     "FLY_APP_CONFIG",
 	})
+	cmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "verbose",
+		Shorthand:   "v",
+		Description: "Use verbose output where available",
+		Default:     false,
+		EnvName:     "FLY_APP_VERBOSE",
+	})
 
 	return Initializer{
 		Setup: func(ctx *CmdContext) error {
@@ -371,6 +378,9 @@ func requireAppName(cmd *Command) Initializer {
 			} else if ctx.AppConfig != nil {
 				ctx.AppName = ctx.AppConfig.AppName
 			}
+
+			verbose := ctx.Config.GetBool("verbose")
+			ctx.Verbose = verbose
 
 			return nil
 		},

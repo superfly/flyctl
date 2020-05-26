@@ -29,9 +29,9 @@ func newRegionsCommand() *Command {
 	removeCmd := BuildCommand(cmd, runRegionsRemove, removeStrings.Usage, removeStrings.Short, removeStrings.Long, os.Stdout, requireSession, requireAppName)
 	removeCmd.Args = cobra.MinimumNArgs(1)
 
-	replaceStrings := docstrings.Get("regions.replace")
-	replaceCmd := BuildCommand(cmd, runRegionsReplace, replaceStrings.Usage, replaceStrings.Short, replaceStrings.Long, os.Stdout, requireSession, requireAppName)
-	replaceCmd.Args = cobra.MinimumNArgs(1)
+	setStrings := docstrings.Get("regions.set")
+	setCmd := BuildCommand(cmd, runRegionsSet, setStrings.Usage, setStrings.Short, setStrings.Long, os.Stdout, requireSession, requireAppName)
+	setCmd.Args = cobra.MinimumNArgs(1)
 
 	listStrings := docstrings.Get("regions.list")
 	BuildCommand(cmd, runRegionsList, listStrings.Usage, listStrings.Short, listStrings.Long, os.Stdout, requireSession, requireAppName)
@@ -50,7 +50,7 @@ func runRegionsAdd(ctx *CmdContext) error {
 		return err
 	}
 
-	printRegions(ctx, regions, false)
+	printRegions(ctx, regions)
 
 	return nil
 }
@@ -66,12 +66,12 @@ func runRegionsRemove(ctx *CmdContext) error {
 		return err
 	}
 
-	printRegions(ctx, regions, false)
+	printRegions(ctx, regions)
 
 	return nil
 }
 
-func runRegionsReplace(ctx *CmdContext) error {
+func runRegionsSet(ctx *CmdContext) error {
 	addList := make([]string, 0)
 	delList := make([]string, 0)
 
@@ -118,7 +118,7 @@ func runRegionsReplace(ctx *CmdContext) error {
 		return err
 	}
 
-	printRegions(ctx, newregions, false)
+	printRegions(ctx, newregions)
 
 	return nil
 }
@@ -129,23 +129,29 @@ func runRegionsList(ctx *CmdContext) error {
 		return err
 	}
 
-	printRegions(ctx, regions, true)
+	printRegions(ctx, regions)
 
 	return nil
 }
 
-func printRegions(ctx *CmdContext, regions []api.Region, verbose bool) {
+func printRegions(ctx *CmdContext, regions []api.Region) {
 
-	fmt.Println("Current Region Pool:")
+	if ctx.Verbose {
+		fmt.Println("Current Region Pool:")
+	} else {
+		fmt.Printf("Region Pool: ")
+	}
 
 	for _, r := range regions {
-		if verbose {
+		if ctx.Verbose {
 			fmt.Printf("  %s  %s\n", r.Code, r.Name)
 		} else {
 			fmt.Printf("%s ", r.Code)
 		}
 	}
 
-	fmt.Println()
+	if !ctx.Verbose {
+		fmt.Println()
+	}
 
 }
