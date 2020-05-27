@@ -97,8 +97,6 @@ func runAppsPause(ctx *CmdContext) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(app)
-
 	fmt.Println(aurora.Bold("App"))
 	return ctx.RenderEx(&presenters.AppInfo{App: *app}, presenters.Options{HideHeader: true, Vertical: true})
 }
