@@ -15,6 +15,7 @@ func (c *Client) GetApps() ([]App, error) {
 					currentRelease {
 						createdAt
 					}
+					status
 				}
 			}
 		}
