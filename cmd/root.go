@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 )
 
+// ErrAbort - Error generated when application aborts
 var ErrAbort = errors.New("abort")
 var flyctlClient *client.Client
 

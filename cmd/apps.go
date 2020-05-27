@@ -20,9 +20,10 @@ func newAppListCommand() *Command {
 
 	cmd := &Command{
 		Command: &cobra.Command{
-			Use:   appsStrings.Usage,
-			Short: appsStrings.Short,
-			Long:  appsStrings.Long,
+			Use:     appsStrings.Usage,
+			Aliases: []string{"app"},
+			Short:   appsStrings.Short,
+			Long:    appsStrings.Long,
 		},
 	}
 
@@ -73,6 +74,12 @@ func newAppListCommand() *Command {
 		Description: `The organization to move the app to`,
 	})
 
+	appsPauseStrings := docstrings.Get("apps.pause")
+	BuildCommand(cmd, runAppsPause, appsPauseStrings.Usage, appsPauseStrings.Short, appsPauseStrings.Long, os.Stdout, requireSession, requireAppName)
+
+	appsResumeStrings := docstrings.Get("apps.resume")
+	BuildCommand(cmd, runAppsResume, appsResumeStrings.Usage, appsResumeStrings.Short, appsResumeStrings.Long, os.Stdout, requireSession, requireAppName)
+
 	return cmd
 }
 
@@ -83,6 +90,25 @@ func runAppsList(ctx *CmdContext) error {
 	}
 
 	return ctx.Render(&presenters.Apps{Apps: apps})
+}
+
+func runAppsPause(ctx *CmdContext) error {
+	app, err := ctx.Client.API().PauseApp(ctx.AppName)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s is now %s\n", app.Name, app.Status)
+	return nil
+}
+
+func runAppsResume(ctx *CmdContext) error {
+	app, err := ctx.Client.API().ResumeApp(ctx.AppName)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s is now %s\n", app.Name, app.Status)
+	return nil
 }
 
 func runDestroyApp(ctx *CmdContext) error {

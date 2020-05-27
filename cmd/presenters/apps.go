@@ -10,7 +10,7 @@ type Apps struct {
 }
 
 func (p *Apps) FieldNames() []string {
-	return []string{"Name", "Owner", "Latest Deploy"}
+	return []string{"Name", "Owner", "Status", "Latest Deploy"}
 }
 
 func (p *Apps) Records() []map[string]string {
@@ -29,6 +29,7 @@ func (p *Apps) Records() []map[string]string {
 		out = append(out, map[string]string{
 			"Name":          app.Name,
 			"Owner":         app.Organization.Slug,
+			"Status":        app.Status,
 			"Latest Deploy": latestDeploy,
 		})
 	}
