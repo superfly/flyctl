@@ -97,8 +97,8 @@ func runAppsPause(ctx *CmdContext) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(aurora.Bold("App"))
-	return ctx.RenderEx(&presenters.AppInfo{App: *app}, presenters.Options{HideHeader: true, Vertical: true})
+	fmt.Printf("%s is now %s\n", app.Name, app.Status)
+	return nil
 }
 
 func runAppsResume(ctx *CmdContext) error {
@@ -106,8 +106,9 @@ func runAppsResume(ctx *CmdContext) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(aurora.Bold("App"))
-	return ctx.RenderEx(&presenters.AppInfo{App: *app}, presenters.Options{HideHeader: true, Vertical: true})
+
+	fmt.Printf("%s is now %s\n", app.Name, app.Status)
+	return nil
 }
 
 func runDestroyApp(ctx *CmdContext) error {

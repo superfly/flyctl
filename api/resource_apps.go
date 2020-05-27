@@ -175,8 +175,8 @@ func (client *Client) MoveApp(appName string, orgID string) (*App, error) {
 // PauseApp - Send GQL mutation to pause app
 func (client *Client) PauseApp(appName string) (*App, error) {
 	query := `
-	mutation ($input: SuspendAppInput!) {
-		suspendApp(input: $input) {
+	mutation ($input: PauseAppInput!) {
+		pauseApp(input: $input) {
 		  app{
 			id
 			name
@@ -195,7 +195,7 @@ func (client *Client) PauseApp(appName string) (*App, error) {
 	})
 
 	data, err := client.Run(req)
-	return &data.SuspendApp.App, err
+	return &data.PauseApp.App, err
 }
 
 // ResumeApp - Send GQL mutation to pause app

@@ -51,7 +51,7 @@ func newDeployCommand() *Command {
 	})
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "dockerfile",
-		Description: "Path to a Dockerfile. Defaults to Dockerfile in the working directory.",
+		Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
 	})
 	cmd.AddStringSliceFlag(StringSliceFlagOpts{
 		Name:        "build-arg",
