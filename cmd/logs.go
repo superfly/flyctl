@@ -73,7 +73,7 @@ func runLogs(ctx *CmdContext) error {
 		}
 	}
 
-	return nil
+	// This should not be reached
 }
 
 var maxBackoff float64 = 5000

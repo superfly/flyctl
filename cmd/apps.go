@@ -74,6 +74,12 @@ func newAppListCommand() *Command {
 		Description: `The organization to move the app to`,
 	})
 
+	appsPauseStrings := docstrings.Get("apps.pause")
+	BuildCommand(cmd, runAppsPause, appsPauseStrings.Usage, appsPauseStrings.Short, appsPauseStrings.Long, os.Stdout, requireSession, requireAppName)
+
+	appsResumeStrings := docstrings.Get("apps.resume")
+	BuildCommand(cmd, runAppsResume, appsResumeStrings.Usage, appsResumeStrings.Short, appsResumeStrings.Long, os.Stdout, requireSession, requireAppName)
+
 	return cmd
 }
 
@@ -84,6 +90,26 @@ func runAppsList(ctx *CmdContext) error {
 	}
 
 	return ctx.Render(&presenters.Apps{Apps: apps})
+}
+
+func runAppsPause(ctx *CmdContext) error {
+	app, err := ctx.Client.API().PauseApp(ctx.AppName)
+	if err != nil {
+		return err
+	}
+	fmt.Println(app)
+
+	fmt.Println(aurora.Bold("App"))
+	return ctx.RenderEx(&presenters.AppInfo{App: *app}, presenters.Options{HideHeader: true, Vertical: true})
+}
+
+func runAppsResume(ctx *CmdContext) error {
+	app, err := ctx.Client.API().ResumeApp(ctx.AppName)
+	if err != nil {
+		return err
+	}
+	fmt.Println(aurora.Bold("App"))
+	return ctx.RenderEx(&presenters.AppInfo{App: *app}, presenters.Options{HideHeader: true, Vertical: true})
 }
 
 func runDestroyApp(ctx *CmdContext) error {

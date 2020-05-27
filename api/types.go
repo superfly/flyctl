@@ -78,6 +78,14 @@ type Query struct {
 		App     App
 		Regions []Region
 	}
+
+	ResumeApp struct {
+		App App
+	}
+
+	SuspendApp struct {
+		App App
+	}
 }
 
 type Definition map[string]interface{}
