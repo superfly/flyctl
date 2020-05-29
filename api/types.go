@@ -51,6 +51,10 @@ type Query struct {
 	}
 
 	DeleteCertificate DeleteCertificatePayload
+	CheckCertificate  struct {
+		App         *App
+		Certificate *AppCertificate
+	}
 
 	AllocateIPAddress struct {
 		App       App
