@@ -53,10 +53,12 @@ func runListSecrets(ctx *CmdContext) error {
 	return ctx.Render(&presenters.Secrets{Secrets: secrets})
 }
 
-func runSetSecrets(ctx *CmdContext) error {
+func runSetSecrets(cc *CmdContext) error {
+	ctx := createCancellableContext()
+
 	secrets := make(map[string]string)
 
-	for _, pair := range ctx.Args {
+	for _, pair := range cc.Args {
 		parts := strings.SplitN(pair, "=", 2)
 		if len(parts) != 2 {
 			return fmt.Errorf("Secrets must be provided as NAME=VALUE pairs (%s is invalid)", pair)
@@ -81,23 +83,29 @@ func runSetSecrets(ctx *CmdContext) error {
 		return errors.New("Requires at least one SECRET=VALUE pair")
 	}
 
-	release, err := ctx.Client.API().SetSecrets(ctx.AppName, secrets)
+	release, err := cc.Client.API().SetSecrets(cc.AppName, secrets)
 	if err != nil {
 		return err
 	}
 
-	return ctx.Render(&presenters.Releases{Release: release})
+	fmt.Println("Secrets set")
+
+	return renderRelease(ctx, cc, release)
 }
 
-func runSecretsUnset(ctx *CmdContext) error {
-	if len(ctx.Args) == 0 {
+func runSecretsUnset(cc *CmdContext) error {
+	ctx := createCancellableContext()
+
+	if len(cc.Args) == 0 {
 		return errors.New("Requires at least one secret name")
 	}
 
-	release, err := ctx.Client.API().UnsetSecrets(ctx.AppName, ctx.Args)
+	release, err := cc.Client.API().UnsetSecrets(cc.AppName, cc.Args)
 	if err != nil {
 		return err
 	}
 
-	return ctx.Render(&presenters.Releases{Release: release})
+	fmt.Println("Secrets unset")
+
+	return renderRelease(ctx, cc, release)
 }
