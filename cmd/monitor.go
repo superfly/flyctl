@@ -137,5 +137,5 @@ func monitorDeployment(ctx context.Context, cc *CmdContext) error {
 		}
 	}
 
-	return nil
+	//return nil
 }
