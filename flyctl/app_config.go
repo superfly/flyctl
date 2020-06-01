@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/superfly/flyctl/helpers"
@@ -137,6 +138,8 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 
 func (ac AppConfig) marshalTOML(w io.Writer) error {
 	encoder := toml.NewEncoder(w)
+
+	fmt.Fprintf(w, "# fly.toml file generated for %s on %s\n\n", ac.AppName, time.Now().Format(time.RFC3339))
 
 	rawData := map[string]interface{}{
 		"app": ac.AppName,
