@@ -16,6 +16,7 @@ import (
 
 var configDir string
 
+// InitConfig - Initialises config file for Viper
 func InitConfig() {
 	if err := initConfigDir(); err != nil {
 		fmt.Println("Error accessing config directory at $HOME/.fly", err)
@@ -25,6 +26,7 @@ func InitConfig() {
 	initViper()
 }
 
+// ConfigDir - Returns Directory holding the Config file
 func ConfigDir() string {
 	return configDir
 }
