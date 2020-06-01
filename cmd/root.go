@@ -73,6 +73,7 @@ func init() {
 		newCurlCommand(),
 		newRegionsCommand(),
 		newOpenCommand(),
+		newMonitorCommand(),
 	)
 
 	initConfig()

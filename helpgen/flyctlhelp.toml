@@ -5,6 +5,7 @@ longHelp="""flyctl is a command line interface to the Fly.io platform.
 
 It allows users to manage authentication, application creation, deployment,
 network configuration, logging and more with just the one command.
+
 """
 
 
@@ -120,7 +121,9 @@ and sends the user to a form to provide appropriate credentials.
 [auth.docker]
 usage="docker"
 shortHelp="Authenticate docker"
-longHelp="""Adds registry.fly.io to the docker daemon's authenticated registries. This allows you to push images directly to fly from the docker cli.
+longHelp="""Adds registry.fly.io to the docker daemon's authenticated 
+registries. This allows you to push images directly to fly from 
+the docker cli.
 """
 
 [builds]
@@ -138,7 +141,6 @@ usage="logs"
 shortHelp="Show logs associated with builds"
 longHelp="""
 """
-
 
 [certs]
 usage="certs"
@@ -216,10 +218,14 @@ shortHelp="Deploy an App to the Fly platform"
 longHelp="""Deploy an application to the Fly platform. The application can be a local 
 image, remote image, defined in a Dockerfile or use a CNB Buildpack.
 
+Use the --config/-c flag to select a specific toml configuration file.
+
 Use the --image/-i flag to specify a local or remote image to deploy.
 
-Use the --detach flag to return immediately from starting the deployment rather than 
-monitoring the deployment progress.
+Use the --detach flag to return immediately from starting the deployment rather
+than monitoring the deployment progress.
+
+Use flyctl monitor to restart monitoring deployment progress
 """
 
 [docs]
@@ -274,6 +280,12 @@ the Fly platform.
 Logs can be filtered to a specific instance using the --instance/-i flag or 
 to all instances running in a specific region using the --region/-r flag.
 """
+
+[monitor]
+usage="monitor"
+shortHelp="Monitor Deployments"
+longHelp="""Monitor Application Deployments and other activities. Use --verbose/-v
+to get details of every instance allocation. Control-C to stop output."""
 
 [platform]
 usage="platform"
