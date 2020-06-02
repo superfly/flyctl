@@ -271,6 +271,39 @@ shortHelp="Release an IP address"
 longHelp="""Releases an IP address from the application.
 """
 
+[list]
+usage="list"
+shortHelp="Lists your Fly resources"
+longHelp="""The list command is for listing your resources on has two subcommands, apps and orgs.
+
+The apps command lists your applications. There are filtering options available.
+
+The orgs command lists all the organizations you are a member of.
+"""
+
+[list.apps]
+usage="apps [text] [-o org] [-s status]"
+shortHelp="Lists all your apps"
+longHelp="""The list apps command lists all your applications. As this may be a 
+long list, there are options to filter the results.
+
+Specifying a text string as a parameter will only return applications where the
+application name contains the text.
+
+The --orgs/-o flag allows you to specify the name of an organization that the
+application must be owned by. (see list orgs for organization names).
+
+The --status/-s flag allows you to specify status applications should be at to be
+returned in the results. e.g. -s running would only return running applications.
+"""
+
+[list.orgs]
+usage="orgs"
+shortHelp="List all your organizations"
+longHelp="""Lists all organizations which your are a member of. It will show the
+short name of the organization and the long name.
+"""
+
 [logs]
 usage="logs"
 shortHelp="View App logs"
