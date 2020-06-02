@@ -78,6 +78,11 @@ The application will resume with its original region pool and a min count of one
 meaning there will be one running instance once restarted. Use SCALE SET MIN= to raise
 the number of configured instances.
 """
+[apps.restart]
+usage="restart [APPNAME]"
+shortHelp="Restart an application"
+longHelp="""The APPS RESTART command will restart all running vms. 
+"""
 
 [auth]
 usage="auth"

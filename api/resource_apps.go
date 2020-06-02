@@ -223,3 +223,26 @@ func (client *Client) ResumeApp(appName string) (*App, error) {
 	data, err := client.Run(req)
 	return &data.ResumeApp.App, err
 }
+
+// RestartApp - Send GQL mutation to restart app
+func (client *Client) RestartApp(appName string) (*App, error) {
+	query := `
+		mutation ($input: RestartAppInput!) {
+			restartApp(input: $input) {
+				app{
+					id
+					name
+				}
+			}
+		}
+	`
+
+	req := client.NewRequest(query)
+
+	req.Var("input", map[string]string{
+		"appId": appName,
+	})
+
+	data, err := client.Run(req)
+	return &data.RestartApp.App, err
+}

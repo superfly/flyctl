@@ -80,6 +80,9 @@ func newAppListCommand() *Command {
 	appsResumeStrings := docstrings.Get("apps.resume")
 	BuildCommand(cmd, runAppsResume, appsResumeStrings.Usage, appsResumeStrings.Short, appsResumeStrings.Long, os.Stdout, requireSession, requireAppName)
 
+	appsRestartStrings := docstrings.Get("apps.restart")
+	BuildCommand(cmd, runAppsRestart, appsRestartStrings.Usage, appsRestartStrings.Short, appsRestartStrings.Long, os.Stdout, requireSession, requireAppName)
+
 	return cmd
 }
 
@@ -108,6 +111,16 @@ func runAppsResume(ctx *CmdContext) error {
 	}
 
 	fmt.Printf("%s is now %s\n", app.Name, app.Status)
+	return nil
+}
+
+func runAppsRestart(ctx *CmdContext) error {
+	app, err := ctx.Client.API().RestartApp(ctx.AppName)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s is being restarted\n", app.Name)
 	return nil
 }
 

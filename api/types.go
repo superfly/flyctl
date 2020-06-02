@@ -90,6 +90,10 @@ type Query struct {
 	PauseApp struct {
 		App App
 	}
+
+	RestartApp struct {
+		App App
+	}
 }
 
 type Definition map[string]interface{}
