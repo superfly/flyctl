@@ -74,6 +74,7 @@ func init() {
 		newRegionsCommand(),
 		newOpenCommand(),
 		newMonitorCommand(),
+		newListCommand(),
 	)
 
 	initConfig()
