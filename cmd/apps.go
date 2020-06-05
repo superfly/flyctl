@@ -227,6 +227,8 @@ func runAppsCreate(ctx *CmdContext) error {
 		return err
 	}
 
+	fmt.Println(ctx.ConfigFile)
+
 	if ctx.ConfigFile == "" {
 		newCfgFile, err := flyctl.ResolveConfigFileFromPath(ctx.WorkingDir)
 		if err != nil {
@@ -234,6 +236,8 @@ func runAppsCreate(ctx *CmdContext) error {
 		}
 		ctx.ConfigFile = newCfgFile
 	}
+
+	fmt.Println(ctx.ConfigFile)
 
 	return writeAppConfig(ctx.ConfigFile, newAppConfig)
 }
