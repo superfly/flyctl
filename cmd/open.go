@@ -25,7 +25,17 @@ func runOpen(ctx *CmdContext) error {
 		return nil
 	}
 
-	docsURL := "http://" + app.Hostname + "/"
+	var path = "/"
+
+	if len(ctx.Args) > 1 {
+		return fmt.Errorf("too many arguments - only one path argument allowed")
+	}
+
+	if len(ctx.Args) > 0 {
+		path = ctx.Args[0]
+	}
+
+	docsURL := "http://" + app.Hostname + path
 	fmt.Println("Opening", docsURL)
 	return open.Run(docsURL)
 }

@@ -21,9 +21,10 @@ Information includes the application's
 """
 
 [open]
-usage="open"
+usage="open [PATH]"
 shortHelp="Open browser to current deployed application"
-longHelp="""Open browser to current deployed application.
+longHelp="""Open browser to current deployed application. If an optional path is specified, this is appended to the
+URL for deployed application. 
 """
 
 [apps]
