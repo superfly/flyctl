@@ -30,7 +30,9 @@ func runMonitor(ctx *CmdContext) error {
 
 	fmt.Printf("Monitoring Deployments for %s\n", app.Name)
 
-	monitorDeployment(createCancellableContext(), ctx)
+	for {
+		monitorDeployment(context.Background(), ctx)
+	}
 
 	return nil
 }
@@ -125,17 +127,15 @@ func monitorDeployment(ctx context.Context, cc *CmdContext) error {
 		return nil
 	}
 
-	for {
-		monitor.Start(ctx)
+	monitor.Start(ctx)
 
-		if err := monitor.Error(); err != nil {
-			return err
-		}
-
-		if !monitor.Success() {
-			return ErrAbort
-		}
+	if err := monitor.Error(); err != nil {
+		fmt.Fprintf(cc.Out, "Monitor Error: %s", err)
 	}
 
-	//return nil
+	if !monitor.Success() {
+		return ErrAbort
+	}
+
+	return nil
 }
