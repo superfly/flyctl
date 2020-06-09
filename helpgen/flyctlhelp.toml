@@ -217,6 +217,15 @@ longHelp="""Validates an application's config file against the Fly platform to
 ensure it is correct and meaningful to the platform. 
 """
 
+[dashboard]
+usage="dashboard"
+shortHelp="Open web browser on Fly Web UI for this app"
+longHelp="""Open web browser on Fly Web UI for this application"""
+
+[dashboard.metrics]
+usage="metrics"
+shortHelp="Open web browser on Fly Web UI for this app's metrics"
+longHelp="""Open web browser on Fly Web UI for this application's metrics"""
 
 [deploy]
 usage="deploy"
