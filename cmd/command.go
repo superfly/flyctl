@@ -206,13 +206,13 @@ func (ctx *CmdContext) render(out io.Writer, views ...PresenterOption) error {
 	return nil
 }
 
-// RenderView - render a view through the context to the terminal
-func (ctx *CmdContext) RenderView(views ...PresenterOption) (err error) {
-	return ctx.render(ctx.Terminal, views...)
-}
+// // RenderView - render a view through the context to the terminal
+// func (ctx *CmdContext) RenderView(views ...PresenterOption) (err error) {
+// 	return ctx.render(ctx.Terminal, views...)
+// }
 
-// RenderViewW - render a view to a Writer
-func (ctx *CmdContext) RenderViewW(w io.Writer, views ...PresenterOption) error {
+// Frender - render a view to a Writer
+func (ctx *CmdContext) Frender(w io.Writer, views ...PresenterOption) error {
 	return ctx.render(w, views...)
 }
 

@@ -45,7 +45,7 @@ func runAppStatus(ctx *CmdContext) error {
 
 	if app.DeploymentStatus != nil {
 		fmt.Println(aurora.Bold("Deployment Status"))
-		err = ctx.RenderView(PresenterOption{
+		err = ctx.Frender(ctx.Out, PresenterOption{
 			Presentable: &presenters.DeploymentStatus{Status: app.DeploymentStatus},
 			Vertical:    true,
 		})
@@ -56,7 +56,7 @@ func runAppStatus(ctx *CmdContext) error {
 	}
 
 	fmt.Println(aurora.Bold("Allocations"))
-	err = ctx.RenderView(PresenterOption{
+	err = ctx.Frender(ctx.Out, PresenterOption{
 		Presentable: &presenters.Allocations{Allocations: app.Allocations},
 	})
 	if err != nil {
@@ -76,7 +76,8 @@ func runAllocStatus(ctx *CmdContext) error {
 		return api.ErrNotFound
 	}
 
-	err = ctx.RenderView(
+	err = ctx.Frender(
+		ctx.Out,
 		PresenterOption{
 			Title: "Allocation",
 			Presentable: &presenters.Allocations{

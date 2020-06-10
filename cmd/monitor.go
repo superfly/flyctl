@@ -94,7 +94,7 @@ func monitorDeployment(ctx context.Context, cc *CmdContext) error {
 			for alloc := range x {
 				count++
 				fmt.Fprintf(cc.Out, "\n  Failure #%d\n", count)
-				err := cc.RenderViewW(p,
+				err := cc.Frender(p,
 					PresenterOption{
 						Title: "Allocation",
 						Presentable: &presenters.Allocations{

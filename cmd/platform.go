@@ -34,7 +34,7 @@ func runPlatformRegions(ctx *CmdContext) error {
 		return err
 	}
 
-	return ctx.RenderView(PresenterOption{
+	return ctx.Frender(ctx.Out, PresenterOption{
 		Presentable: &presenters.Regions{Regions: regions},
 	})
 }
@@ -45,7 +45,7 @@ func runPlatformVMSizes(ctx *CmdContext) error {
 		return err
 	}
 
-	return ctx.RenderView(PresenterOption{
+	return ctx.Frender(ctx.Out, PresenterOption{
 		Presentable: &presenters.VMSizes{VMSizes: sizes},
 	})
 }
