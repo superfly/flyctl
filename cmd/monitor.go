@@ -52,7 +52,7 @@ func monitorDeployment(ctx context.Context, cc *CmdContext) error {
 	monitor.DeploymentUpdated = func(d *api.DeploymentStatus, updatedAllocs []*api.AllocationStatus) error {
 		fmt.Fprintln(cc.Out, presenters.FormatDeploymemntAllocSummary(d))
 
-		if cc.Verbose {
+		if cc.GlobalConfig.GetBool("verbose") {
 			for _, alloc := range updatedAllocs {
 				fmt.Fprintln(cc.Out, presenters.FormatAllocSummary(alloc))
 			}
