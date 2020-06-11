@@ -9,7 +9,7 @@ type IPAddresses struct {
 }
 
 func (p *IPAddresses) APIStruct() interface{} {
-	return nil
+	return p.IPAddresses
 }
 
 func (p *IPAddresses) FieldNames() []string {
