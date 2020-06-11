@@ -11,6 +11,10 @@ type Services struct {
 	Services []api.Service
 }
 
+func (p *Services) APIStruct() interface{} {
+	return p.Services
+}
+
 func (p *Services) FieldNames() []string {
 	return []string{"Protocol", "Ports"}
 }

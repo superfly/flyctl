@@ -32,8 +32,7 @@ func runAppStatus(ctx *CmdContext) error {
 		return err
 	}
 
-	fmt.Println(aurora.Bold("App"))
-	err = ctx.RenderEx(&presenters.AppInfo{App: *app}, presenters.Options{HideHeader: true, Vertical: true})
+	err = ctx.Frender(ctx.Out, PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "App"})
 	if err != nil {
 		return err
 	}
@@ -44,10 +43,10 @@ func runAppStatus(ctx *CmdContext) error {
 	}
 
 	if app.DeploymentStatus != nil {
-		fmt.Println(aurora.Bold("Deployment Status"))
 		err = ctx.Frender(ctx.Out, PresenterOption{
 			Presentable: &presenters.DeploymentStatus{Status: app.DeploymentStatus},
 			Vertical:    true,
+			Title:       "Deployment Status",
 		})
 
 		if err != nil {
@@ -55,9 +54,9 @@ func runAppStatus(ctx *CmdContext) error {
 		}
 	}
 
-	fmt.Println(aurora.Bold("Allocations"))
 	err = ctx.Frender(ctx.Out, PresenterOption{
 		Presentable: &presenters.Allocations{Allocations: app.Allocations},
+		Title:       "Allocations",
 	})
 	if err != nil {
 		return err

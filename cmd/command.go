@@ -164,20 +164,21 @@ func (ctx *CmdContext) Render(presentable presenters.Presentable) error {
 	return presenter.Render()
 }
 
-// RenderEx - Render a presentable structure via the context with additional options
-func (ctx *CmdContext) RenderEx(presentable presenters.Presentable, options presenters.Options) error {
-	presenter := &presenters.Presenter{
-		Item: presentable,
-		Out:  os.Stdout,
-		Opts: options,
-	}
-
-	return presenter.Render()
-}
+//// RenderEx - Render a presentable structure via the context with additional options
+//func (ctx *CmdContext) RenderEx(presentable presenters.Presentable, options presenters.Options) error {
+//	presenter := &presenters.Presenter{
+//		Item: presentable,
+//		Out:  os.Stdout,
+//		Opts: options,
+//	}
+//
+//	return presenter.Render()
+//}
 
 // PresenterOption - options for RenderEx, RenderView, render etc...
 type PresenterOption struct {
 	Presentable presenters.Presentable
+	AsJSON      bool
 	Vertical    bool
 	HideHeader  bool
 	Title       string
@@ -191,10 +192,11 @@ func (ctx *CmdContext) render(out io.Writer, views ...PresenterOption) error {
 			Opts: presenters.Options{
 				Vertical:   v.Vertical,
 				HideHeader: v.HideHeader,
+				AsJSON:     v.AsJSON,
 			},
 		}
 
-		if v.Title != "" {
+		if v.Title != "" && !v.AsJSON {
 			fmt.Fprintln(out, aurora.Bold(v.Title))
 		}
 
@@ -208,6 +210,13 @@ func (ctx *CmdContext) render(out io.Writer, views ...PresenterOption) error {
 
 // Frender - render a view to a Writer
 func (ctx *CmdContext) Frender(w io.Writer, views ...PresenterOption) error {
+	// If JSON output wanted, set in all views
+	if ctx.GlobalConfig.GetBool(flyctl.ConfigJSONOutput) {
+		for i, _ := range views {
+			views[i].AsJSON = true
+		}
+	}
+
 	return ctx.render(w, views...)
 }
 

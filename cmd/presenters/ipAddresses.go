@@ -8,6 +8,10 @@ type IPAddresses struct {
 	IPAddresses []api.IPAddress
 }
 
+func (p *IPAddresses) APIStruct() interface{} {
+	return nil
+}
+
 func (p *IPAddresses) FieldNames() []string {
 	return []string{"Type", "Address", "Created At"}
 }

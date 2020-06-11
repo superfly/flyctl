@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+	"github.com/superfly/flyctl/flyctl"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -33,6 +35,8 @@ func runPlatformRegions(ctx *CmdContext) error {
 	if err != nil {
 		return err
 	}
+
+	fmt.Println(ctx.GlobalConfig.GetBool(flyctl.ConfigJSONOutput))
 
 	return ctx.Frender(ctx.Out, PresenterOption{
 		Presentable: &presenters.Regions{Regions: regions},

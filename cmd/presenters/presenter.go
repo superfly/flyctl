@@ -1,6 +1,7 @@
 package presenters
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -11,6 +12,7 @@ import (
 type Presentable interface {
 	FieldNames() []string
 	Records() []map[string]string
+	APIStruct() interface{}
 }
 
 // Presenter - A self managing presenter which can be rendered in multiple ways
@@ -24,10 +26,15 @@ type Presenter struct {
 type Options struct {
 	Vertical   bool
 	HideHeader bool
+	AsJSON     bool
 }
 
 // Render - Renders a presenter as a field list or table
 func (p *Presenter) Render() error {
+	if p.Opts.AsJSON {
+		return p.renderJSON()
+	}
+
 	if p.Opts.Vertical {
 		return p.renderFieldList()
 	}
@@ -88,4 +95,15 @@ func (p *Presenter) renderFieldList() error {
 	}
 
 	return nil
+}
+
+func (p *Presenter) renderJSON() error {
+	data := p.Item.APIStruct()
+	if data == nil {
+		return fmt.Errorf("JSON output not available")
+	}
+	prettyJSON, err := json.MarshalIndent(p.Item.APIStruct(), "", "    ")
+	fmt.Fprintln(p.Out, string(prettyJSON))
+
+	return err
 }

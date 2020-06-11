@@ -10,6 +10,10 @@ type AppInfo struct {
 	App api.App
 }
 
+func (p *AppInfo) APIStruct() interface{} {
+	return p.App
+}
+
 func (p *AppInfo) FieldNames() []string {
 	return []string{"Name", "Owner", "Version", "Status", "Hostname"}
 }

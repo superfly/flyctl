@@ -10,6 +10,10 @@ type AllocationEvents struct {
 	Events []api.AllocationEvent
 }
 
+func (p *AllocationEvents) APIStruct() interface{} {
+	return p.Events
+}
+
 func (p *AllocationEvents) FieldNames() []string {
 	return []string{"Timestamp", "Type", "Message"}
 }

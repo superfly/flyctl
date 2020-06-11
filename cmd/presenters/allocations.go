@@ -12,6 +12,10 @@ type Allocations struct {
 	Allocations []*api.AllocationStatus
 }
 
+func (p *Allocations) APIStruct() interface{} {
+	return p.Allocations
+}
+
 func (p *Allocations) FieldNames() []string {
 	return []string{"ID", "Version", "Region", "Desired", "Status", "Health Checks", "Restarts", "Created"}
 }

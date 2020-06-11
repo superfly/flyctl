@@ -31,9 +31,9 @@ func newCertificatesCommand() *Command {
 	create.Command.Args = cobra.ExactArgs(1)
 
 	certsDeleteStrings := docstrings.Get("certs.delete")
-	delete := BuildCommand(cmd, runCertDelete, certsDeleteStrings.Usage, certsDeleteStrings.Short, certsDeleteStrings.Long, os.Stdout, requireSession, requireAppName)
-	delete.Command.Args = cobra.ExactArgs(1)
-	delete.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "accept all confirmations"})
+	deleteCmd := BuildCommand(cmd, runCertDelete, certsDeleteStrings.Usage, certsDeleteStrings.Short, certsDeleteStrings.Long, os.Stdout, requireSession, requireAppName)
+	deleteCmd.Command.Args = cobra.ExactArgs(1)
+	deleteCmd.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "accept all confirmations"})
 
 	certsShowStrings := docstrings.Get("certs.show")
 	show := BuildCommand(cmd, runCertShow, certsShowStrings.Usage, certsShowStrings.Short, certsShowStrings.Long, os.Stdout, requireSession, requireAppName)
@@ -63,7 +63,7 @@ func runCertShow(ctx *CmdContext) error {
 		return err
 	}
 
-	return ctx.RenderEx(&presenters.Certificate{Certificate: cert}, presenters.Options{Vertical: true})
+	return ctx.Frender(ctx.Out, PresenterOption{Presentable: &presenters.Certificate{Certificate: cert}, Vertical: true})
 }
 
 func runCertCheck(ctx *CmdContext) error {
@@ -74,7 +74,7 @@ func runCertCheck(ctx *CmdContext) error {
 		return err
 	}
 
-	return ctx.RenderEx(&presenters.Certificate{Certificate: cert}, presenters.Options{Vertical: true})
+	return ctx.Frender(ctx.Out, PresenterOption{Presentable: &presenters.Certificate{Certificate: cert}, Vertical: true})
 }
 
 func runCertAdd(ctx *CmdContext) error {
@@ -85,7 +85,7 @@ func runCertAdd(ctx *CmdContext) error {
 		return err
 	}
 
-	return ctx.RenderEx(&presenters.Certificate{Certificate: cert}, presenters.Options{Vertical: true})
+	return ctx.Frender(ctx.Out, PresenterOption{Presentable: &presenters.Certificate{Certificate: cert}, Vertical: true})
 }
 
 func runCertDelete(ctx *CmdContext) error {

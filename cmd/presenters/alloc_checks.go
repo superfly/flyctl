@@ -8,6 +8,10 @@ type AllocationChecks struct {
 	Checks []api.CheckState
 }
 
+func (p *AllocationChecks) APIStruct() interface{} {
+	return nil
+}
+
 func (p *AllocationChecks) FieldNames() []string {
 	return []string{"ID", "Service", "State", "Output"}
 }
