@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"io"
 	"os"
 	"strconv"
@@ -47,19 +48,19 @@ func newScaleCommand() *Command {
 	return cmd
 }
 
-func runBalanceScale(ctx *CmdContext) error {
+func runBalanceScale(ctx *cmdctx.CmdContext) error {
 	return actualScale(ctx, true, false)
 }
 
-func runStandardScale(ctx *CmdContext) error {
+func runStandardScale(ctx *cmdctx.CmdContext) error {
 	return actualScale(ctx, false, false)
 }
 
-func runSetParamsOnly(ctx *CmdContext) error {
+func runSetParamsOnly(ctx *cmdctx.CmdContext) error {
 	return actualScale(ctx, false, true)
 }
 
-func actualScale(ctx *CmdContext, balanceRegions bool, setParamsOnly bool) error {
+func actualScale(ctx *cmdctx.CmdContext, balanceRegions bool, setParamsOnly bool) error {
 	currentcfg, err := ctx.Client.API().AppAutoscalingConfig(ctx.AppName)
 
 	newcfg := api.UpdateAutoscaleConfigInput{AppID: ctx.AppName}
@@ -128,7 +129,7 @@ func actualScale(ctx *CmdContext, balanceRegions bool, setParamsOnly bool) error
 	return nil
 }
 
-func runScaleVM(ctx *CmdContext) error {
+func runScaleVM(ctx *cmdctx.CmdContext) error {
 	if len(ctx.Args) == 0 {
 		size, err := ctx.Client.API().AppVMSize(ctx.AppName)
 		if err != nil {
@@ -158,7 +159,7 @@ func runScaleVM(ctx *CmdContext) error {
 	return nil
 }
 
-func runShow(ctx *CmdContext) error {
+func runShow(ctx *cmdctx.CmdContext) error {
 	cfg, err := ctx.Client.API().AppAutoscalingConfig(ctx.AppName)
 	if err != nil {
 		return err

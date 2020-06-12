@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"os"
 
 	"github.com/superfly/flyctl/docstrings"
@@ -39,7 +40,7 @@ func newConfigCommand() *Command {
 	return cmd
 }
 
-func runDisplayConfig(ctx *CmdContext) error {
+func runDisplayConfig(ctx *cmdctx.CmdContext) error {
 	cfg, err := ctx.Client.API().GetConfig(ctx.AppName)
 	if err != nil {
 		return err
@@ -52,7 +53,7 @@ func runDisplayConfig(ctx *CmdContext) error {
 	return nil
 }
 
-func runSaveConfig(ctx *CmdContext) error {
+func runSaveConfig(ctx *cmdctx.CmdContext) error {
 	if ctx.AppConfig == nil {
 		ctx.AppConfig = flyctl.NewAppConfig()
 	}
@@ -68,7 +69,7 @@ func runSaveConfig(ctx *CmdContext) error {
 	return writeAppConfig(ctx.ConfigFile, ctx.AppConfig)
 }
 
-func runValidateConfig(ctx *CmdContext) error {
+func runValidateConfig(ctx *cmdctx.CmdContext) error {
 	if ctx.AppConfig == nil {
 		return errors.New("App config file not found")
 	}

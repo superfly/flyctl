@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"os"
 
 	"github.com/superfly/flyctl/docstrings"
@@ -46,16 +47,16 @@ func newCertificatesCommand() *Command {
 	return cmd
 }
 
-func runCertsList(ctx *CmdContext) error {
+func runCertsList(ctx *cmdctx.CmdContext) error {
 	certs, err := ctx.Client.API().GetAppCertificates(ctx.AppName)
 	if err != nil {
 		return err
 	}
 
-	return ctx.Render(&presenters.Certificates{Certificates: certs})
+	return ctx.Frender(ctx.Out, cmdctx.PresenterOption{Presentable: &presenters.Certificates{Certificates: certs}})
 }
 
-func runCertShow(ctx *CmdContext) error {
+func runCertShow(ctx *cmdctx.CmdContext) error {
 	hostname := ctx.Args[0]
 
 	cert, err := ctx.Client.API().GetAppCertificate(ctx.AppName, hostname)
@@ -63,10 +64,10 @@ func runCertShow(ctx *CmdContext) error {
 		return err
 	}
 
-	return ctx.Frender(ctx.Out, PresenterOption{Presentable: &presenters.Certificate{Certificate: cert}, Vertical: true})
+	return ctx.Frender(ctx.Out, cmdctx.PresenterOption{Presentable: &presenters.Certificate{Certificate: cert}, Vertical: true})
 }
 
-func runCertCheck(ctx *CmdContext) error {
+func runCertCheck(ctx *cmdctx.CmdContext) error {
 	hostname := ctx.Args[0]
 
 	cert, err := ctx.Client.API().CheckAppCertificate(ctx.AppName, hostname)
@@ -74,10 +75,10 @@ func runCertCheck(ctx *CmdContext) error {
 		return err
 	}
 
-	return ctx.Frender(ctx.Out, PresenterOption{Presentable: &presenters.Certificate{Certificate: cert}, Vertical: true})
+	return ctx.Frender(ctx.Out, cmdctx.PresenterOption{Presentable: &presenters.Certificate{Certificate: cert}, Vertical: true})
 }
 
-func runCertAdd(ctx *CmdContext) error {
+func runCertAdd(ctx *cmdctx.CmdContext) error {
 	hostname := ctx.Args[0]
 
 	cert, err := ctx.Client.API().AddCertificate(ctx.AppName, hostname)
@@ -85,10 +86,10 @@ func runCertAdd(ctx *CmdContext) error {
 		return err
 	}
 
-	return ctx.Frender(ctx.Out, PresenterOption{Presentable: &presenters.Certificate{Certificate: cert}, Vertical: true})
+	return ctx.Frender(ctx.Out, cmdctx.PresenterOption{Presentable: &presenters.Certificate{Certificate: cert}, Vertical: true})
 }
 
-func runCertDelete(ctx *CmdContext) error {
+func runCertDelete(ctx *cmdctx.CmdContext) error {
 	hostname := ctx.Args[0]
 
 	if !ctx.Config.GetBool("yes") {
@@ -108,7 +109,7 @@ func runCertDelete(ctx *CmdContext) error {
 		return err
 	}
 
-	fmt.Printf("Certificate %s deleted from app %s\n", aurora.Bold(cert.Certificate.Hostname), aurora.Bold(cert.App.Name))
+	fmt.Fprintf(ctx.Out, "Certificate %s deleted from app %s\n", aurora.Bold(cert.Certificate.Hostname), aurora.Bold(cert.App.Name))
 
 	return nil
 }

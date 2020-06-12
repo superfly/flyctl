@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/superfly/flyctl/cmdctx"
 	"math"
 	"os"
 	"time"
@@ -31,7 +32,7 @@ func newAppLogsCommand() *Command {
 	return cmd
 }
 
-func runLogs(ctx *CmdContext) error {
+func runLogs(ctx *cmdctx.CmdContext) error {
 	errorCount := 0
 	emptyCount := 0
 	instanceFilter, _ := ctx.Config.GetString("instance")

@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"io"
 	"os"
 	"os/signal"
@@ -10,8 +11,6 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/logrusorgru/aurora"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/cmd/presenters"
@@ -22,7 +21,7 @@ import (
 )
 
 // CmdRunFn - Run function for commands which takes a command context
-type CmdRunFn func(*CmdContext) error
+type CmdRunFn func(cmdContext *cmdctx.CmdContext) error
 
 // Command - Wrapper for a cobra command
 type Command struct {
@@ -139,23 +138,8 @@ func (c *Command) AddStringSliceFlag(options StringSliceFlagOpts) {
 	}
 }
 
-// CmdContext - context passed to commands being run
-type CmdContext struct {
-	Client       *client.Client
-	Config       flyctl.Config
-	GlobalConfig flyctl.Config
-	NS           string
-	Args         []string
-	Out          io.Writer
-	Terminal     *terminal.Terminal
-	WorkingDir   string
-	ConfigFile   string
-	AppName      string
-	AppConfig    *flyctl.AppConfig
-}
-
 // Render - Render a presentable structure via the context
-func (ctx *CmdContext) Render(presentable presenters.Presentable) error {
+func Render(presentable presenters.Presentable) error {
 	presenter := &presenters.Presenter{
 		Item: presentable,
 		Out:  os.Stdout,
@@ -163,17 +147,6 @@ func (ctx *CmdContext) Render(presentable presenters.Presentable) error {
 
 	return presenter.Render()
 }
-
-//// RenderEx - Render a presentable structure via the context with additional options
-//func (ctx *CmdContext) RenderEx(presentable presenters.Presentable, options presenters.Options) error {
-//	presenter := &presenters.Presenter{
-//		Item: presentable,
-//		Out:  os.Stdout,
-//		Opts: options,
-//	}
-//
-//	return presenter.Render()
-//}
 
 // PresenterOption - options for RenderEx, RenderView, render etc...
 type PresenterOption struct {
@@ -184,61 +157,29 @@ type PresenterOption struct {
 	Title       string
 }
 
-func (ctx *CmdContext) render(out io.Writer, views ...PresenterOption) error {
-	for _, v := range views {
-		presenter := &presenters.Presenter{
-			Item: v.Presentable,
-			Out:  out,
-			Opts: presenters.Options{
-				Vertical:   v.Vertical,
-				HideHeader: v.HideHeader,
-				AsJSON:     v.AsJSON,
-			},
-		}
-
-		if v.Title != "" && !v.AsJSON {
-			fmt.Fprintln(out, aurora.Bold(v.Title))
-		}
-
-		if err := presenter.Render(); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// Frender - render a view to a Writer
-func (ctx *CmdContext) Frender(w io.Writer, views ...PresenterOption) error {
-	// If JSON output wanted, set in all views
-	if ctx.GlobalConfig.GetBool(flyctl.ConfigJSONOutput) {
-		for i, _ := range views {
-			views[i].AsJSON = true
-		}
-	}
-
-	return ctx.render(w, views...)
-}
-
-func newCmdContext(ns string, out io.Writer, args []string) (*CmdContext, error) {
-	ctx := &CmdContext{
-		Client:       flyctlClient,
-		NS:           ns,
-		Config:       flyctl.ConfigNS(ns),
-		GlobalConfig: flyctl.FlyConfig,
-		Out:          out,
-		Args:         args,
-		Terminal:     terminal.NewTerminal(out),
-	}
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, errors.Wrap(err, "Error resolving working directory")
-	}
-	ctx.WorkingDir = cwd
-
-	return ctx, nil
-}
+//func (ctx *cmdctx.CmdContext) render(out io.Writer, views ...PresenterOption) error {
+//	for _, v := range views {
+//		presenter := &presenters.Presenter{
+//			Item: v.Presentable,
+//			Out:  out,
+//			Opts: presenters.Options{
+//				Vertical:   v.Vertical,
+//				HideHeader: v.HideHeader,
+//				AsJSON:     v.AsJSON,
+//			},
+//		}
+//
+//		if v.Title != "" && !v.AsJSON {
+//			fmt.Fprintln(out, aurora.Bold(v.Title))
+//		}
+//
+//		if err := presenter.Render(); err != nil {
+//			return err
+//		}
+//	}
+//
+//	return nil
+//}
 
 // Initializer - Retains Setup and PreRun functions
 type Initializer struct {
@@ -250,7 +191,7 @@ type Initializer struct {
 type CmdOption func(*Command) Initializer
 
 // InitializerFn - A wrapper for an Initializer function that takes a command context
-type InitializerFn func(*CmdContext) error
+type InitializerFn func(*cmdctx.CmdContext) error
 
 // BuildCommand - builds a functioning Command using all the initializers
 func BuildCommand(parent *Command, fn CmdRunFn, usageText string, shortHelpText string, longHelpText string, out io.Writer, options ...CmdOption) *Command {
@@ -276,7 +217,7 @@ func BuildCommand(parent *Command, fn CmdRunFn, usageText string, shortHelpText 
 
 	if fn != nil {
 		flycmd.Run = func(cmd *cobra.Command, args []string) {
-			ctx, err := newCmdContext(namespace(cmd), out, args)
+			ctx, err := cmdctx.NewCmdContext(flyctlClient, namespace(cmd), out, args)
 			checkErr(err)
 
 			for _, init := range initializers {
@@ -306,7 +247,7 @@ const defaultConfigFilePath = "./fly.toml"
 
 func requireSession(cmd *Command) Initializer {
 	return Initializer{
-		PreRun: func(ctx *CmdContext) error {
+		PreRun: func(ctx *cmdctx.CmdContext) error {
 			if !ctx.Client.Authenticated() {
 				return client.ErrNoAuthToken
 			}
@@ -336,7 +277,7 @@ func requireAppName(cmd *Command) Initializer {
 	})
 
 	return Initializer{
-		Setup: func(ctx *CmdContext) error {
+		Setup: func(ctx *cmdctx.CmdContext) error {
 			// resolve the config file path
 			configPath, _ := ctx.Config.GetString("config")
 			if configPath == "" {
@@ -377,7 +318,7 @@ func requireAppName(cmd *Command) Initializer {
 
 			return nil
 		},
-		PreRun: func(ctx *CmdContext) error {
+		PreRun: func(ctx *cmdctx.CmdContext) error {
 			if ctx.AppName == "" {
 				return fmt.Errorf("No app specified")
 			}
@@ -402,7 +343,7 @@ func requireAppName(cmd *Command) Initializer {
 func workingDirectoryFromArg(index int) func(*Command) Initializer {
 	return func(cmd *Command) Initializer {
 		return Initializer{
-			Setup: func(ctx *CmdContext) error {
+			Setup: func(ctx *cmdctx.CmdContext) error {
 				if len(ctx.Args) <= index {
 					return nil
 					// return fmt.Errorf("cannot resolve working directory from arg %d, not enough args", index)

@@ -4,6 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/docker"
+	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/output"
 	"os"
 	"strings"
 	"sync"
@@ -18,7 +22,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
-	"github.com/superfly/flyctl/docker"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/internal/builds"
 	"github.com/superfly/flyctl/internal/deployment"
@@ -67,7 +70,7 @@ func newDeployCommand() *Command {
 	return cmd
 }
 
-func runDeploy(cc *CmdContext) error {
+func runDeploy(cc *cmdctx.CmdContext) error {
 	ctx := createCancellableContext()
 	imageLabel, _ := cc.Config.GetString("image-label")
 	op, err := docker.NewDeployOperation(ctx, cc.AppName, cc.AppConfig, cc.Client.API(), cc.Out, cc.Config.GetBool("squash"), cc.Config.GetBool("remote-only"), imageLabel)
@@ -75,10 +78,13 @@ func runDeploy(cc *CmdContext) error {
 		return err
 	}
 
+	om := output.NewManager(cc)
+
 	parsedCfg, err := op.ValidateConfig()
 	if err != nil {
 		for _, error := range parsedCfg.Errors {
-			fmt.Println("   ", aurora.Red("✘").String(), error)
+			//	fmt.Println("   ", aurora.Red("✘").String(), error)
+			om.StatusOut("flyctl", "   ", aurora.Red("✘").String(), error)
 		}
 		return err
 	}
@@ -99,7 +105,8 @@ func runDeploy(cc *CmdContext) error {
 
 	if imageRef, _ := cc.Config.GetString("image"); imageRef != "" {
 		// image specified, resolve it, tagging and pushing if docker+local
-		fmt.Printf("Deploying image: %s\n", imageRef)
+		// fmt.Printf("Deploying image: %s\n", imageRef)
+		om.StatusOutf("flyctl", "Deploying image: %s\n", imageRef)
 
 		img, err := op.ResolveImage(ctx, imageRef)
 		if err != nil {
@@ -137,64 +144,85 @@ func runDeploy(cc *CmdContext) error {
 			}
 		}
 
-		fmt.Printf("Deploy source directory '%s'\n", cc.WorkingDir)
+		//fmt.Printf("Deploy source directory '%s'\n", cc.WorkingDir)
+		om.StatusOutf("flyctl", "Deploy source directory '%s'\n", cc.WorkingDir)
 
 		if op.DockerAvailable() {
-			fmt.Println("Docker daemon available, performing local build...")
+			//fmt.Println("Docker daemon available, performing local build...")
+			om.StatusOut("flyctl", "Docker daemon available, performing local build...")
 
 			if cc.AppConfig.HasBuilder() {
-				fmt.Println("Building with buildpacks")
+				//fmt.Println("Building with buildpacks")
+				om.StatusOut("flyctl", "Building with buildpacks")
 				img, err := op.BuildWithPack(cc.WorkingDir, cc.AppConfig, buildArgs)
 				if err != nil {
 					return err
 				}
 				image = img
 			} else {
-				fmt.Println("Building Dockerfile")
+				//fmt.Println("Building Dockerfile")
+				om.StatusOut("flyctl", "Building Dockerfile")
 
-				img, err := op.BuildWithDocker(cc.WorkingDir, cc.AppConfig, dockerfilePath, buildArgs)
+				img, err := op.BuildWithDocker(cc, dockerfilePath, buildArgs)
 				if err != nil {
 					return err
 				}
 				image = img
 			}
 
-			fmt.Printf("Image: %+v\n", image.Tag)
-			fmt.Println(aurora.Bold(fmt.Sprintf("Image size: %s", humanize.Bytes(uint64(image.Size)))))
+			//fmt.Printf("Image: %+v\n", image.Tag)
+			//fmt.Println(aurora.Bold(fmt.Sprintf("Image size: %s", humanize.Bytes(uint64(image.Size)))))
+
+			om.StatusOutf("flyctl", "Image: %+v\n", image.Tag)
+			om.StatusOutf("flyctl", "Image size: %s\n", humanize.Bytes(uint64(image.Size)))
 
 			if err := op.PushImage(*image); err != nil {
 				return err
 			}
 
 			if cc.Config.GetBool("build-only") {
-				fmt.Printf("Image: %s\n", image.Tag)
+				//fmt.Printf("Image: %s\n", image.Tag)
+				om.StatusOutf("flyctl", "Image: %s\n", image.Tag)
 
 				return nil
 			}
 
 		} else {
-			fmt.Println("Docker daemon unavailable, performing remote build...")
+			//fmt.Println("Docker daemon unavailable, performing remote build...")
+			om.StatusOut("flyctl", "Docker daemon unavailable, performing remote build...")
 
 			build, err := op.StartRemoteBuild(cc.WorkingDir, cc.AppConfig, dockerfilePath, buildArgs)
 			if err != nil {
 				return err
 			}
 
-			s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
-			s.Writer = os.Stderr
-			s.Prefix = "Building "
-			s.Start()
+			spinning := !cc.GlobalConfig.GetBool(flyctl.ConfigJSONOutput)
 
-			buildMonitor := builds.NewBuildMonitor(build.ID, cc.Client.API())
-			for line := range buildMonitor.Logs(ctx) {
-				s.Stop()
-				fmt.Println(line)
+			s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
+			if spinning {
+				s.Writer = os.Stderr
+				s.Prefix = "Building "
 				s.Start()
 			}
 
-			s.FinalMSG = fmt.Sprintf("Build complete - %s\n", buildMonitor.Status())
-			s.Stop()
+			buildMonitor := builds.NewBuildMonitor(build.ID, cc.Client.API())
+			for line := range buildMonitor.Logs(ctx) {
+				if spinning {
+					s.Stop()
+				}
+				//fmt.Println(line)
+				om.StatusOut("build", line)
+				if spinning {
+					s.Start()
+				}
+			}
 
+			if spinning {
+				s.FinalMSG = fmt.Sprintf("Build complete - %s\n", buildMonitor.Status())
+				s.Stop()
+			} else {
+				om.StatusOutf("build", "Build complete - %s\n", buildMonitor.Status())
+			}
 			if err := buildMonitor.Err(); err != nil {
 				return err
 			}
@@ -224,7 +252,7 @@ func runDeploy(cc *CmdContext) error {
 	return renderRelease(ctx, cc, release)
 }
 
-func renderRelease(ctx context.Context, cc *CmdContext, release *api.Release) error {
+func renderRelease(ctx context.Context, cc *cmdctx.CmdContext, release *api.Release) error {
 	fmt.Printf("Release v%d created\n", release.Version)
 
 	if strings.ToLower(release.DeploymentStrategy) == string(docker.ImmediateDeploymentStrategy) {
@@ -234,7 +262,7 @@ func renderRelease(ctx context.Context, cc *CmdContext, release *api.Release) er
 	return watchDeployment(ctx, cc)
 }
 
-func watchDeployment(ctx context.Context, cc *CmdContext) error {
+func watchDeployment(ctx context.Context, cc *cmdctx.CmdContext) error {
 	if cc.Config.GetBool("detach") {
 		return nil
 	}
@@ -300,14 +328,14 @@ func watchDeployment(ctx context.Context, cc *CmdContext) error {
 				count++
 				fmt.Fprintf(cc.Out, "\n  Failure #%d\n", count)
 				err := cc.Frender(p,
-					PresenterOption{
+					cmdctx.PresenterOption{
 						Title: "Allocation",
 						Presentable: &presenters.Allocations{
 							Allocations: []*api.AllocationStatus{alloc},
 						},
 						Vertical: true,
 					},
-					PresenterOption{
+					cmdctx.PresenterOption{
 						Title: "Recent Events",
 						Presentable: &presenters.AllocationEvents{
 							Events: alloc.Events,

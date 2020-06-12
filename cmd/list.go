@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"os"
 	"strings"
 
@@ -42,12 +43,12 @@ func newListCommand() *Command {
 	return listCmd
 }
 
-func runList(ctx *CmdContext) error {
+func runList(ctx *cmdctx.CmdContext) error {
 	fmt.Fprintln(ctx.Out, "list can display apps (list apps) or orgs (list orgs)")
 	return nil
 }
 
-func runListApps(ctx *CmdContext) error {
+func runListApps(ctx *cmdctx.CmdContext) error {
 
 	appPart := ""
 
@@ -93,7 +94,7 @@ func runListApps(ctx *CmdContext) error {
 	return nil
 }
 
-func runListOrgs(ctx *CmdContext) error {
+func runListOrgs(ctx *cmdctx.CmdContext) error {
 	orgs, err := ctx.Client.API().GetOrganizations()
 
 	if err != nil {

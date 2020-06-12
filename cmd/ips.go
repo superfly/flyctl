@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"net"
 	"os"
 
@@ -39,26 +40,26 @@ func newIPAddressesCommand() *Command {
 	return cmd
 }
 
-func runIPAddressesList(ctx *CmdContext) error {
+func runIPAddressesList(ctx *cmdctx.CmdContext) error {
 	ipAddresses, err := ctx.Client.API().GetIPAddresses(ctx.AppName)
 	if err != nil {
 		return err
 	}
 
-	return ctx.Frender(ctx.Out, PresenterOption{
+	return ctx.Frender(ctx.Out, cmdctx.PresenterOption{
 		Presentable: &presenters.IPAddresses{IPAddresses: ipAddresses},
 	})
 }
 
-func runAllocateIPAddressV4(ctx *CmdContext) error {
+func runAllocateIPAddressV4(ctx *cmdctx.CmdContext) error {
 	return runAllocateIPAddress(ctx, "v4")
 }
 
-func runAllocateIPAddressV6(ctx *CmdContext) error {
+func runAllocateIPAddressV6(ctx *cmdctx.CmdContext) error {
 	return runAllocateIPAddress(ctx, "v6")
 }
 
-func runAllocateIPAddress(ctx *CmdContext, addrType string) error {
+func runAllocateIPAddress(ctx *cmdctx.CmdContext, addrType string) error {
 	appName := ctx.AppName
 
 	ipAddress, err := ctx.Client.API().AllocateIPAddress(appName, addrType)
@@ -66,12 +67,12 @@ func runAllocateIPAddress(ctx *CmdContext, addrType string) error {
 		return err
 	}
 
-	return ctx.Frender(ctx.Out, PresenterOption{
+	return ctx.Frender(ctx.Out, cmdctx.PresenterOption{
 		Presentable: &presenters.IPAddresses{IPAddresses: []api.IPAddress{*ipAddress}},
 	})
 }
 
-func runReleaseIPAddress(ctx *CmdContext) error {
+func runReleaseIPAddress(ctx *cmdctx.CmdContext) error {
 	appName := ctx.AppName
 	address := ctx.Args[0]
 

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/flyctl"
 	"os"
 
@@ -15,25 +16,25 @@ func newAppInfoCommand() *Command {
 	return BuildCommand(nil, runAppInfo, ks.Usage, ks.Short, ks.Long, os.Stdout, requireSession, requireAppName)
 }
 
-func runAppInfo(ctx *CmdContext) error {
+func runAppInfo(ctx *cmdctx.CmdContext) error {
 	app, err := ctx.Client.API().GetApp(ctx.AppName)
 	if err != nil {
 		return err
 	}
 
-	err = ctx.Frender(ctx.Out, PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "App"})
+	err = ctx.Frender(ctx.Out, cmdctx.PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "App"})
 	if err != nil {
 		return err
 	}
 
 	// For JSON, everything is included in the previous render, for humans, we need to do some formatting
 	if !ctx.GlobalConfig.GetBool(flyctl.ConfigJSONOutput) {
-		err = ctx.Frender(ctx.Out, PresenterOption{Presentable: &presenters.Services{Services: app.Services}, Title: "Services"})
+		err = ctx.Frender(ctx.Out, cmdctx.PresenterOption{Presentable: &presenters.Services{Services: app.Services}, Title: "Services"})
 		if err != nil {
 			return err
 		}
 
-		err = ctx.Frender(ctx.Out, PresenterOption{Presentable: &presenters.IPAddresses{IPAddresses: app.IPAddresses.Nodes}, Title: "IP Adresses"})
+		err = ctx.Frender(ctx.Out, cmdctx.PresenterOption{Presentable: &presenters.IPAddresses{IPAddresses: app.IPAddresses.Nodes}, Title: "IP Adresses"})
 		if err != nil {
 			return err
 		}

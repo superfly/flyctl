@@ -3,6 +3,7 @@ package docker
 import (
 	"errors"
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -41,7 +42,12 @@ type Image struct {
 	Size int64
 }
 
-func (op *DeployOperation) BuildWithDocker(cwd string, appConfig *flyctl.AppConfig, dockerfilePath string, buildArgs map[string]string) (*Image, error) {
+//func (op *DeployOperation) BuildWithDocker(appConfig *flyctl.AppConfig, cwd string, dockerfilePath string, buildArgs map[string]string) (*Image, error) {
+func (op *DeployOperation) BuildWithDocker(ctx *cmdctx.CmdContext, dockerfilePath string, buildArgs map[string]string) (*Image, error) {
+	spinning := ctx.GlobalConfig.GetBool(flyctl.ConfigJSONOutput)
+	cwd := ctx.WorkingDir
+	appConfig := ctx.AppConfig
+
 	if !op.DockerAvailable() {
 		return nil, ErrDockerDaemon
 	}
@@ -54,7 +60,7 @@ func (op *DeployOperation) BuildWithDocker(cwd string, appConfig *flyctl.AppConf
 		return nil, ErrNoDockerfile
 	}
 
-	fmt.Println("Using Dockerfile:", dockerfilePath)
+	//cmd.statusOut(ctx,"build","Using Dockerfile:", dockerfilePath)
 
 	buildContext, err := newBuildContext()
 	if err != nil {
@@ -63,9 +69,11 @@ func (op *DeployOperation) BuildWithDocker(cwd string, appConfig *flyctl.AppConf
 	defer buildContext.Close()
 
 	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
-	s.Writer = os.Stderr
-	s.Prefix = "Creating build context... "
-	s.Start()
+	if spinning {
+		s.Writer = os.Stderr
+		s.Prefix = "Creating build context... "
+		s.Start()
+	}
 
 	excludes, err := readDockerignore(cwd)
 	if err != nil {
@@ -88,7 +96,9 @@ func (op *DeployOperation) BuildWithDocker(cwd string, appConfig *flyctl.AppConf
 		}
 	}
 
-	s.Stop()
+	if spinning {
+		s.Stop()
+	}
 
 	archive, err := buildContext.Archive()
 	if err != nil {

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"os"
 
 	"github.com/segmentio/textio"
@@ -26,13 +27,13 @@ func newAppStatusCommand() *Command {
 	return cmd
 }
 
-func runAppStatus(ctx *CmdContext) error {
+func runAppStatus(ctx *cmdctx.CmdContext) error {
 	app, err := ctx.Client.API().GetAppStatus(ctx.AppName, ctx.Config.GetBool("all"))
 	if err != nil {
 		return err
 	}
 
-	err = ctx.Frender(ctx.Out, PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "App"})
+	err = ctx.Frender(ctx.Out, cmdctx.PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "App"})
 	if err != nil {
 		return err
 	}
@@ -43,7 +44,7 @@ func runAppStatus(ctx *CmdContext) error {
 	}
 
 	if app.DeploymentStatus != nil {
-		err = ctx.Frender(ctx.Out, PresenterOption{
+		err = ctx.Frender(ctx.Out, cmdctx.PresenterOption{
 			Presentable: &presenters.DeploymentStatus{Status: app.DeploymentStatus},
 			Vertical:    true,
 			Title:       "Deployment Status",
@@ -54,7 +55,7 @@ func runAppStatus(ctx *CmdContext) error {
 		}
 	}
 
-	err = ctx.Frender(ctx.Out, PresenterOption{
+	err = ctx.Frender(ctx.Out, cmdctx.PresenterOption{
 		Presentable: &presenters.Allocations{Allocations: app.Allocations},
 		Title:       "Allocations",
 	})
@@ -65,7 +66,7 @@ func runAppStatus(ctx *CmdContext) error {
 	return nil
 }
 
-func runAllocStatus(ctx *CmdContext) error {
+func runAllocStatus(ctx *cmdctx.CmdContext) error {
 	alloc, err := ctx.Client.API().GetAllocationStatus(ctx.AppName, ctx.Args[0], 25)
 	if err != nil {
 		return err
@@ -77,20 +78,20 @@ func runAllocStatus(ctx *CmdContext) error {
 
 	err = ctx.Frender(
 		ctx.Out,
-		PresenterOption{
+		cmdctx.PresenterOption{
 			Title: "Allocation",
 			Presentable: &presenters.Allocations{
 				Allocations: []*api.AllocationStatus{alloc},
 			},
 			Vertical: true,
 		},
-		PresenterOption{
+		cmdctx.PresenterOption{
 			Title: "Recent Events",
 			Presentable: &presenters.AllocationEvents{
 				Events: alloc.Events,
 			},
 		},
-		PresenterOption{
+		cmdctx.PresenterOption{
 			Title: "Checks",
 			Presentable: &presenters.AllocationChecks{
 				Checks: alloc.Checks,

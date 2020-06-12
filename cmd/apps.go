@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"os"
 	"strconv"
 
@@ -86,7 +87,7 @@ func newAppListCommand() *Command {
 	return cmd
 }
 
-func runAppsList(ctx *CmdContext) error {
+func runAppsList(ctx *cmdctx.CmdContext) error {
 	apps, err := ctx.Client.API().GetApps()
 	if err != nil {
 		return err
@@ -95,7 +96,7 @@ func runAppsList(ctx *CmdContext) error {
 	return ctx.Render(&presenters.Apps{Apps: apps})
 }
 
-func runAppsPause(ctx *CmdContext) error {
+func runAppsPause(ctx *cmdctx.CmdContext) error {
 	app, err := ctx.Client.API().PauseApp(ctx.AppName)
 	if err != nil {
 		return err
@@ -104,7 +105,7 @@ func runAppsPause(ctx *CmdContext) error {
 	return nil
 }
 
-func runAppsResume(ctx *CmdContext) error {
+func runAppsResume(ctx *cmdctx.CmdContext) error {
 	app, err := ctx.Client.API().ResumeApp(ctx.AppName)
 	if err != nil {
 		return err
@@ -114,7 +115,7 @@ func runAppsResume(ctx *CmdContext) error {
 	return nil
 }
 
-func runAppsRestart(ctx *CmdContext) error {
+func runAppsRestart(ctx *cmdctx.CmdContext) error {
 	app, err := ctx.Client.API().RestartApp(ctx.AppName)
 	if err != nil {
 		return err
@@ -124,7 +125,7 @@ func runAppsRestart(ctx *CmdContext) error {
 	return nil
 }
 
-func runDestroyApp(ctx *CmdContext) error {
+func runDestroyApp(ctx *cmdctx.CmdContext) error {
 	appName := ctx.Args[0]
 
 	if !ctx.Config.GetBool("yes") {
@@ -150,7 +151,7 @@ func runDestroyApp(ctx *CmdContext) error {
 	return nil
 }
 
-func runAppsCreate(ctx *CmdContext) error {
+func runAppsCreate(ctx *cmdctx.CmdContext) error {
 	var appName = ""
 	var internalPort = 0
 
@@ -220,9 +221,7 @@ func runAppsCreate(ctx *CmdContext) error {
 		newAppConfig.SetInternalPort(internalPort)
 	}
 
-	fmt.Println("New app created")
-
-	err = ctx.Frender(ctx.Out, PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true})
+	err = ctx.Frender(ctx.Out, cmdctx.PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "New app created"})
 	if err != nil {
 		return err
 	}
@@ -238,7 +237,7 @@ func runAppsCreate(ctx *CmdContext) error {
 	return writeAppConfig(ctx.ConfigFile, newAppConfig)
 }
 
-func runAppsMove(ctx *CmdContext) error {
+func runAppsMove(ctx *cmdctx.CmdContext) error {
 	appName := ctx.Args[0]
 
 	targetOrgSlug, _ := ctx.Config.GetString("org")

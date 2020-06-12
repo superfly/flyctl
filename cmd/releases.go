@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/superfly/flyctl/cmdctx"
 	"os"
 
 	"github.com/superfly/flyctl/docstrings"
@@ -14,7 +15,7 @@ func newAppReleasesListCommand() *Command {
 	return cmd
 }
 
-func runAppReleasesList(ctx *CmdContext) error {
+func runAppReleasesList(ctx *cmdctx.CmdContext) error {
 	releases, err := ctx.Client.API().GetAppReleases(ctx.AppName, 25)
 	if err != nil {
 		return err

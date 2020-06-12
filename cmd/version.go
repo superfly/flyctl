@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"os"
 
 	"github.com/superfly/flyctl/docstrings"
@@ -20,7 +21,7 @@ func newVersionCommand() *Command {
 	return version
 }
 
-func runVersion(ctx *CmdContext) error {
+func runVersion(ctx *cmdctx.CmdContext) error {
 	shellType, _ := ctx.Config.GetString("completions")
 
 	if shellType != "" {

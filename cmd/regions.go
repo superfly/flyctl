@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"os"
 
 	"github.com/superfly/flyctl/api"
@@ -39,7 +40,7 @@ func newRegionsCommand() *Command {
 	return cmd
 }
 
-func runRegionsAdd(ctx *CmdContext) error {
+func runRegionsAdd(ctx *cmdctx.CmdContext) error {
 	input := api.ConfigureRegionsInput{
 		AppID:        ctx.AppName,
 		AllowRegions: ctx.Args,
@@ -55,7 +56,7 @@ func runRegionsAdd(ctx *CmdContext) error {
 	return nil
 }
 
-func runRegionsRemove(ctx *CmdContext) error {
+func runRegionsRemove(ctx *cmdctx.CmdContext) error {
 	input := api.ConfigureRegionsInput{
 		AppID:       ctx.AppName,
 		DenyRegions: ctx.Args,
@@ -71,7 +72,7 @@ func runRegionsRemove(ctx *CmdContext) error {
 	return nil
 }
 
-func runRegionsSet(ctx *CmdContext) error {
+func runRegionsSet(ctx *cmdctx.CmdContext) error {
 	addList := make([]string, 0)
 	delList := make([]string, 0)
 
@@ -123,7 +124,7 @@ func runRegionsSet(ctx *CmdContext) error {
 	return nil
 }
 
-func runRegionsList(ctx *CmdContext) error {
+func runRegionsList(ctx *cmdctx.CmdContext) error {
 	regions, err := ctx.Client.API().ListAppRegions(ctx.AppName)
 	if err != nil {
 		return err
@@ -134,7 +135,7 @@ func runRegionsList(ctx *CmdContext) error {
 	return nil
 }
 
-func printRegions(ctx *CmdContext, regions []api.Region) {
+func printRegions(ctx *cmdctx.CmdContext, regions []api.Region) {
 
 	verbose := ctx.GlobalConfig.GetBool("verbose")
 

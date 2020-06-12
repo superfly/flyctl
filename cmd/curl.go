@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -49,7 +50,7 @@ type TimingRequest struct {
 	Region string `json:"region"`
 }
 
-func runCurl(ctx *CmdContext) error {
+func runCurl(ctx *cmdctx.CmdContext) error {
 	regions, err := ctx.Client.API().PlatformRegions()
 	if err != nil {
 		panic(err)

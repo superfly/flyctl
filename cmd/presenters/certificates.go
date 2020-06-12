@@ -9,7 +9,7 @@ type Certificates struct {
 }
 
 func (p *Certificates) APIStruct() interface{} {
-	return nil
+	return p.Certificates
 }
 
 func (p *Certificates) FieldNames() []string {

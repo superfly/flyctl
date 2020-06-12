@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"os"
 	"sync"
 
@@ -19,7 +20,7 @@ func newMonitorCommand() *Command {
 	return BuildCommand(nil, runMonitor, ks.Usage, ks.Short, ks.Long, os.Stdout, requireSession, requireAppName)
 }
 
-func runMonitor(ctx *CmdContext) error {
+func runMonitor(ctx *cmdctx.CmdContext) error {
 	//var oldds *api.DeploymentStatus
 
 	app, err := ctx.Client.API().GetApp(ctx.AppName)
@@ -37,7 +38,7 @@ func runMonitor(ctx *CmdContext) error {
 	return nil
 }
 
-func monitorDeployment(ctx context.Context, cc *CmdContext) error {
+func monitorDeployment(ctx context.Context, cc *cmdctx.CmdContext) error {
 
 	//interactive := isatty.IsTerminal(os.Stdout.Fd())
 
@@ -95,14 +96,14 @@ func monitorDeployment(ctx context.Context, cc *CmdContext) error {
 				count++
 				fmt.Fprintf(cc.Out, "\n  Failure #%d\n", count)
 				err := cc.Frender(p,
-					PresenterOption{
+					cmdctx.PresenterOption{
 						Title: "Allocation",
 						Presentable: &presenters.Allocations{
 							Allocations: []*api.AllocationStatus{alloc},
 						},
 						Vertical: true,
 					},
-					PresenterOption{
+					cmdctx.PresenterOption{
 						Title: "Recent Events",
 						Presentable: &presenters.AllocationEvents{
 							Events: alloc.Events,

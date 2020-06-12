@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"os"
 	"strings"
 
@@ -44,7 +45,7 @@ func newAppSecretsCommand() *Command {
 	return cmd
 }
 
-func runListSecrets(ctx *CmdContext) error {
+func runListSecrets(ctx *cmdctx.CmdContext) error {
 	secrets, err := ctx.Client.API().GetAppSecrets(ctx.AppName)
 	if err != nil {
 		return err
@@ -53,7 +54,7 @@ func runListSecrets(ctx *CmdContext) error {
 	return ctx.Render(&presenters.Secrets{Secrets: secrets})
 }
 
-func runSetSecrets(cc *CmdContext) error {
+func runSetSecrets(cc *cmdctx.CmdContext) error {
 	ctx := createCancellableContext()
 
 	secrets := make(map[string]string)
@@ -93,7 +94,7 @@ func runSetSecrets(cc *CmdContext) error {
 	return renderRelease(ctx, cc, release)
 }
 
-func runSecretsUnset(cc *CmdContext) error {
+func runSecretsUnset(cc *cmdctx.CmdContext) error {
 	ctx := createCancellableContext()
 
 	if len(cc.Args) == 0 {
