@@ -40,8 +40,8 @@ dockers:
   - goos: linux
     goarch: amd64
     image_templates:
-      - "superfly/flyctl:latest"
-      - "superfly/flyctl:v{{ .Version }}"
+      - "flyio/flyctl:latest"
+      - "flyio/flyctl:v{{ .Version }}"
 checksum:
   name_template: "checksums.txt"
 snapshot:
