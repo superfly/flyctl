@@ -11,13 +11,19 @@ jobs:
         uses: actions/checkout@master
       - name: Unshallow
         run: git fetch --prune --unshallow
-      - uses: azure/docker-login@v1
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.14
+      - name: Configure Docker
+        uses: azure/docker-login@v1
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
-      - name: Release
-        uses: docker://goreleaser/goreleaser
-        env:
-          GORELEASER_GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v2
         with:
-          args: release
+          version: latest
+          args: release --rm-dist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
