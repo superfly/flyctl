@@ -18,6 +18,7 @@ jobs:
       - name: Configure Docker
         uses: azure/docker-login@v1
         with:
+          login-server: docker.io
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
       - name: Run GoReleaser
