@@ -11,6 +11,10 @@ jobs:
         uses: actions/checkout@master
       - name: Unshallow
         run: git fetch --prune --unshallow
+      - uses: azure/docker-login@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
       - name: Release
         uses: docker://goreleaser/goreleaser
         env:
