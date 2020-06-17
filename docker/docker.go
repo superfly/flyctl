@@ -348,8 +348,8 @@ func CheckManifest(ctx context.Context, imageRef string, token string) (*dockerp
 
 func RegistryAuth(token string) types.AuthConfig {
 	return types.AuthConfig{
-		Username:      token,
-		Password:      "x",
+		Username:      "x",
+		Password:      token,
 		ServerAddress: "registry.fly.io",
 	}
 }
