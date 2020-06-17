@@ -3,10 +3,11 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/docker"
 	"os"
 	"time"
 
-	"github.com/superfly/flyctl/docker"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/internal/client"
 
@@ -72,7 +73,7 @@ func newAuthCommand() *Command {
 	return cmd
 }
 
-func runWhoami(ctx *CmdContext) error {
+func runWhoami(ctx *cmdctx.CmdContext) error {
 	user, err := ctx.Client.API().GetCurrentUser()
 	if err != nil {
 		return err
@@ -81,7 +82,7 @@ func runWhoami(ctx *CmdContext) error {
 	return nil
 }
 
-func runLogin(ctx *CmdContext) error {
+func runLogin(ctx *cmdctx.CmdContext) error {
 	if ctx.Config.GetBool("interactive") {
 		return runInteractiveLogin(ctx)
 	}
@@ -98,11 +99,11 @@ func runLogin(ctx *CmdContext) error {
 	return runWebLogin(ctx, false)
 }
 
-func runSignup(ctx *CmdContext) error {
+func runSignup(ctx *cmdctx.CmdContext) error {
 	return runWebLogin(ctx, true)
 }
 
-func runWebLogin(ctx *CmdContext, signup bool) error {
+func runWebLogin(ctx *cmdctx.CmdContext, signup bool) error {
 	name, _ := os.Hostname()
 
 	cliAuth, err := api.StartCLISessionWebAuth(name, signup)
@@ -110,7 +111,7 @@ func runWebLogin(ctx *CmdContext, signup bool) error {
 		return err
 	}
 
-	fmt.Println("Opening browser to url", aurora.Bold(cliAuth.AuthURL))
+	fmt.Fprintln(ctx.Out, "Opening browser to url", aurora.Bold(cliAuth.AuthURL))
 
 	if err := open.Run(cliAuth.AuthURL); err != nil {
 		terminal.Error("Error opening browser. Copy the above url into a browser and continue")
@@ -170,7 +171,7 @@ func waitForCLISession(id string) <-chan api.CLISessionAuth {
 	return done
 }
 
-func runInteractiveLogin(ctx *CmdContext) error {
+func runInteractiveLogin(ctx *cmdctx.CmdContext) error {
 	email, _ := ctx.Config.GetString("email")
 	if email == "" {
 		prompt := &survey.Input{
@@ -218,7 +219,7 @@ func runInteractiveLogin(ctx *CmdContext) error {
 	return flyctl.SaveConfig()
 }
 
-func runLogout(ctx *CmdContext) error {
+func runLogout(ctx *cmdctx.CmdContext) error {
 	viper.Set(flyctl.ConfigAPIToken, "")
 
 	if err := flyctl.SaveConfig(); err != nil {
@@ -230,29 +231,33 @@ func runLogout(ctx *CmdContext) error {
 	return nil
 }
 
-func runAuthToken(ctx *CmdContext) error {
+func runAuthToken(ctx *cmdctx.CmdContext) error {
 	token, _ := ctx.GlobalConfig.GetString(flyctl.ConfigAPIToken)
 
-	fmt.Println(token)
+	if ctx.OutputJSON() {
+		ctx.WriteJSON(map[string]string{"flyctlAuthToken": token})
+		return nil
+	}
+	fmt.Fprintln(ctx.Out, token)
 
 	return nil
 }
 
-func runAuthDocker(cc *CmdContext) error {
-	ctx := createCancellableContext()
+func runAuthDocker(ctx *cmdctx.CmdContext) error {
+	cc := createCancellableContext()
 
 	dockerClient, err := docker.NewDockerClient()
 	if err != nil {
 		return fmt.Errorf("Docker daemon unavailable: %s", err)
 	}
 
-	token, _ := cc.GlobalConfig.GetString(flyctl.ConfigAPIToken)
+	token, _ := ctx.GlobalConfig.GetString(flyctl.ConfigAPIToken)
 	authConfig := docker.RegistryAuth(token)
-	if _, err := dockerClient.Client().RegistryLogin(ctx, authConfig); err != nil {
+	if _, err := dockerClient.Client().RegistryLogin(cc, authConfig); err != nil {
 		return err
 	}
 
-	fmt.Println("Authentication successful. You can now tag and push images to registry.fly.io/{your-app}")
+	fmt.Fprintln(ctx.Out, "Authentication successful. You can now tag and push images to registry.fly.io/{your-app}")
 
 	return nil
 }

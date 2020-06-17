@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"os"
 
 	"github.com/superfly/flyctl/docstrings"
@@ -31,21 +32,22 @@ func newBuildsCommand() *Command {
 	return cmd
 }
 
-func runListBuilds(ctx *CmdContext) error {
-	builds, err := ctx.Client.API().ListBuilds(ctx.AppName)
+func runListBuilds(commandContext *cmdctx.CmdContext) error {
+	builds, err := commandContext.Client.API().ListBuilds(commandContext.AppName)
 	if err != nil {
 		return err
 	}
 
-	return ctx.Render(&presenters.Builds{Builds: builds})
+	return commandContext.Frender(cmdctx.PresenterOption{Presentable: &presenters.Builds{Builds: builds}})
 }
 
-func runBuildLogs(cc *CmdContext) error {
+func runBuildLogs(cc *cmdctx.CmdContext) error {
 	ctx := createCancellableContext()
 	buildID := cc.Args[0]
 
 	logs := builds.NewBuildMonitor(buildID, cc.Client.API())
 
+	// TODO: Need to consider what is appropriate to output with JSON set
 	for line := range logs.Logs(ctx) {
 		fmt.Println(line)
 	}

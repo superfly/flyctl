@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"os"
 
 	"github.com/superfly/flyctl/docstrings"
@@ -14,30 +14,32 @@ func newAppInfoCommand() *Command {
 	return BuildCommand(nil, runAppInfo, ks.Usage, ks.Short, ks.Long, os.Stdout, requireSession, requireAppName)
 }
 
-func runAppInfo(ctx *CmdContext) error {
+func runAppInfo(ctx *cmdctx.CmdContext) error {
 	app, err := ctx.Client.API().GetApp(ctx.AppName)
 	if err != nil {
 		return err
 	}
 
-	err = ctx.Frender(ctx.Out, PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "App"})
+	err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "App"})
 	if err != nil {
 		return err
 	}
 
-	err = ctx.Frender(ctx.Out, PresenterOption{Presentable: &presenters.Services{Services: app.Services}, Title: "Services"})
-	if err != nil {
-		return err
-	}
+	// For JSON, everything is included in the previous render, for humans, we need to do some formatting
+	if !ctx.OutputJSON() {
+		err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.Services{Services: app.Services}, Title: "Services"})
+		if err != nil {
+			return err
+		}
 
-	err = ctx.Frender(ctx.Out, PresenterOption{Presentable: &presenters.IPAddresses{IPAddresses: app.IPAddresses.Nodes}, Title: "IP Adresses"})
-	if err != nil {
-		return err
-	}
+		err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.IPAddresses{IPAddresses: app.IPAddresses.Nodes}, Title: "IP Adresses"})
+		if err != nil {
+			return err
+		}
 
-	if !app.Deployed {
-		fmt.Fprintln(ctx.Out, `App has not been deployed yet. Try running "flyctl deploy --image flyio/hellofly"`)
+		if !app.Deployed {
+			ctx.Status("flyctl", `App has not been deployed yet. Try running "flyctl deploy --image flyio/hellofly"`)
+		}
 	}
-
 	return nil
 }

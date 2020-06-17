@@ -9,7 +9,7 @@ type AppHistory struct {
 }
 
 func (p *AppHistory) APIStruct() interface{} {
-	return nil
+	return p.AppChanges
 }
 
 func (p *AppHistory) FieldNames() []string {

@@ -11,7 +11,7 @@ type VMSizes struct {
 }
 
 func (p *VMSizes) APIStruct() interface{} {
-	return nil
+	return p.VMSizes
 }
 
 func (p *VMSizes) FieldNames() []string {

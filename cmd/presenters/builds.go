@@ -7,7 +7,7 @@ type Builds struct {
 }
 
 func (p *Builds) APIStruct() interface{} {
-	return nil
+	return p.Builds
 }
 
 func (p *Builds) FieldNames() []string {

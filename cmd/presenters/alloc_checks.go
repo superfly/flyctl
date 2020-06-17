@@ -9,7 +9,7 @@ type AllocationChecks struct {
 }
 
 func (p *AllocationChecks) APIStruct() interface{} {
-	return nil
+	return p.Checks
 }
 
 func (p *AllocationChecks) FieldNames() []string {
