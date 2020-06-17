@@ -6,7 +6,6 @@ import (
 
 	"github.com/superfly/flyctl/docstrings"
 
-	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/cmd/presenters"
 )
 
@@ -21,26 +20,23 @@ func runAppInfo(ctx *CmdContext) error {
 		return err
 	}
 
-	fmt.Println(aurora.Bold("App"))
-	err = ctx.RenderEx(&presenters.AppInfo{App: *app}, presenters.Options{HideHeader: true, Vertical: true})
+	err = ctx.Frender(ctx.Out, PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "App"})
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(aurora.Bold("Services"))
-	err = ctx.Render(&presenters.Services{Services: app.Services})
+	err = ctx.Frender(ctx.Out, PresenterOption{Presentable: &presenters.Services{Services: app.Services}, Title: "Services"})
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(aurora.Bold("IP Addresses"))
-	err = ctx.Render(&presenters.IPAddresses{IPAddresses: app.IPAddresses.Nodes})
+	err = ctx.Frender(ctx.Out, PresenterOption{Presentable: &presenters.IPAddresses{IPAddresses: app.IPAddresses.Nodes}, Title: "IP Adresses"})
 	if err != nil {
 		return err
 	}
 
 	if !app.Deployed {
-		fmt.Println(`App has not been deployed yet. Try running "flyctl deploy --image flyio/hellofly"`)
+		fmt.Fprintln(ctx.Out, `App has not been deployed yet. Try running "flyctl deploy --image flyio/hellofly"`)
 	}
 
 	return nil

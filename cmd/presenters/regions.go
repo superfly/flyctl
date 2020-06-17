@@ -8,6 +8,10 @@ type Regions struct {
 	Regions []api.Region
 }
 
+func (p *Regions) APIStruct() interface{} {
+	return p.Regions
+}
+
 func (p *Regions) FieldNames() []string {
 	return []string{"Code", "Name"}
 }

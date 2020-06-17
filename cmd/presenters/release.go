@@ -12,6 +12,9 @@ type Releases struct {
 	Release  *api.Release
 }
 
+func (p *Releases) APIStruct() interface{} {
+	return nil
+}
 func (p *Releases) FieldNames() []string {
 	return []string{"Version", "Stable", "Type", "Status", "Description", "User", "Date"}
 }

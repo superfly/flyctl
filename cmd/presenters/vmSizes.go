@@ -10,6 +10,10 @@ type VMSizes struct {
 	VMSizes []api.VMSize
 }
 
+func (p *VMSizes) APIStruct() interface{} {
+	return nil
+}
+
 func (p *VMSizes) FieldNames() []string {
 	return []string{"Name", "CPU Cores", "Memory", "Price (Second)", "Price (Month)"}
 }

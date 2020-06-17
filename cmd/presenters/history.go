@@ -8,6 +8,10 @@ type AppHistory struct {
 	AppChanges []api.AppChange
 }
 
+func (p *AppHistory) APIStruct() interface{} {
+	return nil
+}
+
 func (p *AppHistory) FieldNames() []string {
 	return []string{"Type", "Status", "Description", "User", "Date"}
 }

@@ -45,7 +45,7 @@ func runIPAddressesList(ctx *CmdContext) error {
 		return err
 	}
 
-	return ctx.RenderView(PresenterOption{
+	return ctx.Frender(ctx.Out, PresenterOption{
 		Presentable: &presenters.IPAddresses{IPAddresses: ipAddresses},
 	})
 }
@@ -66,7 +66,7 @@ func runAllocateIPAddress(ctx *CmdContext, addrType string) error {
 		return err
 	}
 
-	return ctx.RenderView(PresenterOption{
+	return ctx.Frender(ctx.Out, PresenterOption{
 		Presentable: &presenters.IPAddresses{IPAddresses: []api.IPAddress{*ipAddress}},
 	})
 }

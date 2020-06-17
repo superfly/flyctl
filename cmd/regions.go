@@ -136,21 +136,23 @@ func runRegionsList(ctx *CmdContext) error {
 
 func printRegions(ctx *CmdContext, regions []api.Region) {
 
-	if ctx.Verbose {
+	verbose := ctx.GlobalConfig.GetBool("verbose")
+
+	if verbose {
 		fmt.Println("Current Region Pool:")
 	} else {
 		fmt.Printf("Region Pool: ")
 	}
 
 	for _, r := range regions {
-		if ctx.Verbose {
+		if verbose {
 			fmt.Printf("  %s  %s\n", r.Code, r.Name)
 		} else {
 			fmt.Printf("%s ", r.Code)
 		}
 	}
 
-	if !ctx.Verbose {
+	if !verbose {
 		fmt.Println()
 	}
 
