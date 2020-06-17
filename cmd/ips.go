@@ -40,13 +40,13 @@ func newIPAddressesCommand() *Command {
 	return cmd
 }
 
-func runIPAddressesList(ctx *cmdctx.CmdContext) error {
-	ipAddresses, err := ctx.Client.API().GetIPAddresses(ctx.AppName)
+func runIPAddressesList(commandContext *cmdctx.CmdContext) error {
+	ipAddresses, err := commandContext.Client.API().GetIPAddresses(commandContext.AppName)
 	if err != nil {
 		return err
 	}
 
-	return ctx.Frender(ctx.Out, cmdctx.PresenterOption{
+	return commandContext.Frender(cmdctx.PresenterOption{
 		Presentable: &presenters.IPAddresses{IPAddresses: ipAddresses},
 	})
 }
@@ -59,33 +59,33 @@ func runAllocateIPAddressV6(ctx *cmdctx.CmdContext) error {
 	return runAllocateIPAddress(ctx, "v6")
 }
 
-func runAllocateIPAddress(ctx *cmdctx.CmdContext, addrType string) error {
-	appName := ctx.AppName
+func runAllocateIPAddress(commandContext *cmdctx.CmdContext, addrType string) error {
+	appName := commandContext.AppName
 
-	ipAddress, err := ctx.Client.API().AllocateIPAddress(appName, addrType)
+	ipAddress, err := commandContext.Client.API().AllocateIPAddress(appName, addrType)
 	if err != nil {
 		return err
 	}
 
-	return ctx.Frender(ctx.Out, cmdctx.PresenterOption{
+	return commandContext.Frender(cmdctx.PresenterOption{
 		Presentable: &presenters.IPAddresses{IPAddresses: []api.IPAddress{*ipAddress}},
 	})
 }
 
-func runReleaseIPAddress(ctx *cmdctx.CmdContext) error {
-	appName := ctx.AppName
-	address := ctx.Args[0]
+func runReleaseIPAddress(commandContext *cmdctx.CmdContext) error {
+	appName := commandContext.AppName
+	address := commandContext.Args[0]
 
 	if ip := net.ParseIP(address); ip == nil {
 		return fmt.Errorf("Invalid IP address: '%s'", address)
 	}
 
-	ipAddress, err := ctx.Client.API().FindIPAddress(appName, address)
+	ipAddress, err := commandContext.Client.API().FindIPAddress(appName, address)
 	if err != nil {
 		return err
 	}
 
-	if err := ctx.Client.API().ReleaseIPAddress(ipAddress.ID); err != nil {
+	if err := commandContext.Client.API().ReleaseIPAddress(ipAddress.ID); err != nil {
 		return err
 	}
 

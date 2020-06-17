@@ -103,7 +103,7 @@ func FormatDeploymentSummary(d *api.DeploymentStatus) string {
 	return fmt.Sprintf("v%d %s - %s", d.Version, d.Status, d.Description)
 }
 
-func FormatDeploymemntAllocSummary(d *api.DeploymentStatus) string {
+func FormatDeploymentAllocSummary(d *api.DeploymentStatus) string {
 	allocCounts := fmt.Sprintf("%d desired, %d placed, %d healthy, %d unhealthy", d.DesiredCount, d.PlacedCount, d.HealthyCount, d.UnhealthyCount)
 
 	restarts := 0

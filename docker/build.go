@@ -43,10 +43,10 @@ type Image struct {
 }
 
 //func (op *DeployOperation) BuildWithDocker(appConfig *flyctl.AppConfig, cwd string, dockerfilePath string, buildArgs map[string]string) (*Image, error) {
-func (op *DeployOperation) BuildWithDocker(ctx *cmdctx.CmdContext, dockerfilePath string, buildArgs map[string]string) (*Image, error) {
-	spinning := ctx.GlobalConfig.GetBool(flyctl.ConfigJSONOutput)
-	cwd := ctx.WorkingDir
-	appConfig := ctx.AppConfig
+func (op *DeployOperation) BuildWithDocker(commandContext *cmdctx.CmdContext, dockerfilePath string, buildArgs map[string]string) (*Image, error) {
+	spinning := commandContext.OutputJSON()
+	cwd := commandContext.WorkingDir
+	appConfig := commandContext.AppConfig
 
 	if !op.DockerAvailable() {
 		return nil, ErrDockerDaemon
@@ -60,7 +60,7 @@ func (op *DeployOperation) BuildWithDocker(ctx *cmdctx.CmdContext, dockerfilePat
 		return nil, ErrNoDockerfile
 	}
 
-	//cmd.statusOut(ctx,"build","Using Dockerfile:", dockerfilePath)
+	commandContext.Statusf("build", cmdctx.SDETAIL, "Using Dockerfile: %s\n", dockerfilePath)
 
 	buildContext, err := newBuildContext()
 	if err != nil {
@@ -131,7 +131,10 @@ func initPackClient() pack.Client {
 	return *client
 }
 
-func (op *DeployOperation) BuildWithPack(cwd string, appConfig *flyctl.AppConfig, buildArgs map[string]string) (*Image, error) {
+func (op *DeployOperation) BuildWithPack(commandContext *cmdctx.CmdContext, buildArgs map[string]string) (*Image, error) {
+	cwd := commandContext.WorkingDir
+	appConfig := commandContext.AppConfig
+
 	if !op.DockerAvailable() {
 		return nil, ErrDockerDaemon
 	}
@@ -163,7 +166,7 @@ func (op *DeployOperation) BuildWithPack(cwd string, appConfig *flyctl.AppConfig
 		return nil, err
 	}
 
-	fmt.Println("Image built", op.imageTag)
+	commandContext.Status("build", cmdctx.SINFO, "Image built", op.imageTag)
 
 	img, err := op.dockerClient.findImage(op.ctx, op.imageTag)
 	if err != nil {

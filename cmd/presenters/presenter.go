@@ -3,6 +3,7 @@ package presenters
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/logrusorgru/aurora"
 	"io"
 
 	"github.com/olekukonko/tablewriter"
@@ -26,6 +27,7 @@ type Presenter struct {
 type Options struct {
 	Vertical   bool
 	HideHeader bool
+	Title      string
 	AsJSON     bool
 }
 
@@ -43,6 +45,10 @@ func (p *Presenter) Render() error {
 }
 
 func (p *Presenter) renderTable() error {
+	if p.Opts.Title != "" {
+		fmt.Fprintln(p.Out, aurora.Bold(p.Opts.Title))
+	}
+
 	table := tablewriter.NewWriter(p.Out)
 
 	cols := p.Item.FieldNames()
@@ -78,6 +84,9 @@ func (p *Presenter) renderTable() error {
 func (p *Presenter) renderFieldList() error {
 	table := tablewriter.NewWriter(p.Out)
 
+	if p.Opts.Title != "" {
+		fmt.Fprintln(p.Out, aurora.Bold(p.Opts.Title))
+	}
 	cols := p.Item.FieldNames()
 
 	table.SetBorder(false)
@@ -98,12 +107,21 @@ func (p *Presenter) renderFieldList() error {
 }
 
 func (p *Presenter) renderJSON() error {
-	data := p.Item.APIStruct()
+	var data = p.Item.APIStruct()
+
 	if data == nil {
 		return fmt.Errorf("JSON output not available")
 	}
-	prettyJSON, err := json.MarshalIndent(p.Item.APIStruct(), "", "    ")
-	fmt.Fprintln(p.Out, string(prettyJSON))
 
-	return err
+	if p.Opts.Title == "" {
+		prettyJSON, err := json.MarshalIndent(data, "", "    ")
+		fmt.Fprintln(p.Out, string(prettyJSON))
+		return err
+	} else {
+		wrapper := make(map[string]interface{}, 1)
+		wrapper[p.Opts.Title] = p.Item.APIStruct()
+		prettyJSON, err := json.MarshalIndent(wrapper, "", "    ")
+		fmt.Fprintln(p.Out, string(prettyJSON))
+		return err
+	}
 }

@@ -13,7 +13,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/client"
@@ -137,49 +136,6 @@ func (c *Command) AddStringSliceFlag(options StringSliceFlagOpts) {
 		viper.BindEnv(fullName, options.EnvName)
 	}
 }
-
-// Render - Render a presentable structure via the context
-func Render(presentable presenters.Presentable) error {
-	presenter := &presenters.Presenter{
-		Item: presentable,
-		Out:  os.Stdout,
-	}
-
-	return presenter.Render()
-}
-
-// PresenterOption - options for RenderEx, RenderView, render etc...
-type PresenterOption struct {
-	Presentable presenters.Presentable
-	AsJSON      bool
-	Vertical    bool
-	HideHeader  bool
-	Title       string
-}
-
-//func (ctx *cmdctx.CmdContext) render(out io.Writer, views ...PresenterOption) error {
-//	for _, v := range views {
-//		presenter := &presenters.Presenter{
-//			Item: v.Presentable,
-//			Out:  out,
-//			Opts: presenters.Options{
-//				Vertical:   v.Vertical,
-//				HideHeader: v.HideHeader,
-//				AsJSON:     v.AsJSON,
-//			},
-//		}
-//
-//		if v.Title != "" && !v.AsJSON {
-//			fmt.Fprintln(out, aurora.Bold(v.Title))
-//		}
-//
-//		if err := presenter.Render(); err != nil {
-//			return err
-//		}
-//	}
-//
-//	return nil
-//}
 
 // Initializer - Retains Setup and PreRun functions
 type Initializer struct {

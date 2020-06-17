@@ -234,6 +234,10 @@ func runLogout(ctx *cmdctx.CmdContext) error {
 func runAuthToken(ctx *cmdctx.CmdContext) error {
 	token, _ := ctx.GlobalConfig.GetString(flyctl.ConfigAPIToken)
 
+	if ctx.OutputJSON() {
+		ctx.WriteJSON(map[string]string{"flyctlAuthToken": token})
+		return nil
+	}
 	fmt.Fprintln(ctx.Out, token)
 
 	return nil

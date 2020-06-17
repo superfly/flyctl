@@ -1,10 +1,10 @@
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/superfly/flyctl/cmdctx"
-	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -48,22 +48,22 @@ func newScaleCommand() *Command {
 	return cmd
 }
 
-func runBalanceScale(ctx *cmdctx.CmdContext) error {
-	return actualScale(ctx, true, false)
+func runBalanceScale(commandContext *cmdctx.CmdContext) error {
+	return actualScale(commandContext, true, false)
 }
 
-func runStandardScale(ctx *cmdctx.CmdContext) error {
-	return actualScale(ctx, false, false)
+func runStandardScale(commandContext *cmdctx.CmdContext) error {
+	return actualScale(commandContext, false, false)
 }
 
-func runSetParamsOnly(ctx *cmdctx.CmdContext) error {
-	return actualScale(ctx, false, true)
+func runSetParamsOnly(commandContext *cmdctx.CmdContext) error {
+	return actualScale(commandContext, false, true)
 }
 
-func actualScale(ctx *cmdctx.CmdContext, balanceRegions bool, setParamsOnly bool) error {
-	currentcfg, err := ctx.Client.API().AppAutoscalingConfig(ctx.AppName)
+func actualScale(commandContext *cmdctx.CmdContext, balanceRegions bool, setParamsOnly bool) error {
+	currentcfg, err := commandContext.Client.API().AppAutoscalingConfig(commandContext.AppName)
 
-	newcfg := api.UpdateAutoscaleConfigInput{AppID: ctx.AppName}
+	newcfg := api.UpdateAutoscaleConfigInput{AppID: commandContext.AppName}
 
 	newcfg.BalanceRegions = &balanceRegions
 	newcfg.MinCount = &currentcfg.MinCount
@@ -71,7 +71,7 @@ func actualScale(ctx *cmdctx.CmdContext, balanceRegions bool, setParamsOnly bool
 
 	kvargs := make(map[string]string)
 
-	for _, pair := range ctx.Args {
+	for _, pair := range commandContext.Args {
 		parts := strings.SplitN(pair, "=", 2)
 		if len(parts) != 2 {
 			return fmt.Errorf("Scale parameters must be provided as NAME=VALUE pairs (%s is invalid)", pair)
@@ -119,19 +119,19 @@ func actualScale(ctx *cmdctx.CmdContext, balanceRegions bool, setParamsOnly bool
 		return errors.New("unrecognised parameters in command:" + unusedkeys)
 	}
 
-	cfg, err := ctx.Client.API().UpdateAutoscaleConfig(newcfg)
+	cfg, err := commandContext.Client.API().UpdateAutoscaleConfig(newcfg)
 	if err != nil {
 		return err
 	}
 
-	printScaleConfig(ctx.Out, cfg)
+	printScaleConfig(commandContext, cfg)
 
 	return nil
 }
 
-func runScaleVM(ctx *cmdctx.CmdContext) error {
-	if len(ctx.Args) == 0 {
-		size, err := ctx.Client.API().AppVMSize(ctx.AppName)
+func runScaleVM(commandContext *cmdctx.CmdContext) error {
+	if len(commandContext.Args) == 0 {
+		size, err := commandContext.Client.API().AppVMSize(commandContext.AppName)
 		if err != nil {
 			return err
 		}
@@ -144,9 +144,9 @@ func runScaleVM(ctx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	sizeName := ctx.Args[0]
+	sizeName := commandContext.Args[0]
 
-	size, err := ctx.Client.API().SetAppVMSize(ctx.AppName, sizeName)
+	size, err := commandContext.Client.API().SetAppVMSize(commandContext.AppName, sizeName)
 	if err != nil {
 		return err
 	}
@@ -159,36 +159,54 @@ func runScaleVM(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runShow(ctx *cmdctx.CmdContext) error {
-	cfg, err := ctx.Client.API().AppAutoscalingConfig(ctx.AppName)
+func runShow(commandContext *cmdctx.CmdContext) error {
+	cfg, err := commandContext.Client.API().AppAutoscalingConfig(commandContext.AppName)
 	if err != nil {
 		return err
 	}
-	size, err := ctx.Client.API().AppVMSize(ctx.AppName)
+	size, err := commandContext.Client.API().AppVMSize(commandContext.AppName)
 	if err != nil {
 		return err
 	}
 
-	printScaleConfig(ctx.Out, cfg)
+	printScaleConfig(commandContext, cfg)
 
-	fmt.Fprintf(ctx.Out, "%15s: %s\n", "VM Size", size.Name)
+	printSize(commandContext, size)
 
 	return nil
 }
 
-func printScaleConfig(w io.Writer, cfg *api.AutoscalingConfig) {
+func printScaleConfig(commandContext *cmdctx.CmdContext, cfg *api.AutoscalingConfig) {
 
-	mode := "Unknown"
+	asJSON := commandContext.OutputJSON()
 
-	if cfg.BalanceRegions {
-		mode = "Balanced"
+	if asJSON {
+		commandContext.WriteJSON(cfg)
 	} else {
-		mode = "Standard"
-	}
+		mode := "Unknown"
 
-	fmt.Fprintf(w, "%15s: %s\n", "Scale Mode", mode)
-	fmt.Fprintf(w, "%15s: %d\n", "Min Count", cfg.MinCount)
-	fmt.Fprintf(w, "%15s: %d\n", "Max Count", cfg.MaxCount)
+		if cfg.BalanceRegions {
+			mode = "Balanced"
+		} else {
+			mode = "Standard"
+		}
+
+		fmt.Fprintf(commandContext.Out, "%15s: %s\n", "Scale Mode", mode)
+		fmt.Fprintf(commandContext.Out, "%15s: %d\n", "Min Count", cfg.MinCount)
+		fmt.Fprintf(commandContext.Out, "%15s: %d\n", "Max Count", cfg.MaxCount)
+	}
+}
+
+func printSize(commandContext *cmdctx.CmdContext, cfg api.VMSize) {
+
+	asJSON := commandContext.OutputJSON()
+
+	if asJSON {
+		prettyJSON, _ := json.MarshalIndent(cfg, "", "    ")
+		fmt.Fprintln(commandContext.Out, string(prettyJSON))
+	} else {
+		fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Size", cfg.Name)
+	}
 }
 
 // TODO: Move these funcs (also in presenters.VMSizes into presentation package)

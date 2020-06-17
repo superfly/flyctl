@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"github.com/superfly/flyctl/cmdctx"
+	"io"
 	"os"
 
 	"github.com/segmentio/textio"
@@ -33,18 +34,24 @@ func runAppStatus(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	err = ctx.Frender(ctx.Out, cmdctx.PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "App"})
+	err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "App"})
 	if err != nil {
 		return err
 	}
 
+	// If JSON output, everything has been printed, so return
+	if ctx.OutputJSON() {
+		return nil
+	}
+
+	// Continue formatted output
 	if !app.Deployed {
 		fmt.Println(`App has not been deployed yet.`)
 		return nil
 	}
 
 	if app.DeploymentStatus != nil {
-		err = ctx.Frender(ctx.Out, cmdctx.PresenterOption{
+		err = ctx.Frender(cmdctx.PresenterOption{
 			Presentable: &presenters.DeploymentStatus{Status: app.DeploymentStatus},
 			Vertical:    true,
 			Title:       "Deployment Status",
@@ -55,7 +62,7 @@ func runAppStatus(ctx *cmdctx.CmdContext) error {
 		}
 	}
 
-	err = ctx.Frender(ctx.Out, cmdctx.PresenterOption{
+	err = ctx.Frender(cmdctx.PresenterOption{
 		Presentable: &presenters.Allocations{Allocations: app.Allocations},
 		Title:       "Allocations",
 	})
@@ -77,7 +84,6 @@ func runAllocStatus(ctx *cmdctx.CmdContext) error {
 	}
 
 	err = ctx.Frender(
-		ctx.Out,
 		cmdctx.PresenterOption{
 			Title: "Allocation",
 			Presentable: &presenters.Allocations{
@@ -102,11 +108,23 @@ func runAllocStatus(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	fmt.Println(aurora.Bold("Recent Logs"))
-	p := textio.NewPrefixWriter(ctx.Out, "  ")
+	var p io.Writer
+	var pw *textio.PrefixWriter
+
+	if !ctx.OutputJSON() {
+		fmt.Println(aurora.Bold("Recent Logs"))
+		pw = textio.NewPrefixWriter(ctx.Out, "  ")
+		p = pw
+	} else {
+		p = ctx.Out
+	}
+
 	logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
-	logPresenter.FPrint(p, alloc.RecentLogs)
-	p.Flush()
+	logPresenter.FPrint(p, ctx.OutputJSON(), alloc.RecentLogs)
+
+	if p != ctx.Out {
+		pw.Flush()
+	}
 
 	return nil
 }

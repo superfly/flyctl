@@ -48,46 +48,68 @@ func runList(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runListApps(ctx *cmdctx.CmdContext) error {
+type CondensedApp struct {
+	ID           string
+	Name         string
+	Status       string
+	Deployed     bool
+	Hostname     string
+	Organization string
+}
+
+func runListApps(commandContext *cmdctx.CmdContext) error {
+	asJSON := commandContext.OutputJSON()
 
 	appPart := ""
 
-	if len(ctx.Args) == 1 {
-		appPart = ctx.Args[0]
-	} else if len(ctx.Args) > 0 {
-		fmt.Fprintln(ctx.Out, "Too many arguments - discarding excess")
+	if len(commandContext.Args) == 1 {
+		appPart = commandContext.Args[0]
+	} else if len(commandContext.Args) > 0 {
+		commandContext.Status("flyctl", cmdctx.SERROR, "Too many arguments - discarding excess")
 	}
 
-	orgslug, _ := ctx.Config.GetString("org")
+	orgSlug, _ := commandContext.Config.GetString("org")
 
-	status, _ := ctx.Config.GetString("status")
+	status, _ := commandContext.Config.GetString("status")
 
-	apps, err := ctx.Client.API().GetApps()
+	apps, err := commandContext.Client.API().GetApps()
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(ctx.Out, "%32s %10s %16s\n", "Name", "Status", "Organization")
+	var filteredApps []CondensedApp
+
+	filteredApps = make([]CondensedApp, 0)
 
 	for _, app := range apps {
-		print := false
+		saved := false
 
 		if appPart != "" {
-			print = strings.Contains(app.Name, appPart)
+			saved = strings.Contains(app.Name, appPart)
 		} else {
-			print = true
+			saved = true
 		}
 
-		if orgslug != "" {
-			print = (print && orgslug == app.Organization.Slug)
+		if orgSlug != "" {
+			saved = saved && orgSlug == app.Organization.Slug
 		}
 
 		if status != "" {
-			print = (print && status == app.Status)
+			saved = saved && status == app.Status
 		}
 
-		if print {
-			fmt.Fprintf(ctx.Out, "%32s %10s %16s\n", app.Name, app.Status, app.Organization.Slug)
+		if saved {
+			filteredApps = append(filteredApps, CondensedApp{ID: app.ID, Name: app.Name, Status: app.Status, Deployed: app.Deployed, Hostname: app.Hostname, Organization: app.Organization.Slug})
+		}
+	}
+
+	if asJSON {
+		commandContext.WriteJSON(filteredApps)
+	} else {
+		fmt.Fprintf(commandContext.Out, "%32s %10s %16s\n", "Name", "Status", "Organization")
+
+		for _, app := range filteredApps {
+			fmt.Fprintf(commandContext.Out, "%32s %10s %16s\n", app.Name, app.Status, app.Organization)
 		}
 	}
 

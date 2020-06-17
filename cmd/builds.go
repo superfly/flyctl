@@ -32,13 +32,13 @@ func newBuildsCommand() *Command {
 	return cmd
 }
 
-func runListBuilds(ctx *cmdctx.CmdContext) error {
-	builds, err := ctx.Client.API().ListBuilds(ctx.AppName)
+func runListBuilds(commandContext *cmdctx.CmdContext) error {
+	builds, err := commandContext.Client.API().ListBuilds(commandContext.AppName)
 	if err != nil {
 		return err
 	}
 
-	return ctx.Frender(ctx.Out, cmdctx.PresenterOption{Presentable: &presenters.Builds{Builds: builds}})
+	return commandContext.Frender(cmdctx.PresenterOption{Presentable: &presenters.Builds{Builds: builds}})
 }
 
 func runBuildLogs(cc *cmdctx.CmdContext) error {

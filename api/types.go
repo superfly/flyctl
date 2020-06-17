@@ -126,7 +126,7 @@ type App struct {
 	Certificates struct {
 		Nodes []AppCertificate
 	}
-	Certificate      AppCertificate
+	Certificate      AppCertificate `json:"omitempty"`
 	Services         []Service
 	Config           AppConfig
 	ParseConfig      AppConfig
@@ -298,12 +298,12 @@ type DeployImageInput struct {
 
 type Service struct {
 	Description     string        `json:"description"`
-	Protocol        string        `json:"protocol"`
-	InternalPort    int           `json:"internalPort"`
-	Ports           []PortHandler `json:"ports"`
-	Checks          []Check       `json:"checks"`
-	SoftConcurrency int           `json:"softConcurrency"`
-	HardConcurrency int           `json:"hardConcurrency"`
+	Protocol        string        `json:"protocol,omitempty"`
+	InternalPort    int           `json:"internalPort,omitempty"`
+	Ports           []PortHandler `json:"ports,omitempty"`
+	Checks          []Check       `json:"checks,omitempty"`
+	SoftConcurrency int           `json:"softConcurrency,omitempty"`
+	HardConcurrency int           `json:"hardConcurrency,omitempty"`
 }
 
 type PortHandler struct {

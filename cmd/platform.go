@@ -1,9 +1,7 @@
 package cmd
 
 import (
-	"fmt"
 	"github.com/superfly/flyctl/cmdctx"
-	"github.com/superfly/flyctl/flyctl"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -37,9 +35,7 @@ func runPlatformRegions(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	fmt.Println(ctx.GlobalConfig.GetBool(flyctl.ConfigJSONOutput))
-
-	return ctx.Frender(ctx.Out, cmdctx.PresenterOption{
+	return ctx.Frender(cmdctx.PresenterOption{
 		Presentable: &presenters.Regions{Regions: regions},
 	})
 }
@@ -50,7 +46,7 @@ func runPlatformVMSizes(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	return ctx.Frender(ctx.Out, cmdctx.PresenterOption{
+	return ctx.Frender(cmdctx.PresenterOption{
 		Presentable: &presenters.VMSizes{VMSizes: sizes},
 	})
 }

@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/superfly/flyctl/cmdctx"
@@ -46,10 +45,10 @@ func runDisplayConfig(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	encoder.Encode(cfg.Definition)
-
+	//encoder := json.NewEncoder(os.Stdout)
+	//encoder.SetIndent("", "  ")
+	//encoder.Encode(cfg.Definition)
+	ctx.WriteJSON(cfg.Definition)
 	return nil
 }
 
@@ -69,14 +68,14 @@ func runSaveConfig(ctx *cmdctx.CmdContext) error {
 	return writeAppConfig(ctx.ConfigFile, ctx.AppConfig)
 }
 
-func runValidateConfig(ctx *cmdctx.CmdContext) error {
-	if ctx.AppConfig == nil {
+func runValidateConfig(commandContext *cmdctx.CmdContext) error {
+	if commandContext.AppConfig == nil {
 		return errors.New("App config file not found")
 	}
 
-	fmt.Println("Validating", ctx.ConfigFile)
+	commandContext.Status("flyctl", "Validating", commandContext.ConfigFile)
 
-	serverCfg, err := ctx.Client.API().ParseConfig(ctx.AppName, ctx.AppConfig.Definition)
+	serverCfg, err := commandContext.Client.API().ParseConfig(commandContext.AppName, commandContext.AppConfig.Definition)
 	if err != nil {
 		return err
 	}
@@ -97,15 +96,6 @@ func printAppConfigErrors(cfg api.AppConfig) {
 		fmt.Println("   ", aurora.Red("✘").String(), error)
 	}
 	fmt.Println()
-}
-
-func printAppConfigServices(prefix string, cfg api.AppConfig) {
-	if len(cfg.Services) > 0 {
-		fmt.Println(prefix, "Services")
-		for _, svc := range cfg.Services {
-			fmt.Println(prefix, "  ", svc.Description)
-		}
-	}
 }
 
 func writeAppConfig(path string, appConfig *flyctl.AppConfig) error {

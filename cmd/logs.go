@@ -1,12 +1,12 @@
 package cmd
 
 import (
+	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
 	"math"
 	"os"
 	"time"
 
-	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/docstrings"
 
 	"github.com/superfly/flyctl/api"
@@ -66,7 +66,7 @@ func runLogs(ctx *cmdctx.CmdContext) error {
 		} else {
 			emptyCount = 0
 
-			logPresenter.FPrint(ctx.Out, entries)
+			logPresenter.FPrint(ctx.Out, ctx.OutputJSON(), entries)
 
 			if token != "" {
 				nextToken = token

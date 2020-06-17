@@ -14,11 +14,11 @@ func newAppHistoryCommand() *Command {
 	return BuildCommand(nil, runAppHistory, historyStrings.Usage, historyStrings.Short, historyStrings.Long, os.Stdout, requireSession, requireAppName)
 }
 
-func runAppHistory(ctx *cmdctx.CmdContext) error {
-	changes, err := ctx.Client.API().GetAppChanges(ctx.AppName)
+func runAppHistory(commandContext *cmdctx.CmdContext) error {
+	changes, err := commandContext.Client.API().GetAppChanges(commandContext.AppName)
 	if err != nil {
 		return err
 	}
 
-	return ctx.Frender(ctx.Out, cmdctx.PresenterOption{Presentable: &presenters.AppHistory{AppChanges: changes}})
+	return commandContext.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppHistory{AppChanges: changes}})
 }

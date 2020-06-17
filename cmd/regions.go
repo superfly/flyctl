@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"github.com/superfly/flyctl/cmdctx"
 	"os"
 
@@ -137,24 +136,25 @@ func runRegionsList(ctx *cmdctx.CmdContext) error {
 
 func printRegions(ctx *cmdctx.CmdContext, regions []api.Region) {
 
+	if ctx.OutputJSON() {
+		ctx.WriteJSON(regions)
+		return
+	}
+
 	verbose := ctx.GlobalConfig.GetBool("verbose")
 
 	if verbose {
-		fmt.Println("Current Region Pool:")
+		ctx.Status("regions", cmdctx.STITLE, "Current Region Pool:")
 	} else {
-		fmt.Printf("Region Pool: ")
+		ctx.Status("regions", cmdctx.STITLE, "Region Pool: ")
 	}
 
 	for _, r := range regions {
 		if verbose {
-			fmt.Printf("  %s  %s\n", r.Code, r.Name)
+			ctx.Statusf("regions", cmdctx.SINFO, "  %s  %s\n", r.Code, r.Name)
 		} else {
-			fmt.Printf("%s ", r.Code)
+			ctx.Status("regions", cmdctx.SINFO, r.Code)
 		}
-	}
-
-	if !verbose {
-		fmt.Println()
 	}
 
 }

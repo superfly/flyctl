@@ -21,6 +21,12 @@ func newVersionCommand() *Command {
 	return version
 }
 
+type FlyctlBuild struct {
+	Version string
+	Commit  string
+	Build   string
+}
+
 func runVersion(ctx *cmdctx.CmdContext) error {
 	shellType, _ := ctx.Config.GetString("completions")
 
@@ -35,6 +41,10 @@ func runVersion(ctx *cmdctx.CmdContext) error {
 		}
 	}
 
-	fmt.Printf("flyctl %s %s %s\n", flyctl.Version, flyctl.Commit, flyctl.BuildDate)
+	if ctx.OutputJSON() {
+		ctx.WriteJSON(FlyctlBuild{Version: flyctl.Version, Commit: flyctl.Commit, Build: flyctl.BuildDate})
+	} else {
+		fmt.Printf("flyctl %s %s %s\n", flyctl.Version, flyctl.Commit, flyctl.BuildDate)
+	}
 	return nil
 }

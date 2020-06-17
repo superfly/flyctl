@@ -10,7 +10,7 @@ type Apps struct {
 }
 
 func (p *Apps) APIStruct() interface{} {
-	return nil
+	return p.Apps
 }
 
 func (p *Apps) FieldNames() []string {

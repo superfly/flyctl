@@ -89,9 +89,9 @@ func runSetSecrets(cc *cmdctx.CmdContext) error {
 		return err
 	}
 
-	fmt.Println("Secrets set")
+	fmt.Printf("Secrets set in %s", release) // TODO
 
-	return renderRelease(ctx, cc, release)
+	return watchDeployment(ctx, cc)
 }
 
 func runSecretsUnset(cc *cmdctx.CmdContext) error {
@@ -106,7 +106,7 @@ func runSecretsUnset(cc *cmdctx.CmdContext) error {
 		return err
 	}
 
-	fmt.Println("Secrets unset")
+	fmt.Printf("Secrets unset in %s", release) // TODO
 
-	return renderRelease(ctx, cc, release)
+	return watchDeployment(ctx, cc)
 }

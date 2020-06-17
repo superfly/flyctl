@@ -151,15 +151,15 @@ func runDestroyApp(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runAppsCreate(ctx *cmdctx.CmdContext) error {
+func runAppsCreate(commandContext *cmdctx.CmdContext) error {
 	var appName = ""
 	var internalPort = 0
 
-	if len(ctx.Args) > 0 {
-		appName = ctx.Args[0]
+	if len(commandContext.Args) > 0 {
+		appName = commandContext.Args[0]
 	}
 
-	configPort, _ := ctx.Config.GetString("port")
+	configPort, _ := commandContext.Config.GetString("port")
 
 	// If ports set, validate
 	if configPort != "" {
@@ -173,11 +173,11 @@ func runAppsCreate(ctx *cmdctx.CmdContext) error {
 
 	newAppConfig := flyctl.NewAppConfig()
 
-	if builder, _ := ctx.Config.GetString("builder"); builder != "" {
+	if builder, _ := commandContext.Config.GetString("builder"); builder != "" {
 		newAppConfig.Build = &flyctl.Build{Builder: builder}
 	}
 
-	name, _ := ctx.Config.GetString("name")
+	name, _ := commandContext.Config.GetString("name")
 
 	if name != "" && appName != "" {
 		return fmt.Errorf(`two app names specified %s and %s. Select and specify only one`, appName, name)
@@ -200,8 +200,8 @@ func runAppsCreate(ctx *cmdctx.CmdContext) error {
 		fmt.Printf("Selected App Name: %s\n", name)
 	}
 
-	targetOrgSlug, _ := ctx.Config.GetString("org")
-	org, err := selectOrganization(ctx.Client.API(), targetOrgSlug)
+	targetOrgSlug, _ := commandContext.Config.GetString("org")
+	org, err := selectOrganization(commandContext.Client.API(), targetOrgSlug)
 
 	switch {
 	case isInterrupt(err):
@@ -210,7 +210,7 @@ func runAppsCreate(ctx *cmdctx.CmdContext) error {
 		return fmt.Errorf("Error setting organization: %s", err)
 	}
 
-	app, err := ctx.Client.API().CreateApp(name, org.ID)
+	app, err := commandContext.Client.API().CreateApp(name, org.ID)
 	if err != nil {
 		return err
 	}
@@ -221,27 +221,27 @@ func runAppsCreate(ctx *cmdctx.CmdContext) error {
 		newAppConfig.SetInternalPort(internalPort)
 	}
 
-	err = ctx.Frender(ctx.Out, cmdctx.PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "New app created"})
+	err = commandContext.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "New app created"})
 	if err != nil {
 		return err
 	}
 
-	if ctx.ConfigFile == "" {
-		newCfgFile, err := flyctl.ResolveConfigFileFromPath(ctx.WorkingDir)
+	if commandContext.ConfigFile == "" {
+		newCfgFile, err := flyctl.ResolveConfigFileFromPath(commandContext.WorkingDir)
 		if err != nil {
 			return err
 		}
-		ctx.ConfigFile = newCfgFile
+		commandContext.ConfigFile = newCfgFile
 	}
 
-	return writeAppConfig(ctx.ConfigFile, newAppConfig)
+	return writeAppConfig(commandContext.ConfigFile, newAppConfig)
 }
 
-func runAppsMove(ctx *cmdctx.CmdContext) error {
-	appName := ctx.Args[0]
+func runAppsMove(commandContext *cmdctx.CmdContext) error {
+	appName := commandContext.Args[0]
 
-	targetOrgSlug, _ := ctx.Config.GetString("org")
-	org, err := selectOrganization(ctx.Client.API(), targetOrgSlug)
+	targetOrgSlug, _ := commandContext.Config.GetString("org")
+	org, err := selectOrganization(commandContext.Client.API(), targetOrgSlug)
 
 	switch {
 	case isInterrupt(err):
@@ -250,12 +250,12 @@ func runAppsMove(ctx *cmdctx.CmdContext) error {
 		return fmt.Errorf("Error setting organization: %s", err)
 	}
 
-	app, err := ctx.Client.API().GetApp(appName)
+	app, err := commandContext.Client.API().GetApp(appName)
 	if err != nil {
 		return errors.Wrap(err, "Error fetching app")
 	}
 
-	if !ctx.Config.GetBool("yes") {
+	if !commandContext.Config.GetBool("yes") {
 		fmt.Println(aurora.Red("Are you sure you want to move this app?"))
 
 		confirm := false
@@ -269,7 +269,7 @@ func runAppsMove(ctx *cmdctx.CmdContext) error {
 		}
 	}
 
-	app, err = ctx.Client.API().MoveApp(appName, org.ID)
+	app, err = commandContext.Client.API().MoveApp(appName, org.ID)
 	if err != nil {
 		return errors.WithMessage(err, "Failed to move app")
 	}
