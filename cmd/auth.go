@@ -1,13 +1,14 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docker"
 	"os"
+	"os/exec"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/internal/client"
 
@@ -246,18 +247,40 @@ func runAuthToken(ctx *cmdctx.CmdContext) error {
 func runAuthDocker(ctx *cmdctx.CmdContext) error {
 	cc := createCancellableContext()
 
-	dockerClient, err := docker.NewDockerClient()
+	binary, err := exec.LookPath("docker")
 	if err != nil {
-		return fmt.Errorf("Docker daemon unavailable: %s", err)
+		return errors.Wrap(err, "docker cli not found - make sure it's installed and try again")
 	}
 
-	token, _ := ctx.GlobalConfig.GetString(flyctl.ConfigAPIToken)
-	authConfig := docker.RegistryAuth(token)
-	if _, err := dockerClient.Client().RegistryLogin(cc, authConfig); err != nil {
+	token, _ := cc.GlobalConfig.GetString(flyctl.ConfigAPIToken)
+
+	cmd := exec.CommandContext(ctx, binary, "login", "--username=x", "--password-stdin", "registry.fly.io")
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return err
+	}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	go func() {
+		defer stdin.Close()
+		fmt.Fprint(stdin, token)
+	}()
+
+	if err := cmd.Wait(); err != nil {
 		return err
 	}
 
-	fmt.Fprintln(ctx.Out, "Authentication successful. You can now tag and push images to registry.fly.io/{your-app}")
+	if !cmd.ProcessState.Success() {
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return err
+		}
+		fmt.Println(output)
+		return errors.New("error authenticating with registry.fly.io")
+	}
+
+	fmt.Println("Authentication successful. You can now tag and push images to registry.fly.io/{your-app}")
 
 	return nil
 }

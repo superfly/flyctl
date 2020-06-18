@@ -14,7 +14,7 @@ brew install superfly/tap/flyctl
 To upgrade to the latest version:
 
 ```bash
-brew upgrade superfly/tap/flyctl
+brew upgrade flyctl
 ```
 
 ## Install Script
@@ -24,19 +24,15 @@ Download `flyctl` and install into
 Installing the latest version:
 
 ```bash
-curl https://get.fly.io/flyctl.sh | sh
+curl -L https://fly.io/install.sh | sh
 ```
 
 Installing a specific version:
 
 ```bash
-curl https://get.fly.io/flyctl.sh | sh -s v0.0.1
+curl -L https://fly.io/install.sh | sh -s v0.0.1
 ```
 
-Install into a bin directory other than `/usr/local/bin`:
-```bash
-BIN_DIR=~/.bin curl https://get.fly.io/flyctl.sh | sh
-```
 ## Downloading from GitHub
 
 Download the appropriate version from the [Releases](https://github.com/superfly/flyctl/releases) page of the `flyctl` GitHub repository.
