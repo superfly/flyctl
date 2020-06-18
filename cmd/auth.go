@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"github.com/superfly/flyctl/cmdctx"
-	"github.com/superfly/flyctl/docker"
 	"os"
 	"os/exec"
 	"time"
@@ -252,9 +251,9 @@ func runAuthDocker(ctx *cmdctx.CmdContext) error {
 		return errors.Wrap(err, "docker cli not found - make sure it's installed and try again")
 	}
 
-	token, _ := cc.GlobalConfig.GetString(flyctl.ConfigAPIToken)
+	token, _ := ctx.GlobalConfig.GetString(flyctl.ConfigAPIToken)
 
-	cmd := exec.CommandContext(ctx, binary, "login", "--username=x", "--password-stdin", "registry.fly.io")
+	cmd := exec.CommandContext(cc, binary, "login", "--username=x", "--password-stdin", "registry.fly.io")
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return err
