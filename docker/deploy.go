@@ -3,7 +3,6 @@ package docker
 import (
 	"errors"
 	"fmt"
-	"github.com/superfly/flyctl/cmdctx"
 	"io"
 	"os"
 	"strings"
@@ -13,7 +12,9 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/mattn/go-isatty"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/net/context"
 )
 
@@ -239,7 +240,12 @@ func (op *DeployOperation) deployImage(imageTag string, strategy DeploymentStrat
 	return release, err
 }
 
-func (op *DeployOperation) CleanDeploymentTags() error {
+func (op *DeployOperation) CleanDeploymentTags() {
+	if !op.dockerAvailable {
+		return
+	}
 	err := op.dockerClient.DeleteDeploymentImages(op.ctx, op.imageTag)
-	return err
+	if err != nil {
+		terminal.Debugf("Error cleaning deployment tags: %s", err)
+	}
 }

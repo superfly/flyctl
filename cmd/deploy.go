@@ -259,11 +259,7 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 		return err
 	}
 
-	err = op.CleanDeploymentTags()
-
-	if err != nil {
-		return err
-	}
+	op.CleanDeploymentTags()
 
 	commandContext.Statusf("flyctl", cmdctx.SINFO, "Release v%d created\n", release.Version)
 
