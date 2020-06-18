@@ -3,9 +3,10 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"github.com/superfly/flyctl/cmdctx"
 	"os"
 	"strings"
+
+	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/superfly/flyctl/docstrings"
 
@@ -89,7 +90,7 @@ func runSetSecrets(cc *cmdctx.CmdContext) error {
 		return err
 	}
 
-	fmt.Printf("Secrets set in %s", release) // TODO
+	cc.Statusf("secrets", cmdctx.SINFO, "Release v%d created\n", release.Version)
 
 	return watchDeployment(ctx, cc)
 }
@@ -106,7 +107,7 @@ func runSecretsUnset(cc *cmdctx.CmdContext) error {
 		return err
 	}
 
-	fmt.Printf("Secrets unset in %s", release) // TODO
+	cc.Statusf("secrets", cmdctx.SINFO, "Release v%d created\n", release.Version)
 
 	return watchDeployment(ctx, cc)
 }
