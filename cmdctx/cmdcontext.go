@@ -3,6 +3,10 @@ package cmdctx
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
+	"strings"
+
 	"github.com/logrusorgru/aurora"
 	"github.com/pkg/errors"
 	"github.com/segmentio/textio"
@@ -10,9 +14,6 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/terminal"
-	"io"
-	"os"
-	"strings"
 )
 
 // CmdContext - context passed to commands being run
@@ -185,8 +186,9 @@ func statusToEffect(status string, message string) string {
 		return aurora.Red(message).String()
 	}
 
-	return fmt.Sprintf("Error in status for %s - %s", status, message)
+	return message
 }
+
 func (commandContext *CmdContext) Statusf(source string, status string, format string, args ...interface{}) {
 	outputJSON := commandContext.OutputJSON()
 
