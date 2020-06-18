@@ -32,6 +32,10 @@ func (b *BuildMonitor) Status() string {
 	return b.build.Status
 }
 
+func (b *BuildMonitor) Failed() bool {
+	return b.Status() == "failed"
+}
+
 func (b *BuildMonitor) Logs(ctx context.Context) <-chan string {
 	out := make(chan string, 0)
 

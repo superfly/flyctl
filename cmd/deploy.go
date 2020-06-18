@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/superfly/flyctl/cmdctx"
-	"github.com/superfly/flyctl/docker"
 	"os"
 	"strings"
 	"sync"
@@ -19,6 +17,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
+	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/docker"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/internal/builds"
 	"github.com/superfly/flyctl/internal/deployment"
@@ -226,6 +226,9 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 			}
 			if err := buildMonitor.Err(); err != nil {
 				return err
+			}
+			if buildMonitor.Failed() {
+				return errors.New("build failed")
 			}
 
 			build = buildMonitor.Build()
