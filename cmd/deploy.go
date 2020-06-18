@@ -197,33 +197,19 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 				return err
 			}
 
-			spinning := !commandContext.OutputJSON()
-
 			s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
-			if spinning {
-				s.Writer = os.Stderr
-				s.Prefix = "Building "
-				s.Start()
-			}
+			s.Writer = os.Stderr
+			s.Prefix = "Building "
+			s.Start()
 
 			buildMonitor := builds.NewBuildMonitor(build.ID, commandContext.Client.API())
 			for line := range buildMonitor.Logs(ctx) {
-				if spinning {
-					s.Stop()
-				}
-				//fmt.Println(line)
-				commandContext.Status("build", line)
-				if spinning {
-					s.Start()
-				}
+				fmt.Println(line)
 			}
 
-			if spinning {
-				s.FinalMSG = fmt.Sprintf("Build complete - %s\n", buildMonitor.Status())
-				s.Stop()
-			} else {
-				commandContext.Statusf("build", cmdctx.SDONE, "Build complete - %s\n", buildMonitor.Status())
-			}
+			s.FinalMSG = fmt.Sprintf("Build complete - %s\n", buildMonitor.Status())
+			s.Stop()
+
 			if err := buildMonitor.Err(); err != nil {
 				return err
 			}

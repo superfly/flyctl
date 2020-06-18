@@ -177,13 +177,13 @@ func statusToEffect(status string, message string) string {
 	case SDETAIL:
 		return aurora.Faint(message).String()
 	case STITLE:
-		return aurora.Bold("\n" + message).Black().String()
+		return aurora.Bold(message).Black().String()
 	case SBEGIN:
-		return aurora.Green("\n" + message).String()
+		return aurora.Green("==> " + message).String()
 	case SDONE:
-		return aurora.Gray(20, message).String()
+		return aurora.Gray(20, "--> "+message).String()
 	case SERROR:
-		return aurora.Red(message).String()
+		return aurora.Red("***" + message).String()
 	}
 
 	return message
