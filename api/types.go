@@ -51,7 +51,8 @@ type Query struct {
 	}
 
 	DeleteCertificate DeleteCertificatePayload
-	CheckCertificate  struct {
+
+	CheckCertificate struct {
 		App         *App
 		Certificate *AppCertificate
 	}
@@ -126,7 +127,7 @@ type App struct {
 	Certificates struct {
 		Nodes []AppCertificate
 	}
-	Certificate      AppCertificate `json:"omitempty"`
+	Certificate      AppCertificate
 	Services         []Service
 	Config           AppConfig
 	ParseConfig      AppConfig
