@@ -12,6 +12,10 @@ type Allocations struct {
 	Allocations []*api.AllocationStatus
 }
 
+func (p *Allocations) APIStruct() interface{} {
+	return p.Allocations
+}
+
 func (p *Allocations) FieldNames() []string {
 	return []string{"ID", "Version", "Region", "Desired", "Status", "Health Checks", "Restarts", "Created"}
 }
@@ -99,7 +103,7 @@ func FormatDeploymentSummary(d *api.DeploymentStatus) string {
 	return fmt.Sprintf("v%d %s - %s", d.Version, d.Status, d.Description)
 }
 
-func FormatDeploymemntAllocSummary(d *api.DeploymentStatus) string {
+func FormatDeploymentAllocSummary(d *api.DeploymentStatus) string {
 	allocCounts := fmt.Sprintf("%d desired, %d placed, %d healthy, %d unhealthy", d.DesiredCount, d.PlacedCount, d.HealthyCount, d.UnhealthyCount)
 
 	restarts := 0

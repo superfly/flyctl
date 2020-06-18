@@ -8,6 +8,10 @@ type Certificates struct {
 	Certificates []api.AppCertificate
 }
 
+func (p *Certificates) APIStruct() interface{} {
+	return p.Certificates
+}
+
 func (p *Certificates) FieldNames() []string {
 	return []string{"Hostname", "Created At", "Status"}
 }

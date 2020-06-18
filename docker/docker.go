@@ -119,7 +119,7 @@ func (c *DockerClient) PullImage(ctx context.Context, imageName string, out io.W
 	defer resp.Close()
 
 	termFd, isTerm := term.GetFdInfo(os.Stderr)
-	return jsonmessage.DisplayJSONMessagesStream(resp, out, termFd, isTerm, nil)
+	return jsonmessage.DisplayJSONMessagesStream(resp, os.Stderr, termFd, isTerm, nil)
 }
 
 func (c *DockerClient) TagImage(ctx context.Context, sourceRef, tag string) error {
@@ -171,7 +171,6 @@ func (c *DockerClient) BuildImage(ctx context.Context, tar io.Reader, tag string
 	if buildkitEnabled {
 		return c.doBuildKitBuild(ctx, tar, tag, buildArgs, out)
 	}
-
 	resp, err := c.docker.ImageBuild(ctx, tar, types.ImageBuildOptions{
 		Tags:      []string{tag},
 		BuildArgs: buildArgs,
@@ -184,7 +183,7 @@ func (c *DockerClient) BuildImage(ctx context.Context, tar io.Reader, tag string
 
 	termFd, isTerm := term.GetFdInfo(os.Stderr)
 
-	if err := jsonmessage.DisplayJSONMessagesStream(resp.Body, out, termFd, isTerm, nil); err != nil {
+	if err := jsonmessage.DisplayJSONMessagesStream(resp.Body, os.Stderr, termFd, isTerm, nil); err != nil {
 		return nil, err
 	}
 
@@ -301,7 +300,7 @@ func (c *DockerClient) PushImage(ctx context.Context, imageName string, out io.W
 	defer resp.Close()
 
 	termFd, isTerm := term.GetFdInfo(os.Stderr)
-	return jsonmessage.DisplayJSONMessagesStream(resp, out, termFd, isTerm, nil)
+	return jsonmessage.DisplayJSONMessagesStream(resp, os.Stderr, termFd, isTerm, nil)
 }
 
 func CheckManifest(ctx context.Context, imageRef string, token string) (*dockerparser.Reference, error) {

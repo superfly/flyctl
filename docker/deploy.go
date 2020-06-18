@@ -3,6 +3,7 @@ package docker
 import (
 	"errors"
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"io"
 	"os"
 	"strings"
@@ -10,11 +11,9 @@ import (
 
 	"github.com/briandowns/spinner"
 	"github.com/dustin/go-humanize"
-	"github.com/logrusorgru/aurora"
 	"github.com/mattn/go-isatty"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/net/context"
 )
 
@@ -29,20 +28,25 @@ type DeployOperation struct {
 	imageTag        string
 }
 
-func NewDeployOperation(ctx context.Context, appName string, appConfig *flyctl.AppConfig, apiClient *api.Client, out io.Writer, squash bool, remoteOnly bool, imageLabel string) (*DeployOperation, error) {
+func NewDeployOperation(ctx context.Context, cmdContext *cmdctx.CmdContext) (*DeployOperation, error) {
 	dockerClient, err := NewDockerClient()
 	if err != nil {
 		return nil, err
 	}
 
+	//squash:=cmdContext.Config.GetBool("squash")
+	remoteOnly := cmdContext.Config.GetBool("remote-only")
+
+	imageLabel, _ := cmdContext.Config.GetString("image-label")
+
 	op := &DeployOperation{
 		ctx:          ctx,
 		dockerClient: dockerClient,
-		apiClient:    apiClient,
-		out:          out,
-		appName:      appName,
-		appConfig:    appConfig,
-		imageTag:     newDeploymentTag(appName, imageLabel),
+		apiClient:    cmdContext.Client.API(),
+		out:          cmdContext.Out,
+		appName:      cmdContext.AppName,
+		appConfig:    cmdContext.AppConfig,
+		imageTag:     newDeploymentTag(cmdContext.AppName, imageLabel),
 	}
 
 	op.dockerAvailable = !remoteOnly && op.dockerClient.Check(ctx) == nil
@@ -88,7 +92,7 @@ func (op *DeployOperation) ValidateConfig() (*api.AppConfig, error) {
 		op.appConfig = flyctl.NewAppConfig()
 	}
 
-	printHeader("Validating app configuration")
+	//printHeader("Validating app configuration")
 
 	parsedConfig, err := op.apiClient.ParseConfig(op.appName, op.appConfig.Definition)
 	if err != nil {
@@ -101,13 +105,13 @@ func (op *DeployOperation) ValidateConfig() (*api.AppConfig, error) {
 
 	op.appConfig.Definition = parsedConfig.Definition
 
-	fmt.Println("-->", "done")
+	//fmt.Println("-->", "done")
 
 	return parsedConfig, nil
 }
 
-func (op *DeployOperation) ResolveImage(ctx context.Context, imageRef string) (*Image, error) {
-	printHeader("Resolving image")
+func (op *DeployOperation) ResolveImage(ctx context.Context, commandContext *cmdctx.CmdContext, imageRef string) (*Image, error) {
+	commandContext.Status("flyctl", "Resolving image")
 
 	if op.DockerAvailable() {
 		imgSummary, err := op.dockerClient.findImage(ctx, imageRef)
@@ -119,16 +123,16 @@ func (op *DeployOperation) ResolveImage(ctx context.Context, imageRef string) (*
 			goto ResolveWithoutDocker
 		}
 
-		fmt.Printf("Image ID: %+v\n", imgSummary.ID)
-		fmt.Println(aurora.Bold(fmt.Sprintf("Image size: %s", humanize.Bytes(uint64(imgSummary.Size)))))
+		commandContext.Statusf("flyctl", cmdctx.SINFO, "Image ID: %+v\n", imgSummary.ID)
+		commandContext.Statusf("flyctl", cmdctx.SINFO, "Image size: %s\n", humanize.Bytes(uint64(imgSummary.Size)))
 
-		fmt.Println("--> done")
+		commandContext.Status("flyctl", cmdctx.SDONE, "Image resolving done")
 
-		printHeader("Creating deployment tag")
+		commandContext.Status("flyctl", cmdctx.SBEGIN, "Creating deployment tag")
 		if err := op.dockerClient.TagImage(op.ctx, imgSummary.ID, op.imageTag); err != nil {
 			return nil, err
 		}
-		fmt.Println("-->", op.imageTag)
+		commandContext.Status("flyctl", cmdctx.SINFO, "-->", op.imageTag)
 
 		image := &Image{
 			ID:   imgSummary.ID,
@@ -136,7 +140,9 @@ func (op *DeployOperation) ResolveImage(ctx context.Context, imageRef string) (*
 			Tag:  op.imageTag,
 		}
 
-		if err := op.PushImage(*image); err != nil {
+		err = op.PushImage(*image)
+
+		if err != nil {
 			return nil, err
 		}
 
@@ -171,7 +177,6 @@ func (op *DeployOperation) resolveImageWithoutDocker(ctx context.Context, imageR
 }
 
 func (op *DeployOperation) pushImage(imageTag string) error {
-	printHeader("Pushing image")
 
 	if imageTag == "" {
 		return errors.New("invalid image reference")
@@ -180,15 +185,11 @@ func (op *DeployOperation) pushImage(imageTag string) error {
 	if err := op.dockerClient.PushImage(op.ctx, imageTag, op.out); err != nil {
 		return err
 	}
-	fmt.Println("-->", "done")
 
 	return nil
 }
 
 func (op *DeployOperation) optimizeImage(imageTag string) error {
-	printHeader("Optimizing image")
-	defer fmt.Println("-->", "done")
-
 	if isatty.IsTerminal(os.Stdout.Fd()) {
 		s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
 		s.Writer = os.Stderr
@@ -231,10 +232,6 @@ func (op *DeployOperation) deployImage(imageTag string, strategy DeploymentStrat
 		input.Definition = &x
 	}
 
-	printHeader("Creating Release")
-	if strategy != DefaultDeploymentStrategy {
-		fmt.Fprintln(op.out, "Deployment Strategy:", strategy)
-	}
 	release, err := op.apiClient.DeployImage(input)
 	if err != nil {
 		return nil, err
@@ -242,13 +239,7 @@ func (op *DeployOperation) deployImage(imageTag string, strategy DeploymentStrat
 	return release, err
 }
 
-func (op *DeployOperation) CleanDeploymentTags() {
+func (op *DeployOperation) CleanDeploymentTags() error {
 	err := op.dockerClient.DeleteDeploymentImages(op.ctx, op.imageTag)
-	if err != nil {
-		terminal.Debug("Error cleaning deployment tags", err)
-	}
-}
-
-func printHeader(message string) {
-	fmt.Println(aurora.Blue("==>"), message)
+	return err
 }

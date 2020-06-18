@@ -52,6 +52,9 @@ func init() {
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
 	viper.BindPFlag(flyctl.ConfigVerboseOutput, rootCmd.PersistentFlags().Lookup("verbose"))
 
+	rootCmd.PersistentFlags().BoolP("json", "j", false, "json output")
+	viper.BindPFlag(flyctl.ConfigJSONOutput, rootCmd.PersistentFlags().Lookup("json"))
+
 	rootCmd.AddCommand(
 		newAuthCommand(),
 		newAppStatusCommand(),

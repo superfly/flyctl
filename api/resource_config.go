@@ -18,7 +18,6 @@ func (client *Client) GetConfig(appName string) (*AppConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return &data.App.Config, nil
 }
 

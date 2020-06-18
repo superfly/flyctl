@@ -1,6 +1,7 @@
 package presenters
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -15,9 +16,9 @@ type LogPresenter struct {
 	HideAllocID    bool
 }
 
-func (lp *LogPresenter) FPrint(w io.Writer, entries []api.LogEntry) {
+func (lp *LogPresenter) FPrint(w io.Writer, asJSON bool, entries []api.LogEntry) {
 	for _, entry := range entries {
-		lp.printEntry(w, entry)
+		lp.printEntry(w, asJSON, entry)
 	}
 }
 
@@ -25,7 +26,13 @@ var newLineReplacer = strings.NewReplacer("\r\n", aurora.Faint("↩︎").String(
 var space = []byte(" ")
 var newline = []byte("\n")
 
-func (lp *LogPresenter) printEntry(w io.Writer, entry api.LogEntry) {
+func (lp *LogPresenter) printEntry(w io.Writer, asJSON bool, entry api.LogEntry) {
+	if asJSON {
+		outBuf, _ := json.MarshalIndent(entry, "", "    ")
+		fmt.Fprintln(w, string(outBuf))
+		return
+	}
+
 	fmt.Fprintf(w, "%s ", aurora.Faint(entry.Timestamp))
 
 	if !lp.HideAllocID {

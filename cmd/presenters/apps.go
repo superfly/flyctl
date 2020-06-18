@@ -9,6 +9,10 @@ type Apps struct {
 	Apps []api.App
 }
 
+func (p *Apps) APIStruct() interface{} {
+	return p.Apps
+}
+
 func (p *Apps) FieldNames() []string {
 	return []string{"Name", "Owner", "Status", "Latest Deploy"}
 }

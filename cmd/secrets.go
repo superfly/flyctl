@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"os"
 	"strings"
 
@@ -44,7 +45,7 @@ func newAppSecretsCommand() *Command {
 	return cmd
 }
 
-func runListSecrets(ctx *CmdContext) error {
+func runListSecrets(ctx *cmdctx.CmdContext) error {
 	secrets, err := ctx.Client.API().GetAppSecrets(ctx.AppName)
 	if err != nil {
 		return err
@@ -53,7 +54,7 @@ func runListSecrets(ctx *CmdContext) error {
 	return ctx.Render(&presenters.Secrets{Secrets: secrets})
 }
 
-func runSetSecrets(cc *CmdContext) error {
+func runSetSecrets(cc *cmdctx.CmdContext) error {
 	ctx := createCancellableContext()
 
 	secrets := make(map[string]string)
@@ -88,12 +89,12 @@ func runSetSecrets(cc *CmdContext) error {
 		return err
 	}
 
-	fmt.Println("Secrets set")
+	fmt.Printf("Secrets set in %s", release) // TODO
 
-	return renderRelease(ctx, cc, release)
+	return watchDeployment(ctx, cc)
 }
 
-func runSecretsUnset(cc *CmdContext) error {
+func runSecretsUnset(cc *cmdctx.CmdContext) error {
 	ctx := createCancellableContext()
 
 	if len(cc.Args) == 0 {
@@ -105,7 +106,7 @@ func runSecretsUnset(cc *CmdContext) error {
 		return err
 	}
 
-	fmt.Println("Secrets unset")
+	fmt.Printf("Secrets unset in %s", release) // TODO
 
-	return renderRelease(ctx, cc, release)
+	return watchDeployment(ctx, cc)
 }

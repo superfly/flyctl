@@ -11,6 +11,10 @@ type Certificate struct {
 	Certificate *api.AppCertificate
 }
 
+func (p *Certificate) APIStruct() interface{} {
+	return p.Certificate
+}
+
 func (p *Certificate) FieldNames() []string {
 	return []string{"Hostname", "Configured", "Issued", "Certificate Authority", "DNS Provider", "DNS Validation Instructions", "DNS Validation Hostname", "DNS Validation Target", "Source", "Created At", "Status"}
 }

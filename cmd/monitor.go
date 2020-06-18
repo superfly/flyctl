@@ -3,11 +3,10 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"os"
 	"sync"
 
-	"github.com/logrusorgru/aurora"
-	"github.com/segmentio/textio"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/docstrings"
@@ -19,52 +18,49 @@ func newMonitorCommand() *Command {
 	return BuildCommand(nil, runMonitor, ks.Usage, ks.Short, ks.Long, os.Stdout, requireSession, requireAppName)
 }
 
-func runMonitor(ctx *CmdContext) error {
+func runMonitor(commandContext *cmdctx.CmdContext) error {
 	//var oldds *api.DeploymentStatus
 
-	app, err := ctx.Client.API().GetApp(ctx.AppName)
+	app, err := commandContext.Client.API().GetApp(commandContext.AppName)
 
 	if err != nil {
 		return fmt.Errorf("Failed to get app from context")
 	}
 
-	fmt.Printf("Monitoring Deployments for %s\n", app.Name)
+	commandContext.Statusf("monitor", cmdctx.STITLE, "Monitoring Deployments for %s\n", app.Name)
 
 	for {
-		monitorDeployment(context.Background(), ctx)
+		monitorDeployment(context.Background(), commandContext)
 	}
 
 	return nil
 }
 
-func monitorDeployment(ctx context.Context, cc *CmdContext) error {
-
-	//interactive := isatty.IsTerminal(os.Stdout.Fd())
-
-	monitor := deployment.NewDeploymentMonitor(cc.Client.API(), cc.AppName)
+func monitorDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) error {
+	monitor := deployment.NewDeploymentMonitor(commandContext.Client.API(), commandContext.AppName)
 	monitor.DeploymentStarted = func(idx int, d *api.DeploymentStatus) error {
 		if idx > 0 {
-			fmt.Fprintln(cc.Out)
+			commandContext.StatusLn()
 		}
-		fmt.Fprintln(cc.Out, presenters.FormatDeploymentSummary(d))
+		commandContext.Status("monitor", cmdctx.SINFO, presenters.FormatDeploymentSummary(d))
 		return nil
 	}
 	monitor.DeploymentUpdated = func(d *api.DeploymentStatus, updatedAllocs []*api.AllocationStatus) error {
-		fmt.Fprintln(cc.Out, presenters.FormatDeploymemntAllocSummary(d))
+		commandContext.Status("monitor", cmdctx.SINFO, presenters.FormatDeploymentAllocSummary(d))
 
-		if cc.Verbose {
+		if commandContext.GlobalConfig.GetBool("verbose") {
 			for _, alloc := range updatedAllocs {
-				fmt.Fprintln(cc.Out, presenters.FormatAllocSummary(alloc))
+				commandContext.Status("monitor", cmdctx.SINFO, presenters.FormatAllocSummary(alloc))
 			}
 		}
 		return nil
 	}
 	monitor.DeploymentFailed = func(d *api.DeploymentStatus, failedAllocs []*api.AllocationStatus) error {
-		fmt.Fprintf(cc.Out, "v%d %s - %s\n", d.Version, d.Status, d.Description)
+		commandContext.Statusf("monitor", cmdctx.SINFO, "v%d %s - %s\n", d.Version, d.Status, d.Description)
 
 		if len(failedAllocs) > 0 {
-			fmt.Fprintln(cc.Out)
-			fmt.Fprintln(cc.Out, "Failed Allocations")
+			commandContext.StatusLn()
+			commandContext.Status("monitor", cmdctx.SERROR, "Failed Allocations")
 
 			x := make(chan *api.AllocationStatus)
 			var wg sync.WaitGroup
@@ -74,9 +70,9 @@ func monitorDeployment(ctx context.Context, cc *CmdContext) error {
 				a := a
 				go func() {
 					defer wg.Done()
-					alloc, err := cc.Client.API().GetAllocationStatus(cc.AppName, a.ID, 20)
+					alloc, err := commandContext.Client.API().GetAllocationStatus(commandContext.AppName, a.ID, 20)
 					if err != nil {
-						fmt.Println("Error fetching alloc", a.ID, err)
+						commandContext.Status("monitor", cmdctx.SERROR, "Error fetching alloc", a.ID, err)
 						return
 					}
 					x <- alloc
@@ -88,21 +84,19 @@ func monitorDeployment(ctx context.Context, cc *CmdContext) error {
 				close(x)
 			}()
 
-			p := textio.NewPrefixWriter(cc.Out, "    ")
-
 			count := 0
 			for alloc := range x {
 				count++
-				fmt.Fprintf(cc.Out, "\n  Failure #%d\n", count)
-				err := cc.RenderViewW(p,
-					PresenterOption{
+				commandContext.Statusf("monitor", cmdctx.SERROR, "\n  Failure #%d\n", count)
+				err := commandContext.FrenderPrefix("    ",
+					cmdctx.PresenterOption{
 						Title: "Allocation",
 						Presentable: &presenters.Allocations{
 							Allocations: []*api.AllocationStatus{alloc},
 						},
 						Vertical: true,
 					},
-					PresenterOption{
+					cmdctx.PresenterOption{
 						Title: "Recent Events",
 						Presentable: &presenters.AllocationEvents{
 							Events: alloc.Events,
@@ -113,24 +107,24 @@ func monitorDeployment(ctx context.Context, cc *CmdContext) error {
 					return err
 				}
 
-				fmt.Fprintln(p, aurora.Bold("Recent Logs"))
+				commandContext.Status("monitor", cmdctx.STITLE, "Recent Logs")
 				logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
-				logPresenter.FPrint(p, alloc.RecentLogs)
-				p.Flush()
+				logPresenter.FPrint(commandContext.Out, commandContext.OutputJSON(), alloc.RecentLogs)
+
 			}
 
 		}
 		return nil
 	}
 	monitor.DeploymentSucceeded = func(d *api.DeploymentStatus) error {
-		fmt.Fprintf(cc.Out, "v%d deployed successfully\n", d.Version)
+		fmt.Fprintf(commandContext.Out, "v%d deployed successfully\n", d.Version)
 		return nil
 	}
 
 	monitor.Start(ctx)
 
 	if err := monitor.Error(); err != nil {
-		fmt.Fprintf(cc.Out, "Monitor Error: %s", err)
+		fmt.Fprintf(commandContext.Out, "Monitor Error: %s", err)
 	}
 
 	if !monitor.Success() {

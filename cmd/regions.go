@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"os"
 
 	"github.com/superfly/flyctl/api"
@@ -39,7 +39,7 @@ func newRegionsCommand() *Command {
 	return cmd
 }
 
-func runRegionsAdd(ctx *CmdContext) error {
+func runRegionsAdd(ctx *cmdctx.CmdContext) error {
 	input := api.ConfigureRegionsInput{
 		AppID:        ctx.AppName,
 		AllowRegions: ctx.Args,
@@ -55,7 +55,7 @@ func runRegionsAdd(ctx *CmdContext) error {
 	return nil
 }
 
-func runRegionsRemove(ctx *CmdContext) error {
+func runRegionsRemove(ctx *cmdctx.CmdContext) error {
 	input := api.ConfigureRegionsInput{
 		AppID:       ctx.AppName,
 		DenyRegions: ctx.Args,
@@ -71,7 +71,7 @@ func runRegionsRemove(ctx *CmdContext) error {
 	return nil
 }
 
-func runRegionsSet(ctx *CmdContext) error {
+func runRegionsSet(ctx *cmdctx.CmdContext) error {
 	addList := make([]string, 0)
 	delList := make([]string, 0)
 
@@ -123,7 +123,7 @@ func runRegionsSet(ctx *CmdContext) error {
 	return nil
 }
 
-func runRegionsList(ctx *CmdContext) error {
+func runRegionsList(ctx *cmdctx.CmdContext) error {
 	regions, err := ctx.Client.API().ListAppRegions(ctx.AppName)
 	if err != nil {
 		return err
@@ -134,24 +134,27 @@ func runRegionsList(ctx *CmdContext) error {
 	return nil
 }
 
-func printRegions(ctx *CmdContext, regions []api.Region) {
+func printRegions(ctx *cmdctx.CmdContext, regions []api.Region) {
 
-	if ctx.Verbose {
-		fmt.Println("Current Region Pool:")
+	if ctx.OutputJSON() {
+		ctx.WriteJSON(regions)
+		return
+	}
+
+	verbose := ctx.GlobalConfig.GetBool("verbose")
+
+	if verbose {
+		ctx.Status("regions", cmdctx.STITLE, "Current Region Pool:")
 	} else {
-		fmt.Printf("Region Pool: ")
+		ctx.Status("regions", cmdctx.STITLE, "Region Pool: ")
 	}
 
 	for _, r := range regions {
-		if ctx.Verbose {
-			fmt.Printf("  %s  %s\n", r.Code, r.Name)
+		if verbose {
+			ctx.Statusf("regions", cmdctx.SINFO, "  %s  %s\n", r.Code, r.Name)
 		} else {
-			fmt.Printf("%s ", r.Code)
+			ctx.Status("regions", cmdctx.SINFO, r.Code)
 		}
-	}
-
-	if !ctx.Verbose {
-		fmt.Println()
 	}
 
 }

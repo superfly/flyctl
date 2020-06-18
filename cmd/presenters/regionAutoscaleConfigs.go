@@ -10,6 +10,10 @@ type AutoscalingRegionConfigs struct {
 	Regions []api.AutoscalingRegionConfig
 }
 
+func (p *AutoscalingRegionConfigs) APIStruct() interface{} {
+	return nil
+}
+
 func (p *AutoscalingRegionConfigs) FieldNames() []string {
 	return []string{"Region", "Min Count", "Weight"}
 }

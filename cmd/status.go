@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
+	"io"
 	"os"
 
 	"github.com/segmentio/textio"
@@ -26,28 +28,33 @@ func newAppStatusCommand() *Command {
 	return cmd
 }
 
-func runAppStatus(ctx *CmdContext) error {
+func runAppStatus(ctx *cmdctx.CmdContext) error {
 	app, err := ctx.Client.API().GetAppStatus(ctx.AppName, ctx.Config.GetBool("all"))
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(aurora.Bold("App"))
-	err = ctx.RenderEx(&presenters.AppInfo{App: *app}, presenters.Options{HideHeader: true, Vertical: true})
+	err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "App"})
 	if err != nil {
 		return err
 	}
 
+	// If JSON output, everything has been printed, so return
+	if ctx.OutputJSON() {
+		return nil
+	}
+
+	// Continue formatted output
 	if !app.Deployed {
 		fmt.Println(`App has not been deployed yet.`)
 		return nil
 	}
 
 	if app.DeploymentStatus != nil {
-		fmt.Println(aurora.Bold("Deployment Status"))
-		err = ctx.RenderView(PresenterOption{
+		err = ctx.Frender(cmdctx.PresenterOption{
 			Presentable: &presenters.DeploymentStatus{Status: app.DeploymentStatus},
 			Vertical:    true,
+			Title:       "Deployment Status",
 		})
 
 		if err != nil {
@@ -55,9 +62,9 @@ func runAppStatus(ctx *CmdContext) error {
 		}
 	}
 
-	fmt.Println(aurora.Bold("Allocations"))
-	err = ctx.RenderView(PresenterOption{
+	err = ctx.Frender(cmdctx.PresenterOption{
 		Presentable: &presenters.Allocations{Allocations: app.Allocations},
+		Title:       "Allocations",
 	})
 	if err != nil {
 		return err
@@ -66,7 +73,7 @@ func runAppStatus(ctx *CmdContext) error {
 	return nil
 }
 
-func runAllocStatus(ctx *CmdContext) error {
+func runAllocStatus(ctx *cmdctx.CmdContext) error {
 	alloc, err := ctx.Client.API().GetAllocationStatus(ctx.AppName, ctx.Args[0], 25)
 	if err != nil {
 		return err
@@ -76,21 +83,21 @@ func runAllocStatus(ctx *CmdContext) error {
 		return api.ErrNotFound
 	}
 
-	err = ctx.RenderView(
-		PresenterOption{
+	err = ctx.Frender(
+		cmdctx.PresenterOption{
 			Title: "Allocation",
 			Presentable: &presenters.Allocations{
 				Allocations: []*api.AllocationStatus{alloc},
 			},
 			Vertical: true,
 		},
-		PresenterOption{
+		cmdctx.PresenterOption{
 			Title: "Recent Events",
 			Presentable: &presenters.AllocationEvents{
 				Events: alloc.Events,
 			},
 		},
-		PresenterOption{
+		cmdctx.PresenterOption{
 			Title: "Checks",
 			Presentable: &presenters.AllocationChecks{
 				Checks: alloc.Checks,
@@ -101,11 +108,23 @@ func runAllocStatus(ctx *CmdContext) error {
 		return err
 	}
 
-	fmt.Println(aurora.Bold("Recent Logs"))
-	p := textio.NewPrefixWriter(ctx.Out, "  ")
+	var p io.Writer
+	var pw *textio.PrefixWriter
+
+	if !ctx.OutputJSON() {
+		fmt.Println(aurora.Bold("Recent Logs"))
+		pw = textio.NewPrefixWriter(ctx.Out, "  ")
+		p = pw
+	} else {
+		p = ctx.Out
+	}
+
 	logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
-	logPresenter.FPrint(p, alloc.RecentLogs)
-	p.Flush()
+	logPresenter.FPrint(p, ctx.OutputJSON(), alloc.RecentLogs)
+
+	if p != ctx.Out {
+		pw.Flush()
+	}
 
 	return nil
 }

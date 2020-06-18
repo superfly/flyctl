@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"os"
 
 	"github.com/superfly/flyctl/docstrings"
@@ -14,7 +15,7 @@ func newOpenCommand() *Command {
 	return BuildCommand(nil, runOpen, ks.Usage, ks.Short, ks.Long, os.Stdout, requireSession, requireAppName)
 }
 
-func runOpen(ctx *CmdContext) error {
+func runOpen(ctx *cmdctx.CmdContext) error {
 	app, err := ctx.Client.API().GetApp(ctx.AppName)
 	if err != nil {
 		return err

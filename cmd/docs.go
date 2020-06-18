@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"os"
 
 	"github.com/superfly/flyctl/docstrings"
@@ -16,7 +17,7 @@ func newDocsCommand() *Command {
 
 const docsURL = "https://fly.io/docs/"
 
-func runLaunchDocs(ctx *CmdContext) error {
+func runLaunchDocs(ctx *cmdctx.CmdContext) error {
 	fmt.Println("Opening", docsURL)
 	return open.Run(docsURL)
 }
