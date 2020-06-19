@@ -123,7 +123,7 @@ func (commandContext *CmdContext) FrenderPrefix(prefix string, views ...Presente
 	p := textio.NewPrefixWriter(commandContext.Out, "    ")
 
 	if commandContext.OutputJSON() {
-		for i, _ := range views {
+		for i := range views {
 			views[i].AsJSON = true
 		}
 	}
