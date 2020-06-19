@@ -97,6 +97,52 @@ func (client *Client) GetApp(appName string) (*App, error) {
 	return &data.App, nil
 }
 
+func (client *Client) GetCompactApp(appName string) (*CompactApp, error) {
+	query := `
+		query ($appName: String!) {
+			compactapp:app(name: $appName) {
+				id
+				name
+				hostname
+				deployed
+				status
+				version
+				appUrl
+				organization {
+					slug
+				}
+				services {
+					description
+					protocol
+					internalPort
+					ports {
+						port
+						handlers
+					}
+				}
+				ipAddresses {
+					nodes {
+						id
+						address
+						type
+						createdAt
+					}
+				}
+			}
+		}
+	`
+
+	req := client.NewRequest(query)
+	req.Var("appName", appName)
+
+	data, err := client.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.CompactApp, nil
+}
+
 func (client *Client) CreateApp(name string, orgId string) (*App, error) {
 	query := `
 		mutation($input: CreateAppInput!) {

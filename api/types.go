@@ -7,6 +7,7 @@ type Query struct {
 		Nodes []App
 	}
 	App           App
+	CompactApp    CompactApp
 	CurrentUser   User
 	Organizations struct {
 		Nodes []Organization
@@ -137,6 +138,22 @@ type App struct {
 	Autoscaling      *AutoscalingConfig
 	VMSize           VMSize
 	Regions          *[]Region
+}
+
+type CompactApp struct {
+	ID           string
+	Name         string
+	Status       string
+	Deployed     bool
+	Hostname     string
+	AppURL       string
+	Version      int
+	Release      *Release
+	Organization Organization
+	IPAddresses  struct {
+		Nodes []IPAddress
+	}
+	Services []Service
 }
 
 type AppConfig struct {

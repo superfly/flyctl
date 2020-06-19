@@ -1,8 +1,9 @@
 package cmd
 
 import (
-	"github.com/superfly/flyctl/cmdctx"
 	"os"
+
+	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/superfly/flyctl/docstrings"
 
@@ -15,12 +16,12 @@ func newAppInfoCommand() *Command {
 }
 
 func runAppInfo(ctx *cmdctx.CmdContext) error {
-	app, err := ctx.Client.API().GetApp(ctx.AppName)
+	app, err := ctx.Client.API().GetCompactApp(ctx.AppName)
 	if err != nil {
 		return err
 	}
 
-	err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "App"})
+	err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.CompactAppInfo{CompactApp: *app}, HideHeader: true, Vertical: true, Title: "App"})
 	if err != nil {
 		return err
 	}
