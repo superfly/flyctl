@@ -3,12 +3,13 @@ package docker
 import (
 	"errors"
 	"fmt"
-	"github.com/superfly/flyctl/cmdctx"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
 	"time"
+
+	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/briandowns/spinner"
 	"github.com/buildpacks/pack"
@@ -20,10 +21,16 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
+// ErrNoDockerfile - No dockerfile or builder specified error
 var ErrNoDockerfile = errors.New("Project does not contain a Dockerfile or specify a builder")
+
+// ErrDockerDaemon - Docker daemon needs to be running error
 var ErrDockerDaemon = errors.New("Docker daemon must be running to perform this action")
+
+// ErrNoBuildpackBuilder - Unable to find Buildpack builder
 var ErrNoBuildpackBuilder = errors.New("No buildpack builder")
 
+// ResolveDockerfile - Resolve the location of the dockerfile, allowing for upper and lowercase naming
 func ResolveDockerfile(cwd string) string {
 	dockerfilePath := path.Join(cwd, "Dockerfile")
 	if helpers.FileExists(dockerfilePath) {
@@ -36,13 +43,14 @@ func ResolveDockerfile(cwd string) string {
 	return ""
 }
 
+// Image - A type to hold information about a Docker image, including ID, Tag and Size
 type Image struct {
 	ID   string
 	Tag  string
 	Size int64
 }
 
-//func (op *DeployOperation) BuildWithDocker(appConfig *flyctl.AppConfig, cwd string, dockerfilePath string, buildArgs map[string]string) (*Image, error) {
+// BuildWithDocker - Run a Docker Build operation reporting back via the command context
 func (op *DeployOperation) BuildWithDocker(commandContext *cmdctx.CmdContext, dockerfilePath string, buildArgs map[string]string) (*Image, error) {
 	spinning := commandContext.OutputJSON()
 	cwd := commandContext.WorkingDir
@@ -131,6 +139,7 @@ func initPackClient() pack.Client {
 	return *client
 }
 
+// BuildWithPack - Perform a Docker build using a Buildpack (buildpack.io)
 func (op *DeployOperation) BuildWithPack(commandContext *cmdctx.CmdContext, buildArgs map[string]string) (*Image, error) {
 	cwd := commandContext.WorkingDir
 	appConfig := commandContext.AppConfig
@@ -186,14 +195,17 @@ func (op *DeployOperation) BuildWithPack(commandContext *cmdctx.CmdContext, buil
 	return image, nil
 }
 
+// PushImage - Push the Image (where?)
 func (op *DeployOperation) PushImage(image Image) error {
 	return op.pushImage(image.Tag)
 }
 
+// OptimizeImage - Optimize the Image for deployment
 func (op *DeployOperation) OptimizeImage(image Image) error {
 	return op.optimizeImage(image.Tag)
 }
 
+// StartRemoteBuild - Start a remote build and track its progress
 func (op *DeployOperation) StartRemoteBuild(cwd string, appConfig *flyctl.AppConfig, dockerfilePath string, buildArgs map[string]string) (*api.Build, error) {
 	buildContext, err := newBuildContext()
 	if err != nil {
