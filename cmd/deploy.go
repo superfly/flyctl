@@ -105,7 +105,7 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 
 	if imageRef, _ := commandContext.Config.GetString("image"); imageRef != "" {
 		// image specified, resolve it, tagging and pushing if docker+local
-		// fmt.Printf("Deploying image: %s\n", imageRef)
+
 		commandContext.Statusf("flyctl", cmdctx.SINFO, "Deploying image: %s\n", imageRef)
 
 		img, err := op.ResolveImage(ctx, commandContext, imageRef)
@@ -182,7 +182,6 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 			commandContext.Status("flyctl", cmdctx.SDONE, "Done Pushing Image")
 
 			if commandContext.Config.GetBool("build-only") {
-				//fmt.Printf("Image: %s\n", image.Tag)
 				commandContext.Statusf("flyctl", cmdctx.SINFO, "Image: %s\n", image.Tag)
 
 				return nil
@@ -204,7 +203,9 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 
 			buildMonitor := builds.NewBuildMonitor(build.ID, commandContext.Client.API())
 			for line := range buildMonitor.Logs(ctx) {
-				fmt.Println(line)
+				s.Stop()
+				commandContext.Status("remotebuild", cmdctx.SINFO, line)
+				s.Start()
 			}
 
 			s.FinalMSG = fmt.Sprintf("Build complete - %s\n", buildMonitor.Status())
