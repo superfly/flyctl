@@ -93,6 +93,16 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 		}
 	}
 
+	appcheck, err := commandContext.Client.API().GetApp(commandContext.AppName)
+
+	if err != nil {
+		return err
+	}
+
+	if appcheck.Status == "dead" {
+		return fmt.Errorf("app %s is currently paused - resume it with flyctl apps resume", commandContext.AppName)
+	}
+
 	var strategy = docker.DefaultDeploymentStrategy
 	if val, _ := commandContext.Config.GetString("strategy"); val != "" {
 		strategy, err = docker.ParseDeploymentStrategy(val)
@@ -105,7 +115,7 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 
 	if imageRef, _ := commandContext.Config.GetString("image"); imageRef != "" {
 		// image specified, resolve it, tagging and pushing if docker+local
-		// fmt.Printf("Deploying image: %s\n", imageRef)
+
 		commandContext.Statusf("flyctl", cmdctx.SINFO, "Deploying image: %s\n", imageRef)
 
 		img, err := op.ResolveImage(ctx, commandContext, imageRef)
@@ -182,7 +192,6 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 			commandContext.Status("flyctl", cmdctx.SDONE, "Done Pushing Image")
 
 			if commandContext.Config.GetBool("build-only") {
-				//fmt.Printf("Image: %s\n", image.Tag)
 				commandContext.Statusf("flyctl", cmdctx.SINFO, "Image: %s\n", image.Tag)
 
 				return nil
@@ -204,7 +213,9 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 
 			buildMonitor := builds.NewBuildMonitor(build.ID, commandContext.Client.API())
 			for line := range buildMonitor.Logs(ctx) {
-				fmt.Println(line)
+				s.Stop()
+				commandContext.Status("remotebuild", cmdctx.SINFO, line)
+				s.Start()
 			}
 
 			s.FinalMSG = fmt.Sprintf("Build complete - %s\n", buildMonitor.Status())
@@ -290,7 +301,6 @@ func watchDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) err
 		commandContext.Statusf("deploy", cmdctx.SDETAIL, "v%d %s - %s\n", d.Version, d.Status, d.Description)
 
 		if len(failedAllocs) > 0 {
-			fmt.Fprintln(commandContext.Out)
 			commandContext.Status("flyctl", cmdctx.STITLE, "Failed Allocations")
 
 			x := make(chan *api.AllocationStatus)

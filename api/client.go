@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 
@@ -14,9 +15,14 @@ import (
 )
 
 var baseURL string
+var errorLog bool
 
 func SetBaseURL(url string) {
 	baseURL = url
+}
+
+func SetErrorLog(log bool) {
+	errorLog = log
 }
 
 type Client struct {
@@ -58,6 +64,11 @@ func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Quer
 	if err != nil && strings.HasPrefix(err.Error(), "graphql: ") {
 		return resp, errors.New(strings.TrimPrefix(err.Error(), "graphql: "))
 	}
+
+	if resp.Errors != nil && errorLog {
+		fmt.Fprintf(os.Stderr, "Error: %+v\n", resp.Errors)
+	}
+
 	return resp, err
 }
 

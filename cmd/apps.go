@@ -2,11 +2,14 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/superfly/flyctl/cmdctx"
 	"os"
 	"strconv"
+	"time"
+
+	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/briandowns/spinner"
 	"github.com/logrusorgru/aurora"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -14,6 +17,8 @@ import (
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
 )
+
+//TODO: Move all output to status styled begin/done updates
 
 func newAppListCommand() *Command {
 
@@ -97,11 +102,35 @@ func runAppsList(ctx *cmdctx.CmdContext) error {
 }
 
 func runAppsPause(ctx *cmdctx.CmdContext) error {
-	app, err := ctx.Client.API().PauseApp(ctx.AppName)
+	_, err := ctx.Client.API().PauseApp(ctx.AppName)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%s is now %s\n", app.Name, app.Status)
+
+	appstatus, err := ctx.Client.API().GetAppStatus(ctx.AppName, false)
+
+	fmt.Printf("%s is now %s\n", appstatus.Name, appstatus.Status)
+
+	allocount := len(appstatus.Allocations)
+
+	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
+	s.Writer = os.Stderr
+	s.Prefix = fmt.Sprintf("Pausing %s with %d instances to stop ", appstatus.Name, allocount)
+	s.Start()
+
+	for allocount > 0 {
+		plural := ""
+		if allocount > 1 {
+			plural = "s"
+		}
+		s.Prefix = fmt.Sprintf("Pausing %s with %d instance%s to stop ", appstatus.Name, allocount, plural)
+		appstatus, err = ctx.Client.API().GetAppStatus(ctx.AppName, false)
+		allocount = len(appstatus.Allocations)
+	}
+
+	s.FinalMSG = fmt.Sprintf("Pause complete - %s is now paused with no running instances\n", appstatus.Name)
+	s.Stop()
+
 	return nil
 }
 
@@ -111,7 +140,10 @@ func runAppsResume(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
+	app, err = ctx.Client.API().GetApp(ctx.AppName)
+
 	fmt.Printf("%s is now %s\n", app.Name, app.Status)
+
 	return nil
 }
 

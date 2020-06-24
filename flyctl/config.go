@@ -5,11 +5,12 @@ import (
 )
 
 const (
-	ConfigAPIToken      = "access_token"
-	ConfigAPIBaseURL    = "api_base_url"
-	ConfigAppName       = "app"
-	ConfigVerboseOutput = "verbose"
-	ConfigJSONOutput    = "json"
+	ConfigAPIToken        = "access_token"
+	ConfigAPIBaseURL      = "api_base_url"
+	ConfigAppName         = "app"
+	ConfigVerboseOutput   = "verbose"
+	ConfigJSONOutput      = "json"
+	ConfigGQLErrorLogging = "gqlerrorlogging"
 
 	ConfigRegistryHost             = "registry_host"
 	ConfigUpdateCheckLatestVersion = "update_check.latest_version"

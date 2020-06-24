@@ -65,11 +65,13 @@ func initViper() {
 	viper.BindEnv(ConfigAPIToken, "FLY_ACCESS_TOKEN")
 	viper.BindEnv(ConfigAPIToken, "FLY_API_TOKEN")
 	viper.BindEnv(ConfigVerboseOutput, "VERBOSE")
+	viper.BindEnv(ConfigGQLErrorLogging, "GQLErrorLogging")
 
 	viper.SetEnvPrefix("FLY")
 	viper.AutomaticEnv()
 
 	api.SetBaseURL(viper.GetString(ConfigAPIBaseURL))
+	api.SetErrorLog(viper.GetBool(ConfigGQLErrorLogging))
 }
 
 func loadConfig() error {

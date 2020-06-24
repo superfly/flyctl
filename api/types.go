@@ -1,12 +1,19 @@
 package api
 
-import "time"
+import (
+	"time"
+)
 
+// Query - Master query which encapsulates all possible returned structures
 type Query struct {
+	Errors Errors
+
 	Apps struct {
 		Nodes []App
 	}
 	App           App
+	AppCompact    AppCompact
+	AppStatus     AppStatus
 	CurrentUser   User
 	Organizations struct {
 		Nodes []Organization
@@ -137,6 +144,35 @@ type App struct {
 	Autoscaling      *AutoscalingConfig
 	VMSize           VMSize
 	Regions          *[]Region
+}
+
+type AppCompact struct {
+	ID           string
+	Name         string
+	Status       string
+	Deployed     bool
+	Hostname     string
+	AppURL       string
+	Version      int
+	Release      *Release
+	Organization Organization
+	IPAddresses  struct {
+		Nodes []IPAddress
+	}
+	Services []Service
+}
+
+type AppStatus struct {
+	ID               string
+	Name             string
+	Deployed         bool
+	Status           string
+	Hostname         string
+	Version          int
+	AppURL           string
+	Organization     Organization
+	DeploymentStatus *DeploymentStatus
+	Allocations      []*AllocationStatus
 }
 
 type AppConfig struct {
@@ -463,4 +499,19 @@ type ConfigureRegionsInput struct {
 	AppID        string   `json:"appId"`
 	AllowRegions []string `json:"allowRegions"`
 	DenyRegions  []string `json:"denyRegions"`
+}
+
+type Errors []Error
+
+type Error struct {
+	Message    string
+	Path       []string
+	Extensions Extensions
+}
+
+type Extensions struct {
+	Code        string
+	ServiceName string
+	Query       string
+	Variables   map[string]string
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"runtime/debug"
 	"time"
 
@@ -34,6 +35,8 @@ func main() {
 				fmt.Println(err)
 				fmt.Println(string(debug.Stack()))
 			}
+
+			os.Exit(1)
 		}
 	}()
 

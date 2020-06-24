@@ -55,6 +55,10 @@ func init() {
 	rootCmd.PersistentFlags().BoolP("json", "j", false, "json output")
 	viper.BindPFlag(flyctl.ConfigJSONOutput, rootCmd.PersistentFlags().Lookup("json"))
 
+	rootCmd.PersistentFlags().Bool("gqlerrorlogging", false, "Log GraphQL errors directly to stdout")
+
+	rootCmd.Flags().MarkHidden("gqlerrorlogging")
+
 	rootCmd.AddCommand(
 		newAuthCommand(),
 		newAppStatusCommand(),

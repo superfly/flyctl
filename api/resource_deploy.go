@@ -80,7 +80,7 @@ func (c *Client) GetDeploymentStatus(appName string, deploymentID string) (*Depl
 						desiredStatus
 						version
 						healthy
-            failed
+            			failed
 						canary
 						restarts
 						checks {
