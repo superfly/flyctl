@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/briandowns/spinner"
 	"github.com/logrusorgru/aurora"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -112,14 +113,24 @@ func runAppsPause(ctx *cmdctx.CmdContext) error {
 
 	allocount := len(appstatus.Allocations)
 
+	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
+	s.Writer = os.Stderr
+	s.Prefix = fmt.Sprintf("Pausing %s with %d instances to stop ", appstatus.Name, allocount)
+	s.Start()
+
 	for allocount > 0 {
-		fmt.Printf("Pausing %s with %d instance(s)\n", appstatus.Name, allocount)
-		time.Sleep(5 * time.Second)
+		plural := ""
+		if allocount > 1 {
+			plural = "s"
+		}
+		s.Prefix = fmt.Sprintf("Pausing %s with %d instance%s to stop ", appstatus.Name, allocount, plural)
 		appstatus, err = ctx.Client.API().GetAppStatus(ctx.AppName, false)
 		allocount = len(appstatus.Allocations)
 	}
 
-	fmt.Printf("%s is now %s with no instances running\n", appstatus.Name, appstatus.Status)
+	s.FinalMSG = fmt.Sprintf("Pause complete - %s is now paused with no running instances\n", appstatus.Name)
+	s.Stop()
+
 	return nil
 }
 
