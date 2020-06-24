@@ -2,9 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/superfly/flyctl/cmdctx"
 	"io"
 	"os"
+
+	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/segmentio/textio"
 	"github.com/spf13/cobra"
@@ -34,7 +35,7 @@ func runAppStatus(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "App"})
+	err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppStatus{AppStatus: *app}, HideHeader: true, Vertical: true, Title: "App"})
 	if err != nil {
 		return err
 	}

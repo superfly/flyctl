@@ -6,30 +6,30 @@ import (
 	"github.com/superfly/flyctl/api"
 )
 
-type CompactAppInfo struct {
-	CompactApp api.CompactApp
+type AppCompact struct {
+	AppCompact api.AppCompact
 }
 
-func (p *CompactAppInfo) APIStruct() interface{} {
-	return p.CompactApp
+func (p *AppCompact) APIStruct() interface{} {
+	return p.AppCompact
 }
 
-func (p *CompactAppInfo) FieldNames() []string {
+func (p *AppCompact) FieldNames() []string {
 	return []string{"Name", "Owner", "Version", "Status", "Hostname"}
 }
 
-func (p *CompactAppInfo) Records() []map[string]string {
+func (p *AppCompact) Records() []map[string]string {
 	out := []map[string]string{}
 
 	info := map[string]string{
-		"Name":    p.CompactApp.Name,
-		"Owner":   p.CompactApp.Organization.Slug,
-		"Version": strconv.Itoa(p.CompactApp.Version),
-		"Status":  p.CompactApp.Status,
+		"Name":    p.AppCompact.Name,
+		"Owner":   p.AppCompact.Organization.Slug,
+		"Version": strconv.Itoa(p.AppCompact.Version),
+		"Status":  p.AppCompact.Status,
 	}
 
-	if len(p.CompactApp.Hostname) > 0 {
-		info["Hostname"] = p.CompactApp.Hostname
+	if len(p.AppCompact.Hostname) > 0 {
+		info["Hostname"] = p.AppCompact.Hostname
 	} else {
 		info["Hostname"] = "<empty>"
 	}

@@ -97,10 +97,10 @@ func (client *Client) GetApp(appName string) (*App, error) {
 	return &data.App, nil
 }
 
-func (client *Client) GetCompactApp(appName string) (*CompactApp, error) {
+func (client *Client) GetAppCompact(appName string) (*AppCompact, error) {
 	query := `
 		query ($appName: String!) {
-			compactapp:app(name: $appName) {
+			appcompact:app(name: $appName) {
 				id
 				name
 				hostname
@@ -140,7 +140,7 @@ func (client *Client) GetCompactApp(appName string) (*CompactApp, error) {
 		return nil, err
 	}
 
-	return &data.CompactApp, nil
+	return &data.AppCompact, nil
 }
 
 func (client *Client) CreateApp(name string, orgId string) (*App, error) {

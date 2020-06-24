@@ -16,12 +16,12 @@ func newAppInfoCommand() *Command {
 }
 
 func runAppInfo(ctx *cmdctx.CmdContext) error {
-	app, err := ctx.Client.API().GetCompactApp(ctx.AppName)
+	app, err := ctx.Client.API().GetAppCompact(ctx.AppName)
 	if err != nil {
 		return err
 	}
 
-	err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.CompactAppInfo{CompactApp: *app}, HideHeader: true, Vertical: true, Title: "App"})
+	err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppCompact{AppCompact: *app}, HideHeader: true, Vertical: true, Title: "App"})
 	if err != nil {
 		return err
 	}

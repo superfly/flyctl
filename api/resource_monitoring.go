@@ -1,9 +1,9 @@
 package api
 
-func (c *Client) GetAppStatus(appName string, showCompleted bool) (*App, error) {
+func (c *Client) GetAppStatus(appName string, showCompleted bool) (*AppStatus, error) {
 	query := `
 		query($appName: String!, $showCompleted: Boolean!) {
-			app(name: $appName) {
+			appstatus:app(name: $appName) {
 				id
 				name
 				deployed
@@ -57,7 +57,7 @@ func (c *Client) GetAppStatus(appName string, showCompleted bool) (*App, error) 
 		return nil, err
 	}
 
-	return &data.App, nil
+	return &data.AppStatus, nil
 }
 
 func (c *Client) GetAllocationStatus(appName string, allocID string, logLimit int) (*AllocationStatus, error) {
