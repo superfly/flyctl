@@ -93,6 +93,16 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 		}
 	}
 
+	appcheck, err := commandContext.Client.API().GetApp(commandContext.AppName)
+
+	if err != nil {
+		return err
+	}
+
+	if appcheck.Status == "dead" {
+		return fmt.Errorf("app %s is currently paused - resume it with flyctl apps resume", commandContext.AppName)
+	}
+
 	var strategy = docker.DefaultDeploymentStrategy
 	if val, _ := commandContext.Config.GetString("strategy"); val != "" {
 		strategy, err = docker.ParseDeploymentStrategy(val)
@@ -291,7 +301,6 @@ func watchDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) err
 		commandContext.Statusf("deploy", cmdctx.SDETAIL, "v%d %s - %s\n", d.Version, d.Status, d.Description)
 
 		if len(failedAllocs) > 0 {
-			fmt.Fprintln(commandContext.Out)
 			commandContext.Status("flyctl", cmdctx.STITLE, "Failed Allocations")
 
 			x := make(chan *api.AllocationStatus)
