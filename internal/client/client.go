@@ -8,7 +8,7 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 )
 
-var ErrNoAuthToken = errors.New("No api access token available. Please login")
+var ErrNoAuthToken = errors.New("No access token available. Please login with 'flyctl auth login'")
 
 func NewClient() *Client {
 	client := &Client{}
