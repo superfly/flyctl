@@ -99,7 +99,7 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 		return err
 	}
 
-	if appcheck.Status == "dead" {
+	if appcheck.Status == "dead" && appcheck.Version != 0 {
 		return fmt.Errorf("app %s is currently paused - resume it with flyctl apps resume", commandContext.AppName)
 	}
 
