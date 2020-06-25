@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/helpers"
 )
 
 //TODO: Move all output to status styled begin/done updates
@@ -200,6 +201,16 @@ func runAppsCreate(commandContext *cmdctx.CmdContext) error {
 		internalPort, err = strconv.Atoi(configPort)
 		if err != nil {
 			return fmt.Errorf(`-p ports must be numeric`)
+		}
+	}
+
+	configfilename, err := flyctl.ResolveConfigFileFromPath(commandContext.WorkingDir)
+
+	if helpers.FileExists(configfilename) {
+		commandContext.Status("create", cmdctx.SERROR, "An existing configuration file has been found.")
+		confirmation := confirm(fmt.Sprintf("Overwrite file '%s'", configfilename))
+		if !confirmation {
+			return nil
 		}
 	}
 
