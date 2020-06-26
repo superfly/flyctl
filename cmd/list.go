@@ -2,9 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/superfly/flyctl/cmdctx"
 	"os"
 	"strings"
+
+	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/docstrings"
@@ -23,7 +24,7 @@ func newListCommand() *Command {
 	}
 
 	laks := docstrings.Get("list.apps")
-	listAppsCmd := BuildCommand(listCmd, runListApps, laks.Usage, laks.Short, laks.Long, os.Stdout)
+	listAppsCmd := BuildCommand(listCmd, runListApps, laks.Usage, laks.Short, laks.Long, os.Stdout, requireSession)
 
 	listAppsCmd.AddStringFlag(StringFlagOpts{
 		Name:        "org",
@@ -38,7 +39,7 @@ func newListCommand() *Command {
 	})
 
 	loks := docstrings.Get("list.orgs")
-	BuildCommand(listCmd, runListOrgs, loks.Usage, loks.Short, loks.Long, os.Stdout)
+	BuildCommand(listCmd, runListOrgs, loks.Usage, loks.Short, loks.Long, os.Stdout, requireSession)
 
 	return listCmd
 }

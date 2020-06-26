@@ -3,13 +3,14 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"github.com/superfly/flyctl/cmdctx"
 	"io"
 	"os"
 	"os/signal"
 	"path"
 	"path/filepath"
 	"syscall"
+
+	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -207,9 +208,6 @@ func requireSession(cmd *Command) Initializer {
 			if !ctx.Client.Authenticated() {
 				return client.ErrNoAuthToken
 			}
-
-			// TODO: prompt to begin auth
-
 			return nil
 		},
 	}
