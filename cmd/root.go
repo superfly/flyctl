@@ -57,7 +57,7 @@ func init() {
 
 	rootCmd.PersistentFlags().Bool("gqlerrorlogging", false, "Log GraphQL errors directly to stdout")
 
-	rootCmd.Flags().MarkHidden("gqlerrorlogging")
+	rootCmd.PersistentFlags().MarkHidden("gqlerrorlogging")
 
 	rootCmd.AddCommand(
 		newAuthCommand(),
