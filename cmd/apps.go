@@ -81,13 +81,16 @@ func newAppListCommand() *Command {
 	})
 
 	appsPauseStrings := docstrings.Get("apps.pause")
-	BuildCommand(cmd, runAppsPause, appsPauseStrings.Usage, appsPauseStrings.Short, appsPauseStrings.Long, os.Stdout, requireSession, requireAppName)
+	appsPauseCmd := BuildCommand(cmd, runAppsPause, appsPauseStrings.Usage, appsPauseStrings.Short, appsPauseStrings.Long, os.Stdout, requireSession, requireAppNameAsArg)
+	appsPauseCmd.Args = cobra.RangeArgs(0, 1)
 
 	appsResumeStrings := docstrings.Get("apps.resume")
-	BuildCommand(cmd, runAppsResume, appsResumeStrings.Usage, appsResumeStrings.Short, appsResumeStrings.Long, os.Stdout, requireSession, requireAppName)
+	appsResumeCmd := BuildCommand(cmd, runAppsResume, appsResumeStrings.Usage, appsResumeStrings.Short, appsResumeStrings.Long, os.Stdout, requireSession, requireAppNameAsArg)
+	appsResumeCmd.Args = cobra.RangeArgs(0, 1)
 
 	appsRestartStrings := docstrings.Get("apps.restart")
-	BuildCommand(cmd, runAppsRestart, appsRestartStrings.Usage, appsRestartStrings.Short, appsRestartStrings.Long, os.Stdout, requireSession, requireAppName)
+	appsRestartCmd := BuildCommand(cmd, runAppsRestart, appsRestartStrings.Usage, appsRestartStrings.Short, appsRestartStrings.Long, os.Stdout, requireSession, requireAppNameAsArg)
+	appsRestartCmd.Args = cobra.RangeArgs(0, 1)
 
 	return cmd
 }
@@ -102,12 +105,19 @@ func runAppsList(ctx *cmdctx.CmdContext) error {
 }
 
 func runAppsPause(ctx *cmdctx.CmdContext) error {
-	_, err := ctx.Client.API().PauseApp(ctx.AppName)
+	// appName := ctx.Args[0]
+	// fmt.Println(appName, len(ctx.Args))
+	// if appName == "" {
+	// 	appName = ctx.AppName
+	// }
+	appName := ctx.AppName
+
+	_, err := ctx.Client.API().PauseApp(appName)
 	if err != nil {
 		return err
 	}
 
-	appstatus, err := ctx.Client.API().GetAppStatus(ctx.AppName, false)
+	appstatus, err := ctx.Client.API().GetAppStatus(appName, false)
 
 	fmt.Printf("%s is now %s\n", appstatus.Name, appstatus.Status)
 
