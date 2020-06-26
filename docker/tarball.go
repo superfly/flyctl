@@ -1,8 +1,10 @@
 package docker
 
 import (
+	"io"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	"github.com/docker/docker/pkg/archive"
 )
@@ -34,6 +36,14 @@ func (b *buildContext) AddSource(path string, excludes []string) error {
 	}
 
 	return archive.Unpack(reader, b.workingDir, &archive.TarOptions{})
+}
+
+func (b *buildContext) AddFile(path string, r io.Reader) error {
+	data, err := ioutil.ReadAll(r)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(filepath.Join(b.workingDir, path), data, 0600)
 }
 
 func (b *buildContext) Archive() (*archive.TempArchive, error) {

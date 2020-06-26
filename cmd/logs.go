@@ -1,20 +1,21 @@
 package cmd
 
 import (
-	"fmt"
-	"github.com/superfly/flyctl/docstrings"
+	"github.com/superfly/flyctl/cmd/presenters"
+	"github.com/superfly/flyctl/cmdctx"
 	"math"
 	"os"
 	"time"
 
-	"github.com/logrusorgru/aurora"
+	"github.com/superfly/flyctl/docstrings"
+
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/terminal"
 )
 
 func newAppLogsCommand() *Command {
 	logsStrings := docstrings.Get("logs")
-	cmd := BuildCommand(nil, runLogs, logsStrings.Usage, logsStrings.Short, logsStrings.Long, true, os.Stdout, requireAppName)
+	cmd := BuildCommand(nil, runLogs, logsStrings.Usage, logsStrings.Short, logsStrings.Long, os.Stdout, requireSession, requireAppName)
 
 	// TODO: Move flag descriptions into the docStrings
 	cmd.AddStringFlag(StringFlagOpts{
@@ -31,7 +32,7 @@ func newAppLogsCommand() *Command {
 	return cmd
 }
 
-func runLogs(ctx *CmdContext) error {
+func runLogs(ctx *cmdctx.CmdContext) error {
 	errorCount := 0
 	emptyCount := 0
 	instanceFilter, _ := ctx.Config.GetString("instance")
@@ -39,8 +40,10 @@ func runLogs(ctx *CmdContext) error {
 
 	nextToken := ""
 
+	logPresenter := presenters.LogPresenter{}
+
 	for {
-		entries, token, err := ctx.FlyClient.GetAppLogs(ctx.AppName, nextToken, regionFilter, instanceFilter)
+		entries, token, err := ctx.Client.API().GetAppLogs(ctx.AppName, nextToken, regionFilter, instanceFilter)
 
 		if err != nil {
 			if api.IsNotAuthenticatedError(err) {
@@ -63,7 +66,7 @@ func runLogs(ctx *CmdContext) error {
 		} else {
 			emptyCount = 0
 
-			printLogEntries(entries)
+			logPresenter.FPrint(ctx.Out, ctx.OutputJSON(), entries)
 
 			if token != "" {
 				nextToken = token
@@ -71,7 +74,7 @@ func runLogs(ctx *CmdContext) error {
 		}
 	}
 
-	return nil
+	// This should not be reached
 }
 
 var maxBackoff float64 = 5000
@@ -83,29 +86,4 @@ func sleep(backoffCount int) {
 	}
 	terminal.Debug("backoff ms:", sleepTime)
 	time.Sleep(time.Duration(sleepTime) * time.Millisecond)
-}
-
-func printLogEntries(entries []api.LogEntry) {
-	for _, entry := range entries {
-		fmt.Printf(
-			"%s %s %s [%s] %s\n",
-			aurora.Faint(entry.Timestamp),
-			entry.Meta.Instance,
-			aurora.Green(entry.Meta.Region),
-			aurora.Colorize(entry.Level, levelColor(entry.Level)),
-			entry.Message,
-		)
-	}
-}
-
-func levelColor(level string) aurora.Color {
-	switch level {
-	case "debug":
-		return aurora.CyanFg
-	case "info":
-		return aurora.BlueFg
-	case "warning":
-		return aurora.MagentaFg
-	}
-	return aurora.RedFg
 }

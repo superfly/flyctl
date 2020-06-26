@@ -1,39 +1,48 @@
 package docker
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/containerd/console"
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/docker/docker/pkg/term"
+	"github.com/moby/buildkit/util/progress/progressui"
 	dockerparser "github.com/novln/docker-parser"
+	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/net/context"
+
+	controlapi "github.com/moby/buildkit/api/services/control"
+	buildkitClient "github.com/moby/buildkit/client"
 )
 
-func newDeploymentTag(appName string) string {
-	t := time.Now()
+func newDeploymentTag(appName string, label string) string {
+	if tag := os.Getenv("FLY_IMAGE_REF"); tag != "" {
+		return tag
+	}
 
-	return fmt.Sprintf("%s%d", deploymentTagPrefix(appName), t.Unix())
-}
+	if label == "" {
+		label = fmt.Sprintf("deployment-%d", time.Now().Unix())
+	}
 
-func deploymentTagPrefix(appName string) string {
 	registry := viper.GetString(flyctl.ConfigRegistryHost)
-	return fmt.Sprintf("%s/%s:deployment-", registry, appName)
+
+	return fmt.Sprintf("%s/%s:%s", registry, appName, label)
 }
 
 type DockerClient struct {
@@ -41,8 +50,12 @@ type DockerClient struct {
 	registryAuth string
 }
 
+func (c *DockerClient) Client() *client.Client {
+	return c.docker
+}
+
 func NewDockerClient() (*DockerClient, error) {
-	cli, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation(), client.WithVersion("1.40"))
+	cli, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, err
 	}
@@ -52,12 +65,7 @@ func NewDockerClient() (*DockerClient, error) {
 	}
 
 	accessToken := viper.GetString(flyctl.ConfigAPIToken)
-
-	authConfig := types.AuthConfig{
-		Username:      accessToken,
-		Password:      "x",
-		ServerAddress: "registry.fly.io",
-	}
+	authConfig := RegistryAuth(accessToken)
 	encodedJSON, err := json.Marshal(authConfig)
 	if err != nil {
 		return nil, err
@@ -118,11 +126,9 @@ func (c *DockerClient) TagImage(ctx context.Context, sourceRef, tag string) erro
 	return c.docker.ImageTag(ctx, sourceRef, tag)
 }
 
-func (c *DockerClient) DeleteDeploymentImages(ctx context.Context, appName string) error {
-	tagPrefix := deploymentTagPrefix(appName)
-
+func (c *DockerClient) DeleteDeploymentImages(ctx context.Context, tag string) error {
 	filters := filters.NewArgs()
-	filters.Add("reference", tagPrefix+"*")
+	filters.Add("reference", tag)
 
 	images, err := c.docker.ImageList(ctx, types.ImageListOptions{Filters: filters})
 	if err != nil {
@@ -141,13 +147,35 @@ func (c *DockerClient) DeleteDeploymentImages(ctx context.Context, appName strin
 	return nil
 }
 
-func (c *DockerClient) BuildImage(ctx context.Context, tar io.Reader, tag string, buildArgs map[string]*string, out io.Writer, squash bool) (*types.ImageSummary, error) {
+func (c *DockerClient) buildkitEnabled() (buildkitEnabled bool, err error) {
+	ping, err := c.docker.Ping(context.Background())
+	if err != nil {
+		return false, err
+	}
+
+	buildkitEnabled = ping.BuilderVersion == types.BuilderBuildKit
+	if buildkitEnv := os.Getenv("DOCKER_BUILDKIT"); buildkitEnv != "" {
+		buildkitEnabled, err = strconv.ParseBool(buildkitEnv)
+		if err != nil {
+			return false, errors.Wrap(err, "DOCKER_BUILDKIT environment variable expects boolean value")
+		}
+	}
+	return buildkitEnabled, nil
+}
+
+func (c *DockerClient) BuildImage(ctx context.Context, tar io.Reader, tag string, buildArgs map[string]*string, out io.Writer) (*types.ImageSummary, error) {
+	buildkitEnabled, err := c.buildkitEnabled()
+	if err != nil {
+		return nil, err
+	}
+	if buildkitEnabled {
+		return c.doBuildKitBuild(ctx, tar, tag, buildArgs, out)
+	}
 	resp, err := c.docker.ImageBuild(ctx, tar, types.ImageBuildOptions{
 		Tags:      []string{tag},
 		BuildArgs: buildArgs,
 		// NoCache:   true,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -159,92 +187,53 @@ func (c *DockerClient) BuildImage(ctx context.Context, tar io.Reader, tag string
 		return nil, err
 	}
 
-	img, err := c.findImage(ctx, tag)
+	return c.findImage(ctx, tag)
+}
+
+func (c *DockerClient) doBuildKitBuild(ctx context.Context, tar io.Reader, tag string, buildArgs map[string]*string, out io.Writer) (*types.ImageSummary, error) {
+	opts := types.ImageBuildOptions{
+		Tags:      []string{tag},
+		BuildArgs: buildArgs,
+		// NoCache:   true,
+		Version: types.BuilderBuildKit,
+	}
+
+	resp, err := c.docker.ImageBuild(ctx, tar, opts)
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
-	if !squash {
-		return img, err
-	}
+	termFd, isTerm := term.GetFdInfo(os.Stderr)
 
-	printHeader("Squashing image")
-
-	fmt.Println("Creating temporary container")
-
-	cont, err := c.docker.ContainerCreate(ctx, &container.Config{
-		Image: img.ID,
-	}, nil, nil, "")
-	if err != nil {
-		return nil, err
-	}
-
-	defer func(id string) {
-		err := c.docker.ContainerRemove(ctx, id, types.ContainerRemoveOptions{})
-		if err != nil {
-			fmt.Printf("Failed to clean temporary docker container %s\n", id)
+	tracer := newTracer()
+	var c2 console.Console
+	if isTerm {
+		if cons, err := console.ConsoleFromFile(os.Stdout); err == nil {
+			c2 = cons
 		}
-	}(cont.ID)
+	}
 
-	fmt.Println("Exporting rootfs")
-	r, err := c.docker.ContainerExport(ctx, cont.ID)
-	if err != nil {
+	go func() {
+		err := progressui.DisplaySolveStatus(context.TODO(), "", c2, out, tracer.displayCh)
+		if err != nil {
+
+			panic(err)
+		}
+	}()
+
+	auxCallback := func(m jsonmessage.JSONMessage) {
+		tracer.write(m)
+	}
+
+	buf := bytes.NewBuffer(nil)
+
+	if err := jsonmessage.DisplayJSONMessagesStream(resp.Body, buf, termFd, isTerm, auxCallback); err != nil {
 		return nil, err
 	}
-	defer r.Close()
+	close(tracer.displayCh)
 
-	fmt.Println("Importing image config")
-
-	contJSON, err := c.docker.ContainerInspect(ctx, cont.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	entrypoint := []string{}
-	for _, e := range contJSON.Config.Entrypoint {
-		entrypoint = append(entrypoint, fmt.Sprintf("%q", e))
-	}
-
-	cmd := []string{}
-	for _, c := range contJSON.Config.Cmd {
-		cmd = append(cmd, fmt.Sprintf("%q", c))
-	}
-
-	importOpts := types.ImageImportOptions{}
-
-	if len(entrypoint) > 0 {
-		fmt.Println("Importing ENTRYPOINT")
-		importOpts.Changes = append(importOpts.Changes, fmt.Sprintf("ENTRYPOINT [%s]", strings.Join(entrypoint, ",")))
-	}
-
-	if len(cmd) > 0 {
-		fmt.Println("Importing CMD")
-		importOpts.Changes = append(importOpts.Changes, fmt.Sprintf("CMD [%s]", strings.Join(cmd, ",")))
-	}
-
-	if contJSON.Config.User != "" {
-		fmt.Println("Importing USER")
-		importOpts.Changes = append(importOpts.Changes, fmt.Sprintf("USER %s", contJSON.Config.User))
-	}
-
-	if len(contJSON.Config.Env) > 0 {
-		fmt.Println("Importing ENV")
-		importOpts.Changes = append(importOpts.Changes, fmt.Sprintf("ENV %s", strings.Join(contJSON.Config.Env, " ")))
-	}
-
-	fmt.Println("Creating squashed image")
-	j, err := c.docker.ImageImport(ctx, types.ImageImportSource{
-		Source:     r,
-		SourceName: "-",
-	}, tag, importOpts)
-	if err != nil {
-		return nil, err
-	}
-	defer j.Close()
-
-	fmt.Println("--> done")
-
-	return img, err
+	return c.findImage(ctx, tag)
 }
 
 var imageIDPattern = regexp.MustCompile("[a-f0-9]")
@@ -264,6 +253,9 @@ func (c *DockerClient) findImage(ctx context.Context, imageName string) (*types.
 
 	if isID {
 		for _, img := range images {
+			if len(img.ID) < len(imageName)+7 {
+				continue
+			}
 			if img.ID[7:7+len(imageName)] == imageName {
 				terminal.Debug("Found image by id", imageName)
 				return &img, nil
@@ -311,7 +303,7 @@ func (c *DockerClient) PushImage(ctx context.Context, imageName string, out io.W
 	return jsonmessage.DisplayJSONMessagesStream(resp, out, termFd, isTerm, nil)
 }
 
-func checkManifest(ctx context.Context, imageRef string, token string) (*dockerparser.Reference, error) {
+func CheckManifest(ctx context.Context, imageRef string, token string) (*dockerparser.Reference, error) {
 	ref, err := dockerparser.Parse(imageRef)
 	if err != nil {
 		return nil, err
@@ -324,6 +316,9 @@ func checkManifest(ctx context.Context, imageRef string, token string) (*dockerp
 	url := fmt.Sprintf("https://%s/v2/%s/manifests/%s", registry, ref.ShortName(), ref.Tag())
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
 	req.Header.Add("Accept", "application/vnd.docker.distribution.manifest.v2+json")
 	if token != "" {
 		req.Header.Add("Authorization", "Bearer "+token)
@@ -343,11 +338,19 @@ func checkManifest(ctx context.Context, imageRef string, token string) (*dockerp
 	if resp.StatusCode == 401 && ref.Registry() == "docker.io" && token == "" {
 		token, _ := getDockerHubToken(ref.ShortName())
 		if token != "" {
-			return checkManifest(ctx, imageRef, token)
+			return CheckManifest(ctx, imageRef, token)
 		}
 	}
 
 	return nil, fmt.Errorf("Unable to access image %s: %s", imageRef, resp.Status)
+}
+
+func RegistryAuth(token string) types.AuthConfig {
+	return types.AuthConfig{
+		Username:      "x",
+		Password:      token,
+		ServerAddress: "registry.fly.io",
+	}
 }
 
 func getDockerHubToken(imageName string) (string, error) {
@@ -370,4 +373,66 @@ func getDockerHubToken(imageName string) (string, error) {
 	json.NewDecoder(resp.Body).Decode(&data)
 
 	return data["token"], nil
+}
+
+type tracer struct {
+	displayCh chan *buildkitClient.SolveStatus
+}
+
+func newTracer() *tracer {
+	return &tracer{
+		displayCh: make(chan *buildkitClient.SolveStatus),
+	}
+}
+
+func (t *tracer) write(msg jsonmessage.JSONMessage) {
+	var resp controlapi.StatusResponse
+
+	if msg.ID != "moby.buildkit.trace" {
+		return
+	}
+
+	var dt []byte
+	// ignoring all messages that are not understood
+	if err := json.Unmarshal(*msg.Aux, &dt); err != nil {
+		return
+	}
+	if err := (&resp).Unmarshal(dt); err != nil {
+		return
+	}
+
+	s := buildkitClient.SolveStatus{}
+	for _, v := range resp.Vertexes {
+		s.Vertexes = append(s.Vertexes, &buildkitClient.Vertex{
+			Digest:    v.Digest,
+			Inputs:    v.Inputs,
+			Name:      v.Name,
+			Started:   v.Started,
+			Completed: v.Completed,
+			Error:     v.Error,
+			Cached:    v.Cached,
+		})
+	}
+	for _, v := range resp.Statuses {
+		s.Statuses = append(s.Statuses, &buildkitClient.VertexStatus{
+			ID:        v.ID,
+			Vertex:    v.Vertex,
+			Name:      v.Name,
+			Total:     v.Total,
+			Current:   v.Current,
+			Timestamp: v.Timestamp,
+			Started:   v.Started,
+			Completed: v.Completed,
+		})
+	}
+	for _, v := range resp.Logs {
+		s.Logs = append(s.Logs, &buildkitClient.VertexLog{
+			Vertex:    v.Vertex,
+			Stream:    int(v.Stream),
+			Data:      v.Msg,
+			Timestamp: v.Timestamp,
+		})
+	}
+
+	t.displayCh <- &s
 }

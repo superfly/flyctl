@@ -5,10 +5,13 @@ import (
 )
 
 const (
-	ConfigAPIToken                 = "access_token"
-	ConfigAPIBaseURL               = "api_base_url"
-	ConfigAppName                  = "app"
-	ConfigVerboseOutput            = "verbose"
+	ConfigAPIToken        = "access_token"
+	ConfigAPIBaseURL      = "api_base_url"
+	ConfigAppName         = "app"
+	ConfigVerboseOutput   = "verbose"
+	ConfigJSONOutput      = "json"
+	ConfigGQLErrorLogging = "gqlerrorlogging"
+
 	ConfigRegistryHost             = "registry_host"
 	ConfigUpdateCheckLatestVersion = "update_check.latest_version"
 	ConfigUpdateCheckTimestamp     = "update_check.timestamp"
@@ -21,6 +24,8 @@ type Config interface {
 	GetString(key string) (string, error)
 	GetBool(key string) bool
 	GetStringSlice(key string) []string
+	GetInt(key string) int
+	IsSet(key string) bool
 }
 
 type config struct {
@@ -52,6 +57,18 @@ func (cfg *config) GetStringSlice(key string) []string {
 	fullKey := cfg.nsKey(key)
 
 	return viper.GetStringSlice(fullKey)
+}
+
+func (cfg *config) GetInt(key string) int {
+	fullKey := cfg.nsKey(key)
+
+	return viper.GetInt(fullKey)
+}
+
+func (cfg *config) IsSet(key string) bool {
+	fullKey := cfg.nsKey(key)
+
+	return viper.IsSet(fullKey)
 }
 
 func ConfigNS(ns string) Config {

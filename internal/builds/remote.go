@@ -1,33 +1,42 @@
-package flyctl
+package builds
 
 import (
 	"context"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/superfly/flyctl/api"
 )
 
-type BuildLogStream struct {
+type BuildMonitor struct {
 	client  *api.Client
 	buildID string
 	err     error
 	build   *api.Build
 }
 
-func NewBuildLogStream(buildID string, client *api.Client) *BuildLogStream {
-	return &BuildLogStream{client: client, buildID: buildID}
+func NewBuildMonitor(buildID string, client *api.Client) *BuildMonitor {
+	return &BuildMonitor{client: client, buildID: buildID}
 }
 
-func (b *BuildLogStream) Err() error {
+func (b *BuildMonitor) Err() error {
 	return b.err
 }
 
-func (b *BuildLogStream) Status() string {
+func (b *BuildMonitor) Build() *api.Build {
+	return b.build
+}
+
+func (b *BuildMonitor) Status() string {
 	return b.build.Status
 }
 
-func (b *BuildLogStream) Fetch(ctx context.Context) <-chan string {
+func (b *BuildMonitor) Failed() bool {
+	return b.Status() == "failed"
+}
+
+func (b *BuildMonitor) Logs(ctx context.Context) <-chan string {
 	out := make(chan string, 0)
 
 	go func() {
@@ -49,7 +58,10 @@ func (b *BuildLogStream) Fetch(ctx context.Context) <-chan string {
 				lines := strings.Split(strings.TrimSpace(build.Logs), "\n")
 
 				if len(lines) > pos {
-					out <- strings.Join(lines[pos:], "\n")
+					for _, line := range lines[pos:] {
+						out <- cleanLogLine(line)
+						// out <- strings.Join(cleanLogLine(line), "\n")
+					}
 					pos = len(lines)
 				}
 
@@ -75,4 +87,10 @@ func fetchBuild(client *api.Client, buildID string) (build *api.Build, err error
 	}
 
 	return build, err
+}
+
+var timestampPrefixPattern = regexp.MustCompile(`^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{2}:\d{2}\]\s`)
+
+func cleanLogLine(line string) string {
+	return timestampPrefixPattern.ReplaceAllString(line, "")
 }

@@ -1,11 +1,15 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
-	"github.com/superfly/flyctl/docstrings"
+	"github.com/superfly/flyctl/cmdctx"
 	"os"
+	"os/exec"
 	"time"
+
+	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/docstrings"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/briandowns/spinner"
@@ -30,13 +34,16 @@ func newAuthCommand() *Command {
 		},
 	}
 	authWhoamiStrings := docstrings.Get("auth.whoami")
-	BuildCommand(cmd, runWhoami, authWhoamiStrings.Usage, authWhoamiStrings.Short, authWhoamiStrings.Long, true, os.Stdout)
+	BuildCommand(cmd, runWhoami, authWhoamiStrings.Usage, authWhoamiStrings.Short, authWhoamiStrings.Long, os.Stdout, requireSession)
 
 	authTokenStrings := docstrings.Get("auth.token")
-	BuildCommand(cmd, runAuthToken, authTokenStrings.Usage, authTokenStrings.Short, authTokenStrings.Long, true, os.Stdout)
+	BuildCommand(cmd, runAuthToken, authTokenStrings.Usage, authTokenStrings.Short, authTokenStrings.Long, os.Stdout, requireSession)
 
 	authLoginStrings := docstrings.Get("auth.login")
-	login := BuildCommand(cmd, runLogin, authLoginStrings.Usage, authLoginStrings.Short, authLoginStrings.Long, false, os.Stdout)
+	login := BuildCommand(cmd, runLogin, authLoginStrings.Usage, authLoginStrings.Short, authLoginStrings.Long, os.Stdout)
+
+	authDockerStrings := docstrings.Get("auth.docker")
+	BuildCommand(cmd, runAuthDocker, authDockerStrings.Usage, authDockerStrings.Short, authDockerStrings.Long, os.Stdout)
 
 	// TODO: Move flag descriptions into the docStrings
 	login.AddBoolFlag(BoolFlagOpts{
@@ -58,16 +65,16 @@ func newAuthCommand() *Command {
 	})
 
 	authLogoutStrings := docstrings.Get("auth.logout")
-	BuildCommand(cmd, runLogout, authLogoutStrings.Usage, authLogoutStrings.Short, authLogoutStrings.Long, true, os.Stdout)
+	BuildCommand(cmd, runLogout, authLogoutStrings.Usage, authLogoutStrings.Short, authLogoutStrings.Long, os.Stdout, requireSession)
 
 	authSignupStrings := docstrings.Get("auth.signup")
-	BuildCommand(cmd, runSignup, authSignupStrings.Usage, authSignupStrings.Short, authSignupStrings.Long, false, os.Stdout)
+	BuildCommand(cmd, runSignup, authSignupStrings.Usage, authSignupStrings.Short, authSignupStrings.Long, os.Stdout)
 
 	return cmd
 }
 
-func runWhoami(ctx *CmdContext) error {
-	user, err := ctx.FlyClient.GetCurrentUser()
+func runWhoami(ctx *cmdctx.CmdContext) error {
+	user, err := ctx.Client.API().GetCurrentUser()
 	if err != nil {
 		return err
 	}
@@ -75,7 +82,7 @@ func runWhoami(ctx *CmdContext) error {
 	return nil
 }
 
-func runLogin(ctx *CmdContext) error {
+func runLogin(ctx *cmdctx.CmdContext) error {
 	if ctx.Config.GetBool("interactive") {
 		return runInteractiveLogin(ctx)
 	}
@@ -92,11 +99,11 @@ func runLogin(ctx *CmdContext) error {
 	return runWebLogin(ctx, false)
 }
 
-func runSignup(ctx *CmdContext) error {
+func runSignup(ctx *cmdctx.CmdContext) error {
 	return runWebLogin(ctx, true)
 }
 
-func runWebLogin(ctx *CmdContext, signup bool) error {
+func runWebLogin(ctx *cmdctx.CmdContext, signup bool) error {
 	name, _ := os.Hostname()
 
 	cliAuth, err := api.StartCLISessionWebAuth(name, signup)
@@ -104,7 +111,7 @@ func runWebLogin(ctx *CmdContext, signup bool) error {
 		return err
 	}
 
-	fmt.Println("Opening browser to url", aurora.Bold(cliAuth.AuthURL))
+	fmt.Fprintln(ctx.Out, "Opening browser to url", aurora.Bold(cliAuth.AuthURL))
 
 	if err := open.Run(cliAuth.AuthURL); err != nil {
 		terminal.Error("Error opening browser. Copy the above url into a browser and continue")
@@ -125,11 +132,11 @@ func runWebLogin(ctx *CmdContext, signup bool) error {
 		return err
 	}
 
-	if err := ctx.InitApiClient(); err != nil {
-		return err
+	if !ctx.Client.InitApi() {
+		return client.ErrNoAuthToken
 	}
 
-	user, err := ctx.FlyClient.GetCurrentUser()
+	user, err := ctx.Client.API().GetCurrentUser()
 	if err != nil {
 		return err
 	}
@@ -164,7 +171,7 @@ func waitForCLISession(id string) <-chan api.CLISessionAuth {
 	return done
 }
 
-func runInteractiveLogin(ctx *CmdContext) error {
+func runInteractiveLogin(ctx *cmdctx.CmdContext) error {
 	email, _ := ctx.Config.GetString("email")
 	if email == "" {
 		prompt := &survey.Input{
@@ -212,7 +219,7 @@ func runInteractiveLogin(ctx *CmdContext) error {
 	return flyctl.SaveConfig()
 }
 
-func runLogout(ctx *CmdContext) error {
+func runLogout(ctx *cmdctx.CmdContext) error {
 	viper.Set(flyctl.ConfigAPIToken, "")
 
 	if err := flyctl.SaveConfig(); err != nil {
@@ -224,10 +231,55 @@ func runLogout(ctx *CmdContext) error {
 	return nil
 }
 
-func runAuthToken(ctx *CmdContext) error {
+func runAuthToken(ctx *cmdctx.CmdContext) error {
 	token, _ := ctx.GlobalConfig.GetString(flyctl.ConfigAPIToken)
 
-	fmt.Println(token)
+	if ctx.OutputJSON() {
+		ctx.WriteJSON(map[string]string{"flyctlAuthToken": token})
+		return nil
+	}
+	fmt.Fprintln(ctx.Out, token)
+
+	return nil
+}
+
+func runAuthDocker(ctx *cmdctx.CmdContext) error {
+	cc := createCancellableContext()
+
+	binary, err := exec.LookPath("docker")
+	if err != nil {
+		return errors.Wrap(err, "docker cli not found - make sure it's installed and try again")
+	}
+
+	token, _ := ctx.GlobalConfig.GetString(flyctl.ConfigAPIToken)
+
+	cmd := exec.CommandContext(cc, binary, "login", "--username=x", "--password-stdin", "registry.fly.io")
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return err
+	}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	go func() {
+		defer stdin.Close()
+		fmt.Fprint(stdin, token)
+	}()
+
+	if err := cmd.Wait(); err != nil {
+		return err
+	}
+
+	if !cmd.ProcessState.Success() {
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return err
+		}
+		fmt.Println(output)
+		return errors.New("error authenticating with registry.fly.io")
+	}
+
+	fmt.Println("Authentication successful. You can now tag and push images to registry.fly.io/{your-app}")
 
 	return nil
 }

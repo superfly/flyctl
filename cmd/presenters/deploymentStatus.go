@@ -10,6 +10,10 @@ type DeploymentStatus struct {
 	Status *api.DeploymentStatus
 }
 
+func (p *DeploymentStatus) APIStruct() interface{} {
+	return p.Status
+}
+
 func (p *DeploymentStatus) FieldNames() []string {
 	return []string{"ID", "Version", "Status", "Description", "Allocations"}
 }

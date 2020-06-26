@@ -11,6 +11,10 @@ type Certificate struct {
 	Certificate *api.AppCertificate
 }
 
+func (p *Certificate) APIStruct() interface{} {
+	return p.Certificate
+}
+
 func (p *Certificate) FieldNames() []string {
 	return []string{"Hostname", "Configured", "Issued", "Certificate Authority", "DNS Provider", "DNS Validation Instructions", "DNS Validation Hostname", "DNS Validation Target", "Source", "Created At", "Status"}
 }
@@ -26,7 +30,7 @@ func (p *Certificate) Records() []map[string]string {
 
 	out = append(out, map[string]string{
 		"Hostname":                    p.Certificate.Hostname,
-		"Configured":                  strconv.FormatBool(p.Certificate.AcmeDNSConfigured),
+		"Configured":                  strconv.FormatBool(p.Certificate.Configured),
 		"Certificate Authority":       p.Certificate.CertificateAuthority,
 		"DNS Provider":                p.Certificate.DNSProvider,
 		"DNS Validation Instructions": p.Certificate.DNSValidationInstructions,

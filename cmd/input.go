@@ -35,7 +35,7 @@ func selectOrganization(client *api.Client, slug string) (*api.Organization, err
 			}
 		}
 
-		return nil, fmt.Errorf(`orgnaization "%s" not found`, slug)
+		return nil, fmt.Errorf(`organization "%s" not found`, slug)
 	}
 
 	options := []string{}

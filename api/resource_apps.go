@@ -1,9 +1,9 @@
 package api
 
-func (c *Client) GetApps() ([]App, error) {
+func (client *Client) GetApps() ([]App, error) {
 	query := `
 		query {
-			apps(type: "container") {
+			apps(type: "container", first: 200) {
 				nodes {
 					id
 					name
@@ -15,14 +15,15 @@ func (c *Client) GetApps() ([]App, error) {
 					currentRelease {
 						createdAt
 					}
+					status
 				}
 			}
 		}
 		`
 
-	req := c.NewRequest(query)
+	req := client.NewRequest(query)
 
-	data, err := c.Run(req)
+	data, err := client.Run(req)
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +31,27 @@ func (c *Client) GetApps() ([]App, error) {
 	return data.Apps.Nodes, nil
 }
 
-func (c *Client) GetApp(appName string) (*App, error) {
+func (client *Client) GetAppID(appName string) (string, error) {
+	query := `
+		query ($appName: String!) {
+			app(name: $appName) {
+				id
+			}
+		}
+	`
+
+	req := client.NewRequest(query)
+	req.Var("appName", appName)
+
+	data, err := client.Run(req)
+	if err != nil {
+		return "", err
+	}
+
+	return data.App.ID, nil
+}
+
+func (client *Client) GetApp(appName string) (*App, error) {
 	query := `
 		query ($appName: String!) {
 			app(name: $appName) {
@@ -65,10 +86,10 @@ func (c *Client) GetApp(appName string) (*App, error) {
 		}
 	`
 
-	req := c.NewRequest(query)
+	req := client.NewRequest(query)
 	req.Var("appName", appName)
 
-	data, err := c.Run(req)
+	data, err := client.Run(req)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +97,53 @@ func (c *Client) GetApp(appName string) (*App, error) {
 	return &data.App, nil
 }
 
-func (c *Client) CreateApp(name string, orgId string) (*App, error) {
+func (client *Client) GetAppCompact(appName string) (*AppCompact, error) {
+	query := `
+		query ($appName: String!) {
+			appcompact:app(name: $appName) {
+				id
+				name
+				hostname
+				deployed
+				status
+				version
+				appUrl
+				organization {
+					slug
+				}
+				services {
+					description
+					protocol
+					internalPort
+					ports {
+						port
+						handlers
+					}
+				}
+				ipAddresses {
+					nodes {
+						id
+						address
+						type
+						createdAt
+					}
+				}
+			}
+		}
+	`
+
+	req := client.NewRequest(query)
+	req.Var("appName", appName)
+
+	data, err := client.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.AppCompact, nil
+}
+
+func (client *Client) CreateApp(name string, orgId string) (*App, error) {
 	query := `
 		mutation($input: CreateAppInput!) {
 			createApp(input: $input) {
@@ -94,7 +161,7 @@ func (c *Client) CreateApp(name string, orgId string) (*App, error) {
 		}
 	`
 
-	req := c.NewRequest(query)
+	req := client.NewRequest(query)
 
 	req.Var("input", CreateAppInput{
 		Name:           name,
@@ -102,7 +169,7 @@ func (c *Client) CreateApp(name string, orgId string) (*App, error) {
 		OrganizationID: orgId,
 	})
 
-	data, err := c.Run(req)
+	data, err := client.Run(req)
 	if err != nil {
 		return nil, err
 	}
@@ -149,4 +216,79 @@ func (client *Client) MoveApp(appName string, orgID string) (*App, error) {
 
 	data, err := client.Run(req)
 	return &data.App, err
+}
+
+// PauseApp - Send GQL mutation to pause app
+func (client *Client) PauseApp(appName string) (*App, error) {
+	query := `
+	mutation ($input: PauseAppInput!) {
+		pauseApp(input: $input) {
+		  app{
+			id
+			name
+			status
+			version
+			hostname
+		  }
+		}
+	  }
+	`
+
+	req := client.NewRequest(query)
+
+	req.Var("input", map[string]string{
+		"appId": appName,
+	})
+
+	data, err := client.Run(req)
+	return &data.PauseApp.App, err
+}
+
+// ResumeApp - Send GQL mutation to pause app
+func (client *Client) ResumeApp(appName string) (*App, error) {
+	query := `
+	mutation ($input: ResumeAppInput!) {
+		resumeApp(input: $input) {
+		  app{
+			id
+			name
+			status
+			version
+			hostname
+		  }
+		}
+	  }
+	`
+
+	req := client.NewRequest(query)
+
+	req.Var("input", map[string]string{
+		"appId": appName,
+	})
+
+	data, err := client.Run(req)
+	return &data.ResumeApp.App, err
+}
+
+// RestartApp - Send GQL mutation to restart app
+func (client *Client) RestartApp(appName string) (*App, error) {
+	query := `
+		mutation ($input: RestartAppInput!) {
+			restartApp(input: $input) {
+				app{
+					id
+					name
+				}
+			}
+		}
+	`
+
+	req := client.NewRequest(query)
+
+	req.Var("input", map[string]string{
+		"appId": appName,
+	})
+
+	data, err := client.Run(req)
+	return &data.RestartApp.App, err
 }

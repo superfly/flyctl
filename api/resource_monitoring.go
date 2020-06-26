@@ -1,9 +1,9 @@
 package api
 
-func (c *Client) GetAppStatus(appName string, showCompleted bool) (*App, error) {
+func (c *Client) GetAppStatus(appName string, showCompleted bool) (*AppStatus, error) {
 	query := `
 		query($appName: String!, $showCompleted: Boolean!) {
-			app(name: $appName) {
+			appstatus:app(name: $appName) {
 				id
 				name
 				deployed
@@ -40,6 +40,9 @@ func (c *Client) GetAppStatus(appName string, showCompleted bool) (*App, error) 
 					updatedAt
 					canary
 					region
+					checks {
+						status
+					}
 				}
 			}
 		}
@@ -54,5 +57,60 @@ func (c *Client) GetAppStatus(appName string, showCompleted bool) (*App, error) 
 		return nil, err
 	}
 
-	return &data.App, nil
+	return &data.AppStatus, nil
+}
+
+func (c *Client) GetAllocationStatus(appName string, allocID string, logLimit int) (*AllocationStatus, error) {
+	query := `
+		query($appName: String!, $allocId: String!, $logLimit: Int!) {
+			app(name: $appName) {
+				allocation(id: $allocId) {
+					id
+					idShort
+					version
+					latestVersion
+					status
+					desiredStatus
+					totalCheckCount
+					passingCheckCount
+					warningCheckCount
+					criticalCheckCount
+					createdAt
+					updatedAt
+					canary
+					region
+					restarts
+					checks {
+						status
+						output
+						name
+						serviceName
+					}
+					events {
+						timestamp
+						type
+						message
+					}
+					recentLogs(limit: $logLimit) {
+						id
+						level
+						timestamp
+						message
+					}
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+	req.Var("appName", appName)
+	req.Var("allocId", allocID)
+	req.Var("logLimit", logLimit)
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.App.Allocation, nil
 }

@@ -16,6 +16,7 @@ import (
 
 var configDir string
 
+// InitConfig - Initialises config file for Viper
 func InitConfig() {
 	if err := initConfigDir(); err != nil {
 		fmt.Println("Error accessing config directory at $HOME/.fly", err)
@@ -25,6 +26,7 @@ func InitConfig() {
 	initViper()
 }
 
+// ConfigDir - Returns Directory holding the Config file
 func ConfigDir() string {
 	return configDir
 }
@@ -57,17 +59,19 @@ func initViper() {
 		fmt.Println("Error loading config", err)
 	}
 
-	viper.SetDefault(ConfigAPIBaseURL, "https://fly.io")
+	viper.SetDefault(ConfigAPIBaseURL, "https://api.fly.io")
 	viper.SetDefault(ConfigRegistryHost, "registry.fly.io")
 	// viper.RegisterAlias("access_token", ConfigAPIToken)
 	viper.BindEnv(ConfigAPIToken, "FLY_ACCESS_TOKEN")
 	viper.BindEnv(ConfigAPIToken, "FLY_API_TOKEN")
 	viper.BindEnv(ConfigVerboseOutput, "VERBOSE")
+	viper.BindEnv(ConfigGQLErrorLogging, "GQLErrorLogging")
 
 	viper.SetEnvPrefix("FLY")
 	viper.AutomaticEnv()
 
 	api.SetBaseURL(viper.GetString(ConfigAPIBaseURL))
+	api.SetErrorLog(viper.GetBool(ConfigGQLErrorLogging))
 }
 
 func loadConfig() error {

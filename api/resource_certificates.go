@@ -33,6 +33,8 @@ func (c *Client) GetAppCertificate(appName string, hostname string) (*AppCertifi
 			app(name: $appName) {
 				certificate(hostname: $hostname) {
 					acmeDnsConfigured
+					acmeAlpnConfigured
+					configured
 					certificateAuthority
 					createdAt
 					dnsProvider
@@ -69,10 +71,12 @@ func (c *Client) GetAppCertificate(appName string, hostname string) (*AppCertifi
 
 func (c *Client) CheckAppCertificate(appName string, hostname string) (*AppCertificate, error) {
 	query := `
-		query($appName: String!, $hostname: String!) {
-			app(name: $appName) {
-				certificate(hostname: $hostname) {
+		mutation($input: CheckCertificateInput!) {
+			checkCertificate(input: $input) {
+				certificate {
 					acmeDnsConfigured
+					acmeAlpnConfigured
+					configured
 					certificateAuthority
 					createdAt
 					dnsProvider
@@ -96,15 +100,17 @@ func (c *Client) CheckAppCertificate(appName string, hostname string) (*AppCerti
 
 	req := c.NewRequest(query)
 
-	req.Var("appName", appName)
-	req.Var("hostname", hostname)
+	req.Var("input", map[string]string{
+		"appId":    appName,
+		"hostname": hostname,
+	})
 
 	data, err := c.Run(req)
 	if err != nil {
 		return nil, err
 	}
 
-	return &data.App.Certificate, nil
+	return data.CheckCertificate.Certificate, nil
 }
 
 func (c *Client) AddCertificate(appName string, hostname string) (*AppCertificate, error) {
@@ -113,6 +119,8 @@ func (c *Client) AddCertificate(appName string, hostname string) (*AppCertificat
 			addCertificate(appId: $appId, hostname: $hostname) {
 				certificate {
 					acmeDnsConfigured
+					acmeAlpnConfigured
+					configured
 					certificateAuthority
 					certificateRequestedAt
 					dnsProvider

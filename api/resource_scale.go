@@ -28,3 +28,123 @@ func (c *Client) ScaleApp(appID string, regions []ScaleRegionInput) ([]ScaleRegi
 
 	return data.ScaleApp.Delta, nil
 }
+
+func (c *Client) UpdateAutoscaleConfig(input UpdateAutoscaleConfigInput) (*AutoscalingConfig, error) {
+	query := `
+		mutation ($input: UpdateAutoscaleConfigInput!) {
+			updateAutoscaleConfig(input: $input) {
+				app {
+					autoscaling {
+						enabled
+						minCount
+						maxCount
+						balanceRegions
+						regions {
+							code
+							minCount
+							weight
+						}
+					}
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("input", input)
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.UpdateAutoscaleConfig.App.Autoscaling, nil
+}
+
+func (c *Client) AppAutoscalingConfig(appName string) (*AutoscalingConfig, error) {
+	query := `
+		query($appName: String!) {
+			app(name: $appName) {
+				autoscaling {
+					enabled
+					minCount
+					maxCount
+					balanceRegions
+					regions {
+						code
+						minCount
+						weight
+					}
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("appName", appName)
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.App.Autoscaling, nil
+}
+
+func (c *Client) AppVMSize(appName string) (VMSize, error) {
+	query := `
+		query($appName: String!) {
+			app(name: $appName) {
+				vmSize {
+					name
+					cpuCores
+					memoryGb
+					memoryMb
+					priceMonth
+					priceSecond
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("appName", appName)
+
+	data, err := c.Run(req)
+	if err != nil {
+		return VMSize{}, err
+	}
+
+	return data.App.VMSize, nil
+}
+
+func (c *Client) SetAppVMSize(appID string, sizeName string) (VMSize, error) {
+	query := `
+		mutation ($input: SetVMSizeInput!) {
+			setVmSize(input: $input) {
+				vmSize {
+					name
+					cpuCores
+					memoryGb
+					memoryMb
+					priceMonth
+					priceSecond
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("input", SetVMSizeInput{AppID: appID, SizeName: sizeName})
+
+	data, err := c.Run(req)
+	if err != nil {
+		return VMSize{}, err
+	}
+
+	return *data.SetVMSize.VMSize, nil
+}

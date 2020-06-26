@@ -1,5 +1,8 @@
 package flyctl
 
-var BuildDate = ""
-var Version = ""
-var Commit = ""
+import "time"
+
+var BuildDate = time.Now().String()
+var Version = "<version>"
+var Commit = "<commit>"
+var Environment = "development"

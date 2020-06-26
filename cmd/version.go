@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"os"
 
 	"github.com/superfly/flyctl/docstrings"
@@ -11,7 +12,7 @@ import (
 
 func newVersionCommand() *Command {
 	versionStrings := docstrings.Get("version")
-	version := BuildCommand(nil, runVersion, versionStrings.Usage, versionStrings.Short, versionStrings.Long, false, os.Stdout)
+	version := BuildCommand(nil, runVersion, versionStrings.Usage, versionStrings.Short, versionStrings.Long, os.Stdout)
 	version.AddStringFlag(StringFlagOpts{
 		Name:        "completions",
 		Shorthand:   "c",
@@ -20,7 +21,13 @@ func newVersionCommand() *Command {
 	return version
 }
 
-func runVersion(ctx *CmdContext) error {
+type FlyctlBuild struct {
+	Version string
+	Commit  string
+	Build   string
+}
+
+func runVersion(ctx *cmdctx.CmdContext) error {
 	shellType, _ := ctx.Config.GetString("completions")
 
 	if shellType != "" {
@@ -34,6 +41,10 @@ func runVersion(ctx *CmdContext) error {
 		}
 	}
 
-	fmt.Printf("flyctl %s %s %s\n", flyctl.Version, flyctl.Commit, flyctl.BuildDate)
+	if ctx.OutputJSON() {
+		ctx.WriteJSON(FlyctlBuild{Version: flyctl.Version, Commit: flyctl.Commit, Build: flyctl.BuildDate})
+	} else {
+		fmt.Printf("flyctl %s %s %s\n", flyctl.Version, flyctl.Commit, flyctl.BuildDate)
+	}
 	return nil
 }

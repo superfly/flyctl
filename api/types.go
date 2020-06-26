@@ -1,12 +1,19 @@
 package api
 
-import "time"
+import (
+	"time"
+)
 
+// Query - Master query which encapsulates all possible returned structures
 type Query struct {
+	Errors Errors
+
 	Apps struct {
 		Nodes []App
 	}
 	App           App
+	AppCompact    AppCompact
+	AppStatus     AppStatus
 	CurrentUser   User
 	Organizations struct {
 		Nodes []Organization
@@ -16,6 +23,7 @@ type Query struct {
 
 	Platform struct {
 		Regions []Region
+		VMSizes []VMSize
 	}
 
 	// mutations
@@ -41,7 +49,7 @@ type Query struct {
 
 	CreateSignedUrl SignedUrls
 
-	CreateBuild struct {
+	StartBuild struct {
 		Build Build
 	}
 
@@ -50,6 +58,11 @@ type Query struct {
 	}
 
 	DeleteCertificate DeleteCertificatePayload
+
+	CheckCertificate struct {
+		App         *App
+		Certificate *AppCertificate
+	}
 
 	AllocateIPAddress struct {
 		App       App
@@ -62,6 +75,32 @@ type Query struct {
 		App       App
 		Placement []RegionPlacement
 		Delta     []ScaleRegionChange
+	}
+
+	UpdateAutoscaleConfig struct {
+		App App
+	}
+
+	SetVMSize struct {
+		App    App
+		VMSize *VMSize
+	}
+
+	ConfigureRegions struct {
+		App     App
+		Regions []Region
+	}
+
+	ResumeApp struct {
+		App App
+	}
+
+	PauseApp struct {
+		App App
+	}
+
+	RestartApp struct {
+		App App
 	}
 }
 
@@ -99,8 +138,41 @@ type App struct {
 	Services         []Service
 	Config           AppConfig
 	ParseConfig      AppConfig
-	Allocations      []AllocationStatus
+	Allocations      []*AllocationStatus
+	Allocation       *AllocationStatus
 	DeploymentStatus *DeploymentStatus
+	Autoscaling      *AutoscalingConfig
+	VMSize           VMSize
+	Regions          *[]Region
+}
+
+type AppCompact struct {
+	ID           string
+	Name         string
+	Status       string
+	Deployed     bool
+	Hostname     string
+	AppURL       string
+	Version      int
+	Release      *Release
+	Organization Organization
+	IPAddresses  struct {
+		Nodes []IPAddress
+	}
+	Services []Service
+}
+
+type AppStatus struct {
+	ID               string
+	Name             string
+	Deployed         bool
+	Status           string
+	Hostname         string
+	Version          int
+	AppURL           string
+	Organization     Organization
+	DeploymentStatus *DeploymentStatus
+	Allocations      []*AllocationStatus
 }
 
 type AppConfig struct {
@@ -114,16 +186,6 @@ type Organization struct {
 	ID   string
 	Name string
 	Slug string
-}
-
-type Allocation struct {
-	ID            string
-	Version       int
-	LatestVersion bool
-	Status        string
-	DesiredStatus string
-	Region        string
-	CreatedAt     time.Time
 }
 
 type IPAddress struct {
@@ -170,6 +232,8 @@ type LogEntry struct {
 	Timestamp string
 	Message   string
 	Level     string
+	Instance  string
+	Region    string
 	Meta      struct {
 		Instance string
 		Region   string
@@ -196,6 +260,7 @@ type Build struct {
 	Status     string
 	User       User
 	Logs       string
+	Image      string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }
@@ -225,7 +290,7 @@ type DeploymentStatus struct {
 	InProgress     bool
 	Successful     bool
 	CreatedAt      time.Time
-	Allocations    []AllocationStatus
+	Allocations    []*AllocationStatus
 	Version        int
 	DesiredCount   int
 	PlacedCount    int
@@ -236,6 +301,8 @@ type DeploymentStatus struct {
 type AppCertificate struct {
 	ID                        string
 	AcmeDNSConfigured         bool
+	AcmeALPNConfigured        bool
+	Configured                bool
 	CertificateAuthority      string
 	CreatedAt                 time.Time
 	DNSProvider               string
@@ -263,16 +330,17 @@ type DeployImageInput struct {
 	Image      string      `json:"image"`
 	Services   *[]Service  `json:"services"`
 	Definition *Definition `json:"definition"`
+	Strategy   *string     `json:"strategy"`
 }
 
 type Service struct {
 	Description     string        `json:"description"`
-	Protocol        string        `json:"protocol"`
-	InternalPort    int           `json:"internalPort"`
-	Ports           []PortHandler `json:"ports"`
-	Checks          []Check       `json:"checks"`
-	SoftConcurrency int           `json:"softConcurrency"`
-	HardConcurrency int           `json:"hardConcurrency"`
+	Protocol        string        `json:"protocol,omitempty"`
+	InternalPort    int           `json:"internalPort,omitempty"`
+	Ports           []PortHandler `json:"ports,omitempty"`
+	Checks          []Check       `json:"checks,omitempty"`
+	SoftConcurrency int           `json:"softConcurrency,omitempty"`
+	HardConcurrency int           `json:"hardConcurrency,omitempty"`
 }
 
 type PortHandler struct {
@@ -336,6 +404,7 @@ type AllocationStatus struct {
 	Healthy            bool
 	Canary             bool
 	Failed             bool
+	Restarts           int
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 	Checks             []CheckState
@@ -345,6 +414,7 @@ type AllocationStatus struct {
 	WarningCheckCount  int
 	CriticalCheckCount int
 	Transitioning      bool
+	RecentLogs         []LogEntry
 }
 
 type AllocationEvent struct {
@@ -363,6 +433,85 @@ type CheckState struct {
 type Region struct {
 	Code      string
 	Name      string
-	Latitude  float32
-	Longitude float32
+	Latitude  float32 `json:"omitempty"`
+	Longitude float32 `json:"omitempty"`
+}
+
+type AutoscalingConfig struct {
+	BalanceRegions bool
+	Enabled        bool
+	MaxCount       int
+	MinCount       int
+	Regions        []AutoscalingRegionConfig
+}
+
+type AutoscalingRegionConfig struct {
+	Code     string
+	MinCount int
+	Weight   int
+}
+
+type UpdateAutoscaleConfigInput struct {
+	AppID          string                       `json:"appId"`
+	Enabled        *bool                        `json:"enabled"`
+	MinCount       *int                         `json:"minCount"`
+	MaxCount       *int                         `json:"maxCount"`
+	BalanceRegions *bool                        `json:"balanceRegions"`
+	ResetRegions   *bool                        `json:"resetRegions"`
+	Regions        []AutoscaleRegionConfigInput `json:"regions"`
+}
+
+type AutoscaleRegionConfigInput struct {
+	Code     string `json:"code"`
+	MinCount *int   `json:"minCount"`
+	Weight   *int   `json:"weight"`
+	Reset    *bool  `json:"reset"`
+}
+
+type VMSize struct {
+	Name        string
+	CPUCores    float32
+	MemoryGB    float32
+	MemoryMB    int
+	PriceMonth  float32
+	PriceSecond float32
+}
+
+type SetVMSizeInput struct {
+	AppID    string `json:"appId"`
+	SizeName string `json:"sizeName"`
+}
+
+type StartBuildInput struct {
+	AppID      string          `json:"appId"`
+	SourceURL  string          `json:"sourceUrl"`
+	SourceType string          `json:"sourceType"`
+	BuildType  *string         `json:"buildType"`
+	BuildArgs  []BuildArgInput `json:"buildArgs"`
+}
+
+type BuildArgInput struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+type ConfigureRegionsInput struct {
+	AppID        string   `json:"appId"`
+	AllowRegions []string `json:"allowRegions"`
+	DenyRegions  []string `json:"denyRegions"`
+}
+
+type Errors []Error
+
+type Error struct {
+	Message    string
+	Path       []string
+	Extensions Extensions
+}
+
+type Extensions struct {
+	Code        string
+	ServiceName string
+	Query       string
+	Variables   map[string]string
 }

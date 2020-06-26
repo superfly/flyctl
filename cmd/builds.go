@@ -2,13 +2,14 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"os"
 
 	"github.com/superfly/flyctl/docstrings"
+	"github.com/superfly/flyctl/internal/builds"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmd/presenters"
-	"github.com/superfly/flyctl/flyctl"
 )
 
 func newBuildsCommand() *Command {
@@ -23,30 +24,31 @@ func newBuildsCommand() *Command {
 	}
 
 	buildsListStrings := docstrings.Get("builds.list")
-	BuildCommand(cmd, runListBuilds, buildsListStrings.Usage, buildsListStrings.Short, buildsListStrings.Long, true, os.Stdout, requireAppName)
+	BuildCommand(cmd, runListBuilds, buildsListStrings.Usage, buildsListStrings.Short, buildsListStrings.Long, os.Stdout, requireSession, requireAppName)
 	buildsLogsStrings := docstrings.Get("builds.logs")
-	logs := BuildCommand(cmd, runBuildLogs, buildsLogsStrings.Usage, buildsLogsStrings.Short, buildsLogsStrings.Long, true, os.Stdout, requireAppName)
+	logs := BuildCommand(cmd, runBuildLogs, buildsLogsStrings.Usage, buildsLogsStrings.Short, buildsLogsStrings.Long, os.Stdout, requireSession, requireAppName)
 	logs.Command.Args = cobra.ExactArgs(1)
 
 	return cmd
 }
 
-func runListBuilds(ctx *CmdContext) error {
-	builds, err := ctx.FlyClient.ListBuilds(ctx.AppName)
+func runListBuilds(commandContext *cmdctx.CmdContext) error {
+	builds, err := commandContext.Client.API().ListBuilds(commandContext.AppName)
 	if err != nil {
 		return err
 	}
 
-	return ctx.Render(&presenters.Builds{Builds: builds})
+	return commandContext.Frender(cmdctx.PresenterOption{Presentable: &presenters.Builds{Builds: builds}})
 }
 
-func runBuildLogs(cc *CmdContext) error {
+func runBuildLogs(cc *cmdctx.CmdContext) error {
 	ctx := createCancellableContext()
 	buildID := cc.Args[0]
 
-	logs := flyctl.NewBuildLogStream(buildID, cc.FlyClient)
+	logs := builds.NewBuildMonitor(buildID, cc.Client.API())
 
-	for line := range logs.Fetch(ctx) {
+	// TODO: Need to consider what is appropriate to output with JSON set
+	for line := range logs.Logs(ctx) {
 		fmt.Println(line)
 	}
 

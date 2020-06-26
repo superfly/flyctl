@@ -9,6 +9,7 @@ func (client *Client) DeployImage(input DeployImageInput) (*Release, error) {
 						version
 						reason
 						description
+						deploymentStrategy
 						user {
 							id
 							email
@@ -79,18 +80,12 @@ func (c *Client) GetDeploymentStatus(appName string, deploymentID string) (*Depl
 						desiredStatus
 						version
 						healthy
-            failed
-            canary
+            			failed
+						canary
+						restarts
 						checks {
 							status
-							output
-							name
 							serviceName
-						}
-						events {
-							timestamp
-							type
-							message
 						}
 					}
 				}

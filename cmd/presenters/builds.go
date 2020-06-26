@@ -6,6 +6,10 @@ type Builds struct {
 	Builds []api.Build
 }
 
+func (p *Builds) APIStruct() interface{} {
+	return p.Builds
+}
+
 func (p *Builds) FieldNames() []string {
 	return []string{"ID", "Status", "User", "Created At", "Updated At"}
 }

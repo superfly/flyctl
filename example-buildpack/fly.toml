@@ -1,5 +1,7 @@
 app = "sinatra-example"
 
+[build]
+  builder = "heroku/buildpacks:18"
 
 [[services]]
   internal_port = 8080

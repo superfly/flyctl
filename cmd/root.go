@@ -11,9 +11,12 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/client"
 )
 
+// ErrAbort - Error generated when application aborts
 var ErrAbort = errors.New("abort")
+var flyctlClient *client.Client
 
 var rootCmd = &Command{
 	Command: &cobra.Command{
@@ -23,13 +26,18 @@ var rootCmd = &Command{
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			cmd.SilenceUsage = true
 			cmd.SilenceErrors = true
+
+			flyctlClient = client.NewClient()
 		},
 	},
 }
 
+// GetRootCommand - root for commands
 func GetRootCommand() *cobra.Command {
 	return rootCmd.Command
 }
+
+// Execute - root command execution
 func Execute() {
 	defer flyctl.BackgroundTaskWG.Wait()
 
@@ -43,6 +51,13 @@ func init() {
 
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
 	viper.BindPFlag(flyctl.ConfigVerboseOutput, rootCmd.PersistentFlags().Lookup("verbose"))
+
+	rootCmd.PersistentFlags().BoolP("json", "j", false, "json output")
+	viper.BindPFlag(flyctl.ConfigJSONOutput, rootCmd.PersistentFlags().Lookup("json"))
+
+	rootCmd.PersistentFlags().Bool("gqlerrorlogging", false, "Log GraphQL errors directly to stdout")
+
+	rootCmd.Flags().MarkHidden("gqlerrorlogging")
 
 	rootCmd.AddCommand(
 		newAuthCommand(),
@@ -60,8 +75,14 @@ func init() {
 		newDocsCommand(),
 		newIPAddressesCommand(),
 		newConfigCommand(),
-		newAppScaleCommand(),
+		newScaleCommand(),
 		newPlatformCommand(),
+		newCurlCommand(),
+		newRegionsCommand(),
+		newOpenCommand(),
+		newMonitorCommand(),
+		newListCommand(),
+		newDashboardCommand(),
 	)
 
 	initConfig()

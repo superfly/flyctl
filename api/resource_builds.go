@@ -23,14 +23,15 @@ func (c *Client) CreateSignedUrls(appId string, filename string) (getUrl string,
 	return data.CreateSignedUrl.GetUrl, data.CreateSignedUrl.PutUrl, nil
 }
 
-func (c *Client) CreateBuild(appId string, sourceUrl, sourceType string) (*Build, error) {
+func (c *Client) StartBuild(input StartBuildInput) (*Build, error) {
 	query := `
-		mutation($appId: ID!, $sourceUrl: String!, $sourceType: UrlSource!) {
-			createBuild(appId: $appId, sourceUrl: $sourceUrl, sourceType: $sourceType) {
+		mutation($input: StartBuildInput!) {
+			startBuild(input: $input) {
 				build {
 					id
 					inProgress
 					status
+					image
 					user {
 						id
 						name
@@ -44,17 +45,14 @@ func (c *Client) CreateBuild(appId string, sourceUrl, sourceType string) (*Build
 	`
 
 	req := c.NewRequest(query)
-
-	req.Var("appId", appId)
-	req.Var("sourceUrl", sourceUrl)
-	req.Var("sourceType", sourceType)
+	req.Var("input", input)
 
 	data, err := c.Run(req)
 	if err != nil {
 		return nil, err
 	}
 
-	return &data.CreateBuild.Build, nil
+	return &data.StartBuild.Build, nil
 }
 
 func (c *Client) ListBuilds(appName string) ([]Build, error) {
@@ -101,6 +99,7 @@ func (c *Client) GetBuild(buildId string) (*Build, error) {
 					inProgress
 					status
 					logs
+					image
 					user {
 						id
 						name

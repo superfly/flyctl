@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/superfly/flyctl/cmdctx"
 	"io"
 	"os"
 	"os/signal"
@@ -10,22 +11,20 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/logrusorgru/aurora"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/terminal"
 )
 
-type CmdRunFn func(*CmdContext) error
+// CmdRunFn - Run function for commands which takes a command context
+type CmdRunFn func(cmdContext *cmdctx.CmdContext) error
 
+// Command - Wrapper for a cobra command
 type Command struct {
 	*cobra.Command
-	requireSession bool
 }
 
 // AddCommand adds subcommands to this command
@@ -43,6 +42,7 @@ func namespace(c *cobra.Command) string {
 	return parentName + "." + c.Name()
 }
 
+// StringFlagOpts - options for string flags
 type StringFlagOpts struct {
 	Name        string
 	Shorthand   string
@@ -51,14 +51,17 @@ type StringFlagOpts struct {
 	EnvName     string
 }
 
+// BoolFlagOpts - options for boolean flags
 type BoolFlagOpts struct {
 	Name        string
 	Shorthand   string
 	Description string
 	Default     bool
 	EnvName     string
+	Hidden      bool
 }
 
+// AddStringFlag - Add a string flag to a command
 func (c *Command) AddStringFlag(options StringFlagOpts) {
 	fullName := namespace(c.Command) + "." + options.Name
 	c.Flags().StringP(options.Name, options.Shorthand, options.Default, options.Description)
@@ -70,17 +73,45 @@ func (c *Command) AddStringFlag(options StringFlagOpts) {
 	}
 }
 
+// AddBoolFlag - Add a boolean flag for a command
 func (c *Command) AddBoolFlag(options BoolFlagOpts) {
 	fullName := namespace(c.Command) + "." + options.Name
 	c.Flags().BoolP(options.Name, options.Shorthand, options.Default, options.Description)
 
-	viper.BindPFlag(fullName, c.Flags().Lookup(options.Name))
+	flag := c.Flags().Lookup(options.Name)
+	flag.Hidden = options.Hidden
+	viper.BindPFlag(fullName, flag)
 
 	if options.EnvName != "" {
 		viper.BindEnv(fullName, options.EnvName)
 	}
 }
 
+// IntFlagOpts - options for integer flags
+type IntFlagOpts struct {
+	Name        string
+	Shorthand   string
+	Description string
+	Default     int
+	EnvName     string
+	Hidden      bool
+}
+
+// AddIntFlag - Add an integer flag to a command
+func (c *Command) AddIntFlag(options IntFlagOpts) {
+	fullName := namespace(c.Command) + "." + options.Name
+	c.Flags().IntP(options.Name, options.Shorthand, options.Default, options.Description)
+
+	flag := c.Flags().Lookup(options.Name)
+	flag.Hidden = options.Hidden
+	viper.BindPFlag(fullName, flag)
+
+	if options.EnvName != "" {
+		viper.BindEnv(fullName, options.EnvName)
+	}
+}
+
+// StringSliceFlagOpts - options a string slice flag
 type StringSliceFlagOpts struct {
 	Name        string
 	Shorthand   string
@@ -89,6 +120,7 @@ type StringSliceFlagOpts struct {
 	EnvName     string
 }
 
+// AddStringSliceFlag - add a string slice flag to a command
 func (c *Command) AddStringSliceFlag(options StringSliceFlagOpts) {
 	fullName := namespace(c.Command) + "." + options.Name
 
@@ -105,122 +137,21 @@ func (c *Command) AddStringSliceFlag(options StringSliceFlagOpts) {
 	}
 }
 
-type CmdContext struct {
-	Config       flyctl.Config
-	GlobalConfig flyctl.Config
-	NS           string
-	Args         []string
-	Out          io.Writer
-	FlyClient    *api.Client
-	Terminal     *terminal.Terminal
-	WorkingDir   string
-	ConfigFile   string
-
-	AppName   string
-	AppConfig *flyctl.AppConfig
-}
-
-func (ctx *CmdContext) InitApiClient() error {
-	client, err := api.NewClient(viper.GetString(flyctl.ConfigAPIToken), flyctl.Version)
-	if err != nil {
-		return err
-	}
-	ctx.FlyClient = client
-	return nil
-}
-
-func (ctx *CmdContext) Render(presentable presenters.Presentable) error {
-	presenter := &presenters.Presenter{
-		Item: presentable,
-		Out:  os.Stdout,
-	}
-
-	return presenter.Render()
-}
-
-func (ctx *CmdContext) RenderEx(presentable presenters.Presentable, options presenters.Options) error {
-	presenter := &presenters.Presenter{
-		Item: presentable,
-		Out:  os.Stdout,
-		Opts: options,
-	}
-
-	return presenter.Render()
-}
-
-type PresenterOption struct {
-	Presentable presenters.Presentable
-	Vertical    bool
-	HideHeader  bool
-	Title       string
-}
-
-func (ctx *CmdContext) render(out io.Writer, views ...PresenterOption) error {
-	for _, v := range views {
-		presenter := &presenters.Presenter{
-			Item: v.Presentable,
-			Out:  out,
-			Opts: presenters.Options{
-				Vertical:   v.Vertical,
-				HideHeader: v.HideHeader,
-			},
-		}
-
-		if v.Title != "" {
-			fmt.Fprintln(out, aurora.Bold(v.Title))
-		}
-
-		if err := presenter.Render(); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (ctx *CmdContext) RenderView(views ...PresenterOption) (err error) {
-	return ctx.render(ctx.Terminal, views...)
-}
-
-func (ctx *CmdContext) RenderViewW(w io.Writer, views ...PresenterOption) error {
-	return ctx.render(w, views...)
-}
-
-func newCmdContext(ns string, out io.Writer, args []string, initClient bool) (*CmdContext, error) {
-	ctx := &CmdContext{
-		NS:           ns,
-		Config:       flyctl.ConfigNS(ns),
-		GlobalConfig: flyctl.FlyConfig,
-		Out:          out,
-		Args:         args,
-		Terminal:     terminal.NewTerminal(out),
-	}
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, errors.Wrap(err, "Error resolving working directory")
-	}
-	ctx.WorkingDir = cwd
-
-	if initClient {
-		if err := ctx.InitApiClient(); err != nil {
-			return nil, err
-		}
-	}
-
-	return ctx, nil
-}
-
+// Initializer - Retains Setup and PreRun functions
 type Initializer struct {
 	Setup  InitializerFn
 	PreRun InitializerFn
 }
-type CmdOption func(*Command) Initializer
-type InitializerFn func(*CmdContext) error
 
-func BuildCommand(parent *Command, fn CmdRunFn, usageText string, shortHelpText string, longHelpText string, initClient bool, out io.Writer, options ...CmdOption) *Command {
+// CmdOption - A wrapper for an Initializer function that takes a command
+type CmdOption func(*Command) Initializer
+
+// InitializerFn - A wrapper for an Initializer function that takes a command context
+type InitializerFn func(*cmdctx.CmdContext) error
+
+// BuildCommand - builds a functioning Command using all the initializers
+func BuildCommand(parent *Command, fn CmdRunFn, usageText string, shortHelpText string, longHelpText string, out io.Writer, options ...CmdOption) *Command {
 	flycmd := &Command{
-		requireSession: initClient,
 		Command: &cobra.Command{
 			Use:   usageText,
 			Short: shortHelpText,
@@ -242,7 +173,7 @@ func BuildCommand(parent *Command, fn CmdRunFn, usageText string, shortHelpText 
 
 	if fn != nil {
 		flycmd.Run = func(cmd *cobra.Command, args []string) {
-			ctx, err := newCmdContext(namespace(cmd), out, args, flycmd.requireSession)
+			ctx, err := cmdctx.NewCmdContext(flyctlClient, namespace(cmd), out, args)
 			checkErr(err)
 
 			for _, init := range initializers {
@@ -270,6 +201,20 @@ func BuildCommand(parent *Command, fn CmdRunFn, usageText string, shortHelpText 
 
 const defaultConfigFilePath = "./fly.toml"
 
+func requireSession(cmd *Command) Initializer {
+	return Initializer{
+		PreRun: func(ctx *cmdctx.CmdContext) error {
+			if !ctx.Client.Authenticated() {
+				return client.ErrNoAuthToken
+			}
+
+			// TODO: prompt to begin auth
+
+			return nil
+		},
+	}
+}
+
 func requireAppName(cmd *Command) Initializer {
 	// TODO: Add Flags to docStrings
 
@@ -288,7 +233,7 @@ func requireAppName(cmd *Command) Initializer {
 	})
 
 	return Initializer{
-		Setup: func(ctx *CmdContext) error {
+		Setup: func(ctx *cmdctx.CmdContext) error {
 			// resolve the config file path
 			configPath, _ := ctx.Config.GetString("config")
 			if configPath == "" {
@@ -329,7 +274,7 @@ func requireAppName(cmd *Command) Initializer {
 
 			return nil
 		},
-		PreRun: func(ctx *CmdContext) error {
+		PreRun: func(ctx *cmdctx.CmdContext) error {
 			if ctx.AppName == "" {
 				return fmt.Errorf("No app specified. Maybe create one with 'flyctl apps create [APPNAME]'")
 			}
@@ -354,7 +299,7 @@ func requireAppName(cmd *Command) Initializer {
 func workingDirectoryFromArg(index int) func(*Command) Initializer {
 	return func(cmd *Command) Initializer {
 		return Initializer{
-			Setup: func(ctx *CmdContext) error {
+			Setup: func(ctx *cmdctx.CmdContext) error {
 				if len(ctx.Args) <= index {
 					return nil
 					// return fmt.Errorf("cannot resolve working directory from arg %d, not enough args", index)
@@ -381,12 +326,6 @@ func workingDirectoryFromArg(index int) func(*Command) Initializer {
 	}
 }
 
-func requireSession(val bool) func(*Command) {
-	return func(cmd *Command) {
-		cmd.requireSession = val
-	}
-}
-
 func createCancellableContext() context.Context {
 	signals := make(chan os.Signal)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
@@ -398,4 +337,30 @@ func createCancellableContext() context.Context {
 	}()
 
 	return ctx
+}
+
+func printDefinitionList(pairs [][]string) {
+	fprintDefintionList(os.Stdout, pairs)
+}
+
+func fprintDefintionList(w io.Writer, pairs [][]string) {
+	maxLength := 0
+
+	for _, pair := range pairs {
+		if len(pair) != 2 {
+			panic("each pair must be [2]string")
+		}
+		keyLength := len(pair[0])
+		if keyLength > maxLength {
+			maxLength = keyLength
+		}
+	}
+
+	format := fmt.Sprintf("%%-%dv = ", maxLength)
+
+	for _, pair := range pairs {
+		fmt.Fprint(w, "  ")
+		fmt.Fprintf(w, format, pair[0])
+		fmt.Fprintf(w, "%s\n", pair[1])
+	}
 }

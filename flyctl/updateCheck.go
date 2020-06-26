@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -36,6 +37,7 @@ func updateAvailable() bool {
 	return lv.GT(cv)
 }
 
+// CheckForUpdate - Test for available updates and emit a message if one is available
 func CheckForUpdate() {
 	if skipUpdateCheck() {
 		return
@@ -43,7 +45,7 @@ func CheckForUpdate() {
 
 	if updateAvailable() {
 		latestVersion := viper.GetString(ConfigUpdateCheckLatestVersion)
-		fmt.Println(aurora.Yellow(fmt.Sprintf("Update available %s -> %s", Version, latestVersion)))
+		fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Update available %s -> %s", Version, latestVersion)))
 	}
 
 	lastCheck := viper.GetTime(ConfigUpdateCheckTimestamp)

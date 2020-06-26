@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 
@@ -14,9 +15,14 @@ import (
 )
 
 var baseURL string
+var errorLog bool
 
 func SetBaseURL(url string) {
 	baseURL = url
+}
+
+func SetErrorLog(log bool) {
+	errorLog = log
 }
 
 type Client struct {
@@ -26,18 +32,18 @@ type Client struct {
 	userAgent   string
 }
 
-func NewClient(accessToken string, version string) (*Client, error) {
+func NewClient(accessToken string, version string) *Client {
 	if accessToken == "" {
 		return nil, errors.New("No api access token available. Please login with 'flyctl auth signup' or 'flyctl auth login'")
 	}
 
 	httpClient, _ := newHTTPClient()
 
-	url := fmt.Sprintf("%s/api/v2/graphql", baseURL)
+	url := fmt.Sprintf("%s/graphql", baseURL)
 
 	client := graphql.NewClient(url, graphql.WithHTTPClient(httpClient))
 	userAgent := fmt.Sprintf("flyctl/%s", version)
-	return &Client{httpClient, client, accessToken, userAgent}, nil
+	return &Client{httpClient, client, accessToken, userAgent}
 }
 
 func (c *Client) NewRequest(q string) *graphql.Request {
@@ -58,6 +64,11 @@ func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Quer
 	if err != nil && strings.HasPrefix(err.Error(), "graphql: ") {
 		return resp, errors.New(strings.TrimPrefix(err.Error(), "graphql: "))
 	}
+
+	if resp.Errors != nil && errorLog {
+		fmt.Fprintf(os.Stderr, "Error: %+v\n", resp.Errors)
+	}
+
 	return resp, err
 }
 

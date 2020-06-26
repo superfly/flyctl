@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/pelletier/go-toml"
 	"log"
 	"os"
 	"strings"
+
+	"github.com/pelletier/go-toml"
 )
 
 func main() {
@@ -19,7 +20,7 @@ func main() {
 
 	mapped := tree.ToMap()
 
-	fmt.Println("package docstrings\n\nfunc Get(key string) KeyStrings {switch(key) {")
+	fmt.Println("package docstrings\n\n// Get - Get a document string\nfunc Get(key string) KeyStrings {switch(key) {")
 
 	dumpMap("", mapped)
 
