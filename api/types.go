@@ -433,8 +433,8 @@ type CheckState struct {
 type Region struct {
 	Code      string
 	Name      string
-	Latitude  float32 `json:"omitempty"`
-	Longitude float32 `json:"omitempty"`
+	Latitude  float32
+	Longitude float32
 }
 
 type AutoscalingConfig struct {

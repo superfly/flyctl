@@ -49,7 +49,7 @@ func runList(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-type CondensedApp struct {
+type appCondensed struct {
 	ID           string
 	Name         string
 	Status       string
@@ -78,9 +78,9 @@ func runListApps(commandContext *cmdctx.CmdContext) error {
 		return err
 	}
 
-	var filteredApps []CondensedApp
+	var filteredApps []appCondensed
 
-	filteredApps = make([]CondensedApp, 0)
+	filteredApps = make([]appCondensed, 0)
 
 	for _, app := range apps {
 		saved := false
@@ -100,7 +100,7 @@ func runListApps(commandContext *cmdctx.CmdContext) error {
 		}
 
 		if saved {
-			filteredApps = append(filteredApps, CondensedApp{ID: app.ID, Name: app.Name, Status: app.Status, Deployed: app.Deployed, Hostname: app.Hostname, Organization: app.Organization.Slug})
+			filteredApps = append(filteredApps, appCondensed{ID: app.ID, Name: app.Name, Status: app.Status, Deployed: app.Deployed, Hostname: app.Hostname, Organization: app.Organization.Slug})
 		}
 	}
 
