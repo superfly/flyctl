@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 echo "Running doc/main.go"
 go run doc/main.go
 

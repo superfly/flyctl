@@ -10,4 +10,4 @@ build: generate
 
 cmddocs: generate
 	@echo Running Docs Generation
-	sh scripts/generate_docs.sh
+	bash scripts/generate_docs.sh
