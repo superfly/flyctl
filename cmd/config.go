@@ -3,8 +3,9 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"github.com/superfly/flyctl/cmdctx"
 	"os"
+
+	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/superfly/flyctl/docstrings"
 
@@ -53,6 +54,16 @@ func runDisplayConfig(ctx *cmdctx.CmdContext) error {
 }
 
 func runSaveConfig(ctx *cmdctx.CmdContext) error {
+	configfilename, err := flyctl.ResolveConfigFileFromPath(ctx.WorkingDir)
+
+	if helpers.FileExists(configfilename) {
+		ctx.Status("create", cmdctx.SERROR, "An existing configuration file has been found.")
+		confirmation := confirm(fmt.Sprintf("Overwrite file '%s'", configfilename))
+		if !confirmation {
+			return nil
+		}
+	}
+
 	if ctx.AppConfig == nil {
 		ctx.AppConfig = flyctl.NewAppConfig()
 	}
@@ -99,9 +110,6 @@ func printAppConfigErrors(cfg api.AppConfig) {
 }
 
 func writeAppConfig(path string, appConfig *flyctl.AppConfig) error {
-	if !confirmFileOverwrite(path) {
-		return nil
-	}
 
 	if err := appConfig.WriteToFile(path); err != nil {
 		return err
