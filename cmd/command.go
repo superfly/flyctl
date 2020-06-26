@@ -276,7 +276,7 @@ func requireAppName(cmd *Command) Initializer {
 		},
 		PreRun: func(ctx *cmdctx.CmdContext) error {
 			if ctx.AppName == "" {
-				return fmt.Errorf("No app specified")
+				return fmt.Errorf("No app specified. Maybe create one with 'flyctl apps create [APPNAME]'")
 			}
 
 			if ctx.AppConfig == nil {
