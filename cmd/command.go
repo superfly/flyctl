@@ -20,8 +20,8 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-// CmdRunFn - Run function for commands which takes a command context
-type CmdRunFn func(cmdContext *cmdctx.CmdContext) error
+// RunFn - Run function for commands which takes a command context
+type RunFn func(cmdContext *cmdctx.CmdContext) error
 
 // Command - Wrapper for a cobra command
 type Command struct {
@@ -144,14 +144,14 @@ type Initializer struct {
 	PreRun InitializerFn
 }
 
-// CmdOption - A wrapper for an Initializer function that takes a command
-type CmdOption func(*Command) Initializer
+// Option - A wrapper for an Initializer function that takes a command
+type Option func(*Command) Initializer
 
 // InitializerFn - A wrapper for an Initializer function that takes a command context
 type InitializerFn func(*cmdctx.CmdContext) error
 
 // BuildCommand - builds a functioning Command using all the initializers
-func BuildCommand(parent *Command, fn CmdRunFn, usageText string, shortHelpText string, longHelpText string, out io.Writer, options ...CmdOption) *Command {
+func BuildCommand(parent *Command, fn RunFn, usageText string, shortHelpText string, longHelpText string, out io.Writer, options ...Option) *Command {
 	flycmd := &Command{
 		Command: &cobra.Command{
 			Use:   usageText,
