@@ -3,9 +3,10 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"github.com/superfly/flyctl/cmdctx"
 	"os"
 	"sync"
+
+	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
@@ -33,7 +34,6 @@ func runMonitor(commandContext *cmdctx.CmdContext) error {
 		monitorDeployment(context.Background(), commandContext)
 	}
 
-	return nil
 }
 
 func monitorDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) error {
