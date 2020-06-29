@@ -99,8 +99,8 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 		return err
 	}
 
-	if appcheck.Status == "dead" {
-		return fmt.Errorf("app %s is currently paused - resume it with flyctl apps resume", commandContext.AppName)
+	if appcheck.Status == "suspended" {
+		return fmt.Errorf("app %s is currently suspended - resume it with flyctl apps resume", commandContext.AppName)
 	}
 
 	var strategy = docker.DefaultDeploymentStrategy
