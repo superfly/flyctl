@@ -12,13 +12,26 @@ import (
 
 func newAppInfoCommand() *Command {
 	ks := docstrings.Get("info")
-	return BuildCommand(nil, runAppInfo, ks.Usage, ks.Short, ks.Long, os.Stdout, requireSession, requireAppName)
+	appInfoCmd := BuildCommand(nil, runAppInfo, ks.Usage, ks.Short, ks.Long, os.Stdout, requireSession, requireAppName)
+
+	appInfoCmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "name",
+		Shorthand:   "n",
+		Description: "Returns just the appname",
+	})
+
+	return appInfoCmd
 }
 
 func runAppInfo(ctx *cmdctx.CmdContext) error {
 	app, err := ctx.Client.API().GetAppCompact(ctx.AppName)
 	if err != nil {
 		return err
+	}
+
+	if ctx.Config.GetBool("name") {
+		ctx.Status("info", cmdctx.SINFO, app.Name)
+		return nil
 	}
 
 	err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppCompact{AppCompact: *app}, HideHeader: true, Vertical: true, Title: "App"})
