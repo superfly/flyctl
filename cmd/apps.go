@@ -81,9 +81,9 @@ func newAppListCommand() *Command {
 		Description: `The organization to move the app to`,
 	})
 
-	appsPauseStrings := docstrings.Get("apps.pause")
-	appsPauseCmd := BuildCommand(cmd, runAppsPause, appsPauseStrings.Usage, appsPauseStrings.Short, appsPauseStrings.Long, os.Stdout, requireSession, requireAppNameAsArg)
-	appsPauseCmd.Args = cobra.RangeArgs(0, 1)
+	appsSuspendStrings := docstrings.Get("apps.suspend")
+	appsSuspendCmd := BuildCommand(cmd, runAppsSuspend, appsSuspendStrings.Usage, appsSuspendStrings.Short, appsSuspendStrings.Long, os.Stdout, requireSession, requireAppNameAsArg)
+	appsSuspendCmd.Args = cobra.RangeArgs(0, 1)
 
 	appsResumeStrings := docstrings.Get("apps.resume")
 	appsResumeCmd := BuildCommand(cmd, runAppsResume, appsResumeStrings.Usage, appsResumeStrings.Short, appsResumeStrings.Long, os.Stdout, requireSession, requireAppNameAsArg)
@@ -105,7 +105,7 @@ func runAppsList(ctx *cmdctx.CmdContext) error {
 	return ctx.Render(&presenters.Apps{Apps: apps})
 }
 
-func runAppsPause(ctx *cmdctx.CmdContext) error {
+func runAppsSuspend(ctx *cmdctx.CmdContext) error {
 	// appName := ctx.Args[0]
 	// fmt.Println(appName, len(ctx.Args))
 	// if appName == "" {
@@ -113,7 +113,7 @@ func runAppsPause(ctx *cmdctx.CmdContext) error {
 	// }
 	appName := ctx.AppName
 
-	_, err := ctx.Client.API().PauseApp(appName)
+	_, err := ctx.Client.API().SuspendApp(appName)
 	if err != nil {
 		return err
 	}
@@ -126,7 +126,7 @@ func runAppsPause(ctx *cmdctx.CmdContext) error {
 
 	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
 	s.Writer = os.Stderr
-	s.Prefix = fmt.Sprintf("Pausing %s with %d instances to stop ", appstatus.Name, allocount)
+	s.Prefix = fmt.Sprintf("Suspending %s with %d instances to stop ", appstatus.Name, allocount)
 	s.Start()
 
 	for allocount > 0 {
@@ -134,12 +134,12 @@ func runAppsPause(ctx *cmdctx.CmdContext) error {
 		if allocount > 1 {
 			plural = "s"
 		}
-		s.Prefix = fmt.Sprintf("Pausing %s with %d instance%s to stop ", appstatus.Name, allocount, plural)
+		s.Prefix = fmt.Sprintf("Suspending %s with %d instance%s to stop ", appstatus.Name, allocount, plural)
 		appstatus, err = ctx.Client.API().GetAppStatus(ctx.AppName, false)
 		allocount = len(appstatus.Allocations)
 	}
 
-	s.FinalMSG = fmt.Sprintf("Pause complete - %s is now paused with no running instances\n", appstatus.Name)
+	s.FinalMSG = fmt.Sprintf("Suspend complete - %s is now suspended with no running instances\n", appstatus.Name)
 	s.Stop()
 
 	return nil

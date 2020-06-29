@@ -95,7 +95,7 @@ type Query struct {
 		App App
 	}
 
-	PauseApp struct {
+	SuspendApp struct {
 		App App
 	}
 

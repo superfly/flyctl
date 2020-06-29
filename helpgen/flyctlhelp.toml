@@ -63,10 +63,10 @@ shortHelp="Move an App to another organization"
 longHelp="""The APPS MOVE command will move an application to another 
 organization the current user belongs to.
 """
-[apps.pause]
-usage="pause [APPNAME]"
-shortHelp="Pause an application"
-longHelp="""The APPS PAUSE command will pause an application. 
+[apps.suspend]
+usage="suspend [APPNAME]"
+shortHelp="Suspend an application"
+longHelp="""The APPS SUSPEND command will suspend an application. 
 All allocations will be deallocated leaving the application running nowhere.
 It will continue to consume networking resources (IP address). See APPS RESUME
 for details on restarting it.
@@ -74,7 +74,7 @@ for details on restarting it.
 [apps.resume]
 usage="resume [APPNAME]"
 shortHelp="Resume an application"
-longHelp="""The APPS Resume command will restart a previously paused application. 
+longHelp="""The APPS RESUME command will restart a previously suspended application. 
 The application will resume with its original region pool and a min count of one
 meaning there will be one running instance once restarted. Use SCALE SET MIN= to raise
 the number of configured instances.
