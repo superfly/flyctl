@@ -82,10 +82,6 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 
 	newAppConfig := flyctl.NewAppConfig()
 
-	if builder, _ := commandContext.Config.GetString("builder"); builder != "" {
-		newAppConfig.Build = &flyctl.Build{Builder: builder}
-	}
-
 	name, _ := commandContext.Config.GetString("name")
 
 	if name != "" && appName != "" {
@@ -95,6 +91,8 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 	if name == "" && appName != "" {
 		name = appName
 	}
+
+	fmt.Println()
 
 	if name == "" {
 		prompt := &survey.Input{
@@ -109,6 +107,8 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		fmt.Printf("Selected App Name: %s\n", name)
 	}
 
+	fmt.Println()
+
 	targetOrgSlug, _ := commandContext.Config.GetString("org")
 	org, err := selectOrganization(commandContext.Client.API(), targetOrgSlug)
 
@@ -117,6 +117,25 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		return nil
 	case err != nil || org == nil:
 		return fmt.Errorf("Error setting organization: %s", err)
+	}
+
+	fmt.Println()
+
+	if builder, _ := commandContext.Config.GetString("builder"); builder != "" {
+		newAppConfig.Build = &flyctl.Build{Builder: builder}
+	} else {
+		builder, err := selectBuildtype(commandContext)
+
+		switch {
+		case isInterrupt(err):
+			return nil
+		case err != nil || org == nil:
+			return fmt.Errorf("Error setting builder: %s", err)
+		}
+
+		if builder != "Dockerfile" {
+			newAppConfig.Build = &flyctl.Build{Builder: builder}
+		}
 	}
 
 	app, err := commandContext.Client.API().CreateApp(name, org.ID)
@@ -130,6 +149,8 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		newAppConfig.SetInternalPort(internalPort)
 	}
 
+	fmt.Println()
+
 	err = commandContext.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "New app created"})
 	if err != nil {
 		return err
@@ -142,6 +163,9 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		}
 		commandContext.ConfigFile = newCfgFile
 	}
+
+	commandContext.AppName = app.Name
+	commandContext.AppConfig = newAppConfig
 
 	return writeAppConfig(commandContext.ConfigFile, newAppConfig)
 }

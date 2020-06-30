@@ -18,7 +18,7 @@ func newDestroyCommand() *Command {
 
 	destroyStrings := docstrings.Get("destroy")
 
-	destroy := BuildCommand(nil, runDestroyApp, destroyStrings.Usage, destroyStrings.Short, destroyStrings.Long, os.Stdout, requireSession)
+	destroy := BuildCommand(nil, runDestroy, destroyStrings.Usage, destroyStrings.Short, destroyStrings.Long, os.Stdout, requireSession)
 
 	destroy.Args = cobra.ExactArgs(1)
 
