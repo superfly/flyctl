@@ -10,6 +10,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/client"
 )
@@ -18,11 +19,12 @@ import (
 var ErrAbort = errors.New("abort")
 var flyctlClient *client.Client
 
+var rootStrings = docstrings.Get("flyctl")
 var rootCmd = &Command{
 	Command: &cobra.Command{
-		Use:   "flyctl",
-		Short: "The Fly CLI",
-		Long:  `flyctl is a command line interface for the Fly.io platform`,
+		Use:   rootStrings.Usage,
+		Short: rootStrings.Short,
+		Long:  rootStrings.Long,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			cmd.SilenceUsage = true
 			cmd.SilenceErrors = true
@@ -83,6 +85,12 @@ func init() {
 		newMonitorCommand(),
 		newListCommand(),
 		newDashboardCommand(),
+		newInitCommand(),
+		newDestroyCommand(),
+		newSuspendCommand(),
+		newResumeCommand(),
+		newRestartCommand(),
+		newMoveCommand(),
 	)
 
 	initConfig()
