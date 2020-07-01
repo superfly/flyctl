@@ -67,8 +67,8 @@ func (dm *DeploymentMonitor) start(ctx context.Context) <-chan *deploymentStatus
 			// wait for a deployment for up to 30 seconds. Could be due to a delay submitting the job or because
 			// there is no active deployment
 			if deployment == nil {
-				if time.Now().After(startTime.Add(30 * time.Second)) {
-					// nothing to show after 10 seconds, break
+				if time.Now().After(startTime.Add(5 * time.Minute)) {
+					// nothing to show after 5 minutes, break
 					return ErrNoDeployment
 				}
 				return errDeploymentNotReady
