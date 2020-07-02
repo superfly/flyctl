@@ -65,22 +65,44 @@ func checkForRelease() {
 	}
 }
 
-type githubReleaseResponse struct {
+type githubReleaseLatestResponse struct {
 	Name string
 }
 
+type githubReleaseResponse []githubReleaseLatestResponse
+
 func refreshGithubVersion() (string, error) {
-	resp, err := http.Get("https://api.github.com/repos/superfly/flyctl/releases/latest")
+	cv, err := semver.Parse(Version)
 	if err != nil {
+		fmt.Println(err)
 		return "", err
 	}
-	defer resp.Body.Close()
+	var resp *http.Response
+
+	if len(cv.Pre) == 0 {
+		resp, err = http.Get("https://api.github.com/repos/superfly/flyctl/releases/latest")
+		if err != nil {
+			return "", err
+		}
+		defer resp.Body.Close()
+
+		data := githubReleaseLatestResponse{}
+
+		if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+			fmt.Println(err)
+			return "", err
+		}
+		return strings.TrimPrefix(data.Name, "v"), nil
+	}
+
+	resp, err = http.Get("https://api.github.com/repos/superfly/flyctl/releases")
 
 	data := githubReleaseResponse{}
-
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		fmt.Println(err)
 		return "", err
 	}
 
-	return strings.TrimPrefix(data.Name, "v"), nil
+	return strings.TrimPrefix(data[0].Name, "v"), nil
+
 }

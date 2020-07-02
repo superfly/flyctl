@@ -16,6 +16,8 @@ Darwin) target="macOS_x86_64" ;;
 *) target="Linux_x86_64" ;;
 esac
 
+
+
 if [ $# -eq 0 ]; then
 	flyctl_asset_path=$(
 		curl -sSf https://github.com/superfly/flyctl/releases |
@@ -28,7 +30,21 @@ if [ $# -eq 0 ]; then
 	fi
 	flyctl_uri="https://github.com${flyctl_asset_path}"
 else
-	flyctl_uri="https://github.com/superfly/flyctl/releases/download/${1}/deno-${target}.tar.gz"
+	if [[ ${1} == "prerel" ]]; then
+		flyctl_asset_path=$(
+		curl -sSf https://github.com/superfly/flyctl/releases |
+			grep -E -o "/superfly/flyctl/releases/download/.*/flyctl_[0-9]+\\.[0-9]+\\.[0-9]+(\\-beta\\-[0-9]+)*_${target}.tar.gz" |
+			head -n 1
+		)
+
+		if [ ! "$flyctl_asset_path" ]; then
+			echo "Error: Unable to find latest Flyctl release on GitHub." 1>&2
+			exit 1
+		fi
+		flyctl_uri="https://github.com${flyctl_asset_path}"
+	else
+		flyctl_uri="https://github.com/superfly/flyctl/releases/download/${1}/flyctl-${target}.tar.gz"
+	fi
 fi
 
 flyctl_install="${FLYCTL_INSTALL:-$HOME/.fly}"
