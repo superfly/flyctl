@@ -58,6 +58,15 @@ func runListSecrets(ctx *cmdctx.CmdContext) error {
 func runSetSecrets(cc *cmdctx.CmdContext) error {
 	ctx := createCancellableContext()
 
+	app, err := cc.Client.API().GetApp(cc.AppName)
+	if err != nil {
+		return err
+	}
+
+	if app.Status == "suspended" {
+		return fmt.Errorf("app '%s' is currently suspended. Suspended apps do not accept secret changes", cc.AppName)
+	}
+
 	secrets := make(map[string]string)
 
 	for _, pair := range cc.Args {
@@ -97,6 +106,15 @@ func runSetSecrets(cc *cmdctx.CmdContext) error {
 
 func runSecretsUnset(cc *cmdctx.CmdContext) error {
 	ctx := createCancellableContext()
+
+	app, err := cc.Client.API().GetApp(cc.AppName)
+	if err != nil {
+		return err
+	}
+
+	if app.Status == "suspended" {
+		return fmt.Errorf("app '%s' is currently suspended. Suspended apps do not accept secret changes", cc.AppName)
+	}
 
 	if len(cc.Args) == 0 {
 		return errors.New("Requires at least one secret name")
