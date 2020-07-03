@@ -20,6 +20,10 @@ func newAppInfoCommand() *Command {
 		Description: "Returns just the appname",
 	})
 
+	appInfoCmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "host",
+		Description: "Returns just the hostname",
+	})
 	return appInfoCmd
 }
 
@@ -31,6 +35,11 @@ func runAppInfo(ctx *cmdctx.CmdContext) error {
 
 	if ctx.Config.GetBool("name") {
 		ctx.Status("info", cmdctx.SINFO, app.Name)
+		return nil
+	}
+
+	if ctx.Config.GetBool("host") {
+		ctx.Status("info", cmdctx.SINFO, app.Hostname)
 		return nil
 	}
 
