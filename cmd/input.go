@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"fmt"
+	"path"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/helpers"
 )
 
@@ -55,6 +57,80 @@ func selectOrganization(client *api.Client, slug string) (*api.Organization, err
 	}
 
 	return &orgs[selectedOrg], nil
+}
+
+type suggestedBuilder struct {
+	Vendor             string
+	Image              string
+	DefaultDescription string
+}
+
+var suggestedBuilders = []suggestedBuilder{
+	{
+		Vendor:             "Google",
+		Image:              "gcr.io/buildpacks/builder",
+		DefaultDescription: "GCP Builder for all runtimes",
+	},
+	{
+		Vendor:             "Heroku",
+		Image:              "heroku/buildpacks:18",
+		DefaultDescription: "heroku-18 base image with buildpacks for Ruby, Java, Node.js, Python, Golang, & PHP",
+	},
+	{
+		Vendor:             "Paketo Buildpacks",
+		Image:              "gcr.io/paketo-buildpacks/builder:base",
+		DefaultDescription: "Small base image with buildpacks for Java, Node.js, Golang, & .NET Core",
+	},
+	{
+		Vendor:             "Paketo Buildpacks",
+		Image:              "gcr.io/paketo-buildpacks/builder:full-cf",
+		DefaultDescription: "Larger base image with buildpacks for Java, Node.js, Golang, .NET Core, & PHP",
+	},
+	{
+		Vendor:             "Paketo Buildpacks",
+		Image:              "gcr.io/paketo-buildpacks/builder:tiny",
+		DefaultDescription: "Tiny base image (bionic build image, distroless run image) with buildpacks for Golang",
+	},
+	{
+		Vendor:             "Fly",
+		Image:              "flyio/builder",
+		DefaultDescription: "Fly's own Buildpack - currently supporting Deno",
+	},
+}
+
+func selectBuildtype(commandContext *cmdctx.CmdContext) (string, error) {
+
+	dockerfileExists := helpers.FileExists(path.Join(commandContext.WorkingDir, "Dockerfile"))
+
+	builders := []string{}
+
+	if dockerfileExists {
+		builders = append(builders, fmt.Sprintf("%s (%s)", "Dockerfile", "Use the existing Dockerfile"))
+	}
+
+	for _, b := range suggestedBuilders {
+		builders = append(builders, fmt.Sprintf("%s (%s)", b.Image, b.DefaultDescription))
+	}
+
+	selectedBuilder := 0
+
+	prompt := &survey.Select{
+		Message:  "Select builder:",
+		Options:  builders,
+		PageSize: 15,
+	}
+	if err := survey.AskOne(prompt, &selectedBuilder); err != nil {
+		return "", err
+	}
+
+	if dockerfileExists {
+		if selectedBuilder == 0 {
+			return "Dockerfile", nil
+		}
+		return suggestedBuilders[selectedBuilder-1].Image, nil
+	}
+
+	return suggestedBuilders[selectedBuilder].Image, nil
 }
 
 func confirmFileOverwrite(filename string) bool {

@@ -68,6 +68,11 @@ func newDeployCommand() *Command {
 }
 
 func runDeploy(commandContext *cmdctx.CmdContext) error {
+	if commandContext.AppName == "" {
+		commandContext.Status("flyctl", cmdctx.SERROR, "No initialized application")
+		runInit(commandContext)
+	}
+
 	ctx := createCancellableContext()
 	op, err := docker.NewDeployOperation(ctx, commandContext)
 	if err != nil {

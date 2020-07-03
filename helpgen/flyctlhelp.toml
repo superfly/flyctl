@@ -3,9 +3,15 @@ usage="flyctl"
 shortHelp="The Fly CLI"
 longHelp="""flyctl is a command line interface to the Fly.io platform.
 
-It allows users to manage authentication, application creation, deployment,
+It allows users to manage authentication, application initialization, deployment,
 network configuration, logging and more with just the one command.
 
+Initialize an App with the init command
+Deploy an App with the deploy command
+View a Deployed web application with the open command
+Check the status of an application with the status command
+
+To read more, use the docs command to view Fly's help on the web.
 """
 
 
@@ -25,6 +31,54 @@ usage="open [PATH]"
 shortHelp="Open browser to current deployed application"
 longHelp="""Open browser to current deployed application. If an optional path is specified, this is appended to the
 URL for deployed application. 
+"""
+
+[init]
+usage="init [APPNAME]"
+shortHelp="Initialise a new application"
+longHelp="""The INIT command will both register a new application 
+with the Fly platform and create the fly.toml file which controls how 
+the application will be deployed. The --builder flag allows a cloud native 
+buildpack to be specified which will be used instead of a Dockerfile to 
+create the application image when it is deployed.
+"""
+
+[destroy]
+usage="destroy [APPNAME]"
+shortHelp="Permanently destroys an App"
+longHelp="""The DESTROY command will remove an application 
+from the Fly platform.
+"""
+
+[suspend]
+usage="suspend [APPNAME]"
+shortHelp="Suspend an application"
+longHelp="""The SUSPEND command will suspend an application. 
+All allocations will be deallocated leaving the application running nowhere.
+It will continue to consume networking resources (IP address). See RESUME
+for details on restarting it.
+"""
+
+[resume]
+usage="resume [APPNAME]"
+shortHelp="Resume an application"
+longHelp="""The RESUME command will restart a previously suspended application. 
+The application will resume with its original region pool and a min count of one
+meaning there will be one running instance once restarted. Use SCALE SET MIN= to raise
+the number of configured instances.
+"""
+
+[restart]
+usage="restart [APPNAME]"
+shortHelp="Restart an application"
+longHelp="""The RESTART command will restart all running vms. 
+"""
+
+[move]
+usage="move [APPNAME]"
+shortHelp="Move an App to another organization"
+longHelp="""The MOVE command will move an application to another 
+organization the current user belongs to.
 """
 
 [apps]
