@@ -33,6 +33,11 @@ func newMoveCommand() *Command {
 func runMove(commandContext *cmdctx.CmdContext) error {
 	appName := commandContext.Args[0]
 
+	app, err := commandContext.Client.API().GetApp(appName)
+	if err != nil {
+		return errors.Wrap(err, "Error fetching app")
+	}
+
 	targetOrgSlug, _ := commandContext.Config.GetString("org")
 	org, err := selectOrganization(commandContext.Client.API(), targetOrgSlug)
 
@@ -41,11 +46,6 @@ func runMove(commandContext *cmdctx.CmdContext) error {
 		return nil
 	case err != nil || org == nil:
 		return fmt.Errorf("Error setting organization: %s", err)
-	}
-
-	app, err := commandContext.Client.API().GetApp(appName)
-	if err != nil {
-		return errors.Wrap(err, "Error fetching app")
 	}
 
 	if !commandContext.Config.GetBool("yes") {
