@@ -74,7 +74,6 @@ type githubReleaseResponse []githubReleaseLatestResponse
 func refreshGithubVersion() (string, error) {
 	cv, err := semver.Parse(Version)
 	if err != nil {
-		fmt.Println(err)
 		return "", err
 	}
 	var resp *http.Response
