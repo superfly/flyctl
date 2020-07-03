@@ -16,10 +16,9 @@ func newAppListCommand() *Command {
 
 	cmd := &Command{
 		Command: &cobra.Command{
-			Use:     appsStrings.Usage,
-			Aliases: []string{"app"},
-			Short:   appsStrings.Short,
-			Long:    appsStrings.Long,
+			Use:   appsStrings.Usage,
+			Short: appsStrings.Short,
+			Long:  appsStrings.Long,
 		},
 	}
 
