@@ -95,6 +95,9 @@ func refreshGithubVersion() (string, error) {
 	}
 
 	resp, err = http.Get("https://api.github.com/repos/superfly/flyctl/releases")
+	if err != nil {
+		return "", err
+	}
 
 	data := githubReleaseResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
