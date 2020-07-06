@@ -1,9 +1,8 @@
-name: Release
+name: Prerelease
 on:
   push:
     tags:
-      - "v*"
-      - "!v*-beta-*"
+      - "v*-beta-*"
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -28,6 +27,6 @@ jobs:
         uses: goreleaser/goreleaser-action@v2
         with:
           version: latest
-          args: release --rm-dist
+          args: release --config .goreleaserprerel.yml --rm-dist
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
