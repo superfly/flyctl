@@ -1,11 +1,12 @@
 package cmd
 
 import (
-	"github.com/superfly/flyctl/cmd/presenters"
-	"github.com/superfly/flyctl/cmdctx"
 	"math"
 	"os"
 	"time"
+
+	"github.com/superfly/flyctl/cmd/presenters"
+	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/superfly/flyctl/docstrings"
 
@@ -13,7 +14,7 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-func newAppLogsCommand() *Command {
+func newLogsCommand() *Command {
 	logsStrings := docstrings.Get("logs")
 	cmd := BuildCommand(nil, runLogs, logsStrings.Usage, logsStrings.Short, logsStrings.Long, os.Stdout, requireSession, requireAppName)
 

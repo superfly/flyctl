@@ -15,7 +15,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 )
 
-func newAppSecretsCommand() *Command {
+func newSecretsCommand() *Command {
 
 	secretsStrings := docstrings.Get("secrets")
 	cmd := &Command{

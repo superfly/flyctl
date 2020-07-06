@@ -10,7 +10,7 @@ import (
 	"github.com/superfly/flyctl/docstrings"
 )
 
-func newAppListCommand() *Command {
+func newAppsCommand() *Command {
 
 	appsStrings := docstrings.Get("apps")
 

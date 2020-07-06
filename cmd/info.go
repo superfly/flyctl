@@ -10,9 +10,9 @@ import (
 	"github.com/superfly/flyctl/cmd/presenters"
 )
 
-func newAppInfoCommand() *Command {
+func newInfoCommand() *Command {
 	ks := docstrings.Get("info")
-	appInfoCmd := BuildCommand(nil, runAppInfo, ks.Usage, ks.Short, ks.Long, os.Stdout, requireSession, requireAppName)
+	appInfoCmd := BuildCommand(nil, runInfo, ks.Usage, ks.Short, ks.Long, os.Stdout, requireSession, requireAppName)
 
 	appInfoCmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "name",
@@ -27,7 +27,7 @@ func newAppInfoCommand() *Command {
 	return appInfoCmd
 }
 
-func runAppInfo(ctx *cmdctx.CmdContext) error {
+func runInfo(ctx *cmdctx.CmdContext) error {
 	app, err := ctx.Client.API().GetAppCompact(ctx.AppName)
 	if err != nil {
 		return err

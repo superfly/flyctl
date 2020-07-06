@@ -16,9 +16,9 @@ import (
 	"github.com/superfly/flyctl/cmd/presenters"
 )
 
-func newAppStatusCommand() *Command {
+func newStatusCommand() *Command {
 	statusStrings := docstrings.Get("status")
-	cmd := BuildCommand(nil, runAppStatus, statusStrings.Usage, statusStrings.Short, statusStrings.Long, os.Stdout, requireSession, requireAppName)
+	cmd := BuildCommand(nil, runStatus, statusStrings.Usage, statusStrings.Short, statusStrings.Long, os.Stdout, requireSession, requireAppName)
 
 	//TODO: Move flag descriptions to docstrings
 	cmd.AddBoolFlag(BoolFlagOpts{Name: "all", Description: "Show completed allocations"})
@@ -29,7 +29,7 @@ func newAppStatusCommand() *Command {
 	return cmd
 }
 
-func runAppStatus(ctx *cmdctx.CmdContext) error {
+func runStatus(ctx *cmdctx.CmdContext) error {
 	app, err := ctx.Client.API().GetAppStatus(ctx.AppName, ctx.Config.GetBool("all"))
 	if err != nil {
 		return err
