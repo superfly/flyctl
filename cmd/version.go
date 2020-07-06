@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/superfly/flyctl/docstrings"
@@ -19,10 +20,28 @@ func newVersionCommand() *Command {
 		Shorthand:   "c",
 		Description: "Generate completions for supported shells bash/zsh)",
 	})
+	version.AddStringFlag(StringFlagOpts{
+		Name:        "saveinstall",
+		Shorthand:   "s",
+		Description: "Save parameter in config",
+	})
+	version.Flag("saveinstall").Hidden = true
+
 	return version
 }
 
 func runVersion(ctx *cmdctx.CmdContext) error {
+	saveInstall, _ := ctx.Config.GetString("saveinstall")
+
+	if saveInstall != "" {
+		fmt.Println(saveInstall)
+		viper.Set(flyctl.ConfigInstaller, saveInstall)
+		if err := flyctl.SaveConfig(); err != nil {
+			return err
+		}
+		return nil
+	}
+
 	shellType, _ := ctx.Config.GetString("completions")
 
 	if shellType != "" {

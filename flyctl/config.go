@@ -11,11 +11,13 @@ const (
 	ConfigVerboseOutput   = "verbose"
 	ConfigJSONOutput      = "json"
 	ConfigGQLErrorLogging = "gqlerrorlogging"
+	ConfigInstaller       = "installer"
 
 	ConfigRegistryHost             = "registry_host"
-	ConfigUpdateCheckLatestVersion = "update_check.latest_version"
-	ConfigUpdateCheckTimestamp     = "update_check.timestamp"
-	ConfigUpdateCheckOptOut        = "update_check.out_out"
+	ConfigUpdateCheck              = "update_check"
+	ConfigUpdateCheckLatestVersion = ConfigUpdateCheck + ".latest_version"
+	ConfigUpdateCheckTimestamp     = ConfigUpdateCheck + ".timestamp"
+	ConfigUpdateCheckOptOut        = ConfigUpdateCheck + ".out_out"
 )
 
 const NSRoot = "flyctl"

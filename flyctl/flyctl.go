@@ -100,7 +100,7 @@ func loadConfig() error {
 	return err
 }
 
-var writeableConfigKeys = []string{"access_token", "update_check"}
+var writeableConfigKeys = []string{ConfigAPIToken, ConfigUpdateCheck, ConfigInstaller}
 
 func SaveConfig() error {
 	BackgroundTaskWG.Add(1)
