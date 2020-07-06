@@ -45,7 +45,21 @@ func CheckForUpdate() {
 
 	if updateAvailable() {
 		latestVersion := viper.GetString(ConfigUpdateCheckLatestVersion)
+		installer := viper.GetString(ConfigInstaller)
+
 		fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Update available %s -> %s", Version, latestVersion)))
+		if installer != "" {
+			var installerstring string
+			switch installer {
+			case "brew":
+				installerstring = "brew upgrade flyctl"
+			case "shell":
+				installerstring = "curl -L \"https://fly.io/install.sh\" | sh"
+			case "shell-prerel":
+				installerstring = "curl -L \"https://fly.io/install.sh\" | sh -s prerel"
+			}
+			fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Update with\n%s\n", installerstring)))
+		}
 	}
 
 	lastCheck := viper.GetTime(ConfigUpdateCheckTimestamp)
