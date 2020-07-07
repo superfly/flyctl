@@ -20,8 +20,8 @@ func newRestartCommand() *Command {
 	return restartCmd
 }
 
-func runRestart(ctx *cmdctx.CmdContext) error {
-	app, err := ctx.Client.API().RestartApp(ctx.AppName)
+func runRestart(cmdctx *cmdctx.CmdContext) error {
+	app, err := cmdctx.Client.API().RestartApp(cmdctx.AppName)
 	if err != nil {
 		return err
 	}
