@@ -111,7 +111,7 @@ func selectBuildtype(commandContext *cmdctx.CmdContext) (string, error) {
 	}
 
 	for _, b := range suggestedBuilders {
-		builders = append(builders, fmt.Sprintf("%s (%s)", b.Image, b.DefaultDescription))
+		builders = append(builders, fmt.Sprintf("%s", b.Image))
 	}
 
 	selectedBuilder := 0

@@ -151,7 +151,7 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 				if err != nil {
 					return fmt.Errorf("Error writing example Dockerfile: %s", err)
 				}
-				fmt.Fprintf(newdf, "FROM flydotio/getting-started\n\nEXPOSE 8080\n")
+				fmt.Fprintf(newdf, "FROM flyio/hellofly\n")
 				newdf.Close()
 			}
 		}
