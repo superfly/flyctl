@@ -84,6 +84,10 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 	commandContext.Status("flyctl", cmdctx.SBEGIN, "Validating App Configuration")
 	parsedCfg, err := op.ValidateConfig()
 	if err != nil {
+		if parsedCfg == nil {
+			// No error data has been returned
+			return fmt.Errorf("not possible to validate configuration: server returned %s", err)
+		}
 		for _, error := range parsedCfg.Errors {
 			//	fmt.Println("   ", aurora.Red("✘").String(), error)
 			commandContext.Status("flyctl", cmdctx.SERROR, "   ", aurora.Red("✘").String(), error)
