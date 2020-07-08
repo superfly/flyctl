@@ -18,7 +18,7 @@ import (
 
 func newStatusCommand() *Command {
 	statusStrings := docstrings.Get("status")
-	cmd := BuildCommand(nil, runStatus, statusStrings.Usage, statusStrings.Short, statusStrings.Long, os.Stdout, requireSession, requireAppName)
+	cmd := BuildCommand(nil, runStatus, statusStrings.Usage, statusStrings.Short, statusStrings.Long, os.Stdout, requireSession, requireAppNameAsArg)
 
 	//TODO: Move flag descriptions to docstrings
 	cmd.AddBoolFlag(BoolFlagOpts{Name: "all", Description: "Show completed allocations"})

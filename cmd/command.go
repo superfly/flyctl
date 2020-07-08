@@ -295,7 +295,12 @@ func requireAppName(cmd *Command) Initializer {
 }
 
 func requireAppNameAsArg(cmd *Command) Initializer {
-	// TODO: Add Flags to docStrings
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "app",
+		Shorthand:   "a",
+		Description: "App name to operate on",
+		EnvName:     "FLY_APP",
+	})
 
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "config",
