@@ -101,6 +101,15 @@ func runSetSecrets(cc *cmdctx.CmdContext) error {
 
 	cc.Statusf("secrets", cmdctx.SINFO, "Release v%d created\n", release.Version)
 
+	app, err = cc.Client.API().GetApp(cc.AppName)
+	if err != nil {
+		return err
+	}
+
+	if app.Status == "pending" {
+		return nil
+	}
+
 	return watchDeployment(ctx, cc)
 }
 
@@ -126,6 +135,15 @@ func runSecretsUnset(cc *cmdctx.CmdContext) error {
 	}
 
 	cc.Statusf("secrets", cmdctx.SINFO, "Release v%d created\n", release.Version)
+
+	app, err = cc.Client.API().GetApp(cc.AppName)
+	if err != nil {
+		return err
+	}
+
+	if app.Status == "pending" {
+		return nil
+	}
 
 	return watchDeployment(ctx, cc)
 }
