@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path"
 	"strconv"
 
 	"github.com/superfly/flyctl/cmdctx"
@@ -45,6 +46,12 @@ func newInitCommand() *Command {
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "builder",
 		Description: `The Cloud Native Buildpacks builder to use when deploying the app`,
+	})
+
+	cmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "dockerfile",
+		Description: `Use a dockerfile when deploying the app`,
+		Default:     false,
 	})
 
 	return cmd
@@ -121,9 +128,12 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 
 	fmt.Println()
 
-	if builder, _ := commandContext.Config.GetString("builder"); builder != "" {
-		newAppConfig.Build = &flyctl.Build{Builder: builder}
-	} else {
+	dockerfile := commandContext.Config.GetBool("dockerfile")
+	dockerfileset := commandContext.Config.IsSet("dockerfile")
+	builder, _ := commandContext.Config.GetString("builder")
+
+	// If no builder has been set and no dockerfile setting - ask
+	if builder == "" && !dockerfileset {
 		builder, err := selectBuildtype(commandContext)
 
 		switch {
@@ -132,8 +142,22 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		case err != nil || org == nil:
 			return fmt.Errorf("Error setting builder: %s", err)
 		}
-
 		if builder != "Dockerfile" {
+			newAppConfig.Build = &flyctl.Build{Builder: builder}
+		} else {
+			dockerfileExists := helpers.FileExists(path.Join(commandContext.WorkingDir, "Dockerfile"))
+			if !dockerfileExists {
+				newdf, err := os.Create(path.Join(commandContext.WorkingDir, "Dockerfile"))
+				if err != nil {
+					return fmt.Errorf("Error writing example Dockerfile: %s", err)
+				}
+				fmt.Fprintf(newdf, "FROM flydotio/getting-started\n\nEXPOSE 8080\n")
+				newdf.Close()
+			}
+		}
+	} else if builder != "" {
+		// If the builder was set and there's not dockerfile setting, write the builder
+		if !dockerfile {
 			newAppConfig.Build = &flyctl.Build{Builder: builder}
 		}
 	}
@@ -142,6 +166,7 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 	if err != nil {
 		return err
 	}
+
 	newAppConfig.AppName = app.Name
 	newAppConfig.Definition = app.Config.Definition
 
