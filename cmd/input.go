@@ -106,6 +106,8 @@ func selectBuildtype(commandContext *cmdctx.CmdContext) (string, error) {
 
 	if dockerfileExists {
 		builders = append(builders, fmt.Sprintf("%s (%s)", "Dockerfile", "Use the existing Dockerfile"))
+	} else {
+		builders = append(builders, fmt.Sprintf("%s (%s)", "Dockerfile", "Create a example Dockerfile"))
 	}
 
 	for _, b := range suggestedBuilders {
@@ -123,14 +125,10 @@ func selectBuildtype(commandContext *cmdctx.CmdContext) (string, error) {
 		return "", err
 	}
 
-	if dockerfileExists {
-		if selectedBuilder == 0 {
-			return "Dockerfile", nil
-		}
-		return suggestedBuilders[selectedBuilder-1].Image, nil
+	if selectedBuilder == 0 {
+		return "Dockerfile", nil
 	}
-
-	return suggestedBuilders[selectedBuilder].Image, nil
+	return suggestedBuilders[selectedBuilder-1].Image, nil
 }
 
 func confirmFileOverwrite(filename string) bool {
