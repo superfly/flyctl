@@ -34,7 +34,6 @@ require (
 	github.com/machinebox/graphql v0.2.3-0.20181106130121-3a9253180225
 	github.com/matryer/is v1.3.0 // indirect
 	github.com/mattn/go-isatty v0.0.12
-	github.com/mitchellh/go-wordwrap v1.0.0 // indirect
 	github.com/mitchellh/mapstructure v1.3.1 // indirect
 	github.com/moby/buildkit v0.7.1
 	github.com/morikuni/aec v1.0.0
