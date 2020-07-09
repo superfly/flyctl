@@ -186,6 +186,7 @@ type Organization struct {
 	ID   string
 	Name string
 	Slug string
+	Type string
 }
 
 type IPAddress struct {
