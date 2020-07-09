@@ -38,17 +38,6 @@ func newVersionCommand() *Command {
 }
 
 func runVersion(ctx *cmdctx.CmdContext) error {
-	saveInstall, _ := ctx.Config.GetString("saveinstall")
-
-	if saveInstall != "" {
-		fmt.Println(saveInstall)
-		viper.Set(flyctl.ConfigInstaller, saveInstall)
-		if err := flyctl.SaveConfig(); err != nil {
-			return err
-		}
-		return nil
-	}
-
 	shellType, _ := ctx.Config.GetString("completions")
 
 	if shellType != "" {
@@ -59,6 +48,15 @@ func runVersion(ctx *cmdctx.CmdContext) error {
 			return GetRootCommand().GenZshCompletion(os.Stdout)
 		default:
 			return fmt.Errorf("unable to generate %s completions", shellType)
+		}
+	}
+
+	saveInstall, _ := ctx.Config.GetString("saveinstall")
+
+	if saveInstall != "" {
+		viper.Set(flyctl.ConfigInstaller, saveInstall)
+		if err := flyctl.SaveConfig(); err != nil {
+			return err
 		}
 	}
 
