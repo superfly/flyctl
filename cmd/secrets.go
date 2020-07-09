@@ -38,10 +38,19 @@ func newSecretsCommand() *Command {
 	flyctl secrets set FROM_A_FILE=- < file.txt
 	`
 	set.Command.Args = cobra.MinimumNArgs(1)
+	set.AddBoolFlag(BoolFlagOpts{
+		Name:        "detach",
+		Description: "Return immediately instead of monitoring deployment progress",
+	})
 
 	secretsUnsetStrings := docstrings.Get("secrets.unset")
 	unset := BuildCommand(cmd, runSecretsUnset, secretsUnsetStrings.Usage, secretsUnsetStrings.Short, secretsUnsetStrings.Long, os.Stdout, requireSession, requireAppName)
 	unset.Command.Args = cobra.MinimumNArgs(1)
+
+	unset.AddBoolFlag(BoolFlagOpts{
+		Name:        "detach",
+		Description: "Return immediately instead of monitoring deployment progress",
+	})
 
 	return cmd
 }
