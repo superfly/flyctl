@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"path"
+	"sort"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/superfly/flyctl/api"
@@ -39,6 +40,8 @@ func selectOrganization(client *api.Client, slug string) (*api.Organization, err
 
 		return nil, fmt.Errorf(`organization "%s" not found`, slug)
 	}
+
+	sort.Slice(orgs[:], func(i, j int) bool { return orgs[i].Type < orgs[j].Type })
 
 	options := []string{}
 
@@ -105,13 +108,13 @@ func selectBuildtype(commandContext *cmdctx.CmdContext) (string, error) {
 	builders := []string{}
 
 	if dockerfileExists {
-		builders = append(builders, fmt.Sprintf("%s (%s)", "Dockerfile", "Use the existing Dockerfile"))
+		builders = append(builders, fmt.Sprintf("%s\n    (%s)", "Dockerfile", "Use the existing Dockerfile"))
 	} else {
-		builders = append(builders, fmt.Sprintf("%s (%s)", "Dockerfile", "Create a example Dockerfile"))
+		builders = append(builders, fmt.Sprintf("%s\n    (%s)", "Dockerfile", "Create a example Dockerfile"))
 	}
 
 	for _, b := range suggestedBuilders {
-		builders = append(builders, fmt.Sprintf("%s", b.Image))
+		builders = append(builders, fmt.Sprintf("%s\n    %s", b.Image, helpers.WrapString(b.DefaultDescription, 60, 4)))
 	}
 
 	selectedBuilder := 0
