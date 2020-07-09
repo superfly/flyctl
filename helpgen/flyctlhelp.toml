@@ -3,8 +3,9 @@ usage="flyctl"
 shortHelp="The Fly CLI"
 longHelp="""flyctl is a command line interface to the Fly.io platform.
 
-It allows users to manage authentication, application initialization, deployment,
-network configuration, logging and more with just the one command.
+It allows users to manage authentication, application initialization, 
+deployment, network configuration, logging and more with just the 
+one command.
 
 Initialize an App with the init command
 Deploy an App with the deploy command
@@ -35,7 +36,7 @@ URL for deployed application.
 
 [init]
 usage="init [APPNAME]"
-shortHelp="Initialise a new application"
+shortHelp="Initialize a new application"
 longHelp="""The INIT command will both register a new application 
 with the Fly platform and create the fly.toml file which controls how 
 the application will be deployed. The --builder flag allows a cloud native 
