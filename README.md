@@ -67,4 +67,4 @@ $ cat fly.toml
 app: banana
 ```
 
-`flyctl` will operate against the `banana` app
+`flyctl` will operate against the `banana` app unless overridden by the -a flag or other app name setting in the command line.
