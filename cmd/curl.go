@@ -192,31 +192,3 @@ func colorize(text string, val float64, greenCutoff float64, yellowCutoff float6
 
 	return aurora.Colorize(text, color)
 }
-
-func formatTiming(val float64, greenCutoff float64, yellowCutoff float64) interface{} {
-	var color aurora.Color
-	switch {
-	case val <= greenCutoff:
-		color = aurora.GreenFg
-	case val <= yellowCutoff:
-		color = aurora.YellowFg
-	default:
-		color = aurora.RedFg
-	}
-
-	return aurora.Colorize(humanize.FtoaWithDigits(val, 3), color)
-}
-
-func colorizeTiming(val float64, greenCutoff float64, yellowCutoff float64) interface{} {
-	var color aurora.Color
-	switch {
-	case val <= greenCutoff:
-		color = aurora.GreenFg
-	case val <= yellowCutoff:
-		color = aurora.YellowFg
-	default:
-		color = aurora.RedFg
-	}
-
-	return aurora.Colorize(humanize.FtoaWithDigits(val, 3), color)
-}
