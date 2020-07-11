@@ -133,10 +133,3 @@ func selectBuildtype(commandContext *cmdctx.CmdContext) (string, error) {
 	}
 	return suggestedBuilders[selectedBuilder-1].Image, nil
 }
-
-func confirmFileOverwrite(filename string) bool {
-	if helpers.FileExists(filename) {
-		return confirm(fmt.Sprintf("Overwrite file '%s'", filename))
-	}
-	return true
-}
