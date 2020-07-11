@@ -420,29 +420,3 @@ func createCancellableContext() context.Context {
 
 	return ctx
 }
-
-func printDefinitionList(pairs [][]string) {
-	fprintDefintionList(os.Stdout, pairs)
-}
-
-func fprintDefintionList(w io.Writer, pairs [][]string) {
-	maxLength := 0
-
-	for _, pair := range pairs {
-		if len(pair) != 2 {
-			panic("each pair must be [2]string")
-		}
-		keyLength := len(pair[0])
-		if keyLength > maxLength {
-			maxLength = keyLength
-		}
-	}
-
-	format := fmt.Sprintf("%%-%dv = ", maxLength)
-
-	for _, pair := range pairs {
-		fmt.Fprint(w, "  ")
-		fmt.Fprintf(w, format, pair[0])
-		fmt.Fprintf(w, "%s\n", pair[1])
-	}
-}
