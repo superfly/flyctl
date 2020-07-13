@@ -273,6 +273,8 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 		return nil
 	}
 
+	commandContext.Statusf("deploy", cmdctx.SINFO, "Deploying to : %s.fly.dev\n\n", commandContext.AppName)
+
 	return watchDeployment(ctx, commandContext)
 }
 
