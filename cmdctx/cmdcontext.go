@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/logrusorgru/aurora"
 	"github.com/pkg/errors"
@@ -132,6 +133,7 @@ func (commandContext *CmdContext) FrenderPrefix(prefix string, views ...Presente
 }
 
 type JSON struct {
+	TS      string
 	Source  string
 	Status  string
 	Message string
@@ -161,7 +163,7 @@ func (commandContext *CmdContext) Status(source string, status string, args ...i
 	}
 
 	if outputJSON {
-		outstruct := JSON{Source: source, Status: status, Message: message.String()}
+		outstruct := JSON{TS: time.Now().Format(time.RFC3339), Source: source, Status: status, Message: message.String()}
 		outbuf, _ := json.Marshal(outstruct)
 		fmt.Fprintln(commandContext.Out, string(outbuf))
 		return
@@ -190,12 +192,10 @@ func statusToEffect(status string, message string) string {
 }
 
 func (commandContext *CmdContext) Statusf(source string, status string, format string, args ...interface{}) {
-	outputJSON := commandContext.OutputJSON()
-
 	message := fmt.Sprintf(format, args...)
 
-	if outputJSON {
-		outbuf, _ := json.Marshal(JSON{Source: source, Status: status, Message: message})
+	if commandContext.OutputJSON() {
+		outbuf, _ := json.Marshal(JSON{TS: time.Now().Format(time.RFC3339), Source: source, Status: status, Message: message})
 		fmt.Fprintln(commandContext.Out, string(outbuf))
 		return
 	} else {
