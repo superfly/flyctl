@@ -77,25 +77,30 @@ func runListApps(commandContext *cmdctx.CmdContext) error {
 
 	filteredApps = make([]appCondensed, 0)
 
-	for _, app := range apps {
+	for i, _ := range apps {
 		saved := false
 
 		if appPart != "" {
-			saved = strings.Contains(app.Name, appPart)
+			saved = strings.Contains(apps[i].Name, appPart)
 		} else {
 			saved = true
 		}
 
 		if orgSlug != "" {
-			saved = saved && orgSlug == app.Organization.Slug
+			saved = saved && orgSlug == apps[i].Organization.Slug
 		}
 
 		if status != "" {
-			saved = saved && status == app.Status
+			saved = saved && status == apps[i].Status
 		}
 
 		if saved {
-			filteredApps = append(filteredApps, appCondensed{ID: app.ID, Name: app.Name, Status: app.Status, Deployed: app.Deployed, Hostname: app.Hostname, Organization: app.Organization.Slug})
+			filteredApps = append(filteredApps, appCondensed{ID: apps[i].ID,
+				Name:         apps[i].Name,
+				Status:       apps[i].Status,
+				Deployed:     apps[i].Deployed,
+				Hostname:     apps[i].Hostname,
+				Organization: apps[i].Organization.Slug})
 		}
 	}
 
