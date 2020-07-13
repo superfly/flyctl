@@ -44,11 +44,6 @@ func newListCommand() *Command {
 	return listCmd
 }
 
-func runList(ctx *cmdctx.CmdContext) error {
-	fmt.Fprintln(ctx.Out, "list can display apps (list apps) or orgs (list orgs)")
-	return nil
-}
-
 type appCondensed struct {
 	ID           string
 	Name         string
