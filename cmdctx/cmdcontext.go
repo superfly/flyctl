@@ -110,7 +110,7 @@ func (commandContext *CmdContext) render(out io.Writer, views ...PresenterOption
 func (commandContext *CmdContext) Frender(views ...PresenterOption) error {
 	// If JSON output wanted, set in all views
 	if commandContext.OutputJSON() {
-		for i, _ := range views {
+		for i := range views {
 			views[i].AsJSON = true
 		}
 	}
