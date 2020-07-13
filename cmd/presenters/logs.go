@@ -14,6 +14,7 @@ type LogPresenter struct {
 	RemoveNewlines bool
 	HideRegion     bool
 	HideAllocID    bool
+	Lastline       string
 }
 
 func (lp *LogPresenter) FPrint(w io.Writer, asJSON bool, entries []api.LogEntry) {
@@ -29,10 +30,21 @@ var newline = []byte("\n")
 func (lp *LogPresenter) printEntry(w io.Writer, asJSON bool, entry api.LogEntry) {
 	if asJSON {
 		outBuf, _ := json.MarshalIndent(entry, "", "    ")
+		thisline := string(outBuf)
+		if thisline == lp.Lastline {
+			return
+		}
+		lp.Lastline = thisline
 		fmt.Fprintln(w, string(outBuf))
 		return
 	}
 
+	thisline := entry.Timestamp + entry.Instance + entry.Region + entry.Level + entry.Message
+	if thisline == lp.Lastline {
+		return
+	}
+
+	lp.Lastline = thisline
 	fmt.Fprintf(w, "%s ", aurora.Faint(entry.Timestamp))
 
 	if !lp.HideAllocID {
@@ -50,6 +62,7 @@ func (lp *LogPresenter) printEntry(w io.Writer, asJSON bool, entry api.LogEntry)
 	} else {
 		w.Write([]byte(entry.Message))
 	}
+
 	w.Write(newline)
 }
 
