@@ -77,7 +77,7 @@ func runListApps(commandContext *cmdctx.CmdContext) error {
 
 	filteredApps = make([]appCondensed, 0)
 
-	for i, _ := range apps {
+	for i := range apps {
 		saved := false
 
 		if appPart != "" {
