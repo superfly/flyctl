@@ -87,6 +87,7 @@ func (c *Client) CheckAppCertificate(appName string, hostname string) (*AppCerti
 					id
 					source
 					clientStatus
+					check
 					issued {
 						nodes {
 							type
@@ -122,12 +123,21 @@ func (c *Client) AddCertificate(appName string, hostname string) (*AppCertificat
 					acmeAlpnConfigured
 					configured
 					certificateAuthority
-					certificateRequestedAt
+					createdAt
 					dnsProvider
+					dnsValidationInstructions
+					dnsValidationHostname
 					dnsValidationTarget
 					hostname
 					id
 					source
+					clientStatus
+					issued {
+						nodes {
+							type
+							expiresAt
+						}
+					}
 				}
 			}
 		}
