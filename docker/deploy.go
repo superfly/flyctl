@@ -27,6 +27,8 @@ type DeployOperation struct {
 	appName         string
 	appConfig       *flyctl.AppConfig
 	imageTag        string
+	remoteOnly      bool
+	localOnly       bool
 }
 
 func NewDeployOperation(ctx context.Context, cmdContext *cmdctx.CmdContext) (*DeployOperation, error) {
@@ -37,6 +39,7 @@ func NewDeployOperation(ctx context.Context, cmdContext *cmdctx.CmdContext) (*De
 
 	//squash:=cmdContext.Config.GetBool("squash")
 	remoteOnly := cmdContext.Config.GetBool("remote-only")
+	localOnly := cmdContext.Config.GetBool("local-only")
 
 	imageLabel, _ := cmdContext.Config.GetString("image-label")
 
@@ -48,9 +51,15 @@ func NewDeployOperation(ctx context.Context, cmdContext *cmdctx.CmdContext) (*De
 		appName:      cmdContext.AppName,
 		appConfig:    cmdContext.AppConfig,
 		imageTag:     newDeploymentTag(cmdContext.AppName, imageLabel),
+		localOnly:    localOnly,
+		remoteOnly:   remoteOnly,
 	}
 
-	op.dockerAvailable = !remoteOnly && op.dockerClient.Check(ctx) == nil
+	op.dockerAvailable = op.dockerClient.Check(ctx) == nil
+
+	if localOnly && remoteOnly {
+		return nil, fmt.Errorf("Both --local-only and --remote-only are set - select only one")
+	}
 
 	return op, nil
 }
@@ -64,6 +73,14 @@ func (op *DeployOperation) AppName() string {
 
 func (op *DeployOperation) DockerAvailable() bool {
 	return op.dockerAvailable
+}
+
+func (op *DeployOperation) LocalOnly() bool {
+	return op.localOnly
+}
+
+func (op *DeployOperation) RemoteOnly() bool {
+	return op.remoteOnly
 }
 
 type DeploymentStrategy string
@@ -93,8 +110,6 @@ func (op *DeployOperation) ValidateConfig() (*api.AppConfig, error) {
 		op.appConfig = flyctl.NewAppConfig()
 	}
 
-	//printHeader("Validating app configuration")
-
 	parsedConfig, err := op.apiClient.ParseConfig(op.appName, op.appConfig.Definition)
 	if err != nil {
 		return parsedConfig, err
@@ -106,15 +121,13 @@ func (op *DeployOperation) ValidateConfig() (*api.AppConfig, error) {
 
 	op.appConfig.Definition = parsedConfig.Definition
 
-	//fmt.Println("-->", "done")
-
 	return parsedConfig, nil
 }
 
 func (op *DeployOperation) ResolveImage(ctx context.Context, commandContext *cmdctx.CmdContext, imageRef string) (*Image, error) {
 	commandContext.Status("flyctl", "Resolving image")
 
-	if op.DockerAvailable() {
+	if op.DockerAvailable() && !op.RemoteOnly() {
 		imgSummary, err := op.dockerClient.findImage(ctx, imageRef)
 		if err != nil {
 			return nil, err
