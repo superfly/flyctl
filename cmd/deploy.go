@@ -45,6 +45,10 @@ func newDeployCommand() *Command {
 		Name:        "remote-only",
 		Description: "Perform builds remotely without using the local docker daemon",
 	})
+	cmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "local-only",
+		Description: "Only perform builds locally using the local docker daemon",
+	})
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "strategy",
 		Description: "The strategy for replacing running instances. Options are canary, rolling, or immediate. Default is canary",
@@ -166,8 +170,7 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 		//fmt.Printf("Deploy source directory '%s'\n", cc.WorkingDir)
 		commandContext.Statusf("flyctl", cmdctx.SINFO, "Deploy source directory '%s'\n", commandContext.WorkingDir)
 
-		if op.DockerAvailable() {
-			//fmt.Println("Docker daemon available, performing local build...")
+		if op.DockerAvailable() && !op.RemoteOnly() {
 			commandContext.Status("flyctl", cmdctx.SDETAIL, "Docker daemon available, performing local build...")
 
 			if commandContext.AppConfig.HasBuilder() {
@@ -207,8 +210,18 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 			}
 
 		} else {
-			//fmt.Println("Docker daemon unavailable, performing remote build...")
-			commandContext.Status("flyctl", cmdctx.SINFO, "Docker daemon unavailable, performing remote build...")
+			if !op.DockerAvailable() {
+				if op.LocalOnly() {
+					return fmt.Errorf("Docker daemon unavailable: Local-only set so cannot use to remote build")
+				}
+				commandContext.Status("flyctl", cmdctx.SINFO, "Docker daemon unavailable: Performing remote build...")
+			} else {
+				if op.RemoteOnly() {
+					commandContext.Status("flyctl", cmdctx.SINFO, "Remote-only set: performing remote build...")
+				} else {
+					commandContext.Status("flyctl", cmdctx.SINFO, "Docker daemon available: Still performing remote build...")
+				}
+			}
 
 			build, err := op.StartRemoteBuild(commandContext.WorkingDir, commandContext.AppConfig, dockerfilePath, buildArgs)
 			if err != nil {
