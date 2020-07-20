@@ -69,7 +69,7 @@ func (c *Client) GetAppCertificate(appName string, hostname string) (*AppCertifi
 	return &data.App.Certificate, nil
 }
 
-func (c *Client) CheckAppCertificate(appName string, hostname string) (*AppCertificate, error) {
+func (c *Client) CheckAppCertificate(appName string, hostname string) (*AppCertificate, *HostnameCheck, error) {
 	query := `
 		mutation($input: CheckCertificateInput!) {
 			checkCertificate(input: $input) {
@@ -95,6 +95,15 @@ func (c *Client) CheckAppCertificate(appName string, hostname string) (*AppCerti
 						}
 					}
 				}
+				check {
+					aRecords
+				   	aaaaRecords
+				   	cnameRecords
+				   	soa
+			   		dnsProvider
+			   		dnsVerificationRecord
+				 	resolvedAddresses
+			   }
 			}
 		}
 	`
@@ -108,13 +117,13 @@ func (c *Client) CheckAppCertificate(appName string, hostname string) (*AppCerti
 
 	data, err := c.Run(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return data.CheckCertificate.Certificate, nil
+	return data.CheckCertificate.Certificate, data.CheckCertificate.Check, nil
 }
 
-func (c *Client) AddCertificate(appName string, hostname string) (*AppCertificate, error) {
+func (c *Client) AddCertificate(appName string, hostname string) (*AppCertificate, *HostnameCheck, error) {
 	query := `
 		mutation($appId: ID!, $hostname: String!) {
 			addCertificate(appId: $appId, hostname: $hostname) {
@@ -132,12 +141,22 @@ func (c *Client) AddCertificate(appName string, hostname string) (*AppCertificat
 					id
 					source
 					clientStatus
+					isApex
 					issued {
 						nodes {
 							type
 							expiresAt
 						}
 					}
+				}
+				check {
+					aRecords
+					aaaaRecords
+					cnameRecords
+					soa
+					dnsProvider
+					dnsVerificationRecord
+				  	resolvedAddresses
 				}
 			}
 		}
@@ -150,10 +169,10 @@ func (c *Client) AddCertificate(appName string, hostname string) (*AppCertificat
 
 	data, err := c.Run(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return &data.AddCertificate.Certificate, nil
+	return data.AddCertificate.Certificate, data.AddCertificate.Check, nil
 }
 
 func (c *Client) DeleteCertificate(appName string, hostname string) (*DeleteCertificatePayload, error) {
