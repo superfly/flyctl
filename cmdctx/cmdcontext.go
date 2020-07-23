@@ -46,6 +46,7 @@ type PresenterOption struct {
 //DETAIL, TITLE (Bold Plain Text), BEGIN (Green bold with arrow), DONE (Blue with arrow), ERROR (red bold)...
 
 const SINFO = "info"
+const SWARN = "warning"
 const SDETAIL = "detail"
 const STITLE = "title"
 const SBEGIN = "begin"
@@ -179,6 +180,8 @@ func statusToEffect(status string, message string) string {
 	switch status {
 	case SINFO:
 		return message
+	case SWARN:
+		return aurora.Yellow(message).String()
 	case SDETAIL:
 		return aurora.Faint(message).String()
 	case STITLE:

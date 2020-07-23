@@ -11,11 +11,12 @@ type Query struct {
 	Apps struct {
 		Nodes []App
 	}
-	App           App
-	AppCompact    AppCompact
-	AppStatus     AppStatus
-	CurrentUser   User
-	Organizations struct {
+	App             App
+	AppCompact      AppCompact
+	AppStatus       AppStatus
+	AppCertsCompact AppCertsCompact
+	CurrentUser     User
+	Organizations   struct {
 		Nodes []Organization
 	}
 
@@ -54,7 +55,8 @@ type Query struct {
 	}
 
 	AddCertificate struct {
-		Certificate AppCertificate
+		Certificate *AppCertificate
+		Check       *HostnameCheck
 	}
 
 	DeleteCertificate DeleteCertificatePayload
@@ -62,6 +64,7 @@ type Query struct {
 	CheckCertificate struct {
 		App         *App
 		Certificate *AppCertificate
+		Check       *HostnameCheck
 	}
 
 	AllocateIPAddress struct {
@@ -144,6 +147,18 @@ type App struct {
 	Autoscaling      *AutoscalingConfig
 	VMSize           VMSize
 	Regions          *[]Region
+}
+
+type AppCertsCompact struct {
+	Certificates struct {
+		Nodes []AppCertificateCompact
+	}
+}
+
+type AppCertificateCompact struct {
+	CreatedAt    time.Time
+	Hostname     string
+	ClientStatus string
 }
 
 type AppCompact struct {
@@ -313,12 +328,23 @@ type AppCertificate struct {
 	Hostname                  string
 	Source                    string
 	ClientStatus              string
+	IsApex                    bool
 	Issued                    struct {
 		Nodes []struct {
 			ExpiresAt time.Time
 			Type      string
 		}
 	}
+}
+
+type HostnameCheck struct {
+	ARecords              []string `json:"aRecords"`
+	AAAARecords           []string `json:"aaaaRecords"`
+	CNAMERecords          []string `json:"cnameRecords"`
+	SOA                   string   `json:"soa"`
+	DNSProvider           string   `json:"dnsProvider"`
+	DNSVerificationRecord string   `json:"dnsVerificationRecord"`
+	ResolvedAddresses     []string `json:"resolvedAddresses"`
 }
 
 type DeleteCertificatePayload struct {
