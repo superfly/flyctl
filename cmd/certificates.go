@@ -31,12 +31,14 @@ func newCertificatesCommand() *Command {
 	certsListStrings := docstrings.Get("certs.list")
 	BuildCommand(cmd, runCertsList, certsListStrings.Usage, certsListStrings.Short, certsListStrings.Long, os.Stdout, requireSession, requireAppName)
 
-	certsCreateStrings := docstrings.Get("certs.create")
-	create := BuildCommand(cmd, runCertAdd, certsCreateStrings.Usage, certsCreateStrings.Short, certsCreateStrings.Long, os.Stdout, requireSession, requireAppName)
-	create.Command.Args = cobra.ExactArgs(1)
+	certsCreateStrings := docstrings.Get("certs.add")
+	createCmd := BuildCommand(cmd, runCertAdd, certsCreateStrings.Usage, certsCreateStrings.Short, certsCreateStrings.Long, os.Stdout, requireSession, requireAppName)
+	createCmd.Aliases = []string{"create"}
+	createCmd.Command.Args = cobra.ExactArgs(1)
 
-	certsDeleteStrings := docstrings.Get("certs.delete")
+	certsDeleteStrings := docstrings.Get("certs.remove")
 	deleteCmd := BuildCommand(cmd, runCertDelete, certsDeleteStrings.Usage, certsDeleteStrings.Short, certsDeleteStrings.Long, os.Stdout, requireSession, requireAppName)
+	deleteCmd.Aliases = []string{"delete"}
 	deleteCmd.Command.Args = cobra.ExactArgs(1)
 	deleteCmd.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "accept all confirmations"})
 

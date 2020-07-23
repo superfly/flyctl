@@ -216,22 +216,22 @@ usage="list"
 shortHelp="List certificates for an App."
 longHelp="""List the certificates associated with a deployed application.
 """
-[certs.create]
-usage="create <hostname>"
-shortHelp="Create a certificate for an App."
-longHelp="""Creates a certificate for an application. Takes a hostname 
+[certs.add]
+usage="add <hostname>"
+shortHelp="Add a certificate for an App."
+longHelp="""Add a certificate for an application. Takes a hostname 
 as a parameter for the certificate.
 """
-[certs.delete]
-usage="delete <hostname>"
-shortHelp="Delete certificate"
-longHelp="""Deletes a certificate from an application. Takes hostname 
+[certs.remove]
+usage="remove <hostname>"
+shortHelp="Removes a certificate from an App"
+longHelp="""Removes a certificate from an application. Takes hostname 
 as a parameter to locate the certificate.
 """
 [certs.show]
 usage="show <hostname>"
-shortHelp="Shows detailed certificate information"
-longHelp="""Shows detailed certificate information for an application. 
+shortHelp="Shows certificate information"
+longHelp="""Shows certificate information for an application. 
 Takes hostname as a parameter to locate the certificate.
 """
 [certs.check]
