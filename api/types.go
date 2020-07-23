@@ -11,11 +11,12 @@ type Query struct {
 	Apps struct {
 		Nodes []App
 	}
-	App           App
-	AppCompact    AppCompact
-	AppStatus     AppStatus
-	CurrentUser   User
-	Organizations struct {
+	App             App
+	AppCompact      AppCompact
+	AppStatus       AppStatus
+	AppCertsCompact AppCertsCompact
+	CurrentUser     User
+	Organizations   struct {
 		Nodes []Organization
 	}
 
@@ -146,6 +147,18 @@ type App struct {
 	Autoscaling      *AutoscalingConfig
 	VMSize           VMSize
 	Regions          *[]Region
+}
+
+type AppCertsCompact struct {
+	Certificates struct {
+		Nodes []AppCertificateCompact
+	}
+}
+
+type AppCertificateCompact struct {
+	CreatedAt    time.Time
+	Hostname     string
+	ClientStatus string
 }
 
 type AppCompact struct {

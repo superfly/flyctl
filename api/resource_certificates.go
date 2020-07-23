@@ -1,9 +1,9 @@
 package api
 
-func (c *Client) GetAppCertificates(appName string) ([]AppCertificate, error) {
+func (c *Client) GetAppCertificates(appName string) ([]AppCertificateCompact, error) {
 	query := `
 		query($appName: String!) {
-			app(name: $appName) {
+			appcertscompact:app(name: $appName) {
 				certificates {
 					nodes {
 						createdAt
@@ -24,49 +24,7 @@ func (c *Client) GetAppCertificates(appName string) ([]AppCertificate, error) {
 		return nil, err
 	}
 
-	return data.App.Certificates.Nodes, nil
-}
-
-func (c *Client) GetAppCertificate(appName string, hostname string) (*AppCertificate, error) {
-	query := `
-		query($appName: String!, $hostname: String!) {
-			app(name: $appName) {
-				certificate(hostname: $hostname) {
-					acmeDnsConfigured
-					acmeAlpnConfigured
-					configured
-					certificateAuthority
-					createdAt
-					dnsProvider
-					dnsValidationInstructions
-					dnsValidationHostname
-					dnsValidationTarget
-					hostname
-					id
-					source
-					clientStatus
-					issued {
-						nodes {
-							type
-							expiresAt
-						}
-					}
-				}
-			}
-		}
-	`
-
-	req := c.NewRequest(query)
-
-	req.Var("appName", appName)
-	req.Var("hostname", hostname)
-
-	data, err := c.Run(req)
-	if err != nil {
-		return nil, err
-	}
-
-	return &data.App.Certificate, nil
+	return data.AppCertsCompact.Certificates.Nodes, nil
 }
 
 func (c *Client) CheckAppCertificate(appName string, hostname string) (*AppCertificate, *HostnameCheck, error) {
@@ -87,7 +45,7 @@ func (c *Client) CheckAppCertificate(appName string, hostname string) (*AppCerti
 					id
 					source
 					clientStatus
-					check
+
 					issued {
 						nodes {
 							type
