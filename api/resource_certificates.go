@@ -27,7 +27,7 @@ func (c *Client) GetAppCertificates(appName string) ([]AppCertificateCompact, er
 	return data.AppCertsCompact.Certificates.Nodes, nil
 }
 
-func (c *Client) CheckAppCertificate(appName string, hostname string) (*AppCertificate, *HostnameCheck, error) {
+func (c *Client) CheckAppCertificate(appName, hostname string) (*AppCertificate, *HostnameCheck, error) {
 	query := `
 		mutation($input: CheckCertificateInput!) {
 			checkCertificate(input: $input) {
@@ -81,7 +81,7 @@ func (c *Client) CheckAppCertificate(appName string, hostname string) (*AppCerti
 	return data.CheckCertificate.Certificate, data.CheckCertificate.Check, nil
 }
 
-func (c *Client) AddCertificate(appName string, hostname string) (*AppCertificate, *HostnameCheck, error) {
+func (c *Client) AddCertificate(appName, hostname string) (*AppCertificate, *HostnameCheck, error) {
 	query := `
 		mutation($appId: ID!, $hostname: String!) {
 			addCertificate(appId: $appId, hostname: $hostname) {
@@ -133,7 +133,7 @@ func (c *Client) AddCertificate(appName string, hostname string) (*AppCertificat
 	return data.AddCertificate.Certificate, data.AddCertificate.Check, nil
 }
 
-func (c *Client) DeleteCertificate(appName string, hostname string) (*DeleteCertificatePayload, error) {
+func (c *Client) DeleteCertificate(appName, hostname string) (*DeleteCertificatePayload, error) {
 	query := `
 		mutation($appId: ID!, $hostname: String!) {
 			deleteCertificate(appId: $appId, hostname: $hostname) {

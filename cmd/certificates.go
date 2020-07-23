@@ -260,7 +260,7 @@ func printCertificate(commandContext *cmdctx.CmdContext, cert *api.AppCertificat
 		return commandContext.WriteJSON(cert)
 	}
 
-	print := func(label string, value string) {
+	myprnt := func(label string, value string) {
 		commandContext.Statusf("flyctl", cmdctx.SINFO, "%-25s = %s\n\n", label, value)
 	}
 
@@ -270,12 +270,12 @@ func printCertificate(commandContext *cmdctx.CmdContext, cert *api.AppCertificat
 		certtypes = append(certtypes, v.Type)
 	}
 
-	print("Hostname", cert.Hostname)
-	print("DNS Provider", cert.DNSProvider)
-	print("Certificate Authority", readableCertAuthority(cert.CertificateAuthority))
-	print("Issued", strings.Join(certtypes, ","))
-	print("Added to App", humanize.Time(cert.CreatedAt))
-	print("Source", cert.Source)
+	myprnt("Hostname", cert.Hostname)
+	myprnt("DNS Provider", cert.DNSProvider)
+	myprnt("Certificate Authority", readableCertAuthority(cert.CertificateAuthority))
+	myprnt("Issued", strings.Join(certtypes, ","))
+	myprnt("Added to App", humanize.Time(cert.CreatedAt))
+	myprnt("Source", cert.Source)
 
 	return nil
 }
