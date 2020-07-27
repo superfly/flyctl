@@ -11,6 +11,8 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
+var retryErrors = []string{"INTERNAL_ERROR", "read: connection reset by peer"}
+
 func newHTTPClient() (*http.Client, error) {
 	retryTransport := rehttp.NewTransport(
 		http.DefaultTransport,
@@ -19,7 +21,16 @@ func newHTTPClient() (*http.Client, error) {
 			rehttp.RetryAny(
 				rehttp.RetryTemporaryErr(),
 				rehttp.RetryIsErr(func(err error) bool {
-					return err != nil && strings.Contains(err.Error(), "INTERNAL_ERROR")
+					if err == nil {
+						return true
+					}
+					msg := err.Error()
+					for _, retryError := range retryErrors {
+						if strings.Contains(msg, retryError) {
+							return true
+						}
+					}
+					return false
 				}),
 			),
 		),
