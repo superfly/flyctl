@@ -110,7 +110,7 @@ func selectBuildtype(commandContext *cmdctx.CmdContext) (string, error) {
 	if dockerfileExists {
 		builders = append(builders, fmt.Sprintf("%s\n    (%s)", "Dockerfile", "Use the existing Dockerfile"))
 	} else {
-		builders = append(builders, fmt.Sprintf("%s\n    (%s)", "Dockerfile", "Create a example Dockerfile"))
+		builders = append(builders, fmt.Sprintf("%s\n    (%s)", "Dockerfile", "Create an example Dockerfile"))
 	}
 
 	for _, b := range suggestedBuilders {
