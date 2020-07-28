@@ -74,11 +74,11 @@ func runCertShow(commandContext *cmdctx.CmdContext) error {
 		commandContext.Statusf("flyctl", cmdctx.STITLE, "The certificate for %s has been issued.\n\n", hostname)
 		printCertificate(commandContext, cert)
 		return nil
-	} else {
-		commandContext.Statusf("flyctl", cmdctx.STITLE, "The certificate for %s has not been issued yet.\n\n", hostname)
-		printCertificate(commandContext, cert)
-		return reportNextStepCert(commandContext, hostname, cert, hostcheck)
 	}
+	commandContext.Statusf("flyctl", cmdctx.STITLE, "The certificate for %s has not been issued yet.\n\n", hostname)
+	printCertificate(commandContext, cert)
+	return reportNextStepCert(commandContext, hostname, cert, hostcheck)
+
 }
 
 func runCertCheck(commandContext *cmdctx.CmdContext) error {
