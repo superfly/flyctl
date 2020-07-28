@@ -7,12 +7,14 @@ import (
 	"net/http"
 )
 
+// CLISessionAuth holds access information
 type CLISessionAuth struct {
 	ID          string `json:"id"`
 	AuthURL     string `json:"auth_url"`
 	AccessToken string `json:"access_token"`
 }
 
+// StartCLISessionWebAuth starts a session with the platform via web auth
 func StartCLISessionWebAuth(machineName string, signup bool) (CLISessionAuth, error) {
 	var result CLISessionAuth
 
@@ -39,6 +41,7 @@ func StartCLISessionWebAuth(machineName string, signup bool) (CLISessionAuth, er
 	return result, nil
 }
 
+// GetAccessTokenForCLISession Obtains the access token for the session
 func GetAccessTokenForCLISession(id string) (CLISessionAuth, error) {
 	var result CLISessionAuth
 
