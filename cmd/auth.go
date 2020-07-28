@@ -2,10 +2,11 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/superfly/flyctl/cmdctx"
 	"os"
 	"os/exec"
 	"time"
+
+	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/docstrings"
@@ -111,10 +112,10 @@ func runWebLogin(ctx *cmdctx.CmdContext, signup bool) error {
 		return err
 	}
 
-	fmt.Fprintln(ctx.Out, "Opening browser to url", aurora.Bold(cliAuth.AuthURL))
+	//fmt.Fprintln(ctx.Out, "Opening browser to url", aurora.Bold(cliAuth.AuthURL))
 
 	if err := open.Run(cliAuth.AuthURL); err != nil {
-		terminal.Error("Error opening browser. Copy the above url into a browser and continue")
+		terminal.Error("Error opening browser. Copy the url " + cliAuth.AuthURL + " into a browser and continue")
 	}
 
 	select {
