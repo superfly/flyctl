@@ -38,6 +38,9 @@ func runSuspend(ctx *cmdctx.CmdContext) error {
 	}
 
 	appstatus, err := ctx.Client.API().GetAppStatus(appName, false)
+	if err != nil {
+		return err
+	}
 
 	fmt.Printf("%s is now %s\n", appstatus.Name, appstatus.Status)
 
@@ -55,6 +58,9 @@ func runSuspend(ctx *cmdctx.CmdContext) error {
 		}
 		s.Prefix = fmt.Sprintf("Suspending %s with %d instance%s to stop ", appstatus.Name, allocount, plural)
 		appstatus, err = ctx.Client.API().GetAppStatus(ctx.AppName, false)
+		if err != nil {
+			return err
+		}
 		allocount = len(appstatus.Allocations)
 	}
 
