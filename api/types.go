@@ -19,6 +19,7 @@ type Query struct {
 	Organizations   struct {
 		Nodes []Organization
 	}
+	UserOrganizations UserOrganizations
 
 	Build Build
 
@@ -334,6 +335,13 @@ type AppCertificate struct {
 			ExpiresAt time.Time
 			Type      string
 		}
+	}
+}
+
+type UserOrganizations struct {
+	PersonalOrganization Organization
+	Organizations        struct {
+		Nodes []Organization
 	}
 }
 
