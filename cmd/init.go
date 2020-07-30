@@ -178,9 +178,6 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 			}
 		}
 	}
-	if configPort != "" {
-		newAppConfig.SetInternalPort(internalPort)
-	}
 
 	// The creation magic happens here....
 	app, err := commandContext.Client.API().CreateApp(name, org.ID)
@@ -201,7 +198,11 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 	} else {
 		newAppConfig.AppName = app.Name
 		newAppConfig.Definition = app.Config.Definition
+		if configPort != "" {
+			newAppConfig.SetInternalPort(internalPort)
+		}
 	}
+
 	fmt.Println()
 
 	err = commandContext.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "New app created"})
