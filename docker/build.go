@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/runtimesupport"
 
 	"github.com/briandowns/spinner"
 	"github.com/buildpacks/pack"
@@ -22,7 +24,7 @@ import (
 )
 
 // ErrNoDockerfile - No dockerfile or builder specified error
-var ErrNoDockerfile = errors.New("Project does not contain a Dockerfile or specify a builder")
+var ErrNoDockerfile = errors.New("Project does not contain a Dockerfile, specify a builder or set a runtime")
 
 // ErrDockerDaemon - Docker daemon needs to be running error
 var ErrDockerDaemon = errors.New("Docker daemon must be running to perform this action")
@@ -64,11 +66,16 @@ func (op *DeployOperation) BuildWithDocker(commandContext *cmdctx.CmdContext, do
 		dockerfilePath = ResolveDockerfile(cwd)
 	}
 
-	if dockerfilePath == "" {
+	fmt.Println(appConfig.HasRuntime, appConfig.Runtime)
+	if dockerfilePath == "" && !appConfig.HasRuntime() {
 		return nil, ErrNoDockerfile
 	}
 
-	commandContext.Statusf("build", cmdctx.SDETAIL, "Using Dockerfile: %s\n", dockerfilePath)
+	if appConfig.HasRuntime() {
+		commandContext.Statusf("build", cmdctx.SDETAIL, "Using Runtime: %s\n", appConfig.Runtime)
+	} else {
+		commandContext.Statusf("build", cmdctx.SDETAIL, "Using Dockerfile: %s\n", dockerfilePath)
+	}
 
 	buildContext, err := newBuildContext()
 	if err != nil {
@@ -100,6 +107,15 @@ func (op *DeployOperation) BuildWithDocker(commandContext *cmdctx.CmdContext, do
 		}
 		defer dockerfile.Close()
 		if err := buildContext.AddFile("Dockerfile", dockerfile); err != nil {
+			return nil, err
+		}
+	} else {
+		// We're doing a Runtime!
+		runtime, err := runtimesupport.GetRuntime(appConfig.Runtime)
+		if err != nil {
+			return nil, err
+		}
+		if err := buildContext.AddFile("Dockerfile", strings.NewReader(runtime.FileText)); err != nil {
 			return nil, err
 		}
 	}

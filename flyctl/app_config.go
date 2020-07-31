@@ -25,6 +25,7 @@ const (
 type AppConfig struct {
 	AppName string
 	Build   *Build
+	Runtime string
 
 	Definition map[string]interface{}
 }
@@ -75,6 +76,10 @@ func (ac *AppConfig) HasBuilder() bool {
 	return ac.Build != nil && ac.Build.Builder != ""
 }
 
+func (ac *AppConfig) HasRuntime() bool {
+	return ac.Runtime != ""
+}
+
 func (ac *AppConfig) WriteTo(w io.Writer, format ConfigFormat) error {
 	switch format {
 	case TOMLFormat:
@@ -99,6 +104,10 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 		ac.AppName = appName
 	}
 	delete(data, "app")
+
+	if runtime, ok := (data["runtime"]).(string); ok {
+		ac.Runtime = runtime
+	}
 
 	if buildConfig, ok := (data["build"]).(map[string]interface{}); ok {
 		b := Build{
@@ -156,6 +165,10 @@ func (ac AppConfig) marshalTOML(w io.Writer) error {
 			buildData["args"] = ac.Build.Args
 		}
 		rawData["build"] = buildData
+	}
+
+	if ac.Runtime != "" {
+		rawData["runtime"] = ac.Runtime
 	}
 
 	if err := encoder.Encode(rawData); err != nil {
