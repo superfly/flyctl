@@ -11,10 +11,7 @@ type Builtin struct {
 var builtins map[string]Builtin
 
 func GetBuiltin(builtinname string) (*Builtin, error) {
-	if len(builtins) == 0 {
-		// Load builtins
-		initBuiltins()
-	}
+	initBuiltins()
 
 	builtin, ok := builtins[builtinname]
 
@@ -25,7 +22,22 @@ func GetBuiltin(builtinname string) (*Builtin, error) {
 	return &builtin, nil
 }
 
+func GetBuiltins() []Builtin {
+	initBuiltins()
+
+	var builtarray []Builtin
+
+	for _, v := range builtins {
+		builtarray = append(builtarray, v)
+	}
+
+	return builtarray
+}
+
 func initBuiltins() {
+	if len(builtins) != 0 {
+		return
+	}
 	builtins = make(map[string]Builtin)
 
 	for _, rt := range basicbuiltins {
@@ -35,7 +47,7 @@ func initBuiltins() {
 
 var basicbuiltins = []Builtin{
 	Builtin{Name: "node",
-		Description: "A Nodejs Builtin",
+		Description: "Builtin Nodejs",
 		FileText: `
 			FROM node:current-alpine
 			WORKDIR /app			
@@ -47,7 +59,7 @@ var basicbuiltins = []Builtin{
 			CMD [ "npm","start" ]
 	`},
 	Builtin{Name: "ruby",
-		Description: "A Ruby Builtin - runs app.rb",
+		Description: "Builtin Ruby - runs app.rb",
 		FileText: `
 			FROM ruby:2.7
 			WORKDIR /usr/src/app
@@ -59,7 +71,7 @@ var basicbuiltins = []Builtin{
 			CMD ["bundle", "exec", "rackup", "--host", "0.0.0.0", "-p", "8080"]
 `},
 	Builtin{Name: "deno",
-		Description: "A deno Builtin - runs main.ts, requires deps.ts",
+		Description: "Builtin Deno - runs main.ts, requires deps.ts",
 		FileText: `
 			FROM hayd/alpine-deno:1.2.1
 			EXPOSE 8080
@@ -72,7 +84,7 @@ var basicbuiltins = []Builtin{
 			CMD ["run", "--allow-net", "main.ts"]
 `},
 	Builtin{Name: "go",
-		Description: "A Go Builtin - Builds app.go uses go modules",
+		Description: "Builtin Go - Builds app.go uses go modules",
 		FileText: `
 			FROM golang:1.13 as builder
 			WORKDIR /go/src/app
@@ -87,7 +99,7 @@ var basicbuiltins = []Builtin{
 			CMD ["/app"]
 `},
 	Builtin{Name: "static",
-		Description: "A Static Web Site - All files are copied across and served",
+		Description: "Builtin Static - Static web server. All files are copied across and served",
 		FileText: `
 			FROM pierrezemb/gostatic
 			COPY . /srv/http/

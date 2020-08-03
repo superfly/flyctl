@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path"
 	"strconv"
 
 	"github.com/superfly/flyctl/cmdctx"
@@ -160,26 +159,20 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		dockerfile := commandContext.Config.GetBool("dockerfile")
 
 		if builder == "" && !dockerfileSet {
-			builder, err := selectBuildtype(commandContext)
+			builder, builtin, err := selectBuildtype(commandContext)
 
 			switch {
 			case isInterrupt(err):
 				return nil
-			case err != nil || org == nil:
+			case err != nil || builder == "":
 				return fmt.Errorf("Error setting builder: %s", err)
 			}
+
 			if builder != "Dockerfile" {
 				newAppConfig.Build = &flyctl.Build{Builder: builder}
-			} else {
-				dockerfileExists := helpers.FileExists(path.Join(commandContext.WorkingDir, "Dockerfile"))
-				if !dockerfileExists {
-					newdf, err := os.Create(path.Join(commandContext.WorkingDir, "Dockerfile"))
-					if err != nil {
-						return fmt.Errorf("Error writing example Dockerfile: %s", err)
-					}
-					fmt.Fprintf(newdf, "FROM flyio/hellofly\n")
-					newdf.Close()
-				}
+			}
+			if builtin {
+				builtinname = builder
 			}
 		} else if builder != "" {
 			// If the builder was set and there's not dockerfile setting, write the builder
