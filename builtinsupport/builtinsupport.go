@@ -1,35 +1,41 @@
-package runtimesupport
+package builtinsupport
 
 import "fmt"
 
-type Runtime struct {
+type Builtin struct {
 	Name        string
 	Description string
 	FileText    string
 }
 
-var runtimes map[string]Runtime
+var builtins map[string]Builtin
 
-func GetRuntime(runtimename string) (*Runtime, error) {
-	if len(runtimes) == 0 {
-		// Load runtimes
-		initRuntimes()
+func GetBuiltin(builtinname string) (*Builtin, error) {
+	if len(builtins) == 0 {
+		// Load builtins
+		initBuiltins()
 	}
 
-	runtime, ok := runtimes[runtimename]
+	builtin, ok := builtins[builtinname]
 
 	if !ok {
-		return nil, fmt.Errorf("no runtime with %s name supported", runtimename)
+		return nil, fmt.Errorf("no builtin with %s name supported", builtinname)
 	}
 
-	return &runtime, nil
+	return &builtin, nil
 }
 
-func initRuntimes() {
-	runtimes = make(map[string]Runtime)
+func initBuiltins() {
+	builtins = make(map[string]Builtin)
 
-	runtimes["node"] = Runtime{Name: "node",
-		Description: "A Nodejs Runtime",
+	for _, rt := range basicbuiltins {
+		builtins[rt.Name] = rt
+	}
+}
+
+var basicbuiltins = []Builtin{
+	Builtin{Name: "node",
+		Description: "A Nodejs Builtin",
 		FileText: `
 			FROM node:current-alpine
 			WORKDIR /app			
@@ -39,10 +45,9 @@ func initRuntimes() {
 			COPY . .
 			ENV PORT=8080
 			CMD [ "npm","start" ]
-	`}
-
-	runtimes["ruby"] = Runtime{Name: "ruby",
-		Description: "A Ruby Runtime - runs app.rb",
+	`},
+	Builtin{Name: "ruby",
+		Description: "A Ruby Builtin - runs app.rb",
 		FileText: `
 			FROM ruby:2.7
 			WORKDIR /usr/src/app
@@ -52,10 +57,9 @@ func initRuntimes() {
 			ENV PORT=8080
 			EXPOSE 8080
 			CMD ["bundle", "exec", "rackup", "--host", "0.0.0.0", "-p", "8080"]
-	`}
-
-	runtimes["deno"] = Runtime{Name: "deno",
-		Description: "A deno Runtime - runs main.ts, requires deps.ts",
+`},
+	Builtin{Name: "deno",
+		Description: "A deno Builtin - runs main.ts, requires deps.ts",
 		FileText: `
 			FROM hayd/alpine-deno:1.2.1
 			EXPOSE 8080
@@ -66,10 +70,9 @@ func initRuntimes() {
 			ADD . .
 			RUN deno cache main.ts
 			CMD ["run", "--allow-net", "main.ts"]
-	`}
-
-	runtimes["go"] = Runtime{Name: "go",
-		Description: "A Go Runtime - Builds app.go uses go modules",
+`},
+	Builtin{Name: "go",
+		Description: "A Go Builtin - Builds app.go uses go modules",
 		FileText: `
 			FROM golang:1.13 as builder
 			WORKDIR /go/src/app
@@ -82,6 +85,12 @@ func initRuntimes() {
 			RUN apk --no-cache add ca-certificates
 			EXPOSE 8080
 			CMD ["/app"]
-	`}
-
+`},
+	Builtin{Name: "static",
+		Description: "A Static Web Site - All files are copied across and served",
+		FileText: `
+			FROM pierrezemb/gostatic
+			COPY . /srv/http/
+			CMD ["-port","8080"]
+	`},
 }

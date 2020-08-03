@@ -157,7 +157,7 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 			dockerfilePath = docker.ResolveDockerfile(commandContext.WorkingDir)
 		}
 
-		if dockerfilePath == "" && !commandContext.AppConfig.HasBuilder() && !commandContext.AppConfig.HasRuntime() {
+		if dockerfilePath == "" && !commandContext.AppConfig.HasBuilder() && !commandContext.AppConfig.HasBuiltin() {
 			return docker.ErrNoDockerfile
 		}
 
@@ -182,15 +182,15 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 				}
 				image = img
 				commandContext.Status("flyctl", cmdctx.SDONE, "Building with buildpacks done")
-			} else if commandContext.AppConfig.HasRuntime() {
-				commandContext.Status("flyctl", cmdctx.SBEGIN, "Building with Runtime")
+			} else if commandContext.AppConfig.HasBuiltin() {
+				commandContext.Status("flyctl", cmdctx.SBEGIN, "Building with Builtin")
 
 				img, err := op.BuildWithDocker(commandContext, dockerfilePath, buildArgs)
 				if err != nil {
 					return err
 				}
 				image = img
-				commandContext.Status("flyctl", cmdctx.SDONE, "Building with Runtime done")
+				commandContext.Status("flyctl", cmdctx.SDONE, "Building with Builtin done")
 			} else {
 				commandContext.Status("flyctl", cmdctx.SBEGIN, "Building with Dockerfile")
 

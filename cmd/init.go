@@ -49,19 +49,19 @@ func newInitCommand() *Command {
 	})
 
 	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "runtime",
+		Name:        "builtin",
 		Description: `The Fly Runtime to use for building the app`,
-	})
-
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "import",
-		Description: "Create but import all settings from the given file",
 	})
 
 	cmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "dockerfile",
 		Description: `Use a dockerfile when deploying the app`,
 		Default:     false,
+	})
+
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "import",
+		Description: "Create but import all settings from the given file",
 	})
 
 	return cmd
@@ -143,7 +143,7 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		return err
 	}
 
-	runtimename, _ := commandContext.Config.GetString("runtime")
+	builtinname, _ := commandContext.Config.GetString("builtin")
 	if err != nil {
 		return err
 	}
@@ -153,8 +153,8 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		return err
 	}
 
-	// If we are importing or using a runtime, assume builders are set in the template
-	if importfile == "" && runtimename == "" {
+	// If we are importing or using a builtin, assume builders are set in the template
+	if importfile == "" && builtinname == "" {
 		// Otherwise get a Builder from the user while checking the dockerfile setting
 		dockerfileSet := commandContext.Config.IsSet("dockerfile")
 		dockerfile := commandContext.Config.GetBool("dockerfile")
@@ -205,9 +205,9 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		newAppConfig = tmpappconfig
 		// And then overwrite the app name
 		newAppConfig.AppName = app.Name
-	} else if runtimename != "" {
+	} else if builtinname != "" {
 		newAppConfig.AppName = app.Name
-		newAppConfig.Runtime = runtimename
+		newAppConfig.Build = &flyctl.Build{Builtin: builtinname}
 		newAppConfig.Definition = app.Config.Definition
 		if configPort != "" {
 			newAppConfig.SetInternalPort(internalPort)

@@ -25,7 +25,6 @@ const (
 type AppConfig struct {
 	AppName string
 	Build   *Build
-	Runtime string
 
 	Definition map[string]interface{}
 }
@@ -34,6 +33,8 @@ type Build struct {
 	Builder    string
 	Args       map[string]string
 	Buildpacks []string
+	// Or...
+	Builtin string
 }
 
 func NewAppConfig() *AppConfig {
@@ -76,8 +77,8 @@ func (ac *AppConfig) HasBuilder() bool {
 	return ac.Build != nil && ac.Build.Builder != ""
 }
 
-func (ac *AppConfig) HasRuntime() bool {
-	return ac.Runtime != ""
+func (ac *AppConfig) HasBuiltin() bool {
+	return ac.Build != nil && ac.Build.Builtin != ""
 }
 
 func (ac *AppConfig) WriteTo(w io.Writer, format ConfigFormat) error {
@@ -105,10 +106,6 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 	}
 	delete(data, "app")
 
-	if runtime, ok := (data["runtime"]).(string); ok {
-		ac.Runtime = runtime
-	}
-
 	if buildConfig, ok := (data["build"]).(map[string]interface{}); ok {
 		b := Build{
 			Args:       map[string]string{},
@@ -130,11 +127,13 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 						b.Args[argK] = fmt.Sprint(argV)
 					}
 				}
+			case "builtin":
+				b.Builtin = fmt.Sprint(v)
 			default:
 				b.Args[k] = fmt.Sprint(v)
 			}
 		}
-		if b.Builder != "" {
+		if b.Builder != "" || b.Builtin != "" {
 			ac.Build = &b
 		}
 	}
@@ -165,10 +164,11 @@ func (ac AppConfig) marshalTOML(w io.Writer) error {
 			buildData["args"] = ac.Build.Args
 		}
 		rawData["build"] = buildData
-	}
-
-	if ac.Runtime != "" {
-		rawData["runtime"] = ac.Runtime
+	} else if ac.Build != nil && ac.Build.Builtin != "" {
+		buildData := map[string]interface{}{
+			"builtin": ac.Build.Builtin,
+		}
+		rawData["build"] = buildData
 	}
 
 	if err := encoder.Encode(rawData); err != nil {

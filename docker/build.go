@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/superfly/flyctl/builtinsupport"
 	"github.com/superfly/flyctl/cmdctx"
-	"github.com/superfly/flyctl/runtimesupport"
 
 	"github.com/briandowns/spinner"
 	"github.com/buildpacks/pack"
@@ -24,7 +24,7 @@ import (
 )
 
 // ErrNoDockerfile - No dockerfile or builder specified error
-var ErrNoDockerfile = errors.New("Project does not contain a Dockerfile, specify a builder or set a runtime")
+var ErrNoDockerfile = errors.New("Project does not contain a Dockerfile, has not set a CNB builder or builtin builder")
 
 // ErrDockerDaemon - Docker daemon needs to be running error
 var ErrDockerDaemon = errors.New("Docker daemon must be running to perform this action")
@@ -66,15 +66,14 @@ func (op *DeployOperation) BuildWithDocker(commandContext *cmdctx.CmdContext, do
 		dockerfilePath = ResolveDockerfile(cwd)
 	}
 
-	fmt.Println(appConfig.HasRuntime, appConfig.Runtime)
-	if dockerfilePath == "" && !appConfig.HasRuntime() {
+	if dockerfilePath == "" && !appConfig.HasBuiltin() {
 		return nil, ErrNoDockerfile
 	}
 
-	if appConfig.HasRuntime() {
-		commandContext.Statusf("build", cmdctx.SDETAIL, "Using Runtime: %s\n", appConfig.Runtime)
+	if appConfig.HasBuiltin() {
+		commandContext.Statusf("build", cmdctx.SDETAIL, "Using Builtin Builder: %s\n", appConfig.Build.Builtin)
 	} else {
-		commandContext.Statusf("build", cmdctx.SDETAIL, "Using Dockerfile: %s\n", dockerfilePath)
+		commandContext.Statusf("build", cmdctx.SDETAIL, "Using Dockerfile Builder: %s\n", dockerfilePath)
 	}
 
 	buildContext, err := newBuildContext()
@@ -110,12 +109,12 @@ func (op *DeployOperation) BuildWithDocker(commandContext *cmdctx.CmdContext, do
 			return nil, err
 		}
 	} else {
-		// We're doing a Runtime!
-		runtime, err := runtimesupport.GetRuntime(appConfig.Runtime)
+		// We're doing a builtin!
+		builtin, err := builtinsupport.GetBuiltin(appConfig.Build.Builtin)
 		if err != nil {
 			return nil, err
 		}
-		if err := buildContext.AddFile("Dockerfile", strings.NewReader(runtime.FileText)); err != nil {
+		if err := buildContext.AddFile("Dockerfile", strings.NewReader(builtin.FileText)); err != nil {
 			return nil, err
 		}
 	}
