@@ -1,10 +1,14 @@
 package api
 
-func (c *Client) ConfigureRegions(input ConfigureRegionsInput) ([]Region, error) {
+func (c *Client) ConfigureRegions(input ConfigureRegionsInput) ([]Region, []Region, error) {
 	query := `
 		mutation ($input: ConfigureRegionsInput!) {
 			configureRegions(input: $input) {
 				regions {
+					code
+					name
+				}
+				backupRegions{
 					code
 					name
 				}
@@ -18,17 +22,21 @@ func (c *Client) ConfigureRegions(input ConfigureRegionsInput) ([]Region, error)
 
 	data, err := c.Run(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return data.ConfigureRegions.Regions, nil
+	return data.ConfigureRegions.Regions, data.ConfigureRegions.BackupRegions, nil
 }
 
-func (c *Client) ListAppRegions(appName string) ([]Region, error) {
+func (c *Client) ListAppRegions(appName string) ([]Region, []Region, error) {
 	query := `
 		query ($appName: String!) {
 			app(name: $appName) {
-				regions {
+				regions{
+					code
+					name
+				}
+				backupRegions{
 					code
 					name
 				}
@@ -42,8 +50,8 @@ func (c *Client) ListAppRegions(appName string) ([]Region, error) {
 
 	data, err := c.Run(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return *data.App.Regions, nil
+	return *data.App.Regions, *data.App.BackupRegions, nil
 }

@@ -433,6 +433,12 @@ shortHelp="Sets the region pool with provided regions"
 longHelp="""Sets the region pool with provided regions
 """
 
+[regions.backup]
+usage="backup REGION ..."
+shortHelp="Sets the backup region pool with provided regions"
+longHelp="""Sets the backup region pool with provided regions
+"""
+
 [regions.list]
 usage="list"
 shortHelp="Shows the list if regions the app is allowed to run in"
