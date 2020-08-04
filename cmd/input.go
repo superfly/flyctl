@@ -138,7 +138,6 @@ func selectBuildtype(commandContext *cmdctx.CmdContext) (string, bool, error) {
 		return "", false, err
 	}
 
-	fmt.Println(selectedBuilder, dockerfileentry)
 	offset := 0 // offset of the builder names
 
 	if dockerfileentry != -1 {
