@@ -1,8 +1,9 @@
 package cmd
 
 import (
-	"github.com/superfly/flyctl/cmdctx"
 	"os"
+
+	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/docstrings"
@@ -33,6 +34,10 @@ func newRegionsCommand() *Command {
 	setCmd := BuildCommand(cmd, runRegionsSet, setStrings.Usage, setStrings.Short, setStrings.Long, os.Stdout, requireSession, requireAppName)
 	setCmd.Args = cobra.MinimumNArgs(1)
 
+	setBackupStrings := docstrings.Get("regions.backup")
+	setBackupCmd := BuildCommand(cmd, runBackupRegionsSet, setBackupStrings.Usage, setBackupStrings.Short, setBackupStrings.Long, os.Stdout, requireSession, requireAppName)
+	setBackupCmd.Args = cobra.MinimumNArgs(1)
+
 	listStrings := docstrings.Get("regions.list")
 	BuildCommand(cmd, runRegionsList, listStrings.Usage, listStrings.Short, listStrings.Long, os.Stdout, requireSession, requireAppName)
 
@@ -45,12 +50,12 @@ func runRegionsAdd(ctx *cmdctx.CmdContext) error {
 		AllowRegions: ctx.Args,
 	}
 
-	regions, err := ctx.Client.API().ConfigureRegions(input)
+	regions, backupRegions, err := ctx.Client.API().ConfigureRegions(input)
 	if err != nil {
 		return err
 	}
 
-	printRegions(ctx, regions)
+	printRegions(ctx, regions, backupRegions)
 
 	return nil
 }
@@ -61,12 +66,12 @@ func runRegionsRemove(ctx *cmdctx.CmdContext) error {
 		DenyRegions: ctx.Args,
 	}
 
-	regions, err := ctx.Client.API().ConfigureRegions(input)
+	regions, backupRegions, err := ctx.Client.API().ConfigureRegions(input)
 	if err != nil {
 		return err
 	}
 
-	printRegions(ctx, regions)
+	printRegions(ctx, regions, backupRegions)
 
 	return nil
 }
@@ -76,7 +81,7 @@ func runRegionsSet(ctx *cmdctx.CmdContext) error {
 	delList := make([]string, 0)
 
 	// Get the Region List
-	regions, err := ctx.Client.API().ListAppRegions(ctx.AppName)
+	regions, backupRegions, err := ctx.Client.API().ListAppRegions(ctx.AppName)
 	if err != nil {
 		return err
 	}
@@ -113,28 +118,44 @@ func runRegionsSet(ctx *cmdctx.CmdContext) error {
 		DenyRegions:  delList,
 	}
 
-	newregions, err := ctx.Client.API().ConfigureRegions(input)
+	newregions, backupRegions, err := ctx.Client.API().ConfigureRegions(input)
 	if err != nil {
 		return err
 	}
 
-	printRegions(ctx, newregions)
+	printRegions(ctx, newregions, backupRegions)
 
 	return nil
 }
 
 func runRegionsList(ctx *cmdctx.CmdContext) error {
-	regions, err := ctx.Client.API().ListAppRegions(ctx.AppName)
+	regions, backupRegions, err := ctx.Client.API().ListAppRegions(ctx.AppName)
 	if err != nil {
 		return err
 	}
 
-	printRegions(ctx, regions)
+	printRegions(ctx, regions, backupRegions)
 
 	return nil
 }
 
-func printRegions(ctx *cmdctx.CmdContext, regions []api.Region) {
+func runBackupRegionsSet(ctx *cmdctx.CmdContext) error {
+	input := api.ConfigureRegionsInput{
+		AppID:         ctx.AppName,
+		BackupRegions: ctx.Args,
+	}
+
+	regions, backupRegions, err := ctx.Client.API().ConfigureRegions(input)
+	if err != nil {
+		return err
+	}
+
+	printRegions(ctx, regions, backupRegions)
+
+	return nil
+}
+
+func printRegions(ctx *cmdctx.CmdContext, regions []api.Region, backupRegions []api.Region) {
 
 	if ctx.OutputJSON() {
 		ctx.WriteJSON(regions)
@@ -157,4 +178,17 @@ func printRegions(ctx *cmdctx.CmdContext, regions []api.Region) {
 		}
 	}
 
+	if verbose {
+		ctx.Status("backupRegions", cmdctx.STITLE, "Current Backup Region Pool:")
+	} else {
+		ctx.Status("backupRegions", cmdctx.STITLE, "Backup Region: ")
+	}
+
+	for _, r := range backupRegions {
+		if verbose {
+			ctx.Statusf("backupRegions", cmdctx.SINFO, "  %s  %s\n", r.Code, r.Name)
+		} else {
+			ctx.Status("backupRegions", cmdctx.SINFO, r.Code)
+		}
+	}
 }

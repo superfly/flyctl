@@ -90,8 +90,9 @@ type Query struct {
 	}
 
 	ConfigureRegions struct {
-		App     App
-		Regions []Region
+		App           App
+		Regions       []Region
+		BackupRegions []Region
 	}
 
 	ResumeApp struct {
@@ -147,6 +148,7 @@ type App struct {
 	Autoscaling      *AutoscalingConfig
 	VMSize           VMSize
 	Regions          *[]Region
+	BackupRegions    *[]Region
 }
 
 type AppCertsCompact struct {
@@ -523,9 +525,10 @@ type BuildArgInput struct {
 }
 
 type ConfigureRegionsInput struct {
-	AppID        string   `json:"appId"`
-	AllowRegions []string `json:"allowRegions"`
-	DenyRegions  []string `json:"denyRegions"`
+	AppID         string   `json:"appId"`
+	AllowRegions  []string `json:"allowRegions"`
+	DenyRegions   []string `json:"denyRegions"`
+	BackupRegions []string `json:"backupRegions"`
 }
 
 type Errors []Error
