@@ -441,8 +441,8 @@ longHelp="""Sets the backup region pool with provided regions
 
 [regions.list]
 usage="list"
-shortHelp="Shows the list if regions the app is allowed to run in"
-longHelp="""Shows the list if regions the app is allowed to run in.
+shortHelp="Shows the list of regions the app is allowed to run in"
+longHelp="""Shows the list of regions the app is allowed to run in.
 """
 
 
