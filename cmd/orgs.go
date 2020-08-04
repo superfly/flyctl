@@ -44,15 +44,32 @@ func newOrgsCommand() *Command {
 	orgsRemoveCommand := BuildCommandKS(orgscmd, runOrgsRemove, orgsRemoveStrings, os.Stdout, requireSession)
 	orgsRemoveCommand.Args = cobra.MaximumNArgs(2)
 
-	orgsCreateStrings := docstrings.KeyStrings{Usage: "create <org> <email>", Short: "Create an Organization", Long: ""}
+	orgsCreateStrings := docstrings.KeyStrings{Usage: "create <org>", Short: "Create an Organization", Long: ""}
 	orgsCreateCommand := BuildCommandKS(orgscmd, runOrgsCreate, orgsCreateStrings, os.Stdout, requireSession)
 	orgsCreateCommand.Args = cobra.MaximumNArgs(1)
 
-	orgsDestroyStrings := docstrings.KeyStrings{Usage: "destroy <org>", Short: "Destroy an Organization", Long: ""}
-	orgsDestroyCommand := BuildCommandKS(orgscmd, runOrgsDestroy, orgsDestroyStrings, os.Stdout, requireSession)
-	orgsDestroyCommand.Args = cobra.MaximumNArgs(1)
+	orgsDeleteStrings := docstrings.KeyStrings{Usage: "delete <org>", Short: "Delete an Organization", Long: ""}
+	orgsDeleteCommand := BuildCommandKS(orgscmd, runOrgsDelete, orgsDeleteStrings, os.Stdout, requireSession)
+	orgsDeleteCommand.Args = cobra.MaximumNArgs(1)
 
 	return orgscmd
+}
+
+func getOrgId(ctx *cmdctx.CmdContext, slug string) (id string, err error) {
+
+	personalOrganization, organizations, err := ctx.Client.API().GetCurrentOrganizations()
+
+	if personalOrganization.Slug == slug {
+		return personalOrganization.ID, nil
+	}
+
+	for _, o := range organizations {
+		if o.Slug == slug {
+			return o.ID, nil
+		}
+	}
+
+	return "", fmt.Errorf("slug %s not found", slug)
 }
 
 func runOrgsList(cmdctx *cmdctx.CmdContext) error {
@@ -72,9 +89,26 @@ func runOrgsList(cmdctx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	fmt.Println("Formatted Print Here")
+	printOrg(personalOrganization, true)
+
+	for _, o := range organizations {
+		if o.ID != personalOrganization.ID {
+			printOrg(o, false)
+		}
+	}
 
 	return nil
+}
+
+func printOrg(o api.Organization, headers bool) {
+
+	if headers {
+		fmt.Printf("%-20s %-20s %-10s\n", "Name", "Slug", "Type")
+		fmt.Printf("%-20s %-20s %-10s\n", "----", "----", "----")
+	}
+
+	fmt.Printf("%-20s %-20s %-10s\n", o.Name, o.Slug, o.Type)
+
 }
 
 func runOrgsShow(ctx *cmdctx.CmdContext) error {
@@ -86,7 +120,22 @@ func runOrgsInvite(ctx *cmdctx.CmdContext) error {
 }
 
 func runOrgsCreate(ctx *cmdctx.CmdContext) error {
-	return fmt.Errorf("Create Not implemented")
+	asJSON := ctx.OutputJSON()
+
+	orgname := ctx.Args[0]
+
+	organization, err := ctx.Client.API().CreateOrganization(orgname)
+	if err != nil {
+		return err
+	}
+
+	if asJSON {
+		ctx.WriteJSON(organization)
+	} else {
+		printOrg(*organization, true)
+	}
+
+	return nil
 }
 
 func runOrgsRemove(ctx *cmdctx.CmdContext) error {
@@ -97,6 +146,26 @@ func runOrgsRevoke(ctx *cmdctx.CmdContext) error {
 	return fmt.Errorf("Revoke Not implemented")
 }
 
-func runOrgsDestroy(ctx *cmdctx.CmdContext) error {
-	return fmt.Errorf("Destroy Not implemented")
+func runOrgsDelete(ctx *cmdctx.CmdContext) error {
+	orgslug := ctx.Args[0]
+
+	orgid, err := getOrgId(ctx, orgslug)
+
+	if err != nil {
+		return err
+	}
+
+	confirmed := confirm(fmt.Sprintf("Are you sure you want to delete the %s organization?", orgslug))
+
+	if !confirmed {
+		return nil
+	}
+
+	_, err = ctx.Client.API().DeleteOrganization(orgid)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

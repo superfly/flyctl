@@ -107,6 +107,9 @@ type Query struct {
 	RestartApp struct {
 		App App
 	}
+
+	CreateOrganization CreateOrganizationPayload
+	DeleteOrganization DeleteOrganizationPayload
 }
 
 type Definition map[string]interface{}
@@ -345,6 +348,14 @@ type UserOrganizations struct {
 	Organizations        struct {
 		Nodes []Organization
 	}
+}
+
+type CreateOrganizationPayload struct {
+	Organization Organization
+}
+
+type DeleteOrganizationPayload struct {
+	DeletedOrganizationId string
 }
 
 type HostnameCheck struct {

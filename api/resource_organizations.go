@@ -81,3 +81,56 @@ func (client *Client) GetCurrentOrganizations() (Organization, []Organization, e
 
 	return data.UserOrganizations.PersonalOrganization, data.UserOrganizations.Organizations.Nodes, nil
 }
+
+func (c *Client) CreateOrganization(organizationname string) (*Organization, error) {
+	query := `
+		mutation($input: CreateOrganizationInput!) {
+			createOrganization(input: $input) {
+			    organization {
+					id
+					name
+					slug
+					type
+					viewerRole
+				  }
+			}	
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("input", map[string]string{
+		"name": organizationname,
+	})
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.CreateOrganization.Organization, nil
+}
+
+func (c *Client) DeleteOrganization(id string) (deletedid string, err error) {
+	query := `
+	mutation($input: DeleteOrganizationInput!) {
+		deleteOrganization(input: $input) {
+		  clientMutationId
+		  deletedOrganizationId
+		  }
+		}	  
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("input", map[string]string{
+		"organizationId": id,
+	})
+
+	data, err := c.Run(req)
+	if err != nil {
+		return "", err
+	}
+
+	return data.DeleteOrganization.DeletedOrganizationId, nil
+}
