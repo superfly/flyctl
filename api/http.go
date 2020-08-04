@@ -22,16 +22,17 @@ func newHTTPClient() (*http.Client, error) {
 				rehttp.RetryTemporaryErr(),
 				rehttp.RetryIsErr(func(err error) bool {
 					return err != nil && strings.Contains(err.Error(), "INTERNAL_ERROR")
-					// 			if err == nil {
-					// 				return true
-					// 			}
-					// 			msg := err.Error()
-					// 			for _, retryError := range retryErrors {
-					// 				if strings.Contains(msg, retryError) {
-					// 					return true
-					// 				}
-					// 			}
-					// 			return false
+					// Below code was part of retry strategy
+					// if err == nil {
+					// 	return true
+					// }
+					// msg := err.Error()
+					// for _, retryError := range retryErrors {
+					// 	if strings.Contains(msg, retryError) {
+					// 		return true
+					// 	}
+					// }
+					// return false
 				}),
 			),
 		),

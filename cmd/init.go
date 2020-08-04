@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path"
 	"strconv"
 
 	"github.com/superfly/flyctl/cmdctx"
@@ -49,14 +48,19 @@ func newInitCommand() *Command {
 	})
 
 	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "import",
-		Description: "Create but import all settings from the given file",
+		Name:        "builtin",
+		Description: `The Fly Runtime to use for building the app`,
 	})
 
 	cmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "dockerfile",
 		Description: `Use a dockerfile when deploying the app`,
 		Default:     false,
+	})
+
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "import",
+		Description: "Create but import all settings from the given file",
 	})
 
 	return cmd
@@ -133,7 +137,12 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 
 	fmt.Println()
 
-	builder, _ := commandContext.Config.GetString("builder")
+	builder, err := commandContext.Config.GetString("builder")
+	if err != nil {
+		return err
+	}
+
+	builtinname, _ := commandContext.Config.GetString("builtin")
 	if err != nil {
 		return err
 	}
@@ -143,33 +152,27 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		return err
 	}
 
-	// If we are importing, assume builders are set in the template
-	if importfile == "" {
+	// If we are importing or using a builtin, assume builders are set in the template
+	if importfile == "" && builtinname == "" {
 		// Otherwise get a Builder from the user while checking the dockerfile setting
 		dockerfileSet := commandContext.Config.IsSet("dockerfile")
 		dockerfile := commandContext.Config.GetBool("dockerfile")
 
 		if builder == "" && !dockerfileSet {
-			builder, err := selectBuildtype(commandContext)
+			builder, builtin, err := selectBuildtype(commandContext)
 
 			switch {
 			case isInterrupt(err):
 				return nil
-			case err != nil || org == nil:
+			case err != nil || builder == "":
 				return fmt.Errorf("Error setting builder: %s", err)
 			}
+
 			if builder != "Dockerfile" {
 				newAppConfig.Build = &flyctl.Build{Builder: builder}
-			} else {
-				dockerfileExists := helpers.FileExists(path.Join(commandContext.WorkingDir, "Dockerfile"))
-				if !dockerfileExists {
-					newdf, err := os.Create(path.Join(commandContext.WorkingDir, "Dockerfile"))
-					if err != nil {
-						return fmt.Errorf("Error writing example Dockerfile: %s", err)
-					}
-					fmt.Fprintf(newdf, "FROM flyio/hellofly\n")
-					newdf.Close()
-				}
+			}
+			if builtin {
+				builtinname = builder
 			}
 		} else if builder != "" {
 			// If the builder was set and there's not dockerfile setting, write the builder
@@ -195,6 +198,13 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		newAppConfig = tmpappconfig
 		// And then overwrite the app name
 		newAppConfig.AppName = app.Name
+	} else if builtinname != "" {
+		newAppConfig.AppName = app.Name
+		newAppConfig.Build = &flyctl.Build{Builtin: builtinname}
+		newAppConfig.Definition = app.Config.Definition
+		if configPort != "" {
+			newAppConfig.SetInternalPort(internalPort)
+		}
 	} else {
 		newAppConfig.AppName = app.Name
 		newAppConfig.Definition = app.Config.Definition
@@ -202,6 +212,7 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 			newAppConfig.SetInternalPort(internalPort)
 		}
 	}
+
 	fmt.Println()
 
 	err = commandContext.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "New app created"})

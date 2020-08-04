@@ -33,6 +33,8 @@ type Build struct {
 	Builder    string
 	Args       map[string]string
 	Buildpacks []string
+	// Or...
+	Builtin string
 }
 
 func NewAppConfig() *AppConfig {
@@ -73,6 +75,10 @@ func (ac *AppConfig) HasDefinition() bool {
 
 func (ac *AppConfig) HasBuilder() bool {
 	return ac.Build != nil && ac.Build.Builder != ""
+}
+
+func (ac *AppConfig) HasBuiltin() bool {
+	return ac.Build != nil && ac.Build.Builtin != ""
 }
 
 func (ac *AppConfig) WriteTo(w io.Writer, format ConfigFormat) error {
@@ -121,11 +127,13 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 						b.Args[argK] = fmt.Sprint(argV)
 					}
 				}
+			case "builtin":
+				b.Builtin = fmt.Sprint(v)
 			default:
 				b.Args[k] = fmt.Sprint(v)
 			}
 		}
-		if b.Builder != "" {
+		if b.Builder != "" || b.Builtin != "" {
 			ac.Build = &b
 		}
 	}
@@ -154,6 +162,11 @@ func (ac AppConfig) marshalTOML(w io.Writer) error {
 		}
 		if len(ac.Build.Args) > 0 {
 			buildData["args"] = ac.Build.Args
+		}
+		rawData["build"] = buildData
+	} else if ac.Build != nil && ac.Build.Builtin != "" {
+		buildData := map[string]interface{}{
+			"builtin": ac.Build.Builtin,
 		}
 		rawData["build"] = buildData
 	}

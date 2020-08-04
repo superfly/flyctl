@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strings"
 	"time"
 
+	"github.com/superfly/flyctl/builtinsupport"
 	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/briandowns/spinner"
@@ -22,7 +24,7 @@ import (
 )
 
 // ErrNoDockerfile - No dockerfile or builder specified error
-var ErrNoDockerfile = errors.New("Project does not contain a Dockerfile or specify a builder")
+var ErrNoDockerfile = errors.New("Project does not contain a Dockerfile, has not set a CNB builder or builtin builder")
 
 // ErrDockerDaemon - Docker daemon needs to be running error
 var ErrDockerDaemon = errors.New("Docker daemon must be running to perform this action")
@@ -64,11 +66,15 @@ func (op *DeployOperation) BuildWithDocker(commandContext *cmdctx.CmdContext, do
 		dockerfilePath = ResolveDockerfile(cwd)
 	}
 
-	if dockerfilePath == "" {
+	if dockerfilePath == "" && !appConfig.HasBuiltin() {
 		return nil, ErrNoDockerfile
 	}
 
-	commandContext.Statusf("build", cmdctx.SDETAIL, "Using Dockerfile: %s\n", dockerfilePath)
+	if appConfig.HasBuiltin() {
+		commandContext.Statusf("build", cmdctx.SDETAIL, "Using Builtin Builder: %s\n", appConfig.Build.Builtin)
+	} else {
+		commandContext.Statusf("build", cmdctx.SDETAIL, "Using Dockerfile Builder: %s\n", dockerfilePath)
+	}
 
 	buildContext, err := newBuildContext()
 	if err != nil {
@@ -100,6 +106,15 @@ func (op *DeployOperation) BuildWithDocker(commandContext *cmdctx.CmdContext, do
 		}
 		defer dockerfile.Close()
 		if err := buildContext.AddFile("Dockerfile", dockerfile); err != nil {
+			return nil, err
+		}
+	} else {
+		// We're doing a builtin!
+		builtin, err := builtinsupport.GetBuiltin(appConfig.Build.Builtin)
+		if err != nil {
+			return nil, err
+		}
+		if err := buildContext.AddFile("Dockerfile", strings.NewReader(builtin.FileText)); err != nil {
 			return nil, err
 		}
 	}
