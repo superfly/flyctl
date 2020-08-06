@@ -19,13 +19,20 @@ type Query struct {
 	Organizations   struct {
 		Nodes []Organization
 	}
+	Organization *Organization
 
 	Build Build
+
+	Node  interface{}
+	Nodes []interface{}
 
 	Platform struct {
 		Regions []Region
 		VMSizes []VMSize
 	}
+
+	// hack to let us alias node to a type
+	DNSZone *DNSZone
 
 	// mutations
 	CreateApp struct {
@@ -105,6 +112,18 @@ type Query struct {
 
 	RestartApp struct {
 		App App
+	}
+
+	CreateDnsZone struct {
+		Zone *DNSZone
+	}
+
+	ExportDnsZone struct {
+		Contents string
+	}
+
+	ImportDnsZone struct {
+		Results []ImportDnsRecordTypeResult
 	}
 }
 
@@ -204,6 +223,16 @@ type Organization struct {
 	Name string
 	Slug string
 	Type string
+
+	DNSZones struct {
+		Nodes *[]*DNSZone
+		Edges *[]*struct {
+			Cursor *string
+			Node   *DNSZone
+		}
+	}
+
+	DNSZone *DNSZone
 }
 
 type IPAddress struct {
@@ -544,4 +573,36 @@ type Extensions struct {
 	ServiceName string
 	Query       string
 	Variables   map[string]string
+}
+
+type DNSZone struct {
+	ID           string
+	Domain       string
+	CreatedAt    time.Time
+	Organization *Organization
+	Records      *struct {
+		Nodes *[]*DNSRecord
+	}
+}
+
+type DNSRecord struct {
+	ID         string
+	Name       string
+	FQDN       string
+	IsApex     bool
+	IsWildcard bool
+	IsSystem   bool
+	TTL        int
+	Type       string
+	Values     []string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+type ImportDnsRecordTypeResult struct {
+	Created int
+	Deleted int
+	Skipped int
+	Updated int
+	Type    string
 }
