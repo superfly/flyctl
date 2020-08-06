@@ -20,7 +20,7 @@ type Query struct {
 		Nodes []Organization
 	}
 
-  Organization *Organization
+	Organization        *Organization
 	UserOrganizations   UserOrganizations
 	OrganizationDetails OrganizationDetails
 	Build               Build
@@ -285,15 +285,6 @@ type Database struct {
 	BackendId    string
 	CreatedAt    time.Time
 	Engine       string
-}
-
-type DNSZone struct {
-	ID           string
-	Domain       string
-	Organization Organization
-	Records      []*DNSRecords
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
 }
 
 type DNSRecords struct {

@@ -603,3 +603,55 @@ longHelp="""Shows version information for the flyctl command itself,
 including version number and build date.
 """
 
+[orgs] 
+usage="orgs"
+shortHelp="Commands for managing Fly organizations"
+longHelp="""Commands for managing Fly organizations. list, create, show and 
+destroy organizations. 
+Organization admins can also invite or remove users from Organizations. 
+"""
+
+[orgs.list]
+usage="list"
+shortHelp="Lists organizations for current user"
+longHelp="""Lists organizations the current user has access to.
+"""
+
+[orgs.show]
+usage="show"
+shortHelp="Show organization details"
+longHelp="""Show organization details. This includes permissions, members and a summary
+of other resources associated with the organization.
+"""
+
+[orgs.invite]
+usage="invite [<org> <email>]"
+shortHelp="Invite a user to an organization"
+longHelp="""Invite a user to an organization. If the user does not have a Fly account, they
+will be invited to create one and that account will be added to the organization.
+"""
+
+[orgs.revoke]
+usage="revoke [<org> <email>]"
+shortHelp="Revoke an invitation to join an organization."
+longHelp="""Revoke an invitation to join an organization. If an invitation has been sent, and 
+not used yet, this command revokes the invitation.
+"""
+
+[orgs.remove]
+usage="remove [<org> <email>]"
+shortHelp="Remove a user from an organization."
+longHelp="""Remove a user from an organization.
+"""
+
+[orgs.create]
+usage="create <org>"
+shortHelp="Create a new organization."
+longHelp="""Create a new organization.
+"""
+
+[orgs.delete]
+usage="delete <org>"
+shortHelp="Delete an organization."
+longHelp="""Delete an organization.
+"""

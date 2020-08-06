@@ -63,6 +63,33 @@ func selectOrganization(client *api.Client, slug string) (*api.Organization, err
 	return &orgs[selectedOrg], nil
 }
 
+func selectZone(client *api.Client, orgslug string, slug string) (string, error) {
+	zones, err := client.GetDNSZones(orgslug)
+	if err != nil {
+		return "", err
+	}
+
+	sort.Slice(zones[:], func(i, j int) bool { return (*zones[i]).Domain < (*zones[j]).Domain })
+
+	options := []string{}
+
+	for _, zone := range zones {
+		options = append(options, fmt.Sprintf("%s", zone.Domain))
+	}
+
+	selectedOrg := 0
+	prompt := &survey.Select{
+		Message:  "Select zone:",
+		Options:  options,
+		PageSize: 15,
+	}
+	if err := survey.AskOne(prompt, &selectedOrg); err != nil {
+		return "", err
+	}
+
+	return (*zones[selectedOrg]).Domain, nil
+}
+
 type suggestedBuilder struct {
 	Vendor             string
 	Image              string
