@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
-
 	"github.com/superfly/flyctl/docstrings"
 )
 
@@ -55,23 +55,6 @@ func newOrgsCommand() *Command {
 	return orgscmd
 }
 
-func getOrgId(ctx *cmdctx.CmdContext, slug string) (id string, err error) {
-
-	personalOrganization, organizations, err := ctx.Client.API().GetCurrentOrganizations()
-
-	if personalOrganization.Slug == slug {
-		return personalOrganization.ID, nil
-	}
-
-	for _, o := range organizations {
-		if o.Slug == slug {
-			return o.ID, nil
-		}
-	}
-
-	return "", fmt.Errorf("slug %s not found", slug)
-}
-
 func runOrgsList(cmdctx *cmdctx.CmdContext) error {
 	asJSON := cmdctx.OutputJSON()
 
@@ -111,8 +94,56 @@ func printOrg(o api.Organization, headers bool) {
 
 }
 
+// func makeTable(ctx *cmdctx.CmdContext, heading...) (tablewriter.Table) {
+
+// }
+
 func runOrgsShow(ctx *cmdctx.CmdContext) error {
-	return fmt.Errorf("Show Not implemented")
+	asJSON := ctx.OutputJSON()
+	orgslug := ctx.Args[0]
+
+	org, err := ctx.Client.API().GetOrganizationBySlug(orgslug)
+
+	if err != nil {
+		return err
+	}
+
+	if asJSON {
+		ctx.WriteJSON(org)
+		return nil
+	}
+
+	ctx.Statusf("fyctl", cmdctx.STITLE, "Organization\n")
+
+	ctx.Statusf("flyctl", cmdctx.SINFO, "%-10s: %-20s\n", "Name", org.Name)
+	ctx.Statusf("flyctl", cmdctx.SINFO, "%-10s: %-20s\n", "Slug", org.Slug)
+	ctx.Statusf("flyctl", cmdctx.SINFO, "%-10s: %-20s\n", "Type", org.Type)
+
+	ctx.StatusLn()
+
+	ctx.Statusf("fyctl", cmdctx.STITLE, "Summary\n")
+
+	ctx.Statusf("flyctl", cmdctx.SINFO, "You have %s permissions on this organizaton\n", org.ViewerRole)
+
+	ctx.StatusLn()
+
+	ctx.Statusf("flyctl", cmdctx.SINFO, "There are %d databases associated with this organization\n", len(org.Databases.Nodes))
+	ctx.Statusf("flyctl", cmdctx.SINFO, "There are %d DNS zones associated with this organization\n", len(org.DNSZones.Nodes))
+	ctx.Statusf("flyctl", cmdctx.SINFO, "There are %d members associated with this organization\n", len(org.Members.Edges))
+
+	ctx.StatusLn()
+
+	ctx.Statusf("fyctl", cmdctx.STITLE, "Organization Members\n")
+
+	membertable := tablewriter.NewWriter(ctx.Out)
+	membertable.SetHeader([]string{"Name", "Email", "Role"})
+
+	for _, m := range org.Members.Edges {
+		membertable.Append([]string{m.Node.Name, m.Node.Email, m.Role})
+	}
+	membertable.Render()
+
+	return nil
 }
 
 func runOrgsInvite(ctx *cmdctx.CmdContext) error {
@@ -149,7 +180,7 @@ func runOrgsRevoke(ctx *cmdctx.CmdContext) error {
 func runOrgsDelete(ctx *cmdctx.CmdContext) error {
 	orgslug := ctx.Args[0]
 
-	orgid, err := getOrgId(ctx, orgslug)
+	org, err := ctx.Client.API().GetOrganizationBySlug(orgslug)
 
 	if err != nil {
 		return err
@@ -161,7 +192,7 @@ func runOrgsDelete(ctx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	_, err = ctx.Client.API().DeleteOrganization(orgid)
+	_, err = ctx.Client.API().DeleteOrganization(org.ID)
 
 	if err != nil {
 		return err

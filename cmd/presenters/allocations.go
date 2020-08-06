@@ -9,7 +9,8 @@ import (
 )
 
 type Allocations struct {
-	Allocations []*api.AllocationStatus
+	Allocations   []*api.AllocationStatus
+	BackupRegions []api.Region
 }
 
 func (p *Allocations) APIStruct() interface{} {
@@ -22,7 +23,6 @@ func (p *Allocations) FieldNames() []string {
 
 func (p *Allocations) Records() []map[string]string {
 	out := []map[string]string{}
-
 	multipleVersions := hasMultipleVersions(p.Allocations)
 
 	for _, alloc := range p.Allocations {
@@ -31,12 +31,24 @@ func (p *Allocations) Records() []map[string]string {
 			version = version + " " + aurora.Green("⇡").String()
 		}
 
+		region := alloc.Region
+		if len(p.BackupRegions) > 0 {
+			for _, r := range p.BackupRegions {
+				fmt.Println(r)
+				fmt.Println(region)
+				if alloc.Region == r.Code {
+					region = alloc.Region + "(B)"
+					break
+				}
+			}
+		}
+
 		out = append(out, map[string]string{
 			"ID":            alloc.IDShort,
 			"Version":       version,
 			"Status":        formatAllocStatus(alloc),
 			"Desired":       alloc.DesiredStatus,
-			"Region":        alloc.Region,
+			"Region":        region,
 			"Created":       formatRelativeTime(alloc.CreatedAt),
 			"Health Checks": FormatHealthChecksSummary(alloc),
 			"Restarts":      strconv.Itoa(alloc.Restarts),

@@ -19,9 +19,9 @@ type Query struct {
 	Organizations   struct {
 		Nodes []Organization
 	}
-	UserOrganizations UserOrganizations
-
-	Build Build
+	UserOrganizations   UserOrganizations
+	OrganizationDetails OrganizationDetails
+	Build               Build
 
 	Platform struct {
 		Regions []Region
@@ -208,6 +208,77 @@ type Organization struct {
 	Name string
 	Slug string
 	Type string
+}
+
+type OrganizationDetails struct {
+	ID         string
+	Name       string
+	Slug       string
+	Type       string
+	ViewerRole string
+	Apps       struct {
+		Nodes []App
+	}
+	// Billables []*Billable
+	Databases struct {
+		Nodes []Database
+	}
+	DNSZones struct {
+		Nodes []DNSZone
+	}
+	Members struct {
+		Edges []OrganizationMembershipEdge
+	}
+}
+
+type OrganizationMembershipEdge struct {
+	Cursor   string
+	Node     User
+	Role     string
+	JoinedAt time.Time
+}
+
+type Billable struct {
+	Category string
+	Product  string
+	Time     time.Time
+	Quantity float64
+	App      App
+}
+
+type Database struct {
+	ID           string
+	Key          string
+	Name         string
+	Organization Organization
+	PublicURL    string
+	VmUrl        string
+	BackendId    string
+	CreatedAt    time.Time
+	Engine       string
+}
+
+type DNSZone struct {
+	ID           string
+	Domain       string
+	Organization Organization
+	Records      []*DNSRecords
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+type DNSRecords struct {
+	ID         string
+	Name       string
+	Ttl        int
+	Values     []string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	Fqdn       string
+	IsApex     bool
+	IsSystem   bool
+	IsWildcard bool
+	Zone       DNSZone
 }
 
 type IPAddress struct {

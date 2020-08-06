@@ -24,30 +24,6 @@ func (client *Client) GetOrganizations() ([]Organization, error) {
 	return data.Organizations.Nodes, nil
 }
 
-func (client *Client) GetOrganization(slug string) ([]Organization, error) {
-	q := `
-		{
-			organizations {
-				nodes {
-					id
-					slug
-					name
-					type
-				}
-			}
-		}
-	`
-
-	req := client.NewRequest(q)
-
-	data, err := client.Run(req)
-	if err != nil {
-		return []Organization{}, err
-	}
-
-	return data.Organizations.Nodes, nil
-}
-
 func (client *Client) GetCurrentOrganizations() (Organization, []Organization, error) {
 	query := `
 		query {
@@ -80,6 +56,91 @@ func (client *Client) GetCurrentOrganizations() (Organization, []Organization, e
 	}
 
 	return data.UserOrganizations.PersonalOrganization, data.UserOrganizations.Organizations.Nodes, nil
+}
+
+func (client *Client) GetOrganizationBySlug(slug string) (*OrganizationDetails, error) {
+	query := `query($slug: String!) {
+		organizationdetails: organization(slug: $slug) {
+		  id
+		  slug
+		  name
+		  type
+		  viewerRole
+		  databases {
+			nodes {
+			  id
+			  key
+			  name
+			  organization {
+				  id
+				  name
+				  slug
+				  type
+			  }
+			  publicUrl
+			  vmUrl
+			  backendId
+			  createdAt
+			  engine
+			}
+		  }
+		  dnsZones {
+			nodes {
+			  id
+			  domain
+			  organization {
+						id
+						name
+						slug
+						type
+			  }
+			  records {
+				nodes {
+				  id
+				  name
+				  ttl
+				  values
+				  createdAt
+				  updatedAt
+				  fqdn
+				  isApex
+				  isSystem
+				  isWildcard
+				  zone {
+					id
+					domain
+				  }
+				}
+			  }
+			  createdAt
+			  updatedAt
+			}
+		  }
+		  members {
+			edges {
+			  cursor
+			  node {
+				  id
+				  name
+				  email
+			  }
+			  joinedAt
+			  role
+			}
+		  }
+		}
+	  }
+	`
+
+	req := client.NewRequest(query)
+	req.Var("slug", slug)
+
+	data, err := client.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.OrganizationDetails, nil
 }
 
 func (c *Client) CreateOrganization(organizationname string) (*Organization, error) {
