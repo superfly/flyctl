@@ -31,9 +31,12 @@ func newStatusCommand() *Command {
 
 func runStatus(ctx *cmdctx.CmdContext) error {
 	app, err := ctx.Client.API().GetAppStatus(ctx.AppName, ctx.Config.GetBool("all"))
+
 	if err != nil {
 		return err
 	}
+
+	_, backupregions, err := ctx.Client.API().ListAppRegions(ctx.AppName)
 
 	err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppStatus{AppStatus: *app}, HideHeader: true, Vertical: true, Title: "App"})
 	if err != nil {
@@ -64,9 +67,10 @@ func runStatus(ctx *cmdctx.CmdContext) error {
 	}
 
 	err = ctx.Frender(cmdctx.PresenterOption{
-		Presentable: &presenters.Allocations{Allocations: app.Allocations},
+		Presentable: &presenters.Allocations{Allocations: app.Allocations, BackupRegions: backupregions},
 		Title:       "Allocations",
 	})
+
 	if err != nil {
 		return err
 	}

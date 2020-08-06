@@ -92,6 +92,7 @@ func init() {
 		newSuspendCommand(),
 		newVersionCommand(),
 		newDnsCommand(),
+		newOrgsCommand(),
 	)
 
 	initConfig()

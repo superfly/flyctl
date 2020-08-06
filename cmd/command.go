@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/docstrings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -149,6 +150,11 @@ type Option func(*Command) Initializer
 
 // InitializerFn - A wrapper for an Initializer function that takes a command context
 type InitializerFn func(*cmdctx.CmdContext) error
+
+// BuildCommandKS - A wrapper for BuildCommand which takes the docs.KeyStrings bundle instead of the coder having to manually unwrap it
+func BuildCommandKS(parent *Command, fn RunFn, keystrings docstrings.KeyStrings, out io.Writer, options ...Option) *Command {
+	return BuildCommand(parent, fn, keystrings.Usage, keystrings.Short, keystrings.Long, out, options...)
+}
 
 // BuildCommand - builds a functioning Command using all the initializers
 func BuildCommand(parent *Command, fn RunFn, usageText string, shortHelpText string, longHelpText string, out io.Writer, options ...Option) *Command {
