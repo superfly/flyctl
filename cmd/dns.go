@@ -110,6 +110,7 @@ func runZonesCreate(ctx *cmdctx.CmdContext) error {
 
 		prompt := &survey.Input{Message: "Domain name to create"}
 		survey.AskOne(prompt, &domain)
+		// TODO: Add some domain validation here
 	} else if len(ctx.Args) == 2 {
 		org, err = ctx.Client.API().FindOrganizationBySlug(ctx.Args[0])
 		if err != nil {
@@ -227,7 +228,29 @@ func runRecordsList(ctx *cmdctx.CmdContext) error {
 }
 
 func runRecordsExport(ctx *cmdctx.CmdContext) error {
-	zone, err := ctx.Client.API().FindDNSZone(ctx.Args[0], ctx.Args[1])
+	var org *api.Organization
+	var zoneslug string
+	var err error
+
+	if len(ctx.Args) == 0 {
+		org, err = selectOrganization(ctx.Client.API(), "")
+		if err != nil {
+			return err
+		}
+
+		zoneslug, err = selectZone(ctx.Client.API(), org.Slug, "")
+
+	} else if len(ctx.Args) == 2 {
+		org, err = ctx.Client.API().FindOrganizationBySlug(ctx.Args[0])
+		if err != nil {
+			return err
+		}
+		zoneslug = ctx.Args[1]
+	} else {
+		return errors.New("specify all arguments (or no arguments to be prompted)")
+	}
+
+	zone, err := ctx.Client.API().FindDNSZone(org.Slug, zoneslug)
 	if err != nil {
 		return err
 	}
@@ -243,12 +266,51 @@ func runRecordsExport(ctx *cmdctx.CmdContext) error {
 }
 
 func runRecordsImport(ctx *cmdctx.CmdContext) error {
-	zone, err := ctx.Client.API().FindDNSZone(ctx.Args[0], ctx.Args[1])
+	var org *api.Organization
+	var zoneslug string
+	var filename string
+
+	var err error
+
+	if len(ctx.Args) == 0 {
+		org, err = selectOrganization(ctx.Client.API(), "")
+		if err != nil {
+			return err
+		}
+
+		zoneslug, err = selectZone(ctx.Client.API(), org.Slug, "")
+
+		validateFile := func(val interface{}) error {
+			_, err := os.Stat(val.(string))
+			if os.IsNotExist(err) {
+				return fmt.Errorf("File %s does not exist", val.(string))
+			}
+			return nil
+		}
+
+		err := survey.AskOne(&survey.Input{Message: "Import filename:"}, &filename, survey.WithValidator(validateFile))
+
+		if err != nil {
+			return err
+		}
+
+	} else if len(ctx.Args) == 3 {
+		org, err = ctx.Client.API().FindOrganizationBySlug(ctx.Args[0])
+		if err != nil {
+			return err
+		}
+		zoneslug = ctx.Args[1]
+		filename = ctx.Args[2]
+	} else {
+		return errors.New("specify all arguments (or no arguments to be prompted)")
+	}
+
+	zone, err := ctx.Client.API().FindDNSZone(org.Slug, zoneslug)
 	if err != nil {
 		return err
 	}
 
-	data, err := ioutil.ReadFile(ctx.Args[2])
+	data, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return err
 	}
@@ -258,7 +320,7 @@ func runRecordsImport(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	fmt.Println("zonefile imported")
+	fmt.Println("Zonefile import report")
 
 	for _, result := range results {
 		fmt.Printf("%s created: %d, updated: %d, deleted: %d, skipped: %d\n", result.Type, result.Created, result.Updated, result.Deleted, result.Skipped)

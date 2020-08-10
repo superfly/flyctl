@@ -162,19 +162,19 @@ func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert
 	// Do we have A records
 	if len(hostcheck.ARecords) > 0 {
 		// Let's check the first A record against our recorded addresses
-		if !net.ParseIP(hostcheck.ARecords[0]).Equal(net.ParseIP(ipV4.Address)) {
-			commandContext.Statusf("flyctl", cmdctx.SWARN, "A Record (%s) does not match app's IP (%s)\n", hostcheck.ARecords[0], ipV4.Address)
-		} else {
+		if net.ParseIP(hostcheck.ARecords[0]).Equal(net.ParseIP(ipV4.Address)) {
 			configuredipV4 = true
+		} else {
+			commandContext.Statusf("flyctl", cmdctx.SWARN, "A Record (%s) does not match app's IP (%s)\n", hostcheck.ARecords[0], ipV4.Address)
 		}
 	}
 
 	if len(hostcheck.AAAARecords) > 0 {
 		// Let's check the first A record against our recorded addresses
-		if !net.ParseIP(hostcheck.AAAARecords[0]).Equal(net.ParseIP(ipV6.Address)) {
-			commandContext.Statusf("flyctl", cmdctx.SWARN, "A Record (%s) does not match app's IP (%s)\n", hostcheck.AAAARecords[0], ipV6.Address)
-		} else {
+		if net.ParseIP(hostcheck.AAAARecords[0]).Equal(net.ParseIP(ipV6.Address)) {
 			configuredipV6 = true
+		} else {
+			commandContext.Statusf("flyctl", cmdctx.SWARN, "A Record (%s) does not match app's IP (%s)\n", hostcheck.AAAARecords[0], ipV6.Address)
 		}
 	}
 
