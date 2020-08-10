@@ -93,6 +93,7 @@ func init() {
 		newVersionCommand(),
 		newDNSCommand(),
 		newOrgsCommand(),
+		newBuiltinsCommand(),
 	)
 
 	initConfig()

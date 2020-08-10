@@ -309,32 +309,32 @@ shortHelp="Manage DNS zones"
 longHelp="Manage DNS zones"
 
 [dns.zones.list]
-usage="list <org>"
+usage="list [<org>]"
 shortHelp="List DNS zones"
-longHelp="List DNS zones"
+longHelp="List DNS zones for an organization"
 
 [dns.zones.create]
-usage="create <org> <domain>"
+usage="create [<org> <domain>]"
 shortHelp="Create a DNS zone"
-longHelp="Create a DNS zone"
+longHelp="Create a DNS zone for an organization"
 
 [dns.zones.delete]
-usage="delete <org> <domain>"
+usage="delete [<org> <domain>]"
 shortHelp="Delete a DNS zone"
 longHelp="Delete a DNS zone"
 
 [dns.records]
 usage="records"
 shortHelp="Manage DNS records"
-longHelp="Manage DNS records"
+longHelp="Manage DNS records within a zone"
 
 [dns.records.list]
-usage="list <org> <domain>"
+usage="list [<org> <domain>]"
 shortHelp="List DNS records"
-longHelp="List DNS records"
+longHelp="List DNS records within a zone"
 
 [dns.records.export]
-usage="export <org> <domain>"
+usage="export [<org> <domain>]"
 shortHelp="Export DNS records"
 longHelp="Export DNS records"
 
@@ -603,3 +603,15 @@ longHelp="""Shows version information for the flyctl command itself,
 including version number and build date.
 """
 
+[builtins]
+usage="builtins"
+shortHelp="View and manage Flyctl deployment builtins"
+longHelp="""View and manage Flyctl deployment builtins.
+"""
+
+[builtins.list]
+usage="list"
+shortHelp="List available Flyctl deployment builtins"
+longHelp="""List available Flyctl deployment builtins and their
+descriptions.
+"""

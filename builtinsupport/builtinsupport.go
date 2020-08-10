@@ -5,6 +5,7 @@ import "fmt"
 type Builtin struct {
 	Name        string
 	Description string
+	Details     string
 	FileText    string
 }
 
@@ -47,7 +48,9 @@ func initBuiltins() {
 
 var basicbuiltins = []Builtin{
 	Builtin{Name: "node",
-		Description: "Builtin Nodejs",
+		Description: "Nodejs builtin",
+		Details: `Requires package.json, package-lock.json. Runs a production npm install
+and copies all files across. When run will call npm start to start the application.`,
 		FileText: `
 			FROM node:current-alpine
 			WORKDIR /app			
@@ -59,7 +62,9 @@ var basicbuiltins = []Builtin{
 			CMD [ "npm","start" ]
 	`},
 	Builtin{Name: "ruby",
-		Description: "Builtin Ruby - runs app.rb",
+		Description: "Ruby builtin",
+		Details: `Builtin for a Ruby application with a Gemfile. Runs bundle install to build. 
+At runtime, it uses rackup to run app.rb`,
 		FileText: `
 			FROM ruby:2.7
 			WORKDIR /usr/src/app
@@ -71,7 +76,9 @@ var basicbuiltins = []Builtin{
 			CMD ["bundle", "exec", "rackup", "--host", "0.0.0.0", "-p", "8080"]
 `},
 	Builtin{Name: "deno",
-		Description: "Builtin Deno - runs main.ts, requires deps.ts",
+		Description: "Deno builtin",
+		Details: `Uses Alpine image from https://github.com/hayd/deno-docker.
+runs main.ts with --allow-net set and requires deps.ts for dependencies`,
 		FileText: `
 			FROM hayd/alpine-deno:1.2.1
 			EXPOSE 8080
@@ -84,7 +91,8 @@ var basicbuiltins = []Builtin{
 			CMD ["run", "--allow-net", "main.ts"]
 `},
 	Builtin{Name: "go",
-		Description: "Builtin Go - Builds app.go uses go modules",
+		Description: "Go Builtin",
+		Details:     `Builds app.go from the directory, the app should use go modules.`,
 		FileText: `
 			FROM golang:1.13 as builder
 			WORKDIR /go/src/app
@@ -99,7 +107,8 @@ var basicbuiltins = []Builtin{
 			CMD ["/app"]
 `},
 	Builtin{Name: "static",
-		Description: "Builtin Static - Static web server. All files are copied across and served",
+		Description: "Web server builtin",
+		Details:     `All files are copied to the image and served`,
 		FileText: `
 			FROM pierrezemb/gostatic
 			COPY . /srv/http/
