@@ -91,7 +91,7 @@ func init() {
 		newStatusCommand(),
 		newSuspendCommand(),
 		newVersionCommand(),
-		newDnsCommand(),
+		newDNSCommand(),
 		newOrgsCommand(),
 	)
 
