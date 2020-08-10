@@ -269,7 +269,29 @@ func runRecordsExport(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	fmt.Println(records)
+	if len(ctx.Args) == 2 {
+		fmt.Println(records)
+	} else {
+		var filename string
+
+		validateFile := func(val interface{}) error {
+			_, err := os.Stat(val.(string))
+			if err == nil {
+				return fmt.Errorf("File %s already exists", val.(string))
+			}
+			return nil
+		}
+
+		err := survey.AskOne(&survey.Input{Message: "Export filename:"}, &filename, survey.WithValidator(validateFile))
+
+		if err != nil {
+			return err
+		}
+
+		ioutil.WriteFile(filename, []byte(records), 0644)
+
+		fmt.Printf("Zones exported to %s\n", filename)
+	}
 
 	return nil
 }
