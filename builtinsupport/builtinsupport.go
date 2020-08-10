@@ -78,7 +78,7 @@ At runtime, it uses rackup to run app.rb`,
 	Builtin{Name: "deno",
 		Description: "Deno builtin",
 		Details: `Uses Alpine image from https://github.com/hayd/deno-docker.
-runs main.ts with --allow-net set and requires deps.ts for dependencies`,
+runs main.ts with --allow-net set and requires deps.ts for dependencies.`,
 		FileText: `
 			FROM hayd/alpine-deno:1.2.1
 			EXPOSE 8080
@@ -108,7 +108,7 @@ runs main.ts with --allow-net set and requires deps.ts for dependencies`,
 `},
 	Builtin{Name: "static",
 		Description: "Web server builtin",
-		Details:     `All files are copied to the image and served`,
+		Details:     `All files are copied to the image and served.`,
 		FileText: `
 			FROM pierrezemb/gostatic
 			COPY . /srv/http/
