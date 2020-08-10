@@ -159,7 +159,7 @@ func selectBuildtype(commandContext *cmdctx.CmdContext) (string, bool, error) {
 	prompt := &survey.Select{
 		Message:  "Select builder:",
 		Options:  builders,
-		PageSize: 15,
+		PageSize: 10,
 	}
 	if err := survey.AskOne(prompt, &selectedBuilder); err != nil {
 		return "", false, err
