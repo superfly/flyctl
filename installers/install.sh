@@ -20,7 +20,7 @@ esac
 
 if [ $# -eq 0 ]; then
 	flyctl_asset_path=$(
-		curl -sSf https://github.com/superfly/flyctl/releases |
+		curl -sSf -N https://github.com/superfly/flyctl/releases |
 			grep -E -o "/superfly/flyctl/releases/download/.*/flyctl_[0-9]+\\.[0-9]+\\.[0-9]+_${target}.tar.gz" |
 			head -n 1
 	)
@@ -30,9 +30,9 @@ if [ $# -eq 0 ]; then
 	fi
 	flyctl_uri="https://github.com${flyctl_asset_path}"
 else
-	if [[ ${1} == "prerel" ]]; then
+	if [ "${1}" = "prerel" ]; then
 		flyctl_asset_path=$(
-		curl -sSf https://github.com/superfly/flyctl/releases |
+		curl -sSf -N https://github.com/superfly/flyctl/releases |
 			grep -E -o "/superfly/flyctl/releases/download/.*/flyctl_[0-9]+\\.[0-9]+\\.[0-9]+(\\-beta\\-[0-9]+)*_${target}.tar.gz" |
 			head -n 1
 		)
@@ -61,12 +61,6 @@ cd "$bin_dir"
 tar xzf "$exe.tar.gz"
 chmod +x "$exe"
 rm "$exe.tar.gz"
-
-if [[ ${1} == "prerel" ]]; then
-	"$exe" version -s "shell-prerel"
-else
-	"$exe" version -s "shell"
-fi
 
 echo "Flyctl was installed successfully to $exe"
 if command -v flyctl >/dev/null; then
