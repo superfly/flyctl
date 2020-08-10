@@ -47,7 +47,7 @@ func initBuiltins() {
 }
 
 var basicbuiltins = []Builtin{
-	Builtin{Name: "node",
+	{Name: "node",
 		Description: "Nodejs builtin",
 		Details: `Requires package.json, package-lock.json. Runs a production npm install
 and copies all files across. When run will call npm start to start the application.`,
@@ -61,7 +61,7 @@ and copies all files across. When run will call npm start to start the applicati
 			ENV PORT=8080
 			CMD [ "npm","start" ]
 	`},
-	Builtin{Name: "ruby",
+	{Name: "ruby",
 		Description: "Ruby builtin",
 		Details: `Builtin for a Ruby application with a Gemfile. Runs bundle install to build. 
 At runtime, it uses rackup to run app.rb`,
@@ -75,7 +75,7 @@ At runtime, it uses rackup to run app.rb`,
 			EXPOSE 8080
 			CMD ["bundle", "exec", "rackup", "--host", "0.0.0.0", "-p", "8080"]
 `},
-	Builtin{Name: "deno",
+	{Name: "deno",
 		Description: "Deno builtin",
 		Details: `Uses Alpine image from https://github.com/hayd/deno-docker.
 runs main.ts with --allow-net set and requires deps.ts for dependencies.`,
@@ -90,7 +90,7 @@ runs main.ts with --allow-net set and requires deps.ts for dependencies.`,
 			RUN deno cache main.ts
 			CMD ["run", "--allow-net", "main.ts"]
 `},
-	Builtin{Name: "go",
+	{Name: "go",
 		Description: "Go Builtin",
 		Details:     `Builds app.go from the directory, the app should use go modules.`,
 		FileText: `
@@ -106,7 +106,7 @@ runs main.ts with --allow-net set and requires deps.ts for dependencies.`,
 			EXPOSE 8080
 			CMD ["/app"]
 `},
-	Builtin{Name: "static",
+	{Name: "static",
 		Description: "Web server builtin",
 		Details:     `All files are copied to the image and served.`,
 		FileText: `
