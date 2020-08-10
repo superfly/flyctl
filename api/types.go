@@ -20,12 +20,21 @@ type Query struct {
 		Nodes []Organization
 	}
 
-	Build Build
+  Organization *Organization
+	UserOrganizations   UserOrganizations
+	OrganizationDetails OrganizationDetails
+	Build               Build
+
+	Node  interface{}
+	Nodes []interface{}
 
 	Platform struct {
 		Regions []Region
 		VMSizes []VMSize
 	}
+
+	// hack to let us alias node to a type
+	DNSZone *DNSZone
 
 	// mutations
 	CreateApp struct {
@@ -106,6 +115,20 @@ type Query struct {
 	RestartApp struct {
 		App App
 	}
+
+	CreateDnsZone struct {
+		Zone *DNSZone
+	}
+
+	ExportDnsZone struct {
+		Contents string
+	}
+
+	ImportDnsZone struct {
+		Results []ImportDnsRecordTypeResult
+	}
+	CreateOrganization CreateOrganizationPayload
+	DeleteOrganization DeleteOrganizationPayload
 }
 
 type Definition map[string]interface{}
@@ -204,6 +227,87 @@ type Organization struct {
 	Name string
 	Slug string
 	Type string
+
+	DNSZones struct {
+		Nodes *[]*DNSZone
+		Edges *[]*struct {
+			Cursor *string
+			Node   *DNSZone
+		}
+	}
+
+	DNSZone *DNSZone
+}
+
+type OrganizationDetails struct {
+	ID         string
+	Name       string
+	Slug       string
+	Type       string
+	ViewerRole string
+	Apps       struct {
+		Nodes []App
+	}
+	// Billables []*Billable
+	Databases struct {
+		Nodes []Database
+	}
+	DNSZones struct {
+		Nodes []DNSZone
+	}
+	Members struct {
+		Edges []OrganizationMembershipEdge
+	}
+}
+
+type OrganizationMembershipEdge struct {
+	Cursor   string
+	Node     User
+	Role     string
+	JoinedAt time.Time
+}
+
+type Billable struct {
+	Category string
+	Product  string
+	Time     time.Time
+	Quantity float64
+	App      App
+}
+
+type Database struct {
+	ID           string
+	Key          string
+	Name         string
+	Organization Organization
+	PublicURL    string
+	VmUrl        string
+	BackendId    string
+	CreatedAt    time.Time
+	Engine       string
+}
+
+type DNSZone struct {
+	ID           string
+	Domain       string
+	Organization Organization
+	Records      []*DNSRecords
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+type DNSRecords struct {
+	ID         string
+	Name       string
+	Ttl        int
+	Values     []string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	Fqdn       string
+	IsApex     bool
+	IsSystem   bool
+	IsWildcard bool
+	Zone       DNSZone
 }
 
 type IPAddress struct {
@@ -337,6 +441,21 @@ type AppCertificate struct {
 			Type      string
 		}
 	}
+}
+
+type UserOrganizations struct {
+	PersonalOrganization Organization
+	Organizations        struct {
+		Nodes []Organization
+	}
+}
+
+type CreateOrganizationPayload struct {
+	Organization Organization
+}
+
+type DeleteOrganizationPayload struct {
+	DeletedOrganizationId string
 }
 
 type HostnameCheck struct {
@@ -544,4 +663,36 @@ type Extensions struct {
 	ServiceName string
 	Query       string
 	Variables   map[string]string
+}
+
+type DNSZone struct {
+	ID           string
+	Domain       string
+	CreatedAt    time.Time
+	Organization *Organization
+	Records      *struct {
+		Nodes *[]*DNSRecord
+	}
+}
+
+type DNSRecord struct {
+	ID         string
+	Name       string
+	FQDN       string
+	IsApex     bool
+	IsWildcard bool
+	IsSystem   bool
+	TTL        int
+	Type       string
+	Values     []string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+type ImportDnsRecordTypeResult struct {
+	Created int
+	Deleted int
+	Skipped int
+	Updated int
+	Type    string
 }

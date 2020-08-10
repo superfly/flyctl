@@ -298,6 +298,51 @@ than monitoring the deployment progress.
 Use flyctl monitor to restart monitoring deployment progress
 """
 
+[dns]
+usage="dns"
+shortHelp="Manage DNS"
+longHelp="Manage DNS"
+
+[dns.zones]
+usage="zones"
+shortHelp="Manage DNS zones"
+longHelp="Manage DNS zones"
+
+[dns.zones.list]
+usage="list <org>"
+shortHelp="List DNS zones"
+longHelp="List DNS zones"
+
+[dns.zones.create]
+usage="create <org> <domain>"
+shortHelp="Create a DNS zone"
+longHelp="Create a DNS zone"
+
+[dns.zones.delete]
+usage="delete <org> <domain>"
+shortHelp="Delete a DNS zone"
+longHelp="Delete a DNS zone"
+
+[dns.records]
+usage="records"
+shortHelp="Manage DNS records"
+longHelp="Manage DNS records"
+
+[dns.records.list]
+usage="list <org> <domain>"
+shortHelp="List DNS records"
+longHelp="List DNS records"
+
+[dns.records.export]
+usage="export <org> <domain>"
+shortHelp="Export DNS records"
+longHelp="Export DNS records"
+
+[dns.records.import]
+usage="import <org> <domain> <path>"
+shortHelp="Import DNS records"
+longHelp="Import DNS records"
+
 [docs]
 usage="docs"
 shortHelp="View Fly documentation"
