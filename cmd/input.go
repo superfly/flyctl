@@ -141,6 +141,8 @@ func selectBuildtype(commandContext *cmdctx.CmdContext) (string, bool, error) {
 
 	builtins = builtinsupport.GetBuiltins()
 
+	sort.Slice(builtins, func(i, j int) bool { return builtins[i].Name < builtins[j].Name })
+
 	for _, b := range builtins {
 		builders = append(builders, fmt.Sprintf("%s\n    %s", b.Name, helpers.WrapString(b.Description, 60, 4)))
 	}
@@ -151,7 +153,7 @@ func selectBuildtype(commandContext *cmdctx.CmdContext) (string, bool, error) {
 	}
 
 	for _, b := range suggestedBuilders {
-		builders = append(builders, fmt.Sprintf("%s\n    %s", b.Image, helpers.WrapString(b.DefaultDescription, 60, 4)))
+		builders = append(builders, fmt.Sprintf("%s\n    %s", b.Image, helpers.WrapString(b.DefaultDescription, 70, 4)))
 	}
 
 	selectedBuilder := 0
@@ -159,7 +161,7 @@ func selectBuildtype(commandContext *cmdctx.CmdContext) (string, bool, error) {
 	prompt := &survey.Select{
 		Message:  "Select builder:",
 		Options:  builders,
-		PageSize: 10,
+		PageSize: 8,
 	}
 	if err := survey.AskOne(prompt, &selectedBuilder); err != nil {
 		return "", false, err
@@ -182,4 +184,30 @@ func selectBuildtype(commandContext *cmdctx.CmdContext) (string, bool, error) {
 	offset = offset + len(builtins)
 
 	return suggestedBuilders[selectedBuilder-offset].Image, false, nil
+}
+
+func selectBuiltin(commandContext *cmdctx.CmdContext) (string, error) {
+	availablebuiltins := []string{}
+
+	builtins := builtinsupport.GetBuiltins()
+
+	sort.Slice(builtins, func(i, j int) bool { return builtins[i].Name < builtins[j].Name })
+
+	for _, b := range builtins {
+		availablebuiltins = append(availablebuiltins, fmt.Sprintf("%s\n    %s", b.Name, helpers.WrapString(b.Description, 60, 4)))
+	}
+
+	selectedBuiltin := 0
+
+	prompt := &survey.Select{
+		Message:  "Select builtin:",
+		Options:  availablebuiltins,
+		PageSize: 8,
+	}
+	if err := survey.AskOne(prompt, &selectedBuiltin); err != nil {
+		return "", err
+	}
+
+	return builtins[selectedBuiltin].Name, nil
+
 }
