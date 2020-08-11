@@ -248,10 +248,6 @@ type OrganizationDetails struct {
 	Apps       struct {
 		Nodes []App
 	}
-	// Billables []*Billable
-	Databases struct {
-		Nodes []Database
-	}
 	DNSZones struct {
 		Nodes []DNSZone
 	}
@@ -273,18 +269,6 @@ type Billable struct {
 	Time     time.Time
 	Quantity float64
 	App      App
-}
-
-type Database struct {
-	ID           string
-	Key          string
-	Name         string
-	Organization Organization
-	PublicURL    string
-	VmUrl        string
-	BackendId    string
-	CreatedAt    time.Time
-	Engine       string
 }
 
 type DNSRecords struct {

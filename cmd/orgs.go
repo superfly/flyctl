@@ -94,10 +94,6 @@ func printOrg(o api.Organization, headers bool) {
 
 }
 
-// func makeTable(ctx *cmdctx.CmdContext, heading...) (tablewriter.Table) {
-
-// }
-
 func runOrgsShow(ctx *cmdctx.CmdContext) error {
 	asJSON := ctx.OutputJSON()
 	orgslug := ctx.Args[0]
@@ -124,10 +120,6 @@ func runOrgsShow(ctx *cmdctx.CmdContext) error {
 	ctx.Statusf("fyctl", cmdctx.STITLE, "Summary\n")
 
 	ctx.Statusf("flyctl", cmdctx.SINFO, "You have %s permissions on this organizaton\n", org.ViewerRole)
-
-	ctx.StatusLn()
-
-	ctx.Statusf("flyctl", cmdctx.SINFO, "There are %d databases associated with this organization\n", len(org.Databases.Nodes))
 	ctx.Statusf("flyctl", cmdctx.SINFO, "There are %d DNS zones associated with this organization\n", len(org.DNSZones.Nodes))
 	ctx.Statusf("flyctl", cmdctx.SINFO, "There are %d members associated with this organization\n", len(org.Members.Edges))
 

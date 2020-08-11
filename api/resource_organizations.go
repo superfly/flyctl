@@ -37,17 +37,17 @@ func (client *Client) FindOrganizationBySlug(slug string) (*Organization, error)
 	`
 
 	req := client.NewRequest(q)
-  
-  req.Var("slug", slug)
+
+	req.Var("slug", slug)
 
 	data, err := client.Run(req)
 	if err != nil {
 		return nil, err
 	}
-  
-  return data.Organization, nil
+
+	return data.Organization, nil
 }
-  
+
 func (client *Client) GetCurrentOrganizations() (Organization, []Organization, error) {
 	query := `
 		query {
@@ -90,24 +90,6 @@ func (client *Client) GetOrganizationBySlug(slug string) (*OrganizationDetails, 
 		  name
 		  type
 		  viewerRole
-		  databases {
-			nodes {
-			  id
-			  key
-			  name
-			  organization {
-				  id
-				  name
-				  slug
-				  type
-			  }
-			  publicUrl
-			  vmUrl
-			  backendId
-			  createdAt
-			  engine
-			}
-		  }
 		  dnsZones {
 			nodes {
 			  id
