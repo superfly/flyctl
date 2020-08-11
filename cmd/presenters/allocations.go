@@ -34,8 +34,6 @@ func (p *Allocations) Records() []map[string]string {
 		region := alloc.Region
 		if len(p.BackupRegions) > 0 {
 			for _, r := range p.BackupRegions {
-				fmt.Println(r)
-				fmt.Println(region)
 				if alloc.Region == r.Code {
 					region = alloc.Region + "(B)"
 					break
