@@ -10,8 +10,8 @@ import (
 	"github.com/superfly/flyctl/api"
 )
 
-var ErrNoDeployment = errors.New("No deployment available")
-var errDeploymentNotReady = errors.New("Deployment not ready")
+var ErrNoDeployment = errors.New("No deployment available to monitor")
+var errDeploymentNotReady = errors.New("Deployment not ready to monitor")
 var errDeploymentComplete = errors.New("Deployment is already complete")
 
 func NewDeploymentMonitor(client *api.Client, appID string) *DeploymentMonitor {
