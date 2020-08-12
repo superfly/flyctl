@@ -65,7 +65,7 @@ CMD [ "npm","start" ]
 	{Name: "ruby",
 		Description: "Ruby builtin",
 		Details: `Builtin for a Ruby application with a Gemfile. Runs bundle install to build. 
-At runtime, it uses rackup to run app.rb`,
+At runtime, it uses rackup to run config.ru and start the application as configured.`,
 		FileText: `
 FROM ruby:2.7
 WORKDIR /usr/src/app
