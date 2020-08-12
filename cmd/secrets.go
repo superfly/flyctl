@@ -108,6 +108,10 @@ func runSetSecrets(cc *cmdctx.CmdContext) error {
 		return err
 	}
 
+	if release.ID == "" {
+		return errors.New("No change detected in secrets.")
+	}
+
 	cc.Statusf("secrets", cmdctx.SINFO, "Release v%d created\n", release.Version)
 
 	app, err = cc.Client.API().GetApp(cc.AppName)
