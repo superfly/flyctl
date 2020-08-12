@@ -126,7 +126,18 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 
 	var image *docker.Image
 
-	if imageRef, _ := commandContext.Config.GetString("image"); imageRef != "" {
+	configimageRef, _ := commandContext.Config.GetString("image")
+	appimageRef := commandContext.AppConfig.Build.Image
+
+	var imageRef string
+
+	if configimageRef != "" {
+		imageRef = configimageRef
+	} else if appimageRef != "" {
+		imageRef = appimageRef
+	}
+
+	if imageRef != "" {
 		// image specified, resolve it, tagging and pushing if docker+local
 
 		commandContext.Statusf("flyctl", cmdctx.SINFO, "Deploying image: %s\n", imageRef)

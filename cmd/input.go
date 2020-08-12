@@ -135,9 +135,14 @@ func selectBuildtype(commandContext *cmdctx.CmdContext) (string, bool, error) {
 
 	dockerfileExists := helpers.FileExists(path.Join(commandContext.WorkingDir, "Dockerfile"))
 
-	dockerfileentry := -1
-
 	builders := []string{}
+
+	// None/Dockerfile first - always entry 0
+	if dockerfileExists {
+		builders = append(builders, fmt.Sprintf("%s\n    (%s)", "Dockerfile", "Do not set a builder and use the existing Dockerfile"))
+	} else {
+		builders = append(builders, fmt.Sprintf("%s\n    (%s)", "None", "Do not set a builder"))
+	}
 
 	builtins = builtinsupport.GetBuiltins()
 
@@ -145,11 +150,6 @@ func selectBuildtype(commandContext *cmdctx.CmdContext) (string, bool, error) {
 
 	for _, b := range builtins {
 		builders = append(builders, fmt.Sprintf("%s\n    %s", b.Name, helpers.WrapString(b.Description, 60, 4)))
-	}
-
-	if dockerfileExists {
-		builders = append(builders, fmt.Sprintf("%s\n    (%s)", "Dockerfile", "Use the existing Dockerfile"))
-		dockerfileentry = len(builders) - 1
 	}
 
 	for _, b := range suggestedBuilders {
@@ -163,27 +163,25 @@ func selectBuildtype(commandContext *cmdctx.CmdContext) (string, bool, error) {
 		Options:  builders,
 		PageSize: 8,
 	}
+
 	if err := survey.AskOne(prompt, &selectedBuilder); err != nil {
 		return "", false, err
 	}
 
-	offset := 0 // offset of the builder names
-
-	if dockerfileentry != -1 {
-		offset = offset + 1
-		if selectedBuilder == dockerfileentry {
+	if selectedBuilder == 0 {
+		if dockerfileExists {
 			return "Dockerfile", false, nil
+		} else {
+			return "None", false, nil
 		}
 	}
 
-	if selectedBuilder < len(builtins) {
+	if selectedBuilder < len(builtins)+1 {
 		// Selected a built in
-		return builtins[selectedBuilder].Name, true, nil
+		return builtins[selectedBuilder-1].Name, true, nil
 	}
 
-	offset = offset + len(builtins)
-
-	return suggestedBuilders[selectedBuilder-offset].Image, false, nil
+	return suggestedBuilders[selectedBuilder-(len(builtins)+1)].Image, false, nil
 }
 
 func selectBuiltin(commandContext *cmdctx.CmdContext) (string, error) {
