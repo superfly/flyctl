@@ -127,14 +127,15 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 	var image *docker.Image
 
 	configimageRef, _ := commandContext.Config.GetString("image")
-	appimageRef := commandContext.AppConfig.Build.Image
 
 	var imageRef string
 
 	if configimageRef != "" {
 		imageRef = configimageRef
-	} else if appimageRef != "" {
-		imageRef = appimageRef
+	} else if commandContext.AppConfig != nil &&
+		commandContext.AppConfig.Build != nil &&
+		commandContext.AppConfig.Build.Image != "" {
+		imageRef = commandContext.AppConfig.Build.Image
 	}
 
 	if imageRef != "" {
