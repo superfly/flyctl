@@ -23,8 +23,8 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-// ErrNoDockerfile - No dockerfile or builder specified error
-var ErrNoDockerfile = errors.New("Project does not contain a Dockerfile, has not set a CNB builder or builtin builder")
+// ErrNoDockerfile - No dockerfile or builder or builtin or image specified error
+var ErrNoDockerfile = errors.New("Project does not contain a Dockerfile and has not set a CNB builder, builtin builder or selected an image")
 
 // ErrDockerDaemon - Docker daemon needs to be running error
 var ErrDockerDaemon = errors.New("Docker daemon must be running to perform this action")

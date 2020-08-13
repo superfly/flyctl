@@ -35,6 +35,8 @@ type Build struct {
 	Buildpacks []string
 	// Or...
 	Builtin string
+	// Or...
+	Image string
 }
 
 func NewAppConfig() *AppConfig {
@@ -129,11 +131,13 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 				}
 			case "builtin":
 				b.Builtin = fmt.Sprint(v)
+			case "image":
+				b.Image = fmt.Sprint(v)
 			default:
 				b.Args[k] = fmt.Sprint(v)
 			}
 		}
-		if b.Builder != "" || b.Builtin != "" {
+		if b.Builder != "" || b.Builtin != "" || b.Image != "" {
 			ac.Build = &b
 		}
 	}
@@ -167,6 +171,11 @@ func (ac AppConfig) marshalTOML(w io.Writer) error {
 	} else if ac.Build != nil && ac.Build.Builtin != "" {
 		buildData := map[string]interface{}{
 			"builtin": ac.Build.Builtin,
+		}
+		rawData["build"] = buildData
+	} else if ac.Build != nil && ac.Build.Image != "" {
+		buildData := map[string]interface{}{
+			"image": ac.Build.Image,
 		}
 		rawData["build"] = buildData
 	}

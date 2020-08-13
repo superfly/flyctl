@@ -119,7 +119,7 @@ func SaveConfig() error {
 		return err
 	}
 
-	return ioutil.WriteFile(configFilePath(), data, 0644)
+	return ioutil.WriteFile(configFilePath(), data, 0600)
 }
 
 func persistConfigKey(key string) bool {

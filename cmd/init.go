@@ -52,6 +52,11 @@ func newInitCommand() *Command {
 		Description: `The Fly Runtime to use for building the app`,
 	})
 
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "image",
+		Description: `Deploy this named image`,
+	})
+
 	cmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "dockerfile",
 		Description: `Use a dockerfile when deploying the app`,
@@ -152,8 +157,13 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		return err
 	}
 
+	imagename, err := commandContext.Config.GetString("image")
+	if err != nil {
+		return err
+	}
+
 	// If we are importing or using a builtin, assume builders are set in the template
-	if importfile == "" && builtinname == "" {
+	if importfile == "" && builtinname == "" && imagename == "" {
 		// Otherwise get a Builder from the user while checking the dockerfile setting
 		dockerfileSet := commandContext.Config.IsSet("dockerfile")
 		dockerfile := commandContext.Config.GetBool("dockerfile")
@@ -168,10 +178,10 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 				return fmt.Errorf("Error setting builder: %s", err)
 			}
 
-			if builder != "Dockerfile" {
+			if builder != "Dockerfile" && builder != "None" {
 				newAppConfig.Build = &flyctl.Build{Builder: builder}
 			}
-			if builtin {
+			if builder != "None" && builtin {
 				builtinname = builder
 			}
 		} else if builder != "" {
@@ -188,7 +198,11 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		return err
 	}
 
-	if importfile != "" {
+	if imagename != "" {
+		newAppConfig.AppName = app.Name
+		newAppConfig.Build = &flyctl.Build{Image: imagename}
+		newAppConfig.Definition = app.Config.Definition
+	} else if importfile != "" {
 		fmt.Printf("Importing configuration from %s\n", importfile)
 
 		tmpappconfig, err := flyctl.LoadAppConfig(importfile)
@@ -205,7 +219,7 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		if configPort != "" {
 			newAppConfig.SetInternalPort(internalPort)
 		}
-	} else {
+	} else if builder != "None" {
 		newAppConfig.AppName = app.Name
 		newAppConfig.Definition = app.Config.Definition
 		if configPort != "" {
