@@ -216,15 +216,23 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		newAppConfig.AppName = app.Name
 		newAppConfig.Build = &flyctl.Build{Builtin: builtinname}
 		newAppConfig.Definition = app.Config.Definition
-		if configPort != "" {
-			newAppConfig.SetInternalPort(internalPort)
-		}
 	} else if builder != "None" {
 		newAppConfig.AppName = app.Name
 		newAppConfig.Definition = app.Config.Definition
-		if configPort != "" {
-			newAppConfig.SetInternalPort(internalPort)
+	}
+
+	if configPort != "" {
+		newAppConfig.SetInternalPort(internalPort)
+	} else {
+		currentport, err := newAppConfig.GetInternalPort()
+		if err != nil {
+			return err
 		}
+		internalPort, err = SelectPort(commandContext, currentport)
+		if err != nil {
+			return err
+		}
+		newAppConfig.SetInternalPort(internalPort)
 	}
 
 	fmt.Println()
