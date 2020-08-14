@@ -231,6 +231,21 @@ func (ac *AppConfig) SetInternalPort(port int) bool {
 	return false
 }
 
+func (ac *AppConfig) GetInternalPort() (int, error) {
+	services, ok := ac.Definition["services"].([]interface{})
+	if ok {
+		service0, ok := services[0].(map[string]interface{})
+		if ok {
+			internalport, ok := service0["internal_port"].(float64)
+			if ok {
+				return int(internalport), nil
+			}
+		}
+	}
+
+	return -1, errors.New("could not find internal port setting")
+}
+
 const defaultConfigFileName = "fly.toml"
 
 func ResolveConfigFileFromPath(p string) (string, error) {

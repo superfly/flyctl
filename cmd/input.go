@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"path"
 	"sort"
+	"strconv"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/builtinsupport"
 	"github.com/superfly/flyctl/cmdctx"
@@ -208,4 +210,42 @@ func selectBuiltin(commandContext *cmdctx.CmdContext) (string, error) {
 
 	return builtins[selectedBuiltin].Name, nil
 
+}
+
+func SelectPort(commandContext *cmdctx.CmdContext, defport int) (int, error) {
+	sDefport := strconv.Itoa(defport)
+	prompt := &survey.Input{Message: "Select Internal Port:", Default: sDefport, Help: `The internal port is the port your application uses. External traffic will be directed to this port.
+If incorrectly set, health checks may fail and your application deployment will fail.`}
+
+	sSelectedPort := ""
+	if err := survey.AskOne(prompt, &sSelectedPort, survey.WithValidator(IsIntPort)); err != nil {
+		return -1, err
+	}
+	selectedPort, err := strconv.Atoi(sSelectedPort)
+
+	if err != nil {
+		return -1, errors.New("number did not parse after verification")
+	}
+
+	return selectedPort, nil
+}
+
+func IsIntPort(val interface{}) error {
+	str, ok := val.(string)
+
+	if ok {
+		val, err := strconv.Atoi(str)
+
+		if err != nil {
+			return errors.New("has to be an integer")
+		}
+
+		if val < 1 || val > 65536 {
+			return errors.New("port must be between 1 and 65536")
+		}
+
+		return nil
+	}
+
+	return errors.New("couldn't convert to string")
 }
