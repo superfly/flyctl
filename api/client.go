@@ -17,14 +17,17 @@ import (
 var baseURL string
 var errorLog bool
 
+// SetBaseURL - Sets the base URL for the API
 func SetBaseURL(url string) {
 	baseURL = url
 }
 
+// SetErrorLog - Sets whether errors should be loddes
 func SetErrorLog(log bool) {
 	errorLog = log
 }
 
+// Client - API client encapsulating the http and GraphQL clients
 type Client struct {
 	httpClient  *http.Client
 	client      *graphql.Client
@@ -32,6 +35,7 @@ type Client struct {
 	userAgent   string
 }
 
+// NewClient - creates a new Client, takes an access token
 func NewClient(accessToken string, version string) *Client {
 
 	httpClient, _ := newHTTPClient()
@@ -43,15 +47,18 @@ func NewClient(accessToken string, version string) *Client {
 	return &Client{httpClient, client, accessToken, userAgent}
 }
 
+// NewRequest - creates a new GraphQL request
 func (c *Client) NewRequest(q string) *graphql.Request {
 	q = compactQueryString(q)
 	return graphql.NewRequest(q)
 }
 
+// Run - Runs a GraphQL request
 func (c *Client) Run(req *graphql.Request) (Query, error) {
 	return c.RunWithContext(context.Background(), req)
 }
 
+// RunWithContext - Runs a GraphQL request within a Go context
 func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Query, error) {
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
 	req.Header.Set("User-Agent", c.userAgent)
@@ -76,6 +83,7 @@ func compactQueryString(q string) string {
 	return compactPattern.ReplaceAllString(q, " ")
 }
 
+// GetAccessToken - uses email, password and possible otp to get token
 func GetAccessToken(email, password, otp string) (string, error) {
 	postData, _ := json.Marshal(map[string]interface{}{
 		"data": map[string]interface{}{
