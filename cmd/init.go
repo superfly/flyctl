@@ -228,7 +228,7 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		if err != nil {
 			return err
 		}
-		internalPort, err = SelectPort(commandContext, currentport)
+		internalPort, err = selectPort(commandContext, currentport)
 		if err != nil {
 			return err
 		}

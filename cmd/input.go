@@ -173,9 +173,8 @@ func selectBuildtype(commandContext *cmdctx.CmdContext) (string, bool, error) {
 	if selectedBuilder == 0 {
 		if dockerfileExists {
 			return "Dockerfile", false, nil
-		} else {
-			return "None", false, nil
 		}
+		return "None", false, nil
 	}
 
 	if selectedBuilder < len(builtins)+1 {
@@ -212,13 +211,13 @@ func selectBuiltin(commandContext *cmdctx.CmdContext) (string, error) {
 
 }
 
-func SelectPort(commandContext *cmdctx.CmdContext, defport int) (int, error) {
+func selectPort(commandContext *cmdctx.CmdContext, defport int) (int, error) {
 	sDefport := strconv.Itoa(defport)
 	prompt := &survey.Input{Message: "Select Internal Port:", Default: sDefport, Help: `The internal port is the port your application uses. External traffic will be directed to this port.
 If incorrectly set, health checks may fail and your application deployment will fail.`}
 
 	sSelectedPort := ""
-	if err := survey.AskOne(prompt, &sSelectedPort, survey.WithValidator(IsIntPort)); err != nil {
+	if err := survey.AskOne(prompt, &sSelectedPort, survey.WithValidator(isIntPort)); err != nil {
 		return -1, err
 	}
 	selectedPort, err := strconv.Atoi(sSelectedPort)
@@ -230,7 +229,7 @@ If incorrectly set, health checks may fail and your application deployment will 
 	return selectedPort, nil
 }
 
-func IsIntPort(val interface{}) error {
+func isIntPort(val interface{}) error {
 	str, ok := val.(string)
 
 	if ok {

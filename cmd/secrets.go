@@ -100,7 +100,7 @@ func runSetSecrets(cc *cmdctx.CmdContext) error {
 	}
 
 	if len(secrets) < 1 {
-		return errors.New("Requires at least one SECRET=VALUE pair")
+		return errors.New("requires at least one SECRET=VALUE pair")
 	}
 
 	release, err := cc.Client.API().SetSecrets(cc.AppName, secrets)
@@ -109,7 +109,7 @@ func runSetSecrets(cc *cmdctx.CmdContext) error {
 	}
 
 	if release.ID == "" {
-		return errors.New("No change detected in secrets.")
+		return errors.New("no change detected in secrets")
 	}
 
 	cc.Statusf("secrets", cmdctx.SINFO, "Release v%d created\n", release.Version)
