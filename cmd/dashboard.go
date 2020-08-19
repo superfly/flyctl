@@ -2,8 +2,9 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/superfly/flyctl/cmdctx"
 	"os"
+
+	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/superfly/flyctl/docstrings"
 
@@ -11,34 +12,38 @@ import (
 )
 
 func newDashboardCommand() *Command {
-	ks := docstrings.Get("dashboard")
-	ksCmd := BuildCommand(nil, runDashboard, ks.Usage, ks.Short, ks.Long, os.Stdout, requireSession, requireAppName)
-	ksCmd.Aliases = []string{"dash"}
+	dashboardStrings := docstrings.Get("dashboard")
+	dashboardCmd := BuildCommandKS(nil, runDashboard, dashboardStrings, os.Stdout, requireSession, requireAppName)
+	dashboardCmd.Aliases = []string{"dash"}
 
-	km := docstrings.Get("dashboard.metrics")
-	BuildCommand(ksCmd, runDashboardMetrics, km.Usage, km.Short, km.Long, os.Stdout, requireSession, requireAppName)
-	return ksCmd
+	dashMetricsStrings := docstrings.Get("dashboard.metrics")
+	BuildCommandKS(dashboardCmd, runDashboardMetrics, dashMetricsStrings, os.Stdout, requireSession, requireAppName)
+
+	return dashboardCmd
 }
 
 func runDashboard(ctx *cmdctx.CmdContext) error {
-	return runDashboardOpen(ctx, false)
-}
-
-func runDashboardMetrics(ctx *cmdctx.CmdContext) error {
-	return runDashboardOpen(ctx, true)
-}
-
-func runDashboardOpen(ctx *cmdctx.CmdContext, metrics bool) error {
 	app, err := ctx.Client.API().GetApp(ctx.AppName)
 	if err != nil {
 		return err
 	}
 
-	docsURL := "https://fly.io/apps/" + app.Name
-	if metrics {
-		docsURL = docsURL + "/metrics"
+	dashURL := "https://fly.io/apps/" + app.Name
+	return runDashboardOpen(ctx, dashURL)
+}
+
+func runDashboardMetrics(ctx *cmdctx.CmdContext) error {
+	app, err := ctx.Client.API().GetApp(ctx.AppName)
+	if err != nil {
+		return err
 	}
 
+	metricsURL := "https://fly.io/apps/" + app.Name + "/metrics"
+
+	return runDashboardOpen(ctx, metricsURL)
+}
+
+func runDashboardOpen(ctx *cmdctx.CmdContext, url string) error {
 	fmt.Println("Opening", docsURL)
 	return open.Run(docsURL)
 }
