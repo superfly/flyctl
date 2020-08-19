@@ -283,7 +283,7 @@ shortHelp="Open web browser on Fly Web UI for this app's metrics"
 longHelp="""Open web browser on Fly Web UI for this application's metrics"""
 
 [deploy]
-usage="deploy"
+usage="deploy [<workingdirectory>]"
 shortHelp="Deploy an App to the Fly platform"
 longHelp="""Deploy an application to the Fly platform. The application can be a local 
 image, remote image, defined in a Dockerfile or use a CNB Buildpack.
@@ -452,6 +452,12 @@ longHelp="""View a list of regions where Fly has edges and/or datacenters
 usage="vm-sizes"
 shortHelp="List VM Sizes"
 longHelp="""View a list of VM sizes which can be used with the FLYCTL SCALE VM command
+"""
+
+[platform.status]
+usage="status"
+shortHelp="Show current platform status"
+longHelp="""Show current Fly platform status in a browser
 """
 
 [regions]

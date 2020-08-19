@@ -1,8 +1,11 @@
 package cmd
 
 import (
-	"github.com/superfly/flyctl/cmdctx"
+	"fmt"
 	"os"
+
+	"github.com/skratchdot/open-golang/open"
+	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/docstrings"
@@ -21,10 +24,13 @@ func newPlatformCommand() *Command {
 		},
 	}
 	regionsStrings := docstrings.Get("platform.regions")
-	BuildCommand(cmd, runPlatformRegions, regionsStrings.Usage, regionsStrings.Short, regionsStrings.Long, os.Stdout, requireSession)
+	BuildCommandKS(cmd, runPlatformRegions, regionsStrings, os.Stdout, requireSession)
 
 	vmSizesStrings := docstrings.Get("platform.vmsizes")
-	BuildCommand(cmd, runPlatformVMSizes, vmSizesStrings.Usage, vmSizesStrings.Short, vmSizesStrings.Long, os.Stdout, requireSession)
+	BuildCommandKS(cmd, runPlatformVMSizes, vmSizesStrings, os.Stdout, requireSession)
+
+	statusStrings := docstrings.Get("platform.status")
+	BuildCommandKS(cmd, runPlatformStatus, statusStrings, os.Stdout, requireSession, requireAppName)
 
 	return cmd
 }
@@ -49,4 +55,10 @@ func runPlatformVMSizes(ctx *cmdctx.CmdContext) error {
 	return ctx.Frender(cmdctx.PresenterOption{
 		Presentable: &presenters.VMSizes{VMSizes: sizes},
 	})
+}
+
+func runPlatformStatus(ctx *cmdctx.CmdContext) error {
+	docsURL := "https://status.fly.io/"
+	fmt.Println("Opening", docsURL)
+	return open.Run(docsURL)
 }
