@@ -199,13 +199,14 @@ func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert
 			stepcnt := 1
 			commandContext.Statusf("flyctl", cmdctx.SINFO, "You are creating a certificate for %s\n", hostname)
 			commandContext.Statusf("flyctl", cmdctx.SINFO, "We are using %s for this certificate.\n\n", cert.CertificateAuthority)
-			commandContext.Statusf("flyctl", cmdctx.SINFO, "You can validate your ownership of %s by:\n\n", hostname)
 			if addArecord {
+				commandContext.Statusf("flyctl", cmdctx.SINFO, "You can direct traffic to %s by:\n\n", hostname)
 				commandContext.Statusf("flyctl", cmdctx.SINFO, "%d: Adding an A record to your DNS service which reads\n", stepcnt)
 				stepcnt = stepcnt + 1
 				commandContext.Statusf("flyctl", cmdctx.SINFO, "\n    A @ %s\n\n", ipV4.Address)
 			}
 			if addAAAArecord {
+				commandContext.Statusf("flyctl", cmdctx.SINFO, "You can validate your ownership of %s by:\n\n", hostname)
 				commandContext.Statusf("flyctl", cmdctx.SINFO, "%d: Adding an AAAA record to your DNS service which reads:\n\n", stepcnt)
 				commandContext.Statusf("flyctl", cmdctx.SINFO, "    AAAA @ %s\n\n", ipV6.Address)
 				commandContext.Statusf("flyctl", cmdctx.SINFO, " OR \n\n")
@@ -232,14 +233,16 @@ func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert
 			commandContext.Statusf("flyctl", cmdctx.SINFO, "You are creating a certificate for %s\n", hostname)
 			commandContext.Statusf("flyctl", cmdctx.SINFO, "We are using %s for this certificate.\n\n", readableCertAuthority(cert.CertificateAuthority))
 
-			commandContext.Statusf("flyctl", cmdctx.SINFO, "You can configure your DNS and validate your ownership of %s by:\n\n", hostname)
-
 			if nothingConfigured {
+				commandContext.Statusf("flyctl", cmdctx.SINFO, "You can configure your DNS for %s by:\n\n", hostname)
+
 				eTLD, _ := publicsuffix.EffectiveTLDPlusOne(hostname)
 				subdomainname := strings.TrimSuffix(hostname, eTLD)
 				commandContext.Statusf("flyctl", cmdctx.SINFO, "1: Adding an CNAME record to your DNS service which reads:\n")
 				commandContext.Statusf("flyctl", cmdctx.SINFO, "\n    CNAME %s %s.fly.dev\n", subdomainname, commandContext.AppName)
 			} else if onlyV4Configured {
+				commandContext.Statusf("flyctl", cmdctx.SINFO, "You can validate your ownership of %s by:\n\n", hostname)
+
 				commandContext.Statusf("flyctl", cmdctx.SINFO, "1: Adding an CNAME record to your DNS service which reads:\n")
 				commandContext.Statusf("flyctl", cmdctx.SINFO, "CNAME _acme-challenge %s\n", cert.DNSValidationTarget)
 			}
