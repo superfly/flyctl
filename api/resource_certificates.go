@@ -45,7 +45,7 @@ func (c *Client) CheckAppCertificate(appName, hostname string) (*AppCertificate,
 					id
 					source
 					clientStatus
-
+					isApex
 					issued {
 						nodes {
 							type
