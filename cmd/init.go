@@ -183,8 +183,8 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 				if err != nil {
 					return err
 				}
-			} else if builder != "Dockerfile" && builder != "None" {
-				// Not a dockerfile settinf and not set to none. This is a classic buildpack
+			} else if builder != "Dockerfile" && builder != "None" && !builtin {
+				// Not a dockerfile setting and not set to none. This is a classic buildpack
 				newAppConfig.Build = &flyctl.Build{Builder: builder}
 			} else if builder != "None" && builtin {
 				// Builder not none and the user apparently selected a builtin builder
