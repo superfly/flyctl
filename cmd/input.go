@@ -146,14 +146,18 @@ func selectBuildtype(commandContext *cmdctx.CmdContext) (string, bool, error) {
 		builders = append(builders, fmt.Sprintf("%s\n    (%s)", "None", "Do not set a builder"))
 	}
 
+	builders = append(builders, fmt.Sprintf("%s\n    (%s)", "Image", "Use a public Docker image"))
+
 	builtins = builtinsupport.GetBuiltins()
 
 	sort.Slice(builtins, func(i, j int) bool { return builtins[i].Name < builtins[j].Name })
 
+	builtinsStart := len(builders)
 	for _, b := range builtins {
 		builders = append(builders, fmt.Sprintf("%s\n    %s", b.Name, helpers.WrapString(b.Description, 60, 4)))
 	}
 
+	buildersStart := len(builders)
 	for _, b := range suggestedBuilders {
 		builders = append(builders, fmt.Sprintf("%s\n    %s", b.Image, helpers.WrapString(b.DefaultDescription, 70, 4)))
 	}
@@ -170,6 +174,7 @@ func selectBuildtype(commandContext *cmdctx.CmdContext) (string, bool, error) {
 		return "", false, err
 	}
 
+	// Selected a Dockerfile or the absence of a builder
 	if selectedBuilder == 0 {
 		if dockerfileExists {
 			return "Dockerfile", false, nil
@@ -177,12 +182,18 @@ func selectBuildtype(commandContext *cmdctx.CmdContext) (string, bool, error) {
 		return "None", false, nil
 	}
 
-	if selectedBuilder < len(builtins)+1 {
-		// Selected a built in
-		return builtins[selectedBuilder-1].Name, true, nil
+	// Selected an image
+	if selectedBuilder == 1 {
+		return "Image", false, nil
 	}
 
-	return suggestedBuilders[selectedBuilder-(len(builtins)+1)].Image, false, nil
+	if selectedBuilder >= builtinsStart && selectedBuilder < buildersStart {
+		// Selected a built in
+		return builtins[selectedBuilder-builtinsStart].Name, true, nil
+	}
+
+	// All that is lef is builders by name
+	return suggestedBuilders[selectedBuilder-buildersStart].Image, false, nil
 }
 
 func selectBuiltin(commandContext *cmdctx.CmdContext) (string, error) {
@@ -209,6 +220,17 @@ func selectBuiltin(commandContext *cmdctx.CmdContext) (string, error) {
 
 	return builtins[selectedBuiltin].Name, nil
 
+}
+
+func selectImage(commandContext *cmdctx.CmdContext) (string, error) {
+	prompt := &survey.Input{Message: "Select Image:", Default: "flyio/hellofly:latest", Help: `The name and tag for the image you want to use.`}
+
+	sSelectedImage := ""
+	if err := survey.AskOne(prompt, &sSelectedImage /* survey.WithValidator(isIntPort) */); err != nil {
+		return sSelectedImage, err
+	}
+
+	return sSelectedImage, nil
 }
 
 func selectPort(commandContext *cmdctx.CmdContext, defport int) (int, error) {
