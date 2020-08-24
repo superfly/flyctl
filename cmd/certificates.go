@@ -211,7 +211,7 @@ func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert
 				commandContext.Statusf("flyctl", cmdctx.SINFO, "    AAAA @ %s\n\n", ipV6.Address)
 				commandContext.Statusf("flyctl", cmdctx.SINFO, " OR \n\n")
 				commandContext.Statusf("flyctl", cmdctx.SINFO, "%d: Adding an CNAME record to your DNS service which reads:\n\n", stepcnt)
-				commandContext.Statusf("flyctl", cmdctx.SINFO, "    CNAME _acme-challenge %s\n", cert.DNSValidationTarget)
+				commandContext.Statusf("flyctl", cmdctx.SINFO, "    CNAME _acme-challenge.%s %s.\n", hostname, cert.DNSValidationTarget)
 				stepcnt = stepcnt + 1
 
 			}
@@ -244,7 +244,7 @@ func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert
 				commandContext.Statusf("flyctl", cmdctx.SINFO, "You can validate your ownership of %s by:\n\n", hostname)
 
 				commandContext.Statusf("flyctl", cmdctx.SINFO, "1: Adding an CNAME record to your DNS service which reads:\n")
-				commandContext.Statusf("flyctl", cmdctx.SINFO, "CNAME _acme-challenge %s\n", cert.DNSValidationTarget)
+				commandContext.Statusf("flyctl", cmdctx.SINFO, "CNAME _acme-challenge.%s %s.\n", hostname, cert.DNSValidationTarget)
 			}
 		} else {
 			if cert.ClientStatus == "Ready" {
