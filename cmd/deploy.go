@@ -179,14 +179,12 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 			}
 		}
 
-		//fmt.Printf("Deploy source directory '%s'\n", cc.WorkingDir)
 		commandContext.Statusf("flyctl", cmdctx.SINFO, "Deploy source directory '%s'\n", commandContext.WorkingDir)
 
 		if op.DockerAvailable() && !op.RemoteOnly() {
 			commandContext.Status("flyctl", cmdctx.SDETAIL, "Docker daemon available, performing local build...")
 
 			if commandContext.AppConfig.HasBuilder() {
-				//fmt.Println("Building with buildpacks")
 				commandContext.Status("flyctl", cmdctx.SBEGIN, "Building with buildpacks")
 				img, err := op.BuildWithPack(commandContext, buildArgs)
 				if err != nil {
