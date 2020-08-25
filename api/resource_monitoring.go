@@ -40,6 +40,7 @@ func (c *Client) GetAppStatus(appName string, showCompleted bool) (*AppStatus, e
 					updatedAt
 					canary
 					region
+					restarts
 					checks {
 						status
 					}
