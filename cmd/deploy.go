@@ -77,6 +77,8 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 		runInit(commandContext)
 	}
 
+	interactive := isatty.IsTerminal(os.Stdout.Fd())
+
 	ctx := createCancellableContext()
 	op, err := docker.NewDeployOperation(ctx, commandContext)
 	if err != nil {
@@ -247,19 +249,37 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 			}
 
 			s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
-			s.Writer = os.Stderr
-			s.Prefix = "Building "
-			s.Start()
 
-			buildMonitor := builds.NewBuildMonitor(build.ID, commandContext.Client.API())
-			for line := range buildMonitor.Logs(ctx) {
-				s.Stop()
-				commandContext.Status("remotebuild", cmdctx.SINFO, line)
+			if interactive {
+				// If interactive, bind spinner to stderr and start spinning
+				s.Writer = os.Stderr
+				s.Prefix = "Building "
 				s.Start()
+			} else {
+				// if not interactive, print that we are building
+				commandContext.Status("flyctl", cmdctx.SINFO, "Building")
 			}
 
-			s.FinalMSG = fmt.Sprintf("Build complete - %s\n", buildMonitor.Status())
-			s.Stop()
+			buildMonitor := builds.NewBuildMonitor(build.ID, commandContext.Client.API())
+
+			for line := range buildMonitor.Logs(ctx) {
+				if interactive {
+					s.Stop()
+				}
+
+				commandContext.Status("remotebuild", cmdctx.SINFO, line)
+
+				if interactive {
+					s.Start()
+				}
+			}
+
+			if interactive {
+				s.FinalMSG = fmt.Sprintf("Build complete - %s\n", buildMonitor.Status())
+				s.Stop()
+			} else {
+				commandContext.Statusf("flyctl", cmdctx.SINFO, "Build complete - %s\n", buildMonitor.Status())
+			}
 
 			if err := buildMonitor.Err(); err != nil {
 				return err
@@ -280,6 +300,7 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 	}
 
 	commandContext.Status("flyctl", cmdctx.SBEGIN, "Optimizing Image")
+
 	if err := op.OptimizeImage(*image); err != nil {
 		return err
 	}
@@ -319,14 +340,19 @@ func watchDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) err
 
 	interactive := isatty.IsTerminal(os.Stdout.Fd())
 
+	endmessage := ""
+
 	monitor := deployment.NewDeploymentMonitor(commandContext.Client.API(), commandContext.AppName)
+
 	monitor.DeploymentStarted = func(idx int, d *api.DeploymentStatus) error {
 		if idx > 0 {
 			commandContext.StatusLn()
 		}
 		commandContext.Status("deploy", cmdctx.SINFO, presenters.FormatDeploymentSummary(d))
+
 		return nil
 	}
+
 	monitor.DeploymentUpdated = func(d *api.DeploymentStatus, updatedAllocs []*api.AllocationStatus) error {
 		if interactive && !commandContext.OutputJSON() {
 			fmt.Fprint(commandContext.Out, aec.Up(1))
@@ -337,10 +363,17 @@ func watchDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) err
 				commandContext.Status("deploy", cmdctx.SINFO, presenters.FormatAllocSummary(alloc))
 			}
 		}
+
 		return nil
 	}
+
 	monitor.DeploymentFailed = func(d *api.DeploymentStatus, failedAllocs []*api.AllocationStatus) error {
+
 		commandContext.Statusf("deploy", cmdctx.SDETAIL, "v%d %s - %s\n", d.Version, d.Status, d.Description)
+
+		if endmessage == "" && d.Status == "failed" {
+			endmessage = fmt.Sprintf("v%d %s - %s and deploying as v%d \n", d.Version, d.Status, d.Description, d.Version+1)
+		}
 
 		if len(failedAllocs) > 0 {
 			commandContext.Status("flyctl", cmdctx.STITLE, "Failed Allocations")
@@ -396,9 +429,12 @@ func watchDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) err
 			}
 
 		}
+
 		return nil
 	}
+
 	monitor.DeploymentSucceeded = func(d *api.DeploymentStatus) error {
+
 		commandContext.Statusf("flyctl", cmdctx.SDONE, "v%d deployed successfully\n", d.Version)
 		return nil
 	}
@@ -407,6 +443,10 @@ func watchDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) err
 
 	if err := monitor.Error(); err != nil {
 		return err
+	}
+
+	if endmessage != "" {
+		commandContext.Status("flyctl", cmdctx.SERROR, endmessage)
 	}
 
 	if !monitor.Success() {
