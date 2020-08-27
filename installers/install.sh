@@ -62,6 +62,12 @@ tar xzf "$exe.tar.gz"
 chmod +x "$exe"
 rm "$exe.tar.gz"
 
+if [[ ${1} == "prerel" ]]; then
+	"$exe" version -s "shell-prerel"
+else
+	"$exe" version -s "shell"
+fi
+
 echo "Flyctl was installed successfully to $exe"
 if command -v flyctl >/dev/null; then
 	echo "Run 'flyctl --help' to get started"
