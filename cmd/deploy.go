@@ -372,7 +372,11 @@ func watchDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) err
 		commandContext.Statusf("deploy", cmdctx.SDETAIL, "v%d %s - %s\n", d.Version, d.Status, d.Description)
 
 		if endmessage == "" && d.Status == "failed" {
-			endmessage = fmt.Sprintf("v%d %s - %s and deploying as v%d \n", d.Version, d.Status, d.Description, d.Version+1)
+			if strings.Contains(d.Description, "no stable job version to auto revert to") {
+				endmessage = fmt.Sprintf("v%d %s - %s\n", d.Version, d.Status, d.Description)
+			} else {
+				endmessage = fmt.Sprintf("v%d %s - %s and deploying as v%d \n", d.Version, d.Status, d.Description, d.Version+1)
+			}
 		}
 
 		if len(failedAllocs) > 0 {
