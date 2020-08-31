@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/superfly/flyctl/cmdctx"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/docstrings"
@@ -18,13 +19,7 @@ import (
 func newScaleCommand() *Command {
 	scaleStrings := docstrings.Get("scale")
 
-	cmd := &Command{
-		Command: &cobra.Command{
-			Use:   scaleStrings.Usage,
-			Short: scaleStrings.Short,
-			Long:  scaleStrings.Long,
-		},
-	}
+	cmd := BuildCommandKS(nil, nil, scaleStrings, os.Stdout, requireSession, requireAppName)
 
 	vmCmdStrings := docstrings.Get("scale.vm")
 	vmCmd := BuildCommand(cmd, runScaleVM, vmCmdStrings.Usage, vmCmdStrings.Short, vmCmdStrings.Long, os.Stdout, requireSession, requireAppName)

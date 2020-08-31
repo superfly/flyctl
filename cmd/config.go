@@ -10,7 +10,6 @@ import (
 	"github.com/superfly/flyctl/docstrings"
 
 	"github.com/logrusorgru/aurora"
-	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
@@ -20,22 +19,16 @@ func newConfigCommand() *Command {
 
 	configStrings := docstrings.Get("config")
 
-	cmd := &Command{
-		Command: &cobra.Command{
-			Use:   configStrings.Usage,
-			Short: configStrings.Short,
-			Long:  configStrings.Long,
-		},
-	}
+	cmd := BuildCommandKS(nil, nil, configStrings, os.Stdout, requireSession, requireAppName)
 
 	configDisplayStrings := docstrings.Get("config.display")
-	BuildCommand(cmd, runDisplayConfig, configDisplayStrings.Usage, configDisplayStrings.Short, configDisplayStrings.Long, os.Stdout, requireSession, requireAppName)
+	BuildCommandKS(cmd, runDisplayConfig, configDisplayStrings, os.Stdout, requireSession, requireAppName)
 
 	configSaveStrings := docstrings.Get("config.save")
-	BuildCommand(cmd, runSaveConfig, configSaveStrings.Usage, configSaveStrings.Short, configSaveStrings.Long, os.Stdout, requireSession, requireAppName)
+	BuildCommandKS(cmd, runSaveConfig, configSaveStrings, os.Stdout, requireSession, requireAppName)
 
 	configValidateStrings := docstrings.Get("config.validate")
-	BuildCommand(cmd, runValidateConfig, configValidateStrings.Usage, configValidateStrings.Short, configValidateStrings.Long, os.Stdout, requireSession, requireAppName)
+	BuildCommandKS(cmd, runValidateConfig, configValidateStrings, os.Stdout, requireSession, requireAppName)
 
 	return cmd
 }

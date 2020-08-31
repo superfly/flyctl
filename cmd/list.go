@@ -7,24 +7,17 @@ import (
 
 	"github.com/superfly/flyctl/cmdctx"
 
-	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/docstrings"
 )
 
 func newListCommand() *Command {
 	ks := docstrings.Get("list")
 
-	listCmd := &Command{
-		Command: &cobra.Command{
-			Use:     ks.Usage,
-			Aliases: []string{"ls"},
-			Short:   ks.Short,
-			Long:    ks.Long,
-		},
-	}
+	listCmd := BuildCommandKS(nil, nil, ks, os.Stdout, requireSession)
+	listCmd.Aliases = []string{"ls"}
 
 	laks := docstrings.Get("list.apps")
-	listAppsCmd := BuildCommand(listCmd, runListApps, laks.Usage, laks.Short, laks.Long, os.Stdout, requireSession)
+	listAppsCmd := BuildCommandKS(listCmd, runListApps, laks, os.Stdout, requireSession)
 
 	listAppsCmd.AddStringFlag(StringFlagOpts{
 		Name:        "org",
@@ -39,7 +32,7 @@ func newListCommand() *Command {
 	})
 
 	loks := docstrings.Get("list.orgs")
-	BuildCommand(listCmd, runListOrgs, loks.Usage, loks.Short, loks.Long, os.Stdout, requireSession)
+	BuildCommandKS(listCmd, runListOrgs, loks, os.Stdout, requireSession)
 
 	return listCmd
 }

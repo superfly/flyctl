@@ -7,7 +7,6 @@ import (
 	"github.com/skratchdot/open-golang/open"
 	"github.com/superfly/flyctl/cmdctx"
 
-	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/docstrings"
 
 	"github.com/superfly/flyctl/cmd/presenters"
@@ -16,13 +15,8 @@ import (
 func newPlatformCommand() *Command {
 	platformStrings := docstrings.Get("platform")
 
-	cmd := &Command{
-		Command: &cobra.Command{
-			Use:   platformStrings.Usage,
-			Short: platformStrings.Short,
-			Long:  platformStrings.Long,
-		},
-	}
+	cmd := BuildCommandKS(nil, nil, platformStrings, os.Stdout, requireAppName)
+
 	regionsStrings := docstrings.Get("platform.regions")
 	BuildCommandKS(cmd, runPlatformRegions, regionsStrings, os.Stdout, requireSession)
 

@@ -15,7 +15,7 @@ func main() {
 	tree, err := toml.LoadFile(readFile)
 
 	if err != nil {
-		log.Fatal("Can't parse docStrings")
+		log.Fatal("Can't parse docStrings", err)
 	}
 
 	mapped := tree.ToMap()

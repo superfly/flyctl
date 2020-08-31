@@ -18,19 +18,13 @@ import (
 func newSecretsCommand() *Command {
 
 	secretsStrings := docstrings.Get("secrets")
-	cmd := &Command{
-		Command: &cobra.Command{
-			Use:   secretsStrings.Usage,
-			Short: secretsStrings.Short,
-			Long:  secretsStrings.Long,
-		},
-	}
+	cmd := BuildCommandKS(nil, nil, secretsStrings, os.Stdout, requireSession, requireAppName)
 
 	secretsListStrings := docstrings.Get("secrets.list")
-	BuildCommand(cmd, runListSecrets, secretsListStrings.Usage, secretsListStrings.Short, secretsListStrings.Long, os.Stdout, requireSession, requireAppName)
+	BuildCommandKS(cmd, runListSecrets, secretsListStrings, os.Stdout, requireSession, requireAppName)
 
 	secretsSetStrings := docstrings.Get("secrets.set")
-	set := BuildCommand(cmd, runSetSecrets, secretsSetStrings.Usage, secretsSetStrings.Short, secretsSetStrings.Long, os.Stdout, requireSession, requireAppName)
+	set := BuildCommandKS(cmd, runSetSecrets, secretsSetStrings, os.Stdout, requireSession, requireAppName)
 
 	//TODO: Move examples into docstrings
 	set.Command.Example = `flyctl secrets set FLY_ENV=production LOG_LEVEL=info
@@ -44,7 +38,7 @@ func newSecretsCommand() *Command {
 	})
 
 	secretsUnsetStrings := docstrings.Get("secrets.unset")
-	unset := BuildCommand(cmd, runSecretsUnset, secretsUnsetStrings.Usage, secretsUnsetStrings.Short, secretsUnsetStrings.Long, os.Stdout, requireSession, requireAppName)
+	unset := BuildCommandKS(cmd, runSecretsUnset, secretsUnsetStrings, os.Stdout, requireSession, requireAppName)
 	unset.Command.Args = cobra.MinimumNArgs(1)
 
 	unset.AddBoolFlag(BoolFlagOpts{

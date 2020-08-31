@@ -21,7 +21,7 @@ func newInitCommand() *Command {
 
 	initStrings := docstrings.Get("init")
 
-	cmd := BuildCommand(nil, runInit, initStrings.Usage, initStrings.Short, initStrings.Long, os.Stdout, requireSession)
+	cmd := BuildCommandKS(nil, runInit, initStrings, os.Stdout, requireSession)
 
 	cmd.Args = cobra.RangeArgs(0, 1)
 

@@ -16,7 +16,6 @@ import (
 	"github.com/briandowns/spinner"
 	"github.com/logrusorgru/aurora"
 	"github.com/skratchdot/open-golang/open"
-	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
@@ -27,13 +26,8 @@ func newAuthCommand() *Command {
 
 	authStrings := docstrings.Get("auth")
 
-	cmd := &Command{
-		Command: &cobra.Command{
-			Use:   authStrings.Usage,
-			Short: authStrings.Short,
-			Long:  authStrings.Long,
-		},
-	}
+	cmd := BuildCommandKS(nil, nil, authStrings, os.Stdout)
+
 	authWhoamiStrings := docstrings.Get("auth.whoami")
 	BuildCommand(cmd, runWhoami, authWhoamiStrings.Usage, authWhoamiStrings.Short, authWhoamiStrings.Long, os.Stdout, requireSession)
 

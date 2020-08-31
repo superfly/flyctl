@@ -15,7 +15,7 @@ import (
 func newResumeCommand() *Command {
 
 	resumeStrings := docstrings.Get("resume")
-	resumeCmd := BuildCommand(nil, runResume, resumeStrings.Usage, resumeStrings.Short, resumeStrings.Long, os.Stdout, requireSession, requireAppNameAsArg)
+	resumeCmd := BuildCommandKS(nil, runResume, resumeStrings, os.Stdout, requireSession, requireAppNameAsArg)
 	resumeCmd.Args = cobra.RangeArgs(0, 1)
 
 	return resumeCmd

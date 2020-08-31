@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/superfly/flyctl/cmdctx"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"strconv"
 	"sync"
+
+	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/dustin/go-humanize"
 	"github.com/logrusorgru/aurora"
@@ -21,7 +22,7 @@ import (
 
 func newCurlCommand() *Command {
 	curlStrings := docstrings.Get("curl")
-	cmd := BuildCommand(nil, runCurl, curlStrings.Usage, curlStrings.Short, curlStrings.Long, os.Stdout, requireSession)
+	cmd := BuildCommandKS(nil, runCurl, curlStrings, os.Stdout, requireSession)
 	cmd.Args = cobra.ExactArgs(1)
 	cmd.Hidden = true
 	return cmd

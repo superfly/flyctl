@@ -20,24 +20,11 @@ import (
 
 func newDNSCommand() *Command {
 	dnsStrings := docstrings.Get("dns")
-	cmd := &Command{
-		Command: &cobra.Command{
-			Use:   dnsStrings.Usage,
-			Short: dnsStrings.Short,
-			Long:  dnsStrings.Long,
-		},
-	}
+	cmd := BuildCommandKS(nil, nil, dnsStrings, os.Stdout, requireSession)
 
 	zonesStrings := docstrings.Get("dns.zones")
-	zonesCmd := &Command{
-		Command: &cobra.Command{
-			Use:     zonesStrings.Usage,
-			Short:   zonesStrings.Short,
-			Long:    zonesStrings.Long,
-			Aliases: []string{"z"},
-		},
-	}
-	cmd.AddCommand(zonesCmd)
+	zonesCmd := BuildCommandKS(cmd, nil, zonesStrings, os.Stdout, requireSession)
+	zonesCmd.Aliases = []string{"z"}
 
 	zonesListStrings := docstrings.Get("dns.zones.list")
 	zonesListCmd := BuildCommandKS(zonesCmd, runZonesList, zonesListStrings, os.Stdout, requireSession)
@@ -52,15 +39,8 @@ func newDNSCommand() *Command {
 	zonesDeleteCmd.Args = cobra.MaximumNArgs(2)
 
 	recordsStrings := docstrings.Get("dns.records")
-	recordsCmd := &Command{
-		Command: &cobra.Command{
-			Use:     recordsStrings.Usage,
-			Short:   recordsStrings.Short,
-			Long:    recordsStrings.Long,
-			Aliases: []string{"r"},
-		},
-	}
-	cmd.AddCommand(recordsCmd)
+	recordsCmd := BuildCommandKS(cmd, nil, recordsStrings, os.Stdout, requireSession)
+	recordsCmd.Aliases = []string{"r"}
 
 	recordsListStrings := docstrings.Get("dns.records.list")
 	recordsListCmd := BuildCommandKS(recordsCmd, runRecordsList, recordsListStrings, os.Stdout, requireSession)

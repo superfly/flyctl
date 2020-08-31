@@ -14,7 +14,7 @@ import (
 
 func newVersionCommand() *Command {
 	versionStrings := docstrings.Get("version")
-	version := BuildCommand(nil, runVersion, versionStrings.Usage, versionStrings.Short, versionStrings.Long, os.Stdout)
+	version := BuildCommandKS(nil, runVersion, versionStrings, os.Stdout)
 	version.AddBoolFlag(BoolFlagOpts{
 		Name:        "full",
 		Shorthand:   "f",

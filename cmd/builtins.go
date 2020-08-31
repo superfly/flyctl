@@ -11,25 +11,18 @@ import (
 	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/superfly/flyctl/docstrings"
-
-	"github.com/spf13/cobra"
 )
 
 func newBuiltinsCommand() *Command {
 	builtinsStrings := docstrings.Get("builtins")
 
-	cmd := &Command{
-		Command: &cobra.Command{
-			Use:   builtinsStrings.Usage,
-			Short: builtinsStrings.Short,
-			Long:  builtinsStrings.Long,
-		},
-	}
+	cmd := BuildCommandKS(nil, nil, builtinsStrings, os.Stdout)
 
 	builtinsListStrings := docstrings.Get("builtins.list")
 	BuildCommandKS(cmd, runListBuiltins, builtinsListStrings, os.Stdout)
 	builtinShowStrings := docstrings.Get("builtins.show")
 	BuildCommandKS(cmd, runShowBuiltin, builtinShowStrings, os.Stdout)
+
 	return cmd
 }
 

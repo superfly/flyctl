@@ -12,43 +12,33 @@ import (
 )
 
 func newOrgsCommand() *Command {
-	orgsStrings := docstrings.KeyStrings{Usage: "orgs",
-		Short: "Commands for managing Fly organizations",
-		Long: `Commands for managing Fly organizations. list, create, show and 
-	destroy organizations. 
-	Organization admins can also invite or remove users from Organizations. 
-	`}
-
+	orgsStrings := docstrings.Get("orgs")
 	orgscmd := BuildCommandKS(nil, nil, orgsStrings, os.Stdout, requireSession)
 
-	orgsListStrings := docstrings.KeyStrings{Usage: "list",
-		Short: "Lists organizations for current user",
-		Long: `Lists organizations available to current user.
-	`}
-
+	orgsListStrings := docstrings.Get("orgs.list")
 	BuildCommandKS(orgscmd, runOrgsList, orgsListStrings, os.Stdout, requireSession)
 
-	orgsShowStrings := docstrings.KeyStrings{Usage: "show <org>", Short: "Show organization", Long: ""}
+	orgsShowStrings := docstrings.Get("orgs.show")
 	orgsShowCommand := BuildCommandKS(orgscmd, runOrgsShow, orgsShowStrings, os.Stdout, requireSession)
 	orgsShowCommand.Args = cobra.ExactArgs(1)
 
-	orgsInviteStrings := docstrings.KeyStrings{Usage: "invite <org> <email>", Short: "invite to organization", Long: ""}
+	orgsInviteStrings := docstrings.Get("orgs.invite")
 	orgsInviteCommand := BuildCommandKS(orgscmd, runOrgsInvite, orgsInviteStrings, os.Stdout, requireSession)
 	orgsInviteCommand.Args = cobra.MaximumNArgs(2)
 
-	orgsRevokeStrings := docstrings.KeyStrings{Usage: "revoke <org> <email>", Short: "revoke an invitation to an organization", Long: ""}
+	orgsRevokeStrings := docstrings.Get("orgs.revoke")
 	orgsRevokeCommand := BuildCommandKS(orgscmd, runOrgsRevoke, orgsRevokeStrings, os.Stdout, requireSession)
 	orgsRevokeCommand.Args = cobra.MaximumNArgs(2)
 
-	orgsRemoveStrings := docstrings.KeyStrings{Usage: "remove <org> <email>", Short: "revoke an invitation to an organization", Long: ""}
+	orgsRemoveStrings := docstrings.Get("orgs.remove")
 	orgsRemoveCommand := BuildCommandKS(orgscmd, runOrgsRemove, orgsRemoveStrings, os.Stdout, requireSession)
 	orgsRemoveCommand.Args = cobra.MaximumNArgs(2)
 
-	orgsCreateStrings := docstrings.KeyStrings{Usage: "create <org>", Short: "Create an Organization", Long: ""}
+	orgsCreateStrings := docstrings.Get("orgs.create")
 	orgsCreateCommand := BuildCommandKS(orgscmd, runOrgsCreate, orgsCreateStrings, os.Stdout, requireSession)
 	orgsCreateCommand.Args = cobra.MaximumNArgs(1)
 
-	orgsDeleteStrings := docstrings.KeyStrings{Usage: "delete <org>", Short: "Delete an Organization", Long: ""}
+	orgsDeleteStrings := docstrings.Get("orgs.delete")
 	orgsDeleteCommand := BuildCommandKS(orgscmd, runOrgsDelete, orgsDeleteStrings, os.Stdout, requireSession)
 	orgsDeleteCommand.Args = cobra.MaximumNArgs(1)
 
