@@ -12,7 +12,7 @@ import (
 
 func newReleasesCommand() *Command {
 	releasesStrings := docstrings.Get("releases")
-	cmd := BuildCommand(nil, runReleases, releasesStrings.Usage, releasesStrings.Short, releasesStrings.Long, os.Stdout, requireSession, requireAppName)
+	cmd := BuildCommandKS(nil, runReleases, releasesStrings, os.Stdout, requireSession, requireAppName)
 	return cmd
 }
 

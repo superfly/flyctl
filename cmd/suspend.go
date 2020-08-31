@@ -18,7 +18,7 @@ func newSuspendCommand() *Command {
 
 	suspendStrings := docstrings.Get("suspend")
 
-	suspendCmd := BuildCommand(nil, runSuspend, suspendStrings.Usage, suspendStrings.Short, suspendStrings.Long, os.Stdout, requireSession, requireAppNameAsArg)
+	suspendCmd := BuildCommandKS(nil, runSuspend, suspendStrings, os.Stdout, requireSession, requireAppNameAsArg)
 	suspendCmd.Args = cobra.RangeArgs(0, 1)
 
 	return suspendCmd

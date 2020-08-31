@@ -14,24 +14,18 @@ import (
 func newRegionsCommand() *Command {
 	regionsStrings := docstrings.Get("regions")
 
-	cmd := &Command{
-		Command: &cobra.Command{
-			Use:   regionsStrings.Usage,
-			Short: regionsStrings.Short,
-			Long:  regionsStrings.Long,
-		},
-	}
+	cmd := BuildCommandKS(nil, nil, regionsStrings, os.Stdout, requireAppName, requireSession)
 
 	addStrings := docstrings.Get("regions.add")
-	addCmd := BuildCommand(cmd, runRegionsAdd, addStrings.Usage, addStrings.Short, addStrings.Long, os.Stdout, requireSession, requireAppName)
+	addCmd := BuildCommandKS(cmd, runRegionsAdd, addStrings, os.Stdout, requireSession, requireAppName)
 	addCmd.Args = cobra.MinimumNArgs(1)
 
 	removeStrings := docstrings.Get("regions.remove")
-	removeCmd := BuildCommand(cmd, runRegionsRemove, removeStrings.Usage, removeStrings.Short, removeStrings.Long, os.Stdout, requireSession, requireAppName)
+	removeCmd := BuildCommandKS(cmd, runRegionsRemove, removeStrings, os.Stdout, requireSession, requireAppName)
 	removeCmd.Args = cobra.MinimumNArgs(1)
 
 	setStrings := docstrings.Get("regions.set")
-	setCmd := BuildCommand(cmd, runRegionsSet, setStrings.Usage, setStrings.Short, setStrings.Long, os.Stdout, requireSession, requireAppName)
+	setCmd := BuildCommandKS(cmd, runRegionsSet, setStrings, os.Stdout, requireSession, requireAppName)
 	setCmd.Args = cobra.MinimumNArgs(1)
 
 	setBackupStrings := docstrings.Get("regions.backup")

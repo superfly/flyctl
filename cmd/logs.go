@@ -16,7 +16,7 @@ import (
 
 func newLogsCommand() *Command {
 	logsStrings := docstrings.Get("logs")
-	cmd := BuildCommand(nil, runLogs, logsStrings.Usage, logsStrings.Short, logsStrings.Long, os.Stdout, requireSession, requireAppName)
+	cmd := BuildCommandKS(nil, runLogs, logsStrings, os.Stdout, requireSession, requireAppName)
 
 	// TODO: Move flag descriptions into the docStrings
 	cmd.AddStringFlag(StringFlagOpts{

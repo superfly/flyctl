@@ -628,3 +628,53 @@ shortHelp="Show details of a builtins"
 longHelp="""Show details of a Flyctl deployment builtins, including
 the builtin "Dockerfile" and other information.
 """
+
+[orgs]
+usage="orgs"
+shortHelp="Commands for managing Fly organizations"
+longHelp="""Commands for managing Fly organizations. list, create, show and 
+destroy organizations. 
+Organization admins can also invite or remove users from Organizations.
+"""
+
+[orgs.list]
+usage="list"
+shortHelp="Lists organizations for current user"
+longHelp="""Lists organizations available to current user."""
+
+[orgs.show]
+usage="show <org>"
+shortHelp="Show information about an organization"
+longHelp="""Shows information about an organization.
+Includes name, slug and type. Summarizes user permissions, DNS zones and
+associated member. Details full list of members and roles."""
+
+[orgs.invite]
+usage="invite <org> <email>"
+shortHelp="Invite user (by email) to organization"
+longHelp="""Invite a user, by email, to join organization. The invitation will be
+sent, and the user will be pending until they respond. See also orgs revoke."""
+
+[orgs.revoke]
+usage="revoke <org> <email>"
+shortHelp="Revoke a pending invitation to an organization"
+longHelp="""Revokes an invitation to join an organization that has been sent to a 
+user by email."""
+
+[orgs.remove]
+usage="remove <org> <email>"
+shortHelp="Remove a user from an organization"
+longHelp="""Remove a user from an organization. User must have accepted a previous
+invitation to join (if not, see orgs revoke)."""
+
+[orgs.create]
+usage="create <org>"
+shortHelp="Create an organization"
+longHelp="""Create a new organization. Other users can be invited to join the 
+organization later."""
+
+[orgs.delete]
+usage="delete <org>"
+shortHelp="Delete an organization"
+longHelp="""Delete an existing organization."""
+

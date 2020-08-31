@@ -20,34 +20,28 @@ import (
 func newCertificatesCommand() *Command {
 	certsStrings := docstrings.Get("certs")
 
-	cmd := &Command{
-		Command: &cobra.Command{
-			Use:   certsStrings.Usage,
-			Short: certsStrings.Short,
-			Long:  certsStrings.Long,
-		},
-	}
+	cmd := BuildCommandKS(nil, nil, certsStrings, os.Stdout, requireAppName, requireSession)
 
 	certsListStrings := docstrings.Get("certs.list")
-	BuildCommand(cmd, runCertsList, certsListStrings.Usage, certsListStrings.Short, certsListStrings.Long, os.Stdout, requireSession, requireAppName)
+	BuildCommandKS(cmd, runCertsList, certsListStrings, os.Stdout, requireSession, requireAppName)
 
 	certsCreateStrings := docstrings.Get("certs.add")
-	createCmd := BuildCommand(cmd, runCertAdd, certsCreateStrings.Usage, certsCreateStrings.Short, certsCreateStrings.Long, os.Stdout, requireSession, requireAppName)
+	createCmd := BuildCommandKS(cmd, runCertAdd, certsCreateStrings, os.Stdout, requireSession, requireAppName)
 	createCmd.Aliases = []string{"create"}
 	createCmd.Command.Args = cobra.ExactArgs(1)
 
 	certsDeleteStrings := docstrings.Get("certs.remove")
-	deleteCmd := BuildCommand(cmd, runCertDelete, certsDeleteStrings.Usage, certsDeleteStrings.Short, certsDeleteStrings.Long, os.Stdout, requireSession, requireAppName)
+	deleteCmd := BuildCommandKS(cmd, runCertDelete, certsDeleteStrings, os.Stdout, requireSession, requireAppName)
 	deleteCmd.Aliases = []string{"delete"}
 	deleteCmd.Command.Args = cobra.ExactArgs(1)
 	deleteCmd.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "accept all confirmations"})
 
 	certsShowStrings := docstrings.Get("certs.show")
-	show := BuildCommand(cmd, runCertShow, certsShowStrings.Usage, certsShowStrings.Short, certsShowStrings.Long, os.Stdout, requireSession, requireAppName)
+	show := BuildCommandKS(cmd, runCertShow, certsShowStrings, os.Stdout, requireSession, requireAppName)
 	show.Command.Args = cobra.ExactArgs(1)
 
 	certsCheckStrings := docstrings.Get("certs.check")
-	check := BuildCommand(cmd, runCertCheck, certsCheckStrings.Usage, certsCheckStrings.Short, certsCheckStrings.Long, os.Stdout, requireSession, requireAppName)
+	check := BuildCommandKS(cmd, runCertCheck, certsCheckStrings, os.Stdout, requireSession, requireAppName)
 	check.Command.Args = cobra.ExactArgs(1)
 
 	return cmd

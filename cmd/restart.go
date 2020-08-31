@@ -14,7 +14,7 @@ import (
 
 func newRestartCommand() *Command {
 	restartStrings := docstrings.Get("restart")
-	restartCmd := BuildCommand(nil, runRestart, restartStrings.Usage, restartStrings.Short, restartStrings.Long, os.Stdout, requireSession, requireAppNameAsArg)
+	restartCmd := BuildCommandKS(nil, runRestart, restartStrings, os.Stdout, requireSession, requireAppNameAsArg)
 	restartCmd.Args = cobra.RangeArgs(0, 1)
 
 	return restartCmd

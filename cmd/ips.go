@@ -2,9 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/superfly/flyctl/cmdctx"
 	"net"
 	"os"
+
+	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/superfly/flyctl/docstrings"
 
@@ -16,25 +17,19 @@ import (
 func newIPAddressesCommand() *Command {
 
 	ipsStrings := docstrings.Get("ips")
-	cmd := &Command{
-		Command: &cobra.Command{
-			Use:   ipsStrings.Usage,
-			Short: ipsStrings.Short,
-			Long:  ipsStrings.Long,
-		},
-	}
+	cmd := BuildCommandKS(nil, nil, ipsStrings, os.Stdout, requireSession, requireAppName)
 
 	ipsListStrings := docstrings.Get("ips.list")
-	BuildCommand(cmd, runIPAddressesList, ipsListStrings.Usage, ipsListStrings.Short, ipsListStrings.Long, os.Stdout, requireSession, requireAppName)
+	BuildCommandKS(cmd, runIPAddressesList, ipsListStrings, os.Stdout, requireSession, requireAppName)
 
 	ipsAllocateV4Strings := docstrings.Get("ips.allocate-v4")
-	BuildCommand(cmd, runAllocateIPAddressV4, ipsAllocateV4Strings.Usage, ipsAllocateV4Strings.Short, ipsAllocateV4Strings.Long, os.Stdout, requireSession, requireAppName)
+	BuildCommandKS(cmd, runAllocateIPAddressV4, ipsAllocateV4Strings, os.Stdout, requireSession, requireAppName)
 
 	ipsAllocateV6Strings := docstrings.Get("ips.allocate-v6")
-	BuildCommand(cmd, runAllocateIPAddressV6, ipsAllocateV6Strings.Usage, ipsAllocateV6Strings.Short, ipsAllocateV6Strings.Long, os.Stdout, requireSession, requireAppName)
+	BuildCommandKS(cmd, runAllocateIPAddressV6, ipsAllocateV6Strings, os.Stdout, requireSession, requireAppName)
 
 	ipsReleaseStrings := docstrings.Get("ips.release")
-	release := BuildCommand(cmd, runReleaseIPAddress, ipsReleaseStrings.Usage, ipsReleaseStrings.Short, ipsReleaseStrings.Long, os.Stdout, requireSession, requireAppName)
+	release := BuildCommandKS(cmd, runReleaseIPAddress, ipsReleaseStrings, os.Stdout, requireSession, requireAppName)
 	release.Args = cobra.ExactArgs(1)
 
 	return cmd
