@@ -59,6 +59,7 @@ COPY package.json .
 COPY package-lock.json .
 RUN npm install --production
 COPY . .
+RUN npm run build --if-present
 ENV PORT=8080
 CMD [ "npm","start" ]
 	`},
@@ -112,7 +113,7 @@ CMD ["/goapp/app"]
 `},
 	{Name: "static",
 		Description: "Web server builtin",
-		Details:     `All files are copied to the image and served.`,
+		Details:     `All files are copied to the image and served, except files with executable permission set.`,
 		FileText: `
 FROM pierrezemb/gostatic
 COPY . /srv/http/
