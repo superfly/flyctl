@@ -119,4 +119,13 @@ FROM pierrezemb/gostatic
 COPY . /srv/http/
 CMD ["-port","8080"]
 	`},
+	{Name: "hugo-static",
+		Description: "Hugo static build with web server builtin",
+		Details:     `Hugo static build, then all public files are copied to the image and served, except files with executable permission set.`,
+		FileText: `
+FROM klakegg/hugo:0.74.0-onbuild AS hugo
+FROM pierrezemb/gostatic
+COPY --from=hugo /target /srv/http/
+CMD ["-port","8080"]
+`},
 }
