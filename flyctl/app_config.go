@@ -232,14 +232,12 @@ func (ac *AppConfig) SetInternalPort(port int) bool {
 }
 
 func (ac *AppConfig) GetInternalPort() (int, error) {
-	services, ok := ac.Definition["services"].([]interface{})
+	services, ok := ac.Definition["services"].([]map[string]interface{})
 	if ok {
-		service0, ok := services[0].(map[string]interface{})
+		service0 := services[0] //.(map[string]interface{})
+		internalport, ok := service0["internal_port"].(int64)
 		if ok {
-			internalport, ok := service0["internal_port"].(float64)
-			if ok {
-				return int(internalport), nil
-			}
+			return int(internalport), nil
 		}
 	}
 

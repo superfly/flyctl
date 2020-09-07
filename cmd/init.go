@@ -227,9 +227,9 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		newAppConfig.Definition = app.Config.Definition
 	}
 
-	if configPort != "" {
+	if configPort != "" { // If the config port has been set externally, set that
 		newAppConfig.SetInternalPort(internalPort)
-	} else {
+	} else if importfile == "" { // If we are not importing, get the default, ask for new setting
 		currentport, err := newAppConfig.GetInternalPort()
 		if err != nil {
 			return err
