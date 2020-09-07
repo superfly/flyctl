@@ -252,8 +252,17 @@ func ResolveConfigFileFromPath(p string) (string, error) {
 		return "", err
 	}
 
-	// path is a file, return
-	if filepath.Ext(p) != "" {
+	// Is this a bare directory path? Stat the path
+	pd, err := os.Stat(p)
+
+	if err == os.ErrNotExist {
+		return path.Join(p, defaultConfigFileName), nil
+	} else if err != nil {
+		return "", err
+	}
+
+	// Ok, something exists. Is it a file - yes? return the path
+	if !pd.IsDir() {
 		return p, nil
 	}
 
