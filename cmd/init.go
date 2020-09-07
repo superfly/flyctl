@@ -68,6 +68,11 @@ func newInitCommand() *Command {
 		Description: "Create but import all settings from the given file",
 	})
 
+	cmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "overwrite",
+		Description: "Always overwrite an existing fly.toml file",
+	})
+
 	return cmd
 }
 
@@ -90,15 +95,18 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 			return fmt.Errorf(`-p ports must be numeric`)
 		}
 	}
+	overwrite := commandContext.Config.GetBool("overwrite")
 
 	configfilename, err := flyctl.ResolveConfigFileFromPath(commandContext.WorkingDir)
 
-	if helpers.FileExists(configfilename) {
-		commandContext.Status("create", cmdctx.SERROR, "An existing configuration file has been found.")
+	if helpers.FileExists(configfilename) && !overwrite {
+		commandContext.Status("init", cmdctx.SERROR, "An existing configuration file has been found.")
 		confirmation := confirm(fmt.Sprintf("Overwrite file '%s'", configfilename))
 		if !confirmation {
 			return nil
 		}
+	} else {
+		commandContext.Status("init", cmdctx.SWARN, "Overwriting existing configuration (--overwrite)")
 	}
 
 	newAppConfig := flyctl.NewAppConfig()
