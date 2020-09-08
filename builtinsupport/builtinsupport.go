@@ -136,4 +136,12 @@ FROM pierrezemb/gostatic
 COPY --from=hugo /target /srv/http/
 CMD ["-port","8080"]
 `},
+	{Name: "staticplus",
+		Description: "Web server builtin",
+		Details:     `All files are copied to the image and served, except files with executable permission set.`,
+		FileText: `
+FROM flyio/gostatic-fly
+COPY . /srv/http/
+CMD ["-port","8080"]
+`},
 }
