@@ -14,6 +14,19 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+var CachedName string
+
+func Name() (string, error) {
+	if CachedName == "" {
+		execname, err := os.Executable()
+		if err != nil {
+			return "", err
+		}
+		CachedName = path.Base(execname)
+	}
+	return CachedName, nil
+}
+
 var configDir string
 
 // InitConfig - Initialises config file for Viper
