@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/machinebox/graphql"
+	"github.com/superfly/flyctl/flyname"
 )
 
 var baseURL string
@@ -43,7 +44,7 @@ func NewClient(accessToken string, version string) *Client {
 	url := fmt.Sprintf("%s/graphql", baseURL)
 
 	client := graphql.NewClient(url, graphql.WithHTTPClient(httpClient))
-	userAgent := fmt.Sprintf("flyctl/%s", version)
+	userAgent := fmt.Sprintf("%s/%s", flyname.Name(), version)
 	return &Client{httpClient, client, accessToken, userAgent}
 }
 

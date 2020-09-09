@@ -125,7 +125,7 @@ func (op *DeployOperation) ValidateConfig() (*api.AppConfig, error) {
 }
 
 func (op *DeployOperation) ResolveImage(ctx context.Context, commandContext *cmdctx.CmdContext, imageRef string) (*Image, error) {
-	commandContext.Status("flyctl", "Resolving image")
+	commandContext.Status("deploy", "Resolving image")
 
 	if op.DockerAvailable() && !op.RemoteOnly() {
 		imgSummary, err := op.dockerClient.findImage(ctx, imageRef)
@@ -137,16 +137,16 @@ func (op *DeployOperation) ResolveImage(ctx context.Context, commandContext *cmd
 			goto ResolveWithoutDocker
 		}
 
-		commandContext.Statusf("flyctl", cmdctx.SINFO, "Image ID: %+v\n", imgSummary.ID)
-		commandContext.Statusf("flyctl", cmdctx.SINFO, "Image size: %s\n", humanize.Bytes(uint64(imgSummary.Size)))
+		commandContext.Statusf("deploy", cmdctx.SINFO, "Image ID: %+v\n", imgSummary.ID)
+		commandContext.Statusf("deploy", cmdctx.SINFO, "Image size: %s\n", humanize.Bytes(uint64(imgSummary.Size)))
 
-		commandContext.Status("flyctl", cmdctx.SDONE, "Image resolving done")
+		commandContext.Status("deploy", cmdctx.SDONE, "Image resolving done")
 
-		commandContext.Status("flyctl", cmdctx.SBEGIN, "Creating deployment tag")
+		commandContext.Status("deploy", cmdctx.SBEGIN, "Creating deployment tag")
 		if err := op.dockerClient.TagImage(op.ctx, imgSummary.ID, op.imageTag); err != nil {
 			return nil, err
 		}
-		commandContext.Status("flyctl", cmdctx.SINFO, "-->", op.imageTag)
+		commandContext.Status("deploy", cmdctx.SINFO, "-->", op.imageTag)
 
 		image := &Image{
 			ID:   imgSummary.ID,

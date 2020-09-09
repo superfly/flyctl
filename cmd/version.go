@@ -6,10 +6,10 @@ import (
 
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/flyname"
 
 	"github.com/superfly/flyctl/docstrings"
-
-	"github.com/superfly/flyctl/flyctl"
 )
 
 func newVersionCommand() *Command {
@@ -63,22 +63,24 @@ func runVersion(ctx *cmdctx.CmdContext) error {
 	if ctx.Config.GetBool("full") {
 		if ctx.OutputJSON() {
 			type flyctlBuild struct {
+				Name    string
 				Version string
 				Commit  string
 				Build   string
 			}
-			ctx.WriteJSON(flyctlBuild{Version: flyctl.Version, Commit: flyctl.Commit, Build: flyctl.BuildDate})
+			ctx.WriteJSON(flyctlBuild{Name: flyname.Name(), Version: flyctl.Version, Commit: flyctl.Commit, Build: flyctl.BuildDate})
 		} else {
-			fmt.Printf("flyctl %s %s %s\n", flyctl.Version, flyctl.Commit, flyctl.BuildDate)
+			fmt.Printf("%s %s %s %s\n", flyname.Name(), flyctl.Version, flyctl.Commit, flyctl.BuildDate)
 		}
 	} else {
 		if ctx.OutputJSON() {
 			type flyctlBuild struct {
+				Name    string
 				Version string
 			}
-			ctx.WriteJSON(flyctlBuild{Version: flyctl.Version})
+			ctx.WriteJSON(flyctlBuild{Name: flyname.Name(), Version: flyctl.Version})
 		} else {
-			fmt.Printf("%s\n", flyctl.Version)
+			fmt.Printf("%s %s\n", flyname.Name(), flyctl.Version)
 		}
 	}
 	return nil

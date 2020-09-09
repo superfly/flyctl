@@ -65,11 +65,11 @@ func runCertShow(commandContext *cmdctx.CmdContext) error {
 	}
 
 	if cert.ClientStatus == "Ready" {
-		commandContext.Statusf("flyctl", cmdctx.STITLE, "The certificate for %s has been issued.\n\n", hostname)
+		commandContext.Statusf("certs", cmdctx.STITLE, "The certificate for %s has been issued.\n\n", hostname)
 		printCertificate(commandContext, cert)
 		return nil
 	}
-	commandContext.Statusf("flyctl", cmdctx.STITLE, "The certificate for %s has not been issued yet.\n\n", hostname)
+	commandContext.Statusf("certs", cmdctx.STITLE, "The certificate for %s has not been issued yet.\n\n", hostname)
 	printCertificate(commandContext, cert)
 	return reportNextStepCert(commandContext, hostname, cert, hostcheck)
 
@@ -85,13 +85,13 @@ func runCertCheck(commandContext *cmdctx.CmdContext) error {
 
 	if cert.ClientStatus == "Ready" {
 		// A certificate has been issued
-		commandContext.Statusf("flyctl", cmdctx.SINFO, "The certificate for %s has been issued.\n", hostname)
+		commandContext.Statusf("certs", cmdctx.SINFO, "The certificate for %s has been issued.\n", hostname)
 		printCertificate(commandContext, cert)
 		// Details should go here
 		return nil
 	}
 
-	commandContext.Statusf("flyctl", cmdctx.SINFO, "The certificate for %s has not been issued yet.\n", hostname)
+	commandContext.Statusf("certs", cmdctx.SINFO, "The certificate for %s has not been issued yet.\n", hostname)
 
 	return reportNextStepCert(commandContext, hostname, cert, hostcheck)
 }
@@ -127,7 +127,7 @@ func runCertDelete(commandContext *cmdctx.CmdContext) error {
 		return err
 	}
 
-	commandContext.Statusf("flyctl", cmdctx.SINFO, "Certificate %s deleted from app %s\n", cert.Certificate.Hostname, cert.App.Name)
+	commandContext.Statusf("certs", cmdctx.SINFO, "Certificate %s deleted from app %s\n", cert.Certificate.Hostname, cert.App.Name)
 
 	return nil
 }
@@ -157,7 +157,7 @@ func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert
 	if len(hostcheck.ARecords) > 0 {
 		// Let's check the first A record against our recorded addresses
 		if !net.ParseIP(hostcheck.ARecords[0]).Equal(net.ParseIP(ipV4.Address)) {
-			commandContext.Statusf("flyctl", cmdctx.SWARN, "A Record (%s) does not match app's IP (%s)\n", hostcheck.ARecords[0], ipV4.Address)
+			commandContext.Statusf("certs", cmdctx.SWARN, "A Record (%s) does not match app's IP (%s)\n", hostcheck.ARecords[0], ipV4.Address)
 		} else {
 			configuredipV4 = true
 		}
@@ -166,7 +166,7 @@ func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert
 	if len(hostcheck.AAAARecords) > 0 {
 		// Let's check the first A record against our recorded addresses
 		if !net.ParseIP(hostcheck.AAAARecords[0]).Equal(net.ParseIP(ipV6.Address)) {
-			commandContext.Statusf("flyctl", cmdctx.SWARN, "AAAA Record (%s) does not match app's IP (%s)\n", hostcheck.AAAARecords[0], ipV6.Address)
+			commandContext.Statusf("certs", cmdctx.SWARN, "AAAA Record (%s) does not match app's IP (%s)\n", hostcheck.AAAARecords[0], ipV6.Address)
 		} else {
 			configuredipV6 = true
 		}
@@ -179,7 +179,7 @@ func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert
 			} else if net.ParseIP(address).Equal(net.ParseIP(ipV6.Address)) {
 				configuredipV6 = true
 			} else {
-				commandContext.Statusf("flyctl", cmdctx.SWARN, "Address resolution (%s) does not match app's IP (%s/%s)\n", address, ipV4.Address, ipV6.Address)
+				commandContext.Statusf("certs", cmdctx.SWARN, "Address resolution (%s) does not match app's IP (%s/%s)\n", address, ipV4.Address, ipV6.Address)
 			}
 		}
 	}
@@ -191,29 +191,29 @@ func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert
 
 		if addArecord || addAAAArecord {
 			stepcnt := 1
-			commandContext.Statusf("flyctl", cmdctx.SINFO, "You are creating a certificate for %s\n", hostname)
-			commandContext.Statusf("flyctl", cmdctx.SINFO, "We are using %s for this certificate.\n\n", cert.CertificateAuthority)
+			commandContext.Statusf("certs", cmdctx.SINFO, "You are creating a certificate for %s\n", hostname)
+			commandContext.Statusf("certs", cmdctx.SINFO, "We are using %s for this certificate.\n\n", cert.CertificateAuthority)
 			if addArecord {
-				commandContext.Statusf("flyctl", cmdctx.SINFO, "You can direct traffic to %s by:\n\n", hostname)
-				commandContext.Statusf("flyctl", cmdctx.SINFO, "%d: Adding an A record to your DNS service which reads\n", stepcnt)
+				commandContext.Statusf("certs", cmdctx.SINFO, "You can direct traffic to %s by:\n\n", hostname)
+				commandContext.Statusf("certs", cmdctx.SINFO, "%d: Adding an A record to your DNS service which reads\n", stepcnt)
 				stepcnt = stepcnt + 1
-				commandContext.Statusf("flyctl", cmdctx.SINFO, "\n    A @ %s\n\n", ipV4.Address)
+				commandContext.Statusf("certs", cmdctx.SINFO, "\n    A @ %s\n\n", ipV4.Address)
 			}
 			if addAAAArecord {
-				commandContext.Statusf("flyctl", cmdctx.SINFO, "You can validate your ownership of %s by:\n\n", hostname)
-				commandContext.Statusf("flyctl", cmdctx.SINFO, "%d: Adding an AAAA record to your DNS service which reads:\n\n", stepcnt)
-				commandContext.Statusf("flyctl", cmdctx.SINFO, "    AAAA @ %s\n\n", ipV6.Address)
-				commandContext.Statusf("flyctl", cmdctx.SINFO, " OR \n\n")
-				commandContext.Statusf("flyctl", cmdctx.SINFO, "%d: Adding an CNAME record to your DNS service which reads:\n\n", stepcnt)
-				commandContext.Statusf("flyctl", cmdctx.SINFO, "    CNAME _acme-challenge.%s %s.\n", hostname, cert.DNSValidationTarget)
+				commandContext.Statusf("certs", cmdctx.SINFO, "You can validate your ownership of %s by:\n\n", hostname)
+				commandContext.Statusf("certs", cmdctx.SINFO, "%d: Adding an AAAA record to your DNS service which reads:\n\n", stepcnt)
+				commandContext.Statusf("certs", cmdctx.SINFO, "    AAAA @ %s\n\n", ipV6.Address)
+				commandContext.Statusf("certs", cmdctx.SINFO, " OR \n\n")
+				commandContext.Statusf("certs", cmdctx.SINFO, "%d: Adding an CNAME record to your DNS service which reads:\n\n", stepcnt)
+				commandContext.Statusf("certs", cmdctx.SINFO, "    CNAME _acme-challenge.%s %s.\n", hostname, cert.DNSValidationTarget)
 				stepcnt = stepcnt + 1
 
 			}
 		} else {
 			if cert.ClientStatus == "Ready" {
-				commandContext.Statusf("flyctl", cmdctx.SINFO, "Your certificate for %s has been issued\n", hostname)
+				commandContext.Statusf("certs", cmdctx.SINFO, "Your certificate for %s has been issued\n", hostname)
 			} else {
-				commandContext.Statusf("flyctl", cmdctx.SINFO, "Your certificate for %s is being issued. Status is %s.\n", hostname, cert.ClientStatus)
+				commandContext.Statusf("certs", cmdctx.SINFO, "Your certificate for %s is being issued. Status is %s.\n", hostname, cert.ClientStatus)
 			}
 		}
 	} else {
@@ -224,27 +224,27 @@ func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert
 		onlyV4Configured := configuredipV4 && !configuredipV6
 
 		if nothingConfigured || onlyV4Configured {
-			commandContext.Statusf("flyctl", cmdctx.SINFO, "You are creating a certificate for %s\n", hostname)
-			commandContext.Statusf("flyctl", cmdctx.SINFO, "We are using %s for this certificate.\n\n", readableCertAuthority(cert.CertificateAuthority))
+			commandContext.Statusf("certs", cmdctx.SINFO, "You are creating a certificate for %s\n", hostname)
+			commandContext.Statusf("certs", cmdctx.SINFO, "We are using %s for this certificate.\n\n", readableCertAuthority(cert.CertificateAuthority))
 
 			if nothingConfigured {
-				commandContext.Statusf("flyctl", cmdctx.SINFO, "You can configure your DNS for %s by:\n\n", hostname)
+				commandContext.Statusf("certs", cmdctx.SINFO, "You can configure your DNS for %s by:\n\n", hostname)
 
 				eTLD, _ := publicsuffix.EffectiveTLDPlusOne(hostname)
 				subdomainname := strings.TrimSuffix(hostname, eTLD)
-				commandContext.Statusf("flyctl", cmdctx.SINFO, "1: Adding an CNAME record to your DNS service which reads:\n")
-				commandContext.Statusf("flyctl", cmdctx.SINFO, "\n    CNAME %s %s.fly.dev\n", subdomainname, commandContext.AppName)
+				commandContext.Statusf("certs", cmdctx.SINFO, "1: Adding an CNAME record to your DNS service which reads:\n")
+				commandContext.Statusf("certs", cmdctx.SINFO, "\n    CNAME %s %s.fly.dev\n", subdomainname, commandContext.AppName)
 			} else if onlyV4Configured {
-				commandContext.Statusf("flyctl", cmdctx.SINFO, "You can validate your ownership of %s by:\n\n", hostname)
+				commandContext.Statusf("certs", cmdctx.SINFO, "You can validate your ownership of %s by:\n\n", hostname)
 
-				commandContext.Statusf("flyctl", cmdctx.SINFO, "1: Adding an CNAME record to your DNS service which reads:\n")
-				commandContext.Statusf("flyctl", cmdctx.SINFO, "CNAME _acme-challenge.%s %s.\n", hostname, cert.DNSValidationTarget)
+				commandContext.Statusf("certs", cmdctx.SINFO, "1: Adding an CNAME record to your DNS service which reads:\n")
+				commandContext.Statusf("certs", cmdctx.SINFO, "CNAME _acme-challenge.%s %s.\n", hostname, cert.DNSValidationTarget)
 			}
 		} else {
 			if cert.ClientStatus == "Ready" {
-				commandContext.Statusf("flyctl", cmdctx.SINFO, "Your certificate for %s has been issued\n", hostname)
+				commandContext.Statusf("certs", cmdctx.SINFO, "Your certificate for %s has been issued\n", hostname)
 			} else {
-				commandContext.Statusf("flyctl", cmdctx.SINFO, "Your certificate for %s is being issued. Status is %s.\n", hostname, cert.ClientStatus)
+				commandContext.Statusf("certs", cmdctx.SINFO, "Your certificate for %s is being issued. Status is %s.\n", hostname, cert.ClientStatus)
 			}
 		}
 	}
@@ -258,7 +258,7 @@ func printCertificate(commandContext *cmdctx.CmdContext, cert *api.AppCertificat
 	}
 
 	myprnt := func(label string, value string) {
-		commandContext.Statusf("flyctl", cmdctx.SINFO, "%-25s = %s\n\n", label, value)
+		commandContext.Statusf("certs", cmdctx.SINFO, "%-25s = %s\n\n", label, value)
 	}
 
 	certtypes := []string{}
@@ -289,10 +289,10 @@ func printCertificates(commandContext *cmdctx.CmdContext, certs []api.AppCertifi
 		return commandContext.WriteJSON(certs)
 	}
 
-	commandContext.Statusf("flyctl", cmdctx.STITLE, "%-25s %-20s %s\n", "Host Name", "Added", "Status")
+	commandContext.Statusf("certs", cmdctx.STITLE, "%-25s %-20s %s\n", "Host Name", "Added", "Status")
 
 	for _, v := range certs {
-		commandContext.Statusf("flyctl", cmdctx.SINFO, "%-25s %-20s %s\n",
+		commandContext.Statusf("certs", cmdctx.SINFO, "%-25s %-20s %s\n",
 			v.Hostname,
 			humanize.Time(v.CreatedAt),
 			v.ClientStatus)
