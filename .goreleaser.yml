@@ -12,17 +12,22 @@ builds:
     ignore:
       - goos: darwin
         goarch: 386
+      - goos: linux
+        goarch: 386
+      - goos: windows
+        goarch: 386
+
     ldflags:
       - -X github.com/superfly/flyctl/flyctl.BuildDate={{.Date}}
       - -X github.com/superfly/flyctl/flyctl.Version={{ .Version }}
       - -X github.com/superfly/flyctl/flyctl.Commit={{ .ShortCommit }}
       - -X github.com/superfly/flyctl/flyctl.Environment=production
+
 archives:
   - replacements:
       darwin: macOS
       linux: Linux
       windows: Windows
-      386: i386
       amd64: x86_64
     files: [only-the-binary*]
     wrap_in_directory: false
@@ -34,7 +39,6 @@ archives:
       darwin: macOS
       linux: Linux
       windows: Windows
-      386: i386
       amd64: x86_64
 release:
   prerelease: auto
@@ -55,13 +59,16 @@ changelog:
       - "^docs:"
       - "^test:"
 brews:
-  - github:
+  - tap:
       owner: superfly
       name: homebrew-tap
     folder: Formula
     homepage: https://fly.io
     test: |
       system "#{bin}/flyctl version"
+    install: |
+      bin.install "flyctl"
+      bin.install_symlink "flyctl" => "flyctl"
 
 # snapcrafts:
 #   -

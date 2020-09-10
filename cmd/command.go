@@ -12,10 +12,11 @@ import (
 
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
+	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/flyname"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/terminal"
@@ -280,7 +281,7 @@ func requireAppName(cmd *Command) Initializer {
 		},
 		PreRun: func(ctx *cmdctx.CmdContext) error {
 			if ctx.AppName == "" {
-				return fmt.Errorf("No app specified. Specify an app or create an app with 'flyctl init'")
+				return fmt.Errorf("No app specified. Specify an app or create an app with '" + flyname.Name() + " init'")
 			}
 
 			if ctx.AppConfig == nil {

@@ -77,7 +77,7 @@ func runValidateConfig(commandContext *cmdctx.CmdContext) error {
 		return errors.New("App config file not found")
 	}
 
-	commandContext.Status("flyctl", cmdctx.STITLE, "Validating", commandContext.ConfigFile)
+	commandContext.Status("config", cmdctx.STITLE, "Validating", commandContext.ConfigFile)
 
 	serverCfg, err := commandContext.Client.API().ParseConfig(commandContext.AppName, commandContext.AppConfig.Definition)
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/flyname"
 
 	"github.com/superfly/flyctl/docstrings"
 
@@ -61,7 +62,7 @@ func runInfo(ctx *cmdctx.CmdContext) error {
 		}
 
 		if !app.Deployed {
-			ctx.Status("flyctl", `App has not been deployed yet. Try running "flyctl deploy --image flyio/hellofly"`)
+			ctx.Status("info", `App has not been deployed yet. Try running "`+flyname.Name()+` deploy --image flyio/hellofly"`)
 		}
 	}
 	return nil

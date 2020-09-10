@@ -10,9 +10,11 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/cmd"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/flyname"
 )
 
 func main() {
+	flyname.Name() // Initialise
 	opts := sentry.ClientOptions{
 		Dsn: "https://89fa584dc19b47a6952dd94bf72dbab4@sentry.io/4492967",
 		// Debug:       true,

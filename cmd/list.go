@@ -54,7 +54,7 @@ func runListApps(commandContext *cmdctx.CmdContext) error {
 	if len(commandContext.Args) == 1 {
 		appPart = commandContext.Args[0]
 	} else if len(commandContext.Args) > 0 {
-		commandContext.Status("flyctl", cmdctx.SERROR, "Too many arguments - discarding excess")
+		commandContext.Status("list", cmdctx.SERROR, "Too many arguments - discarding excess")
 	}
 
 	orgSlug, _ := commandContext.Config.GetString("org")

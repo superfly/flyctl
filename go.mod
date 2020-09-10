@@ -7,12 +7,10 @@ replace git.apache.org/thrift.git => github.com/apache/thrift v0.0.0-20180902110
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.0.7
-	github.com/Azure/go-autorest v10.15.5+incompatible // indirect
 	github.com/BurntSushi/toml v0.3.1
 	github.com/Microsoft/hcsshim v0.8.9 // indirect
 	github.com/PuerkitoBio/rehttp v1.0.0
-	github.com/agext/levenshtein v1.2.3 // indirect
-	github.com/apex/log v1.3.0 // indirect
+	github.com/apex/log v1.9.0 // indirect
 	github.com/aybabtme/iocontrol v0.0.0-20150809002002-ad15bcfc95a0 // indirect
 	github.com/benbjohnson/clock v1.0.2 // indirect
 	github.com/blang/semver v3.5.1+incompatible
@@ -29,12 +27,10 @@ require (
 	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/google/go-containerregistry v0.0.0-20200521151920-a873a21aff23 // indirect
 	github.com/hashicorp/go-multierror v1.1.0
-	github.com/hashicorp/hcl/v2 v2.5.1
 	github.com/logrusorgru/aurora v0.0.0-20200102142835-e9ef32dff381
 	github.com/machinebox/graphql v0.2.3-0.20181106130121-3a9253180225
 	github.com/matryer/is v1.3.0 // indirect
 	github.com/mattn/go-isatty v0.0.12
-	github.com/miekg/dns v1.0.14
 	github.com/mitchellh/mapstructure v1.3.1 // indirect
 	github.com/moby/buildkit v0.7.1
 	github.com/morikuni/aec v1.0.0
@@ -51,8 +47,7 @@ require (
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/viper v1.7.0
-	github.com/stretchr/testify v1.5.1
-	github.com/zclconf/go-cty v1.4.1
+	github.com/stretchr/testify v1.6.1
 	golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37 // indirect
 	golang.org/x/net v0.0.0-20200520182314-0ba52f642ac2
 	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a // indirect

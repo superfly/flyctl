@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docker"
 	"github.com/superfly/flyctl/docstrings"
+	"github.com/superfly/flyctl/flyname"
 	"github.com/superfly/flyctl/internal/builds"
 	"github.com/superfly/flyctl/internal/deployment"
 	"github.com/superfly/flyctl/terminal"
@@ -73,7 +74,7 @@ func newDeployCommand() *Command {
 
 func runDeploy(commandContext *cmdctx.CmdContext) error {
 	if commandContext.AppName == "" {
-		commandContext.Status("flyctl", cmdctx.SERROR, "No initialized application")
+		commandContext.Status("deploy", cmdctx.SERROR, "No initialized application")
 		runInit(commandContext)
 	}
 
@@ -85,9 +86,9 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 		return err
 	}
 
-	commandContext.Status("flyctl", cmdctx.STITLE, "Deploying", commandContext.AppName)
+	commandContext.Status("deploy", cmdctx.STITLE, "Deploying", commandContext.AppName)
 
-	commandContext.Status("flyctl", cmdctx.SBEGIN, "Validating App Configuration")
+	commandContext.Status("deploy", cmdctx.SBEGIN, "Validating App Configuration")
 	parsedCfg, err := op.ValidateConfig()
 	if err != nil {
 		if parsedCfg == nil {
@@ -96,11 +97,11 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 		}
 		for _, error := range parsedCfg.Errors {
 			//	fmt.Println("   ", aurora.Red("✘").String(), error)
-			commandContext.Status("flyctl", cmdctx.SERROR, "   ", aurora.Red("✘").String(), error)
+			commandContext.Status("deploy", cmdctx.SERROR, "   ", aurora.Red("✘").String(), error)
 		}
 		return err
 	}
-	commandContext.Status("flyctl", cmdctx.SDONE, "Validating App Configuration done")
+	commandContext.Status("deploy", cmdctx.SDONE, "Validating App Configuration done")
 
 	if parsedCfg.Valid {
 		if len(parsedCfg.Services) > 0 {
@@ -115,7 +116,7 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 	}
 
 	if appcheck.Status == "suspended" {
-		return fmt.Errorf("app %s is currently suspended - resume it with flyctl apps resume", commandContext.AppName)
+		return fmt.Errorf("app %s is currently suspended - resume it with "+flyname.Name()+" apps resume", commandContext.AppName)
 	}
 
 	var strategy = docker.DefaultDeploymentStrategy
@@ -143,7 +144,7 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 	if imageRef != "" {
 		// image specified, resolve it, tagging and pushing if docker+local
 
-		commandContext.Statusf("flyctl", cmdctx.SINFO, "Deploying image: %s\n", imageRef)
+		commandContext.Statusf("deploy", cmdctx.SINFO, "Deploying image: %s\n", imageRef)
 
 		img, err := op.ResolveImage(ctx, commandContext, imageRef)
 		if err != nil {
@@ -181,50 +182,50 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 			}
 		}
 
-		commandContext.Statusf("flyctl", cmdctx.SINFO, "Deploy source directory '%s'\n", commandContext.WorkingDir)
+		commandContext.Statusf("deploy", cmdctx.SINFO, "Deploy source directory '%s'\n", commandContext.WorkingDir)
 
 		if op.DockerAvailable() && !op.RemoteOnly() {
-			commandContext.Status("flyctl", cmdctx.SDETAIL, "Docker daemon available, performing local build...")
+			commandContext.Status("deploy", cmdctx.SDETAIL, "Docker daemon available, performing local build...")
 
 			if commandContext.AppConfig.HasBuilder() {
-				commandContext.Status("flyctl", cmdctx.SBEGIN, "Building with buildpacks")
+				commandContext.Status("deploy", cmdctx.SBEGIN, "Building with buildpacks")
 				img, err := op.BuildWithPack(commandContext, buildArgs)
 				if err != nil {
 					return err
 				}
 				image = img
-				commandContext.Status("flyctl", cmdctx.SDONE, "Building with buildpacks done")
+				commandContext.Status("deploy", cmdctx.SDONE, "Building with buildpacks done")
 			} else if commandContext.AppConfig.HasBuiltin() {
-				commandContext.Status("flyctl", cmdctx.SBEGIN, "Building with Builtin")
+				commandContext.Status("deploy", cmdctx.SBEGIN, "Building with Builtin")
 
 				img, err := op.BuildWithDocker(commandContext, dockerfilePath, buildArgs)
 				if err != nil {
 					return err
 				}
 				image = img
-				commandContext.Status("flyctl", cmdctx.SDONE, "Building with Builtin done")
+				commandContext.Status("deploy", cmdctx.SDONE, "Building with Builtin done")
 			} else {
-				commandContext.Status("flyctl", cmdctx.SBEGIN, "Building with Dockerfile")
+				commandContext.Status("deploy", cmdctx.SBEGIN, "Building with Dockerfile")
 
 				img, err := op.BuildWithDocker(commandContext, dockerfilePath, buildArgs)
 				if err != nil {
 					return err
 				}
 				image = img
-				commandContext.Status("flyctl", cmdctx.SDONE, "Building with Dockerfile done")
+				commandContext.Status("deploy", cmdctx.SDONE, "Building with Dockerfile done")
 			}
-			commandContext.Statusf("flyctl", cmdctx.SINFO, "Image: %+v\n", image.Tag)
-			commandContext.Statusf("flyctl", cmdctx.SINFO, "Image size: %s\n", humanize.Bytes(uint64(image.Size)))
+			commandContext.Statusf("deploy", cmdctx.SINFO, "Image: %+v\n", image.Tag)
+			commandContext.Statusf("deploy", cmdctx.SINFO, "Image size: %s\n", humanize.Bytes(uint64(image.Size)))
 
-			commandContext.Status("flyctl", cmdctx.SBEGIN, "Pushing Image")
+			commandContext.Status("deploy", cmdctx.SBEGIN, "Pushing Image")
 			err := op.PushImage(*image)
 			if err != nil {
 				return err
 			}
-			commandContext.Status("flyctl", cmdctx.SDONE, "Done Pushing Image")
+			commandContext.Status("deploy", cmdctx.SDONE, "Done Pushing Image")
 
 			if commandContext.Config.GetBool("build-only") {
-				commandContext.Statusf("flyctl", cmdctx.SINFO, "Image: %s\n", image.Tag)
+				commandContext.Statusf("deploy", cmdctx.SINFO, "Image: %s\n", image.Tag)
 
 				return nil
 			}
@@ -234,12 +235,12 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 				if op.LocalOnly() {
 					return fmt.Errorf("Docker daemon unavailable: Local-only set so cannot use to remote build")
 				}
-				commandContext.Status("flyctl", cmdctx.SINFO, "Docker daemon unavailable: Performing remote build...")
+				commandContext.Status("deploy", cmdctx.SINFO, "Docker daemon unavailable: Performing remote build...")
 			} else {
 				if op.RemoteOnly() {
-					commandContext.Status("flyctl", cmdctx.SINFO, "Remote-only set: performing remote build...")
+					commandContext.Status("deploy", cmdctx.SINFO, "Remote-only set: performing remote build...")
 				} else {
-					commandContext.Status("flyctl", cmdctx.SINFO, "Docker daemon available: Still performing remote build...")
+					commandContext.Status("deploy", cmdctx.SINFO, "Docker daemon available: Still performing remote build...")
 				}
 			}
 
@@ -257,7 +258,7 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 				s.Start()
 			} else {
 				// if not interactive, print that we are building
-				commandContext.Status("flyctl", cmdctx.SINFO, "Building")
+				commandContext.Status("deploy", cmdctx.SINFO, "Building")
 			}
 
 			buildMonitor := builds.NewBuildMonitor(build.ID, commandContext.Client.API())
@@ -278,7 +279,7 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 				s.FinalMSG = fmt.Sprintf("Build complete - %s\n", buildMonitor.Status())
 				s.Stop()
 			} else {
-				commandContext.Statusf("flyctl", cmdctx.SINFO, "Build complete - %s\n", buildMonitor.Status())
+				commandContext.Statusf("deploy", cmdctx.SINFO, "Build complete - %s\n", buildMonitor.Status())
 			}
 
 			if err := buildMonitor.Err(); err != nil {
@@ -299,17 +300,17 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 		return errors.New("Could not find an image to deploy")
 	}
 
-	commandContext.Status("flyctl", cmdctx.SBEGIN, "Optimizing Image")
+	commandContext.Status("deploy", cmdctx.SBEGIN, "Optimizing Image")
 
 	if err := op.OptimizeImage(*image); err != nil {
 		return err
 	}
-	commandContext.Status("flyctl", cmdctx.SDONE, "Done Optimizing Image")
+	commandContext.Status("deploy", cmdctx.SDONE, "Done Optimizing Image")
 
-	commandContext.Status("flyctl", cmdctx.SBEGIN, "Creating Release")
+	commandContext.Status("deploy", cmdctx.SBEGIN, "Creating Release")
 
 	if strategy != docker.DefaultDeploymentStrategy {
-		commandContext.Statusf("flyctl", cmdctx.SDETAIL, "Deployment Strategy: %s", strategy)
+		commandContext.Statusf("deploy", cmdctx.SDETAIL, "Deployment Strategy: %s", strategy)
 	}
 
 	release, err := op.Deploy(*image, strategy)
@@ -319,7 +320,7 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 
 	op.CleanDeploymentTags()
 
-	commandContext.Statusf("flyctl", cmdctx.SINFO, "Release v%d created\n", release.Version)
+	commandContext.Statusf("deploy", cmdctx.SINFO, "Release v%d created\n", release.Version)
 
 	if strings.ToLower(release.DeploymentStrategy) == string(docker.ImmediateDeploymentStrategy) {
 		return nil
@@ -380,7 +381,7 @@ func watchDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) err
 		}
 
 		if len(failedAllocs) > 0 {
-			commandContext.Status("flyctl", cmdctx.STITLE, "Failed Allocations")
+			commandContext.Status("deploy", cmdctx.STITLE, "Failed Allocations")
 
 			x := make(chan *api.AllocationStatus)
 			var wg sync.WaitGroup
@@ -392,7 +393,7 @@ func watchDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) err
 					defer wg.Done()
 					alloc, err := commandContext.Client.API().GetAllocationStatus(commandContext.AppName, a.ID, 20)
 					if err != nil {
-						commandContext.Status("flyctl", cmdctx.SERROR, "Error fetching alloc", a.ID, err)
+						commandContext.Status("deploy", cmdctx.SERROR, "Error fetching alloc", a.ID, err)
 						return
 					}
 					x <- alloc
@@ -407,7 +408,7 @@ func watchDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) err
 			count := 0
 			for alloc := range x {
 				count++
-				commandContext.Statusf("flyctl", cmdctx.SERROR, "\n  Failure #%d\n", count)
+				commandContext.Statusf("deploy", cmdctx.SERROR, "\n  Failure #%d\n", count)
 				err := commandContext.Frender(
 					cmdctx.PresenterOption{
 						Title: "Allocation",
@@ -427,7 +428,7 @@ func watchDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) err
 					return err
 				}
 
-				commandContext.Status("flyctl", cmdctx.STITLE, "Recent Logs")
+				commandContext.Status("deploy", cmdctx.STITLE, "Recent Logs")
 				logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
 				logPresenter.FPrint(commandContext.Out, commandContext.OutputJSON(), alloc.RecentLogs)
 			}
@@ -439,7 +440,7 @@ func watchDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) err
 
 	monitor.DeploymentSucceeded = func(d *api.DeploymentStatus) error {
 
-		commandContext.Statusf("flyctl", cmdctx.SDONE, "v%d deployed successfully\n", d.Version)
+		commandContext.Statusf("deploy", cmdctx.SDONE, "v%d deployed successfully\n", d.Version)
 		return nil
 	}
 
@@ -450,7 +451,7 @@ func watchDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) err
 	}
 
 	if endmessage != "" {
-		commandContext.Status("flyctl", cmdctx.SERROR, endmessage)
+		commandContext.Status("deploy", cmdctx.SERROR, endmessage)
 	}
 
 	if !monitor.Success() {

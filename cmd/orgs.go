@@ -99,19 +99,19 @@ func runOrgsShow(ctx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	ctx.Statusf("fyctl", cmdctx.STITLE, "Organization\n")
+	ctx.Statusf("orgs", cmdctx.STITLE, "Organization\n")
 
-	ctx.Statusf("flyctl", cmdctx.SINFO, "%-10s: %-20s\n", "Name", org.Name)
-	ctx.Statusf("flyctl", cmdctx.SINFO, "%-10s: %-20s\n", "Slug", org.Slug)
-	ctx.Statusf("flyctl", cmdctx.SINFO, "%-10s: %-20s\n", "Type", org.Type)
+	ctx.Statusf("orgs", cmdctx.SINFO, "%-10s: %-20s\n", "Name", org.Name)
+	ctx.Statusf("orgs", cmdctx.SINFO, "%-10s: %-20s\n", "Slug", org.Slug)
+	ctx.Statusf("orgs", cmdctx.SINFO, "%-10s: %-20s\n", "Type", org.Type)
 
 	ctx.StatusLn()
 
-	ctx.Statusf("fyctl", cmdctx.STITLE, "Summary\n")
+	ctx.Statusf("orgs", cmdctx.STITLE, "Summary\n")
 
-	ctx.Statusf("flyctl", cmdctx.SINFO, "You have %s permissions on this organizaton\n", org.ViewerRole)
-	ctx.Statusf("flyctl", cmdctx.SINFO, "There are %d DNS zones associated with this organization\n", len(org.DNSZones.Nodes))
-	ctx.Statusf("flyctl", cmdctx.SINFO, "There are %d members associated with this organization\n", len(org.Members.Edges))
+	ctx.Statusf("orgs", cmdctx.SINFO, "You have %s permissions on this organizaton\n", org.ViewerRole)
+	ctx.Statusf("orgs", cmdctx.SINFO, "There are %d DNS zones associated with this organization\n", len(org.DNSZones.Nodes))
+	ctx.Statusf("orgs", cmdctx.SINFO, "There are %d members associated with this organization\n", len(org.Members.Edges))
 
 	ctx.StatusLn()
 
