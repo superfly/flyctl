@@ -48,10 +48,10 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/viper v1.7.0
 	github.com/stretchr/testify v1.6.1
-	golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37 // indirect
-	golang.org/x/net v0.0.0-20200520182314-0ba52f642ac2
-	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a // indirect
+	golang.org/x/net v0.0.0-20200822124328-c89045814202
 	golang.org/x/sys v0.0.0-20200523222454-059865788121 // indirect
+	golang.org/x/tools v0.0.0-20200909210914-44a2922940c2 // indirect
+	golang.org/x/tools/gopls v0.0.0-20200909210914-44a2922940c2 // indirect
 	google.golang.org/grpc v1.29.1 // indirect
 	google.golang.org/protobuf v1.24.0 // indirect
 	gopkg.in/ini.v1 v1.56.0 // indirect
