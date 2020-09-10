@@ -99,14 +99,16 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 
 	configfilename, err := flyctl.ResolveConfigFileFromPath(commandContext.WorkingDir)
 
-	if helpers.FileExists(configfilename) && !overwrite {
-		commandContext.Status("init", cmdctx.SERROR, "An existing configuration file has been found.")
-		confirmation := confirm(fmt.Sprintf("Overwrite file '%s'", configfilename))
-		if !confirmation {
-			return nil
+	if helpers.FileExists(configfilename) {
+		if !overwrite {
+			commandContext.Status("init", cmdctx.SERROR, "An existing configuration file has been found.")
+			confirmation := confirm(fmt.Sprintf("Overwrite file '%s'", configfilename))
+			if !confirmation {
+				return nil
+			}
+		} else {
+			commandContext.Status("init", cmdctx.SWARN, "Overwriting existing configuration (--overwrite)")
 		}
-	} else {
-		commandContext.Status("init", cmdctx.SWARN, "Overwriting existing configuration (--overwrite)")
 	}
 
 	newAppConfig := flyctl.NewAppConfig()
