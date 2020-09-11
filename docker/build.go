@@ -114,7 +114,12 @@ func (op *DeployOperation) BuildWithDocker(commandContext *cmdctx.CmdContext, do
 		if err != nil {
 			return nil, err
 		}
-		if err := buildContext.AddFile("Dockerfile", strings.NewReader(builtin.FileText)); err != nil {
+		// Expand args
+		vdockerfile, err := builtin.GetVDockerfile(appConfig.Build.Args)
+		if err != nil {
+			return nil, err
+		}
+		if err := buildContext.AddFile("Dockerfile", strings.NewReader(vdockerfile)); err != nil {
 			return nil, err
 		}
 	}

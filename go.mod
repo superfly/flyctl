@@ -25,6 +25,7 @@ require (
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/getsentry/sentry-go v0.6.1
 	github.com/golang/protobuf v1.4.2 // indirect
+	github.com/google/go-cmp v0.5.1 // indirect
 	github.com/google/go-containerregistry v0.0.0-20200521151920-a873a21aff23 // indirect
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/logrusorgru/aurora v0.0.0-20200102142835-e9ef32dff381
@@ -49,9 +50,9 @@ require (
 	github.com/spf13/viper v1.7.0
 	github.com/stretchr/testify v1.6.1
 	golang.org/x/net v0.0.0-20200822124328-c89045814202
+	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208 // indirect
 	golang.org/x/sys v0.0.0-20200523222454-059865788121 // indirect
-	golang.org/x/tools v0.0.0-20200909210914-44a2922940c2 // indirect
-	golang.org/x/tools/gopls v0.0.0-20200909210914-44a2922940c2 // indirect
+	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/grpc v1.29.1 // indirect
 	google.golang.org/protobuf v1.24.0 // indirect
 	gopkg.in/ini.v1 v1.56.0 // indirect
