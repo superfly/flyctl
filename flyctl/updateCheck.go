@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/superfly/flyctl/flyname"
 
 	"github.com/blang/semver"
 	"github.com/logrusorgru/aurora"
@@ -30,7 +33,13 @@ func updateAvailable() bool {
 	if err != nil {
 		return false
 	}
-	cv, err := semver.Parse(Version)
+
+	TestVersion := Version
+
+	if TestVersion == "<version>" {
+		TestVersion = "0.0.0"
+	}
+	cv, err := semver.Parse(TestVersion)
 	if err != nil {
 		return false
 	}
@@ -39,16 +48,20 @@ func updateAvailable() bool {
 }
 
 // CheckForUpdate - Test for available updates and emit a message if one is available
-func CheckForUpdate() {
-	if skipUpdateCheck() {
-		return
+func CheckForUpdate(noskip bool, silent bool) string {
+	name, _ := os.Executable()
+	if (!noskip && skipUpdateCheck()) || path.Base(name) == "main" {
+		return ""
 	}
+
+	checkForReleaseBlocking()
 
 	if updateAvailable() {
 		latestVersion := viper.GetString(ConfigUpdateCheckLatestVersion)
 		installer := viper.GetString(ConfigInstaller)
 
 		fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Update available %s -> %s", Version, latestVersion)))
+
 		var installerstring string
 		if installer != "" {
 			switch installer {
@@ -64,7 +77,12 @@ func CheckForUpdate() {
 				installerstring = "curl -L \"https://fly.io/install.sh\" | sh"
 			}
 		}
-		fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Update with\n%s\n", installerstring)))
+		if !silent {
+			fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Update with %s version update\n", flyname.Name())))
+
+			//			fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Update with\n%s\n", installerstring)))
+		}
+		return installerstring
 	}
 
 	lastCheck := viper.GetTime(ConfigUpdateCheckTimestamp)
@@ -72,11 +90,21 @@ func CheckForUpdate() {
 		BackgroundTaskWG.Add(1)
 		go checkForRelease()
 	}
+
+	return ""
 }
 
 func checkForRelease() {
 	defer BackgroundTaskWG.Done()
 
+	if version, err := refreshGithubVersion(); err == nil {
+		viper.Set(ConfigUpdateCheckLatestVersion, version)
+		viper.Set(ConfigUpdateCheckTimestamp, time.Now())
+		SaveConfig()
+	}
+}
+
+func checkForReleaseBlocking() {
 	if version, err := refreshGithubVersion(); err == nil {
 		viper.Set(ConfigUpdateCheckLatestVersion, version)
 		viper.Set(ConfigUpdateCheckTimestamp, time.Now())
@@ -91,10 +119,19 @@ type githubReleaseLatestResponse struct {
 type githubReleaseResponse []githubReleaseLatestResponse
 
 func refreshGithubVersion() (string, error) {
-	cv, err := semver.Parse(Version)
+	TestVersion := Version
+
+	if TestVersion == "<version>" {
+		TestVersion = "0.0.0"
+	}
+
+	cv, err := semver.Parse(TestVersion)
 	if err != nil {
+		fmt.Println("Refresh errored ", err)
+
 		return "", err
 	}
+
 	var resp *http.Response
 
 	if len(cv.Pre) == 0 {
@@ -112,6 +149,7 @@ func refreshGithubVersion() (string, error) {
 		}
 		return strings.TrimPrefix(data.Name, "v"), nil
 	}
+	fmt.Println("Prerel")
 
 	resp, err = http.Get("https://api.github.com/repos/superfly/flyctl/releases")
 	if err != nil {

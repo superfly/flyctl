@@ -5,15 +5,16 @@ import (
 	"path"
 )
 
-var CachedName string
+var cachedName string
 
+// Name - get the (cached) executable name
 func Name() string {
-	if CachedName == "" {
+	if cachedName == "" {
 		execname, err := os.Executable()
 		if err != nil {
 			panic(err)
 		}
-		CachedName = path.Base(execname)
+		cachedName = path.Base(execname)
 	}
-	return CachedName
+	return cachedName
 }

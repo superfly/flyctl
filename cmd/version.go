@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/exec"
 
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/cmdctx"
@@ -34,10 +35,14 @@ func newVersionCommand() *Command {
 	})
 	version.Flag("saveinstall").Hidden = true
 
+	updateStrings := docstrings.Get("version.update")
+	BuildCommandKS(version, runUpdate, updateStrings, os.Stdout)
+
 	return version
 }
 
 func runVersion(ctx *cmdctx.CmdContext) error {
+
 	shellType, _ := ctx.Config.GetString("completions")
 
 	if shellType != "" {
@@ -83,5 +88,29 @@ func runVersion(ctx *cmdctx.CmdContext) error {
 			fmt.Printf("%s %s\n", flyname.Name(), flyctl.Version)
 		}
 	}
+	return nil
+}
+
+func runUpdate(ctx *cmdctx.CmdContext) error {
+	installerstring := flyctl.CheckForUpdate(true, true) // No skipping, be silent
+
+	if installerstring == "" {
+		return fmt.Errorf("no update currently available")
+	}
+
+	shellToUse, ok := os.LookupEnv("SHELL")
+
+	if !ok {
+		shellToUse = "/bin/bash"
+	}
+
+	fmt.Println("Running automatic update [" + installerstring + "]")
+	cmd := exec.Command(shellToUse, "-c", installerstring)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+
+	cmd.Run()
+	os.Exit(0)
 	return nil
 }

@@ -58,7 +58,6 @@ func init() {
 	viper.BindPFlag(flyctl.ConfigJSONOutput, rootCmd.PersistentFlags().Lookup("json"))
 
 	rootCmd.PersistentFlags().Bool("gqlerrorlogging", false, "Log GraphQL errors directly to stdout")
-
 	rootCmd.PersistentFlags().MarkHidden("gqlerrorlogging")
 
 	rootCmd.AddCommand(
@@ -101,7 +100,7 @@ func init() {
 
 func initConfig() {
 	flyctl.InitConfig()
-	flyctl.CheckForUpdate()
+	flyctl.CheckForUpdate(false, false) // allow skipping, don't be silent
 }
 
 func checkErr(err error) {

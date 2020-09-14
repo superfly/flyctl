@@ -609,6 +609,13 @@ longHelp="""Shows version information for the flyctl command itself,
 including version number and build date.
 """
 
+[version.update]
+usage="update"
+shortHelp="Checks for available updates and automatically updates"
+longHelp="""Checks for update and if one is available, runs the appropriate
+command to update the application.
+"""
+
 [builtins]
 usage="builtins"
 shortHelp="View and manage Flyctl deployment builtins"
