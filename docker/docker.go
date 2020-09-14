@@ -71,7 +71,6 @@ func NewDockerClient() (*DockerClient, error) {
 		return nil, err
 	}
 	authStr := base64.URLEncoding.EncodeToString(encodedJSON)
-
 	c := &DockerClient{
 		docker:       cli,
 		registryAuth: authStr,
@@ -171,11 +170,15 @@ func (c *DockerClient) BuildImage(ctx context.Context, tar io.Reader, tag string
 	if buildkitEnabled {
 		return c.doBuildKitBuild(ctx, tar, tag, buildArgs, out)
 	}
-	resp, err := c.docker.ImageBuild(ctx, tar, types.ImageBuildOptions{
+
+	opts := types.ImageBuildOptions{
 		Tags:      []string{tag},
 		BuildArgs: buildArgs,
 		// NoCache:   true,
-	})
+		AuthConfigs: authConfigs(),
+	}
+
+	resp, err := c.docker.ImageBuild(ctx, tar, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +198,8 @@ func (c *DockerClient) doBuildKitBuild(ctx context.Context, tar io.Reader, tag s
 		Tags:      []string{tag},
 		BuildArgs: buildArgs,
 		// NoCache:   true,
-		Version: types.BuilderBuildKit,
+		Version:     types.BuilderBuildKit,
+		AuthConfigs: authConfigs(),
 	}
 
 	resp, err := c.docker.ImageBuild(ctx, tar, opts)
@@ -373,6 +377,24 @@ func getDockerHubToken(imageName string) (string, error) {
 	json.NewDecoder(resp.Body).Decode(&data)
 
 	return data["token"], nil
+}
+
+func authConfigs() map[string]types.AuthConfig {
+	authConfigs := map[string]types.AuthConfig{}
+
+	dockerhubUsername := os.Getenv("DOCKER_HUB_USERNAME")
+	dockerhubPassword := os.Getenv("DOCKER_HUB_PASSWORD")
+
+	if dockerhubUsername != "" && dockerhubPassword != "" {
+		cfg := types.AuthConfig{
+			Username:      dockerhubUsername,
+			Password:      dockerhubPassword,
+			ServerAddress: "index.docker.io",
+		}
+		authConfigs["https://index.docker.io/v1/"] = cfg
+	}
+
+	return authConfigs
 }
 
 type tracer struct {
