@@ -114,7 +114,11 @@ func checkForRelease() {
 	if version, err := refreshGithubVersion(); err == nil {
 		viper.Set(ConfigUpdateCheckLatestVersion, version)
 		viper.Set(ConfigUpdateCheckTimestamp, time.Now())
-		SaveConfig()
+		err := SaveConfig()
+		if err != nil {
+			fmt.Printf("Error saving config while checking release:%s", err)
+			return
+		}
 	}
 }
 
@@ -122,7 +126,11 @@ func checkForReleaseBlocking() {
 	if version, err := refreshGithubVersion(); err == nil {
 		viper.Set(ConfigUpdateCheckLatestVersion, version)
 		viper.Set(ConfigUpdateCheckTimestamp, time.Now())
-		SaveConfig()
+		err := SaveConfig()
+		if err != nil {
+			fmt.Printf("Error saving config while checking release:%s", err)
+			return
+		}
 	}
 }
 
