@@ -68,7 +68,7 @@ brews:
       system "#{bin}/flyctl version"
     install: |
       bin.install "flyctl"
-      bin.install_symlink "flyctl" => "flyctl"
+      bin.install_symlink "flyctl" => "fly"
 
 # snapcrafts:
 #   -
