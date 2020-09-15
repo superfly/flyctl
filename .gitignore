@@ -22,7 +22,7 @@ dist/
 
 # generated docs
 out
-docstrings/gen.go
+#docstrings/gen.go
 /.idea/*
 /.idea/.gitignore
 /.idea/dictionaries/dj.xml
