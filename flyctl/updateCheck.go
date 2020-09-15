@@ -67,22 +67,28 @@ func CheckForUpdate(noskip bool, silent bool) string {
 
 		var installerstring string
 		if installer != "" {
-			switch installer {
-				if runtime.GOOS!="windows" {
-			case "shell":
-				installerstring = "iwr https://fly.io/install.ps1 | iex"
-			case "shell-prerel":
-				installerstring = "iwr https://fly.io/install.ps1 | iex"
+			if runtime.GOOS == "windows" {
+				switch installer {
+
+				case "shell":
+					installerstring = "iwr https://fly.io/install.ps1 | iex"
+				case "shell-prerel":
+					installerstring = "iwr https://fly.io/installprerel.ps1 | iex"
+				}
+			} else {
+				switch installer {
+
+				case "shell":
+					installerstring = "curl -L \"https://fly.io/install.sh\" | sh"
+				case "shell-prerel":
+					installerstring = "curl -L \"https://fly.io/install.sh\" | sh -s prerel"
+				}
 			}
-		} else {
-		case "shell":
-			installerstring = "curl -L \"https://fly.io/install.sh\" | sh"
-		case "shell-prerel":
-			installerstring = "curl -L \"https://fly.io/install.sh\" | sh -s prerel"
-		}
 		} else {
 			if runtime.GOOS == "darwin" {
 				installerstring = "brew upgrade flyctl"
+			} else if runtime.GOOS == "windows" {
+				installerstring = "iwr https://fly.io/install.ps1 | iex"
 			} else {
 				installerstring = "curl -L \"https://fly.io/install.sh\" | sh"
 			}

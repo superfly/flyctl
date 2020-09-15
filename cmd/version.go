@@ -104,12 +104,13 @@ func runUpdate(ctx *cmdctx.CmdContext) error {
 
 	if !ok {
 		if runtime.GOOS == "windows" {
-			shellToUse = "cmd"
-			switchToUse = "/C"
+			shellToUse = "powershell.exe"
+			switchToUse = "-Command"
 		} else {
 			shellToUse = "/bin/bash"
 		}
 	}
+	fmt.Println(shellToUse, switchToUse)
 
 	fmt.Println("Running automatic update [" + installerstring + "]")
 	cmd := exec.Command(shellToUse, switchToUse, installerstring)
