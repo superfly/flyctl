@@ -74,5 +74,5 @@ app: banana
 
 ## Building on Windows
 
-There is a simple Powershell script, `winbuild.ps1`, which will run the code generation  for the help, format it and run a full build, leaving a new binary in the bin directory.
+There is a simple Powershell script, `winbuild.ps1`, which will run the code generation for the help files, format them, and run a full build, leaving a new binary in the bin directory.
 
