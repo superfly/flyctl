@@ -29,7 +29,7 @@ func updateAvailable() bool {
 		return false
 	}
 
-	lv, err := semver.Parse(viper.GetString(ConfigUpdateCheckLatestVersion))
+	lv, err := semver.ParseTolerant(viper.GetString(ConfigUpdateCheckLatestVersion))
 	if err != nil {
 		return false
 	}
@@ -39,7 +39,7 @@ func updateAvailable() bool {
 	if TestVersion == "<version>" {
 		TestVersion = "0.0.0"
 	}
-	cv, err := semver.Parse(TestVersion)
+	cv, err := semver.ParseTolerant(TestVersion)
 	if err != nil {
 		return false
 	}
@@ -79,8 +79,6 @@ func CheckForUpdate(noskip bool, silent bool) string {
 		}
 		if !silent {
 			fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Update with %s version update\n", flyname.Name())))
-
-			//			fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Update with\n%s\n", installerstring)))
 		}
 		return installerstring
 	}
@@ -125,7 +123,7 @@ func refreshGithubVersion() (string, error) {
 		TestVersion = "0.0.0"
 	}
 
-	cv, err := semver.Parse(TestVersion)
+	cv, err := semver.ParseTolerant(TestVersion)
 	if err != nil {
 		fmt.Println("Refresh errored ", err)
 
@@ -149,7 +147,6 @@ func refreshGithubVersion() (string, error) {
 		}
 		return strings.TrimPrefix(data.Name, "v"), nil
 	}
-	fmt.Println("Prerel")
 
 	resp, err = http.Get("https://api.github.com/repos/superfly/flyctl/releases")
 	if err != nil {
