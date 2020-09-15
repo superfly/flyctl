@@ -217,7 +217,6 @@ func (commandContext *CmdContext) Statusf(source string, status string, format s
 func (commandContext *CmdContext) WriteJSON(myData interface{}) {
 	outBuf, _ := json.MarshalIndent(myData, "", "    ")
 	fmt.Fprintln(commandContext.Out, string(outBuf))
-	return
 }
 
 func (commandContext *CmdContext) OutputJSON() bool {
