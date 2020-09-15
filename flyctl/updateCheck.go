@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -50,7 +50,7 @@ func updateAvailable() bool {
 // CheckForUpdate - Test for available updates and emit a message if one is available
 func CheckForUpdate(noskip bool, silent bool) string {
 	name, _ := os.Executable()
-	if (!noskip && skipUpdateCheck()) || path.Base(name) == "main" {
+	if (!noskip && skipUpdateCheck()) || filepath.Base(name) == "main" {
 		return ""
 	}
 
@@ -65,11 +65,18 @@ func CheckForUpdate(noskip bool, silent bool) string {
 		var installerstring string
 		if installer != "" {
 			switch installer {
+				if runtime.GOOS!="windows" {
 			case "shell":
-				installerstring = "curl -L \"https://fly.io/install.sh\" | sh"
+				installerstring = "iwr https://fly.io/install.ps1 | iex"
 			case "shell-prerel":
-				installerstring = "curl -L \"https://fly.io/install.sh\" | sh -s prerel"
+				installerstring = "iwr https://fly.io/install.ps1 | iex"
 			}
+		} else {
+		case "shell":
+			installerstring = "curl -L \"https://fly.io/install.sh\" | sh"
+		case "shell-prerel":
+			installerstring = "curl -L \"https://fly.io/install.sh\" | sh -s prerel"
+		}
 		} else {
 			if runtime.GOOS == "darwin" {
 				installerstring = "brew upgrade flyctl"

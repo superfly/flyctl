@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/cmdctx"
@@ -99,18 +100,29 @@ func runUpdate(ctx *cmdctx.CmdContext) error {
 	}
 
 	shellToUse, ok := os.LookupEnv("SHELL")
+	switchToUse := "-c"
 
 	if !ok {
-		shellToUse = "/bin/bash"
+		if runtime.GOOS == "windows" {
+			shellToUse = "cmd"
+			switchToUse = "/C"
+		} else {
+			shellToUse = "/bin/bash"
+		}
 	}
 
 	fmt.Println("Running automatic update [" + installerstring + "]")
-	cmd := exec.Command(shellToUse, "-c", installerstring)
+	cmd := exec.Command(shellToUse, switchToUse, installerstring)
+
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 
-	cmd.Run()
+	err := cmd.Run()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 	os.Exit(0)
 	return nil
 }

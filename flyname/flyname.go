@@ -2,7 +2,7 @@ package flyname
 
 import (
 	"os"
-	"path"
+	"path/filepath"
 )
 
 var cachedName string
@@ -14,7 +14,7 @@ func Name() string {
 		if err != nil {
 			panic(err)
 		}
-		cachedName = path.Base(execname)
+		cachedName = filepath.Base(execname)
 	}
 	return cachedName
 }
