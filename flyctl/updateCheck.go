@@ -25,6 +25,7 @@ func skipUpdateCheck() bool {
 }
 
 func updateAvailable() bool {
+	fmt.Println("In Update Available")
 	if !viper.IsSet(ConfigUpdateCheckLatestVersion) {
 		return false
 	}
@@ -40,7 +41,9 @@ func updateAvailable() bool {
 		TestVersion = "0.0.0"
 	}
 	cv, err := semver.ParseTolerant(TestVersion)
+
 	if err != nil {
+		fmt.Println(err)
 		return false
 	}
 
