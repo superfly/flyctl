@@ -115,7 +115,10 @@ func runCertDelete(commandContext *cmdctx.CmdContext) error {
 		prompt := &survey.Confirm{
 			Message: fmt.Sprintf("Remove certificate %s from app %s?", hostname, commandContext.AppName),
 		}
-		survey.AskOne(prompt, &confirm)
+		err := survey.AskOne(prompt, &confirm)
+		if err != nil {
+			return err
+		}
 
 		if !confirm {
 			return nil
@@ -206,7 +209,7 @@ func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert
 				commandContext.Statusf("certs", cmdctx.SINFO, " OR \n\n")
 				commandContext.Statusf("certs", cmdctx.SINFO, "%d: Adding an CNAME record to your DNS service which reads:\n\n", stepcnt)
 				commandContext.Statusf("certs", cmdctx.SINFO, "    CNAME _acme-challenge.%s %s.\n", hostname, cert.DNSValidationTarget)
-				stepcnt = stepcnt + 1
+				// stepcnt = stepcnt + 1 Uncomment if more steps
 
 			}
 		} else {
@@ -252,10 +255,10 @@ func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert
 	return nil
 }
 
-func printCertificate(commandContext *cmdctx.CmdContext, cert *api.AppCertificate) error {
+func printCertificate(commandContext *cmdctx.CmdContext, cert *api.AppCertificate) {
 	if commandContext.OutputJSON() {
 		commandContext.WriteJSON(cert)
-		return nil
+		return
 	}
 
 	myprnt := func(label string, value string) {
@@ -275,7 +278,7 @@ func printCertificate(commandContext *cmdctx.CmdContext, cert *api.AppCertificat
 	myprnt("Added to App", humanize.Time(cert.CreatedAt))
 	myprnt("Source", cert.Source)
 
-	return nil
+	return
 }
 
 func readableCertAuthority(ca string) string {
