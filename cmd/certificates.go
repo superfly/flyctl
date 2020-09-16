@@ -277,8 +277,6 @@ func printCertificate(commandContext *cmdctx.CmdContext, cert *api.AppCertificat
 	myprnt("Issued", strings.Join(certtypes, ","))
 	myprnt("Added to App", humanize.Time(cert.CreatedAt))
 	myprnt("Source", cert.Source)
-
-	return
 }
 
 func readableCertAuthority(ca string) string {
