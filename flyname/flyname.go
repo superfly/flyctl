@@ -2,18 +2,19 @@ package flyname
 
 import (
 	"os"
-	"path"
+	"path/filepath"
 )
 
-var CachedName string
+var cachedName string
 
+// Name - get the (cached) executable name
 func Name() string {
-	if CachedName == "" {
+	if cachedName == "" {
 		execname, err := os.Executable()
 		if err != nil {
 			panic(err)
 		}
-		CachedName = path.Base(execname)
+		cachedName = filepath.Base(execname)
 	}
-	return CachedName
+	return cachedName
 }

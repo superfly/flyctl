@@ -17,7 +17,7 @@ const (
 	ConfigUpdateCheck              = "update_check"
 	ConfigUpdateCheckLatestVersion = ConfigUpdateCheck + ".latest_version"
 	ConfigUpdateCheckTimestamp     = ConfigUpdateCheck + ".timestamp"
-	ConfigUpdateCheckOptOut        = ConfigUpdateCheck + ".out_out"
+	ConfigUpdateCheckOptOut        = ConfigUpdateCheck + ".opt_out"
 )
 
 const NSRoot = "flyctl"
