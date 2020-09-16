@@ -254,7 +254,8 @@ func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert
 
 func printCertificate(commandContext *cmdctx.CmdContext, cert *api.AppCertificate) error {
 	if commandContext.OutputJSON() {
-		return commandContext.WriteJSON(cert)
+		commandContext.WriteJSON(cert)
+		return nil
 	}
 
 	myprnt := func(label string, value string) {
@@ -286,7 +287,8 @@ func readableCertAuthority(ca string) string {
 
 func printCertificates(commandContext *cmdctx.CmdContext, certs []api.AppCertificateCompact) error {
 	if commandContext.OutputJSON() {
-		return commandContext.WriteJSON(certs)
+		commandContext.WriteJSON(certs)
+		return nil
 	}
 
 	commandContext.Statusf("certs", cmdctx.STITLE, "%-25s %-20s %s\n", "Host Name", "Added", "Status")
