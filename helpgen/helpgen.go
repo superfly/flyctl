@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/pelletier/go-toml"
@@ -37,7 +38,15 @@ func dumpMap(prefix string, m map[string]interface{}) {
 			prefix, strings.TrimSpace(usage), strings.TrimSpace(short), strings.TrimSpace(long))
 	}
 
-	for k, v := range m {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		v := m[k]
 		switch node := v.(type) {
 		case map[string]interface{}:
 			if prefix != "" {
