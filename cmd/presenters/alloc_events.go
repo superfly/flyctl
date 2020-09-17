@@ -6,18 +6,22 @@ import (
 	"github.com/superfly/flyctl/api"
 )
 
+// AllocationEvents - Holds events for an allocation
 type AllocationEvents struct {
 	Events []api.AllocationEvent
 }
 
+// APIStruct - returns an interface to allocation events
 func (p *AllocationEvents) APIStruct() interface{} {
 	return p.Events
 }
 
+// FieldNames - returns the field names for an allocation event
 func (p *AllocationEvents) FieldNames() []string {
 	return []string{"Timestamp", "Type", "Message"}
 }
 
+// Records - formats allocation events into a map
 func (p *AllocationEvents) Records() []map[string]string {
 	out := []map[string]string{}
 
