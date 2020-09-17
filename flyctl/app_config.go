@@ -258,18 +258,19 @@ func ResolveConfigFileFromPath(p string) (string, error) {
 	// Is this a bare directory path? Stat the path
 	pd, err := os.Stat(p)
 
-	if err == os.ErrNotExist {
-		return path.Join(p, defaultConfigFileName), nil
-	} else if err != nil {
+	if err != nil {
+		if os.IsNotExist(err) {
+			return p, nil
+		}
 		return "", err
 	}
 
 	// Ok, something exists. Is it a file - yes? return the path
-	if !pd.IsDir() {
-		return p, nil
+	if pd.IsDir() {
+		return path.Join(p, defaultConfigFileName), nil
 	}
 
-	return path.Join(p, defaultConfigFileName), nil
+	return p, nil
 }
 
 func ConfigFormatFromPath(p string) ConfigFormat {
