@@ -408,7 +408,10 @@ func watchDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) err
 			count := 0
 			for alloc := range x {
 				count++
-				commandContext.Statusf("deploy", cmdctx.SERROR, "\n  Failure #%d\n", count)
+				commandContext.StatusLn()
+				commandContext.Statusf("deploy", cmdctx.SBEGIN, "Failure #%d\n", count)
+				commandContext.StatusLn()
+
 				err := commandContext.Frender(
 					cmdctx.PresenterOption{
 						Title: "Allocation",
