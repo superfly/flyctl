@@ -25,7 +25,6 @@ func skipUpdateCheck() bool {
 }
 
 func updateAvailable() bool {
-	fmt.Println("In Update Available")
 	if !viper.IsSet(ConfigUpdateCheckLatestVersion) {
 		return false
 	}
@@ -59,11 +58,17 @@ func CheckForUpdate(noskip bool, silent bool) string {
 
 	checkForReleaseBlocking()
 
+	if Version == "<version>" {
+		return ""
+	}
+
 	if updateAvailable() {
 		latestVersion := viper.GetString(ConfigUpdateCheckLatestVersion)
 		installer := viper.GetString(ConfigInstaller)
 
-		fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Update available %s -> %s", Version, latestVersion)))
+		if !silent {
+			fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Update available %s -> %s", Version, latestVersion)))
+		}
 
 		var installerstring string
 		if installer != "" {
