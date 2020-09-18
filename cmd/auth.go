@@ -227,7 +227,7 @@ func runLogout(ctx *cmdctx.CmdContext) error {
 }
 
 func runAuthToken(ctx *cmdctx.CmdContext) error {
-	token, _ := ctx.GlobalConfig.GetString(flyctl.ConfigAPIToken)
+	token := flyctl.GetAPIToken()
 
 	if ctx.OutputJSON() {
 		ctx.WriteJSON(map[string]string{"flyctlAuthToken": token})
@@ -246,7 +246,7 @@ func runAuthDocker(ctx *cmdctx.CmdContext) error {
 		return errors.Wrap(err, "docker cli not found - make sure it's installed and try again")
 	}
 
-	token, _ := ctx.GlobalConfig.GetString(flyctl.ConfigAPIToken)
+	token := flyctl.GetAPIToken()
 
 	cmd := exec.CommandContext(cc, binary, "login", "--username=x", "--password-stdin", "registry.fly.io")
 	stdin, err := cmd.StdinPipe()

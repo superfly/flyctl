@@ -64,7 +64,7 @@ func NewDockerClient() (*DockerClient, error) {
 		return nil, err
 	}
 
-	accessToken := viper.GetString(flyctl.ConfigAPIToken)
+	accessToken := flyctl.GetAPIToken()
 	authConfig := RegistryAuth(accessToken)
 	encodedJSON, err := json.Marshal(authConfig)
 	if err != nil {

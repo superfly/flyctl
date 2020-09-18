@@ -61,14 +61,9 @@ func initViper() {
 
 	viper.SetDefault(ConfigAPIBaseURL, "https://api.fly.io")
 	viper.SetDefault(ConfigRegistryHost, "registry.fly.io")
-	// viper.RegisterAlias("access_token", ConfigAPIToken)
-	viper.BindEnv(ConfigAPIToken, "FLY_ACCESS_TOKEN")
-	viper.BindEnv(ConfigAPIToken, "FLY_API_TOKEN")
+
 	viper.BindEnv(ConfigVerboseOutput, "VERBOSE")
 	viper.BindEnv(ConfigGQLErrorLogging, "GQLErrorLogging")
-
-	viper.SetEnvPrefix("FLY")
-	viper.AutomaticEnv()
 
 	api.SetBaseURL(viper.GetString(ConfigAPIBaseURL))
 	api.SetErrorLog(viper.GetBool(ConfigGQLErrorLogging))
@@ -100,6 +95,29 @@ func loadConfig() error {
 	return err
 }
 
+// GetAPIToken - returns the current API Token, env vars take precedence. Avoids pulling in env vars into the config.
+func GetAPIToken() string {
+	// Are either env vars set?
+	// check Access token
+	accessToken, lookup := os.LookupEnv("FLY_ACCESS_TOKEN")
+
+	if lookup {
+		return accessToken
+	}
+
+	// check API token
+	apiToken, lookup := os.LookupEnv("FLY_API_TOKEN")
+
+	if lookup {
+		return apiToken
+	}
+
+	viperAuth := viper.GetString(ConfigAPIToken)
+
+	return viperAuth
+
+}
+
 var writeableConfigKeys = []string{ConfigAPIToken, ConfigUpdateCheck, ConfigInstaller}
 
 func SaveConfig() error {
@@ -123,6 +141,7 @@ func SaveConfig() error {
 }
 
 func persistConfigKey(key string) bool {
+
 	if viper.InConfig(key) {
 		return true
 	}

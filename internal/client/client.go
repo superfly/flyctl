@@ -3,7 +3,6 @@ package client
 import (
 	"errors"
 
-	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 )
@@ -31,7 +30,8 @@ func (c *Client) Authenticated() bool {
 }
 
 func (c *Client) InitApi() bool {
-	if apiToken := viper.GetString(flyctl.ConfigAPIToken); apiToken != "" {
+	apiToken := flyctl.GetAPIToken()
+	if apiToken != "" {
 		apiClient := api.NewClient(apiToken, flyctl.Version)
 		c.api = apiClient
 	}
