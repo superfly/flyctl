@@ -39,7 +39,7 @@ CMD ["bundle", "exec", "rackup", "--host", "0.0.0.0", "-p", "8080"]
 `},
 	{Name: "deno",
 		Description: "Deno builtin",
-		Details: `Uses Alpine image from https://github.com/hayd/deno-docker.
+		Details: `Uses Debian image from https://github.com/hayd/deno-docker.
 runs main.ts with --allow-net set and requires deps.ts for dependencies.
 Uses and exposes port 8080 internally.`,
 		FileText: `
@@ -88,7 +88,7 @@ CMD ["-port","8080"]
 	`},
 	{Name: "hugo-static",
 		Description: "Hugo static build with web server builtin",
-		Details:     `Hugo static build, then all public files are copied to the image and served, except files with executable permission set.`,
+		Details:     `Hugo static build, then all public files are copied to the image and served, except files with executable permission set. Uses and exposes port 8080 internally.`,
 		FileText: `
 FROM klakegg/hugo:0.74.0-onbuild AS hugo
 FROM pierrezemb/gostatic
@@ -97,7 +97,7 @@ CMD ["-port","8080"]
 `},
 	{Name: "staticplus",
 		Description: "Web server builtin",
-		Details:     `All files are copied to the image and served, except files with executable permission set.`,
+		Details:     `All files are copied to the image and served, except files with executable permission set.Uses and exposes port 8080 internally.`,
 		FileText: `
 FROM flyio/gostatic-fly
 COPY . /srv/http/
