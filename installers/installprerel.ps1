@@ -2,30 +2,13 @@
 # Copyright 2018 the Deno authors. All rights reserved. MIT license.
 # TODO(everyone): Keep this script simple and easily auditable.
 
-[CmdletBinding()]
-param (
-    [switch]$prerel
-)
-
 $ErrorActionPreference = 'Stop'
 
-if ($p) {
-  $prerel=TRUE
-}
-
-if($prerel) {
-  Write-Output "Prerel mode"
-}
-
-# if ($v) {
-#   $Version = "v${v}"
-# }
+Write-Output "Installing current Flyctl/Fly prerelease"
 
 if ($args.Length -eq 1) {
   $Version = $args.Get(0)
 }
-
-Write-Output $Version
 
 $FlyInstall = $env:FLYCTL_INSTALL
 $BinDir = if ($FlyInstall) {
@@ -44,10 +27,7 @@ $Target = 'Windows_x86_64'
 
 $FlyURI = if (!$Version) {
   $Response = Invoke-WebRequest 'https://github.com/superfly/flyctl/releases' -UseBasicParsing
-  $matchstring= "/superfly/flyctl/releases/download/v[0-9]+.[0-9]+.[0-9]+/flyctl_[0-9]+.[0-9]+.[0-9]+_${Target}.tar.gz"
-  if($prerel) {
-    $matchstring="/superfly/flyctl/releases/download/v[0-9]+.[0-9]+.[0-9]+-beta-[0-9]+/flyctl_[0-9]+.[0-9]+.[0-9]+-beta-[0-9]+_${Target}.tar.gz"
-  }
+  $matchstring="/superfly/flyctl/releases/download/v[0-9]+.[0-9]+.[0-9]+-beta-[0-9]+/flyctl_[0-9]+.[0-9]+.[0-9]+-beta-[0-9]+_${Target}.tar.gz"
   if ($PSVersionTable.PSEdition -eq 'Core') {
     $Response.Links |
       Where-Object { $_.href -match $matchstring} |

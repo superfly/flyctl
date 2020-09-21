@@ -51,6 +51,7 @@ flyctl_install="${FLYCTL_INSTALL:-$HOME/.fly}"
 
 bin_dir="$flyctl_install/bin"
 exe="$bin_dir/flyctl"
+simexe="$bin_dir/fly"
 
 if [ ! -d "$bin_dir" ]; then
  	mkdir -p "$bin_dir"
@@ -61,6 +62,7 @@ cd "$bin_dir"
 tar xzf "$exe.tar.gz"
 chmod +x "$exe"
 rm "$exe.tar.gz"
+ln -sf $exe $simexe
 
 if [[ ${1} == "prerel" ]]; then
 	"$exe" version -s "shell-prerel"
@@ -68,7 +70,7 @@ else
 	"$exe" version -s "shell"
 fi
 
-echo "Flyctl was installed successfully to $exe"
+echo "Flyctl/Fly was installed successfully to $exe"
 if command -v flyctl >/dev/null; then
 	echo "Run 'flyctl --help' to get started"
 else

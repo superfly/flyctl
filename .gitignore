@@ -22,7 +22,7 @@ dist/
 
 # generated docs
 out
-docstrings/gen.go
+#docstrings/gen.go
 /.idea/*
 /.idea/.gitignore
 /.idea/dictionaries/dj.xml
@@ -31,3 +31,4 @@ docstrings/gen.go
 /.idea/modules.xml
 /.idea/vcs.xml
 .vscode/launch.json
+fly.toml

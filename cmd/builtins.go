@@ -33,6 +33,13 @@ func runListBuiltins(commandContext *cmdctx.CmdContext) error {
 
 	builtintable := tablewriter.NewWriter(commandContext.Out)
 	builtintable.SetHeader([]string{"Name", "Description", "Details"})
+	builtintable.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	builtintable.SetAlignment(tablewriter.ALIGN_LEFT)
+	builtintable.SetNoWhiteSpace(true)
+	builtintable.SetTablePadding(" ")
+	builtintable.SetCenterSeparator("")
+	builtintable.SetColumnSeparator("")
+	builtintable.SetRowSeparator("")
 
 	for _, builtin := range builtins {
 		builtintable.Append([]string{builtin.Name, builtin.Description, builtin.Details})

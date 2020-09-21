@@ -232,7 +232,7 @@ func (ds *deploymentStatus) Close() {
 func (dm *deploymentStatus) FailingAllocs() []*api.AllocationStatus {
 	out := []*api.AllocationStatus{}
 	for _, alloc := range dm.allocStatus {
-		if !alloc.Healthy {
+		if !alloc.Healthy || alloc.Status == "failed" {
 			out = append(out, alloc)
 		}
 	}
