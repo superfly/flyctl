@@ -54,7 +54,7 @@ Runs a production npm install and copies all files across.
 When run will call npm start to start the application.
 Uses and exposes port 8080 internally.`,
 		FileText: `
-FROM node:current-alpine
+FROM node:current-slim
 WORKDIR /app			
 COPY package.json .
 COPY package-lock.json .
@@ -86,7 +86,7 @@ CMD ["bundle", "exec", "rackup", "--host", "0.0.0.0", "-p", "8080"]
 runs main.ts with --allow-net set and requires deps.ts for dependencies.
 Uses and exposes port 8080 internally.`,
 		FileText: `
-FROM hayd/alpine-deno:1.2.1
+FROM hayd/debian-deno:1.4.0
 ENV PORT=8080
 EXPOSE 8080
 WORKDIR /app
@@ -131,7 +131,7 @@ CMD ["-port","8080"]
 		Description: "Hugo static build with web server builtin",
 		Details:     `Hugo static build, then all public files are copied to the image and served, except files with executable permission set.`,
 		FileText: `
-FROM klakegg/hugo:0.74.0-onbuild AS hugo
+FROM klakegg/hugo:0.75.1-onbuild AS hugo
 FROM pierrezemb/gostatic
 COPY --from=hugo /target /srv/http/
 CMD ["-port","8080"]
