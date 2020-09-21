@@ -1,14 +1,15 @@
 package builtinsupport
 
 var basicbuiltins = []Builtin{
-	{Name: "node",
+	{
+		Name:        "node",
 		Description: "Nodejs builtin",
 		Details: `Requires package.json, package-lock.json and an app in server.js. 
 Runs a production npm install and copies all files across. 
 When run will call npm start to start the application.
 Uses and exposes port 8080 internally.`,
 		FileText: `
-FROM node:current-alpine
+FROM node:current-slim
 WORKDIR /app			
 COPY package.json .
 COPY package-lock.json .
@@ -18,8 +19,10 @@ RUN npm run build --if-present
 ENV PORT=8080
 EXPOSE 8080
 CMD [ "npm","start" ]
-	`},
-	{Name: "ruby",
+	`,
+	},
+	{
+		Name:        "ruby",
 		Description: "Ruby builtin",
 		Details: `Builtin for a Ruby application with a Gemfile. Runs bundle install to build. 
 At runtime, it uses rackup to run config.ru and start the application as configured.
@@ -40,7 +43,7 @@ CMD ["bundle", "exec", "rackup", "--host", "0.0.0.0", "-p", "8080"]
 runs main.ts with --allow-net set and requires deps.ts for dependencies.
 Uses and exposes port 8080 internally.`,
 		FileText: `
-FROM hayd/alpine-deno:1.2.1
+FROM hayd/debian-deno:1.4.0
 ENV PORT=8080
 EXPOSE 8080
 WORKDIR /app
@@ -50,7 +53,9 @@ RUN deno cache deps.ts
 ADD . .
 RUN deno cache main.ts
 CMD ["run", {{ .perms }} , "main.ts"]
-`},
+`,
+		BuiltinArgs: []Arg{{Name: "perms", Default: "\"--allow-net\""}},
+	},
 	{Name: "go",
 		Description: "Go Builtin",
 		Details: `Builds main.go from the directory, the app should use go modules.

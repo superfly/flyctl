@@ -6,8 +6,8 @@ import (
 	"text/template"
 )
 
-// BuiltinArg is a simple holder for names and defaults in args
-type BuiltinArg struct {
+// Arg is a simple holder for names and defaults in args
+type Arg struct {
 	Name    string
 	Default string
 }
@@ -17,7 +17,7 @@ type Builtin struct {
 	Description string
 	Details     string
 	FileText    string
-	Args        []BuiltinArg
+	BuiltinArgs []Arg
 }
 
 var builtins map[string]Builtin
