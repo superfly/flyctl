@@ -82,7 +82,7 @@ CMD ["bundle", "exec", "rackup", "--host", "0.0.0.0", "-p", "8080"]
 `},
 	{Name: "deno",
 		Description: "Deno builtin",
-		Details: `Uses Alpine image from https://github.com/hayd/deno-docker.
+		Details: `Uses Debian image from https://github.com/hayd/deno-docker.
 runs main.ts with --allow-net set and requires deps.ts for dependencies.
 Uses and exposes port 8080 internally.`,
 		FileText: `
