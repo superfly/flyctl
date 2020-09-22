@@ -22,8 +22,8 @@ func (p *Builds) Records() []map[string]string {
 			"ID":         build.ID,
 			"Status":     build.Status,
 			"User":       build.User.Email,
-			"Created At": formatRelativeTime(build.CreatedAt),
-			"Updated At": formatRelativeTime(build.UpdatedAt),
+			"Created At": FormatRelativeTime(build.CreatedAt),
+			"Updated At": FormatRelativeTime(build.UpdatedAt),
 		})
 	}
 

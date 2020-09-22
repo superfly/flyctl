@@ -27,7 +27,7 @@ func (p *Apps) Records() []map[string]string {
 	for _, app := range p.Apps {
 		latestDeploy := ""
 		if app.Deployed && app.CurrentRelease != nil {
-			latestDeploy = formatRelativeTime(app.CurrentRelease.CreatedAt)
+			latestDeploy = FormatRelativeTime(app.CurrentRelease.CreatedAt)
 		}
 
 		out = append(out, map[string]string{

@@ -22,7 +22,7 @@ func (p *Secrets) Records() []map[string]string {
 		out = append(out, map[string]string{
 			"Name":   secret.Name,
 			"Digest": secret.Digest,
-			"Date":   formatRelativeTime(secret.CreatedAt),
+			"Date":   FormatRelativeTime(secret.CreatedAt),
 		})
 	}
 

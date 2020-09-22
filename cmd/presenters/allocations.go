@@ -47,7 +47,7 @@ func (p *Allocations) Records() []map[string]string {
 			"Status":        formatAllocStatus(alloc),
 			"Desired":       alloc.DesiredStatus,
 			"Region":        region,
-			"Created":       formatRelativeTime(alloc.CreatedAt),
+			"Created":       FormatRelativeTime(alloc.CreatedAt),
 			"Health Checks": FormatHealthChecksSummary(alloc),
 			"Restarts":      strconv.Itoa(alloc.Restarts),
 		})

@@ -25,6 +25,8 @@ type Query struct {
 	OrganizationDetails OrganizationDetails
 	Build               Build
 
+	Domain *Domain
+
 	Node  interface{}
 	Nodes []interface{}
 
@@ -34,7 +36,7 @@ type Query struct {
 	}
 
 	// hack to let us alias node to a type
-	DNSZone *DNSZone
+	// DNSZone *DNSZone
 
 	// mutations
 	CreateApp struct {
@@ -116,16 +118,22 @@ type Query struct {
 		App App
 	}
 
-	CreateDnsZone struct {
-		Zone *DNSZone
+	CreateDomain struct {
+		Domain *Domain
 	}
+	CreateAndRegisterDomain struct {
+		Domain *Domain
+	}
+
+	CheckDomain *CheckDomainResult
 
 	ExportDnsZone struct {
 		Contents string
 	}
 
 	ImportDnsZone struct {
-		Results []ImportDnsRecordTypeResult
+		Warnings []ImportDnsWarning
+		Changes  []ImportDnsChange
 	}
 	CreateOrganization CreateOrganizationPayload
 	DeleteOrganization DeleteOrganizationPayload
@@ -228,15 +236,13 @@ type Organization struct {
 	Slug string
 	Type string
 
-	DNSZones struct {
-		Nodes *[]*DNSZone
+	Domains struct {
+		Nodes *[]*Domain
 		Edges *[]*struct {
 			Cursor *string
-			Node   *DNSZone
+			Node   *Domain
 		}
 	}
-
-	DNSZone *DNSZone
 }
 
 type OrganizationDetails struct {
@@ -247,9 +253,6 @@ type OrganizationDetails struct {
 	ViewerRole string
 	Apps       struct {
 		Nodes []App
-	}
-	DNSZones struct {
-		Nodes []DNSZone
 	}
 	Members struct {
 		Edges []OrganizationMembershipEdge
@@ -282,7 +285,7 @@ type DNSRecords struct {
 	IsApex     bool
 	IsSystem   bool
 	IsWildcard bool
-	Zone       DNSZone
+	Domain     *Domain
 }
 
 type IPAddress struct {
@@ -640,14 +643,31 @@ type Extensions struct {
 	Variables   map[string]string
 }
 
-type DNSZone struct {
-	ID           string
-	Domain       string
-	CreatedAt    time.Time
-	Organization *Organization
-	Records      *struct {
+type Domain struct {
+	ID                   string
+	Name                 string
+	CreatedAt            time.Time
+	Organization         *Organization
+	AutoRenew            *bool
+	DelegatedNameservers *[]string
+	ZoneNameservers      *[]string
+	DnsStatus            *string
+	RegistrationStatus   *string
+	ExpiresAt            time.Time
+	DnsRecords           *struct {
 		Nodes *[]*DNSRecord
 	}
+}
+
+type CheckDomainResult struct {
+	DomainName            string
+	TLD                   string
+	RegistrationSupported bool
+	RegistrationAvailable bool
+	RegistrationPrice     int
+	RegistrationPeriod    int
+	TransferAvailable     bool
+	DnsAvailable          bool
 }
 
 type DNSRecord struct {
@@ -659,15 +679,24 @@ type DNSRecord struct {
 	IsSystem   bool
 	TTL        int
 	Type       string
-	Values     []string
+	RData      string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }
 
-type ImportDnsRecordTypeResult struct {
-	Created int
-	Deleted int
-	Skipped int
-	Updated int
-	Type    string
+type ImportDnsChange struct {
+	Action  string
+	OldText string
+	NewText string
+}
+
+type ImportDnsWarning struct {
+	Action     string
+	Attributes struct {
+		Name  string
+		Type  string
+		TTL   int
+		Rdata string
+	}
+	Message string
 }
