@@ -107,13 +107,11 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 		ac.AppName = appName
 	}
 	delete(data, "app")
-	fmt.Println(data)
 	if buildConfig, ok := (data["build"]).(map[string]interface{}); ok {
 		b := Build{
 			Args:       map[string]string{},
 			Buildpacks: []string{},
 		}
-		fmt.Println(buildConfig)
 		for k, v := range buildConfig {
 			fmt.Println(k, v)
 			switch k {
@@ -174,6 +172,7 @@ func (ac AppConfig) marshalTOML(w io.Writer) error {
 	} else if ac.Build != nil && ac.Build.Builtin != "" {
 		buildData := map[string]interface{}{
 			"builtin": ac.Build.Builtin,
+			"args":    ac.Build.Args,
 		}
 		rawData["build"] = buildData
 	} else if ac.Build != nil && ac.Build.Image != "" {

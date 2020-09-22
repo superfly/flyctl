@@ -22,6 +22,8 @@ func newBuiltinsCommand() *Command {
 	BuildCommandKS(cmd, runListBuiltins, builtinsListStrings, os.Stdout)
 	builtinShowStrings := docstrings.Get("builtins.show")
 	BuildCommandKS(cmd, runShowBuiltin, builtinShowStrings, os.Stdout)
+	builtinShowAppStrings := docstrings.Get("builtins.show-app")
+	BuildCommandKS(cmd, runShowAppBuiltin, builtinShowAppStrings, os.Stdout, requireAppName)
 
 	return cmd
 }
@@ -49,6 +51,10 @@ func runListBuiltins(commandContext *cmdctx.CmdContext) error {
 	builtintable.Render()
 
 	return nil
+}
+
+func runShowAppBuiltin(commandContext *cmdctx.CmdContext) error {
+	return runShowBuiltin(commandContext)
 }
 
 func runShowBuiltin(commandContext *cmdctx.CmdContext) error {
@@ -85,8 +91,29 @@ func runShowBuiltin(commandContext *cmdctx.CmdContext) error {
 	fmt.Println(builtin.Details)
 	fmt.Println()
 
-	fmt.Print(aurora.Bold("Dockerfile:\n"))
-	fmt.Println(builtin.FileText)
+	if builtin.BuiltinArgs != nil {
+		fmt.Print(aurora.Bold("Arguments (and defaults):\n"))
+		for _, arg := range builtin.BuiltinArgs {
+			fmt.Printf("%s=%s\n", arg.Name, arg.Default)
+		}
+		fmt.Println()
+	}
+
+	if commandContext.AppConfig == nil {
+		fmt.Println(aurora.Bold("Dockerfile (with defaults):"))
+		vdockerfile, err := builtin.GetVDockerfile(nil)
+		if err != nil {
+			return err
+		}
+		fmt.Println(vdockerfile)
+	} else {
+		fmt.Println(aurora.Bold("Dockerfile (with fly.toml settins):"))
+		vdockerfile, err := builtin.GetVDockerfile(commandContext.AppConfig.Build.Args)
+		if err != nil {
+			return err
+		}
+		fmt.Println(vdockerfile)
+	}
 
 	return nil
 }

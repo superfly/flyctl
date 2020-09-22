@@ -631,9 +631,17 @@ descriptions.
 
 [builtins.show]
 usage="show"
-shortHelp="Show details of a builtins"
-longHelp="""Show details of a Flyctl deployment builtins, including
-the builtin "Dockerfile" and other information.
+shortHelp="Show details of a builtin's configuration"
+longHelp="""Show details of a Fly deployment builtins, including
+the builtin "Dockerfile" with default settings and other information.
+"""
+
+[builtins.show-app]
+usage="show-app"
+shortHelp="Show details of a builtin's configuration"
+longHelp="""Show details of a Fly deployment builtins, including
+the builtin "Dockerfile" with an apps settings included
+and other information.
 """
 
 [orgs]
