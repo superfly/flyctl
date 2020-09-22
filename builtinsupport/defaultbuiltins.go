@@ -45,8 +45,8 @@ ENV PORT=8080
 EXPOSE 8080
 WORKDIR /app
 USER deno
-COPY deps.ts .
-RUN deno cache deps.ts
+COPY main.ts deps.* ./
+RUN /bin/bash -c "deno cache deps.ts || true"
 ADD . .
 RUN deno cache main.ts
 CMD ["run", {{ .perms }} , "main.ts"]
