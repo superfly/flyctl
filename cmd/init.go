@@ -284,5 +284,16 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 
 	fmt.Printf("New app created: %s", app.Name)
 
+	f, err := os.OpenFile("fly.alias", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		return err
+	}
+
+	defer f.Close()
+
+	if _, err = f.WriteString(app.Name + "\n"); err != nil {
+		return err
+	}
+
 	return nil
 }
