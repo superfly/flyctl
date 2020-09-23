@@ -104,8 +104,11 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 	nowrite := commandContext.Config.GetBool("nowrite")
 
 	configfilename, err := flyctl.ResolveConfigFileFromPath(commandContext.WorkingDir)
+	if err != nil {
+		return err
+	}
+
 	newAppConfig := flyctl.NewAppConfig()
-	name := ""
 
 	if !nowrite {
 		if helpers.FileExists(configfilename) {
@@ -119,19 +122,19 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 				commandContext.Status("init", cmdctx.SWARN, "Overwriting existing configuration (--overwrite)")
 			}
 		}
-
-		name, _ := commandContext.Config.GetString("name")
-
-		if name != "" && appName != "" {
-			return fmt.Errorf(`two app names specified %s and %s. Select and specify only one`, appName, name)
-		}
-
-		if name == "" && appName != "" {
-			name = appName
-		}
-
-		fmt.Println()
 	}
+
+	name, _ := commandContext.Config.GetString("name")
+
+	if name != "" && appName != "" {
+		return fmt.Errorf(`two app names specified %s and %s. Select and specify only one`, appName, name)
+	}
+
+	if name == "" && appName != "" {
+		name = appName
+	}
+
+	fmt.Println()
 
 	if name == "" {
 		prompt := &survey.Input{

@@ -70,10 +70,12 @@ func (c *Command) AddStringFlag(options StringFlagOpts) {
 	fullName := namespace(c.Command) + "." + options.Name
 	c.Flags().StringP(options.Name, options.Shorthand, options.Default, options.Description)
 
-	viper.BindPFlag(fullName, c.Flags().Lookup(options.Name))
+	err := viper.BindPFlag(fullName, c.Flags().Lookup(options.Name))
+	checkErr(err)
 
 	if options.EnvName != "" {
-		viper.BindEnv(fullName, options.EnvName)
+		err := viper.BindEnv(fullName, options.EnvName)
+		checkErr(err)
 	}
 }
 
@@ -84,10 +86,12 @@ func (c *Command) AddBoolFlag(options BoolFlagOpts) {
 
 	flag := c.Flags().Lookup(options.Name)
 	flag.Hidden = options.Hidden
-	viper.BindPFlag(fullName, flag)
+	err := viper.BindPFlag(fullName, flag)
+	checkErr(err)
 
 	if options.EnvName != "" {
-		viper.BindEnv(fullName, options.EnvName)
+		err := viper.BindEnv(fullName, options.EnvName)
+		checkErr(err)
 	}
 }
 
@@ -108,10 +112,12 @@ func (c *Command) AddIntFlag(options IntFlagOpts) {
 
 	flag := c.Flags().Lookup(options.Name)
 	flag.Hidden = options.Hidden
-	viper.BindPFlag(fullName, flag)
+	err := viper.BindPFlag(fullName, flag)
+	checkErr(err)
 
 	if options.EnvName != "" {
-		viper.BindEnv(fullName, options.EnvName)
+		err := viper.BindEnv(fullName, options.EnvName)
+		checkErr(err)
 	}
 }
 
@@ -134,10 +140,12 @@ func (c *Command) AddStringSliceFlag(options StringSliceFlagOpts) {
 		c.Flags().StringSlice(options.Name, options.Default, options.Description)
 	}
 
-	viper.BindPFlag(fullName, c.Flags().Lookup(options.Name))
+	err := viper.BindPFlag(fullName, c.Flags().Lookup(options.Name))
+	checkErr(err)
 
 	if options.EnvName != "" {
-		viper.BindEnv(fullName, options.EnvName)
+		err := viper.BindEnv(fullName, options.EnvName)
+		checkErr(err)
 	}
 }
 
