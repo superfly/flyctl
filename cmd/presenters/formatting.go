@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func formatRelativeTime(t time.Time) string {
+func FormatRelativeTime(t time.Time) string {
 	if t.Before(time.Now()) {
 		dur := time.Since(t)
 		if dur.Seconds() < 1 {
@@ -36,9 +36,9 @@ func formatRelativeTime(t time.Time) string {
 		}
 	}
 
-	return formatTime(t)
+	return FormatTime(t)
 }
 
-func formatTime(t time.Time) string {
+func FormatTime(t time.Time) string {
 	return t.Format(time.RFC3339)
 }

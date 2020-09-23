@@ -198,46 +198,46 @@ Use flyctl monitor to restart monitoring deployment progress`,
 			`The DESTROY command will remove an application 
 from the Fly platform.`,
 		}
-	case "dns":
-		return KeyStrings{"dns", "Manage DNS",
-			`Manage DNS`,
+	case "dns-records":
+		return KeyStrings{"dns-records", "Manage DNS records",
+			`Manage DNS records within a domain`,
 		}
-	case "dns.records":
-		return KeyStrings{"records", "Manage DNS records",
-			`Manage DNS records within a zone`,
-		}
-	case "dns.records.export":
-		return KeyStrings{"export [<org> <domain>]", "Export DNS records",
+	case "dns-records.export":
+		return KeyStrings{"export <domain>", "Export DNS records",
 			`Export DNS records`,
 		}
-	case "dns.records.import":
-		return KeyStrings{"import <org> <domain> <path>", "Import DNS records",
+	case "dns-records.import":
+		return KeyStrings{"import <domain> <path>", "Import DNS records",
 			`Import DNS records`,
 		}
-	case "dns.records.list":
-		return KeyStrings{"list [<org> <domain>]", "List DNS records",
-			`List DNS records within a zone`,
-		}
-	case "dns.zones":
-		return KeyStrings{"zones", "Manage DNS zones",
-			`Manage DNS zones`,
-		}
-	case "dns.zones.create":
-		return KeyStrings{"create [<org> <domain>]", "Create a DNS zone",
-			`Create a DNS zone for an organization`,
-		}
-	case "dns.zones.delete":
-		return KeyStrings{"delete [<org> <domain>]", "Delete a DNS zone",
-			`Delete a DNS zone`,
-		}
-	case "dns.zones.list":
-		return KeyStrings{"list [<org>]", "List DNS zones",
-			`List DNS zones for an organization`,
+	case "dns-records.list":
+		return KeyStrings{"list <domain>", "List DNS records",
+			`List DNS records within a domain`,
 		}
 	case "docs":
 		return KeyStrings{"docs", "View Fly documentation",
 			`View Fly documentation on the Fly.io website. This command will open a 
 browser to view the content.`,
+		}
+	case "domains":
+		return KeyStrings{"domains", "Manage domains",
+			`Manage domains`,
+		}
+	case "domains.add":
+		return KeyStrings{"add [org] [name]", "Add a domain",
+			`Add a domain to an organization`,
+		}
+	case "domains.list":
+		return KeyStrings{"list [<org>]", "List domains",
+			`List domains for an organization`,
+		}
+	case "domains.register":
+		return KeyStrings{"register [org] [name]", "Register a domain",
+			`Register a new domain in an organization`,
+		}
+	case "domains.show":
+		return KeyStrings{"show <domain>", "Show domain",
+			`Show information about a domain`,
 		}
 	case "flyctl":
 		return KeyStrings{"flyctl", "The Fly CLI",

@@ -35,7 +35,7 @@ func (p *Releases) Records() []map[string]string {
 			"Type":        formatReleaseReason(release.Reason),
 			"Description": formatReleaseDescription(release),
 			"User":        release.User.Email,
-			"Date":        formatRelativeTime(release.CreatedAt),
+			"Date":        FormatRelativeTime(release.CreatedAt),
 		})
 	}
 

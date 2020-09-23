@@ -23,7 +23,7 @@ func (p *IPAddresses) Records() []map[string]string {
 		out = append(out, map[string]string{
 			"Address":    ip.Address,
 			"Type":       ip.Type,
-			"Created At": formatRelativeTime(ip.CreatedAt),
+			"Created At": FormatRelativeTime(ip.CreatedAt),
 		})
 	}
 

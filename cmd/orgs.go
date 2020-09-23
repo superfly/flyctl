@@ -110,7 +110,7 @@ func runOrgsShow(ctx *cmdctx.CmdContext) error {
 	ctx.Statusf("orgs", cmdctx.STITLE, "Summary\n")
 
 	ctx.Statusf("orgs", cmdctx.SINFO, "You have %s permissions on this organizaton\n", org.ViewerRole)
-	ctx.Statusf("orgs", cmdctx.SINFO, "There are %d DNS zones associated with this organization\n", len(org.DNSZones.Nodes))
+	// ctx.Statusf("orgs", cmdctx.SINFO, "There are %d DNS zones associated with this organization\n", len(org.DNSZones.Nodes))
 	ctx.Statusf("orgs", cmdctx.SINFO, "There are %d members associated with this organization\n", len(org.Members.Edges))
 
 	ctx.StatusLn()
