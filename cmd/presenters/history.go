@@ -25,7 +25,7 @@ func (p *AppHistory) Records() []map[string]string {
 			"Status":      change.Status,
 			"Description": change.Description,
 			"User":        change.User.Email,
-			"Date":        formatRelativeTime(change.CreatedAt),
+			"Date":        FormatRelativeTime(change.CreatedAt),
 		})
 	}
 
