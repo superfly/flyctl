@@ -24,16 +24,16 @@ func (p *Apps) Records() []map[string]string {
 		p.Apps = append(p.Apps, *p.App)
 	}
 
-	for _, app := range p.Apps {
+	for i := range p.Apps {
 		latestDeploy := ""
-		if app.Deployed && app.CurrentRelease != nil {
-			latestDeploy = FormatRelativeTime(app.CurrentRelease.CreatedAt)
+		if p.Apps[i].Deployed && p.Apps[i].CurrentRelease != nil {
+			latestDeploy = FormatRelativeTime(p.Apps[i].CurrentRelease.CreatedAt)
 		}
 
 		out = append(out, map[string]string{
-			"Name":          app.Name,
-			"Owner":         app.Organization.Slug,
-			"Status":        app.Status,
+			"Name":          p.Apps[i].Name,
+			"Owner":         p.Apps[i].Organization.Slug,
+			"Status":        p.Apps[i].Status,
 			"Latest Deploy": latestDeploy,
 		})
 	}

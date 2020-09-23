@@ -93,7 +93,10 @@ func runRecordsExport(ctx *cmdctx.CmdContext) error {
 			return err
 		}
 
-		ioutil.WriteFile(filename, []byte(records), 0644)
+		err = ioutil.WriteFile(filename, []byte(records), 0644)
+		if err != nil {
+			return err
+		}
 
 		fmt.Printf("Zone exported to %s\n", filename)
 	}

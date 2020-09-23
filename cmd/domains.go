@@ -45,11 +45,18 @@ func runDomainsList(ctx *cmdctx.CmdContext) error {
 		}
 		orgSlug = org.Slug
 	} else {
+		// TODO: Validity check on org
 		orgSlug = ctx.Args[0]
 	}
+
 	domains, err := ctx.Client.API().GetDomains(orgSlug)
 	if err != nil {
 		return err
+	}
+
+	if ctx.OutputJSON() {
+		ctx.WriteJSON(domains)
+		return nil
 	}
 
 	table := tablewriter.NewWriter(ctx.Out)
@@ -73,24 +80,34 @@ func runDomainsShow(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	ctx.Statusf("domains", cmdctx.STITLE, "Domain\n")
-
-	ctx.Statusf("domains", cmdctx.SINFO, "%-10s: %-20s\n", "Name", domain.Name)
-	ctx.Statusf("domains", cmdctx.SINFO, "%-10s: %-20s\n", "Organization", domain.Organization.Slug)
-	ctx.Statusf("domains", cmdctx.SINFO, "%-10s: %-20s\n", "Registration Status", *domain.RegistrationStatus)
-	if *domain.RegistrationStatus == "registered" {
-		ctx.Statusf("domains", cmdctx.SINFO, "%-10s: %-20s\n", "Expires At", presenters.FormatTime(domain.ExpiresAt))
-		if *domain.AutoRenew {
-			ctx.Statusf("domains", cmdctx.SINFO, "%-10s: %-20s\n", "Auto Renew", "Enabled")
-		} else {
-			ctx.Statusf("domains", cmdctx.SINFO, "%-10s: %-20s\n", "Auto Renew", "Disabled")
-		}
+	if ctx.OutputJSON() {
+		ctx.WriteJSON(domain)
+		return nil
 	}
 
+	ctx.Statusf("domains", cmdctx.STITLE, "Domain\n")
+	fmtstring := "%-20s: %-20s\n"
+	ctx.Statusf("domains", cmdctx.SINFO, fmtstring, "Name", domain.Name)
+	ctx.Statusf("domains", cmdctx.SINFO, fmtstring, "Organization", domain.Organization.Slug)
+	ctx.Statusf("domains", cmdctx.SINFO, fmtstring, "Registration Status", *domain.RegistrationStatus)
+	if *domain.RegistrationStatus == "registered" {
+		ctx.Statusf("domains", cmdctx.SINFO, fmtstring, "Expires At", presenters.FormatTime(domain.ExpiresAt))
+
+		autorenew := ""
+		if *domain.AutoRenew {
+			autorenew = "Enabled"
+		} else {
+			autorenew = "Disabled"
+		}
+
+		ctx.Statusf("domains", cmdctx.SINFO, fmtstring, "Auto Renew", autorenew)
+	}
+
+	ctx.StatusLn()
 	ctx.Statusf("domains", cmdctx.STITLE, "DNS\n")
-	ctx.Statusf("domains", cmdctx.SINFO, "%-10s: %-20s\n", "Status", *domain.DnsStatus)
+	ctx.Statusf("domains", cmdctx.SINFO, fmtstring, "Status", *domain.DnsStatus)
 	if *domain.RegistrationStatus == "unmanaged" {
-		ctx.Statusf("domains", cmdctx.SINFO, "%-10s: %-20s\n", "Nameservers", strings.Join(*domain.ZoneNameservers, " "))
+		ctx.Statusf("domains", cmdctx.SINFO, fmtstring, "Nameservers", strings.Join(*domain.ZoneNameservers, " "))
 	}
 
 	return nil
@@ -108,7 +125,9 @@ func runDomainsCreate(ctx *cmdctx.CmdContext) error {
 		}
 
 		prompt := &survey.Input{Message: "Domain name to add"}
-		survey.AskOne(prompt, &name)
+		err := survey.AskOne(prompt, &name)
+		checkErr(err)
+
 		// TODO: Add some domain validation here
 	} else if len(ctx.Args) == 2 {
 		org, err = ctx.Client.API().FindOrganizationBySlug(ctx.Args[0])
@@ -144,7 +163,8 @@ func runDomainsRegister(ctx *cmdctx.CmdContext) error {
 		}
 
 		prompt := &survey.Input{Message: "Domain name to add"}
-		survey.AskOne(prompt, &name)
+		err := survey.AskOne(prompt, &name)
+		checkErr(err)
 		// TODO: Add some domain validation here
 	} else if len(ctx.Args) == 2 {
 		org, err = ctx.Client.API().FindOrganizationBySlug(ctx.Args[0])
