@@ -203,12 +203,14 @@ from the Fly platform.`,
 			`Manage DNS records within a domain`,
 		}
 	case "dns-records.export":
-		return KeyStrings{"export <domain>", "Export DNS records",
-			`Export DNS records`,
+		return KeyStrings{"export <domain> [<filename>]", "Export DNS records",
+			`Export DNS records. Will write to a file if a filename is given, otherwise
+writers to StdOut.`,
 		}
 	case "dns-records.import":
-		return KeyStrings{"import <domain> <path>", "Import DNS records",
-			`Import DNS records`,
+		return KeyStrings{"import <domain> [<filename>]", "Import DNS records",
+			`Import DNS records. Will import from a file is a filename is given, otherwise
+imports from StdIn.`,
 		}
 	case "dns-records.list":
 		return KeyStrings{"list <domain>", "List DNS records",

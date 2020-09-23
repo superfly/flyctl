@@ -300,22 +300,24 @@ Use flyctl monitor to restart monitoring deployment progress
 [dns-records]
 usage="dns-records"
 shortHelp="Manage DNS records"
-longHelp="Manage DNS records within a domain"
+longHelp="""Manage DNS records within a domain"""
 
 [dns-records.list]
 usage="list <domain>"
 shortHelp="List DNS records"
-longHelp="List DNS records within a domain"
+longHelp="""List DNS records within a domain"""
 
 [dns-records.export]
-usage="export <domain>"
+usage="export <domain> [<filename>]"
 shortHelp="Export DNS records"
-longHelp="Export DNS records"
+longHelp="""Export DNS records. Will write to a file if a filename is given, otherwise
+writers to StdOut."""
 
 [dns-records.import]
-usage="import <domain> <path>"
+usage="import <domain> [<filename>]"
 shortHelp="Import DNS records"
-longHelp="Import DNS records"
+longHelp="""Import DNS records. Will import from a file is a filename is given, otherwise
+imports from StdIn."""
 
 [docs]
 usage="docs"
@@ -327,27 +329,27 @@ browser to view the content.
 [domains]
 usage="domains"
 shortHelp="Manage domains"
-longHelp="Manage domains"
+longHelp="""Manage domains"""
 
 [domains.add]
 usage="add [org] [name]"
 shortHelp="Add a domain"
-longHelp="Add a domain to an organization"
+longHelp="""Add a domain to an organization"""
 
 [domains.list]
 usage="list [<org>]"
 shortHelp="List domains"
-longHelp="List domains for an organization"
+longHelp="""List domains for an organization"""
 
 [domains.register]
 usage="register [org] [name]"
 shortHelp="Register a domain"
-longHelp="Register a new domain in an organization"
+longHelp="""Register a new domain in an organization"""
 
 [domains.show]
 usage="show <domain>"
 shortHelp="Show domain"
-longHelp="Show information about a domain"
+longHelp="""Show information about a domain"""
 
 [history]
 usage="history"
