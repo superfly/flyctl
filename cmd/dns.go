@@ -6,7 +6,6 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmdctx"
@@ -24,11 +23,15 @@ func newDNSCommand() *Command {
 	recordsExportStrings := docstrings.Get("dns-records.export")
 	recordsExportCmd := BuildCommandKS(cmd, runRecordsExport, recordsExportStrings, os.Stdout, requireSession)
 	recordsExportCmd.Args = cobra.MinimumNArgs(1)
-	recordsExportCmd.Args = cobra.MaximumNArgs(2)
+	recordsExportCmd.Args = cobra.MaximumNArgs(3)
+	recordsExportCmd.AddBoolFlag(BoolFlagOpts{
+		Name: "overwrite",
+	})
 
 	recordsImportStrings := docstrings.Get("dns-records.import")
 	recordsImportCmd := BuildCommandKS(cmd, runRecordsImport, recordsImportStrings, os.Stdout, requireSession)
 	recordsImportCmd.Args = cobra.MaximumNArgs(3)
+	recordsImportCmd.Args = cobra.MinimumNArgs(1)
 
 	return cmd
 }
@@ -49,7 +52,15 @@ func runRecordsList(ctx *cmdctx.CmdContext) error {
 	}
 
 	table := tablewriter.NewWriter(ctx.Out)
-	table.SetAutoWrapText(false)
+	table.SetAutoWrapText(true)
+	table.SetReflowDuringAutoWrap(true)
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetNoWhiteSpace(true)
+	table.SetTablePadding(" ")
+	table.SetCenterSeparator("")
+	table.SetColumnSeparator("")
+	table.SetRowSeparator("")
 	table.SetHeader([]string{"FQDN", "TTL", "Type", "Content"})
 
 	for _, record := range records {
@@ -77,20 +88,11 @@ func runRecordsExport(ctx *cmdctx.CmdContext) error {
 	if len(ctx.Args) == 1 {
 		fmt.Println(records)
 	} else {
-		var filename string
+		var filename = ctx.Args[1]
 
-		validateFile := func(val interface{}) error {
-			_, err := os.Stat(val.(string))
-			if err == nil {
-				return fmt.Errorf("File %s already exists", val.(string))
-			}
-			return nil
-		}
-
-		err := survey.AskOne(&survey.Input{Message: "Export filename:"}, &filename, survey.WithValidator(validateFile))
-
-		if err != nil {
-			return err
+		_, err := os.Stat(filename)
+		if err == nil {
+			return fmt.Errorf("File %s already exists", filename)
 		}
 
 		err = ioutil.WriteFile(filename, []byte(records), 0644)
@@ -106,16 +108,32 @@ func runRecordsExport(ctx *cmdctx.CmdContext) error {
 
 func runRecordsImport(ctx *cmdctx.CmdContext) error {
 	name := ctx.Args[0]
-	filename := ctx.Args[1]
+	var filename string
+
+	if len(ctx.Args) == 1 {
+		// One arg, use stdin
+		filename = "-"
+	} else {
+		filename = ctx.Args[1]
+	}
 
 	domain, err := ctx.Client.API().GetDomain(name)
 	if err != nil {
 		return err
 	}
 
-	data, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return err
+	var data []byte
+
+	if filename != "-" {
+		data, err = ioutil.ReadFile(filename)
+		if err != nil {
+			return err
+		}
+	} else {
+		data, err = ioutil.ReadAll(os.Stdin)
+		if err != nil {
+			return err
+		}
 	}
 
 	warnings, changes, err := ctx.Client.API().ImportDNSRecords(domain.ID, string(data))
@@ -123,7 +141,13 @@ func runRecordsImport(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	fmt.Println("Zonefile import report")
+	fmt.Printf("Zonefile import report for %s\n", domain.Name)
+
+	if filename == "-" {
+		fmt.Printf("Imported from stdin\n")
+	} else {
+		fmt.Printf("Imported from %s\n", filename)
+	}
 
 	fmt.Printf("%d warnings\n", len(warnings))
 	for _, warning := range warnings {
