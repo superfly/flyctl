@@ -31,7 +31,7 @@ type AppConfig struct {
 
 type Build struct {
 	Builder    string
-	Args       map[string]string
+	Args       map[string]interface{}
 	Buildpacks []string
 	// Or...
 	Builtin string
@@ -109,7 +109,7 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 	delete(data, "app")
 	if buildConfig, ok := (data["build"]).(map[string]interface{}); ok {
 		b := Build{
-			Args:       map[string]string{},
+			Args:       map[string]interface{}{},
 			Buildpacks: []string{},
 		}
 		for k, v := range buildConfig {
@@ -127,7 +127,7 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 				fmt.Println("Parsing args")
 				if argMap, ok := v.(map[string]interface{}); ok {
 					for argK, argV := range argMap {
-						b.Args[argK] = fmt.Sprint(argV)
+						b.Args[argK] = argV //fmt.Sprint(argV)
 					}
 				}
 			case "builtin":

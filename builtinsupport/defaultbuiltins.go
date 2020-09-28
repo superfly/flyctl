@@ -49,7 +49,7 @@ COPY main.ts deps.* ./
 RUN /bin/bash -c "deno cache deps.ts || true"
 ADD . .
 RUN deno cache main.ts
-CMD ["run", {{ .perms }} , "main.ts"]
+CMD ["run", {{.perms}} , "main.ts"]
 `,
 		BuiltinArgs: []Arg{{"perms", `"--allow-net"`}},
 	},
@@ -80,8 +80,8 @@ CMD ["/goapp/app"]
 		Details:     `All files are copied to the image and served, except files with executable permission set.`,
 		FileText: `FROM pierrezemb/gostatic
 COPY . /srv/http/
-CMD ["-port","8080"]
-	`},
+CMD ["-port","8080"{{if eq .httpsonly "true"}},"-https-promote"{{ end }}]
+	`, BuiltinArgs: []Arg{{"httpsonly", "false"}}},
 	{Name: "hugo-static",
 		Description: "Hugo static build with web server builtin",
 		Details:     `Hugo static build, then all public files are copied to the image and served, except files with executable permission set. Uses and exposes port 8080 internally.`,

@@ -54,10 +54,14 @@ func runListBuiltins(commandContext *cmdctx.CmdContext) error {
 }
 
 func runShowAppBuiltin(commandContext *cmdctx.CmdContext) error {
-	return runShowBuiltin(commandContext)
+	return showBuiltin(commandContext, true)
 }
 
 func runShowBuiltin(commandContext *cmdctx.CmdContext) error {
+	return showBuiltin(commandContext, false)
+}
+
+func showBuiltin(commandContext *cmdctx.CmdContext, useargs bool) error {
 	var builtinname string
 	var err error
 
@@ -91,10 +95,18 @@ func runShowBuiltin(commandContext *cmdctx.CmdContext) error {
 	fmt.Println(builtin.Details)
 	fmt.Println()
 
-	if builtin.BuiltinArgs != nil {
-		fmt.Print(aurora.Bold("Arguments (and defaults):\n"))
-		for _, arg := range builtin.BuiltinArgs {
-			fmt.Printf("%s=%s\n", arg.Name, arg.Default)
+	var settings map[string]string
+
+	if useargs {
+		settings = builtin.ResolveArgs(commandContext.AppConfig.Build.Args)
+	} else {
+		settings = builtin.ResolveArgs(nil)
+	}
+
+	if len(settings) > 0 {
+		fmt.Print(aurora.Bold("Arguments:\n"))
+		for name, val := range settings {
+			fmt.Printf("%s=%s\n", name, val)
 		}
 		fmt.Println()
 	}

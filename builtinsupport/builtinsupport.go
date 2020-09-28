@@ -36,17 +36,7 @@ func GetBuiltin(builtinname string) (*Builtin, error) {
 	return &builtin, nil
 }
 
-// GetVDockerfile - given an map of variables, get the definition and populate it
-func (b *Builtin) GetVDockerfile(vars map[string]string) (string, error) {
-	template, err := template.New("builtin").Parse(b.FileText)
-
-	if err != nil {
-		return "", err
-	}
-
-	// Now the create the proper vars from
-	// If it's set in the vars map, set it in the settings map
-
+func (b *Builtin) ResolveArgs(vars map[string]string) map[string]string {
 	settings := make(map[string]string, len(vars))
 
 	if vars != nil {
@@ -74,6 +64,22 @@ func (b *Builtin) GetVDockerfile(vars map[string]string) (string, error) {
 			break
 		}
 	}
+
+	return settings
+}
+
+// GetVDockerfile - given an map of variables, get the definition and populate it
+func (b *Builtin) GetVDockerfile(vars map[string]string) (string, error) {
+	template, err := template.New("builtin").Parse(b.FileText)
+
+	if err != nil {
+		return "", err
+	}
+
+	// Now the create the proper vars from
+	// If it's set in the vars map, set it in the settings map
+
+	settings := b.ResolveArgs(vars)
 
 	result := strings.Builder{}
 
