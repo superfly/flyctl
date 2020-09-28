@@ -37,6 +37,9 @@ func runStatus(ctx *cmdctx.CmdContext) error {
 	}
 
 	_, backupregions, err := ctx.Client.API().ListAppRegions(ctx.AppName)
+	if err != nil {
+		return err
+	}
 
 	err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppStatus{AppStatus: *app}, HideHeader: true, Vertical: true, Title: "App"})
 	if err != nil {
