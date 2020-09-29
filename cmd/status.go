@@ -36,8 +36,6 @@ func runStatus(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	_, backupregions, err := ctx.Client.API().ListAppRegions(ctx.AppName)
-
 	err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppStatus{AppStatus: *app}, HideHeader: true, Vertical: true, Title: "App"})
 	if err != nil {
 		return err
@@ -65,6 +63,8 @@ func runStatus(ctx *cmdctx.CmdContext) error {
 			return err
 		}
 	}
+
+	_, backupregions, err := ctx.Client.API().ListAppRegions(ctx.AppName)
 
 	err = ctx.Frender(cmdctx.PresenterOption{
 		Presentable: &presenters.Allocations{Allocations: app.Allocations, BackupRegions: backupregions},
