@@ -66,6 +66,10 @@ func runStatus(ctx *cmdctx.CmdContext) error {
 
 	_, backupregions, err := ctx.Client.API().ListAppRegions(ctx.AppName)
 
+	if err != nil {
+		return err
+	}
+
 	err = ctx.Frender(cmdctx.PresenterOption{
 		Presentable: &presenters.Allocations{Allocations: app.Allocations, BackupRegions: backupregions},
 		Title:       "Allocations",
