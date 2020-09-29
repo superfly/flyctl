@@ -73,6 +73,11 @@ func newInitCommand() *Command {
 		Description: "Always overwrite an existing fly.toml file",
 	})
 
+	cmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "nowrite",
+		Description: "Never write a fly.toml file",
+	})
+
 	return cmd
 }
 
@@ -96,22 +101,28 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		}
 	}
 	overwrite := commandContext.Config.GetBool("overwrite")
+	nowrite := commandContext.Config.GetBool("nowrite")
 
 	configfilename, err := flyctl.ResolveConfigFileFromPath(commandContext.WorkingDir)
-
-	if helpers.FileExists(configfilename) {
-		if !overwrite {
-			commandContext.Status("init", cmdctx.SERROR, "An existing configuration file has been found.")
-			confirmation := confirm(fmt.Sprintf("Overwrite file '%s'", configfilename))
-			if !confirmation {
-				return nil
-			}
-		} else {
-			commandContext.Status("init", cmdctx.SWARN, "Overwriting existing configuration (--overwrite)")
-		}
+	if err != nil {
+		return err
 	}
 
 	newAppConfig := flyctl.NewAppConfig()
+
+	if !nowrite {
+		if helpers.FileExists(configfilename) {
+			if !overwrite {
+				commandContext.Status("init", cmdctx.SERROR, "An existing configuration file has been found.")
+				confirmation := confirm(fmt.Sprintf("Overwrite file '%s'", configfilename))
+				if !confirmation {
+					return nil
+				}
+			} else {
+				commandContext.Status("init", cmdctx.SWARN, "Overwriting existing configuration (--overwrite)")
+			}
+		}
+	}
 
 	name, _ := commandContext.Config.GetString("name")
 
@@ -172,102 +183,120 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		return err
 	}
 
-	// If we are importing or using a builtin, assume builders are set in the template
-	if importfile == "" && builtinname == "" && imagename == "" {
-		// Otherwise get a Builder from the user while checking the dockerfile setting
-		dockerfileSet := commandContext.Config.IsSet("dockerfile")
-		dockerfile := commandContext.Config.GetBool("dockerfile")
+	if !nowrite {
+		// If we are importing or using a builtin, assume builders are set in the template
+		if importfile == "" && builtinname == "" && imagename == "" {
+			// Otherwise get a Builder from the user while checking the dockerfile setting
+			dockerfileSet := commandContext.Config.IsSet("dockerfile")
+			dockerfile := commandContext.Config.GetBool("dockerfile")
 
-		if builder == "" && !dockerfileSet {
-			builder, builtin, err := selectBuildtype(commandContext)
+			if builder == "" && !dockerfileSet {
+				builder, builtin, err := selectBuildtype(commandContext)
 
-			switch {
-			case isInterrupt(err):
-				return nil
-			case err != nil || builder == "":
-				return fmt.Errorf("Error setting builder: %s", err)
-			}
-			// If image, prompt for name
-			if builder == "Image" {
-				imagename, err = selectImage(commandContext)
-				if err != nil {
-					return err
+				switch {
+				case isInterrupt(err):
+					return nil
+				case err != nil || builder == "":
+					return fmt.Errorf("Error setting builder: %s", err)
 				}
-			} else if builder != "Dockerfile" && builder != "None" && !builtin {
-				// Not a dockerfile setting and not set to none. This is a classic buildpack
-				newAppConfig.Build = &flyctl.Build{Builder: builder}
-			} else if builder != "None" && builtin {
-				// Builder not none and the user apparently selected a builtin builder
-				builtinname = builder
-			}
-		} else if builder != "" {
-			// If the builder was set and there's not dockerfile setting, write the builder
-			if !dockerfile {
-				newAppConfig.Build = &flyctl.Build{Builder: builder}
+				// If image, prompt for name
+				if builder == "Image" {
+					imagename, err = selectImage(commandContext)
+					if err != nil {
+						return err
+					}
+				} else if builder != "Dockerfile" && builder != "None" && !builtin {
+					// Not a dockerfile setting and not set to none. This is a classic buildpack
+					newAppConfig.Build = &flyctl.Build{Builder: builder}
+				} else if builder != "None" && builtin {
+					// Builder not none and the user apparently selected a builtin builder
+					builtinname = builder
+				}
+			} else if builder != "" {
+				// If the builder was set and there's not dockerfile setting, write the builder
+				if !dockerfile {
+					newAppConfig.Build = &flyctl.Build{Builder: builder}
+				}
 			}
 		}
 	}
-
 	// The creation magic happens here....
 	app, err := commandContext.Client.API().CreateApp(name, org.ID)
 	if err != nil {
 		return err
 	}
 
-	if imagename != "" {
-		newAppConfig.AppName = app.Name
-		newAppConfig.Build = &flyctl.Build{Image: imagename}
-		newAppConfig.Definition = app.Config.Definition
-	} else if importfile != "" {
-		fmt.Printf("Importing configuration from %s\n", importfile)
+	if !nowrite {
+		if imagename != "" {
+			newAppConfig.AppName = app.Name
+			newAppConfig.Build = &flyctl.Build{Image: imagename}
+			newAppConfig.Definition = app.Config.Definition
+		} else if importfile != "" {
+			fmt.Printf("Importing configuration from %s\n", importfile)
 
-		tmpappconfig, err := flyctl.LoadAppConfig(importfile)
+			tmpappconfig, err := flyctl.LoadAppConfig(importfile)
+			if err != nil {
+				return err
+			}
+			newAppConfig = tmpappconfig
+			// And then overwrite the app name
+			newAppConfig.AppName = app.Name
+		} else if builtinname != "" {
+			newAppConfig.AppName = app.Name
+			newAppConfig.Build = &flyctl.Build{Builtin: builtinname}
+			newAppConfig.Definition = app.Config.Definition
+		} else if builder != "None" {
+			newAppConfig.AppName = app.Name
+			newAppConfig.Definition = app.Config.Definition
+		}
+
+		if configPort != "" { // If the config port has been set externally, set that
+			newAppConfig.SetInternalPort(internalPort)
+		} else if importfile == "" { // If we are not importing, get the default, ask for new setting
+			currentport, err := newAppConfig.GetInternalPort()
+			if err != nil {
+				return err
+			}
+			internalPort, err = selectPort(commandContext, currentport)
+			if err != nil {
+				return err
+			}
+			newAppConfig.SetInternalPort(internalPort)
+		}
+
+		fmt.Println()
+
+		err = commandContext.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "New app created"})
 		if err != nil {
 			return err
 		}
-		newAppConfig = tmpappconfig
-		// And then overwrite the app name
-		newAppConfig.AppName = app.Name
-	} else if builtinname != "" {
-		newAppConfig.AppName = app.Name
-		newAppConfig.Build = &flyctl.Build{Builtin: builtinname}
-		newAppConfig.Definition = app.Config.Definition
-	} else if builder != "None" {
-		newAppConfig.AppName = app.Name
-		newAppConfig.Definition = app.Config.Definition
+
+		if commandContext.ConfigFile == "" {
+			newCfgFile, err := flyctl.ResolveConfigFileFromPath(commandContext.WorkingDir)
+			if err != nil {
+				return err
+			}
+			commandContext.ConfigFile = newCfgFile
+		}
+
+		commandContext.AppName = app.Name
+		commandContext.AppConfig = newAppConfig
+
+		return writeAppConfig(commandContext.ConfigFile, newAppConfig)
 	}
 
-	if configPort != "" { // If the config port has been set externally, set that
-		newAppConfig.SetInternalPort(internalPort)
-	} else if importfile == "" { // If we are not importing, get the default, ask for new setting
-		currentport, err := newAppConfig.GetInternalPort()
-		if err != nil {
-			return err
-		}
-		internalPort, err = selectPort(commandContext, currentport)
-		if err != nil {
-			return err
-		}
-		newAppConfig.SetInternalPort(internalPort)
-	}
+	fmt.Printf("New app created: %s", app.Name)
 
-	fmt.Println()
-
-	err = commandContext.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "New app created"})
+	f, err := os.OpenFile("fly.alias", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		return err
 	}
 
-	if commandContext.ConfigFile == "" {
-		newCfgFile, err := flyctl.ResolveConfigFileFromPath(commandContext.WorkingDir)
-		if err != nil {
-			return err
-		}
-		commandContext.ConfigFile = newCfgFile
+	defer f.Close()
+
+	if _, err = f.WriteString(app.Name + "\n"); err != nil {
+		return err
 	}
 
-	commandContext.AppName = app.Name
-	commandContext.AppConfig = newAppConfig
-
-	return writeAppConfig(commandContext.ConfigFile, newAppConfig)
+	return nil
 }

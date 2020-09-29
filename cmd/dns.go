@@ -5,336 +5,165 @@ import (
 	"io/ioutil"
 	"os"
 	"strconv"
-	"strings"
-	"time"
 
-	"github.com/AlecAivazis/survey/v2"
-	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
 )
 
 func newDNSCommand() *Command {
-	dnsStrings := docstrings.Get("dns")
+	dnsStrings := docstrings.Get("dns-records")
 	cmd := BuildCommandKS(nil, nil, dnsStrings, os.Stdout, requireSession)
 
-	zonesStrings := docstrings.Get("dns.zones")
-	zonesCmd := BuildCommandKS(cmd, nil, zonesStrings, os.Stdout, requireSession)
-	zonesCmd.Aliases = []string{"z"}
+	listStrings := docstrings.Get("dns-records.list")
+	listCmd := BuildCommandKS(cmd, runRecordsList, listStrings, os.Stdout, requireSession)
+	listCmd.Args = cobra.ExactArgs(1)
 
-	zonesListStrings := docstrings.Get("dns.zones.list")
-	zonesListCmd := BuildCommandKS(zonesCmd, runZonesList, zonesListStrings, os.Stdout, requireSession)
-	zonesListCmd.Args = cobra.MaximumNArgs(1)
+	recordsExportStrings := docstrings.Get("dns-records.export")
+	recordsExportCmd := BuildCommandKS(cmd, runRecordsExport, recordsExportStrings, os.Stdout, requireSession)
+	recordsExportCmd.Args = cobra.MinimumNArgs(1)
+	recordsExportCmd.Args = cobra.MaximumNArgs(3)
+	recordsExportCmd.AddBoolFlag(BoolFlagOpts{
+		Name: "overwrite",
+	})
 
-	zonesCreateStrings := docstrings.Get("dns.zones.create")
-	zonesCreateCmd := BuildCommandKS(zonesCmd, runZonesCreate, zonesCreateStrings, os.Stdout, requireSession)
-	zonesCreateCmd.Args = cobra.MaximumNArgs(2)
-
-	zonesDeleteStrings := docstrings.Get("dns.zones.delete")
-	zonesDeleteCmd := BuildCommandKS(zonesCmd, runZonesDelete, zonesDeleteStrings, os.Stdout, requireSession)
-	zonesDeleteCmd.Args = cobra.MaximumNArgs(2)
-
-	recordsStrings := docstrings.Get("dns.records")
-	recordsCmd := BuildCommandKS(cmd, nil, recordsStrings, os.Stdout, requireSession)
-	recordsCmd.Aliases = []string{"r"}
-
-	recordsListStrings := docstrings.Get("dns.records.list")
-	recordsListCmd := BuildCommandKS(recordsCmd, runRecordsList, recordsListStrings, os.Stdout, requireSession)
-	recordsListCmd.Args = cobra.MaximumNArgs(2)
-
-	recordsExportStrings := docstrings.Get("dns.records.export")
-	recordsExportCmd := BuildCommandKS(recordsCmd, runRecordsExport, recordsExportStrings, os.Stdout, requireSession)
-	recordsExportCmd.Args = cobra.MaximumNArgs(2)
-
-	recordsImportStrings := docstrings.Get("dns.records.import")
-	recordsImportCmd := BuildCommandKS(recordsCmd, runRecordsImport, recordsImportStrings, os.Stdout, requireSession)
+	recordsImportStrings := docstrings.Get("dns-records.import")
+	recordsImportCmd := BuildCommandKS(cmd, runRecordsImport, recordsImportStrings, os.Stdout, requireSession)
 	recordsImportCmd.Args = cobra.MaximumNArgs(3)
+	recordsImportCmd.Args = cobra.MinimumNArgs(1)
 
 	return cmd
 }
 
-func runZonesList(ctx *cmdctx.CmdContext) error {
-	var orgSlug string
-	if len(ctx.Args) == 0 {
-		org, err := selectOrganization(ctx.Client.API(), "")
-		if err != nil {
-			return err
-		}
-		orgSlug = org.Slug
-	} else {
-		orgSlug = ctx.Args[0]
-	}
-	zones, err := ctx.Client.API().GetDNSZones(orgSlug)
-	if err != nil {
-		return err
-	}
-
-	zonetable := tablewriter.NewWriter(ctx.Out)
-
-	zonetable.SetHeader([]string{"Domain", "Created"})
-
-	for _, zone := range zones {
-		zonetable.Append([]string{zone.Domain, fmt.Sprintf("%s (%s)", humanize.Time(zone.CreatedAt), zone.CreatedAt.Format(time.UnixDate))})
-	}
-
-	zonetable.Render()
-
-	return nil
-}
-
-func runZonesCreate(ctx *cmdctx.CmdContext) error {
-	var org *api.Organization
-	var domain string
-	var err error
-
-	if len(ctx.Args) == 0 {
-		org, err = selectOrganization(ctx.Client.API(), "")
-		if err != nil {
-			return err
-		}
-
-		prompt := &survey.Input{Message: "Domain name to create"}
-		survey.AskOne(prompt, &domain)
-		// TODO: Add some domain validation here
-	} else if len(ctx.Args) == 2 {
-		org, err = ctx.Client.API().FindOrganizationBySlug(ctx.Args[0])
-		if err != nil {
-			return err
-		}
-		domain = ctx.Args[1]
-	} else {
-		return errors.New("specify all arguments (or no arguments to be prompted)")
-	}
-
-	fmt.Printf("Creating zone %s in organization %s\n", domain, org.Slug)
-
-	zone, err := ctx.Client.API().CreateDNSZone(org.ID, domain)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("Created zone", zone.Domain)
-
-	return nil
-}
-
-func runZonesDelete(ctx *cmdctx.CmdContext) error {
-	var org *api.Organization
-	var domain string
-	var err error
-
-	if len(ctx.Args) == 0 {
-		org, err = selectOrganization(ctx.Client.API(), "")
-		if err != nil {
-			return err
-		}
-
-		prompt := &survey.Input{Message: "Domain name to delete"}
-		survey.AskOne(prompt, &domain)
-	} else if len(ctx.Args) == 2 {
-		org, err = ctx.Client.API().FindOrganizationBySlug(ctx.Args[0])
-		if err != nil {
-			return err
-		}
-		domain = ctx.Args[1]
-	} else {
-		return errors.New("specify all arguments (or no arguments to be prompted)")
-	}
-
-	zone, err := ctx.Client.API().FindDNSZone(org.Slug, domain)
-
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("Deleting zone %s in organization %s\n", zone.Domain, zone.Organization.Slug)
-
-	err = ctx.Client.API().DeleteDNSZone(zone.ID)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("Deleted zone", zone.Domain)
-
-	return nil
-}
-
 func runRecordsList(ctx *cmdctx.CmdContext) error {
-	var org *api.Organization
-	var zoneslug string
-	var err error
+	name := ctx.Args[0]
 
-	if len(ctx.Args) == 0 {
-		org, err = selectOrganization(ctx.Client.API(), "")
-		if err != nil {
-			return err
-		}
-
-		zoneslug, err = selectZone(ctx.Client.API(), org.Slug, "")
-
-	} else if len(ctx.Args) == 2 {
-		org, err = ctx.Client.API().FindOrganizationBySlug(ctx.Args[0])
-		if err != nil {
-			return err
-		}
-		zoneslug = ctx.Args[1]
-	} else {
-		return errors.New("specify all arguments (or no arguments to be prompted)")
-	}
-
-	zone, err := ctx.Client.API().FindDNSZone(org.Slug, zoneslug)
-
+	records, err := ctx.Client.API().GetDNSRecords(name)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Records for zone %s in organization %s\n", zone.Domain, zone.Organization.Slug)
-
-	records, err := ctx.Client.API().GetDNSRecords(zone.ID)
-	if err != nil {
-		return err
-	}
+	fmt.Printf("Records for domain %s\n", name)
 
 	if ctx.OutputJSON() {
 		ctx.WriteJSON(records)
 		return nil
 	}
 
-	recordtable := tablewriter.NewWriter(ctx.Out)
-	recordtable.SetHeader([]string{"FQDN", "TTL", "Type", "Values"})
+	table := tablewriter.NewWriter(ctx.Out)
+	table.SetAutoWrapText(true)
+	table.SetReflowDuringAutoWrap(true)
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetNoWhiteSpace(true)
+	table.SetTablePadding(" ")
+	table.SetCenterSeparator("")
+	table.SetColumnSeparator("")
+	table.SetRowSeparator("")
+	table.SetHeader([]string{"FQDN", "TTL", "Type", "Content"})
 
 	for _, record := range records {
-		recordtable.Append([]string{record.FQDN, strconv.Itoa(record.TTL), record.Type, strings.Join(record.Values, ",")})
+		table.Append([]string{record.FQDN, strconv.Itoa(record.TTL), record.Type, record.RData})
 	}
 
-	recordtable.Render()
+	table.Render()
 
 	return nil
 }
 
 func runRecordsExport(ctx *cmdctx.CmdContext) error {
-	var org *api.Organization
-	var zoneslug string
-	var err error
+	name := ctx.Args[0]
 
-	if len(ctx.Args) == 0 {
-		org, err = selectOrganization(ctx.Client.API(), "")
-		if err != nil {
-			return err
-		}
-
-		zoneslug, err = selectZone(ctx.Client.API(), org.Slug, "")
-
-	} else if len(ctx.Args) == 2 {
-		org, err = ctx.Client.API().FindOrganizationBySlug(ctx.Args[0])
-		if err != nil {
-			return err
-		}
-		zoneslug = ctx.Args[1]
-	} else {
-		return errors.New("specify all arguments (or no arguments to be prompted)")
-	}
-
-	zone, err := ctx.Client.API().FindDNSZone(org.Slug, zoneslug)
+	domain, err := ctx.Client.API().GetDomain(name)
 	if err != nil {
 		return err
 	}
 
-	records, err := ctx.Client.API().ExportDNSRecords(zone.ID)
+	records, err := ctx.Client.API().ExportDNSRecords(domain.ID)
 	if err != nil {
 		return err
 	}
 
-	if len(ctx.Args) == 2 {
+	if len(ctx.Args) == 1 {
 		fmt.Println(records)
 	} else {
-		var filename string
+		var filename = ctx.Args[1]
 
-		validateFile := func(val interface{}) error {
-			_, err := os.Stat(val.(string))
-			if err == nil {
-				return fmt.Errorf("File %s already exists", val.(string))
-			}
-			return nil
+		_, err := os.Stat(filename)
+		if err == nil {
+			return fmt.Errorf("File %s already exists", filename)
 		}
 
-		err := survey.AskOne(&survey.Input{Message: "Export filename:"}, &filename, survey.WithValidator(validateFile))
-
+		err = ioutil.WriteFile(filename, []byte(records), 0644)
 		if err != nil {
 			return err
 		}
 
-		ioutil.WriteFile(filename, []byte(records), 0644)
-
-		fmt.Printf("Zones exported to %s\n", filename)
+		fmt.Printf("Zone exported to %s\n", filename)
 	}
 
 	return nil
 }
 
 func runRecordsImport(ctx *cmdctx.CmdContext) error {
-	var org *api.Organization
-	var zoneslug string
+	name := ctx.Args[0]
 	var filename string
 
-	var err error
-
-	if len(ctx.Args) == 0 {
-		org, err = selectOrganization(ctx.Client.API(), "")
-		if err != nil {
-			return err
-		}
-
-		zoneslug, err = selectZone(ctx.Client.API(), org.Slug, "")
-
-		validateFile := func(val interface{}) error {
-			_, err := os.Stat(val.(string))
-			if os.IsNotExist(err) {
-				return fmt.Errorf("File %s does not exist", val.(string))
-			}
-			return nil
-		}
-
-		err := survey.AskOne(&survey.Input{Message: "Import filename:"}, &filename, survey.WithValidator(validateFile))
-
-		if err != nil {
-			return err
-		}
-
-	} else if len(ctx.Args) == 3 {
-		org, err = ctx.Client.API().FindOrganizationBySlug(ctx.Args[0])
-		if err != nil {
-			return err
-		}
-		zoneslug = ctx.Args[1]
-		filename = ctx.Args[2]
+	if len(ctx.Args) == 1 {
+		// One arg, use stdin
+		filename = "-"
 	} else {
-		return errors.New("specify all arguments (or no arguments to be prompted)")
+		filename = ctx.Args[1]
 	}
 
-	zone, err := ctx.Client.API().FindDNSZone(org.Slug, zoneslug)
+	domain, err := ctx.Client.API().GetDomain(name)
 	if err != nil {
 		return err
 	}
 
-	data, err := ioutil.ReadFile(filename)
+	var data []byte
+
+	if filename != "-" {
+		data, err = ioutil.ReadFile(filename)
+		if err != nil {
+			return err
+		}
+	} else {
+		data, err = ioutil.ReadAll(os.Stdin)
+		if err != nil {
+			return err
+		}
+	}
+
+	warnings, changes, err := ctx.Client.API().ImportDNSRecords(domain.ID, string(data))
 	if err != nil {
 		return err
 	}
 
-	results, err := ctx.Client.API().ImportDNSRecords(zone.ID, string(data))
-	if err != nil {
-		return err
+	fmt.Printf("Zonefile import report for %s\n", domain.Name)
+
+	if filename == "-" {
+		fmt.Printf("Imported from stdin\n")
+	} else {
+		fmt.Printf("Imported from %s\n", filename)
 	}
 
-	fmt.Println("Zonefile import report")
+	fmt.Printf("%d warnings\n", len(warnings))
+	for _, warning := range warnings {
+		fmt.Println("->", warning.Action, warning.Message)
+	}
 
-	for _, result := range results {
-		fmt.Printf("%s created: %d, updated: %d, deleted: %d, skipped: %d\n", result.Type, result.Created, result.Updated, result.Deleted, result.Skipped)
+	fmt.Printf("%d changes\n", len(changes))
+	for _, change := range changes {
+		switch change.Action {
+		case "CREATE":
+			fmt.Println("-> Created", change.NewText)
+		case "DELETE":
+			fmt.Println("-> Deleted", change.OldText)
+		case "UPDATE":
+			fmt.Println("-> Updated", change.OldText, "=>", change.NewText)
+		}
 	}
 
 	return nil

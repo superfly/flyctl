@@ -1,44 +1,22 @@
 package api
 
-func (c *Client) GetDNSZones(slug string) ([]*DNSZone, error) {
+func (c *Client) GetDNSRecords(domainName string) ([]*DNSRecord, error) {
 	query := `
-		query($slug: String!) {
-			organization(slug: $slug) {
-				dnsZones {
+		query($domainName: String!) {
+			domain(name: $domainName) {
+				dnsRecords {
 					nodes {
 						id
-						domain
-						createdAt
-					}
-				}
-			}
-		}
-	`
-
-	req := c.NewRequest(query)
-
-	req.Var("slug", slug)
-
-	data, err := c.Run(req)
-	if err != nil {
-		return nil, err
-	}
-
-	return *data.Organization.DNSZones.Nodes, nil
-}
-
-func (c *Client) FindDNSZone(organizationSlug string, domain string) (*DNSZone, error) {
-	query := `
-		query($slug: String!, $domain: String!) {
-			organization(slug: $slug) {
-				dnsZone(domain: $domain) {
-					id
-					domain
-					createdAt
-					organization {
-						id
-						slug
+						fqdn
 						name
+						type
+						ttl
+						rdata
+						isApex
+						isWildcard
+						isSystem
+						createdAt
+						updatedAt
 					}
 				}
 			}
@@ -47,114 +25,21 @@ func (c *Client) FindDNSZone(organizationSlug string, domain string) (*DNSZone, 
 
 	req := c.NewRequest(query)
 
-	req.Var("slug", organizationSlug)
-	req.Var("domain", domain)
+	req.Var("domainName", domainName)
 
 	data, err := c.Run(req)
 	if err != nil {
 		return nil, err
 	}
 
-	if data.Organization == nil || data.Organization.DNSZone == nil {
+	if data.Domain == nil {
 		return nil, ErrNotFound
 	}
 
-	return data.Organization.DNSZone, nil
+	return *data.Domain.DnsRecords.Nodes, nil
 }
 
-func (c *Client) CreateDNSZone(organizationID string, domain string) (*DNSZone, error) {
-	query := `
-		mutation($input: CreateDnsZoneInput!) {
-			createDnsZone(input: $input) {
-				zone {
-					id
-					domain
-					createdAt
-				}
-			}
-		}
-	`
-
-	req := c.NewRequest(query)
-
-	req.Var("input", map[string]interface{}{
-		"organizationId": organizationID,
-		"domain":         domain,
-	})
-
-	data, err := c.Run(req)
-	if err != nil {
-		return nil, err
-	}
-
-	return data.CreateDnsZone.Zone, nil
-}
-
-func (c *Client) DeleteDNSZone(zoneID string) error {
-	query := `
-		mutation($input: DeleteDnsZoneInput!) {
-			deleteDnsZone(input: $input) {
-				clientMutationId
-			}
-		}
-	`
-
-	req := c.NewRequest(query)
-
-	req.Var("input", map[string]interface{}{
-		"dnsZoneId": zoneID,
-	})
-
-	_, err := c.Run(req)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *Client) GetDNSRecords(zoneID string) ([]*DNSRecord, error) {
-	query := `
-		query($zoneId: ID!) {
-			dnsZone: node(id: $zoneId) {
-				... on DnsZone {
-					records {
-						nodes {
-							id
-							fqdn
-							name
-							type
-							ttl
-							values
-							isApex
-							isWildcard
-							isSystem
-							createdAt
-							updatedAt
-						}
-					}
-				}
-			}
-		}
-	`
-
-	req := c.NewRequest(query)
-
-	req.Var("zoneId", zoneID)
-
-	data, err := c.Run(req)
-	if err != nil {
-		return nil, err
-	}
-
-	if data.DNSZone == nil {
-		return nil, ErrNotFound
-	}
-
-	return *data.DNSZone.Records.Nodes, nil
-}
-
-func (c *Client) ExportDNSRecords(zoneID string) (string, error) {
+func (c *Client) ExportDNSRecords(domainId string) (string, error) {
 	query := `
 		mutation($input: ExportDnsZoneInput!) {
 			exportDnsZone(input: $input) {
@@ -166,7 +51,7 @@ func (c *Client) ExportDNSRecords(zoneID string) (string, error) {
 	req := c.NewRequest(query)
 
 	req.Var("input", map[string]interface{}{
-		"dnsZoneId": zoneID,
+		"domainId": domainId,
 	})
 
 	data, err := c.Run(req)
@@ -177,16 +62,24 @@ func (c *Client) ExportDNSRecords(zoneID string) (string, error) {
 	return data.ExportDnsZone.Contents, nil
 }
 
-func (c *Client) ImportDNSRecords(zoneID string, zonefile string) ([]ImportDnsRecordTypeResult, error) {
+func (c *Client) ImportDNSRecords(domainId string, zonefile string) ([]ImportDnsWarning, []ImportDnsChange, error) {
 	query := `
 		mutation($input: ImportDnsZoneInput!) {
 			importDnsZone(input: $input) {
-				results {
-					created
-					deleted
-					updated
-					skipped
-					type
+				changes {
+					action
+					newText
+					oldText
+				}
+				warnings {
+					action
+					message
+					attributes {
+						name
+						rdata
+						ttl
+						type
+					}
 				}
 			}
 		}
@@ -195,14 +88,14 @@ func (c *Client) ImportDNSRecords(zoneID string, zonefile string) ([]ImportDnsRe
 	req := c.NewRequest(query)
 
 	req.Var("input", map[string]interface{}{
-		"dnsZoneId": zoneID,
-		"zonefile":  zonefile,
+		"domainId": domainId,
+		"zonefile": zonefile,
 	})
 
 	data, err := c.Run(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return data.ImportDnsZone.Results, nil
+	return data.ImportDnsZone.Warnings, data.ImportDnsZone.Changes, nil
 }

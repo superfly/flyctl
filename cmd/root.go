@@ -49,21 +49,22 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().StringP("access-token", "t", "", "Fly API Access Token")
-	viper.BindPFlag(flyctl.ConfigAPIToken, rootCmd.PersistentFlags().Lookup("access-token"))
+	err := viper.BindPFlag(flyctl.ConfigAPIToken, rootCmd.PersistentFlags().Lookup("access-token"))
+	checkErr(err)
 
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
-	viper.BindPFlag(flyctl.ConfigVerboseOutput, rootCmd.PersistentFlags().Lookup("verbose"))
+	err = viper.BindPFlag(flyctl.ConfigVerboseOutput, rootCmd.PersistentFlags().Lookup("verbose"))
+	checkErr(err)
 
 	rootCmd.PersistentFlags().BoolP("json", "j", false, "json output")
-	viper.BindPFlag(flyctl.ConfigJSONOutput, rootCmd.PersistentFlags().Lookup("json"))
-
-	// rootCmd.PersistentFlags().Bool("gqlerrorlogging", false, "Log GraphQL errors directly to stdout")
-	// rootCmd.PersistentFlags().MarkHidden("gqlerrorlogging")
+	err = viper.BindPFlag(flyctl.ConfigJSONOutput, rootCmd.PersistentFlags().Lookup("json"))
+	checkErr(err)
 
 	rootCmd.PersistentFlags().String("builtinsfile", "", "Load builtins from named file")
 	viper.BindPFlag(flyctl.ConfigBuiltinsfile, rootCmd.PersistentFlags().Lookup("builtinsfile"))
 
 	rootCmd.PersistentFlags().MarkHidden("builtinsfile")
+
 
 	rootCmd.AddCommand(
 		newAppsCommand(),
@@ -95,7 +96,8 @@ func init() {
 		newStatusCommand(),
 		newSuspendCommand(),
 		newVersionCommand(),
-		//		newDNSCommand(),
+		newDNSCommand(),
+		newDomainsCommand(),
 		newOrgsCommand(),
 		newBuiltinsCommand(),
 	)
