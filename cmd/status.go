@@ -128,7 +128,7 @@ func runAllocStatus(ctx *cmdctx.CmdContext) error {
 	logPresenter.FPrint(p, ctx.OutputJSON(), alloc.RecentLogs)
 
 	if p != ctx.Out {
-		pw.Flush()
+		_ = pw.Flush()
 	}
 
 	return nil
