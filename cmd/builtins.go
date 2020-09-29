@@ -29,7 +29,7 @@ func newBuiltinsCommand() *Command {
 }
 
 func runListBuiltins(commandContext *cmdctx.CmdContext) error {
-	builtins := builtinsupport.GetBuiltins()
+	builtins := builtinsupport.GetBuiltins(commandContext)
 
 	sort.Slice(builtins, func(i, j int) bool { return builtins[i].Name < builtins[j].Name })
 
@@ -54,28 +54,28 @@ func runListBuiltins(commandContext *cmdctx.CmdContext) error {
 }
 
 func runShowAppBuiltin(commandContext *cmdctx.CmdContext) error {
-	return showBuiltin(commandContext, true)
+	builtinname := commandContext.AppConfig.Build.Builtin
+	return showBuiltin(commandContext, builtinname, true)
 }
 
 func runShowBuiltin(commandContext *cmdctx.CmdContext) error {
-	return showBuiltin(commandContext, false)
-}
-
-func showBuiltin(commandContext *cmdctx.CmdContext, useargs bool) error {
-	var builtinname string
-	var err error
 
 	if len(commandContext.Args) == 0 {
-		builtinname, err = selectBuiltin(commandContext)
+		builtinname, err := selectBuiltin(commandContext)
 		if err != nil {
 			return err
 		}
-	} else {
-		builtinname = commandContext.Args[0]
+		return showBuiltin(commandContext, builtinname, false)
+
 	}
 
-	builtin, err := builtinsupport.GetBuiltin(builtinname)
+	builtinname := commandContext.Args[0]
 
+	return showBuiltin(commandContext, builtinname, false)
+}
+
+func showBuiltin(commandContext *cmdctx.CmdContext, builtinname string, useargs bool) error {
+	builtin, err := builtinsupport.GetBuiltin(commandContext, builtinname)
 	if err != nil {
 		return err
 	}
@@ -85,17 +85,9 @@ func showBuiltin(commandContext *cmdctx.CmdContext, useargs bool) error {
 		return nil
 	}
 
-	commandContext.Statusf("builtins", cmdctx.STITLE, "Name: %s\n", builtin.Name)
-	commandContext.StatusLn()
+	showBuiltinMetadata(commandContext, builtin)
 
-	commandContext.Statusf("builtins", cmdctx.SINFO, "Description: %s\n", builtin.Description)
-	commandContext.StatusLn()
-
-	fmt.Print(aurora.Bold("Details:\n"))
-	fmt.Println(builtin.Details)
-	fmt.Println()
-
-	var settings map[string]string
+	var settings map[string]interface{}
 
 	if useargs {
 		settings = builtin.ResolveArgs(commandContext.AppConfig.Build.Args)
@@ -106,7 +98,8 @@ func showBuiltin(commandContext *cmdctx.CmdContext, useargs bool) error {
 	if len(settings) > 0 {
 		fmt.Print(aurora.Bold("Arguments:\n"))
 		for name, val := range settings {
-			fmt.Printf("%s=%s\n", name, val)
+
+			fmt.Printf("%s=%s (%T)\n", name, fmt.Sprint(val), val)
 		}
 		fmt.Println()
 	}
@@ -128,4 +121,16 @@ func showBuiltin(commandContext *cmdctx.CmdContext, useargs bool) error {
 	}
 
 	return nil
+}
+
+func showBuiltinMetadata(commandContext *cmdctx.CmdContext, builtin *builtinsupport.Builtin) {
+	commandContext.Statusf("builtins", cmdctx.STITLE, "Name: %s\n", builtin.Name)
+	commandContext.StatusLn()
+
+	commandContext.Statusf("builtins", cmdctx.SINFO, "Description: %s\n", builtin.Description)
+	commandContext.StatusLn()
+
+	fmt.Print(aurora.Bold("Details:\n"))
+	fmt.Println(builtin.Details)
+	fmt.Println()
 }

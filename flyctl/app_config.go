@@ -113,7 +113,6 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 			Buildpacks: []string{},
 		}
 		for k, v := range buildConfig {
-			fmt.Println(k, v)
 			switch k {
 			case "builder":
 				b.Builder = fmt.Sprint(v)
@@ -124,7 +123,6 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 					}
 				}
 			case "args":
-				fmt.Println("Parsing args")
 				if argMap, ok := v.(map[string]interface{}); ok {
 					for argK, argV := range argMap {
 						b.Args[argK] = argV //fmt.Sprint(argV)

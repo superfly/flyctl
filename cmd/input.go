@@ -148,7 +148,7 @@ func selectBuildtype(commandContext *cmdctx.CmdContext) (string, bool, error) {
 
 	builders = append(builders, fmt.Sprintf("%s\n    (%s)", "Image", "Use a public Docker image"))
 
-	builtins = builtinsupport.GetBuiltins()
+	builtins = builtinsupport.GetBuiltins(commandContext)
 
 	sort.Slice(builtins, func(i, j int) bool { return builtins[i].Name < builtins[j].Name })
 
@@ -199,7 +199,7 @@ func selectBuildtype(commandContext *cmdctx.CmdContext) (string, bool, error) {
 func selectBuiltin(commandContext *cmdctx.CmdContext) (string, error) {
 	availablebuiltins := []string{}
 
-	builtins := builtinsupport.GetBuiltins()
+	builtins := builtinsupport.GetBuiltins(commandContext)
 
 	sort.Slice(builtins, func(i, j int) bool { return builtins[i].Name < builtins[j].Name })
 

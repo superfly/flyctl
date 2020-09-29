@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"strings"
 	"text/template"
+
+	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/flyctl"
 )
 
 // Arg is a simple holder for names and defaults in args
 type Arg struct {
 	Name    string
-	Default string
+	Default interface{}
 }
 
 // Builtin - Definition of a Fly Builtin Builder
@@ -17,15 +20,15 @@ type Builtin struct {
 	Name        string
 	Description string
 	Details     string
-	FileText    string
+	Template    string
 	BuiltinArgs []Arg
 }
 
 var builtins map[string]Builtin
 
 // GetBuiltin - Finds the Builtin by name
-func GetBuiltin(builtinname string) (*Builtin, error) {
-	initBuiltins()
+func GetBuiltin(commandContext *cmdctx.CmdContext, builtinname string) (*Builtin, error) {
+	initBuiltins(commandContext)
 
 	builtin, ok := builtins[builtinname]
 
@@ -36,8 +39,9 @@ func GetBuiltin(builtinname string) (*Builtin, error) {
 	return &builtin, nil
 }
 
-func (b *Builtin) ResolveArgs(vars map[string]string) map[string]string {
-	settings := make(map[string]string, len(vars))
+// ResolveArgs - Given defaults abd values return actural settings
+func (b *Builtin) ResolveArgs(vars map[string]interface{}) map[string]interface{} {
+	settings := make(map[string]interface{}, len(vars))
 
 	if vars != nil {
 		for k, v := range vars {
@@ -69,8 +73,8 @@ func (b *Builtin) ResolveArgs(vars map[string]string) map[string]string {
 }
 
 // GetVDockerfile - given an map of variables, get the definition and populate it
-func (b *Builtin) GetVDockerfile(vars map[string]string) (string, error) {
-	template, err := template.New("builtin").Parse(b.FileText)
+func (b *Builtin) GetVDockerfile(vars map[string]interface{}) (string, error) {
+	template, err := template.New("builtin").Parse(b.Template)
 
 	if err != nil {
 		return "", err
@@ -92,8 +96,8 @@ func (b *Builtin) GetVDockerfile(vars map[string]string) (string, error) {
 }
 
 // GetBuiltins - Get an array of all the builtins
-func GetBuiltins() []Builtin {
-	initBuiltins()
+func GetBuiltins(commandContext *cmdctx.CmdContext) []Builtin {
+	initBuiltins(commandContext)
 
 	var builtarray []Builtin
 
@@ -105,13 +109,34 @@ func GetBuiltins() []Builtin {
 }
 
 // Internal function to load up builtins
-func initBuiltins() {
+func initBuiltins(commandContext *cmdctx.CmdContext) {
 	if len(builtins) != 0 {
 		return
 	}
 	builtins = make(map[string]Builtin)
 
+	// Load all the internal defaults
 	for _, rt := range basicbuiltins {
+		builtins[rt.Name] = rt
+	}
+
+	builtinsfile, err := commandContext.GlobalConfig.GetString(flyctl.ConfigBuiltinsfile)
+	if err != nil {
+		fmt.Print(err)
+		return
+	}
+
+	if builtinsfile == "" {
+		return
+	}
+
+	filebuiltins, err := loadBuiltins(builtinsfile)
+	if err != nil {
+		fmt.Print(err)
+		return
+	}
+
+	for _, rt := range filebuiltins {
 		builtins[rt.Name] = rt
 	}
 }

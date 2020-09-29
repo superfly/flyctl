@@ -57,8 +57,13 @@ func init() {
 	rootCmd.PersistentFlags().BoolP("json", "j", false, "json output")
 	viper.BindPFlag(flyctl.ConfigJSONOutput, rootCmd.PersistentFlags().Lookup("json"))
 
-	rootCmd.PersistentFlags().Bool("gqlerrorlogging", false, "Log GraphQL errors directly to stdout")
-	rootCmd.PersistentFlags().MarkHidden("gqlerrorlogging")
+	// rootCmd.PersistentFlags().Bool("gqlerrorlogging", false, "Log GraphQL errors directly to stdout")
+	// rootCmd.PersistentFlags().MarkHidden("gqlerrorlogging")
+
+	rootCmd.PersistentFlags().String("builtinsfile", "", "Load builtins from named file")
+	viper.BindPFlag(flyctl.ConfigBuiltinsfile, rootCmd.PersistentFlags().Lookup("builtinsfile"))
+
+	rootCmd.PersistentFlags().MarkHidden("builtinsfile")
 
 	rootCmd.AddCommand(
 		newAppsCommand(),

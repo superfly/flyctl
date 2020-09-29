@@ -110,7 +110,7 @@ func (op *DeployOperation) BuildWithDocker(commandContext *cmdctx.CmdContext, do
 		}
 	} else {
 		// We're doing a builtin!
-		builtin, err := builtinsupport.GetBuiltin(appConfig.Build.Builtin)
+		builtin, err := builtinsupport.GetBuiltin(commandContext, appConfig.Build.Builtin)
 		if err != nil {
 			return nil, err
 		}
@@ -177,7 +177,7 @@ func (op *DeployOperation) BuildWithPack(commandContext *cmdctx.CmdContext, buil
 	env := map[string]string{}
 
 	for name, val := range appConfig.Build.Args {
-		env[name] = val
+		env[name] = fmt.Sprint(val)
 	}
 	for name, val := range buildArgs {
 		env[name] = val
@@ -314,7 +314,7 @@ func normalizeBuildArgs(appConfig *flyctl.AppConfig, extra map[string]string) ma
 	if appConfig.Build != nil {
 		for k, v := range appConfig.Build.Args {
 			// docker needs a string pointer. since ranges reuse variables we need to deref a copy
-			val := v
+			val := fmt.Sprint(v)
 			out[k] = &val
 		}
 	}
