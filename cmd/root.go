@@ -61,10 +61,11 @@ func init() {
 	checkErr(err)
 
 	rootCmd.PersistentFlags().String("builtinsfile", "", "Load builtins from named file")
-	viper.BindPFlag(flyctl.ConfigBuiltinsfile, rootCmd.PersistentFlags().Lookup("builtinsfile"))
+	err = viper.BindPFlag(flyctl.ConfigBuiltinsfile, rootCmd.PersistentFlags().Lookup("builtinsfile"))
+	checkErr(err)
 
-	rootCmd.PersistentFlags().MarkHidden("builtinsfile")
-
+	err = rootCmd.PersistentFlags().MarkHidden("builtinsfile")
+	checkErr(err)
 
 	rootCmd.AddCommand(
 		newAppsCommand(),

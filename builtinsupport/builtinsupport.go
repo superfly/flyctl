@@ -43,15 +43,13 @@ func GetBuiltin(commandContext *cmdctx.CmdContext, builtinname string) (*Builtin
 func (b *Builtin) ResolveArgs(vars map[string]interface{}) map[string]interface{} {
 	settings := make(map[string]interface{}, len(vars))
 
-	if vars != nil {
-		for k, v := range vars {
-			if b.BuiltinArgs != nil {
-				for _, arg := range b.BuiltinArgs {
-					if arg.Name == k {
-						// This is good to add
-						settings[k] = v
-						break
-					}
+	for k, v := range vars {
+		if b.BuiltinArgs != nil {
+			for _, arg := range b.BuiltinArgs {
+				if arg.Name == k {
+					// This is good to add
+					settings[k] = v
+					break
 				}
 			}
 		}
