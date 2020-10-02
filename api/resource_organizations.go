@@ -90,49 +90,17 @@ func (client *Client) GetOrganizationBySlug(slug string) (*OrganizationDetails, 
 		  name
 		  type
 		  viewerRole
-		  dnsZones {
-			nodes {
-			  id
-			  domain
-			  organization {
+		  members {
+				edges {
+					cursor
+					node {
 						id
 						name
-						slug
-						type
-			  }
-			  records {
-				nodes {
-				  id
-				  name
-				  ttl
-				  values
-				  createdAt
-				  updatedAt
-				  fqdn
-				  isApex
-				  isSystem
-				  isWildcard
-				  zone {
-					id
-					domain
-				  }
+						email
+					}
+					joinedAt
+					role
 				}
-			  }
-			  createdAt
-			  updatedAt
-			}
-		  }
-		  members {
-			edges {
-			  cursor
-			  node {
-				  id
-				  name
-				  email
-			  }
-			  joinedAt
-			  role
-			}
 		  }
 		}
 	  }
