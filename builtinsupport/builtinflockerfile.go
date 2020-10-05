@@ -19,18 +19,22 @@ func loadBuiltins(filename string) (br []Builtin, err error) {
 		var builtin Builtin
 
 		builtin.Name = v
-
-		builtin.Description = tree.GetPath([]string{v, "Description"}).(string)
-		builtin.Details = tree.GetPath([]string{v, "Details"}).(string)
-		builtin.Template = tree.GetPath([]string{v, "Template"}).(string)
+		builtin.Description = tree.GetPath([]string{v, "description"}).(string)
+		builtin.Details = tree.GetPath([]string{v, "details"}).(string)
+		builtin.Template = tree.GetPath([]string{v, "template"}).(string)
 		builtin.BuiltinArgs = []Arg{}
-		if tree.HasPath([]string{v, "Args"}) {
+		if tree.HasPath([]string{v, "args"}) {
 
-			argp := tree.GetPath([]string{v, "Args"}).(*toml.Tree)
-			args := argp.ToMap()
+			argp := tree.GetPath([]string{v, "args"}).(*toml.Tree)
+			args := argp.Keys()
 
-			for k, v := range args {
-				builtin.BuiltinArgs = append(builtin.BuiltinArgs, Arg{k, v})
+			for _, k := range args {
+				var myarg Arg
+				myarg.Name = k
+				argmap := tree.GetPath([]string{v, "args", k}).(*toml.Tree).ToMap()
+				myarg.Default = argmap["default"]
+				myarg.Description = argmap["description"].(string)
+				builtin.BuiltinArgs = append(builtin.BuiltinArgs, myarg)
 			}
 
 		}

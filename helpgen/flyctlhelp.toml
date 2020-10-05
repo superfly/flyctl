@@ -631,7 +631,7 @@ descriptions.
 """
 
 [builtins.show]
-usage="show"
+usage="show [<builtin name>]"
 shortHelp="Show details of a builtin's configuration"
 longHelp="""Show details of a Fly deployment builtins, including
 the builtin "Dockerfile" with default settings and other information.

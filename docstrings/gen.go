@@ -113,7 +113,7 @@ authenticated and in use.`,
 descriptions.`,
 		}
 	case "builtins.show":
-		return KeyStrings{"show", "Show details of a builtin's configuration",
+		return KeyStrings{"show [<builtin name>]", "Show details of a builtin's configuration",
 			`Show details of a Fly deployment builtins, including
 the builtin "Dockerfile" with default settings and other information.`,
 		}

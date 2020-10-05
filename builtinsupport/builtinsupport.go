@@ -11,8 +11,9 @@ import (
 
 // Arg is a simple holder for names and defaults in args
 type Arg struct {
-	Name    string
-	Default interface{}
+	Name        string
+	Default     interface{}
+	Description string
 }
 
 // Builtin - Definition of a Fly Builtin Builder
@@ -22,6 +23,7 @@ type Builtin struct {
 	Details     string
 	Template    string
 	BuiltinArgs []Arg
+	argMap      map[string]Arg
 }
 
 var builtins map[string]Builtin
@@ -63,7 +65,6 @@ func (b *Builtin) ResolveArgs(vars map[string]interface{}) map[string]interface{
 		if !found {
 			// This is good to set to default
 			settings[arg.Name] = arg.Default
-			break
 		}
 	}
 
@@ -91,6 +92,17 @@ func (b *Builtin) GetVDockerfile(vars map[string]interface{}) (string, error) {
 	}
 
 	return result.String(), nil
+}
+
+func (b *Builtin) GetArg(name string) Arg {
+	if len(b.argMap) != len(b.BuiltinArgs) {
+		b.argMap = make(map[string]Arg)
+		for _, a := range b.BuiltinArgs {
+			b.argMap[a.Name] = a
+		}
+	}
+
+	return b.argMap[name]
 }
 
 // GetBuiltins - Get an array of all the builtins

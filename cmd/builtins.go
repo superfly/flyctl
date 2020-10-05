@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/logrusorgru/aurora"
 	"github.com/olekukonko/tablewriter"
+	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/builtinsupport"
 	"github.com/superfly/flyctl/cmdctx"
 
@@ -23,7 +25,8 @@ func newBuiltinsCommand() *Command {
 	builtinShowStrings := docstrings.Get("builtins.show")
 	BuildCommandKS(cmd, runShowBuiltin, builtinShowStrings, os.Stdout)
 	builtinShowAppStrings := docstrings.Get("builtins.show-app")
-	BuildCommandKS(cmd, runShowAppBuiltin, builtinShowAppStrings, os.Stdout, requireAppName)
+	showappcmd := BuildCommandKS(cmd, runShowAppBuiltin, builtinShowAppStrings, os.Stdout, requireAppName)
+	showappcmd.Args = cobra.MaximumNArgs(0)
 
 	return cmd
 }
@@ -98,8 +101,28 @@ func showBuiltin(commandContext *cmdctx.CmdContext, builtinname string, useargs 
 	if len(settings) > 0 {
 		fmt.Print(aurora.Bold("Arguments:\n"))
 		for name, val := range settings {
-
-			fmt.Printf("%s=%s (%T)\n", name, fmt.Sprint(val), val)
+			arg := builtin.GetArg(name)
+			valType := ""
+			formattedVal := ""
+			switch val.(type) {
+			case []interface{}:
+			case []string:
+				valType = "array"
+				semi := fmt.Sprintf("%q", val)
+				tokens := strings.Split(semi, " ")
+				formattedVal = strings.Join(tokens, ",")
+			case bool:
+				valType = "bool"
+				formattedVal = fmt.Sprintf("%t", val)
+			default:
+				valType = fmt.Sprintf("%T", val)
+				formattedVal = fmt.Sprintf("%s", val)
+			}
+			if useargs {
+				fmt.Printf("%s=%s (%s)\n     %s defaults to %s\n", name, formattedVal, valType, arg.Description, arg.Default)
+			} else {
+				fmt.Printf("%s=%s (%s)\n     %s\n", name, formattedVal, valType, arg.Description)
+			}
 		}
 		fmt.Println()
 	}
@@ -124,11 +147,13 @@ func showBuiltin(commandContext *cmdctx.CmdContext, builtinname string, useargs 
 }
 
 func showBuiltinMetadata(commandContext *cmdctx.CmdContext, builtin *builtinsupport.Builtin) {
-	commandContext.Statusf("builtins", cmdctx.STITLE, "Name: %s\n", builtin.Name)
-	commandContext.StatusLn()
+	fmt.Print(aurora.Bold("Name: "))
+	fmt.Println(builtin.Name)
+	fmt.Println()
 
-	commandContext.Statusf("builtins", cmdctx.SINFO, "Description: %s\n", builtin.Description)
-	commandContext.StatusLn()
+	fmt.Print(aurora.Bold("Description: "))
+	fmt.Println(builtin.Description)
+	fmt.Println()
 
 	fmt.Print(aurora.Bold("Details:\n"))
 	fmt.Println(builtin.Details)
