@@ -90,7 +90,7 @@ func runDomainsShow(ctx *cmdctx.CmdContext) error {
 	ctx.Statusf("domains", cmdctx.SINFO, fmtstring, "Name", domain.Name)
 	ctx.Statusf("domains", cmdctx.SINFO, fmtstring, "Organization", domain.Organization.Slug)
 	ctx.Statusf("domains", cmdctx.SINFO, fmtstring, "Registration Status", *domain.RegistrationStatus)
-	if *domain.RegistrationStatus == "registered" {
+	if *domain.RegistrationStatus == "REGISTERED" {
 		ctx.Statusf("domains", cmdctx.SINFO, fmtstring, "Expires At", presenters.FormatTime(domain.ExpiresAt))
 
 		autorenew := ""
@@ -106,7 +106,7 @@ func runDomainsShow(ctx *cmdctx.CmdContext) error {
 	ctx.StatusLn()
 	ctx.Statusf("domains", cmdctx.STITLE, "DNS\n")
 	ctx.Statusf("domains", cmdctx.SINFO, fmtstring, "Status", *domain.DnsStatus)
-	if *domain.RegistrationStatus == "unmanaged" {
+	if *domain.RegistrationStatus == "UNMANAGED" {
 		ctx.Statusf("domains", cmdctx.SINFO, fmtstring, "Nameservers", strings.Join(*domain.ZoneNameservers, " "))
 	}
 
