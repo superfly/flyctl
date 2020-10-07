@@ -5,6 +5,7 @@ import (
 	"path"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/pkg/errors"
@@ -43,6 +44,11 @@ func selectOrganization(client *api.Client, slug string) (*api.Organization, err
 		}
 
 		return nil, fmt.Errorf(`organization "%s" not found`, slug)
+	}
+
+	if len(orgs) == 1 && orgs[0].Type == "PERSONAL" {
+		fmt.Printf("Automatically selected %s organization: %s\n", strings.ToLower(orgs[0].Type), orgs[0].Name)
+		return &orgs[0], nil
 	}
 
 	sort.Slice(orgs[:], func(i, j int) bool { return orgs[i].Type < orgs[j].Type })
