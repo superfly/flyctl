@@ -94,6 +94,7 @@ func (b *Builtin) GetVDockerfile(vars map[string]interface{}) (string, error) {
 	return result.String(), nil
 }
 
+// GetArg - Gets the Arg structure for a named arg
 func (b *Builtin) GetArg(name string) Arg {
 	if len(b.argMap) != len(b.BuiltinArgs) {
 		b.argMap = make(map[string]Arg)
