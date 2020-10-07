@@ -10,6 +10,7 @@ const (
 	ConfigAppName         = "app"
 	ConfigVerboseOutput   = "verbose"
 	ConfigJSONOutput      = "json"
+	ConfigBuiltinsfile    = "builtins_file"
 	ConfigGQLErrorLogging = "gqlerrorlogging"
 	ConfigInstaller       = "installer"
 

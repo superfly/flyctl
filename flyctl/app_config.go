@@ -31,7 +31,7 @@ type AppConfig struct {
 
 type Build struct {
 	Builder    string
-	Args       map[string]string
+	Args       map[string]interface{}
 	Buildpacks []string
 	// Or...
 	Builtin string
@@ -107,10 +107,9 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 		ac.AppName = appName
 	}
 	delete(data, "app")
-
 	if buildConfig, ok := (data["build"]).(map[string]interface{}); ok {
 		b := Build{
-			Args:       map[string]string{},
+			Args:       map[string]interface{}{},
 			Buildpacks: []string{},
 		}
 		for k, v := range buildConfig {
@@ -126,7 +125,7 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 			case "args":
 				if argMap, ok := v.(map[string]interface{}); ok {
 					for argK, argV := range argMap {
-						b.Args[argK] = fmt.Sprint(argV)
+						b.Args[argK] = argV //fmt.Sprint(argV)
 					}
 				}
 			case "builtin":
@@ -171,6 +170,7 @@ func (ac AppConfig) marshalTOML(w io.Writer) error {
 	} else if ac.Build != nil && ac.Build.Builtin != "" {
 		buildData := map[string]interface{}{
 			"builtin": ac.Build.Builtin,
+			"args":    ac.Build.Args,
 		}
 		rawData["build"] = buildData
 	} else if ac.Build != nil && ac.Build.Image != "" {

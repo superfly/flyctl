@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/logrusorgru/aurora"
 	"github.com/olekukonko/tablewriter"
+	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/builtinsupport"
 	"github.com/superfly/flyctl/cmdctx"
 
@@ -22,12 +24,15 @@ func newBuiltinsCommand() *Command {
 	BuildCommandKS(cmd, runListBuiltins, builtinsListStrings, os.Stdout)
 	builtinShowStrings := docstrings.Get("builtins.show")
 	BuildCommandKS(cmd, runShowBuiltin, builtinShowStrings, os.Stdout)
+	builtinShowAppStrings := docstrings.Get("builtins.show-app")
+	showappcmd := BuildCommandKS(cmd, runShowAppBuiltin, builtinShowAppStrings, os.Stdout, requireAppName)
+	showappcmd.Args = cobra.MaximumNArgs(0)
 
 	return cmd
 }
 
 func runListBuiltins(commandContext *cmdctx.CmdContext) error {
-	builtins := builtinsupport.GetBuiltins()
+	builtins := builtinsupport.GetBuiltins(commandContext)
 
 	sort.Slice(builtins, func(i, j int) bool { return builtins[i].Name < builtins[j].Name })
 
@@ -51,21 +56,29 @@ func runListBuiltins(commandContext *cmdctx.CmdContext) error {
 	return nil
 }
 
+func runShowAppBuiltin(commandContext *cmdctx.CmdContext) error {
+	builtinname := commandContext.AppConfig.Build.Builtin
+	return showBuiltin(commandContext, builtinname, true)
+}
+
 func runShowBuiltin(commandContext *cmdctx.CmdContext) error {
-	var builtinname string
-	var err error
 
 	if len(commandContext.Args) == 0 {
-		builtinname, err = selectBuiltin(commandContext)
+		builtinname, err := selectBuiltin(commandContext)
 		if err != nil {
 			return err
 		}
-	} else {
-		builtinname = commandContext.Args[0]
+		return showBuiltin(commandContext, builtinname, false)
+
 	}
 
-	builtin, err := builtinsupport.GetBuiltin(builtinname)
+	builtinname := commandContext.Args[0]
 
+	return showBuiltin(commandContext, builtinname, false)
+}
+
+func showBuiltin(commandContext *cmdctx.CmdContext, builtinname string, useargs bool) error {
+	builtin, err := builtinsupport.GetBuiltin(commandContext, builtinname)
 	if err != nil {
 		return err
 	}
@@ -75,18 +88,74 @@ func runShowBuiltin(commandContext *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	commandContext.Statusf("builtins", cmdctx.STITLE, "Name: %s\n", builtin.Name)
-	commandContext.StatusLn()
+	showBuiltinMetadata(commandContext, builtin)
 
-	commandContext.Statusf("builtins", cmdctx.SINFO, "Description: %s\n", builtin.Description)
-	commandContext.StatusLn()
+	var settings map[string]interface{}
+
+	if useargs {
+		settings = builtin.ResolveArgs(commandContext.AppConfig.Build.Args)
+	} else {
+		settings = builtin.ResolveArgs(nil)
+	}
+
+	if len(settings) > 0 {
+		fmt.Print(aurora.Bold("Arguments:\n"))
+		for name, val := range settings {
+			arg := builtin.GetArg(name)
+			valType := ""
+			formattedVal := ""
+			switch val.(type) {
+			case []interface{}:
+			case []string:
+				valType = "array"
+				semi := fmt.Sprintf("%q", val)
+				tokens := strings.Split(semi, " ")
+				formattedVal = strings.Join(tokens, ",")
+			case bool:
+				valType = "bool"
+				formattedVal = fmt.Sprintf("%t", val)
+			default:
+				valType = fmt.Sprintf("%T", val)
+				formattedVal = fmt.Sprintf("%s", val)
+			}
+			if useargs {
+				fmt.Printf("%s=%s (%s)\n     %s defaults to %s\n", name, formattedVal, valType, arg.Description, arg.Default)
+			} else {
+				fmt.Printf("%s=%s (%s)\n     %s\n", name, formattedVal, valType, arg.Description)
+			}
+		}
+		fmt.Println()
+	}
+
+	if commandContext.AppConfig == nil {
+		fmt.Println(aurora.Bold("Dockerfile (with defaults):"))
+		vdockerfile, err := builtin.GetVDockerfile(nil)
+		if err != nil {
+			return err
+		}
+		fmt.Println(vdockerfile)
+	} else {
+		fmt.Println(aurora.Bold("Dockerfile (with fly.toml settins):"))
+		vdockerfile, err := builtin.GetVDockerfile(commandContext.AppConfig.Build.Args)
+		if err != nil {
+			return err
+		}
+		fmt.Println(vdockerfile)
+	}
+
+	return nil
+}
+
+func showBuiltinMetadata(commandContext *cmdctx.CmdContext, builtin *builtinsupport.Builtin) {
+	fmt.Print(aurora.Bold("Name: "))
+	fmt.Println(builtin.Name)
+	fmt.Println()
+
+	fmt.Print(aurora.Bold("Description: "))
+	fmt.Println(builtin.Description)
+	fmt.Println()
 
 	fmt.Print(aurora.Bold("Details:\n"))
 	fmt.Println(builtin.Details)
 	fmt.Println()
-
-	fmt.Print(aurora.Bold("Dockerfile:\n"))
-	fmt.Println(builtin.FileText)
-
-	return nil
 }

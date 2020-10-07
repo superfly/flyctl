@@ -113,9 +113,15 @@ authenticated and in use.`,
 descriptions.`,
 		}
 	case "builtins.show":
-		return KeyStrings{"show", "Show details of a builtins",
-			`Show details of a Flyctl deployment builtins, including
-the builtin "Dockerfile" and other information.`,
+		return KeyStrings{"show [<builtin name>]", "Show details of a builtin's configuration",
+			`Show details of a Fly deployment builtins, including
+the builtin "Dockerfile" with default settings and other information.`,
+		}
+	case "builtins.show-app":
+		return KeyStrings{"show-app", "Show details of a builtin's configuration",
+			`Show details of a Fly deployment builtins, including
+the builtin "Dockerfile" with an apps settings included
+and other information.`,
 		}
 	case "certs":
 		return KeyStrings{"certs", "Manage certificates",
