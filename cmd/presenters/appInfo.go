@@ -15,17 +15,17 @@ func (p *AppInfo) APIStruct() interface{} {
 }
 
 func (p *AppInfo) FieldNames() []string {
-	return []string{"Name", "Owner", "Version", "Status", "Hostname"}
+	return []string{"Name", "Organization", "Version", "Status", "Hostname"}
 }
 
 func (p *AppInfo) Records() []map[string]string {
 	out := []map[string]string{}
 
 	info := map[string]string{
-		"Name":    p.App.Name,
-		"Owner":   p.App.Organization.Slug,
-		"Version": strconv.Itoa(p.App.Version),
-		"Status":  p.App.Status,
+		"Name":         p.App.Name,
+		"Organization": p.App.Organization.Slug,
+		"Version":      strconv.Itoa(p.App.Version),
+		"Status":       p.App.Status,
 	}
 
 	if len(p.App.Hostname) > 0 {

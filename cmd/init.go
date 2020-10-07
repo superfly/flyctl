@@ -252,7 +252,16 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 
 		if configPort != "" { // If the config port has been set externally, set that
 			newAppConfig.SetInternalPort(internalPort)
-		} else if importfile == "" { // If we are not importing, get the default, ask for new setting
+		} else if importfile != "" {
+			currentport, err := newAppConfig.GetInternalPort()
+			if err != nil {
+				return err
+			}
+			fmt.Printf("Importing port %d\n", currentport)
+		} else if builtinname != "" {
+			fmt.Printf("Builtins use port 8080\n")
+		} else {
+			// If we are not importing and not running a builtin, get the default, ask for new setting
 			currentport, err := newAppConfig.GetInternalPort()
 			if err != nil {
 				return err
