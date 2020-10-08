@@ -177,8 +177,8 @@ func (ac AppConfig) marshalTOML(w io.Writer) error {
 		rawData["build"] = buildData
 	} else if ac.Build != nil && ac.Build.Builtin != "" {
 		buildData := map[string]interface{}{
-			"builtin": ac.Build.Builtin,
-			"args":    ac.Build.Args,
+			"builtin":  ac.Build.Builtin,
+			"settings": ac.Build.Settings,
 		}
 		rawData["build"] = buildData
 	} else if ac.Build != nil && ac.Build.Image != "" {
