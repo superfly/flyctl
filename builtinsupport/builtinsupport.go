@@ -9,8 +9,8 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 )
 
-// Arg is a simple holder for names and defaults in args
-type Arg struct {
+// Setting is a simple holder for names and defaults in Settings
+type Setting struct {
 	Name        string
 	Default     interface{}
 	Description string
@@ -22,8 +22,8 @@ type Builtin struct {
 	Description string
 	Details     string
 	Template    string
-	BuiltinArgs []Arg
-	argMap      map[string]Arg
+	Settings    []Setting
+	settingsMap map[string]Setting
 }
 
 var builtins map[string]Builtin
@@ -41,34 +41,34 @@ func GetBuiltin(commandContext *cmdctx.CmdContext, builtinname string) (*Builtin
 	return &builtin, nil
 }
 
-// ResolveArgs - Given defaults abd values return actural settings
-func (b *Builtin) ResolveArgs(vars map[string]interface{}) map[string]interface{} {
-	settings := make(map[string]interface{}, len(vars))
+// ResolveSettings - Given defaults abd values return actural settings
+func (b *Builtin) ResolveSettings(vars map[string]interface{}) map[string]interface{} {
+	resolvedSettings := make(map[string]interface{}, len(vars))
 
 	for k, v := range vars {
-		if b.BuiltinArgs != nil {
-			for _, arg := range b.BuiltinArgs {
-				if arg.Name == k {
+		if b.Settings != nil {
+			for _, setting := range b.Settings {
+				if setting.Name == k {
 					// This is good to add
-					settings[k] = v
+					resolvedSettings[k] = v
 					break
 				}
 			}
 		}
 	}
 
-	// settings now has all the values which were in Builtinargs, but no others
+	// settings now has all the values which were in settings, but no others
 
-	// Now scan builtinargs for any value not set and copy the default over
-	for _, arg := range b.BuiltinArgs {
-		_, found := settings[arg.Name]
+	// Now scan settings for any value not set and copy the default over
+	for _, setting := range b.Settings {
+		_, found := resolvedSettings[setting.Name]
 		if !found {
 			// This is good to set to default
-			settings[arg.Name] = arg.Default
+			resolvedSettings[setting.Name] = setting.Default
 		}
 	}
 
-	return settings
+	return resolvedSettings
 }
 
 // GetVDockerfile - given an map of variables, get the definition and populate it
@@ -82,7 +82,7 @@ func (b *Builtin) GetVDockerfile(vars map[string]interface{}) (string, error) {
 	// Now the create the proper vars from
 	// If it's set in the vars map, set it in the settings map
 
-	settings := b.ResolveArgs(vars)
+	settings := b.ResolveSettings(vars)
 
 	result := strings.Builder{}
 
@@ -94,16 +94,16 @@ func (b *Builtin) GetVDockerfile(vars map[string]interface{}) (string, error) {
 	return result.String(), nil
 }
 
-// GetArg - Gets the Arg structure for a named arg
-func (b *Builtin) GetArg(name string) Arg {
-	if len(b.argMap) != len(b.BuiltinArgs) {
-		b.argMap = make(map[string]Arg)
-		for _, a := range b.BuiltinArgs {
-			b.argMap[a.Name] = a
+// GetSetting - Gets the Setting structure for a named setting
+func (b *Builtin) GetSetting(name string) Setting {
+	if len(b.settingsMap) != len(b.Settings) {
+		b.settingsMap = make(map[string]Setting)
+		for _, a := range b.Settings {
+			b.settingsMap[a.Name] = a
 		}
 	}
 
-	return b.argMap[name]
+	return b.settingsMap[name]
 }
 
 // GetBuiltins - Get an array of all the builtins

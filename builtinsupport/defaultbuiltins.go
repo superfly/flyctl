@@ -51,7 +51,7 @@ ADD . .
 RUN deno cache main.ts
 CMD ["run", {{range .perms}}"{{.}}",{{end}} "main.ts"]
 `,
-		BuiltinArgs: []Arg{{"perms", []string{`--allow-net`}, "Array of command line args to grant permissions, e.g. [\"--allow-net\",\"--allow-read\"] "}},
+		Settings: []Setting{{"perms", []string{`--allow-net`}, "Array of command line settings to grant permissions, e.g. [\"--allow-net\",\"--allow-read\"] "}},
 	},
 	{Name: "go",
 		Description: "Go Builtin",
@@ -81,7 +81,7 @@ CMD ["/goapp/app"]
 		Template: `FROM pierrezemb/gostatic
 COPY . /srv/http/
 CMD ["-port","8080"{{if .httpsonly}},"-https-promote"{{ end }}{{if .log}},"-enable-logging"{{end}}]
-	`, BuiltinArgs: []Arg{{"httpsonly", false, "Enable http to https promotion"}, {"log", false, "Enable basic logging"}}},
+	`, Settings: []Setting{{"httpsonly", false, "Enable http to https promotion"}, {"log", false, "Enable basic logging"}}},
 	{Name: "hugo-static",
 		Description: "Hugo static build with web server builtin",
 		Details:     `Hugo static build, then all public files are copied to the image and served, except files with executable permission set. Uses and exposes port 8080 internally.`,
@@ -89,5 +89,5 @@ CMD ["-port","8080"{{if .httpsonly}},"-https-promote"{{ end }}{{if .log}},"-enab
 FROM pierrezemb/gostatic
 COPY --from=hugo /target /srv/http/
 CMD ["-port","8080"{{if .httpsonly}},"-https-promote"{{ end }}{{if .log}},"-enable-logging"{{end}}]
-`, BuiltinArgs: []Arg{{"httpsonly", false, "Enable http to https promotion"}, {"log", false, "Enable basic logging"}}},
+`, Settings: []Setting{{"httpsonly", false, "Enable http to https promotion"}, {"log", false, "Enable basic logging"}}},
 }

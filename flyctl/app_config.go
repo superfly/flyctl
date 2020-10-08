@@ -31,10 +31,11 @@ type AppConfig struct {
 
 type Build struct {
 	Builder    string
-	Args       map[string]interface{}
+	Args       map[string]string
 	Buildpacks []string
 	// Or...
-	Builtin string
+	Builtin  string
+	Settings map[string]interface{}
 	// Or...
 	Image string
 }
@@ -109,7 +110,8 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 	delete(data, "app")
 	if buildConfig, ok := (data["build"]).(map[string]interface{}); ok {
 		b := Build{
-			Args:       map[string]interface{}{},
+			Args:       map[string]string{},
+			Settings:   map[string]interface{}{},
 			Buildpacks: []string{},
 		}
 		for k, v := range buildConfig {
@@ -123,13 +125,19 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 					}
 				}
 			case "args":
-				if argMap, ok := v.(map[string]interface{}); ok {
+				if argMap, ok := v.(map[string]string); ok {
 					for argK, argV := range argMap {
-						b.Args[argK] = argV //fmt.Sprint(argV)
+						b.Args[argK] = fmt.Sprint(argV)
 					}
 				}
 			case "builtin":
 				b.Builtin = fmt.Sprint(v)
+			case "settings":
+				if settingsMap, ok := v.(map[string]interface{}); ok {
+					for settingK, settingV := range settingsMap {
+						b.Settings[settingK] = settingV //fmt.Sprint(argV)
+					}
+				}
 			case "image":
 				b.Image = fmt.Sprint(v)
 			default:

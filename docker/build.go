@@ -115,7 +115,7 @@ func (op *DeployOperation) BuildWithDocker(commandContext *cmdctx.CmdContext, do
 			return nil, err
 		}
 		// Expand args
-		vdockerfile, err := builtin.GetVDockerfile(appConfig.Build.Args)
+		vdockerfile, err := builtin.GetVDockerfile(appConfig.Build.Settings)
 		if err != nil {
 			return nil, err
 		}
@@ -314,7 +314,7 @@ func normalizeBuildArgs(appConfig *flyctl.AppConfig, extra map[string]string) ma
 	if appConfig.Build != nil {
 		for k, v := range appConfig.Build.Args {
 			// docker needs a string pointer. since ranges reuse variables we need to deref a copy
-			val := fmt.Sprint(v)
+			val := v
 			out[k] = &val
 		}
 	}

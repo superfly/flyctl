@@ -77,7 +77,7 @@ func runShowBuiltin(commandContext *cmdctx.CmdContext) error {
 	return showBuiltin(commandContext, builtinname, false)
 }
 
-func showBuiltin(commandContext *cmdctx.CmdContext, builtinname string, useargs bool) error {
+func showBuiltin(commandContext *cmdctx.CmdContext, builtinname string, useSettings bool) error {
 	builtin, err := builtinsupport.GetBuiltin(commandContext, builtinname)
 	if err != nil {
 		return err
@@ -92,16 +92,16 @@ func showBuiltin(commandContext *cmdctx.CmdContext, builtinname string, useargs 
 
 	var settings map[string]interface{}
 
-	if useargs {
-		settings = builtin.ResolveArgs(commandContext.AppConfig.Build.Args)
+	if useSettings {
+		settings = builtin.ResolveSettings(commandContext.AppConfig.Build.Settings)
 	} else {
-		settings = builtin.ResolveArgs(nil)
+		settings = builtin.ResolveSettings(nil)
 	}
 
 	if len(settings) > 0 {
-		fmt.Print(aurora.Bold("Arguments:\n"))
+		fmt.Print(aurora.Bold("Settings:\n"))
 		for name, val := range settings {
-			arg := builtin.GetArg(name)
+			setting := builtin.GetSetting(name)
 			valType := ""
 			formattedVal := ""
 			switch val.(type) {
@@ -118,10 +118,10 @@ func showBuiltin(commandContext *cmdctx.CmdContext, builtinname string, useargs 
 				valType = fmt.Sprintf("%T", val)
 				formattedVal = fmt.Sprintf("%s", val)
 			}
-			if useargs {
-				fmt.Printf("%s=%s (%s)\n     %s defaults to %s\n", name, formattedVal, valType, arg.Description, arg.Default)
+			if useSettings {
+				fmt.Printf("%s=%s (%s)\n     %s defaults to %s\n", name, formattedVal, valType, setting.Description, setting.Default)
 			} else {
-				fmt.Printf("%s=%s (%s)\n     %s\n", name, formattedVal, valType, arg.Description)
+				fmt.Printf("%s=%s (%s)\n     %s\n", name, formattedVal, valType, setting.Description)
 			}
 		}
 		fmt.Println()
@@ -136,7 +136,7 @@ func showBuiltin(commandContext *cmdctx.CmdContext, builtinname string, useargs 
 		fmt.Println(vdockerfile)
 	} else {
 		fmt.Println(aurora.Bold("Dockerfile (with fly.toml settins):"))
-		vdockerfile, err := builtin.GetVDockerfile(commandContext.AppConfig.Build.Args)
+		vdockerfile, err := builtin.GetVDockerfile(commandContext.AppConfig.Build.Settings)
 		if err != nil {
 			return err
 		}
