@@ -260,6 +260,7 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 			fmt.Printf("Importing port %d\n", currentport)
 		} else if builtinname != "" {
 			fmt.Printf("Builtins use port 8080\n")
+			newAppConfig.SetInternalPort(8080)
 		} else {
 			// If we are not importing and not running a builtin, get the default, ask for new setting
 			currentport, err := newAppConfig.GetInternalPort()
