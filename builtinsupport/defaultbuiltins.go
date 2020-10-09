@@ -90,4 +90,21 @@ FROM pierrezemb/gostatic
 COPY --from=hugo /target /srv/http/
 CMD ["-port","8080"{{if .httpsonly}},"-https-promote"{{ end }}{{if .log}},"-enable-logging"{{end}}]
 `, Settings: []Setting{{"httpsonly", false, "Enable http to https promotion"}, {"log", false, "Enable basic logging"}}},
+	{Name: "python",
+		Description: "Python builtin",
+		Details:     `Python/Procfile based builder. Requires requirements.txt and Procfile. Uses and exposes port 8080 internally.`,
+		Template: `FROM python:{{- .pythonbase }}
+ENV PORT 8080
+RUN mkdir /app
+RUN set -ex && \
+	apt-get update && \
+	apt-get install -y --no-install-recommends wget && \
+	wget -O /usr/bin/hivemind.gz https://github.com/DarthSim/hivemind/releases/download/v{{- .hiveversion }}/hivemind-v{{- .hiveversion }}-linux-amd64.gz && \
+    gzip -d /usr/bin/hivemind.gz && \
+    chmod +x /usr/bin/hivemind
+COPY . /app
+WORKDIR /app
+RUN pip install -r requirements.txt
+CMD ["/usr/bin/hivemind", "/app/Procfile"]
+`, Settings: []Setting{{"hiveversion", "1.0.6", "Version of Hivemind"}, {"pythonbase", "3.8-slim-buster", "Tag for base Python image"}}},
 }
