@@ -105,8 +105,7 @@ func showBuiltin(commandContext *cmdctx.CmdContext, builtinname string, useSetti
 			valType := ""
 			formattedVal := ""
 			switch val.(type) {
-			case []interface{}:
-			case []string:
+			case []interface{}, []string:
 				valType = "array"
 				semi := fmt.Sprintf("%q", val)
 				tokens := strings.Split(semi, " ")
@@ -135,7 +134,7 @@ func showBuiltin(commandContext *cmdctx.CmdContext, builtinname string, useSetti
 		}
 		fmt.Println(vdockerfile)
 	} else {
-		fmt.Println(aurora.Bold("Dockerfile (with fly.toml settins):"))
+		fmt.Println(aurora.Bold("Dockerfile (with fly.toml settings):"))
 		vdockerfile, err := builtin.GetVDockerfile(commandContext.AppConfig.Build.Settings)
 		if err != nil {
 			return err
