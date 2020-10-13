@@ -65,6 +65,9 @@ func initViper() {
 	viper.BindEnv(ConfigVerboseOutput, "VERBOSE")
 	viper.BindEnv(ConfigGQLErrorLogging, "GQLErrorLogging")
 
+	viper.SetEnvPrefix("FLY")
+	viper.AutomaticEnv()
+
 	api.SetBaseURL(viper.GetString(ConfigAPIBaseURL))
 	api.SetErrorLog(viper.GetBool(ConfigGQLErrorLogging))
 }
