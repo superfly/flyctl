@@ -199,8 +199,8 @@ func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert
 			if addArecord {
 				commandContext.Statusf("certs", cmdctx.SINFO, "You can direct traffic to %s by:\n\n", hostname)
 				commandContext.Statusf("certs", cmdctx.SINFO, "%d: Adding an A record to your DNS service which reads\n", stepcnt)
-				stepcnt = stepcnt + 1
 				commandContext.Statusf("certs", cmdctx.SINFO, "\n    A @ %s\n\n", ipV4.Address)
+				stepcnt = stepcnt + 1
 			}
 			if addAAAArecord {
 				commandContext.Statusf("certs", cmdctx.SINFO, "You can validate your ownership of %s by:\n\n", hostname)
@@ -208,7 +208,7 @@ func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert
 				commandContext.Statusf("certs", cmdctx.SINFO, "    AAAA @ %s\n\n", ipV6.Address)
 				commandContext.Statusf("certs", cmdctx.SINFO, " OR \n\n")
 				commandContext.Statusf("certs", cmdctx.SINFO, "%d: Adding an CNAME record to your DNS service which reads:\n\n", stepcnt)
-				commandContext.Statusf("certs", cmdctx.SINFO, "    CNAME _acme-challenge.%s %s.\n", hostname, cert.DNSValidationTarget)
+				commandContext.Statusf("certs", cmdctx.SINFO, "    %s\n", cert.DNSValidationInstructions)
 				// stepcnt = stepcnt + 1 Uncomment if more steps
 
 			}
@@ -218,6 +218,30 @@ func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert
 			} else {
 				commandContext.Statusf("certs", cmdctx.SINFO, "Your certificate for %s is being issued. Status is %s.\n", hostname, cert.ClientStatus)
 			}
+		}
+	} else if cert.IsWildcard {
+		// If this is an wildcard domain we should guide towards creating A and AAAA records
+		addArecord := !configuredipV4
+		addAAAArecord := !cert.AcmeALPNConfigured
+
+		stepcnt := 1
+		commandContext.Statusf("certs", cmdctx.SINFO, "You are creating a wildcard certificate for %s\n", hostname)
+		commandContext.Statusf("certs", cmdctx.SINFO, "We are using %s for this certificate.\n\n", cert.CertificateAuthority)
+		if addArecord {
+			commandContext.Statusf("certs", cmdctx.SINFO, "You can direct traffic to %s by:\n\n", hostname)
+			commandContext.Statusf("certs", cmdctx.SINFO, "%d: Adding an A record to your DNS service which reads\n", stepcnt)
+			stepcnt = stepcnt + 1
+			commandContext.Statusf("certs", cmdctx.SINFO, "\n    A @ %s\n\n", ipV4.Address)
+		}
+
+		if addAAAArecord {
+			commandContext.Statusf("certs", cmdctx.SINFO, "You can validate your ownership of %s by:\n\n", hostname)
+			commandContext.Statusf("certs", cmdctx.SINFO, "%d: Adding an AAAA record to your DNS service which reads:\n\n", stepcnt)
+			commandContext.Statusf("certs", cmdctx.SINFO, "    AAAA @ %s\n\n", ipV6.Address)
+			commandContext.Statusf("certs", cmdctx.SINFO, " OR \n\n")
+			commandContext.Statusf("certs", cmdctx.SINFO, "%d: Adding an CNAME record to your DNS service which reads:\n\n", stepcnt)
+			commandContext.Statusf("certs", cmdctx.SINFO, "    %s\n", cert.DNSValidationInstructions)
+			// stepcnt = stepcnt + 1 Uncomment if more steps
 		}
 	} else {
 		// This is not an apex domain
@@ -241,7 +265,7 @@ func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert
 				commandContext.Statusf("certs", cmdctx.SINFO, "You can validate your ownership of %s by:\n\n", hostname)
 
 				commandContext.Statusf("certs", cmdctx.SINFO, "1: Adding an CNAME record to your DNS service which reads:\n")
-				commandContext.Statusf("certs", cmdctx.SINFO, "CNAME _acme-challenge.%s %s.\n", hostname, cert.DNSValidationTarget)
+				commandContext.Statusf("certs", cmdctx.SINFO, "    %s\n", cert.DNSValidationInstructions)
 			}
 		} else {
 			if cert.ClientStatus == "Ready" {

@@ -413,6 +413,7 @@ type AppCertificate struct {
 	Source                    string
 	ClientStatus              string
 	IsApex                    bool
+	IsWildcard                bool
 	Issued                    struct {
 		Nodes []struct {
 			ExpiresAt time.Time
