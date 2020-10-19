@@ -137,6 +137,9 @@ type Query struct {
 	}
 	CreateOrganization CreateOrganizationPayload
 	DeleteOrganization DeleteOrganizationPayload
+
+	CreateVolume CreateVolumePayload
+	DeleteVolume DeleteVolumePayload
 }
 
 type Definition map[string]interface{}
@@ -180,6 +183,38 @@ type App struct {
 	VMSize           VMSize
 	Regions          *[]Region
 	BackupRegions    *[]Region
+	Volumes          struct {
+		Nodes []Volume
+	}
+}
+
+type Volume struct {
+	ID        string `json:"id"`
+	App       string
+	Name      string
+	SizeGb    int
+	Region    string
+	CreatedAt time.Time
+}
+
+type CreateVolumeInput struct {
+	AppID  string `json:"appId"`
+	Name   string `json:"name"`
+	Region string `json:"region"`
+	SizeGb int    `json:"sizeGb"`
+}
+
+type CreateVolumePayload struct {
+	App    App
+	Volume Volume
+}
+
+type DeleteVolumeInput struct {
+	VolumeID string `json:"volumeId"`
+}
+
+type DeleteVolumePayload struct {
+	App App
 }
 
 type AppCertsCompact struct {

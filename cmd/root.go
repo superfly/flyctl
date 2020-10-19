@@ -101,6 +101,7 @@ func init() {
 		newDomainsCommand(),
 		newOrgsCommand(),
 		newBuiltinsCommand(),
+		newVolumesCommand(),
 	)
 
 	initConfig()
