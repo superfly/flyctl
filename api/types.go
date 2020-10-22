@@ -24,8 +24,8 @@ type Query struct {
 	UserOrganizations   UserOrganizations
 	OrganizationDetails OrganizationDetails
 	Build               Build
-
-	Domain *Domain
+	Volume              Volume
+	Domain              *Domain
 
 	Node  interface{}
 	Nodes []interface{}

@@ -3,10 +3,13 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/helpers"
 
 	"github.com/superfly/flyctl/docstrings"
 )
@@ -14,6 +17,7 @@ import (
 func newVolumesCommand() *Command {
 	volumesStrings := /*docstrings.Get("volumes")*/ docstrings.KeyStrings{Usage: "volumes", Short: "Managing volumes", Long: ""}
 	volumesCmd := BuildCommandKS(nil, nil, volumesStrings, os.Stdout, requireAppName, requireSession)
+	volumesCmd.Aliases = []string{"vol"}
 
 	listStrings := /* docstrings.Get("volumes.list") */ docstrings.KeyStrings{Usage: "list", Short: "List volumes", Long: ""}
 	BuildCommandKS(volumesCmd, runListVolumes, listStrings, os.Stdout, requireAppName, requireSession)
@@ -37,6 +41,10 @@ func newVolumesCommand() *Command {
 	deleteCmd := BuildCommandKS(volumesCmd, runDestroyVolume, deleteStrings, os.Stdout, requireSession)
 	deleteCmd.Args = cobra.ExactArgs(1)
 
+	showStrings := /* docstrings.Get("volumes.show") */ docstrings.KeyStrings{Usage: "show <id>", Short: "Show volume", Long: ""}
+	showCmd := BuildCommandKS(volumesCmd, runShowVolume, showStrings, os.Stdout, requireSession)
+	showCmd.Args = cobra.ExactArgs(1)
+
 	return volumesCmd
 }
 
@@ -49,14 +57,22 @@ func runListVolumes(ctx *cmdctx.CmdContext) error {
 	}
 
 	if len(volumes) == 0 {
-		fmt.Println("No Volumes Defined")
+		fmt.Printf("No Volumes Defined for %s\n", ctx.AppName)
 		return nil
 	}
 
-	fmt.Printf("%-20s %-20s %-7s %-6s %-20s\n", "ID", "Name", "Size GB", "Region", "Created At")
-	for _, n := range volumes {
-		fmt.Printf("%-20s %-20s %-7d %-6s %-20s\n", n.ID, n.Name, n.SizeGb, n.Region, humanize.Time(n.CreatedAt))
+	if ctx.OutputJSON() {
+		ctx.WriteJSON(volumes)
+		return nil
 	}
+
+	table := helpers.MakeSimpleTable(ctx.Out, []string{"ID", "Name", "Size", "Region", "Created At"})
+
+	for _, v := range volumes {
+		table.Append([]string{v.ID, v.Name, strconv.Itoa(v.SizeGb) + "GB", v.Region, humanize.Time(v.CreatedAt)})
+	}
+
+	table.Render()
 
 	return nil
 }
@@ -90,6 +106,7 @@ func runCreateVolume(ctx *cmdctx.CmdContext) error {
 	fmt.Printf("%10s: %s\n", "Name", volume.Name)
 	fmt.Printf("%10s: %s\n", "Region", volume.Region)
 	fmt.Printf("%10s: %d\n", "Size GB", volume.SizeGb)
+	fmt.Printf("%10s: %s\n", "Created at", volume.CreatedAt.Format(time.RFC822))
 
 	return nil
 }
@@ -105,6 +122,28 @@ func runDestroyVolume(ctx *cmdctx.CmdContext) error {
 	}
 
 	fmt.Printf("Destroyed volume %s from %s\n", volID, data.Name)
+
+	return nil
+}
+
+func runShowVolume(ctx *cmdctx.CmdContext) error {
+
+	volume, err := ctx.Client.API().GetVolume(ctx.AppName)
+
+	if err != nil {
+		return err
+	}
+
+	if ctx.OutputJSON() {
+		ctx.WriteJSON(volume)
+		return nil
+	}
+
+	fmt.Printf("%10s: %s\n", "ID", volume.ID)
+	fmt.Printf("%10s: %s\n", "Name", volume.Name)
+	fmt.Printf("%10s: %s\n", "Region", volume.Region)
+	fmt.Printf("%10s: %d\n", "Size GB", volume.SizeGb)
+	fmt.Printf("%10s: %s\n", "Created at", volume.CreatedAt.Format(time.RFC822))
 
 	return nil
 }

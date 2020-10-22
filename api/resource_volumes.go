@@ -85,3 +85,27 @@ func (c *Client) DeleteVolume(volID string) (App *App, err error) {
 
 	return &data.DeleteVolume.App, nil
 }
+
+func (c *Client) GetVolume(volID string) (Volume *Volume, err error) {
+	query := `
+	query($id: ID!) {
+		Volume(id: $id) {
+					id
+					name
+					sizeGb
+					region
+					createdAt
+		}
+	}`
+
+	req := c.NewRequest(query)
+
+	req.Var("id", volID)
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.Volume, nil
+}
