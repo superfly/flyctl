@@ -7,10 +7,10 @@ import (
 	"strings"
 
 	"github.com/logrusorgru/aurora"
-	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/builtinsupport"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/helpers"
 
 	"github.com/superfly/flyctl/docstrings"
 )
@@ -36,15 +36,7 @@ func runListBuiltins(commandContext *cmdctx.CmdContext) error {
 
 	sort.Slice(builtins, func(i, j int) bool { return builtins[i].Name < builtins[j].Name })
 
-	builtintable := tablewriter.NewWriter(commandContext.Out)
-	builtintable.SetHeader([]string{"Name", "Description", "Details"})
-	builtintable.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
-	builtintable.SetAlignment(tablewriter.ALIGN_LEFT)
-	builtintable.SetNoWhiteSpace(true)
-	builtintable.SetTablePadding(" ")
-	builtintable.SetCenterSeparator("")
-	builtintable.SetColumnSeparator("")
-	builtintable.SetRowSeparator("")
+	builtintable := helpers.MakeSimpleTable(commandContext.Out, []string{"Name", "Description", "Details"})
 
 	for _, builtin := range builtins {
 		builtintable.Append([]string{builtin.Name, builtin.Description, builtin.Details})

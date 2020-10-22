@@ -548,6 +548,30 @@ including version number and build date.`,
 			`Checks for update and if one is available, runs the appropriate
 command to update the application.`,
 		}
+	case "volumes":
+		return KeyStrings{"volumes <command>", "Volume management commands",
+			`Commands for managing Fly Volumes associated with an application.`,
+		}
+	case "volumes.create":
+		return KeyStrings{"create <volumename>", "Create new volume for app",
+			`Create new volume for app. --region flag must be included to specify
+region the volume exists in. --size flag is option, defaults to 5,
+sets the size as the number of gigabytes the volume will consume.`,
+		}
+	case "volumes.delete":
+		return KeyStrings{"delete <id>", "Delete a volume from the app",
+			`Delete a volume from the application. Requires the volume's ID
+number to operate. This can be found through the volumes list command`,
+		}
+	case "volumes.list":
+		return KeyStrings{"list", "List the volumes for app",
+			`List all the volumes associated with this application.`,
+		}
+	case "volumes.show":
+		return KeyStrings{"show <id>", "Show details of an app's volume",
+			`Show details of an app's volume. Requires the volume's ID
+number to operate. This can be found through the volumes list command`,
+		}
 	}
 	panic("unknown command key " + key)
 }

@@ -49,6 +49,10 @@ func runDisplayConfig(ctx *cmdctx.CmdContext) error {
 func runSaveConfig(ctx *cmdctx.CmdContext) error {
 	configfilename, err := flyctl.ResolveConfigFileFromPath(ctx.WorkingDir)
 
+	if err != nil {
+		return err
+	}
+
 	if helpers.FileExists(configfilename) {
 		ctx.Status("create", cmdctx.SERROR, "An existing configuration file has been found.")
 		confirmation := confirm(fmt.Sprintf("Overwrite file '%s'", configfilename))
