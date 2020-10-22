@@ -46,6 +46,7 @@ func (c *Client) CheckAppCertificate(appName, hostname string) (*AppCertificate,
 					source
 					clientStatus
 					isApex
+					isWildcard
 					issued {
 						nodes {
 							type
@@ -100,6 +101,7 @@ func (c *Client) AddCertificate(appName, hostname string) (*AppCertificate, *Hos
 					source
 					clientStatus
 					isApex
+					isWildcard
 					issued {
 						nodes {
 							type
