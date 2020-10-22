@@ -75,7 +75,7 @@ func runRegionsSet(ctx *cmdctx.CmdContext) error {
 	delList := make([]string, 0)
 
 	// Get the Region List
-	regions, backupRegions, err := ctx.Client.API().ListAppRegions(ctx.AppName)
+	regions, _, err := ctx.Client.API().ListAppRegions(ctx.AppName)
 	if err != nil {
 		return err
 	}
