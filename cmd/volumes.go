@@ -15,14 +15,14 @@ import (
 )
 
 func newVolumesCommand() *Command {
-	volumesStrings := /*docstrings.Get("volumes")*/ docstrings.KeyStrings{Usage: "volumes", Short: "Managing volumes", Long: ""}
+	volumesStrings := docstrings.Get("volumes")
 	volumesCmd := BuildCommandKS(nil, nil, volumesStrings, os.Stdout, requireAppName, requireSession)
 	volumesCmd.Aliases = []string{"vol"}
 
-	listStrings := /* docstrings.Get("volumes.list") */ docstrings.KeyStrings{Usage: "list", Short: "List volumes", Long: ""}
+	listStrings := docstrings.Get("volumes.list")
 	BuildCommandKS(volumesCmd, runListVolumes, listStrings, os.Stdout, requireAppName, requireSession)
 
-	createStrings := /* docstrings.Get("volumes.create") */ docstrings.KeyStrings{Usage: "create <name>", Short: "Create volume", Long: ""}
+	createStrings := docstrings.Get("volumes.create")
 	createCmd := BuildCommandKS(volumesCmd, runCreateVolume, createStrings, os.Stdout, requireAppName, requireSession)
 	createCmd.Args = cobra.ExactArgs(1)
 
@@ -37,11 +37,11 @@ func newVolumesCommand() *Command {
 		Default:     5,
 	})
 
-	deleteStrings := /* docstrings.Get("volumes	delete") */ docstrings.KeyStrings{Usage: "delete <id>", Short: "Delete volume", Long: ""}
+	deleteStrings := docstrings.Get("volumes.delete")
 	deleteCmd := BuildCommandKS(volumesCmd, runDestroyVolume, deleteStrings, os.Stdout, requireSession)
 	deleteCmd.Args = cobra.ExactArgs(1)
 
-	showStrings := /* docstrings.Get("volumes.show") */ docstrings.KeyStrings{Usage: "show <id>", Short: "Show volume", Long: ""}
+	showStrings := docstrings.Get("volumes.show")
 	showCmd := BuildCommandKS(volumesCmd, runShowVolume, showStrings, os.Stdout, requireSession)
 	showCmd.Args = cobra.ExactArgs(1)
 
