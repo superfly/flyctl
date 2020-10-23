@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
+	"github.com/inancgumus/screen"
 	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/segmentio/textio"
@@ -22,6 +24,8 @@ func newStatusCommand() *Command {
 
 	//TODO: Move flag descriptions to docstrings
 	cmd.AddBoolFlag(BoolFlagOpts{Name: "all", Description: "Show completed allocations"})
+	cmd.AddBoolFlag(BoolFlagOpts{Name: "watch", Description: "Refresh details"})
+	cmd.AddIntFlag(IntFlagOpts{Name: "rate", Description: "Refresh Rate for --watch", Default: 5})
 
 	allocStatusStrings := docstrings.Get("status.alloc")
 	allocStatusCmd := BuildCommand(cmd, runAllocStatus, allocStatusStrings.Usage, allocStatusStrings.Short, allocStatusStrings.Long, os.Stdout, requireSession, requireAppName)
@@ -30,53 +34,107 @@ func newStatusCommand() *Command {
 }
 
 func runStatus(ctx *cmdctx.CmdContext) error {
-	app, err := ctx.Client.API().GetAppStatus(ctx.AppName, ctx.Config.GetBool("all"))
 
-	if err != nil {
-		return err
+	watch := ctx.Config.GetBool("watch")
+	refreshRate := ctx.Config.GetInt("rate")
+	refreshCount := 1
+
+	if watch && ctx.OutputJSON() {
+		return fmt.Errorf("--watch and --json are not supported together")
 	}
 
-	err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppStatus{AppStatus: *app}, HideHeader: true, Vertical: true, Title: "App"})
-	if err != nil {
-		return err
-	}
+	for true {
+		var app *api.AppStatus
+		var backupregions []api.Region
+		var err error
+		if watch {
+			refreshCount = refreshCount - 1
+			if refreshCount == 0 {
+				refreshCount = refreshRate
+				app, err = ctx.Client.API().GetAppStatus(ctx.AppName, ctx.Config.GetBool("all"))
 
-	// If JSON output, everything has been printed, so return
-	if ctx.OutputJSON() {
-		return nil
-	}
+				if err != nil {
+					return err
+				}
+				if app.Deployed {
+					_, backupregions, err = ctx.Client.API().ListAppRegions(ctx.AppName)
 
-	// Continue formatted output
-	if !app.Deployed {
-		fmt.Println(`App has not been deployed yet.`)
-		return nil
-	}
+					if err != nil {
+						return err
+					}
 
-	if app.DeploymentStatus != nil {
+				}
+				screen.Clear()
+				screen.MoveTopLeft()
+				fmt.Printf("%s %s %s\n\n", aurora.Bold(app.Name), aurora.Italic("at:"), aurora.Bold(time.Now().UTC().Format("15:04:05")))
+			} else {
+				screen.MoveTopLeft()
+				if app != nil {
+					fmt.Printf("%s %s %s\n\n", aurora.Bold(app.Name), aurora.Italic("at:"), aurora.Bold(time.Now().UTC().Format("15:04:05")))
+				} else {
+					fmt.Printf("%s %s %s\n\n", aurora.Bold(ctx.AppName), aurora.Italic("at:"), aurora.Bold(time.Now().UTC().Format("15:04:05")))
+				}
+				time.Sleep(time.Second)
+				continue
+			}
+		} else {
+			app, err = ctx.Client.API().GetAppStatus(ctx.AppName, ctx.Config.GetBool("all"))
+			if app.Deployed {
+				_, backupregions, err = ctx.Client.API().ListAppRegions(ctx.AppName)
+
+				if err != nil {
+					return err
+				}
+
+			}
+			if err != nil {
+				return err
+			}
+		}
+
+		err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppStatus{AppStatus: *app}, HideHeader: true, Vertical: true, Title: "App"})
+		if err != nil {
+			return err
+		}
+
+		// If JSON output, everything has been printed, so return
+		if !watch && ctx.OutputJSON() {
+			return nil
+		}
+
+		// Continue formatted output
+		if !app.Deployed {
+			fmt.Println(`App has not been deployed yet.`)
+			// exit if not watching, stay looping if we are
+			if !watch {
+				return nil
+			}
+		}
+
+		if app.DeploymentStatus != nil {
+			err = ctx.Frender(cmdctx.PresenterOption{
+				Presentable: &presenters.DeploymentStatus{Status: app.DeploymentStatus},
+				Vertical:    true,
+				Title:       "Deployment Status",
+			})
+
+			if err != nil {
+				return err
+			}
+		}
+
 		err = ctx.Frender(cmdctx.PresenterOption{
-			Presentable: &presenters.DeploymentStatus{Status: app.DeploymentStatus},
-			Vertical:    true,
-			Title:       "Deployment Status",
+			Presentable: &presenters.Allocations{Allocations: app.Allocations, BackupRegions: backupregions},
+			Title:       "Allocations",
 		})
 
 		if err != nil {
 			return err
 		}
-	}
 
-	_, backupregions, err := ctx.Client.API().ListAppRegions(ctx.AppName)
-
-	if err != nil {
-		return err
-	}
-
-	err = ctx.Frender(cmdctx.PresenterOption{
-		Presentable: &presenters.Allocations{Allocations: app.Allocations, BackupRegions: backupregions},
-		Title:       "Allocations",
-	})
-
-	if err != nil {
-		return err
+		if !watch {
+			return nil
+		}
 	}
 
 	return nil
