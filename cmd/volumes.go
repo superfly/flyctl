@@ -33,8 +33,8 @@ func newVolumesCommand() *Command {
 
 	createCmd.AddIntFlag(IntFlagOpts{
 		Name:        "size",
-		Description: "Size of volume in gigabytes, default 5",
-		Default:     5,
+		Description: "Size of volume in gigabytes, default 10GB",
+		Default:     10,
 	})
 
 	deleteStrings := docstrings.Get("volumes.delete")
