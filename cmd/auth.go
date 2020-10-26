@@ -223,6 +223,20 @@ func runLogout(ctx *cmdctx.CmdContext) error {
 
 	fmt.Println("Session removed")
 
+	// Microaudit env vars
+
+	_, ok := os.LookupEnv("FLY_API_TOKEN")
+
+	if ok {
+		ctx.Status("auth", cmdctx.SWARN, "FLY_API_TOKEN is set in your environment. Don't forget to remove it.")
+	}
+
+	_, ok = os.LookupEnv("FLY_ACCESS_TOKEN")
+
+	if ok {
+		ctx.Status("auth", cmdctx.SWARN, "FLY_ACCESS_TOKEN is set in your environment. Don't forget to remove it.")
+	}
+
 	return nil
 }
 
