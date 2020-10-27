@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+
+# Clear out old docs
+rm out/*.md
+
 echo "Running doc/main.go"
 go run doc/main.go
 
