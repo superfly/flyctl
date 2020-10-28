@@ -27,8 +27,6 @@ func runResume(cmdctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	app, err = cmdctx.Client.API().GetApp(cmdctx.AppName)
-
 	fmt.Printf("%s is now %s\n", app.Name, app.Status)
 
 	return nil
