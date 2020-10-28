@@ -56,6 +56,7 @@ func runStatus(ctx *cmdctx.CmdContext) error {
 				if err != nil {
 					return err
 				}
+
 				if app.Deployed {
 					_, backupregions, err = ctx.Client.API().ListAppRegions(ctx.AppName)
 
@@ -79,6 +80,11 @@ func runStatus(ctx *cmdctx.CmdContext) error {
 			}
 		} else {
 			app, err = ctx.Client.API().GetAppStatus(ctx.AppName, ctx.Config.GetBool("all"))
+
+			if err != nil {
+				return err
+			}
+
 			if app.Deployed {
 				_, backupregions, err = ctx.Client.API().ListAppRegions(ctx.AppName)
 
