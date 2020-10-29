@@ -48,7 +48,7 @@ the number of configured instances.`,
 	case "apps.suspend":
 		return KeyStrings{"suspend [APPNAME]", "Suspend an application",
 			`The APPS SUSPEND command will suspend an application. 
-All allocations will be deallocated leaving the application running nowhere.
+All instances will be halted leaving the application running nowhere.
 It will continue to consume networking resources (IP address). See APPS RESUME
 for details on restarting it.`,
 		}
@@ -345,7 +345,7 @@ to all instances running in a specific region using the --region/-r flag.`,
 	case "monitor":
 		return KeyStrings{"monitor", "Monitor Deployments",
 			`Monitor Application Deployments and other activities. Use --verbose/-v
-to get details of every instance allocation. Control-C to stop output.`,
+to get details of every instance . Control-C to stop output.`,
 		}
 	case "move":
 		return KeyStrings{"move [APPNAME]", "Move an App to another organization",
@@ -526,15 +526,15 @@ secret removes its availability to the application.`,
 details, tasks, most recent deployment details and in which regions it is 
 currently allocated.`,
 		}
-	case "status.alloc":
-		return KeyStrings{"alloc [alloc-id]", "Show allocation status",
-			`Show the allocation's current status including logs, checks, 
+	case "status.instance":
+		return KeyStrings{"instance [instance-id]", "Show instance status",
+			`Show the instance's current status including logs, checks, 
 and events.`,
 		}
 	case "suspend":
 		return KeyStrings{"suspend [APPNAME]", "Suspend an application",
 			`The SUSPEND command will suspend an application. 
-All allocations will be deallocated leaving the application running nowhere.
+All instances will be halted leaving the application running nowhere.
 It will continue to consume networking resources (IP address). See RESUME
 for details on restarting it.`,
 		}
