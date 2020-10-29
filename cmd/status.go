@@ -117,7 +117,8 @@ func runStatus(ctx *cmdctx.CmdContext) error {
 			}
 		}
 
-		if app.DeploymentStatus != nil {
+		if app.DeploymentStatus != nil && app.DeploymentStatus.Version == app.Version && app.DeploymentStatus.Status != "cancelled" {
+
 			err = ctx.Frender(cmdctx.PresenterOption{
 				Presentable: &presenters.DeploymentStatus{Status: app.DeploymentStatus},
 				Vertical:    true,
