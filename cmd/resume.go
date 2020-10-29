@@ -3,7 +3,9 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"time"
 
+	"github.com/briandowns/spinner"
 	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/spf13/cobra"
@@ -27,7 +29,20 @@ func runResume(cmdctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	fmt.Printf("%s is now %s\n", app.Name, app.Status)
+	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
+	s.Writer = os.Stderr
+	s.Prefix = fmt.Sprintf("Resuming %s with 1 instance to start ", cmdctx.AppName)
+	s.Start()
+
+	for app.Status != "running" {
+		app, err = cmdctx.Client.API().GetApp(cmdctx.AppName)
+		if err != nil {
+			return err
+		}
+	}
+
+	s.FinalMSG = fmt.Sprintf("Resume complete - %s is now %s with 1 running instance\n", cmdctx.AppName, app.Status)
+	s.Stop()
 
 	return nil
 }
