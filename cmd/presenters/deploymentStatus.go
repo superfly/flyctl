@@ -15,7 +15,7 @@ func (p *DeploymentStatus) APIStruct() interface{} {
 }
 
 func (p *DeploymentStatus) FieldNames() []string {
-	return []string{"ID", "Version", "Status", "Description", "Allocations"}
+	return []string{"ID", "Version", "Status", "Description", "Instances"}
 }
 
 func (p *DeploymentStatus) Records() []map[string]string {
@@ -26,7 +26,7 @@ func (p *DeploymentStatus) Records() []map[string]string {
 		"Version":     fmt.Sprintf("v%d", p.Status.Version),
 		"Status":      p.Status.Status,
 		"Description": p.Status.Description,
-		"Allocations": formatDeploymentAllocations(p.Status),
+		"Instances":   formatDeploymentAllocations(p.Status),
 	})
 
 	return out

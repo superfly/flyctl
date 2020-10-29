@@ -380,7 +380,7 @@ func watchDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) err
 		}
 
 		if len(failedAllocs) > 0 {
-			commandContext.Status("deploy", cmdctx.STITLE, "Failed Allocations")
+			commandContext.Status("deploy", cmdctx.STITLE, "Failed Instances")
 
 			x := make(chan *api.AllocationStatus)
 			var wg sync.WaitGroup
@@ -413,7 +413,7 @@ func watchDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) err
 
 				err := commandContext.Frender(
 					cmdctx.PresenterOption{
-						Title: "Allocation",
+						Title: "Instance",
 						Presentable: &presenters.Allocations{
 							Allocations: []*api.AllocationStatus{alloc},
 						},

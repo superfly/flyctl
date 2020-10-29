@@ -55,7 +55,7 @@ from the Fly platform.
 usage="suspend [APPNAME]"
 shortHelp="Suspend an application"
 longHelp="""The SUSPEND command will suspend an application. 
-All allocations will be deallocated leaving the application running nowhere.
+All instances will be halted leaving the application running nowhere.
 It will continue to consume networking resources (IP address). See RESUME
 for details on restarting it.
 """
@@ -122,7 +122,7 @@ organization the current user belongs to.
 usage="suspend [APPNAME]"
 shortHelp="Suspend an application"
 longHelp="""The APPS SUSPEND command will suspend an application. 
-All allocations will be deallocated leaving the application running nowhere.
+All instances will be halted leaving the application running nowhere.
 It will continue to consume networking resources (IP address). See APPS RESUME
 for details on restarting it.
 """
@@ -434,7 +434,7 @@ to all instances running in a specific region using the --region/-r flag.
 usage="monitor"
 shortHelp="Monitor Deployments"
 longHelp="""Monitor Application Deployments and other activities. Use --verbose/-v
-to get details of every instance allocation. Control-C to stop output."""
+to get details of every instance . Control-C to stop output."""
 
 [platform]
 usage="platform"
@@ -597,10 +597,10 @@ details, tasks, most recent deployment details and in which regions it is
 currently allocated.
 """
 
-[status.alloc]
-usage="alloc [alloc-id]"
-shortHelp="Show allocation status"
-longHelp="""Show the allocation's current status including logs, checks, 
+[status.instance]
+usage="instance [instance-id]"
+shortHelp="Show instance status"
+longHelp="""Show the instance's current status including logs, checks, 
 and events.
 """
 

@@ -63,7 +63,7 @@ func monitorDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) e
 
 		if len(failedAllocs) > 0 {
 			commandContext.StatusLn()
-			commandContext.Status("monitor", cmdctx.SERROR, "Failed Allocations")
+			commandContext.Status("monitor", cmdctx.SERROR, "Failed Instances")
 
 			x := make(chan *api.AllocationStatus)
 			var wg sync.WaitGroup
@@ -75,7 +75,7 @@ func monitorDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) e
 					defer wg.Done()
 					alloc, err := commandContext.Client.API().GetAllocationStatus(commandContext.AppName, a.ID, 20)
 					if err != nil {
-						commandContext.Status("monitor", cmdctx.SERROR, "Error fetching alloc", a.ID, err)
+						commandContext.Status("monitor", cmdctx.SERROR, "Error fetching instance", a.ID, err)
 						return
 					}
 					x <- alloc
@@ -93,7 +93,7 @@ func monitorDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) e
 				commandContext.Statusf("monitor", cmdctx.SERROR, "\n  Failure #%d\n", count)
 				err := commandContext.FrenderPrefix("    ",
 					cmdctx.PresenterOption{
-						Title: "Allocation",
+						Title: "Instance",
 						Presentable: &presenters.Allocations{
 							Allocations: []*api.AllocationStatus{alloc},
 						},

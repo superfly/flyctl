@@ -23,12 +23,12 @@ func newStatusCommand() *Command {
 	cmd := BuildCommandKS(nil, runStatus, statusStrings, os.Stdout, requireSession, requireAppNameAsArg)
 
 	//TODO: Move flag descriptions to docstrings
-	cmd.AddBoolFlag(BoolFlagOpts{Name: "all", Description: "Show completed allocations"})
+	cmd.AddBoolFlag(BoolFlagOpts{Name: "all", Description: "Show completed instances"})
 	cmd.AddBoolFlag(BoolFlagOpts{Name: "deployment", Description: "Always show deployment status"})
 	cmd.AddBoolFlag(BoolFlagOpts{Name: "watch", Description: "Refresh details"})
 	cmd.AddIntFlag(IntFlagOpts{Name: "rate", Description: "Refresh Rate for --watch", Default: 5})
 
-	allocStatusStrings := docstrings.Get("status.alloc")
+	allocStatusStrings := docstrings.Get("status.instance")
 	allocStatusCmd := BuildCommand(cmd, runAllocStatus, allocStatusStrings.Usage, allocStatusStrings.Short, allocStatusStrings.Long, os.Stdout, requireSession, requireAppName)
 	allocStatusCmd.Args = cobra.ExactArgs(1)
 	return cmd
@@ -136,7 +136,7 @@ func runStatus(ctx *cmdctx.CmdContext) error {
 
 		err = ctx.Frender(cmdctx.PresenterOption{
 			Presentable: &presenters.Allocations{Allocations: app.Allocations, BackupRegions: backupregions},
-			Title:       "Allocations",
+			Title:       "Instances",
 		})
 
 		if err != nil {
@@ -162,7 +162,7 @@ func runAllocStatus(ctx *cmdctx.CmdContext) error {
 
 	err = ctx.Frender(
 		cmdctx.PresenterOption{
-			Title: "Allocation",
+			Title: "Instance",
 			Presentable: &presenters.Allocations{
 				Allocations: []*api.AllocationStatus{alloc},
 			},
