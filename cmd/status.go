@@ -24,6 +24,7 @@ func newStatusCommand() *Command {
 
 	//TODO: Move flag descriptions to docstrings
 	cmd.AddBoolFlag(BoolFlagOpts{Name: "all", Description: "Show completed allocations"})
+	cmd.AddBoolFlag(BoolFlagOpts{Name: "deployment", Description: "Always show deployment status"})
 	cmd.AddBoolFlag(BoolFlagOpts{Name: "watch", Description: "Refresh details"})
 	cmd.AddIntFlag(IntFlagOpts{Name: "rate", Description: "Refresh Rate for --watch", Default: 5})
 
@@ -38,12 +39,13 @@ func runStatus(ctx *cmdctx.CmdContext) error {
 	watch := ctx.Config.GetBool("watch")
 	refreshRate := ctx.Config.GetInt("rate")
 	refreshCount := 1
+	showDeploymentStatus := ctx.Config.GetBool("deployment")
 
 	if watch && ctx.OutputJSON() {
 		return fmt.Errorf("--watch and --json are not supported together")
 	}
 
-	for true {
+	for {
 		var app *api.AppStatus
 		var backupregions []api.Region
 		var err error
@@ -117,16 +119,18 @@ func runStatus(ctx *cmdctx.CmdContext) error {
 			}
 		}
 
-		if app.DeploymentStatus != nil && app.DeploymentStatus.Version == app.Version && app.DeploymentStatus.Status != "cancelled" {
+		if app.DeploymentStatus != nil {
+			if (app.DeploymentStatus.Version == app.Version && app.DeploymentStatus.Status != "cancelled") || showDeploymentStatus {
 
-			err = ctx.Frender(cmdctx.PresenterOption{
-				Presentable: &presenters.DeploymentStatus{Status: app.DeploymentStatus},
-				Vertical:    true,
-				Title:       "Deployment Status",
-			})
+				err = ctx.Frender(cmdctx.PresenterOption{
+					Presentable: &presenters.DeploymentStatus{Status: app.DeploymentStatus},
+					Vertical:    true,
+					Title:       "Deployment Status",
+				})
 
-			if err != nil {
-				return err
+				if err != nil {
+					return err
+				}
 			}
 		}
 
@@ -144,7 +148,6 @@ func runStatus(ctx *cmdctx.CmdContext) error {
 		}
 	}
 
-	return nil
 }
 
 func runAllocStatus(ctx *cmdctx.CmdContext) error {

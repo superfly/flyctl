@@ -31,7 +31,10 @@ func runMonitor(commandContext *cmdctx.CmdContext) error {
 	commandContext.Statusf("monitor", cmdctx.STITLE, "Monitoring Deployments for %s\n", app.Name)
 
 	for {
-		monitorDeployment(context.Background(), commandContext)
+		err := monitorDeployment(context.Background(), commandContext)
+		if err != nil {
+			return err
+		}
 	}
 
 }

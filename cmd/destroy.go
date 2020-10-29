@@ -37,7 +37,11 @@ func runDestroy(ctx *cmdctx.CmdContext) error {
 		prompt := &survey.Confirm{
 			Message: fmt.Sprintf("Destroy app %s?", appName),
 		}
-		survey.AskOne(prompt, &confirm)
+		err := survey.AskOne(prompt, &confirm)
+
+		if err != nil {
+			return err
+		}
 
 		if !confirm {
 			return nil
