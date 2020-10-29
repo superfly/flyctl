@@ -142,7 +142,7 @@ func runWebLogin(ctx *cmdctx.CmdContext, signup bool) error {
 }
 
 func waitForCLISession(id string) <-chan api.CLISessionAuth {
-	done := make(chan api.CLISessionAuth, 0)
+	done := make(chan api.CLISessionAuth)
 
 	go func() {
 		s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)

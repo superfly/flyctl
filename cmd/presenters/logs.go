@@ -24,7 +24,6 @@ func (lp *LogPresenter) FPrint(w io.Writer, asJSON bool, entries []api.LogEntry)
 }
 
 var newLineReplacer = strings.NewReplacer("\r\n", aurora.Faint("↩︎").String(), "\n", aurora.Faint("↩︎").String())
-var space = []byte(" ")
 var newline = []byte("\n")
 
 func (lp *LogPresenter) printEntry(w io.Writer, asJSON bool, entry api.LogEntry) {

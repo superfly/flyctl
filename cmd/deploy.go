@@ -73,10 +73,6 @@ func newDeployCommand() *Command {
 }
 
 func runDeploy(commandContext *cmdctx.CmdContext) error {
-	if commandContext.AppName == "" {
-		commandContext.Status("deploy", cmdctx.SERROR, "No initialized application")
-		runInit(commandContext)
-	}
 
 	interactive := isatty.IsTerminal(os.Stdout.Fd())
 
@@ -105,7 +101,10 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 
 	if parsedCfg.Valid {
 		if len(parsedCfg.Services) > 0 {
-			commandContext.Frender(cmdctx.PresenterOption{Presentable: &presenters.SimpleServices{Services: parsedCfg.Services}, HideHeader: true, Vertical: false, Title: "Services"})
+			err = commandContext.Frender(cmdctx.PresenterOption{Presentable: &presenters.SimpleServices{Services: parsedCfg.Services}, HideHeader: true, Vertical: false, Title: "Services"})
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -381,7 +380,7 @@ func watchDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) err
 		}
 
 		if len(failedAllocs) > 0 {
-			commandContext.Status("deploy", cmdctx.STITLE, "Failed Allocations")
+			commandContext.Status("deploy", cmdctx.STITLE, "Failed Instances")
 
 			x := make(chan *api.AllocationStatus)
 			var wg sync.WaitGroup
@@ -414,7 +413,7 @@ func watchDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) err
 
 				err := commandContext.Frender(
 					cmdctx.PresenterOption{
-						Title: "Allocation",
+						Title: "Instance",
 						Presentable: &presenters.Allocations{
 							Allocations: []*api.AllocationStatus{alloc},
 						},

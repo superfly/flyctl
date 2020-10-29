@@ -57,14 +57,16 @@ func runMove(commandContext *cmdctx.CmdContext) error {
 		prompt := &survey.Confirm{
 			Message: fmt.Sprintf("Move %s from %s to %s?", appName, app.Organization.Slug, org.Slug),
 		}
-		survey.AskOne(prompt, &confirm)
-
+		err = survey.AskOne(prompt, &confirm)
+		if err != nil {
+			return err
+		}
 		if !confirm {
 			return nil
 		}
 	}
 
-	app, err = commandContext.Client.API().MoveApp(appName, org.ID)
+	_, err = commandContext.Client.API().MoveApp(appName, org.ID)
 	if err != nil {
 		return errors.WithMessage(err, "Failed to move app")
 	}

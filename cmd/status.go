@@ -23,11 +23,12 @@ func newStatusCommand() *Command {
 	cmd := BuildCommandKS(nil, runStatus, statusStrings, os.Stdout, requireSession, requireAppNameAsArg)
 
 	//TODO: Move flag descriptions to docstrings
-	cmd.AddBoolFlag(BoolFlagOpts{Name: "all", Description: "Show completed allocations"})
+	cmd.AddBoolFlag(BoolFlagOpts{Name: "all", Description: "Show completed instances"})
+	cmd.AddBoolFlag(BoolFlagOpts{Name: "deployment", Description: "Always show deployment status"})
 	cmd.AddBoolFlag(BoolFlagOpts{Name: "watch", Description: "Refresh details"})
 	cmd.AddIntFlag(IntFlagOpts{Name: "rate", Description: "Refresh Rate for --watch", Default: 5})
 
-	allocStatusStrings := docstrings.Get("status.alloc")
+	allocStatusStrings := docstrings.Get("status.instance")
 	allocStatusCmd := BuildCommand(cmd, runAllocStatus, allocStatusStrings.Usage, allocStatusStrings.Short, allocStatusStrings.Long, os.Stdout, requireSession, requireAppName)
 	allocStatusCmd.Args = cobra.ExactArgs(1)
 	return cmd
@@ -38,12 +39,13 @@ func runStatus(ctx *cmdctx.CmdContext) error {
 	watch := ctx.Config.GetBool("watch")
 	refreshRate := ctx.Config.GetInt("rate")
 	refreshCount := 1
+	showDeploymentStatus := ctx.Config.GetBool("deployment")
 
 	if watch && ctx.OutputJSON() {
 		return fmt.Errorf("--watch and --json are not supported together")
 	}
 
-	for true {
+	for {
 		var app *api.AppStatus
 		var backupregions []api.Region
 		var err error
@@ -117,22 +119,24 @@ func runStatus(ctx *cmdctx.CmdContext) error {
 			}
 		}
 
-		if app.DeploymentStatus != nil && app.DeploymentStatus.Version == app.Version && app.DeploymentStatus.Status != "cancelled" {
+		if app.DeploymentStatus != nil {
+			if (app.DeploymentStatus.Version == app.Version && app.DeploymentStatus.Status != "cancelled") || showDeploymentStatus {
 
-			err = ctx.Frender(cmdctx.PresenterOption{
-				Presentable: &presenters.DeploymentStatus{Status: app.DeploymentStatus},
-				Vertical:    true,
-				Title:       "Deployment Status",
-			})
+				err = ctx.Frender(cmdctx.PresenterOption{
+					Presentable: &presenters.DeploymentStatus{Status: app.DeploymentStatus},
+					Vertical:    true,
+					Title:       "Deployment Status",
+				})
 
-			if err != nil {
-				return err
+				if err != nil {
+					return err
+				}
 			}
 		}
 
 		err = ctx.Frender(cmdctx.PresenterOption{
 			Presentable: &presenters.Allocations{Allocations: app.Allocations, BackupRegions: backupregions},
-			Title:       "Allocations",
+			Title:       "Instances",
 		})
 
 		if err != nil {
@@ -144,7 +148,6 @@ func runStatus(ctx *cmdctx.CmdContext) error {
 		}
 	}
 
-	return nil
 }
 
 func runAllocStatus(ctx *cmdctx.CmdContext) error {
@@ -159,7 +162,7 @@ func runAllocStatus(ctx *cmdctx.CmdContext) error {
 
 	err = ctx.Frender(
 		cmdctx.PresenterOption{
-			Title: "Allocation",
+			Title: "Instance",
 			Presentable: &presenters.Allocations{
 				Allocations: []*api.AllocationStatus{alloc},
 			},
