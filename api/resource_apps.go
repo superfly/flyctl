@@ -156,6 +156,10 @@ func (client *Client) CreateApp(name string, orgId string) (*App, error) {
 					config {
 						definition
 					}
+					regions {
+							name
+							code
+					}
 				}
 			}
 		}

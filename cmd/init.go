@@ -281,6 +281,7 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 			return err
 		}
 
+		fmt.Printf("App will initially deploy to %s (%s) region\n\n", (*app.Regions)[0].Code, (*app.Regions)[0].Name)
 		if commandContext.ConfigFile == "" {
 			newCfgFile, err := flyctl.ResolveConfigFileFromPath(commandContext.WorkingDir)
 			if err != nil {
