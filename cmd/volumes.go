@@ -88,6 +88,11 @@ func runCreateVolume(ctx *cmdctx.CmdContext) error {
 	}
 
 	app, err := ctx.Client.API().GetApp(ctx.AppName)
+
+	if err != nil {
+		return err
+	}
+
 	appid := app.ID
 
 	if region == "" {
