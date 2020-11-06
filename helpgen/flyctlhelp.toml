@@ -582,6 +582,13 @@ the application and vm environment.
 
 Any value that equals "-" will be assigned from STDIN instead of args.
 """
+[secrets.import]
+usage="import [flags]"
+shortHelp="Read secrets in name=value from stdin"
+longHelp="""Set one or more encrypted secrets for an application. Values
+are read from stdin as name=value
+"""
+
 [secrets.unset]
 usage="unset [flags] NAME NAME ..."
 shortHelp="Remove encrypted secrets from an App"

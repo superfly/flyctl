@@ -499,6 +499,11 @@ Secrets are provided to applications at runtime as ENV variables. Names are
 case sensitive and stored as-is, so ensure names are appropriate for
 the application and vm environment.`,
 		}
+	case "secrets.import":
+		return KeyStrings{"import [flags]", "Read secrets in name=value from stdin",
+			`Set one or more encrypted secrets for an application. Values
+are read from stdin as name=value`,
+		}
 	case "secrets.list":
 		return KeyStrings{"list", "Lists the secrets available to the App",
 			`List the secrets available to the application. It shows each 

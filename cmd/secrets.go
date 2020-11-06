@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strings"
 
@@ -33,6 +34,13 @@ func newSecretsCommand() *Command {
 	`
 	set.Command.Args = cobra.MinimumNArgs(1)
 	set.AddBoolFlag(BoolFlagOpts{
+		Name:        "detach",
+		Description: "Return immediately instead of monitoring deployment progress",
+	})
+
+	secretsImportStrings := docstrings.Get("secrets.import")
+	importCmd := BuildCommandKS(cmd, runImportSecrets, secretsImportStrings, os.Stdout, requireSession, requireAppName)
+	importCmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "detach",
 		Description: "Return immediately instead of monitoring deployment progress",
 	})
@@ -91,6 +99,67 @@ func runSetSecrets(cc *cmdctx.CmdContext) error {
 		}
 
 		secrets[key] = value
+	}
+
+	if len(secrets) < 1 {
+		return errors.New("requires at least one SECRET=VALUE pair")
+	}
+
+	release, err := cc.Client.API().SetSecrets(cc.AppName, secrets)
+	if err != nil {
+		return err
+	}
+
+	if release.ID == "" {
+		return errors.New("no change detected in secrets")
+	}
+
+	cc.Statusf("secrets", cmdctx.SINFO, "Release v%d created\n", release.Version)
+
+	app, err = cc.Client.API().GetApp(cc.AppName)
+	if err != nil {
+		return err
+	}
+
+	if app.Status == "pending" {
+		return nil
+	}
+
+	return watchDeployment(ctx, cc)
+}
+
+func runImportSecrets(cc *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
+	app, err := cc.Client.API().GetApp(cc.AppName)
+	if err != nil {
+		return err
+	}
+
+	if app.Status == "suspended" {
+		return fmt.Errorf("app '%s' is currently suspended. Suspended apps do not accept secret changes", cc.AppName)
+	}
+
+	secrets := make(map[string]string)
+
+	secretsString, err := ioutil.ReadAll(os.Stdin)
+
+	if err != nil {
+		return err
+	}
+
+	secretsArray := strings.Split(string(secretsString), "\n")
+
+	for _, pair := range secretsArray {
+		if pair != "" {
+			parts := strings.SplitN(pair, "=", 2)
+			if len(parts) != 2 {
+				return fmt.Errorf("Secrets must be provided as NAME=VALUE pairs (%s is invalid)", pair)
+			}
+			key := parts[0]
+			value := parts[1]
+			secrets[key] = value
+		}
 	}
 
 	if len(secrets) < 1 {
