@@ -57,7 +57,9 @@ func runSetParamsOnly(commandContext *cmdctx.CmdContext) error {
 
 func actualScale(commandContext *cmdctx.CmdContext, balanceRegions bool, setParamsOnly bool) error {
 	currentcfg, err := commandContext.Client.API().AppAutoscalingConfig(commandContext.AppName)
-
+	if err != nil {
+		return err
+	}
 	newcfg := api.UpdateAutoscaleConfigInput{AppID: commandContext.AppName}
 
 	newcfg.BalanceRegions = &balanceRegions
