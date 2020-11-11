@@ -74,10 +74,6 @@ func runSetSecrets(cc *cmdctx.CmdContext) error {
 		return err
 	}
 
-	if app.Status == "suspended" {
-		return fmt.Errorf("app '%s' is currently suspended. Suspended apps do not accept secret changes", cc.AppName)
-	}
-
 	secrets := make(map[string]string)
 
 	for _, pair := range cc.Args {
@@ -110,20 +106,12 @@ func runSetSecrets(cc *cmdctx.CmdContext) error {
 		return err
 	}
 
-	if release.ID == "" {
-		return errors.New("no change detected in secrets")
+	if !app.Deployed {
+		cc.Statusf("secrets", cmdctx.SINFO, "Secrets are staged for the first deployment\n")
+		return nil
 	}
 
 	cc.Statusf("secrets", cmdctx.SINFO, "Release v%d created\n", release.Version)
-
-	app, err = cc.Client.API().GetApp(cc.AppName)
-	if err != nil {
-		return err
-	}
-
-	if app.Status == "pending" {
-		return nil
-	}
 
 	return watchDeployment(ctx, cc)
 }
@@ -134,10 +122,6 @@ func runImportSecrets(cc *cmdctx.CmdContext) error {
 	app, err := cc.Client.API().GetApp(cc.AppName)
 	if err != nil {
 		return err
-	}
-
-	if app.Status == "suspended" {
-		return fmt.Errorf("app '%s' is currently suspended. Suspended apps do not accept secret changes", cc.AppName)
 	}
 
 	secrets := make(map[string]string)
@@ -203,20 +187,12 @@ func runImportSecrets(cc *cmdctx.CmdContext) error {
 		return err
 	}
 
-	if release.ID == "" {
-		return errors.New("no change detected in secrets")
+	if !app.Deployed {
+		cc.Statusf("secrets", cmdctx.SINFO, "Secrets are staged for the first deployment\n")
+		return nil
 	}
 
 	cc.Statusf("secrets", cmdctx.SINFO, "Release v%d created\n", release.Version)
-
-	app, err = cc.Client.API().GetApp(cc.AppName)
-	if err != nil {
-		return err
-	}
-
-	if app.Status == "pending" {
-		return nil
-	}
 
 	return watchDeployment(ctx, cc)
 }
@@ -229,10 +205,6 @@ func runSecretsUnset(cc *cmdctx.CmdContext) error {
 		return err
 	}
 
-	if app.Status == "suspended" {
-		return fmt.Errorf("app '%s' is currently suspended. Suspended apps do not accept secret changes", cc.AppName)
-	}
-
 	if len(cc.Args) == 0 {
 		return errors.New("Requires at least one secret name")
 	}
@@ -242,16 +214,12 @@ func runSecretsUnset(cc *cmdctx.CmdContext) error {
 		return err
 	}
 
-	cc.Statusf("secrets", cmdctx.SINFO, "Release v%d created\n", release.Version)
-
-	app, err = cc.Client.API().GetApp(cc.AppName)
-	if err != nil {
-		return err
-	}
-
-	if app.Status == "pending" {
+	if !app.Deployed {
+		cc.Statusf("secrets", cmdctx.SINFO, "Secrets are staged for the first deployment\n")
 		return nil
 	}
+
+	cc.Statusf("secrets", cmdctx.SINFO, "Release v%d created\n", release.Version)
 
 	return watchDeployment(ctx, cc)
 }
