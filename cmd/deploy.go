@@ -20,7 +20,6 @@ import (
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docker"
 	"github.com/superfly/flyctl/docstrings"
-	"github.com/superfly/flyctl/flyname"
 	"github.com/superfly/flyctl/internal/builds"
 	"github.com/superfly/flyctl/internal/deployment"
 	"github.com/superfly/flyctl/terminal"
@@ -108,16 +107,6 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 		}
 	}
 
-	appcheck, err := commandContext.Client.API().GetApp(commandContext.AppName)
-
-	if err != nil {
-		return err
-	}
-
-	if appcheck.Status == "suspended" {
-		return fmt.Errorf("app %s is currently suspended - resume it with "+flyname.Name()+" apps resume", commandContext.AppName)
-	}
-
 	var strategy = docker.DefaultDeploymentStrategy
 	if val, _ := commandContext.Config.GetString("strategy"); val != "" {
 		strategy, err = docker.ParseDeploymentStrategy(val)
@@ -128,13 +117,10 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 
 	var image *docker.Image
 
-	configimageRef, _ := commandContext.Config.GetString("image")
+	imageRef, _ := commandContext.Config.GetString("image")
 
-	var imageRef string
-
-	if configimageRef != "" {
-		imageRef = configimageRef
-	} else if commandContext.AppConfig != nil &&
+	if imageRef == "" &&
+		commandContext.AppConfig != nil &&
 		commandContext.AppConfig.Build != nil &&
 		commandContext.AppConfig.Build.Image != "" {
 		imageRef = commandContext.AppConfig.Build.Image
@@ -142,14 +128,19 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 
 	if imageRef != "" {
 		// image specified, resolve it, tagging and pushing if docker+local
-
 		commandContext.Statusf("deploy", cmdctx.SINFO, "Deploying image: %s\n", imageRef)
 
-		img, err := op.ResolveImage(ctx, commandContext, imageRef)
+		img, err := op.ResolveImageLocally(ctx, commandContext, imageRef)
 		if err != nil {
 			return err
 		}
-		image = img
+		if img != nil {
+			image = img
+		} else {
+			image = &docker.Image{
+				Tag: imageRef,
+			}
+		}
 	} else {
 		// no image specified, build one
 		buildArgs := map[string]string{}
@@ -301,7 +292,7 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 
 	commandContext.Status("deploy", cmdctx.SBEGIN, "Optimizing Image")
 
-	if err := op.OptimizeImage(*image); err != nil {
+	if err := op.OptimizeImage(image.Tag); err != nil {
 		return err
 	}
 	commandContext.Status("deploy", cmdctx.SDONE, "Done Optimizing Image")
@@ -312,7 +303,7 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 		commandContext.Statusf("deploy", cmdctx.SDETAIL, "Deployment Strategy: %s", strategy)
 	}
 
-	release, err := op.Deploy(*image, strategy)
+	release, err := op.Deploy(image.Tag, strategy)
 	if err != nil {
 		return err
 	}
@@ -368,7 +359,6 @@ func watchDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) err
 	}
 
 	monitor.DeploymentFailed = func(d *api.DeploymentStatus, failedAllocs []*api.AllocationStatus) error {
-
 		commandContext.Statusf("deploy", cmdctx.SDETAIL, "v%d %s - %s\n", d.Version, d.Status, d.Description)
 
 		if endmessage == "" && d.Status == "failed" {
@@ -441,7 +431,6 @@ func watchDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) err
 	}
 
 	monitor.DeploymentSucceeded = func(d *api.DeploymentStatus) error {
-
 		commandContext.Statusf("deploy", cmdctx.SDONE, "v%d deployed successfully\n", d.Version)
 		return nil
 	}

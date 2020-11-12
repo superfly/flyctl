@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"regexp"
 	"strconv"
@@ -307,76 +306,12 @@ func (c *DockerClient) PushImage(ctx context.Context, imageName string, out io.W
 	return jsonmessage.DisplayJSONMessagesStream(resp, out, termFd, isTerm, nil)
 }
 
-func CheckManifest(ctx context.Context, imageRef string, token string) (*dockerparser.Reference, error) {
-	ref, err := dockerparser.Parse(imageRef)
-	if err != nil {
-		return nil, err
-	}
-
-	registry := ref.Registry()
-	if registry == "docker.io" {
-		registry = "registry-1.docker.io"
-	}
-	url := fmt.Sprintf("https://%s/v2/%s/manifests/%s", registry, ref.ShortName(), ref.Tag())
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Add("Accept", "application/vnd.docker.distribution.manifest.v2+json")
-	if token != "" {
-		req.Header.Add("Authorization", "Bearer "+token)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode == 200 {
-		return ref, nil
-	}
-
-	if resp.StatusCode == 401 && ref.Registry() == "docker.io" && token == "" {
-		token, _ := getDockerHubToken(ref.ShortName())
-		if token != "" {
-			return CheckManifest(ctx, imageRef, token)
-		}
-	}
-
-	return nil, fmt.Errorf("Unable to access image %s: %s", imageRef, resp.Status)
-}
-
 func RegistryAuth(token string) types.AuthConfig {
 	return types.AuthConfig{
 		Username:      "x",
 		Password:      token,
 		ServerAddress: "registry.fly.io",
 	}
-}
-
-func getDockerHubToken(imageName string) (string, error) {
-	url := fmt.Sprintf("https://auth.docker.io/token?scope=repository:%s:pull&service=registry.docker.io", imageName)
-
-	resp, err := http.Get(url)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return "", errors.New("Unable to fetch registry token")
-	}
-
-	defer resp.Body.Close()
-
-	data := map[string]string{}
-
-	json.NewDecoder(resp.Body).Decode(&data)
-
-	return data["token"], nil
 }
 
 func authConfigs() map[string]types.AuthConfig {
