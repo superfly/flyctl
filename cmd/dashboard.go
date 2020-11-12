@@ -44,6 +44,6 @@ func runDashboardMetrics(ctx *cmdctx.CmdContext) error {
 }
 
 func runDashboardOpen(ctx *cmdctx.CmdContext, url string) error {
-	fmt.Println("Opening", docsURL)
-	return open.Run(docsURL)
+	fmt.Println("Opening", url)
+	return open.Run(url)
 }
