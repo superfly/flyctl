@@ -124,57 +124,46 @@ func (op *DeployOperation) ValidateConfig() (*api.AppConfig, error) {
 	return parsedConfig, nil
 }
 
-func (op *DeployOperation) ResolveImage(ctx context.Context, commandContext *cmdctx.CmdContext, imageRef string) (*Image, error) {
+func (op *DeployOperation) ResolveImageLocally(ctx context.Context, commandContext *cmdctx.CmdContext, imageRef string) (*Image, error) {
 	commandContext.Status("deploy", "Resolving image")
 
-	if op.DockerAvailable() && !op.RemoteOnly() {
-		imgSummary, err := op.dockerClient.findImage(ctx, imageRef)
-		if err != nil {
-			return nil, err
-		}
-
-		if imgSummary == nil {
-			goto ResolveWithoutDocker
-		}
-
-		commandContext.Statusf("deploy", cmdctx.SINFO, "Image ID: %+v\n", imgSummary.ID)
-		commandContext.Statusf("deploy", cmdctx.SINFO, "Image size: %s\n", humanize.Bytes(uint64(imgSummary.Size)))
-
-		commandContext.Status("deploy", cmdctx.SDONE, "Image resolving done")
-
-		commandContext.Status("deploy", cmdctx.SBEGIN, "Creating deployment tag")
-		if err := op.dockerClient.TagImage(op.ctx, imgSummary.ID, op.imageTag); err != nil {
-			return nil, err
-		}
-		commandContext.Status("deploy", cmdctx.SINFO, "-->", op.imageTag)
-
-		image := &Image{
-			ID:   imgSummary.ID,
-			Size: imgSummary.Size,
-			Tag:  op.imageTag,
-		}
-
-		err = op.PushImage(*image)
-
-		if err != nil {
-			return nil, err
-		}
-
-		return image, nil
+	if !op.DockerAvailable() || op.RemoteOnly() {
+		return nil, nil
 	}
 
-ResolveWithoutDocker:
-	img, err := op.resolveImageWithoutDocker(ctx, imageRef)
+	imgSummary, err := op.dockerClient.findImage(ctx, imageRef)
 	if err != nil {
 		return nil, err
 	}
-	if img == nil {
-		return nil, fmt.Errorf("Could not find image '%s'", imageRef)
+
+	if imgSummary == nil {
+		return nil, nil
 	}
 
-	fmt.Println("-->", img.Tag)
+	commandContext.Statusf("deploy", cmdctx.SINFO, "Image ID: %+v\n", imgSummary.ID)
+	commandContext.Statusf("deploy", cmdctx.SINFO, "Image size: %s\n", humanize.Bytes(uint64(imgSummary.Size)))
 
-	return img, nil
+	commandContext.Status("deploy", cmdctx.SDONE, "Image resolving done")
+
+	commandContext.Status("deploy", cmdctx.SBEGIN, "Creating deployment tag")
+	if err := op.dockerClient.TagImage(op.ctx, imgSummary.ID, op.imageTag); err != nil {
+		return nil, err
+	}
+	commandContext.Status("deploy", cmdctx.SINFO, "-->", op.imageTag)
+
+	image := &Image{
+		ID:   imgSummary.ID,
+		Size: imgSummary.Size,
+		Tag:  op.imageTag,
+	}
+
+	err = op.PushImage(*image)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return image, nil
 }
 
 func (op *DeployOperation) resolveImageWithoutDocker(ctx context.Context, imageRef string) (*Image, error) {
@@ -231,8 +220,8 @@ func (op *DeployOperation) optimizeImage(imageTag string) error {
 	}
 }
 
-func (op *DeployOperation) Deploy(image Image, strategy DeploymentStrategy) (*api.Release, error) {
-	return op.deployImage(image.Tag, strategy)
+func (op *DeployOperation) Deploy(imageRef string, strategy DeploymentStrategy) (*api.Release, error) {
+	return op.deployImage(imageRef, strategy)
 }
 
 func (op *DeployOperation) deployImage(imageTag string, strategy DeploymentStrategy) (*api.Release, error) {
