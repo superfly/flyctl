@@ -37,7 +37,6 @@ func NewDeployOperation(ctx context.Context, cmdContext *cmdctx.CmdContext) (*De
 		return nil, err
 	}
 
-	//squash:=cmdContext.Config.GetBool("squash")
 	remoteOnly := cmdContext.Config.GetBool("remote-only")
 	localOnly := cmdContext.Config.GetBool("local-only")
 
@@ -164,19 +163,6 @@ func (op *DeployOperation) ResolveImageLocally(ctx context.Context, commandConte
 	}
 
 	return image, nil
-}
-
-func (op *DeployOperation) resolveImageWithoutDocker(ctx context.Context, imageRef string) (*Image, error) {
-	ref, err := CheckManifest(op.ctx, imageRef, "")
-	if err != nil {
-		return nil, err
-	}
-
-	image := Image{
-		Tag: ref.Repository(),
-	}
-
-	return &image, nil
 }
 
 func (op *DeployOperation) pushImage(imageTag string) error {
