@@ -58,6 +58,10 @@ func runSetParamsOnly(commandContext *cmdctx.CmdContext) error {
 func actualScale(commandContext *cmdctx.CmdContext, balanceRegions bool, setParamsOnly bool) error {
 	currentcfg, err := commandContext.Client.API().AppAutoscalingConfig(commandContext.AppName)
 
+	if err != nil {
+		return err
+	}
+
 	newcfg := api.UpdateAutoscaleConfigInput{AppID: commandContext.AppName}
 
 	newcfg.BalanceRegions = &balanceRegions
@@ -178,7 +182,7 @@ func printScaleConfig(commandContext *cmdctx.CmdContext, cfg *api.AutoscalingCon
 	if asJSON {
 		commandContext.WriteJSON(cfg)
 	} else {
-		mode := "Unknown"
+		var mode string
 
 		if cfg.BalanceRegions {
 			mode = "Balanced"
