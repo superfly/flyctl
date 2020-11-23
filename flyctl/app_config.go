@@ -240,14 +240,20 @@ func (ac *AppConfig) SetInternalPort(port int) bool {
 }
 
 func (ac *AppConfig) GetInternalPort() (int, error) {
-	services, ok := ac.Definition["services"].([]interface{})
+	tmpservices, ok := ac.Definition["services"]
+
+	if !ok {
+		return -1, errors.New("could not find internal port setting")
+	}
+
+	services, ok := tmpservices.([]map[string]interface{})
+
 	if ok {
-		service0 := services[0].(map[string]interface{})
-		internalport, ok := service0["internal_port"].(int64)
+		internalport, ok := services[0]["internal_port"].(int64)
 		if ok {
 			return int(internalport), nil
 		}
-		internalportfloat, ok := service0["internal_port"].(float64)
+		internalportfloat, ok := services[0]["internal_port"].(float64)
 		if ok {
 			return int(internalportfloat), nil
 		}
