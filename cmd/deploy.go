@@ -380,7 +380,7 @@ func watchDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) err
 				a := a
 				go func() {
 					defer wg.Done()
-					alloc, err := commandContext.Client.API().GetAllocationStatus(commandContext.AppName, a.ID, 20)
+					alloc, err := commandContext.Client.API().GetAllocationStatus(commandContext.AppName, a.ID, 30)
 					if err != nil {
 						commandContext.Status("deploy", cmdctx.SERROR, "Error fetching alloc", a.ID, err)
 						return
