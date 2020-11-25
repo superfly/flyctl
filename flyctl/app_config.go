@@ -258,7 +258,7 @@ func (ac *AppConfig) GetInternalPort() (int, error) {
 			return int(internalportfloat), nil
 		}
 	}
-	return -1, errors.New("could not find internal port setting")
+	return 8080, nil
 }
 
 const defaultConfigFileName = "fly.toml"
