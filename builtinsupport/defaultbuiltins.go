@@ -40,7 +40,7 @@ CMD ["bundle", "exec", "rackup", "--host", "0.0.0.0", "-p", "8080"]
 		Details: `Uses Debian image from https://github.com/hayd/deno-docker.
 runs main.ts with --allow-net set and requires deps.ts for dependencies.
 Uses and exposes port 8080 internally.`,
-		Template: `FROM hayd/debian-deno:1.4.0
+		Template: `FROM hayd/debian-deno:{{.version}}
 ENV PORT=8080
 EXPOSE 8080
 WORKDIR /app
@@ -51,7 +51,8 @@ ADD . .
 RUN deno cache main.ts
 CMD ["run", {{range .perms}}"{{.}}",{{end}} "main.ts"]
 `,
-		Settings: []Setting{{"perms", []string{`--allow-net`}, "Array of command line settings to grant permissions, e.g. [\"--allow-net\",\"--allow-read\"] "}},
+		Settings: []Setting{{"perms", []string{`--allow-net`}, "Array of command line settings to grant permissions, e.g. [\"--allow-net\",\"--allow-read\"] "},
+			{"version", "1.5.4", "Version of Deno to use"}},
 	},
 	{Name: "go",
 		Description: "Go Builtin",
