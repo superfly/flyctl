@@ -36,6 +36,11 @@ func runListBuiltins(commandContext *cmdctx.CmdContext) error {
 
 	sort.Slice(builtins, func(i, j int) bool { return builtins[i].Name < builtins[j].Name })
 
+	if commandContext.OutputJSON() {
+		commandContext.WriteJSON(builtins)
+		return nil
+	}
+
 	builtintable := helpers.MakeSimpleTable(commandContext.Out, []string{"Name", "Description", "Details"})
 
 	for _, builtin := range builtins {
