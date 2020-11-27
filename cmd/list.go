@@ -47,6 +47,7 @@ type appCondensed struct {
 }
 
 func runListApps(commandContext *cmdctx.CmdContext) error {
+
 	asJSON := commandContext.OutputJSON()
 
 	appPart := ""
@@ -110,17 +111,24 @@ func runListApps(commandContext *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runListOrgs(ctx *cmdctx.CmdContext) error {
-	orgs, err := ctx.Client.API().GetOrganizations()
+func runListOrgs(commandContext *cmdctx.CmdContext) error {
+	asJSON := commandContext.OutputJSON()
+
+	orgs, err := commandContext.Client.API().GetOrganizations()
 
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(ctx.Out, "%16s %-32s\n", "Short Name", "Full Name")
+	if asJSON {
+		commandContext.WriteJSON(orgs)
+		return nil
+	}
+
+	fmt.Fprintf(commandContext.Out, "%16s %-32s\n", "Short Name", "Full Name")
 
 	for _, org := range orgs {
-		fmt.Fprintf(ctx.Out, "%16s %-32s\n", org.Slug, org.Name)
+		fmt.Fprintf(commandContext.Out, "%16s %-32s\n", org.Slug, org.Name)
 	}
 
 	return nil
