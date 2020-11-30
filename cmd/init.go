@@ -156,7 +156,6 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		}
 	}
 
-	fmt.Printf("(%s)\n", name)
 	fmt.Println()
 
 	targetOrgSlug, _ := commandContext.Config.GetString("org")
