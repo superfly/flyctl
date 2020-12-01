@@ -169,7 +169,7 @@ func runWireGuardCreate(ctx *cmdctx.CmdContext) error {
 		if filename == "stdout" {
 			w = os.Stdout
 		} else {
-			f, err = os.OpenFile(filename, os.O_WRONLY|os.O_CREATE, 0600)
+			f, err = os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 			if err != nil {
 				fmt.Printf("Can't create '%s': %s\n", filename, err)
 				continue
