@@ -102,6 +102,7 @@ func init() {
 		newOrgsCommand(),
 		newBuiltinsCommand(),
 		newVolumesCommand(),
+		newWireGuardCommand(),
 	)
 
 	initConfig()
