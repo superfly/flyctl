@@ -730,3 +730,24 @@ usage="show <id>"
 shortHelp="Show details of an app's volume"
 longHelp="""Show details of an app's volume. Requires the volume's ID
 number to operate. This can be found through the volumes list command"""
+
+[wireguard]
+usage="wireguard <command>"
+shortHelp="Commands that manage WireGuard peer connections"
+longHelp="""Commands that manage WireGuard peer connections"""
+
+[wireguard.list]
+usage="list [<org>]"
+shortHelp="List all WireGuard peer connections"
+longHelp="List all WireGuard peer connections"
+
+[wireguard.create]
+usage="create [org] [region] [name]"
+shortHelp="Add a WireGuard peer connection"
+longHelp="""Add a WireGuard peer connection to an organization"""
+
+[wireguard.remove]
+usage="remove [org] [name]"
+shortHelp="Remove a WireGuard peer connection"
+longHelp="""Remove a WireGuard peer connection from an organization"""
+
