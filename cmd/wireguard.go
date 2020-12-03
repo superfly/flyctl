@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"text/template"
 
@@ -97,7 +98,7 @@ func generateWgConf(peer *api.CreatedWireGuardPeer, w io.Writer) {
 [Interface]
 PrivateKey = {{.Peer.Privkey}}
 Address = {{.Peer.Peerip}}/24
-DNS = fdaa::3
+DNS = {{.Meta.DNS}}
 
 [Peer]
 PublicKey = {{.Peer.Pubkey}}
@@ -109,13 +110,23 @@ Endpoint = {{.Peer.Endpointip}}:51820
 		Peer *api.CreatedWireGuardPeer
 		Meta struct {
 			AllowedIPs string
+			DNS        string
 		}
 	}{
 		Peer: peer,
 	}
 
+	addr := net.ParseIP(peer.Peerip).To16()
+	for i := 6; i < 16; i++ {
+		addr[i] = 0
+	}
+
 	// BUG(tqbf): can't stay this way
-	data.Meta.AllowedIPs = "fdaa::0/16"
+	data.Meta.AllowedIPs = fmt.Sprintf("%s/48", addr)
+
+	addr[15] = 3
+
+	data.Meta.DNS = fmt.Sprintf("%s", addr)
 
 	tmpl := template.Must(template.New("name").Parse(templateStr))
 
