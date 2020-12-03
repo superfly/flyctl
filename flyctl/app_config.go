@@ -23,9 +23,8 @@ const (
 )
 
 type AppConfig struct {
-	AppName string
-	Build   *Build
-	// DockerBuildArgs map[string]string
+	AppName    string
+	Build      *Build
 	Definition map[string]interface{}
 }
 
