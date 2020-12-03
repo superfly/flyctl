@@ -23,9 +23,8 @@ const (
 )
 
 type AppConfig struct {
-	AppName string
-	Build   *Build
-
+	AppName    string
+	Build      *Build
 	Definition map[string]interface{}
 }
 
@@ -125,7 +124,7 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 					}
 				}
 			case "args":
-				if argMap, ok := v.(map[string]string); ok {
+				if argMap, ok := v.(map[string]interface{}); ok {
 					for argK, argV := range argMap {
 						b.Args[argK] = fmt.Sprint(argV)
 					}
@@ -144,10 +143,11 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 				b.Args[k] = fmt.Sprint(v)
 			}
 		}
-		if b.Builder != "" || b.Builtin != "" || b.Image != "" {
+		if b.Builder != "" || b.Builtin != "" || b.Image != "" || len(b.Args) > 0 {
 			ac.Build = &b
 		}
 	}
+
 	delete(data, "build")
 
 	ac.Definition = data
@@ -164,9 +164,10 @@ func (ac AppConfig) marshalTOML(w io.Writer) error {
 		"app": ac.AppName,
 	}
 
-	if ac.Build != nil && ac.Build.Builder != "" {
-		buildData := map[string]interface{}{
-			"builder": ac.Build.Builder,
+	if ac.Build != nil {
+		buildData := map[string]interface{}{}
+		if ac.Build.Builder != "" {
+			buildData["builder"] = ac.Build.Builder
 		}
 		if len(ac.Build.Buildpacks) > 0 {
 			buildData["buildpacks"] = ac.Build.Buildpacks
@@ -174,16 +175,14 @@ func (ac AppConfig) marshalTOML(w io.Writer) error {
 		if len(ac.Build.Args) > 0 {
 			buildData["args"] = ac.Build.Args
 		}
-		rawData["build"] = buildData
-	} else if ac.Build != nil && ac.Build.Builtin != "" {
-		buildData := map[string]interface{}{
-			"builtin":  ac.Build.Builtin,
-			"settings": ac.Build.Settings,
+		if ac.Build.Builtin != "" {
+			buildData["builtin"] = ac.Build.Builtin
+			if len(ac.Build.Settings) > 0 {
+				buildData["settings"] = ac.Build.Settings
+			}
 		}
-		rawData["build"] = buildData
-	} else if ac.Build != nil && ac.Build.Image != "" {
-		buildData := map[string]interface{}{
-			"image": ac.Build.Image,
+		if ac.Build.Image != "" {
+			buildData["image"] = ac.Build.Image
 		}
 		rawData["build"] = buildData
 	}
