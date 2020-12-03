@@ -297,13 +297,6 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 		return errors.New("Could not find an image to deploy")
 	}
 
-	commandContext.Status("deploy", cmdctx.SBEGIN, "Optimizing Image")
-
-	if err := op.OptimizeImage(image.Tag); err != nil {
-		return err
-	}
-	commandContext.Status("deploy", cmdctx.SDONE, "Done Optimizing Image")
-
 	commandContext.Status("deploy", cmdctx.SBEGIN, "Creating Release")
 
 	if strategy != docker.DefaultDeploymentStrategy {

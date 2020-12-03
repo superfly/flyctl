@@ -4,13 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
-	"time"
 
-	"github.com/briandowns/spinner"
 	"github.com/dustin/go-humanize"
-	"github.com/mattn/go-isatty"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/flyctl"
@@ -176,34 +172,6 @@ func (op *DeployOperation) pushImage(imageTag string) error {
 	}
 
 	return nil
-}
-
-func (op *DeployOperation) optimizeImage(imageTag string) error {
-	if isatty.IsTerminal(os.Stdout.Fd()) {
-		s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
-		s.Writer = os.Stderr
-		s.Prefix = "building fs... "
-		s.Start()
-		defer s.Stop()
-	}
-
-	delay := 0 * time.Second
-
-	for {
-		select {
-		case <-time.After(delay):
-			status, err := op.apiClient.OptimizeImage(op.AppName(), imageTag)
-			if err != nil {
-				return err
-			}
-			if status != "in_progress" {
-				return nil
-			}
-			delay = 1 * time.Second
-		case <-op.ctx.Done():
-			return op.ctx.Err()
-		}
-	}
 }
 
 func (op *DeployOperation) Deploy(imageRef string, strategy DeploymentStrategy) (*api.Release, error) {

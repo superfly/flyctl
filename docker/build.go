@@ -220,11 +220,6 @@ func (op *DeployOperation) PushImage(image Image) error {
 	return op.pushImage(image.Tag)
 }
 
-// OptimizeImage - Optimize the Image for deployment
-func (op *DeployOperation) OptimizeImage(imageTag string) error {
-	return op.optimizeImage(imageTag)
-}
-
 // StartRemoteBuild - Start a remote build and track its progress
 func (op *DeployOperation) StartRemoteBuild(cwd string, appConfig *flyctl.AppConfig, dockerfilePath string, buildArgs map[string]string) (*api.Build, error) {
 	buildContext, err := newBuildContext()
