@@ -70,12 +70,17 @@ func newInitCommand() *Command {
 
 	cmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "overwrite",
-		Description: "Always overwrite an existing fly.toml file",
+		Description: "Always silently overwrite an existing fly.toml file",
 	})
 
 	cmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "nowrite",
 		Description: "Never write a fly.toml file",
+	})
+
+	cmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "generatename",
+		Description: "Always generate a name for the app", Hidden: true,
 	})
 
 	return cmd
@@ -118,35 +123,37 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 				if !confirmation {
 					return nil
 				}
-			} else {
-				commandContext.Status("init", cmdctx.SWARN, "Overwriting existing configuration (--overwrite)")
 			}
 		}
 	}
 
-	name, _ := commandContext.Config.GetString("name")
+	name := ""
 
-	if name != "" && appName != "" {
-		return fmt.Errorf(`two app names specified %s and %s. Select and specify only one`, appName, name)
-	}
+	if !commandContext.Config.GetBool("generatename") {
+		name, _ = commandContext.Config.GetString("name")
 
-	if name == "" && appName != "" {
-		name = appName
-	}
-
-	fmt.Println()
-
-	if name == "" {
-		prompt := &survey.Input{
-			Message: "App Name (leave blank to use an auto-generated name)",
+		if name != "" && appName != "" {
+			return fmt.Errorf(`two app names specified %s and %s. Select and specify only one`, appName, name)
 		}
-		if err := survey.AskOne(prompt, &name); err != nil {
-			if isInterrupt(err) {
-				return nil
+
+		if name == "" && appName != "" {
+			name = appName
+		}
+
+		fmt.Println()
+
+		if name == "" {
+			prompt := &survey.Input{
+				Message: "App Name (leave blank to use an auto-generated name)",
 			}
+			if err := survey.AskOne(prompt, &name); err != nil {
+				if isInterrupt(err) {
+					return nil
+				}
+			}
+		} else {
+			fmt.Printf("Selected App Name: %s\n", name)
 		}
-	} else {
-		fmt.Printf("Selected App Name: %s\n", name)
 	}
 
 	fmt.Println()
@@ -232,7 +239,9 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 			newAppConfig.Build = &flyctl.Build{Image: imagename}
 			newAppConfig.Definition = app.Config.Definition
 		} else if importfile != "" {
-			fmt.Printf("Importing configuration from %s\n", importfile)
+			if !commandContext.OutputJSON() {
+				fmt.Printf("Importing configuration from %s\n", importfile)
+			}
 
 			tmpappconfig, err := flyctl.LoadAppConfig(importfile)
 			if err != nil {
@@ -257,9 +266,13 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Importing port %d\n", currentport)
+			if !commandContext.OutputJSON() {
+				fmt.Printf("Importing port %d\n", currentport)
+			}
 		} else if builtinname != "" {
-			fmt.Printf("Builtins use port 8080\n")
+			if !commandContext.OutputJSON() {
+				fmt.Printf("Builtins use port 8080\n")
+			}
 			newAppConfig.SetInternalPort(8080)
 		} else {
 			// If we are not importing and not running a builtin, get the default, ask for new setting
@@ -274,7 +287,10 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 			newAppConfig.SetInternalPort(internalPort)
 		}
 
-		fmt.Println()
+		if commandContext.OutputJSON() {
+			commandContext.WriteJSON(app)
+			return nil
+		}
 
 		err = commandContext.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "New app created"})
 		if err != nil {

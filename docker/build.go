@@ -221,8 +221,8 @@ func (op *DeployOperation) PushImage(image Image) error {
 }
 
 // OptimizeImage - Optimize the Image for deployment
-func (op *DeployOperation) OptimizeImage(image Image) error {
-	return op.optimizeImage(image.Tag)
+func (op *DeployOperation) OptimizeImage(imageTag string) error {
+	return op.optimizeImage(imageTag)
 }
 
 // StartRemoteBuild - Start a remote build and track its progress

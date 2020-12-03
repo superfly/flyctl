@@ -3,7 +3,7 @@ package api
 func (client *Client) GetApps() ([]App, error) {
 	query := `
 		query {
-			apps(type: "container", first: 200) {
+			apps(type: "container", first: 400) {
 				nodes {
 					id
 					name

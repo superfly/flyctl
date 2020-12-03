@@ -1,5 +1,10 @@
 app = "damp-fire-3810"
 
+[env]
+  LOG_LEVEL = "debug"
+  ROOTFS_BUILD_DIR = "/rootfsdata"
+  QUEUES = "bubblegum" 
+
 [[services]]
   internal_port = 8080
   protocol = "tcp"

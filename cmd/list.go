@@ -1,11 +1,14 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
+	"sort"
 	"strings"
+	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/helpers"
 
 	"github.com/superfly/flyctl/docstrings"
 )
@@ -31,6 +34,19 @@ func newListCommand() *Command {
 		Description: `Show only apps with this status`,
 	})
 
+	listAppsCmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "exact",
+		Shorthand:   "e",
+		Description: `Show exact times`,
+		Default:     false,
+	})
+
+	listAppsCmd.AddStringFlag(StringFlagOpts{
+		Name:        "sort",
+		Description: "Sort by name, created",
+		Default:     "name",
+	})
+
 	loks := docstrings.Get("list.orgs")
 	BuildCommandKS(listCmd, runListOrgs, loks, os.Stdout, requireSession)
 
@@ -44,9 +60,11 @@ type appCondensed struct {
 	Deployed     bool
 	Hostname     string
 	Organization string
+	CreatedAt    time.Time
 }
 
 func runListApps(commandContext *cmdctx.CmdContext) error {
+
 	asJSON := commandContext.OutputJSON()
 
 	appPart := ""
@@ -60,6 +78,8 @@ func runListApps(commandContext *cmdctx.CmdContext) error {
 	orgSlug, _ := commandContext.Config.GetString("org")
 
 	status, _ := commandContext.Config.GetString("status")
+
+	exact := commandContext.Config.GetBool("exact")
 
 	apps, err := commandContext.Client.API().GetApps()
 	if err != nil {
@@ -88,40 +108,85 @@ func runListApps(commandContext *cmdctx.CmdContext) error {
 		}
 
 		if saved {
+			var createdAt time.Time
+
+			// CreatedAt may or may not exist
+			if apps[i].Deployed && apps[i].CurrentRelease != nil {
+				createdAt = apps[i].CurrentRelease.CreatedAt
+			}
+
 			filteredApps = append(filteredApps, appCondensed{ID: apps[i].ID,
 				Name:         apps[i].Name,
 				Status:       apps[i].Status,
 				Deployed:     apps[i].Deployed,
 				Hostname:     apps[i].Hostname,
-				Organization: apps[i].Organization.Slug})
+				Organization: apps[i].Organization.Slug,
+				CreatedAt:    createdAt})
 		}
+	}
+
+	sortType, _ := commandContext.Config.GetString("sort")
+	if err != nil {
+		return err
+	}
+
+	switch sortType {
+	case "created":
+		sort.Slice(filteredApps, func(i, j int) bool { return filteredApps[i].CreatedAt.After(filteredApps[j].CreatedAt) })
+	case "name":
+		fallthrough
+	default:
+		sort.Slice(filteredApps, func(i, j int) bool { return filteredApps[i].Name < filteredApps[j].Name })
 	}
 
 	if asJSON {
 		commandContext.WriteJSON(filteredApps)
-	} else {
-		fmt.Fprintf(commandContext.Out, "%32s %10s %16s\n", "Name", "Status", "Organization")
-
-		for _, app := range filteredApps {
-			fmt.Fprintf(commandContext.Out, "%32s %10s %16s\n", app.Name, app.Status, app.Organization)
-		}
+		return nil
 	}
+
+	table := helpers.MakeSimpleTable(commandContext.Out, []string{"Name", "Status", "Org", "Deployed"})
+
+	for _, a := range filteredApps {
+		createdAt := ""
+		if !a.CreatedAt.IsZero() {
+			if exact {
+				createdAt = a.CreatedAt.Format(time.RFC3339)
+			} else {
+				createdAt = humanize.Time(a.CreatedAt)
+			}
+		}
+
+		table.Append([]string{a.Name, a.Status, a.Organization, createdAt})
+	}
+
+	table.Render()
 
 	return nil
 }
 
-func runListOrgs(ctx *cmdctx.CmdContext) error {
-	orgs, err := ctx.Client.API().GetOrganizations()
+func runListOrgs(commandContext *cmdctx.CmdContext) error {
+	asJSON := commandContext.OutputJSON()
+
+	orgs, err := commandContext.Client.API().GetOrganizations()
 
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(ctx.Out, "%16s %-32s\n", "Short Name", "Full Name")
+	if asJSON {
+		commandContext.WriteJSON(orgs)
+		return nil
+	}
+
+	table := helpers.MakeSimpleTable(commandContext.Out, []string{"Name", "Slug", "Type"})
+
+	sort.Slice(orgs, func(i, j int) bool { return orgs[i].Type < orgs[j].Type })
 
 	for _, org := range orgs {
-		fmt.Fprintf(ctx.Out, "%16s %-32s\n", org.Slug, org.Name)
+		table.Append([]string{org.Name, org.Slug, org.Type})
 	}
+
+	table.Render()
 
 	return nil
 }

@@ -577,6 +577,22 @@ number to operate. This can be found through the volumes list command`,
 			`Show details of an app's volume. Requires the volume's ID
 number to operate. This can be found through the volumes list command`,
 		}
+	case "wireguard":
+		return KeyStrings{"wireguard <command>", "Commands that manage WireGuard peer connections",
+			`Commands that manage WireGuard peer connections`,
+		}
+	case "wireguard.create":
+		return KeyStrings{"create [org] [region] [name]", "Add a WireGuard peer connection",
+			`Add a WireGuard peer connection to an organization`,
+		}
+	case "wireguard.list":
+		return KeyStrings{"list [<org>]", "List all WireGuard peer connections",
+			`List all WireGuard peer connections`,
+		}
+	case "wireguard.remove":
+		return KeyStrings{"remove [org] [name]", "Remove a WireGuard peer connection",
+			`Remove a WireGuard peer connection from an organization`,
+		}
 	}
 	panic("unknown command key " + key)
 }

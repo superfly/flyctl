@@ -140,6 +140,20 @@ type Query struct {
 
 	CreateVolume CreateVolumePayload
 	DeleteVolume DeleteVolumePayload
+
+	AddWireGuardPeer CreatedWireGuardPeer
+
+	RemoveWireGuardPeer struct {
+		Organization Organization
+	}
+}
+
+// carries the privkey; this is the only time it can be retrieved
+type CreatedWireGuardPeer struct {
+	Pubkey     string
+	Privkey    string
+	Peerip     string
+	Endpointip string
 }
 
 type Definition map[string]interface{}
@@ -276,6 +290,14 @@ type Organization struct {
 		Edges *[]*struct {
 			Cursor *string
 			Node   *Domain
+		}
+	}
+
+	WireGuardPeers struct {
+		Nodes *[]*WireGuardPeer
+		Edges *[]*struct {
+			Cursor *string
+			Node   *WireGuardPeer
 		}
 	}
 }
@@ -576,6 +598,7 @@ type AllocationStatus struct {
 	WarningCheckCount  int
 	CriticalCheckCount int
 	Transitioning      bool
+	PrivateIP          string
 	RecentLogs         []LogEntry
 }
 
@@ -735,4 +758,12 @@ type ImportDnsWarning struct {
 		Rdata string
 	}
 	Message string
+}
+
+type WireGuardPeer struct {
+	ID     string
+	Pubkey string
+	Region string
+	Name   string
+	Peerip string
 }
