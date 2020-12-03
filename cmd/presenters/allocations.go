@@ -18,7 +18,7 @@ func (p *Allocations) APIStruct() interface{} {
 }
 
 func (p *Allocations) FieldNames() []string {
-	return []string{"ID", "Version", "Region", "Desired", "Status", "Health Checks", "Restarts", "Created"}
+	return []string{"ID", "Version", "Region", "Desired", "Status", "Health Checks", "Restarts", "Private IP", "Created"}
 }
 
 func (p *Allocations) Records() []map[string]string {
@@ -50,6 +50,7 @@ func (p *Allocations) Records() []map[string]string {
 			"Created":       FormatRelativeTime(alloc.CreatedAt),
 			"Health Checks": FormatHealthChecksSummary(alloc),
 			"Restarts":      strconv.Itoa(alloc.Restarts),
+			"Private IP":    alloc.PrivateIP,
 		})
 	}
 
