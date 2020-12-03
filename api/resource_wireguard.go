@@ -26,14 +26,13 @@ query($slug: String!) {
 	return *data.Organization.WireGuardPeers.Nodes, nil
 }
 
-func (c *Client) CreateWireGuardPeer(org *Organization, region, name string) (*CreatedWireGuardPeer, error) {
+func (c *Client) CreateWireGuardPeer(org *Organization, region, name, pubkey string) (*CreatedWireGuardPeer, error) {
 	req := c.NewRequest(`
 mutation($input: AddWireGuardPeerInput!) { 
   addWireGuardPeer(input: $input) { 
-    pubkey
-    privkey
     peerip
     endpointip
+    pubkey
   } 
 }
 `)
@@ -41,6 +40,7 @@ mutation($input: AddWireGuardPeerInput!) {
 		"organizationId": org.ID,
 		"region":         region,
 		"name":           name,
+		"pubkey":         pubkey,
 	})
 
 	data, err := c.Run(req)

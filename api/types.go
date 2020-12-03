@@ -150,10 +150,9 @@ type Query struct {
 
 // carries the privkey; this is the only time it can be retrieved
 type CreatedWireGuardPeer struct {
-	Pubkey     string
-	Privkey    string
 	Peerip     string
 	Endpointip string
+	Pubkey     string
 }
 
 type Definition map[string]interface{}
@@ -598,6 +597,7 @@ type AllocationStatus struct {
 	WarningCheckCount  int
 	CriticalCheckCount int
 	Transitioning      bool
+	PrivateIP          string
 	RecentLogs         []LogEntry
 }
 

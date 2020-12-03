@@ -41,6 +41,7 @@ func (c *Client) GetAppStatus(appName string, showCompleted bool) (*AppStatus, e
 					canary
 					region
 					restarts
+					privateIP
 					checks {
 						status
 					}
@@ -81,6 +82,7 @@ func (c *Client) GetAllocationStatus(appName string, allocID string, logLimit in
 					canary
 					region
 					restarts
+					privateIP
 					checks {
 						status
 						output

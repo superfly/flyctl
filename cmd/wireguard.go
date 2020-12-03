@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"text/template"
 
@@ -12,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
+	"golang.org/x/crypto/curve25519"
 )
 
 func newWireGuardCommand() *Command {
@@ -92,12 +96,12 @@ func runWireGuardList(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func generateWgConf(peer *api.CreatedWireGuardPeer, w io.Writer) {
+func generateWgConf(peer *api.CreatedWireGuardPeer, privkey string, w io.Writer) {
 	templateStr := `
 [Interface]
-PrivateKey = {{.Peer.Privkey}}
+PrivateKey = {{.Meta.Privkey}}
 Address = {{.Peer.Peerip}}/24
-DNS = fdaa::3
+DNS = {{.Meta.DNS}}
 
 [Peer]
 PublicKey = {{.Peer.Pubkey}}
@@ -108,18 +112,46 @@ Endpoint = {{.Peer.Endpointip}}:51820
 	data := struct {
 		Peer *api.CreatedWireGuardPeer
 		Meta struct {
+			Privkey    string
 			AllowedIPs string
+			DNS        string
 		}
 	}{
 		Peer: peer,
 	}
 
+	addr := net.ParseIP(peer.Peerip).To16()
+	for i := 6; i < 16; i++ {
+		addr[i] = 0
+	}
+
 	// BUG(tqbf): can't stay this way
-	data.Meta.AllowedIPs = "fdaa::0/16"
+	data.Meta.AllowedIPs = fmt.Sprintf("%s/48", addr)
+
+	addr[15] = 3
+
+	data.Meta.DNS = fmt.Sprintf("%s", addr)
+	data.Meta.Privkey = privkey
 
 	tmpl := template.Must(template.New("name").Parse(templateStr))
 
 	tmpl.Execute(w, &data)
+}
+
+func c25519pair() (string, string) {
+	var private [32]byte
+	_, err := rand.Read(private[:])
+	if err != nil {
+		panic(fmt.Sprintf("reading from random: %s", err))
+	}
+
+	public, err := curve25519.X25519(private[:], curve25519.Basepoint)
+	if err != nil {
+		panic(fmt.Sprintf("can't mult: %s", err))
+	}
+
+	return base64.StdEncoding.EncodeToString(public[:]),
+		base64.StdEncoding.EncodeToString(private[:])
 }
 
 func runWireGuardCreate(ctx *cmdctx.CmdContext) error {
@@ -142,7 +174,9 @@ func runWireGuardCreate(ctx *cmdctx.CmdContext) error {
 
 	fmt.Printf("Creating WireGuard peer \"%s\" in region \"%s\" for organization %s\n", name, region, org.Slug)
 
-	data, err := client.CreateWireGuardPeer(org, region, name)
+	pubkey, privatekey := c25519pair()
+
+	data, err := client.CreateWireGuardPeer(org, region, name, pubkey)
 	if err != nil {
 		return err
 	}
@@ -180,7 +214,7 @@ func runWireGuardCreate(ctx *cmdctx.CmdContext) error {
 		}
 	}
 
-	generateWgConf(data, w)
+	generateWgConf(data, privatekey, w)
 
 	if f != nil {
 		fmt.Printf("Wrote WireGuard configuration to '%s'; load in your WireGuard client\n", filename)

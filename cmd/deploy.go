@@ -144,6 +144,13 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 	} else {
 		// no image specified, build one
 		buildArgs := map[string]string{}
+
+		if commandContext.AppConfig.Build != nil && commandContext.AppConfig.Build.Args != nil {
+			for k, v := range commandContext.AppConfig.Build.Args {
+				buildArgs[k] = v
+			}
+		}
+
 		for _, arg := range commandContext.Config.GetStringSlice("build-arg") {
 			parts := strings.Split(arg, "=")
 			if len(parts) != 2 {
