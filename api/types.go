@@ -598,6 +598,7 @@ type AllocationStatus struct {
 	WarningCheckCount  int
 	CriticalCheckCount int
 	Transitioning      bool
+	PrivateIP          string
 	RecentLogs         []LogEntry
 }
 
