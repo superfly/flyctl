@@ -145,7 +145,7 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 		// no image specified, build one
 		buildArgs := map[string]string{}
 
-		if commandContext.AppConfig.Build.Args != nil {
+		if commandContext.AppConfig.Build != nil && commandContext.AppConfig.Build.Args != nil {
 			for k, v := range commandContext.AppConfig.Build.Args {
 				buildArgs[k] = v
 			}
