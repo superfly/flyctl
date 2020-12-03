@@ -15,7 +15,7 @@ func (p *VMSizes) APIStruct() interface{} {
 }
 
 func (p *VMSizes) FieldNames() []string {
-	return []string{"Name", "CPU Cores", "Memory", "Price (Second)", "Price (Month)"}
+	return []string{"Name", "CPU Cores", "Memory"}
 }
 
 func (p *VMSizes) Records() []map[string]string {
@@ -23,11 +23,9 @@ func (p *VMSizes) Records() []map[string]string {
 
 	for _, size := range p.VMSizes {
 		out = append(out, map[string]string{
-			"Name":           size.Name,
-			"CPU Cores":      formatCores(size),
-			"Memory":         formatMemory(size),
-			"Price (Second)": fmt.Sprintf("$%f", size.PriceSecond),
-			"Price (Month)":  fmt.Sprintf("$%f", size.PriceMonth),
+			"Name":      size.Name,
+			"CPU Cores": formatCores(size),
+			"Memory":    formatMemory(size),
 		})
 	}
 

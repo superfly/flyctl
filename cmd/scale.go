@@ -138,8 +138,6 @@ func runScaleVM(commandContext *cmdctx.CmdContext) error {
 		fmt.Printf("%15s: %s\n", "Size", size.Name)
 		fmt.Printf("%15s: %s\n", "CPU Cores", formatCores(size))
 		fmt.Printf("%15s: %s\n", "Memory", formatMemory(size))
-		fmt.Printf("%15s: $%f\n", "Price (Month)", size.PriceMonth)
-		fmt.Printf("%15s: $%f\n", "Price (Second)", size.PriceSecond)
 		return nil
 	}
 
@@ -153,8 +151,6 @@ func runScaleVM(commandContext *cmdctx.CmdContext) error {
 	fmt.Println("Scaled VM size to", size.Name)
 	fmt.Printf("%15s: %s\n", "CPU Cores", formatCores(size))
 	fmt.Printf("%15s: %s\n", "Memory", formatMemory(size))
-	fmt.Printf("%15s: $%f\n", "Price (Month)", size.PriceMonth)
-	fmt.Printf("%15s: $%f\n", "Price (Second)", size.PriceSecond)
 	return nil
 }
 
