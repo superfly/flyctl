@@ -144,6 +144,13 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 	} else {
 		// no image specified, build one
 		buildArgs := map[string]string{}
+
+		if commandContext.AppConfig.Build != nil && commandContext.AppConfig.Build.Args != nil {
+			for k, v := range commandContext.AppConfig.Build.Args {
+				buildArgs[k] = v
+			}
+		}
+
 		for _, arg := range commandContext.Config.GetStringSlice("build-arg") {
 			parts := strings.Split(arg, "=")
 			if len(parts) != 2 {
@@ -289,13 +296,6 @@ func runDeploy(commandContext *cmdctx.CmdContext) error {
 	if image == nil {
 		return errors.New("Could not find an image to deploy")
 	}
-
-	commandContext.Status("deploy", cmdctx.SBEGIN, "Optimizing Image")
-
-	if err := op.OptimizeImage(image.Tag); err != nil {
-		return err
-	}
-	commandContext.Status("deploy", cmdctx.SDONE, "Done Optimizing Image")
 
 	commandContext.Status("deploy", cmdctx.SBEGIN, "Creating Release")
 

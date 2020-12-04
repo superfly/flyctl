@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/helpers"
 
 	"github.com/superfly/flyctl/docstrings"
 
@@ -21,6 +22,9 @@ func newIPAddressesCommand() *Command {
 
 	ipsListStrings := docstrings.Get("ips.list")
 	BuildCommandKS(cmd, runIPAddressesList, ipsListStrings, os.Stdout, requireSession, requireAppName)
+
+	ipsPrivateListStrings := docstrings.Get("ips.private")
+	BuildCommandKS(cmd, runPrivateIPAddressesList, ipsPrivateListStrings, os.Stdout, requireSession, requireAppName)
 
 	ipsAllocateV4Strings := docstrings.Get("ips.allocate-v4")
 	BuildCommandKS(cmd, runAllocateIPAddressV4, ipsAllocateV4Strings, os.Stdout, requireSession, requireAppName)
@@ -85,6 +89,40 @@ func runReleaseIPAddress(commandContext *cmdctx.CmdContext) error {
 	}
 
 	fmt.Printf("Released %s from %s\n", ipAddress.Address, appName)
+
+	return nil
+}
+
+func runPrivateIPAddressesList(commandContext *cmdctx.CmdContext) error {
+	appstatus, err := commandContext.Client.API().GetAppStatus(commandContext.AppName, false)
+	if err != nil {
+		return err
+	}
+
+	_, backupRegions, err := commandContext.Client.API().ListAppRegions(commandContext.AppName)
+
+	if err != nil {
+		return err
+	}
+
+	table := helpers.MakeSimpleTable(commandContext.Out, []string{"ID", "Region", "IP"})
+
+	for _, alloc := range appstatus.Allocations {
+
+		region := alloc.Region
+		if len(backupRegions) > 0 {
+			for _, r := range backupRegions {
+				if alloc.Region == r.Code {
+					region = alloc.Region + "(B)"
+					break
+				}
+			}
+		}
+
+		table.Append([]string{alloc.IDShort, region, alloc.PrivateIP})
+	}
+
+	table.Render()
 
 	return nil
 }

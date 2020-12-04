@@ -303,6 +303,11 @@ and IPv6 addresses.`,
 		return KeyStrings{"list", "List allocated IP addresses",
 			`Lists the IP addresses allocated to the application.`,
 		}
+	case "ips.private":
+		return KeyStrings{"private", "List instances private IP addresses",
+			`List instances private IP addresses, accessible from within the
+Fly network`,
+		}
 	case "ips.release":
 		return KeyStrings{"release [ADDRESS]", "Release an IP address",
 			`Releases an IP address from the application.`,

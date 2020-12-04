@@ -220,11 +220,6 @@ func (op *DeployOperation) PushImage(image Image) error {
 	return op.pushImage(image.Tag)
 }
 
-// OptimizeImage - Optimize the Image for deployment
-func (op *DeployOperation) OptimizeImage(imageTag string) error {
-	return op.optimizeImage(imageTag)
-}
-
 // StartRemoteBuild - Start a remote build and track its progress
 func (op *DeployOperation) StartRemoteBuild(cwd string, appConfig *flyctl.AppConfig, dockerfilePath string, buildArgs map[string]string) (*api.Build, error) {
 	buildContext, err := newBuildContext()
@@ -319,12 +314,10 @@ func normalizeBuildArgs(appConfig *flyctl.AppConfig, extra map[string]string) ma
 		}
 	}
 
-	if extra != nil {
-		for name, value := range extra {
-			// docker needs a string pointer. since ranges reuse variables we need to deref a copy
-			val := value
-			out[name] = &val
-		}
+	for name, value := range extra {
+		// docker needs a string pointer. since ranges reuse variables we need to deref a copy
+		val := value
+		out[name] = &val
 	}
 
 	return out
