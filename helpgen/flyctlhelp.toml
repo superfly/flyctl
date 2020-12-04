@@ -1,7 +1,7 @@
 [flyctl]
-usage="flyctl"
-shortHelp="The Fly CLI"
-longHelp="""flyctl is a command line interface to the Fly.io platform.
+usage     = "flyctl"
+shortHelp = "The Fly CLI"
+longHelp  = """flyctl is a command line interface to the Fly.io platform.
 
 It allows users to manage authentication, application initialization, 
 deployment, network configuration, logging and more with just the 
@@ -17,9 +17,9 @@ To read more, use the docs command to view Fly's help on the web.
 
 
 [info]
-usage="info"
-shortHelp="Show detailed App information"
-longHelp="""Shows information about the application on the Fly platform
+usage     = "info"
+shortHelp = "Show detailed App information"
+longHelp  = """Shows information about the application on the Fly platform
 
 Information includes the application's
 * name, owner, version, status and hostname
@@ -28,16 +28,16 @@ Information includes the application's
 """
 
 [open]
-usage="open [PATH]"
-shortHelp="Open browser to current deployed application"
-longHelp="""Open browser to current deployed application. If an optional path is specified, this is appended to the
+usage     = "open [PATH]"
+shortHelp = "Open browser to current deployed application"
+longHelp  = """Open browser to current deployed application. If an optional path is specified, this is appended to the
 URL for deployed application. 
 """
 
 [init]
-usage="init [APPNAME]"
-shortHelp="Initialize a new application"
-longHelp="""The INIT command will both register a new application 
+usage     = "init [APPNAME]"
+shortHelp = "Initialize a new application"
+longHelp  = """The INIT command will both register a new application 
 with the Fly platform and create the fly.toml file which controls how 
 the application will be deployed. The --builder flag allows a cloud native 
 buildpack to be specified which will be used instead of a Dockerfile to 
@@ -45,247 +45,247 @@ create the application image when it is deployed.
 """
 
 [destroy]
-usage="destroy [APPNAME]"
-shortHelp="Permanently destroys an App"
-longHelp="""The DESTROY command will remove an application 
+usage     = "destroy [APPNAME]"
+shortHelp = "Permanently destroys an App"
+longHelp  = """The DESTROY command will remove an application 
 from the Fly platform.
 """
 
 [suspend]
-usage="suspend [APPNAME]"
-shortHelp="Suspend an application"
-longHelp="""The SUSPEND command will suspend an application. 
+usage     = "suspend [APPNAME]"
+shortHelp = "Suspend an application"
+longHelp  = """The SUSPEND command will suspend an application. 
 All instances will be halted leaving the application running nowhere.
 It will continue to consume networking resources (IP address). See RESUME
 for details on restarting it.
 """
 
 [resume]
-usage="resume [APPNAME]"
-shortHelp="Resume an application"
-longHelp="""The RESUME command will restart a previously suspended application. 
+usage     = "resume [APPNAME]"
+shortHelp = "Resume an application"
+longHelp  = """The RESUME command will restart a previously suspended application. 
 The application will resume with its original region pool and a min count of one
 meaning there will be one running instance once restarted. Use SCALE SET MIN= to raise
 the number of configured instances.
 """
 
 [restart]
-usage="restart [APPNAME]"
-shortHelp="Restart an application"
-longHelp="""The RESTART command will restart all running vms. 
+usage     = "restart [APPNAME]"
+shortHelp = "Restart an application"
+longHelp  = """The RESTART command will restart all running vms. 
 """
 
 [move]
-usage="move [APPNAME]"
-shortHelp="Move an App to another organization"
-longHelp="""The MOVE command will move an application to another 
+usage     = "move [APPNAME]"
+shortHelp = "Move an App to another organization"
+longHelp  = """The MOVE command will move an application to another 
 organization the current user belongs to.
 """
 
 [apps]
-usage="apps"
-shortHelp="Manage Apps"
-longHelp="""The APPS commands focus on managing your Fly applications.
+usage     = "apps"
+shortHelp = "Manage Apps"
+longHelp  = """The APPS commands focus on managing your Fly applications.
 Start with the CREATE command to register your application.
 The LIST command will list all currently registered applications.
 """
-[apps.list]
-usage="list"
-shortHelp="List applications"
-longHelp="""The APPS LIST command will show the applications currently
+    [apps.list]
+    usage     = "list"
+    shortHelp = "List applications"
+    longHelp  = """The APPS LIST command will show the applications currently
 registered and available to this user. The list will include applications 
 from all the organizations the user is a member of. Each application will 
 be shown with its name, owner and when it was last deployed.
 """
-[apps.create]
-usage="create [APPNAME]"
-shortHelp="Create a new application"
-longHelp="""The APPS CREATE command will both register a new application 
+    [apps.create]
+    usage     = "create [APPNAME]"
+    shortHelp = "Create a new application"
+    longHelp  = """The APPS CREATE command will both register a new application 
 with the Fly platform and create the fly.toml file which controls how 
 the application will be deployed. The --builder flag allows a cloud native 
 buildpack to be specified which will be used instead of a Dockerfile to 
 create the application image when it is deployed.
 """
-[apps.destroy]
-usage="destroy [APPNAME]"
-shortHelp="Permanently destroys an App"
-longHelp="""The APPS DESTROY command will remove an application 
+    [apps.destroy]
+    usage     = "destroy [APPNAME]"
+    shortHelp = "Permanently destroys an App"
+    longHelp  = """The APPS DESTROY command will remove an application 
 from the Fly platform.
 """
-[apps.move]
-usage="move [APPNAME]"
-shortHelp="Move an App to another organization"
-longHelp="""The APPS MOVE command will move an application to another 
+    [apps.move]
+    usage     = "move [APPNAME]"
+    shortHelp = "Move an App to another organization"
+    longHelp  = """The APPS MOVE command will move an application to another 
 organization the current user belongs to.
 """
-[apps.suspend]
-usage="suspend [APPNAME]"
-shortHelp="Suspend an application"
-longHelp="""The APPS SUSPEND command will suspend an application. 
+    [apps.suspend]
+    usage     = "suspend [APPNAME]"
+    shortHelp = "Suspend an application"
+    longHelp  = """The APPS SUSPEND command will suspend an application. 
 All instances will be halted leaving the application running nowhere.
 It will continue to consume networking resources (IP address). See APPS RESUME
 for details on restarting it.
 """
-[apps.resume]
-usage="resume [APPNAME]"
-shortHelp="Resume an application"
-longHelp="""The APPS RESUME command will restart a previously suspended application. 
+    [apps.resume]
+    usage     = "resume [APPNAME]"
+    shortHelp = "Resume an application"
+    longHelp  = """The APPS RESUME command will restart a previously suspended application. 
 The application will resume with its original region pool and a min count of one
 meaning there will be one running instance once restarted. Use SCALE SET MIN= to raise
 the number of configured instances.
 """
-[apps.restart]
-usage="restart [APPNAME]"
-shortHelp="Restart an application"
-longHelp="""The APPS RESTART command will restart all running vms. 
+    [apps.restart]
+    usage     = "restart [APPNAME]"
+    shortHelp = "Restart an application"
+    longHelp  = """The APPS RESTART command will restart all running vms. 
 """
 
 [auth]
-usage="auth"
-shortHelp="Manage authentication"
-longHelp="""Authenticate with Fly (and logout if you need to).
+usage     = "auth"
+shortHelp = "Manage authentication"
+longHelp  = """Authenticate with Fly (and logout if you need to).
 If you do not have an account, start with the AUTH SIGNUP command.
 If you do have and account, begin with the AUTH LOGIN subcommand.
 """
-[auth.whoami]
-usage="whoami"
-shortHelp="Show the currently authenticated user"
-longHelp="""Displays the users email address/service identity currently 
+    [auth.whoami]
+    usage     = "whoami"
+    shortHelp = "Show the currently authenticated user"
+    longHelp  = """Displays the users email address/service identity currently 
 authenticated and in use.
 """
-[auth.token]
-usage="token"
-shortHelp="Show the current auth token"
-longHelp="""Shows the authentication token that is currently in use. 
+    [auth.token]
+    usage     = "token"
+    shortHelp = "Show the current auth token"
+    longHelp  = """Shows the authentication token that is currently in use. 
 This can be used as an authentication token with API services, 
 independent of flyctl.
 """
-[auth.login]
-usage="login"
-shortHelp="Log in a user"
-longHelp="""Logs a user into the Fly platform. Supports browser-based, 
+    [auth.login]
+    usage     = "login"
+    shortHelp = "Log in a user"
+    longHelp  = """Logs a user into the Fly platform. Supports browser-based, 
 email/password and one-time-password authentication. Defaults to using 
 browser-based authentication.
 """
-[auth.logout]
-usage="logout"
-shortHelp="Logs out the currently logged in user"
-longHelp="""Log the currently logged-in user out of the Fly platform. 
+    [auth.logout]
+    usage     = "logout"
+    shortHelp = "Logs out the currently logged in user"
+    longHelp  = """Log the currently logged-in user out of the Fly platform. 
 To continue interacting with Fly, the user will need to log in again.
 """
-[auth.signup]
-usage="signup"
-shortHelp="Create a new fly account"
-longHelp="""Creates a new fly account. The command opens the browser 
+    [auth.signup]
+    usage     = "signup"
+    shortHelp = "Create a new fly account"
+    longHelp  = """Creates a new fly account. The command opens the browser 
 and sends the user to a form to provide appropriate credentials.
 """
-[auth.docker]
-usage="docker"
-shortHelp="Authenticate docker"
-longHelp="""Adds registry.fly.io to the docker daemon's authenticated 
+    [auth.docker]
+    usage     = "docker"
+    shortHelp = "Authenticate docker"
+    longHelp  = """Adds registry.fly.io to the docker daemon's authenticated 
 registries. This allows you to push images directly to fly from 
 the docker cli.
 """
 
 [builds]
-usage="builds"
-shortHelp="Work with Fly Builds"
-longHelp="""Fly Builds are templates to make developing Fly applications easier.
+usage     = "builds"
+shortHelp = "Work with Fly Builds"
+longHelp  = """Fly Builds are templates to make developing Fly applications easier.
 """
-[builds.list]
-usage="list"
-shortHelp="List builds"
-longHelp="""
+    [builds.list]
+    usage     = "list"
+    shortHelp = "List builds"
+    longHelp  = """
 """
-[builds.logs]
-usage="logs"
-shortHelp="Show logs associated with builds"
-longHelp="""
+    [builds.logs]
+    usage     = "logs"
+    shortHelp = "Show logs associated with builds"
+    longHelp  = """
 """
 
 [certs]
-usage="certs"
-shortHelp="Manage certificates"
-longHelp="""Manages the certificates associated with a deployed application. 
+usage     = "certs"
+shortHelp = "Manage certificates"
+longHelp  = """Manages the certificates associated with a deployed application. 
 Certificates are created by associating a hostname/domain with the application. 
 When Fly is then able to validate that hostname/domain, the platform gets 
 certificates issued for the hostname/domain by Let's Encrypt.
 """
-[certs.list]
-usage="list"
-shortHelp="List certificates for an App."
-longHelp="""List the certificates associated with a deployed application.
+    [certs.list]
+    usage     = "list"
+    shortHelp = "List certificates for an App."
+    longHelp  = """List the certificates associated with a deployed application.
 """
-[certs.add]
-usage="add <hostname>"
-shortHelp="Add a certificate for an App."
-longHelp="""Add a certificate for an application. Takes a hostname 
+    [certs.add]
+    usage     = "add <hostname>"
+    shortHelp = "Add a certificate for an App."
+    longHelp  = """Add a certificate for an application. Takes a hostname 
 as a parameter for the certificate.
 """
-[certs.remove]
-usage="remove <hostname>"
-shortHelp="Removes a certificate from an App"
-longHelp="""Removes a certificate from an application. Takes hostname 
+    [certs.remove]
+    usage     = "remove <hostname>"
+    shortHelp = "Removes a certificate from an App"
+    longHelp  = """Removes a certificate from an application. Takes hostname 
 as a parameter to locate the certificate.
 """
-[certs.show]
-usage="show <hostname>"
-shortHelp="Shows certificate information"
-longHelp="""Shows certificate information for an application. 
+    [certs.show]
+    usage     = "show <hostname>"
+    shortHelp = "Shows certificate information"
+    longHelp  = """Shows certificate information for an application. 
 Takes hostname as a parameter to locate the certificate.
 """
-[certs.check]
-usage="check <hostname>"
-shortHelp="Checks DNS configuration"
-longHelp="""Checks the DNS configuration for the specified hostname. 
+    [certs.check]
+    usage     = "check <hostname>"
+    shortHelp = "Checks DNS configuration"
+    longHelp  = """Checks the DNS configuration for the specified hostname. 
 Displays results in the same format as the SHOW command.
 """
 
 [curl]
-usage="curl <url>"
-shortHelp="Run a performance test against a url"
-longHelp="""Run a performance test againt a url.
+usage     = "curl <url>"
+shortHelp = "Run a performance test against a url"
+longHelp  = """Run a performance test againt a url.
 """
 
 
 [config]
-usage="config"
-shortHelp="Manage an Apps configuration"
-longHelp="""The CONFIG commands allow you to work with an application's configuration.
+usage     = "config"
+shortHelp = "Manage an Apps configuration"
+longHelp  = """The CONFIG commands allow you to work with an application's configuration.
 """
-[config.display]
-usage="display"
-shortHelp="Display an App's configuration"
-longHelp="""Display an application's configuration. The configuration is presented 
+    [config.display]
+    usage     = "display"
+    shortHelp = "Display an App's configuration"
+    longHelp  = """Display an application's configuration. The configuration is presented 
 in JSON format. The configuration data is retrieved from the Fly service.
 """
-[config.save]
-usage="save"
-shortHelp="Save an App's config file"
-longHelp="""Save an application's configuration locally. The configuration data is 
+    [config.save]
+    usage     = "save"
+    shortHelp = "Save an App's config file"
+    longHelp  = """Save an application's configuration locally. The configuration data is 
 retrieved from the Fly service and saved in TOML format.
 """
-[config.validate]
-usage="validate"
-shortHelp="Validate an App's config file"
-longHelp="""Validates an application's config file against the Fly platform to 
+    [config.validate]
+    usage     = "validate"
+    shortHelp = "Validate an App's config file"
+    longHelp  = """Validates an application's config file against the Fly platform to 
 ensure it is correct and meaningful to the platform. 
 """
 
 [dashboard]
-usage="dashboard"
-shortHelp="Open web browser on Fly Web UI for this app"
-longHelp="""Open web browser on Fly Web UI for this application"""
+usage     = "dashboard"
+shortHelp = "Open web browser on Fly Web UI for this app"
+longHelp  = """Open web browser on Fly Web UI for this application"""
 
-[dashboard.metrics]
-usage="metrics"
-shortHelp="Open web browser on Fly Web UI for this app's metrics"
-longHelp="""Open web browser on Fly Web UI for this application's metrics"""
+    [dashboard.metrics]
+    usage     = "metrics"
+    shortHelp = "Open web browser on Fly Web UI for this app's metrics"
+    longHelp  = """Open web browser on Fly Web UI for this application's metrics"""
 
 [deploy]
-usage="deploy [<workingdirectory>]"
-shortHelp="Deploy an App to the Fly platform"
-longHelp="""Deploy an application to the Fly platform. The application can be a local 
+usage     = "deploy [<workingdirectory>]"
+shortHelp = "Deploy an App to the Fly platform"
+longHelp  = """Deploy an application to the Fly platform. The application can be a local 
 image, remote image, defined in a Dockerfile or use a CNB Buildpack.
 
 Use the --config/-c flag to select a specific toml configuration file.
@@ -298,109 +298,114 @@ than monitoring the deployment progress.
 Use flyctl monitor to restart monitoring deployment progress
 """
 [dns-records]
-usage="dns-records"
-shortHelp="Manage DNS records"
-longHelp="""Manage DNS records within a domain"""
+usage     = "dns-records"
+shortHelp = "Manage DNS records"
+longHelp  = """Manage DNS records within a domain"""
 
-[dns-records.list]
-usage="list <domain>"
-shortHelp="List DNS records"
-longHelp="""List DNS records within a domain"""
+    [dns-records.list]
+    usage     = "list <domain>"
+    shortHelp = "List DNS records"
+    longHelp  = """List DNS records within a domain"""
 
-[dns-records.export]
-usage="export <domain> [<filename>]"
-shortHelp="Export DNS records"
-longHelp="""Export DNS records. Will write to a file if a filename is given, otherwise
+    [dns-records.export]
+    usage     = "export <domain> [<filename>]"
+    shortHelp = "Export DNS records"
+    longHelp  = """Export DNS records. Will write to a file if a filename is given, otherwise
 writers to StdOut."""
 
-[dns-records.import]
-usage="import <domain> [<filename>]"
-shortHelp="Import DNS records"
-longHelp="""Import DNS records. Will import from a file is a filename is given, otherwise
+    [dns-records.import]
+    usage     = "import <domain> [<filename>]"
+    shortHelp = "Import DNS records"
+    longHelp  = """Import DNS records. Will import from a file is a filename is given, otherwise
 imports from StdIn."""
 
 [docs]
-usage="docs"
-shortHelp="View Fly documentation"
-longHelp="""View Fly documentation on the Fly.io website. This command will open a 
+usage     = "docs"
+shortHelp = "View Fly documentation"
+longHelp  = """View Fly documentation on the Fly.io website. This command will open a 
 browser to view the content.
 """
 
 [domains]
-usage="domains"
-shortHelp="Manage domains"
-longHelp="""Manage domains"""
+usage     = "domains"
+shortHelp = "Manage domains"
+longHelp  = """Manage domains"""
 
-[domains.add]
-usage="add [org] [name]"
-shortHelp="Add a domain"
-longHelp="""Add a domain to an organization"""
+    [domains.add]
+    usage     = "add [org] [name]"
+    shortHelp = "Add a domain"
+    longHelp  = """Add a domain to an organization"""
 
-[domains.list]
-usage="list [<org>]"
-shortHelp="List domains"
-longHelp="""List domains for an organization"""
+    [domains.list]
+    usage     = "list [<org>]"
+    shortHelp = "List domains"
+    longHelp  = """List domains for an organization"""
 
-[domains.register]
-usage="register [org] [name]"
-shortHelp="Register a domain"
-longHelp="""Register a new domain in an organization"""
+    [domains.register]
+    usage     = "register [org] [name]"
+    shortHelp = "Register a domain"
+    longHelp  = """Register a new domain in an organization"""
 
-[domains.show]
-usage="show <domain>"
-shortHelp="Show domain"
-longHelp="""Show information about a domain"""
+    [domains.show]
+    usage     = "show <domain>"
+    shortHelp = "Show domain"
+    longHelp  = """Show information about a domain"""
 
 [history]
-usage="history"
-shortHelp="List an App's change history"
-longHelp="""List the history of changes in the application. Includes autoscaling 
+usage     = "history"
+shortHelp = "List an App's change history"
+longHelp  = """List the history of changes in the application. Includes autoscaling 
 events and their results.
 """
 
 [ips]
-usage="ips"
-shortHelp="Manage IP addresses for Apps"
-longHelp="""The IPS commands manage IP addresses for applications. An application 
+usage     = "ips"
+shortHelp = "Manage IP addresses for Apps"
+longHelp  = """The IPS commands manage IP addresses for applications. An application 
 can have a number of IP addresses associated with it and this family of commands 
 allows you to list, allocate and release those addresses. It supports both IPv4 
 and IPv6 addresses.
 """
-[ips.list]
-usage="list"
-shortHelp="List allocated IP addresses"
-longHelp="""Lists the IP addresses allocated to the application.
+    [ips.list]
+    usage     = "list"
+    shortHelp = "List allocated IP addresses"
+    longHelp  = """Lists the IP addresses allocated to the application.
 """
-[ips.allocate-v4]
-usage="allocate-v4"
-shortHelp="Allocate an IPv4 address"
-longHelp="""Allocates an IPv4 address to the application.
+    [ips.allocate-v4]
+    usage     = "allocate-v4"
+    shortHelp = "Allocate an IPv4 address"
+    longHelp  = """Allocates an IPv4 address to the application.
 """
-[ips.allocate-v6]
-usage="allocate-v6"
-shortHelp="Allocate an IPv6 address"
-longHelp="""Allocates an IPv6 address to the application.
+    [ips.allocate-v6]
+    usage     = "allocate-v6"
+    shortHelp = "Allocate an IPv6 address"
+    longHelp  = """Allocates an IPv6 address to the application.
 """
-[ips.release]
-usage="release [ADDRESS]"
-shortHelp="Release an IP address"
-longHelp="""Releases an IP address from the application.
+    [ips.release]
+    usage     = "release [ADDRESS]"
+    shortHelp = "Release an IP address"
+    longHelp  = """Releases an IP address from the application.
 """
+    [ips.private]
+    usage     = "private"
+    shortHelp = "List instances private IP addresses"
+    longHelp  = """List instances private IP addresses, accessible from within the
+Fly network"""
 
 [list]
-usage="list"
-shortHelp="Lists your Fly resources"
-longHelp="""The list command is for listing your resources on has two subcommands, apps and orgs.
+usage     = "list"
+shortHelp = "Lists your Fly resources"
+longHelp  = """The list command is for listing your resources on has two subcommands, apps and orgs.
 
 The apps command lists your applications. There are filtering options available.
 
 The orgs command lists all the organizations you are a member of.
 """
 
-[list.apps]
-usage="apps [text] [-o org] [-s status]"
-shortHelp="Lists all your apps"
-longHelp="""The list apps command lists all your applications. As this may be a 
+    [list.apps]
+    usage     = "apps [text] [-o org] [-s status]"
+    shortHelp = "Lists all your apps"
+    longHelp  = """The list apps command lists all your applications. As this may be a 
 long list, there are options to filter the results.
 
 Specifying a text string as a parameter will only return applications where the
@@ -413,17 +418,17 @@ The --status/-s flag allows you to specify status applications should be at to b
 returned in the results. e.g. -s running would only return running applications.
 """
 
-[list.orgs]
-usage="orgs"
-shortHelp="List all your organizations"
-longHelp="""Lists all organizations which your are a member of. It will show the
+    [list.orgs]
+    usage     = "orgs"
+    shortHelp = "List all your organizations"
+    longHelp  = """Lists all organizations which your are a member of. It will show the
 short name of the organization and the long name.
 """
 
 [logs]
-usage="logs"
-shortHelp="View App logs"
-longHelp="""View application logs as generated by the application running on 
+usage     = "logs"
+shortHelp = "View App logs"
+longHelp  = """View application logs as generated by the application running on 
 the Fly platform.
 
 Logs can be filtered to a specific instance using the --instance/-i flag or 
@@ -431,123 +436,123 @@ to all instances running in a specific region using the --region/-r flag.
 """
 
 [monitor]
-usage="monitor"
-shortHelp="Monitor Deployments"
-longHelp="""Monitor Application Deployments and other activities. Use --verbose/-v
+usage     = "monitor"
+shortHelp = "Monitor Deployments"
+longHelp  = """Monitor Application Deployments and other activities. Use --verbose/-v
 to get details of every instance . Control-C to stop output."""
 
 [platform]
-usage="platform"
-shortHelp="Fly platform information"
-longHelp="""The PLATFORM commands are for users looking for information 
+usage     = "platform"
+shortHelp = "Fly platform information"
+longHelp  = """The PLATFORM commands are for users looking for information 
 about the Fly platform.
 """
 
-[platform.regions]
-usage="regions"
-shortHelp="List regions"
-longHelp="""View a list of regions where Fly has edges and/or datacenters
+    [platform.regions]
+    usage     = "regions"
+    shortHelp = "List regions"
+    longHelp  = """View a list of regions where Fly has edges and/or datacenters
 """
 
-[platform.vmsizes]
-usage="vm-sizes"
-shortHelp="List VM Sizes"
-longHelp="""View a list of VM sizes which can be used with the FLYCTL SCALE VM command
+    [platform.vmsizes]
+    usage     = "vm-sizes"
+    shortHelp = "List VM Sizes"
+    longHelp  = """View a list of VM sizes which can be used with the FLYCTL SCALE VM command
 """
 
-[platform.status]
-usage="status"
-shortHelp="Show current platform status"
-longHelp="""Show current Fly platform status in a browser
+    [platform.status]
+    usage     = "status"
+    shortHelp = "Show current platform status"
+    longHelp  = """Show current Fly platform status in a browser
 """
 
 [regions]
-usage="regions"
-shortHelp="Manage regions"
-longHelp="""Configure the region placement rules for an application.
+usage     = "regions"
+shortHelp = "Manage regions"
+longHelp  = """Configure the region placement rules for an application.
 """
 
-[regions.add]
-usage="add REGION ..."
-shortHelp="Allow the app to run in the provided regions"
-longHelp="""Allow the app to run in one or more regions
+    [regions.add]
+    usage     = "add REGION ..."
+    shortHelp = "Allow the app to run in the provided regions"
+    longHelp  = """Allow the app to run in one or more regions
 """
 
-[regions.remove]
-usage="remove REGION ..."
-shortHelp="Prevent the app from running in the provided regions"
-longHelp="""Prevent the app from running in the provided regions
+    [regions.remove]
+    usage     = "remove REGION ..."
+    shortHelp = "Prevent the app from running in the provided regions"
+    longHelp  = """Prevent the app from running in the provided regions
 """
 
-[regions.set]
-usage="set REGION ..."
-shortHelp="Sets the region pool with provided regions"
-longHelp="""Sets the region pool with provided regions
+    [regions.set]
+    usage     = "set REGION ..."
+    shortHelp = "Sets the region pool with provided regions"
+    longHelp  = """Sets the region pool with provided regions
 """
 
-[regions.backup]
-usage="backup REGION ..."
-shortHelp="Sets the backup region pool with provided regions"
-longHelp="""Sets the backup region pool with provided regions
+    [regions.backup]
+    usage     = "backup REGION ..."
+    shortHelp = "Sets the backup region pool with provided regions"
+    longHelp  = """Sets the backup region pool with provided regions
 """
 
-[regions.list]
-usage="list"
-shortHelp="Shows the list of regions the app is allowed to run in"
-longHelp="""Shows the list of regions the app is allowed to run in.
+    [regions.list]
+    usage     = "list"
+    shortHelp = "Shows the list of regions the app is allowed to run in"
+    longHelp  = """Shows the list of regions the app is allowed to run in.
 """
 
 
 [releases]
-usage="releases"
-shortHelp="List App releases"
-longHelp="""List all the releases of the application onto the Fly platform, 
+usage     = "releases"
+shortHelp = "List App releases"
+longHelp  = """List all the releases of the application onto the Fly platform, 
 including type, when, success/fail and which user triggered the release.
 """
 
 [scale]
-usage="scale"
-shortHelp="Scale App resources"
-longHelp="""Scale application resources
+usage     = "scale"
+shortHelp = "Scale App resources"
+longHelp  = """Scale application resources
 """
 
-[scale.balanced]
-usage="balanced"
-shortHelp="Configure a traffic balanced App with params (min=int max=int)"
-longHelp="""Configure the App to balance regions based on traffic with given parameters:
+    [scale.balanced]
+    usage     = "balanced"
+    shortHelp = "Configure a traffic balanced App with params (min=int max=int)"
+    longHelp  = """Configure the App to balance regions based on traffic with given parameters:
 
 min=int - minimum number of instances to be allocated from region pool. 
 max=int - maximum number of instances to be allocated from region pool.
 """
 
-[scale.standard]
-usage="standard"
-shortHelp="Configure a standard balanced App with params (min=int max=int)"
-longHelp="""Configure the App without traffic balancing with the given parameters:
+    [scale.standard]
+    usage     = "standard"
+    shortHelp = "Configure a standard balanced App with params (min=int max=int)"
+    longHelp  = """Configure the App without traffic balancing with the given parameters:
 
 min=int - minimum number of instances to be allocated from region pool. 
 max=int - maximum number of instances to be allocated from region pool.
 """
 
-[scale.show]
-usage="show"
-shortHelp="Show current scaling configuration"
-longHelp="""Show current scaling configuration
+    [scale.show]
+    usage     = "show"
+    shortHelp = "Show current scaling configuration"
+    longHelp  = """Show current scaling configuration
 """
 
-[scale.set]
-usage="set"
-shortHelp="Set current models scaling parameters"
-longHelp="""Allows the setting of the current models scaling parameters:
+    [scale.set]
+    usage     = "set"
+    shortHelp = "Set current models scaling parameters"
+    longHelp  = """Allows the setting of the current models scaling parameters:
 
 min=int - minimum number of instances to be allocated from region pool. 
 max=int - maximum number of instances to be allocated from region pool.
 """
 
-[scale.vm]
-usage="vm [flags] [SIZENAME]"
-shortHelp="Change an App's VM to a named size (eg micro-1x, micro-2x, cpu1mem1..."
-longHelp="""Change an application's VM size to one of the named VM sizes. Shows the application's current VM size if no arguments are given. 
+    [scale.vm]
+    usage     = "vm [flags] [SIZENAME]"
+    shortHelp = "Change an App's VM to a named size (eg micro-1x, micro-2x, cpu1mem1..."
+    longHelp  = """Change an application's VM size to one of the named VM sizes. Shows the application's current VM size if no arguments are given. 
 
 Size names include micro-1x, micro-2x, cpu1mem1, cpu2mem2, cpu4mem4 and cpu8mem8.
 
@@ -555,26 +560,26 @@ For a full list of supported sizes, with names and pricing details, use the comm
 """
 
 [secrets]
-usage="secrets"
-shortHelp="Manage App secrets"
-longHelp="""Manage application secrets with the set and unset commands.
+usage     = "secrets"
+shortHelp = "Manage App secrets"
+longHelp  = """Manage application secrets with the set and unset commands.
 
 Secrets are provided to applications at runtime as ENV variables. Names are
 case sensitive and stored as-is, so ensure names are appropriate for
 the application and vm environment.
 """
 
-[secrets.list]
-usage="list"
-shortHelp="Lists the secrets available to the App"
-longHelp="""List the secrets available to the application. It shows each 
+    [secrets.list]
+    usage     = "list"
+    shortHelp = "Lists the secrets available to the App"
+    longHelp  = """List the secrets available to the application. It shows each 
 secret's name, a digest of the its value and the time the secret was last set. 
 The actual value of the secret is only available to the application.
 """
-[secrets.set]
-usage="set [flags] NAME=VALUE NAME=VALUE ..."
-shortHelp="Set one or more encrypted secrets for an App"
-longHelp="""Set one or more encrypted secrets for an application.
+    [secrets.set]
+    usage     = "set [flags] NAME=VALUE NAME=VALUE ..."
+    shortHelp = "Set one or more encrypted secrets for an App"
+    longHelp  = """Set one or more encrypted secrets for an application.
 
 Secrets are provided to application at runtime as ENV variables. Names are
 case sensitive and stored as-is, so ensure names are appropriate for
@@ -582,172 +587,171 @@ the application and vm environment.
 
 Any value that equals "-" will be assigned from STDIN instead of args.
 """
-[secrets.import]
-usage="import [flags]"
-shortHelp="Read secrets in name=value from stdin"
-longHelp="""Set one or more encrypted secrets for an application. Values
+    [secrets.import]
+    usage     = "import [flags]"
+    shortHelp = "Read secrets in name=value from stdin"
+    longHelp  = """Set one or more encrypted secrets for an application. Values
 are read from stdin as name=value
 """
 
-[secrets.unset]
-usage="unset [flags] NAME NAME ..."
-shortHelp="Remove encrypted secrets from an App"
-longHelp="""Remove encrypted secrets from the application. Unsetting a 
+    [secrets.unset]
+    usage     = "unset [flags] NAME NAME ..."
+    shortHelp = "Remove encrypted secrets from an App"
+    longHelp  = """Remove encrypted secrets from the application. Unsetting a 
 secret removes its availability to the application.
 """
 
 [status]
-usage="status"
-shortHelp="Show App status"
-longHelp="""Show the application's current status including application 
+usage     = "status"
+shortHelp = "Show App status"
+longHelp  = """Show the application's current status including application 
 details, tasks, most recent deployment details and in which regions it is 
 currently allocated.
 """
 
-[status.instance]
-usage="instance [instance-id]"
-shortHelp="Show instance status"
-longHelp="""Show the instance's current status including logs, checks, 
+    [status.instance]
+    usage     = "instance [instance-id]"
+    shortHelp = "Show instance status"
+    longHelp  = """Show the instance's current status including logs, checks, 
 and events.
 """
 
 [version]
-usage="version"
-shortHelp="Show version information for the flyctl command"
-longHelp="""Shows version information for the flyctl command itself, 
+usage     = "version"
+shortHelp = "Show version information for the flyctl command"
+longHelp  = """Shows version information for the flyctl command itself, 
 including version number and build date.
 """
 
-[version.update]
-usage="update"
-shortHelp="Checks for available updates and automatically updates"
-longHelp="""Checks for update and if one is available, runs the appropriate
+    [version.update]
+    usage     = "update"
+    shortHelp = "Checks for available updates and automatically updates"
+    longHelp  = """Checks for update and if one is available, runs the appropriate
 command to update the application.
 """
 
 [builtins]
-usage="builtins"
-shortHelp="View and manage Flyctl deployment builtins"
-longHelp="""View and manage Flyctl deployment builtins.
+usage     = "builtins"
+shortHelp = "View and manage Flyctl deployment builtins"
+longHelp  = """View and manage Flyctl deployment builtins.
 """
 
-[builtins.list]
-usage="list"
-shortHelp="List available Flyctl deployment builtins"
-longHelp="""List available Flyctl deployment builtins and their
+    [builtins.list]
+    usage     = "list"
+    shortHelp = "List available Flyctl deployment builtins"
+    longHelp  = """List available Flyctl deployment builtins and their
 descriptions.
 """
 
-[builtins.show]
-usage="show [<builtin name>]"
-shortHelp="Show details of a builtin's configuration"
-longHelp="""Show details of a Fly deployment builtins, including
+    [builtins.show]
+    usage     = "show [<builtin name>]"
+    shortHelp = "Show details of a builtin's configuration"
+    longHelp  = """Show details of a Fly deployment builtins, including
 the builtin "Dockerfile" with default settings and other information.
 """
 
-[builtins.show-app]
-usage="show-app"
-shortHelp="Show details of a builtin's configuration"
-longHelp="""Show details of a Fly deployment builtins, including
+    [builtins.show-app]
+    usage     = "show-app"
+    shortHelp = "Show details of a builtin's configuration"
+    longHelp  = """Show details of a Fly deployment builtins, including
 the builtin "Dockerfile" with an apps settings included
 and other information.
 """
 
 [orgs]
-usage="orgs"
-shortHelp="Commands for managing Fly organizations"
-longHelp="""Commands for managing Fly organizations. list, create, show and 
+usage     = "orgs"
+shortHelp = "Commands for managing Fly organizations"
+longHelp  = """Commands for managing Fly organizations. list, create, show and 
 destroy organizations. 
 Organization admins can also invite or remove users from Organizations.
 """
 
-[orgs.list]
-usage="list"
-shortHelp="Lists organizations for current user"
-longHelp="""Lists organizations available to current user."""
+    [orgs.list]
+    usage     = "list"
+    shortHelp = "Lists organizations for current user"
+    longHelp  = """Lists organizations available to current user."""
 
-[orgs.show]
-usage="show <org>"
-shortHelp="Show information about an organization"
-longHelp="""Shows information about an organization.
+    [orgs.show]
+    usage     = "show <org>"
+    shortHelp = "Show information about an organization"
+    longHelp  = """Shows information about an organization.
 Includes name, slug and type. Summarizes user permissions, DNS zones and
 associated member. Details full list of members and roles."""
 
-[orgs.invite]
-usage="invite <org> <email>"
-shortHelp="Invite user (by email) to organization"
-longHelp="""Invite a user, by email, to join organization. The invitation will be
+    [orgs.invite]
+    usage     = "invite <org> <email>"
+    shortHelp = "Invite user (by email) to organization"
+    longHelp  = """Invite a user, by email, to join organization. The invitation will be
 sent, and the user will be pending until they respond. See also orgs revoke."""
 
-[orgs.revoke]
-usage="revoke <org> <email>"
-shortHelp="Revoke a pending invitation to an organization"
-longHelp="""Revokes an invitation to join an organization that has been sent to a 
+    [orgs.revoke]
+    usage     = "revoke <org> <email>"
+    shortHelp = "Revoke a pending invitation to an organization"
+    longHelp  = """Revokes an invitation to join an organization that has been sent to a 
 user by email."""
 
-[orgs.remove]
-usage="remove <org> <email>"
-shortHelp="Remove a user from an organization"
-longHelp="""Remove a user from an organization. User must have accepted a previous
+    [orgs.remove]
+    usage     = "remove <org> <email>"
+    shortHelp = "Remove a user from an organization"
+    longHelp  = """Remove a user from an organization. User must have accepted a previous
 invitation to join (if not, see orgs revoke)."""
 
-[orgs.create]
-usage="create <org>"
-shortHelp="Create an organization"
-longHelp="""Create a new organization. Other users can be invited to join the 
+    [orgs.create]
+    usage     = "create <org>"
+    shortHelp = "Create an organization"
+    longHelp  = """Create a new organization. Other users can be invited to join the 
 organization later."""
 
-[orgs.delete]
-usage="delete <org>"
-shortHelp="Delete an organization"
-longHelp="""Delete an existing organization."""
+    [orgs.delete]
+    usage     = "delete <org>"
+    shortHelp = "Delete an organization"
+    longHelp  = """Delete an existing organization."""
 
 [volumes]
-usage="volumes <command>"
-shortHelp="Volume management commands"
-longHelp="""Commands for managing Fly Volumes associated with an application."""
+usage     = "volumes <command>"
+shortHelp = "Volume management commands"
+longHelp  = """Commands for managing Fly Volumes associated with an application."""
 
-[volumes.create]
-usage="create <volumename>"
-shortHelp="Create new volume for app"
-longHelp="""Create new volume for app. --region flag must be included to specify
+    [volumes.create]
+    usage     = "create <volumename>"
+    shortHelp = "Create new volume for app"
+    longHelp  = """Create new volume for app. --region flag must be included to specify
 region the volume exists in. --size flag is option, defaults to 5,
 sets the size as the number of gigabytes the volume will consume."""
 
-[volumes.list]
-usage="list"
-shortHelp="List the volumes for app"
-longHelp="""List all the volumes associated with this application."""
+    [volumes.list]
+    usage     = "list"
+    shortHelp = "List the volumes for app"
+    longHelp  = """List all the volumes associated with this application."""
 
-[volumes.delete]
-usage="delete <id>"
-shortHelp="Delete a volume from the app"
-longHelp="""Delete a volume from the application. Requires the volume's ID
+    [volumes.delete]
+    usage     = "delete <id>"
+    shortHelp = "Delete a volume from the app"
+    longHelp  = """Delete a volume from the application. Requires the volume's ID
 number to operate. This can be found through the volumes list command"""
 
-[volumes.show]
-usage="show <id>"
-shortHelp="Show details of an app's volume"
-longHelp="""Show details of an app's volume. Requires the volume's ID
+    [volumes.show]
+    usage     = "show <id>"
+    shortHelp = "Show details of an app's volume"
+    longHelp  = """Show details of an app's volume. Requires the volume's ID
 number to operate. This can be found through the volumes list command"""
 
 [wireguard]
-usage="wireguard <command>"
-shortHelp="Commands that manage WireGuard peer connections"
-longHelp="""Commands that manage WireGuard peer connections"""
+usage     = "wireguard <command>"
+shortHelp = "Commands that manage WireGuard peer connections"
+longHelp  = """Commands that manage WireGuard peer connections"""
 
-[wireguard.list]
-usage="list [<org>]"
-shortHelp="List all WireGuard peer connections"
-longHelp="List all WireGuard peer connections"
+    [wireguard.list]
+    usage     = "list [<org>]"
+    shortHelp = "List all WireGuard peer connections"
+    longHelp  = "List all WireGuard peer connections"
 
-[wireguard.create]
-usage="create [org] [region] [name]"
-shortHelp="Add a WireGuard peer connection"
-longHelp="""Add a WireGuard peer connection to an organization"""
+    [wireguard.create]
+    usage     = "create [org] [region] [name]"
+    shortHelp = "Add a WireGuard peer connection"
+    longHelp  = """Add a WireGuard peer connection to an organization"""
 
-[wireguard.remove]
-usage="remove [org] [name]"
-shortHelp="Remove a WireGuard peer connection"
-longHelp="""Remove a WireGuard peer connection from an organization"""
-
+    [wireguard.remove]
+    usage     = "remove [org] [name]"
+    shortHelp = "Remove a WireGuard peer connection"
+    longHelp  = """Remove a WireGuard peer connection from an organization"""
