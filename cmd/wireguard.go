@@ -100,7 +100,7 @@ func generateWgConf(peer *api.CreatedWireGuardPeer, privkey string, w io.Writer)
 	templateStr := `
 [Interface]
 PrivateKey = {{.Meta.Privkey}}
-Address = {{.Peer.Peerip}}/24
+Address = {{.Peer.Peerip}}/120
 DNS = {{.Meta.DNS}}
 
 [Peer]
