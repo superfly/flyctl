@@ -121,7 +121,7 @@ func (c *Client) AppVMSize(appName string) (VMSize, error) {
 	return data.App.VMSize, nil
 }
 
-func (c *Client) SetAppVMSize(appID string, sizeName string) (VMSize, error) {
+func (c *Client) SetAppVMSize(appID string, sizeName string, memoryMb int64) (VMSize, error) {
 	query := `
 		mutation ($input: SetVMSizeInput!) {
 			setVmSize(input: $input) {
@@ -139,7 +139,7 @@ func (c *Client) SetAppVMSize(appID string, sizeName string) (VMSize, error) {
 
 	req := c.NewRequest(query)
 
-	req.Var("input", SetVMSizeInput{AppID: appID, SizeName: sizeName})
+	req.Var("input", SetVMSizeInput{AppID: appID, SizeName: sizeName, MemoryMb: memoryMb})
 
 	data, err := c.Run(req)
 	if err != nil {
