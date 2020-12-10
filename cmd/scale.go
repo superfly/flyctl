@@ -23,7 +23,7 @@ func newScaleCommand() *Command {
 
 	vmCmdStrings := docstrings.Get("scale.vm")
 	vmCmd := BuildCommand(cmd, runScaleVM, vmCmdStrings.Usage, vmCmdStrings.Short, vmCmdStrings.Long, os.Stdout, requireSession, requireAppName)
-	vmCmd.Args = cobra.RangeArgs(0, 1)
+	vmCmd.Args = cobra.RangeArgs(0, 2)
 
 	balanceCmdStrings := docstrings.Get("scale.balanced")
 	balanceCmd := BuildCommand(cmd, runBalanceScale, balanceCmdStrings.Usage, balanceCmdStrings.Short, balanceCmdStrings.Long, os.Stdout, requireSession, requireAppName)
@@ -140,9 +140,35 @@ func runScaleVM(commandContext *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	sizeName := commandContext.Args[0]
+	kvargs := make(map[string]string)
+	sizeName := ""
+	for _, pair := range commandContext.Args {
+		parts := strings.SplitN(pair, "=", 2)
+		if len(parts) == 1 {
+			sizeName = pair
+			continue
+		}
+		if len(parts) != 2 {
+			return fmt.Errorf("Scale parameters must be provided as NAME=VALUE pairs (%s is invalid)", pair)
+		}
+		key := parts[0]
+		value := parts[1]
+		kvargs[strings.ToLower(key)] = value
+	}
 
-	size, err := commandContext.Client.API().SetAppVMSize(commandContext.AppName, sizeName)
+	memory, found := kvargs["memory"]
+	memoryMB := int64(0)
+	if found {
+		var err error
+		memoryMB, err = strconv.ParseInt(memory, 10, 64)
+
+		if err != nil {
+			return errors.New("could not parse memory value")
+		}
+		delete(kvargs, "memory")
+	}
+
+	size, err := commandContext.Client.API().SetAppVMSize(commandContext.AppName, sizeName, memoryMB)
 	if err != nil {
 		return err
 	}
@@ -200,6 +226,7 @@ func printSize(commandContext *cmdctx.CmdContext, cfg api.VMSize) {
 		fmt.Fprintln(commandContext.Out, string(prettyJSON))
 	} else {
 		fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Size", cfg.Name)
+		fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Memory", formatMemory(cfg))
 	}
 }
 

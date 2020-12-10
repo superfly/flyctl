@@ -660,6 +660,7 @@ type VMSize struct {
 type SetVMSizeInput struct {
 	AppID    string `json:"appId"`
 	SizeName string `json:"sizeName"`
+	MemoryMb int64  `json:"memoryMb"`
 }
 
 type StartBuildInput struct {
