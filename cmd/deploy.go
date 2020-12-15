@@ -446,6 +446,7 @@ func watchDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) err
 	}
 
 	if !monitor.Success() {
+		commandContext.Status("deploy", cmdctx.SINFO, "Troubleshooting guide at https://fly.io/docs/getting-started/troubleshooting/")
 		return ErrAbort
 	}
 
