@@ -489,14 +489,16 @@ min=int - minimum number of instances to be allocated from region pool.
 max=int - maximum number of instances to be allocated from region pool.`,
 		}
 	case "scale.vm":
-		return KeyStrings{"vm [flags] [SIZENAME]", "Change an App's VM to a named size (eg. shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x...",
+		return KeyStrings{"vm [flags] [SIZENAME]", "Change an App's VM to a named size (eg. shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x...)",
 			`Change an application's VM size to one of the named VM sizes. Shows the application's current VM size if no arguments are given. 
 
 Size names include shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x.
 
 For a full list of supported sizes use the command FLYCTL PLATFORM VM-SIZES
 
-Memory size can be set with --memory=number-of-MB - this should be a multiple of 1024MB.
+Memory size can be set with --memory=number-of-MB
+For dedicated vms, this should be a multiple of 1024MB.
+For shard vms, this can be 256MB or a a multiple of 1024MB.
 
 e.g. flyctl scale vm shared-cpu-1x --memory=2048
 
