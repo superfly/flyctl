@@ -560,7 +560,7 @@ For a full list of supported sizes use the command FLYCTL PLATFORM VM-SIZES
 
 Memory size can be set with --memory=number-of-MB
 For dedicated vms, this should be a multiple of 1024MB.
-For shard vms, this can be 256MB or a a multiple of 1024MB.
+For shared vms, this can be 256MB or a a multiple of 1024MB.
 
 e.g. flyctl scale vm shared-cpu-1x --memory=2048
 
