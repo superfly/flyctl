@@ -496,6 +496,10 @@ Size names include shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x.
 
 For a full list of supported sizes use the command FLYCTL PLATFORM VM-SIZES
 
+Memory size can be set with --memory=number-of-MB - this should be a multiple of 1024MB.
+
+e.g. flyctl scale vm shared-cpu-1x --memory=2048
+
 For pricing, see https://fly.io/docs/about/pricing/`,
 		}
 	case "secrets":
