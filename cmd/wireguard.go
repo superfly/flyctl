@@ -20,7 +20,7 @@ import (
 
 func newWireGuardCommand() *Command {
 	cmd := BuildCommandKS(nil, nil, docstrings.Get("wireguard"), os.Stdout, requireSession)
-	cmd.Hidden = true
+	cmd.Aliases = []string{"wg"}
 
 	child := func(parent *Command, fn RunFn, ds string) *Command {
 		return BuildCommandKS(parent, fn, docstrings.Get(ds), os.Stdout, requireSession)
