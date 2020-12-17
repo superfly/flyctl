@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"regexp"
 	"text/template"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -167,9 +168,18 @@ func runWireGuardCreate(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	name, err := argOrPrompt(ctx, 2, "Name of WireGuard peer to add: ")
-	if err != nil {
-		return err
+	var name string
+	rx := regexp.MustCompile("^[a-zA-Z0-9\\-]+$")
+	
+	for !rx.MatchString(name) {
+   		if name != "" { 
+			fmt.Println("Name must consist solely of letters, numbers, and the dash character.")
+		}
+
+		name, err = argOrPrompt(ctx, 2, "New DNS name for WireGuard peer: ")
+		if err != nil {
+			return err
+		}
 	}
 
 	fmt.Printf("Creating WireGuard peer \"%s\" in region \"%s\" for organization %s\n", name, region, org.Slug)
