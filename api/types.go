@@ -611,10 +611,11 @@ type CheckState struct {
 }
 
 type Region struct {
-	Code      string
-	Name      string
-	Latitude  float32
-	Longitude float32
+	Code             string
+	Name             string
+	Latitude         float32
+	Longitude        float32
+	GatewayAvailable bool
 }
 
 type AutoscalingConfig struct {
