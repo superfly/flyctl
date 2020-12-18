@@ -203,14 +203,16 @@ type Volume struct {
 	Name      string
 	SizeGb    int
 	Region    string
+	Encrypted bool
 	CreatedAt time.Time
 }
 
 type CreateVolumeInput struct {
-	AppID  string `json:"appId"`
-	Name   string `json:"name"`
-	Region string `json:"region"`
-	SizeGb int    `json:"sizeGb"`
+	AppID     string `json:"appId"`
+	Name      string `json:"name"`
+	Region    string `json:"region"`
+	SizeGb    int    `json:"sizeGb"`
+	Encrypted bool   `json:"encrypted"`
 }
 
 type CreateVolumePayload struct {
