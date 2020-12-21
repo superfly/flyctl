@@ -108,6 +108,7 @@ DNS = {{.Meta.DNS}}
 PublicKey = {{.Peer.Pubkey}}
 AllowedIPs = {{.Meta.AllowedIPs}}
 Endpoint = {{.Peer.Endpointip}}:51820
+PersistentKeepalive = 15
 
 `
 	data := struct {
@@ -170,9 +171,9 @@ func runWireGuardCreate(ctx *cmdctx.CmdContext) error {
 
 	var name string
 	rx := regexp.MustCompile("^[a-zA-Z0-9\\-]+$")
-	
+
 	for !rx.MatchString(name) {
-   		if name != "" { 
+		if name != "" {
 			fmt.Println("Name must consist solely of letters, numbers, and the dash character.")
 		}
 
