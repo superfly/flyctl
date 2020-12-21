@@ -89,12 +89,14 @@ func (c *Client) DeleteVolume(volID string) (App *App, err error) {
 func (c *Client) GetVolume(volID string) (Volume *Volume, err error) {
 	query := `
 	query($id: ID!) {
-		Volume(id: $id) {
-					id
-					name
-					sizeGb
-					region
-					createdAt
+		volume: node(id: $id) {
+			... on Volume {
+				id
+				name
+				sizeGb
+				region
+				createdAt
+			}
 		}
 	}`
 

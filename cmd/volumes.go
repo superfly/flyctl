@@ -132,8 +132,9 @@ func runDestroyVolume(ctx *cmdctx.CmdContext) error {
 }
 
 func runShowVolume(ctx *cmdctx.CmdContext) error {
+	volumeID := ctx.Args[0]
 
-	volume, err := ctx.Client.API().GetVolume(ctx.AppName)
+	volume, err := ctx.Client.API().GetVolume(volumeID)
 
 	if err != nil {
 		return err
