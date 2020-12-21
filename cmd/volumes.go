@@ -8,6 +8,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/helpers"
 
@@ -48,7 +49,7 @@ func newVolumesCommand() *Command {
 	deleteCmd.Args = cobra.ExactArgs(1)
 
 	showStrings := docstrings.Get("volumes.show")
-	showCmd := BuildCommandKS(volumesCmd, runShowVolume, showStrings, os.Stdout, requireSession)
+	showCmd := BuildCommandKS(volumesCmd, runShowVolume, showStrings, os.Stdout, requireAppName, requireSession)
 	showCmd.Args = cobra.ExactArgs(1)
 
 	return volumesCmd
@@ -140,7 +141,26 @@ func runDestroyVolume(ctx *cmdctx.CmdContext) error {
 
 func runShowVolume(ctx *cmdctx.CmdContext) error {
 
-	volume, err := ctx.Client.API().GetVolume(ctx.AppName)
+	volID := ctx.Args[0]
+
+	// TODO: Remove Client side fix for Volume API
+
+	var volume *api.Volume
+
+	volumes, err := ctx.Client.API().GetVolumes(ctx.AppName)
+
+	for _, v := range volumes {
+		if v.ID == volID {
+			volume = &v
+			break
+		}
+	}
+
+	if volume == nil {
+		return fmt.Errorf("volume %s not found in app %s", volID, ctx.AppName)
+	}
+
+	//volume, err := ctx.Client.API().GetVolume(ctx.AppName,volID)
 
 	if err != nil {
 		return err
