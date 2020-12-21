@@ -203,14 +203,16 @@ type Volume struct {
 	Name      string
 	SizeGb    int
 	Region    string
+	Encrypted bool
 	CreatedAt time.Time
 }
 
 type CreateVolumeInput struct {
-	AppID  string `json:"appId"`
-	Name   string `json:"name"`
-	Region string `json:"region"`
-	SizeGb int    `json:"sizeGb"`
+	AppID     string `json:"appId"`
+	Name      string `json:"name"`
+	Region    string `json:"region"`
+	SizeGb    int    `json:"sizeGb"`
+	Encrypted bool   `json:"encrypted"`
 }
 
 type CreateVolumePayload struct {
@@ -611,10 +613,11 @@ type CheckState struct {
 }
 
 type Region struct {
-	Code      string
-	Name      string
-	Latitude  float32
-	Longitude float32
+	Code             string
+	Name             string
+	Latitude         float32
+	Longitude        float32
+	GatewayAvailable bool
 }
 
 type AutoscalingConfig struct {

@@ -550,13 +550,21 @@ max=int - maximum number of instances to be allocated from region pool.
 """
 
     [scale.vm]
-    usage     = "vm [flags] [SIZENAME]"
-    shortHelp = "Change an App's VM to a named size (eg. shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x..."
+    usage     = "vm [SIZENAME] [flags]"
+    shortHelp = "Change an App's VM to a named size (eg. shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x...)"
     longHelp  = """Change an application's VM size to one of the named VM sizes. Shows the application's current VM size if no arguments are given. 
 
 Size names include shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x.
 
 For a full list of supported sizes use the command FLYCTL PLATFORM VM-SIZES
+
+Memory size can be set with --memory=number-of-MB
+
+e.g. flyctl scale vm shared-cpu-1x --memory=2048
+
+For dedicated vms, this should be a multiple of 1024MB.
+
+For shared vms, this can be 256MB or a a multiple of 1024MB.
 
 For pricing, see https://fly.io/docs/about/pricing/
 """

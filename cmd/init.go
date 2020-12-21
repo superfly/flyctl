@@ -262,12 +262,14 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		if configPort != "" { // If the config port has been set externally, set that
 			newAppConfig.SetInternalPort(internalPort)
 		} else if importfile != "" {
-			currentport, err := newAppConfig.GetInternalPort()
-			if err != nil {
-				return err
-			}
-			if !commandContext.OutputJSON() {
-				fmt.Printf("Importing port %d\n", currentport)
+			if newAppConfig.HasServices() {
+				currentport, err := newAppConfig.GetInternalPort()
+				if err != nil {
+					return err
+				}
+				if !commandContext.OutputJSON() {
+					fmt.Printf("Importing port %d\n", currentport)
+				}
 			}
 		} else if builtinname != "" {
 			if !commandContext.OutputJSON() {

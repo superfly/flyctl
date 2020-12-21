@@ -13,16 +13,21 @@ func (p *Regions) APIStruct() interface{} {
 }
 
 func (p *Regions) FieldNames() []string {
-	return []string{"Code", "Name"}
+	return []string{"Code", "Name", "Gateway"}
 }
 
 func (p *Regions) Records() []map[string]string {
 	out := []map[string]string{}
 
 	for _, region := range p.Regions {
+		gateway := ""
+		if region.GatewayAvailable {
+			gateway = "✓"
+		}
 		out = append(out, map[string]string{
-			"Code": region.Code,
-			"Name": region.Name,
+			"Code":    region.Code,
+			"Name":    region.Name,
+			"Gateway": gateway,
 		})
 	}
 

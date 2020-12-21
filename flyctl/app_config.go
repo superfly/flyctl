@@ -223,6 +223,13 @@ func (ac *AppConfig) WriteToFile(filename string) error {
 	return ac.WriteTo(file, ConfigFormatFromPath(filename))
 }
 
+// HasServices - Does this config have a services section
+func (ac *AppConfig) HasServices() bool {
+	_, ok := ac.Definition["services"].([]interface{})
+
+	return ok
+}
+
 func (ac *AppConfig) SetInternalPort(port int) bool {
 	if services, ok := ac.Definition["services"].([]interface{}); ok {
 		if len(services) == 0 {

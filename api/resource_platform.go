@@ -7,6 +7,7 @@ func (c *Client) PlatformRegions() ([]Region, error) {
 				regions {
 					name
 					code
+					gatewayAvailable
 				}
 			}
 		}
@@ -31,6 +32,7 @@ func (c *Client) PlatformRegionsAll() ([]Region, error) {
 					code
 					latitude
 					longitude
+					gatewayAvailable
 				}
 			}
 		}

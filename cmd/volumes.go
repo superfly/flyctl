@@ -37,6 +37,12 @@ func newVolumesCommand() *Command {
 		Default:     10,
 	})
 
+	createCmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "encrypted",
+		Description: "Encrypt the volume (default: true)",
+		Default:     true,
+	})
+
 	deleteStrings := docstrings.Get("volumes.delete")
 	deleteCmd := BuildCommandKS(volumesCmd, runDestroyVolume, deleteStrings, os.Stdout, requireSession)
 	deleteCmd.Args = cobra.ExactArgs(1)
@@ -101,7 +107,7 @@ func runCreateVolume(ctx *cmdctx.CmdContext) error {
 
 	sizeGb := ctx.Config.GetInt("size")
 
-	volume, err := ctx.Client.API().CreateVolume(appid, volName, region, sizeGb)
+	volume, err := ctx.Client.API().CreateVolume(appid, volName, region, sizeGb, ctx.Config.GetBool("encrypted"))
 
 	if err != nil {
 		return err
@@ -111,6 +117,7 @@ func runCreateVolume(ctx *cmdctx.CmdContext) error {
 	fmt.Printf("%10s: %s\n", "Name", volume.Name)
 	fmt.Printf("%10s: %s\n", "Region", volume.Region)
 	fmt.Printf("%10s: %d\n", "Size GB", volume.SizeGb)
+	fmt.Printf("%10s: %t\n", "Encrypted", volume.Encrypted)
 	fmt.Printf("%10s: %s\n", "Created at", volume.CreatedAt.Format(time.RFC822))
 
 	return nil
@@ -132,9 +139,9 @@ func runDestroyVolume(ctx *cmdctx.CmdContext) error {
 }
 
 func runShowVolume(ctx *cmdctx.CmdContext) error {
-	volumeID := ctx.Args[0]
+	volID := ctx.Args[0]
 
-	volume, err := ctx.Client.API().GetVolume(volumeID)
+	volume, err := ctx.Client.API().GetVolume(volID)
 
 	if err != nil {
 		return err
