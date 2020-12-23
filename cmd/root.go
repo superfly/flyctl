@@ -93,6 +93,7 @@ func init() {
 		newRestartCommand(),
 		newResumeCommand(),
 		newScaleCommand(),
+		newAutoscaleCommand(),
 		newSecretsCommand(),
 		newStatusCommand(),
 		newSuspendCommand(),

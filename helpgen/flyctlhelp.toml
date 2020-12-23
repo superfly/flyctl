@@ -510,13 +510,19 @@ longHelp  = """List all the releases of the application onto the Fly platform,
 including type, when, success/fail and which user triggered the release.
 """
 
-[scale]
-usage     = "scale"
-shortHelp = "Scale App resources"
-longHelp  = """Scale application resources
+[autoscale]
+usage     = "autoscale"
+shortHelp = "Autoscaling App resources"
+longHelp  = """Autoscaling application resources
 """
 
-    [scale.balanced]
+    [autoscale.disable]
+    usage     = "disable"
+    shortHelp = "Disable autoscaling"
+    longHelp  = """Disable autoscaling to manually controlling app resources
+"""
+
+    [autoscale.balanced]
     usage     = "balanced"
     shortHelp = "Configure a traffic balanced App with params (min=int max=int)"
     longHelp  = """Configure the App to balance regions based on traffic with given parameters:
@@ -525,7 +531,7 @@ min=int - minimum number of instances to be allocated from region pool.
 max=int - maximum number of instances to be allocated from region pool.
 """
 
-    [scale.standard]
+    [autoscale.standard]
     usage     = "standard"
     shortHelp = "Configure a standard balanced App with params (min=int max=int)"
     longHelp  = """Configure the App without traffic balancing with the given parameters:
@@ -534,25 +540,31 @@ min=int - minimum number of instances to be allocated from region pool.
 max=int - maximum number of instances to be allocated from region pool.
 """
 
-    [scale.show]
+    [autoscale.show]
     usage     = "show"
-    shortHelp = "Show current scaling configuration"
-    longHelp  = """Show current scaling configuration
+    shortHelp = "Show current autoscaling configuration"
+    longHelp  = """Show current autoscaling configuration
 """
 
-    [scale.set]
+    [autoscale.set]
     usage     = "set"
-    shortHelp = "Set current models scaling parameters"
-    longHelp  = """Allows the setting of the current models scaling parameters:
+    shortHelp = "Set current models autoscaling parameters"
+    longHelp  = """Allows the setting of the current models autoscaling parameters:
 
 min=int - minimum number of instances to be allocated from region pool. 
 max=int - maximum number of instances to be allocated from region pool.
 """
 
+[scale]
+usage     = "scale"
+shortHelp = "Scale App resources"
+longHelp  = """Scale application resources
+"""
+
     [scale.vm]
     usage     = "vm [SIZENAME] [flags]"
     shortHelp = "Change an App's VM to a named size (eg. shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x...)"
-    longHelp  = """Change an application's VM size to one of the named VM sizes. Shows the application's current VM size if no arguments are given. 
+    longHelp  = """Change an application's VM size to one of the named VM sizes.
 
 Size names include shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x.
 
@@ -567,6 +579,20 @@ For dedicated vms, this should be a multiple of 1024MB.
 For shared vms, this can be 256MB or a a multiple of 1024MB.
 
 For pricing, see https://fly.io/docs/about/pricing/
+"""
+
+    [scale.count]
+    usage     = "count <count>"
+    shortHelp = "Change an App's VM count to the given value"
+    longHelp  = """Change an App's VM count to the given value. 
+
+For pricing, see https://fly.io/docs/about/pricing/
+"""
+
+    [scale.show]
+    usage     = "show"
+    shortHelp = "Show current resources"
+    longHelp  = """Show current VM size and counts
 """
 
 [secrets]

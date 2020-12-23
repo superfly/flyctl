@@ -93,7 +93,7 @@ func (c *Client) AppAutoscalingConfig(appName string) (*AutoscalingConfig, error
 	return data.App.Autoscaling, nil
 }
 
-func (c *Client) AppVMSize(appName string) (VMSize, error) {
+func (c *Client) AppVMResources(appName string) (VMSize, []TaskGroupCount, error) {
 	query := `
 		query($appName: String!) {
 			app(name: $appName) {
@@ -105,6 +105,10 @@ func (c *Client) AppVMSize(appName string) (VMSize, error) {
 					priceMonth
 					priceSecond
 				}
+				taskGroupCounts {
+					name
+					count
+				}
 			}
 		}
 	`
@@ -115,10 +119,10 @@ func (c *Client) AppVMSize(appName string) (VMSize, error) {
 
 	data, err := c.Run(req)
 	if err != nil {
-		return VMSize{}, err
+		return VMSize{}, []TaskGroupCount{}, err
 	}
 
-	return data.App.VMSize, nil
+	return data.App.VMSize, data.App.TaskGroupCounts, nil
 }
 
 func (c *Client) SetAppVMSize(appID string, sizeName string, memoryMb int64) (VMSize, error) {
@@ -147,4 +151,61 @@ func (c *Client) SetAppVMSize(appID string, sizeName string, memoryMb int64) (VM
 	}
 
 	return *data.SetVMSize.VMSize, nil
+}
+
+func (c *Client) GetAppVMCount(appID string) ([]TaskGroupCount, error) {
+	query := `
+		query ($appName: String!) {
+			app(name: $appName) {
+				id
+				name
+				taskGroupCounts {
+					name
+					count
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("appName", appID)
+
+	data, err := c.Run(req)
+	if err != nil {
+		return []TaskGroupCount{}, err
+	}
+
+	return data.App.TaskGroupCounts, nil
+}
+
+func (c *Client) SetAppVMCount(appID string, count int) ([]TaskGroupCount, []string, error) {
+	query := `
+		mutation ($input: SetVMCountInput!) {
+			setVmCount(input: $input) {
+				app {
+					taskGroupCounts {
+						name
+						count
+					}
+				}
+				warnings
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("input", SetVMCountInput{
+		AppID: appID,
+		GroupCounts: []VMCountInput{
+			{Group: "app", Count: count},
+		}})
+
+	data, err := c.Run(req)
+	if err != nil {
+		return []TaskGroupCount{}, []string{}, err
+	}
+
+	return data.SetVMCount.App.TaskGroupCounts, data.SetVMCount.Warnings, nil
 }
