@@ -72,7 +72,15 @@ func runScaleCount(commandContext *cmdctx.CmdContext) error {
 		fmt.Println()
 	}
 
-	printTaskGroupCounts(commandContext, counts)
+	// only use the "app" tg right now
+	var appCount int
+	for _, tg := range counts {
+		if tg.Name == "app" {
+			appCount = tg.Count
+		}
+	}
+
+	fmt.Printf("Count changed to %d\n", appCount)
 
 	return nil
 }
@@ -83,36 +91,38 @@ func runScaleShow(commandContext *cmdctx.CmdContext) error {
 		return err
 	}
 	fmt.Printf("VM Resources for %s\n", commandContext.AppName)
-	printSize(commandContext, size)
-	fmt.Println()
-	printTaskGroupCounts(commandContext, tgCounts)
+
+	// only use the "app" tg right now
+	var appCount int
+	for _, tg := range tgCounts {
+		if tg.Name == "app" {
+			appCount = tg.Count
+		}
+	}
+
+	printVMResources(commandContext, size, appCount)
 
 	return nil
 }
 
-func printSize(commandContext *cmdctx.CmdContext, cfg api.VMSize) {
-	asJSON := commandContext.OutputJSON()
-
-	if asJSON {
-		prettyJSON, _ := json.MarshalIndent(cfg, "", "    ")
-		fmt.Fprintln(commandContext.Out, string(prettyJSON))
-	} else {
-		fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Size", cfg.Name)
-		fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Memory", formatMemory(cfg))
-	}
-}
-
-func printTaskGroupCounts(commandContext *cmdctx.CmdContext, counts []api.TaskGroupCount) {
+func printVMResources(commandContext *cmdctx.CmdContext, vmSize api.VMSize, count int) {
 	if commandContext.OutputJSON() {
-		prettyJSON, _ := json.MarshalIndent(counts, "", "    ")
+		out := struct {
+			api.VMSize
+			Count int
+		}{
+			VMSize: vmSize,
+			Count:  count,
+		}
+
+		prettyJSON, _ := json.MarshalIndent(out, "", "    ")
 		fmt.Fprintln(commandContext.Out, string(prettyJSON))
 		return
 	}
 
-	fmt.Println("VM counts")
-	for _, groupCount := range counts {
-		fmt.Printf("%s: %d\n", groupCount.Name, groupCount.Count)
-	}
+	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Size", vmSize.Name)
+	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Memory", formatMemory(vmSize))
+	fmt.Fprintf(commandContext.Out, "%15s: %d\n", "Count", count)
 }
 
 // TODO: Move these funcs (also in presenters.VMSizes into presentation package)
