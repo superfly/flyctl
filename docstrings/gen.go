@@ -102,6 +102,10 @@ authenticated and in use.`,
 min=int - minimum number of instances to be allocated from region pool. 
 max=int - maximum number of instances to be allocated from region pool.`,
 		}
+	case "autoscale.disable":
+		return KeyStrings{"disable", "Disable autoscaling",
+			`Disable autoscaling to manually controlling app resources`,
+		}
 	case "autoscale.set":
 		return KeyStrings{"set", "Set current models autoscaling parameters",
 			`Allows the setting of the current models autoscaling parameters:
@@ -499,8 +503,8 @@ the number of configured instances.`,
 For pricing, see https://fly.io/docs/about/pricing/`,
 		}
 	case "scale.show":
-		return KeyStrings{"show", "Show current scaling configuration",
-			`Show current scaling configuration`,
+		return KeyStrings{"show", "Show current resources",
+			`Show current resources`,
 		}
 	case "scale.vm":
 		return KeyStrings{"vm [SIZENAME] [flags]", "Change an App's VM to a named size (eg. shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x...)",

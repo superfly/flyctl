@@ -516,6 +516,12 @@ shortHelp = "Autoscaling App resources"
 longHelp  = """Autoscaling application resources
 """
 
+    [autoscale.disable]
+    usage     = "disable"
+    shortHelp = "Disable autoscaling"
+    longHelp  = """Disable autoscaling to manually controlling app resources
+"""
+
     [autoscale.balanced]
     usage     = "balanced"
     shortHelp = "Configure a traffic balanced App with params (min=int max=int)"

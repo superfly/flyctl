@@ -21,6 +21,10 @@ func newAutoscaleCommand() *Command {
 	cmd := BuildCommandKS(nil, nil, autoscaleStrings, os.Stdout, requireSession, requireAppName)
 	cmd.Deprecated = "use `flyctl scale` instead"
 
+	disableCmdStrings := docstrings.Get("autoscale.disable")
+	disableCmd := BuildCommand(cmd, runDisableAutoscaling, disableCmdStrings.Usage, disableCmdStrings.Short, disableCmdStrings.Long, os.Stdout, requireSession, requireAppName)
+	disableCmd.Args = cobra.RangeArgs(0, 2)
+
 	balanceCmdStrings := docstrings.Get("autoscale.balanced")
 	balanceCmd := BuildCommand(cmd, runBalanceScale, balanceCmdStrings.Usage, balanceCmdStrings.Short, balanceCmdStrings.Long, os.Stdout, requireSession, requireAppName)
 	balanceCmd.Args = cobra.RangeArgs(0, 2)
@@ -49,6 +53,19 @@ func runStandardScale(commandContext *cmdctx.CmdContext) error {
 
 func runSetParamsOnly(commandContext *cmdctx.CmdContext) error {
 	return actualScale(commandContext, false, true)
+}
+
+func runDisableAutoscaling(commandContext *cmdctx.CmdContext) error {
+	newcfg := api.UpdateAutoscaleConfigInput{AppID: commandContext.AppName, Enabled: api.BoolPointer(false)}
+
+	cfg, err := commandContext.Client.API().UpdateAutoscaleConfig(newcfg)
+	if err != nil {
+		return err
+	}
+
+	printScaleConfig(commandContext, cfg)
+
+	return nil
 }
 
 func actualScale(commandContext *cmdctx.CmdContext, balanceRegions bool, setParamsOnly bool) error {
@@ -143,14 +160,18 @@ func printScaleConfig(commandContext *cmdctx.CmdContext, cfg *api.AutoscalingCon
 	} else {
 		var mode string
 
-		if cfg.BalanceRegions {
+		if !cfg.Enabled {
+			mode = "Disabled"
+		} else if cfg.BalanceRegions {
 			mode = "Balanced"
 		} else {
 			mode = "Standard"
 		}
 
 		fmt.Fprintf(commandContext.Out, "%15s: %s\n", "Scale Mode", mode)
-		fmt.Fprintf(commandContext.Out, "%15s: %d\n", "Min Count", cfg.MinCount)
-		fmt.Fprintf(commandContext.Out, "%15s: %d\n", "Max Count", cfg.MaxCount)
+		if cfg.Enabled {
+			fmt.Fprintf(commandContext.Out, "%15s: %d\n", "Min Count", cfg.MinCount)
+			fmt.Fprintf(commandContext.Out, "%15s: %d\n", "Max Count", cfg.MaxCount)
+		}
 	}
 }
