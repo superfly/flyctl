@@ -30,6 +30,10 @@ func newScaleCommand() *Command {
 		Default:     0,
 	})
 
+	countCmdStrings := docstrings.Get("scale.count")
+	countCmd := BuildCommand(cmd, runScaleCount, countCmdStrings.Usage, countCmdStrings.Short, countCmdStrings.Long, os.Stdout, requireSession, requireAppName)
+	countCmd.Args = cobra.MaximumNArgs(1)
+
 	balanceCmdStrings := docstrings.Get("scale.balanced")
 	balanceCmd := BuildCommand(cmd, runBalanceScale, balanceCmdStrings.Usage, balanceCmdStrings.Short, balanceCmdStrings.Long, os.Stdout, requireSession, requireAppName)
 	balanceCmd.Args = cobra.RangeArgs(0, 2)
@@ -145,7 +149,6 @@ func runScaleVM(commandContext *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	// kvargs := make(map[string]string)
 	sizeName := commandContext.Args[0]
 
 	memoryMB := int64(commandContext.Config.GetInt("memory"))
@@ -158,6 +161,46 @@ func runScaleVM(commandContext *cmdctx.CmdContext) error {
 	fmt.Println("Scaled VM size to", size.Name)
 	fmt.Printf("%15s: %s\n", "CPU Cores", formatCores(size))
 	fmt.Printf("%15s: %s\n", "Memory", formatMemory(size))
+	return nil
+}
+
+func runScaleCount(commandContext *cmdctx.CmdContext) error {
+	if len(commandContext.Args) == 0 {
+		counts, err := commandContext.Client.API().GetAppVMCount(commandContext.AppName)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Current VM counts for %s:\n", commandContext.AppName)
+		for _, groupCount := range counts {
+			fmt.Printf("%s: %d\n", groupCount.Name, groupCount.Count)
+		}
+
+		return nil
+	}
+
+	count, err := strconv.Atoi(commandContext.Args[0])
+	if err != nil {
+		return err
+	}
+
+	counts, warnings, err := commandContext.Client.API().SetAppVMCount(commandContext.AppName, count)
+	if err != nil {
+		return err
+	}
+
+	if len(warnings) > 0 {
+		for _, warning := range warnings {
+			fmt.Println("Warning:", warning)
+		}
+		fmt.Println()
+	}
+
+	fmt.Printf("Current VM counts for %s:\n", commandContext.AppName)
+	for _, groupCount := range counts {
+		fmt.Printf("%s: %d\n", groupCount.Name, groupCount.Count)
+	}
+
 	return nil
 }
 

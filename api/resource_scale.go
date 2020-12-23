@@ -148,3 +148,60 @@ func (c *Client) SetAppVMSize(appID string, sizeName string, memoryMb int64) (VM
 
 	return *data.SetVMSize.VMSize, nil
 }
+
+func (c *Client) GetAppVMCount(appID string) ([]TaskGroupCount, error) {
+	query := `
+		query ($appName: String!) {
+			app(name: $appName) {
+				id
+				name
+				taskGroupCounts {
+					name
+					count
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("appName", appID)
+
+	data, err := c.Run(req)
+	if err != nil {
+		return []TaskGroupCount{}, err
+	}
+
+	return data.App.TaskGroupCounts, nil
+}
+
+func (c *Client) SetAppVMCount(appID string, count int) ([]TaskGroupCount, []string, error) {
+	query := `
+		mutation ($input: SetVMCountInput!) {
+			setVmCount(input: $input) {
+				app {
+					taskGroupCounts {
+						name
+						count
+					}
+				}
+				warnings
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("input", SetVMCountInput{
+		AppID: appID,
+		GroupCounts: []VMCountInput{
+			{Group: "app", Count: count},
+		}})
+
+	data, err := c.Run(req)
+	if err != nil {
+		return []TaskGroupCount{}, []string{}, err
+	}
+
+	return data.SetVMCount.App.TaskGroupCounts, data.SetVMCount.Warnings, nil
+}

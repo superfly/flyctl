@@ -470,6 +470,12 @@ the number of configured instances.`,
 min=int - minimum number of instances to be allocated from region pool. 
 max=int - maximum number of instances to be allocated from region pool.`,
 		}
+	case "scale.count":
+		return KeyStrings{"count <count>", "Change an App's VM count to the given value",
+			`Change an App's VM count to the given value. Shows the application's current VM counts if no arguments are given. 
+
+For pricing, see https://fly.io/docs/about/pricing/`,
+		}
 	case "scale.set":
 		return KeyStrings{"set", "Set current models scaling parameters",
 			`Allows the setting of the current models scaling parameters:

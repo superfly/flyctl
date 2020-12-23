@@ -569,6 +569,15 @@ For shared vms, this can be 256MB or a a multiple of 1024MB.
 For pricing, see https://fly.io/docs/about/pricing/
 """
 
+    [scale.count]
+    usage     = "count <count>"
+    shortHelp = "Change an App's VM count to the given value"
+    longHelp  = """Change an App's VM count to the given value. Shows the application's current VM counts if no arguments are given. 
+
+For pricing, see https://fly.io/docs/about/pricing/
+"""
+
+
 [secrets]
 usage     = "secrets"
 shortHelp = "Manage App secrets"

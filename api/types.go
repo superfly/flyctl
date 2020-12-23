@@ -96,6 +96,11 @@ type Query struct {
 		VMSize *VMSize
 	}
 
+	SetVMCount struct {
+		App      App
+		Warnings []string
+	}
+
 	ConfigureRegions struct {
 		App           App
 		Regions       []Region
@@ -195,6 +200,12 @@ type App struct {
 	Volumes          struct {
 		Nodes []Volume
 	}
+	TaskGroupCounts []TaskGroupCount
+}
+
+type TaskGroupCount struct {
+	Name  string
+	Count int
 }
 
 type Volume struct {
@@ -664,6 +675,16 @@ type SetVMSizeInput struct {
 	AppID    string `json:"appId"`
 	SizeName string `json:"sizeName"`
 	MemoryMb int64  `json:"memoryMb"`
+}
+
+type SetVMCountInput struct {
+	AppID       string         `json:"appId"`
+	GroupCounts []VMCountInput `json:"groupCounts"`
+}
+
+type VMCountInput struct {
+	Group string `json:"group"`
+	Count int    `json:"count"`
 }
 
 type StartBuildInput struct {
