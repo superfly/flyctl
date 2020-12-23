@@ -2,11 +2,9 @@ package cmd
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 
 	"github.com/superfly/flyctl/cmdctx"
 
@@ -23,7 +21,7 @@ func newScaleCommand() *Command {
 
 	vmCmdStrings := docstrings.Get("scale.vm")
 	vmCmd := BuildCommand(cmd, runScaleVM, vmCmdStrings.Usage, vmCmdStrings.Short, vmCmdStrings.Long, os.Stdout, requireSession, requireAppName)
-	vmCmd.Args = cobra.MaximumNArgs(1)
+	vmCmd.Args = cobra.ExactArgs(1)
 	vmCmd.AddIntFlag(IntFlagOpts{
 		Name:        "memory",
 		Description: "Memory in MB for the VM",
@@ -32,123 +30,15 @@ func newScaleCommand() *Command {
 
 	countCmdStrings := docstrings.Get("scale.count")
 	countCmd := BuildCommand(cmd, runScaleCount, countCmdStrings.Usage, countCmdStrings.Short, countCmdStrings.Long, os.Stdout, requireSession, requireAppName)
-	countCmd.Args = cobra.MaximumNArgs(1)
-
-	balanceCmdStrings := docstrings.Get("scale.balanced")
-	balanceCmd := BuildCommand(cmd, runBalanceScale, balanceCmdStrings.Usage, balanceCmdStrings.Short, balanceCmdStrings.Long, os.Stdout, requireSession, requireAppName)
-	balanceCmd.Args = cobra.RangeArgs(0, 2)
-
-	standardCmdStrings := docstrings.Get("scale.standard")
-	standardCmd := BuildCommand(cmd, runStandardScale, standardCmdStrings.Usage, standardCmdStrings.Short, standardCmdStrings.Long, os.Stdout, requireSession, requireAppName)
-	standardCmd.Args = cobra.RangeArgs(0, 2)
-
-	setCmdStrings := docstrings.Get("scale.set")
-	setCmd := BuildCommand(cmd, runSetParamsOnly, setCmdStrings.Usage, setCmdStrings.Short, setCmdStrings.Long, os.Stdout, requireSession, requireAppName)
-	setCmd.Args = cobra.RangeArgs(0, 2)
+	countCmd.Args = cobra.ExactArgs(1)
 
 	showCmdStrings := docstrings.Get("scale.show")
-	BuildCommand(cmd, runShow, showCmdStrings.Usage, showCmdStrings.Short, showCmdStrings.Long, os.Stdout, requireSession, requireAppName)
+	BuildCommand(cmd, runScaleShow, showCmdStrings.Usage, showCmdStrings.Short, showCmdStrings.Long, os.Stdout, requireSession, requireAppName)
 
 	return cmd
 }
 
-func runBalanceScale(commandContext *cmdctx.CmdContext) error {
-	return actualScale(commandContext, true, false)
-}
-
-func runStandardScale(commandContext *cmdctx.CmdContext) error {
-	return actualScale(commandContext, false, false)
-}
-
-func runSetParamsOnly(commandContext *cmdctx.CmdContext) error {
-	return actualScale(commandContext, false, true)
-}
-
-func actualScale(commandContext *cmdctx.CmdContext, balanceRegions bool, setParamsOnly bool) error {
-	currentcfg, err := commandContext.Client.API().AppAutoscalingConfig(commandContext.AppName)
-	if err != nil {
-		return err
-	}
-
-	newcfg := api.UpdateAutoscaleConfigInput{AppID: commandContext.AppName}
-
-	newcfg.BalanceRegions = &balanceRegions
-	newcfg.MinCount = &currentcfg.MinCount
-	newcfg.MaxCount = &currentcfg.MaxCount
-
-	kvargs := make(map[string]string)
-
-	for _, pair := range commandContext.Args {
-		parts := strings.SplitN(pair, "=", 2)
-		if len(parts) != 2 {
-			return fmt.Errorf("Scale parameters must be provided as NAME=VALUE pairs (%s is invalid)", pair)
-		}
-		key := parts[0]
-		value := parts[1]
-		kvargs[strings.ToLower(key)] = value
-	}
-
-	minval, found := kvargs["min"]
-
-	if found {
-		minint64val, err := strconv.ParseInt(minval, 10, 64)
-
-		if err != nil {
-			return errors.New("could not parse min count value")
-		}
-		minintval := int(minint64val)
-		newcfg.MinCount = &minintval
-		delete(kvargs, "min")
-	}
-
-	maxval, found := kvargs["max"]
-
-	if found {
-		maxint64val, err := strconv.ParseInt(maxval, 10, 64)
-
-		if err != nil {
-			return errors.New("could not parse max count value")
-		}
-		maxintval := int(maxint64val)
-		newcfg.MaxCount = &maxintval
-		delete(kvargs, "max")
-	}
-
-	if len(kvargs) != 0 {
-		unusedkeys := ""
-		for k := range kvargs {
-			if unusedkeys == "" {
-				unusedkeys = k
-			} else {
-				unusedkeys = unusedkeys + ", " + k
-			}
-		}
-		return errors.New("unrecognised parameters in command:" + unusedkeys)
-	}
-
-	cfg, err := commandContext.Client.API().UpdateAutoscaleConfig(newcfg)
-	if err != nil {
-		return err
-	}
-
-	printScaleConfig(commandContext, cfg)
-
-	return nil
-}
-
 func runScaleVM(commandContext *cmdctx.CmdContext) error {
-	if len(commandContext.Args) == 0 {
-		size, err := commandContext.Client.API().AppVMSize(commandContext.AppName)
-		if err != nil {
-			return err
-		}
-
-		fmt.Printf("%15s: %s\n", "Size", size.Name)
-		fmt.Printf("%15s: %s\n", "CPU Cores", formatCores(size))
-		fmt.Printf("%15s: %s\n", "Memory", formatMemory(size))
-		return nil
-	}
-
 	sizeName := commandContext.Args[0]
 
 	memoryMB := int64(commandContext.Config.GetInt("memory"))
@@ -165,20 +55,6 @@ func runScaleVM(commandContext *cmdctx.CmdContext) error {
 }
 
 func runScaleCount(commandContext *cmdctx.CmdContext) error {
-	if len(commandContext.Args) == 0 {
-		counts, err := commandContext.Client.API().GetAppVMCount(commandContext.AppName)
-		if err != nil {
-			return err
-		}
-
-		fmt.Printf("Current VM counts for %s:\n", commandContext.AppName)
-		for _, groupCount := range counts {
-			fmt.Printf("%s: %d\n", groupCount.Name, groupCount.Count)
-		}
-
-		return nil
-	}
-
 	count, err := strconv.Atoi(commandContext.Args[0])
 	if err != nil {
 		return err
@@ -196,54 +72,25 @@ func runScaleCount(commandContext *cmdctx.CmdContext) error {
 		fmt.Println()
 	}
 
-	fmt.Printf("Current VM counts for %s:\n", commandContext.AppName)
-	for _, groupCount := range counts {
-		fmt.Printf("%s: %d\n", groupCount.Name, groupCount.Count)
-	}
+	printTaskGroupCounts(commandContext, counts)
 
 	return nil
 }
 
-func runShow(commandContext *cmdctx.CmdContext) error {
-	cfg, err := commandContext.Client.API().AppAutoscalingConfig(commandContext.AppName)
+func runScaleShow(commandContext *cmdctx.CmdContext) error {
+	size, tgCounts, err := commandContext.Client.API().AppVMResources(commandContext.AppName)
 	if err != nil {
 		return err
 	}
-	size, err := commandContext.Client.API().AppVMSize(commandContext.AppName)
-	if err != nil {
-		return err
-	}
-
-	printScaleConfig(commandContext, cfg)
-
+	fmt.Printf("VM Resources for %s\n", commandContext.AppName)
 	printSize(commandContext, size)
+	fmt.Println()
+	printTaskGroupCounts(commandContext, tgCounts)
 
 	return nil
-}
-
-func printScaleConfig(commandContext *cmdctx.CmdContext, cfg *api.AutoscalingConfig) {
-
-	asJSON := commandContext.OutputJSON()
-
-	if asJSON {
-		commandContext.WriteJSON(cfg)
-	} else {
-		var mode string
-
-		if cfg.BalanceRegions {
-			mode = "Balanced"
-		} else {
-			mode = "Standard"
-		}
-
-		fmt.Fprintf(commandContext.Out, "%15s: %s\n", "Scale Mode", mode)
-		fmt.Fprintf(commandContext.Out, "%15s: %d\n", "Min Count", cfg.MinCount)
-		fmt.Fprintf(commandContext.Out, "%15s: %d\n", "Max Count", cfg.MaxCount)
-	}
 }
 
 func printSize(commandContext *cmdctx.CmdContext, cfg api.VMSize) {
-
 	asJSON := commandContext.OutputJSON()
 
 	if asJSON {
@@ -252,6 +99,19 @@ func printSize(commandContext *cmdctx.CmdContext, cfg api.VMSize) {
 	} else {
 		fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Size", cfg.Name)
 		fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Memory", formatMemory(cfg))
+	}
+}
+
+func printTaskGroupCounts(commandContext *cmdctx.CmdContext, counts []api.TaskGroupCount) {
+	if commandContext.OutputJSON() {
+		prettyJSON, _ := json.MarshalIndent(counts, "", "    ")
+		fmt.Fprintln(commandContext.Out, string(prettyJSON))
+		return
+	}
+
+	fmt.Println("VM counts")
+	for _, groupCount := range counts {
+		fmt.Printf("%s: %d\n", groupCount.Name, groupCount.Count)
 	}
 }
 

@@ -91,6 +91,35 @@ independent of flyctl.`,
 			`Displays the users email address/service identity currently 
 authenticated and in use.`,
 		}
+	case "autoscale":
+		return KeyStrings{"autoscale", "Autoscaling App resources",
+			`Autoscaling application resources`,
+		}
+	case "autoscale.balanced":
+		return KeyStrings{"balanced", "Configure a traffic balanced App with params (min=int max=int)",
+			`Configure the App to balance regions based on traffic with given parameters:
+
+min=int - minimum number of instances to be allocated from region pool. 
+max=int - maximum number of instances to be allocated from region pool.`,
+		}
+	case "autoscale.set":
+		return KeyStrings{"set", "Set current models autoscaling parameters",
+			`Allows the setting of the current models autoscaling parameters:
+
+min=int - minimum number of instances to be allocated from region pool. 
+max=int - maximum number of instances to be allocated from region pool.`,
+		}
+	case "autoscale.show":
+		return KeyStrings{"show", "Show current autoscaling configuration",
+			`Show current autoscaling configuration`,
+		}
+	case "autoscale.standard":
+		return KeyStrings{"standard", "Configure a standard balanced App with params (min=int max=int)",
+			`Configure the App without traffic balancing with the given parameters:
+
+min=int - minimum number of instances to be allocated from region pool. 
+max=int - maximum number of instances to be allocated from region pool.`,
+		}
 	case "builds":
 		return KeyStrings{"builds", "Work with Fly Builds",
 			`Fly Builds are templates to make developing Fly applications easier.`,
@@ -463,36 +492,15 @@ the number of configured instances.`,
 		return KeyStrings{"scale", "Scale App resources",
 			`Scale application resources`,
 		}
-	case "scale.balanced":
-		return KeyStrings{"balanced", "Configure a traffic balanced App with params (min=int max=int)",
-			`Configure the App to balance regions based on traffic with given parameters:
-
-min=int - minimum number of instances to be allocated from region pool. 
-max=int - maximum number of instances to be allocated from region pool.`,
-		}
 	case "scale.count":
 		return KeyStrings{"count <count>", "Change an App's VM count to the given value",
 			`Change an App's VM count to the given value. Shows the application's current VM counts if no arguments are given. 
 
 For pricing, see https://fly.io/docs/about/pricing/`,
 		}
-	case "scale.set":
-		return KeyStrings{"set", "Set current models scaling parameters",
-			`Allows the setting of the current models scaling parameters:
-
-min=int - minimum number of instances to be allocated from region pool. 
-max=int - maximum number of instances to be allocated from region pool.`,
-		}
 	case "scale.show":
 		return KeyStrings{"show", "Show current scaling configuration",
 			`Show current scaling configuration`,
-		}
-	case "scale.standard":
-		return KeyStrings{"standard", "Configure a standard balanced App with params (min=int max=int)",
-			`Configure the App without traffic balancing with the given parameters:
-
-min=int - minimum number of instances to be allocated from region pool. 
-max=int - maximum number of instances to be allocated from region pool.`,
 		}
 	case "scale.vm":
 		return KeyStrings{"vm [SIZENAME] [flags]", "Change an App's VM to a named size (eg. shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x...)",
