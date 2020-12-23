@@ -498,17 +498,17 @@ the number of configured instances.`,
 		}
 	case "scale.count":
 		return KeyStrings{"count <count>", "Change an App's VM count to the given value",
-			`Change an App's VM count to the given value. Shows the application's current VM counts if no arguments are given. 
+			`Change an App's VM count to the given value. 
 
 For pricing, see https://fly.io/docs/about/pricing/`,
 		}
 	case "scale.show":
 		return KeyStrings{"show", "Show current resources",
-			`Show current resources`,
+			`Show current VM size and counts`,
 		}
 	case "scale.vm":
 		return KeyStrings{"vm [SIZENAME] [flags]", "Change an App's VM to a named size (eg. shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x...)",
-			`Change an application's VM size to one of the named VM sizes. Shows the application's current VM size if no arguments are given. 
+			`Change an application's VM size to one of the named VM sizes.
 
 Size names include shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x.
 

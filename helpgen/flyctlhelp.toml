@@ -564,7 +564,7 @@ longHelp  = """Scale application resources
     [scale.vm]
     usage     = "vm [SIZENAME] [flags]"
     shortHelp = "Change an App's VM to a named size (eg. shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x...)"
-    longHelp  = """Change an application's VM size to one of the named VM sizes. Shows the application's current VM size if no arguments are given. 
+    longHelp  = """Change an application's VM size to one of the named VM sizes.
 
 Size names include shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x.
 
@@ -584,7 +584,7 @@ For pricing, see https://fly.io/docs/about/pricing/
     [scale.count]
     usage     = "count <count>"
     shortHelp = "Change an App's VM count to the given value"
-    longHelp  = """Change an App's VM count to the given value. Shows the application's current VM counts if no arguments are given. 
+    longHelp  = """Change an App's VM count to the given value. 
 
 For pricing, see https://fly.io/docs/about/pricing/
 """
@@ -592,7 +592,7 @@ For pricing, see https://fly.io/docs/about/pricing/
     [scale.show]
     usage     = "show"
     shortHelp = "Show current resources"
-    longHelp  = """Show current resources
+    longHelp  = """Show current VM size and counts
 """
 
 [secrets]
