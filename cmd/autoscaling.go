@@ -19,7 +19,7 @@ func newAutoscaleCommand() *Command {
 	autoscaleStrings := docstrings.Get("autoscale")
 
 	cmd := BuildCommandKS(nil, nil, autoscaleStrings, os.Stdout, requireSession, requireAppName)
-	cmd.Deprecated = "use `flyctl scale` instead"
+	//cmd.Deprecated = "use `flyctl scale` instead"
 
 	disableCmdStrings := docstrings.Get("autoscale.disable")
 	disableCmd := BuildCommand(cmd, runDisableAutoscaling, disableCmdStrings.Usage, disableCmdStrings.Short, disableCmdStrings.Long, os.Stdout, requireSession, requireAppName)
