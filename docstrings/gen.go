@@ -593,7 +593,7 @@ command to update the application.`,
 	case "volumes.create":
 		return KeyStrings{"create <volumename>", "Create new volume for app",
 			`Create new volume for app. --region flag must be included to specify
-region the volume exists in. --size flag is option, defaults to 5,
+region the volume exists in. --size flag is optional, defaults to 10,
 sets the size as the number of gigabytes the volume will consume.`,
 		}
 	case "volumes.delete":
