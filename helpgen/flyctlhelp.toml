@@ -752,7 +752,7 @@ longHelp  = """Commands for managing Fly Volumes associated with an application.
     usage     = "create <volumename>"
     shortHelp = "Create new volume for app"
     longHelp  = """Create new volume for app. --region flag must be included to specify
-region the volume exists in. --size flag is option, defaults to 5,
+region the volume exists in. --size flag is optional, defaults to 10,
 sets the size as the number of gigabytes the volume will consume."""
 
     [volumes.list]
