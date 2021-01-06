@@ -11,17 +11,18 @@ type Query struct {
 	Apps struct {
 		Nodes []App
 	}
-	App             App
-	AppCompact      AppCompact
-	AppStatus       AppStatus
-	AppCertsCompact AppCertsCompact
-	CurrentUser     User
-	Organizations   struct {
+	App                  App
+	AppCompact           AppCompact
+	AppStatus            AppStatus
+	AppCertsCompact      AppCertsCompact
+	CurrentUser          User
+	PersonalOrganization Organization
+	Organizations        struct {
 		Nodes []Organization
 	}
 
-	Organization        *Organization
-	UserOrganizations   UserOrganizations
+	Organization *Organization
+	// PersonalOrganizations PersonalOrganizations
 	OrganizationDetails OrganizationDetails
 	Build               Build
 	Volume              Volume
@@ -484,13 +485,6 @@ type AppCertificate struct {
 			ExpiresAt time.Time
 			Type      string
 		}
-	}
-}
-
-type UserOrganizations struct {
-	PersonalOrganization Organization
-	Organizations        struct {
-		Nodes []Organization
 	}
 }
 
