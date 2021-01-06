@@ -50,7 +50,11 @@ func NewDeployOperation(ctx context.Context, cmdContext *cmdctx.CmdContext) (*De
 		remoteOnly:   remoteOnly,
 	}
 
-	op.dockerAvailable = op.dockerClient.Check(ctx) == nil
+	if err := op.dockerClient.Check(ctx); err == nil {
+		op.dockerAvailable = true
+	} else {
+		terminal.Debugf("Error pinging docker: %s\n", err)
+	}
 
 	if localOnly && remoteOnly {
 		return nil, fmt.Errorf("Both --local-only and --remote-only are set - select only one")
