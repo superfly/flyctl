@@ -133,7 +133,7 @@ func runDestroyVolume(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	fmt.Printf("Destroyed volume %s from %s\n", volID, data.Name)
+	fmt.Printf("Deleted volume %s from %s\n", volID, data.Name)
 
 	return nil
 }
@@ -156,6 +156,7 @@ func runShowVolume(ctx *cmdctx.CmdContext) error {
 	fmt.Printf("%10s: %s\n", "Name", volume.Name)
 	fmt.Printf("%10s: %s\n", "Region", volume.Region)
 	fmt.Printf("%10s: %d\n", "Size GB", volume.SizeGb)
+	fmt.Printf("%10s: %t\n", "Encrypted", volume.Encrypted)
 	fmt.Printf("%10s: %s\n", "Created at", volume.CreatedAt.Format(time.RFC822))
 
 	return nil

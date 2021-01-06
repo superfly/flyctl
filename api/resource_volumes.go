@@ -10,6 +10,7 @@ func (c *Client) GetVolumes(appName string) ([]Volume, error) {
 					name
 					sizeGb
 					region
+					encrypted
 					createdAt
 				}
 			}
@@ -96,6 +97,7 @@ func (c *Client) GetVolume(volID string) (Volume *Volume, err error) {
 				name
 				sizeGb
 				region
+				encrypted
 				createdAt
 			}
 		}
