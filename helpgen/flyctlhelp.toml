@@ -589,6 +589,12 @@ For pricing, see https://fly.io/docs/about/pricing/
 For pricing, see https://fly.io/docs/about/pricing/
 """
 
+    [scale.memory]
+    usage     = "memory <memoryMB>"
+    shortHelp = "Set VM memory"
+    longHelp  = """Set VM memory to a number of megabytes
+"""
+
     [scale.show]
     usage     = "show"
     shortHelp = "Show current resources"

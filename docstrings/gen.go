@@ -502,6 +502,10 @@ the number of configured instances.`,
 
 For pricing, see https://fly.io/docs/about/pricing/`,
 		}
+	case "scale.memory":
+		return KeyStrings{"memory <memoryMB>", "Set VM memory",
+			`Set VM memory to a number of megabytes`,
+		}
 	case "scale.show":
 		return KeyStrings{"show", "Show current resources",
 			`Show current VM size and counts`,
