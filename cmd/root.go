@@ -127,8 +127,11 @@ func checkErr(err error) {
 		rxRelaxed := xurls.Relaxed()
 		url := rxRelaxed.FindString(err.Error())
 		if url != "" {
-			err := open.Run(url)
-			if err != nil {
+			opennow := confirm(fmt.Sprintf("Would you like to open '%s' now?", url))
+			if opennow {
+				err := open.Run(url)
+				if err != nil {
+				}
 			}
 		}
 	}
