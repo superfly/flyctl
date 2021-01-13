@@ -149,8 +149,6 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 			default:
 				if !insection {
 					b.Args[k] = fmt.Sprint(v)
-				} else {
-
 				}
 			}
 		}
