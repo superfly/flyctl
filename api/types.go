@@ -151,6 +151,10 @@ type Query struct {
 	SetSlackHandler *struct {
 		Handler *HealthCheckHandler
 	}
+
+	SetPagerdutyHandler *struct {
+		Handler *HealthCheckHandler
+	}
 }
 
 // carries the privkey; this is the only time it can be retrieved
@@ -806,4 +810,10 @@ type SetSlackHandlerInput struct {
 	SlackChannel    *string `json:"slackChannel"`
 	SlackUsername   *string `json:"slackUsername"`
 	SlackIconURL    *string `json:"slackIconUrl"`
+}
+
+type SetPagerdutyHandlerInput struct {
+	OrganizationID string `json:"organizationId"`
+	Name           string `json:"name"`
+	PagerdutyToken string `json:"pagerdutyToken"`
 }

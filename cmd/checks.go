@@ -65,6 +65,8 @@ func runCreateChecksHandler(ctx *cmdctx.CmdContext) error {
 	switch handlerType {
 	case "slack":
 		return setSlackChecksHandler(ctx)
+	case "pagerduty":
+		return setPagerDutyChecksHandler(ctx)
 	}
 	return fmt.Errorf(`"%s" is not a valid handler type`, handlerType)
 }
@@ -155,6 +157,53 @@ func setSlackChecksHandler(ctx *cmdctx.CmdContext) error {
 	}
 
 	handler, err := ctx.Client.API().SetSlackHealthCheckHandler(input)
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(ctx.Out, "Created %s handler named %s\n", handler.Type, handler.Name)
+
+	return nil
+}
+
+func setPagerDutyChecksHandler(ctx *cmdctx.CmdContext) error {
+	org, err := selectOrganization(ctx.Client.API(), "")
+	if err != nil {
+		return err
+	}
+
+	name, _ := ctx.Config.GetString("name")
+	if name == "" {
+		prompt := &survey.Input{
+			Message: "Name:",
+		}
+		if err := survey.AskOne(prompt, &name, survey.WithValidator(survey.Required)); err != nil {
+			if isInterrupt(err) {
+				return nil
+			}
+		}
+	}
+
+	pagerDutyToken, _ := ctx.Config.GetString("pagerduty-token")
+	if pagerDutyToken == "" {
+		prompt := &survey.Input{
+			Message: "PagerDuty Token:",
+		}
+		if err := survey.AskOne(prompt, &pagerDutyToken, survey.WithValidator(survey.Required)); err != nil {
+			if isInterrupt(err) {
+				return nil
+			}
+		}
+	}
+
+	input := api.SetPagerdutyHandlerInput{
+		OrganizationID: org.ID,
+		Name:           name,
+		PagerdutyToken: pagerDutyToken,
+	}
+
+	handler, err := ctx.Client.API().SetPagerdutyHealthCheckHandler(input)
 
 	if err != nil {
 		return err
