@@ -241,6 +241,27 @@ Takes hostname as a parameter to locate the certificate.
 Displays results in the same format as the SHOW command.
 """
 
+[checks]
+usage     = "checks"
+shortHelp = "Manage health checks"
+longHelp  = "Manage health checks"
+    [checks.handlers]
+    usage     = "handlers"
+    shortHelp = "Manage health check handlers"
+    longHelp  = "Manage health check handlers"
+        [checks.handlers.create]
+        usage     = "create"
+        shortHelp = "Create a health check handler"
+        longHelp  = "Create a health check handler"
+        [checks.handlers.delete]
+        usage     = "delete <organization> <handler-name>"
+        shortHelp = "Delete a health check handler"
+        longHelp  = "Delete a health check handler"
+        [checks.handlers.list]
+        usage     = "list"
+        shortHelp = "List health check handlers"
+        longHelp  = "List health check handlers"
+
 [curl]
 usage     = "curl <url>"
 shortHelp = "Run a performance test against a url"

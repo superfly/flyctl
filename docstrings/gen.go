@@ -187,6 +187,26 @@ as a parameter to locate the certificate.`,
 			`Shows certificate information for an application. 
 Takes hostname as a parameter to locate the certificate.`,
 		}
+	case "checks":
+		return KeyStrings{"checks", "Manage health checks",
+			`Manage health checks`,
+		}
+	case "checks.handlers":
+		return KeyStrings{"handlers", "Manage health check handlers",
+			`Manage health check handlers`,
+		}
+	case "checks.handlers.create":
+		return KeyStrings{"create", "Create a health check handler",
+			`Create a health check handler`,
+		}
+	case "checks.handlers.delete":
+		return KeyStrings{"delete <organization> <handler-name>", "Delete a health check handler",
+			`Delete a health check handler`,
+		}
+	case "checks.handlers.list":
+		return KeyStrings{"list", "List health check handlers",
+			`List health check handlers`,
+		}
 	case "config":
 		return KeyStrings{"config", "Manage an Apps configuration",
 			`The CONFIG commands allow you to work with an application's configuration.`,

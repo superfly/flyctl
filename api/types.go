@@ -147,6 +147,10 @@ type Query struct {
 	RemoveWireGuardPeer struct {
 		Organization Organization
 	}
+
+	SetSlackHandler *struct {
+		Handler *HealthCheckHandler
+	}
 }
 
 // carries the privkey; this is the only time it can be retrieved
@@ -308,6 +312,8 @@ type Organization struct {
 			Node   *WireGuardPeer
 		}
 	}
+
+	HealthCheckHandlers *[]HealthCheckHandler
 }
 
 type OrganizationDetails struct {
@@ -786,4 +792,18 @@ type WireGuardPeer struct {
 	Region string
 	Name   string
 	Peerip string
+}
+
+type HealthCheckHandler struct {
+	Name string
+	Type string
+}
+
+type SetSlackHandlerInput struct {
+	OrganizationID  string  `json:"organizationId"`
+	Name            string  `json:"name"`
+	SlackWebhookURL string  `json:"slackWebhookUrl"`
+	SlackChannel    *string `json:"slackChannel"`
+	SlackUsername   *string `json:"slackUsername"`
+	SlackIconURL    *string `json:"slackIconUrl"`
 }
