@@ -25,7 +25,8 @@ func newChecksCommand() *Command {
 
 	handlersCreateStrings := docstrings.Get("checks.handlers.create")
 	createHandlersCmd := BuildCommandKS(handlersCmd, runCreateChecksHandler, handlersCreateStrings, os.Stdout, requireSession)
-	createHandlersCmd.AddStringFlag(StringFlagOpts{Name: "type", Description: "The type of handler to create, can be slack or ???"})
+	createHandlersCmd.AddStringFlag(StringFlagOpts{Name: "type", Description: "The type of handler to create, can be slack or pagerduty"})
+	createHandlersCmd.AddStringFlag(StringFlagOpts{Name: "organization", Shorthand: "o", Description: "The organization to add the handler to"})
 
 	handlersDeleteStrings := docstrings.Get("checks.handlers.delete")
 	deleteHandlerCmd := BuildCommandKS(handlersCmd, runDeleteChecksHandler, handlersDeleteStrings, os.Stdout, requireSession)
@@ -60,19 +61,23 @@ func runListChecksHandlers(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runCreateChecksHandler(ctx *cmdctx.CmdContext) error {
-	handlerType, _ := ctx.Config.GetString("type")
-	switch handlerType {
-	case "slack":
-		return setSlackChecksHandler(ctx)
-	case "pagerduty":
-		return setPagerDutyChecksHandler(ctx)
-	}
-	return fmt.Errorf(`"%s" is not a valid handler type`, handlerType)
-}
+type createHandlerFn func(*cmdctx.CmdContext, *api.Organization, string) error
 
-func setSlackChecksHandler(ctx *cmdctx.CmdContext) error {
-	org, err := selectOrganization(ctx.Client.API(), "")
+func runCreateChecksHandler(ctx *cmdctx.CmdContext) error {
+	handlerFn := map[string]createHandlerFn{
+		"slack":     setSlackChecksHandler,
+		"pagerduty": setPagerDutyChecksHandler,
+	}
+
+	handlerType, _ := ctx.Config.GetString("type")
+	fn, ok := handlerFn[handlerType]
+	if !ok {
+		return fmt.Errorf(`"%s" is not a valid handler type`, handlerType)
+	}
+
+	orgSlug, _ := ctx.Config.GetString("organization")
+
+	org, err := selectOrganization(ctx.Client.API(), orgSlug)
 	if err != nil {
 		return err
 	}
@@ -89,6 +94,10 @@ func setSlackChecksHandler(ctx *cmdctx.CmdContext) error {
 		}
 	}
 
+	return fn(ctx, org, name)
+}
+
+func setSlackChecksHandler(ctx *cmdctx.CmdContext, org *api.Organization, name string) error {
 	webhookURL, _ := ctx.Config.GetString("webhook-url")
 	if webhookURL == "" {
 		prompt := &survey.Input{
@@ -104,7 +113,7 @@ func setSlackChecksHandler(ctx *cmdctx.CmdContext) error {
 	slackChannel, _ := ctx.Config.GetString("slack-channel")
 	if slackChannel == "" {
 		prompt := &survey.Input{
-			Message: "Slack Channel:",
+			Message: "Slack Channel (defaults to webhook's configured channel):",
 		}
 		if err := survey.AskOne(prompt, &slackChannel); err != nil {
 			if isInterrupt(err) {
@@ -113,48 +122,44 @@ func setSlackChecksHandler(ctx *cmdctx.CmdContext) error {
 		}
 	}
 
-	slackUsername, _ := ctx.Config.GetString("slack-username")
-	if slackUsername == "" {
-		prompt := &survey.Input{
-			Message: "Slack Username:",
-			Default: "Fly",
-		}
-		if err := survey.AskOne(prompt, &slackUsername); err != nil {
-			if isInterrupt(err) {
-				return nil
-			}
-		}
-	}
+	// slackUsername, _ := ctx.Config.GetString("slack-username")
+	// if slackUsername == "" {
+	// 	prompt := &survey.Input{
+	// 		Message: "Slack Username:",
+	// 	}
+	// 	if err := survey.AskOne(prompt, &slackUsername); err != nil {
+	// 		if isInterrupt(err) {
+	// 			return nil
+	// 		}
+	// 	}
+	// }
 
-	slackIconURL, _ := ctx.Config.GetString("slack-icon-url")
-	if slackIconURL == "" {
-		prompt := &survey.Input{
-			Message: "Slack Icon URL:",
-		}
-		if err := survey.AskOne(prompt, &slackIconURL); err != nil {
-			if isInterrupt(err) {
-				return nil
-			}
-		}
-	}
+	// slackIconURL, _ := ctx.Config.GetString("slack-icon-url")
+	// if slackIconURL == "" {
+	// 	prompt := &survey.Input{
+	// 		Message: "Slack Icon URL:",
+	// 	}
+	// 	if err := survey.AskOne(prompt, &slackIconURL); err != nil {
+	// 		if isInterrupt(err) {
+	// 			return nil
+	// 		}
+	// 	}
+	// }
 
 	input := api.SetSlackHandlerInput{
 		OrganizationID:  org.ID,
 		Name:            name,
 		SlackWebhookURL: webhookURL,
 	}
-
 	if slackChannel != "" {
 		input.SlackChannel = api.StringPointer(slackChannel)
 	}
-
-	if slackUsername != "" {
-		input.SlackUsername = api.StringPointer(slackUsername)
-	}
-
-	if slackIconURL != "" {
-		input.SlackIconURL = api.StringPointer(slackIconURL)
-	}
+	// if slackUsername != "" {
+	// 	input.SlackUsername = api.StringPointer(slackUsername)
+	// }
+	// if slackIconURL != "" {
+	// 	input.SlackIconURL = api.StringPointer(slackIconURL)
+	// }
 
 	handler, err := ctx.Client.API().SetSlackHealthCheckHandler(input)
 
@@ -167,24 +172,7 @@ func setSlackChecksHandler(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func setPagerDutyChecksHandler(ctx *cmdctx.CmdContext) error {
-	org, err := selectOrganization(ctx.Client.API(), "")
-	if err != nil {
-		return err
-	}
-
-	name, _ := ctx.Config.GetString("name")
-	if name == "" {
-		prompt := &survey.Input{
-			Message: "Name:",
-		}
-		if err := survey.AskOne(prompt, &name, survey.WithValidator(survey.Required)); err != nil {
-			if isInterrupt(err) {
-				return nil
-			}
-		}
-	}
-
+func setPagerDutyChecksHandler(ctx *cmdctx.CmdContext, org *api.Organization, name string) error {
 	pagerDutyToken, _ := ctx.Config.GetString("pagerduty-token")
 	if pagerDutyToken == "" {
 		prompt := &survey.Input{
