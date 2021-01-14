@@ -5,8 +5,10 @@ func (client *Client) GetHealthCheckHandlers(organizationSlug string) ([]HealthC
 		query($slug: String!) {
 			organization(slug: $slug) {
 				healthCheckHandlers {
-					name
-					type
+					nodes {
+						name
+						type
+					}
 				}
 			}
 		}
@@ -20,7 +22,7 @@ func (client *Client) GetHealthCheckHandlers(organizationSlug string) ([]HealthC
 		return nil, err
 	}
 
-	return *data.Organization.HealthCheckHandlers, nil
+	return data.Organization.HealthCheckHandlers.Nodes, nil
 }
 
 func (client *Client) SetSlackHealthCheckHandler(input SetSlackHandlerInput) (*HealthCheckHandler, error) {

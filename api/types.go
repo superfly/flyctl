@@ -209,6 +209,9 @@ type App struct {
 		Nodes []Volume
 	}
 	TaskGroupCounts []TaskGroupCount
+	HealthChecks    *struct {
+		Nodes []CheckState
+	}
 }
 
 type TaskGroupCount struct {
@@ -317,7 +320,13 @@ type Organization struct {
 		}
 	}
 
-	HealthCheckHandlers *[]HealthCheckHandler
+	HealthCheckHandlers *struct {
+		Nodes []HealthCheckHandler
+	}
+
+	HealthChecks *struct {
+		Nodes []HealthCheck
+	}
 }
 
 type OrganizationDetails struct {
@@ -631,6 +640,9 @@ type CheckState struct {
 	Status      string
 	Output      string
 	ServiceName string
+	Allocation  *AllocationStatus
+	Type        string
+	UpdatedAt   time.Time
 }
 
 type Region struct {
@@ -796,6 +808,14 @@ type WireGuardPeer struct {
 	Region string
 	Name   string
 	Peerip string
+}
+
+type HealthCheck struct {
+	Entity      string
+	Name        string
+	Output      string
+	State       string
+	LastPassing time.Time
 }
 
 type HealthCheckHandler struct {

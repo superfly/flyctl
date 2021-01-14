@@ -7,6 +7,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/helpers"
@@ -31,6 +32,10 @@ func newChecksCommand() *Command {
 	handlersDeleteStrings := docstrings.Get("checks.handlers.delete")
 	deleteHandlerCmd := BuildCommandKS(handlersCmd, runDeleteChecksHandler, handlersDeleteStrings, os.Stdout, requireSession)
 	deleteHandlerCmd.Args = cobra.ExactArgs(2)
+
+	checksListStrings := docstrings.Get("checks.list")
+	listChecksCmd := BuildCommandKS(cmd, runAppCheckList, checksListStrings, os.Stdout, requireSession, requireAppName)
+	listChecksCmd.AddStringFlag(StringFlagOpts{Name: "check-name", Description: "Filter checks by name"})
 
 	return cmd
 }
@@ -72,7 +77,7 @@ func runCreateChecksHandler(ctx *cmdctx.CmdContext) error {
 	handlerType, _ := ctx.Config.GetString("type")
 	fn, ok := handlerFn[handlerType]
 	if !ok {
-		return fmt.Errorf(`"%s" is not a valid handler type`, handlerType)
+		return fmt.Errorf("\"%s\" is not a valid handler type", handlerType)
 	}
 
 	orgSlug, _ := ctx.Config.GetString("organization")
@@ -215,7 +220,41 @@ func runDeleteChecksHandler(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	fmt.Fprintf(ctx.Out, `Handler "%s" deleted from organization %s\n`, handlerName, org.Slug)
+	fmt.Fprintf(ctx.Out, "Handler \"%s\" deleted from organization %s\n", handlerName, org.Slug)
+
+	return nil
+}
+
+func runAppCheckList(ctx *cmdctx.CmdContext) error {
+	var nameFilter *string
+
+	if val, _ := ctx.Config.GetString("check-name"); val != "" {
+		nameFilter = api.StringPointer(val)
+	}
+
+	checks, err := ctx.Client.API().GetAppHealthChecks(ctx.AppName, nameFilter, nil, api.BoolPointer(true))
+	if err != nil {
+		return err
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if ctx.OutputJSON() {
+		ctx.WriteJSON(checks)
+		return nil
+	}
+
+	fmt.Fprintf(ctx.Out, "Health Checks for %s\n", ctx.AppName)
+
+	table := helpers.MakeSimpleTable(ctx.Out, []string{"Name", "Status", "Allocation", "Region", "Type", "Last Updated", "Output"})
+
+	for _, check := range checks {
+		table.Append([]string{check.Name, check.Status, check.Allocation.IDShort, check.Allocation.Region, check.Type, presenters.FormatRelativeTime(check.UpdatedAt), check.Output})
+	}
+
+	table.Render()
 
 	return nil
 }

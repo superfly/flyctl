@@ -261,6 +261,11 @@ longHelp  = "Manage health checks"
         usage     = "list"
         shortHelp = "List health check handlers"
         longHelp  = "List health check handlers"
+    [checks.list]
+    usage     = "list"
+    shortHelp = "List app health checks"
+    longHelp  = "List app health checks"
+
 
 [curl]
 usage     = "curl <url>"

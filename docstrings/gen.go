@@ -207,6 +207,10 @@ Takes hostname as a parameter to locate the certificate.`,
 		return KeyStrings{"list", "List health check handlers",
 			`List health check handlers`,
 		}
+	case "checks.list":
+		return KeyStrings{"list", "List app health checks",
+			`List app health checks`,
+		}
 	case "config":
 		return KeyStrings{"config", "Manage an Apps configuration",
 			`The CONFIG commands allow you to work with an application's configuration.`,
