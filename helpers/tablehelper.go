@@ -14,9 +14,9 @@ func MakeSimpleTable(out io.Writer, headings []string) (table *tablewriter.Table
 	// 	headercolors = append(headercolors, tablewriter.Colors{tablewriter.Bold})
 	// }
 	newtable.SetHeader(headings)
-	newtable.SetHeaderLine(true)
+	newtable.SetHeaderLine(false)
 	newtable.SetBorder(false)
-	newtable.SetAutoFormatHeaders(false)
+	newtable.SetAutoFormatHeaders(true)
 	//newtable.SetHeaderColor(headercolors...)
 	newtable.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
 	newtable.SetAlignment(tablewriter.ALIGN_LEFT)
