@@ -11,6 +11,7 @@ import (
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/client"
@@ -46,28 +47,28 @@ func Execute() {
 	defer flyctl.BackgroundTaskWG.Wait()
 
 	err := rootCmd.Execute()
-	checkErr(err)
+	checkErr(err, nil)
 }
 
 func init() {
 	rootCmd.PersistentFlags().StringP("access-token", "t", "", "Fly API Access Token")
 	err := viper.BindPFlag(flyctl.ConfigAPIToken, rootCmd.PersistentFlags().Lookup("access-token"))
-	checkErr(err)
+	checkErr(err, nil)
 
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
 	err = viper.BindPFlag(flyctl.ConfigVerboseOutput, rootCmd.PersistentFlags().Lookup("verbose"))
-	checkErr(err)
+	checkErr(err, nil)
 
 	rootCmd.PersistentFlags().BoolP("json", "j", false, "json output")
 	err = viper.BindPFlag(flyctl.ConfigJSONOutput, rootCmd.PersistentFlags().Lookup("json"))
-	checkErr(err)
+	checkErr(err, nil)
 
 	rootCmd.PersistentFlags().String("builtinsfile", "", "Load builtins from named file")
 	err = viper.BindPFlag(flyctl.ConfigBuiltinsfile, rootCmd.PersistentFlags().Lookup("builtinsfile"))
-	checkErr(err)
+	checkErr(err, nil)
 
 	err = rootCmd.PersistentFlags().MarkHidden("builtinsfile")
-	checkErr(err)
+	checkErr(err, nil)
 
 	rootCmd.AddCommand(
 		newAppsCommand(),
@@ -116,7 +117,7 @@ func initConfig() {
 	flyctl.CheckForUpdate(false, false) // allow skipping, don't be silent
 }
 
-func checkErr(err error) {
+func checkErr(err error, ctx *cmdctx.CmdContext) {
 	if err == nil {
 		return
 	}
@@ -124,13 +125,15 @@ func checkErr(err error) {
 	if !isCancelledError(err) {
 		fmt.Println(aurora.Red("Error"), err)
 
-		rxRelaxed := xurls.Relaxed()
-		url := rxRelaxed.FindString(err.Error())
-		if url != "" {
-			opennow := confirm(fmt.Sprintf("Would you like to open '%s' now?", url))
-			if opennow {
-				err := open.Run(url)
-				if err != nil {
+		if ctx != nil && ctx.Interactive {
+			rxRelaxed := xurls.Relaxed()
+			url := rxRelaxed.FindString(err.Error())
+			if url != "" {
+				opennow := confirm(fmt.Sprintf("Would you like to open '%s' now?", url))
+				if opennow {
+					err := open.Run(url)
+					if err != nil {
+					}
 				}
 			}
 		}

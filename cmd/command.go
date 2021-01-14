@@ -71,11 +71,11 @@ func (c *Command) AddStringFlag(options StringFlagOpts) {
 	c.Flags().StringP(options.Name, options.Shorthand, options.Default, options.Description)
 
 	err := viper.BindPFlag(fullName, c.Flags().Lookup(options.Name))
-	checkErr(err)
+	checkErr(err, nil)
 
 	if options.EnvName != "" {
 		err := viper.BindEnv(fullName, options.EnvName)
-		checkErr(err)
+		checkErr(err, nil)
 	}
 }
 
@@ -87,11 +87,11 @@ func (c *Command) AddBoolFlag(options BoolFlagOpts) {
 	flag := c.Flags().Lookup(options.Name)
 	flag.Hidden = options.Hidden
 	err := viper.BindPFlag(fullName, flag)
-	checkErr(err)
+	checkErr(err, nil)
 
 	if options.EnvName != "" {
 		err := viper.BindEnv(fullName, options.EnvName)
-		checkErr(err)
+		checkErr(err, nil)
 	}
 }
 
@@ -113,11 +113,11 @@ func (c *Command) AddIntFlag(options IntFlagOpts) {
 	flag := c.Flags().Lookup(options.Name)
 	flag.Hidden = options.Hidden
 	err := viper.BindPFlag(fullName, flag)
-	checkErr(err)
+	checkErr(err, nil)
 
 	if options.EnvName != "" {
 		err := viper.BindEnv(fullName, options.EnvName)
-		checkErr(err)
+		checkErr(err, nil)
 	}
 }
 
@@ -141,11 +141,11 @@ func (c *Command) AddStringSliceFlag(options StringSliceFlagOpts) {
 	}
 
 	err := viper.BindPFlag(fullName, c.Flags().Lookup(options.Name))
-	checkErr(err)
+	checkErr(err, nil)
 
 	if options.EnvName != "" {
 		err := viper.BindEnv(fullName, options.EnvName)
-		checkErr(err)
+		checkErr(err, nil)
 	}
 }
 
@@ -191,11 +191,11 @@ func BuildCommand(parent *Command, fn RunFn, usageText string, shortHelpText str
 	if fn != nil {
 		flycmd.Run = func(cmd *cobra.Command, args []string) {
 			ctx, err := cmdctx.NewCmdContext(flyctlClient, namespace(cmd), out, args)
-			checkErr(err)
+			checkErr(err, ctx)
 
 			for _, init := range initializers {
 				if init.Setup != nil {
-					checkErr(init.Setup(ctx))
+					checkErr(init.Setup(ctx), ctx)
 				}
 			}
 
@@ -204,12 +204,12 @@ func BuildCommand(parent *Command, fn RunFn, usageText string, shortHelpText str
 
 			for _, init := range initializers {
 				if init.PreRun != nil {
-					checkErr(init.PreRun(ctx))
+					checkErr(init.PreRun(ctx), ctx)
 				}
 			}
 
 			err = fn(ctx)
-			checkErr(err)
+			checkErr(err, ctx)
 		}
 	}
 

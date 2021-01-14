@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/logrusorgru/aurora"
+	"github.com/mattn/go-isatty"
 	"github.com/pkg/errors"
 	"github.com/segmentio/textio"
 	"github.com/superfly/flyctl/cmd/presenters"
@@ -26,6 +27,7 @@ type CmdContext struct {
 	Args         []string
 	Out          io.Writer
 	Terminal     *terminal.Terminal
+	Interactive  bool
 	WorkingDir   string
 	ConfigFile   string
 	AppName      string
@@ -62,6 +64,7 @@ func NewCmdContext(flyctlClient *client.Client, ns string, out io.Writer, args [
 		Out:          out,
 		Args:         args,
 		Terminal:     terminal.NewTerminal(out),
+		Interactive:  isatty.IsTerminal(os.Stdout.Fd()),
 	}
 
 	cwd, err := os.Getwd()

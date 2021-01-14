@@ -126,7 +126,7 @@ func runDomainsCreate(ctx *cmdctx.CmdContext) error {
 
 		prompt := &survey.Input{Message: "Domain name to add"}
 		err := survey.AskOne(prompt, &name)
-		checkErr(err)
+		checkErr(err, ctx)
 
 		// TODO: Add some domain validation here
 	} else if len(ctx.Args) == 2 {
@@ -164,7 +164,7 @@ func runDomainsRegister(ctx *cmdctx.CmdContext) error {
 
 		prompt := &survey.Input{Message: "Domain name to add"}
 		err := survey.AskOne(prompt, &name)
-		checkErr(err)
+		checkErr(err, ctx)
 		// TODO: Add some domain validation here
 	} else if len(ctx.Args) == 2 {
 		org, err = ctx.Client.API().FindOrganizationBySlug(ctx.Args[0])
