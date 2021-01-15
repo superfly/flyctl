@@ -8,13 +8,11 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/logrusorgru/aurora"
-	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/client"
-	"mvdan.cc/xurls/v2"
 )
 
 // ErrAbort - Error generated when application aborts
@@ -125,16 +123,17 @@ func checkErr(err error) {
 	if !isCancelledError(err) {
 		fmt.Println(aurora.Red("Error"), err)
 
-		rxRelaxed := xurls.Relaxed()
-		url := rxRelaxed.FindString(err.Error())
-		if url != "" {
-			opennow := confirm(fmt.Sprintf("Would you like to open '%s' now?", url))
-			if opennow {
-				err := open.Run(url)
-				if err != nil {
-				}
-			}
-		}
+		// Disabled open URL opener: Dj
+		// rxRelaxed := xurls.Relaxed()
+		// url := rxRelaxed.FindString(err.Error())
+		// if url != "" {
+		// 	opennow := confirm(fmt.Sprintf("Would you like to open '%s' now?", url))
+		// 	if opennow {
+		// 		err := open.Run(url)
+		// 		if err != nil {
+		// 		}
+		// 	}
+		// }
 	}
 
 	safeExit()
