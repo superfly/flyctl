@@ -122,18 +122,6 @@ func checkErr(err error) {
 
 	if !isCancelledError(err) {
 		fmt.Println(aurora.Red("Error"), err)
-
-		// Disabled open URL opener: Dj
-		// rxRelaxed := xurls.Relaxed()
-		// url := rxRelaxed.FindString(err.Error())
-		// if url != "" {
-		// 	opennow := confirm(fmt.Sprintf("Would you like to open '%s' now?", url))
-		// 	if opennow {
-		// 		err := open.Run(url)
-		// 		if err != nil {
-		// 		}
-		// 	}
-		// }
 	}
 
 	safeExit()
