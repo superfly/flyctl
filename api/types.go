@@ -36,6 +36,10 @@ type Query struct {
 		VMSizes []VMSize
 	}
 
+	// aliases & nodes
+
+	TemplateDeploymentNode *TemplateDeployment
+
 	// hack to let us alias node to a type
 	// DNSZone *DNSZone
 
@@ -156,6 +160,15 @@ type Query struct {
 	SetPagerdutyHandler *struct {
 		Handler *HealthCheckHandler
 	}
+
+	CreatePostgresCluster *struct {
+		TemplateDeployment TemplateDeployment
+	}
+
+	AttachPostgresCluster *struct {
+		App                App
+		PostgresClusterApp App
+	}
 }
 
 // carries the privkey; this is the only time it can be retrieved
@@ -170,6 +183,7 @@ type Definition map[string]interface{}
 type App struct {
 	ID             string
 	Name           string
+	State          string
 	Status         string
 	Deployed       bool
 	Hostname       string
@@ -830,4 +844,19 @@ type SetPagerdutyHandlerInput struct {
 	OrganizationID string `json:"organizationId"`
 	Name           string `json:"name"`
 	PagerdutyToken string `json:"pagerdutyToken"`
+}
+
+type TemplateDeployment struct {
+	ID     string
+	Status string
+	Apps   *struct {
+		Nodes []App
+	}
+}
+
+type AttachPostgresClusterInput struct {
+	AppID                string  `json:"appId"`
+	PostgresClusterAppID string  `json:"postgresClusterAppId"`
+	DatabaseName         *string `json:"databaseName,omitempty"`
+	VariableName         *string `json:"variableName,omitempty"`
 }

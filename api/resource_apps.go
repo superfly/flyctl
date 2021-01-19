@@ -1,9 +1,9 @@
 package api
 
-func (client *Client) GetApps() ([]App, error) {
+func (client *Client) GetApps(role *string) ([]App, error) {
 	query := `
-		query {
-			apps(type: "container", first: 400) {
+		query($role: String) {
+			apps(type: "container", first: 400, role: $role) {
 				nodes {
 					id
 					name
@@ -22,6 +22,9 @@ func (client *Client) GetApps() ([]App, error) {
 		`
 
 	req := client.NewRequest(query)
+	if role != nil {
+		req.Var("role", *role)
+	}
 
 	data, err := client.Run(req)
 	if err != nil {
