@@ -1,6 +1,6 @@
 package api
 
-func (client *Client) CreatePostgresCluster(organizationID string, name string) (*TemplateDeployment, error) {
+func (client *Client) CreatePostgresCluster(organizationID string, name string, region string) (*TemplateDeployment, error) {
 	query := `
 		mutation($input: CreatePostgresClusterInput!) {
 			createPostgresCluster(input: $input) {
@@ -23,6 +23,7 @@ func (client *Client) CreatePostgresCluster(organizationID string, name string) 
 	req.Var("input", map[string]string{
 		"organizationId": organizationID,
 		"name":           name,
+		"region":         region,
 	})
 
 	data, err := client.Run(req)

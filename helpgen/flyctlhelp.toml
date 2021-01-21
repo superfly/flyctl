@@ -500,6 +500,10 @@ longHelp  = "Manage postgres clusters"
     usage     = "attach"
     shortHelp = "Attach a postgres cluster to an app"
     longHelp  = "Attach a postgres cluster to an app"
+    [postgres.detach]
+    usage     = "detach"
+    shortHelp = "Detach a postgres cluster from an app"
+    longHelp  = "Detach a postgres cluster from an app"
     [postgres.list]
     usage     = "list"
     shortHelp = "list postgres clusters"

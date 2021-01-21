@@ -23,14 +23,19 @@ func newPostgresCommand() *Command {
 
 	createStrings := docstrings.Get("postgres.create")
 	createCmd := BuildCommandKS(cmd, runCreatePostgresCluster, createStrings, os.Stdout, requireSession)
-	createCmd.AddStringFlag(StringFlagOpts{Name: "organization"})
-	createCmd.AddStringFlag(StringFlagOpts{Name: "name"})
+	createCmd.AddStringFlag(StringFlagOpts{Name: "organization", Description: "the organization that will own the app"})
+	createCmd.AddStringFlag(StringFlagOpts{Name: "name", Description: "the name of the new app"})
+	createCmd.AddStringFlag(StringFlagOpts{Name: "region", Description: "the region to launch the new app in"})
 
 	attachStrngs := docstrings.Get("postgres.attach")
 	attachCmd := BuildCommandKS(cmd, runAttachPostgresCluster, attachStrngs, os.Stdout, requireSession, requireAppName)
-	attachCmd.AddStringFlag(StringFlagOpts{Name: "postgres-app"})
-	attachCmd.AddStringFlag(StringFlagOpts{Name: "database-name"})
-	attachCmd.AddStringFlag(StringFlagOpts{Name: "variable-name"})
+	attachCmd.AddStringFlag(StringFlagOpts{Name: "postgres-app", Description: "the postgres cluster to attach to the app"})
+	attachCmd.AddStringFlag(StringFlagOpts{Name: "database-name", Description: "database to use, defaults to a new database with the same name as the app"})
+	attachCmd.AddStringFlag(StringFlagOpts{Name: "variable-name", Description: "the env variable name that will be added to the app. Defaults to DATABASE_URL"})
+
+	detachStrngs := docstrings.Get("postgres.detach")
+	detachCmd := BuildCommandKS(cmd, runDetachPostgresCluster, detachStrngs, os.Stdout, requireSession, requireAppName)
+	detachCmd.AddStringFlag(StringFlagOpts{Name: "postgres-app", Description: "the postgres cluster to detach from the app"})
 
 	return cmd
 }
@@ -50,20 +55,22 @@ func runPostgresList(ctx *cmdctx.CmdContext) error {
 }
 
 func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
+	name, _ := ctx.Config.GetString("name")
+	if name == "" {
+		return errors.New("name is required")
+	}
+
+	region, _ := ctx.Config.GetString("region")
+
 	orgSlug, _ := ctx.Config.GetString("organization")
 	org, err := selectOrganization(ctx.Client.API(), orgSlug)
 	if err != nil {
 		return err
 	}
 
-	name, _ := ctx.Config.GetString("name")
-	if name == "" {
-		return errors.New("name is required")
-	}
-
 	fmt.Fprintf(ctx.Out, "Creating postgres cluster %s in organization %s, this will take a minute...\n", name, org.Slug)
 
-	td, err := ctx.Client.API().CreatePostgresCluster(org.ID, name)
+	td, err := ctx.Client.API().CreatePostgresCluster(org.ID, name, region)
 	if err != nil {
 		return err
 	}
@@ -117,6 +124,21 @@ func runAttachPostgresCluster(ctx *cmdctx.CmdContext) error {
 	}
 
 	fmt.Printf("Postgres cluster %s is now attached to %s\n", postgresApp.Name, app.Name)
+
+	return nil
+}
+
+func runDetachPostgresCluster(ctx *cmdctx.CmdContext) error {
+	postgresAppName, _ := ctx.Config.GetString("postgres-app")
+	appName := ctx.AppName
+
+	err := ctx.Client.API().DetachPostgresCluster(postgresAppName, appName)
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Postgres cluster %s is now detached from %s\n", postgresAppName, appName)
 
 	return nil
 }
