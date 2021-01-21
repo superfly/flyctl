@@ -16,6 +16,7 @@ import (
 func newPostgresCommand() *Command {
 	domainsStrings := docstrings.Get("postgres")
 	cmd := BuildCommandKS(nil, nil, domainsStrings, os.Stdout, requireSession)
+	cmd.Hidden = true
 
 	listStrings := docstrings.Get("postgres.list")
 	listCmd := BuildCommandKS(cmd, runPostgresList, listStrings, os.Stdout, requireSession)
