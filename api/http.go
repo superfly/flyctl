@@ -20,6 +20,7 @@ func newHTTPClient() (*http.Client, error) {
 			rehttp.RetryMaxRetries(3),
 			rehttp.RetryAny(
 				rehttp.RetryTemporaryErr(),
+				rehttp.RetryStatuses(502),
 				rehttp.RetryIsErr(func(err error) bool {
 					return err != nil && strings.Contains(err.Error(), "INTERNAL_ERROR")
 					// Below code was part of retry strategy
