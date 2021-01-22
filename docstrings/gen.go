@@ -476,6 +476,26 @@ about the Fly platform.`,
 		return KeyStrings{"vm-sizes", "List VM Sizes",
 			`View a list of VM sizes which can be used with the FLYCTL SCALE VM command`,
 		}
+	case "postgres":
+		return KeyStrings{"postgres", "Manage postgres clusters",
+			`Manage postgres clusters`,
+		}
+	case "postgres.attach":
+		return KeyStrings{"attach", "Attach a postgres cluster to an app",
+			`Attach a postgres cluster to an app`,
+		}
+	case "postgres.create":
+		return KeyStrings{"create", "Create a postgres cluster",
+			`Create a postgres cluster`,
+		}
+	case "postgres.detach":
+		return KeyStrings{"detach", "Detach a postgres cluster from an app",
+			`Detach a postgres cluster from an app`,
+		}
+	case "postgres.list":
+		return KeyStrings{"list", "list postgres clusters",
+			`list postgres clusters`,
+		}
 	case "regions":
 		return KeyStrings{"regions", "Manage regions",
 			`Configure the region placement rules for an application.`,

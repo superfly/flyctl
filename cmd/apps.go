@@ -85,7 +85,7 @@ func newAppsCommand() *Command {
 }
 
 func runAppsList(ctx *cmdctx.CmdContext) error {
-	listapps, err := ctx.Client.API().GetApps()
+	listapps, err := ctx.Client.API().GetApps(nil)
 	if err != nil {
 		return err
 	}

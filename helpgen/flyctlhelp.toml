@@ -492,6 +492,28 @@ about the Fly platform.
     longHelp  = """Show current Fly platform status in a browser
 """
 
+[postgres]
+usage     = "postgres"
+shortHelp = "Manage postgres clusters"
+longHelp  = "Manage postgres clusters"
+    [postgres.attach]
+    usage     = "attach"
+    shortHelp = "Attach a postgres cluster to an app"
+    longHelp  = "Attach a postgres cluster to an app"
+    [postgres.detach]
+    usage     = "detach"
+    shortHelp = "Detach a postgres cluster from an app"
+    longHelp  = "Detach a postgres cluster from an app"
+    [postgres.list]
+    usage     = "list"
+    shortHelp = "list postgres clusters"
+    longHelp  = "list postgres clusters"
+    [postgres.create]
+    usage     = "create"
+    shortHelp = "Create a postgres cluster"
+    longHelp  = "Create a postgres cluster"
+
+
 [regions]
 usage     = "regions"
 shortHelp = "Manage regions"
