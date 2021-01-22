@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/briandowns/spinner"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
@@ -71,6 +72,11 @@ func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
 
 	fmt.Fprintf(ctx.Out, "Creating postgres cluster %s in organization %s, this will take a minute...\n", name, org.Slug)
 
+	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
+	s.Writer = os.Stderr
+	s.Prefix = "Launching..."
+	s.Start()
+
 	td, err := ctx.Client.API().CreatePostgresCluster(org.ID, name, region)
 	if err != nil {
 		return err
@@ -83,21 +89,21 @@ func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
 		}
 
 		if td.Status == "failed" {
-			fmt.Fprintf(ctx.Out, "Failed to create postgres cluster, please try again\n")
+			s.FinalMSG = "Failed to create postgres cluster, please try again\n"
 			break
 		} else if td.Status == "completed" {
 			app := td.Apps.Nodes[0]
 			if app.Status == "running" && app.State == "DEPLOYED" {
-				fmt.Fprintf(ctx.Out, "Postgres cluster created: %s\n", td.Apps.Nodes[0].Name)
+				s.FinalMSG = fmt.Sprintf("Postgres cluster created: %s\n", td.Apps.Nodes[0].Name)
 				break
 			}
 
 		}
 
-		fmt.Println("launching...")
-
 		time.Sleep(1 * time.Second)
 	}
+
+	s.Stop()
 
 	return nil
 }
@@ -118,13 +124,19 @@ func runAttachPostgresCluster(ctx *cmdctx.CmdContext) error {
 		input.VariableName = api.StringPointer(varName)
 	}
 
+	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
+	s.Writer = os.Stderr
+	s.Prefix = "Attaching..."
+	s.Start()
+
 	app, postgresApp, err := ctx.Client.API().AttachPostgresCluster(input)
 
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Postgres cluster %s is now attached to %s\n", postgresApp.Name, app.Name)
+	s.FinalMSG = fmt.Sprintf("Postgres cluster %s is now attached to %s\n", postgresApp.Name, app.Name)
+	s.Stop()
 
 	return nil
 }
@@ -133,24 +145,19 @@ func runDetachPostgresCluster(ctx *cmdctx.CmdContext) error {
 	postgresAppName, _ := ctx.Config.GetString("postgres-app")
 	appName := ctx.AppName
 
+	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
+	s.Writer = os.Stderr
+	s.Prefix = "Detaching..."
+	s.Start()
+
 	err := ctx.Client.API().DetachPostgresCluster(postgresAppName, appName)
 
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Postgres cluster %s is now detached from %s\n", postgresAppName, appName)
+	s.FinalMSG = fmt.Sprintf("Postgres cluster %s is now detached from %s\n", postgresAppName, appName)
+	s.Stop()
 
 	return nil
 }
-
-// func runPostgresClusterAttach(ctx *cmdctx.CmdContext) error {
-// 	name, _ := ctx.Config.GetString("name")
-// 	if name == "" {
-// 		return errors.New("name is required")
-// 	}
-
-// 	fmt.Fprintf(ctx.Out, "Creating postgres cluster %s in organization %s, this will take a minute...\n", name, org.Slug)
-
-// 	return nil
-// }
