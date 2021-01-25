@@ -72,7 +72,6 @@ func newDeployCommand() *Command {
 }
 
 func runDeploy(commandContext *cmdctx.CmdContext) error {
-
 	interactive := isatty.IsTerminal(os.Stdout.Fd())
 
 	ctx := createCancellableContext()

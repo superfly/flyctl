@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -25,6 +27,7 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/net/context"
+	"golang.org/x/net/http/httpproxy"
 
 	controlapi "github.com/moby/buildkit/api/services/control"
 	buildkitClient "github.com/moby/buildkit/client"
@@ -61,6 +64,17 @@ func NewDockerClient() (*DockerClient, error) {
 
 	if err := client.FromEnv(cli); err != nil {
 		return nil, err
+	}
+
+	dockerHTTPProxy := os.Getenv("DOCKER_HTTP_PROXY")
+	if dockerHTTPProxy != "" {
+		t := cli.HTTPClient().Transport
+		if t, ok := t.(*http.Transport); ok {
+			cfg := &httpproxy.Config{HTTPProxy: dockerHTTPProxy}
+			t.Proxy = func(req *http.Request) (*url.URL, error) {
+				return cfg.ProxyFunc()(req.URL)
+			}
+		}
 	}
 
 	accessToken := flyctl.GetAPIToken()
