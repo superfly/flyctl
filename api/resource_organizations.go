@@ -50,26 +50,24 @@ func (client *Client) FindOrganizationBySlug(slug string) (*Organization, error)
 
 func (client *Client) GetCurrentOrganizations() (Organization, []Organization, error) {
 	query := `
-		query {
-			userOrganizations:currentUser {
-				personalOrganization {
-				  id
-				  slug
-				  name
-				  type
-				  viewerRole
-				}
-				organizations {
-				  nodes {
-					id
-					slug
-					name
-					type
-					viewerRole
-				  }
-				}
-			  }
+	query {
+		personalOrganization {
+		  id
+		  slug
+		  name
+		  type
+		  viewerRole
 		}
+		organizations {
+		  nodes {
+			id
+			slug
+			name
+			type
+			viewerRole
+		  }
+		}
+	  }
 	`
 
 	req := client.NewRequest(query)
@@ -78,8 +76,7 @@ func (client *Client) GetCurrentOrganizations() (Organization, []Organization, e
 	if err != nil {
 		return Organization{}, nil, err
 	}
-
-	return data.UserOrganizations.PersonalOrganization, data.UserOrganizations.Organizations.Nodes, nil
+	return data.PersonalOrganization, data.Organizations.Nodes, nil
 }
 
 func (client *Client) GetOrganizationBySlug(slug string) (*OrganizationDetails, error) {

@@ -9,6 +9,7 @@ require (
 	github.com/AlecAivazis/survey/v2 v2.0.7
 	github.com/BurntSushi/toml v0.3.1
 	github.com/Microsoft/hcsshim v0.8.9 // indirect
+	github.com/Microsoft/hcsshim/test v0.0.0-20210115191834-3d95010677b2 // indirect
 	github.com/PuerkitoBio/rehttp v1.0.0
 	github.com/apex/log v1.9.0 // indirect
 	github.com/aybabtme/iocontrol v0.0.0-20150809002002-ad15bcfc95a0 // indirect
@@ -18,7 +19,7 @@ require (
 	github.com/buildpacks/imgutil v0.0.0-20200520132953-ba4f77a60397 // indirect
 	github.com/buildpacks/lifecycle v0.7.5 // indirect
 	github.com/buildpacks/pack v0.10.0
-	github.com/containerd/console v1.0.0
+	github.com/containerd/console v1.0.1
 	github.com/docker/docker v1.4.2-0.20200227233006-38f52c9fec82
 	github.com/dustin/go-humanize v1.0.0
 	github.com/fatih/color v1.9.0 // indirect
@@ -46,14 +47,13 @@ require (
 	github.com/sirupsen/logrus v1.6.0 // indirect
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
 	github.com/spf13/cast v1.3.1 // indirect
-	github.com/spf13/cobra v1.0.0
+	github.com/spf13/cobra v1.1.1
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/viper v1.7.0
 	github.com/stretchr/testify v1.6.1
 	golang.org/x/crypto v0.0.0-20201124201722-c8d3bf9c5392
 	golang.org/x/net v0.0.0-20200822124328-c89045814202
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208 // indirect
-	golang.org/x/sys v0.0.0-20200523222454-059865788121 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/grpc v1.29.1 // indirect
 	google.golang.org/protobuf v1.24.0 // indirect
@@ -65,6 +65,8 @@ replace github.com/BurntSushi/toml => github.com/michaeldwan/toml v0.3.2-0.20191
 
 replace github.com/jaguilar/vt100 => github.com/tonistiigi/vt100 v0.0.0-20190402012908-ad4c4a574305
 
-replace github.com/containerd/containerd => github.com/containerd/containerd v1.3.1-0.20200227195959-4d242818bf55
+replace github.com/containerd/containerd => github.com/containerd/containerd v1.4.3
 
 replace github.com/docker/docker => github.com/docker/docker v1.4.2-0.20200227233006-38f52c9fec82
+
+replace golang.org/x/sys => golang.org/x/sys v0.0.0-20200826173525-f9321e4c35a6

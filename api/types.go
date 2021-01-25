@@ -11,17 +11,18 @@ type Query struct {
 	Apps struct {
 		Nodes []App
 	}
-	App             App
-	AppCompact      AppCompact
-	AppStatus       AppStatus
-	AppCertsCompact AppCertsCompact
-	CurrentUser     User
-	Organizations   struct {
+	App                  App
+	AppCompact           AppCompact
+	AppStatus            AppStatus
+	AppCertsCompact      AppCertsCompact
+	CurrentUser          User
+	PersonalOrganization Organization
+	Organizations        struct {
 		Nodes []Organization
 	}
 
-	Organization        *Organization
-	UserOrganizations   UserOrganizations
+	Organization *Organization
+	// PersonalOrganizations PersonalOrganizations
 	OrganizationDetails OrganizationDetails
 	Build               Build
 	Volume              Volume
@@ -34,6 +35,10 @@ type Query struct {
 		Regions []Region
 		VMSizes []VMSize
 	}
+
+	// aliases & nodes
+
+	TemplateDeploymentNode *TemplateDeployment
 
 	// hack to let us alias node to a type
 	// DNSZone *DNSZone
@@ -147,6 +152,23 @@ type Query struct {
 	RemoveWireGuardPeer struct {
 		Organization Organization
 	}
+
+	SetSlackHandler *struct {
+		Handler *HealthCheckHandler
+	}
+
+	SetPagerdutyHandler *struct {
+		Handler *HealthCheckHandler
+	}
+
+	CreatePostgresCluster *struct {
+		TemplateDeployment TemplateDeployment
+	}
+
+	AttachPostgresCluster *struct {
+		App                App
+		PostgresClusterApp App
+	}
 }
 
 // carries the privkey; this is the only time it can be retrieved
@@ -161,6 +183,7 @@ type Definition map[string]interface{}
 type App struct {
 	ID             string
 	Name           string
+	State          string
 	Status         string
 	Deployed       bool
 	Hostname       string
@@ -201,6 +224,9 @@ type App struct {
 		Nodes []Volume
 	}
 	TaskGroupCounts []TaskGroupCount
+	HealthChecks    *struct {
+		Nodes []CheckState
+	}
 }
 
 type TaskGroupCount struct {
@@ -307,6 +333,14 @@ type Organization struct {
 			Cursor *string
 			Node   *WireGuardPeer
 		}
+	}
+
+	HealthCheckHandlers *struct {
+		Nodes []HealthCheckHandler
+	}
+
+	HealthChecks *struct {
+		Nodes []HealthCheck
 	}
 }
 
@@ -487,13 +521,6 @@ type AppCertificate struct {
 	}
 }
 
-type UserOrganizations struct {
-	PersonalOrganization Organization
-	Organizations        struct {
-		Nodes []Organization
-	}
-}
-
 type CreateOrganizationPayload struct {
 	Organization Organization
 }
@@ -621,6 +648,9 @@ type CheckState struct {
 	Status      string
 	Output      string
 	ServiceName string
+	Allocation  *AllocationStatus
+	Type        string
+	UpdatedAt   time.Time
 }
 
 type Region struct {
@@ -786,4 +816,47 @@ type WireGuardPeer struct {
 	Region string
 	Name   string
 	Peerip string
+}
+
+type HealthCheck struct {
+	Entity      string
+	Name        string
+	Output      string
+	State       string
+	LastPassing time.Time
+}
+
+type HealthCheckHandler struct {
+	Name string
+	Type string
+}
+
+type SetSlackHandlerInput struct {
+	OrganizationID  string  `json:"organizationId"`
+	Name            string  `json:"name"`
+	SlackWebhookURL string  `json:"slackWebhookUrl"`
+	SlackChannel    *string `json:"slackChannel"`
+	SlackUsername   *string `json:"slackUsername"`
+	SlackIconURL    *string `json:"slackIconUrl"`
+}
+
+type SetPagerdutyHandlerInput struct {
+	OrganizationID string `json:"organizationId"`
+	Name           string `json:"name"`
+	PagerdutyToken string `json:"pagerdutyToken"`
+}
+
+type TemplateDeployment struct {
+	ID     string
+	Status string
+	Apps   *struct {
+		Nodes []App
+	}
+}
+
+type AttachPostgresClusterInput struct {
+	AppID                string  `json:"appId"`
+	PostgresClusterAppID string  `json:"postgresClusterAppId"`
+	DatabaseName         *string `json:"databaseName,omitempty"`
+	VariableName         *string `json:"variableName,omitempty"`
 }

@@ -187,6 +187,30 @@ as a parameter to locate the certificate.`,
 			`Shows certificate information for an application. 
 Takes hostname as a parameter to locate the certificate.`,
 		}
+	case "checks":
+		return KeyStrings{"checks", "Manage health checks",
+			`Manage health checks`,
+		}
+	case "checks.handlers":
+		return KeyStrings{"handlers", "Manage health check handlers",
+			`Manage health check handlers`,
+		}
+	case "checks.handlers.create":
+		return KeyStrings{"create", "Create a health check handler",
+			`Create a health check handler`,
+		}
+	case "checks.handlers.delete":
+		return KeyStrings{"delete <organization> <handler-name>", "Delete a health check handler",
+			`Delete a health check handler`,
+		}
+	case "checks.handlers.list":
+		return KeyStrings{"list", "List health check handlers",
+			`List health check handlers`,
+		}
+	case "checks.list":
+		return KeyStrings{"list", "List app health checks",
+			`List app health checks`,
+		}
 	case "config":
 		return KeyStrings{"config", "Manage an Apps configuration",
 			`The CONFIG commands allow you to work with an application's configuration.`,
@@ -452,6 +476,26 @@ about the Fly platform.`,
 		return KeyStrings{"vm-sizes", "List VM Sizes",
 			`View a list of VM sizes which can be used with the FLYCTL SCALE VM command`,
 		}
+	case "postgres":
+		return KeyStrings{"postgres", "Manage postgres clusters",
+			`Manage postgres clusters`,
+		}
+	case "postgres.attach":
+		return KeyStrings{"attach", "Attach a postgres cluster to an app",
+			`Attach a postgres cluster to an app`,
+		}
+	case "postgres.create":
+		return KeyStrings{"create", "Create a postgres cluster",
+			`Create a postgres cluster`,
+		}
+	case "postgres.detach":
+		return KeyStrings{"detach", "Detach a postgres cluster from an app",
+			`Detach a postgres cluster from an app`,
+		}
+	case "postgres.list":
+		return KeyStrings{"list", "list postgres clusters",
+			`list postgres clusters`,
+		}
 	case "regions":
 		return KeyStrings{"regions", "Manage regions",
 			`Configure the region placement rules for an application.`,
@@ -501,6 +545,10 @@ the number of configured instances.`,
 			`Change an App's VM count to the given value. 
 
 For pricing, see https://fly.io/docs/about/pricing/`,
+		}
+	case "scale.memory":
+		return KeyStrings{"memory <memoryMB>", "Set VM memory",
+			`Set VM memory to a number of megabytes`,
 		}
 	case "scale.show":
 		return KeyStrings{"show", "Show current resources",

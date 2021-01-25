@@ -108,6 +108,7 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 	}
 	delete(data, "app")
 	if buildConfig, ok := (data["build"]).(map[string]interface{}); ok {
+		insection := false
 		b := Build{
 			Args:       map[string]string{},
 			Settings:   map[string]interface{}{},
@@ -117,30 +118,38 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 			switch k {
 			case "builder":
 				b.Builder = fmt.Sprint(v)
+				insection = true
 			case "buildpacks":
 				if bpSlice, ok := v.([]interface{}); ok {
 					for _, argV := range bpSlice {
 						b.Buildpacks = append(b.Buildpacks, fmt.Sprint(argV))
 					}
 				}
+				insection = true
 			case "args":
 				if argMap, ok := v.(map[string]interface{}); ok {
 					for argK, argV := range argMap {
 						b.Args[argK] = fmt.Sprint(argV)
 					}
 				}
+				insection = true
 			case "builtin":
 				b.Builtin = fmt.Sprint(v)
+				insection = true
 			case "settings":
 				if settingsMap, ok := v.(map[string]interface{}); ok {
 					for settingK, settingV := range settingsMap {
 						b.Settings[settingK] = settingV //fmt.Sprint(argV)
 					}
 				}
+				insection = true
 			case "image":
 				b.Image = fmt.Sprint(v)
+				insection = true
 			default:
-				b.Args[k] = fmt.Sprint(v)
+				if !insection {
+					b.Args[k] = fmt.Sprint(v)
+				}
 			}
 		}
 		if b.Builder != "" || b.Builtin != "" || b.Image != "" || len(b.Args) > 0 {

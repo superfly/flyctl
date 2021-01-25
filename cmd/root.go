@@ -104,6 +104,8 @@ func init() {
 		newBuiltinsCommand(),
 		newVolumesCommand(),
 		newWireGuardCommand(),
+		newChecksCommand(),
+		newPostgresCommand(),
 	)
 
 	initConfig()

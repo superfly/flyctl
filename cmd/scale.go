@@ -28,6 +28,10 @@ func newScaleCommand() *Command {
 		Default:     0,
 	})
 
+	memoryCmdStrings := docstrings.Get("scale.memory")
+	memoryCmd := BuildCommandKS(cmd, runScaleMemory, memoryCmdStrings, os.Stdout, requireSession, requireAppName)
+	memoryCmd.Args = cobra.ExactArgs(1)
+
 	countCmdStrings := docstrings.Get("scale.count")
 	countCmd := BuildCommand(cmd, runScaleCount, countCmdStrings.Usage, countCmdStrings.Short, countCmdStrings.Long, os.Stdout, requireSession, requireAppName)
 	countCmd.Args = cobra.ExactArgs(1)
@@ -48,7 +52,7 @@ func runScaleVM(commandContext *cmdctx.CmdContext) error {
 		return err
 	}
 
-	fmt.Println("Scaled VM size to", size.Name)
+	fmt.Println("Scaled VM Type to", size.Name)
 	fmt.Printf("%15s: %s\n", "CPU Cores", formatCores(size))
 	fmt.Printf("%15s: %s\n", "Memory", formatMemory(size))
 	return nil
@@ -123,6 +127,30 @@ func printVMResources(commandContext *cmdctx.CmdContext, vmSize api.VMSize, coun
 	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Size", vmSize.Name)
 	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Memory", formatMemory(vmSize))
 	fmt.Fprintf(commandContext.Out, "%15s: %d\n", "Count", count)
+}
+
+func runScaleMemory(commandContext *cmdctx.CmdContext) error {
+	memoryMB, err := strconv.ParseInt(commandContext.Args[0], 10, 64)
+	if err != nil {
+		return err
+	}
+
+	// API doesn't allow memory setting on own yet, so get get the current size for the mutation
+	currentsize, _, err := commandContext.Client.API().AppVMResources(commandContext.AppName)
+	if err != nil {
+		return err
+	}
+
+	size, err := commandContext.Client.API().SetAppVMSize(commandContext.AppName, currentsize.Name, memoryMB)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Scaled VM Memory size to", formatMemory(size))
+	fmt.Printf("%15s: %s\n", "CPU Cores", formatCores(size))
+	fmt.Printf("%15s: %s\n", "Memory", formatMemory(size))
+
+	return nil
 }
 
 // TODO: Move these funcs (also in presenters.VMSizes into presentation package)

@@ -81,7 +81,7 @@ func runListApps(commandContext *cmdctx.CmdContext) error {
 
 	exact := commandContext.Config.GetBool("exact")
 
-	apps, err := commandContext.Client.API().GetApps()
+	apps, err := commandContext.Client.API().GetApps(nil)
 	if err != nil {
 		return err
 	}

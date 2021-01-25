@@ -241,6 +241,32 @@ Takes hostname as a parameter to locate the certificate.
 Displays results in the same format as the SHOW command.
 """
 
+[checks]
+usage     = "checks"
+shortHelp = "Manage health checks"
+longHelp  = "Manage health checks"
+    [checks.handlers]
+    usage     = "handlers"
+    shortHelp = "Manage health check handlers"
+    longHelp  = "Manage health check handlers"
+        [checks.handlers.create]
+        usage     = "create"
+        shortHelp = "Create a health check handler"
+        longHelp  = "Create a health check handler"
+        [checks.handlers.delete]
+        usage     = "delete <organization> <handler-name>"
+        shortHelp = "Delete a health check handler"
+        longHelp  = "Delete a health check handler"
+        [checks.handlers.list]
+        usage     = "list"
+        shortHelp = "List health check handlers"
+        longHelp  = "List health check handlers"
+    [checks.list]
+    usage     = "list"
+    shortHelp = "List app health checks"
+    longHelp  = "List app health checks"
+
+
 [curl]
 usage     = "curl <url>"
 shortHelp = "Run a performance test against a url"
@@ -466,6 +492,28 @@ about the Fly platform.
     longHelp  = """Show current Fly platform status in a browser
 """
 
+[postgres]
+usage     = "postgres"
+shortHelp = "Manage postgres clusters"
+longHelp  = "Manage postgres clusters"
+    [postgres.attach]
+    usage     = "attach"
+    shortHelp = "Attach a postgres cluster to an app"
+    longHelp  = "Attach a postgres cluster to an app"
+    [postgres.detach]
+    usage     = "detach"
+    shortHelp = "Detach a postgres cluster from an app"
+    longHelp  = "Detach a postgres cluster from an app"
+    [postgres.list]
+    usage     = "list"
+    shortHelp = "list postgres clusters"
+    longHelp  = "list postgres clusters"
+    [postgres.create]
+    usage     = "create"
+    shortHelp = "Create a postgres cluster"
+    longHelp  = "Create a postgres cluster"
+
+
 [regions]
 usage     = "regions"
 shortHelp = "Manage regions"
@@ -587,6 +635,12 @@ For pricing, see https://fly.io/docs/about/pricing/
     longHelp  = """Change an App's VM count to the given value. 
 
 For pricing, see https://fly.io/docs/about/pricing/
+"""
+
+    [scale.memory]
+    usage     = "memory <memoryMB>"
+    shortHelp = "Set VM memory"
+    longHelp  = """Set VM memory to a number of megabytes
 """
 
     [scale.show]
