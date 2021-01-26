@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -36,11 +37,11 @@ func newOrgsCommand() *Command {
 
 	orgsCreateStrings := docstrings.Get("orgs.create")
 	orgsCreateCommand := BuildCommandKS(orgscmd, runOrgsCreate, orgsCreateStrings, os.Stdout, requireSession)
-	orgsCreateCommand.Args = cobra.MaximumNArgs(1)
+	orgsCreateCommand.Args = cobra.RangeArgs(0, 1)
 
 	orgsDeleteStrings := docstrings.Get("orgs.delete")
 	orgsDeleteCommand := BuildCommandKS(orgscmd, runOrgsDelete, orgsDeleteStrings, os.Stdout, requireSession)
-	orgsDeleteCommand.Args = cobra.MaximumNArgs(1)
+	orgsDeleteCommand.Args = cobra.ExactArgs(1)
 
 	return orgscmd
 }
@@ -135,7 +136,20 @@ func runOrgsInvite(ctx *cmdctx.CmdContext) error {
 func runOrgsCreate(ctx *cmdctx.CmdContext) error {
 	asJSON := ctx.OutputJSON()
 
-	orgname := ctx.Args[0]
+	orgname := ""
+
+	if len(ctx.Args) == 0 {
+		prompt := &survey.Input{
+			Message: "Enter Organization Name:",
+		}
+		if err := survey.AskOne(prompt, &orgname); err != nil {
+			if isInterrupt(err) {
+				return nil
+			}
+		}
+	} else {
+		orgname = ctx.Args[0]
+	}
 
 	organization, err := ctx.Client.API().CreateOrganization(orgname)
 	if err != nil {
