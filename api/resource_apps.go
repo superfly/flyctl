@@ -66,6 +66,7 @@ func (client *Client) GetApp(appName string) (*App, error) {
 				version
 				appUrl
 				organization {
+					id
 					slug
 				}
 				services {
