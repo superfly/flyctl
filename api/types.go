@@ -60,6 +60,11 @@ type Query struct {
 		Release Release
 	}
 
+	EnsureRemoteBuilder struct {
+		URL     string
+		Release Release
+	}
+
 	CreateSignedUrl SignedUrls
 
 	StartBuild struct {
@@ -859,4 +864,8 @@ type AttachPostgresClusterInput struct {
 	PostgresClusterAppID string  `json:"postgresClusterAppId"`
 	DatabaseName         *string `json:"databaseName,omitempty"`
 	VariableName         *string `json:"variableName,omitempty"`
+}
+
+type EnsureRemoteBuilderInput struct {
+	AppName string `json:"appName"`
 }

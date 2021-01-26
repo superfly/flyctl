@@ -56,8 +56,11 @@ func (c *DockerClient) Client() *client.Client {
 	return c.docker
 }
 
-func NewDockerClient() (*DockerClient, error) {
-	cli, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
+var defaultOpts []client.Opt = []client.Opt{client.WithAPIVersionNegotiation()}
+
+func newDockerClient(ops ...client.Opt) (*client.Client, error) {
+	ops = append(defaultOpts, ops...)
+	cli, err := client.NewClientWithOpts(ops...)
 	if err != nil {
 		return nil, err
 	}
@@ -75,6 +78,15 @@ func NewDockerClient() (*DockerClient, error) {
 				return cfg.ProxyFunc()(req.URL)
 			}
 		}
+	}
+
+	return cli, nil
+}
+
+func NewDockerClient() (*DockerClient, error) {
+	cli, err := newDockerClient()
+	if err != nil {
+		return nil, err
 	}
 
 	accessToken := flyctl.GetAPIToken()

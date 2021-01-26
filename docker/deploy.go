@@ -4,14 +4,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
 	"strings"
+	"time"
 
+	"github.com/docker/docker/client"
 	"github.com/dustin/go-humanize"
+	"github.com/jpillora/backoff"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/net/context"
+	"golang.org/x/net/http/httpproxy"
 )
 
 type DeployOperation struct {
@@ -27,37 +33,133 @@ type DeployOperation struct {
 	localOnly       bool
 }
 
-func NewDeployOperation(ctx context.Context, cmdContext *cmdctx.CmdContext) (*DeployOperation, error) {
+func setRemoteBuilder(ctx context.Context, cmdCtx *cmdctx.CmdContext, dockerClient *DockerClient) error {
+	rawURL, release, err := cmdCtx.Client.API().EnsureRemoteBuilder(cmdCtx.AppName)
+	if err != nil {
+		return fmt.Errorf("could not create remote builder: %v", err)
+	}
+
+	terminal.Debugf("Remote Docker builder URL: %s\n", rawURL)
+	terminal.Debugf("Remote Docker builder release: %+v\n", release)
+
+	dockerClient.docker, err = newDockerClient(client.WithHost(fmt.Sprintf("tcp://%s", cmdCtx.AppName)))
+	if err != nil {
+		return fmt.Errorf("error resetting docker client to use remote builder config: %v", err)
+	}
+
+	dockerTransport, ok := dockerClient.docker.HTTPClient().Transport.(*http.Transport)
+	if !ok {
+		return fmt.Errorf("Docker client transport was not an HTTP transport, don't know what to do with that")
+	}
+	builderURL, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("Could not parse builder url '%s': %v", rawURL, err)
+	}
+
+	builderURL.User = url.UserPassword(cmdCtx.AppName, flyctl.GetAPIToken())
+
+	proxyCfg := &httpproxy.Config{HTTPProxy: builderURL.String()}
+	dockerTransport.Proxy = func(req *http.Request) (*url.URL, error) {
+		return proxyCfg.ProxyFunc()(req.URL)
+	}
+
+	deadline := time.After(5 * time.Minute)
+
+	terminal.Info("Waiting for remote builder to become available...")
+
+	b := &backoff.Backoff{
+		//These are the defaults
+		Min:    250 * time.Millisecond,
+		Max:    5 * time.Second,
+		Factor: 1.5,
+		Jitter: true,
+	}
+
+	noErrsInARow := 0
+
+OUTER:
+	for {
+		checkErr := make(chan error, 1)
+
+		go func() {
+			checkErr <- dockerClient.Check(ctx)
+		}()
+
+		select {
+		case err := <-checkErr:
+			if err == nil {
+				noErrsInARow++
+				if noErrsInARow >= 3 {
+					terminal.Info("Remote builder is ready to build!")
+					break OUTER
+				}
+				b.Reset()
+				dur := b.Duration()
+				terminal.Debugf("Remote builder available, but pinging again in %s to be sure\n", dur)
+				time.Sleep(dur)
+			} else {
+				noErrsInARow = 0
+				dur := b.Duration()
+				terminal.Debugf("Remote builder unavailable, retrying in %s (err: %v)\n", dur, err)
+				time.Sleep(dur)
+			}
+		case <-deadline:
+			return fmt.Errorf("Could not ping remote builder within 5 minutes, aborting.")
+		case <-ctx.Done():
+			terminal.Warn("Canceled")
+			break OUTER
+		}
+	}
+
+	return nil
+}
+
+func NewDeployOperation(ctx context.Context, cmdCtx *cmdctx.CmdContext) (*DeployOperation, error) {
+	remoteOnly := cmdCtx.Config.GetBool("remote-only")
+	localOnly := cmdCtx.Config.GetBool("local-only")
+
+	if localOnly && remoteOnly {
+		return nil, fmt.Errorf("Both --local-only and --remote-only are set - select only one")
+	}
+
+	imageLabel, _ := cmdCtx.Config.GetString("image-label")
+
 	dockerClient, err := NewDockerClient()
 	if err != nil {
 		return nil, err
 	}
 
-	remoteOnly := cmdContext.Config.GetBool("remote-only")
-	localOnly := cmdContext.Config.GetBool("local-only")
-
-	imageLabel, _ := cmdContext.Config.GetString("image-label")
-
 	op := &DeployOperation{
 		ctx:          ctx,
 		dockerClient: dockerClient,
-		apiClient:    cmdContext.Client.API(),
-		out:          cmdContext.Out,
-		appName:      cmdContext.AppName,
-		appConfig:    cmdContext.AppConfig,
-		imageTag:     newDeploymentTag(cmdContext.AppName, imageLabel),
+		apiClient:    cmdCtx.Client.API(),
+		out:          cmdCtx.Out,
+		appName:      cmdCtx.AppName,
+		appConfig:    cmdCtx.AppConfig,
+		imageTag:     newDeploymentTag(cmdCtx.AppName, imageLabel),
 		localOnly:    localOnly,
 		remoteOnly:   remoteOnly,
+	}
+
+	if remoteOnly {
+		terminal.Info("Remote only, hooking you up with a remote Docker builder...")
+		if err := setRemoteBuilder(ctx, cmdCtx, dockerClient); err != nil {
+			return nil, err
+		}
+	} else if err := op.dockerClient.Check(ctx); err != nil {
+		if localOnly {
+			return nil, fmt.Errorf("Local docker unavailable and --local-only was passed, cannot proceed.")
+		}
+		terminal.Info("Local docker unavailable, hooking you up with a remote Docker builder...")
+		if err := setRemoteBuilder(ctx, cmdCtx, dockerClient); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := op.dockerClient.Check(ctx); err == nil {
 		op.dockerAvailable = true
 	} else {
 		terminal.Debugf("Error pinging docker: %s\n", err)
-	}
-
-	if localOnly && remoteOnly {
-		return nil, fmt.Errorf("Both --local-only and --remote-only are set - select only one")
 	}
 
 	return op, nil
@@ -123,8 +225,8 @@ func (op *DeployOperation) ValidateConfig() (*api.AppConfig, error) {
 	return parsedConfig, nil
 }
 
-func (op *DeployOperation) ResolveImageLocally(ctx context.Context, commandContext *cmdctx.CmdContext, imageRef string) (*Image, error) {
-	commandContext.Status("deploy", "Resolving image")
+func (op *DeployOperation) ResolveImageLocally(ctx context.Context, cmdCtx *cmdctx.CmdContext, imageRef string) (*Image, error) {
+	cmdCtx.Status("deploy", "Resolving image")
 
 	if !op.DockerAvailable() || op.RemoteOnly() {
 		return nil, nil
@@ -139,16 +241,16 @@ func (op *DeployOperation) ResolveImageLocally(ctx context.Context, commandConte
 		return nil, nil
 	}
 
-	commandContext.Statusf("deploy", cmdctx.SINFO, "Image ID: %+v\n", imgSummary.ID)
-	commandContext.Statusf("deploy", cmdctx.SINFO, "Image size: %s\n", humanize.Bytes(uint64(imgSummary.Size)))
+	cmdCtx.Statusf("deploy", cmdctx.SINFO, "Image ID: %+v\n", imgSummary.ID)
+	cmdCtx.Statusf("deploy", cmdctx.SINFO, "Image size: %s\n", humanize.Bytes(uint64(imgSummary.Size)))
 
-	commandContext.Status("deploy", cmdctx.SDONE, "Image resolving done")
+	cmdCtx.Status("deploy", cmdctx.SDONE, "Image resolving done")
 
-	commandContext.Status("deploy", cmdctx.SBEGIN, "Creating deployment tag")
+	cmdCtx.Status("deploy", cmdctx.SBEGIN, "Creating deployment tag")
 	if err := op.dockerClient.TagImage(op.ctx, imgSummary.ID, op.imageTag); err != nil {
 		return nil, err
 	}
-	commandContext.Status("deploy", cmdctx.SINFO, "-->", op.imageTag)
+	cmdCtx.Status("deploy", cmdctx.SINFO, "-->", op.imageTag)
 
 	image := &Image{
 		ID:   imgSummary.ID,

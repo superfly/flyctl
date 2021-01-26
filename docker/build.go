@@ -53,10 +53,10 @@ type Image struct {
 }
 
 // BuildWithDocker - Run a Docker Build operation reporting back via the command context
-func (op *DeployOperation) BuildWithDocker(commandContext *cmdctx.CmdContext, dockerfilePath string, buildArgs map[string]string) (*Image, error) {
-	spinning := commandContext.OutputJSON()
-	cwd := commandContext.WorkingDir
-	appConfig := commandContext.AppConfig
+func (op *DeployOperation) BuildWithDocker(cmdCtx *cmdctx.CmdContext, dockerfilePath string, buildArgs map[string]string) (*Image, error) {
+	spinning := cmdCtx.OutputJSON()
+	cwd := cmdCtx.WorkingDir
+	appConfig := cmdCtx.AppConfig
 
 	if !op.DockerAvailable() {
 		return nil, ErrDockerDaemon
@@ -71,9 +71,9 @@ func (op *DeployOperation) BuildWithDocker(commandContext *cmdctx.CmdContext, do
 	}
 
 	if appConfig.HasBuiltin() {
-		commandContext.Statusf("build", cmdctx.SDETAIL, "Using Builtin Builder: %s\n", appConfig.Build.Builtin)
+		cmdCtx.Statusf("build", cmdctx.SDETAIL, "Using Builtin Builder: %s\n", appConfig.Build.Builtin)
 	} else {
-		commandContext.Statusf("build", cmdctx.SDETAIL, "Using Dockerfile Builder: %s\n", dockerfilePath)
+		cmdCtx.Statusf("build", cmdctx.SDETAIL, "Using Dockerfile Builder: %s\n", dockerfilePath)
 	}
 
 	buildContext, err := newBuildContext()
@@ -110,7 +110,7 @@ func (op *DeployOperation) BuildWithDocker(commandContext *cmdctx.CmdContext, do
 		}
 	} else {
 		// We're doing a builtin!
-		builtin, err := builtinsupport.GetBuiltin(commandContext, appConfig.Build.Builtin)
+		builtin, err := builtinsupport.GetBuiltin(cmdCtx, appConfig.Build.Builtin)
 		if err != nil {
 			return nil, err
 		}
@@ -160,9 +160,9 @@ func initPackClient() pack.Client {
 }
 
 // BuildWithPack - Perform a Docker build using a Buildpack (buildpack.io)
-func (op *DeployOperation) BuildWithPack(commandContext *cmdctx.CmdContext, buildArgs map[string]string) (*Image, error) {
-	cwd := commandContext.WorkingDir
-	appConfig := commandContext.AppConfig
+func (op *DeployOperation) BuildWithPack(cmdCtx *cmdctx.CmdContext, buildArgs map[string]string) (*Image, error) {
+	cwd := cmdCtx.WorkingDir
+	appConfig := cmdCtx.AppConfig
 
 	if !op.DockerAvailable() {
 		return nil, ErrDockerDaemon
@@ -195,7 +195,7 @@ func (op *DeployOperation) BuildWithPack(commandContext *cmdctx.CmdContext, buil
 		return nil, err
 	}
 
-	commandContext.Status("build", cmdctx.SINFO, "Image built", op.imageTag)
+	cmdCtx.Status("build", cmdctx.SINFO, "Image built", op.imageTag)
 
 	img, err := op.dockerClient.findImage(op.ctx, op.imageTag)
 	if err != nil {
