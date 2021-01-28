@@ -120,11 +120,16 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		imageRef = cmdCtx.AppConfig.Build.Image
 	}
 
+	buildOp, err := docker.NewBuildOperation(ctx, cmdCtx)
+	if err != nil {
+		return err
+	}
+
 	if imageRef != "" {
 		// image specified, resolve it, tagging and pushing if docker+local
 		cmdCtx.Statusf("deploy", cmdctx.SINFO, "Deploying image: %s\n", imageRef)
 
-		img, err := op.ResolveImageLocally(ctx, cmdCtx, imageRef)
+		img, err := buildOp.ResolveImageLocally(ctx, cmdCtx, imageRef)
 		if err != nil {
 			return err
 		}
@@ -177,7 +182,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 
 		if cmdCtx.AppConfig.HasBuilder() {
 			cmdCtx.Status("deploy", cmdctx.SBEGIN, "Building with buildpacks")
-			img, err := op.BuildWithPack(cmdCtx, buildArgs)
+			img, err := buildOp.BuildWithPack(cmdCtx, buildArgs)
 			if err != nil {
 				return err
 			}
@@ -186,7 +191,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		} else if cmdCtx.AppConfig.HasBuiltin() {
 			cmdCtx.Status("deploy", cmdctx.SBEGIN, "Building with Builtin")
 
-			img, err := op.BuildWithDocker(cmdCtx, dockerfilePath, buildArgs)
+			img, err := buildOp.BuildWithDocker(cmdCtx, dockerfilePath, buildArgs)
 			if err != nil {
 				return err
 			}
@@ -195,7 +200,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		} else {
 			cmdCtx.Status("deploy", cmdctx.SBEGIN, "Building with Dockerfile")
 
-			img, err := op.BuildWithDocker(cmdCtx, dockerfilePath, buildArgs)
+			img, err := buildOp.BuildWithDocker(cmdCtx, dockerfilePath, buildArgs)
 			if err != nil {
 				return err
 			}
@@ -206,7 +211,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		cmdCtx.Statusf("deploy", cmdctx.SINFO, "Image size: %s\n", humanize.Bytes(uint64(image.Size)))
 
 		cmdCtx.Status("deploy", cmdctx.SBEGIN, "Pushing Image")
-		err := op.PushImage(*image)
+		err := buildOp.PushImage(*image)
 		if err != nil {
 			return err
 		}
@@ -234,7 +239,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	op.CleanDeploymentTags()
+	buildOp.CleanDeploymentTags()
 
 	cmdCtx.Statusf("deploy", cmdctx.SINFO, "Release v%d created\n", release.Version)
 
