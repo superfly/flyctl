@@ -30,6 +30,7 @@ require (
 	github.com/google/go-containerregistry v0.0.0-20200521151920-a873a21aff23 // indirect
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/inancgumus/screen v0.0.0-20190314163918-06e984b86ed3
+	github.com/jpillora/backoff v0.0.0-20180909062703-3050d21c67d7
 	github.com/logrusorgru/aurora v0.0.0-20200102142835-e9ef32dff381
 	github.com/machinebox/graphql v0.2.3-0.20181106130121-3a9253180225
 	github.com/matryer/is v1.3.0 // indirect

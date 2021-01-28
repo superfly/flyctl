@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -25,6 +27,7 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/net/context"
+	"golang.org/x/net/http/httpproxy"
 
 	controlapi "github.com/moby/buildkit/api/services/control"
 	buildkitClient "github.com/moby/buildkit/client"
@@ -53,13 +56,36 @@ func (c *DockerClient) Client() *client.Client {
 	return c.docker
 }
 
-func NewDockerClient() (*DockerClient, error) {
-	cli, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
+var defaultOpts []client.Opt = []client.Opt{client.WithAPIVersionNegotiation()}
+
+func newDockerClient(ops ...client.Opt) (*client.Client, error) {
+	ops = append(defaultOpts, ops...)
+	cli, err := client.NewClientWithOpts(ops...)
 	if err != nil {
 		return nil, err
 	}
 
 	if err := client.FromEnv(cli); err != nil {
+		return nil, err
+	}
+
+	dockerHTTPProxy := os.Getenv("DOCKER_HTTP_PROXY")
+	if dockerHTTPProxy != "" {
+		t := cli.HTTPClient().Transport
+		if t, ok := t.(*http.Transport); ok {
+			cfg := &httpproxy.Config{HTTPProxy: dockerHTTPProxy}
+			t.Proxy = func(req *http.Request) (*url.URL, error) {
+				return cfg.ProxyFunc()(req.URL)
+			}
+		}
+	}
+
+	return cli, nil
+}
+
+func NewDockerClient() (*DockerClient, error) {
+	cli, err := newDockerClient()
+	if err != nil {
 		return nil, err
 	}
 

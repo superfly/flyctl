@@ -3,61 +3,27 @@ package docker
 import (
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 
-	"github.com/dustin/go-humanize"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/net/context"
 )
 
 type DeployOperation struct {
-	ctx             context.Context
-	dockerClient    *DockerClient
-	apiClient       *api.Client
-	dockerAvailable bool
-	out             io.Writer
-	appName         string
-	appConfig       *flyctl.AppConfig
-	imageTag        string
-	remoteOnly      bool
-	localOnly       bool
+	ctx       context.Context
+	apiClient *api.Client
+	appName   string
+	appConfig *flyctl.AppConfig
 }
 
-func NewDeployOperation(ctx context.Context, cmdContext *cmdctx.CmdContext) (*DeployOperation, error) {
-	dockerClient, err := NewDockerClient()
-	if err != nil {
-		return nil, err
-	}
-
-	remoteOnly := cmdContext.Config.GetBool("remote-only")
-	localOnly := cmdContext.Config.GetBool("local-only")
-
-	imageLabel, _ := cmdContext.Config.GetString("image-label")
-
+func NewDeployOperation(ctx context.Context, cmdCtx *cmdctx.CmdContext) (*DeployOperation, error) {
 	op := &DeployOperation{
-		ctx:          ctx,
-		dockerClient: dockerClient,
-		apiClient:    cmdContext.Client.API(),
-		out:          cmdContext.Out,
-		appName:      cmdContext.AppName,
-		appConfig:    cmdContext.AppConfig,
-		imageTag:     newDeploymentTag(cmdContext.AppName, imageLabel),
-		localOnly:    localOnly,
-		remoteOnly:   remoteOnly,
-	}
-
-	if err := op.dockerClient.Check(ctx); err == nil {
-		op.dockerAvailable = true
-	} else {
-		terminal.Debugf("Error pinging docker: %s\n", err)
-	}
-
-	if localOnly && remoteOnly {
-		return nil, fmt.Errorf("Both --local-only and --remote-only are set - select only one")
+		ctx:       ctx,
+		apiClient: cmdCtx.Client.API(),
+		appName:   cmdCtx.AppName,
+		appConfig: cmdCtx.AppConfig,
 	}
 
 	return op, nil
@@ -68,18 +34,6 @@ func (op *DeployOperation) AppName() string {
 		return op.appName
 	}
 	return op.appConfig.AppName
-}
-
-func (op *DeployOperation) DockerAvailable() bool {
-	return op.dockerAvailable
-}
-
-func (op *DeployOperation) LocalOnly() bool {
-	return op.localOnly
-}
-
-func (op *DeployOperation) RemoteOnly() bool {
-	return op.remoteOnly
 }
 
 type DeploymentStrategy string
@@ -123,61 +77,6 @@ func (op *DeployOperation) ValidateConfig() (*api.AppConfig, error) {
 	return parsedConfig, nil
 }
 
-func (op *DeployOperation) ResolveImageLocally(ctx context.Context, commandContext *cmdctx.CmdContext, imageRef string) (*Image, error) {
-	commandContext.Status("deploy", "Resolving image")
-
-	if !op.DockerAvailable() || op.RemoteOnly() {
-		return nil, nil
-	}
-
-	imgSummary, err := op.dockerClient.findImage(ctx, imageRef)
-	if err != nil {
-		return nil, err
-	}
-
-	if imgSummary == nil {
-		return nil, nil
-	}
-
-	commandContext.Statusf("deploy", cmdctx.SINFO, "Image ID: %+v\n", imgSummary.ID)
-	commandContext.Statusf("deploy", cmdctx.SINFO, "Image size: %s\n", humanize.Bytes(uint64(imgSummary.Size)))
-
-	commandContext.Status("deploy", cmdctx.SDONE, "Image resolving done")
-
-	commandContext.Status("deploy", cmdctx.SBEGIN, "Creating deployment tag")
-	if err := op.dockerClient.TagImage(op.ctx, imgSummary.ID, op.imageTag); err != nil {
-		return nil, err
-	}
-	commandContext.Status("deploy", cmdctx.SINFO, "-->", op.imageTag)
-
-	image := &Image{
-		ID:   imgSummary.ID,
-		Size: imgSummary.Size,
-		Tag:  op.imageTag,
-	}
-
-	err = op.PushImage(*image)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return image, nil
-}
-
-func (op *DeployOperation) pushImage(imageTag string) error {
-
-	if imageTag == "" {
-		return errors.New("invalid image reference")
-	}
-
-	if err := op.dockerClient.PushImage(op.ctx, imageTag, op.out); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (op *DeployOperation) Deploy(imageRef string, strategy DeploymentStrategy) (*api.Release, error) {
 	return op.deployImage(imageRef, strategy)
 }
@@ -198,14 +97,4 @@ func (op *DeployOperation) deployImage(imageTag string, strategy DeploymentStrat
 		return nil, err
 	}
 	return release, err
-}
-
-func (op *DeployOperation) CleanDeploymentTags() {
-	if !op.dockerAvailable {
-		return
-	}
-	err := op.dockerClient.DeleteDeploymentImages(op.ctx, op.imageTag)
-	if err != nil {
-		terminal.Debugf("Error cleaning deployment tags: %s", err)
-	}
 }
