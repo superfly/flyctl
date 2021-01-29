@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -22,7 +21,6 @@ func newPostgresCommand() *Command {
 	domainsStrings := docstrings.Get("postgres")
 	cmd := BuildCommandKS(nil, nil, domainsStrings, os.Stdout, requireSession)
 	cmd.Aliases = []string{"pg"}
-	cmd.Hidden = true
 
 	listStrings := docstrings.Get("postgres.list")
 	listCmd := BuildCommandKS(cmd, runPostgresList, listStrings, os.Stdout, requireSession)
@@ -34,6 +32,8 @@ func newPostgresCommand() *Command {
 	createCmd.AddStringFlag(StringFlagOpts{Name: "name", Description: "the name of the new app"})
 	createCmd.AddStringFlag(StringFlagOpts{Name: "region", Description: "the region to launch the new app in"})
 	createCmd.AddStringFlag(StringFlagOpts{Name: "password", Description: "the superuser password. one will be generated for you if you leave this blank"})
+	createCmd.AddStringFlag(StringFlagOpts{Name: "volume-size", Description: "the size in GB for volumes"})
+	createCmd.AddStringFlag(StringFlagOpts{Name: "vm-size", Description: "the size of the VM"})
 
 	attachStrngs := docstrings.Get("postgres.attach")
 	attachCmd := BuildCommandKS(cmd, runAttachPostgresCluster, attachStrngs, os.Stdout, requireSession, requireAppName)
@@ -79,16 +79,15 @@ func runPostgresList(ctx *cmdctx.CmdContext) error {
 func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
 	name, _ := ctx.Config.GetString("name")
 	if name == "" {
-		return errors.New("name is required")
+		n, err := inputAppName("")
+		if err != nil {
+			return err
+		}
+		name = n
 	}
 
 	orgSlug, _ := ctx.Config.GetString("organization")
 	org, err := selectOrganization(ctx.Client.API(), orgSlug)
-	if err != nil {
-		return err
-	}
-
-	volumeSize, err := volumeSizeInput(ctx.Client.API(), 10)
 	if err != nil {
 		return err
 	}
@@ -103,6 +102,15 @@ func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
 	vmSize, err := selectVMSize(ctx.Client.API(), vmSizeName)
 	if err != nil {
 		return err
+	}
+
+	volumeSize := ctx.Config.GetInt("volume-size")
+	if volumeSize == 0 {
+		s, err := volumeSizeInput(ctx.Client.API(), 10)
+		if err != nil {
+			return err
+		}
+		volumeSize = s
 	}
 
 	input := api.CreatePostgresClusterInput{
