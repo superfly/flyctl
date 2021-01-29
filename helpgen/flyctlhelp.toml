@@ -850,6 +850,30 @@ number to operate. This can be found through the volumes list command"""
     longHelp  = """Show details of an app's volume. Requires the volume's ID
 number to operate. This can be found through the volumes list command"""
 
+[ssh]
+usage     = "ssh <command>"
+shortHelp = "Commands that manage SSH credentials"
+longHelp  = """Commands that manage SSH credentials"""
+
+  [ssh.log]
+  usage     = "log"
+  shortHelp = "Log of all issued certs"
+  longHelp  = """log of all issued certs"""
+
+  [ssh.establish]
+  usage     = "establish [<org>] [<override>]"
+  shortHelp = "Create a root SSH certificate for your organization"
+  longHelp  = """Create a root SSH certificate for your organization. If <override>
+is provided, will re-key an organization; all previously issued creds will be
+invalidated."""
+
+  [ssh.issue]
+  usage     = "issue [org] [email] [path]"
+  shortHelp = "Issue a new SSH credential."
+  longHelp  = """Issue a new SSH credential. With -agent, populate credential 
+into SSH agent. With -hour, set the number of hours (1-72) for credential
+validity."""
+  
 [wireguard]
 usage     = "wireguard <command>"
 shortHelp = "Commands that manage WireGuard peer connections"

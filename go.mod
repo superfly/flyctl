@@ -22,6 +22,7 @@ require (
 	github.com/containerd/console v1.0.1
 	github.com/docker/docker v1.4.2-0.20200227233006-38f52c9fec82
 	github.com/dustin/go-humanize v1.0.0
+	github.com/ejcx/sshcert v1.0.1
 	github.com/fatih/color v1.9.0 // indirect
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/getsentry/sentry-go v0.6.1
@@ -52,7 +53,7 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/viper v1.7.0
 	github.com/stretchr/testify v1.6.1
-	golang.org/x/crypto v0.0.0-20201124201722-c8d3bf9c5392
+	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
 	golang.org/x/net v0.0.0-20200822124328-c89045814202
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
