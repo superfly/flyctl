@@ -169,10 +169,7 @@ type Query struct {
 
 	CreatePostgresCluster *CreatePostgresClusterPayload
 
-	AttachPostgresCluster *struct {
-		App                App
-		PostgresClusterApp App
-	}
+	AttachPostgresCluster *AttachPostgresClusterPayload
 }
 
 // carries the privkey; this is the only time it can be retrieved
@@ -883,6 +880,13 @@ type AttachPostgresClusterInput struct {
 	PostgresClusterAppID string  `json:"postgresClusterAppId"`
 	DatabaseName         *string `json:"databaseName,omitempty"`
 	VariableName         *string `json:"variableName,omitempty"`
+}
+
+type AttachPostgresClusterPayload struct {
+	App                     App
+	PostgresClusterApp      App
+	ConnectionString        string
+	EnvironmentVariableName string
 }
 
 type EnsureRemoteBuilderInput struct {

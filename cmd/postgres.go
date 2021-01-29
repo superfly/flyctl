@@ -167,14 +167,15 @@ func runAttachPostgresCluster(ctx *cmdctx.CmdContext) error {
 	s.Prefix = "Attaching..."
 	s.Start()
 
-	app, postgresApp, err := ctx.Client.API().AttachPostgresCluster(input)
+	payload, err := ctx.Client.API().AttachPostgresCluster(input)
 
 	if err != nil {
 		return err
 	}
-
-	s.FinalMSG = fmt.Sprintf("Postgres cluster %s is now attached to %s\n", postgresApp.Name, app.Name)
 	s.Stop()
+
+	fmt.Printf("Postgres cluster %s is now attached to %s\n", payload.PostgresClusterApp.Name, payload.App.Name)
+	fmt.Printf("The following secret was added to %s:\n  %s=%s\n", payload.App.Name, payload.EnvironmentVariableName, payload.ConnectionString)
 
 	return nil
 }
