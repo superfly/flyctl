@@ -32,8 +32,9 @@ type Query struct {
 	Nodes []interface{}
 
 	Platform struct {
-		Regions []Region
-		VMSizes []VMSize
+		RequestRegion string
+		Regions       []Region
+		VMSizes       []VMSize
 	}
 
 	// aliases & nodes
@@ -700,12 +701,13 @@ type AutoscaleRegionConfigInput struct {
 }
 
 type VMSize struct {
-	Name        string
-	CPUCores    float32
-	MemoryGB    float32
-	MemoryMB    int
-	PriceMonth  float32
-	PriceSecond float32
+	Name               string
+	CPUCores           float32
+	MemoryGB           float32
+	MemoryMB           int
+	PriceMonth         float32
+	PriceSecond        float32
+	MemoryIncrementsMB []int
 }
 
 type SetVMSizeInput struct {
@@ -858,6 +860,8 @@ type CreatePostgresClusterInput struct {
 	Name           string  `json:"name"`
 	Region         *string `json:"region,omitempty"`
 	Password       *string `json:"password,omitempty"`
+	VMSize         *string `json:"vmSize,omitempty"`
+	VolumeSizeGB   *int    `json:"volumeSizeGb,omitempty"`
 }
 
 type CreatePostgresClusterPayload struct {

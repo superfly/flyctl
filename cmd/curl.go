@@ -52,7 +52,7 @@ type TimingRequest struct {
 }
 
 func runCurl(ctx *cmdctx.CmdContext) error {
-	regions, err := ctx.Client.API().PlatformRegions()
+	regions, _, err := ctx.Client.API().PlatformRegions()
 	if err != nil {
 		panic(err)
 	}

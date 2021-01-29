@@ -81,10 +81,25 @@ func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
 		return errors.New("name is required")
 	}
 
-	region, _ := ctx.Config.GetString("region")
-
 	orgSlug, _ := ctx.Config.GetString("organization")
 	org, err := selectOrganization(ctx.Client.API(), orgSlug)
+	if err != nil {
+		return err
+	}
+
+	volumeSize, err := volumeSizeInput(ctx.Client.API(), 10)
+	if err != nil {
+		return err
+	}
+
+	regionCode, _ := ctx.Config.GetString("region")
+	region, err := selectRegion(ctx.Client.API(), regionCode)
+	if err != nil {
+		return err
+	}
+
+	vmSizeName, _ := ctx.Config.GetString("vm-size")
+	vmSize, err := selectVMSize(ctx.Client.API(), vmSizeName)
 	if err != nil {
 		return err
 	}
@@ -92,7 +107,9 @@ func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
 	input := api.CreatePostgresClusterInput{
 		OrganizationID: org.ID,
 		Name:           name,
-		Region:         api.StringPointer(region),
+		Region:         api.StringPointer(region.Code),
+		VMSize:         api.StringPointer(vmSize.Name),
+		VolumeSizeGB:   api.IntPointer(volumeSize),
 	}
 
 	fmt.Fprintf(ctx.Out, "Creating postgres cluster %s in organization %s\n", name, org.Slug)
