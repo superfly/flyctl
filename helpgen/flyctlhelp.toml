@@ -500,6 +500,22 @@ longHelp  = "Manage postgres clusters"
     usage     = "attach"
     shortHelp = "Attach a postgres cluster to an app"
     longHelp  = "Attach a postgres cluster to an app"
+    [postgres.create]
+    usage     = "create"
+    shortHelp = "Create a postgres cluster"
+    longHelp  = "Create a postgres cluster"
+    [postgres.db]
+    usage     = "db"
+    shortHelp = "manage databases in a cluster"
+    longHelp  = "manage databases in a cluster"
+        [postgres.db.create]
+        usage     = "create <postgres-cluster-name>"
+        shortHelp = "create a database in a cluster"
+        longHelp  = "create a database in a cluster"
+        [postgres.db.list]
+        usage     = "list <postgres-cluster-name>"
+        shortHelp = "list databases in a cluster"
+        longHelp  = "list databases in a cluster"
     [postgres.detach]
     usage     = "detach"
     shortHelp = "Detach a postgres cluster from an app"
@@ -508,10 +524,18 @@ longHelp  = "Manage postgres clusters"
     usage     = "list"
     shortHelp = "list postgres clusters"
     longHelp  = "list postgres clusters"
-    [postgres.create]
-    usage     = "create"
-    shortHelp = "Create a postgres cluster"
-    longHelp  = "Create a postgres cluster"
+    [postgres.users]
+    usage     = "users"
+    shortHelp = "manage users in a cluster"
+    longHelp  = "manage users in a cluster"
+        [postgres.users.create]
+        usage     = "create <postgres-cluster-name>"
+        shortHelp = "create a user in a cluster"
+        longHelp  = "create a user in a cluster"
+        [postgres.users.list]
+        usage     = "list <postgres-cluster-name>"
+        shortHelp = "list users in a cluster"
+        longHelp  = "list users in a cluster"
 
 
 [regions]

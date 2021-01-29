@@ -488,6 +488,14 @@ about the Fly platform.`,
 		return KeyStrings{"create", "Create a postgres cluster",
 			`Create a postgres cluster`,
 		}
+	case "postgres.db":
+		return KeyStrings{"db", "manage databases in a cluster",
+			`manage databases in a cluster`,
+		}
+	case "postgres.db.list":
+		return KeyStrings{"list <postgres-cluster-name>", "list databases in a cluster",
+			`list databases in a cluster`,
+		}
 	case "postgres.detach":
 		return KeyStrings{"detach", "Detach a postgres cluster from an app",
 			`Detach a postgres cluster from an app`,
@@ -495,6 +503,14 @@ about the Fly platform.`,
 	case "postgres.list":
 		return KeyStrings{"list", "list postgres clusters",
 			`list postgres clusters`,
+		}
+	case "postgres.users":
+		return KeyStrings{"users", "manage users in a cluster",
+			`manage users in a cluster`,
+		}
+	case "postgres.users.list":
+		return KeyStrings{"list <postgres-cluster-name>", "list users in a cluster",
+			`list users in a cluster`,
 		}
 	case "regions":
 		return KeyStrings{"regions", "Manage regions",

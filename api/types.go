@@ -166,9 +166,7 @@ type Query struct {
 		Handler *HealthCheckHandler
 	}
 
-	CreatePostgresCluster *struct {
-		TemplateDeployment TemplateDeployment
-	}
+	CreatePostgresCluster *CreatePostgresClusterPayload
 
 	AttachPostgresCluster *struct {
 		App                App
@@ -231,6 +229,10 @@ type App struct {
 	TaskGroupCounts []TaskGroupCount
 	HealthChecks    *struct {
 		Nodes []CheckState
+	}
+	PostgresAppRole *struct {
+		Databases *[]PostgresClusterDatabase
+		Users     *[]PostgresClusterUser
 	}
 }
 
@@ -851,6 +853,19 @@ type SetPagerdutyHandlerInput struct {
 	PagerdutyToken string `json:"pagerdutyToken"`
 }
 
+type CreatePostgresClusterInput struct {
+	OrganizationID string  `json:"organizationId"`
+	Name           string  `json:"name"`
+	Region         *string `json:"region,omitempty"`
+	Password       *string `json:"password,omitempty"`
+}
+
+type CreatePostgresClusterPayload struct {
+	App      *App
+	Username string
+	Password string
+}
+
 type TemplateDeployment struct {
 	ID     string
 	Status string
@@ -868,4 +883,15 @@ type AttachPostgresClusterInput struct {
 
 type EnsureRemoteBuilderInput struct {
 	AppName string `json:"appName"`
+}
+
+type PostgresClusterUser struct {
+	Username    string
+	IsSuperuser bool
+	Databases   []string
+}
+
+type PostgresClusterDatabase struct {
+	Name  string
+	Users []string
 }
