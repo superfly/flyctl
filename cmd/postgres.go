@@ -114,7 +114,7 @@ func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
 	fmt.Printf("  Password:    %s\n", payload.Password)
 	fmt.Printf("  Hostname:    %s.internal\n", payload.App.Name)
 	fmt.Printf("  Proxy Port:  5432\n")
-	fmt.Printf("  Leader Port: 5433\n")
+	fmt.Printf("  PG Port: 5433\n")
 
 	fmt.Println(aurora.Italic("Save your credentials in a secure place, you won't be able to see them again!"))
 	fmt.Println()
