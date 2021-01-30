@@ -62,7 +62,7 @@ mutation($input: IssueCertificateInput!) {
 	}
 
 	if valid_hours != nil {
-		inputs["valid_hours"] = *valid_hours
+		inputs["validHours"] = *valid_hours
 	}
 
 	req.Var("input", inputs)

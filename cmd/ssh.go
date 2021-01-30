@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
@@ -12,7 +13,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/ejcx/sshcert"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
@@ -103,7 +103,23 @@ func runSSHLog(ctx *cmdctx.CmdContext) error {
 			root = "yes"
 		}
 
-		table.Append([]string{root, cert.Cert})
+		first := true
+		buf := &bytes.Buffer{}
+		for i, ch := range cert.Cert {
+			buf.WriteRune(ch)
+			if i%60 == 0 && i != 0 {
+				table.Append([]string{root, buf.String()})
+				if first {
+					root = ""
+					first = false
+				}
+				buf.Reset()
+			}
+		}
+
+		if buf.Len() != 0 {
+			table.Append([]string{root, buf.String()})
+		}
 	}
 
 	table.Render()
@@ -151,19 +167,14 @@ func runSSHIssue(ctx *cmdctx.CmdContext) error {
 
 	for email == nil {
 		prompt := "Email address for user to issue cert: "
-
-		if emails == "" {
-			emails, err = argOrPrompt(ctx, 1, prompt)
-		} else {
-			err = survey.AskOne(&survey.Input{Message: prompt}, &emails)
-		}
+		emails, err = argOrPromptLoop(ctx, 1, prompt, emails)
 		if err != nil {
 			return err
 		}
 
 		email, err = mail.ParseAddress(emails)
 		if err != nil {
-			fmt.Printf("Invalid email address: %s (keep it simple!)\n", err)
+			ctx.Statusf("ssh", cmdctx.SERROR, "Invalid email address: %s (keep it simple!)\n", err)
 			email = nil
 		}
 	}
@@ -217,12 +228,7 @@ func runSSHIssue(ctx *cmdctx.CmdContext) error {
 
 	for pf == nil && cf == nil {
 		prompt := "Path to store private key: "
-
-		if rootname == "" {
-			emails, err = argOrPrompt(ctx, 2, prompt)
-		} else {
-			err = survey.AskOne(&survey.Input{Message: prompt}, &rootname)
-		}
+		rootname, err = argOrPromptLoop(ctx, 2, prompt, rootname)
 		if err != nil {
 			return err
 		}
@@ -237,10 +243,10 @@ func runSSHIssue(ctx *cmdctx.CmdContext) error {
 		} else {
 			if _, err = os.Stat(rootname); err == nil {
 				if buf, err := ioutil.ReadFile(rootname); err != nil {
-					fmt.Printf("File exists, but we can't read it to make sure it's safe to overwrite: %s", err)
+					ctx.Statusf("ssh", cmdctx.SERROR, "File exists, but we can't read it to make sure it's safe to overwrite: %s\n", err)
 					continue
 				} else if !strings.Contains(string(buf), "fly.io" /* BUG(tqbf): do better */) {
-					fmt.Printf("File exists, but isn't a fly.io ed25519 private key")
+					ctx.Statusf("ssh", cmdctx.SERROR, "File exists, but isn't a fly.io ed25519 private key\n")
 					continue
 				}
 			}
@@ -248,13 +254,14 @@ func runSSHIssue(ctx *cmdctx.CmdContext) error {
 
 		pf, err = os.OpenFile(rootname, mode, 0600)
 		if err != nil {
-			fmt.Printf("Can't open private key file %s: %s", rootname, err)
+			ctx.Statusf("ssh", cmdctx.SERROR, "Can't open private key file: %s\n", err)
+			continue
 		}
 
 		cf, err = os.OpenFile(rootname+"-cert.pub", mode, 0644)
 		if err != nil {
 			pf.Close()
-			fmt.Printf("Can't open certificate file %s: %s", rootname+"-cert.pub", err)
+			ctx.Statusf("ssh", cmdctx.SERROR, "Can't open certificate file %s: %s", rootname+"-cert.pub", err)
 		}
 	}
 
