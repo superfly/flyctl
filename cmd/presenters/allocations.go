@@ -79,6 +79,10 @@ func formatAllocStatus(alloc *api.AllocationStatus) string {
 				if len(o) > 12 {
 					o = o[:12]
 				}
+
+				if o == "" {
+					o = "starting"
+				}
 				status = fmt.Sprintf(
 					"%s (%s)",
 					status,
