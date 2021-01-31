@@ -31,7 +31,7 @@ jobs:
           args: release --rm-dist
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
-      - name: Upload as artifacts
+      - name: Upload checksums as artifact
         uses: actions/upload-artifact@v2
         with:
           name: checksums
@@ -54,7 +54,7 @@ jobs:
       - name: Generate PKGBUILD
         run: |
           mkdir -p aur/flyctl-bin
-          version=${{ github.event.ref }}
+          export version=${{ github.event.ref }}
           pkgver=${version:1} sha256sum=$(grep "Linux_x86_64.tar.gz" checksums.txt | cut -d ' ' -f 1) envsubst < aur/PKGBUILD > aur/flyctl-bin/PKGBUILD
 
       - name: Publish flyctl-bin to the AUR
