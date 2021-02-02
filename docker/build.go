@@ -134,9 +134,6 @@ func (op *BuildOperation) ResolveImageLocally(ctx context.Context, cmdCtx *cmdct
 	cmdCtx.Status("deploy", "Resolving image")
 
 	if !op.LocalDockerAvailable() || op.RemoteOnly() {
-		if imageIDPattern.MatchString(imageRef) {
-			return nil, fmt.Errorf("Image reference looked like an ID, but no local docker client available")
-		}
 		return nil, nil
 	}
 
