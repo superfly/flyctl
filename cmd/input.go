@@ -97,10 +97,14 @@ func selectRegion(client *api.Client, regionCode string) (*api.Region, error) {
 	selectedRegion := 0
 	prompt := &survey.Select{
 		Message:  "Select region:",
-		Default:  fmt.Sprintf("%s (%s)", requestRegion.Code, requestRegion.Name),
 		Options:  options,
 		PageSize: 15,
 	}
+
+	if requestRegion != nil {
+		prompt.Default = fmt.Sprintf("%s (%s)", requestRegion.Code, requestRegion.Name)
+	}
+
 	if err := survey.AskOne(prompt, &selectedRegion); err != nil {
 		return nil, err
 	}
