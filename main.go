@@ -24,11 +24,16 @@ func main() {
 	if err := sentry.Init(opts); err != nil {
 		fmt.Printf("sentry.Init: %s", err)
 	}
-	defer sentry.Flush(2 * time.Second)
 
 	defer func() {
 		if err := recover(); err != nil {
 			sentry.CurrentHub().Recover(err)
+
+			flyctl.BackgroundTaskWG.Add(1)
+			go func() {
+				sentry.Flush(2 * time.Second)
+				flyctl.BackgroundTaskWG.Done()
+			}()
 
 			fmt.Println(aurora.Red("Oops, something went wrong! Could you try that again?"))
 
@@ -37,6 +42,8 @@ func main() {
 				fmt.Println(err)
 				fmt.Println(string(debug.Stack()))
 			}
+
+			flyctl.BackgroundTaskWG.Wait()
 
 			os.Exit(1)
 		}
