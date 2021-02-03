@@ -113,6 +113,10 @@ func (c *DockerClient) Check(ctx context.Context) error {
 	return nil
 }
 
+func (c *DockerClient) Info(ctx context.Context) (types.Info, error) {
+	return c.docker.Info(ctx)
+}
+
 func (c *DockerClient) ResolveImage(ctx context.Context, imageName string) (*types.ImageSummary, error) {
 	img, err := c.findImage(ctx, imageName)
 	if img != nil {
