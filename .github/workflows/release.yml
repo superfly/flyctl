@@ -54,7 +54,7 @@ jobs:
       - name: Generate PKGBUILD
         run: |
           mkdir -p aur/flyctl-bin
-          export version=${{ github.event.ref }}
+          export version=${GITHUB_REF#refs/*/}
           echo $version
           export pkgver=${version:1}
           echo $pkgver
