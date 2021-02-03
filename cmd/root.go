@@ -104,6 +104,7 @@ func init() {
 		newBuiltinsCommand(),
 		newVolumesCommand(),
 		newWireGuardCommand(),
+		newSSHCommand(),
 		newChecksCommand(),
 		newPostgresCommand(),
 	)
