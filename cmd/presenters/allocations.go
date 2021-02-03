@@ -3,6 +3,7 @@ package presenters
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/api"
@@ -69,10 +70,32 @@ func hasMultipleVersions(allocations []*api.AllocationStatus) bool {
 }
 
 func formatAllocStatus(alloc *api.AllocationStatus) string {
-	if alloc.Transitioning {
-		return aurora.Bold(alloc.Status).String()
+	status := alloc.Status
+
+	if status == "running" {
+		for _, c := range alloc.Checks {
+			if (c.Name == "role" || c.Name == "status") && c.Status != "" {
+				o := strings.TrimSpace(c.Output)
+				if len(o) > 12 {
+					o = o[:12]
+				}
+
+				if o == "" {
+					o = "starting"
+				}
+				status = fmt.Sprintf(
+					"%s (%s)",
+					status,
+					o,
+				)
+				break
+			}
+		}
 	}
-	return alloc.Status
+	if alloc.Transitioning {
+		return aurora.Bold(status).String()
+	}
+	return status
 }
 
 func passingChecks(checks []api.CheckState) (n int) {

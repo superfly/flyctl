@@ -54,7 +54,7 @@ func (client *Client) GetTemplateDeployment(id string) (*TemplateDeployment, err
 	return data.TemplateDeploymentNode, nil
 }
 
-func (client *Client) AttachPostgresCluster(input AttachPostgresClusterInput) (*App, *App, error) {
+func (client *Client) AttachPostgresCluster(input AttachPostgresClusterInput) (*AttachPostgresClusterPayload, error) {
 	query := `
 		mutation($input: AttachPostgresClusterInput!) {
 			attachPostgresCluster(input: $input) {
@@ -64,6 +64,9 @@ func (client *Client) AttachPostgresCluster(input AttachPostgresClusterInput) (*
 				postgresClusterApp {
 					name
 				}
+				environmentVariableName
+				connectionString
+				environmentVariableName
 			}
 		}
 		`
@@ -73,10 +76,10 @@ func (client *Client) AttachPostgresCluster(input AttachPostgresClusterInput) (*
 
 	data, err := client.Run(req)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return &data.AttachPostgresCluster.App, &data.AttachPostgresCluster.PostgresClusterApp, nil
+	return data.AttachPostgresCluster, nil
 }
 
 func (client *Client) DetachPostgresCluster(postgresAppName string, appName string) error {

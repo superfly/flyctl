@@ -44,6 +44,8 @@ func (c *Client) GetAppStatus(appName string, showCompleted bool) (*AppStatus, e
 					privateIP
 					checks {
 						status
+						output
+						name
 					}
 				}
 			}

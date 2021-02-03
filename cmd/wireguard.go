@@ -214,6 +214,10 @@ func runWireGuardCreate(ctx *cmdctx.CmdContext) error {
 
 	for w == nil {
 		filename, err = argOrPromptLoop(ctx, 3, "Filename to store WireGuard configuration in, or 'stdout': ", filename)
+		if err != nil {
+			return err
+		}
+
 		if filename == "" {
 			fmt.Println("Provide a filename (or 'stdout')")
 			continue

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -42,6 +43,8 @@ type BuildOperation struct {
 	ctx                  context.Context
 	apiClient            *api.Client
 	dockerClient         *DockerClient
+	dockerConfigured     bool
+	dockerMutex          sync.Mutex
 	localDockerAvailable bool
 	out                  io.Writer
 	appName              string
@@ -80,26 +83,51 @@ func NewBuildOperation(ctx context.Context, cmdCtx *cmdctx.CmdContext) (*BuildOp
 
 	if err := op.dockerClient.Check(ctx); err == nil {
 		op.localDockerAvailable = true
+		if localOnly {
+			return nil, fmt.Errorf("Local docker unavailable and --local-only was passed, cannot proceed.")
+		}
 	} else {
 		terminal.Debugf("Error pinging local docker: %s\n", err)
 	}
 
-	if remoteOnly {
+	return op, nil
+}
+
+func (op *BuildOperation) configureDocker(cmdCtx *cmdctx.CmdContext) error {
+	op.dockerMutex.Lock()
+	defer op.dockerMutex.Unlock()
+
+	if op.dockerConfigured {
+		return nil
+	}
+
+	if op.remoteOnly {
 		terminal.Info("Remote only, hooking you up with a remote Docker builder...")
-		if err := setRemoteBuilder(ctx, cmdCtx, dockerClient); err != nil {
-			return nil, err
+		if err := setRemoteBuilder(op.ctx, cmdCtx, op.dockerClient); err != nil {
+			return err
 		}
-	} else if err := op.dockerClient.Check(ctx); err != nil {
-		if localOnly {
-			return nil, fmt.Errorf("Local docker unavailable and --local-only was passed, cannot proceed.")
-		}
+	} else if !op.localDockerAvailable {
 		terminal.Info("Local docker unavailable, hooking you up with a remote Docker builder...")
-		if err := setRemoteBuilder(ctx, cmdCtx, dockerClient); err != nil {
-			return nil, err
+		if err := setRemoteBuilder(op.ctx, cmdCtx, op.dockerClient); err != nil {
+			return err
+		}
+	} else {
+		info, err := op.dockerClient.Info(op.ctx)
+		if err != nil {
+			return err
+		}
+		terminal.Debugf("docker architecture: %s\n", info.Architecture)
+		if info.Architecture != "x86_64" {
+			terminal.Info("Local docker is not x86_64, hooking you up with a remote Docker builder...")
+			if err := setRemoteBuilder(op.ctx, cmdCtx, op.dockerClient); err != nil {
+				return err
+			}
 		}
 	}
 
-	return op, nil
+	op.dockerConfigured = true
+
+	return nil
 }
 
 func (op *BuildOperation) LocalDockerAvailable() bool {
@@ -119,6 +147,11 @@ func (op *BuildOperation) ResolveImageLocally(ctx context.Context, cmdCtx *cmdct
 
 	if !op.LocalDockerAvailable() || op.RemoteOnly() {
 		return nil, nil
+	}
+
+	// probably not needed, but still good
+	if err := op.configureDocker(cmdCtx); err != nil {
+		return nil, err
 	}
 
 	imgSummary, err := op.dockerClient.findImage(ctx, imageRef)
@@ -147,7 +180,7 @@ func (op *BuildOperation) ResolveImageLocally(ctx context.Context, cmdCtx *cmdct
 		Tag:  op.imageTag,
 	}
 
-	err = op.PushImage(*image)
+	err = op.PushImage(cmdCtx, *image)
 
 	if err != nil {
 		return nil, err
@@ -156,10 +189,15 @@ func (op *BuildOperation) ResolveImageLocally(ctx context.Context, cmdCtx *cmdct
 	return image, nil
 }
 
-func (op *BuildOperation) pushImage(imageTag string) error {
+func (op *BuildOperation) pushImage(cmdCtx *cmdctx.CmdContext, imageTag string) error {
 
 	if imageTag == "" {
 		return errors.New("invalid image reference")
+	}
+
+	// ensure docker is configured
+	if err := op.configureDocker(cmdCtx); err != nil {
+		return err
 	}
 
 	if err := op.dockerClient.PushImage(op.ctx, imageTag, op.out); err != nil {
@@ -169,7 +207,10 @@ func (op *BuildOperation) pushImage(imageTag string) error {
 	return nil
 }
 
-func (op *BuildOperation) CleanDeploymentTags() {
+func (op *BuildOperation) CleanDeploymentTags(cmdCtx *cmdctx.CmdContext) {
+	if err := op.configureDocker(cmdCtx); err != nil {
+		terminal.Warnf("could not clean up deployment tags: %v\n", err)
+	}
 	err := op.dockerClient.DeleteDeploymentImages(op.ctx, op.imageTag)
 	if err != nil {
 		terminal.Debugf("Error cleaning deployment tags: %s", err)
@@ -256,6 +297,10 @@ func (op *BuildOperation) BuildWithDocker(cmdCtx *cmdctx.CmdContext, dockerfileP
 
 	normalizedBuildArgs := normalizeBuildArgs(appConfig, buildArgs)
 
+	if err := op.configureDocker(cmdCtx); err != nil {
+		return nil, err
+	}
+
 	img, err := op.dockerClient.BuildImage(op.ctx, archive.File, op.imageTag, normalizedBuildArgs, op.out)
 
 	if err != nil {
@@ -286,6 +331,10 @@ func (op *BuildOperation) BuildWithPack(cmdCtx *cmdctx.CmdContext, buildArgs map
 
 	if appConfig.Build == nil || appConfig.Build.Builder == "" {
 		return nil, ErrNoBuildpackBuilder
+	}
+
+	if err := op.configureDocker(cmdCtx); err != nil {
+		return nil, err
 	}
 
 	c := op.initPackClient()
@@ -332,8 +381,8 @@ func (op *BuildOperation) BuildWithPack(cmdCtx *cmdctx.CmdContext, buildArgs map
 }
 
 // PushImage - Push the Image (where?)
-func (op *BuildOperation) PushImage(image Image) error {
-	return op.pushImage(image.Tag)
+func (op *BuildOperation) PushImage(cmdCtx *cmdctx.CmdContext, image Image) error {
+	return op.pushImage(cmdCtx, image.Tag)
 }
 
 // ResolveDockerfile - Resolve the location of the dockerfile, allowing for upper and lowercase naming

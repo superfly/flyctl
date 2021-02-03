@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -21,7 +20,7 @@ import (
 func newPostgresCommand() *Command {
 	domainsStrings := docstrings.Get("postgres")
 	cmd := BuildCommandKS(nil, nil, domainsStrings, os.Stdout, requireSession)
-	cmd.Hidden = true
+	cmd.Aliases = []string{"pg"}
 
 	listStrings := docstrings.Get("postgres.list")
 	listCmd := BuildCommandKS(cmd, runPostgresList, listStrings, os.Stdout, requireSession)
@@ -33,6 +32,8 @@ func newPostgresCommand() *Command {
 	createCmd.AddStringFlag(StringFlagOpts{Name: "name", Description: "the name of the new app"})
 	createCmd.AddStringFlag(StringFlagOpts{Name: "region", Description: "the region to launch the new app in"})
 	createCmd.AddStringFlag(StringFlagOpts{Name: "password", Description: "the superuser password. one will be generated for you if you leave this blank"})
+	createCmd.AddStringFlag(StringFlagOpts{Name: "volume-size", Description: "the size in GB for volumes"})
+	createCmd.AddStringFlag(StringFlagOpts{Name: "vm-size", Description: "the size of the VM"})
 
 	attachStrngs := docstrings.Get("postgres.attach")
 	attachCmd := BuildCommandKS(cmd, runAttachPostgresCluster, attachStrngs, os.Stdout, requireSession, requireAppName)
@@ -78,10 +79,12 @@ func runPostgresList(ctx *cmdctx.CmdContext) error {
 func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
 	name, _ := ctx.Config.GetString("name")
 	if name == "" {
-		return errors.New("name is required")
+		n, err := inputAppName("")
+		if err != nil {
+			return err
+		}
+		name = n
 	}
-
-	region, _ := ctx.Config.GetString("region")
 
 	orgSlug, _ := ctx.Config.GetString("organization")
 	org, err := selectOrganization(ctx.Client.API(), orgSlug)
@@ -89,10 +92,33 @@ func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
+	regionCode, _ := ctx.Config.GetString("region")
+	region, err := selectRegion(ctx.Client.API(), regionCode)
+	if err != nil {
+		return err
+	}
+
+	vmSizeName, _ := ctx.Config.GetString("vm-size")
+	vmSize, err := selectVMSize(ctx.Client.API(), vmSizeName)
+	if err != nil {
+		return err
+	}
+
+	volumeSize := ctx.Config.GetInt("volume-size")
+	if volumeSize == 0 {
+		s, err := volumeSizeInput(ctx.Client.API(), 10)
+		if err != nil {
+			return err
+		}
+		volumeSize = s
+	}
+
 	input := api.CreatePostgresClusterInput{
 		OrganizationID: org.ID,
 		Name:           name,
-		Region:         api.StringPointer(region),
+		Region:         api.StringPointer(region.Code),
+		VMSize:         api.StringPointer(vmSize.Name),
+		VolumeSizeGB:   api.IntPointer(volumeSize),
 	}
 
 	fmt.Fprintf(ctx.Out, "Creating postgres cluster %s in organization %s\n", name, org.Slug)
@@ -114,19 +140,30 @@ func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
 	fmt.Printf("  Password:    %s\n", payload.Password)
 	fmt.Printf("  Hostname:    %s.internal\n", payload.App.Name)
 	fmt.Printf("  Proxy Port:  5432\n")
-	fmt.Printf("  Leader Port: 5433\n")
+	fmt.Printf("  PG Port: 5433\n")
 
 	fmt.Println(aurora.Italic("Save your credentials in a secure place, you won't be able to see them again!"))
 	fmt.Println()
 
-	fmt.Println(aurora.Bold("Connect to postgres"))
-	fmt.Printf("Any app within the %s organization can connect to postgres using the above credentials and the hostname \"%s.internal.\"\n", org.Slug, payload.App.Name)
-	fmt.Printf("For example: postgres://%s:%s@%s.internal:%d\n", payload.Username, payload.Password, payload.App.Name, 5432)
+	cancelCtx := createCancellableContext()
+	ctx.AppName = payload.App.Name
+	err = watchDeployment(cancelCtx, ctx)
 
-	fmt.Println()
-	fmt.Println("See the postgres docs for more information on next steps, managing postgres, connecting from outside fly:  https://fly.io/docs/reference/postgres/")
+	if isCancelledError(err) {
+		err = nil
+	}
 
-	return nil
+	if err == nil {
+		fmt.Println()
+		fmt.Println(aurora.Bold("Connect to postgres"))
+		fmt.Printf("Any app within the %s organization can connect to postgres using the above credentials and the hostname \"%s.internal.\"\n", org.Slug, payload.App.Name)
+		fmt.Printf("For example: postgres://%s:%s@%s.internal:%d\n", payload.Username, payload.Password, payload.App.Name, 5432)
+
+		fmt.Println()
+		fmt.Println("See the postgres docs for more information on next steps, managing postgres, connecting from outside fly:  https://fly.io/docs/reference/postgres/")
+	}
+
+	return err
 }
 
 func runAttachPostgresCluster(ctx *cmdctx.CmdContext) error {
@@ -150,14 +187,15 @@ func runAttachPostgresCluster(ctx *cmdctx.CmdContext) error {
 	s.Prefix = "Attaching..."
 	s.Start()
 
-	app, postgresApp, err := ctx.Client.API().AttachPostgresCluster(input)
+	payload, err := ctx.Client.API().AttachPostgresCluster(input)
 
 	if err != nil {
 		return err
 	}
-
-	s.FinalMSG = fmt.Sprintf("Postgres cluster %s is now attached to %s\n", postgresApp.Name, app.Name)
 	s.Stop()
+
+	fmt.Printf("Postgres cluster %s is now attached to %s\n", payload.PostgresClusterApp.Name, payload.App.Name)
+	fmt.Printf("The following secret was added to %s:\n  %s=%s\n", payload.App.Name, payload.EnvironmentVariableName, payload.ConnectionString)
 
 	return nil
 }

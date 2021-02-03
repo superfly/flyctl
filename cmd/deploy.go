@@ -125,6 +125,8 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
+	needsCleaning := false
+
 	if imageRef != "" {
 		// image specified, resolve it, tagging and pushing if docker+local
 		cmdCtx.Statusf("deploy", cmdctx.SINFO, "Deploying image: %s\n", imageRef)
@@ -141,6 +143,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 			}
 		}
 	} else {
+		needsCleaning = true
 		// no image specified, build one
 		buildArgs := map[string]string{}
 
@@ -211,7 +214,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		cmdCtx.Statusf("deploy", cmdctx.SINFO, "Image size: %s\n", humanize.Bytes(uint64(image.Size)))
 
 		cmdCtx.Status("deploy", cmdctx.SBEGIN, "Pushing Image")
-		err := buildOp.PushImage(*image)
+		err := buildOp.PushImage(cmdCtx, *image)
 		if err != nil {
 			return err
 		}
@@ -239,7 +242,9 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	buildOp.CleanDeploymentTags()
+	if needsCleaning {
+		buildOp.CleanDeploymentTags(cmdCtx)
+	}
 
 	cmdCtx.Statusf("deploy", cmdctx.SINFO, "Release v%d created\n", release.Version)
 

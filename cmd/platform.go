@@ -30,7 +30,7 @@ func newPlatformCommand() *Command {
 }
 
 func runPlatformRegions(ctx *cmdctx.CmdContext) error {
-	regions, err := ctx.Client.API().PlatformRegions()
+	regions, _, err := ctx.Client.API().PlatformRegions()
 	if err != nil {
 		return err
 	}

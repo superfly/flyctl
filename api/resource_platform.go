@@ -1,9 +1,10 @@
 package api
 
-func (c *Client) PlatformRegions() ([]Region, error) {
+func (c *Client) PlatformRegions() ([]Region, *Region, error) {
 	query := `
 		query {
 			platform {
+				requestRegion
 				regions {
 					name
 					code
@@ -17,10 +18,21 @@ func (c *Client) PlatformRegions() ([]Region, error) {
 
 	data, err := c.Run(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return data.Platform.Regions, nil
+	var requestRegion *Region
+
+	if data.Platform.RequestRegion != "" {
+		for _, region := range data.Platform.Regions {
+			if region.Code == data.Platform.RequestRegion {
+				requestRegion = &region
+				break
+			}
+		}
+	}
+
+	return data.Platform.Regions, requestRegion, nil
 }
 
 func (c *Client) PlatformRegionsAll() ([]Region, error) {
@@ -57,6 +69,7 @@ func (c *Client) PlatformVMSizes() ([]VMSize, error) {
 					cpuCores
 					memoryGb
 					memoryMb
+					memoryIncrementsMb
 					priceMonth
 					priceSecond
 				}

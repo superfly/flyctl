@@ -72,6 +72,106 @@ func selectOrganization(client *api.Client, slug string) (*api.Organization, err
 	return &orgs[selectedOrg], nil
 }
 
+func selectRegion(client *api.Client, regionCode string) (*api.Region, error) {
+	regions, requestRegion, err := client.PlatformRegions()
+	if err != nil {
+		return nil, err
+	}
+
+	if regionCode != "" {
+		for _, region := range regions {
+			if region.Code == regionCode {
+				return &region, nil
+			}
+		}
+
+		return nil, fmt.Errorf(`region "%s" not found`, regionCode)
+	}
+
+	options := []string{}
+
+	for _, region := range regions {
+		options = append(options, fmt.Sprintf("%s (%s)", region.Code, region.Name))
+	}
+
+	selectedRegion := 0
+	prompt := &survey.Select{
+		Message:  "Select region:",
+		Options:  options,
+		PageSize: 15,
+	}
+
+	if requestRegion != nil {
+		prompt.Default = fmt.Sprintf("%s (%s)", requestRegion.Code, requestRegion.Name)
+	}
+
+	if err := survey.AskOne(prompt, &selectedRegion); err != nil {
+		return nil, err
+	}
+
+	return &regions[selectedRegion], nil
+}
+
+func selectVMSize(client *api.Client, vmSizeName string) (*api.VMSize, error) {
+	vmSizes, err := client.PlatformVMSizes()
+	if err != nil {
+		return nil, err
+	}
+
+	if vmSizeName != "" {
+		for _, vmSize := range vmSizes {
+			if vmSize.Name == vmSizeName {
+				return &vmSize, nil
+			}
+		}
+
+		return nil, fmt.Errorf(`vm size "%s" not found`, vmSizeName)
+	}
+
+	options := []string{}
+
+	for _, vmSize := range vmSizes {
+		options = append(options, fmt.Sprintf("%s - %d", vmSize.Name, vmSize.MemoryMB))
+	}
+
+	selectedVMSize := 0
+	prompt := &survey.Select{
+		Message:  "Select VM size:",
+		Options:  options,
+		PageSize: 15,
+	}
+	if err := survey.AskOne(prompt, &selectedVMSize); err != nil {
+		return nil, err
+	}
+
+	return &vmSizes[selectedVMSize], nil
+}
+
+func inputAppName(defaultName string) (name string, err error) {
+	prompt := &survey.Input{
+		Message: "App name:",
+		Default: defaultName,
+	}
+	if err := survey.AskOne(prompt, &name); err != nil {
+		return name, err
+	}
+
+	return name, nil
+}
+
+func volumeSizeInput(client *api.Client, defaultVal int) (int, error) {
+	var volumeSize int
+	prompt := &survey.Input{
+		Message: "Volume size (GB):",
+		Default: strconv.Itoa(defaultVal),
+	}
+	if err := survey.AskOne(prompt, &volumeSize); err != nil {
+		return 0, err
+	}
+
+	return volumeSize, nil
+}
+
 // func selectZone(client *api.Client, orgslug string, slug string) (string, error) {
 // 	return "", nil
 // 	// zones, err := client.GetDNSZones(orgslug)
