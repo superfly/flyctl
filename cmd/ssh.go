@@ -258,7 +258,7 @@ func runSSHIssue(ctx *cmdctx.CmdContext) error {
 			continue
 		}
 
-		cf, err = os.OpenFile(rootname+"-cert.pub", mode, 0644)
+		cf, err = os.OpenFile(rootname+"-cert.pub", mode, 0600)
 		if err != nil {
 			pf.Close()
 			ctx.Statusf("ssh", cmdctx.SERROR, "Can't open certificate file %s: %s", rootname+"-cert.pub", err)
