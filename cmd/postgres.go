@@ -145,14 +145,25 @@ func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
 	fmt.Println(aurora.Italic("Save your credentials in a secure place, you won't be able to see them again!"))
 	fmt.Println()
 
-	fmt.Println(aurora.Bold("Connect to postgres"))
-	fmt.Printf("Any app within the %s organization can connect to postgres using the above credentials and the hostname \"%s.internal.\"\n", org.Slug, payload.App.Name)
-	fmt.Printf("For example: postgres://%s:%s@%s.internal:%d\n", payload.Username, payload.Password, payload.App.Name, 5432)
+	cancelCtx := createCancellableContext()
+	ctx.AppName = payload.App.Name
+	err = watchDeployment(cancelCtx, ctx)
 
-	fmt.Println()
-	fmt.Println("See the postgres docs for more information on next steps, managing postgres, connecting from outside fly:  https://fly.io/docs/reference/postgres/")
+	if isCancelledError(err) {
+		err = nil
+	}
 
-	return nil
+	if err == nil {
+		fmt.Println()
+		fmt.Println(aurora.Bold("Connect to postgres"))
+		fmt.Printf("Any app within the %s organization can connect to postgres using the above credentials and the hostname \"%s.internal.\"\n", org.Slug, payload.App.Name)
+		fmt.Printf("For example: postgres://%s:%s@%s.internal:%d\n", payload.Username, payload.Password, payload.App.Name, 5432)
+
+		fmt.Println()
+		fmt.Println("See the postgres docs for more information on next steps, managing postgres, connecting from outside fly:  https://fly.io/docs/reference/postgres/")
+	}
+
+	return err
 }
 
 func runAttachPostgresCluster(ctx *cmdctx.CmdContext) error {
