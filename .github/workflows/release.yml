@@ -55,12 +55,9 @@ jobs:
         run: |
           mkdir -p aur/flyctl-bin
           export version=${GITHUB_REF#refs/*/}
-          echo $version
           export pkgver=${version:1}
-          echo $pkgver
           export sha256sum=$(grep "Linux_x86_64.tar.gz" checksums.txt | cut -d ' ' -f 1)
-          echo $sha256sum
-          envsubst < aur/PKGBUILD > aur/flyctl-bin/PKGBUILD
+          envsubst '${pkgver},${sha256sum}' < aur/PKGBUILD > aur/flyctl-bin/PKGBUILD
           cat aur/flyctl-bin/PKGBUILD
 
       - name: Publish flyctl-bin to the AUR
