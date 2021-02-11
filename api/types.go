@@ -211,7 +211,6 @@ type App struct {
 		Nodes []AppCertificate
 	}
 	Certificate      AppCertificate
-	Services         []Service
 	Config           AppConfig
 	ParseConfig      AppConfig
 	Allocations      []*AllocationStatus
@@ -453,7 +452,6 @@ type Release struct {
 	Description        string
 	Status             string
 	DeploymentStrategy string
-	Deployment         DeploymentStatus
 	User               User
 	CreatedAt          time.Time
 }
