@@ -492,6 +492,10 @@ about the Fly platform.`,
 		return KeyStrings{"db", "manage databases in a cluster",
 			`manage databases in a cluster`,
 		}
+	case "postgres.db.create":
+		return KeyStrings{"create <postgres-cluster-name>", "create a database in a cluster",
+			`create a database in a cluster`,
+		}
 	case "postgres.db.list":
 		return KeyStrings{"list <postgres-cluster-name>", "list databases in a cluster",
 			`list databases in a cluster`,
@@ -507,6 +511,10 @@ about the Fly platform.`,
 	case "postgres.users":
 		return KeyStrings{"users", "manage users in a cluster",
 			`manage users in a cluster`,
+		}
+	case "postgres.users.create":
+		return KeyStrings{"create <postgres-cluster-name>", "create a user in a cluster",
+			`create a user in a cluster`,
 		}
 	case "postgres.users.list":
 		return KeyStrings{"list <postgres-cluster-name>", "list users in a cluster",
@@ -621,6 +629,26 @@ Any value that equals "-" will be assigned from STDIN instead of args.`,
 		return KeyStrings{"unset [flags] NAME NAME ...", "Remove encrypted secrets from an App",
 			`Remove encrypted secrets from the application. Unsetting a 
 secret removes its availability to the application.`,
+		}
+	case "ssh":
+		return KeyStrings{"ssh <command>", "Commands that manage SSH credentials",
+			`Commands that manage SSH credentials`,
+		}
+	case "ssh.establish":
+		return KeyStrings{"establish [<org>] [<override>]", "Create a root SSH certificate for your organization",
+			`Create a root SSH certificate for your organization. If <override>
+is provided, will re-key an organization; all previously issued creds will be
+invalidated.`,
+		}
+	case "ssh.issue":
+		return KeyStrings{"issue [org] [email] [path]", "Issue a new SSH credential.",
+			`Issue a new SSH credential. With -agent, populate credential 
+into SSH agent. With -hour, set the number of hours (1-72) for credential
+validity.`,
+		}
+	case "ssh.log":
+		return KeyStrings{"log", "Log of all issued certs",
+			`log of all issued certs`,
 		}
 	case "status":
 		return KeyStrings{"status", "Show App status",

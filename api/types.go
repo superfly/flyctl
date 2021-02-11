@@ -154,6 +154,8 @@ type Query struct {
 	DeleteVolume DeleteVolumePayload
 
 	AddWireGuardPeer CreatedWireGuardPeer
+	EstablishSSHKey  SSHCertificate
+	IssueCertificate IssuedCertificate
 
 	RemoveWireGuardPeer struct {
 		Organization Organization
@@ -172,11 +174,19 @@ type Query struct {
 	AttachPostgresCluster *AttachPostgresClusterPayload
 }
 
-// carries the privkey; this is the only time it can be retrieved
 type CreatedWireGuardPeer struct {
 	Peerip     string
 	Endpointip string
 	Pubkey     string
+}
+
+type SSHCertificate struct {
+	Certificate string
+}
+
+type IssuedCertificate struct {
+	Certificate string
+	Key         string
 }
 
 type Definition map[string]interface{}
@@ -345,6 +355,10 @@ type Organization struct {
 
 	HealthChecks *struct {
 		Nodes []HealthCheck
+	}
+
+	LoggedCertificates *struct {
+		Nodes []LoggedCertificate
 	}
 }
 
@@ -820,6 +834,11 @@ type WireGuardPeer struct {
 	Region string
 	Name   string
 	Peerip string
+}
+
+type LoggedCertificate struct {
+	Root bool
+	Cert string
 }
 
 type HealthCheck struct {

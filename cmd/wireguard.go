@@ -34,7 +34,7 @@ func newWireGuardCommand() *Command {
 	return cmd
 }
 
-func argOrPrompt(ctx *cmdctx.CmdContext, nth int, prompt string) (string, error) {
+func argOrPromptImpl(ctx *cmdctx.CmdContext, nth int, prompt string, first bool) (string, error) {
 	if len(ctx.Args) >= (nth + 1) {
 		return ctx.Args[nth], nil
 	}
@@ -45,6 +45,14 @@ func argOrPrompt(ctx *cmdctx.CmdContext, nth int, prompt string) (string, error)
 	}, &val)
 
 	return val, err
+}
+
+func argOrPromptLoop(ctx *cmdctx.CmdContext, nth int, prompt, last string) (string, error) {
+	return argOrPromptImpl(ctx, nth, prompt, last == "")
+}
+
+func argOrPrompt(ctx *cmdctx.CmdContext, nth int, prompt string) (string, error) {
+	return argOrPromptImpl(ctx, nth, prompt, true)
 }
 
 func orgByArg(ctx *cmdctx.CmdContext) (*api.Organization, error) {
@@ -177,7 +185,7 @@ func runWireGuardCreate(ctx *cmdctx.CmdContext) error {
 			fmt.Println("Name must consist solely of letters, numbers, and the dash character.")
 		}
 
-		name, err = argOrPrompt(ctx, 2, "New DNS name for WireGuard peer: ")
+		name, err = argOrPromptLoop(ctx, 2, "New DNS name for WireGuard peer: ", name)
 		if err != nil {
 			return err
 		}
@@ -205,10 +213,11 @@ func runWireGuardCreate(ctx *cmdctx.CmdContext) error {
 	)
 
 	for w == nil {
-		filename, err = argOrPrompt(ctx, 3, "Filename to store WireGuard configuration in, or 'stdout': ")
+		filename, err = argOrPromptLoop(ctx, 3, "Filename to store WireGuard configuration in, or 'stdout': ", filename)
 		if err != nil {
 			return err
 		}
+
 		if filename == "" {
 			fmt.Println("Provide a filename (or 'stdout')")
 			continue
