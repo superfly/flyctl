@@ -105,6 +105,11 @@ func runPrivateIPAddressesList(commandContext *cmdctx.CmdContext) error {
 		return err
 	}
 
+	if commandContext.OutputJSON() {
+		commandContext.WriteJSON(appstatus.Allocations)
+		return nil
+	}
+
 	table := helpers.MakeSimpleTable(commandContext.Out, []string{"ID", "Region", "IP"})
 
 	for _, alloc := range appstatus.Allocations {
