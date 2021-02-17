@@ -2,33 +2,21 @@ module github.com/superfly/flyctl
 
 go 1.13
 
-// thrift (a dep through go-getter) moved to github. This is needed until it's updated
-replace git.apache.org/thrift.git => github.com/apache/thrift v0.0.0-20180902110319-2566ecd5d999
-
 require (
 	github.com/AlecAivazis/survey/v2 v2.0.7
 	github.com/BurntSushi/toml v0.3.1
-	github.com/Microsoft/hcsshim v0.8.9 // indirect
-	github.com/Microsoft/hcsshim/test v0.0.0-20210115191834-3d95010677b2 // indirect
+	github.com/Microsoft/go-winio v0.4.16-0.20201130162521-d1ffc52c7331 // indirect
 	github.com/PuerkitoBio/rehttp v1.0.0
-	github.com/apex/log v1.9.0 // indirect
 	github.com/aybabtme/iocontrol v0.0.0-20150809002002-ad15bcfc95a0 // indirect
 	github.com/benbjohnson/clock v1.0.2 // indirect
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/briandowns/spinner v1.11.1
-	github.com/buildpacks/imgutil v0.0.0-20200520132953-ba4f77a60397 // indirect
-	github.com/buildpacks/lifecycle v0.7.5 // indirect
-	github.com/buildpacks/pack v0.10.0
+	github.com/buildpacks/pack v0.17.0
 	github.com/containerd/console v1.0.1
-	github.com/docker/docker v1.4.2-0.20200227233006-38f52c9fec82
+	github.com/docker/docker v20.10.0-beta1.0.20201110211921-af34b94a78a1+incompatible
 	github.com/dustin/go-humanize v1.0.0
 	github.com/ejcx/sshcert v1.0.1
-	github.com/fatih/color v1.9.0 // indirect
-	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/getsentry/sentry-go v0.6.1
-	github.com/golang/protobuf v1.4.2 // indirect
-	github.com/google/go-cmp v0.5.1 // indirect
-	github.com/google/go-containerregistry v0.0.0-20200521151920-a873a21aff23 // indirect
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/inancgumus/screen v0.0.0-20190314163918-06e984b86ed3
 	github.com/jpillora/backoff v0.0.0-20180909062703-3050d21c67d7
@@ -36,39 +24,23 @@ require (
 	github.com/machinebox/graphql v0.2.3-0.20181106130121-3a9253180225
 	github.com/matryer/is v1.3.0 // indirect
 	github.com/mattn/go-isatty v0.0.12
-	github.com/mitchellh/mapstructure v1.3.1 // indirect
-	github.com/moby/buildkit v0.7.1
+	github.com/moby/buildkit v0.8.1
 	github.com/morikuni/aec v1.0.0
 	github.com/novln/docker-parser v1.0.0
 	github.com/olekukonko/tablewriter v0.0.4
-	github.com/opencontainers/go-digest v1.0.0 // indirect
-	github.com/opencontainers/selinux v1.5.2 // indirect
-	github.com/pelletier/go-toml v1.8.0
+	github.com/pelletier/go-toml v1.8.1
 	github.com/pkg/errors v0.9.1
 	github.com/segmentio/textio v1.2.0
-	github.com/sirupsen/logrus v1.6.0 // indirect
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
-	github.com/spf13/cast v1.3.1 // indirect
 	github.com/spf13/cobra v1.1.1
-	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/viper v1.7.0
 	github.com/stretchr/testify v1.6.1
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
-	golang.org/x/net v0.0.0-20200822124328-c89045814202
-	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208 // indirect
-	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
-	google.golang.org/grpc v1.29.1 // indirect
-	google.golang.org/protobuf v1.24.0 // indirect
-	gopkg.in/ini.v1 v1.56.0 // indirect
+	golang.org/x/net v0.0.0-20201202161906-c7110b5ffcbb
 	gopkg.in/yaml.v2 v2.3.0
 )
 
 replace github.com/BurntSushi/toml => github.com/michaeldwan/toml v0.3.2-0.20191213213541-3c5ced72b6f3
 
+// for buildkit https://github.com/moby/buildkit/blob/f5962fca5e7c589620ad2c41f5c6bcaece68f3dc/go.mod#L79
 replace github.com/jaguilar/vt100 => github.com/tonistiigi/vt100 v0.0.0-20190402012908-ad4c4a574305
-
-replace github.com/containerd/containerd => github.com/containerd/containerd v1.4.3
-
-replace github.com/docker/docker => github.com/docker/docker v1.4.2-0.20200227233006-38f52c9fec82
-
-replace golang.org/x/sys => golang.org/x/sys v0.0.0-20200826173525-f9321e4c35a6

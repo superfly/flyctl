@@ -20,17 +20,17 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/docker/docker/pkg/term"
+	"github.com/pkg/errors"
+
+	controlapi "github.com/moby/buildkit/api/services/control"
+	buildkitClient "github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/util/progress/progressui"
 	dockerparser "github.com/novln/docker-parser"
-	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/net/context"
 	"golang.org/x/net/http/httpproxy"
-
-	controlapi "github.com/moby/buildkit/api/services/control"
-	buildkitClient "github.com/moby/buildkit/client"
 )
 
 func newDeploymentTag(appName string, label string) string {
