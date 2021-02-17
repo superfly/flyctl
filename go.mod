@@ -3,41 +3,41 @@ module github.com/superfly/flyctl
 go 1.13
 
 require (
-	github.com/AlecAivazis/survey/v2 v2.0.7
+	github.com/AlecAivazis/survey/v2 v2.2.7
 	github.com/BurntSushi/toml v0.3.1
 	github.com/Microsoft/go-winio v0.4.16-0.20201130162521-d1ffc52c7331 // indirect
 	github.com/PuerkitoBio/rehttp v1.0.0
 	github.com/aybabtme/iocontrol v0.0.0-20150809002002-ad15bcfc95a0 // indirect
 	github.com/benbjohnson/clock v1.0.2 // indirect
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/briandowns/spinner v1.11.1
+	github.com/briandowns/spinner v1.12.0
 	github.com/buildpacks/pack v0.17.0
 	github.com/containerd/console v1.0.1
 	github.com/docker/docker v20.10.0-beta1.0.20201110211921-af34b94a78a1+incompatible
 	github.com/dustin/go-humanize v1.0.0
 	github.com/ejcx/sshcert v1.0.1
-	github.com/getsentry/sentry-go v0.6.1
+	github.com/getsentry/sentry-go v0.9.0
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/inancgumus/screen v0.0.0-20190314163918-06e984b86ed3
-	github.com/jpillora/backoff v0.0.0-20180909062703-3050d21c67d7
-	github.com/logrusorgru/aurora v0.0.0-20200102142835-e9ef32dff381
+	github.com/jpillora/backoff v1.0.0
+	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/machinebox/graphql v0.2.3-0.20181106130121-3a9253180225
 	github.com/matryer/is v1.3.0 // indirect
 	github.com/mattn/go-isatty v0.0.12
 	github.com/moby/buildkit v0.8.1
 	github.com/morikuni/aec v1.0.0
 	github.com/novln/docker-parser v1.0.0
-	github.com/olekukonko/tablewriter v0.0.4
+	github.com/olekukonko/tablewriter v0.0.5
 	github.com/pelletier/go-toml v1.8.1
 	github.com/pkg/errors v0.9.1
 	github.com/segmentio/textio v1.2.0
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
-	github.com/spf13/cobra v1.1.1
-	github.com/spf13/viper v1.7.0
-	github.com/stretchr/testify v1.6.1
+	github.com/spf13/cobra v1.1.3
+	github.com/spf13/viper v1.7.1
+	github.com/stretchr/testify v1.7.0
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
-	golang.org/x/net v0.0.0-20201202161906-c7110b5ffcbb
-	gopkg.in/yaml.v2 v2.3.0
+	golang.org/x/net v0.0.0-20210119194325-5f4716e94777
+	gopkg.in/yaml.v2 v2.4.0
 )
 
 replace github.com/BurntSushi/toml => github.com/michaeldwan/toml v0.3.2-0.20191213213541-3c5ced72b6f3
