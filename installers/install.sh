@@ -4,19 +4,11 @@
 
 set -e
 
-if [ "$(uname -m)" != "x86_64" ]; then
-	echo "Error: Unsupported architecture $(uname -m). Only x64 binaries are available." 1>&2
-	exit 1
-fi
-
-# We are using tar and its inbuilt uncompress - no need to check for command availability
-
-case $(uname -s) in
-Darwin) target="macOS_x86_64" ;;
-*) target="Linux_x86_64" ;;
+case $(uname -sm) in
+	"Darwin x86_64") target="macOS_x86_64" ;;
+	"Darwin arm64") target="macOS_arm64" ;;
+	*) target="Linux_x86_64" ;;
 esac
-
-
 
 if [ $# -eq 0 ]; then
 	flyctl_asset_path=$(
