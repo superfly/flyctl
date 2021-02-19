@@ -18,7 +18,7 @@ builds:
         goarch: 386
 
     ldflags:
-      - -X github.com/superfly/flyctl/flyctl.BuildDate={{.Date}}
+      - -X github.com/superfly/flyctl/flyctl.BuildDate={{ .Date }}
       - -X github.com/superfly/flyctl/flyctl.Version={{ .Version }}
       - -X github.com/superfly/flyctl/flyctl.Commit={{ .ShortCommit }}
       - -X github.com/superfly/flyctl/flyctl.Environment=production

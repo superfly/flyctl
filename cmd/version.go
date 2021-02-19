@@ -17,12 +17,6 @@ import (
 func newVersionCommand() *Command {
 	versionStrings := docstrings.Get("version")
 	version := BuildCommandKS(nil, runVersion, versionStrings, os.Stdout)
-	version.AddBoolFlag(BoolFlagOpts{
-		Name:        "full",
-		Shorthand:   "f",
-		Description: "Show full version details",
-	})
-
 	version.AddStringFlag(StringFlagOpts{
 		Name:        "completions",
 		Shorthand:   "c",
@@ -66,29 +60,20 @@ func runVersion(ctx *cmdctx.CmdContext) error {
 		}
 	}
 
-	if ctx.Config.GetBool("full") {
-		if ctx.OutputJSON() {
-			type flyctlBuild struct {
-				Name    string
-				Version string
-				Commit  string
-				Build   string
-			}
-			ctx.WriteJSON(flyctlBuild{Name: flyname.Name(), Version: flyctl.Version, Commit: flyctl.Commit, Build: flyctl.BuildDate})
-		} else {
-			fmt.Printf("%s %s %s %s\n", flyname.Name(), flyctl.Version, flyctl.Commit, flyctl.BuildDate)
+	if ctx.OutputJSON() {
+		type flyctlBuild struct {
+			Name         string
+			Version      string
+			Commit       string
+			BuildDate    string
+			OS           string
+			Architecture string
 		}
+		ctx.WriteJSON(flyctlBuild{Name: flyname.Name(), Version: flyctl.Version, Commit: flyctl.Commit, BuildDate: flyctl.BuildDate, OS: runtime.GOOS, Architecture: runtime.GOARCH})
 	} else {
-		if ctx.OutputJSON() {
-			type flyctlBuild struct {
-				Name    string
-				Version string
-			}
-			ctx.WriteJSON(flyctlBuild{Name: flyname.Name(), Version: flyctl.Version})
-		} else {
-			fmt.Printf("%s %s\n", flyname.Name(), flyctl.Version)
-		}
+		fmt.Printf("%s v%s %s/%s Commit: %s BuildDate: %s\n", flyname.Name(), flyctl.Version, runtime.GOOS, runtime.GOARCH, flyctl.Commit, flyctl.BuildDate)
 	}
+
 	return nil
 }
 
