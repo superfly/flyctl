@@ -855,25 +855,43 @@ usage     = "ssh <command>"
 shortHelp = "Commands that manage SSH credentials"
 longHelp  = """Commands that manage SSH credentials"""
 
-  [ssh.log]
-  usage     = "log"
-  shortHelp = "Log of all issued certs"
-  longHelp  = """log of all issued certs"""
+    [ssh.log]
+    usage     = "log"
+    shortHelp = "Log of all issued certs"
+    longHelp  = """log of all issued certs"""
 
-  [ssh.establish]
-  usage     = "establish [<org>] [<override>]"
-  shortHelp = "Create a root SSH certificate for your organization"
-  longHelp  = """Create a root SSH certificate for your organization. If <override>
+    [ssh.establish]
+    usage     = "establish [<org>] [<override>]"
+    shortHelp = "Create a root SSH certificate for your organization"
+    longHelp  = """Create a root SSH certificate for your organization. If <override>
 is provided, will re-key an organization; all previously issued creds will be
 invalidated."""
 
-  [ssh.issue]
-  usage     = "issue [org] [email] [path]"
-  shortHelp = "Issue a new SSH credential."
-  longHelp  = """Issue a new SSH credential. With -agent, populate credential 
+    [ssh.issue]
+    usage     = "issue [org] [email] [path]"
+    shortHelp = "Issue a new SSH credential."
+    longHelp  = """Issue a new SSH credential. With -agent, populate credential 
 into SSH agent. With -hour, set the number of hours (1-72) for credential
 validity."""
-  
+
+[vm]
+usage     = "vm <command>"
+shortHelp = "Commands that manage VM instances"
+longHelp  = "Commands that manage VM instances"
+    [vm.restart]
+    usage     = "restart <vm-id>"
+    shortHelp = "Restart a VM"
+    longHelp  = "Request for a VM to be asynchronously restarted."
+    [vm.status]
+    usage     = "status <vm-id>"
+    shortHelp = "Show a VM's status"
+    longHelp  = "Show a VM's current status including logs, checks, and events."
+    [vm.stop]
+    usage     = "stop <vm-id>"
+    shortHelp = "Stop a VM"
+    longHelp  = "Request for a VM to be asynchronously stopped."
+
+
 [wireguard]
 usage     = "wireguard <command>"
 shortHelp = "Commands that manage WireGuard peer connections"

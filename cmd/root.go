@@ -107,6 +107,7 @@ func init() {
 		newSSHCommand(),
 		newChecksCommand(),
 		newPostgresCommand(),
+		newVMCommand(),
 	)
 
 	initConfig()

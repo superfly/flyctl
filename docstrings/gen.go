@@ -678,6 +678,22 @@ including version number and build date.`,
 			`Checks for update and if one is available, runs the appropriate
 command to update the application.`,
 		}
+	case "vm":
+		return KeyStrings{"vm <command>", "Commands that manage VM instances",
+			`Commands that manage VM instances`,
+		}
+	case "vm.restart":
+		return KeyStrings{"restart <vm-id>", "Restart a VM",
+			`Request for a VM to be asynchronously restarted.`,
+		}
+	case "vm.status":
+		return KeyStrings{"status <vm-id>", "Show a VM's status",
+			`Show a VM's current status including logs, checks, and events.`,
+		}
+	case "vm.stop":
+		return KeyStrings{"stop <vm-id>", "Stop a VM",
+			`Request for a VM to be asynchronously stopped.`,
+		}
 	case "volumes":
 		return KeyStrings{"volumes <command>", "Volume management commands",
 			`Commands for managing Fly Volumes associated with an application.`,
