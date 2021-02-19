@@ -61,7 +61,7 @@ jobs:
           cat aur/flyctl-bin/PKGBUILD
 
       - name: Publish flyctl-bin to the AUR
-        uses: KSXGitHub/github-actions-deploy-aur@v2.2.3
+        uses: KSXGitHub/github-actions-deploy-aur@ef5cc6ec3fbd557ee95def420b2b422baeccbe6a
         with:
           pkgname: flyctl-bin
           pkgbuild: ./aur/flyctl-bin/PKGBUILD
