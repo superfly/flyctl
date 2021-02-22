@@ -72,10 +72,14 @@ func runListVolumes(ctx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	table := helpers.MakeSimpleTable(ctx.Out, []string{"ID", "Name", "Size", "Region", "Created At"})
+	table := helpers.MakeSimpleTable(ctx.Out, []string{"ID", "Name", "Size", "Region", "Attached VM", "Created At"})
 
 	for _, v := range volumes {
-		table.Append([]string{v.ID, v.Name, strconv.Itoa(v.SizeGb) + "GB", v.Region, humanize.Time(v.CreatedAt)})
+		var attachedAllocID string
+		if v.AttachedAllocation != nil {
+			attachedAllocID = v.AttachedAllocation.IDShort
+		}
+		table.Append([]string{v.ID, v.Name, strconv.Itoa(v.SizeGb) + "GB", v.Region, attachedAllocID, humanize.Time(v.CreatedAt)})
 	}
 
 	table.Render()

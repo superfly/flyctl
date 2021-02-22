@@ -12,6 +12,9 @@ func (c *Client) GetVolumes(appName string) ([]Volume, error) {
 					region
 					encrypted
 					createdAt
+					attachedAllocation {
+						idShort
+					}
 				}
 			}
 		}

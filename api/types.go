@@ -249,13 +249,14 @@ type TaskGroupCount struct {
 }
 
 type Volume struct {
-	ID        string `json:"id"`
-	App       string
-	Name      string
-	SizeGb    int
-	Region    string
-	Encrypted bool
-	CreatedAt time.Time
+	ID                 string `json:"id"`
+	App                string
+	Name               string
+	SizeGb             int
+	Region             string
+	Encrypted          bool
+	CreatedAt          time.Time
+	AttachedAllocation *AllocationStatus
 }
 
 type CreateVolumeInput struct {
@@ -652,6 +653,9 @@ type AllocationStatus struct {
 	Transitioning      bool
 	PrivateIP          string
 	RecentLogs         []LogEntry
+	AttachedVolumes    struct {
+		Nodes []Volume
+	}
 }
 
 type AllocationEvent struct {
