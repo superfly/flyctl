@@ -173,6 +173,12 @@ func (ac AppConfig) marshalTOML(w io.Writer) error {
 		"app": ac.AppName,
 	}
 
+	if err := encoder.Encode(rawData); err != nil {
+		return err
+	}
+
+	rawData = ac.Definition
+
 	if ac.Build != nil {
 		buildData := map[string]interface{}{}
 		if ac.Build.Builder != "" {
@@ -194,10 +200,6 @@ func (ac AppConfig) marshalTOML(w io.Writer) error {
 			buildData["image"] = ac.Build.Image
 		}
 		rawData["build"] = buildData
-	}
-
-	if err := encoder.Encode(rawData); err != nil {
-		return err
 	}
 
 	if len(ac.Definition) > 0 {
