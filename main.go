@@ -29,18 +29,20 @@ func main() {
 		if err := recover(); err != nil {
 			sentry.CurrentHub().Recover(err)
 
-			flyctl.BackgroundTaskWG.Add(1)
-			go func() {
-				sentry.Flush(2 * time.Second)
-				flyctl.BackgroundTaskWG.Done()
-			}()
-
 			fmt.Println(aurora.Red("Oops, something went wrong! Could you try that again?"))
 
-			if flyctl.Environment != "production" {
-				fmt.Println()
-				fmt.Println(err)
-				fmt.Println(string(debug.Stack()))
+			if flyctl.Environment == "production" {
+				flyctl.BackgroundTaskWG.Add(1)
+				go func() {
+					sentry.Flush(2 * time.Second)
+					flyctl.BackgroundTaskWG.Done()
+				}()
+			} else {
+				if flyctl.Environment != "production" {
+					fmt.Println()
+					fmt.Println(err)
+					fmt.Println(string(debug.Stack()))
+				}
 			}
 
 			flyctl.BackgroundTaskWG.Wait()
