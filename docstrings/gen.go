@@ -369,6 +369,10 @@ Fly network`,
 		return KeyStrings{"release [ADDRESS]", "Release an IP address",
 			`Releases an IP address from the application.`,
 		}
+	case "launch":
+		return KeyStrings{"launch", "Launch a new app",
+			`Launch a new app`,
+		}
 	case "list":
 		return KeyStrings{"list", "Lists your Fly resources",
 			`The list command is for listing your resources on has two subcommands, apps and orgs.

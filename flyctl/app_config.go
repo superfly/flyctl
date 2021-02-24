@@ -278,6 +278,23 @@ func (ac *AppConfig) GetInternalPort() (int, error) {
 	return 8080, nil
 }
 
+func (ac *AppConfig) SetEnvVariable(name, value string) {
+	var env map[string]string
+
+	if rawEnv, ok := ac.Definition["env"]; ok {
+		if castEnv, ok := rawEnv.(map[string]string); ok {
+			env = castEnv
+		}
+	}
+	if env == nil {
+		env = map[string]string{}
+	}
+
+	env[name] = value
+
+	ac.Definition["env"] = env
+}
+
 const defaultConfigFileName = "fly.toml"
 
 func ResolveConfigFileFromPath(p string) (string, error) {

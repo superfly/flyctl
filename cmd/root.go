@@ -108,6 +108,7 @@ func init() {
 		newChecksCommand(),
 		newPostgresCommand(),
 		newVMCommand(),
+		newLaunchCommand(),
 	)
 
 	initConfig()
