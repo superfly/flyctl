@@ -33,6 +33,7 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 	if absDir, err := filepath.Abs(dir); err == nil {
 		dir = absDir
 	}
+	cmdctx.WorkingDir = dir
 
 	fmt.Println("Creating app in", dir)
 
@@ -94,11 +95,6 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 		appName = name
 	}
 
-	cmdctx.AppName = appName
-	appConfig.AppName = appName
-	cmdctx.AppConfig = appConfig
-	cmdctx.WorkingDir = dir
-
 	orgSlug, _ := cmdctx.Config.GetString("org")
 	org, err := selectOrganization(cmdctx.Client.API(), orgSlug)
 	if err != nil {
@@ -113,6 +109,10 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 
 	app, err := cmdctx.Client.API().CreateApp(appName, org.ID, &region.Code)
 	appConfig.Definition = app.Config.Definition
+
+	cmdctx.AppName = app.Name
+	appConfig.AppName = app.Name
+	cmdctx.AppConfig = appConfig
 
 	if srcInfo != nil && (len(srcInfo.Buildpacks) > 0 || srcInfo.Builder != "") {
 		appConfig.SetInternalPort(8080)
