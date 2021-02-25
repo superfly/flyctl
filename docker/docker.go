@@ -205,6 +205,7 @@ func (c *DockerClient) BuildImage(ctx context.Context, tar io.Reader, tag string
 		BuildArgs: buildArgs,
 		// NoCache:   true,
 		AuthConfigs: authConfigs(),
+		Platform:    "linux/amd64",
 	}
 
 	resp, err := c.docker.ImageBuild(ctx, tar, opts)
