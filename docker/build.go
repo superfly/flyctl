@@ -111,18 +111,6 @@ func (op *BuildOperation) configureDocker(cmdCtx *cmdctx.CmdContext) error {
 		if err := setRemoteBuilder(op.ctx, cmdCtx, op.dockerClient); err != nil {
 			return err
 		}
-	} else {
-		info, err := op.dockerClient.Info(op.ctx)
-		if err != nil {
-			return err
-		}
-		terminal.Debugf("docker architecture: %s\n", info.Architecture)
-		if info.Architecture != "x86_64" {
-			terminal.Info("Local docker is not x86_64, hooking you up with a remote Docker builder...")
-			if err := setRemoteBuilder(op.ctx, cmdCtx, op.dockerClient); err != nil {
-				return err
-			}
-		}
 	}
 
 	op.dockerConfigured = true
