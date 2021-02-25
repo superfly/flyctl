@@ -421,7 +421,7 @@ Fly network"""
 [launch]
 usage     = "launch"
 shortHelp = "Launch a new app"
-longHelp  = "Launch a new app"
+longHelp  = "Create and configure a new app from source code or an image reference."
 
 [list]
 usage     = "list"

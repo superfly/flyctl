@@ -228,7 +228,7 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		}
 	}
 	// The creation magic happens here....
-	app, err := commandContext.Client.API().CreateApp(name, org.ID)
+	app, err := commandContext.Client.API().CreateApp(name, org.ID, nil)
 	if err != nil {
 		return err
 	}

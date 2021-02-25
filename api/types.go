@@ -441,9 +441,10 @@ type UnsetSecretsInput struct {
 }
 
 type CreateAppInput struct {
-	OrganizationID string `json:"organizationId"`
-	Runtime        string `json:"runtime"`
-	Name           string `json:"name"`
+	OrganizationID  string  `json:"organizationId"`
+	Runtime         string  `json:"runtime"`
+	Name            string  `json:"name"`
+	PreferredRegion *string `json:"preferredRegion,omitempty"`
 }
 
 type LogEntry struct {

@@ -371,7 +371,7 @@ Fly network`,
 		}
 	case "launch":
 		return KeyStrings{"launch", "Launch a new app",
-			`Launch a new app`,
+			`Create and configure a new app from source code or an image reference.`,
 		}
 	case "list":
 		return KeyStrings{"list", "Lists your Fly resources",

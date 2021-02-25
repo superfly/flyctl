@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmdctx"
@@ -16,58 +17,101 @@ import (
 func newLaunchCommand() *Command {
 	launchStrings := docstrings.Get("launch")
 	launchCmd := BuildCommandKS(nil, runLaunch, launchStrings, os.Stdout, requireSession)
-	launchCmd.Hidden = true
-	launchCmd.Args = cobra.MaximumNArgs(1)
+	launchCmd.Args = cobra.NoArgs
+	launchCmd.AddStringFlag(StringFlagOpts{Name: "path", Description: `path to app code and where a fly.toml file will be saved.`, Default: "."})
+	launchCmd.AddStringFlag(StringFlagOpts{Name: "org", Description: `the organization that will own the app`})
+	launchCmd.AddStringFlag(StringFlagOpts{Name: "name", Description: "the name of the new app"})
+	launchCmd.AddStringFlag(StringFlagOpts{Name: "region", Description: "the region to launch the new app in"})
+	launchCmd.AddStringFlag(StringFlagOpts{Name: "image", Description: "the image to launch"})
 
 	return launchCmd
 }
 
 func runLaunch(cmdctx *cmdctx.CmdContext) error {
-	dir := "."
-	if len(cmdctx.Args) > 0 {
-		dir = cmdctx.Args[0]
+	dir, _ := cmdctx.Config.GetString("path")
+
+	if absDir, err := filepath.Abs(dir); err == nil {
+		dir = absDir
 	}
+
+	fmt.Println("Creating app in", dir)
 
 	appConfig := flyctl.NewAppConfig()
 
-	fmt.Println("scanning source", dir)
+	var srcInfo *sourcecode.SourceInfo
 
-	srcInfo, err := sourcecode.Scan(dir)
+	configFilePath := filepath.Join(dir, "fly.toml")
 
-	if err != nil {
-		return err
+	if exists, _ := flyctl.ConfigFileExistsAtPath(configFilePath); exists {
+		cfg, err := flyctl.LoadAppConfig(configFilePath)
+		if err != nil {
+			return err
+		}
+		if cfg.AppName != "" {
+			fmt.Println("An existing fly.toml file was found for app", cfg.AppName)
+		} else {
+			fmt.Println("An existing fly.toml file was found")
+		}
+		if confirm("Would you like to copy it's configuration to the new app?") {
+			appConfig.Definition = cfg.Definition
+		}
 	}
 
-	fmt.Printf("%+v\n", srcInfo)
-
-	if srcInfo == nil {
-		fmt.Println("Could not find a Dockerfile or detect a buildpack from source code. See the docs for help (add link here!). Continuing with a blank app.")
+	if img, _ := cmdctx.Config.GetString("image"); img != "" {
+		fmt.Println("Using image", img)
+		appConfig.Build = &flyctl.Build{
+			Image: img,
+		}
 	} else {
-		fmt.Printf("Detected %s app\n", srcInfo.Family)
+		fmt.Println("Scanning source code")
 
-		if len(srcInfo.Buildpacks) > 0 {
-			appConfig.Build = &flyctl.Build{
-				Builder:    srcInfo.Builder,
-				Buildpacks: srcInfo.Buildpacks,
+		if si, err := sourcecode.Scan(dir); err != nil {
+			return err
+		} else {
+			srcInfo = si
+		}
+
+		if srcInfo == nil {
+			fmt.Println("Could not find a Dockerfile or detect a buildpack from source code. Continuing with a blank app.")
+		} else {
+			fmt.Printf("Detected %s app\n", srcInfo.Family)
+
+			if srcInfo.Builder != "" {
+				fmt.Println("Using the following build configuration:")
+				fmt.Println("\tBuilder:", srcInfo.Builder)
+				fmt.Println("\tBuildpacks:", strings.Join(srcInfo.Buildpacks, " "))
+
+				appConfig.Build = &flyctl.Build{
+					Builder:    srcInfo.Builder,
+					Buildpacks: srcInfo.Buildpacks,
+				}
 			}
 		}
 	}
 
-	appName, err := inputAppName(sourcecode.SuggestAppName(dir))
-	if err != nil {
-		return err
+	appName := ""
+	if name, _ := cmdctx.Config.GetString("name"); name != "" {
+		appName = name
 	}
+
 	cmdctx.AppName = appName
 	appConfig.AppName = appName
 	cmdctx.AppConfig = appConfig
 	cmdctx.WorkingDir = dir
 
-	org, err := selectOrganization(cmdctx.Client.API(), "")
+	orgSlug, _ := cmdctx.Config.GetString("org")
+	org, err := selectOrganization(cmdctx.Client.API(), orgSlug)
 	if err != nil {
 		return err
 	}
 
-	app, err := cmdctx.Client.API().CreateApp(appName, org.ID)
+	regionCode, _ := cmdctx.Config.GetString("region")
+	region, err := selectRegion(cmdctx.Client.API(), regionCode)
+	if err != nil {
+		return err
+	}
+
+	app, err := cmdctx.Client.API().CreateApp(appName, org.ID, &region.Code)
 	appConfig.Definition = app.Config.Definition
 
 	if srcInfo != nil && (len(srcInfo.Buildpacks) > 0 || srcInfo.Builder != "") {
