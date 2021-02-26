@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"regexp"
+	"strings"
 	"text/template"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -30,6 +31,12 @@ func newWireGuardCommand() *Command {
 	child(cmd, runWireGuardList, "wireguard.list").Args = cobra.MaximumNArgs(1)
 	child(cmd, runWireGuardCreate, "wireguard.create").Args = cobra.MaximumNArgs(4)
 	child(cmd, runWireGuardRemove, "wireguard.remove").Args = cobra.MaximumNArgs(2)
+
+	tokens := child(cmd, nil, "wireguard.token")
+
+	child(tokens, runWireGuardTokenList, "wireguard.token.list").Args = cobra.MaximumNArgs(1)
+	child(tokens, runWireGuardTokenCreate, "wireguard.token.create").Args = cobra.MaximumNArgs(2)
+	child(tokens, runWireGuardTokenDelete, "wireguard.token.delete").Args = cobra.MaximumNArgs(3)
 
 	return cmd
 }
@@ -148,6 +155,36 @@ PersistentKeepalive = 15
 	tmpl.Execute(w, &data)
 }
 
+func resolveOutputWriter(ctx *cmdctx.CmdContext, idx int, prompt string) (w io.WriteCloser, mustClose bool, err error) {
+	var (
+		f        *os.File
+		filename string
+	)
+
+	for {
+		filename, err = argOrPromptLoop(ctx, idx, prompt, filename)
+		if err != nil {
+			return nil, false, err
+		}
+
+		if filename == "" {
+			fmt.Println("Provide a filename (or 'stdout')")
+			continue
+		}
+
+		if filename == "stdout" {
+			return os.Stdout, false, nil
+		}
+
+		f, err = os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		if err == nil {
+			return f, true, nil
+		}
+
+		fmt.Printf("Can't create '%s': %s\n", filename, err)
+	}
+}
+
 func c25519pair() (string, string) {
 	var private [32]byte
 	_, err := rand.Read(private[:])
@@ -206,41 +243,19 @@ func runWireGuardCreate(ctx *cmdctx.CmdContext) error {
 !!!! and re-add the peering connection.                                     !!!!
 `)
 
-	var (
-		w        io.Writer
-		f        *os.File
-		filename string
-	)
-
-	for w == nil {
-		filename, err = argOrPromptLoop(ctx, 3, "Filename to store WireGuard configuration in, or 'stdout': ", filename)
-		if err != nil {
-			return err
-		}
-
-		if filename == "" {
-			fmt.Println("Provide a filename (or 'stdout')")
-			continue
-		}
-
-		if filename == "stdout" {
-			w = os.Stdout
-		} else {
-			f, err = os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
-			if err != nil {
-				fmt.Printf("Can't create '%s': %s\n", filename, err)
-				continue
-			}
-
-			w = f
-			defer f.Close()
-		}
+	w, shouldClose, err := resolveOutputWriter(ctx, 3, "Filename to store WireGuard configuration in, or 'stdout': ")
+	if err != nil {
+		return err
+	}
+	if shouldClose {
+		defer w.Close()
 	}
 
 	generateWgConf(data, privatekey, w)
 
-	if f != nil {
-		fmt.Printf("Wrote WireGuard configuration to '%s'; load in your WireGuard client\n", filename)
+	if shouldClose {
+		filename := w.(*os.File).Name()
+		fmt.Printf("Wrote WireGuard configuration to %s; load in your WireGuard client\n", filename)
 	}
 
 	return nil
@@ -267,6 +282,125 @@ func runWireGuardRemove(ctx *cmdctx.CmdContext) error {
 	}
 
 	fmt.Println("Removed peer.")
+
+	return nil
+}
+
+func runWireGuardTokenList(ctx *cmdctx.CmdContext) error {
+	client := ctx.Client.API()
+
+	org, err := orgByArg(ctx)
+	if err != nil {
+		return err
+	}
+
+	tokens, err := client.GetDelegatedWireGuardTokens(org.Slug)
+	if err != nil {
+		return err
+	}
+
+	if ctx.OutputJSON() {
+		ctx.WriteJSON(tokens)
+		return nil
+	}
+
+	table := tablewriter.NewWriter(ctx.Out)
+
+	table.SetHeader([]string{
+		"Name",
+	})
+
+	for _, peer := range tokens {
+		table.Append([]string{peer.Name})
+	}
+
+	table.Render()
+
+	return nil
+}
+
+func runWireGuardTokenCreate(ctx *cmdctx.CmdContext) error {
+	client := ctx.Client.API()
+
+	org, err := orgByArg(ctx)
+	if err != nil {
+		return err
+	}
+
+	name, err := argOrPrompt(ctx, 1, "Memorable name for WireGuard token: ")
+	if err != nil {
+		return err
+	}
+
+	data, err := client.CreateDelegatedWireGuardToken(org, name)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf(`
+!!!! WARNING: Output includes credential information. Credentials cannot !!!! 	
+!!!! be recovered after creation; if you lose the token, you'll need to  !!!! 	 
+!!!! remove and and re-add it.																		 			 !!!! 	
+
+To use a token to create a WireGuard connection, you can use curl:
+
+    curl -v --request POST                 
+         -H "Authorization: Bearer ${WG_TOKEN}" 
+         -H "Content-Type: application/json" 
+         --data '{"name": "node-1", \
+                  "group": "k8s",   \
+                  "pubkey": "'"${WG_PUBKEY}"'", \
+                  "region": "dev"}' 
+         http://fly.io/api/v3/wire_guard_peers
+
+We'll return 'us' (our local 6PN address), 'them' (the gateway IP address), 
+and 'pubkey' (the public key of the gateway), which you can inject into a 
+"wg.con".
+`)
+
+	w, shouldClose, err := resolveOutputWriter(ctx, 2, "Filename to store WireGuard token in, or 'stdout': ")
+	if err != nil {
+		return err
+	}
+	if shouldClose {
+		defer w.Close()
+	}
+
+	fmt.Fprintf(w, "WIREGUARD_TOKEN=%s\n", data.Token)
+
+	return nil
+}
+
+func runWireGuardTokenDelete(ctx *cmdctx.CmdContext) error {
+	client := ctx.Client.API()
+
+	org, err := orgByArg(ctx)
+	if err != nil {
+		return err
+	}
+
+	kv, err := argOrPrompt(ctx, 1, "'name:<name>' or token:<token>': ")
+	if err != nil {
+		return err
+	}
+
+	tup := strings.SplitN(kv, ":", 2)
+	if len(tup) != 2 || (tup[0] != "name" && tup[0] != "token") {
+		return fmt.Errorf("format is name:<name> or token:<token>")
+	}
+
+	fmt.Printf("Removing WireGuard token \"%s\" for organization %s\n", kv, org.Slug)
+
+	if tup[0] == "name" {
+		err = client.DeleteDelegatedWireGuardToken(org, &tup[1], nil)
+	} else {
+		err = client.DeleteDelegatedWireGuardToken(org, nil, &tup[1])
+	}
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Removed token.")
 
 	return nil
 }

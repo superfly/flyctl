@@ -153,9 +153,11 @@ type Query struct {
 	CreateVolume CreateVolumePayload
 	DeleteVolume DeleteVolumePayload
 
-	AddWireGuardPeer CreatedWireGuardPeer
-	EstablishSSHKey  SSHCertificate
-	IssueCertificate IssuedCertificate
+	AddWireGuardPeer              CreatedWireGuardPeer
+	EstablishSSHKey               SSHCertificate
+	IssueCertificate              IssuedCertificate
+	CreateDelegatedWireGuardToken DelegatedWireGuardToken
+	DeleteDelegatedWireGuardToken DelegatedWireGuardToken
 
 	RemoveWireGuardPeer struct {
 		Organization Organization
@@ -178,6 +180,14 @@ type CreatedWireGuardPeer struct {
 	Peerip     string
 	Endpointip string
 	Pubkey     string
+}
+
+type DelegatedWireGuardToken struct {
+	Token string
+}
+
+type DelegatedWireGuardTokenHandle /* whatever */ struct {
+	Name string
 }
 
 type SSHCertificate struct {
@@ -347,6 +357,14 @@ type Organization struct {
 		Edges *[]*struct {
 			Cursor *string
 			Node   *WireGuardPeer
+		}
+	}
+
+	DelegatedWireGuardTokens struct {
+		Nodes *[]*DelegatedWireGuardTokenHandle
+		Edges *[]*struct {
+			Cursor *string
+			Node   *DelegatedWireGuardTokenHandle
 		}
 	}
 

@@ -738,6 +738,22 @@ number to operate. This can be found through the volumes list command`,
 		return KeyStrings{"remove [org] [name]", "Remove a WireGuard peer connection",
 			`Remove a WireGuard peer connection from an organization`,
 		}
+	case "wireguard.token":
+		return KeyStrings{"token <command>", "Commands that managed WireGuard delegated access tokens",
+			`Commands that managed WireGuard delegated access tokens`,
+		}
+	case "wireguard.token.create":
+		return KeyStrings{"create [org] [name]", "Create a new WireGuard token",
+			`Create a new WireGuard token`,
+		}
+	case "wireguard.token.delete":
+		return KeyStrings{"delete [org] [token]", "Delete a WireGuard token; token is name:<name> or token:<token>",
+			`Delete a WireGuard token; token is name:<name> or token:<token>`,
+		}
+	case "wireguard.token.list":
+		return KeyStrings{"list [<org>]", "List all WireGuard tokens",
+			`List all WireGuard tokens`,
+		}
 	}
 	panic("unknown command key " + key)
 }

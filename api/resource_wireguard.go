@@ -1,5 +1,7 @@
 package api
 
+import "fmt"
+
 func (c *Client) GetWireGuardPeers(slug string) ([]*WireGuardPeer, error) {
 	req := c.NewRequest(`
 query($slug: String!) { 
@@ -69,4 +71,76 @@ mutation($input: RemoveWireGuardPeerInput!) {
 	_, err := c.Run(req)
 
 	return err
+}
+
+func (c *Client) CreateDelegatedWireGuardToken(org *Organization, name string) (*DelegatedWireGuardToken, error) {
+	req := c.NewRequest(`
+mutation($input: CreateDelegatedWireGuardTokenInput!) { 
+  createDelegatedWireGuardToken(input: $input) { 
+    token
+  } 
+}
+`)
+	req.Var("input", map[string]interface{}{
+		"organizationId": org.ID,
+		"name":           name,
+	})
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.CreateDelegatedWireGuardToken, nil
+}
+
+func (c *Client) DeleteDelegatedWireGuardToken(org *Organization, name, token *string) error {
+	query := `
+mutation($input: DeleteDelegatedWireGuardTokenInput!) { 
+  deleteDelegatedWireGuardToken(input: $input) { 
+    token
+  }
+}
+`
+
+	input := map[string]interface{}{
+		"organizationId": org.ID,
+	}
+
+	if name != nil {
+		input["name"] = *name
+	} else {
+		input["token"] = *token
+	}
+
+	fmt.Printf("%+v\n", input)
+
+	req := c.NewRequest(query)
+	req.Var("input", input)
+
+	_, err := c.Run(req)
+
+	return err
+}
+
+func (c *Client) GetDelegatedWireGuardTokens(slug string) ([]*DelegatedWireGuardTokenHandle, error) {
+	req := c.NewRequest(`
+query($slug: String!) { 
+  organization(slug: $slug) { 
+    delegatedWireGuardTokens { 
+      nodes { 
+        name
+      } 
+    }
+  } 
+}
+`)
+	req.Var("slug", slug)
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return *data.Organization.DelegatedWireGuardTokens.Nodes, nil
 }

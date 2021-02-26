@@ -916,3 +916,23 @@ longHelp  = """Commands that manage WireGuard peer connections"""
     usage     = "remove [org] [name]"
     shortHelp = "Remove a WireGuard peer connection"
     longHelp  = """Remove a WireGuard peer connection from an organization"""
+
+    [wireguard.token]
+    usage     = "token <command>"
+    shortHelp = "Commands that managed WireGuard delegated access tokens"
+    longHelp  = """Commands that managed WireGuard delegated access tokens"""
+
+            [wireguard.token.list]
+            usage     = "list [<org>]"
+            shortHelp = "List all WireGuard tokens"
+            longHelp  = "List all WireGuard tokens"
+
+            [wireguard.token.create]
+            usage     = "create [org] [name]"
+            shortHelp = "Create a new WireGuard token"
+            longHelp  = "Create a new WireGuard token"
+
+            [wireguard.token.delete]
+            usage     = "delete [org] [token]"
+            shortHelp = "Delete a WireGuard token; token is name:<name> or token:<token>"
+            longHelp  = "Delete a WireGuard token; token is name:<name> or token:<token>"
