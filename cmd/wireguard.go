@@ -450,8 +450,8 @@ type PeerStatusJson struct {
 func generateTokenConf(ctx *cmdctx.CmdContext, idx int, stat *PeerStatusJson, privkey string) error {
 	fmt.Printf(`
 !!!! WARNING: Output includes private key. Private keys cannot be recovered !!!!
-!!!! after creating the peer; if you lose the key, you'll need to remove    !!!!
-!!!! and re-add the peering connection.                                     !!!!
+!!!! after creating the peer; if you lose the key, you'll need to rekey     !!!!
+!!!! the peering connection.                                                !!!!
 `)
 
 	w, shouldClose, err := resolveOutputWriter(ctx, idx, "Filename to store WireGuard configuration in, or 'stdout': ")
