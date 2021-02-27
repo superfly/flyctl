@@ -754,6 +754,14 @@ number to operate. This can be found through the volumes list command`,
 		return KeyStrings{"list [<org>]", "List all WireGuard tokens",
 			`List all WireGuard tokens`,
 		}
+	case "wireguard.token.start":
+		return KeyStrings{"start [name] [group] [region] [file]", "Start a new WireGuard peer connection associated with a token (set FLY_WIREGUARD_TOKEN)",
+			`Start a new WireGuard peer connection associated with a token (set FLY_WIREGUARD_TOKEN)`,
+		}
+	case "wireguard.token.update":
+		return KeyStrings{"update [name] [file]", "Rekey a WireGuard peer connection associated with a token (set FLY_WIREGUARD_TOKEN)",
+			`Rekey a WireGuard peer connection associated with a token (set FLY_WIREGUARD_TOKEN)`,
+		}
 	}
 	panic("unknown command key " + key)
 }

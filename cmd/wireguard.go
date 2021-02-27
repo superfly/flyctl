@@ -1,11 +1,14 @@
 package cmd
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"regexp"
 	"strings"
@@ -37,6 +40,9 @@ func newWireGuardCommand() *Command {
 	child(tokens, runWireGuardTokenList, "wireguard.token.list").Args = cobra.MaximumNArgs(1)
 	child(tokens, runWireGuardTokenCreate, "wireguard.token.create").Args = cobra.MaximumNArgs(2)
 	child(tokens, runWireGuardTokenDelete, "wireguard.token.delete").Args = cobra.MaximumNArgs(3)
+
+	child(tokens, runWireGuardTokenStartPeer, "wireguard.token.start").Args = cobra.MaximumNArgs(4)
+	child(tokens, runWireGuardTokenUpdatePeer, "wireguard.token.update").Args = cobra.MaximumNArgs(2)
 
 	return cmd
 }
@@ -366,7 +372,7 @@ and 'pubkey' (the public key of the gateway), which you can inject into a
 		defer w.Close()
 	}
 
-	fmt.Fprintf(w, "WIREGUARD_TOKEN=%s\n", data.Token)
+	fmt.Fprintf(w, "FLY_WIREGUARD_TOKEN=%s\n", data.Token)
 
 	return nil
 }
@@ -401,6 +407,168 @@ func runWireGuardTokenDelete(ctx *cmdctx.CmdContext) error {
 	}
 
 	fmt.Println("Removed token.")
+
+	return nil
+}
+
+func tokenRequest(method, path, token string, data interface{}) (*http.Response, error) {
+	buf := &bytes.Buffer{}
+	if err := json.NewEncoder(buf).Encode(data); err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(method,
+		fmt.Sprintf("https://fly.io/api/v3/wire_guard_peers%s", path),
+		buf)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Add("Authorization", "Bearer "+token)
+	req.Header.Add("Content-Type", "application/json")
+
+	return (&http.Client{}).Do(req)
+}
+
+type StartPeerJson struct {
+	Name   string `json:"name"`
+	Group  string `json:"group"`
+	Pubkey string `json:"pubkey"`
+	Region string `json:"region"`
+}
+
+type UpdatePeerJson struct {
+	Pubkey string `json:"pubkey"`
+}
+
+type PeerStatusJson struct {
+	Us     string `json:"us"`
+	Them   string `json:"them"`
+	Pubkey string `json:"key"`
+	Error  string `json:"error"`
+}
+
+func generateTokenConf(ctx *cmdctx.CmdContext, idx int, stat *PeerStatusJson, privkey string) error {
+	fmt.Printf(`
+!!!! WARNING: Output includes private key. Private keys cannot be recovered !!!!
+!!!! after creating the peer; if you lose the key, you'll need to remove    !!!!
+!!!! and re-add the peering connection.                                     !!!!
+`)
+
+	w, shouldClose, err := resolveOutputWriter(ctx, idx, "Filename to store WireGuard configuration in, or 'stdout': ")
+	if err != nil {
+		return err
+	}
+	if shouldClose {
+		defer w.Close()
+	}
+
+	generateWgConf(&api.CreatedWireGuardPeer{
+		Peerip:     stat.Us,
+		Pubkey:     stat.Pubkey,
+		Endpointip: stat.Them,
+	}, privkey, w)
+
+	if shouldClose {
+		filename := w.(*os.File).Name()
+		fmt.Printf("Wrote WireGuard configuration to %s; load in your WireGuard client\n", filename)
+	}
+
+	return nil
+}
+
+func runWireGuardTokenStartPeer(ctx *cmdctx.CmdContext) error {
+	token := os.Getenv("FLY_WIREGUARD_TOKEN")
+	if token == "" {
+		return fmt.Errorf("set FLY_WIREGUARD_TOKEN env")
+	}
+
+	name, err := argOrPrompt(ctx, 0, "Name (DNS-compatible) for peer: ")
+	if err != nil {
+		return err
+	}
+
+	group, err := argOrPrompt(ctx, 1, "Peer group (i.e. 'k8s'): ")
+	if err != nil {
+		return err
+	}
+
+	region, err := argOrPrompt(ctx, 2, "Gateway region: ")
+	if err != nil {
+		return err
+	}
+
+	pubkey, privatekey := c25519pair()
+
+	body := &StartPeerJson{
+		Name:   name,
+		Group:  group,
+		Pubkey: pubkey,
+		Region: region,
+	}
+
+	resp, err := tokenRequest("POST", "", token, body)
+	if err != nil {
+		return err
+	}
+
+	peerStatus := &PeerStatusJson{}
+	if err = json.NewDecoder(resp.Body).Decode(peerStatus); err != nil {
+		if resp.StatusCode != 200 {
+			return fmt.Errorf("server returned error: %w", resp.Status, err)
+		}
+
+		return err
+	}
+
+	if peerStatus.Error != "" {
+		return fmt.Errorf("WireGuard API error: %s", peerStatus.Error)
+	}
+
+	if err = generateTokenConf(ctx, 3, peerStatus, privatekey); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func runWireGuardTokenUpdatePeer(ctx *cmdctx.CmdContext) error {
+	token := os.Getenv("FLY_WIREGUARD_TOKEN")
+	if token == "" {
+		return fmt.Errorf("set FLY_WIREGUARD_TOKEN env")
+	}
+
+	name, err := argOrPrompt(ctx, 0, "Name (DNS-compatible) for peer: ")
+	if err != nil {
+		return err
+	}
+
+	pubkey, privatekey := c25519pair()
+
+	body := &StartPeerJson{
+		Pubkey: pubkey,
+	}
+
+	resp, err := tokenRequest("PUT", "/"+name, token, body)
+	if err != nil {
+		return err
+	}
+
+	peerStatus := &PeerStatusJson{}
+	if err = json.NewDecoder(resp.Body).Decode(peerStatus); err != nil {
+		if resp.StatusCode != 200 {
+			return fmt.Errorf("server returned error: %w", resp.Status, err)
+		}
+
+		return err
+	}
+
+	if peerStatus.Error != "" {
+		return fmt.Errorf("WireGuard API error: %s", peerStatus.Error)
+	}
+
+	if err = generateTokenConf(ctx, 1, peerStatus, privatekey); err != nil {
+		return err
+	}
 
 	return nil
 }

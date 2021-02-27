@@ -936,3 +936,13 @@ longHelp  = """Commands that manage WireGuard peer connections"""
             usage     = "delete [org] [token]"
             shortHelp = "Delete a WireGuard token; token is name:<name> or token:<token>"
             longHelp  = "Delete a WireGuard token; token is name:<name> or token:<token>"
+
+            [wireguard.token.start]
+            usage     = "start [name] [group] [region] [file]"
+            shortHelp = "Start a new WireGuard peer connection associated with a token (set FLY_WIREGUARD_TOKEN)"
+            longHelp = "Start a new WireGuard peer connection associated with a token (set FLY_WIREGUARD_TOKEN)"
+
+            [wireguard.token.update]
+            usage     = "update [name] [file]"
+            shortHelp = "Rekey a WireGuard peer connection associated with a token (set FLY_WIREGUARD_TOKEN)"
+            longHelp = "Rekey a WireGuard peer connection associated with a token (set FLY_WIREGUARD_TOKEN)"
