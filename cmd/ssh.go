@@ -152,6 +152,18 @@ func runSSHEstablish(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
+func singleUseSSHCertificate(ctx *cmdctx.CmdContext, org *api.Organization) (*api.IssuedCertificate, error) {
+	client := ctx.Client.API()
+
+	user, err := ctx.Client.API().GetCurrentUser()
+	if err != nil {
+		return nil, err
+	}
+
+	hours := 1
+	return client.IssueSSHCertificate(org, user.Email, nil, &hours)
+}
+
 func runSSHIssue(ctx *cmdctx.CmdContext) error {
 	client := ctx.Client.API()
 
