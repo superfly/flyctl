@@ -14,6 +14,8 @@ const (
 	ConfigGQLErrorLogging = "gqlerrorlogging"
 	ConfigInstaller       = "installer"
 
+	ConfigWireGuardState = "wire_guard_state"
+
 	ConfigRegistryHost             = "registry_host"
 	ConfigUpdateCheck              = "update_check"
 	ConfigUpdateCheckLatestVersion = ConfigUpdateCheck + ".latest_version"
