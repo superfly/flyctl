@@ -654,6 +654,11 @@ validity.`,
 		return KeyStrings{"log", "Log of all issued certs",
 			`log of all issued certs`,
 		}
+	case "ssh.shell":
+		return KeyStrings{"shell [org] [address]", "Connect directly to an instance.",
+			`Connect directly to an instance. With -region, set the
+WireGuard region to use for the connection.`,
+		}
 	case "status":
 		return KeyStrings{"status", "Show App status",
 			`Show the application's current status including application 
@@ -736,6 +741,10 @@ number to operate. This can be found through the volumes list command`,
 		}
 	case "wireguard.remove":
 		return KeyStrings{"remove [org] [name]", "Remove a WireGuard peer connection",
+			`Remove a WireGuard peer connection from an organization`,
+		}
+	case "wireguard.test":
+		return KeyStrings{"test [org] [region]", "Remove a WireGuard peer connection",
 			`Remove a WireGuard peer connection from an organization`,
 		}
 	case "wireguard.token":

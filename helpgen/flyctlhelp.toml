@@ -879,6 +879,12 @@ invalidated."""
 into SSH agent. With -hour, set the number of hours (1-72) for credential
 validity."""
 
+    [ssh.shell]
+    usage     = "shell [org] [address]"
+    shortHelp = "Connect directly to an instance."
+    longHelp  = """Connect directly to an instance. With -region, set the
+WireGuard region to use for the connection."""
+
 [vm]
 usage     = "vm <command>"
 shortHelp = "Commands that manage VM instances"
