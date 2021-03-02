@@ -37,6 +37,8 @@ require (
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
 	golang.org/x/net v0.0.0-20210119194325-5f4716e94777
+	golang.zx2c4.com/wireguard v0.0.20201118
+	golang.zx2c4.com/wireguard/tun/netstack v0.0.0-20210225140808-70b7b7158fc9
 	gopkg.in/yaml.v2 v2.4.0
 )
 
