@@ -58,6 +58,11 @@ func newDeployCommand() *Command {
 		Name:        "build-arg",
 		Description: "Set of build time variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
 	})
+	cmd.AddStringSliceFlag(StringSliceFlagOpts{
+		Name:        "env",
+		Shorthand:   "e",
+		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
+	})
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "image-label",
 		Description: "Image label to use when tagging and pushing to the fly registry. Defaults to \"deployment-{timestamp}\".",
@@ -159,6 +164,14 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 				return fmt.Errorf("Invalid build-arg '%s': must be in the format NAME=VALUE", arg)
 			}
 			buildArgs[parts[0]] = parts[1]
+		}
+
+		for _, arg := range cmdCtx.Config.GetStringSlice("env") {
+			parts := strings.Split(arg, "=")
+			if len(parts) != 2 {
+				return fmt.Errorf("Invalid env '%s': must be in the format NAME=VALUE", arg)
+			}
+			cmdCtx.AppConfig.SetEnvVariable(parts[0], parts[1])
 		}
 
 		var dockerfilePath string
