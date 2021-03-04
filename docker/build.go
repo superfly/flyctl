@@ -458,7 +458,7 @@ func setRemoteBuilder(ctx context.Context, cmdCtx *cmdctx.CmdContext, dockerClie
 		return errors.Wrap(err, "error parsing remote builder url")
 	}
 
-	user := base64.RawStdEncoding.EncodeToString([]byte(url.UserPassword(cmdCtx.AppName, flyctl.GetAPIToken()).String()))
+	user := base64.StdEncoding.EncodeToString([]byte(url.UserPassword(cmdCtx.AppName, flyctl.GetAPIToken()).String()))
 	daemonURL := fmt.Sprintf("ssh://%s@%s:%d", user, builderURL.Hostname(), 10000)
 
 	helper, err := connhelper.GetConnectionHelperWithSSHOpts(daemonURL, []string{"-o", "StrictHostKeyChecking=no"})
