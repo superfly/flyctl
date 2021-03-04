@@ -1,7 +1,7 @@
 package docker
 
 import (
-	"errors"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,14 +14,15 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/jpillora/backoff"
+	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/builtinsupport"
 	"github.com/superfly/flyctl/cmdctx"
 	"golang.org/x/net/context"
-	"golang.org/x/net/http/httpproxy"
 
 	"github.com/briandowns/spinner"
 	"github.com/buildpacks/pack"
+	"github.com/docker/cli/cli/connhelper"
 	"github.com/docker/docker/builder/dockerignore"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/fileutils"
@@ -337,11 +338,12 @@ func (op *BuildOperation) BuildWithPack(cmdCtx *cmdctx.CmdContext, buildArgs map
 	}
 
 	err := c.Build(op.ctx, pack.BuildOptions{
-		AppPath:    cwd,
-		Builder:    appConfig.Build.Builder,
-		Image:      op.imageTag,
-		Buildpacks: appConfig.Build.Buildpacks,
-		Env:        env,
+		AppPath:      cwd,
+		Builder:      appConfig.Build.Builder,
+		Image:        op.imageTag,
+		Buildpacks:   appConfig.Build.Buildpacks,
+		Env:          env,
+		TrustBuilder: true,
 	})
 
 	if err != nil {
@@ -451,25 +453,37 @@ func setRemoteBuilder(ctx context.Context, cmdCtx *cmdctx.CmdContext, dockerClie
 	terminal.Debugf("Remote Docker builder URL: %s\n", rawURL)
 	terminal.Debugf("Remote Docker builder release: %+v\n", release)
 
-	dockerClient.docker, err = newDockerClient(client.WithHost(fmt.Sprintf("tcp://%s", cmdCtx.AppName)))
-	if err != nil {
-		return fmt.Errorf("error resetting docker client to use remote builder config: %v", err)
-	}
-
-	dockerTransport, ok := dockerClient.docker.HTTPClient().Transport.(*http.Transport)
-	if !ok {
-		return fmt.Errorf("Docker client transport was not an HTTP transport, don't know what to do with that")
-	}
 	builderURL, err := url.Parse(rawURL)
 	if err != nil {
-		return fmt.Errorf("Could not parse builder url '%s': %v", rawURL, err)
+		return errors.Wrap(err, "error parsing remote builder url")
 	}
 
-	builderURL.User = url.UserPassword(cmdCtx.AppName, flyctl.GetAPIToken())
+	user := base64.RawStdEncoding.EncodeToString([]byte(url.UserPassword(cmdCtx.AppName, flyctl.GetAPIToken()).String()))
+	daemonURL := fmt.Sprintf("ssh://%s@%s:%d", user, builderURL.Hostname(), 10000)
 
-	proxyCfg := &httpproxy.Config{HTTPProxy: builderURL.String()}
-	dockerTransport.Proxy = func(req *http.Request) (*url.URL, error) {
-		return proxyCfg.ProxyFunc()(req.URL)
+	helper, err := connhelper.GetConnectionHelperWithSSHOpts(daemonURL, []string{"-o", "StrictHostKeyChecking=no"})
+
+	if err != nil {
+		return errors.Wrap(err, "error parsing remote builder connection")
+	}
+
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			DialContext: helper.Dialer,
+		},
+	}
+
+	var clientOpts []client.Opt
+
+	clientOpts = []client.Opt{
+		client.WithHTTPClient(httpClient),
+		client.WithHost(helper.Host),
+		client.WithDialContext(helper.Dialer),
+	}
+
+	dockerClient.docker, err = newDockerClient(clientOpts...)
+	if err != nil {
+		return fmt.Errorf("error resetting docker client to use remote builder config: %v", err)
 	}
 
 	deadline := time.After(5 * time.Minute)
