@@ -638,6 +638,10 @@ secret removes its availability to the application.`,
 		return KeyStrings{"ssh <command>", "Commands that manage SSH credentials",
 			`Commands that manage SSH credentials`,
 		}
+	case "ssh.console":
+		return KeyStrings{"console [<host>]", "Connect to a running instance of the current app.",
+			`Connect to a running instance of the current app; with -select, choose instance from list.`,
+		}
 	case "ssh.establish":
 		return KeyStrings{"establish [<org>] [<override>]", "Create a root SSH certificate for your organization",
 			`Create a root SSH certificate for your organization. If <override>
@@ -741,10 +745,6 @@ number to operate. This can be found through the volumes list command`,
 		}
 	case "wireguard.remove":
 		return KeyStrings{"remove [org] [name]", "Remove a WireGuard peer connection",
-			`Remove a WireGuard peer connection from an organization`,
-		}
-	case "wireguard.test":
-		return KeyStrings{"test [org] [region]", "Remove a WireGuard peer connection",
 			`Remove a WireGuard peer connection from an organization`,
 		}
 	case "wireguard.token":

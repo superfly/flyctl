@@ -860,6 +860,11 @@ usage     = "ssh <command>"
 shortHelp = "Commands that manage SSH credentials"
 longHelp  = """Commands that manage SSH credentials"""
 
+    [ssh.console]
+    usage     = "console [<host>]"
+    shortHelp = "Connect to a running instance of the current app."
+    longHelp  = """Connect to a running instance of the current app; with -select, choose instance from list."""
+  
     [ssh.log]
     usage     = "log"
     shortHelp = "Log of all issued certs"

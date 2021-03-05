@@ -33,6 +33,22 @@ func newSSHCommand() *Command {
 
 	child(cmd, runSSHLog, "ssh.log").Args = cobra.MaximumNArgs(1)
 	child(cmd, runSSHEstablish, "ssh.establish").Args = cobra.MaximumNArgs(2)
+
+	console := BuildCommandKS(cmd,
+		runSSHConsole,
+		docstrings.Get("ssh.console"),
+		os.Stdout,
+		requireSession,
+		requireAppName)
+	console.Args = cobra.MaximumNArgs(1)
+
+	console.AddBoolFlag(BoolFlagOpts{
+		Name:        "select",
+		Shorthand:   "s",
+		Default:     false,
+		Description: "select available instances",
+	})
+
 	issue := child(cmd, runSSHIssue, "ssh.issue")
 	issue.Args = cobra.MaximumNArgs(3)
 
