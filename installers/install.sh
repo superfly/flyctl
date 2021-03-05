@@ -56,7 +56,7 @@ chmod +x "$exe"
 rm "$exe.tar.gz"
 ln -sf $exe $simexe
 
-if [[ ${1} == "prerel" ]]; then
+if [ "${1}" = "prerel" ]; then
 	"$exe" version -s "shell-prerel"
 else
 	"$exe" version -s "shell"
