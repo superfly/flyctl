@@ -13,6 +13,7 @@ const (
 	ConfigBuiltinsfile    = "builtins_file"
 	ConfigGQLErrorLogging = "gqlerrorlogging"
 	ConfigInstaller       = "installer"
+	BuildKitNodeID        = "buildkit_node_id"
 
 	ConfigWireGuardState = "wire_guard_state"
 

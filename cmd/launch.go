@@ -108,6 +108,9 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 	}
 
 	app, err := cmdctx.Client.API().CreateApp(appName, org.ID, &region.Code)
+	if err != nil {
+		return err
+	}
 	appConfig.Definition = app.Config.Definition
 
 	cmdctx.AppName = app.Name

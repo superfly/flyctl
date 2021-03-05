@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -19,18 +20,18 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
+	"github.com/docker/docker/pkg/stringid"
 	"github.com/docker/docker/pkg/term"
+	"github.com/moby/buildkit/util/progress/progressui"
 	"github.com/pkg/errors"
 
-	controlapi "github.com/moby/buildkit/api/services/control"
-	buildkitClient "github.com/moby/buildkit/client"
-	"github.com/moby/buildkit/util/progress/progressui"
 	dockerparser "github.com/novln/docker-parser"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/net/context"
 	"golang.org/x/net/http/httpproxy"
+	"golang.org/x/sync/errgroup"
 )
 
 func newDeploymentTag(appName string, label string) string {
@@ -191,13 +192,14 @@ func (c *DockerClient) buildkitEnabled() (buildkitEnabled bool, err error) {
 	return buildkitEnabled, nil
 }
 
-func (c *DockerClient) BuildImage(ctx context.Context, tar io.Reader, tag string, buildArgs map[string]*string, out io.Writer) (*types.ImageSummary, error) {
+func (c *DockerClient) BuildImage(ctx context.Context, contextDir string, tar io.Reader, tag string, buildArgs map[string]*string, out io.Writer) (*types.ImageSummary, error) {
 	buildkitEnabled, err := c.buildkitEnabled()
 	if err != nil {
 		return nil, err
 	}
+
 	if buildkitEnabled {
-		return c.doBuildKitBuild(ctx, tar, tag, buildArgs, out)
+		return c.doBuildKitBuild(ctx, contextDir, tar, tag, buildArgs, out)
 	}
 
 	opts := types.ImageBuildOptions{
@@ -205,6 +207,7 @@ func (c *DockerClient) BuildImage(ctx context.Context, tar io.Reader, tag string
 		BuildArgs: buildArgs,
 		// NoCache:   true,
 		AuthConfigs: authConfigs(),
+		Platform:    "linux/amd64",
 	}
 
 	resp, err := c.docker.ImageBuild(ctx, tar, opts)
@@ -222,51 +225,119 @@ func (c *DockerClient) BuildImage(ctx context.Context, tar io.Reader, tag string
 	return c.findImage(ctx, tag)
 }
 
-func (c *DockerClient) doBuildKitBuild(ctx context.Context, tar io.Reader, tag string, buildArgs map[string]*string, out io.Writer) (*types.ImageSummary, error) {
-	opts := types.ImageBuildOptions{
-		Tags:      []string{tag},
-		BuildArgs: buildArgs,
-		// NoCache:   true,
-		Version:     types.BuilderBuildKit,
-		AuthConfigs: authConfigs(),
+const uploadRequestRemote = "upload-request"
+
+func (c *DockerClient) doBuildKitBuild(ctx context.Context, contextDir string, tar io.Reader, tag string, buildArgs map[string]*string, out io.Writer) (*types.ImageSummary, error) {
+	s, err := createBuildSession(contextDir)
+	if err != nil {
+		panic(err)
 	}
 
-	resp, err := c.docker.ImageBuild(ctx, tar, opts)
-	if err != nil {
+	if s == nil {
+		panic("buildkit not supported")
+	}
+
+	eg, errCtx := errgroup.WithContext(ctx)
+
+	dialSession := func(ctx context.Context, proto string, meta map[string][]string) (net.Conn, error) {
+		return c.docker.DialHijack(errCtx, "/session", proto, meta)
+	}
+	eg.Go(func() error {
+		return s.Run(context.TODO(), dialSession)
+	})
+
+	buildID := stringid.GenerateRandomID()
+	eg.Go(func() error {
+		buildOptions := types.ImageBuildOptions{
+			Version: types.BuilderBuildKit,
+			BuildID: uploadRequestRemote + ":" + buildID,
+		}
+
+		response, err := c.docker.ImageBuild(context.Background(), tar, buildOptions)
+		if err != nil {
+			return err
+		}
+		defer response.Body.Close()
+		return nil
+	})
+
+	eg.Go(func() error {
+		defer s.Close()
+
+		opts := types.ImageBuildOptions{
+			Tags:      []string{tag},
+			BuildArgs: buildArgs,
+			// NoCache:   true,
+			Version:       types.BuilderBuildKit,
+			AuthConfigs:   authConfigs(),
+			SessionID:     s.ID(),
+			RemoteContext: uploadRequestRemote,
+			BuildID:       buildID,
+		}
+
+		return doBuildKitBuild(errCtx, c.docker, eg, tar, opts)
+	})
+
+	if err := eg.Wait(); err != nil {
 		return nil, err
+	}
+
+	return c.findImage(ctx, tag)
+}
+
+func doBuildKitBuild(ctx context.Context, dockerClient *client.Client, eg *errgroup.Group, tar io.Reader, buildOptions types.ImageBuildOptions) error {
+	resp, err := dockerClient.ImageBuild(ctx, nil, buildOptions)
+	if err != nil {
+		return err
 	}
 	defer resp.Body.Close()
 
-	termFd, isTerm := term.GetFdInfo(os.Stderr)
+	done := make(chan struct{})
+	defer close(done)
 
+	eg.Go(func() error {
+		select {
+		case <-ctx.Done():
+			return dockerClient.BuildCancel(context.TODO(), buildOptions.BuildID)
+		case <-done:
+		}
+		return nil
+	})
+
+	termFd, isTerm := term.GetFdInfo(os.Stderr)
 	tracer := newTracer()
 	var c2 console.Console
 	if isTerm {
-		if cons, err := console.ConsoleFromFile(os.Stdout); err == nil {
+		if cons, err := console.ConsoleFromFile(os.Stderr); err == nil {
 			c2 = cons
 		}
 	}
 
-	go func() {
-		err := progressui.DisplaySolveStatus(context.TODO(), "", c2, out, tracer.displayCh)
-		if err != nil {
-
-			panic(err)
-		}
-	}()
+	eg.Go(func() error {
+		return progressui.DisplaySolveStatus(context.TODO(), "", c2, os.Stderr, tracer.displayCh)
+	})
 
 	auxCallback := func(m jsonmessage.JSONMessage) {
+		// if m.ID == "moby.image.id" {
+		// 	var result types.BuildResult
+		// 	if err := json.Unmarshal(*m.Aux, &result); err != nil {
+		// 		fmt.Fprintf(dockerCli.Err(), "failed to parse aux message: %v", err)
+		// 	}
+		// 	imageID = result.ID
+		// 	return
+		// }
+
 		tracer.write(m)
 	}
+	defer close(tracer.displayCh)
 
 	buf := bytes.NewBuffer(nil)
 
 	if err := jsonmessage.DisplayJSONMessagesStream(resp.Body, buf, termFd, isTerm, auxCallback); err != nil {
-		return nil, err
+		return err
 	}
-	close(tracer.displayCh)
 
-	return c.findImage(ctx, tag)
+	return nil
 }
 
 var imageIDPattern = regexp.MustCompile("[a-f0-9]")
@@ -360,66 +431,4 @@ func authConfigs() map[string]types.AuthConfig {
 	}
 
 	return authConfigs
-}
-
-type tracer struct {
-	displayCh chan *buildkitClient.SolveStatus
-}
-
-func newTracer() *tracer {
-	return &tracer{
-		displayCh: make(chan *buildkitClient.SolveStatus),
-	}
-}
-
-func (t *tracer) write(msg jsonmessage.JSONMessage) {
-	var resp controlapi.StatusResponse
-
-	if msg.ID != "moby.buildkit.trace" {
-		return
-	}
-
-	var dt []byte
-	// ignoring all messages that are not understood
-	if err := json.Unmarshal(*msg.Aux, &dt); err != nil {
-		return
-	}
-	if err := (&resp).Unmarshal(dt); err != nil {
-		return
-	}
-
-	s := buildkitClient.SolveStatus{}
-	for _, v := range resp.Vertexes {
-		s.Vertexes = append(s.Vertexes, &buildkitClient.Vertex{
-			Digest:    v.Digest,
-			Inputs:    v.Inputs,
-			Name:      v.Name,
-			Started:   v.Started,
-			Completed: v.Completed,
-			Error:     v.Error,
-			Cached:    v.Cached,
-		})
-	}
-	for _, v := range resp.Statuses {
-		s.Statuses = append(s.Statuses, &buildkitClient.VertexStatus{
-			ID:        v.ID,
-			Vertex:    v.Vertex,
-			Name:      v.Name,
-			Total:     v.Total,
-			Current:   v.Current,
-			Timestamp: v.Timestamp,
-			Started:   v.Started,
-			Completed: v.Completed,
-		})
-	}
-	for _, v := range resp.Logs {
-		s.Logs = append(s.Logs, &buildkitClient.VertexLog{
-			Vertex:    v.Vertex,
-			Stream:    int(v.Stream),
-			Data:      v.Msg,
-			Timestamp: v.Timestamp,
-		})
-	}
-
-	t.displayCh <- &s
 }
