@@ -207,7 +207,7 @@ func (op *BuildOperation) CleanDeploymentTags(cmdCtx *cmdctx.CmdContext) {
 }
 
 // BuildWithDocker - Run a Docker Build operation reporting back via the command context
-func (op *BuildOperation) BuildWithDocker(cmdCtx *cmdctx.CmdContext, dockerfilePath string, buildArgs map[string]string) (*Image, error) {
+func (op *BuildOperation) BuildWithDocker(cmdCtx *cmdctx.CmdContext, contextDir string, dockerfilePath string, buildArgs map[string]string) (*Image, error) {
 	spinning := cmdCtx.OutputJSON()
 	cwd := cmdCtx.WorkingDir
 	appConfig := cmdCtx.AppConfig
@@ -290,7 +290,7 @@ func (op *BuildOperation) BuildWithDocker(cmdCtx *cmdctx.CmdContext, dockerfileP
 		return nil, err
 	}
 
-	img, err := op.dockerClient.BuildImage(op.ctx, archive.File, op.imageTag, normalizedBuildArgs, op.out)
+	img, err := op.dockerClient.BuildImage(op.ctx, contextDir, archive.File, op.imageTag, normalizedBuildArgs, op.out)
 
 	if err != nil {
 		return nil, err

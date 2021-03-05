@@ -207,7 +207,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		} else if cmdCtx.AppConfig.HasBuiltin() {
 			cmdCtx.Status("deploy", cmdctx.SBEGIN, "Building with Builtin")
 
-			img, err := buildOp.BuildWithDocker(cmdCtx, dockerfilePath, buildArgs)
+			img, err := buildOp.BuildWithDocker(cmdCtx, cmdCtx.WorkingDir, dockerfilePath, buildArgs)
 			if err != nil {
 				return err
 			}
@@ -216,7 +216,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		} else {
 			cmdCtx.Status("deploy", cmdctx.SBEGIN, "Building with Dockerfile")
 
-			img, err := buildOp.BuildWithDocker(cmdCtx, dockerfilePath, buildArgs)
+			img, err := buildOp.BuildWithDocker(cmdCtx, cmdCtx.WorkingDir, dockerfilePath, buildArgs)
 			if err != nil {
 				return err
 			}
