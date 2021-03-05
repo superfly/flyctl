@@ -33,6 +33,22 @@ func newSSHCommand() *Command {
 
 	child(cmd, runSSHLog, "ssh.log").Args = cobra.MaximumNArgs(1)
 	child(cmd, runSSHEstablish, "ssh.establish").Args = cobra.MaximumNArgs(2)
+
+	console := BuildCommandKS(cmd,
+		runSSHConsole,
+		docstrings.Get("ssh.console"),
+		os.Stdout,
+		requireSession,
+		requireAppName)
+	console.Args = cobra.MaximumNArgs(1)
+
+	console.AddBoolFlag(BoolFlagOpts{
+		Name:        "select",
+		Shorthand:   "s",
+		Default:     false,
+		Description: "select available instances",
+	})
+
 	issue := child(cmd, runSSHIssue, "ssh.issue")
 	issue.Args = cobra.MaximumNArgs(3)
 
@@ -67,6 +83,15 @@ func newSSHCommand() *Command {
 		Shorthand:   "o",
 		Default:     false,
 		Description: "Overwrite existing SSH keys in same location, if we generated them",
+	})
+
+	shell := child(cmd, runSSHShell, "ssh.shell")
+	shell.Args = cobra.MaximumNArgs(2)
+
+	shell.AddStringFlag(StringFlagOpts{
+		Name:        "region",
+		Shorthand:   "r",
+		Description: "Region to create WireGuard connection in",
 	})
 
 	return cmd
@@ -150,6 +175,18 @@ func runSSHEstablish(ctx *cmdctx.CmdContext) error {
 	fmt.Printf("New organization root certificate:\n%s", cert.Certificate)
 
 	return nil
+}
+
+func singleUseSSHCertificate(ctx *cmdctx.CmdContext, org *api.Organization) (*api.IssuedCertificate, error) {
+	client := ctx.Client.API()
+
+	user, err := ctx.Client.API().GetCurrentUser()
+	if err != nil {
+		return nil, err
+	}
+
+	hours := 1
+	return client.IssueSSHCertificate(org, user.Email, nil, &hours)
 }
 
 func runSSHIssue(ctx *cmdctx.CmdContext) error {

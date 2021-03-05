@@ -860,6 +860,11 @@ usage     = "ssh <command>"
 shortHelp = "Commands that manage SSH credentials"
 longHelp  = """Commands that manage SSH credentials"""
 
+    [ssh.console]
+    usage     = "console [<host>]"
+    shortHelp = "Connect to a running instance of the current app."
+    longHelp  = """Connect to a running instance of the current app; with -select, choose instance from list."""
+  
     [ssh.log]
     usage     = "log"
     shortHelp = "Log of all issued certs"
@@ -878,6 +883,12 @@ invalidated."""
     longHelp  = """Issue a new SSH credential. With -agent, populate credential 
 into SSH agent. With -hour, set the number of hours (1-72) for credential
 validity."""
+
+    [ssh.shell]
+    usage     = "shell [org] [address]"
+    shortHelp = "Connect directly to an instance."
+    longHelp  = """Connect directly to an instance. With -region, set the
+WireGuard region to use for the connection."""
 
 [vm]
 usage     = "vm <command>"

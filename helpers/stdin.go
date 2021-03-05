@@ -8,6 +8,14 @@ import (
 	"strings"
 )
 
+func IsTerminal() bool {
+	if fileInfo, _ := os.Stdout.Stat(); (fileInfo.Mode() & os.ModeCharDevice) != 0 {
+		return true
+	}
+
+	return false
+}
+
 func ReadStdin(maxLength int) (string, error) {
 	reader := bufio.NewReader(os.Stdin)
 	var output []rune
