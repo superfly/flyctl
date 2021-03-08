@@ -1,3 +1,6 @@
+//go:build !windows
+// +build !windows
+
 package ssh
 
 import (
@@ -7,7 +10,7 @@ import (
 	"syscall"
 
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 )
 
 func watchWindowSize(ctx context.Context, fd int, sess *ssh.Session) error {
@@ -21,7 +24,7 @@ func watchWindowSize(ctx context.Context, fd int, sess *ssh.Session) error {
 			return nil
 		}
 
-		width, height, err := terminal.GetSize(fd)
+		width, height, err := term.GetSize(fd)
 		if err != nil {
 			return err
 		}

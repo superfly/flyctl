@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 )
 
 const (
@@ -28,14 +28,14 @@ type Terminal struct {
 
 func (t *Terminal) attach(ctx context.Context, sess *ssh.Session) error {
 	width, height := DefaultWidth, DefaultHeight
-	if fd := int(t.Stdin.Fd()); terminal.IsTerminal(fd) {
-		state, err := terminal.MakeRaw(fd)
+	if fd := int(t.Stdin.Fd()); term.IsTerminal(fd) {
+		state, err := term.MakeRaw(fd)
 		if err != nil {
 			return err
 		}
-		defer terminal.Restore(fd, state)
+		defer term.Restore(fd, state)
 
-		width, height, err = terminal.GetSize(fd)
+		width, height, err = term.GetSize(fd)
 		if err != nil {
 			return err
 		}
