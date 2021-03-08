@@ -488,7 +488,7 @@ func setRemoteBuilder(ctx context.Context, cmdCtx *cmdctx.CmdContext, dockerClie
 
 	deadline := time.After(5 * time.Minute)
 
-	terminal.Info("Waiting for remote builder to become available...")
+	terminal.Infof("Waiting for remote builder (%s) to become available...", strings.Split(builderURL.Hostname(), ".")[0])
 
 	b := &backoff.Backoff{
 		//These are the defaults
