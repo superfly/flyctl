@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	badrand "math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -17,9 +18,12 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
+	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/pkg/wg"
 	"golang.org/x/crypto/curve25519"
 )
 
@@ -207,31 +211,104 @@ func c25519pair() (string, string) {
 		base64.StdEncoding.EncodeToString(private[:])
 }
 
-func runWireGuardCreate(ctx *cmdctx.CmdContext) error {
-	client := ctx.Client.API()
+type WireGuardState struct {
+	Org          string
+	Name         string
+	Region       string
+	LocalPublic  string
+	LocalPrivate string
+	DNS          string
+	Peer         api.CreatedWireGuardPeer
+}
 
-	org, err := orgByArg(ctx)
-	if err != nil {
-		return err
+// BUG(tqbf): Obviously all this needs to go, and I should just
+// make my code conform to the marshal/unmarshal protocol wireguard-go
+// uses, but in the service of landing this feature, I'm just going
+// to apply a layer of spackle for now.
+func (s *WireGuardState) TunnelConfig() *wg.Config {
+	skey := wg.PrivateKey{}
+	if err := skey.UnmarshalText([]byte(s.LocalPrivate)); err != nil {
+		panic(fmt.Sprintf("martian local private key: %s", err))
 	}
 
-	region, err := argOrPrompt(ctx, 1, "Region in which to add WireGuard peer: ")
-	if err != nil {
-		return err
+	pkey := wg.PublicKey{}
+	if err := pkey.UnmarshalText([]byte(s.Peer.Pubkey)); err != nil {
+		panic(fmt.Sprintf("martian local public key: %s", err))
 	}
 
-	var name string
-	rx := regexp.MustCompile("^[a-zA-Z0-9\\-]+$")
+	_, lnet, err := net.ParseCIDR(fmt.Sprintf("%s/120", s.Peer.Peerip))
+	if err != nil {
+		panic(fmt.Sprintf("martian local public: %s/120: %s", s.Peer.Peerip, err))
+	}
 
-	for !rx.MatchString(name) {
-		if name != "" {
-			fmt.Println("Name must consist solely of letters, numbers, and the dash character.")
-		}
+	raddr := net.ParseIP(s.Peer.Peerip).To16()
+	for i := 6; i < 16; i++ {
+		raddr[i] = 0
+	}
 
-		name, err = argOrPromptLoop(ctx, 2, "New DNS name for WireGuard peer: ", name)
+	// BUG(tqbf): for now, we never manage tunnels for different
+	// organizations, and while this comment is eating more space
+	// than the code I'd need to do this right, it's more fun to
+	// type, so we just hardcode.
+	_, rnet, _ := net.ParseCIDR(fmt.Sprintf("%s/48", raddr))
+
+	raddr[15] = 3
+	dns := net.ParseIP(fmt.Sprintf("%s", raddr))
+
+	// BUG(tqbf): I think this dance just because these needed to
+	// parse for Ben's TOML code.
+	wgl := wg.IPNet(*lnet)
+	wgr := wg.IPNet(*rnet)
+
+	return &wg.Config{
+		LocalPrivateKey: skey,
+		LocalNetwork:    &wgl,
+		RemotePublicKey: pkey,
+		RemoteNetwork:   &wgr,
+		Endpoint:        s.Peer.Endpointip + ":51820",
+		DNS:             dns,
+		// LogLevel:        9999999,
+	}
+
+}
+
+func wireGuardCreate(ctx *cmdctx.CmdContext, org *api.Organization, regionp, namep *string) (*WireGuardState, error) {
+	var (
+		region, name string
+		err          error
+		rx           = regexp.MustCompile("^[a-zA-Z0-9\\-]+$")
+		client       = ctx.Client.API()
+	)
+
+	if org == nil {
+		org, err = orgByArg(ctx)
 		if err != nil {
-			return err
+			return nil, err
 		}
+	}
+
+	if regionp == nil {
+		region, err = argOrPrompt(ctx, 1, "Region in which to add WireGuard peer: ")
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		region = *regionp
+	}
+
+	if namep == nil {
+		for !rx.MatchString(name) {
+			if name != "" {
+				fmt.Println("Name must consist solely of letters, numbers, and the dash character.")
+			}
+
+			name, err = argOrPromptLoop(ctx, 2, "New DNS name for WireGuard peer: ", name)
+			if err != nil {
+				return nil, err
+			}
+		}
+	} else {
+		name = *namep
 	}
 
 	fmt.Printf("Creating WireGuard peer \"%s\" in region \"%s\" for organization %s\n", name, region, org.Slug)
@@ -240,8 +317,26 @@ func runWireGuardCreate(ctx *cmdctx.CmdContext) error {
 
 	data, err := client.CreateWireGuardPeer(org, region, name, pubkey)
 	if err != nil {
+		return nil, err
+	}
+
+	return &WireGuardState{
+		Name:         name,
+		Region:       region,
+		Org:          org.Slug,
+		LocalPublic:  pubkey,
+		LocalPrivate: privatekey,
+		Peer:         *data,
+	}, nil
+}
+
+func runWireGuardCreate(ctx *cmdctx.CmdContext) error {
+	state, err := wireGuardCreate(ctx, nil, nil, nil)
+	if err != nil {
 		return err
 	}
+
+	data := &state.Peer
 
 	fmt.Printf(`
 !!!! WARNING: Output includes private key. Private keys cannot be recovered !!!!
@@ -257,7 +352,7 @@ func runWireGuardCreate(ctx *cmdctx.CmdContext) error {
 		defer w.Close()
 	}
 
-	generateWgConf(data, privatekey, w)
+	generateWgConf(data, state.LocalPrivate, w)
 
 	if shouldClose {
 		filename := w.(*os.File).Name()
@@ -571,4 +666,87 @@ func runWireGuardTokenUpdatePeer(ctx *cmdctx.CmdContext) error {
 	}
 
 	return nil
+}
+
+func wireGuardForOrg(ctx *cmdctx.CmdContext, org *api.Organization) (*WireGuardState, error) {
+	var (
+		svm map[string]interface{}
+		ok  bool
+	)
+
+	sv := viper.Get(flyctl.ConfigWireGuardState)
+	if sv != nil {
+		svm, ok = sv.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("garbage stored in wireguard_state in config")
+		}
+
+		// no state saved for this org
+		savedStatev, ok := svm[org.Slug]
+		if !ok {
+			goto NEW_CONNECTION
+		}
+
+		savedPeerv, ok := savedStatev.(map[string]interface{})["peer"]
+		if !ok {
+			return nil, fmt.Errorf("garbage stored in wireguard_state in config (under peer)")
+		}
+
+		savedState := savedStatev.(map[string]interface{})
+		savedPeer := savedPeerv.(map[string]interface{})
+
+		// if we get this far and the config is garbled, i'm fine
+		// with a panic
+		return &WireGuardState{
+			Org:          org.Slug,
+			Name:         savedState["name"].(string),
+			Region:       savedState["region"].(string),
+			LocalPublic:  savedState["localpublic"].(string),
+			LocalPrivate: savedState["localprivate"].(string),
+			Peer: api.CreatedWireGuardPeer{
+				Peerip:     savedPeer["peerip"].(string),
+				Endpointip: savedPeer["endpointip"].(string),
+				Pubkey:     savedPeer["pubkey"].(string),
+			},
+		}, nil
+	} else {
+		svm = map[string]interface{}{}
+	}
+
+NEW_CONNECTION:
+	user, err := ctx.Client.API().GetCurrentUser()
+	if err != nil {
+		return nil, err
+	}
+
+	rx := regexp.MustCompile("[^a-zA-Z0-9\\-]")
+
+	host, _ := os.Hostname()
+
+	wgName := fmt.Sprintf("interactive-%s-%s-%d",
+		strings.Split(host, ".")[0],
+		rx.ReplaceAllString(user.Email, "-"), badrand.Intn(1000))
+
+	region, err := ctx.Config.GetString("region")
+	if region == "" || err != nil {
+		if err = survey.AskOne(&survey.Input{
+			Message: "Region in which to add WireGuard peer: ",
+		}, &region); err != nil {
+			return nil, err
+		}
+	}
+
+	stateb, err := wireGuardCreate(ctx, org, &region, &wgName)
+	if err != nil {
+		return nil, err
+	}
+
+	svm[stateb.Org] = stateb
+
+	viper.Set(flyctl.ConfigWireGuardState, &svm)
+	if err := flyctl.SaveConfig(); err != nil {
+		return nil, err
+	}
+
+	return stateb, err
 }

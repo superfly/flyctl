@@ -26,6 +26,7 @@ require (
 	github.com/matryer/is v1.3.0 // indirect
 	github.com/mattn/go-isatty v0.0.12
 	github.com/moby/buildkit v0.8.1
+	github.com/moby/term v0.0.0-20201216013528-df9cb8a40635 // indirect
 	github.com/morikuni/aec v1.0.0
 	github.com/novln/docker-parser v1.0.0
 	github.com/olekukonko/tablewriter v0.0.5
@@ -40,6 +41,9 @@ require (
 	golang.org/x/net v0.0.0-20210119194325-5f4716e94777
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20210226181700-f36f78243c0c // indirect
+	golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d // indirect
+	golang.zx2c4.com/wireguard v0.0.20201118
+	golang.zx2c4.com/wireguard/tun/netstack v0.0.0-20210225140808-70b7b7158fc9
 	gopkg.in/yaml.v2 v2.4.0
 )
 

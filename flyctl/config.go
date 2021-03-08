@@ -15,6 +15,8 @@ const (
 	ConfigInstaller       = "installer"
 	BuildKitNodeID        = "buildkit_node_id"
 
+	ConfigWireGuardState = "wire_guard_state"
+
 	ConfigRegistryHost             = "registry_host"
 	ConfigUpdateCheck              = "update_check"
 	ConfigUpdateCheckLatestVersion = ConfigUpdateCheck + ".latest_version"

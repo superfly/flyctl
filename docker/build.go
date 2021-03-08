@@ -464,6 +464,8 @@ func setRemoteBuilder(ctx context.Context, cmdCtx *cmdctx.CmdContext, dockerClie
 		return errors.Wrap(err, "Error creating docker client")
 	}
 
+	terminal.Infof("Waiting for remote builder (%s) to become available...", strings.Split(builderURL.Hostname(), ".")[0])
+
 	if err := WaitForDaemon(ctx, client); err != nil {
 		return err
 	}

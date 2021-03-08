@@ -638,6 +638,10 @@ secret removes its availability to the application.`,
 		return KeyStrings{"ssh <command>", "Commands that manage SSH credentials",
 			`Commands that manage SSH credentials`,
 		}
+	case "ssh.console":
+		return KeyStrings{"console [<host>]", "Connect to a running instance of the current app.",
+			`Connect to a running instance of the current app; with -select, choose instance from list.`,
+		}
 	case "ssh.establish":
 		return KeyStrings{"establish [<org>] [<override>]", "Create a root SSH certificate for your organization",
 			`Create a root SSH certificate for your organization. If <override>
@@ -653,6 +657,11 @@ validity.`,
 	case "ssh.log":
 		return KeyStrings{"log", "Log of all issued certs",
 			`log of all issued certs`,
+		}
+	case "ssh.shell":
+		return KeyStrings{"shell [org] [address]", "Connect directly to an instance.",
+			`Connect directly to an instance. With -region, set the
+WireGuard region to use for the connection.`,
 		}
 	case "status":
 		return KeyStrings{"status", "Show App status",
