@@ -21,8 +21,8 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/docker/docker/pkg/stringid"
-	"github.com/docker/docker/pkg/term"
 	"github.com/moby/buildkit/util/progress/progressui"
+	"github.com/moby/term"
 	"github.com/pkg/errors"
 
 	dockerparser "github.com/novln/docker-parser"

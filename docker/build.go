@@ -473,9 +473,7 @@ func setRemoteBuilder(ctx context.Context, cmdCtx *cmdctx.CmdContext, dockerClie
 		},
 	}
 
-	var clientOpts []client.Opt
-
-	clientOpts = []client.Opt{
+	clientOpts := []client.Opt{
 		client.WithHTTPClient(httpClient),
 		client.WithHost(helper.Host),
 		client.WithDialContext(helper.Dialer),
