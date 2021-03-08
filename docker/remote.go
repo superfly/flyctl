@@ -33,8 +33,6 @@ func isRetyableError(err error) bool {
 func WaitForDaemon(ctx context.Context, client *dockerclient.Client) error {
 	deadline := time.After(5 * time.Minute)
 
-	terminal.Info("Waiting for remote builder to become available...")
-
 	b := &backoff.Backoff{
 		//These are the defaults
 		Min:    200 * time.Millisecond,
