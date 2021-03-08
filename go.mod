@@ -13,7 +13,7 @@ require (
 	github.com/briandowns/spinner v1.12.0
 	github.com/buildpacks/pack v0.17.0
 	github.com/containerd/console v1.0.1
-	github.com/docker/cli v20.10.4+incompatible // indirect
+	github.com/docker/cli v20.10.4+incompatible
 	github.com/docker/docker v20.10.0-beta1.0.20201110211921-af34b94a78a1+incompatible
 	github.com/dustin/go-humanize v1.0.0
 	github.com/ejcx/sshcert v1.0.1
@@ -38,7 +38,7 @@ require (
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
 	golang.org/x/net v0.0.0-20210119194325-5f4716e94777
-	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20210226181700-f36f78243c0c // indirect
 	gopkg.in/yaml.v2 v2.4.0
 )

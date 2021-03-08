@@ -1,10 +1,9 @@
 package docker
 
 import (
-	"encoding/base64"
 	"fmt"
 	"io"
-	"net/http"
+	"net"
 	"net/url"
 	"os"
 	"path"
@@ -13,7 +12,6 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/jpillora/backoff"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/builtinsupport"
@@ -22,7 +20,6 @@ import (
 
 	"github.com/briandowns/spinner"
 	"github.com/buildpacks/pack"
-	"github.com/docker/cli/cli/connhelper"
 	"github.com/docker/docker/builder/dockerignore"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/fileutils"
@@ -458,84 +455,20 @@ func setRemoteBuilder(ctx context.Context, cmdCtx *cmdctx.CmdContext, dockerClie
 		return errors.Wrap(err, "error parsing remote builder url")
 	}
 
-	user := base64.StdEncoding.EncodeToString([]byte(url.UserPassword(cmdCtx.AppName, flyctl.GetAPIToken()).String()))
-	daemonURL := fmt.Sprintf("ssh://%s@%s:%d", user, builderURL.Hostname(), 10000)
+	dialer := func(ctx context.Context, network string, addr string) (net.Conn, error) {
+		return newRemoteBuilderConnection(builderURL.Hostname(), 10000, cmdCtx.AppName, flyctl.GetAPIToken())
+	}
 
-	helper, err := connhelper.GetConnectionHelperWithSSHOpts(daemonURL, []string{"-o", "StrictHostKeyChecking=no"})
-
+	client, err := newDockerClient(client.WithDialContext(dialer))
 	if err != nil {
-		return errors.Wrap(err, "error parsing remote builder connection")
+		return errors.Wrap(err, "Error creating docker client")
 	}
 
-	httpClient := &http.Client{
-		Transport: &http.Transport{
-			DialContext: helper.Dialer,
-		},
+	if err := WaitForDaemon(ctx, client); err != nil {
+		return err
 	}
 
-	var clientOpts []client.Opt
-
-	clientOpts = []client.Opt{
-		client.WithHTTPClient(httpClient),
-		client.WithHost(helper.Host),
-		client.WithDialContext(helper.Dialer),
-	}
-
-	dockerClient.docker, err = newDockerClient(clientOpts...)
-	if err != nil {
-		return fmt.Errorf("error resetting docker client to use remote builder config: %v", err)
-	}
-
-	deadline := time.After(5 * time.Minute)
-
-	terminal.Info("Waiting for remote builder to become available...")
-
-	b := &backoff.Backoff{
-		//These are the defaults
-		Min:    200 * time.Millisecond,
-		Max:    2 * time.Second,
-		Factor: 1.2,
-		Jitter: true,
-	}
-
-	consecutiveSuccesses := 0
-
-OUTER:
-	for {
-		checkErr := make(chan error, 1)
-
-		go func() {
-			checkErr <- dockerClient.Check(ctx)
-		}()
-
-		select {
-		case err := <-checkErr:
-			if err == nil {
-				if consecutiveSuccesses == 0 {
-					// reset on the first success in a row so the next checks are a bit spaced out
-					b.Reset()
-				}
-				consecutiveSuccesses++
-				if consecutiveSuccesses >= 3 {
-					terminal.Info("Remote builder is ready to build!")
-					break OUTER
-				}
-				dur := b.Duration()
-				terminal.Debugf("Remote builder available, but pinging again in %s to be sure\n", dur)
-				time.Sleep(dur)
-			} else {
-				consecutiveSuccesses = 0
-				dur := b.Duration()
-				terminal.Debugf("Remote builder unavailable, retrying in %s (err: %v)\n", dur, err)
-				time.Sleep(dur)
-			}
-		case <-deadline:
-			return fmt.Errorf("Could not ping remote builder within 5 minutes, aborting.")
-		case <-ctx.Done():
-			terminal.Warn("Canceled")
-			break OUTER
-		}
-	}
+	dockerClient.docker = client
 
 	return nil
 }
