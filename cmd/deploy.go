@@ -48,7 +48,7 @@ func newDeployCommand() *Command {
 	})
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "strategy",
-		Description: "The strategy for replacing running instances. Options are canary, rolling, or immediate. Default is canary",
+		Description: "The strategy for replacing running instances. Options are canary, rolling, bluegreen, or immediate. Default is canary",
 	})
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "dockerfile",
