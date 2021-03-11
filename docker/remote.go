@@ -42,6 +42,7 @@ func WaitForDaemon(ctx context.Context, client *dockerclient.Client) error {
 	}
 
 	consecutiveSuccesses := 0
+	var healthyStart time.Time
 
 OUTER:
 	for {
@@ -57,13 +58,16 @@ OUTER:
 			if err == nil {
 				if consecutiveSuccesses == 0 {
 					// reset on the first success in a row so the next checks are a bit spaced out
+					healthyStart = time.Now()
 					b.Reset()
 				}
 				consecutiveSuccesses++
-				if consecutiveSuccesses >= 3 {
+
+				if time.Since(healthyStart) > 3*time.Second {
 					terminal.Info("Remote builder is ready to build!")
 					break OUTER
 				}
+
 				dur := b.Duration()
 				terminal.Debugf("Remote builder available, but pinging again in %s to be sure\n", dur)
 				time.Sleep(dur)
