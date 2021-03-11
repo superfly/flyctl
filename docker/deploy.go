@@ -42,6 +42,7 @@ const (
 	CanaryDeploymentStrategy    DeploymentStrategy = "canary"
 	RollingDeploymentStrategy   DeploymentStrategy = "rolling"
 	ImmediateDeploymentStrategy DeploymentStrategy = "immediate"
+	BlueGreenDeploymentStrategy DeploymentStrategy = "bluegreen"
 	DefaultDeploymentStrategy   DeploymentStrategy = ""
 )
 
@@ -53,6 +54,8 @@ func ParseDeploymentStrategy(val string) (DeploymentStrategy, error) {
 		return RollingDeploymentStrategy, nil
 	case "immediate":
 		return ImmediateDeploymentStrategy, nil
+	case "bluegreen":
+		return BlueGreenDeploymentStrategy, nil
 	default:
 		return "", fmt.Errorf("Unknown deployment strategy '%s'", val)
 	}
