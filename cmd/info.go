@@ -1,19 +1,18 @@
 package cmd
 
 import (
-	"os"
-
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/flyname"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/superfly/flyctl/docstrings"
 
 	"github.com/superfly/flyctl/cmd/presenters"
 )
 
-func newInfoCommand() *Command {
+func newInfoCommand(client *client.Client) *Command {
 	ks := docstrings.Get("info")
-	appInfoCmd := BuildCommandKS(nil, runInfo, ks, os.Stdout, requireSession, requireAppName)
+	appInfoCmd := BuildCommandKS(nil, runInfo, ks, client, requireSession, requireAppName)
 
 	appInfoCmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "name",

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/superfly/flyctl/docstrings"
 
@@ -16,16 +17,16 @@ import (
 	"github.com/superfly/flyctl/helpers"
 )
 
-func newSecretsCommand() *Command {
+func newSecretsCommand(client *client.Client) *Command {
 
 	secretsStrings := docstrings.Get("secrets")
-	cmd := BuildCommandKS(nil, nil, secretsStrings, os.Stdout, requireSession, requireAppName)
+	cmd := BuildCommandKS(nil, nil, secretsStrings, client, requireSession, requireAppName)
 
 	secretsListStrings := docstrings.Get("secrets.list")
-	BuildCommandKS(cmd, runListSecrets, secretsListStrings, os.Stdout, requireSession, requireAppName)
+	BuildCommandKS(cmd, runListSecrets, secretsListStrings, client, requireSession, requireAppName)
 
 	secretsSetStrings := docstrings.Get("secrets.set")
-	set := BuildCommandKS(cmd, runSetSecrets, secretsSetStrings, os.Stdout, requireSession, requireAppName)
+	set := BuildCommandKS(cmd, runSetSecrets, secretsSetStrings, client, requireSession, requireAppName)
 
 	//TODO: Move examples into docstrings
 	set.Command.Example = `flyctl secrets set FLY_ENV=production LOG_LEVEL=info
@@ -39,14 +40,14 @@ func newSecretsCommand() *Command {
 	})
 
 	secretsImportStrings := docstrings.Get("secrets.import")
-	importCmd := BuildCommandKS(cmd, runImportSecrets, secretsImportStrings, os.Stdout, requireSession, requireAppName)
+	importCmd := BuildCommandKS(cmd, runImportSecrets, secretsImportStrings, client, requireSession, requireAppName)
 	importCmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "detach",
 		Description: "Return immediately instead of monitoring deployment progress",
 	})
 
 	secretsUnsetStrings := docstrings.Get("secrets.unset")
-	unset := BuildCommandKS(cmd, runSecretsUnset, secretsUnsetStrings, os.Stdout, requireSession, requireAppName)
+	unset := BuildCommandKS(cmd, runSecretsUnset, secretsUnsetStrings, client, requireSession, requireAppName)
 	unset.Command.Args = cobra.MinimumNArgs(1)
 
 	unset.AddBoolFlag(BoolFlagOpts{

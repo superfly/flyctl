@@ -3,10 +3,10 @@ package cmd
 import (
 	"fmt"
 	"net"
-	"os"
 
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/superfly/flyctl/docstrings"
 
@@ -15,25 +15,25 @@ import (
 	"github.com/superfly/flyctl/cmd/presenters"
 )
 
-func newIPAddressesCommand() *Command {
+func newIPAddressesCommand(client *client.Client) *Command {
 
 	ipsStrings := docstrings.Get("ips")
-	cmd := BuildCommandKS(nil, nil, ipsStrings, os.Stdout, requireSession, requireAppName)
+	cmd := BuildCommandKS(nil, nil, ipsStrings, client, requireSession, requireAppName)
 
 	ipsListStrings := docstrings.Get("ips.list")
-	BuildCommandKS(cmd, runIPAddressesList, ipsListStrings, os.Stdout, requireSession, requireAppName)
+	BuildCommandKS(cmd, runIPAddressesList, ipsListStrings, client, requireSession, requireAppName)
 
 	ipsPrivateListStrings := docstrings.Get("ips.private")
-	BuildCommandKS(cmd, runPrivateIPAddressesList, ipsPrivateListStrings, os.Stdout, requireSession, requireAppName)
+	BuildCommandKS(cmd, runPrivateIPAddressesList, ipsPrivateListStrings, client, requireSession, requireAppName)
 
 	ipsAllocateV4Strings := docstrings.Get("ips.allocate-v4")
-	BuildCommandKS(cmd, runAllocateIPAddressV4, ipsAllocateV4Strings, os.Stdout, requireSession, requireAppName)
+	BuildCommandKS(cmd, runAllocateIPAddressV4, ipsAllocateV4Strings, client, requireSession, requireAppName)
 
 	ipsAllocateV6Strings := docstrings.Get("ips.allocate-v6")
-	BuildCommandKS(cmd, runAllocateIPAddressV6, ipsAllocateV6Strings, os.Stdout, requireSession, requireAppName)
+	BuildCommandKS(cmd, runAllocateIPAddressV6, ipsAllocateV6Strings, client, requireSession, requireAppName)
 
 	ipsReleaseStrings := docstrings.Get("ips.release")
-	release := BuildCommandKS(cmd, runReleaseIPAddress, ipsReleaseStrings, os.Stdout, requireSession, requireAppName)
+	release := BuildCommandKS(cmd, runReleaseIPAddress, ipsReleaseStrings, client, requireSession, requireAppName)
 	release.Args = cobra.ExactArgs(1)
 
 	return cmd

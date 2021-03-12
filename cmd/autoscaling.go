@@ -3,11 +3,11 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/docstrings"
@@ -15,30 +15,30 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newAutoscaleCommand() *Command {
+func newAutoscaleCommand(client *client.Client) *Command {
 	autoscaleStrings := docstrings.Get("autoscale")
 
-	cmd := BuildCommandKS(nil, nil, autoscaleStrings, os.Stdout, requireSession, requireAppName)
+	cmd := BuildCommandKS(nil, nil, autoscaleStrings, client, requireSession, requireAppName)
 	//cmd.Deprecated = "use `flyctl scale` instead"
 
 	disableCmdStrings := docstrings.Get("autoscale.disable")
-	disableCmd := BuildCommand(cmd, runDisableAutoscaling, disableCmdStrings.Usage, disableCmdStrings.Short, disableCmdStrings.Long, os.Stdout, requireSession, requireAppName)
+	disableCmd := BuildCommand(cmd, runDisableAutoscaling, disableCmdStrings.Usage, disableCmdStrings.Short, disableCmdStrings.Long, client, requireSession, requireAppName)
 	disableCmd.Args = cobra.RangeArgs(0, 2)
 
 	balanceCmdStrings := docstrings.Get("autoscale.balanced")
-	balanceCmd := BuildCommand(cmd, runBalanceScale, balanceCmdStrings.Usage, balanceCmdStrings.Short, balanceCmdStrings.Long, os.Stdout, requireSession, requireAppName)
+	balanceCmd := BuildCommand(cmd, runBalanceScale, balanceCmdStrings.Usage, balanceCmdStrings.Short, balanceCmdStrings.Long, client, requireSession, requireAppName)
 	balanceCmd.Args = cobra.RangeArgs(0, 2)
 
 	standardCmdStrings := docstrings.Get("autoscale.standard")
-	standardCmd := BuildCommand(cmd, runStandardScale, standardCmdStrings.Usage, standardCmdStrings.Short, standardCmdStrings.Long, os.Stdout, requireSession, requireAppName)
+	standardCmd := BuildCommand(cmd, runStandardScale, standardCmdStrings.Usage, standardCmdStrings.Short, standardCmdStrings.Long, client, requireSession, requireAppName)
 	standardCmd.Args = cobra.RangeArgs(0, 2)
 
 	setCmdStrings := docstrings.Get("autoscale.set")
-	setCmd := BuildCommand(cmd, runSetParamsOnly, setCmdStrings.Usage, setCmdStrings.Short, setCmdStrings.Long, os.Stdout, requireSession, requireAppName)
+	setCmd := BuildCommand(cmd, runSetParamsOnly, setCmdStrings.Usage, setCmdStrings.Short, setCmdStrings.Long, client, requireSession, requireAppName)
 	setCmd.Args = cobra.RangeArgs(0, 2)
 
 	showCmdStrings := docstrings.Get("autoscale.show")
-	BuildCommand(cmd, runAutoscalingShow, showCmdStrings.Usage, showCmdStrings.Short, showCmdStrings.Long, os.Stdout, requireSession, requireAppName)
+	BuildCommand(cmd, runAutoscalingShow, showCmdStrings.Usage, showCmdStrings.Short, showCmdStrings.Long, client, requireSession, requireAppName)
 
 	return cmd
 }

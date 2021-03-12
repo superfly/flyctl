@@ -10,18 +10,19 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
+	"github.com/superfly/flyctl/internal/client"
 )
 
-func newDNSCommand() *Command {
+func newDNSCommand(client *client.Client) *Command {
 	dnsStrings := docstrings.Get("dns-records")
-	cmd := BuildCommandKS(nil, nil, dnsStrings, os.Stdout, requireSession)
+	cmd := BuildCommandKS(nil, nil, dnsStrings, client, requireSession)
 
 	listStrings := docstrings.Get("dns-records.list")
-	listCmd := BuildCommandKS(cmd, runRecordsList, listStrings, os.Stdout, requireSession)
+	listCmd := BuildCommandKS(cmd, runRecordsList, listStrings, client, requireSession)
 	listCmd.Args = cobra.ExactArgs(1)
 
 	recordsExportStrings := docstrings.Get("dns-records.export")
-	recordsExportCmd := BuildCommandKS(cmd, runRecordsExport, recordsExportStrings, os.Stdout, requireSession)
+	recordsExportCmd := BuildCommandKS(cmd, runRecordsExport, recordsExportStrings, client, requireSession)
 	recordsExportCmd.Args = cobra.MinimumNArgs(1)
 	recordsExportCmd.Args = cobra.MaximumNArgs(3)
 	recordsExportCmd.AddBoolFlag(BoolFlagOpts{
@@ -29,7 +30,7 @@ func newDNSCommand() *Command {
 	})
 
 	recordsImportStrings := docstrings.Get("dns-records.import")
-	recordsImportCmd := BuildCommandKS(cmd, runRecordsImport, recordsImportStrings, os.Stdout, requireSession)
+	recordsImportCmd := BuildCommandKS(cmd, runRecordsImport, recordsImportStrings, client, requireSession)
 	recordsImportCmd.Args = cobra.MaximumNArgs(3)
 	recordsImportCmd.Args = cobra.MinimumNArgs(1)
 

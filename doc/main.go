@@ -18,10 +18,12 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/cmd"
+	"github.com/superfly/flyctl/internal/cmdutil"
 )
 
 func main() {
-	cmd := cmd.GetRootCommand()
+	cc := cmdutil.NewContext()
+	cmd := cmd.NewRootCmd(cc)
 	cmd.DisableAutoGenTag = true
 
 	filePrepender := func(filename string) string {

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"time"
 
@@ -10,20 +9,21 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/superfly/flyctl/docstrings"
 )
 
-func newVolumesCommand() *Command {
+func newVolumesCommand(client *client.Client) *Command {
 	volumesStrings := docstrings.Get("volumes")
-	volumesCmd := BuildCommandKS(nil, nil, volumesStrings, os.Stdout, requireAppName, requireSession)
+	volumesCmd := BuildCommandKS(nil, nil, volumesStrings, client, requireAppName, requireSession)
 	volumesCmd.Aliases = []string{"vol"}
 
 	listStrings := docstrings.Get("volumes.list")
-	BuildCommandKS(volumesCmd, runListVolumes, listStrings, os.Stdout, requireAppName, requireSession)
+	BuildCommandKS(volumesCmd, runListVolumes, listStrings, client, requireAppName, requireSession)
 
 	createStrings := docstrings.Get("volumes.create")
-	createCmd := BuildCommandKS(volumesCmd, runCreateVolume, createStrings, os.Stdout, requireAppName, requireSession)
+	createCmd := BuildCommandKS(volumesCmd, runCreateVolume, createStrings, client, requireAppName, requireSession)
 	createCmd.Args = cobra.ExactArgs(1)
 
 	createCmd.AddStringFlag(StringFlagOpts{
@@ -44,11 +44,11 @@ func newVolumesCommand() *Command {
 	})
 
 	deleteStrings := docstrings.Get("volumes.delete")
-	deleteCmd := BuildCommandKS(volumesCmd, runDestroyVolume, deleteStrings, os.Stdout, requireSession)
+	deleteCmd := BuildCommandKS(volumesCmd, runDestroyVolume, deleteStrings, client, requireSession)
 	deleteCmd.Args = cobra.ExactArgs(1)
 
 	showStrings := docstrings.Get("volumes.show")
-	showCmd := BuildCommandKS(volumesCmd, runShowVolume, showStrings, os.Stdout, requireSession)
+	showCmd := BuildCommandKS(volumesCmd, runShowVolume, showStrings, client, requireSession)
 	showCmd.Args = cobra.ExactArgs(1)
 
 	return volumesCmd

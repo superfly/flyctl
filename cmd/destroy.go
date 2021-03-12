@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/logrusorgru/aurora"
@@ -14,11 +14,11 @@ import (
 
 //TODO: Move all output to status styled begin/done updates
 
-func newDestroyCommand() *Command {
+func newDestroyCommand(client *client.Client) *Command {
 
 	destroyStrings := docstrings.Get("destroy")
 
-	destroy := BuildCommand(nil, runDestroy, destroyStrings.Usage, destroyStrings.Short, destroyStrings.Long, os.Stdout, requireSession)
+	destroy := BuildCommand(nil, runDestroy, destroyStrings.Usage, destroyStrings.Short, destroyStrings.Long, client, requireSession)
 
 	destroy.Args = cobra.ExactArgs(1)
 

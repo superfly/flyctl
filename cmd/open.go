@@ -2,19 +2,19 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/flyname"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/superfly/flyctl/docstrings"
 
 	"github.com/skratchdot/open-golang/open"
 )
 
-func newOpenCommand() *Command {
+func newOpenCommand(client *client.Client) *Command {
 	ks := docstrings.Get("open")
-	opencommand := BuildCommandKS(nil, runOpen, ks, os.Stdout, requireSession, requireAppName)
+	opencommand := BuildCommandKS(nil, runOpen, ks, client, requireSession, requireAppName)
 	return opencommand
 }
 

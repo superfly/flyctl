@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/logrusorgru/aurora"
@@ -15,10 +15,10 @@ import (
 
 //TODO: Move all output to status styled begin/done updates
 
-func newMoveCommand() *Command {
+func newMoveCommand(client *client.Client) *Command {
 
 	moveStrings := docstrings.Get("move")
-	moveCmd := BuildCommandKS(nil, runMove, moveStrings, os.Stdout, requireSession)
+	moveCmd := BuildCommandKS(nil, runMove, moveStrings, client, requireSession)
 	moveCmd.Args = cobra.ExactArgs(1)
 	// TODO: Move flag descriptions into the docStrings
 	moveCmd.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "Accept all confirmations"})

@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"sync"
 
 	"github.com/superfly/flyctl/cmdctx"
@@ -11,12 +10,13 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/docstrings"
+	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/deployment"
 )
 
-func newMonitorCommand() *Command {
+func newMonitorCommand(client *client.Client) *Command {
 	ks := docstrings.Get("monitor")
-	return BuildCommandKS(nil, runMonitor, ks, os.Stdout, requireSession, requireAppName)
+	return BuildCommandKS(nil, runMonitor, ks, client, requireSession, requireAppName)
 }
 
 func runMonitor(commandContext *cmdctx.CmdContext) error {

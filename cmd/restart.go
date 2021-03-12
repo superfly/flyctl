@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/docstrings"
@@ -12,9 +12,9 @@ import (
 
 //TODO: Move all output to status styled begin/done updates
 
-func newRestartCommand() *Command {
+func newRestartCommand(client *client.Client) *Command {
 	restartStrings := docstrings.Get("restart")
-	restartCmd := BuildCommandKS(nil, runRestart, restartStrings, os.Stdout, requireSession, requireAppNameAsArg)
+	restartCmd := BuildCommandKS(nil, runRestart, restartStrings, client, requireSession, requireAppNameAsArg)
 	restartCmd.Args = cobra.RangeArgs(0, 1)
 
 	return restartCmd

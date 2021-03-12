@@ -1,18 +1,17 @@
 package cmd
 
 import (
-	"os"
-
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/superfly/flyctl/docstrings"
 
 	"github.com/superfly/flyctl/cmd/presenters"
 )
 
-func newHistoryCommand() *Command {
+func newHistoryCommand(client *client.Client) *Command {
 	historyStrings := docstrings.Get("history")
-	return BuildCommand(nil, runHistory, historyStrings.Usage, historyStrings.Short, historyStrings.Long, os.Stdout, requireSession, requireAppName)
+	return BuildCommand(nil, runHistory, historyStrings.Usage, historyStrings.Short, historyStrings.Long, client, requireSession, requireAppName)
 }
 
 func runHistory(commandContext *cmdctx.CmdContext) error {

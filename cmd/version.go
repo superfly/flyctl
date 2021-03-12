@@ -10,19 +10,14 @@ import (
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/flyname"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/superfly/flyctl/docstrings"
 )
 
-func newVersionCommand() *Command {
+func newVersionCommand(client *client.Client) *Command {
 	versionStrings := docstrings.Get("version")
-	version := BuildCommandKS(nil, runVersion, versionStrings, os.Stdout)
-	version.AddStringFlag(StringFlagOpts{
-		Name:        "completions",
-		Shorthand:   "c",
-		Description: "Generate completions for supported shells bash/zsh)",
-	})
-
+	version := BuildCommandKS(nil, runVersion, versionStrings, client)
 	version.AddStringFlag(StringFlagOpts{
 		Name:        "saveinstall",
 		Shorthand:   "s",
@@ -31,26 +26,12 @@ func newVersionCommand() *Command {
 	version.Flag("saveinstall").Hidden = true
 
 	updateStrings := docstrings.Get("version.update")
-	BuildCommandKS(version, runUpdate, updateStrings, os.Stdout)
+	BuildCommandKS(version, runUpdate, updateStrings, client)
 
 	return version
 }
 
 func runVersion(ctx *cmdctx.CmdContext) error {
-
-	shellType, _ := ctx.Config.GetString("completions")
-
-	if shellType != "" {
-		switch shellType {
-		case "bash":
-			return GetRootCommand().GenBashCompletion(os.Stdout)
-		case "zsh":
-			return GetRootCommand().GenZshCompletion(os.Stdout)
-		default:
-			return fmt.Errorf("unable to generate %s completions", shellType)
-		}
-	}
-
 	saveInstall, _ := ctx.Config.GetString("saveinstall")
 
 	if saveInstall != "" {

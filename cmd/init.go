@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
@@ -17,11 +18,11 @@ import (
 
 //TODO: Move all output to status styled begin/done updates
 
-func newInitCommand() *Command {
+func newInitCommand(client *client.Client) *Command {
 
 	initStrings := docstrings.Get("init")
 
-	cmd := BuildCommandKS(nil, runInit, initStrings, os.Stdout, requireSession)
+	cmd := BuildCommandKS(nil, runInit, initStrings, client, requireSession)
 
 	cmd.Args = cobra.RangeArgs(0, 1)
 

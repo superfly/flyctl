@@ -2,29 +2,29 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/skratchdot/open-golang/open"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/superfly/flyctl/docstrings"
 
 	"github.com/superfly/flyctl/cmd/presenters"
 )
 
-func newPlatformCommand() *Command {
+func newPlatformCommand(client *client.Client) *Command {
 	platformStrings := docstrings.Get("platform")
 
-	cmd := BuildCommandKS(nil, nil, platformStrings, os.Stdout, requireAppName)
+	cmd := BuildCommandKS(nil, nil, platformStrings, client, requireAppName)
 
 	regionsStrings := docstrings.Get("platform.regions")
-	BuildCommandKS(cmd, runPlatformRegions, regionsStrings, os.Stdout, requireSession)
+	BuildCommandKS(cmd, runPlatformRegions, regionsStrings, client, requireSession)
 
 	vmSizesStrings := docstrings.Get("platform.vmsizes")
-	BuildCommandKS(cmd, runPlatformVMSizes, vmSizesStrings, os.Stdout, requireSession)
+	BuildCommandKS(cmd, runPlatformVMSizes, vmSizesStrings, client, requireSession)
 
 	statusStrings := docstrings.Get("platform.status")
-	BuildCommandKS(cmd, runPlatformStatus, statusStrings, os.Stdout, requireSession, requireAppName)
+	BuildCommandKS(cmd, runPlatformStatus, statusStrings, client, requireSession, requireAppName)
 
 	return cmd
 }

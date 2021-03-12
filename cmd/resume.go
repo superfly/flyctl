@@ -7,6 +7,7 @@ import (
 
 	"github.com/briandowns/spinner"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/docstrings"
@@ -14,10 +15,10 @@ import (
 
 //TODO: Move all output to status styled begin/done updates
 
-func newResumeCommand() *Command {
+func newResumeCommand(client *client.Client) *Command {
 
 	resumeStrings := docstrings.Get("resume")
-	resumeCmd := BuildCommandKS(nil, runResume, resumeStrings, os.Stdout, requireSession, requireAppNameAsArg)
+	resumeCmd := BuildCommandKS(nil, runResume, resumeStrings, client, requireSession, requireAppNameAsArg)
 	resumeCmd.Args = cobra.RangeArgs(0, 1)
 
 	return resumeCmd

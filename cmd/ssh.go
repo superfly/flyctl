@@ -19,16 +19,17 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
+	"github.com/superfly/flyctl/internal/client"
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
 
-func newSSHCommand() *Command {
-	cmd := BuildCommandKS(nil, nil, docstrings.Get("ssh"), os.Stdout, requireSession)
+func newSSHCommand(client *client.Client) *Command {
+	cmd := BuildCommandKS(nil, nil, docstrings.Get("ssh"), client, requireSession)
 
 	child := func(parent *Command, fn RunFn, ds string) *Command {
-		return BuildCommandKS(parent, fn, docstrings.Get(ds), os.Stdout, requireSession)
+		return BuildCommandKS(parent, fn, docstrings.Get(ds), client, requireSession)
 	}
 
 	child(cmd, runSSHLog, "ssh.log").Args = cobra.MaximumNArgs(1)
@@ -37,7 +38,7 @@ func newSSHCommand() *Command {
 	console := BuildCommandKS(cmd,
 		runSSHConsole,
 		docstrings.Get("ssh.console"),
-		os.Stdout,
+		client,
 		requireSession,
 		requireAppName)
 	console.Args = cobra.MaximumNArgs(1)

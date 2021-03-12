@@ -17,37 +17,21 @@ import (
 
 // ErrAbort - Error generated when application aborts
 var ErrAbort = errors.New("abort")
-var flyctlClient *client.Client
 
-var rootStrings = docstrings.Get("flyctl")
-var rootCmd = &Command{
-	Command: &cobra.Command{
-		Use:   rootStrings.Usage,
-		Short: rootStrings.Short,
-		Long:  rootStrings.Long,
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			cmd.SilenceUsage = true
-			cmd.SilenceErrors = true
-
-			flyctlClient = client.NewClient()
+func NewRootCmd(client *client.Client) *cobra.Command {
+	rootStrings := docstrings.Get("flyctl")
+	rootCmd := &Command{
+		Command: &cobra.Command{
+			Use:   rootStrings.Usage,
+			Short: rootStrings.Short,
+			Long:  rootStrings.Long,
+			PersistentPreRun: func(cmd *cobra.Command, args []string) {
+				cmd.SilenceUsage = true
+				cmd.SilenceErrors = true
+			},
 		},
-	},
-}
+	}
 
-// GetRootCommand - root for commands
-func GetRootCommand() *cobra.Command {
-	return rootCmd.Command
-}
-
-// Execute - root command execution
-func Execute() {
-	defer flyctl.BackgroundTaskWG.Wait()
-
-	err := rootCmd.Execute()
-	checkErr(err)
-}
-
-func init() {
 	rootCmd.PersistentFlags().StringP("access-token", "t", "", "Fly API Access Token")
 	err := viper.BindPFlag(flyctl.ConfigAPIToken, rootCmd.PersistentFlags().Lookup("access-token"))
 	checkErr(err)
@@ -68,53 +52,53 @@ func init() {
 	checkErr(err)
 
 	rootCmd.AddCommand(
-		newAppsCommand(),
-		newAuthCommand(),
-		newBuildsCommand(),
-		newCurlCommand(),
-		newCertificatesCommand(),
-		newConfigCommand(),
-		newDashboardCommand(),
-		newDeployCommand(),
-		newDestroyCommand(),
-		newDocsCommand(),
-		newHistoryCommand(),
-		newInfoCommand(),
-		newInitCommand(),
-		newIPAddressesCommand(),
-		newListCommand(),
-		newLogsCommand(),
-		newMonitorCommand(),
-		newMoveCommand(),
-		newOpenCommand(),
-		newPlatformCommand(),
-		newRegionsCommand(),
-		newReleasesCommand(),
-		newRestartCommand(),
-		newResumeCommand(),
-		newScaleCommand(),
-		newAutoscaleCommand(),
-		newSecretsCommand(),
-		newStatusCommand(),
-		newSuspendCommand(),
-		newVersionCommand(),
-		newDNSCommand(),
-		newDomainsCommand(),
-		newOrgsCommand(),
-		newBuiltinsCommand(),
-		newVolumesCommand(),
-		newWireGuardCommand(),
-		newSSHCommand(),
-		newChecksCommand(),
-		newPostgresCommand(),
-		newVMCommand(),
-		newLaunchCommand(),
+		newAppsCommand(client),
+		newAuthCommand(client),
+		newBuildsCommand(client),
+		newCurlCommand(client),
+		newCertificatesCommand(client),
+		newConfigCommand(client),
+		newDashboardCommand(client),
+		newDeployCommand(client),
+		newDestroyCommand(client),
+		newDocsCommand(client),
+		newHistoryCommand(client),
+		newInfoCommand(client),
+		newInitCommand(client),
+		newIPAddressesCommand(client),
+		newListCommand(client),
+		newLogsCommand(client),
+		newMonitorCommand(client),
+		newMoveCommand(client),
+		newOpenCommand(client),
+		newPlatformCommand(client),
+		newRegionsCommand(client),
+		newReleasesCommand(client),
+		newRestartCommand(client),
+		newResumeCommand(client),
+		newScaleCommand(client),
+		newAutoscaleCommand(client),
+		newSecretsCommand(client),
+		newStatusCommand(client),
+		newSuspendCommand(client),
+		newVersionCommand(client),
+		newDNSCommand(client),
+		newDomainsCommand(client),
+		newOrgsCommand(client),
+		newBuiltinsCommand(client),
+		newVolumesCommand(client),
+		newWireGuardCommand(client),
+		newSSHCommand(client),
+		newChecksCommand(client),
+		newPostgresCommand(client),
+		newVMCommand(client),
+		newLaunchCommand(client),
 	)
 
-	initConfig()
+	return rootCmd.Command
 }
 
-func initConfig() {
+func init() {
 	flyctl.InitConfig()
 	flyctl.CheckForUpdate(false, false) // allow skipping, don't be silent
 }

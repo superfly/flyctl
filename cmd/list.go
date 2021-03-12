@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -9,18 +8,19 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/superfly/flyctl/docstrings"
 )
 
-func newListCommand() *Command {
+func newListCommand(client *client.Client) *Command {
 	ks := docstrings.Get("list")
 
-	listCmd := BuildCommandKS(nil, nil, ks, os.Stdout, requireSession)
+	listCmd := BuildCommandKS(nil, nil, ks, client, requireSession)
 	listCmd.Aliases = []string{"ls"}
 
 	laks := docstrings.Get("list.apps")
-	listAppsCmd := BuildCommandKS(listCmd, runListApps, laks, os.Stdout, requireSession)
+	listAppsCmd := BuildCommandKS(listCmd, runListApps, laks, client, requireSession)
 
 	listAppsCmd.AddStringFlag(StringFlagOpts{
 		Name:        "org",
@@ -48,7 +48,7 @@ func newListCommand() *Command {
 	})
 
 	loks := docstrings.Get("list.orgs")
-	BuildCommandKS(listCmd, runListOrgs, loks, os.Stdout, requireSession)
+	BuildCommandKS(listCmd, runListOrgs, loks, client, requireSession)
 
 	return listCmd
 }

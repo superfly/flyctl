@@ -2,26 +2,26 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/internal/builds"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmd/presenters"
 )
 
-func newBuildsCommand() *Command {
+func newBuildsCommand(client *client.Client) *Command {
 	buildsStrings := docstrings.Get("builds")
 
-	cmd := BuildCommandKS(nil, nil, buildsStrings, os.Stdout, requireSession, requireAppName)
+	cmd := BuildCommandKS(nil, nil, buildsStrings, client, requireSession, requireAppName)
 
 	buildsListStrings := docstrings.Get("builds.list")
-	BuildCommandKS(cmd, runListBuilds, buildsListStrings, os.Stdout, requireSession, requireAppName)
+	BuildCommandKS(cmd, runListBuilds, buildsListStrings, client, requireSession, requireAppName)
 	buildsLogsStrings := docstrings.Get("builds.logs")
-	logs := BuildCommandKS(cmd, runBuildLogs, buildsLogsStrings, os.Stdout, requireSession, requireAppName)
+	logs := BuildCommandKS(cmd, runBuildLogs, buildsLogsStrings, client, requireSession, requireAppName)
 	logs.Command.Args = cobra.ExactArgs(1)
 
 	return cmd

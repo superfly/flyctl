@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"strconv"
 	"sync"
 
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/dustin/go-humanize"
 	"github.com/logrusorgru/aurora"
@@ -20,9 +20,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newCurlCommand() *Command {
+func newCurlCommand(client *client.Client) *Command {
 	curlStrings := docstrings.Get("curl")
-	cmd := BuildCommandKS(nil, runCurl, curlStrings, os.Stdout, requireSession)
+	cmd := BuildCommandKS(nil, runCurl, curlStrings, client, requireSession)
 	cmd.Args = cobra.ExactArgs(1)
 	cmd.Hidden = true
 	return cmd

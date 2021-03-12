@@ -1,18 +1,17 @@
 package cmd
 
 import (
-	"os"
-
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/superfly/flyctl/docstrings"
 
 	"github.com/superfly/flyctl/cmd/presenters"
 )
 
-func newReleasesCommand() *Command {
+func newReleasesCommand(client *client.Client) *Command {
 	releasesStrings := docstrings.Get("releases")
-	cmd := BuildCommandKS(nil, runReleases, releasesStrings, os.Stdout, requireSession, requireAppName)
+	cmd := BuildCommandKS(nil, runReleases, releasesStrings, client, requireSession, requireAppName)
 	return cmd
 }
 

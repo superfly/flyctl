@@ -3,9 +3,9 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/superfly/flyctl/docstrings"
 
@@ -15,20 +15,20 @@ import (
 	"github.com/superfly/flyctl/helpers"
 )
 
-func newConfigCommand() *Command {
+func newConfigCommand(client *client.Client) *Command {
 
 	configStrings := docstrings.Get("config")
 
-	cmd := BuildCommandKS(nil, nil, configStrings, os.Stdout, requireSession, requireAppName)
+	cmd := BuildCommandKS(nil, nil, configStrings, client, requireSession, requireAppName)
 
 	configDisplayStrings := docstrings.Get("config.display")
-	BuildCommandKS(cmd, runDisplayConfig, configDisplayStrings, os.Stdout, requireSession, requireAppName)
+	BuildCommandKS(cmd, runDisplayConfig, configDisplayStrings, client, requireSession, requireAppName)
 
 	configSaveStrings := docstrings.Get("config.save")
-	BuildCommandKS(cmd, runSaveConfig, configSaveStrings, os.Stdout, requireSession, requireAppName)
+	BuildCommandKS(cmd, runSaveConfig, configSaveStrings, client, requireSession, requireAppName)
 
 	configValidateStrings := docstrings.Get("config.validate")
-	BuildCommandKS(cmd, runValidateConfig, configValidateStrings, os.Stdout, requireSession, requireAppName)
+	BuildCommandKS(cmd, runValidateConfig, configValidateStrings, client, requireSession, requireAppName)
 
 	return cmd
 }

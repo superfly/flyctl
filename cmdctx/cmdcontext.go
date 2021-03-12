@@ -14,18 +14,18 @@ import (
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/terminal"
+	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 // CmdContext - context passed to commands being run
 type CmdContext struct {
+	IO           *iostreams.IOStreams
 	Client       *client.Client
 	Config       flyctl.Config
 	GlobalConfig flyctl.Config
 	NS           string
 	Args         []string
 	Out          io.Writer
-	Terminal     *terminal.Terminal
 	WorkingDir   string
 	ConfigFile   string
 	AppName      string
@@ -53,15 +53,15 @@ const SBEGIN = "begin"
 const SDONE = "done"
 const SERROR = "error"
 
-func NewCmdContext(flyctlClient *client.Client, ns string, out io.Writer, args []string) (*CmdContext, error) {
+func NewCmdContext(flyctlClient *client.Client, ns string, args []string) (*CmdContext, error) {
 	ctx := &CmdContext{
+		IO:           flyctlClient.IO,
 		Client:       flyctlClient,
 		NS:           ns,
 		Config:       flyctl.ConfigNS(ns),
 		GlobalConfig: flyctl.FlyConfig,
-		Out:          out,
 		Args:         args,
-		Terminal:     terminal.NewTerminal(out),
+		Out:          flyctlClient.IO.Out,
 	}
 
 	cwd, err := os.Getwd()
@@ -116,13 +116,13 @@ func (commandContext *CmdContext) Frender(views ...PresenterOption) error {
 		}
 	}
 
-	return commandContext.render(commandContext.Out, views...)
+	return commandContext.render(commandContext.IO.Out, views...)
 }
 
 // FrenderPrefix - render a view to a Writer
 func (commandContext *CmdContext) FrenderPrefix(prefix string, views ...PresenterOption) error {
 	// If JSON output wanted, set in all views
-	p := textio.NewPrefixWriter(commandContext.Out, "    ")
+	p := textio.NewPrefixWriter(commandContext.IO.Out, "    ")
 
 	if commandContext.OutputJSON() {
 		for i := range views {
@@ -148,7 +148,7 @@ func (commandContext *CmdContext) StatusLn() {
 		return
 	}
 
-	fmt.Fprintln(commandContext.Out)
+	fmt.Fprintln(commandContext.IO.Out)
 }
 
 func (commandContext *CmdContext) Status(source string, status string, args ...interface{}) {
@@ -169,10 +169,10 @@ func (commandContext *CmdContext) Status(source string, status string, args ...i
 			Status:  status,
 			Message: message.String()}
 		outbuf, _ := json.Marshal(outstruct)
-		fmt.Fprintln(commandContext.Out, string(outbuf))
+		fmt.Fprintln(commandContext.IO.Out, string(outbuf))
 		return
 	} else {
-		fmt.Fprintln(commandContext.Out, statusToEffect(status, message.String()))
+		fmt.Fprintln(commandContext.IO.Out, statusToEffect(status, message.String()))
 	}
 }
 
@@ -207,16 +207,16 @@ func (commandContext *CmdContext) Statusf(source string, status string, format s
 			Source:  source,
 			Status:  status,
 			Message: message})
-		fmt.Fprintln(commandContext.Out, string(outbuf))
+		fmt.Fprintln(commandContext.IO.Out, string(outbuf))
 		return
 	} else {
-		fmt.Fprint(commandContext.Out, statusToEffect(status, message))
+		fmt.Fprint(commandContext.IO.Out, statusToEffect(status, message))
 	}
 }
 
 func (commandContext *CmdContext) WriteJSON(myData interface{}) {
 	outBuf, _ := json.MarshalIndent(myData, "", "    ")
-	fmt.Fprintln(commandContext.Out, string(outBuf))
+	fmt.Fprintln(commandContext.IO.Out, string(outBuf))
 }
 
 func (commandContext *CmdContext) OutputJSON() bool {

@@ -2,21 +2,21 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/sourcecode"
 
 	"github.com/superfly/flyctl/docstrings"
 )
 
-func newLaunchCommand() *Command {
+func newLaunchCommand(client *client.Client) *Command {
 	launchStrings := docstrings.Get("launch")
-	launchCmd := BuildCommandKS(nil, runLaunch, launchStrings, os.Stdout, requireSession)
+	launchCmd := BuildCommandKS(nil, runLaunch, launchStrings, client, requireSession)
 	launchCmd.Args = cobra.NoArgs
 	launchCmd.AddStringFlag(StringFlagOpts{Name: "path", Description: `path to app code and where a fly.toml file will be saved.`, Default: "."})
 	launchCmd.AddStringFlag(StringFlagOpts{Name: "org", Description: `the organization that will own the app`})

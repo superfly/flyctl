@@ -1,9 +1,8 @@
 package cmd
 
 import (
-	"os"
-
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/docstrings"
@@ -11,29 +10,29 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newRegionsCommand() *Command {
+func newRegionsCommand(client *client.Client) *Command {
 	regionsStrings := docstrings.Get("regions")
 
-	cmd := BuildCommandKS(nil, nil, regionsStrings, os.Stdout, requireAppName, requireSession)
+	cmd := BuildCommandKS(nil, nil, regionsStrings, client, requireAppName, requireSession)
 
 	addStrings := docstrings.Get("regions.add")
-	addCmd := BuildCommandKS(cmd, runRegionsAdd, addStrings, os.Stdout, requireSession, requireAppName)
+	addCmd := BuildCommandKS(cmd, runRegionsAdd, addStrings, client, requireSession, requireAppName)
 	addCmd.Args = cobra.MinimumNArgs(1)
 
 	removeStrings := docstrings.Get("regions.remove")
-	removeCmd := BuildCommandKS(cmd, runRegionsRemove, removeStrings, os.Stdout, requireSession, requireAppName)
+	removeCmd := BuildCommandKS(cmd, runRegionsRemove, removeStrings, client, requireSession, requireAppName)
 	removeCmd.Args = cobra.MinimumNArgs(1)
 
 	setStrings := docstrings.Get("regions.set")
-	setCmd := BuildCommandKS(cmd, runRegionsSet, setStrings, os.Stdout, requireSession, requireAppName)
+	setCmd := BuildCommandKS(cmd, runRegionsSet, setStrings, client, requireSession, requireAppName)
 	setCmd.Args = cobra.MinimumNArgs(1)
 
 	setBackupStrings := docstrings.Get("regions.backup")
-	setBackupCmd := BuildCommand(cmd, runBackupRegionsSet, setBackupStrings.Usage, setBackupStrings.Short, setBackupStrings.Long, os.Stdout, requireSession, requireAppName)
+	setBackupCmd := BuildCommand(cmd, runBackupRegionsSet, setBackupStrings.Usage, setBackupStrings.Short, setBackupStrings.Long, client, requireSession, requireAppName)
 	setBackupCmd.Args = cobra.MinimumNArgs(1)
 
 	listStrings := docstrings.Get("regions.list")
-	BuildCommand(cmd, runRegionsList, listStrings.Usage, listStrings.Short, listStrings.Long, os.Stdout, requireSession, requireAppName)
+	BuildCommand(cmd, runRegionsList, listStrings.Usage, listStrings.Short, listStrings.Long, client, requireSession, requireAppName)
 
 	return cmd
 }

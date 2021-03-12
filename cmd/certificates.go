@@ -3,12 +3,12 @@ package cmd
 import (
 	"fmt"
 	"net"
-	"os"
 	"strings"
 
 	"github.com/dustin/go-humanize"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/superfly/flyctl/docstrings"
 
@@ -17,31 +17,31 @@ import (
 	"golang.org/x/net/publicsuffix"
 )
 
-func newCertificatesCommand() *Command {
+func newCertificatesCommand(client *client.Client) *Command {
 	certsStrings := docstrings.Get("certs")
 
-	cmd := BuildCommandKS(nil, nil, certsStrings, os.Stdout, requireAppName, requireSession)
+	cmd := BuildCommandKS(nil, nil, certsStrings, client, requireAppName, requireSession)
 
 	certsListStrings := docstrings.Get("certs.list")
-	BuildCommandKS(cmd, runCertsList, certsListStrings, os.Stdout, requireSession, requireAppName)
+	BuildCommandKS(cmd, runCertsList, certsListStrings, client, requireSession, requireAppName)
 
 	certsCreateStrings := docstrings.Get("certs.add")
-	createCmd := BuildCommandKS(cmd, runCertAdd, certsCreateStrings, os.Stdout, requireSession, requireAppName)
+	createCmd := BuildCommandKS(cmd, runCertAdd, certsCreateStrings, client, requireSession, requireAppName)
 	createCmd.Aliases = []string{"create"}
 	createCmd.Command.Args = cobra.ExactArgs(1)
 
 	certsDeleteStrings := docstrings.Get("certs.remove")
-	deleteCmd := BuildCommandKS(cmd, runCertDelete, certsDeleteStrings, os.Stdout, requireSession, requireAppName)
+	deleteCmd := BuildCommandKS(cmd, runCertDelete, certsDeleteStrings, client, requireSession, requireAppName)
 	deleteCmd.Aliases = []string{"delete"}
 	deleteCmd.Command.Args = cobra.ExactArgs(1)
 	deleteCmd.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "accept all confirmations"})
 
 	certsShowStrings := docstrings.Get("certs.show")
-	show := BuildCommandKS(cmd, runCertShow, certsShowStrings, os.Stdout, requireSession, requireAppName)
+	show := BuildCommandKS(cmd, runCertShow, certsShowStrings, client, requireSession, requireAppName)
 	show.Command.Args = cobra.ExactArgs(1)
 
 	certsCheckStrings := docstrings.Get("certs.check")
-	check := BuildCommandKS(cmd, runCertCheck, certsCheckStrings, os.Stdout, requireSession, requireAppName)
+	check := BuildCommandKS(cmd, runCertCheck, certsCheckStrings, client, requireSession, requireAppName)
 	check.Command.Args = cobra.ExactArgs(1)
 
 	return cmd

@@ -2,23 +2,23 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
+	"github.com/superfly/flyctl/internal/client"
 )
 
-func newVMCommand() *Command {
-	vmCmd := BuildCommandKS(nil, nil, docstrings.Get("vm"), os.Stdout)
+func newVMCommand(client *client.Client) *Command {
+	vmCmd := BuildCommandKS(nil, nil, docstrings.Get("vm"), client)
 
-	vmRestartCmd := BuildCommandKS(vmCmd, runVMRestart, docstrings.Get("vm.restart"), os.Stdout, requireSession, requireAppName)
+	vmRestartCmd := BuildCommandKS(vmCmd, runVMRestart, docstrings.Get("vm.restart"), client, requireSession, requireAppName)
 	vmRestartCmd.Args = cobra.ExactArgs(1)
 
-	vmStopCmd := BuildCommandKS(vmCmd, runVMStop, docstrings.Get("vm.stop"), os.Stdout, requireSession, requireAppName)
+	vmStopCmd := BuildCommandKS(vmCmd, runVMStop, docstrings.Get("vm.stop"), client, requireSession, requireAppName)
 	vmStopCmd.Args = cobra.ExactArgs(1)
 
-	vmStatusCmd := BuildCommandKS(vmCmd, runAllocStatus, docstrings.Get("vm.status"), os.Stdout, requireSession, requireAppName)
+	vmStatusCmd := BuildCommandKS(vmCmd, runAllocStatus, docstrings.Get("vm.status"), client, requireSession, requireAppName)
 	vmStatusCmd.Args = cobra.ExactArgs(1)
 
 	return vmCmd

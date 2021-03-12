@@ -4,13 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 
 	"github.com/dustin/go-humanize"
 	"github.com/logrusorgru/aurora"
-	"github.com/mattn/go-isatty"
 	"github.com/morikuni/aec"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -18,13 +16,14 @@ import (
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docker"
 	"github.com/superfly/flyctl/docstrings"
+	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/deployment"
 	"github.com/superfly/flyctl/terminal"
 )
 
-func newDeployCommand() *Command {
+func newDeployCommand(client *client.Client) *Command {
 	deployStrings := docstrings.Get("deploy")
-	cmd := BuildCommandKS(nil, runDeploy, deployStrings, os.Stdout, workingDirectoryFromArg(0), requireSession, requireAppName)
+	cmd := BuildCommandKS(nil, runDeploy, deployStrings, client, workingDirectoryFromArg(0), requireSession, requireAppName)
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "image",
 		Shorthand:   "i",
@@ -278,7 +277,7 @@ func watchDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext) error {
 	cmdCtx.Status("deploy", cmdctx.STITLE, "Monitoring Deployment")
 	cmdCtx.Status("deploy", cmdctx.SDETAIL, "You can detach the terminal anytime without stopping the deployment")
 
-	interactive := isatty.IsTerminal(os.Stdout.Fd())
+	interactive := cmdCtx.IO.IsInteractive()
 
 	endmessage := ""
 

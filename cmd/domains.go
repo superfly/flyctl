@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -14,23 +13,24 @@ import (
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
+	"github.com/superfly/flyctl/internal/client"
 )
 
-func newDomainsCommand() *Command {
+func newDomainsCommand(client *client.Client) *Command {
 	domainsStrings := docstrings.Get("domains")
-	cmd := BuildCommandKS(nil, nil, domainsStrings, os.Stdout, requireSession)
+	cmd := BuildCommandKS(nil, nil, domainsStrings, client, requireSession)
 
 	listStrings := docstrings.Get("domains.list")
-	listCmd := BuildCommandKS(cmd, runDomainsList, listStrings, os.Stdout, requireSession)
+	listCmd := BuildCommandKS(cmd, runDomainsList, listStrings, client, requireSession)
 	listCmd.Args = cobra.MaximumNArgs(1)
 
-	showCmd := BuildCommandKS(cmd, runDomainsShow, docstrings.Get("domains.show"), os.Stdout, requireSession)
+	showCmd := BuildCommandKS(cmd, runDomainsShow, docstrings.Get("domains.show"), client, requireSession)
 	showCmd.Args = cobra.ExactArgs(1)
 
-	addCmd := BuildCommandKS(cmd, runDomainsCreate, docstrings.Get("domains.add"), os.Stdout, requireSession)
+	addCmd := BuildCommandKS(cmd, runDomainsCreate, docstrings.Get("domains.add"), client, requireSession)
 	addCmd.Args = cobra.MaximumNArgs(2)
 
-	registerCmd := BuildCommandKS(cmd, runDomainsRegister, docstrings.Get("domains.register"), os.Stdout, requireSession)
+	registerCmd := BuildCommandKS(cmd, runDomainsRegister, docstrings.Get("domains.register"), client, requireSession)
 	registerCmd.Args = cobra.MaximumNArgs(2)
 
 	return cmd

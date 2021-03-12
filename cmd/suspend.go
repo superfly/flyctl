@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/briandowns/spinner"
 	"github.com/spf13/cobra"
@@ -14,11 +15,11 @@ import (
 
 //TODO: Move all output to status styled begin/done updates
 
-func newSuspendCommand() *Command {
+func newSuspendCommand(client *client.Client) *Command {
 
 	suspendStrings := docstrings.Get("suspend")
 
-	suspendCmd := BuildCommandKS(nil, runSuspend, suspendStrings, os.Stdout, requireSession, requireAppNameAsArg)
+	suspendCmd := BuildCommandKS(nil, runSuspend, suspendStrings, client, requireSession, requireAppNameAsArg)
 	suspendCmd.Args = cobra.RangeArgs(0, 1)
 
 	return suspendCmd

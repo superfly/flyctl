@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 
@@ -11,21 +10,22 @@ import (
 	"github.com/superfly/flyctl/builtinsupport"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/superfly/flyctl/docstrings"
 )
 
-func newBuiltinsCommand() *Command {
+func newBuiltinsCommand(client *client.Client) *Command {
 	builtinsStrings := docstrings.Get("builtins")
 
-	cmd := BuildCommandKS(nil, nil, builtinsStrings, os.Stdout)
+	cmd := BuildCommandKS(nil, nil, builtinsStrings, client)
 
 	builtinsListStrings := docstrings.Get("builtins.list")
-	BuildCommandKS(cmd, runListBuiltins, builtinsListStrings, os.Stdout)
+	BuildCommandKS(cmd, runListBuiltins, builtinsListStrings, client)
 	builtinShowStrings := docstrings.Get("builtins.show")
-	BuildCommandKS(cmd, runShowBuiltin, builtinShowStrings, os.Stdout)
+	BuildCommandKS(cmd, runShowBuiltin, builtinShowStrings, client)
 	builtinShowAppStrings := docstrings.Get("builtins.show-app")
-	showappcmd := BuildCommandKS(cmd, runShowAppBuiltin, builtinShowAppStrings, os.Stdout, requireAppName)
+	showappcmd := BuildCommandKS(cmd, runShowAppBuiltin, builtinShowAppStrings, client, requireAppName)
 	showappcmd.Args = cobra.MaximumNArgs(0)
 
 	return cmd

@@ -5,12 +5,15 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 var ErrNoAuthToken = errors.New("No access token available. Please login with 'flyctl auth login'")
 
 func NewClient() *Client {
-	client := &Client{}
+	client := &Client{
+		IO: iostreams.System(),
+	}
 
 	client.InitApi()
 
@@ -18,6 +21,8 @@ func NewClient() *Client {
 }
 
 type Client struct {
+	IO *iostreams.IOStreams
+
 	api *api.Client
 }
 

@@ -23,16 +23,17 @@ import (
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/pkg/wg"
 	"golang.org/x/crypto/curve25519"
 )
 
-func newWireGuardCommand() *Command {
-	cmd := BuildCommandKS(nil, nil, docstrings.Get("wireguard"), os.Stdout, requireSession)
+func newWireGuardCommand(client *client.Client) *Command {
+	cmd := BuildCommandKS(nil, nil, docstrings.Get("wireguard"), client, requireSession)
 	cmd.Aliases = []string{"wg"}
 
 	child := func(parent *Command, fn RunFn, ds string) *Command {
-		return BuildCommandKS(parent, fn, docstrings.Get(ds), os.Stdout, requireSession)
+		return BuildCommandKS(parent, fn, docstrings.Get(ds), client, requireSession)
 	}
 
 	child(cmd, runWireGuardList, "wireguard.list").Args = cobra.MaximumNArgs(1)

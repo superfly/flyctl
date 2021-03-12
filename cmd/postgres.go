@@ -15,19 +15,20 @@ import (
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/client"
 )
 
-func newPostgresCommand() *Command {
+func newPostgresCommand(client *client.Client) *Command {
 	domainsStrings := docstrings.Get("postgres")
-	cmd := BuildCommandKS(nil, nil, domainsStrings, os.Stdout, requireSession)
+	cmd := BuildCommandKS(nil, nil, domainsStrings, client, requireSession)
 	cmd.Aliases = []string{"pg"}
 
 	listStrings := docstrings.Get("postgres.list")
-	listCmd := BuildCommandKS(cmd, runPostgresList, listStrings, os.Stdout, requireSession)
+	listCmd := BuildCommandKS(cmd, runPostgresList, listStrings, client, requireSession)
 	listCmd.Args = cobra.MaximumNArgs(1)
 
 	createStrings := docstrings.Get("postgres.create")
-	createCmd := BuildCommandKS(cmd, runCreatePostgresCluster, createStrings, os.Stdout, requireSession)
+	createCmd := BuildCommandKS(cmd, runCreatePostgresCluster, createStrings, client, requireSession)
 	createCmd.AddStringFlag(StringFlagOpts{Name: "organization", Description: "the organization that will own the app"})
 	createCmd.AddStringFlag(StringFlagOpts{Name: "name", Description: "the name of the new app"})
 	createCmd.AddStringFlag(StringFlagOpts{Name: "region", Description: "the region to launch the new app in"})
@@ -36,27 +37,27 @@ func newPostgresCommand() *Command {
 	createCmd.AddStringFlag(StringFlagOpts{Name: "vm-size", Description: "the size of the VM"})
 
 	attachStrngs := docstrings.Get("postgres.attach")
-	attachCmd := BuildCommandKS(cmd, runAttachPostgresCluster, attachStrngs, os.Stdout, requireSession, requireAppName)
+	attachCmd := BuildCommandKS(cmd, runAttachPostgresCluster, attachStrngs, client, requireSession, requireAppName)
 	attachCmd.AddStringFlag(StringFlagOpts{Name: "postgres-app", Description: "the postgres cluster to attach to the app"})
 	attachCmd.AddStringFlag(StringFlagOpts{Name: "database-name", Description: "database to use, defaults to a new database with the same name as the app"})
 	attachCmd.AddStringFlag(StringFlagOpts{Name: "variable-name", Description: "the env variable name that will be added to the app. Defaults to DATABASE_URL"})
 
 	detachStrngs := docstrings.Get("postgres.detach")
-	detachCmd := BuildCommandKS(cmd, runDetachPostgresCluster, detachStrngs, os.Stdout, requireSession, requireAppName)
+	detachCmd := BuildCommandKS(cmd, runDetachPostgresCluster, detachStrngs, client, requireSession, requireAppName)
 	detachCmd.AddStringFlag(StringFlagOpts{Name: "postgres-app", Description: "the postgres cluster to detach from the app"})
 
 	dbStrings := docstrings.Get("postgres.db")
-	dbCmd := BuildCommandKS(cmd, nil, dbStrings, os.Stdout, requireSession)
+	dbCmd := BuildCommandKS(cmd, nil, dbStrings, client, requireSession)
 
 	listDBStrings := docstrings.Get("postgres.db.list")
-	listDBCmd := BuildCommandKS(dbCmd, runListPostgresDatabases, listDBStrings, os.Stdout, requireSession, requireAppNameAsArg)
+	listDBCmd := BuildCommandKS(dbCmd, runListPostgresDatabases, listDBStrings, client, requireSession, requireAppNameAsArg)
 	listDBCmd.Args = cobra.ExactArgs(1)
 
 	usersStrings := docstrings.Get("postgres.users")
-	usersCmd := BuildCommandKS(cmd, nil, usersStrings, os.Stdout, requireSession)
+	usersCmd := BuildCommandKS(cmd, nil, usersStrings, client, requireSession)
 
 	usersListStrings := docstrings.Get("postgres.users.list")
-	usersListCmd := BuildCommandKS(usersCmd, runListPostgresUsers, usersListStrings, os.Stdout, requireSession, requireAppNameAsArg)
+	usersListCmd := BuildCommandKS(usersCmd, runListPostgresUsers, usersListStrings, client, requireSession, requireAppNameAsArg)
 	usersListCmd.Args = cobra.ExactArgs(1)
 
 	return cmd

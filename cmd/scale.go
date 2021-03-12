@@ -3,10 +3,10 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strconv"
 
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/docstrings"
@@ -14,13 +14,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newScaleCommand() *Command {
+func newScaleCommand(client *client.Client) *Command {
 	scaleStrings := docstrings.Get("scale")
 
-	cmd := BuildCommandKS(nil, nil, scaleStrings, os.Stdout, requireSession, requireAppName)
+	cmd := BuildCommandKS(nil, nil, scaleStrings, client, requireSession, requireAppName)
 
 	vmCmdStrings := docstrings.Get("scale.vm")
-	vmCmd := BuildCommand(cmd, runScaleVM, vmCmdStrings.Usage, vmCmdStrings.Short, vmCmdStrings.Long, os.Stdout, requireSession, requireAppName)
+	vmCmd := BuildCommand(cmd, runScaleVM, vmCmdStrings.Usage, vmCmdStrings.Short, vmCmdStrings.Long, client, requireSession, requireAppName)
 	vmCmd.Args = cobra.ExactArgs(1)
 	vmCmd.AddIntFlag(IntFlagOpts{
 		Name:        "memory",
@@ -29,15 +29,15 @@ func newScaleCommand() *Command {
 	})
 
 	memoryCmdStrings := docstrings.Get("scale.memory")
-	memoryCmd := BuildCommandKS(cmd, runScaleMemory, memoryCmdStrings, os.Stdout, requireSession, requireAppName)
+	memoryCmd := BuildCommandKS(cmd, runScaleMemory, memoryCmdStrings, client, requireSession, requireAppName)
 	memoryCmd.Args = cobra.ExactArgs(1)
 
 	countCmdStrings := docstrings.Get("scale.count")
-	countCmd := BuildCommand(cmd, runScaleCount, countCmdStrings.Usage, countCmdStrings.Short, countCmdStrings.Long, os.Stdout, requireSession, requireAppName)
+	countCmd := BuildCommand(cmd, runScaleCount, countCmdStrings.Usage, countCmdStrings.Short, countCmdStrings.Long, client, requireSession, requireAppName)
 	countCmd.Args = cobra.ExactArgs(1)
 
 	showCmdStrings := docstrings.Get("scale.show")
-	BuildCommand(cmd, runScaleShow, showCmdStrings.Usage, showCmdStrings.Short, showCmdStrings.Long, os.Stdout, requireSession, requireAppName)
+	BuildCommand(cmd, runScaleShow, showCmdStrings.Usage, showCmdStrings.Short, showCmdStrings.Long, client, requireSession, requireAppName)
 
 	return cmd
 }

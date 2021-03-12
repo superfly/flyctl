@@ -2,11 +2,11 @@ package cmd
 
 import (
 	"math"
-	"os"
 	"time"
 
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/superfly/flyctl/docstrings"
 
@@ -14,9 +14,9 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-func newLogsCommand() *Command {
+func newLogsCommand(client *client.Client) *Command {
 	logsStrings := docstrings.Get("logs")
-	cmd := BuildCommandKS(nil, runLogs, logsStrings, os.Stdout, requireSession, requireAppName)
+	cmd := BuildCommandKS(nil, runLogs, logsStrings, client, requireSession, requireAppName)
 
 	// TODO: Move flag descriptions into the docStrings
 	cmd.AddStringFlag(StringFlagOpts{

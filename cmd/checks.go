@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
@@ -11,30 +10,31 @@ import (
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/client"
 )
 
-func newChecksCommand() *Command {
+func newChecksCommand(client *client.Client) *Command {
 	checksStrings := docstrings.Get("checks")
-	cmd := BuildCommandKS(nil, nil, checksStrings, os.Stdout)
+	cmd := BuildCommandKS(nil, nil, checksStrings, client)
 
 	handlersStrings := docstrings.Get("checks.handlers")
-	handlersCmd := BuildCommandKS(cmd, nil, handlersStrings, os.Stdout)
+	handlersCmd := BuildCommandKS(cmd, nil, handlersStrings, client)
 
 	handlersListStrings := docstrings.Get("checks.handlers.list")
-	listHandlersCmd := BuildCommandKS(handlersCmd, runListChecksHandlers, handlersListStrings, os.Stdout, requireSession)
+	listHandlersCmd := BuildCommandKS(handlersCmd, runListChecksHandlers, handlersListStrings, client, requireSession)
 	listHandlersCmd.Args = cobra.ExactArgs(1)
 
 	handlersCreateStrings := docstrings.Get("checks.handlers.create")
-	createHandlersCmd := BuildCommandKS(handlersCmd, runCreateChecksHandler, handlersCreateStrings, os.Stdout, requireSession)
+	createHandlersCmd := BuildCommandKS(handlersCmd, runCreateChecksHandler, handlersCreateStrings, client, requireSession)
 	createHandlersCmd.AddStringFlag(StringFlagOpts{Name: "type", Description: "The type of handler to create, can be slack or pagerduty"})
 	createHandlersCmd.AddStringFlag(StringFlagOpts{Name: "organization", Shorthand: "o", Description: "The organization to add the handler to"})
 
 	handlersDeleteStrings := docstrings.Get("checks.handlers.delete")
-	deleteHandlerCmd := BuildCommandKS(handlersCmd, runDeleteChecksHandler, handlersDeleteStrings, os.Stdout, requireSession)
+	deleteHandlerCmd := BuildCommandKS(handlersCmd, runDeleteChecksHandler, handlersDeleteStrings, client, requireSession)
 	deleteHandlerCmd.Args = cobra.ExactArgs(2)
 
 	checksListStrings := docstrings.Get("checks.list")
-	listChecksCmd := BuildCommandKS(cmd, runAppCheckList, checksListStrings, os.Stdout, requireSession, requireAppName)
+	listChecksCmd := BuildCommandKS(cmd, runAppCheckList, checksListStrings, client, requireSession, requireAppName)
 	listChecksCmd.AddStringFlag(StringFlagOpts{Name: "check-name", Description: "Filter checks by name"})
 
 	return cmd

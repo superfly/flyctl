@@ -3,11 +3,11 @@ package cmd
 import (
 	"fmt"
 	"io"
-	"os"
 	"time"
 
 	"github.com/inancgumus/screen"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/segmentio/textio"
 	"github.com/spf13/cobra"
@@ -18,18 +18,21 @@ import (
 	"github.com/superfly/flyctl/cmd/presenters"
 )
 
-func newStatusCommand() *Command {
+func newStatusCommand(client *client.Client) *Command {
 	statusStrings := docstrings.Get("status")
-	cmd := BuildCommandKS(nil, runStatus, statusStrings, os.Stdout, requireSession, requireAppNameAsArg)
+	cmd := BuildCommandKS(nil, runStatus, statusStrings, client, requireSession, requireAppNameAsArg)
 
 	//TODO: Move flag descriptions to docstrings
 	cmd.AddBoolFlag(BoolFlagOpts{Name: "all", Description: "Show completed instances"})
 	cmd.AddBoolFlag(BoolFlagOpts{Name: "deployment", Description: "Always show deployment status"})
 	cmd.AddBoolFlag(BoolFlagOpts{Name: "watch", Description: "Refresh details"})
 	cmd.AddIntFlag(IntFlagOpts{Name: "rate", Description: "Refresh Rate for --watch", Default: 5})
+	cmd.Command.Flags().String("wtf", "defaultwtf", "wtf usage")
+
+	// cmd.Command.Flag()
 
 	allocStatusStrings := docstrings.Get("status.instance")
-	allocStatusCmd := BuildCommand(cmd, runAllocStatus, allocStatusStrings.Usage, allocStatusStrings.Short, allocStatusStrings.Long, os.Stdout, requireSession, requireAppName)
+	allocStatusCmd := BuildCommand(cmd, runAllocStatus, allocStatusStrings.Usage, allocStatusStrings.Short, allocStatusStrings.Long, client, requireSession, requireAppName)
 	allocStatusCmd.Args = cobra.ExactArgs(1)
 	return cmd
 }
