@@ -855,6 +855,11 @@ number to operate. This can be found through the volumes list command"""
     longHelp  = """Show details of an app's volume. Requires the volume's ID
 number to operate. This can be found through the volumes list command"""
 
+[proxy]
+usage     = "proxy [<host:port>]"
+shortHelp = "Proxy a TCP connection to a remote host"
+longHelp  = """Proxy a TCP connection to a remote host; ':8080' proxies port 8080 to the current app."""
+
 [ssh]
 usage     = "ssh <command>"
 shortHelp = "Commands that manage SSH credentials"

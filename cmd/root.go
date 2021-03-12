@@ -105,6 +105,7 @@ func init() {
 		newVolumesCommand(),
 		newWireGuardCommand(),
 		newSSHCommand(),
+		newProxyCommand(),
 		newChecksCommand(),
 		newPostgresCommand(),
 		newVMCommand(),
