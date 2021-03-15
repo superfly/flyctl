@@ -1,9 +1,11 @@
 package docker
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -23,6 +25,7 @@ import (
 	"github.com/docker/docker/builder/dockerignore"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/fileutils"
+	"github.com/docker/go-connections/tlsconfig"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/terminal"
@@ -441,30 +444,62 @@ func trimExcludes(excludes []string) []string {
 	return excludes
 }
 
+func remoteBuilderURL(ctx context.Context, cmdCtx *cmdctx.CmdContext) (string, error) {
+	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
+		return v, nil
+	}
+
+	rawURL, _, err := cmdCtx.Client.API().EnsureRemoteBuilder(cmdCtx.AppName)
+	if err != nil {
+		return "", fmt.Errorf("could not create remote builder: %v", err)
+	}
+
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return "", errors.Wrap(err, "error parsing remote builder url")
+	}
+
+	host := parsedURL.Hostname()
+	port := parsedURL.Port()
+
+	if port == "" {
+		port = "10000"
+	}
+
+	return "tcp://" + net.JoinHostPort(host, port), nil
+}
+
+func basicAuth(appName, authToken string) string {
+	auth := appName + ":" + authToken
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
+}
+
 func setRemoteBuilder(ctx context.Context, cmdCtx *cmdctx.CmdContext, dockerClient *DockerClient) error {
-	rawURL, release, err := cmdCtx.Client.API().EnsureRemoteBuilder(cmdCtx.AppName)
+	host, err := remoteBuilderURL(ctx, cmdCtx)
 	if err != nil {
-		return fmt.Errorf("could not create remote builder: %v", err)
+		return err
 	}
 
-	terminal.Debugf("Remote Docker builder URL: %s\n", rawURL)
-	terminal.Debugf("Remote Docker builder release: %+v\n", release)
+	terminal.Debugf("Remote Docker builder host: %s\n", host)
 
-	builderURL, err := url.Parse(rawURL)
-	if err != nil {
-		return errors.Wrap(err, "error parsing remote builder url")
+	httpc := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: tlsconfig.ClientDefault(),
+		},
 	}
 
-	dialer := func(ctx context.Context, network string, addr string) (net.Conn, error) {
-		return newRemoteBuilderConnection(builderURL.Hostname(), 10000, cmdCtx.AppName, flyctl.GetAPIToken())
-	}
-
-	client, err := newDockerClient(client.WithDialContext(dialer))
+	client, err := newDockerClient(
+		client.WithHTTPClient(httpc),
+		client.WithHost(host),
+		client.WithHTTPHeaders(map[string]string{
+			"Authorization": basicAuth(cmdCtx.AppName, flyctl.GetAPIToken()),
+		}),
+	)
 	if err != nil {
 		return errors.Wrap(err, "Error creating docker client")
 	}
 
-	terminal.Infof("Waiting for remote builder (%s) to become available...\n", strings.Split(builderURL.Hostname(), ".")[0])
+	terminal.Infof("Waiting for remote builder to become available...\n")
 
 	if err := WaitForDaemon(ctx, client); err != nil {
 		return err
