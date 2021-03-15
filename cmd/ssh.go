@@ -50,6 +50,12 @@ func newSSHCommand(client *client.Client) *Command {
 		Description: "select available instances",
 	})
 
+	console.AddStringFlag(StringFlagOpts{
+		Name:        "region",
+		Shorthand:   "r",
+		Description: "Region to create WireGuard connection in",
+	})
+
 	issue := child(cmd, runSSHIssue, "ssh.issue")
 	issue.Args = cobra.MaximumNArgs(3)
 

@@ -6,10 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"strconv"
 	"sync"
+	"time"
 
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/internal/client"
 
@@ -51,35 +54,48 @@ type TimingRequest struct {
 	Region string `json:"region"`
 }
 
-func runCurl(ctx *cmdctx.CmdContext) error {
+func TimeRegions(ctx *cmdctx.CmdContext, url string, includeNoGateway bool) ([]api.Region, <-chan TimingResponse, error) {
 	regions, _, err := ctx.Client.API().PlatformRegions()
 	if err != nil {
-		panic(err)
+		return nil, nil, err
 	}
-
-	url := ctx.Args[0]
 
 	results := make(chan TimingResponse, len(regions))
 
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: time.Second * 3,
+	}
 
 	var wg sync.WaitGroup
-	wg.Add(len(regions))
+	for _, r := range regions {
+		if includeNoGateway || r.GatewayAvailable {
+			wg.Add(1)
+		}
+	}
 
 	for _, region := range regions {
 		region := region
+
+		if !includeNoGateway && !region.GatewayAvailable {
+			continue
+		}
+
 		go func() {
+			defer wg.Done()
+
 			timingResp := TimingResponse{
 				Region: region.Code,
 			}
 
 			body, err := json.Marshal(TimingRequest{URL: url, Region: region.Code})
 			if err != nil {
-				panic(err)
+				log.Printf("invalid JSON from %s: %s", region.Code, err)
+				return
 			}
 			req, err := http.NewRequest("POST", "https://curl.fly.dev/timings", bytes.NewBuffer(body))
 			if err != nil {
-				panic(err)
+				log.Printf("can't make HTTP request to %s: %s", region.Code, err)
+				return
 			}
 			req.Header.Add("Authorization", "1q2w3e4r")
 			req.Header.Add("Content-Type", "application/json")
@@ -107,8 +123,6 @@ func runCurl(ctx *cmdctx.CmdContext) error {
 			}
 
 			results <- timingResp
-
-			wg.Done()
 		}()
 	}
 
@@ -116,6 +130,17 @@ func runCurl(ctx *cmdctx.CmdContext) error {
 		wg.Wait()
 		close(results)
 	}()
+
+	return regions, results, nil
+}
+
+func runCurl(ctx *cmdctx.CmdContext) error {
+	url := ctx.Args[0]
+
+	_, results, err := TimeRegions(ctx, url, true)
+	if err != nil {
+		return err
+	}
 
 	var timingRowFormat = "%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
 	var timingRowErrorFormat = "%s\t%s\n"
