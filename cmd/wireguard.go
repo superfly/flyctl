@@ -26,6 +26,7 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/pkg/wg"
+	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/crypto/curve25519"
 )
 
@@ -678,6 +679,8 @@ func wireGuardForOrg(ctx *cmdctx.CmdContext, org *api.Organization) (*WireGuardS
 
 	sv := viper.Get(flyctl.ConfigWireGuardState)
 	if sv != nil {
+		terminal.Debugf("Found WireGuard state in local configuration\n")
+
 		svm, ok = sv.(map[string]interface{})
 		if !ok {
 			return nil, fmt.Errorf("garbage stored in wireguard_state in config")
@@ -716,6 +719,8 @@ func wireGuardForOrg(ctx *cmdctx.CmdContext, org *api.Organization) (*WireGuardS
 	}
 
 NEW_CONNECTION:
+	terminal.Debugf("Can't find matching WireGuard configuration; creating new one\n")
+
 	user, err := ctx.Client.API().GetCurrentUser()
 	if err != nil {
 		return nil, err
@@ -743,6 +748,8 @@ NEW_CONNECTION:
 			}
 		}
 	}
+
+	terminal.Debugf("Creating new WireGuard connection for %s in %s named %s\n", org.Slug, region, wgName)
 
 	stateb, err := wireGuardCreate(ctx, org, &region, &wgName)
 	if err != nil {

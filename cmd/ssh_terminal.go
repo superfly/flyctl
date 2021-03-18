@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/pkg/ssh"
 	"github.com/superfly/flyctl/pkg/wg"
+	"github.com/superfly/flyctl/terminal"
 )
 
 // this is going away; it's runSSHConsole with crappier args
@@ -62,6 +63,8 @@ func runSSHShell(ctx *cmdctx.CmdContext) error {
 func runSSHConsole(ctx *cmdctx.CmdContext) error {
 	client := ctx.Client.API()
 
+	terminal.Debugf("Retrieving app info for %s\n", ctx.AppConfig.AppName)
+
 	app, err := client.GetApp(ctx.AppConfig.AppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
@@ -72,9 +75,17 @@ func runSSHConsole(ctx *cmdctx.CmdContext) error {
 		return fmt.Errorf("create wireguard config: %w", err)
 	}
 
+	terminal.Debugf("Establishing WireGuard connection (%s)\n", state.Name)
+
 	tunnel, err := wg.Connect(*state.TunnelConfig())
 	if err != nil {
 		return fmt.Errorf("connect wireguard: %w", err)
+	}
+
+	if ctx.Config.GetBool("probe") {
+		if err = probeConnection(tunnel.Resolver()); err != nil {
+			return fmt.Errorf("probe wireguard: %w", err)
+		}
 	}
 
 	var addr string
@@ -193,6 +204,8 @@ type SSHParams struct {
 }
 
 func sshConnect(p *SSHParams, addr string) error {
+	terminal.Debugf("Fetching certificate for %s\n", addr)
+
 	cert, err := singleUseSSHCertificate(p.Ctx, p.Org)
 	if err != nil {
 		return fmt.Errorf("create ssh certificate: %w", err)
@@ -204,6 +217,8 @@ func sshConnect(p *SSHParams, addr string) error {
 	}
 
 	pemkey := MarshalED25519PrivateKey(pk, "single-use certificate")
+
+	terminal.Debugf("Keys for %s configured; connecting...\n", addr)
 
 	sshClient := &ssh.Client{
 		Addr: addr + ":22",
@@ -224,6 +239,8 @@ func sshConnect(p *SSHParams, addr string) error {
 	}
 	defer sshClient.Close()
 
+	terminal.Debugf("Connection completed.\n", addr)
+
 	endSpin()
 
 	term := &ssh.Terminal{
@@ -236,6 +253,35 @@ func sshConnect(p *SSHParams, addr string) error {
 	if err := sshClient.Shell(context.Background(), term); err != nil {
 		return fmt.Errorf("SSH shell: %w", err)
 	}
+
+	return nil
+}
+
+func probeConnection(r *net.Resolver) error {
+	var (
+		err error
+		res []string
+	)
+
+	for i := 0; i < 3; i++ {
+		terminal.Debugf("Probing WireGuard connectivity, attempt %d\n", i)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+
+		res, err = r.LookupTXT(ctx, fmt.Sprintf("_apps.internal"))
+
+		cancel()
+
+		if err == nil {
+			break
+		}
+	}
+
+	if err != nil {
+		return fmt.Errorf("look up apps: %w", err)
+	}
+
+	terminal.Debugf("Found _apps.internal TXT: %+v\n", res)
 
 	return nil
 }

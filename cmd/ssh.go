@@ -50,6 +50,13 @@ func newSSHCommand(client *client.Client) *Command {
 		Description: "select available instances",
 	})
 
+	console.AddBoolFlag(BoolFlagOpts{
+		Name:        "probe",
+		Shorthand:   "p",
+		Default:     false,
+		Description: "test WireGuard connection after establishing",
+	})
+
 	console.AddStringFlag(StringFlagOpts{
 		Name:        "region",
 		Shorthand:   "r",
