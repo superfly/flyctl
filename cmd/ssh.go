@@ -267,7 +267,7 @@ func runSSHIssue(ctx *cmdctx.CmdContext) error {
 !!!! WARNING: We're now prompting you to save an SSH private key and certificate       !!!! 	
 !!!! (the private key in "id_whatever" and the certificate in "id_whatever-cert.pub"). !!!! 	
 !!!! These SSH credentials are time-limited and handling them in files is clunky;      !!!! 	
-!!!! consider running an SSH agent and running this command with -agent. Things				 !!!! 	
+!!!! consider running an SSH agent and running this command with --agent. Things       !!!! 	
 !!!! should just sort of work like magic if you do.                                    !!!!
 `)
 
