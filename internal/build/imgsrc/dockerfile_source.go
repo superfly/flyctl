@@ -1,28 +1,29 @@
 package imgsrc
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
 	"os"
 
+	"github.com/containerd/console"
 	"github.com/docker/docker/api/types"
+	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
+	"github.com/docker/docker/pkg/stringid"
+	"github.com/moby/buildkit/util/progress/progressui"
+	"github.com/moby/term"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/docker"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"golang.org/x/sync/errgroup"
 )
-
-type RegistryUnauthorizedError struct {
-	Tag string
-}
-
-func (err *RegistryUnauthorizedError) Error() string {
-	return fmt.Sprintf("you are not authorized to push \"%s\"", err.Tag)
-}
 
 type dockerfileStrategy struct{}
 
@@ -91,32 +92,24 @@ func (ds *dockerfileStrategy) Run(ctx context.Context, dockerFactory *dockerClie
 	var imageID string
 
 	fmt.Println("building image")
-	options := types.ImageBuildOptions{
-		Tags:      []string{opts.Tag},
-		BuildArgs: normalizeBuildArgsForDocker(opts.AppConfig, opts.ExtraBuildArgs),
-		// NoCache:   true,
-		AuthConfigs: AuthConfigs(),
-		Platform:    "linux/amd64",
-	}
 
-	resp, err := docker.ImageBuild(ctx, r, options)
+	buildArgs := normalizeBuildArgsForDocker(opts.AppConfig, opts.ExtraBuildArgs)
+
+	buildkitEnabled, err := buildkitEnabled(docker)
+	fmt.Println("buildkitEnabled?", buildkitEnabled, err)
 	if err != nil {
-		return nil, errors.Wrap(err, "error building with docker")
+		return nil, errors.Wrap(err, "error checking for buildkit support")
 	}
-	defer resp.Body.Close()
-
-	idCallback := func(m jsonmessage.JSONMessage) {
-		var aux types.BuildResult
-
-		if err := json.Unmarshal(*m.Aux, &aux); err != nil {
-			fmt.Println("error unmarshalling id")
+	if buildkitEnabled {
+		imageID, err = runBuildKitBuild(ctx, streams, docker, r, opts, buildArgs)
+		if err != nil {
+			return nil, errors.Wrap(err, "error building")
 		}
-
-		imageID = aux.ID
-	}
-
-	if err := jsonmessage.DisplayJSONMessagesStream(resp.Body, streams.ErrOut, streams.StderrFd(), streams.IsStderrTTY(), idCallback); err != nil {
-		return nil, errors.Wrap(err, "error rendering build status stream")
+	} else {
+		imageID, err = runClassicBuild(ctx, streams, docker, r, opts, buildArgs)
+		if err != nil {
+			return nil, errors.Wrap(err, "error building")
+		}
 	}
 
 	fmt.Println("building image done")
@@ -181,4 +174,149 @@ func normalizeBuildArgsForDocker(appConfig *flyctl.AppConfig, extra map[string]s
 	}
 
 	return out
+}
+
+func runClassicBuild(ctx context.Context, streams *iostreams.IOStreams, docker *dockerclient.Client, r io.ReadCloser, opts ImageOptions, buildArgs map[string]*string) (imageID string, err error) {
+	options := types.ImageBuildOptions{
+		Tags:      []string{opts.Tag},
+		BuildArgs: buildArgs,
+		// NoCache:   true,
+		AuthConfigs: AuthConfigs(),
+		Platform:    "linux/amd64",
+	}
+
+	resp, err := docker.ImageBuild(ctx, r, options)
+	if err != nil {
+		return "", errors.Wrap(err, "error building with docker")
+	}
+	defer resp.Body.Close()
+
+	idCallback := func(m jsonmessage.JSONMessage) {
+		fmt.Println("got a message", m.ID, m)
+		var aux types.BuildResult
+		if err := json.Unmarshal(*m.Aux, &aux); err != nil {
+			fmt.Fprintf(streams.Out, "failed to parse aux message: %v", err)
+		}
+		imageID = aux.ID
+	}
+
+	if err := jsonmessage.DisplayJSONMessagesStream(resp.Body, streams.ErrOut, streams.StderrFd(), streams.IsStderrTTY(), idCallback); err != nil {
+		return "", errors.Wrap(err, "error rendering build status stream")
+	}
+
+	return imageID, nil
+}
+
+const uploadRequestRemote = "upload-request"
+
+func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker *dockerclient.Client, r io.ReadCloser, opts ImageOptions, buildArgs map[string]*string) (imageID string, err error) {
+	s, err := createBuildSession(opts.WorkingDir)
+	if err != nil {
+		panic(err)
+	}
+
+	if s == nil {
+		panic("buildkit not supported")
+	}
+
+	eg, errCtx := errgroup.WithContext(ctx)
+
+	dialSession := func(ctx context.Context, proto string, meta map[string][]string) (net.Conn, error) {
+		return docker.DialHijack(errCtx, "/session", proto, meta)
+	}
+	eg.Go(func() error {
+		return s.Run(context.TODO(), dialSession)
+	})
+
+	buildID := stringid.GenerateRandomID()
+	eg.Go(func() error {
+		buildOptions := types.ImageBuildOptions{
+			Version: types.BuilderBuildKit,
+			BuildID: uploadRequestRemote + ":" + buildID,
+		}
+
+		response, err := docker.ImageBuild(context.Background(), r, buildOptions)
+		if err != nil {
+			return err
+		}
+		defer response.Body.Close()
+		return nil
+	})
+
+	eg.Go(func() error {
+		defer s.Close()
+
+		buildOpts := types.ImageBuildOptions{
+			Tags:          []string{opts.Tag},
+			BuildArgs:     buildArgs,
+			Version:       types.BuilderBuildKit,
+			AuthConfigs:   AuthConfigs(),
+			SessionID:     s.ID(),
+			RemoteContext: uploadRequestRemote,
+			BuildID:       buildID,
+			Platform:      "linux/amd64",
+		}
+
+		return func() error {
+			resp, err := docker.ImageBuild(ctx, nil, buildOpts)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+
+			done := make(chan struct{})
+			defer close(done)
+
+			eg.Go(func() error {
+				select {
+				case <-ctx.Done():
+					return docker.BuildCancel(context.TODO(), buildOpts.BuildID)
+				case <-done:
+				}
+				return nil
+			})
+
+			// TODO: replace with iostreams
+			termFd, isTerm := term.GetFdInfo(os.Stderr)
+			tracer := newTracer()
+			var c2 console.Console
+			if isTerm {
+				if cons, err := console.ConsoleFromFile(os.Stderr); err == nil {
+					c2 = cons
+				}
+			}
+
+			eg.Go(func() error {
+				return progressui.DisplaySolveStatus(context.TODO(), "", c2, os.Stderr, tracer.displayCh)
+			})
+
+			auxCallback := func(m jsonmessage.JSONMessage) {
+				if m.ID == "moby.image.id" {
+					var result types.BuildResult
+					if err := json.Unmarshal(*m.Aux, &result); err != nil {
+						fmt.Fprintf(streams.Out, "failed to parse aux message: %v", err)
+					}
+					imageID = result.ID
+					return
+				}
+
+				tracer.write(m)
+			}
+			defer close(tracer.displayCh)
+
+			buf := bytes.NewBuffer(nil)
+
+			if err := jsonmessage.DisplayJSONMessagesStream(resp.Body, buf, termFd, isTerm, auxCallback); err != nil {
+				return err
+			}
+
+			return nil
+		}()
+	})
+
+	if err := eg.Wait(); err != nil {
+		return "", err
+	}
+
+	return imageID, nil
 }
