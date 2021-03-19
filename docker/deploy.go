@@ -75,6 +75,8 @@ func (op *DeployOperation) ValidateConfig() (*api.AppConfig, error) {
 		return parsedConfig, errors.New("App configuration is not valid")
 	}
 
+	def := parsedConfig.Definition
+	def["build"] = o.appConfig.Definition["build"]
 	op.appConfig.Definition = parsedConfig.Definition
 
 	return parsedConfig, nil
