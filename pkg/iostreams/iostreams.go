@@ -138,6 +138,20 @@ func (s *IOStreams) IsStderrTTY() bool {
 	return false
 }
 
+func (s *IOStreams) StderrFd() uintptr {
+	if f, ok := s.ErrOut.(*os.File); ok {
+		return f.Fd()
+	}
+	return ^(uintptr(0))
+}
+
+func (s *IOStreams) StdoutFd() uintptr {
+	if f, ok := s.Out.(*os.File); ok {
+		return f.Fd()
+	}
+	return ^(uintptr(0))
+}
+
 func (s *IOStreams) IsInteractive() bool {
 	return s.IsStdinTTY() && s.IsStdoutTTY()
 }

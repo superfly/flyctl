@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -10,15 +9,18 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/logrusorgru/aurora"
 	"github.com/morikuni/aec"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
-	"github.com/superfly/flyctl/docker"
 	"github.com/superfly/flyctl/docstrings"
+	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/cmdfmt"
+	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/deployment"
-	"github.com/superfly/flyctl/terminal"
 )
 
 func newDeployCommand(client *client.Client) *Command {
@@ -74,15 +76,24 @@ func newDeployCommand(client *client.Client) *Command {
 
 func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 	ctx := createCancellableContext()
-	op, err := docker.NewDeployOperation(ctx, cmdCtx)
-	if err != nil {
-		return err
-	}
 
 	cmdCtx.Status("deploy", cmdctx.STITLE, "Deploying", cmdCtx.AppName)
 
 	cmdCtx.Status("deploy", cmdctx.SBEGIN, "Validating App Configuration")
-	parsedCfg, err := op.ValidateConfig()
+
+	if cmdCtx.AppConfig == nil {
+		cmdCtx.AppConfig = flyctl.NewAppConfig()
+	}
+
+	if extraEnv := cmdCtx.Config.GetStringSlice("env"); len(extraEnv) > 0 {
+		parsedEnv, err := cmdutil.ParseKVStringsToMap(cmdCtx.Config.GetStringSlice("env"))
+		if err != nil {
+			return errors.Wrap(err, "invalid env")
+		}
+		cmdCtx.AppConfig.SetEnvVariables(parsedEnv)
+	}
+
+	parsedCfg, err := cmdCtx.Client.API().ParseConfig(cmdCtx.AppName, cmdCtx.AppConfig.Definition)
 	if err != nil {
 		if parsedCfg == nil {
 			// No error data has been returned
@@ -94,179 +105,330 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		}
 		return err
 	}
+	cmdCtx.AppConfig.Definition = parsedCfg.Definition
 	cmdCtx.Status("deploy", cmdctx.SDONE, "Validating App Configuration done")
 
-	if parsedCfg.Valid {
-		if len(parsedCfg.Services) > 0 {
-			err = cmdCtx.Frender(cmdctx.PresenterOption{Presentable: &presenters.SimpleServices{Services: parsedCfg.Services}, HideHeader: true, Vertical: false, Title: "Services"})
-			if err != nil {
-				return err
-			}
-		}
+	if parsedCfg.Valid && len(parsedCfg.Services) > 0 {
+		cmdfmt.PrintServicesList(cmdCtx.IO, parsedCfg.Services)
 	}
 
-	var strategy = docker.DefaultDeploymentStrategy
-	if val, _ := cmdCtx.Config.GetString("strategy"); val != "" {
-		strategy, err = docker.ParseDeploymentStrategy(val)
-		if err != nil {
-			return err
-		}
+	var daemonType imgsrc.DockerDaemonType
+	if !cmdCtx.Config.GetBool("local-only") {
+		daemonType = daemonType | imgsrc.DockerDaemonTypeLocal
+	}
+	if !cmdCtx.Config.GetBool("remote-only") {
+		daemonType = daemonType | imgsrc.DockerDaemonTypeRemote
 	}
 
-	var image *docker.Image
+	resolver := imgsrc.NewResolver(daemonType, cmdCtx.Client.API(), cmdCtx.AppName)
 
-	imageRef, _ := cmdCtx.Config.GetString("image")
-
-	if imageRef == "" &&
-		cmdCtx.AppConfig != nil &&
-		cmdCtx.AppConfig.Build != nil &&
-		cmdCtx.AppConfig.Build.Image != "" {
-		imageRef = cmdCtx.AppConfig.Build.Image
+	opts := imgsrc.ImageOptions{
+		AppName:    cmdCtx.AppName,
+		WorkingDir: cmdCtx.WorkingDir,
+		AppConfig:  cmdCtx.AppConfig,
 	}
+	opts.ImageRef, _ = cmdCtx.Config.GetString("image")
+	opts.ImageLabel, _ = cmdCtx.Config.GetString("image-label")
+	opts.DockerfilePath, _ = cmdCtx.Config.GetString("dockerfile")
+	extraArgs, err := cmdutil.ParseKVStringsToMap(cmdCtx.Config.GetStringSlice("build-arg"))
+	if err != nil {
+		return errors.Wrap(err, "invalid build-arg")
+	}
+	opts.ExtraBuildArgs = extraArgs
 
-	buildOp, err := docker.NewBuildOperation(ctx, cmdCtx)
+	img, err := resolver.Resolve(ctx, cmdCtx.IO, opts)
 	if err != nil {
 		return err
 	}
-
-	needsCleaning := false
-
-	if imageRef != "" {
-		// image specified, resolve it, tagging and pushing if docker+local
-		cmdCtx.Statusf("deploy", cmdctx.SINFO, "Deploying image: %s\n", imageRef)
-
-		img, err := buildOp.ResolveImageLocally(ctx, cmdCtx, imageRef)
-		if err != nil {
-			return err
-		}
-		if img != nil {
-			image = img
-		} else {
-			image = &docker.Image{
-				Tag: imageRef,
-			}
-		}
-	} else {
-		needsCleaning = true
-		// no image specified, build one
-		buildArgs := map[string]string{}
-
-		if cmdCtx.AppConfig.Build != nil && cmdCtx.AppConfig.Build.Args != nil {
-			for k, v := range cmdCtx.AppConfig.Build.Args {
-				buildArgs[k] = v
-			}
-		}
-
-		for _, arg := range cmdCtx.Config.GetStringSlice("build-arg") {
-			parts := strings.Split(arg, "=")
-			if len(parts) != 2 {
-				return fmt.Errorf("Invalid build-arg '%s': must be in the format NAME=VALUE", arg)
-			}
-			buildArgs[parts[0]] = parts[1]
-		}
-
-		for _, arg := range cmdCtx.Config.GetStringSlice("env") {
-			parts := strings.Split(arg, "=")
-			if len(parts) != 2 {
-				return fmt.Errorf("Invalid env '%s': must be in the format NAME=VALUE", arg)
-			}
-			cmdCtx.AppConfig.SetEnvVariable(parts[0], parts[1])
-		}
-
-		var dockerfilePath string
-
-		if dockerfile, _ := cmdCtx.Config.GetString("dockerfile"); dockerfile != "" {
-			dockerfilePath = dockerfile
-		}
-
-		if dockerfilePath == "" {
-			dockerfilePath = docker.ResolveDockerfile(cmdCtx.WorkingDir)
-		}
-
-		if dockerfilePath == "" && !cmdCtx.AppConfig.HasBuilder() && !cmdCtx.AppConfig.HasBuiltin() {
-			return docker.ErrNoDockerfile
-		}
-
-		if cmdCtx.AppConfig.HasBuilder() {
-			if dockerfilePath != "" {
-				terminal.Warn("Project contains both a Dockerfile and buildpacks, using buildpacks")
-			}
-		}
-
-		cmdCtx.Statusf("deploy", cmdctx.SINFO, "Deploy source directory '%s'\n", cmdCtx.WorkingDir)
-
-		if cmdCtx.AppConfig.HasBuilder() {
-			cmdCtx.Status("deploy", cmdctx.SBEGIN, "Building with buildpacks")
-			img, err := buildOp.BuildWithPack(cmdCtx, buildArgs)
-			if err != nil {
-				return err
-			}
-			image = img
-			cmdCtx.Status("deploy", cmdctx.SDONE, "Building with buildpacks done")
-		} else if cmdCtx.AppConfig.HasBuiltin() {
-			cmdCtx.Status("deploy", cmdctx.SBEGIN, "Building with Builtin")
-
-			img, err := buildOp.BuildWithDocker(cmdCtx, cmdCtx.WorkingDir, dockerfilePath, buildArgs)
-			if err != nil {
-				return err
-			}
-			image = img
-			cmdCtx.Status("deploy", cmdctx.SDONE, "Building with Builtin done")
-		} else {
-			cmdCtx.Status("deploy", cmdctx.SBEGIN, "Building with Dockerfile")
-
-			img, err := buildOp.BuildWithDocker(cmdCtx, cmdCtx.WorkingDir, dockerfilePath, buildArgs)
-			if err != nil {
-				return err
-			}
-			image = img
-			cmdCtx.Status("deploy", cmdctx.SDONE, "Building with Dockerfile done")
-		}
-		cmdCtx.Statusf("deploy", cmdctx.SINFO, "Image: %+v\n", image.Tag)
-		cmdCtx.Statusf("deploy", cmdctx.SINFO, "Image size: %s\n", humanize.Bytes(uint64(image.Size)))
-
-		cmdCtx.Status("deploy", cmdctx.SBEGIN, "Pushing Image")
-		err := buildOp.PushImage(cmdCtx, *image)
-		if err != nil {
-			return err
-		}
-		cmdCtx.Status("deploy", cmdctx.SDONE, "Done Pushing Image")
-
-		if cmdCtx.Config.GetBool("build-only") {
-			cmdCtx.Statusf("deploy", cmdctx.SINFO, "Image: %s\n", image.Tag)
-
-			return nil
-		}
+	if img == nil {
+		return errors.New("could not find an image to deploy")
 	}
 
-	if image == nil {
-		return errors.New("Could not find an image to deploy")
+	cmdCtx.Statusf("deploy", cmdctx.SINFO, "Image: %+v\n", img.Tag)
+	cmdCtx.Statusf("deploy", cmdctx.SINFO, "Image size: %s\n", humanize.Bytes(uint64(img.Size)))
+
+	if cmdCtx.Config.GetBool("build-only") {
+		return nil
 	}
 
 	cmdCtx.Status("deploy", cmdctx.SBEGIN, "Creating Release")
 
-	if strategy != docker.DefaultDeploymentStrategy {
-		cmdCtx.Statusf("deploy", cmdctx.SDETAIL, "Deployment Strategy: %s", strategy)
+	input := api.DeployImageInput{
+		AppID: cmdCtx.AppName,
+		Image: img.Tag,
+	}
+	if val, _ := cmdCtx.Config.GetString("strategy"); val != "" {
+		input.Strategy = api.StringPointer(strings.ToUpper(val))
+	}
+	if cmdCtx.AppConfig != nil && len(cmdCtx.AppConfig.Definition) > 0 {
+		input.Definition = api.DefinitionPtr(cmdCtx.AppConfig.Definition)
 	}
 
-	release, err := op.Deploy(image.Tag, strategy)
+	release, err := cmdCtx.Client.API().DeployImage(input)
 	if err != nil {
 		return err
 	}
 
-	if needsCleaning {
-		buildOp.CleanDeploymentTags(cmdCtx)
-	}
-
 	cmdCtx.Statusf("deploy", cmdctx.SINFO, "Release v%d created\n", release.Version)
+	cmdCtx.Statusf("deploy", cmdctx.SINFO, "Deploying to %s.fly.dev\n", cmdCtx.AppName)
 
-	if strings.ToLower(release.DeploymentStrategy) == string(docker.ImmediateDeploymentStrategy) {
+	if release.DeploymentStrategy == "IMMEDIATE" {
 		return nil
 	}
 
-	cmdCtx.Statusf("deploy", cmdctx.SINFO, "Deploying to : %s.fly.dev\n\n", cmdCtx.AppName)
+	if cmdCtx.Config.GetBool("detach") {
+		return nil
+	}
 
 	return watchDeployment(ctx, cmdCtx)
+
+	// imageRef, _ := cmdCtx.Config.GetString("image")
+
+	// if imageRef == "" && cmdCtx.AppConfig != nil && cmdCtx.AppConfig.Build != nil && cmdCtx.AppConfig.Build.Image != "" {
+	// 	imageRef = cmdCtx.AppConfig.Build.Image
+	// }
+
+	// var imageResolver imgsrc.ImageResolver
+
+	// if imageRef != "" {
+	// 	options := &imgsrc.RefOptions{
+	// 		ImageRef:        imageRef,
+	// 		AppNameOverride: cmdCtx.AppName,
+	// 	}
+	// 	options.ImageLabel, _ = cmdCtx.Config.GetString("image-label")
+
+	// 	s, err := imgsrc.NewImageRefResolver(options)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	imageResolver = s
+	// } else {
+	// 	options := &imgsrc.SourceOptions{
+	// 		WorkingDir:      cmdCtx.WorkingDir,
+	// 		AppNameOverride: cmdCtx.AppName,
+	// 		ExtraBuildArgs:  make(map[string]string),
+	// 		AppConfig:       cmdCtx.AppConfig,
+	// 	}
+
+	// 	options.DockerfilePath, _ = cmdCtx.Config.GetString("dockerfile")
+	// 	options.ImageLabel, _ = cmdCtx.Config.GetString("image-label")
+
+	// 	extraArgs, err := cmdutil.ParseKVStringsToMap(cmdCtx.Config.GetStringSlice("build-arg"))
+	// 	if err != nil {
+	// 		return errors.Wrap(err, "invalid build-arg")
+	// 	}
+	// 	options.ExtraBuildArgs = extraArgs
+
+	// 	resolver, err := imgsrc.NewSourceBuilder(options)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	if resolver == nil {
+	// 		return errors.New("project does not contain a Dockerfile or Buildpacks configuration")
+	// 	}
+
+	// 	imageResolver = resolver
+	// }
+
+	// if imageResolver == nil {
+	// 	return errors.New("could not find an image to deploy")
+	// }
+
+	// fmt.Println("Deployment source:", imageResolver.Name())
+
+	// if cmdCtx.Config.GetBool("remote-only") && cmdCtx.Config.GetBool("local-only") {
+	// 	return errors.New("both --local-only and --remote-only are set - select only one")
+	// }
+	// dockerMode := imgsrc.Auto
+	// if cmdCtx.Config.GetBool("remote-only") {
+	// 	dockerMode = imgsrc.Remote
+	// } else if cmdCtx.Config.GetBool("local-only") {
+	// 	dockerMode = imgsrc.Local
+	// }
+
+	// if err := imageResolver.SetupDocker(ctx, cmdCtx.Client.API(), dockerMode); err != nil {
+	// 	return err
+	// }
+
+	// img, err := imageResolver.Run(ctx, cmdCtx.IO)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// cmdCtx.Statusf("deploy", cmdctx.SINFO, "Image: %+v\n", img.Tag)
+	// cmdCtx.Statusf("deploy", cmdctx.SINFO, "Image size: %s\n", humanize.Bytes(uint64(img.Size)))
+
+	// if cmdCtx.Config.GetBool("build-only") {
+	// 	return nil
+	// }
+
+	// cmdCtx.Status("deploy", cmdctx.SBEGIN, "Creating Release")
+
+	// input := api.DeployImageInput{
+	// 	AppID: cmdCtx.AppName,
+	// 	Image: img.Tag,
+	// }
+	// if val, _ := cmdCtx.Config.GetString("strategy"); val != "" {
+	// 	input.Strategy = api.StringPointer(strings.ToUpper(val))
+	// }
+	// if cmdCtx.AppConfig != nil && len(cmdCtx.AppConfig.Definition) > 0 {
+	// 	input.Definition = api.DefinitionPtr(cmdCtx.AppConfig.Definition)
+	// }
+
+	// release, err := cmdCtx.Client.API().DeployImage(input)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// fmt.Printf("%+v\n", release)
+
+	// // return err
+
+	// // if needsCleaning {
+	// // 	buildOp.CleanDeploymentTags(cmdCtx)
+	// // }
+
+	// cmdCtx.Statusf("deploy", cmdctx.SINFO, "Release v%d created\n", release.Version)
+	// cmdCtx.Statusf("deploy", cmdctx.SINFO, "Deploying to %s.fly.dev\n", cmdCtx.AppName)
+
+	// if strings.ToLower(release.DeploymentStrategy) == string(docker.ImmediateDeploymentStrategy) {
+	// 	return nil
+	// }
+
+	// fmt.Println()
+
+	// return watchDeployment(ctx, cmdCtx)
+
+	// var strategy = docker.DefaultDeploymentStrategy
+	// if val, _ := cmdCtx.Config.GetString("strategy"); val != "" {
+	// 	strategy, err = docker.ParseDeploymentStrategy(val)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
+
+	// var image *docker.Image
+
+	// // imageRef, _ := cmdCtx.Config.GetString("image")
+
+	// // if imageRef == "" &&
+	// // 	cmdCtx.AppConfig != nil &&
+	// // 	cmdCtx.AppConfig.Build != nil &&
+	// // 	cmdCtx.AppConfig.Build.Image != "" {
+	// // 	imageRef = cmdCtx.AppConfig.Build.Image
+	// // }
+
+	// buildOp, err := docker.NewBuildOperation(ctx, cmdCtx)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// needsCleaning := false
+
+	// if imageRef != "" {
+	// 	// image specified, resolve it, tagging and pushing if docker+local
+	// 	cmdCtx.Statusf("deploy", cmdctx.SINFO, "Deploying image: %s\n", imageRef)
+
+	// 	img, err := buildOp.ResolveImageLocally(ctx, cmdCtx, imageRef)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	if img != nil {
+	// 		image = img
+	// 	} else {
+	// 		image = &docker.Image{
+	// 			Tag: imageRef,
+	// 		}
+	// 	}
+	// } else {
+	// 	needsCleaning = true
+	// 	// no image specified, build one
+	// 	buildArgs := map[string]string{}
+
+	// 	if cmdCtx.AppConfig.Build != nil && cmdCtx.AppConfig.Build.Args != nil {
+	// 		for k, v := range cmdCtx.AppConfig.Build.Args {
+	// 			buildArgs[k] = v
+	// 		}
+	// 	}
+
+	// 	for _, arg := range cmdCtx.Config.GetStringSlice("build-arg") {
+	// 		parts := strings.Split(arg, "=")
+	// 		if len(parts) != 2 {
+	// 			return fmt.Errorf("Invalid build-arg '%s': must be in the format NAME=VALUE", arg)
+	// 		}
+	// 		buildArgs[parts[0]] = parts[1]
+	// 	}
+
+	// 	var dockerfilePath string
+
+	// 	if dockerfile, _ := cmdCtx.Config.GetString("dockerfile"); dockerfile != "" {
+	// 		dockerfilePath = dockerfile
+	// 	}
+
+	// 	if dockerfilePath == "" {
+	// 		dockerfilePath = docker.ResolveDockerfile(cmdCtx.WorkingDir)
+	// 	}
+
+	// 	if dockerfilePath == "" && !cmdCtx.AppConfig.HasBuilder() && !cmdCtx.AppConfig.HasBuiltin() {
+	// 		return docker.ErrNoDockerfile
+	// 	}
+
+	// 	if cmdCtx.AppConfig.HasBuilder() {
+	// 		if dockerfilePath != "" {
+	// 			terminal.Warn("Project contains both a Dockerfile and buildpacks, using buildpacks")
+	// 		}
+	// 	}
+
+	// 	cmdCtx.Statusf("deploy", cmdctx.SINFO, "Deploy source directory '%s'\n", cmdCtx.WorkingDir)
+
+	// 	if cmdCtx.AppConfig.HasBuilder() {
+	// 		cmdCtx.Status("deploy", cmdctx.SBEGIN, "Building with buildpacks")
+	// 		img, err := buildOp.BuildWithPack(cmdCtx, buildArgs)
+	// 		if err != nil {
+	// 			return err
+	// 		}
+	// 		image = img
+	// 		cmdCtx.Status("deploy", cmdctx.SDONE, "Building with buildpacks done")
+	// 	} else if cmdCtx.AppConfig.HasBuiltin() {
+	// 		cmdCtx.Status("deploy", cmdctx.SBEGIN, "Building with Builtin")
+
+	// 		img, err := buildOp.BuildWithDocker(cmdCtx, cmdCtx.WorkingDir, dockerfilePath, buildArgs)
+	// 		if err != nil {
+	// 			return err
+	// 		}
+	// 		image = img
+	// 		cmdCtx.Status("deploy", cmdctx.SDONE, "Building with Builtin done")
+	// 	} else {
+	// 		cmdCtx.Status("deploy", cmdctx.SBEGIN, "Building with Dockerfile")
+
+	// 		img, err := buildOp.BuildWithDocker(cmdCtx, cmdCtx.WorkingDir, dockerfilePath, buildArgs)
+	// 		if err != nil {
+	// 			return err
+	// 		}
+	// 		image = img
+	// 		cmdCtx.Status("deploy", cmdctx.SDONE, "Building with Dockerfile done")
+	// 	}
+	// 	cmdCtx.Statusf("deploy", cmdctx.SINFO, "Image: %+v\n", image.Tag)
+	// 	cmdCtx.Statusf("deploy", cmdctx.SINFO, "Image size: %s\n", humanize.Bytes(uint64(image.Size)))
+
+	// 	cmdCtx.Status("deploy", cmdctx.SBEGIN, "Pushing Image")
+	// 	err := buildOp.PushImage(cmdCtx, *image)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	cmdCtx.Status("deploy", cmdctx.SDONE, "Done Pushing Image")
+
+	// 	if cmdCtx.Config.GetBool("build-only") {
+	// 		cmdCtx.Statusf("deploy", cmdctx.SINFO, "Image: %s\n", image.Tag)
+
+	// 		return nil
+	// 	}
+	// }
+
+	// if image == nil {
+	// 	return errors.New("Could not find an image to deploy")
+	// }
+
 }
 
 func watchDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext) error {

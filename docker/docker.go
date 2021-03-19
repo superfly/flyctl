@@ -34,7 +34,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func newDeploymentTag(appName string, label string) string {
+func NewDeploymentTag(appName string, label string) string {
 	if tag := os.Getenv("FLY_IMAGE_REF"); tag != "" {
 		return tag
 	}
@@ -206,7 +206,7 @@ func (c *DockerClient) BuildImage(ctx context.Context, contextDir string, tar io
 		Tags:      []string{tag},
 		BuildArgs: buildArgs,
 		// NoCache:   true,
-		AuthConfigs: authConfigs(),
+		AuthConfigs: AuthConfigs(),
 		Platform:    "linux/amd64",
 	}
 
@@ -269,7 +269,7 @@ func (c *DockerClient) doBuildKitBuild(ctx context.Context, contextDir string, t
 			BuildArgs: buildArgs,
 			// NoCache:   true,
 			Version:       types.BuilderBuildKit,
-			AuthConfigs:   authConfigs(),
+			AuthConfigs:   AuthConfigs(),
 			SessionID:     s.ID(),
 			RemoteContext: uploadRequestRemote,
 			BuildID:       buildID,
@@ -415,7 +415,7 @@ func RegistryAuth(token string) types.AuthConfig {
 	}
 }
 
-func authConfigs() map[string]types.AuthConfig {
+func AuthConfigs() map[string]types.AuthConfig {
 	authConfigs := map[string]types.AuthConfig{}
 
 	dockerhubUsername := os.Getenv("DOCKER_HUB_USERNAME")
@@ -431,4 +431,15 @@ func authConfigs() map[string]types.AuthConfig {
 	}
 
 	return authConfigs
+}
+
+func FlyRegistryAuth() string {
+	accessToken := flyctl.GetAPIToken()
+	authConfig := RegistryAuth(accessToken)
+	encodedJSON, err := json.Marshal(authConfig)
+	if err != nil {
+		terminal.Warn("Error encoding fly registry credentials", err)
+		return ""
+	}
+	return base64.URLEncoding.EncodeToString(encodedJSON)
 }

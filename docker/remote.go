@@ -1,17 +1,24 @@
 package docker
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	dockerclient "github.com/docker/docker/client"
+	"github.com/docker/go-connections/tlsconfig"
 	"github.com/jpillora/backoff"
 	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/context"
@@ -28,6 +35,72 @@ func isRetyableError(err error) bool {
 		return false
 	}
 	return true
+}
+
+func remoteBuilderURL(apiClient *api.Client, appName string) (string, error) {
+	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
+		return v, nil
+	}
+
+	rawURL, _, err := apiClient.EnsureRemoteBuilder(appName)
+	if err != nil {
+		return "", fmt.Errorf("could not create remote builder: %v", err)
+	}
+
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return "", errors.Wrap(err, "error parsing remote builder url")
+	}
+
+	host := parsedURL.Hostname()
+	port := parsedURL.Port()
+
+	if port == "" {
+		port = "10000"
+	}
+
+	return "tcp://" + net.JoinHostPort(host, port), nil
+}
+
+func basicAuth(appName, authToken string) string {
+	auth := appName + ":" + authToken
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
+}
+
+func setRemoteBuilder(ctx context.Context, cmdCtx *cmdctx.CmdContext, dockerClient *DockerClient) error {
+	host, err := remoteBuilderURL(cmdCtx.Client.API(), cmdCtx.AppName)
+	if err != nil {
+		return err
+	}
+
+	terminal.Debugf("Remote Docker builder host: %s\n", host)
+
+	httpc := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: tlsconfig.ClientDefault(),
+		},
+	}
+
+	client, err := newDockerClient(
+		dockerclient.WithHTTPClient(httpc),
+		dockerclient.WithHost(host),
+		dockerclient.WithHTTPHeaders(map[string]string{
+			"Authorization": basicAuth(cmdCtx.AppName, flyctl.GetAPIToken()),
+		}),
+	)
+	if err != nil {
+		return errors.Wrap(err, "Error creating docker client")
+	}
+
+	terminal.Infof("Waiting for remote builder to become available...\n")
+
+	if err := WaitForDaemon(ctx, client); err != nil {
+		return err
+	}
+
+	dockerClient.docker = client
+
+	return nil
 }
 
 func WaitForDaemon(ctx context.Context, client *dockerclient.Client) error {
