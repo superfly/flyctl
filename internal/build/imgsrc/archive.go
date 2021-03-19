@@ -69,6 +69,10 @@ func parseDockerignore(r io.Reader) ([]string, error) {
 		return nil, err
 	}
 
+	if match, _ := fileutils.Matches("fly.toml", excludes); !match {
+		excludes = append(excludes, "fly.toml")
+	}
+
 	if match, _ := fileutils.Matches(".dockerignore", excludes); match {
 		excludes = append(excludes, "!.dockerignore")
 	}
