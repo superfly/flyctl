@@ -36,9 +36,6 @@ func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	if err != nil {
 		return nil, err
 	}
-	// if err := buildContext.AddFile("Dockerfile", strings.NewReader(vdockerfile)); err != nil {
-	// 	return nil, err
-	// }
 
 	docker, err := dockerFactory.buildFn(ctx)
 	if err != nil {

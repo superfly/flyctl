@@ -8,15 +8,15 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-type RemoteImageStrategy struct {
+type remoteImageResolver struct {
 	flyApi *api.Client
 }
 
-func (s *RemoteImageStrategy) Name() string {
+func (s *remoteImageResolver) Name() string {
 	return "Remote Image Reference"
 }
 
-func (s *RemoteImageStrategy) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions) (*DeploymentImage, error) {
+func (s *remoteImageResolver) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions) (*DeploymentImage, error) {
 	ref := imageRefFromOpts(opts)
 	if ref == "" {
 		terminal.Debug("no image reference found, skipping")

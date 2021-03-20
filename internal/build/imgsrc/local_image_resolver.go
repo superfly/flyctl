@@ -12,9 +12,9 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-type LocalImageStrategy struct{}
+type localImageResolver struct{}
 
-func (s *LocalImageStrategy) Name() string {
+func (s *localImageResolver) Name() string {
 	return "Local Image Reference"
 }
 
@@ -30,7 +30,7 @@ func imageRefFromOpts(opts ImageOptions) string {
 	return ""
 }
 
-func (s *LocalImageStrategy) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions) (*DeploymentImage, error) {
+func (s *localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions) (*DeploymentImage, error) {
 	if !dockerFactory.mode.IsAvailable() {
 		terminal.Debug("docker daemon not available, skipping")
 		return nil, nil

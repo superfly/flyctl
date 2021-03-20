@@ -162,7 +162,7 @@ func runClassicBuild(ctx context.Context, streams *iostreams.IOStreams, docker *
 		Tags:      []string{opts.Tag},
 		BuildArgs: buildArgs,
 		// NoCache:   true,
-		AuthConfigs: AuthConfigs(),
+		AuthConfigs: authConfigs(),
 		Platform:    "linux/amd64",
 	}
 
@@ -231,7 +231,7 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 			Tags:          []string{opts.Tag},
 			BuildArgs:     buildArgs,
 			Version:       types.BuilderBuildKit,
-			AuthConfigs:   AuthConfigs(),
+			AuthConfigs:   authConfigs(),
 			SessionID:     s.ID(),
 			RemoteContext: uploadRequestRemote,
 			BuildID:       buildID,
@@ -304,7 +304,7 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 
 func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostreams.IOStreams, tag string) error {
 	pushResp, err := docker.ImagePush(ctx, tag, types.ImagePushOptions{
-		RegistryAuth: FlyRegistryAuth(),
+		RegistryAuth: flyRegistryAuth(),
 	})
 	if err != nil {
 		return errors.Wrap(err, "error pushing image to registry")

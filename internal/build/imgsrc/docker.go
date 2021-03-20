@@ -17,6 +17,7 @@ import (
 	"github.com/docker/go-connections/tlsconfig"
 	"github.com/jpillora/backoff"
 	"github.com/pkg/errors"
+	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/terminal"
@@ -27,7 +28,7 @@ type dockerClientFactory struct {
 	buildFn func(ctx context.Context) (*dockerclient.Client, error)
 }
 
-func NewDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, appName string) *dockerClientFactory {
+func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, appName string) *dockerClientFactory {
 	if daemonType.AllowLocal() {
 		c, err := newLocalDockerClient()
 		if c != nil && err == nil {
@@ -158,18 +159,11 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 
 	terminal.Infof("Waiting for remote builder to become available...\n")
 
-	if err := WaitForDaemon(ctx, client); err != nil {
+	if err := waitForDaemon(ctx, client); err != nil {
 		return nil, err
 	}
 
 	return client, nil
-}
-
-func dockerOK(ctx context.Context, c *dockerclient.Client, timeout time.Duration) bool {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	_, err := c.Ping(ctx)
-	return err == nil
 }
 
 func remoteBuilderURL(apiClient *api.Client, appName string) (string, error) {
@@ -202,7 +196,7 @@ func basicAuth(appName, authToken string) string {
 	return "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
 }
 
-func WaitForDaemon(ctx context.Context, client *dockerclient.Client) error {
+func waitForDaemon(ctx context.Context, client *dockerclient.Client) error {
 	deadline := time.After(5 * time.Minute)
 
 	b := &backoff.Backoff{
@@ -283,7 +277,7 @@ func clearDeploymentTags(ctx context.Context, docker *dockerclient.Client, tag s
 	return nil
 }
 
-func RegistryAuth(token string) types.AuthConfig {
+func registryAuth(token string) types.AuthConfig {
 	return types.AuthConfig{
 		Username:      "x",
 		Password:      token,
@@ -291,7 +285,7 @@ func RegistryAuth(token string) types.AuthConfig {
 	}
 }
 
-func AuthConfigs() map[string]types.AuthConfig {
+func authConfigs() map[string]types.AuthConfig {
 	authConfigs := map[string]types.AuthConfig{}
 
 	dockerhubUsername := os.Getenv("DOCKER_HUB_USERNAME")
@@ -309,13 +303,27 @@ func AuthConfigs() map[string]types.AuthConfig {
 	return authConfigs
 }
 
-func FlyRegistryAuth() string {
+func flyRegistryAuth() string {
 	accessToken := flyctl.GetAPIToken()
-	authConfig := RegistryAuth(accessToken)
+	authConfig := registryAuth(accessToken)
 	encodedJSON, err := json.Marshal(authConfig)
 	if err != nil {
 		terminal.Warn("Error encoding fly registry credentials", err)
 		return ""
 	}
 	return base64.URLEncoding.EncodeToString(encodedJSON)
+}
+
+func newDeploymentTag(appName string, label string) string {
+	if tag := os.Getenv("FLY_IMAGE_REF"); tag != "" {
+		return tag
+	}
+
+	if label == "" {
+		label = fmt.Sprintf("deployment-%d", time.Now().Unix())
+	}
+
+	registry := viper.GetString(flyctl.ConfigRegistryHost)
+
+	return fmt.Sprintf("%s/%s:%s", registry, appName, label)
 }

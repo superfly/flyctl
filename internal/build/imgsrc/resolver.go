@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/docker"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -22,6 +21,12 @@ type ImageOptions struct {
 	Tag            string
 }
 
+type DeploymentImage struct {
+	ID   string
+	Tag  string
+	Size int64
+}
+
 type Resolver struct {
 	dockerFactory *dockerClientFactory
 	apiClient     *api.Client
@@ -29,12 +34,12 @@ type Resolver struct {
 
 func (r *Resolver) Resolve(ctx context.Context, streams *iostreams.IOStreams, opts ImageOptions) (img *DeploymentImage, err error) {
 	if opts.Tag == "" {
-		opts.Tag = docker.NewDeploymentTag(opts.AppName, opts.ImageLabel)
+		opts.Tag = newDeploymentTag(opts.AppName, opts.ImageLabel)
 	}
 
 	strategies := []resolverStrategy{
-		&LocalImageStrategy{},
-		&RemoteImageStrategy{flyApi: r.apiClient},
+		&localImageResolver{},
+		&remoteImageResolver{flyApi: r.apiClient},
 		&dockerfileStrategy{},
 		&buildpacksStrategy{},
 		&builtinBuilder{},
@@ -57,7 +62,7 @@ func (r *Resolver) Resolve(ctx context.Context, streams *iostreams.IOStreams, op
 
 func NewResolver(daemonType DockerDaemonType, apiClient *api.Client, appName string) *Resolver {
 	return &Resolver{
-		dockerFactory: NewDockerClientFactory(daemonType, apiClient, appName),
+		dockerFactory: newDockerClientFactory(daemonType, apiClient, appName),
 		apiClient:     apiClient,
 	}
 }
