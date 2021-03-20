@@ -1,12 +1,9 @@
-package builtinsupport
+package builtins
 
 import (
 	"fmt"
 	"strings"
 	"text/template"
-
-	"github.com/superfly/flyctl/cmdctx"
-	"github.com/superfly/flyctl/flyctl"
 )
 
 // Setting is a simple holder for names and defaults in Settings
@@ -26,19 +23,15 @@ type Builtin struct {
 	settingsMap map[string]Setting
 }
 
-var builtins map[string]Builtin
-
 // GetBuiltin - Finds the Builtin by name
-func GetBuiltin(commandContext *cmdctx.CmdContext, builtinname string) (*Builtin, error) {
-	initBuiltins(commandContext)
-
-	builtin, ok := builtins[builtinname]
-
-	if !ok {
-		return nil, fmt.Errorf("no builtin with %s name supported", builtinname)
+func GetBuiltin(builtinname string) (*Builtin, error) {
+	for _, builtin := range basicbuiltins {
+		if builtin.Name == builtinname {
+			return &builtin, nil
+		}
 	}
 
-	return &builtin, nil
+	return nil, fmt.Errorf("no builtin with %s name supported", builtinname)
 }
 
 // ResolveSettings - Given defaults abd values return actural settings
@@ -107,47 +100,6 @@ func (b *Builtin) GetSetting(name string) Setting {
 }
 
 // GetBuiltins - Get an array of all the builtins
-func GetBuiltins(commandContext *cmdctx.CmdContext) []Builtin {
-	initBuiltins(commandContext)
-
-	var builtarray []Builtin
-
-	for _, v := range builtins {
-		builtarray = append(builtarray, v)
-	}
-
-	return builtarray
-}
-
-// Internal function to load up builtins
-func initBuiltins(commandContext *cmdctx.CmdContext) {
-	if len(builtins) != 0 {
-		return
-	}
-	builtins = make(map[string]Builtin)
-
-	// Load all the internal defaults
-	for _, rt := range basicbuiltins {
-		builtins[rt.Name] = rt
-	}
-
-	builtinsfile, err := commandContext.GlobalConfig.GetString(flyctl.ConfigBuiltinsfile)
-	if err != nil {
-		fmt.Print(err)
-		return
-	}
-
-	if builtinsfile == "" {
-		return
-	}
-
-	filebuiltins, err := loadBuiltins(builtinsfile)
-	if err != nil {
-		fmt.Print(err)
-		return
-	}
-
-	for _, rt := range filebuiltins {
-		builtins[rt.Name] = rt
-	}
+func GetBuiltins() []Builtin {
+	return basicbuiltins
 }

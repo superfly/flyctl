@@ -22,18 +22,13 @@ func (s *buildpacksStrategy) Run(ctx context.Context, dockerFactory *dockerClien
 		return nil, nil
 	}
 
-	if opts.AppConfig == nil || opts.AppConfig.Build == nil {
-		terminal.Debug("no build section found in fly.toml, skipping")
+	if !opts.AppConfig.HasBuilder() {
+		terminal.Debug("no buildpack builder configured, skipping")
 		return nil, nil
 	}
 
 	builder := opts.AppConfig.Build.Builder
 	buildpacks := opts.AppConfig.Build.Buildpacks
-
-	if builder == "" {
-		terminal.Debug("no buildpack builder configured, skipping")
-		return nil, nil
-	}
 
 	docker, err := dockerFactory.buildFn(ctx)
 	if err != nil {
@@ -54,7 +49,7 @@ func (s *buildpacksStrategy) Run(ctx context.Context, dockerFactory *dockerClien
 		Buildpacks:   buildpacks,
 		Env:          normalizeBuildArgs(opts.AppConfig, opts.ExtraBuildArgs),
 		TrustBuilder: true,
-		// Publish:      true,
+		Publish:      opts.Publish,
 	})
 
 	if err != nil {

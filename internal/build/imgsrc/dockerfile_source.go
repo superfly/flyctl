@@ -117,27 +117,8 @@ func (ds *dockerfileStrategy) Run(ctx context.Context, dockerFactory *dockerClie
 	if opts.Publish {
 		fmt.Println("pushing image")
 
-		registryAuth := FlyRegistryAuth()
-		pushResp, err := docker.ImagePush(ctx, opts.Tag, types.ImagePushOptions{
-			RegistryAuth: registryAuth,
-		})
-		if err != nil {
-			return nil, errors.Wrap(err, "error pushing image to registry")
-		}
-		defer pushResp.Close()
-
-		err = jsonmessage.DisplayJSONMessagesStream(pushResp, streams.ErrOut, streams.StderrFd(), streams.IsStderrTTY(), nil)
-		if err != nil {
-			var msgerr *jsonmessage.JSONError
-
-			if errors.As(err, &msgerr) {
-				if msgerr.Message == "denied: requested access to the resource is denied" {
-					return nil, &RegistryUnauthorizedError{
-						Tag: opts.Tag,
-					}
-				}
-			}
-			return nil, errors.Wrap(err, "error rendering push status stream")
+		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
+			return nil, err
 		}
 
 		fmt.Println("pushing image done ")
@@ -319,4 +300,28 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 	}
 
 	return imageID, nil
+}
+
+func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostreams.IOStreams, tag string) error {
+	pushResp, err := docker.ImagePush(ctx, tag, types.ImagePushOptions{
+		RegistryAuth: FlyRegistryAuth(),
+	})
+	if err != nil {
+		return errors.Wrap(err, "error pushing image to registry")
+	}
+	defer pushResp.Close()
+
+	err = jsonmessage.DisplayJSONMessagesStream(pushResp, streams.ErrOut, streams.StderrFd(), streams.IsStderrTTY(), nil)
+	if err != nil {
+		var msgerr *jsonmessage.JSONError
+
+		if errors.As(err, &msgerr) {
+			if msgerr.Message == "denied: requested access to the resource is denied" {
+				return &RegistryUnauthorizedError{Tag: tag}
+			}
+		}
+		return errors.Wrap(err, "error rendering push status stream")
+	}
+
+	return nil
 }

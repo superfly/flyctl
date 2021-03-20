@@ -37,6 +37,7 @@ func (r *Resolver) Resolve(ctx context.Context, streams *iostreams.IOStreams, op
 		&RemoteImageStrategy{flyApi: r.apiClient},
 		&dockerfileStrategy{},
 		&buildpacksStrategy{},
+		&builtinBuilder{},
 	}
 
 	for _, s := range strategies {

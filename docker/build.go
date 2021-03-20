@@ -12,8 +12,8 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/builtinsupport"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/build/imgsrc/builtins"
 	"golang.org/x/net/context"
 
 	"github.com/briandowns/spinner"
@@ -252,7 +252,7 @@ func (op *BuildOperation) BuildWithDocker(cmdCtx *cmdctx.CmdContext, contextDir 
 		}
 	} else {
 		// We're doing a builtin!
-		builtin, err := builtinsupport.GetBuiltin(cmdCtx, appConfig.Build.Builtin)
+		builtin, err := builtins.GetBuiltin(appConfig.Build.Builtin)
 		if err != nil {
 			return nil, err
 		}
