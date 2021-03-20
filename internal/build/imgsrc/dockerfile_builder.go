@@ -17,7 +17,6 @@ import (
 	"github.com/moby/buildkit/util/progress/progressui"
 	"github.com/moby/term"
 	"github.com/pkg/errors"
-	"github.com/superfly/flyctl/docker"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/pkg/iostreams"
@@ -45,7 +44,7 @@ func (ds *dockerfileStrategy) Run(ctx context.Context, dockerFactory *dockerClie
 		}
 		dockerfile = opts.DockerfilePath
 	} else {
-		dockerfile = docker.ResolveDockerfile(opts.WorkingDir)
+		dockerfile = resolveDockerfile(opts.WorkingDir)
 	}
 
 	if dockerfile == "" {

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -20,6 +21,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -326,4 +328,17 @@ func newDeploymentTag(appName string, label string) string {
 	registry := viper.GetString(flyctl.ConfigRegistryHost)
 
 	return fmt.Sprintf("%s/%s:%s", registry, appName, label)
+}
+
+// resolveDockerfile - Resolve the location of the dockerfile, allowing for upper and lowercase naming
+func resolveDockerfile(cwd string) string {
+	dockerfilePath := filepath.Join(cwd, "Dockerfile")
+	if helpers.FileExists(dockerfilePath) {
+		return dockerfilePath
+	}
+	dockerfilePath = filepath.Join(cwd, "dockerfile")
+	if helpers.FileExists(dockerfilePath) {
+		return dockerfilePath
+	}
+	return ""
 }
