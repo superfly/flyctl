@@ -88,11 +88,8 @@ func configureRuby(sourceDir string) (*SourceInfo, error) {
 	}
 
 	s := &SourceInfo{
-		Builder: "paketobuildpacks/builder:base",
-		Buildpacks: []string{
-			"gcr.io/paketo-buildpacks/ruby",
-		},
-		Family: "Ruby",
+		Builder: "heroku/buildpacks:20",
+		Family:  "Ruby",
 	}
 
 	return s, nil
@@ -118,9 +115,8 @@ func configureNode(sourceDir string) (*SourceInfo, error) {
 	}
 
 	s := &SourceInfo{
-		Builder:    "paketobuildpacks/builder:base",
-		Buildpacks: []string{"gcr.io/paketo-buildpacks/nodejs"},
-		Family:     "NodeJS",
+		Builder: "heroku/buildpacks:20",
+		Family:  "NodeJS",
 	}
 
 	return s, nil
