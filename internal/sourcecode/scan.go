@@ -19,6 +19,7 @@ func Scan(sourceDir string) (*SourceInfo, error) {
 		configureDockerfile,
 		configureRuby,
 		configureGo,
+		configureElixir,
 		configureNode,
 	}
 
@@ -119,6 +120,20 @@ func configureNode(sourceDir string) (*SourceInfo, error) {
 		Builder:    "paketobuildpacks/builder:base",
 		Buildpacks: []string{"gcr.io/paketo-buildpacks/nodejs"},
 		Family:     "NodeJS",
+	}
+
+	return s, nil
+}
+
+func configureElixir(sourceDir string) (*SourceInfo, error) {
+	if !helpers.FileExists(filepath.Join(sourceDir, "mix.exs")) {
+		return nil, nil
+	}
+
+	s := &SourceInfo{
+		Builder:    "heroku/buildpacks:18",
+		Buildpacks: []string{"https://cnb-shim.herokuapp.com/v1/hashnuke/elixir"},
+		Family:     "Elixir",
 	}
 
 	return s, nil
