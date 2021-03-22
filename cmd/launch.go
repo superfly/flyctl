@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/flyctl"
@@ -123,6 +124,34 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 	}
 
 	fmt.Printf("Created app %s in organization %s\n", app.Name, org.Slug)
+
+	if srcInfo != nil && len(srcInfo.Secrets) > 0 {
+		secrets := make(map[string]string)
+		keys := []string{}
+
+		for k, v := range srcInfo.Secrets {
+			val := ""
+			prompt := fmt.Sprintf("Set secret %s:", k)
+			survey.AskOne(&survey.Input{
+				Message: prompt,
+				Help:    v,
+			}, &val)
+
+			if val != "" {
+				secrets[k] = val
+				keys = append(keys, k)
+			}
+		}
+
+		if len(secrets) > 0 {
+			_, err := cmdctx.Client.API().SetSecrets(app.Name, secrets)
+
+			if err != nil {
+				return err
+			}
+			fmt.Printf("Set secrets on %s: %s\n", app.Name, strings.Join(keys, ", "))
+		}
+	}
 
 	if err := writeAppConfig(filepath.Join(dir, "fly.toml"), appConfig); err != nil {
 		return err

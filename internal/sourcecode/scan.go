@@ -12,6 +12,7 @@ type SourceInfo struct {
 	DockerfilePath string
 	Builder        string
 	Buildpacks     []string
+	Secrets        map[string]string
 }
 
 func Scan(sourceDir string) (*SourceInfo, error) {
@@ -134,6 +135,9 @@ func configureElixir(sourceDir string) (*SourceInfo, error) {
 		Builder:    "heroku/buildpacks:18",
 		Buildpacks: []string{"https://cnb-shim.herokuapp.com/v1/hashnuke/elixir"},
 		Family:     "Elixir",
+		Secrets: map[string]string{
+			"SECRET_KEY_BASE": "The input secret for the application key generator. Use something long and random.",
+		},
 	}
 
 	return s, nil
