@@ -84,6 +84,17 @@ func isRetyableError(err error) bool {
 	return !isUnauthorized(err)
 }
 
+func NewDockerDaemonType(allowLocal, allowRemote bool) DockerDaemonType {
+	daemonType := DockerDaemonTypeNone
+	if allowLocal {
+		daemonType = daemonType | DockerDaemonTypeLocal
+	}
+	if allowRemote {
+		daemonType = daemonType | DockerDaemonTypeRemote
+	}
+	return daemonType
+}
+
 type DockerDaemonType int
 
 const (

@@ -116,7 +116,7 @@ func (l *packLogger) Debugf(format string, v ...interface{}) {
 	if !l.debug {
 		return
 	}
-	fmt.Fprintf(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v)))
+	fmt.Fprintf(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v...)))
 }
 
 func (l *packLogger) Info(msg string) {
@@ -124,7 +124,7 @@ func (l *packLogger) Info(msg string) {
 }
 
 func (l *packLogger) Infof(format string, v ...interface{}) {
-	fmt.Fprintf(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v)))
+	fmt.Fprintf(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v...)))
 }
 
 func (l *packLogger) Warn(msg string) {
@@ -132,7 +132,7 @@ func (l *packLogger) Warn(msg string) {
 }
 
 func (l *packLogger) Warnf(format string, v ...interface{}) {
-	fmt.Fprintf(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v)))
+	fmt.Fprintf(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v...)))
 }
 
 func (l *packLogger) Error(msg string) {
@@ -140,7 +140,7 @@ func (l *packLogger) Error(msg string) {
 }
 
 func (l *packLogger) Errorf(format string, v ...interface{}) {
-	fmt.Fprintf(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v)))
+	fmt.Fprintf(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v...)))
 }
 
 func (l *packLogger) Writer() io.Writer {

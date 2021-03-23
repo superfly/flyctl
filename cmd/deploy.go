@@ -112,20 +112,14 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		cmdfmt.PrintServicesList(cmdCtx.IO, parsedCfg.Services)
 	}
 
-	var daemonType imgsrc.DockerDaemonType
-	if !cmdCtx.Config.GetBool("local-only") {
-		daemonType = daemonType | imgsrc.DockerDaemonTypeLocal
-	}
-	if !cmdCtx.Config.GetBool("remote-only") {
-		daemonType = daemonType | imgsrc.DockerDaemonTypeRemote
-	}
-
+	daemonType := imgsrc.NewDockerDaemonType(!cmdCtx.Config.GetBool("remote-only"), !cmdCtx.Config.GetBool("local-only"))
 	resolver := imgsrc.NewResolver(daemonType, cmdCtx.Client.API(), cmdCtx.AppName)
 
 	opts := imgsrc.ImageOptions{
 		AppName:    cmdCtx.AppName,
 		WorkingDir: cmdCtx.WorkingDir,
 		AppConfig:  cmdCtx.AppConfig,
+		Publish:    !cmdCtx.Config.GetBool("build-only"),
 	}
 	opts.ImageRef, _ = cmdCtx.Config.GetString("image")
 	opts.ImageLabel, _ = cmdCtx.Config.GetString("image-label")
