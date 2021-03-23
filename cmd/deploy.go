@@ -113,7 +113,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	daemonType := imgsrc.NewDockerDaemonType(!cmdCtx.Config.GetBool("remote-only"), !cmdCtx.Config.GetBool("local-only"))
-	resolver := imgsrc.NewResolver(daemonType, cmdCtx.Client.API(), cmdCtx.AppName)
+	resolver := imgsrc.NewResolver(daemonType, cmdCtx.Client.API(), cmdCtx.AppName, cmdCtx.IO)
 
 	opts := imgsrc.ImageOptions{
 		AppName:    cmdCtx.AppName,

@@ -61,7 +61,8 @@ type Query struct {
 		Release Release
 	}
 
-	EnsureRemoteBuilder struct {
+	EnsureRemoteBuilder *struct {
+		App     *App
 		URL     string
 		Release Release
 	}

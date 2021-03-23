@@ -22,6 +22,8 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/monitor"
+	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -30,7 +32,7 @@ type dockerClientFactory struct {
 	buildFn func(ctx context.Context) (*dockerclient.Client, error)
 }
 
-func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, appName string) *dockerClientFactory {
+func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, appName string, streams *iostreams.IOStreams) *dockerClientFactory {
 	if daemonType.AllowLocal() {
 		c, err := newLocalDockerClient()
 		if c != nil && err == nil {
@@ -56,7 +58,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 				if cachedDocker != nil {
 					return cachedDocker, nil
 				}
-				c, err := newRemoteDockerClient(ctx, apiClient, appName)
+				c, err := newRemoteDockerClient(ctx, apiClient, appName, streams)
 				if err != nil {
 					return nil, err
 				}
@@ -144,8 +146,8 @@ func newLocalDockerClient() (*dockerclient.Client, error) {
 	return c, nil
 }
 
-func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string) (*dockerclient.Client, error) {
-	host, err := remoteBuilderURL(apiClient, appName)
+func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, streams *iostreams.IOStreams) (*dockerclient.Client, error) {
+	host, remoteBuilderAppName, err := remoteBuilderURL(apiClient, appName)
 	if err != nil {
 		return nil, err
 	}
@@ -170,28 +172,48 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 		return nil, errors.Wrap(err, "Error creating docker client")
 	}
 
-	terminal.Infof("Waiting for remote builder to become available...\n")
+	err = func() error {
+		if streams.IsInteractive() {
+			streams.StartProgressIndicatorMsg(fmt.Sprintf("Waiting for remote builder %s...", remoteBuilderAppName))
+			defer streams.StopProgressIndicatorMsg(fmt.Sprintf("Remote builder %s ready", remoteBuilderAppName))
+		} else {
+			fmt.Fprintf(streams.ErrOut, "Waiting for remote builder %s...\n", remoteBuilderAppName)
+		}
 
-	if err := waitForDaemon(ctx, client); err != nil {
+		remoteBuilderLaunched, err := monitor.WaitForRunningVM(ctx, remoteBuilderAppName, apiClient, 5*time.Minute, func(status string) {
+			streams.ChangeProgressIndicatorMsg(fmt.Sprintf("Waiting for remote builder %s... %s", remoteBuilderAppName, status))
+		})
+		if err != nil {
+			return errors.Wrap(err, "Error waiting for remote builder app")
+		}
+		if !remoteBuilderLaunched {
+			terminal.Warnf("Remote builder did not start on time. Check remote builder logs with `flyctl logs -a %s`", remoteBuilderAppName)
+			return errors.New("remote builder app unavailable")
+		}
+
+		return waitForDaemon(ctx, client)
+	}()
+
+	if err != nil {
 		return nil, err
 	}
 
 	return client, nil
 }
 
-func remoteBuilderURL(apiClient *api.Client, appName string) (string, error) {
+func remoteBuilderURL(apiClient *api.Client, appName string) (string, string, error) {
 	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
-		return v, nil
+		return v, "", nil
 	}
 
-	rawURL, _, err := apiClient.EnsureRemoteBuilder(appName)
+	rawURL, app, err := apiClient.EnsureRemoteBuilder(appName)
 	if err != nil {
-		return "", fmt.Errorf("could not create remote builder: %v", err)
+		return "", "", errors.Errorf("could not create remote builder: %v", err)
 	}
 
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
-		return "", errors.Wrap(err, "error parsing remote builder url")
+		return "", "", errors.Wrap(err, "error parsing remote builder url")
 	}
 
 	host := parsedURL.Hostname()
@@ -201,7 +223,7 @@ func remoteBuilderURL(apiClient *api.Client, appName string) (string, error) {
 		port = "10000"
 	}
 
-	return "tcp://" + net.JoinHostPort(host, port), nil
+	return "tcp://" + net.JoinHostPort(host, port), app.Name, nil
 }
 
 func basicAuth(appName, authToken string) string {
@@ -243,7 +265,7 @@ OUTER:
 				consecutiveSuccesses++
 
 				if time.Since(healthyStart) > 3*time.Second {
-					terminal.Info("Remote builder is ready to build!")
+					// terminal.Info("Remote builder is ready to build!")
 					break OUTER
 				}
 

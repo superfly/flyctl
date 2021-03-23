@@ -14,7 +14,7 @@ import (
 
 func TestBuildDockerfileApp(t *testing.T) {
 	t.Skip()
-	df := newDockerClientFactory(DockerDaemonTypeLocal, nil, "test-app")
+	df := newDockerClientFactory(DockerDaemonTypeLocal, nil, "test-app", nil)
 
 	dfStrategy := dockerfileStrategy{}
 	testStreams, _, _, _ := iostreams.Test()

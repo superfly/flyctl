@@ -60,9 +60,9 @@ func (r *Resolver) Resolve(ctx context.Context, streams *iostreams.IOStreams, op
 	return nil, nil
 }
 
-func NewResolver(daemonType DockerDaemonType, apiClient *api.Client, appName string) *Resolver {
+func NewResolver(daemonType DockerDaemonType, apiClient *api.Client, appName string, iostreams *iostreams.IOStreams) *Resolver {
 	return &Resolver{
-		dockerFactory: newDockerClientFactory(daemonType, apiClient, appName),
+		dockerFactory: newDockerClientFactory(daemonType, apiClient, appName, iostreams),
 		apiClient:     apiClient,
 	}
 }
