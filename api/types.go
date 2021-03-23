@@ -61,7 +61,8 @@ type Query struct {
 		Release Release
 	}
 
-	EnsureRemoteBuilder struct {
+	EnsureRemoteBuilder *struct {
+		App     *App
 		URL     string
 		Release Release
 	}
@@ -201,6 +202,11 @@ type IssuedCertificate struct {
 
 type Definition map[string]interface{}
 
+func DefinitionPtr(in map[string]interface{}) *Definition {
+	x := Definition(in)
+	return &x
+}
+
 type App struct {
 	ID             string
 	Name           string
@@ -251,6 +257,7 @@ type App struct {
 		Databases *[]PostgresClusterDatabase
 		Users     *[]PostgresClusterUser
 	}
+	Image *Image
 }
 
 type TaskGroupCount struct {
@@ -942,4 +949,11 @@ type PostgresClusterUser struct {
 type PostgresClusterDatabase struct {
 	Name  string
 	Users []string
+}
+
+type Image struct {
+	ID             string
+	Digest         string
+	Ref            string
+	CompressedSize uint64
 }

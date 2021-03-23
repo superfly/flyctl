@@ -10,9 +10,9 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/builtinsupport"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/build/imgsrc/builtins"
 )
 
 func isInterrupt(err error) bool {
@@ -239,8 +239,6 @@ var suggestedBuilders = []suggestedBuilder{
 	},
 }
 
-var builtins []builtinsupport.Builtin
-
 func selectBuildtype(commandContext *cmdctx.CmdContext) (string, bool, error) {
 
 	dockerfileExists := helpers.FileExists(path.Join(commandContext.WorkingDir, "Dockerfile"))
@@ -256,7 +254,7 @@ func selectBuildtype(commandContext *cmdctx.CmdContext) (string, bool, error) {
 
 	builders = append(builders, fmt.Sprintf("%s\n    (%s)", "Image", "Use a public Docker image"))
 
-	builtins = builtinsupport.GetBuiltins(commandContext)
+	builtins := builtins.GetBuiltins()
 
 	sort.Slice(builtins, func(i, j int) bool { return builtins[i].Name < builtins[j].Name })
 
@@ -307,7 +305,7 @@ func selectBuildtype(commandContext *cmdctx.CmdContext) (string, bool, error) {
 func selectBuiltin(commandContext *cmdctx.CmdContext) (string, error) {
 	availablebuiltins := []string{}
 
-	builtins := builtinsupport.GetBuiltins(commandContext)
+	builtins := builtins.GetBuiltins()
 
 	sort.Slice(builtins, func(i, j int) bool { return builtins[i].Name < builtins[j].Name })
 

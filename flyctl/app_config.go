@@ -278,6 +278,25 @@ func (ac *AppConfig) GetInternalPort() (int, error) {
 	return 8080, nil
 }
 
+func (ac *AppConfig) SetEnvVariables(vals map[string]string) {
+	var env map[string]string
+
+	if rawEnv, ok := ac.Definition["env"]; ok {
+		if castEnv, ok := rawEnv.(map[string]string); ok {
+			env = castEnv
+		}
+	}
+	if env == nil {
+		env = map[string]string{}
+	}
+
+	for k, v := range vals {
+		env[k] = v
+	}
+
+	ac.Definition["env"] = env
+}
+
 func (ac *AppConfig) SetEnvVariable(name, value string) {
 	var env map[string]string
 

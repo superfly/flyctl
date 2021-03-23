@@ -138,6 +138,20 @@ func (s *IOStreams) IsStderrTTY() bool {
 	return false
 }
 
+func (s *IOStreams) StderrFd() uintptr {
+	if f, ok := s.ErrOut.(*os.File); ok {
+		return f.Fd()
+	}
+	return ^(uintptr(0))
+}
+
+func (s *IOStreams) StdoutFd() uintptr {
+	if f, ok := s.Out.(*os.File); ok {
+		return f.Fd()
+	}
+	return ^(uintptr(0))
+}
+
 func (s *IOStreams) IsInteractive() bool {
 	return s.IsStdinTTY() && s.IsStdoutTTY()
 }
@@ -220,8 +234,8 @@ func (s *IOStreams) StartProgressIndicatorMsg(msg string) {
 	if !s.progressIndicatorEnabled {
 		return
 	}
-	sp := spinner.New(spinner.CharSets[11], 400*time.Millisecond, spinner.WithWriter(s.ErrOut))
-	sp.Prefix = msg
+	sp := spinner.New(spinner.CharSets[11], 250*time.Millisecond, spinner.WithWriter(s.ErrOut))
+	sp.Prefix = appendMissingCharacter(msg, ' ')
 	sp.Start()
 	s.progressIndicator = sp
 }
@@ -230,13 +244,21 @@ func (s *IOStreams) StopProgressIndicatorMsg(msg string) {
 	if s.progressIndicator == nil {
 		return
 	}
-	s.progressIndicator.FinalMSG = msg
+	s.progressIndicator.FinalMSG = appendMissingCharacter(msg, newLine)
 	s.progressIndicator.Stop()
 	s.progressIndicator = nil
 }
 
 func (s *IOStreams) StopProgressIndicator() {
 	s.StopProgressIndicatorMsg("")
+}
+
+func (s *IOStreams) ChangeProgressIndicatorMsg(msg string) {
+	if s.progressIndicator == nil {
+		return
+	}
+
+	s.progressIndicator.Prefix = appendMissingCharacter(msg, ' ')
 }
 
 func (s *IOStreams) TerminalWidth() int {
@@ -346,4 +368,14 @@ func terminalSize(w io.Writer) (int, int, error) {
 		return terminal.GetSize(int(f.Fd()))
 	}
 	return 0, 0, fmt.Errorf("%v is not a file", w)
+}
+
+const newLine = '\n'
+
+func appendMissingCharacter(msg string, char byte) string {
+	buff := []byte(msg)
+	if len(buff) == 0 || buff[len(buff)-1] != char {
+		buff = append(buff, char)
+	}
+	return string(buff)
 }

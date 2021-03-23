@@ -1,22 +1,12 @@
 package api
 
-func (client *Client) EnsureRemoteBuilder(appName string) (string, *Release, error) {
+func (client *Client) EnsureRemoteBuilder(appName string) (string, *App, error) {
 	query := `
 		mutation($input: EnsureRemoteBuilderInput!) {
 			ensureRemoteBuilder(input: $input) {
 				url,
-				release {
-					id
-					version
-					reason
-					description
-					deploymentStrategy
-					user {
-						id
-						email
-						name
-					}
-					createdAt
+				app {
+					name
 				}
 			}
 		}
@@ -33,5 +23,5 @@ func (client *Client) EnsureRemoteBuilder(appName string) (string, *Release, err
 		return "", nil, err
 	}
 
-	return data.EnsureRemoteBuilder.URL, &data.EnsureRemoteBuilder.Release, nil
+	return data.EnsureRemoteBuilder.URL, data.EnsureRemoteBuilder.App, nil
 }

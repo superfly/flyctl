@@ -1,4 +1,4 @@
-package builtinsupport
+package builtins
 
 var basicbuiltins = []Builtin{
 	{
