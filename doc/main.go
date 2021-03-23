@@ -18,11 +18,11 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/cmd"
-	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/client"
 )
 
 func main() {
-	cc := cmdutil.NewContext()
+	cc := client.NewClient()
 	cmd := cmd.NewRootCmd(cc)
 	cmd.DisableAutoGenTag = true
 
