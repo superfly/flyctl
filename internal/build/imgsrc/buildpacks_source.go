@@ -3,9 +3,11 @@ package imgsrc
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/buildpacks/pack"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -37,10 +39,12 @@ func (s *buildpacksStrategy) Run(ctx context.Context, dockerFactory *dockerClien
 
 	defer clearDeploymentTags(ctx, docker, opts.Tag)
 
-	packClient, err := pack.NewClient(pack.WithDockerClient(docker))
+	packClient, err := pack.NewClient(pack.WithDockerClient(docker), pack.WithLogger(&packLogger{w: streams.Out, debug: false}))
 	if err != nil {
 		return nil, err
 	}
+
+	cmdfmt.PrintBegin(streams.ErrOut, "Building image with Buildpacks")
 
 	err = packClient.Build(ctx, pack.BuildOptions{
 		AppPath:      opts.WorkingDir,
@@ -49,19 +53,29 @@ func (s *buildpacksStrategy) Run(ctx context.Context, dockerFactory *dockerClien
 		Buildpacks:   buildpacks,
 		Env:          normalizeBuildArgs(opts.AppConfig, opts.ExtraBuildArgs),
 		TrustBuilder: true,
-		Publish:      opts.Publish,
+		// Publish:      opts.Publish,
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
+	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
+
+	if opts.Publish {
+		cmdfmt.PrintBegin(streams.ErrOut, "Pushing image to fly")
+
+		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
+			return nil, err
+		}
+
+		cmdfmt.PrintDone(streams.ErrOut, "Pushing image done")
+	}
+
 	img, err := findImageWithDocker(docker, ctx, opts.Tag)
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Printf("%+v\n", img)
 
 	return &DeploymentImage{
 		ID:   img.ID,
@@ -71,7 +85,6 @@ func (s *buildpacksStrategy) Run(ctx context.Context, dockerFactory *dockerClien
 }
 
 func normalizeBuildArgs(appConfig *flyctl.AppConfig, extra map[string]string) map[string]string {
-	fmt.Println(appConfig, extra)
 	var out = map[string]string{}
 
 	if appConfig.Build != nil {
@@ -85,4 +98,55 @@ func normalizeBuildArgs(appConfig *flyctl.AppConfig, extra map[string]string) ma
 	}
 
 	return out
+}
+
+type packLogger struct {
+	w     io.Writer
+	debug bool
+}
+
+func (l *packLogger) Debug(msg string) {
+	if !l.debug {
+		return
+	}
+	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(msg))
+}
+
+func (l *packLogger) Debugf(format string, v ...interface{}) {
+	if !l.debug {
+		return
+	}
+	fmt.Fprintf(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v)))
+}
+
+func (l *packLogger) Info(msg string) {
+	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(msg))
+}
+
+func (l *packLogger) Infof(format string, v ...interface{}) {
+	fmt.Fprintf(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v)))
+}
+
+func (l *packLogger) Warn(msg string) {
+	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(msg))
+}
+
+func (l *packLogger) Warnf(format string, v ...interface{}) {
+	fmt.Fprintf(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v)))
+}
+
+func (l *packLogger) Error(msg string) {
+	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(msg))
+}
+
+func (l *packLogger) Errorf(format string, v ...interface{}) {
+	fmt.Fprintf(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v)))
+}
+
+func (l *packLogger) Writer() io.Writer {
+	return l.w
+}
+
+func (l *packLogger) IsVerbose() bool {
+	return l.debug
 }
