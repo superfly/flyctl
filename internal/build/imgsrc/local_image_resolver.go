@@ -2,12 +2,15 @@ package imgsrc
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/docker/docker/api/types"
 	dockerclient "github.com/docker/docker/client"
 	dockerparser "github.com/novln/docker-parser"
+	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -35,6 +38,7 @@ func (s *localImageResolver) Run(ctx context.Context, dockerFactory *dockerClien
 		terminal.Debug("docker daemon not available, skipping")
 		return nil, nil
 	}
+
 	ref := imageRefFromOpts(opts)
 
 	if ref == "" {
@@ -47,12 +51,33 @@ func (s *localImageResolver) Run(ctx context.Context, dockerFactory *dockerClien
 		return nil, err
 	}
 
+	fmt.Fprintf(streams.ErrOut, "Searching for image '%s' locally...\n", ref)
+
 	img, err := findImageWithDocker(docker, ctx, ref)
 	if err != nil {
 		return nil, err
 	}
 	if img == nil {
 		return nil, nil
+	}
+
+	fmt.Fprintf(streams.ErrOut, "image found: %s\n", img.ID)
+
+	if opts.Publish {
+		err = docker.ImageTag(ctx, img.ID, opts.Tag)
+		if err != nil {
+			return nil, errors.Wrap(err, "error tagging image")
+		}
+
+		defer clearDeploymentTags(ctx, docker, opts.Tag)
+
+		cmdfmt.PrintBegin(streams.ErrOut, "Pushing image to fly")
+
+		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
+			return nil, err
+		}
+
+		cmdfmt.PrintDone(streams.ErrOut, "Pushing image done")
 	}
 
 	di := &DeploymentImage{

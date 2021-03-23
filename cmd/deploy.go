@@ -79,7 +79,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 
 	cmdCtx.Status("deploy", cmdctx.STITLE, "Deploying", cmdCtx.AppName)
 
-	cmdCtx.Status("deploy", cmdctx.SBEGIN, "Validating App Configuration")
+	cmdfmt.PrintBegin(cmdCtx.Out, "Validating app configuration")
 
 	if cmdCtx.AppConfig == nil {
 		cmdCtx.AppConfig = flyctl.NewAppConfig()
@@ -106,7 +106,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 	cmdCtx.AppConfig.Definition = parsedCfg.Definition
-	cmdCtx.Status("deploy", cmdctx.SDONE, "Validating App Configuration done")
+	cmdfmt.PrintDone(cmdCtx.Out, "Validating app configuration done")
 
 	if parsedCfg.Valid && len(parsedCfg.Services) > 0 {
 		cmdfmt.PrintServicesList(cmdCtx.IO, parsedCfg.Services)
@@ -144,14 +144,14 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		return errors.New("could not find an image to deploy")
 	}
 
-	cmdCtx.Statusf("deploy", cmdctx.SINFO, "Image: %+v\n", img.Tag)
-	cmdCtx.Statusf("deploy", cmdctx.SINFO, "Image size: %s\n", humanize.Bytes(uint64(img.Size)))
+	fmt.Fprintf(cmdCtx.Client.IO.Out, "Image: %s\n", img.Tag)
+	fmt.Fprintf(cmdCtx.Client.IO.Out, "Image size: %s\n", humanize.Bytes(uint64(img.Size)))
 
 	if cmdCtx.Config.GetBool("build-only") {
 		return nil
 	}
 
-	cmdCtx.Status("deploy", cmdctx.SBEGIN, "Creating Release")
+	cmdfmt.PrintBegin(cmdCtx.Out, "Creating release")
 
 	input := api.DeployImageInput{
 		AppID: cmdCtx.AppName,
@@ -169,8 +169,8 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	cmdCtx.Statusf("deploy", cmdctx.SINFO, "Release v%d created\n", release.Version)
-	cmdCtx.Statusf("deploy", cmdctx.SINFO, "Deploying to %s.fly.dev\n", cmdCtx.AppName)
+	fmt.Fprintf(cmdCtx.Out, "Release v%d created\n", release.Version)
+	fmt.Fprintf(cmdCtx.Out, "Deploying to %s.fly.dev\n", cmdCtx.AppName)
 
 	if release.DeploymentStrategy == "IMMEDIATE" {
 		return nil

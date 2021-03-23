@@ -19,6 +19,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/sync/errgroup"
@@ -59,7 +60,7 @@ func (ds *dockerfileStrategy) Run(ctx context.Context, dockerFactory *dockerClie
 
 	defer clearDeploymentTags(ctx, docker, opts.Tag)
 
-	fmt.Println("building archive")
+	cmdfmt.PrintBegin(streams.ErrOut, "Creating build context")
 	archiveOpts := archiveOptions{
 		sourcePath: opts.WorkingDir,
 		compressed: dockerFactory.mode.IsRemote(),
@@ -86,16 +87,16 @@ func (ds *dockerfileStrategy) Run(ctx context.Context, dockerFactory *dockerClie
 	if err != nil {
 		return nil, errors.Wrap(err, "error archiving build context")
 	}
-	fmt.Println("building archive done")
+	cmdfmt.PrintDone(streams.ErrOut, "Creating build context done")
 
 	var imageID string
 
-	fmt.Println("building image")
+	cmdfmt.PrintBegin(streams.ErrOut, "Building image with Docker")
 
 	buildArgs := normalizeBuildArgsForDocker(opts.AppConfig, opts.ExtraBuildArgs)
 
 	buildkitEnabled, err := buildkitEnabled(docker)
-	fmt.Println("buildkitEnabled?", buildkitEnabled, err)
+	terminal.Debugf("buildkitEnabled", buildkitEnabled)
 	if err != nil {
 		return nil, errors.Wrap(err, "error checking for buildkit support")
 	}
@@ -111,23 +112,22 @@ func (ds *dockerfileStrategy) Run(ctx context.Context, dockerFactory *dockerClie
 		}
 	}
 
-	fmt.Println("building image done")
+	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
 
 	if opts.Publish {
-		fmt.Println("pushing image")
+		cmdfmt.PrintBegin(streams.ErrOut, "Pushing image to fly")
 
 		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
 			return nil, err
 		}
 
-		fmt.Println("pushing image done ")
+		cmdfmt.PrintDone(streams.ErrOut, "Pushing image done")
 	}
 
 	img, _, err := docker.ImageInspectWithRaw(ctx, imageID)
 	if err != nil {
 		return nil, errors.Wrap(err, "count not find built image")
 	}
-	fmt.Println(img)
 
 	return &DeploymentImage{
 		ID:   img.ID,

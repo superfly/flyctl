@@ -2,6 +2,7 @@ package imgsrc
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/pkg/iostreams"
@@ -23,6 +24,8 @@ func (s *remoteImageResolver) Run(ctx context.Context, dockerFactory *dockerClie
 		return nil, nil
 	}
 
+	fmt.Fprintf(streams.ErrOut, "Searching for image '%s' remotely...\n", ref)
+
 	img, err := s.flyApi.ResolveImageForApp(opts.AppName, ref)
 	if err != nil {
 		return nil, err
@@ -30,6 +33,8 @@ func (s *remoteImageResolver) Run(ctx context.Context, dockerFactory *dockerClie
 	if img == nil {
 		return nil, nil
 	}
+
+	fmt.Fprintf(streams.ErrOut, "image found: %s\n", img.ID)
 
 	di := &DeploymentImage{
 		ID:   img.ID,
