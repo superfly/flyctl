@@ -1,7 +1,7 @@
 app = "build-with-args"
 
 [build]
-  builder = "builder/name"
-
+builder = "builder/name"
+  [build.args]
   A = "B"
   C = "D"

@@ -611,7 +611,7 @@ func runWireGuardTokenStartPeer(ctx *cmdctx.CmdContext) error {
 	peerStatus := &PeerStatusJson{}
 	if err = json.NewDecoder(resp.Body).Decode(peerStatus); err != nil {
 		if resp.StatusCode != 200 {
-			return fmt.Errorf("server returned error: %w", resp.Status, err)
+			return fmt.Errorf("server returned error: %s %w", resp.Status, err)
 		}
 
 		return err
@@ -653,7 +653,7 @@ func runWireGuardTokenUpdatePeer(ctx *cmdctx.CmdContext) error {
 	peerStatus := &PeerStatusJson{}
 	if err = json.NewDecoder(resp.Body).Decode(peerStatus); err != nil {
 		if resp.StatusCode != 200 {
-			return fmt.Errorf("server returned error: %w", resp.Status, err)
+			return fmt.Errorf("server returned error: %s %w", resp.Status, err)
 		}
 
 		return err
