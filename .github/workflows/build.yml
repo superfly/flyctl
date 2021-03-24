@@ -9,7 +9,7 @@ jobs:
       - name: Unshallow
         run: git fetch --prune --unshallow
       - run: "pwd"
-      - run: "ls -la ../"
+      - run: "ls -la ./"
       - name: "Place wintun.dll"
         run: cp -r deps/wintun/bin/amd64/wintun.dll ./
       - name: Set up Go
