@@ -8,10 +8,6 @@ jobs:
         uses: actions/checkout@master
       - name: Unshallow
         run: git fetch --prune --unshallow
-      - run: "pwd"
-      - run: "ls -laR ./deps"
-      - name: "Place wintun.dll"
-        run: cp deps/wintun/bin/amd64/wintun.dll ./
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
@@ -22,6 +18,8 @@ jobs:
           DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
         run: |
           echo "${DOCKER_PASSWORD}" | docker login --username "${DOCKER_USERNAME}" --password-stdin
+      - name: "Place wintun.dll"
+        run: cp deps/wintun/bin/amd64/wintun.dll ./ 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2
         with:
