@@ -1,9 +1,5 @@
 name: Build
-on:
-  push:
-    tags:
-      - "!v*"
-      - "!v*-beta-*"
+on: push
 jobs:
   release:
     runs-on: ubuntu-latest
