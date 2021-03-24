@@ -23,7 +23,7 @@ func archiveDirectory(options archiveOptions) (io.ReadCloser, error) {
 	opts := &archive.TarOptions{
 		ExcludePatterns: options.exclusions,
 	}
-	if options.compressed {
+	if options.compressed && len(options.additions) == 0 {
 		opts.Compression = archive.Gzip
 	}
 

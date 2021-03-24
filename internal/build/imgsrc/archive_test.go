@@ -144,6 +144,20 @@ func TestArchiverCompression(t *testing.T) {
 	assert.Equal(t, archive.Uncompressed, archive.DetectCompression(data))
 }
 
+func TestArchiverNoCompressionWithAdditions(t *testing.T) {
+	testDir, err := newTestDir("a.jpg", "content/foo.md", "images/a.jpg", "images/b.jpg")
+	assert.NoError(t, err)
+	defer os.RemoveAll(testDir)
+
+	r, err := archiveDirectory(archiveOptions{sourcePath: testDir, compressed: true, additions: map[string][]byte{
+		"Dockerfile": []byte("this is a dockerfile"),
+	}})
+	assert.NoError(t, err)
+	data, err := io.ReadAll(r)
+	assert.NoError(t, err)
+	assert.Equal(t, archive.Uncompressed, archive.DetectCompression(data))
+}
+
 func TestParseDockerignore(t *testing.T) {
 	cases := map[string][]string{
 		"node_modules\n*.jpg":                {"node_modules", "*.jpg", "fly.toml"},
