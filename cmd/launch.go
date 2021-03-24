@@ -54,7 +54,7 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 		} else {
 			fmt.Println("An existing fly.toml file was found")
 		}
-		if confirm("Would you like to copy it's configuration to the new app?") {
+		if confirm("Would you like to copy its configuration to the new app?") {
 			appConfig.Definition = cfg.Definition
 		}
 	}
