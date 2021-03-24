@@ -1,6 +1,5 @@
 name: Build
 on:
-  workflow_dispatch:
   push:
     tags:
       - "!v*"
@@ -13,6 +12,8 @@ jobs:
         uses: actions/checkout@master
       - name: Unshallow
         run: git fetch --prune --unshallow
+      - name: "Place wintun.dll"
+        run: cp -r deps/wintun/bin/amd64/wintun.dll ./
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
@@ -23,10 +24,8 @@ jobs:
           DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
         run: |
           echo "${DOCKER_PASSWORD}" | docker login --username "${DOCKER_USERNAME}" --password-stdin
-      - name: "Place wintun.dll"
-        run: cp -r deps/wintun/bin/amd64/wintun.dll ./
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2
         with:
           version: latest
-          args: release --rm-dist
+          args: release --skip-publish --rm-dist --skip-validate
