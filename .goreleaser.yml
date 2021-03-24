@@ -37,15 +37,18 @@ builds:
       
 
 archives:
-  - replacements:
+  - id: windows
+    replacements:
       windows: Windows
+      amd64: x86_64
     builds:
       - windows
     files: 
-      - /deps/wintun/bin/amd64/wintun.dll
+      - wintun.dll
     wrap_in_directory: false
     format: tar.gz
-  - replacements:
+  - id: default
+    replacements:
       darwin: macOS
       linux: Linux
       windows: Windows

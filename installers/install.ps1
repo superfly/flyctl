@@ -91,6 +91,7 @@ Invoke-WebRequest $FlyUri -OutFile $FlyZip -UseBasicParsing
 Push-Location $BinDir
 Remove-Item .\flyctl.exe -ErrorAction SilentlyContinue
 Remove-Item .\fly.exe -ErrorAction SilentlyContinue
+Remove-Item .\wintun.dll -ErrorAction SilentlyContinue
 tar -xvzf $FlyZip
 Pop-Location
 
