@@ -24,6 +24,8 @@ jobs:
           DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
         run: |
           echo "${DOCKER_PASSWORD}" | docker login --username "${DOCKER_USERNAME}" --password-stdin
+      - name: "Place wintun.dll"
+        run: cp -r deps/wintun/bin/amd64/wintun.dll ./
       - name: Run GoReleaser
         if: success() && startsWith(github.ref, 'refs/tags/v')
         uses: goreleaser/goreleaser-action@v2
