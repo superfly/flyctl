@@ -34,6 +34,7 @@ type dockerClientFactory struct {
 
 func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, appName string, streams *iostreams.IOStreams) *dockerClientFactory {
 	if daemonType.AllowLocal() {
+		terminal.Debug("trying local docker daemon")
 		c, err := newLocalDockerClient()
 		if c != nil && err == nil {
 			return &dockerClientFactory{
@@ -42,14 +43,15 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 					return c, nil
 				},
 			}
-		} else if err != nil {
+		} else if err != nil && !dockerclient.IsErrConnectionFailed(err) {
 			terminal.Warn("Error connecting to local docker daemon:", err)
 		} else {
-			terminal.Warn("Local docker daemon not present")
+			terminal.Debug("Local docker daemon unavailable")
 		}
 	}
 
 	if daemonType.AllowRemote() {
+		terminal.Debug("trying remote docker daemon")
 		var cachedDocker *dockerclient.Client
 
 		return &dockerClientFactory{
@@ -140,6 +142,10 @@ func newLocalDockerClient() (*dockerclient.Client, error) {
 	}
 
 	if err := dockerclient.FromEnv(c); err != nil {
+		return nil, err
+	}
+
+	if _, err = c.Ping(context.TODO()); err != nil {
 		return nil, err
 	}
 
