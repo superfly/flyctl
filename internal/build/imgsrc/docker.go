@@ -160,10 +160,19 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 
 	terminal.Debugf("Remote Docker builder host: %s\n", host)
 
+	transport := &http.Transport{
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 60 * time.Second,
+		// don't reuse connections to remote daemon to prevent deadlock in buildpack layer fetching.
+		// remove this once an http proxy is working with pack again
+		DisableKeepAlives: true,
+	}
+	if os.Getenv("FLY_REMOTE_BUILDER_NO_TLS") != "1" {
+		transport.TLSClientConfig = tlsconfig.ClientDefault()
+	}
+
 	httpc := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: tlsconfig.ClientDefault(),
-		},
+		Transport: transport,
 	}
 
 	client, err := dockerclient.NewClientWithOpts(
@@ -179,22 +188,23 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	}
 
 	err = func() error {
-		if streams.IsInteractive() {
-			streams.StartProgressIndicatorMsg(fmt.Sprintf("Waiting for remote builder %s...", remoteBuilderAppName))
-			defer streams.StopProgressIndicatorMsg(fmt.Sprintf("Remote builder %s ready", remoteBuilderAppName))
-		} else {
-			fmt.Fprintf(streams.ErrOut, "Waiting for remote builder %s...\n", remoteBuilderAppName)
-		}
-
-		remoteBuilderLaunched, err := monitor.WaitForRunningVM(ctx, remoteBuilderAppName, apiClient, 5*time.Minute, func(status string) {
-			streams.ChangeProgressIndicatorMsg(fmt.Sprintf("Waiting for remote builder %s... %s", remoteBuilderAppName, status))
-		})
-		if err != nil {
-			return errors.Wrap(err, "Error waiting for remote builder app")
-		}
-		if !remoteBuilderLaunched {
-			terminal.Warnf("Remote builder did not start on time. Check remote builder logs with `flyctl logs -a %s`", remoteBuilderAppName)
-			return errors.New("remote builder app unavailable")
+		if remoteBuilderAppName != "" {
+			if streams.IsInteractive() {
+				streams.StartProgressIndicatorMsg(fmt.Sprintf("Waiting for remote builder %s...", remoteBuilderAppName))
+				defer streams.StopProgressIndicatorMsg(fmt.Sprintf("Remote builder %s ready", remoteBuilderAppName))
+			} else {
+				fmt.Fprintf(streams.ErrOut, "Waiting for remote builder %s...\n", remoteBuilderAppName)
+			}
+			remoteBuilderLaunched, err := monitor.WaitForRunningVM(ctx, remoteBuilderAppName, apiClient, 5*time.Minute, func(status string) {
+				streams.ChangeProgressIndicatorMsg(fmt.Sprintf("Waiting for remote builder %s... %s", remoteBuilderAppName, status))
+			})
+			if err != nil {
+				return errors.Wrap(err, "Error waiting for remote builder app")
+			}
+			if !remoteBuilderLaunched {
+				terminal.Warnf("Remote builder did not start on time. Check remote builder logs with `flyctl logs -a %s`", remoteBuilderAppName)
+				return errors.New("remote builder app unavailable")
+			}
 		}
 
 		return waitForDaemon(ctx, client)
