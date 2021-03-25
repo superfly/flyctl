@@ -27,18 +27,20 @@ func WaitForRunningVM(ctx context.Context, appName string, apiClient *api.Client
 				done <- err
 			}
 
-			currentStatus := status.Status
+			isRunning := false
 
-			for _, alloc := range status.Allocations {
-				if alloc.LatestVersion {
-					currentStatus = alloc.Status
-					break
-				}
+			var currentStatus string
+
+			if len(runningVMs(status.Allocations)) > 0 {
+				currentStatus = "running"
+				isRunning = true
+			} else {
+				currentStatus = "starting"
 			}
 
 			update(currentStatus)
 
-			if currentStatus == "running" {
+			if isRunning {
 				done <- nil
 				break
 			}
@@ -55,4 +57,14 @@ func WaitForRunningVM(ctx context.Context, appName string, apiClient *api.Client
 			return err == nil, err
 		}
 	}
+}
+
+func runningVMs(vms []*api.AllocationStatus) (out []*api.AllocationStatus) {
+	for _, vm := range vms {
+		if vm.LatestVersion && vm.DesiredStatus == "run" && !vm.Transitioning {
+			out = append(out, vm)
+		}
+	}
+
+	return
 }
