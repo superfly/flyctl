@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -123,7 +124,15 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 	}
 	opts.ImageRef, _ = cmdCtx.Config.GetString("image")
 	opts.ImageLabel, _ = cmdCtx.Config.GetString("image-label")
-	opts.DockerfilePath, _ = cmdCtx.Config.GetString("dockerfile")
+
+	if dockerfilePath, _ := cmdCtx.Config.GetString("dockerfile"); dockerfilePath != "" {
+		dockerfilePath, err := filepath.Abs(dockerfilePath)
+		if err != nil {
+			return err
+		}
+		opts.DockerfilePath = dockerfilePath
+	}
+
 	extraArgs, err := cmdutil.ParseKVStringsToMap(cmdCtx.Config.GetStringSlice("build-arg"))
 	if err != nil {
 		return errors.Wrap(err, "invalid build-arg")
