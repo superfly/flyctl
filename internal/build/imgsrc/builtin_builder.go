@@ -73,7 +73,7 @@ func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	cmdfmt.PrintBegin(streams.ErrOut, "Building image with Docker")
 
 	buildArgs := normalizeBuildArgsForDocker(opts.AppConfig, opts.ExtraBuildArgs)
-	imageID, err = runClassicBuild(ctx, streams, docker, r, opts, buildArgs)
+	imageID, err = runClassicBuild(ctx, streams, docker, r, opts, "", buildArgs)
 	if err != nil {
 		return nil, errors.Wrap(err, "error building")
 	}
