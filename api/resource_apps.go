@@ -301,3 +301,30 @@ func (client *Client) RestartApp(appName string) (*App, error) {
 	data, err := client.Run(req)
 	return &data.RestartApp.App, err
 }
+
+func (client *Client) ResolveImageForApp(appName, imageRef string) (*Image, error) {
+	query := `
+		query ($appName: String!, $imageRef: String!) {
+			app(name: $appName) {
+				id
+				image(ref: $imageRef) {
+					id
+					digest
+					ref
+					compressedSize
+				}
+			}
+		}
+	`
+
+	req := client.NewRequest(query)
+	req.Var("appName", appName)
+	req.Var("imageRef", imageRef)
+
+	data, err := client.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.App.Image, nil
+}

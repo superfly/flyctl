@@ -1,4 +1,4 @@
-package docker
+package imgsrc
 
 import (
 	"crypto/rand"
@@ -6,8 +6,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
+	"strconv"
 
+	"github.com/docker/docker/api/types"
+	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
 	controlapi "github.com/moby/buildkit/api/services/control"
 	buildkitClient "github.com/moby/buildkit/client"
@@ -17,6 +21,22 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"golang.org/x/net/context"
 )
+
+func buildkitEnabled(docker *dockerclient.Client) (buildkitEnabled bool, err error) {
+	ping, err := docker.Ping(context.Background())
+	if err != nil {
+		return false, err
+	}
+
+	buildkitEnabled = ping.BuilderVersion == types.BuilderBuildKit
+	if buildkitEnv := os.Getenv("DOCKER_BUILDKIT"); buildkitEnv != "" {
+		buildkitEnabled, err = strconv.ParseBool(buildkitEnv)
+		if err != nil {
+			return false, errors.Wrap(err, "DOCKER_BUILDKIT environment variable expects boolean value")
+		}
+	}
+	return buildkitEnabled, nil
+}
 
 func createBuildSession(contextDir string) (*session.Session, error) {
 	sharedKey := getBuildSharedKey(contextDir)

@@ -3,10 +3,10 @@ before:
     - go mod download
     - go generate ./...
 builds:
-  - env:
+  - id: default
+    env:
       - CGO_ENABLED=0
     goos:
-      - windows
       - darwin
       - linux
     ignore:
@@ -14,6 +14,18 @@ builds:
         goarch: 386
       - goos: linux
         goarch: 386
+
+    ldflags:
+      - -X github.com/superfly/flyctl/flyctl.BuildDate={{ .Date }}
+      - -X github.com/superfly/flyctl/flyctl.Version={{ .Version }}
+      - -X github.com/superfly/flyctl/flyctl.Commit={{ .ShortCommit }}
+      - -X github.com/superfly/flyctl/flyctl.Environment=production
+  - id: windows
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+    ignore:
       - goos: windows
         goarch: 386
 
@@ -22,17 +34,34 @@ builds:
       - -X github.com/superfly/flyctl/flyctl.Version={{ .Version }}
       - -X github.com/superfly/flyctl/flyctl.Commit={{ .ShortCommit }}
       - -X github.com/superfly/flyctl/flyctl.Environment=production
+      
 
 archives:
-  - replacements:
+  - id: windows
+    replacements:
+      windows: Windows
+      amd64: x86_64
+    builds:
+      - windows
+    files: 
+      - wintun.dll
+    wrap_in_directory: false
+    format: tar.gz
+  - id: default
+    replacements:
       darwin: macOS
       linux: Linux
       windows: Windows
       amd64: x86_64
+    builds:
+      - default
     files: [only-the-binary*]
     wrap_in_directory: false
     format: tar.gz
   - id: binary
+    builds:
+      - default
+      - windows
     format: binary
     files: [only-the-binary*]
     replacements:

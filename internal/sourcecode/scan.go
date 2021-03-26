@@ -12,6 +12,7 @@ type SourceInfo struct {
 	DockerfilePath string
 	Builder        string
 	Buildpacks     []string
+	Secrets        map[string]string
 }
 
 func Scan(sourceDir string) (*SourceInfo, error) {
@@ -19,6 +20,7 @@ func Scan(sourceDir string) (*SourceInfo, error) {
 		configureDockerfile,
 		configureRuby,
 		configureGo,
+		configureElixir,
 		configureNode,
 	}
 
@@ -86,11 +88,8 @@ func configureRuby(sourceDir string) (*SourceInfo, error) {
 	}
 
 	s := &SourceInfo{
-		Builder: "paketobuildpacks/builder:base",
-		Buildpacks: []string{
-			"gcr.io/paketo-buildpacks/ruby",
-		},
-		Family: "Ruby",
+		Builder: "heroku/buildpacks:20",
+		Family:  "Ruby",
 	}
 
 	return s, nil
@@ -116,9 +115,25 @@ func configureNode(sourceDir string) (*SourceInfo, error) {
 	}
 
 	s := &SourceInfo{
-		Builder:    "paketobuildpacks/builder:base",
-		Buildpacks: []string{"gcr.io/paketo-buildpacks/nodejs"},
-		Family:     "NodeJS",
+		Builder: "heroku/buildpacks:20",
+		Family:  "NodeJS",
+	}
+
+	return s, nil
+}
+
+func configureElixir(sourceDir string) (*SourceInfo, error) {
+	if !helpers.FileExists(filepath.Join(sourceDir, "mix.exs")) {
+		return nil, nil
+	}
+
+	s := &SourceInfo{
+		Builder:    "heroku/buildpacks:18",
+		Buildpacks: []string{"https://cnb-shim.herokuapp.com/v1/hashnuke/elixir"},
+		Family:     "Elixir",
+		Secrets: map[string]string{
+			"SECRET_KEY_BASE": "The input secret for the application key generator. Use something long and random.",
+		},
 	}
 
 	return s, nil
