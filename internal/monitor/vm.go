@@ -61,7 +61,7 @@ func WaitForRunningVM(ctx context.Context, appName string, apiClient *api.Client
 
 func runningVMs(vms []*api.AllocationStatus) (out []*api.AllocationStatus) {
 	for _, vm := range vms {
-		if vm.LatestVersion && vm.DesiredStatus == "run" && !vm.Transitioning {
+		if vm.DesiredStatus == "run" && !vm.Transitioning {
 			out = append(out, vm)
 		}
 	}
