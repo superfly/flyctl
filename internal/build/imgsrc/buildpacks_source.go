@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/buildpacks/pack"
 	"github.com/superfly/flyctl/flyctl"
@@ -39,7 +40,7 @@ func (s *buildpacksStrategy) Run(ctx context.Context, dockerFactory *dockerClien
 
 	defer clearDeploymentTags(ctx, docker, opts.Tag)
 
-	packClient, err := pack.NewClient(pack.WithDockerClient(docker), pack.WithLogger(&packLogger{w: streams.Out, debug: false}))
+	packClient, err := pack.NewClient(pack.WithDockerClient(docker), pack.WithLogger(newPackLogger(streams.Out)))
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +54,6 @@ func (s *buildpacksStrategy) Run(ctx context.Context, dockerFactory *dockerClien
 		Buildpacks:   buildpacks,
 		Env:          normalizeBuildArgs(opts.AppConfig, opts.ExtraBuildArgs),
 		TrustBuilder: true,
-		// Publish:      opts.Publish,
 	})
 
 	if err != nil {
@@ -100,6 +100,26 @@ func normalizeBuildArgs(appConfig *flyctl.AppConfig, extra map[string]string) ma
 	return out
 }
 
+func newPackLogger(out io.Writer) *packLogger {
+	// pack blocks writes to the underlying writer for it's lifetime.
+	// we need to use it too, so instead of giving pack stdout/stderr
+	// give it a burner writer that we pipe to the target
+	packR, packW := io.Pipe()
+
+	go func() {
+		io.Copy(out, packR)
+		defer packR.Close()
+	}()
+
+	return &packLogger{
+		w: &fdWrapper{
+			Writer: packW,
+			src:    out,
+		},
+		debug: os.Getenv("LOG_LEVEL") == "debug",
+	}
+}
+
 type packLogger struct {
 	w     io.Writer
 	debug bool
@@ -116,7 +136,7 @@ func (l *packLogger) Debugf(format string, v ...interface{}) {
 	if !l.debug {
 		return
 	}
-	fmt.Fprintf(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v...)))
+	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v...)))
 }
 
 func (l *packLogger) Info(msg string) {
@@ -124,7 +144,7 @@ func (l *packLogger) Info(msg string) {
 }
 
 func (l *packLogger) Infof(format string, v ...interface{}) {
-	fmt.Fprintf(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v...)))
+	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v...)))
 }
 
 func (l *packLogger) Warn(msg string) {
@@ -132,7 +152,7 @@ func (l *packLogger) Warn(msg string) {
 }
 
 func (l *packLogger) Warnf(format string, v ...interface{}) {
-	fmt.Fprintf(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v...)))
+	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v...)))
 }
 
 func (l *packLogger) Error(msg string) {
@@ -140,7 +160,7 @@ func (l *packLogger) Error(msg string) {
 }
 
 func (l *packLogger) Errorf(format string, v ...interface{}) {
-	fmt.Fprintf(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v...)))
+	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v...)))
 }
 
 func (l *packLogger) Writer() io.Writer {
@@ -149,4 +169,25 @@ func (l *packLogger) Writer() io.Writer {
 
 func (l *packLogger) IsVerbose() bool {
 	return l.debug
+}
+
+// fdWrapper creates an io.Writer wrapper that writes to one Writer but reads Fd from another.
+// this is used so we can pass the correct Fd through for terminal detection while
+// still writing to our piped writer
+type fdWrapper struct {
+	io.Writer
+
+	src io.Writer
+}
+
+type fdWriter interface {
+	Fd() uintptr
+}
+
+func (w *fdWrapper) Fd() uintptr {
+	fmt.Println("get fd", w.src, w.Writer)
+	if fd, ok := w.src.(fdWriter); ok {
+		return fd.Fd()
+	}
+	return ^(uintptr(0))
 }
