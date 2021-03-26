@@ -21,7 +21,7 @@ func (s *localImageResolver) Name() string {
 	return "Local Image Reference"
 }
 
-func imageRefFromOpts(opts ImageOptions) string {
+func imageRefFromOpts(opts RefOptions) string {
 	if opts.ImageRef != "" {
 		return opts.ImageRef
 	}
@@ -33,7 +33,7 @@ func imageRefFromOpts(opts ImageOptions) string {
 	return ""
 }
 
-func (s *localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions) (*DeploymentImage, error) {
+func (s *localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts RefOptions) (*DeploymentImage, error) {
 	if !dockerFactory.mode.IsLocal() {
 		terminal.Debug("local docker daemon not available, skipping")
 		return nil, nil

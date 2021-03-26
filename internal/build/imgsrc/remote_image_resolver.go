@@ -17,7 +17,7 @@ func (s *remoteImageResolver) Name() string {
 	return "Remote Image Reference"
 }
 
-func (s *remoteImageResolver) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions) (*DeploymentImage, error) {
+func (s *remoteImageResolver) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts RefOptions) (*DeploymentImage, error) {
 	ref := imageRefFromOpts(opts)
 	if ref == "" {
 		terminal.Debug("no image reference found, skipping")

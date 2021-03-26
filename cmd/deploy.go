@@ -116,33 +116,54 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 	daemonType := imgsrc.NewDockerDaemonType(!cmdCtx.Config.GetBool("remote-only"), !cmdCtx.Config.GetBool("local-only"))
 	resolver := imgsrc.NewResolver(daemonType, cmdCtx.Client.API(), cmdCtx.AppName, cmdCtx.IO)
 
-	opts := imgsrc.ImageOptions{
-		AppName:    cmdCtx.AppName,
-		WorkingDir: cmdCtx.WorkingDir,
-		AppConfig:  cmdCtx.AppConfig,
-		Publish:    !cmdCtx.Config.GetBool("build-only"),
-	}
-	opts.ImageRef, _ = cmdCtx.Config.GetString("image")
-	opts.ImageLabel, _ = cmdCtx.Config.GetString("image-label")
+	var img *imgsrc.DeploymentImage
 
-	if dockerfilePath, _ := cmdCtx.Config.GetString("dockerfile"); dockerfilePath != "" {
-		dockerfilePath, err := filepath.Abs(dockerfilePath)
+	if ref, _ := cmdCtx.Config.GetString("image"); ref != "" {
+		opts := imgsrc.RefOptions{
+			AppName:    cmdCtx.AppName,
+			WorkingDir: cmdCtx.WorkingDir,
+			AppConfig:  cmdCtx.AppConfig,
+			Publish:    !cmdCtx.Config.GetBool("build-only"),
+			ImageRef:   ref,
+		}
+		opts.ImageLabel, _ = cmdCtx.Config.GetString("image-label")
+
+		img, err = resolver.ResolveReference(ctx, cmdCtx.IO, opts)
 		if err != nil {
 			return err
 		}
-		opts.DockerfilePath = dockerfilePath
+	} else {
+		opts := imgsrc.ImageOptions{
+			AppName:    cmdCtx.AppName,
+			WorkingDir: cmdCtx.WorkingDir,
+			AppConfig:  cmdCtx.AppConfig,
+			Publish:    !cmdCtx.Config.GetBool("build-only"),
+		}
+		opts.ImageLabel, _ = cmdCtx.Config.GetString("image-label")
+
+		if dockerfilePath, _ := cmdCtx.Config.GetString("dockerfile"); dockerfilePath != "" {
+			dockerfilePath, err := filepath.Abs(dockerfilePath)
+			if err != nil {
+				return err
+			}
+			opts.DockerfilePath = dockerfilePath
+		}
+
+		extraArgs, err := cmdutil.ParseKVStringsToMap(cmdCtx.Config.GetStringSlice("build-arg"))
+		if err != nil {
+			return errors.Wrap(err, "invalid build-arg")
+		}
+		opts.ExtraBuildArgs = extraArgs
+
+		img, err = resolver.BuildImage(ctx, cmdCtx.IO, opts)
+		if err != nil {
+			return err
+		}
+		if img == nil {
+			return errors.New("could not find an image to deploy")
+		}
 	}
 
-	extraArgs, err := cmdutil.ParseKVStringsToMap(cmdCtx.Config.GetStringSlice("build-arg"))
-	if err != nil {
-		return errors.Wrap(err, "invalid build-arg")
-	}
-	opts.ExtraBuildArgs = extraArgs
-
-	img, err := resolver.Resolve(ctx, cmdCtx.IO, opts)
-	if err != nil {
-		return err
-	}
 	if img == nil {
 		return errors.New("could not find an image to deploy")
 	}

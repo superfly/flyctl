@@ -13,13 +13,13 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-type buildpacksStrategy struct{}
+type buildpacksBuilder struct{}
 
-func (ds *buildpacksStrategy) Name() string {
+func (ds *buildpacksBuilder) Name() string {
 	return "Buildpacks"
 }
 
-func (s *buildpacksStrategy) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions) (*DeploymentImage, error) {
+func (s *buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions) (*DeploymentImage, error) {
 	if !dockerFactory.mode.IsAvailable() {
 		terminal.Debug("docker daemon not available, skipping")
 		return nil, nil

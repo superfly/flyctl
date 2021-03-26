@@ -26,13 +26,13 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type dockerfileStrategy struct{}
+type dockerfileBuilder struct{}
 
-func (ds *dockerfileStrategy) Name() string {
+func (ds *dockerfileBuilder) Name() string {
 	return "Dockerfile"
 }
 
-func (ds *dockerfileStrategy) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions) (*DeploymentImage, error) {
+func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions) (*DeploymentImage, error) {
 	if !dockerFactory.mode.IsAvailable() {
 		terminal.Debug("docker daemon not available, skipping")
 		return nil, nil
