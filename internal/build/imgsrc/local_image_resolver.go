@@ -34,8 +34,8 @@ func imageRefFromOpts(opts ImageOptions) string {
 }
 
 func (s *localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions) (*DeploymentImage, error) {
-	if !dockerFactory.mode.IsAvailable() {
-		terminal.Debug("docker daemon not available, skipping")
+	if !dockerFactory.mode.IsLocal() {
+		terminal.Debug("local docker daemon not available, skipping")
 		return nil, nil
 	}
 
