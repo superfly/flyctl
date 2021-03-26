@@ -72,6 +72,10 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 
 // BuildImage converts source code to an image using a Dockerfile, buildpacks, or builtins.
 func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams, opts ImageOptions) (img *DeploymentImage, err error) {
+	if !r.dockerFactory.mode.IsAvailable() {
+		return nil, errors.New("docker is unavailable to build the deployment image")
+	}
+
 	if opts.Tag == "" {
 		opts.Tag = newDeploymentTag(opts.AppName, opts.ImageLabel)
 	}
