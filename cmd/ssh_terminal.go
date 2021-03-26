@@ -65,6 +65,10 @@ func runSSHConsole(ctx *cmdctx.CmdContext) error {
 
 	terminal.Debugf("Retrieving app info for %s\n", ctx.AppConfig.AppName)
 
+	if ctx.AppConfig.AppName == "" {
+		ctx.AppConfig.AppName = ctx.AppName
+	}
+
 	app, err := client.GetApp(ctx.AppConfig.AppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
