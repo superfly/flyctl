@@ -77,8 +77,8 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 	}
 
 	strategies := []imageBuilder{
-		&dockerfileBuilder{},
 		&buildpacksBuilder{},
+		&dockerfileBuilder{},
 		&builtinBuilder{},
 	}
 
