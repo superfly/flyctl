@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Fly.io Community Forum
+    url: https://community.fly.io/
+    about: We monitor our community forum for all other discussions. If you have feature requests, need help, or just want to talk about what you're building, post here.
