@@ -38,7 +38,7 @@ func (s *remoteImageResolver) Run(ctx context.Context, dockerFactory *dockerClie
 
 	di := &DeploymentImage{
 		ID:   img.ID,
-		Tag:  opts.Tag,
+		Tag:  img.Ref,
 		Size: int64(img.CompressedSize),
 	}
 

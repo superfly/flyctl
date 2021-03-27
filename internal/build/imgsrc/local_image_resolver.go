@@ -39,6 +39,10 @@ func (s *localImageResolver) Run(ctx context.Context, dockerFactory *dockerClien
 		return nil, nil
 	}
 
+	if opts.Tag == "" {
+		opts.Tag = newDeploymentTag(opts.AppName, opts.ImageLabel)
+	}
+
 	ref := imageRefFromOpts(opts)
 
 	if ref == "" {

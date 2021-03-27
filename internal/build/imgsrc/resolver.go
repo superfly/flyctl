@@ -46,10 +46,6 @@ type Resolver struct {
 
 // ResolveReference returns an Image give an reference using either the local docker daemon or remote registry
 func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOStreams, opts RefOptions) (img *DeploymentImage, err error) {
-	if opts.Tag == "" {
-		opts.Tag = newDeploymentTag(opts.AppName, opts.ImageLabel)
-	}
-
 	strategies := []imageResolver{
 		&localImageResolver{},
 		&remoteImageResolver{flyApi: r.apiClient},
