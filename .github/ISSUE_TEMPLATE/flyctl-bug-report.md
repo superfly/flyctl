@@ -1,6 +1,6 @@
 ---
 name: flyctl bug report
-about: Report flyctl bugs. For all other discussion, visit https://community.fly.io
+about: Report flyctl bugs.
 title: ''
 labels: bug
 assignees: ''
