@@ -5,7 +5,6 @@ go 1.16
 require (
 	github.com/AlecAivazis/survey/v2 v2.2.7
 	github.com/BurntSushi/toml v0.3.1
-	github.com/Microsoft/go-winio v0.4.16-0.20201130162521-d1ffc52c7331 // indirect
 	github.com/PuerkitoBio/rehttp v1.0.0
 	github.com/aybabtme/iocontrol v0.0.0-20150809002002-ad15bcfc95a0 // indirect
 	github.com/benbjohnson/clock v1.0.2 // indirect
@@ -49,7 +48,7 @@ require (
 	golang.org/x/sys v0.0.0-20210402192133-700132347e07 // indirect
 	golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d
 	golang.zx2c4.com/wireguard v0.0.20201118
-	golang.zx2c4.com/wireguard/tun/netstack v0.0.0-20210225140808-70b7b7158fc9
+	golang.zx2c4.com/wireguard/tun/netstack v0.0.0-20210402170708-10533c3e73cd
 	gopkg.in/yaml.v2 v2.4.0
 )
 
