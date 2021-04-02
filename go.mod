@@ -43,10 +43,10 @@ require (
 	github.com/spf13/cobra v1.1.3
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.7.0
-	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
-	golang.org/x/net v0.0.0-20210119194325-5f4716e94777
+	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
+	golang.org/x/net v0.0.0-20210331212208-0fccb6fa2b5c
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20210226181700-f36f78243c0c // indirect
+	golang.org/x/sys v0.0.0-20210402192133-700132347e07 // indirect
 	golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d
 	golang.zx2c4.com/wireguard v0.0.20201118
 	golang.zx2c4.com/wireguard/tun/netstack v0.0.0-20210225140808-70b7b7158fc9
