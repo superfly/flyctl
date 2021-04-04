@@ -7,9 +7,9 @@ It allows users to manage authentication, application initialization,
 deployment, network configuration, logging and more with just the 
 one command.
 
-Initialize an App with the init command
-Deploy an App with the deploy command
-View a Deployed web application with the open command
+Initialize an app with the init command
+Deploy an app with the deploy command
+View a deployed web application with the open command
 Check the status of an application with the status command
 
 To read more, use the docs command to view Fly's help on the web.
@@ -18,7 +18,7 @@ To read more, use the docs command to view Fly's help on the web.
 
 [info]
 usage     = "info"
-shortHelp = "Show detailed App information"
+shortHelp = "Show detailed app information"
 longHelp  = """Shows information about the application on the Fly platform
 
 Information includes the application's
@@ -46,7 +46,7 @@ create the application image when it is deployed.
 
 [destroy]
 usage     = "destroy [APPNAME]"
-shortHelp = "Permanently destroys an App"
+shortHelp = "Permanently destroys an app"
 longHelp  = """The DESTROY command will remove an application 
 from the Fly platform.
 """
@@ -77,14 +77,14 @@ longHelp  = """The RESTART command will restart all running vms.
 
 [move]
 usage     = "move [APPNAME]"
-shortHelp = "Move an App to another organization"
+shortHelp = "Move an app to another organization"
 longHelp  = """The MOVE command will move an application to another 
 organization the current user belongs to.
 """
 
 [apps]
 usage     = "apps"
-shortHelp = "Manage Apps"
+shortHelp = "Manage apps"
 longHelp  = """The APPS commands focus on managing your Fly applications.
 Start with the CREATE command to register your application.
 The LIST command will list all currently registered applications.
@@ -108,13 +108,13 @@ create the application image when it is deployed.
 """
     [apps.destroy]
     usage     = "destroy [APPNAME]"
-    shortHelp = "Permanently destroys an App"
+    shortHelp = "Permanently destroys an app"
     longHelp  = """The APPS DESTROY command will remove an application 
 from the Fly platform.
 """
     [apps.move]
     usage     = "move [APPNAME]"
-    shortHelp = "Move an App to another organization"
+    shortHelp = "Move an app to another organization"
     longHelp  = """The APPS MOVE command will move an application to another 
 organization the current user belongs to.
 """
@@ -189,8 +189,8 @@ the docker cli.
 
 [builds]
 usage     = "builds"
-shortHelp = "Work with Fly Builds"
-longHelp  = """Fly Builds are templates to make developing Fly applications easier.
+shortHelp = "Work with Fly builds"
+longHelp  = """Fly builds are templates to make developing Fly applications easier.
 """
     [builds.list]
     usage     = "list"
@@ -213,18 +213,18 @@ certificates issued for the hostname/domain by Let's Encrypt.
 """
     [certs.list]
     usage     = "list"
-    shortHelp = "List certificates for an App."
+    shortHelp = "List certificates for an app."
     longHelp  = """List the certificates associated with a deployed application.
 """
     [certs.add]
     usage     = "add <hostname>"
-    shortHelp = "Add a certificate for an App."
+    shortHelp = "Add a certificate for an app."
     longHelp  = """Add a certificate for an application. Takes a hostname 
 as a parameter for the certificate.
 """
     [certs.remove]
     usage     = "remove <hostname>"
-    shortHelp = "Removes a certificate from an App"
+    shortHelp = "Removes a certificate from an app"
     longHelp  = """Removes a certificate from an application. Takes hostname 
 as a parameter to locate the certificate.
 """
@@ -276,24 +276,24 @@ longHelp  = """Run a performance test againt a url.
 
 [config]
 usage     = "config"
-shortHelp = "Manage an Apps configuration"
+shortHelp = "Manage an app's configuration"
 longHelp  = """The CONFIG commands allow you to work with an application's configuration.
 """
     [config.display]
     usage     = "display"
-    shortHelp = "Display an App's configuration"
+    shortHelp = "Display an app's configuration"
     longHelp  = """Display an application's configuration. The configuration is presented 
 in JSON format. The configuration data is retrieved from the Fly service.
 """
     [config.save]
     usage     = "save"
-    shortHelp = "Save an App's config file"
+    shortHelp = "Save an app's config file"
     longHelp  = """Save an application's configuration locally. The configuration data is 
 retrieved from the Fly service and saved in TOML format.
 """
     [config.validate]
     usage     = "validate"
-    shortHelp = "Validate an App's config file"
+    shortHelp = "Validate an app's config file"
     longHelp  = """Validates an application's config file against the Fly platform to 
 ensure it is correct and meaningful to the platform. 
 """
@@ -310,9 +310,9 @@ longHelp  = """Open web browser on Fly Web UI for this application"""
 
 [deploy]
 usage     = "deploy [<workingdirectory>]"
-shortHelp = "Deploy an App to the Fly platform"
+shortHelp = "Deploy an app to the Fly platform"
 longHelp  = """Deploy an application to the Fly platform. The application can be a local 
-image, remote image, defined in a Dockerfile or use a CNB Buildpack.
+image, remote image, defined in a Dockerfile or use a CNB buildpack.
 
 Use the --config/-c flag to select a specific toml configuration file.
 
@@ -379,14 +379,14 @@ longHelp  = """Manage domains"""
 
 [history]
 usage     = "history"
-shortHelp = "List an App's change history"
+shortHelp = "List an app's change history"
 longHelp  = """List the history of changes in the application. Includes autoscaling 
 events and their results.
 """
 
 [ips]
 usage     = "ips"
-shortHelp = "Manage IP addresses for Apps"
+shortHelp = "Manage IP addresses for apps"
 longHelp  = """The IPS commands manage IP addresses for applications. An application 
 can have a number of IP addresses associated with it and this family of commands 
 allows you to list, allocate and release those addresses. It supports both IPv4 
@@ -458,7 +458,7 @@ short name of the organization and the long name.
 
 [logs]
 usage     = "logs"
-shortHelp = "View App logs"
+shortHelp = "View app logs"
 longHelp  = """View application logs as generated by the application running on 
 the Fly platform.
 
@@ -468,8 +468,8 @@ to all instances running in a specific region using the --region/-r flag.
 
 [monitor]
 usage     = "monitor"
-shortHelp = "Monitor Deployments"
-longHelp  = """Monitor Application Deployments and other activities. Use --verbose/-v
+shortHelp = "Monitor deployments"
+longHelp  = """Monitor application deployments and other activities. Use --verbose/-v
 to get details of every instance . Control-C to stop output."""
 
 [platform]
@@ -582,14 +582,14 @@ longHelp  = """Configure the region placement rules for an application.
 
 [releases]
 usage     = "releases"
-shortHelp = "List App releases"
+shortHelp = "List app releases"
 longHelp  = """List all the releases of the application onto the Fly platform, 
 including type, when, success/fail and which user triggered the release.
 """
 
 [autoscale]
 usage     = "autoscale"
-shortHelp = "Autoscaling App resources"
+shortHelp = "Autoscaling app resources"
 longHelp  = """Autoscaling application resources
 """
 
@@ -601,8 +601,8 @@ longHelp  = """Autoscaling application resources
 
     [autoscale.balanced]
     usage     = "balanced"
-    shortHelp = "Configure a traffic balanced App with params (min=int max=int)"
-    longHelp  = """Configure the App to balance regions based on traffic with given parameters:
+    shortHelp = "Configure a traffic balanced app with params (min=int max=int)"
+    longHelp  = """Configure the app to balance regions based on traffic with given parameters:
 
 min=int - minimum number of instances to be allocated from region pool. 
 max=int - maximum number of instances to be allocated from region pool.
@@ -610,8 +610,8 @@ max=int - maximum number of instances to be allocated from region pool.
 
     [autoscale.standard]
     usage     = "standard"
-    shortHelp = "Configure a standard balanced App with params (min=int max=int)"
-    longHelp  = """Configure the App without traffic balancing with the given parameters:
+    shortHelp = "Configure a standard balanced app with params (min=int max=int)"
+    longHelp  = """Configure the app without traffic balancing with the given parameters:
 
 min=int - minimum number of instances to be allocated from region pool. 
 max=int - maximum number of instances to be allocated from region pool.
@@ -634,13 +634,13 @@ max=int - maximum number of instances to be allocated from region pool.
 
 [scale]
 usage     = "scale"
-shortHelp = "Scale App resources"
+shortHelp = "Scale app resources"
 longHelp  = """Scale application resources
 """
 
     [scale.vm]
     usage     = "vm [SIZENAME] [flags]"
-    shortHelp = "Change an App's VM to a named size (eg. shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x...)"
+    shortHelp = "Change an app's VM to a named size (eg. shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x...)"
     longHelp  = """Change an application's VM size to one of the named VM sizes.
 
 Size names include shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x.
@@ -660,8 +660,8 @@ For pricing, see https://fly.io/docs/about/pricing/
 
     [scale.count]
     usage     = "count <count>"
-    shortHelp = "Change an App's VM count to the given value"
-    longHelp  = """Change an App's VM count to the given value. 
+    shortHelp = "Change an app's VM count to the given value"
+    longHelp  = """Change an app's VM count to the given value. 
 
 For pricing, see https://fly.io/docs/about/pricing/
 """
@@ -680,7 +680,7 @@ For pricing, see https://fly.io/docs/about/pricing/
 
 [secrets]
 usage     = "secrets"
-shortHelp = "Manage App secrets"
+shortHelp = "Manage app secrets"
 longHelp  = """Manage application secrets with the set and unset commands.
 
 Secrets are provided to applications at runtime as ENV variables. Names are
@@ -690,14 +690,14 @@ the application and vm environment.
 
     [secrets.list]
     usage     = "list"
-    shortHelp = "Lists the secrets available to the App"
+    shortHelp = "Lists the secrets available to the app"
     longHelp  = """List the secrets available to the application. It shows each 
 secret's name, a digest of the its value and the time the secret was last set. 
 The actual value of the secret is only available to the application.
 """
     [secrets.set]
     usage     = "set [flags] NAME=VALUE NAME=VALUE ..."
-    shortHelp = "Set one or more encrypted secrets for an App"
+    shortHelp = "Set one or more encrypted secrets for an app"
     longHelp  = """Set one or more encrypted secrets for an application.
 
 Secrets are provided to application at runtime as ENV variables. Names are
@@ -715,14 +715,14 @@ are read from stdin as name=value
 
     [secrets.unset]
     usage     = "unset [flags] NAME NAME ..."
-    shortHelp = "Remove encrypted secrets from an App"
+    shortHelp = "Remove encrypted secrets from an app"
     longHelp  = """Remove encrypted secrets from the application. Unsetting a 
 secret removes its availability to the application.
 """
 
 [status]
 usage     = "status"
-shortHelp = "Show App status"
+shortHelp = "Show app status"
 longHelp  = """Show the application's current status including application 
 details, tasks, most recent deployment details and in which regions it is 
 currently allocated.
