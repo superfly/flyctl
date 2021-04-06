@@ -212,7 +212,7 @@ func sshConnect(p *SSHParams, addr string) error {
 
 	cert, err := singleUseSSHCertificate(p.Ctx, p.Org)
 	if err != nil {
-		return fmt.Errorf("create ssh certificate: %w", err)
+		return fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh establish`)", err)
 	}
 
 	pk, err := parsePrivateKey(cert.Key)
