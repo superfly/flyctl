@@ -35,7 +35,7 @@ else
 		fi
 		flyctl_uri="https://github.com${flyctl_asset_path}"
 	else
-		flyctl_uri="https://github.com/superfly/flyctl/releases/download/${1}/flyctl-${target}.tar.gz"
+		flyctl_uri="https://github.com/superfly/flyctl/releases/download/v${1}/flyctl_${1}_${target}.tar.gz"
 	fi
 fi
 
