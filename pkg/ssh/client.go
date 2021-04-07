@@ -34,6 +34,10 @@ func (c *Client) Close() error {
 
 func (c *Client) Connect(ctx context.Context) error {
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(c.Certificate))
+	if err != nil {
+		return err
+	}
+
 	cert, ok := pubKey.(*ssh.Certificate)
 	if !ok {
 		return errors.New("SSH public key must be a certificate")
