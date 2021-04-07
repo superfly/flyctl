@@ -32,7 +32,7 @@ func newVersionCommand(client *client.Client) *Command {
 }
 
 func runVersion(ctx *cmdctx.CmdContext) error {
-	saveInstall, _ := ctx.Config.GetString("saveinstall")
+	saveInstall := ctx.Config.GetString("saveinstall")
 
 	if saveInstall != "" {
 		viper.Set(flyctl.ConfigInstaller, saveInstall)

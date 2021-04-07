@@ -78,7 +78,7 @@ func runPostgresList(ctx *cmdctx.CmdContext) error {
 }
 
 func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
-	name, _ := ctx.Config.GetString("name")
+	name := ctx.Config.GetString("name")
 	if name == "" {
 		n, err := inputAppName("")
 		if err != nil {
@@ -87,19 +87,19 @@ func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
 		name = n
 	}
 
-	orgSlug, _ := ctx.Config.GetString("organization")
+	orgSlug := ctx.Config.GetString("organization")
 	org, err := selectOrganization(ctx.Client.API(), orgSlug)
 	if err != nil {
 		return err
 	}
 
-	regionCode, _ := ctx.Config.GetString("region")
+	regionCode := ctx.Config.GetString("region")
 	region, err := selectRegion(ctx.Client.API(), regionCode)
 	if err != nil {
 		return err
 	}
 
-	vmSizeName, _ := ctx.Config.GetString("vm-size")
+	vmSizeName := ctx.Config.GetString("vm-size")
 	vmSize, err := selectVMSize(ctx.Client.API(), vmSizeName)
 	if err != nil {
 		return err
@@ -168,7 +168,7 @@ func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
 }
 
 func runAttachPostgresCluster(ctx *cmdctx.CmdContext) error {
-	postgresAppName, _ := ctx.Config.GetString("postgres-app")
+	postgresAppName := ctx.Config.GetString("postgres-app")
 	appName := ctx.AppName
 
 	input := api.AttachPostgresClusterInput{
@@ -176,10 +176,10 @@ func runAttachPostgresCluster(ctx *cmdctx.CmdContext) error {
 		PostgresClusterAppID: postgresAppName,
 	}
 
-	if dbName, _ := ctx.Config.GetString("database-name"); dbName != "" {
+	if dbName := ctx.Config.GetString("database-name"); dbName != "" {
 		input.DatabaseName = api.StringPointer(dbName)
 	}
-	if varName, _ := ctx.Config.GetString("variable-name"); varName != "" {
+	if varName := ctx.Config.GetString("variable-name"); varName != "" {
 		input.VariableName = api.StringPointer(varName)
 	}
 
@@ -202,7 +202,7 @@ func runAttachPostgresCluster(ctx *cmdctx.CmdContext) error {
 }
 
 func runDetachPostgresCluster(ctx *cmdctx.CmdContext) error {
-	postgresAppName, _ := ctx.Config.GetString("postgres-app")
+	postgresAppName := ctx.Config.GetString("postgres-app")
 	appName := ctx.AppName
 
 	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)

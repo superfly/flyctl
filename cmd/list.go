@@ -75,10 +75,8 @@ func runListApps(commandContext *cmdctx.CmdContext) error {
 		commandContext.Status("list", cmdctx.SERROR, "Too many arguments - discarding excess")
 	}
 
-	orgSlug, _ := commandContext.Config.GetString("org")
-
-	status, _ := commandContext.Config.GetString("status")
-
+	orgSlug := commandContext.Config.GetString("org")
+	status := commandContext.Config.GetString("status")
 	exact := commandContext.Config.GetBool("exact")
 
 	apps, err := commandContext.Client.API().GetApps(nil)
@@ -125,7 +123,7 @@ func runListApps(commandContext *cmdctx.CmdContext) error {
 		}
 	}
 
-	sortType, _ := commandContext.Config.GetString("sort")
+	sortType := commandContext.Config.GetString("sort")
 	if err != nil {
 		return err
 	}

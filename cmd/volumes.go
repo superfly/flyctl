@@ -91,11 +91,7 @@ func runCreateVolume(ctx *cmdctx.CmdContext) error {
 
 	volName := ctx.Args[0]
 
-	region, err := ctx.Config.GetString("region")
-
-	if err != nil {
-		return err
-	}
+	region := ctx.Config.GetString("region")
 
 	app, err := ctx.Client.API().GetApp(ctx.AppName)
 

@@ -234,7 +234,7 @@ func runSSHIssue(ctx *cmdctx.CmdContext) error {
 		username *string
 	)
 
-	if vals, _ := ctx.Config.GetString("username"); vals != "" {
+	if vals := ctx.Config.GetString("username"); vals != "" {
 		username = &vals
 	}
 

@@ -29,7 +29,7 @@ func newLaunchCommand(client *client.Client) *Command {
 }
 
 func runLaunch(cmdctx *cmdctx.CmdContext) error {
-	dir, _ := cmdctx.Config.GetString("path")
+	dir := cmdctx.Config.GetString("path")
 
 	if absDir, err := filepath.Abs(dir); err == nil {
 		dir = absDir
@@ -59,7 +59,7 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 		}
 	}
 
-	if img, _ := cmdctx.Config.GetString("image"); img != "" {
+	if img := cmdctx.Config.GetString("image"); img != "" {
 		fmt.Println("Using image", img)
 		appConfig.Build = &flyctl.Build{
 			Image: img,
@@ -91,18 +91,14 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 		}
 	}
 
-	appName := ""
-	if name, _ := cmdctx.Config.GetString("name"); name != "" {
-		appName = name
-	}
-
-	orgSlug, _ := cmdctx.Config.GetString("org")
+	appName := cmdctx.Config.GetString("name")
+	orgSlug := cmdctx.Config.GetString("org")
 	org, err := selectOrganization(cmdctx.Client.API(), orgSlug)
 	if err != nil {
 		return err
 	}
 
-	regionCode, _ := cmdctx.Config.GetString("region")
+	regionCode := cmdctx.Config.GetString("region")
 	region, err := selectRegion(cmdctx.Client.API(), regionCode)
 	if err != nil {
 		return err

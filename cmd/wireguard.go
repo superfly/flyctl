@@ -734,8 +734,8 @@ NEW_CONNECTION:
 		strings.Split(host, ".")[0],
 		rx.ReplaceAllString(user.Email, "-"), badrand.Intn(1000))
 
-	region, err := ctx.Config.GetString("region")
-	if region == "" || err != nil {
+	region := ctx.Config.GetString("region")
+	if region == "" {
 		fmt.Printf("Finding closest WireGuard gateway... ")
 		region, err = NearestGatewayRegion(ctx)
 		fmt.Printf("done.\n")

@@ -74,20 +74,20 @@ func runCreateChecksHandler(ctx *cmdctx.CmdContext) error {
 		"pagerduty": setPagerDutyChecksHandler,
 	}
 
-	handlerType, _ := ctx.Config.GetString("type")
+	handlerType := ctx.Config.GetString("type")
 	fn, ok := handlerFn[handlerType]
 	if !ok {
 		return fmt.Errorf("\"%s\" is not a valid handler type", handlerType)
 	}
 
-	orgSlug, _ := ctx.Config.GetString("organization")
+	orgSlug := ctx.Config.GetString("organization")
 
 	org, err := selectOrganization(ctx.Client.API(), orgSlug)
 	if err != nil {
 		return err
 	}
 
-	name, _ := ctx.Config.GetString("name")
+	name := ctx.Config.GetString("name")
 	if name == "" {
 		prompt := &survey.Input{
 			Message: "Name:",
@@ -103,7 +103,7 @@ func runCreateChecksHandler(ctx *cmdctx.CmdContext) error {
 }
 
 func setSlackChecksHandler(ctx *cmdctx.CmdContext, org *api.Organization, name string) error {
-	webhookURL, _ := ctx.Config.GetString("webhook-url")
+	webhookURL := ctx.Config.GetString("webhook-url")
 	if webhookURL == "" {
 		prompt := &survey.Input{
 			Message: "Webhook URL:",
@@ -115,7 +115,7 @@ func setSlackChecksHandler(ctx *cmdctx.CmdContext, org *api.Organization, name s
 		}
 	}
 
-	slackChannel, _ := ctx.Config.GetString("slack-channel")
+	slackChannel := ctx.Config.GetString("slack-channel")
 	if slackChannel == "" {
 		prompt := &survey.Input{
 			Message: "Slack Channel (defaults to webhook's configured channel):",
@@ -178,7 +178,7 @@ func setSlackChecksHandler(ctx *cmdctx.CmdContext, org *api.Organization, name s
 }
 
 func setPagerDutyChecksHandler(ctx *cmdctx.CmdContext, org *api.Organization, name string) error {
-	pagerDutyToken, _ := ctx.Config.GetString("pagerduty-token")
+	pagerDutyToken := ctx.Config.GetString("pagerduty-token")
 	if pagerDutyToken == "" {
 		prompt := &survey.Input{
 			Message: "PagerDuty Token:",
@@ -228,7 +228,7 @@ func runDeleteChecksHandler(ctx *cmdctx.CmdContext) error {
 func runAppCheckList(ctx *cmdctx.CmdContext) error {
 	var nameFilter *string
 
-	if val, _ := ctx.Config.GetString("check-name"); val != "" {
+	if val := ctx.Config.GetString("check-name"); val != "" {
 		nameFilter = api.StringPointer(val)
 	}
 

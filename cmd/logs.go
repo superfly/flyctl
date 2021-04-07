@@ -28,13 +28,10 @@ func newLogsCommand(client *client.Client) *Command {
 }
 
 func runLogs(ctx *cmdctx.CmdContext) error {
-	instanceFilter, _ := ctx.Config.GetString("instance")
-	regionFilter, _ := ctx.Config.GetString("region")
-
 	err := monitor.WatchLogs(ctx, ctx.Out, monitor.LogOptions{
 		AppName:    ctx.AppName,
-		VMID:       instanceFilter,
-		RegionCode: regionFilter,
+		VMID:       ctx.Config.GetString("instance"),
+		RegionCode: ctx.Config.GetString("region"),
 	})
 
 	return err

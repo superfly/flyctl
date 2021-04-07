@@ -124,15 +124,15 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 
 	var img *imgsrc.DeploymentImage
 
-	if ref, _ := cmdCtx.Config.GetString("image"); ref != "" {
+	if ref := cmdCtx.Config.GetString("image"); ref != "" {
 		opts := imgsrc.RefOptions{
 			AppName:    cmdCtx.AppName,
 			WorkingDir: cmdCtx.WorkingDir,
 			AppConfig:  cmdCtx.AppConfig,
 			Publish:    !cmdCtx.Config.GetBool("build-only"),
 			ImageRef:   ref,
+			ImageLabel: cmdCtx.Config.GetString("image-label"),
 		}
-		opts.ImageLabel, _ = cmdCtx.Config.GetString("image-label")
 
 		img, err = resolver.ResolveReference(ctx, cmdCtx.IO, opts)
 		if err != nil {
@@ -144,10 +144,9 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 			WorkingDir: cmdCtx.WorkingDir,
 			AppConfig:  cmdCtx.AppConfig,
 			Publish:    !cmdCtx.Config.GetBool("build-only"),
+			ImageLabel: cmdCtx.Config.GetString("image-label"),
 		}
-		opts.ImageLabel, _ = cmdCtx.Config.GetString("image-label")
-
-		if dockerfilePath, _ := cmdCtx.Config.GetString("dockerfile"); dockerfilePath != "" {
+		if dockerfilePath := cmdCtx.Config.GetString("dockerfile"); dockerfilePath != "" {
 			dockerfilePath, err := filepath.Abs(dockerfilePath)
 			if err != nil {
 				return err
@@ -187,7 +186,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		AppID: cmdCtx.AppName,
 		Image: img.Tag,
 	}
-	if val, _ := cmdCtx.Config.GetString("strategy"); val != "" {
+	if val := cmdCtx.Config.GetString("strategy"); val != "" {
 		input.Strategy = api.StringPointer(strings.ToUpper(val))
 	}
 	if cmdCtx.AppConfig != nil && len(cmdCtx.AppConfig.Definition) > 0 {

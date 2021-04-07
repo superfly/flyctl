@@ -40,7 +40,7 @@ func runMove(commandContext *cmdctx.CmdContext) error {
 
 	commandContext.Statusf("move", cmdctx.SINFO, "App '%s' is currently in organization '%s'\n", app.Name, app.Organization.Slug)
 
-	targetOrgSlug, _ := commandContext.Config.GetString("org")
+	targetOrgSlug := commandContext.Config.GetString("org")
 	org, err := selectOrganization(commandContext.Client.API(), targetOrgSlug)
 
 	switch {

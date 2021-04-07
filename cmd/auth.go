@@ -81,13 +81,13 @@ func runLogin(ctx *cmdctx.CmdContext) error {
 	if ctx.Config.GetBool("interactive") {
 		return runInteractiveLogin(ctx)
 	}
-	if val, _ := ctx.Config.GetString("email"); val != "" {
+	if val := ctx.Config.GetString("email"); val != "" {
 		return runInteractiveLogin(ctx)
 	}
-	if val, _ := ctx.Config.GetString("password"); val != "" {
+	if val := ctx.Config.GetString("password"); val != "" {
 		return runInteractiveLogin(ctx)
 	}
-	if val, _ := ctx.Config.GetString("otp"); val != "" {
+	if val := ctx.Config.GetString("otp"); val != "" {
 		return runInteractiveLogin(ctx)
 	}
 
@@ -167,7 +167,7 @@ func waitForCLISession(id string) <-chan api.CLISessionAuth {
 }
 
 func runInteractiveLogin(ctx *cmdctx.CmdContext) error {
-	email, _ := ctx.Config.GetString("email")
+	email := ctx.Config.GetString("email")
 	if email == "" {
 		prompt := &survey.Input{
 			Message: "Email:",
@@ -179,7 +179,7 @@ func runInteractiveLogin(ctx *cmdctx.CmdContext) error {
 		}
 	}
 
-	password, _ := ctx.Config.GetString("password")
+	password := ctx.Config.GetString("password")
 	if password == "" {
 		prompt := &survey.Password{
 			Message: "Password:",
@@ -191,7 +191,7 @@ func runInteractiveLogin(ctx *cmdctx.CmdContext) error {
 		}
 	}
 
-	otp, _ := ctx.Config.GetString("otp")
+	otp := ctx.Config.GetString("otp")
 	if otp == "" {
 		prompt := &survey.Password{
 			Message: "One Time Password (if any):",

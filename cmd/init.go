@@ -95,7 +95,7 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		appName = commandContext.Args[0]
 	}
 
-	configPort, _ := commandContext.Config.GetString("port")
+	configPort := commandContext.Config.GetString("port")
 
 	// If ports set, validate
 	if configPort != "" {
@@ -131,7 +131,7 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 	name := ""
 
 	if !commandContext.Config.GetBool("generatename") {
-		name, _ = commandContext.Config.GetString("name")
+		name = commandContext.Config.GetString("name")
 
 		if name != "" && appName != "" {
 			return fmt.Errorf(`two app names specified %s and %s. Select and specify only one`, appName, name)
@@ -159,7 +159,7 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 
 	fmt.Println()
 
-	targetOrgSlug, _ := commandContext.Config.GetString("org")
+	targetOrgSlug := commandContext.Config.GetString("org")
 	org, err := selectOrganization(commandContext.Client.API(), targetOrgSlug)
 
 	switch {
@@ -171,25 +171,10 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 
 	fmt.Println()
 
-	builder, err := commandContext.Config.GetString("builder")
-	if err != nil {
-		return err
-	}
-
-	builtinname, _ := commandContext.Config.GetString("builtin")
-	if err != nil {
-		return err
-	}
-
-	importfile, err := commandContext.Config.GetString("import")
-	if err != nil {
-		return err
-	}
-
-	imagename, err := commandContext.Config.GetString("image")
-	if err != nil {
-		return err
-	}
+	builder := commandContext.Config.GetString("builder")
+	builtinname := commandContext.Config.GetString("builtin")
+	importfile := commandContext.Config.GetString("import")
+	imagename := commandContext.Config.GetString("image")
 
 	if !nowrite {
 		// If we are importing or using a builtin, assume builders are set in the template

@@ -248,7 +248,7 @@ func requireAppName(cmd *Command) Initializer {
 	return Initializer{
 		Setup: func(ctx *cmdctx.CmdContext) error {
 			// resolve the config file path
-			configPath, _ := ctx.Config.GetString("config")
+			configPath := ctx.Config.GetString("config")
 			if configPath == "" {
 				configPath = defaultConfigFilePath
 			}
@@ -278,7 +278,7 @@ func requireAppName(cmd *Command) Initializer {
 			}
 
 			// set the app name if provided
-			appName, _ := ctx.Config.GetString("app")
+			appName := ctx.Config.GetString("app")
 			if appName != "" {
 				ctx.AppName = appName
 			} else if ctx.AppConfig != nil {
@@ -337,7 +337,7 @@ func requireAppNameAsArg(cmd *Command) Initializer {
 	return Initializer{
 		Setup: func(ctx *cmdctx.CmdContext) error {
 			// resolve the config file path
-			configPath, _ := ctx.Config.GetString("config")
+			configPath := ctx.Config.GetString("config")
 			if configPath == "" {
 				configPath = defaultConfigFilePath
 			}
@@ -367,7 +367,7 @@ func requireAppNameAsArg(cmd *Command) Initializer {
 			}
 
 			// set the app name if provided
-			appName, _ := ctx.Config.GetString("app")
+			appName := ctx.Config.GetString("app")
 			if appName != "" {
 				ctx.AppName = appName
 			} else if ctx.AppConfig != nil {
