@@ -185,7 +185,6 @@ type fdWriter interface {
 }
 
 func (w *fdWrapper) Fd() uintptr {
-	fmt.Println("get fd", w.src, w.Writer)
 	if fd, ok := w.src.(fdWriter); ok {
 		return fd.Fd()
 	}
