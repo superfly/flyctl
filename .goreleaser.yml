@@ -2,6 +2,7 @@ before:
   hooks:
     - go mod download
     - go generate ./...
+
 builds:
   - id: default
     env:
@@ -14,7 +15,6 @@ builds:
         goarch: 386
       - goos: linux
         goarch: 386
-
     ldflags:
       - -X github.com/superfly/flyctl/flyctl.BuildDate={{ .Date }}
       - -X github.com/superfly/flyctl/flyctl.Version={{ .Version }}
@@ -28,7 +28,6 @@ builds:
     ignore:
       - goos: windows
         goarch: 386
-
     ldflags:
       - -X github.com/superfly/flyctl/flyctl.BuildDate={{ .Date }}
       - -X github.com/superfly/flyctl/flyctl.Version={{ .Version }}
@@ -58,35 +57,30 @@ archives:
     files: [only-the-binary*]
     wrap_in_directory: false
     format: tar.gz
-  - id: binary
-    builds:
-      - default
-      - windows
-    format: binary
-    files: [only-the-binary*]
-    replacements:
-      darwin: macOS
-      linux: Linux
-      windows: Windows
-      amd64: x86_64
+
 release:
   prerelease: auto
+
 dockers:
   - goos: linux
     goarch: amd64
     image_templates:
       - "flyio/flyctl:latest"
       - "flyio/flyctl:v{{ .Version }}"
+
 checksum:
   name_template: "checksums.txt"
+
 snapshot:
   name_template: "{{ .Tag }}-next"
+
 changelog:
   sort: asc
   filters:
     exclude:
       - "^docs:"
       - "^test:"
+
 brews:
   - tap:
       owner: superfly
@@ -98,22 +92,3 @@ brews:
     install: |
       bin.install "flyctl"
       bin.install_symlink "flyctl" => "fly"
-
-# snapcrafts:
-#   -
-#     id: flyctl
-#     name: flyctl
-#     # publish: true
-#     summary: Command line tools for the Fly.io platform.
-#     description: Fly’s global application platform runs your backend apps all over the world, auto scales based on actual load, and balances capacity to get your users the lowest latency possible.
-#     grade: stable
-#     confinement: strict
-#     license: Apache-2.0
-#     apps:
-#       flyctl:
-#         plugs: ["home", "network", "fly-config", "docker"]
-#     plugs:
-#       fly-config:
-#         interface: personal-files
-#         write:
-#         - $HOME/.fly
