@@ -183,7 +183,6 @@ func runClassicBuild(ctx context.Context, streams *iostreams.IOStreams, docker *
 	defer resp.Body.Close()
 
 	idCallback := func(m jsonmessage.JSONMessage) {
-		fmt.Println("got a message", m.ID, m)
 		var aux types.BuildResult
 		if err := json.Unmarshal(*m.Aux, &aux); err != nil {
 			fmt.Fprintf(streams.Out, "failed to parse aux message: %v", err)

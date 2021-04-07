@@ -3,10 +3,14 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/briandowns/spinner"
 	"github.com/dustin/go-humanize"
 	"github.com/logrusorgru/aurora"
 	"github.com/morikuni/aec"
@@ -22,6 +26,8 @@ import (
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/deployment"
+	"github.com/superfly/flyctl/internal/monitor"
+	"golang.org/x/sync/errgroup"
 )
 
 func newDeployCommand(client *client.Client) *Command {
@@ -188,30 +194,146 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		input.Definition = api.DefinitionPtr(cmdCtx.AppConfig.Definition)
 	}
 
-	release, err := cmdCtx.Client.API().DeployImage(input)
+	release, releaseCommand, err := cmdCtx.Client.API().DeployImage(input)
 	if err != nil {
 		return err
 	}
 
 	fmt.Fprintf(cmdCtx.Out, "Release v%d created\n", release.Version)
-	fmt.Fprintf(cmdCtx.Out, "Deploying to %s.fly.dev\n", cmdCtx.AppName)
-
-	if release.DeploymentStrategy == "IMMEDIATE" {
-		return nil
+	if releaseCommand != nil {
+		fmt.Fprintf(cmdCtx.Out, "Release command detected: this new release will not be available until the command succeeds.\n")
 	}
 
 	if cmdCtx.Config.GetBool("detach") {
+		return nil
+	}
+
+	if releaseCommand != nil {
+		cmdfmt.PrintBegin(cmdCtx.Out, "Release command")
+		fmt.Printf("Command: %s\n", releaseCommand.Command)
+
+		err = watchReleaseCommand(ctx, cmdCtx, cmdCtx.Client.API(), releaseCommand.ID)
+		if err != nil {
+			return err
+		}
+	}
+
+	if release.DeploymentStrategy == "IMMEDIATE" {
 		return nil
 	}
 
 	return watchDeployment(ctx, cmdCtx)
 }
 
-func watchDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext) error {
-	if cmdCtx.Config.GetBool("detach") {
-		return nil
+func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *api.Client, id string) error {
+	g, ctx := errgroup.WithContext(ctx)
+	interactive := cc.IO.IsInteractive()
+
+	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
+	s.Writer = os.Stderr
+	s.Prefix = "Running release task..."
+
+	if interactive {
+		s.Start()
+		defer s.Stop()
 	}
 
+	rcUpdates := make(chan api.ReleaseCommand)
+
+	var once sync.Once
+
+	startLogs := func(vmid string) {
+		once.Do(func() {
+			g.Go(func() error {
+				ctx, cancel := context.WithCancel(ctx)
+				defer cancel()
+
+				ls := monitor.NewLogStream(cc.Client.API())
+				opts := monitor.LogOptions{MaxBackoff: 1 * time.Second, AppName: cc.AppName, VMID: vmid}
+
+				for logs := range ls.Stream(ctx, opts) {
+					if len(logs) == 0 {
+						continue
+					}
+
+					func() {
+						if interactive {
+							s.Stop()
+							defer s.Start()
+						}
+
+						for _, l := range logs {
+							fmt.Println("\t", l.Message)
+
+							// watch for the shutdown message
+							if l.Message == "Starting clean up." {
+								cancel()
+							}
+						}
+					}()
+				}
+
+				return ls.Err()
+			})
+		})
+	}
+
+	g.Go(func() error {
+		var lastValue *api.ReleaseCommand
+		var errorCount int
+		defer close(rcUpdates)
+
+		for {
+			rc, err := apiClient.GetReleaseCommand(ctx, id)
+			if err != nil {
+				errorCount += 1
+				if errorCount < 3 {
+					continue
+				}
+				return err
+			}
+
+			if !reflect.DeepEqual(lastValue, rc) {
+				lastValue = rc
+				rcUpdates <- *rc
+			}
+
+			if !rc.InProgress {
+				break
+			}
+
+			time.Sleep(500 * time.Millisecond)
+		}
+
+		return nil
+	})
+
+	g.Go(func() error {
+		for rc := range rcUpdates {
+			if interactive {
+				s.Prefix = fmt.Sprintf("Running release task (%s)...", rc.Status)
+			}
+
+			if rc.InstanceID != nil {
+				startLogs(*rc.InstanceID)
+			}
+
+			if !rc.InProgress && rc.Failed {
+				if rc.Succeeded && interactive {
+					s.FinalMSG = "Running release task...Done\n"
+				} else if rc.Failed {
+					return errors.New("Release command failed, deployment aborted")
+				}
+			}
+		}
+
+		return nil
+	})
+
+	return g.Wait()
+}
+
+func watchDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext) error {
 	cmdCtx.Status("deploy", cmdctx.STITLE, "Monitoring Deployment")
 	cmdCtx.Status("deploy", cmdctx.SDETAIL, "You can detach the terminal anytime without stopping the deployment")
 
