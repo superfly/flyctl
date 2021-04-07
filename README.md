@@ -33,7 +33,7 @@ curl -L https://fly.io/install.sh | sh
 Installing a specific version:
 
 ```bash
-curl -L https://fly.io/install.sh | sh -s v0.0.1
+curl -L https://fly.io/install.sh | sh -s 0.0.200
 ```
 
 ## Downloading from GitHub
