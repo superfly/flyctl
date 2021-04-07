@@ -44,9 +44,9 @@ $Target = 'Windows_x86_64'
 
 $FlyURI = if (!$Version) {
   $Response = Invoke-WebRequest 'https://github.com/superfly/flyctl/releases' -UseBasicParsing
-  $matchstring= "/superfly/flyctl/releases/download/v[0-9]+.[0-9]+.[0-9]+/flyctl_[0-9]+.[0-9]+.[0-9]+_${Target}.tar.gz"
+  $matchstring= "/superfly/flyctl/releases/download/v[0-9]+.[0-9]+.[0-9]+/flyctl_[0-9]+.[0-9]+.[0-9]+_${Target}.zip"
   if($prerel) {
-    $matchstring="/superfly/flyctl/releases/download/v[0-9]+.[0-9]+.[0-9]+-beta-[0-9]+/flyctl_[0-9]+.[0-9]+.[0-9]+-beta-[0-9]+_${Target}.tar.gz"
+    $matchstring="/superfly/flyctl/releases/download/v[0-9]+.[0-9]+.[0-9]+-beta-[0-9]+/flyctl_[0-9]+.[0-9]+.[0-9]+-beta-[0-9]+_${Target}.zip"
   }
   if ($PSVersionTable.PSEdition -eq 'Core') {
     $Response.Links |
@@ -67,7 +67,7 @@ $FlyURI = if (!$Version) {
       Select-Object -First 1
   }
 } else {
-  "https://github.com/superfly/flyctl/releases/download/${Version}/flyctl_${Version}_${Target}.tar.gz"
+  "https://github.com/superfly/flyctl/releases/download/${Version}/flyctl_${Version}_${Target}.zip"
 }
 
 Write-Output $FlyUri
@@ -78,22 +78,15 @@ if (!(Test-Path $BinDir)) {
 
 Invoke-WebRequest $FlyUri -OutFile $FlyZip -UseBasicParsing
 
-# if (Get-Command Expand-Archive -ErrorAction SilentlyContinue) {
-#   Expand-Archive $FlyZip -Destination $BinDir -Force
-# } else {
-#   if (Test-Path $FlyExe) {
-#     Remove-Item $FlyExe
-#   }
-#   Add-Type -AssemblyName System.IO.Compression.FileSystem
-#   [IO.Compression.ZipFile]::ExtractToDirectory($FlyZip, $BinDir)
-# }
-
-Push-Location $BinDir
-Remove-Item .\flyctl.exe -ErrorAction SilentlyContinue
-Remove-Item .\fly.exe -ErrorAction SilentlyContinue
-Remove-Item .\wintun.dll -ErrorAction SilentlyContinue
-tar -xvzf $FlyZip
-Pop-Location
+if (Get-Command Expand-Archive -ErrorAction SilentlyContinue) {
+  Expand-Archive $FlyZip -Destination $BinDir -Force
+} else {
+  Remove-Item .\flyctl.exe -ErrorAction SilentlyContinue
+  Remove-Item .\fly.exe -ErrorAction SilentlyContinue
+  Remove-Item .\wintun.dll -ErrorAction SilentlyContinue
+  Add-Type -AssemblyName System.IO.Compression.FileSystem
+  [IO.Compression.ZipFile]::ExtractToDirectory($FlyZip, $BinDir)
+}
 
 Remove-Item $FlyZip
 

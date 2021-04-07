@@ -46,7 +46,7 @@ archives:
     files: 
       - wintun.dll
     wrap_in_directory: false
-    format: tar.gz
+    format: zip
   - id: default
     replacements:
       darwin: macOS
