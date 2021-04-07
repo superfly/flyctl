@@ -124,13 +124,20 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 
 	var img *imgsrc.DeploymentImage
 
+	var imageRef string
 	if ref := cmdCtx.Config.GetString("image"); ref != "" {
+		imageRef = ref
+	} else if ref := cmdCtx.AppConfig.Image(); ref != "" {
+		imageRef = ref
+	}
+
+	if imageRef != "" {
 		opts := imgsrc.RefOptions{
 			AppName:    cmdCtx.AppName,
 			WorkingDir: cmdCtx.WorkingDir,
 			AppConfig:  cmdCtx.AppConfig,
 			Publish:    !cmdCtx.Config.GetBool("build-only"),
-			ImageRef:   ref,
+			ImageRef:   imageRef,
 			ImageLabel: cmdCtx.Config.GetString("image-label"),
 		}
 

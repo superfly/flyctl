@@ -83,6 +83,13 @@ func (ac *AppConfig) HasBuiltin() bool {
 	return ac.Build != nil && ac.Build.Builtin != ""
 }
 
+func (ac *AppConfig) Image() string {
+	if ac.Build == nil {
+		return ""
+	}
+	return ac.Build.Image
+}
+
 func (ac *AppConfig) WriteTo(w io.Writer, format ConfigFormat) error {
 	switch format {
 	case TOMLFormat:
