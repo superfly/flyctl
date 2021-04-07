@@ -208,6 +208,9 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		return nil
 	}
 
+	fmt.Println()
+	cmdCtx.Status("deploy", cmdctx.SDETAIL, "You can detach the terminal anytime without stopping the deployment")
+
 	if releaseCommand != nil {
 		cmdfmt.PrintBegin(cmdCtx.Out, "Release command")
 		fmt.Printf("Command: %s\n", releaseCommand.Command)
@@ -335,7 +338,6 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 
 func watchDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext) error {
 	cmdCtx.Status("deploy", cmdctx.STITLE, "Monitoring Deployment")
-	cmdCtx.Status("deploy", cmdctx.SDETAIL, "You can detach the terminal anytime without stopping the deployment")
 
 	interactive := cmdCtx.IO.IsInteractive()
 
