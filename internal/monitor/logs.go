@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"context"
 	"io"
 	"time"
 
@@ -19,7 +20,7 @@ type LogOptions struct {
 	RegionCode string
 }
 
-func WatchLogs(ctx *cmdctx.CmdContext, w io.Writer, opts LogOptions) error {
+func WatchLogs(cc *cmdctx.CmdContext, w io.Writer, opts LogOptions) error {
 	errorCount := 0
 
 	b := &backoff.Backoff{
@@ -38,7 +39,7 @@ func WatchLogs(ctx *cmdctx.CmdContext, w io.Writer, opts LogOptions) error {
 	logPresenter := presenters.LogPresenter{}
 
 	for {
-		entries, token, err := ctx.Client.API().GetAppLogs(opts.AppName, nextToken, opts.RegionCode, opts.VMID)
+		entries, token, err := cc.Client.API().GetAppLogs(opts.AppName, nextToken, opts.RegionCode, opts.VMID)
 
 		if err != nil {
 			if api.IsNotAuthenticatedError(err) {
@@ -67,4 +68,77 @@ func WatchLogs(ctx *cmdctx.CmdContext, w io.Writer, opts LogOptions) error {
 			}
 		}
 	}
+}
+
+func NewLogStream(apiClient *api.Client) *LogStream {
+	return &LogStream{apiClient: apiClient}
+}
+
+type LogStream struct {
+	apiClient *api.Client
+	err       error
+}
+
+func (ls *LogStream) Err() error {
+	return ls.err
+}
+
+func (ls *LogStream) Stream(ctx context.Context, opts LogOptions) <-chan []api.LogEntry {
+	out := make(chan []api.LogEntry)
+
+	b := &backoff.Backoff{
+		Min:    250 * time.Millisecond,
+		Max:    5 * time.Second,
+		Factor: 2,
+		Jitter: true,
+	}
+
+	if opts.MaxBackoff != 0 {
+		b.Max = opts.MaxBackoff
+	}
+
+	go func() {
+		defer close(out)
+		errorCount := 0
+		nextToken := ""
+
+		var wait <-chan time.Time
+
+		for {
+			entries, token, err := ls.apiClient.GetAppLogs(opts.AppName, nextToken, opts.RegionCode, opts.VMID)
+
+			if err != nil {
+				errorCount++
+
+				if api.IsNotAuthenticatedError(err) || api.IsNotFoundError(err) || errorCount > 10 {
+					ls.err = err
+					return
+				}
+				wait = time.After(b.Duration())
+			} else {
+				errorCount = 0
+
+				if len(entries) == 0 {
+					wait = time.After(b.Duration())
+				} else {
+					b.Reset()
+
+					out <- entries
+					wait = time.After(0)
+
+					if token != "" {
+						nextToken = token
+					}
+				}
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-wait:
+			}
+		}
+	}()
+
+	return out
 }

@@ -1,6 +1,8 @@
 package api
 
-func (client *Client) DeployImage(input DeployImageInput) (*Release, error) {
+import "context"
+
+func (client *Client) DeployImage(input DeployImageInput) (*Release, *ReleaseCommand, error) {
 	query := `
 			mutation($input: DeployImageInput!) {
 				deployImage(input: $input) {
@@ -17,6 +19,10 @@ func (client *Client) DeployImage(input DeployImageInput) (*Release, error) {
 						}
 						createdAt
 					}
+					releaseCommand {
+						id
+						command
+					}
 				}
 			}
 		`
@@ -27,10 +33,10 @@ func (client *Client) DeployImage(input DeployImageInput) (*Release, error) {
 
 	data, err := client.Run(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return &data.DeployImage.Release, nil
+	return &data.DeployImage.Release, data.DeployImage.ReleaseCommand, nil
 }
 
 func (c *Client) GetDeploymentStatus(appName string, deploymentID string) (*DeploymentStatus, error) {
@@ -80,4 +86,35 @@ func (c *Client) GetDeploymentStatus(appName string, deploymentID string) (*Depl
 	}
 
 	return data.App.DeploymentStatus, nil
+}
+
+func (c *Client) GetReleaseCommand(ctx context.Context, id string) (*ReleaseCommand, error) {
+	query := `
+		query ($id: ID!) {
+			releaseCommandNode: node(id: $id) {
+				id
+				... on ReleaseCommand {
+					id
+					instanceId
+					command
+					status
+					exitCode
+					inProgress
+					succeeded
+					failed
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("id", id)
+
+	data, err := c.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.ReleaseCommandNode, nil
 }

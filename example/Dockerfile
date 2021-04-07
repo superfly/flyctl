@@ -6,6 +6,7 @@ ARG SOURCE_DIR=.
 ARG APP_DIR=/usr/share/nginx/html
 ARG ENTRY_FILE=index.html
 
+COPY release.sh /release.sh
 COPY ${SOURCE_DIR} ${APP_DIR}
 
 ENV NGINX_PORT=8080

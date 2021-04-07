@@ -40,6 +40,7 @@ type Query struct {
 	// aliases & nodes
 
 	TemplateDeploymentNode *TemplateDeployment
+	ReleaseCommandNode     *ReleaseCommand
 
 	// hack to let us alias node to a type
 	// DNSZone *DNSZone
@@ -58,7 +59,8 @@ type Query struct {
 	}
 
 	DeployImage struct {
-		Release Release
+		Release        Release
+		ReleaseCommand *ReleaseCommand
 	}
 
 	EnsureRemoteBuilder *struct {
@@ -956,4 +958,15 @@ type Image struct {
 	Digest         string
 	Ref            string
 	CompressedSize uint64
+}
+
+type ReleaseCommand struct {
+	ID         string
+	Command    string
+	Status     string
+	ExitCode   *int
+	InstanceID *string
+	InProgress bool
+	Succeeded  bool
+	Failed     bool
 }
