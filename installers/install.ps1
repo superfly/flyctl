@@ -19,6 +19,7 @@ $BinDir = if ($FlyInstall) {
 
 $FlyZip = "$BinDir\flyctl.zip"
 $FlyExe = "$BinDir\flyctl.exe"
+$WintunDll = "$BinDir\wintun.dll"
 $RealFlyExe = "$BinDir\fly.exe"
 
 # GitHub requires TLS 1.2
@@ -48,9 +49,9 @@ Invoke-WebRequest $FlyUri -OutFile $FlyZip -UseBasicParsing
 if (Get-Command Expand-Archive -ErrorAction SilentlyContinue) {
   Expand-Archive $FlyZip -Destination $BinDir -Force
 } else {
-  Remove-Item .\flyctl.exe -ErrorAction SilentlyContinue
-  Remove-Item .\fly.exe -ErrorAction SilentlyContinue
-  Remove-Item .\wintun.dll -ErrorAction SilentlyContinue
+  Remove-Item $FlyExe -ErrorAction SilentlyContinue
+  Remove-Item $RealFlyExe -ErrorAction SilentlyContinue
+  Remove-Item $WintunDll -ErrorAction SilentlyContinue
   Add-Type -AssemblyName System.IO.Compression.FileSystem
   [IO.Compression.ZipFile]::ExtractToDirectory($FlyZip, $BinDir)
 }
