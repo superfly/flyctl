@@ -30,6 +30,12 @@ Installing the latest version:
 curl -L https://fly.io/install.sh | sh
 ```
 
+Installing the latest pre-release version:
+
+```bash
+curl -L https://fly.io/install.sh | sh -s pre
+```
+
 Installing a specific version:
 
 ```bash

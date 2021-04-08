@@ -4,39 +4,14 @@
 
 set -e
 
-case $(uname -sm) in
-	"Darwin x86_64") target="macOS_x86_64" ;;
-	"Darwin arm64") target="macOS_arm64" ;;
-	*) target="Linux_x86_64" ;;
-esac
+os=$(uname -s)
+arch=$(uname -m)
+version=${1:-latest}
 
-if [ $# -eq 0 ]; then
-	flyctl_asset_path=$(
-		curl -sSf -N https://github.com/superfly/flyctl/releases |
-			grep -E -o "/superfly/flyctl/releases/download/.*/flyctl_[0-9]+\\.[0-9]+\\.[0-9]+_${target}.tar.gz" |
-			head -n 1
-	)
-	if [ ! "$flyctl_asset_path" ]; then
-		echo "Error: Unable to find latest Flyctl release on GitHub." 1>&2
-		exit 1
-	fi
-	flyctl_uri="https://github.com${flyctl_asset_path}"
-else
-	if [ "${1}" = "prerel" ]; then
-		flyctl_asset_path=$(
-		curl -sSf -N https://github.com/superfly/flyctl/releases |
-			grep -E -o "/superfly/flyctl/releases/download/.*/flyctl_[0-9]+\\.[0-9]+\\.[0-9]+(\\-beta\\-[0-9]+)*_${target}.tar.gz" |
-			head -n 1
-		)
-
-		if [ ! "$flyctl_asset_path" ]; then
-			echo "Error: Unable to find latest Flyctl release on GitHub." 1>&2
-			exit 1
-		fi
-		flyctl_uri="https://github.com${flyctl_asset_path}"
-	else
-		flyctl_uri="https://github.com/superfly/flyctl/releases/download/v${1}/flyctl_${1}_${target}.tar.gz"
-	fi
+flyctl_uri=$(curl -s https://api.fly.io/app/flyctl_releases/$os/$arch/$version)
+if [ ! "$flyctl_uri" ]; then
+	echo "Error: Unable to find a flyctl release for $os/$arch/$version - see github.com/superfly/flyctl/releases for all versions" 1>&2
+	exit 1
 fi
 
 flyctl_install="${FLYCTL_INSTALL:-$HOME/.fly}"
@@ -56,13 +31,13 @@ chmod +x "$exe"
 rm "$exe.tar.gz"
 ln -sf $exe $simexe
 
-if [ "${1}" = "prerel" ]; then
+if [ "${1}" = "prerel" ] || [ "${1}" = "pre" ]; then
 	"$exe" version -s "shell-prerel"
 else
 	"$exe" version -s "shell"
 fi
 
-echo "Flyctl/Fly was installed successfully to $exe"
+echo "flyctl was installed successfully to $exe"
 if command -v flyctl >/dev/null; then
 	echo "Run 'flyctl --help' to get started"
 else

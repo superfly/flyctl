@@ -2,30 +2,13 @@
 # Copyright 2018 the Deno authors. All rights reserved. MIT license.
 # TODO(everyone): Keep this script simple and easily auditable.
 
-[CmdletBinding()]
-param (
-    [switch]$prerel
-)
-
 $ErrorActionPreference = 'Stop'
 
-if ($p) {
-  $prerel=TRUE
+$Version = if ($args.Length -eq 1) {
+  $args.Get(0)
+} else {
+  "latest"
 }
-
-if($prerel) {
-  Write-Output "Prerel mode"
-}
-
-# if ($v) {
-#   $Version = "v${v}"
-# }
-
-if ($args.Length -eq 1) {
-  $Version = $args.Get(0)
-}
-
-Write-Output $Version
 
 $FlyInstall = $env:FLYCTL_INSTALL
 $BinDir = if ($FlyInstall) {
@@ -37,40 +20,24 @@ $BinDir = if ($FlyInstall) {
 $FlyZip = "$BinDir\flyctl.zip"
 $FlyExe = "$BinDir\flyctl.exe"
 $RealFlyExe = "$BinDir\fly.exe"
-$Target = 'Windows_x86_64'
 
 # GitHub requires TLS 1.2
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$FlyURI = if (!$Version) {
-  $Response = Invoke-WebRequest 'https://github.com/superfly/flyctl/releases' -UseBasicParsing
-  $matchstring= "/superfly/flyctl/releases/download/v[0-9]+.[0-9]+.[0-9]+/flyctl_[0-9]+.[0-9]+.[0-9]+_${Target}.zip"
-  if($prerel) {
-    $matchstring="/superfly/flyctl/releases/download/v[0-9]+.[0-9]+.[0-9]+-beta-[0-9]+/flyctl_[0-9]+.[0-9]+.[0-9]+-beta-[0-9]+_${Target}.zip"
-  }
-  if ($PSVersionTable.PSEdition -eq 'Core') {
-    $Response.Links |
-      Where-Object { $_.href -match $matchstring} |
-      ForEach-Object { 'https://github.com' + $_.href } |
-      Select-Object -First 1
-  } else {
-    $HTMLFile = New-Object -Com HTMLFile
-    if ($HTMLFile.IHTMLDocument2_write) {
-      $HTMLFile.IHTMLDocument2_write($Response.Content)
-    } else {
-      $ResponseBytes = [Text.Encoding]::Unicode.GetBytes($Response.Content)
-      $HTMLFile.write($ResponseBytes)
-    }
-    $HTMLFile.getElementsByTagName('a') |
-      Where-Object { $_.href -match "about:"+$matchstring } |
-      ForEach-Object { $_.href -replace 'about:', 'https://github.com' } |
-      Select-Object -First 1
-  }
-} else {
-  "https://github.com/superfly/flyctl/releases/download/${Version}/flyctl_${Version}_${Target}.zip"
+try {
+  $Response = Invoke-WebRequest "https://api.fly.io/app/flyctl_releases/windows/x86_64/$Version" -UseBasicParsing
+  $FlyURI = $Response.Content
 }
-
-Write-Output $FlyUri
+catch {
+  $StatusCode = $_.Exception.Response.StatusCode.value__
+  $Request = $_.Exception
+  if ($StatusCode -eq 404) {
+    Write-Error "Unable to find a flyctl release on GitHub for version:$Version - see github.com/superfly/flyctl/releases for all versions"
+  } else {
+    Write-Error "Error while fetching releases: $Request"
+  }
+  Exit 1
+}
 
 if (!(Test-Path $BinDir)) {
   New-Item $BinDir -ItemType Directory | Out-Null
@@ -99,5 +66,5 @@ if (!(";$Path;".ToLower() -like "*;$BinDir;*".ToLower())) {
 
 Start-Process -FilePath "$env:comspec" -ArgumentList "/c", "mklink", $RealFlyExe, $FlyExe
 
-Write-Output "Flyctl was installed successfully to $FlyExe"
+Write-Output "flyctl was installed successfully to $FlyExe"
 Write-Output "Run 'flyctl --help' to get started"

@@ -4,7 +4,7 @@ on:
     branches:
       - "*"
     tags:
-      - "!v*-beta-*"
+      - "!v*-pre-*"
       - "!v*"
 jobs:
   release:
