@@ -4,7 +4,9 @@
 
 $ErrorActionPreference = 'Stop'
 
-$Version = if ($args.Length -eq 1) {
+$Version = if ($v) {
+  $v
+} elseif ($args.Length -eq 1) {
   $args.Get(0)
 } else {
   "latest"
