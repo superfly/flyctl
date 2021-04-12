@@ -88,6 +88,10 @@ func runValidateConfig(commandContext *cmdctx.CmdContext) error {
 		return err
 	}
 
+	if commandContext.GlobalConfig.GetBool("verbose") {
+		commandContext.WriteJSON(serverCfg.Definition)
+	}
+
 	if serverCfg.Valid {
 		fmt.Println(aurora.Green("✓").String(), "Configuration is valid")
 		return nil
