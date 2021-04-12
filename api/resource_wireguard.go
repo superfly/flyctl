@@ -38,12 +38,18 @@ mutation($input: AddWireGuardPeerInput!) {
   } 
 }
 `)
-	req.Var("input", map[string]interface{}{
+
+	inputs := map[string]interface{}{
 		"organizationId": org.ID,
-		"region":         region,
 		"name":           name,
 		"pubkey":         pubkey,
-	})
+	}
+
+	if region != "" {
+		inputs["region"] = region
+	}
+
+	req.Var("input", inputs)
 
 	data, err := c.Run(req)
 	if err != nil {
