@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	badrand "math/rand"
 	"net"
 	"net/http"
@@ -735,19 +734,6 @@ NEW_CONNECTION:
 		rx.ReplaceAllString(user.Email, "-"), badrand.Intn(1000))
 
 	region := ctx.Config.GetString("region")
-	if region == "" {
-		fmt.Printf("Finding closest WireGuard gateway... ")
-		region, err = NearestGatewayRegion(ctx)
-		fmt.Printf("done.\n")
-
-		if err != nil {
-			if err = survey.AskOne(&survey.Input{
-				Message: "Can't detect closest region. Region in which to add WireGuard peer: ",
-			}, &region); err != nil {
-				return nil, err
-			}
-		}
-	}
 
 	terminal.Debugf("Creating new WireGuard connection for %s in %s named %s\n", org.Slug, region, wgName)
 
@@ -764,29 +750,4 @@ NEW_CONNECTION:
 	}
 
 	return stateb, err
-}
-
-func NearestGatewayRegion(ctx *cmdctx.CmdContext) (string, error) {
-	_, results, err := TimeRegions(ctx, "https://fly.io", false)
-	if err != nil {
-		return "", err
-	}
-
-	var (
-		fastestRegion string  = ""
-		fastestTime   float64 = math.MaxFloat64
-	)
-
-	for r := range results {
-		if r.Err != nil {
-			continue
-
-		}
-		if r.TimeTotal < fastestTime {
-			fastestRegion = r.Region
-			fastestTime = r.TimeTotal
-		}
-	}
-
-	return fastestRegion, nil
 }
