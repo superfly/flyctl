@@ -273,8 +273,6 @@ func requireAppName(cmd *Command) Initializer {
 					return err
 				}
 				ctx.AppConfig = appConfig
-			} else if ctx.Config.GetString("config") != "" {
-				return fmt.Errorf("config file '%s' not found", ctx.Config.GetString("config"))
 			} else {
 				ctx.AppConfig = flyctl.NewAppConfig()
 			}
@@ -364,8 +362,6 @@ func requireAppNameAsArg(cmd *Command) Initializer {
 					return err
 				}
 				ctx.AppConfig = appConfig
-			} else if ctx.Config.GetString("config") != "" {
-				return fmt.Errorf("config file '%s' not found", ctx.Config.GetString("config"))
 			} else {
 				ctx.AppConfig = flyctl.NewAppConfig()
 			}
