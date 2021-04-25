@@ -470,6 +470,7 @@ type CreateAppInput struct {
 	Runtime         string  `json:"runtime"`
 	Name            string  `json:"name"`
 	PreferredRegion *string `json:"preferredRegion,omitempty"`
+	Network         *string `json:"network,omitempty"`
 }
 
 type LogEntry struct {
