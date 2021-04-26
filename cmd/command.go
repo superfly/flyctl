@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -297,15 +296,6 @@ func requireAppName(cmd *Command) Initializer {
 			}
 
 			if ctx.AppConfig.AppName != "" && ctx.AppConfig.AppName != ctx.AppName {
-				// Quick check for a fly.alias
-				present, err := checkAliasFile(ctx.AppName)
-				if err != nil {
-					return err
-				}
-				if present {
-					return nil
-				}
-
 				terminal.Warnf("app flag '%s' does not match app name in config file '%s'\n", ctx.AppName, ctx.AppConfig.AppName)
 
 				if !confirm(fmt.Sprintf("Continue using '%s'", ctx.AppName)) {
@@ -390,15 +380,6 @@ func requireAppNameAsArg(cmd *Command) Initializer {
 			}
 
 			if ctx.AppConfig.AppName != "" && ctx.AppConfig.AppName != ctx.AppName {
-				// Quick check for a fly.alias
-				present, err := checkAliasFile(ctx.AppName)
-				if err != nil {
-					return err
-				}
-				if present {
-					return nil
-				}
-
 				terminal.Warnf("app flag '%s' does not match app name in config file '%s'\n", ctx.AppName, ctx.AppConfig.AppName)
 
 				if !confirm(fmt.Sprintf("Continue using '%s'", ctx.AppName)) {
@@ -411,27 +392,6 @@ func requireAppNameAsArg(cmd *Command) Initializer {
 	}
 }
 
-func checkAliasFile(appname string) (present bool, err error) {
-	if helpers.FileExists("fly.alias") {
-		file, err := os.Open("fly.alias")
-		if err != nil {
-			return false, err
-		}
-		defer file.Close()
-
-		scanner := bufio.NewScanner(file)
-		for scanner.Scan() {
-			if scanner.Text() == appname {
-				return true, nil
-			}
-		}
-
-		if err := scanner.Err(); err != nil {
-			return false, err
-		}
-	}
-	return false, nil
-}
 func workingDirectoryFromArg(index int) func(*Command) Initializer {
 	return func(cmd *Command) Initializer {
 		return Initializer{
