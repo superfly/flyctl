@@ -84,8 +84,8 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 		archiveOpts.additions = map[string][]byte{
 			"Dockerfile": dockerfileData,
 		}
-	} else if filepath.Base(dockerfile) != "Dockerfile" {
-		// pass the relative path to Dockerfile through if it isn't the default
+	} else {
+		// pass the relative path to Dockerfile within the context
 		p, err := filepath.Rel(opts.WorkingDir, dockerfile)
 		if err != nil {
 			return nil, err
