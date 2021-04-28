@@ -80,7 +80,6 @@ func newSSHCommand(client *client.Client) *Command {
 
 	issue.AddBoolFlag(BoolFlagOpts{
 		Name:        "agent",
-		Shorthand:   "a",
 		Default:     false,
 		Description: "Add key to SSH agent",
 	})
