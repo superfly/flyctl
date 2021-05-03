@@ -31,19 +31,19 @@ func (lp *LogPresenter) printEntry(w io.Writer, asJSON bool, entry api.LogEntry)
 		fmt.Fprintln(w, string(outBuf))
 		return
 	}
-
-	// if entry.Meta.Error.Code > 0 {
-	// 	terminal.Debugf("entry: %+v\n", entry)
-	// }
-
 	fmt.Fprintf(w, "%s ", aurora.Faint(entry.Timestamp))
 
-	if !lp.HideAllocID && entry.Instance != "" {
+	if !lp.HideAllocID {
 		if entry.Meta.Event.Provider != "" {
-			fmt.Fprintf(w, "%s[%s] ", entry.Meta.Event.Provider, entry.Instance)
-		} else {
-			fmt.Fprintf(w, "%s ", entry.Instance)
+			if entry.Instance != "" {
+				fmt.Fprintf(w, "%s[%s]", entry.Meta.Event.Provider, entry.Instance)
+			} else {
+				fmt.Fprint(w, entry.Meta.Event.Provider)
+			}
+		} else if entry.Instance != "" {
+			fmt.Fprintf(w, "%s", entry.Instance)
 		}
+		fmt.Fprint(w, " ")
 	}
 
 	if !lp.HideRegion {
@@ -61,13 +61,13 @@ func (lp *LogPresenter) printEntry(w io.Writer, asJSON bool, entry api.LogEntry)
 
 	if !hadErrorMsg {
 		if lp.RemoveNewlines {
-			newLineReplacer.WriteString(w, entry.Message)
+			_, _ = newLineReplacer.WriteString(w, entry.Message)
 		} else {
-			w.Write([]byte(entry.Message))
+			_, _ = w.Write([]byte(entry.Message))
 		}
 	}
 
-	w.Write(newline)
+	_, _ = w.Write(newline)
 }
 
 func printFieldIfPresent(w io.Writer, name string, value interface{}) bool {
