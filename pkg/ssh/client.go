@@ -76,7 +76,7 @@ func (c *Client) Connect(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) Shell(ctx context.Context, term *Terminal) error {
+func (c *Client) Shell(ctx context.Context, term *Terminal, cmd string) error {
 	if c.client == nil {
 		if err := c.Connect(ctx); err != nil {
 			return err
@@ -89,5 +89,5 @@ func (c *Client) Shell(ctx context.Context, term *Terminal) error {
 	}
 	defer sess.Close()
 
-	return term.attach(ctx, sess)
+	return term.attach(ctx, sess, cmd)
 }
