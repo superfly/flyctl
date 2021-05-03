@@ -26,7 +26,7 @@ type Terminal struct {
 	Mode string
 }
 
-func (t *Terminal) attach(ctx context.Context, sess *ssh.Session) error {
+func (t *Terminal) attach(ctx context.Context, sess *ssh.Session, cmd string) error {
 	width, height := DefaultWidth, DefaultHeight
 	if fd := int(t.Stdin.Fd()); term.IsTerminal(fd) {
 		state, err := term.MakeRaw(fd)
@@ -67,8 +67,14 @@ func (t *Terminal) attach(ctx context.Context, sess *ssh.Session) error {
 	go io.Copy(t.Stdout, stdout)
 	go io.Copy(t.Stderr, stderr)
 
-	if err := sess.Shell(); err != nil && err != io.EOF {
+	if cmd == "" {
+		err = sess.Shell()
+	} else {
+		err = sess.Run(cmd)
+	}
+	if err != nil && err != io.EOF {
 		return err
 	}
+
 	return nil
 }

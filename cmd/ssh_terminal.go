@@ -123,6 +123,7 @@ func runSSHConsole(ctx *cmdctx.CmdContext) error {
 		Org:    &app.Organization,
 		Tunnel: tunnel,
 		App:    ctx.AppConfig.AppName,
+		Cmd:    ctx.Config.GetString("command"),
 	}, addr)
 }
 
@@ -205,6 +206,7 @@ type SSHParams struct {
 	Org    *api.Organization
 	App    string
 	Tunnel *wg.Tunnel
+	Cmd    string
 }
 
 func sshConnect(p *SSHParams, addr string) error {
@@ -254,7 +256,7 @@ func sshConnect(p *SSHParams, addr string) error {
 		Mode:   "xterm",
 	}
 
-	if err := sshClient.Shell(context.Background(), term); err != nil {
+	if err := sshClient.Shell(context.Background(), term, p.Cmd); err != nil {
 		return fmt.Errorf("SSH shell: %w", err)
 	}
 

@@ -43,6 +43,13 @@ func newSSHCommand(client *client.Client) *Command {
 		requireAppName)
 	console.Args = cobra.MaximumNArgs(1)
 
+	console.AddStringFlag(StringFlagOpts{
+		Name:        "command",
+		Shorthand:   "C",
+		Default:     "",
+		Description: "command to run on SSH session",
+	})
+
 	console.AddBoolFlag(BoolFlagOpts{
 		Name:        "select",
 		Shorthand:   "s",
