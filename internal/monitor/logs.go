@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/terminal"
 )
 
 type LogOptions struct {
@@ -42,6 +43,7 @@ func WatchLogs(cc *cmdctx.CmdContext, w io.Writer, opts LogOptions) error {
 		entries, token, err := cc.Client.API().GetAppLogs(opts.AppName, nextToken, opts.RegionCode, opts.VMID)
 
 		if err != nil {
+			terminal.Debugf("error getting app logs: %v\n", err)
 			if api.IsNotAuthenticatedError(err) {
 				return err
 			} else if api.IsNotFoundError(err) {

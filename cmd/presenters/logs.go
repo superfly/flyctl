@@ -32,10 +32,18 @@ func (lp *LogPresenter) printEntry(w io.Writer, asJSON bool, entry api.LogEntry)
 		return
 	}
 
+	// if entry.Meta.Error.Code > 0 {
+	// 	terminal.Debugf("entry: %+v\n", entry)
+	// }
+
 	fmt.Fprintf(w, "%s ", aurora.Faint(entry.Timestamp))
 
-	if !lp.HideAllocID {
-		fmt.Fprintf(w, "%s ", entry.Instance)
+	if !lp.HideAllocID && entry.Instance != "" {
+		if entry.Meta.Event.Provider != "" {
+			fmt.Fprintf(w, "%s[%s] ", entry.Meta.Event.Provider, entry.Instance)
+		} else {
+			fmt.Fprintf(w, "%s ", entry.Instance)
+		}
 	}
 
 	if !lp.HideRegion {
@@ -44,13 +52,39 @@ func (lp *LogPresenter) printEntry(w io.Writer, asJSON bool, entry api.LogEntry)
 
 	fmt.Fprintf(w, "[%s] ", aurora.Colorize(entry.Level, levelColor(entry.Level)))
 
-	if lp.RemoveNewlines {
-		newLineReplacer.WriteString(w, entry.Message)
-	} else {
-		w.Write([]byte(entry.Message))
+	printFieldIfPresent(w, "error.code", entry.Meta.Error.Code)
+	hadErrorMsg := printFieldIfPresent(w, "error.message", entry.Meta.Error.Message)
+	printFieldIfPresent(w, "request.method", entry.Meta.HTTP.Request.Method)
+	printFieldIfPresent(w, "request.url", entry.Meta.URL.Full)
+	printFieldIfPresent(w, "request.id", entry.Meta.HTTP.Request.ID)
+	printFieldIfPresent(w, "response.status", entry.Meta.HTTP.Response.StatusCode)
+
+	if !hadErrorMsg {
+		if lp.RemoveNewlines {
+			newLineReplacer.WriteString(w, entry.Message)
+		} else {
+			w.Write([]byte(entry.Message))
+		}
 	}
 
 	w.Write(newline)
+}
+
+func printFieldIfPresent(w io.Writer, name string, value interface{}) bool {
+	switch v := value.(type) {
+	case string:
+		if v != "" {
+			fmt.Fprintf(w, `%s"%s" `, aurora.Faint(name+"="), v)
+			return true
+		}
+	case int:
+		if v > 0 {
+			fmt.Fprintf(w, "%s%d ", aurora.Faint(name+"="), v)
+			return true
+		}
+	}
+
+	return false
 }
 
 func levelColor(level string) aurora.Color {
@@ -59,8 +93,9 @@ func levelColor(level string) aurora.Color {
 		return aurora.CyanFg
 	case "info":
 		return aurora.BlueFg
+	case "warn":
 	case "warning":
-		return aurora.MagentaFg
+		return aurora.YellowFg
 	}
 	return aurora.RedFg
 }

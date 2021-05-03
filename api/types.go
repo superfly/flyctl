@@ -483,6 +483,26 @@ type LogEntry struct {
 	Meta      struct {
 		Instance string
 		Region   string
+		Event    struct {
+			Provider string
+		}
+		HTTP struct {
+			Request struct {
+				ID      string
+				Method  string
+				Version string
+			}
+			Response struct {
+				StatusCode int `json:"status_code"`
+			}
+		}
+		Error struct {
+			Code    int
+			Message string
+		}
+		URL struct {
+			Full string
+		}
 	}
 }
 
