@@ -4,7 +4,7 @@ package docstrings
 func Get(key string) KeyStrings {
 	switch key {
 	case "apps":
-		return KeyStrings{"apps", "Manage Apps",
+		return KeyStrings{"apps", "Manage apps",
 			`The APPS commands focus on managing your Fly applications.
 Start with the CREATE command to register your application.
 The LIST command will list all currently registered applications.`,
@@ -18,7 +18,7 @@ buildpack to be specified which will be used instead of a Dockerfile to
 create the application image when it is deployed.`,
 		}
 	case "apps.destroy":
-		return KeyStrings{"destroy [APPNAME]", "Permanently destroys an App",
+		return KeyStrings{"destroy [APPNAME]", "Permanently destroys an app",
 			`The APPS DESTROY command will remove an application 
 from the Fly platform.`,
 		}
@@ -30,7 +30,7 @@ from all the organizations the user is a member of. Each application will
 be shown with its name, owner and when it was last deployed.`,
 		}
 	case "apps.move":
-		return KeyStrings{"move [APPNAME]", "Move an App to another organization",
+		return KeyStrings{"move [APPNAME]", "Move an app to another organization",
 			`The APPS MOVE command will move an application to another 
 organization the current user belongs to.`,
 		}
@@ -92,12 +92,12 @@ independent of flyctl.`,
 authenticated and in use.`,
 		}
 	case "autoscale":
-		return KeyStrings{"autoscale", "Autoscaling App resources",
+		return KeyStrings{"autoscale", "Autoscaling app resources",
 			`Autoscaling application resources`,
 		}
 	case "autoscale.balanced":
-		return KeyStrings{"balanced", "Configure a traffic balanced App with params (min=int max=int)",
-			`Configure the App to balance regions based on traffic with given parameters:
+		return KeyStrings{"balanced", "Configure a traffic balanced app with params (min=int max=int)",
+			`Configure the app to balance regions based on traffic with given parameters:
 
 min=int - minimum number of instances to be allocated from region pool. 
 max=int - maximum number of instances to be allocated from region pool.`,
@@ -118,15 +118,15 @@ max=int - maximum number of instances to be allocated from region pool.`,
 			`Show current autoscaling configuration`,
 		}
 	case "autoscale.standard":
-		return KeyStrings{"standard", "Configure a standard balanced App with params (min=int max=int)",
-			`Configure the App without traffic balancing with the given parameters:
+		return KeyStrings{"standard", "Configure a standard balanced app with params (min=int max=int)",
+			`Configure the app without traffic balancing with the given parameters:
 
 min=int - minimum number of instances to be allocated from region pool. 
 max=int - maximum number of instances to be allocated from region pool.`,
 		}
 	case "builds":
-		return KeyStrings{"builds", "Work with Fly Builds",
-			`Fly Builds are templates to make developing Fly applications easier.`,
+		return KeyStrings{"builds", "Work with Fly builds",
+			`Fly builds are templates to make developing Fly applications easier.`,
 		}
 	case "builds.list":
 		return KeyStrings{"list", "List builds",
@@ -164,7 +164,7 @@ When Fly is then able to validate that hostname/domain, the platform gets
 certificates issued for the hostname/domain by Let's Encrypt.`,
 		}
 	case "certs.add":
-		return KeyStrings{"add <hostname>", "Add a certificate for an App.",
+		return KeyStrings{"add <hostname>", "Add a certificate for an app.",
 			`Add a certificate for an application. Takes a hostname 
 as a parameter for the certificate.`,
 		}
@@ -174,11 +174,11 @@ as a parameter for the certificate.`,
 Displays results in the same format as the SHOW command.`,
 		}
 	case "certs.list":
-		return KeyStrings{"list", "List certificates for an App.",
+		return KeyStrings{"list", "List certificates for an app.",
 			`List the certificates associated with a deployed application.`,
 		}
 	case "certs.remove":
-		return KeyStrings{"remove <hostname>", "Removes a certificate from an App",
+		return KeyStrings{"remove <hostname>", "Removes a certificate from an app",
 			`Removes a certificate from an application. Takes hostname 
 as a parameter to locate the certificate.`,
 		}
@@ -212,21 +212,21 @@ Takes hostname as a parameter to locate the certificate.`,
 			`List app health checks`,
 		}
 	case "config":
-		return KeyStrings{"config", "Manage an Apps configuration",
+		return KeyStrings{"config", "Manage an app's configuration",
 			`The CONFIG commands allow you to work with an application's configuration.`,
 		}
 	case "config.display":
-		return KeyStrings{"display", "Display an App's configuration",
+		return KeyStrings{"display", "Display an app's configuration",
 			`Display an application's configuration. The configuration is presented 
 in JSON format. The configuration data is retrieved from the Fly service.`,
 		}
 	case "config.save":
-		return KeyStrings{"save", "Save an App's config file",
+		return KeyStrings{"save", "Save an app's config file",
 			`Save an application's configuration locally. The configuration data is 
 retrieved from the Fly service and saved in TOML format.`,
 		}
 	case "config.validate":
-		return KeyStrings{"validate", "Validate an App's config file",
+		return KeyStrings{"validate", "Validate an app's config file",
 			`Validates an application's config file against the Fly platform to 
 ensure it is correct and meaningful to the platform.`,
 		}
@@ -243,9 +243,9 @@ ensure it is correct and meaningful to the platform.`,
 			`Open web browser on Fly Web UI for this application's metrics`,
 		}
 	case "deploy":
-		return KeyStrings{"deploy [<workingdirectory>]", "Deploy an App to the Fly platform",
+		return KeyStrings{"deploy [<workingdirectory>]", "Deploy an app to the Fly platform",
 			`Deploy an application to the Fly platform. The application can be a local 
-image, remote image, defined in a Dockerfile or use a CNB Buildpack.
+image, remote image, defined in a Dockerfile or use a CNB buildpack.
 
 Use the --config/-c flag to select a specific toml configuration file.
 
@@ -257,7 +257,7 @@ than monitoring the deployment progress.
 Use flyctl monitor to restart monitoring deployment progress`,
 		}
 	case "destroy":
-		return KeyStrings{"destroy [APPNAME]", "Permanently destroys an App",
+		return KeyStrings{"destroy [APPNAME]", "Permanently destroys an app",
 			`The DESTROY command will remove an application 
 from the Fly platform.`,
 		}
@@ -312,20 +312,20 @@ It allows users to manage authentication, application initialization,
 deployment, network configuration, logging and more with just the 
 one command.
 
-Initialize an App with the init command
-Deploy an App with the deploy command
-View a Deployed web application with the open command
+Initialize an app with the init command
+Deploy an app with the deploy command
+View a deployed web application with the open command
 Check the status of an application with the status command
 
 To read more, use the docs command to view Fly's help on the web.`,
 		}
 	case "history":
-		return KeyStrings{"history", "List an App's change history",
+		return KeyStrings{"history", "List an app's change history",
 			`List the history of changes in the application. Includes autoscaling 
 events and their results.`,
 		}
 	case "info":
-		return KeyStrings{"info", "Show detailed App information",
+		return KeyStrings{"info", "Show detailed app information",
 			`Shows information about the application on the Fly platform
 
 Information includes the application's
@@ -342,7 +342,7 @@ buildpack to be specified which will be used instead of a Dockerfile to
 create the application image when it is deployed.`,
 		}
 	case "ips":
-		return KeyStrings{"ips", "Manage IP addresses for Apps",
+		return KeyStrings{"ips", "Manage IP addresses for apps",
 			`The IPS commands manage IP addresses for applications. An application 
 can have a number of IP addresses associated with it and this family of commands 
 allows you to list, allocate and release those addresses. It supports both IPv4 
@@ -401,7 +401,7 @@ returned in the results. e.g. -s running would only return running applications.
 short name of the organization and the long name.`,
 		}
 	case "logs":
-		return KeyStrings{"logs", "View App logs",
+		return KeyStrings{"logs", "View app logs",
 			`View application logs as generated by the application running on 
 the Fly platform.
 
@@ -409,12 +409,12 @@ Logs can be filtered to a specific instance using the --instance/-i flag or
 to all instances running in a specific region using the --region/-r flag.`,
 		}
 	case "monitor":
-		return KeyStrings{"monitor", "Monitor Deployments",
-			`Monitor Application Deployments and other activities. Use --verbose/-v
+		return KeyStrings{"monitor", "Monitor deployments",
+			`Monitor application deployments and other activities. Use --verbose/-v
 to get details of every instance . Control-C to stop output.`,
 		}
 	case "move":
-		return KeyStrings{"move [APPNAME]", "Move an App to another organization",
+		return KeyStrings{"move [APPNAME]", "Move an app to another organization",
 			`The MOVE command will move an application to another 
 organization the current user belongs to.`,
 		}
@@ -549,7 +549,7 @@ about the Fly platform.`,
 			`Sets the region pool with provided regions`,
 		}
 	case "releases":
-		return KeyStrings{"releases", "List App releases",
+		return KeyStrings{"releases", "List app releases",
 			`List all the releases of the application onto the Fly platform, 
 including type, when, success/fail and which user triggered the release.`,
 		}
@@ -565,12 +565,12 @@ meaning there will be one running instance once restarted. Use SCALE SET MIN= to
 the number of configured instances.`,
 		}
 	case "scale":
-		return KeyStrings{"scale", "Scale App resources",
+		return KeyStrings{"scale", "Scale app resources",
 			`Scale application resources`,
 		}
 	case "scale.count":
-		return KeyStrings{"count <count>", "Change an App's VM count to the given value",
-			`Change an App's VM count to the given value. 
+		return KeyStrings{"count <count>", "Change an app's VM count to the given value",
+			`Change an app's VM count to the given value. 
 
 For pricing, see https://fly.io/docs/about/pricing/`,
 		}
@@ -583,7 +583,7 @@ For pricing, see https://fly.io/docs/about/pricing/`,
 			`Show current VM size and counts`,
 		}
 	case "scale.vm":
-		return KeyStrings{"vm [SIZENAME] [flags]", "Change an App's VM to a named size (eg. shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x...)",
+		return KeyStrings{"vm [SIZENAME] [flags]", "Change an app's VM to a named size (eg. shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x...)",
 			`Change an application's VM size to one of the named VM sizes.
 
 Size names include shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x.
@@ -601,7 +601,7 @@ For shared vms, this can be 256MB or a a multiple of 1024MB.
 For pricing, see https://fly.io/docs/about/pricing/`,
 		}
 	case "secrets":
-		return KeyStrings{"secrets", "Manage App secrets",
+		return KeyStrings{"secrets", "Manage app secrets",
 			`Manage application secrets with the set and unset commands.
 
 Secrets are provided to applications at runtime as ENV variables. Names are
@@ -614,13 +614,13 @@ the application and vm environment.`,
 are read from stdin as name=value`,
 		}
 	case "secrets.list":
-		return KeyStrings{"list", "Lists the secrets available to the App",
+		return KeyStrings{"list", "Lists the secrets available to the app",
 			`List the secrets available to the application. It shows each 
 secret's name, a digest of the its value and the time the secret was last set. 
 The actual value of the secret is only available to the application.`,
 		}
 	case "secrets.set":
-		return KeyStrings{"set [flags] NAME=VALUE NAME=VALUE ...", "Set one or more encrypted secrets for an App",
+		return KeyStrings{"set [flags] NAME=VALUE NAME=VALUE ...", "Set one or more encrypted secrets for an app",
 			`Set one or more encrypted secrets for an application.
 
 Secrets are provided to application at runtime as ENV variables. Names are
@@ -630,7 +630,7 @@ the application and vm environment.
 Any value that equals "-" will be assigned from STDIN instead of args.`,
 		}
 	case "secrets.unset":
-		return KeyStrings{"unset [flags] NAME NAME ...", "Remove encrypted secrets from an App",
+		return KeyStrings{"unset [flags] NAME NAME ...", "Remove encrypted secrets from an app",
 			`Remove encrypted secrets from the application. Unsetting a 
 secret removes its availability to the application.`,
 		}
@@ -664,7 +664,7 @@ validity.`,
 WireGuard region to use for the connection.`,
 		}
 	case "status":
-		return KeyStrings{"status", "Show App status",
+		return KeyStrings{"status", "Show app status",
 			`Show the application's current status including application 
 details, tasks, most recent deployment details and in which regions it is 
 currently allocated.`,
