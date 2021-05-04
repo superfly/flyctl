@@ -75,6 +75,16 @@ func newDeployCommand(client *client.Client) *Command {
 		Name:        "image-label",
 		Description: "Image label to use when tagging and pushing to the fly registry. Defaults to \"deployment-{timestamp}\".",
 	})
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "build-target",
+		Description: "Set the target build stage to build if the Dockerfile has more than one stage",
+		Hidden:      true,
+	})
+	cmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "no-cache",
+		Description: "Do not use the cache when building the image",
+		Hidden:      true,
+	})
 
 	cmd.Command.Args = cobra.MaximumNArgs(1)
 
@@ -152,6 +162,8 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 			AppConfig:  cmdCtx.AppConfig,
 			Publish:    !cmdCtx.Config.GetBool("build-only"),
 			ImageLabel: cmdCtx.Config.GetString("image-label"),
+			Target:     cmdCtx.Config.GetString("build-target"),
+			NoCache:    cmdCtx.Config.GetBool("no-cache"),
 		}
 		if dockerfilePath := cmdCtx.Config.GetString("dockerfile"); dockerfilePath != "" {
 			dockerfilePath, err := filepath.Abs(dockerfilePath)

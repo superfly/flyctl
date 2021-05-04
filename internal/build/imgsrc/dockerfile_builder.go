@@ -168,12 +168,13 @@ func normalizeBuildArgsForDocker(appConfig *flyctl.AppConfig, extra map[string]s
 
 func runClassicBuild(ctx context.Context, streams *iostreams.IOStreams, docker *dockerclient.Client, r io.ReadCloser, opts ImageOptions, dockerfilePath string, buildArgs map[string]*string) (imageID string, err error) {
 	options := types.ImageBuildOptions{
-		Tags:      []string{opts.Tag},
-		BuildArgs: buildArgs,
-		// NoCache:   true,
+		Tags:        []string{opts.Tag},
+		BuildArgs:   buildArgs,
 		AuthConfigs: authConfigs(),
 		Platform:    "linux/amd64",
 		Dockerfile:  dockerfilePath,
+		Target:      opts.Target,
+		NoCache:     opts.NoCache,
 	}
 
 	resp, err := docker.ImageBuild(ctx, r, options)
@@ -246,6 +247,8 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 			BuildID:       buildID,
 			Platform:      "linux/amd64",
 			Dockerfile:    dockerfilePath,
+			Target:        opts.Target,
+			NoCache:       opts.NoCache,
 		}
 
 		return func() error {
