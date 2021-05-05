@@ -2,8 +2,6 @@ package cmd
 
 import (
 	"bytes"
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,7 +19,6 @@ import (
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/wireguard"
-	"golang.org/x/crypto/curve25519"
 )
 
 func newWireGuardCommand(client *client.Client) *Command {
@@ -190,22 +187,6 @@ func resolveOutputWriter(ctx *cmdctx.CmdContext, idx int, prompt string) (w io.W
 
 		fmt.Printf("Can't create '%s': %s\n", filename, err)
 	}
-}
-
-func c25519pair() (string, string) {
-	var private [32]byte
-	_, err := rand.Read(private[:])
-	if err != nil {
-		panic(fmt.Sprintf("reading from random: %s", err))
-	}
-
-	public, err := curve25519.X25519(private[:], curve25519.Basepoint)
-	if err != nil {
-		panic(fmt.Sprintf("can't mult: %s", err))
-	}
-
-	return base64.StdEncoding.EncodeToString(public[:]),
-		base64.StdEncoding.EncodeToString(private[:])
 }
 
 func runWireGuardCreate(ctx *cmdctx.CmdContext) error {
@@ -487,7 +468,7 @@ func runWireGuardTokenStartPeer(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	pubkey, privatekey := c25519pair()
+	pubkey, privatekey := wireguard.C25519pair()
 
 	body := &StartPeerJson{
 		Name:   name,
@@ -532,7 +513,7 @@ func runWireGuardTokenUpdatePeer(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	pubkey, privatekey := c25519pair()
+	pubkey, privatekey := wireguard.C25519pair()
 
 	body := &StartPeerJson{
 		Pubkey: pubkey,

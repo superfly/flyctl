@@ -103,8 +103,6 @@ func Create(apiClient *api.Client, org *api.Organization, regionCode, name strin
 			cleanEmailPattern.ReplaceAllString(user.Email, "-"), badrand.Intn(1000))
 	}
 
-	fmt.Println(name)
-
 	if regionCode == "" {
 		region, err := apiClient.ClosestWireguardGatewayRegion()
 		if err != nil {
@@ -119,7 +117,7 @@ func Create(apiClient *api.Client, org *api.Organization, regionCode, name strin
 
 	fmt.Printf("Creating WireGuard peer \"%s\" in region \"%s\" for organization %s\n", name, regionCode, org.Slug)
 
-	pubkey, privatekey := c25519pair()
+	pubkey, privatekey := C25519pair()
 
 	data, err := apiClient.CreateWireGuardPeer(org, regionCode, name, pubkey)
 	if err != nil {
@@ -136,7 +134,7 @@ func Create(apiClient *api.Client, org *api.Organization, regionCode, name strin
 	}, nil
 }
 
-func c25519pair() (string, string) {
+func C25519pair() (string, string) {
 	var private [32]byte
 	_, err := rand.Read(private[:])
 	if err != nil {
