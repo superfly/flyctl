@@ -37,6 +37,8 @@ type Query struct {
 		VMSizes       []VMSize
 	}
 
+	NearestRegion *Region
+
 	// aliases & nodes
 
 	TemplateDeploymentNode *TemplateDeployment

@@ -150,3 +150,22 @@ query($slug: String!) {
 
 	return *data.Organization.DelegatedWireGuardTokens.Nodes, nil
 }
+
+func (c *Client) ClosestWireguardGatewayRegion() (*Region, error) {
+	req := c.NewRequest(`
+		query {
+			nearestRegion(wireguardGateway: true) {
+				code
+				name
+				gatewayAvailable
+			}
+		}
+`)
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.NearestRegion, nil
+}
