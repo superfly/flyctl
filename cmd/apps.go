@@ -52,6 +52,11 @@ func newAppsCommand(client *client.Client) *Command {
 		Description: `The Cloud Native Buildpacks builder to use when deploying the app`,
 	})
 
+	create.AddBoolFlag(BoolFlagOpts{
+		Name:        "no-config",
+		Description: "Never write a fly.toml file",
+	})
+
 	appsDestroyStrings := docstrings.Get("apps.destroy")
 	destroy := BuildCommand(cmd, runDestroy, appsDestroyStrings.Usage, appsDestroyStrings.Short, appsDestroyStrings.Long, client, requireSession)
 	destroy.Args = cobra.ExactArgs(1)
