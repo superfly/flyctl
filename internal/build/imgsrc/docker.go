@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -15,7 +13,6 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	dockerclient "github.com/docker/docker/client"
-	"github.com/docker/go-connections/tlsconfig"
 	"github.com/jpillora/backoff"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
@@ -23,7 +20,9 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/monitor"
+	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/pkg/wg"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -160,33 +159,6 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 
 	terminal.Debugf("Remote Docker builder host: %s\n", host)
 
-	transport := &http.Transport{
-		TLSHandshakeTimeout:   10 * time.Second,
-		ResponseHeaderTimeout: 60 * time.Second,
-		// don't reuse connections to remote daemon to prevent deadlock in buildpack layer fetching.
-		// remove this once an http proxy is working with pack again
-		DisableKeepAlives: true,
-	}
-	if os.Getenv("FLY_REMOTE_BUILDER_NO_TLS") != "1" {
-		transport.TLSClientConfig = tlsconfig.ClientDefault()
-	}
-
-	httpc := &http.Client{
-		Transport: transport,
-	}
-
-	client, err := dockerclient.NewClientWithOpts(
-		dockerclient.WithAPIVersionNegotiation(),
-		dockerclient.WithHTTPClient(httpc),
-		dockerclient.WithHost(host),
-		dockerclient.WithHTTPHeaders(map[string]string{
-			"Authorization": basicAuth(appName, flyctl.GetAPIToken()),
-		}))
-
-	if err != nil {
-		return nil, errors.Wrap(err, "Error creating docker client")
-	}
-
 	err = func() error {
 		if remoteBuilderAppName != "" {
 			if streams.IsInteractive() {
@@ -206,11 +178,41 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 				return errors.New("remote builder app unavailable")
 			}
 		}
-
-		return waitForDaemon(ctx, client)
+		return nil
 	}()
 
 	if err != nil {
+		return nil, err
+	}
+
+	app, err := apiClient.GetApp(appName)
+	if err != nil {
+		return nil, fmt.Errorf("get app: %w", err)
+	}
+
+	state, err := wireguard.StateForOrg(apiClient, &app.Organization, "", "")
+	if err != nil {
+		return nil, fmt.Errorf("create wireguard config: %w", err)
+	}
+
+	terminal.Debugf("Establishing WireGuard connection (%s)\n", state.Name)
+
+	tunnel, err := wg.Connect(*state.TunnelConfig())
+	if err != nil {
+		return nil, fmt.Errorf("connect wireguard: %w", err)
+	}
+
+	client, err := dockerclient.NewClientWithOpts(
+		dockerclient.WithDialContext(tunnel.DialContext),
+		dockerclient.WithAPIVersionNegotiation(),
+		dockerclient.WithHost(host),
+	)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "Error creating docker client")
+	}
+
+	if err := waitForDaemon(ctx, client); err != nil {
 		return nil, err
 	}
 
@@ -222,29 +224,12 @@ func remoteBuilderURL(apiClient *api.Client, appName string) (string, string, er
 		return v, "", nil
 	}
 
-	rawURL, app, err := apiClient.EnsureRemoteBuilder(appName)
+	_, app, err := apiClient.EnsureRemoteBuilder(appName)
 	if err != nil {
 		return "", "", errors.Errorf("could not create remote builder: %v", err)
 	}
 
-	parsedURL, err := url.Parse(rawURL)
-	if err != nil {
-		return "", "", errors.Wrap(err, "error parsing remote builder url")
-	}
-
-	host := parsedURL.Hostname()
-	port := parsedURL.Port()
-
-	if port == "" {
-		port = "10000"
-	}
-
-	return "tcp://" + net.JoinHostPort(host, port), app.Name, nil
-}
-
-func basicAuth(appName, authToken string) string {
-	auth := appName + ":" + authToken
-	return "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
+	return "tcp://" + net.JoinHostPort(app.Name+".internal", "2375"), app.Name, nil
 }
 
 func waitForDaemon(ctx context.Context, client *dockerclient.Client) error {

@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/pkg/ssh"
 	"github.com/superfly/flyctl/pkg/wg"
 	"github.com/superfly/flyctl/terminal"
@@ -26,7 +27,7 @@ func runSSHShell(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	state, err := wireGuardForOrg(ctx, org)
+	state, err := wireguard.StateForOrg(ctx.Client.API(), org, ctx.Config.GetString("region"), "")
 	if err != nil {
 		return err
 	}
@@ -74,7 +75,7 @@ func runSSHConsole(ctx *cmdctx.CmdContext) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	state, err := wireGuardForOrg(ctx, &app.Organization)
+	state, err := wireguard.StateForOrg(ctx.Client.API(), &app.Organization, ctx.Config.GetString("region"), "")
 	if err != nil {
 		return fmt.Errorf("create wireguard config: %w", err)
 	}
