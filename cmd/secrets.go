@@ -9,6 +9,7 @@ import (
 
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/cmdutil"
 
 	"github.com/superfly/flyctl/docstrings"
 
@@ -75,27 +76,22 @@ func runSetSecrets(cc *cmdctx.CmdContext) error {
 		return err
 	}
 
-	secrets := make(map[string]string)
+	secrets, err := cmdutil.ParseKVStringsToMap(cc.Args)
+	if err != nil {
+		return err
+	}
 
-	for _, pair := range cc.Args {
-		parts := strings.SplitN(pair, "=", 2)
-		if len(parts) != 2 {
-			return fmt.Errorf("Secrets must be provided as NAME=VALUE pairs (%s is invalid)", pair)
-		}
-		key := parts[0]
-		value := parts[1]
-		if value == "-" {
+	for k, v := range secrets {
+		if v == "-" {
 			if !helpers.HasPipedStdin() {
-				return fmt.Errorf("Secret `%s` expects standard input but none provided", parts[0])
+				return fmt.Errorf("Secret `%s` expects standard input but none provided", k)
 			}
 			inval, err := helpers.ReadStdin(4 * 1024)
 			if err != nil {
-				return fmt.Errorf("Error reading stdin for '%s': %s", parts[0], err)
+				return fmt.Errorf("Error reading stdin for '%s': %s", k, err)
 			}
-			value = inval
+			secrets[k] = inval
 		}
-
-		secrets[key] = value
 	}
 
 	if len(secrets) < 1 {
