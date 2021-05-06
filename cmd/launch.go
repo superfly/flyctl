@@ -24,6 +24,7 @@ func newLaunchCommand(client *client.Client) *Command {
 	launchCmd.AddStringFlag(StringFlagOpts{Name: "name", Description: "the name of the new app"})
 	launchCmd.AddStringFlag(StringFlagOpts{Name: "region", Description: "the region to launch the new app in"})
 	launchCmd.AddStringFlag(StringFlagOpts{Name: "image", Description: "the image to launch"})
+	launchCmd.AddBoolFlag(BoolFlagOpts{Name: "now", Description: "deploy now without confirmation", Default: false})
 
 	return launchCmd
 }
@@ -157,7 +158,7 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	if !confirm("Would you like to deploy now?") {
+	if !cmdctx.Config.GetBool("now") && !confirm("Would you like to deploy now?") {
 		return nil
 	}
 
