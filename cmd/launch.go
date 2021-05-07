@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/sourcecode"
 
@@ -37,14 +38,21 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 	}
 	cmdctx.WorkingDir = dir
 
-	fmt.Println("Creating app in", dir)
+	orgSlug := cmdctx.Config.GetString("org")
 
+	// start a remote builder for the personal org if necessary
+	eagerBuilderOrg := orgSlug
+	if orgSlug == "" {
+		eagerBuilderOrg = "personal"
+	}
+	go imgsrc.EagerlyEnsureRemoteBuilder(cmdctx.Client.API(), eagerBuilderOrg)
+
+	fmt.Println("Creating app in", dir)
 	appConfig := flyctl.NewAppConfig()
 
 	var srcInfo *sourcecode.SourceInfo
 
 	configFilePath := filepath.Join(dir, "fly.toml")
-
 	if exists, _ := flyctl.ConfigFileExistsAtPath(configFilePath); exists {
 		cfg, err := flyctl.LoadAppConfig(configFilePath)
 		if err != nil {
@@ -93,10 +101,14 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 	}
 
 	appName := cmdctx.Config.GetString("name")
-	orgSlug := cmdctx.Config.GetString("org")
 	org, err := selectOrganization(cmdctx.Client.API(), orgSlug)
 	if err != nil {
 		return err
+	}
+
+	// spawn another builder if the chosen org is different
+	if org.Slug != eagerBuilderOrg {
+		go imgsrc.EagerlyEnsureRemoteBuilder(cmdctx.Client.API(), org.Slug)
 	}
 
 	regionCode := cmdctx.Config.GetString("region")

@@ -961,7 +961,8 @@ type AttachPostgresClusterPayload struct {
 }
 
 type EnsureRemoteBuilderInput struct {
-	AppName string `json:"appName"`
+	AppName        *string `json:"appName"`
+	OrganizationID *string `json:"organizationId"`
 }
 
 type PostgresClusterUser struct {

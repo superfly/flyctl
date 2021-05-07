@@ -245,7 +245,7 @@ func remoteBuilderURL(apiClient *api.Client, appName string) (string, string, er
 		return v, "", nil
 	}
 
-	_, app, err := apiClient.EnsureRemoteBuilder(appName)
+	_, app, err := apiClient.EnsureRemoteBuilderForApp(appName)
 	if err != nil {
 		return "", "", errors.Errorf("could not create remote builder: %v", err)
 	}
@@ -388,4 +388,25 @@ func resolveDockerfile(cwd string) string {
 		return dockerfilePath
 	}
 	return ""
+}
+
+func EagerlyEnsureRemoteBuilder(apiClient *api.Client, orgSlug string) {
+	// skip if local docker is available
+	if _, err := newLocalDockerClient(); err == nil {
+		return
+	}
+
+	org, err := apiClient.FindOrganizationBySlug(orgSlug)
+	if err != nil {
+		terminal.Debugf("error resolving organization for slug %s: %s", orgSlug, err)
+		return
+	}
+
+	_, app, err := apiClient.EnsureRemoteBuilderForOrg(org.ID)
+	if err != nil {
+		terminal.Debugf("error ensuring remote builder for organization: %s", err)
+		return
+	}
+
+	terminal.Debugf("remote builder %s is being prepared", app.Name)
 }
