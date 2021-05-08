@@ -2,7 +2,7 @@
 
 ## Notes on versioning
 
-There are two version types, in line with semver. Releases with major.minor.patch versions and prereleases with major.minor.patch-beta-incnumber versions.
+There are two version types, in line with semver. Releases with major.minor.patch versions and prereleases with major.minor.patch-pre-incnumber versions.
 
 The process has been for a release 
 
@@ -12,9 +12,9 @@ the version field named (major/minor/patch (the default)) would be incremented a
 
 With prerel support, a new optional parameter, prerel can be used along with the version field. It's action depends on the current version number.
 
-v0.0.100 -> where the number is a release version, the (default) patch is incremented, then a -beta-1 prerelease tag is added
+v0.0.100 -> where the number is a release version, the (default) patch is incremented, then a -pre-1 prerelease tag is added
 
-v0.0.101-beta-1 -> if the prerel parameter is present, then the tag is incremented to -beta-2 and so on
+v0.0.101-pre-1 -> if the prerel parameter is present, then the tag is incremented to -pre-2 and so on
                     if the prerel parameter is not present, then the prerel tag is removed and the new version is v0.0.101 -> a 
                     release
 
