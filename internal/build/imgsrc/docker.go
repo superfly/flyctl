@@ -257,7 +257,7 @@ func waitForDaemon(ctx context.Context, client *dockerclient.Client) error {
 	b := &backoff.Backoff{
 		//These are the defaults
 		Min:    200 * time.Millisecond,
-		Max:    2 * time.Second,
+		Max:    1 * time.Second,
 		Factor: 1.2,
 		Jitter: true,
 	}
