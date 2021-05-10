@@ -4,9 +4,6 @@ on:
   push:
   workflow_dispatch:
 
-# permissions:
-#   contents: write
-
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -38,3 +35,73 @@ jobs:
           args: build --rm-dist --snapshot
       - name: Run tests
         run: go test ./...
+
+  release:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.16
+      - name: Docker Login
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+        run: |
+          echo "${DOCKER_PASSWORD}" | docker login --username "${DOCKER_USERNAME}" --password-stdin
+      - uses: actions/cache@v2
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - name: Place wintun.dll
+        run: cp -r deps/wintun/bin/amd64/wintun.dll ./
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v2
+        with:
+          version: latest
+          args: release --rm-dist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
+      - name: Upload checksums as artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: checksums
+          path: dist/checksums.txt
+
+  aur-publish:
+    name: Build & publish to AUR
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/v') && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Download checksums
+        uses: actions/download-artifact@v2.0.8
+        with:
+          name: checksums
+      - name: Generate PKGBUILD
+        run: |
+          mkdir -p aur/flyctl-bin
+          export version=${GITHUB_REF#refs/*/}
+          export pkgver=${version:1}
+          export sha256sum=$(grep "Linux_x86_64.tar.gz" checksums.txt | cut -d ' ' -f 1)
+          envsubst '${pkgver},${sha256sum}' < aur/PKGBUILD > aur/flyctl-bin/PKGBUILD
+          cat aur/flyctl-bin/PKGBUILD
+      - name: Publish flyctl-bin to the AUR
+        uses: jbouter/aur-releaser@v0.0.7
+        with:
+          pkgname: flyctl-bin
+          pkgbuild: ./aur/flyctl-bin/PKGBUILD
+          commit_username: jeromegn
+          commit_email: jeromegn@gmail.com
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: ${{ github.event.ref }}
+          force_push: 'true'
