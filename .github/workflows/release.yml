@@ -42,6 +42,7 @@ jobs:
 
   aur-publish:
     name: "Build & publish to AUR"
+    if: ${{ github.ref == 'refs/heads/master' }}
     runs-on: ubuntu-latest
     needs:
       - release
