@@ -35,6 +35,6 @@ jobs:
         uses: goreleaser/goreleaser-action@v2
         with:
           version: latest
-          args: build --rm-dist
+          args: build --rm-dist --snapshot
       - name: Run tests
         run: go test ./...
