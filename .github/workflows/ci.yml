@@ -25,9 +25,16 @@ jobs:
             ${{ runner.os }}-go-
       - name: go mod download
         run: go mod download
+      - name: go mod verify
+        run: go mod verify
       - name: generate command strings
         run: go generate ./...
       - name: "Place wintun.dll"
         run: cp deps/wintun/bin/amd64/wintun.dll ./ 
+      - name: build
+        uses: goreleaser/goreleaser-action@v2
+        with:
+          version: latest
+          args: build --rm-dist
       - name: Run tests
         run: go test ./...
