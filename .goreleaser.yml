@@ -67,12 +67,13 @@ dockers:
     image_templates:
       - "flyio/flyctl:latest"
       - "flyio/flyctl:v{{ .Version }}"
+    skip_push: auto
 
 checksum:
   name_template: "checksums.txt"
 
 snapshot:
-  name_template: "{{ .Tag }}-next"
+  name_template: "{{.Branch}}-{{.ShortCommit}}"
 
 changelog:
   sort: asc
@@ -87,6 +88,7 @@ brews:
       name: homebrew-tap
     folder: Formula
     homepage: https://fly.io
+    skip_upload: auto
     test: |
       system "#{bin}/flyctl version"
     install: |

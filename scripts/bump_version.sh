@@ -31,7 +31,7 @@ if [[ $prerel == "prerel" ]]; then
     new_version=$("$dir"/../scripts/semver bump "$bump" "$previous_version")
     new_version=$("$dir"/../scripts/semver bump prerel pre-1 "$new_version")
   else
-    prerel=beta-$((${prerelversion#beta-} + 1))
+    prerel=pre-$((${prerelversion#pre-} + 1))
     new_version=$("$dir"/../scripts/semver bump prerel "$prerel" "$previous_version")
   fi
 else
