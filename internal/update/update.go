@@ -64,6 +64,25 @@ func PerformInPlaceUpgrade(ctx context.Context, configPath string, currentVersio
 		return nil
 	}
 
+	if runtime.GOOS == "windows" {
+		// can't replace binary on windows, need to move
+		binaryPath, err := os.Executable()
+		if err != nil {
+			return err
+		}
+
+		toMove := []string{
+			binaryPath,
+			filepath.Join(filepath.Base(binaryPath), "wintun.dll"),
+		}
+
+		for _, p := range toMove {
+			if err := os.Rename(p, p+".old"); err != nil {
+				return err
+			}
+		}
+	}
+
 	shellToUse, ok := os.LookupEnv("SHELL")
 	switchToUse := "-c"
 
