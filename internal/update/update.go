@@ -73,7 +73,7 @@ func PerformInPlaceUpgrade(ctx context.Context, configPath string, currentVersio
 
 		toMove := []string{
 			binaryPath,
-			filepath.Join(filepath.Base(binaryPath), "wintun.dll"),
+			filepath.Join(filepath.Dir(binaryPath), "wintun.dll"),
 		}
 
 		for _, p := range toMove {
