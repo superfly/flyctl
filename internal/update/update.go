@@ -65,21 +65,8 @@ func PerformInPlaceUpgrade(ctx context.Context, configPath string, currentVersio
 	}
 
 	if runtime.GOOS == "windows" {
-		// can't replace binary on windows, need to move
-		binaryPath, err := os.Executable()
-		if err != nil {
+		if err := renameCurrentBinaries(); err != nil {
 			return err
-		}
-
-		toMove := []string{
-			binaryPath,
-			filepath.Join(filepath.Dir(binaryPath), "wintun.dll"),
-		}
-
-		for _, p := range toMove {
-			if err := os.Rename(p, p+".old"); err != nil {
-				return err
-			}
 		}
 	}
 
@@ -106,4 +93,49 @@ func PerformInPlaceUpgrade(ctx context.Context, configPath string, currentVersio
 	cmd.Stdin = os.Stdin
 
 	return cmd.Run()
+}
+
+// can't replace binary on windows, need to move
+func renameCurrentBinaries() error {
+	binaries, err := currentWindowsBinaries()
+	if err != nil {
+		return err
+	}
+
+	for _, p := range binaries {
+		if err := os.Rename(p, p+".old"); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func PostUpgradeCleanup() error {
+	if runtime.GOOS != "windows" {
+		return nil
+	}
+
+	binaries, err := currentWindowsBinaries()
+	if err != nil {
+		return err
+	}
+
+	for _, p := range binaries {
+		os.Remove(p + ".old")
+	}
+
+	return nil
+}
+
+func currentWindowsBinaries() ([]string, error) {
+	binaryPath, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+
+	return []string{
+		binaryPath,
+		filepath.Join(filepath.Dir(binaryPath), "wintun.dll"),
+	}, nil
 }

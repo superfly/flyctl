@@ -64,6 +64,8 @@ func main() {
 
 	updateChan := make(chan *update.Release)
 	go func() {
+		defer update.PostUpgradeCleanup()
+
 		rel, err := checkForUpdate(flyctl.Version)
 		if err != nil {
 			terminal.Debug("error checking for update:", err)
