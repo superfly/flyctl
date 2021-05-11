@@ -86,6 +86,7 @@ func main() {
 	update := <-updateChan
 	if update != nil {
 		fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Update available %s -> %s", flyctl.Version, update.Version)))
+		fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Run \"%s\" to upgrade", aurora.Bold(flyname.Name()+" version update"))))
 	}
 
 	_, err := root.ExecuteC()
