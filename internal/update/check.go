@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/blang/semver"
@@ -27,14 +28,19 @@ type state struct {
 	LatestRelease *Release
 }
 
-// func InitState(configPath string, channel string, installMethod string) error {
-// 	state, _ := loadState(configPath)
+func InitState(configPath string, channel string) error {
+	state, _ := loadState(configPath)
 
-// 	state.Channel = channel
-// 	state.InstallMethod = installMethod
+	if strings.Contains(channel, "pre") {
+		channel = "pre"
+	} else {
+		channel = "latest"
+	}
 
-// 	return saveState(configPath, state)
-// }
+	state.Channel = channel
+
+	return saveState(configPath, state)
+}
 
 func CheckForUpdate(ctx context.Context, configPath string, currentVersion string) (*Release, error) {
 	state, _ := loadState(configPath)

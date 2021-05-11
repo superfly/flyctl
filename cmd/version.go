@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/spf13/viper"
+	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/flyname"
@@ -29,6 +29,10 @@ func newVersionCommand(client *client.Client) *Command {
 	updateStrings := docstrings.Get("version.update")
 	BuildCommandKS(version, runUpdate, updateStrings, client)
 
+	initStateCmd := BuildCommand(version, runInitState, "init-state", "init-state", "Initialize installation state", client)
+	initStateCmd.Hidden = true
+	initStateCmd.Args = cobra.ExactArgs(1)
+
 	return version
 }
 
@@ -36,10 +40,8 @@ func runVersion(ctx *cmdctx.CmdContext) error {
 	saveInstall := ctx.Config.GetString("saveinstall")
 
 	if saveInstall != "" {
-		viper.Set(flyctl.ConfigInstaller, saveInstall)
-		if err := flyctl.SaveConfig(); err != nil {
-			return err
-		}
+		stateFilePath := filepath.Join(flyctl.ConfigDir(), "state.yml")
+		update.InitState(stateFilePath, saveInstall)
 	}
 
 	if ctx.OutputJSON() {
@@ -57,6 +59,11 @@ func runVersion(ctx *cmdctx.CmdContext) error {
 	}
 
 	return nil
+}
+
+func runInitState(ctx *cmdctx.CmdContext) error {
+	stateFilePath := filepath.Join(flyctl.ConfigDir(), "state.yml")
+	return update.InitState(stateFilePath, ctx.Args[0])
 }
 
 func runUpdate(ctx *cmdctx.CmdContext) error {
