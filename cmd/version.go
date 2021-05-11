@@ -1,9 +1,9 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
-	"os"
-	"os/exec"
+	"path/filepath"
 	"runtime"
 
 	"github.com/spf13/viper"
@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/flyname"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/update"
 
 	"github.com/superfly/flyctl/docstrings"
 )
@@ -59,37 +60,6 @@ func runVersion(ctx *cmdctx.CmdContext) error {
 }
 
 func runUpdate(ctx *cmdctx.CmdContext) error {
-	installerstring := flyctl.CheckForUpdate(true, true) // No skipping, be silent
-
-	if installerstring == "" {
-		return fmt.Errorf("no update currently available")
-	}
-
-	shellToUse, ok := os.LookupEnv("SHELL")
-	switchToUse := "-c"
-
-	if !ok {
-		if runtime.GOOS == "windows" {
-			shellToUse = "powershell.exe"
-			switchToUse = "-Command"
-		} else {
-			shellToUse = "/bin/bash"
-		}
-	}
-	fmt.Println(shellToUse, switchToUse)
-
-	fmt.Println("Running automatic update [" + installerstring + "]")
-	cmd := exec.Command(shellToUse, switchToUse, installerstring)
-
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-
-	err := cmd.Run()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	os.Exit(0)
-	return nil
+	stateFilePath := filepath.Join(flyctl.ConfigDir(), "state.yml")
+	return update.PerformInPlaceUpgrade(context.TODO(), stateFilePath, flyctl.Version)
 }

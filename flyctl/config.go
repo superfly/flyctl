@@ -17,11 +17,7 @@ const (
 
 	ConfigWireGuardState = "wire_guard_state"
 
-	ConfigRegistryHost             = "registry_host"
-	ConfigUpdateCheck              = "update_check"
-	ConfigUpdateCheckLatestVersion = ConfigUpdateCheck + ".latest_version"
-	ConfigUpdateCheckTimestamp     = ConfigUpdateCheck + ".timestamp"
-	ConfigUpdateCheckOptOut        = ConfigUpdateCheck + ".opt_out"
+	ConfigRegistryHost = "registry_host"
 )
 
 const NSRoot = "flyctl"
