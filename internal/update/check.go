@@ -16,16 +16,16 @@ import (
 )
 
 type Release struct {
-	Version     string
-	Prerelease  bool
-	DownloadURL string
-	Timestamp   time.Time
+	Version     string    `yaml:"version"`
+	Prerelease  bool      `yaml:"prerelease"`
+	DownloadURL string    `yaml:"download_url" json:"download_url"`
+	Timestamp   time.Time `yaml:"timestamp"`
 }
 
 type state struct {
-	Channel       string
-	LastCheckedAt time.Time
-	LatestRelease *Release
+	Channel       string    `yaml:"channel,omitempty"`
+	LastCheckedAt time.Time `yaml:"last_checked_at,omitempty"`
+	LatestRelease *Release  `yaml:"latest_release,omitempty"`
 }
 
 func InitState(configPath string, channel string) error {
