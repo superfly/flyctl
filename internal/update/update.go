@@ -54,12 +54,17 @@ func updateCommand(prerelease bool) string {
 }
 
 func PerformInPlaceUpgrade(ctx context.Context, configPath string, currentVersion string) error {
-	release, err := CheckForUpdate(ctx, configPath, currentVersion)
+	state, _ := loadState(configPath)
+	if state.Channel == "" {
+		state.Channel = "latest"
+	}
+
+	release, err := fetchLatestVersion(ctx, state.Channel)
 	if err != nil {
 		return err
 	}
 
-	if release == nil {
+	if release == nil || !isGreaterThan(currentVersion, release.Version) {
 		fmt.Println("No update available")
 		return nil
 	}
