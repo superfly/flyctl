@@ -20,6 +20,8 @@ dist/
 # Local environment settings
 .envrc
 
+tmp/
+
 # generated docs
 out
 #docstrings/gen.go

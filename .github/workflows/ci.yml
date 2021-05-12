@@ -80,12 +80,12 @@ jobs:
       - name: generate release notes
         run: |
           mkdir -p ./dist
-          ./scripts/changelog.sh > ./dist/changelog.txt
+          ./scripts/changelog.sh > ./tmp/changelog.txt
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2
         with:
           version: latest
-          args: release --rm-dist --release-notes=./dist/changelog.txt
+          args: release --rm-dist --release-notes=./tmp/changelog.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
       - name: Upload checksums as artifact
