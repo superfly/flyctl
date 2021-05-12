@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-current_tag=$(git tag --points-at HEAD --sort -v:refname | head -n1)
+current_tag=$(git -c "versionsort.prereleasesuffix=-pre" tag --points-at HEAD --sort -v:refname | head -n1)
 if [ -z "$current_tag" ]; then
   current_tag=$(git describe --tags --abbrev=0)
 fi
