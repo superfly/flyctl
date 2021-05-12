@@ -79,7 +79,7 @@ jobs:
         run: cp -r deps/wintun/bin/amd64/wintun.dll ./
       - name: generate release notes
         run: |
-          mkdir -p ./dist
+          mkdir -p ./tmp
           ./scripts/changelog.sh > ./tmp/changelog.txt
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2
