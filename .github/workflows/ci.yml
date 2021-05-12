@@ -35,11 +35,6 @@ jobs:
         run: go generate ./...
       - name: "Place wintun.dll"
         run: cp deps/wintun/bin/amd64/wintun.dll ./ 
-      - name: generate release notes
-        run: ./scripts/changelog.sh > changelog.txt
-      - run: pwd
-      - run: ls -lah
-      - run: git status
       - name: build
         uses: goreleaser/goreleaser-action@v2
         with:
@@ -83,12 +78,14 @@ jobs:
       - name: Place wintun.dll
         run: cp -r deps/wintun/bin/amd64/wintun.dll ./
       - name: generate release notes
-        run: ./scripts/changelog.sh > changelog.txt
+        run: |
+          mkdir -p ./dist
+          ./scripts/changelog.sh > ./dist/changelog.txt
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2
         with:
           version: latest
-          args: release --rm-dist --release-notes=changelog.txt
+          args: release --rm-dist --release-notes=./dist/changelog.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
       - name: Upload checksums as artifact
