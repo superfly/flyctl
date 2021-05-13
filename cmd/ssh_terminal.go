@@ -64,13 +64,9 @@ func runSSHShell(ctx *cmdctx.CmdContext) error {
 func runSSHConsole(ctx *cmdctx.CmdContext) error {
 	client := ctx.Client.API()
 
-	terminal.Debugf("Retrieving app info for %s\n", ctx.AppConfig.AppName)
+	terminal.Debugf("Retrieving app info for %s\n", ctx.AppName)
 
-	if ctx.AppConfig.AppName == "" {
-		ctx.AppConfig.AppName = ctx.AppName
-	}
-
-	app, err := client.GetApp(ctx.AppConfig.AppName)
+	app, err := client.GetApp(ctx.AppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
@@ -96,9 +92,9 @@ func runSSHConsole(ctx *cmdctx.CmdContext) error {
 	var addr string
 
 	if ctx.Config.GetBool("select") {
-		instances, err := allInstances(tunnel.Resolver(), ctx.AppConfig.AppName)
+		instances, err := allInstances(tunnel.Resolver(), ctx.AppName)
 		if err != nil {
-			return fmt.Errorf("look up %s: %w", ctx.AppConfig.AppName, err)
+			return fmt.Errorf("look up %s: %w", ctx.AppName, err)
 		}
 
 		selected := 0
@@ -116,14 +112,14 @@ func runSSHConsole(ctx *cmdctx.CmdContext) error {
 	} else if len(ctx.Args) != 0 {
 		addr = ctx.Args[0]
 	} else {
-		addr = fmt.Sprintf("%s.internal", ctx.AppConfig.AppName)
+		addr = fmt.Sprintf("%s.internal", ctx.AppName)
 	}
 
 	return sshConnect(&SSHParams{
 		Ctx:    ctx,
 		Org:    &app.Organization,
 		Tunnel: tunnel,
-		App:    ctx.AppConfig.AppName,
+		App:    ctx.AppName,
 		Cmd:    ctx.Config.GetString("command"),
 	}, addr)
 }
