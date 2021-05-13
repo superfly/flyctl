@@ -97,7 +97,7 @@ jobs:
   aur-publish:
     name: Build & publish to AUR
     needs: release
-    if: startsWith(github.ref, 'refs/tags/v') && github.ref == 'refs/heads/master'
+    if: ${{ !contains(github.ref, 'pre') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
