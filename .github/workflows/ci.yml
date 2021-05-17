@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: 1.16.x
+      - uses: actions/cache@v2
+        with:
+          # In order:
+          # * Module download cache
+          # * Build cache (Linux)
+          # * Build cache (Mac)
+          # * Build cache (Windows)
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ~/Library/Caches/go-build
+            %LocalAppData%\go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go
+      - name: go mod download
+        run: go mod download
+      - name: go mod verify
+        run: go mod verify
+      - name: generate command strings
+        run: go generate ./...
+      - name: "Place wintun.dll"
+        run: cp deps/wintun/bin/amd64/wintun.dll ./ 
+      - name: build
+        uses: goreleaser/goreleaser-action@v2
+        with:
+          version: latest
+          args: build --rm-dist --snapshot
+      - name: Run tests
+        run: go test ./...
+
+  release:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v2
+        with:
+          go-version: 1.16.x
+      - name: Docker Login
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+        run: |
+          echo "${DOCKER_PASSWORD}" | docker login --username "${DOCKER_USERNAME}" --password-stdin
+      - uses: actions/cache@v2
+        with:
+          # In order:
+          # * Module download cache
+          # * Build cache (Linux)
+          # * Build cache (Mac)
+          # * Build cache (Windows)
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ~/Library/Caches/go-build
+            %LocalAppData%\go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go
+      - name: Place wintun.dll
+        run: cp -r deps/wintun/bin/amd64/wintun.dll ./
+      - name: generate release notes
+        run: |
+          mkdir -p ./tmp
+          ./scripts/changelog.sh > ./tmp/changelog.txt
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v2
+        with:
+          version: latest
+          args: release --rm-dist --release-notes=./tmp/changelog.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
+      - name: Upload checksums as artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: checksums
+          path: dist/checksums.txt
+
+  aur-publish:
+    name: Build & publish to AUR
+    needs: release
+    if: ${{ !contains(github.ref, 'pre') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Download checksums
+        uses: actions/download-artifact@v2.0.8
+        with:
+          name: checksums
+      - name: Generate PKGBUILD
+        run: |
+          mkdir -p aur/flyctl-bin
+          export version=${GITHUB_REF#refs/*/}
+          export pkgver=${version:1}
+          export sha256sum=$(grep "Linux_x86_64.tar.gz" checksums.txt | cut -d ' ' -f 1)
+          envsubst '${pkgver},${sha256sum}' < aur/PKGBUILD > aur/flyctl-bin/PKGBUILD
+          cat aur/flyctl-bin/PKGBUILD
+      - name: Publish flyctl-bin to the AUR
+        uses: jbouter/aur-releaser@v0.0.7
+        with:
+          pkgname: flyctl-bin
+          pkgbuild: ./aur/flyctl-bin/PKGBUILD
+          commit_username: jeromegn
+          commit_email: jeromegn@gmail.com
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: ${{ github.event.ref }}
+          force_push: 'true'

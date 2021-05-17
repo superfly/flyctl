@@ -5,57 +5,31 @@ import (
 	"time"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/pkg/retry"
 )
 
-type UpdateFn func(status string)
-
-func WaitForRunningVM(ctx context.Context, appName string, apiClient *api.Client, timeout time.Duration, update UpdateFn) (bool, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	done := make(chan error)
-	errorCount := 0
-
-	go func() {
-		for {
-			status, err := apiClient.GetAppStatus(appName, false)
-			if err != nil {
-				errorCount += 1
-				if errorCount < 3 {
-					continue
-				}
-				done <- err
-			}
-
-			isRunning := false
-
-			var currentStatus string
-
-			if len(runningVMs(status.Allocations)) > 0 {
-				currentStatus = "running"
-				isRunning = true
-			} else {
-				currentStatus = "starting"
-			}
-
-			update(currentStatus)
-
-			if isRunning {
-				done <- nil
-				break
-			}
-
-			time.Sleep(1 * time.Second)
-		}
-	}()
-
+func WaitForRunningVM(ctx context.Context, appName string, apiClient *api.Client) (err error) {
 	for {
-		select {
-		case <-ctx.Done():
-			return false, context.Canceled
-		case err := <-done:
-			return err == nil, err
+		var status *api.AppStatus
+
+		fn := func() error {
+			status, err = apiClient.GetAppStatus(appName, false)
+			return err
 		}
+
+		if err := retry.Retry(fn, 3); err != nil {
+			return err
+		}
+
+		if len(runningVMs(status.Allocations)) > 0 {
+			return nil
+		}
+
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		time.Sleep(1 * time.Second)
 	}
 }
 

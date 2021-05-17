@@ -1,16 +1,17 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
-	"os"
-	"os/exec"
+	"path/filepath"
 	"runtime"
 
-	"github.com/spf13/viper"
+	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/flyname"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/update"
 
 	"github.com/superfly/flyctl/docstrings"
 )
@@ -28,6 +29,10 @@ func newVersionCommand(client *client.Client) *Command {
 	updateStrings := docstrings.Get("version.update")
 	BuildCommandKS(version, runUpdate, updateStrings, client)
 
+	initStateCmd := BuildCommand(version, runInitState, "init-state", "init-state", "Initialize installation state", client)
+	initStateCmd.Hidden = true
+	initStateCmd.Args = cobra.ExactArgs(1)
+
 	return version
 }
 
@@ -35,10 +40,8 @@ func runVersion(ctx *cmdctx.CmdContext) error {
 	saveInstall := ctx.Config.GetString("saveinstall")
 
 	if saveInstall != "" {
-		viper.Set(flyctl.ConfigInstaller, saveInstall)
-		if err := flyctl.SaveConfig(); err != nil {
-			return err
-		}
+		stateFilePath := filepath.Join(flyctl.ConfigDir(), "state.yml")
+		update.InitState(stateFilePath, saveInstall)
 	}
 
 	if ctx.OutputJSON() {
@@ -58,38 +61,12 @@ func runVersion(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
+func runInitState(ctx *cmdctx.CmdContext) error {
+	stateFilePath := filepath.Join(flyctl.ConfigDir(), "state.yml")
+	return update.InitState(stateFilePath, ctx.Args[0])
+}
+
 func runUpdate(ctx *cmdctx.CmdContext) error {
-	installerstring := flyctl.CheckForUpdate(true, true) // No skipping, be silent
-
-	if installerstring == "" {
-		return fmt.Errorf("no update currently available")
-	}
-
-	shellToUse, ok := os.LookupEnv("SHELL")
-	switchToUse := "-c"
-
-	if !ok {
-		if runtime.GOOS == "windows" {
-			shellToUse = "powershell.exe"
-			switchToUse = "-Command"
-		} else {
-			shellToUse = "/bin/bash"
-		}
-	}
-	fmt.Println(shellToUse, switchToUse)
-
-	fmt.Println("Running automatic update [" + installerstring + "]")
-	cmd := exec.Command(shellToUse, switchToUse, installerstring)
-
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-
-	err := cmd.Run()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	os.Exit(0)
-	return nil
+	stateFilePath := filepath.Join(flyctl.ConfigDir(), "state.yml")
+	return update.PerformInPlaceUpgrade(context.TODO(), stateFilePath, flyctl.Version)
 }

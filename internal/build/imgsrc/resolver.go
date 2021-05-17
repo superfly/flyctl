@@ -21,6 +21,8 @@ type ImageOptions struct {
 	ImageLabel     string
 	Publish        bool
 	Tag            string
+	Target         string
+	NoCache        bool
 }
 
 type RefOptions struct {

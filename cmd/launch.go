@@ -7,8 +7,10 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/sourcecode"
 
@@ -24,6 +26,7 @@ func newLaunchCommand(client *client.Client) *Command {
 	launchCmd.AddStringFlag(StringFlagOpts{Name: "name", Description: "the name of the new app"})
 	launchCmd.AddStringFlag(StringFlagOpts{Name: "region", Description: "the region to launch the new app in"})
 	launchCmd.AddStringFlag(StringFlagOpts{Name: "image", Description: "the image to launch"})
+	launchCmd.AddBoolFlag(BoolFlagOpts{Name: "now", Description: "deploy now without confirmation", Default: false})
 
 	return launchCmd
 }
@@ -36,28 +39,48 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 	}
 	cmdctx.WorkingDir = dir
 
-	fmt.Println("Creating app in", dir)
+	orgSlug := cmdctx.Config.GetString("org")
+
+	// start a remote builder for the personal org if necessary
+	eagerBuilderOrg := orgSlug
+	if orgSlug == "" {
+		eagerBuilderOrg = "personal"
+	}
+	go imgsrc.EagerlyEnsureRemoteBuilder(cmdctx.Client.API(), eagerBuilderOrg)
 
 	appConfig := flyctl.NewAppConfig()
 
-	var srcInfo *sourcecode.SourceInfo
-
 	configFilePath := filepath.Join(dir, "fly.toml")
-
 	if exists, _ := flyctl.ConfigFileExistsAtPath(configFilePath); exists {
 		cfg, err := flyctl.LoadAppConfig(configFilePath)
 		if err != nil {
 			return err
 		}
+
+		var deployExisting bool
+
 		if cfg.AppName != "" {
 			fmt.Println("An existing fly.toml file was found for app", cfg.AppName)
+			deployExisting, err = shouldDeployExistingApp(cmdctx, cfg.AppName)
+			if err != nil {
+				return err
+			}
 		} else {
 			fmt.Println("An existing fly.toml file was found")
 		}
-		if confirm("Would you like to copy its configuration to the new app?") {
+
+		if deployExisting {
+			fmt.Println("App is not running, deploy...")
+			cmdctx.AppName = cfg.AppName
+			cmdctx.AppConfig = cfg
+			return runDeploy(cmdctx)
+		} else if confirm("Would you like to copy its configuration to the new app?") {
 			appConfig.Definition = cfg.Definition
 		}
 	}
+
+	fmt.Println("Creating app in", dir)
+	var srcInfo *sourcecode.SourceInfo
 
 	if img := cmdctx.Config.GetString("image"); img != "" {
 		fmt.Println("Using image", img)
@@ -92,10 +115,14 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 	}
 
 	appName := cmdctx.Config.GetString("name")
-	orgSlug := cmdctx.Config.GetString("org")
 	org, err := selectOrganization(cmdctx.Client.API(), orgSlug)
 	if err != nil {
 		return err
+	}
+
+	// spawn another builder if the chosen org is different
+	if org.Slug != eagerBuilderOrg {
+		go imgsrc.EagerlyEnsureRemoteBuilder(cmdctx.Client.API(), org.Slug)
 	}
 
 	regionCode := cmdctx.Config.GetString("region")
@@ -157,46 +184,33 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	if !confirm("Would you like to deploy now?") {
+	fmt.Println("Your app is ready. Deploy with `flyctl deploy`")
+
+	if !cmdctx.Config.GetBool("now") && !confirm("Would you like to deploy now?") {
 		return nil
 	}
 
 	return runDeploy(cmdctx)
+}
 
-	// return nil
+func shouldDeployExistingApp(cc *cmdctx.CmdContext, appName string) (bool, error) {
+	status, err := cc.Client.API().GetAppStatus(appName, false)
+	if err != nil {
+		if api.IsNotFoundError(err) || err.Error() == "Could not resolve App" {
+			return false, nil
+		}
+		return false, err
+	}
 
-	// if srcInfo != nil {
-	// 	var img *docker.Image
-	// 	ctx := createCancellableContext()
-	// 	cmdctx.AppConfig = flyctl.NewAppConfig()
-	// 	cmdctx.AppName = srcInfo.Name
-	// 	cmdctx.WorkingDir = dir
-	// 	buildOp, err := docker.NewBuildOperation(ctx, cmdctx)
-	// 	if err != nil {
-	// 		return err
-	// 	}
+	if !status.Deployed {
+		return true, nil
+	}
 
-	// 	if srcInfo.DockerfilePath != "" {
-	// 		fmt.Println("Dockerfile detected, attempting to build")
+	for _, a := range status.Allocations {
+		if a.Healthy {
+			return false, nil
+		}
+	}
 
-	// 		img, err = buildOp.BuildWithDocker(cmdctx, srcInfo.DockerfilePath, nil)
-	// 	} else if len(srcInfo.Buildpacks) > 0 {
-	// 		fmt.Println("Buildpacks detected, attempting to build")
-
-	// 		cmdctx.AppConfig.Build = &flyctl.Build{
-	// 			Builder:    srcInfo.Builder,
-	// 			Buildpacks: srcInfo.Buildpacks,
-	// 		}
-
-	// 		img, err = buildOp.BuildWithPack(cmdctx, nil)
-	// 	}
-
-	// 	if err != nil {
-	// 		return err
-	// 	}
-
-	// 	fmt.Printf("build succeeded: %+v\n", img)
-	// }
-
-	// return nil
+	return true, nil
 }

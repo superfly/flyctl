@@ -97,11 +97,6 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 	return rootCmd.Command
 }
 
-func init() {
-	flyctl.InitConfig()
-	flyctl.CheckForUpdate(false, false) // allow skipping, don't be silent
-}
-
 func checkErr(err error) {
 	if err == nil {
 		return

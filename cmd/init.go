@@ -86,15 +86,15 @@ func newInitCommand(client *client.Client) *Command {
 	return cmd
 }
 
-func runInit(commandContext *cmdctx.CmdContext) error {
+func runInit(cmdCtx *cmdctx.CmdContext) error {
 	var appName = ""
 	var internalPort = 0
 
-	if len(commandContext.Args) > 0 {
-		appName = commandContext.Args[0]
+	if len(cmdCtx.Args) > 0 {
+		appName = cmdCtx.Args[0]
 	}
 
-	configPort := commandContext.Config.GetString("port")
+	configPort := cmdCtx.Config.GetString("port")
 
 	// If ports set, validate
 	if configPort != "" {
@@ -105,10 +105,10 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 			return fmt.Errorf(`-p ports must be numeric`)
 		}
 	}
-	overwrite := commandContext.Config.GetBool("overwrite")
-	nowrite := commandContext.Config.GetBool("nowrite")
+	overwrite := cmdCtx.Config.GetBool("overwrite")
+	nowrite := cmdCtx.Config.GetBool("nowrite") || cmdCtx.Config.GetBool("no-config")
 
-	configfilename, err := flyctl.ResolveConfigFileFromPath(commandContext.WorkingDir)
+	configfilename, err := flyctl.ResolveConfigFileFromPath(cmdCtx.WorkingDir)
 	if err != nil {
 		return err
 	}
@@ -118,7 +118,7 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 	if !nowrite {
 		if helpers.FileExists(configfilename) {
 			if !overwrite {
-				commandContext.Status("init", cmdctx.SERROR, "An existing configuration file has been found.")
+				cmdCtx.Status("init", cmdctx.SERROR, "An existing configuration file has been found.")
 				confirmation := confirm(fmt.Sprintf("Overwrite file '%s'", configfilename))
 				if !confirmation {
 					return nil
@@ -129,8 +129,8 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 
 	name := ""
 
-	if !commandContext.Config.GetBool("generatename") {
-		name = commandContext.Config.GetString("name")
+	if !cmdCtx.Config.GetBool("generatename") {
+		name = cmdCtx.Config.GetString("name")
 
 		if name != "" && appName != "" {
 			return fmt.Errorf(`two app names specified %s and %s. Select and specify only one`, appName, name)
@@ -158,8 +158,8 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 
 	fmt.Println()
 
-	targetOrgSlug := commandContext.Config.GetString("org")
-	org, err := selectOrganization(commandContext.Client.API(), targetOrgSlug)
+	targetOrgSlug := cmdCtx.Config.GetString("org")
+	org, err := selectOrganization(cmdCtx.Client.API(), targetOrgSlug)
 
 	switch {
 	case isInterrupt(err):
@@ -170,20 +170,20 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 
 	fmt.Println()
 
-	builder := commandContext.Config.GetString("builder")
-	builtinname := commandContext.Config.GetString("builtin")
-	importfile := commandContext.Config.GetString("import")
-	imagename := commandContext.Config.GetString("image")
+	builder := cmdCtx.Config.GetString("builder")
+	builtinname := cmdCtx.Config.GetString("builtin")
+	importfile := cmdCtx.Config.GetString("import")
+	imagename := cmdCtx.Config.GetString("image")
 
 	if !nowrite {
 		// If we are importing or using a builtin, assume builders are set in the template
 		if importfile == "" && builtinname == "" && imagename == "" {
 			// Otherwise get a Builder from the user while checking the dockerfile setting
-			dockerfileSet := commandContext.Config.IsSet("dockerfile")
-			dockerfile := commandContext.Config.GetBool("dockerfile")
+			dockerfileSet := cmdCtx.Config.IsSet("dockerfile")
+			dockerfile := cmdCtx.Config.GetBool("dockerfile")
 
 			if builder == "" && !dockerfileSet {
-				builder, builtin, err := selectBuildtype(commandContext)
+				builder, builtin, err := selectBuildtype(cmdCtx)
 
 				switch {
 				case isInterrupt(err):
@@ -193,7 +193,7 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 				}
 				// If image, prompt for name
 				if builder == "Image" {
-					imagename, err = selectImage(commandContext)
+					imagename, err = selectImage(cmdCtx)
 					if err != nil {
 						return err
 					}
@@ -213,7 +213,7 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 		}
 	}
 	// The creation magic happens here....
-	app, err := commandContext.Client.API().CreateApp(name, org.ID, nil)
+	app, err := cmdCtx.Client.API().CreateApp(name, org.ID, nil)
 	if err != nil {
 		return err
 	}
@@ -224,7 +224,7 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 			newAppConfig.Build = &flyctl.Build{Image: imagename}
 			newAppConfig.Definition = app.Config.Definition
 		} else if importfile != "" {
-			if !commandContext.OutputJSON() {
+			if !cmdCtx.OutputJSON() {
 				fmt.Printf("Importing configuration from %s\n", importfile)
 			}
 
@@ -252,12 +252,12 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 				if err != nil {
 					return err
 				}
-				if !commandContext.OutputJSON() {
+				if !cmdCtx.OutputJSON() {
 					fmt.Printf("Importing port %d\n", currentport)
 				}
 			}
 		} else if builtinname != "" {
-			if !commandContext.OutputJSON() {
+			if !cmdCtx.OutputJSON() {
 				fmt.Printf("Builtins use port 8080\n")
 			}
 			newAppConfig.SetInternalPort(8080)
@@ -267,36 +267,36 @@ func runInit(commandContext *cmdctx.CmdContext) error {
 			if err != nil {
 				return err
 			}
-			internalPort, err = selectPort(commandContext, currentport)
+			internalPort, err = selectPort(cmdCtx, currentport)
 			if err != nil {
 				return err
 			}
 			newAppConfig.SetInternalPort(internalPort)
 		}
 
-		if commandContext.OutputJSON() {
-			commandContext.WriteJSON(app)
+		if cmdCtx.OutputJSON() {
+			cmdCtx.WriteJSON(app)
 			return nil
 		}
 
-		err = commandContext.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "New app created"})
+		err = cmdCtx.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppInfo{App: *app}, HideHeader: true, Vertical: true, Title: "New app created"})
 		if err != nil {
 			return err
 		}
 
 		fmt.Printf("App will initially deploy to %s (%s) region\n\n", (*app.Regions)[0].Code, (*app.Regions)[0].Name)
-		if commandContext.ConfigFile == "" {
-			newCfgFile, err := flyctl.ResolveConfigFileFromPath(commandContext.WorkingDir)
+		if cmdCtx.ConfigFile == "" {
+			newCfgFile, err := flyctl.ResolveConfigFileFromPath(cmdCtx.WorkingDir)
 			if err != nil {
 				return err
 			}
-			commandContext.ConfigFile = newCfgFile
+			cmdCtx.ConfigFile = newCfgFile
 		}
 
-		commandContext.AppName = app.Name
-		commandContext.AppConfig = newAppConfig
+		cmdCtx.AppName = app.Name
+		cmdCtx.AppConfig = newAppConfig
 
-		return writeAppConfig(commandContext.ConfigFile, newAppConfig)
+		return writeAppConfig(cmdCtx.ConfigFile, newAppConfig)
 	}
 
 	fmt.Printf("New app created: %s", app.Name)

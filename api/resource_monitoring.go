@@ -41,6 +41,7 @@ func (c *Client) GetAppStatus(appName string, showCompleted bool) (*AppStatus, e
 					canary
 					region
 					restarts
+					healthy
 					privateIP
 					checks {
 						status

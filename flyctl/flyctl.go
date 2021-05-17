@@ -121,7 +121,7 @@ func GetAPIToken() string {
 
 }
 
-var writeableConfigKeys = []string{ConfigAPIToken, ConfigUpdateCheck, ConfigInstaller, ConfigWireGuardState, BuildKitNodeID}
+var writeableConfigKeys = []string{ConfigAPIToken, ConfigInstaller, ConfigWireGuardState, BuildKitNodeID}
 
 func SaveConfig() error {
 	BackgroundTaskWG.Add(1)
