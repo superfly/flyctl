@@ -27,6 +27,7 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/deployment"
 	"github.com/superfly/flyctl/internal/monitor"
+	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -240,6 +241,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	if release.DeploymentStrategy == "IMMEDIATE" {
+		terminal.Debug("immediate deployment strategy, nothing to monitor")
 		return nil
 	}
 
