@@ -5,7 +5,6 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/PuerkitoBio/rehttp"
@@ -22,21 +21,7 @@ func newHTTPClient() (*http.Client, error) {
 			rehttp.RetryMaxRetries(3),
 			rehttp.RetryAny(
 				rehttp.RetryTemporaryErr(),
-				rehttp.RetryStatuses(502),
-				rehttp.RetryIsErr(func(err error) bool {
-					return err != nil && strings.Contains(err.Error(), "INTERNAL_ERROR")
-					// Below code was part of retry strategy
-					// if err == nil {
-					// 	return true
-					// }
-					// msg := err.Error()
-					// for _, retryError := range retryErrors {
-					// 	if strings.Contains(msg, retryError) {
-					// 		return true
-					// 	}
-					// }
-					// return false
-				}),
+				rehttp.RetryStatuses(502, 503),
 			),
 		),
 		rehttp.ExpJitterDelay(100*time.Millisecond, 1*time.Second),
