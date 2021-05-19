@@ -12,6 +12,9 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: 1.16.x
+      - name: Get go version
+        id: go-version
+        run: echo "::set-output name=version::$(go env GOVERSION)"
       - uses: actions/cache@v2
         with:
           # In order:
@@ -24,7 +27,7 @@ jobs:
             ~/.cache/go-build
             ~/Library/Caches/go-build
             %LocalAppData%\go-build
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-${{ steps.go-version.outputs.version }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go
       - name: go mod download
@@ -54,6 +57,9 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: 1.16.x
+      - name: Get go version
+        id: go-version
+        run: echo "::set-output name=version::$(go env GOVERSION)"
       - name: Docker Login
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -72,7 +78,7 @@ jobs:
             ~/.cache/go-build
             ~/Library/Caches/go-build
             %LocalAppData%\go-build
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-${{ steps.go-version.outputs.version }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go
       - name: Place wintun.dll
