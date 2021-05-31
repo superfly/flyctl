@@ -79,7 +79,6 @@ func newDeployCommand(client *client.Client) *Command {
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "build-target",
 		Description: "Set the target build stage to build if the Dockerfile has more than one stage",
-		Hidden:      true,
 	})
 	cmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "no-cache",
