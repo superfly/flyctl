@@ -117,17 +117,28 @@ func runEnvConfig(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	vars := cfg.Definition["env"].(map[string]interface{})
-	// if !ok {
-	// 	return fmt.Errorf("can not parse environment variables")
-	// }
-
-	env := &presenters.Environment{
-		Secrets: secrets,
-		Envs:    vars,
+	err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.Secrets{Secrets: secrets},
+		Title: "Secrets",
+	})
+	if err != nil {
+		return err
 	}
 
-	return ctx.Render(env)
+	if cfg.Definition != nil {
+		vars, ok := cfg.Definition["env"].(map[string]interface{})
+		if !ok {
+			return nil
+		}
+
+		err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.Environment{
+			Envs: vars,
+		}, Title: "Environment variables"})
+
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func printAppConfigErrors(cfg api.AppConfig) {
