@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/internal/client"
 
@@ -29,6 +30,9 @@ func newConfigCommand(client *client.Client) *Command {
 
 	configValidateStrings := docstrings.Get("config.validate")
 	BuildCommandKS(cmd, runValidateConfig, configValidateStrings, client, requireSession, requireAppName)
+
+	configEnvStrings := docstrings.Get("config.env")
+	BuildCommandKS(cmd, runEnvConfig, configEnvStrings, client, requireSession, requireAppName)
 
 	return cmd
 }
@@ -100,6 +104,30 @@ func runValidateConfig(commandContext *cmdctx.CmdContext) error {
 	printAppConfigErrors(*serverCfg)
 
 	return errors.New("App configuration is not valid")
+}
+
+func runEnvConfig(ctx *cmdctx.CmdContext) error {
+	secrets, err := ctx.Client.API().GetAppSecrets(ctx.AppName)
+	if err != nil {
+		return err
+	}
+
+	cfg, err := ctx.Client.API().GetConfig(ctx.AppName)
+	if err != nil {
+		return err
+	}
+
+	vars := cfg.Definition["env"].(map[string]interface{})
+	// if !ok {
+	// 	return fmt.Errorf("can not parse environment variables")
+	// }
+
+	env := &presenters.Environment{
+		Secrets: secrets,
+		Envs:    vars,
+	}
+
+	return ctx.Render(env)
 }
 
 func printAppConfigErrors(cfg api.AppConfig) {
