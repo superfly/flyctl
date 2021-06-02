@@ -907,6 +907,20 @@ longHelp  = "Commands that manage VM instances"
     shortHelp = "Stop a VM"
     longHelp  = "Request for a VM to be asynchronously stopped."
 
+[agent]
+usage = "agent <command>"
+shortHelp = "Commands that manage the Fly agent"
+longHelp = """Commands that manage the Fly agent"""
+
+    [agent.daemon-start]
+    usage = "daemon-start"
+    shortHelp = "Run the Fly agent as a service (manually)"
+    longHelp = "Run the Fly agent as a service (manually)"
+
+    [agent.start]
+    usage = "start"
+    shortHelp = "Start the Fly agent"
+    longHelp = "Start the Fly agent"
 
 [wireguard]
 usage     = "wireguard <command>"
