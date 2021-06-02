@@ -1,9 +1,10 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/PuerkitoBio/rehttp"
@@ -20,21 +21,7 @@ func newHTTPClient() (*http.Client, error) {
 			rehttp.RetryMaxRetries(3),
 			rehttp.RetryAny(
 				rehttp.RetryTemporaryErr(),
-				rehttp.RetryStatuses(502),
-				rehttp.RetryIsErr(func(err error) bool {
-					return err != nil && strings.Contains(err.Error(), "INTERNAL_ERROR")
-					// Below code was part of retry strategy
-					// if err == nil {
-					// 	return true
-					// }
-					// msg := err.Error()
-					// for _, retryError := range retryErrors {
-					// 	if strings.Contains(msg, retryError) {
-					// 		return true
-					// 	}
-					// }
-					// return false
-				}),
+				rehttp.RetryStatuses(502, 503),
 			),
 		),
 		rehttp.ExpJitterDelay(100*time.Millisecond, 1*time.Second),
@@ -83,9 +70,16 @@ func (t *LoggingTransport) logRequest(req *http.Request) {
 
 func (t *LoggingTransport) logResponse(resp *http.Response) {
 	ctx := resp.Request.Context()
-	if start, ok := ctx.Value(contextKeyRequestStart).(time.Time); ok {
-		terminal.Debugf("<-- %d %s (%s)\n", resp.StatusCode, resp.Request.URL, helpers.Duration(time.Now().Sub(start), 2))
-	} else {
-		terminal.Debugf("<-- %d %s\n", resp.StatusCode, resp.Request.URL)
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		terminal.Debug("error reading response body:", err)
 	}
+	if start, ok := ctx.Value(contextKeyRequestStart).(time.Time); ok {
+		terminal.Debugf("<-- %d %s (%s) %s\n", resp.StatusCode, resp.Request.URL, helpers.Duration(time.Since(start), 2), string(data))
+	} else {
+		terminal.Debugf("<-- %d %s %s %s\n", resp.StatusCode, resp.Request.URL, string(data))
+	}
+
+	resp.Body = io.NopCloser(bytes.NewReader(data))
 }

@@ -14,6 +14,8 @@ import (
 	"github.com/docker/docker/api/types"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
+	"github.com/docker/docker/pkg/progress"
+	"github.com/docker/docker/pkg/streamformatter"
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/moby/buildkit/util/progress/progressui"
 	"github.com/moby/term"
@@ -30,6 +32,22 @@ type dockerfileBuilder struct{}
 
 func (ds *dockerfileBuilder) Name() string {
 	return "Dockerfile"
+}
+
+// lastProgressOutput is the same as progress.Output except
+// that it only output with the last update. It is used in
+// non terminal scenarios to suppress verbose messages
+type lastProgressOutput struct {
+	output progress.Output
+}
+
+// WriteProgress formats progress information from a ProgressReader.
+func (out *lastProgressOutput) WriteProgress(prog progress.Progress) error {
+	if !prog.LastUpdate {
+		return nil
+	}
+
+	return out.output.WriteProgress(prog)
 }
 
 func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions) (*DeploymentImage, error) {
@@ -98,6 +116,14 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 		return nil, errors.Wrap(err, "error archiving build context")
 	}
 	cmdfmt.PrintDone(streams.ErrOut, "Creating build context done")
+
+	// Setup an upload progress bar
+	progressOutput := streamformatter.NewProgressOutput(streams.Out)
+	if !streams.IsStdoutTTY() {
+		progressOutput = &lastProgressOutput{output: progressOutput}
+	}
+
+	r = progress.NewProgressReader(r, progressOutput, 0, "", "Sending build context to Docker daemon")
 
 	var imageID string
 
