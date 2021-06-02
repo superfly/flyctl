@@ -112,14 +112,16 @@ func runEnvConfig(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	cfg, err := ctx.Client.API().GetConfig(ctx.AppName)
-	if err != nil {
-		return err
+	if len(secrets) > 0 {
+		err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.Secrets{Secrets: secrets},
+			Title: "Secrets",
+		})
+		if err != nil {
+			return err
+		}
 	}
 
-	err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.Secrets{Secrets: secrets},
-		Title: "Secrets",
-	})
+	cfg, err := ctx.Client.API().GetConfig(ctx.AppName)
 	if err != nil {
 		return err
 	}
