@@ -1,7 +1,9 @@
 package agent
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -52,6 +54,7 @@ func (s *Server) handle(c net.Conn) {
 		"ping":      s.handlePing,
 		"connect":   s.handleConnect,
 		"establish": s.handleEstablish,
+		"instances": s.handleInstances,
 	}
 
 	handler, ok := cmds[args[0]]
@@ -184,6 +187,65 @@ func (s *Server) handleEstablish(c net.Conn, args []string) error {
 
 	s.tunnels[org.Slug] = tunnel
 	return writef(c, "ok")
+}
+
+type Instances struct {
+	Labels    []string
+	Addresses []string
+}
+
+func (s *Server) handleInstances(c net.Conn, args []string) error {
+	tunnel, err := s.tunnelFor(args[1])
+	if err != nil {
+		return fmt.Errorf("can't build tunnel: %s", err)
+	}
+
+	app := args[2]
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	regionsv, err := tunnel.Resolver().
+		LookupTXT(ctx, fmt.Sprintf("regions.%s.internal", app))
+	if err != nil {
+		return fmt.Errorf("look up regions for %s: %w", app, err)
+	}
+
+	regions := strings.Trim(regionsv[0], " \t")
+	if regions == "" {
+		return fmt.Errorf("can't find deployed regions for %s", app)
+	}
+
+	ret := &Instances{}
+
+	for _, region := range strings.Split(regions, ",") {
+		name := fmt.Sprintf("%s.%s.internal", region, app)
+		addrs, err := tunnel.Resolver().LookupHost(ctx, name)
+		if err != nil {
+			log.Printf("can't lookup records for %s: %s", name, err)
+			continue
+		}
+
+		if len(addrs) == 1 {
+			ret.Labels = append(ret.Labels, name)
+			ret.Addresses = append(ret.Addresses, addrs[0])
+			continue
+		}
+
+		for _, addr := range addrs {
+			ret.Labels = append(ret.Labels, fmt.Sprintf("%s (%s)", region, addr))
+			ret.Addresses = append(ret.Addresses, addrs[0])
+		}
+	}
+
+	if len(ret.Addresses) == 0 {
+		return fmt.Errorf("no running hosts for %s found", app)
+	}
+
+	out := &bytes.Buffer{}
+	json.NewEncoder(out).Encode(&ret)
+
+	return writef(c, "ok %s", out.String())
 }
 
 func (s *Server) handleConnect(c net.Conn, args []string) error {

@@ -1,7 +1,9 @@
 package agent
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -105,12 +107,12 @@ func (c *Client) Ping() (int, error) {
 func (c *Client) Establish(slug string) error {
 	return c.withConnection(func(conn net.Conn) error {
 		writef(conn, "establish %s", slug)
+
+		// this goes out to the API; don't time it out aggressively
 		reply, err := read(conn)
 		if err != nil {
 			return err
 		}
-
-		// this goes out to the API; don't time it out aggressively
 
 		if string(reply) != "ok" {
 			return fmt.Errorf("establish failed: %s", string(reply))
@@ -118,6 +120,33 @@ func (c *Client) Establish(slug string) error {
 
 		return nil
 	})
+}
+
+func (c *Client) Instances(o *api.Organization, app string) (*Instances, error) {
+	var instances *Instances
+
+	err := c.withConnection(func(conn net.Conn) error {
+		writef(conn, "instances", o.Slug, app)
+
+		// this goes out to the network; don't time it out aggressively
+		reply, err := read(conn)
+		if err != nil {
+			return err
+		}
+
+		if string(reply[0:3]) != "ok " {
+			return fmt.Errorf("failed to retrieve instances: %s", string(reply))
+		}
+
+		reply = reply[3:]
+		if err = json.NewDecoder(bytes.NewReader(reply)).Decode(instances); err != nil {
+			return fmt.Errorf("failed to retrieve instances: malformed response: %s", err)
+		}
+
+		return nil
+	})
+
+	return instances, err
 }
 
 type Dialer struct {
