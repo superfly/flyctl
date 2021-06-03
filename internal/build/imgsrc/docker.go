@@ -185,29 +185,36 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	clientCh := make(chan *dockerclient.Client, 1)
 
 	eg.Go(func() error {
-		app, err := apiClient.GetApp(appName)
-		if err != nil {
-			return errors.Wrap(err, "error fetching target app")
-		}
-
-		terminal.Debug("creating wireguard config for org ", app.Organization.Slug)
-		state, err := wireguard.StateForOrg(apiClient, &app.Organization, "", "")
-		if err != nil {
-			return errors.Wrap(err, "error creating wireguard config")
-		}
-
-		terminal.Debugf("Establishing WireGuard connection (%s)\n", state.Name)
-
-		tunnel, err := wg.Connect(*state.TunnelConfig())
-		if err != nil {
-			return fmt.Errorf("connect wireguard: %w", err)
-		}
-
-		client, err := dockerclient.NewClientWithOpts(
-			dockerclient.WithDialContext(tunnel.DialContext),
+		opts := []dockerclient.Opt{
 			dockerclient.WithAPIVersionNegotiation(),
 			dockerclient.WithHost(host),
-		)
+		}
+
+		if os.Getenv("FLY_REMOTE_BUILDER_HOST_WG") == "" {
+			app, err := apiClient.GetApp(appName)
+			if err != nil {
+				return errors.Wrap(err, "error fetching target app")
+			}
+
+			terminal.Debug("creating wireguard config for org ", app.Organization.Slug)
+			state, err := wireguard.StateForOrg(apiClient, &app.Organization, "", "")
+			if err != nil {
+				return errors.Wrap(err, "error creating wireguard config")
+			}
+
+			terminal.Debugf("Establishing WireGuard connection (%s)\n", state.Name)
+
+			tunnel, err := wg.Connect(*state.TunnelConfig())
+			if err != nil {
+				return fmt.Errorf("connect wireguard: %w", err)
+			}
+
+			opts = append(opts, dockerclient.WithDialContext(tunnel.DialContext))
+		} else {
+			terminal.Debug("connecting to remote docker daemon over host wireguard tunnel")
+		}
+
+		client, err := dockerclient.NewClientWithOpts(opts...)
 		if err != nil {
 			return errors.Wrap(err, "Error creating docker client")
 		}
