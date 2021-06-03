@@ -50,6 +50,8 @@ func (s *Server) handle(c net.Conn) {
 
 	args := strings.Split(string(buf), " ")
 
+	log.Printf("incoming command: %v", args)
+
 	cmds := map[string]handlerFunc{
 		"kill":      s.handleKill,
 		"ping":      s.handlePing,
@@ -102,6 +104,7 @@ func NewServer(path string, ctx *cmdctx.CmdContext) (*Server, error) {
 		listener: l,
 		cmdctx:   ctx,
 		client:   ctx.Client.API(),
+		tunnels:  map[string]*wg.Tunnel{},
 	}
 
 	return s, nil
@@ -166,6 +169,7 @@ func (s *Server) handleEstablish(c net.Conn, args []string) error {
 	for _, o := range orgs {
 		if o.Slug == args[1] {
 			org = &o
+			break
 		}
 	}
 

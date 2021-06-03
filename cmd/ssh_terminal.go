@@ -3,10 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log"
-	"net"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -14,52 +11,10 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/wireguard"
+	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/ssh"
-	"github.com/superfly/flyctl/pkg/wg"
 	"github.com/superfly/flyctl/terminal"
 )
-
-// this is going away; it's runSSHConsole with crappier args
-func runSSHShell(ctx *cmdctx.CmdContext) error {
-	org, err := orgByArg(ctx)
-	if err != nil {
-		return err
-	}
-
-	state, err := wireguard.StateForOrg(ctx.Client.API(), org, ctx.Config.GetString("region"), "")
-	if err != nil {
-		return err
-	}
-
-	addr, err := argOrPrompt(ctx, 1, "Host to connect to: ")
-	if err != nil {
-		return err
-	}
-
-	tunnel, err := wg.Connect(*state.TunnelConfig())
-	if err != nil {
-		return err
-	}
-
-	if n := net.ParseIP(addr); n != nil && n.To16() != nil {
-		addr = fmt.Sprintf("[%s]", addr)
-	} else if strings.Contains(addr, ".internal") {
-		addrs, err := tunnel.Resolver().LookupHost(context.Background(),
-			addr)
-		if err != nil {
-			return err
-		}
-
-		addr = fmt.Sprintf("[%s]", addrs[0])
-	}
-
-	return sshConnect(&SSHParams{
-		Ctx:    ctx,
-		Org:    org,
-		Tunnel: tunnel,
-	}, addr)
-}
 
 func runSSHConsole(ctx *cmdctx.CmdContext) error {
 	client := ctx.Client.API()
@@ -71,20 +26,20 @@ func runSSHConsole(ctx *cmdctx.CmdContext) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	state, err := wireguard.StateForOrg(ctx.Client.API(), &app.Organization, ctx.Config.GetString("region"), "")
+	agentclient, err := EstablishFlyAgent(ctx)
 	if err != nil {
-		return fmt.Errorf("create wireguard config: %w", err)
+		fmt.Fprintf(os.Stderr, "can't establish agent: %s", err)
+		return err
 	}
 
-	terminal.Debugf("Establishing WireGuard connection (%s)\n", state.Name)
-
-	tunnel, err := wg.Connect(*state.TunnelConfig())
+	dialer, err := agentclient.Dialer(&app.Organization)
 	if err != nil {
-		return fmt.Errorf("connect wireguard: %w", err)
+		fmt.Fprintf(os.Stderr, "can't build tunnel for %s: %s", app.Organization.Slug, err)
+		return err
 	}
 
 	if ctx.Config.GetBool("probe") {
-		if err = probeConnection(tunnel.Resolver()); err != nil {
+		if err = agentclient.Probe(&app.Organization); err != nil {
 			return fmt.Errorf("probe wireguard: %w", err)
 		}
 	}
@@ -92,7 +47,7 @@ func runSSHConsole(ctx *cmdctx.CmdContext) error {
 	var addr string
 
 	if ctx.Config.GetBool("select") {
-		instances, err := allInstances(tunnel.Resolver(), ctx.AppName)
+		instances, err := agentclient.Instances(&app.Organization, ctx.AppName)
 		if err != nil {
 			return fmt.Errorf("look up %s: %w", ctx.AppName, err)
 		}
@@ -118,61 +73,10 @@ func runSSHConsole(ctx *cmdctx.CmdContext) error {
 	return sshConnect(&SSHParams{
 		Ctx:    ctx,
 		Org:    &app.Organization,
-		Tunnel: tunnel,
+		Dialer: dialer,
 		App:    ctx.AppName,
 		Cmd:    ctx.Config.GetString("command"),
 	}, addr)
-}
-
-type Instances struct {
-	Labels    []string
-	Addresses []string
-}
-
-func allInstances(r *net.Resolver, app string) (*Instances, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	endSpin := spin("Looking up regions in DNS...", "Looking up regions in DNS... complete!\n")
-	defer endSpin()
-
-	regionsv, err := r.LookupTXT(ctx, fmt.Sprintf("regions.%s.internal", app))
-	if err != nil {
-		return nil, fmt.Errorf("look up regions for %s: %w", app, err)
-	}
-
-	regions := strings.Trim(regionsv[0], " \t")
-	if regions == "" {
-		return nil, fmt.Errorf("can't find deployed regions for %s", app)
-	}
-
-	ret := &Instances{}
-
-	for _, region := range strings.Split(regions, ",") {
-		name := fmt.Sprintf("%s.%s.internal", region, app)
-		addrs, err := r.LookupHost(ctx, name)
-		if err != nil {
-			log.Printf("can't lookup records for %s: %s", name, err)
-			continue
-		}
-
-		if len(addrs) == 1 {
-			ret.Labels = append(ret.Labels, name)
-			ret.Addresses = append(ret.Addresses, addrs[0])
-			continue
-		}
-
-		for _, addr := range addrs {
-			ret.Labels = append(ret.Labels, fmt.Sprintf("%s (%s)", region, addr))
-			ret.Addresses = append(ret.Addresses, addrs[0])
-		}
-	}
-
-	if len(ret.Addresses) == 0 {
-		return nil, fmt.Errorf("no running hosts for %s found", app)
-	}
-
-	return ret, nil
 }
 
 func spin(in, out string) context.CancelFunc {
@@ -202,7 +106,7 @@ type SSHParams struct {
 	Ctx    *cmdctx.CmdContext
 	Org    *api.Organization
 	App    string
-	Tunnel *wg.Tunnel
+	Dialer *agent.Dialer
 	Cmd    string
 }
 
@@ -227,7 +131,7 @@ func sshConnect(p *SSHParams, addr string) error {
 		Addr: addr + ":22",
 		User: "root",
 
-		Dial: p.Tunnel.DialContext,
+		Dial: p.Dialer.DialContext,
 
 		Certificate: cert.Certificate,
 		PrivateKey:  string(pemkey),
@@ -256,35 +160,6 @@ func sshConnect(p *SSHParams, addr string) error {
 	if err := sshClient.Shell(context.Background(), term, p.Cmd); err != nil {
 		return fmt.Errorf("SSH shell: %w", err)
 	}
-
-	return nil
-}
-
-func probeConnection(r *net.Resolver) error {
-	var (
-		err error
-		res []string
-	)
-
-	for i := 0; i < 3; i++ {
-		terminal.Debugf("Probing WireGuard connectivity, attempt %d\n", i)
-
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-
-		res, err = r.LookupTXT(ctx, fmt.Sprintf("_apps.internal"))
-
-		cancel()
-
-		if err == nil {
-			break
-		}
-	}
-
-	if err != nil {
-		return fmt.Errorf("look up apps: %w", err)
-	}
-
-	terminal.Debugf("Found _apps.internal TXT: %+v\n", res)
 
 	return nil
 }

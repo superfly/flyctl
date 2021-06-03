@@ -922,6 +922,16 @@ longHelp = """Commands that manage the Fly agent"""
     shortHelp = "Start the Fly agent"
     longHelp = "Start the Fly agent"
 
+    [agent.restart]
+    usage = "restart"
+    shortHelp = "Restart the Fly agent"
+    longHelp = "Restart the Fly agent"
+
+    [agent.stop]
+    usage = "stop"
+    shortHelp = "Stop the Fly agent"
+    longHelp = "Stop the Fly agent"
+
 [wireguard]
 usage     = "wireguard <command>"
 shortHelp = "Commands that manage WireGuard peer connections"

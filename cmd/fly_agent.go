@@ -30,6 +30,18 @@ func newAgentCommand(client *client.Client) *Command {
 		client,
 		requireSession)
 
+	_ = BuildCommandKS(cmd,
+		runFlyAgentStart,
+		docstrings.Get("agent.restart"),
+		client,
+		requireSession)
+
+	_ = BuildCommandKS(cmd,
+		runFlyAgentStop,
+		docstrings.Get("agent.stop"),
+		client,
+		requireSession)
+
 	return cmd
 }
 
@@ -55,6 +67,15 @@ func runFlyAgentStart(ctx *cmdctx.CmdContext) error {
 	_, err = EstablishFlyAgent(ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "can't start agent: %s", err)
+	}
+
+	return err
+}
+
+func runFlyAgentStop(ctx *cmdctx.CmdContext) error {
+	c, err := agent.DefaultClient()
+	if err == nil {
+		c.Kill()
 	}
 
 	return err
