@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/pkg/wg"
+	"github.com/superfly/flyctl/terminal"
 )
 
 var (
@@ -53,6 +54,7 @@ func (s *Server) handle(c net.Conn) {
 		"kill":      s.handleKill,
 		"ping":      s.handlePing,
 		"connect":   s.handleConnect,
+		"probe":     s.handleProbe,
 		"establish": s.handleEstablish,
 		"instances": s.handleInstances,
 	}
@@ -187,6 +189,33 @@ func (s *Server) handleEstablish(c net.Conn, args []string) error {
 
 	s.tunnels[org.Slug] = tunnel
 	return writef(c, "ok")
+}
+
+func (s *Server) handleProbe(c net.Conn, args []string) error {
+	tunnel, err := s.tunnelFor(args[1])
+	if err != nil {
+		return fmt.Errorf("can't build tunnel: %s", err)
+	}
+
+	for i := 0; i < 3; i++ {
+		terminal.Debugf("Probing WireGuard connectivity, attempt %d\n", i)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+
+		_, err = tunnel.Resolver().LookupTXT(ctx, fmt.Sprintf("_apps.internal"))
+		cancel()
+		if err == nil {
+			break
+		}
+	}
+
+	if err != nil {
+		return fmt.Errorf("look up apps: %w", err)
+	}
+
+	writef(c, "ok")
+
+	return nil
 }
 
 type Instances struct {

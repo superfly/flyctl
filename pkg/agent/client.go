@@ -122,6 +122,23 @@ func (c *Client) Establish(slug string) error {
 	})
 }
 
+func (c *Client) Probe(o *api.Organization) error {
+	return c.withConnection(func(conn net.Conn) error {
+		writef(conn, "probe %s", o.Slug)
+
+		reply, err := read(conn)
+		if err != nil {
+			return err
+		}
+
+		if string(reply) != "ok" {
+			return fmt.Errorf("probe failed: %s", string(reply))
+		}
+
+		return nil
+	})
+}
+
 func (c *Client) Instances(o *api.Organization, app string) (*Instances, error) {
 	var instances *Instances
 
