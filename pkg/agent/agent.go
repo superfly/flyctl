@@ -294,7 +294,8 @@ func (s *Server) handleConnect(c net.Conn, args []string) error {
 		return fmt.Errorf("can't resolve address '%s': %s", args[2], err)
 	}
 
-	d := net.Dialer{}
+	ctx := context.Background()
+	var cancel func() = func() {}
 
 	if len(args) > 3 {
 		timeout, err := strconv.ParseUint(args[3], 10, 32)
@@ -303,14 +304,16 @@ func (s *Server) handleConnect(c net.Conn, args []string) error {
 		}
 
 		if timeout != 0 {
-			d.Timeout = time.Duration(timeout) * time.Millisecond
+			ctx, cancel = context.WithTimeout(ctx, time.Duration(timeout)*time.Millisecond)
 		}
 	}
 
-	outconn, err := d.Dial("tcp", address)
+	outconn, err := tunnel.DialContext(ctx, "tcp", address)
 	if err != nil {
 		return fmt.Errorf("connection failed: %s", err)
 	}
+
+	cancel()
 
 	defer outconn.Close()
 
