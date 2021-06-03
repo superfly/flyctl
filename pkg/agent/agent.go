@@ -189,22 +189,34 @@ func (s *Server) handleEstablish(c net.Conn, args []string) error {
 func (s *Server) handleConnect(c net.Conn, args []string) error {
 	log.Printf("incoming connect: %v", args)
 
-	if len(args) < 2 || len(args) > 3 {
+	if len(args) < 3 || len(args) > 4 {
 		return fmt.Errorf("malformed connect command: %v", args)
+	}
+
+	tunnel, err := s.tunnelFor(args[1])
+	if err != nil {
+		return fmt.Errorf("can't build tunnel: %s", err)
+	}
+
+	address, err := resolve(tunnel, args[2])
+	if err != nil {
+		return fmt.Errorf("can't resolve address '%s': %s", args[2], err)
 	}
 
 	d := net.Dialer{}
 
-	if len(args) > 2 {
-		timeout, err := strconv.ParseUint(args[2], 10, 32)
+	if len(args) > 3 {
+		timeout, err := strconv.ParseUint(args[3], 10, 32)
 		if err != nil {
 			return fmt.Errorf("invalid timeout: %s", err)
 		}
 
-		d.Timeout = time.Duration(timeout) * time.Millisecond
+		if timeout != 0 {
+			d.Timeout = time.Duration(timeout) * time.Millisecond
+		}
 	}
 
-	outconn, err := d.Dial("tcp", args[1])
+	outconn, err := d.Dial("tcp", address)
 	if err != nil {
 		return fmt.Errorf("connection failed: %s", err)
 	}

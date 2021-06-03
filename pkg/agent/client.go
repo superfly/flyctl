@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/superfly/flyctl/api"
 )
 
 type Client struct {
@@ -55,56 +57,94 @@ func (c *Client) connect() (net.Conn, error) {
 	return conn, nil
 }
 
-func (c *Client) Kill() error {
+func (c *Client) withConnection(f func(conn net.Conn) error) error {
 	conn, err := c.connect()
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 
-	writef(conn, "kill")
+	return f(conn)
+}
 
-	return nil
+func (c *Client) Kill() error {
+	return c.withConnection(func(conn net.Conn) error {
+		return writef(conn, "kill")
+	})
 }
 
 func (c *Client) Ping() (int, error) {
-	conn, err := c.connect()
-	if err != nil {
-		return 0, err
-	}
-	defer conn.Close()
+	var pid int
 
-	writef(conn, "ping")
+	err := c.withConnection(func(conn net.Conn) error {
+		writef(conn, "ping")
 
-	conn.SetReadDeadline(time.Now().Add(defaultTimeout))
+		conn.SetReadDeadline(time.Now().Add(defaultTimeout))
 
-	pong, err := read(conn)
-	if err != nil {
-		return 0, err
-	}
+		pong, err := read(conn)
+		if err != nil {
+			return err
+		}
 
-	tup := strings.Split(string(pong), " ")
-	if len(tup) != 2 {
-		return 0, fmt.Errorf("malformed response (no pid)")
-	}
+		tup := strings.Split(string(pong), " ")
+		if len(tup) != 2 {
+			return fmt.Errorf("malformed response (no pid)")
+		}
 
-	pid, err := strconv.Atoi(tup[1])
-	if err != nil {
-		return 0, fmt.Errorf("malformed response (bad pid: %w)", err)
-	}
+		pid, err = strconv.Atoi(tup[1])
+		if err != nil {
+			return fmt.Errorf("malformed response (bad pid: %w)", err)
+		}
 
-	return pid, nil
+		return nil
+	})
+
+	return pid, err
 }
 
-func (c *Client) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	conn, err := c.connect()
+func (c *Client) Establish(slug string) error {
+	return c.withConnection(func(conn net.Conn) error {
+		writef(conn, "establish %s", slug)
+		reply, err := read(conn)
+		if err != nil {
+			return err
+		}
+
+		// this goes out to the API; don't time it out aggressively
+
+		if string(reply) != "ok" {
+			return fmt.Errorf("establish failed: %s", string(reply))
+		}
+
+		return nil
+	})
+}
+
+type Dialer struct {
+	Org     *api.Organization
+	Timeout time.Duration
+
+	client *Client
+}
+
+func (c *Client) Dialer(o *api.Organization) (*Dialer, error) {
+	if err := c.Establish(o.Slug); err != nil {
+		return nil, err
+	}
+
+	return &Dialer{
+		Org:    o,
+		client: c,
+	}, nil
+}
+
+func (d *Dialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	conn, err := d.client.connect()
 	if err != nil {
 		return nil, err
 	}
 
-	writef(conn, "connect %s %d", addr, 2000 /* whatever, for now */)
-
-	conn.SetReadDeadline(time.Now().Add(defaultTimeout))
+	writef(conn, "connect %s %s %d", d.Org.Slug, addr, d.Timeout)
 
 	res, err := read(conn)
 	if err != nil {
@@ -114,10 +154,6 @@ func (c *Client) DialContext(ctx context.Context, network, addr string) (net.Con
 	if string(res) != "ok" {
 		return nil, fmt.Errorf("got error reply from agent: %s", string(res))
 	}
-
-	var t0 time.Time
-
-	conn.SetReadDeadline(t0)
 
 	return conn, nil
 }
