@@ -143,7 +143,7 @@ func (c *Client) Instances(o *api.Organization, app string) (*Instances, error) 
 	var instances *Instances
 
 	err := c.withConnection(func(conn net.Conn) error {
-		writef(conn, "instances", o.Slug, app)
+		writef(conn, "instances %s %s", o.Slug, app)
 
 		// this goes out to the network; don't time it out aggressively
 		reply, err := read(conn)
@@ -156,9 +156,14 @@ func (c *Client) Instances(o *api.Organization, app string) (*Instances, error) 
 		}
 
 		reply = reply[3:]
-		if err = json.NewDecoder(bytes.NewReader(reply)).Decode(instances); err != nil {
+
+		inst := &Instances{}
+
+		if err = json.NewDecoder(bytes.NewReader(reply)).Decode(inst); err != nil {
 			return fmt.Errorf("failed to retrieve instances: malformed response: %s", err)
 		}
+
+		instances = inst
 
 		return nil
 	})
