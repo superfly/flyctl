@@ -93,6 +93,7 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 		newPostgresCommand(client),
 		newVMCommand(client),
 		newLaunchCommand(client),
+		newProxyCommand(client),
 	)
 
 	return rootCmd.Command

@@ -987,3 +987,7 @@ longHelp  = """Commands that manage WireGuard peer connections"""
             usage     = "update [name] [file]"
             shortHelp = "Rekey a WireGuard peer connection associated with a token (set FLY_WIREGUARD_TOKEN)"
             longHelp = "Rekey a WireGuard peer connection associated with a token (set FLY_WIREGUARD_TOKEN)"
+[proxy]
+usage     = "proxy <local:remote>"
+shortHelp = "Commands creates a proxy to a fly app"
+longHelp  = """Commands creates a proxy to a fly app"""
