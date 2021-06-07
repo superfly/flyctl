@@ -31,9 +31,6 @@ func read(r io.Reader) ([]byte, error) {
 	}
 
 	l := binary.LittleEndian.Uint16(lenb[:])
-	if l > 1024 {
-		return nil, fmt.Errorf("martian long command (%d bytes)", l)
-	}
 
 	buf := make([]byte, l)
 
