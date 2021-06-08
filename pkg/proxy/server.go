@@ -5,8 +5,6 @@ import (
 	"io"
 	"net"
 	"sync"
-
-	"github.com/superfly/flyctl/terminal"
 )
 
 type Server struct {
@@ -26,54 +24,36 @@ func (srv *Server) ListenAndServe(ctx context.Context) error {
 	defer ls.Close()
 
 	for {
-		lConn, err := ls.Accept()
+		in, err := ls.Accept()
 		if err != nil {
 			return err
 		}
+		defer in.Close()
 
-		wg := &sync.WaitGroup{}
+		go func() error {
 
-		wg.Add(1)
+			out, err := srv.Dial(ctx, "tcp", srv.RemoteAddr)
+			if err != nil {
+				return err
+			}
+			defer out.Close()
 
-		go func(conn net.Conn) {
-			err := srv.proxy(ctx, lConn)
-			terminal.Debug(err)
-			wg.Done()
-		}(lConn)
+			wg := &sync.WaitGroup{}
+
+			wg.Add(2)
+
+			go func() {
+				defer wg.Done()
+				io.Copy(in, out)
+			}()
+
+			go func() {
+				defer wg.Done()
+				io.Copy(out, in)
+			}()
+			wg.Wait()
+
+			return nil
+		}()
 	}
-}
-
-func (srv *Server) proxy(ctx context.Context, lConn net.Conn) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	rConn, err := srv.Dial(ctx, "tcp", srv.RemoteAddr)
-	if err != nil {
-		return err
-	}
-	defer rConn.Close()
-
-	errChan := make(chan error, 1)
-
-	go func() {
-		_, err := io.Copy(lConn, rConn)
-		errChan <- err
-	}()
-
-	go func() {
-		_, err := io.Copy(rConn, lConn)
-		errChan <- err
-	}()
-
-	select {
-	case <-ctx.Done():
-		break
-	case err := <-errChan:
-		if err == io.EOF {
-			break
-		}
-		return err
-	}
-
-	return nil
 }

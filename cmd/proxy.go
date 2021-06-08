@@ -9,9 +9,7 @@ import (
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/pkg/proxy"
-	"github.com/superfly/flyctl/pkg/wg"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -43,35 +41,26 @@ func runProxy(ctx *cmdctx.CmdContext) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	state, err := wireguard.StateForOrg(ctx.Client.API(), &app.Organization, ctx.Config.GetString("region"), "")
+	agent, err := EstablishFlyAgent(ctx)
 	if err != nil {
-		return fmt.Errorf("create wireguard config: %w", err)
+		return err
 	}
 
-	terminal.Debugf("Establishing WireGuard connection (%s)\n", state.Name)
-
-	tunnel, err := wg.Connect(*state.TunnelConfig())
+	dialer, err := agent.Dialer(&app.Organization)
 	if err != nil {
-		return fmt.Errorf("connect wireguard: %w", err)
+		return err
 	}
 
 	rAddr := fmt.Sprintf("%s.internal", ctx.AppName)
 
 	fmt.Printf("Proxying local connections '%s:%s' to %s\n", lPort, rPort, ctx.AppName)
 
-	return tcpConnect(
-		tunnel,
-		formatAddr("127.0.0.1", lPort),
-		formatAddr(rAddr, rPort),
-	)
-}
-
-func tcpConnect(tunnel *wg.Tunnel, lAddr, rAddr string) error {
 	proxy := &proxy.Server{
-		LocalAddr:  lAddr,
-		RemoteAddr: rAddr,
-		Dial:       tunnel.DialContext,
+		LocalAddr:  formatAddr("127.0.0.1", lPort),
+		RemoteAddr: formatAddr(rAddr, rPort),
+		Dial:       dialer.DialContext,
 	}
+
 	return proxy.ListenAndServe(context.Background())
 }
 
