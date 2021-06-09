@@ -113,8 +113,9 @@ type Query struct {
 	}
 
 	SetVMCount struct {
-		App      App
-		Warnings []string
+		App             App
+		TaskGroupCounts []TaskGroupCount
+		Warnings        []string
 	}
 
 	ConfigureRegions struct {
