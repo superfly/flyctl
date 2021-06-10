@@ -183,11 +183,9 @@ func (c *Client) SetAppVMCount(appID string, count int) ([]TaskGroupCount, []str
 	query := `
 		mutation ($input: SetVMCountInput!) {
 			setVmCount(input: $input) {
-				app {
-					taskGroupCounts {
-						name
-						count
-					}
+				taskGroupCounts {
+					name
+					count
 				}
 				warnings
 			}
@@ -207,5 +205,5 @@ func (c *Client) SetAppVMCount(appID string, count int) ([]TaskGroupCount, []str
 		return []TaskGroupCount{}, []string{}, err
 	}
 
-	return data.SetVMCount.App.TaskGroupCounts, data.SetVMCount.Warnings, nil
+	return data.SetVMCount.TaskGroupCounts, data.SetVMCount.Warnings, nil
 }
