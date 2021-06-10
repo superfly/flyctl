@@ -297,6 +297,12 @@ retrieved from the Fly service and saved in TOML format.
     longHelp  = """Validates an application's config file against the Fly platform to 
 ensure it is correct and meaningful to the platform. 
 """
+    [config.env]
+    usage =  "env"
+    shortHelp = "Display an app's runtime environment variables"
+    longHelp = """Display an app's runtime environment variables. It displays a section for
+secrets and another for config file defined environment variables.
+"""
 
 [dashboard]
 usage     = "dashboard"
