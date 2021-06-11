@@ -180,6 +180,8 @@ type Query struct {
 	CreatePostgresCluster *CreatePostgresClusterPayload
 
 	AttachPostgresCluster *AttachPostgresClusterPayload
+
+	CreateOrganizationInvitation CreateOrganizationInvitation
 }
 
 type CreatedWireGuardPeer struct {
@@ -994,4 +996,17 @@ type ReleaseCommand struct {
 	InProgress bool
 	Succeeded  bool
 	Failed     bool
+}
+
+type Invitation struct {
+	ID           string
+	Email        string
+	CreatedAt    time.Time
+	Redeemed     bool
+	Inviter      *User
+	Organization *Organization
+}
+
+type CreateOrganizationInvitation struct {
+	Invitation Invitation
 }

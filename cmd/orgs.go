@@ -85,6 +85,16 @@ func printOrg(o api.Organization, headers bool) {
 
 }
 
+func printInvite(in api.Invitation, headers bool) {
+
+	if headers {
+		fmt.Printf("%-20s %-20s %-10s\n", "Org", "Email", "Redeemed")
+		fmt.Printf("%-20s %-20s %-10s\n", "----", "----", "----")
+	}
+
+	fmt.Printf("%-20s %-20s %-10t\n", in.Organization.Slug, in.Email, in.Redeemed)
+}
+
 func runOrgsShow(ctx *cmdctx.CmdContext) error {
 	asJSON := ctx.OutputJSON()
 	orgslug := ctx.Args[0]
@@ -130,7 +140,24 @@ func runOrgsShow(ctx *cmdctx.CmdContext) error {
 }
 
 func runOrgsInvite(ctx *cmdctx.CmdContext) error {
-	return fmt.Errorf("Invite Not implemented")
+	orgslug := ctx.Args[0]
+
+	org, err := ctx.Client.API().GetOrganizationBySlug(orgslug)
+
+	if err != nil {
+		return err
+	}
+
+	email := ctx.Args[1]
+
+	out, err := ctx.Client.API().CreateOrganizationInvite(org.ID, email)
+	if err != nil {
+		return err
+	}
+
+	printInvite(*out, true)
+
+	return nil
 }
 
 func runOrgsCreate(ctx *cmdctx.CmdContext) error {

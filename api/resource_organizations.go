@@ -166,3 +166,35 @@ func (c *Client) DeleteOrganization(id string) (deletedid string, err error) {
 
 	return data.DeleteOrganization.DeletedOrganizationId, nil
 }
+
+func (c *Client) CreateOrganizationInvite(id, email string) (*Invitation, error) {
+	query := `
+	mutation($input: CreateOrganizationInvitationInput!){
+		createOrganizationInvitation(input: $input){
+			invitation {
+				id
+				email
+				createdAt
+				redeemed
+				organization {
+			  		slug
+				}
+		  }
+		}
+	  }
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("input", map[string]string{
+		"organizationId": id,
+		"email":          email,
+	})
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.CreateOrganizationInvitation.Invitation, nil
+}
