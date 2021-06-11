@@ -50,6 +50,7 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 
 	appConfig := flyctl.NewAppConfig()
 
+	var importedConfig bool
 	configFilePath := filepath.Join(dir, "fly.toml")
 	if exists, _ := flyctl.ConfigFileExistsAtPath(configFilePath); exists {
 		cfg, err := flyctl.LoadAppConfig(configFilePath)
@@ -76,6 +77,7 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 			return runDeploy(cmdctx)
 		} else if confirm("Would you like to copy its configuration to the new app?") {
 			appConfig.Definition = cfg.Definition
+			importedConfig = true
 		}
 	}
 
@@ -135,7 +137,9 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 	if err != nil {
 		return err
 	}
-	appConfig.Definition = app.Config.Definition
+	if !importedConfig {
+		appConfig.Definition = app.Config.Definition
+	}
 
 	cmdctx.AppName = app.Name
 	appConfig.AppName = app.Name

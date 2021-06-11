@@ -86,7 +86,7 @@ func runSetSecrets(cc *cmdctx.CmdContext) error {
 			if !helpers.HasPipedStdin() {
 				return fmt.Errorf("Secret `%s` expects standard input but none provided", k)
 			}
-			inval, err := helpers.ReadStdin(4 * 1024)
+			inval, err := helpers.ReadStdin(64 * 1024)
 			if err != nil {
 				return fmt.Errorf("Error reading stdin for '%s': %s", k, err)
 			}
