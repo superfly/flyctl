@@ -270,7 +270,7 @@ longHelp  = "Manage health checks"
 [curl]
 usage     = "curl <url>"
 shortHelp = "Run a performance test against a url"
-longHelp  = """Run a performance test againt a url.
+longHelp  = """Run a performance test against a url.
 """
 
 
