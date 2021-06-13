@@ -140,17 +140,33 @@ func runOrgsShow(ctx *cmdctx.CmdContext) error {
 }
 
 func runOrgsInvite(ctx *cmdctx.CmdContext) error {
-	orgslug := ctx.Args[0]
+	var orgSlug, userEmail string
 
-	org, err := ctx.Client.API().GetOrganizationBySlug(orgslug)
+	switch len(ctx.Args) {
+	case 0:
+		org, err := selectOrganization(ctx.Client.API(), "")
+		if err != nil {
+			return err
+		}
+		orgSlug = org.Slug
 
+		userEmail, err = inputUserEmail()
+		if err != nil {
+			return err
+		}
+	case 1:
+		// TODO: Validity check on org
+		orgSlug = ctx.Args[0]
+	case 2:
+		userEmail = ctx.Args[1]
+	}
+
+	org, err := ctx.Client.API().GetOrganizationBySlug(orgSlug)
 	if err != nil {
 		return err
 	}
 
-	email := ctx.Args[1]
-
-	out, err := ctx.Client.API().CreateOrganizationInvite(org.ID, email)
+	out, err := ctx.Client.API().CreateOrganizationInvite(org.ID, userEmail)
 	if err != nil {
 		return err
 	}
