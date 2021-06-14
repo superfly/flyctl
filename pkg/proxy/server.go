@@ -4,7 +4,9 @@ import (
 	"context"
 	"io"
 	"net"
+	"os"
 	"sync"
+	"time"
 )
 
 type Server struct {
@@ -15,45 +17,60 @@ type Server struct {
 	Dial func(ctx context.Context, network, addr string) (net.Conn, error)
 }
 
-func (srv *Server) ListenAndServe(ctx context.Context) error {
+func (srv *Server) ServeTCP(ctx context.Context) error {
+	addr, err := net.ResolveTCPAddr("tcp", srv.LocalAddr)
+	if err != nil {
+		return err
+	}
 
-	ls, err := net.Listen("tcp", srv.LocalAddr)
+	ls, err := net.ListenTCP("tcp", addr)
 	if err != nil {
 		return err
 	}
 	defer ls.Close()
 
 	for {
-		in, err := ls.Accept()
-		if err != nil {
-			return err
-		}
-		defer in.Close()
+		select {
 
-		go func() error {
+		case <-ctx.Done():
+			return nil
+		default:
+			if err := ls.SetDeadline(time.Now().Add(time.Second)); err != nil {
+				return err
+			}
 
-			out, err := srv.Dial(ctx, "tcp", srv.RemoteAddr)
+			source, err := ls.Accept()
+			if err != nil {
+				if os.IsTimeout(err) {
+					continue
+				}
+				return err
+			}
+			defer source.Close()
+
+			target, err := srv.Dial(ctx, "tcp", srv.RemoteAddr)
 			if err != nil {
 				return err
 			}
-			defer out.Close()
-
-			wg := &sync.WaitGroup{}
-
-			wg.Add(2)
+			defer target.Close()
 
 			go func() {
-				defer wg.Done()
-				io.Copy(in, out)
-			}()
+				wg := &sync.WaitGroup{}
 
-			go func() {
-				defer wg.Done()
-				io.Copy(out, in)
-			}()
-			wg.Wait()
+				wg.Add(2)
 
-			return nil
-		}()
+				go func() {
+					defer wg.Done()
+					io.Copy(source, target)
+				}()
+
+				go func() {
+					defer wg.Done()
+					io.Copy(target, source)
+				}()
+
+				wg.Wait()
+			}()
+		}
 	}
 }
