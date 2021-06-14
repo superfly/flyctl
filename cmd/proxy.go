@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -23,8 +22,10 @@ func newProxyCommand(client *client.Client) *Command {
 	return cmd
 }
 
-func runProxy(ctx *cmdctx.CmdContext) error {
-	ports := strings.Split(ctx.Args[0], ":")
+func runProxy(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
+	ports := strings.Split(cmdCtx.Args[0], ":")
 
 	lPort, rPort := ports[0], ports[1]
 
@@ -32,16 +33,16 @@ func runProxy(ctx *cmdctx.CmdContext) error {
 		rPort = lPort
 	}
 
-	client := ctx.Client.API()
+	client := cmdCtx.Client.API()
 
-	terminal.Debugf("Retrieving app info for %s\n", ctx.AppName)
+	terminal.Debugf("Retrieving app info for %s\n", cmdCtx.AppName)
 
-	app, err := client.GetApp(ctx.AppName)
+	app, err := client.GetApp(cmdCtx.AppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	agent, err := EstablishFlyAgent(ctx)
+	agent, err := EstablishFlyAgent(cmdCtx)
 	if err != nil {
 		return err
 	}
@@ -51,9 +52,9 @@ func runProxy(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	rAddr := fmt.Sprintf("%s.internal", ctx.AppName)
+	rAddr := fmt.Sprintf("%s.internal", cmdCtx.AppName)
 
-	fmt.Printf("Proxying local connections '%s:%s' to %s\n", lPort, rPort, ctx.AppName)
+	fmt.Printf("Proxying local connections '%s:%s' to %s\n", lPort, rPort, cmdCtx.AppName)
 
 	proxy := &proxy.Server{
 		LocalAddr:  formatAddr("127.0.0.1", lPort),
@@ -61,7 +62,7 @@ func runProxy(ctx *cmdctx.CmdContext) error {
 		Dial:       dialer.DialContext,
 	}
 
-	return proxy.ListenAndServe(context.Background())
+	return proxy.ServeTCP(ctx)
 }
 
 func formatAddr(host, port string) string {
