@@ -190,13 +190,17 @@ func BuildCommand(parent *Command, fn RunFn, usageText string, shortHelpText str
 	}
 
 	if fn != nil {
-		flycmd.Run = func(cmd *cobra.Command, args []string) {
+		flycmd.RunE = func(cmd *cobra.Command, args []string) error {
 			ctx, err := cmdctx.NewCmdContext(client, namespace(cmd), args)
-			checkErr(err)
+			if err != nil {
+				return err
+			}
 
 			for _, init := range initializers {
 				if init.Setup != nil {
-					checkErr(init.Setup(ctx))
+					if err := init.Setup(ctx); err != nil {
+						return err
+					}
 				}
 			}
 
@@ -205,12 +209,13 @@ func BuildCommand(parent *Command, fn RunFn, usageText string, shortHelpText str
 
 			for _, init := range initializers {
 				if init.PreRun != nil {
-					checkErr(init.PreRun(ctx))
+					if err := init.PreRun(ctx); err != nil {
+						return err
+					}
 				}
 			}
 
-			err = fn(ctx)
-			checkErr(err)
+			return fn(ctx)
 		}
 	}
 

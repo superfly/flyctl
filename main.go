@@ -22,11 +22,21 @@ import (
 
 func main() {
 	flyname.Name() // Initialise
+
 	opts := sentry.ClientOptions{
 		Dsn: "https://89fa584dc19b47a6952dd94bf72dbab4@sentry.io/4492967",
 		// Debug:       true,
 		Environment: flyctl.Environment,
 		Release:     flyctl.Version,
+		Transport: &sentry.HTTPSyncTransport{
+			Timeout: 3 * time.Second,
+		},
+		BeforeSend: func(event *sentry.Event, hint *sentry.EventHint) *sentry.Event {
+			if flyctl.Environment != "production" {
+				return nil
+			}
+			return event
+		},
 	}
 	if err := sentry.Init(opts); err != nil {
 		fmt.Printf("sentry.Init: %s", err)
@@ -38,27 +48,15 @@ func main() {
 
 			fmt.Println(aurora.Red("Oops, something went wrong! Could you try that again?"))
 
-			if flyctl.Environment == "production" {
-				flyctl.BackgroundTaskWG.Add(1)
-				go func() {
-					sentry.Flush(2 * time.Second)
-					flyctl.BackgroundTaskWG.Done()
-				}()
-			} else {
-				if flyctl.Environment != "production" {
-					fmt.Println()
-					fmt.Println(err)
-					fmt.Println(string(debug.Stack()))
-				}
+			if flyctl.Environment != "production" {
+				fmt.Println()
+				fmt.Println(err)
+				fmt.Println(string(debug.Stack()))
 			}
-
-			flyctl.BackgroundTaskWG.Wait()
 
 			os.Exit(1)
 		}
 	}()
-
-	defer flyctl.BackgroundTaskWG.Wait()
 
 	flyctl.InitConfig()
 
