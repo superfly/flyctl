@@ -13,6 +13,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/cmd"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/flyname"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/update"
