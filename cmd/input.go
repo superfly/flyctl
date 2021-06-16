@@ -376,3 +376,14 @@ func isIntPort(val interface{}) error {
 
 	return errors.New("couldn't convert to string")
 }
+
+func inputUserEmail() (email string, err error) {
+	prompt := &survey.Input{
+		Message: "User email:",
+	}
+	if err := survey.AskOne(prompt, &email); err != nil {
+		return email, err
+	}
+
+	return email, nil
+}

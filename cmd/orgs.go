@@ -85,6 +85,16 @@ func printOrg(o api.Organization, headers bool) {
 
 }
 
+func printInvite(in api.Invitation, headers bool) {
+
+	if headers {
+		fmt.Printf("%-20s %-20s %-10s\n", "Org", "Email", "Redeemed")
+		fmt.Printf("%-20s %-20s %-10s\n", "----", "----", "----")
+	}
+
+	fmt.Printf("%-20s %-20s %-10t\n", in.Organization.Slug, in.Email, in.Redeemed)
+}
+
 func runOrgsShow(ctx *cmdctx.CmdContext) error {
 	asJSON := ctx.OutputJSON()
 	orgslug := ctx.Args[0]
@@ -130,7 +140,40 @@ func runOrgsShow(ctx *cmdctx.CmdContext) error {
 }
 
 func runOrgsInvite(ctx *cmdctx.CmdContext) error {
-	return fmt.Errorf("Invite Not implemented")
+	var orgSlug, userEmail string
+
+	switch len(ctx.Args) {
+	case 0:
+		org, err := selectOrganization(ctx.Client.API(), "")
+		if err != nil {
+			return err
+		}
+		orgSlug = org.Slug
+
+		userEmail, err = inputUserEmail()
+		if err != nil {
+			return err
+		}
+	case 1:
+		// TODO: Validity check on org
+		orgSlug = ctx.Args[0]
+	case 2:
+		userEmail = ctx.Args[1]
+	}
+
+	org, err := ctx.Client.API().GetOrganizationBySlug(orgSlug)
+	if err != nil {
+		return err
+	}
+
+	out, err := ctx.Client.API().CreateOrganizationInvite(org.ID, userEmail)
+	if err != nil {
+		return err
+	}
+
+	printInvite(*out, true)
+
+	return nil
 }
 
 func runOrgsCreate(ctx *cmdctx.CmdContext) error {
