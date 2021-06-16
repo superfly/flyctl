@@ -220,6 +220,11 @@ Takes hostname as a parameter to locate the certificate.`,
 			`Display an application's configuration. The configuration is presented 
 in JSON format. The configuration data is retrieved from the Fly service.`,
 		}
+	case "config.env":
+		return KeyStrings{"env", "Display an app's runtime environment variables",
+			`Display an app's runtime environment variables. It displays a section for
+secrets and another for config file defined environment variables.`,
+		}
 	case "config.save":
 		return KeyStrings{"save", "Save an app's config file",
 			`Save an application's configuration locally. The configuration data is 

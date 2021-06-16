@@ -12,6 +12,9 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: 1.16.x
+      - name: Get go version
+        id: go-version
+        run: echo "::set-output name=version::$(go env GOVERSION)"
       - uses: actions/cache@v2
         with:
           # In order:
@@ -24,7 +27,7 @@ jobs:
             ~/.cache/go-build
             ~/Library/Caches/go-build
             %LocalAppData%\go-build
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-${{ steps.go-version.outputs.version }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go
       - name: go mod download
@@ -54,6 +57,9 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: 1.16.x
+      - name: Get go version
+        id: go-version
+        run: echo "::set-output name=version::$(go env GOVERSION)"
       - name: Docker Login
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -72,16 +78,20 @@ jobs:
             ~/.cache/go-build
             ~/Library/Caches/go-build
             %LocalAppData%\go-build
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-${{ steps.go-version.outputs.version }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go
       - name: Place wintun.dll
         run: cp -r deps/wintun/bin/amd64/wintun.dll ./
+      - name: generate release notes
+        run: |
+          mkdir -p ./tmp
+          ./scripts/changelog.sh > ./tmp/changelog.txt
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2
         with:
           version: latest
-          args: release --rm-dist
+          args: release --rm-dist --release-notes=./tmp/changelog.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
       - name: Upload checksums as artifact
@@ -93,7 +103,7 @@ jobs:
   aur-publish:
     name: Build & publish to AUR
     needs: release
-    if: startsWith(github.ref, 'refs/tags/v') && github.ref == 'refs/heads/master'
+    if: ${{ !contains(github.ref, 'pre') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2

@@ -113,8 +113,9 @@ type Query struct {
 	}
 
 	SetVMCount struct {
-		App      App
-		Warnings []string
+		App             App
+		TaskGroupCounts []TaskGroupCount
+		Warnings        []string
 	}
 
 	ConfigureRegions struct {
@@ -179,6 +180,8 @@ type Query struct {
 	CreatePostgresCluster *CreatePostgresClusterPayload
 
 	AttachPostgresCluster *AttachPostgresClusterPayload
+
+	CreateOrganizationInvitation CreateOrganizationInvitation
 }
 
 type CreatedWireGuardPeer struct {
@@ -930,6 +933,7 @@ type CreatePostgresClusterInput struct {
 	Password       *string `json:"password,omitempty"`
 	VMSize         *string `json:"vmSize,omitempty"`
 	VolumeSizeGB   *int    `json:"volumeSizeGb,omitempty"`
+	ImageRef       *string `json:"imageRef,omitempty"`
 }
 
 type CreatePostgresClusterPayload struct {
@@ -992,4 +996,17 @@ type ReleaseCommand struct {
 	InProgress bool
 	Succeeded  bool
 	Failed     bool
+}
+
+type Invitation struct {
+	ID           string
+	Email        string
+	CreatedAt    time.Time
+	Redeemed     bool
+	Inviter      *User
+	Organization *Organization
+}
+
+type CreateOrganizationInvitation struct {
+	Invitation Invitation
 }

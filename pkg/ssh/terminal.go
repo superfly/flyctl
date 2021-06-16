@@ -3,6 +3,7 @@ package ssh
 import (
 	"context"
 	"io"
+	"runtime"
 	"os"
 
 	"golang.org/x/crypto/ssh"
@@ -35,12 +36,17 @@ func (t *Terminal) attach(ctx context.Context, sess *ssh.Session, cmd string) er
 		}
 		defer term.Restore(fd, state)
 
-		width, height, err = term.GetSize(fd)
-		if err != nil {
-			return err
-		}
+		// BUG(tqbf): this is a temporary hack to work around a windows
+		// terminal handling problem that is probably trivial to fix, but
+		// winch isn't handled yet there anyways
+		if runtime.GOOS != "windows" {
+  			width, height, err = term.GetSize(fd)
+			if err != nil {
+				return err
+			}
 
-		go watchWindowSize(ctx, fd, sess)
+			go watchWindowSize(ctx, fd, sess)
+		}
 	}
 
 	if err := sess.RequestPty(t.Mode, height, width, modes); err != nil {

@@ -27,6 +27,7 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/deployment"
 	"github.com/superfly/flyctl/internal/monitor"
+	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -78,7 +79,6 @@ func newDeployCommand(client *client.Client) *Command {
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "build-target",
 		Description: "Set the target build stage to build if the Dockerfile has more than one stage",
-		Hidden:      true,
 	})
 	cmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "no-cache",
@@ -240,6 +240,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	if release.DeploymentStrategy == "IMMEDIATE" {
+		terminal.Debug("immediate deployment strategy, nothing to monitor")
 		return nil
 	}
 

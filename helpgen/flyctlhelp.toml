@@ -270,7 +270,7 @@ longHelp  = "Manage health checks"
 [curl]
 usage     = "curl <url>"
 shortHelp = "Run a performance test against a url"
-longHelp  = """Run a performance test againt a url.
+longHelp  = """Run a performance test against a url.
 """
 
 
@@ -296,6 +296,12 @@ retrieved from the Fly service and saved in TOML format.
     shortHelp = "Validate an app's config file"
     longHelp  = """Validates an application's config file against the Fly platform to 
 ensure it is correct and meaningful to the platform. 
+"""
+    [config.env]
+    usage =  "env"
+    shortHelp = "Display an app's runtime environment variables"
+    longHelp = """Display an app's runtime environment variables. It displays a section for
+secrets and another for config file defined environment variables.
 """
 
 [dashboard]

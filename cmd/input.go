@@ -30,8 +30,8 @@ func confirm(message string) bool {
 	return confirm
 }
 
-func selectOrganization(client *api.Client, slug string) (*api.Organization, error) {
-	orgs, err := client.GetOrganizations()
+func selectOrganization(client *api.Client, slug string, typeFilter *api.OrganizationType) (*api.Organization, error) {
+	orgs, err := client.GetOrganizations(typeFilter)
 	if err != nil {
 		return nil, err
 	}
@@ -375,4 +375,15 @@ func isIntPort(val interface{}) error {
 	}
 
 	return errors.New("couldn't convert to string")
+}
+
+func inputUserEmail() (email string, err error) {
+	prompt := &survey.Input{
+		Message: "User email:",
+	}
+	if err := survey.AskOne(prompt, &email); err != nil {
+		return email, err
+	}
+
+	return email, nil
 }
