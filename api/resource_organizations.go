@@ -1,9 +1,16 @@
 package api
 
-func (client *Client) GetOrganizations() ([]Organization, error) {
+type OrganizationType string
+
+const (
+	OrganizationTypePersonal OrganizationType = "PERSONAL"
+	OrganizationTypeShared   OrganizationType = "SHARED"
+)
+
+func (client *Client) GetOrganizations(typeFilter *OrganizationType) ([]Organization, error) {
 	q := `
-		{
-			organizations {
+		query($orgType: OrganizationType) {
+			organizations(type: $orgType) {
 				nodes {
 					id
 					slug
@@ -15,6 +22,9 @@ func (client *Client) GetOrganizations() ([]Organization, error) {
 	`
 
 	req := client.NewRequest(q)
+	if typeFilter != nil {
+		req.Var("orgType", *typeFilter)
+	}
 
 	data, err := client.Run(req)
 	if err != nil {

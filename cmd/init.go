@@ -159,7 +159,7 @@ func runInit(cmdCtx *cmdctx.CmdContext) error {
 	fmt.Println()
 
 	targetOrgSlug := cmdCtx.Config.GetString("org")
-	org, err := selectOrganization(cmdCtx.Client.API(), targetOrgSlug)
+	org, err := selectOrganization(cmdCtx.Client.API(), targetOrgSlug, nil)
 
 	switch {
 	case isInterrupt(err):

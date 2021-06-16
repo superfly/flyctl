@@ -142,9 +142,11 @@ func runOrgsShow(ctx *cmdctx.CmdContext) error {
 func runOrgsInvite(ctx *cmdctx.CmdContext) error {
 	var orgSlug, userEmail string
 
+	orgType := api.OrganizationTypeShared
+
 	switch len(ctx.Args) {
 	case 0:
-		org, err := selectOrganization(ctx.Client.API(), "")
+		org, err := selectOrganization(ctx.Client.API(), "", &orgType)
 		if err != nil {
 			return err
 		}

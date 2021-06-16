@@ -117,7 +117,7 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 	}
 
 	appName := cmdctx.Config.GetString("name")
-	org, err := selectOrganization(cmdctx.Client.API(), orgSlug)
+	org, err := selectOrganization(cmdctx.Client.API(), orgSlug, nil)
 	if err != nil {
 		return err
 	}

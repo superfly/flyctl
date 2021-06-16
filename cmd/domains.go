@@ -39,7 +39,7 @@ func newDomainsCommand(client *client.Client) *Command {
 func runDomainsList(ctx *cmdctx.CmdContext) error {
 	var orgSlug string
 	if len(ctx.Args) == 0 {
-		org, err := selectOrganization(ctx.Client.API(), "")
+		org, err := selectOrganization(ctx.Client.API(), "", nil)
 		if err != nil {
 			return err
 		}
@@ -119,7 +119,7 @@ func runDomainsCreate(ctx *cmdctx.CmdContext) error {
 	var err error
 
 	if len(ctx.Args) == 0 {
-		org, err = selectOrganization(ctx.Client.API(), "")
+		org, err = selectOrganization(ctx.Client.API(), "", nil)
 		if err != nil {
 			return err
 		}
@@ -157,7 +157,7 @@ func runDomainsRegister(ctx *cmdctx.CmdContext) error {
 	var err error
 
 	if len(ctx.Args) == 0 {
-		org, err = selectOrganization(ctx.Client.API(), "")
+		org, err = selectOrganization(ctx.Client.API(), "", nil)
 		if err != nil {
 			return err
 		}
