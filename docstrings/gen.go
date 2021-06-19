@@ -237,7 +237,7 @@ ensure it is correct and meaningful to the platform.`,
 		}
 	case "curl":
 		return KeyStrings{"curl <url>", "Run a performance test against a url",
-			`Run a performance test againt a url.`,
+			`Run a performance test against a url.`,
 		}
 	case "dashboard":
 		return KeyStrings{"dashboard", "Open web browser on Fly Web UI for this app",
