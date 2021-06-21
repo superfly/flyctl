@@ -181,7 +181,7 @@ func runSSHEstablish(ctx *cmdctx.CmdContext) error {
 	}
 
 	override := false
-	if len(ctx.Args) >= 1 && ctx.Args[1] == "override" {
+	if len(ctx.Args) >= 2 && ctx.Args[1] == "override" {
 		override = true
 	}
 
