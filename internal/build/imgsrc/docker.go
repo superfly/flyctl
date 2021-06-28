@@ -406,6 +406,12 @@ func newDeploymentTag(appName string, label string) string {
 	return fmt.Sprintf("%s/%s:%s", registry, appName, label)
 }
 
+func newCacheTag(appName string) string {
+	registry := viper.GetString(flyctl.ConfigRegistryHost)
+
+	return fmt.Sprintf("%s/%s:%s", registry, appName, "cache")
+}
+
 // resolveDockerfile - Resolve the location of the dockerfile, allowing for upper and lowercase naming
 func resolveDockerfile(cwd string) string {
 	dockerfilePath := filepath.Join(cwd, "Dockerfile")
