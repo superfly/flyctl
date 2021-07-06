@@ -48,6 +48,17 @@ func StateForOrg(apiClient *api.Client, org *api.Organization, regionCode string
 		savedState := savedStatev.(map[string]interface{})
 		savedPeer := savedPeerv.(map[string]interface{})
 
+		savedPeerIp := savedPeer["peerip"].(string)
+		peerExists, err := VerifyPeerExists(apiClient, org, savedPeerIp)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to check if saved peer still exists")
+		}
+
+		if !peerExists {
+			goto NEW_CONNECTION
+		}
+
 		// if we get this far and the config is garbled, i'm fine
 		// with a panic
 		return &wg.WireGuardState{
@@ -57,7 +68,7 @@ func StateForOrg(apiClient *api.Client, org *api.Organization, regionCode string
 			LocalPublic:  savedState["localpublic"].(string),
 			LocalPrivate: savedState["localprivate"].(string),
 			Peer: api.CreatedWireGuardPeer{
-				Peerip:     savedPeer["peerip"].(string),
+				Peerip:     savedPeerIp,
 				Endpointip: savedPeer["endpointip"].(string),
 				Pubkey:     savedPeer["pubkey"].(string),
 			},
@@ -132,6 +143,25 @@ func Create(apiClient *api.Client, org *api.Organization, regionCode, name strin
 		LocalPrivate: privatekey,
 		Peer:         *data,
 	}, nil
+}
+
+func VerifyPeerExists(apiClient *api.Client, org *api.Organization, savedPeerIp string) (bool, error) {
+	data, err := apiClient.GetWireGuardPeers(org.Slug)
+	if err != nil {
+		return false, err
+	}
+
+	if len(data) == 0 {
+		return false, nil
+	}
+
+	for _, peer := range data {
+		if peer.Peerip == savedPeerIp {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func C25519pair() (string, string) {
