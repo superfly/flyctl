@@ -1,3 +1,5 @@
+// +build !windows
+
 package agent
 
 import (
@@ -42,7 +44,7 @@ func NewClient(path string) (*Client, error) {
 	return c, nil
 }
 
-func DefaultClient() (*Client, error) {
+func DefaultClient(*api.Client) (*Client, error) {
 	return NewClient(fmt.Sprintf("%s/.fly/fly-agent.sock", os.Getenv("HOME")))
 }
 

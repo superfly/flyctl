@@ -28,14 +28,13 @@ func runSSHConsole(ctx *cmdctx.CmdContext) error {
 
 	agentclient, err := EstablishFlyAgent(ctx)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "can't establish agent: %s", err)
+		return fmt.Errorf("can't establish agent: %s\n", err)
 		return err
 	}
 
 	dialer, err := agentclient.Dialer(&app.Organization)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "can't build tunnel for %s: %s", app.Organization.Slug, err)
-		return err
+		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
 	}
 
 	if ctx.Config.GetBool("probe") {
