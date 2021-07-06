@@ -238,7 +238,7 @@ func probeTunnel(tunnel *wg.Tunnel) error {
 func (s *Server) handleProbe(c net.Conn, args []string) error {
 	tunnel, err := s.tunnelFor(args[1])
 	if err != nil {
-		return fmt.Errorf("can't build tunnel: %s", err)
+		return fmt.Errorf("probe: can't build tunnel: %s", err)
 	}
 
 	if err := probeTunnel(tunnel); err != nil {
@@ -298,7 +298,7 @@ func fetchInstances(tunnel *wg.Tunnel, app string) (*Instances, error) {
 func (s *Server) handleInstances(c net.Conn, args []string) error {
 	tunnel, err := s.tunnelFor(args[1])
 	if err != nil {
-		return fmt.Errorf("can't build tunnel: %s", err)
+		return fmt.Errorf("instance list: can't build tunnel: %s", err)
 	}
 
 	app := args[2]
@@ -322,17 +322,17 @@ func (s *Server) handleConnect(c net.Conn, args []string) error {
 	log.Printf("incoming connect: %v", args)
 
 	if len(args) < 3 || len(args) > 4 {
-		return fmt.Errorf("malformed connect command: %v", args)
+		return fmt.Errorf("connect: malformed connect command: %v", args)
 	}
 
 	tunnel, err := s.tunnelFor(args[1])
 	if err != nil {
-		return fmt.Errorf("can't build tunnel: %s", err)
+		return fmt.Errorf("connect: can't build tunnel: %s", err)
 	}
 
 	address, err := resolve(tunnel, args[2])
 	if err != nil {
-		return fmt.Errorf("can't resolve address '%s': %s", args[2], err)
+		return fmt.Errorf("connect: can't resolve address '%s': %s", args[2], err)
 	}
 
 	ctx := context.Background()
@@ -341,7 +341,7 @@ func (s *Server) handleConnect(c net.Conn, args []string) error {
 	if len(args) > 3 {
 		timeout, err := strconv.ParseUint(args[3], 10, 32)
 		if err != nil {
-			return fmt.Errorf("invalid timeout: %s", err)
+			return fmt.Errorf("connect: invalid timeout: %s", err)
 		}
 
 		if timeout != 0 {
