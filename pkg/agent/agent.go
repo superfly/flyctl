@@ -152,41 +152,6 @@ func (s *Server) handlePing(c net.Conn, args []string) error {
 	return writef(c, "pong %d", os.Getpid())
 }
 
-func findOrganization(client *api.Client, slug string) (*api.Organization, error) {
-	orgs, err := client.GetOrganizations()
-	if err != nil {
-		return nil, fmt.Errorf("can't load organizations from config: %s", err)
-	}
-
-	var org *api.Organization
-	for _, o := range orgs {
-		if o.Slug == slug {
-			org = &o
-			break
-		}
-	}
-
-	if org == nil {
-		return nil, fmt.Errorf("no such organization")
-	}
-
-	return org, nil
-}
-
-func buildTunnel(client *api.Client, org *api.Organization) (*wg.Tunnel, error) {
-	state, err := wireguard.StateForOrg(client, org, "", "")
-	if err != nil {
-		return nil, fmt.Errorf("can't get wireguard state for %s: %s", org.Slug, err)
-	}
-
-	tunnel, err := wg.Connect(*state.TunnelConfig())
-	if err != nil {
-		return nil, fmt.Errorf("can't connect wireguard: %w", err)
-	}
-
-	return tunnel, nil
-}
-
 func (s *Server) handleEstablish(c net.Conn, args []string) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -195,31 +160,51 @@ func (s *Server) handleEstablish(c net.Conn, args []string) error {
 		return fmt.Errorf("malformed establish command")
 	}
 
-	org, err := findOrganization(s.client, args[1])
+	orgs, err := s.client.GetOrganizations()
 	if err != nil {
-		return err
+		return fmt.Errorf("can't load organizations from config: %s", err)
+	}
+
+	var org *api.Organization
+	for _, o := range orgs {
+		if o.Slug == args[1] {
+			org = &o
+			break
+		}
+	}
+
+	if org == nil {
+		return fmt.Errorf("no such organization")
 	}
 
 	if _, ok := s.tunnels[org.Slug]; ok {
 		return writef(c, "ok")
 	}
 
-	tunnel, err := buildTunnel(s.client, org)
+	state, err := wireguard.StateForOrg(s.client, org, "", "")
 	if err != nil {
-		return err
+		return fmt.Errorf("can't get wireguard state for %s: %s", org.Slug, err)
+	}
+
+	tunnel, err := wg.Connect(*state.TunnelConfig())
+	if err != nil {
+		return fmt.Errorf("can't connect wireguard: %w", err)
 	}
 
 	s.tunnels[org.Slug] = tunnel
 	return writef(c, "ok")
 }
 
-func probeTunnel(tunnel *wg.Tunnel) error {
-	var err error
+func (s *Server) handleProbe(c net.Conn, args []string) error {
+	tunnel, err := s.tunnelFor(args[1])
+	if err != nil {
+		return fmt.Errorf("can't build tunnel: %s", err)
+	}
 
 	for i := 0; i < 3; i++ {
 		terminal.Debugf("Probing WireGuard connectivity, attempt %d\n", i)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 
 		_, err = tunnel.Resolver().LookupTXT(ctx, fmt.Sprintf("_apps.internal"))
 		cancel()
@@ -229,20 +214,7 @@ func probeTunnel(tunnel *wg.Tunnel) error {
 	}
 
 	if err != nil {
-		return fmt.Errorf("probing look up apps: %w", err)
-	}
-
-	return nil
-}
-
-func (s *Server) handleProbe(c net.Conn, args []string) error {
-	tunnel, err := s.tunnelFor(args[1])
-	if err != nil {
-		return fmt.Errorf("can't build tunnel: %s", err)
-	}
-
-	if err := probeTunnel(tunnel); err != nil {
-		return err
+		return fmt.Errorf("look up apps: %w", err)
 	}
 
 	writef(c, "ok")
@@ -255,19 +227,26 @@ type Instances struct {
 	Addresses []string
 }
 
-func fetchInstances(tunnel *wg.Tunnel, app string) (*Instances, error) {
+func (s *Server) handleInstances(c net.Conn, args []string) error {
+	tunnel, err := s.tunnelFor(args[1])
+	if err != nil {
+		return fmt.Errorf("can't build tunnel: %s", err)
+	}
+
+	app := args[2]
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	regionsv, err := tunnel.Resolver().
 		LookupTXT(ctx, fmt.Sprintf("regions.%s.internal", app))
 	if err != nil {
-		return nil, fmt.Errorf("look up regions for %s: %w", app, err)
+		return fmt.Errorf("look up regions for %s: %w", app, err)
 	}
 
 	regions := strings.Trim(regionsv[0], " \t")
 	if regions == "" {
-		return nil, fmt.Errorf("can't find deployed regions for %s", app)
+		return fmt.Errorf("can't find deployed regions for %s", app)
 	}
 
 	ret := &Instances{}
@@ -290,22 +269,6 @@ func fetchInstances(tunnel *wg.Tunnel, app string) (*Instances, error) {
 			ret.Labels = append(ret.Labels, fmt.Sprintf("%s (%s)", region, addr))
 			ret.Addresses = append(ret.Addresses, addrs[0])
 		}
-	}
-
-	return ret, nil
-}
-
-func (s *Server) handleInstances(c net.Conn, args []string) error {
-	tunnel, err := s.tunnelFor(args[1])
-	if err != nil {
-		return fmt.Errorf("can't build tunnel: %s", err)
-	}
-
-	app := args[2]
-
-	ret, err := fetchInstances(tunnel, app)
-	if err != nil {
-		return err
 	}
 
 	if len(ret.Addresses) == 0 {
