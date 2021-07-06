@@ -1,4 +1,4 @@
-// +build linux
+// +build windows
 
 package agent
 
@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/pkg/wg"
@@ -37,8 +36,13 @@ func NewClient(path string) (*Client, error) {
 	}, nil
 }
 
-func DefaultClient() (*Client, error) {
-	return NewClient("")
+func DefaultClient(c *api.Client) (*Client, error) {
+	client, err := NewClient("")
+	if err != nil {
+		return nil, err
+	}
+	client.Client = c
+	return client, nil
 }
 
 func (c *Client) Kill() error {
@@ -78,7 +82,7 @@ func (c *Client) Establish(slug string) error {
 func (c *Client) Probe(o *api.Organization) error {
 	tunnel, err := c.tunnelFor(o.Slug)
 	if err != nil {
-		return fmt.Errorf("can't build tunnel: %s", err)
+		return fmt.Errorf("probe: can't build tunnel: %s", err)
 	}
 
 	if err := probeTunnel(tunnel); err != nil {
@@ -107,14 +111,26 @@ func (c *Client) Instances(o *api.Organization, app string) (*Instances, error) 
 }
 
 type Dialer struct {
-	Org     *api.Organization
-	Timeout time.Duration
+	Org    *api.Organization
+	tunnel *wg.Tunnel
 }
 
 func (c *Client) Dialer(o *api.Organization) (*Dialer, error) {
-	return nil, fmt.Errorf("not implemented yet")
+	if err := c.Establish(o.Slug); err != nil {
+		return nil, fmt.Errorf("dial: can't establish tunel: %s", err)
+	}
+
+	tunnel, err := c.tunnelFor(o.Slug)
+	if err != nil {
+		return nil, fmt.Errorf("dial: can't build tunnel: %s", err)
+	}
+
+	return &Dialer{
+		Org:    o,
+		tunnel: tunnel,
+	}, nil
 }
 
 func (d *Dialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	return nil, fmt.Errorf("not implemented yet")
+	return d.tunnel.DialContext(ctx, network, addr)
 }

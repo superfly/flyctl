@@ -56,7 +56,9 @@ func runFlyAgentDaemonStart(ctx *cmdctx.CmdContext) error {
 }
 
 func runFlyAgentStart(ctx *cmdctx.CmdContext) error {
-	c, err := agent.DefaultClient()
+	api := ctx.Client.API()
+
+	c, err := agent.DefaultClient(api)
 	if err == nil {
 		c.Kill()
 	}
@@ -70,7 +72,9 @@ func runFlyAgentStart(ctx *cmdctx.CmdContext) error {
 }
 
 func runFlyAgentStop(ctx *cmdctx.CmdContext) error {
-	c, err := agent.DefaultClient()
+	api := ctx.Client.API()
+
+	c, err := agent.DefaultClient(api)
 	if err == nil {
 		c.Kill()
 	}
@@ -79,7 +83,9 @@ func runFlyAgentStop(ctx *cmdctx.CmdContext) error {
 }
 
 func EstablishFlyAgent(ctx *cmdctx.CmdContext) (*agent.Client, error) {
-	c, err := agent.DefaultClient()
+	api := ctx.Client.API()
+
+	c, err := agent.DefaultClient(api)
 	if err == nil {
 		_, err := c.Ping()
 		if err == nil {
@@ -87,5 +93,5 @@ func EstablishFlyAgent(ctx *cmdctx.CmdContext) (*agent.Client, error) {
 		}
 	}
 
-	return StartAgent(os.Args[0])
+	return StartAgent(api, os.Args[0])
 }
