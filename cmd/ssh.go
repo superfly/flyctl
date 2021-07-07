@@ -105,15 +105,6 @@ func newSSHCommand(client *client.Client) *Command {
 		Description: "Overwrite existing SSH keys in same location, if we generated them",
 	})
 
-	shell := child(cmd, runSSHShell, "ssh.shell")
-	shell.Args = cobra.MaximumNArgs(2)
-
-	shell.AddStringFlag(StringFlagOpts{
-		Name:        "region",
-		Shorthand:   "r",
-		Description: "Region to create WireGuard connection in",
-	})
-
 	return cmd
 }
 
