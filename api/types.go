@@ -693,6 +693,7 @@ type AllocationStatus struct {
 	ID                 string
 	IDShort            string
 	Version            int
+	TaskName           string
 	Region             string
 	Status             string
 	DesiredStatus      string
