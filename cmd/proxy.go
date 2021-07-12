@@ -52,6 +52,12 @@ func runProxy(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
+	if cmdCtx.Config.GetBool("probe") {
+		if err = agent.Probe(&app.Organization); err != nil {
+			return fmt.Errorf("probe wireguard: %w", err)
+		}
+	}
+
 	rAddr := fmt.Sprintf("%s.internal", cmdCtx.AppName)
 
 	fmt.Printf("Proxying local connections '%s:%s' to %s\n", lPort, rPort, cmdCtx.AppName)
