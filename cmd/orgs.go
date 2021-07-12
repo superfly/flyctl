@@ -5,6 +5,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/olekukonko/tablewriter"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
@@ -144,8 +145,8 @@ func runOrgsInvite(ctx *cmdctx.CmdContext) error {
 
 	orgType := api.OrganizationTypeShared
 
-	switch len(ctx.Args) {
-	case 0:
+	if len(ctx.Args) == 0 {
+
 		org, err := selectOrganization(ctx.Client.API(), "", &orgType)
 		if err != nil {
 			return err
@@ -156,11 +157,12 @@ func runOrgsInvite(ctx *cmdctx.CmdContext) error {
 		if err != nil {
 			return err
 		}
-	case 1:
-		// TODO: Validity check on org
+	} else if len(ctx.Args) == 2 {
 		orgSlug = ctx.Args[0]
-	case 2:
+
 		userEmail = ctx.Args[1]
+	} else {
+		return errors.New("specify all arguments (or no arguments to be prompted)")
 	}
 
 	org, err := ctx.Client.API().GetOrganizationBySlug(orgSlug)
