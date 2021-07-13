@@ -16,10 +16,14 @@ import (
 	controlapi "github.com/moby/buildkit/api/services/control"
 	buildkitClient "github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/session"
+	"github.com/moby/buildkit/session/auth"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/flyctl"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func buildkitEnabled(docker *dockerclient.Client) (buildkitEnabled bool, err error) {
@@ -131,4 +135,37 @@ func (t *tracer) write(msg jsonmessage.JSONMessage) {
 	}
 
 	t.displayCh <- &s
+}
+
+func newBuildkitAuthProvider() session.Attachable {
+	return &buildkitAuthProvider{}
+}
+
+type buildkitAuthProvider struct{}
+
+func (ap *buildkitAuthProvider) Register(server *grpc.Server) {
+	auth.RegisterAuthServer(server, ap)
+}
+
+func (ap *buildkitAuthProvider) Credentials(ctx context.Context, req *auth.CredentialsRequest) (*auth.CredentialsResponse, error) {
+	auths := authConfigs()
+	res := &auth.CredentialsResponse{}
+	if a, ok := auths[req.Host]; ok {
+		res.Username = a.Username
+		res.Secret = a.Password
+	}
+
+	return res, nil
+}
+
+func (ap *buildkitAuthProvider) FetchToken(ctx context.Context, req *auth.FetchTokenRequest) (*auth.FetchTokenResponse, error) {
+	return nil, status.Errorf(codes.Unavailable, "client side tokens disabled")
+}
+
+func (ap *buildkitAuthProvider) GetTokenAuthority(ctx context.Context, req *auth.GetTokenAuthorityRequest) (*auth.GetTokenAuthorityResponse, error) {
+	return nil, status.Errorf(codes.Unavailable, "client side tokens disabled")
+}
+
+func (ap *buildkitAuthProvider) VerifyTokenAuthority(ctx context.Context, req *auth.VerifyTokenAuthorityRequest) (*auth.VerifyTokenAuthorityResponse, error) {
+	return nil, status.Errorf(codes.Unavailable, "client side tokens disabled")
 }
