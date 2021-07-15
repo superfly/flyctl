@@ -94,7 +94,6 @@ func runScaleShow(commandContext *cmdctx.CmdContext) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("VM Resources for %s\n", commandContext.AppName)
 
 	// only use the "app" tg right now
 	var appCount int
@@ -123,6 +122,8 @@ func printVMResources(commandContext *cmdctx.CmdContext, vmSize api.VMSize, coun
 		fmt.Fprintln(commandContext.Out, string(prettyJSON))
 		return
 	}
+
+	fmt.Printf("VM Resources for %s\n", commandContext.AppName)
 
 	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Size", vmSize.Name)
 	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Memory", formatMemory(vmSize))
