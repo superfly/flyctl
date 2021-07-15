@@ -366,6 +366,8 @@ func registryAuth(token string) types.AuthConfig {
 func authConfigs() map[string]types.AuthConfig {
 	authConfigs := map[string]types.AuthConfig{}
 
+	authConfigs["registry.fly.io"] = registryAuth(flyctl.GetAPIToken())
+
 	dockerhubUsername := os.Getenv("DOCKER_HUB_USERNAME")
 	dockerhubPassword := os.Getenv("DOCKER_HUB_PASSWORD")
 

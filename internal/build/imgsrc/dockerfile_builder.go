@@ -231,6 +231,7 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 	if err != nil {
 		panic(err)
 	}
+	s.Allow(newBuildkitAuthProvider())
 
 	if s == nil {
 		panic("buildkit not supported")

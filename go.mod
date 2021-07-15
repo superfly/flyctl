@@ -12,7 +12,8 @@ require (
 	github.com/briandowns/spinner v1.12.0
 	github.com/buildpacks/pack v0.17.0
 	github.com/cli/safeexec v1.0.0
-	github.com/containerd/console v1.0.1
+	github.com/containerd/console v1.0.2
+	github.com/containerd/containerd v1.5.3 // indirect
 	github.com/docker/cli v20.10.4+incompatible // indirect
 	github.com/docker/docker v20.10.0-beta1.0.20201110211921-af34b94a78a1+incompatible
 	github.com/dustin/go-humanize v1.0.0
@@ -48,6 +49,7 @@ require (
 	golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d
 	golang.zx2c4.com/wireguard v0.0.20201118
 	golang.zx2c4.com/wireguard/tun/netstack v0.0.0-20210402170708-10533c3e73cd
+	google.golang.org/grpc v1.36.0-dev.0.20210208035533-9280052d3665
 	gopkg.in/yaml.v2 v2.4.0
 )
 
