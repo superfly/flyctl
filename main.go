@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/hashicorp/go-multierror"
 	"github.com/logrusorgru/aurora"
+
 	"github.com/superfly/flyctl/cmd"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/flyname"
@@ -44,13 +46,17 @@ func main() {
 		if err := recover(); err != nil {
 			sentry.CurrentHub().Recover(err)
 
-			fmt.Println(aurora.Red("Oops, something went wrong! Could you try that again?"))
+			var buf bytes.Buffer
+
+			fmt.Fprintln(&buf, aurora.Red("Oops, something went wrong! Could you try that again?"))
 
 			if flyctl.Environment != "production" {
-				fmt.Println()
-				fmt.Println(err)
-				fmt.Println(string(debug.Stack()))
+				fmt.Fprintln(&buf)
+				fmt.Fprintln(&buf, err)
+				fmt.Fprintln(&buf, string(debug.Stack()))
 			}
+
+			buf.WriteTo(os.Stdout)
 
 			os.Exit(1)
 		}
