@@ -1011,3 +1011,14 @@ type Invitation struct {
 type CreateOrganizationInvitation struct {
 	Invitation Invitation
 }
+
+type CreateTemplateDeploymentInput struct {
+	OrganizationId string                 `json:"organizationId"`
+	Template       map[string]interface{} `json:"template"`
+	Variables      []PropertyInput        `json:"variables"`
+}
+
+type PropertyInput struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}

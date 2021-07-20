@@ -20,6 +20,7 @@ require (
 	github.com/ejcx/sshcert v1.0.1
 	github.com/getsentry/sentry-go v0.9.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
+	github.com/hashicorp/go-getter v1.5.5
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/inancgumus/screen v0.0.0-20190314163918-06e984b86ed3
 	github.com/jpillora/backoff v1.0.0
