@@ -429,6 +429,11 @@ usage     = "launch"
 shortHelp = "Launch a new app"
 longHelp  = "Create and configure a new app from source code or an image reference."
 
+    [launch.template]
+    usage = "template"
+    shortHelp ="Launch apps from template files"
+    longHelp = "Create and configure apps from templaye files"
+
 [list]
 usage     = "list"
 shortHelp = "Lists your Fly resources"

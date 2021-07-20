@@ -1,11 +1,17 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/url"
+	"os"
+	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/hashicorp/go-getter"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
@@ -28,6 +34,14 @@ func newLaunchCommand(client *client.Client) *Command {
 	launchCmd.AddStringFlag(StringFlagOpts{Name: "image", Description: "the image to launch"})
 	launchCmd.AddBoolFlag(BoolFlagOpts{Name: "now", Description: "deploy now without confirmation", Default: false})
 
+	launchTemplateStrings := docstrings.Get("launch.template")
+	launchTemplateCmd := BuildCommandKS(launchCmd, runLaunchTemplate, launchTemplateStrings, client, requireSession)
+	launchTemplateCmd.Args = cobra.ExactArgs(1)
+
+	launchTemplateCmd.AddStringFlag(StringFlagOpts{
+		Name:        "org",
+		Description: "`the organization that will own the app`",
+	})
 	return launchCmd
 }
 
@@ -197,6 +211,160 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 	return runDeploy(cmdctx)
 }
 
+func runLaunchTemplate(cmdctx *cmdctx.CmdContext) error {
+	fmt.Println("launching template...")
+
+	ctx := createCancellableContext()
+
+	client := cmdctx.Client.API()
+
+	org, err := selectOrganization(client, cmdctx.Config.GetString("org"), nil)
+	if err != nil {
+		return fmt.Errorf("could not select org: %s", err)
+	}
+
+	source := cmdctx.Args[0]
+
+	url, err := parseSourceURL(source)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("downloading from %s\n", url)
+
+	// Get the pwd
+	pwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("error getting wd: %s", err)
+	}
+
+	getter := &getter.Client{
+		Ctx:  ctx,
+		Mode: getter.ClientModeAny,
+		Src:  url.String(),
+		Pwd:  pwd,
+		// Dst:  dst,
+	}
+
+	if err := getter.Get(); err != nil {
+		return err
+	}
+
+	content, err := os.ReadFile(path.Base(url.Path))
+	if err != nil {
+		return fmt.Errorf("error reading file: %s", err)
+	}
+
+	// exp := regexp.MustCompile(`"([^"]+)"\s*:\s*"\${(.*?)}"`)
+
+	var template = map[string]interface{}{}
+
+	if err := json.Unmarshal(content, &template); err != nil {
+		return fmt.Errorf("error parsing template")
+	}
+
+	var params = map[string]string{}
+
+	for _, param := range template["parameters"].([]interface{}) {
+		param, ok := param.(map[string]interface{})
+		if !ok {
+			panic("not ok")
+		}
+
+		name, ok := param["name"].(string)
+		if !ok {
+			return fmt.Errorf("could not get name from param")
+		}
+
+		label, ok := param["label"].(string)
+		if !ok {
+			label = name
+		}
+
+		var value string
+
+		switch name {
+		case "app_name":
+			prompt := &survey.Input{
+				Message: fmt.Sprintf("%s:", label),
+			}
+
+			err := survey.AskOne(prompt, &value, survey.WithValidator(survey.Required))
+			if err != nil {
+				return err
+			}
+
+		case "vm_size":
+			var options []string
+
+			sizes, err := client.PlatformVMSizes()
+			if err != nil {
+				return err
+			}
+			for _, size := range sizes {
+				options = append(options, size.Name)
+			}
+
+			prompt := &survey.Select{
+				Message: fmt.Sprintf("%s:", label),
+				Options: options,
+			}
+
+			err = survey.AskOne(prompt, &value)
+			if err != nil {
+				return err
+			}
+		case "region":
+			var options []string
+
+			regions, _, err := client.PlatformRegions()
+			if err != nil {
+				return err
+			}
+
+			for _, region := range regions {
+				options = append(options, region.Code)
+			}
+
+			prompt := &survey.Select{
+				Message:  fmt.Sprintf("%s:", label),
+				Options:  options,
+				PageSize: 15,
+			}
+
+			err = survey.AskOne(prompt, &value)
+			if err != nil {
+				return err
+			}
+
+		default:
+			prompt := &survey.Input{
+				Message: fmt.Sprintf("%s:", label),
+			}
+
+			err := survey.AskOne(prompt, &value, survey.WithValidator(survey.Required))
+			if err != nil {
+				if isInterrupt(err) {
+					return nil
+				}
+			}
+		}
+		params[name] = value
+
+	}
+
+	deployment, err := client.CreateTemplateDeployment(org.ID, template, params)
+	if err != nil {
+		return fmt.Errorf("error creating template deployment: %s", err)
+	}
+
+	// fmt.Printf("%+v\n", params)
+
+	fmt.Printf("%+v\n", deployment)
+
+	return nil
+}
+
 func shouldDeployExistingApp(cc *cmdctx.CmdContext, appName string) (bool, error) {
 	status, err := cc.Client.API().GetAppStatus(appName, false)
 	if err != nil {
@@ -217,4 +385,27 @@ func shouldDeployExistingApp(cc *cmdctx.CmdContext, appName string) (bool, error
 	}
 
 	return true, nil
+}
+
+func parseSourceURL(source string) (*url.URL, error) {
+	if runtime.GOOS == "windows" {
+		// Check that the user specified a UNC path, and promote it to an smb:// uri.
+		if strings.HasPrefix(source, "\\\\") && len(source) > 2 && source[2] != '?' {
+			source = filepath.ToSlash(source[2:])
+			source = fmt.Sprintf("smb://%s", source)
+		}
+	}
+
+	u, err := url.Parse(source)
+	return u, err
+}
+
+type Parameter struct {
+	Name        string `json:"name"`
+	Type        string `json:"type"`
+	Label       string `json:"label"`
+	Help        string `json:"help_text"`
+	Default     string `json:"default"`
+	Required    bool   `json:"Required"`
+	Placeholder string `json:"placeholder"`
 }

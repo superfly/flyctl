@@ -398,6 +398,10 @@ Fly network`,
 		return KeyStrings{"launch", "Launch a new app",
 			`Create and configure a new app from source code or an image reference.`,
 		}
+	case "launch.template":
+		return KeyStrings{"template", "Launch apps from template files",
+			`Create and configure apps from templaye files`,
+		}
 	case "list":
 		return KeyStrings{"list", "Lists your Fly resources",
 			`The list command is for listing your resources on has two subcommands, apps and orgs.
