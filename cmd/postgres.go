@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/terminal"
 )
 
 func newPostgresCommand(client *client.Client) *Command {
@@ -36,6 +37,11 @@ func newPostgresCommand(client *client.Client) *Command {
 	createCmd.AddStringFlag(StringFlagOpts{Name: "volume-size", Description: "the size in GB for volumes"})
 	createCmd.AddStringFlag(StringFlagOpts{Name: "vm-size", Description: "the size of the VM"})
 	createCmd.AddStringFlag(StringFlagOpts{Name: "image-ref", Hidden: true})
+
+	connectStrings := docstrings.Get("postgres.connect")
+	connectCmd := BuildCommandKS(cmd, runPostgresConnect, connectStrings, client, requireSession, requireAppNameAsArg)
+	connectCmd.AddStringFlag(StringFlagOpts{Name: "user", Description: "The postgres user to connect with"})
+	connectCmd.AddStringFlag(StringFlagOpts{Name: "database", Description: "The postgres database to connect to"})
 
 	attachStrngs := docstrings.Get("postgres.attach")
 	attachCmd := BuildCommandKS(cmd, runAttachPostgresCluster, attachStrngs, client, requireSession, requireAppName)
@@ -225,6 +231,48 @@ func runDetachPostgresCluster(ctx *cmdctx.CmdContext) error {
 	s.Stop()
 
 	return nil
+}
+
+func runPostgresConnect(ctx *cmdctx.CmdContext) error {
+	client := ctx.Client.API()
+	terminal.Debugf("Retrieving app info for %s\n", ctx.AppName)
+
+	app, err := client.GetApp(ctx.AppName)
+	if err != nil {
+		return fmt.Errorf("get app: %w", err)
+	}
+
+	agentclient, err := EstablishFlyAgent(ctx)
+	if err != nil {
+		return fmt.Errorf("can't establish agent: %s\n", err)
+	}
+
+	dialer, err := agentclient.Dialer(&app.Organization)
+	if err != nil {
+		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
+	}
+
+	database := ctx.Config.GetString("database")
+	if database == "" {
+		database = ""
+	}
+
+	user := ctx.Config.GetString("user")
+	if user == "" {
+		user = "postgres"
+	}
+
+	addr := fmt.Sprintf("%s.internal", ctx.AppName)
+
+	cmd := fmt.Sprintf("psql postgres://%s:@%s:5432/%s", user, addr, database)
+
+	return sshConnect(&SSHParams{
+		Ctx:    ctx,
+		Org:    &app.Organization,
+		Dialer: dialer,
+		App:    ctx.AppName,
+		Cmd:    cmd,
+	}, addr)
 }
 
 func runListPostgresDatabases(ctx *cmdctx.CmdContext) error {

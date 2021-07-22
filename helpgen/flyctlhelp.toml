@@ -515,6 +515,10 @@ longHelp  = "Manage postgres clusters"
     usage     = "create"
     shortHelp = "Create a postgres cluster"
     longHelp  = "Create a postgres cluster"
+    [postgres.connect]
+    usage     = "connect"
+    shortHelp = "Connect to postgres cluster"
+    longHelp  = "Connect to a postgres cluster"
     [postgres.db]
     usage     = "db"
     shortHelp = "manage databases in a cluster"
