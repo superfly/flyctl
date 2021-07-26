@@ -383,7 +383,7 @@ func runLaunchTemplate(cmdctx *cmdctx.CmdContext) error {
 		})
 
 	}
-	return nil
+	return g.Wait()
 }
 
 func fetchTemplateDeployment(client *api.Client, deployemtID string) (deployment *api.TemplateDeployment, err error) {
