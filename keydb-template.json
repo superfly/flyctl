@@ -1,0 +1,100 @@
+{
+  "name": "KeyDB",
+  "description": "KeyDB is a high performance fork of Redis with a focus on multithreading, memory efficiency, and high throughput.",
+  "logo_url": "/ui/images/keydb-logo.svg",
+  "website_url": "https://keydb.dev",
+  "repository_url": "https://github.com/johnsully/keydb",
+  "template_description": "This template will deploy 2 instances in the selected region using multi-master replication and persistence.",
+  "apps": [
+    {
+      "name": "${app_name}",
+      "config": {
+        "image": "flyio/keydb-example",
+        "experimental": {
+          "private_network": true
+        },
+        "mounts": [
+          {
+            "source": "keydb_server",
+            "destination": "/data"
+          }
+        ],
+        "services": [
+          {
+            "internal_port": 6379,
+            "protocol": "tcp",
+            "ports": [
+              {
+                "port": 10000
+              }
+            ],
+            "script_checks": [
+              {
+                "interval": 5000,
+                "timeout": 1000,
+                "command": "/fly/check_ready.sh",
+                "restart_limit": 0
+              },
+              {
+                "interval": 5000,
+                "timeout": 1000,
+                "command": "/fly/check_replicas.sh",
+                "restart_limit": 0
+              }
+            ]
+          }
+        ]
+      },
+      "vm_size": "${vm_size}",
+      "regions": [
+        "${region}"
+      ],
+      "vm_counts": {
+        "app": 2
+      },
+      "volumes": [
+        {
+          "name": "keydb_server",
+          "size": 10,
+          "placement": {
+            "${region}": 2
+          }
+        }
+      ],
+      "secrets": [
+        {
+          "name": "KEYDB_PASSWORD",
+          "value": "${keydb_password}"
+        }
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "name": "app_name",
+      "type": "string",
+      "label": "Select an app name",
+      "placeholder": "example: myorg-keydb-server",
+      "required": true
+    },
+    {
+      "name": "vm_size",
+      "type": "vm_size",
+      "default": "shared-cpu-1x@256",
+      "required": true
+    },
+    {
+      "name": "region",
+      "type": "region",
+      "required": true
+    },
+    {
+      "name": "keydb_password",
+      "type": "string",
+      "generate": true,
+      "label": "KEYDB_PASSWORD",
+      "help_text": "Save this password in a secure place. You won’t be able to see it again, though you can change it with `flyctl secrets set KEYDB_PASSWORD=...`",
+      "required": true
+    }
+  ]
+}

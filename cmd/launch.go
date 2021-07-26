@@ -301,12 +301,16 @@ func runLaunchTemplate(cmdctx *cmdctx.CmdContext) error {
 			if err != nil {
 				return err
 			}
+
+			defaultSize := param["default"].(string)
+
 			for _, size := range sizes {
 				options = append(options, size.Name)
 			}
 
 			prompt := &survey.Select{
 				Message: fmt.Sprintf("%s:", label),
+				Default: defaultSize,
 				Options: options,
 			}
 
@@ -358,9 +362,16 @@ func runLaunchTemplate(cmdctx *cmdctx.CmdContext) error {
 		return fmt.Errorf("error creating template deployment: %s", err)
 	}
 
-	// fmt.Printf("%+v\n", params)
+	deployment, err = client.GetTemplateDeployment(deployment.ID)
+	if err != nil {
+		return fmt.Errorf("error getting template deployment: %s", err)
+	}
 
-	fmt.Printf("%+v\n", deployment)
+	apps := deployment.Apps.Nodes
+
+	fmt.Printf("%+v", apps)
+
+	// cmdctx.Render(&presenters.TemplateDeployment{Apps: apps})
 
 	return nil
 }

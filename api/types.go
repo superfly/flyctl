@@ -182,6 +182,8 @@ type Query struct {
 	AttachPostgresCluster *AttachPostgresClusterPayload
 
 	CreateOrganizationInvitation CreateOrganizationInvitation
+
+	CreateTemplateDeployment *CreateTemplateDeployment
 }
 
 type CreatedWireGuardPeer struct {
@@ -1010,6 +1012,10 @@ type Invitation struct {
 
 type CreateOrganizationInvitation struct {
 	Invitation Invitation
+}
+
+type CreateTemplateDeployment struct {
+	TemplateDeployment *TemplateDeployment
 }
 
 type CreateTemplateDeploymentInput struct {

@@ -6,22 +6,22 @@ func (c *Client) CreateTemplateDeployment(orgId string, template map[string]inte
 	query := `
 	mutation($input: CreateTemplateDeploymentInput!){
 		createTemplateDeployment(input: $input){
-		templateDeployment{
-		  id
-		  status
-		  apps{
-			nodes{
-			  id
-			  currentRelease{
-				id
-				createdAt
-			  }
-			  status
+			templateDeployment{
+		  		id
+		  		status
+		  		apps{
+			  		nodes{
+						id
+						release{
+							id
+			  			}
+			  			version
+			  			deployed
+			  			status
+					}
+		  		}
 			}
-		  }
-		  
-		}
-	  }
+	  	}
 	}
 	`
 
@@ -43,5 +43,5 @@ func (c *Client) CreateTemplateDeployment(orgId string, template map[string]inte
 		return nil, err
 	}
 
-	return data.TemplateDeploymentNode, nil
+	return data.CreateTemplateDeployment.TemplateDeployment, nil
 }
