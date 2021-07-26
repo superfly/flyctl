@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/hashicorp/go-getter"
@@ -19,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/sourcecode"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/superfly/flyctl/docstrings"
 )
@@ -362,18 +364,43 @@ func runLaunchTemplate(cmdctx *cmdctx.CmdContext) error {
 		return fmt.Errorf("error creating template deployment: %s", err)
 	}
 
-	deployment, err = client.GetTemplateDeployment(deployment.ID)
+	for attempts := 0; attempts < 3; attempts++ {
+	}
+	deployment, err = fetchTemplateDeployment(client, deployment.ID)
 	if err != nil {
 		return fmt.Errorf("error getting template deployment: %s", err)
 	}
 
 	apps := deployment.Apps.Nodes
 
-	fmt.Printf("%+v", apps)
+	g, ctx := errgroup.WithContext(ctx)
 
-	// cmdctx.Render(&presenters.TemplateDeployment{Apps: apps})
+	for _, app := range apps {
+		cmdctx.AppName = app.Name
 
+		g.Go(func() error {
+			return watchDeployment(ctx, cmdctx)
+		})
+
+	}
 	return nil
+}
+
+func fetchTemplateDeployment(client *api.Client, deployemtID string) (deployment *api.TemplateDeployment, err error) {
+	for attempts := 0; attempts < 5; attempts++ {
+
+		time.Sleep(10 * time.Second)
+
+		deployment, err = client.GetTemplateDeployment(deployemtID)
+		if err != nil {
+			return nil, err
+		}
+		if len(deployment.Apps.Nodes) > 0 {
+			break
+		}
+
+	}
+	return deployment, nil
 }
 
 func shouldDeployExistingApp(cc *cmdctx.CmdContext, appName string) (bool, error) {

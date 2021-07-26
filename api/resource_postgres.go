@@ -36,8 +36,12 @@ func (client *Client) GetTemplateDeployment(id string) (*TemplateDeployment, err
 							name
 							state
 							status
+							deployed
 							currentRelease{
 								createdAt
+							}
+							organization{
+								slug
 							}
 						}
 					}
