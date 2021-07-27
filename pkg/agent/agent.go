@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/internal/wireguard"
@@ -28,11 +29,11 @@ var (
 
 type Server struct {
 	listener *net.UnixListener
-	ctx      context.Context
-	tunnels  map[string]*wg.Tunnel
-	client   *api.Client
-	cmdctx   *cmdctx.CmdContext
-	lock     sync.Mutex
+	// ctx      context.Context
+	tunnels map[string]*wg.Tunnel
+	client  *api.Client
+	cmdctx  *cmdctx.CmdContext
+	lock    sync.Mutex
 }
 
 type handlerFunc func(net.Conn, []string) error
@@ -181,12 +182,14 @@ func buildTunnel(client *api.Client, org *api.Organization) (*wg.Tunnel, error) 
 
 	tunnel, err := wg.Connect(*state.TunnelConfig())
 	if err != nil {
+		captureWireguardConnErr(err, org.Slug)
 		return nil, fmt.Errorf("can't connect wireguard: %w", err)
 	}
 
 	return tunnel, nil
 }
 
+// handleEstablish establishes a new wireguard tunnel to an organization.
 func (s *Server) handleEstablish(c net.Conn, args []string) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -221,7 +224,7 @@ func probeTunnel(tunnel *wg.Tunnel) error {
 
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 
-		_, err = tunnel.Resolver().LookupTXT(ctx, fmt.Sprintf("_apps.internal"))
+		_, err = tunnel.Resolver().LookupTXT(ctx, "_apps.internal")
 		cancel()
 		if err == nil {
 			break
@@ -235,6 +238,7 @@ func probeTunnel(tunnel *wg.Tunnel) error {
 	return nil
 }
 
+// handleProbe probes a wireguard tunnel to see if it's still alive.
 func (s *Server) handleProbe(c net.Conn, args []string) error {
 	tunnel, err := s.tunnelFor(args[1])
 	if err != nil {
@@ -242,6 +246,7 @@ func (s *Server) handleProbe(c net.Conn, args []string) error {
 	}
 
 	if err := probeTunnel(tunnel); err != nil {
+		captureWireguardConnErr(err, args[1])
 		return err
 	}
 
@@ -295,6 +300,7 @@ func fetchInstances(tunnel *wg.Tunnel, app string) (*Instances, error) {
 	return ret, nil
 }
 
+// handleInstances returns a list of instances of an app.
 func (s *Server) handleInstances(c net.Conn, args []string) error {
 	tunnel, err := s.tunnelFor(args[1])
 	if err != nil {
@@ -332,6 +338,7 @@ func (s *Server) handleConnect(c net.Conn, args []string) error {
 
 	address, err := resolve(tunnel, args[2])
 	if err != nil {
+		captureWireguardConnErr(err, args[1])
 		return fmt.Errorf("connect: can't resolve address '%s': %s", args[2], err)
 	}
 
@@ -351,6 +358,8 @@ func (s *Server) handleConnect(c net.Conn, args []string) error {
 
 	outconn, err := tunnel.DialContext(ctx, "tcp", address)
 	if err != nil {
+		captureWireguardConnErr(err, args[1])
+		cancel()
 		return fmt.Errorf("connection failed: %s", err)
 	}
 
@@ -391,8 +400,7 @@ func resolve(tunnel *wg.Tunnel, addr string) (string, error) {
 		return fmt.Sprintf("[%s]:%s", n, port), nil
 	}
 
-	addrs, err := tunnel.Resolver().LookupHost(context.Background(),
-		host)
+	addrs, err := tunnel.Resolver().LookupHost(context.Background(), host)
 	if err != nil {
 		return "", err
 	}
@@ -411,4 +419,19 @@ func removeSocket(path string) error {
 	}
 
 	return os.Remove(path)
+}
+
+type wireGuardConnErr struct {
+	Org string
+	Err error
+}
+
+func (e *wireGuardConnErr) Error() string {
+	return fmt.Sprintf("can't resolve %s: %s", e.Org, e.Err)
+}
+
+func captureWireguardConnErr(err error, org string) {
+	sentry.CaptureException(
+		&wireGuardConnErr{Org: org, Err: err},
+	)
 }
