@@ -51,7 +51,9 @@ func runMove(commandContext *cmdctx.CmdContext) error {
 	}
 
 	if !commandContext.Config.GetBool("yes") {
-		fmt.Println(aurora.Red("Are you sure you want to move this app?"))
+		fmt.Println(aurora.Red(`Moving an app between organizations requires a complete shutdown and restart. This will result in some app downtime.
+If the app relies on other services within the current organization, it may not come back up in a healthy manner.
+Please confirm you wish to restart this app now?`))
 
 		confirm := false
 		prompt := &survey.Confirm{
