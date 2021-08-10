@@ -111,7 +111,7 @@ func C25519pair() (string, string) {
 
 type WireGuardStates map[string]*wg.WireGuardState
 
-func getWireGuardState() (WireGuardStates, error) {
+func GetWireGuardState() (WireGuardStates, error) {
 	states := WireGuardStates{}
 
 	if err := viper.UnmarshalKey(flyctl.ConfigWireGuardState, &states); err != nil {
@@ -122,7 +122,7 @@ func getWireGuardState() (WireGuardStates, error) {
 }
 
 func getWireGuardStateForOrg(orgSlug string) (*wg.WireGuardState, error) {
-	states, err := getWireGuardState()
+	states, err := GetWireGuardState()
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +141,7 @@ func setWireGuardState(s WireGuardStates) error {
 }
 
 func setWireGuardStateForOrg(orgSlug string, s *wg.WireGuardState) error {
-	states, err := getWireGuardState()
+	states, err := GetWireGuardState()
 	if err != nil {
 		return err
 	}
@@ -152,7 +152,7 @@ func setWireGuardStateForOrg(orgSlug string, s *wg.WireGuardState) error {
 }
 
 func PruneInvalidPeers(apiClient *api.Client) error {
-	state, err := getWireGuardState()
+	state, err := GetWireGuardState()
 	if err != nil {
 		return nil
 	}
