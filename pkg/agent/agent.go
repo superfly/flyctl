@@ -112,6 +112,8 @@ func NewServer(path string, ctx *cmdctx.CmdContext) (*Server, error) {
 }
 
 func DefaultServer(ctx *cmdctx.CmdContext) (*Server, error) {
+	wireguard.PruneInvalidPeers(ctx.Client.API())
+
 	return NewServer(fmt.Sprintf("%s/.fly/fly-agent.sock", os.Getenv("HOME")), ctx)
 }
 

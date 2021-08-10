@@ -182,12 +182,16 @@ type Query struct {
 	AttachPostgresCluster *AttachPostgresClusterPayload
 
 	CreateOrganizationInvitation CreateOrganizationInvitation
+
+	ValidateWireGuardPeers struct {
+		InvalidPeerIPs []string
+	}
 }
 
 type CreatedWireGuardPeer struct {
-	Peerip     string
-	Endpointip string
-	Pubkey     string
+	Peerip     string `json:"peerip"`
+	Endpointip string `json:"endpointip"`
+	Pubkey     string `json:"pubkey"`
 }
 
 type DelegatedWireGuardToken struct {
