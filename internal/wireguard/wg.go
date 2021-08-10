@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	badrand "math/rand"
 
@@ -131,6 +132,7 @@ func getWireGuardStateForOrg(orgSlug string) (*wg.WireGuardState, error) {
 
 func setWireGuardState(s WireGuardStates) error {
 	viper.Set(flyctl.ConfigWireGuardState, s)
+	viper.Set(flyctl.ConfigWireGuardStateTimestamp, time.Now())
 	if err := flyctl.SaveConfig(); err != nil {
 		return errors.Wrap(err, "error saving config file")
 	}
@@ -176,4 +178,8 @@ func PruneInvalidPeers(apiClient *api.Client) error {
 	}
 
 	return setWireGuardState(state)
+}
+
+func LastWireGuardStateChange() time.Time {
+	return viper.GetTime(flyctl.ConfigWireGuardStateTimestamp)
 }
