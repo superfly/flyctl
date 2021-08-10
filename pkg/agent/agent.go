@@ -392,6 +392,27 @@ func (s *Server) tunnelFor(slug string) (*wg.Tunnel, error) {
 	return tunnel, nil
 }
 
+// validateTunnels closes any active tunnel that isn't in the wire_guard_state config
+func (s *Server) validateTunnels() error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	peers, err := wireguard.GetWireGuardState()
+	if err != nil {
+		return err
+	}
+
+	for slug, tunnel := range s.tunnels {
+		if peers[slug] == nil {
+			log.Printf("no peer for %s in config - closing tunnel", slug)
+			tunnel.Close()
+			delete(s.tunnels, slug)
+		}
+	}
+
+	return nil
+}
+
 func resolve(tunnel *wg.Tunnel, addr string) (string, error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
