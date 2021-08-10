@@ -169,3 +169,24 @@ func (c *Client) ClosestWireguardGatewayRegion() (*Region, error) {
 
 	return data.NearestRegion, nil
 }
+
+func (c *Client) ValidateWireGuardPeers(peerIPs []string) (invalid []string, err error) {
+	req := c.NewRequest(`
+mutation($input: ValidateWireGuardPeersInput!) { 
+  validateWireGuardPeers(input: $input) { 
+		invalidPeerIps
+	}
+}
+`)
+
+	req.Var("input", map[string]interface{}{
+		"peerIps": peerIPs,
+	})
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.ValidateWireGuardPeers.InvalidPeerIPs, nil
+}

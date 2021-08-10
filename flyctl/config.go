@@ -15,7 +15,8 @@ const (
 	ConfigInstaller       = "installer"
 	BuildKitNodeID        = "buildkit_node_id"
 
-	ConfigWireGuardState = "wire_guard_state"
+	ConfigWireGuardState          = "wire_guard_state"
+	ConfigWireGuardStateTimestamp = "wire_guard_state_timestamp"
 
 	ConfigRegistryHost = "registry_host"
 )

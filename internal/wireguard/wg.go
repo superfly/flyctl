@@ -3,14 +3,15 @@ package wireguard
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	badrand "math/rand"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
@@ -20,53 +21,14 @@ import (
 )
 
 func StateForOrg(apiClient *api.Client, org *api.Organization, regionCode string, name string) (*wg.WireGuardState, error) {
-	var (
-		svm map[string]interface{}
-		ok  bool
-	)
-
-	sv := viper.Get(flyctl.ConfigWireGuardState)
-	if sv != nil {
-		terminal.Debugf("Found WireGuard state in local configuration\n")
-
-		svm, ok = sv.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("garbage stored in wireguard_state in config")
-		}
-
-		// no state saved for this org
-		savedStatev, ok := svm[org.Slug]
-		if !ok {
-			goto NEW_CONNECTION
-		}
-
-		savedPeerv, ok := savedStatev.(map[string]interface{})["peer"]
-		if !ok {
-			return nil, fmt.Errorf("garbage stored in wireguard_state in config (under peer)")
-		}
-
-		savedState := savedStatev.(map[string]interface{})
-		savedPeer := savedPeerv.(map[string]interface{})
-
-		// if we get this far and the config is garbled, i'm fine
-		// with a panic
-		return &wg.WireGuardState{
-			Org:          org.Slug,
-			Name:         savedState["name"].(string),
-			Region:       savedState["region"].(string),
-			LocalPublic:  savedState["localpublic"].(string),
-			LocalPrivate: savedState["localprivate"].(string),
-			Peer: api.CreatedWireGuardPeer{
-				Peerip:     savedPeer["peerip"].(string),
-				Endpointip: savedPeer["endpointip"].(string),
-				Pubkey:     savedPeer["pubkey"].(string),
-			},
-		}, nil
-	} else {
-		svm = map[string]interface{}{}
+	state, err := getWireGuardStateForOrg(org.Slug)
+	if err != nil {
+		return nil, err
+	}
+	if state != nil {
+		return state, nil
 	}
 
-NEW_CONNECTION:
 	terminal.Debugf("Can't find matching WireGuard configuration; creating new one\n")
 
 	stateb, err := Create(apiClient, org, regionCode, name)
@@ -74,14 +36,11 @@ NEW_CONNECTION:
 		return nil, err
 	}
 
-	svm[stateb.Org] = stateb
-
-	viper.Set(flyctl.ConfigWireGuardState, &svm)
-	if err := flyctl.SaveConfig(); err != nil {
+	if err := setWireGuardStateForOrg(org.Slug, stateb); err != nil {
 		return nil, err
 	}
 
-	return stateb, err
+	return stateb, nil
 }
 
 func Create(apiClient *api.Client, org *api.Organization, regionCode, name string) (*wg.WireGuardState, error) {
@@ -148,4 +107,79 @@ func C25519pair() (string, string) {
 
 	return base64.StdEncoding.EncodeToString(public[:]),
 		base64.StdEncoding.EncodeToString(private[:])
+}
+
+type WireGuardStates map[string]*wg.WireGuardState
+
+func getWireGuardState() (WireGuardStates, error) {
+	states := WireGuardStates{}
+
+	if err := viper.UnmarshalKey(flyctl.ConfigWireGuardState, &states); err != nil {
+		return nil, errors.Wrap(err, "invalid wireguard state")
+	}
+
+	return states, nil
+}
+
+func getWireGuardStateForOrg(orgSlug string) (*wg.WireGuardState, error) {
+	states, err := getWireGuardState()
+	if err != nil {
+		return nil, err
+	}
+
+	return states[orgSlug], nil
+}
+
+func setWireGuardState(s WireGuardStates) error {
+	viper.Set(flyctl.ConfigWireGuardState, s)
+	viper.Set(flyctl.ConfigWireGuardStateTimestamp, time.Now())
+	if err := flyctl.SaveConfig(); err != nil {
+		return errors.Wrap(err, "error saving config file")
+	}
+
+	return nil
+}
+
+func setWireGuardStateForOrg(orgSlug string, s *wg.WireGuardState) error {
+	states, err := getWireGuardState()
+	if err != nil {
+		return err
+	}
+
+	states[orgSlug] = s
+
+	return setWireGuardState(states)
+}
+
+func PruneInvalidPeers(apiClient *api.Client) error {
+	state, err := getWireGuardState()
+	if err != nil {
+		return nil
+	}
+
+	peerIPs := []string{}
+
+	for _, peer := range state {
+		peerIPs = append(peerIPs, peer.Peer.Peerip)
+	}
+
+	invalidPeerIPs, err := apiClient.ValidateWireGuardPeers(peerIPs)
+	if err != nil {
+		return err
+	}
+
+	for _, invalidPeerIP := range invalidPeerIPs {
+		for orgSlug, peer := range state {
+			if peer.Peer.Peerip == invalidPeerIP {
+				terminal.Debugf("removing invalid peer %s for organization %s", invalidPeerIP, orgSlug)
+				delete(state, orgSlug)
+			}
+		}
+	}
+
+	return setWireGuardState(state)
+}
+
+func LastWireGuardStateChange() time.Time {
+	return viper.GetTime(flyctl.ConfigWireGuardStateTimestamp)
 }
