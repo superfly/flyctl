@@ -63,7 +63,7 @@ func runFlyAgentStart(ctx *cmdctx.CmdContext) error {
 		c.Kill()
 	}
 
-	_, err = EstablishFlyAgent(ctx)
+	_, err = agent.Establish(api)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "can't start agent: %s", err)
 	}
@@ -80,18 +80,4 @@ func runFlyAgentStop(ctx *cmdctx.CmdContext) error {
 	}
 
 	return err
-}
-
-func EstablishFlyAgent(ctx *cmdctx.CmdContext) (*agent.Client, error) {
-	api := ctx.Client.API()
-
-	c, err := agent.DefaultClient(api)
-	if err == nil {
-		_, err := c.Ping()
-		if err == nil {
-			return c, nil
-		}
-	}
-
-	return StartAgent(api, os.Args[0])
 }
