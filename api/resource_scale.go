@@ -179,7 +179,7 @@ func (c *Client) GetAppVMCount(appID string) ([]TaskGroupCount, error) {
 	return data.App.TaskGroupCounts, nil
 }
 
-func (c *Client) SetAppVMCount(appID string, count int) ([]TaskGroupCount, []string, error) {
+func (c *Client) SetAppVMCount(appID string, count int, maxPerRegion int) ([]TaskGroupCount, []string, error) {
 	query := `
 		mutation ($input: SetVMCountInput!) {
 			setVmCount(input: $input) {
@@ -197,7 +197,7 @@ func (c *Client) SetAppVMCount(appID string, count int) ([]TaskGroupCount, []str
 	req.Var("input", SetVMCountInput{
 		AppID: appID,
 		GroupCounts: []VMCountInput{
-			{Group: "app", Count: count},
+			{Group: "app", Count: count, MaxPerRegion: maxPerRegion},
 		}})
 
 	data, err := c.Run(req)
