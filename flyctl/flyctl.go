@@ -31,7 +31,8 @@ func ConfigDir() string {
 	return configDir
 }
 
-func configFilePath() string {
+// ConfigFilePath - returns the path to the config file
+func ConfigFilePath() string {
 	return path.Join(configDir, "config.yml")
 }
 
@@ -77,7 +78,7 @@ func loadConfig() error {
 		return nil
 	}
 
-	viper.SetConfigFile(configFilePath())
+	viper.SetConfigFile(ConfigFilePath())
 	viper.SetConfigType("yaml")
 
 	err := viper.ReadInConfig()
@@ -140,7 +141,7 @@ func SaveConfig() error {
 		return err
 	}
 
-	return ioutil.WriteFile(configFilePath(), data, 0600)
+	return ioutil.WriteFile(ConfigFilePath(), data, 0600)
 }
 
 func persistConfigKey(key string) bool {
