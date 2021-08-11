@@ -35,6 +35,11 @@ func newScaleCommand(client *client.Client) *Command {
 	countCmdStrings := docstrings.Get("scale.count")
 	countCmd := BuildCommand(cmd, runScaleCount, countCmdStrings.Usage, countCmdStrings.Short, countCmdStrings.Long, client, requireSession, requireAppName)
 	countCmd.Args = cobra.ExactArgs(1)
+	countCmd.AddIntFlag((IntFlagOpts{
+		Name:        "max-per-region",
+		Description: "Max number of VMs per region",
+		Default:     0,
+	}))
 
 	showCmdStrings := docstrings.Get("scale.show")
 	BuildCommand(cmd, runScaleShow, showCmdStrings.Usage, showCmdStrings.Short, showCmdStrings.Long, client, requireSession, requireAppName)
@@ -64,7 +69,9 @@ func runScaleCount(commandContext *cmdctx.CmdContext) error {
 		return err
 	}
 
-	counts, warnings, err := commandContext.Client.API().SetAppVMCount(commandContext.AppName, count)
+	maxPerRegion := int(commandContext.Config.GetInt("max-per-region"))
+
+	counts, warnings, err := commandContext.Client.API().SetAppVMCount(commandContext.AppName, count, maxPerRegion)
 	if err != nil {
 		return err
 	}
