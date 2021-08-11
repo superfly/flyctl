@@ -30,16 +30,29 @@ var (
 type Server struct {
 	listener *net.UnixListener
 	// ctx      context.Context
-	tunnels map[string]*wg.Tunnel
-	client  *api.Client
-	cmdctx  *cmdctx.CmdContext
-	lock    sync.Mutex
+	tunnels       map[string]*wg.Tunnel
+	client        *api.Client
+	cmdctx        *cmdctx.CmdContext
+	lock          sync.Mutex
+	currentChange time.Time
 }
 
 type handlerFunc func(net.Conn, []string) error
 
 func (s *Server) handle(c net.Conn) {
 	defer c.Close()
+
+	latestChange := wireguard.LastWireGuardStateChange()
+
+	if latestChange.After(s.currentChange) {
+		s.currentChange = latestChange
+		err := s.validateTunnels()
+		if err != nil {
+			s.errLog(c, "can't validate peers: %s", err)
+			return
+		}
+		log.Printf("config change at: %s", s.currentChange.String())
+	}
 
 	buf, err := read(c)
 	if err != nil {
@@ -101,11 +114,14 @@ func NewServer(path string, ctx *cmdctx.CmdContext) (*Server, error) {
 
 	l.SetUnlinkOnClose(true)
 
+	latestChange := wireguard.LastWireGuardStateChange()
+
 	s := &Server{
-		listener: l,
-		cmdctx:   ctx,
-		client:   ctx.Client.API(),
-		tunnels:  map[string]*wg.Tunnel{},
+		listener:      l,
+		cmdctx:        ctx,
+		client:        ctx.Client.API(),
+		tunnels:       map[string]*wg.Tunnel{},
+		currentChange: latestChange,
 	}
 
 	return s, nil
@@ -445,8 +461,9 @@ func removeSocket(path string) error {
 }
 
 type wireGuardConnErr struct {
-	Org string
-	Err error
+	Org string `json:"org"`
+	Err error  `json:"error"`
+	DNS string `json:"dns,omitempty"`
 }
 
 func (e *wireGuardConnErr) Error() string {
