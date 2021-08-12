@@ -795,7 +795,7 @@ type SetVMCountInput struct {
 type VMCountInput struct {
 	Group        string `json:"group"`
 	Count        int    `json:"count"`
-	MaxPerRegion int    `json:"maxPerRegion"`
+	MaxPerRegion *int   `json:"maxPerRegion"`
 }
 
 type StartBuildInput struct {

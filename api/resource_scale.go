@@ -179,7 +179,7 @@ func (c *Client) GetAppVMCount(appID string) ([]TaskGroupCount, error) {
 	return data.App.TaskGroupCounts, nil
 }
 
-func (c *Client) SetAppVMCount(appID string, count int, maxPerRegion int) ([]TaskGroupCount, []string, error) {
+func (c *Client) SetAppVMCount(appID string, count int, maxPerRegion *int) ([]TaskGroupCount, []string, error) {
 	query := `
 		mutation ($input: SetVMCountInput!) {
 			setVmCount(input: $input) {

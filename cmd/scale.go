@@ -38,7 +38,7 @@ func newScaleCommand(client *client.Client) *Command {
 	countCmd.AddIntFlag((IntFlagOpts{
 		Name:        "max-per-region",
 		Description: "Max number of VMs per region",
-		Default:     0,
+		Default:     -1,
 	}))
 
 	showCmdStrings := docstrings.Get("scale.show")
@@ -69,7 +69,13 @@ func runScaleCount(commandContext *cmdctx.CmdContext) error {
 		return err
 	}
 
-	maxPerRegion := int(commandContext.Config.GetInt("max-per-region"))
+	// THIS IS AN OPTION TYPE CAN YOU TELL?
+	maxPerRegionRaw := commandContext.Config.GetInt("max-per-region")
+	maxPerRegion := &maxPerRegionRaw
+
+	if maxPerRegionRaw == -1 {
+		maxPerRegion = nil
+	}
 
 	counts, warnings, err := commandContext.Client.API().SetAppVMCount(commandContext.AppName, count, maxPerRegion)
 	if err != nil {
