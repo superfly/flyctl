@@ -5,7 +5,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/dustin/go-humanize"
+	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/helpers"
@@ -44,8 +46,9 @@ func newVolumesCommand(client *client.Client) *Command {
 	})
 
 	deleteStrings := docstrings.Get("volumes.delete")
-	deleteCmd := BuildCommandKS(volumesCmd, runDestroyVolume, deleteStrings, client, requireSession)
+	deleteCmd := BuildCommandKS(volumesCmd, runDeleteVolume, deleteStrings, client, requireSession)
 	deleteCmd.Args = cobra.ExactArgs(1)
+	deleteCmd.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "Accept all confirmations"})
 
 	showStrings := docstrings.Get("volumes.show")
 	showCmd := BuildCommandKS(volumesCmd, runShowVolume, showStrings, client, requireSession)
@@ -123,9 +126,27 @@ func runCreateVolume(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runDestroyVolume(ctx *cmdctx.CmdContext) error {
+func runDeleteVolume(ctx *cmdctx.CmdContext) error {
 
 	volID := ctx.Args[0]
+
+	if !ctx.Config.GetBool("yes") {
+		fmt.Println(aurora.Red("Deleting a volume is not reversible."))
+
+		confirm := false
+		prompt := &survey.Confirm{
+			Message: fmt.Sprintf("Delete volume %s?", volID),
+		}
+		err := survey.AskOne(prompt, &confirm)
+
+		if err != nil {
+			return err
+		}
+
+		if !confirm {
+			return nil
+		}
+	}
 
 	data, err := ctx.Client.API().DeleteVolume(volID)
 
