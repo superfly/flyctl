@@ -18,6 +18,7 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/pkg/wg"
 	"github.com/superfly/flyctl/terminal"
@@ -42,14 +43,19 @@ type handlerFunc func(net.Conn, []string) error
 func (s *Server) handle(c net.Conn) {
 	defer c.Close()
 
-	latestChange := wireguard.LastWireGuardStateChange()
+	info, err := os.Stat(flyctl.ConfigFilePath())
+	if err != nil {
+		s.errLog(c, "can't stat config file: %s", err)
+		return
+	}
+
+	latestChange := info.ModTime()
 
 	if latestChange.After(s.currentChange) {
 		s.currentChange = latestChange
 		err := s.validateTunnels()
 		if err != nil {
 			s.errLog(c, "can't validate peers: %s", err)
-			return
 		}
 		log.Printf("config change at: %s", s.currentChange.String())
 	}
@@ -114,7 +120,12 @@ func NewServer(path string, ctx *cmdctx.CmdContext) (*Server, error) {
 
 	l.SetUnlinkOnClose(true)
 
-	latestChange := wireguard.LastWireGuardStateChange()
+	info, err := os.Stat(flyctl.ConfigFilePath())
+	if err != nil {
+		return nil, fmt.Errorf("can't stat config file: %s", err)
+	}
+
+	latestChange := info.ModTime()
 
 	s := &Server{
 		listener:      l,
