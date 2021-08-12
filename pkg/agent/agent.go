@@ -29,8 +29,9 @@ var (
 )
 
 type Server struct {
-	listener *net.UnixListener
-	// ctx      context.Context
+	listener      *net.UnixListener
+	ctx           context.Context
+	cancel        func()
 	tunnels       map[string]*wg.Tunnel
 	client        *api.Client
 	cmdctx        *cmdctx.CmdContext
@@ -93,7 +94,7 @@ func (s *Server) handle(c net.Conn) {
 	}
 }
 
-func NewServer(path string, ctx *cmdctx.CmdContext) (*Server, error) {
+func NewServer(path string, cmdCtx *cmdctx.CmdContext) (*Server, error) {
 	if c, err := NewClient(path); err == nil {
 		c.Kill()
 	}
@@ -129,11 +130,13 @@ func NewServer(path string, ctx *cmdctx.CmdContext) (*Server, error) {
 
 	s := &Server{
 		listener:      l,
-		cmdctx:        ctx,
-		client:        ctx.Client.API(),
+		cmdctx:        cmdCtx,
+		client:        cmdCtx.Client.API(),
 		tunnels:       map[string]*wg.Tunnel{},
 		currentChange: latestChange,
 	}
+
+	s.ctx, s.cancel = context.WithCancel(context.Background())
 
 	return s, nil
 }
@@ -146,6 +149,9 @@ func DefaultServer(ctx *cmdctx.CmdContext) (*Server, error) {
 
 func (s *Server) Serve() {
 	defer s.listener.Close()
+	defer s.cancel()
+
+	go s.clean()
 
 	for {
 		conn, err := s.listener.Accept()
@@ -438,6 +444,26 @@ func (s *Server) validateTunnels() error {
 	}
 
 	return nil
+}
+
+func (s *Server) clean() {
+	ticker := time.NewTicker(2 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			if err := wireguard.PruneInvalidPeers(s.client); err != nil {
+				log.Printf("failed to prune invalid peers: %s", err)
+			}
+			if err := s.validateTunnels(); err != nil {
+				log.Printf("failed to validate tunnels: %s", err)
+			}
+			log.Printf("validated wireguard peers(stat)")
+		case <-s.ctx.Done():
+			return
+		}
+	}
 }
 
 func resolve(tunnel *wg.Tunnel, addr string) (string, error) {
