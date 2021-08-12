@@ -21,9 +21,8 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/monitor"
-	"github.com/superfly/flyctl/internal/wireguard"
+	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/iostreams"
-	"github.com/superfly/flyctl/pkg/wg"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/sync/errgroup"
 )
@@ -206,20 +205,17 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 				return errors.Wrap(err, "error fetching target app")
 			}
 
-			terminal.Debug("creating wireguard config for org ", app.Organization.Slug)
-			state, err := wireguard.StateForOrg(apiClient, &app.Organization, "", "")
+			agentclient, err := agent.Establish(apiClient)
 			if err != nil {
-				return errors.Wrap(err, "error creating wireguard config")
+				return errors.Wrap(err, "error establishing agent")
 			}
 
-			terminal.Debugf("Establishing WireGuard connection (%s)\n", state.Name)
-
-			tunnel, err := wg.Connect(*state.TunnelConfig())
+			dialer, err := agentclient.Dialer(&app.Organization)
 			if err != nil {
-				return errors.Wrap(err, "error establishing wireguard connection")
+				return errors.Wrapf(err, "error establishing wireguard connection for %s organization", app.Organization.Slug)
 			}
 
-			opts = append(opts, dockerclient.WithDialContext(tunnel.DialContext))
+			opts = append(opts, dockerclient.WithDialContext(dialer.DialContext))
 		} else {
 			terminal.Debug("connecting to remote docker daemon over host wireguard tunnel")
 		}

@@ -1,6 +1,6 @@
 // +build !windows
 
-package cmd
+package agent
 
 import (
 	"fmt"
@@ -9,10 +9,9 @@ import (
 	"time"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/pkg/agent"
 )
 
-func StartAgent(api *api.Client, command string) (*agent.Client, error) {
+func StartDaemon(api *api.Client, command string) (*Client, error) {
 	cmd := exec.Command(command, "agent", "daemon-start")
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setpgid: true,
@@ -25,10 +24,10 @@ func StartAgent(api *api.Client, command string) (*agent.Client, error) {
 
 	// this is gross placeholder logic
 
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 20; i++ {
 		time.Sleep(100 * time.Millisecond)
 
-		c, err := agent.DefaultClient(api)
+		c, err := DefaultClient(api)
 		if err == nil {
 			_, err := c.Ping()
 			if err == nil {

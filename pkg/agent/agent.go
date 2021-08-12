@@ -393,6 +393,7 @@ func (s *Server) tunnelFor(slug string) (*wg.Tunnel, error) {
 }
 
 func resolve(tunnel *wg.Tunnel, addr string) (string, error) {
+	log.Printf("Resolving %v %s", tunnel, addr)
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		return "", err
@@ -436,4 +437,19 @@ func captureWireguardConnErr(err error, org string) {
 	sentry.CaptureException(
 		&wireGuardConnErr{Org: org, Err: err},
 	)
+}
+
+/// Establish starts the daemon if necessary and returns a client
+func Establish(apiClient *api.Client) (*Client, error) {
+	c, err := DefaultClient(apiClient)
+	if err == nil {
+		_, err := c.Ping()
+		if err == nil {
+			return c, nil
+		}
+	}
+
+	fmt.Println("command", os.Args[0])
+
+	return StartDaemon(apiClient, os.Args[0])
 }
