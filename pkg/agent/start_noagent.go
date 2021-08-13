@@ -3,6 +3,7 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/superfly/flyctl/api"

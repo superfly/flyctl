@@ -251,12 +251,12 @@ func (s *Server) handleEstablish(c net.Conn, args []string) error {
 	return writef(c, "ok")
 }
 
-func probeTunnel(tunnel *wg.Tunnel) error {
+func probeTunnel(ctx context.Context, tunnel *wg.Tunnel) error {
 	var err error
 
 	terminal.Debugf("Probing WireGuard connectivity\n")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	_, err = tunnel.Resolver().LookupTXT(ctx, "_apps.internal")
 	if err != nil {
@@ -273,7 +273,7 @@ func (s *Server) handleProbe(c net.Conn, args []string) error {
 		return fmt.Errorf("probe: can't build tunnel: %s", err)
 	}
 
-	if err := probeTunnel(tunnel); err != nil {
+	if err := probeTunnel(context.Background(), tunnel); err != nil {
 		captureWireguardConnErr(err, args[1])
 		return err
 	}
@@ -524,4 +524,12 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 	fmt.Println("command", os.Args[0])
 
 	return StartDaemon(ctx, apiClient, os.Args[0])
+}
+
+type ErrProbeFailed struct {
+	Msg string
+}
+
+func (e *ErrProbeFailed) Error() string {
+	return fmt.Sprintf("probe failed: %s", e.Msg)
 }

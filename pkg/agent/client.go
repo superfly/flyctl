@@ -150,14 +150,6 @@ func (c *Client) WaitForTunnel(ctx context.Context, o *api.Organization) error {
 	}
 }
 
-type ErrProbeFailed struct {
-	Msg string
-}
-
-func (e *ErrProbeFailed) Error() string {
-	return fmt.Sprintf("probe failed: %s", e.Msg)
-}
-
 func (c *Client) Probe(ctx context.Context, o *api.Organization) error {
 	return c.withConnection(ctx, func(conn net.Conn) error {
 		writef(conn, "probe %s", o.Slug)

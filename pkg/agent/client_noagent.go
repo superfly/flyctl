@@ -4,6 +4,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -85,11 +86,25 @@ func (c *Client) Probe(ctx context.Context, o *api.Organization) error {
 		return fmt.Errorf("probe: can't build tunnel: %s", err)
 	}
 
-	if err := probeTunnel(tunnel); err != nil {
+	if err := probeTunnel(ctx, tunnel); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (c *Client) WaitForTunnel(ctx context.Context, o *api.Organization) error {
+	for {
+		err := c.Probe(ctx, o)
+		switch {
+		case err == nil:
+			return nil
+		case err == context.Canceled || err == context.DeadlineExceeded:
+			return err
+		case errors.Is(err, &ErrProbeFailed{}):
+			continue
+		}
+	}
 }
 
 func (c *Client) Instances(ctx context.Context, o *api.Organization, app string) (*Instances, error) {
