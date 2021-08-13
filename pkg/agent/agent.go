@@ -254,18 +254,11 @@ func (s *Server) handleEstablish(c net.Conn, args []string) error {
 func probeTunnel(tunnel *wg.Tunnel) error {
 	var err error
 
-	for i := 0; i < 3; i++ {
-		terminal.Debugf("Probing WireGuard connectivity, attempt %d\n", i)
+	terminal.Debugf("Probing WireGuard connectivity\n")
 
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-
-		_, err = tunnel.Resolver().LookupTXT(ctx, "_apps.internal")
-		cancel()
-		if err == nil {
-			break
-		}
-	}
-
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err = tunnel.Resolver().LookupTXT(ctx, "_apps.internal")
 	if err != nil {
 		return fmt.Errorf("probing look up apps: %w", err)
 	}
