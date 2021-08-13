@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -55,15 +56,16 @@ func runFlyAgentDaemonStart(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runFlyAgentStart(ctx *cmdctx.CmdContext) error {
-	api := ctx.Client.API()
+func runFlyAgentStart(cc *cmdctx.CmdContext) error {
+	api := cc.Client.API()
+	ctx := context.Background()
 
 	c, err := agent.DefaultClient(api)
 	if err == nil {
-		c.Kill()
+		c.Kill(ctx)
 	}
 
-	_, err = agent.Establish(api)
+	_, err = agent.Establish(ctx, api)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "can't start agent: %s", err)
 	}
@@ -71,12 +73,13 @@ func runFlyAgentStart(ctx *cmdctx.CmdContext) error {
 	return err
 }
 
-func runFlyAgentStop(ctx *cmdctx.CmdContext) error {
-	api := ctx.Client.API()
+func runFlyAgentStop(cc *cmdctx.CmdContext) error {
+	api := cc.Client.API()
+	ctx := context.Background()
 
 	c, err := agent.DefaultClient(api)
 	if err == nil {
-		c.Kill()
+		c.Kill(ctx)
 	}
 
 	return err

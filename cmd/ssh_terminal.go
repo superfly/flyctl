@@ -16,38 +16,39 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-func runSSHConsole(ctx *cmdctx.CmdContext) error {
-	client := ctx.Client.API()
+func runSSHConsole(cc *cmdctx.CmdContext) error {
+	client := cc.Client.API()
+	ctx := createCancellableContext()
 
-	terminal.Debugf("Retrieving app info for %s\n", ctx.AppName)
+	terminal.Debugf("Retrieving app info for %s\n", cc.AppName)
 
-	app, err := client.GetApp(ctx.AppName)
+	app, err := client.GetApp(cc.AppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	agentclient, err := agent.Establish(client)
+	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
 		return fmt.Errorf("can't establish agent: %s\n", err)
 	}
 
-	dialer, err := agentclient.Dialer(&app.Organization)
+	dialer, err := agentclient.Dialer(ctx, &app.Organization)
 	if err != nil {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
 	}
 
-	if ctx.Config.GetBool("probe") {
-		if err = agentclient.Probe(&app.Organization); err != nil {
+	if cc.Config.GetBool("probe") {
+		if err = agentclient.Probe(ctx, &app.Organization); err != nil {
 			return fmt.Errorf("probe wireguard: %w", err)
 		}
 	}
 
 	var addr string
 
-	if ctx.Config.GetBool("select") {
-		instances, err := agentclient.Instances(&app.Organization, ctx.AppName)
+	if cc.Config.GetBool("select") {
+		instances, err := agentclient.Instances(ctx, &app.Organization, cc.AppName)
 		if err != nil {
-			return fmt.Errorf("look up %s: %w", ctx.AppName, err)
+			return fmt.Errorf("look up %s: %w", cc.AppName, err)
 		}
 
 		selected := 0
@@ -62,18 +63,18 @@ func runSSHConsole(ctx *cmdctx.CmdContext) error {
 		}
 
 		addr = fmt.Sprintf("[%s]", instances.Addresses[selected])
-	} else if len(ctx.Args) != 0 {
-		addr = ctx.Args[0]
+	} else if len(cc.Args) != 0 {
+		addr = cc.Args[0]
 	} else {
-		addr = fmt.Sprintf("%s.internal", ctx.AppName)
+		addr = fmt.Sprintf("%s.internal", cc.AppName)
 	}
 
 	return sshConnect(&SSHParams{
-		Ctx:    ctx,
+		Ctx:    cc,
 		Org:    &app.Organization,
 		Dialer: dialer,
-		App:    ctx.AppName,
-		Cmd:    ctx.Config.GetString("command"),
+		App:    cc.AppName,
+		Cmd:    cc.Config.GetString("command"),
 	}, addr)
 }
 

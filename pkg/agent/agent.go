@@ -96,7 +96,7 @@ func (s *Server) handle(c net.Conn) {
 
 func NewServer(path string, cmdCtx *cmdctx.CmdContext) (*Server, error) {
 	if c, err := NewClient(path); err == nil {
-		c.Kill()
+		c.Kill(context.Background())
 	}
 
 	if err := removeSocket(path); err != nil {
@@ -251,21 +251,14 @@ func (s *Server) handleEstablish(c net.Conn, args []string) error {
 	return writef(c, "ok")
 }
 
-func probeTunnel(tunnel *wg.Tunnel) error {
+func probeTunnel(ctx context.Context, tunnel *wg.Tunnel) error {
 	var err error
 
-	for i := 0; i < 3; i++ {
-		terminal.Debugf("Probing WireGuard connectivity, attempt %d\n", i)
+	terminal.Debugf("Probing WireGuard connectivity\n")
 
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-
-		_, err = tunnel.Resolver().LookupTXT(ctx, "_apps.internal")
-		cancel()
-		if err == nil {
-			break
-		}
-	}
-
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	_, err = tunnel.Resolver().LookupTXT(ctx, "_apps.internal")
 	if err != nil {
 		return fmt.Errorf("probing look up apps: %w", err)
 	}
@@ -280,7 +273,7 @@ func (s *Server) handleProbe(c net.Conn, args []string) error {
 		return fmt.Errorf("probe: can't build tunnel: %s", err)
 	}
 
-	if err := probeTunnel(tunnel); err != nil {
+	if err := probeTunnel(context.Background(), tunnel); err != nil {
 		captureWireguardConnErr(err, args[1])
 		return err
 	}
@@ -515,10 +508,14 @@ func captureWireguardConnErr(err error, org string) {
 }
 
 /// Establish starts the daemon if necessary and returns a client
-func Establish(apiClient *api.Client) (*Client, error) {
+func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
+	if err := wireguard.PruneInvalidPeers(apiClient); err != nil {
+		return nil, err
+	}
+
 	c, err := DefaultClient(apiClient)
 	if err == nil {
-		_, err := c.Ping()
+		_, err := c.Ping(ctx)
 		if err == nil {
 			return c, nil
 		}
@@ -526,5 +523,13 @@ func Establish(apiClient *api.Client) (*Client, error) {
 
 	fmt.Println("command", os.Args[0])
 
-	return StartDaemon(apiClient, os.Args[0])
+	return StartDaemon(ctx, apiClient, os.Args[0])
+}
+
+type ErrProbeFailed struct {
+	Msg string
+}
+
+func (e *ErrProbeFailed) Error() string {
+	return fmt.Sprintf("probe failed: %s", e.Msg)
 }

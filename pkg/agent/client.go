@@ -61,26 +61,38 @@ func (c *Client) connect() (net.Conn, error) {
 	return conn, nil
 }
 
-func (c *Client) withConnection(f func(conn net.Conn) error) error {
-	conn, err := c.connect()
-	if err != nil {
+func (c *Client) withConnection(ctx context.Context, f func(conn net.Conn) error) error {
+	errCh := make(chan error, 1)
+
+	go func() {
+		conn, err := c.connect()
+		if err != nil {
+			errCh <- err
+		}
+		defer conn.Close()
+
+		errCh <- f(conn)
+	}()
+
+	select {
+	case <-ctx.Done():
+		<-errCh
+		return ctx.Err()
+	case err := <-errCh:
 		return err
 	}
-	defer conn.Close()
-
-	return f(conn)
 }
 
-func (c *Client) Kill() error {
-	return c.withConnection(func(conn net.Conn) error {
+func (c *Client) Kill(ctx context.Context) error {
+	return c.withConnection(ctx, func(conn net.Conn) error {
 		return writef(conn, "kill")
 	})
 }
 
-func (c *Client) Ping() (int, error) {
+func (c *Client) Ping(ctx context.Context) (int, error) {
 	var pid int
 
-	err := c.withConnection(func(conn net.Conn) error {
+	err := c.withConnection(ctx, func(conn net.Conn) error {
 		writef(conn, "ping")
 
 		conn.SetReadDeadline(time.Now().Add(defaultTimeout))
@@ -106,8 +118,8 @@ func (c *Client) Ping() (int, error) {
 	return pid, err
 }
 
-func (c *Client) Establish(slug string) error {
-	return c.withConnection(func(conn net.Conn) error {
+func (c *Client) Establish(ctx context.Context, slug string) error {
+	return c.withConnection(ctx, func(conn net.Conn) error {
 		writef(conn, "establish %s", slug)
 
 		// this goes out to the API; don't time it out aggressively
@@ -124,8 +136,22 @@ func (c *Client) Establish(slug string) error {
 	})
 }
 
-func (c *Client) Probe(o *api.Organization) error {
-	return c.withConnection(func(conn net.Conn) error {
+func (c *Client) WaitForTunnel(ctx context.Context, o *api.Organization) error {
+	for {
+		err := c.Probe(ctx, o)
+		switch {
+		case err == nil:
+			return nil
+		case err == context.Canceled || err == context.DeadlineExceeded:
+			return err
+		case errors.Is(err, &ErrProbeFailed{}):
+			continue
+		}
+	}
+}
+
+func (c *Client) Probe(ctx context.Context, o *api.Organization) error {
+	return c.withConnection(ctx, func(conn net.Conn) error {
 		writef(conn, "probe %s", o.Slug)
 
 		reply, err := read(conn)
@@ -134,17 +160,17 @@ func (c *Client) Probe(o *api.Organization) error {
 		}
 
 		if string(reply) != "ok" {
-			return fmt.Errorf("probe failed: %s", string(reply))
+			return &ErrProbeFailed{Msg: string(reply)}
 		}
 
 		return nil
 	})
 }
 
-func (c *Client) Instances(o *api.Organization, app string) (*Instances, error) {
+func (c *Client) Instances(ctx context.Context, o *api.Organization, app string) (*Instances, error) {
 	var instances *Instances
 
-	err := c.withConnection(func(conn net.Conn) error {
+	err := c.withConnection(ctx, func(conn net.Conn) error {
 		writef(conn, "instances %s %s", o.Slug, app)
 
 		// this goes out to the network; don't time it out aggressively
@@ -180,8 +206,8 @@ type Dialer struct {
 	client *Client
 }
 
-func (c *Client) Dialer(o *api.Organization) (*Dialer, error) {
-	if err := c.Establish(o.Slug); err != nil {
+func (c *Client) Dialer(ctx context.Context, o *api.Organization) (*Dialer, error) {
+	if err := c.Establish(ctx, o.Slug); err != nil {
 		return nil, err
 	}
 

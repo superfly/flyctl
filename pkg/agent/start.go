@@ -3,6 +3,7 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"syscall"
@@ -11,7 +12,7 @@ import (
 	"github.com/superfly/flyctl/api"
 )
 
-func StartDaemon(api *api.Client, command string) (*Client, error) {
+func StartDaemon(ctx context.Context, api *api.Client, command string) (*Client, error) {
 	cmd := exec.Command(command, "agent", "daemon-start")
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setpgid: true,
@@ -29,7 +30,7 @@ func StartDaemon(api *api.Client, command string) (*Client, error) {
 
 		c, err := DefaultClient(api)
 		if err == nil {
-			_, err := c.Ping()
+			_, err := c.Ping(ctx)
 			if err == nil {
 				return c, nil
 			}

@@ -4,6 +4,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -45,15 +46,15 @@ func DefaultClient(c *api.Client) (*Client, error) {
 	return client, nil
 }
 
-func (c *Client) Kill() error {
+func (c *Client) Kill(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) Ping() (int, error) {
+func (c *Client) Ping(ctx context.Context) (int, error) {
 	return 0, nil
 }
 
-func (c *Client) Establish(slug string) error {
+func (c *Client) Establish(ctx context.Context, slug string) error {
 	if c.Client == nil {
 		return fmt.Errorf("no client set for stub agent")
 	}
@@ -79,20 +80,34 @@ func (c *Client) Establish(slug string) error {
 	return nil
 }
 
-func (c *Client) Probe(o *api.Organization) error {
+func (c *Client) Probe(ctx context.Context, o *api.Organization) error {
 	tunnel, err := c.tunnelFor(o.Slug)
 	if err != nil {
 		return fmt.Errorf("probe: can't build tunnel: %s", err)
 	}
 
-	if err := probeTunnel(tunnel); err != nil {
+	if err := probeTunnel(ctx, tunnel); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (c *Client) Instances(o *api.Organization, app string) (*Instances, error) {
+func (c *Client) WaitForTunnel(ctx context.Context, o *api.Organization) error {
+	for {
+		err := c.Probe(ctx, o)
+		switch {
+		case err == nil:
+			return nil
+		case err == context.Canceled || err == context.DeadlineExceeded:
+			return err
+		case errors.Is(err, &ErrProbeFailed{}):
+			continue
+		}
+	}
+}
+
+func (c *Client) Instances(ctx context.Context, o *api.Organization, app string) (*Instances, error) {
 	tunnel, err := c.tunnelFor(o.Slug)
 	if err != nil {
 		return nil, fmt.Errorf("can't build tunnel: %s", err)
@@ -115,8 +130,8 @@ type Dialer struct {
 	tunnel *wg.Tunnel
 }
 
-func (c *Client) Dialer(o *api.Organization) (*Dialer, error) {
-	if err := c.Establish(o.Slug); err != nil {
+func (c *Client) Dialer(ctx context.Context, o *api.Organization) (*Dialer, error) {
+	if err := c.Establish(ctx, o.Slug); err != nil {
 		return nil, fmt.Errorf("dial: can't establish tunel: %s", err)
 	}
 
