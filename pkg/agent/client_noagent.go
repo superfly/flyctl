@@ -116,7 +116,7 @@ type Dialer struct {
 }
 
 func (c *Client) Dialer(ctx context.Context, o *api.Organization) (*Dialer, error) {
-	if err := c.Establish(o.Slug); err != nil {
+	if err := c.Establish(ctx, o.Slug); err != nil {
 		return nil, fmt.Errorf("dial: can't establish tunel: %s", err)
 	}
 
