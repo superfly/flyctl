@@ -29,6 +29,9 @@ cd "$bin_dir"
 tar xzf "$exe.tar.gz"
 chmod +x "$exe"
 rm "$exe.tar.gz"
+
+# stop the agent if it's running before updating
+flyctl agent stop &> /dev/null
 ln -sf $exe $simexe
 
 if [ "${1}" = "prerel" ] || [ "${1}" = "pre" ]; then
