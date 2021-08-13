@@ -508,11 +508,9 @@ func captureWireguardConnErr(err error, org string) {
 }
 
 /// Establish starts the daemon if necessary and returns a client
-func Establish(ctx context.Context, apiClient *api.Client, validate bool) (*Client, error) {
-	if validate {
-		if err := wireguard.PruneInvalidPeers(apiClient); err != nil {
-			return nil, err
-		}
+func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
+	if err := wireguard.PruneInvalidPeers(apiClient); err != nil {
+		return nil, err
 	}
 
 	c, err := DefaultClient(apiClient)

@@ -205,7 +205,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 				return errors.Wrap(err, "error fetching target app")
 			}
 
-			agentclient, err := agent.Establish(errCtx, apiClient, true)
+			agentclient, err := agent.Establish(errCtx, apiClient)
 			if err != nil {
 				return errors.Wrap(err, "error establishing agent")
 			}

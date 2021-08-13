@@ -27,7 +27,7 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	agentclient, err := agent.Establish(ctx, client, true)
+	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
 		return fmt.Errorf("can't establish agent: %s\n", err)
 	}

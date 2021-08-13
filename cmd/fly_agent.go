@@ -65,7 +65,7 @@ func runFlyAgentStart(cc *cmdctx.CmdContext) error {
 		c.Kill(ctx)
 	}
 
-	_, err = agent.Establish(ctx, api, true)
+	_, err = agent.Establish(ctx, api)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "can't start agent: %s", err)
 	}
