@@ -45,11 +45,11 @@ func DefaultClient(c *api.Client) (*Client, error) {
 	return client, nil
 }
 
-func (c *Client) Kill() error {
+func (c *Client) Kill(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) Ping() (int, error) {
+func (c *Client) Ping(ctx context.Context) (int, error) {
 	return 0, nil
 }
 
