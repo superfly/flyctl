@@ -205,12 +205,12 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 				return errors.Wrap(err, "error fetching target app")
 			}
 
-			agentclient, err := agent.Establish(apiClient)
+			agentclient, err := agent.Establish(errCtx, apiClient, true)
 			if err != nil {
 				return errors.Wrap(err, "error establishing agent")
 			}
 
-			dialer, err := agentclient.Dialer(&app.Organization)
+			dialer, err := agentclient.Dialer(errCtx, &app.Organization)
 			if err != nil {
 				return errors.Wrapf(err, "error establishing wireguard connection for %s organization", app.Organization.Slug)
 			}

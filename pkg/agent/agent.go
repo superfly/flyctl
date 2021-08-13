@@ -96,7 +96,7 @@ func (s *Server) handle(c net.Conn) {
 
 func NewServer(path string, cmdCtx *cmdctx.CmdContext) (*Server, error) {
 	if c, err := NewClient(path); err == nil {
-		c.Kill()
+		c.Kill(context.Background())
 	}
 
 	if err := removeSocket(path); err != nil {
@@ -515,10 +515,16 @@ func captureWireguardConnErr(err error, org string) {
 }
 
 /// Establish starts the daemon if necessary and returns a client
-func Establish(apiClient *api.Client) (*Client, error) {
+func Establish(ctx context.Context, apiClient *api.Client, validate bool) (*Client, error) {
+	if validate {
+		if err := wireguard.PruneInvalidPeers(apiClient); err != nil {
+			return nil, err
+		}
+	}
+
 	c, err := DefaultClient(apiClient)
 	if err == nil {
-		_, err := c.Ping()
+		_, err := c.Ping(ctx)
 		if err == nil {
 			return c, nil
 		}
@@ -526,5 +532,5 @@ func Establish(apiClient *api.Client) (*Client, error) {
 
 	fmt.Println("command", os.Args[0])
 
-	return StartDaemon(apiClient, os.Args[0])
+	return StartDaemon(ctx, apiClient, os.Args[0])
 }
