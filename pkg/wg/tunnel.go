@@ -70,7 +70,7 @@ func Connect(cfg Config) (*Tunnel, error) {
 		resolv: &net.Resolver{
 			PreferGo: true,
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-				return gNet.DialContext(ctx, network, net.JoinHostPort(dnsIP.String(), "53"))
+				return gNet.DialContext(ctx, "tcp", net.JoinHostPort(dnsIP.String(), "53"))
 			},
 		},
 	}, nil
