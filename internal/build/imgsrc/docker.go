@@ -13,13 +13,13 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	dockerclient "github.com/docker/docker/client"
-	"github.com/getsentry/sentry-go"
 	"github.com/jpillora/backoff"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/monitor"
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/iostreams"
@@ -152,21 +152,13 @@ func newLocalDockerClient() (*dockerclient.Client, error) {
 	return c, nil
 }
 
-type remoteBuilderError struct {
-	RemoteBuilderName string
-	Err               error
-}
-
-func (e *remoteBuilderError) Error() string {
-	return fmt.Sprintf("remote builder %s error %s", e.RemoteBuilderName, e.Err)
-}
-
 func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, streams *iostreams.IOStreams) (*dockerclient.Client, error) {
 	host, app, err := remoteBuilderURL(apiClient, appName)
 	if err != nil {
 		return nil, err
 	}
 	remoteBuilderAppName := app.Name
+	remoteBuilderOrg := app.Organization.Slug
 
 	terminal.Debugf("Remote Docker builder host: %s\n", host)
 
@@ -180,6 +172,22 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	defer cancel()
 
 	eg, errCtx := errgroup.WithContext(ctx)
+
+	captureError := func(err error) {
+		// ignore cancelled errors
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+
+		flyerr.CaptureException(err,
+			flyerr.WithTag("feature", "remote-build"),
+			flyerr.WithContexts(map[string]interface{}{
+				"app":          appName,
+				"builder":      remoteBuilderAppName,
+				"organization": remoteBuilderOrg,
+			}),
+		)
+	}
 
 	eg.Go(func() error {
 		defer streams.ChangeProgressIndicatorMsg(fmt.Sprintf("Waiting for remote builder %s... connecting", remoteBuilderAppName))
@@ -242,13 +250,13 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	})
 
 	if err = eg.Wait(); err != nil {
-		captureRemoteBuilderError(err, remoteBuilderAppName)
+		captureError(err)
 
 		return nil, err
 	}
 
 	if err := ctx.Err(); err != nil {
-		captureRemoteBuilderError(err, remoteBuilderAppName)
+		captureError(err)
 
 		streams.StopProgressIndicator()
 		if errors.Is(err, context.DeadlineExceeded) {
@@ -262,14 +270,6 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	streams.StopProgressIndicatorMsg(fmt.Sprintf("Remote builder %s ready", remoteBuilderAppName))
 
 	return <-clientCh, nil
-}
-
-func captureRemoteBuilderError(err error, builderAppName string) {
-	if errors.Is(err, context.Canceled) {
-		return
-	}
-
-	sentry.CaptureException(&remoteBuilderError{RemoteBuilderName: builderAppName, Err: err})
 }
 
 func remoteBuilderURL(apiClient *api.Client, appName string) (string, *api.App, error) {
