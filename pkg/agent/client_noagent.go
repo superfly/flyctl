@@ -4,7 +4,6 @@ package agent
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -88,7 +87,7 @@ func (c *noAgentClientProvider) Probe(ctx context.Context, o *api.Organization) 
 func (c *noAgentClientProvider) Resolve(ctx context.Context, o *api.Organization, host string) (string, error) {
 	tunnel, err := c.tunnelFor(o.Slug)
 	if err != nil {
-		return fmt.Errorf("probe: can't build tunnel: %s", err)
+		return "", fmt.Errorf("probe: can't build tunnel: %s", err)
 	}
 
 	return resolve(tunnel, host)
@@ -112,12 +111,7 @@ func (c *noAgentClientProvider) Instances(ctx context.Context, o *api.Organizati
 	return ret, nil
 }
 
-type Dialer struct {
-	Org    *api.Organization
-	tunnel *wg.Tunnel
-}
-
-func (c *Client) Dialer(ctx context.Context, o *api.Organization) (*Dialer, error) {
+func (c *noAgentClientProvider) Dialer(ctx context.Context, o *api.Organization) (Dialer, error) {
 	if err := c.Establish(ctx, o.Slug); err != nil {
 		return nil, fmt.Errorf("dial: can't establish tunel: %s", err)
 	}
@@ -127,12 +121,17 @@ func (c *Client) Dialer(ctx context.Context, o *api.Organization) (*Dialer, erro
 		return nil, fmt.Errorf("dial: can't build tunnel: %s", err)
 	}
 
-	return &Dialer{
+	return &noAgentDialer{
 		Org:    o,
 		tunnel: tunnel,
 	}, nil
 }
 
-func (d *Dialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+type noAgentDialer struct {
+	Org    *api.Organization
+	tunnel *wg.Tunnel
+}
+
+func (d *noAgentDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	return d.tunnel.DialContext(ctx, network, addr)
 }
