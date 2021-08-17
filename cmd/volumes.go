@@ -35,13 +35,13 @@ func newVolumesCommand(client *client.Client) *Command {
 
 	createCmd.AddIntFlag(IntFlagOpts{
 		Name:        "size",
-		Description: "Size of volume in gigabytes, default 10GB",
+		Description: "Size of volume in gigabytes",
 		Default:     10,
 	})
 
 	createCmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "encrypted",
-		Description: "Encrypt the volume (default: true)",
+		Description: "Encrypt the volume",
 		Default:     true,
 	})
 
