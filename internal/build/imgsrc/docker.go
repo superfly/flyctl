@@ -162,10 +162,11 @@ func (e *remoteBuilderError) Error() string {
 }
 
 func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, streams *iostreams.IOStreams) (*dockerclient.Client, error) {
-	host, remoteBuilderAppName, err := remoteBuilderURL(apiClient, appName)
+	host, app, err := remoteBuilderURL(apiClient, appName)
 	if err != nil {
 		return nil, err
 	}
+	remoteBuilderAppName := app.Name
 
 	terminal.Debugf("Remote Docker builder host: %s\n", host)
 
@@ -271,17 +272,17 @@ func captureRemoteBuilderError(err error, builderAppName string) {
 	sentry.CaptureException(&remoteBuilderError{RemoteBuilderName: builderAppName, Err: err})
 }
 
-func remoteBuilderURL(apiClient *api.Client, appName string) (string, string, error) {
+func remoteBuilderURL(apiClient *api.Client, appName string) (string, *api.App, error) {
 	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
-		return v, "", nil
+		return v, nil, nil
 	}
 
 	_, app, err := apiClient.EnsureRemoteBuilderForApp(appName)
 	if err != nil {
-		return "", "", errors.Errorf("could not create remote builder: %v", err)
+		return "", nil, errors.Errorf("could not create remote builder: %v", err)
 	}
 
-	return "tcp://" + net.JoinHostPort(app.Name+".internal", "2375"), app.Name, nil
+	return "tcp://" + net.JoinHostPort(app.Name+".internal", "2375"), app, nil
 }
 
 func waitForDaemon(ctx context.Context, client *dockerclient.Client) error {
