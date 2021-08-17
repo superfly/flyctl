@@ -226,8 +226,14 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 
 			tunnelCtx, cancel := context.WithTimeout(errCtx, 4*time.Minute)
 			defer cancel()
+			// wait for the tunnel to be ready
 			if err = agentclient.WaitForTunnel(tunnelCtx, &app.Organization); err != nil {
 				return errors.Wrap(err, "unable to connect WireGuard tunnel")
+			}
+
+			// wait for private dns
+			if err := agentclient.WaitForHost(tunnelCtx, &app.Organization, fmt.Sprintf("%s.internal", remoteBuilderAppName)); err != nil {
+				return errors.Wrapf(err, "host unavailable")
 			}
 
 			opts = append(opts, dockerclient.WithDialContext(dialer.DialContext))

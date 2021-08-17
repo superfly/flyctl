@@ -56,10 +56,9 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
 	}
 
-	if cc.Config.GetBool("probe") {
-		if err = agentclient.Probe(ctx, &app.Organization); err != nil {
-			return fmt.Errorf("probe wireguard: %w", err)
-		}
+	if err := agentclient.WaitForTunnel(ctx, &app.Organization); err != nil {
+		captureError(err)
+		return errors.Wrapf(err, "tunnel unavailable")
 	}
 
 	var addr string
@@ -86,6 +85,11 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 		addr = cc.Args[0]
 	} else {
 		addr = fmt.Sprintf("%s.internal", cc.AppName)
+
+		if err := agentclient.WaitForHost(ctx, &app.Organization, addr); err != nil {
+			captureError(err)
+			return errors.Wrapf(err, "host unavailable")
+		}
 	}
 
 	err = sshConnect(&SSHParams{
@@ -130,7 +134,7 @@ type SSHParams struct {
 	Ctx    *cmdctx.CmdContext
 	Org    *api.Organization
 	App    string
-	Dialer *agent.Dialer
+	Dialer agent.Dialer
 	Cmd    string
 }
 
