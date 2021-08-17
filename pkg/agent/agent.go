@@ -174,11 +174,6 @@ func (s *Server) errLog(c net.Conn, format string, args ...interface{}) {
 	log.Printf(format, args...)
 }
 
-func (s *Server) copy(dst net.Conn, src io.Reader, wg *sync.WaitGroup) {
-	defer wg.Done()
-	io.Copy(dst, src)
-}
-
 func (s *Server) handleKill(c net.Conn, args []string) error {
 	s.listener.Close()
 	return nil
@@ -399,8 +394,19 @@ func (s *Server) handleConnect(c net.Conn, args []string) error {
 
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
-	go s.copy(c, outconn, wg)
-	go s.copy(outconn, c, wg)
+
+	copy := func(dst net.Conn, src net.Conn) {
+		defer wg.Done()
+		io.Copy(dst, src)
+
+		// close the write half if it exports a CloseWrite() method
+		if conn, ok := dst.(ClosableWrite); ok {
+			conn.CloseWrite()
+		}
+	}
+
+	go copy(c, outconn)
+	go copy(outconn, c)
 	wg.Wait()
 
 	return nil
@@ -521,8 +527,6 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 		}
 	}
 
-	fmt.Println("command", os.Args[0])
-
 	return StartDaemon(ctx, apiClient, os.Args[0])
 }
 
@@ -532,4 +536,8 @@ type ErrProbeFailed struct {
 
 func (e *ErrProbeFailed) Error() string {
 	return fmt.Sprintf("probe failed: %s", e.Msg)
+}
+
+type ClosableWrite interface {
+	CloseWrite() error
 }
