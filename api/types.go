@@ -186,6 +186,17 @@ type Query struct {
 	ValidateWireGuardPeers struct {
 		InvalidPeerIPs []string
 	}
+
+	Machines struct {
+		Nodes []*Machine
+	}
+	LaunchMachine struct {
+		Machine *Machine
+		App     *App
+	}
+	StopMachine struct {
+		Machine *Machine
+	}
 }
 
 type CreatedWireGuardPeer struct {
@@ -212,6 +223,8 @@ type IssuedCertificate struct {
 }
 
 type Definition map[string]interface{}
+
+type MachineConfig map[string]interface{}
 
 func DefinitionPtr(in map[string]interface{}) *Definition {
 	x := Definition(in)
@@ -1015,4 +1028,23 @@ type Invitation struct {
 
 type CreateOrganizationInvitation struct {
 	Invitation Invitation
+}
+
+type LaunchMachineInput struct {
+	AppName string         `json:"appId,omitempty"`
+	OrgSlug string         `json:"organizationId,omitempty"`
+	Region  string         `json:"region,omitempty"`
+	Config  *MachineConfig `json:"config"`
+}
+
+type Machine struct {
+	ID    string
+	State string
+	App   *App
+}
+
+type StopMachineInput struct {
+	ID              string `json:"id"`
+	Signal          string `json:"signal,omitempty"`
+	KillTimeoutSecs int    `json:"kill_timeout_secs,omitempty"`
 }
