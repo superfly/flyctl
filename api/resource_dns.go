@@ -41,7 +41,7 @@ func (c *Client) GetDNSRecords(domainName string) ([]*DNSRecord, error) {
 
 func (c *Client) ExportDNSRecords(domainId string) (string, error) {
 	query := `
-		mutation($input: ExportDnsZoneInput!) {
+		mutation($input: ExportDNSZoneInput!) {
 			exportDnsZone(input: $input) {
 				contents
 			}
@@ -64,7 +64,7 @@ func (c *Client) ExportDNSRecords(domainId string) (string, error) {
 
 func (c *Client) ImportDNSRecords(domainId string, zonefile string) ([]ImportDnsWarning, []ImportDnsChange, error) {
 	query := `
-		mutation($input: ImportDnsZoneInput!) {
+		mutation($input: ImportDNSZoneInput!) {
 			importDnsZone(input: $input) {
 				changes {
 					action
