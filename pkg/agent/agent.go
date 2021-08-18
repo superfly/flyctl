@@ -334,7 +334,7 @@ func fetchInstances(tunnel *wg.Tunnel, app string) (*Instances, error) {
 
 		for _, addr := range addrs {
 			ret.Labels = append(ret.Labels, fmt.Sprintf("%s (%s)", region, addr))
-			ret.Addresses = append(ret.Addresses, addrs[0])
+			ret.Addresses = append(ret.Addresses, addr)
 		}
 	}
 
