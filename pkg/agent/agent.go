@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -15,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/wireguard"
@@ -23,7 +23,8 @@ import (
 )
 
 var (
-	ErrCantBind = errors.New("can't bind agent socket")
+	ErrCantBind          = errors.New("can't bind agent socket")
+	ErrTunnelUnavailable = errors.New("tunnel unavailable")
 )
 
 type Server struct {
@@ -209,7 +210,6 @@ func buildTunnel(client *api.Client, org *api.Organization) (*wg.Tunnel, error) 
 
 	tunnel, err := wg.Connect(*state.TunnelConfig())
 	if err != nil {
-		// captureWireguardConnErr(err, org.Slug)
 		return nil, fmt.Errorf("can't connect wireguard: %w", err)
 	}
 
@@ -250,9 +250,15 @@ func probeTunnel(ctx context.Context, tunnel *wg.Tunnel) error {
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	_, err = tunnel.Resolver().LookupTXT(ctx, "_apps.internal")
+
+	results, err := tunnel.LookupTXT(ctx, "_apps.internal")
+	fmt.Println("got results", results, err)
+	// _, err = tunnel.Resolver().LookupTXT(ctx, "_apps.internal")
 	if err != nil {
-		return fmt.Errorf("probing look up apps: %w", err)
+		if errors.Is(err, context.DeadlineExceeded) {
+			return ErrTunnelUnavailable
+		}
+		return errors.Wrap(err, "error probing for _apps.internal")
 	}
 
 	return nil
@@ -501,15 +507,18 @@ func resolve(tunnel *wg.Tunnel, addr string) (string, error) {
 		return net.JoinHostPort(n.String(), port), nil
 	}
 
-	addrs, err := tunnel.Resolver().LookupHost(context.Background(), host)
+	addrs, err := tunnel.LookupAAAA(context.Background(), host)
 	if err != nil {
 		return "", err
 	}
+	if len(addrs) == 0 {
+		return "", fmt.Errorf("%s - no such host", addr)
+	}
 
 	if port == "" {
-		return addrs[0], nil
+		return addrs[0].String(), nil
 	}
-	return net.JoinHostPort(addrs[0], port), nil
+	return net.JoinHostPort(addrs[0].String(), port), nil
 }
 
 func removeSocket(path string) error {

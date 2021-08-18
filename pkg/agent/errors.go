@@ -7,7 +7,8 @@ import (
 )
 
 func IsTunnelError(err error) bool {
-	return errors.Is(err, &TunnelError{})
+	var tunnelError *TunnelError
+	return errors.As(err, &tunnelError)
 }
 
 type TunnelError struct {
@@ -23,12 +24,13 @@ func (e *TunnelError) Unwrap() error {
 	return e.Err
 }
 
-func (e *TunnelError) Cause() error {
-	return e.Err
-}
+// func (e *TunnelError) Cause() error {
+// 	return e.Err
+// }
 
 func IsHostNotFoundError(err error) bool {
-	return errors.Is(err, &HostNotFoundError{})
+	var notfoundError *HostNotFoundError
+	return errors.As(err, &notfoundError)
 }
 
 type HostNotFoundError struct {
@@ -45,13 +47,16 @@ func (e *HostNotFoundError) Unwrap() error {
 	return e.Err
 }
 
-func (e *HostNotFoundError) Cause() error {
-	return e.Err
-}
+// func (e *HostNotFoundError) Cause() error {
+// 	return e.Err
+// }
 
 func mapResolveError(err error, orgSlug string, host string) error {
 	msg := err.Error()
 	if strings.Contains(msg, "i/o timeout") {
+		return &TunnelError{Err: err, OrgSlug: orgSlug}
+	}
+	if strings.Contains(msg, "tunnel unavailable") {
 		return &TunnelError{Err: err, OrgSlug: orgSlug}
 	}
 	if strings.Contains(msg, "DNS name does not exist") {

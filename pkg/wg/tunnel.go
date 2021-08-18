@@ -8,15 +8,17 @@ import (
 	"math/rand"
 	"net"
 
+	"github.com/miekg/dns"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
 	"golang.zx2c4.com/wireguard/tun/netstack"
 )
 
 type Tunnel struct {
-	dev *device.Device
-	tun tun.Device
-	net *netstack.Net
+	dev   *device.Device
+	tun   tun.Device
+	net   *netstack.Net
+	dnsIP net.IP
 
 	resolv *net.Resolver
 }
@@ -63,13 +65,15 @@ func Connect(cfg Config) (*Tunnel, error) {
 	wgDev.Up()
 
 	return &Tunnel{
-		dev: wgDev,
-		tun: tunDev,
-		net: gNet,
+		dev:   wgDev,
+		tun:   tunDev,
+		net:   gNet,
+		dnsIP: dnsIP,
 
 		resolv: &net.Resolver{
 			PreferGo: true,
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				fmt.Println("resolver.Dial", network, address)
 				return gNet.DialContext(ctx, "tcp", net.JoinHostPort(dnsIP.String(), "53"))
 			},
 		},
@@ -91,4 +95,63 @@ func (t *Tunnel) DialContext(ctx context.Context, network, addr string) (net.Con
 
 func (t *Tunnel) Resolver() *net.Resolver {
 	return t.resolv
+}
+
+func (t *Tunnel) queryDNS(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
+	client := dns.Client{
+		Net: "tcp",
+		Dialer: &net.Dialer{
+			Resolver: t.resolv,
+		},
+	}
+
+	c, err := t.DialContext(ctx, "tcp", net.JoinHostPort(t.dnsIP.String(), "53"))
+	if err != nil {
+		return nil, err
+	}
+	defer c.Close()
+
+	conn := &dns.Conn{Conn: c}
+	defer conn.Close()
+
+	r, _, err := client.ExchangeWithConn(msg, conn)
+	return r, err
+}
+
+func (t *Tunnel) LookupTXT(ctx context.Context, name string) ([]string, error) {
+	m := &dns.Msg{}
+	m.SetQuestion(dns.Fqdn(name), dns.TypeTXT)
+
+	r, err := t.queryDNS(ctx, m)
+	if err != nil {
+		return nil, err
+	}
+
+	results := []string{}
+
+	for _, a := range r.Answer {
+		txtRecord := a.(*dns.TXT)
+		results = append(results, txtRecord.Txt...)
+	}
+
+	return results, nil
+}
+
+func (t *Tunnel) LookupAAAA(ctx context.Context, name string) ([]net.IP, error) {
+	m := &dns.Msg{}
+	m.SetQuestion(dns.Fqdn(name), dns.TypeAAAA)
+
+	r, err := t.queryDNS(ctx, m)
+	if err != nil {
+		return nil, err
+	}
+
+	results := []net.IP{}
+
+	for _, a := range r.Answer {
+		aaaaRecord := a.(*dns.AAAA)
+		results = append(results, aaaaRecord.AAAA)
+	}
+
+	return results, nil
 }
