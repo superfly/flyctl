@@ -54,6 +54,9 @@ func mapResolveError(err error, orgSlug string, host string) error {
 	if strings.Contains(msg, "i/o timeout") {
 		return &TunnelError{Err: err, OrgSlug: orgSlug}
 	}
+	if strings.Contains(msg, "DNS name does not exist") {
+		return &TunnelError{Err: err, OrgSlug: orgSlug}
+	}
 	if strings.Contains(msg, "no such host") {
 		return &HostNotFoundError{Err: err, OrgSlug: orgSlug, Host: host}
 	}
