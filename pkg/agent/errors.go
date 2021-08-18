@@ -24,10 +24,6 @@ func (e *TunnelError) Unwrap() error {
 	return e.Err
 }
 
-// func (e *TunnelError) Cause() error {
-// 	return e.Err
-// }
-
 func IsHostNotFoundError(err error) bool {
 	var notfoundError *HostNotFoundError
 	return errors.As(err, &notfoundError)
@@ -46,10 +42,6 @@ func (e *HostNotFoundError) Error() string {
 func (e *HostNotFoundError) Unwrap() error {
 	return e.Err
 }
-
-// func (e *HostNotFoundError) Cause() error {
-// 	return e.Err
-// }
 
 func mapResolveError(err error, orgSlug string, host string) error {
 	msg := err.Error()

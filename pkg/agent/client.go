@@ -85,7 +85,6 @@ func (c *Client) WaitForTunnel(ctx context.Context, o *api.Organization) error {
 func (c *Client) WaitForHost(ctx context.Context, o *api.Organization, host string) error {
 	for {
 		_, err := c.Resolve(ctx, o, host)
-		fmt.Println("got resolve error", host, err, IsHostNotFoundError(err), IsTunnelError(err))
 		switch {
 		case err == nil:
 			return nil
