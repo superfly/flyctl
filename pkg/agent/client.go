@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
@@ -161,4 +162,10 @@ type clientProvider interface {
 
 type Dialer interface {
 	DialContext(ctx context.Context, network, addr string) (net.Conn, error)
+}
+
+func IsIPv6(addr string) bool {
+	addr = strings.Trim(addr, "[]")
+	ip := net.ParseIP(addr)
+	return ip != nil && ip.To16() != nil
 }
