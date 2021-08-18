@@ -312,8 +312,7 @@ func fetchInstances(tunnel *wg.Tunnel, app string) (*Instances, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	regionsv, err := tunnel.Resolver().
-		LookupTXT(ctx, fmt.Sprintf("regions.%s.internal", app))
+	regionsv, err := tunnel.LookupTXT(ctx, fmt.Sprintf("regions.%s.internal", app))
 	if err != nil {
 		return nil, fmt.Errorf("look up regions for %s: %w", app, err)
 	}
@@ -327,7 +326,7 @@ func fetchInstances(tunnel *wg.Tunnel, app string) (*Instances, error) {
 
 	for _, region := range strings.Split(regions, ",") {
 		name := fmt.Sprintf("%s.%s.internal", region, app)
-		addrs, err := tunnel.Resolver().LookupHost(ctx, name)
+		addrs, err := tunnel.LookupAAAA(ctx, name)
 		if err != nil {
 			log.Printf("can't lookup records for %s: %s", name, err)
 			continue
@@ -335,13 +334,13 @@ func fetchInstances(tunnel *wg.Tunnel, app string) (*Instances, error) {
 
 		if len(addrs) == 1 {
 			ret.Labels = append(ret.Labels, name)
-			ret.Addresses = append(ret.Addresses, addrs[0])
+			ret.Addresses = append(ret.Addresses, addrs[0].String())
 			continue
 		}
 
 		for _, addr := range addrs {
 			ret.Labels = append(ret.Labels, fmt.Sprintf("%s (%s)", region, addr))
-			ret.Addresses = append(ret.Addresses, addrs[0])
+			ret.Addresses = append(ret.Addresses, addrs[0].String())
 		}
 	}
 
