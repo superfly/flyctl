@@ -235,9 +235,7 @@ func requireSession(cmd *Command) Initializer {
 	}
 }
 
-func requireAppName(cmd *Command) Initializer {
-	// TODO: Add Flags to docStrings
-
+func addAppConfigFlags(cmd *Command) {
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "app",
 		Shorthand:   "a",
@@ -251,49 +249,64 @@ func requireAppName(cmd *Command) Initializer {
 		Default:     defaultConfigFilePath,
 		EnvName:     "FLY_APP_CONFIG",
 	})
+}
+
+func setupAppName(ctx *cmdctx.CmdContext) error {
+	// resolve the config file path
+	configPath := ctx.Config.GetString("config")
+	if configPath == "" {
+		configPath = defaultConfigFilePath
+	}
+	if !filepath.IsAbs(configPath) {
+		absConfigPath, err := filepath.Abs(filepath.Join(ctx.WorkingDir, configPath))
+		if err != nil {
+			return err
+		}
+		configPath = absConfigPath
+	}
+	resolvedPath, err := flyctl.ResolveConfigFileFromPath(configPath)
+	if err != nil {
+		return err
+	}
+	ctx.ConfigFile = resolvedPath
+
+	// load the config file if it exists
+	if helpers.FileExists(ctx.ConfigFile) {
+		terminal.Debug("Loading app config from", ctx.ConfigFile)
+		appConfig, err := flyctl.LoadAppConfig(ctx.ConfigFile)
+		if err != nil {
+			return err
+		}
+		ctx.AppConfig = appConfig
+	} else {
+		ctx.AppConfig = flyctl.NewAppConfig()
+	}
+
+	// set the app name if provided
+	appName := ctx.Config.GetString("app")
+	if appName != "" {
+		ctx.AppName = appName
+	} else if ctx.AppConfig != nil {
+		ctx.AppName = ctx.AppConfig.AppName
+	}
+
+	return nil
+}
+
+func optionalAppName(cmd *Command) Initializer {
+	addAppConfigFlags(cmd)
+	return Initializer{
+		Setup: setupAppName,
+	}
+}
+
+func requireAppName(cmd *Command) Initializer {
+	// TODO: Add Flags to docStrings
+
+	addAppConfigFlags(cmd)
 
 	return Initializer{
-		Setup: func(ctx *cmdctx.CmdContext) error {
-			// resolve the config file path
-			configPath := ctx.Config.GetString("config")
-			if configPath == "" {
-				configPath = defaultConfigFilePath
-			}
-			if !filepath.IsAbs(configPath) {
-				absConfigPath, err := filepath.Abs(filepath.Join(ctx.WorkingDir, configPath))
-				if err != nil {
-					return err
-				}
-				configPath = absConfigPath
-			}
-			resolvedPath, err := flyctl.ResolveConfigFileFromPath(configPath)
-			if err != nil {
-				return err
-			}
-			ctx.ConfigFile = resolvedPath
-
-			// load the config file if it exists
-			if helpers.FileExists(ctx.ConfigFile) {
-				terminal.Debug("Loading app config from", ctx.ConfigFile)
-				appConfig, err := flyctl.LoadAppConfig(ctx.ConfigFile)
-				if err != nil {
-					return err
-				}
-				ctx.AppConfig = appConfig
-			} else {
-				ctx.AppConfig = flyctl.NewAppConfig()
-			}
-
-			// set the app name if provided
-			appName := ctx.Config.GetString("app")
-			if appName != "" {
-				ctx.AppName = appName
-			} else if ctx.AppConfig != nil {
-				ctx.AppName = ctx.AppConfig.AppName
-			}
-
-			return nil
-		},
+		Setup: setupAppName,
 		PreRun: func(ctx *cmdctx.CmdContext) error {
 			if ctx.AppName == "" {
 				return fmt.Errorf("No app specified. Specify an app or create an app with '" + flyname.Name() + " init'")

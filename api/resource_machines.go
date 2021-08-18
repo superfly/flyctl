@@ -1,12 +1,16 @@
 package api
 
-func (client *Client) ListMachines(state string) ([]*Machine, error) {
+func (client *Client) ListMachines(appID string, state string) ([]*Machine, error) {
 	query := `
-		query($state: String) {
-			machines(state: $state) {
+		query($state: String, $appId: String) {
+			machines(state: $state, appId: $appId) {
 				nodes {
 					id
+					name
+					config
 					state
+					region
+					createdAt
 					app {
 						name
 					}
@@ -17,7 +21,13 @@ func (client *Client) ListMachines(state string) ([]*Machine, error) {
 
 	req := client.NewRequest(query)
 
-	req.Var("state", state)
+	if state != "" {
+		req.Var("state", state)
+	}
+
+	if appID != "" {
+		req.Var("appId", appID)
+	}
 
 	data, err := client.Run(req)
 	if err != nil {

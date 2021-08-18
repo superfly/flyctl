@@ -1031,19 +1031,28 @@ type CreateOrganizationInvitation struct {
 }
 
 type LaunchMachineInput struct {
-	AppName string         `json:"appId,omitempty"`
+	AppID   string         `json:"appId,omitempty"`
+	ID      string         `json:"id,omitempty"`
+	Name    string         `json:"name,omitempty"`
 	OrgSlug string         `json:"organizationId,omitempty"`
 	Region  string         `json:"region,omitempty"`
 	Config  *MachineConfig `json:"config"`
 }
 
 type Machine struct {
-	ID    string
-	State string
-	App   *App
+	ID     string
+	Name   string
+	State  string
+	Region string
+	Config MachineConfig
+
+	App *App
+
+	CreatedAt time.Time
 }
 
 type StopMachineInput struct {
+	AppID           string `json:"appId,omitempty"`
 	ID              string `json:"id"`
 	Signal          string `json:"signal,omitempty"`
 	KillTimeoutSecs int    `json:"kill_timeout_secs,omitempty"`

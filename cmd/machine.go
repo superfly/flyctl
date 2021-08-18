@@ -12,8 +12,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AlecAivazis/survey/v2"
+	surveyterminal "github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/google/shlex"
+	"github.com/logrusorgru/aurora"
 	"github.com/nats-io/nats.go"
+	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -22,9 +26,9 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/monitor"
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/terminal"
-	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v2"
 )
 
@@ -39,11 +43,72 @@ func newMachineCommand(client *client.Client) *Command {
 }
 
 func newMachineListCommand(parent *Command, client *client.Client) {
-	BuildCommandKS(parent, runMachineList, docstrings.Get("machine.list"), client, requireSession)
+	cmd := BuildCommandKS(parent, runMachineList, docstrings.Get("machine.list"), client, requireSession, optionalAppName)
+
+	cmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "all",
+		Description: "Show machines in all states",
+	})
+
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "state",
+		Default:     "running",
+		Description: "List machines in a specific state",
+	})
+}
+
+func runMachineList(cmdCtx *cmdctx.CmdContext) error {
+	state := cmdCtx.Config.GetString("state")
+	if cmdCtx.Config.GetBool("all") {
+		state = ""
+	}
+	machines, err := cmdCtx.Client.API().ListMachines(cmdCtx.AppName, state)
+	if err != nil {
+		return errors.Wrap(err, "could not get list of machines")
+	}
+
+	data := [][]string{}
+
+	for _, machine := range machines {
+		row := []string{
+			machine.ID,
+			machine.Config["image"].(string),
+			machine.CreatedAt.String(),
+			machine.State,
+			machine.Region,
+			machine.Name,
+		}
+		if cmdCtx.AppName == "" {
+			row = append(row, machine.App.Name)
+		}
+		data = append(data, row)
+	}
+
+	table := tablewriter.NewWriter(os.Stdout)
+	headers := []string{"ID", "Image", "Created", "State", "Region", "Name"}
+	if cmdCtx.AppName == "" {
+		headers = append(headers, "App")
+	}
+	table.SetHeader(headers)
+	table.SetAutoWrapText(false)
+	table.SetAutoFormatHeaders(true)
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetCenterSeparator("")
+	table.SetColumnSeparator("")
+	table.SetRowSeparator("")
+	table.SetHeaderLine(false)
+	table.SetBorder(false)
+	table.SetTablePadding("\t") // pad with tabs
+	table.SetNoWhiteSpace(true)
+	table.AppendBulk(data) // Add Bulk Data
+	table.Render()
+
+	return nil
 }
 
 func newMachineStopCommand(parent *Command, client *client.Client) {
-	cmd := BuildCommandKS(parent, runMachineStop, docstrings.Get("machine.stop"), client, requireSession)
+	cmd := BuildCommandKS(parent, runMachineStop, docstrings.Get("machine.stop"), client, requireSession, optionalAppName)
 
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "signal",
@@ -59,13 +124,36 @@ func newMachineStopCommand(parent *Command, client *client.Client) {
 	cmd.Args = cobra.ExactArgs(1)
 }
 
+func runMachineStop(cmdCtx *cmdctx.CmdContext) error {
+	input := api.StopMachineInput{
+		AppID:           cmdCtx.AppName,
+		ID:              cmdCtx.Args[0],
+		Signal:          cmdCtx.Config.GetString("signal"),
+		KillTimeoutSecs: cmdCtx.Config.GetInt("time"),
+	}
+
+	machine, err := cmdCtx.Client.API().StopMachine(input)
+	if err != nil {
+		return errors.Wrap(err, "could not stop machine")
+	}
+
+	fmt.Println(machine.ID)
+
+	return nil
+}
+
 func newMachineRunCommand(parent *Command, client *client.Client) {
-	cmd := BuildCommandKS(parent, runMachineRun, docstrings.Get("machine.run"), client, requireSession)
+	cmd := BuildCommandKS(parent, runMachineRun, docstrings.Get("machine.run"), client, requireSession, optionalAppName)
+
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "id",
+		Description: "Machine ID, is previously known",
+	})
 
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "name",
 		Shorthand:   "n",
-		Description: "App name, will be generated if missing",
+		Description: "Machine name, will be generated if missing",
 	})
 
 	cmd.AddStringFlag(StringFlagOpts{
@@ -105,43 +193,31 @@ func newMachineRunCommand(parent *Command, client *client.Client) {
 	cmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "detach",
 		Shorthand:   "d",
-		Description: "Print machine id and exit",
+		Description: "Detach from the machine's logs",
 	})
 
 	cmd.Command.Args = cobra.MinimumNArgs(1)
 }
 
-func runMachineList(cmdCtx *cmdctx.CmdContext) error {
-	machines, err := cmdCtx.Client.API().ListMachines("running")
-	if err != nil {
-		return errors.Wrap(err, "could not get list of machines")
-	}
-
-	for _, machine := range machines {
-		fmt.Printf("%s : %s\n", machine.App.Name, machine.ID)
-	}
-
-	return nil
-}
-
-func runMachineStop(cmdCtx *cmdctx.CmdContext) error {
-	input := api.StopMachineInput{
-		ID:              cmdCtx.Args[0],
-		Signal:          cmdCtx.Config.GetString("signal"),
-		KillTimeoutSecs: cmdCtx.Config.GetInt("time"),
-	}
-
-	machine, err := cmdCtx.Client.API().StopMachine(input)
-	if err != nil {
-		return errors.Wrap(err, "could not stop machine")
-	}
-
-	fmt.Println(machine.ID)
-
-	return nil
-}
-
 func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
+	if cmdCtx.AppName == "" {
+		confirm := false
+		prompt := &survey.Confirm{
+			Message: "Running a machine without specifying an app will create one for you, is this what you want?",
+		}
+		err := survey.AskOne(prompt, &confirm)
+		if err != nil {
+			if err == surveyterminal.InterruptErr {
+				return nil
+			}
+			return err
+		}
+
+		if !confirm {
+			return nil
+		}
+	}
+
 	if cmdCtx.MachineConfig == nil {
 		cmdCtx.MachineConfig = flyctl.NewMachineConfig()
 	}
@@ -218,15 +294,12 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 
 	machineConf.Config["services"] = svcs
 
-	appName := cmdCtx.Config.GetString("name")
-	if appName == "" {
-		appName = cmdCtx.AppName
-	}
-
 	apiMachineConf := api.MachineConfig(machineConf.Config)
 
 	input := api.LaunchMachineInput{
-		AppName: appName,
+		AppID:   cmdCtx.AppName,
+		ID:      cmdCtx.Config.GetString("id"),
+		Name:    cmdCtx.Config.GetString("name"),
 		OrgSlug: cmdCtx.Config.GetString("org"),
 		Region:  cmdCtx.Config.GetString("region"),
 		Config:  &apiMachineConf,
@@ -244,38 +317,36 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 
 	apiClient := cmdCtx.Client.API()
 
-	ctx := createCancellableContext()
-	eg, errCtx := errgroup.WithContext(ctx)
-
-	dialerCh := make(chan *agent.Dialer, 1)
-
-	eg.Go(func() error {
-		agentclient, err := agent.Establish(errCtx, apiClient)
+	dialer, err := func() (*agent.Dialer, error) {
+		ctx := createCancellableContext()
+		agentclient, err := agent.Establish(ctx, apiClient)
 		if err != nil {
-			return errors.Wrap(err, "error establishing agent")
+			return nil, errors.Wrap(err, "error establishing agent")
 		}
 
-		dialer, err := agentclient.Dialer(errCtx, &app.Organization)
+		dialer, err := agentclient.Dialer(ctx, &app.Organization)
 		if err != nil {
-			return errors.Wrapf(err, "error establishing wireguard connection for %s organization", app.Organization.Slug)
+			return nil, errors.Wrapf(err, "error establishing wireguard connection for %s organization", app.Organization.Slug)
 		}
 
-		tunnelCtx, cancel := context.WithTimeout(errCtx, 4*time.Minute)
+		tunnelCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 		defer cancel()
 		if err = agentclient.WaitForTunnel(tunnelCtx, &app.Organization); err != nil {
-			return errors.Wrap(err, "unable to connect WireGuard tunnel")
+			return nil, errors.Wrap(err, "unable to connect WireGuard tunnel")
 		}
 
-		dialerCh <- dialer
+		return dialer, nil
+	}()
+	if err != nil {
+		terminal.Debugf("could not connect to wireguard tunnel, err: %v\n", err)
+		terminal.Debug("Falling back to log polling...")
+		err := monitor.WatchLogs(cmdCtx, cmdCtx.Out, monitor.LogOptions{
+			AppName: app.Name,
+			VMID:    machine.ID,
+		})
 
-		return nil
-	})
-
-	if err = eg.Wait(); err != nil {
 		return err
 	}
-
-	dialer := <-dialerCh
 
 	var flyConf flyConfig
 	usr, _ := user.Current()
@@ -300,6 +371,7 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 
 	natsIP := net.IP(natsIPBytes[:])
 
+	ctx := createCancellableContext()
 	natsConn, err := nats.Connect(fmt.Sprintf("nats://[%s]:4223", natsIP.String()), nats.SetCustomDialer(&natsDialer{dialer, ctx}), nats.UserInfo(app.Organization.Slug, flyConf.AccessToken))
 	if err != nil {
 		return errors.Wrap(err, "could not connect to nats")
@@ -311,7 +383,15 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 			terminal.Error(errors.Wrap(err, "could not parse log"))
 			return
 		}
-		fmt.Println(log.Message)
+		w := os.Stdout
+		fmt.Fprintf(w, "%s ", aurora.Faint(log.Timestamp))
+		fmt.Fprintf(w, "%s[%s]", log.Event.Provider, log.Fly.App.Instance)
+		fmt.Fprint(w, " ")
+		fmt.Fprintf(w, "%s ", aurora.Green(log.Fly.Region))
+		fmt.Fprintf(w, "[%s] ", aurora.Colorize(log.Log.Level, levelColor(log.Log.Level)))
+		_, _ = w.Write([]byte(log.Message))
+		fmt.Fprintln(w, "")
+
 	})
 	if err != nil {
 		return errors.Wrap(err, "could not sub to logs via nats")
@@ -321,6 +401,19 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 	<-ctx.Done()
 
 	return nil
+}
+
+func levelColor(level string) aurora.Color {
+	switch level {
+	case "debug":
+		return aurora.CyanFg
+	case "info":
+		return aurora.BlueFg
+	case "warn":
+	case "warning":
+		return aurora.YellowFg
+	}
+	return aurora.RedFg
 }
 
 type natsLog struct {
