@@ -252,7 +252,8 @@ func probeTunnel(ctx context.Context, tunnel *wg.Tunnel) error {
 	defer cancel()
 
 	results, err := tunnel.LookupTXT(ctx, "_apps.internal")
-	fmt.Println("got results", results, err)
+	terminal.Debug("probe results for _apps.internal", results)
+
 	// _, err = tunnel.Resolver().LookupTXT(ctx, "_apps.internal")
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {

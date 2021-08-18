@@ -74,7 +74,6 @@ func (c *Client) WaitForTunnel(ctx context.Context, o *api.Organization) error {
 	go func() {
 		for {
 			err := c.Probe(ctx, o)
-
 			if err != nil && IsTunnelError(err) {
 				continue
 			}
@@ -117,7 +116,6 @@ func (c *Client) WaitForHost(ctx context.Context, o *api.Organization, host stri
 
 func (c *Client) Probe(ctx context.Context, o *api.Organization) error {
 	if err := c.provider.Probe(ctx, o); err != nil {
-		fmt.Println("probe err: ", err, errors.Is(err, context.DeadlineExceeded))
 		err = mapResolveError(err, o.Slug, "")
 		return errors.Wrap(err, "probe failed")
 	}
@@ -126,7 +124,6 @@ func (c *Client) Probe(ctx context.Context, o *api.Organization) error {
 
 func (c *Client) Resolve(ctx context.Context, o *api.Organization, host string) (string, error) {
 	addr, err := c.provider.Resolve(ctx, o, host)
-	// fmt.Printf("got resolve response '%s' '%s'\n", addr, err)
 	if err != nil {
 		err = mapResolveError(err, o.Slug, host)
 		return "", errors.Wrap(err, "resolve failed")

@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"time"
 
@@ -87,10 +88,12 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 		addr = cc.Args[0]
 	} else {
 		addr = fmt.Sprintf("%s.internal", cc.AppName)
-		fmt.Println("wait for host")
+	}
+
+	// wait for the addr to be resolved in dns unless it's an ip address
+	if n := net.ParseIP(addr); n == nil {
 		cc.IO.StartProgressIndicatorMsg("Waiting for host")
 		if err := agentclient.WaitForHost(ctx, &app.Organization, addr); err != nil {
-			fmt.Println("wait for host error", err)
 			captureError(err)
 			return errors.Wrapf(err, "host unavailable")
 		}
