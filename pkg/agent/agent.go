@@ -491,7 +491,6 @@ func (s *Server) clean() {
 }
 
 func resolve(tunnel *wg.Tunnel, addr string) (string, error) {
-	log.Printf("Resolving %v %s", tunnel, addr)
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		if strings.Contains(err.Error(), "missing port") {
