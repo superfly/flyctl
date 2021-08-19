@@ -167,14 +167,9 @@ func BuildCommandKS(parent *Command, fn RunFn, keystrings docstrings.KeyStrings,
 	return BuildCommand(parent, fn, keystrings.Usage, keystrings.Short, keystrings.Long, client, options...)
 }
 
-// BuildCommand - builds a functioning Command using all the initializers
-func BuildCommand(parent *Command, fn RunFn, usageText string, shortHelpText string, longHelpText string, client *client.Client, options ...Option) *Command {
+func BuildCommandCobra(parent *Command, fn RunFn, cmd *cobra.Command, client *client.Client, options ...Option) *Command {
 	flycmd := &Command{
-		Command: &cobra.Command{
-			Use:   usageText,
-			Short: shortHelpText,
-			Long:  longHelpText,
-		},
+		Command: cmd,
 	}
 
 	if parent != nil {
@@ -220,6 +215,16 @@ func BuildCommand(parent *Command, fn RunFn, usageText string, shortHelpText str
 	}
 
 	return flycmd
+}
+
+// BuildCommand - builds a functioning Command using all the initializers
+func BuildCommand(parent *Command, fn RunFn, usageText string, shortHelpText string, longHelpText string, client *client.Client, options ...Option) *Command {
+	return BuildCommandCobra(parent, fn, &cobra.Command{
+		Use:   usageText,
+		Short: shortHelpText,
+		Long:  longHelpText,
+	}, client, options...)
+
 }
 
 const defaultConfigFilePath = "./fly.toml"

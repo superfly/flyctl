@@ -33,7 +33,13 @@ import (
 )
 
 func newMachineCommand(client *client.Client) *Command {
-	cmd := BuildCommandKS(nil, nil, docstrings.Get("machine"), client)
+	keystrings := docstrings.Get("machine")
+	cmd := BuildCommandCobra(nil, nil, &cobra.Command{
+		Use:     keystrings.Usage,
+		Short:   keystrings.Short,
+		Long:    keystrings.Long,
+		Aliases: []string{"machines", "m"},
+	}, client)
 
 	newMachineRunCommand(cmd, client)
 	newMachineStopCommand(cmd, client)
