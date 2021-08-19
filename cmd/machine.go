@@ -323,7 +323,7 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 
 	apiClient := cmdCtx.Client.API()
 
-	dialer, err := func() (*agent.Dialer, error) {
+	dialer, err := func() (agent.Dialer, error) {
 		ctx := createCancellableContext()
 		agentclient, err := agent.Establish(ctx, apiClient)
 		if err != nil {
@@ -442,7 +442,7 @@ type natsLog struct {
 }
 
 type natsDialer struct {
-	*agent.Dialer
+	agent.Dialer
 	ctx context.Context
 }
 
