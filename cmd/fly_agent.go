@@ -44,7 +44,7 @@ func newAgentCommand(client *client.Client) *Command {
 }
 
 func runFlyAgentDaemonStart(ctx *cmdctx.CmdContext) error {
-	agent, err := agent.DefaultServer(ctx)
+	agent, err := agent.DefaultServer(ctx.Client.API())
 	if err != nil {
 		log.Fatalf("can't start daemon: %s", err)
 	}

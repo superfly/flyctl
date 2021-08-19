@@ -8,9 +8,11 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/briandowns/spinner"
+	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/ssh"
 	"github.com/superfly/flyctl/terminal"
@@ -27,20 +29,36 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
+	captureError := func(err error) {
+		// ignore cancelled errors
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+
+		flyerr.CaptureException(err,
+			flyerr.WithTag("feature", "ssh-console"),
+			flyerr.WithContexts(map[string]interface{}{
+				"app":          app.Name,
+				"organization": app.Organization.Slug,
+			}),
+		)
+	}
+
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
+		captureError(err)
 		return fmt.Errorf("can't establish agent: %s\n", err)
 	}
 
 	dialer, err := agentclient.Dialer(ctx, &app.Organization)
 	if err != nil {
+		captureError(err)
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
 	}
 
-	if cc.Config.GetBool("probe") {
-		if err = agentclient.Probe(ctx, &app.Organization); err != nil {
-			return fmt.Errorf("probe wireguard: %w", err)
-		}
+	if err := agentclient.WaitForTunnel(ctx, &app.Organization); err != nil {
+		captureError(err)
+		return errors.Wrapf(err, "tunnel unavailable")
 	}
 
 	var addr string
@@ -67,15 +85,26 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 		addr = cc.Args[0]
 	} else {
 		addr = fmt.Sprintf("%s.internal", cc.AppName)
+
+		if err := agentclient.WaitForHost(ctx, &app.Organization, addr); err != nil {
+			captureError(err)
+			return errors.Wrapf(err, "host unavailable")
+		}
 	}
 
-	return sshConnect(&SSHParams{
+	err = sshConnect(&SSHParams{
 		Ctx:    cc,
 		Org:    &app.Organization,
 		Dialer: dialer,
 		App:    cc.AppName,
 		Cmd:    cc.Config.GetString("command"),
 	}, addr)
+
+	if err != nil {
+		captureError(err)
+	}
+
+	return err
 }
 
 func spin(in, out string) context.CancelFunc {
@@ -105,7 +134,7 @@ type SSHParams struct {
 	Ctx    *cmdctx.CmdContext
 	Org    *api.Organization
 	App    string
-	Dialer *agent.Dialer
+	Dialer agent.Dialer
 	Cmd    string
 }
 
@@ -119,7 +148,7 @@ func sshConnect(p *SSHParams, addr string) error {
 
 	pk, err := parsePrivateKey(cert.Key)
 	if err != nil {
-		return fmt.Errorf("parse ssh certificate: %w", err)
+		return errors.Wrap(err, "parse ssh certificate")
 	}
 
 	pemkey := MarshalED25519PrivateKey(pk, "single-use certificate")
@@ -141,7 +170,7 @@ func sshConnect(p *SSHParams, addr string) error {
 	defer endSpin()
 
 	if err := sshClient.Connect(context.Background()); err != nil {
-		return fmt.Errorf("connect to SSH server: %w", err)
+		return errors.Wrap(err, "error connecting to SSH server")
 	}
 	defer sshClient.Close()
 
@@ -157,7 +186,7 @@ func sshConnect(p *SSHParams, addr string) error {
 	}
 
 	if err := sshClient.Shell(context.Background(), term, p.Cmd); err != nil {
-		return fmt.Errorf("SSH shell: %w", err)
+		return errors.Wrap(err, "ssh shell")
 	}
 
 	return nil
