@@ -4,7 +4,6 @@ package agent
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -13,13 +12,20 @@ import (
 	"github.com/superfly/flyctl/pkg/wg"
 )
 
-type Client struct {
+func newClientProvider(path string, api *api.Client) (clientProvider, error) {
+	return &noAgentClientProvider{
+		tunnels: map[string]*wg.Tunnel{},
+		Client:  api,
+	}, nil
+}
+
+type noAgentClientProvider struct {
 	Client  *api.Client
 	tunnels map[string]*wg.Tunnel
 	lock    sync.Mutex
 }
 
-func (c *Client) tunnelFor(slug string) (*wg.Tunnel, error) {
+func (c *noAgentClientProvider) tunnelFor(slug string) (*wg.Tunnel, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -31,30 +37,15 @@ func (c *Client) tunnelFor(slug string) (*wg.Tunnel, error) {
 	return tunnel, nil
 }
 
-func NewClient(path string) (*Client, error) {
-	return &Client{
-		tunnels: map[string]*wg.Tunnel{},
-	}, nil
-}
-
-func DefaultClient(c *api.Client) (*Client, error) {
-	client, err := NewClient("")
-	if err != nil {
-		return nil, err
-	}
-	client.Client = c
-	return client, nil
-}
-
-func (c *Client) Kill(ctx context.Context) error {
+func (c *noAgentClientProvider) Kill(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) Ping(ctx context.Context) (int, error) {
+func (c *noAgentClientProvider) Ping(ctx context.Context) (int, error) {
 	return 0, nil
 }
 
-func (c *Client) Establish(ctx context.Context, slug string) error {
+func (c *noAgentClientProvider) Establish(ctx context.Context, slug string) error {
 	if c.Client == nil {
 		return fmt.Errorf("no client set for stub agent")
 	}
@@ -80,7 +71,7 @@ func (c *Client) Establish(ctx context.Context, slug string) error {
 	return nil
 }
 
-func (c *Client) Probe(ctx context.Context, o *api.Organization) error {
+func (c *noAgentClientProvider) Probe(ctx context.Context, o *api.Organization) error {
 	tunnel, err := c.tunnelFor(o.Slug)
 	if err != nil {
 		return fmt.Errorf("probe: can't build tunnel: %s", err)
@@ -93,21 +84,16 @@ func (c *Client) Probe(ctx context.Context, o *api.Organization) error {
 	return nil
 }
 
-func (c *Client) WaitForTunnel(ctx context.Context, o *api.Organization) error {
-	for {
-		err := c.Probe(ctx, o)
-		switch {
-		case err == nil:
-			return nil
-		case err == context.Canceled || err == context.DeadlineExceeded:
-			return err
-		case errors.Is(err, &ErrProbeFailed{}):
-			continue
-		}
+func (c *noAgentClientProvider) Resolve(ctx context.Context, o *api.Organization, host string) (string, error) {
+	tunnel, err := c.tunnelFor(o.Slug)
+	if err != nil {
+		return "", fmt.Errorf("probe: can't build tunnel: %s", err)
 	}
+
+	return resolve(tunnel, host)
 }
 
-func (c *Client) Instances(ctx context.Context, o *api.Organization, app string) (*Instances, error) {
+func (c *noAgentClientProvider) Instances(ctx context.Context, o *api.Organization, app string) (*Instances, error) {
 	tunnel, err := c.tunnelFor(o.Slug)
 	if err != nil {
 		return nil, fmt.Errorf("can't build tunnel: %s", err)
@@ -125,12 +111,7 @@ func (c *Client) Instances(ctx context.Context, o *api.Organization, app string)
 	return ret, nil
 }
 
-type Dialer struct {
-	Org    *api.Organization
-	tunnel *wg.Tunnel
-}
-
-func (c *Client) Dialer(ctx context.Context, o *api.Organization) (*Dialer, error) {
+func (c *noAgentClientProvider) Dialer(ctx context.Context, o *api.Organization) (Dialer, error) {
 	if err := c.Establish(ctx, o.Slug); err != nil {
 		return nil, fmt.Errorf("dial: can't establish tunel: %s", err)
 	}
@@ -140,12 +121,17 @@ func (c *Client) Dialer(ctx context.Context, o *api.Organization) (*Dialer, erro
 		return nil, fmt.Errorf("dial: can't build tunnel: %s", err)
 	}
 
-	return &Dialer{
+	return &noAgentDialer{
 		Org:    o,
 		tunnel: tunnel,
 	}, nil
 }
 
-func (d *Dialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+type noAgentDialer struct {
+	Org    *api.Organization
+	tunnel *wg.Tunnel
+}
+
+func (d *noAgentDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	return d.tunnel.DialContext(ctx, network, addr)
 }
