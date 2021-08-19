@@ -13,13 +13,13 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	dockerclient "github.com/docker/docker/client"
-	"github.com/getsentry/sentry-go"
 	"github.com/jpillora/backoff"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/monitor"
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/iostreams"
@@ -152,20 +152,13 @@ func newLocalDockerClient() (*dockerclient.Client, error) {
 	return c, nil
 }
 
-type remoteBuilderError struct {
-	RemoteBuilderName string
-	Err               error
-}
-
-func (e *remoteBuilderError) Error() string {
-	return fmt.Sprintf("remote builder %s error %s", e.RemoteBuilderName, e.Err)
-}
-
 func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, streams *iostreams.IOStreams) (*dockerclient.Client, error) {
-	host, remoteBuilderAppName, err := remoteBuilderURL(apiClient, appName)
+	host, app, err := remoteBuilderURL(apiClient, appName)
 	if err != nil {
 		return nil, err
 	}
+	remoteBuilderAppName := app.Name
+	remoteBuilderOrg := app.Organization.Slug
 
 	terminal.Debugf("Remote Docker builder host: %s\n", host)
 
@@ -179,6 +172,22 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	defer cancel()
 
 	eg, errCtx := errgroup.WithContext(ctx)
+
+	captureError := func(err error) {
+		// ignore cancelled errors
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+
+		flyerr.CaptureException(err,
+			flyerr.WithTag("feature", "remote-build"),
+			flyerr.WithContexts(map[string]interface{}{
+				"app":          appName,
+				"builder":      remoteBuilderAppName,
+				"organization": remoteBuilderOrg,
+			}),
+		)
+	}
 
 	eg.Go(func() error {
 		defer streams.ChangeProgressIndicatorMsg(fmt.Sprintf("Waiting for remote builder %s... connecting", remoteBuilderAppName))
@@ -217,8 +226,14 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 
 			tunnelCtx, cancel := context.WithTimeout(errCtx, 4*time.Minute)
 			defer cancel()
+			// wait for the tunnel to be ready
 			if err = agentclient.WaitForTunnel(tunnelCtx, &app.Organization); err != nil {
 				return errors.Wrap(err, "unable to connect WireGuard tunnel")
+			}
+
+			// wait for private dns
+			if err := agentclient.WaitForHost(tunnelCtx, &app.Organization, fmt.Sprintf("%s.internal", remoteBuilderAppName)); err != nil {
+				return errors.Wrapf(err, "host unavailable")
 			}
 
 			opts = append(opts, dockerclient.WithDialContext(dialer.DialContext))
@@ -241,13 +256,13 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	})
 
 	if err = eg.Wait(); err != nil {
-		captureRemoteBuilderError(err, remoteBuilderAppName)
+		captureError(err)
 
 		return nil, err
 	}
 
 	if err := ctx.Err(); err != nil {
-		captureRemoteBuilderError(err, remoteBuilderAppName)
+		captureError(err)
 
 		streams.StopProgressIndicator()
 		if errors.Is(err, context.DeadlineExceeded) {
@@ -263,25 +278,17 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	return <-clientCh, nil
 }
 
-func captureRemoteBuilderError(err error, builderAppName string) {
-	if errors.Is(err, context.Canceled) {
-		return
-	}
-
-	sentry.CaptureException(&remoteBuilderError{RemoteBuilderName: builderAppName, Err: err})
-}
-
-func remoteBuilderURL(apiClient *api.Client, appName string) (string, string, error) {
+func remoteBuilderURL(apiClient *api.Client, appName string) (string, *api.App, error) {
 	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
-		return v, "", nil
+		return v, nil, nil
 	}
 
 	_, app, err := apiClient.EnsureRemoteBuilderForApp(appName)
 	if err != nil {
-		return "", "", errors.Errorf("could not create remote builder: %v", err)
+		return "", nil, errors.Errorf("could not create remote builder: %v", err)
 	}
 
-	return "tcp://" + net.JoinHostPort(app.Name+".internal", "2375"), app.Name, nil
+	return "tcp://" + net.JoinHostPort(app.Name+".internal", "2375"), app, nil
 }
 
 func waitForDaemon(ctx context.Context, client *dockerclient.Client) error {

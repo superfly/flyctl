@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -15,9 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/getsentry/sentry-go"
+	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/pkg/wg"
@@ -25,7 +23,8 @@ import (
 )
 
 var (
-	ErrCantBind = errors.New("can't bind agent socket")
+	ErrCantBind          = errors.New("can't bind agent socket")
+	ErrTunnelUnavailable = errors.New("tunnel unavailable")
 )
 
 type Server struct {
@@ -34,7 +33,6 @@ type Server struct {
 	cancel        func()
 	tunnels       map[string]*wg.Tunnel
 	client        *api.Client
-	cmdctx        *cmdctx.CmdContext
 	lock          sync.Mutex
 	currentChange time.Time
 }
@@ -80,6 +78,7 @@ func (s *Server) handle(c net.Conn) {
 		"probe":     s.handleProbe,
 		"establish": s.handleEstablish,
 		"instances": s.handleInstances,
+		"resolve":   s.handleResolve,
 	}
 
 	handler, ok := cmds[args[0]]
@@ -94,8 +93,8 @@ func (s *Server) handle(c net.Conn) {
 	}
 }
 
-func NewServer(path string, cmdCtx *cmdctx.CmdContext) (*Server, error) {
-	if c, err := NewClient(path); err == nil {
+func NewServer(path string, apiClient *api.Client) (*Server, error) {
+	if c, err := NewClient(path, apiClient); err == nil {
 		c.Kill(context.Background())
 	}
 
@@ -130,8 +129,7 @@ func NewServer(path string, cmdCtx *cmdctx.CmdContext) (*Server, error) {
 
 	s := &Server{
 		listener:      l,
-		cmdctx:        cmdCtx,
-		client:        cmdCtx.Client.API(),
+		client:        apiClient,
 		tunnels:       map[string]*wg.Tunnel{},
 		currentChange: latestChange,
 	}
@@ -141,10 +139,10 @@ func NewServer(path string, cmdCtx *cmdctx.CmdContext) (*Server, error) {
 	return s, nil
 }
 
-func DefaultServer(ctx *cmdctx.CmdContext) (*Server, error) {
-	wireguard.PruneInvalidPeers(ctx.Client.API())
+func DefaultServer(apiClient *api.Client) (*Server, error) {
+	wireguard.PruneInvalidPeers(apiClient)
 
-	return NewServer(fmt.Sprintf("%s/.fly/fly-agent.sock", os.Getenv("HOME")), ctx)
+	return NewServer(fmt.Sprintf("%s/.fly/fly-agent.sock", os.Getenv("HOME")), apiClient)
 }
 
 func (s *Server) Serve() {
@@ -212,7 +210,6 @@ func buildTunnel(client *api.Client, org *api.Organization) (*wg.Tunnel, error) 
 
 	tunnel, err := wg.Connect(*state.TunnelConfig())
 	if err != nil {
-		captureWireguardConnErr(err, org.Slug)
 		return nil, fmt.Errorf("can't connect wireguard: %w", err)
 	}
 
@@ -253,9 +250,16 @@ func probeTunnel(ctx context.Context, tunnel *wg.Tunnel) error {
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	_, err = tunnel.Resolver().LookupTXT(ctx, "_apps.internal")
+
+	results, err := tunnel.LookupTXT(ctx, "_apps.internal")
+	terminal.Debug("probe results for _apps.internal", results)
+
+	// _, err = tunnel.Resolver().LookupTXT(ctx, "_apps.internal")
 	if err != nil {
-		return fmt.Errorf("probing look up apps: %w", err)
+		if errors.Is(err, context.DeadlineExceeded) {
+			return ErrTunnelUnavailable
+		}
+		return errors.Wrap(err, "error probing for _apps.internal")
 	}
 
 	return nil
@@ -269,11 +273,32 @@ func (s *Server) handleProbe(c net.Conn, args []string) error {
 	}
 
 	if err := probeTunnel(context.Background(), tunnel); err != nil {
-		captureWireguardConnErr(err, args[1])
+		// captureWireguardConnErr(err, args[1])
 		return err
 	}
 
 	writef(c, "ok")
+
+	return nil
+}
+
+// handleResolve resolves the provided host with the tunnel
+func (s *Server) handleResolve(c net.Conn, args []string) error {
+	if len(args) != 3 {
+		return fmt.Errorf("malformed resolve command")
+	}
+
+	tunnel, err := s.tunnelFor(args[1])
+	if err != nil {
+		return fmt.Errorf("resolve: can't build tunnel: %s", err)
+	}
+
+	resp, err := resolve(tunnel, args[2])
+	if err != nil {
+		return err
+	}
+
+	writef(c, "ok "+resp)
 
 	return nil
 }
@@ -287,8 +312,7 @@ func fetchInstances(tunnel *wg.Tunnel, app string) (*Instances, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	regionsv, err := tunnel.Resolver().
-		LookupTXT(ctx, fmt.Sprintf("regions.%s.internal", app))
+	regionsv, err := tunnel.LookupTXT(ctx, fmt.Sprintf("regions.%s.internal", app))
 	if err != nil {
 		return nil, fmt.Errorf("look up regions for %s: %w", app, err)
 	}
@@ -302,7 +326,7 @@ func fetchInstances(tunnel *wg.Tunnel, app string) (*Instances, error) {
 
 	for _, region := range strings.Split(regions, ",") {
 		name := fmt.Sprintf("%s.%s.internal", region, app)
-		addrs, err := tunnel.Resolver().LookupHost(ctx, name)
+		addrs, err := tunnel.LookupAAAA(ctx, name)
 		if err != nil {
 			log.Printf("can't lookup records for %s: %s", name, err)
 			continue
@@ -310,13 +334,13 @@ func fetchInstances(tunnel *wg.Tunnel, app string) (*Instances, error) {
 
 		if len(addrs) == 1 {
 			ret.Labels = append(ret.Labels, name)
-			ret.Addresses = append(ret.Addresses, addrs[0])
+			ret.Addresses = append(ret.Addresses, addrs[0].String())
 			continue
 		}
 
 		for _, addr := range addrs {
 			ret.Labels = append(ret.Labels, fmt.Sprintf("%s (%s)", region, addr))
-			ret.Addresses = append(ret.Addresses, addrs[0])
+			ret.Addresses = append(ret.Addresses, addrs[0].String())
 		}
 	}
 
@@ -361,7 +385,7 @@ func (s *Server) handleConnect(c net.Conn, args []string) error {
 
 	address, err := resolve(tunnel, args[2])
 	if err != nil {
-		captureWireguardConnErr(err, args[1])
+		// captureWireguardConnErr(err, args[1])
 		return fmt.Errorf("connect: can't resolve address '%s': %s", args[2], err)
 	}
 
@@ -381,7 +405,7 @@ func (s *Server) handleConnect(c net.Conn, args []string) error {
 
 	outconn, err := tunnel.DialContext(ctx, "tcp", address)
 	if err != nil {
-		captureWireguardConnErr(err, args[1])
+		// captureWireguardConnErr(err, args[1])
 		cancel()
 		return fmt.Errorf("connection failed: %s", err)
 	}
@@ -466,22 +490,34 @@ func (s *Server) clean() {
 }
 
 func resolve(tunnel *wg.Tunnel, addr string) (string, error) {
-	log.Printf("Resolving %v %s", tunnel, addr)
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		return "", err
+		if strings.Contains(err.Error(), "missing port") {
+			host = addr
+		} else {
+			return "", err
+		}
 	}
 
 	if n := net.ParseIP(host); n != nil && n.To16() != nil {
-		return fmt.Sprintf("[%s]:%s", n, port), nil
+		if port == "" {
+			return n.String(), nil
+		}
+		return net.JoinHostPort(n.String(), port), nil
 	}
 
-	addrs, err := tunnel.Resolver().LookupHost(context.Background(), host)
+	addrs, err := tunnel.LookupAAAA(context.Background(), host)
 	if err != nil {
 		return "", err
 	}
+	if len(addrs) == 0 {
+		return "", fmt.Errorf("%s - no such host", addr)
+	}
 
-	return fmt.Sprintf("[%s]:%s", addrs[0], port), nil
+	if port == "" {
+		return addrs[0].String(), nil
+	}
+	return net.JoinHostPort(addrs[0].String(), port), nil
 }
 
 func removeSocket(path string) error {
@@ -495,47 +531,6 @@ func removeSocket(path string) error {
 	}
 
 	return os.Remove(path)
-}
-
-type wireGuardConnErr struct {
-	Org string `json:"org"`
-	Err error  `json:"error"`
-	DNS string `json:"dns,omitempty"`
-}
-
-func (e *wireGuardConnErr) Error() string {
-	return fmt.Sprintf("can't resolve %s: %s", e.Org, e.Err)
-}
-
-func captureWireguardConnErr(err error, org string) {
-	sentry.CaptureException(
-		&wireGuardConnErr{Org: org, Err: err},
-	)
-}
-
-/// Establish starts the daemon if necessary and returns a client
-func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
-	if err := wireguard.PruneInvalidPeers(apiClient); err != nil {
-		return nil, err
-	}
-
-	c, err := DefaultClient(apiClient)
-	if err == nil {
-		_, err := c.Ping(ctx)
-		if err == nil {
-			return c, nil
-		}
-	}
-
-	return StartDaemon(ctx, apiClient, os.Args[0])
-}
-
-type ErrProbeFailed struct {
-	Msg string
-}
-
-func (e *ErrProbeFailed) Error() string {
-	return fmt.Sprintf("probe failed: %s", e.Msg)
 }
 
 type ClosableWrite interface {

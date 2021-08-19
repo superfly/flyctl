@@ -374,7 +374,7 @@ const newLine = '\n'
 
 func appendMissingCharacter(msg string, char byte) string {
 	buff := []byte(msg)
-	if len(buff) == 0 || buff[len(buff)-1] != char {
+	if len(buff) > 0 && buff[len(buff)-1] != char {
 		buff = append(buff, char)
 	}
 	return string(buff)

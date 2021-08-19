@@ -7,6 +7,9 @@ func (client *Client) EnsureRemoteBuilderForApp(appName string) (string, *App, e
 				url,
 				app {
 					name
+					organization {
+						slug
+					}
 				}
 			}
 		}
