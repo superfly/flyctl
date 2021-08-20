@@ -11,7 +11,7 @@ import (
 // ErrAbort is an error for when the CLI aborts
 var ErrAbort = errors.New("abort")
 
-// ErrorDescription is an error with detailed description that will be printed before the CLI exits
+// ErrorDescription is an error with a detailed description that will be printed before the CLI exits
 type ErrorDescription interface {
 	error
 	Description() string
@@ -25,7 +25,7 @@ func GetErrorDescription(err error) string {
 	return ""
 }
 
-// ErrorSuggestion is an error with a suggested next steps that will be printed before the CLI exits
+// ErrorSuggestion is an error with suggested next steps that will be printed before the CLI exits
 type ErrorSuggestion interface {
 	error
 	Suggestion() string
