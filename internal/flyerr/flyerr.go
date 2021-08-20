@@ -64,6 +64,7 @@ func PrintCLIOutput(err error) {
 		}
 		fmt.Printf("\n%s", suggestion)
 	}
+	fmt.Println()
 }
 
 func IsCancelledError(err error) bool {
