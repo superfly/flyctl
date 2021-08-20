@@ -154,8 +154,11 @@ func (s *Server) Serve() {
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
-			// this can't really be how i'm supposed to do this
-			if strings.Contains(err.Error(), "use of closed network connection") {
+			// // this can't really be how i'm supposed to do this
+			// if strings.Contains(err.Error(), "use of closed network connection") {
+			// 	return
+			// }
+			if errors.Is(err, net.ErrClosed) {
 				return
 			}
 
