@@ -3,7 +3,12 @@ package agent
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
+
+	"github.com/logrusorgru/aurora"
+	"github.com/superfly/flyctl/flyname"
+	"github.com/superfly/flyctl/internal/cmdutil"
 )
 
 func IsTunnelError(err error) bool {
@@ -58,4 +63,32 @@ func mapResolveError(err error, orgSlug string, host string) error {
 		return &HostNotFoundError{Err: err, OrgSlug: orgSlug, Host: host}
 	}
 	return err
+}
+
+func IsAgentStartError(err error) bool {
+	var agentErr *AgentStartError
+	return errors.As(err, &agentErr)
+}
+
+type AgentStartError struct {
+	Output string
+}
+
+func (e *AgentStartError) Error() string {
+	return "Failed to start the agent daemon"
+}
+
+func (e *AgentStartError) Description() string {
+	var msg strings.Builder
+	msg.WriteString("Agent failed to start with the following output:\n")
+	r := regexp.MustCompile(`(?m)^`)
+	output := cmdutil.StripANSI(e.Output)
+	output = r.ReplaceAllString(output, "\t")
+	msg.WriteString(output)
+	return msg.String()
+}
+
+func (e *AgentStartError) Suggestion() string {
+	command := aurora.Bold(fmt.Sprintf("%s agent daemon-start", flyname.Name()))
+	return fmt.Sprintf("Try running the agent with '%s' to see more output. Once the issue preventing startup is fixed you can stop the agent and flyctl will create it as needed", command)
 }
