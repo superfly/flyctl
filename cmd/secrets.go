@@ -21,13 +21,13 @@ import (
 func newSecretsCommand(client *client.Client) *Command {
 
 	secretsStrings := docstrings.Get("secrets")
-	cmd := BuildCommandKS(nil, nil, secretsStrings, client, requireSession, requireAppName)
+	cmd := BuildCommandKS(nil, nil, secretsStrings, client, nil, requireSession, requireAppName)
 
 	secretsListStrings := docstrings.Get("secrets.list")
-	BuildCommandKS(cmd, runListSecrets, secretsListStrings, client, requireSession, requireAppName)
+	BuildCommandKS(cmd, runListSecrets, secretsListStrings, client, nil, requireSession, requireAppName)
 
 	secretsSetStrings := docstrings.Get("secrets.set")
-	set := BuildCommandKS(cmd, runSetSecrets, secretsSetStrings, client, requireSession, requireAppName)
+	set := BuildCommandKS(cmd, runSetSecrets, secretsSetStrings, client, nil, requireSession, requireAppName)
 
 	//TODO: Move examples into docstrings
 	set.Command.Example = `flyctl secrets set FLY_ENV=production LOG_LEVEL=info
@@ -41,14 +41,14 @@ func newSecretsCommand(client *client.Client) *Command {
 	})
 
 	secretsImportStrings := docstrings.Get("secrets.import")
-	importCmd := BuildCommandKS(cmd, runImportSecrets, secretsImportStrings, client, requireSession, requireAppName)
+	importCmd := BuildCommandKS(cmd, runImportSecrets, secretsImportStrings, client, nil, requireSession, requireAppName)
 	importCmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "detach",
 		Description: "Return immediately instead of monitoring deployment progress",
 	})
 
 	secretsUnsetStrings := docstrings.Get("secrets.unset")
-	unset := BuildCommandKS(cmd, runSecretsUnset, secretsUnsetStrings, client, requireSession, requireAppName)
+	unset := BuildCommandKS(cmd, runSecretsUnset, secretsUnsetStrings, client, nil, requireSession, requireAppName)
 	unset.Command.Args = cobra.MinimumNArgs(1)
 
 	unset.AddBoolFlag(BoolFlagOpts{

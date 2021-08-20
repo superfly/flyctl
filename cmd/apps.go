@@ -23,11 +23,11 @@ func newAppsCommand(client *client.Client) *Command {
 
 	appsListStrings := docstrings.Get("apps.list")
 
-	BuildCommand(cmd, runAppsList, appsListStrings.Usage, appsListStrings.Short, appsListStrings.Long, client, requireSession)
+	BuildCommand(cmd, runAppsList, appsListStrings.Usage, appsListStrings.Short, appsListStrings.Long, client, nil, requireSession)
 
 	appsCreateStrings := docstrings.Get("apps.create")
 
-	create := BuildCommand(cmd, runInit, appsCreateStrings.Usage, appsCreateStrings.Short, appsCreateStrings.Long, client, requireSession)
+	create := BuildCommand(cmd, runInit, appsCreateStrings.Usage, appsCreateStrings.Short, appsCreateStrings.Long, client, nil, requireSession)
 	create.Args = cobra.RangeArgs(0, 1)
 
 	// TODO: Move flag descriptions into the docStrings
@@ -58,13 +58,13 @@ func newAppsCommand(client *client.Client) *Command {
 	})
 
 	appsDestroyStrings := docstrings.Get("apps.destroy")
-	destroy := BuildCommand(cmd, runDestroy, appsDestroyStrings.Usage, appsDestroyStrings.Short, appsDestroyStrings.Long, client, requireSession)
+	destroy := BuildCommand(cmd, runDestroy, appsDestroyStrings.Usage, appsDestroyStrings.Short, appsDestroyStrings.Long, client, nil, requireSession)
 	destroy.Args = cobra.ExactArgs(1)
 	// TODO: Move flag descriptions into the docStrings
 	destroy.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "Accept all confirmations"})
 
 	appsMoveStrings := docstrings.Get("apps.move")
-	move := BuildCommand(cmd, runMove, appsMoveStrings.Usage, appsMoveStrings.Short, appsMoveStrings.Long, client, requireSession)
+	move := BuildCommand(cmd, runMove, appsMoveStrings.Usage, appsMoveStrings.Short, appsMoveStrings.Long, client, nil, requireSession)
 	move.Args = cobra.ExactArgs(1)
 	// TODO: Move flag descriptions into the docStrings
 	move.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "Accept all confirmations"})
@@ -73,16 +73,20 @@ func newAppsCommand(client *client.Client) *Command {
 		Description: `The organization to move the app to`,
 	})
 
+	ctxOptions := map[string]interface{}{
+		"requireAppNameAsArg": true,
+	}
+
 	appsSuspendStrings := docstrings.Get("apps.suspend")
-	appsSuspendCmd := BuildCommand(cmd, runSuspend, appsSuspendStrings.Usage, appsSuspendStrings.Short, appsSuspendStrings.Long, client, requireSession, requireAppNameAsArg)
+	appsSuspendCmd := BuildCommand(cmd, runSuspend, appsSuspendStrings.Usage, appsSuspendStrings.Short, appsSuspendStrings.Long, client, ctxOptions, requireSession, requireAppName)
 	appsSuspendCmd.Args = cobra.RangeArgs(0, 1)
 
 	appsResumeStrings := docstrings.Get("apps.resume")
-	appsResumeCmd := BuildCommand(cmd, runResume, appsResumeStrings.Usage, appsResumeStrings.Short, appsResumeStrings.Long, client, requireSession, requireAppNameAsArg)
+	appsResumeCmd := BuildCommand(cmd, runResume, appsResumeStrings.Usage, appsResumeStrings.Short, appsResumeStrings.Long, client, ctxOptions, requireSession, requireAppName)
 	appsResumeCmd.Args = cobra.RangeArgs(0, 1)
 
 	appsRestartStrings := docstrings.Get("apps.restart")
-	appsRestartCmd := BuildCommand(cmd, runRestart, appsRestartStrings.Usage, appsRestartStrings.Short, appsRestartStrings.Long, client, requireSession, requireAppNameAsArg)
+	appsRestartCmd := BuildCommand(cmd, runRestart, appsRestartStrings.Usage, appsRestartStrings.Short, appsRestartStrings.Long, client, ctxOptions, requireSession, requireAppName)
 	appsRestartCmd.Args = cobra.RangeArgs(0, 1)
 
 	return cmd

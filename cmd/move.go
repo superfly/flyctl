@@ -18,7 +18,7 @@ import (
 func newMoveCommand(client *client.Client) *Command {
 
 	moveStrings := docstrings.Get("move")
-	moveCmd := BuildCommandKS(nil, runMove, moveStrings, client, requireSession)
+	moveCmd := BuildCommandKS(nil, runMove, moveStrings, client, nil, requireSession)
 	moveCmd.Args = cobra.ExactArgs(1)
 	// TODO: Move flag descriptions into the docStrings
 	moveCmd.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "Accept all confirmations"})

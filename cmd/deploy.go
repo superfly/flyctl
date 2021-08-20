@@ -33,7 +33,7 @@ import (
 
 func newDeployCommand(client *client.Client) *Command {
 	deployStrings := docstrings.Get("deploy")
-	cmd := BuildCommandKS(nil, runDeploy, deployStrings, client, workingDirectoryFromArg(0), requireSession, requireAppName)
+	cmd := BuildCommandKS(nil, runDeploy, deployStrings, client, nil, workingDirectoryFromArg(0), requireSession, requireAppName)
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "image",
 		Shorthand:   "i",

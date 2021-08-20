@@ -16,11 +16,11 @@ import (
 func newListCommand(client *client.Client) *Command {
 	ks := docstrings.Get("list")
 
-	listCmd := BuildCommandKS(nil, nil, ks, client, requireSession)
+	listCmd := BuildCommandKS(nil, nil, ks, client, nil, requireSession)
 	listCmd.Aliases = []string{"ls"}
 
 	laks := docstrings.Get("list.apps")
-	listAppsCmd := BuildCommandKS(listCmd, runListApps, laks, client, requireSession)
+	listAppsCmd := BuildCommandKS(listCmd, runListApps, laks, client, nil, requireSession)
 
 	listAppsCmd.AddStringFlag(StringFlagOpts{
 		Name:        "org",
@@ -48,7 +48,7 @@ func newListCommand(client *client.Client) *Command {
 	})
 
 	loks := docstrings.Get("list.orgs")
-	BuildCommandKS(listCmd, runListOrgs, loks, client, requireSession)
+	BuildCommandKS(listCmd, runListOrgs, loks, client, nil, requireSession)
 
 	return listCmd
 }

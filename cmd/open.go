@@ -14,7 +14,7 @@ import (
 
 func newOpenCommand(client *client.Client) *Command {
 	ks := docstrings.Get("open")
-	opencommand := BuildCommandKS(nil, runOpen, ks, client, requireSession, requireAppName)
+	opencommand := BuildCommandKS(nil, runOpen, ks, client, nil, requireSession, requireAppName)
 	return opencommand
 }
 

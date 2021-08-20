@@ -11,7 +11,7 @@ import (
 
 func newHistoryCommand(client *client.Client) *Command {
 	historyStrings := docstrings.Get("history")
-	return BuildCommand(nil, runHistory, historyStrings.Usage, historyStrings.Short, historyStrings.Long, client, requireSession, requireAppName)
+	return BuildCommand(nil, runHistory, historyStrings.Usage, historyStrings.Short, historyStrings.Long, client, nil, requireSession, requireAppName)
 }
 
 func runHistory(commandContext *cmdctx.CmdContext) error {

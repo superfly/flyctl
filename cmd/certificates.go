@@ -20,28 +20,28 @@ import (
 func newCertificatesCommand(client *client.Client) *Command {
 	certsStrings := docstrings.Get("certs")
 
-	cmd := BuildCommandKS(nil, nil, certsStrings, client, requireAppName, requireSession)
+	cmd := BuildCommandKS(nil, nil, certsStrings, client, nil, requireAppName, requireSession)
 
 	certsListStrings := docstrings.Get("certs.list")
-	BuildCommandKS(cmd, runCertsList, certsListStrings, client, requireSession, requireAppName)
+	BuildCommandKS(cmd, runCertsList, certsListStrings, client, nil, requireSession, requireAppName)
 
 	certsCreateStrings := docstrings.Get("certs.add")
-	createCmd := BuildCommandKS(cmd, runCertAdd, certsCreateStrings, client, requireSession, requireAppName)
+	createCmd := BuildCommandKS(cmd, runCertAdd, certsCreateStrings, client, nil, requireSession, requireAppName)
 	createCmd.Aliases = []string{"create"}
 	createCmd.Command.Args = cobra.ExactArgs(1)
 
 	certsDeleteStrings := docstrings.Get("certs.remove")
-	deleteCmd := BuildCommandKS(cmd, runCertDelete, certsDeleteStrings, client, requireSession, requireAppName)
+	deleteCmd := BuildCommandKS(cmd, runCertDelete, certsDeleteStrings, client, nil, requireSession, requireAppName)
 	deleteCmd.Aliases = []string{"delete"}
 	deleteCmd.Command.Args = cobra.ExactArgs(1)
 	deleteCmd.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "accept all confirmations"})
 
 	certsShowStrings := docstrings.Get("certs.show")
-	show := BuildCommandKS(cmd, runCertShow, certsShowStrings, client, requireSession, requireAppName)
+	show := BuildCommandKS(cmd, runCertShow, certsShowStrings, client, nil, requireSession, requireAppName)
 	show.Command.Args = cobra.ExactArgs(1)
 
 	certsCheckStrings := docstrings.Get("certs.check")
-	check := BuildCommandKS(cmd, runCertCheck, certsCheckStrings, client, requireSession, requireAppName)
+	check := BuildCommandKS(cmd, runCertCheck, certsCheckStrings, client, nil, requireSession, requireAppName)
 	check.Command.Args = cobra.ExactArgs(1)
 
 	return cmd

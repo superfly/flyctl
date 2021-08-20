@@ -16,9 +16,11 @@ import (
 //TODO: Move all output to status styled begin/done updates
 
 func newResumeCommand(client *client.Client) *Command {
-
+	ctxOptions := map[string]interface{}{
+		"requireAppNameAsArg": true,
+	}
 	resumeStrings := docstrings.Get("resume")
-	resumeCmd := BuildCommandKS(nil, runResume, resumeStrings, client, requireSession, requireAppNameAsArg)
+	resumeCmd := BuildCommandKS(nil, runResume, resumeStrings, client, ctxOptions, requireSession, requireAppName)
 	resumeCmd.Args = cobra.RangeArgs(0, 1)
 
 	return resumeCmd

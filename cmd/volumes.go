@@ -18,14 +18,14 @@ import (
 
 func newVolumesCommand(client *client.Client) *Command {
 	volumesStrings := docstrings.Get("volumes")
-	volumesCmd := BuildCommandKS(nil, nil, volumesStrings, client, requireAppName, requireSession)
+	volumesCmd := BuildCommandKS(nil, nil, volumesStrings, client, nil, requireAppName, requireSession)
 	volumesCmd.Aliases = []string{"vol"}
 
 	listStrings := docstrings.Get("volumes.list")
-	BuildCommandKS(volumesCmd, runListVolumes, listStrings, client, requireAppName, requireSession)
+	BuildCommandKS(volumesCmd, runListVolumes, listStrings, client, nil, requireAppName, requireSession)
 
 	createStrings := docstrings.Get("volumes.create")
-	createCmd := BuildCommandKS(volumesCmd, runCreateVolume, createStrings, client, requireAppName, requireSession)
+	createCmd := BuildCommandKS(volumesCmd, runCreateVolume, createStrings, client, nil, requireAppName, requireSession)
 	createCmd.Args = cobra.ExactArgs(1)
 
 	createCmd.AddStringFlag(StringFlagOpts{
@@ -46,12 +46,12 @@ func newVolumesCommand(client *client.Client) *Command {
 	})
 
 	deleteStrings := docstrings.Get("volumes.delete")
-	deleteCmd := BuildCommandKS(volumesCmd, runDeleteVolume, deleteStrings, client, requireSession)
+	deleteCmd := BuildCommandKS(volumesCmd, runDeleteVolume, deleteStrings, client, nil, requireSession)
 	deleteCmd.Args = cobra.ExactArgs(1)
 	deleteCmd.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "Accept all confirmations"})
 
 	showStrings := docstrings.Get("volumes.show")
-	showCmd := BuildCommandKS(volumesCmd, runShowVolume, showStrings, client, requireSession)
+	showCmd := BuildCommandKS(volumesCmd, runShowVolume, showStrings, client, nil, requireSession)
 	showCmd.Args = cobra.ExactArgs(1)
 
 	return volumesCmd

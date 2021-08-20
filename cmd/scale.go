@@ -17,10 +17,10 @@ import (
 func newScaleCommand(client *client.Client) *Command {
 	scaleStrings := docstrings.Get("scale")
 
-	cmd := BuildCommandKS(nil, nil, scaleStrings, client, requireSession, requireAppName)
+	cmd := BuildCommandKS(nil, nil, scaleStrings, client, nil, requireSession, requireAppName)
 
 	vmCmdStrings := docstrings.Get("scale.vm")
-	vmCmd := BuildCommand(cmd, runScaleVM, vmCmdStrings.Usage, vmCmdStrings.Short, vmCmdStrings.Long, client, requireSession, requireAppName)
+	vmCmd := BuildCommand(cmd, runScaleVM, vmCmdStrings.Usage, vmCmdStrings.Short, vmCmdStrings.Long, client, nil, requireSession, requireAppName)
 	vmCmd.Args = cobra.ExactArgs(1)
 	vmCmd.AddIntFlag(IntFlagOpts{
 		Name:        "memory",
@@ -29,11 +29,11 @@ func newScaleCommand(client *client.Client) *Command {
 	})
 
 	memoryCmdStrings := docstrings.Get("scale.memory")
-	memoryCmd := BuildCommandKS(cmd, runScaleMemory, memoryCmdStrings, client, requireSession, requireAppName)
+	memoryCmd := BuildCommandKS(cmd, runScaleMemory, memoryCmdStrings, client, nil, requireSession, requireAppName)
 	memoryCmd.Args = cobra.ExactArgs(1)
 
 	countCmdStrings := docstrings.Get("scale.count")
-	countCmd := BuildCommand(cmd, runScaleCount, countCmdStrings.Usage, countCmdStrings.Short, countCmdStrings.Long, client, requireSession, requireAppName)
+	countCmd := BuildCommand(cmd, runScaleCount, countCmdStrings.Usage, countCmdStrings.Short, countCmdStrings.Long, client, nil, requireSession, requireAppName)
 	countCmd.Args = cobra.ExactArgs(1)
 	countCmd.AddIntFlag((IntFlagOpts{
 		Name:        "max-per-region",
@@ -42,7 +42,7 @@ func newScaleCommand(client *client.Client) *Command {
 	}))
 
 	showCmdStrings := docstrings.Get("scale.show")
-	BuildCommand(cmd, runScaleShow, showCmdStrings.Usage, showCmdStrings.Short, showCmdStrings.Long, client, requireSession, requireAppName)
+	BuildCommand(cmd, runScaleShow, showCmdStrings.Usage, showCmdStrings.Short, showCmdStrings.Long, client, nil, requireSession, requireAppName)
 
 	return cmd
 }

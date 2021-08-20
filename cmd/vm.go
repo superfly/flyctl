@@ -10,15 +10,15 @@ import (
 )
 
 func newVMCommand(client *client.Client) *Command {
-	vmCmd := BuildCommandKS(nil, nil, docstrings.Get("vm"), client)
+	vmCmd := BuildCommandKS(nil, nil, docstrings.Get("vm"), client, nil)
 
-	vmRestartCmd := BuildCommandKS(vmCmd, runVMRestart, docstrings.Get("vm.restart"), client, requireSession, requireAppName)
+	vmRestartCmd := BuildCommandKS(vmCmd, runVMRestart, docstrings.Get("vm.restart"), client, nil, requireSession, requireAppName)
 	vmRestartCmd.Args = cobra.ExactArgs(1)
 
-	vmStopCmd := BuildCommandKS(vmCmd, runVMStop, docstrings.Get("vm.stop"), client, requireSession, requireAppName)
+	vmStopCmd := BuildCommandKS(vmCmd, runVMStop, docstrings.Get("vm.stop"), client, nil, requireSession, requireAppName)
 	vmStopCmd.Args = cobra.ExactArgs(1)
 
-	vmStatusCmd := BuildCommandKS(vmCmd, runAllocStatus, docstrings.Get("vm.status"), client, requireSession, requireAppName)
+	vmStatusCmd := BuildCommandKS(vmCmd, runAllocStatus, docstrings.Get("vm.status"), client, nil, requireSession, requireAppName)
 	vmStatusCmd.Args = cobra.ExactArgs(1)
 
 	return vmCmd

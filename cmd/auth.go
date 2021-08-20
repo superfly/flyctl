@@ -26,19 +26,19 @@ func newAuthCommand(client *client.Client) *Command {
 
 	authStrings := docstrings.Get("auth")
 
-	cmd := BuildCommandKS(nil, nil, authStrings, client)
+	cmd := BuildCommandKS(nil, nil, authStrings, client, nil)
 
 	authWhoamiStrings := docstrings.Get("auth.whoami")
-	BuildCommand(cmd, runWhoami, authWhoamiStrings.Usage, authWhoamiStrings.Short, authWhoamiStrings.Long, client, requireSession)
+	BuildCommand(cmd, runWhoami, authWhoamiStrings.Usage, authWhoamiStrings.Short, authWhoamiStrings.Long, client, nil, requireSession)
 
 	authTokenStrings := docstrings.Get("auth.token")
-	BuildCommand(cmd, runAuthToken, authTokenStrings.Usage, authTokenStrings.Short, authTokenStrings.Long, client, requireSession)
+	BuildCommand(cmd, runAuthToken, authTokenStrings.Usage, authTokenStrings.Short, authTokenStrings.Long, client, nil, requireSession)
 
 	authLoginStrings := docstrings.Get("auth.login")
-	login := BuildCommand(cmd, runLogin, authLoginStrings.Usage, authLoginStrings.Short, authLoginStrings.Long, client)
+	login := BuildCommand(cmd, runLogin, authLoginStrings.Usage, authLoginStrings.Short, authLoginStrings.Long, client, nil)
 
 	authDockerStrings := docstrings.Get("auth.docker")
-	BuildCommand(cmd, runAuthDocker, authDockerStrings.Usage, authDockerStrings.Short, authDockerStrings.Long, client)
+	BuildCommand(cmd, runAuthDocker, authDockerStrings.Usage, authDockerStrings.Short, authDockerStrings.Long, client, nil)
 
 	// TODO: Move flag descriptions into the docStrings
 	login.AddBoolFlag(BoolFlagOpts{
@@ -60,10 +60,10 @@ func newAuthCommand(client *client.Client) *Command {
 	})
 
 	authLogoutStrings := docstrings.Get("auth.logout")
-	BuildCommand(cmd, runLogout, authLogoutStrings.Usage, authLogoutStrings.Short, authLogoutStrings.Long, client, requireSession)
+	BuildCommand(cmd, runLogout, authLogoutStrings.Usage, authLogoutStrings.Short, authLogoutStrings.Long, client, nil, requireSession)
 
 	authSignupStrings := docstrings.Get("auth.signup")
-	BuildCommand(cmd, runSignup, authSignupStrings.Usage, authSignupStrings.Short, authSignupStrings.Long, client)
+	BuildCommand(cmd, runSignup, authSignupStrings.Usage, authSignupStrings.Short, authSignupStrings.Long, client, nil)
 
 	return cmd
 }

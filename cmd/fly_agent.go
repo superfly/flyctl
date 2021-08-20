@@ -13,31 +13,35 @@ import (
 )
 
 func newAgentCommand(client *client.Client) *Command {
-	cmd := BuildCommandKS(nil, nil, docstrings.Get("agent"), client, requireSession)
+	cmd := BuildCommandKS(nil, nil, docstrings.Get("agent"), client, nil, requireSession)
 	cmd.Hidden = true
 
 	_ = BuildCommandKS(cmd,
 		runFlyAgentDaemonStart,
 		docstrings.Get("agent.daemon-start"),
 		client,
+		nil,
 		requireSession)
 
 	_ = BuildCommandKS(cmd,
 		runFlyAgentStart,
 		docstrings.Get("agent.start"),
 		client,
+		nil,
 		requireSession)
 
 	_ = BuildCommandKS(cmd,
 		runFlyAgentStart,
 		docstrings.Get("agent.restart"),
 		client,
+		nil,
 		requireSession)
 
 	_ = BuildCommandKS(cmd,
 		runFlyAgentStop,
 		docstrings.Get("agent.stop"),
 		client,
+		nil,
 		requireSession)
 
 	return cmd

@@ -22,11 +22,11 @@ import (
 )
 
 func newWireGuardCommand(client *client.Client) *Command {
-	cmd := BuildCommandKS(nil, nil, docstrings.Get("wireguard"), client, requireSession)
+	cmd := BuildCommandKS(nil, nil, docstrings.Get("wireguard"), client, nil, requireSession)
 	cmd.Aliases = []string{"wg"}
 
 	child := func(parent *Command, fn RunFn, ds string) *Command {
-		return BuildCommandKS(parent, fn, docstrings.Get(ds), client, requireSession)
+		return BuildCommandKS(parent, fn, docstrings.Get(ds), client, nil, requireSession)
 	}
 
 	child(cmd, runWireGuardList, "wireguard.list").Args = cobra.MaximumNArgs(1)

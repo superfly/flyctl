@@ -13,26 +13,26 @@ import (
 func newRegionsCommand(client *client.Client) *Command {
 	regionsStrings := docstrings.Get("regions")
 
-	cmd := BuildCommandKS(nil, nil, regionsStrings, client, requireAppName, requireSession)
+	cmd := BuildCommandKS(nil, nil, regionsStrings, client, nil, requireAppName, requireSession)
 
 	addStrings := docstrings.Get("regions.add")
-	addCmd := BuildCommandKS(cmd, runRegionsAdd, addStrings, client, requireSession, requireAppName)
+	addCmd := BuildCommandKS(cmd, runRegionsAdd, addStrings, client, nil, requireSession, requireAppName)
 	addCmd.Args = cobra.MinimumNArgs(1)
 
 	removeStrings := docstrings.Get("regions.remove")
-	removeCmd := BuildCommandKS(cmd, runRegionsRemove, removeStrings, client, requireSession, requireAppName)
+	removeCmd := BuildCommandKS(cmd, runRegionsRemove, removeStrings, client, nil, requireSession, requireAppName)
 	removeCmd.Args = cobra.MinimumNArgs(1)
 
 	setStrings := docstrings.Get("regions.set")
-	setCmd := BuildCommandKS(cmd, runRegionsSet, setStrings, client, requireSession, requireAppName)
+	setCmd := BuildCommandKS(cmd, runRegionsSet, setStrings, client, nil, requireSession, requireAppName)
 	setCmd.Args = cobra.MinimumNArgs(1)
 
 	setBackupStrings := docstrings.Get("regions.backup")
-	setBackupCmd := BuildCommand(cmd, runBackupRegionsSet, setBackupStrings.Usage, setBackupStrings.Short, setBackupStrings.Long, client, requireSession, requireAppName)
+	setBackupCmd := BuildCommand(cmd, runBackupRegionsSet, setBackupStrings.Usage, setBackupStrings.Short, setBackupStrings.Long, client, nil, requireSession, requireAppName)
 	setBackupCmd.Args = cobra.MinimumNArgs(1)
 
 	listStrings := docstrings.Get("regions.list")
-	BuildCommand(cmd, runRegionsList, listStrings.Usage, listStrings.Short, listStrings.Long, client, requireSession, requireAppName)
+	BuildCommand(cmd, runRegionsList, listStrings.Usage, listStrings.Short, listStrings.Long, client, nil, requireSession, requireAppName)
 
 	return cmd
 }

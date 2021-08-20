@@ -30,6 +30,7 @@ type CmdContext struct {
 	ConfigFile   string
 	AppName      string
 	AppConfig    *flyctl.AppConfig
+	Options      map[string]interface{}
 }
 
 // PresenterOption - options for RenderEx, RenderView, render etc...
@@ -53,7 +54,7 @@ const SBEGIN = "begin"
 const SDONE = "done"
 const SERROR = "error"
 
-func NewCmdContext(flyctlClient *client.Client, ns string, args []string) (*CmdContext, error) {
+func NewCmdContext(flyctlClient *client.Client, ns string, args []string, options map[string]interface{}) (*CmdContext, error) {
 	ctx := &CmdContext{
 		IO:           flyctlClient.IO,
 		Client:       flyctlClient,
@@ -62,6 +63,7 @@ func NewCmdContext(flyctlClient *client.Client, ns string, args []string) (*CmdC
 		GlobalConfig: flyctl.FlyConfig,
 		Args:         args,
 		Out:          flyctlClient.IO.Out,
+		Options:      options,
 	}
 
 	cwd, err := os.Getwd()

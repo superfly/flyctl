@@ -15,26 +15,26 @@ import (
 
 func newChecksCommand(client *client.Client) *Command {
 	checksStrings := docstrings.Get("checks")
-	cmd := BuildCommandKS(nil, nil, checksStrings, client)
+	cmd := BuildCommandKS(nil, nil, checksStrings, client, nil)
 
 	handlersStrings := docstrings.Get("checks.handlers")
-	handlersCmd := BuildCommandKS(cmd, nil, handlersStrings, client)
+	handlersCmd := BuildCommandKS(cmd, nil, handlersStrings, client, nil)
 
 	handlersListStrings := docstrings.Get("checks.handlers.list")
-	listHandlersCmd := BuildCommandKS(handlersCmd, runListChecksHandlers, handlersListStrings, client, requireSession)
+	listHandlersCmd := BuildCommandKS(handlersCmd, runListChecksHandlers, handlersListStrings, client, nil, requireSession)
 	listHandlersCmd.Args = cobra.ExactArgs(1)
 
 	handlersCreateStrings := docstrings.Get("checks.handlers.create")
-	createHandlersCmd := BuildCommandKS(handlersCmd, runCreateChecksHandler, handlersCreateStrings, client, requireSession)
+	createHandlersCmd := BuildCommandKS(handlersCmd, runCreateChecksHandler, handlersCreateStrings, client, nil, requireSession)
 	createHandlersCmd.AddStringFlag(StringFlagOpts{Name: "type", Description: "The type of handler to create, can be slack or pagerduty"})
 	createHandlersCmd.AddStringFlag(StringFlagOpts{Name: "organization", Shorthand: "o", Description: "The organization to add the handler to"})
 
 	handlersDeleteStrings := docstrings.Get("checks.handlers.delete")
-	deleteHandlerCmd := BuildCommandKS(handlersCmd, runDeleteChecksHandler, handlersDeleteStrings, client, requireSession)
+	deleteHandlerCmd := BuildCommandKS(handlersCmd, runDeleteChecksHandler, handlersDeleteStrings, client, nil, requireSession)
 	deleteHandlerCmd.Args = cobra.ExactArgs(2)
 
 	checksListStrings := docstrings.Get("checks.list")
-	listChecksCmd := BuildCommandKS(cmd, runAppCheckList, checksListStrings, client, requireSession, requireAppName)
+	listChecksCmd := BuildCommandKS(cmd, runAppCheckList, checksListStrings, client, nil, requireSession, requireAppName)
 	listChecksCmd.AddStringFlag(StringFlagOpts{Name: "check-name", Description: "Filter checks by name"})
 
 	return cmd

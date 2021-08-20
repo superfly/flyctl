@@ -25,7 +25,7 @@ import (
 
 func newCurlCommand(client *client.Client) *Command {
 	curlStrings := docstrings.Get("curl")
-	cmd := BuildCommandKS(nil, runCurl, curlStrings, client, requireSession)
+	cmd := BuildCommandKS(nil, runCurl, curlStrings, client, nil, requireSession)
 	cmd.Args = cobra.ExactArgs(1)
 	cmd.Hidden = true
 	return cmd

@@ -16,7 +16,7 @@ import (
 
 func newMonitorCommand(client *client.Client) *Command {
 	ks := docstrings.Get("monitor")
-	return BuildCommandKS(nil, runMonitor, ks, client, requireSession, requireAppName)
+	return BuildCommandKS(nil, runMonitor, ks, client, nil, requireSession, requireAppName)
 }
 
 func runMonitor(commandContext *cmdctx.CmdContext) error {

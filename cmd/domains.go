@@ -18,19 +18,19 @@ import (
 
 func newDomainsCommand(client *client.Client) *Command {
 	domainsStrings := docstrings.Get("domains")
-	cmd := BuildCommandKS(nil, nil, domainsStrings, client, requireSession)
+	cmd := BuildCommandKS(nil, nil, domainsStrings, client, nil, requireSession)
 
 	listStrings := docstrings.Get("domains.list")
-	listCmd := BuildCommandKS(cmd, runDomainsList, listStrings, client, requireSession)
+	listCmd := BuildCommandKS(cmd, runDomainsList, listStrings, client, nil, requireSession)
 	listCmd.Args = cobra.MaximumNArgs(1)
 
-	showCmd := BuildCommandKS(cmd, runDomainsShow, docstrings.Get("domains.show"), client, requireSession)
+	showCmd := BuildCommandKS(cmd, runDomainsShow, docstrings.Get("domains.show"), client, nil, requireSession)
 	showCmd.Args = cobra.ExactArgs(1)
 
-	addCmd := BuildCommandKS(cmd, runDomainsCreate, docstrings.Get("domains.add"), client, requireSession)
+	addCmd := BuildCommandKS(cmd, runDomainsCreate, docstrings.Get("domains.add"), client, nil, requireSession)
 	addCmd.Args = cobra.MaximumNArgs(2)
 
-	registerCmd := BuildCommandKS(cmd, runDomainsRegister, docstrings.Get("domains.register"), client, requireSession)
+	registerCmd := BuildCommandKS(cmd, runDomainsRegister, docstrings.Get("domains.register"), client, nil, requireSession)
 	registerCmd.Args = cobra.MaximumNArgs(2)
 
 	return cmd

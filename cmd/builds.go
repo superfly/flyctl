@@ -16,12 +16,12 @@ import (
 func newBuildsCommand(client *client.Client) *Command {
 	buildsStrings := docstrings.Get("builds")
 
-	cmd := BuildCommandKS(nil, nil, buildsStrings, client, requireSession, requireAppName)
+	cmd := BuildCommandKS(nil, nil, buildsStrings, client, nil, requireSession, requireAppName)
 
 	buildsListStrings := docstrings.Get("builds.list")
-	BuildCommandKS(cmd, runListBuilds, buildsListStrings, client, requireSession, requireAppName)
+	BuildCommandKS(cmd, runListBuilds, buildsListStrings, client, nil, requireSession, requireAppName)
 	buildsLogsStrings := docstrings.Get("builds.logs")
-	logs := BuildCommandKS(cmd, runBuildLogs, buildsLogsStrings, client, requireSession, requireAppName)
+	logs := BuildCommandKS(cmd, runBuildLogs, buildsLogsStrings, client, nil, requireSession, requireAppName)
 	logs.Command.Args = cobra.ExactArgs(1)
 
 	return cmd

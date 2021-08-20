@@ -13,8 +13,11 @@ import (
 //TODO: Move all output to status styled begin/done updates
 
 func newRestartCommand(client *client.Client) *Command {
+	ctxOptions := map[string]interface{}{
+		"requireAppNameAsArg": true,
+	}
 	restartStrings := docstrings.Get("restart")
-	restartCmd := BuildCommandKS(nil, runRestart, restartStrings, client, requireSession, requireAppNameAsArg)
+	restartCmd := BuildCommandKS(nil, runRestart, restartStrings, client, ctxOptions, requireSession, requireAppName)
 	restartCmd.Args = cobra.RangeArgs(0, 1)
 
 	return restartCmd

@@ -26,10 +26,10 @@ import (
 )
 
 func newSSHCommand(client *client.Client) *Command {
-	cmd := BuildCommandKS(nil, nil, docstrings.Get("ssh"), client, requireSession)
+	cmd := BuildCommandKS(nil, nil, docstrings.Get("ssh"), client, nil, requireSession)
 
 	child := func(parent *Command, fn RunFn, ds string) *Command {
-		return BuildCommandKS(parent, fn, docstrings.Get(ds), client, requireSession)
+		return BuildCommandKS(parent, fn, docstrings.Get(ds), client, nil, requireSession)
 	}
 
 	child(cmd, runSSHLog, "ssh.log").Args = cobra.MaximumNArgs(1)
@@ -39,6 +39,7 @@ func newSSHCommand(client *client.Client) *Command {
 		runSSHConsole,
 		docstrings.Get("ssh.console"),
 		client,
+		nil,
 		requireSession,
 		requireAppName)
 	console.Args = cobra.MaximumNArgs(1)

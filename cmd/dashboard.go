@@ -13,11 +13,11 @@ import (
 
 func newDashboardCommand(client *client.Client) *Command {
 	dashboardStrings := docstrings.Get("dashboard")
-	dashboardCmd := BuildCommandKS(nil, runDashboard, dashboardStrings, client, requireSession, requireAppName)
+	dashboardCmd := BuildCommandKS(nil, runDashboard, dashboardStrings, client, nil, requireSession, requireAppName)
 	dashboardCmd.Aliases = []string{"dash"}
 
 	dashMetricsStrings := docstrings.Get("dashboard.metrics")
-	BuildCommandKS(dashboardCmd, runDashboardMetrics, dashMetricsStrings, client, requireSession, requireAppName)
+	BuildCommandKS(dashboardCmd, runDashboardMetrics, dashMetricsStrings, client, nil, requireSession, requireAppName)
 
 	return dashboardCmd
 }

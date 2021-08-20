@@ -20,19 +20,19 @@ func newConfigCommand(client *client.Client) *Command {
 
 	configStrings := docstrings.Get("config")
 
-	cmd := BuildCommandKS(nil, nil, configStrings, client, requireSession, requireAppName)
+	cmd := BuildCommandKS(nil, nil, configStrings, client, nil, requireSession, requireAppName)
 
 	configDisplayStrings := docstrings.Get("config.display")
-	BuildCommandKS(cmd, runDisplayConfig, configDisplayStrings, client, requireSession, requireAppName)
+	BuildCommandKS(cmd, runDisplayConfig, configDisplayStrings, client, nil, requireSession, requireAppName)
 
 	configSaveStrings := docstrings.Get("config.save")
-	BuildCommandKS(cmd, runSaveConfig, configSaveStrings, client, requireSession, requireAppName)
+	BuildCommandKS(cmd, runSaveConfig, configSaveStrings, client, nil, requireSession, requireAppName)
 
 	configValidateStrings := docstrings.Get("config.validate")
-	BuildCommandKS(cmd, runValidateConfig, configValidateStrings, client, requireSession, requireAppName)
+	BuildCommandKS(cmd, runValidateConfig, configValidateStrings, client, nil, requireSession, requireAppName)
 
 	configEnvStrings := docstrings.Get("config.env")
-	BuildCommandKS(cmd, runEnvConfig, configEnvStrings, client, requireSession, requireAppName)
+	BuildCommandKS(cmd, runEnvConfig, configEnvStrings, client, nil, requireSession, requireAppName)
 
 	return cmd
 }

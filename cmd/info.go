@@ -12,7 +12,7 @@ import (
 
 func newInfoCommand(client *client.Client) *Command {
 	ks := docstrings.Get("info")
-	appInfoCmd := BuildCommandKS(nil, runInfo, ks, client, requireSession, requireAppName)
+	appInfoCmd := BuildCommandKS(nil, runInfo, ks, client, nil, requireSession, requireAppName)
 
 	appInfoCmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "name",

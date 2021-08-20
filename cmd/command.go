@@ -163,12 +163,12 @@ type Option func(*Command) Initializer
 type InitializerFn func(*cmdctx.CmdContext) error
 
 // BuildCommandKS - A wrapper for BuildCommand which takes the docs.KeyStrings bundle instead of the coder having to manually unwrap it
-func BuildCommandKS(parent *Command, fn RunFn, keystrings docstrings.KeyStrings, client *client.Client, options ...Option) *Command {
-	return BuildCommand(parent, fn, keystrings.Usage, keystrings.Short, keystrings.Long, client, options...)
+func BuildCommandKS(parent *Command, fn RunFn, keystrings docstrings.KeyStrings, client *client.Client, cmdContextOptions map[string]interface{}, options ...Option) *Command {
+	return BuildCommand(parent, fn, keystrings.Usage, keystrings.Short, keystrings.Long, client, cmdContextOptions, options...)
 }
 
 // BuildCommand - builds a functioning Command using all the initializers
-func BuildCommand(parent *Command, fn RunFn, usageText string, shortHelpText string, longHelpText string, client *client.Client, options ...Option) *Command {
+func BuildCommand(parent *Command, fn RunFn, usageText string, shortHelpText string, longHelpText string, client *client.Client, cmdContextOptions map[string]interface{}, options ...Option) *Command {
 	flycmd := &Command{
 		Command: &cobra.Command{
 			Use:   usageText,
@@ -191,7 +191,7 @@ func BuildCommand(parent *Command, fn RunFn, usageText string, shortHelpText str
 
 	if fn != nil {
 		flycmd.RunE = func(cmd *cobra.Command, args []string) error {
-			ctx, err := cmdctx.NewCmdContext(client, namespace(cmd), args)
+			ctx, err := cmdctx.NewCmdContext(client, namespace(cmd), args, cmdContextOptions)
 			if err != nil {
 				return err
 			}
@@ -295,92 +295,12 @@ func requireAppName(cmd *Command) Initializer {
 			return nil
 		},
 		PreRun: func(ctx *cmdctx.CmdContext) error {
-			if ctx.AppName == "" {
-				return fmt.Errorf("No app specified. Specify an app or create an app with '" + flyname.Name() + " init'")
-			}
-
-			if ctx.AppConfig == nil {
-				return nil
-			}
-
-			if ctx.AppConfig.AppName != "" && ctx.AppConfig.AppName != ctx.AppName {
-				terminal.Warnf("app flag '%s' does not match app name in config file '%s'\n", ctx.AppName, ctx.AppConfig.AppName)
-
-				if !confirm(fmt.Sprintf("Continue using '%s'", ctx.AppName)) {
-					return ErrAbort
-				}
-			}
-
-			return nil
-		},
-	}
-}
-
-func requireAppNameAsArg(cmd *Command) Initializer {
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "app",
-		Shorthand:   "a",
-		Description: "App name to operate on",
-		EnvName:     "FLY_APP",
-	})
-
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "config",
-		Shorthand:   "c",
-		Description: "Path to an app config file or directory containing one",
-		Default:     defaultConfigFilePath,
-		EnvName:     "FLY_APP_CONFIG",
-	})
-
-	return Initializer{
-		Setup: func(ctx *cmdctx.CmdContext) error {
-			// resolve the config file path
-			configPath := ctx.Config.GetString("config")
-			if configPath == "" {
-				configPath = defaultConfigFilePath
-			}
-			if !filepath.IsAbs(configPath) {
-				absConfigPath, err := filepath.Abs(filepath.Join(ctx.WorkingDir, configPath))
-				if err != nil {
-					return err
-				}
-				configPath = absConfigPath
-			}
-			resolvedPath, err := flyctl.ResolveConfigFileFromPath(configPath)
-			if err != nil {
-				return err
-			}
-			ctx.ConfigFile = resolvedPath
-
-			// load the config file if it exists
-			if helpers.FileExists(ctx.ConfigFile) {
-				terminal.Debug("Loading app config from", ctx.ConfigFile)
-				appConfig, err := flyctl.LoadAppConfig(ctx.ConfigFile)
-				if err != nil {
-					return err
-				}
-				ctx.AppConfig = appConfig
-			} else {
-				ctx.AppConfig = flyctl.NewAppConfig()
-			}
-
-			// set the app name if provided
-			appName := ctx.Config.GetString("app")
-			if appName != "" {
-				ctx.AppName = appName
-			} else if ctx.AppConfig != nil {
-				ctx.AppName = ctx.AppConfig.AppName
-			}
-
-			return nil
-		},
-		PreRun: func(ctx *cmdctx.CmdContext) error {
-			if len(ctx.Args) > 0 {
+			if ctx.Options["requireAppNameAsArg"] == true && len(ctx.Args) > 0 {
 				ctx.AppName = ctx.Args[0]
 			}
 
 			if ctx.AppName == "" {
-				return fmt.Errorf("No app specified")
+				return fmt.Errorf("No app specified. Specify an app or create an app with '" + flyname.Name() + " init'")
 			}
 
 			if ctx.AppConfig == nil {

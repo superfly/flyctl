@@ -19,7 +19,7 @@ import (
 
 func newLaunchCommand(client *client.Client) *Command {
 	launchStrings := docstrings.Get("launch")
-	launchCmd := BuildCommandKS(nil, runLaunch, launchStrings, client, requireSession)
+	launchCmd := BuildCommandKS(nil, runLaunch, launchStrings, client, nil, requireSession)
 	launchCmd.Args = cobra.NoArgs
 	launchCmd.AddStringFlag(StringFlagOpts{Name: "path", Description: `path to app code and where a fly.toml file will be saved.`, Default: "."})
 	launchCmd.AddStringFlag(StringFlagOpts{Name: "org", Description: `the organization that will own the app`})

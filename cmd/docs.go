@@ -13,7 +13,7 @@ import (
 
 func newDocsCommand(client *client.Client) *Command {
 	docsStrings := docstrings.Get("docs")
-	return BuildCommand(nil, runLaunchDocs, docsStrings.Usage, docsStrings.Short, docsStrings.Long, client)
+	return BuildCommand(nil, runLaunchDocs, docsStrings.Usage, docsStrings.Short, docsStrings.Long, client, nil)
 }
 
 const docsURL = "https://fly.io/docs/"

@@ -15,33 +15,33 @@ import (
 
 func newOrgsCommand(client *client.Client) *Command {
 	orgsStrings := docstrings.Get("orgs")
-	orgscmd := BuildCommandKS(nil, nil, orgsStrings, client, requireSession)
+	orgscmd := BuildCommandKS(nil, nil, orgsStrings, client, nil, requireSession)
 
 	orgsListStrings := docstrings.Get("orgs.list")
-	BuildCommandKS(orgscmd, runOrgsList, orgsListStrings, client, requireSession)
+	BuildCommandKS(orgscmd, runOrgsList, orgsListStrings, client, nil, requireSession)
 
 	orgsShowStrings := docstrings.Get("orgs.show")
-	orgsShowCommand := BuildCommandKS(orgscmd, runOrgsShow, orgsShowStrings, client, requireSession)
+	orgsShowCommand := BuildCommandKS(orgscmd, runOrgsShow, orgsShowStrings, client, nil, requireSession)
 	orgsShowCommand.Args = cobra.ExactArgs(1)
 
 	orgsInviteStrings := docstrings.Get("orgs.invite")
-	orgsInviteCommand := BuildCommandKS(orgscmd, runOrgsInvite, orgsInviteStrings, client, requireSession)
+	orgsInviteCommand := BuildCommandKS(orgscmd, runOrgsInvite, orgsInviteStrings, client, nil, requireSession)
 	orgsInviteCommand.Args = cobra.MaximumNArgs(2)
 
 	orgsRevokeStrings := docstrings.Get("orgs.revoke")
-	orgsRevokeCommand := BuildCommandKS(orgscmd, runOrgsRevoke, orgsRevokeStrings, client, requireSession)
+	orgsRevokeCommand := BuildCommandKS(orgscmd, runOrgsRevoke, orgsRevokeStrings, client, nil, requireSession)
 	orgsRevokeCommand.Args = cobra.MaximumNArgs(2)
 
 	orgsRemoveStrings := docstrings.Get("orgs.remove")
-	orgsRemoveCommand := BuildCommandKS(orgscmd, runOrgsRemove, orgsRemoveStrings, client, requireSession)
+	orgsRemoveCommand := BuildCommandKS(orgscmd, runOrgsRemove, orgsRemoveStrings, client, nil, requireSession)
 	orgsRemoveCommand.Args = cobra.MaximumNArgs(2)
 
 	orgsCreateStrings := docstrings.Get("orgs.create")
-	orgsCreateCommand := BuildCommandKS(orgscmd, runOrgsCreate, orgsCreateStrings, client, requireSession)
+	orgsCreateCommand := BuildCommandKS(orgscmd, runOrgsCreate, orgsCreateStrings, client, nil, requireSession)
 	orgsCreateCommand.Args = cobra.RangeArgs(0, 1)
 
 	orgsDeleteStrings := docstrings.Get("orgs.delete")
-	orgsDeleteCommand := BuildCommandKS(orgscmd, runOrgsDelete, orgsDeleteStrings, client, requireSession)
+	orgsDeleteCommand := BuildCommandKS(orgscmd, runOrgsDelete, orgsDeleteStrings, client, nil, requireSession)
 	orgsDeleteCommand.Args = cobra.ExactArgs(1)
 
 	return orgscmd

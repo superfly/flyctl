@@ -15,16 +15,16 @@ import (
 func newPlatformCommand(client *client.Client) *Command {
 	platformStrings := docstrings.Get("platform")
 
-	cmd := BuildCommandKS(nil, nil, platformStrings, client, requireAppName)
+	cmd := BuildCommandKS(nil, nil, platformStrings, client, nil, requireAppName)
 
 	regionsStrings := docstrings.Get("platform.regions")
-	BuildCommandKS(cmd, runPlatformRegions, regionsStrings, client, requireSession)
+	BuildCommandKS(cmd, runPlatformRegions, regionsStrings, client, nil, requireSession)
 
 	vmSizesStrings := docstrings.Get("platform.vmsizes")
-	BuildCommandKS(cmd, runPlatformVMSizes, vmSizesStrings, client, requireSession)
+	BuildCommandKS(cmd, runPlatformVMSizes, vmSizesStrings, client, nil, requireSession)
 
 	statusStrings := docstrings.Get("platform.status")
-	BuildCommandKS(cmd, runPlatformStatus, statusStrings, client, requireSession, requireAppName)
+	BuildCommandKS(cmd, runPlatformStatus, statusStrings, client, nil, requireSession, requireAppName)
 
 	return cmd
 }

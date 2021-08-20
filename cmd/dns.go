@@ -15,14 +15,14 @@ import (
 
 func newDNSCommand(client *client.Client) *Command {
 	dnsStrings := docstrings.Get("dns-records")
-	cmd := BuildCommandKS(nil, nil, dnsStrings, client, requireSession)
+	cmd := BuildCommandKS(nil, nil, dnsStrings, client, nil, requireSession)
 
 	listStrings := docstrings.Get("dns-records.list")
-	listCmd := BuildCommandKS(cmd, runRecordsList, listStrings, client, requireSession)
+	listCmd := BuildCommandKS(cmd, runRecordsList, listStrings, client, nil, requireSession)
 	listCmd.Args = cobra.ExactArgs(1)
 
 	recordsExportStrings := docstrings.Get("dns-records.export")
-	recordsExportCmd := BuildCommandKS(cmd, runRecordsExport, recordsExportStrings, client, requireSession)
+	recordsExportCmd := BuildCommandKS(cmd, runRecordsExport, recordsExportStrings, client, nil, requireSession)
 	recordsExportCmd.Args = cobra.MinimumNArgs(1)
 	recordsExportCmd.Args = cobra.MaximumNArgs(3)
 	recordsExportCmd.AddBoolFlag(BoolFlagOpts{
@@ -30,7 +30,7 @@ func newDNSCommand(client *client.Client) *Command {
 	})
 
 	recordsImportStrings := docstrings.Get("dns-records.import")
-	recordsImportCmd := BuildCommandKS(cmd, runRecordsImport, recordsImportStrings, client, requireSession)
+	recordsImportCmd := BuildCommandKS(cmd, runRecordsImport, recordsImportStrings, client, nil, requireSession)
 	recordsImportCmd.Args = cobra.MaximumNArgs(3)
 	recordsImportCmd.Args = cobra.MinimumNArgs(1)
 

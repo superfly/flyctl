@@ -11,7 +11,7 @@ import (
 
 func newReleasesCommand(client *client.Client) *Command {
 	releasesStrings := docstrings.Get("releases")
-	cmd := BuildCommandKS(nil, runReleases, releasesStrings, client, requireSession, requireAppName)
+	cmd := BuildCommandKS(nil, runReleases, releasesStrings, client, nil, requireSession, requireAppName)
 	return cmd
 }
 

@@ -19,8 +19,11 @@ import (
 )
 
 func newStatusCommand(client *client.Client) *Command {
+	ctxOptions := map[string]interface{}{
+		"requireAppNameAsArg": true,
+	}
 	statusStrings := docstrings.Get("status")
-	cmd := BuildCommandKS(nil, runStatus, statusStrings, client, requireSession, requireAppNameAsArg)
+	cmd := BuildCommandKS(nil, runStatus, statusStrings, client, ctxOptions, requireSession, requireAppName)
 
 	//TODO: Move flag descriptions to docstrings
 	cmd.AddBoolFlag(BoolFlagOpts{Name: "all", Description: "Show completed instances"})
@@ -32,7 +35,7 @@ func newStatusCommand(client *client.Client) *Command {
 	// cmd.Command.Flag()
 
 	allocStatusStrings := docstrings.Get("status.instance")
-	allocStatusCmd := BuildCommand(cmd, runAllocStatus, allocStatusStrings.Usage, allocStatusStrings.Short, allocStatusStrings.Long, client, requireSession, requireAppName)
+	allocStatusCmd := BuildCommand(cmd, runAllocStatus, allocStatusStrings.Usage, allocStatusStrings.Short, allocStatusStrings.Long, client, nil, requireSession, requireAppName)
 	allocStatusCmd.Args = cobra.ExactArgs(1)
 	return cmd
 }

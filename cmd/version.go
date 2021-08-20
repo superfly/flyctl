@@ -18,7 +18,7 @@ import (
 
 func newVersionCommand(client *client.Client) *Command {
 	versionStrings := docstrings.Get("version")
-	version := BuildCommandKS(nil, runVersion, versionStrings, client)
+	version := BuildCommandKS(nil, runVersion, versionStrings, client, nil)
 	version.AddStringFlag(StringFlagOpts{
 		Name:        "saveinstall",
 		Shorthand:   "s",
@@ -27,9 +27,9 @@ func newVersionCommand(client *client.Client) *Command {
 	version.Flag("saveinstall").Hidden = true
 
 	updateStrings := docstrings.Get("version.update")
-	BuildCommandKS(version, runUpdate, updateStrings, client)
+	BuildCommandKS(version, runUpdate, updateStrings, client, nil)
 
-	initStateCmd := BuildCommand(version, runInitState, "init-state", "init-state", "Initialize installation state", client)
+	initStateCmd := BuildCommand(version, runInitState, "init-state", "init-state", "Initialize installation state", client, nil)
 	initStateCmd.Hidden = true
 	initStateCmd.Args = cobra.ExactArgs(1)
 

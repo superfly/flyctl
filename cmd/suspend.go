@@ -16,10 +16,12 @@ import (
 //TODO: Move all output to status styled begin/done updates
 
 func newSuspendCommand(client *client.Client) *Command {
-
+	ctxOptions := map[string]interface{}{
+		"requireAppNameAsArg": true,
+	}
 	suspendStrings := docstrings.Get("suspend")
 
-	suspendCmd := BuildCommandKS(nil, runSuspend, suspendStrings, client, requireSession, requireAppNameAsArg)
+	suspendCmd := BuildCommandKS(nil, runSuspend, suspendStrings, client, ctxOptions, requireSession, requireAppName)
 	suspendCmd.Args = cobra.RangeArgs(0, 1)
 
 	return suspendCmd
