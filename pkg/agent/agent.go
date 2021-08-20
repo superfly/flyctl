@@ -254,7 +254,6 @@ func probeTunnel(ctx context.Context, tunnel *wg.Tunnel) error {
 	results, err := tunnel.LookupTXT(ctx, "_apps.internal")
 	terminal.Debug("probe results for _apps.internal", results)
 
-	// _, err = tunnel.Resolver().LookupTXT(ctx, "_apps.internal")
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return ErrTunnelUnavailable
@@ -273,7 +272,6 @@ func (s *Server) handleProbe(c net.Conn, args []string) error {
 	}
 
 	if err := probeTunnel(context.Background(), tunnel); err != nil {
-		// captureWireguardConnErr(err, args[1])
 		return err
 	}
 
@@ -385,7 +383,6 @@ func (s *Server) handleConnect(c net.Conn, args []string) error {
 
 	address, err := resolve(tunnel, args[2])
 	if err != nil {
-		// captureWireguardConnErr(err, args[1])
 		return fmt.Errorf("connect: can't resolve address '%s': %s", args[2], err)
 	}
 
@@ -405,7 +402,6 @@ func (s *Server) handleConnect(c net.Conn, args []string) error {
 
 	outconn, err := tunnel.DialContext(ctx, "tcp", address)
 	if err != nil {
-		// captureWireguardConnErr(err, args[1])
 		cancel()
 		return fmt.Errorf("connection failed: %s", err)
 	}
