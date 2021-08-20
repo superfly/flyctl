@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/hashicorp/go-multierror"
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/cmd"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/flyname"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/update"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -96,9 +96,20 @@ func checkErr(err error) {
 		return
 	}
 
-	if !isCancelledError(err) {
-		fmt.Println(aurora.Red("Error"), err)
-	}
+	flyerr.PrintCLIOutput(err)
+
+	// if !isCancelledError(err) {
+	// 	fmt.Println(aurora.Red("Error"), err)
+	// }
+
+	// if msg := flyerr.GetErrorDescription(err); msg != "" {
+
+	// 	fmt.Printf("\n%s\n", msg)
+	// }
+
+	// if msg := flyerr.GetErrorSuggestion(err); msg != "" {
+	// 	fmt.Printf("\n%s\n", msg)
+	// }
 
 	safeExit()
 }
@@ -108,18 +119,26 @@ func isCancelledError(err error) bool {
 		return true
 	}
 
-	if err == context.Canceled {
-		return true
-	}
+// 	if errors.Is(err, context.Canceled) {
+// 		return true
+// 	}
 
-	if merr, ok := err.(*multierror.Error); ok {
-		if len(merr.Errors) == 1 && merr.Errors[0] == context.Canceled {
-			return true
-		}
-	}
+// 	// if err == cmd.ErrAbort {
+// 	// 	return true
+// 	// }
 
-	return false
-}
+// 	// if err == context.Canceled {
+// 	// 	return true
+// 	// }
+
+// 	// if merr, ok := err.(*multierror.Error); ok {
+// 	// 	if len(merr.Errors) == 1 && merr.Errors[0] == context.Canceled {
+// 	// 		return true
+// 	// 	}
+// 	// }
+
+// 	return false
+// }
 
 func safeExit() {
 	flyctl.BackgroundTaskWG.Wait()

@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/deployment"
+	"github.com/superfly/flyctl/internal/flyerr"
 )
 
 func newMonitorCommand(client *client.Client) *Command {
@@ -131,7 +132,7 @@ func monitorDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) e
 	}
 
 	if !monitor.Success() {
-		return ErrAbort
+		return flyerr.ErrAbort
 	}
 
 	return nil
