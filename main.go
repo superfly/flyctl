@@ -114,10 +114,10 @@ func checkErr(err error) {
 	safeExit()
 }
 
-func isCancelledError(err error) bool {
-	if err == cmd.ErrAbort {
-		return true
-	}
+// func isCancelledError(err error) bool {
+// 	if errors.Is(err, cmd.ErrAbort) {
+// 		return true
+// 	}
 
 // 	if errors.Is(err, context.Canceled) {
 // 		return true
