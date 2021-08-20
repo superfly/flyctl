@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/containerd/console"
 	"github.com/docker/docker/api/types"
@@ -127,7 +128,8 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 
 	var imageID string
 
-	cmdfmt.PrintBegin(streams.ErrOut, "Building image with Docker")
+	msg := fmt.Sprintf("Building image with Docker (%s %s)", runtime.GOOS, runtime.GOARCH)
+	cmdfmt.PrintBegin(streams.ErrOut, msg)
 
 	buildArgs := normalizeBuildArgsForDocker(opts.AppConfig, opts.ExtraBuildArgs)
 

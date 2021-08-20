@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 
 	"github.com/buildpacks/pack"
 	"github.com/superfly/flyctl/flyctl"
@@ -45,7 +46,8 @@ func (s *buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClient
 		return nil, err
 	}
 
-	cmdfmt.PrintBegin(streams.ErrOut, "Building image with Buildpacks")
+	msg := fmt.Sprintf("Building image with Buildpacks (%s %s)", runtime.GOOS, runtime.GOARCH)
+	cmdfmt.PrintBegin(streams.ErrOut, msg)
 
 	err = packClient.Build(ctx, pack.BuildOptions{
 		AppPath:        opts.WorkingDir,
