@@ -42,14 +42,23 @@ func newMachineCommand(client *client.Client) *Command {
 	}, client)
 
 	newMachineRunCommand(cmd, client)
-	newMachineStopCommand(cmd, client)
 	newMachineListCommand(cmd, client)
+	newMachineStopCommand(cmd, client)
+	newMachineStartCommand(cmd, client)
+	newMachineKillCommand(cmd, client)
+	newMachineRemoveCommand(cmd, client)
 
 	return cmd
 }
 
 func newMachineListCommand(parent *Command, client *client.Client) {
-	cmd := BuildCommandKS(parent, runMachineList, docstrings.Get("machine.list"), client, requireSession, optionalAppName)
+	keystrings := docstrings.Get("machine.list")
+	cmd := BuildCommandCobra(parent, runMachineList, &cobra.Command{
+		Use:     keystrings.Usage,
+		Short:   keystrings.Short,
+		Long:    keystrings.Long,
+		Aliases: []string{"ls"},
+	}, client)
 
 	cmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "all",
@@ -58,8 +67,14 @@ func newMachineListCommand(parent *Command, client *client.Client) {
 
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "state",
-		Default:     "running",
+		Default:     "started",
 		Description: "List machines in a specific state",
+	})
+
+	cmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "quiet",
+		Shorthand:   "q",
+		Description: "Only list machine ids",
 	})
 }
 
@@ -71,6 +86,13 @@ func runMachineList(cmdCtx *cmdctx.CmdContext) error {
 	machines, err := cmdCtx.Client.API().ListMachines(cmdCtx.AppName, state)
 	if err != nil {
 		return errors.Wrap(err, "could not get list of machines")
+	}
+
+	if cmdCtx.Config.GetBool("quiet") {
+		for _, machine := range machines {
+			fmt.Println(machine.ID)
+		}
+		return nil
 	}
 
 	data := [][]string{}
@@ -127,23 +149,108 @@ func newMachineStopCommand(parent *Command, client *client.Client) {
 		Description: "Seconds to wait before killing the machine",
 	})
 
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.MinimumNArgs(1)
 }
 
 func runMachineStop(cmdCtx *cmdctx.CmdContext) error {
-	input := api.StopMachineInput{
-		AppID:           cmdCtx.AppName,
-		ID:              cmdCtx.Args[0],
-		Signal:          cmdCtx.Config.GetString("signal"),
-		KillTimeoutSecs: cmdCtx.Config.GetInt("time"),
+	for _, arg := range cmdCtx.Args {
+		input := api.StopMachineInput{
+			AppID:           cmdCtx.AppName,
+			ID:              arg,
+			Signal:          cmdCtx.Config.GetString("signal"),
+			KillTimeoutSecs: cmdCtx.Config.GetInt("time"),
+		}
+
+		machine, err := cmdCtx.Client.API().StopMachine(input)
+		if err != nil {
+			return errors.Wrap(err, "could not stop machine")
+		}
+
+		fmt.Println(machine.ID)
 	}
 
-	machine, err := cmdCtx.Client.API().StopMachine(input)
+	return nil
+}
+
+func newMachineStartCommand(parent *Command, client *client.Client) {
+	cmd := BuildCommandKS(parent, runMachineStart, docstrings.Get("machine.start"), client, requireSession, optionalAppName)
+
+	cmd.Args = cobra.ExactArgs(1)
+}
+
+func runMachineStart(cmdCtx *cmdctx.CmdContext) error {
+	input := api.StartMachineInput{
+		AppID: cmdCtx.AppName,
+		ID:    cmdCtx.Args[0],
+	}
+
+	machine, err := cmdCtx.Client.API().StartMachine(input)
 	if err != nil {
 		return errors.Wrap(err, "could not stop machine")
 	}
 
 	fmt.Println(machine.ID)
+
+	return nil
+}
+
+func newMachineKillCommand(parent *Command, client *client.Client) {
+	cmd := BuildCommandKS(parent, runMachineKill, docstrings.Get("machine.kill"), client, requireSession, optionalAppName)
+
+	cmd.Args = cobra.MinimumNArgs(1)
+}
+
+func runMachineKill(cmdCtx *cmdctx.CmdContext) error {
+	for _, arg := range cmdCtx.Args {
+		input := api.KillMachineInput{
+			AppID: cmdCtx.AppName,
+			ID:    arg,
+		}
+
+		machine, err := cmdCtx.Client.API().KillMachine(input)
+		if err != nil {
+			return errors.Wrap(err, "could not stop machine")
+		}
+
+		fmt.Println(machine.ID)
+	}
+
+	return nil
+}
+
+func newMachineRemoveCommand(parent *Command, client *client.Client) {
+	keystrings := docstrings.Get("machine.remove")
+	cmd := BuildCommandCobra(parent, runMachineRemove, &cobra.Command{
+		Use:     keystrings.Usage,
+		Short:   keystrings.Short,
+		Long:    keystrings.Long,
+		Aliases: []string{"rm"},
+	}, client)
+
+	cmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "force",
+		Shorthand:   "f",
+		Description: "force kill machine if it's running",
+	})
+
+	cmd.Args = cobra.MinimumNArgs(1)
+}
+
+func runMachineRemove(cmdCtx *cmdctx.CmdContext) error {
+	for _, arg := range cmdCtx.Args {
+		input := api.RemoveMachineInput{
+			AppID: cmdCtx.AppName,
+			ID:    arg,
+			Kill:  cmdCtx.Config.GetBool("force"),
+		}
+
+		machine, err := cmdCtx.Client.API().RemoveMachine(input)
+		if err != nil {
+			return errors.Wrap(err, "could not stop machine")
+		}
+
+		fmt.Println(machine.ID)
+	}
 
 	return nil
 }

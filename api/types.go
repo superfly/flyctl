@@ -197,6 +197,15 @@ type Query struct {
 	StopMachine struct {
 		Machine *Machine
 	}
+	StartMachine struct {
+		Machine *Machine
+	}
+	KillMachine struct {
+		Machine *Machine
+	}
+	RemoveMachine struct {
+		Machine *Machine
+	}
 }
 
 type CreatedWireGuardPeer struct {
@@ -1056,4 +1065,21 @@ type StopMachineInput struct {
 	ID              string `json:"id"`
 	Signal          string `json:"signal,omitempty"`
 	KillTimeoutSecs int    `json:"kill_timeout_secs,omitempty"`
+}
+
+type StartMachineInput struct {
+	AppID string `json:"appId,omitempty"`
+	ID    string `json:"id"`
+}
+
+type KillMachineInput struct {
+	AppID string `json:"appId,omitempty"`
+	ID    string `json:"id"`
+}
+
+type RemoveMachineInput struct {
+	AppID string `json:"appId,omitempty"`
+	ID    string `json:"id"`
+
+	Kill bool `json:"kill"`
 }

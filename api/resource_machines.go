@@ -92,3 +92,75 @@ func (client *Client) StopMachine(input StopMachineInput) (*Machine, error) {
 
 	return data.StopMachine.Machine, nil
 }
+
+func (client *Client) StartMachine(input StartMachineInput) (*Machine, error) {
+	query := `
+	mutation($input: StartMachineInput!) {
+		startMachine(input: $input) {
+			machine {
+				id
+				state
+			}
+		}
+	}
+	`
+
+	req := client.NewRequest(query)
+
+	req.Var("input", input)
+
+	data, err := client.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.StartMachine.Machine, nil
+}
+
+func (client *Client) KillMachine(input KillMachineInput) (*Machine, error) {
+	query := `
+	mutation($input: KillMachineInput!) {
+		killMachine(input: $input) {
+			machine {
+				id
+				state
+			}
+		}
+	}
+	`
+
+	req := client.NewRequest(query)
+
+	req.Var("input", input)
+
+	data, err := client.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.KillMachine.Machine, nil
+}
+
+func (client *Client) RemoveMachine(input RemoveMachineInput) (*Machine, error) {
+	query := `
+	mutation($input: RemoveMachineInput!) {
+		removeMachine(input: $input) {
+			machine {
+				id
+				state
+			}
+		}
+	}
+	`
+
+	req := client.NewRequest(query)
+
+	req.Var("input", input)
+
+	data, err := client.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.RemoveMachine.Machine, nil
+}
