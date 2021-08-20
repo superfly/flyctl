@@ -6,9 +6,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/logrusorgru/aurora"
-	"github.com/superfly/flyctl/flyname"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cmdutil"
+
+	"github.com/logrusorgru/aurora"
 )
 
 func IsTunnelError(err error) bool {
@@ -89,6 +90,6 @@ func (e *AgentStartError) Description() string {
 }
 
 func (e *AgentStartError) Suggestion() string {
-	command := aurora.Bold(fmt.Sprintf("%s agent daemon-start", flyname.Name()))
+	command := aurora.Bold(fmt.Sprintf("%s agent daemon-start", buildinfo.Name()))
 	return fmt.Sprintf("Try running the agent with '%s' to see more output. Once the issue preventing startup is fixed you can stop the agent and flyctl will create it as needed", command)
 }

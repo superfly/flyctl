@@ -16,10 +16,10 @@ builds:
       - goos: linux
         goarch: 386
     ldflags:
-      - -X github.com/superfly/flyctl/flyctl.BuildDate={{ .Date }}
-      - -X github.com/superfly/flyctl/flyctl.Version={{ .Version }}
-      - -X github.com/superfly/flyctl/flyctl.Commit={{ .ShortCommit }}
-      - -X github.com/superfly/flyctl/flyctl.Environment=production
+      - -X github.com/superfly/flyctl/internal/buildinfo.environment=production
+      - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{ .Date }}
+      - -X github.com/superfly/flyctl/internal/buildinfo.version={{ .Version }}
+      - -X github.com/superfly/flyctl/internal/buildinfo.commit={{ .ShortCommit }}
   - id: windows
     env:
       - CGO_ENABLED=0
@@ -29,11 +29,10 @@ builds:
       - goos: windows
         goarch: 386
     ldflags:
-      - -X github.com/superfly/flyctl/flyctl.BuildDate={{ .Date }}
-      - -X github.com/superfly/flyctl/flyctl.Version={{ .Version }}
-      - -X github.com/superfly/flyctl/flyctl.Commit={{ .ShortCommit }}
-      - -X github.com/superfly/flyctl/flyctl.Environment=production
-      
+      - -X github.com/superfly/flyctl/internal/buildinfo.environment=production
+      - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{ .Date }}
+      - -X github.com/superfly/flyctl/internal/buildinfo.version={{ .Version }}
+      - -X github.com/superfly/flyctl/internal/buildinfo.commit={{ .ShortCommit }}
 
 archives:
   - id: windows

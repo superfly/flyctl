@@ -5,6 +5,7 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
@@ -37,7 +38,7 @@ func (c *Client) Authenticated() bool {
 func (c *Client) InitApi() bool {
 	apiToken := flyctl.GetAPIToken()
 	if apiToken != "" {
-		apiClient := api.NewClient(apiToken, flyctl.Version)
+		apiClient := api.NewClient(apiToken, buildinfo.Name(), buildinfo.Version().String())
 		c.api = apiClient
 	}
 	return c.Authenticated()
