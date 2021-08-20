@@ -31,6 +31,7 @@ var (
 type Server struct {
 	listener      *net.UnixListener
 	tunnels       map[string]*wg.Tunnel
+	proxy         net.Listener
 	client        *api.Client
 	lock          sync.Mutex
 	currentChange time.Time
@@ -81,6 +82,7 @@ func (s *Server) handle(c net.Conn) {
 		"establish": s.handleEstablish,
 		"instances": s.handleInstances,
 		"resolve":   s.handleResolve,
+		"proxy":     s.handleProxy,
 	}
 
 	handler, ok := cmds[args[0]]
@@ -507,6 +509,94 @@ func (s *Server) handleConnect(c net.Conn, args []string) error {
 	wg.Wait()
 
 	return nil
+}
+
+func (s *Server) handleProxy(c net.Conn, args []string) error {
+	ports := strings.Split(args[1], ":")
+
+	local, remote := ports[0], ports[1]
+	if remote == "" {
+		remote = local
+	}
+
+	app, err := s.client.GetApp(args[2])
+	if err != nil {
+		return err
+	}
+
+	tunnel, err := s.tunnelFor(app.Organization.Slug)
+	if err != nil {
+		return fmt.Errorf("proxy: can't build tunnel: %s", err)
+	}
+
+	address, err := resolve(tunnel, fmt.Sprintf("%s.internal:%s", app.Name, remote))
+	if err != nil {
+		// captureWireguardConnErr(err, args[1])
+		return fmt.Errorf("proxy: can't resolve address '%s': %s", address, err)
+	}
+
+	// create a net.Listener that waits for connections on user given port
+	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%s", local))
+	if err != nil {
+		return err
+	}
+
+	s.proxy = listener
+
+	log.Printf("proxy: listening for connections on %s", listener.Addr())
+
+	go func() {
+		for {
+			in, err := s.proxy.Accept()
+			if err != nil {
+				log.Printf("failed incoming connection: %s", err)
+				continue
+			}
+
+			log.Printf("proxy: incoming connection from %s", in.RemoteAddr())
+
+			ctx := context.Background()
+
+			out, err := tunnel.DialContext(ctx, "tcp", address)
+			if err != nil {
+				log.Printf("connection failed: %s", err)
+			}
+
+			go func(net.Conn) {
+				wg := &sync.WaitGroup{}
+				wg.Add(2)
+
+				copy := func(dst net.Conn, src net.Conn) {
+					defer wg.Done()
+					io.Copy(dst, src)
+
+					// close the write half if it exports a CloseWrite() method
+					if conn, ok := dst.(ClosableWrite); ok {
+						conn.CloseWrite()
+					}
+				}
+				go copy(in, out)
+				go copy(out, in)
+
+				wg.Wait()
+			}(out)
+		}
+
+	}()
+
+	return writef(c, "ok")
+
+}
+
+func (s *Server) handleProxyStop(c net.Conn, args []string) error {
+	if s.proxy == nil {
+		return fmt.Errorf("proxy: not running")
+	}
+
+	s.proxy.Close()
+	s.proxy = nil
+
+	return writef(c, "ok")
 }
 
 func (s *Server) tunnelFor(slug string) (*wg.Tunnel, error) {

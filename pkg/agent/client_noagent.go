@@ -121,6 +121,10 @@ func (c *noAgentClientProvider) Instances(ctx context.Context, o *api.Organizati
 	return ret, nil
 }
 
+func (c *agentClientProvider) Proxy(ctx context.Context, cmd, addr, app string) error {
+	return nil
+}
+
 func (c *noAgentClientProvider) Dialer(ctx context.Context, o *api.Organization) (Dialer, error) {
 	resp, err := c.Establish(ctx, o.Slug)
 	if err != nil {

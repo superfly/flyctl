@@ -2,13 +2,12 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/pkg/proxy"
+	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -25,14 +24,6 @@ func newProxyCommand(client *client.Client) *Command {
 func runProxy(cmdCtx *cmdctx.CmdContext) error {
 	ctx := createCancellableContext()
 
-	ports := strings.Split(cmdCtx.Args[0], ":")
-
-	lPort, rPort := ports[0], ports[1]
-
-	if len(rPort) == 0 {
-		rPort = lPort
-	}
-
 	client := cmdCtx.Client.API()
 
 	terminal.Debugf("Retrieving app info for %s\n", cmdCtx.AppName)
@@ -42,35 +33,21 @@ func runProxy(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	agent, err := EstablishFlyAgent(cmdCtx)
+	c, err := agent.Establish(ctx, client)
 	if err != nil {
 		return err
 	}
 
-	dialer, err := agent.Dialer(&app.Organization)
+	err = c.Establish(ctx, app.Organization.Slug)
 	if err != nil {
 		return err
 	}
 
-	if cmdCtx.Config.GetBool("probe") {
-		if err = agent.Probe(&app.Organization); err != nil {
-			return fmt.Errorf("probe wireguard: %w", err)
-		}
+	err = c.Proxy(ctx, cmdCtx.Args[0], app.Name)
+	if err != nil {
+		return err
 	}
 
-	rAddr := fmt.Sprintf("%s.internal", cmdCtx.AppName)
+	return nil
 
-	fmt.Printf("Proxying local connections '%s:%s' to %s\n", lPort, rPort, cmdCtx.AppName)
-
-	proxy := &proxy.Server{
-		LocalAddr:  formatAddr("127.0.0.1", lPort),
-		RemoteAddr: formatAddr(rAddr, rPort),
-		Dial:       dialer.DialContext,
-	}
-
-	return proxy.ServeTCP(ctx)
-}
-
-func formatAddr(host, port string) string {
-	return fmt.Sprintf("%s:%s", host, port)
 }
