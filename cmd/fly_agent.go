@@ -3,9 +3,9 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 
+	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/internal/client"
@@ -50,7 +50,7 @@ func newAgentCommand(client *client.Client) *Command {
 func runFlyAgentDaemonStart(ctx *cmdctx.CmdContext) error {
 	agent, err := agent.DefaultServer(ctx.Client.API())
 	if err != nil {
-		log.Fatalf("can't start daemon: %s", err)
+		return errors.Wrap(err, "daemon error")
 	}
 
 	fmt.Printf("OK %d\n", os.Getpid())

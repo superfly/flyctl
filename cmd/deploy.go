@@ -26,6 +26,7 @@ import (
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/deployment"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/monitor"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/sync/errgroup"
@@ -476,7 +477,7 @@ func watchDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext) error {
 
 	if !monitor.Success() {
 		cmdCtx.Status("deploy", cmdctx.SINFO, "Troubleshooting guide at https://fly.io/docs/getting-started/troubleshooting/")
-		return ErrAbort
+		return flyerr.ErrAbort
 	}
 
 	return nil
