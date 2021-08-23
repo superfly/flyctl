@@ -18,6 +18,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/terminal"
 )
 
 func StartDaemon(ctx context.Context, api *api.Client, command string) (*Client, error) {
@@ -45,6 +46,7 @@ func StartDaemon(ctx context.Context, api *api.Client, command string) (*Client,
 		return nil, err
 	}
 	agentPid := cmd.Process.Pid
+	terminal.Debugf("started agent process %d", agentPid)
 
 	// tail the agent log until we see a status message or a timeout
 	go func() {
