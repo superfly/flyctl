@@ -822,6 +822,7 @@ type BuildArgInput struct {
 
 type ConfigureRegionsInput struct {
 	AppID         string   `json:"appId"`
+	Group         string   `json:"group"`
 	AllowRegions  []string `json:"allowRegions"`
 	DenyRegions   []string `json:"denyRegions"`
 	BackupRegions []string `json:"backupRegions"`
