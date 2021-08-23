@@ -6,50 +6,69 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"fmt"
+	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flyctl"
 )
 
 func StartDaemon(ctx context.Context, api *api.Client, command string) (*Client, error) {
+	startCh := make(chan error, 1)
+	watchCtx, cancel := context.WithTimeout(ctx, time.Second*5)
+	defer cancel()
+
 	cmd := exec.Command(command, "agent", "daemon-start")
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setpgid: true,
 		Pgid:    0,
 	}
 
-	// buffer stdout and stderr from the daemon process. If it
-	// includes "OK <pid>" we know it started successfully.
-	// Otherwise we know it failed and we can include the output with the
+	// read stdout and stderr from the daemon process. If it
+	// includes "[pid] OK" we know it started successfully, and
+	// [pid] QUIT means it stopped. When it stops include the output with the
 	// returnred error so it can be displayed to the user
-	out, err := cmd.StdoutPipe()
+	f, err := os.Create(filepath.Join(flyctl.ConfigDir(), "agent.log"))
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
+	defer f.Close()
 
-	startCh := make(chan error, 1)
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	agentPid := cmd.Process.Pid
 
+	// tail the agent log until we see a status message or a timeout
 	go func() {
 		var output bytes.Buffer
-		r := regexp.MustCompile(`\AOK \d+\z`)
 
-		scanner := bufio.NewScanner(out)
-		scanner.Split(bufio.ScanLines)
+		okPattern := regexp.MustCompile(fmt.Sprintf(`\[%d\] OK`, agentPid))
+		quitPattern := regexp.MustCompile(fmt.Sprintf(`\[%d\] QUIT`, agentPid))
 
 		var ok bool
-		for scanner.Scan() {
-			if r.Match(scanner.Bytes()) {
+
+	READ:
+		for line := range tailReader(watchCtx, f) {
+			switch {
+			case okPattern.MatchString(line):
 				ok = true
-				break
+				break READ
+			case quitPattern.MatchString(line):
+				break READ
+			default:
+				if output.Len() > 0 {
+					output.WriteByte(byte('\n'))
+				}
+				output.WriteString(line)
 			}
-			if output.Len() > 0 {
-				output.WriteByte(byte('\n'))
-			}
-			output.Write(scanner.Bytes())
 		}
 
 		if ok {
@@ -60,12 +79,7 @@ func StartDaemon(ctx context.Context, api *api.Client, command string) (*Client,
 		startCh <- &AgentStartError{Output: output.String()}
 	}()
 
-	// run the command while the goroutine captures output
-	if err := cmd.Start(); err != nil {
-		return nil, err
-	}
-
-	// wait for the output to include "OK <pid>" or EOF
+	// wait for the output to include a running or failed message
 	if startErr := <-startCh; startErr != nil {
 		return nil, startErr
 	}
@@ -105,4 +119,40 @@ func waitForClient(ctx context.Context, api *api.Client) (*Client, error) {
 	case client := <-respCh:
 		return client, nil
 	}
+}
+
+// naive tail implementation
+func tailReader(ctx context.Context, r io.Reader) <-chan string {
+	out := make(chan string)
+
+	pr, pw := io.Pipe()
+
+	go func() {
+		defer close(out)
+
+		scanner := bufio.NewScanner(pr)
+		for scanner.Scan() {
+			out <- scanner.Text()
+		}
+	}()
+
+	go func() {
+		defer pw.Close()
+
+		buf := make([]byte, 1024)
+		for {
+			n, err := r.Read(buf)
+			if n > 0 {
+				pw.Write(buf[:n])
+			}
+			if errors.Is(err, io.EOF) {
+				time.Sleep(100 * time.Millisecond)
+			}
+			if ctx.Err() != nil {
+				break
+			}
+		}
+	}()
+
+	return out
 }
