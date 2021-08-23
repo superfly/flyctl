@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/blang/semver"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/wireguard"
@@ -54,7 +55,13 @@ func (c *Client) Kill(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) Ping(ctx context.Context) (int, error) {
+type PingResponse struct {
+	PID        int
+	Version    semver.Version
+	Background bool
+}
+
+func (c *Client) Ping(ctx context.Context) (PingResponse, error) {
 	n, err := c.provider.Ping(ctx)
 	if err != nil {
 		return n, errors.Wrap(err, "ping failed")
@@ -155,7 +162,7 @@ type clientProvider interface {
 	Establish(ctx context.Context, slug string) error
 	Instances(ctx context.Context, o *api.Organization, app string) (*Instances, error)
 	Kill(ctx context.Context) error
-	Ping(ctx context.Context) (int, error)
+	Ping(ctx context.Context) (PingResponse, error)
 	Probe(ctx context.Context, o *api.Organization) error
 	Resolve(ctx context.Context, o *api.Organization, name string) (string, error)
 }

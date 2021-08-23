@@ -68,7 +68,7 @@ func runFlyAgentDaemonStart(cc *cmdctx.CmdContext) error {
 
 	defer log.Printf("QUIT")
 
-	agent, err := agent.DefaultServer(cc.Client.API())
+	agent, err := agent.DefaultServer(cc.Client.API(), !cc.IO.IsInteractive())
 	if err != nil {
 		log.Println(err)
 		return errors.New("daemon failed to start")
@@ -129,7 +129,7 @@ func runFlyAgentPing(cc *cmdctx.CmdContext) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(resp)
+	cc.WriteJSON(resp)
 
 	return nil
 }
