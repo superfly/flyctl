@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/internal/client"
@@ -34,7 +35,7 @@ func newScaleCommand(client *client.Client) *Command {
 
 	countCmdStrings := docstrings.Get("scale.count")
 	countCmd := BuildCommand(cmd, runScaleCount, countCmdStrings.Usage, countCmdStrings.Short, countCmdStrings.Long, client, requireSession, requireAppName)
-	countCmd.Args = cobra.ExactArgs(1)
+	countCmd.Args = cobra.MinimumNArgs(1)
 	countCmd.AddIntFlag((IntFlagOpts{
 		Name:        "max-per-region",
 		Description: "Max number of VMs per region",
@@ -64,9 +65,26 @@ func runScaleVM(commandContext *cmdctx.CmdContext) error {
 }
 
 func runScaleCount(commandContext *cmdctx.CmdContext) error {
-	count, err := strconv.Atoi(commandContext.Args[0])
-	if err != nil {
-		return err
+	groups := map[string]int{}
+
+	if len(commandContext.Args) == 1 {
+		count, err := strconv.Atoi(commandContext.Args[0])
+		if err == nil {
+			groups["app"] = count
+		}
+	}
+
+	for _, arg := range commandContext.Args {
+		parts := strings.Split(arg, "=")
+		if len(parts) != 2 {
+			return fmt.Errorf("%s is not a valid process=count option", arg)
+		}
+		count, err := strconv.Atoi(parts[1])
+		if err != nil {
+			return err
+		}
+
+		groups[parts[0]] = count
 	}
 
 	// THIS IS AN OPTION TYPE CAN YOU TELL?
@@ -77,7 +95,7 @@ func runScaleCount(commandContext *cmdctx.CmdContext) error {
 		maxPerRegion = nil
 	}
 
-	counts, warnings, err := commandContext.Client.API().SetAppVMCount(commandContext.AppName, count, maxPerRegion)
+	counts, warnings, err := commandContext.Client.API().SetAppVMCount(commandContext.AppName, groups, maxPerRegion)
 	if err != nil {
 		return err
 	}
@@ -89,15 +107,23 @@ func runScaleCount(commandContext *cmdctx.CmdContext) error {
 		fmt.Println()
 	}
 
-	// only use the "app" tg right now
-	var appCount int
-	for _, tg := range counts {
-		if tg.Name == "app" {
-			appCount = tg.Count
+	msg := ""
+
+	if len(counts) == 1 {
+		for _, tg := range counts {
+			if tg.Name == "app" {
+				msg = fmt.Sprint(tg.Count)
+			}
 		}
 	}
 
-	fmt.Printf("Count changed to %d\n", appCount)
+	if msg == "" {
+		for _, tg := range counts {
+			msg += fmt.Sprintf("%s=%d ", tg.Name, tg.Count)
+		}
+	}
+
+	fmt.Printf("Count changed to %s\n", msg)
 
 	return nil
 }
