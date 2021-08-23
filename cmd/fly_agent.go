@@ -3,11 +3,15 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
+	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
+	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/pkg/agent"
 )
@@ -49,15 +53,37 @@ func newAgentCommand(client *client.Client) *Command {
 	return cmd
 }
 
-func runFlyAgentDaemonStart(ctx *cmdctx.CmdContext) error {
-	agent, err := agent.DefaultServer(ctx.Client.API())
+func runFlyAgentDaemonStart(cc *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
+	logFile, err := os.Create(filepath.Join(flyctl.ConfigDir(), "agent.log"))
 	if err != nil {
-		return errors.Wrap(err, "daemon error")
+		return errors.Wrap(err, "can't create log file")
 	}
 
-	fmt.Printf("OK %d\n", os.Getpid())
+	w := io.MultiWriter(os.Stdout, logFile)
+	log.SetOutput(w)
+	log.SetFlags(log.Lmsgprefix | log.LstdFlags)
+	log.SetPrefix(fmt.Sprintf("[%d] ", os.Getpid()))
+
+	defer log.Printf("QUIT")
+
+	agent, err := agent.DefaultServer(cc.Client.API())
+	if err != nil {
+		log.Println(err)
+		return errors.New("daemon failed to start")
+	}
+
+	log.Printf("OK %d", os.Getpid())
 
 	agent.Serve()
+
+	go func() {
+		<-ctx.Done()
+		agent.Stop()
+	}()
+
+	agent.Wait()
 
 	return nil
 }
@@ -73,7 +99,7 @@ func runFlyAgentStart(cc *cmdctx.CmdContext) error {
 
 	_, err = agent.Establish(ctx, api)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "can't start agent: %s", err)
+		return errors.Wrap(err, "failed to start agent")
 	}
 
 	return err
