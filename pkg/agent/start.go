@@ -11,7 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
+	"strings"
 	"syscall"
 	"time"
 
@@ -52,24 +52,27 @@ func StartDaemon(ctx context.Context, api *api.Client, command string) (*Client,
 	go func() {
 		var output bytes.Buffer
 
-		okPattern := regexp.MustCompile(fmt.Sprintf(`\[%d\] OK`, agentPid))
-		quitPattern := regexp.MustCompile(fmt.Sprintf(`\[%d\] QUIT`, agentPid))
+		pidPrefix := fmt.Sprintf("[%d] ", agentPid)
+		okPattern := pidPrefix + "OK"
+		quitPattern := pidPrefix + "QUIT"
 
 		var ok bool
 
 	READ:
 		for line := range tailReader(watchCtx, f) {
 			switch {
-			case okPattern.MatchString(line):
+			case strings.Contains(line, okPattern):
 				ok = true
 				break READ
-			case quitPattern.MatchString(line):
+			case strings.Contains(line, quitPattern):
 				break READ
 			default:
-				if output.Len() > 0 {
-					output.WriteByte(byte('\n'))
+				if strings.Contains(line, pidPrefix) {
+					if output.Len() > 0 {
+						output.WriteByte(byte('\n'))
+					}
+					output.WriteString(line)
 				}
-				output.WriteString(line)
 			}
 		}
 
