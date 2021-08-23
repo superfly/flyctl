@@ -515,9 +515,12 @@ func (s *Server) handleConnect(c net.Conn, args []string) error {
 func (s *Server) handleProxy(c net.Conn, args []string) error {
 	ports := strings.Split(args[1], ":")
 
-	local, remote := ports[0], ports[1]
-	if remote == "" {
-		remote = local
+	var local, remote string
+
+	if len(ports) < 2 {
+		local, remote = ports[0], ports[0]
+	} else {
+		local, remote = ports[0], ports[1]
 	}
 
 	app, err := s.client.GetApp(args[2])
