@@ -107,6 +107,27 @@ func runScaleCount(commandContext *cmdctx.CmdContext) error {
 		fmt.Println()
 	}
 
+	msg := countMessage(counts)
+
+	fmt.Printf("Count changed to %s\n", msg)
+
+	return nil
+}
+
+func runScaleShow(commandContext *cmdctx.CmdContext) error {
+	size, tgCounts, err := commandContext.Client.API().AppVMResources(commandContext.AppName)
+	if err != nil {
+		return err
+	}
+
+	msg := countMessage(tgCounts)
+
+	printVMResources(commandContext, size, msg)
+
+	return nil
+}
+
+func countMessage(counts []api.TaskGroupCount) string {
 	msg := ""
 
 	if len(counts) == 1 {
@@ -123,35 +144,16 @@ func runScaleCount(commandContext *cmdctx.CmdContext) error {
 		}
 	}
 
-	fmt.Printf("Count changed to %s\n", msg)
+	return msg
 
-	return nil
+	//return fmt.Sprintf("Count changed to %s\n", msg)
 }
 
-func runScaleShow(commandContext *cmdctx.CmdContext) error {
-	size, tgCounts, err := commandContext.Client.API().AppVMResources(commandContext.AppName)
-	if err != nil {
-		return err
-	}
-
-	// only use the "app" tg right now
-	var appCount int
-	for _, tg := range tgCounts {
-		if tg.Name == "app" {
-			appCount = tg.Count
-		}
-	}
-
-	printVMResources(commandContext, size, appCount)
-
-	return nil
-}
-
-func printVMResources(commandContext *cmdctx.CmdContext, vmSize api.VMSize, count int) {
+func printVMResources(commandContext *cmdctx.CmdContext, vmSize api.VMSize, count string) {
 	if commandContext.OutputJSON() {
 		out := struct {
 			api.VMSize
-			Count int
+			Count string
 		}{
 			VMSize: vmSize,
 			Count:  count,
@@ -166,7 +168,7 @@ func printVMResources(commandContext *cmdctx.CmdContext, vmSize api.VMSize, coun
 
 	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Size", vmSize.Name)
 	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Memory", formatMemory(vmSize))
-	fmt.Fprintf(commandContext.Out, "%15s: %d\n", "Count", count)
+	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "Count", count)
 }
 
 func runScaleMemory(commandContext *cmdctx.CmdContext) error {
