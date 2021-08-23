@@ -40,6 +40,12 @@ func newAgentCommand(client *client.Client) *Command {
 		client,
 		requireSession)
 
+	_ = BuildCommandKS(cmd,
+		runFlyAgentPing,
+		docstrings.Get("agent.ping"),
+		client,
+		requireSession)
+
 	return cmd
 }
 
@@ -83,4 +89,21 @@ func runFlyAgentStop(cc *cmdctx.CmdContext) error {
 	}
 
 	return err
+}
+
+func runFlyAgentPing(cc *cmdctx.CmdContext) error {
+	api := cc.Client.API()
+	ctx := context.Background()
+
+	c, err := agent.DefaultClient(api)
+	if err != nil {
+		return err
+	}
+	resp, err := c.Ping(ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Println(resp)
+
+	return nil
 }

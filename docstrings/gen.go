@@ -11,6 +11,10 @@ func Get(key string) KeyStrings {
 		return KeyStrings{"daemon-start", "Run the Fly agent as a service (manually)",
 			`Run the Fly agent as a service (manually)`,
 		}
+	case "agent.ping":
+		return KeyStrings{"ping", "ping the Fly agent",
+			`ping the Fly agent`,
+		}
 	case "agent.restart":
 		return KeyStrings{"restart", "Restart the Fly agent",
 			`Restart the Fly agent`,
