@@ -108,8 +108,9 @@ type Query struct {
 	}
 
 	SetVMSize struct {
-		App    App
-		VMSize *VMSize
+		App          App
+		VMSize       *VMSize
+		ProcessGroup *ProcessGroup
 	}
 
 	SetVMCount struct {
@@ -782,8 +783,15 @@ type VMSize struct {
 	MemoryIncrementsMB []int
 }
 
+type ProcessGroup struct {
+	Name    string
+	Regions []string
+	VMSize  *VMSize
+}
+
 type SetVMSizeInput struct {
 	AppID    string `json:"appId"`
+	Group    string `json:"group"`
 	SizeName string `json:"sizeName"`
 	MemoryMb int64  `json:"memoryMb"`
 }

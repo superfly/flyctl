@@ -28,10 +28,20 @@ func newScaleCommand(client *client.Client) *Command {
 		Description: "Memory in MB for the VM",
 		Default:     0,
 	})
+	vmCmd.AddStringFlag(StringFlagOpts{
+		Name:        "group",
+		Description: "The process group to apply the VM size to",
+		Default:     "",
+	})
 
 	memoryCmdStrings := docstrings.Get("scale.memory")
 	memoryCmd := BuildCommandKS(cmd, runScaleMemory, memoryCmdStrings, client, requireSession, requireAppName)
 	memoryCmd.Args = cobra.ExactArgs(1)
+	memoryCmd.AddStringFlag(StringFlagOpts{
+		Name:        "group",
+		Description: "The process group to apply the memory size to",
+		Default:     "",
+	})
 
 	countCmdStrings := docstrings.Get("scale.count")
 	countCmd := BuildCommand(cmd, runScaleCount, countCmdStrings.Usage, countCmdStrings.Short, countCmdStrings.Long, client, requireSession, requireAppName)
@@ -53,12 +63,18 @@ func runScaleVM(commandContext *cmdctx.CmdContext) error {
 
 	memoryMB := int64(commandContext.Config.GetInt("memory"))
 
-	size, err := commandContext.Client.API().SetAppVMSize(commandContext.AppName, sizeName, memoryMB)
+	group := commandContext.Config.GetString("group")
+
+	size, err := commandContext.Client.API().SetAppVMSize(commandContext.AppName, group, sizeName, memoryMB)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("Scaled VM Type to", size.Name)
+	if group == "" {
+		fmt.Println("Scaled VM Type to\n", size.Name)
+	} else {
+		fmt.Printf("Scaled VM Type for \"%s\" to %s\n", group, size.Name)
+	}
 	fmt.Printf("%15s: %s\n", "CPU Cores", formatCores(size))
 	fmt.Printf("%15s: %s\n", "Memory", formatMemory(size))
 	return nil
@@ -183,7 +199,9 @@ func runScaleMemory(commandContext *cmdctx.CmdContext) error {
 		return err
 	}
 
-	size, err := commandContext.Client.API().SetAppVMSize(commandContext.AppName, currentsize.Name, memoryMB)
+	group := commandContext.Config.GetString("group")
+
+	size, err := commandContext.Client.API().SetAppVMSize(commandContext.AppName, group, currentsize.Name, memoryMB)
 	if err != nil {
 		return err
 	}
