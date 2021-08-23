@@ -17,9 +17,15 @@ import (
 func newProxyCommand(client *client.Client) *Command {
 
 	proxyDocStrings := docstrings.Get("proxy")
-	cmd := BuildCommandKS(nil, runProxy, proxyDocStrings, client, requireSession, requireAppName)
+	cmd := BuildCommandKS(nil, nil, proxyDocStrings, client, requireSession, requireAppName)
 
-	cmd.Args = cobra.ExactArgs(1)
+	proxyStartStrings := docstrings.Get("proxy.start")
+	start := BuildCommandKS(cmd, runProxy, proxyStartStrings, client, requireSession, requireAppName)
+	start.Args = cobra.ExactArgs(1)
+
+	proxyStoptStrings := docstrings.Get("proxy.stop")
+	stop := BuildCommandKS(cmd, runUnproxy, proxyStoptStrings, client, requireSession)
+	stop.Args = cobra.ExactArgs(0)
 
 	return cmd
 }
@@ -61,4 +67,24 @@ func runProxy(cmdCtx *cmdctx.CmdContext) error {
 
 	return nil
 
+}
+
+func runUnproxy(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
+	client := cmdCtx.Client.API()
+
+	c, err := agent.Establish(ctx, client)
+	if err != nil {
+		return err
+	}
+
+	err = c.Unproxy(ctx)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Proxy succesfully stopped")
+
+	return nil
 }

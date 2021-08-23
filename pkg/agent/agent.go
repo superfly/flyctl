@@ -83,6 +83,7 @@ func (s *Server) handle(c net.Conn) {
 		"instances": s.handleInstances,
 		"resolve":   s.handleResolve,
 		"proxy":     s.handleProxy,
+		"unproxy":   s.handleUnproxy,
 	}
 
 	handler, ok := cmds[args[0]]
@@ -547,6 +548,12 @@ func (s *Server) handleProxy(c net.Conn, args []string) error {
 
 	go func() {
 		for {
+			// check if proxy is not nil(closed)
+			if s.proxy == nil {
+				log.Println("proxy: proxy is closed")
+				break
+			}
+
 			in, err := s.proxy.Accept()
 			if err != nil {
 				log.Printf("failed incoming connection: %s", err)
@@ -588,7 +595,7 @@ func (s *Server) handleProxy(c net.Conn, args []string) error {
 
 }
 
-func (s *Server) handleProxyStop(c net.Conn, args []string) error {
+func (s *Server) handleUnproxy(c net.Conn, args []string) error {
 	if s.proxy == nil {
 		return fmt.Errorf("proxy: not running")
 	}

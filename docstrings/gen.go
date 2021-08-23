@@ -582,8 +582,16 @@ about the Fly platform.`,
 			`list users in a cluster`,
 		}
 	case "proxy":
-		return KeyStrings{"proxy <local:remote>", "Commands creates a proxy to a fly app",
+		return KeyStrings{"proxy <command>", "Commands creates a proxy to a fly app",
 			`Commands creates a proxy to a fly app`,
+		}
+	case "proxy.start":
+		return KeyStrings{"start <local:remote>", "Start a proxy to a fly app",
+			`Start a local proxy to a fly app.`,
+		}
+	case "proxy.stop":
+		return KeyStrings{"stop", "Stop the local proxy",
+			`Stop the local proxy.`,
 		}
 	case "regions":
 		return KeyStrings{"regions", "Manage regions",

@@ -184,6 +184,14 @@ func (c *Client) Proxy(ctx context.Context, addr, app string) error {
 	return nil
 }
 
+func (c *Client) Unproxy(ctx context.Context) error {
+	err := c.provider.Unproxy(ctx)
+	if err != nil {
+		return errors.Wrap(err, "stopping proxy failed")
+	}
+	return nil
+}
+
 func (c *Client) Dialer(ctx context.Context, o *api.Organization) (Dialer, error) {
 	dialer, err := c.provider.Dialer(ctx, o)
 	if err != nil {
@@ -203,6 +211,7 @@ type clientProvider interface {
 	Probe(ctx context.Context, o *api.Organization) error
 	Resolve(ctx context.Context, o *api.Organization, name string) (string, error)
 	Proxy(ctx context.Context, addr, app string) error
+	Unproxy(ctx context.Context) error
 }
 
 type Dialer interface {

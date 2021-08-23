@@ -220,6 +220,23 @@ func (c *agentClientProvider) Proxy(ctx context.Context, addr, app string) error
 	})
 }
 
+func (c *agentClientProvider) Unproxy(ctx context.Context) error {
+	return c.withConnection(ctx, func(conn net.Conn) error {
+		writef(conn, "unproxy")
+
+		reply, err := read(conn)
+		if err != nil {
+			return err
+		}
+
+		if string(reply) != "ok" {
+			return fmt.Errorf("%s", string(reply))
+		}
+
+		return nil
+	})
+}
+
 func (c *agentClientProvider) Dialer(ctx context.Context, o *api.Organization) (Dialer, error) {
 	resp, err := c.Establish(ctx, o.Slug)
 	if err != nil {
