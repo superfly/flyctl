@@ -47,7 +47,7 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
 		captureError(err)
-		return fmt.Errorf("can't establish agent: %s\n", err)
+		return errors.Wrap(err, "can't establish agent")
 	}
 
 	dialer, err := agentclient.Dialer(ctx, &app.Organization)

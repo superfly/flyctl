@@ -29,12 +29,12 @@ var (
 
 type Server struct {
 	listener      *net.UnixListener
-	ctx           context.Context
-	cancel        func()
 	tunnels       map[string]*wg.Tunnel
 	client        *api.Client
 	lock          sync.Mutex
 	currentChange time.Time
+	quit          chan interface{}
+	wg            sync.WaitGroup
 }
 
 type handlerFunc func(net.Conn, []string) error
@@ -93,11 +93,62 @@ func (s *Server) handle(c net.Conn) {
 	}
 }
 
-func NewServer(path string, apiClient *api.Client) (*Server, error) {
-	if c, err := NewClient(path, apiClient); err == nil {
-		c.Kill(context.Background())
+func pidFile() string {
+	return fmt.Sprintf("%s/.fly/agent.pid", os.Getenv("HOME"))
+}
+
+func getRunningPid() (int, error) {
+	data, err := os.ReadFile(pidFile())
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	} else if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(string(data))
+}
+
+func setRunningPid(pid int) error {
+	return os.WriteFile(pidFile(), []byte(strconv.Itoa(pid)), 0666)
+}
+
+func CreatePidFile() error {
+	return setRunningPid(os.Getpid())
+}
+
+func RemovePidFile() error {
+	if pid, _ := getRunningPid(); pid != os.Getpid() {
+		return nil
+	}
+	return os.Remove(pidFile())
+}
+
+func StopRunningAgent() error {
+	process, err := runningProcess()
+	fmt.Println("runningProcess output", process, err)
+	if err != nil {
+		return err
+	}
+	if process != nil {
+		err = process.Signal(os.Interrupt)
+		fmt.Println("signal output", err)
+		return err
+	}
+	return nil
+}
+
+func runningProcess() (*os.Process, error) {
+	pid, err := getRunningPid()
+	if err != nil {
+		return nil, err
+	}
+	if pid == 0 {
+		return nil, nil
 	}
 
+	return os.FindProcess(pid)
+}
+
+func NewServer(path string, apiClient *api.Client) (*Server, error) {
 	if err := removeSocket(path); err != nil {
 		// most of these errors just mean the socket isn't already there
 		// which is what we want.
@@ -109,13 +160,12 @@ func NewServer(path string, apiClient *api.Client) (*Server, error) {
 
 	addr, err := net.ResolveUnixAddr("unix", path)
 	if err != nil {
-		fmt.Printf("Failed to resolve: %v\n", err)
-		os.Exit(1)
+		return nil, errors.Wrap(err, "can't resolve unix socket")
 	}
 
 	l, err := net.ListenUnix("unix", addr)
 	if err != nil {
-		return nil, fmt.Errorf("can't bind: %w", err)
+		return nil, errors.Wrap(err, "can't bind")
 	}
 
 	l.SetUnlinkOnClose(true)
@@ -132,9 +182,8 @@ func NewServer(path string, apiClient *api.Client) (*Server, error) {
 		client:        apiClient,
 		tunnels:       map[string]*wg.Tunnel{},
 		currentChange: latestChange,
+		quit:          make(chan interface{}),
 	}
-
-	s.ctx, s.cancel = context.WithCancel(context.Background())
 
 	return s, nil
 }
@@ -145,29 +194,41 @@ func DefaultServer(apiClient *api.Client) (*Server, error) {
 	return NewServer(fmt.Sprintf("%s/.fly/fly-agent.sock", os.Getenv("HOME")), apiClient)
 }
 
-func (s *Server) Serve() {
-	defer s.listener.Close()
-	defer s.cancel()
+func (s *Server) Stop() {
+	s.listener.Close()
+	close(s.quit)
+}
 
+func (s *Server) Wait() {
+	s.wg.Wait()
+}
+
+func (s *Server) Serve() {
 	go s.clean()
 
-	for {
-		conn, err := s.listener.Accept()
-		if err != nil {
-			// // this can't really be how i'm supposed to do this
-			// if strings.Contains(err.Error(), "use of closed network connection") {
-			// 	return
-			// }
-			if errors.Is(err, net.ErrClosed) {
-				return
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+
+		for {
+			conn, err := s.listener.Accept()
+
+			if err != nil {
+				select {
+				case <-s.quit:
+					return
+				default:
+					if errors.Is(err, net.ErrClosed) {
+						return
+					}
+					log.Printf("warning: couldn't accept connection: %s", err)
+					continue
+				}
 			}
 
-			log.Printf("warning: couldn't accept connection: %s", err)
-			continue
+			go s.handle(conn)
 		}
-
-		go s.handle(conn)
-	}
+	}()
 }
 
 func (s *Server) errLog(c net.Conn, format string, args ...interface{}) {
@@ -176,7 +237,8 @@ func (s *Server) errLog(c net.Conn, format string, args ...interface{}) {
 }
 
 func (s *Server) handleKill(c net.Conn, args []string) error {
-	s.listener.Close()
+	s.Stop()
+
 	return nil
 }
 
@@ -482,7 +544,7 @@ func (s *Server) clean() {
 				log.Printf("failed to validate tunnels: %s", err)
 			}
 			log.Printf("validated wireguard peers(stat)")
-		case <-s.ctx.Done():
+		case <-s.quit:
 			return
 		}
 	}

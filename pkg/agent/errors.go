@@ -75,7 +75,7 @@ type AgentStartError struct {
 }
 
 func (e *AgentStartError) Error() string {
-	return "Failed to start the agent daemon"
+	return "failed to start the agent daemon"
 }
 
 func (e *AgentStartError) Description() string {
