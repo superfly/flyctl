@@ -81,6 +81,9 @@ func runListVolumes(ctx *cmdctx.CmdContext) error {
 		var attachedAllocID string
 		if v.AttachedAllocation != nil {
 			attachedAllocID = v.AttachedAllocation.IDShort
+			if v.AttachedAllocation.TaskName != "app" {
+				attachedAllocID = fmt.Sprintf("%s (%s)", v.AttachedAllocation.IDShort, v.AttachedAllocation.TaskName)
+			}
 		}
 		table.Append([]string{v.ID, v.Name, strconv.Itoa(v.SizeGb) + "GB", v.Region, attachedAllocID, humanize.Time(v.CreatedAt)})
 	}
