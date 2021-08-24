@@ -6,9 +6,11 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"sync"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/pkg/wg"
 )
 
