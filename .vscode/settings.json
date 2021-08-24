@@ -6,5 +6,6 @@
         "microVM",
         "toc",
         "winbuild"
-    ]
+    ],
+    "editor.formatOnSave": true
 }

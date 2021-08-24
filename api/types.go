@@ -108,8 +108,9 @@ type Query struct {
 	}
 
 	SetVMSize struct {
-		App    App
-		VMSize *VMSize
+		App          App
+		VMSize       *VMSize
+		ProcessGroup *ProcessGroup
 	}
 
 	SetVMCount struct {
@@ -693,6 +694,7 @@ type AllocationStatus struct {
 	ID                 string
 	IDShort            string
 	Version            int
+	TaskName           string
 	Region             string
 	Status             string
 	DesiredStatus      string
@@ -781,8 +783,15 @@ type VMSize struct {
 	MemoryIncrementsMB []int
 }
 
+type ProcessGroup struct {
+	Name    string
+	Regions []string
+	VMSize  *VMSize
+}
+
 type SetVMSizeInput struct {
 	AppID    string `json:"appId"`
+	Group    string `json:"group"`
 	SizeName string `json:"sizeName"`
 	MemoryMb int64  `json:"memoryMb"`
 }
@@ -813,6 +822,7 @@ type BuildArgInput struct {
 
 type ConfigureRegionsInput struct {
 	AppID         string   `json:"appId"`
+	Group         string   `json:"group"`
 	AllowRegions  []string `json:"allowRegions"`
 	DenyRegions   []string `json:"denyRegions"`
 	BackupRegions []string `json:"backupRegions"`
