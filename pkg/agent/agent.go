@@ -17,6 +17,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/pkg/wg"
 	"github.com/superfly/flyctl/terminal"
@@ -35,6 +36,7 @@ type Server struct {
 	currentChange time.Time
 	quit          chan interface{}
 	wg            sync.WaitGroup
+	background    bool
 }
 
 type handlerFunc func(net.Conn, []string) error
@@ -124,13 +126,11 @@ func RemovePidFile() error {
 
 func StopRunningAgent() error {
 	process, err := runningProcess()
-	fmt.Println("runningProcess output", process, err)
 	if err != nil {
 		return err
 	}
 	if process != nil {
 		err = process.Signal(os.Interrupt)
-		fmt.Println("signal output", err)
 		return err
 	}
 	return nil
@@ -148,7 +148,7 @@ func runningProcess() (*os.Process, error) {
 	return os.FindProcess(pid)
 }
 
-func NewServer(path string, apiClient *api.Client) (*Server, error) {
+func NewServer(path string, apiClient *api.Client, background bool) (*Server, error) {
 	if err := removeSocket(path); err != nil {
 		// most of these errors just mean the socket isn't already there
 		// which is what we want.
@@ -183,15 +183,16 @@ func NewServer(path string, apiClient *api.Client) (*Server, error) {
 		tunnels:       map[string]*wg.Tunnel{},
 		currentChange: latestChange,
 		quit:          make(chan interface{}),
+		background:    background,
 	}
 
 	return s, nil
 }
 
-func DefaultServer(apiClient *api.Client) (*Server, error) {
+func DefaultServer(apiClient *api.Client, background bool) (*Server, error) {
 	wireguard.PruneInvalidPeers(apiClient)
 
-	return NewServer(fmt.Sprintf("%s/.fly/fly-agent.sock", os.Getenv("HOME")), apiClient)
+	return NewServer(fmt.Sprintf("%s/.fly/fly-agent.sock", os.Getenv("HOME")), apiClient, background)
 }
 
 func (s *Server) Stop() {
@@ -243,7 +244,15 @@ func (s *Server) handleKill(c net.Conn, args []string) error {
 }
 
 func (s *Server) handlePing(c net.Conn, args []string) error {
-	return writef(c, "pong %d", os.Getpid())
+	resp := PingResponse{
+		Version:    buildinfo.Version(),
+		PID:        os.Getpid(),
+		Background: s.background,
+	}
+
+	data, _ := json.Marshal(resp)
+
+	return writef(c, "pong %s", data)
 }
 
 func findOrganization(client *api.Client, slug string) (*api.Organization, error) {

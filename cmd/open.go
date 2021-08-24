@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/superfly/flyctl/cmdctx"
-	"github.com/superfly/flyctl/flyname"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/superfly/flyctl/docstrings"
@@ -35,7 +35,7 @@ func runOpen(ctx *cmdctx.CmdContext) error {
 	}
 
 	if !app.Deployed {
-		fmt.Println(`App has not been deployed yet. Try running "` + flyname.Name() + ` deploy --image flyio/hellofly"`)
+		fmt.Println(`App has not been deployed yet. Try running "` + buildinfo.Name() + ` deploy --image flyio/hellofly"`)
 		return nil
 	}
 

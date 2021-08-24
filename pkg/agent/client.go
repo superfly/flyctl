@@ -8,9 +8,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/blang/semver"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/wireguard"
+	"github.com/superfly/flyctl/terminal"
 )
 
 /// Establish starts the daemon if necessary and returns a client
@@ -21,9 +24,27 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 
 	c, err := DefaultClient(apiClient)
 	if err == nil {
-		_, err := c.Ping(ctx)
+		resp, err := c.Ping(ctx)
 		if err == nil {
-			return c, nil
+			if buildinfo.Version().EQ(resp.Version) {
+				return c, nil
+			}
+
+			msg := fmt.Sprintf("flyctl version %s does not match agent version %s", buildinfo.Version(), resp.Version)
+
+			if !resp.Background {
+				terminal.Warn(msg)
+				return c, nil
+			}
+
+			terminal.Debug(msg)
+			terminal.Debug("stopping agent")
+			if err := c.Kill(ctx); err != nil {
+				terminal.Warn(msg)
+				return nil, errors.Wrap(err, "kill failed")
+			}
+			// this is gross, but we need to wait for the agent to exit
+			time.Sleep(1 * time.Second)
 		}
 	}
 
@@ -55,7 +76,13 @@ func (c *Client) Kill(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) Ping(ctx context.Context) (int, error) {
+type PingResponse struct {
+	PID        int
+	Version    semver.Version
+	Background bool
+}
+
+func (c *Client) Ping(ctx context.Context) (PingResponse, error) {
 	n, err := c.provider.Ping(ctx)
 	if err != nil {
 		return n, errors.Wrap(err, "ping failed")
@@ -157,7 +184,7 @@ type clientProvider interface {
 	Establish(ctx context.Context, slug string) error
 	Instances(ctx context.Context, o *api.Organization, app string) (*Instances, error)
 	Kill(ctx context.Context) error
-	Ping(ctx context.Context) (int, error)
+	Ping(ctx context.Context) (PingResponse, error)
 	Probe(ctx context.Context, o *api.Organization) error
 	Resolve(ctx context.Context, o *api.Organization, name string) (string, error)
 }

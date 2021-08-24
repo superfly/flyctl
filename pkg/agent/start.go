@@ -8,16 +8,14 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
-	"path/filepath"
-	"regexp"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/terminal"
 )
 
 func StartDaemon(ctx context.Context, api *api.Client, command string) (*Client, error) {
@@ -31,43 +29,47 @@ func StartDaemon(ctx context.Context, api *api.Client, command string) (*Client,
 		Pgid:    0,
 	}
 
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	agentPid := cmd.Process.Pid
+	terminal.Debugf("started agent process %d", agentPid)
+
 	// read stdout and stderr from the daemon process. If it
 	// includes "[pid] OK" we know it started successfully, and
 	// [pid] QUIT means it stopped. When it stops include the output with the
 	// returnred error so it can be displayed to the user
-	f, err := os.Create(filepath.Join(flyctl.ConfigDir(), "agent.log"))
+	f, err := getLogFile(agentPid)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	if err := cmd.Start(); err != nil {
-		return nil, err
-	}
-	agentPid := cmd.Process.Pid
-
 	// tail the agent log until we see a status message or a timeout
 	go func() {
 		var output bytes.Buffer
 
-		okPattern := regexp.MustCompile(fmt.Sprintf(`\[%d\] OK`, agentPid))
-		quitPattern := regexp.MustCompile(fmt.Sprintf(`\[%d\] QUIT`, agentPid))
+		pidPrefix := fmt.Sprintf("[%d] ", agentPid)
+		okPattern := pidPrefix + "OK"
+		quitPattern := pidPrefix + "QUIT"
 
 		var ok bool
 
 	READ:
 		for line := range tailReader(watchCtx, f) {
 			switch {
-			case okPattern.MatchString(line):
+			case strings.Contains(line, okPattern):
 				ok = true
 				break READ
-			case quitPattern.MatchString(line):
+			case strings.Contains(line, quitPattern):
 				break READ
 			default:
-				if output.Len() > 0 {
-					output.WriteByte(byte('\n'))
+				if strings.Contains(line, pidPrefix) {
+					if output.Len() > 0 {
+						output.WriteByte(byte('\n'))
+					}
+					output.WriteString(line)
 				}
-				output.WriteString(line)
 			}
 		}
 
