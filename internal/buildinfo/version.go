@@ -1,6 +1,7 @@
 package buildinfo
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/blang/semver"
@@ -21,6 +22,7 @@ func init() {
 func loadMeta(now time.Time) {
 	var err error
 
+	fmt.Println(environment, IsDev())
 	if IsDev() {
 		parsedBuildDate = now.UTC()
 

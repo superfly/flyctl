@@ -9,6 +9,7 @@ import (
 )
 
 func TestProdMeta(t *testing.T) {
+	environment = "production"
 	version = "1.2.3"
 	buildDate = "2020-06-05T13:32:23Z"
 	commit = "c8f7b8f"
@@ -21,6 +22,7 @@ func TestProdMeta(t *testing.T) {
 }
 
 func TestDevMeta(t *testing.T) {
+	environment = "development"
 	version = "<version>"
 	buildDate = "<date>"
 	commit = "<commit>"
@@ -29,6 +31,6 @@ func TestDevMeta(t *testing.T) {
 	loadMeta(now)
 
 	assert.Equal(t, fmt.Sprintf("0.0.0-%d+dev", now.Unix()), Version().String())
-	assert.Equal(t, now, BuildDate())
+	assert.Equal(t, now.UTC(), BuildDate())
 	assert.Equal(t, "<commit>", Commit())
 }
