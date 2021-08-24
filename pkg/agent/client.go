@@ -37,6 +37,8 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 				return c, nil
 			}
 
+			terminal.Debug(msg)
+			terminal.Debug("stopping agent")
 			if err := c.Kill(ctx); err != nil {
 				terminal.Warn(msg)
 				return nil, errors.Wrap(err, "kill failed")
