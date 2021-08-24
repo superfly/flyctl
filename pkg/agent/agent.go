@@ -93,11 +93,62 @@ func (s *Server) handle(c net.Conn) {
 	}
 }
 
-func NewServer(path string, apiClient *api.Client) (*Server, error) {
-	if c, err := NewClient(path, apiClient); err == nil {
-		c.Kill(context.Background())
+func pidFile() string {
+	return fmt.Sprintf("%s/.fly/agent.pid", os.Getenv("HOME"))
+}
+
+func getRunningPid() (int, error) {
+	data, err := os.ReadFile(pidFile())
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	} else if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(string(data))
+}
+
+func setRunningPid(pid int) error {
+	return os.WriteFile(pidFile(), []byte(strconv.Itoa(pid)), 0666)
+}
+
+func CreatePidFile() error {
+	return setRunningPid(os.Getpid())
+}
+
+func RemovePidFile() error {
+	if pid, _ := getRunningPid(); pid != os.Getpid() {
+		return nil
+	}
+	return os.Remove(pidFile())
+}
+
+func StopRunningAgent() error {
+	process, err := runningProcess()
+	fmt.Println("runningProcess output", process, err)
+	if err != nil {
+		return err
+	}
+	if process != nil {
+		err = process.Signal(os.Interrupt)
+		fmt.Println("signal output", err)
+		return err
+	}
+	return nil
+}
+
+func runningProcess() (*os.Process, error) {
+	pid, err := getRunningPid()
+	if err != nil {
+		return nil, err
+	}
+	if pid == 0 {
+		return nil, nil
 	}
 
+	return os.FindProcess(pid)
+}
+
+func NewServer(path string, apiClient *api.Client) (*Server, error) {
 	if err := removeSocket(path); err != nil {
 		// most of these errors just mean the socket isn't already there
 		// which is what we want.
