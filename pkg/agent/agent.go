@@ -148,7 +148,7 @@ func runningProcess() (*os.Process, error) {
 	return os.FindProcess(pid)
 }
 
-func NewServer(path string, apiClient *api.Client) (*Server, error) {
+func NewServer(path string, apiClient *api.Client, background bool) (*Server, error) {
 	if err := removeSocket(path); err != nil {
 		// most of these errors just mean the socket isn't already there
 		// which is what we want.
