@@ -80,6 +80,9 @@ func (e *AgentStartError) Error() string {
 }
 
 func (e *AgentStartError) Description() string {
+	if e.Output == "" {
+		return ""
+	}
 	var msg strings.Builder
 	msg.WriteString("Agent failed to start with the following output:\n")
 	r := regexp.MustCompile(`(?m)^`)
