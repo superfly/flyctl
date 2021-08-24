@@ -125,6 +125,7 @@ func (c *Client) WaitForHost(ctx context.Context, o *api.Organization, host stri
 		for {
 			_, err := c.Resolve(ctx, o, host)
 			if err != nil && (IsHostNotFoundError(err) || IsTunnelError(err)) {
+				time.Sleep(200 * time.Millisecond)
 				continue
 			}
 

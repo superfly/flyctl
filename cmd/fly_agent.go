@@ -66,7 +66,15 @@ func runFlyAgentDaemonStart(cc *cmdctx.CmdContext) error {
 	log.SetFlags(log.Lmsgprefix | log.LstdFlags)
 	log.SetPrefix(fmt.Sprintf("[%d] ", os.Getpid()))
 
+	if err := agent.StopRunningAgent(); err != nil {
+		log.Printf("failed to stop existing agent: %v", err)
+	}
+	if err := agent.CreatePidFile(); err != nil {
+		log.Printf("failed to create pid file: %v", err)
+	}
+
 	defer log.Printf("QUIT")
+	defer agent.RemovePidFile()
 
 	agent, err := agent.DefaultServer(cc.Client.API(), !cc.IO.IsInteractive())
 	if err != nil {
