@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/internal/client"
 
@@ -18,14 +20,29 @@ func newRegionsCommand(client *client.Client) *Command {
 	addStrings := docstrings.Get("regions.add")
 	addCmd := BuildCommandKS(cmd, runRegionsAdd, addStrings, client, requireSession, requireAppName)
 	addCmd.Args = cobra.MinimumNArgs(1)
+	addCmd.AddStringFlag(StringFlagOpts{
+		Name:        "group",
+		Description: "The process group to add the region to",
+		Default:     "",
+	})
 
 	removeStrings := docstrings.Get("regions.remove")
 	removeCmd := BuildCommandKS(cmd, runRegionsRemove, removeStrings, client, requireSession, requireAppName)
 	removeCmd.Args = cobra.MinimumNArgs(1)
+	removeCmd.AddStringFlag(StringFlagOpts{
+		Name:        "group",
+		Description: "The process group to remove the region from",
+		Default:     "",
+	})
 
 	setStrings := docstrings.Get("regions.set")
 	setCmd := BuildCommandKS(cmd, runRegionsSet, setStrings, client, requireSession, requireAppName)
 	setCmd.Args = cobra.MinimumNArgs(1)
+	setCmd.AddStringFlag(StringFlagOpts{
+		Name:        "group",
+		Description: "The process group to set regions for",
+		Default:     "",
+	})
 
 	setBackupStrings := docstrings.Get("regions.backup")
 	setBackupCmd := BuildCommand(cmd, runBackupRegionsSet, setBackupStrings.Usage, setBackupStrings.Short, setBackupStrings.Long, client, requireSession, requireAppName)
@@ -38,8 +55,10 @@ func newRegionsCommand(client *client.Client) *Command {
 }
 
 func runRegionsAdd(ctx *cmdctx.CmdContext) error {
+	group := ctx.Config.GetString("group")
 	input := api.ConfigureRegionsInput{
 		AppID:        ctx.AppName,
+		Group:        group,
 		AllowRegions: ctx.Args,
 	}
 
@@ -54,8 +73,10 @@ func runRegionsAdd(ctx *cmdctx.CmdContext) error {
 }
 
 func runRegionsRemove(ctx *cmdctx.CmdContext) error {
+	group := ctx.Config.GetString("group")
 	input := api.ConfigureRegionsInput{
 		AppID:       ctx.AppName,
+		Group:       group,
 		DenyRegions: ctx.Args,
 	}
 
@@ -79,17 +100,9 @@ func runRegionsSet(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
+	fmt.Printf("args: %v", ctx.Args)
 	for _, r := range ctx.Args {
-		found := false
-		for _, er := range regions {
-			if r == er.Code {
-				found = true
-				break
-			}
-		}
-		if !found {
-			addList = append(addList, r)
-		}
+		addList = append(addList, r)
 	}
 
 	for _, er := range regions {
@@ -105,13 +118,19 @@ func runRegionsSet(ctx *cmdctx.CmdContext) error {
 		}
 	}
 
+	group := ctx.Config.GetString("group")
 	input := api.ConfigureRegionsInput{
 		AppID:        ctx.AppName,
+		Group:        group,
 		AllowRegions: addList,
 		DenyRegions:  delList,
 	}
 
+	fmt.Printf("input: %v", input)
+
 	newregions, backupRegions, err := ctx.Client.API().ConfigureRegions(input)
+
+	fmt.Printf("result: %v %v %v", newregions, backupRegions, err)
 	if err != nil {
 		return err
 	}

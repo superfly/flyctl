@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/internal/client"
@@ -27,14 +28,24 @@ func newScaleCommand(client *client.Client) *Command {
 		Description: "Memory in MB for the VM",
 		Default:     0,
 	})
+	vmCmd.AddStringFlag(StringFlagOpts{
+		Name:        "group",
+		Description: "The process group to apply the VM size to",
+		Default:     "",
+	})
 
 	memoryCmdStrings := docstrings.Get("scale.memory")
 	memoryCmd := BuildCommandKS(cmd, runScaleMemory, memoryCmdStrings, client, requireSession, requireAppName)
 	memoryCmd.Args = cobra.ExactArgs(1)
+	memoryCmd.AddStringFlag(StringFlagOpts{
+		Name:        "group",
+		Description: "The process group to apply the memory size to",
+		Default:     "",
+	})
 
 	countCmdStrings := docstrings.Get("scale.count")
 	countCmd := BuildCommand(cmd, runScaleCount, countCmdStrings.Usage, countCmdStrings.Short, countCmdStrings.Long, client, requireSession, requireAppName)
-	countCmd.Args = cobra.ExactArgs(1)
+	countCmd.Args = cobra.MinimumNArgs(1)
 	countCmd.AddIntFlag((IntFlagOpts{
 		Name:        "max-per-region",
 		Description: "Max number of VMs per region",
@@ -52,21 +63,44 @@ func runScaleVM(commandContext *cmdctx.CmdContext) error {
 
 	memoryMB := int64(commandContext.Config.GetInt("memory"))
 
-	size, err := commandContext.Client.API().SetAppVMSize(commandContext.AppName, sizeName, memoryMB)
+	group := commandContext.Config.GetString("group")
+
+	size, err := commandContext.Client.API().SetAppVMSize(commandContext.AppName, group, sizeName, memoryMB)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("Scaled VM Type to", size.Name)
+	if group == "" {
+		fmt.Println("Scaled VM Type to\n", size.Name)
+	} else {
+		fmt.Printf("Scaled VM Type for \"%s\" to %s\n", group, size.Name)
+	}
 	fmt.Printf("%15s: %s\n", "CPU Cores", formatCores(size))
 	fmt.Printf("%15s: %s\n", "Memory", formatMemory(size))
 	return nil
 }
 
 func runScaleCount(commandContext *cmdctx.CmdContext) error {
-	count, err := strconv.Atoi(commandContext.Args[0])
-	if err != nil {
-		return err
+	groups := map[string]int{}
+
+	if len(commandContext.Args) == 1 {
+		count, err := strconv.Atoi(commandContext.Args[0])
+		if err == nil {
+			groups["app"] = count
+		}
+	}
+
+	for _, arg := range commandContext.Args {
+		parts := strings.Split(arg, "=")
+		if len(parts) != 2 {
+			return fmt.Errorf("%s is not a valid process=count option", arg)
+		}
+		count, err := strconv.Atoi(parts[1])
+		if err != nil {
+			return err
+		}
+
+		groups[parts[0]] = count
 	}
 
 	// THIS IS AN OPTION TYPE CAN YOU TELL?
@@ -77,7 +111,7 @@ func runScaleCount(commandContext *cmdctx.CmdContext) error {
 		maxPerRegion = nil
 	}
 
-	counts, warnings, err := commandContext.Client.API().SetAppVMCount(commandContext.AppName, count, maxPerRegion)
+	counts, warnings, err := commandContext.Client.API().SetAppVMCount(commandContext.AppName, groups, maxPerRegion)
 	if err != nil {
 		return err
 	}
@@ -89,15 +123,9 @@ func runScaleCount(commandContext *cmdctx.CmdContext) error {
 		fmt.Println()
 	}
 
-	// only use the "app" tg right now
-	var appCount int
-	for _, tg := range counts {
-		if tg.Name == "app" {
-			appCount = tg.Count
-		}
-	}
+	msg := countMessage(counts)
 
-	fmt.Printf("Count changed to %d\n", appCount)
+	fmt.Printf("Count changed to %s\n", msg)
 
 	return nil
 }
@@ -108,24 +136,40 @@ func runScaleShow(commandContext *cmdctx.CmdContext) error {
 		return err
 	}
 
-	// only use the "app" tg right now
-	var appCount int
-	for _, tg := range tgCounts {
-		if tg.Name == "app" {
-			appCount = tg.Count
-		}
-	}
+	msg := countMessage(tgCounts)
 
-	printVMResources(commandContext, size, appCount)
+	printVMResources(commandContext, size, msg)
 
 	return nil
 }
 
-func printVMResources(commandContext *cmdctx.CmdContext, vmSize api.VMSize, count int) {
+func countMessage(counts []api.TaskGroupCount) string {
+	msg := ""
+
+	if len(counts) == 1 {
+		for _, tg := range counts {
+			if tg.Name == "app" {
+				msg = fmt.Sprint(tg.Count)
+			}
+		}
+	}
+
+	if msg == "" {
+		for _, tg := range counts {
+			msg += fmt.Sprintf("%s=%d ", tg.Name, tg.Count)
+		}
+	}
+
+	return msg
+
+	//return fmt.Sprintf("Count changed to %s\n", msg)
+}
+
+func printVMResources(commandContext *cmdctx.CmdContext, vmSize api.VMSize, count string) {
 	if commandContext.OutputJSON() {
 		out := struct {
 			api.VMSize
-			Count int
+			Count string
 		}{
 			VMSize: vmSize,
 			Count:  count,
@@ -140,7 +184,7 @@ func printVMResources(commandContext *cmdctx.CmdContext, vmSize api.VMSize, coun
 
 	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Size", vmSize.Name)
 	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Memory", formatMemory(vmSize))
-	fmt.Fprintf(commandContext.Out, "%15s: %d\n", "Count", count)
+	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "Count", count)
 }
 
 func runScaleMemory(commandContext *cmdctx.CmdContext) error {
@@ -155,7 +199,9 @@ func runScaleMemory(commandContext *cmdctx.CmdContext) error {
 		return err
 	}
 
-	size, err := commandContext.Client.API().SetAppVMSize(commandContext.AppName, currentsize.Name, memoryMB)
+	group := commandContext.Config.GetString("group")
+
+	size, err := commandContext.Client.API().SetAppVMSize(commandContext.AppName, group, currentsize.Name, memoryMB)
 	if err != nil {
 		return err
 	}

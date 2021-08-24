@@ -18,6 +18,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -325,7 +326,7 @@ func requireAppName(cmd *Command) Initializer {
 				terminal.Warnf("app flag '%s' does not match app name in config file '%s'\n", ctx.AppName, ctx.AppConfig.AppName)
 
 				if !confirm(fmt.Sprintf("Continue using '%s'", ctx.AppName)) {
-					return ErrAbort
+					return flyerr.ErrAbort
 				}
 			}
 
@@ -409,7 +410,7 @@ func requireAppNameAsArg(cmd *Command) Initializer {
 				terminal.Warnf("app flag '%s' does not match app name in config file '%s'\n", ctx.AppName, ctx.AppConfig.AppName)
 
 				if !confirm(fmt.Sprintf("Continue using '%s'", ctx.AppName)) {
-					return ErrAbort
+					return flyerr.ErrAbort
 				}
 			}
 

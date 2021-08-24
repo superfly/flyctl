@@ -154,11 +154,11 @@ func (c *agentClientProvider) Resolve(ctx context.Context, o *api.Organization, 
 			return err
 		}
 
-		if string(reply) != "ok" {
-			resp = string(reply)
-			// return &ErrProbeFailed{Msg: string(reply)}
+		if !strings.HasPrefix(string(reply), "ok ") {
+			return fmt.Errorf("resolve failed: %s", reply)
 		}
 
+		resp = string(reply[3:])
 		return nil
 	})
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
@@ -69,30 +70,48 @@ func (c *Client) Establish(ctx context.Context, slug string) error {
 }
 
 func (c *Client) WaitForTunnel(ctx context.Context, o *api.Organization) error {
-	for {
-		err := c.Probe(ctx, o)
-		switch {
-		case err == nil:
-			return nil
-		case IsTunnelError(err):
-			continue
-		default:
-			return err
+	errCh := make(chan error, 1)
+
+	go func() {
+		for {
+			err := c.Probe(ctx, o)
+			if err != nil && IsTunnelError(err) {
+				continue
+			}
+
+			errCh <- err
+			break
 		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-errCh:
+		return err
 	}
 }
 
 func (c *Client) WaitForHost(ctx context.Context, o *api.Organization, host string) error {
-	for {
-		_, err := c.Resolve(ctx, o, host)
-		switch {
-		case err == nil:
-			return nil
-		case IsHostNotFoundError(err), IsTunnelError(err):
-			continue
-		default:
-			return err
+	errCh := make(chan error, 1)
+
+	go func() {
+		for {
+			_, err := c.Resolve(ctx, o, host)
+			if err != nil && (IsHostNotFoundError(err) || IsTunnelError(err)) {
+				continue
+			}
+
+			errCh <- err
+			break
 		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-errCh:
+		return err
 	}
 }
 
@@ -143,4 +162,10 @@ type clientProvider interface {
 
 type Dialer interface {
 	DialContext(ctx context.Context, network, addr string) (net.Conn, error)
+}
+
+func IsIPv6(addr string) bool {
+	addr = strings.Trim(addr, "[]")
+	ip := net.ParseIP(addr)
+	return ip != nil && ip.To16() != nil
 }

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -15,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/wireguard"
@@ -23,7 +23,8 @@ import (
 )
 
 var (
-	ErrCantBind = errors.New("can't bind agent socket")
+	ErrCantBind          = errors.New("can't bind agent socket")
+	ErrTunnelUnavailable = errors.New("tunnel unavailable")
 )
 
 type Server struct {
@@ -153,8 +154,11 @@ func (s *Server) Serve() {
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
-			// this can't really be how i'm supposed to do this
-			if strings.Contains(err.Error(), "use of closed network connection") {
+			// // this can't really be how i'm supposed to do this
+			// if strings.Contains(err.Error(), "use of closed network connection") {
+			// 	return
+			// }
+			if errors.Is(err, net.ErrClosed) {
 				return
 			}
 
@@ -209,7 +213,6 @@ func buildTunnel(client *api.Client, org *api.Organization) (*wg.Tunnel, error) 
 
 	tunnel, err := wg.Connect(*state.TunnelConfig())
 	if err != nil {
-		// captureWireguardConnErr(err, org.Slug)
 		return nil, fmt.Errorf("can't connect wireguard: %w", err)
 	}
 
@@ -250,9 +253,15 @@ func probeTunnel(ctx context.Context, tunnel *wg.Tunnel) error {
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	_, err = tunnel.Resolver().LookupTXT(ctx, "_apps.internal")
+
+	results, err := tunnel.LookupTXT(ctx, "_apps.internal")
+	terminal.Debug("probe results for _apps.internal", results)
+
 	if err != nil {
-		return fmt.Errorf("probing look up apps: %w", err)
+		if errors.Is(err, context.DeadlineExceeded) {
+			return ErrTunnelUnavailable
+		}
+		return errors.Wrap(err, "error probing for _apps.internal")
 	}
 
 	return nil
@@ -266,7 +275,6 @@ func (s *Server) handleProbe(c net.Conn, args []string) error {
 	}
 
 	if err := probeTunnel(context.Background(), tunnel); err != nil {
-		// captureWireguardConnErr(err, args[1])
 		return err
 	}
 
@@ -305,8 +313,7 @@ func fetchInstances(tunnel *wg.Tunnel, app string) (*Instances, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	regionsv, err := tunnel.Resolver().
-		LookupTXT(ctx, fmt.Sprintf("regions.%s.internal", app))
+	regionsv, err := tunnel.LookupTXT(ctx, fmt.Sprintf("regions.%s.internal", app))
 	if err != nil {
 		return nil, fmt.Errorf("look up regions for %s: %w", app, err)
 	}
@@ -320,7 +327,7 @@ func fetchInstances(tunnel *wg.Tunnel, app string) (*Instances, error) {
 
 	for _, region := range strings.Split(regions, ",") {
 		name := fmt.Sprintf("%s.%s.internal", region, app)
-		addrs, err := tunnel.Resolver().LookupHost(ctx, name)
+		addrs, err := tunnel.LookupAAAA(ctx, name)
 		if err != nil {
 			log.Printf("can't lookup records for %s: %s", name, err)
 			continue
@@ -328,13 +335,13 @@ func fetchInstances(tunnel *wg.Tunnel, app string) (*Instances, error) {
 
 		if len(addrs) == 1 {
 			ret.Labels = append(ret.Labels, name)
-			ret.Addresses = append(ret.Addresses, addrs[0])
+			ret.Addresses = append(ret.Addresses, addrs[0].String())
 			continue
 		}
 
 		for _, addr := range addrs {
 			ret.Labels = append(ret.Labels, fmt.Sprintf("%s (%s)", region, addr))
-			ret.Addresses = append(ret.Addresses, addr)
+			ret.Addresses = append(ret.Addresses, addr.String())
 		}
 	}
 
@@ -379,7 +386,6 @@ func (s *Server) handleConnect(c net.Conn, args []string) error {
 
 	address, err := resolve(tunnel, args[2])
 	if err != nil {
-		// captureWireguardConnErr(err, args[1])
 		return fmt.Errorf("connect: can't resolve address '%s': %s", args[2], err)
 	}
 
@@ -399,7 +405,6 @@ func (s *Server) handleConnect(c net.Conn, args []string) error {
 
 	outconn, err := tunnel.DialContext(ctx, "tcp", address)
 	if err != nil {
-		// captureWireguardConnErr(err, args[1])
 		cancel()
 		return fmt.Errorf("connection failed: %s", err)
 	}
@@ -484,7 +489,6 @@ func (s *Server) clean() {
 }
 
 func resolve(tunnel *wg.Tunnel, addr string) (string, error) {
-	log.Printf("Resolving %v %s", tunnel, addr)
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		if strings.Contains(err.Error(), "missing port") {
@@ -501,15 +505,18 @@ func resolve(tunnel *wg.Tunnel, addr string) (string, error) {
 		return net.JoinHostPort(n.String(), port), nil
 	}
 
-	addrs, err := tunnel.Resolver().LookupHost(context.Background(), host)
+	addrs, err := tunnel.LookupAAAA(context.Background(), host)
 	if err != nil {
 		return "", err
 	}
+	if len(addrs) == 0 {
+		return "", fmt.Errorf("%s - no such host", addr)
+	}
 
 	if port == "" {
-		return addrs[0], nil
+		return addrs[0].String(), nil
 	}
-	return net.JoinHostPort(addrs[0], port), nil
+	return net.JoinHostPort(addrs[0].String(), port), nil
 }
 
 func removeSocket(path string) error {
