@@ -61,7 +61,7 @@ func CheckForUpdate(ctx context.Context, configPath string, currentVersion semve
 	}
 
 	if state.LatestRelease != nil {
-		latestVersion, err := semver.ParseTolerant(state.LatestRelease.DownloadURL)
+		latestVersion, err := semver.ParseTolerant(state.LatestRelease.Version)
 		if err != nil {
 			terminal.Warnf("error parsing version number '%s': %s\n", state.LatestRelease.Version, err)
 			return nil, nil
