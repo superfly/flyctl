@@ -8,16 +8,13 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -32,21 +29,21 @@ func StartDaemon(ctx context.Context, api *api.Client, command string) (*Client,
 		Pgid:    0,
 	}
 
-	// read stdout and stderr from the daemon process. If it
-	// includes "[pid] OK" we know it started successfully, and
-	// [pid] QUIT means it stopped. When it stops include the output with the
-	// returnred error so it can be displayed to the user
-	f, err := os.Create(filepath.Join(flyctl.ConfigDir(), "agent.log"))
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
 	agentPid := cmd.Process.Pid
 	terminal.Debugf("started agent process %d", agentPid)
+
+	// read stdout and stderr from the daemon process. If it
+	// includes "[pid] OK" we know it started successfully, and
+	// [pid] QUIT means it stopped. When it stops include the output with the
+	// returnred error so it can be displayed to the user
+	f, err := getLogFile(agentPid)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
 
 	// tail the agent log until we see a status message or a timeout
 	go func() {

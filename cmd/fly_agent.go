@@ -2,16 +2,12 @@ package cmd
 
 import (
 	"context"
-	"fmt"
-	"io"
 	"log"
 	"os"
-	"path/filepath"
 
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/pkg/agent"
 )
@@ -56,15 +52,9 @@ func newAgentCommand(client *client.Client) *Command {
 func runFlyAgentDaemonStart(cc *cmdctx.CmdContext) error {
 	ctx := createCancellableContext()
 
-	logFile, err := os.Create(filepath.Join(flyctl.ConfigDir(), "agent.log"))
-	if err != nil {
-		return errors.Wrap(err, "can't create log file")
+	if err := agent.InitAgentLogs(); err != nil {
+		return err
 	}
-
-	w := io.MultiWriter(os.Stdout, logFile)
-	log.SetOutput(w)
-	log.SetFlags(log.Lmsgprefix | log.LstdFlags)
-	log.SetPrefix(fmt.Sprintf("[%d] ", os.Getpid()))
 
 	if err := agent.StopRunningAgent(); err != nil {
 		log.Printf("failed to stop existing agent: %v", err)
