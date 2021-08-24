@@ -31,7 +31,7 @@ chmod +x "$exe"
 rm "$exe.tar.gz"
 
 # stop the agent if it's running before updating
-flyctl agent stop &> /dev/null || true
+pkill flyctl &> /dev/null || true
 ln -sf $exe $simexe
 
 if [ "${1}" = "prerel" ] || [ "${1}" = "pre" ]; then
