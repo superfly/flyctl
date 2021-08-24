@@ -9,7 +9,9 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/blang/semver"
 	"github.com/cli/safeexec"
+	"github.com/superfly/flyctl/terminal"
 )
 
 // Check whether the fly binary was found under the Homebrew prefix
@@ -53,7 +55,7 @@ func updateCommand(prerelease bool) string {
 	}
 }
 
-func PerformInPlaceUpgrade(ctx context.Context, configPath string, currentVersion string) error {
+func PerformInPlaceUpgrade(ctx context.Context, configPath string, currentVersion semver.Version) error {
 	state, _ := loadState(configPath)
 	if state.Channel == "" {
 		state.Channel = "latest"
@@ -64,7 +66,18 @@ func PerformInPlaceUpgrade(ctx context.Context, configPath string, currentVersio
 		return err
 	}
 
-	if release == nil || !isGreaterThan(currentVersion, release.Version) {
+	var latestVersion semver.Version
+	if release != nil {
+		latestVersion, err = semver.ParseTolerant(release.Version)
+		if err != nil {
+			terminal.Warnf("error parsing version number '%s': %s\n", state.LatestRelease.Version, err)
+		}
+		// if latestVersion.GT(currentVersion) {
+		// 	return state.LatestRelease, nil
+		// }
+	}
+
+	if release == nil || !latestVersion.GT(currentVersion) {
 		fmt.Println("No update available")
 		return nil
 	}

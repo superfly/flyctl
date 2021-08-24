@@ -6,9 +6,11 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"sync"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/pkg/wg"
 )
 
@@ -41,8 +43,12 @@ func (c *noAgentClientProvider) Kill(ctx context.Context) error {
 	return nil
 }
 
-func (c *noAgentClientProvider) Ping(ctx context.Context) (int, error) {
-	return 0, nil
+func (c *noAgentClientProvider) Ping(ctx context.Context) (PingResponse, error) {
+	resp := PingResponse{
+		Version: buildinfo.Version(),
+		PID:     os.Getpid(),
+	}
+	return resp, nil
 }
 
 func (c *noAgentClientProvider) Establish(ctx context.Context, slug string) error {
