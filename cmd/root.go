@@ -36,7 +36,7 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 	err := viper.BindPFlag(flyctl.ConfigAPIToken, rootCmd.PersistentFlags().Lookup("access-token"))
 	checkErr(err)
 
-	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
+	rootCmd.PersistentFlags().Bool("verbose", false, "verbose output")
 	err = viper.BindPFlag(flyctl.ConfigVerboseOutput, rootCmd.PersistentFlags().Lookup("verbose"))
 	checkErr(err)
 

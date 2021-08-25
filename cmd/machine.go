@@ -298,6 +298,12 @@ func newMachineRunCommand(parent *Command, client *client.Client) {
 		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
 	})
 
+	cmd.AddStringSliceFlag(StringSliceFlagOpts{
+		Name:        "volume",
+		Shorthand:   "v",
+		Description: "Volumes to mount in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
+	})
+
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "entrypoint",
 		Description: "ENTRYPOINT replacement",
@@ -407,6 +413,37 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 
 	machineConf.Config["services"] = svcs
 
+	mounts := make([]interface{}, len(cmdCtx.Config.GetStringSlice("volume")))
+
+	for i, v := range cmdCtx.Config.GetStringSlice("volume") {
+		splittedIDDestOpts := strings.Split(v, ":")
+
+		vol := map[string]interface{}{
+			"volume": splittedIDDestOpts[0],
+			"path":   splittedIDDestOpts[1],
+		}
+
+		if len(splittedIDDestOpts) > 2 {
+			splittedOpts := strings.Split(splittedIDDestOpts[2], ",")
+			for _, opt := range splittedOpts {
+				splittedKeyValue := strings.Split(opt, "=")
+				if splittedKeyValue[0] == "size" {
+					i, err := strconv.Atoi(splittedKeyValue[1])
+					if err != nil {
+						return errors.Wrapf(err, "could not parse volume '%s' size option value '%s', must be an integer", splittedIDDestOpts[0], splittedKeyValue[1])
+					}
+					vol["size_gb"] = i
+				} else if splittedKeyValue[0] == "encrypt" {
+					vol["encrypted"] = true
+				}
+			}
+		}
+
+		mounts[i] = vol
+	}
+
+	machineConf.Config["mounts"] = mounts
+
 	apiMachineConf := api.MachineConfig(machineConf.Config)
 
 	input := api.LaunchMachineInput{
@@ -504,7 +541,6 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 		fmt.Fprintf(w, "[%s] ", aurora.Colorize(log.Log.Level, levelColor(log.Log.Level)))
 		_, _ = w.Write([]byte(log.Message))
 		fmt.Fprintln(w, "")
-
 	})
 	if err != nil {
 		return errors.Wrap(err, "could not sub to logs via nats")
