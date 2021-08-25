@@ -14,6 +14,7 @@ func (c *Client) GetVolumes(appName string) ([]Volume, error) {
 					createdAt
 					attachedAllocation {
 						idShort
+						taskName
 					}
 				}
 			}

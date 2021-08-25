@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 
@@ -13,10 +12,8 @@ import (
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/flyerr"
 )
-
-// ErrAbort - Error generated when application aborts
-var ErrAbort = errors.New("abort")
 
 func NewRootCmd(client *client.Client) *cobra.Command {
 	rootStrings := docstrings.Get("flyctl")
@@ -113,7 +110,7 @@ func checkErr(err error) {
 }
 
 func isCancelledError(err error) bool {
-	if err == ErrAbort {
+	if err == flyerr.ErrAbort {
 		return true
 	}
 

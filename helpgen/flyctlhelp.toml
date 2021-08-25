@@ -938,6 +938,11 @@ longHelp = """Commands that manage the Fly agent"""
     shortHelp = "Stop the Fly agent"
     longHelp = "Stop the Fly agent"
 
+    [agent.ping]
+    usage     = "ping"
+    shortHelp = "ping the Fly agent"
+    longHelp  = "ping the Fly agent"
+
 [wireguard]
 usage     = "wireguard <command>"
 shortHelp = "Commands that manage WireGuard peer connections"

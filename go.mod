@@ -29,6 +29,7 @@ require (
 	github.com/mattn/go-colorable v0.1.8
 	github.com/mattn/go-isatty v0.0.12
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
+	github.com/miekg/dns v1.1.43 // indirect
 	github.com/moby/buildkit v0.8.1
 	github.com/moby/term v0.0.0-20201216013528-df9cb8a40635
 	github.com/morikuni/aec v1.0.0

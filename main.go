@@ -8,14 +8,15 @@ import (
 	"runtime/debug"
 	"time"
 
+	"github.com/blang/semver"
 	"github.com/getsentry/sentry-go"
-	"github.com/hashicorp/go-multierror"
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/cmd"
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/flyname"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/update"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -24,13 +25,13 @@ func main() {
 	opts := sentry.ClientOptions{
 		Dsn: "https://89fa584dc19b47a6952dd94bf72dbab4@sentry.io/4492967",
 		// Debug:       true,
-		Environment: flyctl.Environment,
-		Release:     flyctl.Version,
+		Environment: buildinfo.Environment(),
+		Release:     buildinfo.Version().String(),
 		Transport: &sentry.HTTPSyncTransport{
 			Timeout: 3 * time.Second,
 		},
 		BeforeSend: func(event *sentry.Event, hint *sentry.EventHint) *sentry.Event {
-			if flyctl.Environment != "production" {
+			if buildinfo.IsDev() {
 				return nil
 			}
 			return event
@@ -46,7 +47,7 @@ func main() {
 
 			fmt.Println(aurora.Red("Oops, something went wrong! Could you try that again?"))
 
-			if flyctl.Environment != "production" {
+			if buildinfo.IsDev() {
 				fmt.Println()
 				fmt.Println(err)
 				fmt.Println(string(debug.Stack()))
@@ -62,7 +63,7 @@ func main() {
 	go func() {
 		defer update.PostUpgradeCleanup()
 
-		rel, err := checkForUpdate(flyctl.Version)
+		rel, err := checkForUpdate(buildinfo.Version())
 		if err != nil {
 			terminal.Debug("error checking for update:", err)
 		}
@@ -83,8 +84,8 @@ func main() {
 
 	update := <-updateChan
 	if update != nil {
-		fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Update available %s -> %s", flyctl.Version, update.Version)))
-		fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Run \"%s\" to upgrade", aurora.Bold(flyname.Name()+" version update"))))
+		fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Update available %s -> %s", buildinfo.Version(), update.Version)))
+		fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Run \"%s\" to upgrade", aurora.Bold(buildinfo.Name()+" version update"))))
 	}
 
 	_, err := root.ExecuteC()
@@ -96,30 +97,49 @@ func checkErr(err error) {
 		return
 	}
 
-	if !isCancelledError(err) {
-		fmt.Println(aurora.Red("Error"), err)
-	}
+	flyerr.PrintCLIOutput(err)
+
+	// if !isCancelledError(err) {
+	// 	fmt.Println(aurora.Red("Error"), err)
+	// }
+
+	// if msg := flyerr.GetErrorDescription(err); msg != "" {
+
+	// 	fmt.Printf("\n%s\n", msg)
+	// }
+
+	// if msg := flyerr.GetErrorSuggestion(err); msg != "" {
+	// 	fmt.Printf("\n%s\n", msg)
+	// }
 
 	safeExit()
 }
 
-func isCancelledError(err error) bool {
-	if err == cmd.ErrAbort {
-		return true
-	}
+// func isCancelledError(err error) bool {
+// 	if errors.Is(err, cmd.ErrAbort) {
+// 		return true
+// 	}
 
-	if err == context.Canceled {
-		return true
-	}
+// 	if errors.Is(err, context.Canceled) {
+// 		return true
+// 	}
 
-	if merr, ok := err.(*multierror.Error); ok {
-		if len(merr.Errors) == 1 && merr.Errors[0] == context.Canceled {
-			return true
-		}
-	}
+// 	// if err == cmd.ErrAbort {
+// 	// 	return true
+// 	// }
 
-	return false
-}
+// 	// if err == context.Canceled {
+// 	// 	return true
+// 	// }
+
+// 	// if merr, ok := err.(*multierror.Error); ok {
+// 	// 	if len(merr.Errors) == 1 && merr.Errors[0] == context.Canceled {
+// 	// 		return true
+// 	// 	}
+// 	// }
+
+// 	return false
+// }
 
 func safeExit() {
 	flyctl.BackgroundTaskWG.Wait()
@@ -127,7 +147,7 @@ func safeExit() {
 	os.Exit(1)
 }
 
-func checkForUpdate(currentVersion string) (*update.Release, error) {
+func checkForUpdate(currentVersion semver.Version) (*update.Release, error) {
 	if !shouldCheckForUpdate() {
 		return nil, nil
 	}
@@ -149,7 +169,7 @@ func shouldCheckForUpdate() bool {
 		return false
 	}
 
-	if flyctl.Environment != "production" || isCI() || !cmdutil.IsTerminal(os.Stdout) || !cmdutil.IsTerminal(os.Stderr) {
+	if !buildinfo.IsRelease() || isCI() || !cmdutil.IsTerminal(os.Stdout) || !cmdutil.IsTerminal(os.Stderr) {
 		return false
 	}
 

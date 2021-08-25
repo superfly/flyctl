@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"strconv"
 	"strings"
 	"time"
 
@@ -81,8 +80,8 @@ func (c *agentClientProvider) Kill(ctx context.Context) error {
 	})
 }
 
-func (c *agentClientProvider) Ping(ctx context.Context) (int, error) {
-	var pid int
+func (c *agentClientProvider) Ping(ctx context.Context) (PingResponse, error) {
+	resp := &PingResponse{}
 
 	err := c.withConnection(ctx, func(conn net.Conn) error {
 		writef(conn, "ping")
@@ -94,20 +93,18 @@ func (c *agentClientProvider) Ping(ctx context.Context) (int, error) {
 			return err
 		}
 
-		tup := strings.Split(string(pong), " ")
-		if len(tup) != 2 {
-			return fmt.Errorf("malformed response (no pid)")
+		if !strings.HasPrefix(string(pong), "pong ") {
+			return fmt.Errorf("ping failed: %s", string(pong))
 		}
 
-		pid, err = strconv.Atoi(tup[1])
-		if err != nil {
-			return fmt.Errorf("malformed response (bad pid: %w)", err)
+		if err := json.Unmarshal(pong[5:], resp); err != nil {
+			return fmt.Errorf("malformed response: %s", err)
 		}
 
 		return nil
 	})
 
-	return pid, err
+	return *resp, err
 }
 
 func (c *agentClientProvider) Establish(ctx context.Context, slug string) error {
@@ -154,11 +151,11 @@ func (c *agentClientProvider) Resolve(ctx context.Context, o *api.Organization, 
 			return err
 		}
 
-		if string(reply) != "ok" {
-			resp = string(reply)
-			// return &ErrProbeFailed{Msg: string(reply)}
+		if !strings.HasPrefix(string(reply), "ok ") {
+			return fmt.Errorf("resolve failed: %s", reply)
 		}
 
+		resp = string(reply[3:])
 		return nil
 	})
 

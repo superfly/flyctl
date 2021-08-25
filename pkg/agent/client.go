@@ -5,10 +5,15 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
+	"time"
 
+	"github.com/blang/semver"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/wireguard"
+	"github.com/superfly/flyctl/terminal"
 )
 
 /// Establish starts the daemon if necessary and returns a client
@@ -19,9 +24,27 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 
 	c, err := DefaultClient(apiClient)
 	if err == nil {
-		_, err := c.Ping(ctx)
+		resp, err := c.Ping(ctx)
 		if err == nil {
-			return c, nil
+			if buildinfo.Version().EQ(resp.Version) {
+				return c, nil
+			}
+
+			msg := fmt.Sprintf("flyctl version %s does not match agent version %s", buildinfo.Version(), resp.Version)
+
+			if !resp.Background {
+				terminal.Warn(msg)
+				return c, nil
+			}
+
+			terminal.Debug(msg)
+			terminal.Debug("stopping agent")
+			if err := c.Kill(ctx); err != nil {
+				terminal.Warn(msg)
+				return nil, errors.Wrap(err, "kill failed")
+			}
+			// this is gross, but we need to wait for the agent to exit
+			time.Sleep(1 * time.Second)
 		}
 	}
 
@@ -53,7 +76,13 @@ func (c *Client) Kill(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) Ping(ctx context.Context) (int, error) {
+type PingResponse struct {
+	PID        int
+	Version    semver.Version
+	Background bool
+}
+
+func (c *Client) Ping(ctx context.Context) (PingResponse, error) {
 	n, err := c.provider.Ping(ctx)
 	if err != nil {
 		return n, errors.Wrap(err, "ping failed")
@@ -69,30 +98,49 @@ func (c *Client) Establish(ctx context.Context, slug string) error {
 }
 
 func (c *Client) WaitForTunnel(ctx context.Context, o *api.Organization) error {
-	for {
-		err := c.Probe(ctx, o)
-		switch {
-		case err == nil:
-			return nil
-		case IsTunnelError(err):
-			continue
-		default:
-			return err
+	errCh := make(chan error, 1)
+
+	go func() {
+		for {
+			err := c.Probe(ctx, o)
+			if err != nil && IsTunnelError(err) {
+				continue
+			}
+
+			errCh <- err
+			break
 		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-errCh:
+		return err
 	}
 }
 
 func (c *Client) WaitForHost(ctx context.Context, o *api.Organization, host string) error {
-	for {
-		_, err := c.Resolve(ctx, o, host)
-		switch {
-		case err == nil:
-			return nil
-		case IsHostNotFoundError(err), IsTunnelError(err):
-			continue
-		default:
-			return err
+	errCh := make(chan error, 1)
+
+	go func() {
+		for {
+			_, err := c.Resolve(ctx, o, host)
+			if err != nil && (IsHostNotFoundError(err) || IsTunnelError(err)) {
+				time.Sleep(200 * time.Millisecond)
+				continue
+			}
+
+			errCh <- err
+			break
 		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-errCh:
+		return err
 	}
 }
 
@@ -136,11 +184,17 @@ type clientProvider interface {
 	Establish(ctx context.Context, slug string) error
 	Instances(ctx context.Context, o *api.Organization, app string) (*Instances, error)
 	Kill(ctx context.Context) error
-	Ping(ctx context.Context) (int, error)
+	Ping(ctx context.Context) (PingResponse, error)
 	Probe(ctx context.Context, o *api.Organization) error
 	Resolve(ctx context.Context, o *api.Organization, name string) (string, error)
 }
 
 type Dialer interface {
 	DialContext(ctx context.Context, network, addr string) (net.Conn, error)
+}
+
+func IsIPv6(addr string) bool {
+	addr = strings.Trim(addr, "[]")
+	ip := net.ParseIP(addr)
+	return ip != nil && ip.To16() != nil
 }

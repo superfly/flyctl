@@ -47,7 +47,7 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
 		captureError(err)
-		return fmt.Errorf("can't establish agent: %s\n", err)
+		return errors.Wrap(err, "can't establish agent")
 	}
 
 	dialer, err := agentclient.Dialer(ctx, &app.Organization)
@@ -56,10 +56,12 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
 	}
 
+	cc.IO.StartProgressIndicatorMsg("Connecting to tunnel")
 	if err := agentclient.WaitForTunnel(ctx, &app.Organization); err != nil {
 		captureError(err)
 		return errors.Wrapf(err, "tunnel unavailable")
 	}
+	cc.IO.StopProgressIndicator()
 
 	var addr string
 
@@ -85,11 +87,16 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 		addr = cc.Args[0]
 	} else {
 		addr = fmt.Sprintf("%s.internal", cc.AppName)
+	}
 
+	// wait for the addr to be resolved in dns unless it's an ip address
+	if !agent.IsIPv6(addr) {
+		cc.IO.StartProgressIndicatorMsg("Waiting for host")
 		if err := agentclient.WaitForHost(ctx, &app.Organization, addr); err != nil {
 			captureError(err)
 			return errors.Wrapf(err, "host unavailable")
 		}
+		cc.IO.StopProgressIndicator()
 	}
 
 	err = sshConnect(&SSHParams{
