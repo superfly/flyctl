@@ -128,6 +128,11 @@ func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
 		input.ImageRef = api.StringPointer(imageRef)
 	}
 
+	snapshot := ctx.Config.GetString("snapshot-id")
+	if snapshot != "" {
+		input.SnapshotID = api.StringPointer(snapshot)
+	}
+
 	fmt.Fprintf(ctx.Out, "Creating postgres cluster %s in organization %s\n", name, org.Slug)
 
 	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)

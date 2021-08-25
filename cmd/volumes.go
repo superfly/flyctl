@@ -9,6 +9,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/client"
@@ -118,7 +119,21 @@ func runCreateVolume(ctx *cmdctx.CmdContext) error {
 
 	sizeGb := ctx.Config.GetInt("size")
 
-	volume, err := ctx.Client.API().CreateVolume(appid, volName, region, sizeGb, ctx.Config.GetBool("encrypted"))
+	snapshot := ctx.Config.GetString("snapshot-id")
+
+	input := api.CreateVolumeInput{
+		AppID:     appid,
+		Name:      volName,
+		Region:    region,
+		SizeGb:    sizeGb,
+		Encrypted: ctx.Config.GetBool("encrypted"),
+	}
+
+	if snapshot != "" {
+		input.SnapshotID = api.StringPointer(snapshot)
+	}
+
+	volume, err := ctx.Client.API().CreateVolume(input)
 
 	if err != nil {
 		return err

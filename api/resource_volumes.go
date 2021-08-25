@@ -34,7 +34,7 @@ func (c *Client) GetVolumes(appName string) ([]Volume, error) {
 	return data.App.Volumes.Nodes, nil
 }
 
-func (c *Client) CreateVolume(appName string, volname string, region string, sizeGb int, encrypted bool) (*Volume, error) {
+func (c *Client) CreateVolume(input CreateVolumeInput) (*Volume, error) {
 	query := `
 		mutation($input: CreateVolumeInput!) {
 			createVolume(input: $input) {
@@ -52,8 +52,6 @@ func (c *Client) CreateVolume(appName string, volname string, region string, siz
 			}
 		}
 	`
-
-	input := CreateVolumeInput{AppID: appName, Name: volname, Region: region, SizeGb: sizeGb, Encrypted: encrypted}
 
 	req := c.NewRequest(query)
 

@@ -289,11 +289,12 @@ type Volume struct {
 }
 
 type CreateVolumeInput struct {
-	AppID     string `json:"appId"`
-	Name      string `json:"name"`
-	Region    string `json:"region"`
-	SizeGb    int    `json:"sizeGb"`
-	Encrypted bool   `json:"encrypted"`
+	AppID      string  `json:"appId"`
+	Name       string  `json:"name"`
+	Region     string  `json:"region"`
+	SizeGb     int     `json:"sizeGb"`
+	Encrypted  bool    `json:"encrypted"`
+	SnapshotID *string `json:"snapshot_id,omitempty"`
 }
 
 type CreateVolumePayload struct {
@@ -950,6 +951,7 @@ type CreatePostgresClusterInput struct {
 	VMSize         *string `json:"vmSize,omitempty"`
 	VolumeSizeGB   *int    `json:"volumeSizeGb,omitempty"`
 	ImageRef       *string `json:"imageRef,omitempty"`
+	SnapshotID     *string `json:"snapshot_id,omitempty"`
 }
 
 type CreatePostgresClusterPayload struct {
