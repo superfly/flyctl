@@ -2,7 +2,6 @@ package imgsrc
 
 import (
 	"fmt"
-	"runtime"
 
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/internal/build/imgsrc/builtins"
@@ -71,7 +70,12 @@ func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 
 	var imageID string
 
-	msg := fmt.Sprintf("Building image with Docker (%s %s)", runtime.GOOS, runtime.GOARCH)
+	serverInfo, err := docker.Info(ctx)
+	if err != nil {
+		terminal.Debug("failed to fetch docker server info %s", err)
+	}
+
+	msg := fmt.Sprintf("Building image with Docker (%s %s)", serverInfo.OperatingSystem, serverInfo.Architecture)
 	cmdfmt.PrintBegin(streams.ErrOut, msg)
 
 	buildArgs := normalizeBuildArgsForDocker(opts.AppConfig, opts.ExtraBuildArgs)
