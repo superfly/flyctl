@@ -9,7 +9,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"runtime"
 
 	"github.com/containerd/console"
 	"github.com/docker/docker/api/types"
@@ -128,7 +127,12 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 
 	var imageID string
 
-	msg := fmt.Sprintf("Building image with Docker (%s %s)", runtime.GOOS, runtime.GOARCH)
+	serverInfo, err := docker.Info(ctx)
+	if err != nil {
+		terminal.Debug("failed to fetch docker server info %s", err)
+	}
+
+	msg := fmt.Sprintf("Building image with Docker (%s %s)", serverInfo.OSType, serverInfo.Architecture)
 	cmdfmt.PrintBegin(streams.ErrOut, msg)
 
 	buildArgs := normalizeBuildArgsForDocker(opts.AppConfig, opts.ExtraBuildArgs)

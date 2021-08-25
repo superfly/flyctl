@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"runtime"
 
 	"github.com/buildpacks/pack"
 	"github.com/superfly/flyctl/flyctl"
@@ -46,7 +45,12 @@ func (s *buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClient
 		return nil, err
 	}
 
-	msg := fmt.Sprintf("Building image with Buildpacks (%s %s)", runtime.GOOS, runtime.GOARCH)
+	serverInfo, err := docker.Info(ctx)
+	if err != nil {
+		terminal.Debug("failed to fetch docker server info %s", err)
+	}
+
+	msg := fmt.Sprintf("Building image with Docker (%s %s)", serverInfo.OSType, serverInfo.Architecture)
 	cmdfmt.PrintBegin(streams.ErrOut, msg)
 
 	err = packClient.Build(ctx, pack.BuildOptions{
