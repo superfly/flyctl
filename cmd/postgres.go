@@ -36,6 +36,7 @@ func newPostgresCommand(client *client.Client) *Command {
 	createCmd.AddStringFlag(StringFlagOpts{Name: "volume-size", Description: "the size in GB for volumes"})
 	createCmd.AddStringFlag(StringFlagOpts{Name: "vm-size", Description: "the size of the VM"})
 	createCmd.AddStringFlag(StringFlagOpts{Name: "image-ref", Hidden: true})
+	createCmd.AddStringFlag(StringFlagOpts{Name: "snapshot-id", Description: "Creates the volume with the contents of the snapshot"})
 
 	attachStrngs := docstrings.Get("postgres.attach")
 	attachCmd := BuildCommandKS(cmd, runAttachPostgresCluster, attachStrngs, client, requireSession, requireAppName)

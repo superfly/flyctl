@@ -45,6 +45,11 @@ func newVolumesCommand(client *client.Client) *Command {
 		Default:     true,
 	})
 
+	createCmd.AddStringFlag(StringFlagOpts{
+		Name:        "snapshot-id",
+		Description: "Creates the volume with the contents of the snapshot",
+	})
+
 	deleteStrings := docstrings.Get("volumes.delete")
 	deleteCmd := BuildCommandKS(volumesCmd, runDeleteVolume, deleteStrings, client, requireSession)
 	deleteCmd.Args = cobra.ExactArgs(1)
