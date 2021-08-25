@@ -72,7 +72,7 @@ func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 
 	serverInfo, err := docker.Info(ctx)
 	if err != nil {
-		terminal.Debug("failed to fetch docker server info %s", err)
+		terminal.Debug("error fetching docker server info:", err)
 	}
 
 	msg := fmt.Sprintf("Building image with Docker (%s %s)", serverInfo.OperatingSystem, serverInfo.Architecture)
