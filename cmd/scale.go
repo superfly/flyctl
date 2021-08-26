@@ -83,6 +83,7 @@ func runScaleVM(commandContext *cmdctx.CmdContext) error {
 func runScaleCount(commandContext *cmdctx.CmdContext) error {
 	groups := map[string]int{}
 
+	// single numeric arg: fly scale count 3
 	if len(commandContext.Args) == 1 {
 		count, err := strconv.Atoi(commandContext.Args[0])
 		if err == nil {
@@ -90,17 +91,20 @@ func runScaleCount(commandContext *cmdctx.CmdContext) error {
 		}
 	}
 
-	for _, arg := range commandContext.Args {
-		parts := strings.Split(arg, "=")
-		if len(parts) != 2 {
-			return fmt.Errorf("%s is not a valid process=count option", arg)
-		}
-		count, err := strconv.Atoi(parts[1])
-		if err != nil {
-			return err
-		}
+	// group labels: fly scale web=X worker=Y
+	if len(groups) < 1 {
+		for _, arg := range commandContext.Args {
+			parts := strings.Split(arg, "=")
+			if len(parts) != 2 {
+				return fmt.Errorf("%s is not a valid process=count option", arg)
+			}
+			count, err := strconv.Atoi(parts[1])
+			if err != nil {
+				return err
+			}
 
-		groups[parts[0]] = count
+			groups[parts[0]] = count
+		}
 	}
 
 	// THIS IS AN OPTION TYPE CAN YOU TELL?
