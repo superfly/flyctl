@@ -14,6 +14,14 @@ func (client *Client) ListMachines(appID string, state string) ([]*Machine, erro
 					app {
 						name
 					}
+					ips {
+						nodes {
+							family
+							kind
+							ip
+							maskSize
+						}
+					}
 				}
 			}
 		}

@@ -58,7 +58,7 @@ func newMachineListCommand(parent *Command, client *client.Client) {
 		Short:   keystrings.Short,
 		Long:    keystrings.Long,
 		Aliases: []string{"ls"},
-	}, client)
+	}, client, requireSession, optionalAppName)
 
 	cmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "all",
@@ -225,7 +225,7 @@ func newMachineRemoveCommand(parent *Command, client *client.Client) {
 		Short:   keystrings.Short,
 		Long:    keystrings.Long,
 		Aliases: []string{"rm"},
-	}, client)
+	}, client, requireSession, optionalAppName)
 
 	cmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "force",

@@ -60,7 +60,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 				if cachedDocker != nil {
 					return cachedDocker, nil
 				}
-				c, err := newRemoteDockerClient(ctx, apiClient, appName, streams)
+				c, err := newRemoteDockerClient(ctx, apiClient, appName, daemonType, streams)
 				if err != nil {
 					return nil, err
 				}
@@ -88,13 +88,16 @@ func isRetyableError(err error) bool {
 	return !isUnauthorized(err)
 }
 
-func NewDockerDaemonType(allowLocal, allowRemote bool) DockerDaemonType {
+func NewDockerDaemonType(allowLocal, allowRemote, useMachine bool) DockerDaemonType {
 	daemonType := DockerDaemonTypeNone
 	if allowLocal {
 		daemonType = daemonType | DockerDaemonTypeLocal
 	}
 	if allowRemote {
 		daemonType = daemonType | DockerDaemonTypeRemote
+	}
+	if useMachine {
+		daemonType = daemonType | DockerDaemonTypeMachine
 	}
 	return daemonType
 }
@@ -104,6 +107,7 @@ type DockerDaemonType int
 const (
 	DockerDaemonTypeLocal DockerDaemonType = 1 << iota
 	DockerDaemonTypeRemote
+	DockerDaemonTypeMachine
 	DockerDaemonTypeNone
 )
 
@@ -117,6 +121,10 @@ func (t DockerDaemonType) AllowRemote() bool {
 
 func (t DockerDaemonType) AllowNone() bool {
 	return (t & DockerDaemonTypeNone) != 0
+}
+
+func (t DockerDaemonType) UseMachine() bool {
+	return (t & DockerDaemonTypeMachine) != 0
 }
 
 func (t DockerDaemonType) IsLocal() bool {
@@ -152,16 +160,25 @@ func newLocalDockerClient() (*dockerclient.Client, error) {
 	return c, nil
 }
 
-func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, streams *iostreams.IOStreams) (*dockerclient.Client, error) {
-	host, app, err := remoteBuilderURL(apiClient, appName)
+func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, daemonType DockerDaemonType, streams *iostreams.IOStreams) (*dockerclient.Client, error) {
+	var host string
+	var app *api.App
+	var err error
+	var machine *api.Machine
+	if daemonType.UseMachine() {
+		machine, app, err = remoteMachineBuilderURL(apiClient, appName)
+	} else {
+		host, app, err = remoteBuilderURL(apiClient, appName)
+	}
 	if err != nil {
 		return nil, err
 	}
 	remoteBuilderAppName := app.Name
 	remoteBuilderOrg := app.Organization.Slug
 
-	terminal.Debugf("Remote Docker builder host: %s\n", host)
-
+	if host != "" {
+		terminal.Debugf("Remote Docker builder host: %s\n", host)
+	}
 	if streams.IsInteractive() {
 		streams.StartProgressIndicatorMsg(fmt.Sprintf("Waiting for remote builder %s... starting", remoteBuilderAppName))
 	} else {
@@ -189,16 +206,38 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 		)
 	}
 
+	machineCh := make(chan *api.Machine, 1)
+
 	eg.Go(func() error {
 		defer streams.ChangeProgressIndicatorMsg(fmt.Sprintf("Waiting for remote builder %s... connecting", remoteBuilderAppName))
 
-		if remoteBuilderAppName != "" {
+		if daemonType.UseMachine() {
+			machine, err := monitor.WaitForRunningMachine(errCtx, remoteBuilderAppName, machine.ID, apiClient)
+			if err != nil {
+				return errors.Wrap(err, "Error waiting for remote builder machine")
+			}
+			machineCh <- machine
+		} else if remoteBuilderAppName != "" {
 			if err := monitor.WaitForRunningVM(errCtx, remoteBuilderAppName, apiClient); err != nil {
 				return errors.Wrap(err, "Error waiting for remote builder app")
 			}
 		}
 		return nil
 	})
+
+	if daemonType.UseMachine() {
+		machine = <-machineCh
+		for _, ip := range machine.IPs.Nodes {
+			terminal.Debugf("checking ip %+v\n", ip)
+			if ip.Kind == "privatenet" {
+				host = "tcp://[" + ip.IP + "]:2375"
+				break
+			}
+		}
+		if host == "" {
+			return nil, errors.New("machine did not have a private IP")
+		}
+	}
 
 	clientCh := make(chan *dockerclient.Client, 1)
 
@@ -231,9 +270,11 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 				return errors.Wrap(err, "unable to connect WireGuard tunnel")
 			}
 
-			// wait for private dns
-			if err := agentclient.WaitForHost(tunnelCtx, &app.Organization, fmt.Sprintf("%s.internal", remoteBuilderAppName)); err != nil {
-				return errors.Wrapf(err, "host unavailable")
+			if !daemonType.UseMachine() {
+				// wait for private dns
+				if err := agentclient.WaitForHost(tunnelCtx, &app.Organization, fmt.Sprintf("%s.internal", remoteBuilderAppName)); err != nil {
+					return errors.Wrapf(err, "host unavailable")
+				}
 			}
 
 			opts = append(opts, dockerclient.WithDialContext(dialer.DialContext))
@@ -276,6 +317,14 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	streams.StopProgressIndicatorMsg(fmt.Sprintf("Remote builder %s ready", remoteBuilderAppName))
 
 	return <-clientCh, nil
+}
+
+func remoteMachineBuilderURL(apiClient *api.Client, appName string) (*api.Machine, *api.App, error) {
+	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
+		return nil, nil, nil
+	}
+
+	return apiClient.EnsureMachineRemoteBuilderForApp(appName)
 }
 
 func remoteBuilderURL(apiClient *api.Client, appName string) (string, *api.App, error) {

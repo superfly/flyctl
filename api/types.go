@@ -71,6 +71,11 @@ type Query struct {
 		Release Release
 	}
 
+	EnsureMachineRemoteBuilder *struct {
+		App     *App
+		Machine *Machine
+	}
+
 	CreateSignedUrl SignedUrls
 
 	StartBuild struct {
@@ -1067,7 +1072,18 @@ type Machine struct {
 
 	App *App
 
+	IPs struct {
+		Nodes []*MachineIP
+	}
+
 	CreatedAt time.Time
+}
+
+type MachineIP struct {
+	Family   string
+	Kind     string
+	IP       string
+	MaskSize int
 }
 
 type StopMachineInput struct {
