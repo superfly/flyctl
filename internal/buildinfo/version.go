@@ -15,10 +15,10 @@ var parsedVersion semver.Version
 var parsedBuildDate time.Time
 
 func init() {
-	loadMeta(time.Now())
+	loadMeta()
 }
 
-func loadMeta(now time.Time) {
+func loadMeta() {
 	var err error
 
 	parsedBuildDate, err = time.Parse(time.RFC3339, buildDate)
