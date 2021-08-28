@@ -21,9 +21,12 @@ func init() {
 func loadMeta(now time.Time) {
 	var err error
 
-	if IsDev() {
-		parsedBuildDate = now.UTC()
+	parsedBuildDate, err = time.Parse(time.RFC3339, buildDate)
+	if err != nil {
+		panic(err)
+	}
 
+	if IsDev() {
 		parsedVersion = semver.Version{
 			Pre: []semver.PRVersion{
 				{
@@ -35,10 +38,6 @@ func loadMeta(now time.Time) {
 		}
 
 	} else {
-		parsedBuildDate, err = time.Parse(time.RFC3339, buildDate)
-		if err != nil {
-			panic(err)
-		}
 		parsedBuildDate = parsedBuildDate.UTC()
 
 		parsedVersion = semver.MustParse(version)
