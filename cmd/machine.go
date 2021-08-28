@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/user"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	surveyterminal "github.com/AlecAivazis/survey/v2/terminal"
+	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
 	"github.com/logrusorgru/aurora"
 	"github.com/nats-io/nats.go"
@@ -24,6 +26,7 @@ import (
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/monitor"
@@ -315,10 +318,45 @@ func newMachineRunCommand(parent *Command, client *client.Client) {
 		Description: "Detach from the machine's logs",
 	})
 
+	cmd.AddBoolFlag(BoolFlagOpts{
+		Name:   "build-only",
+		Hidden: true,
+	})
+	cmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "build-remote-only",
+		Description: "Perform builds remotely without using the local docker daemon",
+	})
+	cmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "build-local-only",
+		Description: "Only perform builds locally using the local docker daemon",
+	})
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "dockerfile",
+		Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
+	})
+	cmd.AddStringSliceFlag(StringSliceFlagOpts{
+		Name:        "build-arg",
+		Description: "Set of build time variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
+	})
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "image-label",
+		Description: "Image label to use when tagging and pushing to the fly registry. Defaults to \"deployment-{timestamp}\".",
+	})
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "build-target",
+		Description: "Set the target build stage to build if the Dockerfile has more than one stage",
+	})
+	cmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "no-build-cache",
+		Description: "Do not use the cache when building the image",
+		Hidden:      true,
+	})
+
 	cmd.Command.Args = cobra.MinimumNArgs(1)
 }
 
 func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
 	if cmdCtx.AppName == "" {
 		confirm := false
 		prompt := &survey.Confirm{
@@ -351,7 +389,73 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 
 	machineConf := cmdCtx.MachineConfig
 
-	machineConf.Config["image"] = cmdCtx.Args[0]
+	var img *imgsrc.DeploymentImage
+	var err error
+
+	daemonType := imgsrc.NewDockerDaemonType(!cmdCtx.Config.GetBool("build-remote-only"), !cmdCtx.Config.GetBool("build-local-only"), !cmdCtx.Config.GetBool("build-local-only"))
+	resolver := imgsrc.NewResolver(daemonType, cmdCtx.Client.API(), cmdCtx.AppName, cmdCtx.IO)
+
+	imageOrPath := cmdCtx.Args[0]
+	// build if relative or absolute path
+	if strings.HasPrefix(imageOrPath, ".") || strings.HasPrefix(imageOrPath, "/") {
+		opts := imgsrc.ImageOptions{
+			AppName:    cmdCtx.AppName,
+			WorkingDir: path.Join(cmdCtx.WorkingDir, imageOrPath),
+			AppConfig:  cmdCtx.AppConfig,
+			Publish:    !cmdCtx.Config.GetBool("build-only"),
+			ImageLabel: cmdCtx.Config.GetString("image-label"),
+			Target:     cmdCtx.Config.GetString("build-target"),
+			NoCache:    cmdCtx.Config.GetBool("no-build-cache"),
+		}
+		if dockerfilePath := cmdCtx.Config.GetString("dockerfile"); dockerfilePath != "" {
+			dockerfilePath, err := filepath.Abs(dockerfilePath)
+			if err != nil {
+				return err
+			}
+			opts.DockerfilePath = dockerfilePath
+		}
+
+		extraArgs, err := cmdutil.ParseKVStringsToMap(cmdCtx.Config.GetStringSlice("build-arg"))
+		if err != nil {
+			return errors.Wrap(err, "invalid build-arg")
+		}
+		opts.ExtraBuildArgs = extraArgs
+
+		img, err = resolver.BuildImage(ctx, cmdCtx.IO, opts)
+		if err != nil {
+			return err
+		}
+		if img == nil {
+			return errors.New("could not find an image to deploy")
+		}
+	} else {
+		opts := imgsrc.RefOptions{
+			AppName:    cmdCtx.AppName,
+			WorkingDir: cmdCtx.WorkingDir,
+			AppConfig:  cmdCtx.AppConfig,
+			Publish:    !cmdCtx.Config.GetBool("build-only"),
+			ImageRef:   imageOrPath,
+			ImageLabel: cmdCtx.Config.GetString("image-label"),
+		}
+
+		img, err = resolver.ResolveReference(ctx, cmdCtx.IO, opts)
+		if err != nil {
+			return err
+		}
+	}
+
+	fmt.Fprintf(cmdCtx.Client.IO.Out, "Image: %s\n", img.Tag)
+	fmt.Fprintf(cmdCtx.Client.IO.Out, "Image size: %s\n", humanize.Bytes(uint64(img.Size)))
+
+	if img == nil {
+		return errors.New("could not find an image to deploy")
+	}
+
+	if cmdCtx.Config.GetBool("build-only") {
+		return nil
+	}
+
+	machineConf.Config["image"] = img.Tag
 
 	if size := cmdCtx.Config.GetString("size"); size != "" {
 		machineConf.Config["size"] = size
@@ -521,7 +625,6 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 
 	natsIP := net.IP(natsIPBytes[:])
 
-	ctx := createCancellableContext()
 	natsConn, err := nats.Connect(fmt.Sprintf("nats://[%s]:4223", natsIP.String()), nats.SetCustomDialer(&natsDialer{dialer, ctx}), nats.UserInfo(app.Organization.Slug, flyConf.AccessToken))
 	if err != nil {
 		return errors.Wrap(err, "could not connect to nats")
