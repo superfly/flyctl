@@ -573,6 +573,7 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 
 	dialer, err := func() (agent.Dialer, error) {
 		ctx := createCancellableContext()
+		terminal.Debug("establishing agent connection")
 		agentclient, err := agent.Establish(ctx, apiClient)
 		if err != nil {
 			return nil, errors.Wrap(err, "error establishing agent")
@@ -585,6 +586,7 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 
 		tunnelCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 		defer cancel()
+		terminal.Debug("waiting for tunnel")
 		if err = agentclient.WaitForTunnel(tunnelCtx, &app.Organization); err != nil {
 			return nil, errors.Wrap(err, "unable to connect WireGuard tunnel")
 		}
@@ -625,12 +627,15 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 
 	natsIP := net.IP(natsIPBytes[:])
 
+	terminal.Debug("connecting to nats")
 	natsConn, err := nats.Connect(fmt.Sprintf("nats://[%s]:4223", natsIP.String()), nats.SetCustomDialer(&natsDialer{dialer, ctx}), nats.UserInfo(app.Organization.Slug, flyConf.AccessToken))
 	if err != nil {
 		return errors.Wrap(err, "could not connect to nats")
 	}
 
-	sub, err := natsConn.Subscribe(fmt.Sprintf("logs.%s.*.%s", app.Name, machine.ID), func(msg *nats.Msg) {
+	subject := fmt.Sprintf("logs.%s.*.%s", app.Name, machine.ID)
+	terminal.Debugf("subscribing to nats subject: %s\n", subject)
+	sub, err := natsConn.Subscribe(subject, func(msg *nats.Msg) {
 		var log natsLog
 		if err := json.Unmarshal(msg.Data, &log); err != nil {
 			terminal.Error(errors.Wrap(err, "could not parse log"))

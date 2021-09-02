@@ -166,7 +166,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	var err error
 	var machine *api.Machine
 	if daemonType.UseMachine() {
-		machine, app, err = remoteMachineBuilderURL(apiClient, appName)
+		machine, app, err = remoteMachine(apiClient, appName)
 	} else {
 		host, app, err = remoteBuilderURL(apiClient, appName)
 	}
@@ -212,10 +212,10 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 		defer streams.ChangeProgressIndicatorMsg(fmt.Sprintf("Waiting for remote builder %s... connecting", remoteBuilderAppName))
 
 		if daemonType.UseMachine() {
-			machine, err := monitor.WaitForRunningMachine(errCtx, remoteBuilderAppName, machine.ID, apiClient)
-			if err != nil {
-				return errors.Wrap(err, "Error waiting for remote builder machine")
-			}
+			// machine, err := monitor.WaitForRunningMachine(errCtx, remoteBuilderAppName, machine.ID, apiClient)
+			// if err != nil {
+			// 	return errors.Wrap(err, "Error waiting for remote builder machine")
+			// }
 			machineCh <- machine
 		} else if remoteBuilderAppName != "" {
 			if err := monitor.WaitForRunningVM(errCtx, remoteBuilderAppName, apiClient); err != nil {
@@ -319,7 +319,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	return <-clientCh, nil
 }
 
-func remoteMachineBuilderURL(apiClient *api.Client, appName string) (*api.Machine, *api.App, error) {
+func remoteMachine(apiClient *api.Client, appName string) (*api.Machine, *api.App, error) {
 	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
 		return nil, nil, nil
 	}

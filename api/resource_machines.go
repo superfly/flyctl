@@ -22,6 +22,9 @@ func (client *Client) ListMachines(appID string, state string) ([]*Machine, erro
 							maskSize
 						}
 					}
+					host {
+						id
+					}
 				}
 			}
 		}
@@ -52,6 +55,17 @@ func (client *Client) LaunchMachine(input LaunchMachineInput) (*Machine, *App, e
 					machine {
 						id
 						state
+						ips {
+							nodes {
+								family
+								kind
+								ip
+								maskSize
+							}
+						}
+						host {
+							id
+						}
 					}
 					app {
 						name
