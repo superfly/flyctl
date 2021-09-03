@@ -71,6 +71,11 @@ type Query struct {
 		Release Release
 	}
 
+	EnsureMachineRemoteBuilder *struct {
+		App     *App
+		Machine *Machine
+	}
+
 	CreateSignedUrl SignedUrls
 
 	StartBuild struct {
@@ -187,6 +192,26 @@ type Query struct {
 	ValidateWireGuardPeers struct {
 		InvalidPeerIPs []string
 	}
+
+	Machines struct {
+		Nodes []*Machine
+	}
+	LaunchMachine struct {
+		Machine *Machine
+		App     *App
+	}
+	StopMachine struct {
+		Machine *Machine
+	}
+	StartMachine struct {
+		Machine *Machine
+	}
+	KillMachine struct {
+		Machine *Machine
+	}
+	RemoveMachine struct {
+		Machine *Machine
+	}
 }
 
 type CreatedWireGuardPeer struct {
@@ -213,6 +238,8 @@ type IssuedCertificate struct {
 }
 
 type Definition map[string]interface{}
+
+type MachineConfig map[string]interface{}
 
 func DefinitionPtr(in map[string]interface{}) *Definition {
 	x := Definition(in)
@@ -1025,4 +1052,60 @@ type Invitation struct {
 
 type CreateOrganizationInvitation struct {
 	Invitation Invitation
+}
+
+type LaunchMachineInput struct {
+	AppID   string         `json:"appId,omitempty"`
+	ID      string         `json:"id,omitempty"`
+	Name    string         `json:"name,omitempty"`
+	OrgSlug string         `json:"organizationId,omitempty"`
+	Region  string         `json:"region,omitempty"`
+	Config  *MachineConfig `json:"config"`
+}
+
+type Machine struct {
+	ID     string
+	Name   string
+	State  string
+	Region string
+	Config MachineConfig
+
+	App *App
+
+	IPs struct {
+		Nodes []*MachineIP
+	}
+
+	CreatedAt time.Time
+}
+
+type MachineIP struct {
+	Family   string
+	Kind     string
+	IP       string
+	MaskSize int
+}
+
+type StopMachineInput struct {
+	AppID           string `json:"appId,omitempty"`
+	ID              string `json:"id"`
+	Signal          string `json:"signal,omitempty"`
+	KillTimeoutSecs int    `json:"kill_timeout_secs,omitempty"`
+}
+
+type StartMachineInput struct {
+	AppID string `json:"appId,omitempty"`
+	ID    string `json:"id"`
+}
+
+type KillMachineInput struct {
+	AppID string `json:"appId,omitempty"`
+	ID    string `json:"id"`
+}
+
+type RemoveMachineInput struct {
+	AppID string `json:"appId,omitempty"`
+	ID    string `json:"id"`
+
+	Kill bool `json:"kill"`
 }

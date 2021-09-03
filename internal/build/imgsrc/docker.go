@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"time"
@@ -20,7 +19,6 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/flyerr"
-	"github.com/superfly/flyctl/internal/monitor"
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -60,7 +58,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 				if cachedDocker != nil {
 					return cachedDocker, nil
 				}
-				c, err := newRemoteDockerClient(ctx, apiClient, appName, streams)
+				c, err := newRemoteDockerClient(ctx, apiClient, appName, daemonType, streams)
 				if err != nil {
 					return nil, err
 				}
@@ -152,16 +150,21 @@ func newLocalDockerClient() (*dockerclient.Client, error) {
 	return c, nil
 }
 
-func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, streams *iostreams.IOStreams) (*dockerclient.Client, error) {
-	host, app, err := remoteBuilderURL(apiClient, appName)
+func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, daemonType DockerDaemonType, streams *iostreams.IOStreams) (*dockerclient.Client, error) {
+	var host string
+	var app *api.App
+	var err error
+	var machine *api.Machine
+	machine, app, err = remoteMachine(apiClient, appName)
 	if err != nil {
 		return nil, err
 	}
 	remoteBuilderAppName := app.Name
 	remoteBuilderOrg := app.Organization.Slug
 
-	terminal.Debugf("Remote Docker builder host: %s\n", host)
-
+	if host != "" {
+		terminal.Debugf("Remote Docker builder host: %s\n", host)
+	}
 	if streams.IsInteractive() {
 		streams.StartProgressIndicatorMsg(fmt.Sprintf("Waiting for remote builder %s... starting", remoteBuilderAppName))
 	} else {
@@ -189,16 +192,18 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 		)
 	}
 
-	eg.Go(func() error {
-		defer streams.ChangeProgressIndicatorMsg(fmt.Sprintf("Waiting for remote builder %s... connecting", remoteBuilderAppName))
+	streams.ChangeProgressIndicatorMsg(fmt.Sprintf("Waiting for remote builder %s... connecting", remoteBuilderAppName))
 
-		if remoteBuilderAppName != "" {
-			if err := monitor.WaitForRunningVM(errCtx, remoteBuilderAppName, apiClient); err != nil {
-				return errors.Wrap(err, "Error waiting for remote builder app")
-			}
+	for _, ip := range machine.IPs.Nodes {
+		terminal.Debugf("checking ip %+v\n", ip)
+		if ip.Kind == "privatenet" {
+			host = "tcp://[" + ip.IP + "]:2375"
+			break
 		}
-		return nil
-	})
+	}
+	if host == "" {
+		return nil, errors.New("machine did not have a private IP")
+	}
 
 	clientCh := make(chan *dockerclient.Client, 1)
 
@@ -229,11 +234,6 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 			// wait for the tunnel to be ready
 			if err = agentclient.WaitForTunnel(tunnelCtx, &app.Organization); err != nil {
 				return errors.Wrap(err, "unable to connect WireGuard tunnel")
-			}
-
-			// wait for private dns
-			if err := agentclient.WaitForHost(tunnelCtx, &app.Organization, fmt.Sprintf("%s.internal", remoteBuilderAppName)); err != nil {
-				return errors.Wrapf(err, "host unavailable")
 			}
 
 			opts = append(opts, dockerclient.WithDialContext(dialer.DialContext))
@@ -278,17 +278,12 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	return <-clientCh, nil
 }
 
-func remoteBuilderURL(apiClient *api.Client, appName string) (string, *api.App, error) {
+func remoteMachine(apiClient *api.Client, appName string) (*api.Machine, *api.App, error) {
 	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
-		return v, nil, nil
+		return nil, nil, nil
 	}
 
-	_, app, err := apiClient.EnsureRemoteBuilderForApp(appName)
-	if err != nil {
-		return "", nil, errors.Errorf("could not create remote builder: %v", err)
-	}
-
-	return "tcp://" + net.JoinHostPort(app.Name+".internal", "2375"), app, nil
+	return apiClient.EnsureMachineRemoteBuilderForApp(appName)
 }
 
 func waitForDaemon(ctx context.Context, client *dockerclient.Client) error {

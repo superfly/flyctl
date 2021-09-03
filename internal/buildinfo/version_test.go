@@ -14,7 +14,7 @@ func TestProdMeta(t *testing.T) {
 	buildDate = "2020-06-05T13:32:23Z"
 	commit = "c8f7b8f"
 
-	loadMeta(time.Now())
+	loadMeta()
 
 	assert.Equal(t, "1.2.3", Version().String())
 	assert.Equal(t, "2020-06-05T13:32:23Z", BuildDate().Format(time.RFC3339))
@@ -24,13 +24,10 @@ func TestProdMeta(t *testing.T) {
 func TestDevMeta(t *testing.T) {
 	environment = "development"
 	version = "<version>"
-	buildDate = "<date>"
 	commit = "<commit>"
 
-	now := time.Now()
-	loadMeta(now)
+	loadMeta()
 
-	assert.Equal(t, fmt.Sprintf("0.0.0-%d+dev", now.Unix()), Version().String())
-	assert.Equal(t, now.UTC(), BuildDate())
+	assert.Equal(t, fmt.Sprintf("0.0.0-%d+dev", BuildDate().Unix()), Version().String())
 	assert.Equal(t, "<commit>", Commit())
 }

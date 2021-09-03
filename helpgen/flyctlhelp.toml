@@ -992,3 +992,32 @@ longHelp  = """Commands that manage WireGuard peer connections"""
             usage     = "update [name] [file]"
             shortHelp = "Rekey a WireGuard peer connection associated with a token (set FLY_WIREGUARD_TOKEN)"
             longHelp = "Rekey a WireGuard peer connection associated with a token (set FLY_WIREGUARD_TOKEN)"
+
+[machine]
+usage     = "machine <command>"
+shortHelp = "Commands that manage machines"
+longHelp  = """Commands that manage machines"""
+    [machine.run]
+    usage = "run <image> [command]"
+    shortHelp = "Launch a Fly machine"
+    longHelp = "Launch Fly machine with the provided image and command"
+    [machine.list]
+    usage = "list"
+    shortHelp = "List Fly machines"
+    longHelp = "List Fly machines"
+    [machine.stop]
+    usage = "stop <id>"
+    shortHelp = "Stop a Fly machine"
+    longHelp = "Stop a Fly machine"
+    [machine.start]
+    usage = "start <id>"
+    shortHelp = "Start a Fly machine"
+    longHelp = "Start a Fly machine"
+    [machine.kill]
+    usage = "kill <id>"
+    shortHelp = "Kill (SIGKILL) a Fly machine"
+    longHelp = "Kill (SIGKILL) a Fly machine"
+    [machine.remove]
+    usage = "remove <id>"
+    shortHelp = "Remove a Fly machine"
+    longHelp = "Remove a Fly machine"

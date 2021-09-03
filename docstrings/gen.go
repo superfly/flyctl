@@ -437,6 +437,34 @@ the Fly platform.
 Logs can be filtered to a specific instance using the --instance/-i flag or 
 to all instances running in a specific region using the --region/-r flag.`,
 		}
+	case "machine":
+		return KeyStrings{"machine <command>", "Commands that manage machines",
+			`Commands that manage machines`,
+		}
+	case "machine.kill":
+		return KeyStrings{"kill <id>", "Kill (SIGKILL) a Fly machine",
+			`Kill (SIGKILL) a Fly machine`,
+		}
+	case "machine.list":
+		return KeyStrings{"list", "List Fly machines",
+			`List Fly machines`,
+		}
+	case "machine.remove":
+		return KeyStrings{"remove <id>", "Remove a Fly machine",
+			`Remove a Fly machine`,
+		}
+	case "machine.run":
+		return KeyStrings{"run <image> [command]", "Launch a Fly machine",
+			`Launch Fly machine with the provided image and command`,
+		}
+	case "machine.start":
+		return KeyStrings{"start <id>", "Start a Fly machine",
+			`Start a Fly machine`,
+		}
+	case "machine.stop":
+		return KeyStrings{"stop <id>", "Stop a Fly machine",
+			`Stop a Fly machine`,
+		}
 	case "monitor":
 		return KeyStrings{"monitor", "Monitor deployments",
 			`Monitor application deployments and other activities. Use --verbose/-v
