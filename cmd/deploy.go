@@ -86,10 +86,6 @@ func newDeployCommand(client *client.Client) *Command {
 		Description: "Do not use the cache when building the image",
 		Hidden:      true,
 	})
-	cmd.AddBoolFlag(BoolFlagOpts{
-		Name:   "remote-machine-only",
-		Hidden: true,
-	})
 
 	cmd.Command.Args = cobra.MaximumNArgs(1)
 
@@ -134,7 +130,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		cmdfmt.PrintServicesList(cmdCtx.IO, parsedCfg.Services)
 	}
 
-	daemonType := imgsrc.NewDockerDaemonType(!cmdCtx.Config.GetBool("remote-only") && !cmdCtx.Config.GetBool("remote-machine-only"), !cmdCtx.Config.GetBool("local-only"), cmdCtx.Config.GetBool("remote-machine-only"))
+	daemonType := imgsrc.NewDockerDaemonType(!cmdCtx.Config.GetBool("remote-only"), !cmdCtx.Config.GetBool("local-only"))
 	resolver := imgsrc.NewResolver(daemonType, cmdCtx.Client.API(), cmdCtx.AppName, cmdCtx.IO)
 
 	var img *imgsrc.DeploymentImage

@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"time"
@@ -20,7 +19,6 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/flyerr"
-	"github.com/superfly/flyctl/internal/monitor"
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -88,16 +86,13 @@ func isRetyableError(err error) bool {
 	return !isUnauthorized(err)
 }
 
-func NewDockerDaemonType(allowLocal, allowRemote, useMachine bool) DockerDaemonType {
+func NewDockerDaemonType(allowLocal, allowRemote bool) DockerDaemonType {
 	daemonType := DockerDaemonTypeNone
 	if allowLocal {
 		daemonType = daemonType | DockerDaemonTypeLocal
 	}
 	if allowRemote {
 		daemonType = daemonType | DockerDaemonTypeRemote
-	}
-	if useMachine {
-		daemonType = daemonType | DockerDaemonTypeMachine
 	}
 	return daemonType
 }
@@ -107,7 +102,6 @@ type DockerDaemonType int
 const (
 	DockerDaemonTypeLocal DockerDaemonType = 1 << iota
 	DockerDaemonTypeRemote
-	DockerDaemonTypeMachine
 	DockerDaemonTypeNone
 )
 
@@ -121,10 +115,6 @@ func (t DockerDaemonType) AllowRemote() bool {
 
 func (t DockerDaemonType) AllowNone() bool {
 	return (t & DockerDaemonTypeNone) != 0
-}
-
-func (t DockerDaemonType) UseMachine() bool {
-	return (t & DockerDaemonTypeMachine) != 0
 }
 
 func (t DockerDaemonType) IsLocal() bool {
@@ -165,11 +155,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	var app *api.App
 	var err error
 	var machine *api.Machine
-	if daemonType.UseMachine() {
-		machine, app, err = remoteMachine(apiClient, appName)
-	} else {
-		host, app, err = remoteBuilderURL(apiClient, appName)
-	}
+	machine, app, err = remoteMachine(apiClient, appName)
 	if err != nil {
 		return nil, err
 	}
@@ -206,37 +192,17 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 		)
 	}
 
-	machineCh := make(chan *api.Machine, 1)
+	streams.ChangeProgressIndicatorMsg(fmt.Sprintf("Waiting for remote builder %s... connecting", remoteBuilderAppName))
 
-	eg.Go(func() error {
-		defer streams.ChangeProgressIndicatorMsg(fmt.Sprintf("Waiting for remote builder %s... connecting", remoteBuilderAppName))
-
-		if daemonType.UseMachine() {
-			// machine, err := monitor.WaitForRunningMachine(errCtx, remoteBuilderAppName, machine.ID, apiClient)
-			// if err != nil {
-			// 	return errors.Wrap(err, "Error waiting for remote builder machine")
-			// }
-			machineCh <- machine
-		} else if remoteBuilderAppName != "" {
-			if err := monitor.WaitForRunningVM(errCtx, remoteBuilderAppName, apiClient); err != nil {
-				return errors.Wrap(err, "Error waiting for remote builder app")
-			}
+	for _, ip := range machine.IPs.Nodes {
+		terminal.Debugf("checking ip %+v\n", ip)
+		if ip.Kind == "privatenet" {
+			host = "tcp://[" + ip.IP + "]:2375"
+			break
 		}
-		return nil
-	})
-
-	if daemonType.UseMachine() {
-		machine = <-machineCh
-		for _, ip := range machine.IPs.Nodes {
-			terminal.Debugf("checking ip %+v\n", ip)
-			if ip.Kind == "privatenet" {
-				host = "tcp://[" + ip.IP + "]:2375"
-				break
-			}
-		}
-		if host == "" {
-			return nil, errors.New("machine did not have a private IP")
-		}
+	}
+	if host == "" {
+		return nil, errors.New("machine did not have a private IP")
 	}
 
 	clientCh := make(chan *dockerclient.Client, 1)
@@ -268,13 +234,6 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 			// wait for the tunnel to be ready
 			if err = agentclient.WaitForTunnel(tunnelCtx, &app.Organization); err != nil {
 				return errors.Wrap(err, "unable to connect WireGuard tunnel")
-			}
-
-			if !daemonType.UseMachine() {
-				// wait for private dns
-				if err := agentclient.WaitForHost(tunnelCtx, &app.Organization, fmt.Sprintf("%s.internal", remoteBuilderAppName)); err != nil {
-					return errors.Wrapf(err, "host unavailable")
-				}
 			}
 
 			opts = append(opts, dockerclient.WithDialContext(dialer.DialContext))
@@ -325,19 +284,6 @@ func remoteMachine(apiClient *api.Client, appName string) (*api.Machine, *api.Ap
 	}
 
 	return apiClient.EnsureMachineRemoteBuilderForApp(appName)
-}
-
-func remoteBuilderURL(apiClient *api.Client, appName string) (string, *api.App, error) {
-	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
-		return v, nil, nil
-	}
-
-	_, app, err := apiClient.EnsureRemoteBuilderForApp(appName)
-	if err != nil {
-		return "", nil, errors.Errorf("could not create remote builder: %v", err)
-	}
-
-	return "tcp://" + net.JoinHostPort(app.Name+".internal", "2375"), app, nil
 }
 
 func waitForDaemon(ctx context.Context, client *dockerclient.Client) error {

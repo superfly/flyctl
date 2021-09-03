@@ -19,7 +19,7 @@ func TestAllowedDockerDaemonMode(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		m := NewDockerDaemonType(test.allowLocal, test.allowRemote, false)
+		m := NewDockerDaemonType(test.allowLocal, test.allowRemote)
 		assert.Equal(t, test.expected, m)
 	}
 }

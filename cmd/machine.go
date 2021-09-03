@@ -392,7 +392,7 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 	var img *imgsrc.DeploymentImage
 	var err error
 
-	daemonType := imgsrc.NewDockerDaemonType(!cmdCtx.Config.GetBool("build-remote-only"), !cmdCtx.Config.GetBool("build-local-only"), !cmdCtx.Config.GetBool("build-local-only"))
+	daemonType := imgsrc.NewDockerDaemonType(!cmdCtx.Config.GetBool("build-remote-only"), !cmdCtx.Config.GetBool("build-local-only"))
 	resolver := imgsrc.NewResolver(daemonType, cmdCtx.Client.API(), cmdCtx.AppName, cmdCtx.IO)
 
 	imageOrPath := cmdCtx.Args[0]
