@@ -13,7 +13,6 @@ type LogOptions struct {
 	AppName    string
 	VMID       string
 	RegionCode string
-	Org        string
 }
 
 type LogStream interface {

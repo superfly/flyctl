@@ -71,8 +71,10 @@ func (s *natsLogStream) Stream(ctx context.Context, opts *LogOptions) <-chan Log
 	}
 	if opts.VMID != "" {
 		subject = fmt.Sprintf("%s.%s", subject, opts.VMID)
+	} else {
+		subject = fmt.Sprintf("%s.%s", subject, "*")
 	}
-	subject = fmt.Sprintf("%s.%s", subject, ">")
+	// subject = fmt.Sprintf("%s.%s", subject, ">")
 
 	terminal.Debug("subscribing to nats subject: ", subject)
 
