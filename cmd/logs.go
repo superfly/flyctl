@@ -61,7 +61,7 @@ func runLogs(cc *cmdctx.CmdContext) error {
 		case <-ctx.Done():
 			return stream.Err()
 		case entry := <-entries:
-			presenter.FPrint(cc.Out, false, entry)
+			presenter.FPrint(cc.Out, cc.OutputJSON(), entry)
 		}
 	}
 }
