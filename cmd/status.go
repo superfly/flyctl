@@ -199,8 +199,8 @@ func runAllocStatus(ctx *cmdctx.CmdContext) error {
 		p = ctx.Out
 	}
 
-	logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
-	logPresenter.FPrint(p, ctx.OutputJSON(), alloc.RecentLogs)
+	// logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
+	// logPresenter.FPrint(p, ctx.OutputJSON(), alloc.RecentLogs)
 
 	if p != ctx.Out {
 		_ = pw.Flush()

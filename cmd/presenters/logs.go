@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/logrusorgru/aurora"
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/pkg/logs"
 )
 
 type LogPresenter struct {
@@ -16,16 +16,14 @@ type LogPresenter struct {
 	HideAllocID    bool
 }
 
-func (lp *LogPresenter) FPrint(w io.Writer, asJSON bool, entries []api.LogEntry) {
-	for _, entry := range entries {
-		lp.printEntry(w, asJSON, entry)
-	}
+func (lp *LogPresenter) FPrint(w io.Writer, asJSON bool, entry logs.LogEntry) {
+	lp.printEntry(w, asJSON, entry)
 }
 
 var newLineReplacer = strings.NewReplacer("\r\n", aurora.Faint("↩︎").String(), "\n", aurora.Faint("↩︎").String())
 var newline = []byte("\n")
 
-func (lp *LogPresenter) printEntry(w io.Writer, asJSON bool, entry api.LogEntry) {
+func (lp *LogPresenter) printEntry(w io.Writer, asJSON bool, entry logs.LogEntry) {
 	if asJSON {
 		outBuf, _ := json.MarshalIndent(entry, "", "    ")
 		fmt.Fprintln(w, string(outBuf))

@@ -449,8 +449,8 @@ func watchDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext) error {
 				}
 
 				cmdCtx.Status("deploy", cmdctx.STITLE, "Recent Logs")
-				logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
-				logPresenter.FPrint(cmdCtx.Out, cmdCtx.OutputJSON(), alloc.RecentLogs)
+				// logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
+				// logPresenter.FPrint(cmdCtx.Out, cmdCtx.OutputJSON(), alloc.RecentLogs)
 			}
 
 		}

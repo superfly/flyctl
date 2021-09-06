@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/internal/monitor"
+	"github.com/superfly/flyctl/pkg/logs"
+	"github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/docstrings"
 )
@@ -27,12 +29,34 @@ func newLogsCommand(client *client.Client) *Command {
 	return cmd
 }
 
-func runLogs(ctx *cmdctx.CmdContext) error {
-	err := monitor.WatchLogs(ctx, ctx.Out, monitor.LogOptions{
-		AppName:    ctx.AppName,
-		VMID:       ctx.Config.GetString("instance"),
-		RegionCode: ctx.Config.GetString("region"),
-	})
+func runLogs(cc *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
 
-	return err
+	client := cc.Client.API()
+
+	opts := &logs.LogOptions{
+		AppName:    cc.Config.GetString("app"),
+		RegionCode: cc.Config.GetString("region"),
+		VMID:       cc.Config.GetString("instance"),
+	}
+
+	stream, err := logs.NewNatsStream(client, opts)
+
+	if err != nil {
+		terminal.Debugf("could not connect to wireguard tunnel, err: %v\n", err)
+		terminal.Debug("Falling back to log polling...")
+
+		stream, err = logs.NewPollingStream(client)
+		if err != nil {
+			return err
+		}
+	}
+
+	presenter := presenters.LogPresenter{}
+
+	for entry := range stream.Stream(ctx, opts) {
+		presenter.FPrint(cc.Out, false, entry)
+	}
+
+	return nil
 }

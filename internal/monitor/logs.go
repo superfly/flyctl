@@ -7,7 +7,6 @@ import (
 
 	"github.com/jpillora/backoff"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -37,7 +36,7 @@ func WatchLogs(cc *cmdctx.CmdContext, w io.Writer, opts LogOptions) error {
 
 	nextToken := ""
 
-	logPresenter := presenters.LogPresenter{}
+	// logPresenter := presenters.LogPresenter{}
 
 	for {
 		entries, token, err := cc.Client.API().GetAppLogs(opts.AppName, nextToken, opts.RegionCode, opts.VMID)
@@ -63,7 +62,7 @@ func WatchLogs(cc *cmdctx.CmdContext, w io.Writer, opts LogOptions) error {
 		} else {
 			b.Reset()
 
-			logPresenter.FPrint(w, false, entries)
+			// logPresenter.FPrint(w, false, entries)
 
 			if token != "" {
 				nextToken = token

@@ -35,7 +35,7 @@ func StartDaemon(ctx context.Context, api *api.Client, command string) (*Client,
 		return nil, err
 	}
 	agentPid := cmd.Process.Pid
-	terminal.Debugf("started agent process %d", agentPid)
+	terminal.Debug("started agent process ", agentPid)
 
 	// read stdout and stderr from the daemon process. If it
 	// includes "[pid] OK" we know it started successfully, and
