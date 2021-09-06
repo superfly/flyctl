@@ -17,5 +17,6 @@ type LogOptions struct {
 }
 
 type LogStream interface {
+	Err() error
 	Stream(ctx context.Context, opts *LogOptions) <-chan LogEntry
 }

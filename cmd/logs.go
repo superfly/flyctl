@@ -54,9 +54,14 @@ func runLogs(cc *cmdctx.CmdContext) error {
 
 	presenter := presenters.LogPresenter{}
 
-	for entry := range stream.Stream(ctx, opts) {
-		presenter.FPrint(cc.Out, false, entry)
-	}
+	entries := stream.Stream(ctx, opts)
 
-	return nil
+	for {
+		select {
+		case <-ctx.Done():
+			return stream.Err()
+		case entry := <-entries:
+			presenter.FPrint(cc.Out, false, entry)
+		}
+	}
 }

@@ -17,7 +17,7 @@ func NewPollingStream(client *api.Client) (LogStream, error) {
 	return &pollingStream{apiClient: client}, nil
 }
 
-func (p *pollingStream) Stream(ctx context.Context, opts *LogOptions) <-chan LogEntry {
+func (s *pollingStream) Stream(ctx context.Context, opts *LogOptions) <-chan LogEntry {
 	out := make(chan LogEntry)
 
 	b := &backoff.Backoff{
@@ -39,13 +39,13 @@ func (p *pollingStream) Stream(ctx context.Context, opts *LogOptions) <-chan Log
 		var wait <-chan time.Time
 
 		for {
-			entries, token, err := p.apiClient.GetAppLogs(opts.AppName, nextToken, opts.RegionCode, opts.VMID)
+			entries, token, err := s.apiClient.GetAppLogs(opts.AppName, nextToken, opts.RegionCode, opts.VMID)
 
 			if err != nil {
 				errorCount++
 
 				if api.IsNotAuthenticatedError(err) || api.IsNotFoundError(err) || errorCount > 10 {
-					p.err = err
+					s.err = err
 					return
 				}
 				wait = time.After(b.Duration())
@@ -84,4 +84,8 @@ func (p *pollingStream) Stream(ctx context.Context, opts *LogOptions) <-chan Log
 	}()
 
 	return out
+}
+
+func (s *pollingStream) Err() error {
+	return s.err
 }

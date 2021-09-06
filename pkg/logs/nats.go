@@ -59,7 +59,7 @@ func NewNatsStream(apiClient *api.Client, opts *LogOptions) (LogStream, error) {
 }
 
 // natsLogStream implements LogStream
-func (n *natsLogStream) Stream(ctx context.Context, opts *LogOptions) <-chan LogEntry {
+func (s *natsLogStream) Stream(ctx context.Context, opts *LogOptions) <-chan LogEntry {
 	out := make(chan LogEntry)
 
 	subject := fmt.Sprintf("logs.%s", opts.AppName)
@@ -76,33 +76,36 @@ func (n *natsLogStream) Stream(ctx context.Context, opts *LogOptions) <-chan Log
 
 	terminal.Debug("subscribing to nats subject: ", subject)
 
-	sub, err := n.nc.Subscribe(subject, func(msg *nats.Msg) {
+	sub, err := s.nc.Subscribe(subject, func(msg *nats.Msg) {
 		go func() {
-			var log natsLog
-			if err := json.Unmarshal(msg.Data, &log); err != nil {
-				terminal.Error(errors.Wrap(err, "could not parse log"))
+			select {
+			case <-ctx.Done():
 				return
+			default:
+				var log natsLog
+				if err := json.Unmarshal(msg.Data, &log); err != nil {
+					terminal.Error(errors.Wrap(err, "could not parse log"))
+					return
+				}
+
+				out <- LogEntry{
+					Instance:  log.Fly.App.Instance,
+					Level:     log.Log.Level,
+					Message:   log.Message,
+					Region:    log.Fly.Region,
+					Timestamp: log.Timestamp,
+					Meta: Meta{
+						Instance: log.Fly.App.Instance,
+						Region:   log.Fly.Region,
+						Event:    struct{ Provider string }{log.Event.Provider},
+					},
+				}
 			}
-
-			out <- LogEntry{
-				Instance:  log.Fly.App.Instance,
-				Level:     log.Log.Level,
-				Message:   log.Message,
-				Timestamp: log.Timestamp,
-				Meta: Meta{
-					Instance: log.Fly.App.Instance,
-					Region:   log.Fly.Region,
-					Event:    struct{ Provider string }{log.Event.Provider},
-				},
-			}
-
-			<-ctx.Done()
-
 		}()
 
 	})
 	if err != nil {
-		n.err = errors.Wrap(err, "could not sub to logs via nats")
+		s.err = errors.Wrap(err, "could not sub to logs via nats")
 		return nil
 	}
 	go func() {
@@ -111,6 +114,10 @@ func (n *natsLogStream) Stream(ctx context.Context, opts *LogOptions) <-chan Log
 	}()
 
 	return out
+}
+
+func (s *natsLogStream) Err() error {
+	return s.err
 }
 
 func newNatsClient(ctx context.Context, dialer agent.Dialer, app *api.App) (*nats.Conn, error) {
