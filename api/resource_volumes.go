@@ -116,3 +116,32 @@ func (c *Client) GetVolume(volID string) (Volume *Volume, err error) {
 
 	return &data.Volume, nil
 }
+
+func (c *Client) GetVolumeSnapshots(appName, volName string) ([]Snapshot, error) {
+	query := `
+	query($id: ID!) {
+		volume: node(id: $id) {
+			... on Volume {
+				encrypted
+				snapshots {
+					nodes {
+						id
+						size
+						createdAt
+					}
+				}
+			}
+		}
+	}`
+
+	req := c.NewRequest(query)
+
+	req.Var("id", volName)
+
+	data, err := c.Run(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.Volume.Snapshots.Nodes, nil
+}

@@ -277,11 +277,22 @@ type TaskGroupCount struct {
 	Count int
 }
 
+type Snapshot struct {
+	ID        string `json:"id"`
+	Key       string
+	Region    string
+	Size      string
+	CreatedAt time.Time
+}
+
 type Volume struct {
-	ID                 string `json:"id"`
-	App                string
-	Name               string
-	SizeGb             int
+	ID        string `json:"id"`
+	App       string
+	Name      string
+	SizeGb    int
+	Snapshots struct {
+		Nodes []Snapshot
+	}
 	Region             string
 	Encrypted          bool
 	CreatedAt          time.Time

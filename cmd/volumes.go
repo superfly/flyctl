@@ -29,6 +29,13 @@ func newVolumesCommand(client *client.Client) *Command {
 	createCmd := BuildCommandKS(volumesCmd, runCreateVolume, createStrings, client, requireAppName, requireSession)
 	createCmd.Args = cobra.ExactArgs(1)
 
+	snapshotStrings := docstrings.Get("volumes.snapshots")
+	snapshotCmd := BuildCommandKS(volumesCmd, nil, snapshotStrings, client, requireSession)
+
+	snapshotListStrings := docstrings.Get("volumes.snapshots.list")
+	snapshotListCmd := BuildCommandKS(snapshotCmd, runListVolumeSnapshots, snapshotListStrings, client, requireAppName, requireSession)
+	snapshotListCmd.Args = cobra.ExactArgs(1)
+
 	createCmd.AddStringFlag(StringFlagOpts{
 		Name:        "region",
 		Description: "Set region for new volume",
@@ -202,6 +209,36 @@ func runShowVolume(ctx *cmdctx.CmdContext) error {
 	fmt.Printf("%10s: %d\n", "Size GB", volume.SizeGb)
 	fmt.Printf("%10s: %t\n", "Encrypted", volume.Encrypted)
 	fmt.Printf("%10s: %s\n", "Created at", volume.CreatedAt.Format(time.RFC822))
+
+	return nil
+}
+
+func runListVolumeSnapshots(ctx *cmdctx.CmdContext) error {
+	volName := ctx.Args[0]
+
+	snapshots, err := ctx.Client.API().GetVolumeSnapshots(ctx.AppName, volName)
+	if err != nil {
+		return err
+	}
+
+	if len(snapshots) == 0 {
+		fmt.Printf("No snapshots available for volume %q\n", volName)
+		return nil
+	}
+
+	if ctx.OutputJSON() {
+		ctx.WriteJSON(snapshots)
+		return nil
+	}
+
+	table := helpers.MakeSimpleTable(ctx.Out, []string{"id", "size", "created at"})
+
+	for _, s := range snapshots {
+		size, _ := strconv.Atoi(s.Size)
+		table.Append([]string{s.ID, helpers.BytesToHumanReadable(size, 2), humanize.Time(s.CreatedAt)})
+	}
+
+	table.Render()
 
 	return nil
 }
