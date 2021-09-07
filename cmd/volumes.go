@@ -30,13 +30,6 @@ func newVolumesCommand(client *client.Client) *Command {
 	createCmd := BuildCommandKS(volumesCmd, runCreateVolume, createStrings, client, requireAppName, requireSession)
 	createCmd.Args = cobra.ExactArgs(1)
 
-	snapshotStrings := docstrings.Get("volumes.snapshots")
-	snapshotCmd := BuildCommandKS(volumesCmd, nil, snapshotStrings, client, requireSession)
-
-	snapshotListStrings := docstrings.Get("volumes.snapshots.list")
-	snapshotListCmd := BuildCommandKS(snapshotCmd, runListVolumeSnapshots, snapshotListStrings, client, requireAppName, requireSession)
-	snapshotListCmd.Args = cobra.ExactArgs(1)
-
 	createCmd.AddStringFlag(StringFlagOpts{
 		Name:        "region",
 		Description: "Set region for new volume",
@@ -67,6 +60,13 @@ func newVolumesCommand(client *client.Client) *Command {
 	showStrings := docstrings.Get("volumes.show")
 	showCmd := BuildCommandKS(volumesCmd, runShowVolume, showStrings, client, requireSession)
 	showCmd.Args = cobra.ExactArgs(1)
+
+	snapshotStrings := docstrings.Get("volumes.snapshots")
+	snapshotCmd := BuildCommandKS(volumesCmd, nil, snapshotStrings, client, requireSession)
+
+	snapshotListStrings := docstrings.Get("volumes.snapshots.list")
+	snapshotListCmd := BuildCommandKS(snapshotCmd, runListVolumeSnapshots, snapshotListStrings, client, requireSession)
+	snapshotListCmd.Args = cobra.ExactArgs(1)
 
 	return volumesCmd
 }
@@ -217,7 +217,7 @@ func runShowVolume(ctx *cmdctx.CmdContext) error {
 func runListVolumeSnapshots(ctx *cmdctx.CmdContext) error {
 	volName := ctx.Args[0]
 
-	snapshots, err := ctx.Client.API().GetVolumeSnapshots(ctx.AppName, volName)
+	snapshots, err := ctx.Client.API().GetVolumeSnapshots(volName)
 	if err != nil {
 		return err
 	}
@@ -232,7 +232,7 @@ func runListVolumeSnapshots(ctx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	table := helpers.MakeSimpleTable(ctx.Out, []string{"id", "size", "created at"})
+	table := helpers.MakeSimpleTable(ctx.Out, []string{"id", "size", "created at", "encrypted"})
 
 	// Sort snapshots from newest to oldest
 	sort.SliceStable(snapshots, func(i, j int) bool {

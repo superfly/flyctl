@@ -117,11 +117,12 @@ func (c *Client) GetVolume(volID string) (Volume *Volume, err error) {
 	return &data.Volume, nil
 }
 
-func (c *Client) GetVolumeSnapshots(appName, volName string) ([]Snapshot, error) {
+func (c *Client) GetVolumeSnapshots(volName string) ([]Snapshot, error) {
 	query := `
 	query($id: ID!) {
 		volume: node(id: $id) {
 			... on Volume {
+				name
 				encrypted
 				snapshots {
 					nodes {
