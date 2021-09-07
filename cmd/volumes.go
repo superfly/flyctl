@@ -232,7 +232,7 @@ func runListVolumeSnapshots(ctx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	table := helpers.MakeSimpleTable(ctx.Out, []string{"id", "size", "created at", "encrypted"})
+	table := helpers.MakeSimpleTable(ctx.Out, []string{"id", "size", "created at"})
 
 	// Sort snapshots from newest to oldest
 	sort.SliceStable(snapshots, func(i, j int) bool {
