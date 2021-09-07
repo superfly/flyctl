@@ -35,7 +35,7 @@ func runLogs(cc *cmdctx.CmdContext) error {
 	client := cc.Client.API()
 
 	opts := &logs.LogOptions{
-		AppName:    cc.Config.GetString("app"),
+		AppName:    cc.AppName,
 		RegionCode: cc.Config.GetString("region"),
 		VMID:       cc.Config.GetString("instance"),
 	}
