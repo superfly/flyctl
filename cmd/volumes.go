@@ -47,11 +47,6 @@ func newVolumesCommand(client *client.Client) *Command {
 		Default:     true,
 	})
 
-	createCmd.AddStringFlag(StringFlagOpts{
-		Name:        "snapshot-id",
-		Description: "Creates the volume with the contents of the snapshot",
-	})
-
 	deleteStrings := docstrings.Get("volumes.delete")
 	deleteCmd := BuildCommandKS(volumesCmd, runDeleteVolume, deleteStrings, client, requireSession)
 	deleteCmd.Args = cobra.ExactArgs(1)
@@ -127,18 +122,12 @@ func runCreateVolume(ctx *cmdctx.CmdContext) error {
 
 	sizeGb := ctx.Config.GetInt("size")
 
-	snapshot := ctx.Config.GetString("snapshot-id")
-
 	input := api.CreateVolumeInput{
 		AppID:     appid,
 		Name:      volName,
 		Region:    region,
 		SizeGb:    sizeGb,
 		Encrypted: ctx.Config.GetBool("encrypted"),
-	}
-
-	if snapshot != "" {
-		input.SnapshotID = api.StringPointer(snapshot)
 	}
 
 	volume, err := ctx.Client.API().CreateVolume(input)
