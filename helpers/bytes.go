@@ -63,5 +63,5 @@ func BytesToHumanReadable(bytes, decimals int) string {
 		decimals = len(remainderString)
 	}
 
-	return fmt.Sprintf("%d.%s %s", val, remainderString[:decimals], unit)
+	return fmt.Sprintf("%d.%s%s", val, remainderString[:decimals], unit)
 }

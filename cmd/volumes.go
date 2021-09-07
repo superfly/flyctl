@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
 
@@ -232,6 +233,11 @@ func runListVolumeSnapshots(ctx *cmdctx.CmdContext) error {
 	}
 
 	table := helpers.MakeSimpleTable(ctx.Out, []string{"id", "size", "created at"})
+
+	// Sort snapshots from newest to oldest
+	sort.SliceStable(snapshots, func(i, j int) bool {
+		return snapshots[i].CreatedAt.After(snapshots[j].CreatedAt)
+	})
 
 	for _, s := range snapshots {
 		size, _ := strconv.Atoi(s.Size)
