@@ -50,8 +50,9 @@ func (s *buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClient
 		terminal.Debug("error fetching docker server info:", err)
 	}
 
-	msg := fmt.Sprintf("Building image with Buildpacks (%s %s)", serverInfo.OSType, serverInfo.Architecture)
-	cmdfmt.PrintBegin(streams.ErrOut, msg)
+	cmdfmt.PrintBegin(streams.ErrOut, "Building image with Buildpacks")
+	msg := fmt.Sprintf("docker host: %s %s %s", serverInfo.ServerVersion, serverInfo.OSType, serverInfo.Architecture)
+	cmdfmt.PrintDone(streams.ErrOut, msg)
 
 	err = packClient.Build(ctx, pack.BuildOptions{
 		AppPath:        opts.WorkingDir,
