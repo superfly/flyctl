@@ -75,8 +75,9 @@ func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		terminal.Debug("error fetching docker server info:", err)
 	}
 
-	msg := fmt.Sprintf("Building image with Docker (%s %s)", serverInfo.OperatingSystem, serverInfo.Architecture)
-	cmdfmt.PrintBegin(streams.ErrOut, msg)
+	cmdfmt.PrintBegin(streams.ErrOut, "Building image with Docker")
+	msg := fmt.Sprintf("docker host: %s %s %s", serverInfo.ServerVersion, serverInfo.OSType, serverInfo.Architecture)
+	cmdfmt.PrintDone(streams.ErrOut, msg)
 
 	buildArgs := normalizeBuildArgsForDocker(opts.AppConfig, opts.ExtraBuildArgs)
 	imageID, err = runClassicBuild(ctx, streams, docker, r, opts, "", buildArgs)
