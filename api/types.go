@@ -304,11 +304,22 @@ type TaskGroupCount struct {
 	Count int
 }
 
+type Snapshot struct {
+	ID        string `json:"id"`
+	Key       string
+	Region    string
+	Size      string
+	CreatedAt time.Time
+}
+
 type Volume struct {
-	ID                 string `json:"id"`
-	App                string
-	Name               string
-	SizeGb             int
+	ID        string `json:"id"`
+	App       string
+	Name      string
+	SizeGb    int
+	Snapshots struct {
+		Nodes []Snapshot
+	}
 	Region             string
 	Encrypted          bool
 	CreatedAt          time.Time
@@ -316,11 +327,12 @@ type Volume struct {
 }
 
 type CreateVolumeInput struct {
-	AppID     string `json:"appId"`
-	Name      string `json:"name"`
-	Region    string `json:"region"`
-	SizeGb    int    `json:"sizeGb"`
-	Encrypted bool   `json:"encrypted"`
+	AppID      string  `json:"appId"`
+	Name       string  `json:"name"`
+	Region     string  `json:"region"`
+	SizeGb     int     `json:"sizeGb"`
+	Encrypted  bool    `json:"encrypted"`
+	SnapshotID *string `json:"snapshotId,omitempty"`
 }
 
 type CreateVolumePayload struct {
@@ -977,6 +989,7 @@ type CreatePostgresClusterInput struct {
 	VMSize         *string `json:"vmSize,omitempty"`
 	VolumeSizeGB   *int    `json:"volumeSizeGb,omitempty"`
 	ImageRef       *string `json:"imageRef,omitempty"`
+	SnapshotID     *string `json:"snapshotId,omitempty"`
 }
 
 type CreatePostgresClusterPayload struct {

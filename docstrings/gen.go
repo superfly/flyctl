@@ -788,6 +788,14 @@ number to operate. This can be found through the volumes list command`,
 			`Show details of an app's volume. Requires the volume's ID
 number to operate. This can be found through the volumes list command`,
 		}
+	case "volumes.snapshots":
+		return KeyStrings{"snapshots", "Manage volume snapshots",
+			`Commands for managing volume snapshots`,
+		}
+	case "volumes.snapshots.list":
+		return KeyStrings{"list <volume-id>", "list snapshots associated with the specified volume",
+			`list snapshots associated with the specified volume`,
+		}
 	case "wireguard":
 		return KeyStrings{"wireguard <command>", "Commands that manage WireGuard peer connections",
 			`Commands that manage WireGuard peer connections`,
