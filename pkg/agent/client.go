@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/wireguard"
+	"github.com/superfly/flyctl/pkg/wg"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -90,11 +91,17 @@ func (c *Client) Ping(ctx context.Context) (PingResponse, error) {
 	return n, nil
 }
 
-func (c *Client) Establish(ctx context.Context, slug string) error {
-	if err := c.provider.Establish(ctx, slug); err != nil {
-		return errors.Wrap(err, "establish failed")
+type EstablishResponse struct {
+	WireGuardState *wg.WireGuardState
+	TunnelConfig   *wg.Config
+}
+
+func (c *Client) Establish(ctx context.Context, slug string) (*EstablishResponse, error) {
+	resp, err := c.provider.Establish(ctx, slug)
+	if err != nil {
+		return nil, errors.Wrap(err, "establish failed")
 	}
-	return nil
+	return resp, nil
 }
 
 func (c *Client) WaitForTunnel(ctx context.Context, o *api.Organization) error {
@@ -181,7 +188,7 @@ func (c *Client) Dialer(ctx context.Context, o *api.Organization) (Dialer, error
 // clientProvider is an interface for client functions backed by either the agent or in-process on Windows
 type clientProvider interface {
 	Dialer(ctx context.Context, o *api.Organization) (Dialer, error)
-	Establish(ctx context.Context, slug string) error
+	Establish(ctx context.Context, slug string) (*EstablishResponse, error)
 	Instances(ctx context.Context, o *api.Organization, app string) (*Instances, error)
 	Kill(ctx context.Context) error
 	Ping(ctx context.Context) (PingResponse, error)
@@ -190,6 +197,8 @@ type clientProvider interface {
 }
 
 type Dialer interface {
+	State() *wg.WireGuardState
+	Config() *wg.Config
 	DialContext(ctx context.Context, network, addr string) (net.Conn, error)
 }
 
