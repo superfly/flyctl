@@ -230,7 +230,7 @@ func runListVolumeSnapshots(ctx *cmdctx.CmdContext) error {
 
 	for _, s := range snapshots {
 		size, _ := strconv.Atoi(s.Size)
-		table.Append([]string{s.ID, helpers.BytesToHumanReadable(size, 2), humanize.Time(s.CreatedAt)})
+		table.Append([]string{s.ID, humanize.IBytes(uint64(size)), humanize.Time(s.CreatedAt)})
 	}
 
 	table.Render()
