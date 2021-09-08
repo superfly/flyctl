@@ -29,6 +29,10 @@ func (lp *LogPresenter) printEntry(w io.Writer, asJSON bool, entry logs.LogEntry
 		fmt.Fprintln(w, string(outBuf))
 		return
 	}
+
+	// Trim milliseconds from entry.Timestamp string
+	entry.Timestamp = strings.Split(entry.Timestamp, ".")[0]
+
 	fmt.Fprintf(w, "%s ", aurora.Faint(entry.Timestamp))
 
 	if !lp.HideAllocID {
