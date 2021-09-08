@@ -46,7 +46,7 @@ func runLogs(cc *cmdctx.CmdContext) error {
 		terminal.Debugf("could not connect to wireguard tunnel, err: %v\n", err)
 		terminal.Debug("Falling back to log polling...")
 
-		stream, err = logs.NewPollingStream(client)
+		stream, err = logs.NewPollingStream(client, opts)
 		if err != nil {
 			return err
 		}

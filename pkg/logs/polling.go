@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/jpillora/backoff"
+	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
 )
 
@@ -13,7 +14,11 @@ type pollingStream struct {
 	apiClient *api.Client
 }
 
-func NewPollingStream(client *api.Client) (LogStream, error) {
+func NewPollingStream(client *api.Client, opts *LogOptions) (LogStream, error) {
+	_, err := client.GetApp(opts.AppName)
+	if err != nil {
+		return nil, errors.Wrap(err, "err polling logs")
+	}
 	return &pollingStream{apiClient: client}, nil
 }
 
