@@ -1,6 +1,7 @@
 package buildinfo
 
 import (
+	"errors"
 	"time"
 
 	"github.com/blang/semver"
@@ -22,7 +23,10 @@ func loadMeta() {
 	var err error
 
 	parsedBuildDate, err = time.Parse(time.RFC3339, buildDate)
-	if err != nil {
+	var parseErr *time.ParseError
+	if errors.As(err, &parseErr) && IsDev() {
+		parsedBuildDate = time.Now()
+	} else if err != nil {
 		panic(err)
 	}
 
