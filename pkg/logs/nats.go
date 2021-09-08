@@ -79,31 +79,26 @@ func (s *natsLogStream) Stream(ctx context.Context, opts *LogOptions) <-chan Log
 	terminal.Debug("subscribing to nats subject: ", subject)
 
 	sub, err := s.nc.Subscribe(subject, func(msg *nats.Msg) {
-		go func() {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				var log natsLog
-				if err := json.Unmarshal(msg.Data, &log); err != nil {
-					terminal.Error(errors.Wrap(err, "could not parse log"))
-					return
-				}
 
-				out <- LogEntry{
-					Instance:  log.Fly.App.Instance,
-					Level:     log.Log.Level,
-					Message:   log.Message,
-					Region:    log.Fly.Region,
-					Timestamp: log.Timestamp,
-					Meta: Meta{
-						Instance: log.Fly.App.Instance,
-						Region:   log.Fly.Region,
-						Event:    struct{ Provider string }{log.Event.Provider},
-					},
-				}
-			}
-		}()
+		var log natsLog
+
+		if err := json.Unmarshal(msg.Data, &log); err != nil {
+			terminal.Error(errors.Wrap(err, "could not parse log"))
+			return
+		}
+
+		out <- LogEntry{
+			Instance:  log.Fly.App.Instance,
+			Level:     log.Log.Level,
+			Message:   log.Message,
+			Region:    log.Fly.Region,
+			Timestamp: log.Timestamp,
+			Meta: Meta{
+				Instance: log.Fly.App.Instance,
+				Region:   log.Fly.Region,
+				Event:    struct{ Provider string }{log.Event.Provider},
+			},
+		}
 
 	})
 	if err != nil {
