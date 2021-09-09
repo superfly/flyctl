@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/pkg/logs"
@@ -30,10 +31,14 @@ func (lp *LogPresenter) printEntry(w io.Writer, asJSON bool, entry logs.LogEntry
 		return
 	}
 
-	// Trim milliseconds from entry.Timestamp string
-	entry.Timestamp = strings.Split(entry.Timestamp, ".")[0]
+	// parse entry.Timestamp and truncate from nanoseconds to milliseconds
+	timestamp, err := time.Parse(time.RFC3339Nano, entry.Timestamp)
+	if err != nil {
+		fmt.Fprintf(w, "Error parsing timestamp: %s\n", err)
+		return
+	}
 
-	fmt.Fprintf(w, "%s ", aurora.Faint(entry.Timestamp))
+	fmt.Fprintf(w, "%s ", aurora.Faint(timestamp.Format("2006-01-02T15:04:05.000")))
 
 	if !lp.HideAllocID {
 		if entry.Meta.Event.Provider != "" {
