@@ -1,16 +1,19 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"time"
 
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/pkg/agent"
 
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/flyerr"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/briandowns/spinner"
@@ -214,7 +217,31 @@ func runInteractiveLogin(ctx *cmdctx.CmdContext) error {
 	return flyctl.SaveConfig()
 }
 
-func runLogout(ctx *cmdctx.CmdContext) error {
+func runLogout(cc *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
+	captureError := func(err error) {
+		// ignore cancelled errors
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+
+		flyerr.CaptureException(err,
+			flyerr.WithTag("feature", "logout"),
+		)
+	}
+
+	agentclient, err := agent.Establish(ctx, cc.Client.API())
+	if err != nil {
+		captureError(err)
+		return errors.Wrap(err, "can't establish agent")
+	}
+
+	if err := agentclient.Kill(ctx); err != nil {
+		captureError(err)
+		return errors.Wrap(err, "can't kill agent")
+	}
+
 	viper.Set(flyctl.ConfigAPIToken, "")
 
 	if err := flyctl.SaveConfig(); err != nil {
@@ -228,13 +255,13 @@ func runLogout(ctx *cmdctx.CmdContext) error {
 	_, ok := os.LookupEnv("FLY_API_TOKEN")
 
 	if ok {
-		ctx.Status("auth", cmdctx.SWARN, "FLY_API_TOKEN is set in your environment. Don't forget to remove it.")
+		cc.Status("auth", cmdctx.SWARN, "FLY_API_TOKEN is set in your environment. Don't forget to remove it.")
 	}
 
 	_, ok = os.LookupEnv("FLY_ACCESS_TOKEN")
 
 	if ok {
-		ctx.Status("auth", cmdctx.SWARN, "FLY_ACCESS_TOKEN is set in your environment. Don't forget to remove it.")
+		cc.Status("auth", cmdctx.SWARN, "FLY_ACCESS_TOKEN is set in your environment. Don't forget to remove it.")
 	}
 
 	return nil
