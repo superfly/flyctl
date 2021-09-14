@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/sourcecode"
@@ -116,6 +118,24 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 		}
 	}
 
+	if srcInfo != nil {
+		for _, f := range srcInfo.Files {
+			path := filepath.Join(dir, f.Path)
+
+			if helpers.FileExists(path) && !confirmOverwrite(path) {
+				continue
+			}
+
+			if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+				return err
+			}
+
+			if err := os.WriteFile(path, f.Contents, 0666); err != nil {
+				return err
+			}
+		}
+	}
+
 	appName := cmdctx.Config.GetString("name")
 	org, err := selectOrganization(cmdctx.Client.API(), orgSlug, nil)
 	if err != nil {
@@ -145,9 +165,14 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 	appConfig.AppName = app.Name
 	cmdctx.AppConfig = appConfig
 
-	if srcInfo != nil && (len(srcInfo.Buildpacks) > 0 || srcInfo.Builder != "") {
-		appConfig.SetInternalPort(8080)
-		appConfig.SetEnvVariable("PORT", "8080")
+	if srcInfo != nil {
+		if srcInfo.Port > 0 {
+			appConfig.SetInternalPort(srcInfo.Port)
+		}
+
+		for envName, envVal := range srcInfo.Env {
+			appConfig.SetEnvVariable(envName, envVal)
+		}
 	}
 
 	fmt.Printf("Created app %s in organization %s\n", app.Name, org.Slug)
