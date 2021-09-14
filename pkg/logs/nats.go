@@ -4,9 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/user"
-	"path/filepath"
 
 	"net"
 	"time"
@@ -14,9 +11,9 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/terminal"
-	"gopkg.in/yaml.v2"
 )
 
 type natsLogStream struct {
@@ -45,7 +42,7 @@ func NewNatsStream(apiClient *api.Client, opts *LogOptions) (LogStream, error) {
 
 	tunnelCtx, cancel := context.WithTimeout(ctx, 4*time.Minute)
 	defer cancel()
-	// wait for the tunnel to be ready
+
 	if err = agentclient.WaitForTunnel(tunnelCtx, &app.Organization); err != nil {
 		return nil, errors.Wrap(err, "unable to connect WireGuard tunnel")
 	}
@@ -74,7 +71,6 @@ func (s *natsLogStream) Stream(ctx context.Context, opts *LogOptions) <-chan Log
 	} else {
 		subject = fmt.Sprintf("%s.%s", subject, "*")
 	}
-	// subject = fmt.Sprintf("%s.%s", subject, ">")
 
 	terminal.Debug("subscribing to nats subject: ", subject)
 
@@ -119,22 +115,9 @@ func (s *natsLogStream) Err() error {
 
 func newNatsClient(ctx context.Context, dialer agent.Dialer, app *api.App) (*nats.Conn, error) {
 
-	var flyConf flyConfig
-	usr, _ := user.Current()
-	flyConfFile, err := os.Open(filepath.Join(usr.HomeDir, ".fly", "config.yml"))
-	if err != nil {
-		return nil, errors.Wrap(err, "could not read fly config yml")
-	}
-	if err := yaml.NewDecoder(flyConfFile).Decode(&flyConf); err != nil {
-		return nil, errors.Wrap(err, "could not decode fly config yml")
-	}
+	state := dialer.State()
 
-	state, ok := flyConf.WireGuardState[app.Organization.Slug]
-	if !ok {
-		return nil, errors.New("could not find org in fly config")
-	}
-
-	peerIP := state.Peer.PeerIP
+	peerIP := net.ParseIP(state.Peer.Peerip)
 
 	var natsIPBytes [16]byte
 	copy(natsIPBytes[0:], peerIP[0:6])
@@ -142,9 +125,9 @@ func newNatsClient(ctx context.Context, dialer agent.Dialer, app *api.App) (*nat
 
 	natsIP := net.IP(natsIPBytes[:])
 
-	terminal.Debug("connecting to nats")
+	terminal.Debug("connecting to nats server: ", natsIP.String())
 
-	conn, err := nats.Connect(fmt.Sprintf("nats://[%s]:4223", natsIP.String()), nats.SetCustomDialer(&natsDialer{dialer, ctx}), nats.UserInfo(app.Organization.Slug, flyConf.AccessToken))
+	conn, err := nats.Connect(fmt.Sprintf("nats://[%s]:4223", natsIP.String()), nats.SetCustomDialer(&natsDialer{dialer, ctx}), nats.UserInfo(app.Organization.Slug, flyctl.GetAPIToken()))
 	if err != nil {
 		return nil, errors.Wrap(err, "could not connect to nats")
 	}
@@ -158,17 +141,4 @@ type natsDialer struct {
 
 func (d *natsDialer) Dial(network, address string) (net.Conn, error) {
 	return d.Dialer.DialContext(d.ctx, network, address)
-}
-
-type flyConfig struct {
-	AccessToken    string             `yaml:"access_token"`
-	WireGuardState map[string]wgState `yaml:"wire_guard_state"`
-}
-
-type wgState struct {
-	Peer wgPeer `yaml:"peer"`
-}
-
-type wgPeer struct {
-	PeerIP net.IP `yaml:"peerip"`
 }
