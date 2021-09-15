@@ -30,8 +30,8 @@ type SourceFile struct {
 	Contents []byte
 }
 type Static struct {
-	GuestPath string `toml:"guest_path"`
-	UrlPrefix string `toml:"url_prefix"`
+	GuestPath string `toml:"guest_path" json:"guest_path"`
+	UrlPrefix string `toml:"url_prefix" json:"url_prefix"`
 }
 
 func Scan(sourceDir string) (*SourceInfo, error) {
