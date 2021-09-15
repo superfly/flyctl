@@ -190,8 +190,6 @@ func NewServer(path string, apiClient *api.Client, background bool) (*Server, er
 }
 
 func DefaultServer(apiClient *api.Client, background bool) (*Server, error) {
-	wireguard.PruneInvalidPeers(apiClient)
-
 	return NewServer(fmt.Sprintf("%s/.fly/fly-agent.sock", os.Getenv("HOME")), apiClient, background)
 }
 
