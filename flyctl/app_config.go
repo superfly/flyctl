@@ -13,6 +13,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/sourcecode"
 )
 
 type ConfigFormat string
@@ -319,6 +320,10 @@ func (ac *AppConfig) SetEnvVariable(name, value string) {
 	env[name] = value
 
 	ac.Definition["env"] = env
+}
+
+func (ac *AppConfig) SetStatics(statics []sourcecode.Static) {
+	ac.Definition["statics"] = statics
 }
 
 const defaultConfigFileName = "fly.toml"

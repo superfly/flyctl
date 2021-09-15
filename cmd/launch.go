@@ -173,6 +173,10 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 		for envName, envVal := range srcInfo.Env {
 			appConfig.SetEnvVariable(envName, envVal)
 		}
+
+		if len(srcInfo.Statics) > 0 {
+			appConfig.SetStatics(srcInfo.Statics)
+		}
 	}
 
 	fmt.Printf("Created app %s in organization %s\n", app.Name, org.Slug)

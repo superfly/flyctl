@@ -22,11 +22,16 @@ type SourceInfo struct {
 	Files          []SourceFile
 	Port           int
 	Env            map[string]string
+	Statics        []Static
 }
 
 type SourceFile struct {
 	Path     string
 	Contents []byte
+}
+type Static struct {
+	GuestPath string `toml:"guest_path"`
+	UrlPrefix string `toml:"url_prefix"`
 }
 
 func Scan(sourceDir string) (*SourceInfo, error) {
@@ -178,9 +183,15 @@ func configureRedwood(sourceDir string) (*SourceInfo, error) {
 	s := &SourceInfo{
 		Family: "Redwood",
 		Files:  templates("templates/redwood"),
-		Port:   1234,
+		Port:   8911,
 		Env: map[string]string{
-			"PORT": "1234",
+			"PORT": "8911",
+		},
+		Statics: []Static{
+			0: {
+				GuestPath: "/app/public",
+				UrlPrefix: "/",
+			},
 		},
 	}
 
