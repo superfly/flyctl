@@ -15,15 +15,19 @@ import (
 )
 
 type Tunnel struct {
-	dev   *device.Device
-	tun   tun.Device
-	net   *netstack.Net
-	dnsIP net.IP
+	dev    *device.Device
+	tun    tun.Device
+	net    *netstack.Net
+	dnsIP  net.IP
+	State  *WireGuardState
+	Config *Config
 
 	resolv *net.Resolver
 }
 
-func Connect(cfg Config) (*Tunnel, error) {
+func Connect(state *WireGuardState) (*Tunnel, error) {
+	cfg := state.TunnelConfig()
+	fmt.Println("wg connect", cfg.DNS, cfg.Endpoint, cfg.LocalNetwork.IP, cfg.RemoteNetwork.IP)
 	localIPs := []net.IP{cfg.LocalNetwork.IP}
 	dnsIP := cfg.DNS
 
@@ -65,10 +69,12 @@ func Connect(cfg Config) (*Tunnel, error) {
 	wgDev.Up()
 
 	return &Tunnel{
-		dev:   wgDev,
-		tun:   tunDev,
-		net:   gNet,
-		dnsIP: dnsIP,
+		dev:    wgDev,
+		tun:    tunDev,
+		net:    gNet,
+		dnsIP:  dnsIP,
+		Config: cfg,
+		State:  state,
 
 		resolv: &net.Resolver{
 			PreferGo: true,

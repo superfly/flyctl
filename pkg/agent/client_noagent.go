@@ -51,30 +51,34 @@ func (c *noAgentClientProvider) Ping(ctx context.Context) (PingResponse, error) 
 	return resp, nil
 }
 
-func (c *noAgentClientProvider) Establish(ctx context.Context, slug string) error {
+func (c *noAgentClientProvider) Establish(ctx context.Context, slug string) (*EstablishResponse, error) {
 	if c.Client == nil {
-		return fmt.Errorf("no client set for stub agent")
+		return nil, fmt.Errorf("no client set for stub agent")
 	}
 
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	if _, ok := c.tunnels[slug]; ok {
-		return nil
+	tunnel, ok := c.tunnels[slug]
+	if !ok {
+		org, err := findOrganization(c.Client, slug)
+		if err != nil {
+			return nil, err
+		}
+
+		tunnel, err = buildTunnel(c.Client, org)
+		if err != nil {
+			return nil, err
+		}
+		c.tunnels[slug] = tunnel
 	}
 
-	org, err := findOrganization(c.Client, slug)
-	if err != nil {
-		return err
+	resp := &EstablishResponse{
+		WireGuardState: tunnel.State,
+		TunnelConfig:   tunnel.Config,
 	}
 
-	tunnel, err := buildTunnel(c.Client, org)
-	if err != nil {
-		return err
-	}
-
-	c.tunnels[org.Slug] = tunnel
-	return nil
+	return resp, nil
 }
 
 func (c *noAgentClientProvider) Probe(ctx context.Context, o *api.Organization) error {
@@ -118,7 +122,8 @@ func (c *noAgentClientProvider) Instances(ctx context.Context, o *api.Organizati
 }
 
 func (c *noAgentClientProvider) Dialer(ctx context.Context, o *api.Organization) (Dialer, error) {
-	if err := c.Establish(ctx, o.Slug); err != nil {
+	resp, err := c.Establish(ctx, o.Slug)
+	if err != nil {
 		return nil, fmt.Errorf("dial: can't establish tunel: %s", err)
 	}
 
@@ -130,12 +135,24 @@ func (c *noAgentClientProvider) Dialer(ctx context.Context, o *api.Organization)
 	return &noAgentDialer{
 		Org:    o,
 		tunnel: tunnel,
+		state:  resp.WireGuardState,
+		config: resp.TunnelConfig,
 	}, nil
 }
 
 type noAgentDialer struct {
 	Org    *api.Organization
 	tunnel *wg.Tunnel
+	state  *wg.WireGuardState
+	config *wg.Config
+}
+
+func (d *noAgentDialer) State() *wg.WireGuardState {
+	return d.state
+}
+
+func (d *noAgentDialer) Config() *wg.Config {
+	return d.config
 }
 
 func (d *noAgentDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {

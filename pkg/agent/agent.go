@@ -280,7 +280,7 @@ func buildTunnel(client *api.Client, org *api.Organization) (*wg.Tunnel, error) 
 		return nil, fmt.Errorf("can't get wireguard state for %s: %s", org.Slug, err)
 	}
 
-	tunnel, err := wg.Connect(*state.TunnelConfig())
+	tunnel, err := wg.Connect(state)
 	if err != nil {
 		return nil, fmt.Errorf("can't connect wireguard: %w", err)
 	}
@@ -302,17 +302,22 @@ func (s *Server) handleEstablish(c net.Conn, args []string) error {
 		return err
 	}
 
-	if _, ok := s.tunnels[org.Slug]; ok {
-		return writef(c, "ok")
+	tunnel, ok := s.tunnels[org.Slug]
+	if !ok {
+		tunnel, err = buildTunnel(s.client, org)
+		if err != nil {
+			return err
+		}
+		s.tunnels[org.Slug] = tunnel
 	}
 
-	tunnel, err := buildTunnel(s.client, org)
-	if err != nil {
-		return err
+	resp := EstablishResponse{
+		WireGuardState: tunnel.State,
+		TunnelConfig:   tunnel.Config,
 	}
 
-	s.tunnels[org.Slug] = tunnel
-	return writef(c, "ok")
+	data, _ := json.Marshal(resp)
+	return writef(c, "ok %s", data)
 }
 
 func probeTunnel(ctx context.Context, tunnel *wg.Tunnel) error {

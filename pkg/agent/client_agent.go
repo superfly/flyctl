@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/pkg/wg"
 )
 
 type agentClientProvider struct {
@@ -107,8 +108,10 @@ func (c *agentClientProvider) Ping(ctx context.Context) (PingResponse, error) {
 	return *resp, err
 }
 
-func (c *agentClientProvider) Establish(ctx context.Context, slug string) error {
-	return c.withConnection(ctx, func(conn net.Conn) error {
+func (c *agentClientProvider) Establish(ctx context.Context, slug string) (*EstablishResponse, error) {
+	resp := &EstablishResponse{}
+
+	err := c.withConnection(ctx, func(conn net.Conn) error {
 		writef(conn, "establish %s", slug)
 
 		// this goes out to the API; don't time it out aggressively
@@ -117,12 +120,18 @@ func (c *agentClientProvider) Establish(ctx context.Context, slug string) error 
 			return err
 		}
 
-		if string(reply) != "ok" {
+		if !strings.HasPrefix(string(reply), "ok ") {
 			return fmt.Errorf("establish failed: %s", string(reply))
+		}
+
+		if err := json.Unmarshal(reply[3:], resp); err != nil {
+			return fmt.Errorf("malformed response: %s", err)
 		}
 
 		return nil
 	})
+
+	return resp, err
 }
 
 func (c *agentClientProvider) Probe(ctx context.Context, o *api.Organization) error {
@@ -195,13 +204,16 @@ func (c *agentClientProvider) Instances(ctx context.Context, o *api.Organization
 }
 
 func (c *agentClientProvider) Dialer(ctx context.Context, o *api.Organization) (Dialer, error) {
-	if err := c.Establish(ctx, o.Slug); err != nil {
+	resp, err := c.Establish(ctx, o.Slug)
+	if err != nil {
 		return nil, err
 	}
 
 	return &agentDialer{
 		Org:     o,
 		session: c,
+		state:   resp.WireGuardState,
+		config:  resp.TunnelConfig,
 	}, nil
 }
 
@@ -209,7 +221,18 @@ type agentDialer struct {
 	Org     *api.Organization
 	Timeout time.Duration
 
+	state  *wg.WireGuardState
+	config *wg.Config
+
 	session *agentClientProvider
+}
+
+func (d *agentDialer) State() *wg.WireGuardState {
+	return d.state
+}
+
+func (d *agentDialer) Config() *wg.Config {
+	return d.config
 }
 
 func (d *agentDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
