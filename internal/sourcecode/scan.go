@@ -191,7 +191,7 @@ func configureRedwood(sourceDir string) (*SourceInfo, error) {
 			"PORT": "8911",
 		},
 		Statics: []Static{
-			0: {
+			{
 				GuestPath: "/app/public",
 				UrlPrefix: "/",
 			},
