@@ -36,11 +36,14 @@ type Static struct {
 
 func Scan(sourceDir string) (*SourceInfo, error) {
 	scanners := []sourceScanner{
+		configureRedwood,
+		/* frameworks scanners are placed before generic scanners,
+		   since they might mix languages or have a Dockerfile that
+			 doesn't work with Fly */
 		configureDockerfile,
 		configureRuby,
 		configureGo,
 		configureElixir,
-		configureRedwood,
 		configureNode,
 	}
 
