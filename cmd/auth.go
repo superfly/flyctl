@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,7 +12,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/internal/flyerr"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/briandowns/spinner"
@@ -218,28 +216,8 @@ func runInteractiveLogin(ctx *cmdctx.CmdContext) error {
 }
 
 func runLogout(cc *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
-
-	captureError := func(err error) {
-		// ignore cancelled errors
-		if errors.Is(err, context.Canceled) {
-			return
-		}
-
-		flyerr.CaptureException(err,
-			flyerr.WithTag("feature", "logout"),
-		)
-	}
-
-	agentclient, err := agent.Establish(ctx, cc.Client.API())
-	if err != nil {
-		captureError(err)
-		return errors.Wrap(err, "can't establish agent")
-	}
-
-	if err := agentclient.Kill(ctx); err != nil {
-		captureError(err)
-		return errors.Wrap(err, "can't kill agent")
+	if err := agent.StopRunningAgent(); err != nil {
+		return err
 	}
 
 	viper.Set(flyctl.ConfigAPIToken, "")
