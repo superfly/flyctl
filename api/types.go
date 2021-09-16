@@ -486,6 +486,7 @@ type IPAddress struct {
 	ID        string
 	Address   string
 	Type      string
+	Region    string
 	CreatedAt time.Time
 }
 
@@ -700,8 +701,9 @@ type HTTPHeader struct {
 }
 
 type AllocateIPAddressInput struct {
-	AppID string `json:"appId"`
-	Type  string `json:"type"`
+	AppID  string `json:"appId"`
+	Type   string `json:"type"`
+	Region string `json:"region"`
 }
 
 type ReleaseIPAddressInput struct {

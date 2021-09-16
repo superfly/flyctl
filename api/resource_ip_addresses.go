@@ -9,6 +9,7 @@ func (c *Client) GetIPAddresses(appName string) ([]IPAddress, error) {
 						id
 						address
 						type
+						region
 						createdAt
 					}
 				}
@@ -35,6 +36,7 @@ func (c *Client) FindIPAddress(appName string, address string) (*IPAddress, erro
 					id
 					address
 					type
+					region
 					createdAt
 				}
 			}
@@ -54,7 +56,7 @@ func (c *Client) FindIPAddress(appName string, address string) (*IPAddress, erro
 	return data.App.IPAddress, nil
 }
 
-func (c *Client) AllocateIPAddress(appName string, addrType string) (*IPAddress, error) {
+func (c *Client) AllocateIPAddress(appName string, addrType string, region string) (*IPAddress, error) {
 	query := `
 		mutation($input: AllocateIPAddressInput!) {
 			allocateIpAddress(input: $input) {
@@ -62,6 +64,7 @@ func (c *Client) AllocateIPAddress(appName string, addrType string) (*IPAddress,
 					id
 					address
 					type
+					region
 					createdAt
 				}
 			}
@@ -70,7 +73,7 @@ func (c *Client) AllocateIPAddress(appName string, addrType string) (*IPAddress,
 
 	req := c.NewRequest(query)
 
-	req.Var("input", AllocateIPAddressInput{AppID: appName, Type: addrType})
+	req.Var("input", AllocateIPAddressInput{AppID: appName, Type: addrType, Region: region})
 
 	data, err := c.Run(req)
 	if err != nil {

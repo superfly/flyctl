@@ -13,7 +13,7 @@ func (p *IPAddresses) APIStruct() interface{} {
 }
 
 func (p *IPAddresses) FieldNames() []string {
-	return []string{"Type", "Address", "Created At"}
+	return []string{"Type", "Address", "Region", "Created At"}
 }
 
 func (p *IPAddresses) Records() []map[string]string {
@@ -23,6 +23,7 @@ func (p *IPAddresses) Records() []map[string]string {
 		out = append(out, map[string]string{
 			"Address":    ip.Address,
 			"Type":       ip.Type,
+			"Region":     ip.Region,
 			"Created At": FormatRelativeTime(ip.CreatedAt),
 		})
 	}
