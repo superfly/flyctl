@@ -30,6 +30,17 @@ func confirm(message string) bool {
 	return confirm
 }
 
+func confirmOverwrite(filename string) bool {
+	confirm := false
+	prompt := &survey.Confirm{
+		Message: fmt.Sprintf(`Overwrite "%s"?`, filename),
+	}
+	err := survey.AskOne(prompt, &confirm)
+	checkErr(err)
+
+	return confirm
+}
+
 func selectOrganization(client *api.Client, slug string, typeFilter *api.OrganizationType) (*api.Organization, error) {
 	orgs, err := client.GetOrganizations(typeFilter)
 	if err != nil {
