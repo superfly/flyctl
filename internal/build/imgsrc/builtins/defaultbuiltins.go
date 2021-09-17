@@ -78,19 +78,19 @@ CMD ["/goapp/app"]
 `, Settings: []Setting{{"version", "latest", "Version of Go to use (https://hub.docker.com/_/golang)"}}},
 	{Name: "static",
 		Description: "Web server builtin",
-		Details:     `All files are copied to the image and served, except files with executable permission set.`,
-		Template: `FROM pierrezemb/gostatic
-COPY . /srv/http/
-CMD ["-port","8080"{{if .httpsonly}},"-https-promote"{{ end }}{{if .log}},"-enable-logging"{{end}}]
-	`, Settings: []Setting{{"httpsonly", false, "Enable http to https promotion"}, {"log", false, "Enable basic logging"}}},
+		Details:     `All files are copied to the image and served, except files with executable permission set. Uses thttpd web server.`,
+		Template: `FROM ghcr.io/ananthb/thttpd-container
+COPY . /srv/
+CMD ["-p","8080","-M","{{- .maxage}}","-l",{{ if .log }}"-"{{ else }}"/dev/null"{{end}}]
+	`, Settings: []Setting{{"log", false, "Enable basic logging"}, {"maxage", "60", "Specifies the number of seconds to be used in a \"Cache-Control: max-age\" header to be returned with all responses."}}},
 	{Name: "hugo-static",
 		Description: "Hugo static build with web server builtin",
-		Details:     `Hugo static build, then all public files are copied to the image and served, except files with executable permission set. Uses and exposes port 8080 internally.`,
-		Template: `FROM klakegg/hugo:0.74.0-onbuild AS hugo
-FROM pierrezemb/gostatic
-COPY --from=hugo /target /srv/http/
-CMD ["-port","8080"{{if .httpsonly}},"-https-promote"{{ end }}{{if .log}},"-enable-logging"{{end}}]
-`, Settings: []Setting{{"httpsonly", false, "Enable http to https promotion"}, {"log", false, "Enable basic logging"}}},
+		Details:     `Hugo static build, then all public files are copied to the image and served, except files with executable permission set. Uses and exposes port 8080 internally. Uses thttpd web server.`,
+		Template: `FROM klakegg/hugo:{{- .hugoversion}}-onbuild AS hugo
+FROM ghcr.io/ananthb/thttpd-container
+COPY --from=hugo /target /srv/
+CMD ["-p","8080","-M","{{- .maxage}}","-l",{{ if .log }}"-"{{ else }}"/dev/null"{{end}}]
+`, Settings: []Setting{{"hugoversion", "0.82.1", "Hugo version number. Append `-ext` to number for Hugo extended edition."}, {"log", false, "Enable basic logging"}, {"maxage", "60", "Specifies the number of seconds to be used in a \"Cache-Control: max-age\" header to be returned with all responses."}}},
 	{Name: "python",
 		Description: "Python builtin",
 		Details:     `Python/Procfile based builder. Requires requirements.txt and Procfile. Uses and exposes port 8080 internally.`,
