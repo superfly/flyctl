@@ -100,7 +100,6 @@ func runRegionsSet(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	fmt.Printf("args: %v", ctx.Args)
 	for _, r := range ctx.Args {
 		addList = append(addList, r)
 	}
@@ -126,11 +125,8 @@ func runRegionsSet(ctx *cmdctx.CmdContext) error {
 		DenyRegions:  delList,
 	}
 
-	fmt.Printf("input: %v", input)
 
 	newregions, backupRegions, err := ctx.Client.API().ConfigureRegions(input)
-
-	fmt.Printf("result: %v %v %v", newregions, backupRegions, err)
 	if err != nil {
 		return err
 	}
