@@ -179,6 +179,10 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 		if len(srcInfo.Statics) > 0 {
 			appConfig.SetStatics(srcInfo.Statics)
 		}
+
+		for procName, procCommand := range srcInfo.Processes {
+			appConfig.SetProcess(procName, procCommand)
+		}
 	}
 
 	fmt.Printf("Created app %s in organization %s\n", app.Name, org.Slug)
