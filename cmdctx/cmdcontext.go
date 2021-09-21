@@ -19,17 +19,18 @@ import (
 
 // CmdContext - context passed to commands being run
 type CmdContext struct {
-	IO           *iostreams.IOStreams
-	Client       *client.Client
-	Config       flyctl.Config
-	GlobalConfig flyctl.Config
-	NS           string
-	Args         []string
-	Out          io.Writer
-	WorkingDir   string
-	ConfigFile   string
-	AppName      string
-	AppConfig    *flyctl.AppConfig
+	IO            *iostreams.IOStreams
+	Client        *client.Client
+	Config        flyctl.Config
+	GlobalConfig  flyctl.Config
+	NS            string
+	Args          []string
+	Out           io.Writer
+	WorkingDir    string
+	ConfigFile    string
+	AppName       string
+	AppConfig     *flyctl.AppConfig
+	MachineConfig *flyctl.MachineConfig
 }
 
 // PresenterOption - options for RenderEx, RenderView, render etc...

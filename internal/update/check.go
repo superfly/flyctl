@@ -42,7 +42,7 @@ func InitState(configPath string, channel string) error {
 	return saveState(configPath, state)
 }
 
-func CheckForUpdate(ctx context.Context, configPath string, currentVersion string) (*Release, error) {
+func CheckForUpdate(ctx context.Context, configPath string, currentVersion semver.Version) (*Release, error) {
 	state, _ := loadState(configPath)
 	if state.Channel == "" {
 		state.Channel = "latest"
@@ -60,8 +60,15 @@ func CheckForUpdate(ctx context.Context, configPath string, currentVersion strin
 		}
 	}
 
-	if state.LatestRelease != nil && isGreaterThan(currentVersion, state.LatestRelease.Version) {
-		return state.LatestRelease, nil
+	if state.LatestRelease != nil {
+		latestVersion, err := semver.ParseTolerant(state.LatestRelease.Version)
+		if err != nil {
+			terminal.Warnf("error parsing version number '%s': %s\n", state.LatestRelease.Version, err)
+			return nil, nil
+		}
+		if latestVersion.GT(currentVersion) {
+			return state.LatestRelease, nil
+		}
 	}
 
 	return nil, nil
@@ -110,19 +117,4 @@ func saveState(filename string, state state) error {
 	}
 
 	return os.WriteFile(filename, data, 0600)
-}
-
-func isGreaterThan(a, b string) bool {
-	av, err := semver.ParseTolerant(a)
-	if err != nil {
-		terminal.Warnf("error parsing version number '%s': %s\n", a, err)
-		return false
-	}
-	bv, err := semver.ParseTolerant(b)
-	if err != nil {
-		terminal.Warnf("error parsing version number '%s': %s\n", b, err)
-		return false
-	}
-
-	return bv.GT(av)
 }

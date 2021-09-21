@@ -7,6 +7,9 @@ func (client *Client) EnsureRemoteBuilderForApp(appName string) (string, *App, e
 				url,
 				app {
 					name
+					organization {
+						slug
+					}
 				}
 			}
 		}
@@ -24,6 +27,45 @@ func (client *Client) EnsureRemoteBuilderForApp(appName string) (string, *App, e
 	}
 
 	return data.EnsureRemoteBuilder.URL, data.EnsureRemoteBuilder.App, nil
+}
+
+func (client *Client) EnsureMachineRemoteBuilderForApp(appName string) (*Machine, *App, error) {
+	query := `
+		mutation($input: EnsureMachineRemoteBuilderInput!) {
+			ensureMachineRemoteBuilder(input: $input) {
+				machine {
+					id
+					state
+					ips {
+						nodes {
+							family
+							kind
+							ip
+						}
+					}
+				},
+				app {
+					name
+					organization {
+						slug
+					}
+				}
+			}
+		}
+	`
+
+	req := client.NewRequest(query)
+
+	req.Var("input", EnsureRemoteBuilderInput{
+		AppName: StringPointer(appName),
+	})
+
+	data, err := client.Run(req)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return data.EnsureMachineRemoteBuilder.Machine, data.EnsureMachineRemoteBuilder.App, nil
 }
 
 func (client *Client) EnsureRemoteBuilderForOrg(orgID string) (string, *App, error) {

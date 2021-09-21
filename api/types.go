@@ -71,6 +71,11 @@ type Query struct {
 		Release Release
 	}
 
+	EnsureMachineRemoteBuilder *struct {
+		App     *App
+		Machine *Machine
+	}
+
 	CreateSignedUrl SignedUrls
 
 	StartBuild struct {
@@ -108,8 +113,9 @@ type Query struct {
 	}
 
 	SetVMSize struct {
-		App    App
-		VMSize *VMSize
+		App          App
+		VMSize       *VMSize
+		ProcessGroup *ProcessGroup
 	}
 
 	SetVMCount struct {
@@ -186,6 +192,26 @@ type Query struct {
 	ValidateWireGuardPeers struct {
 		InvalidPeerIPs []string
 	}
+
+	Machines struct {
+		Nodes []*Machine
+	}
+	LaunchMachine struct {
+		Machine *Machine
+		App     *App
+	}
+	StopMachine struct {
+		Machine *Machine
+	}
+	StartMachine struct {
+		Machine *Machine
+	}
+	KillMachine struct {
+		Machine *Machine
+	}
+	RemoveMachine struct {
+		Machine *Machine
+	}
 }
 
 type CreatedWireGuardPeer struct {
@@ -212,6 +238,8 @@ type IssuedCertificate struct {
 }
 
 type Definition map[string]interface{}
+
+type MachineConfig map[string]interface{}
 
 func DefinitionPtr(in map[string]interface{}) *Definition {
 	x := Definition(in)
@@ -276,11 +304,22 @@ type TaskGroupCount struct {
 	Count int
 }
 
+type Snapshot struct {
+	ID        string `json:"id"`
+	Key       string
+	Region    string
+	Size      string
+	CreatedAt time.Time
+}
+
 type Volume struct {
-	ID                 string `json:"id"`
-	App                string
-	Name               string
-	SizeGb             int
+	ID        string `json:"id"`
+	App       string
+	Name      string
+	SizeGb    int
+	Snapshots struct {
+		Nodes []Snapshot
+	}
 	Region             string
 	Encrypted          bool
 	CreatedAt          time.Time
@@ -288,11 +327,12 @@ type Volume struct {
 }
 
 type CreateVolumeInput struct {
-	AppID     string `json:"appId"`
-	Name      string `json:"name"`
-	Region    string `json:"region"`
-	SizeGb    int    `json:"sizeGb"`
-	Encrypted bool   `json:"encrypted"`
+	AppID      string  `json:"appId"`
+	Name       string  `json:"name"`
+	Region     string  `json:"region"`
+	SizeGb     int     `json:"sizeGb"`
+	Encrypted  bool    `json:"encrypted"`
+	SnapshotID *string `json:"snapshotId,omitempty"`
 }
 
 type CreateVolumePayload struct {
@@ -446,6 +486,7 @@ type IPAddress struct {
 	ID        string
 	Address   string
 	Type      string
+	Region    string
 	CreatedAt time.Time
 }
 
@@ -660,8 +701,9 @@ type HTTPHeader struct {
 }
 
 type AllocateIPAddressInput struct {
-	AppID string `json:"appId"`
-	Type  string `json:"type"`
+	AppID  string `json:"appId"`
+	Type   string `json:"type"`
+	Region string `json:"region"`
 }
 
 type ReleaseIPAddressInput struct {
@@ -693,6 +735,7 @@ type AllocationStatus struct {
 	ID                 string
 	IDShort            string
 	Version            int
+	TaskName           string
 	Region             string
 	Status             string
 	DesiredStatus      string
@@ -781,8 +824,15 @@ type VMSize struct {
 	MemoryIncrementsMB []int
 }
 
+type ProcessGroup struct {
+	Name    string
+	Regions []string
+	VMSize  *VMSize
+}
+
 type SetVMSizeInput struct {
 	AppID    string `json:"appId"`
+	Group    string `json:"group"`
 	SizeName string `json:"sizeName"`
 	MemoryMb int64  `json:"memoryMb"`
 }
@@ -813,6 +863,7 @@ type BuildArgInput struct {
 
 type ConfigureRegionsInput struct {
 	AppID         string   `json:"appId"`
+	Group         string   `json:"group"`
 	AllowRegions  []string `json:"allowRegions"`
 	DenyRegions   []string `json:"denyRegions"`
 	BackupRegions []string `json:"backupRegions"`
@@ -940,6 +991,7 @@ type CreatePostgresClusterInput struct {
 	VMSize         *string `json:"vmSize,omitempty"`
 	VolumeSizeGB   *int    `json:"volumeSizeGb,omitempty"`
 	ImageRef       *string `json:"imageRef,omitempty"`
+	SnapshotID     *string `json:"snapshotId,omitempty"`
 }
 
 type CreatePostgresClusterPayload struct {
@@ -1015,4 +1067,60 @@ type Invitation struct {
 
 type CreateOrganizationInvitation struct {
 	Invitation Invitation
+}
+
+type LaunchMachineInput struct {
+	AppID   string         `json:"appId,omitempty"`
+	ID      string         `json:"id,omitempty"`
+	Name    string         `json:"name,omitempty"`
+	OrgSlug string         `json:"organizationId,omitempty"`
+	Region  string         `json:"region,omitempty"`
+	Config  *MachineConfig `json:"config"`
+}
+
+type Machine struct {
+	ID     string
+	Name   string
+	State  string
+	Region string
+	Config MachineConfig
+
+	App *App
+
+	IPs struct {
+		Nodes []*MachineIP
+	}
+
+	CreatedAt time.Time
+}
+
+type MachineIP struct {
+	Family   string
+	Kind     string
+	IP       string
+	MaskSize int
+}
+
+type StopMachineInput struct {
+	AppID           string `json:"appId,omitempty"`
+	ID              string `json:"id"`
+	Signal          string `json:"signal,omitempty"`
+	KillTimeoutSecs int    `json:"kill_timeout_secs,omitempty"`
+}
+
+type StartMachineInput struct {
+	AppID string `json:"appId,omitempty"`
+	ID    string `json:"id"`
+}
+
+type KillMachineInput struct {
+	AppID string `json:"appId,omitempty"`
+	ID    string `json:"id"`
+}
+
+type RemoveMachineInput struct {
+	AppID string `json:"appId,omitempty"`
+	ID    string `json:"id"`
+
+	Kill bool `json:"kill"`
 }

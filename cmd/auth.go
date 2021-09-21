@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/pkg/agent"
 
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/docstrings"
@@ -214,7 +215,11 @@ func runInteractiveLogin(ctx *cmdctx.CmdContext) error {
 	return flyctl.SaveConfig()
 }
 
-func runLogout(ctx *cmdctx.CmdContext) error {
+func runLogout(cc *cmdctx.CmdContext) error {
+	if err := agent.StopRunningAgent(); err != nil {
+		return err
+	}
+
 	viper.Set(flyctl.ConfigAPIToken, "")
 
 	if err := flyctl.SaveConfig(); err != nil {
@@ -228,13 +233,13 @@ func runLogout(ctx *cmdctx.CmdContext) error {
 	_, ok := os.LookupEnv("FLY_API_TOKEN")
 
 	if ok {
-		ctx.Status("auth", cmdctx.SWARN, "FLY_API_TOKEN is set in your environment. Don't forget to remove it.")
+		cc.Status("auth", cmdctx.SWARN, "FLY_API_TOKEN is set in your environment. Don't forget to remove it.")
 	}
 
 	_, ok = os.LookupEnv("FLY_ACCESS_TOKEN")
 
 	if ok {
-		ctx.Status("auth", cmdctx.SWARN, "FLY_ACCESS_TOKEN is set in your environment. Don't forget to remove it.")
+		cc.Status("auth", cmdctx.SWARN, "FLY_ACCESS_TOKEN is set in your environment. Don't forget to remove it.")
 	}
 
 	return nil

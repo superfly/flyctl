@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/client"
@@ -35,13 +37,13 @@ func newVolumesCommand(client *client.Client) *Command {
 
 	createCmd.AddIntFlag(IntFlagOpts{
 		Name:        "size",
-		Description: "Size of volume in gigabytes, default 10GB",
+		Description: "Size of volume in gigabytes",
 		Default:     10,
 	})
 
 	createCmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "encrypted",
-		Description: "Encrypt the volume (default: true)",
+		Description: "Encrypt the volume",
 		Default:     true,
 	})
 
@@ -53,6 +55,13 @@ func newVolumesCommand(client *client.Client) *Command {
 	showStrings := docstrings.Get("volumes.show")
 	showCmd := BuildCommandKS(volumesCmd, runShowVolume, showStrings, client, requireSession)
 	showCmd.Args = cobra.ExactArgs(1)
+
+	snapshotStrings := docstrings.Get("volumes.snapshots")
+	snapshotCmd := BuildCommandKS(volumesCmd, nil, snapshotStrings, client, requireSession)
+
+	snapshotListStrings := docstrings.Get("volumes.snapshots.list")
+	snapshotListCmd := BuildCommandKS(snapshotCmd, runListVolumeSnapshots, snapshotListStrings, client, requireSession)
+	snapshotListCmd.Args = cobra.ExactArgs(1)
 
 	return volumesCmd
 }
@@ -81,6 +90,9 @@ func runListVolumes(ctx *cmdctx.CmdContext) error {
 		var attachedAllocID string
 		if v.AttachedAllocation != nil {
 			attachedAllocID = v.AttachedAllocation.IDShort
+			if v.AttachedAllocation.TaskName != "app" {
+				attachedAllocID = fmt.Sprintf("%s (%s)", v.AttachedAllocation.IDShort, v.AttachedAllocation.TaskName)
+			}
 		}
 		table.Append([]string{v.ID, v.Name, strconv.Itoa(v.SizeGb) + "GB", v.Region, attachedAllocID, humanize.Time(v.CreatedAt)})
 	}
@@ -110,7 +122,15 @@ func runCreateVolume(ctx *cmdctx.CmdContext) error {
 
 	sizeGb := ctx.Config.GetInt("size")
 
-	volume, err := ctx.Client.API().CreateVolume(appid, volName, region, sizeGb, ctx.Config.GetBool("encrypted"))
+	input := api.CreateVolumeInput{
+		AppID:     appid,
+		Name:      volName,
+		Region:    region,
+		SizeGb:    sizeGb,
+		Encrypted: ctx.Config.GetBool("encrypted"),
+	}
+
+	volume, err := ctx.Client.API().CreateVolume(input)
 
 	if err != nil {
 		return err
@@ -179,6 +199,41 @@ func runShowVolume(ctx *cmdctx.CmdContext) error {
 	fmt.Printf("%10s: %d\n", "Size GB", volume.SizeGb)
 	fmt.Printf("%10s: %t\n", "Encrypted", volume.Encrypted)
 	fmt.Printf("%10s: %s\n", "Created at", volume.CreatedAt.Format(time.RFC822))
+
+	return nil
+}
+
+func runListVolumeSnapshots(ctx *cmdctx.CmdContext) error {
+	volName := ctx.Args[0]
+
+	snapshots, err := ctx.Client.API().GetVolumeSnapshots(volName)
+	if err != nil {
+		return err
+	}
+
+	if len(snapshots) == 0 {
+		fmt.Printf("No snapshots available for volume %q\n", volName)
+		return nil
+	}
+
+	if ctx.OutputJSON() {
+		ctx.WriteJSON(snapshots)
+		return nil
+	}
+
+	table := helpers.MakeSimpleTable(ctx.Out, []string{"id", "size", "created at"})
+
+	// Sort snapshots from newest to oldest
+	sort.SliceStable(snapshots, func(i, j int) bool {
+		return snapshots[i].CreatedAt.After(snapshots[j].CreatedAt)
+	})
+
+	for _, s := range snapshots {
+		size, _ := strconv.Atoi(s.Size)
+		table.Append([]string{s.ID, humanize.IBytes(uint64(size)), humanize.Time(s.CreatedAt)})
+	}
+
+	table.Render()
 
 	return nil
 }

@@ -12,12 +12,13 @@ import (
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/flyname"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -167,14 +168,9 @@ func BuildCommandKS(parent *Command, fn RunFn, keystrings docstrings.KeyStrings,
 	return BuildCommand(parent, fn, keystrings.Usage, keystrings.Short, keystrings.Long, client, options...)
 }
 
-// BuildCommand - builds a functioning Command using all the initializers
-func BuildCommand(parent *Command, fn RunFn, usageText string, shortHelpText string, longHelpText string, client *client.Client, options ...Option) *Command {
+func BuildCommandCobra(parent *Command, fn RunFn, cmd *cobra.Command, client *client.Client, options ...Option) *Command {
 	flycmd := &Command{
-		Command: &cobra.Command{
-			Use:   usageText,
-			Short: shortHelpText,
-			Long:  longHelpText,
-		},
+		Command: cmd,
 	}
 
 	if parent != nil {
@@ -222,6 +218,16 @@ func BuildCommand(parent *Command, fn RunFn, usageText string, shortHelpText str
 	return flycmd
 }
 
+// BuildCommand - builds a functioning Command using all the initializers
+func BuildCommand(parent *Command, fn RunFn, usageText string, shortHelpText string, longHelpText string, client *client.Client, options ...Option) *Command {
+	return BuildCommandCobra(parent, fn, &cobra.Command{
+		Use:   usageText,
+		Short: shortHelpText,
+		Long:  longHelpText,
+	}, client, options...)
+
+}
+
 const defaultConfigFilePath = "./fly.toml"
 
 func requireSession(cmd *Command) Initializer {
@@ -235,9 +241,7 @@ func requireSession(cmd *Command) Initializer {
 	}
 }
 
-func requireAppName(cmd *Command) Initializer {
-	// TODO: Add Flags to docStrings
-
+func addAppConfigFlags(cmd *Command) {
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "app",
 		Shorthand:   "a",
@@ -251,52 +255,67 @@ func requireAppName(cmd *Command) Initializer {
 		Default:     defaultConfigFilePath,
 		EnvName:     "FLY_APP_CONFIG",
 	})
+}
+
+func setupAppName(ctx *cmdctx.CmdContext) error {
+	// resolve the config file path
+	configPath := ctx.Config.GetString("config")
+	if configPath == "" {
+		configPath = defaultConfigFilePath
+	}
+	if !filepath.IsAbs(configPath) {
+		absConfigPath, err := filepath.Abs(filepath.Join(ctx.WorkingDir, configPath))
+		if err != nil {
+			return err
+		}
+		configPath = absConfigPath
+	}
+	resolvedPath, err := flyctl.ResolveConfigFileFromPath(configPath)
+	if err != nil {
+		return err
+	}
+	ctx.ConfigFile = resolvedPath
+
+	// load the config file if it exists
+	if helpers.FileExists(ctx.ConfigFile) {
+		terminal.Debug("Loading app config from", ctx.ConfigFile)
+		appConfig, err := flyctl.LoadAppConfig(ctx.ConfigFile)
+		if err != nil {
+			return err
+		}
+		ctx.AppConfig = appConfig
+	} else {
+		ctx.AppConfig = flyctl.NewAppConfig()
+	}
+
+	// set the app name if provided
+	appName := ctx.Config.GetString("app")
+	if appName != "" {
+		ctx.AppName = appName
+	} else if ctx.AppConfig != nil {
+		ctx.AppName = ctx.AppConfig.AppName
+	}
+
+	return nil
+}
+
+func optionalAppName(cmd *Command) Initializer {
+	addAppConfigFlags(cmd)
+	return Initializer{
+		Setup: setupAppName,
+	}
+}
+
+func requireAppName(cmd *Command) Initializer {
+	// TODO: Add Flags to docStrings
+
+	addAppConfigFlags(cmd)
 
 	return Initializer{
-		Setup: func(ctx *cmdctx.CmdContext) error {
-			// resolve the config file path
-			configPath := ctx.Config.GetString("config")
-			if configPath == "" {
-				configPath = defaultConfigFilePath
-			}
-			if !filepath.IsAbs(configPath) {
-				absConfigPath, err := filepath.Abs(filepath.Join(ctx.WorkingDir, configPath))
-				if err != nil {
-					return err
-				}
-				configPath = absConfigPath
-			}
-			resolvedPath, err := flyctl.ResolveConfigFileFromPath(configPath)
-			if err != nil {
-				return err
-			}
-			ctx.ConfigFile = resolvedPath
-
-			// load the config file if it exists
-			if helpers.FileExists(ctx.ConfigFile) {
-				terminal.Debug("Loading app config from", ctx.ConfigFile)
-				appConfig, err := flyctl.LoadAppConfig(ctx.ConfigFile)
-				if err != nil {
-					return err
-				}
-				ctx.AppConfig = appConfig
-			} else {
-				ctx.AppConfig = flyctl.NewAppConfig()
-			}
-
-			// set the app name if provided
-			appName := ctx.Config.GetString("app")
-			if appName != "" {
-				ctx.AppName = appName
-			} else if ctx.AppConfig != nil {
-				ctx.AppName = ctx.AppConfig.AppName
-			}
-
-			return nil
-		},
+		Setup: setupAppName,
 		PreRun: func(ctx *cmdctx.CmdContext) error {
 			if ctx.AppName == "" {
-				return fmt.Errorf("No app specified. Specify an app or create an app with '" + flyname.Name() + " init'")
+				return fmt.Errorf("No app specified. Specify an app or create an app with '" + buildinfo.Name() + " init'")
 			}
 
 			if ctx.AppConfig == nil {
@@ -307,7 +326,7 @@ func requireAppName(cmd *Command) Initializer {
 				terminal.Warnf("app flag '%s' does not match app name in config file '%s'\n", ctx.AppName, ctx.AppConfig.AppName)
 
 				if !confirm(fmt.Sprintf("Continue using '%s'", ctx.AppName)) {
-					return ErrAbort
+					return flyerr.ErrAbort
 				}
 			}
 
@@ -391,7 +410,7 @@ func requireAppNameAsArg(cmd *Command) Initializer {
 				terminal.Warnf("app flag '%s' does not match app name in config file '%s'\n", ctx.AppName, ctx.AppConfig.AppName)
 
 				if !confirm(fmt.Sprintf("Continue using '%s'", ctx.AppName)) {
-					return ErrAbort
+					return flyerr.ErrAbort
 				}
 			}
 
