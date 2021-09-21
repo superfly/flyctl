@@ -10,12 +10,12 @@ require (
 	github.com/benbjohnson/clock v1.0.2 // indirect
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/briandowns/spinner v1.12.0
-	github.com/buildpacks/pack v0.17.0
+	github.com/buildpacks/pack v0.20.0
 	github.com/cli/safeexec v1.0.0
 	github.com/containerd/console v1.0.2
 	github.com/containerd/containerd v1.5.3 // indirect
 	github.com/docker/cli v20.10.4+incompatible // indirect
-	github.com/docker/docker v20.10.0-beta1.0.20201110211921-af34b94a78a1+incompatible
+	github.com/docker/docker v20.10.8+incompatible
 	github.com/dustin/go-humanize v1.0.0
 	github.com/ejcx/sshcert v1.0.1
 	github.com/getsentry/sentry-go v0.11.0
@@ -34,24 +34,24 @@ require (
 	github.com/moby/term v0.0.0-20201216013528-df9cb8a40635
 	github.com/morikuni/aec v1.0.0
 	github.com/muesli/termenv v0.7.4
-	github.com/nats-io/nats.go v1.11.0 // indirect
+	github.com/nats-io/nats-server/v2 v2.5.0 // indirect
+	github.com/nats-io/nats.go v1.12.1
 	github.com/novln/docker-parser v1.0.0
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/pelletier/go-toml v1.8.1
+	github.com/pelletier/go-toml v1.9.3
 	github.com/pkg/errors v0.9.1
 	github.com/segmentio/textio v1.2.0
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
-	github.com/spf13/cobra v1.1.3
-	github.com/spf13/viper v1.7.1
+	github.com/spf13/cobra v1.2.1
+	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.7.0
-	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
-	golang.org/x/net v0.0.0-20210331212208-0fccb6fa2b5c
+	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e
+	golang.org/x/net v0.0.0-20210428140749-89ef3d95e781
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20210402192133-700132347e07 // indirect
 	golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d
 	golang.zx2c4.com/wireguard v0.0.20201118
 	golang.zx2c4.com/wireguard/tun/netstack v0.0.0-20210402170708-10533c3e73cd
-	google.golang.org/grpc v1.36.0-dev.0.20210208035533-9280052d3665
+	google.golang.org/grpc v1.38.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
