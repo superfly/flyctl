@@ -39,6 +39,7 @@ func (client *Client) FindOrganizationBySlug(slug string) (*Organization, error)
 		query($slug: String!) {
 			organization(slug: $slug) {
 				id
+				internalNumericId
 				slug
 				name
 				type
@@ -97,6 +98,7 @@ func (client *Client) GetOrganizationBySlug(slug string) (*OrganizationDetails, 
 		  name
 		  type
 		  viewerRole
+		  internalNumericId
 		  members {
 				edges {
 					cursor

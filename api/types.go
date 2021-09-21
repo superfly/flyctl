@@ -397,10 +397,11 @@ type AppConfig struct {
 }
 
 type Organization struct {
-	ID   string
-	Name string
-	Slug string
-	Type string
+	ID                string
+	InternalNumericID string
+	Name              string
+	Slug              string
+	Type              string
 
 	Domains struct {
 		Nodes *[]*Domain
@@ -440,12 +441,13 @@ type Organization struct {
 }
 
 type OrganizationDetails struct {
-	ID         string
-	Name       string
-	Slug       string
-	Type       string
-	ViewerRole string
-	Apps       struct {
+	ID                string
+	InternalNumericID string
+	Name              string
+	Slug              string
+	Type              string
+	ViewerRole        string
+	Apps              struct {
 		Nodes []App
 	}
 	Members struct {
