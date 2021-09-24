@@ -128,6 +128,10 @@ func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
 		input.ImageRef = api.StringPointer(imageRef)
 	}
 
+	if password := ctx.Config.GetString("password"); password != "" {
+		input.Password = api.StringPointer(password)
+	}
+
 	snapshot := ctx.Config.GetString("snapshot-id")
 	if snapshot != "" {
 		input.SnapshotID = api.StringPointer(snapshot)
