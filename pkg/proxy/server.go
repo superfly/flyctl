@@ -48,13 +48,13 @@ func (srv *Server) Proxy(ctx context.Context) error {
 
 			terminal.Debug("accepted new connection from: ", source.RemoteAddr())
 
-			target, err := srv.Dial(ctx, "tcp", srv.Addr)
-			if err != nil {
-				terminal.Debug("failed to connect to target: ", err)
-			}
-			defer target.Close()
-
-			go func(net.Conn) {
+			go func() {
+				target, err := srv.Dial(ctx, "tcp", srv.Addr)
+				if err != nil {
+					terminal.Debug("failed to connect to target: ", err)
+					return
+				}
+				defer target.Close()
 
 				wg := &sync.WaitGroup{}
 
@@ -76,7 +76,7 @@ func (srv *Server) Proxy(ctx context.Context) error {
 				wg.Wait()
 
 				terminal.Debug("connection closed")
-			}(target)
+			}()
 		}
 	}
 }
