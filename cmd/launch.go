@@ -108,7 +108,9 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 			if srcInfo.Builder != "" {
 				fmt.Println("Using the following build configuration:")
 				fmt.Println("\tBuilder:", srcInfo.Builder)
-				fmt.Println("\tBuildpacks:", strings.Join(srcInfo.Buildpacks, " "))
+				if srcInfo.Buildpacks != nil && len(srcInfo.Buildpacks) > 0 {
+					fmt.Println("\tBuildpacks:", strings.Join(srcInfo.Buildpacks, " "))
+				}
 
 				appConfig.Build = &flyctl.Build{
 					Builder:    srcInfo.Builder,

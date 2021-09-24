@@ -27,7 +27,7 @@ func newAppsCommand(client *client.Client) *Command {
 
 	appsCreateStrings := docstrings.Get("apps.create")
 
-	create := BuildCommand(cmd, runInit, appsCreateStrings.Usage, appsCreateStrings.Short, appsCreateStrings.Long, client, requireSession)
+	create := BuildCommand(cmd, runCreate, appsCreateStrings.Usage, appsCreateStrings.Short, appsCreateStrings.Long, client, requireSession)
 	create.Args = cobra.RangeArgs(0, 1)
 
 	// TODO: Move flag descriptions into the docStrings
@@ -39,22 +39,6 @@ func newAppsCommand(client *client.Client) *Command {
 	create.AddStringFlag(StringFlagOpts{
 		Name:        "org",
 		Description: `The organization that will own the app`,
-	})
-
-	create.AddStringFlag(StringFlagOpts{
-		Name:        "port",
-		Shorthand:   "p",
-		Description: "Internal port on application to connect to external services",
-	})
-
-	create.AddStringFlag(StringFlagOpts{
-		Name:        "builder",
-		Description: `The Cloud Native Buildpacks builder to use when deploying the app`,
-	})
-
-	create.AddBoolFlag(BoolFlagOpts{
-		Name:        "no-config",
-		Description: "Never write a fly.toml file",
 	})
 
 	appsDestroyStrings := docstrings.Get("apps.destroy")

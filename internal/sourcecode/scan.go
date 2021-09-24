@@ -106,7 +106,7 @@ func configureDockerfile(sourceDir string) (*SourceInfo, error) {
 }
 
 func configureRuby(sourceDir string) (*SourceInfo, error) {
-	if !checksPass(sourceDir, fileExists("Gemfile")) {
+	if !checksPass(sourceDir, fileExists("Gemfile", "config.ru")) {
 		return nil, nil
 	}
 
