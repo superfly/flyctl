@@ -46,7 +46,7 @@ func (srv *Server) Proxy(ctx context.Context) error {
 			}
 			defer source.Close()
 
-			terminal.Debug("accepted new connection")
+			terminal.Debug("accepted new connection from: ", source.RemoteAddr())
 
 			target, err := srv.Dial(ctx, "tcp", srv.Addr)
 			if err != nil {
