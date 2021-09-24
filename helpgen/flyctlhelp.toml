@@ -1029,4 +1029,4 @@ usage = "remove <id>"
 [proxy]
 usage     = "proxy <local:remote>"
 shortHelp = "Commands creates a proxy to a fly app"
-longHelp  = """Commands creates a proxy to a fly app"""
+longHelp  = """Commands creates a proxy to a fly app through the wireguard 6PN"""
