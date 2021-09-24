@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/internal/client"
 
@@ -124,7 +122,6 @@ func runRegionsSet(ctx *cmdctx.CmdContext) error {
 		AllowRegions: addList,
 		DenyRegions:  delList,
 	}
-
 
 	newregions, backupRegions, err := ctx.Client.API().ConfigureRegions(input)
 	if err != nil {

@@ -1031,16 +1031,7 @@ longHelp  = """Commands that manage machines"""
     shortHelp = "Remove a Fly machine"
     longHelp = "Remove a Fly machine"
 [proxy]
-usage     = "proxy <command>"
+usage     = "proxy <local:remote>"
 shortHelp = "Commands creates a proxy to a fly app"
 longHelp  = """Commands creates a proxy to a fly app"""
 
-    [proxy.start]
-    usage     = "start <local:remote>"
-    shortHelp = "Start a proxy to a fly app"
-    longHelp  = "Start a local proxy to a fly app."
-
-    [proxy.stop]
-    usage     = "stop"
-    shortHelp = "Stop the local proxy"
-    longHelp  = "Stop the local proxy."

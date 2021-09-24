@@ -131,7 +131,6 @@ func spin(in, out string) context.CancelFunc {
 		defer s.Stop()
 
 		<-ctx.Done()
-		return
 	}()
 
 	return cancel

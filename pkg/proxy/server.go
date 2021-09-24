@@ -7,26 +7,24 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/superfly/flyctl/terminal"
 )
 
 type Server struct {
 	LocalAddr string
-
-	RemoteAddr string
-
-	Dial func(ctx context.Context, network, addr string) (net.Conn, error)
+	Addr      string
+	Listener  net.Listener
+	Dial      func(ctx context.Context, network, addr string) (net.Conn, error)
 }
 
-func (srv *Server) ServeTCP(ctx context.Context) error {
-	addr, err := net.ResolveTCPAddr("tcp", srv.LocalAddr)
-	if err != nil {
-		return err
+func (srv *Server) Proxy(ctx context.Context) error {
+
+	ls, ok := srv.Listener.(*net.TCPListener)
+	if !ok {
+		return nil
 	}
 
-	ls, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return err
-	}
 	defer ls.Close()
 
 	for {
@@ -44,33 +42,45 @@ func (srv *Server) ServeTCP(ctx context.Context) error {
 				if os.IsTimeout(err) {
 					continue
 				}
-				return err
+				terminal.Debug("Error accepting connection: ", err)
 			}
 			defer source.Close()
 
-			target, err := srv.Dial(ctx, "tcp", srv.RemoteAddr)
+			terminal.Debug("accepted new connection")
+
+			target, err := srv.Dial(ctx, "tcp", srv.Addr)
 			if err != nil {
-				return err
+				terminal.Debug("failed to connect to target: ", err)
 			}
 			defer target.Close()
 
-			go func() {
+			go func(net.Conn) {
+
 				wg := &sync.WaitGroup{}
 
 				wg.Add(2)
 
-				go func() {
+				copy := func(dst net.Conn, src net.Conn) {
 					defer wg.Done()
-					io.Copy(source, target)
-				}()
+					io.Copy(dst, src)
 
-				go func() {
-					defer wg.Done()
-					io.Copy(target, source)
-				}()
+					// close the write half if it exports a CloseWrite() method
+					if conn, ok := dst.(ClosableWrite); ok {
+						conn.CloseWrite()
+					}
+				}
+
+				go copy(target, source)
+				go copy(source, target)
 
 				wg.Wait()
-			}()
+
+				terminal.Debug("connection closed")
+			}(target)
 		}
 	}
+}
+
+type ClosableWrite interface {
+	CloseWrite() error
 }
