@@ -315,7 +315,7 @@ func requireAppName(cmd *Command) Initializer {
 		Setup: setupAppName,
 		PreRun: func(ctx *cmdctx.CmdContext) error {
 			if ctx.AppName == "" {
-				return fmt.Errorf("No app specified. Specify an app or create an app with '" + buildinfo.Name() + " init'")
+				return fmt.Errorf("We couldn't find a fly.toml nor an app specified by the -a flag. If you want to launch a new app, use '" + buildinfo.Name() + " launch'")
 			}
 
 			if ctx.AppConfig == nil {
