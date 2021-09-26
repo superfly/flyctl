@@ -582,8 +582,8 @@ about the Fly platform.`,
 			`list users in a cluster`,
 		}
 	case "proxy":
-		return KeyStrings{"proxy <local:remote>", "Commands proxies connections to a fly app",
-			`Commands proxies connections to a fly app through the wireguard tunnel`,
+		return KeyStrings{"proxy <local:remote>", "Proxies connections to a fly app",
+			`Proxies connections to a fly app through the wireguard tunnel`,
 		}
 	case "regions":
 		return KeyStrings{"regions", "Manage regions",

@@ -1028,5 +1028,5 @@ usage = "remove <id>"
 
 [proxy]
 usage     = "proxy <local:remote>"
-shortHelp = "Commands proxies connections to a fly app"
-longHelp  = """Commands proxies connections to a fly app through the wireguard tunnel"""
+shortHelp = "Proxies connections to a fly app"
+longHelp  = """Proxies connections to a fly app through the wireguard tunnel"""
