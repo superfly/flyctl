@@ -31,7 +31,6 @@ var (
 type Server struct {
 	listener      *net.UnixListener
 	tunnels       map[string]*wg.Tunnel
-	proxy         net.Listener
 	client        *api.Client
 	lock          sync.Mutex
 	currentChange time.Time
