@@ -1,10 +1,12 @@
 package sourcecode
 
 import (
+	"bufio"
 	"embed"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/helpers"
@@ -23,6 +25,7 @@ type SourceInfo struct {
 	Port           int
 	Env            map[string]string
 	Statics        []Static
+	Processes      map[string]string
 }
 
 type SourceFile struct {
@@ -44,6 +47,7 @@ func Scan(sourceDir string) (*SourceInfo, error) {
 		configureRuby,
 		configureGo,
 		configureElixir,
+		configureDeno,
 		configureNode,
 	}
 
@@ -75,6 +79,40 @@ func fileExists(filenames ...string) checkFn {
 			}
 			if !info.IsDir() {
 				return true
+			}
+		}
+		return false
+	}
+}
+
+func fileContains(path string, pattern string) bool {
+	file, err := os.Open(path)
+
+	if err != nil {
+		return false
+	}
+
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+
+	for scanner.Scan() {
+		if strings.Contains(scanner.Text(), pattern) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func dirContains(glob string, patterns ...string) checkFn {
+	return func(dir string) bool {
+		for _, pattern := range patterns {
+			filenames, _ := filepath.Glob(filepath.Join(dir, glob))
+			for _, filename := range filenames {
+				if fileContains(filename, pattern) {
+					return true
+				}
 			}
 		}
 		return false
@@ -141,7 +179,7 @@ func configureGo(sourceDir string) (*SourceInfo, error) {
 }
 
 func configureNode(sourceDir string) (*SourceInfo, error) {
-	if !helpers.FileExists(filepath.Join(sourceDir, "package.json")) {
+	if !checksPass(sourceDir, fileExists("package.json")) {
 		return nil, nil
 	}
 
@@ -157,13 +195,33 @@ func configureNode(sourceDir string) (*SourceInfo, error) {
 	return s, nil
 }
 
+func configureDeno(sourceDir string) (*SourceInfo, error) {
+	if !checksPass(sourceDir, dirContains("*.ts", "denopkg")) {
+		return nil, nil
+	}
+
+	s := &SourceInfo{
+		Files:  templates("templates/deno"),
+		Family: "Deno",
+		Port:   8080,
+		Processes: map[string]string{
+			"app": "run --allow-net ./example.ts",
+		},
+		Env: map[string]string{
+			"PORT": "8080",
+		},
+	}
+
+	return s, nil
+}
+
 func configureElixir(sourceDir string) (*SourceInfo, error) {
 	if !helpers.FileExists(filepath.Join(sourceDir, "mix.exs")) {
 		return nil, nil
 	}
 
 	s := &SourceInfo{
-		Builder:    "heroku/buildpacks:18",
+		Builder:    "heroku/buildpacks:20",
 		Buildpacks: []string{"https://cnb-shim.herokuapp.com/v1/hashnuke/elixir"},
 		Family:     "Elixir",
 		Secrets: map[string]string{
@@ -185,7 +243,7 @@ func configureRedwood(sourceDir string) (*SourceInfo, error) {
 
 	s := &SourceInfo{
 		Family: "Redwood",
-		Files:  templates("templates/redwood"),
+		Files:  templates("redwood"),
 		Port:   8911,
 		Env: map[string]string{
 			"PORT": "8911",
@@ -209,7 +267,7 @@ func templates(name string) (files []SourceFile) {
 			return nil
 		}
 
-		relPath, err := filepath.Rel("templates/redwood", path)
+		relPath, err := filepath.Rel(name, path)
 		if err != nil {
 			return errors.Wrap(err, "error removing template prefix")
 		}
