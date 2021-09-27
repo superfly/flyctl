@@ -319,8 +319,7 @@ func newMachineRunCommand(parent *Command, client *client.Client) {
 	})
 
 	cmd.AddBoolFlag(BoolFlagOpts{
-		Name:   "build-only",
-		Hidden: true,
+		Name: "build-only",
 	})
 	cmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "build-remote-only",
@@ -349,7 +348,6 @@ func newMachineRunCommand(parent *Command, client *client.Client) {
 	cmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "no-build-cache",
 		Description: "Do not use the cache when building the image",
-		Hidden:      true,
 	})
 
 	cmd.Command.Args = cobra.MinimumNArgs(1)
