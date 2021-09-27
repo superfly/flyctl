@@ -52,9 +52,9 @@ func main() {
 			fmt.Fprintln(&buf, aurora.Red("Oops, something went wrong! Could you try that again?"))
 
 			if buildinfo.IsDev() {
-				fmt.Println(&buf)
-				fmt.Println(&buf, err)
-				fmt.Println(&buf, string(debug.Stack()))
+				fmt.Fprintln(&buf)
+				fmt.Fprintln(&buf, err)
+				fmt.Fprintln(&buf, string(debug.Stack()))
 			}
 
 			buf.WriteTo(os.Stdout)
