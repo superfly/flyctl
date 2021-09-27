@@ -29,6 +29,7 @@ cd "$bin_dir"
 tar xzf "$exe.tar.gz"
 chmod +x "$exe"
 rm "$exe.tar.gz"
+
 ln -sf $exe $simexe
 
 if [ "${1}" = "prerel" ] || [ "${1}" = "pre" ]; then

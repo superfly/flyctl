@@ -8,13 +8,13 @@ import (
 )
 
 type WireGuardState struct {
-	Org          string
-	Name         string
-	Region       string
-	LocalPublic  string
-	LocalPrivate string
-	DNS          string
-	Peer         api.CreatedWireGuardPeer
+	Org          string                   `json:"org"`
+	Name         string                   `json:"name"`
+	Region       string                   `json:"region"`
+	LocalPublic  string                   `json:"localprivate"`
+	LocalPrivate string                   `json:"localpublic"`
+	DNS          string                   `json:"dns"`
+	Peer         api.CreatedWireGuardPeer `json:"peer"`
 }
 
 // BUG(tqbf): Obviously all this needs to go, and I should just

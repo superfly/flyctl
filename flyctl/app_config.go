@@ -13,6 +13,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/sourcecode"
 )
 
 type ConfigFormat string
@@ -312,6 +313,7 @@ func (ac *AppConfig) SetEnvVariable(name, value string) {
 			env = castEnv
 		}
 	}
+
 	if env == nil {
 		env = map[string]string{}
 	}
@@ -319,6 +321,28 @@ func (ac *AppConfig) SetEnvVariable(name, value string) {
 	env[name] = value
 
 	ac.Definition["env"] = env
+}
+
+func (ac *AppConfig) SetProcess(name, value string) {
+	var processes map[string]string
+
+	if rawProcesses, ok := ac.Definition["processes"]; ok {
+		if castProcesses, ok := rawProcesses.(map[string]string); ok {
+			processes = castProcesses
+		}
+	}
+
+	if processes == nil {
+		processes = map[string]string{}
+	}
+
+	processes[name] = value
+
+	ac.Definition["processes"] = processes
+}
+
+func (ac *AppConfig) SetStatics(statics []sourcecode.Static) {
+	ac.Definition["statics"] = statics
 }
 
 const defaultConfigFileName = "fly.toml"

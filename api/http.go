@@ -3,7 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
-	"io"
+	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -71,7 +71,7 @@ func (t *LoggingTransport) logRequest(req *http.Request) {
 func (t *LoggingTransport) logResponse(resp *http.Response) {
 	ctx := resp.Request.Context()
 	defer resp.Body.Close()
-	data, err := io.ReadAll(resp.Body)
+	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		terminal.Debug("error reading response body:", err)
 	}
@@ -81,5 +81,5 @@ func (t *LoggingTransport) logResponse(resp *http.Response) {
 		terminal.Debugf("<-- %d %s %s %s\n", resp.StatusCode, resp.Request.URL, string(data))
 	}
 
-	resp.Body = io.NopCloser(bytes.NewReader(data))
+	resp.Body = ioutil.NopCloser(bytes.NewReader(data))
 }

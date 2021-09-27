@@ -127,7 +127,14 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 
 	var imageID string
 
+	serverInfo, err := docker.Info(ctx)
+	if err != nil {
+		terminal.Debug("error fetching docker server info:", err)
+	}
+
 	cmdfmt.PrintBegin(streams.ErrOut, "Building image with Docker")
+	msg := fmt.Sprintf("docker host: %s %s %s", serverInfo.ServerVersion, serverInfo.OSType, serverInfo.Architecture)
+	cmdfmt.PrintDone(streams.ErrOut, msg)
 
 	buildArgs := normalizeBuildArgsForDocker(opts.AppConfig, opts.ExtraBuildArgs)
 

@@ -44,7 +44,7 @@ jobs:
           version: latest
           args: build --rm-dist --snapshot
       - name: Run tests
-        run: go test ./...
+        run: make test
 
   release:
     needs: test

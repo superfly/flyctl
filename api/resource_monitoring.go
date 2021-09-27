@@ -43,6 +43,7 @@ func (c *Client) GetAppStatus(appName string, showCompleted bool) (*AppStatus, e
 					restarts
 					healthy
 					privateIP
+					taskName
 					checks {
 						status
 						output

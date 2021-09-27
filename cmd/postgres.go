@@ -36,6 +36,7 @@ func newPostgresCommand(client *client.Client) *Command {
 	createCmd.AddStringFlag(StringFlagOpts{Name: "volume-size", Description: "the size in GB for volumes"})
 	createCmd.AddStringFlag(StringFlagOpts{Name: "vm-size", Description: "the size of the VM"})
 	createCmd.AddStringFlag(StringFlagOpts{Name: "image-ref", Hidden: true})
+	createCmd.AddStringFlag(StringFlagOpts{Name: "snapshot-id", Description: "Creates the volume with the contents of the snapshot"})
 
 	attachStrngs := docstrings.Get("postgres.attach")
 	attachCmd := BuildCommandKS(cmd, runAttachPostgresCluster, attachStrngs, client, requireSession, requireAppName)
@@ -125,6 +126,15 @@ func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
 
 	if imageRef := ctx.Config.GetString("image-ref"); imageRef != "" {
 		input.ImageRef = api.StringPointer(imageRef)
+	}
+
+	if password := ctx.Config.GetString("password"); password != "" {
+		input.Password = api.StringPointer(password)
+	}
+
+	snapshot := ctx.Config.GetString("snapshot-id")
+	if snapshot != "" {
+		input.SnapshotID = api.StringPointer(snapshot)
 	}
 
 	fmt.Fprintf(ctx.Out, "Creating postgres cluster %s in organization %s\n", name, org.Slug)

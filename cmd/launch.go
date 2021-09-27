@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/sourcecode"
@@ -106,12 +108,32 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 			if srcInfo.Builder != "" {
 				fmt.Println("Using the following build configuration:")
 				fmt.Println("\tBuilder:", srcInfo.Builder)
-				fmt.Println("\tBuildpacks:", strings.Join(srcInfo.Buildpacks, " "))
+				if srcInfo.Buildpacks != nil && len(srcInfo.Buildpacks) > 0 {
+					fmt.Println("\tBuildpacks:", strings.Join(srcInfo.Buildpacks, " "))
+				}
 
 				appConfig.Build = &flyctl.Build{
 					Builder:    srcInfo.Builder,
 					Buildpacks: srcInfo.Buildpacks,
 				}
+			}
+		}
+	}
+
+	if srcInfo != nil {
+		for _, f := range srcInfo.Files {
+			path := filepath.Join(dir, f.Path)
+
+			if helpers.FileExists(path) && !confirmOverwrite(path) {
+				continue
+			}
+
+			if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+				return err
+			}
+
+			if err := os.WriteFile(path, f.Contents, 0666); err != nil {
+				return err
 			}
 		}
 	}
@@ -145,9 +167,22 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 	appConfig.AppName = app.Name
 	cmdctx.AppConfig = appConfig
 
-	if srcInfo != nil && (len(srcInfo.Buildpacks) > 0 || srcInfo.Builder != "") {
-		appConfig.SetInternalPort(8080)
-		appConfig.SetEnvVariable("PORT", "8080")
+	if srcInfo != nil {
+		if srcInfo.Port > 0 {
+			appConfig.SetInternalPort(srcInfo.Port)
+		}
+
+		for envName, envVal := range srcInfo.Env {
+			appConfig.SetEnvVariable(envName, envVal)
+		}
+
+		if len(srcInfo.Statics) > 0 {
+			appConfig.SetStatics(srcInfo.Statics)
+		}
+
+		for procName, procCommand := range srcInfo.Processes {
+			appConfig.SetProcess(procName, procCommand)
+		}
 	}
 
 	fmt.Printf("Created app %s in organization %s\n", app.Name, org.Slug)

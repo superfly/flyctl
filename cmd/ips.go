@@ -27,10 +27,20 @@ func newIPAddressesCommand(client *client.Client) *Command {
 	BuildCommandKS(cmd, runPrivateIPAddressesList, ipsPrivateListStrings, client, requireSession, requireAppName)
 
 	ipsAllocateV4Strings := docstrings.Get("ips.allocate-v4")
-	BuildCommandKS(cmd, runAllocateIPAddressV4, ipsAllocateV4Strings, client, requireSession, requireAppName)
+	allocateV4Command := BuildCommandKS(cmd, runAllocateIPAddressV4, ipsAllocateV4Strings, client, requireSession, requireAppName)
+
+	allocateV4Command.AddStringFlag(StringFlagOpts{
+		Name:        "region",
+		Description: "The region where the address should be allocated",
+	})
 
 	ipsAllocateV6Strings := docstrings.Get("ips.allocate-v6")
-	BuildCommandKS(cmd, runAllocateIPAddressV6, ipsAllocateV6Strings, client, requireSession, requireAppName)
+	allocateV6Command := BuildCommandKS(cmd, runAllocateIPAddressV6, ipsAllocateV6Strings, client, requireSession, requireAppName)
+
+	allocateV6Command.AddStringFlag(StringFlagOpts{
+		Name:        "region",
+		Description: "The region where the address should be allocated.",
+	})
 
 	ipsReleaseStrings := docstrings.Get("ips.release")
 	release := BuildCommandKS(cmd, runReleaseIPAddress, ipsReleaseStrings, client, requireSession, requireAppName)
@@ -60,8 +70,9 @@ func runAllocateIPAddressV6(ctx *cmdctx.CmdContext) error {
 
 func runAllocateIPAddress(commandContext *cmdctx.CmdContext, addrType string) error {
 	appName := commandContext.AppName
+	regionCode := commandContext.Config.GetString("region")
 
-	ipAddress, err := commandContext.Client.API().AllocateIPAddress(appName, addrType)
+	ipAddress, err := commandContext.Client.API().AllocateIPAddress(appName, addrType, regionCode)
 	if err != nil {
 		return err
 	}
