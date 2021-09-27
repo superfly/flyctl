@@ -1025,3 +1025,8 @@ usage = "kill <id>"
 longHelp = "Remove a Fly machine"
 shortHelp = "Remove a Fly machine"
 usage = "remove <id>"
+
+[proxy]
+usage     = "proxy <local:remote>"
+shortHelp = "Proxies connections to a fly app"
+longHelp  = """Proxies connections to a fly app through the wireguard tunnel"""
