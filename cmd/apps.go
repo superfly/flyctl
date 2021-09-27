@@ -41,6 +41,11 @@ func newAppsCommand(client *client.Client) *Command {
 		Description: `The organization that will own the app`,
 	})
 
+	create.AddBoolFlag(BoolFlagOpts{
+		Name:        "generate-name",
+		Description: "Always generate a name for the app",
+	})
+
 	appsDestroyStrings := docstrings.Get("apps.destroy")
 	destroy := BuildCommand(cmd, runDestroy, appsDestroyStrings.Usage, appsDestroyStrings.Short, appsDestroyStrings.Long, client, requireSession)
 	destroy.Args = cobra.ExactArgs(1)

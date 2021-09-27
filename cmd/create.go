@@ -4,41 +4,11 @@ import (
 	"fmt"
 
 	"github.com/superfly/flyctl/cmdctx"
-	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/docstrings"
 )
 
 //TODO: Move all output to status styled begin/done updates
-
-func newCreateCommand(client *client.Client) *Command {
-
-	initStrings := docstrings.Get("create")
-
-	cmd := BuildCommandKS(nil, runCreate, initStrings, client, requireSession)
-
-	cmd.Args = cobra.RangeArgs(0, 1)
-
-	// TODO: Move flag descriptions into the docStrings
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "name",
-		Description: "The app name to use",
-	})
-
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "org",
-		Description: `The organization that will own the app`,
-	})
-
-	cmd.AddBoolFlag(BoolFlagOpts{
-		Name:        "generatename",
-		Description: "Always generate a name for the app", Hidden: true,
-	})
-
-	return cmd
-}
 
 func runCreate(cmdCtx *cmdctx.CmdContext) error {
 	var appName = ""
@@ -49,7 +19,7 @@ func runCreate(cmdCtx *cmdctx.CmdContext) error {
 
 	name := ""
 
-	if !cmdCtx.Config.GetBool("generatename") {
+	if !cmdCtx.Config.GetBool("generate-name") {
 		name = cmdCtx.Config.GetString("name")
 
 		if name != "" && appName != "" {
