@@ -45,8 +45,7 @@ func newDeployCommand(client *client.Client) *Command {
 		Description: "Return immediately instead of monitoring deployment progress",
 	})
 	cmd.AddBoolFlag(BoolFlagOpts{
-		Name:   "build-only",
-		Hidden: true,
+		Name: "build-only",
 	})
 	cmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "remote-only",
@@ -84,7 +83,6 @@ func newDeployCommand(client *client.Client) *Command {
 	cmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "no-cache",
 		Description: "Do not use the cache when building the image",
-		Hidden:      true,
 	})
 
 	cmd.Command.Args = cobra.MaximumNArgs(1)
