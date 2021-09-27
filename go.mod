@@ -13,14 +13,12 @@ require (
 	github.com/buildpacks/pack v0.20.0
 	github.com/cli/safeexec v1.0.0
 	github.com/containerd/console v1.0.2
-	github.com/containerd/containerd v1.5.3 // indirect
-	github.com/docker/cli v20.10.4+incompatible // indirect
 	github.com/docker/docker v20.10.8+incompatible
 	github.com/dustin/go-humanize v1.0.0
 	github.com/ejcx/sshcert v1.0.1
 	github.com/getsentry/sentry-go v0.11.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
-	github.com/hashicorp/go-multierror v1.1.0
+	github.com/hashicorp/go-multierror v1.1.1
 	github.com/inancgumus/screen v0.0.0-20190314163918-06e984b86ed3
 	github.com/jpillora/backoff v1.0.0
 	github.com/logrusorgru/aurora v2.0.3+incompatible
@@ -30,7 +28,7 @@ require (
 	github.com/mattn/go-isatty v0.0.12
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
 	github.com/miekg/dns v1.1.43
-	github.com/moby/buildkit v0.8.1
+	github.com/moby/buildkit v0.9.0
 	github.com/moby/term v0.0.0-20201216013528-df9cb8a40635
 	github.com/morikuni/aec v1.0.0
 	github.com/muesli/termenv v0.7.4
@@ -56,6 +54,3 @@ require (
 )
 
 replace github.com/BurntSushi/toml => github.com/michaeldwan/toml v0.3.2-0.20191213213541-3c5ced72b6f3
-
-// for buildkit https://github.com/moby/buildkit/blob/f5962fca5e7c589620ad2c41f5c6bcaece68f3dc/go.mod#L79
-replace github.com/jaguilar/vt100 => github.com/tonistiigi/vt100 v0.0.0-20190402012908-ad4c4a574305
