@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -32,9 +33,12 @@ type dockerClientFactory struct {
 
 func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, appName string, streams *iostreams.IOStreams) *dockerClientFactory {
 	if daemonType.AllowLocal() {
-		terminal.Debug("trying local docker daemon")
+		terminal.Debug("Trying local docker daemon")
 		c, err := newLocalDockerClient()
-		if c != nil && err == nil {
+
+		if localBuildUnsupported() {
+			terminal.Warn("Local docker builds are not supported on Apple M1 devices.")
+		} else if c != nil && err == nil {
 			return &dockerClientFactory{
 				mode: DockerDaemonTypeLocal,
 				buildFn: func(ctx context.Context) (*dockerclient.Client, error) {
@@ -49,7 +53,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 	}
 
 	if daemonType.AllowRemote() {
-		terminal.Debug("trying remote docker daemon")
+		terminal.Debug("Trying remote docker daemon")
 		var cachedDocker *dockerclient.Client
 
 		return &dockerClientFactory{
@@ -104,6 +108,11 @@ const (
 	DockerDaemonTypeRemote
 	DockerDaemonTypeNone
 )
+
+func localBuildUnsupported() bool {
+	terminal.Debug("Running on OS " + runtime.GOOS + " with architecture " + runtime.GOARCH)
+	return (runtime.GOOS == "darwin" && runtime.GOARCH == "arm64")
+}
 
 func (t DockerDaemonType) AllowLocal() bool {
 	return (t & DockerDaemonTypeLocal) != 0
