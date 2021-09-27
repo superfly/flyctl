@@ -581,6 +581,10 @@ about the Fly platform.`,
 		return KeyStrings{"list <postgres-cluster-name>", "list users in a cluster",
 			`list users in a cluster`,
 		}
+	case "proxy":
+		return KeyStrings{"proxy <local:remote>", "Proxies connections to a fly app",
+			`Proxies connections to a fly app through the wireguard tunnel`,
+		}
 	case "regions":
 		return KeyStrings{"regions", "Manage regions",
 			`Configure the region placement rules for an application.`,
