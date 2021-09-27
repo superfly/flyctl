@@ -57,6 +57,7 @@ func (s *buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClient
 	err = packClient.Build(ctx, pack.BuildOptions{
 		AppPath:        opts.WorkingDir,
 		Builder:        builder,
+		ClearCache:     opts.NoCache,
 		Image:          newCacheTag(opts.AppName),
 		Buildpacks:     buildpacks,
 		Env:            normalizeBuildArgs(opts.AppConfig, opts.ExtraBuildArgs),
