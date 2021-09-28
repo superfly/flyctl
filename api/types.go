@@ -817,13 +817,13 @@ type AutoscaleRegionConfigInput struct {
 }
 
 type VMSize struct {
-	Name               string
-	CPUCores           float32
-	MemoryGB           float32
-	MemoryMB           int
-	PriceMonth         float32
-	PriceSecond        float32
-	MemoryIncrementsMB []int
+	Name        string
+	CPUCores    float32
+	MemoryGB    float32
+	MemoryMB    int
+	PriceMonth  float32
+	PriceSecond float32
+	// MemoryIncrementsMB []int
 }
 
 type ProcessGroup struct {

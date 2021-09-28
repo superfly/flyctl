@@ -69,7 +69,6 @@ func (c *Client) PlatformVMSizes() ([]VMSize, error) {
 					cpuCores
 					memoryGb
 					memoryMb
-					memoryIncrementsMb
 					priceMonth
 					priceSecond
 				}
