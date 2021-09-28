@@ -29,7 +29,7 @@ WORKDIR /app
 # Only install API packages to keep image small
 COPY api/package.json .
 
-RUN yarn install && yarn add react react-dom @redwoodjs/cli
+RUN yarn install && yarn add react react-dom @redwoodjs/api-server @redwoodjs/internal
 
 COPY graphql.config.js .
 COPY redwood.toml .
@@ -42,4 +42,4 @@ COPY --from=api_build /app/node_modules/.prisma /app/node_modules/.prisma
 EXPOSE 8911
 
 # Entrypoint to @redwoodjs/api-server binary
-CMD [ "yarn", "rw", "serve", "api", "--port", "8911", "--rootPath", "/api" ]
+CMD [ "yarn", "rw-api-server", "--port", "8911", "--rootPath", "/api" ]

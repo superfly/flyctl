@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -16,6 +17,7 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/sourcecode"
 
+	. "github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/docstrings"
 )
 
@@ -101,9 +103,17 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 		}
 
 		if srcInfo == nil {
-			fmt.Println("Could not find a Dockerfile or detect a buildpack from source code. Continuing with a blank app.")
+			fmt.Println(Green("Could not find a Dockerfile, nor detect a runtime or framework from source code. Continuing with a blank app."))
 		} else {
-			fmt.Printf("Detected %s app\n", srcInfo.Family)
+
+			var article string = "a"
+			matched, _ := regexp.MatchString(`^[aeiou]`, strings.ToLower(srcInfo.Family))
+
+			if matched {
+				article += "n"
+			}
+
+			fmt.Printf("Detected %s %s app\n", article, Green(srcInfo.Family))
 
 			if srcInfo.Builder != "" {
 				fmt.Println("Using the following build configuration:")

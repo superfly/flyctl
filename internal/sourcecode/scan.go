@@ -242,8 +242,8 @@ func configureRedwood(sourceDir string) (*SourceInfo, error) {
 	}
 
 	s := &SourceInfo{
-		Family: "Redwood",
-		Files:  templates("redwood"),
+		Family: "RedwoodJS",
+		Files:  templates("templates/redwood"),
 		Port:   8911,
 		Env: map[string]string{
 			"PORT": "8911",
