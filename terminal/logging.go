@@ -17,29 +17,37 @@ const (
 	LevelError
 )
 
+var DefaultLogger = &Logger{level: LevelInfo}
+
+type Logger struct {
+	level LogLevel
+}
+
 func init() {
 	switch strings.ToLower(os.Getenv("LOG_LEVEL")) {
 	case "debug":
-		SetLogLevel(LevelDebug)
+		DefaultLogger.SetLogLevel(LevelDebug)
 	case "info":
-		SetLogLevel(LevelInfo)
+		DefaultLogger.SetLogLevel(LevelInfo)
 	case "warn":
-		SetLogLevel(LevelWarn)
+		DefaultLogger.SetLogLevel(LevelWarn)
 	case "error":
-		SetLogLevel(LevelError)
+		DefaultLogger.SetLogLevel(LevelError)
 	default:
-		SetLogLevel(LevelInfo)
+		DefaultLogger.SetLogLevel(LevelInfo)
 	}
 }
 
-var level = LevelInfo
-
-func SetLogLevel(lvl LogLevel) {
-	level = lvl
+func (l *Logger) SetLogLevel(lvl LogLevel) {
+	l.level = lvl
 }
 
 func Debug(v ...interface{}) {
-	if level > LevelDebug {
+	DefaultLogger.Debug(v...)
+}
+
+func (l *Logger) Debug(v ...interface{}) {
+	if l.level > LevelDebug {
 		return
 	}
 
@@ -52,7 +60,11 @@ func Debug(v ...interface{}) {
 }
 
 func Debugf(format string, v ...interface{}) {
-	if level > LevelDebug {
+	DefaultLogger.Debugf(format, v...)
+}
+
+func (l *Logger) Debugf(format string, v ...interface{}) {
+	if l.level > LevelDebug {
 		return
 	}
 
@@ -65,7 +77,11 @@ func Debugf(format string, v ...interface{}) {
 }
 
 func Info(v ...interface{}) {
-	if level > LevelInfo {
+	DefaultLogger.Info(v...)
+}
+
+func (l *Logger) Info(v ...interface{}) {
+	if l.level > LevelInfo {
 		return
 	}
 	fmt.Print("INFO ")
@@ -73,7 +89,11 @@ func Info(v ...interface{}) {
 }
 
 func Infof(format string, v ...interface{}) {
-	if level > LevelInfo {
+	DefaultLogger.Infof(format, v...)
+}
+
+func (l *Logger) Infof(format string, v ...interface{}) {
+	if l.level > LevelInfo {
 		return
 	}
 	fmt.Print("INFO ")
@@ -81,7 +101,11 @@ func Infof(format string, v ...interface{}) {
 }
 
 func Warn(v ...interface{}) {
-	if level > LevelWarn {
+	DefaultLogger.Warn(v...)
+}
+
+func (l *Logger) Warn(v ...interface{}) {
+	if l.level > LevelWarn {
 		return
 	}
 	fmt.Print(aurora.Yellow("WARN "))
@@ -89,7 +113,11 @@ func Warn(v ...interface{}) {
 }
 
 func Warnf(format string, v ...interface{}) {
-	if level > LevelWarn {
+	DefaultLogger.Warnf(format, v...)
+}
+
+func (l *Logger) Warnf(format string, v ...interface{}) {
+	if l.level > LevelWarn {
 		return
 	}
 	fmt.Print(aurora.Yellow("WARN "))
@@ -97,7 +125,11 @@ func Warnf(format string, v ...interface{}) {
 }
 
 func Error(v ...interface{}) {
-	if level > LevelError {
+	DefaultLogger.Error(v...)
+}
+
+func (l *Logger) Error(v ...interface{}) {
+	if l.level > LevelError {
 		return
 	}
 	fmt.Print(aurora.Red("ERROR "))
@@ -105,7 +137,11 @@ func Error(v ...interface{}) {
 }
 
 func Errorf(format string, v ...interface{}) {
-	if level > LevelError {
+	DefaultLogger.Errorf(format, v...)
+}
+
+func (l *Logger) Errorf(format string, v ...interface{}) {
+	if l.level > LevelError {
 		return
 	}
 	fmt.Print(aurora.Red("ERROR "))

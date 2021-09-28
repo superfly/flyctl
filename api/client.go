@@ -33,10 +33,11 @@ type Client struct {
 	client      *graphql.Client
 	accessToken string
 	userAgent   string
+	logger Logger
 }
 
 // NewClient - creates a new Client, takes an access token
-func NewClient(accessToken string, name, version string) *Client {
+func NewClient(accessToken string, name, version string, logger Logger) *Client {
 
 	httpClient, _ := newHTTPClient()
 
@@ -44,7 +45,7 @@ func NewClient(accessToken string, name, version string) *Client {
 
 	client := graphql.NewClient(url, graphql.WithHTTPClient(httpClient))
 	userAgent := fmt.Sprintf("%s/%s", name, version)
-	return &Client{httpClient, client, accessToken, userAgent}
+	return &Client{httpClient, client, accessToken, userAgent, logger}
 }
 
 // NewRequest - creates a new GraphQL request

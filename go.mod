@@ -5,9 +5,6 @@ go 1.16
 require (
 	github.com/AlecAivazis/survey/v2 v2.2.7
 	github.com/BurntSushi/toml v0.3.1
-	github.com/PuerkitoBio/rehttp v1.0.0
-	github.com/aybabtme/iocontrol v0.0.0-20150809002002-ad15bcfc95a0 // indirect
-	github.com/benbjohnson/clock v1.0.2 // indirect
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/briandowns/spinner v1.12.0
 	github.com/buildpacks/pack v0.20.0
@@ -22,8 +19,7 @@ require (
 	github.com/inancgumus/screen v0.0.0-20190314163918-06e984b86ed3
 	github.com/jpillora/backoff v1.0.0
 	github.com/logrusorgru/aurora v2.0.3+incompatible
-	github.com/machinebox/graphql v0.2.3-0.20181106130121-3a9253180225
-	github.com/matryer/is v1.3.0 // indirect
+	github.com/machinebox/graphql v0.2.3-0.20181106130121-3a9253180225 // indirect
 	github.com/mattn/go-colorable v0.1.8
 	github.com/mattn/go-isatty v0.0.12
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
@@ -43,8 +39,9 @@ require (
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.7.0
+	github.com/superfly/flyctl/api v0.0.0-00010101000000-000000000000
 	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e
-	golang.org/x/net v0.0.0-20210428140749-89ef3d95e781
+	golang.org/x/net v0.0.0-20210510120150-4163338589ed
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d
 	golang.zx2c4.com/wireguard v0.0.20201118
@@ -54,3 +51,5 @@ require (
 )
 
 replace github.com/BurntSushi/toml => github.com/michaeldwan/toml v0.3.2-0.20191213213541-3c5ced72b6f3
+
+replace github.com/superfly/flyctl/api => ./api

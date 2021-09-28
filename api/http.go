@@ -4,12 +4,11 @@ import (
 	"bytes"
 	"context"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"time"
 
 	"github.com/PuerkitoBio/rehttp"
-	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/terminal"
 )
 
 var retryErrors = []string{"INTERNAL_ERROR", "read: connection reset by peer"}
@@ -40,6 +39,7 @@ func newHTTPClient() (*http.Client, error) {
 
 type LoggingTransport struct {
 	innerTransport http.RoundTripper
+	logger         Logger
 }
 
 type contextKey struct {
@@ -65,7 +65,7 @@ func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 }
 
 func (t *LoggingTransport) logRequest(req *http.Request) {
-	terminal.Debugf("--> %s %s %s\n", req.Method, req.URL, req.Body)
+	t.logger.Debugf("--> %s %s %s\n", req.Method, req.URL, req.Body)
 }
 
 func (t *LoggingTransport) logResponse(resp *http.Response) {
@@ -73,13 +73,31 @@ func (t *LoggingTransport) logResponse(resp *http.Response) {
 	defer resp.Body.Close()
 	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		terminal.Debug("error reading response body:", err)
+		t.logger.Debug("error reading response body:", err)
 	}
 	if start, ok := ctx.Value(contextKeyRequestStart).(time.Time); ok {
-		terminal.Debugf("<-- %d %s (%s) %s\n", resp.StatusCode, resp.Request.URL, helpers.Duration(time.Since(start), 2), string(data))
+		t.logger.Debugf("<-- %d %s (%s) %s\n", resp.StatusCode, resp.Request.URL, Duration(time.Since(start), 2), string(data))
 	} else {
-		terminal.Debugf("<-- %d %s %s %s\n", resp.StatusCode, resp.Request.URL, string(data))
+		t.logger.Debugf("<-- %d %s %s %s\n", resp.StatusCode, resp.Request.URL, string(data))
 	}
 
 	resp.Body = ioutil.NopCloser(bytes.NewReader(data))
+}
+
+func Duration(d time.Duration, dicimal int) time.Duration {
+	shift := int(math.Pow10(dicimal))
+
+	units := []time.Duration{time.Second, time.Millisecond, time.Microsecond, time.Nanosecond}
+	for _, u := range units {
+		if d > u {
+			div := u / time.Duration(shift)
+			if div == 0 {
+				break
+			}
+			d = d / div * div
+			break
+		}
+	}
+
+	return d
 }
