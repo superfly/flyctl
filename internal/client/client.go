@@ -7,6 +7,7 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/terminal"
 )
 
 var ErrNoAuthToken = errors.New("No access token available. Please login with 'flyctl auth login'")
@@ -38,7 +39,7 @@ func (c *Client) Authenticated() bool {
 func (c *Client) InitApi() bool {
 	apiToken := flyctl.GetAPIToken()
 	if apiToken != "" {
-		apiClient := api.NewClient(apiToken, buildinfo.Name(), buildinfo.Version().String())
+		apiClient := api.NewClient(apiToken, buildinfo.Name(), buildinfo.Version().String(), terminal.DefaultLogger)
 		c.api = apiClient
 	}
 	return c.Authenticated()
