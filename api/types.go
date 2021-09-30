@@ -246,6 +246,13 @@ func DefinitionPtr(in map[string]interface{}) *Definition {
 	return &x
 }
 
+type ImageVersion struct {
+	Repository string
+	Tag        string
+	Version    string
+	Digest     string
+}
+
 type App struct {
 	ID             string
 	Name           string
@@ -297,6 +304,10 @@ type App struct {
 		Users     *[]PostgresClusterUser
 	}
 	Image *Image
+
+	ImageUpgradeAvailable bool
+	CurrentImageVersion   ImageVersion
+	LatestImageVersion    ImageVersion
 }
 
 type TaskGroupCount struct {

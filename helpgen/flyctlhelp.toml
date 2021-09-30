@@ -504,6 +504,10 @@ usage = "status"
 longHelp = "Manage postgres clusters"
 shortHelp = "Manage postgres clusters"
 usage = "postgres"
+[postgres.info]
+longHelp = "Show Postgres app information"
+shortHelp = "Show Postgres app info"
+usage = "info"
 [postgres.attach]
 longHelp = "Attach a postgres cluster to an app"
 shortHelp = "Attach a postgres cluster to an app"

@@ -565,6 +565,10 @@ about the Fly platform.`,
 		return KeyStrings{"detach", "Detach a postgres cluster from an app",
 			`Detach a postgres cluster from an app`,
 		}
+	case "postgres.info":
+		return KeyStrings{"info", "Show Postgres app info",
+			`Show Postgres app information`,
+		}
 	case "postgres.list":
 		return KeyStrings{"list", "list postgres clusters",
 			`list postgres clusters`,
