@@ -157,6 +157,7 @@ func checkForUpdate(currentVersion semver.Version) (*update.Release, error) {
 	if !shouldCheckForUpdate() {
 		return nil, nil
 	}
+	terminal.Debug("Checking for updates...")
 
 	stateFilePath := filepath.Join(flyctl.ConfigDir(), "state.yml")
 	return update.CheckForUpdate(context.Background(), stateFilePath, currentVersion)
