@@ -35,8 +35,6 @@ longHelp = "Show image details"
 shortHelp = "Show image details"
 usage = "show"
 
-
-
 [open]
 longHelp = """Open browser to current deployed application. If an optional path is specified, this is appended to the
 URL for deployed application. 
@@ -510,7 +508,6 @@ longHelp = """Show current Fly platform status in a browser
 """
 shortHelp = "Show current platform status"
 usage = "status"
-
 
 [postgres]
 longHelp = "Manage postgres clusters"
