@@ -4,10 +4,10 @@ go 1.16
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.2.7
-	github.com/BurntSushi/toml v0.3.1
+	github.com/BurntSushi/toml v0.4.1
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/briandowns/spinner v1.12.0
-	github.com/buildpacks/pack v0.20.0
+	github.com/buildpacks/pack v0.21.0
 	github.com/cli/safeexec v1.0.0
 	github.com/containerd/console v1.0.2
 	github.com/docker/docker v20.10.8+incompatible
@@ -32,7 +32,7 @@ require (
 	github.com/nats-io/nats.go v1.12.1
 	github.com/novln/docker-parser v1.0.0
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/pelletier/go-toml v1.9.3
+	github.com/pelletier/go-toml v1.9.4
 	github.com/pkg/errors v0.9.1
 	github.com/segmentio/textio v1.2.0
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
@@ -41,9 +41,9 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/superfly/flyctl/api v0.0.0-00010101000000-000000000000
 	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e
-	golang.org/x/net v0.0.0-20210510120150-4163338589ed
+	golang.org/x/net v0.0.0-20210525063256-abc453219eb5
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d
+	golang.org/x/term v0.0.0-20210615171337-6886f2dfbf5b
 	golang.zx2c4.com/wireguard v0.0.20201118
 	golang.zx2c4.com/wireguard/tun/netstack v0.0.0-20210402170708-10533c3e73cd
 	google.golang.org/grpc v1.38.0
