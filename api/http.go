@@ -13,7 +13,7 @@ import (
 
 var retryErrors = []string{"INTERNAL_ERROR", "read: connection reset by peer"}
 
-func newHTTPClient() (*http.Client, error) {
+func newHTTPClient(logger Logger) (*http.Client, error) {
 	retryTransport := rehttp.NewTransport(
 		http.DefaultTransport,
 		rehttp.RetryAll(
@@ -28,6 +28,7 @@ func newHTTPClient() (*http.Client, error) {
 
 	transport := &LoggingTransport{
 		innerTransport: retryTransport,
+		logger:         logger,
 	}
 
 	httpClient := &http.Client{
