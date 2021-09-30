@@ -37,7 +37,7 @@ type Client struct {
 }
 
 // NewClient - creates a new Client, takes an access token
-func NewClient(accessToken string, name, version string, logger Logger) *Client {
+func NewClient(accessToken, name, version string, logger Logger) *Client {
 
 	httpClient, _ := newHTTPClient(logger)
 
