@@ -26,6 +26,17 @@ Information includes the application's
 shortHelp = "Show detailed app information"
 usage = "info"
 
+[image]
+longHelp = "Manage app image"
+shortHelp = "Manage app image"
+usage = "image"
+[image.show]
+longHelp = "Show image details"
+shortHelp = "Show image details"
+usage = "show"
+
+
+
 [open]
 longHelp = """Open browser to current deployed application. If an optional path is specified, this is appended to the
 URL for deployed application. 
@@ -500,14 +511,11 @@ longHelp = """Show current Fly platform status in a browser
 shortHelp = "Show current platform status"
 usage = "status"
 
+
 [postgres]
 longHelp = "Manage postgres clusters"
 shortHelp = "Manage postgres clusters"
 usage = "postgres"
-[postgres.info]
-longHelp = "Show Postgres app information"
-shortHelp = "Show Postgres app info"
-usage = "info"
 [postgres.attach]
 longHelp = "Attach a postgres cluster to an app"
 shortHelp = "Attach a postgres cluster to an app"

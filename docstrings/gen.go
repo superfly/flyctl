@@ -353,6 +353,14 @@ To read more, use the docs command to view Fly's help on the web.`,
 			`List the history of changes in the application. Includes autoscaling 
 events and their results.`,
 		}
+	case "image":
+		return KeyStrings{"image", "Manage app image",
+			`Manage app image`,
+		}
+	case "image.show":
+		return KeyStrings{"show", "Show image details",
+			`Show image details`,
+		}
 	case "info":
 		return KeyStrings{"info", "Show detailed app information",
 			`Shows information about the application on the Fly platform
@@ -564,10 +572,6 @@ about the Fly platform.`,
 	case "postgres.detach":
 		return KeyStrings{"detach", "Detach a postgres cluster from an app",
 			`Detach a postgres cluster from an app`,
-		}
-	case "postgres.info":
-		return KeyStrings{"info", "Show Postgres app info",
-			`Show Postgres app information`,
 		}
 	case "postgres.list":
 		return KeyStrings{"list", "list postgres clusters",

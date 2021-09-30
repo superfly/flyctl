@@ -24,37 +24,6 @@ func (client *Client) CreatePostgresCluster(input CreatePostgresClusterInput) (*
 	return data.CreatePostgresCluster, nil
 }
 
-func (client *Client) GetPostgresInfo(appName string) (*App, error) {
-	query := `
-		query($appName: String!) {
-			app(name: $appName) {
-				imageUpgradeAvailable
-				currentImageVersion {
-					repository
-					tag
-					digest
-					version
-				}
-				latestImageVersion {
-					repository
-					tag
-					digest
-					version
-				}
-			}
-		}
-	`
-	req := client.NewRequest(query)
-	req.Var("appName", appName)
-
-	data, err := client.Run(req)
-	if err != nil {
-		return nil, err
-	}
-
-	return &data.App, nil
-}
-
 func (client *Client) GetTemplateDeployment(id string) (*TemplateDeployment, error) {
 	query := `
 		query($id: ID!) {

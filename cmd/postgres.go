@@ -48,9 +48,6 @@ func newPostgresCommand(client *client.Client) *Command {
 	detachCmd := BuildCommandKS(cmd, runDetachPostgresCluster, detachStrngs, client, requireSession, requireAppName)
 	detachCmd.AddStringFlag(StringFlagOpts{Name: "postgres-app", Description: "the postgres cluster to detach from the app"})
 
-	infoStrings := docstrings.Get("postgres.info")
-	BuildCommandKS(cmd, runPostgresInfo, infoStrings, client, requireSession, requireAppNameAsArg)
-
 	dbStrings := docstrings.Get("postgres.db")
 	dbCmd := BuildCommandKS(cmd, nil, dbStrings, client, requireSession)
 
@@ -183,35 +180,6 @@ func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
 	}
 
 	return err
-}
-
-func runPostgresInfo(ctx *cmdctx.CmdContext) error {
-	appName := ctx.AppName
-
-	app, err := ctx.Client.API().GetPostgresInfo(appName)
-	if err != nil {
-		return err
-	}
-
-	if app.ImageUpgradeAvailable {
-		current := fmt.Sprintf("%s:%s %s", app.CurrentImageVersion.Repository, app.CurrentImageVersion.Tag, app.CurrentImageVersion.Version)
-		latest := fmt.Sprintf("%s:%s %s", app.LatestImageVersion.Repository, app.LatestImageVersion.Tag, app.LatestImageVersion.Version)
-		fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Postgres update available %s -> %s", current, latest)))
-	}
-
-	err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.ImageVersion{ImageDetails: app.CurrentImageVersion}, HideHeader: true, Vertical: true, Title: "Image details"})
-	if err != nil {
-		return err
-	}
-
-	if app.ImageUpgradeAvailable {
-		err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.ImageVersion{ImageDetails: app.LatestImageVersion}, HideHeader: true, Vertical: true, Title: "Latest image details"})
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func runAttachPostgresCluster(ctx *cmdctx.CmdContext) error {

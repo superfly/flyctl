@@ -247,6 +247,7 @@ func DefinitionPtr(in map[string]interface{}) *Definition {
 }
 
 type ImageVersion struct {
+	Registry   string
 	Repository string
 	Tag        string
 	Version    string
@@ -305,9 +306,10 @@ type App struct {
 	}
 	Image *Image
 
-	ImageUpgradeAvailable bool
-	CurrentImageVersion   ImageVersion
-	LatestImageVersion    ImageVersion
+	ImageUpgradeAvailable       bool
+	ImageVersionTrackingEnabled bool
+	ImageDetails                ImageVersion
+	LatestImageDetails          ImageVersion
 }
 
 type TaskGroupCount struct {
