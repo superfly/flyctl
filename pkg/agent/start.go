@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 	"syscall"
@@ -24,6 +25,7 @@ func StartDaemon(ctx context.Context, api *api.Client, command string) (*Client,
 	defer cancel()
 
 	cmd := exec.Command(command, "agent", "daemon-start")
+	cmd.Env = append(os.Environ(), "FLY_NO_UPDATE_CHECK")
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setpgid: true,
 		Pgid:    0,
