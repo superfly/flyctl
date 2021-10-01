@@ -212,6 +212,7 @@ type Query struct {
 	RemoveMachine struct {
 		Machine *Machine
 	}
+	DeleteOrganizationMembership *DeleteOrganizationMembershipPayload
 }
 
 type CreatedWireGuardPeer struct {
@@ -1125,4 +1126,8 @@ type RemoveMachineInput struct {
 	ID    string `json:"id"`
 
 	Kill bool `json:"kill"`
+}
+type DeleteOrganizationMembershipPayload struct {
+	Organization *Organization
+	User         *User
 }

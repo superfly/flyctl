@@ -213,7 +213,56 @@ func runOrgsCreate(ctx *cmdctx.CmdContext) error {
 }
 
 func runOrgsRemove(ctx *cmdctx.CmdContext) error {
-	return fmt.Errorf("Remove Not implemented")
+	var orgSlug, userEmail string
+
+	orgType := api.OrganizationTypeShared
+
+	if len(ctx.Args) == 0 {
+
+		org, err := selectOrganization(ctx.Client.API(), "", &orgType)
+		if err != nil {
+			return err
+		}
+		orgSlug = org.Slug
+
+		userEmail, err = inputUserEmail()
+		if err != nil {
+			return err
+		}
+	} else if len(ctx.Args) == 2 {
+		orgSlug = ctx.Args[0]
+
+		userEmail = ctx.Args[1]
+	} else {
+		return errors.New("specify all arguments (or no arguments to be prompted)")
+	}
+
+	org, err := ctx.Client.API().GetOrganizationBySlug(orgSlug)
+	if err != nil {
+		return err
+	}
+
+	var userId string
+
+	// iterate ovver org.Members.Edges and check wether userEmail is in there otherwise return not found error
+	for _, m := range org.Members.Edges {
+		if m.Node.Email == userEmail {
+			userId = m.Node.ID
+			break
+		}
+	}
+	if userId == "" {
+		return errors.New("user not found")
+	}
+
+	_, userEmail, err = ctx.Client.API().DeleteOrganizationMembership(org.ID, userId)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Successfuly removed %s\n", userEmail)
+
+	return nil
 }
 
 func runOrgsRevoke(ctx *cmdctx.CmdContext) error {
