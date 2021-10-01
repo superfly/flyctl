@@ -255,12 +255,12 @@ func runOrgsRemove(ctx *cmdctx.CmdContext) error {
 		return errors.New("user not found")
 	}
 
-	name, userEmail, err := ctx.Client.API().DeleteOrganizationMembership(org.ID, userId)
+	_, userEmail, err = ctx.Client.API().DeleteOrganizationMembership(org.ID, userId)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Successfuly deleted %s from %s\n", userEmail, name)
+	fmt.Printf("Successfuly removed %s\n", userEmail)
 
 	return nil
 }
