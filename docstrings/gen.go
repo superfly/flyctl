@@ -361,6 +361,10 @@ events and their results.`,
 		return KeyStrings{"show", "Show image details",
 			`Show image details`,
 		}
+	case "image.update":
+		return KeyStrings{"update", "Update to latest available image version",
+			`Update to latest available image version`,
+		}
 	case "info":
 		return KeyStrings{"info", "Show detailed app information",
 			`Shows information about the application on the Fly platform

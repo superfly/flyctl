@@ -34,6 +34,10 @@ usage = "image"
 longHelp = "Show image details"
 shortHelp = "Show image details"
 usage = "show"
+[image.update]
+longHelp = "Update to latest available image version"
+shortHelp = "Update to latest available image version"
+usage = "update"
 
 [open]
 longHelp = """Open browser to current deployed application. If an optional path is specified, this is appended to the
