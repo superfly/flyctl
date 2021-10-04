@@ -337,11 +337,11 @@ browser to view the content.`,
 		return KeyStrings{"flyctl", "The Fly CLI",
 			`flyctl is a command line interface to the Fly.io platform.
 
-It allows users to manage authentication, application initialization, 
+It allows users to manage authentication, application launch, 
 deployment, network configuration, logging and more with just the 
 one command.
 
-Initialize an app with the init command
+Launch an app with the launch command
 Deploy an app with the deploy command
 View a deployed web application with the open command
 Check the status of an application with the status command
@@ -361,14 +361,6 @@ Information includes the application's
 * name, owner, version, status and hostname
 * services
 * IP addresses`,
-		}
-	case "init":
-		return KeyStrings{"init [APPNAME]", "Initialize a new application",
-			`The INIT command will both register a new application 
-with the Fly platform and create the fly.toml file which controls how 
-the application will be deployed. The --builder flag allows a cloud native 
-buildpack to be specified which will be used instead of a Dockerfile to 
-create the application image when it is deployed.`,
 		}
 	case "ips":
 		return KeyStrings{"ips", "Manage IP addresses for apps",
