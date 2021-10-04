@@ -1,11 +1,11 @@
 [flyctl]
 longHelp = """flyctl is a command line interface to the Fly.io platform.
 
-It allows users to manage authentication, application initialization, 
+It allows users to manage authentication, application launch,
 deployment, network configuration, logging and more with just the 
 one command.
 
-Initialize an app with the init command
+Launch an app with the launch command
 Deploy an app with the deploy command
 View a deployed web application with the open command
 Check the status of an application with the status command
@@ -32,16 +32,6 @@ URL for deployed application.
 """
 shortHelp = "Open browser to current deployed application"
 usage = "open [PATH]"
-
-[init]
-longHelp = """The INIT command will both register a new application 
-with the Fly platform and create the fly.toml file which controls how 
-the application will be deployed. The --builder flag allows a cloud native 
-buildpack to be specified which will be used instead of a Dockerfile to 
-create the application image when it is deployed.
-"""
-shortHelp = "Initialize a new application"
-usage = "init [APPNAME]"
 
 [destroy]
 longHelp = """The DESTROY command will remove an application 
@@ -1027,6 +1017,6 @@ shortHelp = "Remove a Fly machine"
 usage = "remove <id>"
 
 [proxy]
-usage     = "proxy <local:remote>"
+longHelp = """Proxies connections to a fly app through the wireguard tunnel"""
 shortHelp = "Proxies connections to a fly app"
-longHelp  = """Proxies connections to a fly app through the wireguard tunnel"""
+usage = "proxy <local:remote>"
