@@ -44,7 +44,7 @@ func (p *Allocations) Records() []map[string]string {
 
 		out = append(out, map[string]string{
 			"ID":            alloc.IDShort,
-			"Task":          alloc.TaskName,
+			"Process":       alloc.TaskName,
 			"Version":       version,
 			"Status":        formatAllocStatus(alloc),
 			"Desired":       alloc.DesiredStatus,
