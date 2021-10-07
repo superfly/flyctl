@@ -45,7 +45,7 @@ func runImageUpdate(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	if !app.ImageUpgradeAvailable {
-		return fmt.Errorf("Image is already running the latest available version.")
+		return fmt.Errorf("Image is already running the latest image.")
 	}
 
 	cI := app.ImageDetails
@@ -56,7 +56,7 @@ func runImageUpdate(cmdCtx *cmdctx.CmdContext) error {
 
 	confirm := false
 	prompt := &survey.Confirm{
-		Message: fmt.Sprintf("Updating image from %s to %s?", current, target),
+		Message: fmt.Sprintf("Update `%s` from %s to %s?", appName, current, target),
 	}
 	err = survey.AskOne(prompt, &confirm)
 	if err != nil {
@@ -112,6 +112,7 @@ func runImageShow(ctx *cmdctx.CmdContext) error {
 		current := fmt.Sprintf("%s:%s %s", app.ImageDetails.Repository, app.ImageDetails.Tag, app.ImageDetails.Version)
 		latest := fmt.Sprintf("%s:%s %s", app.LatestImageDetails.Repository, app.LatestImageDetails.Tag, app.LatestImageDetails.Version)
 		fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Update available %s -> %s", current, latest)))
+		fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Run `fly image update` to migrate to the latest image version.\n")))
 	}
 
 	err = ctx.Frender(cmdctx.PresenterOption{
