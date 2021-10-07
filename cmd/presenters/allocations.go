@@ -19,7 +19,7 @@ func (p *Allocations) APIStruct() interface{} {
 }
 
 func (p *Allocations) FieldNames() []string {
-	return []string{"ID", "Task", "Version", "Region", "Desired", "Status", "Health Checks", "Restarts", "Created"}
+	return []string{"ID", "Process", "Version", "Region", "Desired", "Status", "Health Checks", "Restarts", "Created"}
 }
 
 func (p *Allocations) Records() []map[string]string {
