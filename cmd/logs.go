@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"time"
+
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/internal/client"
@@ -45,26 +47,50 @@ func runLogs(cc *cmdctx.CmdContext) error {
 		VMID:       cc.Config.GetString("instance"),
 	}
 
-	stream, err := logs.NewNatsStream(client, opts)
+	entries := make(chan logs.LogEntry, 2)
 
-	if err != nil {
-		terminal.Debugf("could not connect to wireguard tunnel, err: %v\n", err)
-		terminal.Debug("Falling back to log polling...")
+	stop := make(chan struct{})
 
-		stream, err = logs.NewPollingStream(client, opts)
+	go func() {
+		stream, err := logs.NewNatsStream(client, opts)
 		if err != nil {
-			return err
+			terminal.Debugf("could not connect to wireguard tunnel, err: %v\n", err)
+			terminal.Debug("Falling back to log polling...")
+			return
 		}
-	}
+
+		time.Sleep(5 * time.Second)
+
+		stop <- struct{}{}
+
+		for entry := range stream.Stream(ctx, opts) {
+			entries <- entry
+		}
+	}()
+
+	go func() {
+		stream, err := logs.NewPollingStream(client, opts)
+		if err != nil {
+			return
+		}
+		for {
+			select {
+			case entry := <-stream.Stream(ctx, opts):
+				entries <- entry
+			case <-stop:
+				return
+			}
+		}
+
+	}()
 
 	presenter := presenters.LogPresenter{}
-
-	entries := stream.Stream(ctx, opts)
 
 	for {
 		select {
 		case <-ctx.Done():
-			return stream.Err()
+			close(entries)
+			return nil
 		case entry := <-entries:
 			presenter.FPrint(cc.Out, cc.OutputJSON(), entry)
 		}
