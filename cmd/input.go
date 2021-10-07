@@ -78,6 +78,34 @@ func selectOrganization(client *api.Client, slug string, typeFilter *api.Organiz
 	return &orgs[selectedOrg], nil
 }
 
+func selectWireGuardPeer(client *api.Client, slug string) (string, error) {
+	peers, err := client.GetWireGuardPeers(slug)
+	if err != nil {
+		return "", err
+	}
+
+	if len(peers) < 1 {
+		return "", fmt.Errorf(`Organization "%s" does not have any connections peer`, slug)
+	}
+
+	var options []string
+	for _, peer := range peers {
+		options = append(options, peer.Name)
+	}
+
+	selectedPeer := 0
+	prompt := &survey.Select{
+		Message:  "Select peer:",
+		Options:  options,
+		PageSize: 30,
+	}
+	if err := survey.AskOne(prompt, &selectedPeer); err != nil {
+		return "", err
+	}
+
+	return peers[selectedPeer].Name, nil
+}
+
 func selectRegion(client *api.Client, regionCode string) (*api.Region, error) {
 	regions, requestRegion, err := client.PlatformRegions()
 	if err != nil {
