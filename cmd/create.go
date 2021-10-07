@@ -4,8 +4,6 @@ import (
 	"fmt"
 
 	"github.com/superfly/flyctl/cmdctx"
-
-	"github.com/AlecAivazis/survey/v2"
 )
 
 //TODO: Move all output to status styled begin/done updates
@@ -19,9 +17,11 @@ func runCreate(cmdCtx *cmdctx.CmdContext) error {
 
 	name := ""
 
+	// If we aren't generating the name automatically, get the name from the command line or from a prompt
 	if !cmdCtx.Config.GetBool("generate-name") {
 		name = cmdCtx.Config.GetString("name")
 
+		// App name was specified as a command argument and via the --name option
 		if name != "" && appName != "" {
 			return fmt.Errorf(`two app names specified %s and %s. Select and specify only one`, appName, name)
 		}
@@ -33,14 +33,15 @@ func runCreate(cmdCtx *cmdctx.CmdContext) error {
 		fmt.Println()
 
 		if name == "" {
-			prompt := &survey.Input{
-				Message: "App Name (leave blank to use an auto-generated name)",
+
+			// Prompt the user for the app name
+			inputName, err := inputAppName("", true)
+
+			if err != nil {
+				return err
 			}
-			if err := survey.AskOne(prompt, &name); err != nil {
-				if isInterrupt(err) {
-					return nil
-				}
-			}
+
+			name = inputName
 		} else {
 			fmt.Printf("Selected App Name: %s\n", name)
 		}

@@ -181,11 +181,20 @@ func selectVMSize(client *api.Client, vmSizeName string) (*api.VMSize, error) {
 	return &vmSizes[selectedVMSize], nil
 }
 
-func inputAppName(defaultName string) (name string, err error) {
+func inputAppName(defaultName string, autoGenerate bool) (name string, err error) {
+	message := "App Name"
+
+	if autoGenerate {
+		message += " (leave blank to use an auto-generated name)"
+	}
+
+	message += ":"
+
 	prompt := &survey.Input{
-		Message: "App name:",
+		Message: message,
 		Default: defaultName,
 	}
+
 	if err := survey.AskOne(prompt, &name); err != nil {
 		return name, err
 	}
