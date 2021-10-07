@@ -337,7 +337,7 @@ browser to view the content.`,
 		return KeyStrings{"flyctl", "The Fly CLI",
 			`flyctl is a command line interface to the Fly.io platform.
 
-It allows users to manage authentication, application launch, 
+It allows users to manage authentication, application launch,
 deployment, network configuration, logging and more with just the 
 one command.
 

@@ -290,6 +290,7 @@ type App struct {
 		Nodes []Volume
 	}
 	TaskGroupCounts []TaskGroupCount
+	ProcessGroups   []ProcessGroup
 	HealthChecks    *struct {
 		Nodes []CheckState
 	}
@@ -828,9 +829,10 @@ type VMSize struct {
 }
 
 type ProcessGroup struct {
-	Name    string
-	Regions []string
-	VMSize  *VMSize
+	Name         string
+	Regions      []string
+	MaxPerRegion int
+	VMSize       *VMSize
 }
 
 type SetVMSizeInput struct {

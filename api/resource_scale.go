@@ -93,7 +93,7 @@ func (c *Client) AppAutoscalingConfig(appName string) (*AutoscalingConfig, error
 	return data.App.Autoscaling, nil
 }
 
-func (c *Client) AppVMResources(appName string) (VMSize, []TaskGroupCount, error) {
+func (c *Client) AppVMResources(appName string) (VMSize, []TaskGroupCount, []ProcessGroup, error) {
 	query := `
 		query($appName: String!) {
 			app(name: $appName) {
@@ -109,6 +109,10 @@ func (c *Client) AppVMResources(appName string) (VMSize, []TaskGroupCount, error
 					name
 					count
 				}
+				processGroups {
+					name
+					maxPerRegion
+				}
 			}
 		}
 	`
@@ -119,10 +123,10 @@ func (c *Client) AppVMResources(appName string) (VMSize, []TaskGroupCount, error
 
 	data, err := c.Run(req)
 	if err != nil {
-		return VMSize{}, []TaskGroupCount{}, err
+		return VMSize{}, []TaskGroupCount{}, []ProcessGroup{}, err
 	}
 
-	return data.App.VMSize, data.App.TaskGroupCounts, nil
+	return data.App.VMSize, data.App.TaskGroupCounts, data.App.ProcessGroups, nil
 }
 
 func (c *Client) SetAppVMSize(appID string, group string, sizeName string, memoryMb int64) (VMSize, error) {
