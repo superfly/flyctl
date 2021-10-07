@@ -31,6 +31,8 @@ func newLaunchCommand(client *client.Client) *Command {
 	launchCmd.AddStringFlag(StringFlagOpts{Name: "region", Description: "the region to launch the new app in"})
 	launchCmd.AddStringFlag(StringFlagOpts{Name: "image", Description: "the image to launch"})
 	launchCmd.AddBoolFlag(BoolFlagOpts{Name: "now", Description: "deploy now without confirmation", Default: false})
+	launchCmd.AddBoolFlag(BoolFlagOpts{Name: "no-deploy", Description: "Do not prompt for deployment", Default: false})
+	launchCmd.AddBoolFlag(BoolFlagOpts{Name: "generate-name", Description: "Always generate a name for the app", Default: false})
 
 	return launchCmd
 }
@@ -148,7 +150,25 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 		}
 	}
 
-	appName := cmdctx.Config.GetString("name")
+	appName := ""
+
+	if !cmdctx.Config.GetBool("generate-name") {
+		appName = cmdctx.Config.GetString("name")
+
+		if appName == "" {
+			// Prompt the user for the app name
+			inputName, err := inputAppName("", true)
+
+			if err != nil {
+				return err
+			}
+
+			appName = inputName
+		} else {
+			fmt.Printf("Selected App Name: %s\n", appName)
+		}
+	}
+
 	org, err := selectOrganization(cmdctx.Client.API(), orgSlug, nil)
 	if err != nil {
 		return err
@@ -235,11 +255,11 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 
 	fmt.Println("Your app is ready. Deploy with `flyctl deploy`")
 
-	if !cmdctx.Config.GetBool("now") && !confirm("Would you like to deploy now?") {
-		return nil
+	if !cmdctx.Config.GetBool("no-deploy") && (cmdctx.Config.GetBool("now") || confirm("Would you like to deploy now?")) {
+		return runDeploy(cmdctx)
 	}
 
-	return runDeploy(cmdctx)
+	return nil
 }
 
 func shouldDeployExistingApp(cc *cmdctx.CmdContext, appName string) (bool, error) {

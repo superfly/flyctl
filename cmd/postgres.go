@@ -82,7 +82,7 @@ func runPostgresList(ctx *cmdctx.CmdContext) error {
 func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
 	name := ctx.Config.GetString("name")
 	if name == "" {
-		n, err := inputAppName("")
+		n, err := inputAppName("", false)
 		if err != nil {
 			return err
 		}
