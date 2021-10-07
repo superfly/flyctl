@@ -355,15 +355,15 @@ events and their results.`,
 		}
 	case "image":
 		return KeyStrings{"image", "Manage app image",
-			`Manage app image`,
+			`Provides information and various management capabilities for Fly owned images. E.G Postgres apps created via 'flyctl postgres create'.`,
 		}
 	case "image.show":
-		return KeyStrings{"show", "Show image details",
-			`Show image details`,
+		return KeyStrings{"show", "Show image details.",
+			``,
 		}
 	case "image.update":
-		return KeyStrings{"update", "Update to latest available image version",
-			`Update to latest available image version`,
+		return KeyStrings{"update", "Update image to the latest available version.",
+			`Update image to the latest available version.`,
 		}
 	case "info":
 		return KeyStrings{"info", "Show detailed app information",
