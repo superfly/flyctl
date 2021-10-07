@@ -566,7 +566,7 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 		VMID:    machine.ID,
 	}
 
-	stream, err := logs.NewNatsStream(apiClient, opts)
+	stream, err := logs.NewNatsStream(ctx, apiClient, opts)
 
 	if err != nil {
 		terminal.Debugf("could not connect to wireguard tunnel, err: %v\n", err)

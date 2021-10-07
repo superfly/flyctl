@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"time"
 
 	"github.com/superfly/flyctl/cmd/presenters"
@@ -8,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/pkg/logs"
 	"github.com/superfly/flyctl/terminal"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/superfly/flyctl/docstrings"
 )
@@ -47,52 +49,63 @@ func runLogs(cc *cmdctx.CmdContext) error {
 		VMID:       cc.Config.GetString("instance"),
 	}
 
-	entries := make(chan logs.LogEntry, 2)
+	pollEntries := make(chan logs.LogEntry)
+	liveEntries := make(chan logs.LogEntry)
 
-	stop := make(chan struct{})
+	eg, errCtx := errgroup.WithContext(ctx)
+	pollingCtx, pollingCancel := context.WithCancel(errCtx)
 
-	go func() {
-		stream, err := logs.NewNatsStream(client, opts)
+	eg.Go(func() error {
+		defer close(pollEntries)
+
+		stream, err := logs.NewPollingStream(client, opts)
+		if err != nil {
+			return err
+		}
+
+		for entry := range stream.Stream(pollingCtx, opts) {
+			pollEntries <- entry
+		}
+
+		return nil
+	})
+
+	eg.Go(func() error {
+		defer close(liveEntries)
+
+		stream, err := logs.NewNatsStream(errCtx, client, opts)
 		if err != nil {
 			terminal.Debugf("could not connect to wireguard tunnel, err: %v\n", err)
 			terminal.Debug("Falling back to log polling...")
-			return
+			return nil
 		}
 
-		time.Sleep(5 * time.Second)
+		time.Sleep(2 * time.Second)
 
-		stop <- struct{}{}
+		pollingCancel()
 
-		for entry := range stream.Stream(ctx, opts) {
-			entries <- entry
-		}
-	}()
-
-	go func() {
-		stream, err := logs.NewPollingStream(client, opts)
-		if err != nil {
-			return
-		}
-		for {
-			select {
-			case entry := <-stream.Stream(ctx, opts):
-				entries <- entry
-			case <-stop:
-				return
-			}
+		for entry := range stream.Stream(errCtx, opts) {
+			liveEntries <- entry
 		}
 
-	}()
+		return nil
+	})
 
 	presenter := presenters.LogPresenter{}
 
-	for {
-		select {
-		case <-ctx.Done():
-			close(entries)
-			return nil
-		case entry := <-entries:
+	eg.Go(func() error {
+		for entry := range pollEntries {
 			presenter.FPrint(cc.Out, cc.OutputJSON(), entry)
 		}
-	}
+		return nil
+	})
+
+	eg.Go(func() error {
+		for entry := range liveEntries {
+			presenter.FPrint(cc.Out, cc.OutputJSON(), entry)
+		}
+		return nil
+	})
+
+	return eg.Wait()
 }

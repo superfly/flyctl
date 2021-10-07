@@ -21,10 +21,7 @@ type natsLogStream struct {
 	err error
 }
 
-func NewNatsStream(apiClient *api.Client, opts *LogOptions) (LogStream, error) {
-
-	ctx := context.Background()
-
+func NewNatsStream(ctx context.Context, apiClient *api.Client, opts *LogOptions) (LogStream, error) {
 	app, err := apiClient.GetApp(opts.AppName)
 	if err != nil {
 		return nil, errors.Wrap(err, "error fetching target app")
@@ -102,8 +99,11 @@ func (s *natsLogStream) Stream(ctx context.Context, opts *LogOptions) <-chan Log
 		return nil
 	}
 	go func() {
+		defer sub.Unsubscribe()
+		defer close(out)
+
 		<-ctx.Done()
-		sub.Unsubscribe()
+
 	}()
 
 	return out
