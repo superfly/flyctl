@@ -85,7 +85,7 @@ func selectWireGuardPeer(client *api.Client, slug string) (string, error) {
 	}
 
 	if len(peers) < 1 {
-		return "", fmt.Errorf(`Organization "%s" does not have any connections peer`, slug)
+		return "", fmt.Errorf(`Organization "%s" does not have any wireguard peers`, slug)
 	}
 
 	var options []string
