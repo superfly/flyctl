@@ -246,9 +246,14 @@ func runWireGuardRemove(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	name, err := argOrPrompt(ctx, 1, "Name of WireGuard peer to remove: ")
-	if err != nil {
-		return err
+	var name string
+	if len(ctx.Args) >= 2 {
+		name = ctx.Args[1]
+	} else {
+		name, err = selectWireGuardPeer(ctx.Client.API(), org.Slug)
+		if err != nil {
+			return err
+		}
 	}
 
 	fmt.Printf("Removing WireGuard peer \"%s\" for organization %s\n", name, org.Slug)
