@@ -135,14 +135,15 @@ func runScaleCount(commandContext *cmdctx.CmdContext) error {
 }
 
 func runScaleShow(commandContext *cmdctx.CmdContext) error {
-	size, tgCounts, err := commandContext.Client.API().AppVMResources(commandContext.AppName)
+	size, tgCounts, processGroups, err := commandContext.Client.API().AppVMResources(commandContext.AppName)
 	if err != nil {
 		return err
 	}
 
-	msg := countMessage(tgCounts)
+	countMsg := countMessage(tgCounts)
+	maxPerRegionMsg := maxPerRegionMessage(processGroups)
 
-	printVMResources(commandContext, size, msg)
+	printVMResources(commandContext, size, countMsg, maxPerRegionMsg)
 
 	return nil
 }
@@ -169,14 +170,40 @@ func countMessage(counts []api.TaskGroupCount) string {
 	//return fmt.Sprintf("Count changed to %s\n", msg)
 }
 
-func printVMResources(commandContext *cmdctx.CmdContext, vmSize api.VMSize, count string) {
+func maxPerRegionMessage(groups []api.ProcessGroup) string {
+	msg := ""
+
+	if len(groups) == 1 {
+		for _, pg := range groups {
+			if pg.Name == "app" {
+				if pg.MaxPerRegion == 0 {
+					msg = "Not set"
+				} else {
+					msg = fmt.Sprint(pg.MaxPerRegion)
+				}
+			}
+		}
+	}
+
+	if msg == "" {
+		for _, pg := range groups {
+			msg += fmt.Sprintf("%s=%d ", pg.Name, pg.MaxPerRegion)
+		}
+	}
+
+	return msg
+}
+
+func printVMResources(commandContext *cmdctx.CmdContext, vmSize api.VMSize, count string, maxPerRegion string) {
 	if commandContext.OutputJSON() {
 		out := struct {
 			api.VMSize
-			Count string
+			Count        string
+			MaxPerRegion string
 		}{
-			VMSize: vmSize,
-			Count:  count,
+			VMSize:       vmSize,
+			Count:        count,
+			MaxPerRegion: maxPerRegion,
 		}
 
 		prettyJSON, _ := json.MarshalIndent(out, "", "    ")
@@ -189,6 +216,7 @@ func printVMResources(commandContext *cmdctx.CmdContext, vmSize api.VMSize, coun
 	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Size", vmSize.Name)
 	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Memory", formatMemory(vmSize))
 	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "Count", count)
+	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "Max Per Region", maxPerRegion)
 }
 
 func runScaleMemory(commandContext *cmdctx.CmdContext) error {
@@ -198,7 +226,7 @@ func runScaleMemory(commandContext *cmdctx.CmdContext) error {
 	}
 
 	// API doesn't allow memory setting on own yet, so get get the current size for the mutation
-	currentsize, _, err := commandContext.Client.API().AppVMResources(commandContext.AppName)
+	currentsize, _, _, err := commandContext.Client.API().AppVMResources(commandContext.AppName)
 	if err != nil {
 		return err
 	}
