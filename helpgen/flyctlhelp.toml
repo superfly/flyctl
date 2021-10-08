@@ -26,9 +26,24 @@ Information includes the application's
 shortHelp = "Show detailed app information"
 usage = "info"
 
+[image]
+longHelp = "Manage app image"
+shortHelp = "Manage app image"
+usage = "image"
+[image.show]
+longHelp = "Show image details."
+shortHelp = "Show image details."
+usage = "show"
+[image.update]
+longHelp = """This will update the application's image to the latest available version.
+The update will perform a rolling restart against each VM, which may result in a brief service disruption.
+"""
+shortHelp = "Updates the app's image to the latest available version. (Fly Postgres only)"
+usage = "update"
+
 [open]
 longHelp = """Open browser to current deployed application. If an optional path is specified, this is appended to the
-URL for deployed application. 
+URL for deployed application.
 """
 shortHelp = "Open browser to current deployed application"
 usage = "open [PATH]"

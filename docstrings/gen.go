@@ -353,6 +353,19 @@ To read more, use the docs command to view Fly's help on the web.`,
 			`List the history of changes in the application. Includes autoscaling 
 events and their results.`,
 		}
+	case "image":
+		return KeyStrings{"image", "Manage app image",
+			`Manage app image`,
+		}
+	case "image.show":
+		return KeyStrings{"show", "Show image details.",
+			`Show image details.`,
+		}
+	case "image.update":
+		return KeyStrings{"update", "Updates the app's image to the latest available version. (Fly Postgres only)",
+			`This will update the application's image to the latest available version.
+The update will perform a rolling restart against each VM, which may result in a brief service disruption.`,
+		}
 	case "info":
 		return KeyStrings{"info", "Show detailed app information",
 			`Shows information about the application on the Fly platform
