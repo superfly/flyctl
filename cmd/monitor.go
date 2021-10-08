@@ -6,6 +6,8 @@ import (
 	"sync"
 
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/pkg/logs"
+	"github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
@@ -113,7 +115,18 @@ func monitorDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) e
 
 				commandContext.Status("monitor", cmdctx.STITLE, "Recent Logs")
 				logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
-				logPresenter.FPrint(commandContext.Out, commandContext.OutputJSON(), alloc.RecentLogs)
+				terminal.Debug("logs", "Fetching logs for %s", alloc.ID)
+				for _, e := range alloc.RecentLogs {
+					entry := logs.LogEntry{
+						Instance:  e.Instance,
+						Level:     e.Level,
+						Message:   e.Message,
+						Region:    e.Region,
+						Timestamp: e.Timestamp,
+						Meta:      e.Meta,
+					}
+					logPresenter.FPrint(commandContext.Out, commandContext.OutputJSON(), entry)
+				}
 
 			}
 

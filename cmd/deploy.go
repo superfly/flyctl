@@ -27,7 +27,7 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/deployment"
 	"github.com/superfly/flyctl/internal/flyerr"
-	"github.com/superfly/flyctl/internal/monitor"
+	"github.com/superfly/flyctl/pkg/logs"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/sync/errgroup"
 )
@@ -269,13 +269,14 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 				ctx, cancel := context.WithCancel(ctx)
 				defer cancel()
 
-				ls := monitor.NewLogStream(cc.Client.API())
-				opts := monitor.LogOptions{MaxBackoff: 1 * time.Second, AppName: cc.AppName, VMID: vmid}
+				opts := &logs.LogOptions{MaxBackoff: 1 * time.Second, AppName: cc.AppName, VMID: vmid}
 
-				for logs := range ls.Stream(ctx, opts) {
-					if len(logs) == 0 {
-						continue
-					}
+				ls, err := logs.NewNatsStream(ctx, apiClient, opts)
+				if err != nil {
+					return err
+				}
+
+				for entry := range ls.Stream(ctx, opts) {
 
 					func() {
 						if interactive {
@@ -283,17 +284,15 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 							defer s.Start()
 						}
 
-						for _, l := range logs {
-							fmt.Println("\t", l.Message)
+						fmt.Println("\t", entry.Message)
 
-							// watch for the shutdown message
-							if l.Message == "Starting clean up." {
-								cancel()
-							}
+						// watch for the shutdown message
+						if entry.Message == "Starting clean up." {
+							cancel()
 						}
+
 					}()
 				}
-
 				return ls.Err()
 			})
 		})
@@ -449,8 +448,8 @@ func watchDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext) error {
 				}
 
 				cmdCtx.Status("deploy", cmdctx.STITLE, "Recent Logs")
-				logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
-				logPresenter.FPrint(cmdCtx.Out, cmdCtx.OutputJSON(), alloc.RecentLogs)
+				// logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
+				// logPresenter.FPrint(cmdCtx.Out, cmdCtx.OutputJSON(), alloc.RecentLogs)
 			}
 
 		}
