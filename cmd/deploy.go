@@ -270,8 +270,7 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 				defer cancel()
 
 				opts := &logs.LogOptions{MaxBackoff: 1 * time.Second, AppName: cc.AppName, VMID: vmid}
-
-				ls, err := logs.NewNatsStream(ctx, apiClient, opts)
+				ls, err := logs.NewPollingStream(apiClient, opts)
 				if err != nil {
 					return err
 				}
