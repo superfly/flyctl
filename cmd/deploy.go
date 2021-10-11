@@ -20,7 +20,6 @@ import (
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/cmdfmt"
@@ -98,7 +97,12 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 	cmdfmt.PrintBegin(cmdCtx.Out, "Validating app configuration")
 
 	if cmdCtx.AppConfig == nil {
-		cmdCtx.AppConfig = flyctl.NewAppConfig()
+		cfg, err := cmdCtx.Client.API().GetConfig(cmdCtx.AppName)
+		if err != nil {
+			return fmt.Errorf("unable to fetch existing configuration file: %s", err)
+		}
+
+		cmdCtx.AppConfig.Definition = cfg.Definition
 	}
 
 	if extraEnv := cmdCtx.Config.GetStringSlice("env"); len(extraEnv) > 0 {
