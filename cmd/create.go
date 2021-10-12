@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -60,8 +61,20 @@ func runCreate(cmdCtx *cmdctx.CmdContext) error {
 
 	fmt.Println()
 
+	input := api.CreateAppInput{
+		Name:           name,
+		Runtime:        "FIRECRACKER",
+		OrganizationID: org.ID,
+	}
+
+	// set network if flag is set
+	network := cmdCtx.Config.GetString("network")
+	if network != "" {
+		input.Network = api.StringPointer(network)
+	}
+
 	// The creation magic happens here....
-	app, err := cmdCtx.Client.API().CreateApp(name, org.ID, nil)
+	app, err := cmdCtx.Client.API().CreateApp(input)
 	if err != nil {
 		return err
 	}
