@@ -147,7 +147,7 @@ func (client *Client) GetAppCompact(appName string) (*AppCompact, error) {
 	return &data.AppCompact, nil
 }
 
-func (client *Client) CreateApp(name string, orgId string, preferredRegionCode *string) (*App, error) {
+func (client *Client) CreateApp(input CreateAppInput) (*App, error) {
 	query := `
 		mutation($input: CreateAppInput!) {
 			createApp(input: $input) {
@@ -171,12 +171,7 @@ func (client *Client) CreateApp(name string, orgId string, preferredRegionCode *
 
 	req := client.NewRequest(query)
 
-	req.Var("input", CreateAppInput{
-		Name:            name,
-		Runtime:         "FIRECRACKER",
-		OrganizationID:  orgId,
-		PreferredRegion: preferredRegionCode,
-	})
+	req.Var("input", input)
 
 	data, err := client.Run(req)
 	if err != nil {
