@@ -5,11 +5,11 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime/debug"
 	"time"
 
-	"github.com/blang/semver"
 	"github.com/getsentry/sentry-go"
 	"github.com/logrusorgru/aurora"
 
@@ -65,34 +65,22 @@ func main() {
 
 	flyctl.InitConfig()
 
-	updateChan := make(chan *update.Release)
-	go func() {
-		defer update.PostUpgradeCleanup()
-
-		rel, err := checkForUpdate(buildinfo.Version())
-		if err != nil {
-			terminal.Debug("error checking for update:", err)
-		}
-		updateChan <- rel
-	}()
-
 	client := client.NewClient()
 
 	if !client.IO.ColorEnabled() {
 		// disable colors
 	}
 
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Kill, os.Interrupt)
+	defer cancel()
+
+	promptToUpdateIfRequired(ctx)
+
 	root := cmd.NewRootCmd(client)
 
 	// cmd, _, err := root.Traverse(os.Args[1:])
 	// fmt.Println("resolved to", cmd.Use)
 	// checkErr(err)
-
-	update := <-updateChan
-	if update != nil {
-		fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Update available %s -> %s", buildinfo.Version(), update.Version)))
-		fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Run \"%s\" to upgrade", aurora.Bold(buildinfo.Name()+" version update"))))
-	}
 
 	_, err := root.ExecuteC()
 	checkErr(err)
@@ -153,14 +141,29 @@ func safeExit() {
 	os.Exit(1)
 }
 
-func checkForUpdate(currentVersion semver.Version) (*update.Release, error) {
+func promptToUpdateIfRequired(ctx context.Context) {
 	if !shouldCheckForUpdate() {
-		return nil, nil
+		return
 	}
+
 	terminal.Debug("Checking for updates...")
 
+	currentVersion := buildinfo.Version()
 	stateFilePath := filepath.Join(flyctl.ConfigDir(), "state.yml")
-	return update.CheckForUpdate(context.Background(), stateFilePath, currentVersion)
+
+	newVersion, err := update.CheckForUpdate(ctx, stateFilePath, currentVersion)
+	if err != nil {
+		terminal.Debugf("error checking for update: %v", err)
+
+		return
+	}
+
+	msg := fmt.Sprintf("Update available %s -> %s.\nRun \"%s\" to upgrade.",
+		currentVersion,
+		newVersion.Version,
+		aurora.Bold(buildinfo.Name()+" version update"),
+	)
+	fmt.Fprintln(os.Stderr, aurora.Yellow(msg))
 }
 
 func shouldCheckForUpdate() bool {
