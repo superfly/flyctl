@@ -2,23 +2,15 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
-
-	"github.com/logrusorgru/aurora"
 
 	"github.com/superfly/flyctl/cmd"
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/internal/cmdutil"
-	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/update"
-	"github.com/superfly/flyctl/terminal"
 )
 
 func main() {
@@ -48,54 +40,9 @@ func run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Kill, os.Interrupt)
 	defer cancel()
 
-	promptToUpdateIfRequired(ctx)
+	update.PromptFor(ctx)
 
 	root := cmd.NewRootCmd(client)
 	_, err := root.ExecuteContextC(ctx)
 	return err
-}
-
-func promptToUpdateIfRequired(ctx context.Context) {
-	if !shouldCheckForUpdate() {
-		return
-	}
-
-	terminal.Debug("Checking for updates...")
-
-	currentVersion := buildinfo.Version()
-	stateFilePath := filepath.Join(flyctl.ConfigDir(), "state.yml")
-
-	newVersion, err := update.CheckForUpdate(ctx, stateFilePath, currentVersion)
-	if err != nil {
-		terminal.Debugf("error checking for update: %v", err)
-
-		return
-	}
-
-	msg := fmt.Sprintf("Update available %s -> %s.\nRun \"%s\" to upgrade.",
-		currentVersion,
-		newVersion.Version,
-		aurora.Bold(buildinfo.Name()+" version update"),
-	)
-	fmt.Fprintln(os.Stderr, aurora.Yellow(msg))
-}
-
-func shouldCheckForUpdate() bool {
-	// for testing
-	if os.Getenv("FLY_UPDATE_CHECK") == "1" {
-		return true
-	}
-
-	if os.Getenv("FLY_NO_UPDATE_CHECK") != "" {
-		return false
-	}
-	if os.Getenv("CODESPACES") != "" {
-		return false
-	}
-
-	if !buildinfo.IsRelease() || env.IsCI() || !cmdutil.IsTerminal(os.Stdout) || !cmdutil.IsTerminal(os.Stderr) {
-		return false
-	}
-
-	return true
 }
