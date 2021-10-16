@@ -18,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/update"
 	"github.com/superfly/flyctl/terminal"
@@ -179,16 +180,9 @@ func shouldCheckForUpdate() bool {
 		return false
 	}
 
-	if !buildinfo.IsRelease() || isCI() || !cmdutil.IsTerminal(os.Stdout) || !cmdutil.IsTerminal(os.Stderr) {
+	if !buildinfo.IsRelease() || env.IsCI() || !cmdutil.IsTerminal(os.Stdout) || !cmdutil.IsTerminal(os.Stderr) {
 		return false
 	}
 
 	return true
-}
-
-// based on https://github.com/watson/ci-info/blob/HEAD/index.js
-func isCI() bool {
-	return os.Getenv("CI") != "" || // GitHub Actions, Travis CI, CircleCI, Cirrus CI, GitLab CI, AppVeyor, CodeShip, dsari
-		os.Getenv("BUILD_NUMBER") != "" || // Jenkins, TeamCity
-		os.Getenv("RUN_ID") != "" // TaskCluster, dsari
 }
