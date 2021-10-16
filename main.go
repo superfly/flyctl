@@ -32,7 +32,7 @@ func main() {
 }
 
 func run() error {
-	client := client.NewClient()
+	client := client.New()
 	if !client.IO.ColorEnabled() {
 		// TODO: disable colors
 	}
