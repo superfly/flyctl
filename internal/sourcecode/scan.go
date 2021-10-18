@@ -3,6 +3,7 @@ package sourcecode
 import (
 	"bufio"
 	"embed"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -12,7 +13,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 )
 
-//go:embed templates/**
+//go:embed templates/** templates/**/.dockerignore
 var content embed.FS
 
 type SourceInfo struct {
@@ -26,6 +27,8 @@ type SourceInfo struct {
 	Env            map[string]string
 	Statics        []Static
 	Processes      map[string]string
+	Docs           string
+	SkipDeploy     bool
 }
 
 type SourceFile struct {
@@ -48,6 +51,7 @@ func Scan(sourceDir string) (*SourceInfo, error) {
 		configureGo,
 		configureElixir,
 		configureDeno,
+		configureRemix,
 		configureNode,
 	}
 
@@ -259,6 +263,28 @@ func configureRedwood(sourceDir string) (*SourceInfo, error) {
 	return s, nil
 }
 
+func configureRemix(sourceDir string) (*SourceInfo, error) {
+	if !checksPass(sourceDir, fileExists("remix.config.js")) {
+		return nil, nil
+	}
+
+	s := &SourceInfo{
+		Family: "Remix",
+		Files:  templates("templates/remix"),
+		Port:   8080,
+		Secrets: map[string]string{
+			"REMIX_TOKEN": "Your Remix authentication token.",
+		},
+		Env: map[string]string{
+			"PORT": "8080",
+		},
+		SkipDeploy: true,
+		Docs:       `To deploy this app, run 'npm run deploy'`,
+	}
+
+	return s, nil
+}
+
 // templates recursively returns files from the templates directory within the named directory
 // will panic on errors since these files are embedded and should work
 func templates(name string) (files []SourceFile) {
@@ -266,6 +292,8 @@ func templates(name string) (files []SourceFile) {
 		if d.IsDir() {
 			return nil
 		}
+
+		fmt.Println(path)
 
 		relPath, err := filepath.Rel(name, path)
 		if err != nil {

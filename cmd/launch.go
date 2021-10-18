@@ -253,9 +253,15 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	fmt.Println("Your app is ready. Deploy with `flyctl deploy`")
+	if srcInfo.SkipDeploy && srcInfo.Docs == "" {
+		fmt.Println("Your app is ready. Deploy with `flyctl deploy`")
+	} else if srcInfo.Docs != "" {
+		fmt.Println(srcInfo.Docs)
+	}
 
-	if !cmdctx.Config.GetBool("no-deploy") && (cmdctx.Config.GetBool("now") || confirm("Would you like to deploy now?")) {
+	if !cmdctx.Config.GetBool("no-deploy") &&
+		!srcInfo.SkipDeploy &&
+		(cmdctx.Config.GetBool("now") || confirm("Would you like to deploy now?")) {
 		return runDeploy(cmdctx)
 	}
 
