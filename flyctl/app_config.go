@@ -38,6 +38,8 @@ type Build struct {
 	Settings map[string]interface{}
 	// Or...
 	Image string
+	// Or...
+	Dockerfile string
 }
 
 func NewAppConfig() *AppConfig {
@@ -89,6 +91,13 @@ func (ac *AppConfig) Image() string {
 		return ""
 	}
 	return ac.Build.Image
+}
+
+func (ac *AppConfig) Dockerfile() string {
+	if ac.Build == nil {
+		return ""
+	}
+	return ac.Build.Dockerfile
 }
 
 func (ac *AppConfig) WriteTo(w io.Writer, format ConfigFormat) error {
@@ -154,13 +163,16 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 			case "image":
 				b.Image = fmt.Sprint(v)
 				insection = true
+			case "dockerfile":
+				b.Dockerfile = fmt.Sprint(v)
+				insection = true
 			default:
 				if !insection {
 					b.Args[k] = fmt.Sprint(v)
 				}
 			}
 		}
-		if b.Builder != "" || b.Builtin != "" || b.Image != "" || len(b.Args) > 0 {
+		if b.Builder != "" || b.Builtin != "" || b.Image != "" || b.Dockerfile != "" || len(b.Args) > 0 {
 			ac.Build = &b
 		}
 	}
@@ -206,6 +218,9 @@ func (ac AppConfig) marshalTOML(w io.Writer) error {
 		}
 		if ac.Build.Image != "" {
 			buildData["image"] = ac.Build.Image
+		}
+		if ac.Build.Dockerfile != "" {
+			buildData["dockerfile"] = ac.Build.Dockerfile
 		}
 		rawData["build"] = buildData
 	}

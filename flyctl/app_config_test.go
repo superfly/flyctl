@@ -21,6 +21,20 @@ func TestLoadTOMLAppConfigWithBuilderName(t *testing.T) {
 	assert.Equal(t, p.Build.Builder, "builder/name")
 }
 
+func TestLoadTOMLAppConfigWithImage(t *testing.T) {
+	path := "./testdata/image.toml"
+	p, err := LoadAppConfig(path)
+	assert.NoError(t, err)
+	assert.Equal(t, p.Build.Image, "image/name")
+}
+
+func TestLoadTOMLAppConfigWithDockerfile(t *testing.T) {
+	path := "./testdata/docker.toml"
+	p, err := LoadAppConfig(path)
+	assert.NoError(t, err)
+	assert.Equal(t, p.Build.Dockerfile, "./Dockerfile")
+}
+
 func TestLoadTOMLAppConfigWithBuilderNameAndArgs(t *testing.T) {
 	path := "./testdata/build-with-args.toml"
 	p, err := LoadAppConfig(path)
