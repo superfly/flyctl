@@ -1,12 +1,12 @@
-// Package state implements getters and setters for command Contexts.
+// Package state implements Context.
 package state
 
 import "context"
 
-type keyType int
+type contextKeyType int
 
 const (
-	_ keyType = iota
+	_ contextKeyType = iota
 	appNameKey
 )
 
