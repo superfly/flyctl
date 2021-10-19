@@ -25,14 +25,46 @@ func newLaunchCommand(client *client.Client) *Command {
 	launchStrings := docstrings.Get("launch")
 	launchCmd := BuildCommandKS(nil, runLaunch, launchStrings, client, requireSession)
 	launchCmd.Args = cobra.NoArgs
-	launchCmd.AddStringFlag(StringFlagOpts{Name: "path", Description: `path to app code and where a fly.toml file will be saved.`, Default: "."})
-	launchCmd.AddStringFlag(StringFlagOpts{Name: "org", Description: `the organization that will own the app`})
-	launchCmd.AddStringFlag(StringFlagOpts{Name: "name", Description: "the name of the new app"})
-	launchCmd.AddStringFlag(StringFlagOpts{Name: "region", Description: "the region to launch the new app in"})
-	launchCmd.AddStringFlag(StringFlagOpts{Name: "image", Description: "the image to launch"})
-	launchCmd.AddBoolFlag(BoolFlagOpts{Name: "now", Description: "deploy now without confirmation", Default: false})
-	launchCmd.AddBoolFlag(BoolFlagOpts{Name: "no-deploy", Description: "Do not prompt for deployment", Default: false})
-	launchCmd.AddBoolFlag(BoolFlagOpts{Name: "generate-name", Description: "Always generate a name for the app", Default: false})
+	launchCmd.AddStringFlag(StringFlagOpts{
+		Name:        "path",
+		Description: `path to app code and where a fly.toml file will be saved.`,
+		Default:     "."},
+	)
+	launchCmd.AddStringFlag(StringFlagOpts{
+		Name:        "org",
+		Description: `the organization that will own the app`,
+	})
+	launchCmd.AddStringFlag(StringFlagOpts{
+		Name:        "name",
+		Description: "the name of the new app",
+	})
+	launchCmd.AddStringFlag(StringFlagOpts{
+		Name:        "region",
+		Description: "the region to launch the new app in",
+	})
+	launchCmd.AddStringFlag(StringFlagOpts{
+		Name:        "image",
+		Description: "the image to launch",
+	})
+	launchCmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "now",
+		Description: "deploy now without confirmation",
+		Default:     false,
+	})
+	launchCmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "no-deploy",
+		Description: "Do not prompt for deployment",
+		Default:     false,
+	})
+	launchCmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "generate-name",
+		Description: "Always generate a name for the app",
+		Default:     false,
+	})
+	launchCmd.AddStringFlag(StringFlagOpts{
+		Name:        "dockerfile",
+		Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
+	})
 
 	return launchCmd
 }
@@ -94,6 +126,11 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 		fmt.Println("Using image", img)
 		appConfig.Build = &flyctl.Build{
 			Image: img,
+		}
+	} else if dockerfile := cmdctx.Config.GetString("dockerfile"); dockerfile != "" {
+		fmt.Println("Using dockefile", dockerfile)
+		appConfig.Build = &flyctl.Build{
+			Dockerfile: dockerfile,
 		}
 	} else {
 		fmt.Println("Scanning source code")
