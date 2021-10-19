@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
@@ -17,7 +18,6 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/sourcecode"
 
-	. "github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/docstrings"
 )
 
@@ -142,7 +142,7 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 		}
 
 		if srcInfo == nil {
-			fmt.Println(Green("Could not find a Dockerfile, nor detect a runtime or framework from source code. Continuing with a blank app."))
+			fmt.Println(aurora.Green("Could not find a Dockerfile, nor detect a runtime or framework from source code. Continuing with a blank app."))
 		} else {
 
 			var article string = "a"
@@ -152,7 +152,7 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 				article += "n"
 			}
 
-			fmt.Printf("Detected %s %s app\n", article, Green(srcInfo.Family))
+			fmt.Printf("Detected %s %s app\n", article, aurora.Green(srcInfo.Family))
 
 			if srcInfo.Builder != "" {
 				fmt.Println("Using the following build configuration:")
