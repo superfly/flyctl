@@ -23,7 +23,7 @@ func New() *Client {
 }
 
 type Client struct {
-	IO *iostreams.IOStreams
+	IO *iostreams.IOStreams // TODO: remove
 
 	api *api.Client
 }
@@ -43,4 +43,12 @@ func (c *Client) InitApi() bool {
 		c.api = apiClient
 	}
 	return c.Authenticated()
+}
+
+func FromToken(token string) *Client {
+	ac := api.NewClient(token, buildinfo.Name(), buildinfo.Version().String(), terminal.DefaultLogger)
+
+	return &Client{
+		api: ac,
+	}
 }

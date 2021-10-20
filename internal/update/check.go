@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -51,7 +52,9 @@ func InitState(configPath string, channel string) error {
 }
 
 // PromptFor prompts the user to update flyctl should a newer version be available.
-func PromptFor(ctx context.Context) {
+//
+// TODO: refactor so that it accepts iostreams
+func PromptFor(ctx context.Context, io *iostreams.IOStreams) {
 	if !shouldCheckForUpdate() {
 		return
 	}
@@ -82,7 +85,7 @@ func PromptFor(ctx context.Context) {
 		newVersion.Version,
 		aurora.Bold(buildinfo.Name()+" version update"),
 	)
-	fmt.Fprintln(os.Stderr, aurora.Yellow(msg))
+	fmt.Fprintln(io.ErrOut, aurora.Yellow(msg))
 }
 
 func shouldCheckForUpdate() bool {

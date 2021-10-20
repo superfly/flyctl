@@ -23,14 +23,14 @@ type Logger struct {
 	level Level
 }
 
-func New(out io.Writer, level Level) *Logger {
+func FromEnv(out io.Writer) *Logger {
 	return &Logger{
 		out:   out,
-		level: level,
+		level: levelFromEnv(),
 	}
 }
 
-func LevelFromEnv() Level {
+func levelFromEnv() Level {
 	switch strings.ToLower(os.Getenv("LOG_LEVEL")) {
 	default:
 		return Info
