@@ -6,13 +6,21 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 
 	"github.com/blang/semver"
-	"github.com/superfly/flyctl/terminal"
+	"github.com/logrusorgru/aurora"
 	"gopkg.in/yaml.v2"
+
+	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/env"
+	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/terminal"
 )
 
 type Release struct {
@@ -42,7 +50,58 @@ func InitState(configPath string, channel string) error {
 	return saveState(configPath, state)
 }
 
-func CheckForUpdate(ctx context.Context, configPath string, currentVersion semver.Version) (*Release, error) {
+// PromptFor prompts the user to update flyctl should a newer version be available.
+func PromptFor(ctx context.Context) {
+	if !shouldCheckForUpdate() {
+		return
+	}
+
+	terminal.Debug("Checking for updates...")
+
+	currentVersion := buildinfo.Version()
+	stateFilePath := filepath.Join(flyctl.ConfigDir(), "state.yml")
+
+	newVersion, err := checkForUpdate(ctx, stateFilePath, currentVersion)
+	switch {
+	case err == nil:
+		// newer version detected
+	case flyerr.IsCancelledError(err):
+		return
+	default:
+		terminal.Errorf("error checking for update: %v", err)
+
+		return
+	}
+
+	msg := fmt.Sprintf("Update available %s -> %s.\nRun \"%s\" to upgrade.",
+		currentVersion,
+		newVersion.Version,
+		aurora.Bold(buildinfo.Name()+" version update"),
+	)
+	fmt.Fprintln(os.Stderr, aurora.Yellow(msg))
+}
+
+func shouldCheckForUpdate() bool {
+	// for testing
+	if os.Getenv("FLY_UPDATE_CHECK") == "1" {
+		return true
+	}
+
+	if os.Getenv("FLY_NO_UPDATE_CHECK") != "" {
+		return false
+	}
+	if os.Getenv("CODESPACES") != "" {
+		return false
+	}
+
+	if !buildinfo.IsRelease() || env.IsCI() || !cmdutil.IsTerminal(os.Stdout) || !cmdutil.IsTerminal(os.Stderr) {
+		return false
+	}
+
+	return true
+}
+
+func checkForUpdate(ctx context.Context, configPath string, currentVersion semver.Version) (*Release, error) {
 	state, _ := loadState(configPath)
 	if state.Channel == "" {
 		state.Channel = "latest"

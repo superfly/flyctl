@@ -12,7 +12,7 @@ import (
 
 var ErrNoAuthToken = errors.New("No access token available. Please login with 'flyctl auth login'")
 
-func NewClient() *Client {
+func New() *Client {
 	client := &Client{
 		IO: iostreams.System(),
 	}
