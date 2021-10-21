@@ -1,71 +1,54 @@
 package config
 
 import (
-	"fmt"
 	"os"
-	"path/filepath"
 
-	"github.com/spf13/viper"
-	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/env"
+	"gopkg.in/yaml.v3"
 )
 
 const (
-	AccessTokenKey    = "access-token"
-	AccessTokenEnvKey = "ACCESS_TOKEN"
+	envKeyPrefix        = "FLY_"
+	accessTokenEnvKey   = envKeyPrefix + "ACCESS_TOKEN"
+	verboseOutputEnvKey = envKeyPrefix + "VERBOSE_OUTPUT"
+	jsonOutputEnvKey    = envKeyPrefix + "JSON_OUTPUT"
 
-	VerboseOutputKey    = "verbose"
-	VerboseOutputEnvKey = "VERBOSE_OUTPUT"
-
-	JSONOutputKey    = "json"
-	JSONOutputEnvKey = "JSON_OUTPUT"
-
-	APIBaseURL = "api_base_url"
-	AppName    = "app"
-
-	Builtinsfile    = "builtins_file"
-	GQLErrorLogging = "gqlerrorlogging"
-	Installer       = "installer"
-	BuildKitNodeID  = "buildkit_node_id"
-	WireGuardState  = "wire_guard_state"
-	RegistryHost    = "registry_host"
+	defaultAPIBaseURL   = "https://api.fly.io"
+	defaultRegistryHost = "registry.fly.io"
 )
 
-func Load(logger *logger.Logger) (*viper.Viper, error) {
-	v := viper.New()
-
-	v.SetDefault(APIBaseURL, "https://api.fly.io")
-	v.SetDefault(RegistryHost, "registry.fly.io")
-
-	v.SetEnvPrefix("FLY")
-	v.AutomaticEnv()
-
-	v.BindEnv(VerboseOutputKey, VerboseOutputEnvKey)
-	v.BindEnv(GQLErrorLogging, "GQLErrorLogging")
-
-	v.SetConfigName("config")
-	v.SetConfigType("yaml")
-
-	dir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("error determining user home: %v", err)
-	}
-
-	dir = filepath.Join(dir, ".fly")
-	v.AddConfigPath(dir)
-
-	if err := v.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("error reading config file: %w", err)
-	}
-
-	logger.Debugf("config loaded from %s", v.ConfigFileUsed())
-
-	return v, nil
+type Config struct {
+	AccessToken   string `yaml:"access_token"`
+	VerboseOutput bool   `yaml:"-"`
+	JSONOutput    bool   `yaml:"-"`
+	APIBaseURL    string `yaml:"-"`
+	RegistryHost  string `yaml:"-"`
 }
 
-func configDir() string {
-	dir, err := os.UserHomeDir()
-	if err != nil {
-		return ""
+// New returns a new instance of Config populated with default values.
+func New() *Config {
+	return &Config{
+		APIBaseURL:   defaultAPIBaseURL,
+		RegistryHost: defaultRegistryHost,
 	}
-	return dir
+}
+
+// ReadFromEnv sets the parts of cfg which may be controlled via environment
+// variables to the values these variables contain.
+func (cfg *Config) ReadEnv() {
+	cfg.AccessToken = env.Get(accessTokenEnvKey)
+	cfg.VerboseOutput = env.IsTruthy(verboseOutputEnvKey)
+	cfg.JSONOutput = env.IsTruthy(jsonOutputEnvKey)
+}
+
+// ReadFile sets the parts of cfg which may be controlled via file to the
+// values the file contains.
+func (cfg *Config) ReadFile(path string) (err error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	return yaml.NewDecoder(f).Decode(cfg)
 }
