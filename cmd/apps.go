@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"context"
+
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/internal/client"
 
@@ -83,7 +85,7 @@ func newAppsCommand(client *client.Client) *Command {
 }
 
 func runAppsList(ctx *cmdctx.CmdContext) error {
-	listapps, err := ctx.Client.API().GetApps(nil)
+	listapps, err := ctx.Client.API().GetApps(context.Background(), nil)
 	if err != nil {
 		return err
 	}

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -66,7 +67,7 @@ func newPostgresCommand(client *client.Client) *Command {
 }
 
 func runPostgresList(ctx *cmdctx.CmdContext) error {
-	apps, err := ctx.Client.API().GetApps(api.StringPointer("postgres_cluster"))
+	apps, err := ctx.Client.API().GetApps(context.Background(), api.StringPointer("postgres_cluster"))
 	if err != nil {
 		return err
 	}
