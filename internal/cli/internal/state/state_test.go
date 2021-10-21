@@ -40,6 +40,17 @@ func TestUserDirectory(t *testing.T) {
 	assert.Equal(t, exp, UserHomeDirectory(ctx))
 }
 
+func TestConfigFilePanics(t *testing.T) {
+	assert.Panics(t, func() { _ = ConfigFile(context.Background()) })
+}
+
+func TestConfigFile(t *testing.T) {
+	const exp = "configFile"
+
+	ctx := WithConfigFile(context.Background(), exp)
+	assert.Equal(t, exp, ConfigFile(ctx))
+}
+
 func TestConfigDirectoryPanics(t *testing.T) {
 	assert.Panics(t, func() { _ = ConfigDirectory(context.Background()) })
 }

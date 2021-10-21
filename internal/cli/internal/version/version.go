@@ -46,7 +46,7 @@ func run(ctx context.Context) error {
 		info = buildinfo.Info()
 	)
 
-	if flag.GetJSONOutput(ctx) {
+	if false {
 		_ = json.NewEncoder(out).Encode(info)
 	} else {
 		fmt.Fprintln(out, info)

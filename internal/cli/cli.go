@@ -12,26 +12,19 @@ import (
 
 	"github.com/superfly/flyctl/pkg/iostreams"
 
-	"github.com/superfly/flyctl/internal/cli/internal/root"
-	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/logger"
+
+	"github.com/superfly/flyctl/internal/cli/internal/root"
 )
 
-// Run runs the CLI with the given arguments and reports the exit code with
-// which is application should exit.
+// Run runs the command line interface with the given arguments and reports the
+// exit code the application should exit with.
 func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	ctx = iostreams.NewContext(ctx, io)
+	ctx = logger.NewContext(ctx, logger.FromEnv(io.ErrOut))
 
-	l := logger.FromEnv(io.ErrOut)
-	ctx = logger.NewContext(ctx, l)
-
-	v, err := config.Load(l)
-	if err != nil {
-		return 3
-	}
-
-	cmd := root.New(v)
+	cmd := root.New()
 	cmd.SetOut(io.Out)
 	cmd.SetErr(io.ErrOut)
 	cmd.SetArgs(args)
@@ -40,7 +33,11 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	case err == nil:
 		return 0
 	case errors.Is(err, context.Canceled):
-		return 127 // context was cancelled
+		return 127
+	case errors.Is(err, context.DeadlineExceeded):
+		printError(io.ErrOut, err)
+
+		return 126
 	default:
 		printError(io.ErrOut, err)
 

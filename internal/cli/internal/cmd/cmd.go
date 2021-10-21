@@ -10,15 +10,18 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
+
+	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/docstrings"
-	"github.com/superfly/flyctl/internal/cli/internal/flag"
-	"github.com/superfly/flyctl/internal/cli/internal/state"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/update"
-	"github.com/superfly/flyctl/pkg/iostreams"
+
+	"github.com/superfly/flyctl/internal/cli/internal/config"
+	"github.com/superfly/flyctl/internal/cli/internal/flag"
+	"github.com/superfly/flyctl/internal/cli/internal/state"
 )
 
 type (
@@ -43,9 +46,11 @@ func Build(usage, short, long string, fn Runner, p ...Preparer) *cobra.Command {
 }
 
 var commonPreparers = []Preparer{
-	determineWorkingDirectory,
-	determineUserHomeDirectory,
+	determineWorkingDir,
+	determineUserHomeDir,
 	determineConfigDir,
+	determineConfigFile,
+	loadConfig,
 	initClient,
 	promptToUpdate,
 }
@@ -67,7 +72,6 @@ func newRunE(fn Runner, preparers ...Preparer) func(*cobra.Command, []string) er
 
 		// run the preparers specific to the command
 		if ctx, err = prepare(ctx, preparers...); err == nil {
-
 			// and run the command
 			err = fn(ctx)
 		}
@@ -88,7 +92,13 @@ func prepare(parent context.Context, preparers ...Preparer) (ctx context.Context
 	return
 }
 
-func determineWorkingDirectory(ctx context.Context) (context.Context, error) {
+func promptToUpdate(ctx context.Context) (context.Context, error) {
+	update.PromptFor(ctx, iostreams.FromContext(ctx))
+
+	return ctx, nil
+}
+
+func determineWorkingDir(ctx context.Context) (context.Context, error) {
 	wd, err := os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("error determining working directory: %w", err)
@@ -100,7 +110,7 @@ func determineWorkingDirectory(ctx context.Context) (context.Context, error) {
 	return state.WithWorkingDirectory(ctx, wd), nil
 }
 
-func determineUserHomeDirectory(ctx context.Context) (context.Context, error) {
+func determineUserHomeDir(ctx context.Context) (context.Context, error) {
 	wd, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("error determining user home directory: %w", err)
@@ -113,49 +123,62 @@ func determineUserHomeDirectory(ctx context.Context) (context.Context, error) {
 }
 
 func determineConfigDir(ctx context.Context) (context.Context, error) {
-	logger := logger.FromContext(ctx)
-
 	dir := filepath.Join(state.UserHomeDirectory(ctx), ".fly")
 
-	switch inf, err := os.Stat(dir); {
-	case errors.Is(err, fs.ErrNotExist):
-		if err = os.MkdirAll(dir, 0700); err != nil {
-			err = fmt.Errorf("error creating config directory: %w", err)
-
-			return nil, err
-		}
-
-		logger.Debugf("created config directory at %s", dir)
-	case err != nil:
-		err = fmt.Errorf("error stat-ing config directory: %w", err)
-
-		return nil, err
-	case !inf.IsDir():
-		err = fmt.Errorf("%s is not a directory", dir)
-
-		return nil, err
-	}
-
-	logger.Debugf("determined config directory: %s", dir)
+	logger.FromContext(ctx).
+		Debugf("determined config directory: %q", dir)
 
 	return state.WithConfigDirectory(ctx, dir), nil
 }
 
-func promptToUpdate(ctx context.Context) (context.Context, error) {
-	update.PromptFor(ctx, iostreams.FromContext(ctx))
+func determineConfigFile(ctx context.Context) (context.Context, error) {
+	dir := filepath.Join(state.ConfigDirectory(ctx), "config.yml")
 
-	return ctx, nil
+	logger.FromContext(ctx).
+		Debugf("determined config file: %q", dir)
+
+	return state.WithConfigFile(ctx, dir), nil
+}
+
+func loadConfig(ctx context.Context) (context.Context, error) {
+	logger := logger.FromContext(ctx)
+
+	cfg := config.New()
+
+	// first apply the environment
+	cfg.ApplyEnv()
+
+	// then the file (if any)
+	path := state.ConfigFile(ctx)
+	switch err := cfg.ApplyFile(path); {
+	case err == nil:
+		// config file does not exist exists
+	case errors.Is(err, fs.ErrNotExist):
+		logger.Warnf("no config file found at %s", path)
+	default:
+		return nil, err
+	}
+
+	// and lastly apply command line flags
+	cfg.ApplyFlags(flag.FromContext(ctx))
+
+	logger.Debug("config initialized.")
+
+	return config.NewContext(ctx, cfg), nil
 }
 
 func initClient(ctx context.Context) (context.Context, error) {
-	fs := flag.FromContext(ctx)
-	fs.VisitAll(func(f *pflag.Flag) {
-		fmt.Printf("%s: %v\n", f.Name, f.Value)
-	})
+	logger := logger.FromContext(ctx)
+	cfg := config.FromContext(ctx)
 
-	token := flag.GetAccessToken(ctx)
+	// TODO: refactor api so that it doe not depend to global state
+	api.SetBaseURL(cfg.APIBaseURL)
+	api.SetErrorLog(cfg.LogGQLErrors)
 
-	return client.NewContext(ctx, client.FromToken(token)), nil
+	c := client.FromToken(cfg.AccessToken)
+	logger.Debug("client initialized.")
+
+	return client.NewContext(ctx, c), nil
 }
 
 // RequireSession is a preparare which makes sure a session exists.
