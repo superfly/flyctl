@@ -10,7 +10,6 @@ import (
 	"log"
 	"math/rand"
 	"net"
-	"net/url"
 	"sync"
 	"time"
 
@@ -59,14 +58,24 @@ func udpPlugboard(c net.Conn, ctx context.Context) (int, error) {
 		return true
 	}
 
+	isTimeout := func(e error) bool {
+		if err, ok := e.(net.Error); ok && err.Timeout() {
+			return true
+		}
+
+		return false
+	}
+
 	doRead := func(c net.Conn, b []byte) bool {
 		c.SetReadDeadline(time.Now().Add(5 * time.Second))
 		_, err := c.Read(b)
 		if err != nil {
-			log.Printf("read: %s", err)
+			if !isTimeout(err) {
+				log.Printf("read: %s", err)
+			}
 			return false
 		}
-		return false
+		return true
 	}
 
 	var (
@@ -85,7 +94,10 @@ func udpPlugboard(c net.Conn, ctx context.Context) (int, error) {
 			l.SetReadDeadline(time.Now().Add(5 * time.Second))
 			n, a, err := l.ReadFrom(buf)
 			if err != nil {
-				log.Printf("read udp: %s", err)
+				if !isTimeout(err) {
+					log.Printf("read udp: %s", err)
+				}
+
 				continue
 			}
 
@@ -115,7 +127,6 @@ func udpPlugboard(c net.Conn, ctx context.Context) (int, error) {
 
 			var lbuf [4]byte
 			if !doRead(c, lbuf[:]) {
-				// we're broken here, kill the whole thing
 				continue
 			}
 
@@ -175,20 +186,23 @@ func Connect(state *WireGuardState) (*Tunnel, error) {
 
 	wgDev := device.NewDevice(tunDev, device.NewLogger(cfg.LogLevel, "(fly-ssh) "))
 
-	rurl, _ := url.Parse(fmt.Sprintf("ws://%s:443/", endpointIP.String()))
-	lurl, _ := url.Parse("http://localhost")
+	rurl := fmt.Sprintf("wss://%s:443/", endpointHost)
+
+	conf, _ := websocket.NewConfig(rurl, rurl)
+	conf.TlsConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
 
 	// oh well, if it'll end horror
-	ws, err := websocket.DialConfig(&websocket.Config{
-		TlsConfig: &tls.Config{
-			InsecureSkipVerify: true,
-		},
-		Location: rurl,
-		Origin:   lurl,
-	})
+	ws, err := websocket.DialConfig(conf)
 	if err != nil {
 		return nil, fmt.Errorf("websocket: %w", err)
 	}
+
+	var magic [4]byte
+	binary.BigEndian.PutUint32(magic[:], 0x2FACED77)
+
+	ws.Write(magic[:])
 
 	plugPort, err := udpPlugboard(ws, context.Background())
 	if err != nil {
