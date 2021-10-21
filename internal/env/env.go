@@ -6,67 +6,70 @@ import (
 	"strings"
 )
 
-// GetDef retrieves the value of the environment variable named by the key. In
-// case the variable is not present, GetOr returns def.
-func GetDef(key, def string) string {
-	if v, ok := os.LookupEnv(key); ok {
-		return v
+// FirstOrDefault retrieves the value of the first present environment variable
+// named by the keys. In case no variable is present, FirstOrDefault returns
+// def.
+func FirstOrDefault(def string, keys ...string) string {
+	for _, key := range keys {
+		if v, ok := os.LookupEnv(key); ok {
+			return v
+		}
 	}
 
 	return def
 }
 
-// Get is shorthand for GetDef(key, "").
-func Get(key string) string {
-	return GetDef(key, "")
+// First is shorthand for FirstOrDefault("", keys...).
+func First(keys ...string) string {
+	return FirstOrDefault("", keys...)
 }
 
-// IsTruthy reports that the value of environment variable named by the key is
-// evaluates to true. IsTruthy always reports false for unset variables.
-func IsTruthy(key string) bool {
-	v, ok := os.LookupEnv(key)
-	if !ok {
-		return false
-	}
+// IsTruthy reports whether any of the values of the environment variables named
+// by the keys evaluates to true.
+func IsTruthy(keys ...string) bool {
+	for _, key := range keys {
+		v, ok := os.LookupEnv(key)
+		if !ok {
+			continue
+		}
 
-	switch strings.ToLower(v) {
-	default:
-		return false
-	case "1", "ok", "t", "true":
-		return true
-	}
-}
-
-// IsSet reports whether the environment variable named by the key is set.
-func IsSet(key string) (is bool) {
-	_, is = os.LookupEnv(key)
-
-	return
-}
-
-// https://github.com/watson/ci-info/blob/c4f1553f254c78babef5c200c48569ede313b718/index.js
-var ciKeys = []string{
-	// Travis CI, CircleCI, Cirrus CI,
-	// Gitlab CI, Appveyor, CodeShip, dsari
-	"CI",
-
-	// Travis CI, Cirrus CI
-	"CONTINUOUS_INTEGRATION",
-
-	// Jenkins, TeamCity
-	"BUILD_NUMBER",
-
-	// TaskCluster, dsari
-	"RUN_ID",
-}
-
-// IsCI reports whether the environment is a CI one.
-func IsCI() bool {
-	for _, key := range ciKeys {
-		if IsSet(key) {
+		switch strings.ToLower(v) {
+		case "1", "ok", "t", "true":
 			return true
 		}
 	}
 
 	return false
+}
+
+// IsSet reports whether any of the environment variables named by the keys
+// is set.
+func IsSet(keys ...string) bool {
+	for _, key := range keys {
+		if _, ok := os.LookupEnv(key); ok {
+			return true
+		}
+	}
+
+	return false
+}
+
+// IsCI reports whether the environment is a CI one.
+//
+// Based on https://github.com/watson/ci-info/blob/c4f1553f254c78babef5c200c48569ede313b718/index.js
+func IsCI() bool {
+	return IsSet(
+		// Travis CI, CircleCI, Cirrus CI,
+		// Gitlab CI, Appveyor, CodeShip, dsari
+		"CI",
+
+		// Travis CI, Cirrus CI
+		"CONTINUOUS_INTEGRATION",
+
+		// Jenkins, TeamCity
+		"BUILD_NUMBER",
+
+		// TaskCluster, dsari
+		"RUN_ID",
+	)
 }
