@@ -41,7 +41,7 @@ func newList() *cobra.Command {
 func runList(ctx context.Context) error {
 	client := client.FromContext(ctx)
 
-	apps, err := client.API().GetApps(nil)
+	apps, err := client.API().GetApps(ctx, nil)
 	if err != nil {
 		return err
 	}

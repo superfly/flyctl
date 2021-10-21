@@ -1,6 +1,8 @@
 package api
 
-func (client *Client) GetApps(role *string) ([]App, error) {
+import "context"
+
+func (client *Client) GetApps(ctx context.Context, role *string) ([]App, error) {
 	query := `
 		query($role: String) {
 			apps(type: "container", first: 400, role: $role) {
@@ -26,7 +28,7 @@ func (client *Client) GetApps(role *string) ([]App, error) {
 		req.Var("role", *role)
 	}
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
