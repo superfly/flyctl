@@ -1,9 +1,7 @@
-// Package state implements Context.
+// Package state implements setters and getters for command contexts.
 package state
 
-import (
-	"context"
-)
+import "context"
 
 type contextKeyType int
 
