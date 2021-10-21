@@ -5,10 +5,11 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/superfly/flyctl/pkg/iostreams"
+
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cli"
 	"github.com/superfly/flyctl/internal/sentry"
-	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func main() {
@@ -16,7 +17,9 @@ func main() {
 }
 
 func run() (exitCode int) {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
+	ctx, cancel := signal.NotifyContext(context.Background(),
+		os.Interrupt, os.Kill)
+
 	defer cancel()
 
 	if !buildinfo.IsDev() {
