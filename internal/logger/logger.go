@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/logrusorgru/aurora"
+	"github.com/superfly/flyctl/internal/buildinfo"
 )
 
 type Level int
@@ -31,13 +32,18 @@ func FromEnv(out io.Writer) *Logger {
 }
 
 func levelFromEnv() Level {
-	switch strings.ToLower(os.Getenv("LOG_LEVEL")) {
+	lit, ok := os.LookupEnv("LOG_LEVEL")
+	if !ok && buildinfo.IsDev() {
+		lit = "debug"
+	} else {
+		lit = strings.ToLower(lit)
+	}
+
+	switch lit {
 	default:
 		return Info
 	case "debug":
 		return Debug
-	case "info":
-		return Info
 	case "warn":
 		return Warn
 	case "error":
