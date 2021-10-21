@@ -171,7 +171,7 @@ func initClient(ctx context.Context) (context.Context, error) {
 	logger := logger.FromContext(ctx)
 	cfg := config.FromContext(ctx)
 
-	// TODO: refactor api so that it doe not depend to global state
+	// TODO: refactor so that api package does NOT depend on global state
 	api.SetBaseURL(cfg.APIBaseURL)
 	api.SetErrorLog(cfg.LogGQLErrors)
 
