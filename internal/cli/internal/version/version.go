@@ -7,10 +7,12 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/cli/internal/cmd"
-	"github.com/superfly/flyctl/internal/cli/internal/flag"
+
 	"github.com/superfly/flyctl/pkg/iostreams"
+
+	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/cli/internal/command"
+	"github.com/superfly/flyctl/internal/cli/internal/flag"
 )
 
 // New initializes and returns a new apps Command.
@@ -26,7 +28,7 @@ func New() *cobra.Command {
 }
 
 func newVersion() *cobra.Command {
-	version := cmd.New("version", run)
+	version := command.New("version", run)
 
 	flag.Add(version, nil,
 		flag.String{
@@ -56,7 +58,7 @@ func run(ctx context.Context) error {
 }
 
 func newUpdate() *cobra.Command {
-	return cmd.New("version.update", runUpdate)
+	return command.New("version.update", runUpdate)
 }
 
 func runUpdate(context.Context) error {
@@ -64,7 +66,7 @@ func runUpdate(context.Context) error {
 }
 
 func newInitState() *cobra.Command {
-	initState := cmd.Build(
+	initState := command.Build(
 		"init-state",
 		"init-state",
 		"Initialize installation state",

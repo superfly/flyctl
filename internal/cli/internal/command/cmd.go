@@ -1,5 +1,5 @@
-// Package cmd implements helpers useful to commands.
-package cmd
+// Package command implements helpers useful for when building cobra commands.
+package command
 
 import (
 	"context"

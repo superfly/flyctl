@@ -5,14 +5,14 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/internal/cli/internal/apps"
-	"github.com/superfly/flyctl/internal/cli/internal/cmd"
+	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/version"
 )
 
 // New initializes and returns a reference to a new root command.
 func New() *cobra.Command {
-	root := cmd.New("flyctl", nil)
+	root := command.New("flyctl", nil)
 	root.SilenceUsage = true
 	root.SilenceErrors = true
 

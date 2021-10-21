@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/cmd/presenters"
-	"github.com/superfly/flyctl/internal/cli/internal/cmd"
+	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/client"
@@ -18,7 +18,7 @@ var errNotImplementedYet = errors.New("not implemented yet")
 
 // New initializes and returns a new apps Command.
 func New() *cobra.Command {
-	apps := cmd.New("apps", nil)
+	apps := command.New("apps", nil)
 
 	apps.AddCommand(
 		newList(),
@@ -34,8 +34,8 @@ func New() *cobra.Command {
 }
 
 func newList() *cobra.Command {
-	return cmd.New("apps.list", runList,
-		cmd.RequireSession)
+	return command.New("apps.list", runList,
+		command.RequireSession)
 }
 
 func runList(ctx context.Context) error {
@@ -58,8 +58,8 @@ func runList(ctx context.Context) error {
 }
 
 func newCreate() *cobra.Command {
-	create := cmd.New("apps.create", runCreate,
-		cmd.RequireSession)
+	create := command.New("apps.create", runCreate,
+		command.RequireSession)
 
 	create.Args = cobra.RangeArgs(0, 1)
 
@@ -83,8 +83,8 @@ func runCreate(ctx context.Context) error {
 }
 
 func newDestroy() *cobra.Command {
-	destroy := cmd.New("apps.destroy", runDestroy,
-		cmd.RequireSession)
+	destroy := command.New("apps.destroy", runDestroy,
+		command.RequireSession)
 
 	destroy.Args = cobra.ExactArgs(1)
 
@@ -99,8 +99,8 @@ func runDestroy(ctx context.Context) error {
 }
 
 func newMove() *cobra.Command {
-	move := cmd.New("apps.move", runMove,
-		cmd.RequireSession)
+	move := command.New("apps.move", runMove,
+		command.RequireSession)
 
 	move.Args = cobra.ExactArgs(1)
 
@@ -117,8 +117,8 @@ func runMove(ctx context.Context) error {
 }
 
 func newSuspend() *cobra.Command {
-	suspend := cmd.New("apps.suspend", runSuspend,
-		cmd.RequireSession, requireAppNameAsArg)
+	suspend := command.New("apps.suspend", runSuspend,
+		command.RequireSession, requireAppNameAsArg)
 
 	suspend.Args = cobra.RangeArgs(0, 1)
 
@@ -130,8 +130,8 @@ func runSuspend(ctx context.Context) error {
 }
 
 func newResume() *cobra.Command {
-	resume := cmd.New("apps.resume", runResume,
-		cmd.RequireSession, requireAppNameAsArg)
+	resume := command.New("apps.resume", runResume,
+		command.RequireSession, requireAppNameAsArg)
 
 	resume.Args = cobra.RangeArgs(0, 1)
 
@@ -143,8 +143,8 @@ func runResume(ctx context.Context) error {
 }
 
 func newRestart() *cobra.Command {
-	restart := cmd.New("apps.restart", runRestart,
-		cmd.RequireSession, requireAppNameAsArg)
+	restart := command.New("apps.restart", runRestart,
+		command.RequireSession, requireAppNameAsArg)
 
 	restart.Args = cobra.RangeArgs(0, 1)
 
