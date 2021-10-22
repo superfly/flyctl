@@ -261,8 +261,8 @@ func runAuthToken(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runAuthDocker(ctx *cmdctx.CmdContext) error {
-	cc := createCancellableContext()
+func runAuthDocker(_ *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
 
 	binary, err := exec.LookPath("docker")
 	if err != nil {
@@ -271,7 +271,7 @@ func runAuthDocker(ctx *cmdctx.CmdContext) error {
 
 	token := flyctl.GetAPIToken()
 
-	cmd := exec.CommandContext(cc, binary, "login", "--username=x", "--password-stdin", "registry.fly.io")
+	cmd := exec.CommandContext(ctx, binary, "login", "--username=x", "--password-stdin", "registry.fly.io")
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return err

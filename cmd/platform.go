@@ -55,7 +55,7 @@ func runPlatformVMSizes(cmdCtx *cmdctx.CmdContext) error {
 	})
 }
 
-func runPlatformStatus(ctx *cmdctx.CmdContext) error {
+func runPlatformStatus(_ *cmdctx.CmdContext) error {
 	docsURL := "https://status.fly.io/"
 	fmt.Println("Opening", docsURL)
 	return open.Run(docsURL)

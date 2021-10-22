@@ -58,7 +58,7 @@ func selectOrganization(ctx context.Context, client *api.Client, slug string, ty
 		return &orgs[0], nil
 	}
 
-	sort.Slice(orgs[:], func(i, j int) bool { return orgs[i].Type < orgs[j].Type })
+	sort.Slice(orgs, func(i, j int) bool { return orgs[i].Type < orgs[j].Type })
 
 	options := []string{}
 
@@ -203,7 +203,7 @@ func inputAppName(defaultName string, autoGenerate bool) (name string, err error
 	return name, nil
 }
 
-func volumeSizeInput(client *api.Client, defaultVal int) (int, error) {
+func volumeSizeInput(defaultVal int) (int, error) {
 	var volumeSize int
 	prompt := &survey.Input{
 		Message: "Volume size (GB):",

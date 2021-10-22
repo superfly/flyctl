@@ -275,7 +275,7 @@ func runOrgsRemove(cmdCtx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runOrgsRevoke(ctx *cmdctx.CmdContext) error {
+func runOrgsRevoke(_ *cmdctx.CmdContext) error {
 	return fmt.Errorf("Revoke Not implemented")
 }
 

@@ -104,9 +104,7 @@ func runRegionsSet(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	for _, r := range cmdCtx.Args {
-		addList = append(addList, r)
-	}
+	addList = append(addList, cmdCtx.Args...)
 
 	for _, er := range regions {
 		found := false

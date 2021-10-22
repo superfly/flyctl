@@ -296,16 +296,15 @@ func runSSHIssue(cmdCtx *cmdctx.CmdContext) error {
 		mode := os.O_WRONLY | os.O_TRUNC | os.O_CREATE
 		if !cmdCtx.Config.GetBool("overwrite") {
 			mode |= os.O_EXCL
-		} else {
-			if _, err = os.Stat(rootname); err == nil {
-				if buf, err := ioutil.ReadFile(rootname); err != nil {
-					cmdCtx.Statusf("ssh", cmdctx.SERROR, "File exists, but we can't read it to make sure it's safe to overwrite: %s\n", err)
-					continue
-				} else if !strings.Contains(string(buf), "fly.io" /* BUG(tqbf): do better */) {
-					cmdCtx.Statusf("ssh", cmdctx.SERROR, "File exists, but isn't a fly.io ed25519 private key\n")
-					continue
-				}
+		} else if _, err = os.Stat(rootname); err == nil {
+			if buf, err := ioutil.ReadFile(rootname); err != nil {
+				cmdCtx.Statusf("ssh", cmdctx.SERROR, "File exists, but we can't read it to make sure it's safe to overwrite: %s\n", err)
+				continue
+			} else if !strings.Contains(string(buf), "fly.io" /* BUG(tqbf): do better */) {
+				cmdCtx.Statusf("ssh", cmdctx.SERROR, "File exists, but isn't a fly.io ed25519 private key\n")
+				continue
 			}
+
 		}
 
 		pf, err = os.OpenFile(rootname, mode, 0600)
@@ -424,7 +423,8 @@ func MarshalED25519PrivateKey(key ed25519.PrivateKey, comment string) []byte {
 	w.KdfName = "none"
 	w.KdfOpts = ""
 	w.NumKeys = 1
-	w.PubKey = append(prefix, pubKey...)
+	w.PubKey = append(w.PubKey, prefix...)
+	w.PubKey = append(w.PubKey, pubKey...)
 	w.PrivKeyBlock = ssh.Marshal(pk1)
 
 	magic = append(magic, ssh.Marshal(w)...)

@@ -28,7 +28,7 @@ func (client *Client) GetOrganizations(ctx context.Context, typeFilter *Organiza
 		req.Var("orgType", *typeFilter)
 	}
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return []Organization{}, err
 	}
@@ -85,7 +85,7 @@ func (client *Client) GetCurrentOrganizations(ctx context.Context) (Organization
 
 	req := client.NewRequest(query)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return Organization{}, nil, err
 	}
@@ -120,7 +120,7 @@ func (client *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*
 	req := client.NewRequest(query)
 	req.Var("slug", slug)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}

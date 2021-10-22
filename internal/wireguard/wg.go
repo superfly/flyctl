@@ -106,7 +106,7 @@ func C25519pair() (string, string) {
 		panic(fmt.Sprintf("can't mult: %s", err))
 	}
 
-	return base64.StdEncoding.EncodeToString(public[:]),
+	return base64.StdEncoding.EncodeToString(public),
 		base64.StdEncoding.EncodeToString(private[:])
 }
 

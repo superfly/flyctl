@@ -110,7 +110,7 @@ func runCreatePostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 
 	volumeSize := cmdCtx.Config.GetInt("volume-size")
 	if volumeSize == 0 {
-		s, err := volumeSizeInput(cmdCtx.Client.API(), 10)
+		s, err := volumeSizeInput(10)
 		if err != nil {
 			return err
 		}
