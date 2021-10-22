@@ -1,6 +1,8 @@
 package api
 
-func (c *Client) ConfigureRegions(input ConfigureRegionsInput) ([]Region, []Region, error) {
+import "context"
+
+func (c *Client) ConfigureRegions(ctx context.Context, input ConfigureRegionsInput) ([]Region, []Region, error) {
 	query := `
 		mutation ($input: ConfigureRegionsInput!) {
 			configureRegions(input: $input) {
@@ -20,7 +22,7 @@ func (c *Client) ConfigureRegions(input ConfigureRegionsInput) ([]Region, []Regi
 
 	req.Var("input", input)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -28,7 +30,7 @@ func (c *Client) ConfigureRegions(input ConfigureRegionsInput) ([]Region, []Regi
 	return data.ConfigureRegions.Regions, data.ConfigureRegions.BackupRegions, nil
 }
 
-func (c *Client) ListAppRegions(appName string) ([]Region, []Region, error) {
+func (c *Client) ListAppRegions(ctx context.Context, appName string) ([]Region, []Region, error) {
 	query := `
 		query ($appName: String!) {
 			app(name: $appName) {
@@ -48,7 +50,7 @@ func (c *Client) ListAppRegions(appName string) ([]Region, []Region, error) {
 
 	req.Var("appName", appName)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -1,6 +1,8 @@
 package api
 
-func (c *Client) GetDomains(organizationSlug string) ([]*Domain, error) {
+import "context"
+
+func (c *Client) GetDomains(ctx context.Context, organizationSlug string) ([]*Domain, error) {
 	query := `
 		query($slug: String!) {
 			organization(slug: $slug) {
@@ -23,7 +25,7 @@ func (c *Client) GetDomains(organizationSlug string) ([]*Domain, error) {
 
 	req.Var("slug", organizationSlug)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +33,7 @@ func (c *Client) GetDomains(organizationSlug string) ([]*Domain, error) {
 	return *data.Organization.Domains.Nodes, nil
 }
 
-func (c *Client) GetDomain(name string) (*Domain, error) {
+func (c *Client) GetDomain(ctx context.Context, name string) (*Domain, error) {
 	query := `
 		query($name: String!) {
 			domain(name: $name) {
@@ -57,7 +59,7 @@ func (c *Client) GetDomain(name string) (*Domain, error) {
 
 	req.Var("name", name)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +99,7 @@ func (c *Client) CreateDomain(organizationID string, name string) (*Domain, erro
 	return data.CreateDomain.Domain, nil
 }
 
-func (c *Client) CheckDomain(name string) (*CheckDomainResult, error) {
+func (c *Client) CheckDomain(ctx context.Context, name string) (*CheckDomainResult, error) {
 	query := `
 		mutation($input: CheckDomainInput!) {
 			checkDomain(input: $input) {
@@ -117,7 +119,7 @@ func (c *Client) CheckDomain(name string) (*CheckDomainResult, error) {
 
 	req.Var("input", map[string]string{"domainName": name})
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}

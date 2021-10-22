@@ -36,30 +36,32 @@ func newDomainsCommand(client *client.Client) *Command {
 	return cmd
 }
 
-func runDomainsList(ctx *cmdctx.CmdContext) error {
+func runDomainsList(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
 	var orgSlug string
-	if len(ctx.Args) == 0 {
-		org, err := selectOrganization(ctx.Client.API(), "", nil)
+	if len(cmdCtx.Args) == 0 {
+		org, err := selectOrganization(ctx, cmdCtx.Client.API(), "", nil)
 		if err != nil {
 			return err
 		}
 		orgSlug = org.Slug
 	} else {
 		// TODO: Validity check on org
-		orgSlug = ctx.Args[0]
+		orgSlug = cmdCtx.Args[0]
 	}
 
-	domains, err := ctx.Client.API().GetDomains(orgSlug)
+	domains, err := cmdCtx.Client.API().GetDomains(ctx, orgSlug)
 	if err != nil {
 		return err
 	}
 
-	if ctx.OutputJSON() {
-		ctx.WriteJSON(domains)
+	if cmdCtx.OutputJSON() {
+		cmdCtx.WriteJSON(domains)
 		return nil
 	}
 
-	table := tablewriter.NewWriter(ctx.Out)
+	table := tablewriter.NewWriter(cmdCtx.Out)
 
 	table.SetHeader([]string{"Domain", "Registration Status", "DNS Status", "Created"})
 
@@ -72,26 +74,28 @@ func runDomainsList(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runDomainsShow(ctx *cmdctx.CmdContext) error {
-	name := ctx.Args[0]
+func runDomainsShow(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
 
-	domain, err := ctx.Client.API().GetDomain(name)
+	name := cmdCtx.Args[0]
+
+	domain, err := cmdCtx.Client.API().GetDomain(ctx, name)
 	if err != nil {
 		return err
 	}
 
-	if ctx.OutputJSON() {
-		ctx.WriteJSON(domain)
+	if cmdCtx.OutputJSON() {
+		cmdCtx.WriteJSON(domain)
 		return nil
 	}
 
-	ctx.Statusf("domains", cmdctx.STITLE, "Domain\n")
+	cmdCtx.Statusf("domains", cmdctx.STITLE, "Domain\n")
 	fmtstring := "%-20s: %-20s\n"
-	ctx.Statusf("domains", cmdctx.SINFO, fmtstring, "Name", domain.Name)
-	ctx.Statusf("domains", cmdctx.SINFO, fmtstring, "Organization", domain.Organization.Slug)
-	ctx.Statusf("domains", cmdctx.SINFO, fmtstring, "Registration Status", *domain.RegistrationStatus)
+	cmdCtx.Statusf("domains", cmdctx.SINFO, fmtstring, "Name", domain.Name)
+	cmdCtx.Statusf("domains", cmdctx.SINFO, fmtstring, "Organization", domain.Organization.Slug)
+	cmdCtx.Statusf("domains", cmdctx.SINFO, fmtstring, "Registration Status", *domain.RegistrationStatus)
 	if *domain.RegistrationStatus == "REGISTERED" {
-		ctx.Statusf("domains", cmdctx.SINFO, fmtstring, "Expires At", presenters.FormatTime(domain.ExpiresAt))
+		cmdCtx.Statusf("domains", cmdctx.SINFO, fmtstring, "Expires At", presenters.FormatTime(domain.ExpiresAt))
 
 		autorenew := ""
 		if *domain.AutoRenew {
@@ -100,26 +104,27 @@ func runDomainsShow(ctx *cmdctx.CmdContext) error {
 			autorenew = "Disabled"
 		}
 
-		ctx.Statusf("domains", cmdctx.SINFO, fmtstring, "Auto Renew", autorenew)
+		cmdCtx.Statusf("domains", cmdctx.SINFO, fmtstring, "Auto Renew", autorenew)
 	}
 
-	ctx.StatusLn()
-	ctx.Statusf("domains", cmdctx.STITLE, "DNS\n")
-	ctx.Statusf("domains", cmdctx.SINFO, fmtstring, "Status", *domain.DnsStatus)
+	cmdCtx.StatusLn()
+	cmdCtx.Statusf("domains", cmdctx.STITLE, "DNS\n")
+	cmdCtx.Statusf("domains", cmdctx.SINFO, fmtstring, "Status", *domain.DnsStatus)
 	if *domain.RegistrationStatus == "UNMANAGED" {
-		ctx.Statusf("domains", cmdctx.SINFO, fmtstring, "Nameservers", strings.Join(*domain.ZoneNameservers, " "))
+		cmdCtx.Statusf("domains", cmdctx.SINFO, fmtstring, "Nameservers", strings.Join(*domain.ZoneNameservers, " "))
 	}
 
 	return nil
 }
 
-func runDomainsCreate(ctx *cmdctx.CmdContext) error {
+func runDomainsCreate(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
 	var org *api.Organization
 	var name string
 	var err error
 
-	if len(ctx.Args) == 0 {
-		org, err = selectOrganization(ctx.Client.API(), "", nil)
+	if len(cmdCtx.Args) == 0 {
+		org, err = selectOrganization(ctx, cmdCtx.Client.API(), "", nil)
 		if err != nil {
 			return err
 		}
@@ -129,19 +134,19 @@ func runDomainsCreate(ctx *cmdctx.CmdContext) error {
 		checkErr(err)
 
 		// TODO: Add some domain validation here
-	} else if len(ctx.Args) == 2 {
-		org, err = ctx.Client.API().FindOrganizationBySlug(ctx.Args[0])
+	} else if len(cmdCtx.Args) == 2 {
+		org, err = cmdCtx.Client.API().FindOrganizationBySlug(cmdCtx.Args[0])
 		if err != nil {
 			return err
 		}
-		name = ctx.Args[1]
+		name = cmdCtx.Args[1]
 	} else {
 		return errors.New("specify all arguments (or no arguments to be prompted)")
 	}
 
 	fmt.Printf("Creating domain %s in organization %s\n", name, org.Slug)
 
-	domain, err := ctx.Client.API().CreateDomain(org.ID, name)
+	domain, err := cmdCtx.Client.API().CreateDomain(org.ID, name)
 	if err != nil {
 		return err
 	}
@@ -151,13 +156,15 @@ func runDomainsCreate(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runDomainsRegister(ctx *cmdctx.CmdContext) error {
+func runDomainsRegister(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
 	var org *api.Organization
 	var name string
 	var err error
 
-	if len(ctx.Args) == 0 {
-		org, err = selectOrganization(ctx.Client.API(), "", nil)
+	if len(cmdCtx.Args) == 0 {
+		org, err = selectOrganization(ctx, cmdCtx.Client.API(), "", nil)
 		if err != nil {
 			return err
 		}
@@ -166,17 +173,17 @@ func runDomainsRegister(ctx *cmdctx.CmdContext) error {
 		err := survey.AskOne(prompt, &name)
 		checkErr(err)
 		// TODO: Add some domain validation here
-	} else if len(ctx.Args) == 2 {
-		org, err = ctx.Client.API().FindOrganizationBySlug(ctx.Args[0])
+	} else if len(cmdCtx.Args) == 2 {
+		org, err = cmdCtx.Client.API().FindOrganizationBySlug(cmdCtx.Args[0])
 		if err != nil {
 			return err
 		}
-		name = ctx.Args[1]
+		name = cmdCtx.Args[1]
 	} else {
 		return errors.New("specify all arguments (or no arguments to be prompted)")
 	}
 
-	checkResult, err := ctx.Client.API().CheckDomain(name)
+	checkResult, err := cmdCtx.Client.API().CheckDomain(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -205,7 +212,7 @@ func runDomainsRegister(ctx *cmdctx.CmdContext) error {
 
 	fmt.Printf("Registering domain %s in organization %s\n", name, org.Slug)
 
-	_, err = ctx.Client.API().CreateAndRegisterDomain(org.ID, name)
+	_, err = cmdCtx.Client.API().CreateAndRegisterDomain(org.ID, name)
 	if err != nil {
 		return err
 	}

@@ -1,5 +1,7 @@
 package api
 
+import "context"
+
 type OrganizationType string
 
 const (
@@ -7,7 +9,7 @@ const (
 	OrganizationTypeShared   OrganizationType = "SHARED"
 )
 
-func (client *Client) GetOrganizations(typeFilter *OrganizationType) ([]Organization, error) {
+func (client *Client) GetOrganizations(ctx context.Context, typeFilter *OrganizationType) ([]Organization, error) {
 	q := `
 		query($orgType: OrganizationType) {
 			organizations(type: $orgType) {
@@ -59,7 +61,7 @@ func (client *Client) FindOrganizationBySlug(slug string) (*Organization, error)
 	return data.Organization, nil
 }
 
-func (client *Client) GetCurrentOrganizations() (Organization, []Organization, error) {
+func (client *Client) GetCurrentOrganizations(ctx context.Context) (Organization, []Organization, error) {
 	query := `
 	query {
 		personalOrganization {
@@ -90,7 +92,7 @@ func (client *Client) GetCurrentOrganizations() (Organization, []Organization, e
 	return data.PersonalOrganization, data.Organizations.Nodes, nil
 }
 
-func (client *Client) GetOrganizationBySlug(slug string) (*OrganizationDetails, error) {
+func (client *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*OrganizationDetails, error) {
 	query := `query($slug: String!) {
 		organizationdetails: organization(slug: $slug) {
 		  id
@@ -126,7 +128,7 @@ func (client *Client) GetOrganizationBySlug(slug string) (*OrganizationDetails, 
 	return &data.OrganizationDetails, nil
 }
 
-func (c *Client) CreateOrganization(organizationname string) (*Organization, error) {
+func (c *Client) CreateOrganization(ctx context.Context, organizationname string) (*Organization, error) {
 	query := `
 		mutation($input: CreateOrganizationInput!) {
 			createOrganization(input: $input) {
@@ -147,7 +149,7 @@ func (c *Client) CreateOrganization(organizationname string) (*Organization, err
 		"name": organizationname,
 	})
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +157,7 @@ func (c *Client) CreateOrganization(organizationname string) (*Organization, err
 	return &data.CreateOrganization.Organization, nil
 }
 
-func (c *Client) DeleteOrganization(id string) (deletedid string, err error) {
+func (c *Client) DeleteOrganization(ctx context.Context, id string) (deletedid string, err error) {
 	query := `
 	mutation($input: DeleteOrganizationInput!) {
 		deleteOrganization(input: $input) {
@@ -171,7 +173,7 @@ func (c *Client) DeleteOrganization(id string) (deletedid string, err error) {
 		"organizationId": id,
 	})
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return "", err
 	}
@@ -179,7 +181,7 @@ func (c *Client) DeleteOrganization(id string) (deletedid string, err error) {
 	return data.DeleteOrganization.DeletedOrganizationId, nil
 }
 
-func (c *Client) CreateOrganizationInvite(id, email string) (*Invitation, error) {
+func (c *Client) CreateOrganizationInvite(ctx context.Context, id, email string) (*Invitation, error) {
 	query := `
 	mutation($input: CreateOrganizationInvitationInput!){
 		createOrganizationInvitation(input: $input){
@@ -203,7 +205,7 @@ func (c *Client) CreateOrganizationInvite(id, email string) (*Invitation, error)
 		"email":          email,
 	})
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +213,7 @@ func (c *Client) CreateOrganizationInvite(id, email string) (*Invitation, error)
 	return &data.CreateOrganizationInvitation.Invitation, nil
 }
 
-func (c *Client) DeleteOrganizationMembership(orgId, userId string) (string, string, error) {
+func (c *Client) DeleteOrganizationMembership(ctx context.Context, orgId, userId string) (string, string, error) {
 	query := `
 	mutation($input: DeleteOrganizationMembershipInput!){
 		deleteOrganizationMembership(input: $input){
@@ -233,7 +235,7 @@ func (c *Client) DeleteOrganizationMembership(orgId, userId string) (string, str
 		"organizationId": orgId,
 	})
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return "", "", err
 	}

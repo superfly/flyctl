@@ -48,7 +48,9 @@ func newCertificatesCommand(client *client.Client) *Command {
 }
 
 func runCertsList(commandContext *cmdctx.CmdContext) error {
-	certs, err := commandContext.Client.API().GetAppCertificates(commandContext.AppName)
+	ctx := createCancellableContext()
+
+	certs, err := commandContext.Client.API().GetAppCertificates(ctx, commandContext.AppName)
 	if err != nil {
 		return err
 	}
@@ -57,9 +59,11 @@ func runCertsList(commandContext *cmdctx.CmdContext) error {
 }
 
 func runCertShow(commandContext *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
 	hostname := commandContext.Args[0]
 
-	cert, hostcheck, err := commandContext.Client.API().CheckAppCertificate(commandContext.AppName, hostname)
+	cert, hostcheck, err := commandContext.Client.API().CheckAppCertificate(ctx, commandContext.AppName, hostname)
 	if err != nil {
 		return err
 	}
@@ -76,9 +80,11 @@ func runCertShow(commandContext *cmdctx.CmdContext) error {
 }
 
 func runCertCheck(commandContext *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
 	hostname := commandContext.Args[0]
 
-	cert, hostcheck, err := commandContext.Client.API().CheckAppCertificate(commandContext.AppName, hostname)
+	cert, hostcheck, err := commandContext.Client.API().CheckAppCertificate(ctx, commandContext.AppName, hostname)
 	if err != nil {
 		return err
 	}
@@ -97,9 +103,11 @@ func runCertCheck(commandContext *cmdctx.CmdContext) error {
 }
 
 func runCertAdd(commandContext *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
 	hostname := commandContext.Args[0]
 
-	cert, hostcheck, err := commandContext.Client.API().AddCertificate(commandContext.AppName, hostname)
+	cert, hostcheck, err := commandContext.Client.API().AddCertificate(ctx, commandContext.AppName, hostname)
 	if err != nil {
 		return err
 	}
@@ -108,6 +116,8 @@ func runCertAdd(commandContext *cmdctx.CmdContext) error {
 }
 
 func runCertDelete(commandContext *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
 	hostname := commandContext.Args[0]
 
 	if !commandContext.Config.GetBool("yes") {
@@ -125,7 +135,7 @@ func runCertDelete(commandContext *cmdctx.CmdContext) error {
 		}
 	}
 
-	cert, err := commandContext.Client.API().DeleteCertificate(commandContext.AppName, hostname)
+	cert, err := commandContext.Client.API().DeleteCertificate(ctx, commandContext.AppName, hostname)
 	if err != nil {
 		return err
 	}
@@ -135,9 +145,10 @@ func runCertDelete(commandContext *cmdctx.CmdContext) error {
 	return nil
 }
 
-func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert *api.AppCertificate, hostcheck *api.HostnameCheck) error {
+func reportNextStepCert(cmdCtx *cmdctx.CmdContext, hostname string, cert *api.AppCertificate, hostcheck *api.HostnameCheck) error {
+	ctx := createCancellableContext()
 	// These are the IPs we have for the app
-	ips, err := commandContext.Client.API().GetIPAddresses(commandContext.AppName)
+	ips, err := cmdCtx.Client.API().GetIPAddresses(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
@@ -160,7 +171,7 @@ func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert
 	if len(hostcheck.ARecords) > 0 {
 		// Let's check the first A record against our recorded addresses
 		if !net.ParseIP(hostcheck.ARecords[0]).Equal(net.ParseIP(ipV4.Address)) {
-			commandContext.Statusf("certs", cmdctx.SWARN, "A Record (%s) does not match app's IP (%s)\n", hostcheck.ARecords[0], ipV4.Address)
+			cmdCtx.Statusf("certs", cmdctx.SWARN, "A Record (%s) does not match app's IP (%s)\n", hostcheck.ARecords[0], ipV4.Address)
 		} else {
 			configuredipV4 = true
 		}
@@ -169,7 +180,7 @@ func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert
 	if len(hostcheck.AAAARecords) > 0 {
 		// Let's check the first A record against our recorded addresses
 		if !net.ParseIP(hostcheck.AAAARecords[0]).Equal(net.ParseIP(ipV6.Address)) {
-			commandContext.Statusf("certs", cmdctx.SWARN, "AAAA Record (%s) does not match app's IP (%s)\n", hostcheck.AAAARecords[0], ipV6.Address)
+			cmdCtx.Statusf("certs", cmdctx.SWARN, "AAAA Record (%s) does not match app's IP (%s)\n", hostcheck.AAAARecords[0], ipV6.Address)
 		} else {
 			configuredipV6 = true
 		}
@@ -182,7 +193,7 @@ func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert
 			} else if net.ParseIP(address).Equal(net.ParseIP(ipV6.Address)) {
 				configuredipV6 = true
 			} else {
-				commandContext.Statusf("certs", cmdctx.SWARN, "Address resolution (%s) does not match app's IP (%s/%s)\n", address, ipV4.Address, ipV6.Address)
+				cmdCtx.Statusf("certs", cmdctx.SWARN, "Address resolution (%s) does not match app's IP (%s/%s)\n", address, ipV4.Address, ipV6.Address)
 			}
 		}
 	}
@@ -194,29 +205,29 @@ func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert
 
 		if addArecord || addAAAArecord {
 			stepcnt := 1
-			commandContext.Statusf("certs", cmdctx.SINFO, "You are creating a certificate for %s\n", hostname)
-			commandContext.Statusf("certs", cmdctx.SINFO, "We are using %s for this certificate.\n\n", cert.CertificateAuthority)
+			cmdCtx.Statusf("certs", cmdctx.SINFO, "You are creating a certificate for %s\n", hostname)
+			cmdCtx.Statusf("certs", cmdctx.SINFO, "We are using %s for this certificate.\n\n", cert.CertificateAuthority)
 			if addArecord {
-				commandContext.Statusf("certs", cmdctx.SINFO, "You can direct traffic to %s by:\n\n", hostname)
-				commandContext.Statusf("certs", cmdctx.SINFO, "%d: Adding an A record to your DNS service which reads\n", stepcnt)
-				commandContext.Statusf("certs", cmdctx.SINFO, "\n    A @ %s\n\n", ipV4.Address)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "You can direct traffic to %s by:\n\n", hostname)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "%d: Adding an A record to your DNS service which reads\n", stepcnt)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "\n    A @ %s\n\n", ipV4.Address)
 				stepcnt = stepcnt + 1
 			}
 			if addAAAArecord {
-				commandContext.Statusf("certs", cmdctx.SINFO, "You can validate your ownership of %s by:\n\n", hostname)
-				commandContext.Statusf("certs", cmdctx.SINFO, "%d: Adding an AAAA record to your DNS service which reads:\n\n", stepcnt)
-				commandContext.Statusf("certs", cmdctx.SINFO, "    AAAA @ %s\n\n", ipV6.Address)
-				commandContext.Statusf("certs", cmdctx.SINFO, " OR \n\n")
-				commandContext.Statusf("certs", cmdctx.SINFO, "%d: Adding an CNAME record to your DNS service which reads:\n\n", stepcnt)
-				commandContext.Statusf("certs", cmdctx.SINFO, "    %s\n", cert.DNSValidationInstructions)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "You can validate your ownership of %s by:\n\n", hostname)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "%d: Adding an AAAA record to your DNS service which reads:\n\n", stepcnt)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "    AAAA @ %s\n\n", ipV6.Address)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, " OR \n\n")
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "%d: Adding an CNAME record to your DNS service which reads:\n\n", stepcnt)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "    %s\n", cert.DNSValidationInstructions)
 				// stepcnt = stepcnt + 1 Uncomment if more steps
 
 			}
 		} else {
 			if cert.ClientStatus == "Ready" {
-				commandContext.Statusf("certs", cmdctx.SINFO, "Your certificate for %s has been issued\n", hostname)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "Your certificate for %s has been issued\n", hostname)
 			} else {
-				commandContext.Statusf("certs", cmdctx.SINFO, "Your certificate for %s is being issued. Status is %s.\n", hostname, cert.ClientStatus)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "Your certificate for %s is being issued. Status is %s.\n", hostname, cert.ClientStatus)
 			}
 		}
 	} else if cert.IsWildcard {
@@ -225,22 +236,22 @@ func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert
 		addAAAArecord := !cert.AcmeALPNConfigured
 
 		stepcnt := 1
-		commandContext.Statusf("certs", cmdctx.SINFO, "You are creating a wildcard certificate for %s\n", hostname)
-		commandContext.Statusf("certs", cmdctx.SINFO, "We are using %s for this certificate.\n\n", cert.CertificateAuthority)
+		cmdCtx.Statusf("certs", cmdctx.SINFO, "You are creating a wildcard certificate for %s\n", hostname)
+		cmdCtx.Statusf("certs", cmdctx.SINFO, "We are using %s for this certificate.\n\n", cert.CertificateAuthority)
 		if addArecord {
-			commandContext.Statusf("certs", cmdctx.SINFO, "You can direct traffic to %s by:\n\n", hostname)
-			commandContext.Statusf("certs", cmdctx.SINFO, "%d: Adding an A record to your DNS service which reads\n", stepcnt)
+			cmdCtx.Statusf("certs", cmdctx.SINFO, "You can direct traffic to %s by:\n\n", hostname)
+			cmdCtx.Statusf("certs", cmdctx.SINFO, "%d: Adding an A record to your DNS service which reads\n", stepcnt)
 			stepcnt = stepcnt + 1
-			commandContext.Statusf("certs", cmdctx.SINFO, "\n    A @ %s\n\n", ipV4.Address)
+			cmdCtx.Statusf("certs", cmdctx.SINFO, "\n    A @ %s\n\n", ipV4.Address)
 		}
 
 		if addAAAArecord {
-			commandContext.Statusf("certs", cmdctx.SINFO, "You can validate your ownership of %s by:\n\n", hostname)
-			commandContext.Statusf("certs", cmdctx.SINFO, "%d: Adding an AAAA record to your DNS service which reads:\n\n", stepcnt)
-			commandContext.Statusf("certs", cmdctx.SINFO, "    AAAA @ %s\n\n", ipV6.Address)
-			commandContext.Statusf("certs", cmdctx.SINFO, " OR \n\n")
-			commandContext.Statusf("certs", cmdctx.SINFO, "%d: Adding an CNAME record to your DNS service which reads:\n\n", stepcnt)
-			commandContext.Statusf("certs", cmdctx.SINFO, "    %s\n", cert.DNSValidationInstructions)
+			cmdCtx.Statusf("certs", cmdctx.SINFO, "You can validate your ownership of %s by:\n\n", hostname)
+			cmdCtx.Statusf("certs", cmdctx.SINFO, "%d: Adding an AAAA record to your DNS service which reads:\n\n", stepcnt)
+			cmdCtx.Statusf("certs", cmdctx.SINFO, "    AAAA @ %s\n\n", ipV6.Address)
+			cmdCtx.Statusf("certs", cmdctx.SINFO, " OR \n\n")
+			cmdCtx.Statusf("certs", cmdctx.SINFO, "%d: Adding an CNAME record to your DNS service which reads:\n\n", stepcnt)
+			cmdCtx.Statusf("certs", cmdctx.SINFO, "    %s\n", cert.DNSValidationInstructions)
 			// stepcnt = stepcnt + 1 Uncomment if more steps
 		}
 	} else {
@@ -251,27 +262,27 @@ func reportNextStepCert(commandContext *cmdctx.CmdContext, hostname string, cert
 		onlyV4Configured := configuredipV4 && !configuredipV6
 
 		if nothingConfigured || onlyV4Configured {
-			commandContext.Statusf("certs", cmdctx.SINFO, "You are creating a certificate for %s\n", hostname)
-			commandContext.Statusf("certs", cmdctx.SINFO, "We are using %s for this certificate.\n\n", readableCertAuthority(cert.CertificateAuthority))
+			cmdCtx.Statusf("certs", cmdctx.SINFO, "You are creating a certificate for %s\n", hostname)
+			cmdCtx.Statusf("certs", cmdctx.SINFO, "We are using %s for this certificate.\n\n", readableCertAuthority(cert.CertificateAuthority))
 
 			if nothingConfigured {
-				commandContext.Statusf("certs", cmdctx.SINFO, "You can configure your DNS for %s by:\n\n", hostname)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "You can configure your DNS for %s by:\n\n", hostname)
 
 				eTLD, _ := publicsuffix.EffectiveTLDPlusOne(hostname)
 				subdomainname := strings.TrimSuffix(hostname, eTLD)
-				commandContext.Statusf("certs", cmdctx.SINFO, "1: Adding an CNAME record to your DNS service which reads:\n")
-				commandContext.Statusf("certs", cmdctx.SINFO, "\n    CNAME %s %s.fly.dev\n", subdomainname, commandContext.AppName)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "1: Adding an CNAME record to your DNS service which reads:\n")
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "\n    CNAME %s %s.fly.dev\n", subdomainname, cmdCtx.AppName)
 			} else if onlyV4Configured {
-				commandContext.Statusf("certs", cmdctx.SINFO, "You can validate your ownership of %s by:\n\n", hostname)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "You can validate your ownership of %s by:\n\n", hostname)
 
-				commandContext.Statusf("certs", cmdctx.SINFO, "1: Adding an CNAME record to your DNS service which reads:\n")
-				commandContext.Statusf("certs", cmdctx.SINFO, "    %s\n", cert.DNSValidationInstructions)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "1: Adding an CNAME record to your DNS service which reads:\n")
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "    %s\n", cert.DNSValidationInstructions)
 			}
 		} else {
 			if cert.ClientStatus == "Ready" {
-				commandContext.Statusf("certs", cmdctx.SINFO, "Your certificate for %s has been issued\n", hostname)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "Your certificate for %s has been issued\n", hostname)
 			} else {
-				commandContext.Statusf("certs", cmdctx.SINFO, "Your certificate for %s is being issued. Status is %s.\n", hostname, cert.ClientStatus)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "Your certificate for %s is being issued. Status is %s.\n", hostname, cert.ClientStatus)
 			}
 		}
 	}

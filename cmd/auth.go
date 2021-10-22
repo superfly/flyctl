@@ -69,8 +69,10 @@ func newAuthCommand(client *client.Client) *Command {
 	return cmd
 }
 
-func runWhoami(ctx *cmdctx.CmdContext) error {
-	user, err := ctx.Client.API().GetCurrentUser()
+func runWhoami(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
+	user, err := cmdCtx.Client.API().GetCurrentUser(ctx)
 	if err != nil {
 		return err
 	}
@@ -99,7 +101,9 @@ func runSignup(ctx *cmdctx.CmdContext) error {
 	return runWebLogin(ctx, true)
 }
 
-func runWebLogin(ctx *cmdctx.CmdContext, signup bool) error {
+func runWebLogin(cmdCtx *cmdctx.CmdContext, signup bool) error {
+	ctx := createCancellableContext()
+
 	name, _ := os.Hostname()
 
 	cliAuth, err := api.StartCLISessionWebAuth(name, signup)
@@ -128,11 +132,11 @@ func runWebLogin(ctx *cmdctx.CmdContext, signup bool) error {
 		return err
 	}
 
-	if !ctx.Client.InitApi() {
+	if !cmdCtx.Client.InitApi() {
 		return client.ErrNoAuthToken
 	}
 
-	user, err := ctx.Client.API().GetCurrentUser()
+	user, err := cmdCtx.Client.API().GetCurrentUser(ctx)
 	if err != nil {
 		return err
 	}
@@ -167,8 +171,8 @@ func waitForCLISession(id string) <-chan api.CLISessionAuth {
 	return done
 }
 
-func runInteractiveLogin(ctx *cmdctx.CmdContext) error {
-	email := ctx.Config.GetString("email")
+func runInteractiveLogin(cmdCtx *cmdctx.CmdContext) error {
+	email := cmdCtx.Config.GetString("email")
 	if email == "" {
 		prompt := &survey.Input{
 			Message: "Email:",
@@ -180,7 +184,7 @@ func runInteractiveLogin(ctx *cmdctx.CmdContext) error {
 		}
 	}
 
-	password := ctx.Config.GetString("password")
+	password := cmdCtx.Config.GetString("password")
 	if password == "" {
 		prompt := &survey.Password{
 			Message: "Password:",
@@ -192,7 +196,7 @@ func runInteractiveLogin(ctx *cmdctx.CmdContext) error {
 		}
 	}
 
-	otp := ctx.Config.GetString("otp")
+	otp := cmdCtx.Config.GetString("otp")
 	if otp == "" {
 		prompt := &survey.Password{
 			Message: "One Time Password (if any):",

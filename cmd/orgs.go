@@ -47,10 +47,12 @@ func newOrgsCommand(client *client.Client) *Command {
 	return orgscmd
 }
 
-func runOrgsList(cmdctx *cmdctx.CmdContext) error {
-	asJSON := cmdctx.OutputJSON()
+func runOrgsList(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
 
-	personalOrganization, organizations, err := cmdctx.Client.API().GetCurrentOrganizations()
+	asJSON := cmdCtx.OutputJSON()
+
+	personalOrganization, organizations, err := cmdCtx.Client.API().GetCurrentOrganizations(ctx)
 	if err != nil {
 		return err
 	}
@@ -60,7 +62,7 @@ func runOrgsList(cmdctx *cmdctx.CmdContext) error {
 			PersonalOrganization api.Organization
 			Organizations        []api.Organization
 		}
-		cmdctx.WriteJSON(MyOrgs{PersonalOrganization: personalOrganization, Organizations: organizations})
+		cmdCtx.WriteJSON(MyOrgs{PersonalOrganization: personalOrganization, Organizations: organizations})
 		return nil
 	}
 
@@ -96,40 +98,42 @@ func printInvite(in api.Invitation, headers bool) {
 	fmt.Printf("%-20s %-20s %-10t\n", in.Organization.Slug, in.Email, in.Redeemed)
 }
 
-func runOrgsShow(ctx *cmdctx.CmdContext) error {
-	asJSON := ctx.OutputJSON()
-	orgslug := ctx.Args[0]
+func runOrgsShow(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
 
-	org, err := ctx.Client.API().GetOrganizationBySlug(orgslug)
+	asJSON := cmdCtx.OutputJSON()
+	orgslug := cmdCtx.Args[0]
+
+	org, err := cmdCtx.Client.API().GetOrganizationBySlug(ctx, orgslug)
 
 	if err != nil {
 		return err
 	}
 
 	if asJSON {
-		ctx.WriteJSON(org)
+		cmdCtx.WriteJSON(org)
 		return nil
 	}
 
-	ctx.Statusf("orgs", cmdctx.STITLE, "Organization\n")
+	cmdCtx.Statusf("orgs", cmdctx.STITLE, "Organization\n")
 
-	ctx.Statusf("orgs", cmdctx.SINFO, "%-10s: %-20s\n", "Name", org.Name)
-	ctx.Statusf("orgs", cmdctx.SINFO, "%-10s: %-20s\n", "Slug", org.Slug)
-	ctx.Statusf("orgs", cmdctx.SINFO, "%-10s: %-20s\n", "Type", org.Type)
+	cmdCtx.Statusf("orgs", cmdctx.SINFO, "%-10s: %-20s\n", "Name", org.Name)
+	cmdCtx.Statusf("orgs", cmdctx.SINFO, "%-10s: %-20s\n", "Slug", org.Slug)
+	cmdCtx.Statusf("orgs", cmdctx.SINFO, "%-10s: %-20s\n", "Type", org.Type)
 
-	ctx.StatusLn()
+	cmdCtx.StatusLn()
 
-	ctx.Statusf("orgs", cmdctx.STITLE, "Summary\n")
+	cmdCtx.Statusf("orgs", cmdctx.STITLE, "Summary\n")
 
-	ctx.Statusf("orgs", cmdctx.SINFO, "You have %s permissions on this organizaton\n", org.ViewerRole)
+	cmdCtx.Statusf("orgs", cmdctx.SINFO, "You have %s permissions on this organizaton\n", org.ViewerRole)
 	// ctx.Statusf("orgs", cmdctx.SINFO, "There are %d DNS zones associated with this organization\n", len(org.DNSZones.Nodes))
-	ctx.Statusf("orgs", cmdctx.SINFO, "There are %d members associated with this organization\n", len(org.Members.Edges))
+	cmdCtx.Statusf("orgs", cmdctx.SINFO, "There are %d members associated with this organization\n", len(org.Members.Edges))
 
-	ctx.StatusLn()
+	cmdCtx.StatusLn()
 
-	ctx.Statusf("fyctl", cmdctx.STITLE, "Organization Members\n")
+	cmdCtx.Statusf("fyctl", cmdctx.STITLE, "Organization Members\n")
 
-	membertable := tablewriter.NewWriter(ctx.Out)
+	membertable := tablewriter.NewWriter(cmdCtx.Out)
 	membertable.SetHeader([]string{"Name", "Email", "Role"})
 
 	for _, m := range org.Members.Edges {
@@ -140,14 +144,16 @@ func runOrgsShow(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runOrgsInvite(ctx *cmdctx.CmdContext) error {
+func runOrgsInvite(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
 	var orgSlug, userEmail string
 
 	orgType := api.OrganizationTypeShared
 
-	if len(ctx.Args) == 0 {
+	if len(cmdCtx.Args) == 0 {
 
-		org, err := selectOrganization(ctx.Client.API(), "", &orgType)
+		org, err := selectOrganization(ctx, cmdCtx.Client.API(), "", &orgType)
 		if err != nil {
 			return err
 		}
@@ -157,20 +163,20 @@ func runOrgsInvite(ctx *cmdctx.CmdContext) error {
 		if err != nil {
 			return err
 		}
-	} else if len(ctx.Args) == 2 {
-		orgSlug = ctx.Args[0]
+	} else if len(cmdCtx.Args) == 2 {
+		orgSlug = cmdCtx.Args[0]
 
-		userEmail = ctx.Args[1]
+		userEmail = cmdCtx.Args[1]
 	} else {
 		return errors.New("specify all arguments (or no arguments to be prompted)")
 	}
 
-	org, err := ctx.Client.API().GetOrganizationBySlug(orgSlug)
+	org, err := cmdCtx.Client.API().GetOrganizationBySlug(ctx, orgSlug)
 	if err != nil {
 		return err
 	}
 
-	out, err := ctx.Client.API().CreateOrganizationInvite(org.ID, userEmail)
+	out, err := cmdCtx.Client.API().CreateOrganizationInvite(ctx, org.ID, userEmail)
 	if err != nil {
 		return err
 	}
@@ -180,12 +186,14 @@ func runOrgsInvite(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runOrgsCreate(ctx *cmdctx.CmdContext) error {
-	asJSON := ctx.OutputJSON()
+func runOrgsCreate(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
+	asJSON := cmdCtx.OutputJSON()
 
 	orgname := ""
 
-	if len(ctx.Args) == 0 {
+	if len(cmdCtx.Args) == 0 {
 		prompt := &survey.Input{
 			Message: "Enter Organization Name:",
 		}
@@ -195,16 +203,16 @@ func runOrgsCreate(ctx *cmdctx.CmdContext) error {
 			}
 		}
 	} else {
-		orgname = ctx.Args[0]
+		orgname = cmdCtx.Args[0]
 	}
 
-	organization, err := ctx.Client.API().CreateOrganization(orgname)
+	organization, err := cmdCtx.Client.API().CreateOrganization(ctx, orgname)
 	if err != nil {
 		return err
 	}
 
 	if asJSON {
-		ctx.WriteJSON(organization)
+		cmdCtx.WriteJSON(organization)
 	} else {
 		printOrg(*organization, true)
 	}
@@ -212,14 +220,16 @@ func runOrgsCreate(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runOrgsRemove(ctx *cmdctx.CmdContext) error {
+func runOrgsRemove(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
 	var orgSlug, userEmail string
 
 	orgType := api.OrganizationTypeShared
 
-	if len(ctx.Args) == 0 {
+	if len(cmdCtx.Args) == 0 {
 
-		org, err := selectOrganization(ctx.Client.API(), "", &orgType)
+		org, err := selectOrganization(ctx, cmdCtx.Client.API(), "", &orgType)
 		if err != nil {
 			return err
 		}
@@ -229,15 +239,15 @@ func runOrgsRemove(ctx *cmdctx.CmdContext) error {
 		if err != nil {
 			return err
 		}
-	} else if len(ctx.Args) == 2 {
-		orgSlug = ctx.Args[0]
+	} else if len(cmdCtx.Args) == 2 {
+		orgSlug = cmdCtx.Args[0]
 
-		userEmail = ctx.Args[1]
+		userEmail = cmdCtx.Args[1]
 	} else {
 		return errors.New("specify all arguments (or no arguments to be prompted)")
 	}
 
-	org, err := ctx.Client.API().GetOrganizationBySlug(orgSlug)
+	org, err := cmdCtx.Client.API().GetOrganizationBySlug(ctx, orgSlug)
 	if err != nil {
 		return err
 	}
@@ -255,7 +265,7 @@ func runOrgsRemove(ctx *cmdctx.CmdContext) error {
 		return errors.New("user not found")
 	}
 
-	_, userEmail, err = ctx.Client.API().DeleteOrganizationMembership(org.ID, userId)
+	_, userEmail, err = cmdCtx.Client.API().DeleteOrganizationMembership(ctx, org.ID, userId)
 	if err != nil {
 		return err
 	}
@@ -269,10 +279,12 @@ func runOrgsRevoke(ctx *cmdctx.CmdContext) error {
 	return fmt.Errorf("Revoke Not implemented")
 }
 
-func runOrgsDelete(ctx *cmdctx.CmdContext) error {
-	orgslug := ctx.Args[0]
+func runOrgsDelete(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
 
-	org, err := ctx.Client.API().GetOrganizationBySlug(orgslug)
+	orgslug := cmdCtx.Args[0]
+
+	org, err := cmdCtx.Client.API().GetOrganizationBySlug(ctx, orgslug)
 
 	if err != nil {
 		return err
@@ -284,7 +296,7 @@ func runOrgsDelete(ctx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	_, err = ctx.Client.API().DeleteOrganization(org.ID)
+	_, err = cmdCtx.Client.API().DeleteOrganization(ctx, org.ID)
 
 	if err != nil {
 		return err

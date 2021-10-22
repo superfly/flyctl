@@ -59,13 +59,15 @@ func newSecretsCommand(client *client.Client) *Command {
 	return cmd
 }
 
-func runListSecrets(ctx *cmdctx.CmdContext) error {
-	secrets, err := ctx.Client.API().GetAppSecrets(ctx.AppName)
+func runListSecrets(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
+	secrets, err := cmdCtx.Client.API().GetAppSecrets(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
 
-	return ctx.Render(&presenters.Secrets{Secrets: secrets})
+	return cmdCtx.Render(&presenters.Secrets{Secrets: secrets})
 }
 
 func runSetSecrets(cc *cmdctx.CmdContext) error {
@@ -98,7 +100,7 @@ func runSetSecrets(cc *cmdctx.CmdContext) error {
 		return errors.New("requires at least one SECRET=VALUE pair")
 	}
 
-	release, err := cc.Client.API().SetSecrets(cc.AppName, secrets)
+	release, err := cc.Client.API().SetSecrets(ctx, cc.AppName, secrets)
 	if err != nil {
 		return err
 	}
@@ -179,7 +181,7 @@ func runImportSecrets(cc *cmdctx.CmdContext) error {
 	}
 	fmt.Println(secrets)
 
-	release, err := cc.Client.API().SetSecrets(cc.AppName, secrets)
+	release, err := cc.Client.API().SetSecrets(ctx, cc.AppName, secrets)
 	if err != nil {
 		return err
 	}
@@ -206,7 +208,7 @@ func runSecretsUnset(cc *cmdctx.CmdContext) error {
 		return errors.New("Requires at least one secret name")
 	}
 
-	release, err := cc.Client.API().UnsetSecrets(cc.AppName, cc.Args)
+	release, err := cc.Client.API().UnsetSecrets(ctx, cc.AppName, cc.Args)
 	if err != nil {
 		return err
 	}

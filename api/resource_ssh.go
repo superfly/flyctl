@@ -1,6 +1,8 @@
 package api
 
-func (c *Client) GetLoggedCertificates(slug string) ([]LoggedCertificate, error) {
+import "context"
+
+func (c *Client) GetLoggedCertificates(ctx context.Context, slug string) ([]LoggedCertificate, error) {
 	req := c.NewRequest(`
 query($slug: String!) { 
   organization(slug: $slug) { 
@@ -15,7 +17,7 @@ query($slug: String!) {
 `)
 	req.Var("slug", slug)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -23,7 +25,7 @@ query($slug: String!) {
 	return data.Organization.LoggedCertificates.Nodes, nil
 }
 
-func (c *Client) EstablishSSHKey(org *Organization, override bool) (*SSHCertificate, error) {
+func (c *Client) EstablishSSHKey(ctx context.Context, org *Organization, override bool) (*SSHCertificate, error) {
 	req := c.NewRequest(`
 mutation($input: EstablishSSHKeyInput!) { 
   establishSshKey(input: $input) { 
@@ -36,7 +38,7 @@ mutation($input: EstablishSSHKeyInput!) {
 		"override":       override,
 	})
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +46,7 @@ mutation($input: EstablishSSHKeyInput!) {
 	return &data.EstablishSSHKey, nil
 }
 
-func (c *Client) IssueSSHCertificate(org *Organization, email string, username *string, valid_hours *int) (*IssuedCertificate, error) {
+func (c *Client) IssueSSHCertificate(ctx context.Context, org *Organization, email string, username *string, valid_hours *int) (*IssuedCertificate, error) {
 	req := c.NewRequest(`
 mutation($input: IssueCertificateInput!) { 
   issueCertificate(input: $input) { 
@@ -67,7 +69,7 @@ mutation($input: IssueCertificateInput!) {
 
 	req.Var("input", inputs)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}

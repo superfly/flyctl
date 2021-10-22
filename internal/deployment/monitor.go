@@ -59,7 +59,7 @@ func (dm *DeploymentMonitor) start(ctx context.Context) <-chan *deploymentStatus
 		var delay time.Duration
 
 		processFn := func() error {
-			deployment, err := dm.client.GetDeploymentStatus(dm.AppID, currentID)
+			deployment, err := dm.client.GetDeploymentStatus(ctx, dm.AppID, currentID)
 			if err != nil {
 				return err
 			}

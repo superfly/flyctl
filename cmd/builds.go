@@ -28,7 +28,9 @@ func newBuildsCommand(client *client.Client) *Command {
 }
 
 func runListBuilds(commandContext *cmdctx.CmdContext) error {
-	builds, err := commandContext.Client.API().ListBuilds(commandContext.AppName)
+	ctx := createCancellableContext()
+
+	builds, err := commandContext.Client.API().ListBuilds(ctx, commandContext.AppName)
 	if err != nil {
 		return err
 	}

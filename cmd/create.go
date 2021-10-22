@@ -10,6 +10,7 @@ import (
 //TODO: Move all output to status styled begin/done updates
 
 func runCreate(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
 	var appName = ""
 
 	if len(cmdCtx.Args) > 0 {
@@ -51,7 +52,7 @@ func runCreate(cmdCtx *cmdctx.CmdContext) error {
 	fmt.Println()
 
 	targetOrgSlug := cmdCtx.Config.GetString("org")
-	org, err := selectOrganization(cmdCtx.Client.API(), targetOrgSlug, nil)
+	org, err := selectOrganization(ctx, cmdCtx.Client.API(), targetOrgSlug, nil)
 
 	switch {
 	case isInterrupt(err):

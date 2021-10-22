@@ -37,22 +37,24 @@ func newDNSCommand(client *client.Client) *Command {
 	return cmd
 }
 
-func runRecordsList(ctx *cmdctx.CmdContext) error {
-	name := ctx.Args[0]
+func runRecordsList(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
 
-	records, err := ctx.Client.API().GetDNSRecords(name)
+	name := cmdCtx.Args[0]
+
+	records, err := cmdCtx.Client.API().GetDNSRecords(ctx, name)
 	if err != nil {
 		return err
 	}
 
 	fmt.Printf("Records for domain %s\n", name)
 
-	if ctx.OutputJSON() {
-		ctx.WriteJSON(records)
+	if cmdCtx.OutputJSON() {
+		cmdCtx.WriteJSON(records)
 		return nil
 	}
 
-	table := tablewriter.NewWriter(ctx.Out)
+	table := tablewriter.NewWriter(cmdCtx.Out)
 	table.SetAutoWrapText(true)
 	table.SetReflowDuringAutoWrap(true)
 	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
@@ -73,23 +75,25 @@ func runRecordsList(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runRecordsExport(ctx *cmdctx.CmdContext) error {
-	name := ctx.Args[0]
+func runRecordsExport(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
 
-	domain, err := ctx.Client.API().GetDomain(name)
+	name := cmdCtx.Args[0]
+
+	domain, err := cmdCtx.Client.API().GetDomain(ctx, name)
 	if err != nil {
 		return err
 	}
 
-	records, err := ctx.Client.API().ExportDNSRecords(domain.ID)
+	records, err := cmdCtx.Client.API().ExportDNSRecords(ctx, domain.ID)
 	if err != nil {
 		return err
 	}
 
-	if len(ctx.Args) == 1 {
+	if len(cmdCtx.Args) == 1 {
 		fmt.Println(records)
 	} else {
-		var filename = ctx.Args[1]
+		var filename = cmdCtx.Args[1]
 
 		_, err := os.Stat(filename)
 		if err == nil {
@@ -107,18 +111,20 @@ func runRecordsExport(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runRecordsImport(ctx *cmdctx.CmdContext) error {
-	name := ctx.Args[0]
+func runRecordsImport(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
+	name := cmdCtx.Args[0]
 	var filename string
 
-	if len(ctx.Args) == 1 {
+	if len(cmdCtx.Args) == 1 {
 		// One arg, use stdin
 		filename = "-"
 	} else {
-		filename = ctx.Args[1]
+		filename = cmdCtx.Args[1]
 	}
 
-	domain, err := ctx.Client.API().GetDomain(name)
+	domain, err := cmdCtx.Client.API().GetDomain(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -137,7 +143,7 @@ func runRecordsImport(ctx *cmdctx.CmdContext) error {
 		}
 	}
 
-	warnings, changes, err := ctx.Client.API().ImportDNSRecords(domain.ID, string(data))
+	warnings, changes, err := cmdCtx.Client.API().ImportDNSRecords(ctx, domain.ID, string(data))
 	if err != nil {
 		return err
 	}

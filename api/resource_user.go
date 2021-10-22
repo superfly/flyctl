@@ -1,6 +1,8 @@
 package api
 
-func (c *Client) GetCurrentUser() (*User, error) {
+import "context"
+
+func (c *Client) GetCurrentUser(ctx context.Context) (*User, error) {
 	query := `
 		query {
 			currentUser {
@@ -11,7 +13,7 @@ func (c *Client) GetCurrentUser() (*User, error) {
 
 	req := c.NewRequest(query)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}

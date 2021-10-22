@@ -42,31 +42,31 @@ func runMonitor(commandContext *cmdctx.CmdContext) error {
 
 }
 
-func monitorDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) error {
-	monitor := deployment.NewDeploymentMonitor(commandContext.Client.API(), commandContext.AppName)
+func monitorDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext) error {
+	monitor := deployment.NewDeploymentMonitor(cmdCtx.Client.API(), cmdCtx.AppName)
 	monitor.DeploymentStarted = func(idx int, d *api.DeploymentStatus) error {
 		if idx > 0 {
-			commandContext.StatusLn()
+			cmdCtx.StatusLn()
 		}
-		commandContext.Status("monitor", cmdctx.SINFO, presenters.FormatDeploymentSummary(d))
+		cmdCtx.Status("monitor", cmdctx.SINFO, presenters.FormatDeploymentSummary(d))
 		return nil
 	}
 	monitor.DeploymentUpdated = func(d *api.DeploymentStatus, updatedAllocs []*api.AllocationStatus) error {
-		commandContext.Status("monitor", cmdctx.SINFO, presenters.FormatDeploymentAllocSummary(d))
+		cmdCtx.Status("monitor", cmdctx.SINFO, presenters.FormatDeploymentAllocSummary(d))
 
-		if commandContext.GlobalConfig.GetBool("verbose") {
+		if cmdCtx.GlobalConfig.GetBool("verbose") {
 			for _, alloc := range updatedAllocs {
-				commandContext.Status("monitor", cmdctx.SINFO, presenters.FormatAllocSummary(alloc))
+				cmdCtx.Status("monitor", cmdctx.SINFO, presenters.FormatAllocSummary(alloc))
 			}
 		}
 		return nil
 	}
 	monitor.DeploymentFailed = func(d *api.DeploymentStatus, failedAllocs []*api.AllocationStatus) error {
-		commandContext.Statusf("monitor", cmdctx.SINFO, "v%d %s - %s\n", d.Version, d.Status, d.Description)
+		cmdCtx.Statusf("monitor", cmdctx.SINFO, "v%d %s - %s\n", d.Version, d.Status, d.Description)
 
 		if len(failedAllocs) > 0 {
-			commandContext.StatusLn()
-			commandContext.Status("monitor", cmdctx.SERROR, "Failed Instances")
+			cmdCtx.StatusLn()
+			cmdCtx.Status("monitor", cmdctx.SERROR, "Failed Instances")
 
 			x := make(chan *api.AllocationStatus)
 			var wg sync.WaitGroup
@@ -76,9 +76,9 @@ func monitorDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) e
 				a := a
 				go func() {
 					defer wg.Done()
-					alloc, err := commandContext.Client.API().GetAllocationStatus(commandContext.AppName, a.ID, 20)
+					alloc, err := cmdCtx.Client.API().GetAllocationStatus(ctx, cmdCtx.AppName, a.ID, 20)
 					if err != nil {
-						commandContext.Status("monitor", cmdctx.SERROR, "Error fetching instance", a.ID, err)
+						cmdCtx.Status("monitor", cmdctx.SERROR, "Error fetching instance", a.ID, err)
 						return
 					}
 					x <- alloc
@@ -93,8 +93,8 @@ func monitorDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) e
 			count := 0
 			for alloc := range x {
 				count++
-				commandContext.Statusf("monitor", cmdctx.SERROR, "\n  Failure #%d\n", count)
-				err := commandContext.FrenderPrefix("    ",
+				cmdCtx.Statusf("monitor", cmdctx.SERROR, "\n  Failure #%d\n", count)
+				err := cmdCtx.FrenderPrefix("    ",
 					cmdctx.PresenterOption{
 						Title: "Instance",
 						Presentable: &presenters.Allocations{
@@ -113,7 +113,7 @@ func monitorDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) e
 					return err
 				}
 
-				commandContext.Status("monitor", cmdctx.STITLE, "Recent Logs")
+				cmdCtx.Status("monitor", cmdctx.STITLE, "Recent Logs")
 				logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
 				terminal.Debug("logs", "Fetching logs for %s", alloc.ID)
 				for _, e := range alloc.RecentLogs {
@@ -125,7 +125,7 @@ func monitorDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) e
 						Timestamp: e.Timestamp,
 						Meta:      e.Meta,
 					}
-					logPresenter.FPrint(commandContext.Out, commandContext.OutputJSON(), entry)
+					logPresenter.FPrint(cmdCtx.Out, cmdCtx.OutputJSON(), entry)
 				}
 
 			}
@@ -134,14 +134,14 @@ func monitorDeployment(ctx context.Context, commandContext *cmdctx.CmdContext) e
 		return nil
 	}
 	monitor.DeploymentSucceeded = func(d *api.DeploymentStatus) error {
-		fmt.Fprintf(commandContext.Out, "v%d deployed successfully\n", d.Version)
+		fmt.Fprintf(cmdCtx.Out, "v%d deployed successfully\n", d.Version)
 		return nil
 	}
 
 	monitor.Start(ctx)
 
 	if err := monitor.Error(); err != nil {
-		fmt.Fprintf(commandContext.Out, "Monitor Error: %s", err)
+		fmt.Fprintf(cmdCtx.Out, "Monitor Error: %s", err)
 	}
 
 	if !monitor.Success() {

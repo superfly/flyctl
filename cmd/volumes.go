@@ -66,25 +66,26 @@ func newVolumesCommand(client *client.Client) *Command {
 	return volumesCmd
 }
 
-func runListVolumes(ctx *cmdctx.CmdContext) error {
+func runListVolumes(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
 
-	volumes, err := ctx.Client.API().GetVolumes(ctx.AppName)
+	volumes, err := cmdCtx.Client.API().GetVolumes(ctx, cmdCtx.AppName)
 
 	if err != nil {
 		return err
 	}
 
 	if len(volumes) == 0 {
-		fmt.Printf("No Volumes Defined for %s\n", ctx.AppName)
+		fmt.Printf("No Volumes Defined for %s\n", cmdCtx.AppName)
 		return nil
 	}
 
-	if ctx.OutputJSON() {
-		ctx.WriteJSON(volumes)
+	if cmdCtx.OutputJSON() {
+		cmdCtx.WriteJSON(volumes)
 		return nil
 	}
 
-	table := helpers.MakeSimpleTable(ctx.Out, []string{"ID", "Name", "Size", "Region", "Attached VM", "Created At"})
+	table := helpers.MakeSimpleTable(cmdCtx.Out, []string{"ID", "Name", "Size", "Region", "Attached VM", "Created At"})
 
 	for _, v := range volumes {
 		var attachedAllocID string
@@ -102,13 +103,14 @@ func runListVolumes(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runCreateVolume(ctx *cmdctx.CmdContext) error {
+func runCreateVolume(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
 
-	volName := ctx.Args[0]
+	volName := cmdCtx.Args[0]
 
-	region := ctx.Config.GetString("region")
+	region := cmdCtx.Config.GetString("region")
 
-	app, err := ctx.Client.API().GetApp(ctx.AppName)
+	app, err := cmdCtx.Client.API().GetApp(cmdCtx.AppName)
 
 	if err != nil {
 		return err
@@ -120,17 +122,17 @@ func runCreateVolume(ctx *cmdctx.CmdContext) error {
 		return fmt.Errorf("--region <region> flag required")
 	}
 
-	sizeGb := ctx.Config.GetInt("size")
+	sizeGb := cmdCtx.Config.GetInt("size")
 
 	input := api.CreateVolumeInput{
 		AppID:     appid,
 		Name:      volName,
 		Region:    region,
 		SizeGb:    sizeGb,
-		Encrypted: ctx.Config.GetBool("encrypted"),
+		Encrypted: cmdCtx.Config.GetBool("encrypted"),
 	}
 
-	volume, err := ctx.Client.API().CreateVolume(input)
+	volume, err := cmdCtx.Client.API().CreateVolume(ctx, input)
 
 	if err != nil {
 		return err
@@ -146,11 +148,12 @@ func runCreateVolume(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runDeleteVolume(ctx *cmdctx.CmdContext) error {
+func runDeleteVolume(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
 
-	volID := ctx.Args[0]
+	volID := cmdCtx.Args[0]
 
-	if !ctx.Config.GetBool("yes") {
+	if !cmdCtx.Config.GetBool("yes") {
 		fmt.Println(aurora.Red("Deleting a volume is not reversible."))
 
 		confirm := false
@@ -168,7 +171,7 @@ func runDeleteVolume(ctx *cmdctx.CmdContext) error {
 		}
 	}
 
-	data, err := ctx.Client.API().DeleteVolume(volID)
+	data, err := cmdCtx.Client.API().DeleteVolume(ctx, volID)
 
 	if err != nil {
 		return err
@@ -179,17 +182,19 @@ func runDeleteVolume(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runShowVolume(ctx *cmdctx.CmdContext) error {
-	volID := ctx.Args[0]
+func runShowVolume(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
 
-	volume, err := ctx.Client.API().GetVolume(volID)
+	volID := cmdCtx.Args[0]
+
+	volume, err := cmdCtx.Client.API().GetVolume(ctx, volID)
 
 	if err != nil {
 		return err
 	}
 
-	if ctx.OutputJSON() {
-		ctx.WriteJSON(volume)
+	if cmdCtx.OutputJSON() {
+		cmdCtx.WriteJSON(volume)
 		return nil
 	}
 
@@ -203,10 +208,12 @@ func runShowVolume(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runListVolumeSnapshots(ctx *cmdctx.CmdContext) error {
-	volName := ctx.Args[0]
+func runListVolumeSnapshots(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
 
-	snapshots, err := ctx.Client.API().GetVolumeSnapshots(volName)
+	volName := cmdCtx.Args[0]
+
+	snapshots, err := cmdCtx.Client.API().GetVolumeSnapshots(ctx, volName)
 	if err != nil {
 		return err
 	}
@@ -216,12 +223,12 @@ func runListVolumeSnapshots(ctx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	if ctx.OutputJSON() {
-		ctx.WriteJSON(snapshots)
+	if cmdCtx.OutputJSON() {
+		cmdCtx.WriteJSON(snapshots)
 		return nil
 	}
 
-	table := helpers.MakeSimpleTable(ctx.Out, []string{"id", "size", "created at"})
+	table := helpers.MakeSimpleTable(cmdCtx.Out, []string{"id", "size", "created at"})
 
 	// Sort snapshots from newest to oldest
 	sort.SliceStable(snapshots, func(i, j int) bool {

@@ -30,18 +30,19 @@ func newMoveCommand(client *client.Client) *Command {
 	return moveCmd
 }
 
-func runMove(commandContext *cmdctx.CmdContext) error {
-	appName := commandContext.Args[0]
+func runMove(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+	appName := cmdCtx.Args[0]
 
-	app, err := commandContext.Client.API().GetApp(appName)
+	app, err := cmdCtx.Client.API().GetApp(appName)
 	if err != nil {
 		return errors.Wrap(err, "Error fetching app")
 	}
 
-	commandContext.Statusf("move", cmdctx.SINFO, "App '%s' is currently in organization '%s'\n", app.Name, app.Organization.Slug)
+	cmdCtx.Statusf("move", cmdctx.SINFO, "App '%s' is currently in organization '%s'\n", app.Name, app.Organization.Slug)
 
-	targetOrgSlug := commandContext.Config.GetString("org")
-	org, err := selectOrganization(commandContext.Client.API(), targetOrgSlug, nil)
+	targetOrgSlug := cmdCtx.Config.GetString("org")
+	org, err := selectOrganization(ctx, cmdCtx.Client.API(), targetOrgSlug, nil)
 
 	switch {
 	case isInterrupt(err):
@@ -50,7 +51,7 @@ func runMove(commandContext *cmdctx.CmdContext) error {
 		return fmt.Errorf("Error setting organization: %s", err)
 	}
 
-	if !commandContext.Config.GetBool("yes") {
+	if !cmdCtx.Config.GetBool("yes") {
 		fmt.Println(aurora.Red(`Moving an app between organizations requires a complete shutdown and restart. This will result in some app downtime.
 If the app relies on other services within the current organization, it may not come back up in a healthy manner.
 Please confirm you wish to restart this app now?`))
@@ -68,7 +69,7 @@ Please confirm you wish to restart this app now?`))
 		}
 	}
 
-	_, err = commandContext.Client.API().MoveApp(appName, org.ID)
+	_, err = cmdCtx.Client.API().MoveApp(appName, org.ID)
 	if err != nil {
 		return errors.WithMessage(err, "Failed to move app")
 	}

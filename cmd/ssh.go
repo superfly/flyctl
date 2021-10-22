@@ -108,25 +108,27 @@ func newSSHCommand(client *client.Client) *Command {
 	return cmd
 }
 
-func runSSHLog(ctx *cmdctx.CmdContext) error {
-	client := ctx.Client.API()
+func runSSHLog(cc *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
 
-	org, err := orgByArg(ctx)
+	client := cc.Client.API()
+
+	org, err := orgByArg(cc)
 	if err != nil {
 		return err
 	}
 
-	certs, err := client.GetLoggedCertificates(org.Slug)
+	certs, err := client.GetLoggedCertificates(ctx, org.Slug)
 	if err != nil {
 		return err
 	}
 
-	if ctx.OutputJSON() {
-		ctx.WriteJSON(certs)
+	if cc.OutputJSON() {
+		cc.WriteJSON(certs)
 		return nil
 	}
 
-	table := tablewriter.NewWriter(ctx.Out)
+	table := tablewriter.NewWriter(cc.Out)
 
 	table.SetHeader([]string{
 		"Root",
@@ -163,22 +165,24 @@ func runSSHLog(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runSSHEstablish(ctx *cmdctx.CmdContext) error {
-	client := ctx.Client.API()
+func runSSHEstablish(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
 
-	org, err := orgByArg(ctx)
+	client := cmdCtx.Client.API()
+
+	org, err := orgByArg(cmdCtx)
 	if err != nil {
 		return err
 	}
 
 	override := false
-	if len(ctx.Args) >= 2 && ctx.Args[1] == "override" {
+	if len(cmdCtx.Args) >= 2 && cmdCtx.Args[1] == "override" {
 		override = true
 	}
 
 	fmt.Printf("Establishing SSH CA cert for organization %s\n", org.Slug)
 
-	cert, err := client.EstablishSSHKey(org, override)
+	cert, err := client.EstablishSSHKey(ctx, org, override)
 	if err != nil {
 		return err
 	}
@@ -188,22 +192,26 @@ func runSSHEstablish(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func singleUseSSHCertificate(ctx *cmdctx.CmdContext, org *api.Organization) (*api.IssuedCertificate, error) {
-	client := ctx.Client.API()
+func singleUseSSHCertificate(cmdCtx *cmdctx.CmdContext, org *api.Organization) (*api.IssuedCertificate, error) {
+	ctx := createCancellableContext()
 
-	user, err := ctx.Client.API().GetCurrentUser()
+	client := cmdCtx.Client.API()
+
+	user, err := cmdCtx.Client.API().GetCurrentUser(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	hours := 1
-	return client.IssueSSHCertificate(org, user.Email, nil, &hours)
+	return client.IssueSSHCertificate(ctx, org, user.Email, nil, &hours)
 }
 
-func runSSHIssue(ctx *cmdctx.CmdContext) error {
-	client := ctx.Client.API()
+func runSSHIssue(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
 
-	org, err := orgByArg(ctx)
+	client := cmdCtx.Client.API()
+
+	org, err := orgByArg(cmdCtx)
 	if err != nil {
 		return err
 	}
@@ -215,14 +223,14 @@ func runSSHIssue(ctx *cmdctx.CmdContext) error {
 
 	for email == nil {
 		prompt := "Email address for user to issue cert: "
-		emails, err = argOrPromptLoop(ctx, 1, prompt, emails)
+		emails, err = argOrPromptLoop(cmdCtx, 1, prompt, emails)
 		if err != nil {
 			return err
 		}
 
 		email, err = mail.ParseAddress(emails)
 		if err != nil {
-			ctx.Statusf("ssh", cmdctx.SERROR, "Invalid email address: %s (keep it simple!)\n", err)
+			cmdCtx.Statusf("ssh", cmdctx.SERROR, "Invalid email address: %s (keep it simple!)\n", err)
 			email = nil
 		}
 	}
@@ -231,21 +239,21 @@ func runSSHIssue(ctx *cmdctx.CmdContext) error {
 		username *string
 	)
 
-	if vals := ctx.Config.GetString("username"); vals != "" {
+	if vals := cmdCtx.Config.GetString("username"); vals != "" {
 		username = &vals
 	}
 
-	hours := ctx.Config.GetInt("hours")
+	hours := cmdCtx.Config.GetInt("hours")
 	if hours < 1 || hours > 72 {
 		return fmt.Errorf("Invalid expiration time (1-72 hours)\n")
 	}
 
-	icert, err := client.IssueSSHCertificate(org, email.Address, username, &hours)
+	icert, err := client.IssueSSHCertificate(ctx, org, email.Address, username, &hours)
 	if err != nil {
 		return err
 	}
 
-	doAgent := ctx.Config.GetBool("agent")
+	doAgent := cmdCtx.Config.GetBool("agent")
 	if doAgent {
 		if err = populateAgent(icert); err != nil {
 			return err
@@ -276,25 +284,25 @@ func runSSHIssue(ctx *cmdctx.CmdContext) error {
 
 	for pf == nil && cf == nil {
 		prompt := "Path to store private key: "
-		rootname, err = argOrPromptLoop(ctx, 2, prompt, rootname)
+		rootname, err = argOrPromptLoop(cmdCtx, 2, prompt, rootname)
 		if err != nil {
 			return err
 		}
 
-		if ctx.Config.GetBool("dotssh") {
+		if cmdCtx.Config.GetBool("dotssh") {
 			rootname = fmt.Sprintf("%s/.ssh/%s", os.Getenv("HOME"), rootname)
 		}
 
 		mode := os.O_WRONLY | os.O_TRUNC | os.O_CREATE
-		if !ctx.Config.GetBool("overwrite") {
+		if !cmdCtx.Config.GetBool("overwrite") {
 			mode |= os.O_EXCL
 		} else {
 			if _, err = os.Stat(rootname); err == nil {
 				if buf, err := ioutil.ReadFile(rootname); err != nil {
-					ctx.Statusf("ssh", cmdctx.SERROR, "File exists, but we can't read it to make sure it's safe to overwrite: %s\n", err)
+					cmdCtx.Statusf("ssh", cmdctx.SERROR, "File exists, but we can't read it to make sure it's safe to overwrite: %s\n", err)
 					continue
 				} else if !strings.Contains(string(buf), "fly.io" /* BUG(tqbf): do better */) {
-					ctx.Statusf("ssh", cmdctx.SERROR, "File exists, but isn't a fly.io ed25519 private key\n")
+					cmdCtx.Statusf("ssh", cmdctx.SERROR, "File exists, but isn't a fly.io ed25519 private key\n")
 					continue
 				}
 			}
@@ -302,14 +310,14 @@ func runSSHIssue(ctx *cmdctx.CmdContext) error {
 
 		pf, err = os.OpenFile(rootname, mode, 0600)
 		if err != nil {
-			ctx.Statusf("ssh", cmdctx.SERROR, "Can't open private key file: %s\n", err)
+			cmdCtx.Statusf("ssh", cmdctx.SERROR, "Can't open private key file: %s\n", err)
 			continue
 		}
 
 		cf, err = os.OpenFile(rootname+"-cert.pub", mode, 0600)
 		if err != nil {
 			pf.Close()
-			ctx.Statusf("ssh", cmdctx.SERROR, "Can't open certificate file %s: %s", rootname+"-cert.pub", err)
+			cmdCtx.Statusf("ssh", cmdctx.SERROR, "Can't open certificate file %s: %s", rootname+"-cert.pub", err)
 		}
 	}
 

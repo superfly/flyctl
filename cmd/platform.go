@@ -29,24 +29,28 @@ func newPlatformCommand(client *client.Client) *Command {
 	return cmd
 }
 
-func runPlatformRegions(ctx *cmdctx.CmdContext) error {
-	regions, _, err := ctx.Client.API().PlatformRegions()
+func runPlatformRegions(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
+	regions, _, err := cmdCtx.Client.API().PlatformRegions(ctx)
 	if err != nil {
 		return err
 	}
 
-	return ctx.Frender(cmdctx.PresenterOption{
+	return cmdCtx.Frender(cmdctx.PresenterOption{
 		Presentable: &presenters.Regions{Regions: regions},
 	})
 }
 
-func runPlatformVMSizes(ctx *cmdctx.CmdContext) error {
-	sizes, err := ctx.Client.API().PlatformVMSizes()
+func runPlatformVMSizes(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
+	sizes, err := cmdCtx.Client.API().PlatformVMSizes(ctx)
 	if err != nil {
 		return err
 	}
 
-	return ctx.Frender(cmdctx.PresenterOption{
+	return cmdCtx.Frender(cmdctx.PresenterOption{
 		Presentable: &presenters.VMSizes{VMSizes: sizes},
 	})
 }

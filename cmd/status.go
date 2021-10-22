@@ -37,14 +37,15 @@ func newStatusCommand(client *client.Client) *Command {
 	return cmd
 }
 
-func runStatus(ctx *cmdctx.CmdContext) error {
+func runStatus(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
 
-	watch := ctx.Config.GetBool("watch")
-	refreshRate := ctx.Config.GetInt("rate")
+	watch := cmdCtx.Config.GetBool("watch")
+	refreshRate := cmdCtx.Config.GetInt("rate")
 	refreshCount := 1
-	showDeploymentStatus := ctx.Config.GetBool("deployment")
+	showDeploymentStatus := cmdCtx.Config.GetBool("deployment")
 
-	if watch && ctx.OutputJSON() {
+	if watch && cmdCtx.OutputJSON() {
 		return fmt.Errorf("--watch and --json are not supported together")
 	}
 
@@ -56,14 +57,14 @@ func runStatus(ctx *cmdctx.CmdContext) error {
 			refreshCount = refreshCount - 1
 			if refreshCount == 0 {
 				refreshCount = refreshRate
-				app, err = ctx.Client.API().GetAppStatus(ctx.AppName, ctx.Config.GetBool("all"))
+				app, err = cmdCtx.Client.API().GetAppStatus(ctx, cmdCtx.AppName, cmdCtx.Config.GetBool("all"))
 
 				if err != nil {
 					return err
 				}
 
 				if app.Deployed {
-					_, backupregions, err = ctx.Client.API().ListAppRegions(ctx.AppName)
+					_, backupregions, err = cmdCtx.Client.API().ListAppRegions(ctx, cmdCtx.AppName)
 
 					if err != nil {
 						return err
@@ -78,20 +79,20 @@ func runStatus(ctx *cmdctx.CmdContext) error {
 				if app != nil {
 					fmt.Printf("%s %s %s\n\n", aurora.Bold(app.Name), aurora.Italic("at:"), aurora.Bold(time.Now().UTC().Format("15:04:05")))
 				} else {
-					fmt.Printf("%s %s %s\n\n", aurora.Bold(ctx.AppName), aurora.Italic("at:"), aurora.Bold(time.Now().UTC().Format("15:04:05")))
+					fmt.Printf("%s %s %s\n\n", aurora.Bold(cmdCtx.AppName), aurora.Italic("at:"), aurora.Bold(time.Now().UTC().Format("15:04:05")))
 				}
 				time.Sleep(time.Second)
 				continue
 			}
 		} else {
-			app, err = ctx.Client.API().GetAppStatus(ctx.AppName, ctx.Config.GetBool("all"))
+			app, err = cmdCtx.Client.API().GetAppStatus(ctx, cmdCtx.AppName, cmdCtx.Config.GetBool("all"))
 
 			if err != nil {
 				return err
 			}
 
 			if app.Deployed {
-				_, backupregions, err = ctx.Client.API().ListAppRegions(ctx.AppName)
+				_, backupregions, err = cmdCtx.Client.API().ListAppRegions(ctx, cmdCtx.AppName)
 
 				if err != nil {
 					return err
@@ -103,13 +104,13 @@ func runStatus(ctx *cmdctx.CmdContext) error {
 			}
 		}
 
-		err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppStatus{AppStatus: *app}, HideHeader: true, Vertical: true, Title: "App"})
+		err = cmdCtx.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppStatus{AppStatus: *app}, HideHeader: true, Vertical: true, Title: "App"})
 		if err != nil {
 			return err
 		}
 
 		// If JSON output, everything has been printed, so return
-		if !watch && ctx.OutputJSON() {
+		if !watch && cmdCtx.OutputJSON() {
 			return nil
 		}
 
@@ -125,7 +126,7 @@ func runStatus(ctx *cmdctx.CmdContext) error {
 		if app.DeploymentStatus != nil {
 			if (app.DeploymentStatus.Version == app.Version && app.DeploymentStatus.Status != "cancelled") || showDeploymentStatus {
 
-				err = ctx.Frender(cmdctx.PresenterOption{
+				err = cmdCtx.Frender(cmdctx.PresenterOption{
 					Presentable: &presenters.DeploymentStatus{Status: app.DeploymentStatus},
 					Vertical:    true,
 					Title:       "Deployment Status",
@@ -137,7 +138,7 @@ func runStatus(ctx *cmdctx.CmdContext) error {
 			}
 		}
 
-		err = ctx.Frender(cmdctx.PresenterOption{
+		err = cmdCtx.Frender(cmdctx.PresenterOption{
 			Presentable: &presenters.Allocations{Allocations: app.Allocations, BackupRegions: backupregions},
 			Title:       "Instances",
 		})
@@ -153,8 +154,10 @@ func runStatus(ctx *cmdctx.CmdContext) error {
 
 }
 
-func runAllocStatus(ctx *cmdctx.CmdContext) error {
-	alloc, err := ctx.Client.API().GetAllocationStatus(ctx.AppName, ctx.Args[0], 25)
+func runAllocStatus(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
+	alloc, err := cmdCtx.Client.API().GetAllocationStatus(ctx, cmdCtx.AppName, cmdCtx.Args[0], 25)
 	if err != nil {
 		return err
 	}
@@ -163,7 +166,7 @@ func runAllocStatus(ctx *cmdctx.CmdContext) error {
 		return api.ErrNotFound
 	}
 
-	err = ctx.Frender(
+	err = cmdCtx.Frender(
 		cmdctx.PresenterOption{
 			Title: "Instance",
 			Presentable: &presenters.Allocations{
@@ -191,18 +194,18 @@ func runAllocStatus(ctx *cmdctx.CmdContext) error {
 	var p io.Writer
 	var pw *textio.PrefixWriter
 
-	if !ctx.OutputJSON() {
+	if !cmdCtx.OutputJSON() {
 		fmt.Println(aurora.Bold("Recent Logs"))
-		pw = textio.NewPrefixWriter(ctx.Out, "  ")
+		pw = textio.NewPrefixWriter(cmdCtx.Out, "  ")
 		p = pw
 	} else {
-		p = ctx.Out
+		p = cmdCtx.Out
 	}
 
 	// logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
 	// logPresenter.FPrint(p, ctx.OutputJSON(), alloc.RecentLogs)
 
-	if p != ctx.Out {
+	if p != cmdCtx.Out {
 		_ = pw.Flush()
 	}
 

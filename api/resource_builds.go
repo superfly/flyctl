@@ -1,6 +1,8 @@
 package api
 
-func (c *Client) CreateSignedUrls(appId string, filename string) (getUrl string, putUrl string, err error) {
+import "context"
+
+func (c *Client) CreateSignedUrls(ctx context.Context, appId string, filename string) (getUrl string, putUrl string, err error) {
 	query := `
 		mutation($appId: ID!, $filename: String!) {
 			createSignedUrl(appId: $appId, filename: $filename) {
@@ -15,7 +17,7 @@ func (c *Client) CreateSignedUrls(appId string, filename string) (getUrl string,
 	req.Var("appId", appId)
 	req.Var("filename", filename)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return "", "", err
 	}
@@ -23,7 +25,7 @@ func (c *Client) CreateSignedUrls(appId string, filename string) (getUrl string,
 	return data.CreateSignedUrl.GetUrl, data.CreateSignedUrl.PutUrl, nil
 }
 
-func (c *Client) StartBuild(input StartBuildInput) (*Build, error) {
+func (c *Client) StartBuild(ctx context.Context, input StartBuildInput) (*Build, error) {
 	query := `
 		mutation($input: StartBuildInput!) {
 			startBuild(input: $input) {
@@ -47,7 +49,7 @@ func (c *Client) StartBuild(input StartBuildInput) (*Build, error) {
 	req := c.NewRequest(query)
 	req.Var("input", input)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +57,7 @@ func (c *Client) StartBuild(input StartBuildInput) (*Build, error) {
 	return &data.StartBuild.Build, nil
 }
 
-func (c *Client) ListBuilds(appName string) ([]Build, error) {
+func (c *Client) ListBuilds(ctx context.Context, appName string) ([]Build, error) {
 	query := `
 		query($appName: String!) {
 			app(name: $appName) {
@@ -81,7 +83,7 @@ func (c *Client) ListBuilds(appName string) ([]Build, error) {
 
 	req.Var("appName", appName)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +91,7 @@ func (c *Client) ListBuilds(appName string) ([]Build, error) {
 	return data.App.Builds.Nodes, nil
 }
 
-func (c *Client) GetBuild(buildId string) (*Build, error) {
+func (c *Client) GetBuild(ctx context.Context, buildId string) (*Build, error) {
 	query := `
 		query($id: ID!) {
 			build: node(id: $id) {
@@ -116,7 +118,7 @@ func (c *Client) GetBuild(buildId string) (*Build, error) {
 
 	req.Var("id", buildId)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,8 @@
 package api
 
-func (c *Client) GetAppCertificates(appName string) ([]AppCertificateCompact, error) {
+import "golang.org/x/net/context"
+
+func (c *Client) GetAppCertificates(ctx context.Context, appName string) ([]AppCertificateCompact, error) {
 	query := `
 		query($appName: String!) {
 			appcertscompact:app(name: $appName) {
@@ -19,7 +21,7 @@ func (c *Client) GetAppCertificates(appName string) ([]AppCertificateCompact, er
 
 	req.Var("appName", appName)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +29,7 @@ func (c *Client) GetAppCertificates(appName string) ([]AppCertificateCompact, er
 	return data.AppCertsCompact.Certificates.Nodes, nil
 }
 
-func (c *Client) CheckAppCertificate(appName, hostname string) (*AppCertificate, *HostnameCheck, error) {
+func (c *Client) CheckAppCertificate(ctx context.Context, appName, hostname string) (*AppCertificate, *HostnameCheck, error) {
 	query := `
 		mutation($input: CheckCertificateInput!) {
 			checkCertificate(input: $input) {
@@ -74,7 +76,7 @@ func (c *Client) CheckAppCertificate(appName, hostname string) (*AppCertificate,
 		"hostname": hostname,
 	})
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -82,7 +84,7 @@ func (c *Client) CheckAppCertificate(appName, hostname string) (*AppCertificate,
 	return data.CheckCertificate.Certificate, data.CheckCertificate.Check, nil
 }
 
-func (c *Client) AddCertificate(appName, hostname string) (*AppCertificate, *HostnameCheck, error) {
+func (c *Client) AddCertificate(ctx context.Context, appName, hostname string) (*AppCertificate, *HostnameCheck, error) {
 	query := `
 		mutation($appId: ID!, $hostname: String!) {
 			addCertificate(appId: $appId, hostname: $hostname) {
@@ -127,7 +129,7 @@ func (c *Client) AddCertificate(appName, hostname string) (*AppCertificate, *Hos
 	req.Var("appId", appName)
 	req.Var("hostname", hostname)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -135,7 +137,7 @@ func (c *Client) AddCertificate(appName, hostname string) (*AppCertificate, *Hos
 	return data.AddCertificate.Certificate, data.AddCertificate.Check, nil
 }
 
-func (c *Client) DeleteCertificate(appName, hostname string) (*DeleteCertificatePayload, error) {
+func (c *Client) DeleteCertificate(ctx context.Context, appName, hostname string) (*DeleteCertificatePayload, error) {
 	query := `
 		mutation($appId: ID!, $hostname: String!) {
 			deleteCertificate(appId: $appId, hostname: $hostname) {
@@ -155,7 +157,7 @@ func (c *Client) DeleteCertificate(appName, hostname string) (*DeleteCertificate
 	req.Var("appId", appName)
 	req.Var("hostname", hostname)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}

@@ -97,7 +97,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 	cmdfmt.PrintBegin(cmdCtx.Out, "Validating app configuration")
 
 	if cmdCtx.AppConfig == nil {
-		cfg, err := cmdCtx.Client.API().GetConfig(cmdCtx.AppName)
+		cfg, err := cmdCtx.Client.API().GetConfig(ctx, cmdCtx.AppName)
 		if err != nil {
 			return fmt.Errorf("unable to fetch existing configuration file: %s", err)
 		}
@@ -217,7 +217,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		input.Definition = api.DefinitionPtr(cmdCtx.AppConfig.Definition)
 	}
 
-	release, releaseCommand, err := cmdCtx.Client.API().DeployImage(input)
+	release, releaseCommand, err := cmdCtx.Client.API().DeployImage(ctx, input)
 	if err != nil {
 		return err
 	}
@@ -412,7 +412,7 @@ func watchDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext) error {
 				a := a
 				go func() {
 					defer wg.Done()
-					alloc, err := cmdCtx.Client.API().GetAllocationStatus(cmdCtx.AppName, a.ID, 30)
+					alloc, err := cmdCtx.Client.API().GetAllocationStatus(ctx, cmdCtx.AppName, a.ID, 30)
 					if err != nil {
 						cmdCtx.Status("deploy", cmdctx.SERROR, "Error fetching alloc", a.ID, err)
 						return

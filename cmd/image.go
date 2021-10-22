@@ -81,7 +81,7 @@ func runImageUpdate(cmdCtx *cmdctx.CmdContext) error {
 		Strategy: api.StringPointer("ROLLING"),
 	}
 
-	release, releaseCommand, err := cmdCtx.Client.API().DeployImage(input)
+	release, releaseCommand, err := cmdCtx.Client.API().DeployImage(ctx, input)
 	if err != nil {
 		return err
 	}

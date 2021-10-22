@@ -37,8 +37,10 @@ func newConfigCommand(client *client.Client) *Command {
 	return cmd
 }
 
-func runDisplayConfig(ctx *cmdctx.CmdContext) error {
-	cfg, err := ctx.Client.API().GetConfig(ctx.AppName)
+func runDisplayConfig(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
+	cfg, err := cmdCtx.Client.API().GetConfig(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
@@ -46,38 +48,40 @@ func runDisplayConfig(ctx *cmdctx.CmdContext) error {
 	//encoder := json.NewEncoder(os.Stdout)
 	//encoder.SetIndent("", "  ")
 	//encoder.Encode(cfg.Definition)
-	ctx.WriteJSON(cfg.Definition)
+	cmdCtx.WriteJSON(cfg.Definition)
 	return nil
 }
 
-func runSaveConfig(ctx *cmdctx.CmdContext) error {
-	configfilename, err := flyctl.ResolveConfigFileFromPath(ctx.WorkingDir)
+func runSaveConfig(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
+	configfilename, err := flyctl.ResolveConfigFileFromPath(cmdCtx.WorkingDir)
 
 	if err != nil {
 		return err
 	}
 
 	if helpers.FileExists(configfilename) {
-		ctx.Status("create", cmdctx.SERROR, "An existing configuration file has been found.")
+		cmdCtx.Status("create", cmdctx.SERROR, "An existing configuration file has been found.")
 		confirmation := confirm(fmt.Sprintf("Overwrite file '%s'", configfilename))
 		if !confirmation {
 			return nil
 		}
 	}
 
-	if ctx.AppConfig == nil {
-		ctx.AppConfig = flyctl.NewAppConfig()
+	if cmdCtx.AppConfig == nil {
+		cmdCtx.AppConfig = flyctl.NewAppConfig()
 	}
-	ctx.AppConfig.AppName = ctx.AppName
+	cmdCtx.AppConfig.AppName = cmdCtx.AppName
 
-	serverCfg, err := ctx.Client.API().GetConfig(ctx.AppName)
+	serverCfg, err := cmdCtx.Client.API().GetConfig(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
 
-	ctx.AppConfig.Definition = serverCfg.Definition
+	cmdCtx.AppConfig.Definition = serverCfg.Definition
 
-	return writeAppConfig(ctx.ConfigFile, ctx.AppConfig)
+	return writeAppConfig(cmdCtx.ConfigFile, cmdCtx.AppConfig)
 }
 
 func runValidateConfig(commandContext *cmdctx.CmdContext) error {
@@ -106,14 +110,16 @@ func runValidateConfig(commandContext *cmdctx.CmdContext) error {
 	return errors.New("App configuration is not valid")
 }
 
-func runEnvConfig(ctx *cmdctx.CmdContext) error {
-	secrets, err := ctx.Client.API().GetAppSecrets(ctx.AppName)
+func runEnvConfig(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
+	secrets, err := cmdCtx.Client.API().GetAppSecrets(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
 
 	if len(secrets) > 0 {
-		err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.Secrets{Secrets: secrets},
+		err = cmdCtx.Frender(cmdctx.PresenterOption{Presentable: &presenters.Secrets{Secrets: secrets},
 			Title: "Secrets",
 		})
 		if err != nil {
@@ -121,7 +127,7 @@ func runEnvConfig(ctx *cmdctx.CmdContext) error {
 		}
 	}
 
-	cfg, err := ctx.Client.API().GetConfig(ctx.AppName)
+	cfg, err := cmdCtx.Client.API().GetConfig(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
@@ -132,7 +138,7 @@ func runEnvConfig(ctx *cmdctx.CmdContext) error {
 			return nil
 		}
 
-		err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.Environment{
+		err = cmdCtx.Frender(cmdctx.PresenterOption{Presentable: &presenters.Environment{
 			Envs: vars,
 		}, Title: "Environment variables"})
 

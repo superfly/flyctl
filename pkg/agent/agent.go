@@ -254,7 +254,7 @@ func (s *Server) handlePing(c net.Conn, args []string) error {
 }
 
 func findOrganization(client *api.Client, slug string) (*api.Organization, error) {
-	orgs, err := client.GetOrganizations(nil)
+	orgs, err := client.GetOrganizations(context.TODO(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("can't load organizations from config: %s", err)
 	}

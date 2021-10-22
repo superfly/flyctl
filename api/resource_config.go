@@ -1,6 +1,8 @@
 package api
 
-func (client *Client) GetConfig(appName string) (*AppConfig, error) {
+import "context"
+
+func (client *Client) GetConfig(ctx context.Context, appName string) (*AppConfig, error) {
 	query := `
 			query($appName: String!) {
 				app(name: $appName) {
@@ -14,7 +16,7 @@ func (client *Client) GetConfig(appName string) (*AppConfig, error) {
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}

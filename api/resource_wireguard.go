@@ -1,8 +1,11 @@
 package api
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
-func (c *Client) GetWireGuardPeers(slug string) ([]*WireGuardPeer, error) {
+func (c *Client) GetWireGuardPeers(ctx context.Context, slug string) ([]*WireGuardPeer, error) {
 	req := c.NewRequest(`
 query($slug: String!) { 
   organization(slug: $slug) { 
@@ -20,7 +23,7 @@ query($slug: String!) {
 `)
 	req.Var("slug", slug)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +31,7 @@ query($slug: String!) {
 	return *data.Organization.WireGuardPeers.Nodes, nil
 }
 
-func (c *Client) CreateWireGuardPeer(org *Organization, region, name, pubkey string) (*CreatedWireGuardPeer, error) {
+func (c *Client) CreateWireGuardPeer(ctx context.Context, org *Organization, region, name, pubkey string) (*CreatedWireGuardPeer, error) {
 	req := c.NewRequest(`
 mutation($input: AddWireGuardPeerInput!) { 
   addWireGuardPeer(input: $input) { 
@@ -51,7 +54,7 @@ mutation($input: AddWireGuardPeerInput!) {
 
 	req.Var("input", inputs)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +62,7 @@ mutation($input: AddWireGuardPeerInput!) {
 	return &data.AddWireGuardPeer, nil
 }
 
-func (c *Client) RemoveWireGuardPeer(org *Organization, name string) error {
+func (c *Client) RemoveWireGuardPeer(ctx context.Context, org *Organization, name string) error {
 	req := c.NewRequest(`
 mutation($input: RemoveWireGuardPeerInput!) { 
   removeWireGuardPeer(input: $input) { 
@@ -74,12 +77,12 @@ mutation($input: RemoveWireGuardPeerInput!) {
 		"name":           name,
 	})
 
-	_, err := c.Run(req)
+	_, err := c.RunWithContext(ctx, req)
 
 	return err
 }
 
-func (c *Client) CreateDelegatedWireGuardToken(org *Organization, name string) (*DelegatedWireGuardToken, error) {
+func (c *Client) CreateDelegatedWireGuardToken(ctx context.Context, org *Organization, name string) (*DelegatedWireGuardToken, error) {
 	req := c.NewRequest(`
 mutation($input: CreateDelegatedWireGuardTokenInput!) { 
   createDelegatedWireGuardToken(input: $input) { 
@@ -92,7 +95,7 @@ mutation($input: CreateDelegatedWireGuardTokenInput!) {
 		"name":           name,
 	})
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +103,7 @@ mutation($input: CreateDelegatedWireGuardTokenInput!) {
 	return &data.CreateDelegatedWireGuardToken, nil
 }
 
-func (c *Client) DeleteDelegatedWireGuardToken(org *Organization, name, token *string) error {
+func (c *Client) DeleteDelegatedWireGuardToken(ctx context.Context, org *Organization, name, token *string) error {
 	query := `
 mutation($input: DeleteDelegatedWireGuardTokenInput!) { 
   deleteDelegatedWireGuardToken(input: $input) { 
@@ -124,12 +127,12 @@ mutation($input: DeleteDelegatedWireGuardTokenInput!) {
 	req := c.NewRequest(query)
 	req.Var("input", input)
 
-	_, err := c.Run(req)
+	_, err := c.RunWithContext(ctx, req)
 
 	return err
 }
 
-func (c *Client) GetDelegatedWireGuardTokens(slug string) ([]*DelegatedWireGuardTokenHandle, error) {
+func (c *Client) GetDelegatedWireGuardTokens(ctx context.Context, slug string) ([]*DelegatedWireGuardTokenHandle, error) {
 	req := c.NewRequest(`
 query($slug: String!) { 
   organization(slug: $slug) { 
@@ -143,7 +146,7 @@ query($slug: String!) {
 `)
 	req.Var("slug", slug)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +154,7 @@ query($slug: String!) {
 	return *data.Organization.DelegatedWireGuardTokens.Nodes, nil
 }
 
-func (c *Client) ClosestWireguardGatewayRegion() (*Region, error) {
+func (c *Client) ClosestWireguardGatewayRegion(ctx context.Context) (*Region, error) {
 	req := c.NewRequest(`
 		query {
 			nearestRegion(wireguardGateway: true) {
@@ -162,7 +165,7 @@ func (c *Client) ClosestWireguardGatewayRegion() (*Region, error) {
 		}
 `)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +173,7 @@ func (c *Client) ClosestWireguardGatewayRegion() (*Region, error) {
 	return data.NearestRegion, nil
 }
 
-func (c *Client) ValidateWireGuardPeers(peerIPs []string) (invalid []string, err error) {
+func (c *Client) ValidateWireGuardPeers(ctx context.Context, peerIPs []string) (invalid []string, err error) {
 	req := c.NewRequest(`
 mutation($input: ValidateWireGuardPeersInput!) { 
   validateWireGuardPeers(input: $input) { 
@@ -183,7 +186,7 @@ mutation($input: ValidateWireGuardPeersInput!) {
 		"peerIps": peerIPs,
 	})
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}

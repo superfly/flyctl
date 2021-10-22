@@ -52,59 +52,65 @@ func newRegionsCommand(client *client.Client) *Command {
 	return cmd
 }
 
-func runRegionsAdd(ctx *cmdctx.CmdContext) error {
-	group := ctx.Config.GetString("group")
+func runRegionsAdd(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
+	group := cmdCtx.Config.GetString("group")
 	input := api.ConfigureRegionsInput{
-		AppID:        ctx.AppName,
+		AppID:        cmdCtx.AppName,
 		Group:        group,
-		AllowRegions: ctx.Args,
+		AllowRegions: cmdCtx.Args,
 	}
 
-	regions, backupRegions, err := ctx.Client.API().ConfigureRegions(input)
+	regions, backupRegions, err := cmdCtx.Client.API().ConfigureRegions(ctx, input)
 	if err != nil {
 		return err
 	}
 
-	printRegions(ctx, regions, backupRegions)
+	printRegions(cmdCtx, regions, backupRegions)
 
 	return nil
 }
 
-func runRegionsRemove(ctx *cmdctx.CmdContext) error {
-	group := ctx.Config.GetString("group")
+func runRegionsRemove(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
+	group := cmdCtx.Config.GetString("group")
 	input := api.ConfigureRegionsInput{
-		AppID:       ctx.AppName,
+		AppID:       cmdCtx.AppName,
 		Group:       group,
-		DenyRegions: ctx.Args,
+		DenyRegions: cmdCtx.Args,
 	}
 
-	regions, backupRegions, err := ctx.Client.API().ConfigureRegions(input)
+	regions, backupRegions, err := cmdCtx.Client.API().ConfigureRegions(ctx, input)
 	if err != nil {
 		return err
 	}
 
-	printRegions(ctx, regions, backupRegions)
+	printRegions(cmdCtx, regions, backupRegions)
 
 	return nil
 }
 
-func runRegionsSet(ctx *cmdctx.CmdContext) error {
+func runRegionsSet(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
 	addList := make([]string, 0)
 	delList := make([]string, 0)
 
 	// Get the Region List
-	regions, _, err := ctx.Client.API().ListAppRegions(ctx.AppName)
+	regions, _, err := cmdCtx.Client.API().ListAppRegions(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
 
-	for _, r := range ctx.Args {
+	for _, r := range cmdCtx.Args {
 		addList = append(addList, r)
 	}
 
 	for _, er := range regions {
 		found := false
-		for _, r := range ctx.Args {
+		for _, r := range cmdCtx.Args {
 			if r == er.Code {
 				found = true
 				break
@@ -115,47 +121,51 @@ func runRegionsSet(ctx *cmdctx.CmdContext) error {
 		}
 	}
 
-	group := ctx.Config.GetString("group")
+	group := cmdCtx.Config.GetString("group")
 	input := api.ConfigureRegionsInput{
-		AppID:        ctx.AppName,
+		AppID:        cmdCtx.AppName,
 		Group:        group,
 		AllowRegions: addList,
 		DenyRegions:  delList,
 	}
 
-	newregions, backupRegions, err := ctx.Client.API().ConfigureRegions(input)
+	newregions, backupRegions, err := cmdCtx.Client.API().ConfigureRegions(ctx, input)
 	if err != nil {
 		return err
 	}
 
-	printRegions(ctx, newregions, backupRegions)
+	printRegions(cmdCtx, newregions, backupRegions)
 
 	return nil
 }
 
-func runRegionsList(ctx *cmdctx.CmdContext) error {
-	regions, backupRegions, err := ctx.Client.API().ListAppRegions(ctx.AppName)
+func runRegionsList(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
+	regions, backupRegions, err := cmdCtx.Client.API().ListAppRegions(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
 
-	printRegions(ctx, regions, backupRegions)
+	printRegions(cmdCtx, regions, backupRegions)
 
 	return nil
 }
 
-func runBackupRegionsSet(ctx *cmdctx.CmdContext) error {
+func runBackupRegionsSet(cmdCtx *cmdctx.CmdContext) error {
+	ctx := createCancellableContext()
+
 	input := api.ConfigureRegionsInput{
-		AppID:         ctx.AppName,
-		BackupRegions: ctx.Args,
+		AppID:         cmdCtx.AppName,
+		BackupRegions: cmdCtx.Args,
 	}
 
-	regions, backupRegions, err := ctx.Client.API().ConfigureRegions(input)
+	regions, backupRegions, err := cmdCtx.Client.API().ConfigureRegions(ctx, input)
 	if err != nil {
 		return err
 	}
 
-	printRegions(ctx, regions, backupRegions)
+	printRegions(cmdCtx, regions, backupRegions)
 
 	return nil
 }
