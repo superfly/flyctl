@@ -14,6 +14,8 @@ const (
 	envKeyPrefix        = "FLY_"
 	accessTokenEnvKey   = envKeyPrefix + "ACCESS_TOKEN"
 	apiTokenEnvKey      = envKeyPrefix + "API_TOKEN"
+	orgEnvKey           = envKeyPrefix + "ORG"
+	organizationEnvKey  = envKeyPrefix + "ORGANIZATION"
 	verboseOutputEnvKey = envKeyPrefix + "VERBOSE"
 	jsonOutputEnvKey    = envKeyPrefix + "JSON"
 	logGQLEnvKey        = envKeyPrefix + "LOG_GQL_ERRORS"
@@ -30,6 +32,7 @@ type Config struct {
 	VerboseOutput bool   `yaml:"-"`
 	JSONOutput    bool   `yaml:"-"`
 	LogGQLErrors  bool   `yaml:"-"`
+	Organization  string `yaml:"-"`
 }
 
 // New returns a new instance of Config populated with default values.
@@ -49,6 +52,9 @@ func (cfg *Config) ApplyEnv() {
 	cfg.VerboseOutput = env.IsTruthy(verboseOutputEnvKey) || cfg.VerboseOutput
 	cfg.JSONOutput = env.IsTruthy(jsonOutputEnvKey) || cfg.JSONOutput
 	cfg.LogGQLErrors = env.IsTruthy(logGQLEnvKey) || cfg.LogGQLErrors
+
+	cfg.Organization = env.FirstOrDefault(cfg.Organization,
+		orgEnvKey, organizationEnvKey)
 }
 
 // ApplyFile sets the properties of cfg which may be set via configuration file
