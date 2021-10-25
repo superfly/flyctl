@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/logrusorgru/aurora"
 
 	"github.com/superfly/flyctl/pkg/iostreams"
@@ -32,7 +33,7 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	switch _, err := cmd.ExecuteContextC(ctx); {
 	case err == nil:
 		return 0
-	case errors.Is(err, context.Canceled):
+	case errors.Is(err, context.Canceled), errors.Is(err, terminal.InterruptErr):
 		return 127
 	case errors.Is(err, context.DeadlineExceeded):
 		printError(io.ErrOut, err)
