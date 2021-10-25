@@ -12,10 +12,11 @@ import (
 
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
+	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 )
 
-// New initializes and returns a new apps Command.
+// New initializes and returns a new version Command.
 func New() *cobra.Command {
 	version := newVersion()
 
@@ -28,7 +29,7 @@ func New() *cobra.Command {
 }
 
 func newVersion() *cobra.Command {
-	version := command.New("version", run)
+	version := command.FromDocstrings("version", run)
 
 	flag.Add(version, nil,
 		flag.String{
@@ -48,37 +49,11 @@ func run(ctx context.Context) error {
 		info = buildinfo.Info()
 	)
 
-	if false {
+	if config.FromContext(ctx).JSONOutput {
 		_ = json.NewEncoder(out).Encode(info)
 	} else {
 		fmt.Fprintln(out, info)
 	}
 
-	return nil
-}
-
-func newUpdate() *cobra.Command {
-	return command.New("version.update", runUpdate)
-}
-
-func runUpdate(context.Context) error {
-	return nil
-}
-
-func newInitState() *cobra.Command {
-	initState := command.Build(
-		"init-state",
-		"init-state",
-		"Initialize installation state",
-		runInitState)
-
-	initState.Hidden = true
-
-	initState.Args = cobra.ExactArgs(1)
-
-	return initState
-}
-
-func runInitState(context.Context) error {
 	return nil
 }
