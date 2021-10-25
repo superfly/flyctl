@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/superfly/flyctl/api"
 )
 
 func TestAppNamePanics(t *testing.T) {
@@ -71,4 +72,15 @@ func TestAccessToken(t *testing.T) {
 
 	ctx := WithAccessToken(context.Background(), exp)
 	assert.Equal(t, exp, AccessToken(ctx))
+}
+
+func TestOrgPanics(t *testing.T) {
+	assert.Panics(t, func() { _ = Org(context.Background()) })
+}
+
+func TestOrg(t *testing.T) {
+	exp := new(api.Organization)
+
+	ctx := WithOrg(context.Background(), exp)
+	assert.Equal(t, exp, Org(ctx))
 }

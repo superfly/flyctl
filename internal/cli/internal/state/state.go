@@ -1,7 +1,11 @@
 // Package state implements setters and getters for command contexts.
 package state
 
-import "context"
+import (
+	"context"
+
+	"github.com/superfly/flyctl/api"
+)
 
 type contextKeyType int
 
@@ -14,6 +18,7 @@ const (
 	configFileKey
 	accessTokenKey
 	viperKey
+	orgKey
 )
 
 // WithAppName derives a Context carries the given app name from ctx.
@@ -85,6 +90,17 @@ func WithAccessToken(ctx context.Context, token string) context.Context {
 // carries no access token.
 func AccessToken(ctx context.Context) string {
 	return get(ctx, accessTokenKey).(string)
+}
+
+// WithOrg derives a Context that carries the given Organization from ctx.
+func WithOrg(ctx context.Context, org *api.Organization) context.Context {
+	return set(ctx, orgKey, org)
+}
+
+// Org returns the Organization ctx carries. It panics in case ctx carries no
+// Organization.
+func Org(ctx context.Context) *api.Organization {
+	return get(ctx, orgKey).(*api.Organization)
 }
 
 func get(ctx context.Context, key contextKeyType) interface{} {

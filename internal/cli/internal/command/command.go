@@ -8,7 +8,10 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
@@ -30,19 +33,22 @@ type (
 	Runner func(context.Context) error
 )
 
-func New(dsk string, fn Runner, p ...Preparer) *cobra.Command {
-	ds := docstrings.Get(dsk)
+// TODO: remove once all commands are implemented.
+var ErrNotImplementedYet = errors.New("command not implemented yet")
 
-	return Build(ds.Usage, ds.Short, ds.Long, fn, p...)
-}
-
-func Build(usage, short, long string, fn Runner, p ...Preparer) *cobra.Command {
+func New(usage, short, long string, fn Runner, p ...Preparer) *cobra.Command {
 	return &cobra.Command{
 		Use:   usage,
 		Short: short,
 		Long:  long,
 		RunE:  newRunE(fn, p...),
 	}
+}
+
+func FromDocstrings(dsk string, fn Runner, p ...Preparer) *cobra.Command {
+	ds := docstrings.Get(dsk)
+
+	return New(ds.Usage, ds.Short, ds.Long, fn, p...)
 }
 
 var commonPreparers = []Preparer{
@@ -174,18 +180,112 @@ func initClient(ctx context.Context) (context.Context, error) {
 	// TODO: refactor so that api package does NOT depend on global state
 	api.SetBaseURL(cfg.APIBaseURL)
 	api.SetErrorLog(cfg.LogGQLErrors)
-
 	c := client.FromToken(cfg.AccessToken)
 	logger.Debug("client initialized.")
 
 	return client.NewContext(ctx, c), nil
 }
 
-// RequireSession is a preparare which makes sure a session exists.
+// RequireSession is a Preparer which makes sure a session exists.
 func RequireSession(ctx context.Context) (context.Context, error) {
 	if !client.FromContext(ctx).Authenticated() {
 		return nil, client.ErrNoAuthToken
 	}
 
 	return ctx, nil
+}
+
+// RequireOrg is a Preparer which makes sure the user has selected an
+// organization. It embeds RequireSession.
+func RequireOrg(ctx context.Context) (context.Context, error) {
+	ctx, err := RequireSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	client := client.FromContext(ctx).API()
+
+	orgs, err := client.GetOrganizations(nil)
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(orgs[:], func(i, j int) bool { return orgs[i].Type < orgs[j].Type })
+
+	logger := logger.FromContext(ctx)
+	slug := config.FromContext(ctx).Organization
+
+	switch {
+	case slug == "" && len(orgs) == 1 && orgs[0].Type == "PERSONAL":
+		logger.Warnf("Automatically selected %s organization: %s\n",
+			strings.ToLower(orgs[0].Type), orgs[0].Name)
+
+		return state.WithOrg(ctx, &orgs[0]), nil
+	case slug != "":
+		for _, org := range orgs {
+			if slug == org.Slug {
+				return state.WithOrg(ctx, &org), nil
+			}
+		}
+
+		return nil, fmt.Errorf(`Organization %q not found`, slug)
+	default:
+		org, err := selectOrg(orgs)
+		if err != nil {
+			return nil, err
+		}
+
+		return state.WithOrg(ctx, org), nil
+	}
+}
+
+func selectOrg(orgs []api.Organization) (*api.Organization, error) {
+	var options []string
+	for _, org := range orgs {
+		options = append(options, fmt.Sprintf("%s (%s)", org.Name, org.Slug))
+	}
+
+	var selectedOrg int
+	prompt := &survey.Select{
+		Message:  "Select organization:",
+		Options:  options,
+		PageSize: 15,
+	}
+
+	if err := survey.AskOne(prompt, &selectedOrg); err != nil {
+		return nil, err
+	}
+
+	return &orgs[selectedOrg], nil
+}
+
+func selectOrganization(client *api.Client, slug string, typeFilter *api.OrganizationType) (*api.Organization, error) {
+	orgs, err := client.GetOrganizations(typeFilter)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(orgs) == 1 && orgs[0].Type == "PERSONAL" {
+		fmt.Printf("Automatically selected %s organization: %s\n", strings.ToLower(orgs[0].Type), orgs[0].Name)
+		return &orgs[0], nil
+	}
+
+	sort.Slice(orgs[:], func(i, j int) bool { return orgs[i].Type < orgs[j].Type })
+
+	options := []string{}
+
+	for _, org := range orgs {
+		options = append(options, fmt.Sprintf("%s (%s)", org.Name, org.Slug))
+	}
+
+	selectedOrg := 0
+	prompt := &survey.Select{
+		Message:  "Select organization:",
+		Options:  options,
+		PageSize: 15,
+	}
+	if err := survey.AskOne(prompt, &selectedOrg); err != nil {
+		return nil, err
+	}
+
+	return &orgs[selectedOrg], nil
 }

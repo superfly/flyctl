@@ -7,14 +7,17 @@ import (
 )
 
 const (
-	// AccessToken denotes the name of the access token flag.
-	AccessToken = "access-token"
+	// AccessTokenName denotes the name of the access token flag.
+	AccessTokenName = "access-token"
 
-	// Verbose denotes the name of the verbose flag.
-	Verbose = "verbose"
+	// VerboseName denotes the name of the verbose flag.
+	VerboseName = "verbose"
 
-	// JSON denotes the name of the verbose flag.
-	JSON = "json"
+	// JSONName denotes the name of the json flag.
+	JSONName = "json"
+
+	// OrgName denotes the name of the org flag.
+	OrgName = "org"
 )
 
 // Flag wraps the set of flags.
@@ -120,8 +123,8 @@ func (ss StringSlice) addTo(cmd *cobra.Command, v *viper.Viper) {
 // Org returns an org string flag.
 func Org() String {
 	return String{
-		Name:        "org",
-		Description: `The organization that will own the app`,
+		Name:        OrgName,
+		Description: "The organization to operate on",
 	}
 }
 

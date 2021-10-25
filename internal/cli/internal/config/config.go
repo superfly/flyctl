@@ -75,9 +75,10 @@ func (cfg *Config) ApplyFile(path string) (err error) {
 // ApplyFlags sets the properties of cfg which may be set via command line flags
 // to the values the flags of the given FlagSet may contain.
 func (cfg *Config) ApplyFlags(fs *pflag.FlagSet) {
-	applyStringFlag(&cfg.AccessToken, fs, flag.AccessToken)
-	applyBoolFlag(&cfg.VerboseOutput, fs, flag.Verbose)
-	applyBoolFlag(&cfg.JSONOutput, fs, flag.JSON)
+	applyStringFlag(&cfg.AccessToken, fs, flag.AccessTokenName)
+	applyBoolFlag(&cfg.VerboseOutput, fs, flag.VerboseName)
+	applyBoolFlag(&cfg.JSONOutput, fs, flag.JSONName)
+	applyStringFlag(&cfg.Organization, fs, flag.OrgName)
 }
 
 func applyStringFlag(dst *string, fs *pflag.FlagSet, name string) {
