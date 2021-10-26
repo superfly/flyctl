@@ -12,7 +12,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 )
 
-//go:embed templates/**
+//go:embed templates/** templates/**/.dockerignore
 var content embed.FS
 
 type SourceInfo struct {
@@ -26,6 +26,8 @@ type SourceInfo struct {
 	Env            map[string]string
 	Statics        []Static
 	Processes      map[string]string
+	DeployDocs     string
+	SkipDeploy     bool
 }
 
 type SourceFile struct {
@@ -48,6 +50,7 @@ func Scan(sourceDir string) (*SourceInfo, error) {
 		configureGo,
 		configureElixir,
 		configureDeno,
+		configureRemix,
 		configureNode,
 	}
 
@@ -254,6 +257,28 @@ func configureRedwood(sourceDir string) (*SourceInfo, error) {
 				UrlPrefix: "/",
 			},
 		},
+	}
+
+	return s, nil
+}
+
+func configureRemix(sourceDir string) (*SourceInfo, error) {
+	if !checksPass(sourceDir, fileExists("remix.config.js")) {
+		return nil, nil
+	}
+
+	s := &SourceInfo{
+		Family: "Remix",
+		Files:  templates("templates/remix"),
+		Port:   8080,
+		Secrets: map[string]string{
+			"REMIX_TOKEN": "Your Remix authentication token.",
+		},
+		Env: map[string]string{
+			"PORT": "8080",
+		},
+		SkipDeploy: true,
+		DeployDocs: `To deploy this app, run 'npm run deploy'`,
 	}
 
 	return s, nil

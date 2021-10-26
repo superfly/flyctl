@@ -260,10 +260,16 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	fmt.Println("Your app is ready. Deploy with `flyctl deploy`")
-
-	if !cmdctx.Config.GetBool("no-deploy") && (cmdctx.Config.GetBool("now") || confirm("Would you like to deploy now?")) {
+	if !cmdctx.Config.GetBool("no-deploy") &&
+		!srcInfo.SkipDeploy &&
+		(cmdctx.Config.GetBool("now") || confirm("Would you like to deploy now?")) {
 		return runDeploy(cmdctx)
+	}
+
+	if srcInfo.DeployDocs != "" {
+		fmt.Println(srcInfo.DeployDocs)
+	} else {
+		fmt.Println("Your app is ready. Deploy with `flyctl deploy`")
 	}
 
 	return nil
