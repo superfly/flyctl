@@ -26,7 +26,7 @@ type SourceInfo struct {
 	Env            map[string]string
 	Statics        []Static
 	Processes      map[string]string
-	Docs           string
+	DeployDocs     string
 	SkipDeploy     bool
 }
 
@@ -278,7 +278,7 @@ func configureRemix(sourceDir string) (*SourceInfo, error) {
 			"PORT": "8080",
 		},
 		SkipDeploy: true,
-		Docs:       `To deploy this app, run 'npm run deploy'`,
+		DeployDocs: `To deploy this app, run 'npm run deploy'`,
 	}
 
 	return s, nil
