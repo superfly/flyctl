@@ -241,7 +241,7 @@ func (s *Server) handleKill(_ net.Conn, _ []string) error {
 	return nil
 }
 
-func (s *Server) handlePing(c net.Conn, args []string) error {
+func (s *Server) handlePing(c net.Conn, _ []string) error {
 	resp := PingResponse{
 		Version:    buildinfo.Version(),
 		PID:        os.Getpid(),
