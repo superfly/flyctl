@@ -3,7 +3,6 @@ package sourcecode
 import (
 	"bufio"
 	"embed"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -292,8 +291,6 @@ func templates(name string) (files []SourceFile) {
 		if d.IsDir() {
 			return nil
 		}
-
-		fmt.Println(path)
 
 		relPath, err := filepath.Rel(name, path)
 		if err != nil {
