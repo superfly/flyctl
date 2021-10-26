@@ -22,7 +22,7 @@ import (
 )
 
 func main() {
-	cc := client.NewClient()
+	cc := client.New()
 	cmd := cmd.NewRootCmd(cc)
 	cmd.DisableAutoGenTag = true
 

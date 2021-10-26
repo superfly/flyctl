@@ -51,8 +51,16 @@ func runImageUpdate(cmdCtx *cmdctx.CmdContext) error {
 	cI := app.ImageDetails
 	lI := app.LatestImageDetails
 
-	current := fmt.Sprintf("%s:%s %s", cI.Repository, cI.Tag, cI.Version)
-	target := fmt.Sprintf("%s:%s %s", lI.Repository, lI.Tag, lI.Version)
+	current := fmt.Sprintf("%s:%s", cI.Repository, cI.Tag)
+	target := fmt.Sprintf("%s:%s", lI.Repository, lI.Tag)
+
+	if cI.Version != "" {
+		current = fmt.Sprintf("%s %s", current, cI.Version)
+	}
+
+	if lI.Version != "" {
+		target = fmt.Sprintf("%s %s", target, lI.Version)
+	}
 
 	confirm := false
 	prompt := &survey.Confirm{
@@ -109,9 +117,18 @@ func runImageShow(ctx *cmdctx.CmdContext) error {
 	}
 
 	if app.ImageVersionTrackingEnabled && app.ImageUpgradeAvailable {
-		current := fmt.Sprintf("%s:%s %s", app.ImageDetails.Repository, app.ImageDetails.Tag, app.ImageDetails.Version)
-		latest := fmt.Sprintf("%s:%s %s", app.LatestImageDetails.Repository, app.LatestImageDetails.Tag, app.LatestImageDetails.Version)
-		fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Update available %s -> %s", current, latest)))
+		current := fmt.Sprintf("%s:%s", app.ImageDetails.Repository, app.ImageDetails.Tag)
+		latest := fmt.Sprintf("%s:%s", app.LatestImageDetails.Repository, app.LatestImageDetails.Tag)
+
+		if app.ImageDetails.Version != "" {
+			current = fmt.Sprintf("%s %s", current, app.ImageDetails.Version)
+		}
+
+		if app.LatestImageDetails.Version != "" {
+			latest = fmt.Sprintf("%s %s", latest, app.LatestImageDetails.Version)
+		}
+
+		fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Update available! (%s -> %s)", current, latest)))
 		fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Run `fly image update` to migrate to the latest image version.\n")))
 	}
 
@@ -121,7 +138,7 @@ func runImageShow(ctx *cmdctx.CmdContext) error {
 			TrackingEnabled: app.ImageVersionTrackingEnabled,
 		}, HideHeader: true,
 		Vertical: true,
-		Title:    "Image details",
+		Title:    "Current image details",
 	})
 	if err != nil {
 		return err
@@ -130,7 +147,8 @@ func runImageShow(ctx *cmdctx.CmdContext) error {
 	if app.ImageUpgradeAvailable {
 		err = ctx.Frender(cmdctx.PresenterOption{
 			Presentable: &presenters.ImageDetails{
-				ImageDetails: app.LatestImageDetails,
+				ImageDetails:    app.LatestImageDetails,
+				TrackingEnabled: app.ImageVersionTrackingEnabled,
 			},
 			HideHeader: true,
 			Vertical:   true,
