@@ -175,7 +175,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 			}
 			opts.DockerfilePath = dockerfilePath
 		} else if dockerfilePath := cmdCtx.AppConfig.Dockerfile(); dockerfilePath != "" {
-			opts.DockerfilePath = filepath.Join(cmdCtx.WorkingDir, dockerfilePath)
+			opts.DockerfilePath = filepath.Join(filepath.Dir(cmdCtx.ConfigFile), dockerfilePath)
 		}
 
 		extraArgs, err := cmdutil.ParseKVStringsToMap(cmdCtx.Config.GetStringSlice("build-arg"))
