@@ -182,6 +182,7 @@ type Query struct {
 	CreatePostgresCluster *CreatePostgresClusterPayload
 
 	AttachPostgresCluster *AttachPostgresClusterPayload
+	DetachPostgresCluster *DetachPostgresClusterPayload
 
 	CreateOrganizationInvitation CreateOrganizationInvitation
 
@@ -551,6 +552,7 @@ type CreateAppInput struct {
 	Name            string  `json:"name"`
 	PreferredRegion *string `json:"preferredRegion,omitempty"`
 	Network         *string `json:"network,omitempty"`
+	AppRoleID       string  `json:"appRoleId,omitempty"`
 }
 
 type LogEntry struct {
@@ -1063,6 +1065,14 @@ type AttachPostgresClusterPayload struct {
 	App                     App
 	PostgresClusterApp      App
 	ConnectionString        string
+	EnvironmentVariableName string
+}
+
+type DetachPostgresClusterPayload struct {
+	App                     App
+	PostgresClusterApp      App
+	DatabaseName            string
+	DatabaseUser            string
 	EnvironmentVariableName string
 }
 

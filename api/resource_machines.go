@@ -2,6 +2,33 @@ package api
 
 import "context"
 
+func (client *Client) GetMachine(ctx context.Context, machineId string) (*Machine, error) {
+	query := `
+		query($id: String!) {
+			machine(id: $id) {
+				id
+				name
+				state
+				region
+				createdAt
+			}
+		}
+		`
+
+	req := client.NewRequest(query)
+
+	if machineId != "" {
+		req.Var("id", machineId)
+	}
+
+	data, err := client.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.Machine, nil
+}
+
 func (client *Client) ListMachines(ctx context.Context, appID string, state string) ([]*Machine, error) {
 	query := `
 		query($state: String, $appId: String) {

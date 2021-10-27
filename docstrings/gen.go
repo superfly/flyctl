@@ -605,6 +605,38 @@ about the Fly platform.`,
 		return KeyStrings{"proxy <local:remote>", "Proxies connections to a fly app",
 			`Proxies connections to a fly app through the wireguard tunnel`,
 		}
+	case "recipes":
+		return KeyStrings{"recipes", "TBD",
+			`TBD`,
+		}
+	case "recipes.postgres":
+		return KeyStrings{"postgres", "Postgres recipes",
+			`Postgres recipes`,
+		}
+	case "recipes.postgres.attach":
+		return KeyStrings{"attach", "Attach PG to Application",
+			`Attach PG to Application`,
+		}
+	case "recipes.postgres.connect":
+		return KeyStrings{"connect", "Connect to PG console",
+			`Connect to PG console`,
+		}
+	case "recipes.postgres.detach":
+		return KeyStrings{"detach", "Detach PG from Application",
+			`Detach PG from Application`,
+		}
+	case "recipes.postgres.provision":
+		return KeyStrings{"provision", "Postgres provision recipe",
+			`Postgres provision recipe`,
+		}
+	case "recipes.postgres.reboot":
+		return KeyStrings{"reboot", "Performs a rolling-reboot against a target Postgres cluster",
+			`Performs a rolling-reboot against a target Postgres cluster`,
+		}
+	case "recipes.postgres.version-upgrade":
+		return KeyStrings{"version-upgrade", "Updates target Postgres cluster with specified image.",
+			`Updates the target Postgres cluster with the specified image.`,
+		}
 	case "regions":
 		return KeyStrings{"regions", "Manage regions",
 			`Configure the region placement rules for an application.`,

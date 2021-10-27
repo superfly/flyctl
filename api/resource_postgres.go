@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 )
 
 func (client *Client) CreatePostgresCluster(ctx context.Context, input CreatePostgresClusterInput) (*CreatePostgresClusterPayload, error) {
@@ -90,7 +91,15 @@ func (client *Client) DetachPostgresCluster(ctx context.Context, input DetachPos
 	query := `
 		mutation($input: DetachPostgresClusterInput!) {
 			detachPostgresCluster(input: $input) {
-				clientMutationId
+				app {
+					name
+				}
+				postgresClusterApp {
+					name
+				}
+				databaseUser
+				databaseName
+				environmentVariableName
 			}
 		}
 		`
@@ -98,8 +107,13 @@ func (client *Client) DetachPostgresCluster(ctx context.Context, input DetachPos
 	req := client.NewRequest(query)
 	req.Var("input", input)
 
-	_, err := client.RunWithContext(ctx, req)
-	return err
+	data, err := client.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("Data: %+v\n", data)
+	return data.DetachPostgresCluster, nil
 }
 
 func (client *Client) ListPostgresDatabases(ctx context.Context, appName string) ([]PostgresClusterDatabase, error) {

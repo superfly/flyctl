@@ -41,6 +41,41 @@ The update will perform a rolling restart against each VM, which may result in a
 shortHelp = "Updates the app's image to the latest available version. (Fly Postgres only)"
 usage = "update"
 
+[recipes]
+longHelp = "TBD"
+shortHelp = "TBD"
+usage = "recipes"
+
+[recipes.postgres]
+longHelp = "Postgres recipes"
+shortHelp = "Postgres recipes"
+usage = "postgres"
+[recipes.postgres.provision]
+longHelp = "Postgres provision recipe"
+shortHelp = "Postgres provision recipe"
+usage = "provision"
+[recipes.postgres.reboot]
+longHelp = "Performs a rolling-reboot against a target Postgres cluster"
+shortHelp = "Performs a rolling-reboot against a target Postgres cluster"
+usage = "reboot"
+[recipes.postgres.version-upgrade]
+longHelp = "Updates the target Postgres cluster with the specified image."
+shortHelp = "Updates target Postgres cluster with specified image."
+usage = "version-upgrade"
+[recipes.postgres.connect]
+longHelp = "Connect to PG console"
+shortHelp = "Connect to PG console"
+usage = "connect"
+[recipes.postgres.attach]
+longHelp = "Attach PG to Application"
+shortHelp = "Attach PG to Application"
+usage = "attach"
+[recipes.postgres.detach]
+longHelp = "Detach PG from Application"
+shortHelp = "Detach PG from Application"
+usage = "detach"
+
+
 [open]
 longHelp = """Open browser to current deployed application. If an optional path is specified, this is appended to the
 URL for deployed application.
