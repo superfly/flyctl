@@ -5,7 +5,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/cmd"
-	"github.com/superfly/flyctl/internal/cli/internal/apps"
 	"github.com/superfly/flyctl/internal/cli/internal/version"
 	"github.com/superfly/flyctl/internal/client"
 )
@@ -39,7 +38,6 @@ func New() *cobra.Command {
 	// newCommands is the set of commands which work with the new way
 	newCommands := []*cobra.Command{
 		version.New(),
-		apps.New(),
 	}
 
 	// newCommandNames is the set of the names of the above commands
