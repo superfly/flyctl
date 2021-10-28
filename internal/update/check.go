@@ -73,6 +73,10 @@ func PromptFor(ctx context.Context) {
 		return
 	}
 
+	if newVersion == nil {
+		return
+	}
+
 	msg := fmt.Sprintf("Update available %s -> %s.\nRun \"%s\" to upgrade.",
 		currentVersion,
 		newVersion.Version,
