@@ -13,8 +13,11 @@ const (
 	// VerboseName denotes the name of the verbose flag.
 	VerboseName = "verbose"
 
-	// JSONName denotes the name of the json flag.
-	JSONName = "json"
+	// JSONOutputName denotes the name of the json output flag.
+	JSONOutputName = "json"
+
+	// LocalOnlyName denotes the name of the local-only flag.
+	LocalOnlyName = "local-only"
 
 	// OrgName denotes the name of the org flag.
 	OrgName = "org"
