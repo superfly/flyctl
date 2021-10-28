@@ -59,7 +59,7 @@ func newScaleCommand(client *client.Client) *Command {
 }
 
 func runScaleVM(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	sizeName := cmdCtx.Args[0]
 
@@ -83,7 +83,7 @@ func runScaleVM(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runScaleCount(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	groups := map[string]int{}
 
@@ -139,7 +139,7 @@ func runScaleCount(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runScaleShow(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	size, tgCounts, processGroups, err := cmdCtx.Client.API().AppVMResources(ctx, cmdCtx.AppName)
 	if err != nil {
@@ -226,7 +226,7 @@ func printVMResources(commandContext *cmdctx.CmdContext, vmSize api.VMSize, coun
 }
 
 func runScaleMemory(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	memoryMB, err := strconv.ParseInt(cmdCtx.Args[0], 10, 64)
 	if err != nil {

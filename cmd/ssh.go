@@ -109,7 +109,7 @@ func newSSHCommand(client *client.Client) *Command {
 }
 
 func runSSHLog(cc *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cc.Command.Context()
 
 	client := cc.Client.API()
 
@@ -166,7 +166,7 @@ func runSSHLog(cc *cmdctx.CmdContext) error {
 }
 
 func runSSHEstablish(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	client := cmdCtx.Client.API()
 
@@ -193,7 +193,7 @@ func runSSHEstablish(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func singleUseSSHCertificate(cmdCtx *cmdctx.CmdContext, org *api.Organization) (*api.IssuedCertificate, error) {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	client := cmdCtx.Client.API()
 
@@ -207,7 +207,7 @@ func singleUseSSHCertificate(cmdCtx *cmdctx.CmdContext, org *api.Organization) (
 }
 
 func runSSHIssue(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	client := cmdCtx.Client.API()
 

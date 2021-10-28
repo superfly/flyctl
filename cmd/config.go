@@ -38,7 +38,7 @@ func newConfigCommand(client *client.Client) *Command {
 }
 
 func runDisplayConfig(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	cfg, err := cmdCtx.Client.API().GetConfig(ctx, cmdCtx.AppName)
 	if err != nil {
@@ -53,7 +53,7 @@ func runDisplayConfig(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runSaveConfig(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	configfilename, err := flyctl.ResolveConfigFileFromPath(cmdCtx.WorkingDir)
 
@@ -111,7 +111,7 @@ func runValidateConfig(commandContext *cmdctx.CmdContext) error {
 }
 
 func runEnvConfig(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	secrets, err := cmdCtx.Client.API().GetAppSecrets(ctx, cmdCtx.AppName)
 	if err != nil {

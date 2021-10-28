@@ -55,7 +55,7 @@ type TimingRequest struct {
 }
 
 func TimeRegions(cmdCtx *cmdctx.CmdContext, url string, includeNoGateway bool) ([]api.Region, <-chan TimingResponse, error) {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	regions, _, err := cmdCtx.Client.API().PlatformRegions(ctx)
 	if err != nil {

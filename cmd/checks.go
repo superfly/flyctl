@@ -69,7 +69,7 @@ func runListChecksHandlers(ctx *cmdctx.CmdContext) error {
 type createHandlerFn func(*cmdctx.CmdContext, *api.Organization, string) error
 
 func runCreateChecksHandler(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 	handlerFn := map[string]createHandlerFn{
 		"slack":     setSlackChecksHandler,
 		"pagerduty": setPagerDutyChecksHandler,

@@ -38,7 +38,7 @@ func newStatusCommand(client *client.Client) *Command {
 }
 
 func runStatus(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	watch := cmdCtx.Config.GetBool("watch")
 	refreshRate := cmdCtx.Config.GetInt("rate")
@@ -155,7 +155,7 @@ func runStatus(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runAllocStatus(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	alloc, err := cmdCtx.Client.API().GetAllocationStatus(ctx, cmdCtx.AppName, cmdCtx.Args[0], 25)
 	if err != nil {

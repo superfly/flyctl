@@ -31,7 +31,7 @@ func newMoveCommand(client *client.Client) *Command {
 }
 
 func runMove(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 	appName := cmdCtx.Args[0]
 
 	app, err := cmdCtx.Client.API().GetApp(appName)

@@ -53,7 +53,7 @@ func newRegionsCommand(client *client.Client) *Command {
 }
 
 func runRegionsAdd(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	group := cmdCtx.Config.GetString("group")
 	input := api.ConfigureRegionsInput{
@@ -73,7 +73,7 @@ func runRegionsAdd(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runRegionsRemove(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	group := cmdCtx.Config.GetString("group")
 	input := api.ConfigureRegionsInput{
@@ -93,7 +93,7 @@ func runRegionsRemove(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runRegionsSet(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	addList := make([]string, 0)
 	delList := make([]string, 0)
@@ -138,7 +138,7 @@ func runRegionsSet(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runRegionsList(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	regions, backupRegions, err := cmdCtx.Client.API().ListAppRegions(ctx, cmdCtx.AppName)
 	if err != nil {
@@ -151,7 +151,7 @@ func runRegionsList(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runBackupRegionsSet(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	input := api.ConfigureRegionsInput{
 		AppID:         cmdCtx.AppName,

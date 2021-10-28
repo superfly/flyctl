@@ -30,7 +30,7 @@ func newPlatformCommand(client *client.Client) *Command {
 }
 
 func runPlatformRegions(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	regions, _, err := cmdCtx.Client.API().PlatformRegions(ctx)
 	if err != nil {
@@ -43,7 +43,7 @@ func runPlatformRegions(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runPlatformVMSizes(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	sizes, err := cmdCtx.Client.API().PlatformVMSizes(ctx)
 	if err != nil {

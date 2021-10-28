@@ -163,7 +163,7 @@ func runListApps(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runListOrgs(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	asJSON := cmdCtx.OutputJSON()
 

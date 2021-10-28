@@ -48,7 +48,7 @@ func newCertificatesCommand(client *client.Client) *Command {
 }
 
 func runCertsList(commandContext *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := commandContext.Command.Context()
 
 	certs, err := commandContext.Client.API().GetAppCertificates(ctx, commandContext.AppName)
 	if err != nil {
@@ -59,7 +59,7 @@ func runCertsList(commandContext *cmdctx.CmdContext) error {
 }
 
 func runCertShow(commandContext *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := commandContext.Command.Context()
 
 	hostname := commandContext.Args[0]
 
@@ -80,7 +80,7 @@ func runCertShow(commandContext *cmdctx.CmdContext) error {
 }
 
 func runCertCheck(commandContext *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := commandContext.Command.Context()
 
 	hostname := commandContext.Args[0]
 
@@ -103,7 +103,7 @@ func runCertCheck(commandContext *cmdctx.CmdContext) error {
 }
 
 func runCertAdd(commandContext *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := commandContext.Command.Context()
 
 	hostname := commandContext.Args[0]
 
@@ -116,7 +116,7 @@ func runCertAdd(commandContext *cmdctx.CmdContext) error {
 }
 
 func runCertDelete(commandContext *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := commandContext.Command.Context()
 
 	hostname := commandContext.Args[0]
 
@@ -146,7 +146,7 @@ func runCertDelete(commandContext *cmdctx.CmdContext) error {
 }
 
 func reportNextStepCert(cmdCtx *cmdctx.CmdContext, hostname string, cert *api.AppCertificate, hostcheck *api.HostnameCheck) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 	// These are the IPs we have for the app
 	ips, err := cmdCtx.Client.API().GetIPAddresses(ctx, cmdCtx.AppName)
 	if err != nil {

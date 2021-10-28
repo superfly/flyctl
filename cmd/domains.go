@@ -37,7 +37,7 @@ func newDomainsCommand(client *client.Client) *Command {
 }
 
 func runDomainsList(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	var orgSlug string
 	if len(cmdCtx.Args) == 0 {
@@ -75,7 +75,7 @@ func runDomainsList(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runDomainsShow(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	name := cmdCtx.Args[0]
 
@@ -118,7 +118,8 @@ func runDomainsShow(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runDomainsCreate(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
+
 	var org *api.Organization
 	var name string
 	var err error
@@ -157,7 +158,7 @@ func runDomainsCreate(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runDomainsRegister(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	var org *api.Organization
 	var name string

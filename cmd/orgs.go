@@ -48,7 +48,7 @@ func newOrgsCommand(client *client.Client) *Command {
 }
 
 func runOrgsList(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	asJSON := cmdCtx.OutputJSON()
 
@@ -99,7 +99,7 @@ func printInvite(in api.Invitation, headers bool) {
 }
 
 func runOrgsShow(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	asJSON := cmdCtx.OutputJSON()
 	orgslug := cmdCtx.Args[0]
@@ -145,7 +145,7 @@ func runOrgsShow(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runOrgsInvite(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	var orgSlug, userEmail string
 
@@ -187,7 +187,7 @@ func runOrgsInvite(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runOrgsCreate(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	asJSON := cmdCtx.OutputJSON()
 
@@ -221,7 +221,7 @@ func runOrgsCreate(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runOrgsRemove(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	var orgSlug, userEmail string
 
@@ -280,7 +280,7 @@ func runOrgsRevoke(_ *cmdctx.CmdContext) error {
 }
 
 func runOrgsDelete(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	orgslug := cmdCtx.Args[0]
 

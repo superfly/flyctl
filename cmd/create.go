@@ -10,7 +10,8 @@ import (
 //TODO: Move all output to status styled begin/done updates
 
 func runCreate(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
+
 	var appName = ""
 
 	if len(cmdCtx.Args) > 0 {

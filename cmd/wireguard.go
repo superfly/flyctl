@@ -67,7 +67,7 @@ func argOrPrompt(ctx *cmdctx.CmdContext, nth int, prompt string) (string, error)
 }
 
 func orgByArg(cmdCtx *cmdctx.CmdContext) (*api.Organization, error) {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 	client := cmdCtx.Client.API()
 
 	if len(cmdCtx.Args) == 0 {
@@ -83,7 +83,7 @@ func orgByArg(cmdCtx *cmdctx.CmdContext) (*api.Organization, error) {
 }
 
 func runWireGuardList(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	client := cmdCtx.Client.API()
 
@@ -242,7 +242,7 @@ func runWireGuardCreate(ctx *cmdctx.CmdContext) error {
 }
 
 func runWireGuardRemove(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	client := cmdCtx.Client.API()
 
@@ -274,7 +274,7 @@ func runWireGuardRemove(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runWireGuardTokenList(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	client := cmdCtx.Client.API()
 
@@ -309,7 +309,7 @@ func runWireGuardTokenList(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runWireGuardTokenCreate(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	client := cmdCtx.Client.API()
 
@@ -363,7 +363,7 @@ and 'pubkey' (the public key of the gateway), which you can inject into a
 }
 
 func runWireGuardTokenDelete(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	client := cmdCtx.Client.API()
 

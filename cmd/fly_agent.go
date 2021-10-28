@@ -50,7 +50,7 @@ func newAgentCommand(client *client.Client) *Command {
 }
 
 func runFlyAgentDaemonStart(cc *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cc.Command.Context()
 
 	if err := agent.InitAgentLogs(); err != nil {
 		return err

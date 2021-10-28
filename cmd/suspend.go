@@ -26,7 +26,7 @@ func newSuspendCommand(client *client.Client) *Command {
 }
 
 func runSuspend(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 	// appName := ctx.Args[0]
 	// fmt.Println(appName, len(ctx.Args))
 	// if appName == "" {

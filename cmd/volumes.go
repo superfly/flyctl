@@ -67,7 +67,7 @@ func newVolumesCommand(client *client.Client) *Command {
 }
 
 func runListVolumes(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	volumes, err := cmdCtx.Client.API().GetVolumes(ctx, cmdCtx.AppName)
 
@@ -104,7 +104,7 @@ func runListVolumes(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runCreateVolume(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	volName := cmdCtx.Args[0]
 
@@ -149,7 +149,7 @@ func runCreateVolume(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runDeleteVolume(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	volID := cmdCtx.Args[0]
 
@@ -183,7 +183,7 @@ func runDeleteVolume(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runShowVolume(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	volID := cmdCtx.Args[0]
 
@@ -209,7 +209,7 @@ func runShowVolume(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runListVolumeSnapshots(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	volName := cmdCtx.Args[0]
 

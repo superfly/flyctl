@@ -70,7 +70,7 @@ func newLaunchCommand(client *client.Client) *Command {
 }
 
 func runLaunch(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	dir := cmdCtx.Config.GetString("path")
 
@@ -315,7 +315,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func shouldDeployExistingApp(cmdCtx *cmdctx.CmdContext, appName string) (bool, error) {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	status, err := cmdCtx.Client.API().GetAppStatus(ctx, appName, false)
 	if err != nil {

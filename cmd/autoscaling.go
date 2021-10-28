@@ -56,7 +56,7 @@ func runSetParamsOnly(commandContext *cmdctx.CmdContext) error {
 }
 
 func runDisableAutoscaling(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	newcfg := api.UpdateAutoscaleConfigInput{AppID: cmdCtx.AppName, Enabled: api.BoolPointer(false)}
 
@@ -71,7 +71,7 @@ func runDisableAutoscaling(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func actualScale(cmdCtx *cmdctx.CmdContext, balanceRegions bool, setParamsOnly bool) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	currentcfg, err := cmdCtx.Client.API().AppAutoscalingConfig(ctx, cmdCtx.AppName)
 	if err != nil {
@@ -145,7 +145,7 @@ func actualScale(cmdCtx *cmdctx.CmdContext, balanceRegions bool, setParamsOnly b
 }
 
 func runAutoscalingShow(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	cfg, err := cmdCtx.Client.API().AppAutoscalingConfig(ctx, cmdCtx.AppName)
 	if err != nil {

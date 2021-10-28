@@ -90,7 +90,7 @@ func newDeployCommand(client *client.Client) *Command {
 }
 
 func runDeploy(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	cmdCtx.Status("deploy", cmdctx.STITLE, "Deploying", cmdCtx.AppName)
 

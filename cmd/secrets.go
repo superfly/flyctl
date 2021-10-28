@@ -60,7 +60,7 @@ func newSecretsCommand(client *client.Client) *Command {
 }
 
 func runListSecrets(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	secrets, err := cmdCtx.Client.API().GetAppSecrets(ctx, cmdCtx.AppName)
 	if err != nil {
@@ -71,7 +71,7 @@ func runListSecrets(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runSetSecrets(cc *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cc.Command.Context()
 
 	app, err := cc.Client.API().GetApp(cc.AppName)
 	if err != nil {
@@ -116,7 +116,7 @@ func runSetSecrets(cc *cmdctx.CmdContext) error {
 }
 
 func runImportSecrets(cc *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cc.Command.Context()
 
 	app, err := cc.Client.API().GetApp(cc.AppName)
 	if err != nil {
@@ -197,7 +197,7 @@ func runImportSecrets(cc *cmdctx.CmdContext) error {
 }
 
 func runSecretsUnset(cc *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cc.Command.Context()
 
 	app, err := cc.Client.API().GetApp(cc.AppName)
 	if err != nil {

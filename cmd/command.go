@@ -1,13 +1,9 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
-	"os"
-	"os/signal"
 	"path"
 	"path/filepath"
-	"syscall"
 
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
@@ -187,7 +183,7 @@ func BuildCommandCobra(parent *Command, fn RunFn, cmd *cobra.Command, client *cl
 
 	if fn != nil {
 		flycmd.RunE = func(cmd *cobra.Command, args []string) error {
-			ctx, err := cmdctx.NewCmdContext(client, namespace(cmd), args)
+			ctx, err := cmdctx.NewCmdContext(client, namespace(cmd), cmd, args)
 			if err != nil {
 				return err
 			}
@@ -447,17 +443,4 @@ func workingDirectoryFromArg(index int) func(*Command) Initializer {
 			},
 		}
 	}
-}
-
-func createCancellableContext() context.Context {
-	signals := make(chan os.Signal)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
-	ctx, cancel := context.WithCancel(context.Background())
-
-	go func() {
-		<-signals
-		cancel()
-	}()
-
-	return ctx
 }

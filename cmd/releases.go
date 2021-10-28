@@ -16,7 +16,7 @@ func newReleasesCommand(client *client.Client) *Command {
 }
 
 func runReleases(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	releases, err := cmdCtx.Client.API().GetAppReleases(ctx, cmdCtx.AppName, 25)
 	if err != nil {

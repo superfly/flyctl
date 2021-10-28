@@ -70,7 +70,7 @@ func newAuthCommand(client *client.Client) *Command {
 }
 
 func runWhoami(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	user, err := cmdCtx.Client.API().GetCurrentUser(ctx)
 	if err != nil {
@@ -102,7 +102,7 @@ func runSignup(ctx *cmdctx.CmdContext) error {
 }
 
 func runWebLogin(cmdCtx *cmdctx.CmdContext, signup bool) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	name, _ := os.Hostname()
 
@@ -261,8 +261,8 @@ func runAuthToken(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runAuthDocker(_ *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+func runAuthDocker(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
 
 	binary, err := exec.LookPath("docker")
 	if err != nil {

@@ -50,7 +50,7 @@ func newIPAddressesCommand(client *client.Client) *Command {
 }
 
 func runIPAddressesList(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	ipAddresses, err := cmdCtx.Client.API().GetIPAddresses(ctx, cmdCtx.AppName)
 	if err != nil {
@@ -71,7 +71,7 @@ func runAllocateIPAddressV6(ctx *cmdctx.CmdContext) error {
 }
 
 func runAllocateIPAddress(cmdCtx *cmdctx.CmdContext, addrType string) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	appName := cmdCtx.AppName
 	regionCode := cmdCtx.Config.GetString("region")
@@ -87,7 +87,7 @@ func runAllocateIPAddress(cmdCtx *cmdctx.CmdContext, addrType string) error {
 }
 
 func runReleaseIPAddress(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	appName := cmdCtx.AppName
 	address := cmdCtx.Args[0]
@@ -111,7 +111,7 @@ func runReleaseIPAddress(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runPrivateIPAddressesList(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	appstatus, err := cmdCtx.Client.API().GetAppStatus(ctx, cmdCtx.AppName, false)
 	if err != nil {

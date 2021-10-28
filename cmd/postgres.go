@@ -80,7 +80,8 @@ func runPostgresList(ctx *cmdctx.CmdContext) error {
 }
 
 func runCreatePostgresCluster(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
+
 	name := cmdCtx.Config.GetString("name")
 	if name == "" {
 		n, err := inputAppName("", false)
@@ -162,7 +163,7 @@ func runCreatePostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 	fmt.Println(aurora.Italic("Save your credentials in a secure place, you won't be able to see them again!"))
 	fmt.Println()
 
-	cancelCtx := createCancellableContext()
+	cancelCtx := cmdCtx.Command.Context()
 	cmdCtx.AppName = payload.App.Name
 	err = watchDeployment(cancelCtx, cmdCtx)
 

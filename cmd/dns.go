@@ -38,7 +38,7 @@ func newDNSCommand(client *client.Client) *Command {
 }
 
 func runRecordsList(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	name := cmdCtx.Args[0]
 
@@ -76,7 +76,7 @@ func runRecordsList(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runRecordsExport(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	name := cmdCtx.Args[0]
 
@@ -112,7 +112,7 @@ func runRecordsExport(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runRecordsImport(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	name := cmdCtx.Args[0]
 	var filename string

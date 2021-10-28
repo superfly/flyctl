@@ -28,7 +28,7 @@ func newBuildsCommand(client *client.Client) *Command {
 }
 
 func runListBuilds(commandContext *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := commandContext.Command.Context()
 
 	builds, err := commandContext.Client.API().ListBuilds(ctx, commandContext.AppName)
 	if err != nil {
@@ -39,7 +39,7 @@ func runListBuilds(commandContext *cmdctx.CmdContext) error {
 }
 
 func runBuildLogs(cc *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cc.Command.Context()
 	buildID := cc.Args[0]
 
 	logs := builds.NewBuildMonitor(buildID, cc.Client.API())
