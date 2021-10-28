@@ -84,16 +84,16 @@ func (cfg *Config) ApplyFlags(fs *pflag.FlagSet) {
 	})
 
 	applyBoolFlags(fs, map[string]*bool{
-		flag.VerboseName: &cfg.VerboseOutput,
-		flag.JSONName:    &cfg.JSONOutput,
-		localOnlyEnvKey:  &cfg.LocalOnly,
+		flag.VerboseName:    &cfg.VerboseOutput,
+		flag.JSONOutputName: &cfg.JSONOutput,
+		flag.LocalOnlyName:  &cfg.LocalOnly,
 	})
 }
 
 func applyStringFlags(fs *pflag.FlagSet, flags map[string]*string) {
 	for name, dst := range flags {
 		if !fs.Changed(name) {
-			return
+			continue
 		}
 
 		if v, err := fs.GetString(name); err != nil {
@@ -107,7 +107,7 @@ func applyStringFlags(fs *pflag.FlagSet, flags map[string]*string) {
 func applyBoolFlags(fs *pflag.FlagSet, flags map[string]*bool) {
 	for name, dst := range flags {
 		if !fs.Changed(name) {
-			return
+			continue
 		}
 
 		if v, err := fs.GetBool(name); err != nil {
