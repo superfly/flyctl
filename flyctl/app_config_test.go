@@ -54,3 +54,21 @@ func TestLoadTOMLAppConfigWithServices(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, p.Definition, rawData)
 }
+
+func TestLoadTOMLAppConfigWithEnvVars(t *testing.T) {
+	path := "./testdata/env-vars.toml"
+	p, err := LoadAppConfig(path)
+	assert.NoError(t, err)
+	assert.Equal(t, "debug", p.Env["LOG_LEVEL"])
+	assert.Equal(t, "production", p.Env["RAILS_ENV"])
+
+	p.SetEnvVariable("LOG_LEVEL", "info")
+
+	assert.Equal(t, "info", p.Env["LOG_LEVEL"])
+	assert.Equal(t, "production", p.Env["RAILS_ENV"])
+
+	p.SetEnvVariables(map[string]string{"RAILS_ENV": "development"})
+
+	assert.Equal(t, "info", p.Env["LOG_LEVEL"])
+	assert.Equal(t, "development", p.Env["RAILS_ENV"])
+}

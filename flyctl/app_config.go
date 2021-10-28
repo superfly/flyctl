@@ -27,6 +27,7 @@ type AppConfig struct {
 	AppName    string
 	Build      *Build
 	Definition map[string]interface{}
+	Env        map[string]string
 }
 
 type Build struct {
@@ -46,6 +47,7 @@ type Build struct {
 func NewAppConfig() *AppConfig {
 	return &AppConfig{
 		Definition: map[string]interface{}{},
+		Env:        map[string]string{},
 	}
 }
 
@@ -55,9 +57,7 @@ func LoadAppConfig(configFile string) (*AppConfig, error) {
 		return nil, err
 	}
 
-	appConfig := AppConfig{
-		Definition: map[string]interface{}{},
-	}
+	appConfig := *NewAppConfig()
 
 	file, err := os.Open(fullConfigFilePath)
 	if err != nil {
@@ -131,7 +131,13 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 	if appName, ok := (data["app"]).(string); ok {
 		ac.AppName = appName
 	}
+	if env, ok := data["env"].(map[string]interface{}); ok {
+		for k, v := range env {
+			ac.Env[k] = fmt.Sprint(v)
+		}
+	}
 	delete(data, "app")
+	delete(data, "env")
 	if buildConfig, ok := (data["build"]).(map[string]interface{}); ok {
 		insection := false
 		b := Build{
@@ -313,40 +319,13 @@ func (ac *AppConfig) GetInternalPort() (int, error) {
 }
 
 func (ac *AppConfig) SetEnvVariables(vals map[string]string) {
-	var env map[string]string
-
-	if rawEnv, ok := ac.Definition["env"]; ok {
-		if castEnv, ok := rawEnv.(map[string]string); ok {
-			env = castEnv
-		}
-	}
-	if env == nil {
-		env = map[string]string{}
-	}
-
 	for k, v := range vals {
-		env[k] = v
+		ac.SetEnvVariable(k, v)
 	}
-
-	ac.Definition["env"] = env
 }
 
 func (ac *AppConfig) SetEnvVariable(name, value string) {
-	var env map[string]string
-
-	if rawEnv, ok := ac.Definition["env"]; ok {
-		if castEnv, ok := rawEnv.(map[string]string); ok {
-			env = castEnv
-		}
-	}
-
-	if env == nil {
-		env = map[string]string{}
-	}
-
-	env[name] = value
-
-	ac.Definition["env"] = env
+	ac.Env[name] = value
 }
 
 func (ac *AppConfig) SetProcess(name, value string) {
