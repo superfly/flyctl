@@ -4,6 +4,8 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"runtime"
+	"syscall"
 
 	"github.com/superfly/flyctl/pkg/iostreams"
 
@@ -17,9 +19,7 @@ func main() {
 }
 
 func run() (exitCode int) {
-	ctx, cancel := signal.NotifyContext(context.Background(),
-		os.Interrupt, os.Kill)
-
+	ctx, cancel := newContext()
 	defer cancel()
 
 	if !buildinfo.IsDev() {
@@ -33,4 +33,16 @@ func run() (exitCode int) {
 	exitCode = cli.Run(ctx, iostreams.System(), os.Args[1:]...)
 
 	return
+}
+
+func newContext() (context.Context, context.CancelFunc) {
+	// NOTE: when signal.Notify is called for os.Interrupt it traps both
+	// ^C (Control-C) and ^BREAK (Control-Break) on Windows.
+
+	signals := []os.Signal{os.Interrupt}
+	if runtime.GOOS != "windows" {
+		signals = append(signals, syscall.SIGTERM)
+	}
+
+	return signal.NotifyContext(context.Background(), signals...)
 }
