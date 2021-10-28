@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/containerd/console"
 	"github.com/docker/docker/api/types"
@@ -127,9 +128,14 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 
 	var imageID string
 
-	serverInfo, err := docker.Info(ctx)
+	terminal.Debug("fetching docker server info")
+	serverInfo, err := func() (types.Info, error) {
+		infoCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		return docker.Info(infoCtx)
+	}()
 	if err != nil {
-		terminal.Debug("error fetching docker server info:", err)
+		return nil, errors.Wrap(err, "error fetching docker server info")
 	}
 
 	cmdfmt.PrintBegin(streams.ErrOut, "Building image with Docker")
