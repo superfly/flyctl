@@ -24,8 +24,10 @@ func run() (exitCode int) {
 
 	if !buildinfo.IsDev() {
 		defer func() {
-			if sentry.Recover() {
-				exitCode = 2
+			if r := recover(); r != nil {
+				sentry.Record(r)
+
+				exitCode = 3
 			}
 		}()
 	}
