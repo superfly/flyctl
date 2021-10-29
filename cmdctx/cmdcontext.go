@@ -11,6 +11,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/pkg/errors"
 	"github.com/segmentio/textio"
+	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/client"
@@ -25,6 +26,7 @@ type CmdContext struct {
 	GlobalConfig  flyctl.Config
 	NS            string
 	Args          []string
+	Command       *cobra.Command
 	Out           io.Writer
 	WorkingDir    string
 	ConfigFile    string
@@ -54,7 +56,7 @@ const SBEGIN = "begin"
 const SDONE = "done"
 const SERROR = "error"
 
-func NewCmdContext(flyctlClient *client.Client, ns string, args []string) (*CmdContext, error) {
+func NewCmdContext(flyctlClient *client.Client, ns string, cmd *cobra.Command, args []string) (*CmdContext, error) {
 	ctx := &CmdContext{
 		IO:           flyctlClient.IO,
 		Client:       flyctlClient,
@@ -62,6 +64,7 @@ func NewCmdContext(flyctlClient *client.Client, ns string, args []string) (*CmdC
 		Config:       flyctl.ConfigNS(ns),
 		GlobalConfig: flyctl.FlyConfig,
 		Args:         args,
+		Command:      cmd,
 		Out:          flyctlClient.IO.Out,
 	}
 

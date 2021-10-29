@@ -79,8 +79,10 @@ func runPostgresList(ctx *cmdctx.CmdContext) error {
 	return ctx.Render(&presenters.Apps{Apps: apps})
 }
 
-func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
-	name := ctx.Config.GetString("name")
+func runCreatePostgresCluster(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
+	name := cmdCtx.Config.GetString("name")
 	if name == "" {
 		n, err := inputAppName("", false)
 		if err != nil {
@@ -89,27 +91,27 @@ func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
 		name = n
 	}
 
-	orgSlug := ctx.Config.GetString("organization")
-	org, err := selectOrganization(ctx.Client.API(), orgSlug, nil)
+	orgSlug := cmdCtx.Config.GetString("organization")
+	org, err := selectOrganization(ctx, cmdCtx.Client.API(), orgSlug, nil)
 	if err != nil {
 		return err
 	}
 
-	regionCode := ctx.Config.GetString("region")
-	region, err := selectRegion(ctx.Client.API(), regionCode)
+	regionCode := cmdCtx.Config.GetString("region")
+	region, err := selectRegion(ctx, cmdCtx.Client.API(), regionCode)
 	if err != nil {
 		return err
 	}
 
-	vmSizeName := ctx.Config.GetString("vm-size")
-	vmSize, err := selectVMSize(ctx.Client.API(), vmSizeName)
+	vmSizeName := cmdCtx.Config.GetString("vm-size")
+	vmSize, err := selectVMSize(ctx, cmdCtx.Client.API(), vmSizeName)
 	if err != nil {
 		return err
 	}
 
-	volumeSize := ctx.Config.GetInt("volume-size")
+	volumeSize := cmdCtx.Config.GetInt("volume-size")
 	if volumeSize == 0 {
-		s, err := volumeSizeInput(ctx.Client.API(), 10)
+		s, err := volumeSizeInput(10)
 		if err != nil {
 			return err
 		}
@@ -124,27 +126,27 @@ func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
 		VolumeSizeGB:   api.IntPointer(volumeSize),
 	}
 
-	if imageRef := ctx.Config.GetString("image-ref"); imageRef != "" {
+	if imageRef := cmdCtx.Config.GetString("image-ref"); imageRef != "" {
 		input.ImageRef = api.StringPointer(imageRef)
 	}
 
-	if password := ctx.Config.GetString("password"); password != "" {
+	if password := cmdCtx.Config.GetString("password"); password != "" {
 		input.Password = api.StringPointer(password)
 	}
 
-	snapshot := ctx.Config.GetString("snapshot-id")
+	snapshot := cmdCtx.Config.GetString("snapshot-id")
 	if snapshot != "" {
 		input.SnapshotID = api.StringPointer(snapshot)
 	}
 
-	fmt.Fprintf(ctx.Out, "Creating postgres cluster %s in organization %s\n", name, org.Slug)
+	fmt.Fprintf(cmdCtx.Out, "Creating postgres cluster %s in organization %s\n", name, org.Slug)
 
 	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
 	s.Writer = os.Stderr
 	s.Prefix = "Launching..."
 	s.Start()
 
-	payload, err := ctx.Client.API().CreatePostgresCluster(input)
+	payload, err := cmdCtx.Client.API().CreatePostgresCluster(input)
 	if err != nil {
 		return err
 	}
@@ -161,9 +163,9 @@ func runCreatePostgresCluster(ctx *cmdctx.CmdContext) error {
 	fmt.Println(aurora.Italic("Save your credentials in a secure place, you won't be able to see them again!"))
 	fmt.Println()
 
-	cancelCtx := createCancellableContext()
-	ctx.AppName = payload.App.Name
-	err = watchDeployment(cancelCtx, ctx)
+	cancelCtx := cmdCtx.Command.Context()
+	cmdCtx.AppName = payload.App.Name
+	err = watchDeployment(cancelCtx, cmdCtx)
 
 	if isCancelledError(err) {
 		err = nil

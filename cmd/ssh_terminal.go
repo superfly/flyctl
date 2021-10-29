@@ -20,7 +20,7 @@ import (
 
 func runSSHConsole(cc *cmdctx.CmdContext) error {
 	client := cc.Client.API()
-	ctx := createCancellableContext()
+	ctx := cc.Command.Context()
 
 	terminal.Debugf("Retrieving app info for %s\n", cc.AppName)
 

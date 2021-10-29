@@ -1,6 +1,8 @@
 package api
 
-func (c *Client) SetSecrets(appName string, secrets map[string]string) (*Release, error) {
+import "context"
+
+func (c *Client) SetSecrets(ctx context.Context, appName string, secrets map[string]string) (*Release, error) {
 	query := `
 		mutation($input: SetSecretsInput!) {
 			setSecrets(input: $input) {
@@ -29,7 +31,7 @@ func (c *Client) SetSecrets(appName string, secrets map[string]string) (*Release
 
 	req.Var("input", input)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +39,7 @@ func (c *Client) SetSecrets(appName string, secrets map[string]string) (*Release
 	return &data.SetSecrets.Release, nil
 }
 
-func (c *Client) UnsetSecrets(appName string, keys []string) (*Release, error) {
+func (c *Client) UnsetSecrets(ctx context.Context, appName string, keys []string) (*Release, error) {
 	query := `
 		mutation($input: UnsetSecretsInput!) {
 			unsetSecrets(input: $input) {
@@ -61,7 +63,7 @@ func (c *Client) UnsetSecrets(appName string, keys []string) (*Release, error) {
 
 	req.Var("input", UnsetSecretsInput{AppID: appName, Keys: keys})
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +71,7 @@ func (c *Client) UnsetSecrets(appName string, keys []string) (*Release, error) {
 	return &data.UnsetSecrets.Release, nil
 }
 
-func (c *Client) GetAppSecrets(appName string) ([]Secret, error) {
+func (c *Client) GetAppSecrets(ctx context.Context, appName string) ([]Secret, error) {
 	query := `
 		query ($appName: String!) {
 			app(name: $appName) {
@@ -86,7 +88,7 @@ func (c *Client) GetAppSecrets(appName string) ([]Secret, error) {
 
 	req.Var("appName", appName)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}

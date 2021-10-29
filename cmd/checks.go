@@ -68,26 +68,27 @@ func runListChecksHandlers(ctx *cmdctx.CmdContext) error {
 
 type createHandlerFn func(*cmdctx.CmdContext, *api.Organization, string) error
 
-func runCreateChecksHandler(ctx *cmdctx.CmdContext) error {
+func runCreateChecksHandler(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
 	handlerFn := map[string]createHandlerFn{
 		"slack":     setSlackChecksHandler,
 		"pagerduty": setPagerDutyChecksHandler,
 	}
 
-	handlerType := ctx.Config.GetString("type")
+	handlerType := cmdCtx.Config.GetString("type")
 	fn, ok := handlerFn[handlerType]
 	if !ok {
 		return fmt.Errorf("\"%s\" is not a valid handler type", handlerType)
 	}
 
-	orgSlug := ctx.Config.GetString("organization")
+	orgSlug := cmdCtx.Config.GetString("organization")
 
-	org, err := selectOrganization(ctx.Client.API(), orgSlug, nil)
+	org, err := selectOrganization(ctx, cmdCtx.Client.API(), orgSlug, nil)
 	if err != nil {
 		return err
 	}
 
-	name := ctx.Config.GetString("name")
+	name := cmdCtx.Config.GetString("name")
 	if name == "" {
 		prompt := &survey.Input{
 			Message: "Name:",
@@ -99,7 +100,7 @@ func runCreateChecksHandler(ctx *cmdctx.CmdContext) error {
 		}
 	}
 
-	return fn(ctx, org, name)
+	return fn(cmdCtx, org, name)
 }
 
 func setSlackChecksHandler(ctx *cmdctx.CmdContext, org *api.Organization, name string) error {

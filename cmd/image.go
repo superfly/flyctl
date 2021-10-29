@@ -32,7 +32,8 @@ func newImageCommand(client *client.Client) *Command {
 }
 
 func runImageUpdate(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
+
 	appName := cmdCtx.AppName
 
 	app, err := cmdCtx.Client.API().GetImageInfo(appName)
@@ -81,7 +82,7 @@ func runImageUpdate(cmdCtx *cmdctx.CmdContext) error {
 		Strategy: api.StringPointer("ROLLING"),
 	}
 
-	release, releaseCommand, err := cmdCtx.Client.API().DeployImage(input)
+	release, releaseCommand, err := cmdCtx.Client.API().DeployImage(ctx, input)
 	if err != nil {
 		return err
 	}

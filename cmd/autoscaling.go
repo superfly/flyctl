@@ -55,26 +55,30 @@ func runSetParamsOnly(commandContext *cmdctx.CmdContext) error {
 	return actualScale(commandContext, false, true)
 }
 
-func runDisableAutoscaling(commandContext *cmdctx.CmdContext) error {
-	newcfg := api.UpdateAutoscaleConfigInput{AppID: commandContext.AppName, Enabled: api.BoolPointer(false)}
+func runDisableAutoscaling(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
 
-	cfg, err := commandContext.Client.API().UpdateAutoscaleConfig(newcfg)
+	newcfg := api.UpdateAutoscaleConfigInput{AppID: cmdCtx.AppName, Enabled: api.BoolPointer(false)}
+
+	cfg, err := cmdCtx.Client.API().UpdateAutoscaleConfig(ctx, newcfg)
 	if err != nil {
 		return err
 	}
 
-	printScaleConfig(commandContext, cfg)
+	printScaleConfig(cmdCtx, cfg)
 
 	return nil
 }
 
-func actualScale(commandContext *cmdctx.CmdContext, balanceRegions bool, setParamsOnly bool) error {
-	currentcfg, err := commandContext.Client.API().AppAutoscalingConfig(commandContext.AppName)
+func actualScale(cmdCtx *cmdctx.CmdContext, balanceRegions bool, setParamsOnly bool) error {
+	ctx := cmdCtx.Command.Context()
+
+	currentcfg, err := cmdCtx.Client.API().AppAutoscalingConfig(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
 
-	newcfg := api.UpdateAutoscaleConfigInput{AppID: commandContext.AppName}
+	newcfg := api.UpdateAutoscaleConfigInput{AppID: cmdCtx.AppName}
 
 	newcfg.BalanceRegions = &balanceRegions
 	newcfg.MinCount = &currentcfg.MinCount
@@ -82,7 +86,7 @@ func actualScale(commandContext *cmdctx.CmdContext, balanceRegions bool, setPara
 
 	kvargs := make(map[string]string)
 
-	for _, pair := range commandContext.Args {
+	for _, pair := range cmdCtx.Args {
 		parts := strings.SplitN(pair, "=", 2)
 		if len(parts) != 2 {
 			return fmt.Errorf("Scale parameters must be provided as NAME=VALUE pairs (%s is invalid)", pair)
@@ -130,33 +134,35 @@ func actualScale(commandContext *cmdctx.CmdContext, balanceRegions bool, setPara
 		return errors.New("unrecognised parameters in command:" + unusedkeys)
 	}
 
-	cfg, err := commandContext.Client.API().UpdateAutoscaleConfig(newcfg)
+	cfg, err := cmdCtx.Client.API().UpdateAutoscaleConfig(ctx, newcfg)
 	if err != nil {
 		return err
 	}
 
-	printScaleConfig(commandContext, cfg)
+	printScaleConfig(cmdCtx, cfg)
 
 	return nil
 }
 
-func runAutoscalingShow(commandContext *cmdctx.CmdContext) error {
-	cfg, err := commandContext.Client.API().AppAutoscalingConfig(commandContext.AppName)
+func runAutoscalingShow(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
+	cfg, err := cmdCtx.Client.API().AppAutoscalingConfig(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
 
-	printScaleConfig(commandContext, cfg)
+	printScaleConfig(cmdCtx, cfg)
 
 	return nil
 }
 
-func printScaleConfig(commandContext *cmdctx.CmdContext, cfg *api.AutoscalingConfig) {
+func printScaleConfig(cmdCtx *cmdctx.CmdContext, cfg *api.AutoscalingConfig) {
 
-	asJSON := commandContext.OutputJSON()
+	asJSON := cmdCtx.OutputJSON()
 
 	if asJSON {
-		commandContext.WriteJSON(cfg)
+		cmdCtx.WriteJSON(cfg)
 	} else {
 		var mode string
 
@@ -168,10 +174,10 @@ func printScaleConfig(commandContext *cmdctx.CmdContext, cfg *api.AutoscalingCon
 			mode = "Standard"
 		}
 
-		fmt.Fprintf(commandContext.Out, "%15s: %s\n", "Scale Mode", mode)
+		fmt.Fprintf(cmdCtx.Out, "%15s: %s\n", "Scale Mode", mode)
 		if cfg.Enabled {
-			fmt.Fprintf(commandContext.Out, "%15s: %d\n", "Min Count", cfg.MinCount)
-			fmt.Fprintf(commandContext.Out, "%15s: %d\n", "Max Count", cfg.MaxCount)
+			fmt.Fprintf(cmdCtx.Out, "%15s: %d\n", "Min Count", cfg.MinCount)
+			fmt.Fprintf(cmdCtx.Out, "%15s: %d\n", "Max Count", cfg.MaxCount)
 		}
 	}
 }

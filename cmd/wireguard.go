@@ -66,11 +66,12 @@ func argOrPrompt(ctx *cmdctx.CmdContext, nth int, prompt string) (string, error)
 	return argOrPromptImpl(ctx, nth, prompt, true)
 }
 
-func orgByArg(ctx *cmdctx.CmdContext) (*api.Organization, error) {
-	client := ctx.Client.API()
+func orgByArg(cmdCtx *cmdctx.CmdContext) (*api.Organization, error) {
+	ctx := cmdCtx.Command.Context()
+	client := cmdCtx.Client.API()
 
-	if len(ctx.Args) == 0 {
-		org, err := selectOrganization(client, "", nil)
+	if len(cmdCtx.Args) == 0 {
+		org, err := selectOrganization(ctx, client, "", nil)
 		if err != nil {
 			return nil, err
 		}
@@ -78,28 +79,30 @@ func orgByArg(ctx *cmdctx.CmdContext) (*api.Organization, error) {
 		return org, nil
 	}
 
-	return client.FindOrganizationBySlug(ctx.Args[0])
+	return client.FindOrganizationBySlug(cmdCtx.Args[0])
 }
 
-func runWireGuardList(ctx *cmdctx.CmdContext) error {
-	client := ctx.Client.API()
+func runWireGuardList(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
 
-	org, err := orgByArg(ctx)
+	client := cmdCtx.Client.API()
+
+	org, err := orgByArg(cmdCtx)
 	if err != nil {
 		return err
 	}
 
-	peers, err := client.GetWireGuardPeers(org.Slug)
+	peers, err := client.GetWireGuardPeers(ctx, org.Slug)
 	if err != nil {
 		return err
 	}
 
-	if ctx.OutputJSON() {
-		ctx.WriteJSON(peers)
+	if cmdCtx.OutputJSON() {
+		cmdCtx.WriteJSON(peers)
 		return nil
 	}
 
-	table := tablewriter.NewWriter(ctx.Out)
+	table := tablewriter.NewWriter(cmdCtx.Out)
 
 	table.SetHeader([]string{
 		"Name",
@@ -238,19 +241,21 @@ func runWireGuardCreate(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runWireGuardRemove(ctx *cmdctx.CmdContext) error {
-	client := ctx.Client.API()
+func runWireGuardRemove(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
 
-	org, err := orgByArg(ctx)
+	client := cmdCtx.Client.API()
+
+	org, err := orgByArg(cmdCtx)
 	if err != nil {
 		return err
 	}
 
 	var name string
-	if len(ctx.Args) >= 2 {
-		name = ctx.Args[1]
+	if len(cmdCtx.Args) >= 2 {
+		name = cmdCtx.Args[1]
 	} else {
-		name, err = selectWireGuardPeer(ctx.Client.API(), org.Slug)
+		name, err = selectWireGuardPeer(ctx, cmdCtx.Client.API(), org.Slug)
 		if err != nil {
 			return err
 		}
@@ -258,35 +263,37 @@ func runWireGuardRemove(ctx *cmdctx.CmdContext) error {
 
 	fmt.Printf("Removing WireGuard peer \"%s\" for organization %s\n", name, org.Slug)
 
-	err = client.RemoveWireGuardPeer(org, name)
+	err = client.RemoveWireGuardPeer(ctx, org, name)
 	if err != nil {
 		return err
 	}
 
 	fmt.Println("Removed peer.")
 
-	return wireguard.PruneInvalidPeers(ctx.Client.API())
+	return wireguard.PruneInvalidPeers(cmdCtx.Client.API())
 }
 
-func runWireGuardTokenList(ctx *cmdctx.CmdContext) error {
-	client := ctx.Client.API()
+func runWireGuardTokenList(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
 
-	org, err := orgByArg(ctx)
+	client := cmdCtx.Client.API()
+
+	org, err := orgByArg(cmdCtx)
 	if err != nil {
 		return err
 	}
 
-	tokens, err := client.GetDelegatedWireGuardTokens(org.Slug)
+	tokens, err := client.GetDelegatedWireGuardTokens(ctx, org.Slug)
 	if err != nil {
 		return err
 	}
 
-	if ctx.OutputJSON() {
-		ctx.WriteJSON(tokens)
+	if cmdCtx.OutputJSON() {
+		cmdCtx.WriteJSON(tokens)
 		return nil
 	}
 
-	table := tablewriter.NewWriter(ctx.Out)
+	table := tablewriter.NewWriter(cmdCtx.Out)
 
 	table.SetHeader([]string{
 		"Name",
@@ -301,20 +308,22 @@ func runWireGuardTokenList(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runWireGuardTokenCreate(ctx *cmdctx.CmdContext) error {
-	client := ctx.Client.API()
+func runWireGuardTokenCreate(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
 
-	org, err := orgByArg(ctx)
+	client := cmdCtx.Client.API()
+
+	org, err := orgByArg(cmdCtx)
 	if err != nil {
 		return err
 	}
 
-	name, err := argOrPrompt(ctx, 1, "Memorable name for WireGuard token: ")
+	name, err := argOrPrompt(cmdCtx, 1, "Memorable name for WireGuard token: ")
 	if err != nil {
 		return err
 	}
 
-	data, err := client.CreateDelegatedWireGuardToken(org, name)
+	data, err := client.CreateDelegatedWireGuardToken(ctx, org, name)
 	if err != nil {
 		return err
 	}
@@ -340,7 +349,7 @@ and 'pubkey' (the public key of the gateway), which you can inject into a
 "wg.con".
 `)
 
-	w, shouldClose, err := resolveOutputWriter(ctx, 2, "Filename to store WireGuard token in, or 'stdout': ")
+	w, shouldClose, err := resolveOutputWriter(cmdCtx, 2, "Filename to store WireGuard token in, or 'stdout': ")
 	if err != nil {
 		return err
 	}
@@ -353,15 +362,17 @@ and 'pubkey' (the public key of the gateway), which you can inject into a
 	return nil
 }
 
-func runWireGuardTokenDelete(ctx *cmdctx.CmdContext) error {
-	client := ctx.Client.API()
+func runWireGuardTokenDelete(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
 
-	org, err := orgByArg(ctx)
+	client := cmdCtx.Client.API()
+
+	org, err := orgByArg(cmdCtx)
 	if err != nil {
 		return err
 	}
 
-	kv, err := argOrPrompt(ctx, 1, "'name:<name>' or token:<token>': ")
+	kv, err := argOrPrompt(cmdCtx, 1, "'name:<name>' or token:<token>': ")
 	if err != nil {
 		return err
 	}
@@ -374,9 +385,9 @@ func runWireGuardTokenDelete(ctx *cmdctx.CmdContext) error {
 	fmt.Printf("Removing WireGuard token \"%s\" for organization %s\n", kv, org.Slug)
 
 	if tup[0] == "name" {
-		err = client.DeleteDelegatedWireGuardToken(org, &tup[1], nil)
+		err = client.DeleteDelegatedWireGuardToken(ctx, org, &tup[1], nil)
 	} else {
-		err = client.DeleteDelegatedWireGuardToken(org, nil, &tup[1])
+		err = client.DeleteDelegatedWireGuardToken(ctx, org, nil, &tup[1])
 	}
 	if err != nil {
 		return err

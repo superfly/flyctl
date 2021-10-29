@@ -25,20 +25,21 @@ func newSuspendCommand(client *client.Client) *Command {
 	return suspendCmd
 }
 
-func runSuspend(ctx *cmdctx.CmdContext) error {
+func runSuspend(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
 	// appName := ctx.Args[0]
 	// fmt.Println(appName, len(ctx.Args))
 	// if appName == "" {
 	// 	appName = ctx.AppName
 	// }
-	appName := ctx.AppName
+	appName := cmdCtx.AppName
 
-	_, err := ctx.Client.API().SuspendApp(appName)
+	_, err := cmdCtx.Client.API().SuspendApp(appName)
 	if err != nil {
 		return err
 	}
 
-	appstatus, err := ctx.Client.API().GetAppStatus(appName, false)
+	appstatus, err := cmdCtx.Client.API().GetAppStatus(ctx, appName, false)
 	if err != nil {
 		return err
 	}
@@ -58,7 +59,7 @@ func runSuspend(ctx *cmdctx.CmdContext) error {
 			plural = "s"
 		}
 		s.Prefix = fmt.Sprintf("Suspending %s with %d instance%s to stop ", appstatus.Name, allocount, plural)
-		appstatus, err = ctx.Client.API().GetAppStatus(ctx.AppName, false)
+		appstatus, err = cmdCtx.Client.API().GetAppStatus(ctx, cmdCtx.AppName, false)
 		if err != nil {
 			return err
 		}

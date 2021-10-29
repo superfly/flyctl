@@ -1,6 +1,8 @@
 package api
 
-func (c *Client) GetAppChanges(appName string) ([]AppChange, error) {
+import "context"
+
+func (c *Client) GetAppChanges(ctx context.Context, appName string) ([]AppChange, error) {
 	query := `
 		query($appName: String!) {
 			app(name: $appName) {
@@ -28,7 +30,7 @@ func (c *Client) GetAppChanges(appName string) ([]AppChange, error) {
 
 	req.Var("appName", appName)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}

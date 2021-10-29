@@ -13,7 +13,7 @@ func WaitForRunningVM(ctx context.Context, appName string, apiClient *api.Client
 		var status *api.AppStatus
 
 		fn := func() error {
-			status, err = apiClient.GetAppStatus(appName, false)
+			status, err = apiClient.GetAppStatus(ctx, appName, false)
 			return err
 		}
 

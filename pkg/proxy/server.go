@@ -60,7 +60,7 @@ func (srv *Server) Proxy(ctx context.Context) error {
 
 				wg.Add(2)
 
-				copy := func(dst net.Conn, src net.Conn) {
+				copyFunc := func(dst net.Conn, src net.Conn) {
 					defer wg.Done()
 					io.Copy(dst, src)
 
@@ -70,8 +70,8 @@ func (srv *Server) Proxy(ctx context.Context) error {
 					}
 				}
 
-				go copy(target, source)
-				go copy(source, target)
+				go copyFunc(target, source)
+				go copyFunc(source, target)
 
 				wg.Wait()
 

@@ -1,6 +1,8 @@
 package api
 
-func (c *Client) GetVolumes(appName string) ([]Volume, error) {
+import "context"
+
+func (c *Client) GetVolumes(ctx context.Context, appName string) ([]Volume, error) {
 	query := `
 	query($appName: String!) {
 		app(name: $appName) {
@@ -26,7 +28,7 @@ func (c *Client) GetVolumes(appName string) ([]Volume, error) {
 
 	req.Var("appName", appName)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +36,7 @@ func (c *Client) GetVolumes(appName string) ([]Volume, error) {
 	return data.App.Volumes.Nodes, nil
 }
 
-func (c *Client) CreateVolume(input CreateVolumeInput) (*Volume, error) {
+func (c *Client) CreateVolume(ctx context.Context, input CreateVolumeInput) (*Volume, error) {
 	query := `
 		mutation($input: CreateVolumeInput!) {
 			createVolume(input: $input) {
@@ -57,7 +59,7 @@ func (c *Client) CreateVolume(input CreateVolumeInput) (*Volume, error) {
 
 	req.Var("input", input)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +67,7 @@ func (c *Client) CreateVolume(input CreateVolumeInput) (*Volume, error) {
 	return &data.CreateVolume.Volume, nil
 }
 
-func (c *Client) DeleteVolume(volID string) (App *App, err error) {
+func (c *Client) DeleteVolume(ctx context.Context, volID string) (App *App, err error) {
 	query := `
 		mutation($input: DeleteVolumeInput!) {
 			deleteVolume(input: $input) {
@@ -82,7 +84,7 @@ func (c *Client) DeleteVolume(volID string) (App *App, err error) {
 
 	req.Var("input", input)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +92,7 @@ func (c *Client) DeleteVolume(volID string) (App *App, err error) {
 	return &data.DeleteVolume.App, nil
 }
 
-func (c *Client) GetVolume(volID string) (Volume *Volume, err error) {
+func (c *Client) GetVolume(ctx context.Context, volID string) (Volume *Volume, err error) {
 	query := `
 	query($id: ID!) {
 		volume: node(id: $id) {
@@ -109,7 +111,7 @@ func (c *Client) GetVolume(volID string) (Volume *Volume, err error) {
 
 	req.Var("id", volID)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +119,7 @@ func (c *Client) GetVolume(volID string) (Volume *Volume, err error) {
 	return &data.Volume, nil
 }
 
-func (c *Client) GetVolumeSnapshots(volName string) ([]Snapshot, error) {
+func (c *Client) GetVolumeSnapshots(ctx context.Context, volName string) ([]Snapshot, error) {
 	query := `
 	query($id: ID!) {
 		volume: node(id: $id) {
@@ -139,7 +141,7 @@ func (c *Client) GetVolumeSnapshots(volName string) ([]Snapshot, error) {
 
 	req.Var("id", volName)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}

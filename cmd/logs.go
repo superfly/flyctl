@@ -34,7 +34,7 @@ func newLogsCommand(client *client.Client) *Command {
 }
 
 func runLogs(cc *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cc.Command.Context()
 
 	client := cc.Client.API()
 

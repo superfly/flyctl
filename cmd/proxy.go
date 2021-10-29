@@ -34,7 +34,7 @@ func newProxyCommand(client *client.Client) *Command {
 }
 
 func runProxy(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	ports := strings.Split(cmdCtx.Args[0], ":")
 

@@ -37,7 +37,7 @@ func (b *BuildMonitor) Failed() bool {
 }
 
 func (b *BuildMonitor) Logs(ctx context.Context) <-chan string {
-	out := make(chan string, 0)
+	out := make(chan string)
 
 	go func() {
 		defer close(out)
@@ -48,7 +48,7 @@ func (b *BuildMonitor) Logs(ctx context.Context) <-chan string {
 			select {
 			case <-time.After(interval):
 				interval = 1 * time.Second
-				build, err := fetchBuild(b.client, b.buildID)
+				build, err := fetchBuild(ctx, b.client, b.buildID)
 				if err != nil {
 					b.err = err
 					return
@@ -78,9 +78,9 @@ func (b *BuildMonitor) Logs(ctx context.Context) <-chan string {
 	return out
 }
 
-func fetchBuild(client *api.Client, buildID string) (build *api.Build, err error) {
+func fetchBuild(ctx context.Context, client *api.Client, buildID string) (build *api.Build, err error) {
 	for attempts := 0; attempts < 3; attempts++ {
-		build, err = client.GetBuild(buildID)
+		build, err = client.GetBuild(ctx, buildID)
 		if err == nil {
 			break
 		}

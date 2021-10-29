@@ -69,22 +69,24 @@ func newLaunchCommand(client *client.Client) *Command {
 	return launchCmd
 }
 
-func runLaunch(cmdctx *cmdctx.CmdContext) error {
-	dir := cmdctx.Config.GetString("path")
+func runLaunch(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
+	dir := cmdCtx.Config.GetString("path")
 
 	if absDir, err := filepath.Abs(dir); err == nil {
 		dir = absDir
 	}
-	cmdctx.WorkingDir = dir
+	cmdCtx.WorkingDir = dir
 
-	orgSlug := cmdctx.Config.GetString("org")
+	orgSlug := cmdCtx.Config.GetString("org")
 
 	// start a remote builder for the personal org if necessary
 	eagerBuilderOrg := orgSlug
 	if orgSlug == "" {
 		eagerBuilderOrg = "personal"
 	}
-	go imgsrc.EagerlyEnsureRemoteBuilder(cmdctx.Client.API(), eagerBuilderOrg)
+	go imgsrc.EagerlyEnsureRemoteBuilder(cmdCtx.Client.API(), eagerBuilderOrg)
 
 	appConfig := flyctl.NewAppConfig()
 
@@ -100,7 +102,7 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 
 		if cfg.AppName != "" {
 			fmt.Println("An existing fly.toml file was found for app", cfg.AppName)
-			deployExisting, err = shouldDeployExistingApp(cmdctx, cfg.AppName)
+			deployExisting, err = shouldDeployExistingApp(cmdCtx, cfg.AppName)
 			if err != nil {
 				return err
 			}
@@ -110,9 +112,9 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 
 		if deployExisting {
 			fmt.Println("App is not running, deploy...")
-			cmdctx.AppName = cfg.AppName
-			cmdctx.AppConfig = cfg
-			return runDeploy(cmdctx)
+			cmdCtx.AppName = cfg.AppName
+			cmdCtx.AppConfig = cfg
+			return runDeploy(cmdCtx)
 		} else if confirm("Would you like to copy its configuration to the new app?") {
 			appConfig.Definition = cfg.Definition
 			importedConfig = true
@@ -122,12 +124,12 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 	fmt.Println("Creating app in", dir)
 	var srcInfo *sourcecode.SourceInfo
 
-	if img := cmdctx.Config.GetString("image"); img != "" {
+	if img := cmdCtx.Config.GetString("image"); img != "" {
 		fmt.Println("Using image", img)
 		appConfig.Build = &flyctl.Build{
 			Image: img,
 		}
-	} else if dockerfile := cmdctx.Config.GetString("dockerfile"); dockerfile != "" {
+	} else if dockerfile := cmdCtx.Config.GetString("dockerfile"); dockerfile != "" {
 		fmt.Println("Using dockefile", dockerfile)
 		appConfig.Build = &flyctl.Build{
 			Dockerfile: dockerfile,
@@ -189,8 +191,8 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 
 	appName := ""
 
-	if !cmdctx.Config.GetBool("generate-name") {
-		appName = cmdctx.Config.GetString("name")
+	if !cmdCtx.Config.GetBool("generate-name") {
+		appName = cmdCtx.Config.GetString("name")
 
 		if appName == "" {
 			// Prompt the user for the app name
@@ -206,18 +208,18 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 		}
 	}
 
-	org, err := selectOrganization(cmdctx.Client.API(), orgSlug, nil)
+	org, err := selectOrganization(ctx, cmdCtx.Client.API(), orgSlug, nil)
 	if err != nil {
 		return err
 	}
 
 	// spawn another builder if the chosen org is different
 	if org.Slug != eagerBuilderOrg {
-		go imgsrc.EagerlyEnsureRemoteBuilder(cmdctx.Client.API(), org.Slug)
+		go imgsrc.EagerlyEnsureRemoteBuilder(cmdCtx.Client.API(), org.Slug)
 	}
 
-	regionCode := cmdctx.Config.GetString("region")
-	region, err := selectRegion(cmdctx.Client.API(), regionCode)
+	regionCode := cmdCtx.Config.GetString("region")
+	region, err := selectRegion(ctx, cmdCtx.Client.API(), regionCode)
 	if err != nil {
 		return err
 	}
@@ -229,7 +231,7 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 		Runtime:         "FIRECRACKER",
 	}
 
-	app, err := cmdctx.Client.API().CreateApp(input)
+	app, err := cmdCtx.Client.API().CreateApp(input)
 	if err != nil {
 		return err
 	}
@@ -237,9 +239,9 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 		appConfig.Definition = app.Config.Definition
 	}
 
-	cmdctx.AppName = app.Name
+	cmdCtx.AppName = app.Name
 	appConfig.AppName = app.Name
-	cmdctx.AppConfig = appConfig
+	cmdCtx.AppConfig = appConfig
 
 	if srcInfo != nil {
 		if srcInfo.Port > 0 {
@@ -280,7 +282,7 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 		}
 
 		if len(secrets) > 0 {
-			_, err := cmdctx.Client.API().SetSecrets(app.Name, secrets)
+			_, err := cmdCtx.Client.API().SetSecrets(ctx, app.Name, secrets)
 
 			if err != nil {
 				return err
@@ -297,10 +299,10 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	if !cmdctx.Config.GetBool("no-deploy") &&
+	if !cmdCtx.Config.GetBool("no-deploy") &&
 		!srcInfo.SkipDeploy &&
-		(cmdctx.Config.GetBool("now") || confirm("Would you like to deploy now?")) {
-		return runDeploy(cmdctx)
+		(cmdCtx.Config.GetBool("now") || confirm("Would you like to deploy now?")) {
+		return runDeploy(cmdCtx)
 	}
 
 	if srcInfo.DeployDocs != "" {
@@ -312,8 +314,10 @@ func runLaunch(cmdctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func shouldDeployExistingApp(cc *cmdctx.CmdContext, appName string) (bool, error) {
-	status, err := cc.Client.API().GetAppStatus(appName, false)
+func shouldDeployExistingApp(cmdCtx *cmdctx.CmdContext, appName string) (bool, error) {
+	ctx := cmdCtx.Command.Context()
+
+	status, err := cmdCtx.Client.API().GetAppStatus(ctx, appName, false)
 	if err != nil {
 		if api.IsNotFoundError(err) || err.Error() == "Could not resolve App" {
 			return false, nil

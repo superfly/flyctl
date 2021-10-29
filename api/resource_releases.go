@@ -1,6 +1,8 @@
 package api
 
-func (c *Client) GetAppReleases(appName string, limit int) ([]Release, error) {
+import "context"
+
+func (c *Client) GetAppReleases(ctx context.Context, appName string, limit int) ([]Release, error) {
 	query := `
 		query ($appName: String!, $limit: Int!) {
 			app(name: $appName) {
@@ -30,7 +32,7 @@ func (c *Client) GetAppReleases(appName string, limit int) ([]Release, error) {
 	req.Var("appName", appName)
 	req.Var("limit", limit)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}

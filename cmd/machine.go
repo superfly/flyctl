@@ -346,7 +346,8 @@ func newMachineRunCommand(parent *Command, client *client.Client) {
 }
 
 func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
+
 	if cmdCtx.AppName == "" {
 		confirm := false
 		prompt := &survey.Confirm{

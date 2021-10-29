@@ -29,29 +29,33 @@ func newPlatformCommand(client *client.Client) *Command {
 	return cmd
 }
 
-func runPlatformRegions(ctx *cmdctx.CmdContext) error {
-	regions, _, err := ctx.Client.API().PlatformRegions()
+func runPlatformRegions(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
+	regions, _, err := cmdCtx.Client.API().PlatformRegions(ctx)
 	if err != nil {
 		return err
 	}
 
-	return ctx.Frender(cmdctx.PresenterOption{
+	return cmdCtx.Frender(cmdctx.PresenterOption{
 		Presentable: &presenters.Regions{Regions: regions},
 	})
 }
 
-func runPlatformVMSizes(ctx *cmdctx.CmdContext) error {
-	sizes, err := ctx.Client.API().PlatformVMSizes()
+func runPlatformVMSizes(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
+	sizes, err := cmdCtx.Client.API().PlatformVMSizes(ctx)
 	if err != nil {
 		return err
 	}
 
-	return ctx.Frender(cmdctx.PresenterOption{
+	return cmdCtx.Frender(cmdctx.PresenterOption{
 		Presentable: &presenters.VMSizes{VMSizes: sizes},
 	})
 }
 
-func runPlatformStatus(ctx *cmdctx.CmdContext) error {
+func runPlatformStatus(_ *cmdctx.CmdContext) error {
 	docsURL := "https://status.fly.io/"
 	fmt.Println("Opening", docsURL)
 	return open.Run(docsURL)
