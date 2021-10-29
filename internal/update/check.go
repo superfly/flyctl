@@ -3,6 +3,7 @@ package update
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -51,12 +52,16 @@ func InitState(configPath string, channel string) error {
 }
 
 // PromptFor prompts the user to update flyctl should a newer version be available.
-func PromptFor(ctx context.Context) {
+func PromptFor(parent context.Context) {
 	if !shouldCheckForUpdate() {
 		return
 	}
 
 	terminal.Debug("Checking for updates...")
+
+	const timeout = time.Millisecond << 7
+	ctx, cancel := context.WithTimeout(parent, timeout)
+	defer cancel()
 
 	currentVersion := buildinfo.Version()
 	stateFilePath := filepath.Join(flyctl.ConfigDir(), "state.yml")
@@ -65,7 +70,7 @@ func PromptFor(ctx context.Context) {
 	switch {
 	case err == nil:
 		// newer version detected
-	case flyerr.IsCancelledError(err):
+	case flyerr.IsCancelledError(err), errors.Is(err, context.DeadlineExceeded):
 		return
 	default:
 		terminal.Errorf("error checking for update: %v", err)
