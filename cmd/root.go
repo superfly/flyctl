@@ -77,7 +77,6 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 		newSecretsCommand(client),
 		newStatusCommand(client),
 		newSuspendCommand(client),
-		newVersionCommand(client),
 		newDNSCommand(client),
 		newDomainsCommand(client),
 		newImageCommand(client),
