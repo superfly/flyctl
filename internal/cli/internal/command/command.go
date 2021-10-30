@@ -205,7 +205,7 @@ func RequireOrg(ctx context.Context) (context.Context, error) {
 
 	client := client.FromContext(ctx).API()
 
-	orgs, err := client.GetOrganizations(nil)
+	orgs, err := client.GetOrganizations(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +259,7 @@ func selectOrg(orgs []api.Organization) (*api.Organization, error) {
 }
 
 func selectOrganization(client *api.Client, slug string, typeFilter *api.OrganizationType) (*api.Organization, error) {
-	orgs, err := client.GetOrganizations(typeFilter)
+	orgs, err := client.GetOrganizations(context.TODO(), typeFilter)
 	if err != nil {
 		return nil, err
 	}
