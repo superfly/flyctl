@@ -2,14 +2,17 @@ package version
 
 import (
 	"context"
-	"path/filepath"
+	"errors"
+	"fmt"
 
+	"github.com/blang/semver"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/cli/internal/cache"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
-	"github.com/superfly/flyctl/internal/cli/internal/state"
 	"github.com/superfly/flyctl/internal/update"
+	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func newUpdate() *cobra.Command {
@@ -24,7 +27,24 @@ command to update the application.`
 }
 
 func runUpdate(ctx context.Context) error {
-	path := filepath.Join(state.ConfigDirectory(ctx), "state.yml")
+	release, err := update.LatestRelease(ctx, cache.FromContext(ctx).Channel())
+	switch {
+	case err != nil:
+		return fmt.Errorf("failed determining latest release: %w", err)
+	case release == nil:
+		return fmt.Errorf("failed querying latest release information: %w", err)
+	}
 
-	return update.PerformInPlaceUpgrade(ctx, path, buildinfo.Version())
+	latest, err := semver.ParseTolerant(release.Version)
+	if err != nil {
+		return fmt.Errorf("error parsing latest release version number %q: %w",
+			release.Version, err)
+	}
+
+	if buildinfo.Version().GTE(latest) {
+		return errors.New("no available update")
+	}
+
+	io := iostreams.FromContext(ctx)
+	return update.UpgradeInPlace(ctx, io, release.Prerelease)
 }

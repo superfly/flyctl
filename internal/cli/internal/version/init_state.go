@@ -2,14 +2,14 @@ package version
 
 import (
 	"context"
-	"path/filepath"
+	"fmt"
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/internal/cli/internal/cache"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
-	"github.com/superfly/flyctl/internal/cli/internal/state"
-	"github.com/superfly/flyctl/internal/update"
+	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func newInitState() *cobra.Command {
@@ -27,7 +27,11 @@ func newInitState() *cobra.Command {
 }
 
 func runInitState(ctx context.Context) error {
-	path := filepath.Join(state.ConfigDirectory(ctx), "state.yml")
+	channel := flag.Args(ctx)[0]
+	cache.FromContext(ctx).SetChannel(channel)
 
-	return update.InitState(path, flag.Args(ctx)[0])
+	io := iostreams.FromContext(ctx)
+	fmt.Fprintf(io.ErrOut, "set channel to %s\n", channel)
+
+	return nil
 }

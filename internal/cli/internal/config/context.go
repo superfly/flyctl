@@ -10,7 +10,7 @@ func NewContext(ctx context.Context, cfg *Config) context.Context {
 }
 
 // FromContext returns the Config ctx carries. It panics in case ctx carries
-// no Client.
+// no Config.
 func FromContext(ctx context.Context) *Config {
 	return ctx.Value(contextKey{}).(*Config)
 }

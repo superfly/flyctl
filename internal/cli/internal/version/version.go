@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -14,12 +13,9 @@ import (
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
-	"github.com/superfly/flyctl/internal/cli/internal/flag"
-	"github.com/superfly/flyctl/internal/cli/internal/state"
-	"github.com/superfly/flyctl/internal/update"
 )
 
-const saveInstallName = "saveInstall"
+const channelName = "release-channel"
 
 // New initializes and returns a new version Command.
 func New() *cobra.Command {
@@ -32,32 +28,15 @@ number and build date.`
 
 	version := command.New("version", short, long, run)
 
-	flag.Add(version, nil,
-		flag.String{
-			Name:        saveInstallName,
-			Shorthand:   "s",
-			Description: "Save parameter in config",
-			Hidden:      true,
-		},
-	)
-
 	version.AddCommand(
-		newUpdate(),
 		newInitState(),
+		newUpdate(),
 	)
 
 	return version
 }
 
 func run(ctx context.Context) (err error) {
-	if saveInstall := flag.GetString(ctx, saveInstallName); saveInstall != "" {
-		path := filepath.Join(state.ConfigDirectory(ctx), "state.yml")
-
-		err = update.InitState(path, saveInstall)
-
-		return
-	}
-
 	var (
 		cfg  = config.FromContext(ctx)
 		info = buildinfo.Info()

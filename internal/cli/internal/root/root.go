@@ -5,6 +5,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/cmd"
+	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/version"
 	"github.com/superfly/flyctl/internal/client"
 )
@@ -30,6 +32,8 @@ func New() *cobra.Command {
 
 		return root
 	*/
+
+	flyctl.InitConfig()
 
 	// what follows is a hack in order to achieve compatibility with what exists
 	// already. the commented out code above, is what should remain after the
@@ -62,8 +66,30 @@ func New() *cobra.Command {
 	// remove them
 	root.RemoveCommand(commandsToReplace...)
 
-	// and finally, add the new iterations
+	// make sure the remaining old commands run the preparers
+	// TODO: remove when migration is done
+	wrapRunE(root)
+
+	// and finally, add the new commands
 	root.AddCommand(newCommands...)
 
 	return root
+}
+
+func wrapRunE(cmd *cobra.Command) {
+	if cmd.HasAvailableSubCommands() {
+		for _, c := range cmd.Commands() {
+			wrapRunE(c)
+		}
+	}
+
+	if cmd.RunE == nil && cmd.Run == nil {
+		return
+	}
+
+	if cmd.RunE == nil {
+		panic(cmd.Name())
+	}
+
+	cmd.RunE = command.WrapRunE(cmd.RunE)
 }

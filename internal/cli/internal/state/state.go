@@ -68,18 +68,6 @@ func ConfigDirectory(ctx context.Context) string {
 	return get(ctx, configDirKey).(string)
 }
 
-// WithConfigFile derives a Context that carries the given config file from
-// ctx.
-func WithConfigFile(ctx context.Context, cd string) context.Context {
-	return set(ctx, configFileKey, cd)
-}
-
-// ConfigFile returns the config file ctx carries. It panics in case
-// ctx carries no config file.
-func ConfigFile(ctx context.Context) string {
-	return get(ctx, configFileKey).(string)
-}
-
 // WithAccessToken derives a Context that carries the given access token from
 // ctx.
 func WithAccessToken(ctx context.Context, token string) context.Context {

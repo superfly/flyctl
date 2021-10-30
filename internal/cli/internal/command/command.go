@@ -10,21 +10,27 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/blang/semver"
+	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/docstrings"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/update"
 
+	"github.com/superfly/flyctl/internal/cli/internal/cache"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/state"
+	"github.com/superfly/flyctl/internal/cli/internal/task"
 )
 
 type (
@@ -55,10 +61,33 @@ var commonPreparers = []Preparer{
 	determineWorkingDir,
 	determineUserHomeDir,
 	determineConfigDir,
-	determineConfigFile,
+	loadCache,
 	loadConfig,
-	initClient,
+	initTaskManager,
+	startQueryingForNewRelease,
 	promptToUpdate,
+	initClient,
+}
+
+// TODO: remove after migration is complete
+func WrapRunE(fn func(*cobra.Command, []string) error) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) (err error) {
+		ctx := cmd.Context()
+		ctx = NewContext(ctx, cmd)
+		ctx = flag.NewContext(ctx, cmd.Flags())
+
+		// run the common preparers
+		if ctx, err = prepare(ctx, commonPreparers...); err != nil {
+			return
+		}
+
+		err = fn(cmd, args)
+
+		// and the
+		finalize(ctx)
+
+		return
+	}
 }
 
 func newRunE(fn Runner, preparers ...Preparer) func(*cobra.Command, []string) error {
@@ -77,9 +106,14 @@ func newRunE(fn Runner, preparers ...Preparer) func(*cobra.Command, []string) er
 		}
 
 		// run the preparers specific to the command
-		if ctx, err = prepare(ctx, preparers...); err == nil {
-			// and run the command
-			err = fn(ctx)
+		if ctx, err = prepare(ctx, preparers...); err != nil {
+			return
+		}
+
+		// run the command
+		if err = fn(ctx); err == nil {
+			// and finally, run the finalizer
+			finalize(ctx)
 		}
 
 		return
@@ -98,10 +132,21 @@ func prepare(parent context.Context, preparers ...Preparer) (ctx context.Context
 	return
 }
 
-func promptToUpdate(ctx context.Context) (context.Context, error) {
-	update.PromptFor(ctx, iostreams.FromContext(ctx))
+func finalize(ctx context.Context) {
+	// shutdown async tasks
+	task.FromContext(ctx).Shutdown()
 
-	return ctx, nil
+	// and flush the cache to disk if required
+	c := cache.FromContext(ctx)
+	if !c.Dirty() {
+		return
+	}
+
+	path := filepath.Join(state.ConfigDirectory(ctx), cache.FileName)
+	if err := c.Save(path); err != nil {
+		logger.FromContext(ctx).
+			Warnf("failed saving cache to %s: %v", path, err)
+	}
 }
 
 func determineWorkingDir(ctx context.Context) (context.Context, error) {
@@ -137,13 +182,23 @@ func determineConfigDir(ctx context.Context) (context.Context, error) {
 	return state.WithConfigDirectory(ctx, dir), nil
 }
 
-func determineConfigFile(ctx context.Context) (context.Context, error) {
-	dir := filepath.Join(state.ConfigDirectory(ctx), "config.yml")
+func loadCache(ctx context.Context) (context.Context, error) {
+	logger := logger.FromContext(ctx)
 
-	logger.FromContext(ctx).
-		Debugf("determined config file: %q", dir)
+	path := filepath.Join(state.ConfigDirectory(ctx), cache.FileName)
 
-	return state.WithConfigFile(ctx, dir), nil
+	c, err := cache.Load(path)
+	if err != nil {
+		c = cache.New()
+
+		if !errors.Is(err, fs.ErrNotExist) {
+			logger.Warnf("failed loading cache file from %s: %v", path, err)
+		}
+	}
+
+	logger.Debug("cache loaded.")
+
+	return cache.NewContext(ctx, c), nil
 }
 
 func loadConfig(ctx context.Context) (context.Context, error) {
@@ -155,10 +210,10 @@ func loadConfig(ctx context.Context) (context.Context, error) {
 	cfg.ApplyEnv()
 
 	// then the file (if any)
-	path := state.ConfigFile(ctx)
+	path := filepath.Join(state.ConfigDirectory(ctx), config.FileName)
 	switch err := cfg.ApplyFile(path); {
 	case err == nil:
-		// config file does not exist exists
+		// config file loaded
 	case errors.Is(err, fs.ErrNotExist):
 		logger.Warnf("no config file found at %s", path)
 	default:
@@ -184,6 +239,85 @@ func initClient(ctx context.Context) (context.Context, error) {
 	logger.Debug("client initialized.")
 
 	return client.NewContext(ctx, c), nil
+}
+
+func initTaskManager(ctx context.Context) (context.Context, error) {
+	tm := task.New(ctx)
+
+	logger.FromContext(ctx).Debug("initialized task manager.")
+
+	return task.NewContext(ctx, tm), nil
+}
+
+func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
+	logger := logger.FromContext(ctx)
+
+	cache := cache.FromContext(ctx)
+	if !update.Check() || time.Since(cache.LastCheckedAt()) < time.Hour {
+		logger.Debug("skipped querying for new release")
+
+		return ctx, nil
+	}
+
+	channel := cache.Channel()
+	tm := task.FromContext(ctx)
+
+	tm.Run(func(parent context.Context) {
+		ctx, cancel := context.WithTimeout(parent, time.Second)
+		defer cancel()
+
+		switch r, err := update.LatestRelease(ctx, channel); {
+		case err == nil:
+			if r == nil {
+				break
+			}
+
+			cache.SetLatestRelease(channel, r)
+
+			logger.Debugf("querying for release resulted to %v", r.Version)
+		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+			break
+		default:
+			logger.Warnf("failed querying for new release: %v", err)
+		}
+	})
+
+	logger.Debug("started querying for new release")
+
+	return ctx, nil
+}
+
+func promptToUpdate(ctx context.Context) (context.Context, error) {
+	c := cache.FromContext(ctx)
+
+	r := c.LatestRelease()
+	if r == nil {
+		return ctx, nil
+	}
+
+	logger := logger.FromContext(ctx)
+
+	current := buildinfo.Info().Version
+
+	switch latest, err := semver.ParseTolerant(r.Version); {
+	case err != nil:
+		logger.Warnf("error parsing version number '%s': %s", r.Version, err)
+
+		return ctx, nil
+	case latest.LTE(current):
+		return ctx, nil
+	}
+
+	msg := fmt.Sprintf("Update available %s -> %s.\nRun \"%s\" to upgrade.",
+		current,
+		r.Version,
+		aurora.Bold(buildinfo.Name()+" version update"),
+	)
+
+	stderr := iostreams.FromContext(ctx).ErrOut
+	fmt.Fprintln(stderr, aurora.Yellow(msg))
+
+	return ctx, nil
 }
 
 // RequireSession is a Preparer which makes sure a session exists.

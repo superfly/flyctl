@@ -11,6 +11,9 @@ import (
 )
 
 const (
+	// FileName denotes the name of the config file.
+	FileName = "config.yml"
+
 	envKeyPrefix        = "FLY_"
 	accessTokenEnvKey   = envKeyPrefix + "ACCESS_TOKEN"
 	apiTokenEnvKey      = envKeyPrefix + "API_TOKEN"
