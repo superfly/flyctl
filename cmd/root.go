@@ -106,7 +106,7 @@ func checkErr(err error) {
 		fmt.Println(aurora.Red("Error"), err)
 	}
 
-	safeExit()
+	os.Exit(1)
 }
 
 func isCancelledError(err error) bool {
@@ -125,10 +125,4 @@ func isCancelledError(err error) bool {
 	}
 
 	return false
-}
-
-func safeExit() {
-	flyctl.BackgroundTaskWG.Wait()
-
-	os.Exit(1)
 }
