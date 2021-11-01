@@ -34,7 +34,7 @@ func FromEnv(out io.Writer) *Logger {
 func levelFromEnv() Level {
 	lit, ok := os.LookupEnv("LOG_LEVEL")
 	if !ok && buildinfo.IsDev() {
-		lit = "debug"
+		lit = "warn"
 	} else {
 		lit = strings.ToLower(lit)
 	}
