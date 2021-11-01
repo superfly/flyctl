@@ -125,9 +125,6 @@ func GetAPIToken() string {
 var writeableConfigKeys = []string{ConfigAPIToken, ConfigInstaller, ConfigWireGuardState, BuildKitNodeID}
 
 func SaveConfig() error {
-	BackgroundTaskWG.Add(1)
-	defer BackgroundTaskWG.Done()
-
 	out := map[string]interface{}{}
 
 	for key, val := range viper.AllSettings() {

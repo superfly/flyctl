@@ -64,7 +64,7 @@ type appCondensed struct {
 }
 
 func runListApps(cmdCtx *cmdctx.CmdContext) error {
-
+	ctx := cmdCtx.Command.Context()
 	asJSON := cmdCtx.OutputJSON()
 
 	appPart := ""
@@ -79,7 +79,7 @@ func runListApps(cmdCtx *cmdctx.CmdContext) error {
 	status := cmdCtx.Config.GetString("status")
 	exact := cmdCtx.Config.GetBool("exact")
 
-	apps, err := cmdCtx.Client.API().GetApps(nil)
+	apps, err := cmdCtx.Client.API().GetApps(ctx, nil)
 	if err != nil {
 		return err
 	}

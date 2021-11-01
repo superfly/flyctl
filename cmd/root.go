@@ -77,7 +77,6 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 		newSecretsCommand(client),
 		newStatusCommand(client),
 		newSuspendCommand(client),
-		newVersionCommand(client),
 		newDNSCommand(client),
 		newDomainsCommand(client),
 		newImageCommand(client),
@@ -107,7 +106,7 @@ func checkErr(err error) {
 		fmt.Println(aurora.Red("Error"), err)
 	}
 
-	safeExit()
+	os.Exit(1)
 }
 
 func isCancelledError(err error) bool {
@@ -126,10 +125,4 @@ func isCancelledError(err error) bool {
 	}
 
 	return false
-}
-
-func safeExit() {
-	flyctl.BackgroundTaskWG.Wait()
-
-	os.Exit(1)
 }

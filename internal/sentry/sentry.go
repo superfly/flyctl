@@ -38,22 +38,17 @@ func init() {
 	initError = sentry.Init(opts)
 }
 
-// Recover recovers from runtime panics and notifies Sentry.
-//
-// It reports whether a runtime panic occured.
-func Recover() bool {
-	switch v := recover(); {
-	case v == nil:
-		return false
-	case initError != nil:
+// Record records v to sentry.
+func Record(v interface{}) {
+	if initError != nil {
 		fmt.Fprintf(os.Stderr, "sentry.Init: %v\n", initError)
-	default:
-		_ = sentry.CurrentHub().Recover(v)
 
-		printError(v)
+		return
 	}
 
-	return true
+	_ = sentry.CurrentHub().Recover(v)
+
+	printError(v)
 }
 
 func printError(v interface{}) {

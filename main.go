@@ -4,45 +4,47 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"runtime"
+	"syscall"
 
-	"github.com/superfly/flyctl/cmd"
-	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/pkg/iostreams"
+
+	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/cli"
 	"github.com/superfly/flyctl/internal/sentry"
-	"github.com/superfly/flyctl/internal/update"
 )
 
 func main() {
-	defer func() {
-		if sentry.Recover() {
-			os.Exit(1)
-		}
-	}()
-
-	flyctl.InitConfig()
-
-	if err := run(); err != nil {
-		flyerr.PrintCLIOutput(err)
-
-		flyctl.BackgroundTaskWG.Wait()
-
-		os.Exit(1)
-	}
+	os.Exit(run())
 }
 
-func run() error {
-	client := client.New()
-	if !client.IO.ColorEnabled() {
-		// TODO: disable colors
-	}
-
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Kill, os.Interrupt)
+func run() (exitCode int) {
+	ctx, cancel := newContext()
 	defer cancel()
 
-	update.PromptFor(ctx)
+	if !buildinfo.IsDev() {
+		defer func() {
+			if r := recover(); r != nil {
+				sentry.Record(r)
 
-	root := cmd.NewRootCmd(client)
-	_, err := root.ExecuteContextC(ctx)
-	return err
+				exitCode = 3
+			}
+		}()
+	}
+
+	exitCode = cli.Run(ctx, iostreams.System(), os.Args[1:]...)
+
+	return
+}
+
+func newContext() (context.Context, context.CancelFunc) {
+	// NOTE: when signal.Notify is called for os.Interrupt it traps both
+	// ^C (Control-C) and ^BREAK (Control-Break) on Windows.
+
+	signals := []os.Signal{os.Interrupt}
+	if runtime.GOOS != "windows" {
+		signals = append(signals, syscall.SIGTERM)
+	}
+
+	return signal.NotifyContext(context.Background(), signals...)
 }
