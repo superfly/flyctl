@@ -11,26 +11,12 @@ type contextKeyType int
 
 const (
 	_ contextKeyType = iota
-	appNameKey
 	workDirKey
 	userHomeDirKey
 	configDirKey
-	configFileKey
 	accessTokenKey
-	viperKey
 	orgKey
 )
-
-// WithAppName derives a Context carries the given app name from ctx.
-func WithAppName(ctx context.Context, appName string) context.Context {
-	return set(ctx, appNameKey, appName)
-}
-
-// AppName returns the app name ctx carries. It panics in case ctx carries no
-// app name.
-func AppName(ctx context.Context) string {
-	return get(ctx, appNameKey).(string)
-}
 
 // WithWorkingDirectory derives a Context that carries the given working
 // directory from ctx.
