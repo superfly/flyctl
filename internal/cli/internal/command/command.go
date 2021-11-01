@@ -288,6 +288,10 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 }
 
 func promptToUpdate(ctx context.Context) (context.Context, error) {
+	if !update.Check() {
+		return ctx, nil
+	}
+
 	c := cache.FromContext(ctx)
 
 	r := c.LatestRelease()
