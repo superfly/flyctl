@@ -3,7 +3,6 @@ package flag
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 const (
@@ -25,13 +24,13 @@ const (
 
 // Flag wraps the set of flags.
 type Flag interface {
-	addTo(*cobra.Command, *viper.Viper)
+	addTo(*cobra.Command)
 }
 
 // Add adds flag to cmd, binding them on v should v not be nil.
-func Add(cmd *cobra.Command, v *viper.Viper, flags ...Flag) {
+func Add(cmd *cobra.Command, flags ...Flag) {
 	for _, flag := range flags {
-		flag.addTo(cmd, v)
+		flag.addTo(cmd)
 	}
 }
 
@@ -44,7 +43,7 @@ type Bool struct {
 	Hidden      bool
 }
 
-func (b Bool) addTo(cmd *cobra.Command, v *viper.Viper) {
+func (b Bool) addTo(cmd *cobra.Command) {
 	flags := cmd.Flags()
 
 	if b.Shorthand != "" {
@@ -68,7 +67,7 @@ type String struct {
 	Hidden      bool
 }
 
-func (s String) addTo(cmd *cobra.Command, v *viper.Viper) {
+func (s String) addTo(cmd *cobra.Command) {
 	flags := cmd.Flags()
 
 	if s.Shorthand != "" {
@@ -90,7 +89,7 @@ type Int struct {
 	Hidden      bool
 }
 
-func (i Int) addTo(cmd *cobra.Command, v *viper.Viper) {
+func (i Int) addTo(cmd *cobra.Command) {
 	flags := cmd.Flags()
 
 	if i.Shorthand != "" {
@@ -113,7 +112,7 @@ type StringSlice struct {
 	EnvName     string
 }
 
-func (ss StringSlice) addTo(cmd *cobra.Command, v *viper.Viper) {
+func (ss StringSlice) addTo(cmd *cobra.Command) {
 	flags := cmd.Flags()
 
 	if ss.Shorthand != "" {

@@ -20,7 +20,7 @@ func newCreate() *cobra.Command {
 
 	create.Args = cobra.RangeArgs(0, 1)
 
-	flag.Add(create, nil,
+	flag.Add(create,
 		flag.Org(),
 		flag.String{
 			Name:        "network",
