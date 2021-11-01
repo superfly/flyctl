@@ -11,11 +11,13 @@ import (
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/cli/internal/cache"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
+	"github.com/superfly/flyctl/internal/cli/internal/flag"
 )
 
-const channelName = "release-channel"
+const saveInstallName = "saveinstall"
 
 // New initializes and returns a new version Command.
 func New() *cobra.Command {
@@ -28,6 +30,15 @@ number and build date.`
 
 	version := command.New("version", short, long, run)
 
+	// TODO: remove once installer is updated to use init-state
+	flag.Add(version,
+		flag.String{
+			Name:        saveInstallName,
+			Shorthand:   "s",
+			Description: "Save parameter in config",
+		},
+	)
+
 	version.AddCommand(
 		newInitState(),
 		newUpdate(),
@@ -37,6 +48,16 @@ number and build date.`
 }
 
 func run(ctx context.Context) (err error) {
+	if saveInstall := flag.GetString(ctx, saveInstallName); saveInstall != "" {
+		err = executeInitState(
+			iostreams.FromContext(ctx),
+			cache.FromContext(ctx),
+			saveInstall,
+		)
+
+		return
+	}
+
 	var (
 		cfg  = config.FromContext(ctx)
 		info = buildinfo.Info()

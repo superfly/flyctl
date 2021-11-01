@@ -27,10 +27,16 @@ func newInitState() *cobra.Command {
 }
 
 func runInitState(ctx context.Context) error {
-	channel := flag.Args(ctx)[0]
-	cache.FromContext(ctx).SetChannel(channel)
+	return executeInitState(
+		iostreams.FromContext(ctx),
+		cache.FromContext(ctx),
+		flag.Args(ctx)[0],
+	)
+}
 
-	io := iostreams.FromContext(ctx)
+func executeInitState(io *iostreams.IOStreams, cache cache.Cache, channel string) error {
+	cache.SetChannel(channel)
+
 	fmt.Fprintf(io.ErrOut, "set channel to %s\n", channel)
 
 	return nil
