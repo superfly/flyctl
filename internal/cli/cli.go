@@ -16,7 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/logger"
 
-	"github.com/superfly/flyctl/internal/cli/internal/root"
+	"github.com/superfly/flyctl/internal/cli/internal/command/root"
 )
 
 // Run runs the command line interface with the given arguments and reports the

@@ -6,9 +6,10 @@ import (
 
 	"github.com/superfly/flyctl/cmd"
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/internal/cli/internal/command"
-	"github.com/superfly/flyctl/internal/cli/internal/version"
 	"github.com/superfly/flyctl/internal/client"
+
+	"github.com/superfly/flyctl/internal/cli/internal/command"
+	"github.com/superfly/flyctl/internal/cli/internal/command/version"
 )
 
 // New initializes and returns a reference to a new root command.
