@@ -47,10 +47,9 @@ func IsNonInteractive(err error) bool {
 }
 
 func newSurveyIO(ctx context.Context) (opt survey.AskOpt, err error) {
-	switch io := iostreams.FromContext(ctx); io.CanPrompt() {
-	default:
+	if io := iostreams.FromContext(ctx); !io.IsInteractive() {
 		err = errNonInteractive
-	case true:
+	} else {
 		opt = survey.WithStdio(
 			io.In.(terminal.FileReader),
 			io.Out.(terminal.FileWriter),
