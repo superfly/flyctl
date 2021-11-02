@@ -5,7 +5,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/cmd/presenters"
+	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/pkg/iostreams"
+
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/render"
@@ -27,22 +29,38 @@ be shown with its name, owner and when it was last deployed.
 	)
 }
 
-func runList(ctx context.Context) error {
+func runList(ctx context.Context) (err error) {
 	cfg := config.FromContext(ctx)
 	client := client.FromContext(ctx)
 
-	apps, err := client.API().GetApps(ctx, nil)
-	if err != nil {
-		return err
+	var apps []api.App
+	if apps, err = client.API().GetApps(ctx, nil); err != nil {
+		return
 	}
 
-	p := &presenters.Apps{
-		Apps: apps,
+	out := iostreams.FromContext(ctx).Out
+	if cfg.JSONOutput {
+		_ = render.JSON(out, apps)
+
+		return
 	}
 
-	opt := presenters.Options{
-		AsJSON: cfg.JSONOutput,
+	rows := make([][]string, 0, len(apps))
+	for _, app := range apps {
+		latestDeploy := ""
+		if app.Deployed && app.CurrentRelease != nil {
+			latestDeploy = render.RelativeTime(app.CurrentRelease.CreatedAt)
+		}
+
+		rows = append(rows, []string{
+			app.Name,
+			app.Organization.Slug,
+			app.Status,
+			latestDeploy,
+		})
 	}
 
-	return render.Presentable(ctx, p, opt)
+	_ = render.Table(out, "", rows, "Name", "Owner", "Status", "Latest Deploy")
+
+	return
 }
