@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/blang/semver"
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
@@ -29,6 +28,7 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/cache"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
+	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/cli/internal/state"
 	"github.com/superfly/flyctl/internal/cli/internal/task"
 )
@@ -341,7 +341,10 @@ func RequireOrg(ctx context.Context) (context.Context, error) {
 		return nil, err
 	}
 
-	client := client.FromContext(ctx).API()
+	var (
+		io     = iostreams.FromContext(ctx)
+		client = client.FromContext(ctx).API()
+	)
 
 	orgs, err := client.GetOrganizations(ctx, nil)
 	if err != nil {
@@ -349,12 +352,11 @@ func RequireOrg(ctx context.Context) (context.Context, error) {
 	}
 	sort.Slice(orgs[:], func(i, j int) bool { return orgs[i].Type < orgs[j].Type })
 
-	logger := logger.FromContext(ctx)
 	slug := config.FromContext(ctx).Organization
 
 	switch {
 	case slug == "" && len(orgs) == 1 && orgs[0].Type == "PERSONAL":
-		logger.Warnf("Automatically selected %s organization: %s\n",
+		fmt.Fprintf(io.ErrOut, "Automatically selected %s organization: %s\n",
 			strings.ToLower(orgs[0].Type), orgs[0].Name)
 
 		return state.WithOrg(ctx, &orgs[0]), nil
@@ -367,7 +369,7 @@ func RequireOrg(ctx context.Context) (context.Context, error) {
 
 		return nil, fmt.Errorf(`Organization %q not found`, slug)
 	default:
-		org, err := selectOrg(orgs)
+		org, err := selectOrg(ctx, orgs)
 		if err != nil {
 			return nil, err
 		}
@@ -376,54 +378,16 @@ func RequireOrg(ctx context.Context) (context.Context, error) {
 	}
 }
 
-func selectOrg(orgs []api.Organization) (*api.Organization, error) {
+func selectOrg(ctx context.Context, orgs []api.Organization) (org *api.Organization, err error) {
 	var options []string
 	for _, org := range orgs {
 		options = append(options, fmt.Sprintf("%s (%s)", org.Name, org.Slug))
 	}
 
-	var selectedOrg int
-	prompt := &survey.Select{
-		Message:  "Select organization:",
-		Options:  options,
-		PageSize: 15,
+	var index int
+	if err = prompt.Select(ctx, &index, "Select organization:", options...); err == nil {
+		org = &orgs[index]
 	}
 
-	if err := survey.AskOne(prompt, &selectedOrg); err != nil {
-		return nil, err
-	}
-
-	return &orgs[selectedOrg], nil
-}
-
-func selectOrganization(client *api.Client, slug string, typeFilter *api.OrganizationType) (*api.Organization, error) {
-	orgs, err := client.GetOrganizations(context.TODO(), typeFilter)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(orgs) == 1 && orgs[0].Type == "PERSONAL" {
-		fmt.Printf("Automatically selected %s organization: %s\n", strings.ToLower(orgs[0].Type), orgs[0].Name)
-		return &orgs[0], nil
-	}
-
-	sort.Slice(orgs[:], func(i, j int) bool { return orgs[i].Type < orgs[j].Type })
-
-	options := []string{}
-
-	for _, org := range orgs {
-		options = append(options, fmt.Sprintf("%s (%s)", org.Name, org.Slug))
-	}
-
-	selectedOrg := 0
-	prompt := &survey.Select{
-		Message:  "Select organization:",
-		Options:  options,
-		PageSize: 15,
-	}
-	if err := survey.AskOne(prompt, &selectedOrg); err != nil {
-		return nil, err
-	}
-
-	return &orgs[selectedOrg], nil
+	return
 }
