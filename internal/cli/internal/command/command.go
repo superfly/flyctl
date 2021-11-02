@@ -341,17 +341,14 @@ func RequireOrg(ctx context.Context) (context.Context, error) {
 		return nil, err
 	}
 
-	var (
-		io     = iostreams.FromContext(ctx)
-		client = client.FromContext(ctx).API()
-	)
-
+	client := client.FromContext(ctx).API()
 	orgs, err := client.GetOrganizations(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	sort.Slice(orgs[:], func(i, j int) bool { return orgs[i].Type < orgs[j].Type })
 
+	io := iostreams.FromContext(ctx)
 	slug := config.FromContext(ctx).Organization
 
 	switch {
@@ -369,12 +366,14 @@ func RequireOrg(ctx context.Context) (context.Context, error) {
 
 		return nil, fmt.Errorf(`Organization %q not found`, slug)
 	default:
-		org, err := selectOrg(ctx, orgs)
-		if err != nil {
+		switch org, err := selectOrg(ctx, orgs); {
+		case err == nil:
+			return state.WithOrg(ctx, org), nil
+		case prompt.IsNonInteractive(err):
+			return nil, errors.New("org slug must be specified when not running interactively")
+		default:
 			return nil, err
 		}
-
-		return state.WithOrg(ctx, org), nil
 	}
 }
 
