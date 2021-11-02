@@ -15,7 +15,7 @@ func newMove() *cobra.Command {
 
 	move.Args = cobra.ExactArgs(1)
 
-	flag.Add(move, nil,
+	flag.Add(move,
 		flag.Yes(),
 		flag.Org(),
 	)

@@ -15,8 +15,7 @@ func newDestroy() *cobra.Command {
 
 	destroy.Args = cobra.ExactArgs(1)
 
-	flag.Add(destroy, nil,
-		flag.Yes())
+	flag.Add(destroy, flag.Yes())
 
 	return destroy
 }
