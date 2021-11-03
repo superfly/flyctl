@@ -24,7 +24,7 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 
 	terminal.Debugf("Retrieving app info for %s\n", cc.AppName)
 
-	app, err := client.GetApp(cc.AppName)
+	app, err := client.GetApp(ctx, cc.AppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}

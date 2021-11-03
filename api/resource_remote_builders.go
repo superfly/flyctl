@@ -1,6 +1,8 @@
 package api
 
-func (client *Client) EnsureRemoteBuilderForApp(appName string) (string, *App, error) {
+import "context"
+
+func (client *Client) EnsureRemoteBuilderForApp(ctx context.Context, appName string) (string, *App, error) {
 	query := `
 		mutation($input: EnsureRemoteBuilderInput!) {
 			ensureRemoteBuilder(input: $input) {
@@ -21,7 +23,7 @@ func (client *Client) EnsureRemoteBuilderForApp(appName string) (string, *App, e
 		AppName: StringPointer(appName),
 	})
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return "", nil, err
 	}
@@ -29,7 +31,7 @@ func (client *Client) EnsureRemoteBuilderForApp(appName string) (string, *App, e
 	return data.EnsureRemoteBuilder.URL, data.EnsureRemoteBuilder.App, nil
 }
 
-func (client *Client) EnsureMachineRemoteBuilderForApp(appName string) (*Machine, *App, error) {
+func (client *Client) EnsureMachineRemoteBuilderForApp(ctx context.Context, appName string) (*Machine, *App, error) {
 	query := `
 		mutation($input: EnsureMachineRemoteBuilderInput!) {
 			ensureMachineRemoteBuilder(input: $input) {
@@ -60,7 +62,7 @@ func (client *Client) EnsureMachineRemoteBuilderForApp(appName string) (*Machine
 		AppName: StringPointer(appName),
 	})
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -68,7 +70,7 @@ func (client *Client) EnsureMachineRemoteBuilderForApp(appName string) (*Machine
 	return data.EnsureMachineRemoteBuilder.Machine, data.EnsureMachineRemoteBuilder.App, nil
 }
 
-func (client *Client) EnsureRemoteBuilderForOrg(orgID string) (string, *App, error) {
+func (client *Client) EnsureRemoteBuilderForOrg(ctx context.Context, orgID string) (string, *App, error) {
 	query := `
 		mutation($input: EnsureRemoteBuilderInput!) {
 			ensureRemoteBuilder(input: $input) {
@@ -86,7 +88,7 @@ func (client *Client) EnsureRemoteBuilderForOrg(orgID string) (string, *App, err
 		OrganizationID: StringPointer(orgID),
 	})
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return "", nil, err
 	}

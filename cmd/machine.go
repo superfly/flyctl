@@ -74,11 +74,13 @@ func newMachineListCommand(parent *Command, client *client.Client) {
 }
 
 func runMachineList(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
 	state := cmdCtx.Config.GetString("state")
 	if cmdCtx.Config.GetBool("all") {
 		state = ""
 	}
-	machines, err := cmdCtx.Client.API().ListMachines(cmdCtx.AppName, state)
+	machines, err := cmdCtx.Client.API().ListMachines(ctx, cmdCtx.AppName, state)
 	if err != nil {
 		return errors.Wrap(err, "could not get list of machines")
 	}
@@ -148,6 +150,8 @@ func newMachineStopCommand(parent *Command, client *client.Client) {
 }
 
 func runMachineStop(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
 	for _, arg := range cmdCtx.Args {
 		input := api.StopMachineInput{
 			AppID:           cmdCtx.AppName,
@@ -156,7 +160,7 @@ func runMachineStop(cmdCtx *cmdctx.CmdContext) error {
 			KillTimeoutSecs: cmdCtx.Config.GetInt("time"),
 		}
 
-		machine, err := cmdCtx.Client.API().StopMachine(input)
+		machine, err := cmdCtx.Client.API().StopMachine(ctx, input)
 		if err != nil {
 			return errors.Wrap(err, "could not stop machine")
 		}
@@ -174,12 +178,14 @@ func newMachineStartCommand(parent *Command, client *client.Client) {
 }
 
 func runMachineStart(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
 	input := api.StartMachineInput{
 		AppID: cmdCtx.AppName,
 		ID:    cmdCtx.Args[0],
 	}
 
-	machine, err := cmdCtx.Client.API().StartMachine(input)
+	machine, err := cmdCtx.Client.API().StartMachine(ctx, input)
 	if err != nil {
 		return errors.Wrap(err, "could not stop machine")
 	}
@@ -196,13 +202,15 @@ func newMachineKillCommand(parent *Command, client *client.Client) {
 }
 
 func runMachineKill(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
 	for _, arg := range cmdCtx.Args {
 		input := api.KillMachineInput{
 			AppID: cmdCtx.AppName,
 			ID:    arg,
 		}
 
-		machine, err := cmdCtx.Client.API().KillMachine(input)
+		machine, err := cmdCtx.Client.API().KillMachine(ctx, input)
 		if err != nil {
 			return errors.Wrap(err, "could not stop machine")
 		}
@@ -232,6 +240,8 @@ func newMachineRemoveCommand(parent *Command, client *client.Client) {
 }
 
 func runMachineRemove(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
 	for _, arg := range cmdCtx.Args {
 		input := api.RemoveMachineInput{
 			AppID: cmdCtx.AppName,
@@ -239,7 +249,7 @@ func runMachineRemove(cmdCtx *cmdctx.CmdContext) error {
 			Kill:  cmdCtx.Config.GetBool("force"),
 		}
 
-		machine, err := cmdCtx.Client.API().RemoveMachine(input)
+		machine, err := cmdCtx.Client.API().RemoveMachine(ctx, input)
 		if err != nil {
 			return errors.Wrap(err, "could not stop machine")
 		}
@@ -550,7 +560,7 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 		Config:  &apiMachineConf,
 	}
 
-	machine, app, err := cmdCtx.Client.API().LaunchMachine(input)
+	machine, app, err := cmdCtx.Client.API().LaunchMachine(ctx, input)
 	if err != nil {
 		return err
 	}
@@ -573,7 +583,7 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 		terminal.Debugf("could not connect to wireguard tunnel, err: %v\n", err)
 		terminal.Debug("Falling back to log polling...")
 
-		stream, err = logs.NewPollingStream(apiClient, opts)
+		stream, err = logs.NewPollingStream(ctx, apiClient, opts)
 		if err != nil {
 			return err
 		}

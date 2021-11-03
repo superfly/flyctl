@@ -1,6 +1,8 @@
 package api
 
-func (client *Client) ListMachines(appID string, state string) ([]*Machine, error) {
+import "context"
+
+func (client *Client) ListMachines(ctx context.Context, appID string, state string) ([]*Machine, error) {
 	query := `
 		query($state: String, $appId: String) {
 			machines(state: $state, appId: $appId) {
@@ -40,7 +42,7 @@ func (client *Client) ListMachines(appID string, state string) ([]*Machine, erro
 		req.Var("appId", appID)
 	}
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +50,7 @@ func (client *Client) ListMachines(appID string, state string) ([]*Machine, erro
 	return data.Machines.Nodes, nil
 }
 
-func (client *Client) LaunchMachine(input LaunchMachineInput) (*Machine, *App, error) {
+func (client *Client) LaunchMachine(ctx context.Context, input LaunchMachineInput) (*Machine, *App, error) {
 	query := `
 			mutation($input: LaunchMachineInput!) {
 				launchMachine(input: $input) {
@@ -83,7 +85,7 @@ func (client *Client) LaunchMachine(input LaunchMachineInput) (*Machine, *App, e
 
 	req.Var("input", input)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -91,7 +93,7 @@ func (client *Client) LaunchMachine(input LaunchMachineInput) (*Machine, *App, e
 	return data.LaunchMachine.Machine, data.LaunchMachine.App, nil
 }
 
-func (client *Client) StopMachine(input StopMachineInput) (*Machine, error) {
+func (client *Client) StopMachine(ctx context.Context, input StopMachineInput) (*Machine, error) {
 	query := `
 	mutation($input: StopMachineInput!) {
 		stopMachine(input: $input) {
@@ -107,7 +109,7 @@ func (client *Client) StopMachine(input StopMachineInput) (*Machine, error) {
 
 	req.Var("input", input)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +117,7 @@ func (client *Client) StopMachine(input StopMachineInput) (*Machine, error) {
 	return data.StopMachine.Machine, nil
 }
 
-func (client *Client) StartMachine(input StartMachineInput) (*Machine, error) {
+func (client *Client) StartMachine(ctx context.Context, input StartMachineInput) (*Machine, error) {
 	query := `
 	mutation($input: StartMachineInput!) {
 		startMachine(input: $input) {
@@ -131,7 +133,7 @@ func (client *Client) StartMachine(input StartMachineInput) (*Machine, error) {
 
 	req.Var("input", input)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +141,7 @@ func (client *Client) StartMachine(input StartMachineInput) (*Machine, error) {
 	return data.StartMachine.Machine, nil
 }
 
-func (client *Client) KillMachine(input KillMachineInput) (*Machine, error) {
+func (client *Client) KillMachine(ctx context.Context, input KillMachineInput) (*Machine, error) {
 	query := `
 	mutation($input: KillMachineInput!) {
 		killMachine(input: $input) {
@@ -155,7 +157,7 @@ func (client *Client) KillMachine(input KillMachineInput) (*Machine, error) {
 
 	req.Var("input", input)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +165,7 @@ func (client *Client) KillMachine(input KillMachineInput) (*Machine, error) {
 	return data.KillMachine.Machine, nil
 }
 
-func (client *Client) RemoveMachine(input RemoveMachineInput) (*Machine, error) {
+func (client *Client) RemoveMachine(ctx context.Context, input RemoveMachineInput) (*Machine, error) {
 	query := `
 	mutation($input: RemoveMachineInput!) {
 		removeMachine(input: $input) {
@@ -179,7 +181,7 @@ func (client *Client) RemoveMachine(input RemoveMachineInput) (*Machine, error) 
 
 	req.Var("input", input)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}

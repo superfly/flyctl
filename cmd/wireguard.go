@@ -79,7 +79,7 @@ func orgByArg(cmdCtx *cmdctx.CmdContext) (*api.Organization, error) {
 		return org, nil
 	}
 
-	return client.FindOrganizationBySlug(cmdCtx.Args[0])
+	return client.FindOrganizationBySlug(ctx, cmdCtx.Args[0])
 }
 
 func runWireGuardList(cmdCtx *cmdctx.CmdContext) error {

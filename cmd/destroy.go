@@ -27,10 +27,12 @@ func newDestroyCommand(client *client.Client) *Command {
 	return destroy
 }
 
-func runDestroy(ctx *cmdctx.CmdContext) error {
-	appName := ctx.Args[0]
+func runDestroy(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
 
-	if !ctx.Config.GetBool("yes") {
+	appName := cmdCtx.Args[0]
+
+	if !cmdCtx.Config.GetBool("yes") {
 		fmt.Println(aurora.Red("Destroying an app is not reversible."))
 
 		confirm := false
@@ -48,7 +50,7 @@ func runDestroy(ctx *cmdctx.CmdContext) error {
 		}
 	}
 
-	if err := ctx.Client.API().DeleteApp(appName); err != nil {
+	if err := cmdCtx.Client.API().DeleteApp(ctx, appName); err != nil {
 		return err
 	}
 

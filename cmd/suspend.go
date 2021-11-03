@@ -34,7 +34,7 @@ func runSuspend(cmdCtx *cmdctx.CmdContext) error {
 	// }
 	appName := cmdCtx.AppName
 
-	_, err := cmdCtx.Client.API().SuspendApp(appName)
+	_, err := cmdCtx.Client.API().SuspendApp(ctx, appName)
 	if err != nil {
 		return err
 	}

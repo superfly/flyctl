@@ -136,7 +136,7 @@ func runDomainsCreate(cmdCtx *cmdctx.CmdContext) error {
 
 		// TODO: Add some domain validation here
 	} else if len(cmdCtx.Args) == 2 {
-		org, err = cmdCtx.Client.API().FindOrganizationBySlug(cmdCtx.Args[0])
+		org, err = cmdCtx.Client.API().FindOrganizationBySlug(ctx, cmdCtx.Args[0])
 		if err != nil {
 			return err
 		}
@@ -175,7 +175,7 @@ func runDomainsRegister(cmdCtx *cmdctx.CmdContext) error {
 		checkErr(err)
 		// TODO: Add some domain validation here
 	} else if len(cmdCtx.Args) == 2 {
-		org, err = cmdCtx.Client.API().FindOrganizationBySlug(cmdCtx.Args[0])
+		org, err = cmdCtx.Client.API().FindOrganizationBySlug(ctx, cmdCtx.Args[0])
 		if err != nil {
 			return err
 		}

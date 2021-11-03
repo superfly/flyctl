@@ -77,7 +77,7 @@ func runCreate(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	// The creation magic happens here....
-	app, err := cmdCtx.Client.API().CreateApp(input)
+	app, err := cmdCtx.Client.API().CreateApp(ctx, input)
 	if err != nil {
 		return err
 	}

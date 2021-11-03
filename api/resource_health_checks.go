@@ -1,6 +1,8 @@
 package api
 
-func (client *Client) GetAppHealthChecks(appName string, checkName *string, limitOutput *int, compactOutput *bool) ([]CheckState, error) {
+import "context"
+
+func (client *Client) GetAppHealthChecks(ctx context.Context, appName string, checkName *string, limitOutput *int, compactOutput *bool) ([]CheckState, error) {
 	q := `
 		query($appName: String!, $checkName: String, $limitOutput: Int, $compactOutput: Boolean) {
 			app(name: $appName) {
@@ -28,7 +30,7 @@ func (client *Client) GetAppHealthChecks(appName string, checkName *string, limi
 	req.Var("limitOutput", limitOutput)
 	req.Var("compactOutput", compactOutput)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}

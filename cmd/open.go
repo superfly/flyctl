@@ -18,18 +18,20 @@ func newOpenCommand(client *client.Client) *Command {
 	return opencommand
 }
 
-func runOpen(ctx *cmdctx.CmdContext) error {
+func runOpen(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
 	var path = "/"
 
-	if len(ctx.Args) > 1 {
+	if len(cmdCtx.Args) > 1 {
 		return fmt.Errorf("too many arguments - only one path argument allowed")
 	}
 
-	if len(ctx.Args) > 0 {
-		path = ctx.Args[0]
+	if len(cmdCtx.Args) > 0 {
+		path = cmdCtx.Args[0]
 	}
 
-	app, err := ctx.Client.API().GetApp(ctx.AppName)
+	app, err := cmdCtx.Client.API().GetApp(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
@@ -39,12 +41,12 @@ func runOpen(ctx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	if len(ctx.Args) > 1 {
+	if len(cmdCtx.Args) > 1 {
 		return fmt.Errorf("too many arguments - only one path argument allowed")
 	}
 
-	if len(ctx.Args) > 0 {
-		path = ctx.Args[0]
+	if len(cmdCtx.Args) > 0 {
+		path = cmdCtx.Args[0]
 	}
 
 	docsURL := "http://" + app.Hostname + path

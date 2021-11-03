@@ -51,7 +51,7 @@ func runCreate(ctx context.Context) error {
 	// The creation magic happens here....
 	app, err := client.FromContext(ctx).
 		API().
-		CreateApp(input)
+		CreateApp(ctx, input)
 
 	if err == nil {
 		fmt.Fprintf(os.Stdout, "New app created: %s\n", app.Name)

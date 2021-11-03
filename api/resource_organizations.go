@@ -36,7 +36,7 @@ func (client *Client) GetOrganizations(ctx context.Context, typeFilter *Organiza
 	return data.Organizations.Nodes, nil
 }
 
-func (client *Client) FindOrganizationBySlug(slug string) (*Organization, error) {
+func (client *Client) FindOrganizationBySlug(ctx context.Context, slug string) (*Organization, error) {
 	q := `
 		query($slug: String!) {
 			organization(slug: $slug) {
@@ -53,7 +53,7 @@ func (client *Client) FindOrganizationBySlug(slug string) (*Organization, error)
 
 	req.Var("slug", slug)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}

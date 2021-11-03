@@ -21,7 +21,9 @@ func newRestartCommand(client *client.Client) *Command {
 }
 
 func runRestart(cmdctx *cmdctx.CmdContext) error {
-	app, err := cmdctx.Client.API().RestartApp(cmdctx.AppName)
+	ctx := cmdctx.Command.Context()
+
+	app, err := cmdctx.Client.API().RestartApp(ctx, cmdctx.AppName)
 	if err != nil {
 		return err
 	}

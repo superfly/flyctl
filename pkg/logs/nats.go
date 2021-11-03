@@ -22,7 +22,7 @@ type natsLogStream struct {
 }
 
 func NewNatsStream(ctx context.Context, apiClient *api.Client, opts *LogOptions) (LogStream, error) {
-	app, err := apiClient.GetApp(opts.AppName)
+	app, err := apiClient.GetApp(ctx, opts.AppName)
 	if err != nil {
 		return nil, errors.Wrap(err, "error fetching target app")
 	}

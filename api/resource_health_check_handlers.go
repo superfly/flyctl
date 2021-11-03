@@ -1,6 +1,8 @@
 package api
 
-func (client *Client) GetHealthCheckHandlers(organizationSlug string) ([]HealthCheckHandler, error) {
+import "context"
+
+func (client *Client) GetHealthCheckHandlers(ctx context.Context, organizationSlug string) ([]HealthCheckHandler, error) {
 	q := `
 		query($slug: String!) {
 			organization(slug: $slug) {
@@ -17,7 +19,7 @@ func (client *Client) GetHealthCheckHandlers(organizationSlug string) ([]HealthC
 	req := client.NewRequest(q)
 	req.Var("slug", organizationSlug)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -25,7 +27,7 @@ func (client *Client) GetHealthCheckHandlers(organizationSlug string) ([]HealthC
 	return data.Organization.HealthCheckHandlers.Nodes, nil
 }
 
-func (client *Client) SetSlackHealthCheckHandler(input SetSlackHandlerInput) (*HealthCheckHandler, error) {
+func (client *Client) SetSlackHealthCheckHandler(ctx context.Context, input SetSlackHandlerInput) (*HealthCheckHandler, error) {
 	q := `
 		mutation($input: SetSlackHandlerInput!) {
 			setSlackHandler(input: $input) {
@@ -40,7 +42,7 @@ func (client *Client) SetSlackHealthCheckHandler(input SetSlackHandlerInput) (*H
 	req := client.NewRequest(q)
 	req.Var("input", input)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +50,7 @@ func (client *Client) SetSlackHealthCheckHandler(input SetSlackHandlerInput) (*H
 	return data.SetSlackHandler.Handler, nil
 }
 
-func (client *Client) SetPagerdutyHealthCheckHandler(input SetPagerdutyHandlerInput) (*HealthCheckHandler, error) {
+func (client *Client) SetPagerdutyHealthCheckHandler(ctx context.Context, input SetPagerdutyHandlerInput) (*HealthCheckHandler, error) {
 	q := `
 		mutation($input: SetPagerdutyHandlerInput!) {
 			setPagerdutyHandler(input: $input) {
@@ -63,7 +65,7 @@ func (client *Client) SetPagerdutyHealthCheckHandler(input SetPagerdutyHandlerIn
 	req := client.NewRequest(q)
 	req.Var("input", input)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +73,7 @@ func (client *Client) SetPagerdutyHealthCheckHandler(input SetPagerdutyHandlerIn
 	return data.SetPagerdutyHandler.Handler, nil
 }
 
-func (client *Client) DeleteHealthCheckHandler(orgID string, handlerName string) error {
+func (client *Client) DeleteHealthCheckHandler(ctx context.Context, orgID string, handlerName string) error {
 	q := `
 		mutation($input: DeleteHealthCheckHandlerInput!) {
 			deleteHealthCheckHandler(input: $input) {
@@ -86,7 +88,7 @@ func (client *Client) DeleteHealthCheckHandler(orgID string, handlerName string)
 		"name":           handlerName,
 	})
 
-	_, err := client.Run(req)
+	_, err := client.RunWithContext(ctx, req)
 
 	return err
 }

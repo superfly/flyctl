@@ -14,8 +14,8 @@ type pollingStream struct {
 	apiClient *api.Client
 }
 
-func NewPollingStream(client *api.Client, opts *LogOptions) (LogStream, error) {
-	_, err := client.GetApp(opts.AppName)
+func NewPollingStream(ctx context.Context, client *api.Client, opts *LogOptions) (LogStream, error) {
+	_, err := client.GetApp(ctx, opts.AppName)
 	if err != nil {
 		return nil, errors.Wrap(err, "err polling logs")
 	}

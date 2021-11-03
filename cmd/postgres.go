@@ -147,7 +147,7 @@ func runCreatePostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 	s.Prefix = "Launching..."
 	s.Start()
 
-	payload, err := cmdCtx.Client.API().CreatePostgresCluster(input)
+	payload, err := cmdCtx.Client.API().CreatePostgresCluster(ctx, input)
 	if err != nil {
 		return err
 	}
@@ -185,19 +185,21 @@ func runCreatePostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 	return err
 }
 
-func runAttachPostgresCluster(ctx *cmdctx.CmdContext) error {
-	postgresAppName := ctx.Config.GetString("postgres-app")
-	appName := ctx.AppName
+func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
+	postgresAppName := cmdCtx.Config.GetString("postgres-app")
+	appName := cmdCtx.AppName
 
 	input := api.AttachPostgresClusterInput{
 		AppID:                appName,
 		PostgresClusterAppID: postgresAppName,
 	}
 
-	if dbName := ctx.Config.GetString("database-name"); dbName != "" {
+	if dbName := cmdCtx.Config.GetString("database-name"); dbName != "" {
 		input.DatabaseName = api.StringPointer(dbName)
 	}
-	if varName := ctx.Config.GetString("variable-name"); varName != "" {
+	if varName := cmdCtx.Config.GetString("variable-name"); varName != "" {
 		input.VariableName = api.StringPointer(varName)
 	}
 
@@ -206,7 +208,7 @@ func runAttachPostgresCluster(ctx *cmdctx.CmdContext) error {
 	s.Prefix = "Attaching..."
 	s.Start()
 
-	payload, err := ctx.Client.API().AttachPostgresCluster(input)
+	payload, err := cmdCtx.Client.API().AttachPostgresCluster(ctx, input)
 
 	if err != nil {
 		return err
@@ -219,16 +221,18 @@ func runAttachPostgresCluster(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runDetachPostgresCluster(ctx *cmdctx.CmdContext) error {
-	postgresAppName := ctx.Config.GetString("postgres-app")
-	appName := ctx.AppName
+func runDetachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
+	postgresAppName := cmdCtx.Config.GetString("postgres-app")
+	appName := cmdCtx.AppName
 
 	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
 	s.Writer = os.Stderr
 	s.Prefix = "Detaching..."
 	s.Start()
 
-	err := ctx.Client.API().DetachPostgresCluster(postgresAppName, appName)
+	err := cmdCtx.Client.API().DetachPostgresCluster(ctx, postgresAppName, appName)
 
 	if err != nil {
 		return err
@@ -240,18 +244,20 @@ func runDetachPostgresCluster(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runListPostgresDatabases(ctx *cmdctx.CmdContext) error {
-	databases, err := ctx.Client.API().ListPostgresDatabases(ctx.AppName)
+func runListPostgresDatabases(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
+	databases, err := cmdCtx.Client.API().ListPostgresDatabases(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
 
-	if ctx.OutputJSON() {
-		ctx.WriteJSON(databases)
+	if cmdCtx.OutputJSON() {
+		cmdCtx.WriteJSON(databases)
 		return nil
 	}
 
-	table := helpers.MakeSimpleTable(ctx.Out, []string{"Name", "Users"})
+	table := helpers.MakeSimpleTable(cmdCtx.Out, []string{"Name", "Users"})
 
 	for _, database := range databases {
 		table.Append([]string{database.Name, strings.Join(database.Users, ",")})
@@ -262,18 +268,20 @@ func runListPostgresDatabases(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runListPostgresUsers(ctx *cmdctx.CmdContext) error {
-	users, err := ctx.Client.API().ListPostgresUsers(ctx.AppName)
+func runListPostgresUsers(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
+	users, err := cmdCtx.Client.API().ListPostgresUsers(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
 
-	if ctx.OutputJSON() {
-		ctx.WriteJSON(users)
+	if cmdCtx.OutputJSON() {
+		cmdCtx.WriteJSON(users)
 		return nil
 	}
 
-	table := helpers.MakeSimpleTable(ctx.Out, []string{"Username", "Superuser", "Databases"})
+	table := helpers.MakeSimpleTable(cmdCtx.Out, []string{"Username", "Superuser", "Databases"})
 
 	for _, user := range users {
 		table.Append([]string{user.Username, strconv.FormatBool(user.IsSuperuser), strings.Join(user.Databases, ",")})

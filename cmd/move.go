@@ -34,7 +34,7 @@ func runMove(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 	appName := cmdCtx.Args[0]
 
-	app, err := cmdCtx.Client.API().GetApp(appName)
+	app, err := cmdCtx.Client.API().GetApp(ctx, appName)
 	if err != nil {
 		return errors.Wrap(err, "Error fetching app")
 	}
@@ -69,7 +69,7 @@ Please confirm you wish to restart this app now?`))
 		}
 	}
 
-	_, err = cmdCtx.Client.API().MoveApp(appName, org.ID)
+	_, err = cmdCtx.Client.API().MoveApp(ctx, appName, org.ID)
 	if err != nil {
 		return errors.WithMessage(err, "Failed to move app")
 	}

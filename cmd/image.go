@@ -36,7 +36,7 @@ func runImageUpdate(cmdCtx *cmdctx.CmdContext) error {
 
 	appName := cmdCtx.AppName
 
-	app, err := cmdCtx.Client.API().GetImageInfo(appName)
+	app, err := cmdCtx.Client.API().GetImageInfo(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -109,10 +109,12 @@ func runImageUpdate(cmdCtx *cmdctx.CmdContext) error {
 
 }
 
-func runImageShow(ctx *cmdctx.CmdContext) error {
-	appName := ctx.AppName
+func runImageShow(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
 
-	app, err := ctx.Client.API().GetImageInfo(appName)
+	appName := cmdCtx.AppName
+
+	app, err := cmdCtx.Client.API().GetImageInfo(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -133,7 +135,7 @@ func runImageShow(ctx *cmdctx.CmdContext) error {
 		fmt.Fprintln(os.Stderr, aurora.Yellow(fmt.Sprintf("Run `fly image update` to migrate to the latest image version.\n")))
 	}
 
-	err = ctx.Frender(cmdctx.PresenterOption{
+	err = cmdCtx.Frender(cmdctx.PresenterOption{
 		Presentable: &presenters.ImageDetails{
 			ImageDetails:    app.ImageDetails,
 			TrackingEnabled: app.ImageVersionTrackingEnabled,
@@ -146,7 +148,7 @@ func runImageShow(ctx *cmdctx.CmdContext) error {
 	}
 
 	if app.ImageUpgradeAvailable {
-		err = ctx.Frender(cmdctx.PresenterOption{
+		err = cmdCtx.Frender(cmdctx.PresenterOption{
 			Presentable: &presenters.ImageDetails{
 				ImageDetails:    app.LatestImageDetails,
 				TrackingEnabled: app.ImageVersionTrackingEnabled,

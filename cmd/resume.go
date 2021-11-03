@@ -25,7 +25,8 @@ func newResumeCommand(client *client.Client) *Command {
 }
 
 func runResume(cmdctx *cmdctx.CmdContext) error {
-	app, err := cmdctx.Client.API().ResumeApp(cmdctx.AppName)
+	ctx := cmdctx.Command.Context()
+	app, err := cmdctx.Client.API().ResumeApp(ctx, cmdctx.AppName)
 	if err != nil {
 		return err
 	}
@@ -36,7 +37,7 @@ func runResume(cmdctx *cmdctx.CmdContext) error {
 	s.Start()
 
 	for app.Status != "running" {
-		app, err = cmdctx.Client.API().GetApp(cmdctx.AppName)
+		app, err = cmdctx.Client.API().GetApp(ctx, cmdctx.AppName)
 		if err != nil {
 			return err
 		}

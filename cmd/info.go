@@ -27,41 +27,43 @@ func newInfoCommand(client *client.Client) *Command {
 	return appInfoCmd
 }
 
-func runInfo(ctx *cmdctx.CmdContext) error {
-	app, err := ctx.Client.API().GetAppCompact(ctx.AppName)
+func runInfo(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
+	app, err := cmdCtx.Client.API().GetAppCompact(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
 
-	if ctx.Config.GetBool("name") {
-		ctx.Status("info", cmdctx.SINFO, app.Name)
+	if cmdCtx.Config.GetBool("name") {
+		cmdCtx.Status("info", cmdctx.SINFO, app.Name)
 		return nil
 	}
 
-	if ctx.Config.GetBool("host") {
-		ctx.Status("info", cmdctx.SINFO, app.Hostname)
+	if cmdCtx.Config.GetBool("host") {
+		cmdCtx.Status("info", cmdctx.SINFO, app.Hostname)
 		return nil
 	}
 
-	err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppCompact{AppCompact: *app}, HideHeader: true, Vertical: true, Title: "App"})
+	err = cmdCtx.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppCompact{AppCompact: *app}, HideHeader: true, Vertical: true, Title: "App"})
 	if err != nil {
 		return err
 	}
 
 	// For JSON, everything is included in the previous render, for humans, we need to do some formatting
-	if !ctx.OutputJSON() {
-		err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.Services{Services: app.Services}, Title: "Services"})
+	if !cmdCtx.OutputJSON() {
+		err = cmdCtx.Frender(cmdctx.PresenterOption{Presentable: &presenters.Services{Services: app.Services}, Title: "Services"})
 		if err != nil {
 			return err
 		}
 
-		err = ctx.Frender(cmdctx.PresenterOption{Presentable: &presenters.IPAddresses{IPAddresses: app.IPAddresses.Nodes}, Title: "IP Adresses"})
+		err = cmdCtx.Frender(cmdctx.PresenterOption{Presentable: &presenters.IPAddresses{IPAddresses: app.IPAddresses.Nodes}, Title: "IP Adresses"})
 		if err != nil {
 			return err
 		}
 
 		if !app.Deployed {
-			ctx.Status("info", `App has not been deployed yet. Try running "`+buildinfo.Name()+` deploy --image flyio/hellofly"`)
+			cmdCtx.Status("info", `App has not been deployed yet. Try running "`+buildinfo.Name()+` deploy --image flyio/hellofly"`)
 		}
 	}
 	return nil
