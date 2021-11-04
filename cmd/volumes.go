@@ -110,7 +110,7 @@ func runCreateVolume(cmdCtx *cmdctx.CmdContext) error {
 
 	region := cmdCtx.Config.GetString("region")
 
-	app, err := cmdCtx.Client.API().GetApp(cmdCtx.AppName)
+	app, err := cmdCtx.Client.API().GetApp(ctx, cmdCtx.AppName)
 
 	if err != nil {
 		return err

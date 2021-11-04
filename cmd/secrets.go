@@ -73,7 +73,7 @@ func runListSecrets(cmdCtx *cmdctx.CmdContext) error {
 func runSetSecrets(cc *cmdctx.CmdContext) error {
 	ctx := cc.Command.Context()
 
-	app, err := cc.Client.API().GetApp(cc.AppName)
+	app, err := cc.Client.API().GetApp(ctx, cc.AppName)
 	if err != nil {
 		return err
 	}
@@ -118,7 +118,7 @@ func runSetSecrets(cc *cmdctx.CmdContext) error {
 func runImportSecrets(cc *cmdctx.CmdContext) error {
 	ctx := cc.Command.Context()
 
-	app, err := cc.Client.API().GetApp(cc.AppName)
+	app, err := cc.Client.API().GetApp(ctx, cc.AppName)
 	if err != nil {
 		return err
 	}
@@ -199,7 +199,7 @@ func runImportSecrets(cc *cmdctx.CmdContext) error {
 func runSecretsUnset(cc *cmdctx.CmdContext) error {
 	ctx := cc.Command.Context()
 
-	app, err := cc.Client.API().GetApp(cc.AppName)
+	app, err := cc.Client.API().GetApp(ctx, cc.AppName)
 	if err != nil {
 		return err
 	}

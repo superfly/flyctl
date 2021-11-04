@@ -24,8 +24,9 @@ func newMonitorCommand(client *client.Client) *Command {
 
 func runMonitor(commandContext *cmdctx.CmdContext) error {
 	//var oldds *api.DeploymentStatus
+	ctx := commandContext.Command.Context()
 
-	app, err := commandContext.Client.API().GetApp(commandContext.AppName)
+	app, err := commandContext.Client.API().GetApp(ctx, commandContext.AppName)
 
 	if err != nil {
 		return fmt.Errorf("Failed to get app from context")

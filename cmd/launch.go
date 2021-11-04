@@ -86,7 +86,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	if orgSlug == "" {
 		eagerBuilderOrg = "personal"
 	}
-	go imgsrc.EagerlyEnsureRemoteBuilder(cmdCtx.Client.API(), eagerBuilderOrg)
+	go imgsrc.EagerlyEnsureRemoteBuilder(ctx, cmdCtx.Client.API(), eagerBuilderOrg)
 
 	appConfig := flyctl.NewAppConfig()
 
@@ -215,7 +215,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 
 	// spawn another builder if the chosen org is different
 	if org.Slug != eagerBuilderOrg {
-		go imgsrc.EagerlyEnsureRemoteBuilder(cmdCtx.Client.API(), org.Slug)
+		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, cmdCtx.Client.API(), org.Slug)
 	}
 
 	regionCode := cmdCtx.Config.GetString("region")
@@ -231,7 +231,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		Runtime:         "FIRECRACKER",
 	}
 
-	app, err := cmdCtx.Client.API().CreateApp(input)
+	app, err := cmdCtx.Client.API().CreateApp(ctx, input)
 	if err != nil {
 		return err
 	}

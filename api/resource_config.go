@@ -23,7 +23,7 @@ func (client *Client) GetConfig(ctx context.Context, appName string) (*AppConfig
 	return &data.App.Config, nil
 }
 
-func (client *Client) ParseConfig(appName string, definition Definition) (*AppConfig, error) {
+func (client *Client) ParseConfig(ctx context.Context, appName string, definition Definition) (*AppConfig, error) {
 	query := `
 			query($appName: String!, $definition: JSON!) {
 				app(name: $appName) {
@@ -43,7 +43,7 @@ func (client *Client) ParseConfig(appName string, definition Definition) (*AppCo
 	req.Var("appName", appName)
 	req.Var("definition", definition)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}

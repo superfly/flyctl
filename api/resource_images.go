@@ -1,6 +1,8 @@
 package api
 
-func (client *Client) GetImageInfo(appName string) (*App, error) {
+import "context"
+
+func (client *Client) GetImageInfo(ctx context.Context, appName string) (*App, error) {
 	query := `
 		query($appName: String!) {
 			app(name: $appName) {
@@ -26,7 +28,7 @@ func (client *Client) GetImageInfo(appName string) (*App, error) {
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}

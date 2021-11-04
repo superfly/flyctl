@@ -1,6 +1,8 @@
 package api
 
-func (client *Client) CreatePostgresCluster(input CreatePostgresClusterInput) (*CreatePostgresClusterPayload, error) {
+import "context"
+
+func (client *Client) CreatePostgresCluster(ctx context.Context, input CreatePostgresClusterInput) (*CreatePostgresClusterPayload, error) {
 	query := `
 		mutation($input: CreatePostgresClusterInput!) {
 			createPostgresCluster(input: $input) {
@@ -16,7 +18,7 @@ func (client *Client) CreatePostgresCluster(input CreatePostgresClusterInput) (*
 	req := client.NewRequest(query)
 	req.Var("input", input)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -24,7 +26,7 @@ func (client *Client) CreatePostgresCluster(input CreatePostgresClusterInput) (*
 	return data.CreatePostgresCluster, nil
 }
 
-func (client *Client) GetTemplateDeployment(id string) (*TemplateDeployment, error) {
+func (client *Client) GetTemplateDeployment(ctx context.Context, id string) (*TemplateDeployment, error) {
 	query := `
 		query($id: ID!) {
 			templateDeploymentNode: node(id: $id) {
@@ -46,7 +48,7 @@ func (client *Client) GetTemplateDeployment(id string) (*TemplateDeployment, err
 	req := client.NewRequest(query)
 	req.Var("id", id)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +56,7 @@ func (client *Client) GetTemplateDeployment(id string) (*TemplateDeployment, err
 	return data.TemplateDeploymentNode, nil
 }
 
-func (client *Client) AttachPostgresCluster(input AttachPostgresClusterInput) (*AttachPostgresClusterPayload, error) {
+func (client *Client) AttachPostgresCluster(ctx context.Context, input AttachPostgresClusterInput) (*AttachPostgresClusterPayload, error) {
 	query := `
 		mutation($input: AttachPostgresClusterInput!) {
 			attachPostgresCluster(input: $input) {
@@ -74,7 +76,7 @@ func (client *Client) AttachPostgresCluster(input AttachPostgresClusterInput) (*
 	req := client.NewRequest(query)
 	req.Var("input", input)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +84,7 @@ func (client *Client) AttachPostgresCluster(input AttachPostgresClusterInput) (*
 	return data.AttachPostgresCluster, nil
 }
 
-func (client *Client) DetachPostgresCluster(postgresAppName string, appName string) error {
+func (client *Client) DetachPostgresCluster(ctx context.Context, postgresAppName string, appName string) error {
 	query := `
 		mutation($input: DetachPostgresClusterInput!) {
 			detachPostgresCluster(input: $input) {
@@ -97,11 +99,11 @@ func (client *Client) DetachPostgresCluster(postgresAppName string, appName stri
 		"appId":                appName,
 	})
 
-	_, err := client.Run(req)
+	_, err := client.RunWithContext(ctx, req)
 	return err
 }
 
-func (client *Client) ListPostgresDatabases(appName string) ([]PostgresClusterDatabase, error) {
+func (client *Client) ListPostgresDatabases(ctx context.Context, appName string) ([]PostgresClusterDatabase, error) {
 	query := `
 		query($appName: String!) {
 			app(name: $appName) {
@@ -121,7 +123,7 @@ func (client *Client) ListPostgresDatabases(appName string) ([]PostgresClusterDa
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +131,7 @@ func (client *Client) ListPostgresDatabases(appName string) ([]PostgresClusterDa
 	return *data.App.PostgresAppRole.Databases, nil
 }
 
-func (client *Client) ListPostgresUsers(appName string) ([]PostgresClusterUser, error) {
+func (client *Client) ListPostgresUsers(ctx context.Context, appName string) ([]PostgresClusterUser, error) {
 	query := `
 		query($appName: String!) {
 			app(name: $appName) {
@@ -150,7 +152,7 @@ func (client *Client) ListPostgresUsers(appName string) ([]PostgresClusterUser, 
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}

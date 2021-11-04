@@ -50,7 +50,7 @@ func runProxy(cmdCtx *cmdctx.CmdContext) error {
 
 	terminal.Debugf("Retrieving app info for %s\n", cmdCtx.AppName)
 
-	app, err := client.GetApp(cmdCtx.AppName)
+	app, err := client.GetApp(ctx, cmdCtx.AppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}

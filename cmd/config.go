@@ -85,13 +85,15 @@ func runSaveConfig(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runValidateConfig(commandContext *cmdctx.CmdContext) error {
+	ctx := commandContext.Command.Context()
+
 	if commandContext.AppConfig == nil {
 		return errors.New("App config file not found")
 	}
 
 	commandContext.Status("config", cmdctx.STITLE, "Validating", commandContext.ConfigFile)
 
-	serverCfg, err := commandContext.Client.API().ParseConfig(commandContext.AppName, commandContext.AppConfig.Definition)
+	serverCfg, err := commandContext.Client.API().ParseConfig(ctx, commandContext.AppName, commandContext.AppConfig.Definition)
 	if err != nil {
 		return err
 	}

@@ -38,7 +38,7 @@ func runLogs(cc *cmdctx.CmdContext) error {
 
 	client := cc.Client.API()
 
-	app, err := client.GetApp(cc.AppName)
+	app, err := client.GetApp(ctx, cc.AppName)
 	if err != nil {
 		return err
 	}
@@ -58,7 +58,7 @@ func runLogs(cc *cmdctx.CmdContext) error {
 	eg.Go(func() error {
 		defer close(pollEntries)
 
-		stream, err := logs.NewPollingStream(client, opts)
+		stream, err := logs.NewPollingStream(ctx, client, opts)
 		if err != nil {
 			return err
 		}
