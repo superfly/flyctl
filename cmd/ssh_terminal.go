@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -105,6 +106,9 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 		Dialer: dialer,
 		App:    cc.AppName,
 		Cmd:    cc.Config.GetString("command"),
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
 	}, addr)
 
 	if err != nil {
@@ -142,6 +146,9 @@ type SSHParams struct {
 	App    string
 	Dialer agent.Dialer
 	Cmd    string
+	Stdin  io.Reader
+	Stdout io.WriteCloser
+	Stderr io.WriteCloser
 }
 
 func sshConnect(p *SSHParams, addr string) error {
@@ -185,9 +192,9 @@ func sshConnect(p *SSHParams, addr string) error {
 	endSpin()
 
 	term := &ssh.Terminal{
-		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
+		Stdin:  p.Stdin,
+		Stdout: p.Stdout,
+		Stderr: p.Stderr,
 		Mode:   "xterm",
 	}
 
