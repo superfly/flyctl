@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"runtime"
-	"os"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
@@ -21,15 +20,39 @@ var modes = ssh.TerminalModes{
 	ssh.TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
 }
 
+// FdReader is an io.Reader with an Fd function
+type FdReader interface {
+	io.Reader
+	Fd() uintptr
+}
+
+// FdWriteCloser is an io.WriteCloser with an Fd function
+type FdWriteCloser interface {
+	io.WriteCloser
+	Fd() uintptr
+}
+
 type Terminal struct {
-	Stdin, Stdout, Stderr *os.File
+	Stdin  io.Reader
+	Stdout io.WriteCloser
+	Stderr io.WriteCloser
 
 	Mode string
 }
 
+func getFd(reader io.Reader) (fd int, ok bool) {
+	fdthing, ok := reader.(FdReader)
+	if !ok {
+		return 0, false
+	}
+
+	fd = int(fdthing.Fd())
+	return fd, term.IsTerminal(fd)
+}
+
 func (t *Terminal) attach(ctx context.Context, sess *ssh.Session, cmd string) error {
 	width, height := DefaultWidth, DefaultHeight
-	if fd := int(t.Stdin.Fd()); term.IsTerminal(fd) {
+	if fd, ok := getFd(t.Stdin); ok {
 		state, err := term.MakeRaw(fd)
 		if err != nil {
 			return err
@@ -40,7 +63,7 @@ func (t *Terminal) attach(ctx context.Context, sess *ssh.Session, cmd string) er
 		// terminal handling problem that is probably trivial to fix, but
 		// winch isn't handled yet there anyways
 		if runtime.GOOS != "windows" {
-  			width, height, err = term.GetSize(fd)
+			width, height, err = term.GetSize(fd)
 			if err != nil {
 				return err
 			}
