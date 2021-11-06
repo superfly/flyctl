@@ -5,6 +5,7 @@ go 1.16
 require (
 	github.com/AlecAivazis/survey/v2 v2.2.7
 	github.com/BurntSushi/toml v0.4.1
+	github.com/azazeal/pause v1.0.6
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/briandowns/spinner v1.12.0
 	github.com/buildpacks/pack v0.21.0

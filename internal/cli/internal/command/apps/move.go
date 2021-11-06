@@ -7,12 +7,13 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/pkg/iostreams"
+
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/logger"
-	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func newMove() *cobra.Command {
