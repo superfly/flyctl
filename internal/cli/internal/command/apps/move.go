@@ -10,7 +10,17 @@ import (
 )
 
 func newMove() *cobra.Command {
-	move := command.FromDocstrings("apps.move", runMove,
+	const (
+		long = `The APPS MOVE command will move an application to another 
+organization the current user belongs to.
+`
+
+		short = "Move an app to another organization"
+
+		usage = "move [APPNAME]"
+	)
+
+	move := command.New(usage, short, long, runMove,
 		command.RequireSession)
 
 	move.Args = cobra.ExactArgs(1)

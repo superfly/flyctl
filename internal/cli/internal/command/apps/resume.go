@@ -9,7 +9,19 @@ import (
 )
 
 func newResume() *cobra.Command {
-	resume := command.FromDocstrings("apps.resume", runResume,
+	const (
+		long = `The APPS RESUME command will restart a previously suspended application. 
+The application will resume with its original region pool and a min count of one
+meaning there will be one running instance once restarted. Use SCALE SET MIN= to raise
+the number of configured instances.
+`
+
+		short = "Resume an application"
+
+		usage = "resume [APPNAME]"
+	)
+
+	resume := command.New(usage, short, long, runResume,
 		command.RequireSession)
 
 	resume.Args = cobra.RangeArgs(0, 1)

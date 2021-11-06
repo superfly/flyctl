@@ -9,7 +9,16 @@ import (
 )
 
 func newRestart() *cobra.Command {
-	restart := command.FromDocstrings("apps.restart", runRestart,
+	const (
+		long = `The APPS RESTART command will restart all running vms. 
+`
+
+		short = "Restart an application"
+
+		usage = "restart [APPNAME]"
+	)
+
+	restart := command.New(usage, short, long, runRestart,
 		command.RequireSession)
 
 	restart.Args = cobra.RangeArgs(0, 1)
