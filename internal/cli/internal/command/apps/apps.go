@@ -18,6 +18,8 @@ The LIST command will list all currently registered applications.
 `
 	)
 
+	// TODO: list should also accept the --org param
+
 	apps := command.New("apps", short, long, nil)
 
 	apps.AddCommand(
