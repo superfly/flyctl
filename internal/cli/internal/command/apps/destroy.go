@@ -2,11 +2,16 @@ package apps
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
+	"github.com/superfly/flyctl/internal/cli/internal/prompt"
+	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func newDestroy() *cobra.Command {
@@ -31,5 +36,24 @@ from the Fly platform.
 }
 
 func runDestroy(ctx context.Context) error {
-	return command.ErrNotImplementedYet
+	io := iostreams.FromContext(ctx)
+	appName := flag.FirstArg(ctx)
+
+	if !flag.GetYes(ctx) {
+		fmt.Fprintln(io.ErrOut, aurora.Red("Destroying an app is not reversible."))
+
+		msg := fmt.Sprintf("Destroy app %s?", appName)
+		if confirmed, err := prompt.Confirm(ctx, msg); err != nil || !confirmed {
+			return err
+		}
+	}
+
+	client := client.FromContext(ctx).API()
+	if err := client.DeleteApp(ctx, appName); err != nil {
+		return err
+	}
+
+	fmt.Fprintf(io.Out, "Destroyed app %s\n", appName)
+
+	return nil
 }
