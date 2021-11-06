@@ -17,7 +17,6 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/pkg/iostreams"
 
-	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/logger"
@@ -46,12 +45,6 @@ func New(usage, short, long string, fn Runner, p ...Preparer) *cobra.Command {
 		Long:  long,
 		RunE:  newRunE(fn, p...),
 	}
-}
-
-func FromDocstrings(dsk string, fn Runner, p ...Preparer) *cobra.Command {
-	ds := docstrings.Get(dsk)
-
-	return New(ds.Usage, ds.Short, ds.Long, fn, p...)
 }
 
 var commonPreparers = []Preparer{
