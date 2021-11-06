@@ -58,3 +58,8 @@ func GetBool(ctx context.Context, name string) bool {
 func GetOrg(ctx context.Context) string {
 	return GetString(ctx, OrgName)
 }
+
+// GetOrg is shorthand for GetBool(ctx, YesName).
+func GetYes(ctx context.Context) bool {
+	return GetBool(ctx, YesName)
+}
