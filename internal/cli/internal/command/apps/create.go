@@ -13,18 +13,31 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
-	"github.com/superfly/flyctl/internal/cli/internal/state"
 	"github.com/superfly/flyctl/internal/client"
 )
 
-func newCreate() *cobra.Command {
-	create := command.FromDocstrings("apps.create", runCreate,
-		command.RequireOrg,
+func newCreate() (cmd *cobra.Command) {
+	const (
+		short = `Create a new application`
+
+		long = `The APPS CREATE command will both register a new application 
+with the Fly platform and create the fly.toml file which controls how 
+the application will be deployed. The --builder flag allows a cloud native 
+buildpack to be specified which will be used instead of a Dockerfile to 
+create the application image when it is deployed.
+`
+
+		usage = "create [APPNAME]"
 	)
 
-	create.Args = cobra.RangeArgs(0, 1)
+	cmd = command.New(usage, short, long, runCreate,
+		command.RequireSession)
 
-	flag.Add(create,
+	cmd.Args = cobra.RangeArgs(0, 1)
+
+	// TODO: the -name & generate-name flags should be deprecated
+
+	flag.Add(cmd,
 		flag.String{
 			Name:        "name",
 			Description: "The app name to use",
@@ -40,7 +53,7 @@ func newCreate() *cobra.Command {
 		flag.Org(),
 	)
 
-	return create
+	return cmd
 }
 
 func runCreate(ctx context.Context) (err error) {
@@ -68,18 +81,21 @@ func runCreate(ctx context.Context) (err error) {
 		}
 	}
 
+	org, err := prompt.Org(ctx, nil)
+	if err != nil {
+		return
+	}
+
 	input := api.CreateAppInput{
 		Name:           name,
 		Runtime:        "FIRECRACKER",
-		OrganizationID: state.Org(ctx).ID,
+		OrganizationID: org.ID,
 	}
 
-	// set network if flag is set
 	if v := flag.GetString(ctx, "network"); v != "" {
 		input.Network = api.StringPointer(v)
 	}
 
-	// The creation magic happens here....
 	app, err := client.FromContext(ctx).
 		API().
 		CreateApp(ctx, input)
