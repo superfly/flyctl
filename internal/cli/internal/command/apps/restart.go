@@ -2,10 +2,14 @@ package apps
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
+	"github.com/superfly/flyctl/internal/cli/internal/flag"
+	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func newRestart() *cobra.Command {
@@ -21,11 +25,21 @@ func newRestart() *cobra.Command {
 	restart := command.New(usage, short, long, runRestart,
 		command.RequireSession)
 
-	restart.Args = cobra.RangeArgs(0, 1)
+	restart.Args = cobra.RangeArgs(1, 1)
 
 	return restart
 }
 
 func runRestart(ctx context.Context) error {
-	return command.ErrNotImplementedYet
+	client := client.FromContext(ctx).API()
+
+	appName := flag.FirstArg(ctx)
+	if _, err := client.RestartApp(ctx, appName); err != nil {
+		return fmt.Errorf("failed restarting app: %w", err)
+	}
+
+	io := iostreams.FromContext(ctx)
+	fmt.Fprintf(io.Out, "%s is being restarted\n", appName)
+
+	return nil
 }
