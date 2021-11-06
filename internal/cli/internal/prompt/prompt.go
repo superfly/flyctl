@@ -46,6 +46,21 @@ func Select(ctx context.Context, index *int, msg string, options ...string) erro
 	return survey.AskOne(p, index, opt)
 }
 
+func Confirm(ctx context.Context, message string) (confirm bool, err error) {
+	var opt survey.AskOpt
+	if opt, err = newSurveyIO(ctx); err != nil {
+		return
+	}
+
+	prompt := &survey.Confirm{
+		Message: message,
+	}
+
+	err = survey.AskOne(prompt, &confirm, opt)
+
+	return
+}
+
 var errNonInteractive = errors.New("non interactive")
 
 func IsNonInteractive(err error) bool {
