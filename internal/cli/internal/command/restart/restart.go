@@ -1,4 +1,4 @@
-package apps
+package restart
 
 import (
 	"context"
@@ -13,15 +13,16 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 )
 
-func newRestart() *cobra.Command {
+// TODO: deprecate
+func New() *cobra.Command {
 	const (
-		long = `The APPS RESTART command will restart all running vms. 
+		long = `The RESTART command will restart all running vms. 
 `
 		short = "Restart an application"
 		usage = "restart [APPNAME]"
 	)
 
-	restart := command.New(usage, short, long, runRestart,
+	restart := command.New(usage, short, long, run,
 		command.RequireSession)
 
 	restart.Args = cobra.ExactArgs(1)
@@ -29,7 +30,7 @@ func newRestart() *cobra.Command {
 	return restart
 }
 
-func runRestart(ctx context.Context) error {
+func run(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
 
 	appName := flag.FirstArg(ctx)

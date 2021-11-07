@@ -49,7 +49,6 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 	checkErr(err)
 
 	rootCmd.AddCommand(
-		newAppsCommand(client),
 		newAuthCommand(client),
 		newBuildsCommand(client),
 		newCurlCommand(client),
@@ -57,7 +56,6 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 		newConfigCommand(client),
 		newDashboardCommand(client),
 		newDeployCommand(client),
-		newDestroyCommand(client),
 		newDocsCommand(client),
 		newHistoryCommand(client),
 		newInfoCommand(client),
@@ -65,18 +63,14 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 		newListCommand(client),
 		newLogsCommand(client),
 		newMonitorCommand(client),
-		newMoveCommand(client),
 		newOpenCommand(client),
 		newPlatformCommand(client),
 		newRegionsCommand(client),
 		newReleasesCommand(client),
-		newRestartCommand(client),
-		newResumeCommand(client),
 		newScaleCommand(client),
 		newAutoscaleCommand(client),
 		newSecretsCommand(client),
 		newStatusCommand(client),
-		newSuspendCommand(client),
 		newDNSCommand(client),
 		newDomainsCommand(client),
 		newImageCommand(client),
@@ -89,7 +83,6 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 		newPostgresCommand(client),
 		newVMCommand(client),
 		newLaunchCommand(client),
-
 		newMachineCommand(client),
 		newProxyCommand(client),
 	)

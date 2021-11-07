@@ -1,4 +1,4 @@
-package apps
+package destroy
 
 import (
 	"context"
@@ -15,16 +15,17 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 )
 
-func newDestroy() *cobra.Command {
+// TODO: deprecate
+func New() *cobra.Command {
 	const (
-		long = `The APPS DESTROY command will remove an application 
+		long = `The DESTROY command will remove an application 
 from the Fly platform.
 `
 		short = "Permanently destroys an app"
 		usage = "destroy [APPNAME]"
 	)
 
-	destroy := command.New(usage, short, long, runDestroy,
+	destroy := command.New(usage, short, long, run,
 		command.RequireSession)
 
 	destroy.Args = cobra.ExactArgs(1)
@@ -36,7 +37,7 @@ from the Fly platform.
 	return destroy
 }
 
-func runDestroy(ctx context.Context) error {
+func run(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	appName := flag.FirstArg(ctx)
 

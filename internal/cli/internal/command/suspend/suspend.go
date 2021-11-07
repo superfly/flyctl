@@ -1,4 +1,4 @@
-package apps
+package suspend
 
 import (
 	"context"
@@ -17,9 +17,9 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 )
 
-func newSuspend() *cobra.Command {
+func New() *cobra.Command {
 	const (
-		long = `The APPS SUSPEND command will suspend an application. 
+		long = `The SUSPEND command will suspend an application. 
 All instances will be halted leaving the application running nowhere.
 It will continue to consume networking resources (IP address). See APPS RESUME
 for details on restarting it.

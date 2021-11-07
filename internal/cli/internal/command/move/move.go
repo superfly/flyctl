@@ -1,4 +1,4 @@
-package apps
+package move
 
 import (
 	"context"
@@ -16,16 +16,17 @@ import (
 	"github.com/superfly/flyctl/internal/logger"
 )
 
-func newMove() *cobra.Command {
+// TODO: deprecate
+func New() *cobra.Command {
 	const (
-		long = `The APPS MOVE command will move an application to another 
+		long = `The MOVE command will move an application to another 
 organization the current user belongs to.
 `
 		short = "Move an app to another organization"
 		usage = "move [APPNAME]"
 	)
 
-	move := command.New(usage, short, long, runMove,
+	move := command.New(usage, short, long, run,
 		command.RequireSession)
 
 	move.Args = cobra.ExactArgs(1)
@@ -38,7 +39,7 @@ organization the current user belongs to.
 	return move
 }
 
-func runMove(ctx context.Context) error {
+func run(ctx context.Context) error {
 	appName := flag.FirstArg(ctx)
 
 	client := client.FromContext(ctx).API()

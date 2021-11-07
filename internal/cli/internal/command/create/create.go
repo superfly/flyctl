@@ -1,4 +1,4 @@
-package apps
+package create
 
 import (
 	"context"
@@ -16,19 +16,20 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 )
 
-func newCreate() (cmd *cobra.Command) {
+// TODO: deprecate
+func New() (cmd *cobra.Command) {
 	const (
-		long = `The APPS CREATE command will both register a new application 
+		long = `The CREATE command will both register a new application 
 with the Fly platform and create the fly.toml file which controls how 
 the application will be deployed. The --builder flag allows a cloud native 
 buildpack to be specified which will be used instead of a Dockerfile to 
 create the application image when it is deployed.
 `
-		short = "Create a new application"
+		short = `Create a new application`
 		usage = "create [APPNAME]"
 	)
 
-	cmd = command.New(usage, short, long, runCreate,
+	cmd = command.New(usage, short, long, run,
 		command.RequireSession)
 
 	cmd.Args = cobra.RangeArgs(0, 1)
@@ -54,7 +55,7 @@ create the application image when it is deployed.
 	return cmd
 }
 
-func runCreate(ctx context.Context) (err error) {
+func run(ctx context.Context) (err error) {
 	var (
 		io            = iostreams.FromContext(ctx)
 		aName         = flag.FirstArg(ctx)

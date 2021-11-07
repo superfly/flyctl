@@ -1,4 +1,4 @@
-package apps
+package resume
 
 import (
 	"context"
@@ -17,9 +17,10 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 )
 
-func newResume() *cobra.Command {
+// TODO: deprecate
+func New() *cobra.Command {
 	const (
-		long = `The APPS RESUME command will restart a previously suspended application. 
+		long = `The RESUME command will restart a previously suspended application. 
 The application will resume with its original region pool and a min count of one
 meaning there will be one running instance once restarted. Use SCALE SET MIN= to raise
 the number of configured instances.
@@ -28,7 +29,7 @@ the number of configured instances.
 		usage = "resume [APPNAME]"
 	)
 
-	resume := command.New(usage, short, long, runResume,
+	resume := command.New(usage, short, long, run,
 		command.RequireSession)
 
 	resume.Args = cobra.ExactArgs(1)
@@ -36,7 +37,7 @@ the number of configured instances.
 	return resume
 }
 
-func runResume(ctx context.Context) (err error) {
+func run(ctx context.Context) (err error) {
 	appName := flag.FirstArg(ctx)
 
 	client := client.FromContext(ctx).API()
