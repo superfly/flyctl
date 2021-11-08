@@ -24,7 +24,7 @@ from the Fly platform.
 		usage = "destroy [APPNAME]"
 	)
 
-	destroy := command.New(usage, short, long, runDestroy,
+	destroy := command.New(usage, short, long, RunDestroy,
 		command.RequireSession)
 
 	destroy.Args = cobra.ExactArgs(1)
@@ -36,7 +36,8 @@ from the Fly platform.
 	return destroy
 }
 
-func runDestroy(ctx context.Context) error {
+// TODO: make internal once the destroy package is removed
+func RunDestroy(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	appName := flag.FirstArg(ctx)
 

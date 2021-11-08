@@ -21,7 +21,7 @@ func newRestart() *cobra.Command {
 		usage = "restart [APPNAME]"
 	)
 
-	restart := command.New(usage, short, long, runRestart,
+	restart := command.New(usage, short, long, RunRestart,
 		command.RequireSession)
 
 	restart.Args = cobra.ExactArgs(1)
@@ -29,7 +29,8 @@ func newRestart() *cobra.Command {
 	return restart
 }
 
-func runRestart(ctx context.Context) error {
+// TODO: make internal once the restart package is removed
+func RunRestart(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
 
 	appName := flag.FirstArg(ctx)

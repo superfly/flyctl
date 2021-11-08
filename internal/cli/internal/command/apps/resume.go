@@ -28,7 +28,7 @@ the number of configured instances.
 		usage = "resume [APPNAME]"
 	)
 
-	resume := command.New(usage, short, long, runResume,
+	resume := command.New(usage, short, long, RunResume,
 		command.RequireSession)
 
 	resume.Args = cobra.ExactArgs(1)
@@ -36,7 +36,8 @@ the number of configured instances.
 	return resume
 }
 
-func runResume(ctx context.Context) (err error) {
+// TODO: make internal once the resume package is removed
+func RunResume(ctx context.Context) (err error) {
 	appName := flag.FirstArg(ctx)
 
 	client := client.FromContext(ctx).API()

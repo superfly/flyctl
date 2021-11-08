@@ -25,7 +25,7 @@ organization the current user belongs to.
 		usage = "move [APPNAME]"
 	)
 
-	move := command.New(usage, short, long, runMove,
+	move := command.New(usage, short, long, RunMove,
 		command.RequireSession)
 
 	move.Args = cobra.ExactArgs(1)
@@ -38,7 +38,8 @@ organization the current user belongs to.
 	return move
 }
 
-func runMove(ctx context.Context) error {
+// TODO: make internal once the move package is removed
+func RunMove(ctx context.Context) error {
 	appName := flag.FirstArg(ctx)
 
 	client := client.FromContext(ctx).API()

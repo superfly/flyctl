@@ -28,7 +28,7 @@ for details on restarting it.
 		usage = "suspend [APPNAME]"
 	)
 
-	suspend := command.New(usage, short, long, runSuspend,
+	suspend := command.New(usage, short, long, RunSuspend,
 		command.RequireSession)
 
 	suspend.Args = cobra.ExactArgs(1)
@@ -36,7 +36,8 @@ for details on restarting it.
 	return suspend
 }
 
-func runSuspend(ctx context.Context) (err error) {
+// TODO: make internal once the suspend package is removed
+func RunSuspend(ctx context.Context) (err error) {
 	appName := flag.FirstArg(ctx)
 
 	client := client.FromContext(ctx).API()

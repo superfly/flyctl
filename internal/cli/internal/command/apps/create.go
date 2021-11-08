@@ -28,7 +28,7 @@ create the application image when it is deployed.
 		usage = "create [APPNAME]"
 	)
 
-	cmd = command.New(usage, short, long, runCreate,
+	cmd = command.New(usage, short, long, RunCreate,
 		command.RequireSession)
 
 	cmd.Args = cobra.RangeArgs(0, 1)
@@ -54,7 +54,8 @@ create the application image when it is deployed.
 	return cmd
 }
 
-func runCreate(ctx context.Context) (err error) {
+// TODO: make internal once the create package is removed
+func RunCreate(ctx context.Context) (err error) {
 	var (
 		io            = iostreams.FromContext(ctx)
 		aName         = flag.FirstArg(ctx)
