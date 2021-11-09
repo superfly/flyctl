@@ -274,8 +274,6 @@ func configureRemix(sourceDir string) (*SourceInfo, error) {
 		Env: map[string]string{
 			"PORT": "8080",
 		},
-		SkipDeploy: true,
-		DeployDocs: `To deploy this app, run 'npm run deploy'`,
 	}
 
 	return s, nil
