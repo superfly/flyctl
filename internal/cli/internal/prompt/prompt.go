@@ -105,7 +105,7 @@ func Org(ctx context.Context, typ *api.OrganizationType) (*api.Organization, err
 	sort.OrganizationsByTypeAndName(orgs)
 
 	io := iostreams.FromContext(ctx)
-	slug := config.FromContext(ctx).Organization
+	slug := config.FromContext(ctx).Organization()
 
 	switch {
 	case slug == "" && len(orgs) == 1 && orgs[0].Type == "PERSONAL":

@@ -39,7 +39,7 @@ func runList(ctx context.Context) (err error) {
 	}
 
 	out := iostreams.FromContext(ctx).Out
-	if cfg.JSONOutput {
+	if cfg.JSONOutput() {
 		_ = render.JSON(out, apps)
 
 		return

@@ -127,16 +127,23 @@ func finalize(ctx context.Context) {
 	// shutdown async tasks
 	task.FromContext(ctx).Shutdown()
 
-	// and flush the cache to disk if required
-	c := cache.FromContext(ctx)
-	if !c.Dirty() {
-		return
+	// flush the cache to disk if required
+	if c := cache.FromContext(ctx); c.Dirty() {
+		path := filepath.Join(state.ConfigDirectory(ctx), cache.FileName)
+
+		if err := c.Save(path); err != nil {
+			logger.FromContext(ctx).
+				Warnf("failed saving cache to %s: %v", path, err)
+		}
 	}
 
-	path := filepath.Join(state.ConfigDirectory(ctx), cache.FileName)
-	if err := c.Save(path); err != nil {
+	// flush the cache to disk if required
+	cfg := config.FromContext(ctx)
+	path := filepath.Join(state.ConfigDirectory(ctx), config.FileName)
+
+	if err := cfg.SaveIfDirty(path); err != nil {
 		logger.FromContext(ctx).
-			Warnf("failed saving cache to %s: %v", path, err)
+			Errorf("failed saving config to %s: %v", path, err)
 	}
 }
 
@@ -236,9 +243,9 @@ func initClient(ctx context.Context) (context.Context, error) {
 	cfg := config.FromContext(ctx)
 
 	// TODO: refactor so that api package does NOT depend on global state
-	api.SetBaseURL(cfg.APIBaseURL)
-	api.SetErrorLog(cfg.LogGQLErrors)
-	c := client.FromToken(cfg.AccessToken)
+	api.SetBaseURL(cfg.APIBaseURL())
+	api.SetErrorLog(cfg.LogGQLErrors())
+	c := client.FromToken(cfg.AccessToken())
 	logger.Debug("client initialized.")
 
 	return client.NewContext(ctx, c), nil

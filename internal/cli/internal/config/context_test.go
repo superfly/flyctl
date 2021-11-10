@@ -12,7 +12,7 @@ func TestFromContextPanics(t *testing.T) {
 }
 
 func TestClient(t *testing.T) {
-	exp := new(Config)
+	exp := new(wrapper)
 
 	ctx := NewContext(context.Background(), exp)
 	assert.Same(t, exp, FromContext(ctx))
