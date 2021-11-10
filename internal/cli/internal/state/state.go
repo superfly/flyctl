@@ -3,8 +3,6 @@ package state
 
 import (
 	"context"
-
-	"github.com/superfly/flyctl/api"
 )
 
 type contextKeyType int
@@ -15,7 +13,6 @@ const (
 	userHomeDirKey
 	configDirKey
 	accessTokenKey
-	orgKey
 )
 
 // WithWorkingDirectory derives a Context that carries the given working
@@ -64,17 +61,6 @@ func WithAccessToken(ctx context.Context, token string) context.Context {
 // carries no access token.
 func AccessToken(ctx context.Context) string {
 	return get(ctx, accessTokenKey).(string)
-}
-
-// WithOrg derives a Context that carries the given Organization from ctx.
-func WithOrg(ctx context.Context, org *api.Organization) context.Context {
-	return set(ctx, orgKey, org)
-}
-
-// Org returns the Organization ctx carries. It panics in case ctx carries no
-// Organization.
-func Org(ctx context.Context) *api.Organization {
-	return get(ctx, orgKey).(*api.Organization)
 }
 
 func get(ctx context.Context, key contextKeyType) interface{} {

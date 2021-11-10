@@ -20,6 +20,9 @@ const (
 
 	// OrgName denotes the name of the org flag.
 	OrgName = "org"
+
+	// YesName denotes the name of the yes flag.
+	YesName = "yes"
 )
 
 // Flag wraps the set of flags.
@@ -133,7 +136,7 @@ func Org() String {
 // Yes returns a yes bool flag.
 func Yes() Bool {
 	return Bool{
-		Name:        "yes",
+		Name:        YesName,
 		Shorthand:   "y",
 		Description: "Accept all confirmations",
 	}
