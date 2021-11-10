@@ -13,7 +13,6 @@ const (
 	userHomeDirKey
 	configDirKey
 	accessTokenKey
-	orgKey
 )
 
 // WithWorkingDirectory derives a Context that carries the given working
