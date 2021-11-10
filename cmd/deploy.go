@@ -269,7 +269,7 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 
 	var once sync.Once
 
-	startLogs := func(vmid string) {
+	startLogs := func(ctx context.Context, vmid string) {
 		once.Do(func() {
 			g.Go(func() error {
 				ctx, cancel := context.WithCancel(ctx)
@@ -282,7 +282,6 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 				}
 
 				for entry := range ls.Stream(ctx, opts) {
-
 					func() {
 						if interactive {
 							s.Stop()
@@ -295,7 +294,6 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 						if entry.Message == "Starting clean up." {
 							cancel()
 						}
-
 					}()
 				}
 				return ls.Err()
@@ -334,13 +332,19 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 	})
 
 	g.Go(func() error {
+		// The logs goroutine will stop itself when it sees a shutdown log message.
+		// If the message never comes (delayed logs, etc) the deploy will hang.
+		// This timeout makes sure they always stop a few seconds after the release task is done.
+		logsCtx, logsCancel := context.WithCancel(ctx)
+		defer time.AfterFunc(3*time.Second, logsCancel)
+
 		for rc := range rcUpdates {
 			if interactive {
 				s.Prefix = fmt.Sprintf("Running release task (%s)...", rc.Status)
 			}
 
 			if rc.InstanceID != nil {
-				startLogs(*rc.InstanceID)
+				startLogs(logsCtx, *rc.InstanceID)
 			}
 
 			if !rc.InProgress && rc.Failed {
