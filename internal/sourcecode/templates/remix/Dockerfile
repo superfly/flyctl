@@ -1,9 +1,6 @@
 # base node image
 FROM node:16-bullseye-slim as base
 
-ARG REMIX_TOKEN
-ENV REMIX_TOKEN=$REMIX_TOKEN
-
 # Install openssl for Prisma
 RUN apt-get update && apt-get install -y openssl
 
@@ -19,9 +16,6 @@ RUN npm install --production=false
 # Setup production node_modules
 FROM base as production-deps
 
-ARG REMIX_TOKEN
-ENV REMIX_TOKEN=$REMIX_TOKEN
-
 RUN mkdir /app
 WORKDIR /app
 
@@ -31,9 +25,6 @@ RUN npm prune --production
 
 # Build the app
 FROM base as build
-
-ARG REMIX_TOKEN
-ENV REMIX_TOKEN=$REMIX_TOKEN
 
 RUN mkdir /app
 WORKDIR /app

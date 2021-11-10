@@ -271,14 +271,9 @@ func configureRemix(sourceDir string) (*SourceInfo, error) {
 		Family: "Remix",
 		Files:  templates("templates/remix"),
 		Port:   8080,
-		Secrets: map[string]string{
-			"REMIX_TOKEN": "Your Remix authentication token.",
-		},
 		Env: map[string]string{
 			"PORT": "8080",
 		},
-		SkipDeploy: true,
-		DeployDocs: `To deploy this app, run 'npm run deploy'`,
 	}
 
 	return s, nil
