@@ -49,6 +49,7 @@ func Scan(sourceDir string) (*SourceInfo, error) {
 		configureRuby,
 		configureGo,
 		configureElixir,
+		configurePython,
 		configureDeno,
 		configureRemix,
 		configureNode,
@@ -181,6 +182,23 @@ func configureGo(sourceDir string) (*SourceInfo, error) {
 	return s, nil
 }
 
+func configurePython(sourceDir string) (*SourceInfo, error) {
+	if !checksPass(sourceDir, fileExists("requirements.txt", "environment.yml")) {
+		return nil, nil
+	}
+
+	s := &SourceInfo{
+		Builder: "paketobuildpacks/builder:base",
+		Family:  "Python",
+		Port:    8080,
+		Env: map[string]string{
+			"PORT": "8080",
+		},
+	}
+
+	return s, nil
+}
+
 func configureNode(sourceDir string) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("package.json")) {
 		return nil, nil
@@ -287,7 +305,7 @@ func configureRemix(sourceDir string) (*SourceInfo, error) {
 // templates recursively returns files from the templates directory within the named directory
 // will panic on errors since these files are embedded and should work
 func templates(name string) (files []SourceFile) {
-	err := fs.WalkDir(content, name, func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(content, name, func(path string, d fs.DirEntry, e error) error {
 		if d.IsDir() {
 			return nil
 		}
