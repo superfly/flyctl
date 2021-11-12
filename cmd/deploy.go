@@ -181,7 +181,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		if dockerBuildTarget := cmdCtx.Config.GetString("build-target"); dockerBuildTarget != "" {
 			opts.Target = dockerBuildTarget
 		} else if dockerBuildTarget := cmdCtx.AppConfig.DockerBuildTarget(); dockerBuildTarget != "" {
-			opts.Target = filepath.Join(filepath.Dir(cmdCtx.ConfigFile), dockerBuildTarget)
+			opts.Target = dockerBuildTarget
 		}
 
 		extraArgs, err := cmdutil.ParseKVStringsToMap(cmdCtx.Config.GetStringSlice("build-arg"))
