@@ -18,6 +18,7 @@ const (
 	accessTokenEnvKey   = envKeyPrefix + "ACCESS_TOKEN"
 	apiTokenEnvKey      = envKeyPrefix + "API_TOKEN"
 	orgEnvKey           = envKeyPrefix + "ORG"
+	registryHostEnvKey  = envKeyPrefix + "REGISTRY_HOST"
 	organizationEnvKey  = envKeyPrefix + "ORGANIZATION"
 	verboseOutputEnvKey = envKeyPrefix + "VERBOSE"
 	jsonOutputEnvKey    = envKeyPrefix + "JSON"
@@ -61,6 +62,7 @@ func (cfg *Config) ApplyEnv() {
 
 	cfg.Organization = env.FirstOrDefault(cfg.Organization,
 		orgEnvKey, organizationEnvKey)
+	cfg.RegistryHost = env.FirstOrDefault(cfg.RegistryHost, registryHostEnvKey)
 }
 
 // ApplyFile sets the properties of cfg which may be set via configuration file
