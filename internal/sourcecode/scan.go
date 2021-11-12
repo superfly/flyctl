@@ -194,6 +194,8 @@ func configurePython(sourceDir string) (*SourceInfo, error) {
 		Env: map[string]string{
 			"PORT": "8080",
 		},
+		SkipDeploy: true,
+		DeployDocs: `To deploy this app, you have to add a Procfile`,
 	}
 
 	return s, nil
