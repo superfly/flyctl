@@ -57,7 +57,7 @@ func LoadAppConfig(configFile string) (*AppConfig, error) {
 		return nil, err
 	}
 
-	appConfig := *NewAppConfig()
+	appConfig := NewAppConfig()
 
 	file, err := os.Open(fullConfigFilePath)
 	if err != nil {
@@ -72,7 +72,7 @@ func LoadAppConfig(configFile string) (*AppConfig, error) {
 		return nil, errors.New("Unsupported config file format")
 	}
 
-	return &appConfig, err
+	return appConfig, err
 }
 
 func (ac *AppConfig) HasDefinition() bool {
