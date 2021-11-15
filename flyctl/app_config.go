@@ -23,11 +23,13 @@ const (
 	UnsupportedFormat              = ""
 )
 
+type Env map[string]string
+
 type AppConfig struct {
 	AppName    string
 	Build      *Build
 	Definition map[string]interface{}
-	Env        map[string]string
+	Env        Env
 }
 
 type Build struct {
