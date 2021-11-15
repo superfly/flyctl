@@ -39,7 +39,8 @@ type Build struct {
 	// Or...
 	Image string
 	// Or...
-	Dockerfile string
+	Dockerfile        string
+	DockerBuildTarget string
 }
 
 func NewAppConfig() *AppConfig {
@@ -98,6 +99,13 @@ func (ac *AppConfig) Dockerfile() string {
 		return ""
 	}
 	return ac.Build.Dockerfile
+}
+
+func (ac *AppConfig) DockerBuildTarget() string {
+	if ac.Build == nil {
+		return ""
+	}
+	return ac.Build.DockerBuildTarget
 }
 
 func (ac *AppConfig) WriteTo(w io.Writer, format ConfigFormat) error {
@@ -165,6 +173,9 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 				insection = true
 			case "dockerfile":
 				b.Dockerfile = fmt.Sprint(v)
+				insection = true
+			case "build_target":
+				b.DockerBuildTarget = fmt.Sprint(v)
 				insection = true
 			default:
 				if !insection {
