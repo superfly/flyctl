@@ -1,6 +1,7 @@
 package flyctl
 
 import (
+	"github.com/stretchr/testify/require"
 	"testing"
 
 	"github.com/BurntSushi/toml"
@@ -56,9 +57,9 @@ func TestLoadTOMLAppConfigWithServices(t *testing.T) {
 }
 
 func TestLoadTOMLAppConfigWithEnvVars(t *testing.T) {
-	path := "./testdata/env-vars.toml"
+	const path = "./testdata/env-vars.toml"
 	p, err := LoadAppConfig(path)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "debug", p.Env["LOG_LEVEL"])
 	assert.Equal(t, "production", p.Env["RAILS_ENV"])
 
