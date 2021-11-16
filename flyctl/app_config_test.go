@@ -73,3 +73,15 @@ func TestLoadTOMLAppConfigWithEnvVars(t *testing.T) {
 	assert.Equal(t, "info", p.Env["LOG_LEVEL"])
 	assert.Equal(t, "development", p.Env["RAILS_ENV"])
 }
+
+func TestEnvironment(t *testing.T) {
+	env := Environment{}
+	env.Set("k1", "v1")
+	assert.Equal(t, "v1", env["k1"])
+	assert.Equal(t, "v1", env.Get("k1"))
+	env.Set("k2", "v2")
+	env.MultiSet(map[string]string{"k2": "v2.2", "k3": "v3"})
+	assert.Equal(t, "v1", env.Get("k1"))
+	assert.Equal(t, "v2.2", env.Get("k2"))
+	assert.Equal(t, "v3", env.Get("k3"))
+}

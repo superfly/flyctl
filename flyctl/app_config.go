@@ -25,6 +25,15 @@ const (
 
 type Environment map[string]string
 
+func (e Environment) Set(key, value string) { e[key] = value }
+func (e Environment) Get(key string) string { return e[key] }
+func (e Environment) Unset(key string)      { delete(e, key) }
+func (e Environment) MultiSet(keyValues map[string]string) {
+	for k, v := range keyValues {
+		e[k] = v
+	}
+}
+
 type AppConfig struct {
 	AppName    string
 	Build      *Build
@@ -135,7 +144,7 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 	}
 	if env, ok := data["env"].(map[string]interface{}); ok {
 		for k, v := range env {
-			ac.Env[k] = fmt.Sprint(v)
+			ac.Env.Set(k, fmt.Sprint(v))
 		}
 	}
 	delete(data, "app")
@@ -321,13 +330,11 @@ func (ac *AppConfig) GetInternalPort() (int, error) {
 }
 
 func (ac *AppConfig) SetEnvVariables(vals map[string]string) {
-	for k, v := range vals {
-		ac.SetEnvVariable(k, v)
-	}
+	ac.Env.MultiSet(vals)
 }
 
 func (ac *AppConfig) SetEnvVariable(name, value string) {
-	ac.Env[name] = value
+	ac.Env.Set(name, value)
 }
 
 func (ac *AppConfig) SetProcess(name, value string) {
