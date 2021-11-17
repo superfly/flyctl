@@ -28,9 +28,9 @@ independent of flyctl.
 
 func runAuthToken(ctx context.Context) error {
 	cfg := config.FromContext(ctx)
-	token := cfg.AccessToken()
+	token := cfg.AccessToken
 
-	if io := iostreams.FromContext(ctx); cfg.JSONOutput() {
+	if io := iostreams.FromContext(ctx); cfg.JSONOutput {
 		render.JSON(io.Out, map[string]string{"token": token})
 	} else {
 		fmt.Fprintln(io.Out, token)

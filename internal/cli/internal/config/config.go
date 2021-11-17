@@ -1,7 +1,6 @@
 package config
 
 import (
-	"bytes"
 	"os"
 	"sync"
 
@@ -32,197 +31,109 @@ const (
 	defaultRegistryHost = "registry.fly.io"
 )
 
-type wrapper struct {
-	mu sync.RWMutex
-
-	apiBaseURL    string
-	registryHost  string
-	verboseOutput bool
-	jsonOutput    bool
-	logGQLErrors  bool
-	organization  string
-	localOnly     bool
-
-	dirty       bool
-	accessToken string
-}
-
-// New returns a new instance of Config populated with default values.
-func New() Config {
-	return &wrapper{
-		apiBaseURL:   defaultAPIBaseURL,
-		registryHost: defaultRegistryHost,
-	}
-}
-
 // Config wraps the functionality of the configuration file.
 //
 // Instances of Config are safe for concurrent use.
-type Config interface {
-	// APIBaseURL reports the base API URL.
-	APIBaseURL() string
+type Config struct {
+	mu sync.RWMutex
 
-	// RegistryHost reports the docker registry host.
-	RegistryHost() string
+	// APIBaseURL denotes the base URL of the API.
+	APIBaseURL string
 
-	// VerboseOutput reports whether the user wants the output to be verbose.
-	VerboseOutput() bool
+	// RegistryHost denotes the docker registry host.
+	RegistryHost string
 
-	// JSONOutput reports whether the user wants the output to be JSON.
-	JSONOutput() bool
+	// VerboseOutput denotes whether the user wants the output to be verbose.
+	VerboseOutput bool
 
-	// LogGQLErrors reports whether the user wants the log GraphQL errors.
-	LogGQLErrors() bool
+	// JSONOutput denotes whether the user wants the output to be JSON.
+	JSONOutput bool
 
-	// Organization reports the organizational slug the user has selected.
-	Organization() string
+	// LogGQLErrors denotes whether the user wants the log GraphQL errors.
+	LogGQLErrors bool
 
-	// LocalOnly reports whether the user wants only local operations.
-	LocalOnly() bool
+	// Organization denotes the organizational slug the user has selected.
+	Organization string
 
-	// AccessToken reports the user's token.
-	AccessToken() string
+	// LocalOnly denotes whether the user wants only local operations.
+	LocalOnly bool
 
-	// SetAccessToken sets the user's access token.
-	SetAccessToken(string)
-
-	// ApplyEnv sets the properties of cfg which may be set via environment
-	// variables to the values these variables contain.
-	ApplyEnv()
-
-	// ApplyFile sets the properties of cfg which may be set via configuration file
-	// to the values the file at the given path contains.
-	ApplyFile(path string) error
-
-	// ApplyFlags sets the properties of cfg which may be set via command line flags
-	// to the values the flags of the given FlagSet may contain.
-	ApplyFlags(*pflag.FlagSet)
-
-	// Dirty reports whether the configuration should be persisted to disk.
-	Dirty() bool
-
-	// Save writes the YAML-encoded representation of the configuration to the
-	// named file via os.WriteFile.
-	Save(string) error
-
-	// SaveIfDirty saves the configuration, via Save, to the named file only if
-	// the configuration is dirty at the time of the call.
-	SaveIfDirty(string) error
+	// AccessToken denotes the user's access token.
+	AccessToken string
 }
 
-func (w *wrapper) APIBaseURL() string {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-
-	return w.apiBaseURL
-}
-
-func (w *wrapper) RegistryHost() string {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-
-	return w.registryHost
-}
-
-func (w *wrapper) VerboseOutput() bool {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-
-	return w.verboseOutput
-}
-
-func (w *wrapper) JSONOutput() bool {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-
-	return w.jsonOutput
-}
-
-func (w *wrapper) LogGQLErrors() bool {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-
-	return w.logGQLErrors
-}
-
-func (w *wrapper) Organization() string {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-
-	return w.organization
-}
-
-func (w *wrapper) LocalOnly() bool {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-
-	return w.localOnly
-}
-
-func (w *wrapper) AccessToken() string {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-
-	return w.accessToken
-}
-
-func (w *wrapper) SetAccessToken(token string) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	w.dirty = true
-	w.accessToken = token
+// New returns a new instance of Config populated with default values.
+func New() *Config {
+	return &Config{
+		APIBaseURL:   defaultAPIBaseURL,
+		RegistryHost: defaultRegistryHost,
+	}
 }
 
 // ApplyEnv sets the properties of cfg which may be set via environment
 // variables to the values these variables contain.
-func (w *wrapper) ApplyEnv() {
-	w.mu.Lock()
-	defer w.mu.Unlock()
+//
+// ApplyEnv does not change the dirty state of config.
+func (cfg *Config) ApplyEnv() {
+	cfg.mu.Lock()
+	defer cfg.mu.Unlock()
 
-	w.accessToken = env.FirstOrDefault(w.accessToken,
+	cfg.AccessToken = env.FirstOrDefault(cfg.AccessToken,
 		AccessTokenEnvKey, APITokenEnvKey)
 
-	w.verboseOutput = env.IsTruthy(verboseOutputEnvKey) || w.verboseOutput
-	w.jsonOutput = env.IsTruthy(jsonOutputEnvKey) || w.jsonOutput
-	w.logGQLErrors = env.IsTruthy(logGQLEnvKey) || w.logGQLErrors
-	w.localOnly = env.IsTruthy(localOnlyEnvKey) || w.localOnly
+	cfg.VerboseOutput = env.IsTruthy(verboseOutputEnvKey) || cfg.VerboseOutput
+	cfg.JSONOutput = env.IsTruthy(jsonOutputEnvKey) || cfg.JSONOutput
+	cfg.LogGQLErrors = env.IsTruthy(logGQLEnvKey) || cfg.LogGQLErrors
+	cfg.LocalOnly = env.IsTruthy(localOnlyEnvKey) || cfg.LocalOnly
 
-	w.organization = env.FirstOrDefault(w.organization,
+	cfg.Organization = env.FirstOrDefault(cfg.Organization,
 		orgEnvKey, organizationEnvKey)
 	cfg.RegistryHost = env.FirstOrDefault(cfg.RegistryHost, registryHostEnvKey)
 	cfg.APIBaseURL = env.FirstOrDefault(cfg.APIBaseURL, apiBaseURLEnvKey)
 }
 
-func (w *wrapper) ApplyFile(path string) (err error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
+// ApplyFile sets the properties of cfg which may be set via configuration file
+// to the values the file at the given path contains.
+func (cfg *Config) ApplyFile(path string) (err error) {
+	cfg.mu.Lock()
+	defer cfg.mu.Unlock()
 
 	var f *os.File
-	if f, err = os.Open(path); err == nil {
-		err = yaml.NewDecoder(f).Decode(w)
-
+	if f, err = os.Open(path); err != nil {
+		return
+	}
+	defer func() {
 		if e := f.Close(); err == nil {
 			err = e
 		}
+	}()
+
+	var w struct {
+		accessToken string `yaml:"access_token"`
+	}
+
+	if err = yaml.NewDecoder(f).Decode(&w); err == nil {
+		cfg.AccessToken = w.accessToken
 	}
 
 	return
 }
 
-func (w *wrapper) ApplyFlags(fs *pflag.FlagSet) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
+// ApplyFlags sets the properties of cfg which may be set via command line flags
+// to the values the flags of the given FlagSet may contain.
+func (cfg *Config) ApplyFlags(fs *pflag.FlagSet) {
+	cfg.mu.Lock()
+	defer cfg.mu.Unlock()
 
 	applyStringFlags(fs, map[string]*string{
-		flag.AccessTokenName: &w.accessToken,
-		flag.OrgName:         &w.organization,
+		flag.AccessTokenName: &cfg.AccessToken,
+		flag.OrgName:         &cfg.Organization,
 	})
 
 	applyBoolFlags(fs, map[string]*bool{
-		flag.VerboseName:    &w.verboseOutput,
-		flag.JSONOutputName: &w.jsonOutput,
-		flag.LocalOnlyName:  &w.localOnly,
+		flag.VerboseName:    &cfg.VerboseOutput,
+		flag.JSONOutputName: &cfg.JSONOutput,
+		flag.LocalOnlyName:  &cfg.LocalOnly,
 	})
 }
 
@@ -252,44 +163,4 @@ func applyBoolFlags(fs *pflag.FlagSet, flags map[string]*bool) {
 			*dst = v
 		}
 	}
-}
-
-func (w *wrapper) Dirty() bool {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-
-	return w.dirty
-}
-
-func (w *wrapper) Save(path string) error {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-
-	return w.save(path)
-}
-
-func (w *wrapper) SaveIfDirty(path string) error {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-
-	if !w.dirty {
-		return nil
-	}
-
-	return w.save(path)
-}
-
-func (w *wrapper) save(path string) (err error) {
-	var b bytes.Buffer
-
-	y := map[string]interface{}{
-		"access_token": w.accessToken,
-	}
-
-	if err = yaml.NewEncoder(&b).Encode(y); err == nil {
-		// TODO: this is prone to race conditions and os.WriteFile does not flush
-		err = os.WriteFile(path, b.Bytes(), 0600)
-	}
-
-	return
 }

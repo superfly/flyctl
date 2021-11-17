@@ -57,7 +57,7 @@ func runSignup(ctx context.Context) error {
 	}
 
 	cfg := config.FromContext(ctx)
-	cfg.SetAccessToken(cliAuth.AccessToken)
+	cfg.AccessToken = cliAuth.AccessToken
 
 	c := client.FromContext(ctx)
 	if !c.InitApi() {

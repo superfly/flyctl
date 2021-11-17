@@ -3,6 +3,9 @@ package state
 
 import (
 	"context"
+	"path/filepath"
+
+	"github.com/superfly/flyctl/internal/cli/internal/config"
 )
 
 type contextKeyType int
@@ -61,6 +64,12 @@ func WithConfigDirectory(ctx context.Context, cd string) context.Context {
 // ctx carries no config directory.
 func ConfigDirectory(ctx context.Context) string {
 	return get(ctx, configDirKey).(string)
+}
+
+// ConfigFile returns the config file ctx carries. It panics in case
+// ctx carries no config directory.
+func ConfigFile(ctx context.Context) string {
+	return filepath.Join(ConfigDirectory(ctx), config.FileName)
 }
 
 func get(ctx context.Context, key contextKeyType) interface{} {

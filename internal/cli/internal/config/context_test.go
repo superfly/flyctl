@@ -11,8 +11,8 @@ func TestFromContextPanics(t *testing.T) {
 	assert.Panics(t, func() { _ = FromContext(context.Background()) })
 }
 
-func TestClient(t *testing.T) {
-	exp := new(wrapper)
+func TestNewContext(t *testing.T) {
+	exp := new(Config)
 
 	ctx := NewContext(context.Background(), exp)
 	assert.Same(t, exp, FromContext(ctx))

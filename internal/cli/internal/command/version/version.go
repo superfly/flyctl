@@ -64,7 +64,7 @@ func run(ctx context.Context) (err error) {
 		out  = iostreams.FromContext(ctx).Out
 	)
 
-	if cfg.JSONOutput() {
+	if cfg.JSONOutput {
 		err = json.NewEncoder(out).Encode(info)
 	} else {
 		_, err = fmt.Fprintln(out, info)
