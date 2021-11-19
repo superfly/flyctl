@@ -20,7 +20,7 @@ import (
 
 func newDigCommand(client *client.Client) *Command {
 	cmd := BuildCommandKS(nil, runDig,
-		docstrings.Get("dig"), client, requireSession)
+		docstrings.Get("dig"), client, requireSession, optionalAppName)
 	cmd.Args = cobra.RangeArgs(1, 2)
 
 	cmd.AddStringFlag(StringFlagOpts{
