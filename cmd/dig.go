@@ -1,12 +1,15 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"net"
 	"regexp"
 	"strings"
 
+	"github.com/miekg/dns"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
@@ -25,6 +28,13 @@ func newDigCommand(client *client.Client) *Command {
 		Shorthand:   "o",
 		Default:     "",
 		Description: "Select organization for DNS lookups instead of current app",
+	})
+
+	cmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "short",
+		Shorthand:   "s",
+		Default:     false,
+		Description: "Just print the answers, not DNS record details",
 	})
 
 	return cmd
@@ -118,16 +128,122 @@ func runDig(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	dtype := "aaaa"
+	d, err := agentclient.Dialer(ctx, org)
+	if err != nil {
+		return err
+	}
+
+	conn, err := d.DialContext(ctx, "tcp", net.JoinHostPort(ns, "53"))
+	if err != nil {
+		return err
+	}
+
+	msg := &dns.Msg{}
+
+	dtype := "AAAA"
 	name := cmdCtx.Args[0]
 
 	if len(cmdCtx.Args) > 1 {
-		dtype = strings.ToLower(cmdCtx.Args[0])
+		dtype = strings.ToUpper(cmdCtx.Args[0])
 		name = cmdCtx.Args[1]
 	}
 
+	// round trip a DNS request across a "TCP" socket; we'd just
+	// use miekg/dns's Client, but I don't think it promises to
+	// work over our weird UDS TCP proxy.
+	rtrip := func(m *dns.Msg) (*dns.Msg, error) {
+		m.Id = dns.Id()
+		m.Compress = true
+
+		buf, err := m.Pack()
+		if err != nil {
+			return nil, fmt.Errorf("dns round trip: %w", err)
+		}
+
+		var lenbuf [2]byte
+		binary.BigEndian.PutUint16(lenbuf[:], uint16(len(buf)))
+
+		if _, err = conn.Write(lenbuf[:]); err != nil {
+			return nil, fmt.Errorf("dns round trip: %w", err)
+		}
+
+		if _, err = conn.Write(buf); err != nil {
+			return nil, fmt.Errorf("dns round trip: %w", err)
+		}
+
+		if _, err = conn.Read(lenbuf[:]); err != nil {
+			return nil, fmt.Errorf("dns round trip: %w", err)
+		}
+
+		l := int(binary.BigEndian.Uint16(lenbuf[:]))
+		buf = make([]byte, l)
+
+		if _, err = conn.Read(buf); err != nil {
+			return nil, fmt.Errorf("dns round trip: %w", err)
+		}
+
+		ret := &dns.Msg{}
+		if err = ret.Unpack(buf); err != nil {
+			return nil, fmt.Errorf("dns round trip: %w", err)
+		}
+
+		return ret, nil
+	}
+
+	// add the trailing dot
+	name = dns.Fqdn(name)
+
+	if strings.HasSuffix(name, ".internal.") {
+		msg.RecursionDesired = false
+	} else {
+		msg.RecursionDesired = true
+	}
+
 	switch dtype {
-	case "aaaa":
+	case "A":
+		fallthrough
+	case "CNAME":
+		fallthrough
+	case "TXT":
+		fallthrough
+	case "AAAA":
+		msg.SetQuestion(name, dns.StringToType[dtype])
+
+		reply, err := rtrip(msg)
+		if err != nil {
+			return err
+		}
+
+		if cmdCtx.Config.GetBool("short") {
+			if reply.MsgHdr.Rcode != dns.RcodeSuccess {
+				return fmt.Errorf("lookup failed: %s", dns.RcodeToString[reply.MsgHdr.Rcode])
+			}
+
+			switch dtype {
+			case "AAAA":
+				for _, rr := range reply.Answer {
+					if aaaa, ok := rr.(*dns.AAAA); ok {
+						fmt.Printf("%s\n", aaaa.AAAA)
+					}
+				}
+			case "TXT":
+				buf := &bytes.Buffer{}
+
+				for _, rr := range reply.Answer {
+					if txt, ok := rr.(*dns.TXT); ok {
+						for _, s := range txt.Txt {
+							buf.WriteString(s)
+						}
+					}
+				}
+
+				fmt.Printf("%s\n", buf.String())
+			}
+		} else {
+			fmt.Printf("%+v\n", reply)
+		}
+
+	case "AAAA-NATIVE":
 		hosts, err := r.LookupHost(ctx, name)
 		if err != nil {
 			return FixNameError(err, ns)
@@ -137,7 +253,7 @@ func runDig(cmdCtx *cmdctx.CmdContext) error {
 			fmt.Printf("%s\n", h)
 		}
 
-	case "txt":
+	case "TXT-NATIVE":
 		txts, err := r.LookupTXT(ctx, name)
 		if err != nil {
 			return FixNameError(err, ns)
