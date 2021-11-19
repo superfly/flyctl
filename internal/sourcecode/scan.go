@@ -16,18 +16,24 @@ import (
 var content embed.FS
 
 type SourceInfo struct {
-	Family         string
-	DockerfilePath string
-	Builder        string
-	Buildpacks     []string
-	Secrets        map[string]string
-	Files          []SourceFile
-	Port           int
-	Env            map[string]string
-	Statics        []Static
-	Processes      map[string]string
-	DeployDocs     string
-	SkipDeploy     bool
+	Family           string
+	DockerfilePath   string
+	Builder          string
+	ReleaseCmd       string
+	DockerCommand    string
+	DockerEntrypoint string
+
+	Buildpacks []string
+	Secrets    map[string]string
+	Files      []SourceFile
+	Port       int
+	Env        map[string]string
+	Statics    []Static
+	Processes  map[string]string
+	DeployDocs string
+	Notice     string
+	SkipDeploy bool
+	Volumes    []Volume
 }
 
 type SourceFile struct {
@@ -37,6 +43,10 @@ type SourceFile struct {
 type Static struct {
 	GuestPath string `toml:"guest_path" json:"guest_path"`
 	UrlPrefix string `toml:"url_prefix" json:"url_prefix"`
+}
+type Volume struct {
+	Source      string `toml:"source" json:"source"`
+	Destination string `toml:"destination" json:"destination"`
 }
 
 func Scan(sourceDir string) (*SourceInfo, error) {
@@ -267,15 +277,30 @@ func configureRemix(sourceDir string) (*SourceInfo, error) {
 		return nil, nil
 	}
 
+	env := map[string]string{
+		"PORT": "8080",
+	}
+
 	s := &SourceInfo{
 		Family: "Remix",
 		Files:  templates("templates/remix"),
 		Port:   8080,
-		Env: map[string]string{
-			"PORT": "8080",
-		},
 	}
 
+	if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "sqlite")) {
+		env["DATABASE_URL"] = "file:/data/sqlite.db"
+		s.DockerCommand = "start_with_migrations.sh"
+		s.DockerEntrypoint = "sh"
+		s.Volumes = []Volume{
+			{
+				Source:      "data",
+				Destination: "/data",
+			},
+		}
+		s.Notice = "\nThis launch configuration uses SQLite on a single, dedicated volume. It will not scale beyond a single VM. Look into 'fly postgres' for a more robust production database.\n"
+	}
+
+	s.Env = env
 	return s, nil
 }
 

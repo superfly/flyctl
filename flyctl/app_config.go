@@ -331,6 +331,60 @@ func (ac *AppConfig) SetEnvVariables(vals map[string]string) {
 	ac.Definition["env"] = env
 }
 
+func (ac *AppConfig) SetReleaseCommand(cmd string) {
+	var deploy map[string]string
+
+	if rawDeploy, ok := ac.Definition["deploy"]; ok {
+		if castDeploy, ok := rawDeploy.(map[string]string); ok {
+			deploy = castDeploy
+		}
+	}
+
+	if deploy == nil {
+		deploy = map[string]string{}
+	}
+
+	deploy["release_command"] = cmd
+
+	ac.Definition["deploy"] = deploy
+}
+
+func (ac *AppConfig) SetDockerCommand(cmd string) {
+	var experimental map[string]string
+
+	if rawExperimental, ok := ac.Definition["experimental"]; ok {
+		if castExperimental, ok := rawExperimental.(map[string]string); ok {
+			experimental = castExperimental
+		}
+	}
+
+	if experimental == nil {
+		experimental = map[string]string{}
+	}
+
+	experimental["cmd"] = cmd
+
+	ac.Definition["experimental"] = experimental
+}
+
+func (ac *AppConfig) SetDockerEntrypoint(entrypoint string) {
+	var experimental map[string]string
+
+	if rawExperimental, ok := ac.Definition["experimental"]; ok {
+		if castExperimental, ok := rawExperimental.(map[string]string); ok {
+			experimental = castExperimental
+		}
+	}
+
+	if experimental == nil {
+		experimental = map[string]string{}
+	}
+
+	experimental["entrypoint"] = entrypoint
+
+	ac.Definition["experimental"] = experimental
+}
+
 func (ac *AppConfig) SetEnvVariable(name, value string) {
 	var env map[string]string
 
@@ -369,6 +423,10 @@ func (ac *AppConfig) SetProcess(name, value string) {
 
 func (ac *AppConfig) SetStatics(statics []sourcecode.Static) {
 	ac.Definition["statics"] = statics
+}
+
+func (ac *AppConfig) SetVolumes(volumes []sourcecode.Volume) {
+	ac.Definition["mounts"] = volumes
 }
 
 const defaultConfigFileName = "fly.toml"
