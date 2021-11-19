@@ -308,7 +308,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		}
 	}
 
-	// If volumes are requested by the launch scanner, prompt to create them
+	// If volumes are requested by the launch scanner, create them
 	if srcInfo != nil && len(srcInfo.Volumes) > 0 {
 
 		for _, vol := range srcInfo.Volumes {
