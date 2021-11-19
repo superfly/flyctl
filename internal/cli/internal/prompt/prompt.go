@@ -67,18 +67,23 @@ func IsNonInteractive(err error) bool {
 	return errors.Is(err, errNonInteractive)
 }
 
-func newSurveyIO(ctx context.Context) (opt survey.AskOpt, err error) {
-	if io := iostreams.FromContext(ctx); !io.IsInteractive() {
-		err = errNonInteractive
-	} else {
-		opt = survey.WithStdio(
-			io.In.(terminal.FileReader),
-			io.Out.(terminal.FileWriter),
-			io.ErrOut,
-		)
+func newSurveyIO(ctx context.Context) (survey.AskOpt, error) {
+	io := iostreams.FromContext(ctx)
+	if !io.IsInteractive() {
+		return nil, errNonInteractive
 	}
 
-	return
+	in, ok := io.In.(terminal.FileReader)
+	if !ok {
+		return nil, errNonInteractive
+	}
+
+	out, ok := io.Out.(terminal.FileWriter)
+	if !ok {
+		return nil, errNonInteractive
+	}
+
+	return survey.WithStdio(in, out, io.ErrOut), nil
 }
 
 var errOrgSlugRequired = errors.New("org slug must be specified when not running interactively")
