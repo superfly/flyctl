@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -29,11 +30,30 @@ func newDigCommand(client *client.Client) *Command {
 	return cmd
 }
 
-func ResolverForOrg(c *agent.Client, org *api.Organization) (*net.Resolver, error) {
+var (
+	nameErrorRx = regexp.MustCompile(`\[.*?\]:53`)
+)
+
+// FixNameOrError cleans up resolver errors; the Go stdlib doesn't notice when
+// you swap out the host its resolver connects to, and prints the resolv.conf
+// resolver in error messages, which is super confusing for users.
+func FixNameError(err error, ns string) error {
+	if err == nil {
+		return err
+	}
+
+	str := nameErrorRx.ReplaceAllString(err.Error(), fmt.Sprintf("[%s]:53", ns))
+	return fmt.Errorf(str) // gross but whatever
+}
+
+// ResolverForOrg takes a connection to the wireguard agent and an organization
+// and returns a working net.Resolver for DNS for that organization, along with the
+// address of the nameserver.
+func ResolverForOrg(c *agent.Client, org *api.Organization) (*net.Resolver, string, error) {
 	// do this explicitly so we can get the DNS server address
 	ts, err := c.Establish(context.Background(), org.Slug)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	return &net.Resolver{
@@ -61,7 +81,7 @@ func ResolverForOrg(c *agent.Client, org *api.Organization) (*net.Resolver, erro
 
 			return &fakeConn{c}, nil
 		},
-	}, nil
+	}, ts.TunnelConfig.DNS.String(), nil
 }
 
 func runDig(cmdCtx *cmdctx.CmdContext) error {
@@ -93,7 +113,7 @@ func runDig(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	r, err := ResolverForOrg(agentclient, org)
+	r, ns, err := ResolverForOrg(agentclient, org)
 	if err != nil {
 		return err
 	}
@@ -110,7 +130,7 @@ func runDig(cmdCtx *cmdctx.CmdContext) error {
 	case "aaaa":
 		hosts, err := r.LookupHost(ctx, name)
 		if err != nil {
-			return err
+			return FixNameError(err, ns)
 		}
 
 		for _, h := range hosts {
@@ -120,7 +140,7 @@ func runDig(cmdCtx *cmdctx.CmdContext) error {
 	case "txt":
 		txts, err := r.LookupTXT(ctx, name)
 		if err != nil {
-			return err
+			return FixNameError(err, ns)
 		}
 
 		fmt.Printf("%s\n", strings.Join(txts, ""))
