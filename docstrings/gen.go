@@ -290,6 +290,17 @@ Use flyctl monitor to restart monitoring deployment progress`,
 			`The DESTROY command will remove an application 
 from the Fly platform.`,
 		}
+	case "dig":
+		return KeyStrings{"dig [type] <name>", "DNS lookups",
+			`Make DNS requests against Fly.io's internal DNS server. Valid types include
+AAAA and TXT (the two types our servers answer authoritatively), AAAA-NATIVE 
+and TXT-NATIVE, which resolve with Go's resolver (they're slower, 
+but may be useful if diagnosing a DNS bug) and A and CNAME 
+(if you're using the server to test recursive lookups.) 
+Note that this resolves names against the server for the current organization. You can 
+set the organization with -o <org-slug>; otherwise, the command uses the organization
+attached to the current app (you can pass an app in with -a <appname>).`,
+		}
 	case "dns-records":
 		return KeyStrings{"dns-records", "Manage DNS records",
 			`Manage DNS records within a domain`,
