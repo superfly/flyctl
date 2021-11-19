@@ -1035,3 +1035,9 @@ usage = "remove <id>"
 longHelp = """Proxies connections to a fly app through the wireguard tunnel"""
 shortHelp = "Proxies connections to a fly app"
 usage = "proxy <local:remote>"
+
+[dig]
+longHelp = """Make DNS requests against Fly.io's internal DNS server."""
+shortHelp = "DNS lookups"
+usage = "dig [type] <name>"
+
