@@ -345,12 +345,18 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		return nil
 	}
 
+	// Notices from a launcher about its behavior that should always be displayed
+	if srcInfo.Notice != "" {
+		fmt.Println(srcInfo.Notice)
+	}
+
 	if !cmdCtx.Config.GetBool("no-deploy") &&
 		!srcInfo.SkipDeploy &&
 		(cmdCtx.Config.GetBool("now") || confirm("Would you like to deploy now?")) {
 		return runDeploy(cmdCtx)
 	}
 
+	// Alternative deploy documentation if our standard deploy method is not correct
 	if srcInfo.DeployDocs != "" {
 		fmt.Println(srcInfo.DeployDocs)
 	} else {

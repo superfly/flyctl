@@ -31,6 +31,7 @@ type SourceInfo struct {
 	Statics    []Static
 	Processes  map[string]string
 	DeployDocs string
+	Notice     string
 	SkipDeploy bool
 	Volumes    []Volume
 }
@@ -296,7 +297,7 @@ func configureRemix(sourceDir string) (*SourceInfo, error) {
 				Destination: "/data",
 			},
 		}
-		s.DeployDocs = "\nThis launch configuration uses SQLite on a single, dedicated volume. It will not scale beyond a single VM. Look into using 'fly postgres' for a more robust production database.\n"
+		s.Notice = "\nThis launch configuration uses SQLite on a single, dedicated volume. It will not scale beyond a single VM. Look into 'fly postgres' for a more robust production database.\n"
 	}
 
 	s.Env = env
