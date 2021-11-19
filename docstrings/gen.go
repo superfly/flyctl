@@ -747,6 +747,10 @@ All instances will be halted leaving the application running nowhere.
 It will continue to consume networking resources (IP address). See RESUME
 for details on restarting it.`,
 		}
+	case "turbo":
+		return KeyStrings{"turbo <heroku-app>", "Launches heroku apps",
+			`Launches heroku apps`,
+		}
 	case "version":
 		return KeyStrings{"version", "Show version information for the flyctl command",
 			`Shows version information for the flyctl command itself, 
