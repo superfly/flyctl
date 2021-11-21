@@ -16,6 +16,8 @@ RUN npm install --production=false
 # Setup production node_modules
 FROM base as production-deps
 
+ENV NODE_ENV production
+
 RUN mkdir /app
 WORKDIR /app
 
@@ -40,7 +42,7 @@ RUN npm run build
 # Finally, build the production image with minimal footprint
 FROM base
 
-ENV NODE_ENV=production
+ENV NODE_ENV production
 
 RUN mkdir /app
 WORKDIR /app

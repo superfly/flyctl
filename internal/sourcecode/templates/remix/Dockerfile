@@ -26,6 +26,8 @@ RUN npm prune --production
 # Build the app
 FROM base as build
 
+ENV NODE_ENV=production
+
 RUN mkdir /app
 WORKDIR /app
 
