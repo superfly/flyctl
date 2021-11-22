@@ -128,6 +128,14 @@ func (client *Client) ListPostgresDatabases(ctx context.Context, appName string)
 		return nil, err
 	}
 
+	if data.App.PostgresAppRole == nil {
+		return []PostgresClusterDatabase{}, nil
+	}
+
+	if data.App.PostgresAppRole.Databases == nil {
+		return []PostgresClusterDatabase{}, nil
+	}
+
 	return *data.App.PostgresAppRole.Databases, nil
 }
 
@@ -155,6 +163,14 @@ func (client *Client) ListPostgresUsers(ctx context.Context, appName string) ([]
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
+	}
+
+	if data.App.PostgresAppRole == nil {
+		return []PostgresClusterUser{}, nil
+	}
+
+	if data.App.PostgresAppRole.Users == nil {
+		return []PostgresClusterUser{}, nil
 	}
 
 	return *data.App.PostgresAppRole.Users, nil
