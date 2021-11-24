@@ -95,6 +95,15 @@ func runMachineList(cmdCtx *cmdctx.CmdContext) error {
 	data := [][]string{}
 
 	for _, machine := range machines {
+
+		var ipv6 string
+
+		for _, ip := range machine.IPs.Nodes {
+			if ip.Family == "v6" && ip.Kind == "privatenet" {
+				ipv6 = ip.IP
+			}
+		}
+
 		row := []string{
 			machine.ID,
 			machine.Config["image"].(string),
@@ -102,6 +111,7 @@ func runMachineList(cmdCtx *cmdctx.CmdContext) error {
 			machine.State,
 			machine.Region,
 			machine.Name,
+			ipv6,
 		}
 		if cmdCtx.AppName == "" {
 			row = append(row, machine.App.Name)
@@ -110,7 +120,7 @@ func runMachineList(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
-	headers := []string{"ID", "Image", "Created", "State", "Region", "Name"}
+	headers := []string{"ID", "Image", "Created", "State", "Region", "Name", "IP Address"}
 	if cmdCtx.AppName == "" {
 		headers = append(headers, "App")
 	}
