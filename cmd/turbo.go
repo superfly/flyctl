@@ -155,8 +155,7 @@ func createDockerfile(appName, baseImage, slugURL string) error {
 
 	dockerfile := fmt.Sprintf(`FROM %s
 RUN mkdir /app
-WORKDIR /app
-RUN curl %s | tar xzvf -`, baseImage, slugURL)
+RUN curl "%s" | tar xzf - --strip 2 -C /app`, baseImage, slugURL)
 
 	dockerfile += "\n"
 
