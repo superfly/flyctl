@@ -87,7 +87,7 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 	} else if len(cc.Args) != 0 {
 		addr = cc.Args[0]
 	} else {
-		addr = fmt.Sprintf("%s.internal", cc.AppName)
+		addr = fmt.Sprintf("top1.nearest.of.%s.internal", cc.AppName)
 	}
 
 	// wait for the addr to be resolved in dns unless it's an ip address

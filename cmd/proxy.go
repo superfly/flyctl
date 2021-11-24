@@ -94,7 +94,7 @@ func runProxy(cmdCtx *cmdctx.CmdContext) error {
 
 		remote = fmt.Sprintf("[%s]:%s", instances.Addresses[selected], remote)
 	} else {
-		remote = fmt.Sprintf("%s.internal:%s", cmdCtx.AppName, remote)
+		remote = fmt.Sprintf("top1.nearest.of.%s.internal:%s", cmdCtx.AppName, remote)
 
 	}
 
