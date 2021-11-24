@@ -2,12 +2,9 @@ package cmd
 
 import (
 	"fmt"
-	"io"
 	"io/ioutil"
-	"net/http"
 	"os"
-	"os/exec"
-	"time"
+	"strings"
 
 	hero "github.com/heroku/heroku-go/v5"
 	"github.com/spf13/cobra"
@@ -77,6 +74,37 @@ func runTurbo(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
+	// print the heroku app name we are using
+	fmt.Printf("Using heroku app: %s\n", hkApp.Name)
+
+	// retrieve heroku app ENV map[key]value and set it on fly.io as secrets
+	env, err := heroku.ConfigVarInfoForApp(ctx, appID)
+
+	if err != nil {
+		return err
+	}
+
+	if len(env) >= 1 {
+		// add the env map[key]value items to a secrets map[key]value
+		secrets := make(map[string]string)
+
+		for key, value := range env {
+			secrets[key] = *value
+		}
+
+		_, err = fly.SetSecrets(ctx, app.Name, secrets)
+		if err != nil {
+			return err
+		}
+
+		if !app.Deployed {
+			cmdCtx.Statusf("secrets", cmdctx.SINFO, "Secrets are staged for the first deployment\n")
+			return nil
+		}
+
+		cmdCtx.Statusf("secrets", cmdctx.SINFO, "Secrets are deployed\n")
+	}
+
 	// get latest release
 	releases, err := heroku.ReleaseList(ctx, appID, &hero.ListRange{Field: "version", Descending: true, Max: 1})
 	if err != nil {
@@ -90,103 +118,49 @@ func runTurbo(cmdCtx *cmdctx.CmdContext) error {
 
 	latestRelease := releases[0]
 
-	fmt.Printf("Heroku App: %s\n", hkApp.Name)
-	fmt.Printf("Latest Release: %s\n", latestRelease.ID)
-	fmt.Printf("Created: %s\n", latestRelease.CreatedAt.Format(time.RFC3339))
-	fmt.Printf("Updated: %s\n", latestRelease.UpdatedAt.Format(time.RFC3339))
-	fmt.Printf("Version: %d\n", latestRelease.Version)
-
 	// get the latest release's slug
 	slug, err := heroku.SlugInfo(ctx, hkApp.ID, latestRelease.Slug.ID)
 	if err != nil {
 		return err
 	}
 
-	// download the gzipped slug tarball fron slug.Blob.URL write to a temporary file and untar it
-	client := new(http.Client)
-
-	req, err := http.NewRequest("GET", slug.Blob.URL, nil)
-	if err != nil {
+	if err := os.MkdirAll(app.Name, 0755); err != nil {
 		return err
 	}
 
-	req.Header.Set("Accept-Encoding", "gzip")
-
-	res, err := client.Do(req)
-
-	if err != nil {
-		return err
-	}
-
-	defer res.Body.Close()
-
-	file, err := ioutil.TempFile("", "slug.tar.gz")
-
-	if err != nil {
-		return err
-	}
-
-	defer os.Remove(file.Name())
-
-	_, err = io.Copy(file, res.Body)
-	if err != nil {
-		return err
-	}
-
-	file.Close()
-
-	if err := os.MkdirAll(app.Name, 0700); err != nil {
-		return err
-	}
-
-	untar := exec.Command("tar", "-xf", file.Name(), "--strip-components=2", "-C", app.Name)
-	untar.Stdout = cmdCtx.IO.Out
-	untar.Stderr = cmdCtx.IO.ErrOut
-
-	if err := untar.Run(); err != nil {
-		return err
-	}
-
-	var procfile string
-
+	procfile := ""
 	for process, command := range slug.ProcessTypes {
-		procfile += fmt.Sprintf("%s: %s\n", process, command)
+		if process != "release" {
+			procfile += fmt.Sprintf("%s: %s\n", process, command)
+		}
 	}
 
 	if err := ioutil.WriteFile(fmt.Sprintf("%s/Procfile", app.Name), []byte(procfile), 0644); err != nil {
 		return err
 	}
 
-	// retrieve heroku app ENV map[key]value and set it on fly.io as secrets
-	env, err := heroku.ConfigVarInfoForApp(ctx, appID)
+	fmt.Printf("Procfile created: %s/Procfile\n", app.Name)
 
-	if err != nil {
+	if err := createDockerfile(app.Name, slug.Stack.Name, slug.Blob.URL); err != nil {
 		return err
 	}
 
-	if len(env) < 1 {
-		fmt.Println("No ENV variables found")
-		return nil
-	}
-
-	// add the env map[key]value items to a secrets map[key]value
-	secrets := make(map[string]string)
-
-	for key, value := range env {
-		secrets[key] = *value
-	}
-
-	_, err = fly.SetSecrets(ctx, app.Name, secrets)
-	if err != nil {
-		return err
-	}
-
-	if !app.Deployed {
-		cmdCtx.Statusf("secrets", cmdctx.SINFO, "Secrets are staged for the first deployment\n")
-		return nil
-	}
-
-	cmdCtx.Statusf("secrets", cmdctx.SINFO, "Secrets are deployed\n")
+	fmt.Printf("Dockerfile created: %s/Dockerfile\n", app.Name)
 
 	return nil
+}
+
+func createDockerfile(appName, baseImage, slugURL string) error {
+	baseImage = fmt.Sprintf("%s/%s", "heroku", strings.Replace(baseImage, "-", ":", 1))
+
+	dockerfile := fmt.Sprintf(`FROM %s
+RUN mkdir /app
+WORKDIR /app
+RUN curl %s | tar xzvf -`, baseImage, slugURL)
+
+	dockerfile += "\n"
+
+	dockerfile += "ADD Procfile /app\n"
+
+	return ioutil.WriteFile(fmt.Sprintf("%s/Dockerfile", appName), []byte(dockerfile), 0644)
 }
