@@ -1008,6 +1008,7 @@ type CreatePostgresClusterInput struct {
 	Password       *string `json:"password,omitempty"`
 	VMSize         *string `json:"vmSize,omitempty"`
 	VolumeSizeGB   *int    `json:"volumeSizeGb,omitempty"`
+	Count          *int    `json:"count,omitempty"`
 	ImageRef       *string `json:"imageRef,omitempty"`
 	SnapshotID     *string `json:"snapshotId,omitempty"`
 }
