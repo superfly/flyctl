@@ -165,9 +165,9 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 			AppConfig:  cmdCtx.AppConfig,
 			Publish:    !cmdCtx.Config.GetBool("build-only"),
 			ImageLabel: cmdCtx.Config.GetString("image-label"),
-			Target:     cmdCtx.Config.GetString("build-target"),
 			NoCache:    cmdCtx.Config.GetBool("no-cache"),
 		}
+
 		if dockerfilePath := cmdCtx.Config.GetString("dockerfile"); dockerfilePath != "" {
 			dockerfilePath, err := filepath.Abs(dockerfilePath)
 			if err != nil {
@@ -176,6 +176,12 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 			opts.DockerfilePath = dockerfilePath
 		} else if dockerfilePath := cmdCtx.AppConfig.Dockerfile(); dockerfilePath != "" {
 			opts.DockerfilePath = filepath.Join(filepath.Dir(cmdCtx.ConfigFile), dockerfilePath)
+		}
+
+		if dockerBuildTarget := cmdCtx.Config.GetString("build-target"); dockerBuildTarget != "" {
+			opts.Target = dockerBuildTarget
+		} else if dockerBuildTarget := cmdCtx.AppConfig.DockerBuildTarget(); dockerBuildTarget != "" {
+			opts.Target = dockerBuildTarget
 		}
 
 		extraArgs, err := cmdutil.ParseKVStringsToMap(cmdCtx.Config.GetStringSlice("build-arg"))

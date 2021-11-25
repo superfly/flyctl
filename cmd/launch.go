@@ -256,13 +256,30 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 			appConfig.SetStatics(srcInfo.Statics)
 		}
 
+		if len(srcInfo.Volumes) > 0 {
+			appConfig.SetVolumes(srcInfo.Volumes)
+		}
+
 		for procName, procCommand := range srcInfo.Processes {
 			appConfig.SetProcess(procName, procCommand)
+		}
+
+		if srcInfo.ReleaseCmd != "" {
+			appConfig.SetReleaseCommand(srcInfo.ReleaseCmd)
+		}
+
+		if srcInfo.DockerCommand != "" {
+			appConfig.SetDockerCommand(srcInfo.DockerCommand)
+		}
+
+		if srcInfo.DockerCommand != "" {
+			appConfig.SetDockerEntrypoint(srcInfo.DockerEntrypoint)
 		}
 	}
 
 	fmt.Printf("Created app %s in organization %s\n", app.Name, org.Slug)
 
+	// If secrets are requested by the launch scanner, ask the user to input them
 	if srcInfo != nil && len(srcInfo.Secrets) > 0 {
 		secrets := make(map[string]string)
 		keys := []string{}
@@ -291,6 +308,35 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		}
 	}
 
+	// If volumes are requested by the launch scanner, create them
+	if srcInfo != nil && len(srcInfo.Volumes) > 0 {
+
+		for _, vol := range srcInfo.Volumes {
+
+			app, err := cmdCtx.Client.API().GetApp(ctx, cmdCtx.AppName)
+
+			if err != nil {
+				return err
+			}
+
+			volume, err := cmdCtx.Client.API().CreateVolume(ctx, api.CreateVolumeInput{
+				AppID:     app.ID,
+				Name:      vol.Source,
+				Region:    region.Code,
+				SizeGb:    10,
+				Encrypted: true,
+			})
+
+			if err != nil {
+				return err
+			} else {
+				fmt.Printf("Created a %dGB volume %s in the %s region\n", volume.SizeGb, volume.ID, region.Code)
+			}
+
+		}
+	}
+
+	// Finally, write the config
 	if err := writeAppConfig(filepath.Join(dir, "fly.toml"), appConfig); err != nil {
 		return err
 	}
@@ -299,12 +345,18 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		return nil
 	}
 
+	// Notices from a launcher about its behavior that should always be displayed
+	if srcInfo.Notice != "" {
+		fmt.Println(srcInfo.Notice)
+	}
+
 	if !cmdCtx.Config.GetBool("no-deploy") &&
 		!srcInfo.SkipDeploy &&
 		(cmdCtx.Config.GetBool("now") || confirm("Would you like to deploy now?")) {
 		return runDeploy(cmdCtx)
 	}
 
+	// Alternative deploy documentation if our standard deploy method is not correct
 	if srcInfo.DeployDocs != "" {
 		fmt.Println(srcInfo.DeployDocs)
 	} else {
