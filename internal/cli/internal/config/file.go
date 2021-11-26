@@ -2,13 +2,28 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/superfly/flyctl/internal/filemu"
 )
 
-// Unset unsets the key of the configuration file at the named path.
-func Unset(path, key string) error {
+// SetAccessToken sets the value of the access token at the configuration file
+// found at path.
+func SetAccessToken(path, token string) error {
+	return set(path, AccessTokenFileKey, token)
+}
+
+// ClearAccessToken unsets the value of the access token at the configuration
+// file found at path.
+func ClearAccessToken(path string) error {
+	return unset(path, AccessTokenFileKey)
+}
+
+func unset(path, key string) error {
 	var m map[string]interface{}
 
 	switch err := unmarshal(path, &m); {
@@ -25,8 +40,7 @@ func Unset(path, key string) error {
 	return marshal(path, m)
 }
 
-// Set sets the key of the configuration file at the named path to value.
-func Set(path, key string, value interface{}) error {
+func set(path, key string, value interface{}) error {
 	var m map[string]interface{}
 	switch err := unmarshal(path, &m); {
 	case err == nil, os.IsNotExist(err):
@@ -40,27 +54,52 @@ func Set(path, key string, value interface{}) error {
 	return marshal(path, m)
 }
 
-// TODO: this is prone to race conditions
-func unmarshal(path string, into interface{}) (err error) {
-	var f *os.File
-	if f, err = os.Open(path); err == nil {
-		err = yaml.NewDecoder(f).Decode(&into)
+var lockPath = filepath.Join(os.TempDir(), "flyctl.config.lock")
 
+func unmarshal(path string, into interface{}) (err error) {
+	var unlocker filemu.Unlocker
+	if unlocker, err = filemu.RLock(context.Background(), lockPath); err != nil {
+		return
+	}
+	defer func() {
+		if e := unlocker.Unlock(); err == nil {
+			err = e
+		}
+	}()
+
+	var f *os.File
+	if f, err = os.Open(path); err != nil {
+		return
+	}
+	defer func() {
 		if e := f.Close(); err == nil {
 			err = e
 		}
-	}
+	}()
+
+	err = yaml.NewDecoder(f).Decode(&into)
 
 	return
 }
 
-// TODO: this is prone to race conditions and os.WriteFile does not flush
 func marshal(path string, v interface{}) (err error) {
 	var b bytes.Buffer
-
 	if err = yaml.NewEncoder(&b).Encode(v); err == nil {
-		err = os.WriteFile(path, b.Bytes(), 0600)
+		return
 	}
+
+	var unlocker filemu.Unlocker
+	if unlocker, err = filemu.Lock(context.Background(), lockPath); err != nil {
+		return
+	}
+	defer func() {
+		if e := unlocker.Unlock(); err == nil {
+			err = e
+		}
+	}()
+
+	// TODO: os.WriteFile does not flush
+	err = os.WriteFile(path, b.Bytes(), 0600)
 
 	return
 }
