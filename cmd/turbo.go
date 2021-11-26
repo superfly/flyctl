@@ -185,15 +185,27 @@ func runTurbo(cmdCtx *cmdctx.CmdContext) error {
 func createDockerfile(appName, baseImage, slugURL string) error {
 	baseImage = fmt.Sprintf("%s/%s", "heroku", strings.Replace(baseImage, "-", ":", 1))
 
-	dockerfile := fmt.Sprintf(`FROM %s
+	entrypoint := `
+for f in /app/.profile.d/*.sh; do . $f; done
+eval "exec $@"
+`
+	ioutil.WriteFile(fmt.Sprintf("%s/entrypoint.sh", appName), []byte(entrypoint), 06750)
+
+	dockerfileTemplate := `FROM %s
+RUN useradd -m heroku
 RUN mkdir /app
-RUN curl "%s" | tar xzf - --strip 2 -C /app`, baseImage, slugURL)
+WORKDIR /app
+ENV HOME /app
+ENV PORT 8080
+COPY Procfile /app
+COPY entrypoint.sh /app
+ENTRYPOINT ["/bin/bash", "/app/entrypoint.sh"]
 
-	dockerfile += "\n"
+RUN curl "%s" | tar xzf - --strip 2 -C /app`
 
-	dockerfile += "ADD Procfile /app\n"
+	dockerfile := fmt.Sprintf(dockerfileTemplate, baseImage, slugURL)
+	dockerfile += "\nRUN chown -R heroku:heroku /app\n"
+	dockerfile += "\nUSER heroku\n"
 
-	dockerfile += "WORKDIR /app\n"
-
-	return ioutil.WriteFile(fmt.Sprintf("%s/Dockerfile", appName), []byte(dockerfile), 0644)
+	return ioutil.WriteFile(fmt.Sprintf("%s/Dockerfile", appName), []byte(dockerfile), 0640)
 }
