@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -194,6 +195,22 @@ func runTurbo(cmdCtx *cmdctx.CmdContext) error {
 	// Write the app config
 	if err := writeAppConfig(filepath.Join(appName, "fly.toml"), appConfig); err != nil {
 		return err
+	}
+
+	if !cmdCtx.Config.GetBool("no-deploy") && (cmdCtx.Config.GetBool("now") || confirm("Would you like to deploy now?")) {
+		// change workinfg dir to the app dir
+		if err := os.Chdir(app.Name); err != nil {
+			return err
+		}
+
+		// temporarily solution as I find a better way to call runDeploy
+		cmd := exec.Command("fly", "deploy")
+		cmd.Stdout = cmdCtx.IO.Out
+		cmd.Stderr = cmdCtx.IO.ErrOut
+		cmd.Stdin = cmdCtx.IO.In
+		cmd.Env = append(os.Environ(), fmt.Sprintf("FLY_APP=%s", appName))
+
+		return cmd.Run()
 	}
 
 	return nil
