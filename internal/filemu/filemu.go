@@ -9,10 +9,8 @@ import (
 	"github.com/gofrs/flock"
 )
 
-// Unlocker is the interface that wraps the basic Unlock method.
-type Unlocker interface {
-	Unlock() error
-}
+// UnlockFunc is the set of unlock functions.
+type UnlockFunc func() error
 
 const (
 	timeout    = time.Second
@@ -20,26 +18,20 @@ const (
 )
 
 // Lock attempts to acquire an exclusive lock on the named file.
-func Lock(ctx context.Context, path string) (Unlocker, error) {
+func Lock(ctx context.Context, path string) (UnlockFunc, error) {
 	return try(ctx, path, (*flock.Flock).TryLockContext)
 }
 
 // RLock attempts to acquire a shared lock on the named file.
-func RLock(ctx context.Context, path string) (Unlocker, error) {
+func RLock(ctx context.Context, path string) (UnlockFunc, error) {
 	return try(ctx, path, (*flock.Flock).TryRLockContext)
 }
 
 var errFailed = errors.New("failed acquiring lock")
 
-type unlockFunc func() error
-
-func (fn unlockFunc) Unlock() error {
-	return fn()
-}
-
 type lockFunc func(*flock.Flock, context.Context, time.Duration) (bool, error)
 
-func try(parent context.Context, path string, fn lockFunc) (Unlocker, error) {
+func try(parent context.Context, path string, fn lockFunc) (UnlockFunc, error) {
 	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 
@@ -51,6 +43,6 @@ func try(parent context.Context, path string, fn lockFunc) (Unlocker, error) {
 	case !locked:
 		return nil, errFailed
 	default:
-		return unlockFunc(mu.Unlock), nil
+		return mu.Unlock, nil
 	}
 }
