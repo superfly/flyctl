@@ -124,7 +124,7 @@ func runTurbo(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	if err := os.MkdirAll(app.Name, 0755); err != nil {
+	if err := os.MkdirAll(app.Name, 0750); err != nil {
 		return err
 	}
 
