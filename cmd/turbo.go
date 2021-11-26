@@ -116,6 +116,23 @@ func runTurbo(cmdCtx *cmdctx.CmdContext) error {
 		}
 	}
 
+	// Heroku regions are in Virigina (US) and Ireland (EU), so use the closest datacenters
+
+	var region string
+
+	if hkApp.Region.Name == "us" {
+		region = "iad"
+	} else {
+		region = "lhr"
+	}
+
+	regionsInput := api.ConfigureRegionsInput{
+		AppID:        appName,
+		AllowRegions: []string{region},
+	}
+
+	fly.ConfigureRegions(ctx, regionsInput)
+
 	// get latest release
 	releases, err := heroku.ReleaseList(ctx, appID, &hero.ListRange{Field: "version", Descending: true, Max: 1})
 	if err != nil {
