@@ -35,27 +35,27 @@ The LIST command will list all currently registered applications.`,
 		}
 	case "apps.create":
 		return KeyStrings{"create [APPNAME]", "Create a new application",
-			`The APPS CREATE command will both register a new application 
-with the Fly platform and create the fly.toml file which controls how 
-the application will be deployed. The --builder flag allows a cloud native 
-buildpack to be specified which will be used instead of a Dockerfile to 
+			`The APPS CREATE command will both register a new application
+with the Fly platform and create the fly.toml file which controls how
+the application will be deployed. The --builder flag allows a cloud native
+buildpack to be specified which will be used instead of a Dockerfile to
 create the application image when it is deployed.`,
 		}
 	case "apps.destroy":
 		return KeyStrings{"destroy [APPNAME]", "Permanently destroys an app",
-			`The APPS DESTROY command will remove an application 
+			`The APPS DESTROY command will remove an application
 from the Fly platform.`,
 		}
 	case "apps.list":
 		return KeyStrings{"list", "List applications",
 			`The APPS LIST command will show the applications currently
-registered and available to this user. The list will include applications 
-from all the organizations the user is a member of. Each application will 
+registered and available to this user. The list will include applications
+from all the organizations the user is a member of. Each application will
 be shown with its name, owner and when it was last deployed.`,
 		}
 	case "apps.move":
 		return KeyStrings{"move [APPNAME]", "Move an app to another organization",
-			`The APPS MOVE command will move an application to another 
+			`The APPS MOVE command will move an application to another
 organization the current user belongs to.`,
 		}
 	case "apps.restart":
@@ -64,14 +64,14 @@ organization the current user belongs to.`,
 		}
 	case "apps.resume":
 		return KeyStrings{"resume [APPNAME]", "Resume an application",
-			`The APPS RESUME command will restart a previously suspended application. 
+			`The APPS RESUME command will restart a previously suspended application.
 The application will resume with its original region pool and a min count of one
 meaning there will be one running instance once restarted. Use SCALE SET MIN= to raise
 the number of configured instances.`,
 		}
 	case "apps.suspend":
 		return KeyStrings{"suspend [APPNAME]", "Suspend an application",
-			`The APPS SUSPEND command will suspend an application. 
+			`The APPS SUSPEND command will suspend an application.
 All instances will be halted leaving the application running nowhere.
 It will continue to consume networking resources (IP address). See APPS RESUME
 for details on restarting it.`,
@@ -84,35 +84,35 @@ If you do have and account, begin with the AUTH LOGIN subcommand.`,
 		}
 	case "auth.docker":
 		return KeyStrings{"docker", "Authenticate docker",
-			`Adds registry.fly.io to the docker daemon's authenticated 
-registries. This allows you to push images directly to fly from 
+			`Adds registry.fly.io to the docker daemon's authenticated
+registries. This allows you to push images directly to fly from
 the docker cli.`,
 		}
 	case "auth.login":
 		return KeyStrings{"login", "Log in a user",
-			`Logs a user into the Fly platform. Supports browser-based, 
-email/password and one-time-password authentication. Defaults to using 
+			`Logs a user into the Fly platform. Supports browser-based,
+email/password and one-time-password authentication. Defaults to using
 browser-based authentication.`,
 		}
 	case "auth.logout":
 		return KeyStrings{"logout", "Logs out the currently logged in user",
-			`Log the currently logged-in user out of the Fly platform. 
+			`Log the currently logged-in user out of the Fly platform.
 To continue interacting with Fly, the user will need to log in again.`,
 		}
 	case "auth.signup":
 		return KeyStrings{"signup", "Create a new fly account",
-			`Creates a new fly account. The command opens the browser 
+			`Creates a new fly account. The command opens the browser
 and sends the user to a form to provide appropriate credentials.`,
 		}
 	case "auth.token":
 		return KeyStrings{"token", "Show the current auth token",
-			`Shows the authentication token that is currently in use. 
-This can be used as an authentication token with API services, 
+			`Shows the authentication token that is currently in use.
+This can be used as an authentication token with API services,
 independent of flyctl.`,
 		}
 	case "auth.whoami":
 		return KeyStrings{"whoami", "Show the currently authenticated user",
-			`Displays the users email address/service identity currently 
+			`Displays the users email address/service identity currently
 authenticated and in use.`,
 		}
 	case "autoscale":
@@ -123,7 +123,7 @@ authenticated and in use.`,
 		return KeyStrings{"balanced", "Configure a traffic balanced app with params (min=int max=int)",
 			`Configure the app to balance regions based on traffic with given parameters:
 
-min=int - minimum number of instances to be allocated from region pool. 
+min=int - minimum number of instances to be allocated from region pool.
 max=int - maximum number of instances to be allocated from region pool.`,
 		}
 	case "autoscale.disable":
@@ -134,7 +134,7 @@ max=int - maximum number of instances to be allocated from region pool.`,
 		return KeyStrings{"set", "Set current models autoscaling parameters",
 			`Allows the setting of the current models autoscaling parameters:
 
-min=int - minimum number of instances to be allocated from region pool. 
+min=int - minimum number of instances to be allocated from region pool.
 max=int - maximum number of instances to be allocated from region pool.`,
 		}
 	case "autoscale.show":
@@ -145,7 +145,7 @@ max=int - maximum number of instances to be allocated from region pool.`,
 		return KeyStrings{"standard", "Configure a standard balanced app with params (min=int max=int)",
 			`Configure the app without traffic balancing with the given parameters:
 
-min=int - minimum number of instances to be allocated from region pool. 
+min=int - minimum number of instances to be allocated from region pool.
 max=int - maximum number of instances to be allocated from region pool.`,
 		}
 	case "builds":
@@ -182,19 +182,19 @@ and other information.`,
 		}
 	case "certs":
 		return KeyStrings{"certs", "Manage certificates",
-			`Manages the certificates associated with a deployed application. 
-Certificates are created by associating a hostname/domain with the application. 
-When Fly is then able to validate that hostname/domain, the platform gets 
+			`Manages the certificates associated with a deployed application.
+Certificates are created by associating a hostname/domain with the application.
+When Fly is then able to validate that hostname/domain, the platform gets
 certificates issued for the hostname/domain by Let's Encrypt.`,
 		}
 	case "certs.add":
 		return KeyStrings{"add <hostname>", "Add a certificate for an app.",
-			`Add a certificate for an application. Takes a hostname 
+			`Add a certificate for an application. Takes a hostname
 as a parameter for the certificate.`,
 		}
 	case "certs.check":
 		return KeyStrings{"check <hostname>", "Checks DNS configuration",
-			`Checks the DNS configuration for the specified hostname. 
+			`Checks the DNS configuration for the specified hostname.
 Displays results in the same format as the SHOW command.`,
 		}
 	case "certs.list":
@@ -203,12 +203,12 @@ Displays results in the same format as the SHOW command.`,
 		}
 	case "certs.remove":
 		return KeyStrings{"remove <hostname>", "Removes a certificate from an app",
-			`Removes a certificate from an application. Takes hostname 
+			`Removes a certificate from an application. Takes hostname
 as a parameter to locate the certificate.`,
 		}
 	case "certs.show":
 		return KeyStrings{"show <hostname>", "Shows certificate information",
-			`Shows certificate information for an application. 
+			`Shows certificate information for an application.
 Takes hostname as a parameter to locate the certificate.`,
 		}
 	case "checks":
@@ -241,7 +241,7 @@ Takes hostname as a parameter to locate the certificate.`,
 		}
 	case "config.display":
 		return KeyStrings{"display", "Display an app's configuration",
-			`Display an application's configuration. The configuration is presented 
+			`Display an application's configuration. The configuration is presented
 in JSON format. The configuration data is retrieved from the Fly service.`,
 		}
 	case "config.env":
@@ -251,12 +251,12 @@ secrets and another for config file defined environment variables.`,
 		}
 	case "config.save":
 		return KeyStrings{"save", "Save an app's config file",
-			`Save an application's configuration locally. The configuration data is 
+			`Save an application's configuration locally. The configuration data is
 retrieved from the Fly service and saved in TOML format.`,
 		}
 	case "config.validate":
 		return KeyStrings{"validate", "Validate an app's config file",
-			`Validates an application's config file against the Fly platform to 
+			`Validates an application's config file against the Fly platform to
 ensure it is correct and meaningful to the platform.`,
 		}
 	case "curl":
@@ -273,7 +273,7 @@ ensure it is correct and meaningful to the platform.`,
 		}
 	case "deploy":
 		return KeyStrings{"deploy [<workingdirectory>]", "Deploy an app to the Fly platform",
-			`Deploy an application to the Fly platform. The application can be a local 
+			`Deploy an application to the Fly platform. The application can be a local
 image, remote image, defined in a Dockerfile or use a CNB buildpack.
 
 Use the --config/-c flag to select a specific toml configuration file.
@@ -287,17 +287,17 @@ Use flyctl monitor to restart monitoring deployment progress`,
 		}
 	case "destroy":
 		return KeyStrings{"destroy [APPNAME]", "Permanently destroys an app",
-			`The DESTROY command will remove an application 
+			`The DESTROY command will remove an application
 from the Fly platform.`,
 		}
 	case "dig":
 		return KeyStrings{"dig [type] <name>", "DNS lookups",
 			`Make DNS requests against Fly.io's internal DNS server. Valid types include
-AAAA and TXT (the two types our servers answer authoritatively), AAAA-NATIVE 
-and TXT-NATIVE, which resolve with Go's resolver (they're slower, 
-but may be useful if diagnosing a DNS bug) and A and CNAME 
-(if you're using the server to test recursive lookups.) 
-Note that this resolves names against the server for the current organization. You can 
+AAAA and TXT (the two types our servers answer authoritatively), AAAA-NATIVE
+and TXT-NATIVE, which resolve with Go's resolver (they're slower,
+but may be useful if diagnosing a DNS bug) and A and CNAME
+(if you're using the server to test recursive lookups.)
+Note that this resolves names against the server for the current organization. You can
 set the organization with -o <org-slug>; otherwise, the command uses the organization
 attached to the current app (you can pass an app in with -a <appname>).`,
 		}
@@ -321,7 +321,7 @@ imports from StdIn.`,
 		}
 	case "docs":
 		return KeyStrings{"docs", "View Fly documentation",
-			`View Fly documentation on the Fly.io website. This command will open a 
+			`View Fly documentation on the Fly.io website. This command will open a
 browser to view the content.`,
 		}
 	case "domains":
@@ -349,7 +349,7 @@ browser to view the content.`,
 			`flyctl is a command line interface to the Fly.io platform.
 
 It allows users to manage authentication, application launch,
-deployment, network configuration, logging and more with just the 
+deployment, network configuration, logging and more with just the
 one command.
 
 Launch an app with the launch command
@@ -361,7 +361,7 @@ To read more, use the docs command to view Fly's help on the web.`,
 		}
 	case "history":
 		return KeyStrings{"history", "List an app's change history",
-			`List the history of changes in the application. Includes autoscaling 
+			`List the history of changes in the application. Includes autoscaling
 events and their results.`,
 		}
 	case "image":
@@ -388,9 +388,9 @@ Information includes the application's
 		}
 	case "ips":
 		return KeyStrings{"ips", "Manage IP addresses for apps",
-			`The IPS commands manage IP addresses for applications. An application 
-can have a number of IP addresses associated with it and this family of commands 
-allows you to list, allocate and release those addresses. It supports both IPv4 
+			`The IPS commands manage IP addresses for applications. An application
+can have a number of IP addresses associated with it and this family of commands
+allows you to list, allocate and release those addresses. It supports both IPv4
 and IPv6 addresses.`,
 		}
 	case "ips.allocate-v4":
@@ -428,7 +428,7 @@ The orgs command lists all the organizations you are a member of.`,
 		}
 	case "list.apps":
 		return KeyStrings{"apps [text] [-o org] [-s status]", "Lists all your apps",
-			`The list apps command lists all your applications. As this may be a 
+			`The list apps command lists all your applications. As this may be a
 long list, there are options to filter the results.
 
 Specifying a text string as a parameter will only return applications where the
@@ -447,10 +447,10 @@ short name of the organization and the long name.`,
 		}
 	case "logs":
 		return KeyStrings{"logs", "View app logs",
-			`View application logs as generated by the application running on 
+			`View application logs as generated by the application running on
 the Fly platform.
 
-Logs can be filtered to a specific instance using the --instance/-i flag or 
+Logs can be filtered to a specific instance using the --instance/-i flag or
 to all instances running in a specific region using the --region/-r flag.`,
 		}
 	case "machine":
@@ -488,7 +488,7 @@ to get details of every instance . Control-C to stop output.`,
 		}
 	case "move":
 		return KeyStrings{"move [APPNAME]", "Move an app to another organization",
-			`The MOVE command will move an application to another 
+			`The MOVE command will move an application to another
 organization the current user belongs to.`,
 		}
 	case "open":
@@ -498,13 +498,13 @@ URL for deployed application.`,
 		}
 	case "orgs":
 		return KeyStrings{"orgs", "Commands for managing Fly organizations",
-			`Commands for managing Fly organizations. list, create, show and 
-destroy organizations. 
+			`Commands for managing Fly organizations. list, create, show and
+destroy organizations.
 Organization admins can also invite or remove users from Organizations.`,
 		}
 	case "orgs.create":
 		return KeyStrings{"create <org>", "Create an organization",
-			`Create a new organization. Other users can be invited to join the 
+			`Create a new organization. Other users can be invited to join the
 organization later.`,
 		}
 	case "orgs.delete":
@@ -527,7 +527,7 @@ invitation to join (if not, see orgs revoke).`,
 		}
 	case "orgs.revoke":
 		return KeyStrings{"revoke <org> <email>", "Revoke a pending invitation to an organization",
-			`Revokes an invitation to join an organization that has been sent to a 
+			`Revokes an invitation to join an organization that has been sent to a
 user by email.`,
 		}
 	case "orgs.show":
@@ -538,7 +538,7 @@ associated member. Details full list of members and roles.`,
 		}
 	case "platform":
 		return KeyStrings{"platform", "Fly platform information",
-			`The PLATFORM commands are for users looking for information 
+			`The PLATFORM commands are for users looking for information
 about the Fly platform.`,
 		}
 	case "platform.regions":
@@ -627,7 +627,7 @@ about the Fly platform.`,
 		}
 	case "releases":
 		return KeyStrings{"releases", "List app releases",
-			`List all the releases of the application onto the Fly platform, 
+			`List all the releases of the application onto the Fly platform,
 including type, when, success/fail and which user triggered the release.`,
 		}
 	case "restart":
@@ -636,7 +636,7 @@ including type, when, success/fail and which user triggered the release.`,
 		}
 	case "resume":
 		return KeyStrings{"resume [APPNAME]", "Resume an application",
-			`The RESUME command will restart a previously suspended application. 
+			`The RESUME command will restart a previously suspended application.
 The application will resume with its original region pool and a min count of one
 meaning there will be one running instance once restarted. Use SCALE SET MIN= to raise
 the number of configured instances.`,
@@ -647,7 +647,7 @@ the number of configured instances.`,
 		}
 	case "scale.count":
 		return KeyStrings{"count <count>", "Change an app's VM count to the given value",
-			`Change an app's VM count to the given value. 
+			`Change an app's VM count to the given value.
 
 For pricing, see https://fly.io/docs/about/pricing/`,
 		}
@@ -692,8 +692,8 @@ are read from stdin as name=value`,
 		}
 	case "secrets.list":
 		return KeyStrings{"list", "Lists the secrets available to the app",
-			`List the secrets available to the application. It shows each 
-secret's name, a digest of the its value and the time the secret was last set. 
+			`List the secrets available to the application. It shows each
+secret's name, a digest of the its value and the time the secret was last set.
 The actual value of the secret is only available to the application.`,
 		}
 	case "secrets.set":
@@ -708,7 +708,7 @@ Any value that equals "-" will be assigned from STDIN instead of args.`,
 		}
 	case "secrets.unset":
 		return KeyStrings{"unset [flags] NAME NAME ...", "Remove encrypted secrets from an app",
-			`Remove encrypted secrets from the application. Unsetting a 
+			`Remove encrypted secrets from the application. Unsetting a
 secret removes its availability to the application.`,
 		}
 	case "ssh":
@@ -727,7 +727,7 @@ invalidated.`,
 		}
 	case "ssh.issue":
 		return KeyStrings{"issue [org] [email] [path]", "Issue a new SSH credential.",
-			`Issue a new SSH credential. With -agent, populate credential 
+			`Issue a new SSH credential. With -agent, populate credential
 into SSH agent. With -hour, set the number of hours (1-72) for credential
 validity.`,
 		}
@@ -742,18 +742,18 @@ WireGuard region to use for the connection.`,
 		}
 	case "status":
 		return KeyStrings{"status", "Show app status",
-			`Show the application's current status including application 
-details, tasks, most recent deployment details and in which regions it is 
+			`Show the application's current status including application
+details, tasks, most recent deployment details and in which regions it is
 currently allocated.`,
 		}
 	case "status.instance":
 		return KeyStrings{"instance [instance-id]", "Show instance status",
-			`Show the instance's current status including logs, checks, 
+			`Show the instance's current status including logs, checks,
 and events.`,
 		}
 	case "suspend":
 		return KeyStrings{"suspend [APPNAME]", "Suspend an application",
-			`The SUSPEND command will suspend an application. 
+			`The SUSPEND command will suspend an application.
 All instances will be halted leaving the application running nowhere.
 It will continue to consume networking resources (IP address). See RESUME
 for details on restarting it.`,
@@ -764,7 +764,7 @@ for details on restarting it.`,
 		}
 	case "version":
 		return KeyStrings{"version", "Show version information for the flyctl command",
-			`Shows version information for the flyctl command itself, 
+			`Shows version information for the flyctl command itself,
 including version number and build date.`,
 		}
 	case "version.update":
