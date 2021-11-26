@@ -28,25 +28,24 @@ To continue interacting with Fly, the user will need to log in again.
 }
 
 func runLogout(ctx context.Context) error {
+
 	if err := agent.StopRunningAgent(); err != nil {
 		return err
 	}
 
-	io := iostreams.FromContext(ctx)
-
 	path := state.ConfigFile(ctx)
-	if err := config.Unset(path, config.AccessTokenFileKey); err != nil {
-		// TODO: exit code depending on whether key removal took place
-
-		fmt.Fprintf(io.ErrOut, "failed unsetting %s in %s: %v\n",
+	if err := config.ClearAccessToken(path); err != nil {
+		return fmt.Errorf("failed clearing %s from %s: %v\n",
 			config.AccessTokenFileKey, path, err)
 	}
 
+	io := iostreams.FromContext(ctx)
 	keyExists := env.IsSet(config.APITokenEnvKey)
 	tokenExists := env.IsSet(config.AccessTokenEnvKey)
 
 	single := func(key string) {
-		fmt.Fprintf(io.ErrOut, "$%s is set in your environment; don't forget to remove it.")
+		fmt.Fprintf(io.ErrOut,
+			"$%s is set in your environment; don't forget to remove it.", key)
 	}
 
 	switch {

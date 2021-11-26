@@ -111,7 +111,7 @@ func RunCreate(ctx context.Context) (err error) {
 func selectAppName(ctx context.Context) (name string, err error) {
 	const msg = "App Name:"
 
-	if err = prompt.String(ctx, &name, msg, ""); prompt.IsNonInteractive(err) {
+	if err = prompt.String(ctx, &name, msg, "", false); prompt.IsNonInteractive(err) {
 		err = errors.New("name argument or flag must be specified when not running interactively")
 	}
 

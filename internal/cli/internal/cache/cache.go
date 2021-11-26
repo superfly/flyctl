@@ -161,12 +161,12 @@ func (c *cache) Save(path string) (err error) {
 		return
 	}
 
-	var unlocker filemu.Unlocker
-	if unlocker, err = filemu.Lock(context.Background(), lockPath); err != nil {
+	var unlock filemu.UnlockFunc
+	if unlock, err = filemu.Lock(context.Background(), lockPath); err != nil {
 		return
 	}
 	defer func() {
-		if e := unlocker.Unlock(); err == nil {
+		if e := unlock(); err == nil {
 			err = e
 		}
 	}()
@@ -179,12 +179,12 @@ func (c *cache) Save(path string) (err error) {
 
 // Load loads the YAML-encoded cache file at the given path.
 func Load(path string) (c Cache, err error) {
-	var unlocker filemu.Unlocker
-	if unlocker, err = filemu.RLock(context.Background(), lockPath); err != nil {
+	var unlock filemu.UnlockFunc
+	if unlock, err = filemu.RLock(context.Background(), lockPath); err != nil {
 		return
 	}
 	defer func() {
-		if e := unlocker.Unlock(); err == nil {
+		if e := unlock(); err == nil {
 			err = e
 		}
 	}()

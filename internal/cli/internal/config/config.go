@@ -1,11 +1,9 @@
 package config
 
 import (
-	"os"
 	"sync"
 
 	"github.com/spf13/pflag"
-	"gopkg.in/yaml.v3"
 
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/env"
@@ -98,22 +96,12 @@ func (cfg *Config) ApplyFile(path string) (err error) {
 	cfg.mu.Lock()
 	defer cfg.mu.Unlock()
 
-	var f *os.File
-	if f, err = os.Open(path); err != nil {
-		return
-	}
-	defer func() {
-		if e := f.Close(); err == nil {
-			err = e
-		}
-	}()
-
 	var w struct {
-		accessToken string `yaml:"access_token"`
+		AccessToken string `yaml:"access_token"`
 	}
 
-	if err = yaml.NewDecoder(f).Decode(&w); err == nil {
-		cfg.AccessToken = w.accessToken
+	if err = unmarshal(path, &w); err == nil {
+		cfg.AccessToken = w.AccessToken
 	}
 
 	return

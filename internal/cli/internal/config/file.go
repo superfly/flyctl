@@ -3,6 +3,8 @@ package config
 import (
 	"bytes"
 	"context"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -23,21 +25,34 @@ func ClearAccessToken(path string) error {
 	return unset(path, AccessTokenFileKey)
 }
 
-func unset(path, key string) error {
-	var m map[string]interface{}
+func unset(path, key string) (err error) {
+	var unlock filemu.UnlockFunc
+	if unlock, err = filemu.Lock(context.Background(), lockPath); err != nil {
+		return
+	}
+	defer func() {
+		if e := unlock(); err == nil {
+			err = e
+		}
+	}()
 
-	switch err := unmarshal(path, &m); {
+	var m map[string]interface{}
+	switch err = unmarshalUnlocked(path, &m); {
 	case err == nil:
 		break
-	case os.IsNotExist(err):
-		return nil // no file to unset from
+	case errors.Is(err, fs.ErrNotExist):
+		err = nil // no file exists therefore nothing to unset
+
+		return
 	default:
-		return nil
+		return
 	}
 
 	delete(m, key)
 
-	return marshal(path, m)
+	err = marshalUnlocked(path, m)
+
+	return
 }
 
 func set(path, key string, value interface{}) error {
@@ -56,17 +71,23 @@ func set(path, key string, value interface{}) error {
 
 var lockPath = filepath.Join(os.TempDir(), "flyctl.config.lock")
 
-func unmarshal(path string, into interface{}) (err error) {
-	var unlocker filemu.Unlocker
-	if unlocker, err = filemu.RLock(context.Background(), lockPath); err != nil {
+func unmarshal(path string, v interface{}) (err error) {
+	var unlock filemu.UnlockFunc
+	if unlock, err = filemu.RLock(context.Background(), lockPath); err != nil {
 		return
 	}
 	defer func() {
-		if e := unlocker.Unlock(); err == nil {
+		if e := unlock(); err == nil {
 			err = e
 		}
 	}()
 
+	err = unmarshalUnlocked(path, v)
+
+	return
+}
+
+func unmarshalUnlocked(path string, v interface{}) (err error) {
 	var f *os.File
 	if f, err = os.Open(path); err != nil {
 		return
@@ -77,29 +98,33 @@ func unmarshal(path string, into interface{}) (err error) {
 		}
 	}()
 
-	err = yaml.NewDecoder(f).Decode(&into)
+	err = yaml.NewDecoder(f).Decode(v)
 
 	return
 }
 
 func marshal(path string, v interface{}) (err error) {
-	var b bytes.Buffer
-	if err = yaml.NewEncoder(&b).Encode(v); err == nil {
-		return
-	}
-
-	var unlocker filemu.Unlocker
-	if unlocker, err = filemu.Lock(context.Background(), lockPath); err != nil {
+	var unlock filemu.UnlockFunc
+	if unlock, err = filemu.Lock(context.Background(), lockPath); err != nil {
 		return
 	}
 	defer func() {
-		if e := unlocker.Unlock(); err == nil {
+		if e := unlock(); err == nil {
 			err = e
 		}
 	}()
 
-	// TODO: os.WriteFile does not flush
-	err = os.WriteFile(path, b.Bytes(), 0600)
+	err = marshalUnlocked(path, v)
+
+	return
+}
+
+func marshalUnlocked(path string, v interface{}) (err error) {
+	var b bytes.Buffer
+	if err = yaml.NewEncoder(&b).Encode(v); err == nil {
+		// TODO: os.WriteFile does not flush
+		err = os.WriteFile(path, b.Bytes(), 0600)
+	}
 
 	return
 }

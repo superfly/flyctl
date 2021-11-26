@@ -4,13 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
+
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
+	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 )
 
 func newLogin() *cobra.Command {
@@ -54,58 +53,63 @@ func runLogin(ctx context.Context) error {
 		password    = flag.GetString(ctx, "password")
 		otp         = flag.GetString(ctx, "otp")
 	)
+
 	switch {
 	case interactive, email != "", password != "", otp != "":
-		runInteractiveLogin(ctx)
+		return runInteractiveLogin(ctx, email, password, otp)
 	default:
-		runLogin(ctx)
+		return runWebLogin(ctx, false)
 	}
 }
 
-func runInteractiveLogin(ctx context.Context) error {
-	email := flag.GetString(ctx, "email")
+type requiredWhenNonInteractive string
 
+func (r requiredWhenNonInteractive) Error() string {
+	return fmt.Sprintf("%s must be specified when not running interactively", string(r))
+}
+
+func runInteractiveLogin(ctx context.Context, email, password, otp string) (err error) {
 	if email == "" {
-		prompt := &survey.Input{
-			Message: "Email:",
-		}
-		if err := survey.AskOne(prompt, &email, survey.WithValidator(survey.Required)); err != nil {
-			if isInterrupt(err) {
-				return nil
-			}
+		switch err = prompt.String(ctx, &email, "Email:", "", true); {
+		case err == nil:
+			break
+		case prompt.IsNonInteractive(err):
+			return requiredWhenNonInteractive("email")
+		default:
+			return
 		}
 	}
 
-	password := cmdCtx.Config.GetString("password")
 	if password == "" {
-		prompt := &survey.Password{
-			Message: "Password:",
-		}
-		if err := survey.AskOne(prompt, &password, survey.WithValidator(survey.Required)); err != nil {
-			if isInterrupt(err) {
-				return nil
-			}
+		switch err = prompt.Password(ctx, &email, "Password:", true); {
+		case err == nil:
+			break
+		case prompt.IsNonInteractive(err):
+			return requiredWhenNonInteractive("password")
+		default:
+			return
 		}
 	}
 
-	otp := cmdCtx.Config.GetString("otp")
 	if otp == "" {
-		prompt := &survey.Password{
-			Message: "One Time Password (if any):",
-		}
-		if err := survey.AskOne(prompt, &otp); err != nil {
-			if isInterrupt(err) {
-				return nil
-			}
+		switch err = prompt.String(ctx, &otp, "One Time Password (if any):", "", false); {
+		case err == nil:
+			break
+		case prompt.IsNonInteractive(err):
+			err = nil
+		default:
+			return
 		}
 	}
 
-	accessToken, err := api.GetAccessToken(email, password, otp)
-	if err != nil {
-		return fmt.Errorf("failed retrieving access token: %w", err)
+	var token string
+	if token, err = api.GetAccessToken(email, password, otp); err != nil {
+		err = fmt.Errorf("failed retrieving access token: %w", err)
+
+		return
 	}
 
-	viper.Set(flyctl.ConfigAPIToken, accessToken)
+	err = persistAccessToken(ctx, token)
 
-	return flyctl.SaveConfig()
+	return
 }

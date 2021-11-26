@@ -9,6 +9,8 @@ import (
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
+	"github.com/superfly/flyctl/internal/cli/internal/config"
+	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/client"
 )
 
@@ -33,7 +35,13 @@ func runWhoAmI(ctx context.Context) error {
 	}
 
 	io := iostreams.FromContext(ctx)
-	fmt.Fprintf(io.Out, "Current user: %s\n", user.Email)
+	cfg := config.FromContext(ctx)
+
+	if cfg.JSONOutput {
+		_ = render.JSON(io.Out, map[string]string{"email": user.Email})
+	} else {
+		fmt.Fprintln(io.Out, user.Email)
+	}
 
 	return nil
 }
