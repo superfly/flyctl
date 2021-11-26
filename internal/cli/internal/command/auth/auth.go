@@ -73,7 +73,7 @@ func runWebLogin(ctx context.Context, signup bool) error {
 	select {
 	case <-time.After(15 * time.Minute):
 		return errors.New("Login expired, please try again")
-	case cliAuth = <-waitForCLISession(cliAuth.ID):
+	case cliAuth = <-waitForCLISession(ctx, cliAuth.ID):
 	}
 
 	token := cliAuth.AccessToken
@@ -97,7 +97,8 @@ func runWebLogin(ctx context.Context, signup bool) error {
 	return nil
 }
 
-func waitForCLISession(id string) <-chan api.CLISessionAuth {
+// TODO: this does NOT break on interrupts
+func waitForCLISession(ctx context.Context, id string) <-chan api.CLISessionAuth {
 	done := make(chan api.CLISessionAuth)
 
 	go func() {
@@ -108,7 +109,7 @@ func waitForCLISession(id string) <-chan api.CLISessionAuth {
 		s.Start()
 		defer s.Stop()
 
-		for {
+		for ctx.Err() == nil {
 			time.Sleep(1 * time.Second)
 			cliAuth, _ := api.GetAccessTokenForCLISession(id)
 
