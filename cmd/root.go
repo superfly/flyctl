@@ -49,7 +49,6 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 	checkErr(err)
 
 	rootCmd.AddCommand(
-		newAuthCommand(client),
 		newBuildsCommand(client),
 		newCurlCommand(client),
 		newCertificatesCommand(client),
