@@ -49,22 +49,22 @@ If you do have and account, begin with the AUTH LOGIN subcommand.
 }
 
 func runWebLogin(ctx context.Context, signup bool) error {
-	cliAuth, err := api.StartCLISessionWebAuth(state.Hostname(ctx), signup)
+	auth, err := api.StartCLISessionWebAuth(state.Hostname(ctx), signup)
 	if err != nil {
 		return err
 	}
 
 	io := iostreams.FromContext(ctx)
-	if err := open.Run(cliAuth.AuthURL); err != nil {
+	if err := open.Run(auth.AuthURL); err != nil {
 		fmt.Fprintf(io.ErrOut,
 			"failed opening browser. Copy the url (%s) into a browser and continue\n",
-			cliAuth.AuthURL,
+			auth.AuthURL,
 		)
 	}
 
 	logger := logger.FromContext(ctx)
 
-	token, err := waitForCLISession(ctx, logger, io.ErrOut, cliAuth.ID)
+	token, err := waitForCLISession(ctx, logger, io.ErrOut, auth.ID)
 	switch {
 	case err == nil:
 		break

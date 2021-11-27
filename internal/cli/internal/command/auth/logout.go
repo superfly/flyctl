@@ -26,34 +26,35 @@ To continue interacting with Fly, the user will need to log in again.
 		command.RequireSession)
 }
 
-func runLogout(ctx context.Context) error {
-	if err := agent.StopRunningAgent(); err != nil {
-		return err
+func runLogout(ctx context.Context) (err error) {
+	if err = agent.StopRunningAgent(); err != nil {
+		return
 	}
 
-	if err := persistAccessToken(ctx, ""); err != nil {
-		return err
+	if err = persistAccessToken(ctx, ""); err != nil {
+		return
 	}
 
-	io := iostreams.FromContext(ctx)
-	keyExists := env.IsSet(config.APITokenEnvKey)
-	tokenExists := env.IsSet(config.AccessTokenEnvKey)
+	out := iostreams.FromContext(ctx).ErrOut
 
 	single := func(key string) {
-		fmt.Fprintf(io.ErrOut,
+		fmt.Fprintf(out,
 			"$%s is set in your environment; don't forget to remove it.", key)
 	}
+
+	keyExists := env.IsSet(config.APITokenEnvKey)
+	tokenExists := env.IsSet(config.AccessTokenEnvKey)
 
 	switch {
 	case keyExists && tokenExists:
 		const msg = "$%s & $%s are set in your environment; don't forget to remove them.\n"
 
-		fmt.Fprintf(io.ErrOut, msg, config.APITokenEnvKey, config.AccessTokenEnvKey)
+		fmt.Fprintf(out, msg, config.APITokenEnvKey, config.AccessTokenEnvKey)
 	case keyExists:
 		single(config.APITokenEnvKey)
 	case tokenExists:
 		single(config.AccessTokenEnvKey)
 	}
 
-	return nil
+	return
 }

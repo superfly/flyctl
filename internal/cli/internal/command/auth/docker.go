@@ -1,15 +1,18 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os/exec"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
+	"github.com/superfly/flyctl/internal/cli/internal/config"
+	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func newDocker() *cobra.Command {
@@ -25,41 +28,44 @@ the docker cli.
 		command.RequireSession)
 }
 
-func runDocker(ctx context.Context) error {
+func runDocker(ctx context.Context) (err error) {
 	binary, err := exec.LookPath("docker")
 	if err != nil {
 		return errors.Wrap(err, "docker cli not found - make sure it's installed and try again")
 	}
 
-	token := flyctl.GetAPIToken()
+	cfg := config.FromContext(ctx)
+	host := cfg.RegistryHost
 
-	cmd := exec.CommandContext(ctx, binary, "login", "--username=x", "--password-stdin", "registry.fly.io")
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return err
+	var out bytes.Buffer
+	cmd := exec.CommandContext(ctx, binary, "login", "--username=x", "--password-stdin", host)
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+
+	var in io.WriteCloser
+	if in, err = cmd.StdinPipe(); err != nil {
+		return
 	}
-	if err := cmd.Start(); err != nil {
-		return err
-	}
+
 	go func() {
-		defer stdin.Close()
-		fmt.Fprint(stdin, token)
+		defer in.Close()
+
+		fmt.Fprint(in, cfg.AccessToken)
 	}()
 
-	if err := cmd.Wait(); err != nil {
-		return err
+	if err = cmd.Start(); err != nil {
+		return
 	}
 
-	if !cmd.ProcessState.Success() {
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			return err
-		}
-		fmt.Println(output)
-		return errors.New("error authenticating with registry.fly.io")
+	if err = cmd.Wait(); err != nil {
+		err = fmt.Errorf("failed authenticating with %s: %v", host, out.String())
+
+		return
 	}
 
-	fmt.Println("Authentication successful. You can now tag and push images to registry.fly.io/{your-app}")
+	io := iostreams.FromContext(ctx)
 
-	return nil
+	fmt.Fprintf(io.Out, "Authentication successful. You can now tag and push images to %s/{your-app}\n", host)
+
+	return
 }
