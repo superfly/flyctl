@@ -85,8 +85,9 @@ func compactQueryString(q string) string {
 }
 
 // GetAccessToken - uses email, password and possible otp to get token
-func GetAccessToken(email, password, otp string) (string, error) {
-	postData, _ := json.Marshal(map[string]interface{}{
+func GetAccessToken(ctx context.Context, email, password, otp string) (token string, err error) {
+	var postData bytes.Buffer
+	if err = json.NewEncoder(&postData).Encode(map[string]interface{}{
 		"data": map[string]interface{}{
 			"attributes": map[string]string{
 				"email":    email,
@@ -94,30 +95,36 @@ func GetAccessToken(email, password, otp string) (string, error) {
 				"otp":      otp,
 			},
 		},
-	})
+	}); err != nil {
+		return
+	}
 
 	url := fmt.Sprintf("%s/api/v1/sessions", baseURL)
 
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(postData))
-	if err != nil {
-		return "", err
+	var req *http.Request
+	if req, err = http.NewRequestWithContext(ctx, http.MethodPost, url, &postData); err != nil {
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	var res *http.Response
+	if res, err = http.DefaultClient.Do(req); err != nil {
+		return
+	}
+	defer res.Body.Close()
+
+	switch {
+	case res.StatusCode >= http.StatusInternalServerError:
+		err = errors.New("An unknown server error occured, please try again")
+	case res.StatusCode >= http.StatusBadRequest:
+		err = errors.New("Incorrect email and password combination")
+	default:
+		var result map[string]map[string]map[string]string
+
+		if err = json.NewDecoder(res.Body).Decode(&result); err == nil {
+			token = result["data"]["attributes"]["access_token"]
+		}
 	}
 
-	if resp.StatusCode >= 500 {
-		return "", errors.New("An unknown server error occured, please try again")
-	}
-
-	if resp.StatusCode >= 400 {
-		return "", errors.New("Incorrect email and password combination")
-	}
-
-	defer resp.Body.Close()
-
-	var result map[string]map[string]map[string]string
-
-	json.NewDecoder(resp.Body).Decode(&result)
-
-	accessToken := result["data"]["attributes"]["access_token"]
-
-	return accessToken, nil
+	return
 }
