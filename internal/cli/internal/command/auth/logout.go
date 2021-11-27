@@ -11,7 +11,6 @@ import (
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
-	"github.com/superfly/flyctl/internal/cli/internal/state"
 	"github.com/superfly/flyctl/internal/env"
 )
 
@@ -28,15 +27,12 @@ To continue interacting with Fly, the user will need to log in again.
 }
 
 func runLogout(ctx context.Context) error {
-
 	if err := agent.StopRunningAgent(); err != nil {
 		return err
 	}
 
-	path := state.ConfigFile(ctx)
-	if err := config.ClearAccessToken(path); err != nil {
-		return fmt.Errorf("failed clearing %s from %s: %v\n",
-			config.AccessTokenFileKey, path, err)
+	if err := persistAccessToken(ctx, ""); err != nil {
+		return err
 	}
 
 	io := iostreams.FromContext(ctx)

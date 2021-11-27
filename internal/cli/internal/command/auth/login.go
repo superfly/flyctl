@@ -56,7 +56,7 @@ func runLogin(ctx context.Context) error {
 
 	switch {
 	case interactive, email != "", password != "", otp != "":
-		return runInteractiveLogin(ctx, email, password, otp)
+		return runShellLogin(ctx, email, password, otp)
 	default:
 		return runWebLogin(ctx, false)
 	}
@@ -68,7 +68,7 @@ func (r requiredWhenNonInteractive) Error() string {
 	return fmt.Sprintf("%s must be specified when not running interactively", string(r))
 }
 
-func runInteractiveLogin(ctx context.Context, email, password, otp string) (err error) {
+func runShellLogin(ctx context.Context, email, password, otp string) (err error) {
 	if email == "" {
 		switch err = prompt.String(ctx, &email, "Email:", "", true); {
 		case err == nil:
@@ -103,7 +103,7 @@ func runInteractiveLogin(ctx context.Context, email, password, otp string) (err 
 	}
 
 	var token string
-	if token, err = api.GetAccessToken(email, password, otp); err != nil {
+	if token, err = api.GetAccessToken(ctx, email, password, otp); err != nil {
 		err = fmt.Errorf("failed retrieving access token: %w", err)
 
 		return

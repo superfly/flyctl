@@ -4,21 +4,24 @@ package auth
 import (
 	"context"
 	"fmt"
-	"os"
+	"io"
 	"time"
 
+	"github.com/azazeal/pause"
 	"github.com/briandowns/spinner"
 	"github.com/logrusorgru/aurora"
 	"github.com/pkg/errors"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/pkg/iostreams"
+
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/state"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/internal/logger"
 )
 
 // New initializes and returns a new apps Command.
@@ -45,17 +48,6 @@ If you do have and account, begin with the AUTH LOGIN subcommand.
 	return auth
 }
 
-func persistAccessToken(ctx context.Context, token string) (err error) {
-	path := state.ConfigFile(ctx)
-
-	if err = config.SetAccessToken(path, token); err != nil {
-		err = fmt.Errorf("failed persisting %s in %s: %w\n",
-			config.AccessTokenFileKey, path, err)
-	}
-
-	return
-}
-
 func runWebLogin(ctx context.Context, signup bool) error {
 	cliAuth, err := api.StartCLISessionWebAuth(state.Hostname(ctx), signup)
 	if err != nil {
@@ -70,15 +62,18 @@ func runWebLogin(ctx context.Context, signup bool) error {
 		)
 	}
 
-	select {
-	case <-time.After(15 * time.Minute):
-		return errors.New("Login expired, please try again")
-	case cliAuth = <-waitForCLISession(ctx, cliAuth.ID):
-	}
+	logger := logger.FromContext(ctx)
 
-	token := cliAuth.AccessToken
-	if token == "" {
+	token, err := waitForCLISession(ctx, logger, io.ErrOut, cliAuth.ID)
+	switch {
+	case err == nil:
+		break
+	case errors.Is(err, context.DeadlineExceeded):
+		return errors.New("Login expired, please try again")
+	case token == "":
 		return errors.New("failed to log in, please try again")
+	default:
+		return err
 	}
 
 	if err := persistAccessToken(ctx, token); err != nil {
@@ -92,33 +87,48 @@ func runWebLogin(ctx context.Context, signup bool) error {
 		return fmt.Errorf("failed retrieving current user: %w", err)
 	}
 
-	fmt.Fprintf(io.Out, "Successfully logged in as %s\n", aurora.Bold(user.Email))
+	fmt.Fprintf(io.Out, "successfully logged in as %s\n", aurora.Bold(user.Email))
 
 	return nil
 }
 
 // TODO: this does NOT break on interrupts
-func waitForCLISession(ctx context.Context, id string) <-chan api.CLISessionAuth {
-	done := make(chan api.CLISessionAuth)
+func waitForCLISession(parent context.Context, logger *logger.Logger, w io.Writer, id string) (token string, err error) {
+	ctx, cancel := context.WithTimeout(parent, 15*time.Minute)
+	defer cancel()
 
-	go func() {
-		s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
-		s.Writer = os.Stderr
-		s.Prefix = "Waiting for session..."
-		s.FinalMSG = "Waiting for session...Done\n"
-		s.Start()
-		defer s.Stop()
+	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
+	s.Writer = w
+	s.Prefix = "Waiting for session..."
+	s.Start()
 
-		for ctx.Err() == nil {
-			time.Sleep(1 * time.Second)
-			cliAuth, _ := api.GetAccessTokenForCLISession(id)
+	for ctx.Err() == nil {
+		if token, err = api.GetAccessTokenForCLISession(ctx, id); err != nil {
+			logger.Debugf("failed retrieving token: %v", err)
 
-			if cliAuth.AccessToken != "" {
-				done <- cliAuth
-				break
-			}
+			pause.For(ctx, time.Second)
+
+			continue
 		}
-	}()
 
-	return done
+		logger.Debug("retrieved access token.")
+
+		s.FinalMSG = "Waiting for session... Done\n"
+		s.Stop()
+
+		break
+	}
+
+	return
+}
+
+func persistAccessToken(ctx context.Context, token string) (err error) {
+	path := state.ConfigFile(ctx)
+
+	if err = config.SetAccessToken(path, token); err != nil {
+		err = fmt.Errorf("failed persisting %s in %s: %w\n",
+			config.AccessTokenFileKey, path, err)
+	}
+
+	return
 }

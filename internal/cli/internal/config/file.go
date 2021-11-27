@@ -3,8 +3,6 @@ package config
 import (
 	"bytes"
 	"context"
-	"errors"
-	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -17,42 +15,6 @@ import (
 // found at path.
 func SetAccessToken(path, token string) error {
 	return set(path, AccessTokenFileKey, token)
-}
-
-// ClearAccessToken unsets the value of the access token at the configuration
-// file found at path.
-func ClearAccessToken(path string) error {
-	return unset(path, AccessTokenFileKey)
-}
-
-func unset(path, key string) (err error) {
-	var unlock filemu.UnlockFunc
-	if unlock, err = filemu.Lock(context.Background(), lockPath); err != nil {
-		return
-	}
-	defer func() {
-		if e := unlock(); err == nil {
-			err = e
-		}
-	}()
-
-	var m map[string]interface{}
-	switch err = unmarshalUnlocked(path, &m); {
-	case err == nil:
-		break
-	case errors.Is(err, fs.ErrNotExist):
-		err = nil // no file exists therefore nothing to unset
-
-		return
-	default:
-		return
-	}
-
-	delete(m, key)
-
-	err = marshalUnlocked(path, m)
-
-	return
 }
 
 func set(path, key string, value interface{}) error {
