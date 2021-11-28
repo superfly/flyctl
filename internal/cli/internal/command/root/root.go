@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/cmd"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
+	"github.com/superfly/flyctl/internal/cli/internal/command/agent"
 	"github.com/superfly/flyctl/internal/cli/internal/command/apps"
 	"github.com/superfly/flyctl/internal/cli/internal/command/auth"
 	"github.com/superfly/flyctl/internal/cli/internal/command/builds"
@@ -87,6 +88,9 @@ func New() *cobra.Command {
 				history.New(),
 				status.New(),
 				logs.New(),
+				doctor.New(),
+				dig.New(),
+				agent.New(),
 			)
 
 			if os.Getenv("DEV") != "" {
@@ -126,6 +130,7 @@ func New() *cobra.Command {
 		logs.New(),
 		doctor.New(),
 		dig.New(),
+		agent.New(),
 	}
 
 	if os.Getenv("DEV") != "" {
