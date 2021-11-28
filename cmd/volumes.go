@@ -47,6 +47,12 @@ func newVolumesCommand(client *client.Client) *Command {
 		Default:     true,
 	})
 
+	createCmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "require-unique-zone",
+		Description: "Require volume to be placed in separate hardware zone from existing volumes",
+		Default:     true,
+	})
+
 	deleteStrings := docstrings.Get("volumes.delete")
 	deleteCmd := BuildCommandKS(volumesCmd, runDeleteVolume, deleteStrings, client, requireSession)
 	deleteCmd.Args = cobra.ExactArgs(1)
@@ -125,11 +131,12 @@ func runCreateVolume(cmdCtx *cmdctx.CmdContext) error {
 	sizeGb := cmdCtx.Config.GetInt("size")
 
 	input := api.CreateVolumeInput{
-		AppID:     appid,
-		Name:      volName,
-		Region:    region,
-		SizeGb:    sizeGb,
-		Encrypted: cmdCtx.Config.GetBool("encrypted"),
+		AppID:             appid,
+		Name:              volName,
+		Region:            region,
+		SizeGb:            sizeGb,
+		Encrypted:         cmdCtx.Config.GetBool("encrypted"),
+		RequireUniqueZone: cmdCtx.Config.GetBool("require-unique-zone"),
 	}
 
 	volume, err := cmdCtx.Client.API().CreateVolume(ctx, input)
