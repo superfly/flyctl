@@ -3,6 +3,7 @@ package orgs
 import (
 	"context"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
@@ -14,7 +15,7 @@ func newRevoke() *cobra.Command {
 user by email.
 `
 		short = "Revoke a pending invitation to an organization"
-		usage = "revoke [org] [email]"
+		usage = "revoke [slug] [email]"
 	)
 
 	cmd := command.New(usage, short, long, runRevoke,
@@ -26,5 +27,6 @@ user by email.
 }
 
 func runRevoke(ctx context.Context) (err error) {
-	panic("not implemented yet")
+	// TODO: this has no corresponding endpoint
+	return errors.New("not implemented yet")
 }

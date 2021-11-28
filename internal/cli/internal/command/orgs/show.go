@@ -22,7 +22,7 @@ Includes name, slug and type. Summarizes user permissions, DNS zones and
 associated member. Details full list of members and roles.
 `
 		short = "Show information about an organization"
-		usage = "show [org]"
+		usage = "show [slug]"
 	)
 
 	cmd := command.New(usage, short, long, runShow,
@@ -34,12 +34,7 @@ associated member. Details full list of members and roles.
 }
 
 func runShow(ctx context.Context) error {
-	slug, err := fetchSlug(ctx)
-	if err != nil {
-		return err
-	}
-
-	org, err := retrieveOrgBySlug(ctx, slug)
+	org, err := detailsFromFirstArgOrSelect(ctx)
 	if err != nil {
 		return err
 	}

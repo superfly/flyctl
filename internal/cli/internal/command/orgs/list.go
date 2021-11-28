@@ -3,14 +3,11 @@ package orgs
 import (
 	"bytes"
 	"context"
-	"fmt"
-	"io"
 
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/pkg/iostreams"
 
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/render"
@@ -40,12 +37,12 @@ func runList(ctx context.Context) error {
 	out := iostreams.FromContext(ctx).Out
 
 	if config.FromContext(ctx).JSONOutput {
-		orgs := struct {
-			PersonalOrganization api.Organization
-			Organizations        []api.Organization
-		}{
-			PersonalOrganization: personal,
-			Organizations:        others,
+		orgs := map[string]string{
+			personal.Slug: personal.Name,
+		}
+
+		for _, other := range others {
+			orgs[other.Slug] = other.Name
 		}
 
 		_ = render.JSON(out, orgs)
@@ -66,13 +63,4 @@ func runList(ctx context.Context) error {
 
 	return nil
 
-}
-
-func printOrg(w io.Writer, org *api.Organization, headers bool) {
-	if headers {
-		fmt.Fprintf(w, "%-20s %-20s %-10s\n", "Name", "Slug", "Type")
-		fmt.Fprintf(w, "%-20s %-20s %-10s\n", "----", "----", "----")
-	}
-
-	fmt.Fprintf(w, "%-20s %-20s %-10s\n", org.Name, org.Slug, org.Type)
 }

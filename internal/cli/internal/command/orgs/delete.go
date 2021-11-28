@@ -2,9 +2,7 @@ package orgs
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/logrusorgru/aurora"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
@@ -12,7 +10,6 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func newDelete() *cobra.Command {
@@ -20,45 +17,42 @@ func newDelete() *cobra.Command {
 		long = `Delete an existing organization.
 `
 		short = "Delete an organization"
-		usage = "delete [org]"
+		usage = "delete [-yes] [slug]"
 	)
 
 	cmd := command.New(usage, short, long, runDelete,
 		command.RequireSession)
 
+	cmd.Args = cobra.MaximumNArgs(1)
+
 	flag.Add(cmd,
 		flag.Yes(),
 	)
-
-	cmd.Args = cobra.MaximumNArgs(1)
 
 	return cmd
 }
 
 func runDelete(ctx context.Context) error {
-	name, err := fetchSlug(ctx)
+	org, err := detailsFromFirstArgOrSelect(ctx)
 	if err != nil {
 		return err
 	}
 
-	client := client.FromContext(ctx).API()
-
-	org, err := client.GetOrganizationBySlug(ctx, name)
-	if err != nil {
-		return errors.Wrapf(err, "failed retrieving organization %s details", name)
-	}
-
-	io := iostreams.FromContext(ctx)
 	if !flag.GetYes(ctx) {
-		fmt.Fprintln(io.ErrOut, aurora.Red("Deleting an organization is not reversible."))
-
-		msg := fmt.Sprintf("Delete organization %s?", name)
-		if confirmed, err := prompt.Confirm(ctx, msg); err != nil || !confirmed {
+		switch confirmed, err := prompt.Confirmf(ctx, "Delete organization %s?", org.Slug); {
+		case err == nil:
+			if !confirmed {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return errors.Wrap(err, "yes flag must be specified when not running interactively")
+		default:
 			return err
 		}
 	}
 
-	if _, err = client.DeleteOrganization(ctx, org.ID); err != nil {
+	client := client.FromContext(ctx).API()
+	if _, err := client.DeleteOrganization(ctx, org.ID); err != nil {
 		return errors.Wrapf(err, "failed deleting organization %s", err)
 	}
 

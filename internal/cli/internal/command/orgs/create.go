@@ -4,14 +4,17 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/pkg/iostreams"
+
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
+	"github.com/superfly/flyctl/internal/cli/internal/flag"
+	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func newCreate() *cobra.Command {
@@ -20,7 +23,7 @@ func newCreate() *cobra.Command {
 organization later.
 `
 		short = "Create an organization"
-		usage = "create [org]"
+		usage = "create [name]"
 	)
 
 	cmd := command.New(usage, short, long, runCreate,
@@ -31,25 +34,37 @@ organization later.
 	return cmd
 }
 
-func runCreate(ctx context.Context) (err error) {
-	var slug string
-	if slug, err = fetchSlug(ctx); err != nil {
-		return
+func runCreate(ctx context.Context) error {
+	name, err := nameFromFirstArgOrPrompt(ctx)
+	if err != nil {
+		return err
 	}
 
 	client := client.FromContext(ctx).API()
 
-	var org *api.Organization
-	if org, err = client.CreateOrganization(ctx, slug); err != nil {
-		err = fmt.Errorf("failed creating organization: %w", err)
-
-		return
+	org, err := client.CreateOrganization(ctx, name)
+	if err != nil {
+		return fmt.Errorf("failed creating organization: %w", err)
 	}
 
 	if io := iostreams.FromContext(ctx); config.FromContext(ctx).JSONOutput {
 		_ = render.JSON(io.Out, org)
 	} else {
 		printOrg(io.Out, org, true)
+	}
+
+	return nil
+}
+
+func nameFromFirstArgOrPrompt(ctx context.Context) (name string, err error) {
+	if name = flag.FirstArg(ctx); name != "" {
+		return
+	}
+
+	const msg = "Enter Organization Name:"
+
+	if err = prompt.String(ctx, &name, msg, ""); prompt.IsNonInteractive(err) {
+		err = errors.Wrap(err, "name argument must be specified when not running interactively")
 	}
 
 	return

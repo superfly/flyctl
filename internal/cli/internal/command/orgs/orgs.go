@@ -3,16 +3,18 @@ package orgs
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
+	"github.com/superfly/flyctl/internal/cli/internal/sort"
 	"github.com/superfly/flyctl/internal/client"
 )
 
@@ -43,180 +45,81 @@ Organization admins can also invite or remove users from Organizations.
 	return orgs
 }
 
-func fetchSlug(ctx context.Context) (name string, err error) {
-	if name = flag.FirstArg(ctx); name != "" {
-		return
-	}
-
-	const msg = "Enter Organization Name:"
-
-	if err = prompt.String(ctx, &name, msg, "", true); prompt.IsNonInteractive(err) {
-		err = errors.New("org argument must be specified when not running interactively")
-	}
-
-	return
-}
-
-func fetchEmail(ctx context.Context) (email string, err error) {
-	args := flag.Args(ctx)
-	if len(args) > 1 {
+func emailFromSecondArgOrPrompt(ctx context.Context) (email string, err error) {
+	if args := flag.Args(ctx); len(args) > 1 {
 		email = args[1]
 
 		return
 	}
 
-	const msg = "User email:"
+	const msg = "Enter User Email:"
 
-	if err = prompt.String(ctx, &email, msg, "", true); prompt.IsNonInteractive(err) {
-		err = errors.New("email argument must be specified when not running interactively")
+	if err = prompt.String(ctx, &email, msg, ""); prompt.IsNonInteractive(err) {
+		err = errors.Wrap(err, "email argument must be specified when not running interactively")
 	}
 
 	return
 }
 
-func retrieveOrgBySlug(ctx context.Context, slug string) (org *api.OrganizationDetails, err error) {
+const slugArgMustBeSpecified = "slug argument must be specified when not running interactively"
+
+func slugFromFirstArgOrSelect(ctx context.Context) (slug string, err error) {
+	if slug = flag.FirstArg(ctx); slug != "" {
+		return
+	}
+
+	io := iostreams.FromContext(ctx)
+	if !io.IsInteractive() {
+		err = errors.New(slugArgMustBeSpecified)
+
+		return
+	}
+
 	client := client.FromContext(ctx).API()
 
-	if org, err = client.GetOrganizationBySlug(ctx, slug); err != nil {
-		err = errors.Wrapf(err, "failed retrieving organization %s details", slug)
+	typ := api.OrganizationTypeShared
+
+	var orgs []api.Organization
+	if orgs, err = client.GetOrganizations(ctx, &typ); err != nil {
+		return
+	}
+	sort.OrganizationsByTypeAndName(orgs)
+
+	var org *api.Organization
+	if org, err = prompt.SelectOrg(ctx, orgs); prompt.IsNonInteractive(err) {
+		err = errors.Wrap(err, slugArgMustBeSpecified)
+	} else {
+		slug = org.Slug
 	}
 
 	return
 }
 
-func printInvite(in api.Invitation, headers bool) {
+func detailsFromFirstArgOrSelect(ctx context.Context) (*api.OrganizationDetails, error) {
+	slug, err := slugFromFirstArgOrSelect(ctx)
+	if err != nil {
+		return nil, err
+	}
 
+	return detailsFromSlug(ctx, slug)
+}
+
+func detailsFromSlug(ctx context.Context, slug string) (*api.OrganizationDetails, error) {
+	client := client.FromContext(ctx).API()
+
+	org, err := client.GetOrganizationBySlug(ctx, slug)
+	if err != nil {
+		return nil, fmt.Errorf("failed retrieving organization with slug %s: %w", slug, err)
+	}
+
+	return org, nil
+}
+
+func printOrg(w io.Writer, org *api.Organization, headers bool) {
 	if headers {
-		fmt.Printf("%-20s %-20s %-10s\n", "Org", "Email", "Redeemed")
-		fmt.Printf("%-20s %-20s %-10s\n", "----", "----", "----")
+		fmt.Fprintf(w, "%-20s %-20s %-10s\n", "Name", "Slug", "Type")
+		fmt.Fprintf(w, "%-20s %-20s %-10s\n", "----", "----", "----")
 	}
 
-	fmt.Printf("%-20s %-20s %-10t\n", in.Organization.Slug, in.Email, in.Redeemed)
-}
-
-func runOrgsInvite(cmdCtx *cmdctx.CmdContext) error {
-	ctx := cmdCtx.Command.Context()
-
-	var orgSlug, userEmail string
-
-	orgType := api.OrganizationTypeShared
-
-	if len(cmdCtx.Args) == 0 {
-
-		org, err := selectOrganization(ctx, cmdCtx.Client.API(), "", &orgType)
-		if err != nil {
-			return err
-		}
-		orgSlug = org.Slug
-
-		userEmail, err = inputUserEmail()
-		if err != nil {
-			return err
-		}
-	} else if len(cmdCtx.Args) == 2 {
-		orgSlug = cmdCtx.Args[0]
-
-		userEmail = cmdCtx.Args[1]
-	} else {
-		return errors.New("specify all arguments (or no arguments to be prompted)")
-	}
-
-	org, err := cmdCtx.Client.API().GetOrganizationBySlug(ctx, orgSlug)
-	if err != nil {
-		return err
-	}
-
-	out, err := cmdCtx.Client.API().CreateOrganizationInvite(ctx, org.ID, userEmail)
-	if err != nil {
-		return err
-	}
-
-	printInvite(*out, true)
-
-	return nil
-}
-
-func runOrgsRemove(cmdCtx *cmdctx.CmdContext) error {
-	ctx := cmdCtx.Command.Context()
-
-	var orgSlug, userEmail string
-
-	orgType := api.OrganizationTypeShared
-
-	if len(cmdCtx.Args) == 0 {
-
-		org, err := selectOrganization(ctx, cmdCtx.Client.API(), "", &orgType)
-		if err != nil {
-			return err
-		}
-		orgSlug = org.Slug
-
-		userEmail, err = inputUserEmail()
-		if err != nil {
-			return err
-		}
-	} else if len(cmdCtx.Args) == 2 {
-		orgSlug = cmdCtx.Args[0]
-
-		userEmail = cmdCtx.Args[1]
-	} else {
-		return errors.New("specify all arguments (or no arguments to be prompted)")
-	}
-
-	org, err := cmdCtx.Client.API().GetOrganizationBySlug(ctx, orgSlug)
-	if err != nil {
-		return err
-	}
-
-	var userId string
-
-	// iterate ovver org.Members.Edges and check wether userEmail is in there otherwise return not found error
-	for _, m := range org.Members.Edges {
-		if m.Node.Email == userEmail {
-			userId = m.Node.ID
-			break
-		}
-	}
-	if userId == "" {
-		return errors.New("user not found")
-	}
-
-	_, userEmail, err = cmdCtx.Client.API().DeleteOrganizationMembership(ctx, org.ID, userId)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("Successfuly removed %s\n", userEmail)
-
-	return nil
-}
-
-func runOrgsRevoke(_ *cmdctx.CmdContext) error {
-	return fmt.Errorf("Revoke Not implemented")
-}
-
-func runOrgsDelete(cmdCtx *cmdctx.CmdContext) error {
-	ctx := cmdCtx.Command.Context()
-
-	orgslug := cmdCtx.Args[0]
-
-	org, err := cmdCtx.Client.API().GetOrganizationBySlug(ctx, orgslug)
-
-	if err != nil {
-		return err
-	}
-
-	confirmed := confirm(fmt.Sprintf("Are you sure you want to delete the %s organization?", orgslug))
-
-	if !confirmed {
-		return nil
-	}
-
-	_, err = cmdCtx.Client.API().DeleteOrganization(ctx, org.ID)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	fmt.Fprintf(w, "%-20s %-20s %-10s\n", org.Name, org.Slug, org.Type)
 }

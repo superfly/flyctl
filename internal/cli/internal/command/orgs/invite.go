@@ -1,13 +1,19 @@
 package orgs
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"io"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
+	"github.com/superfly/flyctl/internal/cli/internal/config"
+	"github.com/superfly/flyctl/internal/cli/internal/render"
+	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func newInvite() *cobra.Command {
@@ -16,7 +22,7 @@ func newInvite() *cobra.Command {
 sent, and the user will be pending until they respond. See also orgs revoke.
 `
 		short = "Invite user (by email) to organization"
-		usage = "invite [org] [email]"
+		usage = "invite [slug] [email]"
 	)
 
 	cmd := command.New(usage, short, long, runInvite,
@@ -28,51 +34,49 @@ sent, and the user will be pending until they respond. See also orgs revoke.
 }
 
 func runInvite(ctx context.Context) error {
-	slug, err := fetchSlug(ctx)
+	slug, err := slugFromFirstArgOrSelect(ctx)
 	if err != nil {
 		return nil
 	}
 
-	email, err := fetchEmail(ctx)
+	email, err := emailFromSecondArgOrPrompt(ctx)
 	if err != nil {
 		return nil
 	}
 
-	var orgSlug, userEmail string
+	client := client.FromContext(ctx).API()
 
-	orgType := api.OrganizationTypeShared
-
-	if len(cmdCtx.Args) == 0 {
-
-		org, err := selectOrganization(ctx, cmdCtx.Client.API(), "", &orgType)
-		if err != nil {
-			return err
-		}
-		orgSlug = org.Slug
-
-		userEmail, err = inputUserEmail()
-		if err != nil {
-			return err
-		}
-	} else if len(cmdCtx.Args) == 2 {
-		orgSlug = cmdCtx.Args[0]
-
-		userEmail = cmdCtx.Args[1]
-	} else {
-		return errors.New("specify all arguments (or no arguments to be prompted)")
-	}
-
-	org, err := cmdCtx.Client.API().GetOrganizationBySlug(ctx, orgSlug)
+	org, err := detailsFromSlug(ctx, slug)
 	if err != nil {
 		return err
 	}
 
-	out, err := cmdCtx.Client.API().CreateOrganizationInvite(ctx, org.ID, userEmail)
+	inv, err := client.CreateOrganizationInvite(ctx, org.ID, email)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed inviting %s to %s: %w", email, org.Name, err)
 	}
 
-	printInvite(*out, true)
+	cfg := config.FromContext(ctx)
+	io := iostreams.FromContext(ctx)
+
+	if cfg.JSONOutput {
+		_ = render.JSON(io.Out, inv)
+
+		return nil
+	}
+
+	var b bytes.Buffer
+	printInvite(&b, inv, true)
+	b.WriteTo(io.Out)
 
 	return nil
+}
+
+func printInvite(w io.Writer, in *api.Invitation, headers bool) {
+	if headers {
+		fmt.Fprintf(w, "%-20s %-20s %-10s\n", "Org", "Email", "Redeemed")
+		fmt.Fprintf(w, "%-20s %-20s %-10s\n", "----", "----", "----")
+	}
+
+	fmt.Fprintf(w, "%-20s %-20s %-10t\n", in.Organization.Slug, in.Email, in.Redeemed)
 }
