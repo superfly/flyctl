@@ -2,7 +2,7 @@ package api
 
 import "context"
 
-func (client *Client) EnsureMachineRemoteBuilderForApp(ctx context.Context, appName string) (*Machine, *App, error) {
+func (client *Client) EnsureRemoteBuilder(ctx context.Context, orgID string, appName string) (*Machine, *App, error) {
 	query := `
 		mutation($input: EnsureMachineRemoteBuilderInput!) {
 			ensureMachineRemoteBuilder(input: $input) {
@@ -29,9 +29,16 @@ func (client *Client) EnsureMachineRemoteBuilderForApp(ctx context.Context, appN
 
 	req := client.NewRequest(query)
 
-	req.Var("input", EnsureRemoteBuilderInput{
-		AppName: StringPointer(appName),
-	})
+	if orgID != "" {
+		req.Var("input", EnsureRemoteBuilderInput{
+			OrganizationID: StringPointer(orgID),
+		})
+	} else {
+		req.Var("input", EnsureRemoteBuilderInput{
+			AppName: StringPointer(appName),
+		})
+
+	}
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -39,30 +46,4 @@ func (client *Client) EnsureMachineRemoteBuilderForApp(ctx context.Context, appN
 	}
 
 	return data.EnsureMachineRemoteBuilder.Machine, data.EnsureMachineRemoteBuilder.App, nil
-}
-
-func (client *Client) EnsureRemoteBuilderForOrg(ctx context.Context, orgID string) (string, *App, error) {
-	query := `
-		mutation($input: EnsureRemoteBuilderInput!) {
-			ensureRemoteBuilder(input: $input) {
-				url,
-				app {
-					name
-				}
-			}
-		}
-	`
-
-	req := client.NewRequest(query)
-
-	req.Var("input", EnsureRemoteBuilderInput{
-		OrganizationID: StringPointer(orgID),
-	})
-
-	data, err := client.RunWithContext(ctx, req)
-	if err != nil {
-		return "", nil, err
-	}
-
-	return data.EnsureRemoteBuilder.URL, data.EnsureRemoteBuilder.App, nil
 }
