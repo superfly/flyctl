@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -28,12 +27,31 @@ func newTurboCommand(client *client.Client) *Command {
 		Description: "Heroku API token",
 		EnvName:     "HEROKU_TOKEN",
 	})
+
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "org",
+		Description: `the organization that will own the app`,
+	})
+
+	cmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "keep",
+		Description: "Do not delete the app directory after deployment",
+		Default:     false,
+	})
+
 	return cmd
 }
 
 // runTurbo fetches a heroku app and creates it on fly.io
 func runTurbo(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
+
+	dir := cmdCtx.Config.GetString("path")
+
+	if absDir, err := filepath.Abs(dir); err == nil {
+		dir = absDir
+	}
+	cmdCtx.WorkingDir = dir
 
 	fly := cmdCtx.Client.API()
 
@@ -191,26 +209,31 @@ func runTurbo(cmdCtx *cmdctx.CmdContext) error {
 
 	fmt.Printf("Dockerfile created: %s/Dockerfile\n", app.Name)
 
-	appConfig.AppName = appName
+	cmdCtx.AppName = app.Name
+	appConfig.AppName = app.Name
+	cmdCtx.AppConfig = appConfig
+
 	// Write the app config
 	if err := writeAppConfig(filepath.Join(appName, "fly.toml"), appConfig); err != nil {
 		return err
 	}
 
 	if !cmdCtx.Config.GetBool("no-deploy") && (cmdCtx.Config.GetBool("now") || confirm("Would you like to deploy now?")) {
-		// change workinfg dir to the app dir
-		if err := os.Chdir(app.Name); err != nil {
+		// change working directory(cmdCtx.WorkingDir) to the app directory
+		cmdCtx.WorkingDir = filepath.Join(cmdCtx.WorkingDir, app.Name)
+
+		// runDeploy
+		if err := runDeploy(cmdCtx); err != nil {
 			return err
 		}
 
-		// temporarily solution as I find a better way to call runDeploy
-		cmd := exec.Command("fly", "deploy")
-		cmd.Stdout = cmdCtx.IO.Out
-		cmd.Stderr = cmdCtx.IO.ErrOut
-		cmd.Stdin = cmdCtx.IO.In
-		cmd.Env = append(os.Environ(), fmt.Sprintf("FLY_APP=%s", appName))
+		fmt.Printf("App deployed: %s\n", app.Name)
 
-		return cmd.Run()
+		if !cmdCtx.Config.GetBool("keep") {
+			if err := os.RemoveAll(app.Name); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
