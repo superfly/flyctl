@@ -91,7 +91,7 @@ func runListVolumes(cmdCtx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	table := helpers.MakeSimpleTable(cmdCtx.Out, []string{"ID", "Name", "Size", "Region", "Attached VM", "Created At"})
+	table := helpers.MakeSimpleTable(cmdCtx.Out, []string{"ID", "Name", "Size", "Region", "Zone", "Attached VM", "Created At"})
 
 	for _, v := range volumes {
 		var attachedAllocID string
@@ -101,7 +101,7 @@ func runListVolumes(cmdCtx *cmdctx.CmdContext) error {
 				attachedAllocID = fmt.Sprintf("%s (%s)", v.AttachedAllocation.IDShort, v.AttachedAllocation.TaskName)
 			}
 		}
-		table.Append([]string{v.ID, v.Name, strconv.Itoa(v.SizeGb) + "GB", v.Region, attachedAllocID, humanize.Time(v.CreatedAt)})
+		table.Append([]string{v.ID, v.Name, strconv.Itoa(v.SizeGb) + "GB", v.Region, v.Host.ID, attachedAllocID, humanize.Time(v.CreatedAt)})
 	}
 
 	table.Render()
@@ -148,6 +148,7 @@ func runCreateVolume(cmdCtx *cmdctx.CmdContext) error {
 	fmt.Printf("%10s: %s\n", "ID", volume.ID)
 	fmt.Printf("%10s: %s\n", "Name", volume.Name)
 	fmt.Printf("%10s: %s\n", "Region", volume.Region)
+	fmt.Printf("%10s: %s\n", "Zone", volume.Host.ID)
 	fmt.Printf("%10s: %d\n", "Size GB", volume.SizeGb)
 	fmt.Printf("%10s: %t\n", "Encrypted", volume.Encrypted)
 	fmt.Printf("%10s: %s\n", "Created at", volume.CreatedAt.Format(time.RFC822))
@@ -208,6 +209,7 @@ func runShowVolume(cmdCtx *cmdctx.CmdContext) error {
 	fmt.Printf("%10s: %s\n", "ID", volume.ID)
 	fmt.Printf("%10s: %s\n", "Name", volume.Name)
 	fmt.Printf("%10s: %s\n", "Region", volume.Region)
+	fmt.Printf("%10s: %s\n", "Zone", volume.Host.ID)
 	fmt.Printf("%10s: %d\n", "Size GB", volume.SizeGb)
 	fmt.Printf("%10s: %t\n", "Encrypted", volume.Encrypted)
 	fmt.Printf("%10s: %s\n", "Created at", volume.CreatedAt.Format(time.RFC822))

@@ -339,6 +339,9 @@ type Volume struct {
 	Encrypted          bool
 	CreatedAt          time.Time
 	AttachedAllocation *AllocationStatus
+	Host               struct {
+		ID string
+	}
 }
 
 type CreateVolumeInput struct {
