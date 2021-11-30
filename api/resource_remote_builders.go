@@ -2,7 +2,7 @@ package api
 
 import "context"
 
-func (client *Client) EnsureRemoteBuilder(ctx context.Context, orgID string, appName string) (*Machine, *App, error) {
+func (client *Client) EnsureRemoteBuilder(ctx context.Context, orgID, appName string) (*Machine, *App, error) {
 	query := `
 		mutation($input: EnsureMachineRemoteBuilderInput!) {
 			ensureMachineRemoteBuilder(input: $input) {
