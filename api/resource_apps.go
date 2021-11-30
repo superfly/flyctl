@@ -67,6 +67,9 @@ func (client *Client) GetApp(ctx context.Context, appName string) (*App, error) 
 				status
 				version
 				appUrl
+				config {
+					definition
+				}
 				organization {
 					id
 					slug
