@@ -283,7 +283,7 @@ func remoteMachine(ctx context.Context, apiClient *api.Client, appName string) (
 		return nil, nil, nil
 	}
 
-	return apiClient.EnsureMachineRemoteBuilderForApp(ctx, appName)
+	return apiClient.EnsureRemoteBuilder(ctx, "", appName)
 }
 
 func waitForDaemon(ctx context.Context, client *dockerclient.Client) error {
@@ -443,7 +443,7 @@ func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient *api.Client, orgS
 		return
 	}
 
-	_, app, err := apiClient.EnsureRemoteBuilderForOrg(ctx, org.ID)
+	_, app, err := apiClient.EnsureRemoteBuilder(ctx, org.ID, "")
 	if err != nil {
 		terminal.Debugf("error ensuring remote builder for organization: %s", err)
 		return
