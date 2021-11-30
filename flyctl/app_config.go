@@ -23,10 +23,22 @@ const (
 	UnsupportedFormat              = ""
 )
 
+type Environment map[string]string
+
+func (e Environment) Set(key, value string) { e[key] = value }
+func (e Environment) Get(key string) string { return e[key] }
+func (e Environment) Unset(key string)      { delete(e, key) }
+func (e Environment) MultiSet(keyValues map[string]string) {
+	for k, v := range keyValues {
+		e[k] = v
+	}
+}
+
 type AppConfig struct {
 	AppName    string
 	Build      *Build
 	Definition map[string]interface{}
+	Env        Environment
 }
 
 type Build struct {
@@ -46,6 +58,7 @@ type Build struct {
 func NewAppConfig() *AppConfig {
 	return &AppConfig{
 		Definition: map[string]interface{}{},
+		Env:        map[string]string{},
 	}
 }
 
@@ -55,9 +68,7 @@ func LoadAppConfig(configFile string) (*AppConfig, error) {
 		return nil, err
 	}
 
-	appConfig := AppConfig{
-		Definition: map[string]interface{}{},
-	}
+	appConfig := NewAppConfig()
 
 	file, err := os.Open(fullConfigFilePath)
 	if err != nil {
@@ -72,7 +83,7 @@ func LoadAppConfig(configFile string) (*AppConfig, error) {
 		return nil, errors.New("Unsupported config file format")
 	}
 
-	return &appConfig, err
+	return appConfig, err
 }
 
 func (ac *AppConfig) HasDefinition() bool {
@@ -131,7 +142,13 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 	if appName, ok := (data["app"]).(string); ok {
 		ac.AppName = appName
 	}
+	if env, ok := data["env"].(map[string]interface{}); ok {
+		for k, v := range env {
+			ac.Env.Set(k, fmt.Sprint(v))
+		}
+	}
 	delete(data, "app")
+	delete(data, "env")
 	if buildConfig, ok := (data["build"]).(map[string]interface{}); ok {
 		insection := false
 		b := Build{
@@ -313,22 +330,7 @@ func (ac *AppConfig) GetInternalPort() (int, error) {
 }
 
 func (ac *AppConfig) SetEnvVariables(vals map[string]string) {
-	var env map[string]string
-
-	if rawEnv, ok := ac.Definition["env"]; ok {
-		if castEnv, ok := rawEnv.(map[string]string); ok {
-			env = castEnv
-		}
-	}
-	if env == nil {
-		env = map[string]string{}
-	}
-
-	for k, v := range vals {
-		env[k] = v
-	}
-
-	ac.Definition["env"] = env
+	ac.Env.MultiSet(vals)
 }
 
 func (ac *AppConfig) SetReleaseCommand(cmd string) {
@@ -386,21 +388,7 @@ func (ac *AppConfig) SetDockerEntrypoint(entrypoint string) {
 }
 
 func (ac *AppConfig) SetEnvVariable(name, value string) {
-	var env map[string]string
-
-	if rawEnv, ok := ac.Definition["env"]; ok {
-		if castEnv, ok := rawEnv.(map[string]string); ok {
-			env = castEnv
-		}
-	}
-
-	if env == nil {
-		env = map[string]string{}
-	}
-
-	env[name] = value
-
-	ac.Definition["env"] = env
+	ac.Env.Set(name, value)
 }
 
 func (ac *AppConfig) SetProcess(name, value string) {
