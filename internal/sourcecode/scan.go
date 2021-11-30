@@ -198,6 +198,7 @@ func configurePython(sourceDir string) (*SourceInfo, error) {
 	}
 
 	s := &SourceInfo{
+		Files:   templates("templates/python"),
 		Builder: "paketobuildpacks/builder:base",
 		Family:  "Python",
 		Port:    8080,
@@ -205,7 +206,7 @@ func configurePython(sourceDir string) (*SourceInfo, error) {
 			"PORT": "8080",
 		},
 		SkipDeploy: true,
-		DeployDocs: `To deploy this app, you have to add a Procfile`,
+		DeployDocs: `We have generated a simple Procfile for you. Modify it to fit your needs and run "fly deploy" to deploy your application.`,
 	}
 
 	return s, nil
