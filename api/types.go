@@ -339,15 +339,19 @@ type Volume struct {
 	Encrypted          bool
 	CreatedAt          time.Time
 	AttachedAllocation *AllocationStatus
+	Host               struct {
+		ID string
+	}
 }
 
 type CreateVolumeInput struct {
-	AppID      string  `json:"appId"`
-	Name       string  `json:"name"`
-	Region     string  `json:"region"`
-	SizeGb     int     `json:"sizeGb"`
-	Encrypted  bool    `json:"encrypted"`
-	SnapshotID *string `json:"snapshotId,omitempty"`
+	AppID             string  `json:"appId"`
+	Name              string  `json:"name"`
+	Region            string  `json:"region"`
+	SizeGb            int     `json:"sizeGb"`
+	Encrypted         bool    `json:"encrypted"`
+	SnapshotID        *string `json:"snapshotId,omitempty"`
+	RequireUniqueZone bool    `json:"requireUniqueZone"`
 }
 
 type CreateVolumePayload struct {

@@ -14,6 +14,9 @@ func (c *Client) GetVolumes(ctx context.Context, appName string) ([]Volume, erro
 					region
 					encrypted
 					createdAt
+					host{
+						id
+					}
 					attachedAllocation {
 						idShort
 						taskName
@@ -50,6 +53,9 @@ func (c *Client) CreateVolume(ctx context.Context, input CreateVolumeInput) (*Vo
 					sizeGb
 					encrypted
 					createdAt
+					host {
+						id
+					}
 				}
 			}
 		}
@@ -103,6 +109,9 @@ func (c *Client) GetVolume(ctx context.Context, volID string) (Volume *Volume, e
 				region
 				encrypted
 				createdAt
+				host {
+					id
+				}
 			}
 		}
 	}`
