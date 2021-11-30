@@ -1036,10 +1036,10 @@ longHelp = """Proxies connections to a fly app through the wireguard tunnel"""
 shortHelp = "Proxies connections to a fly app"
 usage = "proxy <local:remote>"
 
-[turbo]
+[turboku]
 longHelp = "Launches heroku apps"
 shortHelp =  "Launches heroku apps"
-usage = "turbo <heroku-app>"
+usage = "turboku <heroku-app>"
 
 [dig]
 longHelp = """Make DNS requests against Fly.io's internal DNS server. Valid types include

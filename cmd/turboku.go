@@ -16,9 +16,9 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 )
 
-func newTurboCommand(client *client.Client) *Command {
-	turboDocStrings := docstrings.Get("turbo")
-	cmd := BuildCommandKS(nil, runTurbo, turboDocStrings, client, requireSession)
+func newTurbokuCommand(client *client.Client) *Command {
+	turbokuDocStrings := docstrings.Get("turboku")
+	cmd := BuildCommandKS(nil, runTurboku, turbokuDocStrings, client, requireSession)
 	cmd.Args = cobra.ExactArgs(1)
 
 	// heroku-token flag
@@ -42,8 +42,8 @@ func newTurboCommand(client *client.Client) *Command {
 	return cmd
 }
 
-// runTurbo fetches a heroku app and creates it on fly.io
-func runTurbo(cmdCtx *cmdctx.CmdContext) error {
+// runTurboku fetches a heroku app and creates it on fly.io
+func runTurboku(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 
 	dir := cmdCtx.Config.GetString("path")
@@ -150,7 +150,10 @@ func runTurbo(cmdCtx *cmdctx.CmdContext) error {
 		AllowRegions: []string{region},
 	}
 
-	fly.ConfigureRegions(ctx, regionsInput)
+	_, _, err = fly.ConfigureRegions(ctx, regionsInput)
+	if err != nil {
+		return err
+	}
 
 	// get latest release
 	releases, err := heroku.ReleaseList(ctx, appID, &hero.ListRange{Field: "version", Descending: true, Max: 1})

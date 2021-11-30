@@ -758,8 +758,8 @@ All instances will be halted leaving the application running nowhere.
 It will continue to consume networking resources (IP address). See RESUME
 for details on restarting it.`,
 		}
-	case "turbo":
-		return KeyStrings{"turbo <heroku-app>", "Launches heroku apps",
+	case "turboku":
+		return KeyStrings{"turboku <heroku-app>", "Launches heroku apps",
 			`Launches heroku apps`,
 		}
 	case "version":
