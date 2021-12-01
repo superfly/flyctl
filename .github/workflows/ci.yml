@@ -62,8 +62,8 @@ jobs:
         run: echo "::set-output name=version::$(go env GOVERSION)"
       - name: Docker Login
         env:
-          DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+          DOCKER_USERNAME: ${{ secrets.FLYIOBUILDS_DOCKERHUB_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.FLYIOBUILDS_DOCKERHUB_TOKEN }}
         run: |
           echo "${DOCKER_PASSWORD}" | docker login --username "${DOCKER_USERNAME}" --password-stdin
       - uses: actions/cache@v2
