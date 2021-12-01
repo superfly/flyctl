@@ -5,16 +5,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
 
+	"github.com/superfly/flyctl/pkg/iostreams"
+
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
+	"github.com/superfly/flyctl/internal/cli/internal/sort"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func String(ctx context.Context, dst *string, msg, def string) error {
@@ -44,6 +45,10 @@ func Select(ctx context.Context, index *int, msg string, options ...string) erro
 	}
 
 	return survey.AskOne(p, index, opt)
+}
+
+func Confirmf(ctx context.Context, format string, a ...interface{}) (bool, error) {
+	return Confirm(ctx, fmt.Sprintf(format, a...))
 }
 
 func Confirm(ctx context.Context, message string) (confirm bool, err error) {
@@ -97,7 +102,7 @@ func Org(ctx context.Context, typ *api.OrganizationType) (*api.Organization, err
 	if err != nil {
 		return nil, err
 	}
-	sortOrgsByTypeAndName(orgs)
+	sort.OrganizationsByTypeAndName(orgs)
 
 	io := iostreams.FromContext(ctx)
 	slug := config.FromContext(ctx).Organization
@@ -117,7 +122,7 @@ func Org(ctx context.Context, typ *api.OrganizationType) (*api.Organization, err
 
 		return nil, fmt.Errorf("organization %s not found", slug)
 	default:
-		switch org, err := selectOrg(ctx, orgs); {
+		switch org, err := SelectOrg(ctx, orgs); {
 		case err == nil:
 			return org, nil
 		case IsNonInteractive(err):
@@ -128,22 +133,16 @@ func Org(ctx context.Context, typ *api.OrganizationType) (*api.Organization, err
 	}
 }
 
-func selectOrg(ctx context.Context, orgs []api.Organization) (org *api.Organization, err error) {
+func SelectOrg(ctx context.Context, orgs []api.Organization) (org *api.Organization, err error) {
 	var options []string
 	for _, org := range orgs {
 		options = append(options, fmt.Sprintf("%s (%s)", org.Name, org.Slug))
 	}
 
 	var index int
-	if err = Select(ctx, &index, "Select organization:", options...); err == nil {
+	if err = Select(ctx, &index, "Select Organization:", options...); err == nil {
 		org = &orgs[index]
 	}
 
 	return
-}
-
-func sortOrgsByTypeAndName(orgs []api.Organization) {
-	sort.Slice(orgs, func(i, j int) bool {
-		return orgs[i].Type < orgs[j].Type && orgs[i].Name < orgs[j].Name
-	})
 }
