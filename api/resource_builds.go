@@ -61,10 +61,11 @@ func (c *Client) ListBuilds(ctx context.Context, appName string) ([]Build, error
 	query := `
 		query($appName: String!) {
 			app(name: $appName) {
-				builds {
+				source_builds {
 					nodes {
 						id
-						inProgress
+						logs
+						image
 						status
 						user {
 							id

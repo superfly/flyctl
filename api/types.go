@@ -602,6 +602,18 @@ type Build struct {
 	UpdatedAt  time.Time
 }
 
+type SourceBuild struct {
+	ID        string
+	Status    string
+	User      User
+	Logs      string
+	Image     string
+	AppName   string
+	MachineId string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type SignedUrls struct {
 	GetUrl string
 	PutUrl string
