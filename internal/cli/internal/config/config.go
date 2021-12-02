@@ -15,7 +15,7 @@ const (
 	FileName = "config.yml"
 
 	envKeyPrefix        = "FLY_"
-	APIBaseURLEnvKey    = envKeyPrefix + "API_BASE_URL"
+	apiBaseURLEnvKey    = envKeyPrefix + "API_BASE_URL"
 	accessTokenEnvKey   = envKeyPrefix + "ACCESS_TOKEN"
 	apiTokenEnvKey      = envKeyPrefix + "API_TOKEN"
 	orgEnvKey           = envKeyPrefix + "ORG"
@@ -64,7 +64,7 @@ func (cfg *Config) ApplyEnv() {
 	cfg.Organization = env.FirstOrDefault(cfg.Organization,
 		orgEnvKey, organizationEnvKey)
 	cfg.RegistryHost = env.FirstOrDefault(cfg.RegistryHost, registryHostEnvKey)
-	cfg.APIBaseURL = env.FirstOrDefault(cfg.APIBaseURL, APIBaseURLEnvKey)
+	cfg.APIBaseURL = env.FirstOrDefault(cfg.APIBaseURL, apiBaseURLEnvKey)
 }
 
 // ApplyFile sets the properties of cfg which may be set via configuration file
