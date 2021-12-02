@@ -63,6 +63,7 @@ func (cfg *Config) ApplyEnv() {
 	cfg.Organization = env.FirstOrDefault(cfg.Organization,
 		orgEnvKey, organizationEnvKey)
 	cfg.RegistryHost = env.FirstOrDefault(cfg.RegistryHost, registryHostEnvKey)
+	cfg.APIBaseURL = env.FirstOrDefault(cfg.APIBaseURL, apiTokenEnvKey)
 }
 
 // ApplyFile sets the properties of cfg which may be set via configuration file
