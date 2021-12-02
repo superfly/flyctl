@@ -120,7 +120,7 @@ jobs:
           envsubst '${pkgver},${sha256sum}' < aur/PKGBUILD > aur/flyctl-bin/PKGBUILD
           cat aur/flyctl-bin/PKGBUILD
       - name: Publish flyctl-bin to the AUR
-        uses: jbouter/aur-releaser@v0.0.7
+        uses: superfly/aur-releaser@ba29a0a809d7221713a104f9c9a23c34ee5b0742
         with:
           pkgname: flyctl-bin
           pkgbuild: ./aur/flyctl-bin/PKGBUILD
