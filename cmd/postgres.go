@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/briandowns/spinner"
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
@@ -18,6 +19,89 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/client"
 )
+
+type PostgresClusterOption struct {
+	Name     string
+	ImageRef string
+	Count    int
+}
+type PostgresConfiguration struct {
+	Name             string
+	Description      string
+	VmSize           string
+	MemoryMb         int
+	DiskGb           int
+	ClusteringOption PostgresClusterOption
+}
+
+func postgresConfigurations() []PostgresConfiguration {
+	return []PostgresConfiguration{
+		{
+			Description:      "Development - Single node, 1x shared CPU, 256MB RAM, 10GB disk",
+			VmSize:           "shared-cpu-1x",
+			MemoryMb:         256,
+			DiskGb:           10,
+			ClusteringOption: standalonePostgres(),
+		},
+		{
+			Description:      "Production - Highly available, 1x shared CPU, 256MB RAM, 10GB disk",
+			VmSize:           "shared-cpu-1x",
+			MemoryMb:         256,
+			DiskGb:           10,
+			ClusteringOption: highlyAvailablePostgres(),
+		},
+		{
+			Description:      "Production - Highly available, 1x Dedicated CPU, 2GB RAM, 50GB disk",
+			VmSize:           "dedicated-cpu-1x",
+			MemoryMb:         2048,
+			DiskGb:           50,
+			ClusteringOption: highlyAvailablePostgres(),
+		},
+		{
+			Description:      "Production - Highly available, 2x Dedicated CPU's, 4GB RAM, 100GB disk",
+			VmSize:           "dedicated-cpu-2x",
+			MemoryMb:         4096,
+			DiskGb:           100,
+			ClusteringOption: highlyAvailablePostgres(),
+		},
+		{
+			Description:      "Production - Highly available, 4x Dedicated CPU's, 8GB RAM, 200GB disk",
+			VmSize:           "dedicated-cpu-4x",
+			MemoryMb:         8192,
+			DiskGb:           200,
+			ClusteringOption: highlyAvailablePostgres(),
+		},
+		{
+			Description: "Specify custom configuration",
+			VmSize:      "",
+			MemoryMb:    0,
+			DiskGb:      0,
+		},
+	}
+}
+
+func standalonePostgres() PostgresClusterOption {
+	return PostgresClusterOption{
+		Name:     "Development (Single node)",
+		ImageRef: "flyio/postgres-standalone",
+		Count:    1,
+	}
+}
+
+func highlyAvailablePostgres() PostgresClusterOption {
+	return PostgresClusterOption{
+		Name:     "Production (Highly available)",
+		ImageRef: "flyio/postgres",
+		Count:    2,
+	}
+}
+
+func postgresClusteringOptions() []PostgresClusterOption {
+	return []PostgresClusterOption{
+		standalonePostgres(),
+		highlyAvailablePostgres(),
+	}
+}
 
 func newPostgresCommand(client *client.Client) *Command {
 	domainsStrings := docstrings.Get("postgres")
@@ -36,6 +120,7 @@ func newPostgresCommand(client *client.Client) *Command {
 	createCmd.AddStringFlag(StringFlagOpts{Name: "password", Description: "the superuser password. one will be generated for you if you leave this blank"})
 	createCmd.AddStringFlag(StringFlagOpts{Name: "volume-size", Description: "the size in GB for volumes"})
 	createCmd.AddStringFlag(StringFlagOpts{Name: "vm-size", Description: "the size of the VM"})
+
 	createCmd.AddStringFlag(StringFlagOpts{Name: "image-ref", Hidden: true})
 	createCmd.AddStringFlag(StringFlagOpts{Name: "snapshot-id", Description: "Creates the volume with the contents of the snapshot"})
 
@@ -99,36 +184,105 @@ func runCreatePostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	regionCode := cmdCtx.Config.GetString("region")
-	region, err := selectRegion(ctx, cmdCtx.Client.API(), regionCode)
+	var region *api.Region
+	region, err = selectRegion(ctx, cmdCtx.Client.API(), regionCode)
 	if err != nil {
 		return err
-	}
-
-	vmSizeName := cmdCtx.Config.GetString("vm-size")
-	vmSize, err := selectVMSize(ctx, cmdCtx.Client.API(), vmSizeName)
-	if err != nil {
-		return err
-	}
-
-	volumeSize := cmdCtx.Config.GetInt("volume-size")
-	if volumeSize == 0 {
-		s, err := volumeSizeInput(10)
-		if err != nil {
-			return err
-		}
-		volumeSize = s
 	}
 
 	input := api.CreatePostgresClusterInput{
 		OrganizationID: org.ID,
 		Name:           name,
 		Region:         api.StringPointer(region.Code),
-		VMSize:         api.StringPointer(vmSize.Name),
-		VolumeSizeGB:   api.IntPointer(volumeSize),
 	}
 
-	if imageRef := cmdCtx.Config.GetString("image-ref"); imageRef != "" {
-		input.ImageRef = api.StringPointer(imageRef)
+	customConfig := false
+
+	volumeSize := cmdCtx.Config.GetInt("volume-size")
+	vmSizeName := cmdCtx.Config.GetString("vm-size")
+
+	if volumeSize != 0 || vmSizeName != "" {
+		customConfig = true
+	}
+
+	var pgConfig *PostgresConfiguration
+	var vmSize *api.VMSize
+
+	// If no custom configuration settings have been passed in, prompt user to select
+	// from a list of pre-defined configurations or opt into specifying a custom
+	// configuration.
+	if !customConfig {
+		selectedCfg := 0
+		options := []string{}
+		for _, cfg := range postgresConfigurations() {
+			options = append(options, cfg.Description)
+		}
+		prompt := &survey.Select{
+			Message:  "Select configuration:",
+			Options:  options,
+			PageSize: len(postgresConfigurations()),
+		}
+		if err := survey.AskOne(prompt, &selectedCfg); err != nil {
+			return err
+		}
+		pgConfig = &postgresConfigurations()[selectedCfg]
+
+		if pgConfig.VmSize == "" {
+			// User has opted into choosing a custom configuration.
+			customConfig = true
+		}
+	}
+
+	if customConfig {
+		selected := 0
+		options := []string{}
+		for _, opt := range postgresClusteringOptions() {
+			options = append(options, opt.Name)
+		}
+		prompt := &survey.Select{
+			Message:  "Select configuration:",
+			Options:  options,
+			PageSize: 2,
+		}
+		if err := survey.AskOne(prompt, &selected); err != nil {
+			return err
+		}
+		option := postgresClusteringOptions()[selected]
+
+		input.Count = &option.Count
+		input.ImageRef = &option.ImageRef
+
+		// Resolve VM size
+		vmSize, err = selectVMSize(ctx, cmdCtx.Client.API(), vmSizeName)
+		if err != nil {
+			return err
+		}
+		input.VMSize = api.StringPointer(vmSize.Name)
+
+		// Resolve volume size
+		if volumeSize == 0 {
+			volumeSize, err = volumeSizeInput(10)
+			if err != nil {
+				return err
+			}
+		}
+		input.VolumeSizeGB = api.IntPointer(volumeSize)
+
+	} else {
+		// Resolve configuration from pre-defined configuration.
+		vmSize, err = selectVMSize(ctx, cmdCtx.Client.API(), pgConfig.VmSize)
+		if err != nil {
+			return err
+		}
+		input.VMSize = api.StringPointer(vmSize.Name)
+		input.VolumeSizeGB = api.IntPointer(pgConfig.DiskGb)
+		input.Count = api.IntPointer(pgConfig.ClusteringOption.Count)
+
+		if imageRef := cmdCtx.Config.GetString("image-ref"); imageRef != "" {
+			input.ImageRef = api.StringPointer(imageRef)
+		} else {
+			input.ImageRef = &pgConfig.ClusteringOption.ImageRef
+		}
 	}
 
 	if password := cmdCtx.Config.GetString("password"); password != "" {
