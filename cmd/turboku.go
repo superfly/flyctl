@@ -28,6 +28,12 @@ func newTurbokuCommand(client *client.Client) *Command {
 		EnvName:     "HEROKU_TOKEN",
 	})
 
+	cmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "now",
+		Description: "deploy now without confirmation",
+		Default:     false,
+	})
+
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "org",
 		Description: `the organization that will own the app`,
