@@ -22,7 +22,7 @@ func newBuildsCommand(client *client.Client) *Command {
 	BuildCommandKS(cmd, runListBuilds, buildsListStrings, client, requireSession, requireAppName)
 	buildsLogsStrings := docstrings.Get("builds.logs")
 	logs := BuildCommandKS(cmd, runBuildLogs, buildsLogsStrings, client, requireSession, requireAppName)
-	logs.Command.Args = cobra.ExactArgs(1)
+	logs.Command.Args = cobra.MinimumNArgs(1)
 
 	return cmd
 }

@@ -78,10 +78,6 @@ type Query struct {
 
 	CreateSignedUrl SignedUrls
 
-	StartBuild struct {
-		Build Build
-	}
-
 	AddCertificate struct {
 		Certificate *AppCertificate
 		Check       *HostnameCheck
@@ -212,6 +208,11 @@ type Query struct {
 	RemoveMachine struct {
 		Machine *Machine
 	}
+
+	StartSourceBuild struct {
+		SourceBuild *SourceBuild
+	}
+
 	DeleteOrganizationMembership *DeleteOrganizationMembershipPayload
 }
 
@@ -613,12 +614,10 @@ type SourceBuild struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
-
 type SignedUrls struct {
 	GetUrl string
 	PutUrl string
 }
-
 type AppChange struct {
 	ID        string
 	CreatedAt time.Time
@@ -883,11 +882,7 @@ type VMCountInput struct {
 }
 
 type StartBuildInput struct {
-	AppID      string          `json:"appId"`
-	SourceURL  string          `json:"sourceUrl"`
-	SourceType string          `json:"sourceType"`
-	BuildType  *string         `json:"buildType"`
-	BuildArgs  []BuildArgInput `json:"buildArgs"`
+	AppID string `json:"appId"`
 }
 
 type BuildArgInput struct {
