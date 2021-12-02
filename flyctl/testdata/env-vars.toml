@@ -1,6 +1,0 @@
-app = "test-app"
-
-[env]
-  LOG_LEVEL = "debug"
-  RAILS_ENV = "production"
-  S3_BUCKET = "my-app-production"

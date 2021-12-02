@@ -1,7 +1,6 @@
 package flyctl
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
 
 	"github.com/BurntSushi/toml"
@@ -54,34 +53,4 @@ func TestLoadTOMLAppConfigWithServices(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, p.Definition, rawData)
-}
-
-func TestLoadTOMLAppConfigWithEnvVars(t *testing.T) {
-	const path = "./testdata/env-vars.toml"
-	p, err := LoadAppConfig(path)
-	require.NoError(t, err)
-	assert.Equal(t, "debug", p.Env["LOG_LEVEL"])
-	assert.Equal(t, "production", p.Env["RAILS_ENV"])
-
-	p.SetEnvVariable("LOG_LEVEL", "info")
-
-	assert.Equal(t, "info", p.Env["LOG_LEVEL"])
-	assert.Equal(t, "production", p.Env["RAILS_ENV"])
-
-	p.SetEnvVariables(map[string]string{"RAILS_ENV": "development"})
-
-	assert.Equal(t, "info", p.Env["LOG_LEVEL"])
-	assert.Equal(t, "development", p.Env["RAILS_ENV"])
-}
-
-func TestEnvironment(t *testing.T) {
-	env := Environment{}
-	env.Set("k1", "v1")
-	assert.Equal(t, "v1", env["k1"])
-	assert.Equal(t, "v1", env.Get("k1"))
-	env.Set("k2", "v2")
-	env.MultiSet(map[string]string{"k2": "v2.2", "k3": "v3"})
-	assert.Equal(t, "v1", env.Get("k1"))
-	assert.Equal(t, "v2.2", env.Get("k2"))
-	assert.Equal(t, "v3", env.Get("k3"))
 }
