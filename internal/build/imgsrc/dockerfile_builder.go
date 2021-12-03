@@ -114,6 +114,9 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 		relativedockerfilePath = p
 	}
 
+	// Start tracking this build
+
+	// Create the docker build context as a compressed tar stream
 	r, err := archiveDirectory(archiveOpts)
 	if err != nil {
 		return nil, errors.Wrap(err, "error archiving build context")

@@ -279,6 +279,9 @@ type App struct {
 	Builds    struct {
 		Nodes []Build
 	}
+	SourceBuilds struct {
+		Nodes []SourceBuild
+	}
 	Changes struct {
 		Nodes []AppChange
 	}
@@ -881,7 +884,7 @@ type VMCountInput struct {
 	MaxPerRegion *int   `json:"maxPerRegion"`
 }
 
-type StartBuildInput struct {
+type StartSourceBuildInput struct {
 	AppID string `json:"appId"`
 }
 
