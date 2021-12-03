@@ -97,11 +97,7 @@ func IsNonInteractive(err error) bool {
 
 type NonInteractiveError string
 
-func (NonInteractiveError) Is(t error) bool { return t == errNonInteractive }
-
-func (e NonInteractiveError) Description() string { return string(e) }
-
-func (NonInteractiveError) Error() string { return errNonInteractive.Error() }
+func (e NonInteractiveError) Error() string { return string(e) }
 
 func (NonInteractiveError) Unwrap() error { return errNonInteractive }
 

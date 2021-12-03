@@ -1,20 +1,34 @@
 package prompt
 
 import (
-	"errors"
-	"io"
+	"fmt"
 	"testing"
+	"testing/quick"
 
-	"github.com/tj/assert"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestNonInteractive(t *testing.T) {
-	const exp = "some description"
+func TestIsNonInteractive(t *testing.T) {
+	cases := []struct {
+		err error
+		exp bool
+	}{
+		{assert.AnError, false},
+		{fmt.Errorf("wrapped: %w", assert.AnError), false},
+		{errNonInteractive, true},
+		{fmt.Errorf("wrapped: %w", errNonInteractive), true},
+		{NonInteractiveError("some error"), true},
+	}
 
-	err := NonInteractiveError(exp)
+	for i, kase := range cases {
+		assert.Equal(t, kase.exp, IsNonInteractive(kase.err), "case: %d", i)
+	}
+}
 
-	assert.False(t, errors.Is(err, io.EOF))
-	assert.True(t, IsNonInteractive(err))
-	assert.Equal(t, exp, err.Description())
-	assert.Equal(t, "prompt: non-interactive", err.Error())
+func TestNonInteractiveError(t *testing.T) {
+	fn := func(exp string) bool {
+		return NonInteractiveError(exp).Error() == exp
+	}
+	require.NoError(t, quick.Check(fn, nil))
 }
