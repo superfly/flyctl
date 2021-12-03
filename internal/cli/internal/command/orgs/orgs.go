@@ -35,7 +35,6 @@ Organization admins can also invite or remove users from Organizations.
 		newList(),
 		newShow(),
 		newInvite(),
-		newRevoke(),
 		newRemove(),
 		newCreate(),
 		newDelete(),
