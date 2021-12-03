@@ -89,11 +89,21 @@ func Confirm(ctx context.Context, message string) (confirm bool, err error) {
 	return
 }
 
-var errNonInteractive = errors.New("non interactive")
+var errNonInteractive = errors.New("prompt: non interactive")
 
 func IsNonInteractive(err error) bool {
 	return errors.Is(err, errNonInteractive)
 }
+
+type NonInteractiveError string
+
+func (NonInteractiveError) Is(t error) bool { return t == errNonInteractive }
+
+func (e NonInteractiveError) Description() string { return string(e) }
+
+func (NonInteractiveError) Error() string { return errNonInteractive.Error() }
+
+func (NonInteractiveError) Unwrap() error { return errNonInteractive }
 
 func newSurveyIO(ctx context.Context) (survey.AskOpt, error) {
 	io := iostreams.FromContext(ctx)
@@ -114,7 +124,7 @@ func newSurveyIO(ctx context.Context) (survey.AskOpt, error) {
 	return survey.WithStdio(in, out, io.ErrOut), nil
 }
 
-var errOrgSlugRequired = errors.New("org slug must be specified when not running interactively")
+var errOrgSlugRequired = NonInteractiveError("org slug must be specified when not running interactively")
 
 // Org returns the Organization the user has passed in via flag or prompts the
 // user for one.
