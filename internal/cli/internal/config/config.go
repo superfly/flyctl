@@ -15,8 +15,9 @@ const (
 
 	envKeyPrefix        = "FLY_"
 	apiBaseURLEnvKey    = envKeyPrefix + "API_BASE_URL"
-	accessTokenEnvKey   = envKeyPrefix + "ACCESS_TOKEN"
-	apiTokenEnvKey      = envKeyPrefix + "API_TOKEN"
+	AccessTokenEnvKey   = envKeyPrefix + "ACCESS_TOKEN"
+	AccessTokenFileKey  = "access_token"
+	APITokenEnvKey      = envKeyPrefix + "API_TOKEN"
 	orgEnvKey           = envKeyPrefix + "ORG"
 	registryHostEnvKey  = envKeyPrefix + "REGISTRY_HOST"
 	organizationEnvKey  = envKeyPrefix + "ORGANIZATION"
