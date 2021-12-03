@@ -7,7 +7,6 @@ import (
 	"io"
 	"os/exec"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
@@ -31,7 +30,7 @@ the docker cli.
 func runDocker(ctx context.Context) (err error) {
 	binary, err := exec.LookPath("docker")
 	if err != nil {
-		return errors.Wrap(err, "docker cli not found - make sure it's installed and try again")
+		return fmt.Errorf("docker cli not found - make sure it's installed and try again: %w", err)
 	}
 
 	cfg := config.FromContext(ctx)
