@@ -1,10 +1,9 @@
 package config
 
 import (
-	"os"
+	"sync"
 
 	"github.com/spf13/pflag"
-	"gopkg.in/yaml.v3"
 
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/env"
@@ -16,8 +15,9 @@ const (
 
 	envKeyPrefix        = "FLY_"
 	apiBaseURLEnvKey    = envKeyPrefix + "API_BASE_URL"
-	accessTokenEnvKey   = envKeyPrefix + "ACCESS_TOKEN"
-	apiTokenEnvKey      = envKeyPrefix + "API_TOKEN"
+	AccessTokenEnvKey   = envKeyPrefix + "ACCESS_TOKEN"
+	AccessTokenFileKey  = "access_token"
+	APITokenEnvKey      = envKeyPrefix + "API_TOKEN"
 	orgEnvKey           = envKeyPrefix + "ORG"
 	registryHostEnvKey  = envKeyPrefix + "REGISTRY_HOST"
 	organizationEnvKey  = envKeyPrefix + "ORGANIZATION"
@@ -30,16 +30,35 @@ const (
 	defaultRegistryHost = "registry.fly.io"
 )
 
+// Config wraps the functionality of the configuration file.
+//
+// Instances of Config are safe for concurrent use.
 type Config struct {
-	APIBaseURL   string `yaml:"-"`
-	RegistryHost string `yaml:"-"`
+	mu sync.RWMutex
 
-	AccessToken   string `yaml:"access_token"`
-	VerboseOutput bool   `yaml:"-"`
-	JSONOutput    bool   `yaml:"-"`
-	LogGQLErrors  bool   `yaml:"-"`
-	Organization  string `yaml:"-"`
-	LocalOnly     bool   `yaml:"-"`
+	// APIBaseURL denotes the base URL of the API.
+	APIBaseURL string
+
+	// RegistryHost denotes the docker registry host.
+	RegistryHost string
+
+	// VerboseOutput denotes whether the user wants the output to be verbose.
+	VerboseOutput bool
+
+	// JSONOutput denotes whether the user wants the output to be JSON.
+	JSONOutput bool
+
+	// LogGQLErrors denotes whether the user wants the log GraphQL errors.
+	LogGQLErrors bool
+
+	// Organization denotes the organizational slug the user has selected.
+	Organization string
+
+	// LocalOnly denotes whether the user wants only local operations.
+	LocalOnly bool
+
+	// AccessToken denotes the user's access token.
+	AccessToken string
 }
 
 // New returns a new instance of Config populated with default values.
@@ -52,9 +71,14 @@ func New() *Config {
 
 // ApplyEnv sets the properties of cfg which may be set via environment
 // variables to the values these variables contain.
+//
+// ApplyEnv does not change the dirty state of config.
 func (cfg *Config) ApplyEnv() {
+	cfg.mu.Lock()
+	defer cfg.mu.Unlock()
+
 	cfg.AccessToken = env.FirstOrDefault(cfg.AccessToken,
-		accessTokenEnvKey, apiTokenEnvKey)
+		AccessTokenEnvKey, APITokenEnvKey)
 
 	cfg.VerboseOutput = env.IsTruthy(verboseOutputEnvKey) || cfg.VerboseOutput
 	cfg.JSONOutput = env.IsTruthy(jsonOutputEnvKey) || cfg.JSONOutput
@@ -70,13 +94,15 @@ func (cfg *Config) ApplyEnv() {
 // ApplyFile sets the properties of cfg which may be set via configuration file
 // to the values the file at the given path contains.
 func (cfg *Config) ApplyFile(path string) (err error) {
-	var f *os.File
-	if f, err = os.Open(path); err == nil {
-		err = yaml.NewDecoder(f).Decode(cfg)
+	cfg.mu.Lock()
+	defer cfg.mu.Unlock()
 
-		if e := f.Close(); err == nil {
-			err = e
-		}
+	var w struct {
+		AccessToken string `yaml:"access_token"`
+	}
+
+	if err = unmarshal(path, &w); err == nil {
+		cfg.AccessToken = w.AccessToken
 	}
 
 	return
@@ -85,6 +111,9 @@ func (cfg *Config) ApplyFile(path string) (err error) {
 // ApplyFlags sets the properties of cfg which may be set via command line flags
 // to the values the flags of the given FlagSet may contain.
 func (cfg *Config) ApplyFlags(fs *pflag.FlagSet) {
+	cfg.mu.Lock()
+	defer cfg.mu.Unlock()
+
 	applyStringFlags(fs, map[string]*string{
 		flag.AccessTokenName: &cfg.AccessToken,
 		flag.OrgName:         &cfg.Organization,

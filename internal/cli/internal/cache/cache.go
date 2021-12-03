@@ -3,13 +3,16 @@ package cache
 
 import (
 	"bytes"
+	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/update"
 )
 
@@ -138,6 +141,8 @@ type wrapper struct {
 	LatestRelease *update.Release `yaml:"latest_release,omitempty"`
 }
 
+var lockPath = filepath.Join(os.TempDir(), "flyctl.cache.lock")
+
 // Save writes the YAML-encoded representation of c to the named file path via
 // os.WriteFile.
 func (c *cache) Save(path string) (err error) {
@@ -152,21 +157,42 @@ func (c *cache) Save(path string) (err error) {
 		LatestRelease: c.latestRelease,
 	}
 
-	if err = yaml.NewEncoder(&b).Encode(w); err == nil {
-		// TODO: this is prone to race conditions and os.WriteFile does not flush
-		err = os.WriteFile(path, b.Bytes(), 0600)
+	if err = yaml.NewEncoder(&b).Encode(w); err != nil {
+		return
 	}
+
+	var unlock filemu.UnlockFunc
+	if unlock, err = filemu.Lock(context.Background(), lockPath); err != nil {
+		return
+	}
+	defer func() {
+		if e := unlock(); err == nil {
+			err = e
+		}
+	}()
+
+	// TODO: os.WriteFile does NOT flush
+	err = os.WriteFile(path, b.Bytes(), 0600)
 
 	return
 }
 
 // Load loads the YAML-encoded cache file at the given path.
 func Load(path string) (c Cache, err error) {
+	var unlock filemu.UnlockFunc
+	if unlock, err = filemu.RLock(context.Background(), lockPath); err != nil {
+		return
+	}
+	defer func() {
+		if e := unlock(); err == nil {
+			err = e
+		}
+	}()
+
 	var f *os.File
 	if f, err = os.Open(path); err != nil {
 		return
 	}
-
 	defer func() {
 		if e := f.Close(); err == nil {
 			err = e

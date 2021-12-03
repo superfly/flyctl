@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
@@ -36,7 +35,6 @@ Organization admins can also invite or remove users from Organizations.
 		newList(),
 		newShow(),
 		newInvite(),
-		newRevoke(),
 		newRemove(),
 		newCreate(),
 		newDelete(),
@@ -54,14 +52,14 @@ func emailFromSecondArgOrPrompt(ctx context.Context) (email string, err error) {
 
 	const msg = "Enter User Email:"
 
-	if err = prompt.String(ctx, &email, msg, ""); prompt.IsNonInteractive(err) {
-		err = errors.Wrap(err, "email argument must be specified when not running interactively")
+	if err = prompt.String(ctx, &email, msg, "", true); prompt.IsNonInteractive(err) {
+		err = prompt.NonInteractiveError("email argument must be specified when not running interactively")
 	}
 
 	return
 }
 
-const slugArgMustBeSpecified = "slug argument must be specified when not running interactively"
+var errSlugArgMustBeSpecified = prompt.NonInteractiveError("slug argument must be specified when not running interactively")
 
 func slugFromFirstArgOrSelect(ctx context.Context) (slug string, err error) {
 	if slug = flag.FirstArg(ctx); slug != "" {
@@ -70,7 +68,7 @@ func slugFromFirstArgOrSelect(ctx context.Context) (slug string, err error) {
 
 	io := iostreams.FromContext(ctx)
 	if !io.IsInteractive() {
-		err = errors.New(slugArgMustBeSpecified)
+		err = errSlugArgMustBeSpecified
 
 		return
 	}
@@ -87,7 +85,7 @@ func slugFromFirstArgOrSelect(ctx context.Context) (slug string, err error) {
 
 	var org *api.Organization
 	if org, err = prompt.SelectOrg(ctx, orgs); prompt.IsNonInteractive(err) {
-		err = errors.Wrap(err, slugArgMustBeSpecified)
+		err = errSlugArgMustBeSpecified
 	} else {
 		slug = org.Slug
 	}

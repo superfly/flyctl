@@ -3,17 +3,32 @@ package state
 
 import (
 	"context"
+	"path/filepath"
+
+	"github.com/superfly/flyctl/internal/cli/internal/config"
 )
 
 type contextKeyType int
 
 const (
 	_ contextKeyType = iota
+	hostnameKey
 	workDirKey
 	userHomeDirKey
 	configDirKey
 	accessTokenKey
 )
+
+// WithHostname returns a copy of ctx that carries hostname.
+func WithHostname(ctx context.Context, hostname string) context.Context {
+	return set(ctx, hostnameKey, hostname)
+}
+
+// Hostname returns the hostname ctx carries. It panics in case ctx carries no
+// hostname.
+func Hostname(ctx context.Context) string {
+	return get(ctx, hostnameKey).(string)
+}
 
 // WithWorkingDirectory derives a Context that carries the given working
 // directory from ctx.
@@ -51,16 +66,10 @@ func ConfigDirectory(ctx context.Context) string {
 	return get(ctx, configDirKey).(string)
 }
 
-// WithAccessToken derives a Context that carries the given access token from
-// ctx.
-func WithAccessToken(ctx context.Context, token string) context.Context {
-	return set(ctx, accessTokenKey, token)
-}
-
-// AccessToken returns the access token ctx carries. It panics in case ctx
-// carries no access token.
-func AccessToken(ctx context.Context) string {
-	return get(ctx, accessTokenKey).(string)
+// ConfigFile returns the config file ctx carries. It panics in case
+// ctx carries no config directory.
+func ConfigFile(ctx context.Context) string {
+	return filepath.Join(ConfigDirectory(ctx), config.FileName)
 }
 
 func get(ctx context.Context, key contextKeyType) interface{} {
