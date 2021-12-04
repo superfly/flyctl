@@ -154,7 +154,8 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 				article += "n"
 			}
 
-			fmt.Printf("Detected %s %s app\n", article, aurora.Green(srcInfo.Family))
+			appType := srcInfo.Family + " " + srcInfo.Version
+			fmt.Printf("Detected %s %s app\n", article, aurora.Green(appType))
 
 			if srcInfo.Builder != "" {
 				fmt.Println("Using the following build configuration:")
@@ -287,10 +288,17 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		for k, v := range srcInfo.Secrets {
 			val := ""
 			prompt := fmt.Sprintf("Set secret %s:", k)
-			survey.AskOne(&survey.Input{
+
+			surveyInput := &survey.Input{
 				Message: prompt,
 				Help:    v,
-			}, &val)
+			}
+
+			if strings.Contains(v, "random default") {
+				surveyInput.Default = helpers.RandString(64)
+			}
+
+			survey.AskOne(surveyInput, &val)
 
 			if val != "" {
 				secrets[k] = val

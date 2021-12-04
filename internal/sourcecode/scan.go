@@ -6,7 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
+	"regexp"
 
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/helpers"
@@ -17,6 +17,7 @@ var content embed.FS
 
 type SourceInfo struct {
 	Family           string
+	Version          string
 	DockerfilePath   string
 	Builder          string
 	ReleaseCmd       string
@@ -58,6 +59,7 @@ func Scan(sourceDir string) (*SourceInfo, error) {
 		configureDockerfile,
 		configureRuby,
 		configureGo,
+		configurePhoenix,
 		configureElixir,
 		configurePython,
 		configureDeno,
@@ -111,7 +113,8 @@ func fileContains(path string, pattern string) bool {
 	scanner := bufio.NewScanner(file)
 
 	for scanner.Scan() {
-		if strings.Contains(scanner.Text(), pattern) {
+		re := regexp.MustCompile(pattern)
+		if re.MatchString(scanner.Text()) {
 			return true
 		}
 	}
@@ -244,6 +247,44 @@ func configureDeno(sourceDir string) (*SourceInfo, error) {
 		Env: map[string]string{
 			"PORT": "8080",
 		},
+	}
+
+	return s, nil
+}
+
+func configurePhoenix(sourceDir string) (*SourceInfo, error) {
+	// Not phoenix, move on
+	if !helpers.FileExists(filepath.Join(sourceDir, "mix.exs")) || !checksPass(sourceDir, dirContains("mix.exs", "phoenix")) {
+		return nil, nil
+	}
+
+	s := &SourceInfo{
+		Family: "Phoenix",
+		Secrets: map[string]string{
+			"SECRET_KEY_BASE": "Phoenix needs a random, secret key. Use the random default we've generated, or generate your own.",
+		},
+		Port: 8080,
+		Env: map[string]string{
+			"PORT": "8080",
+		},
+	}
+
+	// We found Phoenix 1.6.3 or higher, so try running the Docker generator
+	if checksPass(sourceDir, dirContains("mix.exs", "phoenix.*"+regexp.QuoteMeta("1.6.3"))) {
+		s.Version = "1.6.3"
+	}
+	// We found Phoenix 1.6.0 - 1.6.2
+	if checksPass(sourceDir, dirContains("mix.exs", "phoenix.*"+regexp.QuoteMeta("1.6.")+"[0-2]")) {
+		s.Version = "1.6"
+		s.Files = templates("templates/phoenix")
+		s.SkipDeploy = true
+		s.DeployDocs = `
+We've placed Dockerfile compatible with Phoenix 1.6 apps in this directory.
+Before deploying, you'll need to add a few files and configuration options manually.
+
+See https://hexdocs.pm/phoenix/fly.html for details, including instructions for setting
+up a Postgresql database.
+`
 	}
 
 	return s, nil
