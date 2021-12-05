@@ -2,10 +2,14 @@ package cmd
 
 import (
 	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/logrusorgru/aurora"
@@ -64,6 +68,10 @@ func newLaunchCommand(client *client.Client) *Command {
 	launchCmd.AddStringFlag(StringFlagOpts{
 		Name:        "dockerfile",
 		Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
+	})
+	launchCmd.AddStringFlag(StringFlagOpts{
+		Name:        "from",
+		Description: "Launch from the URL of an existing fly.toml",
 	})
 
 	return launchCmd
@@ -124,7 +132,37 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	fmt.Println("Creating app in", dir)
 	var srcInfo *sourcecode.SourceInfo
 
-	if img := cmdCtx.Config.GetString("image"); img != "" {
+	if fromUrl := cmdCtx.Config.GetString("from"); fromUrl != "" {
+		fmt.Println("Using URL", fromUrl)
+
+		client := http.Client{
+			Timeout: time.Second * 2,
+		}
+
+		req, err := http.NewRequest(http.MethodGet, fromUrl, nil)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		res, getErr := client.Do(req)
+
+		if getErr != nil {
+			log.Fatal(getErr)
+		}
+
+		if res.Body != nil {
+			defer res.Body.Close()
+		}
+
+		body, readErr := ioutil.ReadAll(res.Body)
+		if readErr != nil {
+			log.Fatal(readErr)
+		}
+
+		// Figure out how to do this
+		// appConfig.unmarshalTOML(body)
+
+	} else if img := cmdCtx.Config.GetString("image"); img != "" {
 		fmt.Println("Using image", img)
 		appConfig.Build = &flyctl.Build{
 			Image: img,
