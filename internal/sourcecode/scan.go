@@ -23,18 +23,21 @@ type SourceInfo struct {
 	ReleaseCmd       string
 	DockerCommand    string
 	DockerEntrypoint string
+	InitCommand      string
 
-	Buildpacks []string
-	Secrets    map[string]string
-	Files      []SourceFile
-	Port       int
-	Env        map[string]string
-	Statics    []Static
-	Processes  map[string]string
-	DeployDocs string
-	Notice     string
-	SkipDeploy bool
-	Volumes    []Volume
+	Buildpacks         []string
+	Secrets            map[string]string
+	Files              []SourceFile
+	Port               int
+	Env                map[string]string
+	Statics            []Static
+	Processes          map[string]string
+	DeployDocs         string
+	Notice             string
+	SkipDeploy         bool
+	Volumes            []Volume
+	DockerfileAppendix []string
+	InitCommandArgs    []string
 }
 
 type SourceFile struct {
@@ -267,13 +270,19 @@ func configurePhoenix(sourceDir string) (*SourceInfo, error) {
 		Env: map[string]string{
 			"PORT": "8080",
 		},
+		DockerfileAppendix: []string{
+			"ENV ECTO_IPV6 true",
+			"ENV ERL_AFLAGS \"-proto_dist inet6_tcp\"",
+			"ENV RELEASE_DISTRIBUTION name",
+		},
+		InitCommand:     "mix",
+		InitCommandArgs: []string{"phx.gen.release", "--docker"},
 	}
 
 	// We found Phoenix 1.6.3 or higher, so try running the Docker generator
 	if checksPass(sourceDir, dirContains("mix.exs", "phoenix.*"+regexp.QuoteMeta("1.6.3"))) {
 		s.Version = "1.6.3"
 		s.SkipDeploy = true
-		s.DeployDocs = `Please check the Phoenix documentation for instructions on generating a Docker-based release.`
 	}
 	// We found Phoenix 1.6.0 - 1.6.2
 	if checksPass(sourceDir, dirContains("mix.exs", "phoenix.*"+regexp.QuoteMeta("1.6.")+"[0-2]")) {

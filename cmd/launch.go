@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -350,6 +351,46 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 				fmt.Printf("Created a %dGB volume %s in the %s region\n", volume.SizeGb, volume.ID, region.Code)
 			}
 
+		}
+	}
+
+	if srcInfo.InitCommand != "" {
+		binary, err := exec.LookPath(srcInfo.InitCommand)
+		if err != nil {
+			return fmt.Errorf("%s not found - make sure app dependencies are installed and try again: %w", srcInfo.InitCommand, err)
+		}
+
+		// Run a requested generator command, for example to generate a Dockerfile
+		cmd := exec.CommandContext(ctx, binary, srcInfo.InitCommandArgs...)
+
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err = cmd.Start(); err != nil {
+			return err
+		}
+
+		if err = cmd.Wait(); err != nil {
+			err = fmt.Errorf("failed running: %s ", cmd.String())
+
+			return err
+		}
+	}
+	// Append any requested Dockerfile entries
+
+	if srcInfo.DockerfileAppendix != nil {
+		f, err := os.OpenFile("Dockerfile", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+
+		if err != nil {
+			return err
+		}
+
+		defer f.Close()
+
+		for _, value := range srcInfo.DockerfileAppendix {
+			if _, err = f.WriteString(value + "\n"); err != nil {
+				return err
+			}
 		}
 	}
 
