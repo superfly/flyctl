@@ -171,27 +171,31 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		if appConfig.Definition["mounts"] != nil {
 
 			srcInfo = &sourcecode.SourceInfo{}
-			var source, destination string
+			vol := sourcecode.Volume{}
 
-			for k, v := range appConfig.Definition["mounts"].(map[string]interface{}) {
-				if k == "source" {
-					source = v.(string)
-				} else {
-					destination = v.(string)
+			if argMap, ok := appConfig.Definition["mounts"].(map[string]interface{}); ok {
+				for argK, argV := range argMap {
+					switch argK {
+					case "source":
+						vol.Source = argV.(string)
+					case "destination":
+						vol.Destination = argV.(string)
+					}
 				}
+				srcInfo.Volumes = []sourcecode.Volume{vol}
+				// for k, v := range appConfig.Definition["mounts"].(map[string]interface{}) {
+				// 	if k == "source" {
+				// 		source = v.(string)
+				// 	} else {
+				// 		destination = v.(string)
+				// 	}
 
 			}
 
-			fmt.Printf("This application requires a persistent volume named '%s'. We'll set a 10GB volume in the region you select for deployment.\n", source)
+			fmt.Printf("This application requires a persistent volume named '%s'. We'll set a 10GB volume in the region you select for deployment.\n", vol.Source)
 			fmt.Println("Use 'fly volumes create' should you need a larger volume.")
 			fmt.Println()
 
-			srcInfo.Volumes = []sourcecode.Volume{
-				{
-					Source:      source,
-					Destination: destination,
-				},
-			}
 		}
 
 		// Until we figure out setting srcInfo sanely (see previous comment), use this hack to get Redis working
