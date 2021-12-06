@@ -9,15 +9,14 @@ import (
 const charset = "abcdefghijklmnopqrstuvwxyz" +
 	"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-func RandStringWithCharset(length int, charset string) string {
+func RandString(length int) (string, error) {
 	b := make([]byte, length)
 	for i := range b {
-		index, _ := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		index, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		if err != nil {
+			return "", err
+		}
 		b[i] = charset[index.Int64()]
 	}
-	return string(b)
-}
-
-func RandString(length int) string {
-	return RandStringWithCharset(length, charset)
+	return string(b), nil
 }

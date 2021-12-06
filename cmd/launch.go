@@ -300,7 +300,11 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 			}
 
 			if strings.Contains(v, "random default") {
-				surveyInput.Default = helpers.RandString(64)
+				surveyInput.Default, err = helpers.RandString(64)
+				if err != nil {
+					return err
+				}
+
 			}
 
 			survey.AskOne(surveyInput, &val)
