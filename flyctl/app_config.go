@@ -20,7 +20,7 @@ type ConfigFormat string
 
 const (
 	TOMLFormat        ConfigFormat = ".toml"
-	UnsupportedFormat              = ""
+	UnsupportedFormat ConfigFormat = ""
 )
 
 type AppConfig struct {
@@ -67,9 +67,9 @@ func LoadAppConfig(configFile string) (*AppConfig, error) {
 
 	switch ConfigFormatFromPath(fullConfigFilePath) {
 	case TOMLFormat:
-		err = appConfig.unmarshalTOML(file)
+		err = appConfig.UnmarshalTOML(file)
 	default:
-		return nil, errors.New("Unsupported config file format")
+		return nil, errors.New("unsupported config file format")
 	}
 
 	return &appConfig, err
@@ -111,13 +111,13 @@ func (ac *AppConfig) DockerBuildTarget() string {
 func (ac *AppConfig) WriteTo(w io.Writer, format ConfigFormat) error {
 	switch format {
 	case TOMLFormat:
-		return ac.marshalTOML(w)
+		return ac.MarshalTOML(w)
 	}
 
-	return fmt.Errorf("Unsupported format: %s", format)
+	return fmt.Errorf("unsupported format: %s", format)
 }
 
-func (ac *AppConfig) unmarshalTOML(r io.Reader) error {
+func (ac *AppConfig) UnmarshalTOML(r io.Reader) error {
 	var data map[string]interface{}
 
 	if _, err := toml.DecodeReader(r, &data); err != nil {
@@ -195,7 +195,7 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 	return nil
 }
 
-func (ac AppConfig) marshalTOML(w io.Writer) error {
+func (ac AppConfig) MarshalTOML(w io.Writer) error {
 	encoder := toml.NewEncoder(w)
 
 	fmt.Fprintf(w, "# fly.toml file generated for %s on %s\n\n", ac.AppName, time.Now().Format(time.RFC3339))
