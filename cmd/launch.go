@@ -65,6 +65,11 @@ func newLaunchCommand(client *client.Client) *Command {
 		Name:        "dockerfile",
 		Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
 	})
+	launchCmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "copy-config",
+		Description: "Use the configuration file if present without prompting.",
+		Default:     false,
+	})
 
 	return launchCmd
 }
@@ -115,7 +120,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 			cmdCtx.AppName = cfg.AppName
 			cmdCtx.AppConfig = cfg
 			return runDeploy(cmdCtx)
-		} else if confirm("Would you like to copy its configuration to the new app?") {
+		} else if cmdCtx.Config.GetBool("copy-config") || confirm("Would you like to copy its configuration to the new app?") {
 			appConfig.Definition = cfg.Definition
 			importedConfig = true
 		}
