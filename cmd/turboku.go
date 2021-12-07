@@ -16,6 +16,8 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 )
 
+var errAppNameTaken = fmt.Errorf("app already exists")
+
 func newTurbokuCommand(client *client.Client) *Command {
 	turbokuDocStrings := docstrings.Get("turboku")
 	cmd := BuildCommandKS(nil, runTurboku, turbokuDocStrings, client, requireSession)
@@ -39,9 +41,14 @@ func newTurbokuCommand(client *client.Client) *Command {
 		Description: `the organization that will own the app`,
 	})
 
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "name",
+		Description: "the name of the new app",
+	})
+
 	cmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "keep",
-		Description: "Do not delete the app directory after deployment",
+		Description: "keep the app directory after deployment",
 		Default:     false,
 	})
 
@@ -61,8 +68,22 @@ func runTurboku(cmdCtx *cmdctx.CmdContext) error {
 
 	fly := cmdCtx.Client.API()
 
-	// get the app name
-	appName := cmdCtx.Args[0]
+	var herokuAppName string
+
+	if len(cmdCtx.Args) > 0 {
+		herokuAppName = cmdCtx.Args[0]
+	}
+
+	var appName string
+
+	if appName = cmdCtx.Config.GetString("name"); appName == "" {
+
+		inputName, err := inputAppName(herokuAppName, false)
+		if err != nil {
+			return err
+		}
+		appName = inputName
+	}
 
 	orgSlug := cmdCtx.Config.GetString("org")
 
@@ -76,20 +97,23 @@ func runTurboku(cmdCtx *cmdctx.CmdContext) error {
 		Runtime:        "FIRECRACKER",
 		OrganizationID: org.ID,
 	}
+
 	app, err := fly.CreateApp(ctx, input)
 
-	if err != nil {
-		if strings.Contains(err.Error(), "taken") {
-			fmt.Printf("App %s already exists\n", appName)
-			app, err = fly.GetApp(ctx, appName)
-			if err != nil {
-				return err
-			}
-		} else {
+	switch isTakenError(err) {
+
+	case nil:
+		fmt.Printf("New app created: %s\n", app.Name)
+
+	case errAppNameTaken:
+		fmt.Printf("App %s already exists\n", appName)
+
+		app, err = fly.GetApp(ctx, appName)
+		if err != nil {
 			return err
 		}
-	} else {
-		fmt.Printf("New app created: %s\n", app.Name)
+	default:
+		return err
 	}
 
 	// get heroku token
@@ -152,7 +176,7 @@ func runTurboku(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	regionsInput := api.ConfigureRegionsInput{
-		AppID:        appName,
+		AppID:        app.Name,
 		AllowRegions: []string{region},
 	}
 
@@ -223,7 +247,7 @@ func runTurboku(cmdCtx *cmdctx.CmdContext) error {
 	cmdCtx.AppConfig = appConfig
 
 	// Write the app config
-	if err := writeAppConfig(filepath.Join(appName, "fly.toml"), appConfig); err != nil {
+	if err := writeAppConfig(filepath.Join(app.Name, "fly.toml"), appConfig); err != nil {
 		return err
 	}
 
@@ -274,4 +298,11 @@ RUN curl "%s" | tar xzf - --strip 2 -C /app`
 	dockerfile += "\nUSER heroku\n"
 
 	return ioutil.WriteFile(fmt.Sprintf("%s/Dockerfile", appName), []byte(dockerfile), 0640)
+}
+
+func isTakenError(err error) error {
+	if err != nil && strings.Contains(err.Error(), "taken") {
+		return errAppNameTaken
+	}
+	return err
 }
