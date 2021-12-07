@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -10,15 +12,15 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
+
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/sourcecode"
-
-	"github.com/superfly/flyctl/docstrings"
 )
 
 func newLaunchCommand(client *client.Client) *Command {
@@ -159,7 +161,8 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 				article += "n"
 			}
 
-			fmt.Printf("Detected %s %s app\n", article, aurora.Green(srcInfo.Family))
+			appType := srcInfo.Family + " " + srcInfo.Version
+			fmt.Printf("Detected %s %s app\n", article, aurora.Green(appType))
 
 			if srcInfo.Builder != "" {
 				fmt.Println("Using the following build configuration:")
@@ -292,10 +295,21 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		for k, v := range srcInfo.Secrets {
 			val := ""
 			prompt := fmt.Sprintf("Set secret %s:", k)
-			survey.AskOne(&survey.Input{
+
+			surveyInput := &survey.Input{
 				Message: prompt,
 				Help:    v,
-			}, &val)
+			}
+
+			if strings.Contains(v, "random default") {
+				surveyInput.Default, err = helpers.RandString(64)
+				if err != nil {
+					return err
+				}
+
+			}
+
+			survey.AskOne(surveyInput, &val)
 
 			if val != "" {
 				secrets[k] = val
@@ -341,6 +355,36 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		}
 	}
 
+	if srcInfo.InitCommand != "" {
+		binary, err := exec.LookPath(srcInfo.InitCommand)
+		if err != nil {
+			return fmt.Errorf("%s not found in $PATH - make sure app dependencies are installed and try again", srcInfo.InitCommand)
+		}
+
+		// Run a requested generator command, for example to generate a Dockerfile
+		cmd := exec.CommandContext(ctx, binary, srcInfo.InitCommandArgs...)
+
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err = cmd.Start(); err != nil {
+			return err
+		}
+
+		if err = cmd.Wait(); err != nil {
+			err = fmt.Errorf("failed running %s: %w ", cmd.String(), err)
+
+			return err
+		}
+	}
+
+	// Append any requested Dockerfile entries
+	if len(srcInfo.DockerfileAppendix) > 0 {
+		if err := appendDockerfileAppendix(srcInfo.DockerfileAppendix); err != nil {
+			return fmt.Errorf("failed appending Dockerfile appendix: %w", err)
+		}
+	}
+
 	// Finally, write the config
 	if err := writeAppConfig(filepath.Join(dir, "fly.toml"), appConfig); err != nil {
 		return err
@@ -369,6 +413,29 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	return nil
+}
+
+func appendDockerfileAppendix(appendix []string) (err error) {
+	var b bytes.Buffer
+	for _, value := range appendix {
+		_, _ = b.WriteString(value)
+		_ = b.WriteByte('\n')
+	}
+
+	var f *os.File
+	// TODO: this is prone to race conditions and also we don't flush
+	if f, err = os.OpenFile("Dockerfile", os.O_APPEND|os.O_WRONLY, 0644); err != nil {
+		return
+	}
+	defer func() {
+		if e := f.Close(); err == nil {
+			err = e
+		}
+	}()
+
+	_, err = b.WriteTo(f)
+
+	return
 }
 
 func shouldDeployExistingApp(cmdCtx *cmdctx.CmdContext, appName string) (bool, error) {
