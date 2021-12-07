@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -103,8 +105,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	appConfig := flyctl.NewAppConfig()
 
 	var importedConfig bool
-	var writeConfig bool
-	writeConfig = true
+	writeConfig := true
 
 	configFilePath := filepath.Join(dir, "fly.toml")
 	if exists, _ := flyctl.ConfigFileExistsAtPath(configFilePath); exists {
@@ -142,26 +143,15 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	if fromUrl := cmdCtx.Config.GetString("from"); fromUrl != "" {
 		fmt.Println("Launching from URL", fromUrl)
 
-		client := http.Client{
-			Timeout: time.Second * 5,
-		}
-
-		req, err := http.NewRequest(http.MethodGet, fromUrl, nil)
+		res, err := request(http.MethodGet, fromUrl, nil)
 		if err != nil {
 			log.Fatal(err)
 		}
+		defer res.Body.Close()
 
-		res, getErr := client.Do(req)
-
-		if getErr != nil {
-			log.Fatal(getErr)
+		if err := appConfig.UnmarshalTOML(res.Body); err != nil {
+			return fmt.Errorf("failed unmarshaling HTTP response: %w", err)
 		}
-
-		if res.Body != nil {
-			defer res.Body.Close()
-		}
-
-		appConfig.UnmarshalTOML(res.Body)
 
 		fmt.Printf("This application deploys the %s Docker image.\n", appConfig.Build.Image)
 
@@ -183,19 +173,11 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 					}
 				}
 				srcInfo.Volumes = []sourcecode.Volume{vol}
-				// for k, v := range appConfig.Definition["mounts"].(map[string]interface{}) {
-				// 	if k == "source" {
-				// 		source = v.(string)
-				// 	} else {
-				// 		destination = v.(string)
-				// 	}
-
 			}
 
 			fmt.Printf("This application requires a persistent volume named '%s'. We'll set a 10GB volume in the region you select for deployment.\n", vol.Source)
 			fmt.Println("Use 'fly volumes create' should you need a larger volume.")
 			fmt.Println()
-
 		}
 
 		// Until we figure out setting srcInfo sanely (see previous comment), use this hack to get Redis working
@@ -230,11 +212,8 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		if srcInfo == nil {
 			fmt.Println(aurora.Green("Could not find a Dockerfile, nor detect a runtime or framework from source code. Continuing with a blank app."))
 		} else {
-
-			var article string = "a"
-			matched, _ := regexp.MatchString(`^[aeiou]`, strings.ToLower(srcInfo.Family))
-
-			if matched {
+			article := "a"
+			if matched, _ := regexp.MatchString(`^[aeiou]`, strings.ToLower(srcInfo.Family)); matched {
 				article += "n"
 			}
 
@@ -263,18 +242,17 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 				continue
 			}
 
-			if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 				return err
 			}
 
-			if err := os.WriteFile(path, f.Contents, 0666); err != nil {
+			if err := os.WriteFile(path, f.Contents, 0644); err != nil {
 				return err
 			}
 		}
 	}
 
 	appName := ""
-
 	if !cmdCtx.Config.GetBool("generate-name") {
 		appName = cmdCtx.Config.GetString("name")
 
@@ -476,4 +454,16 @@ func shouldDeployExistingApp(cmdCtx *cmdctx.CmdContext, appName string) (bool, e
 	}
 
 	return true, nil
+}
+
+func request(method, url string, body io.Reader) (res *http.Response, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	var req *http.Request
+	if req, err = http.NewRequestWithContext(ctx, method, url, body); err == nil {
+		res, err = http.DefaultClient.Do(req)
+	}
+
+	return
 }
