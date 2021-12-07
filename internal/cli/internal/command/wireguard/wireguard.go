@@ -5,13 +5,13 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
+	"github.com/superfly/flyctl/internal/cli/internal/command/wireguard/token"
 )
 
-// TODO: deprecate & remove
 func New() *cobra.Command {
 	const (
 		short = "Commands that manage WireGuard peer connections"
-		long  = short + "n"
+		long  = short + "\n"
 		usage = "wireguard <command>"
 	)
 
@@ -20,6 +20,7 @@ func New() *cobra.Command {
 	wg := command.New(usage, short, long, nil)
 
 	wg.AddCommand(
+		token.New(),
 		newList(),
 	)
 
