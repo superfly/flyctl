@@ -67,6 +67,7 @@ type Volume struct {
 func Scan(sourceDir string) (*SourceInfo, error) {
 	scanners := []sourceScanner{
 		configureRedwood,
+		configureDjango,
 		/* frameworks scanners are placed before generic scanners,
 		   since they might mix languages or have a Dockerfile that
 			 doesn't work with Fly */
@@ -413,6 +414,32 @@ func configureRemix(sourceDir string) (*SourceInfo, error) {
 	}
 
 	s.Env = env
+	return s, nil
+}
+
+// setup django with a postgres database
+func configureDjango(sourceDir string) (*SourceInfo, error) {
+	if !checksPass(sourceDir, fileExists("requirements.txt", "manage.py")) {
+		return nil, nil
+	}
+
+	s := &SourceInfo{
+		Family: "Django",
+		Port:   8080,
+		Files:  templates("templates/django"),
+		Env: map[string]string{
+			"PORT":         "8080",
+			"DATABASE_URL": "unset",
+		},
+		Statics: []Static{
+			{
+				GuestPath: "/app/public",
+				UrlPrefix: "/static/",
+			},
+		},
+		SkipDeploy: true,
+	}
+
 	return s, nil
 }
 
