@@ -357,7 +357,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	if srcInfo.InitCommand != "" {
 		binary, err := exec.LookPath(srcInfo.InitCommand)
 		if err != nil {
-			return fmt.Errorf("%s not found - make sure app dependencies are installed and try again: %w", srcInfo.InitCommand, err)
+			return fmt.Errorf("%s not found in $PATH - make sure app dependencies are installed and try again", srcInfo.InitCommand)
 		}
 
 		// Run a requested generator command, for example to generate a Dockerfile
