@@ -2,6 +2,7 @@ package wireguard
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
 
@@ -34,7 +35,7 @@ func runList(ctx context.Context) error {
 
 	peers, err := client.GetWireGuardPeers(ctx, slug)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed retrieving wireguard peers: %w", err)
 	}
 
 	out := iostreams.FromContext(ctx).Out
@@ -50,7 +51,7 @@ func runList(ctx context.Context) error {
 		rows = append(rows, []string{peer.Name, peer.Region, peer.Peerip})
 	}
 
-	render.Table(out, "", rows, "Name", "Region", "Peer IP")
+	_ = render.Table(out, "", rows, "Name", "Region", "Peer IP")
 
 	return nil
 }
