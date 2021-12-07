@@ -21,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/command/services"
 	"github.com/superfly/flyctl/internal/cli/internal/command/suspend"
 	"github.com/superfly/flyctl/internal/cli/internal/command/version"
+	"github.com/superfly/flyctl/internal/cli/internal/command/wireguard"
 	"github.com/superfly/flyctl/internal/client"
 )
 
@@ -67,7 +68,7 @@ func New() *cobra.Command {
 				orgs.New(),
 				auth.New(),
 				builds.New(),
-				db.New(),
+				wireguard.New(),
 			)
 
 			return root
@@ -92,6 +93,7 @@ func New() *cobra.Command {
 		orgs.New(),
 		auth.New(),
 		builds.New(),
+		wireguard.New(),
 	}
 
 	if os.Getenv("DEV") != "" {
