@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,15 +12,15 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
+
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/sourcecode"
-
-	"github.com/superfly/flyctl/docstrings"
 )
 
 func newLaunchCommand(client *client.Client) *Command {
@@ -357,7 +358,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	if srcInfo.InitCommand != "" {
 		binary, err := exec.LookPath(srcInfo.InitCommand)
 		if err != nil {
-			return fmt.Errorf("%s not found - make sure app dependencies are installed and try again: %w", srcInfo.InitCommand, err)
+			return fmt.Errorf("%s not found in $PATH - make sure app dependencies are installed and try again", srcInfo.InitCommand)
 		}
 
 		// Run a requested generator command, for example to generate a Dockerfile
@@ -371,26 +372,16 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		}
 
 		if err = cmd.Wait(); err != nil {
-			err = fmt.Errorf("failed running: %s ", cmd.String())
+			err = fmt.Errorf("failed running %s: %w ", cmd.String(), err)
 
 			return err
 		}
 	}
+
 	// Append any requested Dockerfile entries
-
-	if srcInfo.DockerfileAppendix != nil {
-		f, err := os.OpenFile("Dockerfile", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
-
-		if err != nil {
-			return err
-		}
-
-		defer f.Close()
-
-		for _, value := range srcInfo.DockerfileAppendix {
-			if _, err = f.WriteString(value + "\n"); err != nil {
-				return err
-			}
+	if len(srcInfo.DockerfileAppendix) > 0 {
+		if err := appendDockerfileAppendix(srcInfo.DockerfileAppendix); err != nil {
+			return fmt.Errorf("failed appending Dockerfile appendix: %w", err)
 		}
 	}
 
@@ -422,6 +413,29 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	return nil
+}
+
+func appendDockerfileAppendix(appendix []string) (err error) {
+	var b bytes.Buffer
+	for _, value := range appendix {
+		_, _ = b.WriteString(value)
+		_ = b.WriteByte('\n')
+	}
+
+	var f *os.File
+	// TODO: this is prone to race conditions and also we don't flush
+	if f, err = os.OpenFile("Dockerfile", os.O_APPEND|os.O_WRONLY, 0644); err != nil {
+		return
+	}
+	defer func() {
+		if e := f.Close(); err == nil {
+			err = e
+		}
+	}()
+
+	_, err = b.WriteTo(f)
+
+	return
 }
 
 func shouldDeployExistingApp(cmdCtx *cmdctx.CmdContext, appName string) (bool, error) {

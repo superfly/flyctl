@@ -6,17 +6,23 @@ import (
 	"math/big"
 )
 
-const charset = "abcdefghijklmnopqrstuvwxyz" +
-	"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-func RandString(length int) (string, error) {
-	b := make([]byte, length)
+var charsetLen = big.NewInt(int64(len(charset)))
+
+// RandString returns a string of n bytes, consisting of ASCII letters or
+// numbers.
+func RandString(n int) (string, error) {
+	b := make([]byte, n)
+
 	for i := range b {
-		index, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		index, err := rand.Int(rand.Reader, charsetLen)
 		if err != nil {
 			return "", err
 		}
+
 		b[i] = charset[index.Int64()]
 	}
+
 	return string(b), nil
 }
