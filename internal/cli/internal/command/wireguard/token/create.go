@@ -56,10 +56,10 @@ func runCreate(ctx context.Context) error {
 		return err
 	}
 
-	out := iostreams.FromContext(ctx).Out
+	io := iostreams.FromContext(ctx)
 
 	if config.FromContext(ctx).JSONOutput {
-		_ = render.JSON(out, struct {
+		_ = render.JSON(io.Out, struct {
 			Token string `json:"token"`
 		}{
 			Token: data.Token,
@@ -68,7 +68,7 @@ func runCreate(ctx context.Context) error {
 		return nil
 	}
 
-	fmt.Fprintf(out, `
+	fmt.Fprintln(io.ErrOut, `
 !!!! WARNING: Output includes credential information. Credentials cannot !!!! 	
 !!!! be recovered after creation; if you lose the token, you'll need to  !!!! 	 
 !!!! remove and and re-add it.																		 			 !!!! 	
@@ -86,10 +86,9 @@ To use a token to create a WireGuard connection, you can use curl:
 
 We'll return 'us' (our local 6PN address), 'them' (the gateway IP address), 
 and 'pubkey' (the public key of the gateway), which you can inject into a 
-"wg.con".
+"wg.con".`)
 
-%s
-`, data.Token)
+	fmt.Fprintln(io.Out, "Token created: %s", data.Token)
 
 	return nil
 }

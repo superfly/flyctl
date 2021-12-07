@@ -14,6 +14,7 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
+	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/sort"
 	"github.com/superfly/flyctl/internal/client"
 )
@@ -35,6 +36,14 @@ func String(ctx context.Context, dst *string, msg, def string, required bool) er
 	}
 
 	return survey.AskOne(p, dst, opts...)
+}
+
+func UnlessStringFlag(ctx context.Context, flagName, msg, def string, required bool) (val string, err error) {
+	if val = flag.GetString(ctx, flagName); val == "" {
+		err = String(ctx, &val, msg, def, required)
+	}
+
+	return
 }
 
 func Password(ctx context.Context, dst *string, msg string, required bool) error {

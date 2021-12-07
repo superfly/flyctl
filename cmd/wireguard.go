@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strings"
 	"text/template"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -34,10 +33,6 @@ func newWireGuardCommand(client *client.Client) *Command {
 	child(cmd, runWireGuardRemove, "wireguard.remove").Args = cobra.MaximumNArgs(2)
 
 	tokens := child(cmd, nil, "wireguard.token")
-
-	child(tokens, runWireGuardTokenList, "wireguard.token.list").Args = cobra.MaximumNArgs(1)
-	child(tokens, runWireGuardTokenCreate, "wireguard.token.create").Args = cobra.MaximumNArgs(2)
-	child(tokens, runWireGuardTokenDelete, "wireguard.token.delete").Args = cobra.MaximumNArgs(3)
 
 	child(tokens, runWireGuardTokenStartPeer, "wireguard.token.start").Args = cobra.MaximumNArgs(4)
 	child(tokens, runWireGuardTokenUpdatePeer, "wireguard.token.update").Args = cobra.MaximumNArgs(2)
@@ -271,131 +266,6 @@ func runWireGuardRemove(cmdCtx *cmdctx.CmdContext) error {
 	fmt.Println("Removed peer.")
 
 	return wireguard.PruneInvalidPeers(cmdCtx.Client.API())
-}
-
-func runWireGuardTokenList(cmdCtx *cmdctx.CmdContext) error {
-	ctx := cmdCtx.Command.Context()
-
-	client := cmdCtx.Client.API()
-
-	org, err := orgByArg(cmdCtx)
-	if err != nil {
-		return err
-	}
-
-	tokens, err := client.GetDelegatedWireGuardTokens(ctx, org.Slug)
-	if err != nil {
-		return err
-	}
-
-	if cmdCtx.OutputJSON() {
-		cmdCtx.WriteJSON(tokens)
-		return nil
-	}
-
-	table := tablewriter.NewWriter(cmdCtx.Out)
-
-	table.SetHeader([]string{
-		"Name",
-	})
-
-	for _, peer := range tokens {
-		table.Append([]string{peer.Name})
-	}
-
-	table.Render()
-
-	return nil
-}
-
-func runWireGuardTokenCreate(cmdCtx *cmdctx.CmdContext) error {
-	ctx := cmdCtx.Command.Context()
-
-	client := cmdCtx.Client.API()
-
-	org, err := orgByArg(cmdCtx)
-	if err != nil {
-		return err
-	}
-
-	name, err := argOrPrompt(cmdCtx, 1, "Memorable name for WireGuard token: ")
-	if err != nil {
-		return err
-	}
-
-	data, err := client.CreateDelegatedWireGuardToken(ctx, org, name)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf(`
-!!!! WARNING: Output includes credential information. Credentials cannot !!!! 	
-!!!! be recovered after creation; if you lose the token, you'll need to  !!!! 	 
-!!!! remove and and re-add it.																		 			 !!!! 	
-
-To use a token to create a WireGuard connection, you can use curl:
-
-    curl -v --request POST                 
-         -H "Authorization: Bearer ${WG_TOKEN}" 
-         -H "Content-Type: application/json" 
-         --data '{"name": "node-1", \
-                  "group": "k8s",   \
-                  "pubkey": "'"${WG_PUBKEY}"'", \
-                  "region": "dev"}' 
-         http://fly.io/api/v3/wire_guard_peers
-
-We'll return 'us' (our local 6PN address), 'them' (the gateway IP address), 
-and 'pubkey' (the public key of the gateway), which you can inject into a 
-"wg.con".
-`)
-
-	w, shouldClose, err := resolveOutputWriter(cmdCtx, 2, "Filename to store WireGuard token in, or 'stdout': ")
-	if err != nil {
-		return err
-	}
-	if shouldClose {
-		defer w.Close()
-	}
-
-	fmt.Fprintf(w, "FLY_WIREGUARD_TOKEN=%s\n", data.Token)
-
-	return nil
-}
-
-func runWireGuardTokenDelete(cmdCtx *cmdctx.CmdContext) error {
-	ctx := cmdCtx.Command.Context()
-
-	client := cmdCtx.Client.API()
-
-	org, err := orgByArg(cmdCtx)
-	if err != nil {
-		return err
-	}
-
-	kv, err := argOrPrompt(cmdCtx, 1, "'name:<name>' or token:<token>': ")
-	if err != nil {
-		return err
-	}
-
-	tup := strings.SplitN(kv, ":", 2)
-	if len(tup) != 2 || (tup[0] != "name" && tup[0] != "token") {
-		return fmt.Errorf("format is name:<name> or token:<token>")
-	}
-
-	fmt.Printf("Removing WireGuard token \"%s\" for organization %s\n", kv, org.Slug)
-
-	if tup[0] == "name" {
-		err = client.DeleteDelegatedWireGuardToken(ctx, org, &tup[1], nil)
-	} else {
-		err = client.DeleteDelegatedWireGuardToken(ctx, org, nil, &tup[1])
-	}
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("Removed token.")
-
-	return nil
 }
 
 func tokenRequest(method, path, token string, data interface{}) (*http.Response, error) {

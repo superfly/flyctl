@@ -15,8 +15,6 @@ func New() *cobra.Command {
 		usage = "wireguard <command>"
 	)
 
-	// TODO: list should also accept the --org param
-
 	wg := command.New(usage, short, long, nil)
 
 	wg.AddCommand(
