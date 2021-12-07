@@ -1,0 +1,5 @@
+#!/bin/sh
+
+set -eux
+
+docker build -t flyctl -f Dockerfile.dev .
