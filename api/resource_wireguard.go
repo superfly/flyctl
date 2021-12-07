@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 )
 
 func (c *Client) GetWireGuardPeers(ctx context.Context, slug string) ([]*WireGuardPeer, error) {
@@ -121,8 +120,6 @@ mutation($input: DeleteDelegatedWireGuardTokenInput!) {
 	} else {
 		input["token"] = *token
 	}
-
-	fmt.Printf("%+v\n", input)
 
 	req := c.NewRequest(query)
 	req.Var("input", input)
