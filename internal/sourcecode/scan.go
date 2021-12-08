@@ -15,6 +15,11 @@ import (
 //go:embed templates/** templates/**/.dockerignore
 var content embed.FS
 
+type InitCommand struct {
+	Command     string
+	Args        []string
+	Description string
+}
 type SourceInfo struct {
 	Family           string
 	Version          string
@@ -23,7 +28,6 @@ type SourceInfo struct {
 	ReleaseCmd       string
 	DockerCommand    string
 	DockerEntrypoint string
-	InitCommand      string
 
 	Buildpacks         []string
 	Secrets            map[string]string
@@ -37,7 +41,7 @@ type SourceInfo struct {
 	SkipDeploy         bool
 	Volumes            []Volume
 	DockerfileAppendix []string
-	InitCommandArgs    []string
+	InitCommands       []InitCommand
 }
 
 type SourceFile struct {
@@ -275,14 +279,32 @@ func configurePhoenix(sourceDir string) (*SourceInfo, error) {
 			"ENV ERL_AFLAGS \"-proto_dist inet6_tcp\"",
 			"ENV RELEASE_DISTRIBUTION name",
 		},
-		InitCommand:     "mix",
-		InitCommandArgs: []string{"phx.gen.release", "--docker"},
+		InitCommands: []InitCommand{
+			{
+				Command:     "mix",
+				Args:        []string{"deps.get"},
+				Description: "Installing dependencies",
+			},
+			{
+				Command:     "mix",
+				Args:        []string{"phx.gen.release", "--docker"},
+				Description: "Running Docker release generator",
+			},
+		},
 	}
 
 	// We found Phoenix 1.6.3 or higher, so try running the Docker generator
 	if checksPass(sourceDir, dirContains("mix.exs", "phoenix.*"+regexp.QuoteMeta("1.6.3"))) {
 		s.Version = "1.6.3"
 		s.SkipDeploy = true
+		s.DeployDocs = `
+Your Phoenix app should be ready for deployment!. If you need a Postgres database, see
+https://fly.io/docs/reference/postgres/ and attach it to your app before deployment.
+
+If you need something else, post on our community forum at https://community.fly.io.
+
+When you're ready to deploy, use 'fly deploy'.
+`
 	}
 	// We found Phoenix 1.6.0 - 1.6.2
 	if checksPass(sourceDir, dirContains("mix.exs", "phoenix.*"+regexp.QuoteMeta("1.6.")+"[0-2]")) {
@@ -290,11 +312,14 @@ func configurePhoenix(sourceDir string) (*SourceInfo, error) {
 		s.Files = templates("templates/phoenix")
 		s.SkipDeploy = true
 		s.DeployDocs = `
-We've placed Dockerfile compatible with Phoenix 1.6 apps in this directory.
-Before deploying, you'll need to add a few files and configuration options manually.
+We recommend upgrading to Phoenix 1.6.3 which includes a release configuration for Docker-based deployment.
 
-See https://hexdocs.pm/phoenix/fly.html for details, including instructions for setting
-up a Postgresql database.
+If you do upgrade, you can run 'fly launch' again to get the required deployment setup.
+
+If you don't want to uprade, you'll need to add a few files and configuration options manually.
+W've placed Dockerfile compatible with other Phoenix 1.6 apps in this directory. See
+https://hexdocs.pm/phoenix/fly.html for details, including instructions for setting up
+a Postgresql database.
 `
 	}
 

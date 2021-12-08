@@ -355,26 +355,26 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		}
 	}
 
-	if srcInfo.InitCommand != "" {
-		binary, err := exec.LookPath(srcInfo.InitCommand)
-		if err != nil {
-			return fmt.Errorf("%s not found in $PATH - make sure app dependencies are installed and try again", srcInfo.InitCommand)
-		}
+	// Run any initialization commands
+	if len(srcInfo.InitCommands) > 0 {
+		for _, cmd := range srcInfo.InitCommands {
+			binary, err := exec.LookPath(cmd.Command)
+			if err != nil {
+				return fmt.Errorf("%s not found in $PATH - make sure app dependencies are installed and try again", cmd.Command)
+			}
+			fmt.Println(cmd.Description)
+			// Run a requested generator command, for example to generate a Dockerfile
+			cmd := exec.CommandContext(ctx, binary, cmd.Args...)
 
-		// Run a requested generator command, for example to generate a Dockerfile
-		cmd := exec.CommandContext(ctx, binary, srcInfo.InitCommandArgs...)
+			if err = cmd.Start(); err != nil {
+				return err
+			}
 
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+			if err = cmd.Wait(); err != nil {
+				err = fmt.Errorf("failed running %s: %w ", cmd.String(), err)
 
-		if err = cmd.Start(); err != nil {
-			return err
-		}
-
-		if err = cmd.Wait(); err != nil {
-			err = fmt.Errorf("failed running %s: %w ", cmd.String(), err)
-
-			return err
+				return err
+			}
 		}
 	}
 
@@ -417,6 +417,8 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 
 func appendDockerfileAppendix(appendix []string) (err error) {
 	var b bytes.Buffer
+	b.WriteString("\n# Appended by flyctl\n")
+
 	for _, value := range appendix {
 		_, _ = b.WriteString(value)
 		_ = b.WriteByte('\n')
