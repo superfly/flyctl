@@ -11,6 +11,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/briandowns/spinner"
 	"github.com/logrusorgru/aurora"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
@@ -18,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/pkg/agent"
 )
 
 type PostgresClusterOption struct {
@@ -128,6 +130,7 @@ func newPostgresCommand(client *client.Client) *Command {
 	attachCmd := BuildCommandKS(cmd, runAttachPostgresCluster, attachStrngs, client, requireSession, requireAppName)
 	attachCmd.AddStringFlag(StringFlagOpts{Name: "postgres-app", Description: "the postgres cluster to attach to the app"})
 	attachCmd.AddStringFlag(StringFlagOpts{Name: "database-name", Description: "database to use, defaults to a new database with the same name as the app"})
+	attachCmd.AddStringFlag(StringFlagOpts{Name: "database-user", Description: "the database user to create, defaults to creating a user with the same name as the consuming app"})
 	attachCmd.AddStringFlag(StringFlagOpts{Name: "variable-name", Description: "the env variable name that will be added to the app. Defaults to DATABASE_URL"})
 
 	detachStrngs := docstrings.Get("postgres.detach")
@@ -345,32 +348,145 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 	postgresAppName := cmdCtx.Config.GetString("postgres-app")
 	appName := cmdCtx.AppName
 
+	dbName := cmdCtx.Config.GetString("database-name")
+	if dbName == "" {
+		dbName = appName
+	}
+	dbName = strings.ToLower(strings.ReplaceAll(dbName, "-", "_"))
+
+	varName := cmdCtx.Config.GetString("variable-name")
+	if varName == "" {
+		varName = "DATABASE_URL"
+	}
+
+	dbUser := cmdCtx.Config.GetString("database-user")
+	if dbUser == "" {
+		dbUser = appName
+	}
+	dbUser = strings.ToLower(strings.ReplaceAll(dbUser, "-", "_"))
+
 	input := api.AttachPostgresClusterInput{
 		AppID:                appName,
 		PostgresClusterAppID: postgresAppName,
+		ManualEntry:          true,
+		DatabaseName:         api.StringPointer(dbName),
+		DatabaseUser:         api.StringPointer(dbUser),
+		VariableName:         api.StringPointer(varName),
 	}
 
-	if dbName := cmdCtx.Config.GetString("database-name"); dbName != "" {
-		input.DatabaseName = api.StringPointer(dbName)
+	client := cmdCtx.Client.API()
+
+	app, err := client.GetApp(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("get app: %w", err)
 	}
-	if varName := cmdCtx.Config.GetString("variable-name"); varName != "" {
-		input.VariableName = api.StringPointer(varName)
+
+	pgApp, err := client.GetApp(ctx, postgresAppName)
+	if err != nil {
+		return fmt.Errorf("get app: %w", err)
 	}
 
-	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
-	s.Writer = os.Stderr
-	s.Prefix = "Attaching..."
-	s.Start()
+	agentclient, err := agent.Establish(ctx, cmdCtx.Client.API())
+	if err != nil {
+		return errors.Wrap(err, "can't establish agent")
+	}
 
-	payload, err := cmdCtx.Client.API().AttachPostgresCluster(ctx, input)
+	dialer, err := agentclient.Dialer(ctx, &pgApp.Organization)
+	if err != nil {
+		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
+	}
 
+	pgCmd := NewPostgresCmd(cmdCtx, pgApp, dialer)
+
+	secrets, err := client.GetAppSecrets(ctx, appName)
 	if err != nil {
 		return err
 	}
-	s.Stop()
+	for _, secret := range secrets {
+		if secret.Name == *input.VariableName {
+			return fmt.Errorf("Consumer app %q already contains a secret named %s.", appName, *input.VariableName)
+		}
+	}
+	// Check to see if database exists
+	dbExists, err := pgCmd.DbExists(*input.DatabaseName)
+	if err != nil {
+		return err
+	}
+	if dbExists {
+		confirm := false
+		prompt := &survey.Confirm{
+			Message: fmt.Sprintf("Database %q already exists. Continue with the attachment process?", *input.DatabaseName),
+		}
+		err = survey.AskOne(prompt, &confirm)
+		if err != nil {
+			return err
+		}
 
-	fmt.Printf("Postgres cluster %s is now attached to %s\n", payload.PostgresClusterApp.Name, payload.App.Name)
-	fmt.Printf("The following secret was added to %s:\n  %s=%s\n", payload.App.Name, payload.EnvironmentVariableName, payload.ConnectionString)
+		if !confirm {
+			return nil
+		}
+	}
+
+	// Check to see if user exists
+	usrExists, err := pgCmd.UserExists(*input.DatabaseUser)
+	if err != nil {
+		return err
+	}
+	if usrExists {
+		return fmt.Errorf("Database user %q already exists. Please specify a new database user via --database-user", *input.DatabaseUser)
+	}
+
+	// Create attachment
+	_, err = client.AttachPostgresCluster(ctx, input)
+	if err != nil {
+		return err
+	}
+
+	// Create database if it doesn't already exist
+	if !dbExists {
+		dbResp, err := pgCmd.CreateDatabase(*input.DatabaseName)
+		if err != nil {
+			return err
+		}
+		if dbResp.Error != "" {
+			return errors.Wrap(fmt.Errorf(dbResp.Error), "executing database-create")
+		}
+	}
+
+	// Create user
+	pwd, err := helpers.RandString(15)
+	if err != nil {
+		return err
+	}
+
+	usrResp, err := pgCmd.CreateUser(*input.DatabaseUser, pwd)
+	if err != nil {
+		return err
+	}
+	if usrResp.Error != "" {
+		return errors.Wrap(fmt.Errorf(usrResp.Error), "executing create-user")
+	}
+
+	// Grant access
+	gaResp, err := pgCmd.GrantAccess(*input.DatabaseName, *input.DatabaseUser)
+	if err != nil {
+		return err
+	}
+	if gaResp.Error != "" {
+		return errors.Wrap(fmt.Errorf(usrResp.Error), "executing grant-access")
+	}
+
+	connectionString := fmt.Sprintf("postgres://%s:%s@top2.nearest.of.%s.internal:5432/%s", *input.DatabaseUser, pwd, pgApp.Name, *input.DatabaseName)
+	s := map[string]string{}
+	s[*input.VariableName] = connectionString
+
+	_, err = client.SetSecrets(ctx, appName, s)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("\nPostgres cluster %s is now attached to %s\n", pgApp.Name, app.Name)
+	fmt.Printf("The following secret was added to %s:\n  %s=%s\n", app.Name, *input.VariableName, connectionString)
 
 	return nil
 }
@@ -381,19 +497,99 @@ func runDetachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 	postgresAppName := cmdCtx.Config.GetString("postgres-app")
 	appName := cmdCtx.AppName
 
-	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
-	s.Writer = os.Stderr
-	s.Prefix = "Detaching..."
-	s.Start()
+	client := cmdCtx.Client.API()
 
-	err := cmdCtx.Client.API().DetachPostgresCluster(ctx, postgresAppName, appName)
+	app, err := client.GetApp(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("get app: %w", err)
+	}
 
+	pgApp, err := client.GetApp(ctx, postgresAppName)
+	if err != nil {
+		return fmt.Errorf("get app: %w", err)
+	}
+
+	attachments, err := client.ListPostgresClusterAttachments(ctx, app.ID, pgApp.ID)
 	if err != nil {
 		return err
 	}
 
-	s.FinalMSG = fmt.Sprintf("Postgres cluster %s is now detached from %s\n", postgresAppName, appName)
-	s.Stop()
+	if len(attachments) == 0 {
+		return fmt.Errorf("No attachments found")
+	}
+
+	selected := 0
+	options := []string{}
+	for _, opt := range attachments {
+		str := fmt.Sprintf("PG Database: %s, PG User: %s, Environment variable: %s", opt.DatabaseName, opt.DatabaseUser, opt.EnvironmentVariableName)
+		options = append(options, str)
+	}
+	prompt := &survey.Select{
+		Message:  "Select the attachment that you would like to detach: ( Note: Database will not be removed! )",
+		Options:  options,
+		PageSize: len(attachments),
+	}
+	if err := survey.AskOne(prompt, &selected); err != nil {
+		return err
+	}
+
+	targetAttachment := attachments[selected]
+
+	agentclient, err := agent.Establish(ctx, client)
+	if err != nil {
+		return errors.Wrap(err, "can't establish agent")
+	}
+
+	dialer, err := agentclient.Dialer(ctx, &pgApp.Organization)
+	if err != nil {
+		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
+	}
+
+	pgCmd := NewPostgresCmd(cmdCtx, pgApp, dialer)
+
+	// Remove user if exists
+	exists, err := pgCmd.UserExists(targetAttachment.DatabaseUser)
+	if err != nil {
+		return err
+	}
+	if exists {
+		// Revoke access to suer
+		raResp, err := pgCmd.RevokeAccess(targetAttachment.DatabaseName, targetAttachment.DatabaseUser)
+		if err != nil {
+			return err
+		}
+		if raResp.Error != "" {
+			return errors.Wrap(fmt.Errorf(raResp.Error), "executing revoke-access")
+		}
+
+		ruResp, err := pgCmd.DeleteUser(targetAttachment.DatabaseUser)
+		if err != nil {
+			return err
+		}
+		if ruResp.Error != "" {
+			return errors.Wrap(fmt.Errorf(ruResp.Error), "executing user-delete")
+		}
+	}
+
+	// Remove secret from consumer app.
+	_, err = client.UnsetSecrets(ctx, appName, []string{targetAttachment.EnvironmentVariableName})
+	if err != nil {
+		fmt.Println(err.Error())
+	} else {
+		fmt.Printf("Secret %q was scheduled to be removed from app %s\n", targetAttachment.EnvironmentVariableName, app.Name)
+	}
+
+	input := api.DetachPostgresClusterInput{
+		AppID:                       appName,
+		PostgresClusterId:           postgresAppName,
+		PostgresClusterAttachmentId: targetAttachment.ID,
+	}
+
+	if err = client.DetachPostgresCluster(ctx, input); err != nil {
+		return err
+	}
+
+	fmt.Println("Detach completed successfully!")
 
 	return nil
 }
