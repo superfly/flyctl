@@ -29,19 +29,20 @@ type SourceInfo struct {
 	DockerCommand    string
 	DockerEntrypoint string
 
-	Buildpacks         []string
-	Secrets            map[string]string
-	Files              []SourceFile
-	Port               int
-	Env                map[string]string
-	Statics            []Static
-	Processes          map[string]string
-	DeployDocs         string
-	Notice             string
-	SkipDeploy         bool
-	Volumes            []Volume
-	DockerfileAppendix []string
-	InitCommands       []InitCommand
+	Buildpacks            []string
+	Secrets               map[string]string
+	Files                 []SourceFile
+	Port                  int
+	Env                   map[string]string
+	Statics               []Static
+	Processes             map[string]string
+	DeployDocs            string
+	Notice                string
+	SkipDeploy            bool
+	Volumes               []Volume
+	DockerfileAppendix    []string
+	InitCommands          []InitCommand
+	CreatePostgresCluster bool
 }
 
 type SourceFile struct {
@@ -272,12 +273,12 @@ func configurePhoenix(sourceDir string) (*SourceInfo, error) {
 		},
 		Port: 8080,
 		Env: map[string]string{
-			"PORT": "8080",
+			"PORT":     "8080",
+			"PHX_HOST": "APP_FQDN",
 		},
 		DockerfileAppendix: []string{
 			"ENV ECTO_IPV6 true",
 			"ENV ERL_AFLAGS \"-proto_dist inet6_tcp\"",
-			"ENV RELEASE_DISTRIBUTION name",
 		},
 		InitCommands: []InitCommand{
 			{
@@ -296,14 +297,12 @@ func configurePhoenix(sourceDir string) (*SourceInfo, error) {
 	// We found Phoenix 1.6.3 or higher, so try running the Docker generator
 	if checksPass(sourceDir, dirContains("mix.exs", "phoenix.*"+regexp.QuoteMeta("1.6.3"))) {
 		s.Version = "1.6.3"
-		s.SkipDeploy = true
 		s.DeployDocs = `
-Your Phoenix app should be ready for deployment!. If you need a Postgres database, see
-https://fly.io/docs/reference/postgres/ and attach it to your app before deployment.
+Your Phoenix app should be ready for deployment!.
 
 If you need something else, post on our community forum at https://community.fly.io.
 
-When you're ready to deploy, use 'fly deploy'.
+When you're ready to deploy, use 'fly deploy --remote-only'.
 `
 	}
 	// We found Phoenix 1.6.0 - 1.6.2
@@ -323,6 +322,15 @@ a Postgresql database.
 `
 	}
 
+	// Add migration task if we find ecto
+	if checksPass(sourceDir, dirContains("mix.exs", "ecto")) {
+		s.ReleaseCmd = "/app/bin/migrate"
+	}
+
+	// Ask to create a postgres database if we find the postgres adapter
+	if checksPass(sourceDir, dirContains("mix.lock", "postgrex")) {
+		s.CreatePostgresCluster = true
+	}
 	return s, nil
 }
 

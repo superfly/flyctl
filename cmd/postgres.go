@@ -296,14 +296,20 @@ func runCreatePostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 
 	fmt.Fprintf(cmdCtx.Out, "Creating postgres cluster %s in organization %s\n", name, org.Slug)
 
+	_, err = runApiCreatePostgresCluster(cmdCtx, org.Slug, &input)
+
+	return err
+}
+
+func runApiCreatePostgresCluster(cmdCtx *cmdctx.CmdContext, org string, input *api.CreatePostgresClusterInput) (*api.CreatePostgresClusterPayload, error) {
 	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
 	s.Writer = os.Stderr
 	s.Prefix = "Launching..."
 	s.Start()
 
-	payload, err := cmdCtx.Client.API().CreatePostgresCluster(ctx, input)
+	payload, err := cmdCtx.Client.API().CreatePostgresCluster(cmdCtx.Command.Context(), *input)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	s.FinalMSG = fmt.Sprintf("Postgres cluster %s created\n", payload.App.Name)
@@ -329,14 +335,14 @@ func runCreatePostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 	if err == nil {
 		fmt.Println()
 		fmt.Println(aurora.Bold("Connect to postgres"))
-		fmt.Printf("Any app within the %s organization can connect to postgres using the above credentials and the hostname \"%s.internal.\"\n", org.Slug, payload.App.Name)
+		fmt.Printf("Any app within the %s organization can connect to postgres using the above credentials and the hostname \"%s.internal.\"\n", org, payload.App.Name)
 		fmt.Printf("For example: postgres://%s:%s@%s.internal:%d\n", payload.Username, payload.Password, payload.App.Name, 5432)
 
 		fmt.Println()
 		fmt.Println("See the postgres docs for more information on next steps, managing postgres, connecting from outside fly:  https://fly.io/docs/reference/postgres/")
 	}
 
-	return err
+	return payload, err
 }
 
 func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {

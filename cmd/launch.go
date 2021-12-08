@@ -257,7 +257,11 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		}
 
 		for envName, envVal := range srcInfo.Env {
-			appConfig.SetEnvVariable(envName, envVal)
+			if envVal == "APP_FQDN" {
+				appConfig.SetEnvVariable(envName, app.Name+".fly.dev")
+			} else {
+				appConfig.SetEnvVariable(envName, envVal)
+			}
 		}
 
 		if len(srcInfo.Statics) > 0 {
@@ -392,6 +396,47 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 
 	if srcInfo == nil {
 		return nil
+	}
+
+	// If a Postgres cluster is requested, ask to create one
+	if srcInfo.CreatePostgresCluster && confirm("Would you like to setup a Postgres database now?") {
+
+		app, err := cmdCtx.Client.API().GetApp(ctx, cmdCtx.AppName)
+
+		if err != nil {
+			return err
+		}
+
+		options := standalonePostgres()
+
+		clusterAppName := app.Name + "-db"
+		// Create a standalone Postgres in the same region as the app and organization
+		clusterInput := api.CreatePostgresClusterInput{
+			OrganizationID: org.ID,
+			Name:           clusterAppName,
+			Region:         &regionCode,
+			ImageRef:       api.StringPointer(options.ImageRef),
+			Count:          api.IntPointer(1),
+		}
+
+		payload, err := runApiCreatePostgresCluster(cmdCtx, org.Slug, &clusterInput)
+
+		if err != nil {
+			return err
+		}
+
+		attachInput := api.AttachPostgresClusterInput{
+			AppID:                app.ID,
+			PostgresClusterAppID: clusterAppName,
+		}
+
+		_, err = cmdCtx.Client.API().AttachPostgresCluster(cmdCtx.Command.Context(), attachInput)
+
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Postgres cluster %s is now attached to %s\n", payload.App.Name, app.Name)
 	}
 
 	// Notices from a launcher about its behavior that should always be displayed
