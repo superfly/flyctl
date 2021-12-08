@@ -18,7 +18,8 @@ func SetAccessToken(path, token string) error {
 }
 
 func set(path, key string, value interface{}) error {
-	var m map[string]interface{}
+	m := make(map[string]interface{})
+
 	switch err := unmarshal(path, &m); {
 	case err == nil, os.IsNotExist(err):
 		break
