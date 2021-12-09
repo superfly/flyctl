@@ -366,7 +366,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	// Run any initialization commands
-	if len(srcInfo.InitCommands) > 0 {
+	if srcInfo != nil && len(srcInfo.InitCommands) > 0 {
 		for _, cmd := range srcInfo.InitCommands {
 			binary, err := exec.LookPath(cmd.Command)
 			if err != nil {
@@ -389,7 +389,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	// Append any requested Dockerfile entries
-	if len(srcInfo.DockerfileAppendix) > 0 {
+	if srcInfo != nil && len(srcInfo.DockerfileAppendix) > 0 {
 		if err := appendDockerfileAppendix(srcInfo.DockerfileAppendix); err != nil {
 			return fmt.Errorf("failed appending Dockerfile appendix: %w", err)
 		}
