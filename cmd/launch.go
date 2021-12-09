@@ -167,7 +167,12 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 				article += "n"
 			}
 
-			appType := srcInfo.Family + " " + srcInfo.Version
+			appType := srcInfo.Family
+
+			if srcInfo.Version != "" {
+				appType = appType + " " + srcInfo.Version
+			}
+
 			fmt.Printf("Detected %s %s app\n", article, aurora.Green(appType))
 
 			if srcInfo.Builder != "" {
