@@ -72,6 +72,11 @@ func newLaunchCommand(client *client.Client) *Command {
 		Description: "Use the configuration file if present without prompting.",
 		Default:     false,
 	})
+	launchCmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "remote-only",
+		Description: "Perform builds remotely without using the local docker daemon",
+		Default:     true,
+	})
 
 	return launchCmd
 }

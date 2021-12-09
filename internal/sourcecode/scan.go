@@ -295,8 +295,7 @@ func configurePhoenix(sourceDir string) (*SourceInfo, error) {
 	}
 
 	// We found Phoenix 1.6.3 or higher, so try running the Docker generator
-	if checksPass(sourceDir, dirContains("mix.exs", "phoenix.*"+regexp.QuoteMeta("1.6.3"))) {
-		s.Version = "1.6.3"
+	if checksPass(sourceDir, dirContains("mix.exs", "phoenix.*"+regexp.QuoteMeta("1.6"))) {
 		s.DeployDocs = `
 Your Phoenix app should be ready for deployment!.
 
@@ -307,8 +306,6 @@ When you're ready to deploy, use 'fly deploy --remote-only'.
 	}
 	// We found Phoenix 1.6.0 - 1.6.2
 	if checksPass(sourceDir, dirContains("mix.exs", "phoenix.*"+regexp.QuoteMeta("1.6.")+"[0-2]")) {
-		s.Version = "1.6"
-		s.Files = templates("templates/phoenix")
 		s.SkipDeploy = true
 		s.DeployDocs = `
 We recommend upgrading to Phoenix 1.6.3 which includes a release configuration for Docker-based deployment.
