@@ -134,7 +134,8 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	fmt.Println("Creating app in", dir)
-	var srcInfo *sourcecode.SourceInfo
+
+	var srcInfo = new(sourcecode.SourceInfo)
 
 	if img := cmdCtx.Config.GetString("image"); img != "" {
 		fmt.Println("Using image", img)
