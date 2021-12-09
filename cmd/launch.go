@@ -167,7 +167,12 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 				article += "n"
 			}
 
-			appType := srcInfo.Family + " " + srcInfo.Version
+			appType := srcInfo.Family
+
+			if srcInfo.Version != "" {
+				appType = appType + " " + srcInfo.Version
+			}
+
 			fmt.Printf("Detected %s %s app\n", article, aurora.Green(appType))
 
 			if srcInfo.Builder != "" {
@@ -303,23 +308,26 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		keys := []string{}
 
 		for k, v := range srcInfo.Secrets {
+
 			val := ""
-			prompt := fmt.Sprintf("Set secret %s:", k)
 
-			surveyInput := &survey.Input{
-				Message: prompt,
-				Help:    v,
-			}
-
+			// If a secret should be a random default, just generate it without displaying
+			// Otherwise, prompt to type it in
 			if strings.Contains(v, "random default") {
-				surveyInput.Default, err = helpers.RandString(64)
-				if err != nil {
-					return err
+				if val, err = helpers.RandString(64); err != nil {
+					fmt.Errorf("Could not generate random string: %w", err)
 				}
 
-			}
+			} else {
+				prompt := fmt.Sprintf("Set secret %s:", k)
 
-			survey.AskOne(surveyInput, &val)
+				surveyInput := &survey.Input{
+					Message: prompt,
+					Help:    v,
+				}
+
+				survey.AskOne(surveyInput, &val)
+			}
 
 			if val != "" {
 				secrets[k] = val
@@ -416,15 +424,15 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		options := standalonePostgres()
 
 		clusterAppName := app.Name + "-db"
+
 		// Create a standalone Postgres in the same region as the app and organization
 		clusterInput := api.CreatePostgresClusterInput{
 			OrganizationID: org.ID,
 			Name:           clusterAppName,
-			Region:         &regionCode,
+			Region:         api.StringPointer(region.Code),
 			ImageRef:       api.StringPointer(options.ImageRef),
 			Count:          api.IntPointer(1),
 		}
-
 		payload, err := runApiCreatePostgresCluster(cmdCtx, org.Slug, &clusterInput)
 
 		if err != nil {
