@@ -1,17 +1,50 @@
 name: CI
-
+env:
+  # Increment this to bust the build cache
+  CACHE_VERSION: 1
+  GO_VERSION: 1.17.x
 on:
   push:
   workflow_dispatch:
 
 jobs:
+  test_build:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/master')
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - uses: actions/cache@v2
+        with:
+          # In order:
+          # * Module download cache
+          # * Build cache (Linux)
+          # * Build cache (Mac)
+          # * Build cache (Windows)
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ~/Library/Caches/go-build
+            %LocalAppData%\go-build
+          key: ${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ steps.go-version.outputs.version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ env.CACHE_VERSION }}-${{ runner.os }}-go
+      - name: "Place wintun.dll"
+        run: cp deps/wintun/bin/amd64/wintun.dll ./
+      - name: build
+        uses: goreleaser/goreleaser-action@v2
+        with:
+          version: latest
+          args: build --rm-dist --snapshot
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
         with:
-          go-version: 1.17.x
+          go-version: ${{ env.GO_VERSION }}
       - name: Get go version
         id: go-version
         run: echo "::set-output name=version::$(go env GOVERSION)"
@@ -27,9 +60,9 @@ jobs:
             ~/.cache/go-build
             ~/Library/Caches/go-build
             %LocalAppData%\go-build
-          key: ${{ runner.os }}-${{ steps.go-version.outputs.version }}-${{ hashFiles('**/go.sum') }}
+          key: ${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ steps.go-version.outputs.version }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-go
+            ${{ env.CACHE_VERSION }}-${{ runner.os }}-go
       - name: go mod download
         run: go mod download
       - name: go mod verify
@@ -38,11 +71,6 @@ jobs:
         run: go generate ./...
       - name: "Place wintun.dll"
         run: cp deps/wintun/bin/amd64/wintun.dll ./
-      - name: build
-        uses: goreleaser/goreleaser-action@v2
-        with:
-          version: latest
-          args: build --rm-dist --snapshot
       - name: Run tests
         run: make test
 
@@ -56,7 +84,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@v2
         with:
-          go-version: 1.17.x
+          go-version: ${{ env.GO_VERSION }}
       - name: Get go version
         id: go-version
         run: echo "::set-output name=version::$(go env GOVERSION)"
@@ -78,9 +106,9 @@ jobs:
             ~/.cache/go-build
             ~/Library/Caches/go-build
             %LocalAppData%\go-build
-          key: ${{ runner.os }}-${{ steps.go-version.outputs.version }}-${{ hashFiles('**/go.sum') }}
+          key: ${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ steps.go-version.outputs.version }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-go
+            ${{ env.CACHE_VERSION }}-${{ runner.os }}-go
       - name: Place wintun.dll
         run: cp -r deps/wintun/bin/amd64/wintun.dll ./
       - name: generate release notes
