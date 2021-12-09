@@ -1,5 +1,7 @@
 name: CI
-
+env:
+  # Increment this to bust the build cache
+  CACHE_VERSION: 1
 on:
   push:
   workflow_dispatch:
@@ -27,9 +29,9 @@ jobs:
             ~/.cache/go-build
             ~/Library/Caches/go-build
             %LocalAppData%\go-build
-          key: ${{ runner.os }}-${{ steps.go-version.outputs.version }}-${{ hashFiles('**/go.sum') }}
+          key: ${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ steps.go-version.outputs.version }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-go
+            ${{ env.CACHE_VERSION }}-${{ runner.os }}-go
       - name: go mod download
         run: go mod download
       - name: go mod verify
@@ -73,9 +75,9 @@ jobs:
             ~/.cache/go-build
             ~/Library/Caches/go-build
             %LocalAppData%\go-build
-          key: ${{ runner.os }}-${{ steps.go-version.outputs.version }}-${{ hashFiles('**/go.sum') }}
+          key: ${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ steps.go-version.outputs.version }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-go
+            ${{ env.CACHE_VERSION }}-${{ runner.os }}-go
       - name: Place wintun.dll
         run: cp -r deps/wintun/bin/amd64/wintun.dll ./
       - name: generate release notes
