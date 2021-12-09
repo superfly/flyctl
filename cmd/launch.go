@@ -438,6 +438,9 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 
 		_, err = cmdCtx.Client.API().AttachPostgresCluster(cmdCtx.Command.Context(), attachInput)
 
+		// Reset the app name here beacuse AttachPostgresCluster sets it on the cmdCtx :/
+		cmdCtx.AppName = app.ID
+
 		if err != nil {
 			return err
 		}
