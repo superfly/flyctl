@@ -167,7 +167,11 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 				article += "n"
 			}
 
-			appType := srcInfo.Family + " " + srcInfo.Version
+			appType := srcInfo.Family
+
+			if srcInfo.Version != "" {
+				appType = " " + srcInfo.Version
+			}
 			fmt.Printf("Detected %s %s app\n", article, aurora.Green(appType))
 
 			if srcInfo.Builder != "" {
@@ -428,20 +432,18 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		payload, err := runApiCreatePostgresCluster(cmdCtx, org.Slug, &clusterInput)
 
 		if err != nil {
+			err = fmt.Errorf("failed creating the Postgres cluster %s: %w", clusterAppName, err)
 			return err
 		}
-
-		attachInput := api.AttachPostgresClusterInput{
-			AppID:                app.ID,
-			PostgresClusterAppID: clusterAppName,
-		}
-
-		_, err = cmdCtx.Client.API().AttachPostgresCluster(cmdCtx.Command.Context(), attachInput)
 
 		// Reset the app name here beacuse AttachPostgresCluster sets it on the cmdCtx :/
 		cmdCtx.AppName = app.ID
 
+		cmdCtx.Config.Set("postgres-app", clusterAppName)
+		err = runAttachPostgresCluster(cmdCtx)
+
 		if err != nil {
+			err = fmt.Errorf("failed attaching %s to the Postgres cluster %s: %w", clusterAppName, app.Name, err)
 			return err
 		}
 
