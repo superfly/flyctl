@@ -1,6 +1,8 @@
 package api
 
-import "context"
+import (
+	"context"
+)
 
 func (client *Client) CreatePostgresCluster(ctx context.Context, input CreatePostgresClusterInput) (*CreatePostgresClusterPayload, error) {
 	query := `
@@ -84,7 +86,7 @@ func (client *Client) AttachPostgresCluster(ctx context.Context, input AttachPos
 	return data.AttachPostgresCluster, nil
 }
 
-func (client *Client) DetachPostgresCluster(ctx context.Context, postgresAppName string, appName string) error {
+func (client *Client) DetachPostgresCluster(ctx context.Context, input DetachPostgresClusterInput) error {
 	query := `
 		mutation($input: DetachPostgresClusterInput!) {
 			detachPostgresCluster(input: $input) {
@@ -94,10 +96,7 @@ func (client *Client) DetachPostgresCluster(ctx context.Context, postgresAppName
 		`
 
 	req := client.NewRequest(query)
-	req.Var("input", map[string]string{
-		"postgresClusterAppId": postgresAppName,
-		"appId":                appName,
-	})
+	req.Var("input", input)
 
 	_, err := client.RunWithContext(ctx, req)
 	return err
@@ -129,6 +128,32 @@ func (client *Client) ListPostgresDatabases(ctx context.Context, appName string)
 	}
 
 	return *data.App.PostgresAppRole.Databases, nil
+}
+
+func (client *Client) ListPostgresClusterAttachments(ctx context.Context, appName, postgresAppName string) ([]*PostgresClusterAttachment, error) {
+	query := `
+		query($appName: String!, $postgresAppName: String!) {
+			postgresAttachments(appName: $appName, postgresAppName: $postgresAppName) {
+				nodes {
+					id
+					databaseName
+					databaseUser
+					environmentVariableName
+				}
+		  }
+		}
+		`
+
+	req := client.NewRequest(query)
+	req.Var("appName", appName)
+	req.Var("postgresAppName", postgresAppName)
+
+	data, err := client.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.PostgresAttachments.Nodes, nil
 }
 
 func (client *Client) ListPostgresUsers(ctx context.Context, appName string) ([]PostgresClusterUser, error) {
