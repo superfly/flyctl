@@ -2,18 +2,26 @@ name: CI
 env:
   # Increment this to bust the build cache
   CACHE_VERSION: 1
+  GO_VERSION: 1.17.x
 on:
   push:
   workflow_dispatch:
 
 jobs:
+  test_build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
         with:
-          go-version: 1.17.x
+          go-version: ${{ env.GO_VERSION }}
       - name: Get go version
         id: go-version
         run: echo "::set-output name=version::$(go env GOVERSION)"
@@ -53,7 +61,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@v2
         with:
-          go-version: 1.17.x
+          go-version: ${{ env.GO_VERSION }}
       - name: Get go version
         id: go-version
         run: echo "::set-output name=version::$(go env GOVERSION)"
