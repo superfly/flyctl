@@ -197,15 +197,24 @@ func (pc *PostgresCmd) CreateDatabase(dbName string) (*PostgresCommandResponse, 
 	return &resp, nil
 }
 
-func (pc *PostgresCmd) DbExists(dbName string) (bool, error) {
+func (pc *PostgresCmd) ListDatabases() (*PostgresDatabaseListResponse, error) {
 	fmt.Println("Running flyadmin database-list")
 	databaseListBytes, err := runSSHCommand(pc.cmdCtx, pc.app, pc.dialer, "flyadmin database-list")
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	var dbList PostgresDatabaseListResponse
 	if err := json.Unmarshal(databaseListBytes, &dbList); err != nil {
+		return nil, err
+	}
+
+	return &dbList, nil
+}
+
+func (pc *PostgresCmd) DbExists(dbName string) (bool, error) {
+	dbList, err := pc.ListDatabases()
+	if err != nil {
 		return false, err
 	}
 
@@ -218,15 +227,24 @@ func (pc *PostgresCmd) DbExists(dbName string) (bool, error) {
 	return false, nil
 }
 
-func (pc *PostgresCmd) UserExists(userName string) (bool, error) {
+func (pc *PostgresCmd) ListUsers() (*PostgresUserListResponse, error) {
 	fmt.Println("Running flyadmin user-list")
 	userListBytes, err := runSSHCommand(pc.cmdCtx, pc.app, pc.dialer, "flyadmin user-list")
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	var userList PostgresUserListResponse
 	if err := json.Unmarshal(userListBytes, &userList); err != nil {
+		return nil, err
+	}
+
+	return &userList, nil
+}
+
+func (pc *PostgresCmd) UserExists(userName string) (bool, error) {
+	userList, err := pc.ListUsers()
+	if err != nil {
 		return false, err
 	}
 
