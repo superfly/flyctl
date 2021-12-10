@@ -17,13 +17,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/cmd"
-	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/cli"
 )
 
 func main() {
-	cc := client.New()
-	cmd := cmd.NewRootCmd(cc)
+	cmd := cli.NewRootCommand()
 	cmd.DisableAutoGenTag = true
 
 	filePrepender := func(filename string) string {
