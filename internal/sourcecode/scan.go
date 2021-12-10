@@ -20,6 +20,12 @@ type InitCommand struct {
 	Args        []string
 	Description string
 }
+
+type Secret struct {
+	Key      string
+	Help     string
+	Generate bool
+}
 type SourceInfo struct {
 	Family           string
 	Version          string
@@ -30,7 +36,7 @@ type SourceInfo struct {
 	DockerEntrypoint string
 
 	Buildpacks            []string
-	Secrets               map[string]string
+	Secrets               []Secret
 	Files                 []SourceFile
 	Port                  int
 	Env                   map[string]string
@@ -268,8 +274,12 @@ func configurePhoenix(sourceDir string) (*SourceInfo, error) {
 
 	s := &SourceInfo{
 		Family: "Phoenix",
-		Secrets: map[string]string{
-			"SECRET_KEY_BASE": "Phoenix needs a random, secret key. Use the random default we've generated, or generate your own.",
+		Secrets: []Secret{
+			{
+				Key:      "SECRET_KEY_BASE",
+				Help:     "Phoenix needs a random, secret key. Use the random default we've generated, or generate your own.",
+				Generate: true,
+			},
 		},
 		Port: 8080,
 		Env: map[string]string{
@@ -340,10 +350,7 @@ func configureElixir(sourceDir string) (*SourceInfo, error) {
 		Builder:    "heroku/buildpacks:20",
 		Buildpacks: []string{"https://cnb-shim.herokuapp.com/v1/hashnuke/elixir"},
 		Family:     "Elixir",
-		Secrets: map[string]string{
-			"SECRET_KEY_BASE": "The input secret for the application key generator. Use something long and random.",
-		},
-		Port: 8080,
+		Port:       8080,
 		Env: map[string]string{
 			"PORT": "8080",
 		},
