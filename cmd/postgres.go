@@ -10,6 +10,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/briandowns/spinner"
+	"github.com/hashicorp/go-version"
 	"github.com/logrusorgru/aurora"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -20,7 +21,6 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/pkg/agent"
-	"github.com/superfly/flyctl/terminal"
 )
 
 type PostgresClusterOption struct {
@@ -129,8 +129,9 @@ func newPostgresCommand(client *client.Client) *Command {
 
 	connectStrings := docstrings.Get("postgres.connect")
 	connectCmd := BuildCommandKS(cmd, runPostgresConnect, connectStrings, client, requireSession, requireAppNameAsArg)
-	connectCmd.AddStringFlag(StringFlagOpts{Name: "user", Description: "The postgres user to connect with"})
 	connectCmd.AddStringFlag(StringFlagOpts{Name: "database", Description: "The postgres database to connect to"})
+	connectCmd.AddStringFlag(StringFlagOpts{Name: "user", Description: "The postgres user to connect with"})
+	connectCmd.AddStringFlag(StringFlagOpts{Name: "password", Description: "The postgres user password"})
 
 	attachStrngs := docstrings.Get("postgres.attach")
 	attachCmd := BuildCommandKS(cmd, runAttachPostgresCluster, attachStrngs, client, requireSession, requireAppName)
@@ -606,44 +607,83 @@ func runDetachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runPostgresConnect(ctx *cmdctx.CmdContext) error {
-	client := ctx.Client.API()
-	terminal.Debugf("Retrieving app info for %s\n", ctx.AppName)
+func runPostgresConnect(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
 
-	app, err := client.GetApp(ctx.AppName)
+	client := cmdCtx.Client.API()
+
+	app, err := client.GetApp(ctx, cmdCtx.AppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	agentclient, err := EstablishFlyAgent(ctx)
+	// Validate image version and ensure it's compatible with this feature.
+	imageVersionStr := app.ImageDetails.Version[1:]
+	imageVersion, err := version.NewVersion(imageVersionStr)
 	if err != nil {
-		return fmt.Errorf("can't establish agent: %s\n", err)
+		return err
 	}
 
-	dialer, err := agentclient.Dialer(&app.Organization)
+	// Specify compatible versions per repo.
+	requiredVersion := &version.Version{}
+	if app.ImageDetails.Repository == "flyio/postgres-standalone" {
+		requiredVersion, err = version.NewVersion("0.0.4")
+		if err != nil {
+			return err
+		}
+	}
+	if app.ImageDetails.Repository == "flyio/postgres" {
+		requiredVersion, err = version.NewVersion("0.0.9")
+		if err != nil {
+			return err
+		}
+	}
+
+	if requiredVersion == nil {
+		return fmt.Errorf("Unable to resolve image version...")
+	}
+
+	if imageVersion.LessThan(requiredVersion) {
+		return fmt.Errorf(
+			"Image version is not compatible. (Current: %s, Required: >= %s)\n"+
+				"Please run 'flyctl image show' and update to the latest image version.",
+			imageVersion, requiredVersion.String())
+	}
+
+	agentclient, err := agent.Establish(ctx, cmdCtx.Client.API())
+	if err != nil {
+		return errors.Wrap(err, "can't establish agent")
+	}
+
+	dialer, err := agentclient.Dialer(ctx, &app.Organization)
 	if err != nil {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
 	}
 
-	database := ctx.Config.GetString("database")
+	database := cmdCtx.Config.GetString("database")
 	if database == "" {
-		database = ""
+		database = "postgres"
 	}
 
-	user := ctx.Config.GetString("user")
+	user := cmdCtx.Config.GetString("user")
 	if user == "" {
 		user = "postgres"
 	}
 
-	addr := fmt.Sprintf("%s.internal", ctx.AppName)
+	password := cmdCtx.Config.GetString("password")
 
-	cmd := fmt.Sprintf("psql postgres://%s:$OPERATOR_COMMAND@%s:5432/%s", user, addr, database)
+	addr := fmt.Sprintf("%s.internal", cmdCtx.AppName)
+	cmd := fmt.Sprintf("connect %s %s %s", database, user, password)
+
 	return sshConnect(&SSHParams{
-		Ctx:    ctx,
+		Ctx:    cmdCtx,
 		Org:    &app.Organization,
 		Dialer: dialer,
-		App:    ctx.AppName,
+		App:    cmdCtx.AppName,
 		Cmd:    cmd,
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
 	}, addr)
 }
 
