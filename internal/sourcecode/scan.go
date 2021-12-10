@@ -428,8 +428,7 @@ func configureDjango(sourceDir string) (*SourceInfo, error) {
 		Port:   8080,
 		Files:  templates("templates/django"),
 		Env: map[string]string{
-			"PORT":         "8080",
-			"DATABASE_URL": "unset",
+			"PORT": "8080",
 		},
 		Statics: []Static{
 			{
@@ -438,6 +437,37 @@ func configureDjango(sourceDir string) (*SourceInfo, error) {
 			},
 		},
 		SkipDeploy: true,
+	}
+
+	// check if requirements.txt has a postgres dependency
+	if checksPass(sourceDir, dirContains("requirements.txt", "psycopg2")) {
+		s.CreatePostgresCluster = true
+		s.InitCommands = []InitCommand{
+			{
+				// python makemigrations
+				Command:     "python",
+				Args:        []string{"manage.py", "makemigrations"},
+				Description: "Creating database migrations",
+			},
+		}
+		s.ReleaseCmd = "python manage.py migrate"
+
+		if !checksPass(sourceDir, dirContains("requirements.txt", "database_url")) {
+			s.DeployDocs = ` 
+Your Django app is almost ready to deploy!
+
+We recommend using the database_url(pip install dj-database-url) to parse the DATABASE_URL from os.environ['DATABASE_URL']
+
+For detailed documentation, see https://fly.dev/docs/django/
+		`
+		} else {
+
+			s.DeployDocs = `
+Your Django app is ready to deploy!
+
+For detailed documentation, see https://fly.dev/docs/django/
+		`
+		}
 	}
 
 	return s, nil

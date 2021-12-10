@@ -17,7 +17,6 @@ RUN pip install -r requirements.txt
 
 COPY . .
 
-ENV  DATABASE_URL="unset"
 RUN python manage.py collectstatic --noinput
 
 
