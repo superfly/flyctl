@@ -10,6 +10,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/logrusorgru/aurora"
+	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/pkg/iostreams"
 
@@ -68,4 +69,9 @@ func printError(w io.Writer, err error) {
 	fmt.Fprintln(&b)
 
 	_, _ = b.WriteTo(w)
+}
+
+// TODO: remove this once generation of the docs has been refactored.
+func NewRootCommand() *cobra.Command {
+	return root.New()
 }
