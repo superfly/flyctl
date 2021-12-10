@@ -307,31 +307,31 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		secrets := make(map[string]string)
 		keys := []string{}
 
-		for k, v := range srcInfo.Secrets {
+		for _, secret := range srcInfo.Secrets {
 
 			val := ""
 
 			// If a secret should be a random default, just generate it without displaying
 			// Otherwise, prompt to type it in
-			if strings.Contains(v, "random default") {
+			if secret.Generate {
 				if val, err = helpers.RandString(64); err != nil {
 					fmt.Errorf("Could not generate random string: %w", err)
 				}
 
 			} else {
-				prompt := fmt.Sprintf("Set secret %s:", k)
+				prompt := fmt.Sprintf("Set secret %s:", secret.Key)
 
 				surveyInput := &survey.Input{
 					Message: prompt,
-					Help:    v,
+					Help:    secret.Help,
 				}
 
 				survey.AskOne(surveyInput, &val)
 			}
 
 			if val != "" {
-				secrets[k] = val
-				keys = append(keys, k)
+				secrets[secret.Key] = val
+				keys = append(keys, secret.Key)
 			}
 		}
 
