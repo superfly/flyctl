@@ -298,6 +298,10 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		if srcInfo.DockerCommand != "" {
 			appConfig.SetDockerEntrypoint(srcInfo.DockerEntrypoint)
 		}
+
+		if srcInfo.KillSignal != "" {
+			appConfig.SetKillSignal(srcInfo.KillSignal)
+		}
 	}
 
 	fmt.Printf("Created app %s in organization %s\n", app.Name, org.Slug)

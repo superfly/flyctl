@@ -367,6 +367,10 @@ func (ac *AppConfig) SetDockerCommand(cmd string) {
 	ac.Definition["experimental"] = experimental
 }
 
+func (ac *AppConfig) SetKillSignal(signal string) {
+	ac.Definition["kill_signal"] = signal
+}
+
 func (ac *AppConfig) SetDockerEntrypoint(entrypoint string) {
 	var experimental map[string]string
 

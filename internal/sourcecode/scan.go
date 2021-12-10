@@ -27,14 +27,14 @@ type Secret struct {
 	Generate bool
 }
 type SourceInfo struct {
-	Family           string
-	Version          string
-	DockerfilePath   string
-	Builder          string
-	ReleaseCmd       string
-	DockerCommand    string
-	DockerEntrypoint string
-
+	Family                string
+	Version               string
+	DockerfilePath        string
+	Builder               string
+	ReleaseCmd            string
+	DockerCommand         string
+	DockerEntrypoint      string
+	KillSignal            string
 	Buildpacks            []string
 	Secrets               []Secret
 	Files                 []SourceFile
@@ -281,7 +281,8 @@ func configurePhoenix(sourceDir string) (*SourceInfo, error) {
 				Generate: true,
 			},
 		},
-		Port: 8080,
+		KillSignal: "SIGTERM",
+		Port:       8080,
 		Env: map[string]string{
 			"PORT":     "8080",
 			"PHX_HOST": "APP_FQDN",
