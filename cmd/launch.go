@@ -446,6 +446,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		attachInput := api.AttachPostgresClusterInput{
 			AppID:                app.ID,
 			PostgresClusterAppID: clusterAppName,
+			ManualEntry:          true,
 		}
 
 		_, err = cmdCtx.Client.API().AttachPostgresCluster(cmdCtx.Command.Context(), attachInput)
