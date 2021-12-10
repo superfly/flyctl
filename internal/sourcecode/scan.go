@@ -430,6 +430,13 @@ func configureDjango(sourceDir string) (*SourceInfo, error) {
 		Env: map[string]string{
 			"PORT": "8080",
 		},
+		Secrets: []Secret{
+			{
+				Key:      "SECRET_KEY_BASE",
+				Help:     "Phoenix needs a random, secret key. Use the random default we've generated, or generate your own.",
+				Generate: true,
+			},
+		},
 		Statics: []Static{
 			{
 				GuestPath: "/app/public",
