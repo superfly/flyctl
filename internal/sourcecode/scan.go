@@ -294,8 +294,13 @@ func configurePhoenix(sourceDir string) (*SourceInfo, error) {
 		InitCommands: []InitCommand{
 			{
 				Command:     "mix",
+				Args:        []string{"local.rebar", "--force"},
+				Description: "Preparing system for Elixir builds",
+			},
+			{
+				Command:     "mix",
 				Args:        []string{"deps.get"},
-				Description: "Installing dependencies",
+				Description: "Installing application dependencies",
 			},
 			{
 				Command:     "mix",
