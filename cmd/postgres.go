@@ -608,8 +608,11 @@ func runDetachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runPostgresConnect(cmdCtx *cmdctx.CmdContext) error {
-	ctx := cmdCtx.Command.Context()
+	// Minimum image version requirements
+	MinPostgresStandaloneVersion := "0.0.4"
+	MinPostgresHaVersion := "0.0.9"
 
+	ctx := cmdCtx.Command.Context()
 	client := cmdCtx.Client.API()
 
 	app, err := client.GetApp(ctx, cmdCtx.AppName)
@@ -628,14 +631,14 @@ func runPostgresConnect(cmdCtx *cmdctx.CmdContext) error {
 	requiredVersion := &version.Version{}
 	if app.ImageDetails.Repository == "flyio/postgres-standalone" {
 		// https://github.com/fly-apps/postgres-standalone/releases/tag/v0.0.4
-		requiredVersion, err = version.NewVersion("0.0.4")
+		requiredVersion, err = version.NewVersion(MinPostgresStandaloneVersion)
 		if err != nil {
 			return err
 		}
 	}
 	if app.ImageDetails.Repository == "flyio/postgres" {
 		// https://github.com/fly-apps/postgres-ha/releases/tag/v0.0.9
-		requiredVersion, err = version.NewVersion("0.0.9")
+		requiredVersion, err = version.NewVersion(MinPostgresHaVersion)
 		if err != nil {
 			return err
 		}
