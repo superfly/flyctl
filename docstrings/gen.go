@@ -563,7 +563,7 @@ about the Fly platform.`,
 		}
 	case "postgres.connect":
 		return KeyStrings{"connect", "Connect to postgres cluster",
-			`Connect to a postgres cluster`,
+			`Connect to postgres cluster`,
 		}
 	case "postgres.create":
 		return KeyStrings{"create", "Create a postgres cluster",
