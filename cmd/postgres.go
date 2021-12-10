@@ -648,7 +648,7 @@ func runPostgresConnect(cmdCtx *cmdctx.CmdContext) error {
 	if imageVersion.LessThan(requiredVersion) {
 		return fmt.Errorf(
 			"Image version is not compatible. (Current: %s, Required: >= %s)\n"+
-				"Please run 'flyctl image show' and update to the latest image version.",
+				"Please run 'flyctl image show' and update to the latest available version.",
 			imageVersion, requiredVersion.String())
 	}
 
