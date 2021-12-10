@@ -617,7 +617,7 @@ func runPostgresConnect(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	// Validate image version and ensure it's compatible with this feature.
+	// Validate image version to ensure it's compatible with this feature.
 	imageVersionStr := app.ImageDetails.Version[1:]
 	imageVersion, err := version.NewVersion(imageVersionStr)
 	if err != nil {
@@ -627,12 +627,14 @@ func runPostgresConnect(cmdCtx *cmdctx.CmdContext) error {
 	// Specify compatible versions per repo.
 	requiredVersion := &version.Version{}
 	if app.ImageDetails.Repository == "flyio/postgres-standalone" {
+		// https://github.com/fly-apps/postgres-standalone/releases/tag/v0.0.4
 		requiredVersion, err = version.NewVersion("0.0.4")
 		if err != nil {
 			return err
 		}
 	}
 	if app.ImageDetails.Repository == "flyio/postgres" {
+		// https://github.com/fly-apps/postgres-ha/releases/tag/v0.0.9
 		requiredVersion, err = version.NewVersion("0.0.9")
 		if err != nil {
 			return err
