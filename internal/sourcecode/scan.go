@@ -432,8 +432,8 @@ func configureDjango(sourceDir string) (*SourceInfo, error) {
 		},
 		Secrets: []Secret{
 			{
-				Key:      "SECRET_KEY_BASE",
-				Help:     "Phoenix needs a random, secret key. Use the random default we've generated, or generate your own.",
+				Key:      "SECRET_KEY",
+				Help:     "Django needs a random, secret key. Use the random default we've generated, or generate your own.",
 				Generate: true,
 			},
 		},
