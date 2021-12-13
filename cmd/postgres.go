@@ -10,6 +10,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/briandowns/spinner"
+	"github.com/hashicorp/go-version"
 	"github.com/logrusorgru/aurora"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -125,6 +126,12 @@ func newPostgresCommand(client *client.Client) *Command {
 
 	createCmd.AddStringFlag(StringFlagOpts{Name: "image-ref", Hidden: true})
 	createCmd.AddStringFlag(StringFlagOpts{Name: "snapshot-id", Description: "Creates the volume with the contents of the snapshot"})
+
+	connectStrings := docstrings.Get("postgres.connect")
+	connectCmd := BuildCommandKS(cmd, runPostgresConnect, connectStrings, client, requireSession, requireAppNameAsArg)
+	connectCmd.AddStringFlag(StringFlagOpts{Name: "database", Description: "The postgres database to connect to"})
+	connectCmd.AddStringFlag(StringFlagOpts{Name: "user", Description: "The postgres user to connect with"})
+	connectCmd.AddStringFlag(StringFlagOpts{Name: "password", Description: "The postgres user password"})
 
 	attachStrngs := docstrings.Get("postgres.attach")
 	attachCmd := BuildCommandKS(cmd, runAttachPostgresCluster, attachStrngs, client, requireSession, requireAppName)
@@ -598,6 +605,91 @@ func runDetachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 	fmt.Println("Detach completed successfully!")
 
 	return nil
+}
+
+func runPostgresConnect(cmdCtx *cmdctx.CmdContext) error {
+	// Minimum image version requirements
+	MinPostgresStandaloneVersion := "0.0.4"
+	MinPostgresHaVersion := "0.0.9"
+
+	ctx := cmdCtx.Command.Context()
+	client := cmdCtx.Client.API()
+
+	app, err := client.GetApp(ctx, cmdCtx.AppName)
+	if err != nil {
+		return fmt.Errorf("get app: %w", err)
+	}
+
+	// Validate image version to ensure it's compatible with this feature.
+	imageVersionStr := app.ImageDetails.Version[1:]
+	imageVersion, err := version.NewVersion(imageVersionStr)
+	if err != nil {
+		return err
+	}
+
+	// Specify compatible versions per repo.
+	requiredVersion := &version.Version{}
+	if app.ImageDetails.Repository == "flyio/postgres-standalone" {
+		// https://github.com/fly-apps/postgres-standalone/releases/tag/v0.0.4
+		requiredVersion, err = version.NewVersion(MinPostgresStandaloneVersion)
+		if err != nil {
+			return err
+		}
+	}
+	if app.ImageDetails.Repository == "flyio/postgres" {
+		// https://github.com/fly-apps/postgres-ha/releases/tag/v0.0.9
+		requiredVersion, err = version.NewVersion(MinPostgresHaVersion)
+		if err != nil {
+			return err
+		}
+	}
+
+	if requiredVersion == nil {
+		return fmt.Errorf("Unable to resolve image version...")
+	}
+
+	if imageVersion.LessThan(requiredVersion) {
+		return fmt.Errorf(
+			"Image version is not compatible. (Current: %s, Required: >= %s)\n"+
+				"Please run 'flyctl image show' and update to the latest available version.",
+			imageVersion, requiredVersion.String())
+	}
+
+	agentclient, err := agent.Establish(ctx, cmdCtx.Client.API())
+	if err != nil {
+		return errors.Wrap(err, "can't establish agent")
+	}
+
+	dialer, err := agentclient.Dialer(ctx, &app.Organization)
+	if err != nil {
+		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
+	}
+
+	database := cmdCtx.Config.GetString("database")
+	if database == "" {
+		database = "postgres"
+	}
+
+	user := cmdCtx.Config.GetString("user")
+	if user == "" {
+		user = "postgres"
+	}
+
+	password := cmdCtx.Config.GetString("password")
+
+	addr := fmt.Sprintf("%s.internal", cmdCtx.AppName)
+	cmd := fmt.Sprintf("connect %s %s %s", database, user, password)
+
+	return sshConnect(&SSHParams{
+		Ctx:    cmdCtx,
+		Org:    &app.Organization,
+		Dialer: dialer,
+		App:    cmdCtx.AppName,
+		Cmd:    cmd,
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}, addr)
 }
 
 func runListPostgresDatabases(cmdCtx *cmdctx.CmdContext) error {

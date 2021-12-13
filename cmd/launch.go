@@ -170,8 +170,9 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 			appType := srcInfo.Family
 
 			if srcInfo.Version != "" {
-				appType = " " + srcInfo.Version
+				appType = appType + " " + srcInfo.Version
 			}
+
 			fmt.Printf("Detected %s %s app\n", article, aurora.Green(appType))
 
 			if srcInfo.Builder != "" {
@@ -297,6 +298,10 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		if srcInfo.DockerCommand != "" {
 			appConfig.SetDockerEntrypoint(srcInfo.DockerEntrypoint)
 		}
+
+		if srcInfo.KillSignal != "" {
+			appConfig.SetKillSignal(srcInfo.KillSignal)
+		}
 	}
 
 	fmt.Printf("Created app %s in organization %s\n", app.Name, org.Slug)
@@ -306,28 +311,31 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		secrets := make(map[string]string)
 		keys := []string{}
 
-		for k, v := range srcInfo.Secrets {
+		for _, secret := range srcInfo.Secrets {
+
 			val := ""
-			prompt := fmt.Sprintf("Set secret %s:", k)
 
-			surveyInput := &survey.Input{
-				Message: prompt,
-				Help:    v,
-			}
-
-			if strings.Contains(v, "random default") {
-				surveyInput.Default, err = helpers.RandString(64)
-				if err != nil {
-					return err
+			// If a secret should be a random default, just generate it without displaying
+			// Otherwise, prompt to type it in
+			if secret.Generate {
+				if val, err = helpers.RandString(64); err != nil {
+					fmt.Errorf("Could not generate random string: %w", err)
 				}
 
+			} else {
+				prompt := fmt.Sprintf("Set secret %s:", secret.Key)
+
+				surveyInput := &survey.Input{
+					Message: prompt,
+					Help:    secret.Help,
+				}
+
+				survey.AskOne(surveyInput, &val)
 			}
 
-			survey.AskOne(surveyInput, &val)
-
 			if val != "" {
-				secrets[k] = val
-				keys = append(keys, k)
+				secrets[secret.Key] = val
+				keys = append(keys, secret.Key)
 			}
 		}
 
@@ -370,7 +378,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	// Run any initialization commands
-	if len(srcInfo.InitCommands) > 0 {
+	if srcInfo != nil && len(srcInfo.InitCommands) > 0 {
 		for _, cmd := range srcInfo.InitCommands {
 			binary, err := exec.LookPath(cmd.Command)
 			if err != nil {
@@ -393,7 +401,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	// Append any requested Dockerfile entries
-	if len(srcInfo.DockerfileAppendix) > 0 {
+	if srcInfo != nil && len(srcInfo.DockerfileAppendix) > 0 {
 		if err := appendDockerfileAppendix(srcInfo.DockerfileAppendix); err != nil {
 			return fmt.Errorf("failed appending Dockerfile appendix: %w", err)
 		}
@@ -420,15 +428,15 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		options := standalonePostgres()
 
 		clusterAppName := app.Name + "-db"
+
 		// Create a standalone Postgres in the same region as the app and organization
 		clusterInput := api.CreatePostgresClusterInput{
 			OrganizationID: org.ID,
 			Name:           clusterAppName,
-			Region:         &regionCode,
+			Region:         api.StringPointer(region.Code),
 			ImageRef:       api.StringPointer(options.ImageRef),
 			Count:          api.IntPointer(1),
 		}
-
 		payload, err := runApiCreatePostgresCluster(cmdCtx, org.Slug, &clusterInput)
 
 		if err != nil {
