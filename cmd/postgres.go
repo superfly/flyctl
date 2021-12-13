@@ -40,9 +40,16 @@ type PostgresConfiguration struct {
 func postgresConfigurations() []PostgresConfiguration {
 	return []PostgresConfiguration{
 		{
-			Description:      "Development - Single node, 1x shared CPU, 256MB RAM, 10GB disk",
+			Description:      "Development - Single node, 1x shared CPU, 256MB RAM, 1GB disk [Free tier]",
 			VmSize:           "shared-cpu-1x",
 			MemoryMb:         256,
+			DiskGb:           1,
+			ClusteringOption: standalonePostgres(),
+		},
+		{
+			Description:      "Development - Single node, 1x shared CPU, 512MB RAM, 10GB disk",
+			VmSize:           "shared-cpu-1x",
+			MemoryMb:         512,
 			DiskGb:           10,
 			ClusteringOption: standalonePostgres(),
 		},
@@ -65,13 +72,6 @@ func postgresConfigurations() []PostgresConfiguration {
 			VmSize:           "dedicated-cpu-2x",
 			MemoryMb:         4096,
 			DiskGb:           100,
-			ClusteringOption: highlyAvailablePostgres(),
-		},
-		{
-			Description:      "Production - Highly available, 4x Dedicated CPU's, 8GB RAM, 200GB disk",
-			VmSize:           "dedicated-cpu-4x",
-			MemoryMb:         8192,
-			DiskGb:           200,
 			ClusteringOption: highlyAvailablePostgres(),
 		},
 		{
