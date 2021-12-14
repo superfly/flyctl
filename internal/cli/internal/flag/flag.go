@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	// AccessTokenName denotes the name of the access token flag.
+	// AccessTokenName denotes the argument name of the access token flag.
 	AccessTokenName = "access-token"
 
 	// VerboseName denotes the name of the verbose flag.
@@ -21,8 +21,26 @@ const (
 	// OrgName denotes the name of the org flag.
 	OrgName = "org"
 
+	// AppName denotes the name of the application name flag.
+	AppNameFlagName = "name"
+
+	// AppName denotes the name of the application name flag.
+	RegionName = "region"
+
+	// ImageName denotes the name of the application name flag.
+	ImageName = "image"
+
 	// YesName denotes the name of the yes flag.
 	YesName = "yes"
+
+	// NowName denotes the name of the now flag.
+	NowName = "now"
+
+	// NoDeploy denotes the name of the no deploy flag.
+	NoDeployName = "no-deploy"
+
+	// GenerateName denotes the name of the generate name flag.
+	GenerateNameFlagName = "generate-name"
 )
 
 // Flag wraps the set of flags.
@@ -139,5 +157,60 @@ func Yes() Bool {
 		Name:        YesName,
 		Shorthand:   "y",
 		Description: "Accept all confirmations",
+	}
+}
+
+// Name returns an app name string flag.
+func AppName() String {
+	return String{
+		Name:        AppNameFlagName,
+		Description: "The name of the application to create",
+	}
+}
+
+// Region returns an region code string flag.
+func Region() String {
+	return String{
+		Name:        RegionName,
+		Description: "The target region for the operation",
+	}
+}
+
+func Image() String {
+	return String{
+		Name:        ImageName,
+		Description: "The image to deploy",
+	}
+}
+
+func Now() Bool {
+	return Bool{
+		Name:        NowName,
+		Description: "Deploy now without confirmation",
+		Default:     false,
+	}
+}
+
+func NoDeploy() Bool {
+	return Bool{
+		Name:        NoDeployName,
+		Description: "Do not prompt for deployment",
+		Default:     false,
+	}
+}
+
+func GenerateName() Bool {
+	return Bool{
+		Name:        GenerateNameFlagName,
+		Description: "Always generate a name for the app",
+		Default:     false,
+	}
+}
+
+func RemoteOnly() Bool {
+	return Bool{
+		Name:        "remote-only",
+		Description: "Perform builds on a remote builder instance instead of using the local docker daemon",
+		Default:     true,
 	}
 }
