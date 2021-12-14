@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/command/auth"
 	"github.com/superfly/flyctl/internal/cli/internal/command/create"
 	"github.com/superfly/flyctl/internal/cli/internal/command/destroy"
+	"github.com/superfly/flyctl/internal/cli/internal/command/launch"
 	"github.com/superfly/flyctl/internal/cli/internal/command/move"
 	"github.com/superfly/flyctl/internal/cli/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/cli/internal/command/restart"
@@ -85,6 +86,7 @@ func New() *cobra.Command {
 		restart.New(), // TODO: deprecate
 		orgs.New(),
 		auth.New(),
+		launch.New(),
 	}
 
 	// newCommandNames is the set of the names of the above commands

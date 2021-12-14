@@ -80,7 +80,6 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 		newChecksCommand(client),
 		newPostgresCommand(client),
 		newVMCommand(client),
-		newLaunchCommand(client),
 		newMachineCommand(client),
 		newProxyCommand(client),
 		newDigCommand(client),
