@@ -84,6 +84,16 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 		&builtinBuilder{},
 	}
 
+	input := api.StartSourceBuildInput{
+		AppID: opts.AppName,
+	}
+
+	terminal.Debugf("Reporting build")
+	_, err = r.apiClient.StartSourceBuild(ctx, input)
+
+	if err != nil {
+		terminal.Debugf("Failed storing build")
+	}
 	for _, s := range strategies {
 		terminal.Debugf("Trying '%s' strategy\n", s.Name())
 		img, err = s.Run(ctx, r.dockerFactory, streams, opts)
