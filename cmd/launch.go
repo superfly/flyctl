@@ -484,7 +484,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func appendDockerfileAppendix(appendix []string) (err error) {
-	var dockerfilePath = "Dockerfile"
+	const dockerfilePath = "Dockerfile"
 
 	var b bytes.Buffer
 	b.WriteString("\n# Appended by flyctl\n")
