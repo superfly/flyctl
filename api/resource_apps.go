@@ -1,6 +1,8 @@
 package api
 
-func (client *Client) GetApps(role *string) ([]App, error) {
+import "context"
+
+func (client *Client) GetApps(ctx context.Context, role *string) ([]App, error) {
 	query := `
 		query($role: String) {
 			apps(type: "container", first: 400, role: $role) {
@@ -26,7 +28,7 @@ func (client *Client) GetApps(role *string) ([]App, error) {
 		req.Var("role", *role)
 	}
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +36,7 @@ func (client *Client) GetApps(role *string) ([]App, error) {
 	return data.Apps.Nodes, nil
 }
 
-func (client *Client) GetAppID(appName string) (string, error) {
+func (client *Client) GetAppID(ctx context.Context, appName string) (string, error) {
 	query := `
 		query ($appName: String!) {
 			app(name: $appName) {
@@ -46,7 +48,7 @@ func (client *Client) GetAppID(appName string) (string, error) {
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return "", err
 	}
@@ -54,7 +56,7 @@ func (client *Client) GetAppID(appName string) (string, error) {
 	return data.App.ID, nil
 }
 
-func (client *Client) GetApp(appName string) (*App, error) {
+func (client *Client) GetApp(ctx context.Context, appName string) (*App, error) {
 	query := `
 		query ($appName: String!) {
 			app(name: $appName) {
@@ -65,6 +67,9 @@ func (client *Client) GetApp(appName string) (*App, error) {
 				status
 				version
 				appUrl
+				config {
+					definition
+				}
 				organization {
 					id
 					slug
@@ -86,6 +91,10 @@ func (client *Client) GetApp(appName string) (*App, error) {
 						createdAt
 					}
 				}
+				imageDetails {
+					repository
+					version
+				}
 			}
 		}
 	`
@@ -93,7 +102,7 @@ func (client *Client) GetApp(appName string) (*App, error) {
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +110,7 @@ func (client *Client) GetApp(appName string) (*App, error) {
 	return &data.App, nil
 }
 
-func (client *Client) GetAppCompact(appName string) (*AppCompact, error) {
+func (client *Client) GetAppCompact(ctx context.Context, appName string) (*AppCompact, error) {
 	query := `
 		query ($appName: String!) {
 			appcompact:app(name: $appName) {
@@ -139,7 +148,7 @@ func (client *Client) GetAppCompact(appName string) (*AppCompact, error) {
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +156,7 @@ func (client *Client) GetAppCompact(appName string) (*AppCompact, error) {
 	return &data.AppCompact, nil
 }
 
-func (client *Client) CreateApp(name string, orgId string, preferredRegionCode *string) (*App, error) {
+func (client *Client) CreateApp(ctx context.Context, input CreateAppInput) (*App, error) {
 	query := `
 		mutation($input: CreateAppInput!) {
 			createApp(input: $input) {
@@ -171,14 +180,9 @@ func (client *Client) CreateApp(name string, orgId string, preferredRegionCode *
 
 	req := client.NewRequest(query)
 
-	req.Var("input", CreateAppInput{
-		Name:            name,
-		Runtime:         "FIRECRACKER",
-		OrganizationID:  orgId,
-		PreferredRegion: preferredRegionCode,
-	})
+	req.Var("input", input)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +190,7 @@ func (client *Client) CreateApp(name string, orgId string, preferredRegionCode *
 	return &data.CreateApp.App, nil
 }
 
-func (client *Client) DeleteApp(appName string) error {
+func (client *Client) DeleteApp(ctx context.Context, appName string) error {
 	query := `
 			mutation($appId: ID!) {
 				deleteApp(appId: $appId) {
@@ -201,11 +205,11 @@ func (client *Client) DeleteApp(appName string) error {
 
 	req.Var("appId", appName)
 
-	_, err := client.Run(req)
+	_, err := client.RunWithContext(ctx, req)
 	return err
 }
 
-func (client *Client) MoveApp(appName string, orgID string) (*App, error) {
+func (client *Client) MoveApp(ctx context.Context, appName string, orgID string) (*App, error) {
 	query := `
 		mutation ($input: MoveAppInput!) {
 			moveApp(input: $input) {
@@ -223,12 +227,12 @@ func (client *Client) MoveApp(appName string, orgID string) (*App, error) {
 		"organizationId": orgID,
 	})
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	return &data.App, err
 }
 
 // SuspendApp - Send GQL mutation to suspend app
-func (client *Client) SuspendApp(appName string) (*App, error) {
+func (client *Client) SuspendApp(ctx context.Context, appName string) (*App, error) {
 	query := `
 	mutation ($input: PauseAppInput!) {
 		pauseApp(input: $input) {
@@ -249,12 +253,12 @@ func (client *Client) SuspendApp(appName string) (*App, error) {
 		"appId": appName,
 	})
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	return &data.SuspendApp.App, err
 }
 
 // ResumeApp - Send GQL mutation to pause app
-func (client *Client) ResumeApp(appName string) (*App, error) {
+func (client *Client) ResumeApp(ctx context.Context, appName string) (*App, error) {
 	query := `
 	mutation ($input: ResumeAppInput!) {
 		resumeApp(input: $input) {
@@ -275,12 +279,12 @@ func (client *Client) ResumeApp(appName string) (*App, error) {
 		"appId": appName,
 	})
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	return &data.ResumeApp.App, err
 }
 
 // RestartApp - Send GQL mutation to restart app
-func (client *Client) RestartApp(appName string) (*App, error) {
+func (client *Client) RestartApp(ctx context.Context, appName string) (*App, error) {
 	query := `
 		mutation ($input: RestartAppInput!) {
 			restartApp(input: $input) {
@@ -298,11 +302,11 @@ func (client *Client) RestartApp(appName string) (*App, error) {
 		"appId": appName,
 	})
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	return &data.RestartApp.App, err
 }
 
-func (client *Client) ResolveImageForApp(appName, imageRef string) (*Image, error) {
+func (client *Client) ResolveImageForApp(ctx context.Context, appName, imageRef string) (*Image, error) {
 	query := `
 		query ($appName: String!, $imageRef: String!) {
 			app(name: $appName) {
@@ -321,7 +325,7 @@ func (client *Client) ResolveImageForApp(appName, imageRef string) (*Image, erro
 	req.Var("appName", appName)
 	req.Var("imageRef", imageRef)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}

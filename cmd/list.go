@@ -63,23 +63,23 @@ type appCondensed struct {
 	CreatedAt    time.Time
 }
 
-func runListApps(commandContext *cmdctx.CmdContext) error {
-
-	asJSON := commandContext.OutputJSON()
+func runListApps(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+	asJSON := cmdCtx.OutputJSON()
 
 	appPart := ""
 
-	if len(commandContext.Args) == 1 {
-		appPart = commandContext.Args[0]
-	} else if len(commandContext.Args) > 0 {
-		commandContext.Status("list", cmdctx.SERROR, "Too many arguments - discarding excess")
+	if len(cmdCtx.Args) == 1 {
+		appPart = cmdCtx.Args[0]
+	} else if len(cmdCtx.Args) > 0 {
+		cmdCtx.Status("list", cmdctx.SERROR, "Too many arguments - discarding excess")
 	}
 
-	orgSlug := commandContext.Config.GetString("org")
-	status := commandContext.Config.GetString("status")
-	exact := commandContext.Config.GetBool("exact")
+	orgSlug := cmdCtx.Config.GetString("org")
+	status := cmdCtx.Config.GetString("status")
+	exact := cmdCtx.Config.GetBool("exact")
 
-	apps, err := commandContext.Client.API().GetApps(nil)
+	apps, err := cmdCtx.Client.API().GetApps(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -123,7 +123,7 @@ func runListApps(commandContext *cmdctx.CmdContext) error {
 		}
 	}
 
-	sortType := commandContext.Config.GetString("sort")
+	sortType := cmdCtx.Config.GetString("sort")
 	if err != nil {
 		return err
 	}
@@ -138,11 +138,11 @@ func runListApps(commandContext *cmdctx.CmdContext) error {
 	}
 
 	if asJSON {
-		commandContext.WriteJSON(filteredApps)
+		cmdCtx.WriteJSON(filteredApps)
 		return nil
 	}
 
-	table := helpers.MakeSimpleTable(commandContext.Out, []string{"Name", "Status", "Org", "Deployed"})
+	table := helpers.MakeSimpleTable(cmdCtx.Out, []string{"Name", "Status", "Org", "Deployed"})
 
 	for _, a := range filteredApps {
 		createdAt := ""
@@ -162,21 +162,23 @@ func runListApps(commandContext *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runListOrgs(commandContext *cmdctx.CmdContext) error {
-	asJSON := commandContext.OutputJSON()
+func runListOrgs(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
 
-	orgs, err := commandContext.Client.API().GetOrganizations(nil)
+	asJSON := cmdCtx.OutputJSON()
+
+	orgs, err := cmdCtx.Client.API().GetOrganizations(ctx, nil)
 
 	if err != nil {
 		return err
 	}
 
 	if asJSON {
-		commandContext.WriteJSON(orgs)
+		cmdCtx.WriteJSON(orgs)
 		return nil
 	}
 
-	table := helpers.MakeSimpleTable(commandContext.Out, []string{"Name", "Slug", "Type"})
+	table := helpers.MakeSimpleTable(cmdCtx.Out, []string{"Name", "Slug", "Type"})
 
 	sort.Slice(orgs, func(i, j int) bool { return orgs[i].Type < orgs[j].Type })
 

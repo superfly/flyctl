@@ -38,6 +38,9 @@ type Build struct {
 	Settings map[string]interface{}
 	// Or...
 	Image string
+	// Or...
+	Dockerfile        string
+	DockerBuildTarget string
 }
 
 func NewAppConfig() *AppConfig {
@@ -89,6 +92,20 @@ func (ac *AppConfig) Image() string {
 		return ""
 	}
 	return ac.Build.Image
+}
+
+func (ac *AppConfig) Dockerfile() string {
+	if ac.Build == nil {
+		return ""
+	}
+	return ac.Build.Dockerfile
+}
+
+func (ac *AppConfig) DockerBuildTarget() string {
+	if ac.Build == nil {
+		return ""
+	}
+	return ac.Build.DockerBuildTarget
 }
 
 func (ac *AppConfig) WriteTo(w io.Writer, format ConfigFormat) error {
@@ -154,13 +171,19 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 			case "image":
 				b.Image = fmt.Sprint(v)
 				insection = true
+			case "dockerfile":
+				b.Dockerfile = fmt.Sprint(v)
+				insection = true
+			case "build_target":
+				b.DockerBuildTarget = fmt.Sprint(v)
+				insection = true
 			default:
 				if !insection {
 					b.Args[k] = fmt.Sprint(v)
 				}
 			}
 		}
-		if b.Builder != "" || b.Builtin != "" || b.Image != "" || len(b.Args) > 0 {
+		if b.Builder != "" || b.Builtin != "" || b.Image != "" || b.Dockerfile != "" || len(b.Args) > 0 {
 			ac.Build = &b
 		}
 	}
@@ -206,6 +229,9 @@ func (ac AppConfig) marshalTOML(w io.Writer) error {
 		}
 		if ac.Build.Image != "" {
 			buildData["image"] = ac.Build.Image
+		}
+		if ac.Build.Dockerfile != "" {
+			buildData["dockerfile"] = ac.Build.Dockerfile
 		}
 		rawData["build"] = buildData
 	}
@@ -305,6 +331,64 @@ func (ac *AppConfig) SetEnvVariables(vals map[string]string) {
 	ac.Definition["env"] = env
 }
 
+func (ac *AppConfig) SetReleaseCommand(cmd string) {
+	var deploy map[string]string
+
+	if rawDeploy, ok := ac.Definition["deploy"]; ok {
+		if castDeploy, ok := rawDeploy.(map[string]string); ok {
+			deploy = castDeploy
+		}
+	}
+
+	if deploy == nil {
+		deploy = map[string]string{}
+	}
+
+	deploy["release_command"] = cmd
+
+	ac.Definition["deploy"] = deploy
+}
+
+func (ac *AppConfig) SetDockerCommand(cmd string) {
+	var experimental map[string]string
+
+	if rawExperimental, ok := ac.Definition["experimental"]; ok {
+		if castExperimental, ok := rawExperimental.(map[string]string); ok {
+			experimental = castExperimental
+		}
+	}
+
+	if experimental == nil {
+		experimental = map[string]string{}
+	}
+
+	experimental["cmd"] = cmd
+
+	ac.Definition["experimental"] = experimental
+}
+
+func (ac *AppConfig) SetKillSignal(signal string) {
+	ac.Definition["kill_signal"] = signal
+}
+
+func (ac *AppConfig) SetDockerEntrypoint(entrypoint string) {
+	var experimental map[string]string
+
+	if rawExperimental, ok := ac.Definition["experimental"]; ok {
+		if castExperimental, ok := rawExperimental.(map[string]string); ok {
+			experimental = castExperimental
+		}
+	}
+
+	if experimental == nil {
+		experimental = map[string]string{}
+	}
+
+	experimental["entrypoint"] = entrypoint
+
+	ac.Definition["experimental"] = experimental
+}
+
 func (ac *AppConfig) SetEnvVariable(name, value string) {
 	var env map[string]string
 
@@ -343,6 +427,10 @@ func (ac *AppConfig) SetProcess(name, value string) {
 
 func (ac *AppConfig) SetStatics(statics []sourcecode.Static) {
 	ac.Definition["statics"] = statics
+}
+
+func (ac *AppConfig) SetVolumes(volumes []sourcecode.Volume) {
+	ac.Definition["mounts"] = volumes
 }
 
 const defaultConfigFileName = "fly.toml"

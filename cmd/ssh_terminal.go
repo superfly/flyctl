@@ -1,13 +1,16 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/briandowns/spinner"
+	"github.com/docker/docker/pkg/ioutils"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
@@ -18,13 +21,45 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
+func runSSHCommand(cmdCtx *cmdctx.CmdContext, app *api.App, dialer agent.Dialer, cmd string) ([]byte, error) {
+	var inBuf bytes.Buffer
+	var errBuf bytes.Buffer
+	var outBuf bytes.Buffer
+	stdoutWriter := ioutils.NewWriteCloserWrapper(&outBuf, func() error { return nil })
+	stderrWriter := ioutils.NewWriteCloserWrapper(&errBuf, func() error { return nil })
+	inReader := ioutils.NewReadCloserWrapper(&inBuf, func() error { return nil })
+
+	addr := fmt.Sprintf("%s.internal", app.Name)
+
+	err := sshConnect(&SSHParams{
+		Ctx:            cmdCtx,
+		Org:            &app.Organization,
+		Dialer:         dialer,
+		App:            app.Name,
+		Cmd:            cmd,
+		Stdin:          inReader,
+		Stdout:         stdoutWriter,
+		Stderr:         stderrWriter,
+		DisableSpinner: true,
+	}, addr)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(errBuf.Bytes()) > 0 {
+		return nil, fmt.Errorf(errBuf.String())
+	}
+
+	return outBuf.Bytes(), nil
+}
+
 func runSSHConsole(cc *cmdctx.CmdContext) error {
 	client := cc.Client.API()
-	ctx := createCancellableContext()
+	ctx := cc.Command.Context()
 
 	terminal.Debugf("Retrieving app info for %s\n", cc.AppName)
 
-	app, err := client.GetApp(cc.AppName)
+	app, err := client.GetApp(ctx, cc.AppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
@@ -86,7 +121,7 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 	} else if len(cc.Args) != 0 {
 		addr = cc.Args[0]
 	} else {
-		addr = fmt.Sprintf("%s.internal", cc.AppName)
+		addr = fmt.Sprintf("top1.nearest.of.%s.internal", cc.AppName)
 	}
 
 	// wait for the addr to be resolved in dns unless it's an ip address
@@ -105,6 +140,9 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 		Dialer: dialer,
 		App:    cc.AppName,
 		Cmd:    cc.Config.GetString("command"),
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
 	}, addr)
 
 	if err != nil {
@@ -137,11 +175,15 @@ func spin(in, out string) context.CancelFunc {
 }
 
 type SSHParams struct {
-	Ctx    *cmdctx.CmdContext
-	Org    *api.Organization
-	App    string
-	Dialer agent.Dialer
-	Cmd    string
+	Ctx            *cmdctx.CmdContext
+	Org            *api.Organization
+	App            string
+	Dialer         agent.Dialer
+	Cmd            string
+	Stdin          io.Reader
+	Stdout         io.WriteCloser
+	Stderr         io.WriteCloser
+	DisableSpinner bool
 }
 
 func sshConnect(p *SSHParams, addr string) error {
@@ -171,9 +213,12 @@ func sshConnect(p *SSHParams, addr string) error {
 		PrivateKey:  string(pemkey),
 	}
 
-	endSpin := spin(fmt.Sprintf("Connecting to %s...", addr),
-		fmt.Sprintf("Connecting to %s... complete\n", addr))
-	defer endSpin()
+	var endSpin context.CancelFunc
+	if !p.DisableSpinner {
+		endSpin = spin(fmt.Sprintf("Connecting to %s...", addr),
+			fmt.Sprintf("Connecting to %s... complete\n", addr))
+		defer endSpin()
+	}
 
 	if err := sshClient.Connect(context.Background()); err != nil {
 		return errors.Wrap(err, "error connecting to SSH server")
@@ -182,12 +227,14 @@ func sshConnect(p *SSHParams, addr string) error {
 
 	terminal.Debugf("Connection completed.\n", addr)
 
-	endSpin()
+	if !p.DisableSpinner {
+		endSpin()
+	}
 
 	term := &ssh.Terminal{
-		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
+		Stdin:  p.Stdin,
+		Stdout: p.Stdout,
+		Stderr: p.Stderr,
 		Mode:   "xterm",
 	}
 

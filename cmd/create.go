@@ -3,12 +3,15 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
 )
 
 //TODO: Move all output to status styled begin/done updates
 
 func runCreate(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
 	var appName = ""
 
 	if len(cmdCtx.Args) > 0 {
@@ -50,7 +53,7 @@ func runCreate(cmdCtx *cmdctx.CmdContext) error {
 	fmt.Println()
 
 	targetOrgSlug := cmdCtx.Config.GetString("org")
-	org, err := selectOrganization(cmdCtx.Client.API(), targetOrgSlug, nil)
+	org, err := selectOrganization(ctx, cmdCtx.Client.API(), targetOrgSlug, nil)
 
 	switch {
 	case isInterrupt(err):
@@ -61,8 +64,20 @@ func runCreate(cmdCtx *cmdctx.CmdContext) error {
 
 	fmt.Println()
 
+	input := api.CreateAppInput{
+		Name:           name,
+		Runtime:        "FIRECRACKER",
+		OrganizationID: org.ID,
+	}
+
+	// set network if flag is set
+	network := cmdCtx.Config.GetString("network")
+	if network != "" {
+		input.Network = api.StringPointer(network)
+	}
+
 	// The creation magic happens here....
-	app, err := cmdCtx.Client.API().CreateApp(name, org.ID, nil)
+	app, err := cmdCtx.Client.API().CreateApp(ctx, input)
 	if err != nil {
 		return err
 	}

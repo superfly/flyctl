@@ -12,7 +12,7 @@ import (
 
 var ErrNoAuthToken = errors.New("No access token available. Please login with 'flyctl auth login'")
 
-func NewClient() *Client {
+func New() *Client {
 	client := &Client{
 		IO: iostreams.System(),
 	}
@@ -23,7 +23,7 @@ func NewClient() *Client {
 }
 
 type Client struct {
-	IO *iostreams.IOStreams
+	IO *iostreams.IOStreams // TODO: remove
 
 	api *api.Client
 }
@@ -43,4 +43,12 @@ func (c *Client) InitApi() bool {
 		c.api = apiClient
 	}
 	return c.Authenticated()
+}
+
+func FromToken(token string) *Client {
+	ac := api.NewClient(token, buildinfo.Name(), buildinfo.Version().String(), terminal.DefaultLogger)
+
+	return &Client{
+		api: ac,
+	}
 }

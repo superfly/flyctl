@@ -2,7 +2,7 @@
 longHelp = """flyctl is a command line interface to the Fly.io platform.
 
 It allows users to manage authentication, application launch,
-deployment, network configuration, logging and more with just the 
+deployment, network configuration, logging and more with just the
 one command.
 
 Launch an app with the launch command
@@ -49,14 +49,14 @@ shortHelp = "Open browser to current deployed application"
 usage = "open [PATH]"
 
 [destroy]
-longHelp = """The DESTROY command will remove an application 
+longHelp = """The DESTROY command will remove an application
 from the Fly platform.
 """
 shortHelp = "Permanently destroys an app"
 usage = "destroy [APPNAME]"
 
 [suspend]
-longHelp = """The SUSPEND command will suspend an application. 
+longHelp = """The SUSPEND command will suspend an application.
 All instances will be halted leaving the application running nowhere.
 It will continue to consume networking resources (IP address). See RESUME
 for details on restarting it.
@@ -65,7 +65,7 @@ shortHelp = "Suspend an application"
 usage = "suspend [APPNAME]"
 
 [resume]
-longHelp = """The RESUME command will restart a previously suspended application. 
+longHelp = """The RESUME command will restart a previously suspended application.
 The application will resume with its original region pool and a min count of one
 meaning there will be one running instance once restarted. Use SCALE SET MIN= to raise
 the number of configured instances.
@@ -74,13 +74,13 @@ shortHelp = "Resume an application"
 usage = "resume [APPNAME]"
 
 [restart]
-longHelp = """The RESTART command will restart all running vms. 
+longHelp = """The RESTART command will restart all running vms.
 """
 shortHelp = "Restart an application"
 usage = "restart [APPNAME]"
 
 [move]
-longHelp = """The MOVE command will move an application to another 
+longHelp = """The MOVE command will move an application to another
 organization the current user belongs to.
 """
 shortHelp = "Move an app to another organization"
@@ -95,35 +95,35 @@ shortHelp = "Manage apps"
 usage = "apps"
 [apps.list]
 longHelp = """The APPS LIST command will show the applications currently
-registered and available to this user. The list will include applications 
-from all the organizations the user is a member of. Each application will 
+registered and available to this user. The list will include applications
+from all the organizations the user is a member of. Each application will
 be shown with its name, owner and when it was last deployed.
 """
 shortHelp = "List applications"
 usage = "list"
 [apps.create]
-longHelp = """The APPS CREATE command will both register a new application 
-with the Fly platform and create the fly.toml file which controls how 
-the application will be deployed. The --builder flag allows a cloud native 
-buildpack to be specified which will be used instead of a Dockerfile to 
+longHelp = """The APPS CREATE command will both register a new application
+with the Fly platform and create the fly.toml file which controls how
+the application will be deployed. The --builder flag allows a cloud native
+buildpack to be specified which will be used instead of a Dockerfile to
 create the application image when it is deployed.
 """
 shortHelp = "Create a new application"
 usage = "create [APPNAME]"
 [apps.destroy]
-longHelp = """The APPS DESTROY command will remove an application 
+longHelp = """The APPS DESTROY command will remove an application
 from the Fly platform.
 """
 shortHelp = "Permanently destroys an app"
 usage = "destroy [APPNAME]"
 [apps.move]
-longHelp = """The APPS MOVE command will move an application to another 
+longHelp = """The APPS MOVE command will move an application to another
 organization the current user belongs to.
 """
 shortHelp = "Move an app to another organization"
 usage = "move [APPNAME]"
 [apps.suspend]
-longHelp = """The APPS SUSPEND command will suspend an application. 
+longHelp = """The APPS SUSPEND command will suspend an application.
 All instances will be halted leaving the application running nowhere.
 It will continue to consume networking resources (IP address). See APPS RESUME
 for details on restarting it.
@@ -131,7 +131,7 @@ for details on restarting it.
 shortHelp = "Suspend an application"
 usage = "suspend [APPNAME]"
 [apps.resume]
-longHelp = """The APPS RESUME command will restart a previously suspended application. 
+longHelp = """The APPS RESUME command will restart a previously suspended application.
 The application will resume with its original region pool and a min count of one
 meaning there will be one running instance once restarted. Use SCALE SET MIN= to raise
 the number of configured instances.
@@ -139,7 +139,7 @@ the number of configured instances.
 shortHelp = "Resume an application"
 usage = "resume [APPNAME]"
 [apps.restart]
-longHelp = """The APPS RESTART command will restart all running vms. 
+longHelp = """The APPS RESTART command will restart all running vms.
 """
 shortHelp = "Restart an application"
 usage = "restart [APPNAME]"
@@ -152,40 +152,40 @@ If you do have and account, begin with the AUTH LOGIN subcommand.
 shortHelp = "Manage authentication"
 usage = "auth"
 [auth.whoami]
-longHelp = """Displays the users email address/service identity currently 
+longHelp = """Displays the users email address/service identity currently
 authenticated and in use.
 """
 shortHelp = "Show the currently authenticated user"
 usage = "whoami"
 [auth.token]
-longHelp = """Shows the authentication token that is currently in use. 
-This can be used as an authentication token with API services, 
+longHelp = """Shows the authentication token that is currently in use.
+This can be used as an authentication token with API services,
 independent of flyctl.
 """
 shortHelp = "Show the current auth token"
 usage = "token"
 [auth.login]
-longHelp = """Logs a user into the Fly platform. Supports browser-based, 
-email/password and one-time-password authentication. Defaults to using 
+longHelp = """Logs a user into the Fly platform. Supports browser-based,
+email/password and one-time-password authentication. Defaults to using
 browser-based authentication.
 """
 shortHelp = "Log in a user"
 usage = "login"
 [auth.logout]
-longHelp = """Log the currently logged-in user out of the Fly platform. 
+longHelp = """Log the currently logged-in user out of the Fly platform.
 To continue interacting with Fly, the user will need to log in again.
 """
 shortHelp = "Logs out the currently logged in user"
 usage = "logout"
 [auth.signup]
-longHelp = """Creates a new fly account. The command opens the browser 
+longHelp = """Creates a new fly account. The command opens the browser
 and sends the user to a form to provide appropriate credentials.
 """
 shortHelp = "Create a new fly account"
 usage = "signup"
 [auth.docker]
-longHelp = """Adds registry.fly.io to the docker daemon's authenticated 
-registries. This allows you to push images directly to fly from 
+longHelp = """Adds registry.fly.io to the docker daemon's authenticated
+registries. This allows you to push images directly to fly from
 the docker cli.
 """
 shortHelp = "Authenticate docker"
@@ -208,9 +208,9 @@ shortHelp = "Show logs associated with builds"
 usage = "logs"
 
 [certs]
-longHelp = """Manages the certificates associated with a deployed application. 
-Certificates are created by associating a hostname/domain with the application. 
-When Fly is then able to validate that hostname/domain, the platform gets 
+longHelp = """Manages the certificates associated with a deployed application.
+Certificates are created by associating a hostname/domain with the application.
+When Fly is then able to validate that hostname/domain, the platform gets
 certificates issued for the hostname/domain by Let's Encrypt.
 """
 shortHelp = "Manage certificates"
@@ -221,25 +221,25 @@ longHelp = """List the certificates associated with a deployed application.
 shortHelp = "List certificates for an app."
 usage = "list"
 [certs.add]
-longHelp = """Add a certificate for an application. Takes a hostname 
+longHelp = """Add a certificate for an application. Takes a hostname
 as a parameter for the certificate.
 """
 shortHelp = "Add a certificate for an app."
 usage = "add <hostname>"
 [certs.remove]
-longHelp = """Removes a certificate from an application. Takes hostname 
+longHelp = """Removes a certificate from an application. Takes hostname
 as a parameter to locate the certificate.
 """
 shortHelp = "Removes a certificate from an app"
 usage = "remove <hostname>"
 [certs.show]
-longHelp = """Shows certificate information for an application. 
+longHelp = """Shows certificate information for an application.
 Takes hostname as a parameter to locate the certificate.
 """
 shortHelp = "Shows certificate information"
 usage = "show <hostname>"
 [certs.check]
-longHelp = """Checks the DNS configuration for the specified hostname. 
+longHelp = """Checks the DNS configuration for the specified hostname.
 Displays results in the same format as the SHOW command.
 """
 shortHelp = "Checks DNS configuration"
@@ -282,20 +282,20 @@ longHelp = """The CONFIG commands allow you to work with an application's config
 shortHelp = "Manage an app's configuration"
 usage = "config"
 [config.display]
-longHelp = """Display an application's configuration. The configuration is presented 
+longHelp = """Display an application's configuration. The configuration is presented
 in JSON format. The configuration data is retrieved from the Fly service.
 """
 shortHelp = "Display an app's configuration"
 usage = "display"
 [config.save]
-longHelp = """Save an application's configuration locally. The configuration data is 
+longHelp = """Save an application's configuration locally. The configuration data is
 retrieved from the Fly service and saved in TOML format.
 """
 shortHelp = "Save an app's config file"
 usage = "save"
 [config.validate]
-longHelp = """Validates an application's config file against the Fly platform to 
-ensure it is correct and meaningful to the platform. 
+longHelp = """Validates an application's config file against the Fly platform to
+ensure it is correct and meaningful to the platform.
 """
 shortHelp = "Validate an app's config file"
 usage = "validate"
@@ -317,7 +317,7 @@ shortHelp = "Open web browser on Fly Web UI for this app's metrics"
 usage = "metrics"
 
 [deploy]
-longHelp = """Deploy an application to the Fly platform. The application can be a local 
+longHelp = """Deploy an application to the Fly platform. The application can be a local
 image, remote image, defined in a Dockerfile or use a CNB buildpack.
 
 Use the --config/-c flag to select a specific toml configuration file.
@@ -354,7 +354,7 @@ shortHelp = "Import DNS records"
 usage = "import <domain> [<filename>]"
 
 [docs]
-longHelp = """View Fly documentation on the Fly.io website. This command will open a 
+longHelp = """View Fly documentation on the Fly.io website. This command will open a
 browser to view the content.
 """
 shortHelp = "View Fly documentation"
@@ -386,16 +386,16 @@ shortHelp = "Show domain"
 usage = "show <domain>"
 
 [history]
-longHelp = """List the history of changes in the application. Includes autoscaling 
+longHelp = """List the history of changes in the application. Includes autoscaling
 events and their results.
 """
 shortHelp = "List an app's change history"
 usage = "history"
 
 [ips]
-longHelp = """The IPS commands manage IP addresses for applications. An application 
-can have a number of IP addresses associated with it and this family of commands 
-allows you to list, allocate and release those addresses. It supports both IPv4 
+longHelp = """The IPS commands manage IP addresses for applications. An application
+can have a number of IP addresses associated with it and this family of commands
+allows you to list, allocate and release those addresses. It supports both IPv4
 and IPv6 addresses.
 """
 shortHelp = "Manage IP addresses for apps"
@@ -442,7 +442,7 @@ shortHelp = "Lists your Fly resources"
 usage = "list"
 
 [list.apps]
-longHelp = """The list apps command lists all your applications. As this may be a 
+longHelp = """The list apps command lists all your applications. As this may be a
 long list, there are options to filter the results.
 
 Specifying a text string as a parameter will only return applications where the
@@ -465,10 +465,10 @@ shortHelp = "List all your organizations"
 usage = "orgs"
 
 [logs]
-longHelp = """View application logs as generated by the application running on 
+longHelp = """View application logs as generated by the application running on
 the Fly platform.
 
-Logs can be filtered to a specific instance using the --instance/-i flag or 
+Logs can be filtered to a specific instance using the --instance/-i flag or
 to all instances running in a specific region using the --region/-r flag.
 """
 shortHelp = "View app logs"
@@ -481,7 +481,7 @@ shortHelp = "Monitor deployments"
 usage = "monitor"
 
 [platform]
-longHelp = """The PLATFORM commands are for users looking for information 
+longHelp = """The PLATFORM commands are for users looking for information
 about the Fly platform.
 """
 shortHelp = "Fly platform information"
@@ -513,6 +513,10 @@ usage = "postgres"
 longHelp = "Attach a postgres cluster to an app"
 shortHelp = "Attach a postgres cluster to an app"
 usage = "attach"
+[postgres.connect]
+shortHelp = "Connect to postgres cluster"
+longHelp  = "Connect to postgres cluster"
+usage     = "connect"
 [postgres.create]
 longHelp = "Create a postgres cluster"
 shortHelp = "Create a postgres cluster"
@@ -587,7 +591,7 @@ shortHelp = "Shows the list of regions the app is allowed to run in"
 usage = "list"
 
 [releases]
-longHelp = """List all the releases of the application onto the Fly platform, 
+longHelp = """List all the releases of the application onto the Fly platform,
 including type, when, success/fail and which user triggered the release.
 """
 shortHelp = "List app releases"
@@ -608,7 +612,7 @@ usage = "disable"
 [autoscale.balanced]
 longHelp = """Configure the app to balance regions based on traffic with given parameters:
 
-min=int - minimum number of instances to be allocated from region pool. 
+min=int - minimum number of instances to be allocated from region pool.
 max=int - maximum number of instances to be allocated from region pool.
 """
 shortHelp = "Configure a traffic balanced app with params (min=int max=int)"
@@ -617,7 +621,7 @@ usage = "balanced"
 [autoscale.standard]
 longHelp = """Configure the app without traffic balancing with the given parameters:
 
-min=int - minimum number of instances to be allocated from region pool. 
+min=int - minimum number of instances to be allocated from region pool.
 max=int - maximum number of instances to be allocated from region pool.
 """
 shortHelp = "Configure a standard balanced app with params (min=int max=int)"
@@ -632,7 +636,7 @@ usage = "show"
 [autoscale.set]
 longHelp = """Allows the setting of the current models autoscaling parameters:
 
-min=int - minimum number of instances to be allocated from region pool. 
+min=int - minimum number of instances to be allocated from region pool.
 max=int - maximum number of instances to be allocated from region pool.
 """
 shortHelp = "Set current models autoscaling parameters"
@@ -665,7 +669,7 @@ shortHelp = "Change an app's VM to a named size (eg. shared-cpu-1x, dedicated-cp
 usage = "vm [SIZENAME] [flags]"
 
 [scale.count]
-longHelp = """Change an app's VM count to the given value. 
+longHelp = """Change an app's VM count to the given value.
 
 For pricing, see https://fly.io/docs/about/pricing/
 """
@@ -695,8 +699,8 @@ shortHelp = "Manage app secrets"
 usage = "secrets"
 
 [secrets.list]
-longHelp = """List the secrets available to the application. It shows each 
-secret's name, a digest of the its value and the time the secret was last set. 
+longHelp = """List the secrets available to the application. It shows each
+secret's name, a digest of the its value and the time the secret was last set.
 The actual value of the secret is only available to the application.
 """
 shortHelp = "Lists the secrets available to the app"
@@ -720,29 +724,29 @@ shortHelp = "Read secrets in name=value from stdin"
 usage = "import [flags]"
 
 [secrets.unset]
-longHelp = """Remove encrypted secrets from the application. Unsetting a 
+longHelp = """Remove encrypted secrets from the application. Unsetting a
 secret removes its availability to the application.
 """
 shortHelp = "Remove encrypted secrets from an app"
 usage = "unset [flags] NAME NAME ..."
 
 [status]
-longHelp = """Show the application's current status including application 
-details, tasks, most recent deployment details and in which regions it is 
+longHelp = """Show the application's current status including application
+details, tasks, most recent deployment details and in which regions it is
 currently allocated.
 """
 shortHelp = "Show app status"
 usage = "status"
 
 [status.instance]
-longHelp = """Show the instance's current status including logs, checks, 
+longHelp = """Show the instance's current status including logs, checks,
 and events.
 """
 shortHelp = "Show instance status"
 usage = "instance [instance-id]"
 
 [version]
-longHelp = """Shows version information for the flyctl command itself, 
+longHelp = """Shows version information for the flyctl command itself,
 including version number and build date.
 """
 shortHelp = "Show version information for the flyctl command"
@@ -784,8 +788,8 @@ shortHelp = "Show details of a builtin's configuration"
 usage = "show-app"
 
 [orgs]
-longHelp = """Commands for managing Fly organizations. list, create, show and 
-destroy organizations. 
+longHelp = """Commands for managing Fly organizations. list, create, show and
+destroy organizations.
 Organization admins can also invite or remove users from Organizations.
 """
 shortHelp = "Commands for managing Fly organizations"
@@ -810,7 +814,7 @@ shortHelp = "Invite user (by email) to organization"
 usage = "invite <org> <email>"
 
 [orgs.revoke]
-longHelp = """Revokes an invitation to join an organization that has been sent to a 
+longHelp = """Revokes an invitation to join an organization that has been sent to a
 user by email."""
 shortHelp = "Revoke a pending invitation to an organization"
 usage = "revoke <org> <email>"
@@ -822,7 +826,7 @@ shortHelp = "Remove a user from an organization"
 usage = "remove <org> <email>"
 
 [orgs.create]
-longHelp = """Create a new organization. Other users can be invited to join the 
+longHelp = """Create a new organization. Other users can be invited to join the
 organization later."""
 shortHelp = "Create an organization"
 usage = "create <org>"
@@ -893,7 +897,7 @@ shortHelp = "Create a root SSH certificate for your organization"
 usage = "establish [<org>] [<override>]"
 
 [ssh.issue]
-longHelp = """Issue a new SSH credential. With -agent, populate credential 
+longHelp = """Issue a new SSH credential. With -agent, populate credential
 into SSH agent. With -hour, set the number of hours (1-72) for credential
 validity."""
 shortHelp = "Issue a new SSH credential."
@@ -1035,3 +1039,20 @@ usage = "remove <id>"
 longHelp = """Proxies connections to a fly app through the wireguard tunnel"""
 shortHelp = "Proxies connections to a fly app"
 usage = "proxy <local:remote>"
+
+[turboku]
+longHelp = "Launches heroku apps"
+shortHelp =  "Launches heroku apps"
+usage = "turboku <heroku-app>"
+
+[dig]
+longHelp = """Make DNS requests against Fly.io's internal DNS server. Valid types include
+AAAA and TXT (the two types our servers answer authoritatively), AAAA-NATIVE
+and TXT-NATIVE, which resolve with Go's resolver (they're slower,
+but may be useful if diagnosing a DNS bug) and A and CNAME
+(if you're using the server to test recursive lookups.)
+Note that this resolves names against the server for the current organization. You can
+set the organization with -o <org-slug>; otherwise, the command uses the organization
+attached to the current app (you can pass an app in with -a <appname>)."""
+shortHelp = "DNS lookups"
+usage = "dig [type] <name>"

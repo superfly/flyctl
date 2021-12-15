@@ -58,14 +58,16 @@ func newScaleCommand(client *client.Client) *Command {
 	return cmd
 }
 
-func runScaleVM(commandContext *cmdctx.CmdContext) error {
-	sizeName := commandContext.Args[0]
+func runScaleVM(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
 
-	memoryMB := int64(commandContext.Config.GetInt("memory"))
+	sizeName := cmdCtx.Args[0]
 
-	group := commandContext.Config.GetString("group")
+	memoryMB := int64(cmdCtx.Config.GetInt("memory"))
 
-	size, err := commandContext.Client.API().SetAppVMSize(commandContext.AppName, group, sizeName, memoryMB)
+	group := cmdCtx.Config.GetString("group")
+
+	size, err := cmdCtx.Client.API().SetAppVMSize(ctx, cmdCtx.AppName, group, sizeName, memoryMB)
 	if err != nil {
 		return err
 	}
@@ -80,12 +82,14 @@ func runScaleVM(commandContext *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runScaleCount(commandContext *cmdctx.CmdContext) error {
+func runScaleCount(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
 	groups := map[string]int{}
 
 	// single numeric arg: fly scale count 3
-	if len(commandContext.Args) == 1 {
-		count, err := strconv.Atoi(commandContext.Args[0])
+	if len(cmdCtx.Args) == 1 {
+		count, err := strconv.Atoi(cmdCtx.Args[0])
 		if err == nil {
 			groups["app"] = count
 		}
@@ -93,7 +97,7 @@ func runScaleCount(commandContext *cmdctx.CmdContext) error {
 
 	// group labels: fly scale web=X worker=Y
 	if len(groups) < 1 {
-		for _, arg := range commandContext.Args {
+		for _, arg := range cmdCtx.Args {
 			parts := strings.Split(arg, "=")
 			if len(parts) != 2 {
 				return fmt.Errorf("%s is not a valid process=count option", arg)
@@ -108,14 +112,14 @@ func runScaleCount(commandContext *cmdctx.CmdContext) error {
 	}
 
 	// THIS IS AN OPTION TYPE CAN YOU TELL?
-	maxPerRegionRaw := commandContext.Config.GetInt("max-per-region")
+	maxPerRegionRaw := cmdCtx.Config.GetInt("max-per-region")
 	maxPerRegion := &maxPerRegionRaw
 
 	if maxPerRegionRaw == -1 {
 		maxPerRegion = nil
 	}
 
-	counts, warnings, err := commandContext.Client.API().SetAppVMCount(commandContext.AppName, groups, maxPerRegion)
+	counts, warnings, err := cmdCtx.Client.API().SetAppVMCount(ctx, cmdCtx.AppName, groups, maxPerRegion)
 	if err != nil {
 		return err
 	}
@@ -134,8 +138,10 @@ func runScaleCount(commandContext *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runScaleShow(commandContext *cmdctx.CmdContext) error {
-	size, tgCounts, processGroups, err := commandContext.Client.API().AppVMResources(commandContext.AppName)
+func runScaleShow(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
+	size, tgCounts, processGroups, err := cmdCtx.Client.API().AppVMResources(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
@@ -143,7 +149,7 @@ func runScaleShow(commandContext *cmdctx.CmdContext) error {
 	countMsg := countMessage(tgCounts)
 	maxPerRegionMsg := maxPerRegionMessage(processGroups)
 
-	printVMResources(commandContext, size, countMsg, maxPerRegionMsg)
+	printVMResources(cmdCtx, size, countMsg, maxPerRegionMsg)
 
 	return nil
 }
@@ -219,21 +225,23 @@ func printVMResources(commandContext *cmdctx.CmdContext, vmSize api.VMSize, coun
 	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "Max Per Region", maxPerRegion)
 }
 
-func runScaleMemory(commandContext *cmdctx.CmdContext) error {
-	memoryMB, err := strconv.ParseInt(commandContext.Args[0], 10, 64)
+func runScaleMemory(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
+	memoryMB, err := strconv.ParseInt(cmdCtx.Args[0], 10, 64)
 	if err != nil {
 		return err
 	}
 
 	// API doesn't allow memory setting on own yet, so get get the current size for the mutation
-	currentsize, _, _, err := commandContext.Client.API().AppVMResources(commandContext.AppName)
+	currentsize, _, _, err := cmdCtx.Client.API().AppVMResources(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
 
-	group := commandContext.Config.GetString("group")
+	group := cmdCtx.Config.GetString("group")
 
-	size, err := commandContext.Client.API().SetAppVMSize(commandContext.AppName, group, currentsize.Name, memoryMB)
+	size, err := cmdCtx.Client.API().SetAppVMSize(ctx, cmdCtx.AppName, group, currentsize.Name, memoryMB)
 	if err != nil {
 		return err
 	}

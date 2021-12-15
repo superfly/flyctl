@@ -15,7 +15,7 @@ func WaitForRunningMachine(ctx context.Context, appName string, machineID string
 		var machines []*api.Machine
 
 		fn := func() error {
-			machines, err = apiClient.ListMachines(appName, "")
+			machines, err = apiClient.ListMachines(ctx, appName, "")
 			return err
 		}
 

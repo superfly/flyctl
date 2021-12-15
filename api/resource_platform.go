@@ -1,6 +1,8 @@
 package api
 
-func (c *Client) PlatformRegions() ([]Region, *Region, error) {
+import "context"
+
+func (c *Client) PlatformRegions(ctx context.Context) ([]Region, *Region, error) {
 	query := `
 		query {
 			platform {
@@ -16,7 +18,7 @@ func (c *Client) PlatformRegions() ([]Region, *Region, error) {
 
 	req := c.NewRequest(query)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -35,7 +37,7 @@ func (c *Client) PlatformRegions() ([]Region, *Region, error) {
 	return data.Platform.Regions, requestRegion, nil
 }
 
-func (c *Client) PlatformRegionsAll() ([]Region, error) {
+func (c *Client) PlatformRegionsAll(ctx context.Context) ([]Region, error) {
 	query := `
 		query {
 			platform {
@@ -52,7 +54,7 @@ func (c *Client) PlatformRegionsAll() ([]Region, error) {
 
 	req := c.NewRequest(query)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +62,7 @@ func (c *Client) PlatformRegionsAll() ([]Region, error) {
 	return data.Platform.Regions, nil
 }
 
-func (c *Client) PlatformVMSizes() ([]VMSize, error) {
+func (c *Client) PlatformVMSizes(ctx context.Context) ([]VMSize, error) {
 	query := `
 		query {
 			platform {
@@ -78,7 +80,7 @@ func (c *Client) PlatformVMSizes() ([]VMSize, error) {
 
 	req := c.NewRequest(query)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}

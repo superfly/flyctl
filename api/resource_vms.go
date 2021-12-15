@@ -1,6 +1,8 @@
 package api
 
-func (client *Client) RestartAllocation(appName string, allocId string) error {
+import "context"
+
+func (client *Client) RestartAllocation(ctx context.Context, appName string, allocId string) error {
 	query := `
 		mutation($input: RestartAllocationInput!) {
 			restartAllocation(input: $input) {
@@ -20,11 +22,11 @@ func (client *Client) RestartAllocation(appName string, allocId string) error {
 		"allocId": allocId,
 	})
 
-	_, err := client.Run(req)
+	_, err := client.RunWithContext(ctx, req)
 	return err
 }
 
-func (client *Client) StopAllocation(appName string, allocId string) error {
+func (client *Client) StopAllocation(ctx context.Context, appName string, allocId string) error {
 	query := `
 		mutation($input: StopAllocationInput!) {
 			stopAllocation(input: $input) {
@@ -44,6 +46,6 @@ func (client *Client) StopAllocation(appName string, allocId string) error {
 		"allocId": allocId,
 	})
 
-	_, err := client.Run(req)
+	_, err := client.RunWithContext(ctx, req)
 	return err
 }

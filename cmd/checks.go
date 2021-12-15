@@ -40,22 +40,24 @@ func newChecksCommand(client *client.Client) *Command {
 	return cmd
 }
 
-func runListChecksHandlers(ctx *cmdctx.CmdContext) error {
-	slug := ctx.Args[0]
+func runListChecksHandlers(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
 
-	handlers, err := ctx.Client.API().GetHealthCheckHandlers(slug)
+	slug := cmdCtx.Args[0]
+
+	handlers, err := cmdCtx.Client.API().GetHealthCheckHandlers(ctx, slug)
 	if err != nil {
 		return err
 	}
 
-	if ctx.OutputJSON() {
-		ctx.WriteJSON(handlers)
+	if cmdCtx.OutputJSON() {
+		cmdCtx.WriteJSON(handlers)
 		return nil
 	}
 
-	fmt.Fprintf(ctx.Out, "Health Check Handlers for %s\n", slug)
+	fmt.Fprintf(cmdCtx.Out, "Health Check Handlers for %s\n", slug)
 
-	table := helpers.MakeSimpleTable(ctx.Out, []string{"Name", "Type"})
+	table := helpers.MakeSimpleTable(cmdCtx.Out, []string{"Name", "Type"})
 
 	for _, handler := range handlers {
 		table.Append([]string{handler.Name, handler.Type})
@@ -68,26 +70,27 @@ func runListChecksHandlers(ctx *cmdctx.CmdContext) error {
 
 type createHandlerFn func(*cmdctx.CmdContext, *api.Organization, string) error
 
-func runCreateChecksHandler(ctx *cmdctx.CmdContext) error {
+func runCreateChecksHandler(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
 	handlerFn := map[string]createHandlerFn{
 		"slack":     setSlackChecksHandler,
 		"pagerduty": setPagerDutyChecksHandler,
 	}
 
-	handlerType := ctx.Config.GetString("type")
+	handlerType := cmdCtx.Config.GetString("type")
 	fn, ok := handlerFn[handlerType]
 	if !ok {
 		return fmt.Errorf("\"%s\" is not a valid handler type", handlerType)
 	}
 
-	orgSlug := ctx.Config.GetString("organization")
+	orgSlug := cmdCtx.Config.GetString("organization")
 
-	org, err := selectOrganization(ctx.Client.API(), orgSlug, nil)
+	org, err := selectOrganization(ctx, cmdCtx.Client.API(), orgSlug, nil)
 	if err != nil {
 		return err
 	}
 
-	name := ctx.Config.GetString("name")
+	name := cmdCtx.Config.GetString("name")
 	if name == "" {
 		prompt := &survey.Input{
 			Message: "Name:",
@@ -99,11 +102,13 @@ func runCreateChecksHandler(ctx *cmdctx.CmdContext) error {
 		}
 	}
 
-	return fn(ctx, org, name)
+	return fn(cmdCtx, org, name)
 }
 
-func setSlackChecksHandler(ctx *cmdctx.CmdContext, org *api.Organization, name string) error {
-	webhookURL := ctx.Config.GetString("webhook-url")
+func setSlackChecksHandler(cmdCtx *cmdctx.CmdContext, org *api.Organization, name string) error {
+	ctx := cmdCtx.Command.Context()
+
+	webhookURL := cmdCtx.Config.GetString("webhook-url")
 	if webhookURL == "" {
 		prompt := &survey.Input{
 			Message: "Webhook URL:",
@@ -115,7 +120,7 @@ func setSlackChecksHandler(ctx *cmdctx.CmdContext, org *api.Organization, name s
 		}
 	}
 
-	slackChannel := ctx.Config.GetString("slack-channel")
+	slackChannel := cmdCtx.Config.GetString("slack-channel")
 	if slackChannel == "" {
 		prompt := &survey.Input{
 			Message: "Slack Channel (defaults to webhook's configured channel):",
@@ -166,19 +171,21 @@ func setSlackChecksHandler(ctx *cmdctx.CmdContext, org *api.Organization, name s
 	// 	input.SlackIconURL = api.StringPointer(slackIconURL)
 	// }
 
-	handler, err := ctx.Client.API().SetSlackHealthCheckHandler(input)
+	handler, err := cmdCtx.Client.API().SetSlackHealthCheckHandler(ctx, input)
 
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(ctx.Out, "Created %s handler named %s\n", handler.Type, handler.Name)
+	fmt.Fprintf(cmdCtx.Out, "Created %s handler named %s\n", handler.Type, handler.Name)
 
 	return nil
 }
 
-func setPagerDutyChecksHandler(ctx *cmdctx.CmdContext, org *api.Organization, name string) error {
-	pagerDutyToken := ctx.Config.GetString("pagerduty-token")
+func setPagerDutyChecksHandler(cmdCtx *cmdctx.CmdContext, org *api.Organization, name string) error {
+	ctx := cmdCtx.Command.Context()
+
+	pagerDutyToken := cmdCtx.Config.GetString("pagerduty-token")
 	if pagerDutyToken == "" {
 		prompt := &survey.Input{
 			Message: "PagerDuty Token:",
@@ -196,43 +203,46 @@ func setPagerDutyChecksHandler(ctx *cmdctx.CmdContext, org *api.Organization, na
 		PagerdutyToken: pagerDutyToken,
 	}
 
-	handler, err := ctx.Client.API().SetPagerdutyHealthCheckHandler(input)
+	handler, err := cmdCtx.Client.API().SetPagerdutyHealthCheckHandler(ctx, input)
 
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(ctx.Out, "Created %s handler named %s\n", handler.Type, handler.Name)
+	fmt.Fprintf(cmdCtx.Out, "Created %s handler named %s\n", handler.Type, handler.Name)
 
 	return nil
 }
 
-func runDeleteChecksHandler(ctx *cmdctx.CmdContext) error {
-	org, err := ctx.Client.API().FindOrganizationBySlug(ctx.Args[0])
+func runDeleteChecksHandler(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
+	org, err := cmdCtx.Client.API().FindOrganizationBySlug(ctx, cmdCtx.Args[0])
 	if err != nil {
 		return err
 	}
-	handlerName := ctx.Args[1]
+	handlerName := cmdCtx.Args[1]
 
-	err = ctx.Client.API().DeleteHealthCheckHandler(org.ID, handlerName)
+	err = cmdCtx.Client.API().DeleteHealthCheckHandler(ctx, org.ID, handlerName)
 
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(ctx.Out, "Handler \"%s\" deleted from organization %s\n", handlerName, org.Slug)
+	fmt.Fprintf(cmdCtx.Out, "Handler \"%s\" deleted from organization %s\n", handlerName, org.Slug)
 
 	return nil
 }
 
-func runAppCheckList(ctx *cmdctx.CmdContext) error {
+func runAppCheckList(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
 	var nameFilter *string
 
-	if val := ctx.Config.GetString("check-name"); val != "" {
+	if val := cmdCtx.Config.GetString("check-name"); val != "" {
 		nameFilter = api.StringPointer(val)
 	}
 
-	checks, err := ctx.Client.API().GetAppHealthChecks(ctx.AppName, nameFilter, nil, api.BoolPointer(true))
+	checks, err := cmdCtx.Client.API().GetAppHealthChecks(ctx, cmdCtx.AppName, nameFilter, nil, api.BoolPointer(true))
 	if err != nil {
 		return err
 	}
@@ -241,14 +251,14 @@ func runAppCheckList(ctx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	if ctx.OutputJSON() {
-		ctx.WriteJSON(checks)
+	if cmdCtx.OutputJSON() {
+		cmdCtx.WriteJSON(checks)
 		return nil
 	}
 
-	fmt.Fprintf(ctx.Out, "Health Checks for %s\n", ctx.AppName)
+	fmt.Fprintf(cmdCtx.Out, "Health Checks for %s\n", cmdCtx.AppName)
 
-	table := helpers.MakeSimpleTable(ctx.Out, []string{"Name", "Status", "Allocation", "Region", "Type", "Last Updated", "Output"})
+	table := helpers.MakeSimpleTable(cmdCtx.Out, []string{"Name", "Status", "Allocation", "Region", "Type", "Last Updated", "Output"})
 
 	for _, check := range checks {
 		table.Append([]string{check.Name, check.Status, check.Allocation.IDShort, check.Allocation.Region, check.Type, presenters.FormatRelativeTime(check.UpdatedAt), check.Output})

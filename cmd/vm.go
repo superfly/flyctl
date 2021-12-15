@@ -25,10 +25,12 @@ func newVMCommand(client *client.Client) *Command {
 }
 
 func runVMRestart(cmdctx *cmdctx.CmdContext) error {
+	ctx := cmdctx.Command.Context()
+
 	appName := cmdctx.AppName
 	allocID := cmdctx.Args[0]
 
-	err := cmdctx.Client.API().RestartAllocation(appName, allocID)
+	err := cmdctx.Client.API().RestartAllocation(ctx, appName, allocID)
 	if err != nil {
 		return err
 	}
@@ -38,10 +40,12 @@ func runVMRestart(cmdctx *cmdctx.CmdContext) error {
 }
 
 func runVMStop(cmdctx *cmdctx.CmdContext) error {
+	ctx := cmdctx.Command.Context()
+
 	appName := cmdctx.AppName
 	allocID := cmdctx.Args[0]
 
-	err := cmdctx.Client.API().StopAllocation(appName, allocID)
+	err := cmdctx.Client.API().StopAllocation(ctx, appName, allocID)
 	if err != nil {
 		return err
 	}

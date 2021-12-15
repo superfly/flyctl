@@ -230,18 +230,18 @@ func (s *Server) Serve() {
 	}()
 }
 
-func (s *Server) errLog(c net.Conn, format string, args ...interface{}) {
+func (*Server) errLog(c net.Conn, format string, args ...interface{}) {
 	writef(c, "err "+format, args...)
 	log.Printf(format, args...)
 }
 
-func (s *Server) handleKill(c net.Conn, args []string) error {
+func (s *Server) handleKill(_ net.Conn, _ []string) error {
 	s.Stop()
 
 	return nil
 }
 
-func (s *Server) handlePing(c net.Conn, args []string) error {
+func (s *Server) handlePing(c net.Conn, _ []string) error {
 	resp := PingResponse{
 		Version:    buildinfo.Version(),
 		PID:        os.Getpid(),
@@ -254,7 +254,7 @@ func (s *Server) handlePing(c net.Conn, args []string) error {
 }
 
 func findOrganization(client *api.Client, slug string) (*api.Organization, error) {
-	orgs, err := client.GetOrganizations(nil)
+	orgs, err := client.GetOrganizations(context.TODO(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("can't load organizations from config: %s", err)
 	}
@@ -492,7 +492,7 @@ func (s *Server) handleConnect(c net.Conn, args []string) error {
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
 
-	copy := func(dst net.Conn, src net.Conn) {
+	copyFunc := func(dst net.Conn, src net.Conn) {
 		defer wg.Done()
 		io.Copy(dst, src)
 
@@ -502,8 +502,8 @@ func (s *Server) handleConnect(c net.Conn, args []string) error {
 		}
 	}
 
-	go copy(c, outconn)
-	go copy(outconn, c)
+	go copyFunc(c, outconn)
+	go copyFunc(outconn, c)
 	wg.Wait()
 
 	return nil

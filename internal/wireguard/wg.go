@@ -1,6 +1,7 @@
 package wireguard
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
@@ -43,26 +44,27 @@ func StateForOrg(apiClient *api.Client, org *api.Organization, regionCode string
 }
 
 func Create(apiClient *api.Client, org *api.Organization, regionCode, name string) (*wg.WireGuardState, error) {
+	ctx := context.TODO()
 	var (
 		err error
-		rx  = regexp.MustCompile("^[a-zA-Z0-9\\-]+$")
+		rx  = regexp.MustCompile(`^[a-zA-Z0-9\\-]+$`)
 	)
 
 	if name == "" {
-		user, err := apiClient.GetCurrentUser()
+		user, err := apiClient.GetCurrentUser(ctx)
 		if err != nil {
 			return nil, err
 		}
 		host, _ := os.Hostname()
 
-		cleanEmailPattern := regexp.MustCompile("[^a-zA-Z0-9\\-]")
+		cleanEmailPattern := regexp.MustCompile(`[^a-zA-Z0-9\\-]`)
 		name = fmt.Sprintf("interactive-%s-%s-%d",
 			strings.Split(host, ".")[0],
 			cleanEmailPattern.ReplaceAllString(user.Email, "-"), badrand.Intn(1000))
 	}
 
 	if regionCode == "" {
-		region, err := apiClient.ClosestWireguardGatewayRegion()
+		region, err := apiClient.ClosestWireguardGatewayRegion(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -77,7 +79,7 @@ func Create(apiClient *api.Client, org *api.Organization, regionCode, name strin
 
 	pubkey, privatekey := C25519pair()
 
-	data, err := apiClient.CreateWireGuardPeer(org, regionCode, name, pubkey)
+	data, err := apiClient.CreateWireGuardPeer(ctx, org, regionCode, name, pubkey)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +106,7 @@ func C25519pair() (string, string) {
 		panic(fmt.Sprintf("can't mult: %s", err))
 	}
 
-	return base64.StdEncoding.EncodeToString(public[:]),
+	return base64.StdEncoding.EncodeToString(public),
 		base64.StdEncoding.EncodeToString(private[:])
 }
 
@@ -150,6 +152,7 @@ func setWireGuardStateForOrg(orgSlug string, s *wg.WireGuardState) error {
 }
 
 func PruneInvalidPeers(apiClient *api.Client) error {
+	ctx := context.TODO()
 	state, err := GetWireGuardState()
 	if err != nil {
 		return nil
@@ -161,7 +164,7 @@ func PruneInvalidPeers(apiClient *api.Client) error {
 		peerIPs = append(peerIPs, peer.Peer.Peerip)
 	}
 
-	invalidPeerIPs, err := apiClient.ValidateWireGuardPeers(peerIPs)
+	invalidPeerIPs, err := apiClient.ValidateWireGuardPeers(ctx, peerIPs)
 	if err != nil {
 		return err
 	}

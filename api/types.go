@@ -196,6 +196,9 @@ type Query struct {
 	Machines struct {
 		Nodes []*Machine
 	}
+	PostgresAttachments struct {
+		Nodes []*PostgresClusterAttachment
+	}
 	LaunchMachine struct {
 		Machine *Machine
 		App     *App
@@ -339,15 +342,19 @@ type Volume struct {
 	Encrypted          bool
 	CreatedAt          time.Time
 	AttachedAllocation *AllocationStatus
+	Host               struct {
+		ID string
+	}
 }
 
 type CreateVolumeInput struct {
-	AppID      string  `json:"appId"`
-	Name       string  `json:"name"`
-	Region     string  `json:"region"`
-	SizeGb     int     `json:"sizeGb"`
-	Encrypted  bool    `json:"encrypted"`
-	SnapshotID *string `json:"snapshotId,omitempty"`
+	AppID             string  `json:"appId"`
+	Name              string  `json:"name"`
+	Region            string  `json:"region"`
+	SizeGb            int     `json:"sizeGb"`
+	Encrypted         bool    `json:"encrypted"`
+	SnapshotID        *string `json:"snapshotId,omitempty"`
+	RequireUniqueZone bool    `json:"requireUniqueZone"`
 }
 
 type CreateVolumePayload struct {
@@ -1008,6 +1015,7 @@ type CreatePostgresClusterInput struct {
 	Password       *string `json:"password,omitempty"`
 	VMSize         *string `json:"vmSize,omitempty"`
 	VolumeSizeGB   *int    `json:"volumeSizeGb,omitempty"`
+	Count          *int    `json:"count,omitempty"`
 	ImageRef       *string `json:"imageRef,omitempty"`
 	SnapshotID     *string `json:"snapshotId,omitempty"`
 }
@@ -1030,7 +1038,15 @@ type AttachPostgresClusterInput struct {
 	AppID                string  `json:"appId"`
 	PostgresClusterAppID string  `json:"postgresClusterAppId"`
 	DatabaseName         *string `json:"databaseName,omitempty"`
+	DatabaseUser         *string `json:"databaseUser,omitempty"`
 	VariableName         *string `json:"variableName,omitempty"`
+	ManualEntry          bool    `json:"manualEntry,omitempty"`
+}
+
+type DetachPostgresClusterInput struct {
+	AppID                       string `json:"appId"`
+	PostgresClusterId           string `json:"postgresClusterAppId"`
+	PostgresClusterAttachmentId string `json:"postgresClusterAttachmentId"`
 }
 
 type AttachPostgresClusterPayload struct {
@@ -1054,6 +1070,13 @@ type PostgresClusterUser struct {
 type PostgresClusterDatabase struct {
 	Name  string
 	Users []string
+}
+
+type PostgresClusterAttachment struct {
+	ID                      string
+	DatabaseName            string
+	DatabaseUser            string
+	EnvironmentVariableName string
 }
 
 type Image struct {

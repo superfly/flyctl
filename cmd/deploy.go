@@ -20,7 +20,6 @@ import (
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/cmdfmt"
@@ -91,14 +90,19 @@ func newDeployCommand(client *client.Client) *Command {
 }
 
 func runDeploy(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	cmdCtx.Status("deploy", cmdctx.STITLE, "Deploying", cmdCtx.AppName)
 
 	cmdfmt.PrintBegin(cmdCtx.Out, "Validating app configuration")
 
 	if cmdCtx.AppConfig == nil {
-		cmdCtx.AppConfig = flyctl.NewAppConfig()
+		cfg, err := cmdCtx.Client.API().GetConfig(ctx, cmdCtx.AppName)
+		if err != nil {
+			return fmt.Errorf("unable to fetch existing configuration file: %s", err)
+		}
+
+		cmdCtx.AppConfig.Definition = cfg.Definition
 	}
 
 	if extraEnv := cmdCtx.Config.GetStringSlice("env"); len(extraEnv) > 0 {
@@ -109,7 +113,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		cmdCtx.AppConfig.SetEnvVariables(parsedEnv)
 	}
 
-	parsedCfg, err := cmdCtx.Client.API().ParseConfig(cmdCtx.AppName, cmdCtx.AppConfig.Definition)
+	parsedCfg, err := cmdCtx.Client.API().ParseConfig(ctx, cmdCtx.AppName, cmdCtx.AppConfig.Definition)
 	if err != nil {
 		if parsedCfg == nil {
 			// No error data has been returned
@@ -161,15 +165,23 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 			AppConfig:  cmdCtx.AppConfig,
 			Publish:    !cmdCtx.Config.GetBool("build-only"),
 			ImageLabel: cmdCtx.Config.GetString("image-label"),
-			Target:     cmdCtx.Config.GetString("build-target"),
 			NoCache:    cmdCtx.Config.GetBool("no-cache"),
 		}
+
 		if dockerfilePath := cmdCtx.Config.GetString("dockerfile"); dockerfilePath != "" {
 			dockerfilePath, err := filepath.Abs(dockerfilePath)
 			if err != nil {
 				return err
 			}
 			opts.DockerfilePath = dockerfilePath
+		} else if dockerfilePath := cmdCtx.AppConfig.Dockerfile(); dockerfilePath != "" {
+			opts.DockerfilePath = filepath.Join(filepath.Dir(cmdCtx.ConfigFile), dockerfilePath)
+		}
+
+		if dockerBuildTarget := cmdCtx.Config.GetString("build-target"); dockerBuildTarget != "" {
+			opts.Target = dockerBuildTarget
+		} else if dockerBuildTarget := cmdCtx.AppConfig.DockerBuildTarget(); dockerBuildTarget != "" {
+			opts.Target = dockerBuildTarget
 		}
 
 		extraArgs, err := cmdutil.ParseKVStringsToMap(cmdCtx.Config.GetStringSlice("build-arg"))
@@ -211,7 +223,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		input.Definition = api.DefinitionPtr(cmdCtx.AppConfig.Definition)
 	}
 
-	release, releaseCommand, err := cmdCtx.Client.API().DeployImage(input)
+	release, releaseCommand, err := cmdCtx.Client.API().DeployImage(ctx, input)
 	if err != nil {
 		return err
 	}
@@ -263,20 +275,19 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 
 	var once sync.Once
 
-	startLogs := func(vmid string) {
+	startLogs := func(ctx context.Context, vmid string) {
 		once.Do(func() {
 			g.Go(func() error {
 				ctx, cancel := context.WithCancel(ctx)
 				defer cancel()
 
 				opts := &logs.LogOptions{MaxBackoff: 1 * time.Second, AppName: cc.AppName, VMID: vmid}
-				ls, err := logs.NewPollingStream(apiClient, opts)
+				ls, err := logs.NewPollingStream(ctx, apiClient, opts)
 				if err != nil {
 					return err
 				}
 
 				for entry := range ls.Stream(ctx, opts) {
-
 					func() {
 						if interactive {
 							s.Stop()
@@ -289,7 +300,6 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 						if entry.Message == "Starting clean up." {
 							cancel()
 						}
-
 					}()
 				}
 				return ls.Err()
@@ -328,13 +338,19 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 	})
 
 	g.Go(func() error {
+		// The logs goroutine will stop itself when it sees a shutdown log message.
+		// If the message never comes (delayed logs, etc) the deploy will hang.
+		// This timeout makes sure they always stop a few seconds after the release task is done.
+		logsCtx, logsCancel := context.WithCancel(ctx)
+		defer time.AfterFunc(3*time.Second, logsCancel)
+
 		for rc := range rcUpdates {
 			if interactive {
 				s.Prefix = fmt.Sprintf("Running release task (%s)...", rc.Status)
 			}
 
 			if rc.InstanceID != nil {
-				startLogs(*rc.InstanceID)
+				startLogs(logsCtx, *rc.InstanceID)
 			}
 
 			if !rc.InProgress && rc.Failed {
@@ -406,7 +422,7 @@ func watchDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext) error {
 				a := a
 				go func() {
 					defer wg.Done()
-					alloc, err := cmdCtx.Client.API().GetAllocationStatus(cmdCtx.AppName, a.ID, 30)
+					alloc, err := cmdCtx.Client.API().GetAllocationStatus(ctx, cmdCtx.AppName, a.ID, 30)
 					if err != nil {
 						cmdCtx.Status("deploy", cmdctx.SERROR, "Error fetching alloc", a.ID, err)
 						return
@@ -447,8 +463,19 @@ func watchDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext) error {
 				}
 
 				cmdCtx.Status("deploy", cmdctx.STITLE, "Recent Logs")
-				// logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
-				// logPresenter.FPrint(cmdCtx.Out, cmdCtx.OutputJSON(), alloc.RecentLogs)
+				logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
+
+				for _, e := range alloc.RecentLogs {
+					entry := logs.LogEntry{
+						Instance:  e.Instance,
+						Level:     e.Level,
+						Message:   e.Message,
+						Region:    e.Region,
+						Timestamp: e.Timestamp,
+						Meta:      e.Meta,
+					}
+					logPresenter.FPrint(cmdCtx.Out, cmdCtx.OutputJSON(), entry)
+				}
 			}
 
 		}

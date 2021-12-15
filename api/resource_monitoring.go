@@ -1,6 +1,8 @@
 package api
 
-func (c *Client) GetAppStatus(appName string, showCompleted bool) (*AppStatus, error) {
+import "context"
+
+func (c *Client) GetAppStatus(ctx context.Context, appName string, showCompleted bool) (*AppStatus, error) {
 	query := `
 		query($appName: String!, $showCompleted: Boolean!) {
 			appstatus:app(name: $appName) {
@@ -58,7 +60,7 @@ func (c *Client) GetAppStatus(appName string, showCompleted bool) (*AppStatus, e
 	req.Var("appName", appName)
 	req.Var("showCompleted", showCompleted)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +68,7 @@ func (c *Client) GetAppStatus(appName string, showCompleted bool) (*AppStatus, e
 	return &data.AppStatus, nil
 }
 
-func (c *Client) GetAllocationStatus(appName string, allocID string, logLimit int) (*AllocationStatus, error) {
+func (c *Client) GetAllocationStatus(ctx context.Context, appName string, allocID string, logLimit int) (*AllocationStatus, error) {
 	query := `
 		query($appName: String!, $allocId: String!, $logLimit: Int!) {
 			app(name: $appName) {
@@ -114,7 +116,7 @@ func (c *Client) GetAllocationStatus(appName string, allocID string, logLimit in
 	req.Var("allocId", allocID)
 	req.Var("logLimit", logLimit)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}

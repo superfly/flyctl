@@ -34,7 +34,7 @@ func newProxyCommand(client *client.Client) *Command {
 }
 
 func runProxy(cmdCtx *cmdctx.CmdContext) error {
-	ctx := createCancellableContext()
+	ctx := cmdCtx.Command.Context()
 
 	ports := strings.Split(cmdCtx.Args[0], ":")
 
@@ -50,7 +50,7 @@ func runProxy(cmdCtx *cmdctx.CmdContext) error {
 
 	terminal.Debugf("Retrieving app info for %s\n", cmdCtx.AppName)
 
-	app, err := client.GetApp(cmdCtx.AppName)
+	app, err := client.GetApp(ctx, cmdCtx.AppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
@@ -94,7 +94,7 @@ func runProxy(cmdCtx *cmdctx.CmdContext) error {
 
 		remote = fmt.Sprintf("[%s]:%s", instances.Addresses[selected], remote)
 	} else {
-		remote = fmt.Sprintf("%s.internal:%s", cmdCtx.AppName, remote)
+		remote = fmt.Sprintf("top1.nearest.of.%s.internal:%s", cmdCtx.AppName, remote)
 
 	}
 

@@ -1,6 +1,8 @@
 package api
 
-func (c *Client) GetDNSRecords(domainName string) ([]*DNSRecord, error) {
+import "context"
+
+func (c *Client) GetDNSRecords(ctx context.Context, domainName string) ([]*DNSRecord, error) {
 	query := `
 		query($domainName: String!) {
 			domain(name: $domainName) {
@@ -27,7 +29,7 @@ func (c *Client) GetDNSRecords(domainName string) ([]*DNSRecord, error) {
 
 	req.Var("domainName", domainName)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +41,7 @@ func (c *Client) GetDNSRecords(domainName string) ([]*DNSRecord, error) {
 	return *data.Domain.DnsRecords.Nodes, nil
 }
 
-func (c *Client) ExportDNSRecords(domainId string) (string, error) {
+func (c *Client) ExportDNSRecords(ctx context.Context, domainId string) (string, error) {
 	query := `
 		mutation($input: ExportDNSZoneInput!) {
 			exportDnsZone(input: $input) {
@@ -54,7 +56,7 @@ func (c *Client) ExportDNSRecords(domainId string) (string, error) {
 		"domainId": domainId,
 	})
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return "", err
 	}
@@ -62,7 +64,7 @@ func (c *Client) ExportDNSRecords(domainId string) (string, error) {
 	return data.ExportDnsZone.Contents, nil
 }
 
-func (c *Client) ImportDNSRecords(domainId string, zonefile string) ([]ImportDnsWarning, []ImportDnsChange, error) {
+func (c *Client) ImportDNSRecords(ctx context.Context, domainId string, zonefile string) ([]ImportDnsWarning, []ImportDnsChange, error) {
 	query := `
 		mutation($input: ImportDNSZoneInput!) {
 			importDnsZone(input: $input) {
@@ -92,7 +94,7 @@ func (c *Client) ImportDNSRecords(domainId string, zonefile string) ([]ImportDns
 		"zonefile": zonefile,
 	})
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, nil, err
 	}

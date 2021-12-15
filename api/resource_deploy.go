@@ -2,7 +2,7 @@ package api
 
 import "context"
 
-func (client *Client) DeployImage(input DeployImageInput) (*Release, *ReleaseCommand, error) {
+func (client *Client) DeployImage(ctx context.Context, input DeployImageInput) (*Release, *ReleaseCommand, error) {
 	query := `
 			mutation($input: DeployImageInput!) {
 				deployImage(input: $input) {
@@ -31,7 +31,7 @@ func (client *Client) DeployImage(input DeployImageInput) (*Release, *ReleaseCom
 
 	req.Var("input", input)
 
-	data, err := client.Run(req)
+	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -39,7 +39,7 @@ func (client *Client) DeployImage(input DeployImageInput) (*Release, *ReleaseCom
 	return &data.DeployImage.Release, data.DeployImage.ReleaseCommand, nil
 }
 
-func (c *Client) GetDeploymentStatus(appName string, deploymentID string) (*DeploymentStatus, error) {
+func (c *Client) GetDeploymentStatus(ctx context.Context, appName string, deploymentID string) (*DeploymentStatus, error) {
 	query := `
 		query ($appName: String!, $deploymentId: ID!) {
 			app(name: $appName) {
@@ -80,7 +80,7 @@ func (c *Client) GetDeploymentStatus(appName string, deploymentID string) (*Depl
 	req.Var("appName", appName)
 	req.Var("deploymentId", deploymentID)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}

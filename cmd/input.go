@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strconv"
@@ -36,8 +37,8 @@ func confirmOverwrite(filename string) bool {
 	return confirm
 }
 
-func selectOrganization(client *api.Client, slug string, typeFilter *api.OrganizationType) (*api.Organization, error) {
-	orgs, err := client.GetOrganizations(typeFilter)
+func selectOrganization(ctx context.Context, client *api.Client, slug string, typeFilter *api.OrganizationType) (*api.Organization, error) {
+	orgs, err := client.GetOrganizations(ctx, typeFilter)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +58,7 @@ func selectOrganization(client *api.Client, slug string, typeFilter *api.Organiz
 		return &orgs[0], nil
 	}
 
-	sort.Slice(orgs[:], func(i, j int) bool { return orgs[i].Type < orgs[j].Type })
+	sort.Slice(orgs, func(i, j int) bool { return orgs[i].Type < orgs[j].Type })
 
 	options := []string{}
 
@@ -78,8 +79,8 @@ func selectOrganization(client *api.Client, slug string, typeFilter *api.Organiz
 	return &orgs[selectedOrg], nil
 }
 
-func selectWireGuardPeer(client *api.Client, slug string) (string, error) {
-	peers, err := client.GetWireGuardPeers(slug)
+func selectWireGuardPeer(ctx context.Context, client *api.Client, slug string) (string, error) {
+	peers, err := client.GetWireGuardPeers(ctx, slug)
 	if err != nil {
 		return "", err
 	}
@@ -106,8 +107,8 @@ func selectWireGuardPeer(client *api.Client, slug string) (string, error) {
 	return peers[selectedPeer].Name, nil
 }
 
-func selectRegion(client *api.Client, regionCode string) (*api.Region, error) {
-	regions, requestRegion, err := client.PlatformRegions()
+func selectRegion(ctx context.Context, client *api.Client, regionCode string) (*api.Region, error) {
+	regions, requestRegion, err := client.PlatformRegions(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -146,8 +147,8 @@ func selectRegion(client *api.Client, regionCode string) (*api.Region, error) {
 	return &regions[selectedRegion], nil
 }
 
-func selectVMSize(client *api.Client, vmSizeName string) (*api.VMSize, error) {
-	vmSizes, err := client.PlatformVMSizes()
+func selectVMSize(ctx context.Context, client *api.Client, vmSizeName string) (*api.VMSize, error) {
+	vmSizes, err := client.PlatformVMSizes(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +203,7 @@ func inputAppName(defaultName string, autoGenerate bool) (name string, err error
 	return name, nil
 }
 
-func volumeSizeInput(client *api.Client, defaultVal int) (int, error) {
+func volumeSizeInput(defaultVal int) (int, error) {
 	var volumeSize int
 	prompt := &survey.Input{
 		Message: "Volume size (GB):",

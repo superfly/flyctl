@@ -15,10 +15,12 @@ func newReleasesCommand(client *client.Client) *Command {
 	return cmd
 }
 
-func runReleases(ctx *cmdctx.CmdContext) error {
-	releases, err := ctx.Client.API().GetAppReleases(ctx.AppName, 25)
+func runReleases(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
+	releases, err := cmdCtx.Client.API().GetAppReleases(ctx, cmdCtx.AppName, 25)
 	if err != nil {
 		return err
 	}
-	return ctx.Render(&presenters.Releases{Releases: releases})
+	return cmdCtx.Render(&presenters.Releases{Releases: releases})
 }

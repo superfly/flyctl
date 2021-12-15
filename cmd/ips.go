@@ -49,13 +49,15 @@ func newIPAddressesCommand(client *client.Client) *Command {
 	return cmd
 }
 
-func runIPAddressesList(commandContext *cmdctx.CmdContext) error {
-	ipAddresses, err := commandContext.Client.API().GetIPAddresses(commandContext.AppName)
+func runIPAddressesList(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
+	ipAddresses, err := cmdCtx.Client.API().GetIPAddresses(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
 
-	return commandContext.Frender(cmdctx.PresenterOption{
+	return cmdCtx.Frender(cmdctx.PresenterOption{
 		Presentable: &presenters.IPAddresses{IPAddresses: ipAddresses},
 	})
 }
@@ -68,34 +70,38 @@ func runAllocateIPAddressV6(ctx *cmdctx.CmdContext) error {
 	return runAllocateIPAddress(ctx, "v6")
 }
 
-func runAllocateIPAddress(commandContext *cmdctx.CmdContext, addrType string) error {
-	appName := commandContext.AppName
-	regionCode := commandContext.Config.GetString("region")
+func runAllocateIPAddress(cmdCtx *cmdctx.CmdContext, addrType string) error {
+	ctx := cmdCtx.Command.Context()
 
-	ipAddress, err := commandContext.Client.API().AllocateIPAddress(appName, addrType, regionCode)
+	appName := cmdCtx.AppName
+	regionCode := cmdCtx.Config.GetString("region")
+
+	ipAddress, err := cmdCtx.Client.API().AllocateIPAddress(ctx, appName, addrType, regionCode)
 	if err != nil {
 		return err
 	}
 
-	return commandContext.Frender(cmdctx.PresenterOption{
+	return cmdCtx.Frender(cmdctx.PresenterOption{
 		Presentable: &presenters.IPAddresses{IPAddresses: []api.IPAddress{*ipAddress}},
 	})
 }
 
-func runReleaseIPAddress(commandContext *cmdctx.CmdContext) error {
-	appName := commandContext.AppName
-	address := commandContext.Args[0]
+func runReleaseIPAddress(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
+	appName := cmdCtx.AppName
+	address := cmdCtx.Args[0]
 
 	if ip := net.ParseIP(address); ip == nil {
 		return fmt.Errorf("Invalid IP address: '%s'", address)
 	}
 
-	ipAddress, err := commandContext.Client.API().FindIPAddress(appName, address)
+	ipAddress, err := cmdCtx.Client.API().FindIPAddress(ctx, appName, address)
 	if err != nil {
 		return err
 	}
 
-	if err := commandContext.Client.API().ReleaseIPAddress(ipAddress.ID); err != nil {
+	if err := cmdCtx.Client.API().ReleaseIPAddress(ctx, ipAddress.ID); err != nil {
 		return err
 	}
 
@@ -104,24 +110,26 @@ func runReleaseIPAddress(commandContext *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runPrivateIPAddressesList(commandContext *cmdctx.CmdContext) error {
-	appstatus, err := commandContext.Client.API().GetAppStatus(commandContext.AppName, false)
+func runPrivateIPAddressesList(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
+	appstatus, err := cmdCtx.Client.API().GetAppStatus(ctx, cmdCtx.AppName, false)
 	if err != nil {
 		return err
 	}
 
-	_, backupRegions, err := commandContext.Client.API().ListAppRegions(commandContext.AppName)
+	_, backupRegions, err := cmdCtx.Client.API().ListAppRegions(ctx, cmdCtx.AppName)
 
 	if err != nil {
 		return err
 	}
 
-	if commandContext.OutputJSON() {
-		commandContext.WriteJSON(appstatus.Allocations)
+	if cmdCtx.OutputJSON() {
+		cmdCtx.WriteJSON(appstatus.Allocations)
 		return nil
 	}
 
-	table := helpers.MakeSimpleTable(commandContext.Out, []string{"ID", "Region", "IP"})
+	table := helpers.MakeSimpleTable(cmdCtx.Out, []string{"ID", "Region", "IP"})
 
 	for _, alloc := range appstatus.Allocations {
 

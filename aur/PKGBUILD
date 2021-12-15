@@ -15,5 +15,7 @@ sha256sums=('${sha256sum}')
 
 package() {
     mkdir -p "$pkgdir/usr/bin"
+    ln -s flyctl "$pkgdir/usr/bin/fly"
     install -m755 flyctl "$pkgdir/usr/bin"
 }
+

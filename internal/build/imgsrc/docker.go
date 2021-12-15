@@ -155,7 +155,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	var app *api.App
 	var err error
 	var machine *api.Machine
-	machine, app, err = remoteMachine(apiClient, appName)
+	machine, app, err = remoteMachine(ctx, apiClient, appName)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +214,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 		}
 
 		if os.Getenv("FLY_REMOTE_BUILDER_HOST_WG") == "" {
-			app, err := apiClient.GetApp(appName)
+			app, err := apiClient.GetApp(ctx, appName)
 			if err != nil {
 				return errors.Wrap(err, "error fetching target app")
 			}
@@ -278,12 +278,12 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	return <-clientCh, nil
 }
 
-func remoteMachine(apiClient *api.Client, appName string) (*api.Machine, *api.App, error) {
+func remoteMachine(ctx context.Context, apiClient *api.Client, appName string) (*api.Machine, *api.App, error) {
 	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
 		return nil, nil, nil
 	}
 
-	return apiClient.EnsureMachineRemoteBuilderForApp(appName)
+	return apiClient.EnsureRemoteBuilder(ctx, "", appName)
 }
 
 func waitForDaemon(ctx context.Context, client *dockerclient.Client) error {
@@ -431,19 +431,19 @@ func resolveDockerfile(cwd string) string {
 	return ""
 }
 
-func EagerlyEnsureRemoteBuilder(apiClient *api.Client, orgSlug string) {
+func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient *api.Client, orgSlug string) {
 	// skip if local docker is available
 	if _, err := newLocalDockerClient(); err == nil {
 		return
 	}
 
-	org, err := apiClient.FindOrganizationBySlug(orgSlug)
+	org, err := apiClient.FindOrganizationBySlug(ctx, orgSlug)
 	if err != nil {
 		terminal.Debugf("error resolving organization for slug %s: %s", orgSlug, err)
 		return
 	}
 
-	_, app, err := apiClient.EnsureRemoteBuilderForOrg(org.ID)
+	_, app, err := apiClient.EnsureRemoteBuilder(ctx, org.ID, "")
 	if err != nil {
 		terminal.Debugf("error ensuring remote builder for organization: %s", err)
 		return

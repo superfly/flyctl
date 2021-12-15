@@ -15,7 +15,9 @@ func newHistoryCommand(client *client.Client) *Command {
 }
 
 func runHistory(commandContext *cmdctx.CmdContext) error {
-	changes, err := commandContext.Client.API().GetAppChanges(commandContext.AppName)
+	ctx := commandContext.Command.Context()
+
+	changes, err := commandContext.Client.API().GetAppChanges(ctx, commandContext.AppName)
 	if err != nil {
 		return err
 	}

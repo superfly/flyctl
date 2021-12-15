@@ -49,15 +49,12 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 	checkErr(err)
 
 	rootCmd.AddCommand(
-		newAppsCommand(client),
-		newAuthCommand(client),
 		newBuildsCommand(client),
 		newCurlCommand(client),
 		newCertificatesCommand(client),
 		newConfigCommand(client),
 		newDashboardCommand(client),
 		newDeployCommand(client),
-		newDestroyCommand(client),
 		newDocsCommand(client),
 		newHistoryCommand(client),
 		newInfoCommand(client),
@@ -65,23 +62,17 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 		newListCommand(client),
 		newLogsCommand(client),
 		newMonitorCommand(client),
-		newMoveCommand(client),
 		newOpenCommand(client),
 		newPlatformCommand(client),
 		newRegionsCommand(client),
 		newReleasesCommand(client),
-		newRestartCommand(client),
-		newResumeCommand(client),
 		newScaleCommand(client),
 		newAutoscaleCommand(client),
 		newSecretsCommand(client),
 		newStatusCommand(client),
-		newSuspendCommand(client),
-		newVersionCommand(client),
 		newDNSCommand(client),
 		newDomainsCommand(client),
 		newImageCommand(client),
-		newOrgsCommand(client),
 		newVolumesCommand(client),
 		newWireGuardCommand(client),
 		newSSHCommand(client),
@@ -90,9 +81,10 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 		newPostgresCommand(client),
 		newVMCommand(client),
 		newLaunchCommand(client),
-
 		newMachineCommand(client),
 		newProxyCommand(client),
+		newDigCommand(client),
+		newTurbokuCommand(client),
 	)
 
 	return rootCmd.Command
@@ -107,7 +99,7 @@ func checkErr(err error) {
 		fmt.Println(aurora.Red("Error"), err)
 	}
 
-	safeExit()
+	os.Exit(1)
 }
 
 func isCancelledError(err error) bool {
@@ -126,10 +118,4 @@ func isCancelledError(err error) bool {
 	}
 
 	return false
-}
-
-func safeExit() {
-	flyctl.BackgroundTaskWG.Wait()
-
-	os.Exit(1)
 }

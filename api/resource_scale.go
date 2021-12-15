@@ -1,6 +1,8 @@
 package api
 
-func (c *Client) ScaleApp(appID string, regions []ScaleRegionInput) ([]ScaleRegionChange, error) {
+import "context"
+
+func (c *Client) ScaleApp(ctx context.Context, appID string, regions []ScaleRegionInput) ([]ScaleRegionChange, error) {
 	query := `
 		mutation ($input: ScaleAppInput!) {
 			scaleApp(input: $input) {
@@ -21,7 +23,7 @@ func (c *Client) ScaleApp(appID string, regions []ScaleRegionInput) ([]ScaleRegi
 
 	req.Var("input", ScaleAppInput{AppID: appID, Regions: regions})
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +31,7 @@ func (c *Client) ScaleApp(appID string, regions []ScaleRegionInput) ([]ScaleRegi
 	return data.ScaleApp.Delta, nil
 }
 
-func (c *Client) UpdateAutoscaleConfig(input UpdateAutoscaleConfigInput) (*AutoscalingConfig, error) {
+func (c *Client) UpdateAutoscaleConfig(ctx context.Context, input UpdateAutoscaleConfigInput) (*AutoscalingConfig, error) {
 	query := `
 		mutation ($input: UpdateAutoscaleConfigInput!) {
 			updateAutoscaleConfig(input: $input) {
@@ -54,7 +56,7 @@ func (c *Client) UpdateAutoscaleConfig(input UpdateAutoscaleConfigInput) (*Autos
 
 	req.Var("input", input)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +64,7 @@ func (c *Client) UpdateAutoscaleConfig(input UpdateAutoscaleConfigInput) (*Autos
 	return data.UpdateAutoscaleConfig.App.Autoscaling, nil
 }
 
-func (c *Client) AppAutoscalingConfig(appName string) (*AutoscalingConfig, error) {
+func (c *Client) AppAutoscalingConfig(ctx context.Context, appName string) (*AutoscalingConfig, error) {
 	query := `
 		query($appName: String!) {
 			app(name: $appName) {
@@ -85,7 +87,7 @@ func (c *Client) AppAutoscalingConfig(appName string) (*AutoscalingConfig, error
 
 	req.Var("appName", appName)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +95,7 @@ func (c *Client) AppAutoscalingConfig(appName string) (*AutoscalingConfig, error
 	return data.App.Autoscaling, nil
 }
 
-func (c *Client) AppVMResources(appName string) (VMSize, []TaskGroupCount, []ProcessGroup, error) {
+func (c *Client) AppVMResources(ctx context.Context, appName string) (VMSize, []TaskGroupCount, []ProcessGroup, error) {
 	query := `
 		query($appName: String!) {
 			app(name: $appName) {
@@ -121,7 +123,7 @@ func (c *Client) AppVMResources(appName string) (VMSize, []TaskGroupCount, []Pro
 
 	req.Var("appName", appName)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return VMSize{}, []TaskGroupCount{}, []ProcessGroup{}, err
 	}
@@ -129,7 +131,7 @@ func (c *Client) AppVMResources(appName string) (VMSize, []TaskGroupCount, []Pro
 	return data.App.VMSize, data.App.TaskGroupCounts, data.App.ProcessGroups, nil
 }
 
-func (c *Client) SetAppVMSize(appID string, group string, sizeName string, memoryMb int64) (VMSize, error) {
+func (c *Client) SetAppVMSize(ctx context.Context, appID string, group string, sizeName string, memoryMb int64) (VMSize, error) {
 	query := `
 		mutation ($input: SetVMSizeInput!) {
 			setVmSize(input: $input) {
@@ -165,7 +167,7 @@ func (c *Client) SetAppVMSize(appID string, group string, sizeName string, memor
 		MemoryMb: memoryMb,
 	})
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return VMSize{}, err
 	}
@@ -178,7 +180,7 @@ func (c *Client) SetAppVMSize(appID string, group string, sizeName string, memor
 	return *data.SetVMSize.VMSize, nil
 }
 
-func (c *Client) GetAppVMCount(appID string) ([]TaskGroupCount, error) {
+func (c *Client) GetAppVMCount(ctx context.Context, appID string) ([]TaskGroupCount, error) {
 	query := `
 		query ($appName: String!) {
 			app(name: $appName) {
@@ -196,7 +198,7 @@ func (c *Client) GetAppVMCount(appID string) ([]TaskGroupCount, error) {
 
 	req.Var("appName", appID)
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return []TaskGroupCount{}, err
 	}
@@ -204,7 +206,7 @@ func (c *Client) GetAppVMCount(appID string) ([]TaskGroupCount, error) {
 	return data.App.TaskGroupCounts, nil
 }
 
-func (c *Client) SetAppVMCount(appID string, counts map[string]int, maxPerRegion *int) ([]TaskGroupCount, []string, error) {
+func (c *Client) SetAppVMCount(ctx context.Context, appID string, counts map[string]int, maxPerRegion *int) ([]TaskGroupCount, []string, error) {
 	query := `
 		mutation ($input: SetVMCountInput!) {
 			setVmCount(input: $input) {
@@ -235,7 +237,7 @@ func (c *Client) SetAppVMCount(appID string, counts map[string]int, maxPerRegion
 		GroupCounts: groups,
 	})
 
-	data, err := c.Run(req)
+	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return []TaskGroupCount{}, []string{}, err
 	}
