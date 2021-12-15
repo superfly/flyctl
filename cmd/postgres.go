@@ -40,7 +40,7 @@ type PostgresConfiguration struct {
 func postgresConfigurations() []PostgresConfiguration {
 	return []PostgresConfiguration{
 		{
-			Description:      "Development - Single node, 1x shared CPU, 256MB RAM, 1GB disk [Free tier]",
+			Description:      "Development - Single node, 1x shared CPU, 256MB RAM, 1GB disk",
 			VmSize:           "shared-cpu-1x",
 			MemoryMb:         256,
 			DiskGb:           1,
@@ -222,6 +222,7 @@ func runCreatePostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 	// from a list of pre-defined configurations or opt into specifying a custom
 	// configuration.
 	if !customConfig {
+		fmt.Println(aurora.Yellow("For pricing information visit: https://fly.io/docs/about/pricing/#postgresql-clusters"))
 		selectedCfg := 0
 		options := []string{}
 		for _, cfg := range postgresConfigurations() {
