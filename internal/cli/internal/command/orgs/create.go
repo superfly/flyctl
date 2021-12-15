@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/pkg/iostreams"
@@ -63,8 +62,8 @@ func nameFromFirstArgOrPrompt(ctx context.Context) (name string, err error) {
 
 	const msg = "Enter Organization Name:"
 
-	if err = prompt.String(ctx, &name, msg, ""); prompt.IsNonInteractive(err) {
-		err = errors.Wrap(err, "name argument must be specified when not running interactively")
+	if err = prompt.String(ctx, &name, msg, "", true); prompt.IsNonInteractive(err) {
+		err = prompt.NonInteractiveError("name argument must be specified when not running interactively")
 	}
 
 	return

@@ -513,6 +513,10 @@ usage = "postgres"
 longHelp = "Attach a postgres cluster to an app"
 shortHelp = "Attach a postgres cluster to an app"
 usage = "attach"
+[postgres.connect]
+shortHelp = "Connect to postgres cluster"
+longHelp  = "Connect to postgres cluster"
+usage     = "connect"
 [postgres.create]
 longHelp = "Create a postgres cluster"
 shortHelp = "Create a postgres cluster"

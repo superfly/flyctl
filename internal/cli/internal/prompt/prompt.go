@@ -18,7 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 )
 
-func String(ctx context.Context, dst *string, msg, def string) error {
+func String(ctx context.Context, dst *string, msg, def string, required bool) error {
 	opt, err := newSurveyIO(ctx)
 	if err != nil {
 		return err
@@ -29,7 +29,30 @@ func String(ctx context.Context, dst *string, msg, def string) error {
 		Default: def,
 	}
 
-	return survey.AskOne(p, dst, opt)
+	opts := []survey.AskOpt{opt}
+	if required {
+		opts = append(opts, survey.WithValidator(survey.Required))
+	}
+
+	return survey.AskOne(p, dst, opts...)
+}
+
+func Password(ctx context.Context, dst *string, msg string, required bool) error {
+	opt, err := newSurveyIO(ctx)
+	if err != nil {
+		return err
+	}
+
+	p := &survey.Password{
+		Message: msg,
+	}
+
+	opts := []survey.AskOpt{opt}
+	if required {
+		opts = append(opts, survey.WithValidator(survey.Required))
+	}
+
+	return survey.AskOne(p, dst, opts...)
 }
 
 func Select(ctx context.Context, index *int, msg string, options ...string) error {
@@ -66,11 +89,17 @@ func Confirm(ctx context.Context, message string) (confirm bool, err error) {
 	return
 }
 
-var errNonInteractive = errors.New("non interactive")
+var errNonInteractive = errors.New("prompt: non interactive")
 
 func IsNonInteractive(err error) bool {
 	return errors.Is(err, errNonInteractive)
 }
+
+type NonInteractiveError string
+
+func (e NonInteractiveError) Error() string { return string(e) }
+
+func (NonInteractiveError) Unwrap() error { return errNonInteractive }
 
 func newSurveyIO(ctx context.Context) (survey.AskOpt, error) {
 	io := iostreams.FromContext(ctx)
@@ -91,7 +120,7 @@ func newSurveyIO(ctx context.Context) (survey.AskOpt, error) {
 	return survey.WithStdio(in, out, io.ErrOut), nil
 }
 
-var errOrgSlugRequired = errors.New("org slug must be specified when not running interactively")
+var errOrgSlugRequired = NonInteractiveError("org slug must be specified when not running interactively")
 
 // Org returns the Organization the user has passed in via flag or prompts the
 // user for one.

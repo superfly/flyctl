@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/briandowns/spinner"
+	"github.com/docker/docker/pkg/ioutils"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
@@ -18,6 +20,38 @@ import (
 	"github.com/superfly/flyctl/pkg/ssh"
 	"github.com/superfly/flyctl/terminal"
 )
+
+func runSSHCommand(cmdCtx *cmdctx.CmdContext, app *api.App, dialer agent.Dialer, cmd string) ([]byte, error) {
+	var inBuf bytes.Buffer
+	var errBuf bytes.Buffer
+	var outBuf bytes.Buffer
+	stdoutWriter := ioutils.NewWriteCloserWrapper(&outBuf, func() error { return nil })
+	stderrWriter := ioutils.NewWriteCloserWrapper(&errBuf, func() error { return nil })
+	inReader := ioutils.NewReadCloserWrapper(&inBuf, func() error { return nil })
+
+	addr := fmt.Sprintf("%s.internal", app.Name)
+
+	err := sshConnect(&SSHParams{
+		Ctx:            cmdCtx,
+		Org:            &app.Organization,
+		Dialer:         dialer,
+		App:            app.Name,
+		Cmd:            cmd,
+		Stdin:          inReader,
+		Stdout:         stdoutWriter,
+		Stderr:         stderrWriter,
+		DisableSpinner: true,
+	}, addr)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(errBuf.Bytes()) > 0 {
+		return nil, fmt.Errorf(errBuf.String())
+	}
+
+	return outBuf.Bytes(), nil
+}
 
 func runSSHConsole(cc *cmdctx.CmdContext) error {
 	client := cc.Client.API()
@@ -141,14 +175,15 @@ func spin(in, out string) context.CancelFunc {
 }
 
 type SSHParams struct {
-	Ctx    *cmdctx.CmdContext
-	Org    *api.Organization
-	App    string
-	Dialer agent.Dialer
-	Cmd    string
-	Stdin  io.Reader
-	Stdout io.WriteCloser
-	Stderr io.WriteCloser
+	Ctx            *cmdctx.CmdContext
+	Org            *api.Organization
+	App            string
+	Dialer         agent.Dialer
+	Cmd            string
+	Stdin          io.Reader
+	Stdout         io.WriteCloser
+	Stderr         io.WriteCloser
+	DisableSpinner bool
 }
 
 func sshConnect(p *SSHParams, addr string) error {
@@ -178,9 +213,12 @@ func sshConnect(p *SSHParams, addr string) error {
 		PrivateKey:  string(pemkey),
 	}
 
-	endSpin := spin(fmt.Sprintf("Connecting to %s...", addr),
-		fmt.Sprintf("Connecting to %s... complete\n", addr))
-	defer endSpin()
+	var endSpin context.CancelFunc
+	if !p.DisableSpinner {
+		endSpin = spin(fmt.Sprintf("Connecting to %s...", addr),
+			fmt.Sprintf("Connecting to %s... complete\n", addr))
+		defer endSpin()
+	}
 
 	if err := sshClient.Connect(context.Background()); err != nil {
 		return errors.Wrap(err, "error connecting to SSH server")
@@ -189,7 +227,9 @@ func sshConnect(p *SSHParams, addr string) error {
 
 	terminal.Debugf("Connection completed.\n", addr)
 
-	endSpin()
+	if !p.DisableSpinner {
+		endSpin()
+	}
 
 	term := &ssh.Terminal{
 		Stdin:  p.Stdin,

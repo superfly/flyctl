@@ -2,8 +2,8 @@ package orgs
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
@@ -45,7 +45,7 @@ func runDelete(ctx context.Context) error {
 				return nil
 			}
 		case prompt.IsNonInteractive(err):
-			return errors.Wrap(err, "yes flag must be specified when not running interactively")
+			return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
 		default:
 			return err
 		}
@@ -53,7 +53,7 @@ func runDelete(ctx context.Context) error {
 
 	client := client.FromContext(ctx).API()
 	if _, err := client.DeleteOrganization(ctx, org.ID); err != nil {
-		return errors.Wrapf(err, "failed deleting organization %s", err)
+		return fmt.Errorf("failed deleting organization %s", err)
 	}
 
 	return nil

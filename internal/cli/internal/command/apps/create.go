@@ -2,7 +2,6 @@ package apps
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -111,8 +110,8 @@ func RunCreate(ctx context.Context) (err error) {
 func selectAppName(ctx context.Context) (name string, err error) {
 	const msg = "App Name:"
 
-	if err = prompt.String(ctx, &name, msg, ""); prompt.IsNonInteractive(err) {
-		err = errors.New("name argument or flag must be specified when not running interactively")
+	if err = prompt.String(ctx, &name, msg, "", false); prompt.IsNonInteractive(err) {
+		err = prompt.NonInteractiveError("name argument or flag must be specified when not running interactively")
 	}
 
 	return

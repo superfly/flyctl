@@ -48,6 +48,7 @@ func New(usage, short, long string, fn Runner, p ...Preparer) *cobra.Command {
 }
 
 var commonPreparers = []Preparer{
+	determineHostname,
 	determineWorkingDir,
 	determineUserHomeDir,
 	determineConfigDir,
@@ -126,23 +127,33 @@ func finalize(ctx context.Context) {
 	// shutdown async tasks
 	task.FromContext(ctx).Shutdown()
 
-	// and flush the cache to disk if required
-	c := cache.FromContext(ctx)
-	if !c.Dirty() {
-		return
+	// flush the cache to disk if required
+	if c := cache.FromContext(ctx); c.Dirty() {
+		path := filepath.Join(state.ConfigDirectory(ctx), cache.FileName)
+
+		if err := c.Save(path); err != nil {
+			logger.FromContext(ctx).
+				Warnf("failed saving cache to %s: %v", path, err)
+		}
+	}
+}
+
+func determineHostname(ctx context.Context) (context.Context, error) {
+	h, err := os.Hostname()
+	if err != nil {
+		return nil, fmt.Errorf("failed determining hostname: %w", err)
 	}
 
-	path := filepath.Join(state.ConfigDirectory(ctx), cache.FileName)
-	if err := c.Save(path); err != nil {
-		logger.FromContext(ctx).
-			Warnf("failed saving cache to %s: %v", path, err)
-	}
+	logger.FromContext(ctx).
+		Debugf("determined hostname: %q", h)
+
+	return state.WithHostname(ctx, h), nil
 }
 
 func determineWorkingDir(ctx context.Context) (context.Context, error) {
 	wd, err := os.Getwd()
 	if err != nil {
-		return nil, fmt.Errorf("error determining working directory: %w", err)
+		return nil, fmt.Errorf("failed determining working directory: %w", err)
 	}
 
 	logger.FromContext(ctx).
@@ -154,7 +165,7 @@ func determineWorkingDir(ctx context.Context) (context.Context, error) {
 func determineUserHomeDir(ctx context.Context) (context.Context, error) {
 	wd, err := os.UserHomeDir()
 	if err != nil {
-		return nil, fmt.Errorf("error determining user home directory: %w", err)
+		return nil, fmt.Errorf("failed determining user home directory: %w", err)
 	}
 
 	logger.FromContext(ctx).

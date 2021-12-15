@@ -192,6 +192,9 @@ type Query struct {
 	Machines struct {
 		Nodes []*Machine
 	}
+	PostgresAttachments struct {
+		Nodes []*PostgresClusterAttachment
+	}
 	LaunchMachine struct {
 		Machine *Machine
 		App     *App
@@ -1045,7 +1048,15 @@ type AttachPostgresClusterInput struct {
 	AppID                string  `json:"appId"`
 	PostgresClusterAppID string  `json:"postgresClusterAppId"`
 	DatabaseName         *string `json:"databaseName,omitempty"`
+	DatabaseUser         *string `json:"databaseUser,omitempty"`
 	VariableName         *string `json:"variableName,omitempty"`
+	ManualEntry          bool    `json:"manualEntry,omitempty"`
+}
+
+type DetachPostgresClusterInput struct {
+	AppID                       string `json:"appId"`
+	PostgresClusterId           string `json:"postgresClusterAppId"`
+	PostgresClusterAttachmentId string `json:"postgresClusterAttachmentId"`
 }
 
 type AttachPostgresClusterPayload struct {
@@ -1069,6 +1080,13 @@ type PostgresClusterUser struct {
 type PostgresClusterDatabase struct {
 	Name  string
 	Users []string
+}
+
+type PostgresClusterAttachment struct {
+	ID                      string
+	DatabaseName            string
+	DatabaseUser            string
+	EnvironmentVariableName string
 }
 
 type Image struct {
