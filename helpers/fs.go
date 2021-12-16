@@ -38,5 +38,7 @@ func MkdirAll(pathname string) error {
 	if path.Ext(pathname) != "" {
 		pathname = filepath.Dir(pathname)
 	}
+
+	// TODO: this should probably be 0755
 	return os.MkdirAll(pathname, 0777)
 }

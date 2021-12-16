@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/update"
 
+	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/cache"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
@@ -330,6 +331,40 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 	if !client.FromContext(ctx).Authenticated() {
 		return nil, client.ErrNoAuthToken
 	}
+
+	return ctx, nil
+}
+
+// RequireSession is a Preparer which makes sure the user has selected an
+// application name either via command line arguments or an application config
+// file (fly.toml).
+func RequireAppName(ctx context.Context) (context.Context, error) {
+	if name := flag.GetApp(ctx); name != "" {
+		// the user has already set the name of the app via flag
+		return state.WithAppName(ctx, name), nil
+	}
+
+	dir := state.WorkingDirectory(ctx)
+	// try to find fly.toml, load it
+	app.LoadConfig(dir + "/" + app.DefaultConfigFileName)
+
+	// return fmt.Errorf("We couldn't find a fly.toml nor an app specified by the -a flag. If you want to launch a new app, use '" + buildinfo.Name() + " launch'")
+
+	// we have to load the applicatio from disk
+	/*
+
+		if ctx.AppConfig == nil {
+			return nil
+		}
+
+		if ctx.AppConfig.AppName != "" && ctx.AppConfig.AppName != ctx.AppName {
+			terminal.Warnf("app flag '%s' does not match app name in config file '%s'\n", ctx.AppName, ctx.AppConfig.AppName)
+
+			if !confirm(fmt.Sprintf("Continue using '%s'", ctx.AppName)) {
+				return flyerr.ErrAbort
+			}
+		}
+	*/
 
 	return ctx, nil
 }

@@ -23,6 +23,9 @@ const (
 
 	// YesName denotes the name of the yes flag.
 	YesName = "yes"
+
+	// AppName denotes the name of the app flag.
+	AppName = "app"
 )
 
 // Flag wraps the set of flags.
@@ -139,5 +142,14 @@ func Yes() Bool {
 		Name:        YesName,
 		Shorthand:   "y",
 		Description: "Accept all confirmations",
+	}
+}
+
+// App returns an app string flag.
+func App() String {
+	return String{
+		Name:        AppName,
+		Shorthand:   "a",
+		Description: "Application name",
 	}
 }
