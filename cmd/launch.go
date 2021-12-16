@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -20,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/sourcecode"
 )
 
@@ -482,6 +484,8 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func appendDockerfileAppendix(appendix []string) (err error) {
+	const dockerfilePath = "Dockerfile"
+
 	var b bytes.Buffer
 	b.WriteString("\n# Appended by flyctl\n")
 
@@ -490,9 +494,20 @@ func appendDockerfileAppendix(appendix []string) (err error) {
 		_ = b.WriteByte('\n')
 	}
 
+	var unlock filemu.UnlockFunc
+
+	if unlock, err = filemu.Lock(context.Background(), dockerfilePath); err != nil {
+		return
+	}
+	defer func() {
+		if e := unlock(); err == nil {
+			err = e
+		}
+	}()
+
 	var f *os.File
-	// TODO: this is prone to race conditions and also we don't flush
-	if f, err = os.OpenFile("Dockerfile", os.O_APPEND|os.O_WRONLY, 0644); err != nil {
+	// TODO: we don't flush
+	if f, err = os.OpenFile(dockerfilePath, os.O_APPEND|os.O_WRONLY, 0644); err != nil {
 		return
 	}
 	defer func() {

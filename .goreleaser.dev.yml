@@ -1,0 +1,63 @@
+before:
+  hooks:
+    - go mod download
+    - go generate ./...
+
+builds:
+  - id: default
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    ignore:
+      - goos: darwin
+        goarch: 386
+      - goos: linux
+        goarch: 386
+    ldflags:
+      - -X github.com/superfly/flyctl/internal/buildinfo.environment=production
+      - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{ .Date }}
+      - -X github.com/superfly/flyctl/internal/buildinfo.version={{ .Version }}
+      - -X github.com/superfly/flyctl/internal/buildinfo.commit={{ .ShortCommit }}
+  - id: windows
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+    ignore:
+      - goos: windows
+        goarch: 386
+    ldflags:
+      - -X github.com/superfly/flyctl/internal/buildinfo.environment=production
+      - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{ .Date }}
+      - -X github.com/superfly/flyctl/internal/buildinfo.version={{ .Version }}
+      - -X github.com/superfly/flyctl/internal/buildinfo.commit={{ .ShortCommit }}
+
+archives:
+  - id: windows
+    replacements:
+      windows: Windows
+      amd64: x86_64
+    builds:
+      - windows
+    files:
+      - wintun.dll
+    wrap_in_directory: false
+    format: zip
+  - id: default
+    replacements:
+      darwin: macOS
+      linux: Linux
+      windows: Windows
+      amd64: x86_64
+    builds:
+      - default
+    files: [only-the-binary*]
+    wrap_in_directory: false
+    format: tar.gz
+
+release:
+  github:
+    owner: superfly
+    name: flyctl-dev
