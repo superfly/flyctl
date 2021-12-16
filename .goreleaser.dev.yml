@@ -58,7 +58,6 @@ archives:
     format: tar.gz
 
 release:
-  name_template: "{{.Branch}}-{{.ShortCommit}}"
   github:
     owner: superfly
     name: flyctl-dev
