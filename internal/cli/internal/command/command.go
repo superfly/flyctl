@@ -335,6 +335,42 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
+// LoadAppConfigIfPresent is a Preparer which loads the application's
+// configuration file from the path the user has selected via command line args
+// or the current working directory.
+func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
+	logger := logger.FromContext(ctx)
+
+	for _, path := range appConfigFilePaths(ctx) {
+		switch cfg, err := app.LoadConfig(path); {
+		case err == nil:
+			return app.NewContext(ctx, cfg), nil // we loaded a configuration file
+		case errors.Is(err, fs.ErrNotExist):
+			continue // no such file
+		default:
+			logger.Errorf("failed loading configuration file at %s: %v", path, err)
+		}
+	}
+
+	return ctx, nil
+}
+
+// appConfigFilePaths returns the possible paths at which we may find a fly.toml
+// in order of preference. it takes into consideration whether the user has
+// specified a command like path to a config file.
+func appConfigFilePaths(ctx context.Context) (paths []string) {
+	if p := flag.GetAppConfigFilePath(ctx); p != "" {
+		paths = append(paths, p, filepath.Join(p, app.DefaultConfigFileName))
+
+		return
+	}
+
+	wd := state.WorkingDirectory(ctx)
+	paths = append(paths, filepath.Join(wd, app.DefaultConfigFileName))
+
+	return
+}
+
 // RequireSession is a Preparer which makes sure the user has selected an
 // application name either via command line arguments or an application config
 // file (fly.toml).
@@ -346,7 +382,6 @@ func RequireAppName(ctx context.Context) (context.Context, error) {
 
 	dir := state.WorkingDirectory(ctx)
 	// try to find fly.toml, load it
-	app.LoadConfig(dir + "/" + app.DefaultConfigFileName)
 
 	// return fmt.Errorf("We couldn't find a fly.toml nor an app specified by the -a flag. If you want to launch a new app, use '" + buildinfo.Name() + " launch'")
 

@@ -68,3 +68,8 @@ func GetYes(ctx context.Context) bool {
 func GetApp(ctx context.Context) string {
 	return GetString(ctx, AppName)
 }
+
+// GetAppConfigFilePath is shorthand for GetString(ctx, AppConfigFilePathName).
+func GetAppConfigFilePath(ctx context.Context) string {
+	return GetString(ctx, AppConfigFilePathName)
+}

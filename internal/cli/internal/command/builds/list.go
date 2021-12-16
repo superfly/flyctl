@@ -15,33 +15,33 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 )
 
-func newList() *cobra.Command {
+func newList() (cmd *cobra.Command) {
 	const (
 		long  = `The builds list will list builds.`
 		short = "List builds"
 	)
 
-	cmd := command.New("list", short, long, runList, command.RequireSession)
-
-	flag.Add(cmd,
-		flag.String{
-			Name:        "app",
-			Description: "The app name to list builds on",
-		},
+	cmd = command.New("list", short, long, runList,
+		command.RequireSession,
+		command.LoadAppConfigIfPresent,
 	)
 
-	return cmd
+	flag.Add(cmd,
+		flag.App(),
+	)
+
+	return
 }
 
 func runList(ctx context.Context) (err error) {
-	cfg := config.FromContext(ctx)
-	client := client.FromContext(ctx)
+	client := client.FromContext(ctx).API()
 
 	var builds []api.SourceBuild
-	if builds, err = client.API().ListBuilds(ctx, ""); err != nil {
+	if builds, err = client.ListBuilds(ctx, ""); err != nil {
 		return
 	}
 
+	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 	if cfg.JSONOutput {
 		_ = render.JSON(out, builds)
