@@ -129,7 +129,7 @@ jobs:
           path: dist/checksums.txt
 
   dev_release:
-    if: startsWith(github.ref, 'refs/tags/dev')
+    if: startsWith(github.ref, 'refs/tags/d')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
