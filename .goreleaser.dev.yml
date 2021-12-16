@@ -61,4 +61,4 @@ release:
   name_template: "{{.Branch}}-{{.ShortCommit}}"
   github:
     owner: superfly
-    repo: flyctl-dev
+    name: flyctl-dev
