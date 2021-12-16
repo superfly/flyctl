@@ -599,7 +599,7 @@ func runDetachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 		PostgresClusterAttachmentId: targetAttachment.ID,
 	}
 
-	if _, err = client.DetachPostgresCluster(ctx, input); err != nil {
+	if err = client.DetachPostgresCluster(ctx, input); err != nil {
 		return err
 	}
 

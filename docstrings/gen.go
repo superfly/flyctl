@@ -613,18 +613,6 @@ about the Fly platform.`,
 		return KeyStrings{"postgres", "Postgres recipes",
 			`Postgres recipes`,
 		}
-	case "recipes.postgres.attach":
-		return KeyStrings{"attach", "Attach PG to Application",
-			`Attach PG to Application`,
-		}
-	case "recipes.postgres.connect":
-		return KeyStrings{"connect", "Connect to PG console",
-			`Connect to PG console`,
-		}
-	case "recipes.postgres.detach":
-		return KeyStrings{"detach", "Detach PG from Application",
-			`Detach PG from Application`,
-		}
 	case "recipes.postgres.provision":
 		return KeyStrings{"provision", "Postgres provision recipe",
 			`Postgres provision recipe`,

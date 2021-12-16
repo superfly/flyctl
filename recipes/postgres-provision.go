@@ -128,6 +128,8 @@ func (p *PostgresProvisionRecipe) setSecrets(ctx context.Context) (map[string]st
 		secrets["ETCD_URL"] = p.Config.EtcdUrl
 	}
 
+	fmt.Printf("%+v\n", secrets)
+
 	_, err := p.cmdCtx.Client.API().SetSecrets(ctx, p.Config.AppName, secrets)
 
 	return secrets, err

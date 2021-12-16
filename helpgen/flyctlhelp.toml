@@ -62,19 +62,6 @@ usage = "reboot"
 longHelp = "Updates the target Postgres cluster with the specified image."
 shortHelp = "Updates target Postgres cluster with specified image."
 usage = "version-upgrade"
-[recipes.postgres.connect]
-longHelp = "Connect to PG console"
-shortHelp = "Connect to PG console"
-usage = "connect"
-[recipes.postgres.attach]
-longHelp = "Attach PG to Application"
-shortHelp = "Attach PG to Application"
-usage = "attach"
-[recipes.postgres.detach]
-longHelp = "Detach PG from Application"
-shortHelp = "Detach PG from Application"
-usage = "detach"
-
 
 [open]
 longHelp = """Open browser to current deployed application. If an optional path is specified, this is appended to the

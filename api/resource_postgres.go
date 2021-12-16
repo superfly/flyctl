@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 )
 
 func (client *Client) CreatePostgresCluster(ctx context.Context, input CreatePostgresClusterInput) (*CreatePostgresClusterPayload, error) {
@@ -87,33 +86,24 @@ func (client *Client) AttachPostgresCluster(ctx context.Context, input AttachPos
 	return data.AttachPostgresCluster, nil
 }
 
-func (client *Client) DetachPostgresCluster(ctx context.Context, input DetachPostgresClusterInput) (*DetachPostgresClusterPayload, error) {
+func (client *Client) DetachPostgresCluster(ctx context.Context, input DetachPostgresClusterInput) error {
 	query := `
 		mutation($input: DetachPostgresClusterInput!) {
 			detachPostgresCluster(input: $input) {
-				app {
-					name
-				}
-				postgresClusterApp {
-					name
-				}
-				databaseUser
-				databaseName
-				environmentVariableName
+				clientMutationId
 			}
 		}
-		`
+	`
 
 	req := client.NewRequest(query)
 	req.Var("input", input)
 
-	data, err := client.RunWithContext(ctx, req)
+	_, err := client.RunWithContext(ctx, req)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	fmt.Printf("Data: %+v\n", data)
-	return data.DetachPostgresCluster, nil
+	return nil
 }
 
 func (client *Client) ListPostgresDatabases(ctx context.Context, appName string) ([]PostgresClusterDatabase, error) {
