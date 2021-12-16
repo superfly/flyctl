@@ -193,6 +193,7 @@ type Query struct {
 	Machines struct {
 		Nodes []*Machine
 	}
+	Machine             *Machine
 	PostgresAttachments struct {
 		Nodes []*PostgresClusterAttachment
 	}

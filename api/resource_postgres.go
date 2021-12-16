@@ -87,7 +87,7 @@ func (client *Client) AttachPostgresCluster(ctx context.Context, input AttachPos
 	return data.AttachPostgresCluster, nil
 }
 
-func (client *Client) DetachPostgresCluster(ctx context.Context, input DetachPostgresClusterInput) error {
+func (client *Client) DetachPostgresCluster(ctx context.Context, input DetachPostgresClusterInput) (*DetachPostgresClusterPayload, error) {
 	query := `
 		mutation($input: DetachPostgresClusterInput!) {
 			detachPostgresCluster(input: $input) {
