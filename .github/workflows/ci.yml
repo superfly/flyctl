@@ -76,7 +76,7 @@ jobs:
 
   release:
     needs: test
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, 'dev-')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -128,6 +128,52 @@ jobs:
           name: checksums
           path: dist/checksums.txt
 
+  dev_release:
+    if: startsWith(github.ref, 'refs/tags/v') && contains(github.ref, 'dev-')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Get go version
+        id: go-version
+        run: echo "::set-output name=version::$(go env GOVERSION)"
+      - uses: actions/cache@v2
+        with:
+          # In order:
+          # * Module download cache
+          # * Build cache (Linux)
+          # * Build cache (Mac)
+          # * Build cache (Windows)
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ~/Library/Caches/go-build
+            %LocalAppData%\go-build
+          key: ${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ steps.go-version.outputs.version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ env.CACHE_VERSION }}-${{ runner.os }}-go
+      - name: Place wintun.dll
+        run: cp -r deps/wintun/bin/amd64/wintun.dll ./
+      - name: generate release notes
+        run: |
+          mkdir -p ./tmp
+          ./scripts/changelog.sh > ./tmp/changelog.txt
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v2
+        with:
+          version: latest
+          args: release --config .goreleaser.dev.yml --rm-dist --release-notes=./tmp/changelog.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
+      - name: Upload checksums as artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: checksums
+          path: dist/checksums.txt
   aur-publish:
     name: Build & publish to AUR
     needs: release
