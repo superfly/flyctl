@@ -40,9 +40,16 @@ type PostgresConfiguration struct {
 func postgresConfigurations() []PostgresConfiguration {
 	return []PostgresConfiguration{
 		{
-			Description:      "Development - Single node, 1x shared CPU, 256MB RAM, 10GB disk",
+			Description:      "Development - Single node, 1x shared CPU, 256MB RAM, 1GB disk",
 			VmSize:           "shared-cpu-1x",
 			MemoryMb:         256,
+			DiskGb:           1,
+			ClusteringOption: standalonePostgres(),
+		},
+		{
+			Description:      "Development - Single node, 1x shared CPU, 512MB RAM, 10GB disk",
+			VmSize:           "shared-cpu-1x",
+			MemoryMb:         512,
 			DiskGb:           10,
 			ClusteringOption: standalonePostgres(),
 		},
@@ -65,13 +72,6 @@ func postgresConfigurations() []PostgresConfiguration {
 			VmSize:           "dedicated-cpu-2x",
 			MemoryMb:         4096,
 			DiskGb:           100,
-			ClusteringOption: highlyAvailablePostgres(),
-		},
-		{
-			Description:      "Production - Highly available, 4x Dedicated CPU's, 8GB RAM, 200GB disk",
-			VmSize:           "dedicated-cpu-4x",
-			MemoryMb:         8192,
-			DiskGb:           200,
 			ClusteringOption: highlyAvailablePostgres(),
 		},
 		{
@@ -222,6 +222,7 @@ func runCreatePostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 	// from a list of pre-defined configurations or opt into specifying a custom
 	// configuration.
 	if !customConfig {
+		fmt.Println(aurora.Yellow("For pricing information visit: https://fly.io/docs/about/pricing/#postgresql-clusters"))
 		selectedCfg := 0
 		options := []string{}
 		for _, cfg := range postgresConfigurations() {
@@ -695,19 +696,38 @@ func runPostgresConnect(cmdCtx *cmdctx.CmdContext) error {
 func runListPostgresDatabases(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 
-	databases, err := cmdCtx.Client.API().ListPostgresDatabases(ctx, cmdCtx.AppName)
+	client := cmdCtx.Client.API()
+
+	app, err := client.GetApp(ctx, cmdCtx.AppName)
+	if err != nil {
+		return fmt.Errorf("get app: %w", err)
+	}
+
+	agentclient, err := agent.Establish(ctx, cmdCtx.Client.API())
+	if err != nil {
+		return errors.Wrap(err, "can't establish agent")
+	}
+
+	dialer, err := agentclient.Dialer(ctx, &app.Organization)
+	if err != nil {
+		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
+	}
+
+	pgCmd := NewPostgresCmd(cmdCtx, app, dialer)
+
+	dbsResp, err := pgCmd.ListDatabases()
 	if err != nil {
 		return err
 	}
 
 	if cmdCtx.OutputJSON() {
-		cmdCtx.WriteJSON(databases)
+		cmdCtx.WriteJSON(dbsResp.Result)
 		return nil
 	}
 
 	table := helpers.MakeSimpleTable(cmdCtx.Out, []string{"Name", "Users"})
 
-	for _, database := range databases {
+	for _, database := range dbsResp.Result {
 		table.Append([]string{database.Name, strings.Join(database.Users, ",")})
 	}
 
@@ -719,20 +739,39 @@ func runListPostgresDatabases(cmdCtx *cmdctx.CmdContext) error {
 func runListPostgresUsers(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 
-	users, err := cmdCtx.Client.API().ListPostgresUsers(ctx, cmdCtx.AppName)
+	client := cmdCtx.Client.API()
+
+	app, err := client.GetApp(ctx, cmdCtx.AppName)
+	if err != nil {
+		return fmt.Errorf("get app: %w", err)
+	}
+
+	agentclient, err := agent.Establish(ctx, cmdCtx.Client.API())
+	if err != nil {
+		return errors.Wrap(err, "can't establish agent")
+	}
+
+	dialer, err := agentclient.Dialer(ctx, &app.Organization)
+	if err != nil {
+		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
+	}
+
+	pgCmd := NewPostgresCmd(cmdCtx, app, dialer)
+
+	usersResp, err := pgCmd.ListUsers()
 	if err != nil {
 		return err
 	}
 
 	if cmdCtx.OutputJSON() {
-		cmdCtx.WriteJSON(users)
+		cmdCtx.WriteJSON(usersResp.Result)
 		return nil
 	}
 
 	table := helpers.MakeSimpleTable(cmdCtx.Out, []string{"Username", "Superuser", "Databases"})
 
-	for _, user := range users {
-		table.Append([]string{user.Username, strconv.FormatBool(user.IsSuperuser), strings.Join(user.Databases, ",")})
+	for _, user := range usersResp.Result {
+		table.Append([]string{user.Username, strconv.FormatBool(user.Superuser), strings.Join(user.Databases, ",")})
 	}
 
 	table.Render()

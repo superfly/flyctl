@@ -392,7 +392,12 @@ func fetchInstances(tunnel *wg.Tunnel, app string) (*Instances, error) {
 		return nil, fmt.Errorf("look up regions for %s: %w", app, err)
 	}
 
-	regions := strings.Trim(regionsv[0], " \t")
+	var regions string
+
+	if len(regionsv) > 0 {
+		regions = strings.Trim(regionsv[0], " \t")
+	}
+
 	if regions == "" {
 		return nil, fmt.Errorf("can't find deployed regions for %s", app)
 	}
