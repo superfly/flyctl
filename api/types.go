@@ -78,10 +78,6 @@ type Query struct {
 
 	CreateSignedUrl SignedUrls
 
-	StartBuild struct {
-		Build Build
-	}
-
 	AddCertificate struct {
 		Certificate *AppCertificate
 		Check       *HostnameCheck
@@ -215,6 +211,11 @@ type Query struct {
 	RemoveMachine struct {
 		Machine *Machine
 	}
+
+	StartSourceBuild struct {
+		SourceBuild *SourceBuild
+	}
+
 	DeleteOrganizationMembership *DeleteOrganizationMembershipPayload
 }
 
@@ -280,6 +281,9 @@ type App struct {
 	IPAddress *IPAddress
 	Builds    struct {
 		Nodes []Build
+	}
+	SourceBuilds struct {
+		Nodes []SourceBuild
 	}
 	Changes struct {
 		Nodes []AppChange
@@ -605,11 +609,21 @@ type Build struct {
 	UpdatedAt  time.Time
 }
 
+type SourceBuild struct {
+	ID        string
+	Status    string
+	User      User
+	Logs      string
+	Image     string
+	AppName   string
+	MachineId string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
 type SignedUrls struct {
 	GetUrl string
 	PutUrl string
 }
-
 type AppChange struct {
 	ID        string
 	CreatedAt time.Time
@@ -873,12 +887,8 @@ type VMCountInput struct {
 	MaxPerRegion *int   `json:"maxPerRegion"`
 }
 
-type StartBuildInput struct {
-	AppID      string          `json:"appId"`
-	SourceURL  string          `json:"sourceUrl"`
-	SourceType string          `json:"sourceType"`
-	BuildType  *string         `json:"buildType"`
-	BuildArgs  []BuildArgInput `json:"buildArgs"`
+type StartSourceBuildInput struct {
+	AppID string `json:"appId"`
 }
 
 type BuildArgInput struct {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 	"github.com/docker/docker/pkg/progress"
 	"github.com/docker/docker/pkg/streamformatter"
 	"github.com/docker/docker/pkg/stringid"
+	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/util/progress/progressui"
 	"github.com/moby/term"
 	"github.com/pkg/errors"
@@ -112,6 +114,9 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 		relativedockerfilePath = p
 	}
 
+	// Start tracking this build
+
+	// Create the docker build context as a compressed tar stream
 	r, err := archiveDirectory(archiveOpts)
 	if err != nil {
 		return nil, errors.Wrap(err, "error archiving build context")
@@ -320,8 +325,25 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 				}
 			}
 
+			consoleLogs := make(chan *client.SolveStatus)
+			plainLogs := make(chan *client.SolveStatus)
+
 			eg.Go(func() error {
-				return progressui.DisplaySolveStatus(context.TODO(), "", c2, os.Stderr, tracer.displayCh)
+				for v := range tracer.displayCh {
+					consoleLogs <- v
+					plainLogs <- v
+				}
+				return nil
+			})
+
+			eg.Go(func() error {
+				return progressui.DisplaySolveStatus(context.TODO(), "", c2, os.Stderr, consoleLogs)
+			})
+
+			plainBuildOutput := bytes.NewBuffer(nil)
+
+			eg.Go(func() error {
+				return progressui.DisplaySolveStatus(context.TODO(), "", nil, plainBuildOutput, plainLogs)
 			})
 
 			auxCallback := func(m jsonmessage.JSONMessage) {
@@ -337,11 +359,23 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 				tracer.write(m)
 			}
 			defer close(tracer.displayCh)
+			defer close(plainLogs)
+			defer close(consoleLogs)
 
 			buf := bytes.NewBuffer(nil)
 
 			if err := jsonmessage.DisplayJSONMessagesStream(resp.Body, buf, termFd, isTerm, auxCallback); err != nil {
 				return err
+			}
+
+			if os.Getenv("LOG_LEVEL") == "debug" {
+				f, err := os.OpenFile("build.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+				if err != nil {
+					log.Fatal(err)
+				}
+				defer f.Close()
+
+				f.Write(plainBuildOutput.Bytes())
 			}
 
 			return nil

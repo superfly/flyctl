@@ -3,7 +3,7 @@ package presenters
 import "github.com/superfly/flyctl/api"
 
 type Builds struct {
-	Builds []api.Build
+	Builds []api.SourceBuild
 }
 
 func (p *Builds) APIStruct() interface{} {

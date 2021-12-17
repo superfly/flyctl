@@ -17,6 +17,7 @@ const (
 	userHomeDirKey
 	configDirKey
 	accessTokenKey
+	appNameKey
 )
 
 // WithHostname returns a copy of ctx that carries hostname.
@@ -70,6 +71,18 @@ func ConfigDirectory(ctx context.Context) string {
 // ctx carries no config directory.
 func ConfigFile(ctx context.Context) string {
 	return filepath.Join(ConfigDirectory(ctx), config.FileName)
+}
+
+// WithAppName derives a Context that carries the given application name from
+// ctx.
+func WithAppName(ctx context.Context, appName string) context.Context {
+	return set(ctx, appNameKey, appName)
+}
+
+// AppName returns the application name ctx carries. It panics in case
+// ctx carries no application name.
+func AppName(ctx context.Context) string {
+	return get(ctx, appNameKey).(string)
 }
 
 func get(ctx context.Context, key contextKeyType) interface{} {

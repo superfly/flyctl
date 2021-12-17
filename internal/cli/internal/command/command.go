@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/update"
 
+	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/cache"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
@@ -332,4 +333,69 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 	}
 
 	return ctx, nil
+}
+
+// LoadAppConfigIfPresent is a Preparer which loads the application's
+// configuration file from the path the user has selected via command line args
+// or the current working directory.
+func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
+	logger := logger.FromContext(ctx)
+
+	for _, path := range appConfigFilePaths(ctx) {
+		switch cfg, err := app.LoadConfig(path); {
+		case err == nil:
+			logger.Debugf("app config loaded from %s", path)
+
+			return app.WithConfig(ctx, cfg), nil // we loaded a configuration file
+		case errors.Is(err, fs.ErrNotExist):
+			logger.Debugf("no app config found at %s; skipped.", path)
+
+			continue
+		default:
+			return nil, fmt.Errorf("failed loading app config from %s: %w", path, err)
+		}
+	}
+
+	return ctx, nil
+}
+
+// appConfigFilePaths returns the possible paths at which we may find a fly.toml
+// in order of preference. it takes into consideration whether the user has
+// specified a command-line path to a config file.
+func appConfigFilePaths(ctx context.Context) (paths []string) {
+	if p := flag.GetAppConfigFilePath(ctx); p != "" {
+		paths = append(paths, p, filepath.Join(p, app.DefaultConfigFileName))
+
+		return
+	}
+
+	wd := state.WorkingDirectory(ctx)
+	paths = append(paths, filepath.Join(wd, app.DefaultConfigFileName))
+
+	return
+}
+
+var errRequireAppName = fmt.Errorf("we couldn't find a fly.toml nor an app specified by the -a flag. If you want to launch a new app, use '%s launch'", buildinfo.Name())
+
+// RequireAppName is a Preparer which makes sure the user has selected an
+// application name either via command line arguments or an application config
+// file (fly.toml). It embeds LoadAppConfigIfPresent.
+func RequireAppName(ctx context.Context) (context.Context, error) {
+	ctx, err := LoadAppConfigIfPresent(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	name := flag.GetApp(ctx)
+	if name == "" {
+		if cfg := app.ConfigFromContext(ctx); cfg != nil {
+			name = cfg.AppName
+		}
+	}
+
+	if name == "" {
+		return nil, errRequireAppName
+	}
+
+	return app.WithName(ctx, name), nil
 }

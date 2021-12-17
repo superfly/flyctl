@@ -23,6 +23,12 @@ const (
 
 	// YesName denotes the name of the yes flag.
 	YesName = "yes"
+
+	// AppName denotes the name of the app flag.
+	AppName = "app"
+
+	// AppConfigFilePathName denotes the name of the app config file path flag.
+	AppConfigFilePathName = "config"
 )
 
 // Flag wraps the set of flags.
@@ -139,5 +145,23 @@ func Yes() Bool {
 		Name:        YesName,
 		Shorthand:   "y",
 		Description: "Accept all confirmations",
+	}
+}
+
+// App returns an app string flag.
+func App() String {
+	return String{
+		Name:        AppName,
+		Shorthand:   "a",
+		Description: "Application name",
+	}
+}
+
+// AppConfig returns an app config string flag.
+func AppConfig() String {
+	return String{
+		Name:        AppConfigFilePathName,
+		Shorthand:   "c",
+		Description: "Path to application configuration file",
 	}
 }

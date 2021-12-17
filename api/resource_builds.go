@@ -25,22 +25,12 @@ func (c *Client) CreateSignedUrls(ctx context.Context, appId string, filename st
 	return data.CreateSignedUrl.GetUrl, data.CreateSignedUrl.PutUrl, nil
 }
 
-func (c *Client) StartBuild(ctx context.Context, input StartBuildInput) (*Build, error) {
+func (c *Client) StartSourceBuild(ctx context.Context, input StartSourceBuildInput) (*SourceBuild, error) {
 	query := `
-		mutation($input: StartBuildInput!) {
-			startBuild(input: $input) {
-				build {
+		mutation($input: StartSourceBuildInput!) {
+			startSourceBuild(input: $input) {
+				sourceBuild {
 					id
-					inProgress
-					status
-					image
-					user {
-						id
-						name
-						email
-					}
-					createdAt
-					updatedAt
 				}
 			}
 		}
@@ -54,17 +44,18 @@ func (c *Client) StartBuild(ctx context.Context, input StartBuildInput) (*Build,
 		return nil, err
 	}
 
-	return &data.StartBuild.Build, nil
+	return data.StartSourceBuild.SourceBuild, nil
 }
 
-func (c *Client) ListBuilds(ctx context.Context, appName string) ([]Build, error) {
+func (c *Client) ListBuilds(ctx context.Context, appName string) ([]SourceBuild, error) {
 	query := `
 		query($appName: String!) {
 			app(name: $appName) {
-				builds {
+				sourceBuilds {
 					nodes {
 						id
-						inProgress
+						logs
+						image
 						status
 						user {
 							id
@@ -88,7 +79,7 @@ func (c *Client) ListBuilds(ctx context.Context, appName string) ([]Build, error
 		return nil, err
 	}
 
-	return data.App.Builds.Nodes, nil
+	return data.App.SourceBuilds.Nodes, nil
 }
 
 func (c *Client) GetBuild(ctx context.Context, buildId string) (*Build, error) {
