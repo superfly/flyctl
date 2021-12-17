@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
@@ -54,6 +55,11 @@ func runLaunch(ctx context.Context) (err error) {
 		return
 	}
 
+	var password string
+	if password, err = helpers.RandString(30); err != nil {
+		return
+	}
+
 	input := api.LaunchMachineInput{
 		Name:    flag.FirstArg(ctx),
 		OrgSlug: org.ID,
@@ -61,8 +67,7 @@ func runLaunch(ctx context.Context) (err error) {
 		Config: &api.MachineConfig{
 			"image": "flyio/redis:6.2.6",
 			"env": map[string]string{
-				// TODO: this isn't very safe
-				"REDIS_PASSWORD": "thisisverysafe",
+				"REDIS_PASSWORD": password,
 			},
 		},
 	}
@@ -70,7 +75,9 @@ func runLaunch(ctx context.Context) (err error) {
 	client := client.FromContext(ctx).API()
 
 	var machine *api.Machine
-	if machine, _, err = client.LaunchMachine(ctx, input); err != nil {
+	var app *api.App
+
+	if machine, app, err = client.LaunchMachine(ctx, input); err != nil {
 		err = fmt.Errorf("failed launching machine: %w", err)
 
 		return
@@ -86,6 +93,7 @@ func runLaunch(ctx context.Context) (err error) {
 		})
 	} else {
 		fmt.Fprintf(io.Out, "machine %s (%s) created.\n", machine.Name, machine.ID)
+		fmt.Fprintf(io.Out, "Access your Redis instance at redis://:%s@top1.nearest.of.%s.internal:6379", password, app.Name)
 	}
 
 	return
