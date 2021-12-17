@@ -52,6 +52,12 @@ func newTurbokuCommand(client *client.Client) *Command {
 		Default:     false,
 	})
 
+	cmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "with-postgres",
+		Description: "Setup Standalone Postgres for the app",
+		Default:     false,
+	})
+
 	return cmd
 }
 
@@ -249,6 +255,61 @@ func runTurboku(cmdCtx *cmdctx.CmdContext) error {
 	// Write the app config
 	if err := writeAppConfig(filepath.Join(app.Name, "fly.toml"), appConfig); err != nil {
 		return err
+	}
+
+	addons, err := heroku.AddOnListByApp(ctx, hkApp.ID, nil)
+	if err != nil {
+		return err
+	}
+
+	if len(addons) > 0 {
+		fmt.Println("Checking for addons...")
+		// if any of the addons is heroku-postgresql launch a postgres cluster on Fly.io
+		for _, addon := range addons {
+			if addon.AddonService.Name == "heroku-postgresql" &&
+				(cmdCtx.Config.GetBool("with-postgres") || confirm("Would you like to setup a Postgres database now?")) {
+
+				app, err := cmdCtx.Client.API().GetApp(ctx, cmdCtx.AppName)
+
+				if err != nil {
+					return err
+				}
+
+				options := standalonePostgres()
+
+				clusterAppName := app.Name + "-db"
+
+				// Create a standalone Postgres in the same region as the app and organization
+				clusterInput := api.CreatePostgresClusterInput{
+					OrganizationID: org.ID,
+					Name:           clusterAppName,
+					Region:         api.StringPointer(region),
+					ImageRef:       api.StringPointer(options.ImageRef),
+					Count:          api.IntPointer(1),
+				}
+				payload, err := runApiCreatePostgresCluster(cmdCtx, org.Slug, &clusterInput)
+
+				if err != nil {
+					return err
+				}
+
+				attachInput := api.AttachPostgresClusterInput{
+					AppID:                app.ID,
+					PostgresClusterAppID: clusterAppName,
+				}
+
+				_, err = cmdCtx.Client.API().AttachPostgresCluster(cmdCtx.Command.Context(), attachInput)
+
+				// Reset the app name here beacuse AttachPostgresCluster sets it on the cmdCtx :/
+				cmdCtx.AppName = app.ID
+
+				if err != nil {
+					return err
+				}
+
+				fmt.Printf("Postgres cluster %s is now attached to %s\n", payload.App.Name, app.Name)
+			}
+		}
 	}
 
 	if !cmdCtx.Config.GetBool("no-deploy") && (cmdCtx.Config.GetBool("now") || confirm("Would you like to deploy now?")) {
