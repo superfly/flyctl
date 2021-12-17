@@ -95,7 +95,7 @@ func (c *Config) DockerBuildTarget() string {
 	return c.Build.DockerBuildTarget
 }
 
-func (c *Config) WriteTo(w io.Writer) error {
+func (c *Config) EncodeTo(w io.Writer) error {
 	return c.marshalTOML(w)
 }
 
@@ -253,7 +253,7 @@ func (c *Config) WriteToFile(filename string) (err error) {
 		}
 	}()
 
-	err = c.WriteTo(file)
+	err = c.EncodeTo(file)
 
 	return
 }
