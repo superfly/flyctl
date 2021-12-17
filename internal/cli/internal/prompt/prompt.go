@@ -55,7 +55,7 @@ func Password(ctx context.Context, dst *string, msg string, required bool) error
 	return survey.AskOne(p, dst, opts...)
 }
 
-func Select(ctx context.Context, index *int, msg string, options ...string) error {
+func Select(ctx context.Context, index *int, msg, def string, options ...string) error {
 	opt, err := newSurveyIO(ctx)
 	if err != nil {
 		return err
@@ -64,6 +64,7 @@ func Select(ctx context.Context, index *int, msg string, options ...string) erro
 	p := &survey.Select{
 		Message:  msg,
 		Options:  options,
+		Default:  def,
 		PageSize: 15,
 	}
 
@@ -169,8 +170,70 @@ func SelectOrg(ctx context.Context, orgs []api.Organization) (org *api.Organizat
 	}
 
 	var index int
-	if err = Select(ctx, &index, "Select Organization:", options...); err == nil {
+	if err = Select(ctx, &index, "Select Organization:", "", options...); err == nil {
 		org = &orgs[index]
+	}
+
+	return
+}
+
+var errRegionSlugRequired = NonInteractiveError("region slug must be specified when not running interactively")
+
+// Region returns the region the user has passed in via flag or prompts the
+// user for one.
+func Region(ctx context.Context) (*api.Region, error) {
+	client := client.FromContext(ctx).API()
+
+	regions, defaultRegion, err := client.PlatformRegions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	sort.RegionsByNameAndCode(regions)
+
+	slug := config.FromContext(ctx).Region
+
+	switch {
+	case slug != "":
+		for _, region := range regions {
+			if slug == region.Code {
+				return &region, nil
+			}
+		}
+
+		return nil, fmt.Errorf("region %s not found", slug)
+	default:
+		var defaultRegionCode string
+		if defaultRegion != nil {
+			defaultRegionCode = defaultRegion.Code
+		}
+
+		switch org, err := SelectRegion(ctx, regions, defaultRegionCode); {
+		case err == nil:
+			return org, nil
+		case IsNonInteractive(err):
+			return nil, errRegionSlugRequired
+		default:
+			return nil, err
+		}
+	}
+}
+
+func SelectRegion(ctx context.Context, regions []api.Region, defaultCode string) (region *api.Region, err error) {
+	var defaultOption string
+
+	var options []string
+	for _, r := range regions {
+		option := fmt.Sprintf("%s (%s)", r.Name, r.Code)
+		if r.Code == defaultCode {
+			defaultOption = option
+		}
+
+		options = append(options, option)
+	}
+
+	var index int
+	if err = Select(ctx, &index, "Select region:", defaultOption, options...); err == nil {
+		region = &regions[index]
 	}
 
 	return

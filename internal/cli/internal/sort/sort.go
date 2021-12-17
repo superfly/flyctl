@@ -13,3 +13,11 @@ func OrganizationsByTypeAndName(orgs []api.Organization) {
 		return orgs[i].Type < orgs[j].Type && orgs[i].Name < orgs[j].Name
 	})
 }
+
+// RegionsByNameAndCode sorts regions by their name and code.
+func RegionsByNameAndCode(regions []api.Region) {
+	sort.Slice(regions, func(i, j int) bool {
+		return regions[i].Name < regions[j].Name &&
+			regions[i].Code < regions[j].Code
+	})
+}

@@ -59,6 +59,11 @@ func GetOrg(ctx context.Context) string {
 	return GetString(ctx, OrgName)
 }
 
+// GetRegion is shorthand for GetString(ctx, RegionName).
+func GetRegion(ctx context.Context) string {
+	return GetString(ctx, RegionName)
+}
+
 // GetYes is shorthand for GetBool(ctx, YesName).
 func GetYes(ctx context.Context) bool {
 	return GetBool(ctx, YesName)
