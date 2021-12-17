@@ -7,13 +7,24 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestFromContextDoesNotPanic(t *testing.T) {
-	assert.Nil(t, FromContext(context.Background()))
+func TestConfigFromContextReturnsNil(t *testing.T) {
+	assert.Nil(t, ConfigFromContext(context.Background()))
 }
 
-func TestNewContext(t *testing.T) {
+func TestConfigFromContext(t *testing.T) {
 	exp := new(Config)
 
-	ctx := NewContext(context.Background(), exp)
-	assert.Same(t, exp, FromContext(ctx))
+	ctx := WithConfig(context.Background(), exp)
+	assert.Same(t, exp, ConfigFromContext(ctx))
+}
+
+func TestNameFromContextReturnsEmptyString(t *testing.T) {
+	assert.Equal(t, "", NameFromContext(context.Background()))
+}
+
+func TestNameFromContext(t *testing.T) {
+	const exp = "123"
+
+	ctx := WithName(context.Background(), exp)
+	assert.Equal(t, exp, NameFromContext(ctx))
 }

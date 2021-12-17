@@ -114,7 +114,7 @@ func (l *Logger) Warnf(format string, v ...interface{}) {
 func (l *Logger) error(v ...interface{}) {
 	fmt.Fprintln(
 		l.out,
-		aurora.Red("WARN"),
+		aurora.Red("ERROR"),
 		fmt.Sprint(v...),
 	)
 }

@@ -8,7 +8,7 @@ import (
 )
 
 // New initializes and returns a new apps Command.
-func New() *cobra.Command {
+func New() (cmd *cobra.Command) {
 	const (
 		long = `Build commands expose your local and remote builds.
 The LIST command will list all builds along with their status.
@@ -16,11 +16,11 @@ The LIST command will list all builds along with their status.
 		short = "Manage application builds"
 	)
 
-	cmd := command.New("builds", short, long, nil)
+	cmd = command.New("builds", short, long, nil)
 
 	cmd.AddCommand(
 		newList(),
 	)
 
-	return cmd
+	return
 }

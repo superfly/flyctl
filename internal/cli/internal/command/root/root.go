@@ -63,6 +63,7 @@ func New() *cobra.Command {
 				restart.New(), // TODO: deprecate
 				orgs.New(),
 				auth.New(),
+				builds.New(),
 			)
 
 			return root

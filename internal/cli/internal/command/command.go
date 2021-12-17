@@ -344,11 +344,15 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 	for _, path := range appConfigFilePaths(ctx) {
 		switch cfg, err := app.LoadConfig(path); {
 		case err == nil:
-			return app.NewContext(ctx, cfg), nil // we loaded a configuration file
+			logger.Debugf("app config loaded from %s", path)
+
+			return app.WithConfig(ctx, cfg), nil // we loaded a configuration file
 		case errors.Is(err, fs.ErrNotExist):
-			continue // no such file
+			logger.Debugf("no app config found at %s; skipped.", path)
+
+			continue
 		default:
-			logger.Errorf("failed loading configuration file at %s: %v", path, err)
+			return nil, fmt.Errorf("failed loading app config from %s: %w", path, err)
 		}
 	}
 
@@ -357,7 +361,7 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 
 // appConfigFilePaths returns the possible paths at which we may find a fly.toml
 // in order of preference. it takes into consideration whether the user has
-// specified a command like path to a config file.
+// specified a command-line path to a config file.
 func appConfigFilePaths(ctx context.Context) (paths []string) {
 	if p := flag.GetAppConfigFilePath(ctx); p != "" {
 		paths = append(paths, p, filepath.Join(p, app.DefaultConfigFileName))
@@ -371,35 +375,27 @@ func appConfigFilePaths(ctx context.Context) (paths []string) {
 	return
 }
 
-// RequireSession is a Preparer which makes sure the user has selected an
+var errRequireAppName = fmt.Errorf("we couldn't find a fly.toml nor an app specified by the -a flag. If you want to launch a new app, use '%s launch'", buildinfo.Name())
+
+// RequireAppName is a Preparer which makes sure the user has selected an
 // application name either via command line arguments or an application config
-// file (fly.toml).
+// file (fly.toml). It embeds LoadAppConfigIfPresent.
 func RequireAppName(ctx context.Context) (context.Context, error) {
-	if name := flag.GetApp(ctx); name != "" {
-		// the user has already set the name of the app via flag
-		return state.WithAppName(ctx, name), nil
+	ctx, err := LoadAppConfigIfPresent(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	dir := state.WorkingDirectory(ctx)
-	// try to find fly.toml, load it
-
-	// return fmt.Errorf("We couldn't find a fly.toml nor an app specified by the -a flag. If you want to launch a new app, use '" + buildinfo.Name() + " launch'")
-
-	// we have to load the applicatio from disk
-	/*
-
-		if ctx.AppConfig == nil {
-			return nil
+	name := flag.GetApp(ctx)
+	if name == "" {
+		if cfg := app.ConfigFromContext(ctx); cfg != nil {
+			name = cfg.AppName
 		}
+	}
 
-		if ctx.AppConfig.AppName != "" && ctx.AppConfig.AppName != ctx.AppName {
-			terminal.Warnf("app flag '%s' does not match app name in config file '%s'\n", ctx.AppName, ctx.AppConfig.AppName)
+	if name == "" {
+		return nil, errRequireAppName
+	}
 
-			if !confirm(fmt.Sprintf("Continue using '%s'", ctx.AppName)) {
-				return flyerr.ErrAbort
-			}
-		}
-	*/
-
-	return ctx, nil
+	return app.WithName(ctx, name), nil
 }

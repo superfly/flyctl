@@ -8,6 +8,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/pkg/iostreams"
 
+	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
@@ -17,33 +18,36 @@ import (
 
 func newList() (cmd *cobra.Command) {
 	const (
-		long  = `The builds list will list builds.`
+		long = `The builds list will list builds.
+`
 		short = "List builds"
 	)
 
 	cmd = command.New("list", short, long, runList,
 		command.RequireSession,
-		command.LoadAppConfigIfPresent,
+		command.RequireAppName,
 	)
 
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 	)
 
 	return
 }
 
 func runList(ctx context.Context) (err error) {
+	app := app.NameFromContext(ctx)
+
 	client := client.FromContext(ctx).API()
 
 	var builds []api.SourceBuild
-	if builds, err = client.ListBuilds(ctx, ""); err != nil {
+	if builds, err = client.ListBuilds(ctx, app); err != nil {
 		return
 	}
 
-	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
-	if cfg.JSONOutput {
+	if cfg := config.FromContext(ctx); cfg.JSONOutput {
 		_ = render.JSON(out, builds)
 
 		return
