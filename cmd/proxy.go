@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/proxy"
 	"github.com/superfly/flyctl/terminal"
@@ -54,19 +55,40 @@ func runProxy(cmdCtx *cmdctx.CmdContext) error {
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
+	captureError := func(err error) {
+		// ignore cancelled errors
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+
+		flyerr.CaptureException(err,
+			flyerr.WithTag("feature", "ssh-console"),
+			flyerr.WithContexts(map[string]interface{}{
+				"app": map[string]interface{}{
+					"name": app.Name,
+				},
+				"organization": map[string]interface{}{
+					"name": app.Organization.Slug,
+				},
+			}),
+		)
+	}
 
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
+		captureError(err)
 		return err
 	}
 
 	dialer, err := agentclient.Dialer(ctx, &app.Organization)
 	if err != nil {
+		captureError(err)
 		return err
 	}
 
 	cmdCtx.IO.StartProgressIndicatorMsg("Connecting to tunnel")
 	if err := agentclient.WaitForTunnel(ctx, &app.Organization); err != nil {
+		captureError(err)
 		return errors.Wrapf(err, "tunnel unavailable")
 	}
 	cmdCtx.IO.StopProgressIndicator()
@@ -74,6 +96,7 @@ func runProxy(cmdCtx *cmdctx.CmdContext) error {
 	if cmdCtx.Config.GetBool("select") {
 		instances, err := agentclient.Instances(ctx, &app.Organization, cmdCtx.AppName)
 		if err != nil {
+			captureError(err)
 			return fmt.Errorf("look up %s: %w", cmdCtx.AppName, err)
 		}
 
@@ -101,6 +124,7 @@ func runProxy(cmdCtx *cmdctx.CmdContext) error {
 	if !agent.IsIPv6(remote) {
 		cmdCtx.IO.StartProgressIndicatorMsg("Waiting for host")
 		if err := agentclient.WaitForHost(ctx, &app.Organization, remote); err != nil {
+			captureError(err)
 			return errors.Wrapf(err, "host unavailable")
 		}
 		cmdCtx.IO.StopProgressIndicator()
@@ -112,8 +136,12 @@ func runProxy(cmdCtx *cmdctx.CmdContext) error {
 		Dialer:     dialer,
 	}
 
-	return proxyConnect(ctx, params)
+	if err := proxyConnect(ctx, params); err != nil {
+		captureError(err)
+		return err
+	}
 
+	return nil
 }
 
 type ProxyParams struct {
