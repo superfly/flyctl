@@ -185,9 +185,15 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 		flyerr.CaptureException(err,
 			flyerr.WithTag("feature", "remote-build"),
 			flyerr.WithContexts(map[string]interface{}{
-				"app":          appName,
-				"builder":      remoteBuilderAppName,
-				"organization": remoteBuilderOrg,
+				"app": map[string]interface{}{
+					"name": app.Name,
+				},
+				"organization": map[string]interface{}{
+					"name": remoteBuilderOrg,
+				},
+				"builder": map[string]interface{}{
+					"app_name": remoteBuilderAppName,
+				},
 			}),
 		)
 	}

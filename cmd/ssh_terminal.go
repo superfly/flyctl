@@ -73,8 +73,12 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 		flyerr.CaptureException(err,
 			flyerr.WithTag("feature", "ssh-console"),
 			flyerr.WithContexts(map[string]interface{}{
-				"app":          app.Name,
-				"organization": app.Organization.Slug,
+				"app": map[string]interface{}{
+					"name": app.Name,
+				},
+				"organization": map[string]interface{}{
+					"name": app.Organization.Slug,
+				},
 			}),
 		)
 	}
