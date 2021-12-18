@@ -24,6 +24,11 @@ func Args(ctx context.Context) []string {
 	return FromContext(ctx).Args()
 }
 
+// Len returns the number of flags in ctx.
+func Len(ctx context.Context) int {
+	return FromContext(ctx).NFlag()
+}
+
 // FirstArg returns the first arg ctx carries or an empty string in case ctx
 // carries an empty argument set. It panics in case ctx carries no FlagSet.
 func FirstArg(ctx context.Context) string {
