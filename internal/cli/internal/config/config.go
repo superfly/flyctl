@@ -21,6 +21,7 @@ const (
 	orgEnvKey           = envKeyPrefix + "ORG"
 	registryHostEnvKey  = envKeyPrefix + "REGISTRY_HOST"
 	organizationEnvKey  = envKeyPrefix + "ORGANIZATION"
+	regionEnvKey        = envKeyPrefix + "REGION"
 	verboseOutputEnvKey = envKeyPrefix + "VERBOSE"
 	jsonOutputEnvKey    = envKeyPrefix + "JSON"
 	logGQLEnvKey        = envKeyPrefix + "LOG_GQL_ERRORS"
@@ -53,6 +54,9 @@ type Config struct {
 
 	// Organization denotes the organizational slug the user has selected.
 	Organization string
+
+	// Region denotes the region slug the user has selected.
+	Region string
 
 	// LocalOnly denotes whether the user wants only local operations.
 	LocalOnly bool
@@ -87,6 +91,7 @@ func (cfg *Config) ApplyEnv() {
 
 	cfg.Organization = env.FirstOrDefault(cfg.Organization,
 		orgEnvKey, organizationEnvKey)
+	cfg.Region = env.FirstOrDefault(cfg.Region, regionEnvKey)
 	cfg.RegistryHost = env.FirstOrDefault(cfg.RegistryHost, registryHostEnvKey)
 	cfg.APIBaseURL = env.FirstOrDefault(cfg.APIBaseURL, apiBaseURLEnvKey)
 }
@@ -117,6 +122,7 @@ func (cfg *Config) ApplyFlags(fs *pflag.FlagSet) {
 	applyStringFlags(fs, map[string]*string{
 		flag.AccessTokenName: &cfg.AccessToken,
 		flag.OrgName:         &cfg.Organization,
+		flag.RegionName:      &cfg.Region,
 	})
 
 	applyBoolFlags(fs, map[string]*bool{
