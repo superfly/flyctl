@@ -27,7 +27,7 @@ func New() *cobra.Command {
 
 	cmd := command.New(usage, short, long, run, command.RequireSession, command.RequireAppName)
 
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.MaximumNArgs(1)
 
 	flag.Add(cmd,
 		flag.App(),
