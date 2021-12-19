@@ -6,11 +6,13 @@ import (
 
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
+
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func New() *cobra.Command {
@@ -25,6 +27,8 @@ func New() *cobra.Command {
 
 	cmd := command.New(usage, short, long, run, command.RequireSession, command.RequireAppName)
 
+	cmd.Args = cobra.ExactArgs(1)
+
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
@@ -33,34 +37,33 @@ func New() *cobra.Command {
 	return cmd
 }
 
-func run(ctx context.Context) (err error) {
+func run(ctx context.Context) error {
 	var (
 		path = "/"
 
 		appName = app.NameFromContext(ctx)
 	)
 
-	if flag.Len(ctx) > 1 {
-		return fmt.Errorf("too many arguments - only one path argument allowed")
-	}
-
-	if flag.Len(ctx) > 0 {
-		path = flag.FirstArg(ctx)
-	}
+	path = flag.FirstArg(ctx)
 
 	app, err := client.FromContext(ctx).API().GetApp(ctx, appName)
 	if err != nil {
-		return
+		return fmt.Errorf("failed retrieving app: %w", err)
 	}
 
 	if !app.Deployed {
-		fmt.Println(`App has not been deployed yet. Try running "` + buildinfo.Name() + ` deploy --image flyio/hellofly"`)
-		return nil
+		return fmt.Errorf(`app has not been deployed yet. Try running "` + buildinfo.Name() + ` deploy --image flyio/hellofly"`)
 	}
 
 	appUrl := "http://" + app.Hostname + path
-	fmt.Println("Opening", appUrl)
 
-	return open.Run(appUrl)
+	iostream := iostreams.FromContext(ctx)
 
+	fmt.Fprintf(iostream.Out, "Opening %s\n", appUrl)
+
+	if err := open.Run(appUrl); err != nil {
+		return fmt.Errorf("failed opening URL %s: %w", appUrl, err)
+	}
+
+	return nil
 }
