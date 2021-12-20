@@ -7,12 +7,12 @@ import (
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/pkg/iostreams"
+
 	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func New() *cobra.Command {
@@ -52,14 +52,14 @@ func run(ctx context.Context) error {
 	}
 
 	if !app.Deployed {
-		return fmt.Errorf(`app has not been deployed yet. Try running "` + buildinfo.Name() + ` deploy --image flyio/hellofly"`)
+		return fmt.Errorf("app has not been deployed yet. Please try deploying your app first")
 	}
 
 	appUrl := "http://" + app.Hostname + path
 
 	iostream := iostreams.FromContext(ctx)
 
-	fmt.Fprintf(iostream.Out, "Opening %s\n", appUrl)
+	fmt.Fprintf(iostream.Out, "Opening %s ...\n", appUrl)
 
 	if err := open.Run(appUrl); err != nil {
 		return fmt.Errorf("failed opening URL %s: %w", appUrl, err)
