@@ -22,8 +22,7 @@ func newMonitorCommand(client *client.Client) *Command {
 	return BuildCommandKS(nil, runMonitor, ks, client, requireSession, requireAppName)
 }
 
-func runMonitor(commandContext *cmdctx.CmdContext) error {
-	//var oldds *api.DeploymentStatus
+func runMonitor(commandContext *cmdctx.CmdContext) (error error) {
 	ctx := commandContext.Command.Context()
 
 	app, err := commandContext.Client.API().GetApp(ctx, commandContext.AppName)
@@ -35,19 +34,19 @@ func runMonitor(commandContext *cmdctx.CmdContext) error {
 	commandContext.Statusf("monitor", cmdctx.STITLE, "Monitoring Deployments for %s\n", app.Name)
 
 	for {
-		err := monitorDeployment(context.Background(), commandContext)
+		err := monitorDeployment(ctx)
 		if err != nil {
-			return err
+			return
 		}
 	}
 
 }
 
-func monitorDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext) error {
-	monitor := deployment.NewDeploymentMonitor(cmdCtx.Client.API(), cmdCtx.AppName)
+func monitorDeployment(ctx context.Context) error {
+	monitor := deployment.NewDeploymentMonitor(cmdCtx.AppName)
 	monitor.DeploymentStarted = func(idx int, d *api.DeploymentStatus) error {
 		if idx > 0 {
-			cmdCtx.StatusLn()
+			cmdfmt.StatusLn()
 		}
 		cmdCtx.Status("monitor", cmdctx.SINFO, presenters.FormatDeploymentSummary(d))
 		return nil

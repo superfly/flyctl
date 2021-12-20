@@ -36,6 +36,7 @@ func LoadConfig(path string) (cfg *Config, err error) {
 		}
 	}()
 
+	cfg.Path = path
 	err = cfg.unmarshalTOML(file)
 
 	return
@@ -46,6 +47,7 @@ type Config struct {
 	AppName    string
 	Build      *Build
 	Definition map[string]interface{}
+	Path       string
 }
 
 type Build struct {

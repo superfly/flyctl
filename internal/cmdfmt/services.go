@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/logrusorgru/aurora"
+
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/pkg/iostreams"
 )

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,24 +13,26 @@ import (
 
 	"github.com/briandowns/spinner"
 	"github.com/dustin/go-humanize"
-	"github.com/logrusorgru/aurora"
-	"github.com/morikuni/aec"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
+
+	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/pkg/logs"
+
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
+	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
+	"github.com/superfly/flyctl/internal/cli/internal/state"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/deployment"
 	"github.com/superfly/flyctl/internal/flyerr"
-	"github.com/superfly/flyctl/pkg/logs"
 	"github.com/superfly/flyctl/terminal"
-	"golang.org/x/sync/errgroup"
 )
 
 func New() (cmd *cobra.Command) {
@@ -39,7 +42,7 @@ func New() (cmd *cobra.Command) {
 		short = "Deploy Fly applications"
 	)
 
-	cmd = command.New("deploy", short, long, runDeploy,
+	cmd = command.New("deploy", short, long, run,
 		command.RequireSession,
 		command.RequireAppName,
 	)
@@ -47,241 +50,251 @@ func New() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Region(),
+		flag.Image(),
+		flag.Now(),
+		flag.RemoteOnly(),
+		flag.String{
+			Name:        "strategy",
+			Description: "The strategy for replacing running instances. Options are canary, rolling, bluegreen, or immediate. Default is canary, or rolling when max-per-region is set.",
+		},
+		flag.String{
+			Name:        "dockerfile",
+			Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
+		},
+		flag.StringSlice{
+			Name:        "env",
+			Shorthand:   "e",
+			Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
+		},
+		flag.String{
+			Name:        "image-label",
+			Description: "Image label to use when tagging and pushing to the fly registry. Defaults to \"deployment-{timestamp}\".",
+		},
+		flag.StringSlice{
+			Name:        "build-arg",
+			Description: "Set of build time variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
+		},
+		flag.String{
+			Name:        "build-target",
+			Description: "Set the target build stage to build if the Dockerfile has more than one stage",
+		},
+		flag.Bool{
+			Name:        "no-cache",
+			Description: "Do not use the build cache when building the image",
+		},
 	)
-	//TODO: see why we need working directory
+
+	// TODO: see why we need working directory
+	cmd.Args = cobra.MaximumNArgs(1)
 
 	return
 }
 
-func newDeployCommand(client *client.Client) *Command {
+func run(ctx context.Context) error {
+	client := client.FromContext(ctx).API()
 
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "image",
-		Shorthand:   "i",
-		Description: "Image tag or id to deploy",
-	})
-	cmd.AddBoolFlag(BoolFlagOpts{
-		Name:        "detach",
-		Description: "Return immediately instead of monitoring deployment progress",
-	})
-	cmd.AddBoolFlag(BoolFlagOpts{
-		Name: "build-only",
-	})
-	cmd.AddBoolFlag(BoolFlagOpts{
-		Name:        "remote-only",
-		Description: "Perform builds remotely without using the local docker daemon",
-	})
-	cmd.AddBoolFlag(BoolFlagOpts{
-		Name:        "local-only",
-		Description: "Only perform builds locally using the local docker daemon",
-	})
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "strategy",
-		Description: "The strategy for replacing running instances. Options are canary, rolling, bluegreen, or immediate. Default is canary, or rolling when max-per-region is set.",
-	})
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "dockerfile",
-		Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
-	})
-	cmd.AddStringSliceFlag(StringSliceFlagOpts{
-		Name:        "build-arg",
-		Description: "Set of build time variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
-	})
-	cmd.AddStringSliceFlag(StringSliceFlagOpts{
-		Name:        "env",
-		Shorthand:   "e",
-		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
-	})
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "image-label",
-		Description: "Image label to use when tagging and pushing to the fly registry. Defaults to \"deployment-{timestamp}\".",
-	})
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "build-target",
-		Description: "Set the target build stage to build if the Dockerfile has more than one stage",
-	})
-	cmd.AddBoolFlag(BoolFlagOpts{
-		Name:        "no-cache",
-		Description: "Do not use the cache when building the image",
-	})
+	// Fetch and validate the app config
+	cmdfmt.Begin(ctx, "validating app configuration ...")
 
-	cmd.Command.Args = cobra.MaximumNArgs(1)
-
-	return cmd
-}
-
-func runDeploy(cmdCtx *cmdctx.CmdContext) error {
-	ctx := cmdCtx.Command.Context()
-
-	cmdCtx.Status("deploy", cmdctx.STITLE, "Deploying", cmdCtx.AppName)
-
-	cmdfmt.PrintBegin(cmdCtx.Out, "Validating app configuration")
-
-	if cmdCtx.AppConfig == nil {
-		cfg, err := cmdCtx.Client.API().GetConfig(ctx, cmdCtx.AppName)
-		if err != nil {
-			return fmt.Errorf("unable to fetch existing configuration file: %s", err)
-		}
-
-		cmdCtx.AppConfig.Definition = cfg.Definition
-	}
-
-	if extraEnv := cmdCtx.Config.GetStringSlice("env"); len(extraEnv) > 0 {
-		parsedEnv, err := cmdutil.ParseKVStringsToMap(cmdCtx.Config.GetStringSlice("env"))
-		if err != nil {
-			return errors.Wrap(err, "invalid env")
-		}
-		cmdCtx.AppConfig.SetEnvVariables(parsedEnv)
-	}
-
-	parsedCfg, err := cmdCtx.Client.API().ParseConfig(ctx, cmdCtx.AppName, cmdCtx.AppConfig.Definition)
+	appConfig, err := determineAppConfig(ctx)
 	if err != nil {
-		if parsedCfg == nil {
-			// No error data has been returned
-			return fmt.Errorf("not possible to validate configuration: server returned %s", err)
-		}
-		for _, error := range parsedCfg.Errors {
-			//	fmt.Println("   ", aurora.Red("✘").String(), error)
-			cmdCtx.Status("deploy", cmdctx.SERROR, "   ", aurora.Red("✘").String(), error)
-		}
 		return err
 	}
-	cmdCtx.AppConfig.Definition = parsedCfg.Definition
-	cmdfmt.PrintDone(cmdCtx.Out, "Validating app configuration done")
 
-	if parsedCfg.Valid && len(parsedCfg.Services) > 0 {
-		cmdfmt.PrintServicesList(cmdCtx.IO, parsedCfg.Services)
+	// Fetch an image ref or build from source to get the final image reference to deploy
+	img, err := determineImage(ctx, appConfig)
+
+	if err != nil {
+		return fmt.Errorf("failed to fetch an image or build from source: %w", err)
 	}
 
-	daemonType := imgsrc.NewDockerDaemonType(!cmdCtx.Config.GetBool("remote-only"), !cmdCtx.Config.GetBool("local-only"))
-	resolver := imgsrc.NewResolver(daemonType, cmdCtx.Client.API(), cmdCtx.AppName, cmdCtx.IO)
+	cmdfmt.Printf(ctx, "image: %s\n", img.Tag)
+	cmdfmt.Printf(ctx, "image size: %s\n", humanize.Bytes(uint64(img.Size)))
 
-	var img *imgsrc.DeploymentImage
-
-	var imageRef string
-	if ref := cmdCtx.Config.GetString("image"); ref != "" {
-		imageRef = ref
-	} else if ref := cmdCtx.AppConfig.Image(); ref != "" {
-		imageRef = ref
-	}
-
-	if imageRef != "" {
-		opts := imgsrc.RefOptions{
-			AppName:    cmdCtx.AppName,
-			WorkingDir: cmdCtx.WorkingDir,
-			AppConfig:  cmdCtx.AppConfig,
-			Publish:    !cmdCtx.Config.GetBool("build-only"),
-			ImageRef:   imageRef,
-			ImageLabel: cmdCtx.Config.GetString("image-label"),
-		}
-
-		img, err = resolver.ResolveReference(ctx, cmdCtx.IO, opts)
-		if err != nil {
-			return err
-		}
-	} else {
-		opts := imgsrc.ImageOptions{
-			AppName:    cmdCtx.AppName,
-			WorkingDir: cmdCtx.WorkingDir,
-			AppConfig:  cmdCtx.AppConfig,
-			Publish:    !cmdCtx.Config.GetBool("build-only"),
-			ImageLabel: cmdCtx.Config.GetString("image-label"),
-			NoCache:    cmdCtx.Config.GetBool("no-cache"),
-		}
-
-		if dockerfilePath := cmdCtx.Config.GetString("dockerfile"); dockerfilePath != "" {
-			dockerfilePath, err := filepath.Abs(dockerfilePath)
-			if err != nil {
-				return err
-			}
-			opts.DockerfilePath = dockerfilePath
-		} else if dockerfilePath := cmdCtx.AppConfig.Dockerfile(); dockerfilePath != "" {
-			opts.DockerfilePath = filepath.Join(filepath.Dir(cmdCtx.ConfigFile), dockerfilePath)
-		}
-
-		if dockerBuildTarget := cmdCtx.Config.GetString("build-target"); dockerBuildTarget != "" {
-			opts.Target = dockerBuildTarget
-		} else if dockerBuildTarget := cmdCtx.AppConfig.DockerBuildTarget(); dockerBuildTarget != "" {
-			opts.Target = dockerBuildTarget
-		}
-
-		extraArgs, err := cmdutil.ParseKVStringsToMap(cmdCtx.Config.GetStringSlice("build-arg"))
-		if err != nil {
-			return errors.Wrap(err, "invalid build-arg")
-		}
-		opts.ExtraBuildArgs = extraArgs
-
-		img, err = resolver.BuildImage(ctx, cmdCtx.IO, opts)
-		if err != nil {
-			return err
-		}
-		if img == nil {
-			return errors.New("could not find an image to deploy")
-		}
-	}
-
-	if img == nil {
-		return errors.New("could not find an image to deploy")
-	}
-
-	fmt.Fprintf(cmdCtx.Client.IO.Out, "Image: %s\n", img.Tag)
-	fmt.Fprintf(cmdCtx.Client.IO.Out, "Image size: %s\n", humanize.Bytes(uint64(img.Size)))
-
-	if cmdCtx.Config.GetBool("build-only") {
+	if flag.GetBool(ctx, "build-only") {
 		return nil
 	}
 
-	cmdfmt.PrintBegin(cmdCtx.Out, "Creating release")
+	cmdfmt.Begin(ctx, "creating release ...")
 
 	input := api.DeployImageInput{
-		AppID: cmdCtx.AppName,
+		AppID: app.NameFromContext(ctx),
 		Image: img.Tag,
 	}
-	if val := cmdCtx.Config.GetString("strategy"); val != "" {
+
+	// Set the deployment strategy
+	if val := flag.GetString(ctx, "strategy"); val != "" {
 		input.Strategy = api.StringPointer(strings.ToUpper(val))
 	}
-	if cmdCtx.AppConfig != nil && len(cmdCtx.AppConfig.Definition) > 0 {
-		input.Definition = api.DefinitionPtr(cmdCtx.AppConfig.Definition)
+
+	if appConfig != nil && len(appConfig.Definition) > 0 {
+		input.Definition = api.DefinitionPtr(appConfig.Definition)
 	}
 
-	release, releaseCommand, err := cmdCtx.Client.API().DeployImage(ctx, input)
+	// Start deployment of the determined image
+	release, releaseCommand, err := client.DeployImage(ctx, input)
+
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(cmdCtx.Out, "Release v%d created\n", release.Version)
+	cmdfmt.Donef(ctx, "release v%d created\n", release.Version)
+
 	if releaseCommand != nil {
-		fmt.Fprintf(cmdCtx.Out, "Release command detected: this new release will not be available until the command succeeds.\n")
+		cmdfmt.Println(ctx, "release command detected: this new release will not be available until the command succeeds")
 	}
 
-	if cmdCtx.Config.GetBool("detach") {
+	if flag.GetBool(ctx, "detach") {
 		return nil
 	}
 
-	fmt.Println()
-	cmdCtx.Status("deploy", cmdctx.SDETAIL, "You can detach the terminal anytime without stopping the deployment")
+	cmdfmt.Println(ctx, "You can detach the terminal anytime without stopping the deployment")
+	// cmdCtx.Status("deploy", cmdctx.SDETAIL, "You can detach the terminal anytime without stopping the deployment")
 
+	// Run the pre-deployment release command if it's set
 	if releaseCommand != nil {
-		cmdfmt.PrintBegin(cmdCtx.Out, "Release command")
-		fmt.Printf("Command: %s\n", releaseCommand.Command)
+		cmdfmt.Begin(ctx, "Release command: %s\n", releaseCommand.Command)
 
-		err = watchReleaseCommand(ctx, cmdCtx, cmdCtx.Client.API(), releaseCommand.ID)
-		if err != nil {
+		if err := watchReleaseCommand(ctx, releaseCommand.ID); err != nil {
 			return err
 		}
 	}
 
 	if release.DeploymentStrategy == "IMMEDIATE" {
 		terminal.Debug("immediate deployment strategy, nothing to monitor")
+
 		return nil
 	}
 
-	return watchDeployment(ctx, cmdCtx)
+	err = watchDeployment(ctx)
+
+	return err
 }
 
-func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *api.Client, id string) error {
+// determineAppConfig fetching the app config from a local file, or in its absence, from the API
+func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
+	client := client.FromContext(ctx).API()
+
+	if cfg = app.ConfigFromContext(ctx); cfg == nil {
+		var apiConfig *api.AppConfig
+		if apiConfig, err = client.GetConfig(ctx, app.NameFromContext(ctx)); err != nil {
+			err = fmt.Errorf("failed fetching existing app config: %w", err)
+
+			return
+		}
+
+		cfg = &app.Config{
+			Definition: apiConfig.Definition,
+		}
+	}
+
+	if env := flag.GetStringSlice(ctx, "env"); len(env) > 0 {
+		var parsedEnv map[string]string
+		if parsedEnv, err = cmdutil.ParseKVStringsToMap(env); err != nil {
+			err = fmt.Errorf("failed parsing environment: %w", err)
+
+			return
+		}
+
+		cfg.SetEnvVariables(parsedEnv)
+	}
+
+	return
+}
+
+// determineImage fetches an optional imagef
+func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.DeploymentImage, err error) {
+	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "remote-only"), !flag.GetBool(ctx, "local-only"))
+
+	appName := app.NameFromContext(ctx)
+	client := client.FromContext(ctx).API()
+	io := iostreams.FromContext(ctx)
+
+	resolver := imgsrc.NewResolver(daemonType, client, appName, io)
+
+	var imageRef string
+	if imageRef, err = fetchImageRef(ctx, app.ConfigFromContext(ctx)); err != nil {
+		return
+	}
+
+	if imageRef != "" {
+		opts := imgsrc.RefOptions{
+			AppName:    app.NameFromContext(ctx),
+			WorkingDir: state.WorkingDirectory(ctx),
+			Publish:    !flag.GetBool(ctx, "build-only"),
+			ImageRef:   imageRef,
+			ImageLabel: flag.GetString(ctx, "image-label"),
+		}
+
+		img, err = resolver.ResolveReference(ctx, io, opts)
+
+		return
+	}
+
+	opts := imgsrc.ImageOptions{
+		AppName:    app.NameFromContext(ctx),
+		WorkingDir: state.WorkingDirectory(ctx),
+		Publish:    !flag.GetBool(ctx, "build-only"),
+		ImageLabel: flag.GetString(ctx, "image-label"),
+		NoCache:    flag.GetBool(ctx, "no-cache"),
+	}
+
+	// A Dockerfile was specified in the config, so set the path relative to the directory containing the config file
+	// Otherwise, use the absolute path to the Dockerfile specified on the command line
+	if path := appConfig.Dockerfile(); path != "" {
+		opts.DockerfilePath = filepath.Join(filepath.Dir(appConfig.Path), path)
+	} else if path := flag.GetString(ctx, "dockerfile"); path != "" {
+		if path, err = filepath.Abs(path); err != nil {
+			return
+		}
+		opts.DockerfilePath = path
+	}
+
+	if target := appConfig.DockerBuildTarget(); target != "" {
+		opts.Target = target
+	} else if target := flag.GetString(ctx, "build-target"); target != "" {
+		opts.Target = target
+	}
+
+	// Set Docker build args
+	var buildArgs map[string]string
+	if buildArgs, err = cmdutil.ParseKVStringsToMap(flag.GetStringSlice(ctx, "build-arg")); err != nil {
+		err = fmt.Errorf("invalid build args: %w", err)
+
+		return
+	}
+
+	opts.ExtraBuildArgs = buildArgs
+
+	// Finally, build the image
+	if img, err = resolver.BuildImage(ctx, io, opts); err == nil && img == nil {
+		err = errors.New("no image specified")
+	}
+
+	return
+}
+
+func fetchImageRef(ctx context.Context, cfg *app.Config) (ref string, err error) {
+	if ref = flag.GetString(ctx, "image"); ref != "" {
+		return
+	}
+
+	if cfg.Build != nil {
+		if ref = cfg.Build.Image; ref != "" {
+			return
+		}
+	}
+
+	return ref, nil
+}
+
+func watchReleaseCommand(ctx context.Context, id string) error {
 	g, ctx := errgroup.WithContext(ctx)
-	interactive := cc.IO.IsInteractive()
+	io := iostreams.FromContext(ctx)
+	client := client.FromContext(ctx).API()
+	interactive := io.IsInteractive()
+	appName := app.NameFromContext(ctx)
 
 	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
 	s.Writer = os.Stderr
@@ -302,8 +315,8 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 				ctx, cancel := context.WithCancel(ctx)
 				defer cancel()
 
-				opts := &logs.LogOptions{MaxBackoff: 1 * time.Second, AppName: cc.AppName, VMID: vmid}
-				ls, err := logs.NewPollingStream(ctx, apiClient, opts)
+				opts := &logs.LogOptions{MaxBackoff: 1 * time.Second, AppName: appName, VMID: vmid}
+				ls, err := logs.NewPollingStream(ctx, client, opts)
 				if err != nil {
 					return err
 				}
@@ -334,7 +347,7 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 		defer close(rcUpdates)
 
 		for {
-			rc, err := apiClient.GetReleaseCommand(ctx, id)
+			rc, err := client.GetReleaseCommand(ctx, id)
 			if err != nil {
 				errorCount += 1
 				if errorCount < 3 {
@@ -389,32 +402,35 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 	return g.Wait()
 }
 
-func watchDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext) error {
-	cmdCtx.Status("deploy", cmdctx.STITLE, "Monitoring Deployment")
+func watchDeployment(ctx context.Context) error {
+	// cmdCtx.Status("deploy", cmdctx.STITLE, "Monitoring Deployment")
 
-	interactive := cmdCtx.IO.IsInteractive()
+	io := iostreams.FromContext(ctx)
+	appName := app.NameFromContext(ctx)
+	client := client.FromContext(ctx)
 
 	endmessage := ""
 
-	monitor := deployment.NewDeploymentMonitor(cmdCtx.Client.API(), cmdCtx.AppName)
+	monitor := deployment.NewDeploymentMonitor(appName)
 
 	monitor.DeploymentStarted = func(idx int, d *api.DeploymentStatus) error {
 		if idx > 0 {
-			cmdCtx.StatusLn()
+			cmdfmt.Separator(ctx)
 		}
-		cmdCtx.Status("deploy", cmdctx.SINFO, presenters.FormatDeploymentSummary(d))
-
+		// cmdCtx.Status("deploy", cmdctx.SINFO, presenters.FormatDeploymentSummary(d))
+		cmdfmt.Println(ctx, presenters.FormatDeploymentSummary(d))
 		return nil
 	}
 
+	// TODO check we aren't asking for JSON
 	monitor.DeploymentUpdated = func(d *api.DeploymentStatus, updatedAllocs []*api.AllocationStatus) error {
-		if interactive && !cmdCtx.OutputJSON() {
-			fmt.Fprint(cmdCtx.Out, aec.Up(1))
-			fmt.Fprint(cmdCtx.Out, aec.EraseLine(aec.EraseModes.All))
-			fmt.Fprintln(cmdCtx.Out, presenters.FormatDeploymentAllocSummary(d))
+		if io.IsInteractive() {
+			cmdfmt.Overwrite(ctx)
+			cmdfmt.Println(ctx, presenters.FormatDeploymentAllocSummary(d))
 		} else {
 			for _, alloc := range updatedAllocs {
-				cmdCtx.Status("deploy", cmdctx.SINFO, presenters.FormatAllocSummary(alloc))
+				//	cmdCtx.Status("deploy", cmdctx.SINFO, presenters.FormatAllocSummary(alloc))
+				cmdfmt.Println(ctx, presenters.FormatAllocSummary(alloc))
 			}
 		}
 
@@ -422,7 +438,7 @@ func watchDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	monitor.DeploymentFailed = func(d *api.DeploymentStatus, failedAllocs []*api.AllocationStatus) error {
-		cmdCtx.Statusf("deploy", cmdctx.SDETAIL, "v%d %s - %s\n", d.Version, d.Status, d.Description)
+		// cmdCtx.Statusf("deploy", cmdctx.SDETAIL, "v%d %s - %s\n", d.Version, d.Status, d.Description)
 
 		if endmessage == "" && d.Status == "failed" {
 			if strings.Contains(d.Description, "no stable release to revert to") {
@@ -433,7 +449,9 @@ func watchDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext) error {
 		}
 
 		if len(failedAllocs) > 0 {
-			cmdCtx.Status("deploy", cmdctx.STITLE, "Failed Instances")
+
+			//cmdCtx.Status("deploy", cmdctx.STITLE, "Failed Instances")
+			cmdfmt.Println(ctx, "Failed Instances")
 
 			x := make(chan *api.AllocationStatus)
 			var wg sync.WaitGroup
@@ -443,9 +461,11 @@ func watchDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext) error {
 				a := a
 				go func() {
 					defer wg.Done()
-					alloc, err := cmdCtx.Client.API().GetAllocationStatus(ctx, cmdCtx.AppName, a.ID, 30)
+					alloc, err := client.API().GetAllocationStatus(ctx, appName, a.ID, 30)
 					if err != nil {
-						cmdCtx.Status("deploy", cmdctx.SERROR, "Error fetching alloc", a.ID, err)
+						//cmdCtx.Status("deploy", cmdctx.SERROR, "Error fetching alloc", a.ID, err)
+						cmdfmt.Println(ctx, "Error fetching alloc", a.ID, err)
+
 						return
 					}
 					x <- alloc
@@ -460,9 +480,10 @@ func watchDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext) error {
 			count := 0
 			for alloc := range x {
 				count++
-				cmdCtx.StatusLn()
-				cmdCtx.Statusf("deploy", cmdctx.SBEGIN, "Failure #%d\n", count)
-				cmdCtx.StatusLn()
+				cmdfmt.Separator(ctx)
+				//cmdCtx.Statusf("deploy", cmdctx.SBEGIN, "Failure #%d\n", count)
+				cmdfmt.Println(ctx, "Failure #%d\n", count)
+				cmdfmt.Separator(ctx)
 
 				err := cmdCtx.Frender(
 					cmdctx.PresenterOption{

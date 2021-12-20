@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/pkg/iostreams"
+
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -16,7 +16,7 @@ type ImageOptions struct {
 	WorkingDir     string
 	DockerfilePath string
 	ImageRef       string
-	AppConfig      *flyctl.AppConfig
+	AppConfig      *app.AppConfig
 	ExtraBuildArgs map[string]string
 	ImageLabel     string
 	Publish        bool
@@ -29,7 +29,7 @@ type RefOptions struct {
 	AppName    string
 	WorkingDir string
 	ImageRef   string
-	AppConfig  *flyctl.AppConfig
+	AppConfig  *app.AppConfig
 	ImageLabel string
 	Publish    bool
 	Tag        string
