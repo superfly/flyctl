@@ -2,6 +2,7 @@ package open
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/skratchdot/open-golang/open"
@@ -39,12 +40,9 @@ func New() *cobra.Command {
 
 func run(ctx context.Context) error {
 	var (
-		path = "/"
-
+		path    = flag.FirstArg(ctx)
 		appName = app.NameFromContext(ctx)
 	)
-
-	path = flag.FirstArg(ctx)
 
 	app, err := client.FromContext(ctx).API().GetApp(ctx, appName)
 	if err != nil {
@@ -52,7 +50,7 @@ func run(ctx context.Context) error {
 	}
 
 	if !app.Deployed {
-		return fmt.Errorf("app has not been deployed yet. Please try deploying your app first")
+		return errors.New("app has not been deployed yet. Please try deploying your app first")
 	}
 
 	appUrl := "http://" + app.Hostname + path
