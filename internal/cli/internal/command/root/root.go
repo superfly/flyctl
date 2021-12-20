@@ -2,6 +2,8 @@
 package root
 
 import (
+	"os"
+
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/cmd"
@@ -16,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/cli/internal/command/restart"
 	"github.com/superfly/flyctl/internal/cli/internal/command/resume"
+	"github.com/superfly/flyctl/internal/cli/internal/command/services"
 	"github.com/superfly/flyctl/internal/cli/internal/command/suspend"
 	"github.com/superfly/flyctl/internal/cli/internal/command/version"
 	"github.com/superfly/flyctl/internal/client"
@@ -64,6 +67,7 @@ func New() *cobra.Command {
 				orgs.New(),
 				auth.New(),
 				builds.New(),
+				db.New(),
 			)
 
 			return root
@@ -88,6 +92,10 @@ func New() *cobra.Command {
 		orgs.New(),
 		auth.New(),
 		builds.New(),
+	}
+
+	if os.Getenv("DEV") != "" {
+		newCommands = append(newCommands, services.New())
 	}
 
 	// newCommandNames is the set of the names of the above commands

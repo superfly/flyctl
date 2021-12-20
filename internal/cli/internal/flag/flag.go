@@ -21,6 +21,9 @@ const (
 	// OrgName denotes the name of the org flag.
 	OrgName = "org"
 
+	// RegionName denotes the name of the region flag.
+	RegionName = "region"
+
 	// YesName denotes the name of the yes flag.
 	YesName = "yes"
 
@@ -136,6 +139,16 @@ func Org() String {
 	return String{
 		Name:        OrgName,
 		Description: "The organization to operate on",
+		Shorthand:   "o",
+	}
+}
+
+// Region returns a region string flag.
+func Region() String {
+	return String{
+		Name:        RegionName,
+		Description: "The region to operate on",
+		Shorthand:   "r",
 	}
 }
 

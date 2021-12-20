@@ -57,7 +57,7 @@ func (c *Client) ListBuilds(ctx context.Context, appName string) ([]SourceBuild,
 						logs
 						image
 						status
-						user {
+						createdBy {
 							id
 							name
 							email
