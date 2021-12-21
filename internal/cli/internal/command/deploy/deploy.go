@@ -25,13 +25,14 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
+	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/cli/internal/state"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/deployment"
 	"github.com/superfly/flyctl/internal/flyerr"
-	"github.com/superfly/flyctl/terminal"
+	"github.com/superfly/flyctl/internal/logger"
 )
 
 func New() (cmd *cobra.Command) {
@@ -91,11 +92,6 @@ func New() (cmd *cobra.Command) {
 }
 
 func run(ctx context.Context) error {
-	client := client.FromContext(ctx).API()
-
-	// Fetch and validate the app config
-	cmdfmt.Begin(ctx, "validating app configuration ...")
-
 	appConfig, err := determineAppConfig(ctx)
 	if err != nil {
 		return err
@@ -103,57 +99,33 @@ func run(ctx context.Context) error {
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
 	img, err := determineImage(ctx, appConfig)
-
 	if err != nil {
 		return fmt.Errorf("failed to fetch an image or build from source: %w", err)
 	}
-
-	cmdfmt.Printf(ctx, "image: %s\n", img.Tag)
-	cmdfmt.Printf(ctx, "image size: %s\n", humanize.Bytes(uint64(img.Size)))
-
 	if flag.GetBool(ctx, "build-only") {
 		return nil
 	}
 
-	cmdfmt.Begin(ctx, "creating release ...")
-
-	input := api.DeployImageInput{
-		AppID: app.NameFromContext(ctx),
-		Image: img.Tag,
-	}
-
-	// Set the deployment strategy
-	if val := flag.GetString(ctx, "strategy"); val != "" {
-		input.Strategy = api.StringPointer(strings.ToUpper(val))
-	}
-
-	if appConfig != nil && len(appConfig.Definition) > 0 {
-		input.Definition = api.DefinitionPtr(appConfig.Definition)
-	}
-
-	// Start deployment of the determined image
-	release, releaseCommand, err := client.DeployImage(ctx, input)
-
+	release, releaseCommand, err := createRelease(ctx, img)
 	if err != nil {
 		return err
 	}
 
-	cmdfmt.Donef(ctx, "release v%d created\n", release.Version)
-
 	if releaseCommand != nil {
-		cmdfmt.Println(ctx, "release command detected: this new release will not be available until the command succeeds")
+		tb.Println("release command detected: this new release will not be available until the command succeeds")
 	}
 
 	if flag.GetBool(ctx, "detach") {
 		return nil
 	}
 
-	cmdfmt.Println(ctx, "You can detach the terminal anytime without stopping the deployment")
+	tb := render.NewTextBlock(ctx)
+	tb.Println("You can detach the terminal anytime without stopping the deployment")
 	// cmdCtx.Status("deploy", cmdctx.SDETAIL, "You can detach the terminal anytime without stopping the deployment")
 
 	// Run the pre-deployment release command if it's set
 	if releaseCommand != nil {
-		cmdfmt.Begin(ctx, "Release command: %s\n", releaseCommand.Command)
+		tb.Printf("Release command: %s\n", releaseCommand.Command)
 
 		if err := watchReleaseCommand(ctx, releaseCommand.ID); err != nil {
 			return err
@@ -161,18 +133,48 @@ func run(ctx context.Context) error {
 	}
 
 	if release.DeploymentStrategy == "IMMEDIATE" {
-		terminal.Debug("immediate deployment strategy, nothing to monitor")
+		logger := logger.FromContext(ctx)
+		logger.Debug("immediate deployment strategy, nothing to monitor")
 
 		return nil
 	}
 
-	err = watchDeployment(ctx)
+	if err = watchDeployment(ctx); err == nil {
+		tb.Done()
+	}
 
 	return err
 }
 
+func validateAppConfiguration(ctx context.Context) (*app.Config, error) {
+	tb := render.NewTextBlock(ctx, "validating app configuration ...")
+
+	appConfig, err := determineAppConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Fetch an image ref or build from source to get the final image reference to deploy
+	img, err := determineImage(ctx, appConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch an image or build from source: %w", err)
+	}
+
+	tb.Printf("image: %s\n", img.Tag)
+	tb.Printf("image size: %s\n", humanize.Bytes(uint64(img.Size)))
+
+	if flag.GetBool(ctx, "build-only") {
+		return nil
+	}
+	tb.Done("validated app configuration")
+
+	return appConfig, nil
+}
+
 // determineAppConfig fetching the app config from a local file, or in its absence, from the API
 func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
+	tb := render.NewTextBlock(ctx, "determining app config ...")
+
 	client := client.FromContext(ctx).API()
 
 	if cfg = app.ConfigFromContext(ctx); cfg == nil {
@@ -199,11 +201,24 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 		cfg.SetEnvVariables(parsedEnv)
 	}
 
+	tb.Done("determined app config.")
+
 	return
 }
 
-// determineImage fetches an optional imagef
 func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.DeploymentImage, err error) {
+	tb := render.NewTextBlock(ctx, "determining image ...")
+	defer func() {
+		if err != nil {
+			return
+		}
+
+		tb.Printf("image: %s\n", img.Tag)
+		tb.Printf("image size: %s\n", humanize.Bytes(uint64(img.Size)))
+
+		tb.Done("determined image.")
+	}()
+
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "remote-only"), !flag.GetBool(ctx, "local-only"))
 
 	appName := app.NameFromContext(ctx)
@@ -217,7 +232,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 		return
 	}
 
-	// We're using a pre-built Docker image
+	// we're using a pre-built Docker image
 	if imageRef != "" {
 		opts := imgsrc.RefOptions{
 			AppName:    app.NameFromContext(ctx),
@@ -232,6 +247,16 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 		return
 	}
 
+	build := appConfig.Build
+	if build == nil {
+		build = new(app.Build)
+	}
+
+	var buildArgs map[string]string
+	if buildArgs, err = mergeBuildArgs(ctx, build.Args); err != nil {
+		return
+	}
+
 	// We're building from source
 	opts := imgsrc.ImageOptions{
 		AppName:         app.NameFromContext(ctx),
@@ -239,26 +264,14 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 		Publish:         !flag.GetBool(ctx, "build-only"),
 		ImageLabel:      flag.GetString(ctx, "image-label"),
 		NoCache:         flag.GetBool(ctx, "no-cache"),
-		BuildArgs:       appConfig.Build.Args,
-		BuiltIn:         appConfig.Build.Builtin,
-		BuiltInSettings: appConfig.Build.Settings,
-		Builder:         appConfig.Build.Builder,
-		Buildpacks:      appConfig.Build.Buildpacks,
+		BuildArgs:       buildArgs,
+		BuiltIn:         build.Builtin,
+		BuiltInSettings: build.Settings,
+		Builder:         build.Builder,
+		Buildpacks:      build.Buildpacks,
 	}
 
-	// Set additional Docker build args from the command line, overriding similar ones from the config
-
-	cliBuildArgs, err := cmdutil.ParseKVStringsToMap(flag.GetStringSlice(ctx, "build-arg"))
-
-	if err != nil {
-		return nil, fmt.Errorf("invalid build args: %w", err)
-	}
-
-	for k, v := range cliBuildArgs {
-		opts.BuildArgs[k] = v
-	}
-
-	// A Dockerfile was specified in the config, so set the path relative to the directory containing the config file
+	// a Dockerfile was specified in the config, so set the path relative to the directory containing the config file
 	// Otherwise, use the absolute path to the Dockerfile specified on the command line
 	if path := appConfig.Dockerfile(); path != "" {
 		opts.DockerfilePath = filepath.Join(filepath.Dir(appConfig.Path), path)
@@ -275,12 +288,30 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 		opts.Target = target
 	}
 
-	// Finally, build the image
+	// finally, build the image
 	if img, err = resolver.BuildImage(ctx, io, opts); err == nil && img == nil {
 		err = errors.New("no image specified")
 	}
 
 	return
+}
+
+func mergeBuildArgs(ctx context.Context, args map[string]string) (map[string]string, error) {
+	if args == nil {
+		args = make(map[string]string)
+	}
+
+	// set additional Docker build args from the command line, overriding similar ones from the config
+	cliBuildArgs, err := cmdutil.ParseKVStringsToMap(flag.GetStringSlice(ctx, "build-arg"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid build args: %w", err)
+	}
+
+	for k, v := range cliBuildArgs {
+		args[k] = v
+	}
+
+	return args, nil
 }
 
 func fetchImageRef(ctx context.Context, cfg *app.Config) (ref string, err error) {
@@ -295,6 +326,35 @@ func fetchImageRef(ctx context.Context, cfg *app.Config) (ref string, err error)
 	}
 
 	return ref, nil
+}
+
+func createRelease(ctx context.Context, img *imgsrc.DeploymentImage) (*api.Release, *api.ReleaseCommand, error) {
+	tb := render.NewTextBlock(ctx, "creating release ...")
+	appConfig := app.ConfigFromContext(ctx)
+
+	input := api.DeployImageInput{
+		AppID: app.NameFromContext(ctx),
+		Image: img.Tag,
+	}
+
+	// Set the deployment strategy
+	if val := flag.GetString(ctx, "strategy"); val != "" {
+		input.Strategy = api.StringPointer(strings.ToUpper(val))
+	}
+
+	if appConfig != nil && len(appConfig.Definition) > 0 {
+		input.Definition = api.DefinitionPtr(appConfig.Definition)
+	}
+
+	// Start deployment of the determined image
+	client := client.FromContext(ctx).API()
+
+	release, releaseCommand, err := client.DeployImage(ctx, input)
+	if err == nil {
+		tb.Donef("release v%d created\n", release.Version)
+	}
+
+	return release, releaseCommand, err
 }
 
 func watchReleaseCommand(ctx context.Context, id string) error {
