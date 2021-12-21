@@ -49,9 +49,9 @@ func (s *buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClient
 		terminal.Debug("error fetching docker server info:", err)
 	}
 
-	cmdfmt.Begin(ctx, "Building image with Buildpacks")
+	cmdfmt.PrintBegin(streams.ErrOut, "Building image with Buildpacks")
 	msg := fmt.Sprintf("docker host: %s %s %s", serverInfo.ServerVersion, serverInfo.OSType, serverInfo.Architecture)
-	cmdfmt.Done(ctx, msg)
+	cmdfmt.PrintDone(streams.ErrOut, msg)
 
 	err = packClient.Build(ctx, pack.BuildOptions{
 		AppPath:        opts.WorkingDir,
@@ -68,16 +68,16 @@ func (s *buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClient
 		return nil, err
 	}
 
-	cmdfmt.Done(ctx, "Building image done")
+	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
 
 	if opts.Publish {
-		cmdfmt.Begin(ctx, "Pushing image to fly")
+		cmdfmt.PrintBegin(streams.ErrOut, "Pushing image to fly")
 
 		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
 			return nil, err
 		}
 
-		cmdfmt.Done(ctx, "Pushing image done")
+		cmdfmt.PrintDone(streams.ErrOut, "Pushing image done")
 	}
 
 	img, err := findImageWithDocker(docker, ctx, opts.Tag)

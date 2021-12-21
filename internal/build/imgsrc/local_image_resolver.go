@@ -56,13 +56,13 @@ func (s *localImageResolver) Run(ctx context.Context, dockerFactory *dockerClien
 
 		defer clearDeploymentTags(ctx, docker, opts.Tag)
 
-		cmdfmt.Begin(ctx, "Pushing image to fly")
+		cmdfmt.PrintBegin(streams.ErrOut, "Pushing image to fly")
 
 		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
 			return nil, err
 		}
 
-		cmdfmt.Done(ctx, "Pushing image done")
+		cmdfmt.PrintDone(streams.ErrOut, "Pushing image done")
 	}
 
 	di := &DeploymentImage{

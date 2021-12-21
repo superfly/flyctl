@@ -412,7 +412,6 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 		opts := imgsrc.ImageOptions{
 			AppName:    cmdCtx.AppName,
 			WorkingDir: path.Join(cmdCtx.WorkingDir, imageOrPath),
-			AppConfig:  cmdCtx.AppConfig,
 			Publish:    !cmdCtx.Config.GetBool("build-only"),
 			ImageLabel: cmdCtx.Config.GetString("image-label"),
 			Target:     cmdCtx.Config.GetString("build-target"),
@@ -443,7 +442,6 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 		opts := imgsrc.RefOptions{
 			AppName:    cmdCtx.AppName,
 			WorkingDir: cmdCtx.WorkingDir,
-			AppConfig:  cmdCtx.AppConfig,
 			Publish:    !cmdCtx.Config.GetBool("build-only"),
 			ImageRef:   imageOrPath,
 			ImageLabel: cmdCtx.Config.GetString("image-label"),

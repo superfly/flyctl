@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"sync"
 
@@ -34,7 +33,7 @@ func runMonitor(commandContext *cmdctx.CmdContext) (error error) {
 	commandContext.Statusf("monitor", cmdctx.STITLE, "Monitoring Deployments for %s\n", app.Name)
 
 	for {
-		err := monitorDeployment(ctx)
+		err := monitorDeployment(*commandContext)
 		if err != nil {
 			return
 		}
@@ -42,11 +41,11 @@ func runMonitor(commandContext *cmdctx.CmdContext) (error error) {
 
 }
 
-func monitorDeployment(ctx context.Context) error {
+func monitorDeployment(cmdCtx cmdctx.CmdContext) error {
 	monitor := deployment.NewDeploymentMonitor(cmdCtx.AppName)
 	monitor.DeploymentStarted = func(idx int, d *api.DeploymentStatus) error {
 		if idx > 0 {
-			cmdfmt.StatusLn()
+			fmt.Println()
 		}
 		cmdCtx.Status("monitor", cmdctx.SINFO, presenters.FormatDeploymentSummary(d))
 		return nil
@@ -76,7 +75,7 @@ func monitorDeployment(ctx context.Context) error {
 				a := a
 				go func() {
 					defer wg.Done()
-					alloc, err := cmdCtx.Client.API().GetAllocationStatus(ctx, cmdCtx.AppName, a.ID, 20)
+					alloc, err := cmdCtx.Client.API().GetAllocationStatus(cmdCtx.Command.Context(), cmdCtx.AppName, a.ID, 20)
 					if err != nil {
 						cmdCtx.Status("monitor", cmdctx.SERROR, "Error fetching instance", a.ID, err)
 						return
@@ -138,7 +137,7 @@ func monitorDeployment(ctx context.Context) error {
 		return nil
 	}
 
-	monitor.Start(ctx)
+	monitor.Start(cmdCtx.Command.Context())
 
 	if err := monitor.Error(); err != nil {
 		fmt.Fprintf(cmdCtx.Out, "Monitor Error: %s", err)

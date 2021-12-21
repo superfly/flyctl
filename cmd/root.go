@@ -53,7 +53,6 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 		newCertificatesCommand(client),
 		newConfigCommand(client),
 		newDashboardCommand(client),
-		newDeployCommand(client),
 		newDocsCommand(client),
 		newHistoryCommand(client),
 		newInfoCommand(client),

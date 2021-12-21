@@ -1,4 +1,4 @@
-package cmd
+package deploy
 
 import (
 	"context"
@@ -111,21 +111,18 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	if releaseCommand != nil {
-		tb.Println("release command detected: this new release will not be available until the command succeeds")
-	}
-
 	if flag.GetBool(ctx, "detach") {
 		return nil
 	}
 
+	// TODO: This is a single message that doesn't belong to any block output, so we should have helpers to allow that
 	tb := render.NewTextBlock(ctx)
 	tb.Println("You can detach the terminal anytime without stopping the deployment")
-	// cmdCtx.Status("deploy", cmdctx.SDETAIL, "You can detach the terminal anytime without stopping the deployment")
 
 	// Run the pre-deployment release command if it's set
 	if releaseCommand != nil {
-		tb.Printf("Release command: %s\n", releaseCommand.Command)
+		tb := render.NewTextBlock(ctx, "Release command detected: %s\n", releaseCommand.Command)
+		tb.Detail("This release will not be available until the release command succeeds.")
 
 		if err := watchReleaseCommand(ctx, releaseCommand.ID); err != nil {
 			return err
@@ -350,6 +347,7 @@ func createRelease(ctx context.Context, img *imgsrc.DeploymentImage) (*api.Relea
 	client := client.FromContext(ctx).API()
 
 	release, releaseCommand, err := client.DeployImage(ctx, input)
+
 	if err == nil {
 		tb.Donef("release v%d created\n", release.Version)
 	}

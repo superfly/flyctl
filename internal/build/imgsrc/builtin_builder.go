@@ -46,7 +46,7 @@ func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 
 	defer clearDeploymentTags(ctx, docker, opts.Tag)
 
-	cmdfmt.Begin(ctx, "Creating build context")
+	cmdfmt.PrintBegin(streams.ErrOut, "Creating build context")
 	archiveOpts := archiveOptions{
 		sourcePath: opts.WorkingDir,
 		compressed: dockerFactory.mode.IsRemote(),
@@ -67,7 +67,7 @@ func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	if err != nil {
 		return nil, errors.Wrap(err, "error archiving build context")
 	}
-	cmdfmt.Done(ctx, "Creating build context done")
+	cmdfmt.PrintDone(streams.ErrOut, "Creating build context done")
 
 	var imageID string
 
@@ -76,9 +76,9 @@ func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		terminal.Debug("error fetching docker server info:", err)
 	}
 
-	cmdfmt.Begin(ctx, "Building image with Docker")
+	cmdfmt.PrintBegin(streams.ErrOut, "Building image with Docker")
 	msg := fmt.Sprintf("docker host: %s %s %s", serverInfo.ServerVersion, serverInfo.OSType, serverInfo.Architecture)
-	cmdfmt.Done(ctx, msg)
+	cmdfmt.PrintDone(streams.ErrOut, msg)
 
 	buildArgs := normalizeBuildArgsForDocker(opts.BuildArgs)
 
@@ -87,16 +87,16 @@ func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		return nil, errors.Wrap(err, "error building")
 	}
 
-	cmdfmt.Done(ctx, "Building image done")
+	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
 
 	if opts.Publish {
-		cmdfmt.Begin(ctx, "Pushing image to fly")
+		cmdfmt.PrintBegin(streams.ErrOut, "Pushing image to fly")
 
 		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
 			return nil, err
 		}
 
-		cmdfmt.Done(ctx, "Pushing image done")
+		cmdfmt.PrintDone(streams.ErrOut, "Pushing image done")
 	}
 
 	img, _, err := docker.ImageInspectWithRaw(ctx, imageID)
