@@ -366,7 +366,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 				AppID:     app.ID,
 				Name:      vol.Source,
 				Region:    region.Code,
-				SizeGb:    10,
+				SizeGb:    1,
 				Encrypted: true,
 			})
 
