@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/buildpacks/pack"
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -25,13 +24,13 @@ func (s *buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClient
 		return nil, nil
 	}
 
-	if !opts.AppConfig.HasBuilder() {
+	if opts.Builder == "" {
 		terminal.Debug("no buildpack builder configured, skipping")
 		return nil, nil
 	}
 
-	builder := opts.AppConfig.Build.Builder
-	buildpacks := opts.AppConfig.Build.Buildpacks
+	builder := opts.Builder
+	buildpacks := opts.Buildpacks
 
 	docker, err := dockerFactory.buildFn(ctx)
 	if err != nil {
@@ -50,9 +49,9 @@ func (s *buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClient
 		terminal.Debug("error fetching docker server info:", err)
 	}
 
-	cmdfmt.PrintBegin(streams.ErrOut, "Building image with Buildpacks")
+	cmdfmt.Begin(ctx, "Building image with Buildpacks")
 	msg := fmt.Sprintf("docker host: %s %s %s", serverInfo.ServerVersion, serverInfo.OSType, serverInfo.Architecture)
-	cmdfmt.PrintDone(streams.ErrOut, msg)
+	cmdfmt.Done(ctx, msg)
 
 	err = packClient.Build(ctx, pack.BuildOptions{
 		AppPath:        opts.WorkingDir,
@@ -60,7 +59,7 @@ func (s *buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClient
 		ClearCache:     opts.NoCache,
 		Image:          newCacheTag(opts.AppName),
 		Buildpacks:     buildpacks,
-		Env:            normalizeBuildArgs(opts.AppConfig, opts.ExtraBuildArgs),
+		Env:            normalizeBuildArgs(opts.BuildArgs),
 		TrustBuilder:   true,
 		AdditionalTags: []string{opts.Tag},
 	})
@@ -69,16 +68,16 @@ func (s *buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClient
 		return nil, err
 	}
 
-	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
+	cmdfmt.Done(ctx, "Building image done")
 
 	if opts.Publish {
-		cmdfmt.PrintBegin(streams.ErrOut, "Pushing image to fly")
+		cmdfmt.Begin(ctx, "Pushing image to fly")
 
 		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
 			return nil, err
 		}
 
-		cmdfmt.PrintDone(streams.ErrOut, "Pushing image done")
+		cmdfmt.Done(ctx, "Pushing image done")
 	}
 
 	img, err := findImageWithDocker(docker, ctx, opts.Tag)
@@ -93,16 +92,10 @@ func (s *buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClient
 	}, nil
 }
 
-func normalizeBuildArgs(appConfig *flyctl.AppConfig, extra map[string]string) map[string]string {
+func normalizeBuildArgs(buildArgs map[string]string) map[string]string {
 	var out = map[string]string{}
 
-	if appConfig.Build != nil {
-		for k, v := range appConfig.Build.Args {
-			out[k] = v
-		}
-	}
-
-	for k, v := range extra {
+	for k, v := range buildArgs {
 		out[k] = v
 	}
 

@@ -23,7 +23,6 @@ import (
 	"github.com/moby/buildkit/util/progress/progressui"
 	"github.com/moby/term"
 	"github.com/pkg/errors"
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/pkg/iostreams"
@@ -54,7 +53,9 @@ func (out *lastProgressOutput) WriteProgress(prog progress.Progress) error {
 }
 
 func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions) (*DeploymentImage, error) {
+
 	if !dockerFactory.mode.IsAvailable() {
+		// Where should debug messages be sent?
 		terminal.Debug("docker daemon not available, skipping")
 		return nil, nil
 	}
@@ -82,7 +83,8 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 
 	defer clearDeploymentTags(ctx, docker, opts.Tag)
 
-	cmdfmt.PrintBegin(streams.ErrOut, "Creating build context")
+	// Is ErrOut being used here so prevent stdout messages stepping on each other?
+	cmdfmt.Begin(ctx, "Creating build context")
 	archiveOpts := archiveOptions{
 		sourcePath: opts.WorkingDir,
 		compressed: dockerFactory.mode.IsRemote(),
@@ -121,7 +123,7 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 	if err != nil {
 		return nil, errors.Wrap(err, "error archiving build context")
 	}
-	cmdfmt.PrintDone(streams.ErrOut, "Creating build context done")
+	cmdfmt.Done(ctx, "Creating build context done")
 
 	// Setup an upload progress bar
 	progressOutput := streamformatter.NewProgressOutput(streams.Out)
@@ -143,11 +145,11 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 		return nil, errors.Wrap(err, "error fetching docker server info")
 	}
 
-	cmdfmt.PrintBegin(streams.ErrOut, "Building image with Docker")
+	cmdfmt.Begin(ctx, "Building image with Docker")
 	msg := fmt.Sprintf("docker host: %s %s %s", serverInfo.ServerVersion, serverInfo.OSType, serverInfo.Architecture)
-	cmdfmt.PrintDone(streams.ErrOut, msg)
+	cmdfmt.Done(ctx, msg)
 
-	buildArgs := normalizeBuildArgsForDocker(opts.AppConfig, opts.ExtraBuildArgs)
+	buildArgs := normalizeBuildArgsForDocker(opts.BuildArgs)
 
 	buildkitEnabled, err := buildkitEnabled(docker)
 	terminal.Debugf("buildkitEnabled", buildkitEnabled)
@@ -166,16 +168,16 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 		}
 	}
 
-	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
+	cmdfmt.Done(ctx, "Building image done")
 
 	if opts.Publish {
-		cmdfmt.PrintBegin(streams.ErrOut, "Pushing image to fly")
+		cmdfmt.Begin(ctx, "Pushing image to fly")
 
 		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
 			return nil, err
 		}
 
-		cmdfmt.PrintDone(streams.ErrOut, "Pushing image done")
+		cmdfmt.Done(ctx, "Pushing image done")
 	}
 
 	img, _, err := docker.ImageInspectWithRaw(ctx, imageID)
@@ -190,21 +192,15 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 	}, nil
 }
 
-func normalizeBuildArgsForDocker(appConfig *flyctl.AppConfig, extra map[string]string) map[string]*string {
+func normalizeBuildArgsForDocker(buildArgs map[string]string) map[string]*string {
 	var out = map[string]*string{}
 
-	if appConfig.Build != nil {
-		for k, v := range appConfig.Build.Args {
+	if buildArgs != nil {
+		for k, v := range buildArgs {
 			// docker needs a string pointer. since ranges reuse variables we need to deref a copy
 			val := v
 			out[k] = &val
 		}
-	}
-
-	for name, value := range extra {
-		// docker needs a string pointer. since ranges reuse variables we need to deref a copy
-		val := value
-		out[name] = &val
 	}
 
 	return out

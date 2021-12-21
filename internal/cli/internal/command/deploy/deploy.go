@@ -21,7 +21,6 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
-	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
@@ -218,6 +217,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 		return
 	}
 
+	// We're using a pre-built Docker image
 	if imageRef != "" {
 		opts := imgsrc.RefOptions{
 			AppName:    app.NameFromContext(ctx),
@@ -232,12 +232,30 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 		return
 	}
 
+	// We're building from source
 	opts := imgsrc.ImageOptions{
-		AppName:    app.NameFromContext(ctx),
-		WorkingDir: state.WorkingDirectory(ctx),
-		Publish:    !flag.GetBool(ctx, "build-only"),
-		ImageLabel: flag.GetString(ctx, "image-label"),
-		NoCache:    flag.GetBool(ctx, "no-cache"),
+		AppName:         app.NameFromContext(ctx),
+		WorkingDir:      state.WorkingDirectory(ctx),
+		Publish:         !flag.GetBool(ctx, "build-only"),
+		ImageLabel:      flag.GetString(ctx, "image-label"),
+		NoCache:         flag.GetBool(ctx, "no-cache"),
+		BuildArgs:       appConfig.Build.Args,
+		BuiltIn:         appConfig.Build.Builtin,
+		BuiltInSettings: appConfig.Build.Settings,
+		Builder:         appConfig.Build.Builder,
+		Buildpacks:      appConfig.Build.Buildpacks,
+	}
+
+	// Set additional Docker build args from the command line, overriding similar ones from the config
+
+	cliBuildArgs, err := cmdutil.ParseKVStringsToMap(flag.GetStringSlice(ctx, "build-arg"))
+
+	if err != nil {
+		return nil, fmt.Errorf("invalid build args: %w", err)
+	}
+
+	for k, v := range cliBuildArgs {
+		opts.BuildArgs[k] = v
 	}
 
 	// A Dockerfile was specified in the config, so set the path relative to the directory containing the config file
@@ -256,16 +274,6 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 	} else if target := flag.GetString(ctx, "build-target"); target != "" {
 		opts.Target = target
 	}
-
-	// Set Docker build args
-	var buildArgs map[string]string
-	if buildArgs, err = cmdutil.ParseKVStringsToMap(flag.GetStringSlice(ctx, "build-arg")); err != nil {
-		err = fmt.Errorf("invalid build args: %w", err)
-
-		return
-	}
-
-	opts.ExtraBuildArgs = buildArgs
 
 	// Finally, build the image
 	if img, err = resolver.BuildImage(ctx, io, opts); err == nil && img == nil {
@@ -477,48 +485,49 @@ func watchDeployment(ctx context.Context) error {
 				close(x)
 			}()
 
-			count := 0
-			for alloc := range x {
-				count++
-				cmdfmt.Separator(ctx)
-				//cmdCtx.Statusf("deploy", cmdctx.SBEGIN, "Failure #%d\n", count)
-				cmdfmt.Println(ctx, "Failure #%d\n", count)
-				cmdfmt.Separator(ctx)
+			// count := 0
+			// for alloc := range x {
+			// 	count++
+			// 	cmdfmt.Separator(ctx)
+			// 	//cmdCtx.Statusf("deploy", cmdctx.SBEGIN, "Failure #%d\n", count)
+			// 	cmdfmt.Println(ctx, "Failure #%d\n", count)
+			// 	cmdfmt.Separator(ctx)
 
-				err := cmdCtx.Frender(
-					cmdctx.PresenterOption{
-						Title: "Instance",
-						Presentable: &presenters.Allocations{
-							Allocations: []*api.AllocationStatus{alloc},
-						},
-						Vertical: true,
-					},
-					cmdctx.PresenterOption{
-						Title: "Recent Events",
-						Presentable: &presenters.AllocationEvents{
-							Events: alloc.Events,
-						},
-					},
-				)
-				if err != nil {
-					return err
-				}
+			// 	err := cmdCtx.Frender(
+			// 		cmdctx.PresenterOption{
+			// 			Title: "Instance",
+			// 			Presentable: &presenters.Allocations{
+			// 				Allocations: []*api.AllocationStatus{alloc},
+			// 			},
+			// 			Vertical: true,
+			// 		},
+			// 		cmdctx.PresenterOption{
+			// 			Title: "Recent Events",
+			// 			Presentable: &presenters.AllocationEvents{
+			// 				Events: alloc.Events,
+			// 			},
+			// 		},
+			// 	)
+			// 	if err != nil {
+			// 		return err
+			// 	}
 
-				cmdCtx.Status("deploy", cmdctx.STITLE, "Recent Logs")
-				logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
+			// 	//cmdCtx.Status("deploy", cmdctx.STITLE, "Recent Logs")
+			// 	cmdfmt.Println(ctx, "Recent logs")
+			// 	logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
 
-				for _, e := range alloc.RecentLogs {
-					entry := logs.LogEntry{
-						Instance:  e.Instance,
-						Level:     e.Level,
-						Message:   e.Message,
-						Region:    e.Region,
-						Timestamp: e.Timestamp,
-						Meta:      e.Meta,
-					}
-					logPresenter.FPrint(cmdCtx.Out, cmdCtx.OutputJSON(), entry)
-				}
-			}
+			// 	for _, e := range alloc.RecentLogs {
+			// 		entry := logs.LogEntry{
+			// 			Instance:  e.Instance,
+			// 			Level:     e.Level,
+			// 			Message:   e.Message,
+			// 			Region:    e.Region,
+			// 			Timestamp: e.Timestamp,
+			// 			Meta:      e.Meta,
+			// 		}
+			// 		logPresenter.FPrint(cmdCtx.Out, cmdCtx.OutputJSON(), entry)
+			// 	}
+			// }
 
 		}
 
@@ -526,7 +535,7 @@ func watchDeployment(ctx context.Context) error {
 	}
 
 	monitor.DeploymentSucceeded = func(d *api.DeploymentStatus) error {
-		cmdCtx.Statusf("deploy", cmdctx.SDONE, "v%d deployed successfully\n", d.Version)
+		cmdfmt.Printf(ctx, "v%d deployed successfully\n", d.Version)
 		return nil
 	}
 
@@ -537,11 +546,11 @@ func watchDeployment(ctx context.Context) error {
 	}
 
 	if endmessage != "" {
-		cmdCtx.Status("deploy", cmdctx.SERROR, endmessage)
+		cmdfmt.Printf(ctx, endmessage)
 	}
 
 	if !monitor.Success() {
-		cmdCtx.Status("deploy", cmdctx.SINFO, "Troubleshooting guide at https://fly.io/docs/getting-started/troubleshooting/")
+		cmdfmt.Printf(ctx, "Troubleshooting guide at https://fly.io/docs/getting-started/troubleshooting/")
 		return flyerr.ErrAbort
 	}
 

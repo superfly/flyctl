@@ -12,24 +12,27 @@ import (
 )
 
 type ImageOptions struct {
-	AppName        string
-	WorkingDir     string
-	DockerfilePath string
-	ImageRef       string
-	AppConfig      *app.AppConfig
-	ExtraBuildArgs map[string]string
-	ImageLabel     string
-	Publish        bool
-	Tag            string
-	Target         string
-	NoCache        bool
+	AppName         string
+	WorkingDir      string
+	DockerfilePath  string
+	ImageRef        string
+	BuildArgs       map[string]string
+	ExtraBuildArgs  map[string]string
+	ImageLabel      string
+	Publish         bool
+	Tag             string
+	Target          string
+	NoCache         bool
+	BuiltIn         string
+	BuiltInSettings map[string]interface{}
+	Builder         string
+	Buildpacks      []string
 }
 
 type RefOptions struct {
 	AppName    string
 	WorkingDir string
 	ImageRef   string
-	AppConfig  *app.AppConfig
 	ImageLabel string
 	Publish    bool
 	Tag        string
