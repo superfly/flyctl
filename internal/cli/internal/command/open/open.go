@@ -23,7 +23,7 @@ func New() *cobra.Command {
 `
 		short = "Open browser to current deployed application"
 
-		usage = "open [PATH]"
+		usage = "open [RELATIVE_URI]"
 	)
 
 	cmd := command.New(usage, short, long, run, command.RequireSession, command.RequireAppName)
