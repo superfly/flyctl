@@ -1,15 +1,17 @@
 package render
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"time"
 
+	"github.com/briandowns/spinner"
 	"github.com/logrusorgru/aurora"
 	"github.com/morikuni/aec"
 	"github.com/olekukonko/tablewriter"
-
 	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
@@ -58,19 +60,34 @@ func Table(w io.Writer, title string, rows [][]string, cols ...string) error {
 }
 
 func NewTextBlock(ctx context.Context, v ...interface{}) (tb *TextBlock) {
+	var buf bytes.Buffer
+
 	tb = &TextBlock{
-		out: iostreams.FromContext(ctx).ErrOut,
+		out: &buf,
 	}
 
 	if len(v) > 0 {
-		tb.Println(ctx, aurora.Green("==> "+fmt.Sprint(v...)))
+		s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
+		tb.spinner = s
+		tb.startText = fmt.Sprint(v...)
+		s.Suffix = fmt.Sprintf(" %s", tb.startText)
+		s.FinalMSG = fmt.Sprintf("%s %s\n", aurora.Green("✓"), tb.startText)
+		s.Writer = iostreams.FromContext(ctx).Out
+		s.Color("green")
+		s.Start()
 	}
 
 	return
 }
 
 type TextBlock struct {
-	out io.Writer
+	out       io.Writer
+	spinner   *spinner.Spinner
+	startText string
+}
+
+func (tb *TextBlock) Print(v ...interface{}) {
+	fmt.Fprint(tb.out, v...)
 }
 
 func (tb *TextBlock) Println(v ...interface{}) {
@@ -97,7 +114,7 @@ func (tb *TextBlock) Overwrite() {
 }
 
 func (tb *TextBlock) Done(v ...interface{}) {
-	tb.Println(aurora.Gray(20, "--> "+fmt.Sprint(v...)))
+	tb.spinner.Stop()
 }
 
 func (tb *TextBlock) Donef(format string, v ...interface{}) {

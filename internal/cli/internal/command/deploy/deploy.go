@@ -28,7 +28,6 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/cli/internal/state"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/deployment"
 	"github.com/superfly/flyctl/internal/flyerr"
@@ -54,6 +53,9 @@ func New() (cmd *cobra.Command) {
 		flag.Image(),
 		flag.Now(),
 		flag.RemoteOnly(),
+		flag.LocalOnly(),
+		flag.BuildOnly(),
+		flag.Detach(),
 		flag.String{
 			Name:        "strategy",
 			Description: "The strategy for replacing running instances. Options are canary, rolling, bluegreen, or immediate. Default is canary, or rolling when max-per-region is set.",
@@ -102,6 +104,7 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to fetch an image or build from source: %w", err)
 	}
+
 	if flag.GetBool(ctx, "build-only") {
 		return nil
 	}
@@ -143,34 +146,9 @@ func run(ctx context.Context) error {
 	return err
 }
 
-func validateAppConfiguration(ctx context.Context) (*app.Config, error) {
-	tb := render.NewTextBlock(ctx, "validating app configuration ...")
-
-	appConfig, err := determineAppConfig(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	// Fetch an image ref or build from source to get the final image reference to deploy
-	img, err := determineImage(ctx, appConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch an image or build from source: %w", err)
-	}
-
-	tb.Printf("image: %s\n", img.Tag)
-	tb.Printf("image size: %s\n", humanize.Bytes(uint64(img.Size)))
-
-	if flag.GetBool(ctx, "build-only") {
-		return nil
-	}
-	tb.Done("validated app configuration")
-
-	return appConfig, nil
-}
-
 // determineAppConfig fetching the app config from a local file, or in its absence, from the API
 func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
-	tb := render.NewTextBlock(ctx, "determining app config ...")
+	tb := render.NewTextBlock(ctx, "determining app config")
 
 	client := client.FromContext(ctx).API()
 
@@ -204,18 +182,7 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 }
 
 func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.DeploymentImage, err error) {
-	tb := render.NewTextBlock(ctx, "determining image ...")
-	defer func() {
-		if err != nil {
-			return
-		}
-
-		tb.Printf("image: %s\n", img.Tag)
-		tb.Printf("image size: %s\n", humanize.Bytes(uint64(img.Size)))
-
-		tb.Done("determined image.")
-	}()
-
+	tb := render.NewTextBlock(ctx, "Building image")
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "remote-only"), !flag.GetBool(ctx, "local-only"))
 
 	appName := app.NameFromContext(ctx)
@@ -290,6 +257,12 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 		err = errors.New("no image specified")
 	}
 
+	if err == nil {
+		tb.Printf("image: %s\n", img.Tag)
+		tb.Printf("image size: %s\n", humanize.Bytes(uint64(img.Size)))
+		tb.Done("determined image.")
+	}
+
 	return
 }
 
@@ -316,7 +289,7 @@ func fetchImageRef(ctx context.Context, cfg *app.Config) (ref string, err error)
 		return
 	}
 
-	if cfg.Build != nil {
+	if cfg != nil && cfg.Build != nil {
 		if ref = cfg.Build.Image; ref != "" {
 			return
 		}
@@ -469,7 +442,7 @@ func watchReleaseCommand(ctx context.Context, id string) error {
 }
 
 func watchDeployment(ctx context.Context) error {
-	// cmdCtx.Status("deploy", cmdctx.STITLE, "Monitoring Deployment")
+	tb := render.NewTextBlock(ctx, "Monitoring deployment")
 
 	io := iostreams.FromContext(ctx)
 	appName := app.NameFromContext(ctx)
@@ -481,22 +454,20 @@ func watchDeployment(ctx context.Context) error {
 
 	monitor.DeploymentStarted = func(idx int, d *api.DeploymentStatus) error {
 		if idx > 0 {
-			cmdfmt.Separator(ctx)
+			tb.Println()
 		}
-		// cmdCtx.Status("deploy", cmdctx.SINFO, presenters.FormatDeploymentSummary(d))
-		cmdfmt.Println(ctx, presenters.FormatDeploymentSummary(d))
+		tb.Println(presenters.FormatDeploymentSummary(d))
 		return nil
 	}
 
 	// TODO check we aren't asking for JSON
 	monitor.DeploymentUpdated = func(d *api.DeploymentStatus, updatedAllocs []*api.AllocationStatus) error {
 		if io.IsInteractive() {
-			cmdfmt.Overwrite(ctx)
-			cmdfmt.Println(ctx, presenters.FormatDeploymentAllocSummary(d))
+			tb.Overwrite()
+			tb.Println(presenters.FormatDeploymentAllocSummary(d))
 		} else {
 			for _, alloc := range updatedAllocs {
-				//	cmdCtx.Status("deploy", cmdctx.SINFO, presenters.FormatAllocSummary(alloc))
-				cmdfmt.Println(ctx, presenters.FormatAllocSummary(alloc))
+				tb.Println(presenters.FormatAllocSummary(alloc))
 			}
 		}
 
@@ -516,8 +487,7 @@ func watchDeployment(ctx context.Context) error {
 
 		if len(failedAllocs) > 0 {
 
-			//cmdCtx.Status("deploy", cmdctx.STITLE, "Failed Instances")
-			cmdfmt.Println(ctx, "Failed Instances")
+			tb.Println("Failed Instances")
 
 			x := make(chan *api.AllocationStatus)
 			var wg sync.WaitGroup
@@ -530,7 +500,7 @@ func watchDeployment(ctx context.Context) error {
 					alloc, err := client.API().GetAllocationStatus(ctx, appName, a.ID, 30)
 					if err != nil {
 						//cmdCtx.Status("deploy", cmdctx.SERROR, "Error fetching alloc", a.ID, err)
-						cmdfmt.Println(ctx, "Error fetching alloc", a.ID, err)
+						tb.Printf("Error fetching alloc: %s, %s", a.ID, err)
 
 						return
 					}
@@ -593,7 +563,7 @@ func watchDeployment(ctx context.Context) error {
 	}
 
 	monitor.DeploymentSucceeded = func(d *api.DeploymentStatus) error {
-		cmdfmt.Printf(ctx, "v%d deployed successfully\n", d.Version)
+		tb.Donef("v%d deployed successfully\n", d.Version)
 		return nil
 	}
 
@@ -604,11 +574,11 @@ func watchDeployment(ctx context.Context) error {
 	}
 
 	if endmessage != "" {
-		cmdfmt.Printf(ctx, endmessage)
+		tb.Done(endmessage)
 	}
 
 	if !monitor.Success() {
-		cmdfmt.Printf(ctx, "Troubleshooting guide at https://fly.io/docs/getting-started/troubleshooting/")
+		tb.Done("Troubleshooting guide at https://fly.io/docs/getting-started/troubleshooting/")
 		return flyerr.ErrAbort
 	}
 
