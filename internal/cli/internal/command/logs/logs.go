@@ -1,12 +1,17 @@
-package cmd
+package logs
 
 import (
 	"context"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/cmd/presenters"
-	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/cli/internal/app"
+	"github.com/superfly/flyctl/internal/cli/internal/command"
+	"github.com/superfly/flyctl/internal/cli/internal/config"
+	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/pkg/logs"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/sync/errgroup"
@@ -14,17 +19,24 @@ import (
 	"github.com/superfly/flyctl/docstrings"
 )
 
-func newLogsCommand(client *client.Client) *Command {
-	logsStrings := docstrings.Get("logs")
-	cmd := BuildCommandKS(nil, runLogs, logsStrings, client, requireSession, requireAppName)
+func New() *cobra.Command {
 
-	// TODO: Move flag descriptions into the docStrings
-	cmd.AddStringFlag(StringFlagOpts{
+	logsStrings := docstrings.Get("logs")
+
+	cmd := command.New("logs", logsStrings.Short, logsStrings.Long, run, command.RequireSession, command.RequireAppName)
+
+	flag.Add(cmd,
+		flag.App(),
+		flag.AppConfig(),
+	)
+
+	flag.Add(cmd, flag.String{
 		Name:        "instance",
 		Shorthand:   "i",
 		Description: "Filter by instance ID",
 	})
-	cmd.AddStringFlag(StringFlagOpts{
+
+	flag.Add(cmd, flag.String{
 		Name:        "region",
 		Shorthand:   "r",
 		Description: "Filter by region",
@@ -33,20 +45,21 @@ func newLogsCommand(client *client.Client) *Command {
 	return cmd
 }
 
-func runLogs(cc *cmdctx.CmdContext) error {
-	ctx := cc.Command.Context()
+func run(ctx context.Context) (err error) {
+	client := client.FromContext(ctx).API()
+	appName := app.NameFromContext(ctx)
+	jsonOutput := config.FromContext(ctx).JSONOutput
+	io := iostreams.FromContext(ctx)
 
-	client := cc.Client.API()
-
-	app, err := client.GetApp(ctx, cc.AppName)
+	app, err := client.GetApp(ctx, appName)
 	if err != nil {
 		return err
 	}
 
 	opts := &logs.LogOptions{
 		AppName:    app.Name,
-		RegionCode: cc.Config.GetString("region"),
-		VMID:       cc.Config.GetString("instance"),
+		RegionCode: flag.GetString(ctx, "region"),
+		VMID:       flag.GetString(ctx, "instance"),
 	}
 
 	pollEntries := make(chan logs.LogEntry)
@@ -95,14 +108,14 @@ func runLogs(cc *cmdctx.CmdContext) error {
 
 	eg.Go(func() error {
 		for entry := range pollEntries {
-			presenter.FPrint(cc.Out, cc.OutputJSON(), entry)
+			presenter.FPrint(io.Out, jsonOutput, entry)
 		}
 		return nil
 	})
 
 	eg.Go(func() error {
 		for entry := range liveEntries {
-			presenter.FPrint(cc.Out, cc.OutputJSON(), entry)
+			presenter.FPrint(io.Out, jsonOutput, entry)
 		}
 		return nil
 	})
