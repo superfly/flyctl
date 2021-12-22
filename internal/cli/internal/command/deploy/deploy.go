@@ -21,8 +21,8 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
-	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cli/internal/app"
+	"github.com/superfly/flyctl/internal/cli/internal/builders"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/render"
@@ -181,15 +181,15 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 	return
 }
 
-func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.DeploymentImage, err error) {
+func determineImage(ctx context.Context, appConfig *app.Config) (img *builders.DeploymentImage, err error) {
 	tb := render.NewTextBlock(ctx, "Building image")
-	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "remote-only"), !flag.GetBool(ctx, "local-only"))
+	daemonType := builders.NewDockerDaemonType(!flag.GetBool(ctx, "remote-only"), !flag.GetBool(ctx, "local-only"))
 
 	appName := app.NameFromContext(ctx)
 	client := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
 
-	resolver := imgsrc.NewResolver(daemonType, client, appName, io)
+	resolver := builders.NewResolver(daemonType, client, appName, io)
 
 	var imageRef string
 	if imageRef, err = fetchImageRef(ctx, app.ConfigFromContext(ctx)); err != nil {
@@ -198,7 +198,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 
 	// we're using a pre-built Docker image
 	if imageRef != "" {
-		opts := imgsrc.RefOptions{
+		opts := builders.RefOptions{
 			AppName:    app.NameFromContext(ctx),
 			WorkingDir: state.WorkingDirectory(ctx),
 			Publish:    !flag.GetBool(ctx, "build-only"),
@@ -222,7 +222,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 	}
 
 	// We're building from source
-	opts := imgsrc.ImageOptions{
+	opts := builders.ImageOptions{
 		AppName:         app.NameFromContext(ctx),
 		WorkingDir:      state.WorkingDirectory(ctx),
 		Publish:         !flag.GetBool(ctx, "build-only"),
@@ -298,7 +298,7 @@ func fetchImageRef(ctx context.Context, cfg *app.Config) (ref string, err error)
 	return ref, nil
 }
 
-func createRelease(ctx context.Context, img *imgsrc.DeploymentImage) (*api.Release, *api.ReleaseCommand, error) {
+func createRelease(ctx context.Context, img *builders.DeploymentImage) (*api.Release, *api.ReleaseCommand, error) {
 	tb := render.NewTextBlock(ctx, "creating release ...")
 	appConfig := app.ConfigFromContext(ctx)
 
