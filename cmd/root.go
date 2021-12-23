@@ -50,7 +50,7 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 
 	rootCmd.AddCommand(
 		newCurlCommand(client),
-		newCertificatesCommand(client),
+		// newCertificatesCommand(client),
 		newConfigCommand(client),
 		newDashboardCommand(client),
 		newDeployCommand(client),
