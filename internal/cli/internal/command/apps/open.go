@@ -24,7 +24,7 @@ URL for deployed application
 		usage = "open [RELATIVE_URI]"
 	)
 
-	cmd := command.New(usage, short, long, runOpen, command.RequireSession, command.RequireAppName)
+	cmd := command.New(usage, short, long, RunOpen, command.RequireSession, command.RequireAppName)
 
 	cmd.Args = cobra.MaximumNArgs(1)
 
@@ -37,7 +37,7 @@ URL for deployed application
 
 }
 
-func runOpen(ctx context.Context) error {
+func RunOpen(ctx context.Context) error {
 	var (
 		path    = flag.FirstArg(ctx)
 		appName = app.NameFromContext(ctx)
