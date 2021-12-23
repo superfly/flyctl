@@ -244,7 +244,6 @@ func LocalOnly() Bool {
 	return Bool{
 		Name:        localOnlyName,
 		Description: "Only perform builds locally using the local docker daemon",
-		Default:     true,
 	}
 }
 
@@ -257,7 +256,6 @@ func Detach() Bool {
 	return Bool{
 		Name:        "detach",
 		Description: "Return immediately instead of monitoring deployment progress",
-		Default:     true,
 	}
 }
 
@@ -265,7 +263,6 @@ func Detach() Bool {
 func BuildOnly() Bool {
 	return Bool{
 		Name:        "build-only",
-		Description: "Build, but do not deploy",
-		Default:     false,
+		Description: "Build but do not deploy",
 	}
 }
