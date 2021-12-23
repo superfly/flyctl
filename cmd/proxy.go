@@ -70,6 +70,10 @@ func runProxy(cmdCtx *cmdctx.CmdContext) error {
 				"organization": map[string]interface{}{
 					"name": app.Organization.Slug,
 				},
+				"port": map[string]interface{}{
+					"local":  local,
+					"remote": remote,
+				},
 			}),
 		)
 	}
