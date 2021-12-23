@@ -64,20 +64,25 @@ func Password(ctx context.Context, dst *string, msg string, required bool) error
 	return survey.AskOne(p, dst, opts...)
 }
 
-func Select(ctx context.Context, index *int, msg, def string, options ...string) error {
+func Select(ctx context.Context, msg, def string, options ...string) (int, error) {
 	opt, err := newSurveyIO(ctx)
 	if err != nil {
-		return err
+		return -1, err
 	}
 
 	p := &survey.Select{
 		Message:  msg,
 		Options:  options,
-		Default:  def,
 		PageSize: 15,
 	}
+	if def != "" {
+		p.Default = def
+	}
 
-	return survey.AskOne(p, index, opt)
+	var index int
+	err = survey.AskOne(p, &index, opt)
+
+	return index, err
 }
 
 func Confirmf(ctx context.Context, format string, a ...interface{}) (bool, error) {
@@ -173,13 +178,13 @@ func Org(ctx context.Context, typ *api.OrganizationType) (*api.Organization, err
 }
 
 func SelectOrg(ctx context.Context, orgs []api.Organization) (org *api.Organization, err error) {
-	var options []string
+	options := make([]string, 0, len(orgs))
 	for _, org := range orgs {
 		options = append(options, fmt.Sprintf("%s (%s)", org.Name, org.Slug))
 	}
 
 	var index int
-	if err = Select(ctx, &index, "Select Organization:", "", options...); err == nil {
+	if index, err = Select(ctx, "Select Organization:", "", options...); err == nil {
 		org = &orgs[index]
 	}
 
@@ -241,7 +246,7 @@ func SelectRegion(ctx context.Context, regions []api.Region, defaultCode string)
 	}
 
 	var index int
-	if err = Select(ctx, &index, "Select region:", defaultOption, options...); err == nil {
+	if index, err = Select(ctx, "Select region:", defaultOption, options...); err == nil {
 		region = &regions[index]
 	}
 

@@ -6,9 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
-	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/client"
@@ -36,8 +34,7 @@ func newDelete() (cmd *cobra.Command) {
 }
 
 func runDelete(ctx context.Context) error {
-	orgType := api.OrganizationTypeShared
-	org, err := prompt.Org(ctx, &orgType)
+	org, err := prompt.Org(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -48,14 +45,12 @@ func runDelete(ctx context.Context) error {
 	}
 
 	client := client.FromContext(ctx).API()
-
 	if err := client.DeleteDelegatedWireGuardToken(ctx, org, &name, nil); err != nil {
 		return fmt.Errorf("failed deleteting WireGuard token: %w", err)
 	}
 
-	if out := iostreams.FromContext(ctx).Out; !config.FromContext(ctx).JSONOutput {
-		fmt.Fprintln(out, "token deleted.")
-	}
+	out := iostreams.FromContext(ctx).Out
+	fmt.Fprintf(out, "token %s deleted.\n", name)
 
 	return nil
 }

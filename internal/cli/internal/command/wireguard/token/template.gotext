@@ -1,0 +1,10 @@
+[Interface]
+PrivateKey = {{.Meta.Privkey}}
+Address = {{.Peer.Peerip}}/120
+DNS = {{.Meta.DNS}}
+
+[Peer]
+PublicKey = {{.Peer.Pubkey}}
+AllowedIPs = {{.Meta.AllowedIPs}}
+Endpoint = {{.Peer.Endpointip}}:51820
+PersistentKeepalive = 15

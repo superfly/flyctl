@@ -8,7 +8,6 @@ import (
 
 	"github.com/superfly/flyctl/pkg/iostreams"
 
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
@@ -38,8 +37,7 @@ func newList() (cmd *cobra.Command) {
 }
 
 func runList(ctx context.Context) error {
-	orgType := api.OrganizationTypeShared
-	org, err := prompt.Org(ctx, &orgType)
+	org, err := prompt.Org(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -48,7 +46,7 @@ func runList(ctx context.Context) error {
 
 	tokens, err := client.GetDelegatedWireGuardTokens(ctx, org.Slug)
 	if err != nil {
-		return fmt.Errorf("failed retrieving wireguard tokens: %w", err)
+		return fmt.Errorf("failed retrieving WireGuard tokens: %w", err)
 	}
 
 	out := iostreams.FromContext(ctx).Out
