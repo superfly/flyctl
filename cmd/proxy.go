@@ -93,7 +93,7 @@ func runProxy(cmdCtx *cmdctx.CmdContext) error {
 	cmdCtx.IO.StartProgressIndicatorMsg("Connecting to tunnel")
 	if err := agentclient.WaitForTunnel(ctx, &app.Organization); err != nil {
 		captureError(err)
-		return fmt.Errorf("tunnel unavailable %s", err)
+		return fmt.Errorf("tunnel unavailable %w", err)
 	}
 	cmdCtx.IO.StopProgressIndicator()
 
@@ -129,7 +129,7 @@ func runProxy(cmdCtx *cmdctx.CmdContext) error {
 		cmdCtx.IO.StartProgressIndicatorMsg("Waiting for host")
 		if err := agentclient.WaitForHost(ctx, &app.Organization, remote); err != nil {
 			captureError(err)
-			return fmt.Errorf("host unavailable %s", err)
+			return fmt.Errorf("host unavailable %w", err)
 		}
 		cmdCtx.IO.StopProgressIndicator()
 	}
