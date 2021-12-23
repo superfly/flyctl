@@ -329,6 +329,10 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 			plainLogs := make(chan *client.SolveStatus)
 
 			eg.Go(func() error {
+
+				defer close(plainLogs)
+				defer close(consoleLogs)
+
 				for v := range tracer.displayCh {
 					consoleLogs <- v
 					plainLogs <- v
@@ -359,8 +363,6 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 				tracer.write(m)
 			}
 			defer close(tracer.displayCh)
-			defer close(plainLogs)
-			defer close(consoleLogs)
 
 			buf := bytes.NewBuffer(nil)
 
