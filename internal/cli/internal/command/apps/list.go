@@ -10,6 +10,7 @@ import (
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
+	"github.com/superfly/flyctl/internal/cli/internal/format"
 	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/client"
 )
@@ -49,7 +50,7 @@ func runList(ctx context.Context) (err error) {
 	for _, app := range apps {
 		latestDeploy := ""
 		if app.Deployed && app.CurrentRelease != nil {
-			latestDeploy = render.RelativeTime(app.CurrentRelease.CreatedAt)
+			latestDeploy = format.RelativeTime(app.CurrentRelease.CreatedAt)
 		}
 
 		rows = append(rows, []string{

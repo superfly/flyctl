@@ -466,7 +466,7 @@ func watchDeployment(ctx context.Context) error {
 	monitor.DeploymentUpdated = func(d *api.DeploymentStatus, updatedAllocs []*api.AllocationStatus) error {
 		if io.IsInteractive() {
 			tb.Overwrite()
-			tb.Println(formatDeploymentAllocSummary(d))
+			tb.Println(format.DeploymentAllocSummary(d))
 		} else {
 			for _, alloc := range updatedAllocs {
 				tb.Println(format.AllocSummary(alloc))
