@@ -2,6 +2,8 @@
 package flag
 
 import (
+	"context"
+
 	"github.com/spf13/cobra"
 )
 
@@ -220,22 +222,34 @@ func GenerateName() Bool {
 	}
 }
 
+const remoteOnlyName = "remote-only"
+
 // RemoteOnly returns a boolean flag for deploying remotely
 func RemoteOnly() Bool {
 	return Bool{
-		Name:        "remote-only",
+		Name:        remoteOnlyName,
 		Description: "Perform builds on a remote builder instance instead of using the local docker daemon",
 		Default:     false,
 	}
 }
 
+func GetRemoteOnly(ctx context.Context) bool {
+	return GetBool(ctx, remoteOnlyName)
+}
+
+const localOnlyName = "local-only"
+
 // RemoteOnly returns a boolean flag for deploying remotely
 func LocalOnly() Bool {
 	return Bool{
-		Name:        "local-only",
+		Name:        localOnlyName,
 		Description: "Only perform builds locally using the local docker daemon",
 		Default:     true,
 	}
+}
+
+func GetLocalOnly(ctx context.Context) bool {
+	return GetBool(ctx, localOnlyName)
 }
 
 // Detach returns a boolean flag for detaching during deployment
