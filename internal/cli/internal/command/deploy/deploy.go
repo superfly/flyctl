@@ -16,15 +16,17 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/pkg/logs"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/builders"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
+	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
+	"github.com/superfly/flyctl/internal/cli/internal/format"
 	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/cli/internal/state"
 	"github.com/superfly/flyctl/internal/client"
@@ -447,7 +449,6 @@ func watchDeployment(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	appName := app.NameFromContext(ctx)
 	client := client.FromContext(ctx)
-
 	endmessage := ""
 
 	monitor := deployment.NewDeploymentMonitor(appName)
@@ -456,7 +457,8 @@ func watchDeployment(ctx context.Context) error {
 		if idx > 0 {
 			tb.Println()
 		}
-		tb.Println(presenters.FormatDeploymentSummary(d))
+		tb.Println(format.DeploymentSummary(d))
+
 		return nil
 	}
 
@@ -464,10 +466,10 @@ func watchDeployment(ctx context.Context) error {
 	monitor.DeploymentUpdated = func(d *api.DeploymentStatus, updatedAllocs []*api.AllocationStatus) error {
 		if io.IsInteractive() {
 			tb.Overwrite()
-			tb.Println(presenters.FormatDeploymentAllocSummary(d))
+			tb.Println(formatDeploymentAllocSummary(d))
 		} else {
 			for _, alloc := range updatedAllocs {
-				tb.Println(presenters.FormatAllocSummary(alloc))
+				tb.Println(format.AllocSummary(alloc))
 			}
 		}
 
@@ -486,7 +488,6 @@ func watchDeployment(ctx context.Context) error {
 		}
 
 		if len(failedAllocs) > 0 {
-
 			tb.Println("Failed Instances")
 
 			x := make(chan *api.AllocationStatus)
@@ -500,7 +501,7 @@ func watchDeployment(ctx context.Context) error {
 					alloc, err := client.API().GetAllocationStatus(ctx, appName, a.ID, 30)
 					if err != nil {
 						//cmdCtx.Status("deploy", cmdctx.SERROR, "Error fetching alloc", a.ID, err)
-						tb.Printf("Error fetching alloc: %s, %s", a.ID, err)
+						tb.Printf("failed fetching alloc %s: %s", a.ID, err)
 
 						return
 					}
@@ -513,50 +514,28 @@ func watchDeployment(ctx context.Context) error {
 				close(x)
 			}()
 
-			// count := 0
-			// for alloc := range x {
-			// 	count++
-			// 	cmdfmt.Separator(ctx)
-			// 	//cmdCtx.Statusf("deploy", cmdctx.SBEGIN, "Failure #%d\n", count)
-			// 	cmdfmt.Println(ctx, "Failure #%d\n", count)
-			// 	cmdfmt.Separator(ctx)
+			var count int
+			for alloc := range x {
+				count++
 
-			// 	err := cmdCtx.Frender(
-			// 		cmdctx.PresenterOption{
-			// 			Title: "Instance",
-			// 			Presentable: &presenters.Allocations{
-			// 				Allocations: []*api.AllocationStatus{alloc},
-			// 			},
-			// 			Vertical: true,
-			// 		},
-			// 		cmdctx.PresenterOption{
-			// 			Title: "Recent Events",
-			// 			Presentable: &presenters.AllocationEvents{
-			// 				Events: alloc.Events,
-			// 			},
-			// 		},
-			// 	)
-			// 	if err != nil {
-			// 		return err
-			// 	}
+				tb.Println()
+				tb.Printf("Failure #%d\n", count)
+				tb.Println()
 
-			// 	//cmdCtx.Status("deploy", cmdctx.STITLE, "Recent Logs")
-			// 	cmdfmt.Println(ctx, "Recent logs")
-			// 	logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
+				as, err := renderAllocationStatus(nil, alloc)
+				if err != nil {
+					return fmt.Errorf("failed rendering alloc status: %w", err)
+				}
+				tb.Println(as)
 
-			// 	for _, e := range alloc.RecentLogs {
-			// 		entry := logs.LogEntry{
-			// 			Instance:  e.Instance,
-			// 			Level:     e.Level,
-			// 			Message:   e.Message,
-			// 			Region:    e.Region,
-			// 			Timestamp: e.Timestamp,
-			// 			Meta:      e.Meta,
-			// 		}
-			// 		logPresenter.FPrint(cmdCtx.Out, cmdCtx.OutputJSON(), entry)
-			// 	}
-			// }
+				re, err := renderRecentEvents(alloc.Events)
+				if err != nil {
+					return fmt.Errorf("failed rendering recent events: %w", err)
+				}
+				tb.Println(re)
 
+				renderLogs(ctx, alloc)
+			}
 		}
 
 		return nil
@@ -583,4 +562,42 @@ func watchDeployment(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func renderAllocationStatus(br []api.Region, s ...*api.AllocationStatus) (string, error) {
+	var sb strings.Builder
+	err := render.AllocationStatuses(&sb, "Instance", br, s...)
+
+	return sb.String(), err
+}
+
+func renderRecentEvents(events []api.AllocationEvent) (string, error) {
+	var sb strings.Builder
+	err := render.AllocationEvents(&sb, "Recent Events", events...)
+
+	return sb.String(), err
+}
+
+func renderLogs(ctx context.Context, alloc *api.AllocationStatus) {
+	out := iostreams.FromContext(ctx).Out
+	cfg := config.FromContext(ctx).JSONOutput
+
+	logPresenter := presenters.LogPresenter{
+		HideAllocID:    true,
+		HideRegion:     true,
+		RemoveNewlines: true,
+	}
+
+	for _, e := range alloc.RecentLogs {
+		entry := logs.LogEntry{
+			Instance:  e.Instance,
+			Level:     e.Level,
+			Message:   e.Message,
+			Region:    e.Region,
+			Timestamp: e.Timestamp,
+			Meta:      e.Meta,
+		}
+
+		logPresenter.FPrint(out, cfg, entry)
+	}
 }
