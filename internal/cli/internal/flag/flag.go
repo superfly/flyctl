@@ -251,18 +251,30 @@ func GetLocalOnly(ctx context.Context) bool {
 	return GetBool(ctx, localOnlyName)
 }
 
+const detachName = "detach"
+
 // Detach returns a boolean flag for detaching during deployment
 func Detach() Bool {
 	return Bool{
-		Name:        "detach",
+		Name:        detachName,
 		Description: "Return immediately instead of monitoring deployment progress",
 	}
 }
 
+func GetDetach(ctx context.Context) bool {
+	return GetBool(ctx, detachName)
+}
+
+const buildOnlyName = "build-only"
+
 // BuildOnly returns a boolean flag for building without a deployment
 func BuildOnly() Bool {
 	return Bool{
-		Name:        "build-only",
+		Name:        buildOnlyName,
 		Description: "Build but do not deploy",
 	}
+}
+
+func GetBuildOnly(ctx context.Context) bool {
+	return GetBool(ctx, buildOnlyName)
 }

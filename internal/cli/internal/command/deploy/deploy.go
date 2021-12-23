@@ -107,7 +107,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("failed to fetch an image or build from source: %w", err)
 	}
 
-	if flag.GetBool(ctx, "build-only") {
+	if flag.GetBuildOnly(ctx) {
 		return nil
 	}
 
@@ -116,7 +116,7 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	if flag.GetBool(ctx, "detach") {
+	if flag.GetDetach(ctx) {
 		return nil
 	}
 
@@ -126,6 +126,7 @@ func run(ctx context.Context) error {
 
 	// Run the pre-deployment release command if it's set
 	if releaseCommand != nil {
+		//TODO: don't use text block here
 		tb := render.NewTextBlock(ctx, "Release command detected: %s\n", releaseCommand.Command)
 		tb.Detail("This release will not be available until the release command succeeds.")
 
@@ -202,7 +203,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 		opts := imgsrc.RefOptions{
 			AppName:    app.NameFromContext(ctx),
 			WorkingDir: state.WorkingDirectory(ctx),
-			Publish:    !flag.GetBool(ctx, "build-only"),
+			Publish:    !flag.GetBuildOnly(ctx),
 			ImageRef:   imageRef,
 			ImageLabel: flag.GetString(ctx, "image-label"),
 		}
@@ -226,7 +227,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 	opts := imgsrc.ImageOptions{
 		AppName:         app.NameFromContext(ctx),
 		WorkingDir:      state.WorkingDirectory(ctx),
-		Publish:         !flag.GetBool(ctx, "build-only"),
+		Publish:         !flag.GetBuildOnly(ctx),
 		ImageLabel:      flag.GetString(ctx, "image-label"),
 		NoCache:         flag.GetBool(ctx, "no-cache"),
 		BuildArgs:       buildArgs,
