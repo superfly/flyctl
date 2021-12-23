@@ -57,7 +57,6 @@ func Table(w io.Writer, title string, rows [][]string, cols ...string) error {
 }
 
 func NewTextBlock(ctx context.Context, v ...interface{}) (tb *TextBlock) {
-
 	tb = &TextBlock{
 		out: iostreams.FromContext(ctx).ErrOut,
 	}

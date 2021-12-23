@@ -127,7 +127,7 @@ func run(ctx context.Context) error {
 	// Run the pre-deployment release command if it's set
 	if releaseCommand != nil {
 		//TODO: don't use text block here
-		tb := render.NewTextBlock(ctx, "Release command detected: %s\n", releaseCommand.Command)
+		tb := render.NewTextBlock(ctx, fmt.Sprintf("Release command detected: %s\n", releaseCommand.Command))
 		tb.Detail("This release will not be available until the release command succeeds.")
 
 		if err := watchReleaseCommand(ctx, releaseCommand.ID); err != nil {
@@ -448,10 +448,10 @@ func watchDeployment(ctx context.Context) error {
 
 	io := iostreams.FromContext(ctx)
 	appName := app.NameFromContext(ctx)
-	client := client.FromContext(ctx)
+	client := client.FromContext(ctx).API()
 	endmessage := ""
 
-	monitor := deployment.NewDeploymentMonitor(appName)
+	monitor := deployment.NewDeploymentMonitor(client, appName)
 
 	monitor.DeploymentStarted = func(idx int, d *api.DeploymentStatus) error {
 		if idx > 0 {
@@ -498,7 +498,7 @@ func watchDeployment(ctx context.Context) error {
 				a := a
 				go func() {
 					defer wg.Done()
-					alloc, err := client.API().GetAllocationStatus(ctx, appName, a.ID, 30)
+					alloc, err := client.GetAllocationStatus(ctx, appName, a.ID, 30)
 					if err != nil {
 						//cmdCtx.Status("deploy", cmdctx.SERROR, "Error fetching alloc", a.ID, err)
 						tb.Printf("failed fetching alloc %s: %s", a.ID, err)

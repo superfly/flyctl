@@ -14,9 +14,10 @@ var ErrNoDeployment = errors.New("No deployment available to monitor")
 var errDeploymentNotReady = errors.New("Deployment not ready to monitor")
 var errDeploymentComplete = errors.New("Deployment is already complete")
 
-func NewDeploymentMonitor(appID string) *DeploymentMonitor {
+func NewDeploymentMonitor(client *api.Client, appID string) *DeploymentMonitor {
 	return &DeploymentMonitor{
-		AppID: appID,
+		AppID:  appID,
+		client: client,
 	}
 }
 
