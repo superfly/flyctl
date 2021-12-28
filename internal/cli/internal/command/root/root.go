@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/command/create"
 	"github.com/superfly/flyctl/internal/cli/internal/command/curl"
 	"github.com/superfly/flyctl/internal/cli/internal/command/destroy"
+	"github.com/superfly/flyctl/internal/cli/internal/command/docs"
 	"github.com/superfly/flyctl/internal/cli/internal/command/move"
 	"github.com/superfly/flyctl/internal/cli/internal/command/open"
 	"github.com/superfly/flyctl/internal/cli/internal/command/orgs"
@@ -73,6 +74,7 @@ func New() *cobra.Command {
 				open.New(), // TODO: deprecate
 				curl.New(),
 				platform.New(),
+				docs.New(),
 			)
 
 			if os.Getenv("DEV") != "" {
@@ -104,6 +106,7 @@ func New() *cobra.Command {
 		open.New(), // TODO: deprecate
 		curl.New(),
 		platform.New(),
+		docs.New(),
 	}
 
 	if os.Getenv("DEV") != "" {
