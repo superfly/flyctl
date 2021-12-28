@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/command/create"
 	"github.com/superfly/flyctl/internal/cli/internal/command/destroy"
 	"github.com/superfly/flyctl/internal/cli/internal/command/move"
+	"github.com/superfly/flyctl/internal/cli/internal/command/open"
 	"github.com/superfly/flyctl/internal/cli/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/cli/internal/command/restart"
 	"github.com/superfly/flyctl/internal/cli/internal/command/resume"
@@ -67,8 +68,12 @@ func New() *cobra.Command {
 				orgs.New(),
 				auth.New(),
 				builds.New(),
-				db.New(),
+				open.New(), // TODO: deprecate
 			)
+
+			if os.Getenv("DEV") != "" {
+				root.AddCommand(services.New())
+			}
 
 			return root
 	*/
@@ -92,6 +97,7 @@ func New() *cobra.Command {
 		orgs.New(),
 		auth.New(),
 		builds.New(),
+		open.New(), // TODO: deprecate
 	}
 
 	if os.Getenv("DEV") != "" {
