@@ -22,6 +22,7 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
+	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/client"
@@ -65,8 +66,11 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	out := iostreams.FromContext(ctx).Out
-	renderTimings(out, timings)
+	if out := iostreams.FromContext(ctx).Out; !config.FromContext(ctx).JSONOutput {
+		renderTextTimings(out, timings)
+	} else {
+		renderJSONTimings(out, timings)
+	}
 
 	return nil
 }
@@ -206,45 +210,6 @@ func (rw *requestWrapper) time(c chan<- *timing) {
 	}
 }
 
-func renderTimings(w io.Writer, timings []*timing) {
-	var rows [][]string
-	for _, t := range timings {
-		if t.error != nil {
-			continue
-		}
-
-		rows = append(rows, []string{
-			t.region,
-			t.formatedHTTPCode(),
-			t.formattedDNS(),
-			t.formattedConnect(),
-			t.formattedTLS(),
-			t.formattedTTFB(),
-			t.formattedTotal(),
-		})
-	}
-
-	render.Table(w, "", rows, "Region", "Status", "DNS", "Connect", "TLS", "TTFB", "Total")
-
-	rows = rows[:0]
-	for _, t := range timings {
-		if t.error == nil {
-			continue
-		}
-
-		rows = append(rows, []string{
-			t.region,
-			t.Error(),
-		})
-	}
-
-	if len(rows) == 0 {
-		return
-	}
-
-	render.Table(w, "Failures", rows, "Region", "Error")
-}
-
 type timing struct {
 	error
 	region string
@@ -304,4 +269,60 @@ func colorize(text string, val float64, greenCutoff float64, yellowCutoff float6
 	}
 
 	return aurora.Colorize(text, color).String()
+}
+
+func renderTextTimings(w io.Writer, timings []*timing) {
+	var rows [][]string
+	for _, t := range timings {
+		if t.error != nil {
+			continue
+		}
+
+		rows = append(rows, []string{
+			t.region,
+			t.formatedHTTPCode(),
+			t.formattedDNS(),
+			t.formattedConnect(),
+			t.formattedTLS(),
+			t.formattedTTFB(),
+			t.formattedTotal(),
+		})
+	}
+
+	render.Table(w, "", rows, "Region", "Status", "DNS", "Connect", "TLS", "TTFB", "Total")
+
+	rows = rows[:0]
+	for _, t := range timings {
+		if t.error == nil {
+			continue
+		}
+
+		rows = append(rows, []string{
+			t.region,
+			t.Error(),
+		})
+	}
+
+	if len(rows) == 0 {
+		return
+	}
+
+	render.Table(w, "Failures", rows, "Region", "Error")
+}
+
+func renderJSONTimings(w io.Writer, timings []*timing) {
+	items := make(map[string]interface{}, len(timings))
+	for _, t := range timings {
+		if t.error != nil {
+			items[t.region] = struct {
+				Error string `json:"error"`
+			}{
+				Error: t.error.Error(),
+			}
+		} else {
+			items[t.region] = t
+		}
+	}
+
+	render.JSON(w, items)
 }
