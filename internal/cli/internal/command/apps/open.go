@@ -26,7 +26,10 @@ URL for deployed application
 		usage = "open [RELATIVE_URI]"
 	)
 
-	cmd := command.New(usage, short, long, RunOpen, command.RequireSession, command.RequireAppName)
+	cmd := command.New(usage, short, long, RunOpen,
+		command.RequireSession,
+		command.RequireAppName,
+	)
 
 	cmd.Args = cobra.MaximumNArgs(1)
 
