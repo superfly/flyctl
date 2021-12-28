@@ -101,7 +101,13 @@ func swapWorkingDirectoryIfRequired(ctx context.Context) (context.Context, error
 		return ctx, nil
 	}
 
-	// we have to swap the working directory
+	if !filepath.IsAbs(wd) {
+		p, err := filepath.Abs(wd)
+		if err != nil {
+			return nil, fmt.Errorf("failed converting %s to an absolute path: %w", wd, err)
+		}
+		wd = p
+	}
 
 	if err := os.Chdir(wd); err != nil {
 		return nil, fmt.Errorf("failed changing working directory: %w", err)
