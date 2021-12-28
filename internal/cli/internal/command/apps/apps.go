@@ -30,6 +30,7 @@ The LIST command will list all currently registered applications.
 		newResume(),
 		newRestart(),
 		NewOpen(),
+		NewReleases(),
 	)
 
 	return apps
