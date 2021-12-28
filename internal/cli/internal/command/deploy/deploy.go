@@ -43,8 +43,9 @@ func New() (cmd *cobra.Command) {
 		short = "Deploy Fly applications"
 	)
 
-	cmd = command.New("deploy", short, long, run,
+	cmd = command.New("deploy [WORKING_DIRECTORY]", short, long, run,
 		command.RequireSession,
+		swapWorkingDirectoryIfRequired,
 		command.RequireAppName,
 	)
 
@@ -94,17 +95,22 @@ func New() (cmd *cobra.Command) {
 	return
 }
 
-func run(ctx context.Context) error {
-	if wd := flag.FirstArg(ctx); wd != "" {
-		// we have to swap the working directory
-
-		if err := os.Chdir(wd); err != nil {
-			return fmt.Errorf("failed changing working directory: %w", err)
-		}
-
-		ctx = state.WithWorkingDirectory(ctx, wd)
+func swapWorkingDirectoryIfRequired(ctx context.Context) (context.Context, error) {
+	wd := flag.FirstArg(ctx)
+	if wd == "" {
+		return ctx, nil
 	}
 
+	// we have to swap the working directory
+
+	if err := os.Chdir(wd); err != nil {
+		return nil, fmt.Errorf("failed changing working directory: %w", err)
+	}
+
+	return state.WithWorkingDirectory(ctx, wd), nil
+}
+
+func run(ctx context.Context) error {
 	appConfig, err := determineAppConfig(ctx)
 	if err != nil {
 		return err
