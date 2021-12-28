@@ -89,13 +89,22 @@ func New() (cmd *cobra.Command) {
 		},
 	)
 
-	// TODO: see why we need working directory
 	cmd.Args = cobra.MaximumNArgs(1)
 
 	return
 }
 
 func run(ctx context.Context) error {
+	if wd := flag.FirstArg(ctx); wd != "" {
+		// we have to swap the working directory
+
+		if err := os.Chdir(wd); err != nil {
+			return fmt.Errorf("failed changing working directory: %w", err)
+		}
+
+		ctx = state.WithWorkingDirectory(ctx, wd)
+	}
+
 	appConfig, err := determineAppConfig(ctx)
 	if err != nil {
 		return err
