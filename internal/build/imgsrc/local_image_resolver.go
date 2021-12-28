@@ -17,11 +17,11 @@ import (
 
 type localImageResolver struct{}
 
-func (s *localImageResolver) Name() string {
+func (*localImageResolver) Name() string {
 	return "Local Image Reference"
 }
 
-func (s *localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts RefOptions) (*DeploymentImage, error) {
+func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts RefOptions) (*DeploymentImage, error) {
 	if !dockerFactory.mode.IsLocal() {
 		terminal.Debug("local docker daemon not available, skipping")
 		return nil, nil
@@ -38,7 +38,7 @@ func (s *localImageResolver) Run(ctx context.Context, dockerFactory *dockerClien
 
 	fmt.Fprintf(streams.ErrOut, "Searching for image '%s' locally...\n", opts.ImageRef)
 
-	img, err := findImageWithDocker(docker, ctx, opts.ImageRef)
+	img, err := findImageWithDocker(ctx, docker, opts.ImageRef)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func (s *localImageResolver) Run(ctx context.Context, dockerFactory *dockerClien
 
 var imageIDPattern = regexp.MustCompile("[a-f0-9]")
 
-func findImageWithDocker(d *dockerclient.Client, ctx context.Context, imageName string) (*types.ImageSummary, error) {
+func findImageWithDocker(ctx context.Context, d *dockerclient.Client, imageName string) (*types.ImageSummary, error) {
 	ref, err := dockerparser.Parse(imageName)
 	if err != nil {
 		return nil, err

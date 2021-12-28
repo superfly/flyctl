@@ -11,8 +11,6 @@ import (
 	"github.com/PuerkitoBio/rehttp"
 )
 
-var retryErrors = []string{"INTERNAL_ERROR", "read: connection reset by peer"}
-
 func newHTTPClient(logger Logger) (*http.Client, error) {
 	retryTransport := rehttp.NewTransport(
 		http.DefaultTransport,

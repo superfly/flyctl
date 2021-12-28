@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -195,12 +194,10 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 func normalizeBuildArgsForDocker(buildArgs map[string]string) map[string]*string {
 	var out = map[string]*string{}
 
-	if buildArgs != nil {
-		for k, v := range buildArgs {
-			// docker needs a string pointer. since ranges reuse variables we need to deref a copy
-			val := v
-			out[k] = &val
-		}
+	for k, v := range buildArgs {
+		// docker needs a string pointer. since ranges reuse variables we need to deref a copy
+		val := v
+		out[k] = &val
 	}
 
 	return out
@@ -366,9 +363,9 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 			}
 
 			if os.Getenv("LOG_LEVEL") == "debug" {
-				f, err := os.OpenFile("build.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+				f, err := os.OpenFile("build.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
 				if err != nil {
-					log.Fatal(err)
+					return err
 				}
 				defer f.Close()
 

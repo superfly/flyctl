@@ -329,23 +329,23 @@ func runWireGuardTokenCreate(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	fmt.Printf(`
-!!!! WARNING: Output includes credential information. Credentials cannot !!!! 	
-!!!! be recovered after creation; if you lose the token, you'll need to  !!!! 	 
-!!!! remove and and re-add it.																		 			 !!!! 	
+!!!! WARNING: Output includes credential information. Credentials cannot !!!!
+!!!! be recovered after creation; if you lose the token, you'll need to  !!!!
+!!!! remove and and re-add it.																		 			 !!!!
 
 To use a token to create a WireGuard connection, you can use curl:
 
-    curl -v --request POST                 
-         -H "Authorization: Bearer ${WG_TOKEN}" 
-         -H "Content-Type: application/json" 
+    curl -v --request POST
+         -H "Authorization: Bearer ${WG_TOKEN}"
+         -H "Content-Type: application/json"
          --data '{"name": "node-1", \
                   "group": "k8s",   \
                   "pubkey": "'"${WG_PUBKEY}"'", \
-                  "region": "dev"}' 
+                  "region": "dev"}'
          http://fly.io/api/v3/wire_guard_peers
 
-We'll return 'us' (our local 6PN address), 'them' (the gateway IP address), 
-and 'pubkey' (the public key of the gateway), which you can inject into a 
+We'll return 'us' (our local 6PN address), 'them' (the gateway IP address),
+and 'pubkey' (the public key of the gateway), which you can inject into a
 "wg.con".
 `)
 

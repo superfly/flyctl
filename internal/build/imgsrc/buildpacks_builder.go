@@ -14,11 +14,11 @@ import (
 
 type buildpacksBuilder struct{}
 
-func (ds *buildpacksBuilder) Name() string {
+func (*buildpacksBuilder) Name() string {
 	return "Buildpacks"
 }
 
-func (s *buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions) (*DeploymentImage, error) {
+func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions) (*DeploymentImage, error) {
 	if !dockerFactory.mode.IsAvailable() {
 		terminal.Debug("docker daemon not available, skipping")
 		return nil, nil
@@ -80,7 +80,7 @@ func (s *buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClient
 		cmdfmt.PrintDone(streams.ErrOut, "Pushing image done")
 	}
 
-	img, err := findImageWithDocker(docker, ctx, opts.Tag)
+	img, err := findImageWithDocker(ctx, docker, opts.Tag)
 	if err != nil {
 		return nil, err
 	}
