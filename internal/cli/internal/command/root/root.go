@@ -68,8 +68,12 @@ func New() *cobra.Command {
 				orgs.New(),
 				auth.New(),
 				builds.New(),
-				db.New(),
+				open.New(), // TODO: deprecate
 			)
+
+			if os.Getenv("DEV") != "" {
+				root.AddCommand(services.New())
+			}
 
 			return root
 	*/
@@ -93,7 +97,7 @@ func New() *cobra.Command {
 		orgs.New(),
 		auth.New(),
 		builds.New(),
-		open.New(),
+		open.New(), // TODO: deprecate
 	}
 
 	if os.Getenv("DEV") != "" {
