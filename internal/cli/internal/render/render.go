@@ -1,12 +1,15 @@
 package render
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 
 	"github.com/logrusorgru/aurora"
+	"github.com/morikuni/aec"
 	"github.com/olekukonko/tablewriter"
+	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func JSON(w io.Writer, v interface{}) error {
@@ -51,4 +54,54 @@ func Table(w io.Writer, title string, rows [][]string, cols ...string) error {
 	fmt.Fprintln(w)
 
 	return nil
+}
+
+func NewTextBlock(ctx context.Context, v ...interface{}) (tb *TextBlock) {
+	tb = &TextBlock{
+		out: iostreams.FromContext(ctx).ErrOut,
+	}
+
+	if len(v) > 0 {
+		tb.Println(aurora.Green("==> " + fmt.Sprint(v...)))
+	}
+
+	return
+}
+
+type TextBlock struct {
+	out io.Writer
+}
+
+func (tb *TextBlock) Print(v ...interface{}) {
+	fmt.Fprint(tb.out, v...)
+}
+
+func (tb *TextBlock) Println(v ...interface{}) {
+	fmt.Fprintln(tb.out, v...)
+}
+
+func (tb *TextBlock) Printf(format string, v ...interface{}) {
+	fmt.Fprintf(tb.out, format, v...)
+}
+
+// Detail prints to the output ctx carries. It behaves similarly to log.Print.
+func (tb *TextBlock) Detail(v ...interface{}) {
+	tb.Println(aurora.Faint(fmt.Sprint(v...)))
+}
+
+// Detailf prints to the output ctx carries. It behaves similarly to log.Printf.
+func (tb *TextBlock) Detailf(format string, v ...interface{}) {
+	tb.Detail(fmt.Sprintf(format, v...))
+}
+
+func (tb *TextBlock) Overwrite() {
+	tb.Print(tb.out, aec.Up(1), aec.EraseLine(aec.EraseModes.All))
+}
+
+func (tb *TextBlock) Done(v ...interface{}) {
+	tb.Println(aurora.Gray(20, "--> "+fmt.Sprint(v...)))
+}
+
+func (tb *TextBlock) Donef(format string, v ...interface{}) {
+	tb.Done(fmt.Sprintf(format, v...))
 }

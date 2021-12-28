@@ -215,14 +215,3 @@ func volumeSizeInput(defaultVal int) (int, error) {
 
 	return volumeSize, nil
 }
-
-func inputUserEmail() (email string, err error) {
-	prompt := &survey.Input{
-		Message: "User email:",
-	}
-	if err := survey.AskOne(prompt, &email); err != nil {
-		return email, err
-	}
-
-	return email, nil
-}

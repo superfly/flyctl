@@ -18,22 +18,23 @@ func (ds *builtinBuilder) Name() string {
 }
 
 func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions) (*DeploymentImage, error) {
+
 	if !dockerFactory.mode.IsAvailable() {
 		terminal.Debug("docker daemon not available, skipping")
 		return nil, nil
 	}
 
-	if !opts.AppConfig.HasBuiltin() {
+	if opts.BuiltIn == "" {
 		terminal.Debug("fly.toml does not include a builtin config")
 		return nil, nil
 	}
 
-	builtin, err := builtins.GetBuiltin(opts.AppConfig.Build.Builtin)
+	builtin, err := builtins.GetBuiltin(opts.BuiltIn)
 	if err != nil {
 		return nil, err
 	}
 	// Expand args
-	vdockerfile, err := builtin.GetVDockerfile(opts.AppConfig.Build.Settings)
+	vdockerfile, err := builtin.GetVDockerfile(opts.BuiltInSettings)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +80,8 @@ func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	msg := fmt.Sprintf("docker host: %s %s %s", serverInfo.ServerVersion, serverInfo.OSType, serverInfo.Architecture)
 	cmdfmt.PrintDone(streams.ErrOut, msg)
 
-	buildArgs := normalizeBuildArgsForDocker(opts.AppConfig, opts.ExtraBuildArgs)
+	buildArgs := normalizeBuildArgsForDocker(opts.BuildArgs)
+
 	imageID, err = runClassicBuild(ctx, streams, docker, r, opts, "", buildArgs)
 	if err != nil {
 		return nil, errors.Wrap(err, "error building")

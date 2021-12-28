@@ -21,18 +21,6 @@ func (s *localImageResolver) Name() string {
 	return "Local Image Reference"
 }
 
-func imageRefFromOpts(opts RefOptions) string {
-	if opts.ImageRef != "" {
-		return opts.ImageRef
-	}
-
-	if opts.AppConfig != nil && opts.AppConfig.Build != nil {
-		return opts.AppConfig.Build.Image
-	}
-
-	return ""
-}
-
 func (s *localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts RefOptions) (*DeploymentImage, error) {
 	if !dockerFactory.mode.IsLocal() {
 		terminal.Debug("local docker daemon not available, skipping")
@@ -43,21 +31,14 @@ func (s *localImageResolver) Run(ctx context.Context, dockerFactory *dockerClien
 		opts.Tag = newDeploymentTag(opts.AppName, opts.ImageLabel)
 	}
 
-	ref := imageRefFromOpts(opts)
-
-	if ref == "" {
-		terminal.Debug("no image reference found, skipping")
-		return nil, nil
-	}
-
 	docker, err := dockerFactory.buildFn(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Fprintf(streams.ErrOut, "Searching for image '%s' locally...\n", ref)
+	fmt.Fprintf(streams.ErrOut, "Searching for image '%s' locally...\n", opts.ImageRef)
 
-	img, err := findImageWithDocker(docker, ctx, ref)
+	img, err := findImageWithDocker(docker, ctx, opts.ImageRef)
 	if err != nil {
 		return nil, err
 	}

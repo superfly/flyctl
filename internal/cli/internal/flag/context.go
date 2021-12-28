@@ -44,6 +44,16 @@ func GetString(ctx context.Context, name string) string {
 	}
 }
 
+// GetString returns the value of the named string flag ctx carries. It panics
+// in case ctx carries no flags or in case the named flag isn't a string one.
+func GetStringSlice(ctx context.Context, name string) []string {
+	if v, err := FromContext(ctx).GetStringSlice(name); err != nil {
+		panic(err)
+	} else {
+		return v
+	}
+}
+
 // GetBool returns the value of the named boolean flag ctx carries. It panics
 // in case ctx carries no flags or in case the named flag isn't a boolean one.
 func GetBool(ctx context.Context, name string) bool {

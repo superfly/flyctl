@@ -15,13 +15,10 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
-	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/deployment"
@@ -30,64 +27,6 @@ import (
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/sync/errgroup"
 )
-
-func newDeployCommand(client *client.Client) *Command {
-	deployStrings := docstrings.Get("deploy")
-	cmd := BuildCommandKS(nil, runDeploy, deployStrings, client, workingDirectoryFromArg(0), requireSession, requireAppName)
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "image",
-		Shorthand:   "i",
-		Description: "Image tag or id to deploy",
-	})
-	cmd.AddBoolFlag(BoolFlagOpts{
-		Name:        "detach",
-		Description: "Return immediately instead of monitoring deployment progress",
-	})
-	cmd.AddBoolFlag(BoolFlagOpts{
-		Name: "build-only",
-	})
-	cmd.AddBoolFlag(BoolFlagOpts{
-		Name:        "remote-only",
-		Description: "Perform builds remotely without using the local docker daemon",
-	})
-	cmd.AddBoolFlag(BoolFlagOpts{
-		Name:        "local-only",
-		Description: "Only perform builds locally using the local docker daemon",
-	})
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "strategy",
-		Description: "The strategy for replacing running instances. Options are canary, rolling, bluegreen, or immediate. Default is canary, or rolling when max-per-region is set.",
-	})
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "dockerfile",
-		Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
-	})
-	cmd.AddStringSliceFlag(StringSliceFlagOpts{
-		Name:        "build-arg",
-		Description: "Set of build time variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
-	})
-	cmd.AddStringSliceFlag(StringSliceFlagOpts{
-		Name:        "env",
-		Shorthand:   "e",
-		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
-	})
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "image-label",
-		Description: "Image label to use when tagging and pushing to the fly registry. Defaults to \"deployment-{timestamp}\".",
-	})
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "build-target",
-		Description: "Set the target build stage to build if the Dockerfile has more than one stage",
-	})
-	cmd.AddBoolFlag(BoolFlagOpts{
-		Name:        "no-cache",
-		Description: "Do not use the cache when building the image",
-	})
-
-	cmd.Command.Args = cobra.MaximumNArgs(1)
-
-	return cmd
-}
 
 func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
@@ -148,7 +87,6 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		opts := imgsrc.RefOptions{
 			AppName:    cmdCtx.AppName,
 			WorkingDir: cmdCtx.WorkingDir,
-			AppConfig:  cmdCtx.AppConfig,
 			Publish:    !cmdCtx.Config.GetBool("build-only"),
 			ImageRef:   imageRef,
 			ImageLabel: cmdCtx.Config.GetString("image-label"),
@@ -162,7 +100,6 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		opts := imgsrc.ImageOptions{
 			AppName:    cmdCtx.AppName,
 			WorkingDir: cmdCtx.WorkingDir,
-			AppConfig:  cmdCtx.AppConfig,
 			Publish:    !cmdCtx.Config.GetBool("build-only"),
 			ImageLabel: cmdCtx.Config.GetString("image-label"),
 			NoCache:    cmdCtx.Config.GetBool("no-cache"),

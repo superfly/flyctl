@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"sync"
 
@@ -22,8 +21,7 @@ func newMonitorCommand(client *client.Client) *Command {
 	return BuildCommandKS(nil, runMonitor, ks, client, requireSession, requireAppName)
 }
 
-func runMonitor(commandContext *cmdctx.CmdContext) error {
-	//var oldds *api.DeploymentStatus
+func runMonitor(commandContext *cmdctx.CmdContext) (error error) {
 	ctx := commandContext.Command.Context()
 
 	app, err := commandContext.Client.API().GetApp(ctx, commandContext.AppName)
@@ -35,19 +33,19 @@ func runMonitor(commandContext *cmdctx.CmdContext) error {
 	commandContext.Statusf("monitor", cmdctx.STITLE, "Monitoring Deployments for %s\n", app.Name)
 
 	for {
-		err := monitorDeployment(context.Background(), commandContext)
+		err := monitorDeployment(*commandContext)
 		if err != nil {
-			return err
+			return
 		}
 	}
 
 }
 
-func monitorDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext) error {
+func monitorDeployment(cmdCtx cmdctx.CmdContext) error {
 	monitor := deployment.NewDeploymentMonitor(cmdCtx.Client.API(), cmdCtx.AppName)
 	monitor.DeploymentStarted = func(idx int, d *api.DeploymentStatus) error {
 		if idx > 0 {
-			cmdCtx.StatusLn()
+			fmt.Println()
 		}
 		cmdCtx.Status("monitor", cmdctx.SINFO, presenters.FormatDeploymentSummary(d))
 		return nil
@@ -77,7 +75,7 @@ func monitorDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext) error {
 				a := a
 				go func() {
 					defer wg.Done()
-					alloc, err := cmdCtx.Client.API().GetAllocationStatus(ctx, cmdCtx.AppName, a.ID, 20)
+					alloc, err := cmdCtx.Client.API().GetAllocationStatus(cmdCtx.Command.Context(), cmdCtx.AppName, a.ID, 20)
 					if err != nil {
 						cmdCtx.Status("monitor", cmdctx.SERROR, "Error fetching instance", a.ID, err)
 						return
@@ -139,7 +137,7 @@ func monitorDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	monitor.Start(ctx)
+	monitor.Start(cmdCtx.Command.Context())
 
 	if err := monitor.Error(); err != nil {
 		fmt.Fprintf(cmdCtx.Out, "Monitor Error: %s", err)

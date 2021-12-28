@@ -2,6 +2,8 @@
 package flag
 
 import (
+	"context"
+
 	"github.com/spf13/cobra"
 )
 
@@ -32,6 +34,21 @@ const (
 
 	// AppConfigFilePathName denotes the name of the app config file path flag.
 	AppConfigFilePathName = "config"
+
+	// ImageName denotes the name of the image flag.
+	ImageName = "image"
+
+	// NowName denotes the name of the now flag.
+	NowName = "now"
+
+	// NoDeploy denotes the name of the no deploy flag.
+	NoDeployName = "no-deploy"
+
+	// GenerateName denotes the name of the generate name flag.
+	GenerateNameFlagName = "generate-name"
+
+	// DetachName denotes the name of the detach flag.
+	DetachName = "detach"
 )
 
 // Flag wraps the set of flags.
@@ -177,4 +194,87 @@ func AppConfig() String {
 		Shorthand:   "c",
 		Description: "Path to application configuration file",
 	}
+}
+
+// Image returns a Docker image config string flag.
+func Image() String {
+	return String{
+		Name:        ImageName,
+		Description: "The image tag or ID to deploy",
+	}
+}
+
+// Now returns a boolean flag for deploying immediately
+func Now() Bool {
+	return Bool{
+		Name:        NowName,
+		Description: "Deploy now without confirmation",
+		Default:     false,
+	}
+}
+
+// GenerateName returns a boolean flag for generating an application name
+func GenerateName() Bool {
+	return Bool{
+		Name:        GenerateNameFlagName,
+		Description: "Always generate a name for the app",
+		Default:     false,
+	}
+}
+
+const remoteOnlyName = "remote-only"
+
+// RemoteOnly returns a boolean flag for deploying remotely
+func RemoteOnly() Bool {
+	return Bool{
+		Name:        remoteOnlyName,
+		Description: "Perform builds on a remote builder instance instead of using the local docker daemon",
+		Default:     false,
+	}
+}
+
+func GetRemoteOnly(ctx context.Context) bool {
+	return GetBool(ctx, remoteOnlyName)
+}
+
+const localOnlyName = "local-only"
+
+// RemoteOnly returns a boolean flag for deploying remotely
+func LocalOnly() Bool {
+	return Bool{
+		Name:        localOnlyName,
+		Description: "Only perform builds locally using the local docker daemon",
+	}
+}
+
+func GetLocalOnly(ctx context.Context) bool {
+	return GetBool(ctx, localOnlyName)
+}
+
+const detachName = "detach"
+
+// Detach returns a boolean flag for detaching during deployment
+func Detach() Bool {
+	return Bool{
+		Name:        detachName,
+		Description: "Return immediately instead of monitoring deployment progress",
+	}
+}
+
+func GetDetach(ctx context.Context) bool {
+	return GetBool(ctx, detachName)
+}
+
+const buildOnlyName = "build-only"
+
+// BuildOnly returns a boolean flag for building without a deployment
+func BuildOnly() Bool {
+	return Bool{
+		Name:        buildOnlyName,
+		Description: "Build but do not deploy",
+	}
+}
+
+func GetBuildOnly(ctx context.Context) bool {
+	return GetBool(ctx, buildOnlyName)
 }

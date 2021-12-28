@@ -6,7 +6,6 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/pkg/iostreams"
-	"github.com/superfly/flyctl/terminal"
 )
 
 type remoteImageResolver struct {
@@ -18,15 +17,10 @@ func (s *remoteImageResolver) Name() string {
 }
 
 func (s *remoteImageResolver) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts RefOptions) (*DeploymentImage, error) {
-	ref := imageRefFromOpts(opts)
-	if ref == "" {
-		terminal.Debug("no image reference found, skipping")
-		return nil, nil
-	}
 
-	fmt.Fprintf(streams.ErrOut, "Searching for image '%s' remotely...\n", ref)
+	fmt.Fprintf(streams.ErrOut, "Searching for image '%s' remotely...\n", opts.ImageRef)
 
-	img, err := s.flyApi.ResolveImageForApp(ctx, opts.AppName, ref)
+	img, err := s.flyApi.ResolveImageForApp(ctx, opts.AppName, opts.ImageRef)
 	if err != nil {
 		return nil, err
 	}
