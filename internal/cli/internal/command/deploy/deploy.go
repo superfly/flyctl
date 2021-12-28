@@ -172,7 +172,7 @@ func run(ctx context.Context) error {
 
 // determineAppConfig fetching the app config from a local file, or in its absence, from the API
 func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
-	tb := render.NewTextBlock(ctx, "determining app config")
+	tb := render.NewTextBlock(ctx, "Verifying app config")
 
 	client := client.FromContext(ctx).API()
 
@@ -200,7 +200,7 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 		cfg.SetEnvVariables(parsedEnv)
 	}
 
-	tb.Done("determined app config.")
+	tb.Done("Verified app config")
 
 	return
 }
@@ -283,7 +283,6 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 	if err == nil {
 		tb.Printf("image: %s\n", img.Tag)
 		tb.Printf("image size: %s\n", humanize.Bytes(uint64(img.Size)))
-		tb.Done("determined image.")
 	}
 
 	return
