@@ -13,10 +13,14 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/command/auth"
 	"github.com/superfly/flyctl/internal/cli/internal/command/builds"
 	"github.com/superfly/flyctl/internal/cli/internal/command/create"
+	"github.com/superfly/flyctl/internal/cli/internal/command/curl"
 	"github.com/superfly/flyctl/internal/cli/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/cli/internal/command/destroy"
+	"github.com/superfly/flyctl/internal/cli/internal/command/docs"
 	"github.com/superfly/flyctl/internal/cli/internal/command/move"
+	"github.com/superfly/flyctl/internal/cli/internal/command/open"
 	"github.com/superfly/flyctl/internal/cli/internal/command/orgs"
+	"github.com/superfly/flyctl/internal/cli/internal/command/platform"
 	"github.com/superfly/flyctl/internal/cli/internal/command/restart"
 	"github.com/superfly/flyctl/internal/cli/internal/command/resume"
 	"github.com/superfly/flyctl/internal/cli/internal/command/services"
@@ -68,8 +72,15 @@ func New() *cobra.Command {
 				orgs.New(),
 				auth.New(),
 				builds.New(),
-				db.New(),
+				open.New(), // TODO: deprecate
+				curl.New(),
+				platform.New(),
+				docs.New(),
 			)
+
+			if os.Getenv("DEV") != "" {
+				root.AddCommand(services.New())
+			}
 
 			return root
 	*/
@@ -93,6 +104,10 @@ func New() *cobra.Command {
 		orgs.New(),
 		auth.New(),
 		builds.New(),
+		open.New(), // TODO: deprecate
+		curl.New(),
+		platform.New(),
+		docs.New(),
 		deploy.New(),
 	}
 

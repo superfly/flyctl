@@ -49,19 +49,15 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 	checkErr(err)
 
 	rootCmd.AddCommand(
-		newCurlCommand(client),
 		newCertificatesCommand(client),
 		newConfigCommand(client),
 		newDashboardCommand(client),
-		newDocsCommand(client),
 		newHistoryCommand(client),
 		newInfoCommand(client),
 		newIPAddressesCommand(client),
 		newListCommand(client),
 		newLogsCommand(client),
 		newMonitorCommand(client),
-		newOpenCommand(client),
-		newPlatformCommand(client),
 		newRegionsCommand(client),
 		newReleasesCommand(client),
 		newScaleCommand(client),
