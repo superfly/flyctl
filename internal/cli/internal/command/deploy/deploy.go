@@ -49,6 +49,8 @@ func New() (cmd *cobra.Command) {
 		command.RequireAppName,
 	)
 
+	cmd.Args = cobra.MaximumNArgs(1)
+
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
@@ -74,7 +76,7 @@ func New() (cmd *cobra.Command) {
 		},
 		flag.String{
 			Name:        "image-label",
-			Description: "Image label to use when tagging and pushing to the fly registry. Defaults to \"deployment-{timestamp}\".",
+			Description: `Image label to use when tagging and pushing to the fly registry. Defaults to "deployment-{timestamp}".`,
 		},
 		flag.StringSlice{
 			Name:        "build-arg",
@@ -89,8 +91,6 @@ func New() (cmd *cobra.Command) {
 			Description: "Do not use the build cache when building the image",
 		},
 	)
-
-	cmd.Args = cobra.MaximumNArgs(1)
 
 	return
 }
