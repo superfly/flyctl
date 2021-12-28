@@ -95,8 +95,7 @@ func (tb *TextBlock) Detailf(format string, v ...interface{}) {
 }
 
 func (tb *TextBlock) Overwrite() {
-	tb.Println(aec.Up(1))
-	tb.Println(aec.EraseLine(aec.EraseModes.All))
+	tb.Print(tb.out, aec.Up(1), aec.EraseLine(aec.EraseModes.All))
 }
 
 func (tb *TextBlock) Done(v ...interface{}) {
