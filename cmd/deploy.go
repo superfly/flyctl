@@ -13,77 +13,20 @@ import (
 	"github.com/briandowns/spinner"
 	"github.com/dustin/go-humanize"
 	"github.com/logrusorgru/aurora"
+	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
-	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/deployment"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/pkg/logs"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/sync/errgroup"
 )
-
-func newDeployCommand(client *client.Client) *Command {
-	deployStrings := docstrings.Get("deploy")
-	cmd := BuildCommandKS(nil, runDeploy, deployStrings, client, workingDirectoryFromArg(0), requireSession, requireAppName)
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "image",
-		Shorthand:   "i",
-		Description: "Image tag or id to deploy",
-	})
-	cmd.AddBoolFlag(BoolFlagOpts{
-		Name:        "detach",
-		Description: "Return immediately instead of monitoring deployment progress",
-	})
-	cmd.AddBoolFlag(BoolFlagOpts{
-		Name: "build-only",
-	})
-	cmd.AddBoolFlag(BoolFlagOpts{
-		Name:        "remote-only",
-		Description: "Perform builds remotely without using the local docker daemon",
-	})
-	cmd.AddBoolFlag(BoolFlagOpts{
-		Name:        "local-only",
-		Description: "Only perform builds locally using the local docker daemon",
-	})
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "strategy",
-		Description: "The strategy for replacing running instances. Options are canary, rolling, bluegreen, or immediate. Default is canary, or rolling when max-per-region is set.",
-	})
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "dockerfile",
-		Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
-	})
-	cmd.AddStringSliceFlag(StringSliceFlagOpts{
-		Name:        "build-arg",
-		Description: "Set of build time variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
-	})
-	cmd.AddStringSliceFlag(StringSliceFlagOpts{
-		Name:        "env",
-		Shorthand:   "e",
-		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
-	})
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "image-label",
-		Description: "Image label to use when tagging and pushing to the fly registry. Defaults to \"deployment-{timestamp}\".",
-	})
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "build-target",
-		Description: "Set the target build stage to build if the Dockerfile has more than one stage",
-	})
-	cmd.AddBoolFlag(BoolFlagOpts{
-		Name:        "no-cache",
-		Description: "Do not use the cache when building the image",
-	})
-
-	cmd.Command.Args = cobra.MaximumNArgs(1)
-
-	return cmd
-}
 
 func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
@@ -363,6 +306,139 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 }
 
 func watchDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext) error {
+	cmdCtx.Status("deploy", cmdctx.STITLE, "Monitoring Deployment")
+
+	interactive := cmdCtx.IO.IsInteractive()
+
+	endmessage := ""
+
+	monitor := deployment.NewDeploymentMonitor(cmdCtx.Client.API(), cmdCtx.AppName)
+
+	monitor.DeploymentStarted = func(idx int, d *api.DeploymentStatus) error {
+		if idx > 0 {
+			cmdCtx.StatusLn()
+		}
+		cmdCtx.Status("deploy", cmdctx.SINFO, presenters.FormatDeploymentSummary(d))
+
+		return nil
+	}
+
+	monitor.DeploymentUpdated = func(d *api.DeploymentStatus, updatedAllocs []*api.AllocationStatus) error {
+		if interactive && !cmdCtx.OutputJSON() {
+			fmt.Fprint(cmdCtx.Out, aec.Up(1))
+			fmt.Fprint(cmdCtx.Out, aec.EraseLine(aec.EraseModes.All))
+			fmt.Fprintln(cmdCtx.Out, presenters.FormatDeploymentAllocSummary(d))
+		} else {
+			for _, alloc := range updatedAllocs {
+				cmdCtx.Status("deploy", cmdctx.SINFO, presenters.FormatAllocSummary(alloc))
+			}
+		}
+
+		return nil
+	}
+
+	monitor.DeploymentFailed = func(d *api.DeploymentStatus, failedAllocs []*api.AllocationStatus) error {
+		cmdCtx.Statusf("deploy", cmdctx.SDETAIL, "v%d %s - %s\n", d.Version, d.Status, d.Description)
+
+		if endmessage == "" && d.Status == "failed" {
+			if strings.Contains(d.Description, "no stable release to revert to") {
+				endmessage = fmt.Sprintf("v%d %s - %s\n", d.Version, d.Status, d.Description)
+			} else {
+				endmessage = fmt.Sprintf("v%d %s - %s and deploying as v%d \n", d.Version, d.Status, d.Description, d.Version+1)
+			}
+		}
+
+		if len(failedAllocs) > 0 {
+			cmdCtx.Status("deploy", cmdctx.STITLE, "Failed Instances")
+
+			x := make(chan *api.AllocationStatus)
+			var wg sync.WaitGroup
+			wg.Add(len(failedAllocs))
+
+			for _, a := range failedAllocs {
+				a := a
+				go func() {
+					defer wg.Done()
+					alloc, err := cmdCtx.Client.API().GetAllocationStatus(ctx, cmdCtx.AppName, a.ID, 30)
+					if err != nil {
+						cmdCtx.Status("deploy", cmdctx.SERROR, "Error fetching alloc", a.ID, err)
+						return
+					}
+					x <- alloc
+				}()
+			}
+
+			go func() {
+				wg.Wait()
+				close(x)
+			}()
+
+			count := 0
+			for alloc := range x {
+				count++
+				cmdCtx.StatusLn()
+				cmdCtx.Statusf("deploy", cmdctx.SBEGIN, "Failure #%d\n", count)
+				cmdCtx.StatusLn()
+
+				err := cmdCtx.Frender(
+					cmdctx.PresenterOption{
+						Title: "Instance",
+						Presentable: &presenters.Allocations{
+							Allocations: []*api.AllocationStatus{alloc},
+						},
+						Vertical: true,
+					},
+					cmdctx.PresenterOption{
+						Title: "Recent Events",
+						Presentable: &presenters.AllocationEvents{
+							Events: alloc.Events,
+						},
+					},
+				)
+				if err != nil {
+					return err
+				}
+
+				cmdCtx.Status("deploy", cmdctx.STITLE, "Recent Logs")
+				logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
+
+				for _, e := range alloc.RecentLogs {
+					entry := logs.LogEntry{
+						Instance:  e.Instance,
+						Level:     e.Level,
+						Message:   e.Message,
+						Region:    e.Region,
+						Timestamp: e.Timestamp,
+						Meta:      e.Meta,
+					}
+					logPresenter.FPrint(cmdCtx.Out, cmdCtx.OutputJSON(), entry)
+				}
+			}
+
+		}
+
+		return nil
+	}
+
+	monitor.DeploymentSucceeded = func(d *api.DeploymentStatus) error {
+		cmdCtx.Statusf("deploy", cmdctx.SDONE, "v%d deployed successfully\n", d.Version)
+		return nil
+	}
+
+	monitor.Start(ctx)
+
+	if err := monitor.Error(); err != nil {
+		return err
+	}
+
+	if endmessage != "" {
+		cmdCtx.Status("deploy", cmdctx.SERROR, endmessage)
+	}
+
+	if !monitor.Success() {
+		cmdCtx.Status("deploy", cmdctx.SINFO, "Troubleshooting guide at https://fly.io/docs/getting-started/troubleshooting/")
+		return flyerr.ErrAbort
+	}
 
 	return nil
 }
