@@ -45,14 +45,11 @@ URL for deployed application
 }
 
 func runOpen(ctx context.Context) error {
-	var (
-		path    = flag.FirstArg(ctx)
-		appName = app.NameFromContext(ctx)
-	)
+	appName := app.NameFromContext(ctx)
 
 	app, err := client.FromContext(ctx).API().GetApp(ctx, appName)
 	if err != nil {
-		return fmt.Errorf("failed retrieving app: %w", err)
+		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
 	if !app.Deployed {
@@ -61,13 +58,12 @@ func runOpen(ctx context.Context) error {
 
 	appURL, err := url.Parse("http://" + app.Hostname)
 	if err != nil {
-		return fmt.Errorf("failed parsing app URL: %w", err)
+		return fmt.Errorf("failed parsing app URL (hostname: %s): %w", app.Hostname, err)
 	}
 
-	if path != "" {
-		if appURL, err = appURL.Parse(path); err != nil {
-			return fmt.Errorf("failed parsing relative URI: %w", err)
-		}
+	relURI := flag.FirstArg(ctx)
+	if appURL, err = appURL.Parse(relURI); err != nil {
+		return fmt.Errorf("failed parsing relative URI %s: %w", relURI, err)
 	}
 
 	iostream := iostreams.FromContext(ctx)
