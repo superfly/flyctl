@@ -257,7 +257,7 @@ func (t *timing) formattedTotal() string {
 	return humanize.FtoaWithDigits(timing, 1) + "ms"
 }
 
-func colorize(text string, val float64, greenCutoff float64, yellowCutoff float64) string {
+func colorize(text string, val, greenCutoff, yellowCutoff float64) string {
 	var color aurora.Color
 	switch {
 	case val <= greenCutoff:
