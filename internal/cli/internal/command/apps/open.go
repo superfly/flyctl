@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
@@ -16,7 +17,8 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 )
 
-func newOpen() *cobra.Command {
+// TODO: make internal once the open command has been deprecated
+func NewOpen() (cmd *cobra.Command) {
 	const (
 		long = `Open browser to current deployed application. If an optional path is specified, this is appended to the
 URL for deployed application
@@ -26,7 +28,7 @@ URL for deployed application
 		usage = "open [RELATIVE_URI]"
 	)
 
-	cmd := command.New(usage, short, long, RunOpen,
+	cmd = command.New(usage, short, long, runOpen,
 		command.RequireSession,
 		command.RequireAppName,
 	)
@@ -38,11 +40,11 @@ URL for deployed application
 		flag.AppConfig(),
 	)
 
-	return cmd
+	return
 
 }
 
-func RunOpen(ctx context.Context) error {
+func runOpen(ctx context.Context) error {
 	var (
 		path    = flag.FirstArg(ctx)
 		appName = app.NameFromContext(ctx)
@@ -54,14 +56,26 @@ func RunOpen(ctx context.Context) error {
 	}
 
 	if !app.Deployed {
-		return errors.New("app has not been deployed yet. Please try deploying your app first")
+		return errors.New("app has not been deployed yet. Please try deploying your app first.")
 	}
 
-	appUrl := "http://" + app.Hostname + path
+	appURL, err := url.Parse("http://" + app.Hostname)
+	if err != nil {
+		return fmt.Errorf("failed parsing app URL: %w", err)
+	}
+
+	if path != "" {
+		if appURL, err = appURL.Parse(path); err != nil {
+			return fmt.Errorf("failed parsing relative URI: %w", err)
+		}
+	}
 
 	iostream := iostreams.FromContext(ctx)
+	fmt.Fprintf(iostream.Out, "opening %s ...\n", appURL)
 
-	fmt.Fprintf(iostream.Out, "Opening %s ...\n", appUrl)
+	if err := open.Run(appURL.String()); err != nil {
+		return fmt.Errorf("failed opening %s: %w", appURL, err)
+	}
 
-	return open.Run(appUrl)
+	return nil
 }
