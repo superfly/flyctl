@@ -20,8 +20,8 @@ import (
 // TODO: make internal once the open command has been deprecated
 func NewOpen() (cmd *cobra.Command) {
 	const (
-		long = `Open browser to current deployed application. If an optional path is specified, this is appended to the
-URL for deployed application
+		long = `Open browser to current deployed application. If an optional relative URI is specified, it is appended 
+to the root URL of the deployed application.
 `
 		short = "Open browser to current deployed application"
 
