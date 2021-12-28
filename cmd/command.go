@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"path"
 	"path/filepath"
 
 	"github.com/superfly/flyctl/cmdctx"
@@ -412,35 +411,5 @@ func requireAppNameAsArg(cmd *Command) Initializer {
 
 			return nil
 		},
-	}
-}
-
-func workingDirectoryFromArg(index int) func(*Command) Initializer {
-	return func(cmd *Command) Initializer {
-		return Initializer{
-			Setup: func(ctx *cmdctx.CmdContext) error {
-				if len(ctx.Args) <= index {
-					return nil
-					// return fmt.Errorf("cannot resolve working directory from arg %d, not enough args", index)
-				}
-				wd := ctx.Args[index]
-
-				if !path.IsAbs(wd) {
-					wd = path.Join(ctx.WorkingDir, wd)
-				}
-
-				abs, err := filepath.Abs(wd)
-				if err != nil {
-					return err
-				}
-				ctx.WorkingDir = abs
-
-				if !helpers.DirectoryExists(ctx.WorkingDir) {
-					return fmt.Errorf("working directory '%s' not found", ctx.WorkingDir)
-				}
-
-				return nil
-			},
-		}
 	}
 }
