@@ -12,7 +12,7 @@ type remoteImageResolver struct {
 	flyApi *api.Client
 }
 
-func (s *remoteImageResolver) Name() string {
+func (*remoteImageResolver) Name() string {
 	return "Remote Image Reference"
 }
 

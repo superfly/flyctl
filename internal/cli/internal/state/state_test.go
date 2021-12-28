@@ -26,7 +26,7 @@ func TestStrings(t *testing.T) {
 			assert.Panics(t, func() { _ = kase.getter(context.Background()) })
 		})
 
-		t.Run(fmt.Sprintf("%s", name), func(t *testing.T) {
+		t.Run(fmt.Sprint(name), func(t *testing.T) {
 			const exp = "expectation"
 
 			ctx := kase.setter(context.Background(), exp)

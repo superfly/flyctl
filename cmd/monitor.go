@@ -21,7 +21,7 @@ func newMonitorCommand(client *client.Client) *Command {
 	return BuildCommandKS(nil, runMonitor, ks, client, requireSession, requireAppName)
 }
 
-func runMonitor(commandContext *cmdctx.CmdContext) (error error) {
+func runMonitor(commandContext *cmdctx.CmdContext) (err error) {
 	ctx := commandContext.Command.Context()
 
 	app, err := commandContext.Client.API().GetApp(ctx, commandContext.AppName)
@@ -33,7 +33,7 @@ func runMonitor(commandContext *cmdctx.CmdContext) (error error) {
 	commandContext.Statusf("monitor", cmdctx.STITLE, "Monitoring Deployments for %s\n", app.Name)
 
 	for {
-		err := monitorDeployment(*commandContext)
+		err = monitorDeployment(*commandContext)
 		if err != nil {
 			return
 		}
