@@ -64,8 +64,11 @@ func Select(ctx context.Context, index *int, msg, def string, options ...string)
 	p := &survey.Select{
 		Message:  msg,
 		Options:  options,
-		Default:  def,
 		PageSize: 15,
+	}
+
+	if def != "" {
+		p.Default = def
 	}
 
 	return survey.AskOne(p, index, opt)
