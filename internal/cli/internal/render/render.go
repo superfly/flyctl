@@ -56,6 +56,31 @@ func Table(w io.Writer, title string, rows [][]string, cols ...string) error {
 	return nil
 }
 
+func VerticalTable(w io.Writer, title string, objects [][]string, cols ...string) error {
+	if title != "" {
+		fmt.Fprintln(w, aurora.Bold(title))
+	}
+
+	table := tablewriter.NewWriter(w)
+	table.SetBorder(false)
+	table.SetAutoWrapText(false)
+	table.SetColumnSeparator("=")
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+
+	for _, obj := range objects {
+		for i, col := range cols {
+			table.Append([]string{col, obj[i]})
+		}
+
+		table.Render()
+
+		fmt.Fprintln(w)
+	}
+
+	return nil
+}
+
 func NewTextBlock(ctx context.Context, v ...interface{}) (tb *TextBlock) {
 	tb = &TextBlock{
 		out: iostreams.FromContext(ctx).ErrOut,
