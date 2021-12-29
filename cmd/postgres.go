@@ -622,6 +622,10 @@ func runPostgresConnect(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	// Validate image version to ensure it's compatible with this feature.
+	if app.ImageDetails.Version == "" {
+		return fmt.Errorf("PG Connect is not compatible with this image.")
+	}
+
 	imageVersionStr := app.ImageDetails.Version[1:]
 	imageVersion, err := version.NewVersion(imageVersionStr)
 	if err != nil {
