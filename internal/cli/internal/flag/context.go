@@ -44,6 +44,16 @@ func GetString(ctx context.Context, name string) string {
 	}
 }
 
+// GetInt returns the value of the named int flag ctx carries. It panics
+// in case ctx carries no flags or in case the named flag isn't an int one.
+func GetInt(ctx context.Context, name string) int {
+	if v, err := FromContext(ctx).GetInt(name); err != nil {
+		panic(err)
+	} else {
+		return v
+	}
+}
+
 // GetString returns the value of the named string flag ctx carries. It panics
 // in case ctx carries no flags or in case the named flag isn't a string one.
 func GetStringSlice(ctx context.Context, name string) []string {
