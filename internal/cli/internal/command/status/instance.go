@@ -23,8 +23,7 @@ import (
 
 func newInstance() (cmd *cobra.Command) {
 	const (
-		long = `Show the instance's current status including logs, checks,
-and events.
+		long = `Show the instance's current status including checks and events.
 `
 		short = "Show instance status"
 		usage = "instance <INSTANCE_ID>"
