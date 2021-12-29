@@ -26,6 +26,7 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/command/restart"
 	"github.com/superfly/flyctl/internal/cli/internal/command/resume"
 	"github.com/superfly/flyctl/internal/cli/internal/command/services"
+	"github.com/superfly/flyctl/internal/cli/internal/command/status"
 	"github.com/superfly/flyctl/internal/cli/internal/command/suspend"
 	"github.com/superfly/flyctl/internal/cli/internal/command/version"
 	"github.com/superfly/flyctl/internal/client"
@@ -81,6 +82,7 @@ func New() *cobra.Command {
 				releases.New(),
 				deploy.New(),
 				history.New(),
+				status.New(),
 			)
 
 			if os.Getenv("DEV") != "" {
@@ -116,6 +118,7 @@ func New() *cobra.Command {
 		releases.New(),
 		deploy.New(),
 		history.New(),
+		status.New(),
 	}
 
 	if os.Getenv("DEV") != "" {

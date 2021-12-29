@@ -61,7 +61,6 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 		newScaleCommand(client),
 		newAutoscaleCommand(client),
 		newSecretsCommand(client),
-		newStatusCommand(client),
 		newDNSCommand(client),
 		newDomainsCommand(client),
 		newImageCommand(client),
