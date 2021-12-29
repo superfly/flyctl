@@ -81,7 +81,7 @@ func runShellLogin(ctx context.Context, email, password, otp string) (err error)
 	}
 
 	if password == "" {
-		switch err = prompt.Password(ctx, &email, "Password:", true); {
+		switch err = prompt.Password(ctx, &password, "Password:", true); {
 		case err == nil:
 			break
 		case prompt.IsNonInteractive(err):
