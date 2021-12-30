@@ -143,13 +143,13 @@ func run(ctx context.Context) error {
 
 	// TODO: This is a single message that doesn't belong to any block output, so we should have helpers to allow that
 	tb := render.NewTextBlock(ctx)
-	tb.Println("You can detach the terminal anytime without stopping the deployment")
+	tb.Done("You can detach the terminal anytime without stopping the deployment")
 
 	// Run the pre-deployment release command if it's set
 	if releaseCommand != nil {
-		//TODO: don't use text block here
+		// TODO: don't use text block here
 		tb := render.NewTextBlock(ctx, fmt.Sprintf("Release command detected: %s\n", releaseCommand.Command))
-		tb.Detail("This release will not be available until the release command succeeds.")
+		tb.Done("This release will not be available until the release command succeeds.")
 
 		if err := watchReleaseCommand(ctx, releaseCommand.ID); err != nil {
 			return err
@@ -163,9 +163,7 @@ func run(ctx context.Context) error {
 		return nil
 	}
 
-	if err = watchDeployment(ctx); err == nil {
-		tb.Done()
-	}
+	err = watchDeployment(ctx)
 
 	return err
 }
@@ -321,7 +319,7 @@ func fetchImageRef(ctx context.Context, cfg *app.Config) (ref string, err error)
 }
 
 func createRelease(ctx context.Context, img *imgsrc.DeploymentImage) (*api.Release, *api.ReleaseCommand, error) {
-	tb := render.NewTextBlock(ctx, "creating release ...")
+	tb := render.NewTextBlock(ctx, "Creating release")
 	appConfig := app.ConfigFromContext(ctx)
 
 	input := api.DeployImageInput{
@@ -342,7 +340,6 @@ func createRelease(ctx context.Context, img *imgsrc.DeploymentImage) (*api.Relea
 	client := client.FromContext(ctx).API()
 
 	release, releaseCommand, err := client.DeployImage(ctx, input)
-
 	if err == nil {
 		tb.Donef("release v%d created\n", release.Version)
 	}
@@ -486,6 +483,7 @@ func watchDeployment(ctx context.Context) error {
 	monitor.DeploymentUpdated = func(d *api.DeploymentStatus, updatedAllocs []*api.AllocationStatus) error {
 		if io.IsInteractive() {
 			tb.Overwrite()
+
 			tb.Println(format.DeploymentAllocSummary(d))
 		} else {
 			for _, alloc := range updatedAllocs {
@@ -563,6 +561,7 @@ func watchDeployment(ctx context.Context) error {
 
 	monitor.DeploymentSucceeded = func(d *api.DeploymentStatus) error {
 		tb.Donef("v%d deployed successfully\n", d.Version)
+
 		return nil
 	}
 
