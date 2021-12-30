@@ -94,6 +94,7 @@ func poll(ctx context.Context, eg *errgroup.Group, client *api.Client, opts *log
 		defer close(c)
 
 		if err = logs.Poll(ctx, c, client, opts); errors.Is(err, context.Canceled) {
+			// if the user has cancelled the context then the
 			err = nil
 		}
 
@@ -107,6 +108,8 @@ func nats(ctx context.Context, eg *errgroup.Group, client *api.Client, opts *log
 	c := make(chan logs.LogEntry)
 
 	eg.Go(func() error {
+		defer close(c)
+
 		stream, err := logs.NewNatsStream(ctx, client, opts)
 		if err != nil {
 			logger := logger.FromContext(ctx)
@@ -147,16 +150,17 @@ func printStreams(ctx context.Context, streams ...<-chan logs.LogEntry) error {
 	return eg.Wait()
 }
 
-func printStream(ctx context.Context, w io.Writer, stream <-chan logs.LogEntry, json bool) (err error) {
+func printStream(ctx context.Context, w io.Writer, stream <-chan logs.LogEntry, json bool) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return ctx.Err()
 		case entry, ok := <-stream:
 			if !ok {
-				return
+				return nil
 			}
 
+			var err error
 			if json {
 				err = render.JSON(w, entry)
 			} else {
@@ -164,7 +168,7 @@ func printStream(ctx context.Context, w io.Writer, stream <-chan logs.LogEntry, 
 			}
 
 			if err != nil {
-				return
+				return err
 			}
 		}
 	}
