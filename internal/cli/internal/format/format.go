@@ -184,7 +184,6 @@ func DeploymentAllocSummary(d *api.DeploymentStatus) string {
 	if checkCounts == "" {
 		return allocCounts
 	}
-
 	return allocCounts + " [health checks: " + checkCounts + "]"
 }
 
