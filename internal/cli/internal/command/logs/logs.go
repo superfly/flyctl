@@ -94,7 +94,8 @@ func poll(ctx context.Context, eg *errgroup.Group, client *api.Client, opts *log
 		defer close(c)
 
 		if err = logs.Poll(ctx, c, client, opts); errors.Is(err, context.Canceled) {
-			// if the user has cancelled the context then the
+			// if the parent context is cancelled then the errorgroup will return
+			// context.Canceled because nats and/or printStreams will return it.
 			err = nil
 		}
 
