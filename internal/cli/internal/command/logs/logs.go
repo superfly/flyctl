@@ -69,7 +69,7 @@ func run(ctx context.Context) error {
 
 	opts := &logs.LogOptions{
 		AppName:    app.Name,
-		RegionCode: flag.GetRegion(ctx),
+		RegionCode: config.FromContext(ctx).Region,
 		VMID:       flag.GetString(ctx, "instance"),
 	}
 
