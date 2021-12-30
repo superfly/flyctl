@@ -4,9 +4,9 @@ package logs
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"time"
 
 	"github.com/logrusorgru/aurora"
@@ -78,7 +78,7 @@ func run(ctx context.Context) error {
 
 	pollingCtx, cancelPolling := context.WithCancel(ctx)
 	pollEntries := poll(pollingCtx, eg, client, opts)
-	liveEntries := stream(ctx, eg, client, opts, cancelPolling)
+	liveEntries := nats(ctx, eg, client, opts, cancelPolling)
 
 	eg.Go(func() error {
 		return printStreams(ctx, pollEntries, liveEntries)
@@ -90,31 +90,27 @@ func run(ctx context.Context) error {
 func poll(ctx context.Context, eg *errgroup.Group, client *api.Client, opts *logs.LogOptions) <-chan logs.LogEntry {
 	c := make(chan logs.LogEntry)
 
-	eg.Go(func() error {
+	eg.Go(func() (err error) {
 		defer close(c)
 
-		stream, err := logs.NewPollingStream(ctx, client, opts)
-		if err != nil {
-			return err
+		if err = logs.Poll(ctx, c, client, opts); errors.Is(err, context.Canceled) {
+			err = nil
 		}
 
-		for entry := range stream.Stream(ctx, opts) {
-			c <- entry
-		}
-
-		return nil
+		return
 	})
 
 	return c
 }
 
-func stream(ctx context.Context, eg *errgroup.Group, client *api.Client, opts *logs.LogOptions, cancelPolling context.CancelFunc) <-chan logs.LogEntry {
+func nats(ctx context.Context, eg *errgroup.Group, client *api.Client, opts *logs.LogOptions, cancelPolling context.CancelFunc) <-chan logs.LogEntry {
 	c := make(chan logs.LogEntry)
 
 	eg.Go(func() error {
 		stream, err := logs.NewNatsStream(ctx, client, opts)
 		if err != nil {
 			logger := logger.FromContext(ctx)
+
 			logger.Debugf("could not connect to wireguard tunnel: %v\n", err)
 			logger.Debug("falling back to log polling...")
 
@@ -144,32 +140,37 @@ func printStreams(ctx context.Context, streams ...<-chan logs.LogEntry) error {
 		stream := stream
 
 		eg.Go(func() error {
-			return printStream(out, stream, json)
+			return printStream(ctx, out, stream, json)
 		})
 	}
 
 	return eg.Wait()
 }
 
-func printStream(w io.Writer, stream <-chan logs.LogEntry, json bool) (err error) {
-	for entry := range stream {
-		if json {
-			err = render.JSON(w, entry)
-		} else {
-			err = printEntry(w, entry, false, false, false)
-		}
+func printStream(ctx context.Context, w io.Writer, stream <-chan logs.LogEntry, json bool) (err error) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case entry, ok := <-stream:
+			if !ok {
+				return
+			}
 
-		if err != nil {
-			break
+			if json {
+				err = render.JSON(w, entry)
+			} else {
+				err = printEntry(w, entry)
+			}
+
+			if err != nil {
+				return
+			}
 		}
 	}
-
-	return
 }
 
-var newLineReplacer = strings.NewReplacer("\r\n", aurora.Faint("↩︎").String(), "\n", aurora.Faint("↩︎").String())
-
-func printEntry(w io.Writer, entry logs.LogEntry, hideAllocID, hideRegion, removeNewLines bool) (err error) {
+func printEntry(w io.Writer, entry logs.LogEntry) (err error) {
 	// parse entry.Timestamp and truncate from nanoseconds to milliseconds
 	var ts time.Time
 	if ts, err = time.Parse(time.RFC3339Nano, entry.Timestamp); err != nil {
@@ -181,25 +182,17 @@ func printEntry(w io.Writer, entry logs.LogEntry, hideAllocID, hideRegion, remov
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "%s ", aurora.Faint(format(ts)))
 
-	if !hideAllocID {
-		if entry.Meta.Event.Provider != "" {
-			if entry.Instance != "" {
-				fmt.Fprintf(&buf, "%s[%s]", entry.Meta.Event.Provider, entry.Instance)
-			} else {
-				fmt.Fprint(&buf, entry.Meta.Event.Provider)
-			}
-		} else if entry.Instance != "" {
-			fmt.Fprintf(&buf, "%s", entry.Instance)
+	if entry.Meta.Event.Provider != "" {
+		if entry.Instance != "" {
+			fmt.Fprintf(&buf, "%s[%s]", entry.Meta.Event.Provider, entry.Instance)
+		} else {
+			fmt.Fprint(&buf, entry.Meta.Event.Provider)
 		}
-
-		fmt.Fprint(&buf, " ")
+	} else if entry.Instance != "" {
+		fmt.Fprintf(&buf, "%s", entry.Instance)
 	}
 
-	if !hideRegion {
-		fmt.Fprintf(&buf, "%s ", aurora.Green(entry.Region))
-	}
-
-	fmt.Fprintf(&buf, "[%s] ", aurora.Colorize(entry.Level, levelColor(entry.Level)))
+	fmt.Fprintf(&buf, " %s [%s]", aurora.Green(entry.Region), aurora.Colorize(entry.Level, levelColor(entry.Level)))
 
 	printFieldIfPresent(&buf, "error.code", entry.Meta.Error.Code)
 	hadErrorMsg := printFieldIfPresent(w, "error.message", entry.Meta.Error.Message)
@@ -209,11 +202,7 @@ func printEntry(w io.Writer, entry logs.LogEntry, hideAllocID, hideRegion, remov
 	printFieldIfPresent(&buf, "response.status", entry.Meta.HTTP.Response.StatusCode)
 
 	if !hadErrorMsg {
-		if removeNewLines {
-			newLineReplacer.WriteString(&buf, entry.Message)
-		} else {
-			buf.Write([]byte(entry.Message))
-		}
+		buf.Write([]byte(entry.Message))
 	}
 
 	buf.WriteByte('\n')
