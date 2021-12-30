@@ -176,7 +176,6 @@ func printStream(ctx context.Context, w io.Writer, stream <-chan logs.LogEntry, 
 }
 
 func printEntry(w io.Writer, entry logs.LogEntry) (err error) {
-	// parse entry.Timestamp and truncate from nanoseconds to milliseconds
 	var ts time.Time
 	if ts, err = time.Parse(time.RFC3339Nano, entry.Timestamp); err != nil {
 		err = fmt.Errorf("failed parsing timestamp %q: %w\n", entry.Timestamp, err)
