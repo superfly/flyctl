@@ -18,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/command/destroy"
 	"github.com/superfly/flyctl/internal/cli/internal/command/docs"
 	"github.com/superfly/flyctl/internal/cli/internal/command/history"
+	"github.com/superfly/flyctl/internal/cli/internal/command/logs"
 	"github.com/superfly/flyctl/internal/cli/internal/command/move"
 	"github.com/superfly/flyctl/internal/cli/internal/command/open"
 	"github.com/superfly/flyctl/internal/cli/internal/command/orgs"
@@ -83,6 +84,7 @@ func New() *cobra.Command {
 				deploy.New(),
 				history.New(),
 				status.New(),
+				logs.New(),
 			)
 
 			if os.Getenv("DEV") != "" {
@@ -119,6 +121,7 @@ func New() *cobra.Command {
 		deploy.New(),
 		history.New(),
 		status.New(),
+		logs.New(),
 	}
 
 	if os.Getenv("DEV") != "" {

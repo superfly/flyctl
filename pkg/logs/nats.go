@@ -9,11 +9,10 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
-	"github.com/pkg/errors"
+
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/pkg/agent"
-	"github.com/superfly/flyctl/terminal"
 )
 
 type natsLogStream struct {
@@ -24,29 +23,29 @@ type natsLogStream struct {
 func NewNatsStream(ctx context.Context, apiClient *api.Client, opts *LogOptions) (LogStream, error) {
 	app, err := apiClient.GetApp(ctx, opts.AppName)
 	if err != nil {
-		return nil, errors.Wrap(err, "error fetching target app")
+		return nil, fmt.Errorf("failed fetching target app: %w", err)
 	}
 
 	agentclient, err := agent.Establish(ctx, apiClient)
 	if err != nil {
-		return nil, errors.Wrap(err, "error establishing agent")
+		return nil, fmt.Errorf("failed establishing agent: %w", err)
 	}
 
 	dialer, err := agentclient.Dialer(ctx, &app.Organization)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error establishing wireguard connection for %s organization", app.Organization.Slug)
+		return nil, fmt.Errorf("failed establishing wireguard connection for %s organization: %w", app.Organization.Slug, err)
 	}
 
 	tunnelCtx, cancel := context.WithTimeout(ctx, 4*time.Minute)
 	defer cancel()
 
 	if err = agentclient.WaitForTunnel(tunnelCtx, &app.Organization); err != nil {
-		return nil, errors.Wrap(err, "unable to connect WireGuard tunnel")
+		return nil, fmt.Errorf("failed connecting to WireGuard tunnel: %w", err)
 	}
 
-	nc, err := newNatsClient(ctx, dialer, app)
+	nc, err := newNatsClient(ctx, dialer, app.Organization.Slug)
 	if err != nil {
-		return nil, errors.Wrap(err, "error creating nats connection")
+		return nil, fmt.Errorf("failed creating nats connection: %w", err)
 	}
 
 	return &natsLogStream{nc: nc}, nil
@@ -56,28 +55,66 @@ func NewNatsStream(ctx context.Context, apiClient *api.Client, opts *LogOptions)
 func (s *natsLogStream) Stream(ctx context.Context, opts *LogOptions) <-chan LogEntry {
 	out := make(chan LogEntry)
 
-	subject := fmt.Sprintf("logs.%s", opts.AppName)
+	go func() {
+		defer close(out)
 
-	if opts.RegionCode != "" {
-		subject = fmt.Sprintf("%s.%s", subject, opts.RegionCode)
-	} else {
-		subject = fmt.Sprintf("%s.%s", subject, "*")
+		s.err = fromNats(ctx, out, s.nc, opts)
+	}()
+
+	return out
+}
+
+func (s *natsLogStream) Err() error {
+	return s.err
+}
+
+func newNatsClient(ctx context.Context, dialer agent.Dialer, orgSlug string) (*nats.Conn, error) {
+	state := dialer.State()
+
+	peerIP := net.ParseIP(state.Peer.Peerip)
+
+	var natsIPBytes [16]byte
+	copy(natsIPBytes[0:], peerIP[0:6])
+	natsIPBytes[15] = 3
+
+	natsIP := net.IP(natsIPBytes[:])
+
+	url := fmt.Sprintf("nats://[%s]:4223", natsIP.String())
+	conn, err := nats.Connect(url, nats.SetCustomDialer(&natsDialer{dialer, ctx}), nats.UserInfo(orgSlug, flyctl.GetAPIToken()))
+	if err != nil {
+		return nil, fmt.Errorf("failed connecting to nats: %w", err)
 	}
-	if opts.VMID != "" {
-		subject = fmt.Sprintf("%s.%s", subject, opts.VMID)
-	} else {
-		subject = fmt.Sprintf("%s.%s", subject, "*")
+
+	return conn, nil
+}
+
+type natsDialer struct {
+	agent.Dialer
+	ctx context.Context
+}
+
+func (d *natsDialer) Dial(network, address string) (net.Conn, error) {
+	return d.Dialer.DialContext(d.ctx, network, address)
+}
+
+func fromNats(ctx context.Context, out chan<- LogEntry, nc *nats.Conn, opts *LogOptions) (err error) {
+	var sub *nats.Subscription
+	if sub, err = nc.SubscribeSync(opts.toNatsSubject()); err != nil {
+		return
 	}
+	defer sub.Unsubscribe()
 
-	terminal.Debug("subscribing to nats subject: ", subject)
+	var log natsLog
+	for {
+		var msg *nats.Msg
+		if msg, err = sub.NextMsgWithContext(ctx); err != nil {
+			break
+		}
 
-	sub, err := s.nc.Subscribe(subject, func(msg *nats.Msg) {
+		if err = json.Unmarshal(msg.Data, &log); err != nil {
+			err = fmt.Errorf("failed parsing log: %w", err)
 
-		var log natsLog
-
-		if err := json.Unmarshal(msg.Data, &log); err != nil {
-			terminal.Error(errors.Wrap(err, "could not parse log"))
-			return
+			break
 		}
 
 		out <- LogEntry{
@@ -92,53 +129,7 @@ func (s *natsLogStream) Stream(ctx context.Context, opts *LogOptions) <-chan Log
 				Event:    struct{ Provider string }{log.Event.Provider},
 			},
 		}
-
-	})
-	if err != nil {
-		s.err = errors.Wrap(err, "could not sub to logs via nats")
-		return nil
 	}
-	go func() {
-		defer sub.Unsubscribe()
-		defer close(out)
 
-		<-ctx.Done()
-
-	}()
-
-	return out
-}
-
-func (s *natsLogStream) Err() error {
-	return s.err
-}
-
-func newNatsClient(ctx context.Context, dialer agent.Dialer, app *api.App) (*nats.Conn, error) {
-
-	state := dialer.State()
-
-	peerIP := net.ParseIP(state.Peer.Peerip)
-
-	var natsIPBytes [16]byte
-	copy(natsIPBytes[0:], peerIP[0:6])
-	natsIPBytes[15] = 3
-
-	natsIP := net.IP(natsIPBytes[:])
-
-	terminal.Debug("connecting to nats server: ", natsIP.String())
-
-	conn, err := nats.Connect(fmt.Sprintf("nats://[%s]:4223", natsIP.String()), nats.SetCustomDialer(&natsDialer{dialer, ctx}), nats.UserInfo(app.Organization.Slug, flyctl.GetAPIToken()))
-	if err != nil {
-		return nil, errors.Wrap(err, "could not connect to nats")
-	}
-	return conn, nil
-}
-
-type natsDialer struct {
-	agent.Dialer
-	ctx context.Context
-}
-
-func (d *natsDialer) Dial(network, address string) (net.Conn, error) {
-	return d.Dialer.DialContext(d.ctx, network, address)
+	return
 }
