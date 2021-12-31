@@ -101,30 +101,40 @@ func (c *Config) EncodeTo(w io.Writer) error {
 	return c.marshalTOML(w)
 }
 
-func (c *Config) unmarshalTOML(r io.Reader) error {
+func (c *Config) unmarshalTOML(r io.Reader) (err error) {
 	var data map[string]interface{}
 
-	if _, err := toml.DecodeReader(r, &data); err != nil {
-		return err
+	if _, err = toml.DecodeReader(r, &data); err == nil {
+		err = c.unmarshalNativeMap(data)
 	}
 
-	return c.unmarshalNativeMap(data)
+	return
 }
 
 func (c *Config) unmarshalNativeMap(data map[string]interface{}) error {
-	if appName, ok := (data["app"]).(string); ok {
-		c.AppName = appName
+	if name, ok := (data["app"]).(string); ok {
+		c.AppName = name
 	}
 	delete(data, "app")
 
+	c.Build = unmarshalBuild(data)
+	delete(data, "build")
+
+	for k := range c.Definition {
+		delete(c.Definition, k)
+	}
+	c.Definition = data
+
+	return nil
+}
+
+func unmarshalBuild(data map[string]interface{}) *Build {
 	buildConfig, ok := (data["build"]).(map[string]interface{})
 	if !ok {
-		delete(data, "build")
-
 		return nil
 	}
 
-	b := Build{
+	b := &Build{
 		Args:       map[string]string{},
 		Settings:   map[string]interface{}{},
 		Buildpacks: []string{},
@@ -165,15 +175,11 @@ func (c *Config) unmarshalNativeMap(data map[string]interface{}) error {
 		}
 	}
 
-	if b.Builder != "" || b.Builtin != "" || b.Image != "" || b.Dockerfile != "" || len(b.Args) > 0 {
-		c.Build = &b
+	if b.Builder == "" && b.Builtin == "" && b.Image == "" && b.Dockerfile == "" && len(b.Args) == 0 {
+		return nil
 	}
 
-	delete(data, "build")
-
-	c.Definition = data
-
-	return nil
+	return b
 }
 
 func (c *Config) marshalTOML(w io.Writer) error {
