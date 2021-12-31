@@ -344,7 +344,7 @@ func createRelease(ctx context.Context, appConfig *app.Config, img *imgsrc.Deplo
 		input.Strategy = api.StringPointer(strings.ToUpper(val))
 	}
 
-	if appConfig != nil && len(appConfig.Definition) > 0 {
+	if len(appConfig.Definition) > 0 {
 		input.Definition = api.DefinitionPtr(appConfig.Definition)
 	}
 
