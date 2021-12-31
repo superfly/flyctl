@@ -170,7 +170,7 @@ func run(ctx context.Context) error {
 
 // determineAppConfig fetches the app config from a local file, or in its absence, from the API
 func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
-	tb := render.NewTextBlock(ctx, "verifying app config ...")
+	tb := render.NewTextBlock(ctx, "Verifying app config")
 	client := client.FromContext(ctx).API()
 
 	if cfg = app.ConfigFromContext(ctx); cfg == nil {
@@ -200,7 +200,7 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 		cfg.SetEnvVariables(parsedEnv)
 	}
 
-	tb.Done("verified app config.")
+	tb.Done("Verified app config")
 
 	return
 }
