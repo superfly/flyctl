@@ -132,7 +132,7 @@ func run(ctx context.Context) error {
 		return nil
 	}
 
-	release, releaseCommand, err := createRelease(ctx, img)
+	release, releaseCommand, err := createRelease(ctx, appConfig, img)
 	if err != nil {
 		return err
 	}
@@ -329,9 +329,8 @@ func fetchImageRef(ctx context.Context, cfg *app.Config) (ref string, err error)
 	return ref, nil
 }
 
-func createRelease(ctx context.Context, img *imgsrc.DeploymentImage) (*api.Release, *api.ReleaseCommand, error) {
+func createRelease(ctx context.Context, appConfig *app.Config, img *imgsrc.DeploymentImage) (*api.Release, *api.ReleaseCommand, error) {
 	tb := render.NewTextBlock(ctx, "Creating release")
-	appConfig := app.ConfigFromContext(ctx)
 
 	input := api.DeployImageInput{
 		AppID: app.NameFromContext(ctx),
