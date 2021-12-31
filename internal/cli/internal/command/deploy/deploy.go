@@ -256,15 +256,8 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 		Buildpacks:      build.Buildpacks,
 	}
 
-	// a Dockerfile was specified in the config, so set the path relative to the directory containing the config file
-	// Otherwise, use the absolute path to the Dockerfile specified on the command line
-	if path := appConfig.Dockerfile(); path != "" {
-		opts.DockerfilePath = filepath.Join(filepath.Dir(appConfig.Path), path)
-	} else if path := flag.GetString(ctx, "dockerfile"); path != "" {
-		if path, err = filepath.Abs(path); err != nil {
-			return
-		}
-		opts.DockerfilePath = path
+	if opts.DockerfilePath, err = resolveDockerfilePath(ctx, appConfig); err != nil {
+		return
 	}
 
 	if target := appConfig.DockerBuildTarget(); target != "" {
@@ -281,6 +274,24 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 	if err == nil {
 		tb.Printf("image: %s\n", img.Tag)
 		tb.Printf("image size: %s\n", humanize.Bytes(uint64(img.Size)))
+	}
+
+	return
+}
+
+// resolveDockerfilePath returns the absolute path to the Dockerfile
+// if one was specified in the app config or a command line argument
+func resolveDockerfilePath(ctx context.Context, appConfig *app.Config) (path string, err error) {
+	defer func() {
+		if err == nil && path != "" {
+			path, err = filepath.Abs(path)
+		}
+	}()
+
+	if path = appConfig.Dockerfile(); path != "" {
+		path = filepath.Join(filepath.Dir(appConfig.Path), path)
+	} else {
+		path = flag.GetString(ctx, "dockerfile")
 	}
 
 	return
