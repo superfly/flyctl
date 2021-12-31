@@ -200,6 +200,7 @@ func AppConfig() String {
 func Image() String {
 	return String{
 		Name:        ImageName,
+		Shorthand:   "i",
 		Description: "The image tag or ID to deploy",
 	}
 }
