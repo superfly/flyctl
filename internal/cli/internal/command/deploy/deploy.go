@@ -132,7 +132,7 @@ func run(ctx context.Context) error {
 		return nil
 	}
 
-	release, releaseCommand, err := createRelease(ctx, img)
+	release, releaseCommand, err := createRelease(ctx, appConfig, img)
 	if err != nil {
 		return err
 	}
@@ -168,13 +168,15 @@ func run(ctx context.Context) error {
 	return err
 }
 
-// determineAppConfig fetching the app config from a local file, or in its absence, from the API
+// determineAppConfig fetches the app config from a local file, or in its absence, from the API
 func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
-	tb := render.NewTextBlock(ctx, "Verifying app config")
-
+	tb := render.NewTextBlock(ctx, "verifying app config ...")
 	client := client.FromContext(ctx).API()
 
 	if cfg = app.ConfigFromContext(ctx); cfg == nil {
+		logger := logger.FromContext(ctx)
+		logger.Debug("no local app config detected; fetching from backend ...")
+
 		var apiConfig *api.AppConfig
 		if apiConfig, err = client.GetConfig(ctx, app.NameFromContext(ctx)); err != nil {
 			err = fmt.Errorf("failed fetching existing app config: %w", err)
@@ -198,7 +200,7 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 		cfg.SetEnvVariables(parsedEnv)
 	}
 
-	tb.Done("Verified app config")
+	tb.Done("verified app config.")
 
 	return
 }
@@ -213,7 +215,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 	resolver := imgsrc.NewResolver(daemonType, client, appName, io)
 
 	var imageRef string
-	if imageRef, err = fetchImageRef(ctx, app.ConfigFromContext(ctx)); err != nil {
+	if imageRef, err = fetchImageRef(ctx, appConfig); err != nil {
 		return
 	}
 
@@ -329,9 +331,8 @@ func fetchImageRef(ctx context.Context, cfg *app.Config) (ref string, err error)
 	return ref, nil
 }
 
-func createRelease(ctx context.Context, img *imgsrc.DeploymentImage) (*api.Release, *api.ReleaseCommand, error) {
+func createRelease(ctx context.Context, appConfig *app.Config, img *imgsrc.DeploymentImage) (*api.Release, *api.ReleaseCommand, error) {
 	tb := render.NewTextBlock(ctx, "Creating release")
-	appConfig := app.ConfigFromContext(ctx)
 
 	input := api.DeployImageInput{
 		AppID: app.NameFromContext(ctx),
