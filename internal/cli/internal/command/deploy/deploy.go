@@ -209,16 +209,10 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 	appName := app.NameFromContext(ctx)
 	client := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
-
 	resolver := imgsrc.NewResolver(daemonType, client, appName, io)
 
-	var imageRef string
-	if imageRef, err = fetchImageRef(ctx, app.ConfigFromContext(ctx)); err != nil {
-		return
-	}
-
 	// we're using a pre-built Docker image
-	if imageRef != "" {
+	if imageRef := fetchImageRef(ctx, app.ConfigFromContext(ctx)); imageRef != "" {
 		opts := imgsrc.RefOptions{
 			AppName:    app.NameFromContext(ctx),
 			WorkingDir: state.WorkingDirectory(ctx),
@@ -255,16 +249,8 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 		Builder:         build.Builder,
 		Buildpacks:      build.Buildpacks,
 	}
-
-	// a Dockerfile was specified in the config, so set the path relative to the directory containing the config file
-	// Otherwise, use the absolute path to the Dockerfile specified on the command line
-	if path := appConfig.Dockerfile(); path != "" {
-		opts.DockerfilePath = filepath.Join(filepath.Dir(appConfig.Path), path)
-	} else if path := flag.GetString(ctx, "dockerfile"); path != "" {
-		if path, err = filepath.Abs(path); err != nil {
-			return
-		}
-		opts.DockerfilePath = path
+	if opts.DockerfilePath, err = resolveDockerfilePath(ctx, appConfig); err != nil {
+		return
 	}
 
 	if target := appConfig.DockerBuildTarget(); target != "" {
@@ -281,6 +267,24 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 	if err == nil {
 		tb.Printf("image: %s\n", img.Tag)
 		tb.Printf("image size: %s\n", humanize.Bytes(uint64(img.Size)))
+	}
+
+	return
+}
+
+// resolveDockerfilePath returns the absolute path to the Dockerfile (if any)
+// after consulting with the application's configuration and user args.
+func resolveDockerfilePath(ctx context.Context, appConfig *app.Config) (path string, err error) {
+	defer func() {
+		if err == nil && path != "" {
+			path, err = filepath.Abs(path)
+		}
+	}()
+
+	if path = appConfig.Dockerfile(); path != "" {
+		path = filepath.Join(filepath.Dir(appConfig.Path), path)
+	} else {
+		path = flag.GetString(ctx, "dockerfile")
 	}
 
 	return
@@ -304,18 +308,16 @@ func mergeBuildArgs(ctx context.Context, args map[string]string) (map[string]str
 	return args, nil
 }
 
-func fetchImageRef(ctx context.Context, cfg *app.Config) (ref string, err error) {
+func fetchImageRef(ctx context.Context, cfg *app.Config) (ref string) {
 	if ref = flag.GetString(ctx, "image"); ref != "" {
 		return
 	}
 
 	if cfg != nil && cfg.Build != nil {
-		if ref = cfg.Build.Image; ref != "" {
-			return
-		}
+		ref = cfg.Build.Image
 	}
 
-	return ref, nil
+	return
 }
 
 func createRelease(ctx context.Context, img *imgsrc.DeploymentImage) (*api.Release, *api.ReleaseCommand, error) {
