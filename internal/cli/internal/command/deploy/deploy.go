@@ -171,10 +171,12 @@ func run(ctx context.Context) error {
 // determineAppConfig fetching the app config from a local file, or in its absence, from the API
 func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 	tb := render.NewTextBlock(ctx, "Verifying app config")
-
 	client := client.FromContext(ctx).API()
 
 	if cfg = app.ConfigFromContext(ctx); cfg == nil {
+		logger := logger.FromContext(ctx)
+		logger.Debug("no local app config detected; fetching from backend ...")
+
 		var apiConfig *api.AppConfig
 		if apiConfig, err = client.GetConfig(ctx, app.NameFromContext(ctx)); err != nil {
 			err = fmt.Errorf("failed fetching existing app config: %w", err)
