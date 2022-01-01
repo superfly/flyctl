@@ -382,31 +382,38 @@ func watchReleaseCommand(ctx context.Context, id string) error {
 	startLogs := func(ctx context.Context, vmid string) {
 		once.Do(func() {
 			g.Go(func() error {
-				ctx, cancel := context.WithCancel(ctx)
+				childCtx, cancel := context.WithCancel(ctx)
 				defer cancel()
 
-				opts := &logs.LogOptions{MaxBackoff: 1 * time.Second, AppName: appName, VMID: vmid}
-				ls, err := logs.NewPollingStream(ctx, client, opts)
+				opts := &logs.LogOptions{
+					MaxBackoff: time.Second,
+					AppName:    appName,
+					VMID:       vmid,
+				}
+
+				ls, err := logs.NewPollingStream(childCtx, client, opts)
 				if err != nil {
 					return err
 				}
 
-				for entry := range ls.Stream(ctx, opts) {
-					func() {
-						if interactive {
-							s.Stop()
-							defer s.Start()
-						}
+				for entry := range ls.Stream(childCtx, opts) {
+					if interactive {
+						s.Stop()
+						defer s.Start()
+					}
 
-						fmt.Println("\t", entry.Message)
+					fmt.Println("\t", entry.Message)
 
-						// watch for the shutdown message
-						if entry.Message == "Starting clean up." {
-							cancel()
-						}
-					}()
+					// watch for the shutdown message
+					if entry.Message == "Starting clean up." {
+						cancel()
+					}
 				}
-				return ls.Err()
+
+				if err = ls.Err(); (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) && ctx.Err() == nil {
+					err = nil
+				}
+				return err
 			})
 		})
 	}

@@ -215,16 +215,16 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 	startLogs := func(ctx context.Context, vmid string) {
 		once.Do(func() {
 			g.Go(func() error {
-				ctx, cancel := context.WithCancel(ctx)
+				childCtx, cancel := context.WithCancel(ctx)
 				defer cancel()
 
 				opts := &logs.LogOptions{MaxBackoff: 1 * time.Second, AppName: cc.AppName, VMID: vmid}
-				ls, err := logs.NewPollingStream(ctx, apiClient, opts)
+				ls, err := logs.NewPollingStream(childCtx, apiClient, opts)
 				if err != nil {
 					return err
 				}
 
-				for entry := range ls.Stream(ctx, opts) {
+				for entry := range ls.Stream(childCtx, opts) {
 					func() {
 						if interactive {
 							s.Stop()
@@ -239,7 +239,11 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 						}
 					}()
 				}
-				return ls.Err()
+
+				if err = ls.Err(); (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) && ctx.Err() == nil {
+					err = nil
+				}
+				return err
 			})
 		})
 	}
