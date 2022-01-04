@@ -11,7 +11,7 @@ import (
 
 func newStop() *cobra.Command {
 	const (
-		short = "Ping the Fly agent"
+		short = "Stop the Fly agent"
 		long  = short + "\n"
 	)
 
