@@ -21,8 +21,6 @@ func New() *cobra.Command {
 		usage = "agent <command>"
 	)
 
-	// TODO: list should also accept the --org param
-
 	agent := command.New(usage, short, long, nil)
 
 	agent.AddCommand(
