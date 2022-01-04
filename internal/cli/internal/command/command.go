@@ -19,6 +19,7 @@ import (
 
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/update"
 
@@ -378,8 +379,8 @@ func appConfigFilePaths(ctx context.Context) (paths []string) {
 var errRequireAppName = fmt.Errorf("we couldn't find a fly.toml nor an app specified by the -a flag. If you want to launch a new app, use '%s launch'", buildinfo.Name())
 
 // RequireAppName is a Preparer which makes sure the user has selected an
-// application name either via command line arguments or an application config
-// file (fly.toml). It embeds LoadAppConfigIfPresent.
+// application name via command line arguments, the environment or an application
+// config file (fly.toml). It embeds LoadAppConfigIfPresent.
 func RequireAppName(ctx context.Context) (context.Context, error) {
 	ctx, err := LoadAppConfigIfPresent(ctx)
 	if err != nil {
@@ -388,8 +389,12 @@ func RequireAppName(ctx context.Context) (context.Context, error) {
 
 	name := flag.GetApp(ctx)
 	if name == "" {
-		if cfg := app.ConfigFromContext(ctx); cfg != nil {
-			name = cfg.AppName
+		// if there's no flag present, first consult with the environment
+		if name = env.First("FLY_ENV"); name == "" {
+			// and then with the config file (if any)
+			if cfg := app.ConfigFromContext(ctx); cfg != nil {
+				name = cfg.AppName
+			}
 		}
 	}
 
