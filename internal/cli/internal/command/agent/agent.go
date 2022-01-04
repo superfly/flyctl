@@ -40,7 +40,7 @@ func fetchClient(ctx context.Context) (c *agent.Client, err error) {
 	client := client.FromContext(ctx).API()
 
 	if c, err = agent.DefaultClient(client); err != nil {
-		err = fmt.Errorf("failed initializing client: %w", err)
+		err = fmt.Errorf("failed initializing agent client: %w", err)
 	}
 
 	return
