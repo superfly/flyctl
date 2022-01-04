@@ -19,6 +19,7 @@ import (
 
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/update"
 
@@ -388,8 +389,12 @@ func RequireAppName(ctx context.Context) (context.Context, error) {
 
 	name := flag.GetApp(ctx)
 	if name == "" {
-		if cfg := app.ConfigFromContext(ctx); cfg != nil {
-			name = cfg.AppName
+		// if there's no flag present, first consult with the environment
+		if name = env.First("FLY_ENV"); name == "" {
+			// and then with the config file (if any)
+			if cfg := app.ConfigFromContext(ctx); cfg != nil {
+				name = cfg.AppName
+			}
 		}
 	}
 
