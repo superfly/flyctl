@@ -390,7 +390,7 @@ func RequireAppName(ctx context.Context) (context.Context, error) {
 	name := flag.GetApp(ctx)
 	if name == "" {
 		// if there's no flag present, first consult with the environment
-		if name = env.First("FLY_ENV"); name == "" {
+		if name = env.First("FLY_APP"); name == "" {
 			// and then with the config file (if any)
 			if cfg := app.ConfigFromContext(ctx); cfg != nil {
 				name = cfg.AppName
