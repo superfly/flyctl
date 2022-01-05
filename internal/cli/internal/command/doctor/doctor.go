@@ -2,12 +2,16 @@
 package doctor
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
+	"net"
 	"runtime"
 	"sort"
 	"sync"
+	"time"
 
 	docker "github.com/docker/docker/client"
 	"github.com/logrusorgru/aurora"
@@ -174,5 +178,40 @@ func runAgent(ctx context.Context) (err error) {
 }
 
 func runUDP(ctx context.Context) error {
-	return errors.New("server not implemented yet")
+	seed := make([]byte, 32)
+	if _, err := rand.Read(seed); err != nil {
+		return fmt.Errorf("failed seeding: %w", err)
+	}
+
+	const addr = "udpecho.fly.dev:10000"
+
+	conn, err := net.Dial("udp", addr)
+	if err != nil {
+		return fmt.Errorf("failed dialing %s: %w", addr, err)
+	}
+	defer conn.Close()
+
+	for i := 0; i < 5; i++ {
+		if _, err := conn.Write(seed); err != nil {
+			return fmt.Errorf("failed sending: %w", err)
+		}
+	}
+
+	buf := make([]byte, len(seed))
+
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	for ctx.Err() == nil {
+		dl := time.Now().Add(100 * time.Millisecond)
+		if err := conn.SetDeadline(dl); err != nil {
+			return fmt.Errorf("failed setting deadline: %w", err)
+		}
+
+		if n, _ := conn.Read(buf); n == len(seed) && bytes.Equal(seed, buf) {
+			return nil
+		}
+	}
+
+	return errors.New("no UDP connectivity detected")
 }
