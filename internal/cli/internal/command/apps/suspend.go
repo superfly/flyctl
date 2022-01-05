@@ -81,7 +81,7 @@ func RunSuspend(ctx context.Context) (err error) {
 		if status, err = client.GetAppStatus(ctx, appName, false); err != nil {
 			s.Stop()
 
-			err = fmt.Errorf("failed retrieving %s status: %w", status.Name, err)
+			err = fmt.Errorf("failed retrieving %s status: %w", appName, err)
 
 			return
 		}
