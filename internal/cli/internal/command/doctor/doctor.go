@@ -17,6 +17,7 @@ import (
 	docker "github.com/docker/docker/client"
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/iostreams"
@@ -184,7 +185,7 @@ func runUDP(ctx context.Context) error {
 		return fmt.Errorf("failed seeding: %w", err)
 	}
 
-	const addr = "udpecho.fly.dev:10000"
+	const addr = "debug.fly.dev:10000"
 
 	conn, err := net.Dial("udp4", addr)
 	if err != nil {
@@ -192,31 +193,51 @@ func runUDP(ctx context.Context) error {
 	}
 	defer conn.Close()
 
-	const sleep = 50 * time.Millisecond
+	const interval = 50 * time.Millisecond
 
-	for i := 0; i < 10 && ctx.Err() == nil; i++ {
-		if _, err := conn.Write(seed); err != nil {
-			return fmt.Errorf("failed sending: %w", err)
+	eg, ctx := errgroup.WithContext(ctx)
+
+	eg.Go(func() error {
+		for i := 0; i < 10 && ctx.Err() == nil; i++ {
+			if _, err := conn.Write(seed); err != nil {
+				return fmt.Errorf("failed writing: %w", err)
+			}
+
+			pause.For(ctx, interval)
 		}
 
-		pause.For(ctx, sleep)
-	}
+		return nil
+	})
 
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
+	eg.Go(func() error {
+		ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
 
-	buf := make([]byte, len(seed))
+		buf := make([]byte, len(seed))
 
-	for ctx.Err() == nil {
-		dl := time.Now().Add(sleep)
-		if err := conn.SetDeadline(dl); err != nil {
-			return fmt.Errorf("failed setting deadline: %w", err)
+		for ctx.Err() == nil {
+			dl := time.Now().Add(interval)
+			if err := conn.SetReadDeadline(dl); err != nil {
+				return fmt.Errorf("failed setting read deadline: %w", err)
+			}
+
+			switch n, err := conn.Read(buf); {
+			case isNetworkTimeout(err):
+				break
+			case err != nil:
+				return fmt.Errorf("failed reading: %w", err)
+			case bytes.Equal(seed, buf[:n]):
+				return nil
+			}
 		}
 
-		if n, _ := conn.Read(buf); n == len(seed) && bytes.Equal(seed, buf) {
-			return nil
-		}
-	}
+		return errors.New("no UDP connectivity detected")
+	})
 
-	return errors.New("no UDP connectivity detected")
+	return eg.Wait()
+}
+
+func isNetworkTimeout(err error) bool {
+	e, ok := err.(net.Error)
+	return ok && e.Timeout()
 }
