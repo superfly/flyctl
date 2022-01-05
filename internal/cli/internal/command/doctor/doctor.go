@@ -46,7 +46,7 @@ var runners = map[string]runner{
 	"Token":          runAuth,
 	"Docker (local)": runLocalDocker,
 	"Agent":          runAgent,
-	"UDP":            runUDP,
+	// "UDP":            runUDP,
 }
 
 func run(ctx context.Context) error {
