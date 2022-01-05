@@ -46,7 +46,7 @@ var runners = map[string]runner{
 	"Token":          runAuth,
 	"Docker (local)": runLocalDocker,
 	"Agent":          runAgent,
-	// "UDP":            runUDP,
+	"UDP":            runUDP,
 }
 
 func run(ctx context.Context) error {
@@ -202,38 +202,44 @@ func runUDP(ctx context.Context) error {
 		return fmt.Errorf("failed seeding: %w", err)
 	}
 
-	const addr = "debug.fly.dev:10000"
+	const remote = "debug.fly.dev:7777" // "udpecho.fly.dev:10000"
 
-	conn, err := net.Dial("udp4", addr)
+	conn, err := net.Dial("udp4", remote)
 	if err != nil {
-		return fmt.Errorf("failed dialing %s: %w", addr, err)
+		return fmt.Errorf("failed dialing: %w", err)
 	}
 	defer conn.Close()
 
-	const interval = 50 * time.Millisecond
+	const (
+		lastFor    = time.Second << 1 // how long the test should last for
+		iterations = 10               // how many packets we send and try to receive
+	)
 
 	eg, ctx := errgroup.WithContext(ctx)
 
 	eg.Go(func() error {
-		for i := 0; i < 10 && ctx.Err() == nil; i++ {
+		ctx, cancel := context.WithTimeout(ctx, lastFor)
+		defer cancel()
+
+		for ctx.Err() == nil {
 			if _, err := conn.Write(seed); err != nil {
 				return fmt.Errorf("failed writing: %w", err)
 			}
 
-			pause.For(ctx, interval)
+			pause.For(ctx, lastFor/iterations)
 		}
 
 		return nil
 	})
 
 	eg.Go(func() error {
-		ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		defer cancel()
-
 		buf := make([]byte, len(seed))
 
+		ctx, cancel := context.WithTimeout(ctx, lastFor)
+		defer cancel()
+
 		for ctx.Err() == nil {
-			dl := time.Now().Add(interval)
+			dl := time.Now().Add(lastFor / iterations)
 			if err := conn.SetReadDeadline(dl); err != nil {
 				return fmt.Errorf("failed setting read deadline: %w", err)
 			}
