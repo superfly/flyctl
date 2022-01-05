@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/azazeal/pause"
 	docker "github.com/docker/docker/client"
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
@@ -185,25 +186,29 @@ func runUDP(ctx context.Context) error {
 
 	const addr = "udpecho.fly.dev:10000"
 
-	conn, err := net.Dial("udp", addr)
+	conn, err := net.Dial("udp4", addr)
 	if err != nil {
 		return fmt.Errorf("failed dialing %s: %w", addr, err)
 	}
 	defer conn.Close()
 
-	for i := 0; i < 5; i++ {
+	const sleep = 50 * time.Millisecond
+
+	for i := 0; i < 10 && ctx.Err() == nil; i++ {
 		if _, err := conn.Write(seed); err != nil {
 			return fmt.Errorf("failed sending: %w", err)
 		}
-	}
 
-	buf := make([]byte, len(seed))
+		pause.For(ctx, sleep)
+	}
 
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
+	buf := make([]byte, len(seed))
+
 	for ctx.Err() == nil {
-		dl := time.Now().Add(100 * time.Millisecond)
+		dl := time.Now().Add(sleep)
 		if err := conn.SetDeadline(dl); err != nil {
 			return fmt.Errorf("failed setting deadline: %w", err)
 		}
