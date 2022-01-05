@@ -410,7 +410,7 @@ func watchReleaseCommand(ctx context.Context, id string) error {
 					}
 				}
 
-				if err = ls.Err(); (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) && ctx.Err() == nil {
+				if err = ls.Err(); errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 					err = nil
 				}
 				return err
