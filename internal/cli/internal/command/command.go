@@ -404,3 +404,25 @@ func RequireAppName(ctx context.Context) (context.Context, error) {
 
 	return app.WithName(ctx, name), nil
 }
+
+// LoadAppNameIfPresent is a Preparer which adds app name if the user has used --app or there appConfig
+// but unlike RequireAppName it does not error if the user has not specified an app name.
+func LoadAppNameIfPresent(ctx context.Context) (context.Context, error) {
+	ctx, err := LoadAppConfigIfPresent(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	name := flag.GetApp(ctx)
+	if name == "" {
+		// if there's no flag present, first consult with the environment
+		if name = env.First("FLY_APP"); name == "" {
+			// and then with the config file (if any)
+			if cfg := app.ConfigFromContext(ctx); cfg != nil {
+				name = cfg.AppName
+			}
+		}
+	}
+
+	return app.WithName(ctx, name), nil
+}
