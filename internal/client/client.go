@@ -46,7 +46,10 @@ func (c *Client) InitApi() bool {
 }
 
 func FromToken(token string) *Client {
-	ac := api.NewClient(token, buildinfo.Name(), buildinfo.Version().String(), terminal.DefaultLogger)
+	var ac *api.Client
+	if token != "" {
+		ac = api.NewClient(token, buildinfo.Name(), buildinfo.Version().String(), terminal.DefaultLogger)
+	}
 
 	return &Client{
 		api: ac,
