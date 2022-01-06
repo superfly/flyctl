@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/command/curl"
 	"github.com/superfly/flyctl/internal/cli/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/cli/internal/command/destroy"
+	"github.com/superfly/flyctl/internal/cli/internal/command/dig"
 	"github.com/superfly/flyctl/internal/cli/internal/command/docs"
 	"github.com/superfly/flyctl/internal/cli/internal/command/doctor"
 	"github.com/superfly/flyctl/internal/cli/internal/command/history"
@@ -124,6 +125,7 @@ func New() *cobra.Command {
 		status.New(),
 		logs.New(),
 		doctor.New(),
+		dig.New(),
 	}
 
 	if os.Getenv("DEV") != "" {
