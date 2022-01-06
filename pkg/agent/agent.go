@@ -124,16 +124,17 @@ func RemovePidFile() error {
 	return os.Remove(pidFile())
 }
 
-func StopRunningAgent() error {
-	process, err := runningProcess()
-	if err != nil {
-		return err
+func StopRunningAgent() (err error) {
+	var process *os.Process
+	if process, err = runningProcess(); err != nil || process == nil {
+		return
 	}
-	if process != nil {
-		err = process.Signal(os.Interrupt)
-		return err
+
+	if err = process.Signal(os.Interrupt); errors.Is(err, os.ErrProcessDone) {
+		err = nil
 	}
-	return nil
+
+	return
 }
 
 func runningProcess() (*os.Process, error) {
