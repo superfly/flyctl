@@ -62,8 +62,7 @@ func NewClient(path string, apiClient *api.Client) (*Client, error) {
 }
 
 func DefaultClient(apiClient *api.Client) (*Client, error) {
-	path := fmt.Sprintf("%s/.fly/fly-agent.sock", os.Getenv("HOME"))
-	return NewClient(path, apiClient)
+	return NewClient(pathToSocket(), apiClient)
 }
 
 type Client struct {
