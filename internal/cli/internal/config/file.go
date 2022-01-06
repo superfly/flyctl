@@ -14,10 +14,21 @@ import (
 // SetAccessToken sets the value of the access token at the configuration file
 // found at path.
 func SetAccessToken(path, token string) error {
-	return set(path, AccessTokenFileKey, token)
+	return set(path, map[string]interface{}{
+		AccessTokenFileKey: token,
+	})
 }
 
-func set(path, key string, value interface{}) error {
+// Clear clears the access token and wireguard-related keys of the configuration
+// file found at path.
+func Clear(path string) (err error) {
+	return set(path, map[string]interface{}{
+		AccessTokenFileKey:    "",
+		WireGuardStateFileKey: map[string]interface{}{},
+	})
+}
+
+func set(path string, vals map[string]interface{}) error {
 	m := make(map[string]interface{})
 
 	switch err := unmarshal(path, &m); {
@@ -27,7 +38,9 @@ func set(path, key string, value interface{}) error {
 		return err
 	}
 
-	m[key] = value
+	for k, v := range vals {
+		m[k] = v
+	}
 
 	return marshal(path, m)
 }

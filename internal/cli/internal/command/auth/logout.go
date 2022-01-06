@@ -11,6 +11,7 @@ import (
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
+	"github.com/superfly/flyctl/internal/cli/internal/state"
 	"github.com/superfly/flyctl/internal/env"
 )
 
@@ -28,10 +29,15 @@ To continue interacting with Fly, the user will need to log in again.
 
 func runLogout(ctx context.Context) (err error) {
 	if err = agent.StopRunningAgent(); err != nil {
+		err = fmt.Errorf("failed stopping agent: %w", err)
+
 		return
 	}
 
-	if err = persistAccessToken(ctx, ""); err != nil {
+	path := state.ConfigFile(ctx)
+	if err = config.Clear(path); err != nil {
+		err = fmt.Errorf("failed clearing config file at %s: %w\n", path, err)
+
 		return
 	}
 
