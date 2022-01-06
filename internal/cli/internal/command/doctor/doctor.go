@@ -56,8 +56,8 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	if out := iostreams.FromContext(ctx).Out; config.FromContext(ctx).JSONOutput {
-		return render.JSON(out, errors)
+	if config.FromContext(ctx).JSONOutput {
+		return renderJSON(ctx, errors)
 	}
 
 	return renderTable(ctx, errors)
@@ -99,6 +99,23 @@ func runInParallel(ctx context.Context, concurrency int, runners map[string]runn
 	wg.Wait()
 
 	return ret
+}
+
+func renderJSON(ctx context.Context, errors map[string]error) error {
+	m := make(map[string]string, len(errors))
+
+	for k, err := range errors {
+		if err == nil {
+			m[k] = ""
+
+			continue
+		}
+
+		m[k] = err.Error()
+	}
+
+	out := iostreams.FromContext(ctx).Out
+	return render.JSON(out, m)
 }
 
 func renderTable(ctx context.Context, errors map[string]error) error {
