@@ -86,26 +86,12 @@ func run(ctx context.Context) error {
 		}
 	}
 
-	// if orgSlug == "" {
-	// 	app, err := client.GetApp(ctx, app.NameFromContext(ctx))
-	// 	if err != nil {
-	// 		return fmt.Errorf("get app: %w", err)
-	// 	}
-
-	// 	org = &app.Organization
-	// } else {
-	// 	org, err = client.FindOrganizationBySlug(ctx, orgSlug)
-	// 	if err != nil {
-	// 		return fmt.Errorf("look up org: %w", err)
-	// 	}
-	// }
-
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
 		return err
 	}
 
-	r, ns, err := ResolverForOrg(agentclient, org)
+	r, ns, err := ResolverForOrg(ctx, agentclient, org)
 	if err != nil {
 		return err
 	}
@@ -253,9 +239,9 @@ func run(ctx context.Context) error {
 // ResolverForOrg takes a connection to the wireguard agent and an organization
 // and returns a working net.Resolver for DNS for that organization, along with the
 // address of the nameserver.
-func ResolverForOrg(c *agent.Client, org *api.Organization) (*net.Resolver, string, error) {
+func ResolverForOrg(ctx context.Context, c *agent.Client, org *api.Organization) (*net.Resolver, string, error) {
 	// do this explicitly so we can get the DNS server address
-	ts, err := c.Establish(context.Background(), org.Slug)
+	ts, err := c.Establish(ctx, org.Slug)
 	if err != nil {
 		return nil, "", err
 	}
