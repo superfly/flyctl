@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -96,7 +97,15 @@ func (s *Server) handle(c net.Conn) {
 }
 
 func pidFile() string {
-	return fmt.Sprintf("%s/.fly/agent.pid", os.Getenv("HOME"))
+	return filepath.Join(userHome(), ".fly", "agent.pid")
+}
+
+func userHome() string {
+	dir, err := os.UserHomeDir()
+	if err != nil {
+		panic(err)
+	}
+	return dir
 }
 
 func getRunningPid() (int, error) {
@@ -191,7 +200,11 @@ func NewServer(path string, apiClient *api.Client, background bool) (*Server, er
 }
 
 func DefaultServer(apiClient *api.Client, background bool) (*Server, error) {
-	return NewServer(fmt.Sprintf("%s/.fly/fly-agent.sock", os.Getenv("HOME")), apiClient, background)
+	return NewServer(pathToSocket(), apiClient, background)
+}
+
+func pathToSocket() string {
+	return filepath.Join(userHome(), ".fly", "fly-agent.sock")
 }
 
 func (s *Server) Stop() {

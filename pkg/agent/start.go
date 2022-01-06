@@ -1,5 +1,3 @@
-// +build !windows
-
 package agent
 
 import (
@@ -11,10 +9,10 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
+
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -25,15 +23,13 @@ func StartDaemon(ctx context.Context, api *api.Client, command string) (*Client,
 	defer cancel()
 
 	cmd := exec.Command(command, "agent", "daemon-start")
-	cmd.Env = append(os.Environ(), "FLY_NO_UPDATE_CHECK")
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true,
-		Pgid:    0,
-	}
+	cmd.Env = append(os.Environ(), "FLY_NO_UPDATE_CHECK=1")
+	setCommandFlags(cmd)
 
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
+
 	agentPid := cmd.Process.Pid
 	terminal.Debug("started agent process ", agentPid)
 
