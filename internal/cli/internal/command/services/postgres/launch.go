@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
+	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/client"
 )
 
@@ -32,10 +33,12 @@ func newLaunch() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.String{Name: "name", Shorthand: "n", Description: "The name of your Postgres app"},
 		flag.Region(),
+		flag.Org(),
 		flag.String{Name: "password", Shorthand: "p", Description: "The superuser password. The password will be generated for you if you leave this blank"},
-		flag.Int{Name: "volume-size", Description: "The volume size in GB", Default: 10},
-		flag.String{Name: "vm-size", Description: "the size of the VM"},
+		flag.String{Name: "vm-size", Description: "the size of the VM", Default: "shared-cpu-1x"},
 		flag.String{Name: "snapshot-id", Description: "Creates the volume with the contents of the snapshot"},
+		flag.Int{Name: "volume-size", Description: "The volume size in GB", Default: 10},
+		flag.Int{Name: "count", Shorthand: "c", Description: "Cluster size", Default: 1},
 	)
 
 	return
@@ -62,19 +65,37 @@ type PostgresProvisionConfig struct {
 
 func runLaunch(ctx context.Context) (err error) {
 	name := flag.GetString(ctx, "name")
+	count := flag.GetInt(ctx, "count")
 	region := flag.GetString(ctx, "region")
 	password := flag.GetString(ctx, "password")
 	volumeSize := flag.GetInt(ctx, "volume-size")
 	vmSize := flag.GetString(ctx, "vm-size")
 	snapshotId := flag.GetString(ctx, "snapshot-id")
+	imageRef := "flyio/postgres-standalone:14.1"
+
+	var org *api.Organization
+	if org, err = prompt.Org(ctx, nil); err != nil {
+		return err
+	}
+
+	if region == "" {
+		var r *api.Region
+		if r, err = prompt.Region(ctx); err != nil {
+			return err
+		}
+		region = r.Code
+	}
 
 	config := PostgresProvisionConfig{
-		AppName:    name,
-		Password:   password,
-		Region:     region,
-		VolumeSize: volumeSize,
-		VMSize:     vmSize,
-		SnapshotId: snapshotId,
+		AppName:      name,
+		Count:        count,
+		Password:     password,
+		Region:       region,
+		VolumeSize:   volumeSize,
+		VMSize:       vmSize,
+		SnapshotId:   snapshotId,
+		ImageRef:     imageRef,
+		Organization: org,
 	}
 
 	client := client.FromContext(ctx)
@@ -84,10 +105,10 @@ func runLaunch(ctx context.Context) (err error) {
 		client: client,
 	}
 
-	return pg.Start(ctx)
+	return pg.Launch(ctx)
 }
 
-func (p *PostgresLaunch) Start(ctx context.Context) error {
+func (p *PostgresLaunch) Launch(ctx context.Context) error {
 	app, err := p.createApp(ctx)
 	if err != nil {
 		return err
@@ -104,9 +125,10 @@ func (p *PostgresLaunch) Start(ctx context.Context) error {
 		machineConf := p.configurePostgres()
 
 		launchInput := api.LaunchMachineInput{
-			AppID:  app.ID,
-			Region: p.config.Region,
-			Config: &machineConf,
+			AppID:   app.ID,
+			OrgSlug: p.config.Organization.ID,
+			Region:  p.config.Region,
+			Config:  &machineConf,
 		}
 
 		machine, _, err := p.client.API().LaunchMachine(ctx, launchInput)
@@ -165,8 +187,9 @@ func (p *PostgresLaunch) createApp(ctx context.Context) (*api.App, error) {
 		Name:            p.config.AppName,
 		PreferredRegion: &p.config.Region,
 		Runtime:         "FIRECRACKER",
-		AppRoleID:       "postgres_cluster",
+		// AppRoleID:       "postgres_cluster",
 	}
+
 	return p.client.API().CreateApp(ctx, appInput)
 }
 
