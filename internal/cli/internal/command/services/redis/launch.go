@@ -25,7 +25,7 @@ func newLaunch() (cmd *cobra.Command) {
 
 		// TODO: document command
 		short = ""
-		usage = "launch [-o ORG] [-r REGION] [NAME]"
+		usage = "launch -n [NAME]"
 	)
 
 	cmd = command.New(usage, short, long, runLaunch,

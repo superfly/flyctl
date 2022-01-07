@@ -5,6 +5,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
+	"github.com/superfly/flyctl/internal/cli/internal/command/services/postgres"
 	"github.com/superfly/flyctl/internal/cli/internal/command/services/redis"
 )
 
@@ -19,6 +20,7 @@ func New() (cmd *cobra.Command) {
 
 	cmd.AddCommand(
 		redis.New(),
+		postgres.New(),
 	)
 
 	return
