@@ -22,6 +22,7 @@ require (
 	github.com/heroku/heroku-go/v5 v5.4.0
 	github.com/inancgumus/screen v0.0.0-20190314163918-06e984b86ed3
 	github.com/jpillora/backoff v1.0.0
+	github.com/julienschmidt/httprouter v1.2.0
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/machinebox/graphql v0.2.3-0.20181106130121-3a9253180225 // indirect
 	github.com/mattn/go-colorable v0.1.8
