@@ -1,5 +1,6 @@
 package cmd
 
+/*
 import (
 	"context"
 	"log"
@@ -131,3 +132,4 @@ func runFlyAgentPing(cc *cmdctx.CmdContext) error {
 
 	return nil
 }
+*/

@@ -3,43 +3,52 @@ package server
 
 import (
 	"context"
+	"log"
 	"net"
 	"net/http"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/superfly/flyctl/pkg/agent/server/internal/state"
 )
 
-// ListenAndServe starts a server on the given unix path.
-func ListenAndServe(parent context.Context, path string) error {
-	l, err := net.Listen("unix", path)
-	if err != nil {
-		return err
-	}
-	// we don't need to close as server.Serve will.
-
-	srv := http.Server{
-		Handler: newRouter(),
-	}
+func Serve(parent context.Context, l net.Listener, logger *log.Logger, daemon bool) error {
+	defer logger.Print("exited.")
 
 	eg, ctx := errgroup.WithContext(parent)
 
-	eg.Go(func() error {
+	srv := http.Server{
+		Handler: newRouter(),
+		ConnContext: func(ctx context.Context, _ net.Conn) context.Context {
+			ctx = state.WithDaemon(ctx, daemon)
+			ctx = state.WithLogger(ctx, logger)
+
+			return ctx
+		},
+	}
+
+	eg.Go(func() (err error) {
 		select {
-		case <-parent.Done():
-			// parent bailed; shutdown
-			cancelCtx, cancel := context.WithTimeout(context.Background(), time.Second<<2)
+		case <-ctx.Done():
+			logger.Print("shutting down ...")
+
+			// parent context canceled; shut down the server
+			cancelCtx, cancel := context.WithTimeout(context.Background(), time.Second>>1)
 			defer cancel()
 
-			return srv.Shutdown(cancelCtx)
-		case <-ctx.Done():
-			// serve has returned
-			return nil
+			if err = srv.Shutdown(cancelCtx); err != nil {
+				log.Printf("server shutdown: %v", err)
+			}
 		}
+
+		return
 	})
 
-	eg.Go(func() error { return srv.Serve(l) })
+	eg.Go(func() error {
+		return srv.Serve(l)
+	})
 
 	return eg.Wait()
 }

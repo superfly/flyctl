@@ -3,7 +3,9 @@ package agent
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 
 	"github.com/spf13/cobra"
 
@@ -26,12 +28,15 @@ func newPing() *cobra.Command {
 }
 
 func runPing(ctx context.Context) error {
-	client, err := fetchClient(ctx)
+	client, err := newClient(ctx)
 	if err != nil {
 		return err
 	}
 
-	res, err := client.Ping(ctx)
+	status, err := client.Status(ctx)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+	}
 	if err != nil {
 		return fmt.Errorf("failed pinging: %w", err)
 	}
@@ -40,16 +45,16 @@ func runPing(ctx context.Context) error {
 	out := iostreams.FromContext(ctx).Out
 
 	if cfg.JSONOutput {
-		_ = render.JSON(out, res)
+		_ = render.JSON(out, status)
 
 		return nil
 	}
 
 	var buf bytes.Buffer
 
-	fmt.Fprintf(&buf, "%-10s: %d\n", "PID", res.PID)
-	fmt.Fprintf(&buf, "%-10s: %s\n", "Version", res.Version.String())
-	fmt.Fprintf(&buf, "%-10s: %t\n", "Background", res.Background)
+	fmt.Fprintf(&buf, "%-10s: %d\n", "PID", status.PID)
+	fmt.Fprintf(&buf, "%-10s: %s\n", "Version", status.Version.String())
+	fmt.Fprintf(&buf, "%-10s: %t\n", "Background", status.Background)
 
 	buf.WriteTo(out)
 

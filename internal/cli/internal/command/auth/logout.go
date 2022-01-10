@@ -6,10 +6,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
+	"github.com/superfly/flyctl/internal/cli/internal/command/agent"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/state"
 	"github.com/superfly/flyctl/internal/env"
@@ -24,12 +24,13 @@ To continue interacting with Fly, the user will need to log in again.
 	)
 
 	return command.New("logout", short, long, runLogout,
-		command.RequireSession)
+		command.RequireSession,
+	)
 }
 
 func runLogout(ctx context.Context) (err error) {
-	if err = agent.StopRunningAgent(); err != nil {
-		err = fmt.Errorf("failed stopping agent: %w", err)
+	if err = agent.RunStop(ctx); err != nil {
+		err = fmt.Errorf("failed stopping running agent: %w", err)
 
 		return
 	}

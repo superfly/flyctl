@@ -96,6 +96,10 @@ func (s *Server) handle(c net.Conn) {
 	}
 }
 
+func socketPath() string {
+	return filepath.Join(userHome(), ".fly", "agent.sock")
+}
+
 func pidFile() string {
 	return filepath.Join(userHome(), ".fly", "agent.pid")
 }

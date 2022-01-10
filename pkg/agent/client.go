@@ -62,7 +62,7 @@ func NewClient(path string, apiClient *api.Client) (*Client, error) {
 }
 
 func DefaultClient(apiClient *api.Client) (*Client, error) {
-	return NewClient(pathToSocket(), apiClient)
+	return NewClient(socketPath(), apiClient)
 }
 
 type Client struct {
