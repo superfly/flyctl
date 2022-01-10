@@ -510,11 +510,15 @@ func RequireAppName(ctx context.Context) (context.Context, error) {
 func LoadAppNameIfPresent(ctx context.Context) (context.Context, error) {
 	ctx, err := RequireAppName(ctx)
 
-	if err != nil && err == errRequireAppName {
-		err = nil
+	if err != nil {
+		if errors.Is(err, errRequireAppName) {
+			return ctx, nil
+		}
+
+		return nil, err
 	}
 
-	return ctx, err
+	return ctx, nil
 }
 
 func ChangeWorkingDirectoryToFirstArgIfPresent(ctx context.Context) (context.Context, error) {
