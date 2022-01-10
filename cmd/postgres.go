@@ -123,6 +123,7 @@ func newPostgresCommand(client *client.Client) *Command {
 	createCmd.AddStringFlag(StringFlagOpts{Name: "password", Description: "the superuser password. one will be generated for you if you leave this blank"})
 	createCmd.AddStringFlag(StringFlagOpts{Name: "volume-size", Description: "the size in GB for volumes"})
 	createCmd.AddStringFlag(StringFlagOpts{Name: "vm-size", Description: "the size of the VM"})
+	createCmd.AddStringFlag(StringFlagOpts{Name: "availability", Description: "either 'standalone' for development or 'high' for production"})
 
 	createCmd.AddStringFlag(StringFlagOpts{Name: "image-ref", Hidden: true})
 	createCmd.AddStringFlag(StringFlagOpts{Name: "snapshot-id", Description: "Creates the volume with the contents of the snapshot"})
@@ -206,14 +207,11 @@ func runCreatePostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 		Region:         api.StringPointer(region.Code),
 	}
 
-	customConfig := false
-
 	volumeSize := cmdCtx.Config.GetInt("volume-size")
 	vmSizeName := cmdCtx.Config.GetString("vm-size")
+	availability := cmdCtx.Config.GetString("availability")
 
-	if volumeSize != 0 || vmSizeName != "" {
-		customConfig = true
-	}
+	customConfig := volumeSize != 0 || vmSizeName != "" || availability != ""
 
 	var pgConfig *PostgresConfiguration
 	var vmSize *api.VMSize
@@ -245,20 +243,10 @@ func runCreatePostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	if customConfig {
-		selected := 0
-		options := []string{}
-		for _, opt := range postgresClusteringOptions() {
-			options = append(options, opt.Name)
-		}
-		prompt := &survey.Select{
-			Message:  "Select configuration:",
-			Options:  options,
-			PageSize: 2,
-		}
-		if err := survey.AskOne(prompt, &selected); err != nil {
+		option, err := postgresClusteringOptionsInput(availability)
+		if err != nil {
 			return err
 		}
-		option := postgresClusteringOptions()[selected]
 
 		input.Count = &option.Count
 		input.ImageRef = &option.ImageRef
@@ -287,6 +275,7 @@ func runCreatePostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 		}
 		input.VMSize = api.StringPointer(vmSize.Name)
 		input.VolumeSizeGB = api.IntPointer(pgConfig.DiskGb)
+
 		input.Count = api.IntPointer(pgConfig.ClusteringOption.Count)
 
 		if imageRef := cmdCtx.Config.GetString("image-ref"); imageRef != "" {
