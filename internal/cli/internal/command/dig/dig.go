@@ -200,9 +200,6 @@ func roundTrip(conn net.Conn, m *dns.Msg) (*dns.Msg, error) {
 	m.Id = dns.Id()
 	m.Compress = true
 
-	m.Id = dns.Id()
-	m.Compress = true
-
 	buf, err := m.Pack()
 	if err != nil {
 		return nil, fmt.Errorf("dns round trip: %w", err)

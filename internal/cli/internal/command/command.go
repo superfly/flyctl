@@ -508,17 +508,13 @@ func RequireAppName(ctx context.Context) (context.Context, error) {
 // LoadAppNameIfPresent is a Preparer which adds app name if the user has used --app or there appConfig
 // but unlike RequireAppName it does not error if the user has not specified an app name.
 func LoadAppNameIfPresent(ctx context.Context) (context.Context, error) {
-	ctx, err := RequireAppName(ctx)
+	localCtx, err := RequireAppName(ctx)
 
-	if err != nil {
-		if errors.Is(err, errRequireAppName) {
-			return ctx, nil
-		}
-
-		return nil, err
+	if errors.Is(err, errRequireAppName) {
+		return app.WithName(ctx, ""), nil
 	}
 
-	return ctx, nil
+	return localCtx, err
 }
 
 func ChangeWorkingDirectoryToFirstArgIfPresent(ctx context.Context) (context.Context, error) {
