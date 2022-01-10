@@ -132,13 +132,7 @@ func run(ctx context.Context) error {
 	// put this switch block in its own function to reduce the footprint of the main function
 	// e.g: func resolve(ctx context.Context, r *net.Resolver, msg *dns.Msg, name string, dtype string)
 	switch dtype {
-	case "A":
-		fallthrough
-	case "CNAME":
-		fallthrough
-	case "TXT":
-		fallthrough
-	case "AAAA":
+	case "A", "CNAME", "TXT", "AAAA":
 		msg.SetQuestion(name, dns.StringToType[dtype])
 
 		reply, err := roundTrip(conn, msg)
