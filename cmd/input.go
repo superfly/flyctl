@@ -203,33 +203,17 @@ func inputAppName(defaultName string, autoGenerate bool) (name string, err error
 	return name, nil
 }
 
-const (
-	highAvailability       = "high"
-	standaloneAvailability = "standalone"
-)
+func initialClusterSizeInput(defaultVal int) (int, error) {
+	var count int
+	prompt := &survey.Input{
+		Message: "Specify the initial cluster size:",
+		Default: strconv.Itoa(defaultVal),
+	}
+	if err := survey.AskOne(prompt, &count); err != nil {
+		return 0, err
+	}
 
-func postgresClusteringOptionsInput(availability string) (PostgresClusterOption, error) {
-	if availability == highAvailability {
-		return highlyAvailablePostgres(), nil
-	}
-	if availability == standaloneAvailability {
-		return standalonePostgres(), nil
-	}
-	selected := 0
-	options := []string{}
-	for _, opt := range postgresClusteringOptions() {
-		options = append(options, opt.Name)
-	}
-	prompt := &survey.Select{
-		Message:  "Select configuration:",
-		Options:  options,
-		PageSize: 2,
-	}
-	if err := survey.AskOne(prompt, &selected); err != nil {
-		return PostgresClusterOption{}, err
-	}
-	option := postgresClusteringOptions()[selected]
-	return option, nil
+	return count, nil
 }
 
 func volumeSizeInput(defaultVal int) (int, error) {

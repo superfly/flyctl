@@ -427,8 +427,6 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 			return err
 		}
 
-		options := standalonePostgres()
-
 		clusterAppName := app.Name + "-db"
 
 		// Create a standalone Postgres in the same region as the app and organization
@@ -436,7 +434,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 			OrganizationID: org.ID,
 			Name:           clusterAppName,
 			Region:         api.StringPointer(region.Code),
-			ImageRef:       api.StringPointer(options.ImageRef),
+			ImageRef:       api.StringPointer("flyio/postgres"),
 			Count:          api.IntPointer(1),
 		}
 		payload, err := runApiCreatePostgresCluster(cmdCtx, org.Slug, &clusterInput)

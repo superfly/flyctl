@@ -23,86 +23,66 @@ import (
 	"github.com/superfly/flyctl/pkg/agent"
 )
 
-type PostgresClusterOption struct {
-	Name     string
-	ImageRef string
-	Count    int
-}
 type PostgresConfiguration struct {
-	Name             string
-	Description      string
-	VmSize           string
-	MemoryMb         int
-	DiskGb           int
-	ClusteringOption PostgresClusterOption
+	Name               string
+	Description        string
+	ImageRef           string
+	InitialClusterSize int
+	VmSize             string
+	MemoryMb           int
+	DiskGb             int
 }
 
 func postgresConfigurations() []PostgresConfiguration {
 	return []PostgresConfiguration{
 		{
-			Description:      "Development - Single node, 1x shared CPU, 256MB RAM, 1GB disk",
-			VmSize:           "shared-cpu-1x",
-			MemoryMb:         256,
-			DiskGb:           1,
-			ClusteringOption: standalonePostgres(),
+			Description:        "Development - Single node, 1x shared CPU, 256MB RAM, 1GB disk",
+			DiskGb:             1,
+			ImageRef:           "flyio/postgres",
+			InitialClusterSize: 1,
+			MemoryMb:           256,
+			VmSize:             "shared-cpu-1x",
 		},
 		{
-			Description:      "Development - Single node, 1x shared CPU, 512MB RAM, 10GB disk",
-			VmSize:           "shared-cpu-1x",
-			MemoryMb:         512,
-			DiskGb:           10,
-			ClusteringOption: standalonePostgres(),
+			Description:        "Development - Single node, 1x shared CPU, 512MB RAM, 10GB disk",
+			DiskGb:             10,
+			ImageRef:           "flyio/postgres",
+			InitialClusterSize: 1,
+			MemoryMb:           512,
+			VmSize:             "shared-cpu-1x",
 		},
 		{
-			Description:      "Production - Highly available, 1x shared CPU, 256MB RAM, 10GB disk",
-			VmSize:           "shared-cpu-1x",
-			MemoryMb:         256,
-			DiskGb:           10,
-			ClusteringOption: highlyAvailablePostgres(),
+			Description:        "Production - Highly available, 1x shared CPU, 256MB RAM, 10GB disk",
+			DiskGb:             10,
+			ImageRef:           "flyio/postgres",
+			InitialClusterSize: 2,
+			MemoryMb:           256,
+			VmSize:             "shared-cpu-1x",
 		},
 		{
-			Description:      "Production - Highly available, 1x Dedicated CPU, 2GB RAM, 50GB disk",
-			VmSize:           "dedicated-cpu-1x",
-			MemoryMb:         2048,
-			DiskGb:           50,
-			ClusteringOption: highlyAvailablePostgres(),
+			Description:        "Production - Highly available, 1x Dedicated CPU, 2GB RAM, 50GB disk",
+			DiskGb:             50,
+			ImageRef:           "flyio/postgres",
+			InitialClusterSize: 2,
+			MemoryMb:           2048,
+			VmSize:             "dedicated-cpu-1x",
 		},
 		{
-			Description:      "Production - Highly available, 2x Dedicated CPU's, 4GB RAM, 100GB disk",
-			VmSize:           "dedicated-cpu-2x",
-			MemoryMb:         4096,
-			DiskGb:           100,
-			ClusteringOption: highlyAvailablePostgres(),
+			Description:        "Production - Highly available, 2x Dedicated CPU's, 4GB RAM, 100GB disk",
+			DiskGb:             100,
+			ImageRef:           "flyio/postgres",
+			InitialClusterSize: 2,
+			MemoryMb:           4096,
+			VmSize:             "dedicated-cpu-2x",
 		},
 		{
-			Description: "Specify custom configuration",
-			VmSize:      "",
-			MemoryMb:    0,
-			DiskGb:      0,
+			Description:        "Specify custom configuration",
+			DiskGb:             0,
+			ImageRef:           "flyio/postgres",
+			InitialClusterSize: 0,
+			MemoryMb:           0,
+			VmSize:             "",
 		},
-	}
-}
-
-func standalonePostgres() PostgresClusterOption {
-	return PostgresClusterOption{
-		Name:     "Development (Single node)",
-		ImageRef: "flyio/postgres-standalone",
-		Count:    1,
-	}
-}
-
-func highlyAvailablePostgres() PostgresClusterOption {
-	return PostgresClusterOption{
-		Name:     "Production (Highly available)",
-		ImageRef: "flyio/postgres",
-		Count:    2,
-	}
-}
-
-func postgresClusteringOptions() []PostgresClusterOption {
-	return []PostgresClusterOption{
-		standalonePostgres(),
-		highlyAvailablePostgres(),
 	}
 }
 
@@ -121,11 +101,12 @@ func newPostgresCommand(client *client.Client) *Command {
 	createCmd.AddStringFlag(StringFlagOpts{Name: "name", Description: "the name of the new app"})
 	createCmd.AddStringFlag(StringFlagOpts{Name: "region", Description: "the region to launch the new app in"})
 	createCmd.AddStringFlag(StringFlagOpts{Name: "password", Description: "the superuser password. one will be generated for you if you leave this blank"})
-	createCmd.AddStringFlag(StringFlagOpts{Name: "volume-size", Description: "the size in GB for volumes"})
 	createCmd.AddStringFlag(StringFlagOpts{Name: "vm-size", Description: "the size of the VM"})
-	createCmd.AddStringFlag(StringFlagOpts{Name: "availability", Description: "either 'standalone' for development or 'high' for production"})
 
-	createCmd.AddStringFlag(StringFlagOpts{Name: "image-ref", Hidden: true})
+	createCmd.AddStringFlag(StringFlagOpts{Name: "volume-size", Description: "the size in GB for volumes"})
+	createCmd.AddStringFlag(StringFlagOpts{Name: "initial-cluster-size", Description: "the size of the initial postgres cluster"})
+
+	createCmd.AddStringFlag(StringFlagOpts{Name: "image-ref", Hidden: true, Default: "flyio/postgres"})
 	createCmd.AddStringFlag(StringFlagOpts{Name: "snapshot-id", Description: "Creates the volume with the contents of the snapshot"})
 
 	connectStrings := docstrings.Get("postgres.connect")
@@ -205,13 +186,14 @@ func runCreatePostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 		OrganizationID: org.ID,
 		Name:           name,
 		Region:         api.StringPointer(region.Code),
+		ImageRef:       api.StringPointer("flyio/postgres"),
 	}
 
 	volumeSize := cmdCtx.Config.GetInt("volume-size")
+	initialClusterSize := cmdCtx.Config.GetInt("initial-cluster-size")
 	vmSizeName := cmdCtx.Config.GetString("vm-size")
-	availability := cmdCtx.Config.GetString("availability")
 
-	customConfig := volumeSize != 0 || vmSizeName != "" || availability != ""
+	customConfig := volumeSize != 0 || vmSizeName != "" || initialClusterSize != 0
 
 	var pgConfig *PostgresConfiguration
 	var vmSize *api.VMSize
@@ -243,13 +225,14 @@ func runCreatePostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	if customConfig {
-		option, err := postgresClusteringOptionsInput(availability)
-		if err != nil {
-			return err
+		// Resolve cluster size
+		if initialClusterSize == 0 {
+			initialClusterSize, err = initialClusterSizeInput(2)
+			if err != nil {
+				return err
+			}
 		}
-
-		input.Count = &option.Count
-		input.ImageRef = &option.ImageRef
+		input.Count = &initialClusterSize
 
 		// Resolve VM size
 		vmSize, err = selectVMSize(ctx, cmdCtx.Client.API(), vmSizeName)
@@ -276,12 +259,12 @@ func runCreatePostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 		input.VMSize = api.StringPointer(vmSize.Name)
 		input.VolumeSizeGB = api.IntPointer(pgConfig.DiskGb)
 
-		input.Count = api.IntPointer(pgConfig.ClusteringOption.Count)
+		input.Count = api.IntPointer(pgConfig.InitialClusterSize)
 
 		if imageRef := cmdCtx.Config.GetString("image-ref"); imageRef != "" {
 			input.ImageRef = api.StringPointer(imageRef)
 		} else {
-			input.ImageRef = &pgConfig.ClusteringOption.ImageRef
+			input.ImageRef = &pgConfig.ImageRef
 		}
 	}
 
