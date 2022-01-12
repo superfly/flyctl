@@ -48,7 +48,9 @@ func (c *Client) CreateVolume(ctx context.Context, input CreateVolumeInput) (*Vo
 				}
 				volume {
 					id
-					name
+					app{
+						name
+					}
 					region
 					sizeGb
 					encrypted
