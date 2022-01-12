@@ -99,7 +99,25 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 	} else {
 
 		var buildArgs map[string]string
-		buildArgs = cmdCtx.AppConfig.Build.Args
+
+		opts := imgsrc.ImageOptions{
+			AppName:    cmdCtx.AppName,
+			WorkingDir: cmdCtx.WorkingDir,
+			Publish:    !cmdCtx.Config.GetBool("build-only"),
+			ImageLabel: cmdCtx.Config.GetString("image-label"),
+			NoCache:    cmdCtx.Config.GetBool("no-cache"),
+		}
+
+		if cmdCtx.AppConfig.Build != nil {
+			opts.BuiltIn = cmdCtx.AppConfig.Build.Builtin
+			opts.BuiltInSettings = cmdCtx.AppConfig.Build.Settings
+			opts.Builder = cmdCtx.AppConfig.Build.Builder
+			opts.Buildpacks = cmdCtx.AppConfig.Build.Buildpacks
+
+			if cmdCtx.AppConfig.Build.Args != nil {
+				buildArgs = cmdCtx.AppConfig.Build.Args
+			}
+		}
 
 		cliBuildArgs, err := cmdutil.ParseKVStringsToMap(cmdCtx.Config.GetStringSlice("build-arg"))
 		if err != nil {
@@ -110,18 +128,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 			buildArgs[k] = v
 		}
 
-		opts := imgsrc.ImageOptions{
-			AppName:         cmdCtx.AppName,
-			WorkingDir:      cmdCtx.WorkingDir,
-			Publish:         !cmdCtx.Config.GetBool("build-only"),
-			ImageLabel:      cmdCtx.Config.GetString("image-label"),
-			NoCache:         cmdCtx.Config.GetBool("no-cache"),
-			BuildArgs:       buildArgs,
-			BuiltIn:         cmdCtx.AppConfig.Build.Builtin,
-			BuiltInSettings: cmdCtx.AppConfig.Build.Settings,
-			Builder:         cmdCtx.AppConfig.Build.Builder,
-			Buildpacks:      cmdCtx.AppConfig.Build.Buildpacks,
-		}
+		opts.BuildArgs = buildArgs
 
 		if dockerfilePath := cmdCtx.Config.GetString("dockerfile"); dockerfilePath != "" {
 			dockerfilePath, err := filepath.Abs(dockerfilePath)
