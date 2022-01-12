@@ -32,6 +32,7 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/command/status"
 	"github.com/superfly/flyctl/internal/cli/internal/command/suspend"
 	"github.com/superfly/flyctl/internal/cli/internal/command/version"
+	"github.com/superfly/flyctl/internal/cli/internal/command/volumes"
 	"github.com/superfly/flyctl/internal/client"
 )
 
@@ -126,6 +127,7 @@ func New() *cobra.Command {
 		logs.New(),
 		doctor.New(),
 		dig.New(),
+		volumes.New(),
 	}
 
 	if os.Getenv("DEV") != "" {

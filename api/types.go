@@ -334,8 +334,10 @@ type Snapshot struct {
 }
 
 type Volume struct {
-	ID        string `json:"id"`
-	App       string
+	ID  string `json:"id"`
+	App struct {
+		Name string
+	}
 	Name      string
 	SizeGb    int
 	Snapshots struct {
