@@ -36,9 +36,9 @@ func newLaunch() (cmd *cobra.Command) {
 		flag.Org(),
 		flag.String{Name: "password", Shorthand: "p", Description: "The superuser password. The password will be generated for you if you leave this blank"},
 		flag.String{Name: "vm-size", Description: "the size of the VM", Default: "shared-cpu-1x"},
-		flag.String{Name: "snapshot-id", Description: "Creates the volume with the contents of the snapshot"},
 		flag.Int{Name: "volume-size", Description: "The volume size in GB", Default: 10},
-		flag.Int{Name: "count", Shorthand: "c", Description: "Cluster size", Default: 1},
+		flag.Int{Name: "initial-cluster-size", Description: "Initial cluster size", Default: 2},
+		flag.String{Name: "snapshot-id", Description: "Creates the volume with the contents of the snapshot"},
 	)
 
 	return
@@ -58,9 +58,9 @@ type PostgresProvisionConfig struct {
 	Organization *api.Organization
 	Password     string
 	Region       string
+	SnapshotId   string
 	VolumeSize   int
 	VMSize       string
-	SnapshotId   string
 }
 
 func runLaunch(ctx context.Context) (err error) {
@@ -71,7 +71,9 @@ func runLaunch(ctx context.Context) (err error) {
 	volumeSize := flag.GetInt(ctx, "volume-size")
 	vmSize := flag.GetString(ctx, "vm-size")
 	snapshotId := flag.GetString(ctx, "snapshot-id")
-	imageRef := "flyio/postgres-standalone:14.1"
+
+	// TODO - Resolve latest version from flyctl.
+	imageRef := "flyio/postgres"
 
 	var org *api.Organization
 	if org, err = prompt.Org(ctx, nil); err != nil {
@@ -149,13 +151,14 @@ func (p *PostgresLaunch) configurePostgres() api.MachineConfig {
 	var err error
 
 	machineConfig := flyctl.NewMachineConfig()
+
 	// Set env
 	env := map[string]string{
 		"PRIMARY_REGION": p.config.Region,
 	}
-
 	machineConfig.SetEnvVariables(env)
-	machineConfig.Config["size"] = "shared-cpu-1x"
+
+	machineConfig.Config["size"] = p.config.VMSize
 	machineConfig.Config["image"] = p.config.ImageRef
 	machineConfig.Config["restart"] = map[string]string{
 		"policy": "no",
@@ -187,7 +190,7 @@ func (p *PostgresLaunch) createApp(ctx context.Context) (*api.App, error) {
 		Name:            p.config.AppName,
 		PreferredRegion: &p.config.Region,
 		Runtime:         "FIRECRACKER",
-		// AppRoleID:       "postgres_cluster",
+		AppRoleID:       "postgres_cluster",
 	}
 
 	return p.client.API().CreateApp(ctx, appInput)
