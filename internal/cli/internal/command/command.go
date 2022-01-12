@@ -439,5 +439,5 @@ func RequireRegion(ctx context.Context) (context.Context, error) {
 		return nil, fmt.Errorf("region is required")
 	}
 
-	return app.WithRegion(ctx, region), nil
+	return ctx, nil
 }
