@@ -10,6 +10,7 @@ const (
 	_ contextKeyType = iota
 	configContextKey
 	nameContextKey
+	regionContextKey
 )
 
 // WithConfig derives a context that carries cfg from ctx.
@@ -38,4 +39,8 @@ func NameFromContext(ctx context.Context) string {
 	}
 
 	return ""
+}
+
+func WithRegion(ctx context.Context, region string) context.Context {
+	return context.WithValue(ctx, regionContextKey, region)
 }

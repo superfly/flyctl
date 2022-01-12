@@ -426,3 +426,18 @@ func LoadAppNameIfPresent(ctx context.Context) (context.Context, error) {
 
 	return app.WithName(ctx, name), nil
 }
+
+// RequireRegion is a Preparer which makes sure the user has selected a region via command line arguments,
+func RequireRegion(ctx context.Context) (context.Context, error) {
+	ctx, err := LoadAppConfigIfPresent(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	region := flag.GetRegion(ctx)
+	if region == "" {
+		return nil, fmt.Errorf("region is required")
+	}
+
+	return app.WithRegion(ctx, region), nil
+}

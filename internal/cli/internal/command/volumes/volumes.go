@@ -1,7 +1,12 @@
 package volumes
 
 import (
+	"fmt"
+	"io"
+	"time"
+
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 )
 
@@ -28,4 +33,14 @@ func New() *cobra.Command {
 	)
 
 	return cmd
+}
+
+func printVolume(writer io.Writer, vol *api.Volume) {
+	fmt.Printf("%10s: %s\n", "ID", vol.ID)
+	fmt.Printf("%10s: %s\n", "Name", vol.Name)
+	fmt.Printf("%10s: %s\n", "Region", vol.Region)
+	fmt.Printf("%10s: %s\n", "Zone", vol.Host.ID)
+	fmt.Printf("%10s: %d\n", "Size GB", vol.SizeGb)
+	fmt.Printf("%10s: %t\n", "Encrypted", vol.Encrypted)
+	fmt.Printf("%10s: %s\n", "Created at", vol.CreatedAt.Format(time.RFC822))
 }

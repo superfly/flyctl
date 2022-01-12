@@ -2,8 +2,6 @@ package volumes
 
 import (
 	"context"
-	"fmt"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
@@ -50,14 +48,7 @@ func runShow(ctx context.Context) (err error) {
 		return
 	}
 
-	fmt.Fprintf(out, "%10s: %s\n", "ID", volume.ID)
-	fmt.Fprintf(out, "%10s: %s\n", "Name", volume.Name)
-	fmt.Fprintf(out, "%10s: %s\n", "App", volume.App.Name)
-	fmt.Fprintf(out, "%10s: %s\n", "Region", volume.Region)
-	fmt.Fprintf(out, "%10s: %s\n", "Zone", volume.Host.ID)
-	fmt.Fprintf(out, "%10s: %d\n", "Size GB", volume.SizeGb)
-	fmt.Fprintf(out, "%10s: %t\n", "Encrypted", volume.Encrypted)
-	fmt.Fprintf(out, "%10s: %s\n", "Created at", volume.CreatedAt.Format(time.RFC822))
+	printVolume(out, volume)
 
 	return
 }
