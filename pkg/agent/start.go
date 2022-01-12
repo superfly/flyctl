@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/azazeal/pause"
 	"github.com/pkg/errors"
 
 	"github.com/superfly/flyctl/api"
@@ -22,7 +23,7 @@ func StartDaemon(ctx context.Context, api *api.Client, command string) (*Client,
 	watchCtx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
 
-	cmd := exec.Command(command, "agent", "daemon-start")
+	cmd := exec.Command(command, "agent", "daemon-start", "background")
 	cmd.Env = append(os.Environ(), "FLY_NO_UPDATE_CHECK=1")
 	setCommandFlags(cmd)
 
@@ -84,7 +85,7 @@ func StartDaemon(ctx context.Context, api *api.Client, command string) (*Client,
 		return nil, startErr
 	}
 
-	client, err := waitForClient(ctx, api)
+	client, err := waitForClient(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "couldn't establish connection to Fly Agent")
 	}
@@ -92,33 +93,24 @@ func StartDaemon(ctx context.Context, api *api.Client, command string) (*Client,
 	return client, nil
 }
 
-func waitForClient(ctx context.Context, api *api.Client) (*Client, error) {
+func waitForClient(ctx context.Context) (*Client, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
 
-	respCh := make(chan *Client, 1)
+	for ctx.Err() == nil {
+		pause.For(ctx, 100*time.Millisecond)
 
-	go func() {
-		for {
-			time.Sleep(100 * time.Millisecond)
-
-			c, err := DefaultClient(api)
-			if err == nil {
-				_, err := c.Ping(ctx)
-				if err == nil {
-					respCh <- c
-					break
-				}
-			}
+		c, err := DefaultClient()
+		if err != nil {
+			continue
 		}
-	}()
 
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case client := <-respCh:
-		return client, nil
+		if _, err := c.Ping(); err != nil {
+			return c, nil
+		}
 	}
+
+	return nil, ctx.Err()
 }
 
 // naive tail implementation

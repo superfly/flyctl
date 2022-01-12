@@ -197,11 +197,9 @@ func runAgent(ctx context.Context) (err error) {
 		err = fmt.Errorf("couldn't ping agent: %w", err)
 	}()
 
-	client := client.FromContext(ctx).API()
-
 	var ac *agent.Client
-	if ac, err = agent.DefaultClient(client); err == nil {
-		_, err = ac.Ping(ctx)
+	if ac, err = agent.DefaultClient(); err == nil {
+		_, err = ac.Ping()
 	}
 
 	return

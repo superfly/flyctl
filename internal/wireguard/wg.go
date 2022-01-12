@@ -155,15 +155,13 @@ func setWireGuardStateForOrg(orgSlug string, s *wg.WireGuardState) error {
 	return setWireGuardState(states)
 }
 
-func PruneInvalidPeers(apiClient *api.Client) error {
-	ctx := context.TODO()
+func PruneInvalidPeers(ctx context.Context, apiClient *api.Client) error {
 	state, err := GetWireGuardState()
 	if err != nil {
 		return nil
 	}
 
-	peerIPs := []string{}
-
+	peerIPs := make([]string, 0, len(state))
 	for _, peer := range state {
 		peerIPs = append(peerIPs, peer.Peer.Peerip)
 	}
