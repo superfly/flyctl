@@ -72,7 +72,7 @@ func runLaunch(ctx context.Context) (err error) {
 	vmSize := flag.GetString(ctx, "vm-size")
 	snapshotId := flag.GetString(ctx, "snapshot-id")
 
-	// TODO - Resolve latest version from flyctl.
+	// TODO - Resolve latest version from graphql
 	imageRef := "flyio/postgres:14.1"
 
 	consulUrl := flag.GetString(ctx, "consul-url")
