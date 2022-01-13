@@ -38,6 +38,7 @@ func New() *cobra.Command {
 func printVolume(writer io.Writer, vol *api.Volume) {
 	fmt.Printf("%10s: %s\n", "ID", vol.ID)
 	fmt.Printf("%10s: %s\n", "Name", vol.Name)
+	fmt.Printf("%10s: %s\n", "App", vol.App.Name)
 	fmt.Printf("%10s: %s\n", "Region", vol.Region)
 	fmt.Printf("%10s: %s\n", "Zone", vol.Host.ID)
 	fmt.Printf("%10s: %d\n", "Size GB", vol.SizeGb)
