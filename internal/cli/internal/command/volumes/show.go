@@ -20,7 +20,9 @@ number to operate. This can be found through the volumes list command`
 		short = "Show details of an app's volume"
 	)
 
-	cmd := command.New("show <id>", short, long, runShow)
+	cmd := command.New("show <id>", short, long, runShow,
+		command.RequireSession,
+	)
 	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(

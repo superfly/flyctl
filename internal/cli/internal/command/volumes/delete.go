@@ -21,7 +21,9 @@ number to operate. This can be found through the volumes list command`
 		short = "Delete a volume from the app"
 	)
 
-	cmd := command.New("delete <id>", short, long, runDelete)
+	cmd := command.New("delete <id>", short, long, runDelete,
+		command.RequireSession,
+	)
 	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(cmd,

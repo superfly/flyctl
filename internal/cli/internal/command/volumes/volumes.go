@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
+	"github.com/superfly/flyctl/internal/cli/internal/command/volumes/snapshots"
 )
 
 func New() *cobra.Command {
@@ -17,10 +18,7 @@ func New() *cobra.Command {
 		short = "Volume management commands"
 	)
 
-	cmd := command.New("volumes [type] <name> [flags]", short, long, nil,
-		command.RequireSession,
-		command.RequireAppName,
-	)
+	cmd := command.New("volumes [type] <name> [flags]", short, long, nil)
 
 	cmd.Aliases = []string{"vol"}
 
@@ -28,8 +26,8 @@ func New() *cobra.Command {
 		newCreate(),
 		newList(),
 		newDelete(),
-		newSnapshot(),
 		newShow(),
+		snapshots.New(),
 	)
 
 	return cmd
