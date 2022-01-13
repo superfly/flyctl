@@ -64,24 +64,30 @@ type PostgresProvisionConfig struct {
 }
 
 func runLaunch(ctx context.Context) (err error) {
-	name := flag.GetString(ctx, "name")
 	initialClusterSize := flag.GetInt(ctx, "initial-cluster-size")
-	region := flag.GetString(ctx, "region")
 	password := flag.GetString(ctx, "password")
 	volumeSize := flag.GetInt(ctx, "volume-size")
 	vmSize := flag.GetString(ctx, "vm-size")
 	snapshotId := flag.GetString(ctx, "snapshot-id")
+	consulUrl := flag.GetString(ctx, "consul-url")
 
 	// TODO - Resolve latest version from graphql
 	imageRef := "flyio/postgres:14.1"
 
-	consulUrl := flag.GetString(ctx, "consul-url")
+	name := flag.GetString(ctx, "name")
+	if name == "" {
+		err = prompt.String(ctx, &name, "App name", "", true)
+		if err != nil {
+			return err
+		}
+	}
 
 	var org *api.Organization
 	if org, err = prompt.Org(ctx, nil); err != nil {
 		return err
 	}
 
+	region := flag.GetString(ctx, "region")
 	if region == "" {
 		var r *api.Region
 		if r, err = prompt.Region(ctx); err != nil {
