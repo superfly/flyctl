@@ -9,11 +9,10 @@ import (
 
 // New initializes and returns a new postgres Command.
 func New() (cmd *cobra.Command) {
+	// TODO - Add better top level docs.
 	const (
-		// TODO: document command
 		long = `
 `
-		// TODO: document command
 		short = ""
 	)
 

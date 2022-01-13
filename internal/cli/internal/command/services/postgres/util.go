@@ -9,7 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 )
 
-func WaitForMachineState(ctx context.Context, client *client.Client, appId, machineId, state string) error {
+func waitForMachineState(ctx context.Context, client *client.Client, appId, machineId, state string) error {
 	fmt.Printf("Waiting for machine %q to reach a healthy state.\n", machineId)
 	timeout := time.After(2 * time.Minute)
 	tick := time.Tick(1 * time.Second)
@@ -41,6 +41,6 @@ func WaitForMachineState(ctx context.Context, client *client.Client, appId, mach
 
 // encodeCommand will base64 encode a command string so it can be passed
 // in with  exec.Command.
-func EncodeCommand(command string) string {
+func encodeCommand(command string) string {
 	return base64.StdEncoding.Strict().EncodeToString([]byte(command))
 }

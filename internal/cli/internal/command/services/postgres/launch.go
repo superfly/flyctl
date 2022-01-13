@@ -13,16 +13,17 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func newLaunch() (cmd *cobra.Command) {
 	const (
 		// TODO: document command
 		long = `
-`
-		// TODO: document command
-		short = ""
-		usage = "launch [-o ORG] [-r REGION] [NAME]"
+			Provisions a new Postgres cluster on Machines
+		`
+		short = "Provisions a new Postgres cluster"
+		usage = "launch"
 	)
 
 	cmd = command.New(usage, short, long, runLaunch,
@@ -31,21 +32,46 @@ func newLaunch() (cmd *cobra.Command) {
 	cmd.Args = cobra.RangeArgs(0, 1)
 
 	flag.Add(cmd,
-		flag.String{Name: "name", Shorthand: "n", Description: "The name of your Postgres app"},
+		flag.String{
+			Name:        "name",
+			Shorthand:   "n",
+			Description: "The name of your Postgres app",
+		},
 		flag.Region(),
 		flag.Org(),
-		flag.String{Name: "password", Shorthand: "p", Description: "The superuser password. The password will be generated for you if you leave this blank"},
-		flag.String{Name: "vm-size", Description: "the size of the VM", Default: "shared-cpu-1x"},
-		flag.String{Name: "consul-url", Description: "Opt into using an existing consul as the backend store by specifying the target consul url."},
-		flag.Int{Name: "volume-size", Description: "The volume size in GB", Default: 10},
-		flag.Int{Name: "initial-cluster-size", Description: "Initial cluster size", Default: 2},
-		flag.String{Name: "snapshot-id", Description: "Creates the volume with the contents of the snapshot"},
+		flag.String{
+			Name:        "password",
+			Shorthand:   "p",
+			Description: "The superuser password. The password will be generated for you if you leave this blank",
+		},
+		flag.String{
+			Name:        "vm-size",
+			Description: "the size of the VM",
+			Default:     "shared-cpu-1x",
+		},
+		flag.String{
+			Name:        "consul-url",
+			Description: "Opt into using an existing consul as the backend store by specifying the target consul url.",
+		},
+		flag.Int{
+			Name:        "volume-size",
+			Description: "The volume size in GB",
+			Default:     10,
+		},
+		flag.Int{
+			Name:        "initial-cluster-size",
+			Description: "Initial cluster size",
+			Default:     2,
+		},
+		flag.String{
+			Name:        "snapshot-id",
+			Description: "Creates the volume with the contents of the snapshot"},
 	)
 
 	return
 }
 
-type PostgresLaunch struct {
+type Launch struct {
 	config PostgresProvisionConfig
 	client *client.Client
 }
@@ -63,7 +89,7 @@ type PostgresProvisionConfig struct {
 	VMSize             string
 }
 
-func runLaunch(ctx context.Context) (err error) {
+func runLaunch(ctx context.Context) error {
 	initialClusterSize := flag.GetInt(ctx, "initial-cluster-size")
 	password := flag.GetString(ctx, "password")
 	volumeSize := flag.GetInt(ctx, "volume-size")
@@ -76,21 +102,21 @@ func runLaunch(ctx context.Context) (err error) {
 
 	name := flag.GetString(ctx, "name")
 	if name == "" {
-		err = prompt.String(ctx, &name, "App name", "", true)
-		if err != nil {
+		if err := prompt.String(ctx, &name, "App name", "", true); err != nil {
 			return err
 		}
 	}
 
-	var org *api.Organization
-	if org, err = prompt.Org(ctx, nil); err != nil {
+	org, err := prompt.Org(ctx, nil)
+	if err != nil {
 		return err
 	}
 
 	region := flag.GetString(ctx, "region")
 	if region == "" {
 		var r *api.Region
-		if r, err = prompt.Region(ctx); err != nil {
+		r, err := prompt.Region(ctx)
+		if err != nil {
 			return err
 		}
 		region = r.Code
@@ -111,15 +137,19 @@ func runLaunch(ctx context.Context) (err error) {
 
 	client := client.FromContext(ctx)
 
-	pg := &PostgresLaunch{
+	pg := &Launch{
 		config: config,
 		client: client,
 	}
 
-	return pg.Launch(ctx)
+	if err = pg.Launch(ctx); err != nil {
+		return fmt.Errorf("failed launching postgres: %w", err)
+	}
+
+	return nil
 }
 
-func (p *PostgresLaunch) Launch(ctx context.Context) error {
+func (p *Launch) Launch(ctx context.Context) error {
 	app, err := p.createApp(ctx)
 	if err != nil {
 		return err
@@ -130,10 +160,15 @@ func (p *PostgresLaunch) Launch(ctx context.Context) error {
 		return err
 	}
 
-	for i := 0; i < p.config.InitialClusterSize; i++ {
-		fmt.Printf("Provisioning %d of %d machines\n", i+1, p.config.InitialClusterSize)
+	io := iostreams.FromContext(ctx)
 
-		machineConf := p.configurePostgres()
+	for i := 0; i < p.config.InitialClusterSize; i++ {
+		fmt.Fprintf(io.Out, "Provisioning %d of %d machines\n", i+1, p.config.InitialClusterSize)
+
+		machineConf, err := p.configurePostgres()
+		if err != nil {
+			return err
+		}
 
 		launchInput := api.LaunchMachineInput{
 			AppID:   app.ID,
@@ -147,18 +182,28 @@ func (p *PostgresLaunch) Launch(ctx context.Context) error {
 			return err
 		}
 
-		if err = WaitForMachineState(ctx, p.client, p.config.AppName, machine.ID, "started"); err != nil {
+		if err = waitForMachineState(ctx, p.client, p.config.AppName, machine.ID, "started"); err != nil {
 			return err
 		}
 	}
 
-	fmt.Printf("Connection string: postgres://postgres:%s@%s.internal:5432\n", secrets["OPERATOR_PASSWORD"], p.config.AppName)
-	return err
+	fmt.Fprintf(io.Out, "Provision complete\n\n")
+
+	connStr := fmt.Sprintf("postgres://postgres:%s@%s.internal:5432\n", secrets["OPERATOR_PASSWORD"], p.config.AppName)
+
+	fmt.Fprintf(io.Out, "Any app within the %s organization can connect to postgres using the following credentials:\n", p.config.Organization.Name)
+	fmt.Fprintf(io.Out, "  Username:    postgres\n")
+	fmt.Fprintf(io.Out, "  Password:    %s\n", secrets["OPERATOR_PASSWORD"])
+	fmt.Fprintf(io.Out, "  Hostname:    %s.internal\n", p.config.AppName)
+	fmt.Fprintf(io.Out, "  Proxy port:  5432\n")
+	fmt.Fprintf(io.Out, "  Postgres port:  5433\n")
+	fmt.Fprintf(io.Out, "  Connection string:  %s\n", connStr)
+	fmt.Fprintf(io.Out, "Save your credentials in a secure place, you won't be able to see them again!\n")
+
+	return nil
 }
 
-func (p *PostgresLaunch) configurePostgres() api.MachineConfig {
-	var err error
-
+func (p *Launch) configurePostgres() (api.MachineConfig, error) {
 	machineConfig := flyctl.NewMachineConfig()
 
 	// Set env
@@ -175,8 +220,9 @@ func (p *PostgresLaunch) configurePostgres() api.MachineConfig {
 
 	// Set mounts
 	var volumeHash string
+	var err error
 	if volumeHash, err = helpers.RandString(5); err != nil {
-		return nil
+		return nil, err
 	}
 
 	mounts := make([]map[string]interface{}, 0)
@@ -188,10 +234,10 @@ func (p *PostgresLaunch) configurePostgres() api.MachineConfig {
 	})
 	machineConfig.Config["mounts"] = mounts
 
-	return api.MachineConfig(machineConfig.Config)
+	return api.MachineConfig(machineConfig.Config), nil
 }
 
-func (p *PostgresLaunch) createApp(ctx context.Context) (*api.App, error) {
+func (p *Launch) createApp(ctx context.Context) (*api.App, error) {
 
 	fmt.Println("Creating app...")
 	appInput := api.CreateAppInput{
@@ -205,7 +251,7 @@ func (p *PostgresLaunch) createApp(ctx context.Context) (*api.App, error) {
 	return p.client.API().CreateApp(ctx, appInput)
 }
 
-func (p *PostgresLaunch) setSecrets(ctx context.Context) (map[string]string, error) {
+func (p *Launch) setSecrets(ctx context.Context) (map[string]string, error) {
 	fmt.Println("Setting secrets...")
 
 	var suPassword, replPassword, opPassword string
@@ -250,7 +296,7 @@ func (p *PostgresLaunch) setSecrets(ctx context.Context) (map[string]string, err
 	return secrets, err
 }
 
-func (p *PostgresLaunch) generateConsulUrl(ctx context.Context) (string, error) {
+func (p *Launch) generateConsulUrl(ctx context.Context) (string, error) {
 	data, err := p.client.API().EnablePostgresConsul(ctx, p.config.AppName)
 	if err != nil {
 		return "", err
