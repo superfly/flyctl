@@ -29,18 +29,19 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-func Run(ctx context.Context, logger *log.Logger, apiClient *api.Client, background bool) error {
-	l, err := bind()
-	if err != nil {
+func Run(ctx context.Context, logger *log.Logger, apiClient *api.Client, background bool) (err error) {
+	var l net.Listener
+	if l, err = bind(); err != nil {
 		logger.Print(err)
+
 		return
 	}
 
-	info, err := os.Stat(flyctl.ConfigFilePath())
-	if err != nil {
+	var info os.FileInfo
+	if info, err = os.Stat(flyctl.ConfigFilePath()); err != nil {
 		err = fmt.Errorf("can't stat config file: %w", err)
-
 		logger.Print(err)
+
 		return
 	}
 
@@ -56,7 +57,11 @@ func Run(ctx context.Context, logger *log.Logger, apiClient *api.Client, backgro
 		background:    background,
 	}
 
-	_ = s.serve(ctx, l)
+	if err = s.serve(ctx, l); errors.Is(err, errShutdown) {
+		err = nil
+	}
+
+	return
 }
 
 func bind() (net.Listener, error) {
@@ -145,7 +150,7 @@ var handlers = map[string]handlerFunc{
 
 var errShutdown = errors.New("server shutdown")
 
-func (s *server) serve(parent context.Context, l net.Listener) {
+func (s *server) serve(parent context.Context, l net.Listener) error {
 	defer s.logger.Print("QUIT")
 
 	ctx, cancel := context.WithCancel(parent)
@@ -194,9 +199,7 @@ func (s *server) serve(parent context.Context, l net.Listener) {
 		}
 	})
 
-	_ = eg.Wait()
-
-	return
+	return eg.Wait()
 }
 
 func (s *server) error(c net.Conn, err error) {

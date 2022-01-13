@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"fmt"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -46,11 +48,19 @@ func CreatePidFile() error {
 	return setRunningPid(os.Getpid())
 }
 
-func RemovePidFile() error {
-	if pid, _ := getRunningPid(); pid != os.Getpid() {
-		return nil
+func RemovePidFile(logger *log.Logger) (err error) {
+	var pid int
+	if pid, _ = getRunningPid(); pid != os.Getpid() {
+		return
 	}
-	return os.Remove(pidFile())
+
+	if err = os.Remove(pidFile()); err != nil {
+		err = fmt.Errorf("failed removing pid file: %w", err)
+
+		logger.Print(err)
+	}
+
+	return
 }
 
 func StopRunningAgent() (err error) {

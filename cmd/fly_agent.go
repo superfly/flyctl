@@ -85,11 +85,9 @@ func runFlyAgentDaemonStart(cc *cmdctx.CmdContext) error {
 		logger.Print(err)
 		return err
 	}
-	defer agent.RemovePidFile()
+	defer agent.RemovePidFile(logger)
 
-	server.Run(ctx, logger, cc.Client.API(), logPath != "")
-
-	return nil
+	return server.Run(ctx, logger, cc.Client.API(), logPath != "")
 }
 
 func agentLogPath(cc *cmdctx.CmdContext) string {
