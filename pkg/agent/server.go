@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net"
 	"os"
@@ -26,40 +27,29 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 )
 
-func DefaultServer(apiClient *api.Client, background bool) (*Server, error) {
-	return NewServer(pathToSocket(), apiClient, background)
+func DefaultServer(logger *log.Logger, apiClient *api.Client, background bool) (*Server, error) {
+	return newServer(logger, pathToSocket(), apiClient, background)
 }
 
-func NewServer(path string, apiClient *api.Client, background bool) (*Server, error) {
+func newServer(logger *log.Logger, path string, apiClient *api.Client, background bool) (*Server, error) {
 	if err := removeSocket(path); err != nil {
-		// most of these errors just mean the socket isn't already there
-		// which is what we want.
-
-		if errors.Is(err, ErrCantBind) {
-			return nil, err
-		}
+		return nil, fmt.Errorf("failed removing existing socket: %w", err)
 	}
 
-	addr, err := net.ResolveUnixAddr("unix", path)
+	l, err := net.Listen("unix", path)
 	if err != nil {
-		return nil, errors.Wrap(err, "can't resolve unix socket")
+		return nil, fmt.Errorf("failed binding on %s: %w", path, err)
 	}
-
-	l, err := net.ListenUnix("unix", addr)
-	if err != nil {
-		return nil, errors.Wrap(err, "can't bind")
-	}
-
-	l.SetUnlinkOnClose(true)
 
 	info, err := os.Stat(flyctl.ConfigFilePath())
 	if err != nil {
-		return nil, fmt.Errorf("can't stat config file: %s", err)
+		return nil, fmt.Errorf("can't stat config file: %w", err)
 	}
 
 	latestChange := info.ModTime()
 
 	s := &Server{
+		logger:        logger,
 		listener:      l,
 		client:        apiClient,
 		tunnels:       map[string]*wg.Tunnel{},
@@ -72,12 +62,12 @@ func NewServer(path string, apiClient *api.Client, background bool) (*Server, er
 }
 
 var (
-	ErrCantBind          = errors.New("can't bind agent socket")
 	ErrTunnelUnavailable = errors.New("tunnel unavailable")
 )
 
 type Server struct {
-	listener      *net.UnixListener
+	logger        *log.Logger
+	listener      net.Listener
 	tunnels       map[string]*wg.Tunnel
 	client        *api.Client
 	lock          sync.Mutex
@@ -94,7 +84,7 @@ func (s *Server) handle(c net.Conn) {
 
 	info, err := os.Stat(flyctl.ConfigFilePath())
 	if err != nil {
-		s.errLog(c, "can't stat config file: %s", err)
+		s.errorf(c, "can't stat config file: %s", err)
 		return
 	}
 
@@ -104,22 +94,22 @@ func (s *Server) handle(c net.Conn) {
 		s.currentChange = latestChange
 		err := s.validateTunnels()
 		if err != nil {
-			s.errLog(c, "can't validate peers: %s", err)
+			s.errorf(c, "can't validate peers: %s", err)
 		}
-		log.Printf("config change at: %s", s.currentChange.String())
+		s.logger.Printf("config change at: %s", s.currentChange.String())
 	}
 
 	buf, err := proto.Read(c)
 	if err != nil {
 		if !errors.Is(err, io.EOF) {
-			log.Printf("couldn't read command: %s", err)
+			s.logger.Printf("couldn't read command: %s", err)
 		}
 		return
 	}
 
 	args := strings.Split(string(buf), " ")
 
-	log.Printf("incoming command: %v", args)
+	s.logger.Printf("incoming command: %v", args)
 
 	cmds := map[string]handlerFunc{
 		"kill":      s.handleKill,
@@ -133,12 +123,14 @@ func (s *Server) handle(c net.Conn) {
 
 	handler, ok := cmds[args[0]]
 	if !ok {
-		s.errLog(c, "bad command: %v", args)
+		s.errorf(c, "bad command: %v", args)
+
 		return
 	}
 
 	if err = handler(c, args); err != nil {
-		s.errLog(c, "err handling %s: %s", args[0], err)
+		s.errorf(c, "err handling %s: %s", args[0], err)
+
 		return
 	}
 }
@@ -170,7 +162,7 @@ func (s *Server) Serve() {
 					if errors.Is(err, net.ErrClosed) {
 						return
 					}
-					log.Printf("warning: couldn't accept connection: %s", err)
+					s.logger.Printf("warning: couldn't accept connection: %s", err)
 					continue
 				}
 			}
@@ -180,9 +172,11 @@ func (s *Server) Serve() {
 	}()
 }
 
-func (*Server) errLog(c net.Conn, format string, args ...interface{}) {
-	proto.Writef(c, "err "+format, args...)
-	log.Printf(format, args...)
+func (s *Server) errorf(c net.Conn, format string, args ...interface{}) {
+	msg := fmt.Sprintf(format, args...)
+	proto.Write(c, "err", msg)
+
+	s.logger.Print(msg)
 }
 
 func (s *Server) handleKill(_ net.Conn, _ []string) error {
@@ -200,7 +194,7 @@ func (s *Server) handlePing(c net.Conn, _ []string) error {
 
 	data, _ := json.Marshal(resp)
 
-	return proto.Writef(c, "pong %s", data)
+	return proto.Write(c, "pong", string(data))
 }
 
 func findOrganization(client *api.Client, slug string) (*api.Organization, error) {
@@ -267,7 +261,7 @@ func (s *Server) handleEstablish(c net.Conn, args []string) error {
 	}
 
 	data, _ := json.Marshal(resp)
-	return proto.Writef(c, "ok %s", data)
+	return proto.Write(c, "ok", string(data))
 }
 
 func probeTunnel(ctx context.Context, tunnel *wg.Tunnel) error {
@@ -328,7 +322,7 @@ func (s *Server) handleResolve(c net.Conn, args []string) error {
 	return nil
 }
 
-func fetchInstances(tunnel *wg.Tunnel, app string) (*Instances, error) {
+func (s *Server) fetchInstances(tunnel *wg.Tunnel, app string) (*Instances, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -353,7 +347,7 @@ func fetchInstances(tunnel *wg.Tunnel, app string) (*Instances, error) {
 		name := fmt.Sprintf("%s.%s.internal", region, app)
 		addrs, err := tunnel.LookupAAAA(ctx, name)
 		if err != nil {
-			log.Printf("can't lookup records for %s: %s", name, err)
+			s.logger.Printf("can't lookup records for %s: %s", name, err)
 			continue
 		}
 
@@ -381,7 +375,7 @@ func (s *Server) handleInstances(c net.Conn, args []string) error {
 
 	app := args[2]
 
-	ret, err := fetchInstances(tunnel, app)
+	ret, err := s.fetchInstances(tunnel, app)
 	if err != nil {
 		return err
 	}
@@ -397,7 +391,7 @@ func (s *Server) handleInstances(c net.Conn, args []string) error {
 }
 
 func (s *Server) handleConnect(c net.Conn, args []string) error {
-	log.Printf("incoming connect: %v", args)
+	s.logger.Printf("incoming connect: %v", args)
 
 	if len(args) < 3 || len(args) > 4 {
 		return fmt.Errorf("connect: malformed connect command: %v", args)
@@ -483,7 +477,7 @@ func (s *Server) validateTunnels() error {
 
 	for slug, tunnel := range s.tunnels {
 		if peers[slug] == nil {
-			log.Printf("no peer for %s in config - closing tunnel", slug)
+			s.logger.Printf("no peer for %s in config - closing tunnel", slug)
 			tunnel.Close()
 			delete(s.tunnels, slug)
 		}
@@ -500,12 +494,12 @@ func (s *Server) clean() {
 		select {
 		case <-ticker.C:
 			if err := wireguard.PruneInvalidPeers(context.TODO(), s.client); err != nil {
-				log.Printf("failed to prune invalid peers: %s", err)
+				s.logger.Printf("failed to prune invalid peers: %s", err)
 			}
 			if err := s.validateTunnels(); err != nil {
-				log.Printf("failed to validate tunnels: %s", err)
+				s.logger.Printf("failed to validate tunnels: %s", err)
 			}
-			log.Printf("validated wireguard peers(stat)")
+			s.logger.Printf("validated wireguard peers(stat)")
 		case <-s.quit:
 			return
 		}
@@ -543,17 +537,20 @@ func resolve(tunnel *wg.Tunnel, addr string) (string, error) {
 	return net.JoinHostPort(addrs[0].String(), port), nil
 }
 
-func removeSocket(path string) error {
-	stat, err := os.Stat(path)
-	if err != nil {
-		return err
+func removeSocket(path string) (err error) {
+	var stat os.FileInfo
+	switch stat, err = os.Stat(path); {
+	case errors.Is(err, fs.ErrNotExist):
+		err = nil
+	case err != nil:
+		break
+	case stat.Mode()&os.ModeSocket == 0:
+		err = errors.New("not a socket")
+	default:
+		err = os.Remove(path)
 	}
 
-	if stat.Mode()&os.ModeSocket == 0 {
-		return fmt.Errorf("%w: refusing to remove something that isn't a socket", ErrCantBind)
-	}
-
-	return os.Remove(path)
+	return
 }
 
 type ClosableWrite interface {

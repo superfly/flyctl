@@ -3,14 +3,13 @@ package proto
 
 import (
 	"encoding/binary"
-	"fmt"
 	"io"
 )
 
 func Read(r io.Reader) (data []byte, err error) {
-	var lenb [2]byte
-	if _, err = io.ReadFull(r, lenb[:]); err == nil {
-		l := binary.LittleEndian.Uint16(lenb[:])
+	var b [2]byte
+	if _, err = io.ReadFull(r, b[:]); err == nil {
+		l := binary.LittleEndian.Uint16(b[:])
 
 		data = make([]byte, l)
 		_, err = io.ReadFull(r, data)
@@ -19,20 +18,30 @@ func Read(r io.Reader) (data []byte, err error) {
 	return
 }
 
-func Write(w io.Writer, a ...interface{}) (err error) {
-	return write(w, fmt.Sprint(a...))
-}
+func Write(w io.Writer, verb string, args ...string) (err error) {
+	size := len(verb) + len(args)
+	for _, arg := range args {
+		size += len(arg)
+	}
 
-func Writef(w io.Writer, format string, a ...interface{}) error {
-	return write(w, fmt.Sprintf(format, a...))
-}
+	var b [2]byte
+	binary.LittleEndian.PutUint16(b[:], uint16(size))
 
-func write(w io.Writer, payload string) (err error) {
-	var lenb [2]byte
-	binary.LittleEndian.PutUint16(lenb[:], uint16(len(payload)))
+	if _, err = w.Write(b[:]); err != nil {
+		return
+	}
 
-	if _, err = w.Write(lenb[:]); err == nil {
-		_, err = io.WriteString(w, payload)
+	if _, err = io.WriteString(w, verb); err != nil {
+		return
+	}
+
+	for _, arg := range args {
+		if _, err = io.WriteString(w, " "); err != nil {
+			break
+		}
+		if _, err = io.WriteString(w, arg); err != nil {
+			break
+		}
 	}
 
 	return

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -56,7 +56,7 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 		}
 	}
 
-	return StartDaemon(ctx, apiClient, os.Args[0])
+	return StartDaemon(ctx)
 }
 
 func DefaultClient(ctx context.Context) (*Client, error) {
@@ -191,7 +191,7 @@ type EstablishResponse struct {
 
 func (c *Client) Establish(ctx context.Context, slug string) (res *EstablishResponse, err error) {
 	err = c.do(ctx, func(conn net.Conn) (err error) {
-		if err = proto.Write(conn, "establish", slug); err != nil {
+		if err = proto.Write(conn, "establish ", slug); err != nil {
 			return
 		}
 
@@ -354,7 +354,8 @@ func (d *dialer) DialContext(ctx context.Context, network, addr string) (conn ne
 		}
 	}()
 
-	if err = proto.Writef(conn, "connect %s %s %d", d.slug, addr, d.timeout); err != nil {
+	timeout := strconv.FormatInt(int64(d.timeout), 10)
+	if err = proto.Write(conn, "connect", d.slug, addr, timeout); err != nil {
 		return
 	}
 

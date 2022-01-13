@@ -3,10 +3,10 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 
-	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/internal/client"
@@ -51,29 +51,49 @@ func newAgentCommand(client *client.Client) *Command {
 }
 
 func runFlyAgentDaemonStart(cc *cmdctx.CmdContext) error {
+	logPath := agentLogPath(cc)
+	logger, closeLogger, err := setupAgentLogger(logPath)
+	if err != nil {
+		err = fmt.Errorf("failed setting up agent logger: %w", err)
+
+		logger.Print(err)
+		return err
+	}
+	defer closeLogger()
+	defer logger.Print("QUIT")
+
 	ctx := cc.Command.Context()
 
-	if err := agent.InitAgentLogs(); err != nil {
+	if err := agent.CleanLogFiles(); err != nil {
+		err = fmt.Errorf("failed to clean agent logs: %w", err)
+
+		logger.Print(err)
 		return err
 	}
 
 	if err := agent.StopRunningAgent(); err != nil {
-		log.Printf("failed to stop existing agent: %v", err)
-	}
-	if err := agent.CreatePidFile(); err != nil {
-		log.Printf("failed to create pid file: %v", err)
+		err = fmt.Errorf("failed to stop existing agent: %w", err)
+
+		logger.Print(err)
+		return err
 	}
 
-	defer log.Printf("QUIT")
+	if err := agent.CreatePidFile(); err != nil {
+		err = fmt.Errorf("failed to create pid file: %w", err)
+
+		logger.Print(err)
+		return err
+	}
 	defer agent.RemovePidFile()
 
-	agent, err := agent.DefaultServer(cc.Client.API(), !cc.IO.IsInteractive())
+	agent, err := agent.DefaultServer(logger, cc.Client.API(), logPath != "")
 	if err != nil {
-		log.Println(err)
-		return errors.New("daemon failed to start")
+		logger.Print(err)
+
+		return err
 	}
 
-	log.Printf("OK %d", os.Getpid())
+	logger.Println("OK", os.Getpid())
 
 	agent.Serve()
 
@@ -87,13 +107,41 @@ func runFlyAgentDaemonStart(cc *cmdctx.CmdContext) error {
 	return nil
 }
 
+func agentLogPath(cc *cmdctx.CmdContext) string {
+	if len(cc.Args) > 0 {
+		return cc.Args[0]
+	}
+
+	return ""
+}
+
+func setupAgentLogger(path string) (logger *log.Logger, close func(), err error) {
+
+	var out io.Writer
+	if path != "" {
+		f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0600)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		out = io.MultiWriter(os.Stdout, f)
+		close = func() { _ = f.Close() }
+	} else {
+		out = os.Stdout
+		close = func() {}
+	}
+
+	logger = log.New(out, fmt.Sprintf("[%d] ", os.Getpid()), log.LstdFlags|log.Lmsgprefix)
+
+	return
+}
+
 func runFlyAgentStart(cc *cmdctx.CmdContext) error {
 	api := cc.Client.API()
 	ctx := context.Background()
 
-	c, err := agent.DefaultClient(ctx)
-	if err == nil {
-		_ = c.Kill(ctx)
+	if client, err := agent.DefaultClient(ctx); err == nil {
+		_ = client.Kill(ctx)
 	}
 
 	if _, err := agent.Establish(ctx, api); err != nil {

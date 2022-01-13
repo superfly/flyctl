@@ -1,96 +1,53 @@
 package agent
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
-	"strings"
+	"path/filepath"
 	"time"
 
 	"github.com/azazeal/pause"
-	"github.com/pkg/errors"
 
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/terminal"
 )
 
-func StartDaemon(ctx context.Context, api *api.Client, command string) (*Client, error) {
-	startCh := make(chan error, 1)
-	watchCtx, cancel := context.WithTimeout(ctx, time.Second*5)
-	defer cancel()
+func StartDaemon(ctx context.Context) (*Client, error) {
+	logFile, err := prepareLogFile()
+	if err != nil {
+		return nil, err
+	}
 
-	cmd := exec.Command(command, "agent", "daemon-start", "background")
+	cmd := exec.Command(os.Args[0], "agent", "daemon-start", "background", logFile)
 	cmd.Env = append(os.Environ(), "FLY_NO_UPDATE_CHECK=1")
 	setCommandFlags(cmd)
 
 	if err := cmd.Start(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed starting agent process: %w", err)
 	}
 
-	agentPid := cmd.Process.Pid
-	terminal.Debug("started agent process ", agentPid)
+	terminal.Debug("started agent process ", cmd.Process.Pid)
 
-	// read stdout and stderr from the daemon process. If it
-	// includes "[pid] OK" we know it started successfully, and
-	// [pid] QUIT means it stopped. When it stops include the output with the
-	// returnred error so it can be displayed to the user
-	f, err := getLogFile(agentPid)
-	if err != nil {
-		return nil, err
+	switch client, err := waitForClient(ctx); {
+	case err == nil:
+		return client, nil
+	case ctx.Err() != nil:
+		return nil, ctx.Err()
+	default:
+		return nil, errFailedToStart(logFile)
 	}
-	defer f.Close()
+}
 
-	// tail the agent log until we see a status message or a timeout
-	go func() {
-		var output bytes.Buffer
+type errFailedToStart string
 
-		pidPrefix := fmt.Sprintf("[%d] ", agentPid)
-		okPattern := pidPrefix + "OK"
-		quitPattern := pidPrefix + "QUIT"
+func (errFailedToStart) Error() string {
+	return "agent: failed to start"
+}
 
-		var ok bool
-
-	READ:
-		for line := range tailReader(watchCtx, f) {
-			switch {
-			case strings.Contains(line, okPattern):
-				ok = true
-				break READ
-			case strings.Contains(line, quitPattern):
-				break READ
-			default:
-				if strings.Contains(line, pidPrefix) {
-					if output.Len() > 0 {
-						output.WriteByte(byte('\n'))
-					}
-					output.WriteString(line)
-				}
-			}
-		}
-
-		if ok {
-			startCh <- nil
-			return
-		}
-
-		startCh <- &AgentStartError{Output: output.String()}
-	}()
-
-	// wait for the output to include a running or failed message
-	if startErr := <-startCh; startErr != nil {
-		return nil, startErr
-	}
-
-	client, err := waitForClient(ctx)
-	if err != nil {
-		return nil, errors.Wrap(err, "couldn't establish connection to Fly Agent")
-	}
-
-	return client, nil
+func (err errFailedToStart) Description() string {
+	return "The agent failed to start. You may review the log file here: " + string(err)
 }
 
 func waitForClient(ctx context.Context) (client *Client, err error) {
@@ -113,38 +70,23 @@ func waitForClient(ctx context.Context) (client *Client, err error) {
 	return nil, ctx.Err()
 }
 
-// naive tail implementation
-func tailReader(ctx context.Context, r io.Reader) <-chan string {
-	out := make(chan string)
+func prepareLogFile() (path string, err error) {
+	path = filepath.Join(flyctl.ConfigDir(), "agent-logs")
 
-	pr, pw := io.Pipe()
+	if err = os.MkdirAll(path, 0700); err != nil {
+		err = fmt.Errorf("failed creating log directory at %s: %w", path, err)
 
-	go func() {
-		defer close(out)
+		return
+	}
 
-		scanner := bufio.NewScanner(pr)
-		for scanner.Scan() {
-			out <- scanner.Text()
-		}
-	}()
+	var f *os.File
+	if f, err = os.CreateTemp(path, "*.log"); err != nil {
+		err = fmt.Errorf("failed creating log file at %s: %w", f.Name(), err)
+	} else if err = f.Close(); err != nil {
+		err = fmt.Errorf("failed closing log file at %s: %w", f.Name(), err)
+	} else {
+		path = f.Name()
+	}
 
-	go func() {
-		defer pw.Close()
-
-		buf := make([]byte, 1024)
-		for {
-			n, err := r.Read(buf)
-			if n > 0 {
-				pw.Write(buf[:n])
-			}
-			if errors.Is(err, io.EOF) {
-				time.Sleep(100 * time.Millisecond)
-			}
-			if ctx.Err() != nil {
-				break
-			}
-		}
-	}()
-
-	return out
+	return
 }
