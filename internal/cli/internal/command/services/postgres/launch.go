@@ -36,6 +36,7 @@ func newLaunch() (cmd *cobra.Command) {
 		flag.Org(),
 		flag.String{Name: "password", Shorthand: "p", Description: "The superuser password. The password will be generated for you if you leave this blank"},
 		flag.String{Name: "vm-size", Description: "the size of the VM", Default: "shared-cpu-1x"},
+		flag.String{Name: "consul-url", Description: "Opt into using an existing consul as the backend store by specifying the target consul url."},
 		flag.Int{Name: "volume-size", Description: "The volume size in GB", Default: 10},
 		flag.Int{Name: "initial-cluster-size", Description: "Initial cluster size", Default: 2},
 		flag.String{Name: "snapshot-id", Description: "Creates the volume with the contents of the snapshot"},
@@ -50,22 +51,21 @@ type PostgresLaunch struct {
 }
 
 type PostgresProvisionConfig struct {
-	AppName      string
-	ConsulUrl    string
-	Count        int
-	EtcdUrl      string
-	ImageRef     string
-	Organization *api.Organization
-	Password     string
-	Region       string
-	SnapshotId   string
-	VolumeSize   int
-	VMSize       string
+	AppName            string
+	ConsulUrl          string
+	ImageRef           string
+	InitialClusterSize int
+	Organization       *api.Organization
+	Password           string
+	Region             string
+	SnapshotId         string
+	VolumeSize         int
+	VMSize             string
 }
 
 func runLaunch(ctx context.Context) (err error) {
 	name := flag.GetString(ctx, "name")
-	count := flag.GetInt(ctx, "count")
+	initialClusterSize := flag.GetInt(ctx, "initial-cluster-size")
 	region := flag.GetString(ctx, "region")
 	password := flag.GetString(ctx, "password")
 	volumeSize := flag.GetInt(ctx, "volume-size")
@@ -73,7 +73,9 @@ func runLaunch(ctx context.Context) (err error) {
 	snapshotId := flag.GetString(ctx, "snapshot-id")
 
 	// TODO - Resolve latest version from flyctl.
-	imageRef := "flyio/postgres"
+	imageRef := "flyio/postgres:14.1"
+
+	consulUrl := flag.GetString(ctx, "consul-url")
 
 	var org *api.Organization
 	if org, err = prompt.Org(ctx, nil); err != nil {
@@ -89,15 +91,16 @@ func runLaunch(ctx context.Context) (err error) {
 	}
 
 	config := PostgresProvisionConfig{
-		AppName:      name,
-		Count:        count,
-		Password:     password,
-		Region:       region,
-		VolumeSize:   volumeSize,
-		VMSize:       vmSize,
-		SnapshotId:   snapshotId,
-		ImageRef:     imageRef,
-		Organization: org,
+		AppName:            name,
+		ConsulUrl:          consulUrl,
+		InitialClusterSize: initialClusterSize,
+		Password:           password,
+		Region:             region,
+		VolumeSize:         volumeSize,
+		VMSize:             vmSize,
+		SnapshotId:         snapshotId,
+		ImageRef:           imageRef,
+		Organization:       org,
 	}
 
 	client := client.FromContext(ctx)
@@ -121,8 +124,8 @@ func (p *PostgresLaunch) Launch(ctx context.Context) error {
 		return err
 	}
 
-	for i := 0; i < p.config.Count; i++ {
-		fmt.Printf("Provisioning %d of %d machines\n", i+1, p.config.Count)
+	for i := 0; i < p.config.InitialClusterSize; i++ {
+		fmt.Printf("Provisioning %d of %d machines\n", i+1, p.config.InitialClusterSize)
 
 		machineConf := p.configurePostgres()
 
@@ -222,17 +225,30 @@ func (p *PostgresLaunch) setSecrets(ctx context.Context) (map[string]string, err
 		"OPERATOR_PASSWORD": opPassword,
 	}
 
-	if p.config.Password != "" {
-		secrets["OPERATOR_PASSWORD"] = p.config.Password
-	}
-	if p.config.ConsulUrl != "" {
+	if p.config.ConsulUrl == "" {
+		consulUrl, err := p.generateConsulUrl(ctx)
+		if err != nil {
+			return nil, err
+		}
+		secrets["FLY_CONSUL_URL"] = consulUrl
+	} else {
 		secrets["CONSUL_URL"] = p.config.ConsulUrl
 	}
-	if p.config.EtcdUrl != "" {
-		secrets["ETCD_URL"] = p.config.EtcdUrl
+
+	if p.config.Password != "" {
+		secrets["OPERATOR_PASSWORD"] = p.config.Password
 	}
 
 	_, err = p.client.API().SetSecrets(ctx, p.config.AppName, secrets)
 
 	return secrets, err
+}
+
+func (p *PostgresLaunch) generateConsulUrl(ctx context.Context) (string, error) {
+	data, err := p.client.API().EnablePostgresConsul(ctx, p.config.AppName)
+	if err != nil {
+		return "", err
+	}
+
+	return data.ConsulUrl, nil
 }

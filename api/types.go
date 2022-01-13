@@ -183,6 +183,8 @@ type Query struct {
 
 	AttachPostgresCluster *AttachPostgresClusterPayload
 
+	EnablePostgresConsul *PostgresEnableConsulPayload
+
 	CreateOrganizationInvitation CreateOrganizationInvitation
 
 	ValidateWireGuardPeers struct {
@@ -1065,6 +1067,10 @@ type AttachPostgresClusterPayload struct {
 	PostgresClusterApp      App
 	ConnectionString        string
 	EnvironmentVariableName string
+}
+
+type PostgresEnableConsulPayload struct {
+	ConsulUrl string `json:"consulUrl"`
 }
 
 type EnsureRemoteBuilderInput struct {

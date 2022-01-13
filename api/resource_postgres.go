@@ -185,6 +185,25 @@ func (client *Client) ListPostgresUsers(ctx context.Context, appName string) ([]
 	return *data.App.PostgresAppRole.Users, nil
 }
 
+func (client *Client) EnablePostgresConsul(ctx context.Context, appName string) (*PostgresEnableConsulPayload, error) {
+	query := `
+		mutation($appName: String!) {
+			enablePostgresConsul(input: {appId: $appName}) {
+				consulUrl
+			}
+		}
+	`
+	req := client.NewRequest(query)
+	req.Var("appName", appName)
+
+	data, err := client.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.EnablePostgresConsul, nil
+}
+
 // func (client *Client) CreatePostgresDatabase(name string) (*PostgresClusterUser, error) {
 // 	query := `
 // 		mutation($input: CreatePostgresClusterUserInput!) {
