@@ -7,10 +7,12 @@ import (
 	"log"
 	"os"
 
+	"github.com/superfly/flyctl/pkg/agent"
+	"github.com/superfly/flyctl/pkg/agent/server"
+
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/pkg/agent"
 )
 
 func newAgentCommand(client *client.Client) *Command {
@@ -60,7 +62,6 @@ func runFlyAgentDaemonStart(cc *cmdctx.CmdContext) error {
 		return err
 	}
 	defer closeLogger()
-	defer logger.Print("QUIT")
 
 	ctx := cc.Command.Context()
 
@@ -86,23 +87,7 @@ func runFlyAgentDaemonStart(cc *cmdctx.CmdContext) error {
 	}
 	defer agent.RemovePidFile()
 
-	agent, err := agent.DefaultServer(logger, cc.Client.API(), logPath != "")
-	if err != nil {
-		logger.Print(err)
-
-		return err
-	}
-
-	logger.Println("OK", os.Getpid())
-
-	agent.Serve()
-
-	go func() {
-		<-ctx.Done()
-		agent.Stop()
-	}()
-
-	agent.Wait()
+	server.Run(ctx, logger, cc.Client.API(), logPath != "")
 
 	return nil
 }

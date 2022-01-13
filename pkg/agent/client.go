@@ -60,7 +60,7 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 }
 
 func DefaultClient(ctx context.Context) (*Client, error) {
-	return newClient(ctx, "unix", pathToSocket())
+	return newClient(ctx, "unix", PathToSocket())
 }
 
 const (
@@ -191,7 +191,7 @@ type EstablishResponse struct {
 
 func (c *Client) Establish(ctx context.Context, slug string) (res *EstablishResponse, err error) {
 	err = c.do(ctx, func(conn net.Conn) (err error) {
-		if err = proto.Write(conn, "establish ", slug); err != nil {
+		if err = proto.Write(conn, "establish", slug); err != nil {
 			return
 		}
 

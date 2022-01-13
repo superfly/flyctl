@@ -78,7 +78,7 @@ func runningProcess() (*os.Process, error) {
 	return os.FindProcess(pid)
 }
 
-func pathToSocket() string {
+func PathToSocket() string {
 	return filepath.Join(userHome(), ".fly", "fly-agent.sock")
 }
 

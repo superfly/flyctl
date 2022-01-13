@@ -1,4 +1,4 @@
-package agent
+package server
 
 import (
 	"bytes"
@@ -16,39 +16,37 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
 
-	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/wireguard"
+	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/agent/internal/proto"
 	"github.com/superfly/flyctl/pkg/wg"
-	"github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/wireguard"
+	"github.com/superfly/flyctl/terminal"
 )
 
-func DefaultServer(logger *log.Logger, apiClient *api.Client, background bool) (*Server, error) {
-	return newServer(logger, PathToSocket(), apiClient, background)
-}
-
-func newServer(logger *log.Logger, path string, apiClient *api.Client, background bool) (*Server, error) {
-	if err := removeSocket(path); err != nil {
-		return nil, fmt.Errorf("failed removing existing socket: %w", err)
-	}
-
-	l, err := net.Listen("unix", path)
+func Run(ctx context.Context, logger *log.Logger, apiClient *api.Client, background bool) error {
+	l, err := bind()
 	if err != nil {
-		return nil, fmt.Errorf("failed binding on %s: %w", path, err)
+		logger.Print(err)
+		return
 	}
 
 	info, err := os.Stat(flyctl.ConfigFilePath())
 	if err != nil {
-		return nil, fmt.Errorf("can't stat config file: %w", err)
+		err = fmt.Errorf("can't stat config file: %w", err)
+
+		logger.Print(err)
+		return
 	}
 
 	latestChange := info.ModTime()
 
-	s := &Server{
+	s := &server{
 		logger:        logger,
 		listener:      l,
 		client:        apiClient,
@@ -58,14 +56,29 @@ func newServer(logger *log.Logger, path string, apiClient *api.Client, backgroun
 		background:    background,
 	}
 
-	return s, nil
+	_ = s.serve(ctx, l)
+}
+
+func bind() (net.Listener, error) {
+	socket := agent.PathToSocket()
+
+	if err := removeSocket(socket); err != nil {
+		return nil, fmt.Errorf("failed removing existing socket: %w", err)
+	}
+
+	l, err := net.Listen("unix", socket)
+	if err != nil {
+		return nil, fmt.Errorf("failed binding: %w", err)
+	}
+
+	return l, nil
 }
 
 var (
 	ErrTunnelUnavailable = errors.New("tunnel unavailable")
 )
 
-type Server struct {
+type server struct {
 	logger        *log.Logger
 	listener      net.Listener
 	tunnels       map[string]*wg.Tunnel
@@ -76,8 +89,6 @@ type Server struct {
 	wg            sync.WaitGroup
 	background    bool
 }
-
-type handlerFunc func(net.Conn, []string) error
 
 func (s *Server) handle(c net.Conn) {
 	defer c.Close()
@@ -108,99 +119,119 @@ func (s *Server) handle(c net.Conn) {
 	}
 
 	args := strings.Split(string(buf), " ")
-
 	s.logger.Printf("incoming command: %v", args)
 
-	cmds := map[string]handlerFunc{
-		"kill":      s.handleKill,
-		"ping":      s.handlePing,
-		"connect":   s.handleConnect,
-		"probe":     s.handleProbe,
-		"establish": s.handleEstablish,
-		"instances": s.handleInstances,
-		"resolve":   s.handleResolve,
-	}
-
-	handler, ok := cmds[args[0]]
-	if !ok {
-		s.errorf(c, "bad command: %v", args)
+	handle := handlers[args[0]]
+	if handle == nil {
+		s.errorf(c, "unknown command: %v", args)
 
 		return
 	}
 
-	if err = handler(c, args); err != nil {
-		s.errorf(c, "err handling %s: %s", args[0], err)
-
-		return
-	}
+	handle(c, args)
 }
 
-func (s *Server) Stop() {
-	s.listener.Close()
-	close(s.quit)
+type handlerFunc func(context.Context, net.Conn, []string)
+
+var handlers = map[string]handlerFunc{
+	"kill":      s.handleKill,
+	"ping":      s.handlePing,
+	"connect":   s.handleConnect,
+	"probe":     s.handleProbe,
+	"establish": s.handleEstablish,
+	"instances": s.handleInstances,
+	"resolve":   s.handleResolve,
 }
 
-func (s *Server) Wait() {
-	s.wg.Wait()
-}
+var errShutdown = errors.New("server shutdown")
 
-func (s *Server) Serve() {
-	go s.clean()
+func (s *server) serve(parent context.Context, l net.Listener) {
+	defer s.logger.Print("QUIT")
 
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
+	ctx, cancel := context.WithCancel(parent)
+	defer cancel()
+
+	var eg *errgroup.Group
+	eg, ctx = errgroup.WithContext(ctx)
+
+	eg.Go(func() error {
+		<-ctx.Done()
+
+		if err := l.Close(); err != nil {
+			s.logger.Printf("failed closing listener: %v", err)
+		}
+
+		return errShutdown
+	})
+
+	eg.Go(func() error {
+		s.logger.Println("OK", os.Getpid())
 
 		for {
 			conn, err := s.listener.Accept()
+			if err == nil {
+				eg.Go(func() error {
+					defer func() {
+						if err := conn.Close(); err != nil {
+							s.logger.Printf("failed closing conn: %v", err)
+						}
+					}()
 
-			if err != nil {
-				select {
-				case <-s.quit:
-					return
-				default:
-					if errors.Is(err, net.ErrClosed) {
-						return
-					}
-					s.logger.Printf("warning: couldn't accept connection: %s", err)
-					continue
-				}
+					_ = s.handle(ctx, conn)
+					return nil
+				})
+
+				continue
 			}
 
-			go s.handle(conn)
+			if ne, ok := err.(net.Error); ok && ne.Temporary() {
+				continue
+			}
+
+			s.logger.Printf("encountered terminal error: %v", err)
+			cancel()
+			return err
 		}
-	}()
+	})
+
+	_ = eg.Wait()
+
+	return
 }
 
-func (s *Server) errorf(c net.Conn, format string, args ...interface{}) {
-	msg := fmt.Errorf(format, args...)
-	proto.Write(c, "err", msg.Error())
+func (s *server) error(c net.Conn, err error) {
+	_ = proto.Write(c, "err", err.Error())
 
-	s.logger.Print(msg)
+	s.logger.Print(err)
 }
 
-func (s *Server) handleKill(_ net.Conn, _ []string) error {
-	s.Stop()
+func (s *server) handleKill(net.Conn, []string) error {
+	s.stop()
 
 	return nil
 }
 
-func (s *Server) handlePing(c net.Conn, _ []string) error {
-	resp := PingResponse{
+func (s *server) handlePing(c net.Conn, _ []string) (err error) {
+	resp := agent.PingResponse{
 		Version:    buildinfo.Version(),
 		PID:        os.Getpid(),
 		Background: s.background,
 	}
 
-	data, _ := json.Marshal(resp)
+	var data []byte
+	if data, err = json.Marshal(resp); err != nil {
+		err = fmt.Errorf("failed marshaling ping response: %w", err)
+	} else {
+		err = proto.Write(c, "pong", string(data))
+	}
 
-	return proto.Write(c, "pong", string(data))
+	return
 }
 
-func findOrganization(client *api.Client, slug string) (*api.Organization, error) {
-	orgs, err := client.GetOrganizations(context.TODO(), nil)
+func findOrganization(ctx context.Context, client *api.Client, slug string) (*api.Organization, error) {
+	orgs, err := client.GetOrganizations(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("can't load organizations from config: %s", err)
+		return nil, fmt.Errorf("can't load organizations from config: %w", err)
 	}
 
 	var org *api.Organization
@@ -212,7 +243,7 @@ func findOrganization(client *api.Client, slug string) (*api.Organization, error
 	}
 
 	if org == nil {
-		return nil, fmt.Errorf("no such organization")
+		return nil, errors.New("no such organization")
 	}
 
 	return org, nil
@@ -221,7 +252,7 @@ func findOrganization(client *api.Client, slug string) (*api.Organization, error
 func buildTunnel(client *api.Client, org *api.Organization) (*wg.Tunnel, error) {
 	state, err := wireguard.StateForOrg(client, org, "", "")
 	if err != nil {
-		return nil, fmt.Errorf("can't get wireguard state for %s: %s", org.Slug, err)
+		return nil, fmt.Errorf("can't get wireguard state for %s: %w", org.Slug, err)
 	}
 
 	tunnel, err := wg.Connect(state)
@@ -232,18 +263,19 @@ func buildTunnel(client *api.Client, org *api.Organization) (*wg.Tunnel, error) 
 	return tunnel, nil
 }
 
-// handleEstablish establishes a new wireguard tunnel to an organization.
-func (s *Server) handleEstablish(c net.Conn, args []string) error {
+func (s *server) handleEstablish(ctx context.Context, conn net.Conn, args []string) (err error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	if len(args) != 2 {
-		return fmt.Errorf("malformed establish command")
+		err = errors.New("malformed establish command")
+
+		return
 	}
 
-	org, err := findOrganization(s.client, args[1])
-	if err != nil {
-		return err
+	var org *api.Organization
+	if org, err = findOrganization(ctx, s.client, args[1]); err != nil {
+		return
 	}
 
 	tunnel, ok := s.tunnels[org.Slug]
@@ -255,18 +287,22 @@ func (s *Server) handleEstablish(c net.Conn, args []string) error {
 		s.tunnels[org.Slug] = tunnel
 	}
 
-	resp := EstablishResponse{
+	resp := agent.EstablishResponse{
 		WireGuardState: tunnel.State,
 		TunnelConfig:   tunnel.Config,
 	}
 
-	data, _ := json.Marshal(resp)
-	return proto.Write(c, "ok", string(data))
+	var data []byte
+	if data, err = json.Marshal(resp); err != nil {
+		err = fmt.Errorf("failed marshaling establish response: %w", err)
+	} else {
+		err = proto.Write(c, "ok", string(data))
+	}
+
+	return
 }
 
-func probeTunnel(ctx context.Context, tunnel *wg.Tunnel) error {
-	var err error
-
+func probeTunnel(ctx context.Context, tunnel *wg.Tunnel) (err error) {
 	terminal.Debugf("Probing WireGuard connectivity\n")
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -285,8 +321,7 @@ func probeTunnel(ctx context.Context, tunnel *wg.Tunnel) error {
 	return nil
 }
 
-// handleProbe probes a wireguard tunnel to see if it's still alive.
-func (s *Server) handleProbe(c net.Conn, args []string) error {
+func (s *server) handleProbe(c net.Conn, args []string) error {
 	tunnel, err := s.tunnelFor(args[1])
 	if err != nil {
 		return fmt.Errorf("probe: can't build tunnel: %s", err)
@@ -301,10 +336,9 @@ func (s *Server) handleProbe(c net.Conn, args []string) error {
 	return nil
 }
 
-// handleResolve resolves the provided host with the tunnel
-func (s *Server) handleResolve(c net.Conn, args []string) error {
+func (s *server) handleResolve(ctx context.Context, conn net.Conn, args []string) error {
 	if len(args) != 3 {
-		return fmt.Errorf("malformed resolve command")
+		return errors.New("malformed resolve command")
 	}
 
 	tunnel, err := s.tunnelFor(args[1])
@@ -322,8 +356,8 @@ func (s *Server) handleResolve(c net.Conn, args []string) error {
 	return nil
 }
 
-func (s *Server) fetchInstances(tunnel *wg.Tunnel, app string) (*Instances, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+func (s *server) fetchInstances(ctx context.Context, tunnel *wg.Tunnel, app string) (*Instances, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Minute>>1)
 	defer cancel()
 
 	regionsv, err := tunnel.LookupTXT(ctx, fmt.Sprintf("regions.%s.internal", app))
@@ -366,9 +400,8 @@ func (s *Server) fetchInstances(tunnel *wg.Tunnel, app string) (*Instances, erro
 	return ret, nil
 }
 
-// handleInstances returns a list of instances of an app.
-func (s *Server) handleInstances(c net.Conn, args []string) error {
-	tunnel, err := s.tunnelFor(args[1])
+func (s *server) handleInstances(ctx context.Context, c net.Conn, args []string) error {
+	tunnel, err := s.tunnelFor(ctx, args[1])
 	if err != nil {
 		return fmt.Errorf("instance list: can't build tunnel: %s", err)
 	}
