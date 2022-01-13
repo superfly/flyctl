@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/azazeal/pause"
@@ -28,9 +29,10 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 		return nil, err
 	}
 
-	c, err := DefaultClient()
+	c, err := DefaultClient(ctx)
+
 	if err == nil {
-		resp, err := c.Ping()
+		resp, err := c.Ping(ctx)
 		if err == nil {
 			if buildinfo.Version().EQ(resp.Version) {
 				return c, nil
@@ -45,7 +47,7 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 
 			terminal.Debug(msg)
 			terminal.Debug("stopping agent")
-			if err := c.Kill(); err != nil {
+			if err := c.Kill(ctx); err != nil {
 				terminal.Warn(msg)
 				return nil, errors.Wrap(err, "kill failed")
 			}
@@ -57,22 +59,22 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 	return StartDaemon(ctx, apiClient, os.Args[0])
 }
 
-func DefaultClient() (*Client, error) {
-	return NewClient("unix", pathToSocket())
+func DefaultClient(ctx context.Context) (*Client, error) {
+	return newClient(ctx, "unix", pathToSocket())
 }
 
 const (
-	timeout = time.Second
+	timeout = 2 * time.Second
 	cycle   = time.Second / 10
 )
 
-func NewClient(network, addr string) (client *Client, err error) {
+func newClient(ctx context.Context, network, addr string) (client *Client, err error) {
 	client = &Client{
 		network: network,
 		address: addr,
 	}
 
-	if _, err = client.Ping(); err != nil {
+	if _, err = client.Ping(ctx); err != nil {
 		client = nil
 	}
 
@@ -96,29 +98,52 @@ func (c *Client) dialContext(ctx context.Context) (conn net.Conn, err error) {
 	return c.dialer.DialContext(ctx, c.network, c.address)
 }
 
-func (c *Client) do(fn func(net.Conn) error) (err error) {
+func (c *Client) do(parent context.Context, fn func(net.Conn) error) (err error) {
 	var conn net.Conn
-	if conn, err = c.dial(); err != nil {
-		return
+	if conn, err = c.dialContext(parent); err != nil {
+		return err
 	}
+
+	ctx, cancel := context.WithCancel(parent)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	var closeError error
 	defer func() {
-		if e := conn.Close(); err == nil {
-			err = e
+		if err == nil {
+			err = closeError
 		}
 	}()
 
-	err = fn(conn)
+	go func() {
+		defer wg.Done()
+
+		select {
+		case <-ctx.Done():
+			closeError = conn.Close()
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		err = fn(conn)
+		cancel()
+	}()
+
+	wg.Wait()
+
+	if err != nil && ctx.Err() != nil {
+		err = ctx.Err()
+	}
 
 	return
 }
 
-func (c *Client) Kill() error {
-	return c.do(func(conn net.Conn) (err error) {
-		if err = conn.SetDeadline(time.Now().Add(timeout)); err == nil {
-			err = proto.Write(conn, "kill")
-		}
-
-		return
+func (c *Client) Kill(ctx context.Context) error {
+	return c.do(ctx, func(conn net.Conn) error {
+		return proto.Write(conn, "kill")
 	})
 }
 
@@ -128,12 +153,8 @@ type PingResponse struct {
 	Background bool
 }
 
-func (c *Client) Ping() (res PingResponse, err error) {
-	err = c.do(func(conn net.Conn) (err error) {
-		if err = conn.SetDeadline(time.Now().Add(timeout)); err != nil {
-			return
-		}
-
+func (c *Client) Ping(ctx context.Context) (res PingResponse, err error) {
+	err = c.do(ctx, func(conn net.Conn) (err error) {
 		if err = proto.Write(conn, "ping"); err != nil {
 			return
 		}
@@ -169,7 +190,7 @@ type EstablishResponse struct {
 }
 
 func (c *Client) Establish(ctx context.Context, slug string) (res *EstablishResponse, err error) {
-	err = c.do(func(conn net.Conn) (err error) {
+	err = c.do(ctx, func(conn net.Conn) (err error) {
 		if err = proto.Write(conn, "establish", slug); err != nil {
 			return
 		}
@@ -197,12 +218,8 @@ func (c *Client) Establish(ctx context.Context, slug string) (res *EstablishResp
 	return
 }
 
-func (c *Client) Probe(slug string) error {
-	return c.do(func(conn net.Conn) (err error) {
-		if err = conn.SetDeadline(time.Now().Add(timeout)); err != nil {
-			return
-		}
-
+func (c *Client) Probe(ctx context.Context, slug string) error {
+	return c.do(ctx, func(conn net.Conn) (err error) {
 		if err = proto.Write(conn, "probe", slug); err != nil {
 			return
 		}
@@ -221,11 +238,7 @@ func (c *Client) Probe(slug string) error {
 }
 
 func (c *Client) Resolve(ctx context.Context, slug, host string) (addr string, err error) {
-	err = c.do(func(conn net.Conn) (err error) {
-		if err = conn.SetDeadline(time.Now().Add(timeout)); err != nil {
-			return
-		}
-
+	err = c.do(ctx, func(conn net.Conn) (err error) {
 		if err = proto.Write(conn, "resolve", slug, host); err != nil {
 			return
 		}
@@ -246,8 +259,8 @@ func (c *Client) Resolve(ctx context.Context, slug, host string) (addr string, e
 }
 
 func (c *Client) WaitForTunnel(ctx context.Context, org *api.Organization) (err error) {
-	for err = ctx.Err(); err == nil; err = ctx.Err() {
-		if err = c.Probe(org.Slug); !IsTunnelError(err) {
+	for {
+		if err = c.Probe(ctx, org.Slug); !IsTunnelError(err) {
 			break // we only reset on tunnel errors
 		}
 
@@ -258,7 +271,7 @@ func (c *Client) WaitForTunnel(ctx context.Context, org *api.Organization) (err 
 }
 
 func (c *Client) WaitForHost(ctx context.Context, org *api.Organization, host string) (err error) {
-	for err = ctx.Err(); err == nil; err = ctx.Err() {
+	for {
 		if _, err = c.Resolve(ctx, org.Slug, host); !IsTunnelError(err) && !IsHostNotFoundError(err) {
 			break
 		}
@@ -270,7 +283,7 @@ func (c *Client) WaitForHost(ctx context.Context, org *api.Organization, host st
 }
 
 func (c *Client) Instances(ctx context.Context, org *api.Organization, app string) (instances Instances, err error) {
-	err = c.do(func(conn net.Conn) (err error) {
+	err = c.do(ctx, func(conn net.Conn) (err error) {
 		if err = proto.Write(conn, "instances", org.Slug, app); err != nil {
 			return
 		}

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 
@@ -90,44 +91,55 @@ func runFlyAgentStart(cc *cmdctx.CmdContext) error {
 	api := cc.Client.API()
 	ctx := context.Background()
 
-	c, err := agent.DefaultClient(api)
+	c, err := agent.DefaultClient(ctx)
 	if err == nil {
-		c.Kill(ctx)
+		_ = c.Kill(ctx)
 	}
 
-	_, err = agent.Establish(ctx, api)
-	if err != nil {
-		return errors.Wrap(err, "failed to start agent")
+	if _, err := agent.Establish(ctx, api); err != nil {
+		return fmt.Errorf("failed to start agent: %w", err)
 	}
 
-	return err
+	return nil
 }
 
 func runFlyAgentStop(cc *cmdctx.CmdContext) error {
-	api := cc.Client.API()
 	ctx := context.Background()
 
-	c, err := agent.DefaultClient(api)
-	if err == nil {
-		c.Kill(ctx)
+	c, err := dialAgent(ctx)
+	if err != nil {
+		return err
 	}
 
-	return err
+	if err := c.Kill(ctx); err != nil {
+		return fmt.Errorf("can't kill agent: %w", err)
+	}
+
+	return nil
 }
 
 func runFlyAgentPing(cc *cmdctx.CmdContext) error {
-	api := cc.Client.API()
 	ctx := context.Background()
 
-	c, err := agent.DefaultClient(api)
+	c, err := dialAgent(ctx)
 	if err != nil {
 		return err
 	}
-	resp, err := c.Ping(ctx)
-	if err != nil {
-		return err
+
+	res, err := c.Ping(ctx)
+	if err == nil {
+		return fmt.Errorf("can't ping agent: %w", err)
 	}
-	cc.WriteJSON(resp)
+
+	cc.WriteJSON(res)
 
 	return nil
+}
+
+func dialAgent(ctx context.Context) (client *agent.Client, err error) {
+	if client, err = agent.DefaultClient(ctx); err != nil {
+		err = fmt.Errorf("can't connect to agent: %w", err)
+	}
+
+	return
 }

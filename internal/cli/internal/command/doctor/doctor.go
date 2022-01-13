@@ -198,8 +198,8 @@ func runAgent(ctx context.Context) (err error) {
 	}()
 
 	var ac *agent.Client
-	if ac, err = agent.DefaultClient(); err == nil {
-		_, err = ac.Ping()
+	if ac, err = agent.DefaultClient(ctx); err == nil {
+		_, err = ac.Ping(ctx)
 	}
 
 	return

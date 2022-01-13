@@ -93,19 +93,19 @@ func StartDaemon(ctx context.Context, api *api.Client, command string) (*Client,
 	return client, nil
 }
 
-func waitForClient(ctx context.Context) (*Client, error) {
-	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
+func waitForClient(ctx context.Context) (client *Client, err error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	for ctx.Err() == nil {
 		pause.For(ctx, 100*time.Millisecond)
 
-		c, err := DefaultClient()
+		c, err := DefaultClient(ctx)
 		if err != nil {
 			continue
 		}
 
-		if _, err := c.Ping(); err != nil {
+		if _, err := c.Ping(ctx); err == nil {
 			return c, nil
 		}
 	}
