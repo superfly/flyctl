@@ -134,7 +134,7 @@ func (c *Client) GetVolume(ctx context.Context, volID string) (Volume *Volume, e
 	return &data.Volume, nil
 }
 
-func (c *Client) GetVolumeSnapshots(ctx context.Context, volName string) ([]Snapshot, error) {
+func (c *Client) GetVolumeSnapshots(ctx context.Context, volID string) ([]Snapshot, error) {
 	query := `
 	query($id: ID!) {
 		volume: node(id: $id) {
@@ -154,7 +154,7 @@ func (c *Client) GetVolumeSnapshots(ctx context.Context, volName string) ([]Snap
 
 	req := c.NewRequest(query)
 
-	req.Var("id", volName)
+	req.Var("id", volID)
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
