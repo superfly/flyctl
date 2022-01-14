@@ -165,7 +165,7 @@ func (p *Launch) Launch(ctx context.Context) error {
 
 	io := iostreams.FromContext(ctx)
 	for i := 0; i < p.config.InitialClusterSize; i++ {
-		fmt.Fprintf(io.Out, "Provisioning %d of %d machines\n", i+1, p.config.InitialClusterSize)
+		fmt.Fprintf(io.Out, "Provisioning %d of %d machines with image %s\n", i+1, p.config.InitialClusterSize, p.config.ImageRef)
 
 		machineConf, err := p.configurePostgres()
 		if err != nil {
@@ -193,7 +193,7 @@ func (p *Launch) Launch(ctx context.Context) error {
 
 	connStr := fmt.Sprintf("postgres://postgres:%s@%s.internal:5432\n", secrets["OPERATOR_PASSWORD"], p.config.AppName)
 
-	fmt.Fprintf(io.Out, "Any app within the %s organization can connect to postgres using the following credentials:\n", p.config.Organization.Name)
+	fmt.Fprintf(io.Out, "Any app within the %s organization can connect to this Postgres using the following credentials:\n", p.config.Organization.Name)
 	fmt.Fprintf(io.Out, "  Username:    postgres\n")
 	fmt.Fprintf(io.Out, "  Password:    %s\n", secrets["OPERATOR_PASSWORD"])
 	fmt.Fprintf(io.Out, "  Hostname:    %s.internal\n", p.config.AppName)

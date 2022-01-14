@@ -10,16 +10,16 @@ import (
 	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
-func waitForMachineState(ctx context.Context, client *client.Client, appId, machineId, state string) error {
+func waitForMachineState(ctx context.Context, client *client.Client, appId, machineID, state string) error {
 	io := iostreams.FromContext(ctx)
-	fmt.Fprintf(io.Out, "Waiting for machine %q to reach a healthy state.\n", machineId)
+	fmt.Fprintf(io.Out, "Waiting for machine %q to reach a healthy state...\n", machineID)
 
 	timeout := time.After(2 * time.Minute)
 	tick := time.Tick(1 * time.Second)
 	for {
 		select {
 		case <-timeout:
-			return fmt.Errorf("Timed out waiting for machine %s to reach state %s.\n", machineId, state)
+			return fmt.Errorf("Timed out waiting for machine %s to reach state %s.\n", machineID, state)
 		case <-tick:
 			// TODO - Target specific machine rather than listing all.
 			machines, err := client.API().ListMachines(ctx, appId, "")
@@ -28,7 +28,7 @@ func waitForMachineState(ctx context.Context, client *client.Client, appId, mach
 			}
 			if err == nil {
 				for _, machine := range machines {
-					if machine.ID == machineId {
+					if machine.ID == machineID {
 						if machine.State == state {
 							return nil
 						}
