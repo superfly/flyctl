@@ -7,10 +7,13 @@ import (
 	"time"
 
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func waitForMachineState(ctx context.Context, client *client.Client, appId, machineId, state string) error {
-	fmt.Printf("Waiting for machine %q to reach a healthy state.\n", machineId)
+	io := iostreams.FromContext(ctx)
+	fmt.Fprintf(io.Out, "Waiting for machine %q to reach a healthy state.\n", machineId)
+
 	timeout := time.After(2 * time.Minute)
 	tick := time.Tick(1 * time.Second)
 	for {
@@ -29,7 +32,7 @@ func waitForMachineState(ctx context.Context, client *client.Client, appId, mach
 						if machine.State == state {
 							return nil
 						}
-						fmt.Printf("Machine state: %q, wanted: %q\n", machine.State, state)
+						fmt.Fprintf(io.Out, "Machine state: %q, wanted: %q\n", machine.State, state)
 
 					}
 				}
