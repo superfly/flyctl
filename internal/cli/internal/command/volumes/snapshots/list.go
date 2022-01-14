@@ -7,12 +7,14 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
+
+	"github.com/superfly/flyctl/pkg/iostreams"
+
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func newList() *cobra.Command {
@@ -47,8 +49,7 @@ func runList(ctx context.Context) error {
 	}
 
 	if cfg.JSONOutput {
-		_ = render.JSON(io.Out, snapshots)
-		return nil
+		return render.JSON(io.Out, snapshots)
 	}
 
 	if len(snapshots) == 0 {
@@ -70,7 +71,5 @@ func runList(ctx context.Context) error {
 		})
 	}
 
-	_ = render.Table(io.Out, "Snapshots", rows, "ID", "Size", "Created At")
-
-	return nil
+	return render.Table(io.Out, "Snapshots", rows, "ID", "Size", "Created At")
 }
