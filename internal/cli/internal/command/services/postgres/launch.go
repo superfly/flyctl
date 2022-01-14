@@ -97,9 +97,6 @@ func runLaunch(ctx context.Context) error {
 	snapshotId := flag.GetString(ctx, "snapshot-id")
 	consulUrl := flag.GetString(ctx, "consul-url")
 
-	// TODO - Resolve latest version from graphql
-	imageRef := "flyio/postgres:14.1"
-
 	name := flag.GetString(ctx, "name")
 	if name == "" {
 		if err := prompt.String(ctx, &name, "App name", "", true); err != nil {
@@ -122,6 +119,13 @@ func runLaunch(ctx context.Context) error {
 		region = r.Code
 	}
 
+	client := client.FromContext(ctx)
+
+	imageRef, err := client.API().GetLatestImageTag(ctx, "flyio/postgres")
+	if err != nil {
+		return err
+	}
+
 	config := PostgresProvisionConfig{
 		AppName:            name,
 		ConsulUrl:          consulUrl,
@@ -134,8 +138,6 @@ func runLaunch(ctx context.Context) error {
 		ImageRef:           imageRef,
 		Organization:       org,
 	}
-
-	client := client.FromContext(ctx)
 
 	pg := &Launch{
 		config: config,
@@ -150,6 +152,7 @@ func runLaunch(ctx context.Context) error {
 }
 
 func (p *Launch) Launch(ctx context.Context) error {
+
 	app, err := p.createApp(ctx)
 	if err != nil {
 		return err
@@ -161,7 +164,6 @@ func (p *Launch) Launch(ctx context.Context) error {
 	}
 
 	io := iostreams.FromContext(ctx)
-
 	for i := 0; i < p.config.InitialClusterSize; i++ {
 		fmt.Fprintf(io.Out, "Provisioning %d of %d machines\n", i+1, p.config.InitialClusterSize)
 

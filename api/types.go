@@ -37,8 +37,8 @@ type Query struct {
 		VMSizes       []VMSize
 	}
 
-	NearestRegion *Region
-
+	NearestRegion  *Region
+	LatestImageTag string
 	// aliases & nodes
 
 	TemplateDeploymentNode *TemplateDeployment
