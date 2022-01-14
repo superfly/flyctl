@@ -328,8 +328,7 @@ type TaskGroupCount struct {
 
 type Snapshot struct {
 	ID        string `json:"id"`
-	Key       string
-	Region    string
+	Digest    string
 	Size      string
 	CreatedAt time.Time
 }

@@ -139,6 +139,7 @@ func (c *Client) GetVolumeSnapshots(ctx context.Context, volName string) ([]Snap
 					nodes {
 						id
 						size
+						digest
 						createdAt
 					}
 				}
