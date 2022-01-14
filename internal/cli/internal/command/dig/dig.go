@@ -209,27 +209,27 @@ func roundTrip(conn net.Conn, m *dns.Msg) (*dns.Msg, error) {
 	binary.BigEndian.PutUint16(lenbuf[:], uint16(len(buf)))
 
 	if _, err = conn.Write(lenbuf[:]); err != nil {
-		return nil, fmt.Errorf("dns round trip: %w", err)
+		return nil, err
 	}
 
 	if _, err = conn.Write(buf); err != nil {
-		return nil, fmt.Errorf("dns round trip: %w", err)
+		return nil, err
 	}
 
 	if _, err = conn.Read(lenbuf[:]); err != nil {
-		return nil, fmt.Errorf("dns round trip: %w", err)
+		return nil, err
 	}
 
 	l := int(binary.BigEndian.Uint16(lenbuf[:]))
 	buf = make([]byte, l)
 
 	if _, err = conn.Read(buf); err != nil {
-		return nil, fmt.Errorf("dns round trip: %w", err)
+		return nil, err
 	}
 
 	ret := &dns.Msg{}
 	if err = ret.Unpack(buf); err != nil {
-		return nil, fmt.Errorf("dns round trip: %w", err)
+		return nil, err
 	}
 
 	return ret, nil
