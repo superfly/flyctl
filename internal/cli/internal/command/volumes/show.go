@@ -16,7 +16,7 @@ import (
 
 func newShow() *cobra.Command {
 	const (
-		long = `how details of an app's volume. Requires the volume's ID
+		long = `Show details of an app's volume. Requires the volume's ID
 number to operate. This can be found through the volumes list command`
 
 		short = "Show details of an app's volume"
