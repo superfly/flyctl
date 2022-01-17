@@ -84,7 +84,7 @@ type PostgresProvisionConfig struct {
 	Organization       *api.Organization
 	Password           string
 	Region             string
-	SnapshotId         string
+	SnapshotID         string
 	VolumeSize         int
 	VMSize             string
 }
@@ -94,7 +94,7 @@ func runLaunch(ctx context.Context) error {
 	password := flag.GetString(ctx, "password")
 	volumeSize := flag.GetInt(ctx, "volume-size")
 	vmSize := flag.GetString(ctx, "vm-size")
-	snapshotId := flag.GetString(ctx, "snapshot-id")
+	snapshotID := flag.GetString(ctx, "snapshot-id")
 	consulUrl := flag.GetString(ctx, "consul-url")
 
 	name := flag.GetString(ctx, "name")
@@ -134,7 +134,7 @@ func runLaunch(ctx context.Context) error {
 		Region:             region,
 		VolumeSize:         volumeSize,
 		VMSize:             vmSize,
-		SnapshotId:         snapshotId,
+		SnapshotID:         snapshotID,
 		ImageRef:           imageRef,
 		Organization:       org,
 	}
