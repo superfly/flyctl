@@ -5,14 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/azazeal/pause"
 	"github.com/blang/semver"
 	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/superfly/flyctl/pkg/agent/internal/proto"
 	"github.com/superfly/flyctl/pkg/wg"
@@ -20,7 +21,6 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/wireguard"
-	"github.com/superfly/flyctl/terminal"
 )
 
 // Establish starts the daemon, if necessary, and returns a client to it.
@@ -30,33 +30,39 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 	}
 
 	c, err := DefaultClient(ctx)
-
-	if err == nil {
-		resp, err := c.Ping(ctx)
-		if err == nil {
-			if buildinfo.Version().EQ(resp.Version) {
-				return c, nil
-			}
-
-			msg := fmt.Sprintf("flyctl version %s does not match agent version %s", buildinfo.Version(), resp.Version)
-
-			if !resp.Background {
-				terminal.Warn(msg)
-				return c, nil
-			}
-
-			terminal.Debug(msg)
-			terminal.Debug("stopping agent")
-			if err := c.Kill(ctx); err != nil {
-				terminal.Warn(msg)
-				return nil, errors.Wrap(err, "kill failed")
-			}
-			// this is gross, but we need to wait for the agent to exit
-			time.Sleep(1 * time.Second)
-		}
+	if err != nil {
+		return StartDaemon(ctx)
 	}
 
-	return StartDaemon(ctx)
+	res, err := c.Ping(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if buildinfo.Version().EQ(res.Version) {
+		return c, nil
+	}
+
+	// TOOD: log this instead
+	msg := fmt.Sprintf("flyctl version %s does not match agent version %s", buildinfo.Version(), res.Version)
+	fmt.Fprintln(os.Stderr, msg)
+
+	if !res.Background {
+		return c, nil
+	}
+
+	fmt.Fprintln(os.Stderr, "stopping agent ...")
+	if err := c.Kill(ctx); err != nil {
+		err = fmt.Errorf("failed stopping agent: %w", err)
+		fmt.Fprintln(os.Stderr, err)
+
+		return nil, err
+	}
+
+	// this is gross, but we need to wait for the agent to exit
+	pause.For(ctx, time.Second)
+
+	return nil, nil
 }
 
 func DefaultClient(ctx context.Context) (*Client, error) {
@@ -98,44 +104,36 @@ func (c *Client) dialContext(ctx context.Context) (conn net.Conn, err error) {
 	return c.dialer.DialContext(ctx, c.network, c.address)
 }
 
+var errDone = errors.New("done")
+
 func (c *Client) do(parent context.Context, fn func(net.Conn) error) (err error) {
 	var conn net.Conn
 	if conn, err = c.dialContext(parent); err != nil {
 		return err
 	}
 
-	ctx, cancel := context.WithCancel(parent)
+	eg, ctx := errgroup.WithContext(parent)
 
-	var wg sync.WaitGroup
-	wg.Add(2)
+	eg.Go(func() (err error) {
+		<-ctx.Done()
 
-	var closeError error
-	defer func() {
-		if err == nil {
-			err = closeError
+		if err = conn.Close(); err == nil {
+			err = net.ErrClosed
 		}
-	}()
 
-	go func() {
-		defer wg.Done()
+		return
+	})
 
-		select {
-		case <-ctx.Done():
-			closeError = conn.Close()
+	eg.Go(func() (err error) {
+		if err = fn(conn); err == nil {
+			err = errDone
 		}
-	}()
 
-	go func() {
-		defer wg.Done()
+		return
+	})
 
-		err = fn(conn)
-		cancel()
-	}()
-
-	wg.Wait()
-
-	if err != nil && ctx.Err() != nil {
-		err = ctx.Err()
+	if err = eg.Wait(); errors.Is(err, errDone) {
+		err = nil
 	}
 
 	return

@@ -92,6 +92,10 @@ func PathToSocket() string {
 	return filepath.Join(userHome(), ".fly", "fly-agent.sock")
 }
 
+func PathToLock() string {
+	return filepath.Join(os.TempDir(), "fly-agent.lock")
+}
+
 type Instances struct {
 	Labels    []string
 	Addresses []string

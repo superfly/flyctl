@@ -9,9 +9,15 @@ import (
 	"time"
 
 	"github.com/azazeal/pause"
+	"github.com/pkg/errors"
 
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/terminal"
+)
+
+var (
+	agentLock = filepath.Join(userHome(), ".fly", "agent.lock")
+	errNoLock = errors.New("failed acquiring agent lock; is there another instance of the agent running?")
 )
 
 func StartDaemon(ctx context.Context) (*Client, error) {
