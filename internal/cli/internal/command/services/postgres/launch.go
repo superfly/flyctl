@@ -27,9 +27,10 @@ func newLaunch() (cmd *cobra.Command) {
 	)
 
 	cmd = command.New(usage, short, long, runLaunch,
-		command.RequireSession)
+		command.RequireSession,
+	)
 
-	cmd.Args = cobra.RangeArgs(0, 1)
+	cmd.Args = cobra.MaximumNArgs(1)
 
 	flag.Add(cmd,
 		flag.String{
@@ -65,18 +66,19 @@ func newLaunch() (cmd *cobra.Command) {
 		},
 		flag.String{
 			Name:        "snapshot-id",
-			Description: "Creates the volume with the contents of the snapshot"},
+			Description: "Creates the volume with the contents of the snapshot",
+		},
 	)
 
 	return
 }
 
 type Launch struct {
-	config PostgresProvisionConfig
+	config LaunchConfig
 	client *client.Client
 }
 
-type PostgresProvisionConfig struct {
+type LaunchConfig struct {
 	AppName            string
 	ConsulUrl          string
 	ImageRef           string
@@ -126,7 +128,7 @@ func runLaunch(ctx context.Context) error {
 		return err
 	}
 
-	config := PostgresProvisionConfig{
+	config := LaunchConfig{
 		AppName:            name,
 		ConsulUrl:          consulUrl,
 		InitialClusterSize: initialClusterSize,
@@ -152,7 +154,6 @@ func runLaunch(ctx context.Context) error {
 }
 
 func (p *Launch) Launch(ctx context.Context) error {
-
 	app, err := p.createApp(ctx)
 	if err != nil {
 		return err
@@ -240,7 +241,6 @@ func (p *Launch) configurePostgres() (api.MachineConfig, error) {
 }
 
 func (p *Launch) createApp(ctx context.Context) (*api.App, error) {
-
 	fmt.Println("Creating app...")
 	appInput := api.CreateAppInput{
 		OrganizationID:  p.config.Organization.ID,

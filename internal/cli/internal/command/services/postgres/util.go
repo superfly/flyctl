@@ -7,13 +7,13 @@ import (
 	"time"
 
 	"github.com/azazeal/pause"
+
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func waitForMachineState(parent context.Context, client *client.Client, appID, machineID, state string) error {
-
 	io := iostreams.FromContext(parent)
 	logger := logger.FromContext(parent)
 
