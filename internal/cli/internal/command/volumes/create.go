@@ -12,7 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
-	"github.com/superfly/flyctl/internal/cli/internal/region"
+	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/client"
 )
@@ -29,7 +29,6 @@ sets the size as the number of gigabytes the volume will consume.`
 	cmd := command.New("create", short, long, runCreate,
 		command.RequireSession,
 		command.RequireAppName,
-		command.RequireRegion,
 	)
 
 	flag.Add(cmd,
@@ -71,10 +70,16 @@ func runCreate(ctx context.Context) (err error) {
 		return
 	}
 
+	var region *api.Region
+
+	if region, err = prompt.Region(ctx); err != nil {
+		return
+	}
+
 	input := api.CreateVolumeInput{
 		AppID:             app.ID,
 		Name:              volumeName,
-		Region:            region.FromContext(ctx),
+		Region:            region.Code,
 		SizeGb:            flag.GetInt(ctx, "size"),
 		Encrypted:         flag.GetBool(ctx, "encrypted"),
 		RequireUniqueZone: flag.GetBool(ctx, "require-unique-zone"),

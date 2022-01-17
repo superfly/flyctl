@@ -27,7 +27,6 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/cache"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
-	"github.com/superfly/flyctl/internal/cli/internal/region"
 	"github.com/superfly/flyctl/internal/cli/internal/state"
 	"github.com/superfly/flyctl/internal/cli/internal/task"
 )
@@ -426,20 +425,4 @@ func LoadAppNameIfPresent(ctx context.Context) (context.Context, error) {
 	}
 
 	return app.WithName(ctx, name), nil
-}
-
-// RequireRegion is a Preparer which makes sure the user has selected a region via command line arguments,
-func RequireRegion(ctx context.Context) (context.Context, error) {
-	reg := flag.GetRegion(ctx)
-
-	if reg == "" {
-		if cfg := config.FromContext(ctx); cfg != nil {
-			reg = cfg.Region
-		}
-	}
-	if reg == "" {
-		return nil, fmt.Errorf("no region specified")
-	}
-
-	return region.WithRegion(ctx, reg), nil
 }
