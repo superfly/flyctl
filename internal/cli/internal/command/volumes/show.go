@@ -2,6 +2,7 @@ package volumes
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
 
@@ -34,7 +35,7 @@ number to operate. This can be found through the volumes list command`
 	return cmd
 }
 
-func runShow(ctx context.Context) (err error) {
+func runShow(ctx context.Context) error {
 	cfg := config.FromContext(ctx)
 	client := client.FromContext(ctx).API()
 
@@ -42,7 +43,7 @@ func runShow(ctx context.Context) (err error) {
 
 	volume, err := client.GetVolume(ctx, volumeID)
 	if err != nil {
-		return
+		return fmt.Errorf("failed retrieving volume: %w", err)
 	}
 
 	out := iostreams.FromContext(ctx).Out

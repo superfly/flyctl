@@ -2,6 +2,7 @@ package volumes
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
 
@@ -56,7 +57,7 @@ sets the size as the number of gigabytes the volume will consume.`
 	return cmd
 }
 
-func runCreate(ctx context.Context) (err error) {
+func runCreate(ctx context.Context) error {
 	var (
 		cfg    = config.FromContext(ctx)
 		client = client.FromContext(ctx).API()
@@ -67,13 +68,13 @@ func runCreate(ctx context.Context) (err error) {
 
 	app, err := client.GetApp(ctx, appName)
 	if err != nil {
-		return
+		return err
 	}
 
 	var region *api.Region
 
 	if region, err = prompt.Region(ctx); err != nil {
-		return
+		return err
 	}
 
 	input := api.CreateVolumeInput{
@@ -86,9 +87,8 @@ func runCreate(ctx context.Context) (err error) {
 	}
 
 	volume, err := client.CreateVolume(ctx, input)
-
 	if err != nil {
-		return
+		return fmt.Errorf("failed creating volume: %w", err)
 	}
 
 	out := iostreams.FromContext(ctx).Out
