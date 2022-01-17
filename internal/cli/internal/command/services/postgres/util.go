@@ -8,12 +8,12 @@ import (
 
 	"github.com/azazeal/pause"
 
-	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
-func waitForMachineState(parent context.Context, client *client.Client, appID, machineID, state string) error {
+func waitForMachineState(parent context.Context, client *api.Client, appID, machineID, state string) error {
 	io := iostreams.FromContext(parent)
 	logger := logger.FromContext(parent)
 
@@ -23,7 +23,7 @@ func waitForMachineState(parent context.Context, client *client.Client, appID, m
 	for ctx.Err() == nil {
 		pause.For(ctx, time.Second)
 
-		machines, err := client.API().ListMachines(ctx, appID, "")
+		machines, err := client.ListMachines(ctx, appID, "")
 		if err != nil {
 			logger.Debugf("failed retrieving machines: %v", err)
 

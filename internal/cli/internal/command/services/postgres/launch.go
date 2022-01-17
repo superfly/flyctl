@@ -75,7 +75,7 @@ func newLaunch() (cmd *cobra.Command) {
 
 type Launch struct {
 	config LaunchConfig
-	client *client.Client
+	client *api.Client
 }
 
 type LaunchConfig struct {
@@ -121,9 +121,9 @@ func runLaunch(ctx context.Context) error {
 		region = r.Code
 	}
 
-	client := client.FromContext(ctx)
+	client := client.FromContext(ctx).API()
 
-	imageRef, err := client.API().GetLatestImageTag(ctx, "flyio/postgres")
+	imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres")
 	if err != nil {
 		return err
 	}
@@ -180,7 +180,7 @@ func (p *Launch) Launch(ctx context.Context) error {
 			Config:  &machineConf,
 		}
 
-		machine, _, err := p.client.API().LaunchMachine(ctx, launchInput)
+		machine, _, err := p.client.LaunchMachine(ctx, launchInput)
 		if err != nil {
 			return err
 		}
@@ -250,7 +250,7 @@ func (p *Launch) createApp(ctx context.Context) (*api.App, error) {
 		AppRoleID:       "postgres_cluster",
 	}
 
-	return p.client.API().CreateApp(ctx, appInput)
+	return p.client.CreateApp(ctx, appInput)
 }
 
 func (p *Launch) setSecrets(ctx context.Context) (map[string]string, error) {
@@ -293,13 +293,13 @@ func (p *Launch) setSecrets(ctx context.Context) (map[string]string, error) {
 		secrets["OPERATOR_PASSWORD"] = p.config.Password
 	}
 
-	_, err = p.client.API().SetSecrets(ctx, p.config.AppName, secrets)
+	_, err = p.client.SetSecrets(ctx, p.config.AppName, secrets)
 
 	return secrets, err
 }
 
 func (p *Launch) generateConsulURL(ctx context.Context) (string, error) {
-	data, err := p.client.API().EnablePostgresConsul(ctx, p.config.AppName)
+	data, err := p.client.EnablePostgresConsul(ctx, p.config.AppName)
 	if err != nil {
 		return "", err
 	}
