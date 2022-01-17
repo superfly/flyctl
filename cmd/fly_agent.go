@@ -52,6 +52,22 @@ func newAgentCommand(client *client.Client) *Command {
 	return cmd
 }
 
+type errSecondInstance struct {
+	error
+}
+
+func (errSecondInstance) Error() string {
+	return "another instance of the agent is already running"
+}
+
+func (errSecondInstance) Description() string {
+	return "It looks like another instance of the agent is already running. Please stop it before starting a new one."
+}
+
+func (err *errSecondInstance) Unwrap() error {
+	return err.error
+}
+
 func runFlyAgentDaemonStart(cc *cmdctx.CmdContext) error {
 	logPath := agentLogPath(cc)
 	logger, closeLogger, err := setupAgentLogger(logPath)
@@ -73,7 +89,7 @@ func runFlyAgentDaemonStart(cc *cmdctx.CmdContext) error {
 
 	unlock, err := filemu.Lock(ctx, agent.PathToLock())
 	if err != nil {
-		err = fmt.Errorf("another instance of the agent is already running: %w", err)
+		err = &errSecondInstance{err}
 
 		logger.Print(err)
 		return err
