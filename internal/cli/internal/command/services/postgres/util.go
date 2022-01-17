@@ -13,12 +13,11 @@ import (
 )
 
 func waitForMachineState(parent context.Context, client *client.Client, appID, machineID, state string) error {
-	io := iostreams.FromContext(parent)
-	fmt.Fprintf(io.Out, "Waiting for machine %q to reach a healthy state...\n", machineID)
 
+	io := iostreams.FromContext(parent)
 	logger := logger.FromContext(parent)
 
-	ctx, cancel := context.WithTimeout(parent, time.Duration(time.Second*2))
+	ctx, cancel := context.WithTimeout(parent, time.Duration(time.Minute*2))
 	defer cancel()
 
 	for ctx.Err() == nil {
@@ -34,12 +33,14 @@ func waitForMachineState(parent context.Context, client *client.Client, appID, m
 		for _, machine := range machines {
 			if machine.ID == machineID {
 				if machine.State == state {
-					return nil
+					cancel()
 				}
+
 				fmt.Fprintf(io.Out, "Machine state: %q, wanted: %q\n", machine.State, state)
 			}
 		}
 	}
+
 	return ctx.Err()
 }
 
