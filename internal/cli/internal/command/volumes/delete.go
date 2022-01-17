@@ -9,10 +9,8 @@ import (
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
-	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
-	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/client"
 )
 
@@ -38,7 +36,6 @@ number to operate. This can be found through the volumes list command`
 
 func runDelete(ctx context.Context) error {
 	var (
-		cfg    = config.FromContext(ctx)
 		io     = iostreams.FromContext(ctx)
 		client = client.FromContext(ctx).API()
 
@@ -55,10 +52,6 @@ func runDelete(ctx context.Context) error {
 	data, err := client.DeleteVolume(ctx, volID)
 	if err != nil {
 		return fmt.Errorf("failed deleting volume: %w", err)
-	}
-
-	if cfg.JSONOutput {
-		return render.JSON(io.Out, data)
 	}
 
 	fmt.Fprintf(io.Out, "Deleted volume %s from %s\n", volID, data.Name)
