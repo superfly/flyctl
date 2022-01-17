@@ -186,7 +186,7 @@ func (client *Client) ListPostgresUsers(ctx context.Context, appName string) ([]
 }
 
 func (client *Client) EnablePostgresConsul(ctx context.Context, appName string) (*PostgresEnableConsulPayload, error) {
-	query := `
+	const query = `
 		mutation($appName: String!) {
 			enablePostgresConsul(input: {appId: $appName}) {
 				consulUrl

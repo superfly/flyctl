@@ -1070,7 +1070,7 @@ type AttachPostgresClusterPayload struct {
 }
 
 type PostgresEnableConsulPayload struct {
-	ConsulUrl string `json:"consulUrl"`
+	ConsulURL string `json:"consulUrl"`
 }
 
 type EnsureRemoteBuilderInput struct {

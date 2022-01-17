@@ -80,7 +80,7 @@ type Launch struct {
 
 type LaunchConfig struct {
 	AppName            string
-	ConsulUrl          string
+	ConsulURL          string
 	ImageRef           string
 	InitialClusterSize int
 	Organization       *api.Organization
@@ -97,7 +97,7 @@ func runLaunch(ctx context.Context) error {
 	volumeSize := flag.GetInt(ctx, "volume-size")
 	vmSize := flag.GetString(ctx, "vm-size")
 	snapshotID := flag.GetString(ctx, "snapshot-id")
-	consulUrl := flag.GetString(ctx, "consul-url")
+	consulURL := flag.GetString(ctx, "consul-url")
 
 	name := flag.GetString(ctx, "name")
 	if name == "" {
@@ -130,7 +130,7 @@ func runLaunch(ctx context.Context) error {
 
 	config := LaunchConfig{
 		AppName:            name,
-		ConsulUrl:          consulUrl,
+		ConsulURL:          consulURL,
 		InitialClusterSize: initialClusterSize,
 		Password:           password,
 		Region:             region,
@@ -279,14 +279,14 @@ func (p *Launch) setSecrets(ctx context.Context) (map[string]string, error) {
 		"OPERATOR_PASSWORD": opPassword,
 	}
 
-	if p.config.ConsulUrl == "" {
-		consulUrl, err := p.generateConsulUrl(ctx)
+	if p.config.ConsulURL == "" {
+		consulURL, err := p.generateConsulURL(ctx)
 		if err != nil {
 			return nil, err
 		}
-		secrets["FLY_CONSUL_URL"] = consulUrl
+		secrets["FLY_CONSUL_URL"] = consulURL
 	} else {
-		secrets["CONSUL_URL"] = p.config.ConsulUrl
+		secrets["CONSUL_URL"] = p.config.ConsulURL
 	}
 
 	if p.config.Password != "" {
@@ -298,11 +298,11 @@ func (p *Launch) setSecrets(ctx context.Context) (map[string]string, error) {
 	return secrets, err
 }
 
-func (p *Launch) generateConsulUrl(ctx context.Context) (string, error) {
+func (p *Launch) generateConsulURL(ctx context.Context) (string, error) {
 	data, err := p.client.API().EnablePostgresConsul(ctx, p.config.AppName)
 	if err != nil {
 		return "", err
 	}
 
-	return data.ConsulUrl, nil
+	return data.ConsulURL, nil
 }

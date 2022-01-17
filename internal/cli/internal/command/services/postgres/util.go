@@ -33,7 +33,7 @@ func waitForMachineState(parent context.Context, client *client.Client, appID, m
 		for _, machine := range machines {
 			if machine.ID == machineID {
 				if machine.State == state {
-					cancel()
+					return nil
 				}
 
 				fmt.Fprintf(io.Out, "Machine state: %q, wanted: %q\n", machine.State, state)
