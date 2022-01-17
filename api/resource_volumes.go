@@ -107,7 +107,7 @@ func (c *Client) GetVolume(ctx context.Context, volID string) (Volume *Volume, e
 		volume: node(id: $id) {
 			... on Volume {
 				id
-				app{
+				app {
 					name
 				}
 				name
