@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/azazeal/pause"
+
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/pkg/iostreams"
