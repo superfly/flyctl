@@ -45,7 +45,7 @@ func runList(ctx context.Context) error {
 
 	snapshots, err := client.GetVolumeSnapshots(ctx, volID)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed retrieving snapshots: %w", err)
 	}
 
 	if cfg.JSONOutput {

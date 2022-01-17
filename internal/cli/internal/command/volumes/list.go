@@ -39,7 +39,7 @@ func newList() *cobra.Command {
 	return cmd
 }
 
-func runList(ctx context.Context) (err error) {
+func runList(ctx context.Context) error {
 	cfg := config.FromContext(ctx)
 	client := client.FromContext(ctx).API()
 
@@ -47,7 +47,7 @@ func runList(ctx context.Context) (err error) {
 
 	volumes, err := client.GetVolumes(ctx, appName)
 	if err != nil {
-		return
+		return fmt.Errorf("failed retrieving volumes: %w", err)
 	}
 
 	out := iostreams.FromContext(ctx).Out

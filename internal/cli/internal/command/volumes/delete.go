@@ -51,7 +51,7 @@ func runDelete(ctx context.Context) error {
 
 	data, err := client.DeleteVolume(ctx, volID)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed deleting volume: %w", err)
 	}
 
 	fmt.Fprintf(io.Out, "Deleted volume %s from %s\n", volID, data.Name)
