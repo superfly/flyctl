@@ -53,7 +53,7 @@ func runList(ctx context.Context) error {
 	}
 
 	if len(snapshots) == 0 {
-		fmt.Fprintf(io.Out, "No snapshots available for volume %q\n", volID)
+		fmt.Fprintf(io.ErrOut, "No snapshots available for volume %s\n", volID)
 		return nil
 	}
 
