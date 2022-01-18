@@ -197,18 +197,18 @@ func (s *session) instances(ctx context.Context, args ...string) {
 var errMalformedResolve = errors.New("malformed resolve command")
 
 func (s *session) resolve(ctx context.Context, args ...string) {
-	if !s.exactArgs(3, args, errMalformedResolve) {
+	if !s.exactArgs(2, args, errMalformedResolve) {
 		return
 	}
 
-	tunnel, err := s.srv.tunnelFor(args[1])
+	tunnel, err := s.srv.tunnelFor(args[0])
 	if err != nil {
 		s.error(err)
 
 		return
 	}
 
-	resp, err := resolve(tunnel, args[2])
+	resp, err := resolve(tunnel, args[1])
 	if err != nil {
 		s.error(err)
 

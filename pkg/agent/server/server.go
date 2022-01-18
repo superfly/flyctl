@@ -390,7 +390,7 @@ func (s *server) clean(ctx context.Context) {
 	}
 }
 
-func resolve(tunnel *wg.Tunnel, addr string) (string, error) {
+func resolve(ctx context.Context, tunnel *wg.Tunnel, addr string) (string, error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		if strings.Contains(err.Error(), "missing port") {
@@ -407,12 +407,12 @@ func resolve(tunnel *wg.Tunnel, addr string) (string, error) {
 		return net.JoinHostPort(n.String(), port), nil
 	}
 
-	addrs, err := tunnel.LookupAAAA(context.Background(), host)
+	addrs, err := tunnel.LookupAAAA(ctx, host)
 	if err != nil {
 		return "", err
 	}
 	if len(addrs) == 0 {
-		return "", fmt.Errorf("%s - no such host", addr)
+		return "", fmt.Errorf("%q - no such host", addr)
 	}
 
 	if port == "" {
