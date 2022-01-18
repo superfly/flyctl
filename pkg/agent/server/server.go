@@ -30,39 +30,43 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-func Run(ctx context.Context, logger *log.Logger, apiClient *api.Client, background bool) (err error) {
+type Options struct {
+	Socket         string
+	Logger         *log.Logger
+	Client         *api.Client
+	Background     bool
+	ConfigFilePath string
+}
+
+func Run(ctx context.Context, opt Options) (err error) {
 	var l net.Listener
-	if l, err = bind(); err != nil {
-		logger.Print(err)
+	if l, err = bind(opt.Socket); err != nil {
+		opt.Logger.Print(err)
 
 		return
 	}
+	// s.server will close the listener
 
 	var latestChangeAt time.Time
-	if latestChangeAt, err = latestChange(); err != nil {
-		logger.Print(err)
+	if latestChangeAt, err = latestChange(opt.ConfigFilePath); err != nil {
+		_ = l.Close()
+
+		opt.Logger.Print(err)
 
 		return
 	}
 
-	s := &server{
-		logger:        logger,
+	err = (&server{
+		Options:       opt,
 		listener:      l,
-		client:        apiClient,
-		tunnels:       map[string]*wg.Tunnel{},
 		currentChange: latestChangeAt,
-		quit:          make(chan interface{}),
-		background:    background,
-	}
-
-	err = s.serve(ctx, l)
+		tunnels:       make(map[string]*wg.Tunnel),
+	}).serve(ctx, l)
 
 	return
 }
 
-func bind() (net.Listener, error) {
-	socket := agent.PathToSocket()
-
+func bind(socket string) (net.Listener, error) {
 	if err := removeSocket(socket); err != nil {
 		return nil, fmt.Errorf("failed removing existing socket: %w", err)
 	}
@@ -75,43 +79,28 @@ func bind() (net.Listener, error) {
 	return l, nil
 }
 
-func latestChange() (at time.Time, err error) {
+func latestChange(path string) (at time.Time, err error) {
 	var info os.FileInfo
-	if info, err = os.Stat(flyctl.ConfigFilePath()); err != nil {
+	switch info, err = os.Stat(path); err {
+	default:
 		err = fmt.Errorf("can't stat config file: %w", err)
-
-		return
+	case nil:
+		at = info.ModTime()
 	}
-
-	at = info.ModTime()
 
 	return
 }
 
-var ErrTunnelUnavailable = errors.New("tunnel unavailable")
-
 type server struct {
-	logger        *log.Logger
-	listener      net.Listener
-	tunnels       map[string]*wg.Tunnel
-	client        *api.Client
-	lock          sync.Mutex
+	Options
+
+	listener   net.Listener
+	client     *api.Client
+	background bool
+
+	mu            sync.Mutex
 	currentChange time.Time
-	quit          chan interface{}
-	wg            sync.WaitGroup
-	background    bool
-}
-
-type handlerFunc func(*server, context.Context, net.Conn, []string) error
-
-var handlers = map[string]handlerFunc{
-	"kill":      (*server).handleKill,
-	"ping":      (*server).handlePing,
-	"connect":   (*server).handleConnect,
-	"probe":     (*server).handleProbe,
-	"establish": (*server).handleEstablish,
-	"instances": (*server).handleInstances,
-	"resolve":   (*server).handleResolve,
+	tunnels       map[string]*wg.Tunnel
 }
 
 var errShutdown = errors.New("shutdown")
@@ -178,6 +167,18 @@ func (s *server) serve(parent context.Context, l net.Listener) (err error) {
 	return
 }
 
+type handlerFunc func(*server, context.Context, net.Conn, []string) error
+
+var handlers = map[string]handlerFunc{
+	"kill":      (*server).handleKill,
+	"ping":      (*server).handlePing,
+	"connect":   (*server).handleConnect,
+	"probe":     (*server).handleProbe,
+	"establish": (*server).handleEstablish,
+	"instances": (*server).handleInstances,
+	"resolve":   (*server).handleResolve,
+}
+
 func (s *server) handle(ctx context.Context, conn net.Conn) {
 	info, err := os.Stat(flyctl.ConfigFilePath())
 	if err != nil {
@@ -217,7 +218,7 @@ func (s *server) handle(ctx context.Context, conn net.Conn) {
 func (s *server) error(c net.Conn, err error) {
 	_ = proto.Write(c, "err", err.Error())
 
-	s.logger.Print(err)
+	s.print(err)
 }
 
 func (s *server) handleKill(context.Context, net.Conn, []string) error {
@@ -279,8 +280,8 @@ func buildTunnel(client *api.Client, org *api.Organization) (*wg.Tunnel, error) 
 }
 
 func (s *server) handleEstablish(ctx context.Context, conn net.Conn, args []string) (err error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	if len(args) != 2 {
 		err = errors.New("malformed establish command")
@@ -316,6 +317,8 @@ func (s *server) handleEstablish(ctx context.Context, conn net.Conn, args []stri
 
 	return
 }
+
+var ErrTunnelUnavailable = errors.New("tunnel unavailable")
 
 func probeTunnel(ctx context.Context, tunnel *wg.Tunnel) (err error) {
 	terminal.Debugf("Probing WireGuard connectivity\n")
@@ -503,8 +506,8 @@ func (s *server) handleConnect(ctx context.Context, conn net.Conn, args []string
 }
 
 func (s *server) tunnelFor(slug string) (*wg.Tunnel, error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	tunnel, ok := s.tunnels[slug]
 	if !ok {
@@ -516,8 +519,8 @@ func (s *server) tunnelFor(slug string) (*wg.Tunnel, error) {
 
 // validateTunnels closes any active tunnel that isn't in the wire_guard_state config
 func (s *server) validateTunnels() error {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	peers, err := wireguard.GetWireGuardState()
 	if err != nil {
@@ -586,11 +589,11 @@ func resolve(tunnel *wg.Tunnel, addr string) (string, error) {
 }
 
 func (s *server) print(v ...interface{}) {
-	s.logger.Print(v...)
+	s.Logger.Print(v...)
 }
 
 func (s *server) printf(format string, v ...interface{}) {
-	s.logger.Printf(format, v...)
+	s.Logger.Printf(format, v...)
 }
 
 func removeSocket(path string) (err error) {

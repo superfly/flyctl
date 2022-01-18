@@ -65,16 +65,7 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 	return nil, nil
 }
 
-func DefaultClient(ctx context.Context) (*Client, error) {
-	return newClient(ctx, "unix", PathToSocket())
-}
-
-const (
-	timeout = 2 * time.Second
-	cycle   = time.Second / 10
-)
-
-func newClient(ctx context.Context, network, addr string) (client *Client, err error) {
+func NewClient(ctx context.Context, network, addr string) (client *Client, err error) {
 	client = &Client{
 		network: network,
 		address: addr,
@@ -86,6 +77,16 @@ func newClient(ctx context.Context, network, addr string) (client *Client, err e
 
 	return
 }
+
+// TODO: deprecate
+func DefaultClient(ctx context.Context) (*Client, error) {
+	return NewClient(ctx, "unix", PathToSocket())
+}
+
+const (
+	timeout = 2 * time.Second
+	cycle   = time.Second / 10
+)
 
 type Client struct {
 	network string
