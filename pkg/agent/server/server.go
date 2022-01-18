@@ -1,41 +1,33 @@
 package server
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"log"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/azazeal/pause"
-	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/superfly/flyctl/pkg/agent"
-	"github.com/superfly/flyctl/pkg/agent/internal/proto"
 	"github.com/superfly/flyctl/pkg/wg"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/wireguard"
-	"github.com/superfly/flyctl/terminal"
 )
 
 type Options struct {
-	Socket         string
-	Logger         *log.Logger
-	Client         *api.Client
-	Background     bool
-	ConfigFilePath string
+	Socket     string
+	Logger     *log.Logger
+	Client     *api.Client
+	Background bool
+	ConfigFile string
 }
 
 func Run(ctx context.Context, opt Options) (err error) {
@@ -48,7 +40,7 @@ func Run(ctx context.Context, opt Options) (err error) {
 	// s.server will close the listener
 
 	var latestChangeAt time.Time
-	if latestChangeAt, err = latestChange(opt.ConfigFilePath); err != nil {
+	if latestChangeAt, err = latestChange(opt.ConfigFile); err != nil {
 		_ = l.Close()
 
 		opt.Logger.Print(err)
@@ -94,9 +86,7 @@ func latestChange(path string) (at time.Time, err error) {
 type server struct {
 	Options
 
-	listener   net.Listener
-	client     *api.Client
-	background bool
+	listener net.Listener
 
 	mu            sync.Mutex
 	currentChange time.Time
@@ -111,7 +101,7 @@ func (s *server) serve(parent context.Context, l net.Listener) (err error) {
 	eg.Go(func() error {
 		<-ctx.Done()
 
-		if err := l.Close(); err != nil {
+		if err := l.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			s.printf("failed closing listener: %v", err)
 		}
 
@@ -138,7 +128,11 @@ func (s *server) serve(parent context.Context, l net.Listener) (err error) {
 						}
 					}()
 
-					s.handle(ctx, conn)
+					(&session{
+						srv:  s,
+						conn: conn,
+					}).run(ctx)
+
 					return nil
 				})
 
@@ -167,211 +161,109 @@ func (s *server) serve(parent context.Context, l net.Listener) (err error) {
 	return
 }
 
-type handlerFunc func(*server, context.Context, net.Conn, []string) error
-
-var handlers = map[string]handlerFunc{
-	"kill":      (*server).handleKill,
-	"ping":      (*server).handlePing,
-	"connect":   (*server).handleConnect,
-	"probe":     (*server).handleProbe,
-	"establish": (*server).handleEstablish,
-	"instances": (*server).handleInstances,
-	"resolve":   (*server).handleResolve,
-}
-
-func (s *server) handle(ctx context.Context, conn net.Conn) {
-	info, err := os.Stat(flyctl.ConfigFilePath())
-	if err != nil {
-		err = fmt.Errorf("can't stat config file: %w", err)
-
-		s.error(conn, err)
-		return
-	}
-
-	latestChange := info.ModTime()
-
-	if latestChange.After(s.currentChange) {
-		s.currentChange = latestChange
-		if err := s.validateTunnels(); err != nil {
-			s.error(conn, fmt.Errorf("can't validate peers: %w", err))
-		}
-		s.printf("config change at: %v", s.currentChange)
-	}
-
-	buf, err := proto.Read(conn)
-	if err != nil {
-		s.printf("failed reading command: %v", err)
-
-		return
-	}
-
-	args := strings.Split(string(buf), " ")
-	s.printf("received command: %v", args)
-
-	if fn := handlers[args[0]]; fn == nil {
-		s.error(conn, fmt.Errorf("unknown command: %v", args))
-	} else {
-		fn(s, ctx, conn, args)
-	}
-}
-
-func (s *server) error(c net.Conn, err error) {
-	_ = proto.Write(c, "err", err.Error())
-
-	s.print(err)
-}
-
-func (s *server) handleKill(context.Context, net.Conn, []string) error {
+func (s *server) shutdown() {
 	_ = s.listener.Close()
-
-	return nil
 }
 
-func (s *server) handlePing(ctx context.Context, conn net.Conn, _ []string) (err error) {
-	resp := agent.PingResponse{
-		Version:    buildinfo.Version(),
-		PID:        os.Getpid(),
-		Background: s.background,
-	}
-
-	var data []byte
-	if data, err = json.Marshal(resp); err != nil {
-		err = fmt.Errorf("failed marshaling ping response: %w", err)
-	} else {
-		err = proto.Write(conn, "pong", string(data))
-	}
-
-	return
-}
-
-func findOrganization(ctx context.Context, client *api.Client, slug string) (*api.Organization, error) {
-	orgs, err := client.GetOrganizations(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("can't load organizations from config: %w", err)
-	}
-
-	var org *api.Organization
-	for _, o := range orgs {
-		if o.Slug == slug {
-			org = &o
-			break
-		}
-	}
-
-	if org == nil {
-		return nil, errors.New("no such organization")
-	}
-
-	return org, nil
-}
-
-func buildTunnel(client *api.Client, org *api.Organization) (*wg.Tunnel, error) {
-	state, err := wireguard.StateForOrg(client, org, "", "")
-	if err != nil {
-		return nil, fmt.Errorf("can't get wireguard state for %s: %w", org.Slug, err)
-	}
-
-	tunnel, err := wg.Connect(state)
-	if err != nil {
-		return nil, fmt.Errorf("can't connect wireguard: %w", err)
-	}
-
-	return tunnel, nil
-}
-
-func (s *server) handleEstablish(ctx context.Context, conn net.Conn, args []string) (err error) {
+func (s *server) checkForConfigChange() (err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if len(args) != 2 {
-		err = errors.New("malformed establish command")
+	var at time.Time
+	if at, err = latestChange(s.ConfigFile); err != nil {
+		err = fmt.Errorf("can't stat config file: %w", err)
 
 		return
 	}
 
-	var org *api.Organization
-	if org, err = findOrganization(ctx, s.client, args[1]); err != nil {
-		return
-	}
+	if at.After(s.currentChange) {
+		s.currentChange = at
 
-	tunnel, ok := s.tunnels[org.Slug]
-	if !ok {
-		tunnel, err = buildTunnel(s.client, org)
-		if err != nil {
-			return err
+		if err = s.validateTunnelsUnlocked(); err != nil {
+			err = fmt.Errorf("can't validate peers: %w", err)
+		} else {
+			s.printf("config change at: %v", s.currentChange)
 		}
-		s.tunnels[org.Slug] = tunnel
-	}
-
-	resp := agent.EstablishResponse{
-		WireGuardState: tunnel.State,
-		TunnelConfig:   tunnel.Config,
-	}
-
-	var data []byte
-	if data, err = json.Marshal(resp); err != nil {
-		err = fmt.Errorf("failed marshaling establish response: %w", err)
-	} else {
-		err = proto.Write(conn, "ok", string(data))
 	}
 
 	return
 }
 
-var ErrTunnelUnavailable = errors.New("tunnel unavailable")
+var errNoSuchOrg = errors.New("no such organization")
 
-func probeTunnel(ctx context.Context, tunnel *wg.Tunnel) (err error) {
-	terminal.Debugf("Probing WireGuard connectivity\n")
+func (s *server) findOrganization(ctx context.Context, slug string) (org *api.Organization, err error) {
+	var orgs []api.Organization
+	switch orgs, err = s.Client.GetOrganizations(ctx, nil); err {
+	default:
+		err = fmt.Errorf("failed fetching organizations: %w", err)
+	case nil:
+		for _, o := range orgs {
+			if o.Slug == slug {
+				org = &o
+				break
+			}
+		}
+
+	}
+
+	return
+}
+
+func (s *server) buildTunnel(org *api.Organization) (tunnel *wg.Tunnel, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if tunnel = s.tunnels[org.Slug]; tunnel != nil {
+		return
+	}
+
+	var state *wg.WireGuardState
+	if state, err = wireguard.StateForOrg(s.Client, org, "", ""); err != nil {
+		err = fmt.Errorf("can't get wireguard state for %s: %w", org.Slug, err)
+
+		return
+	}
+
+	if tunnel, err = wg.Connect(state); err != nil {
+		err = fmt.Errorf("can't connect wireguard: %w", err)
+
+		return
+	}
+
+	s.tunnels[org.Slug] = tunnel
+
+	return
+}
+
+type errTunnelUnavailable struct {
+	error
+}
+
+func (*errTunnelUnavailable) Error() string {
+	return "tunnel unavailable"
+}
+
+func (err *errTunnelUnavailable) Unwrap() error {
+	return err.error
+}
+
+func probeTunnel(ctx context.Context, logger *log.Logger, tunnel *wg.Tunnel) (err error) {
+	logger.Println("probing WireGuard connectivity ...")
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	results, err := tunnel.LookupTXT(ctx, "_apps.internal")
-	terminal.Debug("probe results for _apps.internal", results)
-
-	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			return ErrTunnelUnavailable
-		}
-		return errors.Wrap(err, "error probing for _apps.internal")
+	var results []string
+	switch results, err = tunnel.LookupTXT(ctx, "_apps.internal"); {
+	case err == nil:
+		logger.Printf("probe results for _apps.internal: %v", results)
+	case errors.Is(err, context.DeadlineExceeded):
+		err = &errTunnelUnavailable{err}
+	default:
+		err = fmt.Errorf("failed probing for _apps.internal: %w", err)
 	}
 
-	return nil
-}
-
-func (s *server) handleProbe(ctx context.Context, c net.Conn, args []string) error {
-	tunnel, err := s.tunnelFor(args[1])
-	if err != nil {
-		return fmt.Errorf("probe: can't build tunnel: %s", err)
-	}
-
-	if err := probeTunnel(context.Background(), tunnel); err != nil {
-		return err
-	}
-
-	proto.Write(c, "ok")
-
-	return nil
-}
-
-func (s *server) handleResolve(ctx context.Context, conn net.Conn, args []string) error {
-	if len(args) != 3 {
-		return errors.New("malformed resolve command")
-	}
-
-	tunnel, err := s.tunnelFor(args[1])
-	if err != nil {
-		return fmt.Errorf("resolve: can't build tunnel: %s", err)
-	}
-
-	resp, err := resolve(tunnel, args[2])
-	if err != nil {
-		return err
-	}
-
-	proto.Write(conn, "ok", resp)
-
-	return nil
+	return
 }
 
 func (s *server) fetchInstances(ctx context.Context, tunnel *wg.Tunnel, app string) (*agent.Instances, error) {
@@ -418,110 +310,47 @@ func (s *server) fetchInstances(ctx context.Context, tunnel *wg.Tunnel, app stri
 	return ret, nil
 }
 
-func (s *server) handleInstances(ctx context.Context, c net.Conn, args []string) error {
-	tunnel, err := s.tunnelFor(args[1])
-	if err != nil {
-		return fmt.Errorf("instance list: can't build tunnel: %w", err)
-	}
-
-	app := args[2]
-
-	ret, err := s.fetchInstances(ctx, tunnel, app)
-	if err != nil {
-		return err
-	}
-
-	if len(ret.Addresses) == 0 {
-		return fmt.Errorf("no running hosts for %s found", app)
-	}
-
-	var out bytes.Buffer
-	if err := json.NewEncoder(&out).Encode(&ret); err != nil {
-		panic(err)
-	}
-
-	return proto.Write(c, "ok", out.String())
-}
-
-func (s *server) handleConnect(ctx context.Context, conn net.Conn, args []string) error {
-	s.printf("incoming connect: %v", args)
-
-	if len(args) < 3 || len(args) > 4 {
-		return fmt.Errorf("connect: malformed connect command: %v", args)
-	}
-
-	tunnel, err := s.tunnelFor(args[1])
-	if err != nil {
-		return fmt.Errorf("connect: can't build tunnel: %s", err)
-	}
-
-	address, err := resolve(tunnel, args[2])
-	if err != nil {
-		return fmt.Errorf("connect: can't resolve address '%s': %s", args[2], err)
-	}
-
-	var cancel func() = func() {}
-
-	if len(args) > 3 {
-		timeout, err := strconv.ParseUint(args[3], 10, 32)
-		if err != nil {
-			return fmt.Errorf("connect: invalid timeout: %s", err)
-		}
-
-		if timeout != 0 {
-			ctx, cancel = context.WithTimeout(ctx, time.Duration(timeout)*time.Millisecond)
-		}
-	}
-
-	outconn, err := tunnel.DialContext(ctx, "tcp", address)
-	if err != nil {
-		cancel()
-		return fmt.Errorf("connection failed: %s", err)
-	}
-
-	cancel()
-
-	defer outconn.Close()
-
-	proto.Write(conn, "ok")
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	copyFunc := func(dst net.Conn, src net.Conn) {
-		defer wg.Done()
-		io.Copy(dst, src)
-
-		// close the write half if it exports a CloseWrite() method
-		if conn, ok := dst.(ClosableWrite); ok {
-			conn.CloseWrite()
-		}
-	}
-
-	go copyFunc(conn, outconn)
-	go copyFunc(outconn, conn)
-	wg.Wait()
-
-	return nil
-}
-
-func (s *server) tunnelFor(slug string) (*wg.Tunnel, error) {
+func (s *server) tunnelFor(slug string) (t *wg.Tunnel, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	tunnel, ok := s.tunnels[slug]
-	if !ok {
-		return nil, fmt.Errorf("no tunnel for %s established", slug)
+	if t = s.tunnels[slug]; t == nil {
+		err = fmt.Errorf("no tunnel for %q found", slug)
 	}
 
-	return tunnel, nil
+	return
 }
 
-// validateTunnels closes any active tunnel that isn't in the wire_guard_state config
+func (s *server) probeTunnel(ctx context.Context, slug string) (err error) {
+	var tunnel *wg.Tunnel
+	if tunnel, err = s.tunnelFor(slug); err != nil {
+		return
+	}
+
+	s.printf("probing %q ...", slug)
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	var results []string
+	switch results, err = tunnel.LookupTXT(ctx, "_apps.internal"); err {
+	default:
+		err = fmt.Errorf("failed probing %q: %w", slug, err)
+	case nil:
+		s.printf("%q probed: %v", slug, results)
+	}
+
+	return
+}
+
 func (s *server) validateTunnels() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	return s.validateTunnelsUnlocked()
+}
+
+func (s *server) validateTunnelsUnlocked() error {
 	peers, err := wireguard.GetWireGuardState()
 	if err != nil {
 		return err
@@ -529,10 +358,14 @@ func (s *server) validateTunnels() error {
 
 	for slug, tunnel := range s.tunnels {
 		if peers[slug] == nil {
-			s.printf("no peer for %s in config - closing tunnel", slug)
-
-			tunnel.Close()
 			delete(s.tunnels, slug)
+
+			s.printf("no peer for %s in config - closing tunnel ...", slug)
+
+			if err := tunnel.Close(); err != nil {
+				s.printf("failed closing tunnel: %v", err)
+			}
+
 		}
 	}
 
@@ -545,7 +378,7 @@ func (s *server) clean(ctx context.Context) {
 			break
 		}
 
-		if err := wireguard.PruneInvalidPeers(ctx, s.client); err != nil {
+		if err := wireguard.PruneInvalidPeers(ctx, s.Client); err != nil {
 			s.printf("failed pruning invalid peers: %v", err)
 		}
 
@@ -553,7 +386,7 @@ func (s *server) clean(ctx context.Context) {
 			s.printf("failed validating tunnels: %v", err)
 		}
 
-		s.printf("validated wireguard peers(stat)")
+		s.print("validated wireguard peers")
 	}
 }
 

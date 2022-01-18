@@ -349,7 +349,6 @@ func (d *dialer) DialContext(ctx context.Context, network, addr string) (conn ne
 	defer func() {
 		if err != nil {
 			_ = conn.Close()
-			conn = nil
 		}
 	}()
 

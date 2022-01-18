@@ -28,10 +28,11 @@ func newRun() (cmd *cobra.Command) {
 		long  = short + "\n"
 	)
 
-	cmd = command.New("daemon-start", short, long, run)
+	cmd = command.New("run", short, long, run)
 
 	cmd.Hidden = true
 	cmd.Args = cobra.MaximumNArgs(1)
+	cmd.Aliases = []string{"daemon-start"}
 
 	return
 }
@@ -71,11 +72,11 @@ func run(ctx context.Context) error {
 	defer agent.RemovePidFile(logger)
 
 	opt := server.Options{
-		Socket:         socketPath(ctx),
-		Logger:         logger,
-		Client:         apiClient.API(),
-		Background:     logPath != "",
-		ConfigFilePath: state.ConfigFile(ctx),
+		Socket:     socketPath(ctx),
+		Logger:     logger,
+		Client:     apiClient.API(),
+		Background: logPath != "",
+		ConfigFile: state.ConfigFile(ctx),
 	}
 
 	return server.Run(ctx, opt)
