@@ -259,15 +259,18 @@ func (p *Launch) setSecrets(ctx context.Context) (map[string]string, error) {
 	var suPassword, replPassword, opPassword string
 	var err error
 
-	if suPassword, err = helpers.RandString(15); err != nil {
+	suPassword, err = helpers.RandString(15)
+	if err != nil {
 		return nil, err
 	}
 
-	if replPassword, err = helpers.RandString(15); err != nil {
+	replPassword, err = helpers.RandString(15)
+	if err != nil {
 		return nil, err
 	}
 
-	if opPassword, err = helpers.RandString(15); err != nil {
+	opPassword, err = helpers.RandString(15)
+	if err != nil {
 		return nil, err
 	}
 
