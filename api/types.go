@@ -37,8 +37,8 @@ type Query struct {
 		VMSizes       []VMSize
 	}
 
-	NearestRegion *Region
-
+	NearestRegion  *Region
+	LatestImageTag string
 	// aliases & nodes
 
 	TemplateDeploymentNode *TemplateDeployment
@@ -182,6 +182,8 @@ type Query struct {
 	CreatePostgresCluster *CreatePostgresClusterPayload
 
 	AttachPostgresCluster *AttachPostgresClusterPayload
+
+	EnablePostgresConsul *PostgresEnableConsulPayload
 
 	CreateOrganizationInvitation CreateOrganizationInvitation
 
@@ -552,6 +554,7 @@ type CreateAppInput struct {
 	Name            string  `json:"name"`
 	PreferredRegion *string `json:"preferredRegion,omitempty"`
 	Network         *string `json:"network,omitempty"`
+	AppRoleID       string  `json:"appRoleId,omitempty"`
 }
 
 type LogEntry struct {
@@ -1065,6 +1068,10 @@ type AttachPostgresClusterPayload struct {
 	PostgresClusterApp      App
 	ConnectionString        string
 	EnvironmentVariableName string
+}
+
+type PostgresEnableConsulPayload struct {
+	ConsulURL string `json:"consulUrl"`
 }
 
 type EnsureRemoteBuilderInput struct {

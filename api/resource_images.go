@@ -35,3 +35,20 @@ func (client *Client) GetImageInfo(ctx context.Context, appName string) (*App, e
 
 	return &data.App, nil
 }
+
+func (client *Client) GetLatestImageTag(ctx context.Context, repository string) (string, error) {
+	query := `
+		query($repository: String!) {
+			latestImageTag(repository: $repository) 
+		}
+	`
+	req := client.NewRequest(query)
+	req.Var("repository", repository)
+
+	data, err := client.RunWithContext(ctx, req)
+	if err != nil {
+		return "", err
+	}
+
+	return data.LatestImageTag, nil
+}

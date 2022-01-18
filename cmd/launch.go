@@ -13,7 +13,6 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
-
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
