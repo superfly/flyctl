@@ -208,7 +208,7 @@ func (s *session) resolve(ctx context.Context, args ...string) {
 		return
 	}
 
-	resp, err := resolve(tunnel, args[1])
+	resp, err := resolve(ctx, tunnel, args[1])
 	if err != nil {
 		s.error(err)
 
@@ -237,7 +237,7 @@ func (s *session) connect(ctx context.Context, args ...string) {
 		return
 	}
 
-	address, err := resolve(tunnel, args[2])
+	address, err := resolve(ctx, tunnel, args[2])
 	if err != nil {
 		err = fmt.Errorf("connect: can't resolve address %q: %w", args[2], err)
 		s.error(err)
