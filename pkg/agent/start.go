@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/terminal"
+	"github.com/superfly/flyctl/internal/logger"
 )
 
 var (
@@ -34,7 +34,9 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 		return nil, fmt.Errorf("failed starting agent process: %w", err)
 	}
 
-	terminal.Debug("started agent process ", cmd.Process.Pid)
+	if logger := logger.MaybeFromContext(ctx); logger != nil {
+		logger.Infof("started agent process (PID: %d)", cmd.Process.Pid)
+	}
 
 	switch client, err := waitForClient(ctx); {
 	case err == nil:

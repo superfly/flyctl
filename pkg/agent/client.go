@@ -20,6 +20,7 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/wireguard"
 )
 
@@ -45,7 +46,11 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 
 	// TOOD: log this instead
 	msg := fmt.Sprintf("flyctl version %s does not match agent version %s", buildinfo.Version(), res.Version)
-	fmt.Fprintln(os.Stderr, msg)
+	if logger := logger.MaybeFromContext(ctx); logger != nil {
+		logger.Warn(msg)
+	} else {
+		fmt.Fprintln(os.Stderr, msg)
+	}
 
 	if !res.Background {
 		return c, nil
