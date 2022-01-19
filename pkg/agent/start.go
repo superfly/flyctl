@@ -26,7 +26,7 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 		return nil, err
 	}
 
-	cmd := exec.Command(os.Args[0], "agent", "daemon-start", "background", logFile)
+	cmd := exec.Command(os.Args[0], "agent", "daemon-start", logFile)
 	cmd.Env = append(os.Environ(), "FLY_NO_UPDATE_CHECK=1")
 	setCommandFlags(cmd)
 
