@@ -18,11 +18,10 @@ import (
 
 func newConnect() (cmd *cobra.Command) {
 	const (
-		// TODO: document command
 		long = `
-			Connect to postgres instance.
+			Connect to the Postgres console
 		`
-		short = "Establishs a session with Postgres"
+		short = "Connect to the Postgres console"
 		usage = "connect [APPNAME]"
 	)
 
@@ -91,5 +90,4 @@ func runConnect(ctx context.Context) error {
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}, addr)
-
 }
