@@ -10,7 +10,6 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/command/ssh"
-
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/pkg/agent"
@@ -72,7 +71,7 @@ func runConnect(ctx context.Context) error {
 
 	dialer, err := agentclient.Dialer(ctx, &app.Organization)
 	if err != nil {
-		return fmt.Errorf("failed to build tunnel for %s. %v", app.Organization.Slug, err)
+		return fmt.Errorf("failed to build tunnel for %s: %v", app.Organization.Slug, err)
 	}
 
 	database := flag.GetString(ctx, "database")

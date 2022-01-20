@@ -11,10 +11,10 @@ import (
 	"os"
 	"time"
 
-	sshCrypt "golang.org/x/crypto/ssh"
-
 	"github.com/briandowns/spinner"
 	"github.com/pkg/errors"
+	sshCrypt "golang.org/x/crypto/ssh"
+
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/client"
@@ -70,7 +70,7 @@ func SSHConnect(p *SSHParams, addr string) error {
 		return errors.Wrap(err, "parse ssh certificate")
 	}
 
-	pemkey := MarshalED25519PrivateKey(pk, "single-use certificate")
+	pemkey := marshalED25519PrivateKey(pk, "single-use certificate")
 
 	terminal.Debugf("Keys for %s configured; connecting...\n", addr)
 
@@ -117,7 +117,7 @@ func SSHConnect(p *SSHParams, addr string) error {
 }
 
 // // stolen from `mikesmitty`, thanks, you are a mikesmitty and a scholar
-func MarshalED25519PrivateKey(key ed25519.PrivateKey, comment string) []byte {
+func marshalED25519PrivateKey(key ed25519.PrivateKey, comment string) []byte {
 	magic := append([]byte("openssh-key-v1"), 0)
 
 	var w struct {
