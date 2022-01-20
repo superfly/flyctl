@@ -223,17 +223,13 @@ func (p *Launch) configurePostgres() (*api.MachineConfig, error) {
 		return nil, err
 	}
 
-	var mounts []api.MachineMount
 	mount := api.MachineMount{
 		Volume:    fmt.Sprintf("pg_data_%s", volumeHash),
 		SizeGb:    p.config.VolumeSize,
 		Encrypted: false,
 		Path:      "/data",
 	}
-
-	mounts = append(mounts, mount)
-
-	machineConfig.Mounts = mounts
+	machineConfig.Mounts = append(machineConfig.Mounts, mount)
 
 	return &machineConfig, nil
 }
