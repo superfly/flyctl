@@ -1010,6 +1010,10 @@ usage = "update [name] [file]"
 longHelp = """Commands that manage machines"""
 shortHelp = "Commands that manage machines"
 usage = "machine <command>"
+[machine.clone]
+longHelp = "Clone a fly machine"
+shortHelp = "Clone a fly machine"
+usage = "clone"
 [machine.run]
 longHelp = "Launch Fly machine with the provided image and command"
 shortHelp = "Launch a Fly machine"
