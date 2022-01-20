@@ -246,7 +246,7 @@ func (c *Client) Probe(ctx context.Context, slug string) error {
 		}
 
 		if err = hasPrefix(data, "err "); err == nil {
-			err = errors.New(string(data[4:]))
+			err = mapError(errors.New(string(data[4:])), slug, "")
 		} else {
 			err = errInvalidResponse(data)
 		}

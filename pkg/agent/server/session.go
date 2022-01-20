@@ -159,9 +159,9 @@ func (s *session) instances(ctx context.Context, args ...string) {
 		return
 	}
 
-	tunnel, err := s.srv.tunnelFor(args[0])
-	if err != nil {
-		s.error(err)
+	tunnel := s.srv.tunnelFor(args[0])
+	if tunnel == nil {
+		s.error(errTunnelUnavailable)
 
 		return
 	}
@@ -201,9 +201,9 @@ func (s *session) resolve(ctx context.Context, args ...string) {
 		return
 	}
 
-	tunnel, err := s.srv.tunnelFor(args[0])
-	if err != nil {
-		s.error(err)
+	tunnel := s.srv.tunnelFor(args[0])
+	if tunnel == nil {
+		s.error(errTunnelUnavailable)
 
 		return
 	}
@@ -229,10 +229,9 @@ func (s *session) connect(ctx context.Context, args ...string) {
 	}
 	s.srv.printf("incoming connect: %v", args)
 
-	tunnel, err := s.srv.tunnelFor(args[1])
-	if err != nil {
-		err = fmt.Errorf("connect: can't build tunnel: %w", err)
-		s.error(err)
+	tunnel := s.srv.tunnelFor(args[1])
+	if tunnel == nil {
+		s.error(errTunnelUnavailable)
 
 		return
 	}

@@ -235,18 +235,6 @@ func (s *server) buildTunnel(org *api.Organization) (tunnel *wg.Tunnel, err erro
 	return
 }
 
-type errTunnelUnavailable struct {
-	error
-}
-
-func (*errTunnelUnavailable) Error() string {
-	return "tunnel unavailable"
-}
-
-func (err *errTunnelUnavailable) Unwrap() error {
-	return err.error
-}
-
 func probeTunnel(ctx context.Context, logger *log.Logger, tunnel *wg.Tunnel) (err error) {
 	logger.Println("probing WireGuard connectivity ...")
 
@@ -258,7 +246,7 @@ func probeTunnel(ctx context.Context, logger *log.Logger, tunnel *wg.Tunnel) (er
 	case err == nil:
 		logger.Printf("probe results for _apps.internal: %v", results)
 	case errors.Is(err, context.DeadlineExceeded):
-		err = &errTunnelUnavailable{err}
+		err = errTunnelUnavailable
 	default:
 		err = fmt.Errorf("failed probing for _apps.internal: %w", err)
 	}
@@ -310,20 +298,20 @@ func (s *server) fetchInstances(ctx context.Context, tunnel *wg.Tunnel, app stri
 	return ret, nil
 }
 
-func (s *server) tunnelFor(slug string) (t *wg.Tunnel, err error) {
+func (s *server) tunnelFor(slug string) *wg.Tunnel {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if t = s.tunnels[slug]; t == nil {
-		err = fmt.Errorf("no tunnel for %q found", slug)
-	}
-
-	return
+	return s.tunnels[slug]
 }
 
+var errTunnelUnavailable = errors.New("tunnel unavailable")
+
 func (s *server) probeTunnel(ctx context.Context, slug string) (err error) {
-	var tunnel *wg.Tunnel
-	if tunnel, err = s.tunnelFor(slug); err != nil {
+	tunnel := s.tunnelFor(slug)
+	if tunnel == nil {
+		err = errTunnelUnavailable
+
 		return
 	}
 
