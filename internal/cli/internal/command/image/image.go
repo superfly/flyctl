@@ -8,13 +8,15 @@ import (
 
 func New() *cobra.Command {
 	const (
-		long  = "Manage app image"
 		short = "Manage app image"
+		long  = short + "\n"
 
 		usage = "image"
 	)
 
 	cmd := command.New(usage, short, long, nil)
+
+	cmd.Args = cobra.NoArgs
 
 	cmd.Aliases = []string{"img"}
 

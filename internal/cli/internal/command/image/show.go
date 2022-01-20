@@ -7,19 +7,20 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/pkg/iostreams"
+
 	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func newShow() *cobra.Command {
 	const (
 		long  = "Show image details."
-		short = "Show image details."
+		short = long + "\n"
 
 		usage = "show"
 	)
@@ -48,7 +49,7 @@ func runShow(ctx context.Context) error {
 
 	app, err := client.GetImageInfo(ctx, appName)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get image info: %w", err)
 	}
 
 	if cfg.JSONOutput {
@@ -67,8 +68,10 @@ func runShow(ctx context.Context) error {
 			latest = fmt.Sprintf("%s %s", latest, app.LatestImageDetails.Version)
 		}
 
-		fmt.Fprintln(io.ErrOut, aurora.Yellow(fmt.Sprintf("Update available! (%s -> %s)", current, latest)))
-		fmt.Fprintln(io.ErrOut, aurora.Yellow("Run `fly image update` to migrate to the latest image version.\n"))
+		var message = fmt.Sprintf("Update available! (%s -> %s)\n", current, latest)
+		message += "Run `flyctl image update` to migrate to the latest image version.\n"
+
+		fmt.Fprintln(io.ErrOut, aurora.Yellow(message))
 	}
 
 	image := app.ImageDetails

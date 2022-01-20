@@ -22,8 +22,8 @@ import (
 func newUpdate() *cobra.Command {
 	const (
 		long = `This will update the application's image to the latest available version.
-The update will perform a rolling restart against each VM, which may result in a brief service disruption.
-		`
+The update will perform a rolling restart against each VM, which may result in a brief service disruption.`
+
 		short = "Updates the app's image to the latest available version. (Fly Postgres only)"
 
 		usage = "update"
@@ -56,7 +56,7 @@ func runUpdate(ctx context.Context) error {
 
 	app, err := client.GetImageInfo(ctx, appName)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get image info: %w", err)
 	}
 
 	if !app.ImageVersionTrackingEnabled {
@@ -102,7 +102,7 @@ func runUpdate(ctx context.Context) error {
 
 	fmt.Fprintf(io.Out, "Release v%d created\n", release.Version)
 	if releaseCommand != nil {
-		fmt.Fprintf(io.Out, "Release command detected: this new release will not be available until the command succeeds.\n")
+		fmt.Fprintln(io.Out, "Release command detected: this new release will not be available until the command succeeds.")
 	}
 
 	fmt.Fprintln(io.Out)
@@ -116,10 +116,10 @@ func runUpdate(ctx context.Context) error {
 		tb := render.NewTextBlock(ctx, fmt.Sprintf("Release command detected: %s\n", releaseCommand.Command))
 		tb.Done("This release will not be available until the release command succeeds.")
 
-		if err := watch.WatchReleaseCommand(ctx, releaseCommand.ID); err != nil {
+		if err := watch.ReleaseCommand(ctx, releaseCommand.ID); err != nil {
 			return err
 		}
 	}
 
-	return watch.WatchDeployment(ctx)
+	return watch.Deployment(ctx)
 }

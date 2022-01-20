@@ -27,7 +27,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyerr"
 )
 
-func WatchDeployment(ctx context.Context) error {
+func Deployment(ctx context.Context) error {
 	tb := render.NewTextBlock(ctx, "Monitoring deployment")
 
 	io := iostreams.FromContext(ctx)
@@ -146,7 +146,7 @@ func WatchDeployment(ctx context.Context) error {
 	return nil
 }
 
-func WatchReleaseCommand(ctx context.Context, id string) error {
+func ReleaseCommand(ctx context.Context, id string) error {
 	g, ctx := errgroup.WithContext(ctx)
 	io := iostreams.FromContext(ctx)
 	client := client.FromContext(ctx).API()
