@@ -247,14 +247,26 @@ type IssuedCertificate struct {
 type Definition map[string]interface{}
 
 type MachineConfig struct {
-	Env           map[string]string      `json:"env"`
-	Init          map[string]interface{} `json:"init"`
-	Image         string                 `json:"image"`
-	Metadata      map[string]string      `json:"metadata"`
-	Mounts        []MachineMount         `json:"mounts"`
-	RestartPolicy map[string]string      `json:"restart"`
-	Services      []interface{}          `json:"services"`
-	VMSize        string                 `json:"size"`
+	Env      map[string]string `json:"env"`
+	Init     MachineInit       `json:"init"`
+	Image    string            `json:"image"`
+	Metadata map[string]string `json:"metadata"`
+	Mounts   []MachineMount    `json:"mounts"`
+	Restart  MachineRestart    `json:"restart"`
+	Services []interface{}     `json:"services"`
+	VMSize   string            `json:"size"`
+}
+
+type MachineInit struct {
+	Exec       []string `json:"exec"`
+	Entrypoint []string `json:"entrypoint"`
+	Cmd        []string `json:"cmd"`
+	Tty        bool     `json:"tty"`
+}
+
+type MachineRestart struct {
+	Policy     string `json:"policy"`
+	MaxRetries int    `json:"max_retries"`
 }
 
 type MachineMount struct {

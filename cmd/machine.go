@@ -469,21 +469,17 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 		machineConf.VMSize = size
 	}
 
-	init := map[string]interface{}{}
-
 	if entrypoint := cmdCtx.Config.GetString("entrypoint"); entrypoint != "" {
 		splitted, err := shlex.Split(entrypoint)
 		if err != nil {
 			return errors.Wrap(err, "invalid entrypoint")
 		}
-		init["entrypoint"] = splitted
+		machineConf.Init.Entrypoint = splitted
 	}
 
 	if cmd := cmdCtx.Args[1:]; len(cmd) > 0 {
-		init["cmd"] = cmd
+		machineConf.Init.Cmd = cmd
 	}
-
-	machineConf.Init = init
 
 	svcs := make([]interface{}, len(cmdCtx.Config.GetStringSlice("port")))
 
