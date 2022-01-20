@@ -33,6 +33,7 @@ func newConnect() (cmd *cobra.Command) {
 
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 		flag.String{
 			Name:        "database",
 			Shorthand:   "d",
