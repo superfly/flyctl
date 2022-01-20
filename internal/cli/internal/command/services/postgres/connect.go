@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/command/ssh"
 
@@ -22,15 +22,17 @@ func newConnect() (cmd *cobra.Command) {
 			Connect to the Postgres console
 		`
 		short = "Connect to the Postgres console"
-		usage = "connect [APPNAME]"
+		usage = "connect"
 	)
 
 	cmd = command.New(usage, short, long, runConnect,
 		command.RequireSession,
+		command.RequireAppName,
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
 
 	flag.Add(cmd,
+		flag.App(),
 		flag.String{
 			Name:        "database",
 			Shorthand:   "d",
@@ -54,18 +56,17 @@ func newConnect() (cmd *cobra.Command) {
 }
 
 func runConnect(ctx context.Context) error {
+	appName := app.NameFromContext(ctx)
 	client := client.FromContext(ctx).API()
-
-	appName := flag.FirstArg(ctx)
 
 	app, err := client.GetApp(ctx, appName)
 	if err != nil {
-		return fmt.Errorf("get app: %w", err)
+		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
-		return errors.Wrap(err, "can't establish agent")
+		return fmt.Errorf("failed to establish agent: %w", err)
 	}
 
 	dialer, err := agentclient.Dialer(ctx, &app.Organization)
