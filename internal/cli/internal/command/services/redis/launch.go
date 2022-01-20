@@ -65,8 +65,8 @@ func runLaunch(ctx context.Context) (err error) {
 		OrgSlug: org.ID,
 		Region:  region.Code,
 		Config: &api.MachineConfig{
-			"image": "flyio/redis:6.2.6",
-			"env": map[string]string{
+			Image: "flyio/redis:6.2.6",
+			Env: map[string]string{
 				"REDIS_PASSWORD": password,
 			},
 		},

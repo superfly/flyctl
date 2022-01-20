@@ -12,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/segmentio/textio"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/client"
@@ -32,7 +33,7 @@ type CmdContext struct {
 	ConfigFile    string
 	AppName       string
 	AppConfig     *flyctl.AppConfig
-	MachineConfig *flyctl.MachineConfig
+	MachineConfig *api.MachineConfig
 }
 
 // PresenterOption - options for RenderEx, RenderView, render etc...
