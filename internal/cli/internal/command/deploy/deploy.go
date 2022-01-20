@@ -34,8 +34,8 @@ func New() (cmd *cobra.Command) {
 
 	cmd = command.New("deploy [WORKING_DIRECTORY]", short, long, run,
 		command.RequireSession,
-		command.SwapWorkingDirectoryIfRequired,
 		command.RequireAppName,
+		command.WorkingDirIsFirsArg,
 	)
 
 	cmd.Args = cobra.MaximumNArgs(1)
