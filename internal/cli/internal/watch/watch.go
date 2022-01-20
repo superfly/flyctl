@@ -14,7 +14,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/pkg/logs"
 
@@ -85,7 +84,6 @@ func Deployment(ctx context.Context) error {
 					defer wg.Done()
 					alloc, err := client.GetAllocationStatus(ctx, appName, a.ID, 30)
 					if err != nil {
-						//cmdCtx.Status("deploy", cmdctx.SERROR, "Error fetching alloc", a.ID, err)
 						tb.Printf("failed fetching alloc %s: %s", a.ID, err)
 
 						return
@@ -266,12 +264,6 @@ func renderLogs(ctx context.Context, alloc *api.AllocationStatus) {
 	out := iostreams.FromContext(ctx).Out
 	cfg := config.FromContext(ctx).JSONOutput
 
-	logPresenter := presenters.LogPresenter{
-		HideAllocID:    true,
-		HideRegion:     true,
-		RemoveNewlines: true,
-	}
-
 	for _, e := range alloc.RecentLogs {
 		entry := logs.LogEntry{
 			Instance:  e.Instance,
@@ -282,6 +274,12 @@ func renderLogs(ctx context.Context, alloc *api.AllocationStatus) {
 			Meta:      e.Meta,
 		}
 
-		logPresenter.FPrint(out, cfg, entry)
+		render.LogEntry(
+			out,
+			entry,
+			render.JSONFormat(cfg),
+			render.HideAllocID(),
+			render.HideRegion(),
+		)
 	}
 }
