@@ -22,10 +22,7 @@ func newResolve() (cmd *cobra.Command) {
 		usage = "resolve <slug> <app> <instance-id>"
 	)
 
-	cmd = command.New(usage, short, long, runResolve,
-		command.RequireSession,
-	)
-
+	cmd = command.New(usage, short, long, runResolve)
 	cmd.Args = cobra.ExactArgs(3)
 
 	return
