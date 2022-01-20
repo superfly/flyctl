@@ -522,14 +522,14 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 	machineConf.Services = svcs
 
 	var mounts []api.MachineMount
-	// mounts := make([]interface{}, len(cmdCtx.Config.GetStringSlice("volume")))
 
-	for i, v := range cmdCtx.Config.GetStringSlice("volume") {
-		vol := api.MachineMount{}
+	for _, v := range cmdCtx.Config.GetStringSlice("volume") {
 		splittedIDDestOpts := strings.Split(v, ":")
 
-		vol.Volume = splittedIDDestOpts[0]
-		vol.Path = splittedIDDestOpts[1]
+		mount := api.MachineMount{
+			Volume: splittedIDDestOpts[0],
+			Path:   splittedIDDestOpts[1],
+		}
 
 		if len(splittedIDDestOpts) > 2 {
 			splittedOpts := strings.Split(splittedIDDestOpts[2], ",")
@@ -540,19 +540,17 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 					if err != nil {
 						return errors.Wrapf(err, "could not parse volume '%s' size option value '%s', must be an integer", splittedIDDestOpts[0], splittedKeyValue[1])
 					}
-					vol.SizeGb = i
+					mount.SizeGb = i
 				} else if splittedKeyValue[0] == "encrypt" {
-					vol.Encrypted = true
+					mount.Encrypted = true
 				}
 			}
 		}
 
-		mounts[i] = vol
+		mounts = append(mounts, mount)
 	}
 
 	machineConf.Mounts = mounts
-
-	// apiMachineConf := api.MachineConfig(machineConf.Config)
 
 	input := api.LaunchMachineInput{
 		AppID:   cmdCtx.AppName,
