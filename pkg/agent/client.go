@@ -157,6 +157,12 @@ type PingResponse struct {
 	Background bool
 }
 
+type errInvalidResponse []byte
+
+func (err errInvalidResponse) Error() string {
+	return fmt.Sprintf("invalid server response: %q", string(err))
+}
+
 func (c *Client) Ping(ctx context.Context) (res PingResponse, err error) {
 	err = c.do(ctx, func(conn net.Conn) (err error) {
 		if err = proto.Write(conn, "ping"); err != nil {
@@ -170,6 +176,8 @@ func (c *Client) Ping(ctx context.Context) (res PingResponse, err error) {
 
 		if err = hasPrefix(data, "pong "); err == nil {
 			err = json.Unmarshal(data[5:], &res)
+		} else {
+			err = errInvalidResponse(data)
 		}
 
 		return
@@ -205,15 +213,15 @@ func (c *Client) Establish(ctx context.Context, slug string) (res *EstablishResp
 			return
 		}
 
-		if err = hasPrefix(data, "ok "); err != nil {
-			err = errors.New(string(data))
-
-			return
-		}
-
-		res = &EstablishResponse{}
-		if err = json.Unmarshal(data, res); err != nil {
-			res = nil
+		if err = hasPrefix(data, "ok "); err == nil {
+			res = &EstablishResponse{}
+			if err = json.Unmarshal(data, res); err != nil {
+				res = nil
+			}
+		} else if err = hasPrefix(data, "err "); err == nil {
+			err = errors.New(string(data[4:]))
+		} else {
+			err = errInvalidResponse(data)
 		}
 
 		return
@@ -233,8 +241,14 @@ func (c *Client) Probe(ctx context.Context, slug string) error {
 			return
 		}
 
-		if string(data) != "ok" {
-			err = errors.New(string(data))
+		if string(data) == "ok" {
+			return // up and running
+		}
+
+		if err = hasPrefix(data, "err "); err == nil {
+			err = errors.New(string(data[4:]))
+		} else {
+			err = errInvalidResponse(data)
 		}
 
 		return
@@ -254,6 +268,10 @@ func (c *Client) Resolve(ctx context.Context, slug, host string) (addr string, e
 
 		if err = hasPrefix(data, "ok "); err == nil {
 			addr = string(data[3:])
+		} else if err = hasPrefix(data, "err "); err == nil {
+			err = errors.New(string(data[4:]))
+		} else {
+			err = errInvalidResponse(data)
 		}
 
 		return

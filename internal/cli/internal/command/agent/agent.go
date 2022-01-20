@@ -12,6 +12,8 @@ import (
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/state"
+	apiClient "github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/env"
 )
 
 // New initializes and returns a new agent Command.
@@ -31,6 +33,21 @@ func New() (cmd *cobra.Command) {
 		newStop(),
 		newRestart(),
 	)
+
+	if env.IsSet("DEV") {
+		cmd.AddCommand(
+			newResolve(),
+		)
+	}
+
+	return
+}
+
+func establish(ctx context.Context) (client *agent.Client, err error) {
+	apiClient := apiClient.FromContext(ctx).API()
+	if client, err = agent.Establish(ctx, apiClient); err != nil {
+		err = fmt.Errorf("failed establishing connection to agent: %w", err)
+	}
 
 	return
 }
