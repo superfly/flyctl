@@ -25,12 +25,16 @@ region the volume exists in. --size flag is optional, defaults to 10,
 sets the size as the number of gigabytes the volume will consume.`
 
 		short = "Create new volume for app"
+
+		usage = "create <volumename>"
 	)
 
-	cmd := command.New("create", short, long, runCreate,
+	cmd := command.New(usage, short, long, runCreate,
 		command.RequireSession,
 		command.RequireAppName,
 	)
+
+	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(cmd,
 		flag.App(),
