@@ -6,10 +6,10 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/logrusorgru/aurora"
+
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cmdutil"
-
-	"github.com/logrusorgru/aurora"
 )
 
 type TunnelError struct {

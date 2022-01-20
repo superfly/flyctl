@@ -1,15 +1,15 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"log"
 	"net"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 func IsIPv6(addr string) bool {
@@ -32,7 +32,7 @@ func userHome() string {
 
 func getRunningPid() (int, error) {
 	data, err := os.ReadFile(pidFile())
-	if errors.Is(err, os.ErrNotExist) {
+	if errors.Is(err, fs.ErrNotExist) {
 		return 0, nil
 	} else if err != nil {
 		return 0, err
