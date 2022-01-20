@@ -22,7 +22,7 @@ func TestVersion(t *testing.T) {
 
 	assert.Equal(t, 0, code)
 	assert.NotEmpty(t, stdout)
-	assert.NotEmpty(t, stderr) // [33mWARN[0m no config file found at /home/azazeal/.fly/config.yml
+	assert.Empty(t, stderr)
 }
 
 func capture(ctx context.Context, t *testing.T, args ...string) (stdout, stderr string, code int) {

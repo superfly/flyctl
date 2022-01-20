@@ -211,12 +211,7 @@ func loadConfig(ctx context.Context) (context.Context, error) {
 
 	// Apply config from the config file, if it exists
 	path := filepath.Join(state.ConfigDirectory(ctx), config.FileName)
-	switch err := cfg.ApplyFile(path); {
-	case err == nil:
-		// config file loaded
-	case errors.Is(err, fs.ErrNotExist):
-		logger.Warnf("no config file found at %s", path)
-	default:
+	if err := cfg.ApplyFile(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
 
