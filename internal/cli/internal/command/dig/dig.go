@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/pkg/agent"
+	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/app"
@@ -64,9 +65,10 @@ attached to the current app (you can pass an app in with -a <appname>).`
 }
 
 func run(ctx context.Context) error {
-	client := client.FromContext(ctx).API()
-
 	var (
+		client = client.FromContext(ctx).API()
+		io     = iostreams.FromContext(ctx)
+
 		org *api.Organization
 		err error
 	)
@@ -149,7 +151,7 @@ func run(ctx context.Context) error {
 			case "AAAA":
 				for _, rr := range reply.Answer {
 					if aaaa, ok := rr.(*dns.AAAA); ok {
-						fmt.Printf("%s\n", aaaa.AAAA)
+						fmt.Fprintf(io.Out, "%s\n", aaaa.AAAA)
 					}
 				}
 			case "TXT":
@@ -163,10 +165,10 @@ func run(ctx context.Context) error {
 					}
 				}
 
-				fmt.Printf("%s\n", buf.String())
+				fmt.Fprintf(io.Out, "%s\n", buf.String())
 			}
 		} else {
-			fmt.Printf("%+v\n", reply)
+			fmt.Fprintf(io.Out, "%+v\n", reply)
 		}
 
 	case "AAAA-NATIVE":
@@ -176,7 +178,7 @@ func run(ctx context.Context) error {
 		}
 
 		for _, h := range hosts {
-			fmt.Printf("%s\n", h)
+			fmt.Fprintf(io.Out, "%s\n", h)
 		}
 
 	case "TXT-NATIVE":
@@ -185,7 +187,7 @@ func run(ctx context.Context) error {
 			return fixNameError(err, ns)
 		}
 
-		fmt.Printf("%s\n", strings.Join(txts, ""))
+		fmt.Fprintf(io.Out, "%s\n", strings.Join(txts, ""))
 
 	default:
 		return fmt.Errorf("don't understand DNS type %s", dtype)
@@ -202,7 +204,7 @@ func roundTrip(conn net.Conn, m *dns.Msg) (*dns.Msg, error) {
 
 	buf, err := m.Pack()
 	if err != nil {
-		return nil, fmt.Errorf("dns round trip: %w", err)
+		return nil, err
 	}
 
 	var lenbuf [2]byte
