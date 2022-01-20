@@ -38,6 +38,7 @@ func New() (cmd *cobra.Command) {
 		cmd.AddCommand(
 			newResolve(),
 			newProbe(),
+			newInstances(),
 		)
 	}
 

@@ -166,7 +166,7 @@ func (s *session) instances(ctx context.Context, args ...string) {
 		return
 	}
 
-	app := args[2]
+	app := args[1]
 
 	ret, err := s.srv.fetchInstances(ctx, tunnel, app)
 	if err != nil {

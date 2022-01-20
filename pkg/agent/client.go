@@ -318,6 +318,10 @@ func (c *Client) Instances(ctx context.Context, org *api.Organization, app strin
 
 		if err = hasPrefix(data, "ok "); err == nil {
 			err = json.Unmarshal(data[3:], &instances)
+		} else if err = hasPrefix(data, "err "); err == nil {
+			err = errors.New(string(data[4:]))
+		} else {
+			err = errInvalidResponse(data)
 		}
 
 		return
