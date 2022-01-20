@@ -1,5 +1,8 @@
 package ssh
 
+// TODO - This file was copy and pasted from the cmd package and still needs to be
+// updated to take on new conventions.
+
 import (
 	"context"
 	"crypto/ed25519"
