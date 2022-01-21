@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -175,7 +176,7 @@ func (c *Client) Ping(ctx context.Context) (res PingResponse, err error) {
 		}
 
 		if err = isOKResponse(data); err == nil {
-			err = json.Unmarshal(extractResponse(data), &res)
+			err = unmarshal(&res, data)
 		} else {
 			err = errInvalidResponse(data)
 		}
@@ -237,9 +238,8 @@ func (c *Client) Establish(ctx context.Context, slug string) (res *EstablishResp
 
 		if err = isOKResponse(data); err == nil {
 			res = &EstablishResponse{}
-			if err = json.Unmarshal(extractResponse(data), res); err != nil {
+			if err = unmarshal(res, data); err != nil {
 				res = nil
-				err = fmt.Errorf("failed unmarshaling response: %w", err)
 			}
 		} else if err = isErrorResponse(data); err == nil {
 			err = extractError(data)
@@ -340,7 +340,7 @@ func (c *Client) Instances(ctx context.Context, org *api.Organization, app strin
 		}
 
 		if err = isOKResponse(data); err == nil {
-			err = json.Unmarshal(extractResponse(data), &instances)
+			err = unmarshal(&instances, data)
 		} else if err = isErrorResponse(data); err == nil {
 			err = extractError(data)
 		} else {
@@ -349,6 +349,17 @@ func (c *Client) Instances(ctx context.Context, org *api.Organization, app strin
 
 		return
 	})
+
+	return
+}
+
+func unmarshal(dst interface{}, data []byte) (err error) {
+	src := bytes.NewReader(extractResponse(data))
+
+	dec := json.NewDecoder(src)
+	if err = dec.Decode(dst); err != nil {
+		err = fmt.Errorf("failed decoding response: %w", err)
+	}
 
 	return
 }
