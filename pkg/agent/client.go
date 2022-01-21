@@ -47,7 +47,9 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 
 	// TOOD: log this instead
 	msg := fmt.Sprintf("flyctl version %s does not match agent version %s", buildinfo.Version(), res.Version)
-	if logger := logger.MaybeFromContext(ctx); logger != nil {
+
+	logger := logger.MaybeFromContext(ctx)
+	if logger != nil {
 		logger.Warn(msg)
 	} else {
 		fmt.Fprintln(os.Stderr, msg)
@@ -57,10 +59,21 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 		return c, nil
 	}
 
-	fmt.Fprintln(os.Stderr, "stopping agent ...")
+	const stopMessage = "stopping agent ..."
+	if logger != nil {
+		logger.Warn(stopMessage)
+	} else {
+		fmt.Fprintln(os.Stderr, stopMessage)
+	}
+
 	if err := c.Kill(ctx); err != nil {
 		err = fmt.Errorf("failed stopping agent: %w", err)
-		fmt.Fprintln(os.Stderr, err)
+
+		if logger != nil {
+			logger.Error(err)
+		} else {
+			fmt.Fprintln(os.Stderr, err)
+		}
 
 		return nil, err
 	}
@@ -68,7 +81,7 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 	// this is gross, but we need to wait for the agent to exit
 	pause.For(ctx, time.Second)
 
-	return nil, nil
+	return StartDaemon(ctx)
 }
 
 func NewClient(ctx context.Context, network, addr string) (client *Client, err error) {
