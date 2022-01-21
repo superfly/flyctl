@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/agent/internal/proto"
+	"github.com/superfly/flyctl/pkg/wg"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
 )
@@ -256,6 +257,41 @@ func (s *session) resolve(ctx context.Context, args ...string) {
 	}
 
 	s.ok(addr)
+}
+
+func resolve(ctx context.Context, tunnel *wg.Tunnel, addr string) (string, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		if !strings.Contains(err.Error(), "missing port") {
+			return "", err
+		}
+
+		host = addr
+	}
+
+	if n := net.ParseIP(host); n != nil && n.To16() != nil {
+		if port == "" {
+			return n.String(), nil
+		}
+
+		return net.JoinHostPort(n.String(), port), nil
+	}
+
+	ips, err := tunnel.LookupAAAA(ctx, host)
+	if err != nil {
+		return "", err
+	}
+
+	if len(ips) == 0 {
+		return "", agent.ErrNoSuchHost
+	}
+
+	addr = ips[0].String()
+	if port != "" {
+		addr = net.JoinHostPort(addr, port)
+	}
+
+	return addr, nil
 }
 
 var (

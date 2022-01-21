@@ -330,40 +330,6 @@ func (s *server) clean(ctx context.Context) {
 	}
 }
 
-func resolve(ctx context.Context, tunnel *wg.Tunnel, addr string) (string, error) {
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		if ae, ok := err.(*net.AddrError); !ok || ae.Err != "missing port in address" {
-			return "", err
-		}
-
-		host = addr
-	}
-
-	if n := net.ParseIP(host); n != nil && n.To16() != nil {
-		if addr = n.String(); port != "" {
-			addr = net.JoinHostPort(addr, port)
-		}
-
-		return addr, nil
-	}
-
-	ips, err := tunnel.LookupAAAA(ctx, host)
-	if err != nil {
-		return "", err
-	}
-	if len(ips) == 0 {
-		return "", nil
-	}
-
-	addr = ips[0].String()
-	if port != "" {
-		addr = net.JoinHostPort(addr, port)
-	}
-
-	return addr, nil
-}
-
 func (s *server) print(v ...interface{}) {
 	s.Logger.Print(v...)
 }
