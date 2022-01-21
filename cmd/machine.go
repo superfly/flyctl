@@ -385,6 +385,12 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 		}
 	}
 
+	orgSlug := cmdCtx.Config.GetString("org")
+	org, err := selectOrganization(ctx, cmdCtx.Client.API(), orgSlug, nil)
+	if err != nil {
+		return err
+	}
+
 	if cmdCtx.MachineConfig == nil {
 		cmdCtx.MachineConfig = &api.MachineConfig{}
 	}
@@ -400,7 +406,6 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 	machineConf := cmdCtx.MachineConfig
 
 	var img *imgsrc.DeploymentImage
-	var err error
 
 	daemonType := imgsrc.NewDockerDaemonType(!cmdCtx.Config.GetBool("build-remote-only"), !cmdCtx.Config.GetBool("build-local-only"))
 	resolver := imgsrc.NewResolver(daemonType, cmdCtx.Client.API(), cmdCtx.AppName, cmdCtx.IO)
@@ -556,7 +561,7 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 		AppID:   cmdCtx.AppName,
 		ID:      cmdCtx.Config.GetString("id"),
 		Name:    cmdCtx.Config.GetString("name"),
-		OrgSlug: cmdCtx.Config.GetString("org"),
+		OrgSlug: org.ID,
 		Region:  cmdCtx.Config.GetString("region"),
 		Config:  machineConf,
 	}
