@@ -19,7 +19,6 @@ import (
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/cmdutil"
@@ -106,7 +105,7 @@ func runMachineList(cmdCtx *cmdctx.CmdContext) error {
 
 		row := []string{
 			machine.ID,
-			machine.Config["image"].(string),
+			machine.Config.Image,
 			machine.CreatedAt.String(),
 			machine.State,
 			machine.Region,
@@ -387,7 +386,7 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	if cmdCtx.MachineConfig == nil {
-		cmdCtx.MachineConfig = flyctl.NewMachineConfig()
+		cmdCtx.MachineConfig = &api.MachineConfig{}
 	}
 
 	if extraEnv := cmdCtx.Config.GetStringSlice("env"); len(extraEnv) > 0 {
@@ -395,7 +394,7 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 		if err != nil {
 			return errors.Wrap(err, "invalid env")
 		}
-		cmdCtx.MachineConfig.SetEnvVariables(parsedEnv)
+		cmdCtx.MachineConfig.Env = parsedEnv
 	}
 
 	machineConf := cmdCtx.MachineConfig
@@ -464,27 +463,23 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	machineConf.Config["image"] = img.Tag
+	machineConf.Image = img.Tag
 
 	if size := cmdCtx.Config.GetString("size"); size != "" {
-		machineConf.Config["size"] = size
+		machineConf.VMSize = size
 	}
-
-	init := map[string]interface{}{}
 
 	if entrypoint := cmdCtx.Config.GetString("entrypoint"); entrypoint != "" {
 		splitted, err := shlex.Split(entrypoint)
 		if err != nil {
 			return errors.Wrap(err, "invalid entrypoint")
 		}
-		init["entrypoint"] = splitted
+		machineConf.Init.Entrypoint = splitted
 	}
 
 	if cmd := cmdCtx.Args[1:]; len(cmd) > 0 {
-		init["cmd"] = cmd
+		machineConf.Init.Cmd = cmd
 	}
-
-	machineConf.Config["init"] = init
 
 	svcs := make([]interface{}, len(cmdCtx.Config.GetStringSlice("port")))
 
@@ -524,16 +519,16 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 		}
 	}
 
-	machineConf.Config["services"] = svcs
+	machineConf.Services = svcs
 
-	mounts := make([]interface{}, len(cmdCtx.Config.GetStringSlice("volume")))
+	var mounts []api.MachineMount
 
-	for i, v := range cmdCtx.Config.GetStringSlice("volume") {
+	for _, v := range cmdCtx.Config.GetStringSlice("volume") {
 		splittedIDDestOpts := strings.Split(v, ":")
 
-		vol := map[string]interface{}{
-			"volume": splittedIDDestOpts[0],
-			"path":   splittedIDDestOpts[1],
+		mount := api.MachineMount{
+			Volume: splittedIDDestOpts[0],
+			Path:   splittedIDDestOpts[1],
 		}
 
 		if len(splittedIDDestOpts) > 2 {
@@ -545,19 +540,17 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 					if err != nil {
 						return errors.Wrapf(err, "could not parse volume '%s' size option value '%s', must be an integer", splittedIDDestOpts[0], splittedKeyValue[1])
 					}
-					vol["size_gb"] = i
+					mount.SizeGb = i
 				} else if splittedKeyValue[0] == "encrypt" {
-					vol["encrypted"] = true
+					mount.Encrypted = true
 				}
 			}
 		}
 
-		mounts[i] = vol
+		mounts = append(mounts, mount)
 	}
 
-	machineConf.Config["mounts"] = mounts
-
-	apiMachineConf := api.MachineConfig(machineConf.Config)
+	machineConf.Mounts = mounts
 
 	input := api.LaunchMachineInput{
 		AppID:   cmdCtx.AppName,
@@ -565,7 +558,7 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 		Name:    cmdCtx.Config.GetString("name"),
 		OrgSlug: cmdCtx.Config.GetString("org"),
 		Region:  cmdCtx.Config.GetString("region"),
-		Config:  &apiMachineConf,
+		Config:  machineConf,
 	}
 
 	machine, app, err := cmdCtx.Client.API().LaunchMachine(ctx, input)

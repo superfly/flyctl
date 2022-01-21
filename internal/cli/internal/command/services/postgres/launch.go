@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
@@ -177,7 +176,7 @@ func (p *Launch) Launch(ctx context.Context) error {
 			AppID:   app.ID,
 			OrgSlug: p.config.Organization.ID,
 			Region:  p.config.Region,
-			Config:  &machineConf,
+			Config:  machineConf,
 		}
 
 		machine, _, err := p.client.LaunchMachine(ctx, launchInput)
@@ -206,38 +205,33 @@ func (p *Launch) Launch(ctx context.Context) error {
 	return nil
 }
 
-func (p *Launch) configurePostgres() (api.MachineConfig, error) {
-	machineConfig := flyctl.NewMachineConfig()
+func (p *Launch) configurePostgres() (*api.MachineConfig, error) {
+	machineConfig := api.MachineConfig{}
 
 	// Set env
-	env := map[string]string{
+	machineConfig.Env = map[string]string{
 		"PRIMARY_REGION": p.config.Region,
 	}
-	machineConfig.SetEnvVariables(env)
 
-	machineConfig.Config["size"] = p.config.VMSize
-	machineConfig.Config["image"] = p.config.ImageRef
-	machineConfig.Config["restart"] = map[string]string{
-		"policy": "no",
-	}
+	machineConfig.VMSize = p.config.VMSize
+	machineConfig.Image = p.config.ImageRef
+	machineConfig.Restart.Policy = api.MachineRestartPolicyNo
 
 	// Set mounts
-	var volumeHash string
-	var err error
-	if volumeHash, err = helpers.RandString(5); err != nil {
+	volumeHash, err := helpers.RandString(5)
+	if err != nil {
 		return nil, err
 	}
 
-	mounts := make([]map[string]interface{}, 0)
-	mounts = append(mounts, map[string]interface{}{
-		"volume":    fmt.Sprintf("pg_data_%s", volumeHash),
-		"size_gb":   p.config.VolumeSize,
-		"encrypted": false,
-		"path":      "/data",
-	})
-	machineConfig.Config["mounts"] = mounts
+	mount := api.MachineMount{
+		Volume:    fmt.Sprintf("pg_data_%s", volumeHash),
+		SizeGb:    p.config.VolumeSize,
+		Encrypted: false,
+		Path:      "/data",
+	}
+	machineConfig.Mounts = append(machineConfig.Mounts, mount)
 
-	return api.MachineConfig(machineConfig.Config), nil
+	return &machineConfig, nil
 }
 
 func (p *Launch) createApp(ctx context.Context) (*api.App, error) {
