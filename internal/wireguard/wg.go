@@ -63,6 +63,10 @@ func Create(apiClient *api.Client, org *api.Organization, regionCode, name strin
 			cleanEmailPattern.ReplaceAllString(user.Email, "-"), badrand.Intn(1000))
 	}
 
+        if regionCode == "" { 
+                regionCode = os.Getenv("FLYCTL_WG_REGION")
+        } 
+
 	if regionCode == "" {
 		region, err := apiClient.ClosestWireguardGatewayRegion(ctx)
 		if err != nil {
