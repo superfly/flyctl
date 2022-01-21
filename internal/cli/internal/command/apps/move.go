@@ -64,7 +64,7 @@ func RunMove(ctx context.Context) error {
 If the app relies on other services within the current organization, it may not come back up in a healthy manner.
 Please confirm you wish to restart this app now?`))
 
-		msg := fmt.Sprintf("Destroy app %s?", appName)
+		msg := fmt.Sprintf("Move app %s?", appName)
 		if confirmed, err := prompt.Confirm(ctx, msg); err != nil || !confirmed {
 			return err
 		}
