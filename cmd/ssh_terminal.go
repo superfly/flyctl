@@ -89,7 +89,7 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 		return errors.Wrap(err, "can't establish agent")
 	}
 
-	dialer, err := agentclient.Dialer(ctx, &app.Organization)
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
 	if err != nil {
 		captureError(err)
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)

@@ -84,7 +84,7 @@ func runProxy(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	dialer, err := agentclient.Dialer(ctx, &app.Organization)
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
 	if err != nil {
 		captureError(err)
 		return err

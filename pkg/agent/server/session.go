@@ -17,6 +17,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/agent/internal/proto"
 
@@ -136,14 +137,16 @@ func (s *session) ping(_ context.Context, args ...string) {
 	})
 }
 
-var errMalformedEstablish = errors.New("malformed establish command")
+var (
+	errMalformedEstablish = errors.New("malformed establish command")
+)
 
 func (s *session) establish(ctx context.Context, args ...string) {
 	if !s.exactArgs(1, args, errMalformedEstablish) {
 		return
 	}
 
-	org, err := s.srv.findOrganization(ctx, args[0])
+	org, err := s.fetchOrg(ctx, args[0])
 	if err != nil {
 		s.error(err)
 
@@ -152,7 +155,6 @@ func (s *session) establish(ctx context.Context, args ...string) {
 
 	tunnel, err := s.srv.buildTunnel(org)
 	if err != nil {
-		err = fmt.Errorf("failed building tunnel: %w", err)
 		s.error(err)
 
 		return
@@ -162,6 +164,24 @@ func (s *session) establish(ctx context.Context, args ...string) {
 		WireGuardState: tunnel.State,
 		TunnelConfig:   tunnel.Config,
 	})
+}
+
+var errNoSuchOrg = errors.New("no such organization")
+
+func (s *session) fetchOrg(ctx context.Context, slug string) (*api.Organization, error) {
+	orgs, err := s.srv.Client.GetOrganizations(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, org := range orgs {
+		if org.Slug == slug {
+			no := org // copy
+			return &no, nil
+		}
+	}
+
+	return nil, errNoSuchOrg
 }
 
 var errMalformedProbe = errors.New("malformed probe command")
@@ -240,6 +260,7 @@ func (s *session) resolve(ctx context.Context, args ...string) {
 
 var (
 	errMalformedConnect = errors.New("malformed connect command")
+	errInvalidTimeout   = errors.New("invalid timeout")
 	errDone             = errors.New("done")
 )
 
@@ -247,49 +268,45 @@ func (s *session) connect(ctx context.Context, args ...string) {
 	if !s.exactArgs(3, args, errMalformedConnect) {
 		return
 	}
-	s.logger.Printf("incoming connect: %v", args)
 
-	tunnel := s.srv.tunnelFor(args[1])
+	timeout, err := strconv.ParseUint(args[2], 10, 32)
+	if err != nil {
+		s.error(err)
+
+		return
+	}
+
+	tunnel := s.srv.tunnelFor(args[0])
 	if tunnel == nil {
 		s.error(errTunnelUnavailable)
 
 		return
 	}
 
-	address, err := resolve(ctx, tunnel, args[2])
+	var dialContext context.Context
+	var cancel context.CancelFunc
+	if timeout > 0 {
+		dialContext, cancel = context.WithTimeout(ctx, time.Duration(timeout)*time.Millisecond)
+	} else {
+		dialContext, cancel = context.WithCancel(ctx)
+	}
+	defer cancel()
+
+	address, err := resolve(dialContext, tunnel, args[1])
 	if err != nil {
-		err = fmt.Errorf("connect: can't resolve address %q: %w", args[2], err)
 		s.error(err)
 
 		return
 	}
 
-	var cancel context.CancelFunc = func() {}
-
-	if len(args) > 3 {
-		timeout, err := strconv.ParseUint(args[3], 10, 32)
-		if err != nil {
-			err = fmt.Errorf("connect: invalid timeout: %s", err)
-			s.error(err)
-
-			return
-		}
-
-		if timeout != 0 {
-			ctx, cancel = context.WithTimeout(ctx, time.Duration(timeout)*time.Millisecond)
-		}
-	}
-	defer cancel()
-
-	outconn, err := tunnel.DialContext(ctx, "tcp", address)
+	outconn, err := tunnel.DialContext(dialContext, "tcp", address)
 	if err != nil {
-		err = fmt.Errorf("connection failed: %w", err)
 		s.error(err)
 
 		return
 	}
 	defer func() {
-		if err := outconn.Close(); err != nil {
+		if err := outconn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			s.logger.Printf("failed closing outconn: %v", err)
 		}
 	}()

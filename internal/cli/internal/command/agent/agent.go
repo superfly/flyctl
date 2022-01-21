@@ -39,6 +39,8 @@ func New() (cmd *cobra.Command) {
 			newResolve(),
 			newProbe(),
 			newInstances(),
+			newEstablish(),
+			newHex(),
 		)
 	}
 

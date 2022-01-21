@@ -175,7 +175,7 @@ func (c *Client) Ping(ctx context.Context) (res PingResponse, err error) {
 			return
 		}
 
-		if err = isOKResponse(data); err == nil {
+		if isOK(data) {
 			err = unmarshal(&res, data)
 		} else {
 			err = errInvalidResponse(data)
@@ -189,18 +189,18 @@ func (c *Client) Ping(ctx context.Context) (res PingResponse, err error) {
 
 const okPrefix = "ok "
 
-func isOKResponse(data []byte) error {
-	return isPrefixedResponse(data, okPrefix)
+func isOK(data []byte) bool {
+	return isPrefixedWith(data, okPrefix)
 }
 
-func extractResponse(data []byte) []byte {
+func extractOK(data []byte) []byte {
 	return data[len(okPrefix):]
 }
 
 const errorPrefix = "err "
 
-func isErrorResponse(data []byte) error {
-	return isPrefixedResponse(data, errorPrefix)
+func isError(data []byte) bool {
+	return isPrefixedWith(data, errorPrefix)
 }
 
 func extractError(data []byte) error {
@@ -209,14 +209,8 @@ func extractError(data []byte) error {
 	return errors.New(string(msg))
 }
 
-func isPrefixedResponse(data []byte, prefix string) (err error) {
-	if !strings.HasPrefix(string(data), prefix) {
-		format := fmt.Sprintf("invalid prefix: %%.%dq", len(prefix))
-
-		err = fmt.Errorf(format, string(data))
-	}
-
-	return
+func isPrefixedWith(data []byte, prefix string) bool {
+	return strings.HasPrefix(string(data), prefix)
 }
 
 type EstablishResponse struct {
@@ -236,15 +230,16 @@ func (c *Client) Establish(ctx context.Context, slug string) (res *EstablishResp
 			return
 		}
 
-		if err = isOKResponse(data); err == nil {
+		switch {
+		default:
+			err = errInvalidResponse(data)
+		case isOK(data):
 			res = &EstablishResponse{}
 			if err = unmarshal(res, data); err != nil {
 				res = nil
 			}
-		} else if err = isErrorResponse(data); err == nil {
+		case isError(data):
 			err = extractError(data)
-		} else {
-			err = errInvalidResponse(data)
 		}
 
 		return
@@ -264,14 +259,13 @@ func (c *Client) Probe(ctx context.Context, slug string) error {
 			return
 		}
 
-		if string(data) == "ok" {
-			return // up and running
-		}
-
-		if err = isErrorResponse(data); err == nil {
-			err = mapError(extractError(data), slug, "")
-		} else {
+		switch {
+		default:
 			err = errInvalidResponse(data)
+		case string(data) == "ok":
+			return // up and running
+		case isError(data):
+			err = mapError(extractError(data), slug, "")
 		}
 
 		return
@@ -289,12 +283,13 @@ func (c *Client) Resolve(ctx context.Context, slug, host string) (addr string, e
 			return
 		}
 
-		if err = isOKResponse(data); err == nil {
-			addr = string(extractResponse(data))
-		} else if err = isErrorResponse(data); err == nil {
-			err = extractError(data)
-		} else {
+		switch {
+		default:
 			err = errInvalidResponse(data)
+		case isOK(data):
+			addr = string(extractOK(data))
+		case isError(data):
+			err = extractError(data)
 		}
 
 		return
@@ -339,12 +334,13 @@ func (c *Client) Instances(ctx context.Context, org *api.Organization, app strin
 			return
 		}
 
-		if err = isOKResponse(data); err == nil {
-			err = unmarshal(&instances, data)
-		} else if err = isErrorResponse(data); err == nil {
-			err = extractError(data)
-		} else {
+		switch {
+		default:
 			err = errInvalidResponse(data)
+		case isOK(data):
+			err = unmarshal(&instances, data)
+		case isError(data):
+			err = extractError(data)
 		}
 
 		return
@@ -354,7 +350,7 @@ func (c *Client) Instances(ctx context.Context, org *api.Organization, app strin
 }
 
 func unmarshal(dst interface{}, data []byte) (err error) {
-	src := bytes.NewReader(extractResponse(data))
+	src := bytes.NewReader(extractOK(data))
 
 	dec := json.NewDecoder(src)
 	if err = dec.Decode(dst); err != nil {
@@ -364,11 +360,11 @@ func unmarshal(dst interface{}, data []byte) (err error) {
 	return
 }
 
-func (c *Client) Dialer(ctx context.Context, org *api.Organization) (d Dialer, err error) {
+func (c *Client) Dialer(ctx context.Context, slug string) (d Dialer, err error) {
 	var er *EstablishResponse
-	if er, err = c.Establish(ctx, org.Slug); err != nil {
+	if er, err = c.Establish(ctx, slug); err == nil {
 		d = &dialer{
-			slug:   org.Slug,
+			slug:   slug,
 			client: c,
 			state:  er.WireGuardState,
 			config: er.TunnelConfig,
@@ -423,10 +419,13 @@ func (d *dialer) DialContext(ctx context.Context, network, addr string) (conn ne
 		return
 	}
 
-	if string(data) != "ok" {
-		err = mapError(errors.New(string(data)), d.slug, addr)
-
-		return
+	switch {
+	default:
+		err = errInvalidResponse(data)
+	case string(data) == "ok":
+		break
+	case isError(data):
+		err = extractError(data)
 	}
 
 	return

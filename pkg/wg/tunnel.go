@@ -103,6 +103,45 @@ func (t *Tunnel) Resolver() *net.Resolver {
 	return t.resolv
 }
 
+func (t *Tunnel) LookupTXT(ctx context.Context, name string) ([]string, error) {
+	var m dns.Msg
+	_ = m.SetQuestion(dns.Fqdn(name), dns.TypeTXT)
+
+	r, err := t.queryDNS(ctx, &m)
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]string, 0, len(r.Answer))
+
+	for _, a := range r.Answer {
+		txt := a.(*dns.TXT)
+
+		results = append(results, txt.Txt...)
+	}
+
+	return results, nil
+}
+
+func (t *Tunnel) LookupAAAA(ctx context.Context, name string) ([]net.IP, error) {
+	var m dns.Msg
+	_ = m.SetQuestion(dns.Fqdn(name), dns.TypeAAAA)
+
+	r, err := t.queryDNS(ctx, &m)
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]net.IP, 0, len(r.Answer))
+
+	for _, a := range r.Answer {
+		ip := a.(*dns.AAAA).AAAA
+		results = append(results, ip)
+	}
+
+	return results, nil
+}
+
 func (t *Tunnel) queryDNS(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
 	client := dns.Client{
 		Net: "tcp",
@@ -122,42 +161,4 @@ func (t *Tunnel) queryDNS(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
 
 	r, _, err := client.ExchangeWithConn(msg, conn)
 	return r, err
-}
-
-func (t *Tunnel) LookupTXT(ctx context.Context, name string) ([]string, error) {
-	m := &dns.Msg{}
-	m.SetQuestion(dns.Fqdn(name), dns.TypeTXT)
-
-	r, err := t.queryDNS(ctx, m)
-	if err != nil {
-		return nil, err
-	}
-
-	results := []string{}
-
-	for _, a := range r.Answer {
-		txtRecord := a.(*dns.TXT)
-		results = append(results, txtRecord.Txt...)
-	}
-
-	return results, nil
-}
-
-func (t *Tunnel) LookupAAAA(ctx context.Context, name string) ([]net.IP, error) {
-	m := &dns.Msg{}
-	m.SetQuestion(dns.Fqdn(name), dns.TypeAAAA)
-
-	r, err := t.queryDNS(ctx, m)
-	if err != nil {
-		return nil, err
-	}
-
-	results := []net.IP{}
-
-	for _, a := range r.Answer {
-		aaaaRecord := a.(*dns.AAAA)
-		results = append(results, aaaaRecord.AAAA)
-	}
-
-	return results, nil
 }

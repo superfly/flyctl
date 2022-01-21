@@ -31,7 +31,7 @@ func NewNatsStream(ctx context.Context, apiClient *api.Client, opts *LogOptions)
 		return nil, fmt.Errorf("failed establishing agent: %w", err)
 	}
 
-	dialer, err := agentclient.Dialer(ctx, &app.Organization)
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
 	if err != nil {
 		return nil, fmt.Errorf("failed establishing wireguard connection for %s organization: %w", app.Organization.Slug, err)
 	}

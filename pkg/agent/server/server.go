@@ -183,44 +183,21 @@ func (s *server) checkForConfigChange() (err error) {
 	return
 }
 
-var errNoSuchOrg = errors.New("no such organization")
-
-func (s *server) findOrganization(ctx context.Context, slug string) (org *api.Organization, err error) {
-	var orgs []api.Organization
-	switch orgs, err = s.Client.GetOrganizations(ctx, nil); err {
-	default:
-		err = fmt.Errorf("failed fetching organizations: %w", err)
-	case nil:
-		for _, o := range orgs {
-			if o.Slug == slug {
-				org = &o
-				break
-			}
-		}
-
-	}
-
-	return
-}
-
 func (s *server) buildTunnel(org *api.Organization) (tunnel *wg.Tunnel, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if tunnel = s.tunnels[org.Slug]; tunnel != nil {
+		// tunnel already exists
 		return
 	}
 
 	var state *wg.WireGuardState
 	if state, err = wireguard.StateForOrg(s.Client, org, "", ""); err != nil {
-		err = fmt.Errorf("can't get wireguard state for %s: %w", org.Slug, err)
-
 		return
 	}
 
 	if tunnel, err = wg.Connect(state); err != nil {
-		err = fmt.Errorf("can't connect wireguard: %w", err)
-
 		return
 	}
 
@@ -315,11 +292,13 @@ func (s *server) probeTunnel(ctx context.Context, slug string) (err error) {
 	defer cancel()
 
 	var results []string
-	switch results, err = tunnel.LookupTXT(ctx, "_apps.internal"); err {
-	default:
+	switch results, err = tunnel.LookupTXT(ctx, "_apps.internal"); {
+	case err != nil:
 		err = fmt.Errorf("failed probing %q: %w", slug, err)
-	case nil:
-		s.printf("%q probed: %v", slug, results)
+	case len(results) == 0:
+		s.printf("%q probed.", slug)
+	default:
+		s.printf("%q probed: %s", slug, strings.Join(results, ", "))
 	}
 
 	return
