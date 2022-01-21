@@ -64,7 +64,7 @@ func runWebLogin(ctx context.Context, signup bool) error {
 
 	logger := logger.FromContext(ctx)
 
-	fmt.Fprintf(io.Out, "Auth URL: %s\n\n", aurora.Bold(auth.AuthURL))
+	fmt.Fprintf(io.Out, "Opening %s ...\n\n", aurora.Bold(auth.AuthURL))
 
 	token, err := waitForCLISession(ctx, logger, io.ErrOut, auth.ID)
 	switch {
