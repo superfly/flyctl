@@ -253,36 +253,6 @@ type MachineInit struct {
 	Tty        bool     `json:"tty"`
 }
 
-type MachineRestartPolicy string
-
-var MachineRestartPolicyNo MachineRestartPolicy = "no"
-var MachineRestartPolicyOnFailure MachineRestartPolicy = "on-restart"
-var MachineRestartPolicyAlways MachineRestartPolicy = "always"
-
-type MachineRestart struct {
-	Policy MachineRestartPolicy `json:"policy"`
-	// MaxRetries is only relevant with the on-failure policy.
-	MaxRetries int `json:"max_retries"`
-}
-
-type MachineMount struct {
-	Encrypted bool   `json:"encrypted"`
-	Path      string `json:"path"`
-	SizeGb    int    `json:"size_gb"`
-	Volume    string `json:"volume"`
-}
-
-type MachineConfig struct {
-	Env      map[string]string `json:"env"`
-	Init     MachineInit       `json:"init"`
-	Image    string            `json:"image"`
-	Metadata map[string]string `json:"metadata"`
-	Mounts   []MachineMount    `json:"mounts"`
-	Restart  MachineRestart    `json:"restart"`
-	Services []interface{}     `json:"services"`
-	VMSize   string            `json:"size"`
-}
-
 func DefinitionPtr(in map[string]interface{}) *Definition {
 	x := Definition(in)
 	return &x
@@ -1218,6 +1188,37 @@ type RemoveMachineInput struct {
 
 	Kill bool `json:"kill"`
 }
+
+type MachineRestartPolicy string
+
+var MachineRestartPolicyNo MachineRestartPolicy = "no"
+var MachineRestartPolicyOnFailure MachineRestartPolicy = "on-restart"
+var MachineRestartPolicyAlways MachineRestartPolicy = "always"
+
+type MachineRestart struct {
+	Policy MachineRestartPolicy `json:"policy"`
+	// MaxRetries is only relevant with the on-failure policy.
+	MaxRetries int `json:"max_retries,omitempty"`
+}
+
+type MachineMount struct {
+	Encrypted bool   `json:"encrypted"`
+	Path      string `json:"path"`
+	SizeGb    int    `json:"size_gb"`
+	Volume    string `json:"volume"`
+}
+
+type MachineConfig struct {
+	Env      map[string]string `json:"env"`
+	Init     MachineInit       `json:"init,omitempty"`
+	Image    string            `json:"image"`
+	Metadata map[string]string `json:"metadata"`
+	Mounts   []MachineMount    `json:"mounts,omitempty"`
+	Restart  MachineRestart    `json:"restart,omitempty"`
+	Services []interface{}     `json:"services,omitempty"`
+	VMSize   string            `json:"size,omitempty"`
+}
+
 type DeleteOrganizationMembershipPayload struct {
 	Organization *Organization
 	User         *User
