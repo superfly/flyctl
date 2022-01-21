@@ -68,7 +68,7 @@ func runConnect(ctx context.Context) error {
 		return fmt.Errorf("failed to establish agent: %w", err)
 	}
 
-	dialer, err := agentclient.Dialer(ctx, &app.Organization)
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
 	if err != nil {
 		return fmt.Errorf("failed to build tunnel for %s: %v", app.Organization.Slug, err)
 	}
