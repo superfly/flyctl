@@ -1,29 +1,75 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/superfly/flyctl/internal/buildinfo"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/agent/internal/proto"
-	"golang.org/x/sync/errgroup"
+
+	"github.com/superfly/flyctl/internal/buildinfo"
 )
 
-type session struct {
-	srv  *server
-	conn net.Conn
+type id uint64
+
+func (id id) String() string {
+	return fmt.Sprintf("#%x", uint64(id))
 }
 
-func (s *session) run(ctx context.Context) {
+type session struct {
+	srv    *server
+	conn   net.Conn
+	logger *log.Logger
+	id     id
+}
+
+var errUnsupportedCommand = errors.New("unsupported command")
+
+func runSession(ctx context.Context, srv *server, conn net.Conn, id id) {
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		<-ctx.Done()
+		_ = conn.Close()
+	}()
+
+	logger := log.New(srv.Logger.Writer(), id.String()+" ", srv.Logger.Flags())
+	logger.Print("connected ...")
+
+	defer func() {
+		defer func() {
+			if err := conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+				logger.Printf("failed dropping: %v", err)
+			} else {
+				logger.Print("dropped.")
+			}
+		}()
+	}()
+
+	s := &session{
+		srv:    srv,
+		conn:   conn,
+		logger: logger,
+		id:     id,
+	}
+
 	if err := s.srv.checkForConfigChange(); err != nil {
 		s.error(err)
 
@@ -32,17 +78,19 @@ func (s *session) run(ctx context.Context) {
 
 	buf, err := proto.Read(s.conn)
 	if err != nil {
-		s.srv.printf("failed reading command: %v", err)
+		if !isClosed(err) {
+			s.logger.Printf("failed reading: %v", err)
+		}
 
 		return
 	}
+	s.logger.Printf("<- (% 5d) %q", len(buf), buf)
 
 	args := strings.Split(string(buf), " ")
-	s.srv.printf("received command: %v", args)
 
 	fn := handlers[args[0]]
 	if fn == nil {
-		s.error(fmt.Errorf("unknown command: %v", args))
+		s.error(errUnsupportedCommand)
 
 		return
 	}
@@ -69,9 +117,9 @@ func (s *session) kill(_ context.Context, args ...string) {
 		return
 	}
 
-	s.srv.shutdown()
-
 	s.ok()
+
+	s.srv.shutdown()
 }
 
 var errMalformedPing = errors.New("malformed ping command")
@@ -81,21 +129,11 @@ func (s *session) ping(_ context.Context, args ...string) {
 		return
 	}
 
-	resp := agent.PingResponse{
+	_ = s.marshal(agent.PingResponse{
 		Version:    buildinfo.Version(),
 		PID:        os.Getpid(),
 		Background: s.srv.Options.Background,
-	}
-
-	data, err := json.Marshal(resp)
-	if err != nil {
-		err = fmt.Errorf("failed marshaling ping response: %w", err)
-		s.error(err)
-
-		return
-	}
-
-	s.reply("pong", string(data))
+	})
 }
 
 var errMalformedEstablish = errors.New("malformed establish command")
@@ -120,20 +158,10 @@ func (s *session) establish(ctx context.Context, args ...string) {
 		return
 	}
 
-	res := agent.EstablishResponse{
+	_ = s.marshal(agent.EstablishResponse{
 		WireGuardState: tunnel.State,
 		TunnelConfig:   tunnel.Config,
-	}
-
-	data, err := json.Marshal(res)
-	if err != nil {
-		err = fmt.Errorf("failed marshaling establish response: %w", err)
-		s.error(err)
-
-		return
-	}
-
-	s.reply("ok", string(data))
+	})
 }
 
 var errMalformedProbe = errors.New("malformed probe command")
@@ -183,15 +211,7 @@ func (s *session) instances(ctx context.Context, args ...string) {
 		return
 	}
 
-	data, err := json.Marshal(ret)
-	if err != nil {
-		err = fmt.Errorf("failed marshaling instances response: %w", err)
-		s.error(err)
-
-		return
-	}
-
-	s.reply("ok", string(data))
+	_ = s.marshal(ret)
 }
 
 var errMalformedResolve = errors.New("malformed resolve command")
@@ -208,14 +228,14 @@ func (s *session) resolve(ctx context.Context, args ...string) {
 		return
 	}
 
-	resp, err := resolve(ctx, tunnel, args[1])
+	res, err := resolve(ctx, tunnel, args[1])
 	if err != nil {
 		s.error(err)
 
 		return
 	}
 
-	s.reply("ok", resp)
+	s.ok(res)
 }
 
 var (
@@ -227,7 +247,7 @@ func (s *session) connect(ctx context.Context, args ...string) {
 	if !s.exactArgs(3, args, errMalformedConnect) {
 		return
 	}
-	s.srv.printf("incoming connect: %v", args)
+	s.logger.Printf("incoming connect: %v", args)
 
 	tunnel := s.srv.tunnelFor(args[1])
 	if tunnel == nil {
@@ -270,7 +290,7 @@ func (s *session) connect(ctx context.Context, args ...string) {
 	}
 	defer func() {
 		if err := outconn.Close(); err != nil {
-			s.srv.printf("failed closing outconn: %v", err)
+			s.logger.Printf("failed closing outconn: %v", err)
 		}
 	}()
 
@@ -309,18 +329,29 @@ func (s *session) connect(ctx context.Context, args ...string) {
 }
 
 func (s *session) error(err error) bool {
-	s.srv.print(err)
-
 	return s.reply("err", err.Error())
 }
 
-func (s *session) ok() bool {
-	return s.reply("ok")
+func (s *session) ok(args ...string) bool {
+	return s.reply("ok", args...)
 }
 
 func (s *session) reply(verb string, args ...string) bool {
-	if err := proto.Write(s.conn, verb, args...); err != nil {
-		s.srv.printf("failed writing: %v", err)
+	var b bytes.Buffer
+	out := io.MultiWriter(
+		&b,
+		s.conn,
+	)
+
+	err := proto.Write(out, verb, args...)
+	if l := b.Len(); l > 0 {
+		s.logger.Printf("-> (% 5d) %q", l, b.Bytes())
+	}
+
+	if err != nil {
+		if !errors.Is(err, net.ErrClosed) {
+			s.logger.Printf("failed writing: %v", err)
+		}
 
 		return false
 	}
@@ -356,4 +387,26 @@ func (s *session) minMaxArgs(min, max int, args []string, err error) bool {
 	}
 
 	return true
+}
+
+func (s *session) marshal(v interface{}) (ok bool) {
+	var sb strings.Builder
+
+	enc := json.NewEncoder(&sb)
+	switch err := enc.Encode(v); err {
+	default:
+		err = fmt.Errorf("failed marshaling response: %w", err)
+
+		s.error(err)
+	case nil:
+		ok = true
+
+		s.ok(sb.String())
+	}
+
+	return
+}
+
+func isClosed(err error) bool {
+	return errors.Is(err, net.ErrClosed)
 }

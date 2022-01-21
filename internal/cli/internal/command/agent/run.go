@@ -100,7 +100,7 @@ func setupLogger(path string) (logger *log.Logger, close func(), err error) {
 		close = func() {}
 	}
 
-	logger = log.New(out, fmt.Sprintf("[%d] ", os.Getpid()), log.LstdFlags|log.Lmsgprefix)
+	logger = log.New(out, "srv ", log.Ldate|log.Lmicroseconds|log.Lmsgprefix)
 
 	return
 }

@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/azazeal/pause"
@@ -37,7 +38,7 @@ func Run(ctx context.Context, opt Options) (err error) {
 
 		return
 	}
-	// s.server will close the listener
+	// serve will close the listener
 
 	var latestChangeAt time.Time
 	if latestChangeAt, err = latestChange(opt.ConfigFile); err != nil {
@@ -118,20 +119,13 @@ func (s *server) serve(parent context.Context, l net.Listener) (err error) {
 		s.printf("OK %d", os.Getpid())
 		defer s.print("QUIT")
 
+		var sID uint64
+
 		for {
 			var conn net.Conn
 			if conn, err = s.listener.Accept(); err == nil {
 				eg.Go(func() error {
-					defer func() {
-						if err := conn.Close(); err != nil {
-							s.printf("failed closing conn: %v", err)
-						}
-					}()
-
-					(&session{
-						srv:  s,
-						conn: conn,
-					}).run(ctx)
+					runSession(ctx, s, conn, id(atomic.AddUint64(&sID, 1)))
 
 					return nil
 				})

@@ -174,8 +174,8 @@ func (c *Client) Ping(ctx context.Context) (res PingResponse, err error) {
 			return
 		}
 
-		if err = hasPrefix(data, "pong "); err == nil {
-			err = json.Unmarshal(data[5:], &res)
+		if err = isOKResponse(data); err == nil {
+			err = json.Unmarshal(extractResponse(data), &res)
 		} else {
 			err = errInvalidResponse(data)
 		}
@@ -186,7 +186,29 @@ func (c *Client) Ping(ctx context.Context) (res PingResponse, err error) {
 	return
 }
 
-func hasPrefix(data []byte, prefix string) (err error) {
+const okPrefix = "ok "
+
+func isOKResponse(data []byte) error {
+	return isPrefixedResponse(data, okPrefix)
+}
+
+func extractResponse(data []byte) []byte {
+	return data[len(okPrefix):]
+}
+
+const errorPrefix = "err "
+
+func isErrorResponse(data []byte) error {
+	return isPrefixedResponse(data, errorPrefix)
+}
+
+func extractError(data []byte) error {
+	msg := data[len(errorPrefix):]
+
+	return errors.New(string(msg))
+}
+
+func isPrefixedResponse(data []byte, prefix string) (err error) {
 	if !strings.HasPrefix(string(data), prefix) {
 		format := fmt.Sprintf("invalid prefix: %%.%dq", len(prefix))
 
@@ -213,13 +235,14 @@ func (c *Client) Establish(ctx context.Context, slug string) (res *EstablishResp
 			return
 		}
 
-		if err = hasPrefix(data, "ok "); err == nil {
+		if err = isOKResponse(data); err == nil {
 			res = &EstablishResponse{}
-			if err = json.Unmarshal(data, res); err != nil {
+			if err = json.Unmarshal(extractResponse(data), res); err != nil {
 				res = nil
+				err = fmt.Errorf("failed unmarshaling response: %w", err)
 			}
-		} else if err = hasPrefix(data, "err "); err == nil {
-			err = errors.New(string(data[4:]))
+		} else if err = isErrorResponse(data); err == nil {
+			err = extractError(data)
 		} else {
 			err = errInvalidResponse(data)
 		}
@@ -245,8 +268,8 @@ func (c *Client) Probe(ctx context.Context, slug string) error {
 			return // up and running
 		}
 
-		if err = hasPrefix(data, "err "); err == nil {
-			err = mapError(errors.New(string(data[4:])), slug, "")
+		if err = isErrorResponse(data); err == nil {
+			err = mapError(extractError(data), slug, "")
 		} else {
 			err = errInvalidResponse(data)
 		}
@@ -266,10 +289,10 @@ func (c *Client) Resolve(ctx context.Context, slug, host string) (addr string, e
 			return
 		}
 
-		if err = hasPrefix(data, "ok "); err == nil {
-			addr = string(data[3:])
-		} else if err = hasPrefix(data, "err "); err == nil {
-			err = errors.New(string(data[4:]))
+		if err = isOKResponse(data); err == nil {
+			addr = string(extractResponse(data))
+		} else if err = isErrorResponse(data); err == nil {
+			err = extractError(data)
 		} else {
 			err = errInvalidResponse(data)
 		}
@@ -316,10 +339,10 @@ func (c *Client) Instances(ctx context.Context, org *api.Organization, app strin
 			return
 		}
 
-		if err = hasPrefix(data, "ok "); err == nil {
-			err = json.Unmarshal(data[3:], &instances)
-		} else if err = hasPrefix(data, "err "); err == nil {
-			err = errors.New(string(data[4:]))
+		if err = isOKResponse(data); err == nil {
+			err = json.Unmarshal(extractResponse(data), &instances)
+		} else if err = isErrorResponse(data); err == nil {
+			err = extractError(data)
 		} else {
 			err = errInvalidResponse(data)
 		}
