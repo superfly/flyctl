@@ -52,7 +52,6 @@ func runInstances(ctx context.Context) (err error) {
 
 	var instances agent.Instances
 	if instances, err = client.Instances(ctx, org, app); err != nil {
-		panic(fmt.Sprintf("%#T", err))
 		return
 	}
 
