@@ -264,9 +264,16 @@ type MachineInit struct {
 	Tty        bool     `json:"tty"`
 }
 
+type MachineRestartPolicy string
+
+var MachineRestartPolicyNo MachineRestartPolicy = "no"
+var MachineRestartPolicyOnFailure MachineRestartPolicy = "on-restart"
+var MachineRestartPolicyAlways MachineRestartPolicy = "always"
+
 type MachineRestart struct {
-	Policy     string `json:"policy"`
-	MaxRetries int    `json:"max_retries"`
+	Policy MachineRestartPolicy `json:"policy"`
+	// MaxRetries is only relevant with the on-failure policy.
+	MaxRetries int `json:"max_retries"`
 }
 
 type MachineMount struct {

@@ -215,7 +215,7 @@ func (p *Launch) configurePostgres() (*api.MachineConfig, error) {
 
 	machineConfig.VMSize = p.config.VMSize
 	machineConfig.Image = p.config.ImageRef
-	machineConfig.Restart.Policy = "no"
+	machineConfig.Restart.Policy = api.MachineRestartPolicyNo
 
 	// Set mounts
 	volumeHash, err := helpers.RandString(5)
