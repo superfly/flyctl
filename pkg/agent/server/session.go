@@ -209,7 +209,7 @@ func (s *session) instances(ctx context.Context, args ...string) {
 
 	tunnel := s.srv.tunnelFor(args[0])
 	if tunnel == nil {
-		s.error(errTunnelUnavailable)
+		s.error(agent.ErrTunnelUnavailable)
 
 		return
 	}
@@ -243,19 +243,19 @@ func (s *session) resolve(ctx context.Context, args ...string) {
 
 	tunnel := s.srv.tunnelFor(args[0])
 	if tunnel == nil {
-		s.error(errTunnelUnavailable)
+		s.error(agent.ErrTunnelUnavailable)
 
 		return
 	}
 
-	res, err := resolve(ctx, tunnel, args[1])
+	addr, err := resolve(ctx, tunnel, args[1])
 	if err != nil {
 		s.error(err)
 
 		return
 	}
 
-	s.ok(res)
+	s.ok(addr)
 }
 
 var (
@@ -278,7 +278,7 @@ func (s *session) connect(ctx context.Context, args ...string) {
 
 	tunnel := s.srv.tunnelFor(args[0])
 	if tunnel == nil {
-		s.error(errTunnelUnavailable)
+		s.error(agent.ErrTunnelUnavailable)
 
 		return
 	}
@@ -292,14 +292,7 @@ func (s *session) connect(ctx context.Context, args ...string) {
 	}
 	defer cancel()
 
-	address, err := resolve(dialContext, tunnel, args[1])
-	if err != nil {
-		s.error(err)
-
-		return
-	}
-
-	outconn, err := tunnel.DialContext(dialContext, "tcp", address)
+	outconn, err := tunnel.DialContext(dialContext, "tcp", args[1])
 	if err != nil {
 		s.error(err)
 

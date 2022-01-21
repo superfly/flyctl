@@ -265,7 +265,7 @@ func (c *Client) Probe(ctx context.Context, slug string) error {
 		case string(data) == "ok":
 			return // up and running
 		case isError(data):
-			err = mapError(extractError(data), slug, "")
+			err = extractError(data)
 		}
 
 		return
@@ -286,6 +286,8 @@ func (c *Client) Resolve(ctx context.Context, slug, host string) (addr string, e
 		switch {
 		default:
 			err = errInvalidResponse(data)
+		case string(data) == "ok":
+			err = ErrNoSuchHost
 		case isOK(data):
 			addr = string(extractOK(data))
 		case isError(data):
@@ -298,25 +300,25 @@ func (c *Client) Resolve(ctx context.Context, slug, host string) (addr string, e
 	return
 }
 
-func (c *Client) WaitForTunnel(ctx context.Context, org *api.Organization) (err error) {
+func (c *Client) WaitForTunnel(ctx context.Context, slug string) (err error) {
 	for {
-		if err = c.Probe(ctx, org.Slug); !IsTunnelError(err) {
-			break // we only reset on tunnel errors
-		}
-
 		pause.For(ctx, cycle)
+
+		if err = c.Probe(ctx, slug); !errors.Is(err, ErrTunnelUnavailable) {
+			break
+		}
 	}
 
 	return
 }
 
-func (c *Client) WaitForHost(ctx context.Context, org *api.Organization, host string) (err error) {
+func (c *Client) WaitForHost(ctx context.Context, slug, host string) (err error) {
 	for {
-		if _, err = c.Resolve(ctx, org.Slug, host); !IsTunnelError(err) && !IsHostNotFoundError(err) {
+		pause.For(ctx, cycle)
+
+		if _, err = c.Resolve(ctx, slug, host); !errors.Is(err, ErrTunnelUnavailable) && !errors.Is(err, ErrNoSuchHost) {
 			break
 		}
-
-		pause.For(ctx, cycle)
 	}
 
 	return

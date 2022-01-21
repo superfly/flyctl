@@ -32,17 +32,12 @@ func runProbe(ctx context.Context) (err error) {
 		return
 	}
 
-	slug := flag.FirstArg(ctx)
-
-	switch err = client.Probe(ctx, slug); {
-	case agent.IsTunnelError(err):
-		break
-	case err != nil:
-		err = fmt.Errorf("failed probing tunnel for %s: %w", slug, err)
-	default:
-		out := iostreams.FromContext(ctx).Out
-		_, err = fmt.Fprintln(out, "tunnel is up")
+	if err = client.Probe(ctx, flag.FirstArg(ctx)); err != nil {
+		return
 	}
+
+	out := iostreams.FromContext(ctx).Out
+	_, err = fmt.Fprintln(out, "tunnel is up")
 
 	return
 }

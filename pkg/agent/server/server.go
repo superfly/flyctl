@@ -206,25 +206,6 @@ func (s *server) buildTunnel(org *api.Organization) (tunnel *wg.Tunnel, err erro
 	return
 }
 
-func probeTunnel(ctx context.Context, logger *log.Logger, tunnel *wg.Tunnel) (err error) {
-	logger.Println("probing WireGuard connectivity ...")
-
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	var results []string
-	switch results, err = tunnel.LookupTXT(ctx, "_apps.internal"); {
-	case err == nil:
-		logger.Printf("probe results for _apps.internal: %v", results)
-	case errors.Is(err, context.DeadlineExceeded):
-		err = errTunnelUnavailable
-	default:
-		err = fmt.Errorf("failed probing for _apps.internal: %w", err)
-	}
-
-	return
-}
-
 func (s *server) fetchInstances(ctx context.Context, tunnel *wg.Tunnel, app string) (*agent.Instances, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -276,12 +257,10 @@ func (s *server) tunnelFor(slug string) *wg.Tunnel {
 	return s.tunnels[slug]
 }
 
-var errTunnelUnavailable = errors.New("tunnel unavailable")
-
 func (s *server) probeTunnel(ctx context.Context, slug string) (err error) {
 	tunnel := s.tunnelFor(slug)
 	if tunnel == nil {
-		err = errTunnelUnavailable
+		err = agent.ErrTunnelUnavailable
 
 		return
 	}
@@ -354,32 +333,35 @@ func (s *server) clean(ctx context.Context) {
 func resolve(ctx context.Context, tunnel *wg.Tunnel, addr string) (string, error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		if strings.Contains(err.Error(), "missing port") {
-			host = addr
-		} else {
+		if ae, ok := err.(*net.AddrError); !ok || ae.Err != "missing port in address" {
 			return "", err
 		}
+
+		host = addr
 	}
 
 	if n := net.ParseIP(host); n != nil && n.To16() != nil {
-		if port == "" {
-			return n.String(), nil
+		if addr = n.String(); port != "" {
+			addr = net.JoinHostPort(addr, port)
 		}
-		return net.JoinHostPort(n.String(), port), nil
+
+		return addr, nil
 	}
 
-	addrs, err := tunnel.LookupAAAA(ctx, host)
+	ips, err := tunnel.LookupAAAA(ctx, host)
 	if err != nil {
 		return "", err
 	}
-	if len(addrs) == 0 {
-		return "", fmt.Errorf("%q - no such host", addr)
+	if len(ips) == 0 {
+		return "", nil
 	}
 
-	if port == "" {
-		return addrs[0].String(), nil
+	addr = ips[0].String()
+	if port != "" {
+		addr = net.JoinHostPort(addr, port)
 	}
-	return net.JoinHostPort(addrs[0].String(), port), nil
+
+	return addr, nil
 }
 
 func (s *server) print(v ...interface{}) {

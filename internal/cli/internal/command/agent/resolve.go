@@ -17,13 +17,13 @@ import (
 
 func newResolve() (cmd *cobra.Command) {
 	const (
-		short = "Resolve the address of a host"
+		short = "Resolve the IP of a host[:port]"
 		long  = short + "\n"
-		usage = "resolve <slug> <app> <instance-id>"
+		usage = "resolve <slug> <host[:port]>"
 	)
 
 	cmd = command.New(usage, short, long, runResolve)
-	cmd.Args = cobra.ExactArgs(3)
+	cmd.Args = cobra.ExactArgs(2)
 
 	return
 }
@@ -34,26 +34,21 @@ func runResolve(ctx context.Context) (err error) {
 		return
 	}
 
-	args := flag.Args(ctx)
-	host := fmt.Sprintf("%s.vm.%s.internal", args[2], args[1])
+	hostport := flag.Args(ctx)[1]
 
-	addr, err := client.Resolve(ctx, flag.FirstArg(ctx), host)
+	addr, err := client.Resolve(ctx, flag.FirstArg(ctx), hostport)
 	if err != nil {
-		err = fmt.Errorf("failed resolving %s: %w", host, err)
-
 		return
 	}
 
 	if out := iostreams.FromContext(ctx).Out; config.FromContext(ctx).JSONOutput {
 		err = render.JSON(out, struct {
-			Host string `json:"host"`
 			Addr string `json:"addr"`
 		}{
-			Host: host,
 			Addr: addr,
 		})
 	} else {
-		_, err = fmt.Fprintf(out, "%s resolves to %s\n", host, addr)
+		_, err = fmt.Fprintf(out, "%s resolves to %s\n", hostport, addr)
 	}
 
 	return

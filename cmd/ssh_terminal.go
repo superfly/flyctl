@@ -96,7 +96,7 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 	}
 
 	cc.IO.StartProgressIndicatorMsg("Connecting to tunnel")
-	if err := agentclient.WaitForTunnel(ctx, &app.Organization); err != nil {
+	if err := agentclient.WaitForTunnel(ctx, app.Organization.Slug); err != nil {
 		captureError(err)
 		return errors.Wrapf(err, "tunnel unavailable")
 	}
@@ -131,7 +131,7 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 	// wait for the addr to be resolved in dns unless it's an ip address
 	if !agent.IsIPv6(addr) {
 		cc.IO.StartProgressIndicatorMsg("Waiting for host")
-		if err := agentclient.WaitForHost(ctx, &app.Organization, addr); err != nil {
+		if err := agentclient.WaitForHost(ctx, app.Organization.Slug, addr); err != nil {
 			captureError(err)
 			return errors.Wrapf(err, "host unavailable")
 		}

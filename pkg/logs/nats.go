@@ -39,7 +39,7 @@ func NewNatsStream(ctx context.Context, apiClient *api.Client, opts *LogOptions)
 	tunnelCtx, cancel := context.WithTimeout(ctx, 4*time.Minute)
 	defer cancel()
 
-	if err = agentclient.WaitForTunnel(tunnelCtx, &app.Organization); err != nil {
+	if err = agentclient.WaitForTunnel(tunnelCtx, app.Organization.Slug); err != nil {
 		return nil, fmt.Errorf("failed connecting to WireGuard tunnel: %w", err)
 	}
 
