@@ -34,9 +34,13 @@ func runResolve(ctx context.Context) (err error) {
 		return
 	}
 
-	hostport := flag.Args(ctx)[1]
+	var (
+		args     = flag.Args(ctx)
+		slug     = args[0]
+		hostport = args[1]
+	)
 
-	addr, err := client.Resolve(ctx, flag.FirstArg(ctx), hostport)
+	addr, err := client.Resolve(ctx, slug, hostport)
 	if err != nil {
 		return
 	}
@@ -48,7 +52,7 @@ func runResolve(ctx context.Context) (err error) {
 			Addr: addr,
 		})
 	} else {
-		_, err = fmt.Fprintf(out, "%s resolves to %s\n", hostport, addr)
+		_, err = fmt.Fprintln(out, addr)
 	}
 
 	return
