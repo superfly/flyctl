@@ -33,7 +33,7 @@ type dockerClientFactory struct {
 func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, appName string, streams *iostreams.IOStreams) *dockerClientFactory {
 	if daemonType.AllowLocal() {
 		terminal.Debug("trying local docker daemon")
-		c, err := newLocalDockerClient()
+		c, err := NewLocalDockerClient()
 		if c != nil && err == nil {
 			return &dockerClientFactory{
 				mode: DockerDaemonTypeLocal,
@@ -133,7 +133,7 @@ func (t DockerDaemonType) IsAvailable() bool {
 	return !t.IsNone()
 }
 
-func newLocalDockerClient() (*dockerclient.Client, error) {
+func NewLocalDockerClient() (*dockerclient.Client, error) {
 	c, err := dockerclient.NewClientWithOpts(dockerclient.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, err
@@ -439,7 +439,7 @@ func resolveDockerfile(cwd string) string {
 
 func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient *api.Client, orgSlug string) {
 	// skip if local docker is available
-	if _, err := newLocalDockerClient(); err == nil {
+	if _, err := NewLocalDockerClient(); err == nil {
 		return
 	}
 

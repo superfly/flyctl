@@ -14,16 +14,20 @@ import (
 	"time"
 
 	"github.com/azazeal/pause"
-	docker "github.com/docker/docker/client"
+	dockerclient "github.com/docker/docker/client"
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/iostreams"
 
+	"github.com/superfly/flyctl/internal/build/imgsrc"
+	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
+	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/client"
 )
@@ -37,6 +41,14 @@ func New() (cmd *cobra.Command) {
 
 	cmd = command.New("doctor", short, long, run,
 		command.RequireSession,
+		command.LoadAppNameIfPresent,
+	)
+
+	cmd.Args = cobra.NoArgs
+
+	flag.Add(cmd,
+		flag.App(),
+		flag.AppConfig(),
 	)
 
 	return
@@ -46,6 +58,7 @@ var runners = map[string]runner{
 	"Token":          runAuth,
 	"Docker (local)": runLocalDocker,
 	"Agent":          runAgent,
+	"Probe (app)":    runProbeApp,
 	// "UDP":            runUDP,
 }
 
@@ -92,7 +105,9 @@ func runInParallel(ctx context.Context, concurrency int, runners map[string]runn
 			mu.Lock()
 			defer mu.Unlock()
 
-			ret[key] = err
+			if !errors.Is(err, errSkipped) {
+				ret[key] = err
+			}
 		}(key)
 	}
 
@@ -162,16 +177,12 @@ func runLocalDocker(ctx context.Context) (err error) {
 			return
 		}
 
-		err = fmt.Errorf("couldn't ping local docker instance: %w", err)
+		err = fmt.Errorf("failed pinging docker instance: %w", err)
 	}()
 
-	var c *docker.Client
-	if c, err = docker.NewClientWithOpts(docker.WithAPIVersionNegotiation()); err != nil {
-		return
-	}
-
-	if err = docker.FromEnv(c); err == nil {
-		_, err = c.Ping(ctx)
+	var client *dockerclient.Client
+	if client, err = imgsrc.NewLocalDockerClient(); err == nil {
+		_, err = client.Ping(ctx)
 	}
 
 	return
@@ -191,6 +202,44 @@ func runAgent(ctx context.Context) (err error) {
 	var ac *agent.Client
 	if ac, err = agent.DefaultClient(client); err == nil {
 		_, err = ac.Ping(ctx)
+	}
+
+	return
+}
+
+var errSkipped = errors.New("skipped")
+
+func runProbeApp(ctx context.Context) (err error) {
+	appName := app.NameFromContext(ctx)
+	if appName == "" {
+		return errSkipped
+	}
+
+	client := client.FromContext(ctx).API()
+
+	var app *api.App
+	if app, err = client.GetApp(ctx, appName); err != nil {
+		err = fmt.Errorf("failed retrieving app: %w", err)
+
+		return
+	}
+
+	var ac *agent.Client
+	if ac, err = agent.Establish(ctx, client); err != nil {
+		err = fmt.Errorf("failed establishing agent connection: %w", err)
+
+		return
+	}
+
+	slug := app.Organization.Slug
+	if _, err = ac.Establish(ctx, slug); err != nil {
+		err = fmt.Errorf("failed establishing tunnel to %s: %w", slug, err)
+
+		return
+	}
+
+	if err = ac.Probe(ctx, &app.Organization); err != nil {
+		err = fmt.Errorf("failed probing %s: %w", slug, err)
 	}
 
 	return
