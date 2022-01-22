@@ -236,7 +236,7 @@ func runProbeApp(ctx context.Context) (err error) {
 		return
 	}
 
-	if err = ac.Probe(ctx, &app.Organization); err != nil {
+	if err = ac.Probe(ctx, slug); err != nil {
 		err = fmt.Errorf("failed probing %s: %w", slug, err)
 	}
 

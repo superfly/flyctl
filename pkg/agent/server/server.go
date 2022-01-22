@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/pkg/wg"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/wireguard"
 )
 
@@ -59,17 +60,28 @@ func Run(ctx context.Context, opt Options) (err error) {
 	return
 }
 
-func bind(socket string) (net.Listener, error) {
-	if err := removeSocket(socket); err != nil {
-		return nil, fmt.Errorf("failed removing existing socket: %w", err)
+type bindError struct{ error }
+
+func (be bindError) Unwrap() error { return be.error }
+
+func bind(socket string) (l net.Listener, err error) {
+	defer func() {
+		if err != nil {
+			sentry.CaptureException(bindError{err})
+		}
+	}()
+
+	if err = removeSocket(socket); err != nil {
+		err = fmt.Errorf("failed removing existing socket: %w", err)
+
+		return
 	}
 
-	l, err := net.Listen("unix", socket)
-	if err != nil {
-		return nil, fmt.Errorf("failed binding: %w", err)
+	if l, err = net.Listen("unix", socket); err != nil {
+		err = fmt.Errorf("failed binding: %w", err)
 	}
 
-	return l, nil
+	return
 }
 
 func latestChange(path string) (at time.Time, err error) {
@@ -352,8 +364,4 @@ func removeSocket(path string) (err error) {
 	}
 
 	return
-}
-
-type ClosableWrite interface {
-	CloseWrite() error
 }

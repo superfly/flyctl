@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,11 +12,6 @@ import (
 
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/logger"
-)
-
-var (
-	agentLock = filepath.Join(userHome(), ".fly", "agent.lock")
-	errNoLock = errors.New("failed acquiring agent lock; is there another instance of the agent running?")
 )
 
 func StartDaemon(ctx context.Context) (*Client, error) {
@@ -58,7 +52,7 @@ func (err errFailedToStart) Description() string {
 	return "The agent failed to start. You may review the log file here: " + string(err)
 }
 
-func waitForClient(ctx context.Context) (client *Client, err error) {
+func waitForClient(ctx context.Context) (*Client, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -66,11 +60,7 @@ func waitForClient(ctx context.Context) (client *Client, err error) {
 		pause.For(ctx, 100*time.Millisecond)
 
 		c, err := DefaultClient(ctx)
-		if err != nil {
-			continue
-		}
-
-		if _, err := c.Ping(ctx); err == nil {
+		if err == nil {
 			return c, nil
 		}
 	}
