@@ -54,6 +54,8 @@ var commonPreparers = []Preparer{
 	determineWorkingDir,
 	determineUserHomeDir,
 	determineConfigDir,
+	ensureConfigDirExists,
+	ensureConfigDirPerms,
 	loadCache,
 	loadConfig,
 	initTaskManager,
@@ -183,6 +185,57 @@ func determineConfigDir(ctx context.Context) (context.Context, error) {
 		Debugf("determined config directory: %q", dir)
 
 	return state.WithConfigDirectory(ctx, dir), nil
+}
+
+func ensureConfigDirExists(ctx context.Context) (context.Context, error) {
+	dir := state.ConfigDirectory(ctx)
+
+	switch fi, err := os.Stat(dir); {
+	case errors.Is(err, fs.ErrNotExist):
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			return nil, fmt.Errorf("failed creating config directory: %w", err)
+		}
+	case err != nil:
+		return nil, fmt.Errorf("failed stat-ing config directory: %w", err)
+	case !fi.IsDir():
+		return nil, fmt.Errorf("the path to the config directory (%s) is occupied by not a directory", dir)
+	}
+
+	logger.FromContext(ctx).
+		Debug("ensured config directory exists.")
+
+	return ctx, nil
+}
+
+func ensureConfigDirPerms(parent context.Context) (ctx context.Context, err error) {
+	defer func() {
+		if err != nil {
+			ctx = nil
+			err = fmt.Errorf("failed ensuring config directory perms: %w", err)
+
+			return
+		}
+
+		logger.FromContext(ctx).
+			Debug("ensured config directory perms.")
+	}()
+
+	ctx = parent
+	dir := state.ConfigDirectory(parent)
+
+	var f *os.File
+	if f, err = os.CreateTemp(dir, "perms.*"); err != nil {
+		return
+	}
+	defer func() {
+		if e := os.Remove(f.Name()); err == nil {
+			err = e
+		}
+	}()
+
+	err = f.Close()
+
+	return
 }
 
 func loadCache(ctx context.Context) (context.Context, error) {
