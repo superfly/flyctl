@@ -106,6 +106,10 @@ type server struct {
 	tunnels       map[string]*wg.Tunnel
 }
 
+type terminateError struct{ error }
+
+func (te terminateError) Unwrap() error { return te.error }
+
 var errShutdown = errors.New("shutdown")
 
 func (s *server) serve(parent context.Context, l net.Listener) (err error) {
@@ -160,8 +164,11 @@ func (s *server) serve(parent context.Context, l net.Listener) (err error) {
 		}
 	})
 
-	if err = eg.Wait(); errors.Is(err, errShutdown) {
-		err = nil
+	switch err = eg.Wait(); {
+	default:
+		sentry.CaptureException(terminateError{err})
+	case errors.Is(err, errShutdown):
+		err = nil // we initiated the shutdown
 	}
 
 	return
