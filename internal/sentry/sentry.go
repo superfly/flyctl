@@ -38,11 +38,57 @@ func init() {
 	initError = sentry.Init(opts)
 }
 
-// Record records v to sentry.
-func Record(v interface{}) {
-	if initError != nil {
-		fmt.Fprintf(os.Stderr, "sentry.Init: %v\n", initError)
+type CaptureOption func(scope *sentry.Scope)
 
+func WithContext(key string, val interface{}) CaptureOption {
+	return func(scope *sentry.Scope) {
+		scope.SetContext(key, val)
+	}
+}
+
+func WithContexts(contexts map[string]interface{}) CaptureOption {
+	return func(scope *sentry.Scope) {
+		scope.SetContexts(contexts)
+	}
+}
+
+func WithTag(key, value string) CaptureOption {
+	return func(scope *sentry.Scope) {
+		scope.SetTag(key, value)
+	}
+}
+
+func CaptureException(err error, opts ...CaptureOption) {
+	if !isInitialized() {
+		return
+	}
+
+	sentry.WithScope(func(s *sentry.Scope) {
+		for _, opt := range opts {
+			opt(s)
+		}
+
+		_ = sentry.CaptureException(err)
+	})
+}
+
+func CaptureMessage(msg string, opts ...CaptureOption) {
+	if !isInitialized() {
+		return
+	}
+
+	sentry.WithScope(func(s *sentry.Scope) {
+		for _, opt := range opts {
+			opt(s)
+		}
+
+		_ = sentry.CaptureMessage(msg)
+	})
+}
+
+// Recover records the given panic to sentry.
+func Recover(v interface{}) {
+	if !isInitialized() {
 		return
 	}
 
@@ -63,4 +109,14 @@ func printError(v interface{}) {
 	}
 
 	buf.WriteTo(os.Stdout)
+}
+
+func isInitialized() bool {
+	if initError != nil {
+		fmt.Fprintf(os.Stderr, "sentry.Init: %v\n", initError)
+
+		return false
+	}
+
+	return true
 }

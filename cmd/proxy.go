@@ -12,7 +12,7 @@ import (
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/proxy"
 	"github.com/superfly/flyctl/terminal"
@@ -61,9 +61,9 @@ func runProxy(cmdCtx *cmdctx.CmdContext) error {
 			return
 		}
 
-		flyerr.CaptureException(err,
-			flyerr.WithTag("feature", "ssh-console"),
-			flyerr.WithContexts(map[string]interface{}{
+		sentry.CaptureException(err,
+			sentry.WithTag("feature", "ssh-console"),
+			sentry.WithContexts(map[string]interface{}{
 				"app": map[string]interface{}{
 					"name": app.Name,
 				},
