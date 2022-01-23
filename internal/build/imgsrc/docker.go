@@ -18,7 +18,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -182,9 +182,9 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 			return
 		}
 
-		flyerr.CaptureException(err,
-			flyerr.WithTag("feature", "remote-build"),
-			flyerr.WithContexts(map[string]interface{}{
+		sentry.CaptureException(err,
+			sentry.WithTag("feature", "remote-build"),
+			sentry.WithContexts(map[string]interface{}{
 				"app": map[string]interface{}{
 					"name": app.Name,
 				},
