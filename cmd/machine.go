@@ -280,6 +280,7 @@ func runMachineClone(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
+	// TODO - Add GetMachine endpoint so we dont' have to query everything.
 	machines, err := cmdCtx.Client.API().ListMachines(ctx, appName, "")
 	if err != nil {
 		return err
