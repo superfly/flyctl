@@ -24,8 +24,8 @@ func newStart() (cmd *cobra.Command) {
 }
 
 func runStart(ctx context.Context) error {
-	if client, err := dial(ctx); err == nil {
-		_ = client.Kill(ctx)
+	if _, err := dial(ctx); err == nil {
+		return new(errDupInstance)
 	}
 
 	_, err := establish(ctx)

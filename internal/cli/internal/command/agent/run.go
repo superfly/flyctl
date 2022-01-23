@@ -25,13 +25,13 @@ func newRun() (cmd *cobra.Command) {
 	const (
 		short = "Run the Fly agent in the foreground"
 		long  = short + "\n"
-		usage = "run [log-file]"
 	)
 
-	cmd = command.New(usage, short, long, run)
-	cmd.Aliases = []string{"daemon-start"}
-	cmd.Args = cobra.MaximumNArgs(1)
+	cmd = command.New("run", short, long, run)
+
 	cmd.Hidden = true
+	cmd.Args = cobra.MaximumNArgs(1)
+	cmd.Aliases = []string{"daemon-start"}
 
 	return
 }
@@ -60,7 +60,7 @@ func run(ctx context.Context) error {
 	}
 	defer unlock()
 
-	deleteOldLogs(ctx)
+	setupLogDirectory(ctx)
 
 	opt := server.Options{
 		Socket:     socketPath(ctx),
@@ -108,15 +108,16 @@ func (*errDupInstance) Description() string {
 	return "It looks like another instance of the agent is already running. Please stop it before starting a new one."
 }
 
-func (err *errDupInstance) Unwrap() error {
-	return err.error
-}
-
 func lock(ctx context.Context, logger *log.Logger) (unlock filemu.UnlockFunc, err error) {
 	path := filepath.Join(os.TempDir(), "fly-agent.lock")
 
-	if unlock, err = filemu.Lock(ctx, path); err != nil {
-		err = &errDupInstance{err}
+	switch unlock, err = filemu.Lock(ctx, path); {
+	case err == nil:
+		break // all done
+	case ctx.Err() != nil:
+		err = ctx.Err() // parent canceled or deadlined
+	default:
+		err = new(errDupInstance)
 
 		logger.Print(err)
 	}
@@ -124,9 +125,15 @@ func lock(ctx context.Context, logger *log.Logger) (unlock filemu.UnlockFunc, er
 	return
 }
 
-func deleteOldLogs(ctx context.Context) {
+func setupLogDirectory(ctx context.Context) {
 	dir := filepath.Join(state.ConfigDirectory(ctx), "agent-logs")
+
 	logger := logger.FromContext(ctx)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		logger.Warnf("failed creating agent log directory: %v", err)
+
+		return
+	}
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {

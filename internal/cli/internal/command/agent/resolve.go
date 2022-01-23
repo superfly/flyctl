@@ -22,7 +22,10 @@ func newResolve() (cmd *cobra.Command) {
 		usage = "resolve <slug> <host[:port]>"
 	)
 
-	cmd = command.New(usage, short, long, runResolve)
+	cmd = command.New(usage, short, long, runResolve,
+		command.RequireSession,
+	)
+
 	cmd.Args = cobra.ExactArgs(2)
 
 	return

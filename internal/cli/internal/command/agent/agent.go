@@ -12,7 +12,7 @@ import (
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/state"
-	apiClient "github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/env"
 )
 
@@ -40,16 +40,17 @@ func New() (cmd *cobra.Command) {
 			newProbe(),
 			newInstances(),
 			newEstablish(),
-			newHex(),
+			newConnect(),
 		)
 	}
 
 	return
 }
 
-func establish(ctx context.Context) (client *agent.Client, err error) {
-	apiClient := apiClient.FromContext(ctx).API()
-	if client, err = agent.Establish(ctx, apiClient); err != nil {
+func establish(ctx context.Context) (ac *agent.Client, err error) {
+	client := client.FromContext(ctx).API()
+
+	if ac, err = agent.Establish(ctx, client); err != nil {
 		err = fmt.Errorf("failed establishing connection to agent: %w", err)
 	}
 
@@ -57,7 +58,7 @@ func establish(ctx context.Context) (client *agent.Client, err error) {
 }
 
 func dial(ctx context.Context) (client *agent.Client, err error) {
-	if client, err = agent.NewClient(ctx, "unix", socketPath(ctx)); err != nil {
+	if client, err = agent.DefaultClient(ctx); err != nil {
 		err = fmt.Errorf("failed dialing agent: %w", err)
 	}
 

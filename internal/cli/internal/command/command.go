@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/blang/semver"
@@ -62,6 +63,7 @@ var commonPreparers = []Preparer{
 	startQueryingForNewRelease,
 	promptToUpdate,
 	initClient,
+	killOldAgent,
 }
 
 // TODO: remove after migration is complete
@@ -371,6 +373,56 @@ func promptToUpdate(ctx context.Context) (context.Context, error) {
 
 	stderr := iostreams.FromContext(ctx).ErrOut
 	fmt.Fprintln(stderr, aurora.Yellow(msg))
+
+	return ctx, nil
+}
+
+func killOldAgent(ctx context.Context) (context.Context, error) {
+	path := filepath.Join(state.ConfigDirectory(ctx), "agent.pid")
+
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return ctx, nil // no old agent running or can't access that file
+	} else if err != nil {
+		return nil, fmt.Errorf("failed reading old agent's PID file: %w", err)
+	}
+
+	pid, err := strconv.Atoi(string(data))
+	if err != nil {
+		return nil, fmt.Errorf("failed determining old agent's PID: %w", err)
+	}
+
+	logger := logger.FromContext(ctx)
+	unlink := func() (err error) {
+		if err = os.Remove(path); err != nil {
+			err = fmt.Errorf("failed removing old agent's PID file: %w", err)
+
+			return
+		}
+
+		logger.Debug("removed old agent's PID file.")
+
+		return
+	}
+
+	p, err := os.FindProcess(pid)
+	if err != nil {
+		return nil, fmt.Errorf("failed retrieving old agent's process: %w", err)
+	} else if p == nil {
+		return ctx, unlink()
+	}
+
+	if err := p.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		return nil, fmt.Errorf("failed killing old agent process: %w", err)
+	}
+
+	logger.Debugf("killed old agent (PID: %d)", pid)
+
+	if err := unlink(); err != nil {
+		return nil, err
+	}
+
+	time.Sleep(time.Second) // we've killed and removed the pid file
 
 	return ctx, nil
 }

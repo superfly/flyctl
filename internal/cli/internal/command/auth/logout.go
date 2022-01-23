@@ -17,7 +17,7 @@ import (
 
 func newLogout() *cobra.Command {
 	const (
-		long = `Log the currently logged-in user out of the Fly platform. 
+		long = `Log the currently logged-in user out of the Fly platform.
 To continue interacting with Fly, the user will need to log in again.
 `
 		short = "Logs out the currently logged in user"
@@ -28,10 +28,13 @@ To continue interacting with Fly, the user will need to log in again.
 }
 
 func runLogout(ctx context.Context) (err error) {
-	if err = agent.StopRunningAgent(); err != nil {
-		err = fmt.Errorf("failed stopping agent: %w", err)
+	var ac *agent.Client
+	if ac, err = agent.DefaultClient(ctx); err == nil {
+		if err = ac.Kill(ctx); err != nil {
+			err = fmt.Errorf("failed stopping agent: %w", err)
 
-		return
+			return
+		}
 	}
 
 	path := state.ConfigFile(ctx)

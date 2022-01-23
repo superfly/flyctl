@@ -20,7 +20,10 @@ func newProbe() (cmd *cobra.Command) {
 		usage = "probe <slug>"
 	)
 
-	cmd = command.New(usage, short, long, runProbe)
+	cmd = command.New(usage, short, long, runProbe,
+		command.RequireSession,
+	)
+
 	cmd.Args = cobra.ExactArgs(1)
 
 	return

@@ -31,14 +31,11 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 		return nil, err
 	}
 
-	c, err := DefaultClient(ctx)
-	if err != nil {
-		return StartDaemon(ctx)
-	}
+	c := newClient("unix", PathToSocket())
 
 	res, err := c.Ping(ctx)
 	if err != nil {
-		return nil, err
+		return StartDaemon(ctx)
 	}
 
 	if buildinfo.Version().EQ(res.Version) {
@@ -84,11 +81,15 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 	return StartDaemon(ctx)
 }
 
-func NewClient(ctx context.Context, network, addr string) (client *Client, err error) {
-	client = &Client{
+func newClient(network, addr string) *Client {
+	return &Client{
 		network: network,
 		address: addr,
 	}
+}
+
+func Dial(ctx context.Context, network, addr string) (client *Client, err error) {
+	client = newClient(network, addr)
 
 	if _, err = client.Ping(ctx); err != nil {
 		client = nil
@@ -97,9 +98,8 @@ func NewClient(ctx context.Context, network, addr string) (client *Client, err e
 	return
 }
 
-// TODO: deprecate
 func DefaultClient(ctx context.Context) (*Client, error) {
-	return NewClient(ctx, "unix", PathToSocket())
+	return Dial(ctx, "unix", PathToSocket())
 }
 
 const (
