@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/cmdutil"
@@ -41,6 +42,7 @@ func newMachineCommand(client *client.Client) *Command {
 	newMachineStartCommand(cmd, client)
 	newMachineKillCommand(cmd, client)
 	newMachineRemoveCommand(cmd, client)
+	newMachineCloneCommand(cmd, client)
 
 	return cmd
 }
@@ -228,6 +230,130 @@ func runMachineKill(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	return nil
+}
+
+func newMachineCloneCommand(parent *Command, client *client.Client) {
+	keystrings := docstrings.Get("machine.clone")
+	cmd := BuildCommandCobra(parent, runMachineClone, &cobra.Command{
+		Use:     keystrings.Usage,
+		Short:   keystrings.Short,
+		Long:    keystrings.Long,
+		Aliases: []string{"clone"},
+	}, client, requireSession, requireAppName)
+
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "region",
+		Shorthand:   "r",
+		Description: "Target region",
+	})
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "name",
+		Shorthand:   "n",
+		Description: "The name of the machine",
+	})
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "organization",
+		Shorthand:   "o",
+		Description: "Target organization",
+	})
+	cmd.Args = cobra.MinimumNArgs(1)
+}
+
+func runMachineClone(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+	client := cmdCtx.Client.API()
+
+	appName := cmdCtx.AppName
+	machineID := cmdCtx.Args[0]
+	name := cmdCtx.Config.GetString("name")
+
+	regionCode := cmdCtx.Config.GetString("region")
+	var region *api.Region
+	region, err := selectRegion(ctx, client, regionCode)
+	if err != nil {
+		return err
+	}
+
+	orgCode := cmdCtx.Config.GetString("organization")
+	org, err := selectOrganization(ctx, client, orgCode, nil)
+	if err != nil {
+		return err
+	}
+
+	machines, err := cmdCtx.Client.API().ListMachines(ctx, appName, "")
+	if err != nil {
+		return err
+	}
+
+	var machine *api.Machine
+	for _, m := range machines {
+		if m.ID == machineID {
+			machine = m
+			break
+		}
+	}
+
+	if machine == nil {
+		return fmt.Errorf("failed to resolve machine with id: %s", machineID)
+	}
+
+	volumeHash, err := helpers.RandString(5)
+	if err != nil {
+		return err
+	}
+
+	if len(machine.Config.Mounts) > 0 {
+		mount := machine.Config.Mounts[0]
+		mount.Volume = fmt.Sprintf("data_%s", volumeHash)
+		machine.Config.Mounts = []api.MachineMount{mount}
+	}
+
+	input := api.LaunchMachineInput{
+		AppID:   appName,
+		Name:    name,
+		OrgSlug: org.ID,
+		Region:  region.Code,
+		Config:  &machine.Config,
+	}
+
+	machine, app, err := client.LaunchMachine(ctx, input)
+	if err != nil {
+		return err
+	}
+
+	if cmdCtx.Config.GetBool("detach") {
+		fmt.Println(machine.ID)
+		return nil
+	}
+
+	opts := &logs.LogOptions{
+		AppName: app.Name,
+		VMID:    machine.ID,
+	}
+
+	stream, err := logs.NewNatsStream(ctx, client, opts)
+
+	if err != nil {
+		terminal.Debugf("could not connect to wireguard tunnel, err: %v\n", err)
+		terminal.Debug("Falling back to log polling...")
+
+		stream, err = logs.NewPollingStream(ctx, client, opts)
+		if err != nil {
+			return err
+		}
+	}
+
+	presenter := presenters.LogPresenter{}
+	entries := stream.Stream(ctx, opts)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return stream.Err()
+		case entry := <-entries:
+			presenter.FPrint(cmdCtx.Out, cmdCtx.OutputJSON(), entry)
+		}
+	}
 }
 
 func newMachineRemoveCommand(parent *Command, client *client.Client) {
