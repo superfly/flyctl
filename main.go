@@ -19,6 +19,8 @@ func main() {
 }
 
 func run() (exitCode int) {
+	defer sentry.Flush()
+
 	ctx, cancel := newContext()
 	defer cancel()
 
