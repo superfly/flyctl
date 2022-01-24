@@ -60,19 +60,24 @@ func runLaunch(ctx context.Context) (err error) {
 		return
 	}
 
+	client := client.FromContext(ctx).API()
+
+	imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres")
+	if err != nil {
+		return err
+	}
+
 	input := api.LaunchMachineInput{
 		Name:    flag.FirstArg(ctx),
 		OrgSlug: org.ID,
 		Region:  region.Code,
 		Config: &api.MachineConfig{
-			Image: "flyio/redis:6.2.6",
+			Image: imageRef,
 			Env: map[string]string{
 				"REDIS_PASSWORD": password,
 			},
 		},
 	}
-
-	client := client.FromContext(ctx).API()
 
 	var machine *api.Machine
 	var app *api.App
