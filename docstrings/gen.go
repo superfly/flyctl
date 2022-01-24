@@ -457,6 +457,10 @@ to all instances running in a specific region using the --region/-r flag.`,
 		return KeyStrings{"machine <command>", "Commands that manage machines",
 			`Commands that manage machines`,
 		}
+	case "machine.clone":
+		return KeyStrings{"clone", "Clones a Fly Machine",
+			`Clones a Fly Machine`,
+		}
 	case "machine.kill":
 		return KeyStrings{"kill <id>", "Kill (SIGKILL) a Fly machine",
 			`Kill (SIGKILL) a Fly machine`,
