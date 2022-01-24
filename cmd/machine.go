@@ -299,12 +299,11 @@ func runMachineClone(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	if len(machine.Config.Mounts) > 0 {
-		// This copies the existing Volume spec and just renames it.
 		volumeHash, err := helpers.RandString(5)
 		if err != nil {
 			return err
 		}
-
+		// This copies the existing Volume spec and just renames it.
 		mount := machine.Config.Mounts[0]
 		mount.Volume = fmt.Sprintf("data_%s", volumeHash)
 		machine.Config.Mounts = []api.MachineMount{mount}
