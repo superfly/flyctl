@@ -120,3 +120,11 @@ func isInitialized() bool {
 
 	return true
 }
+
+func Flush() {
+	if !isInitialized() {
+		return
+	}
+
+	_ = sentry.Flush(time.Second << 1)
+}
