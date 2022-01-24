@@ -14,7 +14,7 @@ require (
 	github.com/docker/docker v20.10.8+incompatible
 	github.com/dustin/go-humanize v1.0.0
 	github.com/ejcx/sshcert v1.0.1
-	github.com/getsentry/sentry-go v0.11.0
+	github.com/getsentry/sentry-go v0.12.0
 	github.com/gofrs/flock v0.7.3
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/hashicorp/go-multierror v1.1.1
@@ -24,8 +24,8 @@ require (
 	github.com/jpillora/backoff v1.0.0
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/machinebox/graphql v0.2.3-0.20181106130121-3a9253180225 // indirect
-	github.com/mattn/go-colorable v0.1.8
-	github.com/mattn/go-isatty v0.0.12
+	github.com/mattn/go-colorable v0.1.11
+	github.com/mattn/go-isatty v0.0.14
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
 	github.com/miekg/dns v1.1.43
 	github.com/moby/buildkit v0.9.0
@@ -45,8 +45,8 @@ require (
 	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.7.0
 	github.com/superfly/flyctl/api v0.0.0-00010101000000-000000000000
-	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e
-	golang.org/x/net v0.0.0-20210525063256-abc453219eb5
+	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
+	golang.org/x/net v0.0.0-20211008194852-3b03d305991f
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/term v0.0.0-20210615171337-6886f2dfbf5b
 	golang.zx2c4.com/wireguard v0.0.20201118
