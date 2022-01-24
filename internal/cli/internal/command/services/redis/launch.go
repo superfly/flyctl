@@ -62,7 +62,7 @@ func runLaunch(ctx context.Context) (err error) {
 
 	client := client.FromContext(ctx).API()
 
-	imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres")
+	imageRef, err := client.GetLatestImageTag(ctx, "flyio/redis")
 	if err != nil {
 		return err
 	}
