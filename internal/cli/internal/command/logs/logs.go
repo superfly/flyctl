@@ -9,6 +9,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/azazeal/pause"
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
@@ -121,6 +122,9 @@ func nats(ctx context.Context, eg *errgroup.Group, client *api.Client, opts *log
 			return nil
 		}
 
+		// we wait for 2 seconds before canceling the polling context so that
+		// we get a few records
+		pause.For(ctx, 2*time.Second)
 		cancelPolling()
 
 		for entry := range stream.Stream(ctx, opts) {
