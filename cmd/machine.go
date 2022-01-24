@@ -280,7 +280,7 @@ func runMachineClone(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	// TODO - Add GetMachine endpoint so we dont' have to query everything.
+	// TODO - Add GetMachine endpoint so we don't have to query everything.
 	machines, err := cmdCtx.Client.API().ListMachines(ctx, appName, "")
 	if err != nil {
 		return err
@@ -298,12 +298,13 @@ func runMachineClone(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("failed to resolve machine with id: %s", machineID)
 	}
 
-	volumeHash, err := helpers.RandString(5)
-	if err != nil {
-		return err
-	}
-
 	if len(machine.Config.Mounts) > 0 {
+		// This copies the existing Volume spec and just renames it.
+		volumeHash, err := helpers.RandString(5)
+		if err != nil {
+			return err
+		}
+
 		mount := machine.Config.Mounts[0]
 		mount.Volume = fmt.Sprintf("data_%s", volumeHash)
 		machine.Config.Mounts = []api.MachineMount{mount}
