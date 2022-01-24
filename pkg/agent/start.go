@@ -12,7 +12,12 @@ import (
 
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/sentry"
 )
+
+type forkError struct{ error }
+
+func (fe *forkError) Unwrap() error { return fe.error }
 
 func StartDaemon(ctx context.Context) (*Client, error) {
 	logFile, err := prepareLogFile()
@@ -20,11 +25,13 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 		return nil, err
 	}
 
-	cmd := exec.Command(os.Args[0], "agent", "daemon-start", logFile)
+	cmd := exec.Command(os.Args[0], "agent", "run", logFile)
 	cmd.Env = append(os.Environ(), "FLY_NO_UPDATE_CHECK=1")
 	setCommandFlags(cmd)
 
 	if err := cmd.Start(); err != nil {
+		sentry.CaptureException(err)
+
 		return nil, fmt.Errorf("failed starting agent process: %w", err)
 	}
 
