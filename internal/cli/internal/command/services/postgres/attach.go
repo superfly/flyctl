@@ -59,18 +59,8 @@ func newAttach() (cmd *cobra.Command) {
 }
 
 func runAttach(ctx context.Context) error {
-
 	appName := app.NameFromContext(ctx)
-
 	pgAppName := flag.FirstArg(ctx)
-
-	// fmt.Printf("App name: %s, PG app name: %s", appName, pgAppName)
-	// return nil
-
-	// pgAppName := flag.GetString(ctx, "postgres-app")
-	// if pgAppName == "" {
-	// 	return fmt.Errorf("consumer-app is required")
-	// }
 
 	dbName := flag.GetString(ctx, "database-name")
 	if dbName == "" {
