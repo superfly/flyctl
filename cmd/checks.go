@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
@@ -261,7 +262,16 @@ func runAppCheckList(cmdCtx *cmdctx.CmdContext) error {
 	table := helpers.MakeSimpleTable(cmdCtx.Out, []string{"Name", "Status", "Allocation", "Region", "Type", "Last Updated", "Output"})
 
 	for _, check := range checks {
-		table.Append([]string{check.Name, check.Status, check.Allocation.IDShort, check.Allocation.Region, check.Type, presenters.FormatRelativeTime(check.UpdatedAt), check.Output})
+		// format output
+		var formattedOutput string
+		oldOutput := strings.ReplaceAll(check.Output, "\n", "")
+		oldOutput = strings.ReplaceAll(oldOutput, "] ", "]")
+		v := strings.Split(oldOutput, "[✓]")
+		for _, attr := range v {
+			formattedOutput += fmt.Sprintf("%s[✓]\n", attr)
+		}
+
+		table.Append([]string{check.Name, check.Status, check.Allocation.IDShort, check.Allocation.Region, check.Type, presenters.FormatRelativeTime(check.UpdatedAt), formattedOutput})
 	}
 
 	table.Render()
