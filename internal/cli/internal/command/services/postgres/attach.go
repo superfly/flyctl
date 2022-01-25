@@ -24,22 +24,22 @@ func newAttach() (cmd *cobra.Command) {
 		long = `Attach Postgres to an existing App
 `
 		short = "Attach Postgres to an existing App"
-		usage = "attach"
+		usage = "attach [POSTGRES APP]"
 	)
 
 	cmd = command.New(usage, short, long, runAttach,
 		command.RequireSession,
 		command.RequireAppName,
 	)
-	cmd.Args = cobra.MaximumNArgs(1)
+	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
-		flag.String{
-			Name:        "consumer-app",
-			Description: "The name of the consuming app we are looking to attach.",
-		},
+		// flag.String{
+		// 	Name:        "postgres-app",
+		// 	Description: "The name of the postgres app we are looking to attach.",
+		// },
 		flag.String{
 			Name:        "database-name",
 			Description: "The designated database name for this consuming app.",
@@ -59,22 +59,28 @@ func newAttach() (cmd *cobra.Command) {
 }
 
 func runAttach(ctx context.Context) error {
-	providerAppName := app.NameFromContext(ctx)
 
-	consumerAppName := flag.GetString(ctx, "consumer-app")
-	if consumerAppName == "" {
-		return fmt.Errorf("consumer-app is required")
-	}
+	appName := app.NameFromContext(ctx)
+
+	pgAppName := flag.FirstArg(ctx)
+
+	// fmt.Printf("App name: %s, PG app name: %s", appName, pgAppName)
+	// return nil
+
+	// pgAppName := flag.GetString(ctx, "postgres-app")
+	// if pgAppName == "" {
+	// 	return fmt.Errorf("consumer-app is required")
+	// }
 
 	dbName := flag.GetString(ctx, "database-name")
 	if dbName == "" {
-		dbName = consumerAppName
+		dbName = appName
 	}
 	dbName = strings.ToLower(strings.ReplaceAll(dbName, "-", "_"))
 
 	dbUser := flag.GetString(ctx, "database-user")
 	if dbUser == "" {
-		dbUser = consumerAppName
+		dbUser = appName
 	}
 	dbUser = strings.ToLower(strings.ReplaceAll(dbUser, "-", "_"))
 
@@ -84,8 +90,8 @@ func runAttach(ctx context.Context) error {
 	}
 
 	input := api.AttachPostgresClusterInput{
-		AppID:                consumerAppName,
-		PostgresClusterAppID: providerAppName,
+		AppID:                appName,
+		PostgresClusterAppID: pgAppName,
 		ManualEntry:          true,
 		DatabaseName:         api.StringPointer(dbName),
 		DatabaseUser:         api.StringPointer(dbUser),
@@ -94,12 +100,12 @@ func runAttach(ctx context.Context) error {
 
 	client := client.FromContext(ctx).API()
 
-	providerApp, err := client.GetApp(ctx, providerAppName)
+	pgApp, err := client.GetApp(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	_, err = client.GetApp(ctx, consumerAppName)
+	_, err = client.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
@@ -109,20 +115,20 @@ func runAttach(ctx context.Context) error {
 		return errors.Wrap(err, "can't establish agent")
 	}
 
-	dialer, err := agentclient.Dialer(ctx, providerApp.Organization.Slug)
+	dialer, err := agentclient.Dialer(ctx, pgApp.Organization.Slug)
 	if err != nil {
-		return fmt.Errorf("ssh cant build tunnel for %s: %s", providerApp.Organization.Slug, err)
+		return fmt.Errorf("ssh cant build tunnel for %s: %s", pgApp.Organization.Slug, err)
 	}
 
-	pgCmd := newPostgresCmd(ctx, providerApp, dialer)
+	pgCmd := newPostgresCmd(ctx, pgApp, dialer)
 
-	secrets, err := client.GetAppSecrets(ctx, consumerAppName)
+	secrets, err := client.GetAppSecrets(ctx, appName)
 	if err != nil {
 		return err
 	}
 	for _, secret := range secrets {
 		if secret.Name == *input.VariableName {
-			return fmt.Errorf("consumer app %q already contains an environment variable named %s", consumerAppName, *input.VariableName)
+			return fmt.Errorf("consumer app %q already contains an environment variable named %s", appName, *input.VariableName)
 		}
 	}
 	// Check to see if database exists
@@ -191,19 +197,20 @@ func runAttach(ctx context.Context) error {
 		return errors.Wrap(fmt.Errorf(usrResp.Error), "executing grant-access")
 	}
 
-	connectionString := fmt.Sprintf("postgres://%s:%s@top2.nearest.of.%s.internal:5432/%s", *input.DatabaseUser, pwd, providerAppName, *input.DatabaseName)
+	connectionString := fmt.Sprintf("postgres://%s:%s@top2.nearest.of.%s.internal:5432/%s", *input.DatabaseUser, pwd, pgAppName, *input.DatabaseName)
 	s := map[string]string{}
 	s[*input.VariableName] = connectionString
 
-	_, err = client.SetSecrets(ctx, consumerAppName, s)
+	// TODO - We need to consider the possibility that the consumer app is another Machine.
+	_, err = client.SetSecrets(ctx, appName, s)
 	if err != nil {
 		return err
 	}
 
 	io := iostreams.FromContext(ctx)
 
-	fmt.Fprintf(io.Out, "\nPostgres cluster %s is now attached to %s\n", providerAppName, consumerAppName)
-	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  %s=%s\n", consumerAppName, *input.VariableName, connectionString)
+	fmt.Fprintf(io.Out, "\nPostgres cluster %s is now attached to %s\n", pgAppName, appName)
+	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  %s=%s\n", appName, *input.VariableName, connectionString)
 
 	return nil
 }
