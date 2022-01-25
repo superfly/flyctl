@@ -34,7 +34,7 @@ func New() (cmd *cobra.Command) {
 		newRestart(),
 	)
 
-	if env.IsSet("DEV") {
+	if env.IsTruthy("DEV") {
 		cmd.AddCommand(
 			newResolve(),
 			newProbe(),
