@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,7 +21,7 @@ type forkError struct{ error }
 func (fe *forkError) Unwrap() error { return fe.error }
 
 func StartDaemon(ctx context.Context) (*Client, error) {
-	logFile, err := prepareLogFile()
+	logFile, err := createLogFile()
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +37,7 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 	}
 
 	if logger := logger.MaybeFromContext(ctx); logger != nil {
-		logger.Infof("started agent process (PID: %d)", cmd.Process.Pid)
+		logger.Infof("started agent process (pid: %d, log: %s)", cmd.Process.Pid, logFile)
 	}
 
 	switch client, err := waitForClient(ctx); {
@@ -75,22 +76,53 @@ func waitForClient(ctx context.Context) (*Client, error) {
 	return nil, ctx.Err()
 }
 
-func prepareLogFile() (path string, err error) {
-	path = filepath.Join(flyctl.ConfigDir(), "agent-logs")
-
-	if err = os.MkdirAll(path, 0700); err != nil {
-		err = fmt.Errorf("failed creating log directory at %s: %w", path, err)
-
+func createLogFile() (path string, err error) {
+	var dir string
+	if dir, err = setupLogDirectory(); err != nil {
 		return
 	}
 
 	var f *os.File
-	if f, err = os.CreateTemp(path, "*.log"); err != nil {
-		err = fmt.Errorf("failed creating log file at %s: %w", f.Name(), err)
+	if f, err = os.CreateTemp(dir, "*.log"); err != nil {
+		err = fmt.Errorf("failed creating log file: %w", err)
 	} else if err = f.Close(); err != nil {
-		err = fmt.Errorf("failed closing log file at %s: %w", f.Name(), err)
+		err = fmt.Errorf("failed closing log file: %w", err)
 	} else {
 		path = f.Name()
+	}
+
+	return
+}
+
+func setupLogDirectory() (dir string, err error) {
+	dir = filepath.Join(flyctl.ConfigDir(), "agent-logs")
+
+	if err = os.MkdirAll(dir, 0700); err != nil {
+		err = fmt.Errorf("failed creating agent log directory at %s: %w", dir, err)
+
+		return
+	}
+
+	var entries []fs.DirEntry
+	if entries, err = os.ReadDir(dir); err != nil {
+		err = fmt.Errorf("failed reading agent log directory entries: %v", err)
+
+		return
+	}
+
+	cutoff := time.Now().AddDate(0, 0, -1)
+
+	for _, entry := range entries {
+		switch inf, e := entry.Info(); {
+		case e != nil:
+			continue
+		case !inf.Mode().IsRegular():
+			continue
+		case inf.ModTime().Before(cutoff):
+			p := filepath.Join(dir, inf.Name())
+
+			_ = os.Remove(p)
+		}
 	}
 
 	return

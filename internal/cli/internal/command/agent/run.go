@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -18,7 +17,6 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/state"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/filemu"
-	"github.com/superfly/flyctl/internal/logger"
 )
 
 func newRun() (cmd *cobra.Command) {
@@ -29,7 +27,6 @@ func newRun() (cmd *cobra.Command) {
 
 	cmd = command.New("run", short, long, run)
 
-	cmd.Hidden = true
 	cmd.Args = cobra.MaximumNArgs(1)
 	cmd.Aliases = []string{"daemon-start"}
 
@@ -59,8 +56,6 @@ func run(ctx context.Context) error {
 		return err
 	}
 	defer unlock()
-
-	setupLogDirectory(ctx)
 
 	opt := server.Options{
 		Socket:     socketPath(ctx),
@@ -123,33 +118,4 @@ func lock(ctx context.Context, logger *log.Logger) (unlock filemu.UnlockFunc, er
 	}
 
 	return
-}
-
-func setupLogDirectory(ctx context.Context) {
-	dir := filepath.Join(state.ConfigDirectory(ctx), "agent-logs")
-
-	logger := logger.FromContext(ctx)
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		logger.Warnf("failed creating agent log directory: %v", err)
-
-		return
-	}
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		logger.Warnf("failed reading agent log directory entries: %v", err)
-
-		return
-	}
-
-	cutoff := time.Now().Add(-24 * time.Hour)
-	for _, e := range entries {
-		if i, _ := e.Info(); i.ModTime().Before(cutoff) {
-			p := filepath.Join(dir, e.Name())
-
-			if err := os.Remove(p); err != nil {
-				logger.Warnf("failed removing %s: %v", p, err)
-			}
-		}
-	}
 }
