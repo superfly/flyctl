@@ -14,3 +14,11 @@ func NewContext(ctx context.Context, logger *Logger) context.Context {
 func FromContext(ctx context.Context) *Logger {
 	return ctx.Value(contextKey{}).(*Logger)
 }
+
+func MaybeFromContext(ctx context.Context) (l *Logger) {
+	if v := ctx.Value(contextKey{}); v != nil {
+		l = v.(*Logger)
+	}
+
+	return
+}

@@ -270,7 +270,7 @@ func runWireGuardRemove(cmdCtx *cmdctx.CmdContext) error {
 
 	fmt.Println("Removed peer.")
 
-	return wireguard.PruneInvalidPeers(cmdCtx.Client.API())
+	return wireguard.PruneInvalidPeers(ctx, cmdCtx.Client.API())
 }
 
 func runWireGuardTokenList(cmdCtx *cmdctx.CmdContext) error {

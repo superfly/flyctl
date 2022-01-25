@@ -17,3 +17,16 @@ func TestNewContext(t *testing.T) {
 	ctx := NewContext(context.Background(), exp)
 	assert.Same(t, exp, FromContext(ctx))
 }
+
+func TestMaybeFromContextDoesNotPanic(t *testing.T) {
+	assert.Nil(t, MaybeFromContext(context.Background()))
+}
+
+func TestMaybeFromContext(t *testing.T) {
+	exp := new(Logger)
+
+	ctx := NewContext(context.Background(), exp)
+	assert.Same(t, exp, MaybeFromContext(ctx))
+
+	assert.Nil(t, MaybeFromContext(context.Background()))
+}

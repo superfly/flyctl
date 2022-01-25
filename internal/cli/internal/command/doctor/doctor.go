@@ -197,10 +197,8 @@ func runAgent(ctx context.Context) (err error) {
 		err = fmt.Errorf("couldn't ping agent: %w", err)
 	}()
 
-	client := client.FromContext(ctx).API()
-
 	var ac *agent.Client
-	if ac, err = agent.DefaultClient(client); err == nil {
+	if ac, err = agent.DefaultClient(ctx); err == nil {
 		_, err = ac.Ping(ctx)
 	}
 
@@ -238,7 +236,7 @@ func runProbeApp(ctx context.Context) (err error) {
 		return
 	}
 
-	if err = ac.Probe(ctx, &app.Organization); err != nil {
+	if err = ac.Probe(ctx, slug); err != nil {
 		err = fmt.Errorf("failed probing %s: %w", slug, err)
 	}
 

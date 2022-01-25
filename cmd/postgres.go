@@ -377,7 +377,7 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 		return errors.Wrap(err, "can't establish agent")
 	}
 
-	dialer, err := agentclient.Dialer(ctx, &pgApp.Organization)
+	dialer, err := agentclient.Dialer(ctx, pgApp.Organization.Slug)
 	if err != nil {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
 	}
@@ -526,7 +526,7 @@ func runDetachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 		return errors.Wrap(err, "can't establish agent")
 	}
 
-	dialer, err := agentclient.Dialer(ctx, &pgApp.Organization)
+	dialer, err := agentclient.Dialer(ctx, pgApp.Organization.Slug)
 	if err != nil {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
 	}
@@ -637,7 +637,7 @@ func runPostgresConnect(cmdCtx *cmdctx.CmdContext) error {
 		return errors.Wrap(err, "can't establish agent")
 	}
 
-	dialer, err := agentclient.Dialer(ctx, &app.Organization)
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
 	if err != nil {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
 	}
@@ -684,7 +684,7 @@ func runListPostgresDatabases(cmdCtx *cmdctx.CmdContext) error {
 		return errors.Wrap(err, "can't establish agent")
 	}
 
-	dialer, err := agentclient.Dialer(ctx, &app.Organization)
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
 	if err != nil {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
 	}
@@ -727,7 +727,7 @@ func runListPostgresUsers(cmdCtx *cmdctx.CmdContext) error {
 		return errors.Wrap(err, "can't establish agent")
 	}
 
-	dialer, err := agentclient.Dialer(ctx, &app.Organization)
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
 	if err != nil {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
 	}

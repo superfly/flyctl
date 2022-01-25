@@ -1,79 +1,168 @@
 package agent
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/azazeal/pause"
 	"github.com/blang/semver"
-	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
+
+	"github.com/superfly/flyctl/pkg/agent/internal/proto"
+	"github.com/superfly/flyctl/pkg/wg"
+
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/wireguard"
-	"github.com/superfly/flyctl/pkg/wg"
-	"github.com/superfly/flyctl/terminal"
 )
 
-/// Establish starts the daemon if necessary and returns a client
+// Establish starts the daemon, if necessary, and returns a client to it.
 func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
-	if err := wireguard.PruneInvalidPeers(apiClient); err != nil {
+	if err := wireguard.PruneInvalidPeers(ctx, apiClient); err != nil {
 		return nil, err
 	}
 
-	c, err := DefaultClient(apiClient)
-	if err == nil {
-		resp, err := c.Ping(ctx)
-		if err == nil {
-			if buildinfo.Version().EQ(resp.Version) {
-				return c, nil
-			}
+	c := newClient("unix", PathToSocket())
 
-			msg := fmt.Sprintf("flyctl version %s does not match agent version %s", buildinfo.Version(), resp.Version)
-
-			if !resp.Background {
-				terminal.Warn(msg)
-				return c, nil
-			}
-
-			terminal.Debug(msg)
-			terminal.Debug("stopping agent")
-			if err := c.Kill(ctx); err != nil {
-				terminal.Warn(msg)
-				return nil, errors.Wrap(err, "kill failed")
-			}
-			// this is gross, but we need to wait for the agent to exit
-			time.Sleep(1 * time.Second)
-		}
-	}
-
-	return StartDaemon(ctx, apiClient, os.Args[0])
-}
-
-func NewClient(path string, apiClient *api.Client) (*Client, error) {
-	provider, err := newClientProvider(path, apiClient)
+	res, err := c.Ping(ctx)
 	if err != nil {
+		return StartDaemon(ctx)
+	}
+
+	if buildinfo.Version().EQ(res.Version) {
+		return c, nil
+	}
+
+	// TOOD: log this instead
+	msg := fmt.Sprintf("flyctl version %s does not match agent version %s", buildinfo.Version(), res.Version)
+
+	logger := logger.MaybeFromContext(ctx)
+	if logger != nil {
+		logger.Warn(msg)
+	} else {
+		fmt.Fprintln(os.Stderr, msg)
+	}
+
+	if !res.Background {
+		return c, nil
+	}
+
+	const stopMessage = "stopping agent ..."
+	if logger != nil {
+		logger.Warn(stopMessage)
+	} else {
+		fmt.Fprintln(os.Stderr, stopMessage)
+	}
+
+	if err := c.Kill(ctx); err != nil {
+		err = fmt.Errorf("failed stopping agent: %w", err)
+
+		if logger != nil {
+			logger.Error(err)
+		} else {
+			fmt.Fprintln(os.Stderr, err)
+		}
+
 		return nil, err
 	}
 
-	return &Client{provider: provider}, nil
+	// this is gross, but we need to wait for the agent to exit
+	pause.For(ctx, time.Second)
+
+	return StartDaemon(ctx)
 }
 
-func DefaultClient(apiClient *api.Client) (*Client, error) {
-	return NewClient(pathToSocket(), apiClient)
+func newClient(network, addr string) *Client {
+	return &Client{
+		network: network,
+		address: addr,
+	}
 }
+
+func Dial(ctx context.Context, network, addr string) (client *Client, err error) {
+	client = newClient(network, addr)
+
+	if _, err = client.Ping(ctx); err != nil {
+		client = nil
+	}
+
+	return
+}
+
+func DefaultClient(ctx context.Context) (*Client, error) {
+	return Dial(ctx, "unix", PathToSocket())
+}
+
+const (
+	timeout = 2 * time.Second
+	cycle   = time.Second / 10
+)
 
 type Client struct {
-	provider clientProvider
+	network string
+	address string
+	dialer  net.Dialer
+}
+
+func (c *Client) dial() (conn net.Conn, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	return c.dialContext(ctx)
+}
+
+func (c *Client) dialContext(ctx context.Context) (conn net.Conn, err error) {
+	return c.dialer.DialContext(ctx, c.network, c.address)
+}
+
+var errDone = errors.New("done")
+
+func (c *Client) do(parent context.Context, fn func(net.Conn) error) (err error) {
+	var conn net.Conn
+	if conn, err = c.dialContext(parent); err != nil {
+		return err
+	}
+
+	eg, ctx := errgroup.WithContext(parent)
+
+	eg.Go(func() (err error) {
+		<-ctx.Done()
+
+		if err = conn.Close(); err == nil {
+			err = net.ErrClosed
+		}
+
+		return
+	})
+
+	eg.Go(func() (err error) {
+		if err = fn(conn); err == nil {
+			err = errDone
+		}
+
+		return
+	})
+
+	if err = eg.Wait(); errors.Is(err, errDone) {
+		err = nil
+	}
+
+	return
 }
 
 func (c *Client) Kill(ctx context.Context) error {
-	if err := c.provider.Kill(ctx); err != nil {
-		return errors.Wrap(err, "kill failed")
-	}
-	return nil
+	return c.do(ctx, func(conn net.Conn) error {
+		return proto.Write(conn, "kill")
+	})
 }
 
 type PingResponse struct {
@@ -82,12 +171,59 @@ type PingResponse struct {
 	Background bool
 }
 
-func (c *Client) Ping(ctx context.Context) (PingResponse, error) {
-	n, err := c.provider.Ping(ctx)
-	if err != nil {
-		return n, errors.Wrap(err, "ping failed")
-	}
-	return n, nil
+type errInvalidResponse []byte
+
+func (err errInvalidResponse) Error() string {
+	return fmt.Sprintf("invalid server response: %q", string(err))
+}
+
+func (c *Client) Ping(ctx context.Context) (res PingResponse, err error) {
+	err = c.do(ctx, func(conn net.Conn) (err error) {
+		if err = proto.Write(conn, "ping"); err != nil {
+			return
+		}
+
+		var data []byte
+		if data, err = proto.Read(conn); err != nil {
+			return
+		}
+
+		if isOK(data) {
+			err = unmarshal(&res, data)
+		} else {
+			err = errInvalidResponse(data)
+		}
+
+		return
+	})
+
+	return
+}
+
+const okPrefix = "ok "
+
+func isOK(data []byte) bool {
+	return isPrefixedWith(data, okPrefix)
+}
+
+func extractOK(data []byte) []byte {
+	return data[len(okPrefix):]
+}
+
+const errorPrefix = "err "
+
+func isError(data []byte) bool {
+	return isPrefixedWith(data, errorPrefix)
+}
+
+func extractError(data []byte) error {
+	msg := data[len(errorPrefix):]
+
+	return errors.New(string(msg))
+}
+
+func isPrefixedWith(data []byte, prefix string) bool {
+	return strings.HasPrefix(string(data), prefix)
 }
 
 type EstablishResponse struct {
@@ -95,114 +231,217 @@ type EstablishResponse struct {
 	TunnelConfig   *wg.Config
 }
 
-func (c *Client) Establish(ctx context.Context, slug string) (*EstablishResponse, error) {
-	resp, err := c.provider.Establish(ctx, slug)
-	if err != nil {
-		return nil, errors.Wrap(err, "establish failed")
-	}
-	return resp, nil
+func (c *Client) Establish(ctx context.Context, slug string) (res *EstablishResponse, err error) {
+	err = c.do(ctx, func(conn net.Conn) (err error) {
+		if err = proto.Write(conn, "establish", slug); err != nil {
+			return
+		}
+
+		// this goes out to the API; don't time it out aggressively
+		var data []byte
+		if data, err = proto.Read(conn); err != nil {
+			return
+		}
+
+		switch {
+		default:
+			err = errInvalidResponse(data)
+		case isOK(data):
+			res = &EstablishResponse{}
+			if err = unmarshal(res, data); err != nil {
+				res = nil
+			}
+		case isError(data):
+			err = extractError(data)
+		}
+
+		return
+	})
+
+	return
 }
 
-func (c *Client) WaitForTunnel(ctx context.Context, o *api.Organization) error {
-	errCh := make(chan error, 1)
+func (c *Client) Probe(ctx context.Context, slug string) error {
+	return c.do(ctx, func(conn net.Conn) (err error) {
+		if err = proto.Write(conn, "probe", slug); err != nil {
+			return
+		}
 
-	go func() {
-		for {
-			err := c.Probe(ctx, o)
-			if err != nil && IsTunnelError(err) {
-				continue
-			}
+		var data []byte
+		if data, err = proto.Read(conn); err != nil {
+			return
+		}
 
-			errCh <- err
+		switch {
+		default:
+			err = errInvalidResponse(data)
+		case string(data) == "ok":
+			return // up and running
+		case isError(data):
+			err = extractError(data)
+		}
+
+		return
+	})
+}
+
+func (c *Client) Resolve(ctx context.Context, slug, host string) (addr string, err error) {
+	err = c.do(ctx, func(conn net.Conn) (err error) {
+		if err = proto.Write(conn, "resolve", slug, host); err != nil {
+			return
+		}
+
+		var data []byte
+		if data, err = proto.Read(conn); err != nil {
+			return
+		}
+
+		switch {
+		default:
+			err = errInvalidResponse(data)
+		case string(data) == "ok":
+			err = ErrNoSuchHost
+		case isOK(data):
+			addr = string(extractOK(data))
+		case isError(data):
+			err = extractError(data)
+		}
+
+		return
+	})
+
+	return
+}
+
+func (c *Client) WaitForTunnel(ctx context.Context, slug string) (err error) {
+	for {
+		pause.For(ctx, cycle)
+
+		if err = c.Probe(ctx, slug); !errors.Is(err, ErrTunnelUnavailable) {
 			break
 		}
-	}()
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case err := <-errCh:
-		return err
 	}
+
+	return
 }
 
-func (c *Client) WaitForHost(ctx context.Context, o *api.Organization, host string) error {
-	errCh := make(chan error, 1)
+func (c *Client) WaitForHost(ctx context.Context, slug, host string) (err error) {
+	for {
+		pause.For(ctx, cycle)
 
-	go func() {
-		for {
-			_, err := c.Resolve(ctx, o, host)
-			if err != nil && (IsHostNotFoundError(err) || IsTunnelError(err)) {
-				time.Sleep(200 * time.Millisecond)
-				continue
-			}
-
-			errCh <- err
+		if _, err = c.Resolve(ctx, slug, host); !errors.Is(err, ErrTunnelUnavailable) && !errors.Is(err, ErrNoSuchHost) {
 			break
 		}
-	}()
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case err := <-errCh:
-		return err
 	}
+
+	return
 }
 
-func (c *Client) Probe(ctx context.Context, o *api.Organization) error {
-	if err := c.provider.Probe(ctx, o); err != nil {
-		err = mapResolveError(err, o.Slug, "")
-		return errors.Wrap(err, "probe failed")
+func (c *Client) Instances(ctx context.Context, org *api.Organization, app string) (instances Instances, err error) {
+	err = c.do(ctx, func(conn net.Conn) (err error) {
+		if err = proto.Write(conn, "instances", org.Slug, app); err != nil {
+			return
+		}
+
+		// this goes out to the network; don't time it out aggressively
+		var data []byte
+		if data, err = proto.Read(conn); err != nil {
+			return
+		}
+
+		switch {
+		default:
+			err = errInvalidResponse(data)
+		case isOK(data):
+			err = unmarshal(&instances, data)
+		case isError(data):
+			err = extractError(data)
+		}
+
+		return
+	})
+
+	return
+}
+
+func unmarshal(dst interface{}, data []byte) (err error) {
+	src := bytes.NewReader(extractOK(data))
+
+	dec := json.NewDecoder(src)
+	if err = dec.Decode(dst); err != nil {
+		err = fmt.Errorf("failed decoding response: %w", err)
 	}
-	return nil
+
+	return
 }
 
-func (c *Client) Resolve(ctx context.Context, o *api.Organization, host string) (string, error) {
-	addr, err := c.provider.Resolve(ctx, o, host)
-	if err != nil {
-		err = mapResolveError(err, o.Slug, host)
-		return "", errors.Wrap(err, "resolve failed")
+func (c *Client) Dialer(ctx context.Context, slug string) (d Dialer, err error) {
+	var er *EstablishResponse
+	if er, err = c.Establish(ctx, slug); err == nil {
+		d = &dialer{
+			slug:   slug,
+			client: c,
+			state:  er.WireGuardState,
+			config: er.TunnelConfig,
+		}
 	}
-	return addr, nil
+
+	return
 }
 
-func (c *Client) Instances(ctx context.Context, o *api.Organization, app string) (*Instances, error) {
-	instances, err := c.provider.Instances(ctx, o, app)
-	if err != nil {
-		return nil, errors.Wrap(err, "list instances failed")
-	}
-	return instances, nil
-}
-
-func (c *Client) Dialer(ctx context.Context, o *api.Organization) (Dialer, error) {
-	dialer, err := c.provider.Dialer(ctx, o)
-	if err != nil {
-		err = mapResolveError(err, o.Slug, "")
-		return nil, errors.Wrap(err, "error fetching dialer")
-	}
-	return dialer, nil
-}
-
-// clientProvider is an interface for client functions backed by either the agent or in-process on Windows
-type clientProvider interface {
-	Dialer(ctx context.Context, o *api.Organization) (Dialer, error)
-	Establish(ctx context.Context, slug string) (*EstablishResponse, error)
-	Instances(ctx context.Context, o *api.Organization, app string) (*Instances, error)
-	Kill(ctx context.Context) error
-	Ping(ctx context.Context) (PingResponse, error)
-	Probe(ctx context.Context, o *api.Organization) error
-	Resolve(ctx context.Context, o *api.Organization, name string) (string, error)
-}
-
+// TODO: refactor to struct
 type Dialer interface {
 	State() *wg.WireGuardState
 	Config() *wg.Config
 	DialContext(ctx context.Context, network, addr string) (net.Conn, error)
 }
 
-func IsIPv6(addr string) bool {
-	addr = strings.Trim(addr, "[]")
-	ip := net.ParseIP(addr)
-	return ip != nil && ip.To16() != nil
+type dialer struct {
+	slug    string
+	timeout time.Duration
+
+	state  *wg.WireGuardState
+	config *wg.Config
+
+	client *Client
+}
+
+func (d *dialer) State() *wg.WireGuardState {
+	return d.state
+}
+
+func (d *dialer) Config() *wg.Config {
+	return d.config
+}
+
+func (d *dialer) DialContext(ctx context.Context, network, addr string) (conn net.Conn, err error) {
+	if conn, err = d.client.dialContext(ctx); err != nil {
+		return
+	}
+	defer func() {
+		if err != nil {
+			_ = conn.Close()
+		}
+	}()
+
+	timeout := strconv.FormatInt(int64(d.timeout), 10)
+	if err = proto.Write(conn, "connect", d.slug, addr, timeout); err != nil {
+		return
+	}
+
+	var data []byte
+	if data, err = proto.Read(conn); err != nil {
+		return
+	}
+
+	switch {
+	default:
+		err = errInvalidResponse(data)
+	case string(data) == "ok":
+		break
+	case isError(data):
+		err = extractError(data)
+	}
+
+	return
 }

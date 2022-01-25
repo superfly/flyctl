@@ -230,7 +230,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 				return errors.Wrap(err, "error establishing agent")
 			}
 
-			dialer, err := agentclient.Dialer(errCtx, &app.Organization)
+			dialer, err := agentclient.Dialer(errCtx, app.Organization.Slug)
 			if err != nil {
 				return errors.Wrapf(err, "error establishing wireguard connection for %s organization", app.Organization.Slug)
 			}
@@ -238,7 +238,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 			tunnelCtx, cancel := context.WithTimeout(errCtx, 4*time.Minute)
 			defer cancel()
 			// wait for the tunnel to be ready
-			if err = agentclient.WaitForTunnel(tunnelCtx, &app.Organization); err != nil {
+			if err = agentclient.WaitForTunnel(tunnelCtx, app.Organization.Slug); err != nil {
 				return errors.Wrap(err, "unable to connect WireGuard tunnel")
 			}
 

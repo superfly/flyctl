@@ -98,7 +98,7 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	d, err := agentclient.Dialer(ctx, org)
+	d, err := agentclient.Dialer(ctx, org.Slug)
 	if err != nil {
 		return err
 	}
@@ -251,7 +251,7 @@ func ResolverForOrg(ctx context.Context, c *agent.Client, org *api.Organization)
 	return &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			d, err := c.Dialer(ctx, org)
+			d, err := c.Dialer(ctx, org.Slug)
 			if err != nil {
 				return nil, err
 			}
