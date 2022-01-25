@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/pkg/agent"
+	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func newAttach() (cmd *cobra.Command) {
@@ -110,7 +111,7 @@ func runAttach(ctx context.Context) error {
 
 	dialer, err := agentclient.Dialer(ctx, providerApp.Organization.Slug)
 	if err != nil {
-		return fmt.Errorf("ssh cant build tunnel for %s: %s\n", providerApp.Organization.Slug, err)
+		return fmt.Errorf("ssh cant build tunnel for %s: %s", providerApp.Organization.Slug, err)
 	}
 
 	pgCmd := newPostgresCmd(ctx, providerApp, dialer)
@@ -121,7 +122,7 @@ func runAttach(ctx context.Context) error {
 	}
 	for _, secret := range secrets {
 		if secret.Name == *input.VariableName {
-			return fmt.Errorf("consumer app %q already contains an environment variable named %s\n", consumerAppName, *input.VariableName)
+			return fmt.Errorf("consumer app %q already contains an environment variable named %s", consumerAppName, *input.VariableName)
 		}
 	}
 	// Check to see if database exists
@@ -199,8 +200,10 @@ func runAttach(ctx context.Context) error {
 		return err
 	}
 
-	fmt.Printf("\nPostgres cluster %s is now attached to %s\n", providerAppName, consumerAppName)
-	fmt.Printf("The following secret was added to %s:\n  %s=%s\n", consumerAppName, *input.VariableName, connectionString)
+	io := iostreams.FromContext(ctx)
+
+	fmt.Fprintf(io.Out, "\nPostgres cluster %s is now attached to %s\n", providerAppName, consumerAppName)
+	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  %s=%s\n", consumerAppName, *input.VariableName, connectionString)
 
 	return nil
 }

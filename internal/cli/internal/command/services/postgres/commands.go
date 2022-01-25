@@ -8,6 +8,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/command/ssh"
 	"github.com/superfly/flyctl/pkg/agent"
+	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 type postgresDatabaseListResponse struct {
@@ -62,6 +63,7 @@ type postgresCmd struct {
 	ctx    *context.Context
 	app    *api.App
 	dialer agent.Dialer
+	io     *iostreams.IOStreams
 }
 
 func newPostgresCmd(ctx context.Context, app *api.App, dialer agent.Dialer) *postgresCmd {
@@ -69,22 +71,23 @@ func newPostgresCmd(ctx context.Context, app *api.App, dialer agent.Dialer) *pos
 		ctx:    &ctx,
 		app:    app,
 		dialer: dialer,
+		io:     iostreams.FromContext(ctx),
 	}
 }
 
 func (pc *postgresCmd) revokeAccess(dbName, username string) (*postgresCommandResponse, error) {
-	fmt.Println("Running flyadmin revoke-access")
+	fmt.Fprintln(pc.io.Out, "Running flyadmin revoke-access")
 	req := &postgresRevokeAccessRequest{
 		Database: dbName,
 		Username: username,
 	}
 
-	reqJson, err := json.Marshal(req)
+	reqJSON, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
 
-	cmd := fmt.Sprintf("flyadmin revoke-access %s", string(reqJson))
+	cmd := fmt.Sprintf("flyadmin revoke-access %s", string(reqJSON))
 	createUsrBytes, err := ssh.RunSSHCommand(*pc.ctx, pc.app, pc.dialer, cmd)
 	if err != nil {
 		return nil, err
@@ -99,18 +102,18 @@ func (pc *postgresCmd) revokeAccess(dbName, username string) (*postgresCommandRe
 }
 
 func (pc *postgresCmd) grantAccess(dbName, username string) (*postgresCommandResponse, error) {
-	fmt.Println("Running flyadmin grant-access")
+	fmt.Fprintln(pc.io.Out, "Running flyadmin grant-access")
 	req := &postgresGrantAccessRequest{
 		Database: dbName,
 		Username: username,
 	}
 
-	reqJson, err := json.Marshal(req)
+	reqJSON, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
 
-	cmd := fmt.Sprintf("flyadmin grant-access %s", string(reqJson))
+	cmd := fmt.Sprintf("flyadmin grant-access %s", string(reqJSON))
 	createUsrBytes, err := ssh.RunSSHCommand(*pc.ctx, pc.app, pc.dialer, cmd)
 	if err != nil {
 		return nil, err
@@ -125,19 +128,19 @@ func (pc *postgresCmd) grantAccess(dbName, username string) (*postgresCommandRes
 }
 
 func (pc *postgresCmd) createUser(userName, pwd string) (*postgresCommandResponse, error) {
-	fmt.Println("Running flyadmin user-create")
+	fmt.Fprintln(pc.io.Out, "Running flyadmin user-create")
 	req := &postgresCreateUserRequest{
 		Username:  userName,
 		Password:  pwd,
 		Superuser: false,
 	}
 
-	reqJson, err := json.Marshal(req)
+	reqJSON, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
 
-	cmd := fmt.Sprintf("flyadmin user-create %s", string(reqJson))
+	cmd := fmt.Sprintf("flyadmin user-create %s", string(reqJSON))
 	createUsrBytes, err := ssh.RunSSHCommand(*pc.ctx, pc.app, pc.dialer, cmd)
 	if err != nil {
 		return nil, err
@@ -152,17 +155,17 @@ func (pc *postgresCmd) createUser(userName, pwd string) (*postgresCommandRespons
 }
 
 func (pc *postgresCmd) deleteUser(userName string) (*postgresCommandResponse, error) {
-	fmt.Println("Running flyadmin user-delete")
+	fmt.Fprintln(pc.io.Out, "Running flyadmin user-delete")
 	req := &postgresDeleteUserRequest{
 		Username: userName,
 	}
 
-	reqJson, err := json.Marshal(req)
+	reqJSON, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
 
-	cmd := fmt.Sprintf("flyadmin user-delete %s", string(reqJson))
+	cmd := fmt.Sprintf("flyadmin user-delete %s", string(reqJSON))
 	createUsrBytes, err := ssh.RunSSHCommand(*pc.ctx, pc.app, pc.dialer, cmd)
 	if err != nil {
 		return nil, err
@@ -177,14 +180,14 @@ func (pc *postgresCmd) deleteUser(userName string) (*postgresCommandResponse, er
 }
 
 func (pc *postgresCmd) createDatabase(dbName string) (*postgresCommandResponse, error) {
-	fmt.Println("Running flyadmin database-create")
+	fmt.Fprintln(pc.io.Out, "Running flyadmin database-create")
 	req := &postgresCreateDatabaseRequest{Name: dbName}
-	reqJson, err := json.Marshal(req)
+	reqJSON, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
 
-	cmd := fmt.Sprintf("flyadmin database-create %s", string(reqJson))
+	cmd := fmt.Sprintf("flyadmin database-create %s", string(reqJSON))
 	createDbBytes, err := ssh.RunSSHCommand(*pc.ctx, pc.app, pc.dialer, cmd)
 	if err != nil {
 		return nil, err
@@ -199,7 +202,7 @@ func (pc *postgresCmd) createDatabase(dbName string) (*postgresCommandResponse, 
 }
 
 func (pc *postgresCmd) listDatabases() (*postgresDatabaseListResponse, error) {
-	fmt.Println("Running flyadmin database-list")
+	fmt.Fprintln(pc.io.Out, "Running flyadmin database-list")
 	databaseListBytes, err := ssh.RunSSHCommand(*pc.ctx, pc.app, pc.dialer, "flyadmin database-list")
 	if err != nil {
 		return nil, err
@@ -229,7 +232,7 @@ func (pc *postgresCmd) DbExists(dbName string) (bool, error) {
 }
 
 func (pc *postgresCmd) listUsers() (*postgresUserListResponse, error) {
-	fmt.Println("Running flyadmin user-list")
+	fmt.Fprintln(pc.io.Out, "Running flyadmin user-list")
 	userListBytes, err := ssh.RunSSHCommand(*pc.ctx, pc.app, pc.dialer, "flyadmin user-list")
 	if err != nil {
 		return nil, err
