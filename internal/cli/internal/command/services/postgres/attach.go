@@ -32,19 +32,12 @@ func newAttach() (cmd *cobra.Command) {
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
 
-	// attachStrngs := docstrings.Get("postgres.attach")
-	// attachCmd := BuildCommandKS(cmd, runAttachPostgresCluster, attachStrngs, client, requireSession, requireAppName)
-	// attachCmd.AddStringFlag(StringFlagOpts{Name: "postgres-app", Description: "the postgres cluster to attach to the app"})
-	// attachCmd.AddStringFlag(StringFlagOpts{Name: "database-name", Description: "database to use, defaults to a new database with the same name as the app"})
-	// attachCmd.AddStringFlag(StringFlagOpts{Name: "database-user", Description: "the database user to create, defaults to creating a user with the same name as the consuming app"})
-	// attachCmd.AddStringFlag(StringFlagOpts{Name: "variable-name", Description: "the env variable name that will be added to the app. Defaults to DATABASE_URL"})
-
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
 		flag.String{
 			Name:        "consumer-app",
-			Description: "The name of the consuming app.",
+			Description: "The name of the consuming app we are looking to attach.",
 		},
 		flag.String{
 			Name:        "database-name",
@@ -128,7 +121,7 @@ func runAttach(ctx context.Context) error {
 	}
 	for _, secret := range secrets {
 		if secret.Name == *input.VariableName {
-			return fmt.Errorf("consumer app %q already contains a secret named %s\n", consumerAppName, *input.VariableName)
+			return fmt.Errorf("consumer app %q already contains an environment variable named %s\n", consumerAppName, *input.VariableName)
 		}
 	}
 	// Check to see if database exists
