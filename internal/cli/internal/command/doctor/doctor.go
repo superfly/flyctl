@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"sync"
@@ -59,6 +61,7 @@ var runners = map[string]runner{
 	"Docker (local)": runLocalDocker,
 	"Agent":          runAgent,
 	"Probe (app)":    runProbeApp,
+	"Unix socket":    runUnixSocket,
 	// "UDP":            runUDP,
 }
 
@@ -304,4 +307,19 @@ func runUDP(ctx context.Context) error {
 func isNetworkTimeout(err error) bool {
 	e, ok := err.(net.Error)
 	return ok && e.Timeout()
+}
+
+func runUnixSocket(ctx context.Context) error {
+	path := filepath.Join(os.TempDir(), "fly-doctor.socket")
+
+	l, err := net.Listen("unix", path)
+	if err != nil {
+		return fmt.Errorf("failed listening on socket: %w", err)
+	}
+
+	if err := l.Close(); err != nil {
+		return fmt.Errorf("failed closing socket: %w", err)
+	}
+
+	return nil
 }
