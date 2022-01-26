@@ -87,8 +87,8 @@ func (*startError) Error() string {
 
 func (se *startError) Unwrap() error { return se.error }
 
-func (err *startError) Description() string {
-	return fmt.Sprintf("The agent failed to start. You may review the log file here: %s", err.logFile)
+func (se *startError) Description() string {
+	return fmt.Sprintf("The agent failed to start. You may review the log file here: %s", se.logFile)
 }
 
 func waitForClient(ctx context.Context) (*Client, error) {
