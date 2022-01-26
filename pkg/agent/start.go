@@ -47,8 +47,30 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 	case ctx.Err() != nil:
 		return nil, ctx.Err()
 	default:
-		return nil, errFailedToStart(logFile)
+		err = errFailedToStart(logFile)
+
+		if log := readLogFile(logFile); log != "" {
+			sentry.CaptureException(err, sentry.WithExtra("log", log))
+		} else {
+			sentry.CaptureException(err)
+		}
+
+		return nil, err
 	}
+}
+
+func readLogFile(path string) (log string) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+
+	const limit = 10 * 1 << 10
+	if len(data) > limit {
+		data = data[:limit]
+	}
+
+	return string(data)
 }
 
 type errFailedToStart string
