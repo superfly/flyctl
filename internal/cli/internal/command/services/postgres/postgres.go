@@ -21,6 +21,7 @@ func New() (cmd *cobra.Command) {
 	cmd.AddCommand(
 		newLaunch(),
 		newConnect(),
+		newAttach(),
 	)
 
 	return

@@ -4,6 +4,7 @@ package ssh
 // updated to take on new conventions.
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"encoding/base64"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/briandowns/spinner"
+	"github.com/docker/docker/pkg/ioutils"
 	"github.com/pkg/errors"
 	sshCrypt "golang.org/x/crypto/ssh"
 
@@ -58,6 +60,38 @@ type SSHParams struct {
 	Stdout         io.WriteCloser
 	Stderr         io.WriteCloser
 	DisableSpinner bool
+}
+
+func RunSSHCommand(ctx context.Context, app *api.App, dialer agent.Dialer, cmd string) ([]byte, error) {
+	var inBuf bytes.Buffer
+	var errBuf bytes.Buffer
+	var outBuf bytes.Buffer
+	stdoutWriter := ioutils.NewWriteCloserWrapper(&outBuf, func() error { return nil })
+	stderrWriter := ioutils.NewWriteCloserWrapper(&errBuf, func() error { return nil })
+	inReader := ioutils.NewReadCloserWrapper(&inBuf, func() error { return nil })
+
+	addr := fmt.Sprintf("%s.internal", app.Name)
+
+	err := SSHConnect(&SSHParams{
+		Ctx:            ctx,
+		Org:            &app.Organization,
+		Dialer:         dialer,
+		App:            app.Name,
+		Cmd:            cmd,
+		Stdin:          inReader,
+		Stdout:         stdoutWriter,
+		Stderr:         stderrWriter,
+		DisableSpinner: true,
+	}, addr)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(errBuf.Bytes()) > 0 {
+		return nil, fmt.Errorf(errBuf.String())
+	}
+
+	return outBuf.Bytes(), nil
 }
 
 func SSHConnect(p *SSHParams, addr string) error {
