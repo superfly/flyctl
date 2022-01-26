@@ -91,17 +91,17 @@ func setupLogger(path string) (logger *log.Logger, close func(), err error) {
 	return
 }
 
-type errDupInstance struct {
-	error
-}
+type dupInstanceError struct{}
 
-func (*errDupInstance) Error() string {
+func (*dupInstanceError) Error() string {
 	return "another instance of the agent is already running"
 }
 
-func (*errDupInstance) Description() string {
+func (*dupInstanceError) Description() string {
 	return "It looks like another instance of the agent is already running. Please stop it before starting a new one."
 }
+
+var errDupInstance = new(dupInstanceError)
 
 func lock(ctx context.Context, logger *log.Logger) (unlock filemu.UnlockFunc, err error) {
 	path := filepath.Join(os.TempDir(), "fly-agent.lock")
@@ -112,7 +112,7 @@ func lock(ctx context.Context, logger *log.Logger) (unlock filemu.UnlockFunc, er
 	case ctx.Err() != nil:
 		err = ctx.Err() // parent canceled or deadlined
 	default:
-		err = new(errDupInstance)
+		err = errDupInstance
 
 		logger.Print(err)
 	}
