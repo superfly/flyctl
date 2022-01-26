@@ -52,6 +52,12 @@ func newTurbokuCommand(client *client.Client) *Command {
 		Default:     false,
 	})
 
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "region",
+		Description: "the region to launch the new app in",
+	},
+	)
+
 	return cmd
 }
 
@@ -69,6 +75,45 @@ func runTurboku(cmdCtx *cmdctx.CmdContext) error {
 	fly := cmdCtx.Client.API()
 
 	var herokuAppName string
+
+	// get heroku token
+	herokuToken := cmdCtx.Config.GetString("heroku-token")
+	if herokuToken == "" {
+		return fmt.Errorf("heroku-token is required")
+	}
+
+	hero.DefaultTransport.BearerToken = herokuToken
+
+	appID := cmdCtx.Args[0]
+
+	heroku := hero.NewService(hero.DefaultClient)
+
+	hkApp, err := heroku.AppInfo(ctx, appID)
+	if err != nil {
+		return err
+	}
+
+	// print the heroku app name we are using
+	fmt.Printf("Using heroku app: %s\n", hkApp.Name)
+
+	// Heroku regions are in Virigina (US) and Ireland (EU), so use the closest datacenters
+	var regionCode string
+
+	if code := cmdCtx.Config.GetString("region"); code != "" {
+		region, err := selectRegion(ctx, fly, code)
+		if err != nil {
+			return err
+		}
+		regionCode = region.Code
+	} else {
+		if hkApp.Region.Name == "us" {
+			regionCode = "iad"
+		} else {
+			regionCode = "lhr"
+		}
+	}
+
+	fmt.Printf("Selected fly region: %s\n", regionCode)
 
 	if len(cmdCtx.Args) > 0 {
 		herokuAppName = cmdCtx.Args[0]
@@ -93,9 +138,10 @@ func runTurboku(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	input := api.CreateAppInput{
-		Name:           appName,
-		Runtime:        "FIRECRACKER",
-		OrganizationID: org.ID,
+		Name:            appName,
+		Runtime:         "FIRECRACKER",
+		OrganizationID:  org.ID,
+		PreferredRegion: api.StringPointer(regionCode),
 	}
 
 	app, err := fly.CreateApp(ctx, input)
@@ -115,26 +161,6 @@ func runTurboku(cmdCtx *cmdctx.CmdContext) error {
 	default:
 		return err
 	}
-
-	// get heroku token
-	herokuToken := cmdCtx.Config.GetString("heroku-token")
-	if herokuToken == "" {
-		return fmt.Errorf("heroku-token is required")
-	}
-
-	hero.DefaultTransport.BearerToken = herokuToken
-
-	appID := cmdCtx.Args[0]
-
-	heroku := hero.NewService(hero.DefaultClient)
-
-	hkApp, err := heroku.AppInfo(ctx, appID)
-	if err != nil {
-		return err
-	}
-
-	// print the heroku app name we are using
-	fmt.Printf("Using heroku app: %s\n", hkApp.Name)
 
 	// retrieve heroku app ENV map[key]value and set it on fly.io as secrets
 	env, err := heroku.ConfigVarInfoForApp(ctx, appID)
@@ -163,26 +189,6 @@ func runTurboku(cmdCtx *cmdctx.CmdContext) error {
 		} else {
 			cmdCtx.Statusf("secrets", cmdctx.SINFO, "Secrets are deployed\n")
 		}
-	}
-
-	// Heroku regions are in Virigina (US) and Ireland (EU), so use the closest datacenters
-
-	var region string
-
-	if hkApp.Region.Name == "us" {
-		region = "iad"
-	} else {
-		region = "lhr"
-	}
-
-	regionsInput := api.ConfigureRegionsInput{
-		AppID:        app.Name,
-		AllowRegions: []string{region},
-	}
-
-	_, _, err = fly.ConfigureRegions(ctx, regionsInput)
-	if err != nil {
-		return err
 	}
 
 	// get latest release
