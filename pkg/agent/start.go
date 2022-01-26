@@ -18,7 +18,7 @@ import (
 
 type forkError struct{ error }
 
-func (fe *forkError) Unwrap() error { return fe.error }
+func (fe forkError) Unwrap() error { return fe.error }
 
 func StartDaemon(ctx context.Context) (*Client, error) {
 	logFile, err := createLogFile()
@@ -31,6 +31,7 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 	setCommandFlags(cmd)
 
 	if err := cmd.Start(); err != nil {
+		err = forkError{err}
 		sentry.CaptureException(err)
 
 		return nil, fmt.Errorf("failed starting agent process: %w", err)
