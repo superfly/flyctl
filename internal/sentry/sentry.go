@@ -40,6 +40,12 @@ func init() {
 
 type CaptureOption func(scope *sentry.Scope)
 
+func WithExtra(key string, val interface{}) CaptureOption {
+	return func(scope *sentry.Scope) {
+		scope.SetExtra(key, val)
+	}
+}
+
 func WithContext(key string, val interface{}) CaptureOption {
 	return func(scope *sentry.Scope) {
 		scope.SetContext(key, val)
