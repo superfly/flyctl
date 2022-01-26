@@ -235,6 +235,17 @@ func runDeleteChecksHandler(cmdCtx *cmdctx.CmdContext) error {
 	return nil
 }
 
+func formatOutput(output string) string {
+	var newstr string
+	output = strings.ReplaceAll(output, "\n", "")
+	output = strings.ReplaceAll(output, "] ", "]")
+	v := strings.Split(output, "[✓]")
+	for _, attr := range v {
+		newstr += fmt.Sprintf("%s[✓]\n\n", attr)
+	}
+	return newstr
+}
+
 func runAppCheckList(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 	var nameFilter *string
@@ -263,13 +274,7 @@ func runAppCheckList(cmdCtx *cmdctx.CmdContext) error {
 
 	for _, check := range checks {
 		// format output
-		var formattedOutput string
-		oldOutput := strings.ReplaceAll(check.Output, "\n", "")
-		oldOutput = strings.ReplaceAll(oldOutput, "] ", "]")
-		v := strings.Split(oldOutput, "[✓]")
-		for _, attr := range v {
-			formattedOutput += fmt.Sprintf("%s[✓]\n", attr)
-		}
+		formattedOutput := formatOutput(check.Output)
 
 		table.Append([]string{check.Name, check.Status, check.Allocation.IDShort, check.Allocation.Region, check.Type, presenters.FormatRelativeTime(check.UpdatedAt), formattedOutput})
 	}
