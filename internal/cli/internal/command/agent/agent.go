@@ -19,8 +19,8 @@ import (
 // New initializes and returns a new agent Command.
 func New() (cmd *cobra.Command) {
 	const (
-		short = "Commands that manage the Fly agent"
-		long  = short + "\n"
+		short = "Commands that manage the Fly agent, a background process that manages flyctl wireguard connections"
+		long  = "The Fly agent is a background process that manages wireguard connections started by flyctl.\nCommands such as 'fly ssh' and 'fly proxy' use this agent.\nGenerally, the agent starts and stops automatically. These commands are useful for debugging.\n"
 		usage = "agent <command>"
 	)
 
