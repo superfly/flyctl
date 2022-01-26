@@ -43,7 +43,7 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 	}
 
 	// TOOD: log this instead
-	msg := fmt.Sprintf("flyctl version %s does not match agent version %s", buildinfo.Version(), res.Version)
+	msg := fmt.Sprintf("The running flyctl background agent (v%s) is older than the current flyctl (v%s).", buildinfo.Version(), res.Version)
 
 	logger := logger.MaybeFromContext(ctx)
 	if logger != nil {
@@ -56,7 +56,7 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 		return c, nil
 	}
 
-	const stopMessage = "stopping agent ..."
+	const stopMessage = "The out-of-date agent will be shut down along with existing wireguard connections. The new agent will start automatically as needed."
 	if logger != nil {
 		logger.Warn(stopMessage)
 	} else {
