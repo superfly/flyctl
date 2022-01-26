@@ -47,7 +47,7 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 	case ctx.Err() != nil:
 		return nil, ctx.Err()
 	default:
-		err = errFailedToStart(logFile)
+		err = startError(logFile)
 
 		if log := readLogFile(logFile); log != "" {
 			sentry.CaptureException(err, sentry.WithExtra("log", log))
@@ -73,13 +73,13 @@ func readLogFile(path string) (log string) {
 	return string(data)
 }
 
-type errFailedToStart string
+type startError string
 
-func (errFailedToStart) Error() string {
+func (startError) Error() string {
 	return "agent: failed to start"
 }
 
-func (err errFailedToStart) Description() string {
+func (err startError) Description() string {
 	return "The agent failed to start. You may review the log file here: " + string(err)
 }
 
