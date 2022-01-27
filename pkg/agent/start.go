@@ -12,6 +12,7 @@ import (
 	"github.com/azazeal/pause"
 
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/sentry"
 )
@@ -21,6 +22,12 @@ type forkError struct{ error }
 func (fe forkError) Unwrap() error { return fe.error }
 
 func StartDaemon(ctx context.Context) (*Client, error) {
+	unlock, err := lock(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+
 	logFile, err := createLogFile()
 	if err != nil {
 		return nil, err
@@ -62,6 +69,27 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 	}
 }
 
+type alreadyStartingError struct{}
+
+func (alreadyStartingError) Error() string {
+	return "another process is already starting the agent"
+}
+
+var lockPath = filepath.Join(os.TempDir(), "flyctl.agent.start.lock")
+
+func lock(ctx context.Context) (unlock filemu.UnlockFunc, err error) {
+	switch unlock, err = filemu.Lock(ctx, lockPath); {
+	case err == nil:
+		break // all done
+	case ctx.Err() != nil:
+		err = ctx.Err() // parent canceled or deadlined
+	default:
+		err = alreadyStartingError{}
+	}
+
+	return
+}
+
 func readLogFile(path string) (log string) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -96,10 +124,9 @@ func waitForClient(ctx context.Context) (*Client, error) {
 	defer cancel()
 
 	for ctx.Err() == nil {
-		pause.For(ctx, 100*time.Millisecond)
+		pause.For(ctx, 50*time.Millisecond)
 
-		c, err := DefaultClient(ctx)
-		if err == nil {
+		if c, err := DefaultClient(ctx); err == nil {
 			return c, nil
 		}
 	}
