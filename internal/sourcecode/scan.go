@@ -71,6 +71,7 @@ func Scan(sourceDir string) (*SourceInfo, error) {
 		   since they might mix languages or have a Dockerfile that
 			 doesn't work with Fly */
 		configureDockerfile,
+		configureRails,
 		configureRuby,
 		configureGo,
 		configurePhoenix,
@@ -173,6 +174,32 @@ func configureDockerfile(sourceDir string) (*SourceInfo, error) {
 	}
 
 	return s, nil
+}
+
+func configureRails(sourceDir string) (*SourceInfo, error) {
+
+	if !checksPass(sourceDir, dirContains("Gemfile", "rails")) {
+		return nil, nil
+	}
+
+	s := &SourceInfo{
+		Builder: "heroku/buildpacks:20",
+		Family:  "Rails",
+		Port:    8080,
+		Env: map[string]string{
+			"PORT": "8080",
+		},
+		InitCommands: []InitCommand{
+			{
+				Command:     "bundle",
+				Args:        []string{"lock", "--add-platform", "x86_64-linux"},
+				Description: "Preparing Gemfile.lock for x86_64 deployment",
+			},
+		},
+	}
+
+	return s, nil
+
 }
 
 func configureRuby(sourceDir string) (*SourceInfo, error) {
