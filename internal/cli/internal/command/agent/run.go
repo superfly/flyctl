@@ -101,12 +101,13 @@ func (*dupInstanceError) Description() string {
 	return "It looks like another instance of the agent is already running. Please stop it before starting a new one."
 }
 
-var errDupInstance = new(dupInstanceError)
+var (
+	lockPath       = filepath.Join(os.TempDir(), "flyctl.agent.lock")
+	errDupInstance = new(dupInstanceError)
+)
 
 func lock(ctx context.Context, logger *log.Logger) (unlock filemu.UnlockFunc, err error) {
-	path := filepath.Join(os.TempDir(), "fly-agent.lock")
-
-	switch unlock, err = filemu.Lock(ctx, path); {
+	switch unlock, err = filemu.Lock(ctx, lockPath); {
 	case err == nil:
 		break // all done
 	case ctx.Err() != nil:
