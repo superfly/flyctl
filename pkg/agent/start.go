@@ -69,7 +69,9 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 	}
 }
 
-type alreadyStartingError struct{}
+type alreadyStartingError struct{ error }
+
+func (ase alreadyStartingError) Unwrap() error { return ase.error }
 
 func (alreadyStartingError) Error() string {
 	return "another process is already starting the agent"
@@ -84,7 +86,9 @@ func lock(ctx context.Context) (unlock filemu.UnlockFunc, err error) {
 	case ctx.Err() != nil:
 		err = ctx.Err() // parent canceled or deadlined
 	default:
-		err = alreadyStartingError{}
+		err = alreadyStartingError{err}
+
+		sentry.CaptureException(err)
 	}
 
 	return
