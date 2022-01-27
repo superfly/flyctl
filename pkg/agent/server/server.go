@@ -367,7 +367,9 @@ func removeSocket(path string) (err error) {
 	case stat.Mode()&os.ModeSocket == 0:
 		err = errors.New("not a socket")
 	default:
-		err = os.Remove(path)
+		if err = os.Remove(path); errors.Is(err, fs.ErrNotExist) {
+			err = nil
+		}
 	}
 
 	return
