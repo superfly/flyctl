@@ -38,7 +38,7 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 	}
 
 	if logger := logger.MaybeFromContext(ctx); logger != nil {
-		logger.Infof("started agent process (pid: %d, log: %s)", cmd.Process.Pid, logFile)
+		logger.Debugf("started agent process (pid: %d, log: %s)", cmd.Process.Pid, logFile)
 	}
 
 	switch client, err := waitForClient(ctx); {
