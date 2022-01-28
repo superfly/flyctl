@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/azazeal/pause"
@@ -54,12 +55,15 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 	case ctx.Err() != nil:
 		return nil, ctx.Err()
 	default:
+		log := readLogFile(logFile)
+
 		err = &startError{
 			error:   err,
 			logFile: logFile,
+			log:     log,
 		}
 
-		if log := readLogFile(logFile); log != "" {
+		if log != "" {
 			sentry.CaptureException(err, sentry.WithExtra("log", log))
 		} else {
 			sentry.CaptureException(err)
@@ -111,6 +115,7 @@ func readLogFile(path string) (log string) {
 type startError struct {
 	error
 	logFile string
+	log     string
 }
 
 func (*startError) Error() string {
@@ -120,7 +125,15 @@ func (*startError) Error() string {
 func (se *startError) Unwrap() error { return se.error }
 
 func (se *startError) Description() string {
-	return fmt.Sprintf("The agent failed to start. You may review the log file here: %s", se.logFile)
+	var sb strings.Builder
+
+	fmt.Fprintln(&sb, "The agent failed to start with the following error log:")
+	fmt.Fprintln(&sb)
+	fmt.Fprintln(&sb, se.log)
+	fmt.Fprintln(&sb)
+	fmt.Fprintf(&sb, "A copy of this log has been saved at %s", se.logFile)
+
+	return sb.String()
 }
 
 func waitForClient(ctx context.Context) (*Client, error) {
