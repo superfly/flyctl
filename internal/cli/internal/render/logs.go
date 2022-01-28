@@ -17,7 +17,6 @@ type LogOptions struct {
 	RemoveNewlines bool
 	HideRegion     bool
 	HideAllocID    bool
-	JSONFormat     bool
 }
 
 // LogOption is a func type that returns a LogOption.
@@ -44,20 +43,10 @@ func HideAllocID() LogOption {
 	}
 }
 
-func JSONFormat(json bool) LogOption {
-	return func(o *LogOptions) {
-		o.JSONFormat = json
-	}
-}
-
 func LogEntry(w io.Writer, entry logs.LogEntry, opts ...LogOption) (err error) {
 	options := &LogOptions{}
 	for _, opt := range opts {
 		opt(options)
-	}
-
-	if options.JSONFormat {
-		return JSON(w, entry)
 	}
 
 	var ts time.Time

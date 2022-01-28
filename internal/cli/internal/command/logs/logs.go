@@ -167,7 +167,11 @@ func printStream(ctx context.Context, w io.Writer, stream <-chan logs.LogEntry, 
 			if json {
 				err = render.JSON(w, entry)
 			} else {
-				err = render.LogEntry(w, entry)
+				err = render.LogEntry(w, entry,
+					render.HideAllocID(),
+					render.RemoveNewlines(),
+					render.HideRegion(),
+				)
 			}
 
 			if err != nil {
