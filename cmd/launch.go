@@ -323,6 +323,8 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 					fmt.Errorf("Could not generate random string: %w", err)
 				}
 
+			} else if secret.Value != "" {
+				val = secret.Value
 			} else {
 				prompt := fmt.Sprintf("Set secret %s:", secret.Key)
 
@@ -428,33 +430,33 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 
 		clusterAppName := app.Name + "-db"
 
-		// Create a standalone Postgres in the same region as the app and organization
-		clusterInput := api.CreatePostgresClusterInput{
-			OrganizationID: org.ID,
-			Name:           clusterAppName,
-			Region:         api.StringPointer(region.Code),
-			ImageRef:       api.StringPointer("flyio/postgres"),
-			Count:          api.IntPointer(1),
-		}
-		payload, err := runApiCreatePostgresCluster(cmdCtx, org.Slug, &clusterInput)
+		cmdCtx.Config.Set("name", clusterAppName)
+		cmdCtx.Config.Set("region", region.Code)
+		cmdCtx.Config.Set("organization", org.Slug)
+
+		err = runCreatePostgresCluster(cmdCtx)
 
 		if err != nil {
 			err = fmt.Errorf("failed creating the Postgres cluster %s: %w", clusterAppName, err)
 			return err
 		}
 
-		// Reset the app name here beacuse AttachPostgresCluster sets it on the cmdCtx :/
-		cmdCtx.AppName = app.ID
-
 		cmdCtx.Config.Set("postgres-app", clusterAppName)
+
+		// Reset the app name here beacuse runCreatePostgresCluster overrides it
+		cmdCtx.AppName = app.ID
 		err = runAttachPostgresCluster(cmdCtx)
 
+		// Reset the app name here beacuse AttachPostgresCluster overrides it
+		cmdCtx.AppName = app.ID
+
 		if err != nil {
-			err = fmt.Errorf("failed attaching %s to the Postgres cluster %s: %w", clusterAppName, app.Name, err)
+			msg := `Failed attaching %s to the Postgres cluster %s: %w.\nTry attaching manually with 'fly postgres attach --app %s --postgres-app %s'`
+			err = fmt.Errorf(msg, clusterAppName, app.ID, err, app.ID, clusterAppName)
 			return err
 		}
 
-		fmt.Printf("Postgres cluster %s is now attached to %s\n", payload.App.Name, app.Name)
+		fmt.Printf("Postgres cluster %s is now attached to %s\n", clusterAppName, app.Name)
 	}
 
 	// Notices from a launcher about its behavior that should always be displayed

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"embed"
 	"io/fs"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -12,7 +13,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 )
 
-//go:embed templates/** templates/**/.dockerignore
+//go:embed templates/**/.dockerignore templates/**
 var content embed.FS
 
 type InitCommand struct {
@@ -24,6 +25,7 @@ type InitCommand struct {
 type Secret struct {
 	Key      string
 	Help     string
+	Value    string
 	Generate bool
 }
 type SourceInfo struct {
@@ -71,6 +73,7 @@ func Scan(sourceDir string) (*SourceInfo, error) {
 		   since they might mix languages or have a Dockerfile that
 			 doesn't work with Fly */
 		configureDockerfile,
+		configureRails,
 		configureRuby,
 		configureGo,
 		configurePhoenix,
@@ -173,6 +176,54 @@ func configureDockerfile(sourceDir string) (*SourceInfo, error) {
 	}
 
 	return s, nil
+}
+
+func configureRails(sourceDir string) (*SourceInfo, error) {
+
+	if !checksPass(sourceDir, dirContains("Gemfile", "rails")) {
+		return nil, nil
+	}
+
+	s := &SourceInfo{
+		Files:   templates("templates/rails"),
+		Builder: "heroku/buildpacks:20",
+		Family:  "Rails",
+		Port:    8080,
+		Env: map[string]string{
+			"PORT": "8080",
+		},
+		InitCommands: []InitCommand{
+			{
+				Command:     "bundle",
+				Args:        []string{"lock", "--add-platform", "x86_64-linux"},
+				Description: "Preparing Gemfile.lock for x86_64 deployment",
+			},
+		},
+	}
+
+	// master.key comes with Rails apps from v6 onwards, but may not be present
+	// if the app does not use Rails encrypted credentials
+	masterKey, err := ioutil.ReadFile("config/master.key")
+
+	if err == nil {
+		s.Secrets = []Secret{
+			{
+				Key:   "RAILS_MASTER_KEY",
+				Help:  "Secret key for accessing encrypted credentials",
+				Value: string(masterKey),
+			},
+		}
+	}
+
+	s.ReleaseCmd = "bundle exec rails db:migrate"
+
+	// Ask to create a postgres database if we find the postgres adapter in config
+	if checksPass(sourceDir, dirContains("config/database.yml", "postgres")) {
+		s.CreatePostgresCluster = true
+	}
+
+	return s, nil
+
 }
 
 func configureRuby(sourceDir string) (*SourceInfo, error) {
