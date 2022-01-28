@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"log"
 	"net"
 	"os"
@@ -355,22 +354,4 @@ func (s *server) print(v ...interface{}) {
 
 func (s *server) printf(format string, v ...interface{}) {
 	s.Logger.Printf(format, v...)
-}
-
-func removeSocket(path string) (err error) {
-	var stat os.FileInfo
-	switch stat, err = os.Stat(path); {
-	case errors.Is(err, fs.ErrNotExist):
-		err = nil
-	case err != nil:
-		break
-	case stat.Mode()&os.ModeSocket == 0:
-		err = errors.New("not a socket")
-	default:
-		if err = os.Remove(path); errors.Is(err, fs.ErrNotExist) {
-			err = nil
-		}
-	}
-
-	return
 }
