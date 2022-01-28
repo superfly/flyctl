@@ -34,6 +34,8 @@ The update will perform a rolling restart against each VM, which may result in a
 		command.RequireAppName,
 	)
 
+	cmd.Args = cobra.NoArgs
+
 	flag.Add(
 		cmd,
 		flag.App(),

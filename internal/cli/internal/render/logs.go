@@ -2,7 +2,6 @@ package render
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"time"
@@ -58,9 +57,7 @@ func LogEntry(w io.Writer, entry logs.LogEntry, opts ...LogOption) (err error) {
 	}
 
 	if options.JSONFormat {
-		outBuf, _ := json.MarshalIndent(entry, "", "    ")
-		fmt.Fprintln(w, string(outBuf))
-		return
+		return JSON(w, entry)
 	}
 
 	var ts time.Time

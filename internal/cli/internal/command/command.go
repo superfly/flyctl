@@ -527,7 +527,7 @@ func LoadAppNameIfPresent(ctx context.Context) (context.Context, error) {
 	return app.WithName(ctx, name), nil
 }
 
-func WorkingDirIsFirsArg(ctx context.Context) (context.Context, error) {
+func ChangeWorkingDirectoryToFirstArgIfPresent(ctx context.Context) (context.Context, error) {
 	wd := flag.FirstArg(ctx)
 	if wd == "" {
 		return ctx, nil
