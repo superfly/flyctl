@@ -323,6 +323,8 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 					fmt.Errorf("Could not generate random string: %w", err)
 				}
 
+			} else if secret.Value != "" {
+				val = secret.Value
 			} else {
 				prompt := fmt.Sprintf("Set secret %s:", secret.Key)
 
