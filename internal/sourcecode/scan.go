@@ -13,7 +13,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 )
 
-//go:embed templates/**/.dockerignore templates/**
+//go:embed templates templates/*/.dockerignore
 var content embed.FS
 
 type InitCommand struct {
