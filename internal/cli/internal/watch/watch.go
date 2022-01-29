@@ -262,7 +262,7 @@ func ReleaseCommand(ctx context.Context, id string) error {
 
 func renderLogs(ctx context.Context, alloc *api.AllocationStatus) {
 	out := iostreams.FromContext(ctx).Out
-	cfg := config.FromContext(ctx).JSONOutput
+	cfg := config.FromContext(ctx)
 
 	for _, e := range alloc.RecentLogs {
 		entry := logs.LogEntry{
@@ -274,10 +274,13 @@ func renderLogs(ctx context.Context, alloc *api.AllocationStatus) {
 			Meta:      e.Meta,
 		}
 
+		if cfg.JSONOutput {
+			render.JSON(out, entry)
+		}
+
 		render.LogEntry(
 			out,
 			entry,
-			render.JSONFormat(cfg),
 			render.HideAllocID(),
 			render.HideRegion(),
 		)
