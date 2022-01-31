@@ -20,6 +20,10 @@ import (
 	"golang.org/x/crypto/curve25519"
 )
 
+var (
+	cleanDNSPattern = regexp.MustCompile(`[^a-zA-Z0-9\\-]`)
+)
+
 func StateForOrg(apiClient *api.Client, org *api.Organization, regionCode string, name string) (*wg.WireGuardState, error) {
 	state, err := getWireGuardStateForOrg(org.Slug)
 	if err != nil {
@@ -55,17 +59,20 @@ func Create(apiClient *api.Client, org *api.Organization, regionCode, name strin
 		if err != nil {
 			return nil, err
 		}
-		host, _ := os.Hostname()
+		emailSlug := cleanDNSPattern.ReplaceAllString(user.Email, "-")
 
-		cleanEmailPattern := regexp.MustCompile(`[^a-zA-Z0-9\\-]`)
-		name = fmt.Sprintf("interactive-%s-%s-%d",
-			strings.Split(host, ".")[0],
-			cleanEmailPattern.ReplaceAllString(user.Email, "-"), badrand.Intn(1000))
+		host, err := os.Hostname()
+		if err != nil {
+			return nil, err
+		}
+		hostSlug := cleanDNSPattern.ReplaceAllString(strings.Split(host, ".")[0], "-")
+
+		name = fmt.Sprintf("interactive-%s-%s-%d", hostSlug, emailSlug, badrand.Intn(1000))
 	}
 
-        if regionCode == "" { 
-                regionCode = os.Getenv("FLYCTL_WG_REGION")
-        } 
+	if regionCode == "" {
+		regionCode = os.Getenv("FLYCTL_WG_REGION")
+	}
 
 	if regionCode == "" {
 		region, err := apiClient.ClosestWireguardGatewayRegion(ctx)
