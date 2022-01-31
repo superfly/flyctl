@@ -67,7 +67,7 @@ func Create(apiClient *api.Client, org *api.Organization, regionCode, name strin
 		}
 		hostSlug := cleanDNSPattern.ReplaceAllString(strings.Split(host, ".")[0], "-")
 
-		name = fmt.Sprintf("interactive-%s-%s-%d", hostSlug, emailSlug, badrand.Intn(1000))
+		name = fmt.Sprintf("interactive-%s-%s-%d", hostSlug, emailSlug, badrand.Intn(1000)) // skipcq: GSC-G404
 	}
 
 	if regionCode == "" {
