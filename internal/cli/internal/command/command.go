@@ -526,3 +526,24 @@ func LoadAppNameIfPresent(ctx context.Context) (context.Context, error) {
 
 	return app.WithName(ctx, name), nil
 }
+
+func ChangeWorkingDirectoryToFirstArgIfPresent(ctx context.Context) (context.Context, error) {
+	wd := flag.FirstArg(ctx)
+	if wd == "" {
+		return ctx, nil
+	}
+
+	if !filepath.IsAbs(wd) {
+		p, err := filepath.Abs(wd)
+		if err != nil {
+			return nil, fmt.Errorf("failed converting %s to an absolute path: %w", wd, err)
+		}
+		wd = p
+	}
+
+	if err := os.Chdir(wd); err != nil {
+		return nil, fmt.Errorf("failed changing working directory: %w", err)
+	}
+
+	return state.WithWorkingDirectory(ctx, wd), nil
+}

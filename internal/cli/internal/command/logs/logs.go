@@ -2,7 +2,6 @@
 package logs
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -10,7 +9,6 @@ import (
 	"time"
 
 	"github.com/azazeal/pause"
-	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
@@ -169,7 +167,11 @@ func printStream(ctx context.Context, w io.Writer, stream <-chan logs.LogEntry, 
 			if json {
 				err = render.JSON(w, entry)
 			} else {
-				err = printEntry(w, entry)
+				err = render.LogEntry(w, entry,
+					render.HideAllocID(),
+					render.RemoveNewlines(),
+					render.HideRegion(),
+				)
 			}
 
 			if err != nil {
@@ -177,80 +179,4 @@ func printStream(ctx context.Context, w io.Writer, stream <-chan logs.LogEntry, 
 			}
 		}
 	}
-}
-
-func printEntry(w io.Writer, entry logs.LogEntry) (err error) {
-	var ts time.Time
-	if ts, err = time.Parse(time.RFC3339Nano, entry.Timestamp); err != nil {
-		err = fmt.Errorf("failed parsing timestamp %q: %w\n", entry.Timestamp, err)
-
-		return
-	}
-
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "%s ", aurora.Faint(format(ts)))
-
-	if entry.Meta.Event.Provider != "" {
-		if entry.Instance != "" {
-			fmt.Fprintf(&buf, "%s[%s]", entry.Meta.Event.Provider, entry.Instance)
-		} else {
-			fmt.Fprint(&buf, entry.Meta.Event.Provider)
-		}
-	} else if entry.Instance != "" {
-		fmt.Fprintf(&buf, "%s", entry.Instance)
-	}
-
-	fmt.Fprintf(&buf, " %s [%s]", aurora.Green(entry.Region), aurora.Colorize(entry.Level, levelColor(entry.Level)))
-
-	printFieldIfPresent(&buf, "error.code", entry.Meta.Error.Code)
-	hadErrorMsg := printFieldIfPresent(w, "error.message", entry.Meta.Error.Message)
-	printFieldIfPresent(&buf, "request.method", entry.Meta.HTTP.Request.Method)
-	printFieldIfPresent(&buf, "request.url", entry.Meta.URL.Full)
-	printFieldIfPresent(&buf, "request.id", entry.Meta.HTTP.Request.ID)
-	printFieldIfPresent(&buf, "response.status", entry.Meta.HTTP.Response.StatusCode)
-
-	if !hadErrorMsg {
-		buf.Write([]byte(entry.Message))
-	}
-
-	buf.WriteByte('\n')
-
-	_, err = buf.WriteTo(w)
-	return err
-}
-
-func printFieldIfPresent(w io.Writer, name string, value interface{}) (present bool) {
-	switch v := value.(type) {
-	case string:
-		if v != "" {
-			fmt.Fprintf(w, `%s"%s" `, aurora.Faint(name+"="), v)
-
-			present = true
-		}
-	case int:
-		if v > 0 {
-			fmt.Fprintf(w, "%s%d ", aurora.Faint(name+"="), v)
-
-			present = true
-		}
-	}
-
-	return
-}
-
-func levelColor(level string) aurora.Color {
-	switch level {
-	default:
-		return aurora.RedFg
-	case "debug":
-		return aurora.CyanFg
-	case "info":
-		return aurora.BlueFg
-	case "warn", "warning":
-		return aurora.YellowFg
-	}
-}
-
-func format(t time.Time) string {
-	return t.Format("2006-01-02T15:04:05.000")
 }
