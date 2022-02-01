@@ -139,7 +139,7 @@ func (pc *postgresCmd) failover() error {
 	return nil
 }
 
-func (pc *postgresCmd) nodeRole(machine *api.Machine) (string, error) {
+func (pc *postgresCmd) getRole(machine *api.Machine) (string, error) {
 	addr := fmt.Sprintf("[%s]", machineIP(machine))
 
 	resp, err := ssh.RunSSHCommand(*pc.ctx, pc.app, pc.dialer, &addr, "pg-role")

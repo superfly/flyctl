@@ -62,7 +62,7 @@ func runRollingRestart(ctx context.Context) error {
 	for _, machine := range machines {
 		fmt.Fprintf(io.Out, "Identifying role of Machine %q... ", machine.ID)
 
-		role, err := pgCmd.nodeRole(machine)
+		role, err := pgCmd.getRole(machine)
 		if err != nil {
 			return err
 		}
