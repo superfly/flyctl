@@ -55,21 +55,16 @@ type postgresCreateDatabaseRequest struct {
 	Name string `json:"name"`
 }
 
-// Deprecated
+// Deprecated. Use commandResponse going forward.
 type postgresCommandResponse struct {
 	Result bool   `json:"result"`
 	Error  string `json:"error"`
 }
 
-type postgresCommandResponseV2 struct {
-	Status string                      `json:"status"`
-	Data   postgresCommandResponseData `json:"data"`
-}
-
-type postgresCommandResponseData struct {
-	Ok      bool   `json:"ok"`
+type commandResponse struct {
+	Success bool   `json:"success"`
 	Message string `json:"message"`
-	Error   string `json:"error"`
+	Data    string `json:"data"`
 }
 
 type postgresCmd struct {
@@ -109,13 +104,13 @@ func (pc *postgresCmd) restartNode(machine *api.Machine) error {
 		return err
 	}
 
-	var result postgresCommandResponseV2
+	var result commandResponse
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return err
 	}
 
-	if !result.Data.Ok {
-		return fmt.Errorf(result.Data.Error)
+	if !result.Success {
+		return fmt.Errorf(result.Message)
 	}
 
 	return nil
@@ -127,13 +122,13 @@ func (pc *postgresCmd) failover() error {
 		return err
 	}
 
-	var result postgresCommandResponseV2
+	var result commandResponse
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return err
 	}
 
-	if !result.Data.Ok {
-		return fmt.Errorf(result.Data.Error)
+	if !result.Success {
+		return fmt.Errorf(result.Message)
 	}
 
 	return nil
@@ -147,16 +142,16 @@ func (pc *postgresCmd) getRole(machine *api.Machine) (string, error) {
 		return "", err
 	}
 
-	var result postgresCommandResponseV2
+	var result commandResponse
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return "", err
 	}
 
-	if !result.Data.Ok {
-		return "", fmt.Errorf(result.Data.Error)
+	if !result.Success {
+		return "", fmt.Errorf(result.Message)
 	}
 
-	return result.Data.Message, nil
+	return result.Data, nil
 }
 
 func (pc *postgresCmd) revokeAccess(dbName, username string) (*postgresCommandResponse, error) {
