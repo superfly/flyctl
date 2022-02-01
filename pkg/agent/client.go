@@ -104,7 +104,7 @@ func DefaultClient(ctx context.Context) (*Client, error) {
 
 const (
 	timeout = 2 * time.Second
-	cycle   = time.Second / 10
+	cycle   = time.Second / 20
 )
 
 type Client struct {
@@ -320,15 +320,15 @@ func (c *Client) WaitForTunnel(parent context.Context, slug string) (err error) 
 	defer cancel()
 
 	for {
-		pause.For(ctx, cycle)
-
 		if err = c.Probe(ctx, slug); !errors.Is(err, ErrTunnelUnavailable) {
 			break
 		}
+
+		pause.For(ctx, cycle)
 	}
 
-	if e := parent.Err(); err != nil {
-		err = e
+	if parent.Err() == nil && errors.Is(err, context.DeadlineExceeded) {
+		err = ErrTunnelUnavailable
 	}
 
 	return
@@ -340,16 +340,20 @@ func (c *Client) WaitForHost(parent context.Context, slug, host string) (err err
 	ctx, cancel := context.WithTimeout(parent, 4*time.Minute)
 	defer cancel()
 
-	for {
-		pause.For(ctx, cycle)
-
-		if _, err = c.Resolve(ctx, slug, host); !errors.Is(err, ErrTunnelUnavailable) && !errors.Is(err, ErrNoSuchHost) {
-			break
-		}
+	if err = c.WaitForTunnel(ctx, slug); err != nil {
+		return
 	}
 
-	if e := parent.Err(); err != nil {
-		err = e
+	for {
+		if _, err = c.Resolve(ctx, slug, host); !errors.Is(err, ErrNoSuchHost) {
+			break
+		}
+
+		pause.For(ctx, cycle)
+	}
+
+	if parent.Err() == nil && errors.Is(err, context.DeadlineExceeded) {
+		err = ErrNoSuchHost
 	}
 
 	return

@@ -57,7 +57,7 @@ func runSession(ctx context.Context, srv *server, conn net.Conn, id id) {
 
 	defer func() {
 		defer func() {
-			if err := conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+			if err := conn.Close(); err != nil && !isClosed(err) {
 				logger.Printf("failed dropping: %v", err)
 			} else {
 				logger.Print("dropped.")
@@ -79,6 +79,10 @@ func runSession(ctx context.Context, srv *server, conn net.Conn, id id) {
 	}
 
 	buf, err := proto.Read(s.conn)
+	if len(buf) > 0 {
+		s.logger.Printf("<- (% 5d) %q", len(buf), buf)
+	}
+
 	if err != nil {
 		if !isClosed(err) {
 			s.logger.Printf("failed reading: %v", err)
@@ -86,7 +90,6 @@ func runSession(ctx context.Context, srv *server, conn net.Conn, id id) {
 
 		return
 	}
-	s.logger.Printf("<- (% 5d) %q", len(buf), buf)
 
 	args := strings.Split(string(buf), " ")
 
@@ -335,7 +338,7 @@ func (s *session) connect(ctx context.Context, args ...string) {
 		return
 	}
 	defer func() {
-		if err := outconn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+		if err := outconn.Close(); err != nil && !isClosed(err) {
 			s.logger.Printf("failed closing outconn: %v", err)
 		}
 	}()
@@ -395,7 +398,7 @@ func (s *session) reply(verb string, args ...string) bool {
 	}
 
 	if err != nil {
-		if !errors.Is(err, net.ErrClosed) {
+		if !isClosed(err) {
 			s.logger.Printf("failed writing: %v", err)
 		}
 
