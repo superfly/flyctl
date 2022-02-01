@@ -313,7 +313,12 @@ func (c *Client) Resolve(ctx context.Context, slug, host string) (addr string, e
 	return
 }
 
-func (c *Client) WaitForTunnel(ctx context.Context, slug string) (err error) {
+// WaitForTunnel waits for a tunnel to the given org slug to become available
+// in the next four minutes.
+func (c *Client) WaitForTunnel(parent context.Context, slug string) (err error) {
+	ctx, cancel := context.WithTimeout(parent, 4*time.Minute)
+	defer cancel()
+
 	for {
 		pause.For(ctx, cycle)
 
@@ -322,16 +327,29 @@ func (c *Client) WaitForTunnel(ctx context.Context, slug string) (err error) {
 		}
 	}
 
+	if e := parent.Err(); err != nil {
+		err = e
+	}
+
 	return
 }
 
-func (c *Client) WaitForHost(ctx context.Context, slug, host string) (err error) {
+// WaitForHost waits for a tunnel to the given host of the given org slug to
+// become available in the next four minutes.
+func (c *Client) WaitForHost(parent context.Context, slug, host string) (err error) {
+	ctx, cancel := context.WithTimeout(parent, 4*time.Minute)
+	defer cancel()
+
 	for {
 		pause.For(ctx, cycle)
 
 		if _, err = c.Resolve(ctx, slug, host); !errors.Is(err, ErrTunnelUnavailable) && !errors.Is(err, ErrNoSuchHost) {
 			break
 		}
+	}
+
+	if e := parent.Err(); err != nil {
+		err = e
 	}
 
 	return

@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"net"
-	"time"
 
 	"github.com/nats-io/nats.go"
 
@@ -36,10 +35,7 @@ func NewNatsStream(ctx context.Context, apiClient *api.Client, opts *LogOptions)
 		return nil, fmt.Errorf("failed establishing wireguard connection for %s organization: %w", app.Organization.Slug, err)
 	}
 
-	tunnelCtx, cancel := context.WithTimeout(ctx, 4*time.Minute)
-	defer cancel()
-
-	if err = agentclient.WaitForTunnel(tunnelCtx, app.Organization.Slug); err != nil {
+	if err = agentclient.WaitForTunnel(ctx, app.Organization.Slug); err != nil {
 		return nil, fmt.Errorf("failed connecting to WireGuard tunnel: %w", err)
 	}
 
