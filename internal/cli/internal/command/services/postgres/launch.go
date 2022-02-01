@@ -122,12 +122,10 @@ func runLaunch(ctx context.Context) error {
 
 	client := client.FromContext(ctx).API()
 
-	// imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres")
-	// if err != nil {
-	// 	return err
-	// }
-
-	imageRef := "registry.fly.io/shaun-pg-flyctl:deployment-1643752852"
+	imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres")
+	if err != nil {
+		return err
+	}
 
 	config := LaunchConfig{
 		AppName:            name,
