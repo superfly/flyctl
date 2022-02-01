@@ -62,7 +62,7 @@ type SSHParams struct {
 	DisableSpinner bool
 }
 
-func RunSSHCommand(ctx context.Context, app *api.App, dialer agent.Dialer, cmd string) ([]byte, error) {
+func RunSSHCommand(ctx context.Context, app *api.App, dialer agent.Dialer, addr *string, cmd string) ([]byte, error) {
 	var inBuf bytes.Buffer
 	var errBuf bytes.Buffer
 	var outBuf bytes.Buffer
@@ -70,7 +70,10 @@ func RunSSHCommand(ctx context.Context, app *api.App, dialer agent.Dialer, cmd s
 	stderrWriter := ioutils.NewWriteCloserWrapper(&errBuf, func() error { return nil })
 	inReader := ioutils.NewReadCloserWrapper(&inBuf, func() error { return nil })
 
-	addr := fmt.Sprintf("%s.internal", app.Name)
+	if addr == nil {
+		str := fmt.Sprintf("%s.internal", app.Name)
+		addr = &str
+	}
 
 	err := SSHConnect(&SSHParams{
 		Ctx:            ctx,
@@ -82,7 +85,7 @@ func RunSSHCommand(ctx context.Context, app *api.App, dialer agent.Dialer, cmd s
 		Stdout:         stdoutWriter,
 		Stderr:         stderrWriter,
 		DisableSpinner: true,
-	}, addr)
+	}, *addr)
 	if err != nil {
 		return nil, err
 	}

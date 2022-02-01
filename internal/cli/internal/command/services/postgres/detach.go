@@ -12,7 +12,6 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
@@ -80,17 +79,10 @@ func runDetach(ctx context.Context) error {
 
 	targetAttachment := attachments[selected]
 
-	agentclient, err := agent.Establish(ctx, client)
+	pgCmd, err := newPostgresCmd(ctx, pgApp)
 	if err != nil {
-		return fmt.Errorf("error establishing agent: %w", err)
+		return err
 	}
-
-	dialer, err := agentclient.Dialer(ctx, pgApp.Organization.Slug)
-	if err != nil {
-		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
-	}
-
-	pgCmd := newPostgresCmd(ctx, pgApp, dialer)
 
 	// Remove user if exists
 	exists, err := pgCmd.userExists(targetAttachment.DatabaseUser)
