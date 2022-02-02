@@ -23,7 +23,7 @@ func New() (cmd *cobra.Command) {
 		newConnect(),
 		newAttach(),
 		newDetach(),
-		newRollingRestart(),
+		newRestart(),
 	)
 
 	return

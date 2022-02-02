@@ -14,19 +14,18 @@ import (
 	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
-func newRollingRestart() (cmd *cobra.Command) {
+func newRestart() (cmd *cobra.Command) {
 	const (
-		long = `Performs a rolling restart against the target Postgres cluster
+		long = `Performs a rolling restart against the specified Postgres cluster
 `
 		short = "Perform a rolling restart"
-		usage = "rolling-restart"
+		usage = "restart"
 	)
 
-	cmd = command.New(usage, short, long, runRollingRestart,
+	cmd = command.New(usage, short, long, runRestart,
 		command.RequireSession,
 		command.RequireAppName,
 	)
-	// cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(cmd,
 		flag.App(),
@@ -36,7 +35,7 @@ func newRollingRestart() (cmd *cobra.Command) {
 	return
 }
 
-func runRollingRestart(ctx context.Context) error {
+func runRestart(ctx context.Context) error {
 	appName := app.NameFromContext(ctx)
 	client := client.FromContext(ctx).API()
 
@@ -61,12 +60,10 @@ func runRollingRestart(ctx context.Context) error {
 	// Collect PG role information from each machine
 	for _, machine := range machines {
 		fmt.Fprintf(io.Out, "Identifying role of Machine %q... ", machine.ID)
-
 		role, err := pgCmd.getRole(machine)
 		if err != nil {
 			return err
 		}
-
 		fmt.Fprintf(io.Out, "%s\n", role)
 		roleMap[role] = append(roleMap[role], machine)
 	}
@@ -82,9 +79,9 @@ func runRollingRestart(ctx context.Context) error {
 
 	for _, machine := range roleMap["leader"] {
 		fmt.Printf("Stepping down leader %q... ", machine.ID)
+
 		if err = pgCmd.failover(); err != nil {
-			fmt.Fprintln(io.Out, "failed")
-			fmt.Fprintln(io.Out, err.Error())
+			fmt.Fprintln(io.Out, fmt.Sprintf("failed - %v", err))
 		} else {
 			fmt.Fprintln(io.Out, "complete")
 		}
