@@ -104,6 +104,10 @@ func (pc *postgresCmd) restartNode(machine *api.Machine) error {
 		return err
 	}
 
+	if len(resp) == 0 {
+		return fmt.Errorf("connection closed before we could receive a response")
+	}
+
 	var result commandResponse
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return err
@@ -120,6 +124,10 @@ func (pc *postgresCmd) failover() error {
 	resp, err := ssh.RunSSHCommand(*pc.ctx, pc.app, pc.dialer, nil, "pg-failover")
 	if err != nil {
 		return err
+	}
+
+	if len(resp) == 0 {
+		return fmt.Errorf("connection closed before we could receive a response")
 	}
 
 	var result commandResponse
@@ -140,6 +148,10 @@ func (pc *postgresCmd) getRole(machine *api.Machine) (string, error) {
 	resp, err := ssh.RunSSHCommand(*pc.ctx, pc.app, pc.dialer, &addr, "pg-role")
 	if err != nil {
 		return "", err
+	}
+
+	if len(resp) == 0 {
+		return "", fmt.Errorf("connection closed before we could receive a response")
 	}
 
 	var result commandResponse
