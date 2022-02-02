@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"net"
 	"time"
 
 	"github.com/azazeal/pause"
@@ -48,4 +49,10 @@ func waitForMachineState(parent context.Context, client *api.Client, appID, mach
 // in with  exec.Command.
 func encodeCommand(command string) string {
 	return base64.StdEncoding.Strict().EncodeToString([]byte(command))
+}
+
+func machineIP(machine *api.Machine) string {
+	ip := machine.IPs.Nodes[0].IP
+	peerIP := net.ParseIP(ip)
+	return peerIP.String()
 }
