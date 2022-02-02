@@ -1896,6 +1896,8 @@ golang.zx2c4.com/wireguard v0.0.20201118 h1:QL8y2C7uO8T6z1GY+UX/hSeWiYEBurQkXjOT
 golang.zx2c4.com/wireguard v0.0.20201118/go.mod h1:Dz+cq5bnrai9EpgYj4GDof/+qaGzbRWbeaAOs1bUYa0=
 golang.zx2c4.com/wireguard/tun/netstack v0.0.0-20220201182256-ae223d4f9750 h1:YPATT9L2iT5xK/IMcwLbUPdGyedC4PiS1pV7ryQp3/8=
 golang.zx2c4.com/wireguard/tun/netstack v0.0.0-20220201182256-ae223d4f9750/go.mod h1:6JH2yOfylm+G+kEc0r0mPIZmXG/GHyUWQPsc9h8y0Ro=
+golang.zx2c4.com/wireguard/tun/netstack v0.0.0-20220202223031-3b95c81cc178 h1:khAPls2lUOhNICvXISpZYzTfBtXycnNxbMvcEJaLwSs=
+golang.zx2c4.com/wireguard/tun/netstack v0.0.0-20220202223031-3b95c81cc178/go.mod h1:6JH2yOfylm+G+kEc0r0mPIZmXG/GHyUWQPsc9h8y0Ro=
 gonum.org/v1/gonum v0.0.0-20190331200053-3d26580ed485/go.mod h1:2ltnJ7xHfj0zHS40VVPYEAAMTa3ZGguvHGBSJeRWqE0=
 gonum.org/v1/netlib v0.0.0-20190313105609-8cb42192e0e0/go.mod h1:wa6Ws7BG/ESfp6dHfk7C6KdzKA7wR7u/rKwOGE66zvw=
 gonum.org/v1/netlib v0.0.0-20190331212654-76723241ea4e/go.mod h1:kS+toOQn6AQKjmKJ7gzohV1XkqsFehRA2FbsbkopSuQ=

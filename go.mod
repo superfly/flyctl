@@ -49,7 +49,7 @@ require (
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 	golang.zx2c4.com/go118/netip v0.0.0-20211105124833-002a02cb0e53
 	golang.zx2c4.com/wireguard v0.0.20201118
-	golang.zx2c4.com/wireguard/tun/netstack v0.0.0-20220201182256-ae223d4f9750
+	golang.zx2c4.com/wireguard/tun/netstack v0.0.0-20220202223031-3b95c81cc178
 	google.golang.org/grpc v1.39.0-dev.0.20210518002758-2713b77e8526
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
