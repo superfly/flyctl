@@ -470,11 +470,21 @@ func (d *dialer) DialContext(ctx context.Context, network, addr string) (conn ne
 	return
 }
 
+// Pinger wraps a connection to the flyctl agent over which ICMP
+// requests and replies are written. There's a simple protocol
+// for encapsulating requests and responses; drive it with the Pinger
+// member functions. Pinger implements most of net.PacketConn but is
+// not really intended as such.
 type Pinger struct {
 	c   net.Conn
 	err error
 }
 
+// Pinger creates a Pinger struct. It does this by first ensuring
+// a WireGuard session exists for the specified org, and then
+// opening an additional connection to the agent, which is upgraded
+// to a Pinger connection by sending the "ping6" command. Call "Close"
+// on a Pinger when you're done pinging things.
 func (c *Client) Pinger(ctx context.Context, slug string) (p *Pinger, err error) {
 	if _, err = c.Establish(ctx, slug); err != nil {
 		return nil, fmt.Errorf("pinger: %w", err)
@@ -500,10 +510,25 @@ func (p *Pinger) Close() error {
 	return p.c.Close()
 }
 
+// Err returns any non-recoverable error seen on this Pinger connection;
+// WriteTo and ReadFrom on a Pinger will not function if Err returns
+// non-nil.
 func (p *Pinger) Err() error {
 	return p.err
 }
 
+// WriteTo writes an ICMP message, including headers, to the specified
+// address. `addr` should always be an IPv6 net.IPAddr beginning with
+// `fdaa` --- you cannot ping random hosts on the Internet with this
+// interface. See golang/x/net/icmp for message construction details;
+// this interface uses gVisor netstack, which is fussy about ICMP,
+// and will only allow icmp.Echo messages with a code of 0.
+//
+// Pinger runs a trivial protocol to encapsulate ICMP messages over
+// agent connections: each message is a 16-byte IPv6 address, followed
+// by an NBO u16 length, followed by the ICMP message bytes, which
+// again must begin with an ICMP header. Checksums are performed by
+// netstack; don't bother with them.
 func (p *Pinger) WriteTo(buf []byte, addr net.Addr) (int64, error) {
 	if p.err != nil {
 		return 0, p.err
@@ -548,6 +573,9 @@ func (p *Pinger) WriteTo(buf []byte, addr net.Addr) (int64, error) {
 	return int64(len(buf)), nil
 }
 
+// ReadFrom reads an ICMP message from a Pinger, using the same
+// protocol as WriteTo. Call `SetReadDeadline` to poll this
+// interface while watching channels or whatever.
 func (p *Pinger) ReadFrom(buf []byte) (int64, net.Addr, error) {
 	if p.err != nil {
 		return 0, nil, p.err

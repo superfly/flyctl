@@ -380,6 +380,10 @@ func (s *session) connect(ctx context.Context, args ...string) {
 }
 
 func (s *session) ping6(ctx context.Context, args ...string) {
+
+	// As with "dial", "ping6" handles an agent command and then
+	// repurposes the agent connection as a transport.
+
 	if len(args) != 1 {
 		s.error(fmt.Errorf("ping6: bad args"))
 		return
@@ -399,6 +403,10 @@ func (s *session) ping6(ctx context.Context, args ...string) {
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
+
+	// a background thread watches for incoming ICMP messages on
+	// the ICMP "socket" we get from wireguard-go. Each received
+	// message is relayed back over the agent connection.
 
 	go func() {
 		pbuf := make([]byte, 1500)
