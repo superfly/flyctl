@@ -10,8 +10,10 @@ import (
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
+	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
+	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/client"
 )
 
@@ -57,6 +59,7 @@ create the application image when it is deployed.
 func RunCreate(ctx context.Context) (err error) {
 	var (
 		io            = iostreams.FromContext(ctx)
+		cfg           = config.FromContext(ctx)
 		aName         = flag.FirstArg(ctx)
 		fName         = flag.GetString(ctx, "name")
 		fGenerateName = flag.GetBool(ctx, "generate-name")
@@ -101,6 +104,9 @@ func RunCreate(ctx context.Context) (err error) {
 		CreateApp(ctx, input)
 
 	if err == nil {
+		if cfg.JSONOutput {
+			return render.JSON(io.Out, app)
+		}
 		fmt.Fprintf(io.Out, "New app created: %s\n", app.Name)
 	}
 
