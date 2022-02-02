@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/azazeal/pause"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	dockerclient "github.com/docker/docker/client"
@@ -22,7 +23,6 @@ import (
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/terminal"
-	"golang.org/x/sync/errgroup"
 )
 
 type dockerClientFactory struct {
@@ -58,7 +58,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 				if cachedDocker != nil {
 					return cachedDocker, nil
 				}
-				c, err := newRemoteDockerClient(ctx, apiClient, appName, daemonType, streams)
+				c, err := newRemoteDockerClient(ctx, apiClient, appName, streams)
 				if err != nil {
 					return nil, err
 				}
@@ -74,16 +74,6 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 			return nil, errors.New("no docker daemon available")
 		},
 	}
-}
-
-var unauthorizedError = errors.New("You are unauthorized to use this builder")
-
-func isUnauthorized(err error) bool {
-	return errors.Is(err, unauthorizedError)
-}
-
-func isRetyableError(err error) bool {
-	return !isUnauthorized(err)
 }
 
 func NewDockerDaemonType(allowLocal, allowRemote bool) DockerDaemonType {
@@ -150,7 +140,9 @@ func NewLocalDockerClient() (*dockerclient.Client, error) {
 	return c, nil
 }
 
-func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, daemonType DockerDaemonType, streams *iostreams.IOStreams) (*dockerclient.Client, error) {
+func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, streams *iostreams.IOStreams) (*dockerclient.Client, error) {
+	startedAt := time.Now()
+
 	var host string
 	var app *api.App
 	var err error
@@ -165,16 +157,12 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	if host != "" {
 		terminal.Debugf("Remote Docker builder host: %s\n", host)
 	}
-	if streams.IsInteractive() {
-		streams.StartProgressIndicatorMsg(fmt.Sprintf("Waiting for remote builder %s... starting", remoteBuilderAppName))
+
+	if msg := fmt.Sprintf("Waiting for remote builder %s...", remoteBuilderAppName); streams.IsInteractive() {
+		streams.StartProgressIndicatorMsg(msg)
 	} else {
-		fmt.Fprintf(streams.ErrOut, "Waiting for remote builder %s...\n", remoteBuilderAppName)
+		fmt.Fprintln(streams.ErrOut, msg)
 	}
-
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-	defer cancel()
-
-	eg, errCtx := errgroup.WithContext(ctx)
 
 	captureError := func(err error) {
 		// ignore cancelled errors
@@ -194,11 +182,10 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 				"builder": map[string]interface{}{
 					"app_name": remoteBuilderAppName,
 				},
+				"elapsed": time.Since(startedAt),
 			}),
 		)
 	}
-
-	streams.ChangeProgressIndicatorMsg(fmt.Sprintf("Waiting for remote builder %s... connecting", remoteBuilderAppName))
 
 	for _, ip := range machine.IPs.Nodes {
 		terminal.Debugf("checking ip %+v\n", ip)
@@ -211,75 +198,83 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 		return nil, errors.New("machine did not have a private IP")
 	}
 
-	clientCh := make(chan *dockerclient.Client, 1)
-
-	eg.Go(func() error {
-		opts := []dockerclient.Opt{
-			dockerclient.WithAPIVersionNegotiation(),
-			dockerclient.WithHost(host),
-		}
-
-		if os.Getenv("FLY_REMOTE_BUILDER_HOST_WG") == "" {
-			app, err := apiClient.GetApp(ctx, appName)
-			if err != nil {
-				return errors.Wrap(err, "error fetching target app")
-			}
-
-			agentclient, err := agent.Establish(errCtx, apiClient)
-			if err != nil {
-				return errors.Wrap(err, "error establishing agent")
-			}
-
-			dialer, err := agentclient.Dialer(errCtx, app.Organization.Slug)
-			if err != nil {
-				return errors.Wrapf(err, "error establishing wireguard connection for %s organization", app.Organization.Slug)
-			}
-
-			// wait for the tunnel to be ready
-			if err = agentclient.WaitForTunnel(errCtx, app.Organization.Slug); err != nil {
-				return errors.Wrap(err, "unable to connect WireGuard tunnel")
-			}
-
-			opts = append(opts, dockerclient.WithDialContext(dialer.DialContext))
-		} else {
-			terminal.Debug("connecting to remote docker daemon over host wireguard tunnel")
-		}
-
-		client, err := dockerclient.NewClientWithOpts(opts...)
-		if err != nil {
-			return errors.Wrap(err, "Error creating docker client")
-		}
-
-		if err := waitForDaemon(errCtx, client); err != nil {
-			return errors.Wrap(err, "error waiting for docker daemon")
-		}
-
-		clientCh <- client
-
-		return nil
-	})
-
-	if err = eg.Wait(); err != nil {
-		captureError(err)
-
-		return nil, err
-	}
-
-	if err := ctx.Err(); err != nil {
-		captureError(err)
-
+	opts, err := buildOpts(ctx, apiClient, appName, host)
+	if err != nil {
 		streams.StopProgressIndicator()
-		if errors.Is(err, context.DeadlineExceeded) {
-			terminal.Warnf("Remote builder did not start on time. Check remote builder logs with `flyctl logs -a %s`\n", remoteBuilderAppName)
-			return nil, errors.New("remote builder app unavailable")
-		}
+
+		err = fmt.Errorf("failed building options: %w", err)
+		captureError(err)
 
 		return nil, err
 	}
 
-	streams.StopProgressIndicatorMsg(fmt.Sprintf("Remote builder %s ready", remoteBuilderAppName))
+	client, err := dockerclient.NewClientWithOpts(opts...)
+	if err != nil {
+		streams.StopProgressIndicator()
 
-	return <-clientCh, nil
+		err = fmt.Errorf("failed creating docker client: %w", err)
+		captureError(err)
+
+		return nil, err
+	}
+
+	switch up, err := waitForDaemon(ctx, client); {
+	case err != nil:
+		streams.StopProgressIndicator()
+
+		err = fmt.Errorf("failed waiting for docker daemon: %w", err)
+		captureError(err)
+
+		return nil, err
+	case !up:
+		streams.StopProgressIndicator()
+
+		terminal.Warnf("Remote builder did not start on time. Check remote builder logs with `flyctl logs -a %s`\n", remoteBuilderAppName)
+
+		return nil, errors.New("remote builder app unavailable")
+	default:
+		if msg := fmt.Sprintf("Remote builder %s ready", remoteBuilderAppName); streams.IsInteractive() {
+			streams.StopProgressIndicatorMsg(msg)
+		} else {
+			fmt.Fprintln(streams.ErrOut, msg)
+		}
+	}
+
+	return client, nil
+}
+
+func buildOpts(ctx context.Context, apiClient *api.Client, appName, host string) (opts []dockerclient.Opt, err error) {
+	opts = []dockerclient.Opt{
+		dockerclient.WithAPIVersionNegotiation(),
+		dockerclient.WithHost(host),
+	}
+
+	if os.Getenv("FLY_REMOTE_BUILDER_HOST_WG") != "" {
+		terminal.Debug("connecting to remote docker daemon over host wireguard tunnel")
+
+		return
+	}
+
+	var app *api.App
+	if app, err = apiClient.GetApp(ctx, appName); err != nil {
+		return nil, fmt.Errorf("error fetching target app: %w", err)
+	}
+
+	var agentclient *agent.Client
+	if agentclient, err = agent.Establish(ctx, apiClient); err != nil {
+		return
+	}
+
+	var dialer agent.Dialer
+	if dialer, err = agentclient.Dialer(ctx, app.Organization.Slug); err != nil {
+		return
+	}
+
+	if err = agentclient.WaitForTunnel(ctx, app.Organization.Slug); err == nil {
+		opts = append(opts, dockerclient.WithDialContext(dialer.DialContext))
+	}
+
+	return
 }
 
 func remoteMachine(ctx context.Context, apiClient *api.Client, appName string) (*api.Machine, *api.App, error) {
@@ -290,11 +285,14 @@ func remoteMachine(ctx context.Context, apiClient *api.Client, appName string) (
 	return apiClient.EnsureRemoteBuilder(ctx, "", appName)
 }
 
-func waitForDaemon(ctx context.Context, client *dockerclient.Client) error {
+func waitForDaemon(parent context.Context, client *dockerclient.Client) (up bool, err error) {
+	ctx, cancel := context.WithTimeout(parent, 2*time.Minute)
+	defer cancel()
+
 	b := &backoff.Backoff{
 		//These are the defaults
-		Min:    200 * time.Millisecond,
-		Max:    1 * time.Second,
+		Min:    50 * time.Millisecond,
+		Max:    200 * time.Second,
 		Factor: 1.2,
 		Jitter: true,
 	}
@@ -302,44 +300,36 @@ func waitForDaemon(ctx context.Context, client *dockerclient.Client) error {
 	consecutiveSuccesses := 0
 	var healthyStart time.Time
 
-	for {
-		checkErr := make(chan error, 1)
+	for ctx.Err() == nil {
+		switch _, err := client.Ping(ctx); err {
+		default:
+			consecutiveSuccesses = 0
 
-		go func() {
-			_, err := client.Ping(ctx)
-			checkErr <- err
-		}()
-
-		select {
-		case err := <-checkErr:
-			if err == nil {
-				if consecutiveSuccesses == 0 {
-					// reset on the first success in a row so the next checks are a bit spaced out
-					healthyStart = time.Now()
-					b.Reset()
-				}
-				consecutiveSuccesses++
-
-				if time.Since(healthyStart) > 1*time.Second {
-					terminal.Debug("Remote builder is ready to build!")
-					return nil
-				}
-
-				dur := b.Duration()
-				terminal.Debugf("Remote builder available, but pinging again in %s to be sure\n", dur)
-				time.Sleep(dur)
-			} else {
-				if !isRetyableError(err) {
-					return err
-				}
-				consecutiveSuccesses = 0
-				dur := b.Duration()
-				terminal.Debugf("Remote builder unavailable, retrying in %s (err: %v)\n", dur, err)
-				time.Sleep(dur)
+			dur := b.Duration()
+			terminal.Debugf("Remote builder unavailable, retrying in %s (err: %v)\n", dur, err)
+			pause.For(ctx, dur)
+		case nil:
+			if consecutiveSuccesses++; consecutiveSuccesses == 1 {
+				healthyStart = time.Now()
 			}
-		case <-ctx.Done():
-			return nil
+
+			if time.Since(healthyStart) > time.Second {
+				terminal.Debug("Remote builder is ready to build!")
+				return true, nil
+			}
+
+			b.Reset()
+			dur := b.Duration()
+			terminal.Debugf("Remote builder available, but pinging again in %s to be sure\n", dur)
+			pause.For(ctx, dur)
 		}
+	}
+
+	switch {
+	case parent.Err() != nil:
+		return false, parent.Err()
+	default:
+		return false, nil
 	}
 }
 
