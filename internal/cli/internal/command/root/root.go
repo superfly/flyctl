@@ -26,6 +26,7 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/command/move"
 	"github.com/superfly/flyctl/internal/cli/internal/command/open"
 	"github.com/superfly/flyctl/internal/cli/internal/command/orgs"
+	"github.com/superfly/flyctl/internal/cli/internal/command/ping"
 	"github.com/superfly/flyctl/internal/cli/internal/command/platform"
 	"github.com/superfly/flyctl/internal/cli/internal/command/releases"
 	"github.com/superfly/flyctl/internal/cli/internal/command/restart"
@@ -136,6 +137,7 @@ func New() *cobra.Command {
 		volumes.New(),
 		agent.New(),
 		image.New(),
+		ping.New(),
 	}
 
 	if os.Getenv("DEV") != "" {

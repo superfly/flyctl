@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -113,6 +114,7 @@ var handlers = map[string]handlerFunc{
 	"probe":     (*session).probe,
 	"instances": (*session).instances,
 	"resolve":   (*session).resolve,
+	"ping6":     (*session).ping6,
 }
 
 var errMalformedKill = errors.New("malformed kill command")
@@ -375,6 +377,111 @@ func (s *session) connect(ctx context.Context, args ...string) {
 	})
 
 	_ = eg.Wait()
+}
+
+func (s *session) ping6(ctx context.Context, args ...string) {
+	if len(args) != 1 {
+		s.error(fmt.Errorf("ping6: bad args"))
+		return
+	}
+
+	tunnel := s.srv.tunnelFor(args[0])
+	if tunnel == nil {
+		s.error(agent.ErrTunnelUnavailable)
+		return
+	}
+
+	// YOG-SOTHOTH IS THE GATE
+	sock, err := tunnel.ListenPing()
+	if err != nil {
+		s.error(fmt.Errorf("ping6: %w", err))
+		return
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+
+	go func() {
+		pbuf := make([]byte, 1500)
+		lbuf := make([]byte, 2)
+
+		for {
+			if ctx.Err() != nil {
+				return
+			}
+
+			sock.SetDeadline(time.Now().Add(1 * time.Second))
+			n64, addr, err := sock.ReadFrom(pbuf)
+			if err != nil {
+				if !errors.Is(err, os.ErrDeadlineExceeded) {
+					s.logger.Printf("ping6: %s", err)
+				}
+
+				continue
+			}
+
+			v6addr := net.ParseIP(addr.String()).To16()
+			if v6addr == nil {
+				s.logger.Printf("ping6: bad remote address '%s'", addr)
+				continue
+			}
+
+			payload := pbuf[:n64]
+			binary.BigEndian.PutUint16(lbuf, uint16(len(payload)))
+
+			// not much point to handling the error here; the parent
+			// thread will cancel this goroutine if the connection dies.
+			s.conn.Write(v6addr)
+			s.conn.Write(lbuf)
+			s.conn.Write(payload)
+		}
+	}()
+
+	pbuf := make([]byte, 1500)
+	lbuf := make([]byte, 2)
+	v6buf := make([]byte, 16)
+
+	sockOk := func(err error) bool {
+		if err == nil {
+			return true
+		}
+
+		if err != io.EOF {
+			s.logger.Printf("ping6: socket read error: %s", err)
+		}
+
+		cancel()
+
+		return false
+	}
+
+	for {
+		_, err = io.ReadFull(s.conn, v6buf)
+		if !sockOk(err) {
+			return
+		}
+
+		_, err = io.ReadFull(s.conn, lbuf)
+		if !sockOk(err) {
+			return
+		}
+
+		paylen := binary.BigEndian.Uint16(lbuf)
+		if paylen >= 1500 {
+			sockOk(fmt.Errorf("bad payload length (>=1500)"))
+			return
+		}
+
+		pkt := pbuf[:paylen]
+		_, err = io.ReadFull(s.conn, pkt)
+		if !sockOk(err) {
+			return
+		}
+
+		_, err = sock.WriteTo(pkt, &net.IPAddr{IP: net.IP(v6buf)})
+		if !sockOk(err) {
+			return
+		}
+	}
 }
 
 func (s *session) error(err error) bool {

@@ -3,9 +3,11 @@ package agent
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"strconv"
@@ -466,4 +468,126 @@ func (d *dialer) DialContext(ctx context.Context, network, addr string) (conn ne
 	}
 
 	return
+}
+
+type Pinger struct {
+	c   net.Conn
+	err error
+}
+
+func (c *Client) Pinger(ctx context.Context, slug string) (p *Pinger, err error) {
+	if _, err = c.Establish(ctx, slug); err != nil {
+		return nil, fmt.Errorf("pinger: %w", err)
+	}
+
+	conn, err := c.dialContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("pinger: %w", err)
+	}
+
+	if err = proto.Write(conn, "ping6", slug); err != nil {
+		return nil, fmt.Errorf("pinger: %w", err)
+	}
+
+	return &Pinger{c: conn}, nil
+}
+
+func (p *Pinger) SetReadDeadline(t time.Time) error {
+	return p.c.SetReadDeadline(t)
+}
+
+func (p *Pinger) Close() error {
+	return p.c.Close()
+}
+
+func (p *Pinger) Err() error {
+	return p.err
+}
+
+func (p *Pinger) WriteTo(buf []byte, addr net.Addr) (int64, error) {
+	if p.err != nil {
+		return 0, p.err
+	}
+
+	if len(buf) >= 1500 {
+		return 0, fmt.Errorf("icmp write: too large (>=1500 bytes)")
+	}
+
+	var v6addr net.IP
+
+	ipaddr, ok := addr.(*net.IPAddr)
+	if ok {
+		v6addr = ipaddr.IP.To16()
+	}
+
+	if !ok || v6addr == nil {
+		return 0, fmt.Errorf("icmp write: bad address type")
+	}
+
+	_, err := p.c.Write([]byte(v6addr))
+	if err != nil {
+		p.err = fmt.Errorf("icmp write: address: %w", err)
+		return 0, p.err
+	}
+
+	lbuf := make([]byte, 2)
+	binary.BigEndian.PutUint16(lbuf, uint16(len(buf)))
+
+	_, err = p.c.Write([]byte(lbuf))
+	if err != nil {
+		p.err = fmt.Errorf("icmp write: length: %w", err)
+		return 0, p.err
+	}
+
+	_, err = p.c.Write(buf)
+	if err != nil {
+		p.err = fmt.Errorf("icmp write: payload: %w", err)
+		return 0, p.err
+	}
+
+	return int64(len(buf)), nil
+}
+
+func (p *Pinger) ReadFrom(buf []byte) (int64, net.Addr, error) {
+	if p.err != nil {
+		return 0, nil, p.err
+	}
+
+	lbuf := make([]byte, 2)
+	v6buf := make([]byte, 16)
+
+	_, err := io.ReadFull(p.c, v6buf)
+	if err != nil {
+		// common case: read deadline set, this is just
+		// a timeout, we don't want to close the pinger
+
+		if !errors.Is(err, os.ErrDeadlineExceeded) {
+			p.err = fmt.Errorf("icmp read: addr: %w", err)
+			return 0, nil, p.err
+		}
+
+		return 0, nil, err
+	}
+
+	_, err = io.ReadFull(p.c, lbuf)
+	if err != nil {
+		p.err = fmt.Errorf("icmp read: length: %w", err)
+		return 0, nil, p.err
+	}
+
+	paylen := binary.BigEndian.Uint16(lbuf)
+	inbuf := make([]byte, paylen)
+
+	_, err = io.ReadFull(p.c, inbuf)
+	if err != nil {
+		p.err = fmt.Errorf("icmp read: payload: %w", err)
+		return 0, nil, p.err
+	}
+
+	// burning a copy just so i don't have to think about what
+	// happens if you try to read 1 byte of a 1000-byte ping
+
+	copy(buf, inbuf)
+
+	return int64(paylen), &net.IPAddr{IP: net.IP(v6buf)}, nil
 }
