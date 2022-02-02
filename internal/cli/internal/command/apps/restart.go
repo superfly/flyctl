@@ -22,7 +22,8 @@ func newRestart() *cobra.Command {
 	)
 
 	restart := command.New(usage, short, long, RunRestart,
-		command.RequireSession)
+		command.RequireSession,
+	)
 
 	restart.Args = cobra.ExactArgs(1)
 

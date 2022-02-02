@@ -9,7 +9,6 @@ import (
 
 	"github.com/azazeal/pause"
 	"github.com/briandowns/spinner"
-	"github.com/logrusorgru/aurora"
 	"github.com/pkg/errors"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
@@ -64,7 +63,8 @@ func runWebLogin(ctx context.Context, signup bool) error {
 
 	logger := logger.FromContext(ctx)
 
-	fmt.Fprintf(io.Out, "Opening %s ...\n\n", aurora.Bold(auth.AuthURL))
+	colorize := io.ColorScheme()
+	fmt.Fprintf(io.Out, "Opening %s ...\n\n", colorize.Bold(auth.AuthURL))
 
 	token, err := waitForCLISession(ctx, logger, io.ErrOut, auth.ID)
 	switch {
@@ -89,7 +89,7 @@ func runWebLogin(ctx context.Context, signup bool) error {
 		return fmt.Errorf("failed retrieving current user: %w", err)
 	}
 
-	fmt.Fprintf(io.Out, "successfully logged in as %s\n", aurora.Bold(user.Email))
+	fmt.Fprintf(io.Out, "successfully logged in as %s\n", colorize.Bold(user.Email))
 
 	return nil
 }

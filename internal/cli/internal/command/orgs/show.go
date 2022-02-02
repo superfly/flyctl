@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/logrusorgru/aurora"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 
@@ -26,7 +25,8 @@ associated member. Details full list of members and roles.
 	)
 
 	cmd := command.New(usage, short, long, runShow,
-		command.RequireSession)
+		command.RequireSession,
+	)
 
 	cmd.Args = cobra.MaximumNArgs(1)
 
@@ -45,22 +45,23 @@ func runShow(ctx context.Context) error {
 
 		return nil
 	}
+	colorize := io.ColorScheme()
 
 	var buf bytes.Buffer
 
-	fmt.Fprintln(&buf, aurora.Bold("Organization"))
+	fmt.Fprintln(&buf, colorize.Bold("Organization"))
 	fmt.Fprintf(&buf, "%-10s: %-20s\n", "Name", org.Name)
 	fmt.Fprintf(&buf, "%-10s: %-20s\n", "Slug", org.Slug)
 	fmt.Fprintf(&buf, "%-10s: %-20s\n", "Type", org.Type)
 	fmt.Fprintln(&buf)
 
-	fmt.Fprintln(&buf, aurora.Bold("Summary"))
+	fmt.Fprintln(&buf, colorize.Bold("Summary"))
 	fmt.Fprintf(&buf, "You have %s permissions on this organizaton\n", org.ViewerRole)
 	// fmt.Fprintf(&buf, "There are %d DNS zones associated with this organization\n", len(org.DNSZones.Nodes))
 	fmt.Fprintf(&buf, "There are %d members associated with this organization\n", len(org.Members.Edges))
 	fmt.Fprintln(&buf)
 
-	fmt.Fprintln(&buf, aurora.Bold("Organization Members"))
+	fmt.Fprintln(&buf, colorize.Bold("Organization Members"))
 
 	membertable := tablewriter.NewWriter(&buf)
 	membertable.SetHeader([]string{"Name", "Email", "Role"})

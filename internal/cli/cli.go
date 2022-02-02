@@ -9,7 +9,6 @@ import (
 	"io"
 
 	"github.com/AlecAivazis/survey/v2/terminal"
-	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/pkg/iostreams"
@@ -31,26 +30,28 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	cmd.SetErr(io.ErrOut)
 	cmd.SetArgs(args)
 
+	cs := io.ColorScheme()
+
 	switch _, err := cmd.ExecuteContextC(ctx); {
 	case err == nil:
 		return 0
 	case errors.Is(err, context.Canceled), errors.Is(err, terminal.InterruptErr):
 		return 127
 	case errors.Is(err, context.DeadlineExceeded):
-		printError(io.ErrOut, err)
+		printError(io.ErrOut, cs, err)
 
 		return 126
 	default:
-		printError(io.ErrOut, err)
+		printError(io.ErrOut, cs, err)
 
 		return 1
 	}
 }
 
-func printError(w io.Writer, err error) {
+func printError(w io.Writer, cs *iostreams.ColorScheme, err error) {
 	var b bytes.Buffer
 
-	fmt.Fprintln(&b, aurora.Red("Error"), err)
+	fmt.Fprintln(&b, cs.Red("Error"), err)
 	fmt.Fprintln(&b)
 
 	description := flyerr.GetErrorDescription(err)
