@@ -36,15 +36,24 @@ number to operate. This can be found through the volumes list command`
 
 func runDelete(ctx context.Context) error {
 	var (
-		io     = iostreams.FromContext(ctx)
-		client = client.FromContext(ctx).API()
-
-		volID = flag.FirstArg(ctx)
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
+		client   = client.FromContext(ctx).API()
+		volID    = flag.FirstArg(ctx)
 	)
 
 	if !flag.GetYes(ctx) {
-		confirmed, err := prompt.Confirm(ctx, "Are you sure you want to delete this volume? Deleting a volume in not reversible")
-		if err != nil || !confirmed {
+		const msg = "Deleting a volume is not reversible."
+		fmt.Fprintln(io.ErrOut, colorize.Red(msg))
+
+		switch confirmed, err := prompt.Confirm(ctx, "Are you sure you want to delete this volume?"); {
+		case err == nil:
+			if !confirmed {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+		default:
 			return err
 		}
 	}

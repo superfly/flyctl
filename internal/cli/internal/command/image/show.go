@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/pkg/iostreams"
@@ -32,8 +31,7 @@ func newShow() *cobra.Command {
 
 	cmd.Args = cobra.NoArgs
 
-	flag.Add(
-		cmd,
+	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
 	)
@@ -43,10 +41,11 @@ func newShow() *cobra.Command {
 
 func runShow(ctx context.Context) error {
 	var (
-		client  = client.FromContext(ctx).API()
-		cfg     = config.FromContext(ctx)
-		io      = iostreams.FromContext(ctx)
-		appName = app.NameFromContext(ctx)
+		client   = client.FromContext(ctx).API()
+		cfg      = config.FromContext(ctx)
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
+		appName  = app.NameFromContext(ctx)
 	)
 
 	app, err := client.GetImageInfo(ctx, appName)
@@ -73,7 +72,7 @@ func runShow(ctx context.Context) error {
 		var message = fmt.Sprintf("Update available! (%s -> %s)\n", current, latest)
 		message += "Run `flyctl image update` to migrate to the latest image version.\n"
 
-		fmt.Fprintln(io.ErrOut, aurora.Yellow(message))
+		fmt.Fprintln(io.ErrOut, colorize.Yellow(message))
 	}
 
 	image := app.ImageDetails

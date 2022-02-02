@@ -13,7 +13,6 @@ import (
 
 	"github.com/azazeal/pause"
 	"github.com/inancgumus/screen"
-	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/pkg/iostreams"
@@ -179,6 +178,7 @@ func runWatch(ctx context.Context) (err error) {
 
 		return
 	}
+	colorize := streams.ColorScheme()
 
 	sleep := flag.GetInt(ctx, "rate")
 	if sleep < 1 || sleep > 3600 {
@@ -198,7 +198,7 @@ func runWatch(ctx context.Context) (err error) {
 			break
 		}
 
-		header := fmt.Sprintf("%s %s %s\n\n", aurora.Bold(appName), aurora.Italic("at:"), aurora.Bold(time.Now().UTC().Format("15:04:05")))
+		header := fmt.Sprintf("%s %s %s\n\n", colorize.Bold(appName), "at:", colorize.Bold(time.Now().UTC().Format("15:04:05")))
 
 		screen.Clear()
 		screen.MoveTopLeft()

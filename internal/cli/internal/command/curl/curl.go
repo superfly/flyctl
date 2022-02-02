@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
@@ -66,10 +65,10 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	if out := iostreams.FromContext(ctx).Out; !config.FromContext(ctx).JSONOutput {
-		renderTextTimings(out, timings)
+	if io := iostreams.FromContext(ctx); !config.FromContext(ctx).JSONOutput {
+		renderTextTimings(io.Out, io.ColorScheme(), timings)
 	} else {
-		renderJSONTimings(out, timings)
+		renderJSONTimings(io.Out, timings)
 	}
 
 	return nil
@@ -227,29 +226,29 @@ type timing struct {
 	Scheme            string  `json:"scheme"`
 }
 
-func (t *timing) formatedHTTPCode() string {
+func (t *timing) formatedHTTPCode(cs *iostreams.ColorScheme) string {
 	text := strconv.Itoa(t.HTTPCode)
-	return colorize(text, float64(t.HTTPCode), 299, 399)
+	return colorize(cs, text, float64(t.HTTPCode), 299, 399)
 }
 
 func (t *timing) formattedDNS() string {
 	return humanize.FtoaWithDigits(t.TimeNameLookup*1000, 1) + "ms"
 }
 
-func (t *timing) formattedConnect() string {
+func (t *timing) formattedConnect(cs *iostreams.ColorScheme) string {
 	timing := t.TimeConnect * 1000
 	text := humanize.FtoaWithDigits(timing, 1) + "ms"
-	return colorize(text, timing, 200, 500)
+	return colorize(cs, text, timing, 200, 500)
 }
 
 func (t *timing) formattedTLS() string {
 	return humanize.FtoaWithDigits((t.TimeAppConnect+t.TimePreTransfer)*1000, 1) + "ms"
 }
 
-func (t *timing) formattedTTFB() string {
+func (t *timing) formattedTTFB(cs *iostreams.ColorScheme) string {
 	timing := t.TimeStartTransfer * 1000
 	text := humanize.FtoaWithDigits(timing, 1) + "ms"
-	return colorize(text, timing, 400, 1000)
+	return colorize(cs, text, timing, 400, 1000)
 }
 
 func (t *timing) formattedTotal() string {
@@ -257,21 +256,21 @@ func (t *timing) formattedTotal() string {
 	return humanize.FtoaWithDigits(timing, 1) + "ms"
 }
 
-func colorize(text string, val, greenCutoff, yellowCutoff float64) string {
-	var color aurora.Color
+func colorize(cs *iostreams.ColorScheme, text string, val, greenCutoff, yellowCutoff float64) string {
+	var fn func(string) string
 	switch {
 	case val <= greenCutoff:
-		color = aurora.GreenFg
+		fn = cs.Green
 	case val <= yellowCutoff:
-		color = aurora.YellowFg
+		fn = cs.Yellow
 	default:
-		color = aurora.RedFg
+		fn = cs.Red
 	}
 
-	return aurora.Colorize(text, color).String()
+	return fn(text)
 }
 
-func renderTextTimings(w io.Writer, timings []*timing) {
+func renderTextTimings(w io.Writer, cs *iostreams.ColorScheme, timings []*timing) {
 	var rows [][]string
 	for _, t := range timings {
 		if t.error != nil {
@@ -280,11 +279,11 @@ func renderTextTimings(w io.Writer, timings []*timing) {
 
 		rows = append(rows, []string{
 			t.region,
-			t.formatedHTTPCode(),
+			t.formatedHTTPCode(cs),
 			t.formattedDNS(),
-			t.formattedConnect(),
+			t.formattedConnect(cs),
 			t.formattedTLS(),
-			t.formattedTTFB(),
+			t.formattedTTFB(cs),
 			t.formattedTotal(),
 		})
 	}

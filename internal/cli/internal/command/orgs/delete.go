@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func newDelete() *cobra.Command {
@@ -38,7 +39,13 @@ func runDelete(ctx context.Context) error {
 		return err
 	}
 
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
 	if !flag.GetYes(ctx) {
+		const msg = "Deleting an organization is not reversible."
+		fmt.Fprintln(io.ErrOut, colorize.Red(msg))
+
 		switch confirmed, err := prompt.Confirmf(ctx, "Delete organization %s?", org.Slug); {
 		case err == nil:
 			if !confirmed {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/pkg/iostreams"
@@ -26,7 +25,8 @@ organization the current user belongs to.
 	)
 
 	move := command.New(usage, short, long, RunMove,
-		command.RequireSession)
+		command.RequireSession,
+	)
 
 	move.Args = cobra.ExactArgs(1)
 
@@ -58,14 +58,22 @@ func RunMove(ctx context.Context) error {
 	}
 
 	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
 
 	if !flag.GetYes(ctx) {
-		fmt.Fprintln(io.ErrOut, aurora.Red(`Moving an app between organizations requires a complete shutdown and restart. This will result in some app downtime.
+		const msg = `Moving an app between organizations requires a complete shutdown and restart. This will result in some app downtime.
 If the app relies on other services within the current organization, it may not come back up in a healthy manner.
-Please confirm you wish to restart this app now?`))
+Please confirm whether you wish to restart this app now.`
+		fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 
-		msg := fmt.Sprintf("Move app %s?", appName)
-		if confirmed, err := prompt.Confirm(ctx, msg); err != nil || !confirmed {
+		switch confirmed, err := prompt.Confirmf(ctx, "Move app %s?", appName); {
+		case err == nil:
+			if !confirmed {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+		default:
 			return err
 		}
 	}

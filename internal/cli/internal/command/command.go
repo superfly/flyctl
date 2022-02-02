@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/blang/semver"
-	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
@@ -365,14 +364,16 @@ func promptToUpdate(ctx context.Context) (context.Context, error) {
 		return ctx, nil
 	}
 
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
 	msg := fmt.Sprintf("Update available %s -> %s.\nRun \"%s\" to upgrade.",
 		current,
 		r.Version,
-		aurora.Bold(buildinfo.Name()+" version update"),
+		colorize.Bold(buildinfo.Name()+" version update"),
 	)
 
-	stderr := iostreams.FromContext(ctx).ErrOut
-	fmt.Fprintln(stderr, aurora.Yellow(msg))
+	fmt.Fprintln(io.ErrOut, colorize.Yellow(msg))
 
 	return ctx, nil
 }

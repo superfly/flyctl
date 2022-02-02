@@ -36,10 +36,10 @@ The update will perform a rolling restart against each VM, which may result in a
 
 	cmd.Args = cobra.NoArgs
 
-	flag.Add(
-		cmd,
+	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Yes(),
 		flag.Bool{
 			Name:        "detach",
 			Description: "Return immediately instead of monitoring update progress",
@@ -84,9 +84,14 @@ func runUpdate(ctx context.Context) error {
 	}
 
 	if !flag.GetYes(ctx) {
-
-		msg := fmt.Sprintf("Update `%s` from %s to %s?", appName, current, target)
-		if confirmed, err := prompt.Confirm(ctx, msg); err != nil || !confirmed {
+		switch confirmed, err := prompt.Confirmf(ctx, "Update `%s` from %s to %s?", appName, current, target); {
+		case err == nil:
+			if !confirmed {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+		default:
 			return err
 		}
 	}

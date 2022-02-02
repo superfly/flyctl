@@ -30,8 +30,7 @@ func newList() *cobra.Command {
 		command.RequireAppName,
 	)
 
-	flag.Add(
-		cmd,
+	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
 	)
