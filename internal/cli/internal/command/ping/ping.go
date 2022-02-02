@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -123,8 +124,10 @@ func run(ctx context.Context) error {
 		return err
 	}
 
+	var mu sync.RWMutex
 	targets := map[string]string{}
 
+	mu.Lock()
 	if name == "" || name == "gateway" {
 		targets[ns] = "gateway"
 	} else {
@@ -136,6 +139,39 @@ func run(ctx context.Context) error {
 		for _, a := range addrs {
 			targets[a] = name
 		}
+	}
+	mu.Unlock()
+
+	ctx, cancel := context.WithCancel(ctx)
+
+	if name != "" && name != "gateway" {
+		// look up names in the background because I was too
+		// lazy to implement PTR in our DNS server
+		go func() {
+			// we already checked the format of this string
+			labels := strings.Split(name, ".internal")
+			app := labels[len(labels)-2]
+			regionName := fmt.Sprintf("regions.%s.internal", app)
+
+			regionFrags, err := r.LookupTXT(ctx, regionName)
+			if err != nil {
+				return
+			}
+
+			regions := strings.Join(regionFrags, "")
+
+			for _, region := range strings.Split(regions, ",") {
+				regHost := fmt.Sprintf("%s.%s.internal", region, app)
+				addrs, err := r.LookupHost(ctx, regHost)
+				if err == nil {
+					mu.Lock()
+					for _, addr := range addrs {
+						targets[addr] = regHost
+					}
+					mu.Unlock()
+				}
+			}
+		}()
 	}
 
 	pinger, err := aClient.Pinger(ctx, org.Slug)
@@ -199,7 +235,6 @@ func run(ctx context.Context) error {
 	}
 
 	replies := make(chan reply, 2)
-	ctx, cancel := context.WithCancel(ctx)
 
 	go func() {
 		for {
@@ -250,7 +285,10 @@ func run(ctx context.Context) error {
 				return
 
 			case reply := <-replies:
+				mu.RLock()
 				srcName := targets[reply.src.String()]
+				mu.RUnlock()
+
 				if srcName != "" {
 					srcName = " (" + srcName + ")"
 				}
