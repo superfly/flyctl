@@ -232,7 +232,7 @@ func run(ctx context.Context) error {
 			var t time.Time
 			err = t.UnmarshalBinary(echoRep.Data[:timeLen])
 			if err != nil {
-				fmt.Printf("malformed timestamp from %s: %s", err)
+				fmt.Printf("malformed timestamp from %s: %s", raddr, err)
 			}
 
 			replies <- reply{
