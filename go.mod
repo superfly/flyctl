@@ -118,6 +118,7 @@ require (
 	github.com/opencontainers/selinux v1.8.0 // indirect
 	github.com/pborman/uuid v1.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/r3labs/diff v1.1.0 // indirect
 	github.com/rivo/tview v0.0.0-20210624165335-29d673af0ce2 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/sabhiram/go-gitignore v0.0.0-20201211074657-223ce5d391b0 // indirect

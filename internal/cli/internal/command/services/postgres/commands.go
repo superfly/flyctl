@@ -67,6 +67,18 @@ type commandResponse struct {
 	Data    string `json:"data"`
 }
 
+type stolonSpec struct {
+	PGParameters *pgParameters `json:"pgParameters,omitempty"`
+}
+
+type pgParameters struct {
+	LogStatement            string `json:"log_statement,omitempty"`
+	LogDuration             string `json:"log_duration,omitempty"`
+	LogMinDurationStatement string `json:"log_min_duration_statement,omitempty"`
+	MaxConnections          string `json:"max_connections,omitempty"`
+	WalLevel                string `json:"wal_level,omitempty"`
+}
+
 type postgresCmd struct {
 	ctx    *context.Context
 	app    *api.App
@@ -93,6 +105,59 @@ func newPostgresCmd(ctx context.Context, app *api.App) (*postgresCmd, error) {
 		dialer: dialer,
 		io:     iostreams.FromContext(ctx),
 	}, nil
+}
+
+func (pc *postgresCmd) viewStolonConfig() (*stolonSpec, error) {
+	cmd := fmt.Sprintf("stolonctl-run %s", encodeCommand("spec --defaults"))
+	resp, err := ssh.RunSSHCommand(*pc.ctx, pc.app, pc.dialer, nil, cmd)
+	if err != nil {
+		return nil, err
+	}
+	if len(resp) == 0 {
+		return nil, fmt.Errorf("failed to retrieve stolon-config")
+	}
+
+	var result commandResponse
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return nil, err
+	}
+
+	if !result.Success {
+		return nil, fmt.Errorf(result.Message)
+	}
+
+	var spec stolonSpec
+	if err := json.Unmarshal([]byte(result.Data), &spec); err != nil {
+		return nil, err
+	}
+
+	return &spec, nil
+}
+
+func (pc *postgresCmd) updateStolonConfig(config *stolonSpec) error {
+	configBytes, err := json.Marshal(config)
+	if err != nil {
+		return err
+	}
+
+	subCmd := fmt.Sprintf("update --patch '%s'", string(configBytes))
+	cmd := fmt.Sprintf("stolonctl-run %s", encodeCommand(subCmd))
+
+	resp, err := ssh.RunSSHCommand(*pc.ctx, pc.app, pc.dialer, nil, cmd)
+	if err != nil {
+		return err
+	}
+
+	var result commandResponse
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return err
+	}
+
+	if !result.Success {
+		return fmt.Errorf(result.Message)
+	}
+
+	return nil
 }
 
 func (pc *postgresCmd) restartNode(machine *api.Machine) error {
