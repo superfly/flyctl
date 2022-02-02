@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
@@ -16,9 +15,9 @@ import (
 
 func newRestart() (cmd *cobra.Command) {
 	const (
-		long = `Performs a rolling restart against the specified Postgres cluster
+		long = `Restarts each member of the Postgres cluster one by one. Downtime should be minimal.
 `
-		short = "Perform a rolling restart"
+		short = "Restarts the Postgres cluster"
 		usage = "restart"
 	)
 
@@ -38,6 +37,7 @@ func newRestart() (cmd *cobra.Command) {
 func runRestart(ctx context.Context) error {
 	appName := app.NameFromContext(ctx)
 	client := client.FromContext(ctx).API()
+	io := iostreams.FromContext(ctx)
 
 	app, err := client.GetApp(ctx, appName)
 	if err != nil {
@@ -54,38 +54,7 @@ func runRestart(ctx context.Context) error {
 		return err
 	}
 
-	roleMap := map[string][]*api.Machine{}
-	io := iostreams.FromContext(ctx)
-
-	// Collect PG role information from each machine
 	for _, machine := range machines {
-		fmt.Fprintf(io.Out, "Identifying role of Machine %q... ", machine.ID)
-		role, err := pgCmd.getRole(machine)
-		if err != nil {
-			return err
-		}
-		fmt.Fprintf(io.Out, "%s\n", role)
-		roleMap[role] = append(roleMap[role], machine)
-	}
-
-	for _, machine := range roleMap["replica"] {
-		fmt.Fprintf(io.Out, "Restarting machine %q... ", machine.ID)
-		if err = pgCmd.restartNode(machine); err != nil {
-			fmt.Fprintln(io.Out, "failed")
-			return err
-		}
-		fmt.Fprintln(io.Out, "complete")
-	}
-
-	for _, machine := range roleMap["leader"] {
-		fmt.Printf("Stepping down leader %q... ", machine.ID)
-
-		if err = pgCmd.failover(); err != nil {
-			fmt.Fprintln(io.Out, fmt.Sprintf("failed - %v", err))
-		} else {
-			fmt.Fprintln(io.Out, "complete")
-		}
-
 		fmt.Fprintf(io.Out, "Restarting machine %q... ", machine.ID)
 		if err = pgCmd.restartNode(machine); err != nil {
 			fmt.Fprintln(io.Out, "failed")
