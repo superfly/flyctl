@@ -257,13 +257,13 @@ func (pc *postgresCmd) deleteUser(userName string) (*postgresCommandResponse, er
 	}
 
 	cmd := fmt.Sprintf("flyadmin user-delete %s", string(reqJSON))
-	createUsrBytes, err := ssh.RunSSHCommand(*pc.ctx, pc.app, pc.dialer, nil, cmd)
+	delUsrBytes, err := ssh.RunSSHCommand(*pc.ctx, pc.app, pc.dialer, nil, cmd)
 	if err != nil {
 		return nil, err
 	}
 
 	var resp postgresCommandResponse
-	if err := json.Unmarshal(createUsrBytes, &resp); err != nil {
+	if err := json.Unmarshal(delUsrBytes, &resp); err != nil {
 		return nil, err
 	}
 
