@@ -88,6 +88,10 @@ func run(ctx context.Context) error {
 	case name == "":
 	case name == "gateway":
 	case strings.HasSuffix(name, ".internal"):
+	case strings.HasPrefix(name, "fdaa:"):
+		if net.ParseIP(name) == nil {
+			return fmt.Errorf("bad target name: malformed 6pn address")
+		}
 	default:
 		return fmt.Errorf("bad target name: Fly.io DNS names end in '.internal'")
 	}
@@ -130,6 +134,8 @@ func run(ctx context.Context) error {
 	mu.Lock()
 	if name == "" || name == "gateway" {
 		targets[ns] = "gateway"
+	} else if strings.HasPrefix(name, "fdaa:") {
+		targets[name] = name
 	} else {
 		addrs, err := r.LookupHost(ctx, name)
 		if err != nil {
@@ -144,7 +150,7 @@ func run(ctx context.Context) error {
 
 	ctx, cancel := context.WithCancel(ctx)
 
-	if name != "" && name != "gateway" {
+	if name != "" && name != "gateway" && !strings.HasPrefix(name, "fdaa:") {
 		// look up names in the background because I was too
 		// lazy to implement PTR in our DNS server
 		go func() {
