@@ -293,7 +293,9 @@ func run(ctx context.Context) error {
 					srcName = " (" + srcName + ")"
 				}
 
-				fmt.Printf("%d bytes from %s%s, seq=%d time=%s\n", len(reply.pkt.Data)+8, reply.src, srcName, reply.pkt.Seq, reply.lat)
+				lat := reply.lat.Truncate(100 * time.Microsecond)
+
+				fmt.Printf("%d bytes from %s%s, seq=%d time=%s\n", len(reply.pkt.Data)+8, reply.src, srcName, reply.pkt.Seq, lat)
 			}
 		}
 	}()
