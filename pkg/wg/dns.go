@@ -173,7 +173,7 @@ func (r *Resolver) roundTripUDP(ctx context.Context, msg *dns.Msg) (*dns.Msg, er
 		rb := replyBuf[:n64]
 		reply := &dns.Msg{}
 		if err = reply.Unpack(rb); err != nil || reply.Id != msg.Id {
-			return nil, fmt.Errorf("dns round trip: unpack: %s (%w)", r.ns, err, ErrDNSTransient)
+			return nil, fmt.Errorf("dns round trip: unpack: %s (%w)", err, ErrDNSTransient)
 		}
 
 		if reply.MsgHdr.Truncated {
