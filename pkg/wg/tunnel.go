@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"net"
 
-	"github.com/miekg/dns"
 	"golang.zx2c4.com/go118/netip"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
@@ -23,7 +22,8 @@ type Tunnel struct {
 	State  *WireGuardState
 	Config *Config
 
-	resolv *net.Resolver
+	Resolver *Resolver
+	resolv   *net.Resolver
 }
 
 func Connect(state *WireGuardState) (*Tunnel, error) {
@@ -69,7 +69,7 @@ func Connect(state *WireGuardState) (*Tunnel, error) {
 	}
 	wgDev.Up()
 
-	return &Tunnel{
+	t := &Tunnel{
 		dev:    wgDev,
 		tun:    tunDev,
 		net:    gNet,
@@ -80,11 +80,18 @@ func Connect(state *WireGuardState) (*Tunnel, error) {
 		resolv: &net.Resolver{
 			PreferGo: true,
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-				fmt.Println("resolver.Dial", network, address)
 				return gNet.DialContext(ctx, "tcp", net.JoinHostPort(dnsIP.String(), "53"))
 			},
 		},
-	}, nil
+	}
+
+	resolver, err := NewResolver(t, cfg.DNS.String())
+	if err != nil {
+		return nil, err
+	}
+	t.Resolver = resolver
+
+	return t, nil
 }
 
 func (t *Tunnel) Close() error {
@@ -100,30 +107,6 @@ func (t *Tunnel) DialContext(ctx context.Context, network, addr string) (net.Con
 	return t.net.DialContext(ctx, network, addr)
 }
 
-func (t *Tunnel) Resolver() *net.Resolver {
-	return t.resolv
-}
-
-func (t *Tunnel) LookupTXT(ctx context.Context, name string) ([]string, error) {
-	var m dns.Msg
-	_ = m.SetQuestion(dns.Fqdn(name), dns.TypeTXT)
-
-	r, err := t.queryDNS(ctx, &m)
-	if err != nil {
-		return nil, err
-	}
-
-	results := make([]string, 0, len(r.Answer))
-
-	for _, a := range r.Answer {
-		txt := a.(*dns.TXT)
-
-		results = append(results, txt.Txt...)
-	}
-
-	return results, nil
-}
-
 func (t *Tunnel) ListenPing() (*netstack.PingConn, error) {
 	laddr := netip.AddrFromSlice(t.Config.LocalNetwork.IP)
 	raddr := netip.IPv6Unspecified()
@@ -136,42 +119,14 @@ func (t *Tunnel) ListenPing() (*netstack.PingConn, error) {
 	return conn, nil
 }
 
-func (t *Tunnel) LookupAAAA(ctx context.Context, name string) ([]net.IP, error) {
-	var m dns.Msg
-	_ = m.SetQuestion(dns.Fqdn(name), dns.TypeAAAA)
-
-	r, err := t.queryDNS(ctx, &m)
-	if err != nil {
-		return nil, err
-	}
-
-	results := make([]net.IP, 0, len(r.Answer))
-
-	for _, a := range r.Answer {
-		ip := a.(*dns.AAAA).AAAA
-		results = append(results, ip)
-	}
-
-	return results, nil
+func (t *Tunnel) LookupTXT(ctx context.Context, name string) ([]string, error) {
+	return t.Resolver.LookupTXT(ctx, name)
 }
 
-func (t *Tunnel) queryDNS(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
-	client := dns.Client{
-		Net: "tcp",
-		Dialer: &net.Dialer{
-			Resolver: t.resolv,
-		},
-	}
+func (t *Tunnel) LookupAAAA(ctx context.Context, name string) ([]net.IP, error) {
+	return t.Resolver.LookupAAAA(ctx, name)
+}
 
-	c, err := t.DialContext(ctx, "tcp", net.JoinHostPort(t.dnsIP.String(), "53"))
-	if err != nil {
-		return nil, err
-	}
-	defer c.Close()
-
-	conn := &dns.Conn{Conn: c}
-	defer conn.Close()
-
-	r, _, err := client.ExchangeWithConn(msg, conn)
-	return r, err
+func (t *Tunnel) LookupHost(ctx context.Context, name string) ([]string, error) {
+	return t.Resolver.LookupHost(ctx, name)
 }
