@@ -320,7 +320,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 			// Otherwise, prompt to type it in
 			if secret.Generate {
 				if val, err = helpers.RandString(64); err != nil {
-					fmt.Errorf("Could not generate random string: %w", err)
+					return fmt.Errorf("could not generate random string: %w", err)
 				}
 
 			} else if secret.Value != "" {
