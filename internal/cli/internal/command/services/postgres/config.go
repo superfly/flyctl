@@ -184,30 +184,31 @@ func runConfigUpdate(ctx context.Context) error {
 		return err
 	}
 
-	// Construct a map of the active configuration settings for comparison.
+	// Construct a map of the active configuration settings so we can compare.
 	oValues := map[string]string{}
 	for _, setting := range settings.Settings {
 		oValues[setting.Name] = setting.Setting
 	}
 
+	// Calculate diff
 	changelog, _ := diff.Diff(oValues, rChanges)
 	if len(changelog) == 0 {
 		return fmt.Errorf("no changes to apply")
 	}
 
-	restartRequired := false
+	triggerRestart := false
 
 	rows := make([][]string, 0, len(changelog))
 	for _, change := range changelog {
-		r := isRestartRequired(settings, change.Path[len(change.Path)-1])
-		if r {
-			restartRequired = true
+		requiresRestart := isRestartRequired(settings, change.Path[len(change.Path)-1])
+		if requiresRestart {
+			triggerRestart = true
 		}
 		rows = append(rows, []string{
 			change.Path[len(change.Path)-1],
 			fmt.Sprint(change.From),
 			fmt.Sprint(change.To),
-			fmt.Sprint(r),
+			fmt.Sprint(requiresRestart),
 		})
 	}
 	_ = render.Table(io.Out, "", rows, "Name", "Value", "Target value", "Restart Required")
@@ -236,12 +237,12 @@ func runConfigUpdate(ctx context.Context) error {
 	// Hack... Sleep for 3 seconds to give Stolon enough time to propagate changes.
 	time.Sleep(3 * time.Second)
 
-	if restartRequired {
+	if triggerRestart {
 		runRestart(ctx)
 	}
 
 	fmt.Fprintln(io.Out, "Update complete!")
-	fmt.Fprintln(io.Out, colorize.Bold("Run `DEV=1 fly services postgres config view` to see your changes."))
+	fmt.Fprintln(io.Out, colorize.Bold("Run `DEV=1 fly services postgres config view` to verify your changes."))
 
 	return nil
 }
