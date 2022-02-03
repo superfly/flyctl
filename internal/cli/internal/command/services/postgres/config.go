@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/r3labs/diff"
 	"github.com/spf13/cobra"
@@ -162,9 +163,10 @@ func runConfigUpdate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	// io := iostreams.FromContext(ctx)
-	out := iostreams.FromContext(ctx).Out
-	// colorize := io.ColorScheme()
+
+	io := iostreams.FromContext(ctx)
+	out := io.Out
+	colorize := io.ColorScheme()
 
 	// Identify requested configuration changes.
 	rChanges := map[string]string{}
@@ -194,13 +196,19 @@ func runConfigUpdate(ctx context.Context) error {
 		return fmt.Errorf("no changes to apply")
 	}
 
+	restartRequired := false
+
 	rows := make([][]string, 0, len(changelog))
 	for _, change := range changelog {
+		r := isRestartRequired(settings, change.Path[len(change.Path)-1])
+		if r {
+			restartRequired = true
+		}
 		rows = append(rows, []string{
 			change.Path[len(change.Path)-1],
 			fmt.Sprint(change.From),
 			fmt.Sprint(change.To),
-			fmt.Sprint(restartRequired(settings, change.Path[len(change.Path)-1])),
+			fmt.Sprint(r),
 		})
 	}
 	_ = render.Table(out, "", rows, "Name", "Value", "Target value", "Restart Required")
@@ -226,27 +234,20 @@ func runConfigUpdate(ctx context.Context) error {
 		return err
 	}
 
-	fmt.Fprintln(out, "Verifing changes...")
-	settings, err = pgCmd.viewPGSettings(keys)
-	if err != nil {
-		return err
-	}
-
-	restartRequired := false
-	for _, s := range settings.Settings {
-		if s.PendingRestart {
-			restartRequired = true
-		}
-	}
+	// Hack... Sleep for 3 seconds to give Stolon enough time to propagate changes.
+	time.Sleep(3 * time.Second)
 
 	if restartRequired {
 		runRestart(ctx)
 	}
 
+	fmt.Fprintln(out, "Update complete!")
+	fmt.Fprintln(out, colorize.Bold("Run `DEV=1 fly services postgres config view` to see your changes."))
+
 	return nil
 }
 
-func restartRequired(pgSettings *pgSettings, setting string) bool {
+func isRestartRequired(pgSettings *pgSettings, setting string) bool {
 	for _, s := range pgSettings.Settings {
 		if s.Name == setting {
 			if s.Context == "postmaster" {
