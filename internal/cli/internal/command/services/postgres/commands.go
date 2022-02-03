@@ -82,6 +82,7 @@ type pgSetting struct {
 	Context        string `json:"context,omitempty"`
 	Unit           string `json:"unit,omitempty"`
 	Desc           string `json:"short_desc,omitempty"`
+	PendingChange  string `json:"pending_change,omitempty"`
 	PendingRestart bool   `json:"pending_restart,omitempty"`
 }
 

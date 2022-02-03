@@ -34,7 +34,10 @@ func newConfig() (cmd *cobra.Command) {
 	return
 }
 
-// pgSettingMap maps the command-line arguments to the actual pgParameter.
+// pgSettingMap maps the command-line arguments to the actual pgParameter
+// and also acts as a whitelist as far as what's configurable via flyctl.
+// To support additional configuration, just add the commandline-argument
+// and the value must be a Postgres compatible
 var pgSettingMap = map[string]string{
 	"wal-level":                  "wal_level",
 	"max-connections":            "max_connections",
@@ -93,19 +96,24 @@ func runConfigView(ctx context.Context) error {
 	pendingRestart := false
 	rows := make([][]string, 0, len(resp.Settings))
 	for _, setting := range resp.Settings {
+		value := setting.Setting
 		restart := fmt.Sprint(setting.PendingRestart)
 		if setting.PendingRestart {
 			pendingRestart = true
 			restart = colorize.Bold(restart)
 		}
+		if setting.PendingChange != "" {
+			p := colorize.Bold(fmt.Sprintf("(%s)", setting.PendingChange))
+			value = fmt.Sprintf("%s %s", value, p)
+		}
 		rows = append(rows, []string{
 			setting.Name,
-			setting.Setting,
+			value,
 			setting.Desc,
 			restart,
 		})
 	}
-	_ = render.Table(io.Out, "", rows, "Name", "Value", "Desc", "Pending Restart")
+	_ = render.Table(io.Out, "", rows, "Name", "Value", "Description", "Pending Restart")
 
 	if pendingRestart {
 		fmt.Fprintln(io.Out, colorize.Bold("Some changes are awaiting a restart!"))
