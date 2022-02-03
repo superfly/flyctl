@@ -36,7 +36,7 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 
 	cmd := exec.Command(os.Args[0], "agent", "run", logFile)
 	cmd.Env = append(os.Environ(), "FLY_NO_UPDATE_CHECK=1")
-	setCommandFlags(cmd)
+	setSysProcAttributes(cmd)
 
 	if err := cmd.Start(); err != nil {
 		err = forkError{err}

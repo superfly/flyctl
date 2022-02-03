@@ -17,7 +17,6 @@ import (
 
 	"github.com/azazeal/pause"
 	dockerclient "github.com/docker/docker/client"
-	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
@@ -143,25 +142,26 @@ func renderTable(ctx context.Context, errors map[string]error) error {
 	}
 	sort.Strings(keys)
 
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
 	rows := make([][]string, 0, len(errors))
 	for _, key := range keys {
 		rows = append(rows, []string{
 			key,
-			toReason(errors[key]),
+			toReason(colorize, errors[key]),
 		})
 	}
 
-	out := iostreams.FromContext(ctx).Out
-
-	return render.Table(out, "", rows, "Test", "Status")
+	return render.Table(io.Out, "", rows, "Test", "Status")
 }
 
-func toReason(err error) string {
+func toReason(colorize *iostreams.ColorScheme, err error) string {
 	if err == nil {
-		return aurora.Green("PASS").String()
+		return colorize.Green("PASS")
 	}
 
-	return aurora.Red(err.Error()).String()
+	return colorize.Red(err.Error())
 }
 
 func runAuth(ctx context.Context) (err error) {

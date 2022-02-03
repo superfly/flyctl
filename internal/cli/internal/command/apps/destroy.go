@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/pkg/iostreams"
@@ -39,13 +38,21 @@ from the Fly platform.
 // TODO: make internal once the destroy package is removed
 func RunDestroy(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
 	appName := flag.FirstArg(ctx)
 
 	if !flag.GetYes(ctx) {
-		fmt.Fprintln(io.ErrOut, aurora.Red("Destroying an app is not reversible."))
+		const msg = "Destroying an app is not reversible."
+		fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 
-		msg := fmt.Sprintf("Destroy app %s?", appName)
-		if confirmed, err := prompt.Confirm(ctx, msg); err != nil || !confirmed {
+		switch confirmed, err := prompt.Confirmf(ctx, "Destroy app %s?", appName); {
+		case err == nil:
+			if !confirmed {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+		default:
 			return err
 		}
 	}

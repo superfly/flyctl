@@ -1,9 +1,11 @@
+// Package dig implements the dig command chain.
 package dig
 
 import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 	"regexp"
@@ -13,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/pkg/agent"
+	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/app"
@@ -40,7 +43,8 @@ attached to the current app (you can pass an app in with -a <appname>).`
 	)
 
 	cmd := command.New("dig [type] <name> [flags]", short, long, run,
-		command.RequireSession, command.LoadAppNameIfPresent,
+		command.RequireSession,
+		command.LoadAppNameIfPresent,
 	)
 
 	cmd.Args = cobra.RangeArgs(1, 2)
@@ -61,9 +65,10 @@ attached to the current app (you can pass an app in with -a <appname>).`
 }
 
 func run(ctx context.Context) error {
-	client := client.FromContext(ctx).API()
-
 	var (
+		client = client.FromContext(ctx).API()
+		io     = iostreams.FromContext(ctx)
+
 		org *api.Organization
 		err error
 	)
@@ -93,7 +98,7 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	r, ns, err := ResolverForOrg(ctx, agentclient, org)
+	r, ns, err := resolverForOrg(ctx, agentclient, org)
 	if err != nil {
 		return err
 	}
@@ -117,49 +122,6 @@ func run(ctx context.Context) error {
 		dtype = strings.ToUpper(flag.FirstArg(ctx))
 		name = flag.Args(ctx)[1]
 	}
-
-	// round trip a DNS request across a "TCP" socket; we'd just
-	// use miekg/dns's Client, but I don't think it promises to
-	// work over our weird UDS TCP proxy.
-	rtrip := func(m *dns.Msg) (*dns.Msg, error) {
-		m.Id = dns.Id()
-		m.Compress = true
-
-		buf, err := m.Pack()
-		if err != nil {
-			return nil, fmt.Errorf("dns round trip: %w", err)
-		}
-
-		var lenbuf [2]byte
-		binary.BigEndian.PutUint16(lenbuf[:], uint16(len(buf)))
-
-		if _, err = conn.Write(lenbuf[:]); err != nil {
-			return nil, fmt.Errorf("dns round trip: %w", err)
-		}
-
-		if _, err = conn.Write(buf); err != nil {
-			return nil, fmt.Errorf("dns round trip: %w", err)
-		}
-
-		if _, err = conn.Read(lenbuf[:]); err != nil {
-			return nil, fmt.Errorf("dns round trip: %w", err)
-		}
-
-		l := int(binary.BigEndian.Uint16(lenbuf[:]))
-		buf = make([]byte, l)
-
-		if _, err = conn.Read(buf); err != nil {
-			return nil, fmt.Errorf("dns round trip: %w", err)
-		}
-
-		ret := &dns.Msg{}
-		if err = ret.Unpack(buf); err != nil {
-			return nil, fmt.Errorf("dns round trip: %w", err)
-		}
-
-		return ret, nil
-	}
-
 	// add the trailing dot
 	name = dns.Fqdn(name)
 
@@ -169,17 +131,13 @@ func run(ctx context.Context) error {
 		msg.RecursionDesired = true
 	}
 
+	// put this switch block in its own function to reduce the footprint of the main function
+	// e.g: func resolve(ctx context.Context, r *net.Resolver, msg *dns.Msg, name string, dtype string)
 	switch dtype {
-	case "A":
-		fallthrough
-	case "CNAME":
-		fallthrough
-	case "TXT":
-		fallthrough
-	case "AAAA":
+	case "A", "CNAME", "TXT", "AAAA":
 		msg.SetQuestion(name, dns.StringToType[dtype])
 
-		reply, err := rtrip(msg)
+		reply, err := roundTrip(conn, msg)
 		if err != nil {
 			return err
 		}
@@ -193,7 +151,7 @@ func run(ctx context.Context) error {
 			case "AAAA":
 				for _, rr := range reply.Answer {
 					if aaaa, ok := rr.(*dns.AAAA); ok {
-						fmt.Printf("%s\n", aaaa.AAAA)
+						fmt.Fprintf(io.Out, "%s\n", aaaa.AAAA)
 					}
 				}
 			case "TXT":
@@ -207,29 +165,29 @@ func run(ctx context.Context) error {
 					}
 				}
 
-				fmt.Printf("%s\n", buf.String())
+				fmt.Fprintf(io.Out, "%s\n", buf.String())
 			}
 		} else {
-			fmt.Printf("%+v\n", reply)
+			fmt.Fprintf(io.Out, "%+v\n", reply)
 		}
 
 	case "AAAA-NATIVE":
 		hosts, err := r.LookupHost(ctx, name)
 		if err != nil {
-			return FixNameError(err, ns)
+			return fixNameError(err, ns)
 		}
 
 		for _, h := range hosts {
-			fmt.Printf("%s\n", h)
+			fmt.Fprintf(io.Out, "%s\n", h)
 		}
 
 	case "TXT-NATIVE":
 		txts, err := r.LookupTXT(ctx, name)
 		if err != nil {
-			return FixNameError(err, ns)
+			return fixNameError(err, ns)
 		}
 
-		fmt.Printf("%s\n", strings.Join(txts, ""))
+		fmt.Fprintf(io.Out, "%s\n", strings.Join(txts, ""))
 
 	default:
 		return fmt.Errorf("don't understand DNS type %s", dtype)
@@ -238,10 +196,51 @@ func run(ctx context.Context) error {
 	return nil
 }
 
-// ResolverForOrg takes a connection to the wireguard agent and an organization
+// roundTrip a DNS request across a "TCP" socket; we'd just use miekg/dns's Client, but I don't think it promises to
+// work over our weird UDS TCP proxy.
+func roundTrip(conn net.Conn, m *dns.Msg) (*dns.Msg, error) {
+	m.Id = dns.Id()
+	m.Compress = true
+
+	buf, err := m.Pack()
+	if err != nil {
+		return nil, err
+	}
+
+	var lenbuf [2]byte
+	binary.BigEndian.PutUint16(lenbuf[:], uint16(len(buf)))
+
+	if _, err = conn.Write(lenbuf[:]); err != nil {
+		return nil, err
+	}
+
+	if _, err = conn.Write(buf); err != nil {
+		return nil, err
+	}
+
+	if _, err = conn.Read(lenbuf[:]); err != nil {
+		return nil, err
+	}
+
+	l := int(binary.BigEndian.Uint16(lenbuf[:]))
+	buf = make([]byte, l)
+
+	if _, err = conn.Read(buf); err != nil {
+		return nil, err
+	}
+
+	ret := &dns.Msg{}
+	if err = ret.Unpack(buf); err != nil {
+		return nil, err
+	}
+
+	return ret, nil
+}
+
+// resolverForOrg takes a connection to the wireguard agent and an organization
 // and returns a working net.Resolver for DNS for that organization, along with the
 // address of the nameserver.
-func ResolverForOrg(ctx context.Context, c *agent.Client, org *api.Organization) (*net.Resolver, string, error) {
+func resolverForOrg(ctx context.Context, c *agent.Client, org *api.Organization) (*net.Resolver, string, error) {
 	// do this explicitly so we can get the DNS server address
 	ts, err := c.Establish(ctx, org.Slug)
 	if err != nil {
@@ -279,11 +278,9 @@ func ResolverForOrg(ctx context.Context, c *agent.Client, org *api.Organization)
 // FixNameOrError cleans up resolver errors; the Go stdlib doesn't notice when
 // you swap out the host its resolver connects to, and prints the resolv.conf
 // resolver in error messages, which is super confusing for users.
-func FixNameError(err error, ns string) error {
+func fixNameError(err error, ns string) error {
 	if err == nil {
 		return err
 	}
-
-	str := nameErrorRx.ReplaceAllString(err.Error(), fmt.Sprintf("[%s]:53", ns))
-	return fmt.Errorf(str) // gross but whatever
+	return errors.New(nameErrorRx.ReplaceAllString(err.Error(), fmt.Sprintf("[%s]:53", ns)))
 }

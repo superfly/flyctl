@@ -15,7 +15,6 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
@@ -100,17 +99,10 @@ func runAttach(ctx context.Context) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	agentclient, err := agent.Establish(ctx, client)
+	pgCmd, err := newPostgresCmd(ctx, pgApp)
 	if err != nil {
-		return errors.Wrap(err, "can't establish agent")
+		return err
 	}
-
-	dialer, err := agentclient.Dialer(ctx, pgApp.Organization.Slug)
-	if err != nil {
-		return fmt.Errorf("ssh cant build tunnel for %s: %s", pgApp.Organization.Slug, err)
-	}
-
-	pgCmd := newPostgresCmd(ctx, pgApp, dialer)
 
 	secrets, err := client.GetAppSecrets(ctx, appName)
 	if err != nil {
