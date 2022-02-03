@@ -18,7 +18,6 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
-	"github.com/superfly/flyctl/internal/cli/internal/command/dig"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/pkg/agent"
@@ -76,7 +75,7 @@ The target argument can be either a ".internal" DNS name in our network
 	return cmd
 }
 
-func FindApps(ctx context.Context, r *net.Resolver) (map[string]string, error) {
+func FindApps(ctx context.Context, r *agent.Resolver) (map[string]string, error) {
 	txts, err := r.LookupTXT(ctx, "_apps.internal")
 	if err != nil {
 		return nil, fmt.Errorf("find apps: %w", err)
@@ -184,10 +183,12 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	r, ns, err := dig.ResolverForOrg(ctx, aClient, org)
+	r, err := aClient.Resolver(ctx, org.Slug)
 	if err != nil {
 		return err
 	}
+
+	ns := r.NSAddr()
 
 	var mu sync.RWMutex
 	targets := map[string]string{}
