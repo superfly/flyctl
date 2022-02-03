@@ -87,10 +87,12 @@ func (r *Resolver) LookupTXT(ctx context.Context, name string) ([]string, error)
 	results := []string{}
 
 	for _, a := range reply.Answer {
-		results = append(results, a.(*dns.TXT).Txt...)
+		txt := a.(*dns.TXT)
+
+		results = append(results, txt.Txt...)
 	}
 
-	return nil, nil
+	return results, nil
 }
 
 func qid() uint16 {
