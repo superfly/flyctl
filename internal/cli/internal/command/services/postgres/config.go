@@ -86,7 +86,7 @@ func runConfigView(ctx context.Context) error {
 		settings = append(settings, k)
 	}
 
-	resp, err := pgCmd.viewPGSettings(settings)
+	resp, err := pgCmd.viewSettings(settings)
 	if err != nil {
 		return err
 	}
@@ -165,7 +165,6 @@ func runConfigUpdate(ctx context.Context) error {
 	}
 
 	io := iostreams.FromContext(ctx)
-	out := io.Out
 	colorize := io.ColorScheme()
 
 	// Identify requested configuration changes.
@@ -180,7 +179,7 @@ func runConfigUpdate(ctx context.Context) error {
 	}
 
 	// Pull existing configuration
-	settings, err := pgCmd.viewPGSettings(keys)
+	settings, err := pgCmd.viewSettings(keys)
 	if err != nil {
 		return err
 	}
@@ -211,7 +210,7 @@ func runConfigUpdate(ctx context.Context) error {
 			fmt.Sprint(r),
 		})
 	}
-	_ = render.Table(out, "", rows, "Name", "Value", "Target value", "Restart Required")
+	_ = render.Table(io.Out, "", rows, "Name", "Value", "Target value", "Restart Required")
 
 	if !flag.GetBool(ctx, "auto-confirm") {
 		const msg = "Are you sure you want to apply these changes?"
@@ -228,8 +227,8 @@ func runConfigUpdate(ctx context.Context) error {
 		}
 	}
 
-	fmt.Fprintln(out, "Performing update...")
-	err = pgCmd.updatePostgresConfig(rChanges)
+	fmt.Fprintln(io.Out, "Performing update...")
+	err = pgCmd.updateSettings(rChanges)
 	if err != nil {
 		return err
 	}
@@ -241,8 +240,8 @@ func runConfigUpdate(ctx context.Context) error {
 		runRestart(ctx)
 	}
 
-	fmt.Fprintln(out, "Update complete!")
-	fmt.Fprintln(out, colorize.Bold("Run `DEV=1 fly services postgres config view` to see your changes."))
+	fmt.Fprintln(io.Out, "Update complete!")
+	fmt.Fprintln(io.Out, colorize.Bold("Run `DEV=1 fly services postgres config view` to see your changes."))
 
 	return nil
 }

@@ -56,7 +56,7 @@ type postgresCreateDatabaseRequest struct {
 	Name string `json:"name"`
 }
 
-type postgresUpdateRequest struct {
+type updateRequest struct {
 	PGParameters map[string]string `json:"pgParameters,omitempty"`
 }
 
@@ -113,7 +113,7 @@ func newPostgresCmd(ctx context.Context, app *api.App) (*postgresCmd, error) {
 	}, nil
 }
 
-func (pc *postgresCmd) viewPGSettings(s []string) (*pgSettings, error) {
+func (pc *postgresCmd) viewSettings(s []string) (*pgSettings, error) {
 	settingsStr := strings.Join(s, ",")
 
 	cmd := fmt.Sprintf("pg-settings %s", encodeCommand(settingsStr))
@@ -142,9 +142,8 @@ func (pc *postgresCmd) viewPGSettings(s []string) (*pgSettings, error) {
 	return &settings, nil
 }
 
-func (pc *postgresCmd) updatePostgresConfig(config map[string]string) error {
-	payload := postgresUpdateRequest{PGParameters: config}
-
+func (pc *postgresCmd) updateSettings(config map[string]string) error {
+	payload := updateRequest{PGParameters: config}
 	configBytes, err := json.Marshal(payload)
 	if err != nil {
 		return err
