@@ -88,8 +88,8 @@ func FindApps(ctx context.Context, r *agent.Resolver) (map[string]string, error)
 	wg := sync.WaitGroup{}
 
 	for _, app := range strings.Split(strings.Join(txts, ""), ",") {
+		wg.Add(1)
 		go func(app string) {
-			wg.Add(1)
 			defer wg.Done()
 
 			hostname := fmt.Sprintf("top1.nearest.of.%s.internal", app)
@@ -238,8 +238,8 @@ func run(ctx context.Context) error {
 			wg := sync.WaitGroup{}
 
 			for _, region := range strings.Split(regions, ",") {
+				wg.Add(1)
 				go func(region string) {
-					wg.Add(1)
 					defer wg.Done()
 
 					regHost := fmt.Sprintf("%s.%s.internal", region, app)
@@ -388,6 +388,8 @@ func run(ctx context.Context) error {
 	signal.Notify(stp, syscall.SIGINT, syscall.SIGTERM)
 
 	for i := 0; count == 0 || i < count; i++ {
+		fmt.Printf("loop tick: %d\n", i)
+
 		select {
 		case <-stp:
 			cancel()
