@@ -3,6 +3,7 @@ package ping
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -75,6 +76,65 @@ The target argument can be either a ".internal" DNS name in our network
 	return cmd
 }
 
+func FindApps(ctx context.Context, r *net.Resolver) (map[string]string, error) {
+	txts, err := r.LookupTXT(ctx, "_apps.internal")
+	if err != nil {
+		return nil, fmt.Errorf("find apps: %w", err)
+	}
+
+	mu := sync.Mutex{}
+	targets := map[string]string{}
+	errs := map[string]error{}
+
+	wg := sync.WaitGroup{}
+
+	for _, app := range strings.Split(strings.Join(txts, ""), ",") {
+		go func(app string) {
+			wg.Add(1)
+			defer wg.Done()
+
+			hostname := fmt.Sprintf("top1.nearest.of.%s.internal", app)
+			addrs, err := r.LookupHost(ctx, hostname)
+			if err != nil {
+				mu.Lock()
+				defer mu.Unlock()
+				errs[app] = err
+				return
+			}
+
+			// BUG(tqbf): off the top of my head I don't know if I need this check
+			if len(addrs) == 0 {
+				mu.Lock()
+				defer mu.Unlock()
+				errs[app] = errors.New("no records for app")
+				return
+			}
+
+			mu.Lock()
+			defer mu.Unlock()
+			targets[addrs[0]] = app + ".internal"
+		}(app)
+	}
+
+	wg.Wait()
+
+	if len(targets) == 0 {
+		if len(errs) == 0 {
+			return nil, nil
+		}
+
+		allErrs := []string{}
+
+		for k, v := range errs {
+			allErrs = append(allErrs, fmt.Sprintf("resolve %s: %s", k, v))
+		}
+
+		return nil, fmt.Errorf("find apps: %s", strings.Join(allErrs, ", "))
+	}
+
+	return targets, nil
+}
+
 func run(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
 
@@ -87,6 +147,7 @@ func run(ctx context.Context) error {
 	switch {
 	case name == "":
 	case name == "gateway":
+	case name == "apps":
 	case strings.HasSuffix(name, ".internal"):
 	case strings.HasPrefix(name, "fdaa:"):
 		if net.ParseIP(name) == nil {
@@ -136,6 +197,12 @@ func run(ctx context.Context) error {
 		targets[ns] = "gateway"
 	} else if strings.HasPrefix(name, "fdaa:") {
 		targets[name] = name
+	} else if name == "apps" {
+		fmt.Printf("- hunting down your deployed apps...\n")
+		targets, err = FindApps(ctx, r)
+		if err != nil {
+			return err
+		}
 	} else {
 		addrs, err := r.LookupHost(ctx, name)
 		if err != nil {
@@ -150,7 +217,7 @@ func run(ctx context.Context) error {
 
 	ctx, cancel := context.WithCancel(ctx)
 
-	if name != "" && name != "gateway" && !strings.HasPrefix(name, "fdaa:") {
+	if name != "" && name != "apps" && name != "gateway" && !strings.HasPrefix(name, "fdaa:") {
 		// look up names in the background because I was too
 		// lazy to implement PTR in our DNS server
 		go func() {
@@ -166,16 +233,25 @@ func run(ctx context.Context) error {
 
 			regions := strings.Join(regionFrags, "")
 
+			wg := sync.WaitGroup{}
+
 			for _, region := range strings.Split(regions, ",") {
-				regHost := fmt.Sprintf("%s.%s.internal", region, app)
-				addrs, err := r.LookupHost(ctx, regHost)
-				if err == nil {
-					mu.Lock()
-					for _, addr := range addrs {
-						targets[addr] = regHost
+				go func(region string) {
+					wg.Add(1)
+					defer wg.Done()
+
+					regHost := fmt.Sprintf("%s.%s.internal", region, app)
+					addrs, err := r.LookupHost(ctx, regHost)
+					if err == nil {
+						mu.Lock()
+						for _, addr := range addrs {
+							targets[addr] = regHost
+						}
+						mu.Unlock()
 					}
-					mu.Unlock()
-				}
+
+					wg.Wait()
+				}(region)
 			}
 		}()
 	}
