@@ -187,6 +187,7 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	defer r.Close()
 
 	ns := r.NSAddr()
 
