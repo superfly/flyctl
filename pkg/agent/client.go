@@ -3,9 +3,11 @@ package agent
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"strconv"
@@ -466,4 +468,154 @@ func (d *dialer) DialContext(ctx context.Context, network, addr string) (conn ne
 	}
 
 	return
+}
+
+// Pinger wraps a connection to the flyctl agent over which ICMP
+// requests and replies are written. There's a simple protocol
+// for encapsulating requests and responses; drive it with the Pinger
+// member functions. Pinger implements most of net.PacketConn but is
+// not really intended as such.
+type Pinger struct {
+	c   net.Conn
+	err error
+}
+
+// Pinger creates a Pinger struct. It does this by first ensuring
+// a WireGuard session exists for the specified org, and then
+// opening an additional connection to the agent, which is upgraded
+// to a Pinger connection by sending the "ping6" command. Call "Close"
+// on a Pinger when you're done pinging things.
+func (c *Client) Pinger(ctx context.Context, slug string) (p *Pinger, err error) {
+	if _, err = c.Establish(ctx, slug); err != nil {
+		return nil, fmt.Errorf("pinger: %w", err)
+	}
+
+	conn, err := c.dialContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("pinger: %w", err)
+	}
+
+	if err = proto.Write(conn, "ping6", slug); err != nil {
+		return nil, fmt.Errorf("pinger: %w", err)
+	}
+
+	return &Pinger{c: conn}, nil
+}
+
+func (p *Pinger) SetReadDeadline(t time.Time) error {
+	return p.c.SetReadDeadline(t)
+}
+
+func (p *Pinger) Close() error {
+	return p.c.Close()
+}
+
+// Err returns any non-recoverable error seen on this Pinger connection;
+// WriteTo and ReadFrom on a Pinger will not function if Err returns
+// non-nil.
+func (p *Pinger) Err() error {
+	return p.err
+}
+
+// WriteTo writes an ICMP message, including headers, to the specified
+// address. `addr` should always be an IPv6 net.IPAddr beginning with
+// `fdaa` --- you cannot ping random hosts on the Internet with this
+// interface. See golang/x/net/icmp for message construction details;
+// this interface uses gVisor netstack, which is fussy about ICMP,
+// and will only allow icmp.Echo messages with a code of 0.
+//
+// Pinger runs a trivial protocol to encapsulate ICMP messages over
+// agent connections: each message is a 16-byte IPv6 address, followed
+// by an NBO u16 length, followed by the ICMP message bytes, which
+// again must begin with an ICMP header. Checksums are performed by
+// netstack; don't bother with them.
+func (p *Pinger) WriteTo(buf []byte, addr net.Addr) (int64, error) {
+	if p.err != nil {
+		return 0, p.err
+	}
+
+	if len(buf) >= 1500 {
+		return 0, fmt.Errorf("icmp write: too large (>=1500 bytes)")
+	}
+
+	var v6addr net.IP
+
+	ipaddr, ok := addr.(*net.IPAddr)
+	if ok {
+		v6addr = ipaddr.IP.To16()
+	}
+
+	if !ok || v6addr == nil {
+		return 0, fmt.Errorf("icmp write: bad address type")
+	}
+
+	_, err := p.c.Write([]byte(v6addr))
+	if err != nil {
+		p.err = fmt.Errorf("icmp write: address: %w", err)
+		return 0, p.err
+	}
+
+	lbuf := make([]byte, 2)
+	binary.BigEndian.PutUint16(lbuf, uint16(len(buf)))
+
+	_, err = p.c.Write([]byte(lbuf))
+	if err != nil {
+		p.err = fmt.Errorf("icmp write: length: %w", err)
+		return 0, p.err
+	}
+
+	_, err = p.c.Write(buf)
+	if err != nil {
+		p.err = fmt.Errorf("icmp write: payload: %w", err)
+		return 0, p.err
+	}
+
+	return int64(len(buf)), nil
+}
+
+// ReadFrom reads an ICMP message from a Pinger, using the same
+// protocol as WriteTo. Call `SetReadDeadline` to poll this
+// interface while watching channels or whatever.
+func (p *Pinger) ReadFrom(buf []byte) (int64, net.Addr, error) {
+	if p.err != nil {
+		return 0, nil, p.err
+	}
+
+	lbuf := make([]byte, 2)
+	v6buf := make([]byte, 16)
+
+	_, err := io.ReadFull(p.c, v6buf)
+	if err != nil {
+		// common case: read deadline set, this is just
+		// a timeout, we don't want to close the pinger
+
+		if !errors.Is(err, os.ErrDeadlineExceeded) {
+			p.err = fmt.Errorf("icmp read: addr: %w", err)
+			return 0, nil, p.err
+		}
+
+		return 0, nil, err
+	}
+
+	_, err = io.ReadFull(p.c, lbuf)
+	if err != nil {
+		p.err = fmt.Errorf("icmp read: length: %w", err)
+		return 0, nil, p.err
+	}
+
+	paylen := binary.BigEndian.Uint16(lbuf)
+	inbuf := make([]byte, paylen)
+
+	_, err = io.ReadFull(p.c, inbuf)
+	if err != nil {
+		p.err = fmt.Errorf("icmp read: payload: %w", err)
+		return 0, nil, p.err
+	}
+
+	// burning a copy just so i don't have to think about what
+	// happens if you try to read 1 byte of a 1000-byte ping
+
+	copy(buf, inbuf)
+
+	return int64(paylen), &net.IPAddr{IP: net.IP(v6buf)}, nil
 }

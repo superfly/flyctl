@@ -98,7 +98,7 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	r, ns, err := resolverForOrg(ctx, agentclient, org)
+	r, ns, err := ResolverForOrg(ctx, agentclient, org)
 	if err != nil {
 		return err
 	}
@@ -237,10 +237,10 @@ func roundTrip(conn net.Conn, m *dns.Msg) (*dns.Msg, error) {
 	return ret, nil
 }
 
-// resolverForOrg takes a connection to the wireguard agent and an organization
+// ResolverForOrg takes a connection to the wireguard agent and an organization
 // and returns a working net.Resolver for DNS for that organization, along with the
 // address of the nameserver.
-func resolverForOrg(ctx context.Context, c *agent.Client, org *api.Organization) (*net.Resolver, string, error) {
+func ResolverForOrg(ctx context.Context, c *agent.Client, org *api.Organization) (*net.Resolver, string, error) {
 	// do this explicitly so we can get the DNS server address
 	ts, err := c.Establish(ctx, org.Slug)
 	if err != nil {

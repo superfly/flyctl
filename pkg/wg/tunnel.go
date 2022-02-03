@@ -9,6 +9,7 @@ import (
 	"net"
 
 	"github.com/miekg/dns"
+	"golang.zx2c4.com/go118/netip"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
 	"golang.zx2c4.com/wireguard/tun/netstack"
@@ -28,15 +29,15 @@ type Tunnel struct {
 func Connect(state *WireGuardState) (*Tunnel, error) {
 	cfg := state.TunnelConfig()
 	fmt.Println("wg connect", cfg.DNS, cfg.Endpoint, cfg.LocalNetwork.IP, cfg.RemoteNetwork.IP)
-	localIPs := []net.IP{cfg.LocalNetwork.IP}
-	dnsIP := cfg.DNS
+	localIPs := []netip.Addr{netip.AddrFromSlice(cfg.LocalNetwork.IP)}
+	dnsIP := netip.AddrFromSlice(cfg.DNS)
 
 	mtu := cfg.MTU
 	if mtu == 0 {
 		mtu = device.DefaultMTU
 	}
 
-	tunDev, gNet, err := netstack.CreateNetTUN(localIPs, []net.IP{dnsIP}, mtu)
+	tunDev, gNet, err := netstack.CreateNetTUN(localIPs, []netip.Addr{dnsIP}, mtu)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +73,7 @@ func Connect(state *WireGuardState) (*Tunnel, error) {
 		dev:    wgDev,
 		tun:    tunDev,
 		net:    gNet,
-		dnsIP:  dnsIP,
+		dnsIP:  cfg.DNS,
 		Config: cfg,
 		State:  state,
 
@@ -121,6 +122,18 @@ func (t *Tunnel) LookupTXT(ctx context.Context, name string) ([]string, error) {
 	}
 
 	return results, nil
+}
+
+func (t *Tunnel) ListenPing() (*netstack.PingConn, error) {
+	laddr := netip.AddrFromSlice(t.Config.LocalNetwork.IP)
+	raddr := netip.IPv6Unspecified()
+
+	conn, err := t.net.DialPingAddr(laddr, raddr)
+	if err != nil {
+		return nil, fmt.Errorf("ping listener: %w", err)
+	}
+
+	return conn, nil
 }
 
 func (t *Tunnel) LookupAAAA(ctx context.Context, name string) ([]net.IP, error) {
