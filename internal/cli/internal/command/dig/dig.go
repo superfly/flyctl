@@ -250,7 +250,7 @@ func ResolverForOrg(ctx context.Context, c *agent.Client, org *api.Organization)
 	return &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			d, err := c.Dialer(ctx, org.Slug)
+			d, err := c.DecafDialer(ctx, org.Slug)
 			if err != nil {
 				return nil, err
 			}

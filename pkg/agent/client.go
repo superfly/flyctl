@@ -399,6 +399,13 @@ func unmarshal(dst interface{}, data []byte) (err error) {
 	return
 }
 
+func (c *Client) DecafDialer(ctx context.Context, slug string) (d Dialer, err error) {
+	return &dialer{
+		slug:   slug,
+		client: c,
+	}, nil
+}
+
 func (c *Client) Dialer(ctx context.Context, slug string) (d Dialer, err error) {
 	var er *EstablishResponse
 	if er, err = c.Establish(ctx, slug); err == nil {
