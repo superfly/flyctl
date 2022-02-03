@@ -106,6 +106,9 @@ func runSession(ctx context.Context, srv *server, conn net.Conn, id id) {
 
 type handlerFunc func(*session, context.Context, ...string)
 
+// we're not fastidious about these names making sense, because
+// it's a fool who looks for logic in the chambers of the human
+// heart
 var handlers = map[string]handlerFunc{
 	"kill":      (*session).kill,
 	"ping":      (*session).ping,
@@ -115,6 +118,7 @@ var handlers = map[string]handlerFunc{
 	"instances": (*session).instances,
 	"resolve":   (*session).resolve,
 	"ping6":     (*session).ping6,
+	"resolver":  (*session).resolver,
 }
 
 var errMalformedKill = errors.New("malformed kill command")
@@ -379,6 +383,90 @@ func (s *session) connect(ctx context.Context, args ...string) {
 	_ = eg.Wait()
 }
 
+func (s *session) resolver(ctx context.Context, args ...string) {
+	if len(args) != 1 {
+		s.error(fmt.Errorf("resolver: pad args"))
+		return
+	}
+
+	tunnel := s.srv.tunnelFor(args[0])
+	if tunnel == nil {
+		s.error(agent.ErrTunnelUnavailable)
+		return
+	}
+
+	// ------------------------------------------------------------
+	// past this point, we're running a new protocol over the connection
+
+	respond := func(reply string) error {
+		var lenbuf [4]byte
+		binary.BigEndian.PutUint32(lenbuf[:], uint32(len(reply)))
+		if _, err := s.conn.Write(lenbuf[:]); err != nil {
+			return err
+		}
+
+		if _, err := s.conn.Write([]byte(reply)); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+
+		var lbuf [4]byte
+
+		s.conn.SetDeadline(time.Now().Add(1 * time.Second))
+		if _, err := io.ReadFull(s.conn, lbuf[:]); err != nil {
+			if errors.Is(err, os.ErrDeadlineExceeded) {
+				continue
+			}
+			s.error(err)
+			return
+		}
+
+		sz := binary.BigEndian.Uint32(lbuf[:])
+		if sz < 1 || sz > 1500 /* or whatever */ {
+			s.error(fmt.Errorf("resolver: malformed request"))
+			return
+		}
+
+		req := make([]byte, sz)
+
+		// we'll wait forever on this read
+		if _, err := io.ReadFull(s.conn, req); err != nil {
+			s.error(err)
+			return
+		}
+
+		args := strings.SplitN(string(req), " ", 2)
+		if len(args) != 2 {
+			s.error(fmt.Errorf("resolver: bad resolver request"))
+			return
+		}
+
+		switch args[0] {
+		case "host":
+			addrs, err := tunnel.LookupHost(ctx, args[1])
+			if err != nil {
+				respond(fmt.Sprintf("err %s", err))
+				continue
+			}
+			respond(fmt.Sprintf("ok %s", strings.Join(addrs, ",")))
+		case "txt":
+			txts, err := tunnel.LookupTXT(ctx, args[1])
+			if err != nil {
+				respond(fmt.Sprintf("err %s", err))
+				continue
+			}
+			respond(fmt.Sprintf("ok %s", strings.Join(txts, "")))
+		}
+	}
+}
+
 func (s *session) ping6(ctx context.Context, args ...string) {
 
 	// As with "dial", "ping6" handles an agent command and then
@@ -394,6 +482,9 @@ func (s *session) ping6(ctx context.Context, args ...string) {
 		s.error(agent.ErrTunnelUnavailable)
 		return
 	}
+
+	// ------------------------------------------------------------
+	// past this point, we're running a new protocol over the connection
 
 	// YOG-SOTHOTH IS THE GATE
 	sock, err := tunnel.ListenPing()

@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/azazeal/pause"
@@ -475,6 +476,122 @@ func (d *dialer) DialContext(ctx context.Context, network, addr string) (conn ne
 	}
 
 	return
+}
+
+type Resolver struct {
+	c       net.Conn
+	err     error
+	timeout time.Duration
+	mu      sync.Mutex // probably overkill, whatever
+}
+
+func (c *Client) Resolver(ctx context.Context, slug string) (r *Resolver, err error) {
+	if _, err = c.Establish(ctx, slug); err != nil {
+		return nil, fmt.Errorf("resolver: %w", err)
+	}
+
+	conn, err := c.dialContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("resolver: %w", err)
+	}
+
+	if err = proto.Write(conn, "resolver", slug); err != nil {
+		return nil, fmt.Errorf("resolver: %w", err)
+	}
+
+	return &Resolver{c: conn}, nil
+}
+
+func (r *Resolver) SetTimeout(t time.Duration) {
+	r.timeout = t
+}
+
+func (r *Resolver) LookupHost(ctx context.Context, name string) ([]string, error) {
+	result, err := r.lookup(ctx, "host", name)
+	if err != nil {
+		return nil, err
+	}
+
+	return strings.Split(result, ","), nil
+}
+
+func (r *Resolver) LookupTXT(ctx context.Context, name string) ([]string /* but never really an array */, error) {
+	result, err := r.lookup(ctx, "txt", name)
+	if err != nil {
+		return nil, err
+	}
+
+	return []string{result}, nil
+}
+
+func (r *Resolver) lookup(ctx context.Context, kind, name string) (string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	var lenbuf [4]byte
+	req := fmt.Sprintf("%s %s", kind, name)
+
+	binary.BigEndian.PutUint32(lenbuf[:], uint32(len(req)))
+
+	if _, err := r.c.Write(lenbuf[:]); err != nil {
+		r.err = fmt.Errorf("lookup: write req length: %w", err)
+		return "", r.err
+	}
+
+	if _, err := r.c.Write([]byte(req)); err != nil {
+		r.err = fmt.Errorf("lookup: write req: %w", err)
+		return "", r.err
+	}
+
+	if r.timeout != 0 {
+		r.c.SetDeadline(time.Now().Add(r.timeout))
+	}
+
+	zt := time.Time{}
+	defer r.c.SetDeadline(zt)
+
+	// this first read captures the time the DNS request on the
+	// agent takes; subsequent reads should be fast
+
+	if _, err := io.ReadFull(r.c, lenbuf[:]); err != nil {
+		r.err = fmt.Errorf("lookup: read reply length: %w", err)
+		return "", r.err
+	}
+
+	r.c.SetDeadline(zt)
+
+	reply := make([]byte, int(binary.BigEndian.Uint32(lenbuf[:])))
+
+	if _, err := io.ReadFull(r.c, reply); err != nil {
+		r.err = fmt.Errorf("lookup: read reply: %w", err)
+		return "", r.err
+	}
+
+	reps := strings.SplitN(string(reply), " ", 2)
+	if len(reps) != 2 {
+		r.err = fmt.Errorf("lookup: parse reply: malformed")
+		return "", r.err
+	}
+
+	switch reps[0] {
+	case "ok":
+		return reps[1], nil
+	case "err":
+		fallthrough
+	default:
+		return "", fmt.Errorf("%s", reps[1])
+	}
+}
+
+func (r *Resolver) Close() error {
+	return r.c.Close()
+}
+
+// Err returns any non-recoverable error seen on this Resolver connection;
+// lookups on a Resolver will not function if Err returns
+// non-nil.
+func (r *Resolver) Err() error {
+	return r.err
 }
 
 // Pinger wraps a connection to the flyctl agent over which ICMP
