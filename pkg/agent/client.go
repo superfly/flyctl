@@ -482,6 +482,7 @@ type Resolver struct {
 	c       net.Conn
 	err     error
 	timeout time.Duration
+	nsip    string
 	mu      sync.Mutex // probably overkill, whatever
 }
 
@@ -496,10 +497,33 @@ func (c *Client) Resolver(ctx context.Context, slug string) (r *Resolver, err er
 	}
 
 	if err = proto.Write(conn, "resolver", slug); err != nil {
+		conn.Close()
 		return nil, fmt.Errorf("resolver: %w", err)
 	}
 
-	return &Resolver{c: conn}, nil
+	var lenbuf [4]byte
+	if _, err = io.ReadFull(conn, lenbuf[:]); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("resolver: read dns ip length: %w", err)
+	}
+
+	dnsip := make([]byte, int(binary.BigEndian.Uint32(lenbuf[:])))
+	if _, err = io.ReadFull(conn, dnsip); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("resolver: read dns ip: %w", err)
+	}
+
+	reps := strings.SplitN(string(dnsip), " ", 2)
+	if len(reps) != 2 || reps[0] != "ok" {
+		conn.Close()
+		return nil, fmt.Errorf("resolver: parse dns response: bad response")
+	}
+
+	return &Resolver{c: conn, nsip: reps[1]}, nil
+}
+
+func (r *Resolver) NSAddr() string {
+	return r.nsip
 }
 
 func (r *Resolver) SetTimeout(t time.Duration) {

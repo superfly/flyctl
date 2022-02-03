@@ -412,6 +412,11 @@ func (s *session) resolver(ctx context.Context, args ...string) {
 		return nil
 	}
 
+	if err := respond(fmt.Sprintf("ok %s", tunnel.Config.DNS)); err != nil {
+		s.error(err)
+		return
+	}
+
 	for {
 		if ctx.Err() != nil {
 			return
