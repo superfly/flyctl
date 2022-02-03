@@ -485,6 +485,10 @@ to all instances running in a specific region using the --region/-r flag.`,
 		return KeyStrings{"stop <id>", "Stop a Fly machine",
 			`Stop a Fly machine`,
 		}
+	case "machine.status":
+		return KeyStrings{"status <id>", "Get status on a fly machine",
+			`Get status for a Fly machine`,
+		}
 	case "monitor":
 		return KeyStrings{"monitor", "Monitor deployments",
 			`Monitor application deployments and other activities. Use --verbose/-v
