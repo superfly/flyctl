@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/r3labs/diff"
 	"github.com/spf13/cobra"
@@ -91,10 +90,12 @@ func runConfigView(ctx context.Context) error {
 		return err
 	}
 
+	pendingRestart := false
 	rows := make([][]string, 0, len(resp.Settings))
 	for _, setting := range resp.Settings {
 		restart := fmt.Sprint(setting.PendingRestart)
 		if setting.PendingRestart {
+			pendingRestart = true
 			restart = colorize.Bold(restart)
 		}
 		rows = append(rows, []string{
@@ -105,6 +106,11 @@ func runConfigView(ctx context.Context) error {
 		})
 	}
 	_ = render.Table(io.Out, "", rows, "Name", "Value", "Desc", "Pending Restart")
+
+	if pendingRestart {
+		fmt.Fprintln(io.Out, colorize.Bold("Some changes are awaiting a restart!"))
+		fmt.Fprintln(io.Out, colorize.Bold("Run `DEV=1 fly services postgres restart` to apply the changes."))
+	}
 
 	return nil
 }
@@ -196,13 +202,13 @@ func runConfigUpdate(ctx context.Context) error {
 		return fmt.Errorf("no changes to apply")
 	}
 
-	triggerRestart := false
+	restartRequired := false
 
 	rows := make([][]string, 0, len(changelog))
 	for _, change := range changelog {
 		requiresRestart := isRestartRequired(settings, change.Path[len(change.Path)-1])
 		if requiresRestart {
-			triggerRestart = true
+			restartRequired = true
 		}
 		rows = append(rows, []string{
 			change.Path[len(change.Path)-1],
@@ -234,15 +240,12 @@ func runConfigUpdate(ctx context.Context) error {
 		return err
 	}
 
-	// Hack... Sleep for 3 seconds to give Stolon enough time to propagate changes.
-	time.Sleep(3 * time.Second)
-
-	if triggerRestart {
-		runRestart(ctx)
-	}
-
 	fmt.Fprintln(io.Out, "Update complete!")
-	fmt.Fprintln(io.Out, colorize.Bold("Run `DEV=1 fly services postgres config view` to verify your changes."))
+
+	if restartRequired {
+		fmt.Fprintln(io.Out, colorize.Bold("Please note that some of your changes will require a cluster restart before they will be applied."))
+		fmt.Fprintln(io.Out, colorize.Bold("To review the state of your changes, please run: 'DEV=1 fly services postgres config view'"))
+	}
 
 	return nil
 }
