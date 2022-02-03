@@ -229,7 +229,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	case !up:
 		streams.StopProgressIndicator()
 
-		terminal.Warnf("Remote builder did not start on time. Check remote builder logs with `flyctl logs -a %s`\n", remoteBuilderAppName)
+		terminal.Warnf("Remote builder did not start in time. Check remote builder logs with `flyctl logs -a %s`\n", remoteBuilderAppName)
 
 		return nil, errors.New("remote builder app unavailable")
 	default:
