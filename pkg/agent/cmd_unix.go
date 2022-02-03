@@ -8,7 +8,7 @@ import (
 	"syscall"
 )
 
-func setCommandFlags(cmd *exec.Cmd) {
+func setSysProcAttributes(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setpgid: true,
 		Pgid:    0,
