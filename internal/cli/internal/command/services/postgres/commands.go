@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/command/ssh"
@@ -55,6 +56,10 @@ type postgresCreateDatabaseRequest struct {
 	Name string `json:"name"`
 }
 
+type postgresUpdateRequest struct {
+	PGParameters map[string]string `json:"pgParameters,omitempty"`
+}
+
 // Deprecated. Use commandResponse going forward.
 type postgresCommandResponse struct {
 	Result bool   `json:"result"`
@@ -67,16 +72,17 @@ type commandResponse struct {
 	Data    string `json:"data"`
 }
 
-type stolonSpec struct {
-	PGParameters *pgParameters `json:"pgParameters,omitempty"`
+type pgSettings struct {
+	Settings []pgSetting `json:"settings,omitempty"`
 }
 
-type pgParameters struct {
-	LogStatement            string `json:"log_statement,omitempty"`
-	LogDuration             string `json:"log_duration,omitempty"`
-	LogMinDurationStatement string `json:"log_min_duration_statement,omitempty"`
-	MaxConnections          string `json:"max_connections,omitempty"`
-	WalLevel                string `json:"wal_level,omitempty"`
+type pgSetting struct {
+	Name           string `json:"name,omitempty"`
+	Setting        string `json:"setting,omitempty"`
+	Context        string `json:"context,omitempty"`
+	Unit           string `json:"unit,omitempty"`
+	Desc           string `json:"short_desc,omitempty"`
+	PendingRestart bool   `json:"pending_restart,omitempty"`
 }
 
 type postgresCmd struct {
@@ -107,14 +113,16 @@ func newPostgresCmd(ctx context.Context, app *api.App) (*postgresCmd, error) {
 	}, nil
 }
 
-func (pc *postgresCmd) viewStolonConfig() (*stolonSpec, error) {
-	cmd := fmt.Sprintf("stolonctl-run %s", encodeCommand("spec --defaults"))
+func (pc *postgresCmd) viewPGSettings(s []string) (*pgSettings, error) {
+	settingsStr := strings.Join(s, ",")
+
+	cmd := fmt.Sprintf("pg-settings %s", encodeCommand(settingsStr))
 	resp, err := ssh.RunSSHCommand(*pc.ctx, pc.app, pc.dialer, nil, cmd)
 	if err != nil {
 		return nil, err
 	}
 	if len(resp) == 0 {
-		return nil, fmt.Errorf("failed to retrieve stolon-config")
+		return nil, fmt.Errorf("failed to retrieve pg settings")
 	}
 
 	var result commandResponse
@@ -126,16 +134,18 @@ func (pc *postgresCmd) viewStolonConfig() (*stolonSpec, error) {
 		return nil, fmt.Errorf(result.Message)
 	}
 
-	var spec stolonSpec
-	if err := json.Unmarshal([]byte(result.Data), &spec); err != nil {
+	var settings pgSettings
+	if err := json.Unmarshal([]byte(result.Data), &settings); err != nil {
 		return nil, err
 	}
 
-	return &spec, nil
+	return &settings, nil
 }
 
-func (pc *postgresCmd) updateStolonConfig(config *stolonSpec) error {
-	configBytes, err := json.Marshal(config)
+func (pc *postgresCmd) updatePostgresConfig(config map[string]string) error {
+	payload := postgresUpdateRequest{PGParameters: config}
+
+	configBytes, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}

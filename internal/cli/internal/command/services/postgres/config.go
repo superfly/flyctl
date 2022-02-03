@@ -2,9 +2,7 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/r3labs/diff"
 	"github.com/spf13/cobra"
@@ -36,6 +34,14 @@ func newConfig() (cmd *cobra.Command) {
 	return
 }
 
+// pgSettingMap maps the command-line arguments to the actual pgParameter.
+var pgSettingMap = map[string]string{
+	"wal-level":                  "wal_level",
+	"max-connections":            "max_connections",
+	"log-statement":              "log_statement",
+	"log-min-duration-statement": "log_min_duration_statement",
+}
+
 func newConfigView() (cmd *cobra.Command) {
 	const (
 		long = `Configure postgres cluster
@@ -61,6 +67,9 @@ func runConfigView(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
 	appName := app.NameFromContext(ctx)
 
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
 	app, err := client.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
@@ -71,23 +80,37 @@ func runConfigView(ctx context.Context) error {
 		return err
 	}
 
-	resp, err := pgCmd.viewStolonConfig()
+	var settings []string
+	for _, k := range pgSettingMap {
+		settings = append(settings, k)
+	}
+
+	resp, err := pgCmd.viewPGSettings(settings)
 	if err != nil {
 		return err
 	}
 
-	str, err := json.MarshalIndent(resp, "", "\t")
-	if err != nil {
-		return err
+	rows := make([][]string, 0, len(resp.Settings))
+	for _, setting := range resp.Settings {
+		restart := fmt.Sprint(setting.PendingRestart)
+		if setting.PendingRestart {
+			restart = colorize.Bold(restart)
+		}
+		rows = append(rows, []string{
+			setting.Name,
+			setting.Setting,
+			setting.Desc,
+			restart,
+		})
 	}
-	fmt.Println(string(str))
+	_ = render.Table(io.Out, "", rows, "Name", "Value", "Desc", "Pending Restart")
 
 	return nil
 }
 
 func newConfigUpdate() (cmd *cobra.Command) {
 	const (
-		long = `Manage Stolon and Postgres configuration.  Configure postgres cluster
+		long = `Manage Stolon and Postgres configuration.
 `
 		short = "Configure postgres cluster"
 		usage = "update"
@@ -117,6 +140,10 @@ func newConfigUpdate() (cmd *cobra.Command) {
 			Name:        "log-min-duration-statement",
 			Description: "Sets the minimum execution time above which all statements will be logged. (ms)",
 		},
+		flag.Bool{
+			Name:        "auto-confirm",
+			Description: "Will automatically confirm changes without an interactive prompt.",
+		},
 	)
 
 	return
@@ -135,51 +162,34 @@ func runConfigUpdate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
-	// Original stolon configuration
-	oCfg, err := pgCmd.viewStolonConfig()
-	if err != nil {
-		return err
-	}
-
-	// New stolon configuration
-	var nCfg *stolonSpec
-
-	// Duplicate original configuration.
-	oCfgJSON, err := json.Marshal(oCfg)
-	if err != nil {
-		return err
-	}
-	json.Unmarshal(oCfgJSON, &nCfg)
-
-	var requiresRestart []string
-
-	maxConnections := flag.GetString(ctx, "max-connections")
-	if maxConnections != "" {
-		nCfg.PGParameters.MaxConnections = maxConnections
-		requiresRestart = append(requiresRestart, "max-connections")
-	}
-
-	walLevel := flag.GetString(ctx, "wal-level")
-	if walLevel != "" {
-		requiresRestart = append(requiresRestart, "wal-level")
-		nCfg.PGParameters.WalLevel = walLevel
-	}
-
-	logStatement := flag.GetString(ctx, "log-statement")
-	if logStatement != "" {
-		nCfg.PGParameters.LogStatement = logStatement
-	}
-
-	logMinDurationStatement := flag.GetString(ctx, "log-min-duration-statement")
-	if logMinDurationStatement != "" {
-		nCfg.PGParameters.LogMinDurationStatement = logMinDurationStatement
-	}
-
+	// io := iostreams.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
+	// colorize := io.ColorScheme()
 
-	// Verify that we actually have changes to apply
-	changelog, _ := diff.Diff(oCfg, nCfg)
+	// Identify requested configuration changes.
+	rChanges := map[string]string{}
+	keys := []string{}
+	for key := range pgSettingMap {
+		val := flag.GetString(ctx, key)
+		if val != "" {
+			rChanges[pgSettingMap[key]] = val
+			keys = append(keys, pgSettingMap[key])
+		}
+	}
+
+	// Pull existing configuration
+	settings, err := pgCmd.viewPGSettings(keys)
+	if err != nil {
+		return err
+	}
+
+	// Construct a map of the active configuration settings for comparison.
+	oValues := map[string]string{}
+	for _, setting := range settings.Settings {
+		oValues[setting.Name] = setting.Setting
+	}
+
+	changelog, _ := diff.Diff(oValues, rChanges)
 	if len(changelog) == 0 {
 		return fmt.Errorf("no changes to apply")
 	}
@@ -190,66 +200,60 @@ func runConfigUpdate(ctx context.Context) error {
 			change.Path[len(change.Path)-1],
 			fmt.Sprint(change.From),
 			fmt.Sprint(change.To),
-			restartRequired(change.Path[len(change.Path)-1]),
+			fmt.Sprint(restartRequired(settings, change.Path[len(change.Path)-1])),
 		})
 	}
-	_ = render.Table(out, "", rows, "Configuration option", "Current", "Target", "Restart")
+	_ = render.Table(out, "", rows, "Name", "Value", "Target value", "Restart Required")
 
-	msg := ""
-	if len(requiresRestart) > 0 {
-		msg = " (Restart required)"
-	}
+	if !flag.GetBool(ctx, "auto-confirm") {
+		const msg = "Are you sure you want to apply these changes?"
 
-	confirm, err := prompt.Confirm(ctx, fmt.Sprintf("Are you sure you want to apply these changes?%s", msg))
-	if err != nil {
-		return err
-	}
-	if !confirm {
-		return nil
+		switch confirmed, err := prompt.Confirmf(ctx, msg); {
+		case err == nil:
+			if !confirmed {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError("auto-confirm flag must be specified when not running interactively")
+		default:
+			return err
+		}
 	}
 
 	fmt.Fprintln(out, "Performing update...")
-	err = pgCmd.updateStolonConfig(nCfg)
+	err = pgCmd.updatePostgresConfig(rChanges)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintln(out, "Confirming changes have been applied...")
-	cfg, err := pgCmd.viewStolonConfig()
+	fmt.Fprintln(out, "Verifing changes...")
+	settings, err = pgCmd.viewPGSettings(keys)
 	if err != nil {
 		return err
 	}
 
-	// Diff newly pulled configuration with what was expected.
-	changelog, _ = diff.Diff(cfg, &nCfg)
-	if len(changelog) != 0 {
-		return fmt.Errorf(("Update failed to apply changes..."))
-	}
-
-	if len(requiresRestart) > 0 {
-		fmt.Fprintln(out, "Restarting cluster...")
-		// Sleep for a second or two to give Stolon time to propagate changes to
-		// the registered keepers.
-		time.Sleep(time.Second * 2)
-		if err := runRestart(ctx); err != nil {
-			return err
+	restartRequired := false
+	for _, s := range settings.Settings {
+		if s.PendingRestart {
+			restartRequired = true
 		}
+	}
+
+	if restartRequired {
+		runRestart(ctx)
 	}
 
 	return nil
 }
 
-func restartRequired(option string) string {
-	// List of options that require restarts
-	cfgOpts := []string{
-		"WalLevel",
-		"MaxConnections",
-	}
-	for _, cfgOpt := range cfgOpts {
-		if option == cfgOpt {
-			return "true"
+func restartRequired(pgSettings *pgSettings, setting string) bool {
+	for _, s := range pgSettings.Settings {
+		if s.Name == setting {
+			if s.Context == "postmaster" {
+				return true
+			}
 		}
 	}
 
-	return "false"
+	return false
 }
