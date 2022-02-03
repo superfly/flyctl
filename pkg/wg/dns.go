@@ -24,15 +24,19 @@ var (
 )
 
 func NewResolver(t *Tunnel, nsaddr string) (*Resolver, error) {
-	addr, err := net.ResolveUDPAddr("udp", nsaddr+":53")
-	if err != nil {
-		return nil, err
+	r := &Resolver{
+		t: t,
+		ns: &net.UDPAddr{
+			IP:   net.ParseIP(nsaddr),
+			Port: 53,
+		},
 	}
 
-	return &Resolver{
-		t:  t,
-		ns: addr,
-	}, nil
+	if r.ns.IP == nil {
+		return nil, fmt.Errorf("resolver: bad ns addr")
+	}
+
+	return r, nil
 }
 
 func (r *Resolver) LookupHost(ctx context.Context, name string) ([]string, error) {
