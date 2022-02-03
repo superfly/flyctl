@@ -198,7 +198,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 		return nil, errors.New("machine did not have a private IP")
 	}
 
-	opts, err := buildOpts(ctx, apiClient, appName, host)
+	opts, err := buildRemoteClientOpts(ctx, apiClient, appName, host)
 	if err != nil {
 		streams.StopProgressIndicator()
 
@@ -243,7 +243,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	return client, nil
 }
 
-func buildOpts(ctx context.Context, apiClient *api.Client, appName, host string) (opts []dockerclient.Opt, err error) {
+func buildRemoteClientOpts(ctx context.Context, apiClient *api.Client, appName, host string) (opts []dockerclient.Opt, err error) {
 	opts = []dockerclient.Opt{
 		dockerclient.WithAPIVersionNegotiation(),
 		dockerclient.WithHost(host),
@@ -290,15 +290,16 @@ func waitForDaemon(parent context.Context, client *dockerclient.Client) (up bool
 	defer cancel()
 
 	b := &backoff.Backoff{
-		//These are the defaults
 		Min:    50 * time.Millisecond,
-		Max:    200 * time.Second,
+		Max:    200 * time.Millisecond,
 		Factor: 1.2,
 		Jitter: true,
 	}
 
-	consecutiveSuccesses := 0
-	var healthyStart time.Time
+	var (
+		consecutiveSuccesses int
+		healthyStart         time.Time
+	)
 
 	for ctx.Err() == nil {
 		switch _, err := client.Ping(ctx); err {
