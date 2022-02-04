@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/command/ssh"
@@ -55,6 +56,10 @@ type postgresCreateDatabaseRequest struct {
 	Name string `json:"name"`
 }
 
+type updateRequest struct {
+	PGParameters map[string]string `json:"pgParameters,omitempty"`
+}
+
 // Deprecated. Use commandResponse going forward.
 type postgresCommandResponse struct {
 	Result bool   `json:"result"`
@@ -65,6 +70,24 @@ type commandResponse struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 	Data    string `json:"data"`
+}
+
+type pgSettings struct {
+	Settings []pgSetting `json:"settings,omitempty"`
+}
+
+type pgSetting struct {
+	Name           string   `json:"name,omitempty"`
+	Setting        string   `json:"setting,omitempty"`
+	VarType        string   `json:"vartype,omitempty"`
+	MinVal         string   `json:"min_val,omitempty"`
+	MaxVal         string   `json:"max_val,omitempty"`
+	EnumVals       []string `json:"enumvals,omitempty"`
+	Context        string   `json:"context,omitempty"`
+	Unit           string   `json:"unit,omitempty"`
+	Desc           string   `json:"short_desc,omitempty"`
+	PendingChange  string   `json:"pending_change,omitempty"`
+	PendingRestart bool     `json:"pending_restart,omitempty"`
 }
 
 type postgresCmd struct {
@@ -93,6 +116,62 @@ func newPostgresCmd(ctx context.Context, app *api.App) (*postgresCmd, error) {
 		dialer: dialer,
 		io:     iostreams.FromContext(ctx),
 	}, nil
+}
+
+func (pc *postgresCmd) viewSettings(s []string) (*pgSettings, error) {
+	settingsStr := strings.Join(s, ",")
+
+	cmd := fmt.Sprintf("pg-settings %s", encodeCommand(settingsStr))
+	resp, err := ssh.RunSSHCommand(*pc.ctx, pc.app, pc.dialer, nil, cmd)
+	if err != nil {
+		return nil, err
+	}
+	if len(resp) == 0 {
+		return nil, fmt.Errorf("failed to retrieve pg settings")
+	}
+
+	var result commandResponse
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return nil, err
+	}
+
+	if !result.Success {
+		return nil, fmt.Errorf(result.Message)
+	}
+
+	var settings pgSettings
+	if err := json.Unmarshal([]byte(result.Data), &settings); err != nil {
+		return nil, err
+	}
+
+	return &settings, nil
+}
+
+func (pc *postgresCmd) updateSettings(config map[string]string) error {
+	payload := updateRequest{PGParameters: config}
+	configBytes, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	subCmd := fmt.Sprintf("update --patch '%s'", string(configBytes))
+	cmd := fmt.Sprintf("stolonctl-run %s", encodeCommand(subCmd))
+
+	resp, err := ssh.RunSSHCommand(*pc.ctx, pc.app, pc.dialer, nil, cmd)
+	if err != nil {
+		return err
+	}
+
+	var result commandResponse
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return err
+	}
+
+	if !result.Success {
+		return fmt.Errorf(result.Message)
+	}
+
+	return nil
 }
 
 func (pc *postgresCmd) restartNode(machine *api.Machine) error {
