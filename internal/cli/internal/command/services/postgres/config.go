@@ -20,9 +20,9 @@ import (
 func newConfig() (cmd *cobra.Command) {
 	// TODO - Add better top level docs.
 	const (
-		long = `
+		long = `View and manage Postgres configuration.
 `
-		short = ""
+		short = "View and manage Postgres configuration."
 	)
 
 	cmd = command.New("config", short, long, nil)
@@ -35,10 +35,9 @@ func newConfig() (cmd *cobra.Command) {
 	return
 }
 
-// pgSettingMap maps the command-line arguments to the actual pgParameter
-// and also acts as a whitelist as far as what's configurable via flyctl.
-// To support additional configuration, just add the commandline-argument
-// and the value must be a Postgres compatible
+// pgSettingMap maps the command-line argument to the actual pgParameter.
+// This also acts as a whitelist as far as what's configurable via flyctl and
+// can be expanded on as needed.
 var pgSettingMap = map[string]string{
 	"wal-level":                  "wal_level",
 	"max-connections":            "max_connections",
@@ -48,9 +47,9 @@ var pgSettingMap = map[string]string{
 
 func newConfigView() (cmd *cobra.Command) {
 	const (
-		long = `Configure postgres cluster
+		long = `View your Postgres configuration
 `
-		short = "Configure postgres cluster"
+		short = "View your Postgres configuration"
 		usage = "view"
 	)
 
@@ -129,9 +128,9 @@ func runConfigView(ctx context.Context) error {
 
 func newConfigUpdate() (cmd *cobra.Command) {
 	const (
-		long = `Manage Stolon and Postgres configuration.
+		long = `Update Postgres configuration.
 `
-		short = "Configure postgres cluster"
+		short = "Update Postgres configuration."
 		usage = "update"
 	)
 
