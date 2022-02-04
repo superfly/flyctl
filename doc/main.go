@@ -20,6 +20,8 @@ import (
 	"github.com/superfly/flyctl/internal/cli"
 )
 
+var titlePrefix = "## "
+
 func main() {
 	cmd := cli.NewRootCommand()
 	cmd.DisableAutoGenTag = true
@@ -51,7 +53,7 @@ func printOptions(buf *bytes.Buffer, cmd *cobra.Command, name string) error {
 	flags := cmd.NonInheritedFlags()
 	flags.SetOutput(buf)
 	if flags.HasAvailableFlags() {
-		buf.WriteString("### Options\n\n```\n")
+		buf.WriteString(titlePrefix + "Options\n\n```\n")
 		flags.PrintDefaults()
 		buf.WriteString("```\n\n")
 	}
@@ -59,7 +61,7 @@ func printOptions(buf *bytes.Buffer, cmd *cobra.Command, name string) error {
 	parentFlags := cmd.InheritedFlags()
 	parentFlags.SetOutput(buf)
 	if parentFlags.HasAvailableFlags() {
-		buf.WriteString("### Global Options\n\n```\n")
+		buf.WriteString(titlePrefix + "Global Options\n\n```\n")
 		parentFlags.PrintDefaults()
 		buf.WriteString("```\n\n")
 	}
@@ -86,14 +88,10 @@ func GenMarkdownCustom(cmd *cobra.Command, w io.Writer, linkHandler func(string)
 		long = short
 	}
 
-	buf.WriteString("# _" + name + "_\n\n")
-	buf.WriteString(short + "\n\n")
-
-	buf.WriteString("### About\n\n")
 	buf.WriteString(long + "\n\n")
 
 	if len(cmd.UseLine()) > 0 {
-		buf.WriteString("### Usage\n")
+		buf.WriteString(titlePrefix + "Usage\n")
 
 		// If it's runnable, show the useline otherwise show a version with [command]
 		if cmd.Runnable() {
@@ -104,7 +102,7 @@ func GenMarkdownCustom(cmd *cobra.Command, w io.Writer, linkHandler func(string)
 	}
 
 	if hasSubCommands(cmd) {
-		buf.WriteString("### Available Commands\n")
+		buf.WriteString(titlePrefix + "Available Commands\n")
 		children := cmd.Commands()
 		sort.Sort(byName(children))
 
@@ -121,7 +119,7 @@ func GenMarkdownCustom(cmd *cobra.Command, w io.Writer, linkHandler func(string)
 	}
 
 	if len(cmd.Example) > 0 {
-		buf.WriteString("### Examples\n\n")
+		buf.WriteString(titlePrefix + "Examples\n\n")
 		buf.WriteString(fmt.Sprintf("```\n%s\n```\n\n", cmd.Example))
 	}
 
@@ -129,7 +127,7 @@ func GenMarkdownCustom(cmd *cobra.Command, w io.Writer, linkHandler func(string)
 		return err
 	}
 	if hasSeeAlso(cmd) {
-		buf.WriteString("### See Also\n\n")
+		buf.WriteString(titlePrefix + "See Also\n\n")
 		if cmd.HasParent() {
 			parent := cmd.Parent()
 			pname := parent.CommandPath()
