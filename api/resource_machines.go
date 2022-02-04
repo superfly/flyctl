@@ -1,6 +1,8 @@
 package api
 
-import "context"
+import (
+	"context"
+)
 
 func (client *Client) ListMachines(ctx context.Context, appID string, state string) ([]*Machine, error) {
 	query := `
@@ -173,8 +175,7 @@ func (client *Client) RemoveMachine(ctx context.Context, input RemoveMachineInpu
 				id
 				state
 			}
-		}
-	}
+		}	}
 	`
 
 	req := client.NewRequest(query)
@@ -187,4 +188,50 @@ func (client *Client) RemoveMachine(ctx context.Context, input RemoveMachineInpu
 	}
 
 	return data.RemoveMachine.Machine, nil
+}
+
+func (client *Client) GetMachine(ctx context.Context, appID, machineID string) (*Machine, error) {
+
+	query := `
+	query($appName: String!, $machineId: String!) {
+		app(name: $appName) {
+		  	machine(id: $machineId){
+		  		id
+		  		name
+		  		region
+		  		state
+				config
+		  		createdAt
+		  		app{
+					name
+					hostname
+		  		}
+				ips{
+					nodes{
+					  id
+					  ip
+					  kind
+					  family
+					  maskSize  
+					}
+				}
+			}
+		}
+	}
+	`
+
+	req := client.NewRequest(query)
+
+	if appID != "" {
+		req.Var("appName", appID)
+	}
+
+	req.Var("machineId", machineID)
+
+	data, err := client.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.App.Machine, nil
 }
