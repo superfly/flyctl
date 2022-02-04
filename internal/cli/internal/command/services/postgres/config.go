@@ -103,7 +103,7 @@ func runConfigView(ctx context.Context) error {
 			restart = colorize.Bold(restart)
 		}
 		if setting.PendingChange != "" {
-			p := colorize.Bold(fmt.Sprintf("(%s)", setting.PendingChange))
+			p := colorize.Bold(fmt.Sprintf("-> (%s)", setting.PendingChange))
 			value = fmt.Sprintf("%s %s", value, p)
 		}
 		rows = append(rows, []string{
