@@ -93,9 +93,6 @@ func runConfigView(ctx context.Context) error {
 		return err
 	}
 
-	// TODO - Auto-generate this URL from the image tag
-	colorize.Bold("For additional information on these settings, please refer to:")
-
 	pendingRestart := false
 	rows := make([][]string, 0, len(resp.Settings))
 	for _, setting := range resp.Settings {
