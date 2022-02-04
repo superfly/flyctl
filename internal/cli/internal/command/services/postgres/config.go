@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/r3labs/diff"
 	"github.com/spf13/cobra"
@@ -93,6 +94,9 @@ func runConfigView(ctx context.Context) error {
 		return err
 	}
 
+	// TODO - Auto-generate this URL from the image tag
+	colorize.Bold("For additional information on these settings, please refer to:")
+
 	pendingRestart := false
 	rows := make([][]string, 0, len(resp.Settings))
 	for _, setting := range resp.Settings {
@@ -103,11 +107,11 @@ func runConfigView(ctx context.Context) error {
 			restart = colorize.Bold(restart)
 		}
 		if setting.PendingChange != "" {
-			p := colorize.Bold(fmt.Sprintf("-> (%s)", setting.PendingChange))
-			value = fmt.Sprintf("%s %s", value, p)
+			p := colorize.Bold(fmt.Sprintf("(%s)", setting.PendingChange))
+			value = fmt.Sprintf("%s -> %s", value, p)
 		}
 		rows = append(rows, []string{
-			setting.Name,
+			strings.Replace(setting.Name, "_", "-", -1),
 			value,
 			setting.Desc,
 			restart,
@@ -116,8 +120,8 @@ func runConfigView(ctx context.Context) error {
 	_ = render.Table(io.Out, "", rows, "Name", "Value", "Description", "Pending Restart")
 
 	if pendingRestart {
-		fmt.Fprintln(io.Out, colorize.Bold("Some changes are awaiting a restart!"))
-		fmt.Fprintln(io.Out, colorize.Bold("Run `DEV=1 fly services postgres restart` to apply the changes."))
+		fmt.Fprintln(io.Out, colorize.Yellow("Some changes are awaiting a restart!"))
+		fmt.Fprintln(io.Out, colorize.Yellow(fmt.Sprintf("To apply changes, run: `DEV=1 fly services postgres restart --app %s`", appName)))
 	}
 
 	return nil
@@ -218,8 +222,10 @@ func runConfigUpdate(ctx context.Context) error {
 		if requiresRestart {
 			restartRequired = true
 		}
+		name := strings.Replace(change.Path[len(change.Path)-1], "_", "-", -1)
+
 		rows = append(rows, []string{
-			change.Path[len(change.Path)-1],
+			name,
 			fmt.Sprint(change.From),
 			fmt.Sprint(change.To),
 			fmt.Sprint(requiresRestart),
@@ -251,8 +257,8 @@ func runConfigUpdate(ctx context.Context) error {
 	fmt.Fprintln(io.Out, "Update complete!")
 
 	if restartRequired {
-		fmt.Fprintln(io.Out, colorize.Bold("Please note that some of your changes will require a cluster restart before they will be applied."))
-		fmt.Fprintln(io.Out, colorize.Bold("To review the state of your changes, please run: `DEV=1 fly services postgres config view`"))
+		fmt.Fprintln(io.Out, colorize.Yellow("Please note that some of your changes will require a cluster restart before they will be applied."))
+		fmt.Fprintln(io.Out, colorize.Yellow("To review the state of your changes, run: `DEV=1 fly services postgres config view`"))
 	}
 
 	return nil
