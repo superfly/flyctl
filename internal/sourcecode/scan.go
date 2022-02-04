@@ -29,28 +29,28 @@ type Secret struct {
 	Generate bool
 }
 type SourceInfo struct {
-	Family                string
-	Version               string
-	DockerfilePath        string
-	Builder               string
-	ReleaseCmd            string
-	DockerCommand         string
-	DockerEntrypoint      string
-	KillSignal            string
-	Buildpacks            []string
-	Secrets               []Secret
-	Files                 []SourceFile
-	Port                  int
-	Env                   map[string]string
-	Statics               []Static
-	Processes             map[string]string
-	DeployDocs            string
-	Notice                string
-	SkipDeploy            bool
-	Volumes               []Volume
-	DockerfileAppendix    []string
-	InitCommands          []InitCommand
-	CreatePostgresCluster bool
+	Family               string
+	Version              string
+	DockerfilePath       string
+	Builder              string
+	ReleaseCmd           string
+	DockerCommand        string
+	DockerEntrypoint     string
+	KillSignal           string
+	Buildpacks           []string
+	Secrets              []Secret
+	Files                []SourceFile
+	Port                 int
+	Env                  map[string]string
+	Statics              []Static
+	Processes            map[string]string
+	DeployDocs           string
+	Notice               string
+	SkipDeploy           bool
+	Volumes              []Volume
+	DockerfileAppendix   []string
+	InitCommands         []InitCommand
+	PostgresInitCommands []InitCommand
 }
 
 type SourceFile struct {
@@ -199,6 +199,13 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 				Description: "Preparing Gemfile.lock for x86_64 deployment",
 			},
 		},
+		PostgresInitCommands: []InitCommand{
+			{
+				Command:     "bundle",
+				Args:        []string{"add", "pg"},
+				Description: "Adding the 'pg' gem for Postgres database support",
+			},
+		},
 	}
 
 	// master.key comes with Rails apps from v6 onwards, but may not be present
@@ -216,11 +223,6 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 	}
 
 	s.ReleaseCmd = "bundle exec rails db:migrate"
-
-	// Ask to create a postgres database if we find the postgres adapter in config
-	if checksPass(sourceDir, dirContains("config/database.yml", "postgres")) {
-		s.CreatePostgresCluster = true
-	}
 
 	return s, nil
 
@@ -408,10 +410,6 @@ a Postgresql database.
 		s.ReleaseCmd = "/app/bin/migrate"
 	}
 
-	// Ask to create a postgres database if we find the postgres adapter
-	if checksPass(sourceDir, dirContains("mix.lock", "postgrex")) {
-		s.CreatePostgresCluster = true
-	}
 	return s, nil
 }
 
