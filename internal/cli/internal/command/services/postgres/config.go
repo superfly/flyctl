@@ -252,15 +252,15 @@ func runConfigUpdate(ctx context.Context) error {
 
 	if restartRequired {
 		fmt.Fprintln(io.Out, colorize.Bold("Please note that some of your changes will require a cluster restart before they will be applied."))
-		fmt.Fprintln(io.Out, colorize.Bold("To review the state of your changes, please run: 'DEV=1 fly services postgres config view'"))
+		fmt.Fprintln(io.Out, colorize.Bold("To review the state of your changes, please run: `DEV=1 fly services postgres config view`"))
 	}
 
 	return nil
 }
 
-func isRestartRequired(pgSettings *pgSettings, setting string) bool {
+func isRestartRequired(pgSettings *pgSettings, name string) bool {
 	for _, s := range pgSettings.Settings {
-		if s.Name == setting {
+		if s.Name == name {
 			if s.Context == "postmaster" {
 				return true
 			}
