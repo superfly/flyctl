@@ -1038,6 +1038,10 @@ usage = "kill <id>"
 longHelp = "Remove a Fly machine"
 shortHelp = "Remove a Fly machine"
 usage = "remove <id>"
+[machine.status]
+longHelp = """Show current status of a running mchine"""
+shortHelp = "Show current status of a running machine"
+usage = "status <id>"
 
 [proxy]
 longHelp = """Proxies connections to a fly app through the wireguard tunnel"""
