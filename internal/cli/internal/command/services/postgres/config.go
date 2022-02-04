@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/r3labs/diff"
@@ -96,6 +97,15 @@ func runConfigView(ctx context.Context) error {
 	pendingRestart := false
 	rows := make([][]string, 0, len(resp.Settings))
 	for _, setting := range resp.Settings {
+		desc := setting.Desc
+		switch setting.VarType {
+		case "enum":
+			e := strings.Join(setting.EnumVals, ", ")
+			desc = fmt.Sprintf("%s [%s]", desc, e)
+		case "integer":
+			desc = fmt.Sprintf("%s (%s, %s)", desc, setting.MinVal, setting.MaxVal)
+		}
+
 		value := setting.Setting
 		restart := fmt.Sprint(setting.PendingRestart)
 		if setting.PendingRestart {
@@ -109,7 +119,7 @@ func runConfigView(ctx context.Context) error {
 		rows = append(rows, []string{
 			strings.Replace(setting.Name, "_", "-", -1),
 			value,
-			setting.Desc,
+			desc,
 			restart,
 		})
 	}
@@ -192,10 +202,26 @@ func runConfigUpdate(ctx context.Context) error {
 		}
 	}
 
+	if len(rChanges) == 0 {
+		return fmt.Errorf("no changes were specified")
+	}
+
 	// Pull existing configuration
 	settings, err := pgCmd.viewSettings(keys)
 	if err != nil {
 		return err
+	}
+
+	// Verfiy that input values are within acceptible ranges.
+	// Stolon does not verify this, so we need to do it here.
+	for k, v := range rChanges {
+		for _, setting := range settings.Settings {
+			if setting.Name == k {
+				if err = validateConfigValue(setting, k, v); err != nil {
+					return err
+				}
+			}
+		}
 	}
 
 	// Construct a map of the active configuration settings so we can compare.
@@ -270,4 +296,36 @@ func isRestartRequired(pgSettings *pgSettings, name string) bool {
 	}
 
 	return false
+}
+
+func validateConfigValue(setting pgSetting, key, val string) error {
+	switch setting.VarType {
+	case "enum":
+		for _, enumVal := range setting.EnumVals {
+			if enumVal == val {
+				return nil
+			}
+		}
+		return fmt.Errorf("invalid value specified for %s: %s. available options: %s", key, val, setting.EnumVals)
+	case "integer":
+		min, err := strconv.Atoi(setting.MinVal)
+		if err != nil {
+			return err
+		}
+		max, err := strconv.Atoi(setting.MaxVal)
+		if err != nil {
+			return err
+		}
+
+		val, err := strconv.Atoi(val)
+		if err != nil {
+			return err
+		}
+
+		if val < min || val > max {
+			return fmt.Errorf("invalid value specified for %s: %d. accepted range: (%s, %s)", key, val, setting.MinVal, setting.MaxVal)
+		}
+	}
+
+	return nil
 }
