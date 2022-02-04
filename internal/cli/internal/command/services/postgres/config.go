@@ -306,7 +306,7 @@ func validateConfigValue(setting pgSetting, key, val string) error {
 				return nil
 			}
 		}
-		return fmt.Errorf("invalid value specified for %s: %s. available options: %s", key, val, setting.EnumVals)
+		return fmt.Errorf("Invalid value specified for %s. Received: %s, Accepted values: [%s]", key, val, strings.Join(setting.EnumVals, ", "))
 	case "integer":
 		min, err := strconv.Atoi(setting.MinVal)
 		if err != nil {
@@ -317,13 +317,9 @@ func validateConfigValue(setting pgSetting, key, val string) error {
 			return err
 		}
 
-		val, err := strconv.Atoi(val)
-		if err != nil {
-			return err
-		}
-
-		if val < min || val > max {
-			return fmt.Errorf("invalid value specified for %s: %d. accepted range: (%s, %s)", key, val, setting.MinVal, setting.MaxVal)
+		v, err := strconv.Atoi(val)
+		if err != nil || v < min || v > max {
+			return fmt.Errorf("Invalid value specified for %s. (Received: %s, Accepted range: (%s, %s)", key, val, setting.MinVal, setting.MaxVal)
 		}
 	}
 
