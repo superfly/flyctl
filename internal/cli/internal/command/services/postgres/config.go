@@ -104,6 +104,19 @@ func runConfigView(ctx context.Context) error {
 			desc = fmt.Sprintf("%s [%s]", desc, e)
 		case "integer":
 			desc = fmt.Sprintf("%s (%s, %s)", desc, setting.MinVal, setting.MaxVal)
+		case "real":
+			min, err := strconv.ParseFloat(setting.MinVal, 32)
+			if err != nil {
+				return nil
+			}
+			max, err := strconv.ParseFloat(setting.MaxVal, 32)
+			if err != nil {
+				return err
+			}
+			desc = fmt.Sprintf("%s (%.1f, %.1f)", desc, min, max)
+		case "bool":
+			desc = fmt.Sprintf("%s [on, off]", desc)
+
 		}
 
 		value := setting.Setting
@@ -318,8 +331,37 @@ func validateConfigValue(setting pgSetting, key, val string) error {
 		}
 
 		v, err := strconv.Atoi(val)
-		if err != nil || v < min || v > max {
+		if err != nil {
+			return err
+		}
+
+		if v < min || v > max {
 			return fmt.Errorf("Invalid value specified for %s. (Received: %s, Accepted range: (%s, %s)", key, val, setting.MinVal, setting.MaxVal)
+		}
+	case "real":
+		min, err := strconv.ParseFloat(setting.MinVal, 32)
+		if err != nil {
+			return err
+		}
+
+		max, err := strconv.ParseFloat(setting.MaxVal, 32)
+		if err != nil {
+			return err
+		}
+
+		v, err := strconv.ParseFloat(val, 32)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Comparing %.1f with %.1f\n", v, max)
+
+		if v < min || v > max {
+			return fmt.Errorf("Invalid value specified for %s. (Received: %s, Accepted range: (%.1f, %.1f)", key, val, min, max)
+		}
+	case "bool":
+		if val != "on" && val != "off" {
+			return fmt.Errorf("Invalid value specified for %s. (Received: %s, Accepted values: [on, off]", key, val)
 		}
 	}
 
