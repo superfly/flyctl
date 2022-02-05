@@ -178,14 +178,6 @@ func newConfigUpdate() (cmd *cobra.Command) {
 			Name:        "log-min-duration-statement",
 			Description: "Sets the minimum execution time above which all statements will be logged. (ms)",
 		},
-		flag.String{
-			Name:        "log-duration",
-			Description: "Logs the duration of each completed SQL statement.",
-		},
-		flag.String{
-			Name:        "log-statement-sample-rate",
-			Description: "Fraction of statements exceeding log_min_duration_sample to be logged.",
-		},
 		flag.Bool{
 			Name:        "auto-confirm",
 			Description: "Will automatically confirm changes without an interactive prompt.",
