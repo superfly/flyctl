@@ -44,6 +44,7 @@ var pgSettingMap = map[string]string{
 	"max-connections":            "max_connections",
 	"log-statement":              "log_statement",
 	"log-min-duration-statement": "log_min_duration_statement",
+	"log-duration":               "log_duration",
 }
 
 func newConfigView() (cmd *cobra.Command) {
@@ -102,8 +103,11 @@ func runConfigView(ctx context.Context) error {
 		case "enum":
 			e := strings.Join(setting.EnumVals, ", ")
 			desc = fmt.Sprintf("%s [%s]", desc, e)
-		case "integer":
+		case "integer", "real":
 			desc = fmt.Sprintf("%s (%s, %s)", desc, setting.MinVal, setting.MaxVal)
+		case "bool":
+			desc = fmt.Sprintf("%s [on, off]", desc)
+
 		}
 
 		value := setting.Setting
@@ -164,6 +168,10 @@ func newConfigUpdate() (cmd *cobra.Command) {
 		flag.String{
 			Name:        "log-min-duration-statement",
 			Description: "Sets the minimum execution time above which all statements will be logged. (ms)",
+		},
+		flag.String{
+			Name:        "log-duration",
+			Description: "Logs the duration of each completed SQL statement.",
 		},
 		flag.Bool{
 			Name:        "auto-confirm",
@@ -307,7 +315,7 @@ func validateConfigValue(setting pgSetting, key, val string) error {
 			}
 		}
 		return fmt.Errorf("Invalid value specified for %s. Received: %s, Accepted values: [%s]", key, val, strings.Join(setting.EnumVals, ", "))
-	case "integer":
+	case "integer", "real":
 		min, err := strconv.Atoi(setting.MinVal)
 		if err != nil {
 			return err
@@ -321,6 +329,11 @@ func validateConfigValue(setting pgSetting, key, val string) error {
 		if err != nil || v < min || v > max {
 			return fmt.Errorf("Invalid value specified for %s. (Received: %s, Accepted range: (%s, %s)", key, val, setting.MinVal, setting.MaxVal)
 		}
+	case "bool":
+		if val != "on" && val != "off" {
+			return fmt.Errorf("Invalid value specified for %s. (Received: %s, Accepted values: [on, off]", key, val)
+		}
+
 	}
 
 	return nil
