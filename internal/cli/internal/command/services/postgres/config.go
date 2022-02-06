@@ -354,8 +354,6 @@ func validateConfigValue(setting pgSetting, key, val string) error {
 			return err
 		}
 
-		fmt.Printf("Comparing %.1f with %.1f\n", v, max)
-
 		if v < min || v > max {
 			return fmt.Errorf("Invalid value specified for %s. (Received: %s, Accepted range: (%.1f, %.1f)", key, val, min, max)
 		}
