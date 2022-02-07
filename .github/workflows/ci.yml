@@ -141,6 +141,8 @@ jobs:
           path: docs
       - name: Copy CLI docs
         id: copy-cli-docs
+        env:
+          GITHUB_TOKEN: ${{ secrets.DOCS_GITHUB_TOKEN }}
         run: |
           BRANCH=flyctl-docs_${{ github.ref_name }}
           scripts/generate_docs.sh docs/flyctl/cmd
