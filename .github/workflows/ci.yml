@@ -143,7 +143,7 @@ jobs:
           API_TOKEN_GITHUB: ${{ secrets.DOCS_GITHUB_TOKEN }}
         with:
           source_folder: "out"
-          destination_repo: "flyio/docs"
+          destination_repo: "superfly/docs"
           destination_folder: "flyctl/cmd"
           user_email: joshua@fly.io
           destination_head_branch: flyctl-${{ env.GITHUB_REF_NAME }}
