@@ -115,7 +115,7 @@ func GetAccessToken(ctx context.Context, email, password, otp string) (token str
 
 	switch {
 	case res.StatusCode >= http.StatusInternalServerError:
-		err = errors.New("An unknown server error occured, please try again")
+		err = errors.New("An unknown server error occurred, please try again")
 	case res.StatusCode >= http.StatusBadRequest:
 		err = errors.New("Incorrect email and password combination")
 	default:
