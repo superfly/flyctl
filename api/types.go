@@ -328,6 +328,10 @@ type App struct {
 	LatestImageDetails          ImageVersion
 
 	Machine *Machine
+
+	Machines struct {
+		Nodes []*Machine
+	}
 }
 
 type TaskGroupCount struct {

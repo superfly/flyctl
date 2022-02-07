@@ -22,6 +22,13 @@ func (client *Client) GetImageInfo(ctx context.Context, appName string) (*App, e
 					digest
 					version
 				}
+				machines{
+					nodes{
+					  id
+					  name
+					  config
+					}
+				  }
 			}
 		}
 	`

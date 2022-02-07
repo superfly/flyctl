@@ -57,45 +57,62 @@ func runShow(ctx context.Context) error {
 		return render.JSON(io.Out, app.ImageDetails)
 	}
 
-	if app.ImageVersionTrackingEnabled && app.ImageUpgradeAvailable {
-		current := fmt.Sprintf("%s:%s", app.ImageDetails.Repository, app.ImageDetails.Tag)
-		latest := fmt.Sprintf("%s:%s", app.LatestImageDetails.Repository, app.LatestImageDetails.Tag)
+	switch app.ImageDetails.Registry {
 
-		if app.ImageDetails.Version != "" {
-			current = fmt.Sprintf("%s %s", current, app.ImageDetails.Version)
+	case "unknown":
+		rows := make([][]string, 0, len(app.Machines.Nodes))
+
+		for _, machine := range app.Machines.Nodes {
+			rows = append(rows, []string{
+				machine.ID,
+				machine.Name,
+				machine.Config.Image,
+			})
 		}
 
-		if app.LatestImageDetails.Version != "" {
-			latest = fmt.Sprintf("%s %s", latest, app.LatestImageDetails.Version)
+		return render.Table(io.Out, "Machines", rows, "ID", "Name", "Image")
+	default:
+
+		if app.ImageVersionTrackingEnabled && app.ImageUpgradeAvailable {
+			current := fmt.Sprintf("%s:%s", app.ImageDetails.Repository, app.ImageDetails.Tag)
+			latest := fmt.Sprintf("%s:%s", app.LatestImageDetails.Repository, app.LatestImageDetails.Tag)
+
+			if app.ImageDetails.Version != "" {
+				current = fmt.Sprintf("%s %s", current, app.ImageDetails.Version)
+			}
+
+			if app.LatestImageDetails.Version != "" {
+				latest = fmt.Sprintf("%s %s", latest, app.LatestImageDetails.Version)
+			}
+
+			var message = fmt.Sprintf("Update available! (%s -> %s)\n", current, latest)
+			message += "Run `flyctl image update` to migrate to the latest image version.\n"
+
+			fmt.Fprintln(io.ErrOut, colorize.Yellow(message))
 		}
 
-		var message = fmt.Sprintf("Update available! (%s -> %s)\n", current, latest)
-		message += "Run `flyctl image update` to migrate to the latest image version.\n"
+		image := app.ImageDetails
 
-		fmt.Fprintln(io.ErrOut, colorize.Yellow(message))
+		if image.Version == "" {
+			image.Version = "N/A"
+		}
+
+		obj := [][]string{
+			{
+				image.Registry,
+				image.Repository,
+				image.Tag,
+				image.Version,
+				image.Digest,
+			},
+		}
+
+		return render.VerticalTable(io.Out, "Image", obj,
+			"Registry",
+			"Repository",
+			"Tag",
+			"Version",
+			"Digest",
+		)
 	}
-
-	image := app.ImageDetails
-
-	if image.Version == "" {
-		image.Version = "N/A"
-	}
-
-	obj := [][]string{
-		{
-			image.Registry,
-			image.Repository,
-			image.Tag,
-			image.Version,
-			image.Digest,
-		},
-	}
-
-	return render.VerticalTable(io.Out, "Deployment Status", obj,
-		"Registry",
-		"Repository",
-		"Tag",
-		"Version",
-		"Digest",
-	)
 }
