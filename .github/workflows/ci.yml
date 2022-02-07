@@ -138,6 +138,7 @@ jobs:
         id: generate-cli-docs
         run: |
           scripts/generate_docs.sh
+          rm -rf cmd
           mv out cmd
       - name: Create pull request on Fly docs repo
         uses: paygoc6/action-pull-request-another-repo@v1.0.1
