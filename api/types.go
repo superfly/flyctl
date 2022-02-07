@@ -326,6 +326,8 @@ type App struct {
 	ImageVersionTrackingEnabled bool
 	ImageDetails                ImageVersion
 	LatestImageDetails          ImageVersion
+
+	Machine *Machine
 }
 
 type TaskGroupCount struct {
@@ -1155,6 +1157,10 @@ type Machine struct {
 		Nodes []*MachineIP
 	}
 
+	Events struct {
+		Nodes []*MachineEvent
+	}
+
 	CreatedAt time.Time
 }
 
@@ -1222,4 +1228,10 @@ type MachineConfig struct {
 type DeleteOrganizationMembershipPayload struct {
 	Organization *Organization
 	User         *User
+}
+
+type MachineEvent struct {
+	Kind      string      `json:"kind"`
+	Timestamp time.Time   `json:"timestamp"`
+	Body      interface{} `json:"body"`
 }
