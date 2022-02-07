@@ -151,7 +151,7 @@ jobs:
           git config --global user.name "Fly.io CI"
           git checkout -b $BRANCH
           git commit -a -m "[flyctl-bot] Update docs from flyctl"
-          git push --set-upstream origin HEAD:$BRANCH
+          git push -f --set-upstream origin HEAD:$BRANCH
           gh pr create -t "[flybot] Fly CLI docs update" -B main -H $BRANCH -r jsierles
   dev_release:
     if: startsWith(github.ref, 'refs/tags/v') && contains(github.ref, 'dev-')
