@@ -136,17 +136,19 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
       - name: Generate CLI docs
         id: generate-cli-docs
-        run: scripts/generate_docs.sh
+        run: |
+          scripts/generate_docs.sh
+          mv out cmd
       - name: Create pull request on Fly docs repo
         uses: paygoc6/action-pull-request-another-repo@v1.0.1
         env:
           API_TOKEN_GITHUB: ${{ secrets.DOCS_GITHUB_TOKEN }}
         with:
-          source_folder: "out"
+          source_folder: "cmd"
           destination_repo: "superfly/docs"
-          destination_folder: "flyctl/cmd"
+          destination_folder: "flyctl"
           user_email: joshua@fly.io
-          destination_head_branch: flyctl-${{ env.GITHUB_REF_NAME }}
+          destination_head_branch: flyctl-${{ github.ref_name }}
           user_name: "jsierles"
   dev_release:
     if: startsWith(github.ref, 'refs/tags/v') && contains(github.ref, 'dev-')
