@@ -24,7 +24,7 @@ var (
 	cleanDNSPattern = regexp.MustCompile(`[^a-zA-Z0-9\\-]`)
 )
 
-func gernateConnectionnName(apiClient *api.Client, ctx context.Context) (string, error) {
+func generatePeerName(ctx context.Context, apiClient *api.Client) (string, error) {
 	user, err := apiClient.GetCurrentUser(ctx)
 	if err != nil {
 		return "", err
@@ -54,7 +54,7 @@ func StateForOrg(apiClient *api.Client, org *api.Organization, regionCode string
 
 	ctx := context.TODO()
 	if name == "" {
-		n, err := gernateConnectionnName(apiClient, ctx)
+		n, err := generatePeerName(ctx, apiClient)
 		if err != nil {
 			return nil, err
 		}
@@ -82,7 +82,7 @@ func Create(apiClient *api.Client, org *api.Organization, regionCode, name strin
 	)
 
 	if name == "" {
-		n, err := gernateConnectionnName(apiClient, ctx)
+		n, err := generatePeerName(ctx, apiClient)
 		if err != nil {
 			return nil, err
 		}
