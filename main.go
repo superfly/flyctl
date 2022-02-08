@@ -2,10 +2,14 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"runtime"
 	"syscall"
+
+	dockerclient "github.com/docker/docker/client"
+	dockeropts "github.com/docker/docker/opts"
 
 	"github.com/superfly/flyctl/pkg/iostreams"
 
@@ -15,6 +19,8 @@ import (
 )
 
 func main() {
+	guessDockerHost()
+
 	os.Exit(run())
 }
 
@@ -49,4 +55,24 @@ func newContext() (context.Context, context.CancelFunc) {
 	}
 
 	return signal.NotifyContext(context.Background(), signals...)
+}
+
+func guessDockerHost() {
+	host := os.Getenv("DOCKER_HOST")
+	if host == "" {
+		return // no docker host specified
+	}
+
+	if _, err := dockerclient.ParseHostURL(host); err == nil {
+		return // host is well defined
+	}
+
+	host, err := dockeropts.ParseHost(false, false, host)
+	if err != nil {
+		return
+	}
+
+	if err := os.Setenv("DOCKER_HOST", host); err != nil {
+		panic(fmt.Errorf("failed fixing DOCKER_HOST: %w", err))
+	}
 }

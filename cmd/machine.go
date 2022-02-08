@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -12,8 +13,10 @@ import (
 	surveyterminal "github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
+	"github.com/logrusorgru/aurora"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
+	"github.com/segmentio/textio"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
@@ -43,6 +46,7 @@ func newMachineCommand(client *client.Client) *Command {
 	newMachineKillCommand(cmd, client)
 	newMachineRemoveCommand(cmd, client)
 	newMachineCloneCommand(cmd, client)
+	newMachineStatusCommand(cmd, client)
 
 	return cmd
 }
@@ -489,6 +493,68 @@ func newMachineRunCommand(parent *Command, client *client.Client) {
 	})
 
 	cmd.Command.Args = cobra.MinimumNArgs(1)
+}
+
+func newMachineStatusCommand(parent *Command, client *client.Client) {
+	cmd := BuildCommandKS(parent, getMachineStatus, docstrings.Get("machine.status"), client, requireSession, optionalAppName)
+	cmd.Args = cobra.ExactArgs(1)
+}
+
+func getMachineStatus(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
+	alloc, err := cmdCtx.Client.API().GetAllocationStatus(ctx, cmdCtx.AppName, cmdCtx.Args[0], 25)
+	if err != nil {
+		return err
+	}
+	if alloc == nil {
+		return api.ErrNotFound
+	}
+
+	err = cmdCtx.Frender(
+		cmdctx.PresenterOption{
+			Title: "Instance",
+			Presentable: &presenters.Allocations{
+				Allocations: []*api.AllocationStatus{alloc},
+			},
+			Vertical: true,
+		},
+		cmdctx.PresenterOption{
+			Title: "Recent Events",
+			Presentable: &presenters.AllocationEvents{
+				Events: alloc.Events,
+			},
+		},
+		cmdctx.PresenterOption{
+			Title: "Checks",
+			Presentable: &presenters.AllocationChecks{
+				Checks: alloc.Checks,
+			},
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	var p io.Writer
+	var pw *textio.PrefixWriter
+
+	if !cmdCtx.OutputJSON() {
+		fmt.Println(aurora.Bold("Recent Logs"))
+		pw = textio.NewPrefixWriter(cmdCtx.Out, "  ")
+		p = pw
+	} else {
+		p = cmdCtx.Out
+	}
+
+	// logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
+	// logPresenter.FPrint(p, ctx.OutputJSON(), alloc.RecentLogs)
+
+	if p != cmdCtx.Out {
+		_ = pw.Flush()
+	}
+
+	return nil
 }
 
 func runMachineRun(cmdCtx *cmdctx.CmdContext) error {

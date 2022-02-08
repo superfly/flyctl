@@ -5,10 +5,10 @@ It allows users to manage authentication, application launch,
 deployment, network configuration, logging and more with just the
 one command.
 
-Launch an app with the launch command
-Deploy an app with the deploy command
-View a deployed web application with the open command
-Check the status of an application with the status command
+* Launch an app with the launch command
+* Deploy an app with the deploy command
+* View a deployed web application with the open command
+* Check the status of an application with the status command
 
 To read more, use the docs command to view Fly's help on the web.
 """
@@ -514,8 +514,8 @@ longHelp = "Attach a postgres cluster to an app"
 shortHelp = "Attach a postgres cluster to an app"
 usage = "attach"
 [postgres.connect]
-shortHelp = "Connect to postgres cluster"
-longHelp  = "Connect to postgres cluster"
+shortHelp = "Connect to the Postgres console"
+longHelp  = "Connect to the Postgres console"
 usage     = "connect"
 [postgres.create]
 longHelp = "Create a postgres cluster"
@@ -1038,6 +1038,10 @@ usage = "kill <id>"
 longHelp = "Remove a Fly machine"
 shortHelp = "Remove a Fly machine"
 usage = "remove <id>"
+[machine.status]
+longHelp = """Show current status of a running mchine"""
+shortHelp = "Show current status of a running machine"
+usage = "status <id>"
 
 [proxy]
 longHelp = """Proxies connections to a fly app through the wireguard tunnel"""
