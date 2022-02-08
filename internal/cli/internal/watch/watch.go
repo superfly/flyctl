@@ -181,6 +181,7 @@ func ReleaseCommand(ctx context.Context, id string) error {
 			for entry := range ls.Stream(childCtx, opts) {
 				if interactive {
 					s.Stop()
+					defer s.Start()
 				}
 
 				fmt.Fprintln(io.Out, "\t", entry.Message)
@@ -189,7 +190,6 @@ func ReleaseCommand(ctx context.Context, id string) error {
 				if entry.Message == "Starting clean up." {
 					cancel()
 				}
-				s.Start()
 			}
 
 			if err = ls.Err(); errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
