@@ -679,8 +679,7 @@ func runListPostgresDatabases(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	// check if app is a postgres app
-	if app.ImageDetails.Repository != "flyio/postgres" && app.ImageDetails.Repository != "flyio/postgres-standalone" {
+	if !isPostgresApp(&app.ImageDetails) {
 		return fmt.Errorf("%s is not a postgres app", cmdCtx.AppName)
 	}
 
@@ -727,8 +726,7 @@ func runListPostgresUsers(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	// check if app is a postgres app
-	if app.ImageDetails.Repository != "flyio/postgres" && app.ImageDetails.Repository != "flyio/postgres-standalone" {
+	if !isPostgresApp(&app.ImageDetails) {
 		return fmt.Errorf("%s is not a postgres app", cmdCtx.AppName)
 	}
 
@@ -763,4 +761,8 @@ func runListPostgresUsers(cmdCtx *cmdctx.CmdContext) error {
 	table.Render()
 
 	return nil
+}
+
+func isPostgresApp(imageVersion *api.ImageVersion) bool {
+	return imageVersion.Repository == "flyio/postgres" || imageVersion.Repository == "flyio/postgres-standalone"
 }
