@@ -679,6 +679,11 @@ func runListPostgresDatabases(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
+	// check if app is a postgres app
+	if app.ImageDetails.Repository != "flyio/postgres" && app.ImageDetails.Repository != "flyio/postgres-standalone" {
+		return fmt.Errorf("%s is not a postgres app", cmdCtx.AppName)
+	}
+
 	agentclient, err := agent.Establish(ctx, cmdCtx.Client.API())
 	if err != nil {
 		return errors.Wrap(err, "can't establish agent")
@@ -720,6 +725,11 @@ func runListPostgresUsers(cmdCtx *cmdctx.CmdContext) error {
 	app, err := client.GetApp(ctx, cmdCtx.AppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
+	}
+
+	// check if app is a postgres app
+	if app.ImageDetails.Repository != "flyio/postgres" && app.ImageDetails.Repository != "flyio/postgres-standalone" {
+		return fmt.Errorf("%s is not a postgres app", cmdCtx.AppName)
 	}
 
 	agentclient, err := agent.Establish(ctx, cmdCtx.Client.API())
