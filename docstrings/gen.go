@@ -481,13 +481,13 @@ to all instances running in a specific region using the --region/-r flag.`,
 		return KeyStrings{"start <id>", "Start a Fly machine",
 			`Start a Fly machine`,
 		}
+	case "machine.status":
+		return KeyStrings{"status <id>", "Show current status of a running machine",
+			`Show current status of a running mchine`,
+		}
 	case "machine.stop":
 		return KeyStrings{"stop <id>", "Stop a Fly machine",
 			`Stop a Fly machine`,
-		}
-	case "machine.status":
-		return KeyStrings{"status <id>", "Get status on a fly machine",
-			`Get status for a Fly machine`,
 		}
 	case "monitor":
 		return KeyStrings{"monitor", "Monitor deployments",
@@ -570,8 +570,8 @@ about the Fly platform.`,
 			`Attach a postgres cluster to an app`,
 		}
 	case "postgres.connect":
-		return KeyStrings{"connect", "Connect to postgres cluster",
-			`Connect to postgres cluster`,
+		return KeyStrings{"connect", "Connect to the Postgres console",
+			`Connect to the Postgres console`,
 		}
 	case "postgres.create":
 		return KeyStrings{"create", "Create a postgres cluster",
