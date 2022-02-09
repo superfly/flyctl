@@ -10,7 +10,6 @@ RUN yarn install --frozen-lockfile
 
 COPY redwood.toml .
 COPY graphql.config.js .
-COPY babel.config.js .
 
 FROM base as web_build
 
@@ -29,7 +28,7 @@ WORKDIR /app
 # Only install API packages to keep image small
 COPY api/package.json .
 
-RUN yarn install && yarn add react react-dom @redwoodjs/api-server @redwoodjs/internal
+RUN yarn install && yarn add react react-dom @redwoodjs/api-server @redwoodjs/internal prisma
 
 COPY graphql.config.js .
 COPY redwood.toml .
@@ -37,6 +36,7 @@ COPY api api
 
 COPY --from=web_build /app/web/dist /app/web/dist
 COPY --from=api_build /app/api/dist /app/api/dist
+COPY --from=api_build /app/api/db /app/api/db
 COPY --from=api_build /app/node_modules/.prisma /app/node_modules/.prisma
 
 EXPOSE 8911
