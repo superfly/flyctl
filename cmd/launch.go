@@ -444,13 +444,16 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		fmt.Printf("Postgres cluster %s is now attached to %s\n", clusterAppName, app.Name)
 
 		// Run any initialization commands required for postgres support
-		if srcInfo != nil && len(srcInfo.PostgresInitCommands) > 0 {
+		if len(srcInfo.PostgresInitCommands) > 0 {
 			for _, cmd := range srcInfo.PostgresInitCommands {
-				if err := execInitCommand(ctx, cmd); err != nil {
-					return err
+				if cmd.Condition {
+					if err := execInitCommand(ctx, cmd); err != nil {
+						return err
+					}
 				}
 			}
 		}
+
 	}
 
 	// Notices from a launcher about its behavior that should always be displayed

@@ -18,6 +18,7 @@ type InitCommand struct {
 	Command     string
 	Args        []string
 	Description string
+	Condition   bool
 }
 
 type Secret struct {
@@ -27,28 +28,29 @@ type Secret struct {
 	Generate bool
 }
 type SourceInfo struct {
-	Family               string
-	Version              string
-	DockerfilePath       string
-	Builder              string
-	ReleaseCmd           string
-	DockerCommand        string
-	DockerEntrypoint     string
-	KillSignal           string
-	Buildpacks           []string
-	Secrets              []Secret
-	Files                []SourceFile
-	Port                 int
-	Env                  map[string]string
-	Statics              []Static
-	Processes            map[string]string
-	DeployDocs           string
-	Notice               string
-	SkipDeploy           bool
-	Volumes              []Volume
-	DockerfileAppendix   []string
-	InitCommands         []InitCommand
-	PostgresInitCommands []InitCommand
+	Family                       string
+	Version                      string
+	DockerfilePath               string
+	Builder                      string
+	ReleaseCmd                   string
+	DockerCommand                string
+	DockerEntrypoint             string
+	KillSignal                   string
+	Buildpacks                   []string
+	Secrets                      []Secret
+	Files                        []SourceFile
+	Port                         int
+	Env                          map[string]string
+	Statics                      []Static
+	Processes                    map[string]string
+	DeployDocs                   string
+	Notice                       string
+	SkipDeploy                   bool
+	Volumes                      []Volume
+	DockerfileAppendix           []string
+	InitCommands                 []InitCommand
+	PostgresInitCommands         []InitCommand
+	PostgresInitCommandCondition bool
 }
 
 type SourceFile struct {
@@ -138,6 +140,7 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 				Command:     "bundle",
 				Args:        []string{"add", "pg"},
 				Description: "Adding the 'pg' gem for Postgres database support",
+				Condition:   !checksPass(sourceDir, dirContains("Gemfile", "pg")),
 			},
 		},
 	}
