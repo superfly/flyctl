@@ -18,6 +18,7 @@ import (
 	"github.com/briandowns/spinner"
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/pkg/retry"
 	sshCrypt "golang.org/x/crypto/ssh"
 
 	"github.com/superfly/flyctl/api"
@@ -131,9 +132,19 @@ func SSHConnect(p *SSHParams, addr string) error {
 		defer endSpin()
 	}
 
-	if err := sshClient.Connect(context.Background()); err != nil {
-		return errors.Wrap(err, "error connecting to SSH server")
+	err = retry.Retry(
+		func() error {
+			if err := sshClient.Connect(context.Background()); err != nil {
+				return errors.Wrap(err, "error connecting to SSH server")
+			}
+			return nil
+		}, 5,
+	)
+
+	if err != nil {
+		return err
 	}
+
 	defer sshClient.Close()
 
 	terminal.Debugf("Connection completed.\n", addr)
