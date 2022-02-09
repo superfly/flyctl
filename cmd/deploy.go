@@ -3,14 +3,12 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/briandowns/spinner"
 	"github.com/dustin/go-humanize"
 	"github.com/logrusorgru/aurora"
 	"github.com/morikuni/aec"
@@ -218,14 +216,8 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 	g, ctx := errgroup.WithContext(ctx)
 	interactive := cc.IO.IsInteractive()
 
-	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
-	s.Writer = os.Stderr
-	s.Prefix = "Running release task..."
-
-	if interactive {
-		s.Start()
-		defer s.Stop()
-	}
+	cc.IO.StartProgressIndicatorMsg("Running release task...")
+	defer cc.IO.StopProgressIndicator()
 
 	rcUpdates := make(chan api.ReleaseCommand)
 
@@ -244,19 +236,12 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 				}
 
 				for entry := range ls.Stream(childCtx, opts) {
-					func() {
-						if interactive {
-							s.Stop()
-							defer s.Start()
-						}
+					fmt.Println("\t", entry.Message)
 
-						fmt.Println("\t", entry.Message)
-
-						// watch for the shutdown message
-						if entry.Message == "Starting clean up." {
-							cancel()
-						}
-					}()
+					// watch for the shutdown message
+					if entry.Message == "Starting clean up." {
+						cancel()
+					}
 				}
 
 				if err = ls.Err(); (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) && ctx.Err() == nil {
@@ -305,9 +290,8 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 		defer time.AfterFunc(3*time.Second, logsCancel)
 
 		for rc := range rcUpdates {
-			if interactive {
-				s.Prefix = fmt.Sprintf("Running release task (%s)...", rc.Status)
-			}
+			msg := fmt.Sprintf("Running release task (%s)...", rc.Status)
+			cc.IO.ChangeProgressIndicatorMsg(msg)
 
 			if rc.InstanceID != nil {
 				startLogs(logsCtx, *rc.InstanceID)
@@ -315,7 +299,7 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 
 			if !rc.InProgress && rc.Failed {
 				if rc.Succeeded && interactive {
-					s.FinalMSG = "Running release task...Done\n"
+					cc.IO.ChangeProgressIndicatorMsg("Running release task... Done.")
 				} else if rc.Failed {
 					return errors.New("Release command failed, deployment aborted")
 				}

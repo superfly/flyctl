@@ -4,13 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/briandowns/spinner"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/superfly/flyctl/api"
@@ -151,14 +149,8 @@ func ReleaseCommand(ctx context.Context, id string) error {
 	interactive := io.IsInteractive()
 	appName := app.NameFromContext(ctx)
 
-	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
-	s.Writer = os.Stderr
-	s.Prefix = "Running release task..."
-
-	if interactive {
-		s.Start()
-		defer s.Stop()
-	}
+	io.StartProgressIndicatorMsg("Running release task...")
+	defer io.StopProgressIndicator()
 
 	rcUpdates := make(chan api.ReleaseCommand)
 
@@ -179,11 +171,6 @@ func ReleaseCommand(ctx context.Context, id string) error {
 			}
 
 			for entry := range ls.Stream(childCtx, opts) {
-				if interactive {
-					s.Stop()
-					defer s.Start()
-				}
-
 				fmt.Fprintln(io.Out, "\t", entry.Message)
 
 				// watch for the shutdown message
@@ -237,9 +224,8 @@ func ReleaseCommand(ctx context.Context, id string) error {
 		defer time.AfterFunc(3*time.Second, logsCancel)
 
 		for rc := range rcUpdates {
-			if interactive {
-				s.Prefix = fmt.Sprintf("Running release task (%s)...", rc.Status)
-			}
+			msg := fmt.Sprintf("Running release task (%s)...", rc.Status)
+			io.ChangeProgressIndicatorMsg(msg)
 
 			if rc.InstanceID != nil {
 				startLogs(logsCtx, *rc.InstanceID)
@@ -247,7 +233,7 @@ func ReleaseCommand(ctx context.Context, id string) error {
 
 			if !rc.InProgress && rc.Failed {
 				if rc.Succeeded && interactive {
-					s.FinalMSG = "Running release task...Done\n"
+					io.ChangeProgressIndicatorMsg("Running release task... Done.")
 				} else if rc.Failed {
 					return fmt.Errorf("release command failed, deployment aborted")
 				}
