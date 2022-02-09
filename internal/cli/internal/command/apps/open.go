@@ -53,7 +53,7 @@ func runOpen(ctx context.Context) error {
 	}
 
 	if !app.Deployed {
-		return errors.New("app has not been deployed yet. Please try deploying your app first.")
+		return errors.New("app has not been deployed yet. Please try deploying your app first")
 	}
 
 	appURL, err := url.Parse("http://" + app.Hostname)
