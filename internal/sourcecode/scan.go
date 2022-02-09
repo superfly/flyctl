@@ -1,11 +1,9 @@
 package sourcecode
 
 import (
-	"bufio"
 	"embed"
 	"io/fs"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"regexp"
 
@@ -20,6 +18,7 @@ type InitCommand struct {
 	Command     string
 	Args        []string
 	Description string
+	Condition   bool
 }
 
 type Secret struct {
@@ -29,28 +28,29 @@ type Secret struct {
 	Generate bool
 }
 type SourceInfo struct {
-	Family                string
-	Version               string
-	DockerfilePath        string
-	Builder               string
-	ReleaseCmd            string
-	DockerCommand         string
-	DockerEntrypoint      string
-	KillSignal            string
-	Buildpacks            []string
-	Secrets               []Secret
-	Files                 []SourceFile
-	Port                  int
-	Env                   map[string]string
-	Statics               []Static
-	Processes             map[string]string
-	DeployDocs            string
-	Notice                string
-	SkipDeploy            bool
-	Volumes               []Volume
-	DockerfileAppendix    []string
-	InitCommands          []InitCommand
-	CreatePostgresCluster bool
+	Family                       string
+	Version                      string
+	DockerfilePath               string
+	Builder                      string
+	ReleaseCmd                   string
+	DockerCommand                string
+	DockerEntrypoint             string
+	KillSignal                   string
+	Buildpacks                   []string
+	Secrets                      []Secret
+	Files                        []SourceFile
+	Port                         int
+	Env                          map[string]string
+	Statics                      []Static
+	Processes                    map[string]string
+	DeployDocs                   string
+	Notice                       string
+	SkipDeploy                   bool
+	Volumes                      []Volume
+	DockerfileAppendix           []string
+	InitCommands                 []InitCommand
+	PostgresInitCommands         []InitCommand
+	PostgresInitCommandCondition bool
 }
 
 type SourceFile struct {
@@ -99,72 +99,7 @@ func Scan(sourceDir string) (*SourceInfo, error) {
 	return nil, nil
 }
 
-func SuggestAppName(sourceDir string) string {
-	return filepath.Base(sourceDir)
-}
-
 type sourceScanner func(sourceDir string) (*SourceInfo, error)
-
-func fileExists(filenames ...string) checkFn {
-	return func(dir string) bool {
-		for _, filename := range filenames {
-			info, err := os.Stat(filepath.Join(dir, filename))
-			if err != nil {
-				continue
-			}
-			if !info.IsDir() {
-				return true
-			}
-		}
-		return false
-	}
-}
-
-func fileContains(path string, pattern string) bool {
-	file, err := os.Open(path)
-
-	if err != nil {
-		return false
-	}
-
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-
-	for scanner.Scan() {
-		re := regexp.MustCompile(pattern)
-		if re.MatchString(scanner.Text()) {
-			return true
-		}
-	}
-
-	return false
-}
-
-func dirContains(glob string, patterns ...string) checkFn {
-	return func(dir string) bool {
-		for _, pattern := range patterns {
-			filenames, _ := filepath.Glob(filepath.Join(dir, glob))
-			for _, filename := range filenames {
-				if fileContains(filename, pattern) {
-					return true
-				}
-			}
-		}
-		return false
-	}
-}
-
-type checkFn func(dir string) bool
-
-func checksPass(sourceDir string, checks ...checkFn) bool {
-	for _, check := range checks {
-		if check(sourceDir) {
-			return true
-		}
-	}
-	return false
-}
 
 func configureDockerfile(sourceDir string) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("Dockerfile")) {
@@ -189,7 +124,13 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 		Files:   templates("templates/rails"),
 		Builder: "heroku/buildpacks:20",
 		Family:  "Rails",
-		Port:    8080,
+		Statics: []Static{
+			{
+				GuestPath: "/app/public",
+				UrlPrefix: "/",
+			},
+		},
+		Port: 8080,
 		Env: map[string]string{
 			"PORT": "8080",
 		},
@@ -198,6 +139,14 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 				Command:     "bundle",
 				Args:        []string{"lock", "--add-platform", "x86_64-linux"},
 				Description: "Preparing Gemfile.lock for x86_64 deployment",
+			},
+		},
+		PostgresInitCommands: []InitCommand{
+			{
+				Command:     "bundle",
+				Args:        []string{"add", "pg"},
+				Description: "Adding the 'pg' gem for Postgres database support",
+				Condition:   !checksPass(sourceDir, dirContains("Gemfile", "pg")),
 			},
 		},
 	}
@@ -217,11 +166,6 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 	}
 
 	s.ReleaseCmd = "bundle exec rails db:migrate"
-
-	// Ask to create a postgres database if we find the postgres adapter in config
-	if checksPass(sourceDir, dirContains("config/database.yml", "postgres")) {
-		s.CreatePostgresCluster = true
-	}
 
 	return s, nil
 
@@ -409,10 +353,6 @@ a Postgresql database.
 		s.ReleaseCmd = "/app/bin/migrate"
 	}
 
-	// Ask to create a postgres database if we find the postgres adapter
-	if checksPass(sourceDir, dirContains("mix.lock", "postgrex")) {
-		s.CreatePostgresCluster = true
-	}
 	return s, nil
 }
 
@@ -522,7 +462,6 @@ func configureDjango(sourceDir string) (*SourceInfo, error) {
 
 	// check if requirements.txt has a postgres dependency
 	if checksPass(sourceDir, dirContains("requirements.txt", "psycopg2")) {
-		s.CreatePostgresCluster = true
 		s.InitCommands = []InitCommand{
 			{
 				// python makemigrations
@@ -534,7 +473,7 @@ func configureDjango(sourceDir string) (*SourceInfo, error) {
 		s.ReleaseCmd = "python manage.py migrate"
 
 		if !checksPass(sourceDir, dirContains("requirements.txt", "database_url")) {
-			s.DeployDocs = ` 
+			s.DeployDocs = `
 Your Django app is almost ready to deploy!
 
 We recommend using the database_url(pip install dj-database-url) to parse the DATABASE_URL from os.environ['DATABASE_URL']
