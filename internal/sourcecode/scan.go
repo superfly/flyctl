@@ -388,8 +388,16 @@ func configureRedwood(sourceDir string) (*SourceInfo, error) {
 		},
 		Statics: []Static{
 			{
-				GuestPath: "/app/public",
+				GuestPath: "/app/web/dist",
 				UrlPrefix: "/",
+			},
+		},
+		ReleaseCmd: "npx prisma migrate deploy --schema '/app/api/db/schema.prisma'",
+		PostgresInitCommands: []InitCommand{
+			{
+				Command:     "scripts/switch_prisma_provider.sh",
+				Description: "Switching the prisma provider to postgresql",
+				Condition:   checksPass(sourceDir, fileExists("api/db/schema.prisma")),
 			},
 		},
 	}
