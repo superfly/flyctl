@@ -30,7 +30,7 @@ func New() *cobra.Command {
 		long = strings.Trim(`
 Test connectivity with ICMP ping messages.
 
-This runs over WireGuard; tell us which WireGuard tunnel to use by 
+This runs over WireGuard; tell us which WireGuard tunnel to use by
 running from within an app directory (with a 'fly.toml'), passing the
 '-a' flag with an app name, or the '-o' flag with an org name.
 
@@ -309,7 +309,7 @@ func run(ctx context.Context) error {
 	stp := make(chan os.Signal, 1)
 	signal.Notify(stp, syscall.SIGINT, syscall.SIGTERM)
 
-	for i := 0; count == 0 || i < count; i++ {
+	for i := 0; count == 0 || i <= count; i++ {
 		select {
 		case <-stp:
 			cancel()
