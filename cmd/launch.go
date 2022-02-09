@@ -383,21 +383,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	// Run any initialization commands
 	if srcInfo != nil && len(srcInfo.InitCommands) > 0 {
 		for _, cmd := range srcInfo.InitCommands {
-			binary, err := exec.LookPath(cmd.Command)
-			if err != nil {
-				return fmt.Errorf("%s not found in $PATH - make sure app dependencies are installed and try again", cmd.Command)
-			}
-			fmt.Println(cmd.Description)
-			// Run a requested generator command, for example to generate a Dockerfile
-			cmd := exec.CommandContext(ctx, binary, cmd.Args...)
-
-			if err = cmd.Start(); err != nil {
-				return err
-			}
-
-			if err = cmd.Wait(); err != nil {
-				err = fmt.Errorf("failed running %s: %w ", cmd.String(), err)
-
+			if err := execInitCommand(ctx, cmd); err != nil {
 				return err
 			}
 		}
@@ -419,8 +405,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	// If a Postgres cluster is requested, ask to create one
-	if srcInfo.CreatePostgresCluster && confirm("Would you like to setup a Postgres database now?") {
+	if !cmdCtx.Config.GetBool("no-deploy") && !cmdCtx.Config.GetBool("now") && confirm("Would you like to setup a Postgresql database now?") {
 
 		app, err := cmdCtx.Client.API().GetApp(ctx, cmdCtx.AppName)
 
@@ -457,6 +442,18 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		}
 
 		fmt.Printf("Postgres cluster %s is now attached to %s\n", clusterAppName, app.Name)
+
+		// Run any initialization commands required for postgres support
+		if len(srcInfo.PostgresInitCommands) > 0 {
+			for _, cmd := range srcInfo.PostgresInitCommands {
+				if cmd.Condition {
+					if err := execInitCommand(ctx, cmd); err != nil {
+						return err
+					}
+				}
+			}
+		}
+
 	}
 
 	// Notices from a launcher about its behavior that should always be displayed
@@ -478,6 +475,25 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	return nil
+}
+
+func execInitCommand(ctx context.Context, command sourcecode.InitCommand) (err error) {
+	binary, err := exec.LookPath(command.Command)
+	if err != nil {
+		return fmt.Errorf("%s not found in $PATH - make sure app dependencies are installed and try again", command.Command)
+	}
+	fmt.Println(command.Description)
+	// Run a requested generator command, for example to generate a Dockerfile
+	cmd := exec.CommandContext(ctx, binary, command.Args...)
+
+	if err = cmd.Start(); err != nil {
+		return err
+	}
+
+	if err = cmd.Wait(); err != nil {
+		err = fmt.Errorf("failed running %s: %w ", cmd.String(), err)
+	}
+	return err
 }
 
 func appendDockerfileAppendix(appendix []string) (err error) {
