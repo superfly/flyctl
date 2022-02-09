@@ -124,7 +124,13 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 		Files:   templates("templates/rails"),
 		Builder: "heroku/buildpacks:20",
 		Family:  "Rails",
-		Port:    8080,
+		Statics: []Static{
+			{
+				GuestPath: "/app/public",
+				UrlPrefix: "/",
+			},
+		},
+		Port: 8080,
 		Env: map[string]string{
 			"PORT": "8080",
 		},
