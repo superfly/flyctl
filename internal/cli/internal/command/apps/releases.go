@@ -27,7 +27,7 @@ including type, when, success/fail and which user triggered the release.
 		short = "List app releases"
 	)
 
-	cmd = command.New("releases", short, long, runOpen,
+	cmd = command.New("releases", short, long, runReleases,
 		command.RequireSession,
 		command.RequireAppName,
 	)
