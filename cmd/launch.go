@@ -405,7 +405,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	if confirm("Would you like to setup a Postgresql database now?") {
+	if !cmdCtx.Config.GetBool("no-deploy") && !cmdCtx.Config.GetBool("now") && confirm("Would you like to setup a Postgresql database now?") {
 
 		app, err := cmdCtx.Client.API().GetApp(ctx, cmdCtx.AppName)
 
