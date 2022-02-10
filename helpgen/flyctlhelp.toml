@@ -976,6 +976,11 @@ longHelp = """Remove a WireGuard peer connection from an organization"""
 shortHelp = "Remove a WireGuard peer connection"
 usage = "remove [org] [name]"
 
+[wireguard.status]
+longHelp = """Get status for a WireGuard peer connection"""
+shortHelp = "Get status a WireGuard peer connection"
+usage = "status [org] [name]"
+
 [wireguard.token]
 longHelp = """Commands that managed WireGuard delegated access tokens"""
 shortHelp = "Commands that managed WireGuard delegated access tokens"

@@ -447,6 +447,8 @@ type Organization struct {
 		}
 	}
 
+	WireGuardPeer *WireGuardPeer
+
 	WireGuardPeers struct {
 		Nodes *[]*WireGuardPeer
 		Edges *[]*struct {
@@ -989,11 +991,24 @@ type ImportDnsWarning struct {
 }
 
 type WireGuardPeer struct {
-	ID     string
-	Pubkey string
-	Region string
-	Name   string
-	Peerip string
+	ID            string
+	Pubkey        string
+	Region        string
+	Name          string
+	Peerip        string
+	GatewayStatus *WireGuardPeerStatus
+}
+
+type WireGuardPeerStatus struct {
+	Endpoint       string
+	LastHandshake  string
+	SinceHandshake string
+	Rx             int64
+	Tx             int64
+	Added          string
+	SinceAdded     string
+	Live           bool
+	WgError        string
 }
 
 type LoggedCertificate struct {
