@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/deployment"
 	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/spinner"
 )
 
 func Deployment(ctx context.Context) error {
@@ -149,8 +150,8 @@ func ReleaseCommand(ctx context.Context, id string) error {
 	interactive := io.IsInteractive()
 	appName := app.NameFromContext(ctx)
 
-	io.StartProgressIndicatorMsg("Running release task...")
-	defer io.StopProgressIndicator()
+	s := spinner.Run(io, "Running release task ...")
+	defer s.Stop()
 
 	rcUpdates := make(chan api.ReleaseCommand)
 
@@ -171,12 +172,16 @@ func ReleaseCommand(ctx context.Context, id string) error {
 			}
 
 			for entry := range ls.Stream(childCtx, opts) {
+				msg := s.Stop()
+
 				fmt.Fprintln(io.Out, "\t", entry.Message)
 
 				// watch for the shutdown message
 				if entry.Message == "Starting clean up." {
 					cancel()
 				}
+
+				s.StartWithMessage(msg)
 			}
 
 			if err = ls.Err(); errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
@@ -225,7 +230,7 @@ func ReleaseCommand(ctx context.Context, id string) error {
 
 		for rc := range rcUpdates {
 			msg := fmt.Sprintf("Running release task (%s)...", rc.Status)
-			io.ChangeProgressIndicatorMsg(msg)
+			s.Set(msg)
 
 			if rc.InstanceID != nil {
 				startLogs(logsCtx, *rc.InstanceID)
@@ -233,7 +238,7 @@ func ReleaseCommand(ctx context.Context, id string) error {
 
 			if !rc.InProgress && rc.Failed {
 				if rc.Succeeded && interactive {
-					io.StopProgressIndicatorMsg("Running release task... Done.")
+					s.StopWithMessage("Running release task... Done.")
 				} else if rc.Failed {
 					return fmt.Errorf("release command failed, deployment aborted")
 				}

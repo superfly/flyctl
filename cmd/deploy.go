@@ -21,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/deployment"
 	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/spinner"
 	"github.com/superfly/flyctl/pkg/logs"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/sync/errgroup"
@@ -216,8 +217,8 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 	g, ctx := errgroup.WithContext(ctx)
 	interactive := cc.IO.IsInteractive()
 
-	cc.IO.StartProgressIndicatorMsg("Running release task...")
-	defer cc.IO.StopProgressIndicator()
+	s := spinner.Run(cc.IO, "Running release task...")
+	defer s.Stop()
 
 	rcUpdates := make(chan api.ReleaseCommand)
 
@@ -236,12 +237,16 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 				}
 
 				for entry := range ls.Stream(childCtx, opts) {
+					msg := s.Stop()
+
 					fmt.Println("\t", entry.Message)
 
 					// watch for the shutdown message
 					if entry.Message == "Starting clean up." {
 						cancel()
 					}
+
+					s.StartWithMessage(msg)
 				}
 
 				if err = ls.Err(); (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) && ctx.Err() == nil {
@@ -291,7 +296,7 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 
 		for rc := range rcUpdates {
 			msg := fmt.Sprintf("Running release task (%s)...", rc.Status)
-			cc.IO.ChangeProgressIndicatorMsg(msg)
+			s.Set(msg)
 
 			if rc.InstanceID != nil {
 				startLogs(logsCtx, *rc.InstanceID)
@@ -299,7 +304,7 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 
 			if !rc.InProgress && rc.Failed {
 				if rc.Succeeded && interactive {
-					cc.IO.StopProgressIndicatorMsg("Running release task... Done.")
+					s.StopWithMessage("Running release task... Done.")
 				} else if rc.Failed {
 					return errors.New("Release command failed, deployment aborted")
 				}
