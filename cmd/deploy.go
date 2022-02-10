@@ -299,7 +299,7 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 
 			if !rc.InProgress && rc.Failed {
 				if rc.Succeeded && interactive {
-					cc.IO.ChangeProgressIndicatorMsg("Running release task... Done.")
+					cc.IO.StopProgressIndicatorMsg("Running release task... Done.")
 				} else if rc.Failed {
 					return errors.New("Release command failed, deployment aborted")
 				}

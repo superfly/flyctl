@@ -233,7 +233,7 @@ func ReleaseCommand(ctx context.Context, id string) error {
 
 			if !rc.InProgress && rc.Failed {
 				if rc.Succeeded && interactive {
-					io.ChangeProgressIndicatorMsg("Running release task... Done.")
+					io.StopProgressIndicatorMsg("Running release task... Done.")
 				} else if rc.Failed {
 					return fmt.Errorf("release command failed, deployment aborted")
 				}
