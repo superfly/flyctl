@@ -215,6 +215,13 @@ func (client *Client) GetMachine(ctx context.Context, appID, machineID string) (
 					  maskSize  
 					}
 				}
+				events{
+					nodes{
+						id
+						kind
+						timestamp
+					}
+				}
 			}
 		}
 	}
