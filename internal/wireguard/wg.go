@@ -59,7 +59,7 @@ func StateForOrg(apiClient *api.Client, org *api.Organization, regionCode string
 			return nil, err
 		}
 
-		name = fmt.Sprintf("agent-%s", n)
+		name = fmt.Sprintf("interactive-agent-%s", n)
 	}
 
 	stateb, err := Create(apiClient, org, regionCode, name)
