@@ -32,6 +32,7 @@ func newWireGuardCommand(client *client.Client) *Command {
 	child(cmd, runWireGuardList, "wireguard.list").Args = cobra.MaximumNArgs(1)
 	child(cmd, runWireGuardCreate, "wireguard.create").Args = cobra.MaximumNArgs(4)
 	child(cmd, runWireGuardRemove, "wireguard.remove").Args = cobra.MaximumNArgs(2)
+	child(cmd, runWireGuardStat, "wireguard.status").Args = cobra.MaximumNArgs(2)
 
 	tokens := child(cmd, nil, "wireguard.token")
 
@@ -271,6 +272,66 @@ func runWireGuardRemove(cmdCtx *cmdctx.CmdContext) error {
 	fmt.Println("Removed peer.")
 
 	return wireguard.PruneInvalidPeers(ctx, cmdCtx.Client.API())
+}
+
+func runWireGuardStat(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
+	client := cmdCtx.Client.API()
+
+	org, err := orgByArg(cmdCtx)
+	if err != nil {
+		return err
+	}
+
+	var name string
+	if len(cmdCtx.Args) >= 2 {
+		name = cmdCtx.Args[1]
+	} else {
+		name, err = selectWireGuardPeer(ctx, cmdCtx.Client.API(), org.Slug)
+		if err != nil {
+			return err
+		}
+	}
+
+	status, err := client.GetWireGuardPeerStatus(ctx, org.Slug, name)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Alive: %+v\n", status.Live)
+
+	if status.WgError != "" {
+		fmt.Printf("Gateway error: %s\n", status.WgError)
+	}
+
+	if !status.Live {
+		return nil
+	}
+
+	if status.Endpoint != "" {
+		fmt.Printf("Last Source Address: %s\n", status.Endpoint)
+	}
+
+	ago := ""
+	if status.SinceAdded != "" {
+		ago = " (" + status.SinceAdded + " ago)"
+	}
+
+	if status.LastHandshake != "" {
+		fmt.Printf("Last Handshake At: %s%s\n", status.LastHandshake, ago)
+	}
+
+	ago = ""
+	if status.SinceHandshake != "" {
+		ago = " (" + status.SinceHandshake + " ago)"
+	}
+
+	fmt.Printf("Installed On Gateway At: %s%s\n", status.Added, ago)
+
+	fmt.Printf("Traffic: rx:%d tx:%d\n", status.Rx, status.Tx)
+
+	return nil
 }
 
 func runWireGuardTokenList(cmdCtx *cmdctx.CmdContext) error {

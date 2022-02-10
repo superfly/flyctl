@@ -848,6 +848,10 @@ number to operate. This can be found through the volumes list command`,
 		return KeyStrings{"remove [org] [name]", "Remove a WireGuard peer connection",
 			`Remove a WireGuard peer connection from an organization`,
 		}
+	case "wireguard.status":
+		return KeyStrings{"status [org] [name]", "Get status a WireGuard peer connection",
+			`Get status for a WireGuard peer connection`,
+		}
 	case "wireguard.token":
 		return KeyStrings{"token <command>", "Commands that managed WireGuard delegated access tokens",
 			`Commands that managed WireGuard delegated access tokens`,
