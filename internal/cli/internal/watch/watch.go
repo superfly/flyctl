@@ -4,13 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/briandowns/spinner"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/superfly/flyctl/api"
@@ -24,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/deployment"
 	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/spinner"
 )
 
 func Deployment(ctx context.Context) error {
@@ -151,14 +150,8 @@ func ReleaseCommand(ctx context.Context, id string) error {
 	interactive := io.IsInteractive()
 	appName := app.NameFromContext(ctx)
 
-	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
-	s.Writer = os.Stderr
-	s.Prefix = "Running release task..."
-
-	if interactive {
-		s.Start()
-		defer s.Stop()
-	}
+	s := spinner.Run(io, "Running release task ...")
+	defer s.Stop()
 
 	rcUpdates := make(chan api.ReleaseCommand)
 
@@ -179,10 +172,7 @@ func ReleaseCommand(ctx context.Context, id string) error {
 			}
 
 			for entry := range ls.Stream(childCtx, opts) {
-				if interactive {
-					s.Stop()
-					defer s.Start()
-				}
+				msg := s.Stop()
 
 				fmt.Fprintln(io.Out, "\t", entry.Message)
 
@@ -190,6 +180,8 @@ func ReleaseCommand(ctx context.Context, id string) error {
 				if entry.Message == "Starting clean up." {
 					cancel()
 				}
+
+				s.StartWithMessage(msg)
 			}
 
 			if err = ls.Err(); errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
@@ -237,9 +229,8 @@ func ReleaseCommand(ctx context.Context, id string) error {
 		defer time.AfterFunc(3*time.Second, logsCancel)
 
 		for rc := range rcUpdates {
-			if interactive {
-				s.Prefix = fmt.Sprintf("Running release task (%s)...", rc.Status)
-			}
+			msg := fmt.Sprintf("Running release task (%s)...", rc.Status)
+			s.Set(msg)
 
 			if rc.InstanceID != nil {
 				startLogs(logsCtx, *rc.InstanceID)
@@ -247,7 +238,7 @@ func ReleaseCommand(ctx context.Context, id string) error {
 
 			if !rc.InProgress && rc.Failed {
 				if rc.Succeeded && interactive {
-					s.FinalMSG = "Running release task...Done\n"
+					s.StopWithMessage("Running release task... Done.")
 				} else if rc.Failed {
 					return fmt.Errorf("release command failed, deployment aborted")
 				}
