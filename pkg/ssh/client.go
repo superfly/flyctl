@@ -32,6 +32,12 @@ func (c *Client) Close() error {
 	return nil
 }
 
+type connResp struct {
+	err    error
+	conn   ssh.Conn
+	client *ssh.Client
+}
+
 func (c *Client) Connect(ctx context.Context) error {
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(c.Certificate))
 	if err != nil {
@@ -67,13 +73,34 @@ func (c *Client) Connect(ctx context.Context) error {
 		HostKeyAlgorithms: []string{ssh.KeyAlgoED25519},
 	}
 
-	conn, chans, reqs, err := ssh.NewClientConn(tcpConn, tcpConn.RemoteAddr().String(), conf)
-	if err != nil {
-		return err
-	}
+	respCh := make(chan connResp)
 
-	c.conn, c.client = conn, ssh.NewClient(conn, chans, reqs)
-	return nil
+	// ssh.NewClientConn doesn't take a context, so we need to handle cancelation on our end
+	go func() {
+		conn, chans, reqs, err := ssh.NewClientConn(tcpConn, tcpConn.RemoteAddr().String(), conf)
+		if err != nil {
+			respCh <- connResp{err: err}
+			return
+		}
+
+		client := ssh.NewClient(conn, chans, reqs)
+
+		respCh <- connResp{nil, conn, client}
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case resp := <-respCh:
+			if resp.err != nil {
+				return resp.err
+			}
+			c.conn = resp.conn
+			c.client = resp.client
+			return nil
+		}
+	}
 }
 
 func (c *Client) Shell(ctx context.Context, term *Terminal, cmd string) error {
