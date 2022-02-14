@@ -254,7 +254,7 @@ func runAppCheckList(cmdCtx *cmdctx.CmdContext) error {
 		nameFilter = api.StringPointer(val)
 	}
 
-	checks, err := cmdCtx.Client.API().GetAppHealthChecks(ctx, cmdCtx.AppName, nameFilter, nil, api.BoolPointer(true))
+	checks, err := cmdCtx.Client.API().GetAppHealthChecks(ctx, cmdCtx.AppName, nameFilter, nil, api.BoolPointer(false))
 	if err != nil {
 		return err
 	}
