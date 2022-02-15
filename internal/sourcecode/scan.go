@@ -11,7 +11,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 )
 
-//go:embed templates templates/*/.dockerignore
+//go:embed templates templates/*/.dockerignore templates/*/.fly
 var content embed.FS
 
 type InitCommand struct {
@@ -386,16 +386,17 @@ func configureRedwood(sourceDir string) (*SourceInfo, error) {
 		Env: map[string]string{
 			"PORT": "8911",
 		},
-		Statics: []Static{
-			{
-				GuestPath: "/app/web/dist",
-				UrlPrefix: "/",
-			},
-		},
+		// Nginx serves statics with cache headers, so don't use statics
+		// Statics: []Static{
+		// 	{
+		// 		GuestPath: "/app/web/dist",
+		// 		UrlPrefix: "/",
+		// 	},
+		// },
 		ReleaseCmd: "npx prisma migrate deploy --schema '/app/api/db/schema.prisma'",
 		PostgresInitCommands: []InitCommand{
 			{
-				Command:     "scripts/switch_prisma_provider.sh",
+				Command:     ".fly/switch_prisma_provider.sh",
 				Description: "Switching the prisma provider to postgresql",
 				Condition:   checksPass(sourceDir, fileExists("api/db/schema.prisma")),
 			},
