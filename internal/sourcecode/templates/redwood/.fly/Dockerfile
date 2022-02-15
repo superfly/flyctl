@@ -23,13 +23,13 @@ COPY api api
 RUN yarn rw build api
 
 FROM $BASE_IMAGE
-RUN apt-get update && apt-get install -y nginx bash
+RUN apt-get update && apt-get install -y nginx bash tmux curl
 
 RUN curl -L https://github.com/DarthSim/overmind/releases/download/v2.2.2/overmind-v2.2.2-linux-amd64.gz -o overmind.gz \
     && gunzip overmind.gz \
     && mv overmind /usr/local/bin
 
-RUN chmod +x /usr/local/bin/hivemind
+RUN chmod +x /usr/local/bin/overmind
 
 WORKDIR /app
 
@@ -49,4 +49,4 @@ COPY --from=api_build /app/node_modules/.prisma /app/node_modules/.prisma
 
 EXPOSE 8911 8080
 COPY .fly .fly
-CMD ["/usr/local/bin/overmind", ".fly/Procfile"]
+CMD ["/usr/local/bin/overmind", "start", "-f", "/app/.fly/Procfile"]

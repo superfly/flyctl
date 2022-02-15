@@ -1,2 +1,2 @@
 rw: yarn rw-server api --port 8911 --rootPath /.redwood/functions
-nginx: nginx -c .fly/nginx.conf
+nginx: nginx -c /app/.fly/nginx.conf
