@@ -1,6 +1,7 @@
 package presenters
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/superfly/flyctl/api"
@@ -18,7 +19,7 @@ func (p *MachineEvents) APIStruct() interface{} {
 
 // FieldNames - returns the field names for an allocation event
 func (p *MachineEvents) FieldNames() []string {
-	return []string{"Id", "Kind", "Timestamp", `Diff`}
+	return []string{"Timestamp", "Id", "Kind", `Exit Code`}
 }
 
 // Records - formats allocation events into a map
@@ -26,11 +27,18 @@ func (p *MachineEvents) Records() []map[string]string {
 	out := []map[string]string{}
 
 	for _, event := range p.Events {
+
+		var exitCode string
+
+		if event.ExitCode != nil {
+			exitCode = fmt.Sprintf("%d", *event.ExitCode)
+		}
+
 		out = append(out, map[string]string{
 			"Id":        event.ID,
 			"Kind":      event.Kind,
 			"Timestamp": event.Timestamp.Format(time.RFC3339),
-			"Diff":      "{\"ok\":\"diff object goes here\"}",
+			`Exit Code`: exitCode,
 		})
 	}
 

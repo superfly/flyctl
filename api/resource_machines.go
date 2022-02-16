@@ -220,6 +220,10 @@ func (client *Client) GetMachine(ctx context.Context, appID, machineID string) (
 						id
 						kind
 						timestamp
+						...on MachineEventExit {
+							exitCode
+							oomKilled              	
+						}
 					}
 				}
 			}

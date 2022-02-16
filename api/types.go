@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -1278,8 +1279,43 @@ type DeleteOrganizationMembershipPayload struct {
 }
 
 type MachineEvent struct {
-	ID        string    `jdon:"id"`
-	Kind      string    `json:"kind"`
-	Timestamp time.Time `json:"timestamp"`
-	// Body      interface{} `json:"body"`
+	ID        string
+	Kind      string
+	Timestamp time.Time
+	ExitCode  *int
+	OOMKilled bool
+	// Body      map[string]interface{}
+}
+
+func (e *MachineEvent) UnmarshalJSON(data []byte) error {
+	raw := map[string]interface{}{}
+
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	e.ID = raw["id"].(string)
+	delete(raw, "id")
+	e.Kind = raw["kind"].(string)
+	delete(raw, "kind")
+	timstamp, err := time.Parse(time.RFC3339, raw["timestamp"].(string))
+	if err != nil {
+		return err
+	}
+	e.Timestamp = timstamp
+	delete(raw, "timestamp")
+
+	// check if  exitCode and oomKilled are present and set them
+	if raw["exitCode"] != nil {
+		e.ExitCode = new(int)
+		*e.ExitCode = int(raw["exitCode"].(float64))
+		delete(raw, "exitCode")
+	}
+
+	if raw["oomKilled"] != nil {
+		e.OOMKilled = raw["oomKilled"].(bool)
+		delete(raw, "oomKilled")
+	}
+
+	return nil
 }
