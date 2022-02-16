@@ -262,7 +262,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 	}
 
 	var buildArgs map[string]string
-	if buildArgs, err = mergeBuildArgs(ctx, build.Args); err != nil {
+	if buildArgs, err = mergeBuildArgs(ctx, build.Args, appConfig, client); err != nil {
 		return
 	}
 
@@ -309,10 +309,27 @@ func resolveDockerfilePath(ctx context.Context, appConfig *app.Config) (path str
 	return
 }
 
-func mergeBuildArgs(ctx context.Context, args map[string]string) (map[string]string, error) {
+func mergeBuildArgs(ctx context.Context, args map[string]string, appConfig *app.Config, client *api.Client) (map[string]string, error) {
 
 	if args == nil {
 		args = make(map[string]string)
+	}
+
+	// Add placeholder build-args for secrets
+	secrets, err := client.GetAppSecrets(ctx, app.NameFromContext(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("failed fetching app secrets: %w", err)
+	}
+
+	for _, secret := range secrets {
+		args[secret.Name] = "<placeholder-secret>"
+	}
+
+	// Add placeholder build-args for envs
+	env := appConfig.GetEnvVariables()
+
+	for key := range env {
+		args[key] = "<placeholder-env>"
 	}
 
 	// set additional Docker build args from the command line, overriding similar ones from the config

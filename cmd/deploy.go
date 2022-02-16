@@ -96,8 +96,30 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 			return err
 		}
 	} else {
+		buildArgs := make(map[string]string)
 
-		var buildArgs map[string]string
+		// Add placeholder build-args for secrets
+		secrets, err := cmdCtx.Client.API().GetAppSecrets(ctx, cmdCtx.AppName)
+		if err != nil {
+			return err
+		}
+
+		for _, secret := range secrets {
+			buildArgs[secret.Name] = "<placeholder-secret>"
+		}
+
+		// Add placeholder build-args for envs
+		var env map[string]interface{}
+
+		if rawEnv, ok := cmdCtx.AppConfig.Definition["env"]; ok {
+			if castEnv, ok := rawEnv.(map[string]interface{}); ok {
+				env = castEnv
+			}
+		}
+
+		for key := range env {
+			buildArgs[key] = "<placeholder-env>"
+		}
 
 		opts := imgsrc.ImageOptions{
 			AppName:    cmdCtx.AppName,
@@ -114,7 +136,9 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 			opts.Buildpacks = cmdCtx.AppConfig.Build.Buildpacks
 
 			if cmdCtx.AppConfig.Build.Args != nil {
-				buildArgs = cmdCtx.AppConfig.Build.Args
+				for k, v := range cmdCtx.AppConfig.Build.Args {
+					buildArgs[k] = v
+				}
 			}
 		}
 
