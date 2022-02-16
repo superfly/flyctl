@@ -19,7 +19,7 @@ func (p *MachineEvents) APIStruct() interface{} {
 
 // FieldNames - returns the field names for an allocation event
 func (p *MachineEvents) FieldNames() []string {
-	return []string{"Timestamp", "Id", "Kind", `Exit Code`}
+	return []string{"Timestamp", "Id", "Kind", "Exit Code"}
 }
 
 // Records - formats allocation events into a map
@@ -38,7 +38,7 @@ func (p *MachineEvents) Records() []map[string]string {
 			"Id":        event.ID,
 			"Kind":      event.Kind,
 			"Timestamp": event.Timestamp.Format(time.RFC3339),
-			`Exit Code`: exitCode,
+			"Exit Code": exitCode,
 		})
 	}
 
