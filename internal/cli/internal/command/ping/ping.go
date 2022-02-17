@@ -204,35 +204,7 @@ func run(ctx context.Context) error {
 
 	ticker := time.NewTicker(interval)
 
-	var timeLen = 0
-
-	msg := func(id, seq int, t time.Time, pad uint) []byte {
-		tbuf, _ := t.MarshalBinary()
-		timeLen = len(tbuf)
-		buf := &bytes.Buffer{}
-		buf.Write(tbuf)
-		buf.Grow(int(pad))
-		for i := uint(0); i < pad; i++ {
-			buf.WriteByte('A')
-		}
-
-		msg := icmp.Message{
-			Type: ipv6.ICMPTypeEchoRequest,
-			Code: 0,
-			Body: &icmp.Echo{
-				ID:   id,
-				Seq:  seq,
-				Data: buf.Bytes(),
-			},
-		}
-
-		raw, err := msg.Marshal(nil)
-		if err != nil {
-			log.Panicf("marshal icmp: %s", err)
-		}
-
-		return raw
-	}
+	timeLen := 15
 
 	type reply struct {
 		src net.Addr
@@ -319,7 +291,7 @@ func run(ctx context.Context) error {
 
 		for target := range targets {
 			// BUG(tqbf): stop re-parsing these stupid addresses
-			_, err = pinger.WriteTo(msg(0, i, time.Now(), pad), &net.IPAddr{IP: net.ParseIP(target)})
+			_, err = pinger.WriteTo(EchoRequest(0, i, time.Now(), pad), &net.IPAddr{IP: net.ParseIP(target)})
 			if err != nil {
 				return err
 			}
@@ -329,4 +301,31 @@ func run(ctx context.Context) error {
 	cancel()
 
 	return nil
+}
+
+func EchoRequest(id, seq int, t time.Time, pad uint) []byte {
+	tbuf, _ := t.MarshalBinary()
+	buf := &bytes.Buffer{}
+	buf.Write(tbuf)
+	buf.Grow(int(pad))
+	for i := uint(0); i < pad; i++ {
+		buf.WriteByte('A')
+	}
+
+	msg := icmp.Message{
+		Type: ipv6.ICMPTypeEchoRequest,
+		Code: 0,
+		Body: &icmp.Echo{
+			ID:   id,
+			Seq:  seq,
+			Data: buf.Bytes(),
+		},
+	}
+
+	raw, err := msg.Marshal(nil)
+	if err != nil {
+		log.Panicf("marshal icmp: %s", err)
+	}
+
+	return raw
 }
