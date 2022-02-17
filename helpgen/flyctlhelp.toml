@@ -971,6 +971,11 @@ longHelp = """Add a WireGuard peer connection to an organization"""
 shortHelp = "Add a WireGuard peer connection"
 usage = "create [org] [region] [name]"
 
+[wireguard.reset]
+longHelp = """Reset WireGuard peer connection for an organization"""
+shortHelp = "Reset WireGuard peer connection for an organization"
+usage = "reset [org]"
+  
 [wireguard.remove]
 longHelp = """Remove a WireGuard peer connection from an organization"""
 shortHelp = "Remove a WireGuard peer connection"

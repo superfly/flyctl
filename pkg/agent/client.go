@@ -233,9 +233,14 @@ type EstablishResponse struct {
 	TunnelConfig   *wg.Config
 }
 
-func (c *Client) Establish(ctx context.Context, slug string) (res *EstablishResponse, err error) {
+func (c *Client) doEstablish(ctx context.Context, slug string, recycle bool) (res *EstablishResponse, err error) {
 	err = c.do(ctx, func(conn net.Conn) (err error) {
-		if err = proto.Write(conn, "establish", slug); err != nil {
+		verb := "establish"
+		if recycle {
+			verb = "reestablish"
+		}
+
+		if err = proto.Write(conn, verb, slug); err != nil {
 			return
 		}
 
@@ -261,6 +266,14 @@ func (c *Client) Establish(ctx context.Context, slug string) (res *EstablishResp
 	})
 
 	return
+}
+
+func (c *Client) Establish(ctx context.Context, slug string) (res *EstablishResponse, err error) {
+	return c.doEstablish(ctx, slug, false)
+}
+
+func (c *Client) Reestablish(ctx context.Context, slug string) (res *EstablishResponse, err error) {
+	return c.doEstablish(ctx, slug, true)
 }
 
 func (c *Client) Probe(ctx context.Context, slug string) error {

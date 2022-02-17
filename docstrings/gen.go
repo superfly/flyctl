@@ -848,6 +848,10 @@ number to operate. This can be found through the volumes list command`,
 		return KeyStrings{"remove [org] [name]", "Remove a WireGuard peer connection",
 			`Remove a WireGuard peer connection from an organization`,
 		}
+	case "wireguard.reset":
+		return KeyStrings{"reset [org]", "Reset WireGuard peer connection for an organization",
+			`Reset WireGuard peer connection for an organization`,
+		}
 	case "wireguard.status":
 		return KeyStrings{"status [org] [name]", "Get status a WireGuard peer connection",
 			`Get status for a WireGuard peer connection`,

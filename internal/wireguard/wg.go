@@ -24,12 +24,12 @@ var (
 	cleanDNSPattern = regexp.MustCompile(`[^a-zA-Z0-9\\-]`)
 )
 
-func StateForOrg(apiClient *api.Client, org *api.Organization, regionCode string, name string) (*wg.WireGuardState, error) {
+func StateForOrg(apiClient *api.Client, org *api.Organization, regionCode, name string, recycle bool) (*wg.WireGuardState, error) {
 	state, err := getWireGuardStateForOrg(org.Slug)
 	if err != nil {
 		return nil, err
 	}
-	if state != nil {
+	if state != nil && !recycle {
 		return state, nil
 	}
 
