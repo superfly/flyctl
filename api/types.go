@@ -1282,40 +1282,35 @@ type MachineEvent struct {
 	ID        string
 	Kind      string
 	Timestamp time.Time
+	Metadata  map[string]interface{}
+}
+
+type MachineEventStop struct {
 	ExitCode  *int
 	OOMKilled bool
-	// Body      map[string]interface{}
 }
 
 func (e *MachineEvent) UnmarshalJSON(data []byte) error {
-	raw := map[string]interface{}{}
+	var genericMachineEvent MachineEvent
+	var machineStop MachineEventStop
 
-	if err := json.Unmarshal(data, &raw); err != nil {
+	if err := json.Unmarshal(data, &genericMachineEvent); err != nil {
 		return err
 	}
+	machineBodyinBytes, _ := json.Marshal(genericMachineEvent.Metadata)
 
-	e.ID = raw["id"].(string)
-	delete(raw, "id")
-	e.Kind = raw["kind"].(string)
-	delete(raw, "kind")
-	timstamp, err := time.Parse(time.RFC3339, raw["timestamp"].(string))
-	if err != nil {
-		return err
-	}
-	e.Timestamp = timstamp
-	delete(raw, "timestamp")
-
-	// check if  exitCode and oomKilled are present and set them
-	if raw["exitCode"] != nil {
-		e.ExitCode = new(int)
-		*e.ExitCode = int(raw["exitCode"].(float64))
-		delete(raw, "exitCode")
+	switch genericMachineEvent.Kind {
+	case "exit":
+		if err := json.Unmarshal(machineBodyinBytes, &machineStop); err != nil {
+			return err
+		}
+		e.Metadata["ExitCode"] = machineStop.ExitCode
+		e.Metadata["OOMKilled"] = machineStop.OOMKilled
 	}
 
-	if raw["oomKilled"] != nil {
-		e.OOMKilled = raw["oomKilled"].(bool)
-		delete(raw, "oomKilled")
-	}
+	e.ID = genericMachineEvent.ID
+	e.Kind = genericMachineEvent.Kind
+	e.Timestamp = genericMachineEvent.Timestamp
 
 	return nil
 }
