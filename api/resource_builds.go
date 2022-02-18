@@ -27,8 +27,8 @@ func (c *Client) CreateSignedUrls(ctx context.Context, appId string, filename st
 
 func (c *Client) StartSourceBuild(ctx context.Context, input StartSourceBuildInput) (*SourceBuild, error) {
 	query := `
-		mutation($input: StartSourceBuildInput!) {
-			startSourceBuild(input: $input) {
+		mutation($input: StartBuildInput!) {
+			startBuild(input: $input) {
 				sourceBuild {
 					id
 				}
@@ -44,7 +44,35 @@ func (c *Client) StartSourceBuild(ctx context.Context, input StartSourceBuildInp
 		return nil, err
 	}
 
-	return data.StartSourceBuild.SourceBuild, nil
+	return data.StartBuild.SourceBuild, nil
+}
+
+func (c *Client) UpdateSourceBuild(ctx context.Context, input UpdateSourceBuildInput) (*SourceBuild, error) {
+	query := `
+		mutation($input: UpdateBuildInput!) {
+			updateBuild(input: $input) {
+				sourceBuild {
+					id
+	  				status
+	  				createdBy{
+						email
+	  				}
+	  				logs
+	  				createdAt
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("input", input)
+
+	data, err := c.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return data.StartBuild.SourceBuild, nil
 }
 
 func (c *Client) ListBuilds(ctx context.Context, appName string) ([]SourceBuild, error) {

@@ -214,7 +214,7 @@ type Query struct {
 		Machine *Machine
 	}
 
-	StartSourceBuild struct {
+	StartBuild struct {
 		SourceBuild *SourceBuild
 	}
 
@@ -902,6 +902,12 @@ type VMCountInput struct {
 
 type StartSourceBuildInput struct {
 	AppID string `json:"appId"`
+}
+
+type UpdateSourceBuildInput struct {
+	RecordID string `json:"recordId"`
+	Status   string `json:"status"`
+	Logs     string `json:"logs"`
 }
 
 type BuildArgInput struct {

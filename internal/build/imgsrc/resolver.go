@@ -91,20 +91,50 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 		AppID: opts.AppName,
 	}
 
-	terminal.Debugf("Reporting build")
-	_, err = r.apiClient.StartSourceBuild(ctx, input)
+	terminal.Debug("Reporting build")
+	build, err := r.apiClient.StartSourceBuild(ctx, input)
 
 	if err != nil {
 		terminal.Debugf("Failed storing build")
 	}
 	for _, s := range strategies {
 		terminal.Debugf("Trying '%s' strategy\n", s.Name())
+
 		img, err = s.Run(ctx, r.dockerFactory, streams, opts)
+
 		terminal.Debugf("result image:%+v error:%v\n", img, err)
+
 		if err != nil {
+			input := api.UpdateSourceBuildInput{
+				RecordID: build.ID,
+				Status:   "failed",
+				Logs:     "test_logs",
+			}
+
+			terminal.Debug("Reporting build failure")
+
+			_, err := r.apiClient.UpdateSourceBuild(ctx, input)
+			if err != nil {
+				terminal.Debugf("Failed storing build")
+			}
+
 			return nil, err
 		}
 		if img != nil {
+
+			input := api.UpdateSourceBuildInput{
+				RecordID: build.ID,
+				Status:   "completed",
+				Logs:     "test_logs",
+			}
+
+			terminal.Debug("Reporting build success")
+
+			_, err := r.apiClient.UpdateSourceBuild(ctx, input)
+			if err != nil {
+				terminal.Debugf("Failed storing build")
+			}
+
 			return img, nil
 		}
 	}
