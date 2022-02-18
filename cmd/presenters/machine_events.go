@@ -30,8 +30,8 @@ func (p *MachineEvents) Records() []map[string]string {
 
 		var exitCode string
 
-		if event.ExitCode != nil {
-			exitCode = fmt.Sprintf("%d", *event.ExitCode)
+		if event.Metadata["ExitCode"] != nil {
+			exitCode = fmt.Sprintf("%d", event.Metadata["ExitCode"])
 		}
 
 		out = append(out, map[string]string{
