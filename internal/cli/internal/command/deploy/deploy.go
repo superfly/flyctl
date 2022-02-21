@@ -79,6 +79,10 @@ func New() (cmd *cobra.Command) {
 			Name:        "no-cache",
 			Description: "Do not use the build cache when building the image",
 		},
+		flag.Bool{
+			Name:        "nix",
+			Description: "Build with Nix on a remote builder",
+		},
 	)
 
 	return
@@ -175,6 +179,14 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 
 func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.DeploymentImage, err error) {
 	tb := render.NewTextBlock(ctx, "Building image")
+
+	if flag.GetBool(ctx, "nix") {
+		if img, err = imgsrc.NixSourceBuild(ctx); err != nil {
+			return nil, err
+		} else {
+			return img, nil
+		}
+	}
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx))
 	appName := app.NameFromContext(ctx)
 	client := client.FromContext(ctx).API()
