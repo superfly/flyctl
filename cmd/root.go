@@ -69,7 +69,6 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 		newVMCommand(client),
 		newLaunchCommand(client),
 		newMachineCommand(client),
-		newProxyCommand(client),
 		newTurbokuCommand(client),
 	)
 

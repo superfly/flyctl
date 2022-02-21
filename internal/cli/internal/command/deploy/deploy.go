@@ -175,6 +175,7 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 
 func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.DeploymentImage, err error) {
 	tb := render.NewTextBlock(ctx, "Building image")
+
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx))
 	appName := app.NameFromContext(ctx)
 	client := client.FromContext(ctx).API()
