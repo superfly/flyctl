@@ -23,7 +23,7 @@ func MachineStatuses(w io.Writer, title string, machines ...*api.Machine) error 
 	return Table(w, title, rows,
 		"ID",
 		"Name",
-		"Status",
+		"State",
 		"Region",
 		"Created",
 	)
