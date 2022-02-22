@@ -393,7 +393,9 @@ func flyRegistryAuth() string {
 	return base64.URLEncoding.EncodeToString(encodedJSON)
 }
 
-func newDeploymentTag(appName string, label string) string {
+// NewDeploymentTag generates a Docker image reference including the current registry,
+// the app name, and a timestamp: registry.fly.io/appname:deployment-$timestamp
+func NewDeploymentTag(appName string, label string) string {
 	if tag := os.Getenv("FLY_IMAGE_REF"); tag != "" {
 		return tag
 	}

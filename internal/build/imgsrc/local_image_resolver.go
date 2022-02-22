@@ -28,7 +28,7 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 	}
 
 	if opts.Tag == "" {
-		opts.Tag = newDeploymentTag(opts.AppName, opts.ImageLabel)
+		opts.Tag = NewDeploymentTag(opts.AppName, opts.ImageLabel)
 	}
 
 	docker, err := dockerFactory.buildFn(ctx)

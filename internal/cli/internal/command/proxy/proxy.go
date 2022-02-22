@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -10,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/proxy"
 )
 
@@ -42,16 +42,14 @@ func New() *cobra.Command {
 func run(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
 	appName := app.NameFromContext(ctx)
-
 	args := flag.Args(ctx)
 
 	app, err := client.GetApp(ctx, appName)
-	if err != nil {
-		return fmt.Errorf("get app: %w", err)
-	}
+	agentclient, err := agent.Establish(ctx, client)
+	dialer, err := agentclient.ConnectToTunnel(ctx, app.Organization.Slug)
 
 	ports := strings.Split(args[0], ":")
 
-	proxy.Connect(ctx, ports, app, flag.GetBool(ctx, "select"))
-	return nil
+	proxy.Connect(ctx, ports, app, &dialer, flag.GetBool(ctx, "select"))
+	return err
 }

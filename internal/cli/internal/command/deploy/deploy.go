@@ -4,25 +4,34 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
+	"github.com/zloylos/grsync"
 
 	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/pkg/proxy"
+	"github.com/superfly/flyctl/pkg/retry"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
+	"github.com/superfly/flyctl/internal/cli/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/cli/internal/state"
+
 	"github.com/superfly/flyctl/internal/cli/internal/watch"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/pkg/agent"
 )
 
 func New() (cmd *cobra.Command) {
@@ -96,6 +105,11 @@ func run(ctx context.Context) error {
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
 	img, err := determineImage(ctx, appConfig)
+
+	if img == nil {
+		return err
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed to fetch an image or build from source: %w", err)
 	}
@@ -179,9 +193,10 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 
 func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.DeploymentImage, err error) {
 	tb := render.NewTextBlock(ctx, "Building image")
+	workingDirectory := state.WorkingDirectory(ctx)
 
 	if flag.GetBool(ctx, "nix") {
-		if img, err = imgsrc.NixSourceBuild(ctx); err != nil {
+		if img, err = NixSourceBuild(ctx, workingDirectory); err != nil {
 			return nil, err
 		} else {
 			return img, nil
@@ -337,4 +352,87 @@ func createRelease(ctx context.Context, appConfig *app.Config, img *imgsrc.Deplo
 	}
 
 	return release, releaseCommand, err
+}
+
+func NixSourceBuild(ctx context.Context, workingDirectory string) (img *imgsrc.DeploymentImage, err error) {
+	//io := iostreams.FromContext(ctx)
+	appName := app.NameFromContext(ctx)
+	client := client.FromContext(ctx).API()
+	ports := []string{"8873", "873"}
+	builderApp, err := client.GetApp(ctx, "fly-apps-nix-builder")
+	agentclient, err := agent.Establish(ctx, client)
+	dialer, err := agentclient.ConnectToTunnel(ctx, builderApp.Organization.Slug)
+
+	proxyCtx, cancelProxy := context.WithCancel(ctx)
+
+	// run a proxy from local 30800 to remote 370 (rsyncd)
+	go func() {
+		proxy.Connect(proxyCtx, ports, builderApp, &dialer, false)
+	}()
+
+	task := grsync.NewTask(
+		workingDirectory,
+		"rsync://localhost:8873/source",
+		grsync.RsyncOptions{
+			Archive: true,
+			Owner:   false,
+			Group:   false,
+			Perms:   false,
+			Exclude: []string{"tmp"},
+		},
+	)
+
+	fn := func() error {
+		time.Sleep(1 * time.Second)
+		fmt.Printf("Conencting to %s", "localhost:8873")
+		return raw_connect(ctx, "localhost:8873")
+	}
+
+	if err := retry.Retry(fn, 10); err != nil {
+		panic(err)
+	}
+	fmt.Println("connected, now trying rsync")
+
+	if err := task.Run(); err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Println(task.Log())
+	fmt.Println("Running Nix build")
+
+	tag := imgsrc.NewDeploymentTag(appName, "nix")
+
+	err = ssh.SSHConnect(&ssh.SSHParams{
+		Ctx:            ctx,
+		Org:            &builderApp.Organization,
+		Dialer:         dialer,
+		App:            builderApp.Name,
+		Cmd:            "/source/rails-nix/run-fly.sh " + tag,
+		Stdin:          os.Stdin,
+		Stdout:         os.Stdout,
+		Stderr:         os.Stderr,
+		DisableSpinner: true,
+	}, "fly-apps-nix-builder.internal")
+
+	cancelProxy()
+
+	//resp, err := ssh.RunSSHCommand(ctx, app, dialer, nil, "/source/rails-nix/run-fly.sh")
+	//fmt.Println(string(resp[:]))
+	di := &imgsrc.DeploymentImage{
+		Size: 10,
+		Tag:  tag,
+		ID:   tag,
+	}
+
+	return di, err
+}
+
+func raw_connect(ctx context.Context, host string) (err error) {
+	timeout := time.Second
+	conn, err := net.DialTimeout("tcp", host, timeout)
+
+	if conn != nil {
+		fmt.Println("Opened", host)
+	}
+	return
 }

@@ -19,6 +19,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/superfly/flyctl/pkg/agent/internal/proto"
+	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/pkg/wg"
 
 	"github.com/superfly/flyctl/api"
@@ -399,6 +400,8 @@ func unmarshal(dst interface{}, data []byte) (err error) {
 	return
 }
 
+// Dialer establishes a connection to the wireguard agent and return a dialier
+// for use in subsequent actions, such as running ssh commands or opening proxies
 func (c *Client) Dialer(ctx context.Context, slug string) (d Dialer, err error) {
 	var er *EstablishResponse
 	if er, err = c.Establish(ctx, slug); err == nil {
@@ -411,6 +414,23 @@ func (c *Client) Dialer(ctx context.Context, slug string) (d Dialer, err error) 
 	}
 
 	return
+}
+
+// ConnectToTunnel is a convenience method for connect to a wireguard tunnel
+// and returning a Dialer. Only suitable for use in the new CLI commands.
+func (c *Client) ConnectToTunnel(ctx context.Context, slug string) (d Dialer, err error) {
+	io := iostreams.FromContext(ctx)
+
+	dialer, err := c.Dialer(ctx, slug)
+	if err != nil {
+		return nil, err
+	}
+	io.StartProgressIndicatorMsg("Connecting to tunnel")
+	if err := c.WaitForTunnel(ctx, slug); err != nil {
+		return nil, fmt.Errorf("tunnel unavailable %w", err)
+	}
+	io.StopProgressIndicator()
+	return dialer, err
 }
 
 // TODO: refactor to struct

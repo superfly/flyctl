@@ -15,7 +15,7 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-func Connect(ctx context.Context, ports []string, app *api.App, selectInstance bool) (err error) {
+func Connect(ctx context.Context, ports []string, app *api.App, dialer *agent.Dialer, selectInstance bool) (err error) {
 
 	var (
 		io     = iostreams.FromContext(ctx)
@@ -57,19 +57,6 @@ func Connect(ctx context.Context, ports []string, app *api.App, selectInstance b
 		return err
 	}
 
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
-	if err != nil {
-		captureError(err)
-		return err
-	}
-
-	io.StartProgressIndicatorMsg("Connecting to tunnel")
-	if err := agentclient.WaitForTunnel(ctx, app.Organization.Slug); err != nil {
-		captureError(err)
-		return fmt.Errorf("tunnel unavailable %w", err)
-	}
-	io.StopProgressIndicator()
-
 	if selectInstance {
 		instances, err := agentclient.Instances(ctx, &app.Organization, app.Name)
 		if err != nil {
@@ -109,7 +96,7 @@ func Connect(ctx context.Context, ports []string, app *api.App, selectInstance b
 	params := &ProxyParams{
 		LocalAddr:  local,
 		RemoteAddr: remote,
-		Dialer:     dialer,
+		Dialer:     *dialer,
 	}
 
 	if err := proxyConnect(ctx, params); err != nil {
