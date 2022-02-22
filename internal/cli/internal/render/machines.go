@@ -14,8 +14,8 @@ func MachineStatuses(w io.Writer, title string, machines ...*api.Machine) error 
 		rows = append(rows, []string{
 			machine.ID,
 			machine.Name,
-			machine.State,
 			machine.Region,
+			machine.State,
 			machine.CreatedAt.Format(time.RFC3339),
 		})
 	}
@@ -23,8 +23,8 @@ func MachineStatuses(w io.Writer, title string, machines ...*api.Machine) error 
 	return Table(w, title, rows,
 		"ID",
 		"Name",
-		"State",
 		"Region",
+		"State",
 		"Created",
 	)
 }
