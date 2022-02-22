@@ -42,6 +42,7 @@ func (dm *DeploymentMonitor) start(ctx context.Context) <-chan *deploymentStatus
 
 	go func() {
 		var currentDeployment *deploymentStatus
+		nextNonNilDeploymentIsNew := false
 
 		defer func() {
 			if currentDeployment != nil {
@@ -67,6 +68,8 @@ func (dm *DeploymentMonitor) start(ctx context.Context) <-chan *deploymentStatus
 			// wait for a deployment for up to 30 seconds. Could be due to a delay submitting the job or because
 			// there is no active deployment
 			if deployment == nil {
+				// if we got a nil deployment, it means the next one will be the one we wanna track
+				nextNonNilDeploymentIsNew = true
 				if time.Now().After(startTime.Add(5 * time.Minute)) {
 					// nothing to show after 5 minutes, break
 					return ErrNoDeployment
@@ -79,7 +82,7 @@ func (dm *DeploymentMonitor) start(ctx context.Context) <-chan *deploymentStatus
 				return errDeploymentComplete
 			}
 
-			if currentDeployment == nil && !deployment.InProgress {
+			if !nextNonNilDeploymentIsNew && currentDeployment == nil && !deployment.InProgress {
 				// wait for deployment (new deployment not yet created)
 				return errDeploymentNotReady
 			}
