@@ -42,7 +42,7 @@ func runMonitor(commandContext *cmdctx.CmdContext) (err error) {
 }
 
 func monitorDeployment(cmdCtx cmdctx.CmdContext) error {
-	monitor := deployment.NewDeploymentMonitor(cmdCtx.Client.API(), cmdCtx.AppName)
+	monitor := deployment.NewDeploymentMonitor(cmdCtx.Client.API(), cmdCtx.AppName, "")
 	monitor.DeploymentStarted = func(idx int, d *api.DeploymentStatus) error {
 		if idx > 0 {
 			fmt.Println()

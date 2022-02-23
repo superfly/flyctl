@@ -17,11 +17,13 @@ func (client *Client) DeployImage(ctx context.Context, input DeployImageInput) (
 							email
 							name
 						}
+						evaluationId
 						createdAt
 					}
 					releaseCommand {
 						id
 						command
+						evaluationId
 					}
 				}
 			}
@@ -39,11 +41,11 @@ func (client *Client) DeployImage(ctx context.Context, input DeployImageInput) (
 	return &data.DeployImage.Release, data.DeployImage.ReleaseCommand, nil
 }
 
-func (c *Client) GetDeploymentStatus(ctx context.Context, appName string, deploymentID string) (*DeploymentStatus, error) {
+func (c *Client) GetDeploymentStatus(ctx context.Context, appName string, deploymentID string, evaluationID string) (*DeploymentStatus, error) {
 	query := `
-		query ($appName: String!, $deploymentId: ID!) {
+		query ($appName: String!, $deploymentId: ID!, $evaluationId: String!) {
 			app(name: $appName) {
-				deploymentStatus(id: $deploymentId) {
+				deploymentStatus(id: $deploymentId, evaluationId: $evaluationId) {
 					id
 					inProgress
 					status
@@ -79,6 +81,7 @@ func (c *Client) GetDeploymentStatus(ctx context.Context, appName string, deploy
 
 	req.Var("appName", appName)
 	req.Var("deploymentId", deploymentID)
+	req.Var("evaluationId", evaluationID)
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {

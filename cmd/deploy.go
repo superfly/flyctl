@@ -203,6 +203,11 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		if err != nil {
 			return err
 		}
+
+		release, err = cmdCtx.Client.API().GetAppRelease(ctx, cmdCtx.AppName, release.ID)
+		if err != nil {
+			return err
+		}
 	}
 
 	if release.DeploymentStrategy == "IMMEDIATE" {
@@ -210,7 +215,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	return watchDeployment(ctx, cmdCtx)
+	return watchDeployment(ctx, cmdCtx, release.EvaluationID)
 }
 
 func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *api.Client, id string) error {
@@ -317,14 +322,14 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 	return g.Wait()
 }
 
-func watchDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext) error {
+func watchDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext, evaluationID string) error {
 	cmdCtx.Status("deploy", cmdctx.STITLE, "Monitoring Deployment")
 
 	interactive := cmdCtx.IO.IsInteractive()
 
 	endmessage := ""
 
-	monitor := deployment.NewDeploymentMonitor(cmdCtx.Client.API(), cmdCtx.AppName)
+	monitor := deployment.NewDeploymentMonitor(cmdCtx.Client.API(), cmdCtx.AppName, evaluationID)
 
 	monitor.DeploymentStarted = func(idx int, d *api.DeploymentStatus) error {
 		if idx > 0 {

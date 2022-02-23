@@ -112,7 +112,7 @@ func runSetSecrets(cc *cmdctx.CmdContext) error {
 
 	cc.Statusf("secrets", cmdctx.SINFO, "Release v%d created\n", release.Version)
 
-	return watchDeployment(ctx, cc)
+	return watchDeployment(ctx, cc, release.EvaluationID)
 }
 
 func runImportSecrets(cc *cmdctx.CmdContext) error {
@@ -193,7 +193,7 @@ func runImportSecrets(cc *cmdctx.CmdContext) error {
 
 	cc.Statusf("secrets", cmdctx.SINFO, "Release v%d created\n", release.Version)
 
-	return watchDeployment(ctx, cc)
+	return watchDeployment(ctx, cc, release.EvaluationID)
 }
 
 func runSecretsUnset(cc *cmdctx.CmdContext) error {
@@ -220,5 +220,5 @@ func runSecretsUnset(cc *cmdctx.CmdContext) error {
 
 	cc.Statusf("secrets", cmdctx.SINFO, "Release v%d created\n", release.Version)
 
-	return watchDeployment(ctx, cc)
+	return watchDeployment(ctx, cc, release.EvaluationID)
 }

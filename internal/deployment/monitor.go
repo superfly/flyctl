@@ -14,15 +14,18 @@ var ErrNoDeployment = errors.New("No deployment available to monitor")
 var errDeploymentNotReady = errors.New("Deployment not ready to monitor")
 var errDeploymentComplete = errors.New("Deployment is already complete")
 
-func NewDeploymentMonitor(client *api.Client, appID string) *DeploymentMonitor {
+func NewDeploymentMonitor(client *api.Client, appID string, evaluationID string) *DeploymentMonitor {
 	return &DeploymentMonitor{
-		AppID:  appID,
-		client: client,
+		AppID:        appID,
+		evaluationID: evaluationID,
+		client:       client,
 	}
 }
 
 type DeploymentMonitor struct {
 	AppID string
+
+	evaluationID string
 
 	client       *api.Client
 	err          error
@@ -42,7 +45,6 @@ func (dm *DeploymentMonitor) start(ctx context.Context) <-chan *deploymentStatus
 
 	go func() {
 		var currentDeployment *deploymentStatus
-		nextNonNilDeploymentIsNew := false
 
 		defer func() {
 			if currentDeployment != nil {
@@ -60,7 +62,9 @@ func (dm *DeploymentMonitor) start(ctx context.Context) <-chan *deploymentStatus
 		var delay time.Duration
 
 		processFn := func() error {
-			deployment, err := dm.client.GetDeploymentStatus(ctx, dm.AppID, currentID)
+			reqCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
+			deployment, err := dm.client.GetDeploymentStatus(reqCtx, dm.AppID, currentID, dm.evaluationID)
 			if err != nil {
 				return err
 			}
@@ -68,8 +72,6 @@ func (dm *DeploymentMonitor) start(ctx context.Context) <-chan *deploymentStatus
 			// wait for a deployment for up to 30 seconds. Could be due to a delay submitting the job or because
 			// there is no active deployment
 			if deployment == nil {
-				// if we got a nil deployment, it means the next one will be the one we wanna track
-				nextNonNilDeploymentIsNew = true
 				if time.Now().After(startTime.Add(5 * time.Minute)) {
 					// nothing to show after 5 minutes, break
 					return ErrNoDeployment
@@ -77,12 +79,12 @@ func (dm *DeploymentMonitor) start(ctx context.Context) <-chan *deploymentStatus
 				return errDeploymentNotReady
 			}
 
-			if deployment.ID == prevID {
+			if dm.evaluationID == "" && deployment.ID == prevID {
 				// deployment already done, bail
 				return errDeploymentComplete
 			}
 
-			if !nextNonNilDeploymentIsNew && currentDeployment == nil && !deployment.InProgress {
+			if dm.evaluationID == "" && currentDeployment == nil && !deployment.InProgress {
 				// wait for deployment (new deployment not yet created)
 				return errDeploymentNotReady
 			}
@@ -109,6 +111,7 @@ func (dm *DeploymentMonitor) start(ctx context.Context) <-chan *deploymentStatus
 				currentDeployment = nil
 				prevID = currentID
 				currentID = ""
+				return errDeploymentComplete
 			}
 
 			return nil
@@ -127,6 +130,8 @@ func (dm *DeploymentMonitor) start(ctx context.Context) <-chan *deploymentStatus
 				case errDeploymentNotReady:
 					// we're waiting for a deployment, set the poll interval to a small value and continue
 					delay = pollInterval / 2
+				case context.DeadlineExceeded:
+					delay = pollInterval
 				default:
 					dm.err = multierror.Append(err)
 					return
