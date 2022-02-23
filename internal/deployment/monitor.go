@@ -66,6 +66,9 @@ func (dm *DeploymentMonitor) start(ctx context.Context) <-chan *deploymentStatus
 			defer cancel()
 			deployment, err := dm.client.GetDeploymentStatus(reqCtx, dm.AppID, currentID, dm.evaluationID)
 			if err != nil {
+				if ctxErr := reqCtx.Err(); ctxErr != nil {
+					return ctxErr
+				}
 				return err
 			}
 
