@@ -197,8 +197,16 @@ func ReleaseCommand(ctx context.Context, id string) error {
 		defer close(rcUpdates)
 
 		for {
-			rc, err := client.GetReleaseCommand(ctx, id)
+			rc, err := func() (*api.ReleaseCommand, error) {
+				reqCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+				defer cancel()
+				return client.GetReleaseCommand(reqCtx, id)
+			}()
 			if err != nil {
+				if err == context.DeadlineExceeded {
+					// don't increment error count if this is a timeout
+					continue
+				}
 				errorCount += 1
 				if errorCount < 3 {
 					continue
