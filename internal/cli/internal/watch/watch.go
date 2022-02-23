@@ -200,7 +200,11 @@ func ReleaseCommand(ctx context.Context, id string) error {
 			rc, err := func() (*api.ReleaseCommand, error) {
 				reqCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 				defer cancel()
-				return client.GetReleaseCommand(reqCtx, id)
+				rc, err := client.GetReleaseCommand(reqCtx, id)
+				if ctxErr := reqCtx.Err(); ctxErr != nil {
+					return nil, ctxErr
+				}
+				return rc, err
 			}()
 			if err != nil {
 				if err == context.DeadlineExceeded {
