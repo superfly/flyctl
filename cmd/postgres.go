@@ -309,7 +309,7 @@ func runApiCreatePostgresCluster(cmdCtx *cmdctx.CmdContext, org string, input *a
 
 	cancelCtx := cmdCtx.Command.Context()
 	cmdCtx.AppName = payload.App.Name
-	err = watchDeployment(cancelCtx, cmdCtx)
+	err = watchDeployment(cancelCtx, cmdCtx, "")
 
 	if isCancelledError(err) {
 		err = nil

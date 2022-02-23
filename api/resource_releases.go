@@ -10,7 +10,6 @@ func (c *Client) GetAppReleases(ctx context.Context, appName string, limit int) 
 					nodes {
 						id
 						version
-						reason
 						description
 						reason
 						status
@@ -19,7 +18,7 @@ func (c *Client) GetAppReleases(ctx context.Context, appName string, limit int) 
 							id
 							email
 							name
-						}	
+						}
 						createdAt
 					}
 				}
@@ -38,4 +37,31 @@ func (c *Client) GetAppReleases(ctx context.Context, appName string, limit int) 
 	}
 
 	return data.App.Releases.Nodes, nil
+}
+
+func (c *Client) GetAppRelease(ctx context.Context, appName string, id string) (*Release, error) {
+	query := `
+		query ($appName: String!, $releaseId: ID!) {
+			app(name: $appName) {
+				release(id: $releaseId) {
+					id
+					status
+					evaluationId
+					createdAt
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("appName", appName)
+	req.Var("releaseId", id)
+
+	data, err := c.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.App.Release, nil
 }

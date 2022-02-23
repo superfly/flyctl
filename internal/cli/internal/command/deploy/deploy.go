@@ -122,6 +122,12 @@ func run(ctx context.Context) error {
 		if err := watch.ReleaseCommand(ctx, releaseCommand.ID); err != nil {
 			return err
 		}
+
+		apiClient := client.FromContext(ctx).API()
+		release, err = apiClient.GetAppRelease(ctx, app.NameFromContext(ctx), release.ID)
+		if err != nil {
+			return err
+		}
 	}
 
 	if release.DeploymentStrategy == "IMMEDIATE" {
@@ -131,7 +137,7 @@ func run(ctx context.Context) error {
 		return nil
 	}
 
-	err = watch.Deployment(ctx)
+	err = watch.Deployment(ctx, release.EvaluationID)
 
 	return err
 }

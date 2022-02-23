@@ -25,7 +25,7 @@ import (
 	"github.com/superfly/flyctl/internal/spinner"
 )
 
-func Deployment(ctx context.Context) error {
+func Deployment(ctx context.Context, evaluationID string) error {
 	tb := render.NewTextBlock(ctx, "Monitoring deployment")
 
 	io := iostreams.FromContext(ctx)
@@ -33,7 +33,7 @@ func Deployment(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
 	endmessage := ""
 
-	monitor := deployment.NewDeploymentMonitor(client, appName)
+	monitor := deployment.NewDeploymentMonitor(client, appName, evaluationID)
 
 	monitor.DeploymentStarted = func(idx int, d *api.DeploymentStatus) error {
 		if idx > 0 {

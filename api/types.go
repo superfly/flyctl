@@ -608,6 +608,7 @@ type Release struct {
 	Status             string
 	DeploymentStrategy string
 	User               User
+	EvaluationID       string
 	CreatedAt          time.Time
 }
 
@@ -1127,14 +1128,15 @@ type Image struct {
 }
 
 type ReleaseCommand struct {
-	ID         string
-	Command    string
-	Status     string
-	ExitCode   *int
-	InstanceID *string
-	InProgress bool
-	Succeeded  bool
-	Failed     bool
+	ID           string
+	Command      string
+	Status       string
+	ExitCode     *int
+	InstanceID   *string
+	InProgress   bool
+	Succeeded    bool
+	Failed       bool
+	EvaluationID string
 }
 
 type Invitation struct {
