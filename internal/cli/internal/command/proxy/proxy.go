@@ -39,17 +39,32 @@ func New() *cobra.Command {
 	return cmd
 }
 
-func run(ctx context.Context) error {
+func run(ctx context.Context) (err error) {
 	client := client.FromContext(ctx).API()
 	appName := app.NameFromContext(ctx)
 	args := flag.Args(ctx)
 
 	app, err := client.GetApp(ctx, appName)
+
+	if err != nil {
+		return err
+	}
+
 	agentclient, err := agent.Establish(ctx, client)
+
+	if err != nil {
+		return err
+	}
+
 	dialer, err := agentclient.ConnectToTunnel(ctx, app.Organization.Slug)
+
+	if err != nil {
+		return err
+	}
 
 	ports := strings.Split(args[0], ":")
 
-	proxy.Connect(ctx, ports, app, &dialer, flag.GetBool(ctx, "select"))
-	return err
+	err = proxy.Connect(ctx, ports, app, dialer, flag.GetBool(ctx, "select"), nil)
+
+	return
 }

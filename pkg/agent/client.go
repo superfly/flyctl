@@ -116,13 +116,6 @@ type Client struct {
 	dialer  net.Dialer
 }
 
-func (c *Client) dial() (conn net.Conn, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	return c.dialContext(ctx)
-}
-
 func (c *Client) dialContext(ctx context.Context) (conn net.Conn, err error) {
 	return c.dialer.DialContext(ctx, c.network, c.address)
 }
@@ -337,9 +330,9 @@ func (c *Client) WaitForTunnel(parent context.Context, slug string) (err error) 
 	return
 }
 
-// WaitForHost waits for a tunnel to the given host of the given org slug to
-// become available in the next four minutes.
-func (c *Client) WaitForHost(parent context.Context, slug, host string) (err error) {
+// WaitForDNS waits for a tunnel to the given DNS entry to appear in the organization's
+// internal DNS
+func (c *Client) WaitForDNS(parent context.Context, slug, host string) (err error) {
 	ctx, cancel := context.WithTimeout(parent, 4*time.Minute)
 	defer cancel()
 
@@ -425,9 +418,9 @@ func (c *Client) ConnectToTunnel(ctx context.Context, slug string) (d Dialer, er
 	if err != nil {
 		return nil, err
 	}
-	io.StartProgressIndicatorMsg("Connecting to tunnel")
+	io.StartProgressIndicatorMsg(fmt.Sprintf("Opening a wireguard tunnel to %s", slug))
 	if err := c.WaitForTunnel(ctx, slug); err != nil {
-		return nil, fmt.Errorf("tunnel unavailable %w", err)
+		return nil, fmt.Errorf("tunnel unavailable for organization %s: %w", slug, err)
 	}
 	io.StopProgressIndicator()
 	return dialer, err

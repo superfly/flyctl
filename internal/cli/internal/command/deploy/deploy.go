@@ -14,7 +14,10 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/zloylos/grsync"
 
+	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/pkg/builder"
 	"github.com/superfly/flyctl/pkg/iostreams"
+	machines "github.com/superfly/flyctl/pkg/machine"
 	"github.com/superfly/flyctl/pkg/proxy"
 	"github.com/superfly/flyctl/pkg/retry"
 
@@ -106,10 +109,6 @@ func run(ctx context.Context) error {
 	// Fetch an image ref or build from source to get the final image reference to deploy
 	img, err := determineImage(ctx, appConfig)
 
-	if img == nil {
-		return err
-	}
-
 	if err != nil {
 		return fmt.Errorf("failed to fetch an image or build from source: %w", err)
 	}
@@ -191,10 +190,14 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 	return
 }
 
+// determineImage picks the deployment strategy, builds the image and returns a
+// DeploymentImage struct
 func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.DeploymentImage, err error) {
 	tb := render.NewTextBlock(ctx, "Building image")
 	workingDirectory := state.WorkingDirectory(ctx)
 
+	// Bypass Docker based builds in favor of syncing source trees directly to
+	// the remote builder
 	if flag.GetBool(ctx, "nix") {
 		if img, err = NixSourceBuild(ctx, workingDirectory); err != nil {
 			return nil, err
@@ -355,21 +358,41 @@ func createRelease(ctx context.Context, appConfig *app.Config, img *imgsrc.Deplo
 }
 
 func NixSourceBuild(ctx context.Context, workingDirectory string) (img *imgsrc.DeploymentImage, err error) {
-	//io := iostreams.FromContext(ctx)
+	io := iostreams.FromContext(ctx)
 	appName := app.NameFromContext(ctx)
 	client := client.FromContext(ctx).API()
-	ports := []string{"8873", "873"}
-	builderApp, err := client.GetApp(ctx, "fly-apps-nix-builder")
+
+	builderMachine, builderApp, err := builder.RemoteBuilderMachine(ctx, client, appName)
+
+	if err != nil {
+		return nil, err
+	}
+
 	agentclient, err := agent.Establish(ctx, client)
+
+	if err != nil {
+		return nil, err
+	}
+
 	dialer, err := agentclient.ConnectToTunnel(ctx, builderApp.Organization.Slug)
 
+	if err != nil {
+		return nil, err
+	}
+	// Close the proxy when finished here
 	proxyCtx, cancelProxy := context.WithCancel(ctx)
+	defer cancelProxy()
 
-	// run a proxy from local 30800 to remote 370 (rsyncd)
+	// Proxy local port 8873 to remote 873 (rsync)
+	ports := []string{"8873", "873"}
+
+	// run the rsync proxy in the background
 	go func() {
-		proxy.Connect(proxyCtx, ports, builderApp, &dialer, false)
+		proxy.Connect(proxyCtx, ports, builderApp, dialer, false, builderMachine)
 	}()
 
+	// Prepare the rsync task with options to prevent remote errors and to sync
+	// to /data/source/appname
 	task := grsync.NewTask(
 		workingDirectory,
 		"rsync://localhost:8873/source",
@@ -378,61 +401,61 @@ func NixSourceBuild(ctx context.Context, workingDirectory string) (img *imgsrc.D
 			Owner:   false,
 			Group:   false,
 			Perms:   false,
-			Exclude: []string{"tmp"},
+			// Hard-code the excluded directories for Rails until figuring out how to automate
+			Exclude: []string{"tmp/cache", ".git"},
 		},
 	)
 
+	// Wait for the rsync proxy to come alive
 	fn := func() error {
 		time.Sleep(1 * time.Second)
-		fmt.Printf("Conencting to %s", "localhost:8873")
-		return raw_connect(ctx, "localhost:8873")
+		return waitForLocalPort(ctx, "8873")
 	}
 
 	if err := retry.Retry(fn, 10); err != nil {
-		panic(err)
+		return nil, fmt.Errorf("rsync proxy failed to connect after 10 seconds: %w", err)
 	}
-	fmt.Println("connected, now trying rsync")
+
+	fmt.Fprintln(io.Out, "Proxy connected. Syncing source code to the remote builder.")
 
 	if err := task.Run(); err != nil {
-		fmt.Println(err)
+		fmt.Println(fmt.Errorf("code rsync failed: %w", err))
 	}
 
 	fmt.Println(task.Log())
-	fmt.Println("Running Nix build")
+	fmt.Println("Running Nix build...")
 
-	tag := imgsrc.NewDeploymentTag(appName, "nix")
+	imageTag := imgsrc.NewDeploymentTag(appName, "nix")
+	command := fmt.Sprintf("%s %s %s", "/source/"+appName+"/bin/nix_build.sh ", imageTag, flyctl.GetAPIToken())
 
+	// Run the build over SSH and stream stdout/err
 	err = ssh.SSHConnect(&ssh.SSHParams{
 		Ctx:            ctx,
 		Org:            &builderApp.Organization,
 		Dialer:         dialer,
 		App:            builderApp.Name,
-		Cmd:            "/source/rails-nix/run-fly.sh " + tag,
+		Cmd:            command,
 		Stdin:          os.Stdin,
 		Stdout:         os.Stdout,
 		Stderr:         os.Stderr,
 		DisableSpinner: true,
-	}, "fly-apps-nix-builder.internal")
+	}, fmt.Sprintf("[%s]", machines.IpAddress(builderMachine)))
 
-	cancelProxy()
-
-	//resp, err := ssh.RunSSHCommand(ctx, app, dialer, nil, "/source/rails-nix/run-fly.sh")
+	// Use this command if we're going to return structured JSON for returning the image size
+	//resp, err := ssh.RunSSHCommand(ctx, app, dialer, nil, command)
 	//fmt.Println(string(resp[:]))
+
 	di := &imgsrc.DeploymentImage{
 		Size: 10,
-		Tag:  tag,
-		ID:   tag,
+		Tag:  imageTag,
+		ID:   imageTag,
 	}
 
 	return di, err
 }
 
-func raw_connect(ctx context.Context, host string) (err error) {
+func waitForLocalPort(ctx context.Context, port string) (err error) {
 	timeout := time.Second
-	conn, err := net.DialTimeout("tcp", host, timeout)
-
-	if conn != nil {
-		fmt.Println("Opened", host)
-	}
+	_, err = net.DialTimeout("tcp", "localhost:"+port, timeout)
 	return
 }

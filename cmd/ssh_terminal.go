@@ -131,7 +131,7 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 	// wait for the addr to be resolved in dns unless it's an ip address
 	if !agent.IsIPv6(addr) {
 		cc.IO.StartProgressIndicatorMsg("Waiting for host")
-		if err := agentclient.WaitForHost(ctx, app.Organization.Slug, addr); err != nil {
+		if err := agentclient.WaitForDNS(ctx, app.Organization.Slug, addr); err != nil {
 			captureError(err)
 			return errors.Wrapf(err, "host unavailable")
 		}

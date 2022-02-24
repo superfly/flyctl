@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/iostreams"
+	machines "github.com/superfly/flyctl/pkg/machine"
 )
 
 type postgresDatabaseListResponse struct {
@@ -175,7 +176,7 @@ func (pc *postgresCmd) updateSettings(config map[string]string) error {
 }
 
 func (pc *postgresCmd) restartNode(machine *api.Machine) error {
-	addr := machineIP(machine)
+	addr := machines.IpAddress(machine)
 	formattedAddr := fmt.Sprintf("[%s]", addr)
 
 	resp, err := ssh.RunSSHCommand(*pc.ctx, pc.app, pc.dialer, &formattedAddr, "pg-restart")
@@ -222,7 +223,7 @@ func (pc *postgresCmd) failover() error {
 }
 
 func (pc *postgresCmd) getRole(machine *api.Machine) (string, error) {
-	addr := fmt.Sprintf("[%s]", machineIP(machine))
+	addr := fmt.Sprintf("[%s]", machines.IpAddress(machine))
 
 	resp, err := ssh.RunSSHCommand(*pc.ctx, pc.app, pc.dialer, &addr, "pg-role")
 	if err != nil {
