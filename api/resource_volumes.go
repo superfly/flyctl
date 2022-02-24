@@ -10,6 +10,7 @@ func (c *Client) GetVolumes(ctx context.Context, appName string) ([]Volume, erro
 				nodes {
 					id
 					name
+					state
 					sizeGb
 					region
 					encrypted

@@ -352,6 +352,7 @@ type Volume struct {
 	Snapshots struct {
 		Nodes []Snapshot
 	}
+	State              string
 	Region             string
 	Encrypted          bool
 	CreatedAt          time.Time
