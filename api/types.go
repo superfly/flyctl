@@ -1291,26 +1291,33 @@ type MachineEventStop struct {
 }
 
 func (e *MachineEvent) UnmarshalJSON(data []byte) error {
-	var genericMachineEvent MachineEvent
-	var machineStop MachineEventStop
+	var genericMachineEvents []MachineEvent
 
-	if err := json.Unmarshal(data, &genericMachineEvent); err != nil {
+	if err := json.Unmarshal(data, &genericMachineEvents); err != nil {
+		fmt.Print("error is here")
 		return err
 	}
-	machineBodyinBytes, _ := json.Marshal(genericMachineEvent.Metadata)
 
-	switch genericMachineEvent.Kind {
-	case "exit":
-		if err := json.Unmarshal(machineBodyinBytes, &machineStop); err != nil {
-			return err
+	for _, event := range genericMachineEvents {
+		var machineStop MachineEventStop
+		machineBodyinBytes, err := json.Marshal(event.Metadata)
+		if err != nil {
+			fmt.Print(err)
 		}
-		e.Metadata["ExitCode"] = machineStop.ExitCode
-		e.Metadata["OOMKilled"] = machineStop.OOMKilled
-	}
 
-	e.ID = genericMachineEvent.ID
-	e.Kind = genericMachineEvent.Kind
-	e.Timestamp = genericMachineEvent.Timestamp
+		switch event.Kind {
+		case "exit":
+			if err := json.Unmarshal(machineBodyinBytes, &machineStop); err != nil {
+				return err
+			}
+			e.Metadata["ExitCode"] = machineStop.ExitCode
+			e.Metadata["OOMKilled"] = machineStop.OOMKilled
+		}
+
+		e.ID = event.ID
+		e.Kind = event.Kind
+		e.Timestamp = event.Timestamp
+	}
 
 	return nil
 }
