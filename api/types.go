@@ -1231,6 +1231,28 @@ type MachineMount struct {
 	Volume    string `json:"volume"`
 }
 
+type MachineGuest struct {
+	CPUKind  string `json:"cpu_kind"`
+	CPUs     int    `json:"cpus"`
+	MemoryMB int    `json:"memory_mb"`
+}
+
+const (
+	MEMORY_MB_PER_SHARED_CPU = 256
+	MEMORY_MB_PER_CPU        = 2048
+)
+
+var MachinePresets map[string]*MachineGuest = map[string]*MachineGuest{
+	"shared-cpu-1x":    {CPUKind: "shared", CPUs: 1, MemoryMB: 1 * MEMORY_MB_PER_SHARED_CPU},
+	"shared-cpu-2x":    {CPUKind: "shared", CPUs: 2, MemoryMB: 2 * MEMORY_MB_PER_SHARED_CPU},
+	"shared-cpu-4x":    {CPUKind: "shared", CPUs: 4, MemoryMB: 4 * MEMORY_MB_PER_SHARED_CPU},
+	"shared-cpu-8x":    {CPUKind: "shared", CPUs: 8, MemoryMB: 8 * MEMORY_MB_PER_SHARED_CPU},
+	"dedicated-cpu-1x": {CPUKind: "dedicated", CPUs: 1, MemoryMB: 1 * MEMORY_MB_PER_CPU},
+	"dedicated-cpu-2x": {CPUKind: "dedicated", CPUs: 2, MemoryMB: 2 * MEMORY_MB_PER_CPU},
+	"dedicated-cpu-4x": {CPUKind: "dedicated", CPUs: 4, MemoryMB: 4 * MEMORY_MB_PER_CPU},
+	"dedicated-cpu-8x": {CPUKind: "dedicated", CPUs: 8, MemoryMB: 8 * MEMORY_MB_PER_CPU},
+}
+
 type MachineConfig struct {
 	Env      map[string]string `json:"env"`
 	Init     MachineInit       `json:"init,omitempty"`
@@ -1240,6 +1262,7 @@ type MachineConfig struct {
 	Restart  MachineRestart    `json:"restart,omitempty"`
 	Services []interface{}     `json:"services,omitempty"`
 	VMSize   string            `json:"size,omitempty"`
+	Guest    *MachineGuest     `json:"guest,omitempty"`
 }
 
 type DeleteOrganizationMembershipPayload struct {

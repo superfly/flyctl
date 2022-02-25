@@ -434,7 +434,22 @@ func newMachineRunCommand(parent *Command, client *client.Client) {
 	cmd.AddStringFlag(StringFlagOpts{
 		Name:        "size",
 		Shorthand:   "s",
-		Description: "Size of the machine",
+		Description: "Preset guest cpu and memory for a machine",
+	})
+
+	cmd.AddStringFlag(StringFlagOpts{
+		Name:        "cpu-kind",
+		Description: "Kind of CPU to use (shared, dedicated)",
+	})
+
+	cmd.AddIntFlag(IntFlagOpts{
+		Name:        "cpus",
+		Description: "Number of CPUs",
+	})
+
+	cmd.AddIntFlag(IntFlagOpts{
+		Name:        "memory",
+		Description: "Memory (in megabytes) to attribute to the machine",
 	})
 
 	cmd.AddStringSliceFlag(StringSliceFlagOpts{
@@ -560,6 +575,9 @@ func getMachineStatus(cmdCtx *cmdctx.CmdContext) error {
 func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 
+	var org *api.Organization
+	var err error
+
 	if cmdCtx.AppName == "" {
 		confirm := false
 		prompt := &survey.Confirm{
@@ -576,12 +594,12 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 		if !confirm {
 			return nil
 		}
-	}
 
-	orgSlug := cmdCtx.Config.GetString("org")
-	org, err := selectOrganization(ctx, cmdCtx.Client.API(), orgSlug, nil)
-	if err != nil {
-		return err
+		orgSlug := cmdCtx.Config.GetString("org")
+		org, err = selectOrganization(ctx, cmdCtx.Client.API(), orgSlug, nil)
+		if err != nil {
+			return err
+		}
 	}
 
 	if cmdCtx.MachineConfig == nil {
@@ -650,12 +668,12 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 		}
 	}
 
-	fmt.Fprintf(cmdCtx.Client.IO.Out, "Image: %s\n", img.Tag)
-	fmt.Fprintf(cmdCtx.Client.IO.Out, "Image size: %s\n", humanize.Bytes(uint64(img.Size)))
-
 	if img == nil {
 		return errors.New("could not find an image to deploy")
 	}
+
+	fmt.Fprintf(cmdCtx.Client.IO.Out, "Image: %s\n", img.Tag)
+	fmt.Fprintf(cmdCtx.Client.IO.Out, "Image size: %s\n", humanize.Bytes(uint64(img.Size)))
 
 	if cmdCtx.Config.GetBool("build-only") {
 		return nil
@@ -663,9 +681,41 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 
 	machineConf.Image = img.Tag
 
-	if size := cmdCtx.Config.GetString("size"); size != "" {
-		machineConf.VMSize = size
+	guest := api.MachinePresets[cmdCtx.Config.GetString("size")]
+
+	if guest == nil {
+		cpuKind := cmdCtx.Config.GetString("cpu-kind")
+		if cpuKind == "" {
+			cpuKind = "shared"
+		}
+
+		cpus := cmdCtx.Config.GetInt("cpus")
+		if cpus == 0 {
+			cpus = 1
+		}
+
+		memory := cmdCtx.Config.GetInt("memory")
+		if memory == 0 {
+			memory = 256
+		}
+		guest = &api.MachineGuest{
+			CPUKind:  cpuKind,
+			CPUs:     cpus,
+			MemoryMB: memory,
+		}
+	} else {
+		if cpuKind := cmdCtx.Config.GetString("cpu-kind"); cpuKind != "" {
+			guest.CPUKind = cpuKind
+		}
+		if cpus := cmdCtx.Config.GetInt("cpus"); cpus != 0 {
+			guest.CPUs = cpus
+		}
+		if memory := cmdCtx.Config.GetInt("memory"); memory != 0 {
+			guest.MemoryMB = memory
+		}
 	}
+
+	machineConf.Guest = guest
 
 	if entrypoint := cmdCtx.Config.GetString("entrypoint"); entrypoint != "" {
 		splitted, err := shlex.Split(entrypoint)
@@ -751,12 +801,15 @@ func runMachineRun(cmdCtx *cmdctx.CmdContext) error {
 	machineConf.Mounts = mounts
 
 	input := api.LaunchMachineInput{
-		AppID:   cmdCtx.AppName,
-		ID:      cmdCtx.Config.GetString("id"),
-		Name:    cmdCtx.Config.GetString("name"),
-		OrgSlug: org.ID,
-		Region:  cmdCtx.Config.GetString("region"),
-		Config:  machineConf,
+		AppID:  cmdCtx.AppName,
+		ID:     cmdCtx.Config.GetString("id"),
+		Name:   cmdCtx.Config.GetString("name"),
+		Region: cmdCtx.Config.GetString("region"),
+		Config: machineConf,
+	}
+
+	if org != nil {
+		input.OrgSlug = org.ID
 	}
 
 	machine, app, err := cmdCtx.Client.API().LaunchMachine(ctx, input)
