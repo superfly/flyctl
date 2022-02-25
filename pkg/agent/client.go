@@ -45,7 +45,7 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 	}
 
 	// TOOD: log this instead
-	msg := fmt.Sprintf("The running flyctl background agent (v%s) is older than the current flyctl (v%s).", buildinfo.Version(), res.Version)
+	msg := fmt.Sprintf("The running flyctl background agent (v%s) is older than the current flyctl (v%s).", res.Version, buildinfo.Version())
 
 	logger := logger.MaybeFromContext(ctx)
 	if logger != nil {
