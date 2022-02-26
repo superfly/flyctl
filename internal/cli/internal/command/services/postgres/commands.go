@@ -11,7 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/iostreams"
-	machines "github.com/superfly/flyctl/pkg/machine"
+	"github.com/superfly/flyctl/pkg/machines"
 )
 
 type postgresDatabaseListResponse struct {

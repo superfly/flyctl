@@ -3,6 +3,6 @@ package agent
 import "errors"
 
 var (
-	ErrNoSuchHost        = errors.New("no such host")
+	ErrNoSuchHost        = errors.New("host was not found in DNS")
 	ErrTunnelUnavailable = errors.New("tunnel unavailable")
 )

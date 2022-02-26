@@ -15,14 +15,14 @@ import (
 
 func New() *cobra.Command {
 	var (
-		long  = strings.Trim(`Proxies connections to a fly VM through a Wireguard tunnel`, "\n")
+		long  = strings.Trim(`Proxies connections to a fly VM through a Wireguard tunnel The current application DNS is the default remote host`, "\n")
 		short = `Proxies connections to a fly VM"`
 	)
 
-	cmd := command.New("proxy <local:remote>", short, long, run,
+	cmd := command.New("proxy <local:remote> [remote_host]", short, long, run,
 		command.RequireSession, command.RequireAppName)
 
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.RangeArgs(1, 2)
 
 	flag.Add(cmd,
 		flag.App(),
@@ -64,7 +64,13 @@ func run(ctx context.Context) (err error) {
 
 	ports := strings.Split(args[0], ":")
 
-	err = proxy.Connect(ctx, ports, app, dialer, flag.GetBool(ctx, "select"), nil)
+	params := &proxy.ConnectParams{
+		Ports:          ports,
+		App:            app,
+		Dialer:         dialer,
+		PromptInstance: flag.GetBool(ctx, "select"),
+		RemoteHost:     args[1],
+	}
 
-	return
+	return proxy.Connect(ctx, params)
 }

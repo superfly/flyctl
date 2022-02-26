@@ -10,69 +10,86 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/iostreams"
-	machines "github.com/superfly/flyctl/pkg/machine"
+	"github.com/superfly/flyctl/pkg/ip"
 	"github.com/superfly/flyctl/terminal"
 )
 
-func Connect(ctx context.Context, ports []string, app *api.App, dialer agent.Dialer, selectInstanceRequested bool, machine *api.Machine) (err error) {
+type ConnectParams struct {
+	App            *api.App
+	Dialer         agent.Dialer
+	Ports          []string
+	RemoteHost     string
+	PromptInstance bool
+	DisableSpinner bool
+}
+
+func Connect(ctx context.Context, p *ConnectParams) (err error) {
 
 	var (
 		io     = iostreams.FromContext(ctx)
 		client = client.FromContext(ctx).API()
 	)
+	var localPort, remotePort, remoteAddr string
 
-	// Remote may be an IPv6 address or a port
-	var localPort, remoteString, remoteAddr string
+	localPort = p.Ports[0]
 
-	if len(ports) < 2 {
-		localPort, remoteString = ports[0], ports[0]
+	if len(p.Ports) > 1 {
+		remotePort = p.Ports[1]
 	} else {
-		localPort, remoteString = ports[0], ports[1]
+		remotePort = localPort
 	}
-
+	fmt.Println(remotePort)
 	agentclient, err := agent.Establish(ctx, client)
 
 	if err != nil {
 		return err
 	}
 
-	// If instance selection was required, assume the remote is a port and append the port
-	// to the select instance IP
-	if selectInstanceRequested {
-		instance, err := selectInstance(ctx, app, agentclient)
+	// Prompt for a specific instance and set it as the remote target
+	if p.PromptInstance {
+		instance, err := selectInstance(ctx, p.App, agentclient)
 
 		if err != nil {
 			return err
 		}
 
-		remoteAddr = fmt.Sprintf("[%s]:%s", instance, remoteString)
+		remoteAddr = fmt.Sprintf("[%s]:%s", instance, remotePort)
+	}
 
-	} else {
+	if remoteAddr == "" && p.RemoteHost != "" {
 
-		// If the remote is specified as an IPV6 address, use it and the local port on the remote
-		if agent.IsIPv6(remoteString) {
-			remoteAddr = fmt.Sprintf("[%s]:%s", remoteString, localPort)
+		// If a specific host IP specified, set it as the remote target
+		if ip.IsV6(p.RemoteHost) {
+			remoteAddr = fmt.Sprintf("[%s]:%s", p.RemoteHost, remotePort)
 		} else {
-			// Otherwise find the correct IP or hostname for the remote based on the application,
-			// and assume the remote is a port
-			if machine != nil {
-				remoteAddr = fmt.Sprintf("[%s]:%s", machines.IpAddress(machine), remoteString)
-			} else {
-				remoteAddr = fmt.Sprintf("top1.nearest.of.%s.internal:%s", app.Name, remoteString)
-				io.StartProgressIndicatorMsg(fmt.Sprintf("Waiting for host %s", remoteAddr))
-				if err := agentclient.WaitForDNS(ctx, app.Organization.Slug, remoteAddr); err != nil {
-					return fmt.Errorf("host unavailable %w", err)
-				}
-				io.StopProgressIndicator()
+			if err := agentclient.WaitForDNS(ctx, p.Dialer, p.App.Organization.Slug, p.RemoteHost); err != nil {
+				return fmt.Errorf("%s: %w", p.RemoteHost, err)
 			}
 		}
 	}
 
-	if err := proxyConnect(ctx, localPort, remoteAddr, dialer); err != nil {
+	addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("127.0.0.1:%s", localPort))
+	if err != nil {
 		return err
 	}
 
-	return
+	listener, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(io.Out, "Proxy listening on: %s\n", listener.Addr().String())
+
+	proxy := Server{
+		Addr:     remoteAddr,
+		Listener: listener,
+		Dial:     p.Dialer.DialContext,
+	}
+
+	terminal.Debug("Starting proxy on: ", localPort)
+	terminal.Debug("Connecting to ", remoteAddr)
+
+	return proxy.ProxyServer(ctx)
 }
 
 func selectInstance(ctx context.Context, app *api.App, c *agent.Client) (instance string, err error) {
@@ -93,29 +110,4 @@ func selectInstance(ctx context.Context, app *api.App, c *agent.Client) (instanc
 	}
 
 	return instances.Addresses[selected], nil
-}
-
-func proxyConnect(ctx context.Context, localPort string, remoteAddr string, dialer agent.Dialer) error {
-	addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("127.0.0.1:%s", localPort))
-	if err != nil {
-		return err
-	}
-
-	listener, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("Proxy listening on: %s\n", listener.Addr().String())
-
-	proxy := Server{
-		Addr:     remoteAddr,
-		Listener: listener,
-		Dial:     dialer.DialContext,
-	}
-
-	terminal.Debug("Starting proxy on: ", localPort)
-	terminal.Debug("Connecting to ", remoteAddr)
-
-	return proxy.ProxyServer(ctx)
 }

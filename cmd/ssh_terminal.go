@@ -17,6 +17,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/pkg/agent"
+	"github.com/superfly/flyctl/pkg/ip"
 	"github.com/superfly/flyctl/pkg/ssh"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -129,13 +130,11 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 	}
 
 	// wait for the addr to be resolved in dns unless it's an ip address
-	if !agent.IsIPv6(addr) {
-		cc.IO.StartProgressIndicatorMsg("Waiting for host")
-		if err := agentclient.WaitForDNS(ctx, app.Organization.Slug, addr); err != nil {
+	if !ip.IsV6(addr) {
+		if err := agentclient.WaitForDNS(ctx, dialer, app.Organization.Slug, addr); err != nil {
 			captureError(err)
 			return errors.Wrapf(err, "host unavailable")
 		}
-		cc.IO.StopProgressIndicator()
 	}
 
 	err = sshConnect(&SSHParams{

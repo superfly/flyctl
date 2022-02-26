@@ -17,7 +17,7 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/pkg/builder"
 	"github.com/superfly/flyctl/pkg/iostreams"
-	machines "github.com/superfly/flyctl/pkg/machine"
+	"github.com/superfly/flyctl/pkg/machines"
 	"github.com/superfly/flyctl/pkg/proxy"
 	"github.com/superfly/flyctl/pkg/retry"
 
@@ -379,30 +379,34 @@ func NixSourceBuild(ctx context.Context, workingDirectory string) (img *imgsrc.D
 	if err != nil {
 		return nil, err
 	}
-	// Close the proxy when finished here
+
+	params := &proxy.ConnectParams{
+		// Proxy local port 8873 to remote 873 (rsync)
+		Ports:      []string{"8873", "873"},
+		App:        builderApp,
+		Dialer:     dialer,
+		RemoteHost: machines.IpAddress(builderMachine),
+	}
+
+	// run the rsync proxy in the background
 	proxyCtx, cancelProxy := context.WithCancel(ctx)
 	defer cancelProxy()
 
-	// Proxy local port 8873 to remote 873 (rsync)
-	ports := []string{"8873", "873"}
-
-	// run the rsync proxy in the background
 	go func() {
-		proxy.Connect(proxyCtx, ports, builderApp, dialer, false, builderMachine)
+		proxy.Connect(proxyCtx, params)
 	}()
 
-	// Prepare the rsync task with options to prevent remote errors and to sync
-	// to /data/source/appname
+	// Prepare the rsync task to sync to /data/source/appname
 	task := grsync.NewTask(
 		workingDirectory,
-		"rsync://localhost:8873/source",
+		"rsync://localhost:8873/data",
 		grsync.RsyncOptions{
 			Archive: true,
 			Owner:   false,
 			Group:   false,
 			Perms:   false,
 			// Hard-code the excluded directories for Rails until figuring out how to automate
-			Exclude: []string{"tmp/cache", ".git"},
+			Exclude: []string{"tmp/cache"},
 		},
 	)
 
@@ -416,7 +420,7 @@ func NixSourceBuild(ctx context.Context, workingDirectory string) (img *imgsrc.D
 		return nil, fmt.Errorf("rsync proxy failed to connect after 10 seconds: %w", err)
 	}
 
-	fmt.Fprintln(io.Out, "Proxy connected. Syncing source code to the remote builder.")
+	fmt.Fprintf(io.Out, "Proxy connected. Syncing source code to the remote builder %s\n", builderApp.Name)
 
 	if err := task.Run(); err != nil {
 		fmt.Println(fmt.Errorf("code rsync failed: %w", err))
@@ -425,20 +429,20 @@ func NixSourceBuild(ctx context.Context, workingDirectory string) (img *imgsrc.D
 	fmt.Println(task.Log())
 	fmt.Println("Running Nix build...")
 
-	imageTag := imgsrc.NewDeploymentTag(appName, "nix")
-	command := fmt.Sprintf("%s %s %s", "/source/"+appName+"/bin/nix_build.sh ", imageTag, flyctl.GetAPIToken())
+	imageTag := imgsrc.NewDeploymentTag(appName, "")
+
+	command := fmt.Sprintf("%s %s %s", "/data/source/"+appName+"/bin/build.sh", flyctl.GetAPIToken(), imageTag)
 
 	// Run the build over SSH and stream stdout/err
 	err = ssh.SSHConnect(&ssh.SSHParams{
-		Ctx:            ctx,
-		Org:            &builderApp.Organization,
-		Dialer:         dialer,
-		App:            builderApp.Name,
-		Cmd:            command,
-		Stdin:          os.Stdin,
-		Stdout:         os.Stdout,
-		Stderr:         os.Stderr,
-		DisableSpinner: true,
+		Ctx:    ctx,
+		Org:    &builderApp.Organization,
+		Dialer: dialer,
+		App:    builderApp.Name,
+		Cmd:    command,
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
 	}, fmt.Sprintf("[%s]", machines.IpAddress(builderMachine)))
 
 	// Use this command if we're going to return structured JSON for returning the image size
