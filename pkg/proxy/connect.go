@@ -38,7 +38,7 @@ func Connect(ctx context.Context, p *ConnectParams) (err error) {
 	} else {
 		remotePort = localPort
 	}
-	fmt.Println(remotePort)
+
 	agentclient, err := agent.Establish(ctx, client)
 
 	if err != nil {
