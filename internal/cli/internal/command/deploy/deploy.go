@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -430,24 +429,16 @@ func NixSourceBuild(ctx context.Context, workingDirectory string) (img *imgsrc.D
 	fmt.Println("Running Nix build...")
 
 	imageTag := imgsrc.NewDeploymentTag(appName, "")
-
+	builderAddress := fmt.Sprintf("[%s]", machines.IpAddress(builderMachine))
 	command := fmt.Sprintf("%s %s %s", "/data/source/"+appName+"/bin/build.sh", flyctl.GetAPIToken(), imageTag)
 
-	// Run the build over SSH and stream stdout/err
-	err = ssh.SSHConnect(&ssh.SSHParams{
-		Ctx:    ctx,
-		Org:    &builderApp.Organization,
-		Dialer: dialer,
-		App:    builderApp.Name,
-		Cmd:    command,
-		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
-	}, fmt.Sprintf("[%s]", machines.IpAddress(builderMachine)))
+	resp, err := ssh.RunSSHCommand(ctx, builderApp, dialer, &builderAddress, command)
 
-	// Use this command if we're going to return structured JSON for returning the image size
-	//resp, err := ssh.RunSSHCommand(ctx, app, dialer, nil, command)
-	//fmt.Println(string(resp[:]))
+	if err != nil {
+		return nil, fmt.Errorf("%w", err)
+	}
+
+	fmt.Println(string(resp[:]))
 
 	di := &imgsrc.DeploymentImage{
 		Size: 10,
