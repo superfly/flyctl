@@ -2,132 +2,73 @@ package proxy
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/iostreams"
-	"github.com/superfly/flyctl/terminal"
+	"github.com/superfly/flyctl/pkg/ip"
 )
 
-func Connect(ctx context.Context, ports []string, app *api.App, selectInstance bool) (err error) {
+type ConnectParams struct {
+	App            *api.App
+	Dialer         agent.Dialer
+	Ports          []string
+	RemoteHost     string
+	PromptInstance bool
+	DisableSpinner bool
+}
+
+func Connect(ctx context.Context, p *ConnectParams) (err error) {
 
 	var (
 		io     = iostreams.FromContext(ctx)
 		client = client.FromContext(ctx).API()
 	)
+	var localPort, remotePort, remoteAddr string
 
-	// May contain an IPv6 address, a port, or both
-	var local, remote string
+	localPort = p.Ports[0]
 
-	if len(ports) < 2 {
-		local, remote = ports[0], ports[0]
+	if len(p.Ports) > 1 {
+		remotePort = p.Ports[1]
 	} else {
-		local, remote = ports[0], ports[1]
-	}
-
-	captureError := func(err error) {
-		// ignore cancelled errors
-		if errors.Is(err, context.Canceled) {
-			return
-		}
-
-		sentry.CaptureException(err,
-			sentry.WithTag("feature", "proxy"),
-			sentry.WithContexts(map[string]interface{}{
-				"organization": map[string]interface{}{
-					"name": app.Organization.Slug,
-				},
-				"port": map[string]interface{}{
-					"local":  local,
-					"remote": remote,
-				},
-			}),
-		)
+		remotePort = localPort
 	}
 
 	agentclient, err := agent.Establish(ctx, client)
+
 	if err != nil {
-		captureError(err)
 		return err
 	}
 
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
-	if err != nil {
-		captureError(err)
-		return err
-	}
+	// Prompt for a specific instance and set it as the remote target
+	if p.PromptInstance {
+		instance, err := selectInstance(ctx, p.App, agentclient)
 
-	io.StartProgressIndicatorMsg("Connecting to tunnel")
-	if err := agentclient.WaitForTunnel(ctx, app.Organization.Slug); err != nil {
-		captureError(err)
-		return fmt.Errorf("tunnel unavailable %w", err)
-	}
-	io.StopProgressIndicator()
-
-	if selectInstance {
-		instances, err := agentclient.Instances(ctx, &app.Organization, app.Name)
 		if err != nil {
-			captureError(err)
-			return fmt.Errorf("look up %s: %w", app.Name, err)
+			return err
 		}
 
-		selected := 0
-		prompt := &survey.Select{
-			Message:  "Select instance:",
-			Options:  instances.Labels,
-			PageSize: 15,
-		}
-
-		if err := survey.AskOne(prompt, &selected); err != nil {
-			return fmt.Errorf("selecting instance: %w", err)
-		}
-
-		if err := survey.AskOne(prompt, &selected); err != nil {
-			return fmt.Errorf("selecting instance: %w", err)
-		}
-
-		remote = fmt.Sprintf("[%s]:%s", instances.Addresses[selected], remote)
-	} else {
-		remote = fmt.Sprintf("top1.nearest.of.%s.internal:%s", app.Name, remote)
+		remoteAddr = fmt.Sprintf("[%s]:%s", instance, remotePort)
 	}
 
-	if !agent.IsIPv6(remote) {
-		io.StartProgressIndicatorMsg("Waiting for host")
-		if err := agentclient.WaitForHost(ctx, app.Organization.Slug, remote); err != nil {
-			captureError(err)
-			return fmt.Errorf("host unavailable %w", err)
+	if remoteAddr == "" && p.RemoteHost != "" {
+
+		// If a host is specified that isn't an IpV6 address, assume it's a DNS entry and wait for that
+		// entry to resolve
+		if !ip.IsV6(p.RemoteHost) {
+			if err := agentclient.WaitForDNS(ctx, p.Dialer, p.App.Organization.Slug, p.RemoteHost); err != nil {
+				return fmt.Errorf("%s: %w", p.RemoteHost, err)
+			}
 		}
-		io.StopProgressIndicator()
+
+		remoteAddr = fmt.Sprintf("[%s]:%s", p.RemoteHost, remotePort)
 	}
 
-	params := &ProxyParams{
-		LocalAddr:  local,
-		RemoteAddr: remote,
-		Dialer:     dialer,
-	}
-
-	if err := proxyConnect(ctx, params); err != nil {
-		captureError(err)
-		return err
-	}
-
-	return
-}
-
-type ProxyParams struct {
-	RemoteAddr string
-	LocalAddr  string
-	Dialer     agent.Dialer
-}
-
-func proxyConnect(ctx context.Context, params *ProxyParams) error {
-	addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("127.0.0.1:%s", params.LocalAddr))
+	addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("127.0.0.1:%s", localPort))
 	if err != nil {
 		return err
 	}
@@ -137,16 +78,33 @@ func proxyConnect(ctx context.Context, params *ProxyParams) error {
 		return err
 	}
 
-	fmt.Printf("Proxy listening on: %s\n", listener.Addr().String())
+	fmt.Fprintf(io.Out, "Proxying local port %s to remote %s\n", localPort, remoteAddr)
 
 	proxy := Server{
-		Addr:     params.RemoteAddr,
+		Addr:     remoteAddr,
 		Listener: listener,
-		Dial:     params.Dialer.DialContext,
+		Dial:     p.Dialer.DialContext,
 	}
 
-	terminal.Debug("Starting proxy on: ", params.LocalAddr)
-	terminal.Debug("Connecting to ", params.RemoteAddr)
-
 	return proxy.ProxyServer(ctx)
+}
+
+func selectInstance(ctx context.Context, app *api.App, c *agent.Client) (instance string, err error) {
+	instances, err := c.Instances(ctx, &app.Organization, app.Name)
+	if err != nil {
+		return "", fmt.Errorf("look up %s: %w", app.Name, err)
+	}
+
+	selected := 0
+	prompt := &survey.Select{
+		Message:  "Select instance:",
+		Options:  instances.Labels,
+		PageSize: 15,
+	}
+
+	if err := survey.AskOne(prompt, &selected); err != nil {
+		return "", fmt.Errorf("selecting instance: %w", err)
+	}
+
+	return instances.Addresses[selected], nil
 }

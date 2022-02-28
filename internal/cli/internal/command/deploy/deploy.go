@@ -4,25 +4,36 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/pkg/builder"
 	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/pkg/machines"
+	"github.com/superfly/flyctl/pkg/proxy"
+	"github.com/superfly/flyctl/pkg/retry"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
+	"github.com/superfly/flyctl/internal/cli/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/cli/internal/state"
+
 	"github.com/superfly/flyctl/internal/cli/internal/watch"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/pkg/agent"
 )
 
 func New() (cmd *cobra.Command) {
@@ -79,6 +90,10 @@ func New() (cmd *cobra.Command) {
 			Name:        "no-cache",
 			Description: "Do not use the build cache when building the image",
 		},
+		flag.Bool{
+			Name:        "nix",
+			Description: "Build with Nix on a remote builder",
+		},
 	)
 
 	return
@@ -92,6 +107,7 @@ func run(ctx context.Context) error {
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
 	img, err := determineImage(ctx, appConfig)
+
 	if err != nil {
 		return fmt.Errorf("failed to fetch an image or build from source: %w", err)
 	}
@@ -179,9 +195,21 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 	return
 }
 
+// determineImage picks the deployment strategy, builds the image and returns a
+// DeploymentImage struct
 func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.DeploymentImage, err error) {
 	tb := render.NewTextBlock(ctx, "Building image")
+	workingDirectory := state.WorkingDirectory(ctx)
 
+	// Bypass Docker based builds in favor of syncing source trees directly to
+	// the remote builder
+	if flag.GetBool(ctx, "nix") {
+		if img, err = NixSourceBuild(ctx, workingDirectory); err != nil {
+			return nil, err
+		} else {
+			return img, nil
+		}
+	}
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx))
 	appName := app.NameFromContext(ctx)
 	client := client.FromContext(ctx).API()
@@ -332,4 +360,92 @@ func createRelease(ctx context.Context, appConfig *app.Config, img *imgsrc.Deplo
 	}
 
 	return release, releaseCommand, err
+}
+
+func NixSourceBuild(ctx context.Context, workingDirectory string) (img *imgsrc.DeploymentImage, err error) {
+	io := iostreams.FromContext(ctx)
+	appName := app.NameFromContext(ctx)
+	client := client.FromContext(ctx).API()
+
+	builderMachine, builderApp, err := builder.RemoteBuilderMachine(ctx, client, appName)
+
+	if err != nil {
+		return nil, err
+	}
+
+	agentclient, err := agent.Establish(ctx, client)
+
+	if err != nil {
+		return nil, err
+	}
+
+	dialer, err := agentclient.ConnectToTunnel(ctx, builderApp.Organization.Slug)
+
+	if err != nil {
+		return nil, err
+	}
+
+	params := &proxy.ConnectParams{
+		// Proxy local port 8873 to remote 873 (rsync)
+		Ports:      []string{"8873", "873"},
+		App:        builderApp,
+		Dialer:     dialer,
+		RemoteHost: machines.IpAddress(builderMachine),
+	}
+
+	// run the rsync proxy in the background
+	proxyCtx, cancelProxy := context.WithCancel(ctx)
+	defer cancelProxy()
+
+	go func() {
+		proxy.Connect(proxyCtx, params)
+	}()
+
+	// Wait for the rsync proxy to come alive
+	fn := func() error {
+		time.Sleep(1 * time.Second)
+		return waitForLocalPort(ctx, "8873")
+	}
+
+	if err := retry.Retry(fn, 10); err != nil {
+		return nil, fmt.Errorf("rsync proxy failed to connect after 10 seconds: %w", err)
+	}
+
+	fmt.Fprintf(io.Out, "Proxy connected. Syncing source code to the remote builder %s\n", builderApp.Name)
+
+	cmd := exec.Command("/usr/bin/rsync", "-Dtlcrv", "--exclude-from=.dockerignore", workingDirectory, "rsync://root@localhost:8873/data")
+	cmd.Stdout = io.Out
+	cmd.Stderr = io.ErrOut
+
+	if err := cmd.Run(); err != nil {
+		fmt.Println(fmt.Errorf("code rsync failed: %w", err))
+	}
+
+	fmt.Println("Running Nix build...")
+
+	imageTag := imgsrc.NewDeploymentTag(appName, "")
+	builderAddress := fmt.Sprintf("[%s]", machines.IpAddress(builderMachine))
+	command := fmt.Sprintf("%s %s %s", "/data/source/"+appName+"/bin/build.sh", flyctl.GetAPIToken(), imageTag)
+
+	resp, err := ssh.RunSSHCommand(ctx, builderApp, dialer, &builderAddress, command)
+
+	if err != nil {
+		return nil, fmt.Errorf("%w", err)
+	}
+
+	fmt.Println(string(resp[:]))
+
+	di := &imgsrc.DeploymentImage{
+		Size: 10,
+		Tag:  imageTag,
+		ID:   imageTag,
+	}
+
+	return di, err
+}
+
+func waitForLocalPort(ctx context.Context, port string) (err error) {
+	timeout := time.Second
+	_, err = net.DialTimeout("tcp", "localhost:"+port, timeout)
+	return
 }

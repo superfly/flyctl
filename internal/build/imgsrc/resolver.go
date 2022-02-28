@@ -78,7 +78,7 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 	}
 
 	if opts.Tag == "" {
-		opts.Tag = newDeploymentTag(opts.AppName, opts.ImageLabel)
+		opts.Tag = NewDeploymentTag(opts.AppName, opts.ImageLabel)
 	}
 
 	strategies := []imageBuilder{
