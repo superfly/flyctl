@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
-	"github.com/zloylos/grsync"
 
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/pkg/builder"
@@ -395,20 +395,6 @@ func NixSourceBuild(ctx context.Context, workingDirectory string) (img *imgsrc.D
 		proxy.Connect(proxyCtx, params)
 	}()
 
-	// Prepare the rsync task to sync to /data/source/appname
-	task := grsync.NewTask(
-		workingDirectory,
-		"rsync://localhost:8873/data",
-		grsync.RsyncOptions{
-			Archive: true,
-			Owner:   false,
-			Group:   false,
-			Perms:   false,
-			// Hard-code the excluded directories for Rails until figuring out how to automate
-			Exclude: []string{"tmp/cache"},
-		},
-	)
-
 	// Wait for the rsync proxy to come alive
 	fn := func() error {
 		time.Sleep(1 * time.Second)
@@ -421,11 +407,14 @@ func NixSourceBuild(ctx context.Context, workingDirectory string) (img *imgsrc.D
 
 	fmt.Fprintf(io.Out, "Proxy connected. Syncing source code to the remote builder %s\n", builderApp.Name)
 
-	if err := task.Run(); err != nil {
+	cmd := exec.Command("/usr/bin/rsync", "-Dtlcrv", "--exclude-from=.dockerignore", workingDirectory, "rsync://root@localhost:8873/data")
+	cmd.Stdout = io.Out
+	cmd.Stderr = io.ErrOut
+
+	if err := cmd.Run(); err != nil {
 		fmt.Println(fmt.Errorf("code rsync failed: %w", err))
 	}
 
-	fmt.Println(task.Log())
 	fmt.Println("Running Nix build...")
 
 	imageTag := imgsrc.NewDeploymentTag(appName, "")

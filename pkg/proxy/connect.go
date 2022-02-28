@@ -11,7 +11,6 @@ import (
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/pkg/ip"
-	"github.com/superfly/flyctl/terminal"
 )
 
 type ConnectParams struct {
@@ -58,14 +57,15 @@ func Connect(ctx context.Context, p *ConnectParams) (err error) {
 
 	if remoteAddr == "" && p.RemoteHost != "" {
 
-		// If a specific host IP specified, set it as the remote target
-		if ip.IsV6(p.RemoteHost) {
-			remoteAddr = fmt.Sprintf("[%s]:%s", p.RemoteHost, remotePort)
-		} else {
+		// If a host is specified that isn't an IpV6 address, assume it's a DNS entry and wait for that
+		// entry to resolve
+		if !ip.IsV6(p.RemoteHost) {
 			if err := agentclient.WaitForDNS(ctx, p.Dialer, p.App.Organization.Slug, p.RemoteHost); err != nil {
 				return fmt.Errorf("%s: %w", p.RemoteHost, err)
 			}
 		}
+
+		remoteAddr = fmt.Sprintf("[%s]:%s", p.RemoteHost, remotePort)
 	}
 
 	addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("127.0.0.1:%s", localPort))
@@ -78,16 +78,13 @@ func Connect(ctx context.Context, p *ConnectParams) (err error) {
 		return err
 	}
 
-	fmt.Fprintf(io.Out, "Proxy listening on: %s\n", listener.Addr().String())
+	fmt.Fprintf(io.Out, "Proxying local port %s to remote %s\n", localPort, remoteAddr)
 
 	proxy := Server{
 		Addr:     remoteAddr,
 		Listener: listener,
 		Dial:     p.Dialer.DialContext,
 	}
-
-	terminal.Debug("Starting proxy on: ", localPort)
-	terminal.Debug("Connecting to ", remoteAddr)
 
 	return proxy.ProxyServer(ctx)
 }

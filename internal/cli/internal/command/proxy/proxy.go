@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -69,7 +70,12 @@ func run(ctx context.Context) (err error) {
 		App:            app,
 		Dialer:         dialer,
 		PromptInstance: flag.GetBool(ctx, "select"),
-		RemoteHost:     args[1],
+	}
+
+	if len(args) > 1 {
+		params.RemoteHost = args[1]
+	} else {
+		params.RemoteHost = fmt.Sprintf("%s.internal", app.Name)
 	}
 
 	return proxy.Connect(ctx, params)
