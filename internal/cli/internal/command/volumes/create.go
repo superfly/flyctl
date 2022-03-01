@@ -47,9 +47,9 @@ sets the size as the number of gigabytes the volume will consume.`
 			Description: "Size of volume in gigabytes",
 		},
 		flag.Bool{
-			Name:        "encrypted",
-			Description: "Encrypt volume",
-			Default:     true,
+			Name:        "no-encryption",
+			Description: "Do not encrypt the volume contents",
+			Default:     false,
 		},
 		flag.Bool{
 			Name:        "require-unique-zone",
@@ -86,7 +86,7 @@ func runCreate(ctx context.Context) error {
 		Name:              volumeName,
 		Region:            region.Code,
 		SizeGb:            flag.GetInt(ctx, "size"),
-		Encrypted:         flag.GetBool(ctx, "encrypted"),
+		Encrypted:         !flag.GetBool(ctx, "no-encryption"),
 		RequireUniqueZone: flag.GetBool(ctx, "require-unique-zone"),
 	}
 
