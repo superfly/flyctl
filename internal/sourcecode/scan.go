@@ -382,15 +382,9 @@ func configureRedwood(sourceDir string) (*SourceInfo, error) {
 	s := &SourceInfo{
 		Family: "RedwoodJS",
 		Files:  templates("templates/redwood"),
-		Port:   8911,
+		Port:   8910,
 		Env: map[string]string{
-			"PORT": "8911",
-		},
-		Statics: []Static{
-			{
-				GuestPath: "/app/web/dist",
-				UrlPrefix: "/",
-			},
+			"PORT": "8910",
 		},
 		ReleaseCmd: "npx prisma migrate deploy --schema '/app/api/db/schema.prisma'",
 		PostgresInitCommands: []InitCommand{
