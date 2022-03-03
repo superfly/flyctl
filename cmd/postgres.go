@@ -44,14 +44,6 @@ func postgresConfigurations() []PostgresConfiguration {
 			VmSize:             "shared-cpu-1x",
 		},
 		{
-			Description:        "Development - Single node, 1x shared CPU, 512MB RAM, 10GB disk",
-			DiskGb:             10,
-			ImageRef:           "flyio/postgres",
-			InitialClusterSize: 1,
-			MemoryMb:           512,
-			VmSize:             "shared-cpu-1x",
-		},
-		{
 			Description:        "Production - Highly available, 1x shared CPU, 256MB RAM, 10GB disk",
 			DiskGb:             10,
 			ImageRef:           "flyio/postgres",
