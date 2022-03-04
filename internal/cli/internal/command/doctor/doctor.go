@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/command/dig"
+	"github.com/superfly/flyctl/internal/cli/internal/command/doctor/diag"
 	"github.com/superfly/flyctl/internal/cli/internal/command/ping"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
@@ -47,6 +48,8 @@ func New() (cmd *cobra.Command) {
 			Description: "Print extra diagnostic information.",
 		},
 	)
+
+	cmd.AddCommand(diag.New())
 
 	return
 }
@@ -167,23 +170,6 @@ func runAuth(ctx context.Context) (err error) {
 	return
 }
 
-func runLocalDocker(ctx context.Context) (err error) {
-	defer func() {
-		if err == nil {
-			return
-		}
-
-		err = fmt.Errorf("failed pinging docker instance: %w", err)
-	}()
-
-	var client *dockerclient.Client
-	if client, err = imgsrc.NewLocalDockerClient(); err == nil {
-		_, err = client.Ping(ctx)
-	}
-
-	return
-}
-
 func runAgent(ctx context.Context) (err error) {
 	defer func() {
 		if err == nil {
@@ -243,4 +229,21 @@ func runPersonalOrgPing(ctx context.Context) (err error) {
 	}
 
 	return fmt.Errorf("ping gateway: no response from gateway received")
+}
+
+func runLocalDocker(ctx context.Context) (err error) {
+	defer func() {
+		if err == nil {
+			return
+		}
+
+		err = fmt.Errorf("failed pinging docker instance: %w", err)
+	}()
+
+	var client *dockerclient.Client
+	if client, err = imgsrc.NewLocalDockerClient(); err == nil {
+		_, err = client.Ping(ctx)
+	}
+
+	return
 }
