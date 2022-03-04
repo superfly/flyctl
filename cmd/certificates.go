@@ -17,6 +17,15 @@ import (
 	"golang.org/x/net/publicsuffix"
 )
 
+func getAlternateHostname(hostname string) string {
+
+	if strings.Split(hostname, ".")[0] == "www" {
+		return strings.Replace(hostname, "www.", "", 1)
+	} else {
+		return "www." + hostname
+	}
+}
+
 func newCertificatesCommand(client *client.Client) *Command {
 	certsStrings := docstrings.Get("certs")
 
@@ -147,6 +156,8 @@ func runCertDelete(commandContext *cmdctx.CmdContext) error {
 
 func reportNextStepCert(cmdCtx *cmdctx.CmdContext, hostname string, cert *api.AppCertificate, hostcheck *api.HostnameCheck) error {
 	ctx := cmdCtx.Command.Context()
+	alternateHostname := getAlternateHostname(hostname)
+
 	// These are the IPs we have for the app
 	ips, err := cmdCtx.Client.API().GetIPAddresses(ctx, cmdCtx.AppName)
 	if err != nil {
@@ -225,9 +236,9 @@ func reportNextStepCert(cmdCtx *cmdctx.CmdContext, hostname string, cert *api.Ap
 			}
 		} else {
 			if cert.ClientStatus == "Ready" {
-				cmdCtx.Statusf("certs", cmdctx.SINFO, "Your certificate for %s has been issued\n", hostname)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "Your certificate for %s has been issued, make sure you create another certificate for %s \n", hostname, alternateHostname)
 			} else {
-				cmdCtx.Statusf("certs", cmdctx.SINFO, "Your certificate for %s is being issued. Status is %s.\n", hostname, cert.ClientStatus)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "Your certificate for %s is being issued. Status is %s. Make sure to create another certificate for %s when the current certificate is issued. \n", hostname, cert.ClientStatus, alternateHostname)
 			}
 		}
 	} else if cert.IsWildcard {
@@ -280,9 +291,9 @@ func reportNextStepCert(cmdCtx *cmdctx.CmdContext, hostname string, cert *api.Ap
 			}
 		} else {
 			if cert.ClientStatus == "Ready" {
-				cmdCtx.Statusf("certs", cmdctx.SINFO, "Your certificate for %s has been issued\n", hostname)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "Your certificate for %s has been issued, make sure you create another certificate for %s \n", hostname, alternateHostname)
 			} else {
-				cmdCtx.Statusf("certs", cmdctx.SINFO, "Your certificate for %s is being issued. Status is %s.\n", hostname, cert.ClientStatus)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "Your certificate for %s is being issued. Status is %s. Make sure to create another certificate for %s when the current certificate is issued. \n", hostname, cert.ClientStatus, alternateHostname)
 			}
 		}
 	}
