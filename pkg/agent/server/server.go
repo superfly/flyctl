@@ -201,17 +201,17 @@ func (s *server) checkForConfigChange() (err error) {
 	return
 }
 
-func (s *server) buildTunnel(org *api.Organization) (tunnel *wg.Tunnel, err error) {
+func (s *server) buildTunnel(org *api.Organization, recycle bool) (tunnel *wg.Tunnel, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if tunnel = s.tunnels[org.Slug]; tunnel != nil {
+	if tunnel = s.tunnels[org.Slug]; tunnel != nil && !recycle {
 		// tunnel already exists
 		return
 	}
 
 	var state *wg.WireGuardState
-	if state, err = wireguard.StateForOrg(s.Client, org, "", ""); err != nil {
+	if state, err = wireguard.StateForOrg(s.Client, org, "", "", recycle); err != nil {
 		return
 	}
 

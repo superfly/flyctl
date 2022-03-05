@@ -2,29 +2,6 @@ package api
 
 import "context"
 
-func (c *Client) CreateSignedUrls(ctx context.Context, appId string, filename string) (getUrl string, putUrl string, err error) {
-	query := `
-		mutation($appId: ID!, $filename: String!) {
-			createSignedUrl(appId: $appId, filename: $filename) {
-				getUrl
-				putUrl
-			}
-		}
-	`
-
-	req := c.NewRequest(query)
-
-	req.Var("appId", appId)
-	req.Var("filename", filename)
-
-	data, err := c.RunWithContext(ctx, req)
-	if err != nil {
-		return "", "", err
-	}
-
-	return data.CreateSignedUrl.GetUrl, data.CreateSignedUrl.PutUrl, nil
-}
-
 func (c *Client) StartSourceBuild(ctx context.Context, input StartSourceBuildInput) (*SourceBuild, error) {
 	query := `
 		mutation($input: StartSourceBuildInput!) {

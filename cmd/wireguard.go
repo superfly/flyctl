@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/wireguard"
+	"github.com/superfly/flyctl/pkg/agent"
 )
 
 func newWireGuardCommand(client *client.Client) *Command {
@@ -33,6 +35,7 @@ func newWireGuardCommand(client *client.Client) *Command {
 	child(cmd, runWireGuardCreate, "wireguard.create").Args = cobra.MaximumNArgs(4)
 	child(cmd, runWireGuardRemove, "wireguard.remove").Args = cobra.MaximumNArgs(2)
 	child(cmd, runWireGuardStat, "wireguard.status").Args = cobra.MaximumNArgs(2)
+	child(cmd, runWireGuardResetPeer, "wireguard.reset").Args = cobra.MaximumNArgs(1)
 
 	tokens := child(cmd, nil, "wireguard.token")
 
@@ -193,8 +196,28 @@ func resolveOutputWriter(ctx *cmdctx.CmdContext, idx int, prompt string) (w io.W
 	}
 }
 
-func runWireGuardCreate(ctx *cmdctx.CmdContext) error {
+func runWireGuardResetPeer(ctx *cmdctx.CmdContext) error {
+	org, err := orgByArg(ctx)
+	if err != nil {
+		return err
+	}
 
+	client := ctx.Client.API()
+	agentclient, err := agent.Establish(context.Background(), client)
+	if err != nil {
+		return err
+	}
+
+	conf, err := agentclient.Reestablish(context.Background(), org.Slug)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("New WireGuard peer for organization '%s': '%s'\n", org.Slug, conf.WireGuardState.Name)
+	return nil
+}
+
+func runWireGuardCreate(ctx *cmdctx.CmdContext) error {
 	org, err := orgByArg(ctx)
 	if err != nil {
 		return err

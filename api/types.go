@@ -76,7 +76,7 @@ type Query struct {
 		Machine *Machine
 	}
 
-	CreateSignedUrl SignedUrls
+	CreateDoctorUrl SignedUrl
 
 	AddCertificate struct {
 		Certificate *AppCertificate
@@ -635,10 +635,11 @@ type SourceBuild struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
-type SignedUrls struct {
-	GetUrl string
+
+type SignedUrl struct {
 	PutUrl string
 }
+
 type AppChange struct {
 	ID        string
 	CreatedAt time.Time

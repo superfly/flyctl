@@ -41,12 +41,12 @@ func generatePeerName(ctx context.Context, apiClient *api.Client) (string, error
 	return name, nil
 }
 
-func StateForOrg(apiClient *api.Client, org *api.Organization, regionCode string, name string) (*wg.WireGuardState, error) {
+func StateForOrg(apiClient *api.Client, org *api.Organization, regionCode string, name string, recycle bool) (*wg.WireGuardState, error) {
 	state, err := getWireGuardStateForOrg(org.Slug)
 	if err != nil {
 		return nil, err
 	}
-	if state != nil {
+	if state != nil && !recycle {
 		return state, nil
 	}
 

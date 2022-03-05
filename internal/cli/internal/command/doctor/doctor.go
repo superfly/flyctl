@@ -2,31 +2,22 @@
 package doctor
 
 import (
-	"bytes"
 	"context"
-	"crypto/rand"
-	"errors"
 	"fmt"
 	"net"
-	"os"
-	"path/filepath"
-	"runtime"
-	"sort"
-	"sync"
 	"time"
 
-	"github.com/azazeal/pause"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/spf13/cobra"
-	"golang.org/x/sync/errgroup"
 
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/internal/build/imgsrc"
-	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
+	"github.com/superfly/flyctl/internal/cli/internal/command/dig"
+	"github.com/superfly/flyctl/internal/cli/internal/command/doctor/diag"
+	"github.com/superfly/flyctl/internal/cli/internal/command/ping"
 	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/render"
@@ -50,142 +41,130 @@ func New() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Bool{
+			Name:        "verbose",
+			Shorthand:   "v",
+			Default:     false,
+			Description: "Print extra diagnostic information.",
+		},
 	)
+
+	cmd.AddCommand(diag.New())
 
 	return
 }
 
-var runners = map[string]runner{
-	"Token":          runAuth,
-	"Docker (local)": runLocalDocker,
-	"Agent":          runAgent,
-	"Probe (app)":    runProbeApp,
-	"Unix socket":    runUnixSocket,
-	// "UDP":            runUDP,
-}
+func run(ctx context.Context) (err error) {
+	var (
+		isJson    = config.FromContext(ctx).JSONOutput
+		isVerbose = flag.GetBool(ctx, "verbose")
+		io        = iostreams.FromContext(ctx)
+		color     = io.ColorScheme()
+		checks    = map[string]string{}
+	)
 
-func run(ctx context.Context) error {
-	errors := runInParallel(ctx, runtime.GOMAXPROCS(0), runners)
-
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
-	if config.FromContext(ctx).JSONOutput {
-		return renderJSON(ctx, errors)
-	}
-
-	return renderTable(ctx, errors)
-}
-
-type limiter chan struct{}
-
-func (l limiter) acquire() { l <- struct{}{} }
-
-func (l limiter) relinquish() { <-l }
-
-type runner func(context.Context) error
-
-func runInParallel(ctx context.Context, concurrency int, runners map[string]runner) map[string]error {
-	l := make(limiter, concurrency)
-
-	var mu sync.Mutex
-	ret := make(map[string]error, len(runners))
-
-	var wg sync.WaitGroup
-	wg.Add(len(runners))
-
-	for key := range runners {
-		go func(key string) {
-			defer wg.Done()
-
-			l.acquire()
-			defer l.relinquish()
-
-			err := runners[key](ctx)
-
-			mu.Lock()
-			defer mu.Unlock()
-
-			if !errors.Is(err, errSkipped) {
-				ret[key] = err
-			}
-		}(key)
-	}
-
-	wg.Wait()
-
-	return ret
-}
-
-func renderJSON(ctx context.Context, errors map[string]error) error {
-	m := make(map[string]string, len(errors))
-
-	for k, err := range errors {
-		if err == nil {
-			m[k] = ""
-
-			continue
+	lprint := func(color func(string) string, fmtstr string, args ...interface{}) {
+		if isJson {
+			return
 		}
 
-		m[k] = err.Error()
+		if color != nil {
+			fmt.Print(color(fmt.Sprintf(fmtstr, args...)))
+		} else {
+			fmt.Printf(fmtstr, args...)
+		}
 	}
 
-	out := iostreams.FromContext(ctx).Out
-	return render.JSON(out, m)
-}
+	check := func(name string, err error) bool {
+		if err != nil {
+			lprint(color.Red, "FAILED\n(Error: %s)\n", err)
+			checks[name] = err.Error()
+			return false
+		}
 
-func renderTable(ctx context.Context, errors map[string]error) error {
-	keys := make([]string, 0, len(errors))
-	for key := range errors {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	io := iostreams.FromContext(ctx)
-	colorize := io.ColorScheme()
-
-	rows := make([][]string, 0, len(errors))
-	for _, key := range keys {
-		rows = append(rows, []string{
-			key,
-			toReason(colorize, errors[key]),
-		})
+		lprint(color.Green, "PASSED\n")
+		checks[name] = "ok"
+		return true
 	}
 
-	return render.Table(io.Out, "", rows, "Test", "Status")
-}
+	defer func() {
+		if isJson {
+			render.JSON(iostreams.FromContext(ctx).Out, checks)
+		}
+	}()
 
-func toReason(colorize *iostreams.ColorScheme, err error) string {
-	if err == nil {
-		return colorize.Green("PASS")
+	// ------------------------------------------------------------
+
+	lprint(nil, "Testing authentication token... ")
+
+	err = runAuth(ctx)
+	if !check("auth", err) {
+		lprint(nil, `
+We can't authenticate you with your current authentication token.
+
+Run 'flyctl auth login' to get a working token, or 'flyctl auth signup' if you've
+never signed up before.
+`)
+		return nil
 	}
 
-	return colorize.Red(err.Error())
+	// ------------------------------------------------------------
+
+	lprint(nil, "Testing flyctl agent... ")
+
+	err = runAgent(ctx)
+	if !check("agent", err) {
+		lprint(nil, `
+Can't communicate with flyctl's background agent.
+
+Run 'flyctl agent restart'.
+`)
+		return nil
+	}
+
+	// ------------------------------------------------------------
+
+	lprint(nil, "Testing local Docker instance... ")
+	err = runLocalDocker(ctx)
+	if err != nil {
+		checks["docker"] = err.Error()
+		if isVerbose {
+			lprint(nil, `Nope
+    (We got: %s)
+    This is fine, we'll use a remote builder.
+`, err.Error())
+		} else {
+			lprint(nil, "Nope\n")
+		}
+	} else {
+		lprint(color.Green, "PASSED\n")
+		checks["docker"] = "ok"
+	}
+
+	// ------------------------------------------------------------
+
+	lprint(nil, "Pinging WireGuard gateway (give us a sec)... ")
+	err = runPersonalOrgPing(ctx)
+	if !check("ping", err) {
+		lprint(nil, `
+We can't establish connectivity with WireGuard for your personal organization. 
+
+WireGuard runs on 51820/udp, which your local network may block.
+
+If this is the first time you've ever used 'flyctl' on this machine, you 
+can try running 'flyctl doctor' again.
+`)
+		return nil
+	}
+
+	return nil
 }
 
 func runAuth(ctx context.Context) (err error) {
 	client := client.FromContext(ctx).API()
 
 	if _, err = client.GetCurrentUser(ctx); err != nil {
-		err = errors.New("your access token is not valid; use `flyctl auth login` to login again")
-	}
-
-	return
-}
-
-func runLocalDocker(ctx context.Context) (err error) {
-	defer func() {
-		if err == nil {
-			return
-		}
-
-		err = fmt.Errorf("failed pinging docker instance: %w", err)
-	}()
-
-	var client *dockerclient.Client
-	if client, err = imgsrc.NewLocalDockerClient(); err == nil {
-		_, err = client.Ping(ctx)
+		err = fmt.Errorf("can't verify access token: %w", err)
 	}
 
 	return
@@ -208,118 +187,63 @@ func runAgent(ctx context.Context) (err error) {
 	return
 }
 
-var errSkipped = errors.New("skipped")
-
-func runProbeApp(ctx context.Context) (err error) {
-	appName := app.NameFromContext(ctx)
-	if appName == "" {
-		return errSkipped
-	}
-
+func runPersonalOrgPing(ctx context.Context) (err error) {
 	client := client.FromContext(ctx).API()
 
-	var app *api.App
-	if app, err = client.GetApp(ctx, appName); err != nil {
-		err = fmt.Errorf("failed retrieving app: %w", err)
-
-		return
-	}
-
-	var ac *agent.Client
-	if ac, err = agent.Establish(ctx, client); err != nil {
-		err = fmt.Errorf("failed establishing agent connection: %w", err)
-
-		return
-	}
-
-	slug := app.Organization.Slug
-	if _, err = ac.Establish(ctx, slug); err != nil {
-		err = fmt.Errorf("failed establishing tunnel to %s: %w", slug, err)
-
-		return
-	}
-
-	if err = ac.Probe(ctx, slug); err != nil {
-		err = fmt.Errorf("failed probing %s: %w", slug, err)
-	}
-
-	return
-}
-
-func runUDP(ctx context.Context) error {
-	seed := make([]byte, 32)
-	if _, err := rand.Read(seed); err != nil {
-		return fmt.Errorf("failed seeding: %w", err)
-	}
-
-	const addr = "debug.fly.dev:10000"
-
-	conn, err := net.Dial("udp4", addr)
+	ac, err := agent.DefaultClient(ctx)
 	if err != nil {
-		return fmt.Errorf("failed dialing %s: %w", addr, err)
+		// shouldn't happen, already tested agent
+		return fmt.Errorf("ping gateway: weird error: %w", err)
 	}
-	defer conn.Close()
 
-	const interval = 50 * time.Millisecond
+	org, err := client.FindOrganizationBySlug(ctx, "personal")
+	if err != nil {
+		// shouldn't happen, already verified auth token
+		return fmt.Errorf("ping gateway: weird error: %w", err)
+	}
 
-	eg, ctx := errgroup.WithContext(ctx)
+	pinger, err := ac.Pinger(ctx, "personal")
+	if err != nil {
+		return fmt.Errorf("ping gateway: %w", err)
+	}
 
-	eg.Go(func() error {
-		for i := 0; i < 10 && ctx.Err() == nil; i++ {
-			if _, err := conn.Write(seed); err != nil {
-				return fmt.Errorf("failed writing: %w", err)
-			}
+	defer pinger.Close()
 
-			pause.For(ctx, interval)
+	_, ns, err := dig.ResolverForOrg(ctx, ac, org)
+	if err != nil {
+		return fmt.Errorf("ping gateway: %w", err)
+	}
+
+	replyBuf := make([]byte, 1000)
+
+	for i := 0; i < 30; i++ {
+		_, err = pinger.WriteTo(ping.EchoRequest(0, i, time.Now(), 12), &net.IPAddr{IP: net.ParseIP(ns)})
+
+		pinger.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+		_, _, err := pinger.ReadFrom(replyBuf)
+		if err != nil {
+			continue
 		}
 
 		return nil
-	})
+	}
 
-	eg.Go(func() error {
-		ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		defer cancel()
+	return fmt.Errorf("ping gateway: no response from gateway received")
+}
 
-		buf := make([]byte, len(seed))
-
-		for ctx.Err() == nil {
-			dl := time.Now().Add(interval)
-			if err := conn.SetReadDeadline(dl); err != nil {
-				return fmt.Errorf("failed setting read deadline: %w", err)
-			}
-
-			switch n, err := conn.Read(buf); {
-			case isNetworkTimeout(err):
-				break
-			case err != nil:
-				return fmt.Errorf("failed reading: %w", err)
-			case bytes.Equal(seed, buf[:n]):
-				return nil
-			}
+func runLocalDocker(ctx context.Context) (err error) {
+	defer func() {
+		if err == nil {
+			return
 		}
 
-		return errors.New("no UDP connectivity detected")
-	})
+		err = fmt.Errorf("failed pinging docker instance: %w", err)
+	}()
 
-	return eg.Wait()
-}
-
-func isNetworkTimeout(err error) bool {
-	e, ok := err.(net.Error)
-	return ok && e.Timeout()
-}
-
-func runUnixSocket(ctx context.Context) error {
-	path := filepath.Join(os.TempDir(), "fly-doctor.socket")
-
-	l, err := net.Listen("unix", path)
-	if err != nil {
-		return fmt.Errorf("failed listening on socket: %w", err)
+	var client *dockerclient.Client
+	if client, err = imgsrc.NewLocalDockerClient(); err == nil {
+		_, err = client.Ping(ctx)
 	}
 
-	if err := l.Close(); err != nil {
-		return fmt.Errorf("failed closing socket: %w", err)
-	}
-
-	return nil
+	return
 }

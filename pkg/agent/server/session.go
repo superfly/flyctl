@@ -107,14 +107,15 @@ func runSession(ctx context.Context, srv *server, conn net.Conn, id id) {
 type handlerFunc func(*session, context.Context, ...string)
 
 var handlers = map[string]handlerFunc{
-	"kill":      (*session).kill,
-	"ping":      (*session).ping,
-	"establish": (*session).establish,
-	"connect":   (*session).connect,
-	"probe":     (*session).probe,
-	"instances": (*session).instances,
-	"resolve":   (*session).resolve,
-	"ping6":     (*session).ping6,
+	"kill":        (*session).kill,
+	"ping":        (*session).ping,
+	"establish":   (*session).establish,
+	"reestablish": (*session).reestablish,
+	"connect":     (*session).connect,
+	"probe":       (*session).probe,
+	"instances":   (*session).instances,
+	"resolve":     (*session).resolve,
+	"ping6":       (*session).ping6,
 }
 
 var errMalformedKill = errors.New("malformed kill command")
@@ -147,7 +148,7 @@ var (
 	errMalformedEstablish = errors.New("malformed establish command")
 )
 
-func (s *session) establish(ctx context.Context, args ...string) {
+func (s *session) doEstablish(ctx context.Context, recycle bool, args ...string) {
 	if !s.exactArgs(1, args, errMalformedEstablish) {
 		return
 	}
@@ -159,7 +160,7 @@ func (s *session) establish(ctx context.Context, args ...string) {
 		return
 	}
 
-	tunnel, err := s.srv.buildTunnel(org)
+	tunnel, err := s.srv.buildTunnel(org, recycle)
 	if err != nil {
 		s.error(err)
 
@@ -170,6 +171,14 @@ func (s *session) establish(ctx context.Context, args ...string) {
 		WireGuardState: tunnel.State,
 		TunnelConfig:   tunnel.Config,
 	})
+}
+
+func (s *session) establish(ctx context.Context, args ...string) {
+	s.doEstablish(ctx, false, args...)
+}
+
+func (s *session) reestablish(ctx context.Context, args ...string) {
+	s.doEstablish(ctx, true, args...)
 }
 
 var errNoSuchOrg = errors.New("no such organization")
