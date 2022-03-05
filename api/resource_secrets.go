@@ -16,6 +16,7 @@ func (c *Client) SetSecrets(ctx context.Context, appName string, secrets map[str
 						email
 						name
 					}
+					evaluationId
 					createdAt
 				}
 			}
@@ -53,6 +54,7 @@ func (c *Client) UnsetSecrets(ctx context.Context, appName string, keys []string
 						email
 						name
 					}
+					evaluationId
 					createdAt
 				}
 			}

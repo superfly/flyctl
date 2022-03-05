@@ -69,6 +69,7 @@ func runList(ctx context.Context) error {
 
 		rows = append(rows, []string{
 			volume.ID,
+			volume.State,
 			volume.Name,
 			strconv.Itoa(volume.SizeGb) + "GB",
 			volume.Region,
@@ -79,5 +80,5 @@ func runList(ctx context.Context) error {
 
 	}
 
-	return render.Table(out, "", rows, "ID", "Name", "Size", "Region", "Zone", "Attached VM", "Created At")
+	return render.Table(out, "", rows, "ID", "State", "Name", "Size", "Region", "Zone", "Attached VM", "Created At")
 }

@@ -18,7 +18,7 @@ type Server struct {
 	Dial      func(ctx context.Context, network, addr string) (net.Conn, error)
 }
 
-func (srv *Server) Proxy(ctx context.Context) error {
+func (srv *Server) ProxyServer(ctx context.Context) error {
 
 	ls, ok := srv.Listener.(*net.TCPListener)
 	if !ok {

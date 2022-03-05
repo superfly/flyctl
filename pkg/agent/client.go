@@ -19,6 +19,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/superfly/flyctl/pkg/agent/internal/proto"
+	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/pkg/wg"
 
 	"github.com/superfly/flyctl/api"
@@ -45,7 +46,7 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 	}
 
 	// TOOD: log this instead
-	msg := fmt.Sprintf("The running flyctl background agent (v%s) is older than the current flyctl (v%s).", buildinfo.Version(), res.Version)
+	msg := fmt.Sprintf("The running flyctl background agent (v%s) is older than the current flyctl (v%s).", res.Version, buildinfo.Version())
 
 	logger := logger.MaybeFromContext(ctx)
 	if logger != nil {
@@ -113,13 +114,6 @@ type Client struct {
 	network string
 	address string
 	dialer  net.Dialer
-}
-
-func (c *Client) dial() (conn net.Conn, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	return c.dialContext(ctx)
 }
 
 func (c *Client) dialContext(ctx context.Context) (conn net.Conn, err error) {
@@ -349,15 +343,14 @@ func (c *Client) WaitForTunnel(parent context.Context, slug string) (err error) 
 	return
 }
 
-// WaitForHost waits for a tunnel to the given host of the given org slug to
-// become available in the next four minutes.
-func (c *Client) WaitForHost(parent context.Context, slug, host string) (err error) {
+// WaitForDNS waits for a Fly host internal DNS entry to register
+func (c *Client) WaitForDNS(parent context.Context, dialer Dialer, slug string, host string) (err error) {
+
+	io := iostreams.FromContext(parent)
+	io.StartProgressIndicatorMsg(fmt.Sprintf("Waiting for host %s", host))
 	ctx, cancel := context.WithTimeout(parent, 4*time.Minute)
 	defer cancel()
-
-	if err = c.WaitForTunnel(ctx, slug); err != nil {
-		return
-	}
+	io.StopProgressIndicator()
 
 	for {
 		if _, err = c.Resolve(ctx, slug, host); !errors.Is(err, ErrNoSuchHost) {
@@ -412,6 +405,8 @@ func unmarshal(dst interface{}, data []byte) (err error) {
 	return
 }
 
+// Dialer establishes a connection to the wireguard agent and return a dialier
+// for use in subsequent actions, such as running ssh commands or opening proxies
 func (c *Client) Dialer(ctx context.Context, slug string) (d Dialer, err error) {
 	var er *EstablishResponse
 	if er, err = c.Establish(ctx, slug); err == nil {
@@ -424,6 +419,23 @@ func (c *Client) Dialer(ctx context.Context, slug string) (d Dialer, err error) 
 	}
 
 	return
+}
+
+// ConnectToTunnel is a convenience method for connect to a wireguard tunnel
+// and returning a Dialer. Only suitable for use in the new CLI commands.
+func (c *Client) ConnectToTunnel(ctx context.Context, slug string) (d Dialer, err error) {
+	io := iostreams.FromContext(ctx)
+
+	dialer, err := c.Dialer(ctx, slug)
+	if err != nil {
+		return nil, err
+	}
+	io.StartProgressIndicatorMsg(fmt.Sprintf("Opening a wireguard tunnel to %s", slug))
+	if err := c.WaitForTunnel(ctx, slug); err != nil {
+		return nil, fmt.Errorf("tunnel unavailable for organization %s: %w", slug, err)
+	}
+	io.StopProgressIndicator()
+	return dialer, err
 }
 
 // TODO: refactor to struct

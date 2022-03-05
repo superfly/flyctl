@@ -44,14 +44,6 @@ func postgresConfigurations() []PostgresConfiguration {
 			VmSize:             "shared-cpu-1x",
 		},
 		{
-			Description:        "Development - Single node, 1x shared CPU, 512MB RAM, 10GB disk",
-			DiskGb:             10,
-			ImageRef:           "flyio/postgres",
-			InitialClusterSize: 1,
-			MemoryMb:           512,
-			VmSize:             "shared-cpu-1x",
-		},
-		{
 			Description:        "Production - Highly available, 1x shared CPU, 256MB RAM, 10GB disk",
 			DiskGb:             10,
 			ImageRef:           "flyio/postgres",
@@ -309,7 +301,7 @@ func runApiCreatePostgresCluster(cmdCtx *cmdctx.CmdContext, org string, input *a
 
 	cancelCtx := cmdCtx.Command.Context()
 	cmdCtx.AppName = payload.App.Name
-	err = watchDeployment(cancelCtx, cmdCtx)
+	err = watchDeployment(cancelCtx, cmdCtx, "")
 
 	if isCancelledError(err) {
 		err = nil
@@ -594,7 +586,7 @@ func runPostgresConnect(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	// Validate image version to ensure it's compatible with this feature.
-	if app.ImageDetails.Version == "" {
+	if app.ImageDetails.Version == "" || app.ImageDetails.Version == "unknown" {
 		return fmt.Errorf("PG Connect is not compatible with this image.")
 	}
 

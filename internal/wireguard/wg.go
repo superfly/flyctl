@@ -24,7 +24,24 @@ var (
 	cleanDNSPattern = regexp.MustCompile(`[^a-zA-Z0-9\\-]`)
 )
 
-func StateForOrg(apiClient *api.Client, org *api.Organization, regionCode, name string, recycle bool) (*wg.WireGuardState, error) {
+func generatePeerName(ctx context.Context, apiClient *api.Client) (string, error) {
+	user, err := apiClient.GetCurrentUser(ctx)
+	if err != nil {
+		return "", err
+	}
+	emailSlug := cleanDNSPattern.ReplaceAllString(user.Email, "-")
+
+	host, err := os.Hostname()
+	if err != nil {
+		return "", err
+	}
+	hostSlug := cleanDNSPattern.ReplaceAllString(strings.Split(host, ".")[0], "-")
+
+	name := fmt.Sprintf("%s-%s-%d", hostSlug, emailSlug, badrand.Intn(1000)) // skipcq: GSC-G404
+	return name, nil
+}
+
+func StateForOrg(apiClient *api.Client, org *api.Organization, regionCode string, name string) (*wg.WireGuardState, error) {
 	state, err := getWireGuardStateForOrg(org.Slug)
 	if err != nil {
 		return nil, err
@@ -34,6 +51,16 @@ func StateForOrg(apiClient *api.Client, org *api.Organization, regionCode, name 
 	}
 
 	terminal.Debugf("Can't find matching WireGuard configuration; creating new one\n")
+
+	ctx := context.TODO()
+	if name == "" {
+		n, err := generatePeerName(ctx, apiClient)
+		if err != nil {
+			return nil, err
+		}
+
+		name = fmt.Sprintf("interactive-agent-%s", n)
+	}
 
 	stateb, err := Create(apiClient, org, regionCode, name)
 	if err != nil {
@@ -55,19 +82,12 @@ func Create(apiClient *api.Client, org *api.Organization, regionCode, name strin
 	)
 
 	if name == "" {
-		user, err := apiClient.GetCurrentUser(ctx)
+		n, err := generatePeerName(ctx, apiClient)
 		if err != nil {
 			return nil, err
 		}
-		emailSlug := cleanDNSPattern.ReplaceAllString(user.Email, "-")
 
-		host, err := os.Hostname()
-		if err != nil {
-			return nil, err
-		}
-		hostSlug := cleanDNSPattern.ReplaceAllString(strings.Split(host, ".")[0], "-")
-
-		name = fmt.Sprintf("interactive-%s-%s-%d", hostSlug, emailSlug, badrand.Intn(1000)) // skipcq: GSC-G404
+		name = fmt.Sprintf("interactive-%s", n)
 	}
 
 	if regionCode == "" {

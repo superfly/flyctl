@@ -126,7 +126,12 @@ func runUpdate(ctx context.Context) error {
 		if err := watch.ReleaseCommand(ctx, releaseCommand.ID); err != nil {
 			return err
 		}
+
+		release, err = client.GetAppRelease(ctx, appName, release.ID)
+		if err != nil {
+			return err
+		}
 	}
 
-	return watch.Deployment(ctx)
+	return watch.Deployment(ctx, release.EvaluationID)
 }

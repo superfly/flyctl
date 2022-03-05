@@ -28,6 +28,7 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/cli/internal/command/ping"
 	"github.com/superfly/flyctl/internal/cli/internal/command/platform"
+	"github.com/superfly/flyctl/internal/cli/internal/command/proxy"
 	"github.com/superfly/flyctl/internal/cli/internal/command/releases"
 	"github.com/superfly/flyctl/internal/cli/internal/command/restart"
 	"github.com/superfly/flyctl/internal/cli/internal/command/resume"
@@ -138,6 +139,7 @@ func New() *cobra.Command {
 		agent.New(),
 		image.New(),
 		ping.New(),
+		proxy.New(),
 	}
 
 	if os.Getenv("DEV") != "" {
