@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -85,6 +86,7 @@ add the --force flag to send us best-effort diagnostics.`)
 		{"fly.toml", fetchFlyToml, true},
 		{"config.yml", fetchConfigYaml, true},
 		{"Dockerfile", fetchDockerfile, false},
+		{"fly agent logs", fetchAgentLogs, false},
 		{"local diagnostics", fetchLocalDiag, true},
 	}
 
@@ -156,6 +158,28 @@ func fetchFlyToml(ctx context.Context, z *zip.Writer) error {
 	return cp(z, "fly.toml", f)
 }
 
+func grepv(r io.Reader, excludes []string) *bytes.Buffer {
+	buf := &bytes.Buffer{}
+	rdr := bufio.NewReader(r)
+
+	for {
+		line, err := rdr.ReadString('\n')
+		if err != nil {
+			break
+		}
+
+		for _, xcl := range excludes {
+			if strings.Contains(line, xcl) {
+				continue
+			}
+
+			buf.WriteString(line)
+		}
+	}
+
+	return buf
+}
+
 func fetchConfigYaml(ctx context.Context, z *zip.Writer) error {
 	path := filepath.Join(state.ConfigDirectory(ctx), config.FileName)
 	f, err := os.Open(path)
@@ -164,26 +188,27 @@ func fetchConfigYaml(ctx context.Context, z *zip.Writer) error {
 	}
 	defer f.Close()
 
-	buf := &bytes.Buffer{}
-	rdr := bufio.NewReader(f)
+	return cp(z, "config.yml", grepv(f, []string{"_token:", "private"}))
+}
 
-	for {
-		line, err := rdr.ReadString('\n')
-		if err != nil {
-			break
-		}
-
-		switch {
-		case strings.Contains(line, "_token:"):
-			continue
-		case strings.Contains(line, "private:"):
-			continue
-		default:
-			buf.WriteString(line)
-		}
+func fetchAgentLogs(ctx context.Context, z *zip.Writer) error {
+	logs, err := filepath.Glob(fmt.Sprintf("%s/.fly/agent-logs/*.log", os.Getenv("HOME")))
+	if err != nil {
+		// swallow this error, agent logs are best-effort
+		return nil
 	}
 
-	return cp(z, "config.yml", buf)
+	for _, logfile := range logs {
+		f, err := os.Open(logfile)
+		if err != nil {
+			continue
+		}
+
+		cp(z, "agent/"+path.Base(logfile),
+			grepv(f, []string{"private", "password" /* who knows, whatever */}))
+	}
+
+	return nil
 }
 
 func fetchDockerfile(ctx context.Context, z *zip.Writer) error {
