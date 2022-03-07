@@ -19,12 +19,10 @@ import (
 
 func newCreate() (cmd *cobra.Command) {
 	const (
-		long = `The APPS CREATE command will both register a new application 
-with the Fly platform and create the fly.toml file which controls how 
-the application will be deployed. The --builder flag allows a cloud native 
-buildpack to be specified which will be used instead of a Dockerfile to 
-create the application image when it is deployed.
-`
+		long = `The APPS CREATE command will register a new application
+with the Fly platform. It will not generate a configuration file, but one
+may be fetched with 'fly config save -a <app_name>'`
+
 		short = "Create a new application"
 		usage = "create [APPNAME]"
 	)
