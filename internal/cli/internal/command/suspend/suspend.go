@@ -10,7 +10,7 @@ import (
 // TODO: deprecate & remove
 func New() *cobra.Command {
 	const (
-		long = `The SUSPEND command will suspend an application. 
+		long = `The SUSPEND command will suspend an application.
 All instances will be halted leaving the application running nowhere.
 It will continue to consume networking resources (IP address). See APPS RESUME
 for details on restarting it.
@@ -21,8 +21,6 @@ for details on restarting it.
 
 	suspend := command.New(usage, short, long, apps.RunSuspend,
 		command.RequireSession)
-
-	suspend.Args = cobra.ExactArgs(1)
 
 	return suspend
 }
