@@ -69,13 +69,6 @@ The application will resume with its original region pool and a min count of one
 meaning there will be one running instance once restarted. Use SCALE SET MIN= to raise
 the number of configured instances.`,
 		}
-	case "apps.suspend":
-		return KeyStrings{"suspend [APPNAME]", "Suspend an application",
-			`The APPS SUSPEND command will suspend an application.
-All instances will be halted leaving the application running nowhere.
-It will continue to consume networking resources (IP address). See APPS RESUME
-for details on restarting it.`,
-		}
 	case "auth":
 		return KeyStrings{"auth", "Manage authentication",
 			`Authenticate with Fly (and logout if you need to).
@@ -646,13 +639,6 @@ including type, when, success/fail and which user triggered the release.`,
 		return KeyStrings{"restart [APPNAME]", "Restart an application",
 			`The RESTART command will restart all running vms.`,
 		}
-	case "resume":
-		return KeyStrings{"resume [APPNAME]", "Resume an application",
-			`The RESUME command will restart a previously suspended application.
-The application will resume with its original region pool and a min count of one
-meaning there will be one running instance once restarted. Use SCALE SET MIN= to raise
-the number of configured instances.`,
-		}
 	case "scale":
 		return KeyStrings{"scale", "Scale app resources",
 			`Scale application resources`,
@@ -762,13 +748,6 @@ currently allocated.`,
 		return KeyStrings{"instance [instance-id]", "Show instance status",
 			`Show the instance's current status including logs, checks,
 and events.`,
-		}
-	case "suspend":
-		return KeyStrings{"suspend [APPNAME]", "Suspend an application",
-			`The SUSPEND command will suspend an application.
-All instances will be halted leaving the application running nowhere.
-It will continue to consume networking resources (IP address). See RESUME
-for details on restarting it.`,
 		}
 	case "turboku":
 		return KeyStrings{"turboku <heroku-app>", "Launches heroku apps",

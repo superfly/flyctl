@@ -55,15 +55,6 @@ from the Fly platform.
 shortHelp = "Permanently destroys an app"
 usage = "destroy [APPNAME]"
 
-[suspend]
-longHelp = """The SUSPEND command will suspend an application.
-All instances will be halted leaving the application running nowhere.
-It will continue to consume networking resources (IP address). See RESUME
-for details on restarting it.
-"""
-shortHelp = "Suspend an application"
-usage = "suspend [APPNAME]"
-
 [resume]
 longHelp = """The RESUME command will restart a previously suspended application.
 The application will resume with its original region pool and a min count of one
@@ -975,7 +966,7 @@ usage = "create [org] [region] [name]"
 longHelp = """Reset WireGuard peer connection for an organization"""
 shortHelp = "Reset WireGuard peer connection for an organization"
 usage = "reset [org]"
-  
+
 [wireguard.remove]
 longHelp = """Remove a WireGuard peer connection from an organization"""
 shortHelp = "Remove a WireGuard peer connection"

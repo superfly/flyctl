@@ -19,7 +19,7 @@ import (
 
 func newResume() *cobra.Command {
 	const (
-		long = `The APPS RESUME command will restart a previously suspended application. 
+		long = `The APPS RESUME command will restart a previously suspended application.
 The application will resume with its original region pool and a min count of one
 meaning there will be one running instance once restarted. Use SCALE SET MIN= to raise
 the number of configured instances.
@@ -31,6 +31,7 @@ the number of configured instances.
 	resume := command.New(usage, short, long, RunResume,
 		command.RequireSession)
 
+	resume.Hidden = true
 	resume.Args = cobra.ExactArgs(1)
 
 	return resume
@@ -38,6 +39,9 @@ the number of configured instances.
 
 // TODO: make internal once the resume package is removed
 func RunResume(ctx context.Context) (err error) {
+	io := iostreams.FromContext(ctx)
+
+	fmt.Fprintf(io.ErrOut, "Warning: this command is deprecated. Only use it if you have a previously suspended app. Use 'fly scale count 0' if you need to stop an app temporarily.\n")
 	appName := flag.FirstArg(ctx)
 
 	client := client.FromContext(ctx).API()
@@ -49,7 +53,6 @@ func RunResume(ctx context.Context) (err error) {
 		return
 	}
 
-	io := iostreams.FromContext(ctx)
 	if !io.IsInteractive() {
 		waitUntilAppIsRunning(ctx, app, &err)
 
