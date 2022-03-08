@@ -5,8 +5,12 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
+	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func newStop() *cobra.Command {
@@ -41,6 +45,27 @@ func newStop() *cobra.Command {
 	return cmd
 }
 
-func runMachineStop(ctx context.Context) error {
-	return fmt.Errorf("not implemented")
+func runMachineStop(ctx context.Context) (err error) {
+	var (
+		args    = flag.Args(ctx)
+		out     = iostreams.FromContext(ctx).Out
+		appName = app.NameFromContext(ctx)
+		client  = client.FromContext(ctx).API()
+	)
+	for _, arg := range args {
+		input := api.StopMachineInput{
+			AppID:           appName,
+			ID:              arg,
+			Signal:          flag.GetString(ctx, "signal"),
+			KillTimeoutSecs: flag.GetInt(ctx, "time"),
+		}
+
+		machine, err := client.StopMachine(ctx, input)
+		if err != nil {
+			return fmt.Errorf("could not stop machine %s: %w", arg, err)
+		}
+
+		fmt.Fprintf(out, "%s\n", machine.ID)
+	}
+	return
 }

@@ -43,8 +43,8 @@ func newList() *cobra.Command {
 			Description: "List machines in a specific state.",
 		},
 		flag.Bool{
-			Name:        "short",
-			Shorthand:   "s",
+			Name:        "quiet",
+			Shorthand:   "q",
 			Description: "Only list machine ids",
 		},
 	)
@@ -70,7 +70,7 @@ func runMachineList(ctx context.Context) (err error) {
 		return fmt.Errorf("could not get lisyt of machines: %w", err)
 	}
 
-	if flag.GetBool(ctx, "short") {
+	if flag.GetBool(ctx, "quiet") {
 		for _, machine := range machines {
 			fmt.Fprintf(stream.Out, "%s\n", machine.ID)
 		}
