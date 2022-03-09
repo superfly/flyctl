@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
+	"github.com/superfly/flyctl/internal/cli/internal/command/machines"
 	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/client"
@@ -179,7 +180,12 @@ func (p *Launch) Launch(ctx context.Context) error {
 			Config:  machineConf,
 		}
 
-		machine, _, err := p.client.LaunchMachine(ctx, launchInput)
+		flaps, err := machines.NewFlapsClient(ctx, app)
+		if err != nil {
+			return err
+		}
+
+		machine, err := flaps.Launch(launchInput)
 		if err != nil {
 			return err
 		}
