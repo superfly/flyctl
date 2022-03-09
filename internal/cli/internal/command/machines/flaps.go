@@ -39,7 +39,7 @@ func NewFlapsClient(ctx context.Context, app *api.App) (*FlapsClient, error) {
 		return nil, fmt.Errorf("error establishing agent: %w", err)
 	}
 
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+	dialer, err := agentclient.ConnectToTunnel(ctx, app.Organization.Slug)
 	if err != nil {
 		return nil, fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
