@@ -24,7 +24,7 @@ if [ ! -d "$bin_dir" ]; then
  	mkdir -p "$bin_dir"
 fi
 
-curl --fail --location --progress-bar --output "$exe.tar.gz" "$flyctl_uri"
+curl -q --fail --location --progress-bar --output "$exe.tar.gz" "$flyctl_uri"
 cd "$bin_dir"
 tar xzf "$exe.tar.gz"
 chmod +x "$exe"
