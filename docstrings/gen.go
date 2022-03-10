@@ -69,6 +69,13 @@ The application will resume with its original region pool and a min count of one
 meaning there will be one running instance once restarted. Use SCALE SET MIN= to raise
 the number of configured instances.`,
 		}
+	case "apps.suspend":
+		return KeyStrings{"suspend [APPNAME]", "Suspend an application",
+			`The APPS SUSPEND command will suspend an application.
+All instances will be halted leaving the application running nowhere.
+It will continue to consume networking resources (IP address). See APPS RESUME
+for details on restarting it.`,
+		}
 	case "auth":
 		return KeyStrings{"auth", "Manage authentication",
 			`Authenticate with Fly (and logout if you need to).
@@ -638,6 +645,13 @@ including type, when, success/fail and which user triggered the release.`,
 	case "restart":
 		return KeyStrings{"restart [APPNAME]", "Restart an application",
 			`The RESTART command will restart all running vms.`,
+		}
+	case "resume":
+		return KeyStrings{"resume [APPNAME]", "Resume an application",
+			`The RESUME command will restart a previously suspended application.
+The application will resume with its original region pool and a min count of one
+meaning there will be one running instance once restarted. Use SCALE SET MIN= to raise
+the number of configured instances.`,
 		}
 	case "scale":
 		return KeyStrings{"scale", "Scale app resources",

@@ -585,6 +585,10 @@ func runPostgresConnect(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
+	if !isPostgresApp(&app.ImageDetails) {
+		return fmt.Errorf("%s is not a postgres app", cmdCtx.AppName)
+	}
+
 	// Validate image version to ensure it's compatible with this feature.
 	if app.ImageDetails.Version == "" || app.ImageDetails.Version == "unknown" {
 		return fmt.Errorf("PG Connect is not compatible with this image.")
