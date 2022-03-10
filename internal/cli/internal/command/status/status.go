@@ -96,33 +96,38 @@ func once(ctx context.Context, out io.Writer) (err error) {
 		jsonOutput = config.FromContext(ctx).JSONOutput
 	)
 
-	var app *api.AppStatus
-	if app, err = client.GetAppStatus(ctx, appName, all); err != nil {
+	app, err := client.GetApp(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("failed to get app: %s", err)
+	}
+
+	var status *api.AppStatus
+	if status, err = client.GetAppStatus(ctx, appName, all); err != nil {
 		err = fmt.Errorf("failed retrieving app %s: %w", appName, err)
 
 		return
 	}
 
 	var backupRegions []api.Region
-	if app.Deployed && !jsonOutput {
+	if status.Deployed && !jsonOutput {
 		if _, backupRegions, err = client.ListAppRegions(ctx, appName); err != nil {
 			return fmt.Errorf("failed retrieving backup regions for %s: %w", appName, err)
 		}
 	}
 
 	if jsonOutput {
-		err = render.JSON(out, app)
+		err = render.JSON(out, status)
 
 		return
 	}
 
 	obj := [][]string{
 		{
-			app.Name,
-			app.Organization.Slug,
-			strconv.Itoa(app.Version),
-			app.Status,
-			app.Hostname,
+			status.Name,
+			status.Organization.Slug,
+			strconv.Itoa(status.Version),
+			status.Status,
+			status.Hostname,
 		},
 	}
 
@@ -130,23 +135,28 @@ func once(ctx context.Context, out io.Writer) (err error) {
 		return
 	}
 
-	if !app.Deployed {
+	if !status.Deployed && app.PlatformVersion == "" {
 		_, err = fmt.Fprintln(out, "App has not been deployed yet.")
 
 		return
 	}
 
-	showDeploymentStatus := app.DeploymentStatus != nil &&
-		((app.DeploymentStatus.Version == app.Version && app.DeploymentStatus.Status != "cancelled") || flag.GetBool(ctx, "deployment"))
+	switch app.PlatformVersion {
+	case "nomad":
+		showDeploymentStatus := status.DeploymentStatus != nil &&
+			((status.DeploymentStatus.Version == status.Version && status.DeploymentStatus.Status != "cancelled") || flag.GetBool(ctx, "deployment"))
 
-	if showDeploymentStatus {
-		if err = renderDeploymentStatus(out, app.DeploymentStatus); err != nil {
-			return
+		if showDeploymentStatus {
+			if err = renderDeploymentStatus(out, status.DeploymentStatus); err != nil {
+				return
+			}
 		}
+
+		err = render.AllocationStatuses(out, "Instances", backupRegions, status.Allocations...)
+
+	case "machines":
+		err = render.MachineStatuses(out, "Machines", app.Machines.Nodes...)
 	}
-
-	err = render.AllocationStatuses(out, "Instances", backupRegions, app.Allocations...)
-
 	return
 }
 

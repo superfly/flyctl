@@ -67,6 +67,7 @@ func (client *Client) GetApp(ctx context.Context, appName string) (*App, error) 
 				status
 				version
 				appUrl
+				platformVersion
 				config {
 					definition
 				}
@@ -94,6 +95,30 @@ func (client *Client) GetApp(ctx context.Context, appName string) (*App, error) 
 				imageDetails {
 					repository
 					version
+				}
+				machines{
+					nodes {
+						id
+						name
+						config
+						state
+						region
+						createdAt
+						app {
+							name
+						}
+						ips {
+							nodes {
+								family
+								kind
+								ip
+								maskSize
+							}
+						}
+						host {
+							id
+						}
+					}
 				}
 			}
 		}
