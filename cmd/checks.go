@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
@@ -234,6 +235,17 @@ func runDeleteChecksHandler(cmdCtx *cmdctx.CmdContext) error {
 	return nil
 }
 
+func formatOutput(output string) string {
+	var newstr string
+	output = strings.ReplaceAll(output, "\n", "")
+	output = strings.ReplaceAll(output, "] ", "]")
+	v := strings.Split(output, "[✓]")
+	for _, attr := range v {
+		newstr += fmt.Sprintf("%s[✓]\n\n", attr)
+	}
+	return newstr
+}
+
 func runAppCheckList(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 	var nameFilter *string
@@ -242,7 +254,7 @@ func runAppCheckList(cmdCtx *cmdctx.CmdContext) error {
 		nameFilter = api.StringPointer(val)
 	}
 
-	checks, err := cmdCtx.Client.API().GetAppHealthChecks(ctx, cmdCtx.AppName, nameFilter, nil, api.BoolPointer(true))
+	checks, err := cmdCtx.Client.API().GetAppHealthChecks(ctx, cmdCtx.AppName, nameFilter, nil, api.BoolPointer(false))
 	if err != nil {
 		return err
 	}
@@ -261,7 +273,10 @@ func runAppCheckList(cmdCtx *cmdctx.CmdContext) error {
 	table := helpers.MakeSimpleTable(cmdCtx.Out, []string{"Name", "Status", "Allocation", "Region", "Type", "Last Updated", "Output"})
 
 	for _, check := range checks {
-		table.Append([]string{check.Name, check.Status, check.Allocation.IDShort, check.Allocation.Region, check.Type, presenters.FormatRelativeTime(check.UpdatedAt), check.Output})
+		// format output
+		formattedOutput := formatOutput(check.Output)
+
+		table.Append([]string{check.Name, check.Status, check.Allocation.IDShort, check.Allocation.Region, check.Type, presenters.FormatRelativeTime(check.UpdatedAt), formattedOutput})
 	}
 
 	table.Render()

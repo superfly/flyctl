@@ -14,16 +14,14 @@ func MakeSimpleTable(out io.Writer, headings []string) (table *tablewriter.Table
 	// 	headercolors = append(headercolors, tablewriter.Colors{tablewriter.Bold})
 	// }
 	newtable.SetHeader(headings)
-	newtable.SetHeaderLine(false)
+	newtable.SetHeaderLine(true)
 	newtable.SetBorder(false)
 	newtable.SetAutoFormatHeaders(true)
-	//newtable.SetHeaderColor(headercolors...)
 	newtable.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
 	newtable.SetAlignment(tablewriter.ALIGN_LEFT)
-	newtable.SetNoWhiteSpace(true)
 	newtable.SetTablePadding(" ")
-	newtable.SetCenterSeparator("")
-	newtable.SetColumnSeparator("")
-	newtable.SetRowSeparator("")
+	newtable.SetCenterSeparator("*")
+	newtable.SetRowSeparator("-")
+	newtable.SetAutoWrapText(false)
 	return newtable
 }
