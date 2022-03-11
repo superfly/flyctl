@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/buildpacks/pack"
+	pack "github.com/buildpacks/pack/pkg/client"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/terminal"

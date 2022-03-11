@@ -75,6 +75,9 @@ func GenMarkdown(cmd *cobra.Command, w io.Writer) error {
 
 // GenMarkdownCustom creates custom markdown output.
 func GenMarkdownCustom(cmd *cobra.Command, w io.Writer, linkHandler func(string) string) error {
+	if cmd.Hidden {
+		return nil
+	}
 	cmd.InitDefaultHelpCmd()
 	cmd.InitDefaultHelpFlag()
 
