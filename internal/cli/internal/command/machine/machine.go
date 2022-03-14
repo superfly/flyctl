@@ -9,7 +9,7 @@ func New() *cobra.Command {
 	const (
 		short = "Commands that manage machines"
 		long  = short + "\n"
-		usage = "machine"
+		usage = "machine <command>"
 	)
 
 	cmd := command.New(usage, short, long, nil)
@@ -26,6 +26,7 @@ func New() *cobra.Command {
 		newRun(),
 		newStart(),
 		newStop(),
+		newStatus(),
 	)
 
 	return cmd
