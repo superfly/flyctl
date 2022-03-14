@@ -26,7 +26,6 @@ type BuildConfigInput struct {
 }
 
 type FlapsClient struct {
-	ctx       context.Context
 	app       *api.App
 	peerIP    string
 	authToken string
@@ -45,14 +44,13 @@ func NewFlapsClient(ctx context.Context, app *api.App) (*FlapsClient, error) {
 	}
 
 	return &FlapsClient{
-		ctx:       ctx,
 		app:       app,
 		peerIP:    resolvePeerIP(dialer.State().Peer.Peerip),
 		authToken: flyctl.GetAPIToken(),
 	}, nil
 }
 
-func (f *FlapsClient) Launch(builder api.LaunchMachineInput) (*Machine, error) {
+func (f *FlapsClient) Launch(ctx context.Context, builder api.LaunchMachineInput) ([]byte, error) {
 	targetEndpoint := fmt.Sprintf("http://[%s]:4280/v1/machines", f.peerIP)
 
 	body, err := json.Marshal(builder)
@@ -60,40 +58,22 @@ func (f *FlapsClient) Launch(builder api.LaunchMachineInput) (*Machine, error) {
 		return nil, err
 	}
 
-	resp, err := f.sendRequest(nil, http.MethodPost, targetEndpoint, body)
-	if err != nil {
-		return nil, err
-	}
-
-	fmt.Printf("Launch response: %+v\n", string(resp))
-
-	return nil, nil
+	return f.sendRequest(ctx, nil, http.MethodPost, targetEndpoint, body)
 }
 
-func (f *FlapsClient) Stop(machine *api.Machine) ([]byte, error) {
+func (f *FlapsClient) Stop(ctx context.Context, machine *api.Machine) ([]byte, error) {
 	stopEndpoint := fmt.Sprintf("/v1/machines/%s/stop", machine.ID)
 
-	resp, err := f.sendRequest(machine, http.MethodPost, stopEndpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Printf("Stop response: %s\n", string(resp))
-
-	return resp, nil
+	return f.sendRequest(ctx, machine, http.MethodPost, stopEndpoint, nil)
 }
 
-func (f *FlapsClient) Get(machine *api.Machine) ([]byte, error) {
+func (f *FlapsClient) Get(ctx context.Context, machine *api.Machine) ([]byte, error) {
 	getEndpoint := fmt.Sprintf("/v1/machines/%s", machine.ID)
-	resp, err := f.sendRequest(machine, http.MethodGet, getEndpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Printf("Get response: %s\n", string(resp))
 
-	return nil, nil
+	return f.sendRequest(ctx, machine, http.MethodGet, getEndpoint, nil)
 }
 
-func (f *FlapsClient) sendRequest(machine *api.Machine, method, endpoint string, data []byte) ([]byte, error) {
+func (f *FlapsClient) sendRequest(ctx context.Context, machine *api.Machine, method, endpoint string, data []byte) ([]byte, error) {
 	peerIP := f.peerIP
 	if machine != nil {
 		peerIP = resolvePeerIP(machine.IPs.Nodes[0].IP)
