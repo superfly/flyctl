@@ -1,4 +1,4 @@
-package machines
+package flaps
 
 import (
 	"context"
@@ -13,17 +13,6 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/pkg/agent"
 )
-
-type Machine struct {
-	*api.Machine
-}
-
-type BuildConfigInput struct {
-	AppID   string            `json:"appId,omitempty"`
-	OrgSlug string            `json:"organizationId,omitempty"`
-	Region  string            `json:"region,omitempty"`
-	Config  api.MachineConfig `json:"config"`
-}
 
 type FlapsClient struct {
 	app       *api.App
@@ -99,10 +88,6 @@ func (f *FlapsClient) sendRequest(ctx context.Context, machine *api.Machine, met
 	}
 
 	return b, nil
-}
-
-func (m *Machine) addr() string {
-	return m.IPs.Nodes[0].IP
 }
 
 func peerIPFromDialer(ctx context.Context, orgSlug string) (string, error) {
