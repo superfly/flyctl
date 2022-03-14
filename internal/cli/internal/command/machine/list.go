@@ -16,7 +16,7 @@ import (
 
 func newList() *cobra.Command {
 	const (
-		short = "List machines"
+		short = "List Fly machines"
 		long  = short + "\n"
 
 		usage = "list"

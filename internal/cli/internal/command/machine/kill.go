@@ -15,10 +15,10 @@ import (
 
 func newKill() *cobra.Command {
 	const (
-		short = "Kill a machine"
+		short = "Kill (SIGKILL) a Fly machine"
 		long  = short + "\n"
 
-		usage = "kill"
+		usage = "kill <id>"
 	)
 
 	cmd := command.New(usage, short, long, runMachineKill,

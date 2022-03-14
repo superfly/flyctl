@@ -15,10 +15,10 @@ import (
 
 func newStart() *cobra.Command {
 	const (
-		short = "Start a machine"
+		short = "Start a Fly machine"
 		long  = short + "\n"
 
-		usage = "start"
+		usage = "start <id>"
 	)
 
 	cmd := command.New(usage, short, long, runMachineStart,

@@ -16,7 +16,7 @@ import (
 
 func newRemove() *cobra.Command {
 	const (
-		short = "Remove a machine"
+		short = "Remove a Fly machine"
 		long  = short + "\n"
 
 		usage = "remove"

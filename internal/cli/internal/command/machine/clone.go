@@ -25,7 +25,7 @@ import (
 
 func newClone() *cobra.Command {
 	const (
-		short = "Clone a machine"
+		short = "Clones a Fly Machine"
 		long  = short + "\n"
 
 		usage = "clone"
