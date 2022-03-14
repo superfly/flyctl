@@ -90,21 +90,6 @@ func (f *FlapsClient) sendRequest(ctx context.Context, machine *api.Machine, met
 	return b, nil
 }
 
-func peerIPFromDialer(ctx context.Context, orgSlug string) (string, error) {
-	client := client.FromContext(ctx).API()
-	agentclient, err := agent.Establish(ctx, client)
-	if err != nil {
-		return "", fmt.Errorf("error establishing agent: %w", err)
-	}
-
-	dialer, err := agentclient.Dialer(ctx, orgSlug)
-	if err != nil {
-		return "", fmt.Errorf("ssh: can't build tunnel for %s: %s", orgSlug, err)
-	}
-
-	return resolvePeerIP(dialer.State().Peer.Peerip), nil
-}
-
 func resolvePeerIP(ip string) string {
 	peerIP := net.ParseIP(ip)
 	var natsIPBytes [16]byte
