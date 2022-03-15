@@ -1,6 +1,7 @@
 package flaps
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -71,7 +72,7 @@ func (f *Client) sendRequest(ctx context.Context, machine *api.Machine, method, 
 
 	targetEndpoint := fmt.Sprintf("http://[%s]:4280%s", peerIP, endpoint)
 
-	req, err := http.NewRequestWithContext(ctx, method, targetEndpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, method, targetEndpoint, bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
