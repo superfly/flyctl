@@ -15,7 +15,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/pkg/flaps"
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -538,18 +537,4 @@ func ChangeWorkingDirectoryToFirstArgIfPresent(ctx context.Context) (context.Con
 	}
 
 	return state.WithWorkingDirectory(ctx, wd), nil
-}
-
-func RequireFlapsClient(ctx context.Context) (context.Context, error) {
-	org := flag.GetOrg(ctx)
-	if org == "" {
-		return nil, fmt.Errorf("failed to determine org")
-	}
-
-	c, err := flaps.New(ctx, org)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize flaps client: %w", err)
-	}
-
-	return flaps.NewContext(ctx, c), nil
 }
