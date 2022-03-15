@@ -18,25 +18,27 @@ func newStop() *cobra.Command {
 		short = "Stop a Fly machine"
 		long  = short + "\n"
 
-		usage = "stop"
+		usage = "stop <id>"
 	)
 
 	cmd := command.New(usage, short, long, runMachineStop,
 		command.RequireSession,
-		command.RequireAppName,
+		command.LoadAppNameIfPresent,
 	)
 
 	cmd.Args = cobra.MaximumNArgs(1)
 
 	flag.Add(
 		cmd,
+		flag.App(),
+		flag.AppConfig(),
 		flag.String{
 			Name:        "signal",
 			Shorthand:   "s",
 			Description: "Signal to stop the machine with (default: SIGINT)",
 		},
 
-		flag.String{
+		flag.Int{
 			Name:        "time",
 			Description: "Seconds to wait before killing the machine",
 		},
