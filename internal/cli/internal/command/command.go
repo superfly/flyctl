@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/pkg/flaps"
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -62,6 +63,7 @@ var commonPreparers = []Preparer{
 	startQueryingForNewRelease,
 	promptToUpdate,
 	initClient,
+	initFlapsClient,
 	killOldAgent,
 }
 
@@ -291,6 +293,20 @@ func initClient(ctx context.Context) (context.Context, error) {
 	logger.Debug("client initialized.")
 
 	return client.NewContext(ctx, c), nil
+}
+
+func initFlapsClient(ctx context.Context) (context.Context, error) {
+	org := flag.GetOrg(ctx)
+	if org == "" {
+		return nil, fmt.Errorf("failed to determine org")
+	}
+
+	c, err := flaps.New(ctx, org)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize flaps client: %w", err)
+	}
+
+	return flaps.NewContext(ctx, c), nil
 }
 
 func initTaskManager(ctx context.Context) (context.Context, error) {
