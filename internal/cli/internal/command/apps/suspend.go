@@ -25,5 +25,5 @@ func newSuspend() *cobra.Command {
 // TODO: make internal once the suspend package is removed
 func RunSuspend(ctx context.Context) (err error) {
 
-	return fmt.Errorf("this command is deprecated. You may still resume suspended apps using 'fly resume'. Use 'fly scale count 0' if you need to stop an app temporarily")
+	return fmt.Errorf("this command is deprecated. You may still resume suspended apps using 'fly resume'. Use 'fly scale count 0' if you need to stop an app temporarily\n")
 }

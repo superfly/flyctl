@@ -48,8 +48,6 @@ may be fetched with 'fly config save -a <app_name>'`
 			Description: "Specify custom network id",
 		},
 		flag.Org(),
-
-		flag.Region(),
 	)
 
 	return cmd
@@ -98,13 +96,6 @@ func RunCreate(ctx context.Context) (err error) {
 	if v := flag.GetString(ctx, "network"); v != "" {
 		input.Network = api.StringPointer(v)
 	}
-
-	region, err := prompt.Region(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to select region: %w", err)
-	}
-
-	input.PreferredRegion = api.StringPointer(region.Code)
 
 	app, err := client.FromContext(ctx).
 		API().
