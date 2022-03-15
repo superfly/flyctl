@@ -23,10 +23,16 @@ func newStart() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runMachineStart,
 		command.RequireSession,
-		command.RequireAppName,
+		command.LoadAppNameIfPresent,
 	)
 
 	cmd.Args = cobra.ExactArgs(1)
+
+	flag.Add(
+		cmd,
+		flag.App(),
+		flag.AppConfig(),
+	)
 
 	return cmd
 }

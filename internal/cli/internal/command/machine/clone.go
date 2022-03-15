@@ -28,7 +28,7 @@ func newClone() *cobra.Command {
 		short = "Clones a Fly Machine"
 		long  = short + "\n"
 
-		usage = "clone"
+		usage = "clone <id>"
 	)
 
 	cmd := command.New(usage, short, long, runMachineClone,
@@ -36,10 +36,12 @@ func newClone() *cobra.Command {
 		command.RequireAppName,
 	)
 
-	cmd.Args = cobra.MaximumNArgs(1)
+	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(
 		cmd,
+		flag.App(),
+		flag.AppConfig(),
 		flag.String{
 			Name:        "region",
 			Shorthand:   "r",
@@ -54,6 +56,11 @@ func newClone() *cobra.Command {
 			Name:        "organization",
 			Shorthand:   "o",
 			Description: "Target organization",
+		},
+		flag.Bool{
+			Name:        "detach",
+			Shorthand:   "d",
+			Description: "Detach from the machine's logs",
 		},
 	)
 
@@ -82,7 +89,6 @@ func runMachineClone(ctx context.Context) error {
 		return fmt.Errorf("could not get organization: %w", err)
 	}
 
-	// TODO - Add GetMachine endpoint so we don't have to query everything.
 	machine, err := client.GetMachine(ctx, appName, machineID)
 	if err != nil {
 		return fmt.Errorf("failed to resolve machine with id %s: %w", machineID, err)
@@ -107,7 +113,7 @@ func runMachineClone(ctx context.Context) error {
 		Config:  &machine.Config,
 	}
 
-	machine, app, err := client.LaunchMachine(ctx, input)
+	machine, _, err = client.LaunchMachine(ctx, input)
 	if err != nil {
 		return fmt.Errorf("failed to launch machine: %w", err)
 	}
@@ -118,7 +124,7 @@ func runMachineClone(ctx context.Context) error {
 	}
 
 	opts := &logs.LogOptions{
-		AppName: app.Name,
+		AppName: appName,
 		VMID:    machine.ID,
 	}
 

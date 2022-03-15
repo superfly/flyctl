@@ -2,13 +2,13 @@ package machine
 
 import (
 	"context"
-	"flag"
 	"fmt"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
+	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/pkg/iostreams"
 )
@@ -23,10 +23,16 @@ func newKill() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runMachineKill,
 		command.RequireSession,
-		command.RequireAppName,
+		command.LoadAppNameIfPresent,
 	)
 
 	cmd.Args = cobra.MinimumNArgs(1)
+
+	flag.Add(
+		cmd,
+		flag.App(),
+		flag.AppConfig(),
+	)
 
 	return cmd
 }
@@ -37,7 +43,7 @@ func runMachineKill(ctx context.Context) (err error) {
 		appName = app.NameFromContext(ctx)
 		client  = client.FromContext(ctx).API()
 	)
-	for _, arg := range flag.Args() {
+	for _, arg := range flag.Args(ctx) {
 		input := api.KillMachineInput{
 			AppID: appName,
 			ID:    arg,
