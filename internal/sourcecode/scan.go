@@ -202,6 +202,11 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 				Value: string(masterKey),
 			},
 		}
+
+		s.Env = map[string]string{
+			"RAILS_ENV":           "production",
+			"RAILS_LOG_TO_STDOUT": "true",
+		}
 	}
 
 	s.ReleaseCmd = "bundle exec rails db:migrate"
