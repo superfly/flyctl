@@ -63,7 +63,6 @@ var commonPreparers = []Preparer{
 	startQueryingForNewRelease,
 	promptToUpdate,
 	initClient,
-	initFlapsClient,
 	killOldAgent,
 }
 
@@ -293,20 +292,6 @@ func initClient(ctx context.Context) (context.Context, error) {
 	logger.Debug("client initialized.")
 
 	return client.NewContext(ctx, c), nil
-}
-
-func initFlapsClient(ctx context.Context) (context.Context, error) {
-	org := flag.GetOrg(ctx)
-	if org == "" {
-		return nil, fmt.Errorf("failed to determine org")
-	}
-
-	c, err := flaps.New(ctx, org)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize flaps client: %w", err)
-	}
-
-	return flaps.NewContext(ctx, c), nil
 }
 
 func initTaskManager(ctx context.Context) (context.Context, error) {
@@ -553,4 +538,18 @@ func ChangeWorkingDirectoryToFirstArgIfPresent(ctx context.Context) (context.Con
 	}
 
 	return state.WithWorkingDirectory(ctx, wd), nil
+}
+
+func RequireFlapsClient(ctx context.Context) (context.Context, error) {
+	org := flag.GetOrg(ctx)
+	if org == "" {
+		return nil, fmt.Errorf("failed to determine org")
+	}
+
+	c, err := flaps.New(ctx, org)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize flaps client: %w", err)
+	}
+
+	return flaps.NewContext(ctx, c), nil
 }
