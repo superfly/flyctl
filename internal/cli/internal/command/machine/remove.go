@@ -19,7 +19,7 @@ func newRemove() *cobra.Command {
 		short = "Remove a Fly machine"
 		long  = short + "\n"
 
-		usage = "remove"
+		usage = "remove <id>"
 	)
 
 	cmd := command.New(usage, short, long, runMachineRemove,
@@ -31,6 +31,8 @@ func newRemove() *cobra.Command {
 
 	flag.Add(
 		cmd,
+		flag.App(),
+		flag.AppConfig(),
 		flag.Bool{
 			Name:        "force",
 			Shorthand:   "f",
