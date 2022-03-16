@@ -40,6 +40,7 @@ func newClone() *cobra.Command {
 
 	flag.Add(
 		cmd,
+		flag.Org(),
 		flag.App(),
 		flag.AppConfig(),
 		flag.Region(),
@@ -47,11 +48,6 @@ func newClone() *cobra.Command {
 			Name:        "name",
 			Shorthand:   "n",
 			Description: "The name of the new machine",
-		},
-		flag.String{
-			Name:        "organization",
-			Shorthand:   "o",
-			Description: "Target organization",
 		},
 		flag.Bool{
 			Name:        "detach",
