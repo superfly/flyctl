@@ -14,10 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/pkg/iostreams"
-	"github.com/superfly/flyctl/pkg/logs"
-	"github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cli/internal/app"
@@ -25,9 +22,9 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/cmdutil"
-	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/pkg/flaps"
 )
 
 func newRun() *cobra.Command {
@@ -144,7 +141,6 @@ func runMachineRun(ctx context.Context) error {
 	var (
 		appName = app.NameFromContext(ctx)
 		client  = client.FromContext(ctx).API()
-		io      = iostreams.FromContext(ctx)
 	)
 
 	var org *api.Organization
@@ -284,47 +280,55 @@ func runMachineRun(ctx context.Context) error {
 		input.OrgSlug = org.ID
 	}
 
-	machine, _, err := client.LaunchMachine(ctx, input)
+	// machine, _, err := client.LaunchMachine(ctx, input)
+	flapsClient, err := flaps.NewFlapsClient(ctx, app)
+	if err != nil {
+		return fmt.Errorf("could not make flaps client: %w", err)
+	}
+	mach, err := flapsClient.Launch(ctx, input)
 	if err != nil {
 		return fmt.Errorf("could not launch machine: %w", err)
 	}
 
-	if flag.GetBool(ctx, "detach") {
-		fmt.Fprintf(io.Out, "Machine: %s\n", machine.ID)
-		return nil
-	}
+	fmt.Println(mach)
+	return nil
 
-	// apiClient := cmdCtx.Client.API()
+	// if flag.GetBool(ctx, "detach") {
+	// 	fmt.Fprintf(io.Out, "Machine: %s\n", machine.ID)
+	// 	return nil
+	// }
 
-	opts := &logs.LogOptions{
-		AppName: app.Name,
-		VMID:    machine.ID,
-	}
+	// // apiClient := cmdCtx.Client.API()
 
-	stream, err := logs.NewNatsStream(ctx, client, opts)
+	// opts := &logs.LogOptions{
+	// 	AppName: app.Name,
+	// 	VMID:    mach.ID,
+	// }
 
-	if err != nil {
-		terminal.Debugf("could not connect to wireguard tunnel, err: %v\n", err)
-		terminal.Debug("Falling back to log polling...")
+	// stream, err := logs.NewNatsStream(ctx, client, opts)
 
-		stream, err = logs.NewPollingStream(ctx, client, opts)
-		if err != nil {
-			return err
-		}
-	}
+	// if err != nil {
+	// 	terminal.Debugf("could not connect to wireguard tunnel, err: %v\n", err)
+	// 	terminal.Debug("Falling back to log polling...")
 
-	presenter := presenters.LogPresenter{}
+	// 	stream, err = logs.NewPollingStream(ctx, client, opts)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
 
-	entries := stream.Stream(ctx, opts)
+	// presenter := presenters.LogPresenter{}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return stream.Err()
-		case entry := <-entries:
-			presenter.FPrint(io.Out, config.FromContext(ctx).JSONOutput, entry)
-		}
-	}
+	// entries := stream.Stream(ctx, opts)
+
+	// for {
+	// 	select {
+	// 	case <-ctx.Done():
+	// 		return stream.Err()
+	// 	case entry := <-entries:
+	// 		presenter.FPrint(io.Out, config.FromContext(ctx).JSONOutput, entry)
+	// 	}
+	// }
 }
 
 func parseEnvVars(ctx context.Context) (map[string]string, error) {
