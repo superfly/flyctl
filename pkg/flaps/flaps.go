@@ -19,47 +19,47 @@ import (
 )
 
 type Client struct {
+	app       *api.App
 	peerIP    string
 	authToken string
 }
 
-func New(ctx context.Context, orgSlug string) (*Client, error) {
+func New(ctx context.Context, app *api.App) (*Client, error) {
 	client := client.FromContext(ctx).API()
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
 		return nil, fmt.Errorf("error establishing agent: %w", err)
 	}
 
-	dialer, err := agentclient.Dialer(ctx, orgSlug)
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
 	if err != nil {
-		return nil, fmt.Errorf("ssh: can't build tunnel for %s: %s", orgSlug, err)
+		return nil, fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
 
 	return &Client{
+		app:       app,
 		peerIP:    resolvePeerIP(dialer.State().Peer.Peerip),
 		authToken: flyctl.GetAPIToken(),
 	}, nil
 }
 
 func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) ([]byte, error) {
-	targetEndpoint := fmt.Sprintf("http://[%s]:4280/v1/machines", f.peerIP)
-
 	body, err := json.Marshal(builder)
 	if err != nil {
 		return nil, err
 	}
 
-	return f.sendRequest(ctx, nil, http.MethodPost, targetEndpoint, body)
+	return f.sendRequest(ctx, nil, http.MethodPost, "", body)
 }
 
 func (f *Client) Stop(ctx context.Context, machine *api.Machine) ([]byte, error) {
-	stopEndpoint := fmt.Sprintf("/v1/machines/%s/stop", machine.ID)
+	stopEndpoint := fmt.Sprintf("%s/stop", machine.ID)
 
 	return f.sendRequest(ctx, machine, http.MethodPost, stopEndpoint, nil)
 }
 
 func (f *Client) Get(ctx context.Context, machine *api.Machine) ([]byte, error) {
-	getEndpoint := fmt.Sprintf("/v1/machines/%s", machine.ID)
+	getEndpoint := machine.ID
 
 	return f.sendRequest(ctx, machine, http.MethodGet, getEndpoint, nil)
 }
@@ -70,13 +70,13 @@ func (f *Client) sendRequest(ctx context.Context, machine *api.Machine, method, 
 		peerIP = resolvePeerIP(machine.IPs.Nodes[0].IP)
 	}
 
-	targetEndpoint := fmt.Sprintf("http://[%s]:4280%s", peerIP, endpoint)
+	targetEndpoint := fmt.Sprintf("http://[%s]:4280/v1/machines%s", peerIP, endpoint)
 
 	req, err := http.NewRequestWithContext(ctx, method, targetEndpoint, bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
-	req.SetBasicAuth(machine.App.ID, f.authToken)
+	req.SetBasicAuth(f.app.Name, f.authToken)
 
 	logger.FromContext(ctx).Debugf("Running %s %s... ", method, endpoint)
 	resp, err := http.DefaultClient.Do(req)

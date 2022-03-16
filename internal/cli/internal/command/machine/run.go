@@ -280,11 +280,11 @@ func runMachineRun(ctx context.Context) error {
 		input.OrgSlug = org.ID
 	}
 
-	// machine, _, err := client.LaunchMachine(ctx, input)
-	flapsClient, err := flaps.NewFlapsClient(ctx, app)
+	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
 		return fmt.Errorf("could not make flaps client: %w", err)
 	}
+
 	mach, err := flapsClient.Launch(ctx, input)
 	if err != nil {
 		return fmt.Errorf("could not launch machine: %w", err)
