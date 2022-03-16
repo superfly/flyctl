@@ -46,7 +46,7 @@ func newClone() *cobra.Command {
 		flag.String{
 			Name:        "name",
 			Shorthand:   "n",
-			Description: "The name of the machine",
+			Description: "The name of the new machine",
 		},
 		flag.String{
 			Name:        "organization",
