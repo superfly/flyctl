@@ -47,6 +47,7 @@ func newRun() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Region(),
 		flag.String{
 			Name:        "id",
 			Description: "Machine ID, is previously known",
@@ -59,11 +60,6 @@ func newRun() *cobra.Command {
 		flag.String{
 			Name:        "org",
 			Description: `The organization that will own the app`,
-		},
-		flag.String{
-			Name:        "region",
-			Shorthand:   "r",
-			Description: "Region to deploy the machine to (see `flyctl platform regions`)",
 		},
 		flag.StringSlice{
 			Name:        "port",

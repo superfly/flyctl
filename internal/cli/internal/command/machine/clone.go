@@ -42,11 +42,7 @@ func newClone() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
-		flag.String{
-			Name:        "region",
-			Shorthand:   "r",
-			Description: "Target region",
-		},
+		flag.Region(),
 		flag.String{
 			Name:        "name",
 			Shorthand:   "n",

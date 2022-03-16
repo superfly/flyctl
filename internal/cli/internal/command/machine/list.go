@@ -67,7 +67,7 @@ func runMachineList(ctx context.Context) (err error) {
 
 	machines, err := client.ListMachines(ctx, appName, state)
 	if err != nil {
-		return fmt.Errorf("could not get lisyt of machines: %w", err)
+		return fmt.Errorf("could not get list of machines: %w", err)
 	}
 
 	if flag.GetBool(ctx, "quiet") {
