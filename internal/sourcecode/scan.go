@@ -171,7 +171,9 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 		},
 		Port: 8080,
 		Env: map[string]string{
-			"PORT": "8080",
+			"PORT":                "8080",
+			"RAILS_ENV":           "production",
+			"RAILS_LOG_TO_STDOUT": "true",
 		},
 		InitCommands: []InitCommand{
 			{
@@ -201,11 +203,6 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 				Help:  "Secret key for accessing encrypted credentials",
 				Value: string(masterKey),
 			},
-		}
-
-		s.Env = map[string]string{
-			"RAILS_ENV":           "production",
-			"RAILS_LOG_TO_STDOUT": "true",
 		}
 	}
 
