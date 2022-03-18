@@ -1,6 +1,8 @@
 package api
 
 import (
+	"net"
+	"syscall"
 	"time"
 )
 
@@ -727,6 +729,120 @@ type DeployImageInput struct {
 	Services   *[]Service  `json:"services"`
 	Definition *Definition `json:"definition"`
 	Strategy   *string     `json:"strategy"`
+}
+
+type InitConfig struct {
+	Exec       []string `json:"exec"`
+	Entrypoint []string `json:"entrypoint"`
+	Cmd        []string `json:"cmd"`
+	Tty        bool     `json:"tty"`
+
+	Env     map[string]string `json:"env"`
+	Secrets map[string]string `json:"secrets"`
+
+	UseInitrd bool `json:"use_initrd"`
+}
+
+type GuestConfig struct {
+	CPUKind string `json:"cpu_kind"`
+	// deprecated
+	Cores    int    `json:"cores"`
+	CPUCount int    `json:"cpus"`
+	MemoryMB uint64 `json:"memory_mb"`
+
+	KernelArgs []string `json:"kernel_args"`
+
+	Daemonize bool `json:"daemonize"`
+}
+
+type NetConfig struct {
+	ID         int  `json:"id"`
+	PrivateDNS bool `json:"private_dns"`
+	IsInfra    bool `json:"is_infra"`
+}
+
+type InstanceConfig struct {
+	AppID   int    `json:"app_id"`
+	AppName string `json:"app_name"`
+
+	OrgID   int    `json:"org_id"`
+	OrgName string `json:"org_name"`
+
+	Version int `json:"version"`
+
+	Image string `json:"image"`
+
+	VaultPolicies []string `json:"vault_policies"`
+
+	Init  *InitConfig  `json:"init"`
+	Guest *GuestConfig `json:"guest"`
+	Net   *NetConfig   `json:"network"`
+
+	Volumes  []*Volume  `json:"volumes"`
+	Statics  []*Static  `json:"statics"`
+	Services []*Service `json:"services"`
+
+	SensuNamespace string `json:"sensu_namespace"`
+
+	Stop    *Stop    `json:"stop,omitempty"`
+	Restart *Restart `json:"restart,omitempty"`
+
+	Metadata map[string]interface{} `json:"metadata"`
+}
+
+type Static struct {
+	GuestPath string `codec:"guest_path" json:"guest_path"`
+	UrlPath   string `codec:"url_path" json:"url_path"`
+	CacheKey  string `codec:"cache_key" json:"cache_key"`
+}
+
+type Signal struct {
+	syscall.Signal
+}
+
+type TimeoutDuration struct {
+	time.Duration
+}
+
+type Stop struct {
+	Signal  Signal          `json:"signal,omitempty"`
+	Timeout TimeoutDuration `json:"timeout,omitempty"`
+}
+
+type Restart struct {
+	Policy     string `json:"policy"`
+	MaxRetries int    `json:"max_retries"`
+}
+
+type Services struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+
+	Address *string `json:"address"`
+	Port    uint16  `json:"port"`
+
+	Tags []string          `json:"tags"`
+	Meta map[string]string `json:"meta"`
+
+	Checks []*Check `json:"checks"`
+}
+
+type NetworkInterface struct {
+	ID            int64           `json:"id"`
+	Name          string          `json:"name"`
+	IPAssignments []*IPAssignment `json:"ip_assignments"`
+}
+
+type IPAssignment struct {
+	ID      int64      `json:"id"`
+	Type    string     `json:"type"`
+	Family  string     `json:"family"`
+	IP      net.IP     `json:"ip"`
+	Mask    net.IPMask `json:"mask"`
+	Gateway net.IP     `json:"gateway"`
+
+	// easier to consume via json
+	MaskSize int `json:"mask_size"`
 }
 
 type Service struct {
