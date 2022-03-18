@@ -2,6 +2,7 @@ package machine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path"
 	"path/filepath"
@@ -290,45 +291,21 @@ func runMachineRun(ctx context.Context) error {
 		return fmt.Errorf("could not launch machine: %w", err)
 	}
 
-	fmt.Println(mach)
+	type body struct {
+		Status  string
+		Message string
+	}
+
+	var machineBody body
+	if err := json.Unmarshal(mach, &machineBody); err != nil {
+		return err
+	}
+
+	if machineBody.Status == "error" {
+		return errors.Wrap(nil, machineBody.Message)
+	}
+
 	return nil
-
-	// if flag.GetBool(ctx, "detach") {
-	// 	fmt.Fprintf(io.Out, "Machine: %s\n", machine.ID)
-	// 	return nil
-	// }
-
-	// // apiClient := cmdCtx.Client.API()
-
-	// opts := &logs.LogOptions{
-	// 	AppName: app.Name,
-	// 	VMID:    mach.ID,
-	// }
-
-	// stream, err := logs.NewNatsStream(ctx, client, opts)
-
-	// if err != nil {
-	// 	terminal.Debugf("could not connect to wireguard tunnel, err: %v\n", err)
-	// 	terminal.Debug("Falling back to log polling...")
-
-	// 	stream, err = logs.NewPollingStream(ctx, client, opts)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// }
-
-	// presenter := presenters.LogPresenter{}
-
-	// entries := stream.Stream(ctx, opts)
-
-	// for {
-	// 	select {
-	// 	case <-ctx.Done():
-	// 		return stream.Err()
-	// 	case entry := <-entries:
-	// 		presenter.FPrint(io.Out, config.FromContext(ctx).JSONOutput, entry)
-	// 	}
-	// }
 }
 
 func parseEnvVars(ctx context.Context) (map[string]string, error) {
