@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
@@ -27,6 +28,55 @@ import (
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/pkg/flaps"
 )
+
+type MachineExitEvent struct {
+	RequestedStop bool   `json:"requested_stop"`
+	Restarting    bool   `json:"restarting"`
+	GuestExitCode int64  `json:"guest_exit_code"`
+	GuestSignal   int64  `json:"guest_signal"`
+	GuestError    string `json:"guest_error,omitempty"`
+	ExitCode      int64  `json:"exit_code"`
+	Signal        int64  `json:"signal"`
+	Error         string `json:"error,omitempty"`
+	OOMKilled     bool   `json:"oom_killed"`
+}
+
+type Instance struct {
+	ID string `json:"id"`
+
+	Config *api.InstanceConfig `json:"config"`
+
+	State string `json:"state"`
+	Dir   string `json:"dir"`
+	PID   int64  `json:"pid"`
+
+	ChrootDir       string `json:"guest_dir"`
+	ChrootVsockPath string `json:"guest_vsock_path"`
+	VsockPort       int64  `json:"guest_vsock_port"`
+	ChrootAPIPath   string `json:"guest_api_path"`
+
+	Exit *MachineExitEvent `json:"exit"`
+
+	RestartCount int64 `json:"restart_count"`
+
+	Services []*api.Services `json:"services"`
+
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type Machine struct {
+	ID      string `json:"id"`
+	AppID   int    `json:"app_id"`
+	AppName string `json:"app_name"`
+	OrgID   int    `json:"org_id"`
+
+	State string `json:"state"`
+
+	Instance          *Instance               `json:"instance"`
+	NetworkInterfaces []*api.NetworkInterface `json:"network_interfaces"`
+
+	UpdatedAt time.Time `json:"updated_at"`
+}
 
 func newRun() *cobra.Command {
 	const (
@@ -142,6 +192,7 @@ func runMachineRun(ctx context.Context) error {
 	var (
 		appName = app.NameFromContext(ctx)
 		client  = client.FromContext(ctx).API()
+		io      = iostreams.FromContext(ctx)
 	)
 
 	var org *api.Organization
@@ -294,6 +345,8 @@ func runMachineRun(ctx context.Context) error {
 	type body struct {
 		Status  string
 		Message string
+		Data    json.RawMessage
+		Code    string
 	}
 
 	var machineBody body
@@ -303,6 +356,21 @@ func runMachineRun(ctx context.Context) error {
 
 	if machineBody.Status == "error" {
 		return errors.Wrap(nil, machineBody.Message)
+	} else if machineBody.Status == "success" {
+		machineData := Machine{}
+		if err := json.Unmarshal(machineBody.Data, &machineData); err != nil {
+			return err
+		}
+
+		fmt.Fprintf(io.Out, "Success! A machine has been successfully launched\n")
+		fmt.Fprintf(io.Out, " Machine ID: %s\n", machineData.ID)
+		fmt.Fprintf(io.Out, " App Name: %s\n", machineData.AppName)
+		fmt.Fprintf(io.Out, "You can connect to your machine via the following\n")
+		fmt.Fprintf(io.Out, "  IPv6:    %s\n", machineData.NetworkInterfaces[0].IPAssignments[0].IP)
+		fmt.Fprintf(io.Out, "  Gateway:    %s\n", machineData.NetworkInterfaces[0].IPAssignments[0].Gateway)
+		fmt.Fprintf(io.Out, " IPv4:    %s\n", machineData.NetworkInterfaces[0].IPAssignments[1].IP)
+		fmt.Fprintf(io.Out, "  Gateway:    %s\n", machineData.NetworkInterfaces[0].IPAssignments[1].Gateway)
+		return nil
 	}
 
 	return nil
