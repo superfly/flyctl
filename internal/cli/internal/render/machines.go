@@ -1,7 +1,6 @@
 package render
 
 import (
-	"fmt"
 	"io"
 	"time"
 
@@ -58,6 +57,10 @@ func MachineIPs(w io.Writer, ips ...*api.MachineIP) error {
 	var rows [][]string
 
 	for _, ip := range ips {
+		if ip.Kind != "privatenet" {
+			continue
+		}
+
 		rows = append(rows, []string{
 			ip.Family,
 			ip.IP,
@@ -76,23 +79,23 @@ func MachineEvents(w io.Writer, events ...*api.MachineEvent) error {
 	var rows [][]string
 
 	for _, evt := range events {
-		var exitMeta string
+		// var exitMeta string
 
-		if evt.Metadata != nil {
-			for k, v := range evt.Metadata {
-				exitMeta += fmt.Sprintf("%s: %v, ", k, v)
-			}
-		}
-		if exitMeta == "" {
-			exitMeta = "N/A"
-		}
+		// if evt.Metadata != nil {
+		// 	for k, v := range evt.Metadata {
+		// 		exitMeta += fmt.Sprintf("%s: %v, ", k, v)
+		// 	}
+		// }
+		// if exitMeta == "" {
+		// 	exitMeta = "N/A"
+		// }
 		rows = append(rows, []string{
 			evt.ID,
 			evt.Kind,
 			evt.Timestamp.Format(time.RFC3339),
-			exitMeta,
+			// exitMeta,
 		})
 	}
 
-	return Table(w, "Recent Events", rows, "ID", "Kind", "Timestamp", "Meta")
+	return Table(w, "Recent Events", rows, "ID", "Kind", "Timestamp")
 }
