@@ -60,6 +60,7 @@ func New() (cmd *cobra.Command) {
 		flag.RemoteOnly(),
 		flag.LocalOnly(),
 		flag.BuildOnly(),
+		flag.Push(),
 		flag.Detach(),
 		flag.String{
 			Name:        "strategy",
@@ -251,7 +252,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 	opts := imgsrc.ImageOptions{
 		AppName:         app.NameFromContext(ctx),
 		WorkingDir:      state.WorkingDirectory(ctx),
-		Publish:         !flag.GetBuildOnly(ctx),
+		Publish:         flag.GetBool(ctx, "push") || !flag.GetBuildOnly(ctx),
 		ImageLabel:      flag.GetString(ctx, "image-label"),
 		NoCache:         flag.GetBool(ctx, "no-cache"),
 		BuildArgs:       buildArgs,
