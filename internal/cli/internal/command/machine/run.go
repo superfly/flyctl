@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
@@ -41,41 +40,17 @@ type MachineExitEvent struct {
 	OOMKilled     bool   `json:"oom_killed"`
 }
 
-type Instance struct {
-	ID string `json:"id"`
-
-	Config *api.InstanceConfig `json:"config"`
-
-	State string `json:"state"`
-	Dir   string `json:"dir"`
-	PID   int64  `json:"pid"`
-
-	ChrootDir       string `json:"guest_dir"`
-	ChrootVsockPath string `json:"guest_vsock_path"`
-	VsockPort       int64  `json:"guest_vsock_port"`
-	ChrootAPIPath   string `json:"guest_api_path"`
-
-	Exit *MachineExitEvent `json:"exit"`
-
-	RestartCount int64 `json:"restart_count"`
-
-	Services []*api.Services `json:"services"`
-
-	UpdatedAt time.Time `json:"updated_at"`
-}
-
 type Machine struct {
-	ID      string `json:"id"`
-	AppID   int    `json:"app_id"`
-	AppName string `json:"app_name"`
-	OrgID   int    `json:"org_id"`
+	ID    string `json:"id"`
+	AppID int    `json:"app_id"`
 
 	State string `json:"state"`
 
-	Instance          *Instance               `json:"instance"`
-	NetworkInterfaces []*api.NetworkInterface `json:"network_interfaces"`
+	// InstanceID is unique for each version of the machine
+	InstanceID string `json:"instance_id"`
 
-	UpdatedAt time.Time `json:"updated_at"`
+	// PrivateIP is the internal 6PN address of the machine.
+	PrivateIP string `json:"private_ip"`
 }
 
 func newRun() *cobra.Command {
