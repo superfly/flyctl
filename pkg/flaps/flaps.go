@@ -53,7 +53,7 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) ([]
 }
 
 func (f *Client) Stop(ctx context.Context, machine *api.Machine) ([]byte, error) {
-	stopEndpoint := fmt.Sprintf("%s/stop", machine.ID)
+	stopEndpoint := fmt.Sprintf("/%s/stop", machine.ID)
 
 	return f.sendRequest(ctx, machine, http.MethodPost, stopEndpoint, nil)
 }
