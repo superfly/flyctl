@@ -1278,7 +1278,13 @@ type DeleteOrganizationMembershipPayload struct {
 }
 
 type MachineEvent struct {
-	Kind      string      `json:"kind"`
-	Timestamp time.Time   `json:"timestamp"`
-	Body      interface{} `json:"body"`
+	ID        string
+	Kind      string
+	Timestamp time.Time
+	Metadata  map[string]interface{}
+}
+
+type MachineEventStop struct {
+	ExitCode  *int
+	OOMKilled bool
 }
