@@ -279,3 +279,14 @@ func BuildOnly() Bool {
 func GetBuildOnly(ctx context.Context) bool {
 	return GetBool(ctx, buildOnlyName)
 }
+
+const pushName = "push"
+
+// Push returns a boolean flag for pushing image to resitry
+func Push() Bool {
+	return Bool{
+		Name:        pushName,
+		Description: "Push image to registry after build is complete",
+		Default:     false,
+	}
+}
