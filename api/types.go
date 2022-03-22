@@ -1,8 +1,6 @@
 package api
 
 import (
-	"encoding/json"
-	"fmt"
 	"time"
 )
 
@@ -1289,36 +1287,4 @@ type MachineEvent struct {
 type MachineEventStop struct {
 	ExitCode  *int
 	OOMKilled bool
-}
-
-func (e *MachineEvent) UnmarshalJSON(data []byte) error {
-	var genericMachineEvents []MachineEvent
-
-	if err := json.Unmarshal(data, &genericMachineEvents); err != nil {
-		fmt.Print("error is here")
-		return err
-	}
-
-	for _, event := range genericMachineEvents {
-		var machineStop MachineEventStop
-		machineBodyinBytes, err := json.Marshal(event.Metadata)
-		if err != nil {
-			fmt.Print(err)
-		}
-
-		switch event.Kind {
-		case "exit":
-			if err := json.Unmarshal(machineBodyinBytes, &machineStop); err != nil {
-				return err
-			}
-			e.Metadata["ExitCode"] = machineStop.ExitCode
-			e.Metadata["OOMKilled"] = machineStop.OOMKilled
-		}
-
-		e.ID = event.ID
-		e.Kind = event.Kind
-		e.Timestamp = event.Timestamp
-	}
-
-	return nil
 }
