@@ -1207,6 +1207,19 @@ type Machine struct {
 	CreatedAt time.Time
 }
 
+type V1Machine struct {
+	ID    string `json:"id"`
+	AppID int    `json:"app_id"`
+
+	State string `json:"state"`
+
+	// InstanceID is unique for each version of the machine
+	InstanceID string `json:"instance_id"`
+
+	// PrivateIP is the internal 6PN address of the machine.
+	PrivateIP string `json:"private_ip"`
+}
+
 type MachineIP struct {
 	Family   string
 	Kind     string

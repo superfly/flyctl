@@ -44,12 +44,25 @@ func New(ctx context.Context, app *api.App) (*Client, error) {
 }
 
 func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) ([]byte, error) {
+	fmt.Println("Machine is launching...")
 	body, err := json.Marshal(builder)
 	if err != nil {
 		return nil, err
 	}
 
 	return f.sendRequest(ctx, nil, http.MethodPost, "", body)
+}
+
+func (f *Client) Wait(ctx context.Context, machine *api.V1Machine) ([]byte, error) {
+	fmt.Println("Waiting on firecracker VM...")
+
+	waitEndpoint := fmt.Sprintf("%s/wait", machine.ID)
+
+	if machine.InstanceID != "" {
+		waitEndpoint = fmt.Sprintf("?instance_id=%s", machine.InstanceID)
+	}
+
+	return f.sendRequest(ctx, nil, http.MethodGet, waitEndpoint, nil)
 }
 
 func (f *Client) Stop(ctx context.Context, machine *api.Machine) ([]byte, error) {
