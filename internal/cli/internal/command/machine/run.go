@@ -40,19 +40,6 @@ type MachineExitEvent struct {
 	OOMKilled     bool   `json:"oom_killed"`
 }
 
-type Machine struct {
-	ID    string `json:"id"`
-	AppID int    `json:"app_id"`
-
-	State string `json:"state"`
-
-	// InstanceID is unique for each version of the machine
-	InstanceID string `json:"instance_id"`
-
-	// PrivateIP is the internal 6PN address of the machine.
-	PrivateIP string `json:"private_ip"`
-}
-
 func newRun() *cobra.Command {
 	const (
 		short = "Run a machine"
@@ -330,21 +317,26 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	if machineBody.Status == "error" {
-		return errors.Wrap(nil, machineBody.Message)
+		return errors.Wrap(err, "machine could not be created")
 	} else if machineBody.Status == "success" {
-		machineData := Machine{}
+		machineData := api.V1Machine{}
 		if err := json.Unmarshal(machineBody.Data, &machineData); err != nil {
 			return err
 		}
 
+		// wait for machine //
+		_, err := flapsClient.Wait(ctx, &machineData)
+		if err != nil {
+			return errors.Wrap(err, "Firecracker VM failed to launch")
+		}
+
 		fmt.Fprintf(io.Out, "Success! A machine has been successfully launched\n")
 		fmt.Fprintf(io.Out, " Machine ID: %s\n", machineData.ID)
-		fmt.Fprintf(io.Out, " App Name: %s\n", machineData.AppName)
-		fmt.Fprintf(io.Out, "You can connect to your machine via the following\n")
-		fmt.Fprintf(io.Out, "  IPv6:    %s\n", machineData.NetworkInterfaces[0].IPAssignments[0].IP)
-		fmt.Fprintf(io.Out, "  Gateway:    %s\n", machineData.NetworkInterfaces[0].IPAssignments[0].Gateway)
-		fmt.Fprintf(io.Out, " IPv4:    %s\n", machineData.NetworkInterfaces[0].IPAssignments[1].IP)
-		fmt.Fprintf(io.Out, "  Gateway:    %s\n", machineData.NetworkInterfaces[0].IPAssignments[1].Gateway)
+		fmt.Fprintf(io.Out, " Instance ID: %s\n", machineData.InstanceID)
+		fmt.Fprintf(io.Out, " State: %s\n", machineData.State)
+		fmt.Fprintf(io.Out, "You can connect to your machine via the following private ip\n")
+		fmt.Fprintf(io.Out, "  %s\n", machineData.PrivateIP)
+
 		return nil
 	}
 
