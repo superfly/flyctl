@@ -65,22 +65,22 @@ func (f *Client) Wait(ctx context.Context, machine *api.V1Machine) ([]byte, erro
 	return f.sendRequest(ctx, nil, http.MethodGet, waitEndpoint, nil)
 }
 
-func (f *Client) Stop(ctx context.Context, machine *api.Machine) ([]byte, error) {
+func (f *Client) Stop(ctx context.Context, machine *api.V1Machine) ([]byte, error) {
 	stopEndpoint := fmt.Sprintf("/%s/stop", machine.ID)
 
 	return f.sendRequest(ctx, machine, http.MethodPost, stopEndpoint, nil)
 }
 
-func (f *Client) Get(ctx context.Context, machine *api.Machine) ([]byte, error) {
+func (f *Client) Get(ctx context.Context, machine *api.V1Machine) ([]byte, error) {
 	getEndpoint := machine.ID
 
 	return f.sendRequest(ctx, machine, http.MethodGet, getEndpoint, nil)
 }
 
-func (f *Client) sendRequest(ctx context.Context, machine *api.Machine, method, endpoint string, data []byte) ([]byte, error) {
+func (f *Client) sendRequest(ctx context.Context, machine *api.V1Machine, method, endpoint string, data []byte) ([]byte, error) {
 	peerIP := f.peerIP
 	if machine != nil {
-		peerIP = resolvePeerIP(machine.IPs.Nodes[0].IP)
+		peerIP = resolvePeerIP(machine.PrivateIP)
 	}
 
 	targetEndpoint := fmt.Sprintf("http://[%s]:4280/v1/machines%s", peerIP, endpoint)
