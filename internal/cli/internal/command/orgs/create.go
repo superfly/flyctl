@@ -9,16 +9,16 @@ import (
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
-	"github.com/superfly/flyctl/internal/cli/internal/config"
-	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flag"
 )
 
 func newCreate() *cobra.Command {
 	const (
-		long = `Create a new organization. Other users can be invited to join the 
+		long = `Create a new organization. Other users can be invited to join the
 organization later.
 `
 		short = "Create an organization"

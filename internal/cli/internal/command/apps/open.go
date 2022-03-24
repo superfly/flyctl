@@ -13,14 +13,14 @@ import (
 
 	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
-	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/flag"
 )
 
 // TODO: make internal once the open command has been deprecated
 func NewOpen() (cmd *cobra.Command) {
 	const (
-		long = `Open browser to current deployed application. If an optional relative URI is specified, it is appended 
+		long = `Open browser to current deployed application. If an optional relative URI is specified, it is appended
 to the root URL of the deployed application.
 `
 		short = "Open browser to current deployed application"

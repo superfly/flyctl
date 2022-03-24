@@ -25,10 +25,10 @@ import (
 
 	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/cache"
-	"github.com/superfly/flyctl/internal/cli/internal/config"
-	"github.com/superfly/flyctl/internal/cli/internal/flag"
-	"github.com/superfly/flyctl/internal/cli/internal/state"
 	"github.com/superfly/flyctl/internal/cli/internal/task"
+	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/state"
 )
 
 type (

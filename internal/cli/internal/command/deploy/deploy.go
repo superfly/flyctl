@@ -25,9 +25,9 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/command/ssh"
-	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/render"
-	"github.com/superfly/flyctl/internal/cli/internal/state"
+	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/state"
 
 	"github.com/superfly/flyctl/internal/cli/internal/watch"
 	"github.com/superfly/flyctl/internal/client"

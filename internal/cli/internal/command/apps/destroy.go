@@ -9,14 +9,14 @@ import (
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
-	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/flag"
 )
 
 func newDestroy() *cobra.Command {
 	const (
-		long = `The APPS DESTROY command will remove an application 
+		long = `The APPS DESTROY command will remove an application
 from the Fly platform.
 `
 		short = "Permanently destroys an app"

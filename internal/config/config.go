@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/pflag"
 
-	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/env"
+	"github.com/superfly/flyctl/internal/flag"
 )
 
 const (

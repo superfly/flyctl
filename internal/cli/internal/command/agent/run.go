@@ -13,10 +13,10 @@ import (
 	"github.com/superfly/flyctl/pkg/agent/server"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
-	"github.com/superfly/flyctl/internal/cli/internal/flag"
-	"github.com/superfly/flyctl/internal/cli/internal/state"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/filemu"
+	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/state"
 )
 
 func newRun() (cmd *cobra.Command) {
