@@ -3,10 +3,11 @@ package machine
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/client"
@@ -71,14 +72,27 @@ func runMachineStart(ctx context.Context) (err error) {
 		return fmt.Errorf("could not start machine %s: %w", id, err)
 	}
 
-	type body map[string]interface{}
-	var t body
+	type body struct {
+		Status  string
+		Message string
+		Data    json.RawMessage
+	}
+	var machineBody body
 
-	if err := json.Unmarshal(mach, &t); err != nil {
+	if err := json.Unmarshal(mach, &machineBody); err != nil {
 		return fmt.Errorf("machine could not be started %s", err)
 	}
 
-	fmt.Fprintf(out, "%s\n", t)
+	if machineBody.Status == "error" {
+		return fmt.Errorf("machine could not be started %s", machineBody.Message)
+	}
+
+	machineData := api.V1Machine{}
+	if err := json.Unmarshal(machineBody.Data, &machineData); err != nil {
+		return err
+	}
+
+	fmt.Fprintf(out, "%s has been started", machineData.ID)
 
 	return
 }
