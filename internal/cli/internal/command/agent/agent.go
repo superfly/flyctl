@@ -11,9 +11,9 @@ import (
 	"github.com/superfly/flyctl/pkg/agent"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
-	"github.com/superfly/flyctl/internal/cli/internal/state"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/env"
+	"github.com/superfly/flyctl/internal/state"
 )
 
 // New initializes and returns a new agent Command.

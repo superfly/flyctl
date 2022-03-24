@@ -396,6 +396,11 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		}
 	}
 
+	if srcInfo != nil && len(srcInfo.BuildArgs) > 0 {
+		appConfig.Build = &flyctl.Build{}
+		appConfig.Build.Args = srcInfo.BuildArgs
+	}
+
 	// Finally, write the config
 	if err := writeAppConfig(filepath.Join(dir, "fly.toml"), appConfig); err != nil {
 		return err

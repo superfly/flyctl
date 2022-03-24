@@ -11,8 +11,8 @@ import (
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
-	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/render"
+	"github.com/superfly/flyctl/internal/config"
 )
 
 func newPing() (cmd *cobra.Command) {

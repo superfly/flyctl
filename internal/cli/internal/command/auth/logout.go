@@ -10,9 +10,9 @@ import (
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
-	"github.com/superfly/flyctl/internal/cli/internal/config"
-	"github.com/superfly/flyctl/internal/cli/internal/state"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
+	"github.com/superfly/flyctl/internal/state"
 )
 
 func newLogout() *cobra.Command {

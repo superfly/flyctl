@@ -16,10 +16,10 @@ import (
 	"github.com/superfly/flyctl/pkg/logs"
 
 	"github.com/superfly/flyctl/internal/cli/internal/app"
-	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/format"
 	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/deployment"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/spinner"

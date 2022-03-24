@@ -9,17 +9,17 @@ import (
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
-	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/format"
 	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/config"
 )
 
 func newList() *cobra.Command {
 	const (
 		long = `The APPS LIST command will show the applications currently
-registered and available to this user. The list will include applications 
-from all the organizations the user is a member of. Each application will 
+registered and available to this user. The list will include applications
+from all the organizations the user is a member of. Each application will
 be shown with its name, owner and when it was last deployed.
 `
 		short = "List applications"

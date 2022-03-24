@@ -9,15 +9,15 @@ import (
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
-	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/logger"
 )
 
 func newMove() *cobra.Command {
 	const (
-		long = `The APPS MOVE command will move an application to another 
+		long = `The APPS MOVE command will move an application to another
 organization the current user belongs to.
 `
 		short = "Move an app to another organization"

@@ -13,9 +13,9 @@ import (
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/internal/cli/internal/config"
 	"github.com/superfly/flyctl/internal/cli/internal/sort"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/config"
 )
 
 func String(ctx context.Context, dst *string, msg, def string, required bool) error {

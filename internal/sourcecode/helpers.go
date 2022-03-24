@@ -2,9 +2,13 @@ package sourcecode
 
 import (
 	"bufio"
+	"fmt"
+	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 func fileExists(filenames ...string) checkFn {
@@ -66,4 +70,25 @@ func checksPass(sourceDir string, checks ...checkFn) bool {
 		}
 	}
 	return false
+}
+
+func commentLineInFile(path string, search string) {
+	input, err := ioutil.ReadFile(path)
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	lines := strings.Split(string(input), "\n")
+
+	for i, line := range lines {
+		if strings.Contains(line, search) {
+			lines[i] = fmt.Sprintf("#%s", line)
+		}
+	}
+	output := strings.Join(lines, "\n")
+	err = ioutil.WriteFile(path, []byte(output), 0644)
+	if err != nil {
+		log.Fatalln(err)
+	}
 }

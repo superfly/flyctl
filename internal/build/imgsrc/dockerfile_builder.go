@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/containerd/console"
@@ -24,6 +25,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
+	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/sync/errgroup"
@@ -148,7 +150,11 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 	msg := fmt.Sprintf("docker host: %s %s %s", serverInfo.ServerVersion, serverInfo.OSType, serverInfo.Architecture)
 	cmdfmt.PrintDone(streams.ErrOut, msg)
 
-	buildArgs := normalizeBuildArgsForDocker(opts.BuildArgs)
+	buildArgs, err := normalizeBuildArgsForDocker(ctx, opts.BuildArgs)
+
+	if err != nil {
+		return nil, fmt.Errorf("error parsing build args: %w", err)
+	}
 
 	buildkitEnabled, err := buildkitEnabled(docker)
 	terminal.Debugf("buildkitEnabled", buildkitEnabled)
@@ -191,16 +197,28 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 	}, nil
 }
 
-func normalizeBuildArgsForDocker(buildArgs map[string]string) map[string]*string {
+func normalizeBuildArgsForDocker(ctx context.Context, buildArgs map[string]string) (map[string]*string, error) {
 	var out = map[string]*string{}
+	workingDirectory := state.WorkingDirectory(ctx)
 
 	for k, v := range buildArgs {
 		// docker needs a string pointer. since ranges reuse variables we need to deref a copy
+		if strings.Contains(v, "file:") {
+			parts := strings.Split(v, ":")
+			fileContents, err := os.ReadFile(filepath.Join(workingDirectory, parts[1]))
+
+			if err != nil {
+				return nil, err
+			}
+
+			v = string(fileContents)
+		}
+
 		val := v
 		out[k] = &val
 	}
 
-	return out
+	return out, nil
 }
 
 func runClassicBuild(ctx context.Context, streams *iostreams.IOStreams, docker *dockerclient.Client, r io.ReadCloser, opts ImageOptions, dockerfilePath string, buildArgs map[string]*string) (imageID string, err error) {
