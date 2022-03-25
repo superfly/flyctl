@@ -33,7 +33,8 @@ RUN volta install node@${NODE_VERSION} && volta install yarn
 
 FROM base as build_deps
 
-ENV DEV_PACKAGES git build-essential libpq-dev wget vim curl gzip xz-utils libsqlite3-dev
+ARG DEV_PACKAGES="git build-essential libpq-dev wget vim curl gzip xz-utils libsqlite3-dev"
+ENV DEV_PACKAGES ${DEV_PACKAGES}
 
 RUN --mount=type=cache,id=dev-apt-cache,sharing=locked,target=/var/cache/apt \
     --mount=type=cache,id=dev-apt-lib,sharing=locked,target=/var/lib/apt \
@@ -63,13 +64,14 @@ RUN if [ -f "yarn.lock" ]; then \
 
 FROM base
 
-ENV PACKAGES postgresql-client file vim curl gzip libsqlite3-0
+ARG PROD_PACKAGES="postgresql-client file vim curl gzip libsqlite3-0"
+ENV PROD_PACKAGES=${PROD_PACKAGES}
 
 RUN --mount=type=cache,id=prod-apt-cache,sharing=locked,target=/var/cache/apt \
     --mount=type=cache,id=prod-apt-lib,sharing=locked,target=/var/lib/apt \
     apt-get update -qq && \
     apt-get install --no-install-recommends -y \
-    ${PACKAGES} \
+    ${PROD_PACKAGES} \
     && rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
 COPY --from=gems /app /app
