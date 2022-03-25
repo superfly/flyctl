@@ -152,7 +152,7 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 
 	size := stat.Size()
 
-	cmdfmt.PrintBegin(streams.ErrOut, "Finished calculating build context size.")
+	cmdfmt.PrintDone(streams.ErrOut, "Finished calculating build context size.")
 
 	fmt.Printf("Your build context is %s\n\n", sourcecode.ReadableBytes(size))
 
