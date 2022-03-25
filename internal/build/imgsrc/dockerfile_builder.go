@@ -9,7 +9,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/containerd/console"
@@ -25,7 +24,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
-	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/sync/errgroup"
@@ -199,20 +197,20 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 
 func normalizeBuildArgsForDocker(ctx context.Context, buildArgs map[string]string) (map[string]*string, error) {
 	var out = map[string]*string{}
-	workingDirectory := state.WorkingDirectory(ctx)
+	//workingDirectory := state.WorkingDirectory(ctx)
 
 	for k, v := range buildArgs {
 		// docker needs a string pointer. since ranges reuse variables we need to deref a copy
-		if strings.Contains(v, "file:") {
-			parts := strings.Split(v, ":")
-			fileContents, err := os.ReadFile(filepath.Join(workingDirectory, parts[1]))
+		// if strings.Contains(v, "file:") {
+		// 	parts := strings.Split(v, ":")
+		// 	fileContents, err := os.ReadFile(filepath.Join(workingDirectory, parts[1]))
 
-			if err != nil {
-				return nil, err
-			}
+		// 	if err != nil {
+		// 		return nil, err
+		// 	}
 
-			v = string(fileContents)
-		}
+		// 	v = string(fileContents)
+		// }
 
 		val := v
 		out[k] = &val
