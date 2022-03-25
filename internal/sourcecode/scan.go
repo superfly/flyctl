@@ -162,7 +162,7 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 	}
 
 	s := &SourceInfo{
-		Files:  templates("templates/rails"),
+		Files:  templates("templates/rails/standard"),
 		Family: "Rails",
 		Statics: []Static{
 			{
@@ -178,20 +178,33 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 				Condition:   !checksPass(sourceDir, dirContains("Gemfile", "pg")),
 			},
 		},
+		ReleaseCmd: "bundle exec rails db:migrate",
+		Env: map[string]string{
+			"SERVER_COMMAND": "bundle exec puma -C config/puma.rb",
+			"PORT":           "8080",
+		},
 	}
 
-	s.ReleaseCmd = "bundle exec rails db:migrate"
-
-	var rubyVersion string = "3.1.1"
-	var bundlerVersion string = "2.3.9"
+	var rubyVersion string
+	var bundlerVersion string
 	var nodeVersion string = "14"
-	var yarnVersion string = "2"
+
+	rubyVersion, err := extractRubyVersion("Gemfile", ".ruby_version")
+
+	if err != nil || rubyVersion == "" {
+		rubyVersion = "3.1.1"
+	}
+
+	bundlerVersion, err = extractBundlerVersion("Gemfile.lock")
+
+	if err != nil || bundlerVersion == "" {
+		bundlerVersion = "2.3.9"
+	}
 
 	s.BuildArgs = map[string]string{
 		"RUBY_VERSION":    rubyVersion,
 		"BUNDLER_VERSION": bundlerVersion,
 		"NODE_VERSION":    nodeVersion,
-		"YARN_VERSION":    yarnVersion,
 	}
 
 	// master.key comes with Rails apps from v6 onwards, but may not be present
@@ -215,26 +228,19 @@ Your Rails app is prepared for deployment. Production will be setup with these v
 Ruby %s
 Bundler %s
 NodeJS %s
-Yarn %s
 
 You can configure these in the [build] section in the generated fly.toml.
 
-Check that your Gemfile matches the Ruby version. Ruby versions available are: 3.1.1, 3.0.3, 2.7.5, 2.6.9. By default jemalloc is enabled for more efficient memory usage. This
-image is based on Fullstaq Ruby. Learn more about Fullstaq here: https://github.com/evilmartians/fullstaq-ruby-docker. If you can't use
-one of these versions, pick the closest one and comment the line in your Gemfile. We recommend using the highest patch
-level for better security and performance.
+Ruby versions available are: 3.1.1, 3.0.3, 2.7.5, and 2.6.9. Learn more about the chosen Ruby stack, Fullstaq Ruby, here: https://github.com/evilmartians/fullstaq-ruby-docker.
+We recommend using the highest patch level for better security and performance.
 
 For the other packages, specify any version you need.
 
-If you're not using a Fly Postgresql database cluster, you'll need to set the DATABASE_URL like this:
+If you need custom packages installed, or have problems with your deployment build, you may need to edit the Dockerfile
+for app-specific changes. If you need help, please post on https://community.fly.io.
 
-fly secrets set DATABASE_URL=your_url
-
-If you're using another database like MySQL, or need custom packages installed, you'll need to edit the Dockerfile. If you need help,
-you can post on https://community.fly.io.
-
-Finally, run 'fly deploy --remote-only' to deploy your Rails app.
-`, rubyVersion, bundlerVersion, nodeVersion, yarnVersion)
+Now: run 'fly deploy --remote-only' to deploy your Rails app.
+`, rubyVersion, bundlerVersion, nodeVersion)
 
 	return s, nil
 
