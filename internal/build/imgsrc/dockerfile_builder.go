@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/containerd/console"
 	"github.com/docker/docker/api/types"
 	dockerclient "github.com/docker/docker/client"
@@ -25,6 +26,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
+	"github.com/superfly/flyctl/internal/sourcecode"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -120,19 +122,73 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 	// Start tracking this build
 
 	// Create the docker build context as a compressed tar stream
-	r, err := archiveDirectory(archiveOpts)
+	buildContext, err := archiveDirectory(archiveOpts)
 	if err != nil {
 		return nil, errors.Wrap(err, "error archiving build context")
 	}
+
 	cmdfmt.PrintDone(streams.ErrOut, "Creating build context done")
+
+	buildContextFile, err := os.CreateTemp("/tmp", "fly-build-context")
+
+	defer buildContextFile.Close()
+	defer os.Remove(buildContextFile.Name())
+
+	if err != nil {
+		return nil, fmt.Errorf("couldn't create build context file: %w", err)
+	}
+
+	cmdfmt.PrintBegin(streams.ErrOut, "Calculating build context size...")
+
+	if _, err = io.Copy(buildContextFile, buildContext); err != nil {
+		return nil, fmt.Errorf("couldn't write to build context tempfile: %w", err)
+	}
+
+	stat, err := buildContextFile.Stat()
+
+	if err != nil {
+		return nil, err
+	}
+
+	size := stat.Size()
+
+	cmdfmt.PrintBegin(streams.ErrOut, "Finished calculating build context size.")
+
+	fmt.Printf("Your build context is %s\n\n", sourcecode.ReadableBytes(size))
+
+	// warn about build contexts larger than 100 MB
+
+	if size > (100 * 1024 * 1024) {
+		fmt.Println("Your build context is unusually large! Uploading it will take a while.")
+		fmt.Println("You may want to cancel this build and examine your source. Check that .dockerignore excludes large directories/files.")
+		fmt.Print("To find the biggest offenders, try: du -hs * | sort -rh\n\n")
+	}
+
+	if size > (500 * 1024 * 1024) {
+		confirm := false
+		prompt := &survey.Confirm{
+			Message: "Are you sure you want to continue deploying this large context?",
+		}
+		err := survey.AskOne(prompt, &confirm)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if !confirm {
+			return nil, fmt.Errorf("aborted deployment due to large context size")
+		}
+	}
 
 	// Setup an upload progress bar
 	progressOutput := streamformatter.NewProgressOutput(streams.Out)
 	if !streams.IsStdoutTTY() {
 		progressOutput = &lastProgressOutput{output: progressOutput}
 	}
+	buildContextFile.Seek(0, 0)
 
-	r = progress.NewProgressReader(r, progressOutput, 0, "", "Sending build context to Docker daemon")
+	buildContextReader := io.NopCloser(buildContextFile)
+	buildContextReader = progress.NewProgressReader(buildContextReader, progressOutput, 0, "", "Sending build context to Docker daemon")
 
 	var imageID string
 
@@ -162,12 +218,12 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 		return nil, errors.Wrap(err, "error checking for buildkit support")
 	}
 	if buildkitEnabled {
-		imageID, err = runBuildKitBuild(ctx, streams, docker, r, opts, relativedockerfilePath, buildArgs)
+		imageID, err = runBuildKitBuild(ctx, streams, docker, buildContextReader, opts, relativedockerfilePath, buildArgs)
 		if err != nil {
 			return nil, errors.Wrap(err, "error building")
 		}
 	} else {
-		imageID, err = runClassicBuild(ctx, streams, docker, r, opts, relativedockerfilePath, buildArgs)
+		imageID, err = runClassicBuild(ctx, streams, docker, buildContextReader, opts, relativedockerfilePath, buildArgs)
 		if err != nil {
 			return nil, errors.Wrap(err, "error building")
 		}
@@ -232,7 +288,10 @@ func runClassicBuild(ctx context.Context, streams *iostreams.IOStreams, docker *
 		NoCache:     opts.NoCache,
 	}
 
-	resp, err := docker.ImageBuild(ctx, r, options)
+	builderContext, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	resp, err := docker.ImageBuild(builderContext, r, options)
 	if err != nil {
 		return "", errors.Wrap(err, "error building with docker")
 	}
@@ -282,7 +341,10 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 			BuildID: uploadRequestRemote + ":" + buildID,
 		}
 
-		response, err := docker.ImageBuild(context.Background(), r, buildOptions)
+		builderContext, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		response, err := docker.ImageBuild(builderContext, r, buildOptions)
 		if err != nil {
 			return err
 		}
