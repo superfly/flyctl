@@ -9,7 +9,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -27,7 +26,6 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/sourcecode"
-	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/sync/errgroup"
@@ -130,6 +128,10 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 	cmdfmt.PrintDone(streams.ErrOut, "Creating build context done")
 
 	buildContextFile, err := os.CreateTemp("/tmp", "fly-build-context")
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create tempfile: %w", err)
+	}
 
 	defer buildContextFile.Close()
 	defer os.Remove(buildContextFile.Name())
@@ -255,21 +257,8 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 
 func normalizeBuildArgsForDocker(ctx context.Context, buildArgs map[string]string) (map[string]*string, error) {
 	var out = map[string]*string{}
-	workingDirectory := state.WorkingDirectory(ctx)
 
 	for k, v := range buildArgs {
-		// docker needs a string pointer. since ranges reuse variables we need to deref a copy
-		if strings.Contains(v, "file:") {
-			parts := strings.Split(v, ":")
-			fileContents, err := os.ReadFile(filepath.Join(workingDirectory, parts[1]))
-
-			if err != nil {
-				return nil, err
-			}
-
-			v = string(fileContents)
-		}
-
 		val := v
 		out[k] = &val
 	}
