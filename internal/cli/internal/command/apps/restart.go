@@ -9,13 +9,13 @@ import (
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
-	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/flag"
 )
 
 func newRestart() *cobra.Command {
 	const (
-		long = `The APPS RESTART command will restart all running vms. 
+		long = `The APPS RESTART command will restart all running vms.
 `
 		short = "Restart an application"
 		usage = "restart [APPNAME]"

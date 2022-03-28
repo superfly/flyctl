@@ -80,7 +80,11 @@ func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	msg := fmt.Sprintf("docker host: %s %s %s", serverInfo.ServerVersion, serverInfo.OSType, serverInfo.Architecture)
 	cmdfmt.PrintDone(streams.ErrOut, msg)
 
-	buildArgs := normalizeBuildArgsForDocker(opts.BuildArgs)
+	buildArgs, err := normalizeBuildArgsForDocker(ctx, opts.BuildArgs)
+
+	if err != nil {
+		return nil, fmt.Errorf("error parsing build args: %w", err)
+	}
 
 	imageID, err = runClassicBuild(ctx, streams, docker, r, opts, "", buildArgs)
 	if err != nil {

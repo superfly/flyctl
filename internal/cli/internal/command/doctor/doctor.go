@@ -18,10 +18,10 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/command/dig"
 	"github.com/superfly/flyctl/internal/cli/internal/command/doctor/diag"
 	"github.com/superfly/flyctl/internal/cli/internal/command/ping"
-	"github.com/superfly/flyctl/internal/cli/internal/config"
-	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flag"
 )
 
 // New initializes and returns a new doctor Command.
@@ -147,11 +147,11 @@ Run 'flyctl agent restart'.
 	err = runPersonalOrgPing(ctx)
 	if !check("ping", err) {
 		lprint(nil, `
-We can't establish connectivity with WireGuard for your personal organization. 
+We can't establish connectivity with WireGuard for your personal organization.
 
 WireGuard runs on 51820/udp, which your local network may block.
 
-If this is the first time you've ever used 'flyctl' on this machine, you 
+If this is the first time you've ever used 'flyctl' on this machine, you
 can try running 'flyctl doctor' again.
 `)
 		return nil

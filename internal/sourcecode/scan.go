@@ -2,6 +2,7 @@ package sourcecode
 
 import (
 	"embed"
+	"fmt"
 	"io/fs"
 	"io/ioutil"
 	"path/filepath"
@@ -31,6 +32,7 @@ type SourceInfo struct {
 	Family                       string
 	Version                      string
 	DockerfilePath               string
+	BuildArgs                    map[string]string
 	Builder                      string
 	ReleaseCmd                   string
 	DockerCommand                string
@@ -160,24 +162,12 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 	}
 
 	s := &SourceInfo{
-		Files:   templates("templates/rails"),
-		Builder: "heroku/buildpacks:20",
-		Family:  "Rails",
+		Files:  templates("templates/rails/standard"),
+		Family: "Rails",
 		Statics: []Static{
 			{
 				GuestPath: "/app/public",
 				UrlPrefix: "/",
-			},
-		},
-		Port: 8080,
-		Env: map[string]string{
-			"PORT": "8080",
-		},
-		InitCommands: []InitCommand{
-			{
-				Command:     "bundle",
-				Args:        []string{"lock", "--add-platform", "x86_64-linux"},
-				Description: "Preparing Gemfile.lock for x86_64 deployment",
 			},
 		},
 		PostgresInitCommands: []InitCommand{
@@ -188,6 +178,33 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 				Condition:   !checksPass(sourceDir, dirContains("Gemfile", "pg")),
 			},
 		},
+		ReleaseCmd: "bundle exec rails db:migrate",
+		Env: map[string]string{
+			"SERVER_COMMAND": "bundle exec puma -C config/puma.rb",
+			"PORT":           "8080",
+		},
+	}
+
+	var rubyVersion string
+	var bundlerVersion string
+	var nodeVersion string = "14"
+
+	rubyVersion, err := extractRubyVersion("Gemfile", ".ruby_version")
+
+	if err != nil || rubyVersion == "" {
+		rubyVersion = "3.1.1"
+	}
+
+	bundlerVersion, err = extractBundlerVersion("Gemfile.lock")
+
+	if err != nil || bundlerVersion == "" {
+		bundlerVersion = "2.3.9"
+	}
+
+	s.BuildArgs = map[string]string{
+		"RUBY_VERSION":    rubyVersion,
+		"BUNDLER_VERSION": bundlerVersion,
+		"NODE_VERSION":    nodeVersion,
 	}
 
 	// master.key comes with Rails apps from v6 onwards, but may not be present
@@ -204,7 +221,26 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 		}
 	}
 
-	s.ReleaseCmd = "bundle exec rails db:migrate"
+	s.SkipDeploy = true
+	s.DeployDocs = fmt.Sprintf(`
+Your Rails app is prepared for deployment. Production will be setup with these versions of core runtime packages:
+
+Ruby %s
+Bundler %s
+NodeJS %s
+
+You can configure these in the [build] section in the generated fly.toml.
+
+Ruby versions available are: 3.1.1, 3.0.3, 2.7.5, and 2.6.9. Learn more about the chosen Ruby stack, Fullstaq Ruby, here: https://github.com/evilmartians/fullstaq-ruby-docker.
+We recommend using the highest patch level for better security and performance.
+
+For the other packages, specify any version you need.
+
+If you need custom packages installed, or have problems with your deployment build, you may need to edit the Dockerfile
+for app-specific changes. If you need help, please post on https://community.fly.io.
+
+Now: run 'fly deploy --remote-only' to deploy your Rails app.
+`, rubyVersion, bundlerVersion, nodeVersion)
 
 	return s, nil
 

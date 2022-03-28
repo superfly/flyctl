@@ -10,14 +10,14 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
-	"github.com/superfly/flyctl/internal/cli/internal/config"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func newDocker() *cobra.Command {
 	const (
-		long = `Adds registry.fly.io to the docker daemon's authenticated 
-registries. This allows you to push images directly to fly from 
+		long = `Adds registry.fly.io to the docker daemon's authenticated
+registries. This allows you to push images directly to fly from
 the docker cli.
 `
 		short = "Authenticate docker"

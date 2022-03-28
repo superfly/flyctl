@@ -1,27 +1,33 @@
-app = "sinatra-example"
+# fly.toml file generated for flyctl-example-buildpack on 2022-03-22T13:01:44-06:00
 
-[deploy]
-release_command = "sh release.sh"
+app = "flyctl-example-buildpack"
+
 
 [build]
-builder = "heroku/buildpacks:20"
+  builder = "heroku/buildpacks:20"
+
+[deploy]
+  release_command = "sh release.sh"
+
+[env]
+  PORT = "8080"
 
 [[services]]
-internal_port = 8080
-protocol      = "tcp"
+  internal_port = 8080
+  protocol = "tcp"
 
   [services.concurrency]
-  hard_limit = 25
-  soft_limit = 20
+    hard_limit = 25
+    soft_limit = 20
 
   [[services.ports]]
-  handlers = [ "http" ]
-  port     = "80"
+    handlers = ["http"]
+    port = "80"
 
   [[services.ports]]
-  handlers = [ "tls", "http" ]
-  port     = "443"
+    handlers = ["tls", "http"]
+    port = "443"
 
   [[services.tcp_checks]]
-  interval = 10000
-  timeout  = 2000
+    interval = 10000
+    timeout = 2000

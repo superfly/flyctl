@@ -5,16 +5,16 @@ import (
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/command/apps"
-	"github.com/superfly/flyctl/internal/cli/internal/flag"
+	"github.com/superfly/flyctl/internal/flag"
 )
 
 // TODO: deprecate & remove
 func New() (cmd *cobra.Command) {
 	const (
-		long = `The CREATE command will both register a new application 
-with the Fly platform and create the fly.toml file which controls how 
-the application will be deployed. The --builder flag allows a cloud native 
-buildpack to be specified which will be used instead of a Dockerfile to 
+		long = `The CREATE command will both register a new application
+with the Fly platform and create the fly.toml file which controls how
+the application will be deployed. The --builder flag allows a cloud native
+buildpack to be specified which will be used instead of a Dockerfile to
 create the application image when it is deployed.
 `
 		short = `Create a new application`

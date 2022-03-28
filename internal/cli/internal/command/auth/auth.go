@@ -17,10 +17,10 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
-	"github.com/superfly/flyctl/internal/cli/internal/config"
-	"github.com/superfly/flyctl/internal/cli/internal/state"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/state"
 )
 
 // New initializes and returns a new apps Command.

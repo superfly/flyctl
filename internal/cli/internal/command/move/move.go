@@ -5,13 +5,13 @@ import (
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/command/apps"
-	"github.com/superfly/flyctl/internal/cli/internal/flag"
+	"github.com/superfly/flyctl/internal/flag"
 )
 
 // TODO: deprecate & remove
 func New() *cobra.Command {
 	const (
-		long = `The MOVE command will move an application to another 
+		long = `The MOVE command will move an application to another
 organization the current user belongs to.
 `
 		short = "Move an app to another organization"

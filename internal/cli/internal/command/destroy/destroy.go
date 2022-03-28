@@ -5,13 +5,13 @@ import (
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/command/apps"
-	"github.com/superfly/flyctl/internal/cli/internal/flag"
+	"github.com/superfly/flyctl/internal/flag"
 )
 
 // TODO: deprecate & remove
 func New() *cobra.Command {
 	const (
-		long = `The DESTROY command will remove an application 
+		long = `The DESTROY command will remove an application
 from the Fly platform.
 `
 		short = "Permanently destroys an app"

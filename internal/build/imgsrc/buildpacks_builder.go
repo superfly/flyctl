@@ -7,6 +7,8 @@ import (
 	"os"
 
 	pack "github.com/buildpacks/pack/pkg/client"
+	projectTypes "github.com/buildpacks/pack/pkg/project/types"
+	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -53,6 +55,11 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	msg := fmt.Sprintf("docker host: %s %s %s", serverInfo.ServerVersion, serverInfo.OSType, serverInfo.Architecture)
 	cmdfmt.PrintDone(streams.ErrOut, msg)
 
+	excludes, err := readDockerignore(opts.WorkingDir)
+	if err != nil {
+		return nil, errors.Wrap(err, "error reading .dockerignore")
+	}
+
 	err = packClient.Build(ctx, pack.BuildOptions{
 		AppPath:        opts.WorkingDir,
 		Builder:        builder,
@@ -62,6 +69,11 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		Env:            normalizeBuildArgs(opts.BuildArgs),
 		TrustBuilder:   true,
 		AdditionalTags: []string{opts.Tag},
+		ProjectDescriptor: projectTypes.Descriptor{
+			Build: projectTypes.Build{
+				Exclude: excludes,
+			},
+		},
 	})
 
 	if err != nil {

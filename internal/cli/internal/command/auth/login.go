@@ -8,14 +8,14 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
-	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
+	"github.com/superfly/flyctl/internal/flag"
 )
 
 func newLogin() *cobra.Command {
 	const (
-		long = `Logs a user into the Fly platform. Supports browser-based, 
-email/password and one-time-password authentication. Defaults to using 
+		long = `Logs a user into the Fly platform. Supports browser-based,
+email/password and one-time-password authentication. Defaults to using
 browser-based authentication.
 `
 		short = "Log in a user"

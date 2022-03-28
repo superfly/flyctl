@@ -1,0 +1,15 @@
+.git
+tmp
+log
+public/assets
+public/packs
+.bundle
+
+db/*.sqlite3
+db/*.sqlite3-*
+
+storage
+config/master.key
+config/credentials/*.key
+
+node_modules

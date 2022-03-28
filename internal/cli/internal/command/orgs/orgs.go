@@ -11,17 +11,17 @@ import (
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
-	"github.com/superfly/flyctl/internal/cli/internal/flag"
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/cli/internal/sort"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/flag"
 )
 
 // TODO: deprecate & remove
 func New() *cobra.Command {
 	const (
-		long = `Commands for managing Fly organizations. list, create, show and 
-destroy organizations. 
+		long = `Commands for managing Fly organizations. list, create, show and
+destroy organizations.
 Organization admins can also invite or remove users from Organizations.
 `
 		short = "Commands for managing Fly organizations"

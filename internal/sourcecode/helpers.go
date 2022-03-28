@@ -2,9 +2,13 @@ package sourcecode
 
 import (
 	"bufio"
+	"fmt"
+	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 func fileExists(filenames ...string) checkFn {
@@ -66,4 +70,94 @@ func checksPass(sourceDir string, checks ...checkFn) bool {
 		}
 	}
 	return false
+}
+
+func commentLineInFile(path string, search string) {
+	input, err := ioutil.ReadFile(path)
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	lines := strings.Split(string(input), "\n")
+
+	for i, line := range lines {
+		if strings.Contains(line, search) {
+			lines[i] = fmt.Sprintf("#%s", line)
+		}
+	}
+	output := strings.Join(lines, "\n")
+	err = ioutil.WriteFile(path, []byte(output), 0644)
+	if err != nil {
+		log.Fatalln(err)
+	}
+}
+
+func extractRubyVersion(gemfilePath string, rubyVersionPath string) (string, error) {
+	gemfileContents, err := os.ReadFile(gemfilePath)
+
+	var version string
+
+	if err != nil {
+		return "", err
+	}
+
+	re := regexp.MustCompile(`ruby \"(?P<version>.+)\"`)
+	m := re.FindStringSubmatch(string(gemfileContents))
+
+	for i, name := range re.SubexpNames() {
+		if len(m) > 0 && name == "version" {
+			version = m[i]
+		}
+	}
+
+	if version == "" {
+		if _, err := os.Stat(rubyVersionPath); err == nil {
+
+			versionString, err := os.ReadFile(rubyVersionPath)
+
+			if err != nil {
+				return "", err
+			}
+
+			version = string(versionString)
+		}
+
+	}
+
+	return version, nil
+}
+
+func extractBundlerVersion(gemfileLockPath string) (string, error) {
+	gemfileContents, err := os.ReadFile(gemfileLockPath)
+
+	var version string
+
+	if err != nil {
+		return "", err
+	}
+
+	re := regexp.MustCompile(`BUNDLED WITH\n\s{3}(?P<version>.+)\n`)
+	m := re.FindStringSubmatch(string(gemfileContents))
+	for i, name := range re.SubexpNames() {
+		if len(m) > 0 && name == "version" {
+			version = m[i]
+		}
+	}
+
+	return version, nil
+}
+
+func ReadableBytes(b int64) string {
+	const unit = 1000
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB",
+		float64(b)/float64(div), "kMGTPE"[exp])
 }
