@@ -283,10 +283,11 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	input := api.LaunchMachineInput{
-		AppID:  app.Name,
-		ID:     flag.GetString(ctx, "id"),
-		Name:   flag.GetString(ctx, "name"),
-		Region: flag.GetString(ctx, "region"),
+		AppID: app.Name,
+		ID:    flag.GetString(ctx, "id"),
+		Name:  flag.GetString(ctx, "name"),
+		// hardcode to dev for now
+		Region: "dev",
 		Config: machineConf,
 	}
 
@@ -304,41 +305,23 @@ func runMachineRun(ctx context.Context) error {
 		return fmt.Errorf("could not launch machine: %w", err)
 	}
 
-	type body struct {
-		Status  string
-		Message string
-		Data    json.RawMessage
-		Code    string
-	}
-
-	var machineBody body
+	var machineBody api.V1Machine
 	if err := json.Unmarshal(mach, &machineBody); err != nil {
-		return err
+		return errors.Wrap(err, "Machine launch return value could not be parsed")
 	}
 
-	if machineBody.Status == "error" {
-		return errors.Wrap(err, "machine could not be created")
-	} else if machineBody.Status == "success" {
-		machineData := api.V1Machine{}
-		if err := json.Unmarshal(machineBody.Data, &machineData); err != nil {
-			return err
-		}
-
-		// wait for machine //
-		_, err := flapsClient.Wait(ctx, &machineData)
-		if err != nil {
-			return errors.Wrap(err, "Firecracker VM failed to launch")
-		}
-
-		fmt.Fprintf(io.Out, "Success! A machine has been successfully launched\n")
-		fmt.Fprintf(io.Out, " Machine ID: %s\n", machineData.ID)
-		fmt.Fprintf(io.Out, " Instance ID: %s\n", machineData.InstanceID)
-		fmt.Fprintf(io.Out, " State: %s\n", machineData.State)
-		fmt.Fprintf(io.Out, "You can connect to your machine via the following private ip\n")
-		fmt.Fprintf(io.Out, "  %s\n", machineData.PrivateIP)
-
-		return nil
+	// wait for machine //
+	_, err = flapsClient.Wait(ctx, &machineBody)
+	if err != nil {
+		return errors.Wrap(err, "Firecracker VM failed to launch")
 	}
+
+	fmt.Fprintf(io.Out, "Success! A machine has been successfully launched\n")
+	fmt.Fprintf(io.Out, " Machine ID: %s\n", machineBody.ID)
+	fmt.Fprintf(io.Out, " Instance ID: %s\n", machineBody.InstanceID)
+	fmt.Fprintf(io.Out, " State: %s\n", machineBody.State)
+	fmt.Fprintf(io.Out, "You can connect to your machine via the following private ip\n")
+	fmt.Fprintf(io.Out, "  %s\n", machineBody.PrivateIP)
 
 	return nil
 }

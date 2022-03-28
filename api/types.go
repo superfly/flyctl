@@ -1209,6 +1209,7 @@ type Machine struct {
 
 type V1Machine struct {
 	ID    string `json:"id"`
+	Name  string `json:"name"`
 	AppID int    `json:"app_id"`
 
 	State string `json:"state"`

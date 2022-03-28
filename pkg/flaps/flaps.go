@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/pkg/agent"
 
@@ -47,7 +48,7 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) ([]
 	fmt.Println("Machine is launching...")
 	body, err := json.Marshal(builder)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "Machine failed to launch")
 	}
 
 	return f.sendRequest(ctx, nil, http.MethodPost, "", body)
@@ -87,7 +88,7 @@ func (f *Client) sendRequest(ctx context.Context, machine *api.V1Machine, method
 
 	req, err := http.NewRequestWithContext(ctx, method, targetEndpoint, bytes.NewReader(data))
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "Could not create new request")
 	}
 	req.SetBasicAuth(f.app.Name, f.authToken)
 
@@ -100,7 +101,7 @@ func (f *Client) sendRequest(ctx context.Context, machine *api.V1Machine, method
 
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "Failed to read body")
 	}
 
 	return b, nil
