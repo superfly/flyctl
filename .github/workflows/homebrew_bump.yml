@@ -1,0 +1,21 @@
+name: Homebrew Bump Formula
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        required: true
+        description: "flyctl release version"
+      sha:
+        required: true
+        description: "flyctl release git SHA"
+
+jobs:
+  homebrew:
+    runs-on: macos-latest
+    steps:
+      - uses: dawidd6/action-homebrew-bump-formula@v3
+        with:
+          token: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
+          formula: flyctl
+          tag: ${{ github.event.inputs.version }}
+          revision: ${{ github.event.inputs.sha }}

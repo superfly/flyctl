@@ -74,6 +74,18 @@ jobs:
       - name: Run tests
         run: make test
 
+  release_homebrew:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, 'dev-') && !contains(github.ref, 'pre')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bump homebrew formula
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: Homebrew Bump Formula
+          token: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
+          inputs: "{ \"version\": \"${{ github.ref_name }}\", \"sha\": \"${{ github.sha }}\" }"
+
   release:
     needs: test
     if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, 'dev-')
