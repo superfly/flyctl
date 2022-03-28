@@ -130,7 +130,7 @@ func newPackLogger(out io.Writer) *packLogger {
 			Writer: packW,
 			src:    out,
 		},
-		debug: os.Getenv("LOG_LEVEL") == "debug",
+		debug: os.Getenv("LOG_LEVEL") == "debug" || terminal.DefaultLogger.IsLogLevel(terminal.LevelDebug),
 	}
 }
 
@@ -181,6 +181,7 @@ func (l *packLogger) Writer() io.Writer {
 	return l.w
 }
 
+// looks like verbose and debug are same here
 func (l *packLogger) IsVerbose() bool {
 	return l.debug
 }

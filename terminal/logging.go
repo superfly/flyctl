@@ -42,6 +42,10 @@ func (l *Logger) SetLogLevel(lvl LogLevel) {
 	l.level = lvl
 }
 
+func (l *Logger) IsLogLevel(lvl LogLevel) bool {
+	return l.level == lvl
+}
+
 func Debug(v ...interface{}) {
 	DefaultLogger.Debug(v...)
 }

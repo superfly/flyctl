@@ -431,7 +431,7 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 				return err
 			}
 
-			if os.Getenv("LOG_LEVEL") == "debug" {
+			if os.Getenv("LOG_LEVEL") == "debug" || terminal.DefaultLogger.IsLogLevel(terminal.LevelDebug) {
 				f, err := os.OpenFile("build.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
 				if err != nil {
 					return err

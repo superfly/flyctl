@@ -187,6 +187,10 @@ func BuildCommandCobra(parent *Command, fn RunFn, cmd *cobra.Command, client *cl
 				return err
 			}
 
+			if ctx.GlobalConfig.GetBool("debug") {
+				terminal.DefaultLogger.SetLogLevel(terminal.LevelDebug)
+			}
+
 			for _, init := range initializers {
 				if init.Setup != nil {
 					if err := init.Setup(ctx); err != nil {
