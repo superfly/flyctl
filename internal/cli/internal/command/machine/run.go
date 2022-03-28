@@ -283,11 +283,10 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	input := api.LaunchMachineInput{
-		AppID: app.Name,
-		ID:    flag.GetString(ctx, "id"),
-		Name:  flag.GetString(ctx, "name"),
-		// hardcode to dev for now
-		Region: "dev",
+		AppID:  app.Name,
+		ID:     flag.GetString(ctx, "id"),
+		Name:   flag.GetString(ctx, "name"),
+		Region: flag.GetString(ctx, "region"),
 		Config: machineConf,
 	}
 
