@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
@@ -310,7 +311,14 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	// wait for machine //
-	_, err = flapsClient.Wait(ctx, &machineBody)
+	defer func() {
+		go func() {
+			time.Sleep(5 * time.Second)
+			newMachineBody, _ := flapsClient.Get(ctx, &machineBody)
+			err = json.Unmarshal(newMachineBody, &machineBody)
+		}()
+		_, err = flapsClient.Wait(ctx, &machineBody)
+	}()
 	if err != nil {
 		return errors.Wrap(err, "Firecracker VM failed to launch")
 	}
