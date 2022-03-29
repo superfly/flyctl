@@ -1,7 +1,6 @@
 package api
 
 import (
-	"net"
 	"syscall"
 	"time"
 )
@@ -733,18 +732,6 @@ type DeployImageInput struct {
 
 type Signal struct {
 	syscall.Signal
-}
-
-type IPAssignment struct {
-	ID      int64      `json:"id"`
-	Type    string     `json:"type"`
-	Family  string     `json:"family"`
-	IP      net.IP     `json:"ip"`
-	Mask    net.IPMask `json:"mask"`
-	Gateway net.IP     `json:"gateway"`
-
-	// easier to consume via json
-	MaskSize int `json:"mask_size"`
 }
 
 type Service struct {
