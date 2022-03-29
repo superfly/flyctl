@@ -71,10 +71,14 @@ func (f *Client) Wait(ctx context.Context, machine *api.V1Machine) ([]byte, erro
 	return f.sendRequest(ctx, nil, http.MethodGet, waitEndpoint, nil)
 }
 
-func (f *Client) Stop(ctx context.Context, machine *api.V1Machine) ([]byte, error) {
-	stopEndpoint := fmt.Sprintf("/%s/stop", machine.ID)
+func (f *Client) Stop(ctx context.Context, machineStop api.V1MachineStop) ([]byte, error) {
+	stopEndpoint := fmt.Sprintf("/%s/stop", machineStop.ID)
+	body, err := json.Marshal(machineStop)
+	if err != nil {
+		return nil, errors.Wrap(err, "Machine failed to launch")
+	}
 
-	return f.sendRequest(ctx, machine, http.MethodPost, stopEndpoint, nil)
+	return f.sendRequest(ctx, nil, http.MethodPost, stopEndpoint, body)
 }
 
 func (f *Client) Get(ctx context.Context, machine *api.V1Machine) ([]byte, error) {

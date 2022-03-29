@@ -7,7 +7,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/client"
@@ -42,10 +41,10 @@ func newStart() *cobra.Command {
 
 func runMachineStart(ctx context.Context) (err error) {
 	var (
-		out     = iostreams.FromContext(ctx).Out
-		appName = app.NameFromContext(ctx)
-		id      = flag.FirstArg(ctx)
-		client  = client.FromContext(ctx).API()
+		out       = iostreams.FromContext(ctx).Out
+		appName   = app.NameFromContext(ctx)
+		machineID = flag.FirstArg(ctx)
+		client    = client.FromContext(ctx).API()
 	)
 
 	if appName == "" {
@@ -62,14 +61,9 @@ func runMachineStart(ctx context.Context) (err error) {
 		return fmt.Errorf("could not make flaps client: %w", err)
 	}
 
-	machineID := flag.FirstArg(ctx)
-	if machineID == "" {
-		return errors.New("no machine ID defined")
-	}
-
 	mach, err := flapsClient.Start(ctx, machineID)
 	if err != nil {
-		return fmt.Errorf("could not start machine %s: %w", id, err)
+		return fmt.Errorf("could not start machine %s: %w", machineID, err)
 	}
 
 	type body struct {
@@ -87,12 +81,7 @@ func runMachineStart(ctx context.Context) (err error) {
 		return fmt.Errorf("machine could not be started %s", machineBody.Message)
 	}
 
-	machineData := api.V1Machine{}
-	if err := json.Unmarshal(machineBody.Data, &machineData); err != nil {
-		return err
-	}
-
-	fmt.Fprintf(out, "%s has been started", machineData.ID)
+	fmt.Fprintf(out, "%s has been started", machineID)
 
 	return
 }

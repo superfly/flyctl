@@ -3,13 +3,18 @@ package machine
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"syscall"
+	"time"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/pkg/flaps"
 	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
@@ -54,20 +59,41 @@ func runMachineStop(ctx context.Context) (err error) {
 		appName = app.NameFromContext(ctx)
 		client  = client.FromContext(ctx).API()
 	)
+
 	for _, arg := range args {
-		input := api.StopMachineInput{
-			AppID:           appName,
-			ID:              arg,
-			Signal:          flag.GetString(ctx, "signal"),
-			KillTimeoutSecs: flag.GetInt(ctx, "time"),
+		signal := api.Signal{}
+		if flag.GetString(ctx, "signal") != "" {
+			s, err := strconv.Atoi(flag.GetString(ctx, "signal"))
+			if err != nil {
+				return fmt.Errorf("could not get signal %s", err)
+			}
+			signal.Signal = syscall.Signal(s)
+		}
+		machineStopInput := api.V1MachineStop{
+			ID:      arg,
+			Signal:  signal,
+			Timeout: time.Duration(flag.GetInt(ctx, "time")),
+			Filters: &api.Filters{},
 		}
 
-		machine, err := client.StopMachine(ctx, input)
+		if appName == "" {
+			return errors.New("app is not found")
+		}
+		app, err := client.GetApp(ctx, appName)
 		if err != nil {
-			return fmt.Errorf("could not stop machine %s: %w", arg, err)
+			return err
+		}
+		flapsClient, err := flaps.New(ctx, app)
+		if err != nil {
+			return fmt.Errorf("could not make flaps client: %w", err)
 		}
 
-		fmt.Fprintf(out, "%s\n", machine.ID)
+		_, err = flapsClient.Stop(ctx, machineStopInput)
+		if err != nil {
+			return fmt.Errorf("could not stop machine %s: %w", machineStopInput.ID, err)
+		}
+
+		fmt.Fprintf(out, "%s has been successfully stopped", machineStopInput.ID)
 	}
 	return
 }
