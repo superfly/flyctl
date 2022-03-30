@@ -5,22 +5,79 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"golang.org/x/net/websocket"
 )
 
 func ConnectWS(ctx context.Context, state *WireGuardState) (*Tunnel, error) {
-	return doConnect(ctx, state, true)
+	ctx, cancel := context.WithCancel(ctx)
+
+	t, err := doConnect(ctx, state, true)
+	if err == nil {
+		t.wscancel = cancel
+	} else {
+		cancel()
+	}
+
+	return t, err
+}
+
+func write(w io.Writer, buf []byte) error {
+	var lbuf [4]byte
+	binary.BigEndian.PutUint32(lbuf[:], uint32(len(buf)))
+	if _, err := w.Write(lbuf[:]); err != nil {
+		return err
+	}
+
+	if len(buf) == 0 {
+		return nil
+	}
+
+	_, err := w.Write(buf)
+	return err
+}
+
+func read(r io.Reader, rbuf []byte) ([]byte, error) {
+	var lbuf [4]byte
+	if _, err := io.ReadFull(r, lbuf[:]); err != nil {
+		return nil, err
+	}
+
+	plen := binary.BigEndian.Uint32(lbuf[:])
+	if plen >= uint32(len(rbuf)) {
+		rbuf = make([]byte, plen)
+	}
+
+	if _, err := io.ReadFull(r, rbuf[:plen]); err != nil {
+		return nil, err
+	}
+
+	return rbuf[:plen], nil
+}
+
+type WsWgProxy struct {
+	wsConn       net.Conn
+	plugConn     *net.UDPConn
+	lastPlugAddr net.Addr
+	lock         sync.RWMutex
+	wrlock       sync.Mutex
+	atime        time.Time
+	reset        chan bool
 }
 
 // this is gross, but, keep the rest of the WireGuard code in
 // flyctl oblivious to the fact that we're potentially proxying
 // it over tcp.
-func udpPlugboard(ctx context.Context, c net.Conn) (int, error) {
+
+func NewWsWgProxy() (*WsWgProxy, error) {
 	laddr := net.UDPAddr{
 		IP:   net.ParseIP("127.0.0.1"),
 		Port: 0,
@@ -28,126 +85,59 @@ func udpPlugboard(ctx context.Context, c net.Conn) (int, error) {
 
 	l, err := net.ListenUDP("udp", &laddr)
 	if err != nil {
-		return 0, fmt.Errorf("listen: %w", err)
+		return nil, fmt.Errorf("start wswg: %w", err)
 	}
 
-	bindAddr := l.LocalAddr()
+	return &WsWgProxy{
+		atime:    time.Now(),
+		plugConn: l,
+		reset:    make(chan bool),
+	}, nil
+}
+
+func (wswg *WsWgProxy) touch() {
+	wswg.lock.Lock()
+	wswg.atime = time.Now()
+	wswg.lock.Unlock()
+}
+
+func (wswg *WsWgProxy) lastIo() time.Duration {
+	wswg.lock.RLock()
+	s := time.Since(wswg.atime)
+	wswg.lock.RUnlock()
+	return s
+}
+
+func (wswg *WsWgProxy) resetConn(c net.Conn, err error) {
+	wswg.lock.RLock()
+	cur := wswg.wsConn
+	wswg.lock.RUnlock()
+
+	if cur != c {
+		return
+	}
+
+	log.Printf("resetting connection due to error: %s", err)
+	wswg.reset <- true
+}
+
+func (wswg *WsWgProxy) Port() (int, error) {
+	bindAddr := wswg.plugConn.LocalAddr()
 	udpBindAddr, ok := bindAddr.(*net.UDPAddr)
 	if !ok {
 		return 0, fmt.Errorf("plugboard: can't recover UDP port")
 	}
 
-	doWrite := func(b []byte) bool {
-		c.SetWriteDeadline(time.Now().Add(5 * time.Second))
-		_, err := c.Write(b)
-		if err != nil {
-			log.Printf("write: %s", err)
-			return false
-		}
-		return true
-	}
-
-	isTimeout := func(e error) bool {
-		if err, ok := e.(net.Error); ok && err.Timeout() {
-			return true
-		}
-
-		return false
-	}
-
-	doRead := func(c net.Conn, b []byte) bool {
-		c.SetReadDeadline(time.Now().Add(5 * time.Second))
-		_, err := c.Read(b)
-		if err != nil {
-			if !isTimeout(err) {
-				log.Printf("read: %s", err)
-			}
-			return false
-		}
-		return true
-	}
-
-	var (
-		addr net.Addr
-		lock sync.Mutex
-	)
-
-	readSide := func() {
-		buf := make([]byte, 2000)
-
-		for {
-			if ctx.Err() != nil {
-				return
-			}
-
-			l.SetReadDeadline(time.Now().Add(5 * time.Second))
-			n, a, err := l.ReadFrom(buf)
-			if err != nil {
-				if !isTimeout(err) {
-					log.Printf("read udp: %s", err)
-				}
-
-				continue
-			}
-
-			lock.Lock()
-			addr = a
-			lock.Unlock()
-
-			var lbuf [4]byte
-			binary.BigEndian.PutUint32(lbuf[:], uint32(n))
-			if !doWrite(lbuf[:]) {
-				continue
-			}
-
-			if !doWrite(buf[:n]) {
-				continue
-			}
-		}
-	}
-
-	writeSide := func() {
-		defer c.Close()
-
-		pbuf := make([]byte, 2000)
-
-		for {
-			if ctx.Err() != nil {
-				return
-			}
-
-			var lbuf [4]byte
-			if !doRead(c, lbuf[:]) {
-				continue
-			}
-
-			plen := binary.BigEndian.Uint32(lbuf[:])
-			if plen > 1500 {
-				log.Printf("martian length: %d", plen)
-				continue
-			}
-
-			if !doRead(c, pbuf[:plen]) {
-				continue
-			}
-
-			lock.Lock()
-			_, err := l.WriteTo(pbuf[:plen], addr)
-			lock.Unlock()
-			if err != nil {
-				log.Printf("udp write: %s", err)
-			}
-		}
-	}
-
-	go readSide()
-	go writeSide()
+	log.Printf("returning port: %d", udpBindAddr.Port)
 
 	return udpBindAddr.Port, nil
 }
 
-func websocketConnect(ctx context.Context, endpoint string) (int, error) {
+func (wswg *WsWgProxy) Connect(endpoint string) error {
 	rurl := fmt.Sprintf("wss://%s:443/", endpoint)
+
+	log.Printf("(re-)connecting to %s", rurl)
+
 	conf, _ := websocket.NewConfig(rurl, rurl)
 	conf.TlsConfig = &tls.Config{
 		InsecureSkipVerify: true,
@@ -156,20 +146,170 @@ func websocketConnect(ctx context.Context, endpoint string) (int, error) {
 	// oh well, if it'll end horror
 	ws, err := websocket.DialConfig(conf)
 	if err != nil {
-		return 0, fmt.Errorf("websocket: %w", err)
+		return fmt.Errorf("websocket: %w", err)
 	}
 
 	var magic [4]byte
 	binary.BigEndian.PutUint32(magic[:], 0x2FACED77)
 
 	if _, err = ws.Write(magic[:]); err != nil {
-		return 0, fmt.Errorf("write websocket magic: %w", err)
+		return fmt.Errorf("write websocket magic: %w", err)
 	}
 
-	plugPort, err := udpPlugboard(ctx, ws)
+	if wswg.wsConn != nil {
+		wswg.wsConn.Close()
+	}
+	wswg.wsConn = ws
+
+	return nil
+}
+
+func isTimeout(e error) bool {
+	if err, ok := e.(net.Error); ok && err.Timeout() {
+		return true
+	}
+
+	return false
+}
+
+func (wswg *WsWgProxy) wsWrite(c net.Conn, b []byte) error {
+	wswg.wrlock.Lock()
+	defer wswg.wrlock.Unlock()
+
+	c.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	return write(c, b)
+}
+
+func (wswg *WsWgProxy) ws2wg(ctx context.Context) {
+	pbuf := make([]byte, 2000)
+
+	for ctx.Err() == nil {
+		wswg.lock.RLock()
+		c := wswg.wsConn
+		wswg.lock.RUnlock()
+
+		c.SetReadDeadline(time.Now().Add(5 * time.Second))
+		pkt, err := read(c, pbuf)
+		if err != nil {
+			if isTimeout(err) {
+				continue
+			}
+
+			wswg.resetConn(c, err)
+		}
+
+		wswg.touch()
+
+		wswg.lock.RLock()
+		addr := wswg.lastPlugAddr
+		wswg.lock.RUnlock()
+
+		if _, err = wswg.plugConn.WriteTo(pkt, addr); err != nil {
+			wswg.resetConn(c, err)
+		}
+	}
+}
+
+func (wswg *WsWgProxy) wg2ws(ctx context.Context) {
+	buf := make([]byte, 2000)
+
+	for ctx.Err() == nil {
+		wswg.plugConn.SetReadDeadline(time.Now().Add(5 * time.Second))
+		n, a, err := wswg.plugConn.ReadFrom(buf)
+		if err != nil {
+			if isTimeout(err) {
+				continue
+			}
+
+			// resetting won't do anything here
+			log.Printf("error reading from udp plugboard: %s", err)
+		}
+
+		wswg.lock.Lock()
+		wswg.lastPlugAddr = a
+		c := wswg.wsConn
+		wswg.lock.Unlock()
+
+		if err = wswg.wsWrite(c, buf[:n]); err != nil {
+			wswg.resetConn(c, err)
+		}
+
+		wswg.touch()
+	}
+}
+
+func websocketConnect(ctx context.Context, endpoint string) (int, error) {
+	wswg, err := NewWsWgProxy()
 	if err != nil {
-		return 0, fmt.Errorf("plugboard: %w", err)
+		return 0, err
 	}
 
-	return plugPort, nil
+	port, err := wswg.Port()
+	if err != nil {
+		return 0, err
+	}
+
+	if err = wswg.Connect(endpoint); err != nil {
+		return 0, err
+	}
+
+	go func() {
+		defer wswg.wsConn.Close()
+		defer wswg.plugConn.Close()
+
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, syscall.SIGUSR1)
+
+		tick := time.NewTicker(5 * time.Second)
+		defer tick.Stop()
+
+		reconnectAt := time.Time{}
+
+		for {
+			select {
+			case <-tick.C:
+				if !reconnectAt.IsZero() && reconnectAt.Before(time.Now()) {
+					wswg.lock.Lock()
+					wswg.Connect(endpoint)
+					wswg.lock.Unlock()
+
+					reconnectAt = time.Time{}
+				}
+
+			case <-ctx.Done():
+				return
+
+			case <-c:
+				if reconnectAt.IsZero() {
+					reconnectAt = time.Now().Add(5 * time.Second)
+				}
+
+			case <-wswg.reset:
+				if reconnectAt.IsZero() {
+					reconnectAt = time.Now().Add(5 * time.Second)
+				}
+			}
+		}
+	}()
+
+	go func() {
+		go wswg.ws2wg(ctx)
+		go wswg.wg2ws(ctx)
+
+		for ctx.Err() == nil {
+			time.Sleep(1 * time.Second)
+
+			if wswg.lastIo() > (1 * time.Second) {
+				wswg.lock.RLock()
+				c := wswg.wsConn
+				wswg.lock.RUnlock()
+
+				if err := wswg.wsWrite(c, nil); err != nil {
+					wswg.resetConn(c, err)
+				}
+			}
+		}
+	}()
+
+	return port, nil
 }

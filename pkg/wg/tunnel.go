@@ -23,7 +23,8 @@ type Tunnel struct {
 	State  *WireGuardState
 	Config *Config
 
-	resolv *net.Resolver
+	wscancel func()
+	resolv   *net.Resolver
 }
 
 func Connect(ctx context.Context, state *WireGuardState) (*Tunnel, error) {
@@ -101,6 +102,11 @@ func doConnect(ctx context.Context, state *WireGuardState, wswg bool) (*Tunnel, 
 }
 
 func (t *Tunnel) Close() error {
+	if t.wscancel != nil {
+		t.wscancel()
+		t.wscancel = nil
+	}
+
 	if t.dev != nil {
 		t.dev.Close()
 	}
