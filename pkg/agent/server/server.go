@@ -215,8 +215,15 @@ func (s *server) buildTunnel(org *api.Organization, recycle bool) (tunnel *wg.Tu
 		return
 	}
 
-	if tunnel, err = wg.Connect(state); err != nil {
-		return
+	// WIP: can't stay this way, need something more clever than this
+	if os.Getenv("WSWG") != "" {
+		if tunnel, err = wg.ConnectWS(context.Background(), state); err != nil {
+			return
+		}
+	} else {
+		if tunnel, err = wg.Connect(context.Background(), state); err != nil {
+			return
+		}
 	}
 
 	s.tunnels[org.Slug] = tunnel
