@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"sync"
 
 	"github.com/spf13/pflag"
@@ -84,6 +85,9 @@ func (cfg *Config) ApplyEnv() {
 
 	cfg.AccessToken = env.FirstOrDefault(cfg.AccessToken,
 		AccessTokenEnvKey, APITokenEnvKey)
+
+	// trim whitespace since it causes http errors when passsed to Docker auth
+	cfg.AccessToken = strings.TrimSpace(cfg.AccessToken)
 
 	cfg.VerboseOutput = env.IsTruthy(verboseOutputEnvKey) || cfg.VerboseOutput
 	cfg.JSONOutput = env.IsTruthy(jsonOutputEnvKey) || cfg.JSONOutput
