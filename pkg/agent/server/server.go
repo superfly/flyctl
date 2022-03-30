@@ -13,8 +13,10 @@ import (
 	"time"
 
 	"github.com/azazeal/pause"
+	"github.com/spf13/viper"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/wg"
 
@@ -216,7 +218,7 @@ func (s *server) buildTunnel(org *api.Organization, recycle bool) (tunnel *wg.Tu
 	}
 
 	// WIP: can't stay this way, need something more clever than this
-	if os.Getenv("WSWG") != "" {
+	if os.Getenv("WSWG") != "" || viper.GetBool(flyctl.ConfigWireGuardWebsockets) {
 		if tunnel, err = wg.ConnectWS(context.Background(), state); err != nil {
 			return
 		}

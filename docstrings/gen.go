@@ -873,6 +873,10 @@ number to operate. This can be found through the volumes list command`,
 		return KeyStrings{"update [name] [file]", "Rekey a WireGuard peer connection associated with a token (set FLY_WIREGUARD_TOKEN)",
 			`Rekey a WireGuard peer connection associated with a token (set FLY_WIREGUARD_TOKEN)`,
 		}
+	case "wireguard.websockets":
+		return KeyStrings{"websockets [enable/disable]", "Enable or disable WireGuard tunneling over WebSockets",
+			`Enable or disable WireGuard tunneling over WebSockets`,
+		}
 	}
 	panic("unknown command key " + key)
 }

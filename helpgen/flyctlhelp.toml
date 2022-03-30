@@ -977,6 +977,11 @@ longHelp = """Get status for a WireGuard peer connection"""
 shortHelp = "Get status a WireGuard peer connection"
 usage = "status [org] [name]"
 
+[wireguard.websockets]
+longHelp = """Enable or disable WireGuard tunneling over WebSockets"""
+shortHelp = "Enable or disable WireGuard tunneling over WebSockets"
+usage = "websockets [enable/disable]"
+
 [wireguard.token]
 longHelp = """Commands that managed WireGuard delegated access tokens"""
 shortHelp = "Commands that managed WireGuard delegated access tokens"
