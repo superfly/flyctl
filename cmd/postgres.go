@@ -21,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/pkg/agent"
+	"github.com/superfly/flyctl/pkg/flypg"
 )
 
 type PostgresConfiguration struct {
@@ -675,9 +676,9 @@ func runListPostgresDatabases(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	if !isPostgresApp(&app.ImageDetails) {
-		return fmt.Errorf("%s is not a postgres app", cmdCtx.AppName)
-	}
+	// if !isPostgresApp(&app.ImageDetails) {
+	// 	return fmt.Errorf("%s is not a postgres app", cmdCtx.AppName)
+	// }
 
 	agentclient, err := agent.Establish(ctx, cmdCtx.Client.API())
 	if err != nil {
@@ -686,24 +687,24 @@ func runListPostgresDatabases(cmdCtx *cmdctx.CmdContext) error {
 
 	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
 	if err != nil {
-		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
+		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
 
-	pgCmd := NewPostgresCmd(cmdCtx, app, dialer)
+	pgclient := flypg.New(app.Name, dialer)
 
-	dbsResp, err := pgCmd.ListDatabases()
+	databases, err := pgclient.ListDatabases(ctx)
 	if err != nil {
 		return err
 	}
 
 	if cmdCtx.OutputJSON() {
-		cmdCtx.WriteJSON(dbsResp.Result)
+		cmdCtx.WriteJSON(databases)
 		return nil
 	}
 
 	table := helpers.MakeSimpleTable(cmdCtx.Out, []string{"Name", "Users"})
 
-	for _, database := range dbsResp.Result {
+	for _, database := range databases {
 		table.Append([]string{database.Name, strings.Join(database.Users, ",")})
 	}
 
@@ -722,9 +723,9 @@ func runListPostgresUsers(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	if !isPostgresApp(&app.ImageDetails) {
-		return fmt.Errorf("%s is not a postgres app", cmdCtx.AppName)
-	}
+	// if !isPostgresApp(&app.ImageDetails) {
+	// 	return fmt.Errorf("%s is not a postgres app", cmdCtx.AppName)
+	// }
 
 	agentclient, err := agent.Establish(ctx, cmdCtx.Client.API())
 	if err != nil {
@@ -733,24 +734,30 @@ func runListPostgresUsers(cmdCtx *cmdctx.CmdContext) error {
 
 	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
 	if err != nil {
-		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
+		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
 
-	pgCmd := NewPostgresCmd(cmdCtx, app, dialer)
+	// pgCmd := NewPostgresCmd(cmdCtx, app, dialer)
 
-	usersResp, err := pgCmd.ListUsers()
+	// usersResp, err := pgCmd.ListUsers()
+	// if err != nil {
+	// 	return err
+	// }
+	pgclient := flypg.New(app.Name, dialer)
+
+	users, err := pgclient.ListUsers(ctx)
 	if err != nil {
 		return err
 	}
 
 	if cmdCtx.OutputJSON() {
-		cmdCtx.WriteJSON(usersResp.Result)
+		cmdCtx.WriteJSON(users)
 		return nil
 	}
 
 	table := helpers.MakeSimpleTable(cmdCtx.Out, []string{"Username", "Superuser", "Databases"})
 
-	for _, user := range usersResp.Result {
+	for _, user := range users {
 		table.Append([]string{user.Username, strconv.FormatBool(user.Superuser), strings.Join(user.Databases, ",")})
 	}
 
