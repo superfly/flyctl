@@ -116,31 +116,3 @@ func (c *Client) UserExists(ctx context.Context, name string) (bool, error) {
 	}
 	return false, nil
 }
-
-func (c *Client) GrantAccess(ctx context.Context, dbName, userName string) error {
-	var endpoint = "/commands/databases/grant"
-
-	in := &GrantAccessRequest{
-		Database: dbName,
-		Username: userName,
-	}
-
-	if err := c.Do(ctx, http.MethodPost, endpoint, in, nil); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *Client) RevokeAccess(ctx context.Context, dbName, userName string) error {
-	var endpoint = "/commands/databases/revoke"
-
-	in := &RevokeAccessRequest{
-		Database: dbName,
-		Username: userName,
-	}
-
-	if err := c.Do(ctx, http.MethodPost, endpoint, in, nil); err != nil {
-		return err
-	}
-	return nil
-}
