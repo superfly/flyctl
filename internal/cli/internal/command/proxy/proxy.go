@@ -17,7 +17,7 @@ import (
 func New() *cobra.Command {
 	var (
 		long  = strings.Trim(`Proxies connections to a fly VM through a Wireguard tunnel The current application DNS is the default remote host`, "\n")
-		short = `Proxies connections to a fly VM"`
+		short = `Proxies connections to a fly VM`
 	)
 
 	cmd := command.New("proxy <local:remote> [remote_host]", short, long, run,
