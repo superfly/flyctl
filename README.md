@@ -22,7 +22,9 @@ brew upgrade flyctl
 
 ## Install Script
 
-Download `flyctl` and install into 
+Download `flyctl` and install into a local bin directory.
+
+#### MacOS, Linux, WSL
 
 Installing the latest version:
 
@@ -41,6 +43,15 @@ Installing a specific version:
 ```bash
 curl -L https://fly.io/install.sh | sh -s 0.0.200
 ```
+
+#### Windows
+
+Run the Powershell install script:
+
+```
+iwr https://fly.io/install.ps1 -useb | iex
+```
+
 
 ## Downloading from GitHub
 
