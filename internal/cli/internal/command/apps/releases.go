@@ -37,6 +37,10 @@ including type, when, success/fail and which user triggered the release.
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Bool{
+			Name:        "image",
+			Description: "Display the Docker image reference of the release.",
+		},
 	)
 
 	return
@@ -59,7 +63,8 @@ func runReleases(ctx context.Context) error {
 	var rows [][]string
 
 	for _, release := range releases {
-		rows = append(rows, []string{
+
+		row := []string{
 			fmt.Sprintf("v%d", release.Version),
 			fmt.Sprintf("%t", release.Stable),
 			formatReleaseReason(release.Reason),
@@ -67,10 +72,16 @@ func runReleases(ctx context.Context) error {
 			formatReleaseDescription(release),
 			release.User.Email,
 			presenters.FormatRelativeTime(release.CreatedAt),
-		})
-	}
+		}
 
-	return render.Table(out, "", rows,
+		if flag.GetBool(ctx, "image") {
+			row = append(row, release.ImageRef)
+		}
+
+		rows = append(rows, row)
+
+	}
+	headers := []string{
 		"Version",
 		"Stable",
 		"Type",
@@ -78,7 +89,13 @@ func runReleases(ctx context.Context) error {
 		"Description",
 		"User",
 		"Date",
-	)
+	}
+
+	if flag.GetBool(ctx, "image") {
+		headers = append(headers, "Docker Image")
+	}
+
+	return render.Table(out, "", rows, headers...)
 }
 
 func formatReleaseReason(reason string) string {

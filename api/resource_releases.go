@@ -13,6 +13,7 @@ func (c *Client) GetAppReleases(ctx context.Context, appName string, limit int) 
 						description
 						reason
 						status
+						imageRef
 						stable
 						user {
 							id

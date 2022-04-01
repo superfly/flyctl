@@ -616,6 +616,7 @@ type Release struct {
 	User               User
 	EvaluationID       string
 	CreatedAt          time.Time
+	ImageRef           string
 }
 
 type Build struct {
