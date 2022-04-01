@@ -154,6 +154,7 @@ func runMachineRun(ctx context.Context) error {
 	var (
 		appName = app.NameFromContext(ctx)
 		client  = client.FromContext(ctx).API()
+		io      = iostreams.FromContext(ctx)
 	)
 
 	var org *api.Organization
