@@ -230,7 +230,10 @@ func runClassicBuild(ctx context.Context, streams *iostreams.IOStreams, docker *
 		NoCache:     opts.NoCache,
 	}
 
-	resp, err := docker.ImageBuild(ctx, r, options)
+	builderContext, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	resp, err := docker.ImageBuild(builderContext, r, options)
 	if err != nil {
 		return "", errors.Wrap(err, "error building with docker")
 	}
@@ -280,7 +283,10 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 			BuildID: uploadRequestRemote + ":" + buildID,
 		}
 
-		response, err := docker.ImageBuild(context.Background(), r, buildOptions)
+		builderContext, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		response, err := docker.ImageBuild(builderContext, r, buildOptions)
 		if err != nil {
 			return err
 		}
