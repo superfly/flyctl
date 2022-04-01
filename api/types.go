@@ -1,6 +1,7 @@
 package api
 
 import (
+	"syscall"
 	"time"
 )
 
@@ -729,6 +730,10 @@ type DeployImageInput struct {
 	Strategy   *string     `json:"strategy"`
 }
 
+type Signal struct {
+	syscall.Signal
+}
+
 type Service struct {
 	Description     string        `json:"description"`
 	Protocol        string        `json:"protocol,omitempty"`
@@ -1187,6 +1192,20 @@ type Machine struct {
 	}
 
 	CreatedAt time.Time
+}
+
+type V1Machine struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	AppID int    `json:"app_id"`
+
+	State string `json:"state"`
+
+	// InstanceID is unique for each version of the machine
+	InstanceID string `json:"instance_id"`
+
+	// PrivateIP is the internal 6PN address of the machine.
+	PrivateIP string `json:"private_ip"`
 }
 
 type MachineIP struct {
