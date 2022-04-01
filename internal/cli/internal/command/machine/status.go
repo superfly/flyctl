@@ -15,7 +15,7 @@ import (
 
 func newStatus() *cobra.Command {
 	const (
-		short = "Show current status of a running mchine"
+		short = "Show current status of a running machine"
 		long  = short + "\n"
 
 		usage = "status <id>"
