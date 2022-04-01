@@ -586,7 +586,7 @@ func runPostgresConnect(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	if !isPostgresApp(&app.ImageDetails) {
+	if !isPostgresApp(app) {
 		return fmt.Errorf("%s is not a postgres app", cmdCtx.AppName)
 	}
 
@@ -676,9 +676,9 @@ func runListPostgresDatabases(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	// if !isPostgresApp(&app.ImageDetails) {
-	// 	return fmt.Errorf("%s is not a postgres app", cmdCtx.AppName)
-	// }
+	if !isPostgresApp(app) {
+		return fmt.Errorf("%s is not a postgres app", cmdCtx.AppName)
+	}
 
 	agentclient, err := agent.Establish(ctx, cmdCtx.Client.API())
 	if err != nil {
@@ -723,9 +723,9 @@ func runListPostgresUsers(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	// if !isPostgresApp(&app.ImageDetails) {
-	// 	return fmt.Errorf("%s is not a postgres app", cmdCtx.AppName)
-	// }
+	if !isPostgresApp(app) {
+		return fmt.Errorf("%s is not a postgres app", cmdCtx.AppName)
+	}
 
 	agentclient, err := agent.Establish(ctx, cmdCtx.Client.API())
 	if err != nil {
@@ -737,12 +737,6 @@ func runListPostgresUsers(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
 
-	// pgCmd := NewPostgresCmd(cmdCtx, app, dialer)
-
-	// usersResp, err := pgCmd.ListUsers()
-	// if err != nil {
-	// 	return err
-	// }
 	pgclient := flypg.New(app.Name, dialer)
 
 	users, err := pgclient.ListUsers(ctx)
@@ -766,6 +760,7 @@ func runListPostgresUsers(cmdCtx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func isPostgresApp(imageVersion *api.ImageVersion) bool {
-	return imageVersion.Repository == "flyio/postgres" || imageVersion.Repository == "flyio/postgres-standalone"
+func isPostgresApp(app *api.App) bool {
+	// check app.PostgresAppRole.Name == "postgres_cluster"
+	return app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster"
 }
