@@ -75,7 +75,7 @@ func (f *Client) Stop(ctx context.Context, machineStop api.V1MachineStop) ([]byt
 	stopEndpoint := fmt.Sprintf("/%s/stop", machineStop.ID)
 	body, err := json.Marshal(machineStop)
 	if err != nil {
-		return nil, errors.Wrap(err, "Machine failed to launch")
+		return nil, fmt.Errorf("failed to launch machine %s", err)
 	}
 
 	return f.sendRequest(ctx, nil, http.MethodPost, stopEndpoint, body)
