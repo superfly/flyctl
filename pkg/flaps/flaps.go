@@ -53,10 +53,16 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) ([]
 	return f.sendRequest(ctx, nil, http.MethodPost, "", body)
 }
 
+func (f *Client) Start(ctx context.Context, machineID string) ([]byte, error) {
+	fmt.Println("Machine is starting...")
+	startEndpoint := fmt.Sprintf("/%s/start", machineID)
+	return f.sendRequest(ctx, nil, http.MethodPost, startEndpoint, nil)
+}
+
 func (f *Client) Wait(ctx context.Context, machine *api.V1Machine) ([]byte, error) {
 	fmt.Println("Waiting on firecracker VM...")
 
-	waitEndpoint := fmt.Sprintf("%s/wait", machine.ID)
+	waitEndpoint := fmt.Sprintf("/%s/wait", machine.ID)
 
 	if machine.InstanceID != "" {
 		waitEndpoint = fmt.Sprintf("?instance_id=%s", machine.InstanceID)
@@ -65,10 +71,14 @@ func (f *Client) Wait(ctx context.Context, machine *api.V1Machine) ([]byte, erro
 	return f.sendRequest(ctx, nil, http.MethodGet, waitEndpoint, nil)
 }
 
-func (f *Client) Stop(ctx context.Context, machine *api.V1Machine) ([]byte, error) {
-	stopEndpoint := fmt.Sprintf("/%s/stop", machine.ID)
+func (f *Client) Stop(ctx context.Context, machineStop api.V1MachineStop) ([]byte, error) {
+	stopEndpoint := fmt.Sprintf("/%s/stop", machineStop.ID)
+	body, err := json.Marshal(machineStop)
+	if err != nil {
+		return nil, fmt.Errorf("failed to launch machine %s", err)
+	}
 
-	return f.sendRequest(ctx, machine, http.MethodPost, stopEndpoint, nil)
+	return f.sendRequest(ctx, nil, http.MethodPost, stopEndpoint, body)
 }
 
 func (f *Client) Get(ctx context.Context, machine *api.V1Machine) ([]byte, error) {

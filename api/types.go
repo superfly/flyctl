@@ -1194,6 +1194,17 @@ type Machine struct {
 	CreatedAt time.Time
 }
 
+type Condition struct {
+	Equal    interface{} `json:"equal,omitempty"`
+	NotEqual interface{} `json:"not_equal,omitempty"`
+}
+
+type Filters struct {
+	AppName      string               `json:"app_name"`
+	MachineState []Condition          `json:"machine_state"`
+	Meta         map[string]Condition `json:"meta"`
+}
+
 type V1Machine struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
@@ -1206,6 +1217,13 @@ type V1Machine struct {
 
 	// PrivateIP is the internal 6PN address of the machine.
 	PrivateIP string `json:"private_ip"`
+}
+
+type V1MachineStop struct {
+	ID      string        `json:"id"`
+	Signal  Signal        `json:"signal,omitempty"`
+	Timeout time.Duration `json:"timeout,omitempty"`
+	Filters *Filters      `json:"filters,omitempty"`
 }
 
 type MachineIP struct {
