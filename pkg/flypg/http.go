@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 
@@ -49,7 +48,7 @@ func (c *Client) Do(ctx context.Context, method, path string, in, out interface{
 	}
 	defer res.Body.Close()
 
-	if res.Status > "299" {
+	if res.StatusCode > 299 {
 		return newError(res.StatusCode, res)
 	}
 
@@ -109,7 +108,7 @@ func newError(status int, res *http.Response) error {
 			return err
 		}
 	default:
-		b, err := ioutil.ReadAll(res.Body)
+		b, err := io.ReadAll(res.Body)
 		if err != nil {
 			return err
 		}
