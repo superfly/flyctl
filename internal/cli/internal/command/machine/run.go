@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
@@ -312,23 +311,21 @@ func runMachineRun(ctx context.Context) error {
 
 	// wait for machine //
 	defer func() {
-		go func() {
-			time.Sleep(5 * time.Second)
-			newMachineBody, _ := flapsClient.Get(ctx, &machineBody)
-			err = json.Unmarshal(newMachineBody, &machineBody)
+		defer func() {
+			fmt.Fprintf(io.Out, "Success! A machine has been successfully launched\n")
+			fmt.Fprintf(io.Out, " Machine ID: %s\n", machineBody.ID)
+			fmt.Fprintf(io.Out, " Instance ID: %s\n", machineBody.InstanceID)
+			fmt.Fprintf(io.Out, " State: %s\n", machineBody.State)
+			fmt.Fprintf(io.Out, "You can connect to your machine via the following private ip\n")
+			fmt.Fprintf(io.Out, "  %s\n", machineBody.PrivateIP)
 		}()
-		_, err = flapsClient.Wait(ctx, &machineBody)
+		newMachineBody, _ := flapsClient.Get(ctx, &machineBody)
+		err = json.Unmarshal(newMachineBody, &machineBody)
 	}()
+	_, err = flapsClient.Wait(ctx, &machineBody)
 	if err != nil {
 		return errors.Wrap(err, "Firecracker VM failed to launch")
 	}
-
-	fmt.Fprintf(io.Out, "Success! A machine has been successfully launched\n")
-	fmt.Fprintf(io.Out, " Machine ID: %s\n", machineBody.ID)
-	fmt.Fprintf(io.Out, " Instance ID: %s\n", machineBody.InstanceID)
-	fmt.Fprintf(io.Out, " State: %s\n", machineBody.State)
-	fmt.Fprintf(io.Out, "You can connect to your machine via the following private ip\n")
-	fmt.Fprintf(io.Out, "  %s\n", machineBody.PrivateIP)
 
 	return nil
 }
