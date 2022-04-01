@@ -39,7 +39,7 @@ including type, when, success/fail and which user triggered the release.
 		flag.AppConfig(),
 		flag.Bool{
 			Name:        "image",
-			Description: "Display the Docker image reference of the release.",
+			Description: "Display the Docker image reference of the release",
 		},
 	)
 
