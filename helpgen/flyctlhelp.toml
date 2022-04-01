@@ -1040,7 +1040,7 @@ longHelp = "Remove a Fly machine"
 shortHelp = "Remove a Fly machine"
 usage = "remove <id>"
 [machine.status]
-longHelp = """Show current status of a running mchine"""
+longHelp = """Show current status of a running machine"""
 shortHelp = "Show current status of a running machine"
 usage = "status <id>"
 
