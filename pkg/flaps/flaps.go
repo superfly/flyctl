@@ -87,6 +87,12 @@ func (f *Client) Get(ctx context.Context, machine *api.V1Machine) ([]byte, error
 	return f.sendRequest(ctx, machine, http.MethodGet, getEndpoint, nil)
 }
 
+func (f *Client) Kill(ctx context.Context, machineKillInput api.KillMachineInput) ([]byte, error) {
+	killEndpoint := "/machineID"
+
+	return f.sendRequest(ctx, nil, http.MethodDelete, killEndpoint, nil)
+}
+
 func (f *Client) sendRequest(ctx context.Context, machine *api.V1Machine, method, endpoint string, data []byte) ([]byte, error) {
 	peerIP := f.peerIP
 	if machine != nil {

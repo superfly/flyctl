@@ -10,7 +10,7 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/pkg/flaps"
 )
 
 func newKill() *cobra.Command {
@@ -39,22 +39,34 @@ func newKill() *cobra.Command {
 
 func runMachineKill(ctx context.Context) (err error) {
 	var (
-		out     = iostreams.FromContext(ctx).Out
-		appName = app.NameFromContext(ctx)
-		client  = client.FromContext(ctx).API()
+		appName   = app.NameFromContext(ctx)
+		client    = client.FromContext(ctx).API()
+		machineID = flag.FirstArg(ctx)
 	)
 	for _, arg := range flag.Args(ctx) {
-		input := api.KillMachineInput{
+		machineKillInput := api.KillMachineInput{
 			AppID: appName,
 			ID:    arg,
 		}
 
-		machine, err := client.KillMachine(ctx, input)
+		if appName == "" {
+			return fmt.Errorf("app was not found")
+		}
+		app, err := client.GetApp(ctx, appName)
 		if err != nil {
-			return fmt.Errorf("could not stop machine %s: %w", arg, err)
+			return err
+		}
+		flapsClient, err := flaps.New(ctx, app)
+		if err != nil {
+			return fmt.Errorf("could not make flaps client: %w", err)
 		}
 
-		fmt.Fprintf(out, "%s\n", machine.ID)
+		_, err = flapsClient.Kill(ctx, machineKillInput)
+		if err != nil {
+			return fmt.Errorf("could not kill machine %s: %w", arg, err)
+		}
+
+		fmt.Printf("%s has been killed\n", machineID)
 	}
 
 	return
