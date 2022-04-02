@@ -34,6 +34,11 @@ func newKill() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Bool{
+			Name:        "force",
+			Shorthand:   "f",
+			Description: "Force destroy a machine",
+		},
 	)
 
 	return cmd
@@ -77,10 +82,12 @@ func runMachineKill(ctx context.Context) (err error) {
 		if err := json.Unmarshal(currentMachine, &machineBody); err != nil {
 			return fmt.Errorf("could not read machine body %s: %w", machineID, err)
 		}
-		fmt.Fprintf(io.Out, "machine %s was found and is currently in a %s state, killing in progress\n", machineID, machineBody.State)
 		if machineBody.State == "destroyed" {
 			return fmt.Errorf("machine %s has already been destroyed", machineID)
 		}
+		fmt.Fprintf(io.Out, "machine %s was found and is currently in a %s state, attempting to kill...\n", machineID, machineBody.State)
+
+		machineKillInput.Force = flag.GetBool(ctx, "force")
 
 		_, err = flapsClient.Kill(ctx, machineKillInput)
 		if err != nil {
