@@ -82,13 +82,13 @@ func (f *Client) Stop(ctx context.Context, machineStop api.V1MachineStop) ([]byt
 }
 
 func (f *Client) Get(ctx context.Context, machine *api.V1Machine) ([]byte, error) {
-	getEndpoint := machine.ID
+	getEndpoint := fmt.Sprintf("/%s?kill=%t", machine.ID, true)
 
-	return f.sendRequest(ctx, machine, http.MethodGet, getEndpoint, nil)
+	return f.sendRequest(ctx, nil, http.MethodGet, getEndpoint, nil)
 }
 
 func (f *Client) Kill(ctx context.Context, machineKillInput api.KillMachineInput) ([]byte, error) {
-	killEndpoint := "/machineID"
+	killEndpoint := fmt.Sprintf("/%s", machineKillInput.ID)
 
 	return f.sendRequest(ctx, nil, http.MethodDelete, killEndpoint, nil)
 }

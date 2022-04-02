@@ -2,6 +2,7 @@ package machine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -11,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/pkg/flaps"
+	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func newKill() *cobra.Command {
@@ -42,6 +44,7 @@ func runMachineKill(ctx context.Context) (err error) {
 		appName   = app.NameFromContext(ctx)
 		client    = client.FromContext(ctx).API()
 		machineID = flag.FirstArg(ctx)
+		io        = iostreams.FromContext(ctx)
 	)
 	for _, arg := range flag.Args(ctx) {
 		machineKillInput := api.KillMachineInput{
@@ -61,12 +64,30 @@ func runMachineKill(ctx context.Context) (err error) {
 			return fmt.Errorf("could not make flaps client: %w", err)
 		}
 
+		// check if machine even exists //
+		machineBody := api.V1Machine{
+			ID:    machineID,
+			AppID: appName,
+		}
+		currentMachine, err := flapsClient.Get(ctx, &machineBody)
+		if err != nil {
+			return fmt.Errorf("could not retrieve machine %s", machineID)
+		}
+
+		if err := json.Unmarshal(currentMachine, &machineBody); err != nil {
+			return fmt.Errorf("could not read machine body %s: %w", machineID, err)
+		}
+		fmt.Fprintf(io.Out, "machine %s was found and is currently in a %s state, killing in progress\n", machineID, machineBody.State)
+		if machineBody.State == "destroyed" {
+			return fmt.Errorf("machine %s has already been destroyed", machineID)
+		}
+
 		_, err = flapsClient.Kill(ctx, machineKillInput)
 		if err != nil {
 			return fmt.Errorf("could not kill machine %s: %w", arg, err)
 		}
 
-		fmt.Printf("%s has been killed\n", machineID)
+		fmt.Fprintf(io.Out, "%s has been killed\n", machineID)
 	}
 
 	return
