@@ -1249,6 +1249,7 @@ type StartMachineInput struct {
 type KillMachineInput struct {
 	AppID string `json:"appId,omitempty"`
 	ID    string `json:"id"`
+	Force bool   `json:"force"`
 }
 
 type RemoveMachineInput struct {
