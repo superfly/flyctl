@@ -455,20 +455,28 @@ func configureRedwood(sourceDir string) (*SourceInfo, error) {
 	}
 
 	s := &SourceInfo{
-		Family: "RedwoodJS",
-		Files:  templates("templates/redwood"),
-		Port:   8910,
-		Env: map[string]string{
-			"PORT": "8910",
-		},
-		ReleaseCmd: "npx prisma migrate deploy --schema '/app/api/db/schema.prisma'",
-		PostgresInitCommands: []InitCommand{
+		Family:     "RedwoodJS",
+		Files:      templates("templates/redwood"),
+		Port:       8910,
+		ReleaseCmd: ".fly/release.sh",
+	}
+
+	s.Env = map[string]string{
+		"PORT": "8910",
+		// Telemetry gravely incrases memory usage, and isn't required
+		"REDWOOD_DISABLE_TELEMETRY": "1",
+	}
+
+	if checksPass(sourceDir+"/api/db", dirContains("*.prisma", "sqlite")) {
+		s.Env["MIGRATE_ON_BOOT"] = "true"
+
+		s.Volumes = []Volume{
 			{
-				Command:     "scripts/switch_prisma_provider.sh",
-				Description: "Switching the prisma provider to postgresql",
-				Condition:   checksPass(sourceDir, fileExists("api/db/schema.prisma")),
+				Source:      "data",
+				Destination: "/data",
 			},
-		},
+		}
+		s.Notice = "\nThis deployment will run an SQLite on a single dedicated volume. The app can't scale beyond a single instance. Look into 'fly postgres' for a more robust production database that supports scaling up. \n"
 	}
 
 	return s, nil
