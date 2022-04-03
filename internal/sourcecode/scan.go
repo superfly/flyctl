@@ -462,7 +462,8 @@ func configureRedwood(sourceDir string) (*SourceInfo, error) {
 	}
 
 	s.Env = map[string]string{
-		"PORT":                      "8910",
+		"PORT": "8910",
+		// Telemetry gravely incrases memory usage, and isn't required
 		"REDWOOD_DISABLE_TELEMETRY": "1",
 	}
 
