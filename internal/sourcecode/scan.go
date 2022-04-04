@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"regexp"
 
@@ -12,7 +13,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 )
 
-//go:embed templates templates/*/.dockerignore
+//go:embed templates templates/*/.dockerignore templates/*/.fly
 var content embed.FS
 
 type InitCommand struct {
@@ -58,6 +59,7 @@ type SourceInfo struct {
 type SourceFile struct {
 	Path     string
 	Contents []byte
+	Perms    fs.FileMode
 }
 type Static struct {
 	GuestPath string `toml:"guest_path" json:"guest_path"`
@@ -469,7 +471,7 @@ func configureRedwood(sourceDir string) (*SourceInfo, error) {
 
 	if checksPass(sourceDir+"/api/db", dirContains("*.prisma", "sqlite")) {
 		s.Env["MIGRATE_ON_BOOT"] = "true"
-
+		s.Env["DATABASE_URL"] = "/data/sqlite.db"
 		s.Volumes = []Volume{
 			{
 				Source:      "data",
@@ -587,11 +589,19 @@ func templates(name string) (files []SourceFile) {
 		}
 
 		relPath, err := filepath.Rel(name, path)
+
 		if err != nil {
 			return errors.Wrap(err, "error removing template prefix")
 		}
 
 		data, err := fs.ReadFile(content, path)
+
+		if err != nil {
+			return err
+		}
+
+		info, err := os.Stat(path)
+
 		if err != nil {
 			return err
 		}
@@ -599,6 +609,7 @@ func templates(name string) (files []SourceFile) {
 		f := SourceFile{
 			Path:     relPath,
 			Contents: data,
+			Perms:    info.Mode(),
 		}
 
 		files = append(files, f)
