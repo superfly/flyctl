@@ -203,7 +203,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 				return err
 			}
 
-			if err := os.WriteFile(path, f.Contents, 0666); err != nil {
+			if err := os.WriteFile(path, f.Contents, f.Perms); err != nil {
 				return err
 			}
 		}
