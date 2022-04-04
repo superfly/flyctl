@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/fs"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"regexp"
 
@@ -59,7 +58,6 @@ type SourceInfo struct {
 type SourceFile struct {
 	Path     string
 	Contents []byte
-	Perms    fs.FileMode
 }
 type Static struct {
 	GuestPath string `toml:"guest_path" json:"guest_path"`
@@ -600,8 +598,6 @@ func templates(name string) (files []SourceFile) {
 			return err
 		}
 
-		info, err := os.Stat(path)
-
 		if err != nil {
 			return err
 		}
@@ -609,7 +605,6 @@ func templates(name string) (files []SourceFile) {
 		f := SourceFile{
 			Path:     relPath,
 			Contents: data,
-			Perms:    info.Mode(),
 		}
 
 		files = append(files, f)

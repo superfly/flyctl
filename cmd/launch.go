@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -203,7 +204,13 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 				return err
 			}
 
-			if err := os.WriteFile(path, f.Contents, f.Perms); err != nil {
+			perms := 0600
+
+			if strings.Contains(string(f.Contents), "#!") {
+				perms = 0700
+			}
+
+			if err := os.WriteFile(path, f.Contents, fs.FileMode(perms)); err != nil {
 				return err
 			}
 		}
