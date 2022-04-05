@@ -35,11 +35,9 @@ func (c *Client) CreateUser(ctx context.Context, name, password string, superuse
 func (c Client) DeleteUser(ctx context.Context, name string) error {
 	var endpoint = "/commands/users/delete"
 
-	in := &DeleteUserRequest{
-		Username: name,
-	}
+	endpoint = fmt.Sprintf("%s/%s", endpoint, name)
 
-	if err := c.Do(ctx, http.MethodDelete, endpoint, in, nil); err != nil {
+	if err := c.Do(ctx, http.MethodDelete, endpoint, nil, nil); err != nil {
 		return err
 	}
 	return nil
@@ -90,7 +88,10 @@ func (c *Client) DatabaseExists(ctx context.Context, name string) (bool, error) 
 
 	out := new(FindDatabaseResponse)
 
-	if err := c.Do(ctx, http.MethodPost, endpoint, nil, out); err != nil {
+	if err := c.Do(ctx, http.MethodGet, endpoint, nil, out); err != nil {
+		if ErrorStatus(err) == 404 {
+			return false, nil
+		}
 		return false, err
 	}
 
@@ -107,7 +108,10 @@ func (c *Client) UserExists(ctx context.Context, name string) (bool, error) {
 
 	out := new(FindUserResponse)
 
-	if err := c.Do(ctx, http.MethodPost, endpoint, nil, out); err != nil {
+	if err := c.Do(ctx, http.MethodGet, endpoint, nil, out); err != nil {
+		if ErrorStatus(err) == 404 {
+			return false, nil
+		}
 		return false, err
 	}
 

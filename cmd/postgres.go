@@ -375,7 +375,7 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
 	}
 
-	pgCmd := NewPostgresCmd(cmdCtx, pgApp, dialer)
+	pgclient := flypg.New(pgApp.Name, dialer)
 
 	secrets, err := client.GetAppSecrets(ctx, appName)
 	if err != nil {
@@ -387,7 +387,7 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 		}
 	}
 	// Check to see if database exists
-	dbExists, err := pgCmd.DbExists(*input.DatabaseName)
+	dbExists, err := pgclient.DatabaseExists(ctx, *input.DatabaseName)
 	if err != nil {
 		return err
 	}
@@ -407,7 +407,7 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	// Check to see if user exists
-	usrExists, err := pgCmd.UserExists(*input.DatabaseUser)
+	usrExists, err := pgclient.UserExists(ctx, *input.DatabaseUser)
 	if err != nil {
 		return err
 	}
@@ -423,13 +423,14 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 
 	// Create database if it doesn't already exist
 	if !dbExists {
-		dbResp, err := pgCmd.CreateDatabase(*input.DatabaseName)
+		err := pgclient.CreateDatabase(ctx, *input.DatabaseName)
 		if err != nil {
-			return err
+			if flypg.ErrorStatus(err) >= 500 {
+				return err
+			}
+			return fmt.Errorf("failed executing database-create: %w", err)
 		}
-		if dbResp.Error != "" {
-			return errors.Wrap(fmt.Errorf(dbResp.Error), "executing database-create")
-		}
+
 	}
 
 	// Create user
@@ -438,21 +439,8 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	usrResp, err := pgCmd.CreateUser(*input.DatabaseUser, pwd)
-	if err != nil {
-		return err
-	}
-	if usrResp.Error != "" {
-		return errors.Wrap(fmt.Errorf(usrResp.Error), "executing create-user")
-	}
-
-	// Grant access
-	gaResp, err := pgCmd.GrantAccess(*input.DatabaseName, *input.DatabaseUser)
-	if err != nil {
-		return err
-	}
-	if gaResp.Error != "" {
-		return errors.Wrap(fmt.Errorf(usrResp.Error), "executing grant-access")
+	if err := pgclient.CreateUser(ctx, *input.DatabaseUser, pwd, false); err != nil {
+		return fmt.Errorf("failed executing create-user: %w", err)
 	}
 
 	connectionString := fmt.Sprintf("postgres://%s:%s@top2.nearest.of.%s.internal:5432/%s", *input.DatabaseUser, pwd, pgApp.Name, *input.DatabaseName)
@@ -521,32 +509,20 @@ func runDetachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 
 	dialer, err := agentclient.Dialer(ctx, pgApp.Organization.Slug)
 	if err != nil {
-		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
+		return fmt.Errorf("can't build tunnel for %s: %w", app.Organization.Slug, err)
 	}
 
-	pgCmd := NewPostgresCmd(cmdCtx, pgApp, dialer)
+	pgclient := flypg.New(pgApp.Name, dialer)
 
 	// Remove user if exists
-	exists, err := pgCmd.UserExists(targetAttachment.DatabaseUser)
+	exists, err := pgclient.UserExists(ctx, targetAttachment.DatabaseUser)
 	if err != nil {
 		return err
 	}
 	if exists {
-		// Revoke access to suer
-		raResp, err := pgCmd.RevokeAccess(targetAttachment.DatabaseName, targetAttachment.DatabaseUser)
+		err := pgclient.DeleteUser(ctx, targetAttachment.DatabaseUser)
 		if err != nil {
-			return err
-		}
-		if raResp.Error != "" {
-			return errors.Wrap(fmt.Errorf(raResp.Error), "executing revoke-access")
-		}
-
-		ruResp, err := pgCmd.DeleteUser(targetAttachment.DatabaseUser)
-		if err != nil {
-			return err
-		}
-		if ruResp.Error != "" {
-			return errors.Wrap(fmt.Errorf(ruResp.Error), "executing user-delete")
+			return fmt.Errorf("executing user-delete: %w", err)
 		}
 	}
 
