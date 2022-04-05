@@ -469,7 +469,7 @@ func configureRedwood(sourceDir string) (*SourceInfo, error) {
 
 	if checksPass(sourceDir+"/api/db", dirContains("*.prisma", "sqlite")) {
 		s.Env["MIGRATE_ON_BOOT"] = "true"
-		s.Env["DATABASE_URL"] = "/data/sqlite.db"
+		s.Env["DATABASE_URL"] = "file://data/sqlite.db"
 		s.Volumes = []Volume{
 			{
 				Source:      "data",
