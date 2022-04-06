@@ -11,6 +11,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/api"
@@ -209,7 +210,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 		opts := imgsrc.RefOptions{
 			AppName:    app.NameFromContext(ctx),
 			WorkingDir: state.WorkingDirectory(ctx),
-			Publish:    !flag.GetBuildOnly(ctx),
+			Publish:    !flag.GetBuildOnly(ctx) && !flag.GetBool(ctx, "nix"),
 			ImageRef:   imageRef,
 			ImageLabel: flag.GetString(ctx, "image-label"),
 		}
@@ -225,6 +226,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 	}
 
 	var buildArgs map[string]string
+
 	if buildArgs, err = mergeBuildArgs(ctx, build.Args); err != nil {
 		return
 	}
@@ -263,6 +265,12 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 		tb.Printf("image size: %s\n", humanize.Bytes(uint64(img.Size)))
 	}
 
+	// We can't easily get the resulting image ID, but we know the tag and expect it to be pushed, so we can use that
+	// reference for the final deployment
+	if flag.GetBool(ctx, "nix") {
+		img.ID = img.Tag
+	}
+
 	return
 }
 
@@ -299,8 +307,13 @@ ARG FLY_API_TOKEN
 }
 
 func mergeBuildArgs(ctx context.Context, args map[string]string) (map[string]string, error) {
+
 	if args == nil {
 		args = make(map[string]string)
+	}
+
+	if flag.GetBool(ctx, "nix") {
+		args["FLY_API_TOKEN"] = flyctl.GetAPIToken()
 	}
 
 	// set additional Docker build args from the command line, overriding similar ones from the config
@@ -312,7 +325,6 @@ func mergeBuildArgs(ctx context.Context, args map[string]string) (map[string]str
 	for k, v := range cliBuildArgs {
 		args[k] = v
 	}
-
 	return args, nil
 }
 
