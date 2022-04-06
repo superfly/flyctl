@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/sourcecode"
+	"github.com/superfly/graphql"
 )
 
 func newLaunchCommand(client *client.Client) *Command {
@@ -544,7 +545,7 @@ func shouldDeployExistingApp(cmdCtx *cmdctx.CmdContext, appName string) (bool, e
 
 	status, err := cmdCtx.Client.API().GetAppStatus(ctx, appName, false)
 	if err != nil {
-		if api.IsNotFoundError(err) || err.Error() == "Could not resolve App" {
+		if api.IsNotFoundError(err) || graphql.IsNotFoundError(err) {
 			return false, nil
 		}
 		return false, err
