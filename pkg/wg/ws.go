@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"golang.org/x/net/websocket"
+	"golang.org/x/time/rate"
 )
 
 func ConnectWS(ctx context.Context, state *WireGuardState) (*Tunnel, error) {
@@ -71,6 +72,7 @@ type WsWgProxy struct {
 	wrlock       sync.Mutex
 	atime        time.Time
 	reset        chan bool
+	limit        *rate.Limiter
 }
 
 // this is gross, but, keep the rest of the WireGuard code in
@@ -92,6 +94,7 @@ func NewWsWgProxy() (*WsWgProxy, error) {
 		atime:    time.Now(),
 		plugConn: l,
 		reset:    make(chan bool),
+		limit:    rate.NewLimiter(rate.Every(5*time.Second), 2),
 	}, nil
 }
 
@@ -116,6 +119,8 @@ func (wswg *WsWgProxy) resetConn(c net.Conn, err error) {
 	if cur != c {
 		return
 	}
+
+	wswg.limit.Wait(context.Background())
 
 	log.Printf("resetting connection due to error: %s", err)
 	wswg.reset <- true
