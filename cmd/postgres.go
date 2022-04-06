@@ -322,6 +322,10 @@ func runApiCreatePostgresCluster(cmdCtx *cmdctx.CmdContext, org string, input *a
 }
 
 func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
+	// Minimum image version requirements
+	var (
+		MinPostgresHaVersion = "0.0.19"
+	)
 	ctx := cmdCtx.Command.Context()
 
 	postgresAppName := cmdCtx.Config.GetString("postgres-app")
@@ -363,6 +367,10 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 	pgApp, err := client.GetApp(ctx, postgresAppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
+	}
+
+	if err := hasRequiredVersion(pgApp, MinPostgresHaVersion, ""); err != nil {
+		return err
 	}
 
 	agentclient, err := agent.Establish(ctx, cmdCtx.Client.API())
@@ -459,6 +467,9 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runDetachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
+	// Minimum image version requirements
+	var MinPostgresHaVersion = "0.0.19"
+
 	ctx := cmdCtx.Command.Context()
 
 	postgresAppName := cmdCtx.Config.GetString("postgres-app")
@@ -474,6 +485,10 @@ func runDetachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 	pgApp, err := client.GetApp(ctx, postgresAppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
+	}
+
+	if err := hasRequiredVersion(pgApp, MinPostgresHaVersion, ""); err != nil {
+		return err
 	}
 
 	attachments, err := client.ListPostgresClusterAttachments(ctx, app.ID, pgApp.ID)
@@ -566,43 +581,8 @@ func runPostgresConnect(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("%s is not a postgres app", cmdCtx.AppName)
 	}
 
-	// Validate image version to ensure it's compatible with this feature.
-	if app.ImageDetails.Version == "" || app.ImageDetails.Version == "unknown" {
-		return fmt.Errorf("PG Connect is not compatible with this image.")
-	}
-
-	imageVersionStr := app.ImageDetails.Version[1:]
-	imageVersion, err := version.NewVersion(imageVersionStr)
-	if err != nil {
+	if err := hasRequiredVersion(app, MinPostgresStandaloneVersion, MinPostgresHaVersion); err != nil {
 		return err
-	}
-
-	// Specify compatible versions per repo.
-	requiredVersion := &version.Version{}
-	if app.ImageDetails.Repository == "flyio/postgres-standalone" {
-		// https://github.com/fly-apps/postgres-standalone/releases/tag/v0.0.4
-		requiredVersion, err = version.NewVersion(MinPostgresStandaloneVersion)
-		if err != nil {
-			return err
-		}
-	}
-	if app.ImageDetails.Repository == "flyio/postgres" {
-		// https://github.com/fly-apps/postgres-ha/releases/tag/v0.0.9
-		requiredVersion, err = version.NewVersion(MinPostgresHaVersion)
-		if err != nil {
-			return err
-		}
-	}
-
-	if requiredVersion == nil {
-		return fmt.Errorf("Unable to resolve image version...")
-	}
-
-	if imageVersion.LessThan(requiredVersion) {
-		return fmt.Errorf(
-			"Image version is not compatible. (Current: %s, Required: >= %s)\n"+
-				"Please run 'flyctl image show' and update to the latest available version.",
-			imageVersion, requiredVersion.String())
 	}
 
 	agentclient, err := agent.Establish(ctx, cmdCtx.Client.API())
@@ -643,6 +623,11 @@ func runPostgresConnect(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runListPostgresDatabases(cmdCtx *cmdctx.CmdContext) error {
+	// Minimum image version requirements
+	var (
+		MinPostgresHaVersion = "0.0.19"
+	)
+
 	ctx := cmdCtx.Command.Context()
 
 	client := cmdCtx.Client.API()
@@ -654,6 +639,10 @@ func runListPostgresDatabases(cmdCtx *cmdctx.CmdContext) error {
 
 	if !isPostgresApp(app) {
 		return fmt.Errorf("%s is not a postgres app", cmdCtx.AppName)
+	}
+
+	if err := hasRequiredVersion(app, MinPostgresHaVersion, ""); err != nil {
+		return err
 	}
 
 	agentclient, err := agent.Establish(ctx, cmdCtx.Client.API())
@@ -690,6 +679,11 @@ func runListPostgresDatabases(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runListPostgresUsers(cmdCtx *cmdctx.CmdContext) error {
+	// Minimum image version requirements
+	var (
+		MinPostgresHaVersion = "0.0.19"
+	)
+
 	ctx := cmdCtx.Command.Context()
 
 	client := cmdCtx.Client.API()
@@ -701,6 +695,10 @@ func runListPostgresUsers(cmdCtx *cmdctx.CmdContext) error {
 
 	if !isPostgresApp(app) {
 		return fmt.Errorf("%s is not a postgres app", cmdCtx.AppName)
+	}
+
+	if err := hasRequiredVersion(app, MinPostgresHaVersion, ""); err != nil {
+		return err
 	}
 
 	agentclient, err := agent.Establish(ctx, cmdCtx.Client.API())
@@ -739,4 +737,45 @@ func runListPostgresUsers(cmdCtx *cmdctx.CmdContext) error {
 func isPostgresApp(app *api.App) bool {
 	// check app.PostgresAppRole.Name == "postgres_cluster"
 	return app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster"
+}
+
+func hasRequiredVersion(app *api.App, cluster, standalone string) error {
+	// Validate image version to ensure it's compatible with this feature.
+	if app.ImageDetails.Version == "" || app.ImageDetails.Version == "unknown" {
+		return fmt.Errorf("Command is not compatible with this image.")
+	}
+
+	imageVersionStr := app.ImageDetails.Version[1:]
+	imageVersion, err := version.NewVersion(imageVersionStr)
+	if err != nil {
+		return err
+	}
+
+	// Specify compatible versions per repo.
+	requiredVersion := &version.Version{}
+	if app.ImageDetails.Repository == "flyio/postgres-standalone" {
+		requiredVersion, err = version.NewVersion(standalone)
+		if err != nil {
+			return err
+		}
+	}
+	if app.ImageDetails.Repository == "flyio/postgres" {
+		requiredVersion, err = version.NewVersion(cluster)
+		if err != nil {
+			return err
+		}
+	}
+
+	if requiredVersion == nil {
+		return fmt.Errorf("Unable to resolve image version...")
+	}
+
+	if imageVersion.LessThan(requiredVersion) {
+		return fmt.Errorf(
+			"Image version is not compatible. (Current: %s, Required: >= %s)\n"+
+				"Please run 'flyctl image show' and update to the latest available version.",
+			imageVersion, requiredVersion.String())
+	}
+
+	return nil
 }
