@@ -87,8 +87,6 @@ func runMachineKill(ctx context.Context) (err error) {
 
 		if machineBody.State == "destroyed" {
 			return fmt.Errorf("machine %s has already been destroyed", machineID)
-		} else if machineBody.State != "idle" && !machineKillInput.Force {
-			return fmt.Errorf("machine %s cannot be destroyed, it is not currently stopped", machineID)
 		}
 		fmt.Fprintf(io.Out, "machine %s was found and is currently in a %s state, attempting to kill...\n", machineID, machineBody.State)
 
