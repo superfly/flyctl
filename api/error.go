@@ -1,11 +1,12 @@
 package api
 
-import "net/http"
+import (
+	"net/http"
+)
 
 type ApiError struct {
-	WrappedError error
-	Message      string
-	Status       int
+	Message string
+	Status  int
 }
 
 func (e *ApiError) Error() string { return e.Message }
