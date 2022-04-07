@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
@@ -210,7 +211,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 		opts := imgsrc.RefOptions{
 			AppName:    app.NameFromContext(ctx),
 			WorkingDir: state.WorkingDirectory(ctx),
-			Publish:    !flag.GetBuildOnly(ctx) && !flag.GetBool(ctx, "nix"),
+			Publish:    !flag.GetBuildOnly(ctx),
 			ImageRef:   imageRef,
 			ImageLabel: flag.GetString(ctx, "image-label"),
 		}
@@ -225,25 +226,67 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 		build = new(app.Build)
 	}
 
-	var buildArgs map[string]string
-
-	if buildArgs, err = mergeBuildArgs(ctx, build.Args); err != nil {
-		return
-	}
-
 	// We're building from source
 	opts := imgsrc.ImageOptions{
 		AppName:         app.NameFromContext(ctx),
 		WorkingDir:      state.WorkingDirectory(ctx),
-		Publish:         flag.GetBool(ctx, "push") || !flag.GetBuildOnly(ctx),
+		Publish:         flag.GetBool(ctx, "push") || (!flag.GetBuildOnly(ctx) && !flag.GetBool(ctx, "nix")),
 		ImageLabel:      flag.GetString(ctx, "image-label"),
 		NoCache:         flag.GetBool(ctx, "no-cache"),
-		BuildArgs:       buildArgs,
 		BuiltIn:         build.Builtin,
 		BuiltInSettings: build.Settings,
 		Builder:         build.Builder,
 		Buildpacks:      build.Buildpacks,
 	}
+
+	var buildArgs map[string]string
+
+	if flag.GetBool(ctx, "nix") {
+
+		// The Nix builder needs the token and docker tag to push to the registry using skopeo
+
+		build.Args["FLY_API_TOKEN"] = flyctl.GetAPIToken()
+
+		label := fmt.Sprintf("nix-%d", time.Now().Unix())
+		dockerTag := imgsrc.NewDeploymentTag(app.NameFromContext(ctx), label)
+
+		opts.Tag = dockerTag
+		build.Args["TAG"] = dockerTag
+
+		// Temporary Dockerfile for running the Nix deployment
+		dockerfileContents := `# syntax=docker/dockerfile:1.4
+		FROM flyio/nix-build
+
+		# Warm up the Nix cache
+		RUN --mount=type=cache,id=nix-store,target=/nix cp -pr /nix-backup/* /nix
+
+		ARG FLY_API_TOKEN
+		ARG TAG
+		ENV FLY_API_TOKEN=${FLY_API_TOKEN}
+		ENV TAG=${TAG}
+
+		COPY . .
+
+		RUN cp -pr /nix_support .nix
+
+		RUN --mount=type=cache,id=nix-store,target=/nix .nix/bundle
+		RUN --mount=type=cache,id=nix-store,target=/nix .nix/build
+	`
+		nixDockerfilePath := "Dockerfile.nix"
+		err = os.WriteFile(nixDockerfilePath, []byte(dockerfileContents), 0600)
+
+		if err != nil {
+			return nil, err
+		}
+
+		appConfig.Build.Dockerfile = nixDockerfilePath
+	}
+
+	if buildArgs, err = mergeBuildArgs(ctx, build.Args); err != nil {
+		return
+	}
+
+	opts.BuildArgs = buildArgs
 
 	if opts.DockerfilePath, err = resolveDockerfilePath(ctx, appConfig); err != nil {
 		return
@@ -263,12 +306,13 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 	if err == nil {
 		tb.Printf("image: %s\n", img.Tag)
 		tb.Printf("image size: %s\n", humanize.Bytes(uint64(img.Size)))
-	}
 
-	// We can't easily get the resulting image ID, but we know the tag and expect it to be pushed, so we can use that
-	// reference for the final deployment
-	if flag.GetBool(ctx, "nix") {
-		img.ID = img.Tag
+		// We can't easily get the resulting image ID, but we know the tag and expect it to be pushed, so we can use that
+		// reference for the final deployment
+		if flag.GetBool(ctx, "nix") {
+			img.ID = opts.Tag
+		}
+
 	}
 
 	return
@@ -283,21 +327,7 @@ func resolveDockerfilePath(ctx context.Context, appConfig *app.Config) (path str
 		}
 	}()
 
-	if flag.GetBool(ctx, "nix") {
-
-		contents := `# syntax=docker/dockerfile:1.4
-FROM flyio/nix-build as base
-ARG FLY_API_TOKEN
-		`
-		nixDockerfilePath := "Dockerfile.nix"
-		err = os.WriteFile(nixDockerfilePath, []byte(contents), 0600)
-
-		if err != nil {
-			return "", err
-		}
-		path = nixDockerfilePath
-
-	} else if path = appConfig.Dockerfile(); path != "" {
+	if path = appConfig.Dockerfile(); path != "" {
 		path = filepath.Join(filepath.Dir(appConfig.Path), path)
 	} else {
 		path = flag.GetString(ctx, "dockerfile")
@@ -310,10 +340,6 @@ func mergeBuildArgs(ctx context.Context, args map[string]string) (map[string]str
 
 	if args == nil {
 		args = make(map[string]string)
-	}
-
-	if flag.GetBool(ctx, "nix") {
-		args["FLY_API_TOKEN"] = flyctl.GetAPIToken()
 	}
 
 	// set additional Docker build args from the command line, overriding similar ones from the config
