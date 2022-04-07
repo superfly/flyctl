@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/pkg/logs"
 )
 
 func newVMCommand(client *client.Client) *Command {
@@ -107,8 +108,17 @@ func runVMStatus(cmdCtx *cmdctx.CmdContext) error {
 		p = cmdCtx.Out
 	}
 
-	// logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
-	// logPresenter.FPrint(p, ctx.OutputJSON(), alloc.RecentLogs)
+	logPresenter := presenters.LogPresenter{HideAllocID: true, HideRegion: true, RemoveNewlines: true}
+	for _, entry := range alloc.RecentLogs {
+		logPresenter.FPrint(p, cmdCtx.OutputJSON(), logs.LogEntry{
+			Level:     entry.Level,
+			Instance:  entry.Instance,
+			Message:   entry.Message,
+			Region:    entry.Region,
+			Timestamp: entry.Timestamp,
+			Meta:      entry.Meta,
+		})
+	}
 
 	if p != cmdCtx.Out {
 		_ = pw.Flush()
