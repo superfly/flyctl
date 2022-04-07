@@ -526,7 +526,7 @@ func appendDockerfileAppendix(appendix []string) (err error) {
 
 	var f *os.File
 	// TODO: we don't flush
-	if f, err = os.OpenFile(dockerfilePath, os.O_APPEND|os.O_WRONLY, 0644); err != nil {
+	if f, err = os.OpenFile(dockerfilePath, os.O_APPEND|os.O_WRONLY, 0600); err != nil {
 		return
 	}
 	defer func() {
