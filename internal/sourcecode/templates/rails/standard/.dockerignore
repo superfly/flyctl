@@ -1,5 +1,6 @@
 .git
 tmp
+!tmp/pids
 log
 public/assets
 public/packs
