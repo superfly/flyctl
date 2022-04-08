@@ -4,8 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
-	"os/exec"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -14,17 +13,12 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/pkg/builder"
 	"github.com/superfly/flyctl/pkg/iostreams"
-	"github.com/superfly/flyctl/pkg/machines"
-	"github.com/superfly/flyctl/pkg/proxy"
-	"github.com/superfly/flyctl/pkg/retry"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
-	"github.com/superfly/flyctl/internal/cli/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/state"
@@ -33,7 +27,6 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/logger"
-	"github.com/superfly/flyctl/pkg/agent"
 )
 
 func New() (cmd *cobra.Command) {
@@ -93,7 +86,7 @@ func New() (cmd *cobra.Command) {
 		},
 		flag.Bool{
 			Name:        "nix",
-			Description: "Build with Nix on a remote builder",
+			Description: "Build with Nix",
 		},
 	)
 
@@ -200,17 +193,7 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 // DeploymentImage struct
 func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.DeploymentImage, err error) {
 	tb := render.NewTextBlock(ctx, "Building image")
-	workingDirectory := state.WorkingDirectory(ctx)
 
-	// Bypass Docker based builds in favor of syncing source trees directly to
-	// the remote builder
-	if flag.GetBool(ctx, "nix") {
-		if img, err = NixSourceBuild(ctx, workingDirectory); err != nil {
-			return nil, err
-		} else {
-			return img, nil
-		}
-	}
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx))
 	appName := app.NameFromContext(ctx)
 	client := client.FromContext(ctx).API()
@@ -243,24 +226,59 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 		build = new(app.Build)
 	}
 
-	var buildArgs map[string]string
-	if buildArgs, err = mergeBuildArgs(ctx, build.Args); err != nil {
-		return
-	}
-
 	// We're building from source
 	opts := imgsrc.ImageOptions{
 		AppName:         app.NameFromContext(ctx),
 		WorkingDir:      state.WorkingDirectory(ctx),
-		Publish:         flag.GetBool(ctx, "push") || !flag.GetBuildOnly(ctx),
+		Publish:         flag.GetBool(ctx, "push") || (!flag.GetBuildOnly(ctx) && !flag.GetBool(ctx, "nix")),
 		ImageLabel:      flag.GetString(ctx, "image-label"),
 		NoCache:         flag.GetBool(ctx, "no-cache"),
-		BuildArgs:       buildArgs,
 		BuiltIn:         build.Builtin,
 		BuiltInSettings: build.Settings,
 		Builder:         build.Builder,
 		Buildpacks:      build.Buildpacks,
 	}
+
+	if flag.GetBool(ctx, "nix") {
+
+		if build.Args == nil {
+			build.Args = make(map[string]string)
+		}
+
+		// The Nix builder needs the token and docker tag to push to the registry using skopeo
+		build.Args["FLY_API_TOKEN"] = flyctl.GetAPIToken()
+
+		label := fmt.Sprintf("nix-%d", time.Now().Unix())
+		dockerTag := imgsrc.NewDeploymentTag(app.NameFromContext(ctx), label)
+
+		opts.Tag = dockerTag
+		build.Args["TAG"] = dockerTag
+
+		// Temporary Dockerfile for running the Nix deployment
+		dockerfileContents := `# syntax=docker/dockerfile:1.4
+		FROM flyio/nix-build
+	`
+		nixDockerfilePath := "Dockerfile.nix"
+		err = os.WriteFile(nixDockerfilePath, []byte(dockerfileContents), 0600)
+
+		defer os.Remove(nixDockerfilePath)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if appConfig.Build == nil {
+			appConfig.Build = new(app.Build)
+		}
+		appConfig.Build.Dockerfile = nixDockerfilePath
+	}
+
+	var buildArgs map[string]string
+	if buildArgs, err = mergeBuildArgs(ctx, build.Args); err != nil {
+		return
+	}
+
+	opts.BuildArgs = buildArgs
 
 	if opts.DockerfilePath, err = resolveDockerfilePath(ctx, appConfig); err != nil {
 		return
@@ -280,6 +298,13 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 	if err == nil {
 		tb.Printf("image: %s\n", img.Tag)
 		tb.Printf("image size: %s\n", humanize.Bytes(uint64(img.Size)))
+
+		// We can't easily get the resulting image ID, but we know the tag and expect it to be pushed, so we can use that
+		// reference for the final deployment
+		if flag.GetBool(ctx, "nix") {
+			img.ID = opts.Tag
+		}
+
 	}
 
 	return
@@ -304,6 +329,7 @@ func resolveDockerfilePath(ctx context.Context, appConfig *app.Config) (path str
 }
 
 func mergeBuildArgs(ctx context.Context, args map[string]string) (map[string]string, error) {
+
 	if args == nil {
 		args = make(map[string]string)
 	}
@@ -317,7 +343,6 @@ func mergeBuildArgs(ctx context.Context, args map[string]string) (map[string]str
 	for k, v := range cliBuildArgs {
 		args[k] = v
 	}
-
 	return args, nil
 }
 
@@ -361,92 +386,4 @@ func createRelease(ctx context.Context, appConfig *app.Config, img *imgsrc.Deplo
 	}
 
 	return release, releaseCommand, err
-}
-
-func NixSourceBuild(ctx context.Context, workingDirectory string) (img *imgsrc.DeploymentImage, err error) {
-	io := iostreams.FromContext(ctx)
-	appName := app.NameFromContext(ctx)
-	client := client.FromContext(ctx).API()
-
-	builderMachine, builderApp, err := builder.RemoteBuilderMachine(ctx, client, appName)
-
-	if err != nil {
-		return nil, err
-	}
-
-	agentclient, err := agent.Establish(ctx, client)
-
-	if err != nil {
-		return nil, err
-	}
-
-	dialer, err := agentclient.ConnectToTunnel(ctx, builderApp.Organization.Slug)
-
-	if err != nil {
-		return nil, err
-	}
-
-	params := &proxy.ConnectParams{
-		// Proxy local port 8873 to remote 873 (rsync)
-		Ports:      []string{"8873", "873"},
-		App:        builderApp,
-		Dialer:     dialer,
-		RemoteHost: machines.IpAddress(builderMachine),
-	}
-
-	// run the rsync proxy in the background
-	proxyCtx, cancelProxy := context.WithCancel(ctx)
-	defer cancelProxy()
-
-	go func() {
-		proxy.Connect(proxyCtx, params)
-	}()
-
-	// Wait for the rsync proxy to come alive
-	fn := func() error {
-		time.Sleep(1 * time.Second)
-		return waitForLocalPort(ctx, "8873")
-	}
-
-	if err := retry.Retry(fn, 10); err != nil {
-		return nil, fmt.Errorf("rsync proxy failed to connect after 10 seconds: %w", err)
-	}
-
-	fmt.Fprintf(io.Out, "Proxy connected. Syncing source code to the remote builder %s\n", builderApp.Name)
-
-	cmd := exec.Command("/usr/bin/rsync", "-Dtlcrv", "--exclude-from=.dockerignore", workingDirectory, "rsync://root@localhost:8873/data")
-	cmd.Stdout = io.Out
-	cmd.Stderr = io.ErrOut
-
-	if err := cmd.Run(); err != nil {
-		fmt.Println(fmt.Errorf("code rsync failed: %w", err))
-	}
-
-	fmt.Println("Running Nix build...")
-
-	imageTag := imgsrc.NewDeploymentTag(appName, "")
-	builderAddress := fmt.Sprintf("[%s]", machines.IpAddress(builderMachine))
-	command := fmt.Sprintf("%s %s %s", "/data/source/"+appName+"/bin/build.sh", flyctl.GetAPIToken(), imageTag)
-
-	resp, err := ssh.RunSSHCommand(ctx, builderApp, dialer, &builderAddress, command)
-
-	if err != nil {
-		return nil, fmt.Errorf("%w", err)
-	}
-
-	fmt.Println(string(resp[:]))
-
-	di := &imgsrc.DeploymentImage{
-		Size: 10,
-		Tag:  imageTag,
-		ID:   imageTag,
-	}
-
-	return di, err
-}
-
-func waitForLocalPort(ctx context.Context, port string) (err error) {
-	timeout := time.Second
-	_, err = net.DialTimeout("tcp", "localhost:"+port, timeout)
-	return
 }

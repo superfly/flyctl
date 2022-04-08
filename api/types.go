@@ -318,6 +318,7 @@ type App struct {
 		Nodes []CheckState
 	}
 	PostgresAppRole *struct {
+		Name      string
 		Databases *[]PostgresClusterDatabase
 		Users     *[]PostgresClusterUser
 	}

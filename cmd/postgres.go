@@ -21,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/pkg/agent"
+	"github.com/superfly/flyctl/pkg/flypg"
 )
 
 type PostgresConfiguration struct {
@@ -321,6 +322,10 @@ func runApiCreatePostgresCluster(cmdCtx *cmdctx.CmdContext, org string, input *a
 }
 
 func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
+	// Minimum image version requirements
+	var (
+		MinPostgresHaVersion = "0.0.19"
+	)
 	ctx := cmdCtx.Command.Context()
 
 	postgresAppName := cmdCtx.Config.GetString("postgres-app")
@@ -364,6 +369,10 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
+	if err := hasRequiredVersion(pgApp, MinPostgresHaVersion, ""); err != nil {
+		return err
+	}
+
 	agentclient, err := agent.Establish(ctx, cmdCtx.Client.API())
 	if err != nil {
 		return errors.Wrap(err, "can't establish agent")
@@ -374,7 +383,7 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
 	}
 
-	pgCmd := NewPostgresCmd(cmdCtx, pgApp, dialer)
+	pgclient := flypg.New(pgApp.Name, dialer)
 
 	secrets, err := client.GetAppSecrets(ctx, appName)
 	if err != nil {
@@ -386,7 +395,7 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 		}
 	}
 	// Check to see if database exists
-	dbExists, err := pgCmd.DbExists(*input.DatabaseName)
+	dbExists, err := pgclient.DatabaseExists(ctx, *input.DatabaseName)
 	if err != nil {
 		return err
 	}
@@ -406,7 +415,7 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	// Check to see if user exists
-	usrExists, err := pgCmd.UserExists(*input.DatabaseUser)
+	usrExists, err := pgclient.UserExists(ctx, *input.DatabaseUser)
 	if err != nil {
 		return err
 	}
@@ -422,13 +431,14 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 
 	// Create database if it doesn't already exist
 	if !dbExists {
-		dbResp, err := pgCmd.CreateDatabase(*input.DatabaseName)
+		err := pgclient.CreateDatabase(ctx, *input.DatabaseName)
 		if err != nil {
-			return err
+			if flypg.ErrorStatus(err) >= 500 {
+				return err
+			}
+			return fmt.Errorf("failed executing database-create: %w", err)
 		}
-		if dbResp.Error != "" {
-			return errors.Wrap(fmt.Errorf(dbResp.Error), "executing database-create")
-		}
+
 	}
 
 	// Create user
@@ -437,21 +447,8 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	usrResp, err := pgCmd.CreateUser(*input.DatabaseUser, pwd)
-	if err != nil {
-		return err
-	}
-	if usrResp.Error != "" {
-		return errors.Wrap(fmt.Errorf(usrResp.Error), "executing create-user")
-	}
-
-	// Grant access
-	gaResp, err := pgCmd.GrantAccess(*input.DatabaseName, *input.DatabaseUser)
-	if err != nil {
-		return err
-	}
-	if gaResp.Error != "" {
-		return errors.Wrap(fmt.Errorf(usrResp.Error), "executing grant-access")
+	if err := pgclient.CreateUser(ctx, *input.DatabaseUser, pwd, false); err != nil {
+		return fmt.Errorf("failed executing create-user: %w", err)
 	}
 
 	connectionString := fmt.Sprintf("postgres://%s:%s@top2.nearest.of.%s.internal:5432/%s", *input.DatabaseUser, pwd, pgApp.Name, *input.DatabaseName)
@@ -470,6 +467,9 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runDetachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
+	// Minimum image version requirements
+	var MinPostgresHaVersion = "0.0.19"
+
 	ctx := cmdCtx.Command.Context()
 
 	postgresAppName := cmdCtx.Config.GetString("postgres-app")
@@ -485,6 +485,10 @@ func runDetachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 	pgApp, err := client.GetApp(ctx, postgresAppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
+	}
+
+	if err := hasRequiredVersion(pgApp, MinPostgresHaVersion, ""); err != nil {
+		return err
 	}
 
 	attachments, err := client.ListPostgresClusterAttachments(ctx, app.ID, pgApp.ID)
@@ -520,32 +524,20 @@ func runDetachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 
 	dialer, err := agentclient.Dialer(ctx, pgApp.Organization.Slug)
 	if err != nil {
-		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
+		return fmt.Errorf("can't build tunnel for %s: %w", app.Organization.Slug, err)
 	}
 
-	pgCmd := NewPostgresCmd(cmdCtx, pgApp, dialer)
+	pgclient := flypg.New(pgApp.Name, dialer)
 
 	// Remove user if exists
-	exists, err := pgCmd.UserExists(targetAttachment.DatabaseUser)
+	exists, err := pgclient.UserExists(ctx, targetAttachment.DatabaseUser)
 	if err != nil {
 		return err
 	}
 	if exists {
-		// Revoke access to suer
-		raResp, err := pgCmd.RevokeAccess(targetAttachment.DatabaseName, targetAttachment.DatabaseUser)
+		err := pgclient.DeleteUser(ctx, targetAttachment.DatabaseUser)
 		if err != nil {
-			return err
-		}
-		if raResp.Error != "" {
-			return errors.Wrap(fmt.Errorf(raResp.Error), "executing revoke-access")
-		}
-
-		ruResp, err := pgCmd.DeleteUser(targetAttachment.DatabaseUser)
-		if err != nil {
-			return err
-		}
-		if ruResp.Error != "" {
-			return errors.Wrap(fmt.Errorf(ruResp.Error), "executing user-delete")
+			return fmt.Errorf("executing user-delete: %w", err)
 		}
 	}
 
@@ -585,47 +577,12 @@ func runPostgresConnect(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	if !isPostgresApp(&app.ImageDetails) {
+	if !isPostgresApp(app) {
 		return fmt.Errorf("%s is not a postgres app", cmdCtx.AppName)
 	}
 
-	// Validate image version to ensure it's compatible with this feature.
-	if app.ImageDetails.Version == "" || app.ImageDetails.Version == "unknown" {
-		return fmt.Errorf("PG Connect is not compatible with this image.")
-	}
-
-	imageVersionStr := app.ImageDetails.Version[1:]
-	imageVersion, err := version.NewVersion(imageVersionStr)
-	if err != nil {
+	if err := hasRequiredVersion(app, MinPostgresStandaloneVersion, MinPostgresHaVersion); err != nil {
 		return err
-	}
-
-	// Specify compatible versions per repo.
-	requiredVersion := &version.Version{}
-	if app.ImageDetails.Repository == "flyio/postgres-standalone" {
-		// https://github.com/fly-apps/postgres-standalone/releases/tag/v0.0.4
-		requiredVersion, err = version.NewVersion(MinPostgresStandaloneVersion)
-		if err != nil {
-			return err
-		}
-	}
-	if app.ImageDetails.Repository == "flyio/postgres" {
-		// https://github.com/fly-apps/postgres-ha/releases/tag/v0.0.9
-		requiredVersion, err = version.NewVersion(MinPostgresHaVersion)
-		if err != nil {
-			return err
-		}
-	}
-
-	if requiredVersion == nil {
-		return fmt.Errorf("Unable to resolve image version...")
-	}
-
-	if imageVersion.LessThan(requiredVersion) {
-		return fmt.Errorf(
-			"Image version is not compatible. (Current: %s, Required: >= %s)\n"+
-				"Please run 'flyctl image show' and update to the latest available version.",
-			imageVersion, requiredVersion.String())
 	}
 
 	agentclient, err := agent.Establish(ctx, cmdCtx.Client.API())
@@ -666,6 +623,11 @@ func runPostgresConnect(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runListPostgresDatabases(cmdCtx *cmdctx.CmdContext) error {
+	// Minimum image version requirements
+	var (
+		MinPostgresHaVersion = "0.0.19"
+	)
+
 	ctx := cmdCtx.Command.Context()
 
 	client := cmdCtx.Client.API()
@@ -675,8 +637,12 @@ func runListPostgresDatabases(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	if !isPostgresApp(&app.ImageDetails) {
+	if !isPostgresApp(app) {
 		return fmt.Errorf("%s is not a postgres app", cmdCtx.AppName)
+	}
+
+	if err := hasRequiredVersion(app, MinPostgresHaVersion, ""); err != nil {
+		return err
 	}
 
 	agentclient, err := agent.Establish(ctx, cmdCtx.Client.API())
@@ -686,24 +652,24 @@ func runListPostgresDatabases(cmdCtx *cmdctx.CmdContext) error {
 
 	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
 	if err != nil {
-		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
+		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
 
-	pgCmd := NewPostgresCmd(cmdCtx, app, dialer)
+	pgclient := flypg.New(app.Name, dialer)
 
-	dbsResp, err := pgCmd.ListDatabases()
+	databases, err := pgclient.ListDatabases(ctx)
 	if err != nil {
 		return err
 	}
 
 	if cmdCtx.OutputJSON() {
-		cmdCtx.WriteJSON(dbsResp.Result)
+		cmdCtx.WriteJSON(databases)
 		return nil
 	}
 
 	table := helpers.MakeSimpleTable(cmdCtx.Out, []string{"Name", "Users"})
 
-	for _, database := range dbsResp.Result {
+	for _, database := range databases {
 		table.Append([]string{database.Name, strings.Join(database.Users, ",")})
 	}
 
@@ -713,6 +679,11 @@ func runListPostgresDatabases(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func runListPostgresUsers(cmdCtx *cmdctx.CmdContext) error {
+	// Minimum image version requirements
+	var (
+		MinPostgresHaVersion = "0.0.19"
+	)
+
 	ctx := cmdCtx.Command.Context()
 
 	client := cmdCtx.Client.API()
@@ -722,8 +693,12 @@ func runListPostgresUsers(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	if !isPostgresApp(&app.ImageDetails) {
+	if !isPostgresApp(app) {
 		return fmt.Errorf("%s is not a postgres app", cmdCtx.AppName)
+	}
+
+	if err := hasRequiredVersion(app, MinPostgresHaVersion, ""); err != nil {
+		return err
 	}
 
 	agentclient, err := agent.Establish(ctx, cmdCtx.Client.API())
@@ -733,24 +708,24 @@ func runListPostgresUsers(cmdCtx *cmdctx.CmdContext) error {
 
 	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
 	if err != nil {
-		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
+		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
 
-	pgCmd := NewPostgresCmd(cmdCtx, app, dialer)
+	pgclient := flypg.New(app.Name, dialer)
 
-	usersResp, err := pgCmd.ListUsers()
+	users, err := pgclient.ListUsers(ctx)
 	if err != nil {
 		return err
 	}
 
 	if cmdCtx.OutputJSON() {
-		cmdCtx.WriteJSON(usersResp.Result)
+		cmdCtx.WriteJSON(users)
 		return nil
 	}
 
 	table := helpers.MakeSimpleTable(cmdCtx.Out, []string{"Username", "Superuser", "Databases"})
 
-	for _, user := range usersResp.Result {
+	for _, user := range users {
 		table.Append([]string{user.Username, strconv.FormatBool(user.Superuser), strings.Join(user.Databases, ",")})
 	}
 
@@ -759,6 +734,48 @@ func runListPostgresUsers(cmdCtx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func isPostgresApp(imageVersion *api.ImageVersion) bool {
-	return imageVersion.Repository == "flyio/postgres" || imageVersion.Repository == "flyio/postgres-standalone"
+func isPostgresApp(app *api.App) bool {
+	// check app.PostgresAppRole.Name == "postgres_cluster"
+	return app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster"
+}
+
+func hasRequiredVersion(app *api.App, cluster, standalone string) error {
+	// Validate image version to ensure it's compatible with this feature.
+	if app.ImageDetails.Version == "" || app.ImageDetails.Version == "unknown" {
+		return fmt.Errorf("Command is not compatible with this image.")
+	}
+
+	imageVersionStr := app.ImageDetails.Version[1:]
+	imageVersion, err := version.NewVersion(imageVersionStr)
+	if err != nil {
+		return err
+	}
+
+	// Specify compatible versions per repo.
+	requiredVersion := &version.Version{}
+	if app.ImageDetails.Repository == "flyio/postgres-standalone" {
+		requiredVersion, err = version.NewVersion(standalone)
+		if err != nil {
+			return err
+		}
+	}
+	if app.ImageDetails.Repository == "flyio/postgres" {
+		requiredVersion, err = version.NewVersion(cluster)
+		if err != nil {
+			return err
+		}
+	}
+
+	if requiredVersion == nil {
+		return fmt.Errorf("Unable to resolve image version...")
+	}
+
+	if imageVersion.LessThan(requiredVersion) {
+		return fmt.Errorf(
+			"Image version is not compatible. (Current: %s, Required: >= %s)\n"+
+				"Please run 'flyctl image show' and update to the latest available version.",
+			imageVersion, requiredVersion.String())
+	}
+
+	return nil
 }
