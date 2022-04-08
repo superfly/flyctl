@@ -17,7 +17,7 @@ fi
 
 revision=$(git rev-parse --short HEAD)
 branch=$(git rev-parse --abbrev-ref HEAD)
-version="v${previous_version}-dev-${branch}-${revision}"
+version="v${previous_version}-dev-${branch/\//-}-${revision}"
 echo "Publishing development release: $version"
 
 read -p "Are you sure? " -n 1 -r
@@ -27,4 +27,3 @@ then
   git tag -m "release ${version}" -a "$version" && git push "${ORIGIN}" tag "$version"
   echo "done"
 fi
-
