@@ -239,12 +239,13 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 		Buildpacks:      build.Buildpacks,
 	}
 
-	var buildArgs map[string]string
-
 	if flag.GetBool(ctx, "nix") {
 
-		// The Nix builder needs the token and docker tag to push to the registry using skopeo
+		if build.Args == nil {
+			build.Args = make(map[string]string)
+		}
 
+		// The Nix builder needs the token and docker tag to push to the registry using skopeo
 		build.Args["FLY_API_TOKEN"] = flyctl.GetAPIToken()
 
 		label := fmt.Sprintf("nix-%d", time.Now().Unix())
@@ -256,32 +257,23 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 		// Temporary Dockerfile for running the Nix deployment
 		dockerfileContents := `# syntax=docker/dockerfile:1.4
 		FROM flyio/nix-build
-
-		# Warm up the Nix cache
-		RUN --mount=type=cache,id=nix-store,target=/nix cp -pr /nix-backup/* /nix
-
-		ARG FLY_API_TOKEN
-		ARG TAG
-		ENV FLY_API_TOKEN=${FLY_API_TOKEN}
-		ENV TAG=${TAG}
-
-		COPY . .
-
-		RUN cp -pr /nix_support .nix
-
-		RUN --mount=type=cache,id=nix-store,target=/nix .nix/bundle
-		RUN --mount=type=cache,id=nix-store,target=/nix .nix/build
 	`
 		nixDockerfilePath := "Dockerfile.nix"
 		err = os.WriteFile(nixDockerfilePath, []byte(dockerfileContents), 0600)
+
+		defer os.Remove(nixDockerfilePath)
 
 		if err != nil {
 			return nil, err
 		}
 
+		if appConfig.Build == nil {
+			appConfig.Build = new(app.Build)
+		}
 		appConfig.Build.Dockerfile = nixDockerfilePath
 	}
 
+	var buildArgs map[string]string
 	if buildArgs, err = mergeBuildArgs(ctx, build.Args); err != nil {
 		return
 	}
