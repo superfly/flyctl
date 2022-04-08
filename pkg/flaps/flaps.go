@@ -45,6 +45,7 @@ func New(ctx context.Context, app *api.App) (*Client, error) {
 
 func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) ([]byte, error) {
 	fmt.Println("Machine is launching...")
+
 	body, err := json.Marshal(builder)
 	if err != nil {
 		return nil, fmt.Errorf("machine failed to launch, %w", err)

@@ -179,7 +179,7 @@ func (p *Launch) Launch(ctx context.Context) error {
 			Region:            p.config.Region,
 			SizeGb:            p.config.VolumeSize,
 			Encrypted:         false,
-			RequireUniqueZone: true,
+			RequireUniqueZone: false,
 		}
 
 		vol, err := p.client.CreateVolume(ctx, volInput)
@@ -188,8 +188,10 @@ func (p *Launch) Launch(ctx context.Context) error {
 		}
 
 		machineConf.Mounts = append(machineConf.Mounts, api.MachineMount{
-			Volume: vol.ID,
-			Path:   "/data",
+			Volume:    vol.ID,
+			Path:      "/data",
+			SizeGb:    p.config.VolumeSize,
+			Encrypted: false,
 		})
 
 		launchInput := api.LaunchMachineInput{
@@ -198,9 +200,6 @@ func (p *Launch) Launch(ctx context.Context) error {
 			Region:  p.config.Region,
 			Config:  machineConf,
 		}
-
-		fmt.Printf("Launch input: %+v\n", launchInput)
-		fmt.Printf("Config: %+v\n", launchInput.Config)
 
 		resp, err := flaps.Launch(ctx, launchInput)
 		if err != nil {
