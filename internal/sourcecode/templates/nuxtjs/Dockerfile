@@ -28,6 +28,5 @@ COPY --from=builder /app  .
 
 ENV HOST 0.0.0.0
 ENV PORT 8080
-EXPOSE 80
 
 CMD [ "yarn", "start" ]
