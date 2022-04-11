@@ -1209,7 +1209,7 @@ type Filters struct {
 type V1Machine struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
-	AppID int    `json:"app_id"`
+	AppID string `json:"app_id"`
 
 	State string `json:"state"`
 
@@ -1249,6 +1249,7 @@ type StartMachineInput struct {
 type KillMachineInput struct {
 	AppID string `json:"appId,omitempty"`
 	ID    string `json:"id"`
+	Force bool   `json:"force"`
 }
 
 type RemoveMachineInput struct {
