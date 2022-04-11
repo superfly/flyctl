@@ -447,7 +447,7 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	if err := pgclient.CreateUser(ctx, *input.DatabaseUser, pwd, false); err != nil {
+	if err := pgclient.CreateUser(ctx, *input.DatabaseUser, pwd, true); err != nil {
 		return fmt.Errorf("failed executing create-user: %w", err)
 	}
 
