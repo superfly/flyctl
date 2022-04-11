@@ -70,11 +70,8 @@ func runMachineKill(ctx context.Context) (err error) {
 		}
 
 		// check if machine even exists //
-		machineBody := api.V1Machine{
-			ID:    machineID,
-			AppID: appName,
-		}
-		currentMachine, err := flapsClient.Get(ctx, &machineBody)
+		machineBody := api.V1Machine{}
+		currentMachine, err := flapsClient.Get(ctx, machineID)
 		if err != nil {
 			return fmt.Errorf("could not retrieve machine %s", machineID)
 		}

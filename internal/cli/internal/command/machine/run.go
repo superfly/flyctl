@@ -319,7 +319,7 @@ func runMachineRun(ctx context.Context) error {
 			fmt.Fprintf(io.Out, "You can connect to your machine via the following private ip\n")
 			fmt.Fprintf(io.Out, "  %s\n", machineBody.PrivateIP)
 		}()
-		newMachineBody, _ := flapsClient.Get(ctx, &machineBody)
+		newMachineBody, _ := flapsClient.Get(ctx, machineBody.ID)
 		err = json.Unmarshal(newMachineBody, &machineBody)
 	}()
 	_, err = flapsClient.Wait(ctx, &machineBody)

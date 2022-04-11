@@ -81,8 +81,8 @@ func (f *Client) Stop(ctx context.Context, machineStop api.V1MachineStop) ([]byt
 	return f.sendRequest(ctx, nil, http.MethodPost, stopEndpoint, body)
 }
 
-func (f *Client) Get(ctx context.Context, machine *api.V1Machine) ([]byte, error) {
-	getEndpoint := fmt.Sprintf("/%s", machine.ID)
+func (f *Client) Get(ctx context.Context, machineID string) ([]byte, error) {
+	getEndpoint := fmt.Sprintf("/%s", machineID)
 
 	return f.sendRequest(ctx, nil, http.MethodGet, getEndpoint, nil)
 }
