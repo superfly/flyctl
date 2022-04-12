@@ -1262,7 +1262,7 @@ type RemoveMachineInput struct {
 type MachineRestartPolicy string
 
 var MachineRestartPolicyNo MachineRestartPolicy = "no"
-var MachineRestartPolicyOnFailure MachineRestartPolicy = "on-restart"
+var MachineRestartPolicyOnFailure MachineRestartPolicy = "on-failure"
 var MachineRestartPolicyAlways MachineRestartPolicy = "always"
 
 type MachineRestart struct {
