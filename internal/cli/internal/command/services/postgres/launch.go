@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -12,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/pkg/flaps"
 	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
@@ -63,10 +65,6 @@ func newLaunch() (cmd *cobra.Command) {
 			Description: "Initial cluster size",
 			Default:     2,
 		},
-		flag.String{
-			Name:        "snapshot-id",
-			Description: "Creates the volume with the contents of the snapshot",
-		},
 	)
 
 	return
@@ -85,7 +83,6 @@ type LaunchConfig struct {
 	Organization       *api.Organization
 	Password           string
 	Region             string
-	SnapshotID         string
 	VolumeSize         int
 	VMSize             string
 }
@@ -95,7 +92,6 @@ func runLaunch(ctx context.Context) error {
 	password := flag.GetString(ctx, "password")
 	volumeSize := flag.GetInt(ctx, "volume-size")
 	vmSize := flag.GetString(ctx, "vm-size")
-	snapshotID := flag.GetString(ctx, "snapshot-id")
 	consulURL := flag.GetString(ctx, "consul-url")
 
 	name := flag.GetString(ctx, "name")
@@ -135,7 +131,6 @@ func runLaunch(ctx context.Context) error {
 		Region:             region,
 		VolumeSize:         volumeSize,
 		VMSize:             vmSize,
-		SnapshotID:         snapshotID,
 		ImageRef:           imageRef,
 		Organization:       org,
 	}
@@ -164,6 +159,12 @@ func (p *Launch) Launch(ctx context.Context) error {
 	}
 
 	io := iostreams.FromContext(ctx)
+
+	flaps, err := flaps.New(ctx, app)
+	if err != nil {
+		return err
+	}
+
 	for i := 0; i < p.config.InitialClusterSize; i++ {
 		fmt.Fprintf(io.Out, "Provisioning %d of %d machines with image %s\n", i+1, p.config.InitialClusterSize, p.config.ImageRef)
 
@@ -172,6 +173,27 @@ func (p *Launch) Launch(ctx context.Context) error {
 			return err
 		}
 
+		volInput := api.CreateVolumeInput{
+			AppID:             app.ID,
+			Name:              "pg_data",
+			Region:            p.config.Region,
+			SizeGb:            p.config.VolumeSize,
+			Encrypted:         false,
+			RequireUniqueZone: false,
+		}
+
+		vol, err := p.client.CreateVolume(ctx, volInput)
+		if err != nil {
+			return err
+		}
+
+		machineConf.Mounts = append(machineConf.Mounts, api.MachineMount{
+			Volume:    vol.ID,
+			Path:      "/data",
+			SizeGb:    p.config.VolumeSize,
+			Encrypted: false,
+		})
+
 		launchInput := api.LaunchMachineInput{
 			AppID:   app.ID,
 			OrgSlug: p.config.Organization.ID,
@@ -179,8 +201,14 @@ func (p *Launch) Launch(ctx context.Context) error {
 			Config:  machineConf,
 		}
 
-		machine, _, err := p.client.LaunchMachine(ctx, launchInput)
+		resp, err := flaps.Launch(ctx, launchInput)
 		if err != nil {
+			return err
+		}
+
+		var machine api.Machine
+
+		if err = json.Unmarshal(resp, &machine); err != nil {
 			return err
 		}
 
@@ -215,21 +243,7 @@ func (p *Launch) configurePostgres() (*api.MachineConfig, error) {
 
 	machineConfig.VMSize = p.config.VMSize
 	machineConfig.Image = p.config.ImageRef
-	machineConfig.Restart.Policy = api.MachineRestartPolicyNo
-
-	// Set mounts
-	volumeHash, err := helpers.RandString(5)
-	if err != nil {
-		return nil, err
-	}
-
-	mount := api.MachineMount{
-		Volume:    fmt.Sprintf("pg_data_%s", volumeHash),
-		SizeGb:    p.config.VolumeSize,
-		Encrypted: false,
-		Path:      "/data",
-	}
-	machineConfig.Mounts = append(machineConfig.Mounts, mount)
+	machineConfig.Restart.Policy = api.MachineRestartPolicyAlways
 
 	return &machineConfig, nil
 }
@@ -269,8 +283,6 @@ func (p *Launch) setSecrets(ctx context.Context) (map[string]string, error) {
 	}
 
 	secrets := map[string]string{
-		"FLY_APP_NAME":      p.config.AppName, // TODO - Move this to web.
-		"FLY_REGION":        p.config.Region,
 		"SU_PASSWORD":       suPassword,
 		"REPL_PASSWORD":     replPassword,
 		"OPERATOR_PASSWORD": opPassword,
