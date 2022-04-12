@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
@@ -12,6 +13,8 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/pkg/agent"
+	"github.com/superfly/flyctl/pkg/flypg"
 	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
@@ -59,7 +62,7 @@ func runDetach(ctx context.Context) error {
 	}
 
 	if len(attachments) == 0 {
-		return fmt.Errorf("No attachments found")
+		return fmt.Errorf("no attachments found")
 	}
 
 	selected := 0
@@ -79,32 +82,27 @@ func runDetach(ctx context.Context) error {
 
 	targetAttachment := attachments[selected]
 
-	pgCmd, err := newPostgresCmd(ctx, pgApp)
+	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "can't establish agent")
 	}
 
+	dialer, err := agentclient.Dialer(ctx, pgApp.Organization.Slug)
+	if err != nil {
+		return fmt.Errorf("can't build tunnel for %s: %w", app.Organization.Slug, err)
+	}
+
+	pgclient := flypg.New(pgApp.Name, dialer)
+
 	// Remove user if exists
-	exists, err := pgCmd.userExists(targetAttachment.DatabaseUser)
+	exists, err := pgclient.UserExists(ctx, targetAttachment.DatabaseUser)
 	if err != nil {
 		return err
 	}
 	if exists {
-		// Revoke access to suer
-		raResp, err := pgCmd.revokeAccess(targetAttachment.DatabaseName, targetAttachment.DatabaseUser)
+		err := pgclient.DeleteUser(ctx, targetAttachment.DatabaseUser)
 		if err != nil {
-			return err
-		}
-		if raResp.Error != "" {
-			return fmt.Errorf("error running 'revoke-access': %w", err)
-		}
-
-		ruResp, err := pgCmd.deleteUser(targetAttachment.DatabaseUser)
-		if err != nil {
-			return err
-		}
-		if ruResp.Error != "" {
-			return fmt.Errorf("error running 'user-delete': %w", err)
+			return fmt.Errorf("error running user-delete: %w", err)
 		}
 	}
 

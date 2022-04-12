@@ -15,6 +15,8 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/pkg/agent"
+	"github.com/superfly/flyctl/pkg/flypg"
 	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
@@ -99,10 +101,17 @@ func runAttach(ctx context.Context) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	pgCmd, err := newPostgresCmd(ctx, pgApp)
+	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "can't establish agent")
 	}
+
+	dialer, err := agentclient.Dialer(ctx, pgApp.Organization.Slug)
+	if err != nil {
+		return fmt.Errorf("ssh: can't build tunnel for %s: %s", pgApp.Organization.Slug, err)
+	}
+
+	pgclient := flypg.New(pgApp.Name, dialer)
 
 	secrets, err := client.GetAppSecrets(ctx, appName)
 	if err != nil {
@@ -114,7 +123,7 @@ func runAttach(ctx context.Context) error {
 		}
 	}
 	// Check to see if database exists
-	dbExists, err := pgCmd.DbExists(*input.DatabaseName)
+	dbExists, err := pgclient.DatabaseExists(ctx, *input.DatabaseName)
 	if err != nil {
 		return err
 	}
@@ -131,12 +140,12 @@ func runAttach(ctx context.Context) error {
 	}
 
 	// Check to see if user exists
-	usrExists, err := pgCmd.userExists(*input.DatabaseUser)
+	usrExists, err := pgclient.UserExists(ctx, *input.DatabaseUser)
 	if err != nil {
 		return err
 	}
 	if usrExists {
-		return fmt.Errorf("Database user %q already exists. Please specify a new database user via --database-user", *input.DatabaseUser)
+		return fmt.Errorf("database user %q already exists. Please specify a new database user via --database-user", *input.DatabaseUser)
 	}
 
 	// Create attachment
@@ -147,12 +156,12 @@ func runAttach(ctx context.Context) error {
 
 	// Create database if it doesn't already exist
 	if !dbExists {
-		dbResp, err := pgCmd.createDatabase(*input.DatabaseName)
+		err := pgclient.CreateDatabase(ctx, *input.DatabaseName)
 		if err != nil {
-			return err
-		}
-		if dbResp.Error != "" {
-			return errors.Wrap(fmt.Errorf(dbResp.Error), "executing database-create")
+			if flypg.ErrorStatus(err) >= 500 {
+				return err
+			}
+			return fmt.Errorf("error running database-create: %w", err)
 		}
 	}
 
@@ -162,21 +171,9 @@ func runAttach(ctx context.Context) error {
 		return err
 	}
 
-	usrResp, err := pgCmd.createUser(*input.DatabaseUser, pwd)
+	err = pgclient.CreateUser(ctx, *input.DatabaseUser, pwd, true)
 	if err != nil {
-		return err
-	}
-	if usrResp.Error != "" {
-		return errors.Wrap(fmt.Errorf(usrResp.Error), "executing create-user")
-	}
-
-	// Grant access
-	gaResp, err := pgCmd.grantAccess(*input.DatabaseName, *input.DatabaseUser)
-	if err != nil {
-		return err
-	}
-	if gaResp.Error != "" {
-		return errors.Wrap(fmt.Errorf(usrResp.Error), "executing grant-access")
+		return fmt.Errorf("failed executing create-user: %w", err)
 	}
 
 	connectionString := fmt.Sprintf("postgres://%s:%s@top2.nearest.of.%s.internal:5432/%s", *input.DatabaseUser, pwd, pgAppName, *input.DatabaseName)
