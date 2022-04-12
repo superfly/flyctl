@@ -19,9 +19,10 @@ import (
 )
 
 type Client struct {
-	app       *api.App
-	peerIP    string
-	authToken string
+	app        *api.App
+	peerIP     string
+	authToken  string
+	httpClient *http.Client
 }
 
 func New(ctx context.Context, app *api.App) (*Client, error) {
@@ -40,6 +41,13 @@ func New(ctx context.Context, app *api.App) (*Client, error) {
 		app:       app,
 		peerIP:    resolvePeerIP(dialer.State().Peer.Peerip),
 		authToken: flyctl.GetAPIToken(),
+		httpClient: &http.Client{
+			Transport: &http.Transport{
+				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+					return dialer.DialContext(ctx, network, addr)
+				},
+			},
+		},
 	}, nil
 }
 
@@ -109,7 +117,7 @@ func (f *Client) sendRequest(ctx context.Context, machine *api.V1Machine, method
 	req.SetBasicAuth(f.app.Name, f.authToken)
 
 	logger.FromContext(ctx).Debugf("Running %s %s... ", method, endpoint)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := f.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
