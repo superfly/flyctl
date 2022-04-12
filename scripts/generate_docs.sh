@@ -7,10 +7,11 @@ echo "Running doc/main.go"
 go run doc/main.go
 
 echo "Cleaning up output"
-if [[ "$OSTYPE" == "darwin"* ]]; then
-  sed -i "" -e 's/```/~~~/g' out/*.md
-else
+
+if sed --help | grep GNU > /dev/null; then
   sed -i 's/```/~~~/g' out/*.md
+else
+  sed -i "" -e 's/```/~~~/g' out/*.md
 fi
 
 if [ "$1" ]
