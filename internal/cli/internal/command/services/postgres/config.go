@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
 	"github.com/spf13/cobra"
 
@@ -15,6 +16,8 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/pkg/agent"
+	"github.com/superfly/flyctl/pkg/flypg"
 	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
@@ -79,17 +82,24 @@ func runConfigView(ctx context.Context) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	pgCmd, err := newPostgresCmd(ctx, app)
+	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "can't establish agent")
 	}
+
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+	if err != nil {
+		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
+	}
+
+	pgclient := flypg.New(app.Name, dialer)
 
 	var settings []string
 	for _, k := range pgSettingMap {
 		settings = append(settings, k)
 	}
 
-	resp, err := pgCmd.viewSettings(settings)
+	resp, err := pgclient.SettingsView(ctx, settings)
 	if err != nil {
 		return err
 	}
@@ -219,11 +229,28 @@ func runConfigUpdate(ctx context.Context) error {
 		return fmt.Errorf("no changes were specified")
 	}
 
-	// Pull existing configuration
-	settings, err := pgCmd.viewSettings(keys)
+	agentclient, err := agent.Establish(ctx, client)
+	if err != nil {
+		return errors.Wrap(err, "can't establish agent")
+	}
+
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+	if err != nil {
+		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
+	}
+
+	pgclient := flypg.New(app.Name, dialer)
+
+	settings, err := pgclient.SettingsView(ctx, keys)
 	if err != nil {
 		return err
 	}
+
+	// // Pull existing configuration
+	// settings, err := pgCmd.viewSettings(keys)
+	// if err != nil {
+	// 	return err
+	// }
 
 	// Verfiy that input values are within acceptible ranges.
 	// Stolon does not verify this, so we need to do it here.
@@ -299,7 +326,7 @@ func runConfigUpdate(ctx context.Context) error {
 	return nil
 }
 
-func isRestartRequired(pgSettings *pgSettings, name string) bool {
+func isRestartRequired(pgSettings *flypg.PGSettings, name string) bool {
 	for _, s := range pgSettings.Settings {
 		if s.Name == name {
 			if s.Context == "postmaster" {
@@ -311,7 +338,7 @@ func isRestartRequired(pgSettings *pgSettings, name string) bool {
 	return false
 }
 
-func validateConfigValue(setting pgSetting, key, val string) error {
+func validateConfigValue(setting flypg.PGSetting, key, val string) error {
 	switch setting.VarType {
 	case "enum":
 		for _, enumVal := range setting.EnumVals {
@@ -319,7 +346,7 @@ func validateConfigValue(setting pgSetting, key, val string) error {
 				return nil
 			}
 		}
-		return fmt.Errorf("Invalid value specified for %s. Received: %s, Accepted values: [%s]", key, val, strings.Join(setting.EnumVals, ", "))
+		return fmt.Errorf("invalid value specified for %s. Received: %s, Accepted values: [%s]", key, val, strings.Join(setting.EnumVals, ", "))
 	case "integer":
 		min, err := strconv.Atoi(setting.MinVal)
 		if err != nil {
@@ -336,7 +363,7 @@ func validateConfigValue(setting pgSetting, key, val string) error {
 		}
 
 		if v < min || v > max {
-			return fmt.Errorf("Invalid value specified for %s. (Received: %s, Accepted range: (%s, %s)", key, val, setting.MinVal, setting.MaxVal)
+			return fmt.Errorf("invalid value specified for %s. (Received: %s, Accepted range: (%s, %s)", key, val, setting.MinVal, setting.MaxVal)
 		}
 	case "real":
 		min, err := strconv.ParseFloat(setting.MinVal, 32)
@@ -355,11 +382,11 @@ func validateConfigValue(setting pgSetting, key, val string) error {
 		}
 
 		if v < min || v > max {
-			return fmt.Errorf("Invalid value specified for %s. (Received: %s, Accepted range: (%.1f, %.1f)", key, val, min, max)
+			return fmt.Errorf("invalid value specified for %s. (Received: %s, Accepted range: (%.1f, %.1f)", key, val, min, max)
 		}
 	case "bool":
 		if val != "on" && val != "off" {
-			return fmt.Errorf("Invalid value specified for %s. (Received: %s, Accepted values: [on, off]", key, val)
+			return fmt.Errorf("invalid value specified for %s. (Received: %s, Accepted values: [on, off]", key, val)
 		}
 	}
 

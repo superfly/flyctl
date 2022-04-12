@@ -120,3 +120,46 @@ func (c *Client) UserExists(ctx context.Context, name string) (bool, error) {
 	}
 	return false, nil
 }
+
+func (c *Client) NodeRole(ctx context.Context) (string, error) {
+	var endpoint = "commands/admin/role"
+
+	out := new(NodeRoleResponse)
+
+	if err := c.Do(ctx, http.MethodGet, endpoint, nil, out); err != nil {
+		return "", err
+	}
+	return out.Result, nil
+}
+
+func (c *Client) RestartNode(ctx context.Context) error {
+	var endpoint = "commands/admin/restart"
+
+	out := new(RestartResponse)
+
+	if err := c.Do(ctx, http.MethodGet, endpoint, nil, out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) Failover(ctx context.Context) error {
+	var endpoint = "commands/admin/failover/trigger"
+
+	if err := c.Do(ctx, http.MethodGet, endpoint, nil, nil); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) SettingsView(ctx context.Context, settings []string) (*PGSettings, error) {
+	var endpoint = "commands/admin/settings/views"
+
+	out := new(SettingsViewResponse)
+
+	if err := c.Do(ctx, http.MethodGet, endpoint, settings, out); err != nil {
+		return nil, err
+	}
+
+	return &out.Result, nil
+}

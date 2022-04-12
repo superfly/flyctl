@@ -380,7 +380,7 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 
 	dialer, err := agentclient.Dialer(ctx, pgApp.Organization.Slug)
 	if err != nil {
-		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
+		return fmt.Errorf("ssh: can't build tunnel for %s: %s", pgApp.Organization.Slug, err)
 	}
 
 	pgclient := flypg.New(pgApp.Name, dialer)

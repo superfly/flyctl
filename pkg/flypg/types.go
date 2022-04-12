@@ -68,6 +68,36 @@ type FindUserResponse struct {
 	Result PostgresUser
 }
 
+type RestartResponse struct {
+	Result string
+}
+
+type NodeRoleResponse struct {
+	Result string
+}
+
+type PGSettings struct {
+	Settings []PGSetting `json:"settings,omitempty"`
+}
+
+type PGSetting struct {
+	Name           string   `json:"name,omitempty"`
+	Setting        string   `json:"setting,omitempty"`
+	VarType        string   `json:"vartype,omitempty"`
+	MinVal         string   `json:"min_val,omitempty"`
+	MaxVal         string   `json:"max_val,omitempty"`
+	EnumVals       []string `json:"enumvals,omitempty"`
+	Context        string   `json:"context,omitempty"`
+	Unit           string   `json:"unit,omitempty"`
+	Desc           string   `json:"short_desc,omitempty"`
+	PendingChange  string   `json:"pending_change,omitempty"`
+	PendingRestart bool     `json:"pending_restart,omitempty"`
+}
+
+type SettingsViewResponse struct {
+	Result PGSettings
+}
+
 type Error struct {
 	StatusCode int
 	Err        string `json:"error"`

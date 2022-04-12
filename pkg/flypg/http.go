@@ -17,6 +17,8 @@ type Client struct {
 	BaseURL    string
 }
 
+// New creates an http client to the fly postgres http server running on port 5500
+// over userland wireguard provided by the agent
 func New(app string, dialer agent.Dialer) *Client {
 	url := fmt.Sprintf("http://%s.internal:5500", app)
 
@@ -32,6 +34,11 @@ func New(app string, dialer agent.Dialer) *Client {
 		httpClient: client,
 		BaseURL:    url,
 	}
+}
+
+// NewFromInstance creates a new Client that targets a specific instance(address)
+func NewFromInstance(address string, dialer agent.Dialer) *Client {
+	return New(address, dialer)
 }
 
 func (c *Client) Do(ctx context.Context, method, path string, in, out interface{}) error {
