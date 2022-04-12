@@ -25,6 +25,7 @@ func New() (cmd *cobra.Command) {
 		newDetach(),
 		newRestart(),
 		newConfig(),
+		newUpdate(),
 	)
 
 	return

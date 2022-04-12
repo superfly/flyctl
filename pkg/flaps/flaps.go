@@ -67,6 +67,19 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) ([]
 	return f.sendRequest(ctx, nil, http.MethodPost, endpoint, body)
 }
 
+func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput) ([]byte, error) {
+	fmt.Println("Machine is updating...")
+
+	updateEndpoint := fmt.Sprintf("/%s", builder.ID)
+
+	body, err := json.Marshal(builder)
+	if err != nil {
+		return nil, fmt.Errorf("machine failed to launch, %w", err)
+	}
+
+	return f.sendRequest(ctx, nil, http.MethodPost, updateEndpoint, body)
+}
+
 func (f *Client) Start(ctx context.Context, machineID string) ([]byte, error) {
 	fmt.Println("Machine is starting...")
 	startEndpoint := fmt.Sprintf("/%s/start", machineID)
