@@ -24,6 +24,7 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/pkg/agent"
+	"github.com/superfly/flyctl/terminal"
 )
 
 func newWireGuardCommand(client *client.Client) *Command {
@@ -216,7 +217,23 @@ func runWireGuardWebSockets(ctx *cmdctx.CmdContext) error {
 		return errors.Wrap(err, "error saving config file")
 	}
 
-	fmt.Printf("Run `flyctl agent restart` to make changes take effect.\n")
+	tryKillingAgent := func() error {
+		client, err := agent.DefaultClient(ctx.Command.Context())
+		if err == agent.ErrAgentNotRunning {
+			return nil
+		} else if err != nil {
+			return err
+		}
+
+		return client.Kill(ctx.Command.Context())
+	}
+
+	// kill the agent if necessary, if that fails print manual instructions
+	if err := tryKillingAgent(); err != nil {
+		terminal.Debugf("error stopping the agent: %s", err)
+		fmt.Printf("Run `flyctl agent restart` to make changes take effect.\n")
+	}
+
 	return nil
 }
 
