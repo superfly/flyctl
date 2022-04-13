@@ -10,7 +10,7 @@ on:
 jobs:
   test_build:
     runs-on: ubuntu-latest
-    if: ${{ github.ref == 'refs/heads/master' }}
+    if: ${{ github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
