@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,6 +23,7 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/sourcecode"
+	"github.com/superfly/graphql"
 )
 
 func newLaunchCommand(client *client.Client) *Command {
@@ -203,7 +205,13 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 				return err
 			}
 
-			if err := os.WriteFile(path, f.Contents, 0666); err != nil {
+			perms := 0600
+
+			if strings.Contains(string(f.Contents), "#!") {
+				perms = 0700
+			}
+
+			if err := os.WriteFile(path, f.Contents, fs.FileMode(perms)); err != nil {
 				return err
 			}
 		}
@@ -410,7 +418,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	if !cmdCtx.Config.GetBool("no-deploy") && !cmdCtx.Config.GetBool("now") && confirm("Would you like to setup a Postgresql database now?") {
+	if !cmdCtx.Config.GetBool("no-deploy") && !cmdCtx.Config.GetBool("now") && !srcInfo.SkipDatabase && confirm("Would you like to setup a Postgresql database now?") {
 
 		app, err := cmdCtx.Client.API().GetApp(ctx, cmdCtx.AppName)
 
@@ -525,7 +533,7 @@ func appendDockerfileAppendix(appendix []string) (err error) {
 
 	var f *os.File
 	// TODO: we don't flush
-	if f, err = os.OpenFile(dockerfilePath, os.O_APPEND|os.O_WRONLY, 0644); err != nil {
+	if f, err = os.OpenFile(dockerfilePath, os.O_APPEND|os.O_WRONLY, 0600); err != nil {
 		return
 	}
 	defer func() {
@@ -544,7 +552,7 @@ func shouldDeployExistingApp(cmdCtx *cmdctx.CmdContext, appName string) (bool, e
 
 	status, err := cmdCtx.Client.API().GetAppStatus(ctx, appName, false)
 	if err != nil {
-		if api.IsNotFoundError(err) || err.Error() == "Could not resolve App" {
+		if api.IsNotFoundError(err) || graphql.IsNotFoundError(err) {
 			return false, nil
 		}
 		return false, err

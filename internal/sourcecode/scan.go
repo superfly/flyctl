@@ -12,7 +12,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 )
 
-//go:embed templates templates/*/.dockerignore
+//go:embed templates templates/*/.dockerignore templates/*/.fly
 var content embed.FS
 
 type InitCommand struct {
@@ -48,6 +48,7 @@ type SourceInfo struct {
 	DeployDocs                   string
 	Notice                       string
 	SkipDeploy                   bool
+	SkipDatabase                 bool
 	Volumes                      []Volume
 	DockerfileAppendix           []string
 	InitCommands                 []InitCommand
@@ -85,6 +86,7 @@ func Scan(sourceDir string) (*SourceInfo, error) {
 		configurePython,
 		configureDeno,
 		configureRemix,
+		configureNuxt,
 		configureNode,
 		configureStatic,
 	}
@@ -455,20 +457,28 @@ func configureRedwood(sourceDir string) (*SourceInfo, error) {
 	}
 
 	s := &SourceInfo{
-		Family: "RedwoodJS",
-		Files:  templates("templates/redwood"),
-		Port:   8910,
-		Env: map[string]string{
-			"PORT": "8910",
-		},
-		ReleaseCmd: "npx prisma migrate deploy --schema '/app/api/db/schema.prisma'",
-		PostgresInitCommands: []InitCommand{
+		Family:     "RedwoodJS",
+		Files:      templates("templates/redwood"),
+		Port:       8910,
+		ReleaseCmd: ".fly/release.sh",
+	}
+
+	s.Env = map[string]string{
+		"PORT": "8910",
+		// Telemetry gravely incrases memory usage, and isn't required
+		"REDWOOD_DISABLE_TELEMETRY": "1",
+	}
+
+	if checksPass(sourceDir+"/api/db", dirContains("*.prisma", "sqlite")) {
+		s.Env["MIGRATE_ON_BOOT"] = "true"
+		s.Env["DATABASE_URL"] = "file://data/sqlite.db"
+		s.Volumes = []Volume{
 			{
-				Command:     "scripts/switch_prisma_provider.sh",
-				Description: "Switching the prisma provider to postgresql",
-				Condition:   checksPass(sourceDir, fileExists("api/db/schema.prisma")),
+				Source:      "data",
+				Destination: "/data",
 			},
-		},
+		}
+		s.Notice = "\nThis deployment will run an SQLite on a single dedicated volume. The app can't scale beyond a single instance. Look into 'fly postgres' for a more robust production database that supports scaling up. \n"
 	}
 
 	return s, nil
@@ -503,6 +513,27 @@ func configureRemix(sourceDir string) (*SourceInfo, error) {
 	} else {
 		s.Files = templates("templates/remix")
 	}
+
+	s.Env = env
+	return s, nil
+}
+
+func configureNuxt(sourceDir string) (*SourceInfo, error) {
+	if !checksPass(sourceDir, fileExists("nuxt.config.js")) {
+		return nil, nil
+	}
+
+	env := map[string]string{
+		"PORT": "8080",
+	}
+
+	s := &SourceInfo{
+		Family: "NuxtJS",
+		Port:   8080,
+		SkipDatabase: true,
+	}
+	
+	s.Files = templates("templates/nuxtjs")
 
 	s.Env = env
 	return s, nil
@@ -579,11 +610,17 @@ func templates(name string) (files []SourceFile) {
 		}
 
 		relPath, err := filepath.Rel(name, path)
+
 		if err != nil {
 			return errors.Wrap(err, "error removing template prefix")
 		}
 
 		data, err := fs.ReadFile(content, path)
+
+		if err != nil {
+			return err
+		}
+
 		if err != nil {
 			return err
 		}

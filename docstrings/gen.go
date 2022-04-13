@@ -483,7 +483,7 @@ to all instances running in a specific region using the --region/-r flag.`,
 		}
 	case "machine.status":
 		return KeyStrings{"status <id>", "Show current status of a running machine",
-			`Show current status of a running mchine`,
+			`Show current status of a running machine`,
 		}
 	case "machine.stop":
 		return KeyStrings{"stop <id>", "Stop a Fly machine",

@@ -280,7 +280,7 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 			BuildID: uploadRequestRemote + ":" + buildID,
 		}
 
-		response, err := docker.ImageBuild(context.Background(), r, buildOptions)
+		response, err := docker.ImageBuild(ctx, r, buildOptions)
 		if err != nil {
 			return err
 		}

@@ -10,7 +10,10 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/pkg/agent"
+	"github.com/superfly/flyctl/pkg/flypg"
 	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/pkg/machines"
 )
 
 func newRestart() (cmd *cobra.Command) {
@@ -44,19 +47,29 @@ func runRestart(ctx context.Context) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	machines, err := client.ListMachines(ctx, app.ID, "started")
+	mcs, err := client.ListMachines(ctx, app.ID, "started")
 	if err != nil {
 		return err
 	}
 
-	pgCmd, err := newPostgresCmd(ctx, app)
+	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
-		return err
+		return fmt.Errorf("can't establish agent %w", err)
 	}
 
-	for _, machine := range machines {
+	dialer, err := agentclient.Dialer(ctx, app.Name)
+	if err != nil {
+		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
+	}
+
+	for _, machine := range mcs {
 		fmt.Fprintf(io.Out, "Restarting machine %q... ", machine.ID)
-		if err = pgCmd.restartNode(machine); err != nil {
+
+		address := machines.FormatedMachineAddress(machine)
+
+		pgclient := flypg.NewFromInstance(address, dialer)
+
+		if err := pgclient.RestartNode(ctx); err != nil {
 			fmt.Fprintln(io.Out, "failed")
 			return err
 		}

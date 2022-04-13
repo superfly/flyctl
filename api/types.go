@@ -1,6 +1,7 @@
 package api
 
 import (
+	"syscall"
 	"time"
 )
 
@@ -317,6 +318,7 @@ type App struct {
 		Nodes []CheckState
 	}
 	PostgresAppRole *struct {
+		Name      string
 		Databases *[]PostgresClusterDatabase
 		Users     *[]PostgresClusterUser
 	}
@@ -616,6 +618,7 @@ type Release struct {
 	User               User
 	EvaluationID       string
 	CreatedAt          time.Time
+	ImageRef           string
 }
 
 type Build struct {
@@ -726,6 +729,10 @@ type DeployImageInput struct {
 	Services   *[]Service  `json:"services"`
 	Definition *Definition `json:"definition"`
 	Strategy   *string     `json:"strategy"`
+}
+
+type Signal struct {
+	syscall.Signal
 }
 
 type Service struct {
@@ -1188,6 +1195,38 @@ type Machine struct {
 	CreatedAt time.Time
 }
 
+type Condition struct {
+	Equal    interface{} `json:"equal,omitempty"`
+	NotEqual interface{} `json:"not_equal,omitempty"`
+}
+
+type Filters struct {
+	AppName      string               `json:"app_name"`
+	MachineState []Condition          `json:"machine_state"`
+	Meta         map[string]Condition `json:"meta"`
+}
+
+type V1Machine struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	AppID string `json:"app_id"`
+
+	State string `json:"state"`
+
+	// InstanceID is unique for each version of the machine
+	InstanceID string `json:"instance_id"`
+
+	// PrivateIP is the internal 6PN address of the machine.
+	PrivateIP string `json:"private_ip"`
+}
+
+type V1MachineStop struct {
+	ID      string        `json:"id"`
+	Signal  Signal        `json:"signal,omitempty"`
+	Timeout time.Duration `json:"timeout,omitempty"`
+	Filters *Filters      `json:"filters,omitempty"`
+}
+
 type MachineIP struct {
 	Family   string
 	Kind     string
@@ -1210,6 +1249,7 @@ type StartMachineInput struct {
 type KillMachineInput struct {
 	AppID string `json:"appId,omitempty"`
 	ID    string `json:"id"`
+	Force bool   `json:"force"`
 }
 
 type RemoveMachineInput struct {
@@ -1222,7 +1262,7 @@ type RemoveMachineInput struct {
 type MachineRestartPolicy string
 
 var MachineRestartPolicyNo MachineRestartPolicy = "no"
-var MachineRestartPolicyOnFailure MachineRestartPolicy = "on-restart"
+var MachineRestartPolicyOnFailure MachineRestartPolicy = "on-failure"
 var MachineRestartPolicyAlways MachineRestartPolicy = "always"
 
 type MachineRestart struct {

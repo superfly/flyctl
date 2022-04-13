@@ -2,6 +2,7 @@ package machine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path"
 	"path/filepath"
@@ -14,10 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/pkg/iostreams"
-	"github.com/superfly/flyctl/pkg/logs"
-	"github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cli/internal/app"
@@ -25,10 +23,22 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/cmdutil"
-	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/pkg/flaps"
 )
+
+type MachineExitEvent struct {
+	RequestedStop bool   `json:"requested_stop"`
+	Restarting    bool   `json:"restarting"`
+	GuestExitCode int64  `json:"guest_exit_code"`
+	GuestSignal   int64  `json:"guest_signal"`
+	GuestError    string `json:"guest_error,omitempty"`
+	ExitCode      int64  `json:"exit_code"`
+	Signal        int64  `json:"signal"`
+	Error         string `json:"error,omitempty"`
+	OOMKilled     bool   `json:"oom_killed"`
+}
 
 func newRun() *cobra.Command {
 	const (
@@ -284,47 +294,40 @@ func runMachineRun(ctx context.Context) error {
 		input.OrgSlug = org.ID
 	}
 
-	machine, _, err := client.LaunchMachine(ctx, input)
+	flapsClient, err := flaps.New(ctx, app)
+	if err != nil {
+		return fmt.Errorf("could not make flaps client: %w", err)
+	}
+
+	mach, err := flapsClient.Launch(ctx, input)
 	if err != nil {
 		return fmt.Errorf("could not launch machine: %w", err)
 	}
 
-	if flag.GetBool(ctx, "detach") {
-		fmt.Fprintf(io.Out, "Machine: %s\n", machine.ID)
-		return nil
+	var machineBody api.V1Machine
+	if err := json.Unmarshal(mach, &machineBody); err != nil {
+		return errors.Wrap(err, "Machine launch return value could not be parsed")
 	}
 
-	// apiClient := cmdCtx.Client.API()
-
-	opts := &logs.LogOptions{
-		AppName: app.Name,
-		VMID:    machine.ID,
-	}
-
-	stream, err := logs.NewNatsStream(ctx, client, opts)
-
+	// wait for machine //
+	defer func() {
+		defer func() {
+			fmt.Fprintf(io.Out, "Success! A machine has been successfully launched\n")
+			fmt.Fprintf(io.Out, " Machine ID: %s\n", machineBody.ID)
+			fmt.Fprintf(io.Out, " Instance ID: %s\n", machineBody.InstanceID)
+			fmt.Fprintf(io.Out, " State: %s\n", machineBody.State)
+			fmt.Fprintf(io.Out, "You can connect to your machine via the following private ip\n")
+			fmt.Fprintf(io.Out, "  %s\n", machineBody.PrivateIP)
+		}()
+		newMachineBody, _ := flapsClient.Get(ctx, machineBody.ID)
+		err = json.Unmarshal(newMachineBody, &machineBody)
+	}()
+	_, err = flapsClient.Wait(ctx, &machineBody)
 	if err != nil {
-		terminal.Debugf("could not connect to wireguard tunnel, err: %v\n", err)
-		terminal.Debug("Falling back to log polling...")
-
-		stream, err = logs.NewPollingStream(ctx, client, opts)
-		if err != nil {
-			return err
-		}
+		return errors.Wrap(err, "Firecracker VM failed to launch")
 	}
 
-	presenter := presenters.LogPresenter{}
-
-	entries := stream.Stream(ctx, opts)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return stream.Err()
-		case entry := <-entries:
-			presenter.FPrint(io.Out, config.FromContext(ctx).JSONOutput, entry)
-		}
-	}
+	return nil
 }
 
 func parseEnvVars(ctx context.Context) (map[string]string, error) {
