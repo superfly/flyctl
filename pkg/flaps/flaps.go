@@ -96,6 +96,12 @@ func (f *Client) Get(ctx context.Context, machineID string) ([]byte, error) {
 	return f.sendRequest(ctx, nil, http.MethodGet, getEndpoint, nil)
 }
 
+func (f *Client) Destroy(ctx context.Context, input api.RemoveMachineInput) ([]byte, error) {
+	destroyEndpoint := fmt.Sprintf("/%s?kill=%t", input.ID, input.Kill)
+
+	return f.sendRequest(ctx, nil, http.MethodDelete, destroyEndpoint, nil)
+}
+
 func (f *Client) Kill(ctx context.Context, machineKillInput api.KillMachineInput) ([]byte, error) {
 	killEndpoint := fmt.Sprintf("/%s?kill=%t", machineKillInput.ID, machineKillInput.Force)
 
