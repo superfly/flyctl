@@ -85,10 +85,15 @@ func runMachineRemove(ctx context.Context) (err error) {
 		return fmt.Errorf("could not read machine body %s: %w", machineID, err)
 	}
 
-	if machineBody.State == "destroyed" {
+	switch machineBody.State {
+	case "destroyed":
 		return fmt.Errorf("machine %s has already been destroyed", machineID)
+	case "started":
+		if !input.Kill {
+			return fmt.Errorf("machine %s currently started, either stop first or use --force flag", machineID)
+		}
 	}
-	fmt.Fprintf(out, "machine %s was found and is currently in %s state, attempting to kill...\n", machineID, machineBody.State)
+	fmt.Fprintf(out, "machine %s was found and is currently in %s state, attempting to destroy...\n", machineID, machineBody.State)
 
 	_, err = flapsClient.Destroy(ctx, input)
 	if err != nil {
