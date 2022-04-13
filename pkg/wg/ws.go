@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"runtime"
 	"sync"
 	"syscall"
 	"time"
@@ -263,7 +264,10 @@ func websocketConnect(ctx context.Context, endpoint string) (int, error) {
 		defer wswg.plugConn.Close()
 
 		c := make(chan os.Signal, 1)
-		signal.Notify(c, syscall.SIGUSR1)
+
+		if runtime.GOOS != "windows" {
+			signal.Notify(c, syscall.SIGUSR1)
+		}
 
 		tick := time.NewTicker(5 * time.Second)
 		defer tick.Stop()
