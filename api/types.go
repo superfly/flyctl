@@ -220,6 +220,10 @@ type Query struct {
 	}
 
 	DeleteOrganizationMembership *DeleteOrganizationMembershipPayload
+
+	UpdateRemoteBuilder struct {
+		Organization Organization
+	}
 }
 
 type CreatedWireGuardPeer struct {

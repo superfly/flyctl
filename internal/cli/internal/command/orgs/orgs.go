@@ -38,6 +38,7 @@ Organization admins can also invite or remove users from Organizations.
 		newRemove(),
 		newCreate(),
 		newDelete(),
+		builders.New(),
 	)
 
 	return orgs
