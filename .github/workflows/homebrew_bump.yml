@@ -5,17 +5,19 @@ on:
       version:
         required: true
         description: "flyctl release version"
-      sha:
-        required: true
-        description: "flyctl release git SHA"
 
 jobs:
   homebrew:
-    runs-on: macos-latest
+    name: Bump Homebrew formula
+    runs-on: ubuntu-latest
     steps:
-      - uses: dawidd6/action-homebrew-bump-formula@v3
+      - uses: mislav/bump-homebrew-formula-action@v1
         with:
-          token: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
-          formula: flyctl
-          tag: ${{ github.event.inputs.version }}
-          revision: ${{ github.event.inputs.sha }}
+          formula-name: flyctl
+          tag-name: ${{ github.event.inputs.version }}
+          commit-message: |
+            {{formulaName}} {{version}}
+
+            Created by https://github.com/mislav/bump-homebrew-formula-action
+        env:
+          COMMITTER_TOKEN: ${{ secrets.COMMITTER_TOKEN }}
