@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/machinebox/graphql"
+	"github.com/superfly/graphql"
 )
 
 var baseURL string
@@ -66,9 +66,6 @@ func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Quer
 
 	var resp Query
 	err := c.client.Run(ctx, req, &resp)
-	if err != nil && strings.HasPrefix(err.Error(), "graphql: ") {
-		return resp, errors.New(strings.TrimPrefix(err.Error(), "graphql: "))
-	}
 
 	if resp.Errors != nil && errorLog {
 		fmt.Fprintf(os.Stderr, "Error: %+v\n", resp.Errors)
