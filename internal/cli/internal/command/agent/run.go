@@ -86,7 +86,10 @@ func setupLogger(path string) (logger *log.Logger, close func(), err error) {
 		close = func() {}
 	}
 
-	logger = log.New(out, "srv ", log.Ldate|log.Lmicroseconds|log.Lmsgprefix)
+	logger = log.Default()
+	logger.SetFlags(log.Ldate | log.Lmicroseconds | log.Lmsgprefix)
+	logger.SetPrefix("srv ")
+	logger.SetOutput(out)
 
 	return
 }

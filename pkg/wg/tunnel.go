@@ -23,10 +23,15 @@ type Tunnel struct {
 	State  *WireGuardState
 	Config *Config
 
-	resolv *net.Resolver
+	wscancel func()
+	resolv   *net.Resolver
 }
 
-func Connect(state *WireGuardState) (*Tunnel, error) {
+func Connect(ctx context.Context, state *WireGuardState) (*Tunnel, error) {
+	return doConnect(ctx, state, false)
+}
+
+func doConnect(ctx context.Context, state *WireGuardState, wswg bool) (*Tunnel, error) {
 	cfg := state.TunnelConfig()
 	fmt.Println("wg connect", cfg.DNS, cfg.Endpoint, cfg.LocalNetwork.IP, cfg.RemoteNetwork.IP)
 	localIPs := []netip.Addr{netip.AddrFromSlice(cfg.LocalNetwork.IP)}
@@ -54,6 +59,15 @@ func Connect(state *WireGuardState) (*Tunnel, error) {
 
 	endpointIP := endpointIPs[rand.Intn(len(endpointIPs))]
 	endpointAddr := net.JoinHostPort(endpointIP.String(), endpointPort)
+
+	if wswg {
+		port, err := websocketConnect(ctx, endpointHost)
+		if err != nil {
+			return nil, err
+		}
+
+		endpointAddr = fmt.Sprintf("127.0.0.1:%d", port)
+	}
 
 	wgDev := device.NewDevice(tunDev, device.NewLogger(cfg.LogLevel, "(fly-ssh) "))
 
@@ -88,6 +102,11 @@ func Connect(state *WireGuardState) (*Tunnel, error) {
 }
 
 func (t *Tunnel) Close() error {
+	if t.wscancel != nil {
+		t.wscancel()
+		t.wscancel = nil
+	}
+
 	if t.dev != nil {
 		t.dev.Close()
 	}

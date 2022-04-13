@@ -14,10 +14,13 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/olekukonko/tablewriter"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
+	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/pkg/agent"
@@ -36,6 +39,7 @@ func newWireGuardCommand(client *client.Client) *Command {
 	child(cmd, runWireGuardRemove, "wireguard.remove").Args = cobra.MaximumNArgs(2)
 	child(cmd, runWireGuardStat, "wireguard.status").Args = cobra.MaximumNArgs(2)
 	child(cmd, runWireGuardResetPeer, "wireguard.reset").Args = cobra.MaximumNArgs(1)
+	child(cmd, runWireGuardWebSockets, "wireguard.websockets").Args = cobra.ExactArgs(1)
 
 	tokens := child(cmd, nil, "wireguard.token")
 
@@ -194,6 +198,26 @@ func resolveOutputWriter(ctx *cmdctx.CmdContext, idx int, prompt string) (w io.W
 
 		fmt.Printf("Can't create '%s': %s\n", filename, err)
 	}
+}
+
+func runWireGuardWebSockets(ctx *cmdctx.CmdContext) error {
+	switch ctx.Args[0] {
+	case "enable":
+		viper.Set(flyctl.ConfigWireGuardWebsockets, true)
+
+	case "disable":
+		viper.Set(flyctl.ConfigWireGuardWebsockets, false)
+
+	default:
+		fmt.Printf("bad arg: flyctl wireguard websockets (enable|disable)\n")
+	}
+
+	if err := flyctl.SaveConfig(); err != nil {
+		return errors.Wrap(err, "error saving config file")
+	}
+
+	fmt.Printf("Run `flyctl agent restart` to make changes take effect.\n")
+	return nil
 }
 
 func runWireGuardResetPeer(ctx *cmdctx.CmdContext) error {
