@@ -74,7 +74,7 @@ func (f *Client) Wait(ctx context.Context, machine *api.V1Machine) ([]byte, erro
 	waitEndpoint := fmt.Sprintf("/%s/wait", machine.ID)
 
 	if machine.InstanceID != "" {
-		waitEndpoint = fmt.Sprintf("?instance_id=%s", machine.InstanceID)
+		waitEndpoint += fmt.Sprintf("?instance_id=%s", machine.InstanceID)
 	}
 
 	return f.sendRequest(ctx, nil, http.MethodGet, waitEndpoint, nil)
@@ -128,6 +128,10 @@ func (f *Client) sendRequest(ctx context.Context, machine *api.V1Machine, method
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("request returned non-2xx status, %d", resp.StatusCode)
+	}
 
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
