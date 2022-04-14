@@ -8,9 +8,11 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
+	"github.com/jpillora/backoff"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
@@ -309,25 +311,45 @@ func runMachineRun(ctx context.Context) error {
 		return errors.Wrap(err, "Machine launch return value could not be parsed")
 	}
 
-	// wait for machine //
-	defer func() {
-		defer func() {
-			fmt.Fprintf(io.Out, "Success! A machine has been successfully launched\n")
-			fmt.Fprintf(io.Out, " Machine ID: %s\n", machineBody.ID)
-			fmt.Fprintf(io.Out, " Instance ID: %s\n", machineBody.InstanceID)
-			fmt.Fprintf(io.Out, " State: %s\n", machineBody.State)
-			fmt.Fprintf(io.Out, "You can connect to your machine via the following private ip\n")
-			fmt.Fprintf(io.Out, "  %s\n", machineBody.PrivateIP)
-		}()
-		newMachineBody, _ := flapsClient.Get(ctx, machineBody.ID)
-		err = json.Unmarshal(newMachineBody, &machineBody)
-	}()
-	_, err = flapsClient.Wait(ctx, &machineBody)
-	if err != nil {
-		return errors.Wrap(err, "Firecracker VM failed to launch")
+	id, instanceID, state, privateIP := machineBody.ID, machineBody.InstanceID, machineBody.State, machineBody.PrivateIP
+
+	fmt.Fprintf(io.Out, "Success! A machine has been successfully launched, waiting for it to be started\n")
+	fmt.Fprintf(io.Out, " Machine ID: %s\n", id)
+	fmt.Fprintf(io.Out, " Instance ID: %s\n", instanceID)
+	fmt.Fprintf(io.Out, " State: %s\n", state)
+
+	// wait for machine to be started
+	if err := waitForStart(ctx, flapsClient, &machineBody); err != nil {
+		return err
 	}
 
+	fmt.Fprintf(io.Out, "Machine started, you can connect via the following private ip\n")
+	fmt.Fprintf(io.Out, "  %s\n", privateIP)
+
 	return nil
+}
+
+func waitForStart(ctx context.Context, flapsClient *flaps.Client, machine *api.V1Machine) error {
+	waitCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	b := &backoff.Backoff{
+		Min:    500 * time.Millisecond,
+		Max:    2 * time.Second,
+		Factor: 2,
+		Jitter: false,
+	}
+	for {
+		_, err := flapsClient.Wait(waitCtx, machine)
+		switch {
+		case errors.Is(err, context.DeadlineExceeded):
+			return errors.Wrap(err, "Timeout reached waiting for machine to start")
+		case err != nil:
+			time.Sleep(b.Duration())
+			continue
+		}
+		return nil
+	}
 }
 
 func parseEnvVars(ctx context.Context) (map[string]string, error) {
