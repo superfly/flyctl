@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -127,6 +128,10 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 		addr = cc.Args[0]
 	} else {
 		addr = fmt.Sprintf("top1.nearest.of.%s.internal", cc.AppName)
+	}
+
+	if strings.HasSuffix(addr, "fly.dev") {
+		return fmt.Errorf("attempting to use `flyctl ssh` to connect to a public address (.fly.dev); try without the hostname")
 	}
 
 	// wait for the addr to be resolved in dns unless it's an ip address
