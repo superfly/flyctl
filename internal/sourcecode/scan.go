@@ -541,7 +541,7 @@ func configureNuxt(sourceDir string) (*SourceInfo, error) {
 
 // setup django with a postgres database
 func configureDjango(sourceDir string) (*SourceInfo, error) {
-	if !checksPass(sourceDir, fileExists("requirements.txt", "manage.py")) {
+	if !checksPass(sourceDir, fileExists("manage.py", "requirements.txt")) {
 		return nil, nil
 	}
 
