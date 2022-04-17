@@ -90,6 +90,7 @@ func Scan(sourceDir string) (*SourceInfo, error) {
 		configureDeno,
 		configureRemix,
 		configureNuxt,
+		configureNextJs,
 		configureNode,
 		configureStatic,
 	}
@@ -541,6 +542,27 @@ func configureNuxt(sourceDir string) (*SourceInfo, error) {
 	}
 
 	s.Files = templates("templates/nuxtjs")
+
+	s.Env = env
+	return s, nil
+}
+
+func configureNextJs(sourceDir string) (*SourceInfo, error) {
+	if !checksPass(sourceDir, fileExists("next.config.js")) {
+		return nil, nil
+	}
+
+	env := map[string]string{
+		"PORT": "8080",
+	}
+
+	s := &SourceInfo{
+		Family: "NextJS",
+		Port:   8080,
+		SkipDatabase: true,
+	}
+	
+	s.Files = templates("templates/nextjs")
 
 	s.Env = env
 	return s, nil
