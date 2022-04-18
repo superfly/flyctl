@@ -38,7 +38,20 @@ func New(app string, dialer agent.Dialer) *Client {
 
 // NewFromInstance creates a new Client that targets a specific instance(address)
 func NewFromInstance(address string, dialer agent.Dialer) *Client {
-	return New(address, dialer)
+	url := fmt.Sprintf("http://%s:5500", address)
+
+	tr := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return dialer.DialContext(ctx, network, addr)
+		},
+	}
+
+	client := &http.Client{Transport: tr}
+
+	return &Client{
+		httpClient: client,
+		BaseURL:    url,
+	}
 }
 
 func (c *Client) Do(ctx context.Context, method, path string, in, out interface{}) error {
