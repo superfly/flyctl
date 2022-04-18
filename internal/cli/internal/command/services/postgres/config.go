@@ -47,6 +47,9 @@ var pgSettingMap = map[string]string{
 	"max-connections":            "max_connections",
 	"log-statement":              "log_statement",
 	"log-min-duration-statement": "log_min_duration_statement",
+	"tcp-keepalives-count":       "tcp_keepalives_count",
+	"tcp-keepalives-idle":        "tcp_keepalives_idle",
+	"tcp-keepalives-interval":    "tcp_keepalives_interval",
 }
 
 func newConfigView() (cmd *cobra.Command) {
@@ -187,6 +190,18 @@ func newConfigUpdate() (cmd *cobra.Command) {
 		flag.String{
 			Name:        "log-min-duration-statement",
 			Description: "Sets the minimum execution time above which all statements will be logged. (ms)",
+		},
+		flag.String{
+			Name:        "tcp-keepalives-count",
+			Description: "This controls the number of consecutive keepalive retransmits that can be lost before a connection is considered dead.",
+		},
+		flag.String{
+			Name:        "tcp-keepalives-idle",
+			Description: "Time between issuing TCP keepalives.",
+		},
+		flag.String{
+			Name:        "tcp-keepalives-interval",
+			Description: "Time between TCP keepalive retransmits.",
 		},
 		flag.Bool{
 			Name:        "auto-confirm",
