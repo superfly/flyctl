@@ -13,7 +13,6 @@ import (
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/flypg"
 	"github.com/superfly/flyctl/pkg/iostreams"
-	"github.com/superfly/flyctl/pkg/machines"
 )
 
 func newRestart() (cmd *cobra.Command) {
@@ -47,9 +46,13 @@ func runRestart(ctx context.Context) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	mcs, err := client.ListMachines(ctx, app.ID, "started")
+	machines, err := client.ListMachines(ctx, app.ID, "started")
 	if err != nil {
 		return err
+	}
+
+	if len(machines) == 0 {
+		return fmt.Errorf("no machines found")
 	}
 
 	agentclient, err := agent.Establish(ctx, client)
@@ -57,15 +60,15 @@ func runRestart(ctx context.Context) error {
 		return fmt.Errorf("can't establish agent %w", err)
 	}
 
-	dialer, err := agentclient.Dialer(ctx, app.Name)
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
 	if err != nil {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
 
-	for _, machine := range mcs {
+	for _, machine := range machines {
 		fmt.Fprintf(io.Out, "Restarting machine %q... ", machine.ID)
 
-		address := machines.FormatedMachineAddress(machine)
+		address := formatAddress(machine)
 
 		pgclient := flypg.NewFromInstance(address, dialer)
 

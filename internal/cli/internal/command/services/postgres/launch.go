@@ -118,11 +118,11 @@ func runLaunch(ctx context.Context) error {
 
 	client := client.FromContext(ctx).API()
 
-	// imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres")
-	// if err != nil {
-	// 	return err
-	// }
-	imageRef := "flyio/postgres:14.1"
+	imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres")
+	if err != nil {
+		return err
+	}
+	// imageRef := "codebaker/postgres:latest"
 
 	config := LaunchConfig{
 		AppName:            name,
