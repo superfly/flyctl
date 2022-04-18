@@ -39,7 +39,6 @@ func newList() *cobra.Command {
 		},
 		flag.String{
 			Name:        "state",
-			Default:     "started",
 			Description: "List machines in a specific state.",
 		},
 		flag.Bool{
