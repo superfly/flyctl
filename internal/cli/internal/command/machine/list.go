@@ -77,15 +77,15 @@ func runMachineList(ctx context.Context) (err error) {
 	}
 
 	var listOfMachines []api.V1Machine
-	if err = json.Unmarshal(machines, listOfMachines); err != nil {
+	if err = json.Unmarshal(machines, &listOfMachines); err != nil {
 		return fmt.Errorf("list of machines could not be retrieved")
 	}
 
+	fmt.Fprintf(io.Out, "%d machines have been retrieved\n\n", len(listOfMachines))
 	for _, machine := range listOfMachines {
-		fmt.Fprintf(io.Out, "Success! A machine has been retrieved\n")
 		fmt.Fprintf(io.Out, " Machine ID: %s\n", machine.ID)
 		fmt.Fprintf(io.Out, " Instance ID: %s\n", machine.InstanceID)
-		fmt.Fprintf(io.Out, " State: %s\n", machine.State)
+		fmt.Fprintf(io.Out, " State: %s\n\n", machine.State)
 	}
 
 	return nil
