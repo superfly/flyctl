@@ -73,6 +73,8 @@ func runUpdate(ctx context.Context) error {
 		return err
 	}
 
+	// imageRef := "codebaker/postgres:latest"
+
 	var leader *api.Machine
 
 	// TODO - Once role/failover has been converted to http endpoints we can
@@ -143,14 +145,14 @@ func updateMachine(ctx context.Context, app *api.App, machine *api.Machine, imag
 	}
 
 	// json unmarshal the response into api.V1Machine
-	var updated api.V1Machine
+	var updated *api.Machine
 
-	err = json.Unmarshal(res, &updated)
+	err = json.Unmarshal(res, updated)
 	if err != nil {
 		return err
 	}
 
-	res, err = flaps.Wait(ctx, &updated)
+	_, err = flaps.Wait(ctx, &api.V1Machine{ID: machine.ID})
 	if err != nil {
 		return err
 	}

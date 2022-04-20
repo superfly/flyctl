@@ -122,7 +122,8 @@ func runLaunch(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	// imageRef := "codebaker/postgres:latest"
+
+	// imageRef := "codebaker/postgres"
 
 	config := LaunchConfig{
 		AppName:            name,
@@ -213,9 +214,16 @@ func (p *Launch) Launch(ctx context.Context) error {
 			return err
 		}
 
-		if err = waitForMachineState(ctx, p.client, p.config.AppName, machine.ID, "started"); err != nil {
+		resp, err = flaps.Wait(ctx, &api.V1Machine{ID: machine.ID})
+		if err != nil {
 			return err
 		}
+
+		if err = json.Unmarshal(resp, &machine); err != nil {
+			return err
+		}
+		fmt.Fprintf(io.Out, "Machine %s is %s\n", machine.ID, machine.State)
+
 	}
 
 	fmt.Fprintf(io.Out, "Provision complete\n\n")
