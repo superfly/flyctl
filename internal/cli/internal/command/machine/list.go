@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
+	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/pkg/flaps"
@@ -81,12 +82,19 @@ func runMachineList(ctx context.Context) (err error) {
 		return fmt.Errorf("list of machines could not be retrieved")
 	}
 
+	rows := [][]string{}
+
 	fmt.Fprintf(io.Out, "%d machines have been retrieved\n\n", len(listOfMachines))
 	for _, machine := range listOfMachines {
-		fmt.Fprintf(io.Out, " Machine ID: %s\n", machine.ID)
-		fmt.Fprintf(io.Out, " Instance ID: %s\n", machine.InstanceID)
-		fmt.Fprintf(io.Out, " State: %s\n\n", machine.State)
+		rows = append(rows, []string{
+			machine.ID,
+			fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag),
+			machine.CreatedAt,
+			machine.State,
+			machine.Name,
+		})
 	}
+	_ = render.Table(io.Out, appName, rows, "ID", "Image", "Created", "State", "Name")
 
 	return nil
 }
