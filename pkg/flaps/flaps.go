@@ -59,7 +59,12 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) ([]
 		return nil, fmt.Errorf("machine failed to launch, %w", err)
 	}
 
-	return f.sendRequest(ctx, nil, http.MethodPost, "", body)
+	var endpoint string
+	if builder.ID != "" {
+		endpoint = fmt.Sprintf("/%s", builder.ID)
+	}
+
+	return f.sendRequest(ctx, nil, http.MethodPost, endpoint, body)
 }
 
 func (f *Client) Start(ctx context.Context, machineID string) ([]byte, error) {
