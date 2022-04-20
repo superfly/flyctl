@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -46,11 +47,6 @@ func runUpdate(ctx context.Context) error {
 	app, err := client.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
-	}
-
-	cli, err := flaps.New(ctx, app)
-	if err != nil {
-		return err
 	}
 
 	agentclient, err := agent.Establish(ctx, client)
@@ -99,7 +95,7 @@ func runUpdate(ctx context.Context) error {
 			continue
 		}
 
-		err = updateMachine(ctx, cli, app.Name, imageRef, machine)
+		err = updateMachine(ctx, app, machine, imageRef)
 		if err != nil {
 			return err
 		}
@@ -112,15 +108,20 @@ func runUpdate(ctx context.Context) error {
 		if err := pgclient.Failover(ctx); err != nil {
 			return fmt.Errorf("failed to trigger failover %w", err)
 		}
-		if err := updateMachine(ctx, cli, app.Name, imageRef, leader); err != nil {
+		if err := updateMachine(ctx, app, leader, imageRef); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func updateMachine(ctx context.Context, flaps *flaps.Client, appName, image string, machine *api.Machine) error {
+func updateMachine(ctx context.Context, app *api.App, machine *api.Machine, image string) error {
 	var io = iostreams.FromContext(ctx)
+
+	flaps, err := flaps.New(ctx, app)
+	if err != nil {
+		return err
+	}
 
 	fmt.Fprintf(io.Out, "Updating machine %s with image %s\n", machine.ID, image)
 	// fmt.Fprintf(io.Out, "Current metadata: %+v", machine.Config.Metadata)
@@ -130,18 +131,29 @@ func updateMachine(ctx context.Context, flaps *flaps.Client, appName, image stri
 
 	input := api.LaunchMachineInput{
 		ID:      machine.ID,
-		AppID:   appName,
+		AppID:   app.Name,
 		OrgSlug: machine.App.Organization.Slug,
 		Region:  machine.Region,
 		Config:  &machineConf,
 	}
 
-	resp, err := flaps.Update(ctx, input)
+	res, err := flaps.Update(ctx, input)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(io.Out, "Response: %s", resp)
+	// json unmarshal the response into api.V1Machine
+	var updated api.V1Machine
+
+	err = json.Unmarshal(res, &updated)
+	if err != nil {
+		return err
+	}
+
+	res, err = flaps.Wait(ctx, &updated)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
