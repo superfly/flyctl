@@ -8,14 +8,16 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"time"
 
+	"github.com/PuerkitoBio/rehttp"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/pkg/agent"
+	"github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/flyctl"
 
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/internal/logger"
 )
 
 type Client struct {
@@ -38,17 +40,36 @@ func New(ctx context.Context, app *api.App) (*Client, error) {
 	}
 
 	return &Client{
-		app:       app,
-		peerIP:    resolvePeerIP(dialer.State().Peer.Peerip),
-		authToken: flyctl.GetAPIToken(),
-		httpClient: &http.Client{
-			Transport: &http.Transport{
-				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-					return dialer.DialContext(ctx, network, addr)
-				},
-			},
-		},
+		app:        app,
+		peerIP:     resolvePeerIP(dialer.State().Peer.Peerip),
+		authToken:  flyctl.GetAPIToken(),
+		httpClient: newHttpCLient(dialer),
 	}, nil
+}
+
+func newHttpCLient(dialer agent.Dialer) *http.Client {
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return dialer.DialContext(ctx, network, addr)
+		},
+	}
+	retry := rehttp.NewTransport(
+		transport,
+		rehttp.RetryAll(
+			rehttp.RetryMaxRetries(3),
+			rehttp.RetryAny(
+				rehttp.RetryTemporaryErr(),
+				rehttp.RetryStatuses(502, 503),
+			),
+		),
+		rehttp.ExpJitterDelay(100*time.Millisecond, 1*time.Second),
+	)
+	logging := &LoggingTransport{
+		innerTransport: retry,
+		logger:         terminal.DefaultLogger,
+	}
+
+	return &http.Client{Transport: logging}
 }
 
 func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) ([]byte, error) {
@@ -141,7 +162,6 @@ func (f *Client) sendRequest(ctx context.Context, machine *api.V1Machine, method
 	}
 	req.SetBasicAuth(f.app.Name, f.authToken)
 
-	logger.FromContext(ctx).Debugf("Running %s %s... ", method, endpoint)
 	resp, err := f.httpClient.Do(req)
 	if err != nil {
 		return nil, err
