@@ -36,14 +36,6 @@ func newList() *cobra.Command {
 		flag.App(),
 		flag.AppConfig(),
 		flag.Bool{
-			Name:        "all",
-			Description: "Show machines in all states",
-		},
-		flag.String{
-			Name:        "state",
-			Description: "List machines in a specific state.",
-		},
-		flag.Bool{
 			Name:        "quiet",
 			Shorthand:   "q",
 			Description: "Only list machine ids",
@@ -58,6 +50,7 @@ func runMachineList(ctx context.Context) (err error) {
 		appName = app.NameFromContext(ctx)
 		client  = client.FromContext(ctx).API()
 		io      = iostreams.FromContext(ctx)
+		silence = flag.GetBool(ctx, "quiet")
 	)
 
 	if appName == "" {
@@ -85,16 +78,22 @@ func runMachineList(ctx context.Context) (err error) {
 	rows := [][]string{}
 
 	fmt.Fprintf(io.Out, "%d machines have been retrieved\n\n", len(listOfMachines))
-	for _, machine := range listOfMachines {
-		rows = append(rows, []string{
-			machine.ID,
-			fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag),
-			machine.CreatedAt,
-			machine.State,
-			machine.Name,
-		})
+	if silence {
+		for _, machine := range listOfMachines {
+			rows = append(rows, []string{machine.ID})
+		}
+		_ = render.Table(io.Out, appName, rows, "ID")
+	} else {
+		for _, machine := range listOfMachines {
+			rows = append(rows, []string{
+				machine.ID,
+				fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag),
+				machine.CreatedAt,
+				machine.State,
+				machine.Name,
+			})
+		}
+		_ = render.Table(io.Out, appName, rows, "ID", "Image", "Created", "State", "Name")
 	}
-	_ = render.Table(io.Out, appName, rows, "ID", "Image", "Created", "State", "Name")
-
 	return nil
 }
