@@ -1206,18 +1206,26 @@ type Filters struct {
 	Meta         map[string]Condition `json:"meta"`
 }
 
+type machineImageRef struct {
+	Registry   string
+	Repository string
+	Tag        string
+	Digest     string
+}
 type V1Machine struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	AppID string `json:"app_id"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
 
 	State string `json:"state"`
+
+	ImageRef machineImageRef `json:"image_ref"`
 
 	// InstanceID is unique for each version of the machine
 	InstanceID string `json:"instance_id"`
 
 	// PrivateIP is the internal 6PN address of the machine.
 	PrivateIP string `json:"private_ip"`
+	CreatedAt string `json:"created_at"`
 }
 
 type V1MachineStop struct {

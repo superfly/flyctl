@@ -91,7 +91,10 @@ func (f *Client) Stop(ctx context.Context, machineStop api.V1MachineStop) ([]byt
 }
 
 func (f *Client) Get(ctx context.Context, machineID string) ([]byte, error) {
-	getEndpoint := fmt.Sprintf("/%s", machineID)
+	var getEndpoint = ""
+	if machineID != "" {
+		getEndpoint = fmt.Sprintf("/%s", machineID)
+	}
 
 	return f.sendRequest(ctx, nil, http.MethodGet, getEndpoint, nil)
 }
