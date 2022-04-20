@@ -25,25 +25,23 @@ type Client struct {
 func New(app string, dialer agent.Dialer) *Client {
 	url := fmt.Sprintf("http://%s.internal:5500", app)
 
-	client := newClient(dialer)
-
-	client.BaseURL = url
-
-	return client
+	return &Client{
+		httpClient: newHttpClient(dialer),
+		BaseURL:    url,
+	}
 }
 
 // NewFromInstance creates a new Client that targets a specific instance(address)
 func NewFromInstance(address string, dialer agent.Dialer) *Client {
 	url := fmt.Sprintf("http://%s:5500", address)
 
-	client := newClient(dialer)
-
-	client.BaseURL = url
-
-	return client
+	return &Client{
+		httpClient: newHttpClient(dialer),
+		BaseURL:    url,
+	}
 }
 
-func newClient(dialer agent.Dialer) *Client {
+func newHttpClient(dialer agent.Dialer) *http.Client {
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return dialer.DialContext(ctx, network, addr)
@@ -67,11 +65,7 @@ func newClient(dialer agent.Dialer) *Client {
 		logger:         terminal.DefaultLogger,
 	}
 
-	client := &http.Client{Transport: logging}
-
-	return &Client{
-		httpClient: client,
-	}
+	return &http.Client{Transport: logging}
 }
 
 func (c *Client) Do(ctx context.Context, method, path string, in, out interface{}) error {

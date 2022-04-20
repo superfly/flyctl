@@ -42,7 +42,14 @@ func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 }
 
 func (t *LoggingTransport) logRequest(req *http.Request) {
-	t.logger.Debugf("--> %s %s %s\n", req.Method, req.URL, req.Body)
+	if req.Body == nil {
+		t.logger.Debugf("--> %s %s\n", req.Method, req.URL)
+	} else {
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(req.Body)
+		req.Body = ioutil.NopCloser(buf)
+		t.logger.Debugf("--> %s %s %s\n", req.Method, req.URL, buf.String())
+	}
 }
 
 func (t *LoggingTransport) logResponse(resp *http.Response) {
