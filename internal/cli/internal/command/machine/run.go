@@ -184,6 +184,12 @@ func runMachineRun(ctx context.Context) error {
 		},
 	}
 
+	input := api.LaunchMachineInput{
+		AppID:  app.Name,
+		Name:   flag.GetString(ctx, "name"),
+		Region: flag.GetString(ctx, "region"),
+	}
+
 	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
 		return fmt.Errorf("could not make API client: %w", err)
@@ -201,6 +207,9 @@ func runMachineRun(ctx context.Context) error {
 			return fmt.Errorf("could not read machine body %s: %w", machineID, err)
 		}
 		fmt.Fprintf(io.Out, "machine %s was found and is currently in a %s state, attempting to update...\n", machineID, machine.State)
+		input.ID = machineID
+		input.Name = machine.Name
+		input.Region = ""
 		machineConf = *machine.Config
 	}
 
@@ -260,13 +269,7 @@ func runMachineRun(ctx context.Context) error {
 		return nil
 	}
 
-	input := api.LaunchMachineInput{
-		ID:     machineID,
-		AppID:  app.Name,
-		Name:   flag.GetString(ctx, "name"),
-		Region: flag.GetString(ctx, "region"),
-		Config: &machineConf,
-	}
+	input.Config = &machineConf
 
 	mach, err := flapsClient.Launch(ctx, input)
 	if err != nil {
