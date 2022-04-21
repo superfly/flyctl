@@ -13,6 +13,7 @@ jobs:
     steps:
       - uses: mislav/bump-homebrew-formula-action@v1
         with:
+          push-to: superfly/homebrew-core
           formula-name: flyctl
           tag-name: ${{ github.event.inputs.version }}
           commit-message: |
