@@ -1225,7 +1225,10 @@ type V1Machine struct {
 
 	// PrivateIP is the internal 6PN address of the machine.
 	PrivateIP string `json:"private_ip"`
+
 	CreatedAt string `json:"created_at"`
+
+	Config *MachineConfig `json:"config"`
 }
 
 type V1MachineStop struct {

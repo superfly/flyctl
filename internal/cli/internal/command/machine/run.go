@@ -62,7 +62,7 @@ func newRun() *cobra.Command {
 		flag.Region(),
 		flag.String{
 			Name:        "id",
-			Description: "Machine ID, is previously known",
+			Description: "Machine ID, if previously known",
 		},
 		flag.String{
 			Name:        "name",
@@ -184,6 +184,35 @@ func runMachineRun(ctx context.Context) error {
 		},
 	}
 
+	input := api.LaunchMachineInput{
+		AppID:  app.Name,
+		Name:   flag.GetString(ctx, "name"),
+		Region: flag.GetString(ctx, "region"),
+	}
+
+	flapsClient, err := flaps.New(ctx, app)
+	if err != nil {
+		return fmt.Errorf("could not make API client: %w", err)
+	}
+
+	machineID := flag.GetString(ctx, "id")
+	if machineID != "" {
+		var machine api.V1Machine
+		machineBytes, err := flapsClient.Get(ctx, machineID)
+		if err != nil {
+			return fmt.Errorf("failed to get machine, %s: %w", machineID, err)
+		}
+
+		if err := json.Unmarshal(machineBytes, &machine); err != nil {
+			return fmt.Errorf("could not read machine body %s: %w", machineID, err)
+		}
+		fmt.Fprintf(io.Out, "machine %s was found and is currently in a %s state, attempting to update...\n", machineID, machine.State)
+		input.ID = machineID
+		input.Name = machine.Name
+		input.Region = ""
+		machineConf = *machine.Config
+	}
+
 	if guest := api.MachinePresets[flag.GetString(ctx, "size")]; guest != nil {
 		machineConf.Guest = guest
 	} else {
@@ -240,17 +269,7 @@ func runMachineRun(ctx context.Context) error {
 		return nil
 	}
 
-	input := api.LaunchMachineInput{
-		AppID:  app.Name,
-		Name:   flag.GetString(ctx, "name"),
-		Region: flag.GetString(ctx, "region"),
-		Config: &machineConf,
-	}
-
-	flapsClient, err := flaps.New(ctx, app)
-	if err != nil {
-		return fmt.Errorf("could not make flaps client: %w", err)
-	}
+	input.Config = &machineConf
 
 	mach, err := flapsClient.Launch(ctx, input)
 	if err != nil {
