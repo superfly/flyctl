@@ -1218,6 +1218,8 @@ type V1Machine struct {
 
 	State string `json:"state"`
 
+	Region string `json:"region"`
+
 	ImageRef machineImageRef `json:"image_ref"`
 
 	// InstanceID is unique for each version of the machine
