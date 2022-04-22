@@ -90,10 +90,13 @@ func runMachineList(ctx context.Context) (err error) {
 				fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag),
 				machine.CreatedAt,
 				machine.State,
+				machine.Region,
 				machine.Name,
+				machine.PrivateIP,
 			})
 		}
-		_ = render.Table(io.Out, appName, rows, "ID", "Image", "Created", "State", "Name")
+
+		_ = render.Table(io.Out, appName, rows, "ID", "Image", "Created", "State", "Region", "Name", "IP Address")
 	}
 	return nil
 }
