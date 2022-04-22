@@ -168,8 +168,11 @@ func runMachineRun(ctx context.Context) error {
 		}
 	} else {
 		app, err = client.GetApp(ctx, appName)
-		if err != nil && strings.Contains(err.Error(), "Could not resolve App") {
+		if err != nil && strings.Contains(err.Error(), "Could not resolve") {
 			app, err = createApp(ctx, fmt.Sprintf("App '%s' does not exist, would you like to create it?", appName), appName, client)
+			if app == nil {
+				return nil
+			}
 		}
 		if err != nil {
 			return err
@@ -306,7 +309,7 @@ func createApp(ctx context.Context, message, name string, client *api.Client) (*
 	}
 
 	if !confirm {
-		return nil, err
+		return nil, nil
 	}
 
 	org, err := prompt.Org(ctx, nil)
