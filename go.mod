@@ -61,7 +61,7 @@ require (
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Microsoft/go-winio v0.5.0 // indirect
 	github.com/Microsoft/hcsshim v0.8.18 // indirect
-	github.com/PuerkitoBio/rehttp v1.1.0 // indirect
+	github.com/PuerkitoBio/rehttp v1.1.0
 	github.com/apex/log v1.9.0 // indirect
 	github.com/buildpacks/imgutil v0.0.0-20210510154637-009f91f52918 // indirect
 	github.com/buildpacks/lifecycle v0.11.4 // indirect

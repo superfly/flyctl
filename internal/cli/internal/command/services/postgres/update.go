@@ -103,17 +103,20 @@ func runUpdate(ctx context.Context) error {
 		}
 	}
 
-	if leader != nil {
-		pgclient := flypg.New(app.Name, dialer)
-		// fmt.Fprint(io.Out, "Triggering Failover from:  ", leader.ID)
+	pgclient := flypg.New(app.Name, dialer)
 
-		if err := pgclient.Failover(ctx); err != nil {
-			return fmt.Errorf("failed to trigger failover %w", err)
-		}
+	if err := pgclient.Failover(ctx); err != nil {
+		return fmt.Errorf("failed to trigger failover %w", err)
+	}
+
+	if leader != nil {
 		if err := updateMachine(ctx, app, leader, imageRef); err != nil {
 			return err
 		}
 	}
+
+	fmt.Fprintf(io.Out, "Successfully updated Postgres cluster\n")
+
 	return nil
 }
 
@@ -147,7 +150,7 @@ func updateMachine(ctx context.Context, app *api.App, machine *api.Machine, imag
 	// json unmarshal the response into api.V1Machine
 	var updated *api.Machine
 
-	err = json.Unmarshal(res, updated)
+	err = json.Unmarshal(res, &updated)
 	if err != nil {
 		return err
 	}
