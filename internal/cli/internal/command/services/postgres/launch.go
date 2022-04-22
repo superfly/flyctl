@@ -123,7 +123,7 @@ func runLaunch(ctx context.Context) error {
 		return err
 	}
 
-	// imageRef := "codebaker/postgres"
+	// imageRef := "codebaker/postgres:latest"
 
 	config := LaunchConfig{
 		AppName:            name,
