@@ -7,7 +7,7 @@ import (
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 )
 
-// New initializes and returns a new apps Command.
+// New initializes and returns a new platform Command.
 func New() (cmd *cobra.Command) {
 	const (
 		long = `The PLATFORM commands are for users looking for information
