@@ -2,15 +2,17 @@ package machine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/cli/internal/app"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
 	"github.com/superfly/flyctl/internal/cli/internal/render"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/pkg/flaps"
 	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
@@ -34,15 +36,6 @@ func newList() *cobra.Command {
 		flag.App(),
 		flag.AppConfig(),
 		flag.Bool{
-			Name:        "all",
-			Description: "Show machines in all states",
-		},
-		flag.String{
-			Name:        "state",
-			Default:     "started",
-			Description: "List machines in a specific state.",
-		},
-		flag.Bool{
 			Name:        "quiet",
 			Shorthand:   "q",
 			Description: "Only list machine ids",
@@ -56,54 +49,54 @@ func runMachineList(ctx context.Context) (err error) {
 	var (
 		appName = app.NameFromContext(ctx)
 		client  = client.FromContext(ctx).API()
-		stream  = iostreams.FromContext(ctx)
-		cfg     = config.FromContext(ctx)
+		io      = iostreams.FromContext(ctx)
+		silence = flag.GetBool(ctx, "quiet")
 	)
 
-	state := flag.GetString(ctx, "state")
-	if flag.GetBool(ctx, "all") {
-		state = ""
+	if appName == "" {
+		return fmt.Errorf("app is not found")
 	}
-
-	machines, err := client.ListMachines(ctx, appName, state)
+	app, err := client.GetApp(ctx, appName)
 	if err != nil {
-		return fmt.Errorf("could not get list of machines: %w", err)
+		return err
+	}
+	flapsClient, err := flaps.New(ctx, app)
+	if err != nil {
+		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
 
-	if flag.GetBool(ctx, "quiet") {
-		for _, machine := range machines {
-			fmt.Fprintf(stream.Out, "%s\n", machine.ID)
-		}
-		return nil
+	machines, err := flapsClient.Get(ctx, "")
+	if err != nil {
+		return fmt.Errorf("machines could not be retrieved")
 	}
 
-	if cfg.JSONOutput {
-		return render.JSON(stream.Out, machines)
+	var listOfMachines []api.V1Machine
+	if err = json.Unmarshal(machines, &listOfMachines); err != nil {
+		return fmt.Errorf("list of machines could not be retrieved")
 	}
 
 	rows := [][]string{}
 
-	for _, machine := range machines {
-		var ipv6 string
-
-		for _, ip := range machine.IPs.Nodes {
-			if ip.Family == "v6" && ip.Kind == "privatenet" {
-				ipv6 = ip.IP
-			}
+	fmt.Fprintf(io.Out, "%d machines have been retrieved\n\n", len(listOfMachines))
+	if silence {
+		for _, machine := range listOfMachines {
+			rows = append(rows, []string{machine.ID})
+		}
+		_ = render.Table(io.Out, appName, rows, "ID")
+	} else {
+		for _, machine := range listOfMachines {
+			rows = append(rows, []string{
+				machine.ID,
+				fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag),
+				machine.CreatedAt,
+				machine.State,
+				machine.Region,
+				machine.Name,
+				machine.PrivateIP,
+			})
 		}
 
-		rows = append(rows, []string{
-			machine.ID,
-			machine.Config.Image,
-			machine.CreatedAt.String(),
-			machine.State,
-			machine.Region,
-			machine.Name,
-			ipv6,
-		})
-
+		_ = render.Table(io.Out, appName, rows, "ID", "Image", "Created", "State", "Region", "Name", "IP Address")
 	}
-	_ = render.Table(stream.Out, appName, rows, "ID", "Image", "Created", "State", "Region", "Name", "IP Address")
-
-	return
+	return nil
 }

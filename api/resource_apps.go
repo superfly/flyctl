@@ -16,6 +16,8 @@ func (client *Client) GetApps(ctx context.Context, role *string) ([]App, error) 
 					}
 					currentRelease {
 						createdAt
+						status
+
 					}
 					status
 				}
@@ -68,6 +70,12 @@ func (client *Client) GetApp(ctx context.Context, appName string) (*App, error) 
 				version
 				appUrl
 				platformVersion
+				currentRelease {
+					evaluationId
+					status
+					inProgress
+					version
+				}
 				config {
 					definition
 				}

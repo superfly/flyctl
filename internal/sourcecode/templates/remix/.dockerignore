@@ -1,1 +1,5 @@
-node_modules
+/.cache
+/.env
+/build
+/node_modules
+/public/build

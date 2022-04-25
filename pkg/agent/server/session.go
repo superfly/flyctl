@@ -11,6 +11,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -81,7 +82,7 @@ func runSession(ctx context.Context, srv *server, conn net.Conn, id id) {
 
 	buf, err := proto.Read(s.conn)
 	if len(buf) > 0 {
-		s.logger.Printf("<- (% 5d) %q", len(buf), buf)
+		s.logger.Printf("<- (% 5d) %q", len(buf), redact(buf))
 	}
 
 	if err != nil {
@@ -518,7 +519,7 @@ func (s *session) reply(verb string, args ...string) bool {
 
 	err := proto.Write(out, verb, args...)
 	if l := b.Len(); l > 0 {
-		s.logger.Printf("-> (% 5d) %q", l, b.Bytes())
+		s.logger.Printf("-> (% 5d) %q", l, redact(b.Bytes()))
 	}
 
 	if err != nil {
@@ -582,4 +583,10 @@ func (s *session) marshal(v interface{}) (ok bool) {
 
 func isClosed(err error) bool {
 	return errors.Is(err, net.ErrClosed)
+}
+
+var redactRx = regexp.MustCompile(`(PrivateKey|private)":".*?"`)
+
+func redact(buf []byte) []byte {
+	return redactRx.ReplaceAll(buf, []byte(`PrivateKey":"[redacted]"`))
 }

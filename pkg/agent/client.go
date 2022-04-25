@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/azazeal/pause"
@@ -46,7 +47,7 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 	}
 
 	// TOOD: log this instead
-	msg := fmt.Sprintf("The running flyctl background agent (v%s) is older than the current flyctl (v%s).", res.Version, buildinfo.Version())
+	msg := fmt.Sprintf("The running flyctl agent (v%s) is older than the current flyctl (v%s).", res.Version, buildinfo.Version())
 
 	logger := logger.MaybeFromContext(ctx)
 	if logger != nil {
@@ -91,14 +92,22 @@ func newClient(network, addr string) *Client {
 	}
 }
 
-func Dial(ctx context.Context, network, addr string) (client *Client, err error) {
-	client = newClient(network, addr)
+var ErrAgentNotRunning = errors.New("agent not running")
 
-	if _, err = client.Ping(ctx); err != nil {
-		client = nil
+func Dial(ctx context.Context, network, addr string) (*Client, error) {
+	client := newClient(network, addr)
+
+	if _, err := client.Ping(ctx); err != nil {
+		// if the agen't isn't running the error will be "connect: file or directory not found"
+		// catch it and return a sentinel error
+		var syscallErr *os.SyscallError
+		if errors.As(err, &syscallErr) && syscallErr.Err == syscall.ENOENT {
+			return nil, ErrAgentNotRunning
+		}
+		return nil, err
 	}
 
-	return
+	return client, nil
 }
 
 func DefaultClient(ctx context.Context) (*Client, error) {

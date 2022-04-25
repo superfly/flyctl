@@ -11,11 +11,13 @@ on:
 
 jobs:
   homebrew:
+    name: Bump Homebrew formula
     runs-on: macos-latest
     steps:
       - uses: dawidd6/action-homebrew-bump-formula@v3
         with:
-          token: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
+          token: ${{ secrets.FLYIO_BUILDBOT_GITHUB_TOKEN }}
           formula: flyctl
+          org: superfly
           tag: ${{ github.event.inputs.version }}
           revision: ${{ github.event.inputs.sha }}

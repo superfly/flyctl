@@ -77,6 +77,8 @@ func runMachineStatus(ctx context.Context) error {
 	fmt.Fprintf(io.Out, " Machine ID: %s\n", machine.ID)
 	fmt.Fprintf(io.Out, " Instance ID: %s\n", machine.InstanceID)
 	fmt.Fprintf(io.Out, " State: %s\n", machine.State)
+	fmt.Fprintf(io.Out, " Region: %s\n", machine.Region)
+	fmt.Fprintf(io.Out, " Image: %s\n", machine.Config.Image)
 
 	return nil
 }

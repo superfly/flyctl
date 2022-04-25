@@ -168,11 +168,15 @@ func grepv(r io.Reader, excludes []string) *bytes.Buffer {
 			break
 		}
 
+		exclude := false
 		for _, xcl := range excludes {
 			if strings.Contains(line, xcl) {
-				continue
+				exclude = true
+				break
 			}
+		}
 
+		if !exclude {
 			buf.WriteString(line)
 		}
 	}

@@ -59,7 +59,12 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) ([]
 		return nil, fmt.Errorf("machine failed to launch, %w", err)
 	}
 
-	return f.sendRequest(ctx, nil, http.MethodPost, "", body)
+	var endpoint string
+	if builder.ID != "" {
+		endpoint = fmt.Sprintf("/%s", builder.ID)
+	}
+
+	return f.sendRequest(ctx, nil, http.MethodPost, endpoint, body)
 }
 
 func (f *Client) Start(ctx context.Context, machineID string) ([]byte, error) {
@@ -74,7 +79,7 @@ func (f *Client) Wait(ctx context.Context, machine *api.V1Machine) ([]byte, erro
 	waitEndpoint := fmt.Sprintf("/%s/wait", machine.ID)
 
 	if machine.InstanceID != "" {
-		waitEndpoint = fmt.Sprintf("?instance_id=%s", machine.InstanceID)
+		waitEndpoint += fmt.Sprintf("?instance_id=%s", machine.InstanceID)
 	}
 
 	return f.sendRequest(ctx, nil, http.MethodGet, waitEndpoint, nil)
@@ -91,15 +96,22 @@ func (f *Client) Stop(ctx context.Context, machineStop api.V1MachineStop) ([]byt
 }
 
 func (f *Client) Get(ctx context.Context, machineID string) ([]byte, error) {
-	getEndpoint := fmt.Sprintf("/%s", machineID)
+	var getEndpoint = ""
+	if machineID != "" {
+		getEndpoint = fmt.Sprintf("/%s", machineID)
+	}
 
 	return f.sendRequest(ctx, nil, http.MethodGet, getEndpoint, nil)
 }
 
-func (f *Client) Kill(ctx context.Context, machineKillInput api.KillMachineInput) ([]byte, error) {
-	killEndpoint := fmt.Sprintf("/%s?kill=%t", machineKillInput.ID, machineKillInput.Force)
+func (f *Client) Destroy(ctx context.Context, input api.RemoveMachineInput) ([]byte, error) {
+	destroyEndpoint := fmt.Sprintf("/%s?kill=%t", input.ID, input.Kill)
 
-	return f.sendRequest(ctx, nil, http.MethodDelete, killEndpoint, nil)
+	return f.sendRequest(ctx, nil, http.MethodDelete, destroyEndpoint, nil)
+}
+
+func (f *Client) Kill(ctx context.Context, machineID string) ([]byte, error) {
+	return f.sendRequest(ctx, nil, http.MethodPost, fmt.Sprintf("/%s/signal", machineID), []byte(`{"signal":9}`))
 }
 
 func (f *Client) sendRequest(ctx context.Context, machine *api.V1Machine, method, endpoint string, data []byte) ([]byte, error) {
@@ -122,6 +134,10 @@ func (f *Client) sendRequest(ctx context.Context, machine *api.V1Machine, method
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("request returned non-2xx status, %d", resp.StatusCode)
+	}
 
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
