@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/internal/cli/internal/command"
+	"github.com/superfly/flyctl/internal/cli/internal/command/orgs/builder"
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/cli/internal/sort"
 	"github.com/superfly/flyctl/internal/client"
@@ -38,7 +39,7 @@ Organization admins can also invite or remove users from Organizations.
 		newRemove(),
 		newCreate(),
 		newDelete(),
-		builders.New(),
+		builder.New(),
 	)
 
 	return orgs

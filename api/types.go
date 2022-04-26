@@ -443,15 +443,15 @@ type AppConfig struct {
 	Valid      bool
 	Errors     []string
 }
-
 type Organization struct {
-	ID                string
-	InternalNumericID string
-	Name              string
-	Slug              string
-	Type              string
-
-	Domains struct {
+	ID                 string
+	InternalNumericID  string
+	Name               string
+	RemoteBuilderImage string
+	RemoteBuilderApp   *App
+	Slug               string
+	Type               string
+	Domains            struct {
 		Nodes *[]*Domain
 		Edges *[]*struct {
 			Cursor *string
@@ -491,13 +491,15 @@ type Organization struct {
 }
 
 type OrganizationDetails struct {
-	ID                string
-	InternalNumericID string
-	Name              string
-	Slug              string
-	Type              string
-	ViewerRole        string
-	Apps              struct {
+	ID                 string
+	InternalNumericID  string
+	Name               string
+	RemoteBuilderImage string
+	RemoteBuilderApp   *App
+	Slug               string
+	Type               string
+	ViewerRole         string
+	Apps               struct {
 		Nodes []App
 	}
 	Members struct {

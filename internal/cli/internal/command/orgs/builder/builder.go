@@ -1,4 +1,4 @@
-package builders
+package builder
 
 import (
 	"github.com/spf13/cobra"
@@ -8,10 +8,10 @@ import (
 
 func New() *cobra.Command {
 	const (
-		long = `"Commands for managing remote builders"
+		long = `"Commands for managing remote builder"
 `
-		short = "Manage remote builders"
-		usage = "builders"
+		short = "Manage remote builder"
+		usage = "builder"
 	)
 
 	builder := command.New(usage, short, long, nil,
@@ -20,6 +20,7 @@ func New() *cobra.Command {
 
 	builder.AddCommand(
 		newUpdate(),
+		newShow(),
 	)
 
 	return builder
