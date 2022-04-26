@@ -13,11 +13,11 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 )
 
-// New initializes and returns a new platform Command.
+// New initializes and returns a new monitor Command.
 func New() (cmd *cobra.Command) {
 	const (
-		long  = `The MONTITOR command...`
-		short = long
+		short = `Monitor currently running application deployments`
+		long  = short + `. Use Control-C to stop output.`
 	)
 
 	cmd = command.New("monitor", short, long, run,
