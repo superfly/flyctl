@@ -45,11 +45,11 @@ func runShow(ctx context.Context) error {
 	}
 
 	if org.RemoteBuilderApp != nil {
-		fmt.Fprint(io.Out, "App name: ", org.RemoteBuilderApp.Name)
+		fmt.Fprintf(io.Out, "App name: %s\n", org.RemoteBuilderApp.Name)
 	} else {
 		fmt.Fprintln(io.Out, "This org has not deployed apps yet.")
 	}
-	fmt.Fprint(io.Out, "Desired remote builder image: ", org.RemoteBuilderImage)
+	fmt.Fprintf(io.Out, "Desired remote builder image: %s \n", org.RemoteBuilderImage)
 
 	return nil
 }
