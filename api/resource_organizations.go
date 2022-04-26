@@ -101,7 +101,11 @@ func (client *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*
 		  type
 		  viewerRole
 		  internalNumericId
-		  members {
+			remoteBuilderImage
+			remoteBuilderApp {
+				name
+			}
+			members {
 				edges {
 					cursor
 					node {
@@ -139,7 +143,7 @@ func (c *Client) CreateOrganization(ctx context.Context, organizationname string
 					type
 					viewerRole
 				  }
-			}	
+			}
 		}
 	`
 
@@ -164,7 +168,7 @@ func (c *Client) DeleteOrganization(ctx context.Context, id string) (deletedid s
 		  clientMutationId
 		  deletedOrganizationId
 		  }
-		}	  
+		}
 	`
 
 	req := c.NewRequest(query)
@@ -241,4 +245,37 @@ func (c *Client) DeleteOrganizationMembership(ctx context.Context, orgId, userId
 	}
 
 	return data.DeleteOrganizationMembership.Organization.Name, data.DeleteOrganizationMembership.User.Email, nil
+}
+
+func (c *Client) UpdateRemoteBuilder(ctx context.Context, orgName string, image string) (*Organization, error) {
+
+	org, err := c.GetOrganizationBySlug(ctx, orgName)
+
+	if err != nil {
+		return nil, err
+	}
+
+	query := `
+		mutation($input: UpdateRemoteBuilderInput!) {
+			updateRemoteBuilder(input: $input) {
+			    organization {
+						remoteBuilderImage
+					}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("input", map[string]string{
+		"organizationId": org.ID,
+		"image":          image,
+	})
+
+	data, err := c.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.UpdateRemoteBuilder.Organization, nil
 }
