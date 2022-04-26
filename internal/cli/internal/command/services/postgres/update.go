@@ -98,15 +98,13 @@ func runUpdate(ctx context.Context) error {
 	}
 
 	if leader == nil {
-		return fmt.Errorf("this cluster no leader found")
+		return fmt.Errorf("this cluster has no leader")
 	}
 
-	// imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres")
-	// if err != nil {
-	// 	return err
-	// }
-
-	imageRef := "codebaker/postgres:latest"
+	imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres")
+	if err != nil {
+		return err
+	}
 
 	fmt.Fprintf(io.Out, "Updating replicas\n")
 
@@ -143,7 +141,6 @@ func updateMachine(ctx context.Context, app *api.App, machine *api.Machine, imag
 	}
 
 	fmt.Fprintf(io.Out, "Updating machine %s with image %s\n", machine.ID, image)
-	// fmt.Fprintf(io.Out, "Current metadata: %+v", machine.Config.Metadata)
 
 	machineConf := machine.Config
 	machineConf.Image = image
