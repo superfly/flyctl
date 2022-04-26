@@ -68,51 +68,65 @@ func runUpdate(ctx context.Context) error {
 		return fmt.Errorf("no machines found")
 	}
 
-	imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres")
-	if err != nil {
-		return err
-	}
+	var (
+		leader   *api.Machine
+		replicas []*api.Machine
+	)
 
-	// imageRef := "codebaker/postgres:latest"
+	fmt.Fprintf(io.Out, "Resolving cluster roles\n")
 
-	var leader *api.Machine
-
-	// TODO - Once role/failover has been converted to http endpoints we can
-	// work to orchestrate this a bit better.
 	for _, machine := range machines {
 		address := formatAddress(machine)
 
 		pgclient := flypg.NewFromInstance(address, dialer)
+		if err != nil {
+			return fmt.Errorf("can't connect to %s: %w", machine.Name, err)
+		}
 
 		role, err := pgclient.NodeRole(ctx)
 		if err != nil {
-			return err
+			return fmt.Errorf("can't get role for %s: %w", machine.Name, err)
 		}
 
-		fmt.Fprintf(io.Out, "Machine %s is a %s\n", machine.ID, role)
-
-		if role == "leader" {
+		switch role {
+		case "leader":
 			leader = machine
-			fmt.Fprintf(io.Out, "Skipping leader(%s) for now\n", machine.ID)
-			continue
+		case "replica":
+			replicas = append(replicas, machine)
 		}
+		fmt.Fprintf(io.Out, "  %s: %s\n", machine.ID, role)
+	}
 
-		err = updateMachine(ctx, app, machine, imageRef)
-		if err != nil {
-			return err
-		}
+	if leader == nil {
+		return fmt.Errorf("this cluster no leader found")
+	}
+
+	// imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres")
+	// if err != nil {
+	// 	return err
+	// }
+
+	imageRef := "codebaker/postgres:latest"
+
+	fmt.Fprintf(io.Out, "Updating replicas\n")
+
+	for _, replica := range replicas {
+		updateMachine(ctx, app, replica, imageRef)
 	}
 
 	pgclient := flypg.New(app.Name, dialer)
+
+	fmt.Fprintf(io.Out, "Failing over to a new leader\n")
 
 	if err := pgclient.Failover(ctx); err != nil {
 		return fmt.Errorf("failed to trigger failover %w", err)
 	}
 
-	if leader != nil {
-		if err := updateMachine(ctx, app, leader, imageRef); err != nil {
-			return err
-		}
+	fmt.Fprintf(io.Out, "Updating leader\n")
+
+	if err := updateMachine(ctx, app, leader, imageRef); err != nil {
+		return err
+
 	}
 
 	fmt.Fprintf(io.Out, "Successfully updated Postgres cluster\n")
