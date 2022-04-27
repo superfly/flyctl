@@ -43,7 +43,7 @@ sets the size as the number of gigabytes the volume will consume.`
 		flag.Int{
 			Name:        "size",
 			Shorthand:   "s",
-			Default:     10,
+			Default:     3,
 			Description: "Size of volume in gigabytes",
 		},
 		flag.Bool{
