@@ -169,7 +169,7 @@ func (f *Client) sendRequest(ctx context.Context, machine *api.V1Machine, method
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("request returned non-2xx status, %d", resp.StatusCode)
+		return nil, fmt.Errorf("request returned status %d", resp.StatusCode)
 	}
 
 	b, err := io.ReadAll(resp.Body)

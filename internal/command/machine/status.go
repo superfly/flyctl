@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -65,7 +66,12 @@ func runMachineStatus(ctx context.Context) error {
 
 	machineBody, err := flapsClient.Get(ctx, machineID)
 	if err != nil {
-		return fmt.Errorf("machine %s could not be retrieved", machineID)
+		switch {
+		case strings.Contains(err.Error(), "status"):
+			return fmt.Errorf("retrieve machine failed %s", err)
+		default:
+			return fmt.Errorf("machine %s could not be retrieved", machineID)
+		}
 	}
 	var machine api.V1Machine
 	err = json.Unmarshal(machineBody, &machine)
