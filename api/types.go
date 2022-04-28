@@ -1222,6 +1222,14 @@ type machineImageRef struct {
 	Digest     string            `json:"digest"`
 	Labels     map[string]string `json:"labels"`
 }
+
+type machineEvent struct {
+	Type      string `json:"type"`
+	Status    string `json:"status"`
+	Request   any    `json:"request,omitempty"`
+	Source    string `json:"source"`
+	Timestamp uint64 `json:"timestamp"`
+}
 type V1Machine struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -1241,6 +1249,8 @@ type V1Machine struct {
 	CreatedAt string `json:"created_at"`
 
 	Config *MachineConfig `json:"config"`
+
+	Events []*machineEvent `json:"events,omitempty"`
 }
 
 type V1MachineStop struct {
