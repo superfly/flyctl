@@ -35,3 +35,5 @@ out
 .vscode/launch.json
 fly.toml
 .DS_Store
+
+.direnv/
