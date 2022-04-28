@@ -79,14 +79,29 @@ func runMachineStatus(ctx context.Context) error {
 		return fmt.Errorf("machine %s could not be retrieved", machineID)
 	}
 
-	machineLink := io.CreateLink("View it in the UI here:", fmt.Sprintf("https://fly.io/apps/%s/machines/%s", appName, machine.ID))
+	machine.Events = append(machine.Events, &api.MachineEventt{
+		Type:      "Exit",
+		Status:    "404",
+		Request:   "",
+		Source:    "",
+		Timestamp: 543,
+	})
+	machine.Events = append(machine.Events, &api.MachineEventt{
+		Type:      "Exit",
+		Status:    "300",
+		Request:   "",
+		Source:    "",
+		Timestamp: 345,
+	})
 
-	fmt.Fprintf(io.Out, "Success! A machine has been retrieved\n%s\n\n", machineLink)
-
+	fmt.Fprintf(io.Out, "Success! A machine has been retrieved\n")
 	fmt.Fprintf(io.Out, " Machine ID: %s\n", machine.ID)
 	fmt.Fprintf(io.Out, " Instance ID: %s\n", machine.InstanceID)
 	fmt.Fprintf(io.Out, " State: %s\n", machine.State)
-	fmt.Fprintf(io.Out, " Region: %s\n", machine.Region)
-	fmt.Fprintf(io.Out, " Image: %s\n", machine.Config.Image)
+	fmt.Fprintf(io.Out, " Event Logs \n")
+	for _, event := range machine.Events {
+		fmt.Fprintf(io.Out, " %d %s %s \n", event.Timestamp, event.Type, event.Status)
+	}
+
 	return nil
 }

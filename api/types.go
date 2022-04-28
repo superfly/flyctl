@@ -1223,7 +1223,7 @@ type machineImageRef struct {
 	Labels     map[string]string `json:"labels"`
 }
 
-type machineEvent struct {
+type MachineEventt struct {
 	Type      string `json:"type"`
 	Status    string `json:"status"`
 	Request   any    `json:"request,omitempty"`
@@ -1250,7 +1250,7 @@ type V1Machine struct {
 
 	Config *MachineConfig `json:"config"`
 
-	Events []*machineEvent `json:"events,omitempty"`
+	Events []*MachineEventt `json:"events,omitempty"`
 }
 
 type V1MachineStop struct {
