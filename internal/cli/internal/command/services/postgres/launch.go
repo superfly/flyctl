@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cli/internal/command"
+	machines "github.com/superfly/flyctl/internal/cli/internal/command/machine"
 	"github.com/superfly/flyctl/internal/cli/internal/prompt"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/flag"
@@ -212,8 +213,7 @@ func (p *Launch) Launch(ctx context.Context) error {
 			return err
 		}
 
-		resp, err = flaps.Wait(ctx, &api.V1Machine{ID: machine.ID})
-		if err != nil {
+		if err := machines.WaitForStart(ctx, flaps, &api.V1Machine{ID: machine.ID}); err != nil {
 			return err
 		}
 

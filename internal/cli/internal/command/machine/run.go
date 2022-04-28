@@ -292,7 +292,7 @@ func runMachineRun(ctx context.Context) error {
 	fmt.Fprintf(io.Out, " State: %s\n", state)
 
 	// wait for machine to be started
-	if err := waitForStart(ctx, flapsClient, &machineBody); err != nil {
+	if err := WaitForStart(ctx, flapsClient, &machineBody); err != nil {
 		return err
 	}
 
@@ -333,7 +333,7 @@ func createApp(ctx context.Context, message, name string, client *api.Client) (*
 	return client.CreateApp(ctx, input)
 }
 
-func waitForStart(ctx context.Context, flapsClient *flaps.Client, machine *api.V1Machine) error {
+func WaitForStart(ctx context.Context, flapsClient *flaps.Client, machine *api.V1Machine) error {
 	waitCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
