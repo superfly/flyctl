@@ -304,7 +304,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 			appConfig.SetDockerCommand(srcInfo.DockerCommand)
 		}
 
-		if srcInfo.DockerCommand != "" {
+		if srcInfo.DockerEntrypoint != "" {
 			appConfig.SetDockerEntrypoint(srcInfo.DockerEntrypoint)
 		}
 
