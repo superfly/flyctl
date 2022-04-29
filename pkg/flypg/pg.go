@@ -122,7 +122,7 @@ func (c *Client) UserExists(ctx context.Context, name string) (bool, error) {
 }
 
 func (c *Client) NodeRole(ctx context.Context) (string, error) {
-	var endpoint = "commands/admin/role"
+	var endpoint = "/commands/admin/role"
 
 	out := new(NodeRoleResponse)
 
@@ -133,7 +133,7 @@ func (c *Client) NodeRole(ctx context.Context) (string, error) {
 }
 
 func (c *Client) RestartNode(ctx context.Context) error {
-	var endpoint = "commands/admin/restart"
+	var endpoint = "/commands/admin/restart"
 
 	out := new(RestartResponse)
 
@@ -144,7 +144,7 @@ func (c *Client) RestartNode(ctx context.Context) error {
 }
 
 func (c *Client) Failover(ctx context.Context) error {
-	var endpoint = "commands/admin/failover/trigger"
+	var endpoint = "/commands/admin/failover/trigger"
 
 	if err := c.Do(ctx, http.MethodGet, endpoint, nil, nil); err != nil {
 		return err
@@ -153,7 +153,7 @@ func (c *Client) Failover(ctx context.Context) error {
 }
 
 func (c *Client) SettingsView(ctx context.Context, settings []string) (*PGSettings, error) {
-	var endpoint = "commands/admin/settings/views"
+	var endpoint = "/commands/admin/settings/views"
 
 	out := new(SettingsViewResponse)
 

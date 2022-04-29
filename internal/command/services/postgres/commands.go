@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 
@@ -75,4 +76,10 @@ func (pc *postgresCmd) updateSettings(config map[string]string) error {
 	}
 
 	return nil
+}
+
+// encodeCommand will base64 encode a command string so it can be passed
+// in with  exec.Command.
+func encodeCommand(command string) string {
+	return base64.StdEncoding.Strict().EncodeToString([]byte(command))
 }

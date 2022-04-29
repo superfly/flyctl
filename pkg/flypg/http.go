@@ -8,8 +8,11 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"time"
 
+	"github.com/PuerkitoBio/rehttp"
 	"github.com/superfly/flyctl/pkg/agent"
+	"github.com/superfly/flyctl/terminal"
 )
 
 type Client struct {
@@ -22,23 +25,47 @@ type Client struct {
 func New(app string, dialer agent.Dialer) *Client {
 	url := fmt.Sprintf("http://%s.internal:5500", app)
 
-	tr := &http.Transport{
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return dialer.DialContext(ctx, network, addr)
-		},
-	}
-
-	client := &http.Client{Transport: tr}
-
 	return &Client{
-		httpClient: client,
+		httpClient: newHttpClient(dialer),
 		BaseURL:    url,
 	}
 }
 
 // NewFromInstance creates a new Client that targets a specific instance(address)
 func NewFromInstance(address string, dialer agent.Dialer) *Client {
-	return New(address, dialer)
+	url := fmt.Sprintf("http://%s:5500", address)
+
+	return &Client{
+		httpClient: newHttpClient(dialer),
+		BaseURL:    url,
+	}
+}
+
+func newHttpClient(dialer agent.Dialer) *http.Client {
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return dialer.DialContext(ctx, network, addr)
+		},
+	}
+
+	retry := rehttp.NewTransport(
+		transport,
+		rehttp.RetryAll(
+			rehttp.RetryMaxRetries(3),
+			rehttp.RetryAny(
+				rehttp.RetryTemporaryErr(),
+				rehttp.RetryStatuses(502, 503),
+			),
+		),
+		rehttp.ExpJitterDelay(100*time.Millisecond, 1*time.Second),
+	)
+
+	logging := &LoggingTransport{
+		innerTransport: retry,
+		logger:         terminal.DefaultLogger,
+	}
+
+	return &http.Client{Transport: logging}
 }
 
 func (c *Client) Do(ctx context.Context, method, path string, in, out interface{}) error {
