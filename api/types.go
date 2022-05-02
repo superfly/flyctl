@@ -1223,12 +1223,19 @@ type machineImageRef struct {
 	Labels     map[string]string `json:"labels"`
 }
 
+type MachineEvent struct {
+	ID        string
+	Kind      string
+	Timestamp time.Time
+	Metadata  map[string]interface{}
+}
+
 type MachineEventt struct {
-	Type      string `json:"type"`
-	Status    string `json:"status"`
-	Request   any    `json:"request,omitempty"`
-	Source    string `json:"source"`
-	Timestamp uint64 `json:"timestamp"`
+	Type      string      `json:"type"`
+	Status    string      `json:"status"`
+	Request   interface{} `json:"request,omitempty"`
+	Source    string      `json:"source"`
+	Timestamp int64       `json:"timestamp"`
 }
 type V1Machine struct {
 	ID   string `json:"id"`
@@ -1351,13 +1358,6 @@ type MachineConfig struct {
 type DeleteOrganizationMembershipPayload struct {
 	Organization *Organization
 	User         *User
-}
-
-type MachineEvent struct {
-	ID        string
-	Kind      string
-	Timestamp time.Time
-	Metadata  map[string]interface{}
 }
 
 type MachineEventStop struct {
