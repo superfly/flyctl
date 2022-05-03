@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/internal/app"
@@ -39,7 +40,43 @@ func newShow() *cobra.Command {
 	return cmd
 }
 
-func runShow(ctx context.Context) error {
+func runShow(ctx context.Context) (err error) {
+	var (
+		client  = client.FromContext(ctx).API()
+		io      = iostreams.FromContext(ctx)
+		appName = app.NameFromContext(ctx)
+	)
+
+	app, err := client.GetApp(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("get app: %w", err)
+	}
+
+	var status *api.AppStatus
+
+	if status, err = client.GetAppStatus(ctx, appName, true); err != nil {
+		err = fmt.Errorf("failed retrieving app %s: %w", appName, err)
+
+		return
+	}
+
+	if !status.Deployed && app.PlatformVersion == "" {
+		_, err = fmt.Fprintln(io.Out, "App has not been deployed yet.")
+
+		return
+	}
+
+	switch app.PlatformVersion {
+	case "nomad":
+		return showNomadImage(ctx, app)
+	case "machines":
+		return showMachineImage(ctx, app)
+	}
+
+	return nil
+}
+
+func showNomadImage(ctx context.Context, machine *api.App) error {
 	var (
 		client   = client.FromContext(ctx).API()
 		cfg      = config.FromContext(ctx)
@@ -48,25 +85,25 @@ func runShow(ctx context.Context) error {
 		appName  = app.NameFromContext(ctx)
 	)
 
-	app, err := client.GetImageInfo(ctx, appName)
+	info, err := client.GetImageInfo(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed to get image info: %w", err)
 	}
 
 	if cfg.JSONOutput {
-		return render.JSON(io.Out, app.ImageDetails)
+		return render.JSON(io.Out, info.ImageDetails)
 	}
 
-	if app.ImageVersionTrackingEnabled && app.ImageUpgradeAvailable {
-		current := fmt.Sprintf("%s:%s", app.ImageDetails.Repository, app.ImageDetails.Tag)
-		latest := fmt.Sprintf("%s:%s", app.LatestImageDetails.Repository, app.LatestImageDetails.Tag)
+	if info.ImageVersionTrackingEnabled && info.ImageUpgradeAvailable {
+		current := fmt.Sprintf("%s:%s", info.ImageDetails.Repository, info.ImageDetails.Tag)
+		latest := fmt.Sprintf("%s:%s", info.LatestImageDetails.Repository, info.LatestImageDetails.Tag)
 
-		if app.ImageDetails.Version != "" {
-			current = fmt.Sprintf("%s %s", current, app.ImageDetails.Version)
+		if info.ImageDetails.Version != "" {
+			current = fmt.Sprintf("%s %s", current, info.ImageDetails.Version)
 		}
 
-		if app.LatestImageDetails.Version != "" {
-			latest = fmt.Sprintf("%s %s", latest, app.LatestImageDetails.Version)
+		if info.LatestImageDetails.Version != "" {
+			latest = fmt.Sprintf("%s %s", latest, info.LatestImageDetails.Version)
 		}
 
 		var message = fmt.Sprintf("Update available! (%s -> %s)\n", current, latest)
@@ -75,7 +112,7 @@ func runShow(ctx context.Context) error {
 		fmt.Fprintln(io.ErrOut, colorize.Yellow(message))
 	}
 
-	image := app.ImageDetails
+	image := info.ImageDetails
 
 	if image.Version == "" {
 		image.Version = "N/A"
@@ -98,4 +135,51 @@ func runShow(ctx context.Context) error {
 		"Version",
 		"Digest",
 	)
+}
+
+func showMachineImage(ctx context.Context, app *api.App) error {
+	var (
+		client = client.FromContext(ctx).API()
+		io     = iostreams.FromContext(ctx)
+	)
+
+	// get machines
+	machines, err := client.ListMachines(ctx, app.Name, "")
+	if err != nil {
+		return fmt.Errorf("failed to get machines: %w", err)
+	}
+
+	rows := [][]string{}
+
+	for _, machine := range machines {
+		var image = machine.Config.ImageRef
+
+		var version = "N/A"
+
+		if image.Labels != nil && image.Labels["version"] != "" {
+			version = image.Labels["version"]
+		}
+
+		rows = append(rows, []string{
+			machine.ID,
+			image.Registry,
+			image.Repository,
+			image.Tag,
+			version,
+			image.Digest,
+		})
+	}
+
+	return render.Table(
+		io.Out,
+		"Machine Image Details",
+		rows,
+		"Machine ID",
+		"Registry",
+		"Repository",
+		"Tag",
+		"Version",
+		"Digest",
+	)
+
 }
