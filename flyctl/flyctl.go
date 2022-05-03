@@ -122,7 +122,7 @@ func GetAPIToken() string {
 
 }
 
-var writeableConfigKeys = []string{ConfigAPIToken, ConfigInstaller, ConfigWireGuardState, ConfigWireGuardWebsockets, BuildKitNodeID}
+var writeableConfigKeys = []string{ConfigAPIToken, ConfigInstaller, ConfigWireGuardState, ConfigDisableWireGuardWebsockets, BuildKitNodeID}
 
 func SaveConfig() error {
 	out := map[string]interface{}{}

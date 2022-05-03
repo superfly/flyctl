@@ -217,13 +217,12 @@ func (s *server) buildTunnel(org *api.Organization, recycle bool) (tunnel *wg.Tu
 		return
 	}
 
-	// WIP: can't stay this way, need something more clever than this
-	if os.Getenv("WSWG") != "" || viper.GetBool(flyctl.ConfigWireGuardWebsockets) {
-		if tunnel, err = wg.ConnectWS(context.Background(), state); err != nil {
+	if os.Getenv("WG_WEBSOCKETS") == "disable" || viper.GetBool(flyctl.ConfigDisableWireGuardWebsockets) {
+		if tunnel, err = wg.Connect(context.Background(), state); err != nil {
 			return
 		}
 	} else {
-		if tunnel, err = wg.Connect(context.Background(), state); err != nil {
+		if tunnel, err = wg.ConnectWS(context.Background(), state); err != nil {
 			return
 		}
 	}

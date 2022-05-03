@@ -40,7 +40,7 @@ func newWireGuardCommand(client *client.Client) *Command {
 	child(cmd, runWireGuardRemove, "wireguard.remove").Args = cobra.MaximumNArgs(2)
 	child(cmd, runWireGuardStat, "wireguard.status").Args = cobra.MaximumNArgs(2)
 	child(cmd, runWireGuardResetPeer, "wireguard.reset").Args = cobra.MaximumNArgs(1)
-	child(cmd, runWireGuardWebSockets, "wireguard.websockets").Args = cobra.ExactArgs(1)
+	child(cmd, runWireGuardWebSockets, "wireguard.websockets").Args = cobra.MaximumNArgs(1)
 
 	tokens := child(cmd, nil, "wireguard.token")
 
@@ -202,12 +202,22 @@ func resolveOutputWriter(ctx *cmdctx.CmdContext, idx int, prompt string) (w io.W
 }
 
 func runWireGuardWebSockets(ctx *cmdctx.CmdContext) error {
+
+	if len(ctx.Args) == 0 {
+		if viper.GetBool(flyctl.ConfigDisableWireGuardWebsockets) {
+			fmt.Println("Wireguard is configured to connect over UDP. Switch to connecting over websockets with 'fly wg websockets enable'.")
+		} else {
+			fmt.Println("Wireguard is configured to connect over websockets. Switch back to UDP-based connections with 'fly wg websockets disable'.")
+		}
+		return nil
+	}
+
 	switch ctx.Args[0] {
 	case "enable":
-		viper.Set(flyctl.ConfigWireGuardWebsockets, true)
+		viper.Set(flyctl.ConfigDisableWireGuardWebsockets, false)
 
 	case "disable":
-		viper.Set(flyctl.ConfigWireGuardWebsockets, false)
+		viper.Set(flyctl.ConfigDisableWireGuardWebsockets, true)
 
 	default:
 		fmt.Printf("bad arg: flyctl wireguard websockets (enable|disable)\n")
