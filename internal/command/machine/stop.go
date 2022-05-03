@@ -79,7 +79,7 @@ func runMachineStop(ctx context.Context) (err error) {
 		if appName == "" {
 			return errors.New("app is not found")
 		}
-		app, err := client.GetApp(ctx, appName)
+		app, err := client.GetAppCompact(ctx, appName)
 		if err != nil {
 			return err
 		}

@@ -45,7 +45,7 @@ func runUpdate(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
 
-	app, err := client.GetApp(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
@@ -133,7 +133,7 @@ func runUpdate(ctx context.Context) error {
 	return nil
 }
 
-func updateMachine(ctx context.Context, app *api.App, machine *api.Machine, image string) error {
+func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machine, image string) error {
 	var io = iostreams.FromContext(ctx)
 
 	flaps, err := flaps.New(ctx, app)

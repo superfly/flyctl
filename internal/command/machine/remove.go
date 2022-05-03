@@ -64,7 +64,7 @@ func runMachineRemove(ctx context.Context) (err error) {
 		return fmt.Errorf("app was not found")
 	}
 
-	app, err := client.GetApp(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
 	}
