@@ -255,7 +255,7 @@ func (p *Launch) configurePostgres() (*api.MachineConfig, error) {
 	return &machineConfig, nil
 }
 
-func (p *Launch) createApp(ctx context.Context) (*api.App, error) {
+func (p *Launch) createApp(ctx context.Context) (*api.AppCompact, error) {
 	fmt.Println("Creating app...")
 	appInput := api.CreateAppInput{
 		OrganizationID:  p.config.Organization.ID,
@@ -265,7 +265,23 @@ func (p *Launch) createApp(ctx context.Context) (*api.App, error) {
 		AppRoleID:       "postgres_cluster",
 	}
 
-	return p.client.CreateApp(ctx, appInput)
+	app, err := p.client.CreateApp(ctx, appInput)
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.AppCompact{
+		ID:           app.ID,
+		Name:         app.Name,
+		Status:       app.Status,
+		Deployed:     app.Deployed,
+		Hostname:     app.Hostname,
+		AppURL:       app.AppURL,
+		Version:      app.Version,
+		Release:      app.Release,
+		Organization: app.Organization,
+		IPAddresses:  app.IPAddresses,
+	}, nil
 }
 
 func (p *Launch) setSecrets(ctx context.Context) (map[string]string, error) {

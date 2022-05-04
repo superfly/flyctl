@@ -56,7 +56,7 @@ func runMachineList(ctx context.Context) (err error) {
 	if appName == "" {
 		return fmt.Errorf("app is not found")
 	}
-	app, err := client.GetApp(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
 	}

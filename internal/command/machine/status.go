@@ -54,7 +54,7 @@ func runMachineStatus(ctx context.Context) error {
 	if appName == "" {
 		return fmt.Errorf("app is not found")
 	}
-	app, err := client.GetApp(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
 	}

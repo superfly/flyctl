@@ -21,13 +21,13 @@ import (
 )
 
 type Client struct {
-	app        *api.App
+	app        *api.AppCompact
 	peerIP     string
 	authToken  string
 	httpClient *http.Client
 }
 
-func New(ctx context.Context, app *api.App) (*Client, error) {
+func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
 	client := client.FromContext(ctx).API()
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {

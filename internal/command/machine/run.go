@@ -158,7 +158,7 @@ func runMachineRun(ctx context.Context) error {
 		client  = client.FromContext(ctx).API()
 		io      = iostreams.FromContext(ctx)
 		err     error
-		app     *api.App
+		app     *api.AppCompact
 	)
 
 	if appName == "" {
@@ -167,7 +167,7 @@ func runMachineRun(ctx context.Context) error {
 			return err
 		}
 	} else {
-		app, err = client.GetApp(ctx, appName)
+		app, err = client.GetAppCompact(ctx, appName)
 		if err != nil && strings.Contains(err.Error(), "Could not resolve") {
 			app, err = createApp(ctx, fmt.Sprintf("App '%s' does not exist, would you like to create it?", appName), appName, client)
 			if app == nil {
@@ -302,7 +302,7 @@ func runMachineRun(ctx context.Context) error {
 	return nil
 }
 
-func createApp(ctx context.Context, message, name string, client *api.Client) (*api.App, error) {
+func createApp(ctx context.Context, message, name string, client *api.Client) (*api.AppCompact, error) {
 	confirm, err := prompt.Confirm(ctx, message)
 	if err != nil {
 		return nil, err
@@ -330,7 +330,23 @@ func createApp(ctx context.Context, message, name string, client *api.Client) (*
 		OrganizationID: org.ID,
 	}
 
-	return client.CreateApp(ctx, input)
+	app, err := client.CreateApp(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.AppCompact{
+		ID:           app.ID,
+		Name:         app.Name,
+		Status:       app.Status,
+		Deployed:     app.Deployed,
+		Hostname:     app.Hostname,
+		AppURL:       app.AppURL,
+		Version:      app.Version,
+		Release:      app.Release,
+		Organization: app.Organization,
+		IPAddresses:  app.IPAddresses,
+	}, nil
 }
 
 func WaitForStart(ctx context.Context, flapsClient *flaps.Client, machine *api.V1Machine) error {

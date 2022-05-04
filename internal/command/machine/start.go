@@ -50,7 +50,7 @@ func runMachineStart(ctx context.Context) (err error) {
 	if appName == "" {
 		return errors.New("app is not found")
 	}
-	app, err := client.GetApp(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -81,7 +81,7 @@ func runMachineStart(ctx context.Context) (err error) {
 		return fmt.Errorf("machine could not be started %s", machineBody.Message)
 	}
 
-	fmt.Fprintf(out, "%s has been started", machineID)
+	fmt.Fprintf(out, "%s has been started\n", machineID)
 
 	return
 }

@@ -79,7 +79,7 @@ func runMachineStop(ctx context.Context) (err error) {
 		if appName == "" {
 			return errors.New("app is not found")
 		}
-		app, err := client.GetApp(ctx, appName)
+		app, err := client.GetAppCompact(ctx, appName)
 		if err != nil {
 			return err
 		}
@@ -93,7 +93,7 @@ func runMachineStop(ctx context.Context) (err error) {
 			return fmt.Errorf("could not stop machine %s: %w", machineStopInput.ID, err)
 		}
 
-		fmt.Fprintf(out, "%s has been successfully stopped", machineStopInput.ID)
+		fmt.Fprintf(out, "%s has been successfully stopped\n", machineStopInput.ID)
 	}
 	return
 }
