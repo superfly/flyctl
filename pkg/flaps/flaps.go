@@ -154,13 +154,13 @@ func (f *Client) sendRequest(ctx context.Context, machine *api.V1Machine, method
 		peerIP = resolvePeerIP(machine.PrivateIP)
 	}
 
-	targetEndpoint := fmt.Sprintf("http://[%s]:4280/v1/machines%s", peerIP, endpoint)
+	targetEndpoint := fmt.Sprintf("http://[%s]:4280/v1/apps/%s/machines%s", peerIP, f.app.Name, endpoint)
 
 	req, err := http.NewRequestWithContext(ctx, method, targetEndpoint, bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("could not create new request, %w", err)
 	}
-	req.SetBasicAuth(f.app.Name, f.authToken)
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", f.authToken))
 
 	resp, err := f.httpClient.Do(req)
 	if err != nil {
