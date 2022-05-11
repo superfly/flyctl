@@ -154,23 +154,23 @@ func newRun() *cobra.Command {
 
 func runMachineRun(ctx context.Context) error {
 	var (
-		appName = app.NameFromContext(ctx)
-		client  = client.FromContext(ctx).API()
-		io      = iostreams.FromContext(ctx)
-		err     error
-		app     *api.AppCompact
+		appName    = app.NameFromContext(ctx)
+		client     = client.FromContext(ctx).API()
+		io         = iostreams.FromContext(ctx)
+		err        error
+		machineApp *api.AppCompact
 	)
 
 	if appName == "" {
-		app, err = createApp(ctx, "Running a machine without specifying an app will create one for you, is this what you want?", "", client)
+		machineApp, err = createApp(ctx, "Running a machine without specifying an app will create one for you, is this what you want?", "", client)
 		if err != nil {
 			return err
 		}
 	} else {
-		app, err = client.GetAppCompact(ctx, appName)
+		machineApp, err = client.GetAppCompact(ctx, appName)
 		if err != nil && strings.Contains(err.Error(), "Could not resolve") {
-			app, err = createApp(ctx, fmt.Sprintf("App '%s' does not exist, would you like to create it?", appName), appName, client)
-			if app == nil {
+			machineApp, err = createApp(ctx, fmt.Sprintf("App '%s' does not exist, would you like to create it?", appName), appName, client)
+			if machineApp == nil {
 				return nil
 			}
 		}
@@ -188,12 +188,12 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	input := api.LaunchMachineInput{
-		AppID:  app.Name,
+		AppID:  machineApp.Name,
 		Name:   flag.GetString(ctx, "name"),
 		Region: flag.GetString(ctx, "region"),
 	}
 
-	flapsClient, err := flaps.New(ctx, app)
+	flapsClient, err := flaps.New(ctx, machineApp)
 	if err != nil {
 		return fmt.Errorf("could not make API client: %w", err)
 	}
@@ -262,7 +262,7 @@ func runMachineRun(ctx context.Context) error {
 		return err
 	}
 
-	img, err := determineImage(ctx, app.Name)
+	img, err := determineImage(ctx, machineApp.Name)
 	if err != nil {
 		return err
 	}
