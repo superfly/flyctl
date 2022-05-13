@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -168,16 +169,27 @@ func (f *Client) sendRequest(ctx context.Context, machine *api.V1Machine, method
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("request returned non-2xx status, %d", resp.StatusCode)
-	}
+	switch resp.StatusCode / 100 {
+	case 1, 3:
+		return nil, fmt.Errorf("API returned unexpected status, %d", resp.StatusCode)
+	case 2:
+		b, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read body, %w", err)
+		}
 
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read body, %w", err)
+		return b, nil
+	case 4, 5:
+		apiErr := struct {
+			Error string `json:"error"`
+		}{}
+		if err := json.NewDecoder(resp.Body).Decode(&apiErr); err != nil {
+			return nil, fmt.Errorf("request returned non-2xx status, %d", resp.StatusCode)
+		}
+		return nil, errors.New(apiErr.Error)
+	default:
+		return nil, errors.New("something went terribly wrong")
 	}
-
-	return b, nil
 }
 
 func resolvePeerIP(ip string) string {

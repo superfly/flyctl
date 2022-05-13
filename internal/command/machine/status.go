@@ -65,7 +65,7 @@ func runMachineStatus(ctx context.Context) error {
 
 	machineBody, err := flapsClient.Get(ctx, machineID)
 	if err != nil {
-		return fmt.Errorf("machine %s could not be retrieved", machineID)
+		return fmt.Errorf("machine %s could not be retrieved, %w", machineID, err)
 	}
 	var machine api.V1Machine
 	err = json.Unmarshal(machineBody, &machine)
