@@ -371,6 +371,7 @@ func isCygwinTerminal(w io.Writer) bool {
 	return false
 }
 
+// code courtesy of https://github.com/savioxavier/termlink
 func isTextClickable() bool {
 	if os.Getenv("FORCE_HYPERLINK") != "" {
 		return true
@@ -378,6 +379,14 @@ func isTextClickable() bool {
 	if os.Getenv("DOMTERM") != "" {
 		// DomTerm
 		return true
+	}
+	if os.Getenv("TERM_PROGRAM") != "" {
+		if os.Getenv("TERM_PROGRAM") == "Hyper" ||
+			os.Getenv("TERM_PROGRAM") == "iTerm.app" ||
+			os.Getenv("TERM_PROGRAM") == "terminology" ||
+			os.Getenv("TERM_PROGRAM") == "WezTerm" {
+			return true
+		}
 	}
 	if os.Getenv("WT_SESSION") != "" || os.Getenv("KONSOLE_VERSION") != "" {
 		return true
