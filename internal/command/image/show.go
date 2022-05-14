@@ -2,11 +2,13 @@ package image
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/pkg/flaps"
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/internal/app"
@@ -30,11 +32,15 @@ func newShow() *cobra.Command {
 		command.RequireAppName,
 	)
 
-	cmd.Args = cobra.NoArgs
+	cmd.Args = cobra.MaximumNArgs(1)
 
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.String{
+			Name:        "machine-id",
+			Description: "The machine ID to show the image for.\n",
+		},
 	)
 
 	return cmd
@@ -128,7 +134,7 @@ func showNomadImage(ctx context.Context, machine *api.App) error {
 		},
 	}
 
-	return render.VerticalTable(io.Out, "Deployment Status", obj,
+	return render.VerticalTable(io.Out, "Image Details", obj,
 		"Registry",
 		"Repository",
 		"Tag",
@@ -143,6 +149,52 @@ func showMachineImage(ctx context.Context, app *api.App) error {
 		io     = iostreams.FromContext(ctx)
 	)
 
+	// if we have machine_id as an arg, we want to show the image for that machine only
+	if len(flag.Args(ctx)) > 0 {
+		flaps, err := flaps.New(ctx, app)
+		if err != nil {
+			return err
+		}
+
+		raw, err := flaps.Get(ctx, flag.FirstArg(ctx))
+		if err != nil {
+			return fmt.Errorf("failed to get machine: %w", err)
+		}
+
+		var machine = new(api.V1Machine)
+
+		if err := json.Unmarshal(raw, machine); err != nil {
+			return fmt.Errorf("failed to unmarshal machine: %w", err)
+		}
+
+		fmt.Println(machine.ID)
+
+		var version = "N/A"
+
+		if machine.ImageRef.Labels != nil && machine.ImageRef.Labels["version"] != "" {
+			version = machine.ImageRef.Labels["version"]
+		}
+
+		obj := [][]string{
+			{
+
+				machine.ImageRef.Registry,
+				machine.ImageRef.Repository,
+				machine.ImageRef.Tag,
+				version,
+				machine.ImageRef.Digest,
+			},
+		}
+
+		return render.VerticalTable(io.Out, "Image Details", obj,
+			"Registry",
+			"Repository",
+			"Tag",
+			"Version",
+			"Digest",
+		)
+
+	}
 	// get machines
 	machines, err := client.ListMachines(ctx, app.Name, "")
 	if err != nil {
@@ -172,7 +224,7 @@ func showMachineImage(ctx context.Context, app *api.App) error {
 
 	return render.Table(
 		io.Out,
-		"Machine Image Details",
+		"Image Details",
 		rows,
 		"Machine ID",
 		"Registry",
