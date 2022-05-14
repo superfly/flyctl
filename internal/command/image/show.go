@@ -171,8 +171,8 @@ func showMachineImage(ctx context.Context, app *api.App) error {
 
 		var version = "N/A"
 
-		if machine.ImageRef.Labels != nil && machine.ImageRef.Labels["version"] != "" {
-			version = machine.ImageRef.Labels["version"]
+		if machine.ImageRef.Labels != nil && machine.ImageRef.Labels["fly.version"] != "" {
+			version = machine.ImageRef.Labels["fly.version"]
 		}
 
 		obj := [][]string{
