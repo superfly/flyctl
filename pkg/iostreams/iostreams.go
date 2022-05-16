@@ -315,6 +315,14 @@ func (s *IOStreams) TempFile(dir, pattern string) (*os.File, error) {
 	return ioutil.TempFile(dir, pattern)
 }
 
+func (s *IOStreams) CreateLink(text string, url string) string {
+	if isTextClickable() {
+		return "\x1b]8;;" + url + "\x07" + text + "\x1b]8;;\x07"
+	} else {
+		return text + " (\u200B" + url + ")"
+	}
+}
+
 func System() *IOStreams {
 	stdoutIsTTY := isTerminal(os.Stdout)
 	stderrIsTTY := isTerminal(os.Stderr)
@@ -359,6 +367,29 @@ func isTerminal(f *os.File) bool {
 func isCygwinTerminal(w io.Writer) bool {
 	if f, isFile := w.(*os.File); isFile {
 		return isatty.IsCygwinTerminal(f.Fd())
+	}
+	return false
+}
+
+// code courtesy of https://github.com/savioxavier/termlink
+func isTextClickable() bool {
+	if os.Getenv("FORCE_HYPERLINK") != "" {
+		return true
+	}
+	if os.Getenv("DOMTERM") != "" {
+		// DomTerm
+		return true
+	}
+	if os.Getenv("TERM_PROGRAM") != "" {
+		if os.Getenv("TERM_PROGRAM") == "Hyper" ||
+			os.Getenv("TERM_PROGRAM") == "iTerm.app" ||
+			os.Getenv("TERM_PROGRAM") == "terminology" ||
+			os.Getenv("TERM_PROGRAM") == "WezTerm" {
+			return true
+		}
+	}
+	if os.Getenv("WT_SESSION") != "" || os.Getenv("KONSOLE_VERSION") != "" {
+		return true
 	}
 	return false
 }
