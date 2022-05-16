@@ -73,10 +73,11 @@ func runMachineStatus(ctx context.Context) error {
 		return fmt.Errorf("machine %s could not be retrieved", machineID)
 	}
 
-	machineLink := io.CreateLink(machine.ID, fmt.Sprintf("https://fly.io/apps/%s/machines/%s", appName, machine.ID))
+	machineLink := io.CreateLink("View it in the UI here:", fmt.Sprintf("https://fly.io/apps/%s/machines/%s", appName, machine.ID))
 
-	fmt.Fprintf(io.Out, "Success! A machine has been retrieved\n")
-	fmt.Fprintf(io.Out, "%s\n", machineLink)
+	fmt.Fprintf(io.Out, "Success! A machine has been retrieved\n%s\n\n", machineLink)
+
+	fmt.Fprintf(io.Out, " Machine ID: %s\n", machine.ID)
 	fmt.Fprintf(io.Out, " Instance ID: %s\n", machine.InstanceID)
 	fmt.Fprintf(io.Out, " State: %s\n", machine.State)
 	fmt.Fprintf(io.Out, " Region: %s\n", machine.Region)
