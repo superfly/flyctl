@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -69,7 +70,7 @@ func newRun() *cobra.Command {
 		flag.String{
 			Name:        "size",
 			Shorthand:   "s",
-			Description: "Preset guest cpu and memory for a machine",
+			Description: "Preset guest cpu and memory for a machine, defaults to shared-cpu-1x",
 		},
 		flag.Int{
 			Name:        "cpus",
@@ -213,7 +214,18 @@ func runMachineRun(ctx context.Context) error {
 		machineConf = *machine.Config
 	}
 
-	if guest := api.MachinePresets[flag.GetString(ctx, "size")]; guest != nil {
+	if guestSize := flag.GetString(ctx, "size"); guestSize != "" {
+		guest, ok := api.MachinePresets[guestSize]
+		if !ok {
+			validSizes := []string{}
+			for size := range api.MachinePresets {
+				if strings.HasPrefix(size, "shared") {
+					validSizes = append(validSizes, size)
+				}
+			}
+			sort.Strings(validSizes)
+			return fmt.Errorf("invalid machine size requested, '%s', available:\n%s", guestSize, strings.Join(validSizes, "\n"))
+		}
 		machineConf.Guest = guest
 	} else {
 		if cpus := flag.GetInt(ctx, "cpus"); cpus != 0 {
