@@ -30,18 +30,6 @@ import (
 	"github.com/superfly/flyctl/pkg/flaps"
 )
 
-type MachineExitEvent struct {
-	RequestedStop bool   `json:"requested_stop"`
-	Restarting    bool   `json:"restarting"`
-	GuestExitCode int64  `json:"guest_exit_code"`
-	GuestSignal   int64  `json:"guest_signal"`
-	GuestError    string `json:"guest_error,omitempty"`
-	ExitCode      int64  `json:"exit_code"`
-	Signal        int64  `json:"signal"`
-	Error         string `json:"error,omitempty"`
-	OOMKilled     bool   `json:"oom_killed"`
-}
-
 func newRun() *cobra.Command {
 	const (
 		short = "Run a machine"
@@ -83,17 +71,15 @@ func newRun() *cobra.Command {
 			Shorthand:   "s",
 			Description: "Preset guest cpu and memory for a machine",
 		},
-		flag.String{
-			Name:        "cpu-kind",
-			Description: "Kind of CPU to use (shared, dedicated)",
-		},
 		flag.Int{
 			Name:        "cpus",
 			Description: "Number of CPUs",
+			Hidden:      true,
 		},
 		flag.Int{
 			Name:        "memory",
 			Description: "Memory (in megabytes) to attribute to the machine",
+			Hidden:      true,
 		},
 		flag.StringSlice{
 			Name:        "env",
@@ -104,26 +90,33 @@ func newRun() *cobra.Command {
 			Name:        "volume",
 			Shorthand:   "v",
 			Description: "Volumes to mount in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
+			Hidden:      true,
 		},
 		flag.String{
 			Name:        "entrypoint",
 			Description: "ENTRYPOINT replacement",
+			Hidden:      true,
 		},
 		flag.Bool{
 			Name:        "detach",
 			Shorthand:   "d",
 			Description: "Detach from the machine's logs",
+			Hidden:      true,
 		},
 		flag.Bool{
-			Name: "build-only",
+			Name:        "build-only",
+			Description: "Only build the image without running the machine",
+			Hidden:      true,
 		},
 		flag.Bool{
 			Name:        "build-remote-only",
 			Description: "Perform builds remotely without using the local docker daemon",
+			Hidden:      true,
 		},
 		flag.Bool{
 			Name:        "build-local-only",
 			Description: "Only perform builds locally using the local docker daemon",
+			Hidden:      true,
 		},
 		flag.String{
 			Name:        "dockerfile",
@@ -132,18 +125,22 @@ func newRun() *cobra.Command {
 		flag.StringSlice{
 			Name:        "build-arg",
 			Description: "Set of build time variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
+			Hidden:      true,
 		},
 		flag.String{
 			Name:        "image-label",
 			Description: "Image label to use when tagging and pushing to the fly registry. Defaults to \"deployment-{timestamp}\".",
+			Hidden:      true,
 		},
 		flag.String{
 			Name:        "build-target",
 			Description: "Set the target build stage to build if the Dockerfile has more than one stage",
+			Hidden:      true,
 		},
 		flag.Bool{
 			Name:        "no-build-cache",
 			Description: "Do not use the cache when building the image",
+			Hidden:      true,
 		},
 	)
 
@@ -225,10 +222,6 @@ func runMachineRun(ctx context.Context) error {
 
 		if memory := flag.GetInt(ctx, "memory"); memory != 0 {
 			machineConf.Guest.MemoryMB = memory
-		}
-
-		if cpuKind := flag.GetString(ctx, "cpu-kind"); cpuKind != "" && cpuKind != "shared" {
-			return errors.New("unsupported cpu-kind flag, only shared allowed")
 		}
 	}
 

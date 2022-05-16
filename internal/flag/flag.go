@@ -139,6 +139,7 @@ type StringSlice struct {
 	Default     []string
 	ConfName    string
 	EnvName     string
+	Hidden      bool
 }
 
 func (ss StringSlice) addTo(cmd *cobra.Command) {
@@ -149,6 +150,9 @@ func (ss StringSlice) addTo(cmd *cobra.Command) {
 	} else {
 		_ = flags.StringSlice(ss.Name, ss.Default, ss.Description)
 	}
+
+	f := flags.Lookup(ss.Name)
+	f.Hidden = ss.Hidden
 }
 
 // Org returns an org string flag.
