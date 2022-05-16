@@ -143,6 +143,11 @@ func newRun() *cobra.Command {
 			Description: "Do not use the cache when building the image",
 			Hidden:      true,
 		},
+		flag.StringSlice{
+			Name:        "kernel-args",
+			Description: "List of kernel arguments to be provided to the init. Can be specified multiple times.",
+			Hidden:      true,
+		},
 	)
 
 	cmd.Args = cobra.MinimumNArgs(1)
@@ -179,9 +184,10 @@ func runMachineRun(ctx context.Context) error {
 
 	machineConf := api.MachineConfig{
 		Guest: &api.MachineGuest{
-			CPUKind:  "shared",
-			CPUs:     1,
-			MemoryMB: 256,
+			CPUKind:    "shared",
+			CPUs:       1,
+			MemoryMB:   256,
+			KernelArgs: flag.GetStringSlice(ctx, "kernel-args"),
 		},
 	}
 

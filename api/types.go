@@ -1301,6 +1301,8 @@ type MachineGuest struct {
 	CPUKind  string `json:"cpu_kind"`
 	CPUs     int    `json:"cpus"`
 	MemoryMB int    `json:"memory_mb"`
+
+	KernelArgs []string `json:"kernel_args,omitempty"`
 }
 
 const (
