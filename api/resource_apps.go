@@ -157,6 +157,7 @@ func (client *Client) GetAppCompact(ctx context.Context, appName string) (*AppCo
 				status
 				version
 				appUrl
+				platformVersion
 				organization {
 					slug
 				}

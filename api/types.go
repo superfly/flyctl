@@ -421,7 +421,8 @@ type AppCompact struct {
 	IPAddresses  struct {
 		Nodes []IPAddress
 	}
-	Services []Service
+	PlatformVersion string
+	Services        []Service
 }
 
 type AppStatus struct {

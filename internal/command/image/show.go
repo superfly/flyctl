@@ -53,7 +53,7 @@ func runShow(ctx context.Context) (err error) {
 		appName = app.NameFromContext(ctx)
 	)
 
-	app, err := client.GetApp(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
@@ -82,16 +82,16 @@ func runShow(ctx context.Context) (err error) {
 	return nil
 }
 
-func showNomadImage(ctx context.Context, machine *api.App) error {
+func showNomadImage(ctx context.Context, app *api.AppCompact) error {
 	var (
 		client   = client.FromContext(ctx).API()
 		cfg      = config.FromContext(ctx)
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
-		appName  = app.NameFromContext(ctx)
+		// appName  = app.NameFromContext(ctx)
 	)
 
-	info, err := client.GetImageInfo(ctx, appName)
+	info, err := client.GetImageInfo(ctx, app.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get image info: %w", err)
 	}
@@ -143,7 +143,7 @@ func showNomadImage(ctx context.Context, machine *api.App) error {
 	)
 }
 
-func showMachineImage(ctx context.Context, app *api.App) error {
+func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 	var (
 		client = client.FromContext(ctx).API()
 		io     = iostreams.FromContext(ctx)
