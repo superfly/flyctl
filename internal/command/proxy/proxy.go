@@ -2,14 +2,17 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/proxy"
 )
@@ -21,7 +24,7 @@ func New() *cobra.Command {
 	)
 
 	cmd := command.New("proxy <local:remote> [remote_host]", short, long, run,
-		command.RequireSession, command.RequireAppName)
+		command.RequireSession)
 
 	cmd.Args = cobra.RangeArgs(1, 2)
 
@@ -43,22 +46,50 @@ func New() *cobra.Command {
 func run(ctx context.Context) (err error) {
 	client := client.FromContext(ctx).API()
 	appName := app.NameFromContext(ctx)
+	orgSlug := flag.GetString(ctx, "org")
 	args := flag.Args(ctx)
+	promptInstance := flag.GetBool(ctx, "select")
 
-	app, err := client.GetApp(ctx, appName)
+	if promptInstance && appName == "" {
+		return errors.New("--app required when --select flag provided")
+	}
 
-	if err != nil {
-		return err
+	if orgSlug != "" {
+		_, err := client.GetOrganizationBySlug(ctx, orgSlug)
+		if err != nil {
+			return err
+		}
+	}
+
+	if appName == "" && orgSlug == "" {
+		org, err := prompt.Org(ctx, nil)
+		if err != nil {
+			return err
+		}
+		orgSlug = org.Slug
+	}
+
+	var app *api.App
+	if appName != "" {
+		app, err := client.GetApp(ctx, appName)
+		if err != nil {
+			return err
+		}
+		orgSlug = app.Organization.Slug
 	}
 
 	agentclient, err := agent.Establish(ctx, client)
-
 	if err != nil {
 		return err
 	}
 
-	dialer, err := agentclient.ConnectToTunnel(ctx, app.Organization.Slug)
+	// do this explicitly so we can get the DNS server address
+	_, err = agentclient.Establish(ctx, orgSlug)
+	if err != nil {
+		return err
+	}
 
+	dialer, err := agentclient.ConnectToTunnel(ctx, orgSlug)
 	if err != nil {
 		return err
 	}
@@ -66,10 +97,11 @@ func run(ctx context.Context) (err error) {
 	ports := strings.Split(args[0], ":")
 
 	params := &proxy.ConnectParams{
-		Ports:          ports,
-		App:            app,
-		Dialer:         dialer,
-		PromptInstance: flag.GetBool(ctx, "select"),
+		Ports:            ports,
+		App:              app,
+		OrganizationSlug: orgSlug,
+		Dialer:           dialer,
+		PromptInstance:   promptInstance,
 	}
 
 	if len(args) > 1 {

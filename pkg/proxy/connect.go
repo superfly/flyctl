@@ -14,28 +14,32 @@ import (
 )
 
 type ConnectParams struct {
-	App            *api.App
-	Dialer         agent.Dialer
-	Ports          []string
-	RemoteHost     string
-	PromptInstance bool
-	DisableSpinner bool
+	App              *api.App
+	OrganizationSlug string
+	Dialer           agent.Dialer
+	Ports            []string
+	RemoteHost       string
+	PromptInstance   bool
+	DisableSpinner   bool
 }
 
 func Connect(ctx context.Context, p *ConnectParams) (err error) {
 
 	var (
-		io     = iostreams.FromContext(ctx)
-		client = client.FromContext(ctx).API()
+		io         = iostreams.FromContext(ctx)
+		client     = client.FromContext(ctx).API()
+		orgSlug    = p.OrganizationSlug
+		localPort  = p.Ports[0]
+		remotePort = localPort
+		remoteAddr string
 	)
-	var localPort, remotePort, remoteAddr string
-
-	localPort = p.Ports[0]
 
 	if len(p.Ports) > 1 {
 		remotePort = p.Ports[1]
-	} else {
-		remotePort = localPort
+	}
+
+	if orgSlug == "" {
+		orgSlug = p.App.Organization.Slug
 	}
 
 	agentclient, err := agent.Establish(ctx, client)
@@ -60,7 +64,7 @@ func Connect(ctx context.Context, p *ConnectParams) (err error) {
 		// If a host is specified that isn't an IpV6 address, assume it's a DNS entry and wait for that
 		// entry to resolve
 		if !ip.IsV6(p.RemoteHost) {
-			if err := agentclient.WaitForDNS(ctx, p.Dialer, p.App.Organization.Slug, p.RemoteHost); err != nil {
+			if err := agentclient.WaitForDNS(ctx, p.Dialer, orgSlug, p.RemoteHost); err != nil {
 				return fmt.Errorf("%s: %w", p.RemoteHost, err)
 			}
 		}
