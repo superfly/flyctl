@@ -144,7 +144,7 @@ func newRun() *cobra.Command {
 			Hidden:      true,
 		},
 		flag.StringSlice{
-			Name:        "kernel-args",
+			Name:        "kernel-arg",
 			Description: "List of kernel arguments to be provided to the init. Can be specified multiple times.",
 			Hidden:      true,
 		},
