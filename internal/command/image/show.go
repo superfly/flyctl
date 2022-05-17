@@ -167,8 +167,6 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 			return fmt.Errorf("failed to unmarshal machine: %w", err)
 		}
 
-		fmt.Println(machine.ID)
-
 		var version = "N/A"
 
 		if machine.ImageRef.Labels != nil && machine.ImageRef.Labels["fly.version"] != "" {
@@ -177,7 +175,6 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 
 		obj := [][]string{
 			{
-
 				machine.ImageRef.Registry,
 				machine.ImageRef.Repository,
 				machine.ImageRef.Tag,
