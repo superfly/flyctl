@@ -187,7 +187,7 @@ func runMachineRun(ctx context.Context) error {
 			CPUKind:    "shared",
 			CPUs:       1,
 			MemoryMB:   256,
-			KernelArgs: flag.GetStringSlice(ctx, "kernel-args"),
+			KernelArgs: flag.GetStringSlice(ctx, "kernel-arg"),
 		},
 	}
 
