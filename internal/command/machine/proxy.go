@@ -17,7 +17,7 @@ func newProxy() *cobra.Command {
 		short = "Establish a proxy to the Machine API through a Wireguard tunnel for local connections"
 		long  = short + "\n"
 
-		usage = "proxy"
+		usage = "api-proxy"
 	)
 
 	cmd := command.New(usage, short, long, runMachineProxy, command.RequireSession)
