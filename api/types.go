@@ -421,7 +421,8 @@ type AppCompact struct {
 	IPAddresses  struct {
 		Nodes []IPAddress
 	}
-	Services []Service
+	PlatformVersion string
+	Services        []Service
 }
 
 type AppStatus struct {
@@ -1213,10 +1214,11 @@ type Filters struct {
 }
 
 type machineImageRef struct {
-	Registry   string
-	Repository string
-	Tag        string
-	Digest     string
+	Registry   string            `json:"registry"`
+	Repository string            `json:"repository"`
+	Tag        string            `json:"tag"`
+	Digest     string            `json:"digest"`
+	Labels     map[string]string `json:"labels"`
 }
 type V1Machine struct {
 	ID   string `json:"id"`
@@ -1325,6 +1327,7 @@ type MachineConfig struct {
 	Env      map[string]string `json:"env"`
 	Init     MachineInit       `json:"init,omitempty"`
 	Image    string            `json:"image"`
+	ImageRef machineImageRef   `json:"image_ref"`
 	Metadata map[string]string `json:"metadata"`
 	Mounts   []MachineMount    `json:"mounts,omitempty"`
 	Restart  MachineRestart    `json:"restart,omitempty"`
