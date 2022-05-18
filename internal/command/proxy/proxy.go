@@ -24,7 +24,7 @@ func New() *cobra.Command {
 	)
 
 	cmd := command.New("proxy <local:remote> [remote_host]", short, long, run,
-		command.RequireSession)
+		command.RequireSession, command.LoadAppNameIfPresent)
 
 	cmd.Args = cobra.RangeArgs(1, 2)
 
@@ -107,7 +107,7 @@ func run(ctx context.Context) (err error) {
 	if len(args) > 1 {
 		params.RemoteHost = args[1]
 	} else {
-		params.RemoteHost = fmt.Sprintf("%s.internal", app.Name)
+		params.RemoteHost = fmt.Sprintf("%s.internal", appName)
 	}
 
 	return proxy.Connect(ctx, params)
