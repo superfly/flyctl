@@ -102,16 +102,50 @@ func runUpdate(ctx context.Context) error {
 		return fmt.Errorf("this cluster has no leader")
 	}
 
-	imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres")
-	if err != nil {
-		return err
-	}
+	// imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres")
+	// if err != nil {
+	// 	return err
+	// }
 
 	fmt.Fprintf(io.Out, "Updating replicas\n")
 
 	for _, replica := range replicas {
-		updateMachine(ctx, app, replica, imageRef)
+		current := replica.Config.ImageRef
+
+		image := fmt.Sprintf("%s:%s", current.Repository, current.Tag)
+
+		latest, err := client.GetLatestImageDetails(ctx, image)
+		if err != nil {
+			return fmt.Errorf("can't get latest image details for %s: %w", image, err)
+		}
+
+		if current.Labels["fly.version"] == latest.Version {
+			fmt.Fprintf(io.Out, "  %s: already up to date\n", replica.ID)
+			continue
+		}
+
+		ref := fmt.Sprintf("%s:%s", latest.Repository, latest.Tag)
+
+		if err := updateMachine(ctx, app, replica, ref); err != nil {
+			return fmt.Errorf("can't update %s: %w", replica.ID, err)
+		}
 	}
+
+	current := leader.Config.ImageRef
+
+	image := fmt.Sprintf("%s:%s", current.Repository, current.Tag)
+
+	latest, err := client.GetLatestImageDetails(ctx, image)
+	if err != nil {
+		return fmt.Errorf("can't get latest image details for %s: %w", image, err)
+	}
+
+	if current.Labels["fly.version"] == latest.Version {
+		fmt.Fprintf(io.Out, "machine %s(leader): already up to date\n", leader.ID)
+		return nil
+	}
+
+	ref := fmt.Sprintf("%s:%s", latest.Repository, latest.Tag)
 
 	pgclient := flypg.New(app.Name, dialer)
 
@@ -123,9 +157,8 @@ func runUpdate(ctx context.Context) error {
 
 	fmt.Fprintf(io.Out, "Updating leader\n")
 
-	if err := updateMachine(ctx, app, leader, imageRef); err != nil {
+	if err := updateMachine(ctx, app, leader, ref); err != nil {
 		return err
-
 	}
 
 	fmt.Fprintf(io.Out, "Successfully updated Postgres cluster\n")
