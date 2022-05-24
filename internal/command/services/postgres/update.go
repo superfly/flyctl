@@ -102,11 +102,6 @@ func runUpdate(ctx context.Context) error {
 		return fmt.Errorf("this cluster has no leader")
 	}
 
-	// imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres")
-	// if err != nil {
-	// 	return err
-	// }
-
 	fmt.Fprintf(io.Out, "Updating replicas\n")
 
 	for _, replica := range replicas {
@@ -126,7 +121,7 @@ func runUpdate(ctx context.Context) error {
 
 		ref := fmt.Sprintf("%s:%s", latest.Repository, latest.Tag)
 
-		if err := updateMachine(ctx, app, replica, ref); err != nil {
+		if err := updateMachine(ctx, app, replica, ref, latest.Version); err != nil {
 			return fmt.Errorf("can't update %s: %w", replica.ID, err)
 		}
 	}
@@ -157,7 +152,7 @@ func runUpdate(ctx context.Context) error {
 
 	fmt.Fprintf(io.Out, "Updating leader\n")
 
-	if err := updateMachine(ctx, app, leader, ref); err != nil {
+	if err := updateMachine(ctx, app, leader, ref, latest.Version); err != nil {
 		return err
 	}
 
@@ -166,7 +161,7 @@ func runUpdate(ctx context.Context) error {
 	return nil
 }
 
-func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machine, image string) error {
+func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machine, image, version string) error {
 	var io = iostreams.FromContext(ctx)
 
 	flaps, err := flaps.New(ctx, app)
@@ -174,7 +169,7 @@ func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machin
 		return err
 	}
 
-	fmt.Fprintf(io.Out, "Updating machine %s with image %s\n", machine.ID, image)
+	fmt.Fprintf(io.Out, "Updating machine %s with image %s %s\n", machine.ID, image, version)
 
 	machineConf := machine.Config
 	machineConf.Image = image
