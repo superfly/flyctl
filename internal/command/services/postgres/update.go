@@ -102,16 +102,38 @@ func runUpdate(ctx context.Context) error {
 		return fmt.Errorf("this cluster has no leader")
 	}
 
-	imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres")
+	image := fmt.Sprintf("%s:%s", leader.Config.ImageRef.Repository, leader.Config.ImageRef.Tag)
+
+	latest, err := client.GetLatestImageDetails(ctx, image)
 	if err != nil {
-		return err
+		return fmt.Errorf("can't get latest image details for %s: %w", image, err)
 	}
 
 	fmt.Fprintf(io.Out, "Updating replicas\n")
 
 	for _, replica := range replicas {
-		updateMachine(ctx, app, replica, imageRef)
+		current := replica.Config.ImageRef
+
+		if current.Labels["fly.version"] == latest.Version {
+			fmt.Fprintf(io.Out, "  %s: already up to date\n", replica.ID)
+			continue
+		}
+
+		ref := fmt.Sprintf("%s:%s", latest.Repository, latest.Tag)
+
+		if err := updateMachine(ctx, app, replica, ref, latest.Version); err != nil {
+			return fmt.Errorf("can't update %s: %w", replica.ID, err)
+		}
 	}
+
+	current := leader.Config.ImageRef
+
+	if current.Labels["fly.version"] == latest.Version {
+		fmt.Fprintf(io.Out, "%s(leader): already up to date\n", leader.ID)
+		return nil
+	}
+
+	ref := fmt.Sprintf("%s:%s", latest.Repository, latest.Tag)
 
 	pgclient := flypg.New(app.Name, dialer)
 
@@ -123,9 +145,8 @@ func runUpdate(ctx context.Context) error {
 
 	fmt.Fprintf(io.Out, "Updating leader\n")
 
-	if err := updateMachine(ctx, app, leader, imageRef); err != nil {
+	if err := updateMachine(ctx, app, leader, ref, latest.Version); err != nil {
 		return err
-
 	}
 
 	fmt.Fprintf(io.Out, "Successfully updated Postgres cluster\n")
@@ -133,7 +154,7 @@ func runUpdate(ctx context.Context) error {
 	return nil
 }
 
-func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machine, image string) error {
+func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machine, image, version string) error {
 	var io = iostreams.FromContext(ctx)
 
 	flaps, err := flaps.New(ctx, app)
@@ -141,7 +162,7 @@ func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machin
 		return err
 	}
 
-	fmt.Fprintf(io.Out, "Updating machine %s with image %s\n", machine.ID, image)
+	fmt.Fprintf(io.Out, "Updating machine %s with image %s %s\n", machine.ID, image, version)
 
 	machineConf := machine.Config
 	machineConf.Image = image

@@ -11,7 +11,6 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
-	machines "github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/pkg/flaps"
@@ -213,11 +212,12 @@ func (p *Launch) Launch(ctx context.Context) error {
 			return err
 		}
 
-		if err := machines.WaitForStart(ctx, flaps, &api.V1Machine{ID: machine.ID}); err != nil {
+		out, err := flaps.Wait(ctx, &api.V1Machine{ID: machine.ID})
+		if err != nil {
 			return err
 		}
 
-		if err = json.Unmarshal(resp, &machine); err != nil {
+		if err = json.Unmarshal(out, &machine); err != nil {
 			return err
 		}
 		fmt.Fprintf(io.Out, "Machine %s is %s\n", machine.ID, machine.State)
