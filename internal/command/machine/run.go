@@ -47,7 +47,6 @@ func newRun() *cobra.Command {
 	flag.Add(
 		cmd,
 		flag.App(),
-		flag.AppConfig(),
 		flag.Region(),
 		flag.String{
 			Name:        "id",
