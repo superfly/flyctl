@@ -102,17 +102,17 @@ func runUpdate(ctx context.Context) error {
 		return fmt.Errorf("this cluster has no leader")
 	}
 
+	image := fmt.Sprintf("%s:%s", leader.Config.ImageRef.Repository, leader.Config.ImageRef.Tag)
+
+	latest, err := client.GetLatestImageDetails(ctx, image)
+	if err != nil {
+		return fmt.Errorf("can't get latest image details for %s: %w", image, err)
+	}
+
 	fmt.Fprintf(io.Out, "Updating replicas\n")
 
 	for _, replica := range replicas {
 		current := replica.Config.ImageRef
-
-		image := fmt.Sprintf("%s:%s", current.Repository, current.Tag)
-
-		latest, err := client.GetLatestImageDetails(ctx, image)
-		if err != nil {
-			return fmt.Errorf("can't get latest image details for %s: %w", image, err)
-		}
 
 		if current.Labels["fly.version"] == latest.Version {
 			fmt.Fprintf(io.Out, "  %s: already up to date\n", replica.ID)
@@ -128,15 +128,8 @@ func runUpdate(ctx context.Context) error {
 
 	current := leader.Config.ImageRef
 
-	image := fmt.Sprintf("%s:%s", current.Repository, current.Tag)
-
-	latest, err := client.GetLatestImageDetails(ctx, image)
-	if err != nil {
-		return fmt.Errorf("can't get latest image details for %s: %w", image, err)
-	}
-
 	if current.Labels["fly.version"] == latest.Version {
-		fmt.Fprintf(io.Out, "machine %s(leader): already up to date\n", leader.ID)
+		fmt.Fprintf(io.Out, "%s(leader): already up to date\n", leader.ID)
 		return nil
 	}
 
