@@ -2,15 +2,18 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/pkg/agent"
+	"github.com/superfly/flyctl/pkg/flaps"
 	"github.com/superfly/flyctl/pkg/flypg"
 	"github.com/superfly/flyctl/pkg/iostreams"
 )
@@ -41,7 +44,7 @@ func runRestart(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
 
-	app, err := client.GetApp(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
@@ -66,7 +69,26 @@ func runRestart(ctx context.Context) error {
 	}
 
 	for _, machine := range machines {
-		fmt.Fprintf(io.Out, "Restarting machine %q... ", machine.ID)
+		// fmt.Fprintf(io.Out, "Restarting machine %q\n", machine.ID)
+
+		flaps, err := flaps.New(ctx, app)
+		if err != nil {
+			return err
+		}
+
+		var lease api.MachineLease
+
+		// get lease on machine
+		out, err := flaps.Lease(ctx, machine.ID)
+
+		if err != nil {
+			return fmt.Errorf("failed to obtain lease on machine: %w", err)
+		}
+		if err := json.Unmarshal(out, &lease); err != nil {
+			return fmt.Errorf("failed to unmarshal lease on machine %q: %w", machine.ID, err)
+		}
+
+		fmt.Fprintf(io.Out, "Acquired lease %s on machine: %s\n", lease.Data.Nonce, machine.ID)
 
 		address := formatAddress(machine)
 
@@ -76,7 +98,7 @@ func runRestart(ctx context.Context) error {
 			fmt.Fprintln(io.Out, "failed")
 			return err
 		}
-		fmt.Fprintln(io.Out, "complete")
+		fmt.Fprintf(io.Out, "Restarted postgres on: %s\n", machine.ID)
 	}
 
 	return nil

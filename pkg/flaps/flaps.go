@@ -149,6 +149,10 @@ func (f *Client) Kill(ctx context.Context, machineID string) ([]byte, error) {
 	return f.sendRequest(ctx, nil, http.MethodPost, fmt.Sprintf("/%s/signal", machineID), []byte(`{"signal":9}`))
 }
 
+func (f *Client) Lease(ctx context.Context, machineID string) ([]byte, error) {
+	return f.sendRequest(ctx, nil, http.MethodPost, fmt.Sprintf("/%s/lease", machineID), nil)
+}
+
 func (f *Client) sendRequest(ctx context.Context, machine *api.V1Machine, method, endpoint string, data []byte) ([]byte, error) {
 	peerIP := f.peerIP
 	if machine != nil {
@@ -181,10 +185,14 @@ func (f *Client) sendRequest(ctx context.Context, machine *api.V1Machine, method
 		return b, nil
 	case 4, 5:
 		apiErr := struct {
-			Error string `json:"error"`
+			Error   string `json:"error"`
+			Message string `json:"message,omitempty"`
 		}{}
 		if err := json.NewDecoder(resp.Body).Decode(&apiErr); err != nil {
 			return nil, fmt.Errorf("request returned non-2xx status, %d", resp.StatusCode)
+		}
+		if apiErr.Message != "" {
+			return nil, fmt.Errorf("%s", apiErr.Message)
 		}
 		return nil, errors.New(apiErr.Error)
 	default:
