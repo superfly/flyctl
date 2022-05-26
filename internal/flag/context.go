@@ -96,5 +96,9 @@ func GetApp(ctx context.Context) string {
 
 // GetAppConfigFilePath is shorthand for GetString(ctx, AppConfigFilePathName).
 func GetAppConfigFilePath(ctx context.Context) string {
-	return GetString(ctx, AppConfigFilePathName)
+	if path, err := FromContext(ctx).GetString(AppConfigFilePathName); err != nil {
+		return ""
+	} else {
+		return path
+	}
 }
