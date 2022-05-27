@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/r3labs/diff"
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
@@ -17,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/pkg/agent"
+	"github.com/superfly/flyctl/pkg/flaps"
 	"github.com/superfly/flyctl/pkg/flypg"
 	"github.com/superfly/flyctl/pkg/iostreams"
 )
@@ -309,6 +312,64 @@ func runConfigUpdate(ctx context.Context) error {
 			return err
 		}
 	}
+
+	machines, err := client.ListMachines(ctx, app.ID, "started")
+	if err != nil {
+		return err
+	}
+
+	var leader *api.Machine
+
+	for _, machine := range machines {
+		address := formatAddress(machine)
+
+		pgclient := flypg.NewFromInstance(address, dialer)
+		if err != nil {
+			return fmt.Errorf("can't connect to %s: %w", machine.Name, err)
+		}
+
+		role, err := pgclient.NodeRole(ctx)
+		if err != nil {
+			return fmt.Errorf("can't get role for %s: %w", machine.Name, err)
+		}
+
+		switch role {
+		case "leader":
+			leader = machine
+			break
+		case "replica":
+			continue
+		}
+	}
+
+	if leader == nil {
+		return fmt.Errorf("no leader found")
+	}
+
+	info, err := client.GetAppCompact(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("get app: %w", err)
+	}
+
+	// obtain lease on leader
+	flaps, err := flaps.New(ctx, info)
+	if err != nil {
+		return err
+	}
+
+	var lease api.MachineLease
+
+	// get lease on machine
+	out, err := flaps.Lease(ctx, leader.ID)
+
+	if err != nil {
+		return fmt.Errorf("failed to obtain lease: %w", err)
+	}
+	if err := json.Unmarshal(out, &lease); err != nil {
+		return fmt.Errorf("failed to unmarshal lease on machine %q: %w", leader.ID, err)
+	}
+
+	fmt.Fprintf(io.Out, "Acquired lease %s on machine: %s\n", lease.Data.Nonce, leader.ID)
 
 	fmt.Fprintln(io.Out, "Performing update...")
 	err = pgCmd.updateSettings(rChanges)

@@ -82,7 +82,7 @@ func runRestart(ctx context.Context) error {
 		out, err := flaps.Lease(ctx, machine.ID)
 
 		if err != nil {
-			return fmt.Errorf("failed to obtain lease on machine: %w", err)
+			return fmt.Errorf("failed to obtain lease: %w", err)
 		}
 		if err := json.Unmarshal(out, &lease); err != nil {
 			return fmt.Errorf("failed to unmarshal lease on machine %q: %w", machine.ID, err)
@@ -94,8 +94,8 @@ func runRestart(ctx context.Context) error {
 
 		pgclient := flypg.NewFromInstance(address, dialer)
 
-		if err := pgclient.RestartNode(ctx); err != nil {
-			fmt.Fprintln(io.Out, "failed")
+		if err := pgclient.RestartNodePG(ctx); err != nil {
+			fmt.Fprintf(io.Out, "postgres on node: %s failed\n", machine.ID)
 			return err
 		}
 		fmt.Fprintf(io.Out, "Restarted postgres on: %s\n", machine.ID)
