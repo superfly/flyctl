@@ -12,7 +12,7 @@ During the transition, note that where you see `flyctl` as a command it can be r
 #### [Homebrew](https://brew.sh) (macOS, Linux, WSL)
 
 ```bash
-brew install superfly/tap/flyctl
+brew install flyctl
 ```
 To upgrade to the latest version:
 
