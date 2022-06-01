@@ -71,17 +71,18 @@ type Volume struct {
 
 func Scan(sourceDir string) (*SourceInfo, error) {
 	scanners := []sourceScanner{
-		configureRedwood,
 		configureDjango,
+		configureLaravel,
+		configurePhoenix,
+		configureRails,
+		configureRedwood,
 		/* frameworks scanners are placed before generic scanners,
 		   since they might mix languages or have a Dockerfile that
 			 doesn't work with Fly */
 		configureDockerfile,
 		configureLucky,
-		configureRails,
 		configureRuby,
 		configureGo,
-		configurePhoenix,
 		configureElixir,
 		configurePython,
 		configureDeno,
@@ -528,11 +529,11 @@ func configureNuxt(sourceDir string) (*SourceInfo, error) {
 	}
 
 	s := &SourceInfo{
-		Family: "NuxtJS",
-		Port:   8080,
+		Family:       "NuxtJS",
+		Port:         8080,
 		SkipDatabase: true,
 	}
-	
+
 	s.Files = templates("templates/nuxtjs")
 
 	s.Env = env
@@ -597,6 +598,16 @@ For detailed documentation, see https://fly.dev/docs/django/
 		`
 		}
 	}
+
+	return s, nil
+}
+
+// setup Laravel with a sqlite database
+func configureLaravel(sourceDir string) (*SourceInfo, error) {
+	// Check for Laravel files (composer.json, artisan)
+	// Create SourceInfo struct
+	s := &SourceInfo{}
+	// Define init commands
 
 	return s, nil
 }
