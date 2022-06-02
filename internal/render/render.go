@@ -82,12 +82,16 @@ func VerticalTable(w io.Writer, title string, objects [][]string, cols ...string
 }
 
 func NewTextBlock(ctx context.Context, v ...interface{}) (tb *TextBlock) {
+
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
 	tb = &TextBlock{
 		out: iostreams.FromContext(ctx).ErrOut,
 	}
 
 	if len(v) > 0 {
-		tb.Println(aurora.Green("==> " + fmt.Sprint(v...)))
+		tb.Println(colorize.Green("==> " + fmt.Sprint(v...)))
 	}
 
 	return
