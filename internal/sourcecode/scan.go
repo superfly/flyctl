@@ -608,7 +608,6 @@ func configureLaravel(sourceDir string) (*SourceInfo, error) {
 		return nil, nil
 	}
 
-	// TODO: Perhaps default to a sqlite or pgsql DB
 	s := &SourceInfo{
 		Env: map[string]string{
 			"APP_ENV":     "production",
