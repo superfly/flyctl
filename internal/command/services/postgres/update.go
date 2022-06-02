@@ -181,14 +181,14 @@ func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machin
 	}
 
 	// json unmarshal the response into api.V1Machine
-	var updated *api.Machine
+	var updated *api.V1Machine
 
 	err = json.Unmarshal(res, &updated)
 	if err != nil {
 		return err
 	}
 
-	if err := machines.WaitForStart(ctx, flaps, &api.V1Machine{ID: machine.ID}); err != nil {
+	if err := machines.WaitForStart(ctx, flaps, updated); err != nil {
 		return err
 	}
 
