@@ -24,6 +24,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -317,7 +318,7 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 			termFd, isTerm := term.GetFdInfo(os.Stderr)
 			tracer := newTracer()
 			var c2 console.Console
-			if io.ColorEnabled() {
+			if io.ColorEnabled() && !flag.GetBool(ctx, "plain") {
 				if cons, err := console.ConsoleFromFile(os.Stderr); err == nil {
 					c2 = cons
 				}

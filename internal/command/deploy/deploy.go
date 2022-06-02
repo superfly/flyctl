@@ -88,6 +88,10 @@ func New() (cmd *cobra.Command) {
 			Name:        "nix",
 			Description: "Build with Nix",
 		},
+		flag.Bool{
+			Name:        "plain",
+			Description: "Display full Docker build output",
+		},
 	)
 
 	return
