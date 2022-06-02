@@ -604,10 +604,29 @@ For detailed documentation, see https://fly.dev/docs/django/
 
 // setup Laravel with a sqlite database
 func configureLaravel(sourceDir string) (*SourceInfo, error) {
-	// Check for Laravel files (composer.json, artisan)
-	// Create SourceInfo struct
-	s := &SourceInfo{}
-	// Define init commands
+	if !checksPass(sourceDir, fileExists("artisan", "composer.json")) {
+		return nil, nil
+	}
+
+	// TODO: Perhaps default to a sqlite or pgsql DB
+	s := &SourceInfo{
+		Env: map[string]string{
+			"APP_ENV":     "production",
+			"LOG_CHANNEL": "stderr",
+			"LOG_LEVEL":   "info",
+		},
+		Family: "Laravel",
+		Files:  templates("templates/laravel/standard"),
+		Port:   8080,
+		Secrets: []Secret{
+			{
+				Key:  "APP_KEY",
+				Help: "Laravel needs a unique application key. Use 'php artisan key:generate --show' to generate this value.",
+				// TODO: Can we generate this for users?
+			},
+		},
+		SkipDatabase: true,
+	}
 
 	return s, nil
 }
