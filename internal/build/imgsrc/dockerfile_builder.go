@@ -24,6 +24,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
+	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/sync/errgroup"
@@ -82,8 +83,8 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 
 	defer clearDeploymentTags(ctx, docker, opts.Tag)
 
-	// Is ErrOut being used here so prevent stdout messages stepping on each other?
-	cmdfmt.PrintBegin(streams.ErrOut, "Creating build context")
+	tb := render.NewTextBlock(ctx, "Creating build context")
+
 	archiveOpts := archiveOptions{
 		sourcePath: opts.WorkingDir,
 		compressed: dockerFactory.mode.IsRemote(),
@@ -122,7 +123,7 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 	if err != nil {
 		return nil, errors.Wrap(err, "error archiving build context")
 	}
-	cmdfmt.PrintDone(streams.ErrOut, "Creating build context done")
+	tb.Done("Creating build context done")
 
 	// Setup an upload progress bar
 	progressOutput := streamformatter.NewProgressOutput(streams.Out)
@@ -144,9 +145,9 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 		return nil, errors.Wrap(err, "error fetching docker server info")
 	}
 
-	cmdfmt.PrintBegin(streams.ErrOut, "Building image with Docker")
+	docker_tb := render.NewTextBlock(ctx, "Building image with Docker")
 	msg := fmt.Sprintf("docker host: %s %s %s", serverInfo.ServerVersion, serverInfo.OSType, serverInfo.Architecture)
-	cmdfmt.PrintDone(streams.ErrOut, msg)
+	docker_tb.Done(msg)
 
 	buildArgs, err := normalizeBuildArgsForDocker(ctx, opts.BuildArgs)
 
@@ -174,13 +175,12 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
 
 	if opts.Publish {
-		cmdfmt.PrintBegin(streams.ErrOut, "Pushing image to fly")
-
+		tb := render.NewTextBlock(ctx, "Pushing image to fly")
 		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
 			return nil, err
 		}
 
-		cmdfmt.PrintDone(streams.ErrOut, "Pushing image done")
+		tb.Done("Pushing image done")
 	}
 
 	img, _, err := docker.ImageInspectWithRaw(ctx, imageID)
@@ -200,18 +200,6 @@ func normalizeBuildArgsForDocker(ctx context.Context, buildArgs map[string]strin
 	//workingDirectory := state.WorkingDirectory(ctx)
 
 	for k, v := range buildArgs {
-		// docker needs a string pointer. since ranges reuse variables we need to deref a copy
-		// if strings.Contains(v, "file:") {
-		// 	parts := strings.Split(v, ":")
-		// 	fileContents, err := os.ReadFile(filepath.Join(workingDirectory, parts[1]))
-
-		// 	if err != nil {
-		// 		return nil, err
-		// 	}
-
-		// 	v = string(fileContents)
-		// }
-
 		val := v
 		out[k] = &val
 	}
@@ -254,6 +242,7 @@ func runClassicBuild(ctx context.Context, streams *iostreams.IOStreams, docker *
 const uploadRequestRemote = "upload-request"
 
 func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker *dockerclient.Client, r io.ReadCloser, opts ImageOptions, dockerfilePath string, buildArgs map[string]*string) (imageID string, err error) {
+	io := iostreams.FromContext(ctx)
 	s, err := createBuildSession(opts.WorkingDir)
 	if err != nil {
 		panic(err)
@@ -328,34 +317,25 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 			termFd, isTerm := term.GetFdInfo(os.Stderr)
 			tracer := newTracer()
 			var c2 console.Console
-			if isTerm {
+			if io.ColorEnabled() {
 				if cons, err := console.ConsoleFromFile(os.Stderr); err == nil {
 					c2 = cons
 				}
 			}
 
 			consoleLogs := make(chan *client.SolveStatus)
-			plainLogs := make(chan *client.SolveStatus)
 
 			eg.Go(func() error {
-				defer close(plainLogs)
 				defer close(consoleLogs)
 
 				for v := range tracer.displayCh {
 					consoleLogs <- v
-					plainLogs <- v
 				}
 				return nil
 			})
 
 			eg.Go(func() error {
 				return progressui.DisplaySolveStatus(context.TODO(), "", c2, os.Stderr, consoleLogs)
-			})
-
-			plainBuildOutput := bytes.NewBuffer(nil)
-
-			eg.Go(func() error {
-				return progressui.DisplaySolveStatus(context.TODO(), "", nil, plainBuildOutput, plainLogs)
 			})
 
 			auxCallback := func(m jsonmessage.JSONMessage) {
@@ -384,8 +364,6 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 					return err
 				}
 				defer f.Close()
-
-				f.Write(plainBuildOutput.Bytes())
 			}
 
 			return nil
