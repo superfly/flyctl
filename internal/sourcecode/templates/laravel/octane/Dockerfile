@@ -49,7 +49,8 @@ RUN apk add php8 \
     php8-pecl-redis\
     php8-sockets \
     php8-pcntl \
-    php8-posix
+    php8-posix \
+    php8-pecl-swoole
 
 # node, for Laravel mix
 RUN apk add nodejs npm
