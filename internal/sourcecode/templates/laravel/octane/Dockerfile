@@ -85,9 +85,10 @@ COPY . /var/www/html
 RUN composer update && composer install --optimize-autoloader --no-dev
 
 # Download roadrunner binary, prepare needed directory
-RUN ./vendor/bin/rr get-binary \
+RUN rm -f rr \
+    && ./vendor/bin/rr get-binary \
     && mkdir -p storage/logs \
-    && rm .rr.yaml
+    && rm -f .rr.yaml
 
 
 # ... and make all files owned by app, including the just added /vendor

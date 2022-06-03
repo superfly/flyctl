@@ -2,6 +2,8 @@
 
 # 1. Ignore everything (ensures don't upload .git, .env etc)
 **
+.rr.yml
+rr
 
 # 2. Allow files and directories
 !app/**

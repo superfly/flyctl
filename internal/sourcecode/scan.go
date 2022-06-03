@@ -12,7 +12,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 )
 
-//go:embed templates templates/*/.dockerignore templates/*/.fly
+//go:embed templates templates/*/.dockerignore templates/*/*/.dockerignore templates/**/.fly
 var content embed.FS
 
 type InitCommand struct {
@@ -604,8 +604,16 @@ For detailed documentation, see https://fly.dev/docs/django/
 
 // setup Laravel with a sqlite database
 func configureLaravel(sourceDir string) (*SourceInfo, error) {
+	// Laravel projects contain the `artisan` command, all php projects contain `composer.json` (in theory!)
 	if !checksPass(sourceDir, fileExists("artisan", "composer.json")) {
 		return nil, nil
+	}
+
+	var t []SourceFile
+	if checksPass(sourceDir, dirContains("composer.json", "laravel/octane")) {
+		t = templates("templates/laravel/octane")
+	} else {
+		t = templates("templates/laravel/standard")
 	}
 
 	s := &SourceInfo{
@@ -615,7 +623,7 @@ func configureLaravel(sourceDir string) (*SourceInfo, error) {
 			"LOG_LEVEL":   "info",
 		},
 		Family: "Laravel",
-		Files:  templates("templates/laravel/standard"),
+		Files:  t,
 		Port:   8080,
 		Secrets: []Secret{
 			{
