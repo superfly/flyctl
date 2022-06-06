@@ -87,7 +87,7 @@ RUN composer update && composer install --optimize-autoloader --no-dev
 
 # Download roadrunner binary, prepare needed directory
 RUN rm -f rr \
-    && ./vendor/bin/rr get-binary \
+    && if [ -f ./vendor/bin/rr ]; then ./vendor/bin/rr get-binary; fi \
     && mkdir -p storage/logs \
     && rm -f .rr.yaml
 
@@ -124,5 +124,5 @@ RUN chmod -R 755 /var/www/html
 # the same port nginx.conf is set to listen on and fly.toml references (standard is 8080)
 EXPOSE 8080
 
-# off we go (since no docker-compose, keep both nginx and octane running in the same container by using supervisor) ...
-ENTRYPOINT ["supervisord", "-c", "/etc/supervisord.conf"]
+# off we go (since no docker-compose, keep both nginx and octane running in the same container by using supervisor via run.sh entrypoint) ...
+ENTRYPOINT ["/var/www/html/docker/run.sh"]
