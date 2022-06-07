@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.2.7
-	github.com/BurntSushi/toml v0.4.1
+	github.com/BurntSushi/toml v1.1.1-0.20220529222432-dcb2346503b4
 	github.com/azazeal/pause v1.0.6
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/briandowns/spinner v1.12.0
@@ -156,7 +156,5 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gvisor.dev/gvisor v0.0.0-20211020211948-f76a604701b6 // indirect
 )
-
-replace github.com/BurntSushi/toml => github.com/michaeldwan/toml v0.3.2-0.20191213213541-3c5ced72b6f3
 
 replace github.com/superfly/flyctl/api => ./api
