@@ -47,6 +47,7 @@ func newRun() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.Region(),
+		flag.AppConfig(),
 		flag.String{
 			Name:        "id",
 			Description: "Machine ID, if previously known",
