@@ -62,7 +62,7 @@ type SSHParams struct {
 	DisableSpinner bool
 }
 
-func RunSSHCommand(ctx context.Context, app *api.App, dialer agent.Dialer, addr *string, cmd string) ([]byte, error) {
+func RunSSHCommand(ctx context.Context, app *api.AppCompact, dialer agent.Dialer, addr *string, cmd string) ([]byte, error) {
 	var inBuf bytes.Buffer
 	var errBuf bytes.Buffer
 	var outBuf bytes.Buffer
