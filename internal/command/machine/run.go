@@ -372,8 +372,10 @@ func WaitForStart(ctx context.Context, flapsClient *flaps.Client, machine *api.V
 	for {
 		_, err := flapsClient.Wait(waitCtx, machine)
 		switch {
+		case errors.Is(err, context.Canceled):
+			return err
 		case errors.Is(err, context.DeadlineExceeded):
-			return errors.Wrap(err, "Timeout reached waiting for machine to start")
+			return fmt.Errorf("timeout reached waiting for machine to start %w", err)
 		case err != nil:
 			time.Sleep(b.Duration())
 			continue
