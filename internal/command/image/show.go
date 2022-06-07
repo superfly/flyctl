@@ -2,7 +2,6 @@ package image
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -156,15 +155,9 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 			return err
 		}
 
-		raw, err := flaps.Get(ctx, flag.FirstArg(ctx))
+		machine, err := flaps.Get(ctx, flag.FirstArg(ctx))
 		if err != nil {
 			return fmt.Errorf("failed to get machine: %w", err)
-		}
-
-		var machine = new(api.V1Machine)
-
-		if err := json.Unmarshal(raw, machine); err != nil {
-			return fmt.Errorf("failed to unmarshal machine: %w", err)
 		}
 
 		var version = "N/A"

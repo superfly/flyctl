@@ -2,7 +2,6 @@ package machine
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/pkg/errors"
@@ -61,24 +60,13 @@ func runMachineStart(ctx context.Context) (err error) {
 		return fmt.Errorf("could not make flaps client: %w", err)
 	}
 
-	mach, err := flapsClient.Start(ctx, machineID)
+	machine, err := flapsClient.Start(ctx, machineID)
 	if err != nil {
 		return fmt.Errorf("could not start machine %s: %w", machineID, err)
 	}
 
-	type body struct {
-		Status  string
-		Message string
-		Data    json.RawMessage
-	}
-	var machineBody body
-
-	if err := json.Unmarshal(mach, &machineBody); err != nil {
-		return fmt.Errorf("machine could not be started %s", err)
-	}
-
-	if machineBody.Status == "error" {
-		return fmt.Errorf("machine could not be started %s", machineBody.Message)
+	if machine.Status == "error" {
+		return fmt.Errorf("machine could not be started %s", machine.Message)
 	}
 
 	fmt.Fprintf(out, "%s has been started\n", machineID)

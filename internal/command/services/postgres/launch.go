@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -203,18 +202,11 @@ func (p *Launch) Launch(ctx context.Context) error {
 			Config:  machineConf,
 		}
 
-		resp, err := flaps.Launch(ctx, launchInput)
+		machine, err := flaps.Launch(ctx, launchInput)
 		if err != nil {
 			return err
 		}
-
-		var machine api.V1Machine
-
-		if err = json.Unmarshal(resp, &machine); err != nil {
-			return err
-		}
-
-		err = machines.WaitForStart(ctx, flaps, &machine)
+		err = machines.WaitForStart(ctx, flaps, machine)
 		if err != nil {
 			return err
 		}

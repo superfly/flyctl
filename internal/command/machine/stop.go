@@ -88,11 +88,10 @@ func runMachineStop(ctx context.Context) (err error) {
 			return fmt.Errorf("could not make flaps client: %w", err)
 		}
 
-		_, err = flapsClient.Stop(ctx, machineStopInput)
+		err = flapsClient.Stop(ctx, machineStopInput)
 		if err != nil {
 			return fmt.Errorf("could not stop machine %s: %w", machineStopInput.ID, err)
 		}
-
 		fmt.Fprintf(out, "%s has been successfully stopped\n", machineStopInput.ID)
 	}
 	return

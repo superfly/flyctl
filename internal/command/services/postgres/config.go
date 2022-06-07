@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -357,16 +356,10 @@ func runConfigUpdate(ctx context.Context) error {
 		return err
 	}
 
-	var lease api.MachineLease
-
 	// get lease on machine
-	out, err := flaps.Lease(ctx, leader.ID)
-
+	lease, err := flaps.Lease(ctx, leader.ID)
 	if err != nil {
 		return fmt.Errorf("failed to obtain lease: %w", err)
-	}
-	if err := json.Unmarshal(out, &lease); err != nil {
-		return fmt.Errorf("failed to unmarshal lease on machine %q: %w", leader.ID, err)
 	}
 
 	fmt.Fprintf(io.Out, "Acquired lease %s on machine: %s\n", lease.Data.Nonce, leader.ID)

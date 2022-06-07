@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -175,15 +174,7 @@ func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machin
 		Config:  &machineConf,
 	}
 
-	res, err := flaps.Update(ctx, input)
-	if err != nil {
-		return err
-	}
-
-	// json unmarshal the response into api.V1Machine
-	var updated *api.V1Machine
-
-	err = json.Unmarshal(res, &updated)
+	updated, err := flaps.Update(ctx, input)
 	if err != nil {
 		return err
 	}

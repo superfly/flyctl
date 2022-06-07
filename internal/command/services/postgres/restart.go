@@ -2,12 +2,10 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
@@ -76,16 +74,11 @@ func runRestart(ctx context.Context) error {
 			return err
 		}
 
-		var lease api.MachineLease
-
 		// get lease on machine
-		out, err := flaps.Lease(ctx, machine.ID)
+		lease, err := flaps.Lease(ctx, machine.ID)
 
 		if err != nil {
 			return fmt.Errorf("failed to obtain lease: %w", err)
-		}
-		if err := json.Unmarshal(out, &lease); err != nil {
-			return fmt.Errorf("failed to unmarshal lease on machine %q: %w", machine.ID, err)
 		}
 
 		fmt.Fprintf(io.Out, "Acquired lease %s on machine: %s\n", lease.Data.Nonce, machine.ID)

@@ -1363,3 +1363,9 @@ type MachineLease struct {
 		Owner     string `json:"owner"`
 	}
 }
+
+type MachineStartResponse struct {
+	Message       string `json:"message,omitempty"`
+	Status        string `json:"status,omitempty"`
+	PreviousState string `json:"previous_state"`
+}

@@ -2,11 +2,9 @@ package machine
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
@@ -65,27 +63,22 @@ func runMachineList(ctx context.Context) (err error) {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
 
-	machines, err := flapsClient.Get(ctx, "")
+	machines, err := flapsClient.List(ctx, "")
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved")
-	}
-
-	var listOfMachines []api.V1Machine
-	if err = json.Unmarshal(machines, &listOfMachines); err != nil {
-		return fmt.Errorf("list of machines could not be retrieved")
 	}
 
 	rows := [][]string{}
 
 	listOfMachinesLink := io.CreateLink("View them in the UI here", fmt.Sprintf("https://fly.io/apps/%s/machines/", appName))
-	fmt.Fprintf(io.Out, "%d machines have been retrieved.\n%s\n\n", len(listOfMachines), listOfMachinesLink)
+	fmt.Fprintf(io.Out, "%d machines have been retrieved.\n%s\n\n", len(machines), listOfMachinesLink)
 	if silence {
-		for _, machine := range listOfMachines {
+		for _, machine := range machines {
 			rows = append(rows, []string{machine.ID})
 		}
 		_ = render.Table(io.Out, appName, rows, "ID")
 	} else {
-		for _, machine := range listOfMachines {
+		for _, machine := range machines {
 			rows = append(rows, []string{
 				machine.ID,
 				fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag),
