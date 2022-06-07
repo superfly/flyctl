@@ -59,9 +59,14 @@ func runUpdate(ctx context.Context) error {
 		return fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
 
-	machines, err := client.ListMachines(ctx, app.ID, "started")
+	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
-		return err
+		return fmt.Errorf("list of machines could not be retrieved: %w", err)
+	}
+
+	machines, err := flapsClient.List(ctx, "started")
+	if err != nil {
+		return fmt.Errorf("machines could not be retrieved")
 	}
 
 	if len(machines) == 0 {
@@ -69,8 +74,8 @@ func runUpdate(ctx context.Context) error {
 	}
 
 	var (
-		leader   *api.Machine
-		replicas []*api.Machine
+		leader   *api.V1Machine
+		replicas []*api.V1Machine
 	)
 
 	fmt.Fprintf(io.Out, "Resolving cluster roles\n")
@@ -153,7 +158,7 @@ func runUpdate(ctx context.Context) error {
 	return nil
 }
 
-func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machine, image, version string) error {
+func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.V1Machine, image, version string) error {
 	var io = iostreams.FromContext(ctx)
 
 	flaps, err := flaps.New(ctx, app)
@@ -169,9 +174,9 @@ func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machin
 	input := api.LaunchMachineInput{
 		ID:      machine.ID,
 		AppID:   app.Name,
-		OrgSlug: machine.App.Organization.Slug,
+		OrgSlug: app.Organization.Slug,
 		Region:  machine.Region,
-		Config:  &machineConf,
+		Config:  machineConf,
 	}
 
 	updated, err := flaps.Update(ctx, input)
@@ -186,16 +191,6 @@ func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machin
 	return nil
 }
 
-func privateIp(machine *api.Machine) string {
-	for _, ip := range machine.IPs.Nodes {
-		if ip.Family == "v6" && ip.Kind == "privatenet" {
-			return ip.IP
-		}
-	}
-	return ""
-}
-
-func formatAddress(machine *api.Machine) string {
-	addr := privateIp(machine)
-	return fmt.Sprintf("[%s]", addr)
+func formatAddress(machine *api.V1Machine) string {
+	return fmt.Sprintf("[%s]", machine.PrivateIP)
 }

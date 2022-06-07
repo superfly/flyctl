@@ -47,9 +47,14 @@ func runRestart(ctx context.Context) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	machines, err := client.ListMachines(ctx, app.ID, "started")
+	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
-		return err
+		return fmt.Errorf("list of machines could not be retrieved: %w", err)
+	}
+
+	machines, err := flapsClient.List(ctx, "started")
+	if err != nil {
+		return fmt.Errorf("machines could not be retrieved")
 	}
 
 	if len(machines) == 0 {

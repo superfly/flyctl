@@ -203,7 +203,7 @@ func runConfigUpdate(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
 	appName := app.NameFromContext(ctx)
 
-	app, err := client.GetApp(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
@@ -312,12 +312,17 @@ func runConfigUpdate(ctx context.Context) error {
 		}
 	}
 
-	machines, err := client.ListMachines(ctx, app.ID, "started")
+	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
-		return err
+		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
 
-	var leader *api.Machine
+	machines, err := flapsClient.List(ctx, "started")
+	if err != nil {
+		return fmt.Errorf("machines could not be retrieved")
+	}
+
+	var leader *api.V1Machine
 
 	for _, machine := range machines {
 		address := formatAddress(machine)
@@ -332,11 +337,10 @@ func runConfigUpdate(ctx context.Context) error {
 			return fmt.Errorf("can't get role for %s: %w", machine.Name, err)
 		}
 
-		switch role {
-		case "leader":
+		if role == "leader" {
 			leader = machine
 			break
-		case "replica":
+		} else if role == "replica" {
 			continue
 		}
 	}

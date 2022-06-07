@@ -149,14 +149,14 @@ func (f *Client) Get(ctx context.Context, machineID string) (*api.V1Machine, err
 	return out, nil
 }
 
-func (f *Client) List(ctx context.Context, machineID string) ([]api.V1Machine, error) {
+func (f *Client) List(ctx context.Context, state string) ([]*api.V1Machine, error) {
 	var getEndpoint = ""
 
-	if machineID != "" {
-		getEndpoint = fmt.Sprintf("/%s", machineID)
+	if state != "" {
+		getEndpoint = fmt.Sprintf("?%s", state)
 	}
 
-	out := make([]api.V1Machine, 0)
+	out := make([]*api.V1Machine, 0)
 
 	err := f.sendRequest(ctx, http.MethodGet, getEndpoint, nil, out)
 	if err != nil {
