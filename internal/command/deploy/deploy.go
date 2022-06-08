@@ -77,6 +77,10 @@ func New() (cmd *cobra.Command) {
 			Name:        "build-target",
 			Description: "Set the target build stage to build if the Dockerfile has more than one stage",
 		},
+		flag.StringSlice{
+			Name:        "build-secret",
+			Description: "Set of build secrets of NAME=VALUE pairs. Can be specified multiple times. See https://docs.docker.com/develop/develop-images/build_enhancements/#new-docker-build-secret-information",
+		},
 		flag.Bool{
 			Name:        "no-cache",
 			Description: "Do not use the build cache when building the image",
@@ -230,6 +234,16 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 		BuiltInSettings: build.Settings,
 		Builder:         build.Builder,
 		Buildpacks:      build.Buildpacks,
+	}
+
+	cliBuildSecrets, err := cmdutil.ParseKVStringsToMap(flag.GetStringSlice(ctx, "build-secret"))
+
+	if err != nil {
+		return
+	}
+
+	if cliBuildSecrets != nil {
+		opts.BuildSecrets = cliBuildSecrets
 	}
 
 	var buildArgs map[string]string
