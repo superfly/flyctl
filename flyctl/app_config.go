@@ -331,6 +331,25 @@ func (ac *AppConfig) SetEnvVariables(vals map[string]string) {
 	ac.Definition["env"] = env
 }
 
+func (ac *AppConfig) SetBuildSecrets(vals map[string]string) {
+	var env map[string]string
+
+	if rawEnv, ok := ac.Definition["env"]; ok {
+		if castEnv, ok := rawEnv.(map[string]string); ok {
+			env = castEnv
+		}
+	}
+	if env == nil {
+		env = map[string]string{}
+	}
+
+	for k, v := range vals {
+		env[k] = v
+	}
+
+	ac.Definition["env"] = env
+}
+
 func (ac *AppConfig) SetReleaseCommand(cmd string) {
 	var deploy map[string]string
 
