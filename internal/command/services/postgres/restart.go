@@ -80,7 +80,7 @@ func runRestart(ctx context.Context) error {
 		}
 
 		// get lease on machine
-		lease, err := flaps.Lease(ctx, machine.ID)
+		lease, err := flaps.Lease(ctx, machine.ID, nil)
 
 		if err != nil {
 			return fmt.Errorf("failed to obtain lease: %w", err)

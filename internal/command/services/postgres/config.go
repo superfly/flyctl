@@ -361,7 +361,7 @@ func runConfigUpdate(ctx context.Context) error {
 	}
 
 	// get lease on machine
-	lease, err := flaps.Lease(ctx, leader.ID)
+	lease, err := flaps.Lease(ctx, leader.ID, nil)
 	if err != nil {
 		return fmt.Errorf("failed to obtain lease: %w", err)
 	}

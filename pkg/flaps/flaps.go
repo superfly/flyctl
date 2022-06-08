@@ -183,8 +183,12 @@ func (f *Client) Kill(ctx context.Context, machineID string) error {
 	return nil
 }
 
-func (f *Client) Lease(ctx context.Context, machineID string) (*api.MachineLease, error) {
+func (f *Client) Lease(ctx context.Context, machineID string, ttl *int) (*api.MachineLease, error) {
 	var endpoint = fmt.Sprintf("/%s/lease", machineID)
+
+	if ttl != nil {
+		endpoint += fmt.Sprintf("?ttl=%d", *ttl)
+	}
 
 	out := new(api.MachineLease)
 
