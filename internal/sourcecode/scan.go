@@ -609,7 +609,7 @@ func configureLaravel(sourceDir string) (*SourceInfo, error) {
 		return nil, nil
 	}
 
-	files := templates("templates/laravel/files")
+	files := templates("templates/laravel/common")
 
 	var extra []SourceFile
 	if checksPass(sourceDir, dirContains("composer.json", "laravel/octane")) {
