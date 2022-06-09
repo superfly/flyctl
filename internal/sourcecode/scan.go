@@ -609,11 +609,18 @@ func configureLaravel(sourceDir string) (*SourceInfo, error) {
 		return nil, nil
 	}
 
-	var t []SourceFile
+	files := templates("templates/laravel/files")
+
+	var extra []SourceFile
 	if checksPass(sourceDir, dirContains("composer.json", "laravel/octane")) {
-		t = templates("templates/laravel/octane")
+		extra = templates("templates/laravel/octane")
 	} else {
-		t = templates("templates/laravel/standard")
+		extra = templates("templates/laravel/standard")
+	}
+
+	// Merge common files with runtime-specific files (standard or octane)
+	for _, f := range extra {
+		files = append(files, f)
 	}
 
 	s := &SourceInfo{
@@ -623,7 +630,7 @@ func configureLaravel(sourceDir string) (*SourceInfo, error) {
 			"LOG_LEVEL":   "info",
 		},
 		Family: "Laravel",
-		Files:  t,
+		Files:  files,
 		Port:   8080,
 		Secrets: []Secret{
 			{
