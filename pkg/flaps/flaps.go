@@ -37,7 +37,7 @@ func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
 
 	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
 	if err != nil {
-		return nil, fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
+		return nil, fmt.Errorf("flaps: can't build tunnel for %s: %w", app.Organization.Slug, err)
 	}
 
 	return &Client{
