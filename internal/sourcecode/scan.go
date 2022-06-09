@@ -604,8 +604,8 @@ For detailed documentation, see https://fly.dev/docs/django/
 
 // setup Laravel with a sqlite database
 func configureLaravel(sourceDir string) (*SourceInfo, error) {
-	// Laravel projects contain the `artisan` command, all php projects contain `composer.json` (in theory!)
-	if !checksPass(sourceDir, fileExists("artisan", "composer.json")) {
+	// Laravel projects contain the `artisan` command
+	if !checksPass(sourceDir, fileExists("artisan")) {
 		return nil, nil
 	}
 
