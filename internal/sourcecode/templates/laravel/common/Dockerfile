@@ -4,7 +4,7 @@ FROM alpine:edge as base
 LABEL fly_launch_runtime="laravel"
 
 RUN apk update \
-    && apk add curl zip unzip tzdata supervisor nginx htop \
+    && apk add curl zip unzip tzdata supervisor nginx htop vim \
            php8           php8-cli        php8-pecl-mcrypt \
            php8-soap      php8-openssl    php8-gmp \
            php8-pdo_odbc  php8-json       php8-dom \
@@ -34,6 +34,7 @@ COPY . /var/www/html
 
 # Install dependencies, configure server
 RUN composer update && composer install --optimize-autoloader --no-dev \
+    && mkdir -p storage/logs \
     && chown -R app:app /var/www/html \
     && /usr/bin/crontab docker/crontab \
     && mv docker/supervisor.conf /etc/supervisord.conf \
@@ -42,16 +43,14 @@ RUN composer update && composer install --optimize-autoloader --no-dev \
     && mv docker/php.ini /etc/php8/conf.d/php.ini
 
 # If we're not using Octane, configure php-fpm
-RUN if ! grep -Fq "laravel/octane" /var/www/html/composer.json \
-    then \
-        rm -rf /etc/php8/php-fpm.conf \
-        rm -rf /etc/php8/php-fpm.d/www.conf \
-        mv docker/php-fpm.conf /etc/php8/php-fpm.conf \
-        mv docker/app.conf /etc/php8/php-fpm.d/app.conf \
-    elif grep -Fq "laravel/octane" /var/www/html/composer.json \
-        if [ -f ./vendor/bin/rr ]; then ./vendor/bin/rr get-binary; fi \
-        mkdir -p storage/logs \
-        rm -f .rr.yaml \
+RUN if ! grep -Fq "laravel/octane" /var/www/html/composer.json; then \
+        rm -rf /etc/php8/php-fpm.conf; \
+        rm -rf /etc/php8/php-fpm.d/www.conf; \
+        mv docker/php-fpm.conf /etc/php8/php-fpm.conf; \
+        mv docker/app.conf /etc/php8/php-fpm.d/app.conf; \
+    elif grep -Fq "spiral/roadrunner" /var/www/html/composer.json; then \
+        if [ -f ./vendor/bin/rr ]; then ./vendor/bin/rr get-binary; fi; \
+        rm -f .rr.yaml; \
     fi
 
 # clear Laravel cache that may be left over
@@ -65,13 +64,16 @@ FROM node:14 as node_modules_go_brrrr
 
 RUN mkdir /app
 
-# TODO: Yarn vs npm based on lock file
-#       No lock file should default to "npm install"
 RUN mkdir -p  /app
 WORKDIR /app
 COPY . .
-RUN npm ci --no-audit \
-    && npm run production
+RUN if [ -f "yarn.lock" ]; then \
+        yarn install; \
+    elif [ -f "package-lock.json" ]; then \
+        npm ci --no-audit; \
+    else \
+        npm install; \
+    fi
 
 # Create final container, adding in static assets
 FROM base
