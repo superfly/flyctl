@@ -60,7 +60,7 @@ RUN composer dump-autoload \
     && chmod -R 755 /var/www/html
 
 # Multi-stage build: Build static assets
-FROM node:14 as node_modules_go_brrrr
+FROM node:14 as node_modules_go_brrr
 
 RUN mkdir /app
 
@@ -78,7 +78,7 @@ RUN if [ -f "yarn.lock" ]; then \
 # Create final container, adding in static assets
 FROM base
 
-COPY --from=node_modules_go_brrrr /app/public /var/www/html/public
+COPY --from=node_modules_go_brrr /app/public /var/www/html/public
 
 # The same port nginx.conf is set to listen on and fly.toml references (standard is 8080)
 EXPOSE 8080
