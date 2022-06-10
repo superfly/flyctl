@@ -71,10 +71,11 @@ func run(ctx context.Context) (err error) {
 
 	var app *api.App
 	if appName != "" {
-		app, err := client.GetApp(ctx, appName)
+		a, err := client.GetApp(ctx, appName)
 		if err != nil {
 			return err
 		}
+		app = a
 		orgSlug = app.Organization.Slug
 	}
 
