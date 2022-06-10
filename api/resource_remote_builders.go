@@ -30,16 +30,16 @@ func (client *Client) EnsureRemoteBuilder(ctx context.Context, orgID, appName st
 
 	req := client.NewRequest(query)
 
-	if orgID != "" {
-		req.Var("input", EnsureRemoteBuilderInput{
-			OrganizationID: StringPointer(orgID),
-		})
-	} else {
-		req.Var("input", EnsureRemoteBuilderInput{
-			AppName: StringPointer(appName),
-		})
-
+	input := EnsureRemoteBuilderInput{
+		V2: true,
 	}
+	if orgID != "" {
+		input.OrganizationID = StringPointer(orgID)
+	} else {
+		input.AppName = StringPointer(appName)
+	}
+
+	req.Var("input", input)
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {

@@ -1123,6 +1123,7 @@ type PostgresEnableConsulPayload struct {
 type EnsureRemoteBuilderInput struct {
 	AppName        *string `json:"appName"`
 	OrganizationID *string `json:"organizationId"`
+	V2             bool    `json:"v2"`
 }
 
 type PostgresClusterUser struct {
