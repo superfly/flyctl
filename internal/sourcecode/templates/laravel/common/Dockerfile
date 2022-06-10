@@ -4,7 +4,7 @@ FROM alpine:edge as base
 LABEL fly_launch_runtime="laravel"
 
 RUN apk update \
-    && apk add curl zip unzip tzdata supervisor nginx htop vim \
+    && apk add curl zip unzip tzdata supervisor nginx htop vim ca-certificates \
            php8           php8-cli        php8-pecl-mcrypt \
            php8-soap      php8-openssl    php8-gmp \
            php8-pdo_odbc  php8-json       php8-dom \
