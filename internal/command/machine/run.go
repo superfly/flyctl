@@ -427,7 +427,7 @@ func determineImage(ctx context.Context, appName string) (img *imgsrc.Deployment
 		if err != nil {
 			return nil, errors.Wrap(err, "invalid build-arg")
 		}
-		opts.ExtraBuildArgs = extraArgs
+		opts.BuildArgs = extraArgs
 
 		img, err = resolver.BuildImage(ctx, io, opts)
 		if err != nil {
