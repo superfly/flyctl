@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
@@ -52,12 +53,26 @@ func runRestart(ctx context.Context) error {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
 
-	machines, err := flapsClient.List(ctx, "started")
+	// map of machine lease to machine
+	var machines = make(map[string]*api.V1Machine)
+
+	out, err := flapsClient.List(ctx, "started")
 	if err != nil {
-		return fmt.Errorf("machines could not be retrieved")
+		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	if len(machines) == 0 {
+	fmt.Fprintf(io.Out, "Acquiring lease on postgres cluster\n")
+
+	for _, machine := range out {
+		lease, err := flapsClient.Lease(ctx, machine.ID, api.IntPointer(40))
+
+		if err != nil {
+			return fmt.Errorf("failed to obtain lease: %w", err)
+		}
+		machines[lease.Data.Nonce] = machine
+	}
+
+	if len(out) == 0 {
 		return fmt.Errorf("no machines found")
 	}
 
@@ -71,33 +86,20 @@ func runRestart(ctx context.Context) error {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
 
-	for _, machine := range machines {
-		// fmt.Fprintf(io.Out, "Restarting machine %q\n", machine.ID)
+	fmt.Fprintf(io.Out, "Restarting Postgres\n")
 
-		flaps, err := flaps.New(ctx, app)
-		if err != nil {
-			return err
-		}
-
-		// get lease on machine
-		lease, err := flaps.Lease(ctx, machine.ID, nil)
-
-		if err != nil {
-			return fmt.Errorf("failed to obtain lease: %w", err)
-		}
-
-		fmt.Fprintf(io.Out, "Acquired lease %s on machine: %s\n", lease.Data.Nonce, machine.ID)
+	for lease, machine := range machines {
+		fmt.Fprintf(io.Out, " Restarting %s with lease %s\n", machine.ID, lease)
 
 		address := formatAddress(machine)
-
 		pgclient := flypg.NewFromInstance(address, dialer)
 
 		if err := pgclient.RestartNodePG(ctx); err != nil {
 			fmt.Fprintf(io.Out, "postgres on node: %s failed\n", machine.ID)
 			return err
 		}
-		fmt.Fprintf(io.Out, "Restarted postgres on: %s\n", machine.ID)
 	}
+	fmt.Fprintf(io.Out, "Done\n")
 
 	return nil
 }

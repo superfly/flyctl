@@ -158,7 +158,7 @@ func (f *Client) List(ctx context.Context, state string) ([]*api.V1Machine, erro
 
 	out := make([]*api.V1Machine, 0)
 
-	err := f.sendRequest(ctx, http.MethodGet, getEndpoint, nil, out)
+	err := f.sendRequest(ctx, http.MethodGet, getEndpoint, nil, &out)
 	if err != nil {
 		return nil, err
 	}
