@@ -6,11 +6,13 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/pkg/agent"
+	"github.com/superfly/flyctl/pkg/flaps"
 	"github.com/superfly/flyctl/pkg/flypg"
 	"github.com/superfly/flyctl/pkg/iostreams"
 )
@@ -41,17 +43,36 @@ func runRestart(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
 
-	app, err := client.GetApp(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	machines, err := client.ListMachines(ctx, app.ID, "started")
+	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
-		return err
+		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
 
-	if len(machines) == 0 {
+	// map of machine lease to machine
+	var machines = make(map[string]*api.V1Machine)
+
+	out, err := flapsClient.List(ctx, "started")
+	if err != nil {
+		return fmt.Errorf("machines could not be retrieved %w", err)
+	}
+
+	fmt.Fprintf(io.Out, "Acquiring lease on postgres cluster\n")
+
+	for _, machine := range out {
+		lease, err := flapsClient.Lease(ctx, machine.ID, api.IntPointer(40))
+
+		if err != nil {
+			return fmt.Errorf("failed to obtain lease: %w", err)
+		}
+		machines[lease.Data.Nonce] = machine
+	}
+
+	if len(out) == 0 {
 		return fmt.Errorf("no machines found")
 	}
 
@@ -65,19 +86,20 @@ func runRestart(ctx context.Context) error {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
 
-	for _, machine := range machines {
-		fmt.Fprintf(io.Out, "Restarting machine %q... ", machine.ID)
+	fmt.Fprintf(io.Out, "Restarting Postgres\n")
+
+	for lease, machine := range machines {
+		fmt.Fprintf(io.Out, " Restarting %s with lease %s\n", machine.ID, lease)
 
 		address := formatAddress(machine)
-
 		pgclient := flypg.NewFromInstance(address, dialer)
 
-		if err := pgclient.RestartNode(ctx); err != nil {
-			fmt.Fprintln(io.Out, "failed")
+		if err := pgclient.RestartNodePG(ctx); err != nil {
+			fmt.Fprintf(io.Out, "postgres on node: %s failed\n", machine.ID)
 			return err
 		}
-		fmt.Fprintln(io.Out, "complete")
 	}
+	fmt.Fprintf(io.Out, "Done\n")
 
 	return nil
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/r3labs/diff"
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
@@ -17,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/pkg/agent"
+	"github.com/superfly/flyctl/pkg/flaps"
 	"github.com/superfly/flyctl/pkg/flypg"
 	"github.com/superfly/flyctl/pkg/iostreams"
 )
@@ -201,7 +203,7 @@ func runConfigUpdate(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
 	appName := app.NameFromContext(ctx)
 
-	app, err := client.GetApp(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
@@ -309,6 +311,62 @@ func runConfigUpdate(ctx context.Context) error {
 			return err
 		}
 	}
+
+	flapsClient, err := flaps.New(ctx, app)
+	if err != nil {
+		return fmt.Errorf("list of machines could not be retrieved: %w", err)
+	}
+
+	machines, err := flapsClient.List(ctx, "started")
+	if err != nil {
+		return fmt.Errorf("machines could not be retrieved")
+	}
+
+	var leader *api.V1Machine
+
+	for _, machine := range machines {
+		address := formatAddress(machine)
+
+		pgclient := flypg.NewFromInstance(address, dialer)
+		if err != nil {
+			return fmt.Errorf("can't connect to %s: %w", machine.Name, err)
+		}
+
+		role, err := pgclient.NodeRole(ctx)
+		if err != nil {
+			return fmt.Errorf("can't get role for %s: %w", machine.Name, err)
+		}
+
+		if role == "leader" {
+			leader = machine
+			break
+		} else if role == "replica" {
+			continue
+		}
+	}
+
+	if leader == nil {
+		return fmt.Errorf("no leader found")
+	}
+
+	info, err := client.GetAppCompact(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("get app: %w", err)
+	}
+
+	// obtain lease on leader
+	flaps, err := flaps.New(ctx, info)
+	if err != nil {
+		return err
+	}
+
+	// get lease on machine
+	lease, err := flaps.Lease(ctx, leader.ID, nil)
+	if err != nil {
+		return fmt.Errorf("failed to obtain lease: %w", err)
+	}
+
+	fmt.Fprintf(io.Out, "Acquired lease %s on machine: %s\n", lease.Data.Nonce, leader.ID)
 
 	fmt.Fprintln(io.Out, "Performing update...")
 	err = pgCmd.updateSettings(rChanges)

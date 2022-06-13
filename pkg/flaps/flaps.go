@@ -37,7 +37,7 @@ func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
 
 	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
 	if err != nil {
-		return nil, fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
+		return nil, fmt.Errorf("flaps: can't build tunnel for %s: %w", app.Organization.Slug, err)
 	}
 
 	return &Client{
@@ -73,42 +73,49 @@ func newHttpCLient(dialer agent.Dialer) *http.Client {
 	return &http.Client{Transport: logging}
 }
 
-func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) ([]byte, error) {
+func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (*api.V1Machine, error) {
 	fmt.Println("Machine is launching...")
-
-	body, err := json.Marshal(builder)
-	if err != nil {
-		return nil, fmt.Errorf("machine failed to launch, %w", err)
-	}
 
 	var endpoint string
 	if builder.ID != "" {
 		endpoint = fmt.Sprintf("/%s", builder.ID)
 	}
 
-	return f.sendRequest(ctx, nil, http.MethodPost, endpoint, body)
-}
+	var out = new(api.V1Machine)
 
-func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput) ([]byte, error) {
-	fmt.Println("Machine is updating...")
-
-	updateEndpoint := fmt.Sprintf("/%s", builder.ID)
-
-	body, err := json.Marshal(builder)
-	if err != nil {
-		return nil, fmt.Errorf("machine failed to launch, %w", err)
+	if err := f.sendRequest(ctx, http.MethodPost, endpoint, builder, out); err != nil {
+		return nil, err
 	}
 
-	return f.sendRequest(ctx, nil, http.MethodPost, updateEndpoint, body)
+	return out, nil
 }
 
-func (f *Client) Start(ctx context.Context, machineID string) ([]byte, error) {
+func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput) (*api.V1Machine, error) {
+	fmt.Println("Machine is updating...")
+
+	endpoint := fmt.Sprintf("/%s", builder.ID)
+
+	var out = new(api.V1Machine)
+
+	if err := f.sendRequest(ctx, http.MethodPost, endpoint, builder, out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (f *Client) Start(ctx context.Context, machineID string) (*api.MachineStartResponse, error) {
 	fmt.Println("Machine is starting...")
 	startEndpoint := fmt.Sprintf("/%s/start", machineID)
-	return f.sendRequest(ctx, nil, http.MethodPost, startEndpoint, nil)
+
+	out := new(api.MachineStartResponse)
+
+	if err := f.sendRequest(ctx, http.MethodPost, startEndpoint, nil, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
-func (f *Client) Wait(ctx context.Context, machine *api.V1Machine) ([]byte, error) {
+func (f *Client) Wait(ctx context.Context, machine *api.V1Machine) error {
 	fmt.Println("Waiting on firecracker VM...")
 
 	waitEndpoint := fmt.Sprintf("/%s/wait", machine.ID)
@@ -117,78 +124,153 @@ func (f *Client) Wait(ctx context.Context, machine *api.V1Machine) ([]byte, erro
 		waitEndpoint += fmt.Sprintf("?instance_id=%s", machine.InstanceID)
 	}
 
-	return f.sendRequest(ctx, nil, http.MethodGet, waitEndpoint, nil)
+	return f.sendRequest(ctx, http.MethodGet, waitEndpoint, nil, nil)
 }
 
-func (f *Client) Stop(ctx context.Context, machineStop api.V1MachineStop) ([]byte, error) {
-	stopEndpoint := fmt.Sprintf("/%s/stop", machineStop.ID)
-	body, err := json.Marshal(machineStop)
-	if err != nil {
-		return nil, fmt.Errorf("failed to launch machine %s", err)
-	}
+func (f *Client) Stop(ctx context.Context, machine api.V1MachineStop) error {
+	stopEndpoint := fmt.Sprintf("/%s/stop", machine.ID)
 
-	return f.sendRequest(ctx, nil, http.MethodPost, stopEndpoint, body)
+	return f.sendRequest(ctx, http.MethodPost, stopEndpoint, nil, nil)
 }
 
-func (f *Client) Get(ctx context.Context, machineID string) ([]byte, error) {
+func (f *Client) Get(ctx context.Context, machineID string) (*api.V1Machine, error) {
 	var getEndpoint = ""
+
 	if machineID != "" {
 		getEndpoint = fmt.Sprintf("/%s", machineID)
 	}
 
-	return f.sendRequest(ctx, nil, http.MethodGet, getEndpoint, nil)
-}
+	out := new(api.V1Machine)
 
-func (f *Client) Destroy(ctx context.Context, input api.RemoveMachineInput) ([]byte, error) {
-	destroyEndpoint := fmt.Sprintf("/%s?kill=%t", input.ID, input.Kill)
-
-	return f.sendRequest(ctx, nil, http.MethodDelete, destroyEndpoint, nil)
-}
-
-func (f *Client) Kill(ctx context.Context, machineID string) ([]byte, error) {
-	return f.sendRequest(ctx, nil, http.MethodPost, fmt.Sprintf("/%s/signal", machineID), []byte(`{"signal":9}`))
-}
-
-func (f *Client) sendRequest(ctx context.Context, machine *api.V1Machine, method, endpoint string, data []byte) ([]byte, error) {
-	peerIP := f.peerIP
-	if machine != nil {
-		peerIP = resolvePeerIP(machine.PrivateIP)
-	}
-
-	targetEndpoint := fmt.Sprintf("http://[%s]:4280/v1/apps/%s/machines%s", peerIP, f.app.Name, endpoint)
-
-	req, err := http.NewRequestWithContext(ctx, method, targetEndpoint, bytes.NewReader(data))
-	if err != nil {
-		return nil, fmt.Errorf("could not create new request, %w", err)
-	}
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", f.authToken))
-
-	resp, err := f.httpClient.Do(req)
+	err := f.sendRequest(ctx, http.MethodGet, getEndpoint, nil, out)
 	if err != nil {
 		return nil, err
 	}
+	return out, nil
+}
+
+func (f *Client) List(ctx context.Context, state string) ([]*api.V1Machine, error) {
+	var getEndpoint = ""
+
+	if state != "" {
+		getEndpoint = fmt.Sprintf("?%s", state)
+	}
+
+	out := make([]*api.V1Machine, 0)
+
+	err := f.sendRequest(ctx, http.MethodGet, getEndpoint, nil, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (f *Client) Destroy(ctx context.Context, input api.RemoveMachineInput) error {
+	destroyEndpoint := fmt.Sprintf("/%s?kill=%t", input.ID, input.Kill)
+
+	return f.sendRequest(ctx, http.MethodDelete, destroyEndpoint, nil, nil)
+}
+
+func (f *Client) Kill(ctx context.Context, machineID string) error {
+
+	var in = map[string]interface{}{
+		"signal": 9,
+	}
+	err := f.sendRequest(ctx, http.MethodPost, fmt.Sprintf("/%s/signal", machineID), in, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (f *Client) Lease(ctx context.Context, machineID string, ttl *int) (*api.MachineLease, error) {
+	var endpoint = fmt.Sprintf("/%s/lease", machineID)
+
+	if ttl != nil {
+		endpoint += fmt.Sprintf("?ttl=%d", *ttl)
+	}
+
+	out := new(api.MachineLease)
+
+	err := f.sendRequest(ctx, http.MethodPost, endpoint, nil, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, out interface{}) error {
+
+	req, err := f.NewRequest(ctx, method, endpoint, in)
+	if err != nil {
+		return err
+	}
+
+	resp, err := f.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode > 299 {
+		return handleAPIError(resp)
+	}
+	if out != nil {
+		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (f *Client) NewRequest(ctx context.Context, method, path string, in interface{}) (*http.Request, error) {
+	var (
+		body    io.Reader
+		peerIP  = f.peerIP
+		headers = make(map[string][]string)
+	)
+	targetEndpoint := fmt.Sprintf("http://[%s]:4280/v1/apps/%s/machines%s", peerIP, f.app.Name, path)
+
+	if in != nil {
+		b, err := json.Marshal(in)
+		if err != nil {
+			return nil, err
+		}
+		headers = map[string][]string{
+			"Content-Type": {"application/json"},
+		}
+		body = bytes.NewReader(b)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, targetEndpoint, body)
+	if err != nil {
+		return nil, fmt.Errorf("could not create new request, %w", err)
+	}
+	req.Header = headers
+
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", f.authToken))
+
+	return req, nil
+}
+
+func handleAPIError(resp *http.Response) error {
 	switch resp.StatusCode / 100 {
 	case 1, 3:
-		return nil, fmt.Errorf("API returned unexpected status, %d", resp.StatusCode)
-	case 2:
-		b, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read body, %w", err)
-		}
-
-		return b, nil
+		return fmt.Errorf("API returned unexpected status, %d", resp.StatusCode)
 	case 4, 5:
 		apiErr := struct {
-			Error string `json:"error"`
+			Error   string `json:"error"`
+			Message string `json:"message,omitempty"`
 		}{}
 		if err := json.NewDecoder(resp.Body).Decode(&apiErr); err != nil {
-			return nil, fmt.Errorf("request returned non-2xx status, %d", resp.StatusCode)
+			return fmt.Errorf("request returned non-2xx status, %d", resp.StatusCode)
 		}
-		return nil, errors.New(apiErr.Error)
+		if apiErr.Message != "" {
+			return fmt.Errorf("%s", apiErr.Message)
+		}
+		return errors.New(apiErr.Error)
 	default:
-		return nil, errors.New("something went terribly wrong")
+		return errors.New("something went terribly wrong")
 	}
 }
 

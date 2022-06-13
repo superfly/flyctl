@@ -2,13 +2,11 @@ package machine
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
@@ -66,7 +64,7 @@ func runMachineStatus(ctx context.Context) error {
 		return fmt.Errorf("could not make flaps client: %w", err)
 	}
 
-	machineBody, err := flapsClient.Get(ctx, machineID)
+	machine, err := flapsClient.Get(ctx, machineID)
 	if err != nil {
 		switch {
 		case strings.Contains(err.Error(), "status"):
@@ -74,11 +72,6 @@ func runMachineStatus(ctx context.Context) error {
 		default:
 			return fmt.Errorf("machine %s could not be retrieved", machineID)
 		}
-	}
-	var machine api.V1Machine
-	err = json.Unmarshal(machineBody, &machine)
-	if err != nil {
-		return fmt.Errorf("machine %s could not be retrieved", machineID)
 	}
 
 	eventLogs := [][]string{}

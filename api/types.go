@@ -1364,3 +1364,18 @@ type MachineEventStop struct {
 	ExitCode  *int
 	OOMKilled bool
 }
+
+type MachineLease struct {
+	Status string `json:"status"`
+	Data   struct {
+		Nonce     string `json:"nonce"`
+		ExpiresAt int64  `json:"expires_at"`
+		Owner     string `json:"owner"`
+	}
+}
+
+type MachineStartResponse struct {
+	Message       string `json:"message,omitempty"`
+	Status        string `json:"status,omitempty"`
+	PreviousState string `json:"previous_state"`
+}

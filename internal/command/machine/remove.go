@@ -2,7 +2,6 @@ package machine
 
 import (
 	"context"
-	"encoding/json"
 
 	"fmt"
 
@@ -75,17 +74,12 @@ func runMachineRemove(ctx context.Context) (err error) {
 	}
 
 	// check if machine even exists
-	currentMachine, err := flapsClient.Get(ctx, machineID)
+	current, err := flapsClient.Get(ctx, machineID)
 	if err != nil {
 		return fmt.Errorf("could not retrieve machine %s", machineID)
 	}
 
-	var machineBody api.V1Machine
-	if err := json.Unmarshal(currentMachine, &machineBody); err != nil {
-		return fmt.Errorf("could not read machine body %s: %w", machineID, err)
-	}
-
-	switch machineBody.State {
+	switch current.State {
 	case "destroyed":
 		return fmt.Errorf("machine %s has already been destroyed", machineID)
 	case "started":
@@ -93,9 +87,9 @@ func runMachineRemove(ctx context.Context) (err error) {
 			return fmt.Errorf("machine %s currently started, either stop first or use --force flag", machineID)
 		}
 	}
-	fmt.Fprintf(out, "machine %s was found and is currently in %s state, attempting to destroy...\n", machineID, machineBody.State)
+	fmt.Fprintf(out, "machine %s was found and is currently in %s state, attempting to destroy...\n", machineID, current.State)
 
-	_, err = flapsClient.Destroy(ctx, input)
+	err = flapsClient.Destroy(ctx, input)
 	if err != nil {
 		return fmt.Errorf("could not destroy machine %s: %w", machineID, err)
 	}

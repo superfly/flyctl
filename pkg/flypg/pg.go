@@ -132,7 +132,7 @@ func (c *Client) NodeRole(ctx context.Context) (string, error) {
 	return out.Result, nil
 }
 
-func (c *Client) RestartNode(ctx context.Context) error {
+func (c *Client) RestartNodePG(ctx context.Context) error {
 	var endpoint = "/commands/admin/restart"
 
 	out := new(RestartResponse)
@@ -153,7 +153,7 @@ func (c *Client) Failover(ctx context.Context) error {
 }
 
 func (c *Client) SettingsView(ctx context.Context, settings []string) (*PGSettings, error) {
-	var endpoint = "/commands/admin/settings/views"
+	var endpoint = "/commands/admin/settings/view"
 
 	out := new(SettingsViewResponse)
 
