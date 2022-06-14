@@ -126,7 +126,7 @@ func runMachineClone(ctx context.Context) error {
 		logger.Debugf("could not connect to wireguard tunnel, err: %v\n", err)
 		logger.Debug("Falling back to log polling...")
 
-		stream, err = logs.NewPollingStream(ctx, client, opts)
+		stream, err = logs.NewPollingStream(client, opts)
 		if err != nil {
 			return fmt.Errorf("failed to get machine logs: %w", err)
 		}
