@@ -36,6 +36,9 @@ func (c *Client) GetAppLogs(ctx context.Context, appName, token, region, instanc
 	}
 
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
+	if c.trace != "" {
+		req.Header.Set("Fly-Force-Trace", c.trace)
+	}
 
 	var result getLogsResponse
 
