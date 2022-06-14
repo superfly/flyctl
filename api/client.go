@@ -33,6 +33,7 @@ type Client struct {
 	client      *graphql.Client
 	accessToken string
 	userAgent   string
+	trace       string
 	logger      Logger
 }
 
@@ -45,7 +46,7 @@ func NewClient(accessToken, name, version string, logger Logger) *Client {
 
 	client := graphql.NewClient(url, graphql.WithHTTPClient(httpClient))
 	userAgent := fmt.Sprintf("%s/%s", name, version)
-	return &Client{httpClient, client, accessToken, userAgent, logger}
+	return &Client{httpClient, client, accessToken, userAgent, os.Getenv("FLY_FORCE_TRACE"), logger}
 }
 
 // NewRequest - creates a new GraphQL request
@@ -63,6 +64,9 @@ func (c *Client) Run(req *graphql.Request) (Query, error) {
 func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Query, error) {
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
 	req.Header.Set("User-Agent", c.userAgent)
+	if c.trace != "" {
+		req.Header.Set("Fly-Force-Trace", c.trace)
+	}
 
 	var resp Query
 	err := c.client.Run(ctx, req, &resp)
