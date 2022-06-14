@@ -77,7 +77,7 @@ func RunCreate(ctx context.Context) (err error) {
 	case fGenerateName:
 		break
 	default:
-		if name, err = selectAppName(ctx); err != nil {
+		if name, err = SelectAppName(ctx); err != nil {
 			return
 		}
 	}
@@ -111,7 +111,7 @@ func RunCreate(ctx context.Context) (err error) {
 	return err
 }
 
-func selectAppName(ctx context.Context) (name string, err error) {
+func SelectAppName(ctx context.Context) (name string, err error) {
 	const msg = "App Name:"
 
 	if err = prompt.String(ctx, &name, msg, "", false); prompt.IsNonInteractive(err) {
