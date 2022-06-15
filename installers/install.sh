@@ -8,7 +8,7 @@ os=$(uname -s)
 arch=$(uname -m)
 version=${1:-latest}
 
-flyctl_uri=$(curl -s https://api.fly.io/app/flyctl_releases/$os/$arch/$version)
+flyctl_uri=$(curl -s ${FLY_FORCE_TRACE:+ -H "Fly-Force-Trace: $FLY_FORCE_TRACE"} https://api.fly.io/app/flyctl_releases/$os/$arch/$version)
 if [ ! "$flyctl_uri" ]; then
 	echo "Error: Unable to find a flyctl release for $os/$arch/$version - see github.com/superfly/flyctl/releases for all versions" 1>&2
 	exit 1
