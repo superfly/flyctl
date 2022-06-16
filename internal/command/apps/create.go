@@ -89,7 +89,6 @@ func RunCreate(ctx context.Context) (err error) {
 
 	input := api.CreateAppInput{
 		Name:           name,
-		Runtime:        "FIRECRACKER",
 		OrganizationID: org.ID,
 	}
 
