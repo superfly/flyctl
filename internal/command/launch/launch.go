@@ -6,11 +6,14 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/api"
+
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
@@ -43,17 +46,9 @@ func New() (cmd *cobra.Command) {
 	return
 }
 
-func run(ctx context.Context) error {
-	client := client.FromContext(ctx).API()
-	var io := iostreams.FromContext(ctx)
-
-	org := flag.GetString(ctx, "org")
-
-	if org == "" {
-		org = "personal"
-	}
-
-	go imgsrc.EagerlyEnsureRemoteBuilder(ctx, client, org)
+func run(ctx context.Context) (err error) {
+	gqlClient := client.FromContext(ctx).API()
+	io := iostreams.FromContext(ctx)
 
 	// MVP: Launch a single machine in the nearest region, from a Docker image, into a fresh app, with the standard vm size
 	// 1. Prompt if image runs a web service. If so, generate a services section for 'fly.toml'
@@ -64,10 +59,35 @@ func run(ctx context.Context) error {
 	// 2. Create app via Flaps
 	// 3. Detect nearest region
 	// 4. Launch machine in detected region with
-	org, err := selectOrganization(ctx, client, orgSlug, nil)
 
-	name, err := apps.SelectAppName(ctx)
-	flaps.CreateApp(name, org)
-	fmt.Fprintf(io.Out, "Created app %s", name)
+	org, err := prompt.Org(ctx, nil)
+
+	go imgsrc.EagerlyEnsureRemoteBuilder(ctx, gqlClient, org.Slug)
+
+	if err != nil {
+		return
+	}
+
+	var name string
+
+	if name, err = apps.SelectAppName(ctx); err != nil {
+		return
+	}
+
+	input := api.CreateAppInput{
+		Name:           name,
+		OrganizationID: org.ID,
+	}
+
+	app, err := gqlClient.CreateApp(ctx, input)
+
+	if err != nil {
+		return
+	}
+
+	fmt.Fprintf(io.Out, "Created app %s in org %s\n", app.Name, org.Slug)
+
+	//flapsClient, err := flaps.New(ctx, app)
+
 	return
 }
