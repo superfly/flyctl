@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -11,6 +10,8 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
+	machines "github.com/superfly/flyctl/internal/command/machine"
+
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/pkg/flaps"
@@ -201,26 +202,15 @@ func (p *Launch) Launch(ctx context.Context) error {
 			Config:  machineConf,
 		}
 
-		resp, err := flaps.Launch(ctx, launchInput)
+		machine, err := flaps.Launch(ctx, launchInput)
 		if err != nil {
 			return err
 		}
-
-		var machine api.Machine
-
-		if err = json.Unmarshal(resp, &machine); err != nil {
-			return err
-		}
-
-		out, err := flaps.Wait(ctx, &api.V1Machine{ID: machine.ID})
+		err = machines.WaitForStart(ctx, flaps, machine)
 		if err != nil {
 			return err
 		}
-
-		if err = json.Unmarshal(out, &machine); err != nil {
-			return err
-		}
-		fmt.Fprintf(io.Out, "Machine %s is %s\n", machine.ID, machine.State)
+		fmt.Fprintf(io.Out, "Machine %s has started\n", machine.ID)
 
 	}
 

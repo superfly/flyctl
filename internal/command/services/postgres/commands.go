@@ -25,12 +25,12 @@ type commandResponse struct {
 
 type postgresCmd struct {
 	ctx    *context.Context
-	app    *api.App
+	app    *api.AppCompact
 	dialer agent.Dialer
 	io     *iostreams.IOStreams
 }
 
-func newPostgresCmd(ctx context.Context, app *api.App) (*postgresCmd, error) {
+func newPostgresCmd(ctx context.Context, app *api.AppCompact) (*postgresCmd, error) {
 	client := client.FromContext(ctx).API()
 
 	agentclient, err := agent.Establish(ctx, client)

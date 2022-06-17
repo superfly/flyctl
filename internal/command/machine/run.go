@@ -2,7 +2,6 @@ package machine
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"path"
 	"path/filepath"
@@ -48,6 +47,7 @@ func newRun() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.Region(),
+		flag.AppConfig(),
 		flag.String{
 			Name:        "id",
 			Description: "Machine ID, if previously known",
@@ -203,14 +203,10 @@ func runMachineRun(ctx context.Context) error {
 
 	machineID := flag.GetString(ctx, "id")
 	if machineID != "" {
-		var machine api.V1Machine
-		machineBytes, err := flapsClient.Get(ctx, machineID)
+
+		machine, err := flapsClient.Get(ctx, machineID)
 		if err != nil {
 			return fmt.Errorf("failed to get machine, %s: %w", machineID, err)
-		}
-
-		if err := json.Unmarshal(machineBytes, &machine); err != nil {
-			return fmt.Errorf("could not read machine body %s: %w", machineID, err)
 		}
 		fmt.Fprintf(io.Out, "machine %s was found and is currently in a %s state, attempting to update...\n", machineID, machine.State)
 		input.ID = machineID
@@ -284,17 +280,12 @@ func runMachineRun(ctx context.Context) error {
 
 	input.Config = &machineConf
 
-	mach, err := flapsClient.Launch(ctx, input)
+	machine, err := flapsClient.Launch(ctx, input)
 	if err != nil {
 		return fmt.Errorf("could not launch machine: %w", err)
 	}
 
-	var machineBody api.V1Machine
-	if err := json.Unmarshal(mach, &machineBody); err != nil {
-		return errors.Wrap(err, "Machine launch return value could not be parsed")
-	}
-
-	id, instanceID, state, privateIP := machineBody.ID, machineBody.InstanceID, machineBody.State, machineBody.PrivateIP
+	id, instanceID, state, privateIP := machine.ID, machine.InstanceID, machine.State, machine.PrivateIP
 
 	fmt.Fprintf(io.Out, "Success! A machine has been successfully launched, waiting for it to be started\n")
 	fmt.Fprintf(io.Out, " Machine ID: %s\n", id)
@@ -302,7 +293,7 @@ func runMachineRun(ctx context.Context) error {
 	fmt.Fprintf(io.Out, " State: %s\n", state)
 
 	// wait for machine to be started
-	if err := WaitForStart(ctx, flapsClient, &machineBody); err != nil {
+	if err := WaitForStart(ctx, flapsClient, machine); err != nil {
 		return err
 	}
 
@@ -370,10 +361,12 @@ func WaitForStart(ctx context.Context, flapsClient *flaps.Client, machine *api.V
 		Jitter: false,
 	}
 	for {
-		_, err := flapsClient.Wait(waitCtx, machine)
+		err := flapsClient.Wait(waitCtx, machine)
 		switch {
+		case errors.Is(err, context.Canceled):
+			return err
 		case errors.Is(err, context.DeadlineExceeded):
-			return errors.Wrap(err, "Timeout reached waiting for machine to start")
+			return fmt.Errorf("timeout reached waiting for machine to start %w", err)
 		case err != nil:
 			time.Sleep(b.Duration())
 			continue

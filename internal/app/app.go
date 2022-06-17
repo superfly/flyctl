@@ -168,7 +168,7 @@ func unmarshalBuild(data map[string]interface{}) *Build {
 			b.Image = fmt.Sprint(v)
 		case "dockerfile":
 			b.Dockerfile = fmt.Sprint(v)
-		case "build_target":
+		case "build_target", "build-target":
 			b.DockerBuildTarget = fmt.Sprint(v)
 		default:
 			b.Args[k] = fmt.Sprint(v)

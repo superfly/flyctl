@@ -18,6 +18,7 @@ type ImageOptions struct {
 	ImageRef        string
 	BuildArgs       map[string]string
 	ExtraBuildArgs  map[string]string
+	BuildSecrets    map[string]string
 	ImageLabel      string
 	Publish         bool
 	Tag             string

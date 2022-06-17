@@ -19,6 +19,7 @@ import (
 	"github.com/docker/docker/pkg/streamformatter"
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/moby/buildkit/client"
+	"github.com/moby/buildkit/session/secrets/secretsprovider"
 	"github.com/moby/buildkit/util/progress/progressui"
 	"github.com/moby/term"
 	"github.com/pkg/errors"
@@ -252,6 +253,14 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 	if s == nil {
 		panic("buildkit not supported")
 	}
+
+	finalSecrets := make(map[string][]byte)
+
+	for k, v := range opts.BuildSecrets {
+		finalSecrets[k] = []byte(v)
+	}
+
+	s.Allow(secretsprovider.FromMap(finalSecrets))
 
 	eg, errCtx := errgroup.WithContext(ctx)
 

@@ -4,15 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/api"
@@ -80,13 +77,13 @@ func New() (cmd *cobra.Command) {
 			Name:        "build-target",
 			Description: "Set the target build stage to build if the Dockerfile has more than one stage",
 		},
+		flag.StringSlice{
+			Name:        "build-secret",
+			Description: "Set of build secrets of NAME=VALUE pairs. Can be specified multiple times. See https://docs.docker.com/develop/develop-images/build_enhancements/#new-docker-build-secret-information",
+		},
 		flag.Bool{
 			Name:        "no-cache",
 			Description: "Do not use the build cache when building the image",
-		},
-		flag.Bool{
-			Name:        "nix",
-			Description: "Build with Nix",
 		},
 	)
 
@@ -230,7 +227,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 	opts := imgsrc.ImageOptions{
 		AppName:         app.NameFromContext(ctx),
 		WorkingDir:      state.WorkingDirectory(ctx),
-		Publish:         flag.GetBool(ctx, "push") || (!flag.GetBuildOnly(ctx) && !flag.GetBool(ctx, "nix")),
+		Publish:         flag.GetBool(ctx, "push") || !flag.GetBuildOnly(ctx),
 		ImageLabel:      flag.GetString(ctx, "image-label"),
 		NoCache:         flag.GetBool(ctx, "no-cache"),
 		BuiltIn:         build.Builtin,
@@ -239,38 +236,14 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 		Buildpacks:      build.Buildpacks,
 	}
 
-	if flag.GetBool(ctx, "nix") {
+	cliBuildSecrets, err := cmdutil.ParseKVStringsToMap(flag.GetStringSlice(ctx, "build-secret"))
 
-		if build.Args == nil {
-			build.Args = make(map[string]string)
-		}
+	if err != nil {
+		return
+	}
 
-		// The Nix builder needs the token and docker tag to push to the registry using skopeo
-		build.Args["FLY_API_TOKEN"] = flyctl.GetAPIToken()
-
-		label := fmt.Sprintf("nix-%d", time.Now().Unix())
-		dockerTag := imgsrc.NewDeploymentTag(app.NameFromContext(ctx), label)
-
-		opts.Tag = dockerTag
-		build.Args["TAG"] = dockerTag
-
-		// Temporary Dockerfile for running the Nix deployment
-		dockerfileContents := `# syntax=docker/dockerfile:1.4
-		FROM flyio/nix-build
-	`
-		nixDockerfilePath := "Dockerfile.nix"
-		err = os.WriteFile(nixDockerfilePath, []byte(dockerfileContents), 0600)
-
-		defer os.Remove(nixDockerfilePath)
-
-		if err != nil {
-			return nil, err
-		}
-
-		if appConfig.Build == nil {
-			appConfig.Build = new(app.Build)
-		}
-		appConfig.Build.Dockerfile = nixDockerfilePath
+	if cliBuildSecrets != nil {
+		opts.BuildSecrets = cliBuildSecrets
 	}
 
 	var buildArgs map[string]string
@@ -298,13 +271,6 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 	if err == nil {
 		tb.Printf("image: %s\n", img.Tag)
 		tb.Printf("image size: %s\n", humanize.Bytes(uint64(img.Size)))
-
-		// We can't easily get the resulting image ID, but we know the tag and expect it to be pushed, so we can use that
-		// reference for the final deployment
-		if flag.GetBool(ctx, "nix") {
-			img.ID = opts.Tag
-		}
-
 	}
 
 	return
