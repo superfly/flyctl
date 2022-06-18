@@ -10,7 +10,9 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
+	genq "github.com/Khan/genqlient/graphql"
 	"github.com/superfly/graphql"
 )
 
@@ -31,6 +33,7 @@ func SetErrorLog(log bool) {
 type Client struct {
 	httpClient  *http.Client
 	client      *graphql.Client
+	GenqClient  *genq.Client
 	accessToken string
 	userAgent   string
 	logger      Logger
@@ -44,8 +47,12 @@ func NewClient(accessToken, name, version string, logger Logger) *Client {
 	url := fmt.Sprintf("%s/graphql", baseURL)
 
 	client := graphql.NewClient(url, graphql.WithHTTPClient(httpClient))
+	genqHttpClient := http.Client{Timeout: 60 * time.Second, Transport: &Transport{UnderlyingTransport: http.DefaultTransport, Token: accessToken, Ctx: context.Background()}}
+
+	genqClient := genq.NewClient(url, &genqHttpClient)
+
 	userAgent := fmt.Sprintf("%s/%s", name, version)
-	return &Client{httpClient, client, accessToken, userAgent, logger}
+	return &Client{httpClient, client, &genqClient, accessToken, userAgent, logger}
 }
 
 // NewRequest - creates a new GraphQL request
@@ -124,4 +131,19 @@ func GetAccessToken(ctx context.Context, email, password, otp string) (token str
 	}
 
 	return
+}
+
+type Transport struct {
+	UnderlyingTransport http.RoundTripper
+	Token               string
+	Ctx                 context.Context
+	EnableDebugTrace    bool
+}
+
+func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.Header.Add("Authorization", "Bearer "+t.Token)
+	if t.EnableDebugTrace {
+		req.Header.Add("Fly-Force-Trace", "true")
+	}
+	return t.UnderlyingTransport.RoundTrip(req)
 }

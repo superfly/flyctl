@@ -7,13 +7,15 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/gql"
 
-	"github.com/superfly/flyctl/internal/build/imgsrc"
+	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/pkg/flaps"
 	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
@@ -26,6 +28,7 @@ func New() (cmd *cobra.Command) {
 	cmd = command.New("maunch", short, long, run, command.RequireSession)
 
 	cmd.Args = cobra.NoArgs
+	cmd.Hidden = true
 
 	flag.Add(cmd,
 		flag.Region(),
@@ -47,8 +50,9 @@ func New() (cmd *cobra.Command) {
 }
 
 func run(ctx context.Context) (err error) {
-	gqlClient := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
+	client := client.FromContext(ctx).API()
+	gqlClient := client.GenqClient
 
 	// MVP: Launch a single machine in the nearest region, from a Docker image, into a fresh app, with the standard vm size
 	// 1. Prompt if image runs a web service. If so, generate a services section for 'fly.toml'
@@ -60,34 +64,81 @@ func run(ctx context.Context) (err error) {
 	// 3. Detect nearest region
 	// 4. Launch machine in detected region with
 
+	var nearestRegionCode string
+
+	if resp, err := gql.GetNearestRegion(ctx, *gqlClient); err != nil {
+		return err
+	} else {
+		nearestRegionCode = resp.NearestRegion.Code
+	}
+
 	org, err := prompt.Org(ctx, nil)
 
-	go imgsrc.EagerlyEnsureRemoteBuilder(ctx, gqlClient, org.Slug)
+	if err != nil {
+		return
+	}
+
+	// Launch a remote builder when we build from source
+	// go gql.EnsureRemoteBuilder(ctx, gqlClient, org.ID)
+
+	var appName string
+
+	if appName, err = apps.SelectAppName(ctx); err != nil {
+		return
+	}
+
+	resp, err := gql.CreateApp(ctx, *gqlClient, appName, org.ID)
 
 	if err != nil {
 		return
 	}
 
-	var name string
+	mApp := resp.CreateApp.App
 
-	if name, err = apps.SelectAppName(ctx); err != nil {
-		return
+	fmt.Fprintf(io.Out, "Created app %s in org %s\n", mApp.Name, org.Slug)
+
+	appConfig := app.NewConfig()
+	appConfig.AppName = mApp.Name
+
+	appConfig.WriteToDisk()
+
+	fmt.Fprintf(io.Out, "Wrote to fly.toml\n")
+
+	appCompact := &api.AppCompact{
+		Name:         mApp.Name,
+		Organization: *org,
 	}
 
-	input := api.CreateAppInput{
-		Name:           name,
-		OrganizationID: org.ID,
+	flapsClient, err := flaps.New(ctx, appCompact)
+
+	machineConfig := &api.MachineConfig{
+		Image: flag.GetString(ctx, "image"),
+		Services: []interface{}{
+			map[string]interface{}{
+				"protocol":      "tcp",
+				"internal_port": 80,
+				"ports": []map[string]interface{}{
+					{
+						"port":     443,
+						"handlers": []string{"http", "tls"},
+					},
+				},
+			},
+		},
 	}
 
-	app, err := gqlClient.CreateApp(ctx, input)
+	launchInput := api.LaunchMachineInput{
+		AppID:   mApp.Name,
+		OrgSlug: org.ID,
+		Region:  nearestRegionCode,
+		Config:  machineConfig,
+	}
+
+	_, err = flapsClient.Launch(ctx, launchInput)
 
 	if err != nil {
-		return
+		return err
 	}
-
-	fmt.Fprintf(io.Out, "Created app %s in org %s\n", app.Name, org.Slug)
-
-	//flapsClient, err := flaps.New(ctx, app)
 
 	return
 }

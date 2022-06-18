@@ -134,7 +134,6 @@ func once(ctx context.Context, out io.Writer) (err error) {
 	if err = render.VerticalTable(out, "App", obj, "Name", "Owner", "Version", "Status", "Hostname"); err != nil {
 		return
 	}
-
 	if !status.Deployed && app.PlatformVersion == "" {
 		_, err = fmt.Fprintln(out, "App has not been deployed yet.")
 
