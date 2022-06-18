@@ -166,7 +166,7 @@ func ReleaseCommand(ctx context.Context, id string) error {
 				VMID:       vmid,
 			}
 
-			ls, err := logs.NewPollingStream(childCtx, client, opts)
+			ls, err := logs.NewPollingStream(client, opts)
 			if err != nil {
 				return err
 			}

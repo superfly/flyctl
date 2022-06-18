@@ -36,6 +36,7 @@ type Client struct {
 	GenqClient  *genq.Client
 	accessToken string
 	userAgent   string
+	trace       string
 	logger      Logger
 }
 
@@ -52,7 +53,7 @@ func NewClient(accessToken, name, version string, logger Logger) *Client {
 	genqClient := genq.NewClient(url, &genqHttpClient)
 
 	userAgent := fmt.Sprintf("%s/%s", name, version)
-	return &Client{httpClient, client, &genqClient, accessToken, userAgent, logger}
+	return &Client{httpClient, client, &genqClient, accessToken, userAgent, os.Getenv("FLY_FORCE_TRACE"), logger}
 }
 
 // NewRequest - creates a new GraphQL request
@@ -70,6 +71,9 @@ func (c *Client) Run(req *graphql.Request) (Query, error) {
 func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Query, error) {
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
 	req.Header.Set("User-Agent", c.userAgent)
+	if c.trace != "" {
+		req.Header.Set("Fly-Force-Trace", c.trace)
+	}
 
 	var resp Query
 	err := c.client.Run(ctx, req, &resp)
