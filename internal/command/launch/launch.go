@@ -97,8 +97,12 @@ func run(ctx context.Context) (err error) {
 
 	fmt.Fprintf(io.Out, "Created app %s in org %s\n", mApp.Name, org.Slug)
 
+	image := flag.GetString(ctx, "image")
 	appConfig := app.NewConfig()
 	appConfig.AppName = mApp.Name
+	appConfig.Build = &app.Build{
+		Image: image,
+	}
 
 	appConfig.WriteToDisk()
 
@@ -111,8 +115,12 @@ func run(ctx context.Context) (err error) {
 
 	flapsClient, err := flaps.New(ctx, appCompact)
 
+	if err != nil {
+		return
+	}
+
 	machineConfig := &api.MachineConfig{
-		Image: flag.GetString(ctx, "image"),
+		Image: image,
 		Services: []interface{}{
 			map[string]interface{}{
 				"protocol":      "tcp",
