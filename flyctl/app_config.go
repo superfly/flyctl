@@ -313,22 +313,31 @@ func (ac *AppConfig) GetInternalPort() (int, error) {
 }
 
 func (ac *AppConfig) SetEnvVariables(vals map[string]string) {
-	var env map[string]string
-
-	if rawEnv, ok := ac.Definition["env"]; ok {
-		if castEnv, ok := rawEnv.(map[string]string); ok {
-			env = castEnv
-		}
-	}
-	if env == nil {
-		env = map[string]string{}
-	}
+	env := ac.GetEnvVariables()
 
 	for k, v := range vals {
 		env[k] = v
 	}
 
 	ac.Definition["env"] = env
+}
+
+func (ac *AppConfig) GetEnvVariables() map[string]string {
+	env := map[string]string{}
+
+	if rawEnv, ok := ac.Definition["env"]; ok {
+		if castEnv, ok := rawEnv.(map[string]interface{}); ok {
+			for k, v := range castEnv {
+				if stringVal, ok := v.(string); ok {
+					env[k] = stringVal
+				} else {
+					env[k] = fmt.Sprintf("%v", v)
+				}
+			}
+		}
+	}
+
+	return env
 }
 
 func (ac *AppConfig) SetBuildSecrets(vals map[string]string) {
@@ -409,17 +418,7 @@ func (ac *AppConfig) SetDockerEntrypoint(entrypoint string) {
 }
 
 func (ac *AppConfig) SetEnvVariable(name, value string) {
-	var env map[string]string
-
-	if rawEnv, ok := ac.Definition["env"]; ok {
-		if castEnv, ok := rawEnv.(map[string]string); ok {
-			env = castEnv
-		}
-	}
-
-	if env == nil {
-		env = map[string]string{}
-	}
+	env := ac.GetEnvVariables()
 
 	env[name] = value
 
