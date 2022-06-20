@@ -2,6 +2,7 @@ query GetApp($appName: String!) {
 	app(name: $appName) {
 		name
 		platformVersion
+		hostname
 		organization {
 			id
 			slug

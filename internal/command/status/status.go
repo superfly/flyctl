@@ -113,6 +113,7 @@ func once(ctx context.Context, out io.Writer) (err error) {
 			Organization: api.Organization{
 				Slug: resp.App.Organization.Slug,
 			},
+			Hostname: resp.App.Hostname,
 		}
 
 		return renderMachineStatus(ctx, appCompact)
@@ -247,6 +248,18 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) (err error) {
 
 	if err != nil {
 		return err
+	}
+
+	obj := [][]string{
+		{
+			app.Name,
+			app.Organization.Slug,
+			app.Hostname,
+		},
+	}
+
+	if err = render.VerticalTable(io.Out, "App", obj, "Name", "Owner", "Hostname"); err != nil {
+		return
 	}
 
 	rows := [][]string{}
