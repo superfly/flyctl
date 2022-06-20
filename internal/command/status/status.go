@@ -15,9 +15,12 @@ import (
 	"github.com/inancgumus/screen"
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/pkg/flaps"
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/gql"
+
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
@@ -93,12 +96,27 @@ func once(ctx context.Context, out io.Writer) (err error) {
 		appName    = app.NameFromContext(ctx)
 		all        = flag.GetBool(ctx, "all")
 		client     = client.FromContext(ctx).API()
+		gqlClient  = client.GenqClient
 		jsonOutput = config.FromContext(ctx).JSONOutput
 	)
 
-	app, err := client.GetApp(ctx, appName)
+	resp, err := gql.GetApp(ctx, *gqlClient, appName)
 	if err != nil {
 		return fmt.Errorf("failed to get app: %s", err)
+	}
+
+	platformVersion := resp.App.PlatformVersion
+
+	if platformVersion == "machines" {
+		appCompact := &api.AppCompact{
+			Name: resp.App.Name,
+			Organization: api.Organization{
+				Slug: resp.App.Organization.Slug,
+			},
+			Hostname: resp.App.Hostname,
+		}
+
+		return renderMachineStatus(ctx, appCompact)
 	}
 
 	var status *api.AppStatus
@@ -107,7 +125,6 @@ func once(ctx context.Context, out io.Writer) (err error) {
 
 		return
 	}
-
 	var backupRegions []api.Region
 	if status.Deployed && !jsonOutput {
 		if _, backupRegions, err = client.ListAppRegions(ctx, appName); err != nil {
@@ -134,28 +151,23 @@ func once(ctx context.Context, out io.Writer) (err error) {
 	if err = render.VerticalTable(out, "App", obj, "Name", "Owner", "Version", "Status", "Hostname"); err != nil {
 		return
 	}
-	if !status.Deployed && app.PlatformVersion == "" {
+	if !status.Deployed && platformVersion == "" {
 		_, err = fmt.Fprintln(out, "App has not been deployed yet.")
 
 		return
 	}
 
-	switch app.PlatformVersion {
-	case "nomad":
-		showDeploymentStatus := status.DeploymentStatus != nil &&
-			((status.DeploymentStatus.Version == status.Version && status.DeploymentStatus.Status != "cancelled") || flag.GetBool(ctx, "deployment"))
+	showDeploymentStatus := status.DeploymentStatus != nil &&
+		((status.DeploymentStatus.Version == status.Version && status.DeploymentStatus.Status != "cancelled") || flag.GetBool(ctx, "deployment"))
 
-		if showDeploymentStatus {
-			if err = renderDeploymentStatus(out, status.DeploymentStatus); err != nil {
-				return
-			}
+	if showDeploymentStatus {
+		if err = renderDeploymentStatus(out, status.DeploymentStatus); err != nil {
+			return
 		}
-
-		err = render.AllocationStatuses(out, "Instances", backupRegions, status.Allocations...)
-
-	case "machines":
-		err = render.MachineStatuses(out, "Machines", app.Machines.Nodes...)
 	}
+
+	err = render.AllocationStatuses(out, "Instances", backupRegions, status.Allocations...)
+
 	return
 }
 
@@ -219,6 +231,52 @@ func runWatch(ctx context.Context) (err error) {
 
 		pause.For(ctx, time.Duration(sleep)*time.Second)
 	}
+
+	return
+}
+
+func renderMachineStatus(ctx context.Context, app *api.AppCompact) (err error) {
+	io := iostreams.FromContext(ctx)
+
+	flapsClient, err := flaps.New(ctx, app)
+
+	if err != nil {
+		return err
+	}
+
+	machines, err := flapsClient.List(ctx, "")
+
+	if err != nil {
+		return err
+	}
+
+	obj := [][]string{
+		{
+			app.Name,
+			app.Organization.Slug,
+			app.Hostname,
+		},
+	}
+
+	if err = render.VerticalTable(io.Out, "App", obj, "Name", "Owner", "Hostname"); err != nil {
+		return
+	}
+
+	rows := [][]string{}
+
+	for _, machine := range machines {
+		rows = append(rows, []string{
+			machine.ID,
+			fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag),
+			machine.CreatedAt,
+			machine.State,
+			machine.Region,
+			machine.Name,
+			machine.PrivateIP,
+		})
+	}
+
+	_ = render.Table(io.Out, "", rows, "ID", "Image", "Created", "State", "Region", "Name", "IP Address")
 
 	return
 }
