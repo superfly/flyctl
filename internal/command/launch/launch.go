@@ -106,7 +106,7 @@ func run(ctx context.Context) (err error) {
 
 	appCompact := &api.AppCompact{
 		Name:         mApp.Name,
-		Organization: *org,
+		Organization: &api.OrganizationBasic{Slug: org.Slug, ID: org.ID},
 	}
 
 	flapsClient, err := flaps.New(ctx, appCompact)
