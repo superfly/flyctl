@@ -294,3 +294,12 @@ func Push() Bool {
 		Default:     false,
 	}
 }
+
+const dockerfileName = "dockerfile"
+
+func Dockerfile() String {
+	return String{
+		Name:        dockerfileName,
+		Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
+	}
+}

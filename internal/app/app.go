@@ -20,6 +20,12 @@ import (
 // DefaultConfigFileName denotes the default application configuration file name.
 const DefaultConfigFileName = "fly.toml"
 
+func NewConfig() *Config {
+	return &Config{
+		Definition: map[string]interface{}{},
+	}
+}
+
 // LoadConfig loads the app config at the given path.
 func LoadConfig(path string) (cfg *Config, err error) {
 	cfg = &Config{
@@ -266,6 +272,10 @@ func (c *Config) WriteToFile(filename string) (err error) {
 	return
 }
 
+func (c *Config) WriteToDisk() (err error) {
+	return c.WriteToFile(DefaultConfigFileName)
+}
+
 // HasServices - Does this config have a services section
 func (c *Config) HasServices() bool {
 	_, ok := c.Definition["services"].([]interface{})
@@ -313,16 +323,7 @@ func (c *Config) InternalPort() (int, error) {
 }
 
 func (c *Config) SetEnvVariables(vals map[string]string) {
-	var env map[string]string
-
-	if rawEnv, ok := c.Definition["env"]; ok {
-		if castEnv, ok := rawEnv.(map[string]string); ok {
-			env = castEnv
-		}
-	}
-	if env == nil {
-		env = map[string]string{}
-	}
+	env := c.GetEnvVariables()
 
 	for k, v := range vals {
 		env[k] = v
@@ -390,21 +391,29 @@ func (c *Config) SetDockerEntrypoint(entrypoint string) {
 }
 
 func (c *Config) SetEnvVariable(name, value string) {
-	var env map[string]string
-
-	if rawEnv, ok := c.Definition["env"]; ok {
-		if castEnv, ok := rawEnv.(map[string]string); ok {
-			env = castEnv
-		}
-	}
-
-	if env == nil {
-		env = map[string]string{}
-	}
+	env := c.GetEnvVariables()
 
 	env[name] = value
 
 	c.Definition["env"] = env
+}
+
+func (c *Config) GetEnvVariables() map[string]string {
+	env := map[string]string{}
+
+	if rawEnv, ok := c.Definition["env"]; ok {
+		if castEnv, ok := rawEnv.(map[string]interface{}); ok {
+			for k, v := range castEnv {
+				if stringVal, ok := v.(string); ok {
+					env[k] = stringVal
+				} else {
+					env[k] = fmt.Sprintf("%v", v)
+				}
+			}
+		}
+	}
+
+	return env
 }
 
 func (c *Config) SetProcess(name, value string) {

@@ -1,0 +1,56 @@
+query GetApp($appName: String!) {
+	app(name: $appName) {
+		name
+		platformVersion
+		hostname
+		organization {
+			id
+			slug
+		}
+	}
+}
+
+query GetNearestRegion {
+	nearestRegion() {
+		code
+		name
+		gatewayAvailable
+	}
+}
+
+mutation CreateApp($name: String, $organizationId: ID!) {
+    createApp(input: {name: $name, organizationId: $organizationId}) {
+        app {
+            name
+            status
+            organization {
+                id
+                slug
+            }
+        }
+    }
+}
+
+mutation EnsureRemoteBuilder($organizationId: ID!) {
+	ensureMachineRemoteBuilder(input: {organizationId: $organizationId}) {
+		machine {
+			id
+			state
+			ips {
+				nodes {
+					family
+					kind
+					ip
+				}
+			}
+		},
+		app {
+			name
+			organization {
+				id
+				slug
+			}
+		}
+	}
+}
+

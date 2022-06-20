@@ -52,7 +52,7 @@ func runOpen(ctx context.Context) error {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	if !app.Deployed {
+	if !app.Deployed && app.PlatformVersion != "machines" {
 		return errors.New("app has not been deployed yet. Please try deploying your app first")
 	}
 

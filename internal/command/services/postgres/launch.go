@@ -251,7 +251,6 @@ func (p *Launch) createApp(ctx context.Context) (*api.AppCompact, error) {
 		OrganizationID:  p.config.Organization.ID,
 		Name:            p.config.AppName,
 		PreferredRegion: &p.config.Region,
-		Runtime:         "FIRECRACKER",
 		AppRoleID:       "postgres_cluster",
 	}
 

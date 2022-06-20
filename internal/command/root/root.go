@@ -23,6 +23,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/doctor"
 	"github.com/superfly/flyctl/internal/command/history"
 	"github.com/superfly/flyctl/internal/command/image"
+	"github.com/superfly/flyctl/internal/command/launch"
 	"github.com/superfly/flyctl/internal/command/logs"
 	"github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/command/monitor"
@@ -144,6 +145,7 @@ func New() *cobra.Command {
 		proxy.New(),
 		machine.New(),
 		monitor.New(),
+		launch.New(),
 	}
 
 	if os.Getenv("DEV") != "" {

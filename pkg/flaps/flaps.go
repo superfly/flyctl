@@ -14,6 +14,7 @@ import (
 	"github.com/PuerkitoBio/rehttp"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/pkg/agent"
+	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/flyctl"
@@ -71,6 +72,19 @@ func newHttpCLient(dialer agent.Dialer) *http.Client {
 	}
 
 	return &http.Client{Transport: logging}
+}
+
+func (f *Client) CreateApp(ctx context.Context, name string, org string) (err error) {
+	io := iostreams.FromContext(ctx)
+	fmt.Fprintf(io.Out, "Creating app: %s", name)
+
+	var in = map[string]interface{}{
+		"app_name": name,
+		"org_slug": org,
+	}
+
+	err = f.sendRequest(ctx, http.MethodPost, "/apps", in, nil)
+	return
 }
 
 func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (*api.V1Machine, error) {
