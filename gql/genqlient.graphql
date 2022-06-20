@@ -1,3 +1,9 @@
+query GetAppPlatform($appName: String!) {
+	app(name: $appName) {
+		platformVersion
+	}
+}
+
 query GetNearestRegion {
 	nearestRegion() {
 		code
@@ -41,3 +47,4 @@ mutation EnsureRemoteBuilder($organizationId: ID!) {
 		}
 	}
 }
+
