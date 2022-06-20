@@ -139,7 +139,6 @@ func runTurboku(cmdCtx *cmdctx.CmdContext) error {
 
 	input := api.CreateAppInput{
 		Name:            appName,
-		Runtime:         "FIRECRACKER",
 		OrganizationID:  org.ID,
 		PreferredRegion: api.StringPointer(regionCode),
 	}

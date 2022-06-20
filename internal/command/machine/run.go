@@ -327,7 +327,6 @@ func createApp(ctx context.Context, message, name string, client *api.Client) (*
 
 	input := api.CreateAppInput{
 		Name:           name,
-		Runtime:        "FIRECRACKER",
 		OrganizationID: org.ID,
 	}
 

@@ -20,6 +20,12 @@ import (
 // DefaultConfigFileName denotes the default application configuration file name.
 const DefaultConfigFileName = "fly.toml"
 
+func NewConfig() *Config {
+	return &Config{
+		Definition: map[string]interface{}{},
+	}
+}
+
 // LoadConfig loads the app config at the given path.
 func LoadConfig(path string) (cfg *Config, err error) {
 	cfg = &Config{
@@ -264,6 +270,10 @@ func (c *Config) WriteToFile(filename string) (err error) {
 	err = c.EncodeTo(file)
 
 	return
+}
+
+func (c *Config) WriteToDisk() (err error) {
+	return c.WriteToFile(DefaultConfigFileName)
 }
 
 // HasServices - Does this config have a services section

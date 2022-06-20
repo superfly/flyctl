@@ -256,7 +256,6 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		Name:            appName,
 		OrganizationID:  org.ID,
 		PreferredRegion: &region.Code,
-		Runtime:         "FIRECRACKER",
 	}
 
 	app, err := cmdCtx.Client.API().CreateApp(ctx, input)
