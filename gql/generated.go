@@ -185,6 +185,47 @@ func (v *EnsureRemoteBuilderResponse) GetEnsureMachineRemoteBuilder() EnsureRemo
 	return v.EnsureMachineRemoteBuilder
 }
 
+// GetAppApp includes the requested fields of the GraphQL type App.
+type GetAppApp struct {
+	// The unique application name
+	Name string `json:"name"`
+	// Fly platform version
+	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
+	// Organization that owns this app
+	Organization GetAppAppOrganization `json:"organization"`
+}
+
+// GetName returns GetAppApp.Name, and is useful for accessing the field via an interface.
+func (v *GetAppApp) GetName() string { return v.Name }
+
+// GetPlatformVersion returns GetAppApp.PlatformVersion, and is useful for accessing the field via an interface.
+func (v *GetAppApp) GetPlatformVersion() PlatformVersionEnum { return v.PlatformVersion }
+
+// GetOrganization returns GetAppApp.Organization, and is useful for accessing the field via an interface.
+func (v *GetAppApp) GetOrganization() GetAppAppOrganization { return v.Organization }
+
+// GetAppAppOrganization includes the requested fields of the GraphQL type Organization.
+type GetAppAppOrganization struct {
+	Id string `json:"id"`
+	// Unique organization slug
+	Slug string `json:"slug"`
+}
+
+// GetId returns GetAppAppOrganization.Id, and is useful for accessing the field via an interface.
+func (v *GetAppAppOrganization) GetId() string { return v.Id }
+
+// GetSlug returns GetAppAppOrganization.Slug, and is useful for accessing the field via an interface.
+func (v *GetAppAppOrganization) GetSlug() string { return v.Slug }
+
+// GetAppResponse is returned by GetApp on success.
+type GetAppResponse struct {
+	// Find an app by name
+	App GetAppApp `json:"app"`
+}
+
+// GetApp returns GetAppResponse.App, and is useful for accessing the field via an interface.
+func (v *GetAppResponse) GetApp() GetAppApp { return v.App }
+
 // GetNearestRegionNearestRegion includes the requested fields of the GraphQL type Region.
 type GetNearestRegionNearestRegion struct {
 	// The IATA airport code for this region
@@ -213,6 +254,15 @@ func (v *GetNearestRegionResponse) GetNearestRegion() GetNearestRegionNearestReg
 	return v.NearestRegion
 }
 
+type PlatformVersionEnum string
+
+const (
+	// App with only machines
+	PlatformVersionEnumMachines PlatformVersionEnum = "machines"
+	// Nomad managed application
+	PlatformVersionEnumNomad PlatformVersionEnum = "nomad"
+)
+
 // __CreateAppInput is used internally by genqlient
 type __CreateAppInput struct {
 	Name           string `json:"name"`
@@ -232,6 +282,14 @@ type __EnsureRemoteBuilderInput struct {
 
 // GetOrganizationId returns __EnsureRemoteBuilderInput.OrganizationId, and is useful for accessing the field via an interface.
 func (v *__EnsureRemoteBuilderInput) GetOrganizationId() string { return v.OrganizationId }
+
+// __GetAppInput is used internally by genqlient
+type __GetAppInput struct {
+	AppName string `json:"appName"`
+}
+
+// GetAppName returns __GetAppInput.AppName, and is useful for accessing the field via an interface.
+func (v *__GetAppInput) GetAppName() string { return v.AppName }
 
 func CreateApp(
 	ctx context.Context,
@@ -312,6 +370,43 @@ mutation EnsureRemoteBuilder ($organizationId: ID!) {
 	var err error
 
 	var data EnsureRemoteBuilderResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
+func GetApp(
+	ctx context.Context,
+	client graphql.Client,
+	appName string,
+) (*GetAppResponse, error) {
+	req := &graphql.Request{
+		OpName: "GetApp",
+		Query: `
+query GetApp ($appName: String!) {
+	app(name: $appName) {
+		name
+		platformVersion
+		organization {
+			id
+			slug
+		}
+	}
+}
+`,
+		Variables: &__GetAppInput{
+			AppName: appName,
+		},
+	}
+	var err error
+
+	var data GetAppResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(

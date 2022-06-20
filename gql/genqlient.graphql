@@ -1,6 +1,11 @@
-query GetAppPlatform($appName: String!) {
+query GetApp($appName: String!) {
 	app(name: $appName) {
+		name
 		platformVersion
+		organization {
+			id
+			slug
+		}
 	}
 }
 
