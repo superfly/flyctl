@@ -79,7 +79,7 @@ func runConfigView(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	app, err := client.GetApp(ctx, appName)
+	app, err := client.GetAppBasic(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}

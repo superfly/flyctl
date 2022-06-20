@@ -51,7 +51,7 @@ func runInstances(ctx context.Context) (err error) {
 	app := flag.Args(ctx)[1]
 
 	var instances agent.Instances
-	if instances, err = client.Instances(ctx, org, app); err != nil {
+	if instances, err = client.Instances(ctx, org.Slug, app); err != nil {
 		return
 	}
 

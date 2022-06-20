@@ -23,28 +23,11 @@ func newDashboardCommand(client *client.Client) *Command {
 }
 
 func runDashboard(cmdCtx *cmdctx.CmdContext) error {
-	ctx := cmdCtx.Command.Context()
-
-	app, err := cmdCtx.Client.API().GetApp(ctx, cmdCtx.AppName)
-	if err != nil {
-		return err
-	}
-
-	dashURL := "https://fly.io/apps/" + app.Name
-	return runDashboardOpen(cmdCtx, dashURL)
+	return runDashboardOpen(cmdCtx, "https://fly.io/apps/"+cmdCtx.AppName)
 }
 
 func runDashboardMetrics(cmdCtx *cmdctx.CmdContext) error {
-	ctx := cmdCtx.Command.Context()
-
-	app, err := cmdCtx.Client.API().GetApp(ctx, cmdCtx.AppName)
-	if err != nil {
-		return err
-	}
-
-	metricsURL := "https://fly.io/apps/" + app.Name + "/metrics"
-
-	return runDashboardOpen(cmdCtx, metricsURL)
+	return runDashboardOpen(cmdCtx, "https://fly.io/apps/"+cmdCtx.AppName+"/metrics")
 }
 
 func runDashboardOpen(ctx *cmdctx.CmdContext, url string) error {

@@ -14,7 +14,11 @@ type Query struct {
 	}
 	App                  App
 	AppCompact           AppCompact
+	AppInfo              AppInfo
+	AppBasic             AppBasic
 	AppStatus            AppStatus
+	AppMonitoring        AppMonitoring
+	AppPostgres          AppPostgres
 	AppCertsCompact      AppCertsCompact
 	CurrentUser          User
 	PersonalOrganization Organization
@@ -130,7 +134,7 @@ type Query struct {
 	}
 
 	ResumeApp struct {
-		App App
+		App AppCompact
 	}
 
 	SuspendApp struct {
@@ -411,20 +415,50 @@ type AppCertificateCompact struct {
 }
 
 type AppCompact struct {
+	ID              string
+	Name            string
+	Status          string
+	Deployed        bool
+	Hostname        string
+	AppURL          string
+	Organization    *OrganizationBasic
+	PlatformVersion string
+}
+
+type AppInfo struct {
 	ID           string
 	Name         string
 	Status       string
 	Deployed     bool
 	Hostname     string
-	AppURL       string
 	Version      int
-	Release      *Release
-	Organization Organization
+	Organization *OrganizationBasic
 	IPAddresses  struct {
 		Nodes []IPAddress
 	}
-	PlatformVersion string
-	Services        []Service
+	Services []Service
+}
+
+type AppBasic struct {
+	ID           string
+	Name         string
+	Organization *OrganizationBasic
+}
+
+type AppMonitoring struct {
+	ID             string
+	CurrentRelease *Release
+}
+
+type AppPostgres struct {
+	ID              string
+	Organization    *OrganizationBasic
+	ImageDetails    ImageVersion
+	PostgresAppRole *struct {
+		Name      string
+		Databases *[]PostgresClusterDatabase
+		Users     *[]PostgresClusterUser
+	}
 }
 
 type AppStatus struct {
@@ -491,6 +525,32 @@ type Organization struct {
 	LoggedCertificates *struct {
 		Nodes []LoggedCertificate
 	}
+}
+
+func (o *Organization) GetID() string {
+	return o.ID
+}
+
+func (o *Organization) GetSlug() string {
+	return o.Slug
+}
+
+type OrganizationBasic struct {
+	ID   string
+	Slug string
+}
+
+func (o *OrganizationBasic) GetID() string {
+	return o.ID
+}
+
+func (o *OrganizationBasic) GetSlug() string {
+	return o.Slug
+}
+
+type OrganizationImpl interface {
+	GetID() string
+	GetSlug() string
 }
 
 type OrganizationDetails struct {

@@ -209,7 +209,7 @@ func runPersonalOrgPing(ctx context.Context) (err error) {
 
 	defer pinger.Close()
 
-	_, ns, err := dig.ResolverForOrg(ctx, ac, org)
+	_, ns, err := dig.ResolverForOrg(ctx, ac, org.Slug)
 	if err != nil {
 		return fmt.Errorf("ping gateway: %w", err)
 	}

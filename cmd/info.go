@@ -30,7 +30,7 @@ func newInfoCommand(client *client.Client) *Command {
 func runInfo(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 
-	app, err := cmdCtx.Client.API().GetAppCompact(ctx, cmdCtx.AppName)
+	app, err := cmdCtx.Client.API().GetAppInfo(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
@@ -45,7 +45,7 @@ func runInfo(cmdCtx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	err = cmdCtx.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppCompact{AppCompact: *app}, HideHeader: true, Vertical: true, Title: "App"})
+	err = cmdCtx.Frender(cmdctx.PresenterOption{Presentable: &presenters.AppInfo{AppInfo: *app}, HideHeader: true, Vertical: true, Title: "App"})
 	if err != nil {
 		return err
 	}

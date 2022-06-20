@@ -359,12 +359,12 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 
 	client := cmdCtx.Client.API()
 
-	app, err := client.GetApp(ctx, appName)
+	app, err := client.GetAppBasic(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	pgApp, err := client.GetApp(ctx, postgresAppName)
+	pgApp, err := client.GetAppPostgres(ctx, postgresAppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
@@ -383,7 +383,7 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s", pgApp.Organization.Slug, err)
 	}
 
-	pgclient := flypg.New(pgApp.Name, dialer)
+	pgclient := flypg.New(postgresAppName, dialer)
 
 	secrets, err := client.GetAppSecrets(ctx, appName)
 	if err != nil {
@@ -451,7 +451,7 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("failed executing create-user: %w", err)
 	}
 
-	connectionString := fmt.Sprintf("postgres://%s:%s@top2.nearest.of.%s.internal:5432/%s", *input.DatabaseUser, pwd, pgApp.Name, *input.DatabaseName)
+	connectionString := fmt.Sprintf("postgres://%s:%s@top2.nearest.of.%s.internal:5432/%s", *input.DatabaseUser, pwd, postgresAppName, *input.DatabaseName)
 	s := map[string]string{}
 	s[*input.VariableName] = connectionString
 
@@ -460,7 +460,7 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	fmt.Printf("\nPostgres cluster %s is now attached to %s\n", pgApp.Name, app.Name)
+	fmt.Printf("\nPostgres cluster %s is now attached to %s\n", postgresAppName, app.Name)
 	fmt.Printf("The following secret was added to %s:\n  %s=%s\n", app.Name, *input.VariableName, connectionString)
 
 	return nil
@@ -477,12 +477,12 @@ func runDetachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 
 	client := cmdCtx.Client.API()
 
-	app, err := client.GetApp(ctx, appName)
+	app, err := client.GetAppBasic(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	pgApp, err := client.GetApp(ctx, postgresAppName)
+	pgApp, err := client.GetAppPostgres(ctx, postgresAppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
@@ -527,7 +527,7 @@ func runDetachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("can't build tunnel for %s: %w", app.Organization.Slug, err)
 	}
 
-	pgclient := flypg.New(pgApp.Name, dialer)
+	pgclient := flypg.New(postgresAppName, dialer)
 
 	// Remove user if exists
 	exists, err := pgclient.UserExists(ctx, targetAttachment.DatabaseUser)
@@ -572,7 +572,7 @@ func runPostgresConnect(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 	client := cmdCtx.Client.API()
 
-	app, err := client.GetApp(ctx, cmdCtx.AppName)
+	app, err := client.GetAppPostgres(ctx, cmdCtx.AppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
@@ -612,7 +612,7 @@ func runPostgresConnect(cmdCtx *cmdctx.CmdContext) error {
 
 	return sshConnect(&SSHParams{
 		Ctx:    cmdCtx,
-		Org:    &app.Organization,
+		Org:    app.Organization,
 		Dialer: dialer,
 		App:    cmdCtx.AppName,
 		Cmd:    cmd,
@@ -632,7 +632,7 @@ func runListPostgresDatabases(cmdCtx *cmdctx.CmdContext) error {
 
 	client := cmdCtx.Client.API()
 
-	app, err := client.GetApp(ctx, cmdCtx.AppName)
+	app, err := client.GetAppPostgres(ctx, cmdCtx.AppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
@@ -655,7 +655,7 @@ func runListPostgresDatabases(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
 
-	pgclient := flypg.New(app.Name, dialer)
+	pgclient := flypg.New(cmdCtx.AppName, dialer)
 
 	databases, err := pgclient.ListDatabases(ctx)
 	if err != nil {
@@ -688,7 +688,7 @@ func runListPostgresUsers(cmdCtx *cmdctx.CmdContext) error {
 
 	client := cmdCtx.Client.API()
 
-	app, err := client.GetApp(ctx, cmdCtx.AppName)
+	app, err := client.GetAppPostgres(ctx, cmdCtx.AppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
@@ -711,7 +711,7 @@ func runListPostgresUsers(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
 
-	pgclient := flypg.New(app.Name, dialer)
+	pgclient := flypg.New(cmdCtx.AppName, dialer)
 
 	users, err := pgclient.ListUsers(ctx)
 	if err != nil {
@@ -734,12 +734,12 @@ func runListPostgresUsers(cmdCtx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func isPostgresApp(app *api.App) bool {
+func isPostgresApp(app *api.AppPostgres) bool {
 	// check app.PostgresAppRole.Name == "postgres_cluster"
 	return app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster"
 }
 
-func hasRequiredVersion(app *api.App, cluster, standalone string) error {
+func hasRequiredVersion(app *api.AppPostgres, cluster, standalone string) error {
 	// Validate image version to ensure it's compatible with this feature.
 	if app.ImageDetails.Version == "" || app.ImageDetails.Version == "unknown" {
 		return fmt.Errorf("Command is not compatible with this image.")

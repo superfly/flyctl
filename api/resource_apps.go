@@ -155,10 +155,41 @@ func (client *Client) GetAppCompact(ctx context.Context, appName string) (*AppCo
 				hostname
 				deployed
 				status
+				appUrl
+				platformVersion
+				organization {
+					id
+					slug
+				}
+			}
+		}
+	`
+
+	req := client.NewRequest(query)
+	req.Var("appName", appName)
+
+	data, err := client.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.AppCompact, nil
+}
+
+func (client *Client) GetAppInfo(ctx context.Context, appName string) (*AppInfo, error) {
+	query := `
+		query ($appName: String!) {
+			appinfo:app(name: $appName) {
+				id
+				name
+				hostname
+				deployed
+				status
 				version
 				appUrl
 				platformVersion
 				organization {
+					id
 					slug
 				}
 				services {
@@ -190,7 +221,89 @@ func (client *Client) GetAppCompact(ctx context.Context, appName string) (*AppCo
 		return nil, err
 	}
 
-	return &data.AppCompact, nil
+	return &data.AppInfo, nil
+}
+
+func (client *Client) GetAppBasic(ctx context.Context, appName string) (*AppBasic, error) {
+	query := `
+		query ($appName: String!) {
+			appbasic:app(name: $appName) {
+				id
+				name
+				organization {
+					id
+					slug
+				}
+			}
+		}
+	`
+
+	req := client.NewRequest(query)
+	req.Var("appName", appName)
+
+	data, err := client.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.AppBasic, nil
+}
+
+func (client *Client) GetAppMonitoring(ctx context.Context, appName string) (*AppMonitoring, error) {
+	query := `
+		query ($appName: String!) {
+			appmonitoring:app(name: $appName) {
+				id
+				currentRelease {
+					evaluationId
+					status
+					inProgress
+					version
+				}
+			}
+		}
+	`
+
+	req := client.NewRequest(query)
+	req.Var("appName", appName)
+
+	data, err := client.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.AppMonitoring, nil
+}
+
+func (client *Client) GetAppPostgres(ctx context.Context, appName string) (*AppPostgres, error) {
+	query := `
+		query ($appName: String!) {
+			apppostgres:app(name: $appName) {
+				id
+				organization {
+					id
+					slug
+				}
+				imageDetails {
+					repository
+					version
+				}
+				postgresAppRole: role {
+					name
+				}
+			}
+		}
+	`
+
+	req := client.NewRequest(query)
+	req.Var("appName", appName)
+
+	data, err := client.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.AppPostgres, nil
 }
 
 func (client *Client) CreateApp(ctx context.Context, input CreateAppInput) (*App, error) {
@@ -295,7 +408,7 @@ func (client *Client) SuspendApp(ctx context.Context, appName string) (*App, err
 }
 
 // ResumeApp - Send GQL mutation to pause app
-func (client *Client) ResumeApp(ctx context.Context, appName string) (*App, error) {
+func (client *Client) ResumeApp(ctx context.Context, appName string) (*AppCompact, error) {
 	query := `
 	mutation ($input: ResumeAppInput!) {
 		resumeApp(input: $input) {

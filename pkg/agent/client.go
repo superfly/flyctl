@@ -376,9 +376,9 @@ func (c *Client) WaitForDNS(parent context.Context, dialer Dialer, slug string, 
 	return
 }
 
-func (c *Client) Instances(ctx context.Context, org *api.Organization, app string) (instances Instances, err error) {
+func (c *Client) Instances(ctx context.Context, org, app string) (instances Instances, err error) {
 	err = c.do(ctx, func(conn net.Conn) (err error) {
-		if err = proto.Write(conn, "instances", org.Slug, app); err != nil {
+		if err = proto.Write(conn, "instances", org, app); err != nil {
 			return
 		}
 

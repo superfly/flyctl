@@ -96,7 +96,7 @@ func once(ctx context.Context, out io.Writer) (err error) {
 		jsonOutput = config.FromContext(ctx).JSONOutput
 	)
 
-	app, err := client.GetApp(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed to get app: %s", err)
 	}
@@ -155,7 +155,12 @@ func once(ctx context.Context, out io.Writer) (err error) {
 		err = render.AllocationStatuses(out, "Instances", backupRegions, status.Allocations...)
 
 	case "machines":
-		err = render.MachineStatuses(out, "Machines", app.Machines.Nodes...)
+		var machines []*api.Machine
+		machines, err = client.ListMachines(ctx, appName, "")
+		if err != nil {
+			return
+		}
+		err = render.MachineStatuses(out, "Machines", machines...)
 	}
 	return
 }

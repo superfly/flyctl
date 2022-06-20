@@ -337,16 +337,16 @@ func createApp(ctx context.Context, message, name string, client *api.Client) (*
 	}
 
 	return &api.AppCompact{
-		ID:           app.ID,
-		Name:         app.Name,
-		Status:       app.Status,
-		Deployed:     app.Deployed,
-		Hostname:     app.Hostname,
-		AppURL:       app.AppURL,
-		Version:      app.Version,
-		Release:      app.Release,
-		Organization: app.Organization,
-		IPAddresses:  app.IPAddresses,
+		ID:       app.ID,
+		Name:     app.Name,
+		Status:   app.Status,
+		Deployed: app.Deployed,
+		Hostname: app.Hostname,
+		AppURL:   app.AppURL,
+		Organization: &api.OrganizationBasic{
+			ID:   app.Organization.ID,
+			Slug: app.Organization.Slug,
+		},
 	}, nil
 }
 

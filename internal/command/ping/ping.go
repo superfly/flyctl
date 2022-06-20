@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
@@ -79,7 +78,6 @@ func run(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
 
 	var (
-		org  *api.Organization
 		err  error
 		name = flag.FirstArg(ctx)
 	)
@@ -100,22 +98,15 @@ func run(ctx context.Context) error {
 
 	orgSlug := flag.GetOrg(ctx)
 
-	switch orgSlug {
-	case "":
+	if orgSlug == "" {
 		appName := app.NameFromContext(ctx)
 
-		app, err := client.GetApp(ctx, appName)
+		app, err := client.GetAppBasic(ctx, appName)
 		if err != nil {
 			return fmt.Errorf("get app: %w", err)
 		}
-		org = &app.Organization
-	default:
-		org, err = client.FindOrganizationBySlug(ctx, orgSlug)
-		if err != nil {
-			if err != nil {
-				return fmt.Errorf("look up org: %w", err)
-			}
-		}
+
+		orgSlug = app.Organization.Slug
 	}
 
 	aClient, err := agent.Establish(ctx, client)
@@ -123,7 +114,7 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	r, ns, err := dig.ResolverForOrg(ctx, aClient, org)
+	r, ns, err := dig.ResolverForOrg(ctx, aClient, orgSlug)
 	if err != nil {
 		return err
 	}
@@ -180,7 +171,7 @@ func run(ctx context.Context) error {
 		}()
 	}
 
-	pinger, err := aClient.Pinger(ctx, org.Slug)
+	pinger, err := aClient.Pinger(ctx, orgSlug)
 	if err != nil {
 		return err
 	}

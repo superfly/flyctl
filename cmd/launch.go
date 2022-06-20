@@ -313,7 +313,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		}
 	}
 
-	fmt.Printf("Created app %s in organization %s\n", app.Name, org.Slug)
+	fmt.Printf("Created app %s in organization %s\n", cmdCtx.AppName, org.Slug)
 
 	// If secrets are requested by the launch scanner, ask the user to input them
 	if srcInfo != nil && len(srcInfo.Secrets) > 0 {
@@ -351,12 +351,12 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		}
 
 		if len(secrets) > 0 {
-			_, err := cmdCtx.Client.API().SetSecrets(ctx, app.Name, secrets)
+			_, err := cmdCtx.Client.API().SetSecrets(ctx, cmdCtx.AppName, secrets)
 
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Set secrets on %s: %s\n", app.Name, strings.Join(keys, ", "))
+			fmt.Printf("Set secrets on %s: %s\n", cmdCtx.AppName, strings.Join(keys, ", "))
 		}
 	}
 
@@ -365,14 +365,14 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 
 		for _, vol := range srcInfo.Volumes {
 
-			app, err := cmdCtx.Client.API().GetApp(ctx, cmdCtx.AppName)
+			appID, err := cmdCtx.Client.API().GetAppID(ctx, cmdCtx.AppName)
 
 			if err != nil {
 				return err
 			}
 
 			volume, err := cmdCtx.Client.API().CreateVolume(ctx, api.CreateVolumeInput{
-				AppID:     app.ID,
+				AppID:     appID,
 				Name:      vol.Source,
 				Region:    region.Code,
 				SizeGb:    1,
@@ -420,13 +420,13 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 
 	if !cmdCtx.Config.GetBool("no-deploy") && !cmdCtx.Config.GetBool("now") && !srcInfo.SkipDatabase && confirm("Would you like to setup a Postgresql database now?") {
 
-		app, err := cmdCtx.Client.API().GetApp(ctx, cmdCtx.AppName)
+		appID, err := cmdCtx.Client.API().GetAppID(ctx, cmdCtx.AppName)
 
 		if err != nil {
 			return err
 		}
 
-		clusterAppName := app.Name + "-db"
+		clusterAppName := cmdCtx.AppName + "-db"
 
 		cmdCtx.Config.Set("name", clusterAppName)
 		cmdCtx.Config.Set("region", region.Code)
@@ -442,19 +442,19 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		cmdCtx.Config.Set("postgres-app", clusterAppName)
 
 		// Reset the app name here beacuse runCreatePostgresCluster overrides it
-		cmdCtx.AppName = app.ID
+		cmdCtx.AppName = appID
 		err = runAttachPostgresCluster(cmdCtx)
 
 		// Reset the app name here beacuse AttachPostgresCluster overrides it
-		cmdCtx.AppName = app.ID
+		cmdCtx.AppName = appID
 
 		if err != nil {
 			msg := `Failed attaching %s to the Postgres cluster %s: %w.\nTry attaching manually with 'fly postgres attach --app %s --postgres-app %s'`
-			err = fmt.Errorf(msg, clusterAppName, app.ID, err, app.ID, clusterAppName)
+			err = fmt.Errorf(msg, clusterAppName, appID, err, appID, clusterAppName)
 			return err
 		}
 
-		fmt.Printf("Postgres cluster %s is now attached to %s\n", clusterAppName, app.Name)
+		fmt.Printf("Postgres cluster %s is now attached to %s\n", clusterAppName, cmdCtx.AppName)
 
 		// Run any initialization commands required for postgres support
 		if len(srcInfo.PostgresInitCommands) > 0 {

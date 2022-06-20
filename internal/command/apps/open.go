@@ -47,7 +47,7 @@ to the root URL of the deployed application.
 func runOpen(ctx context.Context) error {
 	appName := app.NameFromContext(ctx)
 
-	app, err := client.FromContext(ctx).API().GetApp(ctx, appName)
+	app, err := client.FromContext(ctx).API().GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
