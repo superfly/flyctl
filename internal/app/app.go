@@ -9,10 +9,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
-
+	"github.com/go-playground/validator/v10"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/sourcecode"
 )
@@ -50,12 +52,16 @@ func LoadConfig(path string) (cfg *Config, err error) {
 
 // Config wraps the properties of app configuration.
 type Config struct {
-	AppName    string
-	Build      *Build
-	Definition map[string]interface{}
-	Path       string
+	AppName     string
+	Build       *Build
+	HttpService *HttpService
+	Definition  map[string]interface{}
+	Path        string
 }
-
+type HttpService struct {
+	InternalPort int  `json:"internal_port" toml:"internal_port" validate:"required,numeric"`
+	ForceHttps   bool `toml:"force_https"`
+}
 type Build struct {
 	Builder    string
 	Args       map[string]string
@@ -195,7 +201,8 @@ func (c *Config) marshalTOML(w io.Writer) error {
 	fmt.Fprintf(w, "# fly.toml file generated for %s on %s\n\n", c.AppName, time.Now().Format(time.RFC3339))
 
 	rawData := map[string]interface{}{
-		"app": c.AppName,
+		"app":          c.AppName,
+		"http_service": c.HttpService,
 	}
 
 	if err := encoder.Encode(rawData); err != nil {
@@ -274,6 +281,31 @@ func (c *Config) WriteToFile(filename string) (err error) {
 
 func (c *Config) WriteToDisk() (err error) {
 	return c.WriteToFile(DefaultConfigFileName)
+}
+
+func (c *Config) Validate() (err error) {
+	var Validator = validator.New()
+	Validator.RegisterTagNameFunc(func(fld reflect.StructField) string {
+		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+		// skip if tag key says it should be ignored
+		if name == "-" {
+			return ""
+		}
+		return name
+	})
+
+	err = Validator.Struct(c)
+
+	if err != nil {
+		for _, err := range err.(validator.ValidationErrors) {
+			if err.Tag() == "required" {
+				fmt.Printf("%s is required\n", err.Field())
+			} else {
+				fmt.Printf("Validation error on %s: %s\n", err.Field(), err.Tag())
+			}
+		}
+	}
+	return
 }
 
 // HasServices - Does this config have a services section

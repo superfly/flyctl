@@ -25,7 +25,7 @@ func New() (cmd *cobra.Command) {
 		short = long
 	)
 
-	cmd = command.New("maunch", short, long, run, command.RequireSession)
+	cmd = command.New("maunch", short, long, run, command.RequireSession, command.LoadAppConfigIfPresent)
 
 	cmd.Args = cobra.NoArgs
 	cmd.Hidden = true
@@ -54,24 +54,6 @@ func run(ctx context.Context) (err error) {
 	client := client.FromContext(ctx).API()
 	gqlClient := client.GenqClient
 
-	// MVP: Launch a single machine in the nearest region, from a Docker image, into a fresh app, with the standard vm size
-	// 1. Prompt if image runs a web service. If so, generate a services section for 'fly.toml'
-	// [http_service]
-	// internal_port = 8080
-	// force_https = true
-	//
-	// 2. Create app via Flaps
-	// 3. Detect nearest region
-	// 4. Launch machine in detected region with
-
-	var nearestRegionCode string
-
-	if resp, err := gql.GetNearestRegion(ctx, *gqlClient); err != nil {
-		return err
-	} else {
-		nearestRegionCode = resp.NearestRegion.Code
-	}
-
 	org, err := prompt.Org(ctx, nil)
 
 	if err != nil {
@@ -98,55 +80,91 @@ func run(ctx context.Context) (err error) {
 	fmt.Fprintf(io.Out, "Created app %s in org %s\n", mApp.Name, org.Slug)
 
 	image := flag.GetString(ctx, "image")
+
 	appConfig := app.NewConfig()
 	appConfig.AppName = mApp.Name
 	appConfig.Build = &app.Build{
 		Image: image,
 	}
 
+	httpService, err := prompt.Confirm(ctx, "Does this app run an http service?")
+
+	if err != nil {
+		return
+	}
+
+	if httpService {
+		appConfig.HttpService = new(app.HttpService)
+		appConfig.HttpService.ForceHttps = true
+		appConfig.HttpService.InternalPort = 8080
+	}
+
 	appConfig.WriteToDisk()
 
 	fmt.Fprintf(io.Out, "Wrote to fly.toml\n")
 
-	appCompact := &api.AppCompact{
-		Name:         mApp.Name,
-		Organization: *org,
+	return deploy(ctx, appConfig)
+}
+
+func deploy(ctx context.Context, config *app.Config) (err error) {
+
+	client := client.FromContext(ctx).API()
+
+	region, err := client.GetNearestRegion(ctx)
+
+	if err != nil {
+		return
+	}
+	fmt.Println(config)
+	app, err := client.GetAppCompact(ctx, config.AppName)
+
+	if err != nil {
+		return
 	}
 
-	flapsClient, err := flaps.New(ctx, appCompact)
+	flapsClient, err := flaps.New(ctx, app)
 
 	if err != nil {
 		return
 	}
 
 	machineConfig := &api.MachineConfig{
-		Image: image,
-		Services: []interface{}{
+		Image: config.Build.Image,
+	}
+
+	if config.HttpService != nil {
+		machineConfig.Services = []interface{}{
 			map[string]interface{}{
 				"protocol":      "tcp",
-				"internal_port": 80,
+				"internal_port": config.HttpService.InternalPort,
 				"ports": []map[string]interface{}{
 					{
 						"port":     443,
 						"handlers": []string{"http", "tls"},
 					},
+					{
+						"port":        80,
+						"handlers":    []string{"http"},
+						"force_https": config.HttpService.ForceHttps,
+					},
 				},
 			},
-		},
+		}
 	}
-
-	launchInput := api.LaunchMachineInput{
-		AppID:   mApp.Name,
-		OrgSlug: org.ID,
-		Region:  nearestRegionCode,
-		Config:  machineConfig,
-	}
-
-	_, err = flapsClient.Launch(ctx, launchInput)
+	err = config.Validate()
 
 	if err != nil {
 		return err
 	}
+
+	launchInput := api.LaunchMachineInput{
+		AppID:   config.AppName,
+		OrgSlug: app.Organization.ID,
+		Region:  region.Code,
+		Config:  machineConfig,
+	}
+
+	_, err = flapsClient.Launch(ctx, launchInput)
 
 	return
 }
