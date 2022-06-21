@@ -192,7 +192,7 @@ func runSSHEstablish(cmdCtx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func singleUseSSHCertificate(cmdCtx *cmdctx.CmdContext, org *api.Organization) (*api.IssuedCertificate, error) {
+func singleUseSSHCertificate(cmdCtx *cmdctx.CmdContext, org api.OrganizationImpl) (*api.IssuedCertificate, error) {
 	ctx := cmdCtx.Command.Context()
 
 	client := cmdCtx.Client.API()

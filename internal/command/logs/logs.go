@@ -4,7 +4,6 @@ package logs
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"time"
 
@@ -58,16 +57,10 @@ to all instances running in a specific region using the --region/-r flag.
 }
 
 func run(ctx context.Context) error {
-	appName := app.NameFromContext(ctx)
 	client := client.FromContext(ctx).API()
 
-	app, err := client.GetApp(ctx, appName)
-	if err != nil {
-		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
-	}
-
 	opts := &logs.LogOptions{
-		AppName:    app.Name,
+		AppName:    app.NameFromContext(ctx),
 		RegionCode: config.FromContext(ctx).Region,
 		VMID:       flag.GetString(ctx, "instance"),
 	}

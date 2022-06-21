@@ -30,7 +30,7 @@ func (client *Client) GetOrganizations(ctx context.Context, typeFilter *Organiza
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
-		return []Organization{}, err
+		return nil, err
 	}
 
 	return data.Organizations.Nodes, nil

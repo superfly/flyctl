@@ -46,7 +46,7 @@ mutation($input: EstablishSSHKeyInput!) {
 	return &data.EstablishSSHKey, nil
 }
 
-func (c *Client) IssueSSHCertificate(ctx context.Context, org *Organization, email string, username *string, valid_hours *int) (*IssuedCertificate, error) {
+func (c *Client) IssueSSHCertificate(ctx context.Context, org OrganizationImpl, email string, username *string, valid_hours *int) (*IssuedCertificate, error) {
 	req := c.NewRequest(`
 mutation($input: IssueCertificateInput!) { 
   issueCertificate(input: $input) { 
@@ -55,7 +55,7 @@ mutation($input: IssueCertificateInput!) {
 }
 `)
 	inputs := map[string]interface{}{
-		"organizationId": org.ID,
+		"organizationId": org.GetID(),
 		"email":          email,
 	}
 

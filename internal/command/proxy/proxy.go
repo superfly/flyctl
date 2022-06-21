@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
@@ -69,9 +68,9 @@ func run(ctx context.Context) (err error) {
 		orgSlug = org.Slug
 	}
 
-	var app *api.App
+	// var app *api.App
 	if appName != "" {
-		app, err := client.GetApp(ctx, appName)
+		app, err := client.GetAppBasic(ctx, appName)
 		if err != nil {
 			return err
 		}
@@ -98,7 +97,7 @@ func run(ctx context.Context) (err error) {
 
 	params := &proxy.ConnectParams{
 		Ports:            ports,
-		App:              app,
+		AppName:          appName,
 		OrganizationSlug: orgSlug,
 		Dialer:           dialer,
 		PromptInstance:   promptInstance,

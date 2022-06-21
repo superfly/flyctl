@@ -46,7 +46,7 @@ func RunResume(ctx context.Context) (err error) {
 
 	client := client.FromContext(ctx).API()
 
-	var app *api.App
+	var app *api.AppCompact
 	if app, err = client.ResumeApp(ctx, appName); err != nil {
 		err = fmt.Errorf("failed resuming %s: %w", appName, err)
 
@@ -79,11 +79,11 @@ func RunResume(ctx context.Context) (err error) {
 	return err
 }
 
-func waitUntilAppIsRunning(ctx context.Context, app *api.App, err *error) {
+func waitUntilAppIsRunning(ctx context.Context, app *api.AppCompact, err *error) {
 	client := client.FromContext(ctx).API()
 
 	for err == nil && app.Status != "running" {
-		app, *err = client.GetApp(ctx, app.Name)
+		app, *err = client.GetAppCompact(ctx, app.Name)
 
 		pause.For(ctx, time.Millisecond*100)
 	}

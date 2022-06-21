@@ -105,7 +105,7 @@ func (client *Client) DetachPostgresCluster(ctx context.Context, input DetachPos
 func (client *Client) ListPostgresDatabases(ctx context.Context, appName string) ([]PostgresClusterDatabase, error) {
 	query := `
 		query($appName: String!) {
-			app(name: $appName) {
+			apppostgres:app(name: $appName) {
 				postgresAppRole: role {
 					name
 					... on PostgresClusterAppRole {
@@ -127,7 +127,7 @@ func (client *Client) ListPostgresDatabases(ctx context.Context, appName string)
 		return nil, err
 	}
 
-	return *data.App.PostgresAppRole.Databases, nil
+	return *data.AppPostgres.PostgresAppRole.Databases, nil
 }
 
 func (client *Client) ListPostgresClusterAttachments(ctx context.Context, appName, postgresAppName string) ([]*PostgresClusterAttachment, error) {
@@ -159,7 +159,7 @@ func (client *Client) ListPostgresClusterAttachments(ctx context.Context, appNam
 func (client *Client) ListPostgresUsers(ctx context.Context, appName string) ([]PostgresClusterUser, error) {
 	query := `
 		query($appName: String!) {
-			app(name: $appName) {
+			apppostgres:app(name: $appName) {
 				postgresAppRole: role {
 					name
 					... on PostgresClusterAppRole {
@@ -182,7 +182,7 @@ func (client *Client) ListPostgresUsers(ctx context.Context, appName string) ([]
 		return nil, err
 	}
 
-	return *data.App.PostgresAppRole.Users, nil
+	return *data.AppPostgres.PostgresAppRole.Users, nil
 }
 
 func (client *Client) EnablePostgresConsul(ctx context.Context, appName string) (*PostgresEnableConsulPayload, error) {

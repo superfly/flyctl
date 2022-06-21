@@ -44,7 +44,7 @@ func RunMove(ctx context.Context) error {
 
 	client := client.FromContext(ctx).API()
 
-	app, err := client.GetApp(ctx, appName)
+	app, err := client.GetAppBasic(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed fetching app: %w", err)
 	}

@@ -52,7 +52,7 @@ func spin(in, out string) context.CancelFunc {
 
 type SSHParams struct {
 	Ctx            context.Context
-	Org            *api.Organization
+	Org            api.OrganizationImpl
 	App            string
 	Dialer         agent.Dialer
 	Cmd            string
@@ -77,7 +77,7 @@ func RunSSHCommand(ctx context.Context, app *api.AppCompact, dialer agent.Dialer
 
 	err := SSHConnect(&SSHParams{
 		Ctx:            ctx,
-		Org:            &app.Organization,
+		Org:            app.Organization,
 		Dialer:         dialer,
 		App:            app.Name,
 		Cmd:            cmd,
@@ -223,7 +223,7 @@ func marshalED25519PrivateKey(key ed25519.PrivateKey, comment string) []byte {
 	})
 }
 
-func singleUseSSHCertificate(ctx context.Context, org *api.Organization) (*api.IssuedCertificate, error) {
+func singleUseSSHCertificate(ctx context.Context, org api.OrganizationImpl) (*api.IssuedCertificate, error) {
 	client := client.FromContext(ctx).API()
 
 	user, err := client.GetCurrentUser(ctx)
