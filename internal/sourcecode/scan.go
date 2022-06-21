@@ -12,7 +12,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 )
 
-//go:embed templates templates/*/.dockerignore templates/*/.fly
+//go:embed templates templates/*/.dockerignore templates/*/*/.dockerignore templates/**/.fly
 var content embed.FS
 
 type InitCommand struct {
@@ -71,17 +71,18 @@ type Volume struct {
 
 func Scan(sourceDir string) (*SourceInfo, error) {
 	scanners := []sourceScanner{
-		configureRedwood,
 		configureDjango,
+		configureLaravel,
+		configurePhoenix,
+		configureRails,
+		configureRedwood,
 		/* frameworks scanners are placed before generic scanners,
 		   since they might mix languages or have a Dockerfile that
 			 doesn't work with Fly */
 		configureDockerfile,
 		configureLucky,
-		configureRails,
 		configureRuby,
 		configureGo,
-		configurePhoenix,
 		configureElixir,
 		configurePython,
 		configureDeno,
@@ -528,11 +529,11 @@ func configureNuxt(sourceDir string) (*SourceInfo, error) {
 	}
 
 	s := &SourceInfo{
-		Family: "NuxtJS",
-		Port:   8080,
+		Family:       "NuxtJS",
+		Port:         8080,
 		SkipDatabase: true,
 	}
-	
+
 	s.Files = templates("templates/nuxtjs")
 
 	s.Env = env
@@ -596,6 +597,49 @@ Your Django app is ready to deploy!
 For detailed documentation, see https://fly.dev/docs/django/
 		`
 		}
+	}
+
+	return s, nil
+}
+
+// setup Laravel with a sqlite database
+func configureLaravel(sourceDir string) (*SourceInfo, error) {
+	// Laravel projects contain the `artisan` command
+	if !checksPass(sourceDir, fileExists("artisan")) {
+		return nil, nil
+	}
+
+	files := templates("templates/laravel/common")
+
+	var extra []SourceFile
+	if checksPass(sourceDir, dirContains("composer.json", "laravel/octane")) {
+		extra = templates("templates/laravel/octane")
+	} else {
+		extra = templates("templates/laravel/standard")
+	}
+
+	// Merge common files with runtime-specific files (standard or octane)
+	for _, f := range extra {
+		files = append(files, f)
+	}
+
+	s := &SourceInfo{
+		Env: map[string]string{
+			"APP_ENV":     "production",
+			"LOG_CHANNEL": "stderr",
+			"LOG_LEVEL":   "info",
+		},
+		Family: "Laravel",
+		Files:  files,
+		Port:   8080,
+		Secrets: []Secret{
+			{
+				Key:  "APP_KEY",
+				Help: "Laravel needs a unique application key. Use 'php artisan key:generate --show' to generate this value.",
+				// TODO: Can we generate this for users?
+			},
+		},
+		SkipDatabase: true,
 	}
 
 	return s, nil
