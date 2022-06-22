@@ -230,11 +230,11 @@ func GenerateName() Bool {
 const remoteOnlyName = "remote-only"
 
 // RemoteOnly returns a boolean flag for deploying remotely
-func RemoteOnly() Bool {
+func RemoteOnly(defaultValue bool) Bool {
 	return Bool{
 		Name:        remoteOnlyName,
 		Description: "Perform builds on a remote builder instance instead of using the local docker daemon",
-		Default:     false,
+		Default:     defaultValue,
 	}
 }
 

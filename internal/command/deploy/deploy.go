@@ -47,7 +47,7 @@ func New() (cmd *cobra.Command) {
 		flag.Region(),
 		flag.Image(),
 		flag.Now(),
-		flag.RemoteOnly(),
+		flag.RemoteOnly(false),
 		flag.LocalOnly(),
 		flag.BuildOnly(),
 		flag.Push(),
