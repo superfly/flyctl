@@ -93,6 +93,15 @@ func Confirm(ctx context.Context, message string) (confirm bool, err error) {
 	return
 }
 
+func ConfirmOverwrite(ctx context.Context, filename string) (confirm bool, err error) {
+	prompt := &survey.Confirm{
+		Message: fmt.Sprintf(`Overwrite "%s"?`, filename),
+	}
+	err = survey.AskOne(prompt, &confirm)
+
+	return
+}
+
 var errNonInteractive = errors.New("prompt: non interactive")
 
 func IsNonInteractive(err error) bool {

@@ -52,15 +52,16 @@ func LoadConfig(path string) (cfg *Config, err error) {
 
 // Config wraps the properties of app configuration.
 type Config struct {
-	AppName     string
-	Build       *Build
-	HttpService *HttpService
-	Definition  map[string]interface{}
-	Path        string
+	AppName       string
+	Build         *Build
+	PrimaryRegion string
+	HttpService   *HttpService
+	Definition    map[string]interface{}
+	Path          string
 }
 type HttpService struct {
-	InternalPort int  `json:"internal_port" toml:"internal_port" validate:"required,numeric"`
-	ForceHttps   bool `toml:"force_https"`
+	InternalPort string `json:"internal_port" toml:"internal_port" validate:"required,numeric"`
+	ForceHttps   bool   `toml:"force_https"`
 }
 type Build struct {
 	Builder    string
