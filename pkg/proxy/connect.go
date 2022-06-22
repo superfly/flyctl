@@ -6,7 +6,6 @@ import (
 	"net"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/iostreams"
@@ -14,7 +13,7 @@ import (
 )
 
 type ConnectParams struct {
-	App              *api.App
+	AppName          string
 	OrganizationSlug string
 	Dialer           agent.Dialer
 	Ports            []string
@@ -38,10 +37,6 @@ func Connect(ctx context.Context, p *ConnectParams) (err error) {
 		remotePort = p.Ports[1]
 	}
 
-	if orgSlug == "" {
-		orgSlug = p.App.Organization.Slug
-	}
-
 	agentclient, err := agent.Establish(ctx, client)
 
 	if err != nil {
@@ -50,7 +45,7 @@ func Connect(ctx context.Context, p *ConnectParams) (err error) {
 
 	// Prompt for a specific instance and set it as the remote target
 	if p.PromptInstance {
-		instance, err := selectInstance(ctx, p.App, agentclient)
+		instance, err := selectInstance(ctx, p.OrganizationSlug, p.AppName, agentclient)
 
 		if err != nil {
 			return err
@@ -93,10 +88,10 @@ func Connect(ctx context.Context, p *ConnectParams) (err error) {
 	return proxy.ProxyServer(ctx)
 }
 
-func selectInstance(ctx context.Context, app *api.App, c *agent.Client) (instance string, err error) {
-	instances, err := c.Instances(ctx, &app.Organization, app.Name)
+func selectInstance(ctx context.Context, org, app string, c *agent.Client) (instance string, err error) {
+	instances, err := c.Instances(ctx, org, app)
 	if err != nil {
-		return "", fmt.Errorf("look up %s: %w", app.Name, err)
+		return "", fmt.Errorf("look up %s: %w", app, err)
 	}
 
 	selected := 0

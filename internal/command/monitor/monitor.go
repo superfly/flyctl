@@ -39,7 +39,7 @@ func run(ctx context.Context) (err error) {
 	appName := app.NameFromContext(ctx)
 	client := client.FromContext(ctx).API()
 
-	app, err := client.GetApp(ctx, appName)
+	app, err := client.GetAppMonitoring(ctx, appName)
 
 	if err != nil {
 		return fmt.Errorf("failed to get app from context")

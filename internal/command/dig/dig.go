@@ -17,7 +17,6 @@ import (
 	"github.com/superfly/flyctl/pkg/agent"
 	"github.com/superfly/flyctl/pkg/iostreams"
 
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
@@ -69,28 +68,19 @@ func run(ctx context.Context) error {
 		client = client.FromContext(ctx).API()
 		io     = iostreams.FromContext(ctx)
 
-		org *api.Organization
 		err error
 	)
 
 	orgSlug := flag.GetOrg(ctx)
 
-	switch orgSlug {
-	case "":
+	if orgSlug == "" {
 		appName := app.NameFromContext(ctx)
 
-		app, err := client.GetApp(ctx, appName)
+		app, err := client.GetAppBasic(ctx, appName)
 		if err != nil {
 			return fmt.Errorf("get app: %w", err)
 		}
-		org = &app.Organization
-	default:
-		org, err = client.FindOrganizationBySlug(ctx, orgSlug)
-		if err != nil {
-			if err != nil {
-				return fmt.Errorf("look up org: %w", err)
-			}
-		}
+		orgSlug = app.Organization.Slug
 	}
 
 	agentclient, err := agent.Establish(ctx, client)
@@ -98,12 +88,12 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	r, ns, err := ResolverForOrg(ctx, agentclient, org)
+	r, ns, err := ResolverForOrg(ctx, agentclient, orgSlug)
 	if err != nil {
 		return err
 	}
 
-	d, err := agentclient.Dialer(ctx, org.Slug)
+	d, err := agentclient.Dialer(ctx, orgSlug)
 	if err != nil {
 		return err
 	}
@@ -240,9 +230,9 @@ func roundTrip(conn net.Conn, m *dns.Msg) (*dns.Msg, error) {
 // ResolverForOrg takes a connection to the wireguard agent and an organization
 // and returns a working net.Resolver for DNS for that organization, along with the
 // address of the nameserver.
-func ResolverForOrg(ctx context.Context, c *agent.Client, org *api.Organization) (*net.Resolver, string, error) {
+func ResolverForOrg(ctx context.Context, c *agent.Client, orgSlug string) (*net.Resolver, string, error) {
 	// do this explicitly so we can get the DNS server address
-	ts, err := c.Establish(ctx, org.Slug)
+	ts, err := c.Establish(ctx, orgSlug)
 	if err != nil {
 		return nil, "", err
 	}
@@ -250,7 +240,7 @@ func ResolverForOrg(ctx context.Context, c *agent.Client, org *api.Organization)
 	return &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			d, err := c.Dialer(ctx, org.Slug)
+			d, err := c.Dialer(ctx, orgSlug)
 			if err != nil {
 				return nil, err
 			}

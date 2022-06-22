@@ -60,7 +60,7 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 
 	terminal.Debugf("Retrieving app info for %s\n", cc.AppName)
 
-	app, err := client.GetApp(ctx, cc.AppName)
+	app, err := client.GetAppBasic(ctx, cc.AppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
@@ -106,7 +106,7 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 	var addr string
 
 	if cc.Config.GetBool("select") {
-		instances, err := agentclient.Instances(ctx, &app.Organization, cc.AppName)
+		instances, err := agentclient.Instances(ctx, app.Organization.Slug, cc.AppName)
 		if err != nil {
 			return fmt.Errorf("look up %s: %w", cc.AppName, err)
 		}
@@ -139,7 +139,7 @@ func runSSHConsole(cc *cmdctx.CmdContext) error {
 
 	err = sshConnect(&SSHParams{
 		Ctx:    cc,
-		Org:    &app.Organization,
+		Org:    app.Organization,
 		Dialer: dialer,
 		App:    cc.AppName,
 		Cmd:    cc.Config.GetString("command"),
@@ -179,7 +179,7 @@ func spin(in, out string) context.CancelFunc {
 
 type SSHParams struct {
 	Ctx            *cmdctx.CmdContext
-	Org            *api.Organization
+	Org            api.OrganizationImpl
 	App            string
 	Dialer         agent.Dialer
 	Cmd            string

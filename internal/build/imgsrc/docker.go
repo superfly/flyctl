@@ -256,8 +256,8 @@ func buildRemoteClientOpts(ctx context.Context, apiClient *api.Client, appName, 
 		return
 	}
 
-	var app *api.App
-	if app, err = apiClient.GetApp(ctx, appName); err != nil {
+	var app *api.AppBasic
+	if app, err = apiClient.GetAppBasic(ctx, appName); err != nil {
 		return nil, fmt.Errorf("error fetching target app: %w", err)
 	}
 

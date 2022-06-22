@@ -46,12 +46,12 @@ func runDetach(ctx context.Context) error {
 
 	client := client.FromContext(ctx).API()
 
-	app, err := client.GetApp(ctx, appName)
+	app, err := client.GetAppBasic(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	pgApp, err := client.GetApp(ctx, pgAppName)
+	pgApp, err := client.GetAppBasic(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}

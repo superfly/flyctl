@@ -115,7 +115,7 @@ func deploy(ctx context.Context, config *app.Config) (err error) {
 	if err != nil {
 		return
 	}
-	fmt.Println(config)
+
 	app, err := client.GetAppCompact(ctx, config.AppName)
 
 	if err != nil {

@@ -19,7 +19,6 @@ import (
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/gql"
 
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/client"
@@ -96,28 +95,15 @@ func once(ctx context.Context, out io.Writer) (err error) {
 		appName    = app.NameFromContext(ctx)
 		all        = flag.GetBool(ctx, "all")
 		client     = client.FromContext(ctx).API()
-		gqlClient  = client.GenqClient
 		jsonOutput = config.FromContext(ctx).JSONOutput
 	)
 
-	resp, err := gql.GetApp(ctx, *gqlClient, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed to get app: %s", err)
 	}
 
-	platformVersion := resp.App.PlatformVersion
-
-	if platformVersion == "machines" {
-		appCompact := &api.AppCompact{
-			Name: resp.App.Name,
-			Organization: api.Organization{
-				Slug: resp.App.Organization.Slug,
-			},
-			Hostname: resp.App.Hostname,
-		}
-
-		return renderMachineStatus(ctx, appCompact)
-	}
+	platformVersion := app.PlatformVersion
 
 	var status *api.AppStatus
 	if status, err = client.GetAppStatus(ctx, appName, all); err != nil {

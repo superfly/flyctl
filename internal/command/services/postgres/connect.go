@@ -58,7 +58,7 @@ func runConnect(ctx context.Context) error {
 	appName := app.NameFromContext(ctx)
 	client := client.FromContext(ctx).API()
 
-	app, err := client.GetApp(ctx, appName)
+	app, err := client.GetAppBasic(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
@@ -82,7 +82,7 @@ func runConnect(ctx context.Context) error {
 
 	return ssh.SSHConnect(&ssh.SSHParams{
 		Ctx:    ctx,
-		Org:    &app.Organization,
+		Org:    app.Organization,
 		Dialer: dialer,
 		App:    appName,
 		Cmd:    cmdStr,

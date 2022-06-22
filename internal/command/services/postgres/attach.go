@@ -91,12 +91,7 @@ func runAttach(ctx context.Context) error {
 
 	client := client.FromContext(ctx).API()
 
-	pgApp, err := client.GetApp(ctx, pgAppName)
-	if err != nil {
-		return fmt.Errorf("get app: %w", err)
-	}
-
-	_, err = client.GetApp(ctx, appName)
+	pgApp, err := client.GetAppBasic(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}

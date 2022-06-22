@@ -70,7 +70,7 @@ func runCreate(ctx context.Context) error {
 		appName    = app.NameFromContext(ctx)
 	)
 
-	app, err := client.GetApp(ctx, appName)
+	appID, err := client.GetAppID(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -82,7 +82,7 @@ func runCreate(ctx context.Context) error {
 	}
 
 	input := api.CreateVolumeInput{
-		AppID:             app.ID,
+		AppID:             appID,
 		Name:              volumeName,
 		Region:            region.Code,
 		SizeGb:            flag.GetInt(ctx, "size"),
