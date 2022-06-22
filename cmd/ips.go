@@ -42,6 +42,11 @@ func newIPAddressesCommand(client *client.Client) *Command {
 		Description: "The region where the address should be allocated.",
 	})
 
+	allocateV6Command.AddBoolFlag(BoolFlagOpts{
+		Name:        "private",
+		Description: "Allocate a private ipv6 address",
+	})
+
 	ipsReleaseStrings := docstrings.Get("ips.release")
 	release := BuildCommandKS(cmd, runReleaseIPAddress, ipsReleaseStrings, client, requireSession, requireAppName)
 	release.Args = cobra.ExactArgs(1)
@@ -67,6 +72,10 @@ func runAllocateIPAddressV4(ctx *cmdctx.CmdContext) error {
 }
 
 func runAllocateIPAddressV6(ctx *cmdctx.CmdContext) error {
+	private := ctx.Config.GetBool("private")
+	if private {
+		return runAllocateIPAddress(ctx, "private_v6")
+	}
 	return runAllocateIPAddress(ctx, "v6")
 }
 
