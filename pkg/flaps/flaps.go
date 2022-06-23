@@ -243,7 +243,14 @@ func (f *Client) NewRequest(ctx context.Context, method, path string, in interfa
 		peerIP  = f.peerIP
 		headers = make(map[string][]string)
 	)
-	targetEndpoint := fmt.Sprintf("http://[%s]:4280/v1/apps/%s/machines%s", peerIP, f.app.Name, path)
+
+	var targetEndpoint string
+
+	if f.app.Name != "" {
+		targetEndpoint = fmt.Sprintf("http://[%s]:4280/v1/apps/%s/machines%s", peerIP, f.app.Name, path)
+	} else {
+		targetEndpoint = fmt.Sprintf("http://[%s]:4280/v1%s", peerIP, path)
+	}
 
 	if in != nil {
 		b, err := json.Marshal(in)
