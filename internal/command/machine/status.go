@@ -2,10 +2,12 @@ package machine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/alecthomas/chroma/quick"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/client"
@@ -35,12 +37,17 @@ func newStatus() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Bool{
+			Name:        "display-config",
+			Description: "Display the machine config as JSON",
+			Shorthand:   "d",
+		},
 	)
 
 	return cmd
 }
 
-func runMachineStatus(ctx context.Context) error {
+func runMachineStatus(ctx context.Context) (err error) {
 	var (
 		io     = iostreams.FromContext(ctx)
 		client = client.FromContext(ctx).API()
@@ -91,5 +98,18 @@ func runMachineStatus(ctx context.Context) error {
 	}
 	_ = render.Table(io.Out, "Event Logs", eventLogs, "Machine Status", "Event Type", "Source", "Timestamp")
 
-	return nil
+	if flag.GetBool(ctx, "display-config") {
+		var prettyConfig []byte
+		prettyConfig, err = json.MarshalIndent(machine.Config, "", "  ")
+
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprint(io.Out, "\nConfig:\n")
+		err = quick.Highlight(io.Out, string(prettyConfig), "json", "terminal", "monokai")
+		fmt.Fprintln(io.Out)
+	}
+
+	return
 }
