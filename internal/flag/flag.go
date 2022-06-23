@@ -303,3 +303,38 @@ func Dockerfile() String {
 		Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
 	}
 }
+
+func ImageLabel() String {
+	return String{
+		Name:        "image-label",
+		Description: `Image label to use when tagging and pushing to the fly registry. Defaults to "deployment-{timestamp}".`,
+	}
+}
+
+func NoCache() Bool {
+	return Bool{
+		Name:        "no-cache",
+		Description: "Do not use the build cache when building the image",
+	}
+}
+
+func BuildSecret() StringSlice {
+	return StringSlice{
+		Name:        "build-secret",
+		Description: "Set of build secrets of NAME=VALUE pairs. Can be specified multiple times. See https://docs.docker.com/develop/develop-images/build_enhancements/#new-docker-build-secret-information",
+	}
+}
+
+func BuildArg() StringSlice {
+	return StringSlice{
+		Name:        "build-arg",
+		Description: "Set of build time variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
+	}
+}
+
+func BuildTarget() String {
+	return String{
+		Name:        "build-target",
+		Description: "Set the target build stage to build if the Dockerfile has more than one stage",
+	}
+}

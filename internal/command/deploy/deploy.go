@@ -65,36 +65,28 @@ func New() (cmd *cobra.Command) {
 			Shorthand:   "e",
 			Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
 		},
-		flag.String{
-			Name:        "image-label",
-			Description: `Image label to use when tagging and pushing to the fly registry. Defaults to "deployment-{timestamp}".`,
-		},
-		flag.StringSlice{
-			Name:        "build-arg",
-			Description: "Set of build time variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
-		},
-		flag.String{
-			Name:        "build-target",
-			Description: "Set the target build stage to build if the Dockerfile has more than one stage",
-		},
-		flag.StringSlice{
-			Name:        "build-secret",
-			Description: "Set of build secrets of NAME=VALUE pairs. Can be specified multiple times. See https://docs.docker.com/develop/develop-images/build_enhancements/#new-docker-build-secret-information",
-		},
-		flag.Bool{
-			Name:        "no-cache",
-			Description: "Do not use the build cache when building the image",
-		},
+		flag.ImageLabel(),
+		flag.BuildSecret(),
+		flag.NoCache(),
 	)
 
 	return
 }
 
 func run(ctx context.Context) error {
+
 	appConfig, err := determineAppConfig(ctx)
 	if err != nil {
 		return err
 	}
+
+	return DeployWithConfig(ctx, appConfig)
+
+}
+
+func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
+
+	apiClient := client.FromContext(ctx).API()
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
 	img, err := determineImage(ctx, appConfig)
@@ -107,7 +99,21 @@ func run(ctx context.Context) error {
 		return nil
 	}
 
-	release, releaseCommand, err := createRelease(ctx, appConfig, img)
+	remoteApp, err := apiClient.GetAppCompact(ctx, appConfig.AppName)
+
+	if err != nil {
+		return err
+	}
+
+	var release *api.Release
+	var releaseCommand *api.ReleaseCommand
+	fmt.Println(remoteApp)
+	if remoteApp.PlatformVersion == "machines" {
+		return createMachinesRelease(ctx, appConfig, img)
+	} else {
+		release, releaseCommand, err = createRelease(ctx, appConfig, img)
+	}
+
 	if err != nil {
 		return err
 	}
@@ -130,7 +136,6 @@ func run(ctx context.Context) error {
 			return err
 		}
 
-		apiClient := client.FromContext(ctx).API()
 		release, err = apiClient.GetAppRelease(ctx, app.NameFromContext(ctx), release.ID)
 		if err != nil {
 			return err
@@ -192,7 +197,12 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 	tb := render.NewTextBlock(ctx, "Building image")
 
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx))
-	appName := app.NameFromContext(ctx)
+
+	var appName string = app.NameFromContext(ctx)
+	if appConfig.AppName != "" {
+		appName = appConfig.AppName
+	}
+
 	client := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
 
@@ -206,7 +216,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 	// we're using a pre-built Docker image
 	if imageRef != "" {
 		opts := imgsrc.RefOptions{
-			AppName:    app.NameFromContext(ctx),
+			AppName:    appName,
 			WorkingDir: state.WorkingDirectory(ctx),
 			Publish:    !flag.GetBuildOnly(ctx),
 			ImageRef:   imageRef,
@@ -225,7 +235,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 
 	// We're building from source
 	opts := imgsrc.ImageOptions{
-		AppName:         app.NameFromContext(ctx),
+		AppName:         appName,
 		WorkingDir:      state.WorkingDirectory(ctx),
 		Publish:         flag.GetBool(ctx, "push") || !flag.GetBuildOnly(ctx),
 		ImageLabel:      flag.GetString(ctx, "image-label"),

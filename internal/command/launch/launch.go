@@ -1,10 +1,12 @@
 package launch
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -20,6 +22,8 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
+	"github.com/superfly/flyctl/internal/command/deploy"
+	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/sourcecode"
@@ -47,6 +51,11 @@ func New() (cmd *cobra.Command) {
 		flag.Push(),
 		flag.Org(),
 		flag.Dockerfile(),
+		flag.ImageLabel(),
+		flag.NoCache(),
+		flag.BuildSecret(),
+		flag.BuildArg(),
+		flag.BuildTarget(),
 		flag.Bool{
 			Name:        "no-deploy",
 			Description: "Do not prompt for deployment",
@@ -63,6 +72,11 @@ func New() (cmd *cobra.Command) {
 			Name:        "path",
 			Description: `Path to the app source root, where fly.toml file will be saved`,
 			Default:     ".",
+		},
+		flag.Bool{
+			Name:        "machines",
+			Shorthand:   "m",
+			Description: `Launch and deploy using the Machines API`,
 		},
 	)
 
@@ -102,25 +116,43 @@ func run(ctx context.Context) (err error) {
 
 	// Create the app
 
-	input := api.CreateAppInput{
-		Name:           appName,
-		OrganizationID: org.ID,
-	}
+	if flag.GetBool(ctx, "machines") {
+		flapsClient, err := flaps.New(ctx, &api.AppCompact{
+			Organization: &api.OrganizationBasic{
+				Slug: org.Slug,
+			},
+		})
 
-	mApp, err := client.CreateApp(ctx, input)
+		if err != nil {
+			return err
+		}
+
+		err = flapsClient.CreateApp(ctx, appName, org.Slug)
+
+		if err != nil {
+			return err
+		}
+	} else {
+		input := api.CreateAppInput{
+			Name:           appName,
+			OrganizationID: org.ID,
+		}
+
+		_, err = client.CreateApp(ctx, input)
+	}
 
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(io.Out, "Created app %s in org %s\n", mApp.Name, org.Slug)
+	fmt.Fprintf(io.Out, "Created app %s in org %s\n", appName, org.Slug)
 
 	// TODO: Handle imported fly.toml config
 
 	// Setup new fly.toml config file
 
 	appConfig := app.NewConfig()
-	appConfig.AppName = mApp.Name
+	appConfig.AppName = appName
 
 	// Launch in the specified region, or when not specified, in the nearest region
 	regionCode := flag.GetString(ctx, "region")
@@ -137,64 +169,92 @@ func run(ctx context.Context) (err error) {
 
 	appConfig.PrimaryRegion = regionCode
 
-	// Determine whether to deploy from an image, a specified Dokerfile or scan the dir for a recognized project type
+	var srcInfo *sourcecode.SourceInfo
+
+	// Determine whether to deploy from an image
 	if img := flag.GetString(ctx, "image"); img != "" {
 		fmt.Fprintf(io.Out, "Lauching with image: %s", img)
 
-		appConfig.Build = &app.Build{
-			Image: img,
-		}
+		appConfig.Build.Image = img
+
+		// Deploy from specified Dokerfile
 	} else if dockerfile := flag.GetString(ctx, "dockerfile"); dockerfile != "" {
 		fmt.Fprintf(io.Out, "Launching with Dockerfile: %s", dockerfile)
 
-		appConfig.Build = &app.Build{
-			Dockerfile: dockerfile,
-		}
+		appConfig.Build.Dockerfile = dockerfile
+
+		// Scan the working directory for a compatible launcher
 	} else {
-		scanAndConfigure(ctx, workingDir, appConfig)
+
+		srcInfo, err = scanAndConfigure(ctx, workingDir, appConfig)
+
+		if err != nil {
+			return err
+		}
 	}
 
 	// If this project runs an http service, setup it up in fly.toml
-
-	var httpService bool = false
+	var choseHttpService bool = false
 
 	if appConfig.HttpService == nil {
-		httpService, err = prompt.Confirm(ctx, "Does this app run an http service?")
+		choseHttpService, err = prompt.Confirm(ctx, "Does this app run an HTTP service?")
 
 		if err != nil {
 			return
 		}
 
-		if httpService {
+		if choseHttpService {
 			err = setupHttpService(ctx, appConfig)
 		}
 
-		return
 	}
 
 	appConfig.WriteToDisk()
 
 	fmt.Fprintf(io.Out, "Wrote to fly.toml\n")
 
-	return deploy(ctx, appConfig)
+	var deployNow bool = false
+
+	if !flag.GetBool(ctx, "no-deploy") && !srcInfo.SkipDeploy {
+		if flag.GetBool(ctx, "now") {
+			deployNow = true
+		} else {
+			deployNow, err = prompt.Confirm(ctx, "Would you like to deploy now?")
+		}
+
+		if deployNow {
+			return deploy.DeployWithConfig(ctx, appConfig)
+		}
+	}
+
+	// Alternative deploy documentation if our standard deploy method is not correct
+	if srcInfo.DeployDocs != "" {
+		fmt.Fprintln(io.Out, srcInfo.DeployDocs)
+	} else {
+		fmt.Fprintln(io.Out, "Your app is ready. Deploy with `flyctl deploy`")
+	}
+
+	return
 }
 
-func scanAndConfigure(ctx context.Context, dir string, appConfig *app.Config) (err error) {
+func scanAndConfigure(ctx context.Context, dir string, appConfig *app.Config) (srcInfo *sourcecode.SourceInfo, err error) {
 
 	io := iostreams.FromContext(ctx)
 
-	var srcInfo = new(sourcecode.SourceInfo)
+	srcInfo = new(sourcecode.SourceInfo)
 
-	if scannedDirInfo, err := sourcecode.Scan(dir); err != nil {
-		return err
+	scannedDirInfo, err := sourcecode.Scan(dir)
+
+	if err != nil {
+		return srcInfo, err
 	} else {
 		srcInfo = scannedDirInfo
 	}
 
 	if srcInfo == nil {
-		message := "Could not find a Dockerfile, nor detect a runtime or framework from source code. Continuing with a blank app."
+		message := "We looked for a Dockerfile, supported runtime or supported framework, but didn't find any. So we'll start with a basic application."
 		fmt.Fprint(io.Out, io.ColorScheme().Green(message))
-		return err
+		return srcInfo, err
 	}
 
 	// Tell the user which app type was detected
@@ -208,17 +268,15 @@ func scanAndConfigure(ctx context.Context, dir string, appConfig *app.Config) (e
 			fmt.Fprintln(io.Out, "\tBuildpacks:", strings.Join(srcInfo.Buildpacks, " "))
 		}
 
-		appConfig.Build = &app.Build{
-			Builder:    srcInfo.Builder,
-			Buildpacks: srcInfo.Buildpacks,
-		}
+		appConfig.Build.Builder = srcInfo.Builder
+		appConfig.Build.Buildpacks = srcInfo.Buildpacks
 	}
 
 	// Install files specified by
 	err = installFiles(ctx, dir, srcInfo)
 
 	if err != nil {
-		return err
+		return srcInfo, err
 	}
 
 	setScannerPrefs(ctx, appConfig, srcInfo)
@@ -314,7 +372,7 @@ func setScannerPrefs(ctx context.Context, appConfig *app.Config, srcInfo *source
 	}
 
 	// If volumes are requested by the launch scanner, create them
-	if srcInfo != nil && len(srcInfo.Volumes) > 0 {
+	if len(srcInfo.Volumes) > 0 {
 
 		for _, vol := range srcInfo.Volumes {
 
@@ -339,6 +397,32 @@ func setScannerPrefs(ctx context.Context, appConfig *app.Config, srcInfo *source
 			}
 
 		}
+	}
+
+	// Run any initialization commands
+	if srcInfo != nil && len(srcInfo.InitCommands) > 0 {
+		for _, cmd := range srcInfo.InitCommands {
+			if err := execInitCommand(ctx, cmd); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Append any requested Dockerfile entries
+	if srcInfo != nil && len(srcInfo.DockerfileAppendix) > 0 {
+		if err := appendDockerfileAppendix(srcInfo.DockerfileAppendix); err != nil {
+			return fmt.Errorf("failed appending Dockerfile appendix: %w", err)
+		}
+	}
+
+	// Set Docker build arguments
+	if len(srcInfo.BuildArgs) > 0 {
+		appConfig.Build.Args = srcInfo.BuildArgs
+	}
+
+	// Display notices to users
+	if srcInfo.Notice != "" {
+		fmt.Println(srcInfo.Notice)
 	}
 
 	return
@@ -411,59 +495,59 @@ func setupHttpService(ctx context.Context, appConfig *app.Config) (err error) {
 	return
 }
 
-func deploy(ctx context.Context, config *app.Config) (err error) {
-
-	client := client.FromContext(ctx).API()
-
-	app, err := client.GetAppCompact(ctx, config.AppName)
-
+func execInitCommand(ctx context.Context, command sourcecode.InitCommand) (err error) {
+	binary, err := exec.LookPath(command.Command)
 	if err != nil {
-		return
+		return fmt.Errorf("%s not found in $PATH - make sure app dependencies are installed and try again", command.Command)
 	}
+	fmt.Println(command.Description)
+	// Run a requested generator command, for example to generate a Dockerfile
+	cmd := exec.CommandContext(ctx, binary, command.Args...)
 
-	flapsClient, err := flaps.New(ctx, app)
-
-	if err != nil {
-		return
-	}
-
-	machineConfig := &api.MachineConfig{
-		Image: config.Build.Image,
-	}
-
-	if config.HttpService != nil {
-		machineConfig.Services = []interface{}{
-			map[string]interface{}{
-				"protocol":      "tcp",
-				"internal_port": config.HttpService.InternalPort,
-				"ports": []map[string]interface{}{
-					{
-						"port":     443,
-						"handlers": []string{"http", "tls"},
-					},
-					{
-						"port":        80,
-						"handlers":    []string{"http"},
-						"force_https": config.HttpService.ForceHttps,
-					},
-				},
-			},
-		}
-	}
-	err = config.Validate()
-
-	if err != nil {
+	if err = cmd.Start(); err != nil {
 		return err
 	}
 
-	launchInput := api.LaunchMachineInput{
-		AppID:   config.AppName,
-		OrgSlug: app.Organization.ID,
-		Region:  config.PrimaryRegion,
-		Config:  machineConfig,
+	if err = cmd.Wait(); err != nil {
+		err = fmt.Errorf("failed running %s: %w ", cmd.String(), err)
+	}
+	return err
+}
+
+func appendDockerfileAppendix(appendix []string) (err error) {
+	const dockerfilePath = "Dockerfile"
+
+	var b bytes.Buffer
+	b.WriteString("\n# Appended by flyctl\n")
+
+	for _, value := range appendix {
+		_, _ = b.WriteString(value)
+		_ = b.WriteByte('\n')
 	}
 
-	_, err = flapsClient.Launch(ctx, launchInput)
+	var unlock filemu.UnlockFunc
+
+	if unlock, err = filemu.Lock(context.Background(), dockerfilePath); err != nil {
+		return
+	}
+	defer func() {
+		if e := unlock(); err == nil {
+			err = e
+		}
+	}()
+
+	var f *os.File
+	// TODO: we don't flush
+	if f, err = os.OpenFile(dockerfilePath, os.O_APPEND|os.O_WRONLY, 0600); err != nil {
+		return
+	}
+	defer func() {
+		if e := f.Close(); err == nil {
+			err = e
+		}
+	}()
+
+	_, err = b.WriteTo(f)
 
 	return
 }
