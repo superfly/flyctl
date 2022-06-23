@@ -170,7 +170,7 @@ func runMachineRun(ctx context.Context) error {
 		}
 	} else {
 		machineApp, err = client.GetAppCompact(ctx, appName)
-		if err != nil && strings.Contains(err.Error(), "Could not resolve") {
+		if err != nil && strings.Contains(err.Error(), "Could not find App") {
 			machineApp, err = createApp(ctx, fmt.Sprintf("App '%s' does not exist, would you like to create it?", appName), appName, client)
 			if machineApp == nil {
 				return nil
@@ -419,7 +419,7 @@ func determineImage(ctx context.Context, appName string) (img *imgsrc.Deployment
 		if err != nil {
 			return nil, errors.Wrap(err, "invalid build-arg")
 		}
-		opts.ExtraBuildArgs = extraArgs
+		opts.BuildArgs = extraArgs
 
 		img, err = resolver.BuildImage(ctx, io, opts)
 		if err != nil {
