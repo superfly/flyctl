@@ -61,19 +61,19 @@ func runRestart(ctx context.Context) error {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
+	if len(out) == 0 {
+		return fmt.Errorf("no machines found")
+	}
+
 	fmt.Fprintf(io.Out, "Acquiring lease on postgres cluster\n")
 
 	for _, machine := range out {
-		lease, err := flapsClient.Lease(ctx, machine.ID, api.IntPointer(40))
+		lease, err := flapsClient.GetLease(ctx, machine.ID, api.IntPointer(40))
 
 		if err != nil {
 			return fmt.Errorf("failed to obtain lease: %w", err)
 		}
 		machines[lease.Data.Nonce] = machine
-	}
-
-	if len(out) == 0 {
-		return fmt.Errorf("no machines found")
 	}
 
 	agentclient, err := agent.Establish(ctx, client)
@@ -98,8 +98,12 @@ func runRestart(ctx context.Context) error {
 			fmt.Fprintf(io.Out, "postgres on node: %s failed\n", machine.ID)
 			return err
 		}
+
+		if err := flapsClient.ReleaseLease(ctx, machine.ID, lease); err != nil {
+			return fmt.Errorf("failed to release lease: %w", err)
+		}
 	}
-	fmt.Fprintf(io.Out, "Done\n")
+	fmt.Fprintf(io.Out, "Restart complete\n")
 
 	return nil
 }
