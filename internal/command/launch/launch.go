@@ -189,8 +189,25 @@ func run(ctx context.Context) (err error) {
 
 		if choseHttpService {
 			err = setupHttpService(ctx, appConfig)
+
+			if err != nil {
+				return err
+			}
+		}
+		// Allocate an IP because machine apps don't do this automaticallt yet
+		_, err = client.AllocateIPAddress(ctx, appConfig.AppName, "v4", "")
+
+		if err != nil {
+			fmt.Fprintln(io.Out, "Failed allocating IpV4 address")
 		}
 
+		_, err = client.AllocateIPAddress(ctx, appConfig.AppName, "v6", "")
+
+		if err != nil {
+			fmt.Fprintln(io.Out, "Failed allocating IpV6 address")
+		}
+
+		return
 	}
 
 	appConfig.WriteToDisk()
