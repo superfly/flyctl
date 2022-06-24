@@ -640,6 +640,7 @@ type CreateAppInput struct {
 	PreferredRegion *string `json:"preferredRegion,omitempty"`
 	Network         *string `json:"network,omitempty"`
 	AppRoleID       string  `json:"appRoleId,omitempty"`
+	Machines        bool    `json:"machines,omitempty"`
 }
 
 type LogEntry struct {

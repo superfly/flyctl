@@ -27,7 +27,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/sourcecode"
-	"github.com/superfly/flyctl/pkg/flaps"
 	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
@@ -116,43 +115,28 @@ func run(ctx context.Context) (err error) {
 
 	// Create the app
 
-	if flag.GetBool(ctx, "machines") {
-		flapsClient, err := flaps.New(ctx, &api.AppCompact{
-			Organization: &api.OrganizationBasic{
-				Slug: org.Slug,
-			},
-		})
-
-		if err != nil {
-			return err
-		}
-
-		err = flapsClient.CreateApp(ctx, appName, org.Slug)
-
-		if err != nil {
-			return err
-		}
-	} else {
-		input := api.CreateAppInput{
-			Name:           appName,
-			OrganizationID: org.ID,
-		}
-
-		_, err = client.CreateApp(ctx, input)
+	input := api.CreateAppInput{
+		Name:           appName,
+		OrganizationID: org.ID,
 	}
+	if flag.GetBool(ctx, "machines") {
+		input.Machines = true
+	}
+
+	createdApp, err := client.CreateApp(ctx, input)
 
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(io.Out, "Created app %s in org %s\n", appName, org.Slug)
+	fmt.Fprintf(io.Out, "Created app %s in org %s\n", createdApp.Name, org.Slug)
 
 	// TODO: Handle imported fly.toml config
 
 	// Setup new fly.toml config file
 
 	appConfig := app.NewConfig()
-	appConfig.AppName = appName
+	appConfig.AppName = createdApp.Name
 
 	// Launch in the specified region, or when not specified, in the nearest region
 	regionCode := flag.GetString(ctx, "region")

@@ -68,7 +68,22 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 		Config:  machineConfig,
 	}
 
-	_, err = flapsClient.Launch(ctx, launchInput)
+	machines, err := flapsClient.List(ctx, "started")
+
+	if err != nil {
+		return
+	}
+
+	if len(machines) > 0 {
+		for _, machine := range machines {
+			fmt.Fprintf(io.Out, "Updating machine %s\n", machine.ID)
+			launchInput.ID = machine.ID
+			flapsClient.Update(ctx, launchInput)
+		}
+
+	} else {
+		_, err = flapsClient.Launch(ctx, launchInput)
+	}
 
 	return
 }

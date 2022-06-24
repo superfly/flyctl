@@ -66,7 +66,9 @@ func New() (cmd *cobra.Command) {
 			Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
 		},
 		flag.ImageLabel(),
+		flag.BuildArg(),
 		flag.BuildSecret(),
+		flag.BuildTarget(),
 		flag.NoCache(),
 	)
 
@@ -107,7 +109,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 
 	var release *api.Release
 	var releaseCommand *api.ReleaseCommand
-	fmt.Println(remoteApp)
+
 	if remoteApp.PlatformVersion == "machines" {
 		return createMachinesRelease(ctx, appConfig, img)
 	} else {
