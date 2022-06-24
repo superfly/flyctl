@@ -88,8 +88,6 @@ func (f *Client) CreateApp(ctx context.Context, name string, org string) (err er
 }
 
 func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (*api.V1Machine, error) {
-	fmt.Println("Machine is launching...")
-
 	var endpoint string
 	if builder.ID != "" {
 		endpoint = fmt.Sprintf("/%s", builder.ID)
@@ -105,8 +103,6 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (*a
 }
 
 func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput) (*api.V1Machine, error) {
-	fmt.Println("Machine is updating...")
-
 	endpoint := fmt.Sprintf("/%s", builder.ID)
 
 	var out = new(api.V1Machine)
@@ -118,7 +114,6 @@ func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput) (*a
 }
 
 func (f *Client) Start(ctx context.Context, machineID string) (*api.MachineStartResponse, error) {
-	fmt.Println("Machine is starting...")
 	startEndpoint := fmt.Sprintf("/%s/start", machineID)
 
 	out := new(api.MachineStartResponse)
@@ -130,8 +125,6 @@ func (f *Client) Start(ctx context.Context, machineID string) (*api.MachineStart
 }
 
 func (f *Client) Wait(ctx context.Context, machine *api.V1Machine) error {
-	fmt.Println("Waiting on firecracker VM...")
-
 	waitEndpoint := fmt.Sprintf("/%s/wait", machine.ID)
 
 	if machine.InstanceID != "" {
