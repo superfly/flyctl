@@ -17,7 +17,6 @@ import (
 func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.DeploymentImage) (err error) {
 	io := iostreams.FromContext(ctx)
 
-	fmt.Fprintln(io.Out, "Deploying to Machines")
 	client := client.FromContext(ctx).API()
 
 	app, err := client.GetAppCompact(ctx, config.AppName)

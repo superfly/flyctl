@@ -136,6 +136,9 @@ func run(ctx context.Context) (err error) {
 	// Setup new fly.toml config file
 
 	appConfig := app.NewConfig()
+
+	// Config version 2 is for machine apps
+	appConfig.Version = app.MachinesVersion
 	appConfig.AppName = createdApp.Name
 
 	// Launch in the specified region, or when not specified, in the nearest region
@@ -206,8 +209,6 @@ func run(ctx context.Context) (err error) {
 		if err != nil {
 			fmt.Fprintln(io.Out, "Failed allocating IpV6 address")
 		}
-
-		return
 	}
 
 	appConfig.WriteToDisk()

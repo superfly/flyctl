@@ -19,8 +19,14 @@ import (
 	"github.com/superfly/flyctl/internal/sourcecode"
 )
 
-// DefaultConfigFileName denotes the default application configuration file name.
-const DefaultConfigFileName = "fly.toml"
+const (
+	// DefaultConfigFileName denotes the default application configuration file name.
+	DefaultConfigFileName = "fly.toml"
+	// Config is versioned, initially, to separate nomad from machine apps without having to consult
+	// the API
+	NomadVersion    = 1
+	MachinesVersion = 2
+)
 
 func NewConfig() *Config {
 	return &Config{
@@ -52,10 +58,11 @@ func LoadConfig(path string) (cfg *Config, err error) {
 
 // Config wraps the properties of app configuration.
 type Config struct {
-	AppName       string
-	Build         *Build
-	PrimaryRegion string
-	HttpService   *HttpService
+	AppName       string       `toml:"app"`
+	Build         *Build       `toml:"build"`
+	Version       int          `toml:"version"`
+	PrimaryRegion string       `toml:"primary_region"`
+	HttpService   *HttpService `toml:"http_service"`
 	Definition    map[string]interface{}
 	Path          string
 }
@@ -117,8 +124,12 @@ func (c *Config) EncodeTo(w io.Writer) error {
 func (c *Config) unmarshalTOML(r io.Reader) (err error) {
 	var data map[string]interface{}
 
-	if _, err = toml.DecodeReader(r, &data); err == nil {
-		err = c.unmarshalNativeMap(data)
+	// Config version 2 is for machines apps, with explicit structs for the whole config.
+	// Config version 1 is for nomad apps, for which most values are unmarshalled differently.
+	if _, err = toml.NewDecoder(r).Decode(&c); err == nil {
+		if c.Version < 2 {
+			err = c.unmarshalNativeMap(data)
+		}
 	}
 
 	return
@@ -201,9 +212,15 @@ func (c *Config) marshalTOML(w io.Writer) error {
 	encoder := toml.NewEncoder(&b)
 	fmt.Fprintf(w, "# fly.toml file generated for %s on %s\n\n", c.AppName, time.Now().Format(time.RFC3339))
 
+	// For machines apps, encode and write directly, bypassing custom marshalling
+	if c.Version > 1 {
+		encoder.Encode(&c)
+		_, err := b.WriteTo(w)
+		return err
+	}
+
 	rawData := map[string]interface{}{
-		"app":          c.AppName,
-		"http_service": c.HttpService,
+		"app": c.AppName,
 	}
 
 	if err := encoder.Encode(rawData); err != nil {
