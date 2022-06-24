@@ -36,6 +36,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/restart"
 	"github.com/superfly/flyctl/internal/command/resume"
 	"github.com/superfly/flyctl/internal/command/services"
+	"github.com/superfly/flyctl/internal/command/services/postgres"
 	"github.com/superfly/flyctl/internal/command/status"
 	"github.com/superfly/flyctl/internal/command/suspend"
 	"github.com/superfly/flyctl/internal/command/version"
@@ -144,6 +145,7 @@ func New() *cobra.Command {
 		proxy.New(),
 		machine.New(),
 		monitor.New(),
+		postgres.New(),
 	}
 
 	if os.Getenv("DEV") != "" {

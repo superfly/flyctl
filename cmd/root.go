@@ -64,7 +64,7 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 		newWireGuardCommand(client),
 		newSSHCommand(client),
 		newChecksCommand(client),
-		newPostgresCommand(client),
+		// newPostgresCommand(client),
 		newVMCommand(client),
 		newTurbokuCommand(client),
 		newLaunchCommand(client),
