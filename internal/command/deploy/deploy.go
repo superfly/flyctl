@@ -56,10 +56,7 @@ func New() (cmd *cobra.Command) {
 			Name:        "strategy",
 			Description: "The strategy for replacing running instances. Options are canary, rolling, bluegreen, or immediate. Default is canary, or rolling when max-per-region is set.",
 		},
-		flag.String{
-			Name:        "dockerfile",
-			Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
-		},
+		flag.Dockerfile(),
 		flag.StringSlice{
 			Name:        "env",
 			Shorthand:   "e",
