@@ -67,6 +67,7 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 		newPostgresCommand(client),
 		newVMCommand(client),
 		newTurbokuCommand(client),
+		newLaunchCommand(client),
 	)
 
 	return rootCmd.Command
