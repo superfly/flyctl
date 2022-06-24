@@ -209,6 +209,9 @@ func (client *Client) GetAppInfo(ctx context.Context, appName string) (*AppInfo,
 						createdAt
 					}
 				}
+				postgresAppRole: role {
+					name
+				}
 			}
 		}
 	`
