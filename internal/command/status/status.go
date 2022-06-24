@@ -105,6 +105,11 @@ func once(ctx context.Context, out io.Writer) (err error) {
 
 	platformVersion := app.PlatformVersion
 
+	if platformVersion == "machines" {
+		err = renderMachineStatus(ctx, app)
+		return
+	}
+
 	var status *api.AppStatus
 	if status, err = client.GetAppStatus(ctx, appName, all); err != nil {
 		err = fmt.Errorf("failed retrieving app %s: %w", appName, err)
