@@ -113,8 +113,7 @@ func restartMachinesCluster(ctx context.Context, app *api.AppCompact) error {
 		pgclient := flypg.NewFromInstance(fmt.Sprintf("[%s]", machine.PrivateIP), dialer)
 
 		if err := pgclient.RestartNodePG(ctx); err != nil {
-			fmt.Fprintf(io.Out, "postgres on node: %s failed\n", machine.ID)
-			return err
+			return fmt.Errorf("failed to restart postgres on node: %w", err)
 		}
 	}
 	fmt.Fprintf(io.Out, "Done\n")

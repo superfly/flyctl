@@ -24,7 +24,7 @@ func newAttach() *cobra.Command {
 	const (
 		short = "Attach a postgres cluster to an app"
 		long  = short + "\n"
-		usage = "attach"
+		usage = "attach [POSTGRES APP]"
 	)
 
 	cmd := command.New(usage, short, long, runAttach,
