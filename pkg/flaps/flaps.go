@@ -83,7 +83,7 @@ func (f *Client) CreateApp(ctx context.Context, name string, org string) (err er
 		"org_slug": org,
 	}
 
-	err = f.sendRequest(ctx, http.MethodPost, "/apps", in, nil)
+	err = f.sendRequest(ctx, http.MethodPost, "/apps", nil, in, nil)
 	return
 }
 
@@ -94,8 +94,7 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (*a
 	}
 
 	var out = new(api.V1Machine)
-
-	if err := f.sendRequest(ctx, http.MethodPost, endpoint, builder, out); err != nil {
+	if err := f.sendRequest(ctx, http.MethodPost, endpoint, nil, builder, out); err != nil {
 		return nil, err
 	}
 
@@ -106,8 +105,7 @@ func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput) (*a
 	endpoint := fmt.Sprintf("/%s", builder.ID)
 
 	var out = new(api.V1Machine)
-
-	if err := f.sendRequest(ctx, http.MethodPost, endpoint, builder, out); err != nil {
+	if err := f.sendRequest(ctx, http.MethodPost, endpoint, nil, builder, out); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -118,7 +116,7 @@ func (f *Client) Start(ctx context.Context, machineID string) (*api.MachineStart
 
 	out := new(api.MachineStartResponse)
 
-	if err := f.sendRequest(ctx, http.MethodPost, startEndpoint, nil, out); err != nil {
+	if err := f.sendRequest(ctx, http.MethodPost, startEndpoint, nil, nil, out); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -131,13 +129,13 @@ func (f *Client) Wait(ctx context.Context, machine *api.V1Machine) error {
 		waitEndpoint += fmt.Sprintf("?instance_id=%s", machine.InstanceID)
 	}
 
-	return f.sendRequest(ctx, http.MethodGet, waitEndpoint, nil, nil)
+	return f.sendRequest(ctx, http.MethodGet, waitEndpoint, nil, nil, nil)
 }
 
 func (f *Client) Stop(ctx context.Context, machine api.V1MachineStop) error {
 	stopEndpoint := fmt.Sprintf("/%s/stop", machine.ID)
 
-	return f.sendRequest(ctx, http.MethodPost, stopEndpoint, nil, nil)
+	return f.sendRequest(ctx, http.MethodPost, stopEndpoint, nil, nil, nil)
 }
 
 func (f *Client) Get(ctx context.Context, machineID string) (*api.V1Machine, error) {
@@ -149,7 +147,7 @@ func (f *Client) Get(ctx context.Context, machineID string) (*api.V1Machine, err
 
 	out := new(api.V1Machine)
 
-	err := f.sendRequest(ctx, http.MethodGet, getEndpoint, nil, out)
+	err := f.sendRequest(ctx, http.MethodGet, getEndpoint, nil, nil, out)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +163,7 @@ func (f *Client) List(ctx context.Context, state string) ([]*api.V1Machine, erro
 
 	out := make([]*api.V1Machine, 0)
 
-	err := f.sendRequest(ctx, http.MethodGet, getEndpoint, nil, &out)
+	err := f.sendRequest(ctx, http.MethodGet, getEndpoint, nil, nil, &out)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +173,7 @@ func (f *Client) List(ctx context.Context, state string) ([]*api.V1Machine, erro
 func (f *Client) Destroy(ctx context.Context, input api.RemoveMachineInput) error {
 	destroyEndpoint := fmt.Sprintf("/%s?kill=%t", input.ID, input.Kill)
 
-	return f.sendRequest(ctx, http.MethodDelete, destroyEndpoint, nil, nil)
+	return f.sendRequest(ctx, http.MethodDelete, destroyEndpoint, nil, nil, nil)
 }
 
 func (f *Client) Kill(ctx context.Context, machineID string) error {
@@ -183,7 +181,7 @@ func (f *Client) Kill(ctx context.Context, machineID string) error {
 	var in = map[string]interface{}{
 		"signal": 9,
 	}
-	err := f.sendRequest(ctx, http.MethodPost, fmt.Sprintf("/%s/signal", machineID), in, nil)
+	err := f.sendRequest(ctx, http.MethodPost, fmt.Sprintf("/%s/signal", machineID), nil, in, nil)
 	if err != nil {
 		return err
 	}
@@ -199,18 +197,35 @@ func (f *Client) Lease(ctx context.Context, machineID string, ttl *int) (*api.Ma
 
 	out := new(api.MachineLease)
 
-	err := f.sendRequest(ctx, http.MethodPost, endpoint, nil, out)
+	err := f.sendRequest(ctx, http.MethodPost, endpoint, nil, nil, out)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, out interface{}) error {
+func (f *Client) ReleaseLease(ctx context.Context, machineID string, nonce string) (err error) {
+	var endpoint = fmt.Sprintf("/%s/lease", machineID)
+	var headers map[string]string
 
+	if nonce != "" {
+		headers = map[string]string{
+			"fly-machine-lease-nonce": nonce,
+		}
+	}
+
+	err = f.sendRequest(ctx, http.MethodDelete, endpoint, headers, nil, nil)
+	return
+}
+
+func (f *Client) sendRequest(ctx context.Context, method, endpoint string, headers map[string]string, in, out interface{}) error {
 	req, err := f.NewRequest(ctx, method, endpoint, in)
 	if err != nil {
 		return err
+	}
+
+	for k, v := range headers {
+		req.Header.Add(k, v)
 	}
 
 	resp, err := f.httpClient.Do(req)

@@ -98,8 +98,6 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 		return nil
 	}
 
-	remoteApp, err := apiClient.GetAppCompact(ctx, appConfig.AppName)
-
 	if err != nil {
 		return err
 	}
@@ -107,7 +105,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 	var release *api.Release
 	var releaseCommand *api.ReleaseCommand
 
-	if remoteApp.PlatformVersion == "machines" {
+	if appConfig.Version == app.MachinesVersion {
 		return createMachinesRelease(ctx, appConfig, img)
 	} else {
 		release, releaseCommand, err = createRelease(ctx, appConfig, img)

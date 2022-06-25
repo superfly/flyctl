@@ -1298,9 +1298,8 @@ type MachineEventt struct {
 	Timestamp int64       `json:"timestamp"`
 }
 type V1Machine struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-
+	ID    string `json:"id"`
+	Name  string `json:"name"`
 	State string `json:"state"`
 
 	Region string `json:"region"`
@@ -1317,7 +1316,8 @@ type V1Machine struct {
 
 	Config *MachineConfig `json:"config"`
 
-	Events []*MachineEventt `json:"events,omitempty"`
+	Events     []*MachineEventt `json:"events,omitempty"`
+	LeaseNonce string
 }
 
 type V1MachineStop struct {
@@ -1403,9 +1403,9 @@ var MachinePresets map[string]*MachineGuest = map[string]*MachineGuest{
 }
 
 type MachinePort struct {
-	Port       int      `json:"internal_port"`
-	Handlers   []string `json:"handlers"`
-	ForceHttps bool     `json:"force_https"`
+	Port       int      `json:"port"`
+	Handlers   []string `json:"handlers,omitempty"`
+	ForceHttps bool     `json:"force_https,omitempty"`
 }
 
 type MachineService struct {

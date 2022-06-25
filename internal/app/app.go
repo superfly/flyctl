@@ -61,6 +61,7 @@ type Config struct {
 	AppName       string                 `toml:"app,omitempty"`
 	Build         *Build                 `toml:"build,omitempty"`
 	Version       int                    `toml:"version,omitempty"`
+	Count         int                    `toml:"count,omitempty"`
 	PrimaryRegion string                 `toml:"primary_region,omitempty"`
 	HttpService   *HttpService           `toml:"http_service,omitempty"`
 	Definition    map[string]interface{} `toml:"definition,omitempty"`

@@ -123,7 +123,7 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	fmt.Fprintf(io.Out, "Created app %s in org %s\n", createdApp.Name, org.Slug)
+	fmt.Fprintf(io.Out, "Created app %s in org %s", createdApp.Name, org.Slug)
 
 	// TODO: Handle imported fly.toml config
 
