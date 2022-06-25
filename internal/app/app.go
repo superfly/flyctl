@@ -127,10 +127,12 @@ func (c *Config) unmarshalTOML(r io.Reader) (err error) {
 
 	// Config version 2 is for machines apps, with explicit structs for the whole config.
 	// Config version 1 is for nomad apps, for which most values are unmarshalled differently.
-	if _, err = toml.NewDecoder(r).Decode(&c); err == nil {
-		if c.Version < 2 {
+	if c.Version < MachinesVersion {
+		if _, err = toml.NewDecoder(r).Decode(&data); err == nil {
 			err = c.unmarshalNativeMap(data)
 		}
+	} else {
+		_, err = toml.NewDecoder(r).Decode(&c)
 	}
 
 	return
