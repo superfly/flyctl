@@ -412,7 +412,7 @@ When you're ready to deploy, use 'fly deploy --remote-only'.
 `
 	}
 	// We found Phoenix 1.6.0 - 1.6.2
-	if checksPass(sourceDir, dirContains("mix.exs", "phoenix.*"+regexp.QuoteMeta("1.6.")+"[0-2]")) {
+	if checksPass(sourceDir, dirContains("mix.exs", "phoenix.*"+regexp.QuoteMeta("1.6.")+"[0-2][^\\d]")) {
 		s.SkipDeploy = true
 		s.DeployDocs = `
 We recommend upgrading to Phoenix 1.6.3 which includes a release configuration for Docker-based deployment.
