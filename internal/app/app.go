@@ -122,17 +122,19 @@ func (c *Config) EncodeTo(w io.Writer) error {
 	return c.marshalTOML(w)
 }
 
-func (c *Config) unmarshalTOML(r io.Reader) (err error) {
+func (c *Config) unmarshalTOML(file *os.File) (err error) {
 	var data map[string]interface{}
-
 	// Config version 2 is for machines apps, with explicit structs for the whole config.
 	// Config version 1 is for nomad apps, for which most values are unmarshalled differently.
-	if c.Version < MachinesVersion {
-		if _, err = toml.NewDecoder(r).Decode(&data); err == nil {
+	if _, err = toml.NewDecoder(file).Decode(&c); err == nil {
+		if c.Version < MachinesVersion {
+			file.Seek(0, io.SeekStart)
+			_, err = toml.NewDecoder(file).Decode(&data)
+			if err != nil {
+				return err
+			}
 			err = c.unmarshalNativeMap(data)
 		}
-	} else {
-		_, err = toml.NewDecoder(r).Decode(&c)
 	}
 
 	return
