@@ -3,7 +3,6 @@ package deploy
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/app"
@@ -76,46 +75,6 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 	}
 
 	machines, err := flapsClient.List(ctx, "")
-
-	// Scale up if count is lower than running VM count
-	if len(machines) < config.Count {
-		newCount := config.Count - len(machines)
-		fmt.Fprintf(io.Out, "%d VMs requested, %d running, so launching %d VMs...\n", config.Count, len(machines), newCount)
-		for i := 0; i < newCount; i++ {
-			_, err = flapsClient.Launch(ctx, launchInput)
-		}
-		fmt.Fprint(io.Out, "Completed launch.\n\n", config.Count, len(machines), newCount)
-	}
-
-	// Scale down if count is higher than running VM count
-	if len(machines) > config.Count {
-		killCount := len(machines) - config.Count
-		fmt.Fprintf(io.Out, "%d VMs requested, %d running, so destroying %d VMs...\n", config.Count, len(machines), killCount)
-		for i := 0; i < killCount; i++ {
-			if machines[i].State == "started" {
-				err = flapsClient.Stop(ctx, api.V1MachineStop{
-					ID: machines[i].ID,
-				})
-
-				if err != nil {
-					return err
-				}
-
-				// Sleep until we are able to wait for a stop
-				time.Sleep(time.Second * 3)
-			}
-
-			err = flapsClient.Destroy(ctx, api.RemoveMachineInput{
-				AppID: config.AppName,
-				ID:    machines[i].ID,
-			})
-
-			if err != nil {
-				return err
-			}
-		}
-		fmt.Fprint(io.Out, "Finished destroying VMs.\n\n")
-	}
 
 	if err != nil {
 		return
