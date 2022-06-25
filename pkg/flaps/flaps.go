@@ -22,6 +22,8 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 )
 
+var NonceHeader = "fly-machine-lease-nonce"
+
 type Client struct {
 	app        *api.AppCompact
 	peerIP     string
@@ -83,18 +85,21 @@ func (f *Client) CreateApp(ctx context.Context, name string, org string) (err er
 		"org_slug": org,
 	}
 
-	err = f.sendRequest(ctx, http.MethodPost, "/apps", nil, in, nil)
+	err = f.sendRequest(ctx, http.MethodPost, "/apps", in, nil, nil)
 	return
 }
 
 func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (*api.V1Machine, error) {
+	fmt.Println("Machine is launching...")
+
 	var endpoint string
 	if builder.ID != "" {
 		endpoint = fmt.Sprintf("/%s", builder.ID)
 	}
 
 	var out = new(api.V1Machine)
-	if err := f.sendRequest(ctx, http.MethodPost, endpoint, nil, builder, out); err != nil {
+
+	if err := f.sendRequest(ctx, http.MethodPost, endpoint, builder, out, nil); err != nil {
 		return nil, err
 	}
 
@@ -102,27 +107,33 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (*a
 }
 
 func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput) (*api.V1Machine, error) {
+	fmt.Println("Machine is updating...")
+
 	endpoint := fmt.Sprintf("/%s", builder.ID)
 
 	var out = new(api.V1Machine)
-	if err := f.sendRequest(ctx, http.MethodPost, endpoint, nil, builder, out); err != nil {
+
+	if err := f.sendRequest(ctx, http.MethodPost, endpoint, builder, out, nil); err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
 func (f *Client) Start(ctx context.Context, machineID string) (*api.MachineStartResponse, error) {
+	fmt.Println("Machine is starting...")
 	startEndpoint := fmt.Sprintf("/%s/start", machineID)
 
 	out := new(api.MachineStartResponse)
 
-	if err := f.sendRequest(ctx, http.MethodPost, startEndpoint, nil, nil, out); err != nil {
+	if err := f.sendRequest(ctx, http.MethodPost, startEndpoint, nil, out, nil); err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
 func (f *Client) Wait(ctx context.Context, machine *api.V1Machine) error {
+	fmt.Println("Waiting on firecracker VM...")
+
 	waitEndpoint := fmt.Sprintf("/%s/wait", machine.ID)
 
 	if machine.InstanceID != "" {
@@ -147,7 +158,7 @@ func (f *Client) Get(ctx context.Context, machineID string) (*api.V1Machine, err
 
 	out := new(api.V1Machine)
 
-	err := f.sendRequest(ctx, http.MethodGet, getEndpoint, nil, nil, out)
+	err := f.sendRequest(ctx, http.MethodGet, getEndpoint, nil, out, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +174,7 @@ func (f *Client) List(ctx context.Context, state string) ([]*api.V1Machine, erro
 
 	out := make([]*api.V1Machine, 0)
 
-	err := f.sendRequest(ctx, http.MethodGet, getEndpoint, nil, nil, &out)
+	err := f.sendRequest(ctx, http.MethodGet, getEndpoint, nil, &out, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -181,14 +192,14 @@ func (f *Client) Kill(ctx context.Context, machineID string) error {
 	var in = map[string]interface{}{
 		"signal": 9,
 	}
-	err := f.sendRequest(ctx, http.MethodPost, fmt.Sprintf("/%s/signal", machineID), nil, in, nil)
+	err := f.sendRequest(ctx, http.MethodPost, fmt.Sprintf("/%s/signal", machineID), in, nil, nil)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (f *Client) Lease(ctx context.Context, machineID string, ttl *int) (*api.MachineLease, error) {
+func (f *Client) GetLease(ctx context.Context, machineID string, ttl *int) (*api.MachineLease, error) {
 	var endpoint = fmt.Sprintf("/%s/lease", machineID)
 
 	if ttl != nil {
@@ -197,35 +208,30 @@ func (f *Client) Lease(ctx context.Context, machineID string, ttl *int) (*api.Ma
 
 	out := new(api.MachineLease)
 
-	err := f.sendRequest(ctx, http.MethodPost, endpoint, nil, nil, out)
+	err := f.sendRequest(ctx, http.MethodPost, endpoint, nil, out, nil)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (f *Client) ReleaseLease(ctx context.Context, machineID string, nonce string) (err error) {
+func (f *Client) ReleaseLease(ctx context.Context, machineID, nonce string) error {
 	var endpoint = fmt.Sprintf("/%s/lease", machineID)
-	var headers map[string]string
+
+	var headers = make(map[string][]string)
 
 	if nonce != "" {
-		headers = map[string]string{
-			"fly-machine-lease-nonce": nonce,
-		}
+		headers[NonceHeader] = []string{nonce}
 	}
 
-	err = f.sendRequest(ctx, http.MethodDelete, endpoint, headers, nil, nil)
-	return
+	return f.sendRequest(ctx, http.MethodDelete, endpoint, nil, nil, headers)
 }
 
-func (f *Client) sendRequest(ctx context.Context, method, endpoint string, headers map[string]string, in, out interface{}) error {
-	req, err := f.NewRequest(ctx, method, endpoint, in)
+func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
+
+	req, err := f.NewRequest(ctx, method, endpoint, in, headers)
 	if err != nil {
 		return err
-	}
-
-	for k, v := range headers {
-		req.Header.Add(k, v)
 	}
 
 	resp, err := f.httpClient.Do(req)
@@ -245,29 +251,25 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, heade
 	return nil
 }
 
-func (f *Client) NewRequest(ctx context.Context, method, path string, in interface{}) (*http.Request, error) {
+func (f *Client) NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error) {
 	var (
-		body    io.Reader
-		peerIP  = f.peerIP
-		headers = make(map[string][]string)
+		body   io.Reader
+		peerIP = f.peerIP
 	)
 
-	var targetEndpoint string
-
-	if f.app.Name != "" {
-		targetEndpoint = fmt.Sprintf("http://[%s]:4280/v1/apps/%s/machines%s", peerIP, f.app.Name, path)
-	} else {
-		targetEndpoint = fmt.Sprintf("http://[%s]:4280/v1%s", peerIP, path)
+	if headers == nil {
+		headers = make(map[string][]string)
 	}
+
+	targetEndpoint := fmt.Sprintf("http://[%s]:4280/v1/apps/%s/machines%s", peerIP, f.app.Name, path)
 
 	if in != nil {
 		b, err := json.Marshal(in)
 		if err != nil {
 			return nil, err
 		}
-		headers = map[string][]string{
-			"Content-Type": {"application/json"},
-		}
+		headers["Content-Type"] = []string{"application/json"}
+
 		body = bytes.NewReader(b)
 	}
 

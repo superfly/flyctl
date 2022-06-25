@@ -64,13 +64,27 @@ func runUpdate(ctx context.Context) error {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
 
-	machines, err := flapsClient.List(ctx, "started")
+	// map of machine lease to machine
+	var machines = make(map[string]*api.V1Machine)
+
+	out, err := flapsClient.List(ctx, "started")
 	if err != nil {
-		return fmt.Errorf("machines could not be retrieved")
+		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	if len(machines) == 0 {
+	if len(out) == 0 {
 		return fmt.Errorf("no machines found")
+	}
+
+	fmt.Fprintf(io.Out, "Acquiring lease on postgres cluster\n")
+
+	for _, machine := range out {
+		lease, err := flapsClient.GetLease(ctx, machine.ID, api.IntPointer(40))
+
+		if err != nil {
+			return fmt.Errorf("failed to obtain lease: %w", err)
+		}
+		machines[lease.Data.Nonce] = machine
 	}
 
 	var (
@@ -151,6 +165,12 @@ func runUpdate(ctx context.Context) error {
 
 	if err := updateMachine(ctx, app, leader, ref, latest.Version); err != nil {
 		return err
+	}
+
+	for lease, machine := range machines {
+		if err := flapsClient.ReleaseLease(ctx, machine.ID, lease); err != nil {
+			return fmt.Errorf("failed to release lease: %w", err)
+		}
 	}
 
 	fmt.Fprintf(io.Out, "Successfully updated Postgres cluster\n")

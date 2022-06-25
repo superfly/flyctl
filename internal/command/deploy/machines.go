@@ -126,7 +126,7 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 
 		for _, machine := range machines {
 			fmt.Fprintf(io.Out, "Leasing VM %s with TTL %d\n", machine.ID, ttl)
-			lease, err := flapsClient.Lease(ctx, machine.ID, ttl)
+			lease, err := flapsClient.GetLease(ctx, machine.ID, ttl)
 
 			if err != nil {
 				return err
