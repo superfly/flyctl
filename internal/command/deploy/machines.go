@@ -36,19 +36,24 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 	}
 
 	if config.HttpService != nil {
-		machineConfig.Services = []interface{}{
-			map[string]interface{}{
-				"protocol":      "tcp",
-				"internal_port": config.HttpService.InternalPort,
-				"ports": []map[string]interface{}{
+		machineConfig.Services = []api.MachineService{
+			{
+				Protocol:     "tcp",
+				InternalPort: config.HttpService.InternalPort,
+				Ports: []api.MachinePort{
 					{
-						"port":     443,
-						"handlers": []string{"http", "tls"},
+						Port:     80,
+						Handlers: []string{"http"},
 					},
+				},
+			},
+			{
+				Protocol:     "tcp",
+				InternalPort: config.HttpService.InternalPort,
+				Ports: []api.MachinePort{
 					{
-						"port":        80,
-						"handlers":    []string{"http"},
-						"force_https": config.HttpService.ForceHttps,
+						Port:     443,
+						Handlers: []string{"http", "tls"},
 					},
 				},
 			},

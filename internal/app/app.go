@@ -67,8 +67,8 @@ type Config struct {
 	Path          string                 `toml:"path,omitempty"`
 }
 type HttpService struct {
-	InternalPort string `json:"internal_port" toml:"internal_port" validate:"required,numeric"`
-	ForceHttps   bool   `toml:"force_https"`
+	InternalPort int  `json:"internal_port" toml:"internal_port" validate:"required,numeric"`
+	ForceHttps   bool `toml:"force_https"`
 }
 type Build struct {
 	Builder    string

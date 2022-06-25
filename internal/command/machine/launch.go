@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -485,7 +486,8 @@ func setupHttpService(ctx context.Context, appConfig *app.Config) (err error) {
 
 	appConfig.HttpService = new(app.HttpService)
 	appConfig.HttpService.ForceHttps = true
-	appConfig.HttpService.InternalPort = internalPort
+	port, err := strconv.Atoi(internalPort)
+	appConfig.HttpService.InternalPort = port
 
 	return
 }

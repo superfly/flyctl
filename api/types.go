@@ -1402,6 +1402,18 @@ var MachinePresets map[string]*MachineGuest = map[string]*MachineGuest{
 	"dedicated-cpu-8x": {CPUKind: "dedicated", CPUs: 8, MemoryMB: 8 * MEMORY_MB_PER_CPU},
 }
 
+type MachinePort struct {
+	Port       int      `json:"internal_port"`
+	Handlers   []string `json:"handlers"`
+	ForceHttps bool     `json:"force_https"`
+}
+
+type MachineService struct {
+	Protocol     string        `json:"protocol"`
+	InternalPort int           `json:"internal_port"`
+	Ports        []MachinePort `json:"ports"`
+}
+
 type MachineConfig struct {
 	Env      map[string]string `json:"env"`
 	Init     MachineInit       `json:"init,omitempty"`
@@ -1410,7 +1422,7 @@ type MachineConfig struct {
 	Metadata map[string]string `json:"metadata"`
 	Mounts   []MachineMount    `json:"mounts,omitempty"`
 	Restart  MachineRestart    `json:"restart,omitempty"`
-	Services []interface{}     `json:"services,omitempty"`
+	Services []MachineService  `json:"services,omitempty"`
 	VMSize   string            `json:"size,omitempty"`
 	Guest    *MachineGuest     `json:"guest,omitempty"`
 }
