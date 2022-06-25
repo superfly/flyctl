@@ -361,7 +361,7 @@ func runConfigUpdate(ctx context.Context) error {
 	}
 
 	// get lease on machine
-	lease, err := flaps.Lease(ctx, leader.ID, nil)
+	lease, err := flaps.GetLease(ctx, leader.ID, api.IntPointer(40))
 	if err != nil {
 		return fmt.Errorf("failed to obtain lease: %w", err)
 	}
@@ -372,6 +372,11 @@ func runConfigUpdate(ctx context.Context) error {
 	err = pgCmd.updateSettings(rChanges)
 	if err != nil {
 		return err
+	}
+
+	err = flaps.ReleaseLease(ctx, leader.ID, lease.Data.Nonce)
+	if err != nil {
+		return fmt.Errorf("failed to release lease: %w", err)
 	}
 
 	fmt.Fprintln(io.Out, "Update complete!")

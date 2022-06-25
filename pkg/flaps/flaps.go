@@ -22,6 +22,8 @@ import (
 	"github.com/superfly/flyctl/internal/client"
 )
 
+var NonceHeader = "fly-machine-lease-nonce"
+
 type Client struct {
 	app        *api.AppCompact
 	peerIP     string
@@ -83,7 +85,7 @@ func (f *Client) CreateApp(ctx context.Context, name string, org string) (err er
 		"org_slug": org,
 	}
 
-	err = f.sendRequest(ctx, http.MethodPost, "/apps", in, nil)
+	err = f.sendRequest(ctx, http.MethodPost, "/apps", in, nil, nil)
 	return
 }
 
@@ -97,7 +99,7 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (*a
 
 	var out = new(api.V1Machine)
 
-	if err := f.sendRequest(ctx, http.MethodPost, endpoint, builder, out); err != nil {
+	if err := f.sendRequest(ctx, http.MethodPost, endpoint, builder, out, nil); err != nil {
 		return nil, err
 	}
 
@@ -111,7 +113,7 @@ func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput) (*a
 
 	var out = new(api.V1Machine)
 
-	if err := f.sendRequest(ctx, http.MethodPost, endpoint, builder, out); err != nil {
+	if err := f.sendRequest(ctx, http.MethodPost, endpoint, builder, out, nil); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -123,7 +125,7 @@ func (f *Client) Start(ctx context.Context, machineID string) (*api.MachineStart
 
 	out := new(api.MachineStartResponse)
 
-	if err := f.sendRequest(ctx, http.MethodPost, startEndpoint, nil, out); err != nil {
+	if err := f.sendRequest(ctx, http.MethodPost, startEndpoint, nil, out, nil); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -138,13 +140,13 @@ func (f *Client) Wait(ctx context.Context, machine *api.V1Machine) error {
 		waitEndpoint += fmt.Sprintf("?instance_id=%s", machine.InstanceID)
 	}
 
-	return f.sendRequest(ctx, http.MethodGet, waitEndpoint, nil, nil)
+	return f.sendRequest(ctx, http.MethodGet, waitEndpoint, nil, nil, nil)
 }
 
 func (f *Client) Stop(ctx context.Context, machine api.V1MachineStop) error {
 	stopEndpoint := fmt.Sprintf("/%s/stop", machine.ID)
 
-	return f.sendRequest(ctx, http.MethodPost, stopEndpoint, nil, nil)
+	return f.sendRequest(ctx, http.MethodPost, stopEndpoint, nil, nil, nil)
 }
 
 func (f *Client) Get(ctx context.Context, machineID string) (*api.V1Machine, error) {
@@ -156,7 +158,7 @@ func (f *Client) Get(ctx context.Context, machineID string) (*api.V1Machine, err
 
 	out := new(api.V1Machine)
 
-	err := f.sendRequest(ctx, http.MethodGet, getEndpoint, nil, out)
+	err := f.sendRequest(ctx, http.MethodGet, getEndpoint, nil, out, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +174,7 @@ func (f *Client) List(ctx context.Context, state string) ([]*api.V1Machine, erro
 
 	out := make([]*api.V1Machine, 0)
 
-	err := f.sendRequest(ctx, http.MethodGet, getEndpoint, nil, &out)
+	err := f.sendRequest(ctx, http.MethodGet, getEndpoint, nil, &out, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +184,7 @@ func (f *Client) List(ctx context.Context, state string) ([]*api.V1Machine, erro
 func (f *Client) Destroy(ctx context.Context, input api.RemoveMachineInput) error {
 	destroyEndpoint := fmt.Sprintf("/%s?kill=%t", input.ID, input.Kill)
 
-	return f.sendRequest(ctx, http.MethodDelete, destroyEndpoint, nil, nil)
+	return f.sendRequest(ctx, http.MethodDelete, destroyEndpoint, nil, nil, nil)
 }
 
 func (f *Client) Kill(ctx context.Context, machineID string) error {
@@ -190,14 +192,14 @@ func (f *Client) Kill(ctx context.Context, machineID string) error {
 	var in = map[string]interface{}{
 		"signal": 9,
 	}
-	err := f.sendRequest(ctx, http.MethodPost, fmt.Sprintf("/%s/signal", machineID), in, nil)
+	err := f.sendRequest(ctx, http.MethodPost, fmt.Sprintf("/%s/signal", machineID), in, nil, nil)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (f *Client) Lease(ctx context.Context, machineID string, ttl *int) (*api.MachineLease, error) {
+func (f *Client) GetLease(ctx context.Context, machineID string, ttl *int) (*api.MachineLease, error) {
 	var endpoint = fmt.Sprintf("/%s/lease", machineID)
 
 	if ttl != nil {
@@ -206,16 +208,28 @@ func (f *Client) Lease(ctx context.Context, machineID string, ttl *int) (*api.Ma
 
 	out := new(api.MachineLease)
 
-	err := f.sendRequest(ctx, http.MethodPost, endpoint, nil, out)
+	err := f.sendRequest(ctx, http.MethodPost, endpoint, nil, out, nil)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, out interface{}) error {
+func (f *Client) ReleaseLease(ctx context.Context, machineID, nonce string) error {
+	var endpoint = fmt.Sprintf("/%s/lease", machineID)
 
-	req, err := f.NewRequest(ctx, method, endpoint, in)
+	var headers = make(map[string][]string)
+
+	if nonce != "" {
+		headers[NonceHeader] = []string{nonce}
+	}
+
+	return f.sendRequest(ctx, http.MethodDelete, endpoint, nil, nil, headers)
+}
+
+func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
+
+	req, err := f.NewRequest(ctx, method, endpoint, in, headers)
 	if err != nil {
 		return err
 	}
@@ -237,12 +251,16 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 	return nil
 }
 
-func (f *Client) NewRequest(ctx context.Context, method, path string, in interface{}) (*http.Request, error) {
+func (f *Client) NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error) {
 	var (
-		body    io.Reader
-		peerIP  = f.peerIP
-		headers = make(map[string][]string)
+		body   io.Reader
+		peerIP = f.peerIP
 	)
+
+	if headers == nil {
+		headers = make(map[string][]string)
+	}
+
 	targetEndpoint := fmt.Sprintf("http://[%s]:4280/v1/apps/%s/machines%s", peerIP, f.app.Name, path)
 
 	if in != nil {
@@ -250,9 +268,8 @@ func (f *Client) NewRequest(ctx context.Context, method, path string, in interfa
 		if err != nil {
 			return nil, err
 		}
-		headers = map[string][]string{
-			"Content-Type": {"application/json"},
-		}
+		headers["Content-Type"] = []string{"application/json"}
+
 		body = bytes.NewReader(b)
 	}
 
