@@ -36,10 +36,6 @@ func newShow() *cobra.Command {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
-		flag.String{
-			Name:        "machine-id",
-			Description: "The machine ID to show the image for.\n",
-		},
 	)
 
 	return cmd
@@ -144,16 +140,17 @@ func showNomadImage(ctx context.Context, app *api.AppCompact) error {
 
 func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 	var (
-		client = client.FromContext(ctx).API()
-		io     = iostreams.FromContext(ctx)
+		io = iostreams.FromContext(ctx)
 	)
+
+	flaps, err := flaps.New(ctx, app)
+
+	if err != nil {
+		return err
+	}
 
 	// if we have machine_id as an arg, we want to show the image for that machine only
 	if len(flag.Args(ctx)) > 0 {
-		flaps, err := flaps.New(ctx, app)
-		if err != nil {
-			return err
-		}
 
 		machine, err := flaps.Get(ctx, flag.FirstArg(ctx))
 		if err != nil {
@@ -186,7 +183,7 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 
 	}
 	// get machines
-	machines, err := flaps.ListMachines(ctx, app.Name, "")
+	machines, err := flaps.List(ctx, "")
 	if err != nil {
 		return fmt.Errorf("failed to get machines: %w", err)
 	}
