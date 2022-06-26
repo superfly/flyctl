@@ -15,7 +15,6 @@ import (
 	"github.com/inancgumus/screen"
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/pkg/flaps"
 	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/api"
@@ -222,52 +221,6 @@ func runWatch(ctx context.Context) (err error) {
 
 		pause.For(ctx, time.Duration(sleep)*time.Second)
 	}
-
-	return
-}
-
-func renderMachineStatus(ctx context.Context, app *api.AppCompact) (err error) {
-	io := iostreams.FromContext(ctx)
-
-	flapsClient, err := flaps.New(ctx, app)
-
-	if err != nil {
-		return err
-	}
-
-	machines, err := flapsClient.List(ctx, "")
-
-	if err != nil {
-		return err
-	}
-
-	obj := [][]string{
-		{
-			app.Name,
-			app.Organization.Slug,
-			app.Hostname,
-		},
-	}
-
-	if err = render.VerticalTable(io.Out, "App", obj, "Name", "Owner", "Hostname"); err != nil {
-		return
-	}
-
-	rows := [][]string{}
-
-	for _, machine := range machines {
-		rows = append(rows, []string{
-			machine.ID,
-			fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag),
-			machine.CreatedAt,
-			machine.State,
-			machine.Region,
-			machine.Name,
-			machine.PrivateIP,
-		})
-	}
-
-	_ = render.Table(io.Out, "", rows, "ID", "Image", "Created", "State", "Region", "Name", "IP Address")
 
 	return
 }

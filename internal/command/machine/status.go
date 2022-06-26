@@ -81,12 +81,30 @@ func runMachineStatus(ctx context.Context) (err error) {
 		}
 	}
 
+	fmt.Fprintf(io.Out, "Machine ID: %s\n", machine.ID)
+	fmt.Fprintf(io.Out, "Instance ID: %s\n", machine.InstanceID)
+	fmt.Fprintf(io.Out, "State: %s\n\n", machine.State)
+
+	obj := [][]string{
+		{
+			machine.ID,
+			machine.InstanceID,
+			machine.State,
+			machine.FullImageRef(),
+			machine.Name,
+			machine.PrivateIP,
+			machine.Region,
+			machine.CreatedAt,
+			machine.UpdatedAt,
+		},
+	}
+
+	if err = render.VerticalTable(io.Out, "VM", obj, "ID", "Instance ID", "State", "Image", "Name", "Private IP", "Region", "Created", "Updated"); err != nil {
+		return
+	}
+
 	eventLogs := [][]string{}
 
-	fmt.Fprintf(io.Out, "Success! A machine has been retrieved\n")
-	fmt.Fprintf(io.Out, " Machine ID: %s\n", machine.ID)
-	fmt.Fprintf(io.Out, " Instance ID: %s\n", machine.InstanceID)
-	fmt.Fprintf(io.Out, " State: %s\n\n", machine.State)
 	for _, event := range machine.Events {
 		timeInUTC := time.Unix(0, event.Timestamp*int64(time.Millisecond))
 		eventLogs = append(eventLogs, []string{
@@ -96,7 +114,7 @@ func runMachineStatus(ctx context.Context) (err error) {
 			timeInUTC.Format(time.RFC3339Nano),
 		})
 	}
-	_ = render.Table(io.Out, "Event Logs", eventLogs, "Machine Status", "Event Type", "Source", "Timestamp")
+	_ = render.Table(io.Out, "Event Logs", eventLogs, "State", "Event", "Source", "Timestamp")
 
 	if flag.GetBool(ctx, "display-config") {
 		var prettyConfig []byte
