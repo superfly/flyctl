@@ -419,7 +419,7 @@ We recommend upgrading to Phoenix 1.6.3 which includes a release configuration f
 
 If you do upgrade, you can run 'fly launch' again to get the required deployment setup.
 
-If you don't want to uprade, you'll need to add a few files and configuration options manually.
+If you don't want to upgrade, you'll need to add a few files and configuration options manually.
 We've placed a Dockerfile compatible with other Phoenix 1.6 apps in this directory. See
 https://hexdocs.pm/phoenix/fly.html for details, including instructions for setting up
 a Postgresql database.
