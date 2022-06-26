@@ -60,6 +60,22 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 			},
 		}
 	}
+	machineGuest := &api.MachineGuest{
+		CPUs:     1,
+		CPUKind:  "shared",
+		MemoryMB: 256,
+	}
+
+	if config.VM != nil {
+		if config.VM.CpuCount > 0 {
+			machineGuest.CPUs = config.VM.CpuCount
+		}
+		if config.VM.Memory > 0 {
+			machineGuest.MemoryMB = config.VM.Memory
+		}
+	}
+
+	machineConfig.Guest = machineGuest
 
 	err = config.Validate()
 
@@ -81,35 +97,16 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 	}
 
 	if len(machines) > 0 {
-		ttl := api.IntPointer(40)
-
-		for _, machine := range machines {
-			fmt.Fprintf(io.Out, "Leasing VM %s with TTL %d\n", machine.ID, ttl)
-			lease, err := flapsClient.GetLease(ctx, machine.ID, ttl)
-
-			if err != nil {
-				return err
-			}
-
-			machine.LeaseNonce = lease.Data.Nonce
-		}
 
 		for _, machine := range machines {
 
 			fmt.Fprintf(io.Out, "Updating VM %s\n", machine.ID)
 			launchInput.ID = machine.ID
-			flapsClient.Update(ctx, launchInput)
-
-		}
-
-		for _, machine := range machines {
-			fmt.Fprintf(io.Out, "Releasing VM %s with nonce %s\n", machine.ID, machine.LeaseNonce)
-
-			err = flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
-
+			_, err = flapsClient.Update(ctx, launchInput)
 			if err != nil {
-				fmt.Fprintf(io.Out, "Could not release lease %s on machine %s. Error: %s, Continuing.", machine.LeaseNonce, machine.ID, err)
+				return err
 			}
+
 		}
 
 		fmt.Fprintln(io.Out)

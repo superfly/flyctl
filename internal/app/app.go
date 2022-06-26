@@ -58,19 +58,24 @@ func LoadConfig(path string) (cfg *Config, err error) {
 
 // Config wraps the properties of app configuration.
 type Config struct {
-	AppName       string                 `toml:"app,omitempty"`
-	Build         *Build                 `toml:"build,omitempty"`
-	Version       int                    `toml:"version,omitempty"`
-	Count         int                    `toml:"count,omitempty"`
-	PrimaryRegion string                 `toml:"primary_region,omitempty"`
-	HttpService   *HttpService           `toml:"http_service,omitempty"`
-	Definition    map[string]interface{} `toml:"definition,omitempty"`
-	Path          string                 `toml:"path,omitempty"`
+	AppName         string                 `toml:"app,omitempty"`
+	Build           *Build                 `toml:"build,omitempty"`
+	PlatformVersion int                    `toml:"platform_version,omitempty"`
+	PrimaryRegion   string                 `toml:"primary_region,omitempty"`
+	HttpService     *HttpService           `toml:"http_service,omitempty"`
+	VM              *VM                    `toml:"vm,omitempty"`
+	Definition      map[string]interface{} `toml:"definition,omitempty"`
+	Path            string                 `toml:"path,omitempty"`
 }
 type HttpService struct {
 	InternalPort int  `json:"internal_port" toml:"internal_port" validate:"required,numeric"`
 	ForceHttps   bool `toml:"force_https"`
 }
+type VM struct {
+	CpuCount int `toml:"cpu_count,omitempty"`
+	Memory   int `toml:"memory,omitempty"`
+}
+
 type Build struct {
 	Builder    string
 	Args       map[string]string
@@ -127,7 +132,7 @@ func (c *Config) unmarshalTOML(file *os.File) (err error) {
 	// Config version 2 is for machines apps, with explicit structs for the whole config.
 	// Config version 1 is for nomad apps, for which most values are unmarshalled differently.
 	if _, err = toml.NewDecoder(file).Decode(&c); err == nil {
-		if c.Version < MachinesVersion {
+		if c.PlatformVersion < MachinesVersion {
 			file.Seek(0, io.SeekStart)
 			_, err = toml.NewDecoder(file).Decode(&data)
 			if err != nil {
@@ -218,7 +223,7 @@ func (c *Config) marshalTOML(w io.Writer) error {
 	fmt.Fprintf(w, "# fly.toml file generated for %s on %s\n\n", c.AppName, time.Now().Format(time.RFC3339))
 
 	// For machines apps, encode and write directly, bypassing custom marshalling
-	if c.Version > 1 {
+	if c.PlatformVersion > NomadVersion {
 		encoder.Encode(&c)
 		_, err := b.WriteTo(w)
 		return err
