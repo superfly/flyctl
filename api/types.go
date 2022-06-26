@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"syscall"
 	"time"
 )
@@ -1320,6 +1321,10 @@ type V1Machine struct {
 
 	Events     []*MachineEventt `json:"events,omitempty"`
 	LeaseNonce string
+}
+
+func (m V1Machine) FullImageRef() string {
+	return fmt.Sprintf("%s:%s", m.ImageRef.Repository, m.ImageRef.Tag)
 }
 
 type V1MachineStop struct {
