@@ -100,15 +100,37 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 
 		for _, machine := range machines {
 
-			fmt.Fprintf(io.Out, "Updating VM %s\n", machine.ID)
+			fmt.Fprintf(io.Out, "Taking lease out on VM %s\n", machine.ID)
 			launchInput.ID = machine.ID
-			_, err = flapsClient.Update(ctx, launchInput)
+			leaseTTL := api.IntPointer(30)
+			lease, err := flapsClient.GetLease(ctx, machine.ID, leaseTTL)
+			machine.LeaseNonce = lease.Data.Nonce
 			if err != nil {
 				return err
 			}
 
 		}
 
+		for _, machine := range machines {
+
+			fmt.Fprintf(io.Out, "Updating VM %s\n", machine.ID)
+			launchInput.ID = machine.ID
+			_, err = flapsClient.Update(ctx, launchInput, machine.LeaseNonce)
+			if err != nil {
+				return err
+			}
+
+		}
+
+		for _, machine := range machines {
+
+			fmt.Fprintf(io.Out, "Releasing lease on %s\n", machine.ID)
+			err = flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
+			if err != nil {
+				return err
+			}
+
+		}
 		fmt.Fprintln(io.Out)
 
 	} else {
