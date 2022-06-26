@@ -196,7 +196,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx))
 
 	var appName string = app.NameFromContext(ctx)
-	if appConfig.AppName != "" {
+	if appConfig.AppName != "" && appName == "" {
 		appName = appConfig.AppName
 	}
 
