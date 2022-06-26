@@ -297,6 +297,7 @@ func (client *Client) GetAppPostgres(ctx context.Context, appName string) (*AppP
 				postgresAppRole: role {
 					name
 				}
+				platformVersion
 			}
 		}
 	`

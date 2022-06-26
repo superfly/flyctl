@@ -57,14 +57,14 @@ func runDetach(ctx context.Context) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	pgApp, err := client.GetApp(ctx, pgAppName)
+	pgApp, err := client.GetAppPostgres(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
 
 	switch pgApp.PlatformVersion {
 	case "nomad":
-		if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, ""); err != nil {
+		if err := hasRequiredVersionOnNomad(pgApp, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
 	case "machines":
@@ -109,7 +109,7 @@ func runDetach(ctx context.Context) error {
 		return fmt.Errorf("can't build tunnel for %s: %w", app.Organization.Slug, err)
 	}
 
-	pgclient := flypg.New(pgApp.Name, dialer)
+	pgclient := flypg.New(pgAppName, dialer)
 
 	// Remove user if exists
 	exists, err := pgclient.UserExists(ctx, targetAttachment.DatabaseUser)

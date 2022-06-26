@@ -98,14 +98,14 @@ func runAttach(ctx context.Context) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	pgApp, err := client.GetApp(ctx, pgAppName)
+	pgApp, err := client.GetAppPostgres(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
 
 	switch app.PlatformVersion {
 	case "nomad":
-		if err := hasRequiredVersionOnNomad(pgApp, MinPostgresHaVersion, ""); err != nil {
+		if err := hasRequiredVersionOnNomad(pgApp, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
 	case "machines":
@@ -124,7 +124,7 @@ func runAttach(ctx context.Context) error {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s", pgApp.Organization.Slug, err)
 	}
 
-	pgclient := flypg.New(pgApp.Name, dialer)
+	pgclient := flypg.New(pgAppName, dialer)
 
 	secrets, err := client.GetAppSecrets(ctx, appName)
 	if err != nil {
@@ -208,7 +208,7 @@ func runAttach(ctx context.Context) error {
 	return nil
 }
 
-func hasRequiredVersionOnNomad(app *api.App, cluster, standalone string) error {
+func hasRequiredVersionOnNomad(app *api.AppPostgres, cluster, standalone string) error {
 	// Validate image version to ensure it's compatible with this feature.
 	if app.ImageDetails.Version == "" || app.ImageDetails.Version == "unknown" {
 		return fmt.Errorf("command is not compatible with this image")
