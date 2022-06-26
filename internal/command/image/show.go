@@ -186,7 +186,7 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 
 	}
 	// get machines
-	machines, err := client.ListMachines(ctx, app.Name, "")
+	machines, err := flaps.ListMachines(ctx, app.Name, "")
 	if err != nil {
 		return fmt.Errorf("failed to get machines: %w", err)
 	}
