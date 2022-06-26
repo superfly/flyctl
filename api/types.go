@@ -640,6 +640,7 @@ type CreateAppInput struct {
 	PreferredRegion *string `json:"preferredRegion,omitempty"`
 	Network         *string `json:"network,omitempty"`
 	AppRoleID       string  `json:"appRoleId,omitempty"`
+	Machines        bool    `json:"machines,omitempty"`
 }
 
 type LogEntry struct {
@@ -1297,9 +1298,8 @@ type MachineEventt struct {
 	Timestamp int64       `json:"timestamp"`
 }
 type V1Machine struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-
+	ID    string `json:"id"`
+	Name  string `json:"name"`
 	State string `json:"state"`
 
 	Region string `json:"region"`
@@ -1316,7 +1316,8 @@ type V1Machine struct {
 
 	Config *MachineConfig `json:"config"`
 
-	Events []*MachineEventt `json:"events,omitempty"`
+	Events     []*MachineEventt `json:"events,omitempty"`
+	LeaseNonce string
 }
 
 type V1MachineStop struct {
@@ -1401,6 +1402,18 @@ var MachinePresets map[string]*MachineGuest = map[string]*MachineGuest{
 	"dedicated-cpu-8x": {CPUKind: "dedicated", CPUs: 8, MemoryMB: 8 * MEMORY_MB_PER_CPU},
 }
 
+type MachinePort struct {
+	Port       int      `json:"port"`
+	Handlers   []string `json:"handlers,omitempty"`
+	ForceHttps bool     `json:"force_https,omitempty"`
+}
+
+type MachineService struct {
+	Protocol     string        `json:"protocol"`
+	InternalPort int           `json:"internal_port"`
+	Ports        []MachinePort `json:"ports"`
+}
+
 type MachineConfig struct {
 	Env      map[string]string `json:"env"`
 	Init     MachineInit       `json:"init,omitempty"`
@@ -1409,7 +1422,7 @@ type MachineConfig struct {
 	Metadata map[string]string `json:"metadata"`
 	Mounts   []MachineMount    `json:"mounts,omitempty"`
 	Restart  MachineRestart    `json:"restart,omitempty"`
-	Services []interface{}     `json:"services,omitempty"`
+	Services []MachineService  `json:"services,omitempty"`
 	VMSize   string            `json:"size,omitempty"`
 	Guest    *MachineGuest     `json:"guest,omitempty"`
 }

@@ -17,6 +17,7 @@ require (
 	github.com/dustin/go-humanize v1.0.0
 	github.com/ejcx/sshcert v1.0.1
 	github.com/getsentry/sentry-go v0.12.0
+	github.com/go-playground/validator/v10 v10.11.0
 	github.com/gofrs/flock v0.8.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/hashicorp/go-multierror v1.1.1
@@ -46,7 +47,7 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/superfly/flyctl/api v0.0.0-00010101000000-000000000000
 	github.com/superfly/graphql v0.2.3
-	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
+	golang.org/x/crypto v0.0.0-20211215153901-e495a2d5b3d3
 	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
@@ -60,6 +61,9 @@ require (
 
 require (
 	github.com/dlclark/regexp2 v1.4.0 // indirect
+	github.com/go-playground/locales v0.14.0 // indirect
+	github.com/go-playground/universal-translator v0.18.0 // indirect
+	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/vektah/gqlparser/v2 v2.4.5 // indirect
 )
 

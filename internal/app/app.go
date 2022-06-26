@@ -9,16 +9,24 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
-
+	"github.com/go-playground/validator/v10"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/sourcecode"
 )
 
-// DefaultConfigFileName denotes the default application configuration file name.
-const DefaultConfigFileName = "fly.toml"
+const (
+	// DefaultConfigFileName denotes the default application configuration file name.
+	DefaultConfigFileName = "fly.toml"
+	// Config is versioned, initially, to separate nomad from machine apps without having to consult
+	// the API
+	NomadVersion    = 1
+	MachinesVersion = 2
+)
 
 func NewConfig() *Config {
 	return &Config{
@@ -50,12 +58,19 @@ func LoadConfig(path string) (cfg *Config, err error) {
 
 // Config wraps the properties of app configuration.
 type Config struct {
-	AppName    string
-	Build      *Build
-	Definition map[string]interface{}
-	Path       string
+	AppName       string                 `toml:"app,omitempty"`
+	Build         *Build                 `toml:"build,omitempty"`
+	Version       int                    `toml:"version,omitempty"`
+	Count         int                    `toml:"count,omitempty"`
+	PrimaryRegion string                 `toml:"primary_region,omitempty"`
+	HttpService   *HttpService           `toml:"http_service,omitempty"`
+	Definition    map[string]interface{} `toml:"definition,omitempty"`
+	Path          string                 `toml:"path,omitempty"`
 }
-
+type HttpService struct {
+	InternalPort int  `json:"internal_port" toml:"internal_port" validate:"required,numeric"`
+	ForceHttps   bool `toml:"force_https"`
+}
 type Build struct {
 	Builder    string
 	Args       map[string]string
@@ -107,11 +122,19 @@ func (c *Config) EncodeTo(w io.Writer) error {
 	return c.marshalTOML(w)
 }
 
-func (c *Config) unmarshalTOML(r io.Reader) (err error) {
+func (c *Config) unmarshalTOML(file *os.File) (err error) {
 	var data map[string]interface{}
-
-	if _, err = toml.DecodeReader(r, &data); err == nil {
-		err = c.unmarshalNativeMap(data)
+	// Config version 2 is for machines apps, with explicit structs for the whole config.
+	// Config version 1 is for nomad apps, for which most values are unmarshalled differently.
+	if _, err = toml.NewDecoder(file).Decode(&c); err == nil {
+		if c.Version < MachinesVersion {
+			file.Seek(0, io.SeekStart)
+			_, err = toml.NewDecoder(file).Decode(&data)
+			if err != nil {
+				return err
+			}
+			err = c.unmarshalNativeMap(data)
+		}
 	}
 
 	return
@@ -194,6 +217,13 @@ func (c *Config) marshalTOML(w io.Writer) error {
 	encoder := toml.NewEncoder(&b)
 	fmt.Fprintf(w, "# fly.toml file generated for %s on %s\n\n", c.AppName, time.Now().Format(time.RFC3339))
 
+	// For machines apps, encode and write directly, bypassing custom marshalling
+	if c.Version > 1 {
+		encoder.Encode(&c)
+		_, err := b.WriteTo(w)
+		return err
+	}
+
 	rawData := map[string]interface{}{
 		"app": c.AppName,
 	}
@@ -274,6 +304,31 @@ func (c *Config) WriteToFile(filename string) (err error) {
 
 func (c *Config) WriteToDisk() (err error) {
 	return c.WriteToFile(DefaultConfigFileName)
+}
+
+func (c *Config) Validate() (err error) {
+	var Validator = validator.New()
+	Validator.RegisterTagNameFunc(func(fld reflect.StructField) string {
+		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+		// skip if tag key says it should be ignored
+		if name == "-" {
+			return ""
+		}
+		return name
+	})
+
+	err = Validator.Struct(c)
+
+	if err != nil {
+		for _, err := range err.(validator.ValidationErrors) {
+			if err.Tag() == "required" {
+				fmt.Printf("%s is required\n", err.Field())
+			} else {
+				fmt.Printf("Validation error on %s: %s\n", err.Field(), err.Tag())
+			}
+		}
+	}
+	return
 }
 
 // HasServices - Does this config have a services section

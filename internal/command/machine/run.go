@@ -485,14 +485,14 @@ func determineMounts(ctx context.Context) ([]api.MachineMount, error) {
 	return mounts, nil
 }
 
-func determineServices(ctx context.Context) ([]interface{}, error) {
+func determineServices(ctx context.Context) ([]api.MachineService, error) {
 	ports := flag.GetStringSlice(ctx, "port")
 
 	if len(ports) <= 0 {
-		return []interface{}{}, nil
+		return []api.MachineService{}, nil
 	}
 
-	svcs := make([]interface{}, len(ports))
+	machineServices := make([]api.MachineService, len(ports))
 
 	for i, p := range flag.GetStringSlice(ctx, "port") {
 		proto := "tcp"
@@ -518,18 +518,18 @@ func determineServices(ctx context.Context) ([]interface{}, error) {
 			}
 		}
 
-		svcs[i] = map[string]interface{}{
-			"protocol":      proto,
-			"internal_port": machinePort,
-			"ports": []map[string]interface{}{
+		machineServices[i] = api.MachineService{
+			Protocol:     proto,
+			InternalPort: machinePort,
+			Ports: []api.MachinePort{
 				{
-					"port":     edgePort,
-					"handlers": handlers,
+					Port:     edgePort,
+					Handlers: handlers,
 				},
 			},
 		}
 	}
-	return svcs, nil
+	return machineServices, nil
 }
 
 func selectAppName(ctx context.Context) (name string, err error) {
