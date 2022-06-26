@@ -127,13 +127,18 @@ func run(ctx context.Context) (err error) {
 
 	// TODO: Handle imported fly.toml config
 
-	// Setup new fly.toml config file
+	// Setup new fly.toml config file with default values
 
 	appConfig := app.NewConfig()
 
 	// Config version 2 is for machine apps
-	appConfig.Version = app.MachinesVersion
+	appConfig.PlatformVersion = app.MachinesVersion
 	appConfig.AppName = createdApp.Name
+
+	appConfig.VM = &app.VM{
+		CpuCount: 1,
+		Memory:   256,
+	}
 
 	// Launch in the specified region, or when not specified, in the nearest region
 	regionCode := flag.GetString(ctx, "region")
