@@ -1314,6 +1314,8 @@ type V1Machine struct {
 
 	CreatedAt string `json:"created_at"`
 
+	UpdatedAt string `json:"updated_at"`
+
 	Config *MachineConfig `json:"config"`
 
 	Events     []*MachineEventt `json:"events,omitempty"`
