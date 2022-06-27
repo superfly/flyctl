@@ -49,6 +49,7 @@ func (c *Client) GetAppRelease(ctx context.Context, appName string, id string) (
 					status
 					evaluationId
 					createdAt
+					deploymentStrategy
 				}
 			}
 		}
