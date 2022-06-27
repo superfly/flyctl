@@ -1432,6 +1432,7 @@ type MachineConfig struct {
 	Services []MachineService  `json:"services,omitempty"`
 	VMSize   string            `json:"size,omitempty"`
 	Guest    *MachineGuest     `json:"guest,omitempty"`
+	Role     string            `json:"role,omitempty"`
 }
 
 type DeleteOrganizationMembershipPayload struct {
