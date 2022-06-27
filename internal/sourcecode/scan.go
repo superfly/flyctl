@@ -625,9 +625,10 @@ func configureLaravel(sourceDir string) (*SourceInfo, error) {
 
 	s := &SourceInfo{
 		Env: map[string]string{
-			"APP_ENV":     "production",
-			"LOG_CHANNEL": "stderr",
-			"LOG_LEVEL":   "info",
+			"APP_ENV":              "production",
+			"LOG_CHANNEL":          "stderr",
+			"LOG_LEVEL":            "info",
+			"LOG_STDERR_FORMATTER": "Monolog\\Formatter\\JsonFormatter",
 		},
 		Family: "Laravel",
 		Files:  files,
