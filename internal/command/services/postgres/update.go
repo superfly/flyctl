@@ -199,7 +199,7 @@ func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.V1Mach
 		Config:  machineConf,
 	}
 
-	updated, err := flaps.Update(ctx, input)
+	updated, err := flaps.Update(ctx, input, "")
 	if err != nil {
 		return err
 	}

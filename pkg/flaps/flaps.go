@@ -106,14 +106,20 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (*a
 	return out, nil
 }
 
-func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput) (*api.V1Machine, error) {
+func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput, nonce string) (*api.V1Machine, error) {
 	fmt.Println("Machine is updating...")
+
+	var headers = make(map[string][]string)
+
+	if nonce != "" {
+		headers[NonceHeader] = []string{nonce}
+	}
 
 	endpoint := fmt.Sprintf("/%s", builder.ID)
 
 	var out = new(api.V1Machine)
 
-	if err := f.sendRequest(ctx, http.MethodPost, endpoint, builder, out, nil); err != nil {
+	if err := f.sendRequest(ctx, http.MethodPost, endpoint, builder, out, headers); err != nil {
 		return nil, err
 	}
 	return out, nil
