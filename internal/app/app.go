@@ -127,14 +127,14 @@ func (c *Config) EncodeTo(w io.Writer) error {
 	return c.marshalTOML(w)
 }
 
-func (c *Config) unmarshalTOML(file *os.File) (err error) {
+func (c *Config) unmarshalTOML(r io.ReadSeeker) (err error) {
 	var data map[string]interface{}
 	// Config version 2 is for machines apps, with explicit structs for the whole config.
 	// Config version 1 is for nomad apps, for which most values are unmarshalled differently.
-	if _, err = toml.NewDecoder(file).Decode(&c); err == nil {
+	if _, err = toml.NewDecoder(r).Decode(&c); err == nil {
 		if c.PlatformVersion < MachinesVersion {
-			file.Seek(0, io.SeekStart)
-			_, err = toml.NewDecoder(file).Decode(&data)
+			r.Seek(0, io.SeekStart)
+			_, err = toml.NewDecoder(r).Decode(&data)
 			if err != nil {
 				return err
 			}
@@ -382,16 +382,6 @@ func (c *Config) InternalPort() (int, error) {
 	return 8080, nil
 }
 
-func (c *Config) SetEnvVariables(vals map[string]string) {
-	env := c.GetEnvVariables()
-
-	for k, v := range vals {
-		env[k] = v
-	}
-
-	c.Definition["env"] = env
-}
-
 func (c *Config) SetReleaseCommand(cmd string) {
 	var deploy map[string]string
 
@@ -451,9 +441,15 @@ func (c *Config) SetDockerEntrypoint(entrypoint string) {
 }
 
 func (c *Config) SetEnvVariable(name, value string) {
+	c.SetEnvVariables(map[string]string{name: value})
+}
+
+func (c *Config) SetEnvVariables(vals map[string]string) {
 	env := c.GetEnvVariables()
 
-	env[name] = value
+	for k, v := range vals {
+		env[k] = v
+	}
 
 	c.Definition["env"] = env
 }
@@ -462,7 +458,11 @@ func (c *Config) GetEnvVariables() map[string]string {
 	env := map[string]string{}
 
 	if rawEnv, ok := c.Definition["env"]; ok {
-		if castEnv, ok := rawEnv.(map[string]interface{}); ok {
+		// we get map[string]interface{} when unmarshaling toml, and map[string]string from SetEnvVariables. Support them both :vomit:
+		switch castEnv := rawEnv.(type) {
+		case map[string]string:
+			env = castEnv
+		case map[string]interface{}:
 			for k, v := range castEnv {
 				if stringVal, ok := v.(string); ok {
 					env[k] = stringVal

@@ -312,6 +312,10 @@ func (ac *AppConfig) GetInternalPort() (int, error) {
 	return 8080, nil
 }
 
+func (ac *AppConfig) SetEnvVariable(name, value string) {
+	ac.SetEnvVariables(map[string]string{name: value})
+}
+
 func (ac *AppConfig) SetEnvVariables(vals map[string]string) {
 	env := ac.GetEnvVariables()
 
@@ -326,7 +330,11 @@ func (ac *AppConfig) GetEnvVariables() map[string]string {
 	env := map[string]string{}
 
 	if rawEnv, ok := ac.Definition["env"]; ok {
-		if castEnv, ok := rawEnv.(map[string]interface{}); ok {
+		// we get map[string]interface{} when unmarshaling toml, and map[string]string from SetEnvVariables. Support them both :vomit:
+		switch castEnv := rawEnv.(type) {
+		case map[string]string:
+			env = castEnv
+		case map[string]interface{}:
 			for k, v := range castEnv {
 				if stringVal, ok := v.(string); ok {
 					env[k] = stringVal
@@ -415,14 +423,6 @@ func (ac *AppConfig) SetDockerEntrypoint(entrypoint string) {
 	experimental["entrypoint"] = entrypoint
 
 	ac.Definition["experimental"] = experimental
-}
-
-func (ac *AppConfig) SetEnvVariable(name, value string) {
-	env := ac.GetEnvVariables()
-
-	env[name] = value
-
-	ac.Definition["env"] = env
 }
 
 func (ac *AppConfig) SetProcess(name, value string) {
