@@ -4,7 +4,7 @@ FROM alpine:edge as base
 LABEL fly_launch_runtime="laravel"
 
 RUN apk update \
-    && apk add curl zip unzip tzdata supervisor nginx htop vim ca-certificates \
+    && apk add curl zip unzip tzdata supervisor nginx htop vim ca-certificates rsync \
            php8           php8-cli        php8-pecl-mcrypt \
            php8-soap      php8-openssl    php8-gmp \
            php8-pdo_odbc  php8-json       php8-dom \
@@ -33,14 +33,17 @@ WORKDIR /var/www/html
 COPY . /var/www/html
 
 # Install dependencies, configure server
-RUN composer update && composer install --optimize-autoloader --no-dev \
+# For the time being, we run "composer update" as best effort to get php 8.0 working
+RUN composer update \
+    && composer install --optimize-autoloader --no-dev \
     && mkdir -p storage/logs \
     && chown -R app:app /var/www/html \
     && /usr/bin/crontab docker/crontab \
     && mv docker/supervisor.conf /etc/supervisord.conf \
     && mv docker/nginx.conf /etc/nginx/nginx.conf \
     && mv docker/server.conf /etc/nginx/server.conf \
-    && mv docker/php.ini /etc/php8/conf.d/php.ini
+    && mv docker/php.ini /etc/php8/conf.d/php.ini \
+    && sed -i 's/protected \$proxies/protected \$proxies = "*"/g' app/Http/Middleware/TrustProxies.php
 
 # If we're not using Octane, configure php-fpm
 RUN if ! grep -Fq "laravel/octane" /var/www/html/composer.json; then \
@@ -78,7 +81,9 @@ RUN if [ -f "yarn.lock" ]; then \
 # Create final container, adding in static assets
 FROM base
 
-COPY --from=node_modules_go_brrr /app/public /var/www/html/public
+COPY --from=node_modules_go_brrr /app/public /var/www/html/public-npm
+RUN rsync -ar /var/www/html/public-npm/ /var/www/html/public/ \
+    && rm -rf /var/www/html/public-npm
 
 # The same port nginx.conf is set to listen on and fly.toml references (standard is 8080)
 EXPOSE 8080
