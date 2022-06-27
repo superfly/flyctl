@@ -33,7 +33,9 @@ WORKDIR /var/www/html
 COPY . /var/www/html
 
 # Install dependencies, configure server
-RUN composer install --optimize-autoloader --no-dev \
+# For the time being, we run "composer update" as best effort to get php 8.0 working
+RUN composer update \
+    && composer install --optimize-autoloader --no-dev \
     && mkdir -p storage/logs \
     && chown -R app:app /var/www/html \
     && /usr/bin/crontab docker/crontab \
