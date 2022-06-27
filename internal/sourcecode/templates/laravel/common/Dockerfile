@@ -42,7 +42,8 @@ RUN composer update \
     && mv docker/supervisor.conf /etc/supervisord.conf \
     && mv docker/nginx.conf /etc/nginx/nginx.conf \
     && mv docker/server.conf /etc/nginx/server.conf \
-    && mv docker/php.ini /etc/php8/conf.d/php.ini
+    && mv docker/php.ini /etc/php8/conf.d/php.ini \
+    && sed -i 's/protected \$proxies/protected \$proxies = "*"/g' app/Http/Middleware/TrustProxies.php
 
 # If we're not using Octane, configure php-fpm
 RUN if ! grep -Fq "laravel/octane" /var/www/html/composer.json; then \
