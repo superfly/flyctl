@@ -38,9 +38,9 @@ func newRestart() *cobra.Command {
 
 func runRestart(ctx context.Context) error {
 	var (
-		client = client.FromContext(ctx).API()
-		// io      = iostreams.FromContext(ctx)
-		appName = app.NameFromContext(ctx)
+		MinPostgresHaVersion = "0.0.20"
+		client               = client.FromContext(ctx).API()
+		appName              = app.NameFromContext(ctx)
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -54,8 +54,14 @@ func runRestart(ctx context.Context) error {
 
 	switch app.PlatformVersion {
 	case "nomad":
-		return restartNomadCluster(ctx)
+		if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+			return err
+		}
+		return restartNomadCluster(ctx, app)
 	case "machines":
+		if err := hasRequiredVersionOnMachines(); err != nil {
+			return err
+		}
 		return restartMachinesCluster(ctx, app)
 	}
 
@@ -102,7 +108,7 @@ func restartMachinesCluster(ctx context.Context, app *api.AppCompact) error {
 
 	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
 	if err != nil {
-		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
+		return fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
 
 	fmt.Fprintf(io.Out, "Restarting Postgres\n")
@@ -116,11 +122,54 @@ func restartMachinesCluster(ctx context.Context, app *api.AppCompact) error {
 			return fmt.Errorf("failed to restart postgres on node: %w", err)
 		}
 	}
-	fmt.Fprintf(io.Out, "Done\n")
+
+	fmt.Fprintf(io.Out, "Restart complete\n")
 
 	return nil
 }
 
-func restartNomadCluster(ctx context.Context) error {
-	return fmt.Errorf("command not implemented for Nomad platform")
+func restartNomadCluster(ctx context.Context, app *api.AppCompact) (err error) {
+	var (
+		client = client.FromContext(ctx).API()
+		io     = iostreams.FromContext(ctx)
+	)
+
+	status, err := client.GetAppStatus(ctx, app.Name, false)
+	if err != nil {
+		return fmt.Errorf("get app status: %w", err)
+	}
+
+	var vms []*api.AllocationStatus
+
+	vms = append(vms, status.Allocations...)
+
+	if len(vms) == 0 {
+		return fmt.Errorf("no vms found")
+	}
+
+	agentclient, err := agent.Establish(ctx, client)
+	if err != nil {
+		return fmt.Errorf("can't establish agent %w", err)
+	}
+
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+
+	if err != nil {
+		return fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
+	}
+
+	fmt.Fprintf(io.Out, "Restarting Postgres\n")
+
+	for _, vm := range vms {
+		fmt.Fprintf(io.Out, " Restarting %s\n", vm.ID)
+
+		pgclient := flypg.NewFromInstance(fmt.Sprintf("[%s]", vm.PrivateIP), dialer)
+
+		if err := pgclient.RestartNodePG(ctx); err != nil {
+			return fmt.Errorf("failed to restart postgres on node: %w", err)
+		}
+	}
+	fmt.Fprintf(io.Out, "Restart complete\n")
+
+	return
 }

@@ -98,7 +98,7 @@ func runAttach(ctx context.Context) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	pgApp, err := client.GetAppPostgres(ctx, pgAppName)
+	pgApp, err := client.GetAppCompact(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
@@ -208,7 +208,7 @@ func runAttach(ctx context.Context) error {
 	return nil
 }
 
-func hasRequiredVersionOnNomad(app *api.AppPostgres, cluster, standalone string) error {
+func hasRequiredVersionOnNomad(app *api.AppCompact, cluster, standalone string) error {
 	// Validate image version to ensure it's compatible with this feature.
 	if app.ImageDetails.Version == "" || app.ImageDetails.Version == "unknown" {
 		return fmt.Errorf("command is not compatible with this image")

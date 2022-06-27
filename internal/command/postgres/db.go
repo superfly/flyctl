@@ -64,7 +64,7 @@ func runListDbs(ctx context.Context) error {
 		io                   = iostreams.FromContext(ctx)
 	)
 
-	app, err := client.GetAppPostgres(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("error getting app %s: %w", appName, err)
 	}

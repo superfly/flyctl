@@ -427,6 +427,7 @@ type AppCompact struct {
 	PostgresAppRole *struct {
 		Name string
 	}
+	ImageDetails ImageVersion
 }
 
 func (app *AppCompact) IsPostgresApp() bool {
@@ -461,6 +462,7 @@ type AppMonitoring struct {
 
 type AppPostgres struct {
 	ID              string
+	Name            string
 	Organization    *OrganizationBasic
 	ImageDetails    ImageVersion
 	PostgresAppRole *struct {

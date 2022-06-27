@@ -57,7 +57,7 @@ func runDetach(ctx context.Context) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	pgApp, err := client.GetAppPostgres(ctx, pgAppName)
+	pgApp, err := client.GetAppCompact(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}

@@ -164,6 +164,10 @@ func (client *Client) GetAppCompact(ctx context.Context, appName string) (*AppCo
 				postgresAppRole: role {
 					name
 				}
+				imageDetails {
+					repository
+					version
+				}
 			}
 		}
 	`
@@ -286,6 +290,7 @@ func (client *Client) GetAppPostgres(ctx context.Context, appName string) (*AppP
 		query ($appName: String!) {
 			apppostgres:app(name: $appName) {
 				id
+				name
 				organization {
 					id
 					slug
