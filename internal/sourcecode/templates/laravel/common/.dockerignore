@@ -1,32 +1,23 @@
 # excludes from the docker image/build
 
-# 1. Ignore everything (ensures don't upload .git, .env etc)
-**
+# 1. Ignore Laravel-specific files we don't need
+bootstrap/cache/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/logs/*
+*.env*
 .rr.yml
 rr
 
-# 2. Allow files and directories
-!app/**
-!bootstrap/**
-!config/**
-!database/**
-!docker/**
-!lang/**
-!public/**
-!resources/**
-!routes/**
-!storage/app/**
-!storage/framework/cache/**
-!storage/framework/sessions/**
-!storage/framework/views/**
-!artisan
-!composer.json
-!composer.lock
-!package.json
-!package-lock.json
-!webpack.mix.js
-
-# 3. Ignore unnecessary files that may be inside those allowed directories
+# 2. Ignore common files/directories we don't need
+.vscode
+.idea
+**/*node_modules
+**.git
+**.gitignore
+**.gitattributes
+**.sass-cache
 **/*~
 **/*.log
 **/.DS_Store
