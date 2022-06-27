@@ -19,7 +19,6 @@ func New() *cobra.Command {
 	cmd.Aliases = []string{"machines", "m"}
 
 	cmd.AddCommand(
-		newClone(),
 		newKill(),
 		newList(),
 		newRemove(),

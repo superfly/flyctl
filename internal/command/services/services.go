@@ -6,7 +6,6 @@ import (
 
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/services/postgres"
-	"github.com/superfly/flyctl/internal/command/services/redis"
 )
 
 // New initializes and returns a new services Command.
@@ -19,7 +18,6 @@ func New() (cmd *cobra.Command) {
 	cmd = command.New("services", short, long, nil)
 
 	cmd.AddCommand(
-		redis.New(),
 		postgres.New(),
 	)
 
