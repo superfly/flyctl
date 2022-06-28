@@ -67,12 +67,9 @@ type Config struct {
 	Definition      map[string]interface{} `toml:"definition,omitempty"`
 	Path            string                 `toml:"path,omitempty"`
 	Services        []api.MachineService   `toml:"services"`
-	Env             map[string]string      `toml:"env" json:"env"`
-	Metrics         *api.MachineMetrics    `toml:"metrics" json:"metrics"`
 	// PrimaryRegion is only used for temporarily storing the target region for a new CM
 	PrimaryRegion string
 }
-
 type HttpService struct {
 	InternalPort int  `json:"internal_port" toml:"internal_port" validate:"required,numeric"`
 	ForceHttps   bool `toml:"force_https"`

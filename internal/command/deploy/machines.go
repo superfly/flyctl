@@ -69,14 +69,6 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 		machineConfig.Services = append(machineConfig.Services, config.Services...)
 	}
 
-	if config.Env != nil {
-		machineConfig.Env = config.Env
-	}
-
-	if config.Metrics != nil {
-		machineConfig.Metrics = config.Metrics
-	}
-
 	// Run validations against struct types and their JSON tags
 	err = config.Validate()
 
