@@ -57,6 +57,11 @@ func LoadConfig(path string) (cfg *Config, err error) {
 	return
 }
 
+type SlimConfig struct {
+	AppName         string `toml:"app,omitempty"`
+	PlatformVersion int    `toml:"platform_version,omitempty"`
+}
+
 // Config wraps the properties of app configuration.
 type Config struct {
 	AppName         string                 `toml:"app,omitempty"`
@@ -137,13 +142,25 @@ func (c *Config) unmarshalTOML(r io.ReadSeeker) (err error) {
 	var data map[string]interface{}
 	// Config version 2 is for machines apps, with explicit structs for the whole config.
 	// Config version 1 is for nomad apps, for which most values are unmarshalled differently.
-	if _, err = toml.NewDecoder(r).Decode(&c); err == nil {
-		if c.PlatformVersion < MachinesVersion {
-			r.Seek(0, io.SeekStart)
-			_, err = toml.NewDecoder(r).Decode(&data)
+
+	slimConfig := &SlimConfig{}
+
+	if _, err = toml.NewDecoder(r).Decode(&slimConfig); err == nil {
+		r.Seek(0, io.SeekStart)
+		if slimConfig.PlatformVersion >= MachinesVersion {
+			_, err = toml.NewDecoder(r).Decode(&c)
+
 			if err != nil {
 				return err
 			}
+
+		} else {
+			_, err = toml.NewDecoder(r).Decode(&data)
+
+			if err != nil {
+				return err
+			}
+
 			err = c.unmarshalNativeMap(data)
 		}
 	}
