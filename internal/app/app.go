@@ -15,7 +15,6 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/go-playground/validator/v10"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/sourcecode"
 )
@@ -62,13 +61,11 @@ type Config struct {
 	AppName         string                 `toml:"app,omitempty"`
 	Build           *Build                 `toml:"build,omitempty"`
 	PlatformVersion int                    `toml:"platform_version,omitempty"`
+	PrimaryRegion   string                 `toml:"primary_region,omitempty"`
 	HttpService     *HttpService           `toml:"http_service,omitempty"`
 	VM              *VM                    `toml:"vm,omitempty"`
 	Definition      map[string]interface{} `toml:"definition,omitempty"`
 	Path            string                 `toml:"path,omitempty"`
-	Services        []api.MachineService   `toml:"services"`
-	// PrimaryRegion is only used for temporarily storing the target region for a new CM
-	PrimaryRegion string
 }
 type HttpService struct {
 	InternalPort int  `json:"internal_port" toml:"internal_port" validate:"required,numeric"`

@@ -35,41 +35,48 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 		Image: img.Tag,
 	}
 
-	// Convert the new, slimmer http service config to standard services
 	if config.HttpService != nil {
-
-		httpService := api.MachineService{
-			Protocol:     "tcp",
-			InternalPort: config.HttpService.InternalPort,
-			Ports: []api.MachinePort{
-				{
-					Port:       80,
-					Handlers:   []string{"http"},
-					ForceHttps: true,
+		machineConfig.Services = []api.MachineService{
+			{
+				Protocol:     "tcp",
+				InternalPort: config.HttpService.InternalPort,
+				Ports: []api.MachinePort{
+					{
+						Port:       80,
+						Handlers:   []string{"http"},
+						ForceHttps: true,
+					},
+				},
+			},
+			{
+				Protocol:     "tcp",
+				InternalPort: config.HttpService.InternalPort,
+				Ports: []api.MachinePort{
+					{
+						Port:     443,
+						Handlers: []string{"http", "tls"},
+					},
 				},
 			},
 		}
+	}
+	machineGuest := &api.MachineGuest{
+		CPUs:     1,
+		CPUKind:  "shared",
+		MemoryMB: 256,
+	}
 
-		httpsService := api.MachineService{
-			Protocol:     "tcp",
-			InternalPort: config.HttpService.InternalPort,
-			Ports: []api.MachinePort{
-				{
-					Port:     443,
-					Handlers: []string{"http", "tls"},
-				},
-			},
+	if config.VM != nil {
+		if config.VM.CpuCount > 0 {
+			machineGuest.CPUs = config.VM.CpuCount
 		}
-
-		machineConfig.Services = append(machineConfig.Services, httpService, httpsService)
+		if config.VM.Memory > 0 {
+			machineGuest.MemoryMB = config.VM.Memory
+		}
 	}
 
-	// Copy standard services to the machine vonfig
-	if config.Services != nil {
-		machineConfig.Services = append(machineConfig.Services, config.Services...)
-	}
+	machineConfig.Guest = machineGuest
 
-	// Run validations against struct types and their JSON tags
 	err = config.Validate()
 
 	if err != nil {

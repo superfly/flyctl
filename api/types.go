@@ -1410,15 +1410,15 @@ var MachinePresets map[string]*MachineGuest = map[string]*MachineGuest{
 }
 
 type MachinePort struct {
-	Port       int      `json:"port,required" toml:"port"`
-	Handlers   []string `json:"handlers,omitempty" toml:"handlers,omitempty"`
-	ForceHttps bool     `json:"force_https,omitempty" toml:"force_https,omitempty"`
+	Port       int      `json:"port"`
+	Handlers   []string `json:"handlers,omitempty"`
+	ForceHttps bool     `json:"force_https,omitempty"`
 }
 
 type MachineService struct {
-	Protocol     string        `json:"protocol,required" toml:"protocol"`
-	InternalPort int           `json:"internal_port,required" toml:"internal_port"`
-	Ports        []MachinePort `json:"ports" toml:"ports"`
+	Protocol     string        `json:"protocol"`
+	InternalPort int           `json:"internal_port"`
+	Ports        []MachinePort `json:"ports"`
 }
 
 type MachineConfig struct {
