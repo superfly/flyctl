@@ -105,7 +105,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 	var release *api.Release
 	var releaseCommand *api.ReleaseCommand
 
-	if appConfig.PlatformVersion >= app.MachinesVersion {
+	if appConfig.ForMachines() {
 		return createMachinesRelease(ctx, appConfig, img)
 	} else {
 		release, releaseCommand, err = createRelease(ctx, appConfig, img)

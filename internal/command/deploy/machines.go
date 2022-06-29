@@ -87,7 +87,7 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 	launchInput := api.LaunchMachineInput{
 		AppID:   config.AppName,
 		OrgSlug: app.Organization.ID,
-		Region:  config.PrimaryRegion,
+		Region:  config.GetPrimaryRegion(),
 		Config:  machineConfig,
 	}
 
@@ -116,7 +116,15 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 
 			fmt.Fprintf(io.Out, "Updating VM %s\n", machine.ID)
 			launchInput.ID = machine.ID
-			_, err = flapsClient.Update(ctx, launchInput, machine.LeaseNonce)
+			updateResult, err := flapsClient.Update(ctx, launchInput, machine.LeaseNonce)
+
+			if err != nil {
+				return err
+			}
+
+			fmt.Fprintf(io.Out, "Waiting for update to finish on %s\n", machine.ID)
+			err = flapsClient.Wait(ctx, updateResult)
+
 			if err != nil {
 				return err
 			}
