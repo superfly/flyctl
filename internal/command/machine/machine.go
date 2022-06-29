@@ -28,6 +28,7 @@ func New() *cobra.Command {
 		newStatus(),
 		newProxy(),
 		newLaunch(),
+		newClone(),
 	)
 
 	return cmd
