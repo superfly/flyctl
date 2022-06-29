@@ -230,6 +230,7 @@ func (client *Client) GetAppBasic(ctx context.Context, appName string) (*AppBasi
 			appbasic:app(name: $appName) {
 				id
 				name
+				platformVersion
 				organization {
 					id
 					slug

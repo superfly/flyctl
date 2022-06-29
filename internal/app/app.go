@@ -4,6 +4,7 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/sourcecode"
 )
 
@@ -25,8 +27,8 @@ const (
 	DefaultConfigFileName = "fly.toml"
 	// Config is versioned, initially, to separate nomad from machine apps without having to consult
 	// the API
-	NomadVersion    = 1
-	MachinesVersion = 2
+	NomadPlatform    = "nomad"
+	MachinesPlatform = "machines"
 )
 
 func NewConfig() *Config {
@@ -36,7 +38,8 @@ func NewConfig() *Config {
 }
 
 // LoadConfig loads the app config at the given path.
-func LoadConfig(path string) (cfg *Config, err error) {
+func LoadConfig(ctx context.Context, path string, platformVersion string) (cfg *Config, err error) {
+
 	cfg = &Config{
 		Definition: map[string]interface{}{},
 	}
@@ -52,30 +55,36 @@ func LoadConfig(path string) (cfg *Config, err error) {
 	}()
 
 	cfg.Path = path
+	cfg.platformVersion = platformVersion
+
+	if platformVersion == "" {
+		cfg.DeterminePlatform(ctx, file)
+	}
+
 	err = cfg.unmarshalTOML(file)
 
 	return
 }
 
+// Use this type to unmarshal fly.toml with the goal of retreiving the app name only
 type SlimConfig struct {
-	AppName         string `toml:"app,omitempty"`
-	PlatformVersion int    `toml:"platform_version,omitempty"`
+	AppName string `toml:"app,omitempty"`
 }
 
 // Config wraps the properties of app configuration.
 type Config struct {
-	AppName         string                 `toml:"app,omitempty"`
-	Build           *Build                 `toml:"build,omitempty"`
-	PlatformVersion int                    `toml:"platform_version,omitempty"`
-	HttpService     *HttpService           `toml:"http_service,omitempty"`
-	VM              *VM                    `toml:"vm,omitempty"`
-	Definition      map[string]interface{} `toml:"definition,omitempty"`
-	Path            string                 `toml:"path,omitempty"`
-	Services        []api.MachineService   `toml:"services"`
-	Env             map[string]string      `toml:"env" json:"env"`
-	Metrics         *api.MachineMetrics    `toml:"metrics" json:"metrics"`
+	AppName     string                 `toml:"app,omitempty"`
+	Build       *Build                 `toml:"build,omitempty"`
+	HttpService *HttpService           `toml:"http_service,omitempty"`
+	VM          *VM                    `toml:"vm,omitempty"`
+	Definition  map[string]interface{} `toml:"definition,omitempty"`
+	Path        string                 `toml:"path,omitempty"`
+	Services    []api.MachineService   `toml:"services"`
+	Env         map[string]string      `toml:"env" json:"env"`
+	Metrics     *api.MachineMetrics    `toml:"metrics" json:"metrics"`
 	// PrimaryRegion is only used for temporarily storing the target region for a new CM
-	PrimaryRegion string
+	primaryRegion   string
+	platformVersion string
 }
 
 type HttpService struct {
@@ -99,6 +108,31 @@ type Build struct {
 	// Or...
 	Dockerfile        string
 	DockerBuildTarget string
+}
+
+// SetMachinesPlatform informs the TOML marshaller that this config is for the machines platform
+func (c *Config) SetMachinesPlatform() {
+	c.platformVersion = MachinesPlatform
+}
+
+// SetNomadPlatform informs the TOML marshaller that this config is for the nomad platform
+func (c *Config) SetNomadPlatform() {
+	c.platformVersion = NomadPlatform
+}
+
+// ForMachines is true when the config is intended for the machines platform
+func (c *Config) ForMachines() bool {
+	return c.platformVersion == MachinesPlatform
+}
+
+// SetPrimaryRegion sets the region to be used for deployment. primaryRegion is private to avoid being marshalled to TOML.
+func (c *Config) SetPrimaryRegion(regionCode string) {
+	c.primaryRegion = regionCode
+}
+
+// SetPrimaryRegion gets the region to be used for deployment. primaryRegion is private to avoid being marshalled to TOML.
+func (c *Config) GetPrimaryRegion() string {
+	return c.primaryRegion
 }
 
 func (c *Config) HasDefinition() bool {
@@ -138,16 +172,45 @@ func (c *Config) EncodeTo(w io.Writer) error {
 	return c.marshalTOML(w)
 }
 
+func (c *Config) DeterminePlatform(ctx context.Context, r io.ReadSeeker) (err error) {
+	client := client.FromContext(ctx)
+	slimConfig := &SlimConfig{}
+	_, err = toml.NewDecoder(r).Decode(&slimConfig)
+
+	if err != nil {
+		return err
+	}
+
+	basicApp, err := client.API().GetAppBasic(ctx, slimConfig.AppName)
+
+	if err != nil {
+		return err
+	}
+
+	if basicApp.PlatformVersion == MachinesPlatform {
+		c.SetMachinesPlatform()
+	} else {
+		c.SetNomadPlatform()
+	}
+
+	return
+}
+
 func (c *Config) unmarshalTOML(r io.ReadSeeker) (err error) {
 	var data map[string]interface{}
-	// Config version 2 is for machines apps, with explicit structs for the whole config.
-	// Config version 1 is for nomad apps, for which most values are unmarshalled differently.
 
 	slimConfig := &SlimConfig{}
 
+	// Fetch the app name only, to check which platform we're on via the API
 	if _, err = toml.NewDecoder(r).Decode(&slimConfig); err == nil {
+
+		if err != nil {
+			return err
+		}
+
+		// Rewind TOML in preparation for parsing the full config
 		r.Seek(0, io.SeekStart)
-		if slimConfig.PlatformVersion >= MachinesVersion {
+		if c.ForMachines() {
 			_, err = toml.NewDecoder(r).Decode(&c)
 
 			if err != nil {
@@ -246,7 +309,7 @@ func (c *Config) marshalTOML(w io.Writer) error {
 	fmt.Fprintf(w, "# fly.toml file generated for %s on %s\n\n", c.AppName, time.Now().Format(time.RFC3339))
 
 	// For machines apps, encode and write directly, bypassing custom marshalling
-	if c.PlatformVersion > NomadVersion {
+	if c.platformVersion == MachinesPlatform {
 		encoder.Encode(&c)
 		_, err := b.WriteTo(w)
 		return err

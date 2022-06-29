@@ -441,9 +441,10 @@ type AppInfo struct {
 }
 
 type AppBasic struct {
-	ID           string
-	Name         string
-	Organization *OrganizationBasic
+	ID              string
+	Name            string
+	PlatformVersion string
+	Organization    *OrganizationBasic
 }
 
 type AppMonitoring struct {

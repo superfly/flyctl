@@ -132,13 +132,8 @@ func run(ctx context.Context) (err error) {
 	appConfig := app.NewConfig()
 
 	// Config version 2 is for machine apps
-	appConfig.PlatformVersion = app.MachinesVersion
+	appConfig.SetMachinesPlatform()
 	appConfig.AppName = createdApp.Name
-
-	appConfig.VM = &app.VM{
-		CpuCount: 1,
-		Memory:   256,
-	}
 
 	// Launch in the specified region, or when not specified, in the nearest region
 	regionCode := flag.GetString(ctx, "region")
@@ -153,7 +148,7 @@ func run(ctx context.Context) (err error) {
 		regionCode = region.Code
 	}
 
-	appConfig.PrimaryRegion = regionCode
+	appConfig.SetPrimaryRegion(regionCode)
 
 	var srcInfo *sourcecode.SourceInfo
 
@@ -383,10 +378,11 @@ func setScannerPrefs(ctx context.Context, appConfig *app.Config, srcInfo *source
 				return err
 			}
 
+			region := appConfig.GetPrimaryRegion()
 			volume, err := client.CreateVolume(ctx, api.CreateVolumeInput{
 				AppID:     appID,
 				Name:      vol.Source,
-				Region:    appConfig.PrimaryRegion,
+				Region:    region,
 				SizeGb:    1,
 				Encrypted: true,
 			})
@@ -394,7 +390,7 @@ func setScannerPrefs(ctx context.Context, appConfig *app.Config, srcInfo *source
 			if err != nil {
 				return err
 			} else {
-				fmt.Printf("Created a %dGB volume %s in the %s region\n", volume.SizeGb, volume.ID, appConfig.PrimaryRegion)
+				fmt.Printf("Created a %dGB volume %s in the %s region\n", volume.SizeGb, volume.ID, region)
 			}
 
 		}
