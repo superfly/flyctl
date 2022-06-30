@@ -163,13 +163,21 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 		var apiConfig *api.AppConfig
 		if apiConfig, err = client.GetConfig(ctx, app.NameFromContext(ctx)); err != nil {
 			err = fmt.Errorf("failed fetching existing app config: %w", err)
-
 			return
+		}
+
+		basicApp, err := client.GetAppBasic(ctx, app.NameFromContext(ctx))
+
+		if err != nil {
+			return nil, err
 		}
 
 		cfg = &app.Config{
 			Definition: apiConfig.Definition,
 		}
+
+		cfg.AppName = basicApp.Name
+		cfg.SetPlatformVersion(basicApp.PlatformVersion)
 	}
 
 	if env := flag.GetStringSlice(ctx, "env"); len(env) > 0 {
