@@ -120,6 +120,10 @@ func (c *Config) SetNomadPlatform() {
 	c.platformVersion = NomadPlatform
 }
 
+func (c *Config) SetPlatformVersion(platform string) {
+	c.platformVersion = platform
+}
+
 // ForMachines is true when the config is intended for the machines platform
 func (c *Config) ForMachines() bool {
 	return c.platformVersion == MachinesPlatform
