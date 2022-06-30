@@ -105,10 +105,12 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 			launchInput.ID = machine.ID
 			leaseTTL := api.IntPointer(30)
 			lease, err := flapsClient.GetLease(ctx, machine.ID, leaseTTL)
-			machine.LeaseNonce = lease.Data.Nonce
+
 			if err != nil {
 				return err
 			}
+
+			machine.LeaseNonce = lease.Data.Nonce
 
 		}
 
