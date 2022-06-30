@@ -3,7 +3,7 @@ with (import (fetchTarball https://github.com/nixos/nixpkgs/archive/592dc9ed7f04
 let
 
  basePackages = [
-  go
+  go_1_18
   gnumake
   gnused
   ];

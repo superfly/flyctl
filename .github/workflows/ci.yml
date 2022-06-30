@@ -2,7 +2,7 @@ name: CI
 env:
   # Increment this to bust the build cache
   CACHE_VERSION: 1
-  GO_VERSION: 1.17.x
+  GO_VERSION: 1.18.x
 on:
   push:
   workflow_dispatch:
@@ -84,7 +84,7 @@ jobs:
         with:
           workflow: Homebrew Bump Formula
           token: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
-          inputs: "{ \"version\": \"${{ github.ref_name }}\", \"sha\": \"${{ github.sha }}\" }"
+          inputs: '{ "version": "${{ github.ref_name }}", "sha": "${{ github.sha }}" }'
 
   release:
     needs: test
