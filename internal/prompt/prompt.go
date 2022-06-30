@@ -137,10 +137,10 @@ var errOrgSlugRequired = NonInteractiveError("org slug must be specified when no
 
 // Org returns the Organization the user has passed in via flag or prompts the
 // user for one.
-func Org(ctx context.Context, typ *api.OrganizationType) (*api.Organization, error) {
+func Org(ctx context.Context) (*api.Organization, error) {
 	client := client.FromContext(ctx).API()
 
-	orgs, err := client.GetOrganizations(ctx, typ)
+	orgs, err := client.GetOrganizations(ctx)
 	if err != nil {
 		return nil, err
 	}

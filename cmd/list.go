@@ -167,7 +167,7 @@ func runListOrgs(cmdCtx *cmdctx.CmdContext) error {
 
 	asJSON := cmdCtx.OutputJSON()
 
-	orgs, err := cmdCtx.Client.API().GetOrganizations(ctx, nil)
+	orgs, err := cmdCtx.Client.API().GetOrganizations(ctx)
 
 	if err != nil {
 		return err

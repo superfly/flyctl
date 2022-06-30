@@ -97,7 +97,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	// Prompt for an org
-	org, err := prompt.Org(ctx, nil)
+	org, err := prompt.Org(ctx)
 
 	if err != nil {
 		return

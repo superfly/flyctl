@@ -82,7 +82,7 @@ func RunCreate(ctx context.Context) (err error) {
 		}
 	}
 
-	org, err := prompt.Org(ctx, nil)
+	org, err := prompt.Org(ctx)
 	if err != nil {
 		return
 	}

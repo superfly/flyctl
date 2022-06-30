@@ -37,8 +37,8 @@ func confirmOverwrite(filename string) bool {
 	return confirm
 }
 
-func selectOrganization(ctx context.Context, client *api.Client, slug string, typeFilter *api.OrganizationType) (*api.Organization, error) {
-	orgs, err := client.GetOrganizations(ctx, typeFilter)
+func selectOrganization(ctx context.Context, client *api.Client, slug string) (*api.Organization, error) {
+	orgs, err := client.GetOrganizations(ctx)
 	if err != nil {
 		return nil, err
 	}

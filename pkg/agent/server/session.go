@@ -185,7 +185,7 @@ func (s *session) reestablish(ctx context.Context, args ...string) {
 var errNoSuchOrg = errors.New("no such organization")
 
 func (s *session) fetchOrg(ctx context.Context, slug string) (*api.Organization, error) {
-	orgs, err := s.srv.Client.GetOrganizations(ctx, nil)
+	orgs, err := s.srv.Client.GetOrganizations(ctx)
 	if err != nil {
 		return nil, err
 	}

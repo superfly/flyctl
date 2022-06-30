@@ -32,7 +32,7 @@ func runMachineProxy(ctx context.Context) error {
 	orgSlug := flag.GetOrg(ctx)
 
 	if orgSlug == "" {
-		org, err := prompt.Org(ctx, nil)
+		org, err := prompt.Org(ctx)
 		if err != nil {
 			return err
 		}

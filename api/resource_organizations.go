@@ -9,10 +9,10 @@ const (
 	OrganizationTypeShared   OrganizationType = "SHARED"
 )
 
-func (client *Client) GetOrganizations(ctx context.Context, typeFilter *OrganizationType) ([]Organization, error) {
+func (client *Client) GetOrganizations(ctx context.Context) ([]Organization, error) {
 	q := `
-		query($orgType: OrganizationType) {
-			organizations(type: $orgType) {
+		query {
+			organizations {
 				nodes {
 					id
 					slug
@@ -24,9 +24,6 @@ func (client *Client) GetOrganizations(ctx context.Context, typeFilter *Organiza
 	`
 
 	req := client.NewRequest(q)
-	if typeFilter != nil {
-		req.Var("orgType", *typeFilter)
-	}
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
