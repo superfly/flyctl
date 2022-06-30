@@ -178,7 +178,11 @@ func Org(ctx context.Context) (*api.Organization, error) {
 func SelectOrg(ctx context.Context, orgs []api.Organization) (org *api.Organization, err error) {
 	var options []string
 	for _, org := range orgs {
-		options = append(options, fmt.Sprintf("%s (%s)", org.Name, org.Slug))
+		personalCallout := ""
+		if org.Type == "PERSONAL" {
+			personalCallout = " [your personal organization]"
+		}
+		options = append(options, fmt.Sprintf("%s (%s)%s", org.Name, org.Slug, personalCallout))
 	}
 
 	var index int
