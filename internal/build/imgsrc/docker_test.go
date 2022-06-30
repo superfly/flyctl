@@ -10,16 +10,16 @@ func TestAllowedDockerDaemonMode(t *testing.T) {
 	tests := []struct {
 		allowLocal  bool
 		allowRemote bool
-		expected    DockerDaemonType
+		expected    BuilderType
 	}{
-		{true, true, DockerDaemonTypeNone | DockerDaemonTypeLocal | DockerDaemonTypeRemote},
-		{false, true, DockerDaemonTypeNone | DockerDaemonTypeRemote},
-		{true, false, DockerDaemonTypeNone | DockerDaemonTypeLocal},
-		{false, false, DockerDaemonTypeNone},
+		{true, true, BuilderTypeNone | BuilderTypeLocal | BuilderTypeRemote},
+		{false, true, BuilderTypeNone | BuilderTypeRemote},
+		{true, false, BuilderTypeNone | BuilderTypeLocal},
+		{false, false, BuilderTypeNone},
 	}
 
 	for _, test := range tests {
-		m := NewDockerDaemonType(test.allowLocal, test.allowRemote)
+		m := NewDockerDaemonType(test.allowLocal, test.allowRemote, false)
 		assert.Equal(t, test.expected, m)
 	}
 }

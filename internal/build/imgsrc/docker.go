@@ -27,20 +27,34 @@ import (
 )
 
 type dockerClientFactory struct {
-	mode    DockerDaemonType
-	buildFn func(ctx context.Context) (*dockerclient.Client, error)
+	mode      BuilderType
+	remote    bool
+	buildFn   func(ctx context.Context) (*dockerclient.Client, error)
+	apiClient *api.Client
+	appName   string
 }
 
-func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, appName string, streams *iostreams.IOStreams) *dockerClientFactory {
+func (f *dockerClientFactory) IsLocal() bool {
+	return !f.remote
+}
+
+func (f *dockerClientFactory) IsRemote() bool {
+	return f.remote
+}
+
+func newDockerClientFactory(daemonType BuilderType, apiClient *api.Client, appName string, streams *iostreams.IOStreams) *dockerClientFactory {
 	if daemonType.AllowLocal() {
 		terminal.Debug("trying local docker daemon")
 		c, err := NewLocalDockerClient()
 		if c != nil && err == nil {
 			return &dockerClientFactory{
-				mode: DockerDaemonTypeLocal,
+				mode:   daemonType,
+				remote: false,
 				buildFn: func(ctx context.Context) (*dockerclient.Client, error) {
 					return c, nil
 				},
+				apiClient: apiClient,
+				appName:   appName,
 			}
 		} else if err != nil && !dockerclient.IsErrConnectionFailed(err) {
 			terminal.Warn("Error connecting to local docker daemon:", err)
@@ -54,7 +68,8 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 		var cachedDocker *dockerclient.Client
 
 		return &dockerClientFactory{
-			mode: DockerDaemonTypeRemote,
+			mode:   daemonType,
+			remote: true,
 			buildFn: func(ctx context.Context) (*dockerclient.Client, error) {
 				if cachedDocker != nil {
 					return cachedDocker, nil
@@ -66,62 +81,66 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 				cachedDocker = c
 				return cachedDocker, nil
 			},
+			apiClient: apiClient,
+			appName:   appName,
 		}
 	}
 
 	return &dockerClientFactory{
-		mode: DockerDaemonTypeNone,
+		mode: BuilderTypeNone,
 		buildFn: func(ctx context.Context) (*dockerclient.Client, error) {
 			return nil, errors.New("no docker daemon available")
 		},
+		apiClient: apiClient,
+		appName:   appName,
 	}
 }
 
-func NewDockerDaemonType(allowLocal, allowRemote bool) DockerDaemonType {
-	daemonType := DockerDaemonTypeNone
+func NewDockerDaemonType(allowLocal, allowRemote, useNixpacks bool) BuilderType {
+	daemonType := BuilderTypeNone
 	if allowLocal {
-		daemonType = daemonType | DockerDaemonTypeLocal
+		daemonType = daemonType | BuilderTypeLocal
 	}
 	if allowRemote {
-		daemonType = daemonType | DockerDaemonTypeRemote
+		daemonType = daemonType | BuilderTypeRemote
+	}
+	if useNixpacks {
+		daemonType = daemonType | BuilderTypeNixpacks
 	}
 	return daemonType
 }
 
-type DockerDaemonType int
+type BuilderType int
 
 const (
-	DockerDaemonTypeLocal DockerDaemonType = 1 << iota
-	DockerDaemonTypeRemote
-	DockerDaemonTypeNone
+	BuilderTypeLocal BuilderType = 1 << iota
+	BuilderTypeRemote
+	BuilderTypeNone
+	BuilderTypeNixpacks
 )
 
-func (t DockerDaemonType) AllowLocal() bool {
-	return (t & DockerDaemonTypeLocal) != 0
+func (t BuilderType) AllowLocal() bool {
+	return (t & BuilderTypeLocal) != 0
 }
 
-func (t DockerDaemonType) AllowRemote() bool {
-	return (t & DockerDaemonTypeRemote) != 0
+func (t BuilderType) AllowRemote() bool {
+	return (t & BuilderTypeRemote) != 0
 }
 
-func (t DockerDaemonType) AllowNone() bool {
-	return (t & DockerDaemonTypeNone) != 0
+func (t BuilderType) AllowNone() bool {
+	return (t & BuilderTypeNone) != 0
 }
 
-func (t DockerDaemonType) IsLocal() bool {
-	return t == DockerDaemonTypeLocal
+func (t BuilderType) IsNone() bool {
+	return t == BuilderTypeNone
 }
 
-func (t DockerDaemonType) IsRemote() bool {
-	return t == DockerDaemonTypeRemote
-}
-
-func (t DockerDaemonType) IsNone() bool {
-	return t == DockerDaemonTypeNone
-}
-
-func (t DockerDaemonType) IsAvailable() bool {
+func (t BuilderType) IsAvailable() bool {
 	return !t.IsNone()
+}
+
+func (t BuilderType) UseNixpacks() bool {
+	return (t & BuilderTypeNixpacks) != 0
 }
 
 func NewLocalDockerClient() (*dockerclient.Client, error) {

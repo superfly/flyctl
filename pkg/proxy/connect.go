@@ -24,7 +24,15 @@ type ConnectParams struct {
 }
 
 func Connect(ctx context.Context, p *ConnectParams) (err error) {
+	server, err := NewServer(ctx, p)
+	if err != nil {
+		return err
+	}
 
+	return server.ProxyServer(ctx)
+}
+
+func NewServer(ctx context.Context, p *ConnectParams) (*Server, error) {
 	var (
 		io         = iostreams.FromContext(ctx)
 		client     = client.FromContext(ctx).API()
@@ -41,7 +49,7 @@ func Connect(ctx context.Context, p *ConnectParams) (err error) {
 	agentclient, err := agent.Establish(ctx, client)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Prompt for a specific instance and set it as the remote target
@@ -49,7 +57,7 @@ func Connect(ctx context.Context, p *ConnectParams) (err error) {
 		instance, err := selectInstance(ctx, p.OrganizationSlug, p.AppName, agentclient)
 
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		remoteAddr = fmt.Sprintf("[%s]:%s", instance, remotePort)
@@ -61,7 +69,7 @@ func Connect(ctx context.Context, p *ConnectParams) (err error) {
 		// entry to resolve
 		if !ip.IsV6(p.RemoteHost) {
 			if err := agentclient.WaitForDNS(ctx, p.Dialer, orgSlug, p.RemoteHost); err != nil {
-				return fmt.Errorf("%s: %w", p.RemoteHost, err)
+				return nil, fmt.Errorf("%s: %w", p.RemoteHost, err)
 			}
 		}
 
@@ -74,35 +82,33 @@ func Connect(ctx context.Context, p *ConnectParams) (err error) {
 		// just numbers
 		addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("127.0.0.1:%s", localPort))
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		listener, err = net.ListenTCP("tcp", addr)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	} else {
 		// probably a unix path
 		addr, err := net.ResolveUnixAddr("unix", localPort)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		listener, err = net.ListenUnix("unix", addr)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	fmt.Fprintf(io.Out, "Proxying local port %s to remote %s\n", localPort, remoteAddr)
 
-	proxy := Server{
+	return &Server{
 		Addr:     remoteAddr,
 		Listener: listener,
 		Dial:     p.Dialer.DialContext,
-	}
-
-	return proxy.ProxyServer(ctx)
+	}, nil
 }
 
 func selectInstance(ctx context.Context, org, app string, c *agent.Client) (instance string, err error) {

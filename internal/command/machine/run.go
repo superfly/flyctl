@@ -118,6 +118,10 @@ func newRun() *cobra.Command {
 			Description: "Only perform builds locally using the local docker daemon",
 			Hidden:      true,
 		},
+		flag.Bool{
+			Name:   "build-nixpacks",
+			Hidden: true,
+		},
 		flag.String{
 			Name:        "dockerfile",
 			Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
@@ -393,7 +397,7 @@ func determineImage(ctx context.Context, appName string) (img *imgsrc.Deployment
 		io     = iostreams.FromContext(ctx)
 	)
 
-	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"))
+	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), flag.GetBool(ctx, "build-nixpacks"))
 	resolver := imgsrc.NewResolver(daemonType, client, appName, io)
 
 	imageOrPath := flag.FirstArg(ctx)

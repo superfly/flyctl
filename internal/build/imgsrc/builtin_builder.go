@@ -49,7 +49,7 @@ func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	cmdfmt.PrintBegin(streams.ErrOut, "Creating build context")
 	archiveOpts := archiveOptions{
 		sourcePath: opts.WorkingDir,
-		compressed: dockerFactory.mode.IsRemote(),
+		compressed: dockerFactory.IsRemote(),
 	}
 
 	excludes, err := readDockerignore(opts.WorkingDir)
