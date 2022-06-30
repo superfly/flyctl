@@ -6,7 +6,7 @@ import (
 	"io/fs"
 	"io/ioutil"
 	"path/filepath"
-	"regexp"
+	"os/exec"
 
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/helpers"
@@ -401,8 +401,10 @@ func configurePhoenix(sourceDir string) (*SourceInfo, error) {
 		},
 	}
 
-	// We found Phoenix 1.6.3 or higher, so try running the Docker generator
-	if checksPass(sourceDir, dirContains("mix.exs", "phoenix.*"+regexp.QuoteMeta("1.6"))) {
+	// We found Phoenix, so check if the Docker generator is present
+  cmd := exec.Command("mix", "help", "phx.gen.release")
+  err := cmd.Run()
+	if err == nil {
 		s.DeployDocs = `
 Your Phoenix app should be ready for deployment!.
 
@@ -410,9 +412,7 @@ If you need something else, post on our community forum at https://community.fly
 
 When you're ready to deploy, use 'fly deploy --remote-only'.
 `
-	}
-	// We found Phoenix 1.6.0 - 1.6.2
-	if checksPass(sourceDir, dirContains("mix.exs", "phoenix.*"+regexp.QuoteMeta("1.6.")+"[0-2][^\\d]")) {
+	} else {
 		s.SkipDeploy = true
 		s.DeployDocs = `
 We recommend upgrading to Phoenix 1.6.3 which includes a release configuration for Docker-based deployment.
