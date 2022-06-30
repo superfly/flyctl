@@ -20,12 +20,7 @@ type Server struct {
 
 func (srv *Server) ProxyServer(ctx context.Context) error {
 
-	ls, ok := srv.Listener.(*net.TCPListener)
-	if !ok {
-		return nil
-	}
-
-	defer ls.Close()
+	defer srv.Listener.Close()
 
 	for {
 		select {
@@ -33,11 +28,17 @@ func (srv *Server) ProxyServer(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		default:
-			if err := ls.SetDeadline(time.Now().Add(time.Second)); err != nil {
-				return err
+			if ls, ok := srv.Listener.(*net.TCPListener); ok {
+				if err := ls.SetDeadline(time.Now().Add(time.Second)); err != nil {
+					return err
+				}
+			} else if ls, ok := srv.Listener.(*net.UnixListener); ok {
+				if err := ls.SetDeadline(time.Now().Add(time.Second)); err != nil {
+					return err
+				}
 			}
 
-			source, err := ls.Accept()
+			source, err := srv.Listener.Accept()
 			if err != nil {
 				if os.IsTimeout(err) {
 					continue
