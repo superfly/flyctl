@@ -163,7 +163,7 @@ func runCreatePostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	orgSlug := cmdCtx.Config.GetString("organization")
-	org, err := selectOrganization(ctx, cmdCtx.Client.API(), orgSlug, nil)
+	org, err := selectOrganization(ctx, cmdCtx.Client.API(), orgSlug)
 	if err != nil {
 		return err
 	}

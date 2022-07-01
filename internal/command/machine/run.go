@@ -313,7 +313,7 @@ func createApp(ctx context.Context, message, name string, client *api.Client) (*
 		return nil, nil
 	}
 
-	org, err := prompt.Org(ctx, nil)
+	org, err := prompt.Org(ctx)
 	if err != nil {
 		return nil, err
 	}

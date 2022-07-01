@@ -61,7 +61,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	if appName == "" && orgSlug == "" {
-		org, err := prompt.Org(ctx, nil)
+		org, err := prompt.Org(ctx)
 		if err != nil {
 			return err
 		}

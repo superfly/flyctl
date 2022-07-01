@@ -80,7 +80,7 @@ func orgByArg(cmdCtx *cmdctx.CmdContext) (*api.Organization, error) {
 	client := cmdCtx.Client.API()
 
 	if len(cmdCtx.Args) == 0 {
-		org, err := selectOrganization(ctx, client, "", nil)
+		org, err := selectOrganization(ctx, client, "")
 		if err != nil {
 			return nil, err
 		}

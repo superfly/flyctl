@@ -52,7 +52,7 @@ func RunMove(ctx context.Context) error {
 	logger := logger.FromContext(ctx)
 	logger.Infof("app %q is currently in organization %q", app.Name, app.Organization.Slug)
 
-	org, err := prompt.Org(ctx, nil)
+	org, err := prompt.Org(ctx)
 	if err != nil {
 		return nil
 	}

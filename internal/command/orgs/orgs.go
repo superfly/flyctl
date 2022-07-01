@@ -77,10 +77,8 @@ func slugFromFirstArgOrSelect(ctx context.Context) (slug string, err error) {
 
 	client := client.FromContext(ctx).API()
 
-	typ := api.OrganizationTypeShared
-
 	var orgs []api.Organization
-	if orgs, err = client.GetOrganizations(ctx, &typ); err != nil {
+	if orgs, err = client.GetOrganizations(ctx); err != nil {
 		return
 	}
 	sort.OrganizationsByTypeAndName(orgs)

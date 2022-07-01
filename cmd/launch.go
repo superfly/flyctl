@@ -236,7 +236,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		}
 	}
 
-	org, err := selectOrganization(ctx, cmdCtx.Client.API(), orgSlug, nil)
+	org, err := selectOrganization(ctx, cmdCtx.Client.API(), orgSlug)
 	if err != nil {
 		return err
 	}
