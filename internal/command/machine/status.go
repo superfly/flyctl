@@ -11,7 +11,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
@@ -49,8 +48,7 @@ func newStatus() *cobra.Command {
 
 func runMachineStatus(ctx context.Context) (err error) {
 	var (
-		io     = iostreams.FromContext(ctx)
-		client = client.FromContext(ctx).API()
+		io = iostreams.FromContext(ctx)
 	)
 
 	var (
@@ -58,14 +56,12 @@ func runMachineStatus(ctx context.Context) (err error) {
 		machineID = flag.FirstArg(ctx)
 	)
 
-	// flaps client
-	if appName == "" {
-		return fmt.Errorf("app is not found")
-	}
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := appFromMachineOrName(ctx, machineID, appName)
+
 	if err != nil {
 		return err
 	}
+
 	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
 		return fmt.Errorf("could not make flaps client: %w", err)

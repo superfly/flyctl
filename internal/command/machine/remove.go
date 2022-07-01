@@ -9,7 +9,6 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
@@ -49,7 +48,6 @@ func newRemove() *cobra.Command {
 func runMachineRemove(ctx context.Context) (err error) {
 	var (
 		appName   = app.NameFromContext(ctx)
-		client    = client.FromContext(ctx).API()
 		out       = iostreams.FromContext(ctx).Out
 		machineID = flag.FirstArg(ctx)
 		input     = api.RemoveMachineInput{
@@ -59,11 +57,8 @@ func runMachineRemove(ctx context.Context) (err error) {
 		}
 	)
 
-	if appName == "" {
-		return fmt.Errorf("app was not found")
-	}
+	app, err := appFromMachineOrName(ctx, machineID, appName)
 
-	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
 	}
