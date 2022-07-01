@@ -23,6 +23,7 @@ type Query struct {
 	AppCertsCompact      AppCertsCompact
 	CurrentUser          User
 	PersonalOrganization Organization
+	GqlMachine           GqlMachine
 	Organizations        struct {
 		Nodes []Organization
 	}
@@ -1225,7 +1226,7 @@ type GqlMachine struct {
 	Region string
 	Config MachineConfig
 
-	App *App
+	App *AppCompact
 
 	IPs struct {
 		Nodes []*MachineIP
