@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strconv"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/pkg/agent"
-	"github.com/superfly/flyctl/pkg/iostreams"
-	"github.com/superfly/flyctl/pkg/ip"
+	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/ip"
 )
 
 type ConnectParams struct {
@@ -67,14 +68,30 @@ func Connect(ctx context.Context, p *ConnectParams) (err error) {
 		remoteAddr = fmt.Sprintf("[%s]:%s", p.RemoteHost, remotePort)
 	}
 
-	addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("127.0.0.1:%s", localPort))
-	if err != nil {
-		return err
-	}
+	var listener net.Listener
 
-	listener, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return err
+	if _, err := strconv.Atoi(localPort); err == nil {
+		// just numbers
+		addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("127.0.0.1:%s", localPort))
+		if err != nil {
+			return err
+		}
+
+		listener, err = net.ListenTCP("tcp", addr)
+		if err != nil {
+			return err
+		}
+	} else {
+		// probably a unix path
+		addr, err := net.ResolveUnixAddr("unix", localPort)
+		if err != nil {
+			return err
+		}
+
+		listener, err = net.ListenUnix("unix", addr)
+		if err != nil {
+			return err
+		}
 	}
 
 	fmt.Fprintf(io.Out, "Proxying local port %s to remote %s\n", localPort, remoteAddr)

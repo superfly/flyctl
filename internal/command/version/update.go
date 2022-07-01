@@ -12,7 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/cache"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/update"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newUpdate() *cobra.Command {

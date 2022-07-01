@@ -4,12 +4,12 @@ import (
 	"context"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/pkg/agent"
-	"github.com/superfly/flyctl/pkg/proxy"
+	"github.com/superfly/flyctl/proxy"
 )
 
 func newProxy() *cobra.Command {
@@ -32,7 +32,7 @@ func runMachineProxy(ctx context.Context) error {
 	orgSlug := flag.GetOrg(ctx)
 
 	if orgSlug == "" {
-		org, err := prompt.Org(ctx, nil)
+		org, err := prompt.Org(ctx)
 		if err != nil {
 			return err
 		}

@@ -14,14 +14,14 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
+	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/pkg/agent"
-	"github.com/superfly/flyctl/pkg/flypg"
 )
 
 type PostgresConfiguration struct {
@@ -163,7 +163,7 @@ func runCreatePostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	orgSlug := cmdCtx.Config.GetString("organization")
-	org, err := selectOrganization(ctx, cmdCtx.Client.API(), orgSlug, nil)
+	org, err := selectOrganization(ctx, cmdCtx.Client.API(), orgSlug)
 	if err != nil {
 		return err
 	}

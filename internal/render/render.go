@@ -9,7 +9,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/morikuni/aec"
 	"github.com/olekukonko/tablewriter"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func JSON(w io.Writer, v interface{}) error {

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/rehttp"
-	"github.com/superfly/flyctl/pkg/agent"
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/terminal"
 )
 

@@ -28,7 +28,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/sourcecode"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newLaunch() (cmd *cobra.Command) {
@@ -97,7 +97,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	// Prompt for an org
-	org, err := prompt.Org(ctx, nil)
+	org, err := prompt.Org(ctx)
 
 	if err != nil {
 		return

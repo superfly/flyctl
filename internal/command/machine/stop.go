@@ -10,12 +10,12 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/pkg/flaps"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newStop() *cobra.Command {
@@ -69,7 +69,7 @@ func runMachineStop(ctx context.Context) (err error) {
 			}
 			signal.Signal = syscall.Signal(s)
 		}
-		machineStopInput := api.V1MachineStop{
+		machineStopInput := api.MachineStop{
 			ID:      arg,
 			Signal:  signal,
 			Timeout: time.Duration(flag.GetInt(ctx, "time")),

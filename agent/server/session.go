@@ -19,10 +19,10 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/superfly/flyctl/agent"
+	"github.com/superfly/flyctl/agent/internal/proto"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/pkg/agent"
-	"github.com/superfly/flyctl/pkg/agent/internal/proto"
-	"github.com/superfly/flyctl/pkg/wg"
+	"github.com/superfly/flyctl/wg"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
 )
@@ -185,7 +185,7 @@ func (s *session) reestablish(ctx context.Context, args ...string) {
 var errNoSuchOrg = errors.New("no such organization")
 
 func (s *session) fetchOrg(ctx context.Context, slug string) (*api.Organization, error) {
-	orgs, err := s.srv.Client.GetOrganizations(ctx, nil)
+	orgs, err := s.srv.Client.GetOrganizations(ctx)
 	if err != nil {
 		return nil, err
 	}

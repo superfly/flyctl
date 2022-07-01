@@ -10,7 +10,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
 
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/client"
@@ -137,10 +137,10 @@ var errOrgSlugRequired = NonInteractiveError("org slug must be specified when no
 
 // Org returns the Organization the user has passed in via flag or prompts the
 // user for one.
-func Org(ctx context.Context, typ *api.OrganizationType) (*api.Organization, error) {
+func Org(ctx context.Context) (*api.Organization, error) {
 	client := client.FromContext(ctx).API()
 
-	orgs, err := client.GetOrganizations(ctx, typ)
+	orgs, err := client.GetOrganizations(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +178,11 @@ func Org(ctx context.Context, typ *api.OrganizationType) (*api.Organization, err
 func SelectOrg(ctx context.Context, orgs []api.Organization) (org *api.Organization, err error) {
 	var options []string
 	for _, org := range orgs {
-		options = append(options, fmt.Sprintf("%s (%s)", org.Name, org.Slug))
+		personalCallout := ""
+		if org.Type == "PERSONAL" && org.Slug != "personal" {
+			personalCallout = " [personal]"
+		}
+		options = append(options, fmt.Sprintf("%s (%s)%s", org.Name, org.Slug, personalCallout))
 	}
 
 	var index int
