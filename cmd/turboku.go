@@ -132,7 +132,7 @@ func runTurboku(cmdCtx *cmdctx.CmdContext) error {
 
 	orgSlug := cmdCtx.Config.GetString("org")
 
-	org, err := selectOrganization(ctx, fly, orgSlug, nil)
+	org, err := selectOrganization(ctx, fly, orgSlug)
 	if err != nil {
 		return err
 	}

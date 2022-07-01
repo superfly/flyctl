@@ -7,10 +7,10 @@ import (
 	"strconv"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/pkg/agent"
-	"github.com/superfly/flyctl/pkg/iostreams"
-	"github.com/superfly/flyctl/pkg/ip"
+	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/ip"
 )
 
 type ConnectParams struct {

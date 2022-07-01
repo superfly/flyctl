@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
@@ -77,10 +77,8 @@ func slugFromFirstArgOrSelect(ctx context.Context) (slug string, err error) {
 
 	client := client.FromContext(ctx).API()
 
-	typ := api.OrganizationTypeShared
-
 	var orgs []api.Organization
-	if orgs, err = client.GetOrganizations(ctx, &typ); err != nil {
+	if orgs, err = client.GetOrganizations(ctx); err != nil {
 		return
 	}
 	sort.OrganizationsByTypeAndName(orgs)

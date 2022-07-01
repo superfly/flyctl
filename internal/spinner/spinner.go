@@ -3,7 +3,7 @@ package spinner
 import (
 	"sync"
 
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func Run(io *iostreams.IOStreams, msg string) (s *Spinner) {

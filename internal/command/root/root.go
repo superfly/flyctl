@@ -13,7 +13,6 @@ import (
 	"github.com/superfly/flyctl/internal/command/agent"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/auth"
-	"github.com/superfly/flyctl/internal/command/builds"
 	"github.com/superfly/flyctl/internal/command/create"
 	"github.com/superfly/flyctl/internal/command/curl"
 	"github.com/superfly/flyctl/internal/command/deploy"
@@ -125,7 +124,6 @@ func New() *cobra.Command {
 		restart.New(), // TODO: deprecate
 		orgs.New(),
 		auth.New(),
-		builds.New(),
 		open.New(), // TODO: deprecate
 		curl.New(),
 		platform.New(),

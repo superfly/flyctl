@@ -41,7 +41,7 @@ func runDomainsList(cmdCtx *cmdctx.CmdContext) error {
 
 	var orgSlug string
 	if len(cmdCtx.Args) == 0 {
-		org, err := selectOrganization(ctx, cmdCtx.Client.API(), "", nil)
+		org, err := selectOrganization(ctx, cmdCtx.Client.API(), "")
 		if err != nil {
 			return err
 		}
@@ -125,7 +125,7 @@ func runDomainsCreate(cmdCtx *cmdctx.CmdContext) error {
 	var err error
 
 	if len(cmdCtx.Args) == 0 {
-		org, err = selectOrganization(ctx, cmdCtx.Client.API(), "", nil)
+		org, err = selectOrganization(ctx, cmdCtx.Client.API(), "")
 		if err != nil {
 			return err
 		}
@@ -165,7 +165,7 @@ func runDomainsRegister(cmdCtx *cmdctx.CmdContext) error {
 	var err error
 
 	if len(cmdCtx.Args) == 0 {
-		org, err = selectOrganization(ctx, cmdCtx.Client.API(), "", nil)
+		org, err = selectOrganization(ctx, cmdCtx.Client.API(), "")
 		if err != nil {
 			return err
 		}

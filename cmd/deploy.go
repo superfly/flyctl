@@ -22,7 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/deployment"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/spinner"
-	"github.com/superfly/flyctl/pkg/logs"
+	"github.com/superfly/flyctl/logs"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/sync/errgroup"
 )

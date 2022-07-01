@@ -11,7 +11,7 @@ import (
 	dockerparser "github.com/novln/docker-parser"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/internal/cmdfmt"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
 

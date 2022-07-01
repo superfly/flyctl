@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/rehttp"
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/pkg/agent"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/flyctl"
@@ -89,7 +89,7 @@ func (f *Client) CreateApp(ctx context.Context, name string, org string) (err er
 	return
 }
 
-func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (*api.V1Machine, error) {
+func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (*api.Machine, error) {
 	fmt.Println("Machine is launching...")
 
 	var endpoint string
@@ -97,16 +97,16 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (*a
 		endpoint = fmt.Sprintf("/%s", builder.ID)
 	}
 
-	var out = new(api.V1Machine)
+	var out = new(api.Machine)
 
 	if err := f.sendRequest(ctx, http.MethodPost, endpoint, builder, out, nil); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to launch VM: %w", err)
 	}
 
 	return out, nil
 }
 
-func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput, nonce string) (*api.V1Machine, error) {
+func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput, nonce string) (*api.Machine, error) {
 	fmt.Println("Machine is updating...")
 
 	var headers = make(map[string][]string)
@@ -117,10 +117,10 @@ func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput, non
 
 	endpoint := fmt.Sprintf("/%s", builder.ID)
 
-	var out = new(api.V1Machine)
+	var out = new(api.Machine)
 
 	if err := f.sendRequest(ctx, http.MethodPost, endpoint, builder, out, headers); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to update VM %s: %w", builder.ID, err)
 	}
 	return out, nil
 }
@@ -132,12 +132,12 @@ func (f *Client) Start(ctx context.Context, machineID string) (*api.MachineStart
 	out := new(api.MachineStartResponse)
 
 	if err := f.sendRequest(ctx, http.MethodPost, startEndpoint, nil, out, nil); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to start VM %s: %w", machineID, err)
 	}
 	return out, nil
 }
 
-func (f *Client) Wait(ctx context.Context, machine *api.V1Machine) error {
+func (f *Client) Wait(ctx context.Context, machine *api.Machine) (err error) {
 	fmt.Println("Waiting on firecracker VM...")
 
 	waitEndpoint := fmt.Sprintf("/%s/wait", machine.ID)
@@ -146,63 +146,74 @@ func (f *Client) Wait(ctx context.Context, machine *api.V1Machine) error {
 		waitEndpoint += fmt.Sprintf("?instance_id=%s", machine.InstanceID)
 	}
 
-	return f.sendRequest(ctx, http.MethodGet, waitEndpoint, nil, nil, nil)
+	if err := f.sendRequest(ctx, http.MethodGet, waitEndpoint, nil, nil, nil); err != nil {
+		return fmt.Errorf("failed to wait for VM %s: %w", machine.ID, err)
+	}
+	return
 }
 
-func (f *Client) Stop(ctx context.Context, machine api.V1MachineStop) error {
+func (f *Client) Stop(ctx context.Context, machine api.MachineStop) (err error) {
 	stopEndpoint := fmt.Sprintf("/%s/stop", machine.ID)
 
-	return f.sendRequest(ctx, http.MethodPost, stopEndpoint, nil, nil, nil)
+	if err := f.sendRequest(ctx, http.MethodPost, stopEndpoint, nil, nil, nil); err != nil {
+		return fmt.Errorf("failed to stop VM %s: %w", machine.ID, err)
+	}
+	return
 }
 
-func (f *Client) Get(ctx context.Context, machineID string) (*api.V1Machine, error) {
+func (f *Client) Get(ctx context.Context, machineID string) (*api.Machine, error) {
 	var getEndpoint = ""
 
 	if machineID != "" {
 		getEndpoint = fmt.Sprintf("/%s", machineID)
 	}
 
-	out := new(api.V1Machine)
+	out := new(api.Machine)
 
 	err := f.sendRequest(ctx, http.MethodGet, getEndpoint, nil, out, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get VM %s: %w", machineID, err)
 	}
 	return out, nil
 }
 
-func (f *Client) List(ctx context.Context, state string) ([]*api.V1Machine, error) {
+func (f *Client) List(ctx context.Context, state string) ([]*api.Machine, error) {
 	var getEndpoint = ""
 
 	if state != "" {
 		getEndpoint = fmt.Sprintf("?%s", state)
 	}
 
-	out := make([]*api.V1Machine, 0)
+	out := make([]*api.Machine, 0)
 
 	err := f.sendRequest(ctx, http.MethodGet, getEndpoint, nil, &out, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list VMs: %w", err)
 	}
 	return out, nil
 }
 
-func (f *Client) Destroy(ctx context.Context, input api.RemoveMachineInput) error {
+func (f *Client) Destroy(ctx context.Context, input api.RemoveMachineInput) (err error) {
 	destroyEndpoint := fmt.Sprintf("/%s?kill=%t", input.ID, input.Kill)
 
-	return f.sendRequest(ctx, http.MethodDelete, destroyEndpoint, nil, nil, nil)
+	if err := f.sendRequest(ctx, http.MethodDelete, destroyEndpoint, nil, nil, nil); err != nil {
+		return fmt.Errorf("failed to destroy VM %s: %w", input.ID, err)
+	}
+
+	return
 }
 
-func (f *Client) Kill(ctx context.Context, machineID string) error {
+func (f *Client) Kill(ctx context.Context, machineID string) (err error) {
 
 	var in = map[string]interface{}{
 		"signal": 9,
 	}
-	err := f.sendRequest(ctx, http.MethodPost, fmt.Sprintf("/%s/signal", machineID), in, nil, nil)
+	err = f.sendRequest(ctx, http.MethodPost, fmt.Sprintf("/%s/signal", machineID), in, nil, nil)
+
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to kill VM %s: %w", machineID, err)
 	}
-	return nil
+	return
 }
 
 func (f *Client) GetLease(ctx context.Context, machineID string, ttl *int) (*api.MachineLease, error) {
@@ -216,7 +227,7 @@ func (f *Client) GetLease(ctx context.Context, machineID string, ttl *int) (*api
 
 	err := f.sendRequest(ctx, http.MethodPost, endpoint, nil, out, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get lease on VM %s: %w", machineID, err)
 	}
 	return out, nil
 }

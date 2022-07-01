@@ -4,9 +4,9 @@ import (
 	"context"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/pkg/flaps"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func renderMachineStatus(ctx context.Context, app *api.AppCompact) (err error) {

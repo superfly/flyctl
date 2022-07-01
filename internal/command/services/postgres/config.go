@@ -10,17 +10,17 @@ import (
 	"github.com/r3labs/diff"
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/pkg/agent"
-	"github.com/superfly/flyctl/pkg/flaps"
-	"github.com/superfly/flyctl/pkg/flypg"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newConfig() (cmd *cobra.Command) {
@@ -322,7 +322,7 @@ func runConfigUpdate(ctx context.Context) error {
 		return fmt.Errorf("machines could not be retrieved")
 	}
 
-	var leader *api.V1Machine
+	var leader *api.Machine
 
 	for _, machine := range machines {
 		address := formatAddress(machine)

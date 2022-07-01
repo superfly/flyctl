@@ -12,13 +12,13 @@ import (
 	"github.com/briandowns/spinner"
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/sentry"
-	"github.com/superfly/flyctl/pkg/agent"
-	"github.com/superfly/flyctl/pkg/ip"
-	"github.com/superfly/flyctl/pkg/ssh"
+	"github.com/superfly/flyctl/ip"
+	"github.com/superfly/flyctl/ssh"
 	"github.com/superfly/flyctl/terminal"
 )
 

@@ -8,7 +8,7 @@ import (
 
 	"github.com/logrusorgru/aurora"
 
-	"github.com/superfly/flyctl/pkg/logs"
+	"github.com/superfly/flyctl/logs"
 
 	"github.com/superfly/flyctl/internal/format"
 )

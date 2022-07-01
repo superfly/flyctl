@@ -6,12 +6,12 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/pkg/flaps"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newClone() *cobra.Command {
@@ -64,7 +64,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		return fmt.Errorf("could not make flaps client: %w", err)
 	}
 
-	var source *api.V1Machine
+	var source *api.Machine
 
 	if len(args) > 0 {
 		source, err = flapsClient.Get(ctx, args[0])

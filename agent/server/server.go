@@ -16,9 +16,9 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/pkg/agent"
-	"github.com/superfly/flyctl/pkg/wg"
+	"github.com/superfly/flyctl/wg"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/sentry"

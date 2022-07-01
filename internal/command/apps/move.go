@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
@@ -52,7 +52,7 @@ func RunMove(ctx context.Context) error {
 	logger := logger.FromContext(ctx)
 	logger.Infof("app %q is currently in organization %q", app.Name, app.Organization.Slug)
 
-	org, err := prompt.Org(ctx, nil)
+	org, err := prompt.Org(ctx)
 	if err != nil {
 		return nil
 	}
