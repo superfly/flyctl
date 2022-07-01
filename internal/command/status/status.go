@@ -15,7 +15,7 @@ import (
 	"github.com/inancgumus/screen"
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/api"
 

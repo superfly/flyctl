@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/rehttp"
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/pkg/agent"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/flyctl"
