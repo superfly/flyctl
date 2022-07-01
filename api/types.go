@@ -1259,7 +1259,7 @@ type MachineEvent struct {
 	Timestamp int64       `json:"timestamp"`
 }
 
-type V1Machine struct {
+type Machine struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
 	State string `json:"state"`
@@ -1284,11 +1284,11 @@ type V1Machine struct {
 	LeaseNonce string
 }
 
-func (m V1Machine) FullImageRef() string {
+func (m Machine) FullImageRef() string {
 	return fmt.Sprintf("%s:%s", m.ImageRef.Repository, m.ImageRef.Tag)
 }
 
-type V1MachineStop struct {
+type MachineStop struct {
 	ID      string        `json:"id"`
 	Signal  Signal        `json:"signal,omitempty"`
 	Timeout time.Duration `json:"timeout,omitempty"`
@@ -1404,11 +1404,6 @@ type MachineConfig struct {
 type DeleteOrganizationMembershipPayload struct {
 	Organization *Organization
 	User         *User
-}
-
-type MachineEventStop struct {
-	ExitCode  *int
-	OOMKilled bool
 }
 
 type MachineLease struct {

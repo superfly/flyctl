@@ -349,7 +349,7 @@ func createApp(ctx context.Context, message, name string, client *api.Client) (*
 	}, nil
 }
 
-func WaitForStart(ctx context.Context, flapsClient *flaps.Client, machine *api.V1Machine) error {
+func WaitForStart(ctx context.Context, flapsClient *flaps.Client, machine *api.Machine) error {
 	waitCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 

@@ -9,7 +9,7 @@ import (
 
 type MachineApp struct {
 	FlapsClient *flaps.Client
-	VMs         []*api.V1Machine
+	VMs         []*api.Machine
 }
 
 func NewMachineApp(ctx context.Context, app *api.AppCompact) (ma *MachineApp, err error) {

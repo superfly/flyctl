@@ -54,7 +54,7 @@ func runRestart(ctx context.Context) error {
 	}
 
 	// map of machine lease to machine
-	var machines = make(map[string]*api.V1Machine)
+	var machines = make(map[string]*api.Machine)
 
 	out, err := flapsClient.List(ctx, "started")
 	if err != nil {

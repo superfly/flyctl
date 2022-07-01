@@ -65,7 +65,7 @@ func runUpdate(ctx context.Context) error {
 	}
 
 	// map of machine lease to machine
-	var machines = make(map[string]*api.V1Machine)
+	var machines = make(map[string]*api.Machine)
 
 	out, err := flapsClient.List(ctx, "started")
 	if err != nil {
@@ -88,8 +88,8 @@ func runUpdate(ctx context.Context) error {
 	}
 
 	var (
-		leader   *api.V1Machine
-		replicas []*api.V1Machine
+		leader   *api.Machine
+		replicas []*api.Machine
 	)
 
 	fmt.Fprintf(io.Out, "Resolving cluster roles\n")
@@ -178,7 +178,7 @@ func runUpdate(ctx context.Context) error {
 	return nil
 }
 
-func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.V1Machine, image, version string) error {
+func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machine, image, version string) error {
 	var io = iostreams.FromContext(ctx)
 
 	flaps, err := flaps.New(ctx, app)
@@ -211,6 +211,6 @@ func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.V1Mach
 	return nil
 }
 
-func formatAddress(machine *api.V1Machine) string {
+func formatAddress(machine *api.Machine) string {
 	return fmt.Sprintf("[%s]", machine.PrivateIP)
 }
