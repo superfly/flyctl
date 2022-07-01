@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/graphql"
 
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/logger"
@@ -41,11 +42,27 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 		printError(io.ErrOut, cs, err)
 
 		return 126
+	case isUnchangedError(err):
+		// This means the deployment was a noop, which is noteworthy but not something we should
+		// fail CI on. Print a warning and exit 0. Remove this once we're fully on Machines!
+		printError(io.ErrOut, cs, err)
+		return 0
 	default:
 		printError(io.ErrOut, cs, err)
 
 		return 1
 	}
+}
+
+// isUnchangedError returns true if the error returned is an UNCHANGED GraphQL error.
+// Remove this once we're fully on Machines!
+func isUnchangedError(err error) bool {
+	var gqlErr *graphql.GraphQLError
+
+	if errors.As(err, &gqlErr) {
+		return gqlErr.Extensions.Code == "UNCHANGED"
+	}
+	return false
 }
 
 func printError(w io.Writer, cs *iostreams.ColorScheme, err error) {
