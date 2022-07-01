@@ -179,7 +179,7 @@ func SelectOrg(ctx context.Context, orgs []api.Organization) (org *api.Organizat
 	var options []string
 	for _, org := range orgs {
 		personalCallout := ""
-		if org.Type == "PERSONAL" {
+		if org.Type == "PERSONAL" && org.Slug != "personal" {
 			personalCallout = " [personal]"
 		}
 		options = append(options, fmt.Sprintf("%s (%s)%s", org.Name, org.Slug, personalCallout))
