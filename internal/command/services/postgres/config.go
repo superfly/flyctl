@@ -322,7 +322,7 @@ func runConfigUpdate(ctx context.Context) error {
 		return fmt.Errorf("machines could not be retrieved")
 	}
 
-	var leader *api.V1Machine
+	var leader *api.Machine
 
 	for _, machine := range machines {
 		address := formatAddress(machine)

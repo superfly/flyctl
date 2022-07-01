@@ -81,7 +81,7 @@ type Query struct {
 
 	EnsureMachineRemoteBuilder *struct {
 		App     *App
-		Machine *Machine
+		Machine *GqlMachine
 	}
 
 	CreateDoctorUrl SignedUrl
@@ -199,31 +199,8 @@ type Query struct {
 		InvalidPeerIPs []string
 	}
 
-	Machines struct {
-		Nodes []*Machine
-	}
 	PostgresAttachments struct {
 		Nodes []*PostgresClusterAttachment
-	}
-	LaunchMachine struct {
-		Machine *Machine
-		App     *App
-	}
-	StopMachine struct {
-		Machine *Machine
-	}
-	StartMachine struct {
-		Machine *Machine
-	}
-	KillMachine struct {
-		Machine *Machine
-	}
-	RemoveMachine struct {
-		Machine *Machine
-	}
-
-	StartSourceBuild struct {
-		SourceBuild *SourceBuild
 	}
 
 	DeleteOrganizationMembership *DeleteOrganizationMembershipPayload
@@ -340,11 +317,6 @@ type App struct {
 	ImageDetails                ImageVersion
 	LatestImageDetails          ImageVersion
 
-	Machine *Machine
-
-	Machines struct {
-		Nodes []*Machine
-	}
 	PlatformVersion string
 }
 
@@ -1246,7 +1218,7 @@ type LaunchMachineInput struct {
 	Config  *MachineConfig `json:"config"`
 }
 
-type Machine struct {
+type GqlMachine struct {
 	ID     string
 	Name   string
 	State  string
@@ -1258,12 +1230,6 @@ type Machine struct {
 	IPs struct {
 		Nodes []*MachineIP
 	}
-
-	Events struct {
-		Nodes []*MachineEvent
-	}
-
-	CreatedAt time.Time
 }
 
 type Condition struct {
@@ -1286,20 +1252,14 @@ type machineImageRef struct {
 }
 
 type MachineEvent struct {
-	ID        string
-	Kind      string
-	Timestamp time.Time
-	Metadata  map[string]interface{}
-}
-
-type MachineEventt struct {
 	Type      string      `json:"type"`
 	Status    string      `json:"status"`
 	Request   interface{} `json:"request,omitempty"`
 	Source    string      `json:"source"`
 	Timestamp int64       `json:"timestamp"`
 }
-type V1Machine struct {
+
+type Machine struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
 	State string `json:"state"`
@@ -1320,15 +1280,15 @@ type V1Machine struct {
 
 	Config *MachineConfig `json:"config"`
 
-	Events     []*MachineEventt `json:"events,omitempty"`
+	Events     []*MachineEvent `json:"events,omitempty"`
 	LeaseNonce string
 }
 
-func (m V1Machine) FullImageRef() string {
+func (m Machine) FullImageRef() string {
 	return fmt.Sprintf("%s:%s", m.ImageRef.Repository, m.ImageRef.Tag)
 }
 
-type V1MachineStop struct {
+type MachineStop struct {
 	ID      string        `json:"id"`
 	Signal  Signal        `json:"signal,omitempty"`
 	Timeout time.Duration `json:"timeout,omitempty"`
@@ -1444,11 +1404,6 @@ type MachineConfig struct {
 type DeleteOrganizationMembershipPayload struct {
 	Organization *Organization
 	User         *User
-}
-
-type MachineEventStop struct {
-	ExitCode  *int
-	OOMKilled bool
 }
 
 type MachineLease struct {

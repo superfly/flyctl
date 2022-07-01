@@ -69,7 +69,7 @@ func runMachineStop(ctx context.Context) (err error) {
 			}
 			signal.Signal = syscall.Signal(s)
 		}
-		machineStopInput := api.V1MachineStop{
+		machineStopInput := api.MachineStop{
 			ID:      arg,
 			Signal:  signal,
 			Timeout: time.Duration(flag.GetInt(ctx, "time")),

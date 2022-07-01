@@ -21,7 +21,6 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/pkg/agent"
-	"github.com/superfly/flyctl/pkg/builder"
 	"github.com/superfly/flyctl/pkg/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -147,8 +146,8 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	var host string
 	var app *api.App
 	var err error
-	var machine *api.Machine
-	machine, app, err = builder.RemoteBuilderMachine(ctx, apiClient, appName)
+	var machine *api.GqlMachine
+	machine, app, err = remoteBuilderMachine(ctx, apiClient, appName)
 	if err != nil {
 		return nil, err
 	}
@@ -440,4 +439,12 @@ func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient *api.Client, orgS
 	}
 
 	terminal.Debugf("remote builder %s is being prepared", app.Name)
+}
+
+func remoteBuilderMachine(ctx context.Context, apiClient *api.Client, appName string) (*api.GqlMachine, *api.App, error) {
+	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
+		return nil, nil, nil
+	}
+
+	return apiClient.EnsureRemoteBuilder(ctx, "", appName)
 }

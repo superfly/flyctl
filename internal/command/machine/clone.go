@@ -64,7 +64,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		return fmt.Errorf("could not make flaps client: %w", err)
 	}
 
-	var source *api.V1Machine
+	var source *api.Machine
 
 	if len(args) > 0 {
 		source, err = flapsClient.Get(ctx, args[0])
