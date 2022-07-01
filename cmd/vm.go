@@ -12,7 +12,7 @@ import (
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/pkg/logs"
+	"github.com/superfly/flyctl/logs"
 )
 
 func newVMCommand(client *client.Client) *Command {
