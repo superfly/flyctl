@@ -147,7 +147,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	var host string
 	var app *api.App
 	var err error
-	var machine *api.Machine
+	var machine *api.GqlMachine
 	machine, app, err = builder.RemoteBuilderMachine(ctx, apiClient, appName)
 	if err != nil {
 		return nil, err
