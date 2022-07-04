@@ -27,6 +27,7 @@ func newList() *cobra.Command {
 		command.LoadAppNameIfPresent,
 	)
 
+	cmd.Aliases = []string{"ls"}
 	cmd.Args = cobra.NoArgs
 
 	flag.Add(
