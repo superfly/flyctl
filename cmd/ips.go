@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/helpers"
@@ -62,9 +63,21 @@ func runIPAddressesList(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	return cmdCtx.Frender(cmdctx.PresenterOption{
-		Presentable: &presenters.IPAddresses{IPAddresses: ipAddresses},
-	})
+	table := helpers.MakeSimpleTable(cmdCtx.Out, []string{"Version", "IP", "Type", "Region", "Created At"})
+
+	var ipType string
+	for _, ipAddr := range ipAddresses {
+		if strings.HasPrefix(ipAddr.Address, "fdaa") {
+			ipType = "private"
+		} else {
+			ipType = "public"
+		}
+
+		table.Append([]string{ipAddr.Type, ipAddr.Address, ipType, ipAddr.Region, presenters.FormatRelativeTime(ipAddr.CreatedAt)})
+	}
+
+	table.Render()
+	return nil
 }
 
 func runAllocateIPAddressV4(ctx *cmdctx.CmdContext) error {
