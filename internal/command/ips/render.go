@@ -7,7 +7,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func renderListTable(ctx context.Context, ipAddresses []api.IPAddress) {

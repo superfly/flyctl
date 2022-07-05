@@ -8,7 +8,7 @@ import (
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/docstrings"
 
