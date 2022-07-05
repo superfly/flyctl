@@ -326,7 +326,6 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 			// If a secret should be a random default, just generate it without displaying
 			// Otherwise, prompt to type it in
 			if secret.Generate != nil {
-				// // helpers.RandString(64)
 				if val, err = secret.Generate(); err != nil {
 					return fmt.Errorf("could not generate random string: %w", err)
 				}
