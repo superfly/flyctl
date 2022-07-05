@@ -13,7 +13,7 @@ import (
 
 func newAllocatev4() *cobra.Command {
 	const (
-		long  = `Allocates an IPv4 address to the application.`
+		long  = `Allocates an IPv4 address to the application`
 		short = `Allocate an IPv4 address`
 	)
 
@@ -32,7 +32,7 @@ func newAllocatev4() *cobra.Command {
 
 func newAllocatev6() *cobra.Command {
 	const (
-		long  = `Allocates an IPv6 address to the application.`
+		long  = `Allocates an IPv6 address to the application`
 		short = `Allocate an IPv6 address`
 	)
 
