@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/superfly/flyctl/cmdctx"
-	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/pkg/iostreams"
@@ -154,7 +153,7 @@ func runPrivateIPAddressesList(cmdCtx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	table := helpers.MakeSimpleTable(cmdCtx.Out, []string{"ID", "Region", "IP"})
+	rows := make([][]string, 0, len(appstatus.Allocations))
 
 	for _, alloc := range appstatus.Allocations {
 
@@ -168,10 +167,10 @@ func runPrivateIPAddressesList(cmdCtx *cmdctx.CmdContext) error {
 			}
 		}
 
-		table.Append([]string{alloc.IDShort, region, alloc.PrivateIP})
+		rows = append(rows, []string{alloc.IDShort, region, alloc.PrivateIP})
 	}
 
-	table.Render()
-
+	out := iostreams.FromContext(ctx).Out
+	render.Table(out, "", rows, "ID", "Region", "IP")
 	return nil
 }
