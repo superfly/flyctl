@@ -13,6 +13,12 @@ func New() *cobra.Command {
 	)
 
 	cmd := command.New("ips", short, long, nil)
-	cmd.AddCommand(newList(), newAllocatev4(), newAllocatev6(), newPrivate(), newRelease())
+	cmd.AddCommand(
+		newList(),
+		newAllocatev4(),
+		newAllocatev6(),
+		newPrivate(),
+		newRelease(),
+	)
 	return cmd
 }
