@@ -333,8 +333,9 @@ func setScannerPrefs(ctx context.Context, appConfig *app.Config, srcInfo *source
 
 			// If a secret should be a random default, just generate it without displaying
 			// Otherwise, prompt to type it in
-			if secret.Generate {
-				if val, err = helpers.RandString(64); err != nil {
+			if secret.Generate != nil {
+				// helpers.RandString(64)
+				if val, err = secret.Generate(); err != nil {
 					return fmt.Errorf("could not generate random string: %w", err)
 				}
 

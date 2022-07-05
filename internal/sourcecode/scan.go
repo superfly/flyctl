@@ -2,11 +2,12 @@ package sourcecode
 
 import (
 	"embed"
+	"encoding/base64"
 	"fmt"
 	"io/fs"
 	"io/ioutil"
-	"path/filepath"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/helpers"
@@ -26,8 +27,9 @@ type Secret struct {
 	Key      string
 	Help     string
 	Value    string
-	Generate bool
+	Generate func() (string, error)
 }
+
 type SourceInfo struct {
 	Family                       string
 	Version                      string
@@ -137,9 +139,11 @@ func configureLucky(sourceDir string) (*SourceInfo, error) {
 		},
 		Secrets: []Secret{
 			{
-				Key:      "SECRET_KEY_BASE",
-				Help:     "Lucky needs a random, secret key. Use the random default we've generated, or generate your own.",
-				Generate: true,
+				Key:  "SECRET_KEY_BASE",
+				Help: "Lucky needs a random, secret key. Use the random default we've generated, or generate your own.",
+				Generate: func() (string, error) {
+					return helpers.RandString(64)
+				},
 			},
 			{
 				Key:   "SEND_GRID_KEY",
@@ -367,9 +371,11 @@ func configurePhoenix(sourceDir string) (*SourceInfo, error) {
 		Family: "Phoenix",
 		Secrets: []Secret{
 			{
-				Key:      "SECRET_KEY_BASE",
-				Help:     "Phoenix needs a random, secret key. Use the random default we've generated, or generate your own.",
-				Generate: true,
+				Key:  "SECRET_KEY_BASE",
+				Help: "Phoenix needs a random, secret key. Use the random default we've generated, or generate your own.",
+				Generate: func() (string, error) {
+					return helpers.RandString(64)
+				},
 			},
 		},
 		KillSignal: "SIGTERM",
@@ -402,8 +408,8 @@ func configurePhoenix(sourceDir string) (*SourceInfo, error) {
 	}
 
 	// We found Phoenix, so check if the Docker generator is present
-  cmd := exec.Command("mix", "help", "phx.gen.release")
-  err := cmd.Run()
+	cmd := exec.Command("mix", "help", "phx.gen.release")
+	err := cmd.Run()
 	if err == nil {
 		s.DeployDocs = `
 Your Phoenix app should be ready for deployment!.
@@ -555,9 +561,11 @@ func configureDjango(sourceDir string) (*SourceInfo, error) {
 		},
 		Secrets: []Secret{
 			{
-				Key:      "SECRET_KEY",
-				Help:     "Django needs a random, secret key. Use the random default we've generated, or generate your own.",
-				Generate: true,
+				Key:  "SECRET_KEY",
+				Help: "Django needs a random, secret key. Use the random default we've generated, or generate your own.",
+				Generate: func() (string, error) {
+					return helpers.RandString(64)
+				},
 			},
 		},
 		Statics: []Static{
@@ -636,8 +644,12 @@ func configureLaravel(sourceDir string) (*SourceInfo, error) {
 		Secrets: []Secret{
 			{
 				Key:  "APP_KEY",
-				Help: "Laravel needs a unique application key. Use 'php artisan key:generate --show' to generate this value.",
-				// TODO: Can we generate this for users?
+				Help: "Laravel needs a unique application key.",
+				Generate: func() (string, error) {
+					// Method used in RandBytes never returns an error
+					r, _ := helpers.RandBytes(32)
+					return "base64:" + base64.StdEncoding.EncodeToString(r), nil
+				},
 			},
 		},
 		SkipDatabase: true,
