@@ -8,6 +8,8 @@ import (
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/pkg/iostreams"
 
 	"github.com/superfly/flyctl/docstrings"
 
@@ -63,7 +65,7 @@ func runIPAddressesList(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	table := helpers.MakeSimpleTable(cmdCtx.Out, []string{"Version", "IP", "Type", "Region", "Created At"})
+	rows := make([][]string, 0, len(ipAddresses))
 
 	var ipType string
 	for _, ipAddr := range ipAddresses {
@@ -73,10 +75,11 @@ func runIPAddressesList(cmdCtx *cmdctx.CmdContext) error {
 			ipType = "public"
 		}
 
-		table.Append([]string{ipAddr.Type, ipAddr.Address, ipType, ipAddr.Region, presenters.FormatRelativeTime(ipAddr.CreatedAt)})
+		rows = append(rows, []string{ipAddr.Type, ipAddr.Address, ipType, ipAddr.Region, presenters.FormatRelativeTime(ipAddr.CreatedAt)})
 	}
 
-	table.Render()
+	out := iostreams.FromContext(ctx).Out
+	render.Table(out, "", rows, "Version", "IP", "Type", "Region", "Created At")
 	return nil
 }
 
