@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -49,6 +50,7 @@ func runMachineList(ctx context.Context) (err error) {
 		client  = client.FromContext(ctx).API()
 		io      = iostreams.FromContext(ctx)
 		silence = flag.GetBool(ctx, "quiet")
+		cfg     = config.FromContext(ctx)
 	)
 
 	if appName == "" {
@@ -66,6 +68,10 @@ func runMachineList(ctx context.Context) (err error) {
 	machines, err := flapsClient.List(ctx, "")
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved")
+	}
+
+	if cfg.JSONOutput {
+		return render.JSON(io.Out, machines)
 	}
 
 	rows := [][]string{}
