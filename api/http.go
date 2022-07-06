@@ -9,9 +9,10 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/rehttp"
+	"github.com/superfly/flyctl/logger"
 )
 
-func NewHTTPClient(logger Logger, transport http.RoundTripper) (*http.Client, error) {
+func NewHTTPClient(logger logger.LoggerInterface, transport http.RoundTripper) (*http.Client, error) {
 	retryTransport := rehttp.NewTransport(
 		transport,
 		rehttp.RetryAll(
@@ -38,7 +39,7 @@ func NewHTTPClient(logger Logger, transport http.RoundTripper) (*http.Client, er
 
 type LoggingTransport struct {
 	InnerTransport http.RoundTripper
-	Logger         Logger
+	Logger         logger.LoggerInterface
 }
 
 type contextKey struct {
@@ -64,20 +65,46 @@ func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 }
 
 func (t *LoggingTransport) logRequest(req *http.Request) {
-	t.Logger.Debugf("--> %s %s %s\n", req.Method, req.URL, req.Body)
+
+	t.Logger.Debugf("--> %s %s\n", req.Method, req.URL)
+
+	if req.Body == nil {
+		return
+	}
+
+	defer req.Body.Close()
+
+	data, err := ioutil.ReadAll(req.Body)
+
+	if err != nil {
+		t.Logger.Debug("error reading request body:", err)
+	} else {
+		t.Logger.Debug(string(data))
+	}
+
+	if req.Body != nil {
+		t.Logger.Debug(req.Body)
+	}
+
+	req.Body = ioutil.NopCloser(bytes.NewReader(data))
 }
 
 func (t *LoggingTransport) logResponse(resp *http.Response) {
 	ctx := resp.Request.Context()
 	defer resp.Body.Close()
+
+	if start, ok := ctx.Value(contextKeyRequestStart).(time.Time); ok {
+		t.Logger.Debugf("<-- %d %s (%s)\n", resp.StatusCode, resp.Request.URL, Duration(time.Since(start), 2))
+	} else {
+		t.Logger.Debugf("<-- %d %s %s\n", resp.StatusCode, resp.Request.URL)
+	}
+
 	data, err := ioutil.ReadAll(resp.Body)
+
 	if err != nil {
 		t.Logger.Debug("error reading response body:", err)
-	}
-	if start, ok := ctx.Value(contextKeyRequestStart).(time.Time); ok {
-		t.Logger.Debugf("<-- %d %s (%s) %s\n", resp.StatusCode, resp.Request.URL, Duration(time.Since(start), 2), string(data))
 	} else {
-		t.Logger.Debugf("<-- %d %s %s %s\n", resp.StatusCode, resp.Request.URL, string(data))
+		t.Logger.Debug(string(data))
 	}
 
 	resp.Body = ioutil.NopCloser(bytes.NewReader(data))

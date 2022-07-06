@@ -1,11 +1,14 @@
 package logger
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 
+	"github.com/alecthomas/chroma/quick"
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/internal/buildinfo"
 )
@@ -19,6 +22,10 @@ const (
 	Error
 )
 
+type LoggerInterface interface {
+	Debug(v ...interface{})
+	Debugf(format string, v ...interface{})
+}
 type Logger struct {
 	out   io.Writer
 	level Level
@@ -52,6 +59,20 @@ func levelFromEnv() Level {
 }
 
 func (l *Logger) debug(v ...interface{}) {
+
+	if str, ok := v[0].(string); ok {
+		byteString := []byte(str)
+		if json.Valid(byteString) {
+			var prettyJSON bytes.Buffer
+			err := json.Indent(&prettyJSON, byteString, "", "  ")
+			if err == nil {
+				quick.Highlight(l.out, prettyJSON.String()+"\n", "json", "terminal", "monokai")
+
+				return
+			}
+		}
+	}
+
 	fmt.Fprintln(
 		l.out,
 		aurora.Faint("DEBUG"),

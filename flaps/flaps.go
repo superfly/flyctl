@@ -12,10 +12,9 @@ import (
 
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/terminal"
-
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/logger"
 
 	"github.com/superfly/flyctl/client"
 )
@@ -30,6 +29,9 @@ type Client struct {
 }
 
 func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
+
+	logger := logger.MaybeFromContext(ctx)
+
 	client := client.FromContext(ctx).API()
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
@@ -47,7 +49,7 @@ func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
 		},
 	}
 
-	httpClient, err := api.NewHTTPClient(terminal.DefaultLogger, transport)
+	httpClient, err := api.NewHTTPClient(logger, transport)
 	if err != nil {
 		return nil, fmt.Errorf("flaps: can't setup HTTP client for %s: %w", app.Organization.Slug, err)
 	}
