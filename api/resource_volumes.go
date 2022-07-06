@@ -85,6 +85,7 @@ func (c *Client) ExtendVolume(ctx context.Context, input ExtendVolumeInput) (*Ap
 			extendVolume(input: $input) {
 				app {
 					name
+					platformVersion
 				}
 				volume {
 					id

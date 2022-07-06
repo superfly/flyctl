@@ -69,7 +69,7 @@ func runExtend(ctx context.Context) error {
 	out := iostreams.FromContext(ctx).Out
 
 	if app.PlatformVersion == "machines" {
-		fmt.Fprintf(out, colorize.Yellow("You need to stop and start your Machine to increase the size of the FS"))
+		fmt.Fprintln(out, colorize.Yellow("You need to stop and start your machine to increase the size of the FS"))
 	}
 
 	if cfg.JSONOutput {
