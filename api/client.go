@@ -10,9 +10,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"time"
 
-	genq "github.com/Khan/genqlient/graphql"
 	"github.com/superfly/graphql"
 )
 
@@ -33,7 +31,6 @@ func SetErrorLog(log bool) {
 type Client struct {
 	httpClient  *http.Client
 	client      *graphql.Client
-	GenqClient  *genq.Client
 	accessToken string
 	userAgent   string
 	trace       string
@@ -48,12 +45,9 @@ func NewClient(accessToken, name, version string, logger Logger) *Client {
 	url := fmt.Sprintf("%s/graphql", baseURL)
 
 	client := graphql.NewClient(url, graphql.WithHTTPClient(httpClient))
-	genqHttpClient := http.Client{Timeout: 60 * time.Second, Transport: &Transport{UnderlyingTransport: http.DefaultTransport, Token: accessToken, Ctx: context.Background()}}
-
-	genqClient := genq.NewClient(url, &genqHttpClient)
 
 	userAgent := fmt.Sprintf("%s/%s", name, version)
-	return &Client{httpClient, client, &genqClient, accessToken, userAgent, os.Getenv("FLY_FORCE_TRACE"), logger}
+	return &Client{httpClient, client, accessToken, userAgent, os.Getenv("FLY_FORCE_TRACE"), logger}
 }
 
 // NewRequest - creates a new GraphQL request
