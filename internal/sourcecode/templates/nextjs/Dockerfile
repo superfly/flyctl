@@ -11,6 +11,11 @@ RUN yarn install --frozen-lockfile
 
 ENV NEXT_TELEMETRY_DISABLED 1
 
+# Add `ARG` instructions below if you need `NEXT_PUBLIC_` variables 
+# then put the value on your fly.toml
+# Example:
+# ARG NEXT_PUBLIC_EXAMPLE="value here"
+
 RUN yarn build
 
 # If using npm comment out above and use below instead

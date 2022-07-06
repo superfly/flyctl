@@ -564,6 +564,10 @@ func configureNextJs(sourceDir string) (*SourceInfo, error) {
 	
 	s.Files = templates("templates/nextjs")
 
+	s.BuildArgs = map[string]string{
+		"NEXT_PUBLIC_EXAMPLE": "Value goes here",
+	}
+
 	s.Env = env
 	return s, nil
 }
