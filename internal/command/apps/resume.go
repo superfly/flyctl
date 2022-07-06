@@ -12,7 +12,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 )

@@ -9,9 +9,9 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/flyerr"
 )
 

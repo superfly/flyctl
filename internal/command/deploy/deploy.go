@@ -20,7 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/state"
 
-	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/watch"

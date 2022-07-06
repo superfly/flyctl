@@ -5,10 +5,10 @@ import (
 	"fmt"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/iostreams"
 )
 

@@ -7,8 +7,8 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmdctx"
-	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/superfly/flyctl/docstrings"
 

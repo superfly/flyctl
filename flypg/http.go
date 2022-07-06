@@ -12,6 +12,7 @@ import (
 
 	"github.com/PuerkitoBio/rehttp"
 	"github.com/superfly/flyctl/agent"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -60,9 +61,9 @@ func newHttpClient(dialer agent.Dialer) *http.Client {
 		rehttp.ExpJitterDelay(100*time.Millisecond, 1*time.Second),
 	)
 
-	logging := &LoggingTransport{
-		innerTransport: retry,
-		logger:         terminal.DefaultLogger,
+	logging := &api.LoggingTransport{
+		InnerTransport: retry,
+		Logger:         terminal.DefaultLogger,
 	}
 
 	return &http.Client{Transport: logging}

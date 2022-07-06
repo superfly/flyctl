@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
