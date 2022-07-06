@@ -17,8 +17,8 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/go-playground/validator/v10"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/sourcecode"
 )
 

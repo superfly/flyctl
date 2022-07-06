@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmdctx"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/cmdutil"
 
 	"github.com/superfly/flyctl/docstrings"

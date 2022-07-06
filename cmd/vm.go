@@ -8,10 +8,10 @@ import (
 	"github.com/segmentio/textio"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/logs"
 )
 

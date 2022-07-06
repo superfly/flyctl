@@ -18,9 +18,9 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
 
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/deploy"

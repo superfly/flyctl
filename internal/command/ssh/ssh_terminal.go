@@ -22,8 +22,8 @@ import (
 
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/ssh"
 	"github.com/superfly/flyctl/terminal"
 )

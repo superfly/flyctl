@@ -17,7 +17,7 @@ import (
 
 	"github.com/superfly/flyctl/flyctl"
 
-	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/client"
 )
 
 var NonceHeader = "fly-machine-lease-nonce"

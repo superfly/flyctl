@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
-	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/superfly/flyctl/docstrings"
 

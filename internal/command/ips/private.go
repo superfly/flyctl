@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/app"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -15,7 +15,7 @@ import (
 
 func newPrivate() *cobra.Command {
 	const (
-		long = `List instances private IP addresses, accessible from within the Fly network`
+		long  = `List instances private IP addresses, accessible from within the Fly network`
 		short = `List instances private IP addresses`
 	)
 

@@ -19,10 +19,10 @@ import (
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/terminal"
 )
