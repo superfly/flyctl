@@ -31,6 +31,7 @@ func New() *cobra.Command {
 		newCreate(),
 		newList(),
 		newDelete(),
+		newExtend(),
 		newShow(),
 		snapshots.New(),
 	)
