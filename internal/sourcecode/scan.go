@@ -548,7 +548,7 @@ func configureNuxt(sourceDir string) (*SourceInfo, error) {
 }
 
 func configureNextJs(sourceDir string) (*SourceInfo, error) {
-	if !checksPass(sourceDir, fileExists("next.config.js")) {
+	if !checksPass(sourceDir, fileExists("next.config.js")) && !checksPass(sourceDir, dirContains("package.json", "\"next\"")) {
 		return nil, nil
 	}
 
