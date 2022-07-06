@@ -11,8 +11,8 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/logger"
 )
 
 func newMove() *cobra.Command {

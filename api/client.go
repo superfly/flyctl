@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/superfly/flyctl/logger"
 	"github.com/superfly/graphql"
 )
 
@@ -34,11 +35,11 @@ type Client struct {
 	accessToken string
 	userAgent   string
 	trace       string
-	logger      Logger
+	logger      logger.LoggerInterface
 }
 
 // NewClient - creates a new Client, takes an access token
-func NewClient(accessToken, name, version string, logger Logger) *Client {
+func NewClient(accessToken, name, version string, logger logger.LoggerInterface) *Client {
 
 	httpClient, _ := NewHTTPClient(logger, http.DefaultTransport)
 
