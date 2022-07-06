@@ -43,7 +43,7 @@ type Client struct {
 // NewClient - creates a new Client, takes an access token
 func NewClient(accessToken, name, version string, logger Logger) *Client {
 
-	httpClient, _ := newHTTPClient(logger)
+	httpClient, _ := NewHTTPClient(logger, http.DefaultTransport)
 
 	url := fmt.Sprintf("%s/graphql", baseURL)
 
