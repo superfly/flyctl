@@ -168,6 +168,7 @@ type Query struct {
 
 	CreateVolume CreateVolumePayload
 	DeleteVolume DeleteVolumePayload
+	ExtendVolume ExtendVolumePayload
 
 	AddWireGuardPeer              CreatedWireGuardPeer
 	EstablishSSHKey               SSHCertificate
@@ -367,7 +368,17 @@ type CreateVolumeInput struct {
 	RequireUniqueZone bool    `json:"requireUniqueZone"`
 }
 
+type ExtendVolumeInput struct {
+	VolumeID string `json:"volumeId"`
+	SizeGb   int    `json:"sizeGb"`
+}
+
 type CreateVolumePayload struct {
+	App    App
+	Volume Volume
+}
+
+type ExtendVolumePayload struct {
 	App    App
 	Volume Volume
 }
