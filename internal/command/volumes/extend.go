@@ -9,8 +9,8 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/iostreams"
 
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/app"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -20,8 +20,8 @@ import (
 
 func newExtend() *cobra.Command {
 	const (
-		long = `Extends a target volume to the size specified. Volumes with attached nomad allocations 
-		will be restarted automatically. Machines will require a manual restart to increase the size 
+		long = `Extends a target volume to the size specified. Volumes with attached nomad allocations
+		will be restarted automatically. Machines will require a manual restart to increase the size
 		of the FS.`
 
 		short = "Extend a target volume"
