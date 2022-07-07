@@ -1,6 +1,8 @@
 package api
 
-import "context"
+import (
+	"context"
+)
 
 func (c *Client) GetVolumes(ctx context.Context, appName string) ([]Volume, error) {
 	query := `
@@ -75,6 +77,44 @@ func (c *Client) CreateVolume(ctx context.Context, input CreateVolumeInput) (*Vo
 	}
 
 	return &data.CreateVolume.Volume, nil
+}
+
+func (c *Client) ExtendVolume(ctx context.Context, input ExtendVolumeInput) (*Volume, error) {
+	query := `
+		mutation($input: ExtendVolumeInput!) {
+			extendVolume(input: $input) {
+				app {
+					name
+					platformVersion
+				}
+				volume {
+					id
+					name
+					app{
+						name
+					}
+					region
+					sizeGb
+					encrypted
+					createdAt
+					host {
+						id
+					}
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("input", input)
+
+	data, err := c.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.ExtendVolume.Volume, nil
 }
 
 func (c *Client) DeleteVolume(ctx context.Context, volID string) (App *App, err error) {
