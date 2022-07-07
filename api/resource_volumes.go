@@ -79,7 +79,7 @@ func (c *Client) CreateVolume(ctx context.Context, input CreateVolumeInput) (*Vo
 	return &data.CreateVolume.Volume, nil
 }
 
-func (c *Client) ExtendVolume(ctx context.Context, input ExtendVolumeInput) (*App, *Volume, error) {
+func (c *Client) ExtendVolume(ctx context.Context, input ExtendVolumeInput) (*Volume, error) {
 	query := `
 		mutation($input: ExtendVolumeInput!) {
 			extendVolume(input: $input) {
@@ -111,10 +111,10 @@ func (c *Client) ExtendVolume(ctx context.Context, input ExtendVolumeInput) (*Ap
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return &data.ExtendVolume.App, &data.ExtendVolume.Volume, nil
+	return &data.ExtendVolume.Volume, nil
 }
 
 func (c *Client) DeleteVolume(ctx context.Context, volID string) (App *App, err error) {

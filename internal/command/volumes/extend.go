@@ -9,10 +9,12 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/iostreams"
 
+	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 )
 
@@ -29,11 +31,14 @@ func newExtend() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runExtend,
 		command.RequireSession,
+		command.RequireAppName,
 	)
 
 	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(cmd,
+		flag.App(),
+		flag.AppConfig(),
 		flag.Int{
 			Name:        "size",
 			Shorthand:   "s",
@@ -49,13 +54,32 @@ func runExtend(ctx context.Context) error {
 		cfg      = config.FromContext(ctx)
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
+		appName  = app.NameFromContext(ctx)
 		client   = client.FromContext(ctx).API()
 		volID    = flag.FirstArg(ctx)
 	)
 
+	app, err := client.GetApp(ctx, appName)
+	if err != nil {
+		return err
+	}
+
 	sizeGB := flag.GetInt(ctx, "size")
 	if sizeGB == 0 {
 		return fmt.Errorf("Volume size must be specified")
+	}
+
+	if app.PlatformVersion == "nomad" {
+		switch confirmed, err := prompt.Confirm(ctx, "Extending this volume will result in a VM restart. Continue?"); {
+		case err == nil:
+			if !confirmed {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+		default:
+			return err
+		}
 	}
 
 	input := api.ExtendVolumeInput{
@@ -63,20 +87,24 @@ func runExtend(ctx context.Context) error {
 		SizeGb:   flag.GetInt(ctx, "size"),
 	}
 
-	app, volume, err := client.ExtendVolume(ctx, input)
+	volume, err := client.ExtendVolume(ctx, input)
 	if err != nil {
 		return fmt.Errorf("failed to extend volume: %w", err)
 	}
 
 	out := iostreams.FromContext(ctx).Out
 
-	if app.PlatformVersion == "machines" {
-		fmt.Fprintln(out, colorize.Yellow("You need to stop and start your machine to increase the size of the FS"))
-	}
-
 	if cfg.JSONOutput {
 		return render.JSON(out, volume)
 	}
 
-	return printVolume(out, volume)
+	if err := printVolume(out, volume); err != nil {
+		return err
+	}
+
+	if app.PlatformVersion == "machines" {
+		fmt.Fprintln(out, colorize.Yellow("You will need to stop and start your machine to increase the size of the FS"))
+	}
+
+	return nil
 }
