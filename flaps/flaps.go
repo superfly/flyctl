@@ -138,7 +138,7 @@ func (f *Client) Wait(ctx context.Context, machine *api.Machine) (err error) {
 	return
 }
 
-func (f *Client) Stop(ctx context.Context, machine api.MachineStop) (err error) {
+func (f *Client) Stop(ctx context.Context, machine api.StopMachineInput) (err error) {
 	stopEndpoint := fmt.Sprintf("/%s/stop", machine.ID)
 
 	if err := f.sendRequest(ctx, http.MethodPost, stopEndpoint, nil, nil, nil); err != nil {
