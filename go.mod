@@ -5,7 +5,6 @@ go 1.18
 require (
 	github.com/AlecAivazis/survey/v2 v2.2.7
 	github.com/BurntSushi/toml v1.1.1-0.20220529222432-dcb2346503b4
-	github.com/Khan/genqlient v0.5.0
 	github.com/alecthomas/chroma v0.10.0
 	github.com/azazeal/pause v1.0.6
 	github.com/blang/semver v3.5.1+incompatible
@@ -64,7 +63,7 @@ require (
 	github.com/go-playground/locales v0.14.0 // indirect
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
-	github.com/vektah/gqlparser/v2 v2.4.5 // indirect
+	golang.org/x/tools v0.1.10 // indirect
 )
 
 require (
