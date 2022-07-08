@@ -14,8 +14,8 @@ import (
 
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/filemu"
+	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/sentry"
-	"github.com/superfly/flyctl/logger"
 )
 
 type forkError struct{ error }

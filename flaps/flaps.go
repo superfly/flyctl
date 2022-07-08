@@ -13,8 +13,8 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/logger"
 
 	"github.com/superfly/flyctl/client"
 )

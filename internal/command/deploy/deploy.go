@@ -22,8 +22,8 @@ import (
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/watch"
-	"github.com/superfly/flyctl/logger"
 )
 
 func New() (cmd *cobra.Command) {

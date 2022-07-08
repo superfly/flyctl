@@ -6,8 +6,8 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/logger"
 )
 
 var ErrNoAuthToken = errors.New("No access token available. Please login with 'flyctl auth login'")
