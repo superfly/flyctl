@@ -1,4 +1,4 @@
-package sourcecode
+package scanner
 
 import (
 	"bufio"
@@ -91,59 +91,4 @@ func commentLineInFile(path string, search string) {
 	if err != nil {
 		log.Fatalln(err)
 	}
-}
-
-func extractRubyVersion(gemfilePath string, rubyVersionPath string) (string, error) {
-	gemfileContents, err := os.ReadFile(gemfilePath)
-
-	var version string
-
-	if err != nil {
-		return "", err
-	}
-
-	re := regexp.MustCompile(`ruby \"(?P<version>.+)\"`)
-	m := re.FindStringSubmatch(string(gemfileContents))
-
-	for i, name := range re.SubexpNames() {
-		if len(m) > 0 && name == "version" {
-			version = m[i]
-		}
-	}
-
-	if version == "" {
-		if _, err := os.Stat(rubyVersionPath); err == nil {
-
-			versionString, err := os.ReadFile(rubyVersionPath)
-
-			if err != nil {
-				return "", err
-			}
-
-			version = string(versionString)
-		}
-
-	}
-
-	return version, nil
-}
-
-func extractBundlerVersion(gemfileLockPath string) (string, error) {
-	gemfileContents, err := os.ReadFile(gemfileLockPath)
-
-	var version string
-
-	if err != nil {
-		return "", err
-	}
-
-	re := regexp.MustCompile(`BUNDLED WITH\n\s{3}(?P<version>.+)\n`)
-	m := re.FindStringSubmatch(string(gemfileContents))
-	for i, name := range re.SubexpNames() {
-		if len(m) > 0 && name == "version" {
-			version = m[i]
-		}
-	}
-
-	return version, nil
 }
