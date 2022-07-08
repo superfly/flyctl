@@ -22,7 +22,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/filemu"
-	"github.com/superfly/flyctl/internal/sourcecode"
+	"github.com/superfly/flyctl/scanner"
 	"github.com/superfly/graphql"
 )
 
@@ -138,7 +138,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 
 	fmt.Println("Creating app in", dir)
 
-	var srcInfo = new(sourcecode.SourceInfo)
+	var srcInfo = new(scanner.SourceInfo)
 
 	if img := cmdCtx.Config.GetString("image"); img != "" {
 		fmt.Println("Using image", img)
@@ -153,7 +153,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	} else {
 		fmt.Println("Scanning source code")
 
-		if si, err := sourcecode.Scan(dir); err != nil {
+		if si, err := scanner.Scan(dir); err != nil {
 			return err
 		} else {
 			srcInfo = si
@@ -489,7 +489,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func execInitCommand(ctx context.Context, command sourcecode.InitCommand) (err error) {
+func execInitCommand(ctx context.Context, command scanner.InitCommand) (err error) {
 	binary, err := exec.LookPath(command.Command)
 	if err != nil {
 		return fmt.Errorf("%s not found in $PATH - make sure app dependencies are installed and try again", command.Command)

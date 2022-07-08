@@ -13,7 +13,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/sourcecode"
+	"github.com/superfly/flyctl/scanner"
 )
 
 type ConfigFormat string
@@ -443,11 +443,11 @@ func (ac *AppConfig) SetProcess(name, value string) {
 	ac.Definition["processes"] = processes
 }
 
-func (ac *AppConfig) SetStatics(statics []sourcecode.Static) {
+func (ac *AppConfig) SetStatics(statics []scanner.Static) {
 	ac.Definition["statics"] = statics
 }
 
-func (ac *AppConfig) SetVolumes(volumes []sourcecode.Volume) {
+func (ac *AppConfig) SetVolumes(volumes []scanner.Volume) {
 	ac.Definition["mounts"] = volumes
 }
 
