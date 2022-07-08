@@ -9,10 +9,9 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/rehttp"
-	"github.com/superfly/flyctl/logger"
 )
 
-func NewHTTPClient(logger logger.LoggerInterface, transport http.RoundTripper) (*http.Client, error) {
+func NewHTTPClient(logger Logger, transport http.RoundTripper) (*http.Client, error) {
 	retryTransport := rehttp.NewTransport(
 		transport,
 		rehttp.RetryAll(
@@ -39,7 +38,7 @@ func NewHTTPClient(logger logger.LoggerInterface, transport http.RoundTripper) (
 
 type LoggingTransport struct {
 	InnerTransport http.RoundTripper
-	Logger         logger.LoggerInterface
+	Logger         Logger
 }
 
 type contextKey struct {

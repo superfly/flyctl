@@ -15,7 +15,7 @@ import (
 	"github.com/superfly/graphql"
 
 	"github.com/superfly/flyctl/internal/flyerr"
-	"github.com/superfly/flyctl/logger"
+	"github.com/superfly/flyctl/internal/logger"
 
 	"github.com/superfly/flyctl/internal/command/root"
 )

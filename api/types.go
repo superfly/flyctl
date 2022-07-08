@@ -1258,3 +1258,8 @@ type Filters struct {
 	MachineState []Condition          `json:"machine_state"`
 	Meta         map[string]Condition `json:"meta"`
 }
+
+type Logger interface {
+	Debug(v ...interface{})
+	Debugf(format string, v ...interface{})
+}
