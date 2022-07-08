@@ -351,7 +351,7 @@ func createRelease(ctx context.Context, appConfig *app.Config, img *imgsrc.Deplo
 
 	// Set the deployment strategy
 	if val := flag.GetString(ctx, "strategy"); val != "" {
-		input.Strategy = api.StringPointer(strings.ToUpper(val))
+		input.Strategy = api.StringPointer(strings.ReplaceAll(strings.ToUpper(val), "-", "_"))
 	}
 
 	if len(appConfig.Definition) > 0 {
