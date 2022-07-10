@@ -117,7 +117,15 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 		for _, machine := range machines {
 
 			fmt.Fprintf(io.Out, "Updating VM %s\n", machine.ID)
+
 			launchInput.ID = machine.ID
+
+			// Until mounts are supported in fly.toml, ensure deployments
+			// maintain any existing volume attachments
+			if machine.Config.Mounts != nil {
+				launchInput.Config.Mounts = append(launchInput.Config.Mounts, machine.Config.Mounts[0])
+			}
+
 			updateResult, err := flapsClient.Update(ctx, launchInput, machine.LeaseNonce)
 
 			if err != nil {
