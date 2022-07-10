@@ -16,6 +16,7 @@ type Machine struct {
 
 	// InstanceID is unique for each version of the machine
 	InstanceID string `json:"instance_id"`
+	Version    string `json:"version"`
 
 	// PrivateIP is the internal 6PN address of the machine.
 	PrivateIP string `json:"private_ip"`

@@ -128,8 +128,16 @@ func (f *Client) Wait(ctx context.Context, machine *api.Machine) (err error) {
 
 	waitEndpoint := fmt.Sprintf("/%s/wait", machine.ID)
 
-	if machine.InstanceID != "" {
-		waitEndpoint += fmt.Sprintf("?instance_id=%s", machine.InstanceID)
+	version := machine.InstanceID
+
+	if machine.Version != "" {
+		version = machine.Version
+	}
+	if version != "" {
+		fmt.Printf("Waiting on machine version %s...\n", version)
+		waitEndpoint += fmt.Sprintf("?instance_id=%s&timeout=30", version)
+	} else {
+		waitEndpoint += "?timeout=30"
 	}
 
 	if err := f.sendRequest(ctx, http.MethodGet, waitEndpoint, nil, nil, nil); err != nil {
