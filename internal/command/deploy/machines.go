@@ -14,7 +14,7 @@ import (
 
 // Deploy ta machines app directly from flyctl, applying the desired config to running machines,
 // or launching new ones
-func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.DeploymentImage) (err error) {
+func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.DeploymentImage, strategy string) (err error) {
 	io := iostreams.FromContext(ctx)
 
 	client := client.FromContext(ctx).API()
@@ -128,15 +128,19 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 
 			updateResult, err := flapsClient.Update(ctx, launchInput, machine.LeaseNonce)
 
-			if err != nil {
+			if err != nil && strategy == "immediate" {
+				fmt.Printf("Continuing after error: %s\n", err)
+			} else if err != nil {
 				return err
 			}
 
-			fmt.Fprintf(io.Out, "Waiting for update to finish on %s\n", machine.ID)
-			err = flapsClient.Wait(ctx, updateResult)
+			if strategy != "immediate" {
+				fmt.Fprintf(io.Out, "Waiting for update to finish on %s\n", machine.ID)
+				err = flapsClient.Wait(ctx, updateResult)
 
-			if err != nil {
-				return err
+				if err != nil {
+					return err
+				}
 			}
 
 		}
