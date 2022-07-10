@@ -106,7 +106,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 	var releaseCommand *api.ReleaseCommand
 
 	if appConfig.ForMachines() {
-		return createMachinesRelease(ctx, appConfig, img)
+		return createMachinesRelease(ctx, appConfig, img, flag.GetString(ctx, "strategy"))
 	} else {
 		release, releaseCommand, err = createRelease(ctx, appConfig, img)
 	}
