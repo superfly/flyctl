@@ -94,8 +94,14 @@ func runMachineStatus(ctx context.Context) (err error) {
 			machine.UpdatedAt,
 		},
 	}
+	var cols []string = []string{"ID", "Instance ID", "State", "Image", "Name", "Private IP", "Region", "Created", "Updated"}
 
-	if err = render.VerticalTable(io.Out, "VM", obj, "ID", "Instance ID", "State", "Image", "Name", "Private IP", "Region", "Created", "Updated"); err != nil {
+	if len(machine.Config.Mounts) > 0 {
+		cols = append(cols, "Volume")
+		obj[0] = append(obj[0], machine.Config.Mounts[0].Volume)
+	}
+
+	if err = render.VerticalTable(io.Out, "VM", obj, cols...); err != nil {
 		return
 	}
 
