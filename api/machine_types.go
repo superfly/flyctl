@@ -173,3 +173,12 @@ type MachineStartResponse struct {
 	Status        string `json:"status,omitempty"`
 	PreviousState string `json:"previous_state"`
 }
+
+type LaunchMachineInput struct {
+	AppID   string         `json:"appId,omitempty"`
+	ID      string         `json:"id,omitempty"`
+	Name    string         `json:"name,omitempty"`
+	OrgSlug string         `json:"organizationId,omitempty"`
+	Region  string         `json:"region,omitempty"`
+	Config  *MachineConfig `json:"config"`
+}
