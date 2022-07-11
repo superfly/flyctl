@@ -94,6 +94,9 @@ func runMachineClone(ctx context.Context) (err error) {
 		region = source.Region
 	}
 
+	// Ensure attached volumes are not copied to the clone
+	source.Config.Mounts = nil
+
 	input := api.LaunchMachineInput{
 		AppID:  app.Name,
 		Name:   flag.GetString(ctx, "name"),
