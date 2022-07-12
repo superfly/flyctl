@@ -28,7 +28,9 @@ import (
 
 func New() (cmd *cobra.Command) {
 	const (
-		long = `Deploy Fly applications from source or an image using a local or remote builder.
+		long = `Deploy Fly applications from source or an image using a local or remote builder. 
+		
+		To disable colorized output and show full Docker build output, set the environment variable NO_COLOR=1.
 	`
 		short = "Deploy Fly applications"
 	)
