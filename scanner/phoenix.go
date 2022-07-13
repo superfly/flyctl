@@ -67,7 +67,7 @@ When you're ready to deploy, use 'fly deploy --remote-only'.
 	} else {
 		s.SkipDeploy = true
 		s.DeployDocs = `
-We recommend upgrading to Phoenix 1.6.3 which includes a release configuration for Docker-based deployment.
+If you are running a Phoenix version older than 1.6.3, we recommend upgrading to at least 1.6.3, which includes a release configuration for Docker-based deployment.
 
 If you do upgrade, you can run 'fly launch' again to get the required deployment setup.
 
