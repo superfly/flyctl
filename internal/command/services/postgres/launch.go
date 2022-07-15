@@ -226,6 +226,8 @@ func (p *Launch) Launch(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "  Postgres port:  5433\n")
 	fmt.Fprintf(io.Out, "  Connection string:  %s\n", connStr)
 	fmt.Fprintf(io.Out, "Save your credentials in a secure place, you won't be able to see them again!\n")
+	fmt.Fprintf(io.Out, "\n")
+	fmt.Fprintf(io.Out, "Now you've setup postgres, here's what you need to understand: https://fly.io/docs/reference/postgres-whats-next/\n")
 
 	return nil
 }
