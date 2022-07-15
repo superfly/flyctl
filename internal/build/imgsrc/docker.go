@@ -31,24 +31,16 @@ type dockerClientFactory struct {
 }
 
 func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, appName string, streams *iostreams.IOStreams) *dockerClientFactory {
-	if daemonType.AllowLocal() {
-		terminal.Debug("trying local docker daemon")
-		c, err := NewLocalDockerClient()
-		if c != nil && err == nil {
-			return &dockerClientFactory{
-				mode: DockerDaemonTypeLocal,
-				buildFn: func(ctx context.Context) (*dockerclient.Client, error) {
-					return c, nil
-				},
-			}
-		} else if err != nil && !dockerclient.IsErrConnectionFailed(err) {
-			terminal.Warn("Error connecting to local docker daemon:", err)
-		} else {
-			terminal.Debug("Local docker daemon unavailable")
+	noneFactory := func() *dockerClientFactory {
+		return &dockerClientFactory{
+			mode: DockerDaemonTypeNone,
+			buildFn: func(ctx context.Context) (*dockerclient.Client, error) {
+				return nil, errors.New("no docker daemon available")
+			},
 		}
 	}
 
-	if daemonType.AllowRemote() {
+	remoteFactory := func() *dockerClientFactory {
 		terminal.Debug("trying remote docker daemon")
 		var cachedDocker *dockerclient.Client
 
@@ -66,23 +58,46 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 				return cachedDocker, nil
 			},
 		}
+		return noneFactory()
 	}
 
-	return &dockerClientFactory{
-		mode: DockerDaemonTypeNone,
-		buildFn: func(ctx context.Context) (*dockerclient.Client, error) {
-			return nil, errors.New("no docker daemon available")
-		},
+	localFactory := func() *dockerClientFactory {
+		terminal.Debug("trying local docker daemon")
+		c, err := NewLocalDockerClient()
+		if c != nil && err == nil {
+			return &dockerClientFactory{
+				mode: DockerDaemonTypeLocal,
+				buildFn: func(ctx context.Context) (*dockerclient.Client, error) {
+					return c, nil
+				},
+			}
+		} else if err != nil && !dockerclient.IsErrConnectionFailed(err) {
+			terminal.Warn("Error connecting to local docker daemon:", err)
+		} else {
+			terminal.Debug("Local docker daemon unavailable")
+		}
+		return noneFactory()
+	}
+
+	if daemonType.AllowRemote() && !daemonType.PrefersLocal() {
+		return remoteFactory()
+	} else if daemonType.AllowLocal() {
+		return localFactory()
+	} else {
+		return noneFactory()
 	}
 }
 
-func NewDockerDaemonType(allowLocal, allowRemote bool) DockerDaemonType {
+func NewDockerDaemonType(allowLocal, allowRemote, prefersLocal bool) DockerDaemonType {
 	daemonType := DockerDaemonTypeNone
 	if allowLocal {
 		daemonType = daemonType | DockerDaemonTypeLocal
 	}
 	if allowRemote {
 		daemonType = daemonType | DockerDaemonTypeRemote
+	}
+	if prefersLocal {
+		daemonType = daemonType | DockerDaemonTypePrefersLocal
 	}
 	return daemonType
 }
@@ -93,6 +108,7 @@ const (
 	DockerDaemonTypeLocal DockerDaemonType = 1 << iota
 	DockerDaemonTypeRemote
 	DockerDaemonTypeNone
+	DockerDaemonTypePrefersLocal
 )
 
 func (t DockerDaemonType) AllowLocal() bool {
@@ -121,6 +137,10 @@ func (t DockerDaemonType) IsNone() bool {
 
 func (t DockerDaemonType) IsAvailable() bool {
 	return !t.IsNone()
+}
+
+func (t DockerDaemonType) PrefersLocal() bool {
+	return (t & DockerDaemonTypePrefersLocal) != 0
 }
 
 func NewLocalDockerClient() (*dockerclient.Client, error) {
