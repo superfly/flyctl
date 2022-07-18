@@ -6,13 +6,13 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/pkg/flypg"
-	"github.com/superfly/flyctl/pkg/iostreams"
 )
 
 func newCreate() *cobra.Command {
@@ -97,7 +97,7 @@ func runCreate(ctx context.Context) (err error) {
 	var org *api.Organization
 
 	if orgSlug == "" {
-		org, err = prompt.Org(ctx, nil)
+		org, err = prompt.Org(ctx)
 		if err != nil {
 			return
 		}

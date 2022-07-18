@@ -5,13 +5,13 @@ import (
 	"fmt"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/client"
 
 	machines "github.com/superfly/flyctl/internal/command/machine"
 
-	"github.com/superfly/flyctl/pkg/flaps"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/flaps"
+	iostreams "github.com/superfly/flyctl/iostreams"
 )
 
 var (

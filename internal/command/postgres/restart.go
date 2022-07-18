@@ -5,15 +5,15 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/app"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/pkg/agent"
-	"github.com/superfly/flyctl/pkg/flaps"
-	"github.com/superfly/flyctl/pkg/flypg"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newRestart() *cobra.Command {
@@ -79,7 +79,7 @@ func restartMachinesCluster(ctx context.Context, app *api.AppCompact) error {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
 	// map of machine lease to machine
-	var machines = make(map[string]*api.V1Machine)
+	var machines = make(map[string]*api.Machine)
 
 	out, err := flapsClient.List(ctx, "started")
 	if err != nil {
