@@ -7,11 +7,11 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/client"
 )
 
 func newChecksCommand(client *client.Client) *Command {
@@ -86,7 +86,7 @@ func runCreateChecksHandler(cmdCtx *cmdctx.CmdContext) error {
 
 	orgSlug := cmdCtx.Config.GetString("organization")
 
-	org, err := selectOrganization(ctx, cmdCtx.Client.API(), orgSlug, nil)
+	org, err := selectOrganization(ctx, cmdCtx.Client.API(), orgSlug)
 	if err != nil {
 		return err
 	}

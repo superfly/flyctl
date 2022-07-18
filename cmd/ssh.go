@@ -17,9 +17,9 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
-	"github.com/superfly/flyctl/internal/client"
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -269,10 +269,10 @@ func runSSHIssue(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	fmt.Printf(`
-!!!! WARNING: We're now prompting you to save an SSH private key and certificate       !!!! 	
-!!!! (the private key in "id_whatever" and the certificate in "id_whatever-cert.pub"). !!!! 	
-!!!! These SSH credentials are time-limited and handling them in files is clunky;      !!!! 	
-!!!! consider running an SSH agent and running this command with --agent. Things       !!!! 	
+!!!! WARNING: We're now prompting you to save an SSH private key and certificate       !!!!
+!!!! (the private key in "id_whatever" and the certificate in "id_whatever-cert.pub"). !!!!
+!!!! These SSH credentials are time-limited and handling them in files is clunky;      !!!!
+!!!! consider running an SSH agent and running this command with --agent. Things       !!!!
 !!!! should just sort of work like magic if you do.                                    !!!!
 `)
 

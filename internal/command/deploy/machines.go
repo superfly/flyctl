@@ -5,16 +5,16 @@ import (
 	"fmt"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
-	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/pkg/flaps"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 // Deploy ta machines app directly from flyctl, applying the desired config to running machines,
 // or launching new ones
-func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.DeploymentImage) (err error) {
+func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.DeploymentImage, strategy string) (err error) {
 	io := iostreams.FromContext(ctx)
 
 	client := client.FromContext(ctx).API()
@@ -35,48 +35,49 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 		Image: img.Tag,
 	}
 
+	// Convert the new, slimmer http service config to standard services
 	if config.HttpService != nil {
-		machineConfig.Services = []api.MachineService{
-			{
-				Protocol:     "tcp",
-				InternalPort: config.HttpService.InternalPort,
-				Ports: []api.MachinePort{
-					{
-						Port:       80,
-						Handlers:   []string{"http"},
-						ForceHttps: true,
-					},
-				},
-			},
-			{
-				Protocol:     "tcp",
-				InternalPort: config.HttpService.InternalPort,
-				Ports: []api.MachinePort{
-					{
-						Port:     443,
-						Handlers: []string{"http", "tls"},
-					},
+
+		httpService := api.MachineService{
+			Protocol:     "tcp",
+			InternalPort: config.HttpService.InternalPort,
+			Ports: []api.MachinePort{
+				{
+					Port:       80,
+					Handlers:   []string{"http"},
+					ForceHttps: true,
 				},
 			},
 		}
-	}
-	machineGuest := &api.MachineGuest{
-		CPUs:     1,
-		CPUKind:  "shared",
-		MemoryMB: 256,
-	}
 
-	if config.VM != nil {
-		if config.VM.CpuCount > 0 {
-			machineGuest.CPUs = config.VM.CpuCount
+		httpsService := api.MachineService{
+			Protocol:     "tcp",
+			InternalPort: config.HttpService.InternalPort,
+			Ports: []api.MachinePort{
+				{
+					Port:     443,
+					Handlers: []string{"http", "tls"},
+				},
+			},
 		}
-		if config.VM.Memory > 0 {
-			machineGuest.MemoryMB = config.VM.Memory
-		}
+
+		machineConfig.Services = append(machineConfig.Services, httpService, httpsService)
 	}
 
-	machineConfig.Guest = machineGuest
+	// Copy standard services to the machine vonfig
+	if config.Services != nil {
+		machineConfig.Services = append(machineConfig.Services, config.Services...)
+	}
 
+	if config.Env != nil {
+		machineConfig.Env = config.Env
+	}
+
+	if config.Metrics != nil {
+		machineConfig.Metrics = config.Metrics
+	}
+
+	// Run validations against struct types and their JSON tags
 	err = config.Validate()
 
 	if err != nil {
@@ -86,7 +87,7 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 	launchInput := api.LaunchMachineInput{
 		AppID:   config.AppName,
 		OrgSlug: app.Organization.ID,
-		Region:  config.PrimaryRegion,
+		Region:  config.GetPrimaryRegion(),
 		Config:  machineConfig,
 	}
 
@@ -104,20 +105,42 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 			launchInput.ID = machine.ID
 			leaseTTL := api.IntPointer(30)
 			lease, err := flapsClient.GetLease(ctx, machine.ID, leaseTTL)
-			machine.LeaseNonce = lease.Data.Nonce
+
 			if err != nil {
 				return err
 			}
+
+			machine.LeaseNonce = lease.Data.Nonce
 
 		}
 
 		for _, machine := range machines {
 
 			fmt.Fprintf(io.Out, "Updating VM %s\n", machine.ID)
+
 			launchInput.ID = machine.ID
-			_, err = flapsClient.Update(ctx, launchInput, machine.LeaseNonce)
-			if err != nil {
+
+			// Until mounts are supported in fly.toml, ensure deployments
+			// maintain any existing volume attachments
+			if machine.Config.Mounts != nil {
+				launchInput.Config.Mounts = append(launchInput.Config.Mounts, machine.Config.Mounts[0])
+			}
+
+			updateResult, err := flapsClient.Update(ctx, launchInput, machine.LeaseNonce)
+
+			if err != nil && strategy == "immediate" {
+				fmt.Printf("Continuing after error: %s\n", err)
+			} else if err != nil {
 				return err
+			}
+
+			if strategy != "immediate" {
+				fmt.Fprintf(io.Out, "Waiting for update to finish on %s\n", machine.ID)
+				err = flapsClient.Wait(ctx, updateResult)
+
+				if err != nil {
+					return err
+				}
 			}
 
 		}

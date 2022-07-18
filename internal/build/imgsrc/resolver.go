@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/terminal"

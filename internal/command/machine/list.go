@@ -5,13 +5,14 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/pkg/flaps"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newList() *cobra.Command {
@@ -27,6 +28,7 @@ func newList() *cobra.Command {
 		command.LoadAppNameIfPresent,
 	)
 
+	cmd.Aliases = []string{"ls"}
 	cmd.Args = cobra.NoArgs
 
 	flag.Add(
@@ -49,6 +51,7 @@ func runMachineList(ctx context.Context) (err error) {
 		client  = client.FromContext(ctx).API()
 		io      = iostreams.FromContext(ctx)
 		silence = flag.GetBool(ctx, "quiet")
+		cfg     = config.FromContext(ctx)
 	)
 
 	if appName == "" {
@@ -66,6 +69,10 @@ func runMachineList(ctx context.Context) (err error) {
 	machines, err := flapsClient.List(ctx, "")
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved")
+	}
+
+	if cfg.JSONOutput {
+		return render.JSON(io.Out, machines)
 	}
 
 	rows := [][]string{}

@@ -6,7 +6,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/internal/build/imgsrc/builtins"
 	"github.com/superfly/flyctl/internal/cmdfmt"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/net/context"
 )

@@ -17,17 +17,17 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 
+	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
-	"github.com/superfly/flyctl/pkg/flaps"
 )
 
 func newRun() *cobra.Command {
@@ -313,7 +313,7 @@ func createApp(ctx context.Context, message, name string, client *api.Client) (*
 		return nil, nil
 	}
 
-	org, err := prompt.Org(ctx, nil)
+	org, err := prompt.Org(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -349,7 +349,7 @@ func createApp(ctx context.Context, message, name string, client *api.Client) (*
 	}, nil
 }
 
-func WaitForStart(ctx context.Context, flapsClient *flaps.Client, machine *api.V1Machine) error {
+func WaitForStart(ctx context.Context, flapsClient *flaps.Client, machine *api.Machine) error {
 	waitCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 

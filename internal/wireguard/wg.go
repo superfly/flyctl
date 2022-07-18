@@ -15,8 +15,8 @@ import (
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/pkg/wg"
 	"github.com/superfly/flyctl/terminal"
+	"github.com/superfly/flyctl/wg"
 	"golang.org/x/crypto/curve25519"
 )
 

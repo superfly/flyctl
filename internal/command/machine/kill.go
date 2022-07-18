@@ -5,12 +5,11 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/pkg/flaps"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newKill() *cobra.Command {
@@ -40,16 +39,12 @@ func newKill() *cobra.Command {
 func runMachineKill(ctx context.Context) (err error) {
 	var (
 		appName   = app.NameFromContext(ctx)
-		client    = client.FromContext(ctx).API()
 		machineID = flag.FirstArg(ctx)
 		io        = iostreams.FromContext(ctx)
 	)
 
-	if appName == "" {
-		return fmt.Errorf("app was not found")
-	}
+	app, err := appFromMachineOrName(ctx, machineID, appName)
 
-	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
 	}

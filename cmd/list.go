@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/superfly/flyctl/docstrings"
 )
@@ -167,7 +167,7 @@ func runListOrgs(cmdCtx *cmdctx.CmdContext) error {
 
 	asJSON := cmdCtx.OutputJSON()
 
-	orgs, err := cmdCtx.Client.API().GetOrganizations(ctx, nil)
+	orgs, err := cmdCtx.Client.API().GetOrganizations(ctx)
 
 	if err != nil {
 		return err

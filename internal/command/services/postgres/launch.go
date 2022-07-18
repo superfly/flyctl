@@ -7,15 +7,15 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	machines "github.com/superfly/flyctl/internal/command/machine"
 
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/pkg/flaps"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newLaunch() (cmd *cobra.Command) {
@@ -102,7 +102,7 @@ func runLaunch(ctx context.Context) error {
 		}
 	}
 
-	org, err := prompt.Org(ctx, nil)
+	org, err := prompt.Org(ctx)
 	if err != nil {
 		return err
 	}
@@ -226,6 +226,8 @@ func (p *Launch) Launch(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "  Postgres port:  5433\n")
 	fmt.Fprintf(io.Out, "  Connection string:  %s\n", connStr)
 	fmt.Fprintf(io.Out, "Save your credentials in a secure place, you won't be able to see them again!\n")
+	fmt.Fprintf(io.Out, "\n")
+	fmt.Fprintf(io.Out, "Now you've setup postgres, here's what you need to understand: https://fly.io/docs/reference/postgres-whats-next/\n")
 
 	return nil
 }

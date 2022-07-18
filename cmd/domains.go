@@ -10,10 +10,10 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
-	"github.com/superfly/flyctl/internal/client"
 )
 
 func newDomainsCommand(client *client.Client) *Command {
@@ -41,7 +41,7 @@ func runDomainsList(cmdCtx *cmdctx.CmdContext) error {
 
 	var orgSlug string
 	if len(cmdCtx.Args) == 0 {
-		org, err := selectOrganization(ctx, cmdCtx.Client.API(), "", nil)
+		org, err := selectOrganization(ctx, cmdCtx.Client.API(), "")
 		if err != nil {
 			return err
 		}
@@ -125,7 +125,7 @@ func runDomainsCreate(cmdCtx *cmdctx.CmdContext) error {
 	var err error
 
 	if len(cmdCtx.Args) == 0 {
-		org, err = selectOrganization(ctx, cmdCtx.Client.API(), "", nil)
+		org, err = selectOrganization(ctx, cmdCtx.Client.API(), "")
 		if err != nil {
 			return err
 		}
@@ -165,7 +165,7 @@ func runDomainsRegister(cmdCtx *cmdctx.CmdContext) error {
 	var err error
 
 	if len(cmdCtx.Args) == 0 {
-		org, err = selectOrganization(ctx, cmdCtx.Client.API(), "", nil)
+		org, err = selectOrganization(ctx, cmdCtx.Client.API(), "")
 		if err != nil {
 			return err
 		}

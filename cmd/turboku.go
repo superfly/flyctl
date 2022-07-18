@@ -10,10 +10,10 @@ import (
 	hero "github.com/heroku/heroku-go/v5"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/internal/client"
 )
 
 var errAppNameTaken = fmt.Errorf("app already exists")
@@ -132,7 +132,7 @@ func runTurboku(cmdCtx *cmdctx.CmdContext) error {
 
 	orgSlug := cmdCtx.Config.GetString("org")
 
-	org, err := selectOrganization(ctx, fly, orgSlug, nil)
+	org, err := selectOrganization(ctx, fly, orgSlug)
 	if err != nil {
 		return err
 	}

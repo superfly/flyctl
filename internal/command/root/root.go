@@ -6,14 +6,13 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmd"
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/agent"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/auth"
-	"github.com/superfly/flyctl/internal/command/builds"
 	"github.com/superfly/flyctl/internal/command/create"
 	"github.com/superfly/flyctl/internal/command/curl"
 	"github.com/superfly/flyctl/internal/command/deploy"
@@ -23,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/doctor"
 	"github.com/superfly/flyctl/internal/command/history"
 	"github.com/superfly/flyctl/internal/command/image"
+	"github.com/superfly/flyctl/internal/command/ips"
 	"github.com/superfly/flyctl/internal/command/logs"
 	"github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/command/monitor"
@@ -126,7 +126,6 @@ func New() *cobra.Command {
 		restart.New(), // TODO: deprecate
 		orgs.New(),
 		auth.New(),
-		builds.New(),
 		open.New(), // TODO: deprecate
 		curl.New(),
 		platform.New(),
@@ -146,6 +145,7 @@ func New() *cobra.Command {
 		machine.New(),
 		monitor.New(),
 		postgres.New(),
+		ips.New(),
 	}
 
 	if os.Getenv("DEV") != "" {

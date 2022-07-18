@@ -20,11 +20,11 @@ import (
 	"github.com/pkg/errors"
 	sshCrypt "golang.org/x/crypto/ssh"
 
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/pkg/agent"
-	"github.com/superfly/flyctl/pkg/ssh"
+	"github.com/superfly/flyctl/ssh"
 	"github.com/superfly/flyctl/terminal"
 )
 

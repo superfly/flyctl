@@ -11,7 +11,7 @@ import (
 	dockerclient "github.com/docker/docker/client"
 	dockeropts "github.com/docker/docker/opts"
 
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cli"

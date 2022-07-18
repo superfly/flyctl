@@ -18,17 +18,17 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
 
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/sourcecode"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/scanner"
 )
 
 func newLaunch() (cmd *cobra.Command) {
@@ -97,7 +97,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	// Prompt for an org
-	org, err := prompt.Org(ctx, nil)
+	org, err := prompt.Org(ctx)
 
 	if err != nil {
 		return
@@ -132,13 +132,8 @@ func run(ctx context.Context) (err error) {
 	appConfig := app.NewConfig()
 
 	// Config version 2 is for machine apps
-	appConfig.PlatformVersion = app.MachinesVersion
+	appConfig.SetMachinesPlatform()
 	appConfig.AppName = createdApp.Name
-
-	appConfig.VM = &app.VM{
-		CpuCount: 1,
-		Memory:   256,
-	}
 
 	// Launch in the specified region, or when not specified, in the nearest region
 	regionCode := flag.GetString(ctx, "region")
@@ -153,9 +148,9 @@ func run(ctx context.Context) (err error) {
 		regionCode = region.Code
 	}
 
-	appConfig.PrimaryRegion = regionCode
+	appConfig.SetPrimaryRegion(regionCode)
 
-	var srcInfo *sourcecode.SourceInfo
+	var srcInfo *scanner.SourceInfo
 
 	// Determine whether to deploy from an image
 	if img := flag.GetString(ctx, "image"); img != "" {
@@ -238,13 +233,13 @@ func run(ctx context.Context) (err error) {
 	return
 }
 
-func scanAndConfigure(ctx context.Context, dir string, appConfig *app.Config) (srcInfo *sourcecode.SourceInfo, err error) {
+func scanAndConfigure(ctx context.Context, dir string, appConfig *app.Config) (srcInfo *scanner.SourceInfo, err error) {
 
 	io := iostreams.FromContext(ctx)
 
-	srcInfo = new(sourcecode.SourceInfo)
+	srcInfo = new(scanner.SourceInfo)
 
-	scannedDirInfo, err := sourcecode.Scan(dir)
+	scannedDirInfo, err := scanner.Scan(dir)
 
 	if err != nil {
 		return srcInfo, err
@@ -284,7 +279,7 @@ func scanAndConfigure(ctx context.Context, dir string, appConfig *app.Config) (s
 	return
 }
 
-func setScannerPrefs(ctx context.Context, appConfig *app.Config, srcInfo *sourcecode.SourceInfo) (err error) {
+func setScannerPrefs(ctx context.Context, appConfig *app.Config, srcInfo *scanner.SourceInfo) (err error) {
 
 	client := client.FromContext(ctx).API()
 
@@ -338,8 +333,8 @@ func setScannerPrefs(ctx context.Context, appConfig *app.Config, srcInfo *source
 
 			// If a secret should be a random default, just generate it without displaying
 			// Otherwise, prompt to type it in
-			if secret.Generate {
-				if val, err = helpers.RandString(64); err != nil {
+			if secret.Generate != nil {
+				if val, err = secret.Generate(); err != nil {
 					return fmt.Errorf("could not generate random string: %w", err)
 				}
 
@@ -383,10 +378,11 @@ func setScannerPrefs(ctx context.Context, appConfig *app.Config, srcInfo *source
 				return err
 			}
 
+			region := appConfig.GetPrimaryRegion()
 			volume, err := client.CreateVolume(ctx, api.CreateVolumeInput{
 				AppID:     appID,
 				Name:      vol.Source,
-				Region:    appConfig.PrimaryRegion,
+				Region:    region,
 				SizeGb:    1,
 				Encrypted: true,
 			})
@@ -394,7 +390,7 @@ func setScannerPrefs(ctx context.Context, appConfig *app.Config, srcInfo *source
 			if err != nil {
 				return err
 			} else {
-				fmt.Printf("Created a %dGB volume %s in the %s region\n", volume.SizeGb, volume.ID, appConfig.PrimaryRegion)
+				fmt.Printf("Created a %dGB volume %s in the %s region\n", volume.SizeGb, volume.ID, region)
 			}
 
 		}
@@ -429,7 +425,7 @@ func setScannerPrefs(ctx context.Context, appConfig *app.Config, srcInfo *source
 	return
 }
 
-func installFiles(ctx context.Context, dir string, srcInfo *sourcecode.SourceInfo) (err error) {
+func installFiles(ctx context.Context, dir string, srcInfo *scanner.SourceInfo) (err error) {
 	for _, f := range srcInfo.Files {
 		path := filepath.Join(dir, f.Path)
 
@@ -460,7 +456,7 @@ func installFiles(ctx context.Context, dir string, srcInfo *sourcecode.SourceInf
 	return
 }
 
-func printAppType(ctx context.Context, srcInfo *sourcecode.SourceInfo) {
+func printAppType(ctx context.Context, srcInfo *scanner.SourceInfo) {
 	io := iostreams.FromContext(ctx)
 
 	var article string = "a"
@@ -497,7 +493,7 @@ func setupHttpService(ctx context.Context, appConfig *app.Config) (err error) {
 	return
 }
 
-func execInitCommand(ctx context.Context, command sourcecode.InitCommand) (err error) {
+func execInitCommand(ctx context.Context, command scanner.InitCommand) (err error) {
 	binary, err := exec.LookPath(command.Command)
 	if err != nil {
 		return fmt.Errorf("%s not found in $PATH - make sure app dependencies are installed and try again", command.Command)

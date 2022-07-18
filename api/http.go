@@ -11,9 +11,9 @@ import (
 	"github.com/PuerkitoBio/rehttp"
 )
 
-func newHTTPClient(logger Logger) (*http.Client, error) {
+func NewHTTPClient(logger Logger, transport http.RoundTripper) (*http.Client, error) {
 	retryTransport := rehttp.NewTransport(
-		http.DefaultTransport,
+		transport,
 		rehttp.RetryAll(
 			rehttp.RetryMaxRetries(3),
 			rehttp.RetryAny(
@@ -24,21 +24,21 @@ func newHTTPClient(logger Logger) (*http.Client, error) {
 		rehttp.ExpJitterDelay(100*time.Millisecond, 1*time.Second),
 	)
 
-	transport := &LoggingTransport{
-		innerTransport: retryTransport,
-		logger:         logger,
+	loggingTransport := &LoggingTransport{
+		InnerTransport: retryTransport,
+		Logger:         logger,
 	}
 
 	httpClient := &http.Client{
-		Transport: transport,
+		Transport: loggingTransport,
 	}
 
 	return httpClient, nil
 }
 
 type LoggingTransport struct {
-	innerTransport http.RoundTripper
-	logger         Logger
+	InnerTransport http.RoundTripper
+	Logger         Logger
 }
 
 type contextKey struct {
@@ -53,7 +53,7 @@ func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 
 	t.logRequest(req)
 
-	resp, err := t.innerTransport.RoundTrip(req)
+	resp, err := t.InnerTransport.RoundTrip(req)
 	if err != nil {
 		return resp, err
 	}
@@ -64,20 +64,46 @@ func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 }
 
 func (t *LoggingTransport) logRequest(req *http.Request) {
-	t.logger.Debugf("--> %s %s %s\n", req.Method, req.URL, req.Body)
+
+	t.Logger.Debugf("--> %s %s\n", req.Method, req.URL)
+
+	if req.Body == nil {
+		return
+	}
+
+	defer req.Body.Close()
+
+	data, err := ioutil.ReadAll(req.Body)
+
+	if err != nil {
+		t.Logger.Debug("error reading request body:", err)
+	} else {
+		t.Logger.Debug(string(data))
+	}
+
+	if req.Body != nil {
+		t.Logger.Debug(req.Body)
+	}
+
+	req.Body = ioutil.NopCloser(bytes.NewReader(data))
 }
 
 func (t *LoggingTransport) logResponse(resp *http.Response) {
 	ctx := resp.Request.Context()
 	defer resp.Body.Close()
-	data, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		t.logger.Debug("error reading response body:", err)
-	}
+
 	if start, ok := ctx.Value(contextKeyRequestStart).(time.Time); ok {
-		t.logger.Debugf("<-- %d %s (%s) %s\n", resp.StatusCode, resp.Request.URL, Duration(time.Since(start), 2), string(data))
+		t.Logger.Debugf("<-- %d %s (%s)\n", resp.StatusCode, resp.Request.URL, Duration(time.Since(start), 2))
 	} else {
-		t.logger.Debugf("<-- %d %s %s %s\n", resp.StatusCode, resp.Request.URL, string(data))
+		t.Logger.Debugf("<-- %d %s %s\n", resp.StatusCode, resp.Request.URL)
+	}
+
+	data, err := ioutil.ReadAll(resp.Body)
+
+	if err != nil {
+		t.Logger.Debug("error reading response body:", err)
+	} else {
+		t.Logger.Debug(string(data))
 	}
 
 	resp.Body = ioutil.NopCloser(bytes.NewReader(data))

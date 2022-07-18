@@ -7,13 +7,13 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/agent"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/app"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/pkg/agent"
-	"github.com/superfly/flyctl/pkg/proxy"
+	"github.com/superfly/flyctl/proxy"
 )
 
 func New() *cobra.Command {
@@ -61,7 +61,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	if appName == "" && orgSlug == "" {
-		org, err := prompt.Org(ctx, nil)
+		org, err := prompt.Org(ctx)
 		if err != nil {
 			return err
 		}
