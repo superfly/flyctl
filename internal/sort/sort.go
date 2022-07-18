@@ -21,3 +21,10 @@ func RegionsByNameAndCode(regions []api.Region) {
 			regions[i].Code < regions[j].Code
 	})
 }
+
+// VMSizesByName sorts VM sizes by their name.
+func VMSizesByName(sizes []api.VMSize) {
+	sort.Slice(sizes, func(i, j int) bool {
+		return sizes[i].Name < sizes[j].Name
+	})
+}
