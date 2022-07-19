@@ -141,9 +141,16 @@ type MachinePort struct {
 }
 
 type MachineService struct {
-	Protocol     string        `json:"protocol" toml:"protocol"`
-	InternalPort int           `json:"internal_port" toml:"internal_port"`
-	Ports        []MachinePort `json:"ports" toml:"ports"`
+	Protocol     string                    `json:"protocol" toml:"protocol"`
+	InternalPort int                       `json:"internal_port" toml:"internal_port"`
+	Ports        []MachinePort             `json:"ports" toml:"ports"`
+	Concurrency  MachineServiceConcurrency `json:"concurrency" toml:"concurrency"`
+}
+
+type MachineServiceConcurrency struct {
+	Type      string `json:"type" toml:"type,omitempty"`
+	HardLimit int    `json:"hard_limit" toml:"hard_limit,omitempty"`
+	SoftLimit int    `json:"soft_limit" toml:"soft_limit,omitempty"`
 }
 
 type MachineConfig struct {
