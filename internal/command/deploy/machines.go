@@ -3,6 +3,7 @@ package deploy
 import (
 	"context"
 	"fmt"
+	"math"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
@@ -37,23 +38,26 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 
 	// Convert the new, slimmer http service config to standard services
 	if config.HttpService != nil {
-
+		concurrency := config.HttpService.Concurrency
+		if concurrency.Type == "" {
+			concurrency.Type = "requests"
+		}
+		if concurrency.HardLimit == 0 {
+			concurrency.HardLimit = 25
+		}
+		if concurrency.SoftLimit == 0 {
+			concurrency.SoftLimit = int(math.Ceil(float64(concurrency.HardLimit) * 0.8))
+		}
 		httpService := api.MachineService{
 			Protocol:     "tcp",
 			InternalPort: config.HttpService.InternalPort,
+			Concurrency:  concurrency,
 			Ports: []api.MachinePort{
 				{
 					Port:       80,
 					Handlers:   []string{"http"},
-					ForceHttps: true,
+					ForceHttps: config.HttpService.ForceHttps,
 				},
-			},
-		}
-
-		httpsService := api.MachineService{
-			Protocol:     "tcp",
-			InternalPort: config.HttpService.InternalPort,
-			Ports: []api.MachinePort{
 				{
 					Port:     443,
 					Handlers: []string{"http", "tls"},
@@ -61,7 +65,7 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 			},
 		}
 
-		machineConfig.Services = append(machineConfig.Services, httpService, httpsService)
+		machineConfig.Services = append(machineConfig.Services, httpService)
 	}
 
 	// Copy standard services to the machine vonfig

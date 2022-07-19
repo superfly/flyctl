@@ -88,9 +88,11 @@ type Config struct {
 }
 
 type HttpService struct {
-	InternalPort int  `json:"internal_port" toml:"internal_port" validate:"required,numeric"`
-	ForceHttps   bool `toml:"force_https"`
+	InternalPort int                           `json:"internal_port" toml:"internal_port" validate:"required,numeric"`
+	ForceHttps   bool                          `toml:"force_https"`
+	Concurrency  api.MachineServiceConcurrency `toml:"concurrency"`
 }
+
 type VM struct {
 	CpuCount int `toml:"cpu_count,omitempty"`
 	Memory   int `toml:"memory,omitempty"`
