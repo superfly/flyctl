@@ -89,6 +89,8 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 		return remoteFactory()
 	} else if daemonType.AllowLocal() {
 		return localFactory()
+	} else if daemonType.AllowRemote() {
+		return remoteFactory()
 	} else {
 		return noneFactory()
 	}
