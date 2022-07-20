@@ -6,9 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
@@ -93,6 +93,9 @@ func runMachineClone(ctx context.Context) (err error) {
 	if region == "" {
 		region = source.Region
 	}
+
+	// Ensure attached volumes are not copied to the clone
+	source.Config.Mounts = nil
 
 	input := api.LaunchMachineInput{
 		AppID:  app.Name,

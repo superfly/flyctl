@@ -7,12 +7,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
@@ -57,7 +55,6 @@ func runMachineStop(ctx context.Context) (err error) {
 		args    = flag.Args(ctx)
 		out     = iostreams.FromContext(ctx).Out
 		appName = app.NameFromContext(ctx)
-		client  = client.FromContext(ctx).API()
 	)
 
 	for _, arg := range args {
@@ -69,20 +66,15 @@ func runMachineStop(ctx context.Context) (err error) {
 			}
 			signal.Signal = syscall.Signal(s)
 		}
-		machineStopInput := api.MachineStop{
+		machineStopInput := api.StopMachineInput{
 			ID:      arg,
 			Signal:  signal,
 			Timeout: time.Duration(flag.GetInt(ctx, "time")),
 			Filters: &api.Filters{},
 		}
 
-		if appName == "" {
-			return errors.New("app is not found")
-		}
-		app, err := client.GetAppCompact(ctx, appName)
-		if err != nil {
-			return err
-		}
+		app, err := appFromMachineOrName(ctx, arg, appName)
+
 		flapsClient, err := flaps.New(ctx, app)
 		if err != nil {
 			return fmt.Errorf("could not make flaps client: %w", err)

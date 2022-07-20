@@ -17,9 +17,9 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/go-playground/validator/v10"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/internal/sourcecode"
+	"github.com/superfly/flyctl/scanner"
 )
 
 const (
@@ -584,10 +584,10 @@ func (c *Config) SetProcess(name, value string) {
 	c.Definition["processes"] = processes
 }
 
-func (c *Config) SetStatics(statics []sourcecode.Static) {
+func (c *Config) SetStatics(statics []scanner.Static) {
 	c.Definition["statics"] = statics
 }
 
-func (c *Config) SetVolumes(volumes []sourcecode.Volume) {
+func (c *Config) SetVolumes(volumes []scanner.Volume) {
 	c.Definition["mounts"] = volumes
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -41,11 +41,15 @@ may be fetched with 'fly config save -a <app_name>'`
 		},
 		flag.Bool{
 			Name:        "generate-name",
-			Description: "Generate a name for the app",
+			Description: "Generate an app name",
 		},
 		flag.String{
 			Name:        "network",
 			Description: "Specify custom network id",
+		},
+		flag.Bool{
+			Name:        "machines",
+			Description: "Use the machines platform",
 		},
 		flag.Org(),
 	)
@@ -90,6 +94,7 @@ func RunCreate(ctx context.Context) (err error) {
 	input := api.CreateAppInput{
 		Name:           name,
 		OrganizationID: org.ID,
+		Machines:       flag.GetBool(ctx, "machines"),
 	}
 
 	if v := flag.GetString(ctx, "network"); v != "" {

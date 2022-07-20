@@ -9,17 +9,14 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"time"
 
-	"github.com/PuerkitoBio/rehttp"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/terminal"
-
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/client"
 )
 
 var NonceHeader = "fly-machine-lease-nonce"
@@ -32,6 +29,9 @@ type Client struct {
 }
 
 func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
+
+	logger := logger.MaybeFromContext(ctx)
+
 	client := client.FromContext(ctx).API()
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
@@ -43,37 +43,23 @@ func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
 		return nil, fmt.Errorf("flaps: can't build tunnel for %s: %w", app.Organization.Slug, err)
 	}
 
-	return &Client{
-		app:        app,
-		peerIP:     resolvePeerIP(dialer.State().Peer.Peerip),
-		authToken:  flyctl.GetAPIToken(),
-		httpClient: newHttpCLient(dialer),
-	}, nil
-}
-
-func newHttpCLient(dialer agent.Dialer) *http.Client {
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return dialer.DialContext(ctx, network, addr)
 		},
 	}
-	retry := rehttp.NewTransport(
-		transport,
-		rehttp.RetryAll(
-			rehttp.RetryMaxRetries(3),
-			rehttp.RetryAny(
-				rehttp.RetryTemporaryErr(),
-				rehttp.RetryStatuses(502, 503),
-			),
-		),
-		rehttp.ExpJitterDelay(100*time.Millisecond, 1*time.Second),
-	)
-	logging := &LoggingTransport{
-		innerTransport: retry,
-		logger:         terminal.DefaultLogger,
+
+	httpClient, err := api.NewHTTPClient(logger, transport)
+	if err != nil {
+		return nil, fmt.Errorf("flaps: can't setup HTTP client for %s: %w", app.Organization.Slug, err)
 	}
 
-	return &http.Client{Transport: logging}
+	return &Client{
+		app:        app,
+		peerIP:     resolvePeerIP(dialer.State().Peer.Peerip),
+		authToken:  flyctl.GetAPIToken(),
+		httpClient: httpClient,
+	}, nil
 }
 
 func (f *Client) CreateApp(ctx context.Context, name string, org string) (err error) {
@@ -142,8 +128,16 @@ func (f *Client) Wait(ctx context.Context, machine *api.Machine) (err error) {
 
 	waitEndpoint := fmt.Sprintf("/%s/wait", machine.ID)
 
-	if machine.InstanceID != "" {
-		waitEndpoint += fmt.Sprintf("?instance_id=%s", machine.InstanceID)
+	version := machine.InstanceID
+
+	if machine.Version != "" {
+		version = machine.Version
+	}
+	if version != "" {
+		fmt.Printf("Waiting on machine version %s...\n", version)
+		waitEndpoint += fmt.Sprintf("?instance_id=%s&timeout=30", version)
+	} else {
+		waitEndpoint += "?timeout=30"
 	}
 
 	if err := f.sendRequest(ctx, http.MethodGet, waitEndpoint, nil, nil, nil); err != nil {
@@ -152,7 +146,7 @@ func (f *Client) Wait(ctx context.Context, machine *api.Machine) (err error) {
 	return
 }
 
-func (f *Client) Stop(ctx context.Context, machine api.MachineStop) (err error) {
+func (f *Client) Stop(ctx context.Context, machine api.StopMachineInput) (err error) {
 	stopEndpoint := fmt.Sprintf("/%s/stop", machine.ID)
 
 	if err := f.sendRequest(ctx, http.MethodPost, stopEndpoint, nil, nil, nil); err != nil {

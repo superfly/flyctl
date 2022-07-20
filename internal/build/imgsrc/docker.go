@@ -26,43 +26,24 @@ import (
 )
 
 type dockerClientFactory struct {
-	mode      BuilderType
+	mode      DockerDaemonType
 	remote    bool
 	buildFn   func(ctx context.Context) (*dockerclient.Client, error)
 	apiClient *api.Client
 	appName   string
 }
 
-func (f *dockerClientFactory) IsLocal() bool {
-	return !f.remote
-}
-
-func (f *dockerClientFactory) IsRemote() bool {
-	return f.remote
-}
-
-func newDockerClientFactory(daemonType BuilderType, apiClient *api.Client, appName string, streams *iostreams.IOStreams) *dockerClientFactory {
-	if daemonType.AllowLocal() {
-		terminal.Debug("trying local docker daemon")
-		c, err := NewLocalDockerClient()
-		if c != nil && err == nil {
-			return &dockerClientFactory{
-				mode:   daemonType,
-				remote: false,
-				buildFn: func(ctx context.Context) (*dockerclient.Client, error) {
-					return c, nil
-				},
-				apiClient: apiClient,
-				appName:   appName,
-			}
-		} else if err != nil && !dockerclient.IsErrConnectionFailed(err) {
-			terminal.Warn("Error connecting to local docker daemon:", err)
-		} else {
-			terminal.Debug("Local docker daemon unavailable")
+func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, appName string, streams *iostreams.IOStreams) *dockerClientFactory {
+	noneFactory := func() *dockerClientFactory {
+		return &dockerClientFactory{
+			mode: DockerDaemonTypeNone,
+			buildFn: func(ctx context.Context) (*dockerclient.Client, error) {
+				return nil, errors.New("no docker daemon available")
+			},
 		}
 	}
 
-	if daemonType.AllowRemote() {
+	remoteFactory := func() *dockerClientFactory {
 		terminal.Debug("trying remote docker daemon")
 		var cachedDocker *dockerclient.Client
 
@@ -83,63 +64,89 @@ func newDockerClientFactory(daemonType BuilderType, apiClient *api.Client, appNa
 			apiClient: apiClient,
 			appName:   appName,
 		}
+		return noneFactory()
 	}
 
-	return &dockerClientFactory{
-		mode: BuilderTypeNone,
-		buildFn: func(ctx context.Context) (*dockerclient.Client, error) {
-			return nil, errors.New("no docker daemon available")
-		},
-		apiClient: apiClient,
-		appName:   appName,
+	localFactory := func() *dockerClientFactory {
+		terminal.Debug("trying local docker daemon")
+		c, err := NewLocalDockerClient()
+		if c != nil && err == nil {
+			return &dockerClientFactory{
+				mode: DockerDaemonTypeLocal,
+				buildFn: func(ctx context.Context) (*dockerclient.Client, error) {
+					return c, nil
+				},
+			}
+		} else if err != nil && !dockerclient.IsErrConnectionFailed(err) {
+			terminal.Warn("Error connecting to local docker daemon:", err)
+		} else {
+			terminal.Debug("Local docker daemon unavailable")
+		}
+		return noneFactory()
+	}
+
+	if daemonType.AllowRemote() && !daemonType.PrefersLocal() {
+		return remoteFactory()
+	} else if daemonType.AllowLocal() {
+		return localFactory()
+	} else {
+		return noneFactory()
 	}
 }
 
-func NewDockerDaemonType(allowLocal, allowRemote, useNixpacks bool) BuilderType {
-	daemonType := BuilderTypeNone
+func NewDockerDaemonType(allowLocal, allowRemote, prefersLocal, useNixpacks bool) DockerDaemonType {
+	daemonType := DockerDaemonTypeNone
 	if allowLocal {
-		daemonType = daemonType | BuilderTypeLocal
+		daemonType = daemonType | DockerDaemonTypeLocal
 	}
 	if allowRemote {
-		daemonType = daemonType | BuilderTypeRemote
+		daemonType = daemonType | DockerDaemonTypeRemote
 	}
 	if useNixpacks {
-		daemonType = daemonType | BuilderTypeNixpacks
+		daemonType = daemonType | DockerDaemonTypeNixpacks
+	}
+	if prefersLocal {
+		daemonType = daemonType | DockerDaemonTypePrefersLocal
 	}
 	return daemonType
 }
 
-type BuilderType int
+type DockerDaemonType int
 
 const (
-	BuilderTypeLocal BuilderType = 1 << iota
-	BuilderTypeRemote
-	BuilderTypeNone
-	BuilderTypeNixpacks
+	DockerDaemonTypeLocal DockerDaemonType = 1 << iota
+	DockerDaemonTypeRemote
+	DockerDaemonTypeNone
+	DockerDaemonTypePrefersLocal
+	DockerDaemonTypeNixpacks
 )
 
-func (t BuilderType) AllowLocal() bool {
-	return (t & BuilderTypeLocal) != 0
+func (t DockerDaemonType) AllowLocal() bool {
+	return (t & DockerDaemonTypeLocal) != 0
 }
 
-func (t BuilderType) AllowRemote() bool {
-	return (t & BuilderTypeRemote) != 0
+func (t DockerDaemonType) AllowRemote() bool {
+	return (t & DockerDaemonTypeRemote) != 0
 }
 
-func (t BuilderType) AllowNone() bool {
-	return (t & BuilderTypeNone) != 0
+func (t DockerDaemonType) AllowNone() bool {
+	return (t & DockerDaemonTypeNone) != 0
 }
 
-func (t BuilderType) IsNone() bool {
-	return t == BuilderTypeNone
+func (t DockerDaemonType) IsNone() bool {
+	return t == DockerDaemonTypeNone
 }
 
-func (t BuilderType) IsAvailable() bool {
+func (t DockerDaemonType) IsAvailable() bool {
 	return !t.IsNone()
 }
 
-func (t BuilderType) UseNixpacks() bool {
-	return (t & BuilderTypeNixpacks) != 0
+func (t DockerDaemonType) UseNixpacks() bool {
+	return (t & DockerDaemonTypeNixpacks) != 0
+}
+
+func (t DockerDaemonType) PrefersLocal() bool {
+	return (t & DockerDaemonTypePrefersLocal) != 0
 }
 
 func NewLocalDockerClient() (*dockerclient.Client, error) {
@@ -466,4 +473,12 @@ func remoteBuilderMachine(ctx context.Context, apiClient *api.Client, appName st
 	}
 
 	return apiClient.EnsureRemoteBuilder(ctx, "", appName)
+}
+
+func (d *dockerClientFactory) IsRemote() bool {
+	return d.remote
+}
+
+func (d *dockerClientFactory) IsLocal() bool {
+	return !d.remote
 }

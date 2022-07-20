@@ -16,12 +16,12 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/client"
 )
 
 type PostgresConfiguration struct {
@@ -315,7 +315,7 @@ func runApiCreatePostgresCluster(cmdCtx *cmdctx.CmdContext, org string, input *a
 		fmt.Printf("For example: postgres://%s:%s@%s.internal:%d\n", payload.Username, payload.Password, payload.App.Name, 5432)
 
 		fmt.Println()
-		fmt.Println("See the postgres docs for more information on next steps, managing postgres, connecting from outside fly:  https://fly.io/docs/reference/postgres/")
+		fmt.Println("Now you've setup postgres, here's what you need to understand: https://fly.io/docs/reference/postgres-whats-next/")
 	}
 
 	return payload, err

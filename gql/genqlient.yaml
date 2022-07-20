@@ -1,8 +1,0 @@
-schema: schema.graphql
-operations:
-  - genqlient.graphql
-bindings:
-  JSON:
-    type: interface{}
-generated: generated.go
-package: gql

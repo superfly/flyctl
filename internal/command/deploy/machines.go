@@ -5,16 +5,16 @@ import (
 	"fmt"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 // Deploy ta machines app directly from flyctl, applying the desired config to running machines,
 // or launching new ones
-func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.DeploymentImage) (err error) {
+func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.DeploymentImage, strategy string) (err error) {
 	io := iostreams.FromContext(ctx)
 
 	client := client.FromContext(ctx).API()
@@ -117,18 +117,30 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 		for _, machine := range machines {
 
 			fmt.Fprintf(io.Out, "Updating VM %s\n", machine.ID)
+
 			launchInput.ID = machine.ID
+
+			// Until mounts are supported in fly.toml, ensure deployments
+			// maintain any existing volume attachments
+			if machine.Config.Mounts != nil {
+				launchInput.Config.Mounts = append(launchInput.Config.Mounts, machine.Config.Mounts[0])
+			}
+
 			updateResult, err := flapsClient.Update(ctx, launchInput, machine.LeaseNonce)
 
-			if err != nil {
+			if err != nil && strategy == "immediate" {
+				fmt.Printf("Continuing after error: %s\n", err)
+			} else if err != nil {
 				return err
 			}
 
-			fmt.Fprintf(io.Out, "Waiting for update to finish on %s\n", machine.ID)
-			err = flapsClient.Wait(ctx, updateResult)
+			if strategy != "immediate" {
+				fmt.Fprintf(io.Out, "Waiting for update to finish on %s\n", machine.ID)
+				err = flapsClient.Wait(ctx, updateResult)
 
-			if err != nil {
-				return err
+				if err != nil {
+					return err
+				}
 			}
 
 		}

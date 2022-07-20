@@ -16,11 +16,12 @@ import (
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/state"
 
-	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/watch"
@@ -107,7 +108,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 	var releaseCommand *api.ReleaseCommand
 
 	if appConfig.ForMachines() {
-		return createMachinesRelease(ctx, appConfig, img)
+		return createMachinesRelease(ctx, appConfig, img, flag.GetString(ctx, "strategy"))
 	} else {
 		release, releaseCommand, err = createRelease(ctx, appConfig, img)
 	}
@@ -202,7 +203,7 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.DeploymentImage, err error) {
 	tb := render.NewTextBlock(ctx, "Building image")
 
-	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), flag.GetBool(ctx, "nixpacks"))
+	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), flag.GetBool(ctx, "nixpacks"))
 
 	var appName string = app.NameFromContext(ctx)
 	if appConfig.AppName != "" && appName == "" {
@@ -352,7 +353,7 @@ func createRelease(ctx context.Context, appConfig *app.Config, img *imgsrc.Deplo
 
 	// Set the deployment strategy
 	if val := flag.GetString(ctx, "strategy"); val != "" {
-		input.Strategy = api.StringPointer(strings.ToUpper(val))
+		input.Strategy = api.StringPointer(strings.ReplaceAll(strings.ToUpper(val), "-", "_"))
 	}
 
 	if len(appConfig.Definition) > 0 {

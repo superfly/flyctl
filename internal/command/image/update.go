@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/app"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -40,6 +41,10 @@ The update will perform a rolling restart against each VM, which may result in a
 		flag.App(),
 		flag.AppConfig(),
 		flag.Yes(),
+		flag.String{
+			Name:        "strategy",
+			Description: "Deployment strategy",
+		},
 		flag.Bool{
 			Name:        "detach",
 			Description: "Return immediately instead of monitoring update progress",
@@ -100,6 +105,11 @@ func runUpdate(ctx context.Context) error {
 		AppID:    appName,
 		Image:    fmt.Sprintf("%s:%s", lI.Repository, lI.Tag),
 		Strategy: api.StringPointer("ROLLING"),
+	}
+
+	// Set the deployment strategy
+	if val := flag.GetString(ctx, "strategy"); val != "" {
+		input.Strategy = api.StringPointer(strings.ReplaceAll(strings.ToUpper(val), "-", "_"))
 	}
 
 	release, releaseCommand, err := client.DeployImage(ctx, input)

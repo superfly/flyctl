@@ -4,6 +4,8 @@ package helpers
 import (
 	"crypto/rand"
 	"math/big"
+	mrand "math/rand"
+	"time"
 )
 
 const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -25,4 +27,15 @@ func RandString(n int) (string, error) {
 	}
 
 	return string(b), nil
+}
+
+// RandBytes generates random bytes of a given length
+// See: https://stackoverflow.com/questions/35781197/generating-a-random-fixed-length-byte-array-in-go
+func RandBytes(n int) ([]byte, error) {
+	mrand.Seed(time.Now().UnixNano())
+	token := make([]byte, n)
+	// Always returns nil for error
+	mrand.Read(token)
+
+	return token, nil
 }

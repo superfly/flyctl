@@ -109,7 +109,7 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 	return nil, errors.New("app does not have a Dockerfile or buildpacks configured. See https://fly.io/docs/reference/configuration/#the-build-section")
 }
 
-func NewResolver(daemonType BuilderType, apiClient *api.Client, appName string, iostreams *iostreams.IOStreams) *Resolver {
+func NewResolver(daemonType DockerDaemonType, apiClient *api.Client, appName string, iostreams *iostreams.IOStreams) *Resolver {
 	return &Resolver{
 		dockerFactory: newDockerClientFactory(daemonType, apiClient, appName, iostreams),
 		apiClient:     apiClient,
