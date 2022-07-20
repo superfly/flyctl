@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/deployment"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/spinner"
 	"github.com/superfly/flyctl/logs"
@@ -70,7 +71,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		cmdfmt.PrintServicesList(cmdCtx.IO, parsedCfg.Services)
 	}
 
-	daemonType := imgsrc.NewDockerDaemonType(!cmdCtx.Config.GetBool("remote-only"), !cmdCtx.Config.GetBool("local-only"))
+	daemonType := imgsrc.NewDockerDaemonType(!cmdCtx.Config.GetBool("remote-only"), !cmdCtx.Config.GetBool("local-only"), env.IsCI())
 	resolver := imgsrc.NewResolver(daemonType, cmdCtx.Client.API(), cmdCtx.AppName, cmdCtx.IO)
 
 	var img *imgsrc.DeploymentImage
