@@ -60,7 +60,7 @@ func ensureNixpacksBinary(ctx context.Context, streams *iostreams.IOStreams) err
 		if err != nil {
 			return err
 		}
-		terminal.Debug("copied %d bytes to %s", n, installPath)
+		terminal.Debugf("copied %d bytes to %s\n", n, installPath)
 		return nil
 	}()
 
