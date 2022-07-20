@@ -8,23 +8,18 @@ import (
 
 func TestAllowedDockerDaemonMode(t *testing.T) {
 	tests := []struct {
-		allowLocal   bool
-		allowRemote  bool
-		preferslocal bool
-		expected     DockerDaemonType
+		allowLocal  bool
+		allowRemote bool
+		expected    DockerDaemonType
 	}{
-		{false, false, false, DockerDaemonTypeNone},
-		{false, false, true, DockerDaemonTypeNone | DockerDaemonTypePrefersLocal},
-		{false, true, false, DockerDaemonTypeNone | DockerDaemonTypeRemote},
-		{false, true, true, DockerDaemonTypeNone | DockerDaemonTypeRemote | DockerDaemonTypePrefersLocal},
-		{true, false, false, DockerDaemonTypeNone | DockerDaemonTypeLocal},
-		{true, false, true, DockerDaemonTypeNone | DockerDaemonTypeLocal | DockerDaemonTypePrefersLocal},
-		{true, true, false, DockerDaemonTypeNone | DockerDaemonTypeLocal | DockerDaemonTypeRemote},
-		{true, true, true, DockerDaemonTypeNone | DockerDaemonTypeLocal | DockerDaemonTypeRemote | DockerDaemonTypePrefersLocal},
+		{true, true, DockerDaemonTypeNone | DockerDaemonTypeLocal | DockerDaemonTypeRemote},
+		{false, true, DockerDaemonTypeNone | DockerDaemonTypeRemote},
+		{true, false, DockerDaemonTypeNone | DockerDaemonTypeLocal},
+		{false, false, DockerDaemonTypeNone},
 	}
 
 	for _, test := range tests {
-		m := NewDockerDaemonType(test.allowLocal, test.allowRemote, test.preferslocal)
+		m := NewDockerDaemonType(test.allowLocal, test.allowRemote)
 		assert.Equal(t, test.expected, m)
 	}
 }
