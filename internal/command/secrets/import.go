@@ -13,8 +13,6 @@ import (
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/watch"
-	"github.com/superfly/flyctl/iostreams"
 )
 
 func newImport() (cmd *cobra.Command) {
@@ -37,7 +35,6 @@ func newImport() (cmd *cobra.Command) {
 func runImport(ctx context.Context) (err error) {
 	client := client.FromContext(ctx).API()
 	appName := app.NameFromContext(ctx)
-	out := iostreams.FromContext(ctx).Out
 	app, err := client.GetAppCompact(ctx, appName)
 
 	if err != nil {
@@ -107,14 +104,5 @@ func runImport(ctx context.Context) (err error) {
 		return err
 	}
 
-	if !app.Deployed {
-		fmt.Fprint(out, "Secrets are staged for the first deployment")
-		return nil
-	}
-
-	fmt.Fprintf(out, "Release v%d created\n", release.Version)
-
-	err = watch.Deployment(ctx, release.EvaluationID)
-
-	return err
+	return deployForSecrets(ctx, app, release)
 }
