@@ -20,7 +20,10 @@ func New() *cobra.Command {
 	secrets := command.New("secrets", short, long, nil)
 
 	secrets.AddCommand(
+		newList(),
 		newSet(),
+		newUnset(),
+		newImport(),
 	)
 
 	return secrets
