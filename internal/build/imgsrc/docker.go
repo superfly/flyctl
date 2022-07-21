@@ -31,15 +31,6 @@ type dockerClientFactory struct {
 }
 
 func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, appName string, streams *iostreams.IOStreams) *dockerClientFactory {
-	noneFactory := func() *dockerClientFactory {
-		return &dockerClientFactory{
-			mode: DockerDaemonTypeNone,
-			buildFn: func(ctx context.Context) (*dockerclient.Client, error) {
-				return nil, errors.New("no docker daemon available")
-			},
-		}
-	}
-
 	remoteFactory := func() *dockerClientFactory {
 		terminal.Debug("trying remote docker daemon")
 		var cachedDocker *dockerclient.Client
@@ -89,7 +80,13 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 	if daemonType.AllowRemote() {
 		return remoteFactory()
 	}
-	return noneFactory()
+
+	return &dockerClientFactory{
+		mode: DockerDaemonTypeNone,
+		buildFn: func(ctx context.Context) (*dockerclient.Client, error) {
+			return nil, errors.New("no docker daemon available")
+		},
+	}
 }
 
 func NewDockerDaemonType(allowLocal, allowRemote, prefersLocal bool) DockerDaemonType {
