@@ -16,17 +16,10 @@ import (
 // Deploy ta machines app directly from flyctl, applying the desired config to running machines,
 // or launching new ones
 func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.DeploymentImage, strategy string) (err error) {
-	io := iostreams.FromContext(ctx)
 
 	client := client.FromContext(ctx).API()
 
 	app, err := client.GetAppCompact(ctx, config.AppName)
-
-	if err != nil {
-		return
-	}
-
-	flapsClient, err := flaps.New(ctx, app)
 
 	if err != nil {
 		return
@@ -88,11 +81,17 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 		return err
 	}
 
-	launchInput := api.LaunchMachineInput{
-		AppID:   config.AppName,
-		OrgSlug: app.Organization.ID,
-		Region:  config.GetPrimaryRegion(),
-		Config:  machineConfig,
+	return DeployMachinesApp(ctx, app, strategy, machineConfig)
+}
+
+func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string, machineConfig *api.MachineConfig) (err error) {
+	io := iostreams.FromContext(ctx)
+	fmt.Fprintf(io.Out, "Deploying with %s strategy\n", strategy)
+
+	flapsClient, err := flaps.New(ctx, app)
+
+	if err != nil {
+		return
 	}
 
 	machines, err := flapsClient.List(ctx, "")
@@ -101,12 +100,17 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 		return
 	}
 
+	launchInput := api.LaunchMachineInput{
+		AppID:   app.Name,
+		OrgSlug: app.Organization.ID,
+		Config:  machineConfig,
+	}
+
 	if len(machines) > 0 {
 
 		for _, machine := range machines {
 
 			fmt.Fprintf(io.Out, "Taking lease out on VM %s\n", machine.ID)
-			launchInput.ID = machine.ID
 			leaseTTL := api.IntPointer(30)
 			lease, err := flapsClient.GetLease(ctx, machine.ID, leaseTTL)
 
@@ -124,6 +128,20 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 
 			launchInput.ID = machine.ID
 
+			// We assume an empty config means the deploy should simply recreate machines with the existing config,
+			// for example for applying recently set secrets
+
+			if launchInput.Config == nil {
+				freshMachine, err := flapsClient.Get(ctx, machine.ID)
+
+				if err != nil {
+					return err
+				}
+
+				launchInput.Config = freshMachine.Config
+				launchInput.Region = machine.Region
+			}
+
 			// Until mounts are supported in fly.toml, ensure deployments
 			// maintain any existing volume attachments
 			if machine.Config.Mounts != nil {
@@ -132,10 +150,20 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 
 			updateResult, err := flapsClient.Update(ctx, launchInput, machine.LeaseNonce)
 
-			if err != nil && strategy == "immediate" {
-				fmt.Printf("Continuing after error: %s\n", err)
-			} else if err != nil {
-				return err
+			if err != nil {
+
+				if strategy != "immediate" {
+					leaseErr := flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
+
+					if leaseErr != nil {
+						fmt.Fprintf(io.Out, "Could not release lease for %s\n", machine.ID)
+					}
+
+					return err
+
+				} else {
+					fmt.Printf("Continuing after error: %s\n", err)
+				}
 			}
 
 			if strategy != "immediate" {
@@ -143,6 +171,7 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 				err = flapsClient.Wait(ctx, updateResult)
 
 				if err != nil {
+					err = flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
 					return err
 				}
 			}
@@ -154,10 +183,11 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 			fmt.Fprintf(io.Out, "Releasing lease on %s\n", machine.ID)
 			err = flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
 			if err != nil {
-				return err
+				fmt.Println(io.Out, fmt.Errorf("could not release lease on %s (%w)", machine.ID, err))
 			}
 
 		}
+
 		fmt.Fprintln(io.Out)
 
 	} else {
