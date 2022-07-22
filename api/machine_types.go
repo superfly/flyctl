@@ -141,10 +141,10 @@ type MachinePort struct {
 }
 
 type MachineService struct {
-	Protocol     string                    `json:"protocol" toml:"protocol"`
-	InternalPort int                       `json:"internal_port" toml:"internal_port"`
-	Ports        []MachinePort             `json:"ports" toml:"ports"`
-	Concurrency  MachineServiceConcurrency `json:"concurrency" toml:"concurrency"`
+	Protocol     string                     `json:"protocol" toml:"protocol"`
+	InternalPort int                        `json:"internal_port" toml:"internal_port"`
+	Ports        []MachinePort              `json:"ports" toml:"ports"`
+	Concurrency  *MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
 }
 
 type MachineServiceConcurrency struct {
