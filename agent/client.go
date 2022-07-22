@@ -26,7 +26,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/logger"
-	"github.com/superfly/flyctl/internal/wireguard"
+	"github.com/superfly/flyctl/wireguard"
 )
 
 // Establish starts the daemon, if necessary, and returns a client to it.

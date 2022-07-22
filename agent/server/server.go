@@ -22,7 +22,7 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/sentry"
-	"github.com/superfly/flyctl/internal/wireguard"
+	"github.com/superfly/flyctl/wireguard"
 )
 
 type Options struct {

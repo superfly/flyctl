@@ -23,8 +23,8 @@ import (
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/terminal"
+	"github.com/superfly/flyctl/wireguard"
 )
 
 func newWireGuardCommand(client *client.Client) *Command {
