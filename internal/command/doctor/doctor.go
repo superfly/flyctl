@@ -196,7 +196,7 @@ func runPersonalOrgPing(ctx context.Context) (err error) {
 		return fmt.Errorf("ping gateway: weird error: %w", err)
 	}
 
-	org, err := client.FindOrganizationBySlug(ctx, "personal")
+	org, err := client.GetOrganizationBySlug(ctx, "personal")
 	if err != nil {
 		// shouldn't happen, already verified auth token
 		return fmt.Errorf("ping gateway: weird error: %w", err)

@@ -9,9 +9,9 @@ import (
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -35,9 +35,10 @@ func newLog() *cobra.Command {
 
 func runLog(ctx context.Context) (err error) {
 	client := client.FromContext(ctx).API()
-	org, err := prompt.Org(ctx)
 	jsonOutput := config.FromContext(ctx).JSONOutput
 	out := iostreams.FromContext(ctx).Out
+
+	org, err := orgs.OrgFromFirstArgOrSelect(ctx)
 
 	if err != nil {
 		return err
