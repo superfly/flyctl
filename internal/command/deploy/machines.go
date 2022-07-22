@@ -44,7 +44,7 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 		httpService := api.MachineService{
 			Protocol:     "tcp",
 			InternalPort: config.HttpService.InternalPort,
-			Concurrency:  concurrency,
+			Concurrency:  &concurrency,
 			Ports: []api.MachinePort{
 				{
 					Port:       80,
