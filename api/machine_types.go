@@ -165,6 +165,7 @@ type MachineConfig struct {
 	VMSize   string            `json:"size,omitempty"`
 	Guest    *MachineGuest     `json:"guest,omitempty"`
 	Metrics  *MachineMetrics   `json:"metrics"`
+	Schedule string            `json:"schedule,omitempty"`
 }
 
 type MachineLease struct {
