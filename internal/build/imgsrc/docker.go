@@ -447,7 +447,7 @@ func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient *api.Client, orgS
 		return
 	}
 
-	org, err := apiClient.FindOrganizationBySlug(ctx, orgSlug)
+	org, err := apiClient.GetOrganizationBySlug(ctx, orgSlug)
 	if err != nil {
 		terminal.Debugf("error resolving organization for slug %s: %s", orgSlug, err)
 		return
