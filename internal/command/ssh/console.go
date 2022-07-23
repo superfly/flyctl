@@ -10,7 +10,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/agent"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -64,7 +66,7 @@ func runConsole(ctx context.Context) error {
 
 	terminal.Debugf("Retrieving app info for %s\n", appName)
 
-	app, err := client.GetAppBasic(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
@@ -110,28 +112,14 @@ func runConsole(ctx context.Context) error {
 
 	var addr string
 
-	if flag.GetBool(ctx, "select") {
-		instances, err := agentclient.Instances(ctx, app.Organization.Slug, appName)
-		if err != nil {
-			return fmt.Errorf("look up %s: %w", appName, err)
-		}
-
-		selected := 0
-		prompt := &survey.Select{
-			Message:  "Select instance:",
-			Options:  instances.Labels,
-			PageSize: 15,
-		}
-
-		if err := survey.AskOne(prompt, &selected); err != nil {
-			return fmt.Errorf("selecting instance: %w", err)
-		}
-
-		addr = fmt.Sprintf("[%s]", instances.Addresses[selected])
-	} else if len(flag.Args(ctx)) != 0 {
-		addr = flag.Args(ctx)[0]
+	if app.PlatformVersion == "machines" {
+		addr, err = addrForMachines(ctx, app)
 	} else {
-		addr = fmt.Sprintf("top1.nearest.of.%s.internal", appName)
+		addr, err = addrForNomad(ctx, agentclient, app)
+	}
+
+	if err != nil {
+		return err
 	}
 
 	// wait for the addr to be resolved in dns unless it's an ip address
@@ -217,4 +205,102 @@ func sshConnect(p *SSHParams, addr string) error {
 	}
 
 	return nil
+}
+
+func addrForMachines(ctx context.Context, app *api.AppCompact) (addr string, err error) {
+	out := iostreams.FromContext(ctx).Out
+	flapsClient, err := flaps.New(ctx, app)
+
+	if err != nil {
+		return "", err
+	}
+
+	machines, err := flapsClient.List(ctx, "")
+
+	if err != nil {
+		return "", err
+	}
+
+	var namesWithRegion []string
+	var selectedMachine *api.Machine
+
+	for _, machine := range machines {
+		namesWithRegion = append(namesWithRegion, fmt.Sprintf("%s: %s %s %s", machine.Region, machine.ID, machine.PrivateIP, machine.Name))
+	}
+
+	if flag.GetBool(ctx, "select") {
+
+		selected := 0
+
+		prompt := &survey.Select{
+			Message:  "Select VM:",
+			Options:  namesWithRegion,
+			PageSize: 15,
+		}
+
+		if err := survey.AskOne(prompt, &selected); err != nil {
+			return "", fmt.Errorf("selecting VM: %w", err)
+		}
+
+		selectedMachine = machines[selected]
+
+		if selectedMachine.State != "started" {
+			fmt.Fprintf(out, "Starting machine %s..", selectedMachine.ID)
+			_, err := flapsClient.Start(ctx, selectedMachine.ID)
+
+			if err != nil {
+				return "", err
+			}
+
+			err = flapsClient.Wait(ctx, selectedMachine)
+
+			if err != nil {
+				return "", err
+			}
+
+		}
+	}
+
+	if len(flag.Args(ctx)) != 0 {
+		return flag.Args(ctx)[0], nil
+	}
+
+	if selectedMachine == nil {
+		selectedMachine = machines[0]
+	}
+	// No VM was selected or passed as an argument, so just pick the first one for now
+	// Later, we might want to use 'nearest.of' but also resolve the machine IP to be able to start it
+	return fmt.Sprintf("[%s]", selectedMachine.PrivateIP), nil
+}
+
+func addrForNomad(ctx context.Context, agentclient *agent.Client, app *api.AppCompact) (addr string, err error) {
+
+	if flag.GetBool(ctx, "select") {
+
+		instances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
+
+		if err != nil {
+			return "", fmt.Errorf("look up %s: %w", app.Name, err)
+		}
+
+		selected := 0
+		prompt := &survey.Select{
+			Message:  "Select instance:",
+			Options:  instances.Labels,
+			PageSize: 15,
+		}
+
+		if err := survey.AskOne(prompt, &selected); err != nil {
+			return "", fmt.Errorf("selecting instance: %w", err)
+		}
+
+		addr = fmt.Sprintf("[%s]", instances.Addresses[selected])
+		return addr, nil
+	}
+
+	if len(flag.Args(ctx)) != 0 {
+		return flag.Args(ctx)[0], nil
+	}
+
+	return fmt.Sprintf("top1.nearest.of.%s.internal", app.Name), nil
 }
