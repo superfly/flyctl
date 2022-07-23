@@ -16,8 +16,7 @@ func New() *cobra.Command {
 
 	cmd.AddCommand(
 		newConsole(),
-		// newEstablish(),
-		// newIssue(),
+		newIssue(),
 		newLog(),
 	)
 

@@ -18,8 +18,7 @@ import (
 
 func newLog() *cobra.Command {
 	const (
-		long = `Log of all issued SSH certs
-`
+		long  = `Log of all issued SSH certs`
 		short = long
 		usage = "log"
 	)

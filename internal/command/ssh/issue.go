@@ -31,17 +31,45 @@ func newIssue() *cobra.Command {
 	const (
 		long = `Issue a new SSH credential. With -agent, populate credential
 into SSH agent. With -hour, set the number of hours (1-72) for credential
-validity.
-`
-		short = `Issue a new SSH credential
-`
+validity.`
+		short = `Issue a new SSH credential`
 		usage = "issue [org] [email] [path]"
 	)
 
-	cmd := command.New(usage, short, long, runLog, command.RequireSession)
+	cmd := command.New(usage, short, long, runSSHIssue, command.RequireSession)
+
+	cmd.Args = cobra.MaximumNArgs(3)
 
 	flag.Add(cmd,
 		flag.Org(),
+		flag.String{
+			Name:        "username",
+			Shorthand:   "u",
+			Description: "Unix username for SSH cert",
+		},
+		flag.Int{
+			Name:        "hours",
+			Default:     24,
+			Description: "Expiration, in hours (<72)",
+		},
+
+		flag.Bool{
+			Name:        "agent",
+			Default:     false,
+			Description: "Add key to SSH agent",
+		},
+		flag.Bool{
+			Name:        "dotssh",
+			Shorthand:   "d",
+			Default:     false,
+			Description: "Store keys in ~/.ssh, like normal keys",
+		},
+
+		flag.Bool{
+			Name:        "overwrite",
+			Default:     false,
+			Description: "Overwrite existing SSH keys in same location, if we generated them",
+		},
 	)
 
 	return cmd

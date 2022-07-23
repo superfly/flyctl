@@ -23,8 +23,7 @@ import (
 
 func newConsole() *cobra.Command {
 	const (
-		long = `Connect to a running instance of the current app.
-`
+		long  = `Connect to a running instance of the current app.`
 		short = long
 		usage = "console"
 	)
