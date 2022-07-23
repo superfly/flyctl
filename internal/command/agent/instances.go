@@ -42,7 +42,7 @@ func runInstances(ctx context.Context) (err error) {
 	apiClient := apiClient.FromContext(ctx).API()
 
 	var org *api.Organization
-	if org, err = apiClient.FindOrganizationBySlug(ctx, slug); err != nil {
+	if org, err = apiClient.GetOrganizationBySlug(ctx, slug); err != nil {
 		err = fmt.Errorf("failed fetching org: %w", err)
 
 		return

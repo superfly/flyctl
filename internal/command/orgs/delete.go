@@ -34,7 +34,7 @@ func newDelete() *cobra.Command {
 }
 
 func runDelete(ctx context.Context) error {
-	org, err := detailsFromFirstArgOrSelect(ctx)
+	org, err := OrgFromFirstArgOrSelect(ctx)
 	if err != nil {
 		return err
 	}

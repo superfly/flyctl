@@ -218,7 +218,7 @@ func setPagerDutyChecksHandler(cmdCtx *cmdctx.CmdContext, org *api.Organization,
 func runDeleteChecksHandler(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 
-	org, err := cmdCtx.Client.API().FindOrganizationBySlug(ctx, cmdCtx.Args[0])
+	org, err := cmdCtx.Client.API().GetOrganizationBySlug(ctx, cmdCtx.Args[0])
 	if err != nil {
 		return err
 	}
