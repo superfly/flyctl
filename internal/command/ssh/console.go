@@ -217,6 +217,10 @@ func addrForMachines(ctx context.Context, app *api.AppCompact) (addr string, err
 
 	machines, err := flapsClient.List(ctx, "")
 
+	if len(machines) < 1 {
+		return "", fmt.Errorf("app %s has no VMs", app.Name)
+	}
+
 	if err != nil {
 		return "", err
 	}
