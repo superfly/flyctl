@@ -7,10 +7,9 @@ import (
 )
 
 // TODO: make internal once the open command has been deprecated
-func NewOpen() (cmd *cobra.Command) {
+func New() (cmd *cobra.Command) {
 	const (
-		long = `Launch and manage a Redis instance`
-
+		long  = `Launch and manage a Redis instance`
 		short = long
 	)
 
@@ -18,8 +17,8 @@ func NewOpen() (cmd *cobra.Command) {
 
 	cmd.AddCommand(
 		newCreate(),
+		newList(),
 	)
 
-	return
-
+	return cmd
 }
