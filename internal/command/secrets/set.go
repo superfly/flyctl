@@ -26,6 +26,7 @@ func newSet() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Detach(),
 	)
 
 	cmd.Args = cobra.MinimumNArgs(1)
@@ -66,6 +67,10 @@ func runSet(ctx context.Context) (err error) {
 	}
 
 	release, err := client.SetSecrets(ctx, appName, secrets)
+
+	if err != nil {
+		return err
+	}
 
 	return deployForSecrets(ctx, app, release)
 }

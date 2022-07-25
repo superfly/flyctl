@@ -7,6 +7,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -40,15 +41,24 @@ func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Rel
 	out := iostreams.FromContext(ctx).Out
 
 	if app.PlatformVersion == "machines" {
+
+		if flag.GetBool(ctx, "detach") {
+			fmt.Fprint(out, "The --detach option isn't available for Machine apps")
+		}
+
 		return deploy.DeployMachinesApp(ctx, app, "rolling", nil)
 	}
 
 	if !app.Deployed {
 		fmt.Fprint(out, "Secrets are staged for the first deployment")
-		return nil
+		return
 	}
 
 	fmt.Fprintf(out, "Release v%d created\n", release.Version)
+
+	if flag.GetBool(ctx, "detach") {
+		return
+	}
 
 	err = watch.Deployment(ctx, release.EvaluationID)
 
