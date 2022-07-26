@@ -32,7 +32,7 @@ type Machine struct {
 }
 
 func (m Machine) FullImageRef() string {
-	return fmt.Sprintf("%s:%s", m.ImageRef.Repository, m.ImageRef.Tag)
+	return fmt.Sprintf("%s/%s:%s", m.ImageRef.Registry, m.ImageRef.Repository, m.ImageRef.Tag)
 }
 
 type machineImageRef struct {
