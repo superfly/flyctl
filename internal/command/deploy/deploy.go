@@ -52,6 +52,7 @@ func New() (cmd *cobra.Command) {
 		flag.Now(),
 		flag.RemoteOnly(false),
 		flag.LocalOnly(),
+		flag.Bool{Name: "nixpacks", Default: false},
 		flag.BuildOnly(),
 		flag.Push(),
 		flag.Detach(),
@@ -204,7 +205,7 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.DeploymentImage, err error) {
 	tb := render.NewTextBlock(ctx, "Building image")
 
-	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI())
+	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), flag.GetBool(ctx, "nixpacks"))
 
 	var appName string = app.NameFromContext(ctx)
 	if appConfig.AppName != "" && appName == "" {

@@ -11,20 +11,21 @@ func TestAllowedDockerDaemonMode(t *testing.T) {
 		allowLocal   bool
 		allowRemote  bool
 		preferslocal bool
+		useNixpacks  bool
 		expected     DockerDaemonType
 	}{
-		{false, false, false, DockerDaemonTypeNone},
-		{false, false, true, DockerDaemonTypeNone | DockerDaemonTypePrefersLocal},
-		{false, true, false, DockerDaemonTypeNone | DockerDaemonTypeRemote},
-		{false, true, true, DockerDaemonTypeNone | DockerDaemonTypeRemote | DockerDaemonTypePrefersLocal},
-		{true, false, false, DockerDaemonTypeNone | DockerDaemonTypeLocal},
-		{true, false, true, DockerDaemonTypeNone | DockerDaemonTypeLocal | DockerDaemonTypePrefersLocal},
-		{true, true, false, DockerDaemonTypeNone | DockerDaemonTypeLocal | DockerDaemonTypeRemote},
-		{true, true, true, DockerDaemonTypeNone | DockerDaemonTypeLocal | DockerDaemonTypeRemote | DockerDaemonTypePrefersLocal},
+		{false, false, false, false, DockerDaemonTypeNone},
+		{false, false, true, false, DockerDaemonTypeNone | DockerDaemonTypePrefersLocal},
+		{false, true, false, false, DockerDaemonTypeNone | DockerDaemonTypeRemote},
+		{false, true, true, false, DockerDaemonTypeNone | DockerDaemonTypeRemote | DockerDaemonTypePrefersLocal},
+		{true, false, false, false, DockerDaemonTypeNone | DockerDaemonTypeLocal},
+		{true, false, true, false, DockerDaemonTypeNone | DockerDaemonTypeLocal | DockerDaemonTypePrefersLocal},
+		{true, true, false, false, DockerDaemonTypeNone | DockerDaemonTypeLocal | DockerDaemonTypeRemote},
+		{true, true, true, false, DockerDaemonTypeNone | DockerDaemonTypeLocal | DockerDaemonTypeRemote | DockerDaemonTypePrefersLocal},
 	}
 
 	for _, test := range tests {
-		m := NewDockerDaemonType(test.allowLocal, test.allowRemote, test.preferslocal)
+		m := NewDockerDaemonType(test.allowLocal, test.allowRemote, test.preferslocal, test.useNixpacks)
 		assert.Equal(t, test.expected, m)
 	}
 }

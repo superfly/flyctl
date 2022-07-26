@@ -71,7 +71,7 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		cmdfmt.PrintServicesList(cmdCtx.IO, parsedCfg.Services)
 	}
 
-	daemonType := imgsrc.NewDockerDaemonType(!cmdCtx.Config.GetBool("remote-only"), !cmdCtx.Config.GetBool("local-only"), env.IsCI())
+	daemonType := imgsrc.NewDockerDaemonType(!cmdCtx.Config.GetBool("remote-only"), !cmdCtx.Config.GetBool("local-only"), env.IsCI(), cmdCtx.Config.GetBool("nixpacks"))
 	resolver := imgsrc.NewResolver(daemonType, cmdCtx.Client.API(), cmdCtx.AppName, cmdCtx.IO)
 
 	var img *imgsrc.DeploymentImage
