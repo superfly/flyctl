@@ -269,7 +269,7 @@ func runMachineRun(ctx context.Context) error {
 		return err
 	}
 
-	img, err := determineImage(ctx, machineApp.Name)
+	img, err := determineImage(ctx, machineApp.Name, flag.FirstArg(ctx))
 	if err != nil {
 		return err
 	}
@@ -388,7 +388,7 @@ func parseEnvVars(ctx context.Context) (map[string]string, error) {
 	return env, nil
 }
 
-func determineImage(ctx context.Context, appName string) (img *imgsrc.DeploymentImage, err error) {
+func determineImage(ctx context.Context, appName string, imageOrPath string) (img *imgsrc.DeploymentImage, err error) {
 	var (
 		client = client.FromContext(ctx).API()
 		io     = iostreams.FromContext(ctx)
@@ -397,7 +397,6 @@ func determineImage(ctx context.Context, appName string) (img *imgsrc.Deployment
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI())
 	resolver := imgsrc.NewResolver(daemonType, client, appName, io)
 
-	imageOrPath := flag.FirstArg(ctx)
 	// build if relative or absolute path
 	if strings.HasPrefix(imageOrPath, ".") || strings.HasPrefix(imageOrPath, "/") {
 		opts := imgsrc.ImageOptions{
