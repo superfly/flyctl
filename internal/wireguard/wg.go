@@ -9,8 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	badrand "math/rand"
-
+	"github.com/oklog/ulid/v2"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
@@ -37,7 +36,7 @@ func generatePeerName(ctx context.Context, apiClient *api.Client) (string, error
 	}
 	hostSlug := cleanDNSPattern.ReplaceAllString(strings.Split(host, ".")[0], "-")
 
-	name := fmt.Sprintf("%s-%s-%d", hostSlug, emailSlug, badrand.Intn(1000)) // skipcq: GSC-G404
+	name := fmt.Sprintf("%s-%s-%s", hostSlug, emailSlug, ulid.Make())
 	return name, nil
 }
 
