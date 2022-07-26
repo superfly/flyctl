@@ -16,6 +16,7 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 	s := &SourceInfo{
 		Files:  templates("templates/rails/standard"),
 		Family: "Rails",
+		Port:   8080,
 		Statics: []Static{
 			{
 				GuestPath: "/app/public",
