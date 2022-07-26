@@ -33,6 +33,7 @@ func New() *cobra.Command {
 		newProxy(),
 		newLaunch(),
 		newClone(),
+		newUpdate(),
 	)
 
 	return cmd

@@ -8,6 +8,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/render"
@@ -33,8 +34,12 @@ associated member. Details full list of members and roles.
 	return cmd
 }
 
-func runShow(ctx context.Context) error {
-	org, err := detailsFromFirstArgOrSelect(ctx)
+func runShow(ctx context.Context) (err error) {
+	client := client.FromContext(ctx).API()
+	selectedOrg, err := OrgFromFirstArgOrSelect(ctx)
+
+	org, err := client.GetDetailedOrganizationBySlug(ctx, selectedOrg.Slug)
+
 	if err != nil {
 		return err
 	}

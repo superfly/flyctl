@@ -33,7 +33,7 @@ func (client *Client) GetOrganizations(ctx context.Context) ([]Organization, err
 	return data.Organizations.Nodes, nil
 }
 
-func (client *Client) FindOrganizationBySlug(ctx context.Context, slug string) (*Organization, error) {
+func (client *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*Organization, error) {
 	q := `
 		query($slug: String!) {
 			organization(slug: $slug) {
@@ -89,7 +89,7 @@ func (client *Client) GetCurrentOrganizations(ctx context.Context) (Organization
 	return data.PersonalOrganization, data.Organizations.Nodes, nil
 }
 
-func (client *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*OrganizationDetails, error) {
+func (client *Client) GetDetailedOrganizationBySlug(ctx context.Context, slug string) (*OrganizationDetails, error) {
 	query := `query($slug: String!) {
 		organizationdetails: organization(slug: $slug) {
 		  id

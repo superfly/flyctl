@@ -93,16 +93,16 @@ func slugFromFirstArgOrSelect(ctx context.Context) (slug string, err error) {
 	return
 }
 
-func detailsFromFirstArgOrSelect(ctx context.Context) (*api.OrganizationDetails, error) {
+func OrgFromFirstArgOrSelect(ctx context.Context) (*api.Organization, error) {
 	slug, err := slugFromFirstArgOrSelect(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return detailsFromSlug(ctx, slug)
+	return OrgFromSlug(ctx, slug)
 }
 
-func detailsFromSlug(ctx context.Context, slug string) (*api.OrganizationDetails, error) {
+func OrgFromSlug(ctx context.Context, slug string) (*api.Organization, error) {
 	client := client.FromContext(ctx).API()
 
 	org, err := client.GetOrganizationBySlug(ctx, slug)

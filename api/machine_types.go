@@ -32,7 +32,7 @@ type Machine struct {
 }
 
 func (m Machine) FullImageRef() string {
-	return fmt.Sprintf("%s:%s", m.ImageRef.Repository, m.ImageRef.Tag)
+	return fmt.Sprintf("%s/%s:%s", m.ImageRef.Registry, m.ImageRef.Repository, m.ImageRef.Tag)
 }
 
 type machineImageRef struct {
@@ -141,10 +141,10 @@ type MachinePort struct {
 }
 
 type MachineService struct {
-	Protocol     string                    `json:"protocol" toml:"protocol"`
-	InternalPort int                       `json:"internal_port" toml:"internal_port"`
-	Ports        []MachinePort             `json:"ports" toml:"ports"`
-	Concurrency  MachineServiceConcurrency `json:"concurrency" toml:"concurrency"`
+	Protocol     string                     `json:"protocol" toml:"protocol"`
+	InternalPort int                        `json:"internal_port" toml:"internal_port"`
+	Ports        []MachinePort              `json:"ports" toml:"ports"`
+	Concurrency  *MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
 }
 
 type MachineServiceConcurrency struct {
@@ -165,6 +165,7 @@ type MachineConfig struct {
 	VMSize   string            `json:"size,omitempty"`
 	Guest    *MachineGuest     `json:"guest,omitempty"`
 	Metrics  *MachineMetrics   `json:"metrics"`
+	Schedule string            `json:"schedule,omitempty"`
 }
 
 type MachineLease struct {

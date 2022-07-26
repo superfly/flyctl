@@ -56,6 +56,14 @@ type Flag interface {
 	addTo(*cobra.Command)
 }
 
+type Set []Flag
+
+func (s Set) addTo(cmd *cobra.Command) {
+	for _, flag := range s {
+		flag.addTo(cmd)
+	}
+}
+
 // Add adds flag to cmd, binding them on v should v not be nil.
 func Add(cmd *cobra.Command, flags ...Flag) {
 	for _, flag := range flags {
