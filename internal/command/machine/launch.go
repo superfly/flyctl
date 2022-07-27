@@ -61,10 +61,6 @@ func newLaunch() (cmd *cobra.Command) {
 			Description: "Do not prompt for deployment",
 		},
 		flag.Bool{
-			Name:        "copy-config",
-			Description: "Use the configuration file if present, without prompting",
-		},
-		flag.Bool{
 			Name:        "generate-name",
 			Description: "Always generate a name for the app, without prompting",
 		},
