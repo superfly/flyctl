@@ -29,6 +29,7 @@ func newCreate() *cobra.Command {
 		cmd,
 		flag.Region(),
 		flag.Org(),
+		flag.Detach(),
 		flag.String{
 			Name:        "name",
 			Shorthand:   "n",

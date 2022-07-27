@@ -143,5 +143,5 @@ func runUpdate(ctx context.Context) error {
 		}
 	}
 
-	return watch.Deployment(ctx, release.EvaluationID)
+	return watch.Deployment(ctx, appName, release.EvaluationID)
 }

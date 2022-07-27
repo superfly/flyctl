@@ -9,6 +9,8 @@ import (
 	"github.com/superfly/flyctl/helpers"
 
 	machines "github.com/superfly/flyctl/internal/command/machine"
+	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/watch"
 
 	"github.com/superfly/flyctl/flaps"
 	iostreams "github.com/superfly/flyctl/iostreams"
@@ -173,6 +175,10 @@ func (l *Launcher) LaunchNomadPostgres(ctx context.Context, config *CreateCluste
 	fmt.Fprintf(io.Out, "  Postgres Port: 5433\n")
 	fmt.Fprintf(io.Out, "  Connection string:  %s\n", connStr)
 	fmt.Fprintf(io.Out, "Save your credentials in a secure place, you won't be able to see them again!\n")
+
+	if !flag.GetDetach(ctx) {
+		return watch.Deployment(ctx, payload.App.Name, "")
+	}
 
 	return
 }
