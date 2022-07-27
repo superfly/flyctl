@@ -90,6 +90,11 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 
 func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string, machineConfig *api.MachineConfig) (err error) {
 	io := iostreams.FromContext(ctx)
+
+	if strategy == "" {
+		strategy = "rolling"
+	}
+
 	fmt.Fprintf(io.Out, "Deploying with %s strategy\n", strategy)
 
 	flapsClient, err := flaps.New(ctx, app)
