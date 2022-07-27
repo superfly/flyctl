@@ -32,15 +32,19 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 	// Convert the new, slimmer http service config to standard services
 	if config.HttpService != nil {
 		concurrency := config.HttpService.Concurrency
-		if concurrency.Type == "" {
-			concurrency.Type = "requests"
+
+		if concurrency != nil {
+			if concurrency.Type == "" {
+				concurrency.Type = "requests"
+			}
+			if concurrency.HardLimit == 0 {
+				concurrency.HardLimit = 25
+			}
+			if concurrency.SoftLimit == 0 {
+				concurrency.SoftLimit = int(math.Ceil(float64(concurrency.HardLimit) * 0.8))
+			}
 		}
-		if concurrency.HardLimit == 0 {
-			concurrency.HardLimit = 25
-		}
-		if concurrency.SoftLimit == 0 {
-			concurrency.SoftLimit = int(math.Ceil(float64(concurrency.HardLimit) * 0.8))
-		}
+
 		httpService := api.MachineService{
 			Protocol:     "tcp",
 			InternalPort: config.HttpService.InternalPort,

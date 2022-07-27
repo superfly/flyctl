@@ -29,8 +29,8 @@ import (
 
 func New() (cmd *cobra.Command) {
 	const (
-		long = `Deploy Fly applications from source or an image using a local or remote builder. 
-		
+		long = `Deploy Fly applications from source or an image using a local or remote builder.
+
 		To disable colorized output and show full Docker build output, set the environment variable NO_COLOR=1.
 	`
 		short = "Deploy Fly applications"
@@ -52,14 +52,11 @@ func New() (cmd *cobra.Command) {
 		flag.Now(),
 		flag.RemoteOnly(false),
 		flag.LocalOnly(),
-		flag.Bool{Name: "nixpacks", Default: false},
+		flag.Nixpacks(),
 		flag.BuildOnly(),
 		flag.Push(),
 		flag.Detach(),
-		flag.String{
-			Name:        "strategy",
-			Description: "The strategy for replacing running instances. Options are canary, rolling, bluegreen, or immediate. Default is canary, or rolling when max-per-region is set.",
-		},
+		flag.Strategy(),
 		flag.Dockerfile(),
 		flag.StringSlice{
 			Name:        "env",

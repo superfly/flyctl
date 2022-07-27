@@ -48,6 +48,8 @@ func newLaunch() (cmd *cobra.Command) {
 		flag.RemoteOnly(true),
 		flag.LocalOnly(),
 		flag.BuildOnly(),
+		flag.Nixpacks(),
+		flag.Strategy(),
 		flag.Push(),
 		flag.Org(),
 		flag.Dockerfile(),
@@ -135,7 +137,14 @@ func run(ctx context.Context) (err error) {
 	regionCode := flag.GetString(ctx, "region")
 
 	if regionCode == "" {
-		region, err := client.GetNearestRegion(ctx)
+
+		regions, requestRegion, err := client.PlatformRegions(ctx)
+
+		if err != nil {
+			return fmt.Errorf("couldn't fetch platform regions: %w", err)
+		}
+
+		region, err := prompt.SelectRegion(ctx, regions, requestRegion.Code)
 
 		if err != nil {
 			return err
@@ -368,7 +377,7 @@ func setScannerPrefs(ctx context.Context, appConfig *app.Config, srcInfo *scanne
 				Name:      vol.Source,
 				Region:    region,
 				SizeGb:    1,
-				Encrypted: true,
+				Encrypted: false,
 			})
 
 			if err != nil {
@@ -461,6 +470,7 @@ func printAppType(ctx context.Context, srcInfo *scanner.SourceInfo) {
 }
 
 func setupHttpService(ctx context.Context, appConfig *app.Config, srcInfo *scanner.SourceInfo) (err error) {
+	client := client.FromContext(ctx).API()
 
 	var choseHttpService bool = false
 	var port, sourcePort int
@@ -489,7 +499,16 @@ func setupHttpService(ctx context.Context, appConfig *app.Config, srcInfo *scann
 			if err != nil {
 				return
 			}
+			_, err = client.AllocateIPAddress(ctx, appConfig.AppName, "v4", "")
 
+			if err != nil {
+				return err
+			}
+
+			_, err = client.AllocateIPAddress(ctx, appConfig.AppName, "v6", "")
+			if err != nil {
+				return err
+			}
 		}
 
 		appConfig.HttpService.InternalPort = port
