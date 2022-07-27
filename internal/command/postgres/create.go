@@ -82,10 +82,8 @@ func runCreate(ctx context.Context) (err error) {
 		io     = iostreams.FromContext(ctx)
 	)
 	var (
-		appName    = flag.GetString(ctx, "name")
-		orgSlug    = flag.GetString(ctx, "org")
-		regionCode = flag.GetString(ctx, "region")
-		imageRef   = flag.GetString(ctx, "image-ref")
+		appName  = flag.GetString(ctx, "name")
+		imageRef = flag.GetString(ctx, "image-ref")
 	)
 
 	if appName == "" {
@@ -96,20 +94,16 @@ func runCreate(ctx context.Context) (err error) {
 
 	var org *api.Organization
 
-	if orgSlug == "" {
-		org, err = prompt.Org(ctx)
-		if err != nil {
-			return
-		}
+	org, err = prompt.Org(ctx)
+	if err != nil {
+		return
 	}
 
 	var region *api.Region
 
-	if regionCode == "" {
-		region, err = prompt.Region(ctx)
-		if err != nil {
-			return
-		}
+	region, err = prompt.Region(ctx)
+	if err != nil {
+		return
 	}
 
 	input := &flypg.CreateClusterInput{
@@ -123,13 +117,7 @@ func runCreate(ctx context.Context) (err error) {
 	initialClusterSize := flag.GetInt(ctx, "initial-cluster-size")
 	vmSizeName := flag.GetString(ctx, "vm-size")
 
-	fmt.Printf("debug: vmSizeName: %s\n", vmSizeName)
-	fmt.Printf("debug: volumeSize: %d\n", volumeSize)
-	fmt.Printf("debug: initialClusterSize: %d\n", initialClusterSize)
-
 	customConfig := volumeSize != 0 || vmSizeName != "" || initialClusterSize != 0
-
-	fmt.Printf("debug: %v\n", customConfig)
 
 	var config *PostgresConfiguration
 
@@ -159,7 +147,7 @@ func runCreate(ctx context.Context) (err error) {
 	if customConfig {
 		// Resolve cluster size
 		if initialClusterSize == 0 {
-			err := prompt.Int(ctx, &initialClusterSize, "Initial cluster size", 2, false)
+			err := prompt.Int(ctx, &initialClusterSize, "Initial cluster size", 2, true)
 			if err != nil {
 				return err
 			}
@@ -171,6 +159,7 @@ func runCreate(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
+
 		input.VMSize = api.StringPointer(vmSize.Name)
 
 		// Resolve volume size

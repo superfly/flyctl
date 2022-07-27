@@ -22,9 +22,9 @@ func RegionsByNameAndCode(regions []api.Region) {
 	})
 }
 
-// VMSizesByName sorts VM sizes by their name.
-func VMSizesByName(sizes []api.VMSize) {
+// VMSizesBySize sorts VM sizes by their name.
+func VMSizesBySize(sizes []api.VMSize) {
 	sort.Slice(sizes, func(i, j int) bool {
-		return sizes[i].Name < sizes[j].Name
+		return sizes[i].CPUCores < sizes[j].CPUCores
 	})
 }

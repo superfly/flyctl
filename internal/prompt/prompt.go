@@ -282,6 +282,8 @@ func SelectRegion(ctx context.Context, regions []api.Region, defaultCode string)
 	return
 }
 
+var errVMsizeRequired = NonInteractiveError("vm size must be specified when not running interactively")
+
 func VMSize(ctx context.Context, def string) (size *api.VMSize, err error) {
 	client := client.FromContext(ctx).API()
 
@@ -290,7 +292,7 @@ func VMSize(ctx context.Context, def string) (size *api.VMSize, err error) {
 		return nil, err
 	}
 
-	sort.VMSizesByName(vmSizes)
+	sort.VMSizesBySize(vmSizes)
 
 	switch {
 	case def != "":
@@ -299,14 +301,13 @@ func VMSize(ctx context.Context, def string) (size *api.VMSize, err error) {
 				return &vmSize, nil
 			}
 		}
-
 		return nil, fmt.Errorf("vm size %s not found", def)
 	default:
-		switch org, err := SelectVMSize(ctx, vmSizes); {
+		switch vmSize, err := SelectVMSize(ctx, vmSizes); {
 		case err == nil:
-			return org, nil
+			return vmSize, nil
 		case IsNonInteractive(err):
-			return nil, errOrgSlugRequired
+			return nil, errVMsizeRequired
 		default:
 			return nil, err
 		}
