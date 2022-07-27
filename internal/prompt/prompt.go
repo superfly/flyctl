@@ -323,8 +323,8 @@ func SelectVMSize(ctx context.Context, vmSizes []api.VMSize) (vmSize *api.VMSize
 
 	var index int
 
-	if err := Select(ctx, &index, "Select VM size:", "", options...); err == nil {
-		vmSize = &vmSizes[index]
+	if err := Select(ctx, &index, "Select VM size:", "", options...); err != nil {
+		return nil, err
 	}
-	return
+	return &vmSizes[index], nil
 }
