@@ -69,7 +69,6 @@ func newCreate() *cobra.Command {
 		flag.Bool{
 			Name:        "machines",
 			Description: "Create postgres cluster on fly machines",
-			Hidden:      true,
 			Default:     false,
 		},
 	)
