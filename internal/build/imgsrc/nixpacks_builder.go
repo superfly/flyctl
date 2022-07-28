@@ -14,6 +14,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/command/orgs/builder"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/proxy"
 	"github.com/superfly/flyctl/terminal"
@@ -103,7 +104,7 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 			return nil, err
 		}
 
-		machine, err := remoteBuilderMachine(ctx, dockerFactory.app)
+		machine, err := builder.GetMachine(ctx, dockerFactory.app.Organization.Slug)
 		if err != nil {
 			return nil, err
 		}

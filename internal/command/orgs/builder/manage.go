@@ -10,8 +10,19 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func GetMachine(ctx context.Context, app *api.AppCompact) (builder *api.Machine, err error) {
-	flapsClient, err := flaps.New(ctx, app)
+func GetMachine(ctx context.Context, orgSlug string) (builder *api.Machine, err error) {
+	client := client.FromContext(ctx).API()
+
+	org, err := client.GetOrganizationBySlug(ctx, orgSlug)
+
+	if err != nil {
+		return
+	}
+
+	if org.RemoteBuilderApp == nil {
+		return nil, fmt.Errorf("organization %s has no remote builder app", orgSlug)
+	}
+	flapsClient, err := flaps.New(ctx, org.RemoteBuilderApp)
 
 	if err != nil {
 		return
@@ -20,7 +31,7 @@ func GetMachine(ctx context.Context, app *api.AppCompact) (builder *api.Machine,
 	machines, err := flapsClient.List(ctx, "")
 
 	if len(machines) < 1 {
-		return nil, fmt.Errorf("app %s has no machines", app.Name)
+		return nil, fmt.Errorf("builder app %s has no machines", org.RemoteBuilderApp.Name)
 	} else {
 		builder = machines[0]
 	}

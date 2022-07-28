@@ -174,7 +174,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, app *api.
 	var host string
 	var err error
 
-	machine, err := remoteBuilderMachine(ctx, app)
+	machine, err := builder.GetMachine(ctx, app.Organization.Slug)
 
 	if err != nil {
 		return nil, err
@@ -441,13 +441,6 @@ func resolveDockerfile(cwd string) string {
 		return dockerfilePath
 	}
 	return ""
-}
-
-func remoteBuilderMachine(ctx context.Context, app *api.AppCompact) (*api.Machine, error) {
-	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
-		return nil, nil
-	}
-	return builder.GetMachine(ctx, app)
 }
 
 func (d *dockerClientFactory) IsRemote() bool {
