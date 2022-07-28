@@ -185,9 +185,23 @@ func (f *Client) Destroy(ctx context.Context, input api.RemoveMachineInput) (err
 	return
 }
 
+func (f *Client) Wake(ctx context.Context, machineID string) (err error) {
+	var in = map[string]interface{}{
+		// SIGUSR1
+		"signal": 10,
+	}
+	err = f.sendRequest(ctx, http.MethodPost, fmt.Sprintf("/%s/signal", machineID), in, nil, nil)
+
+	if err != nil {
+		return fmt.Errorf("failed to send USR1 signal to VM %s: %w", machineID, err)
+	}
+	return
+}
+
 func (f *Client) Kill(ctx context.Context, machineID string) (err error) {
 
 	var in = map[string]interface{}{
+		// SIGKILL
 		"signal": 9,
 	}
 	err = f.sendRequest(ctx, http.MethodPost, fmt.Sprintf("/%s/signal", machineID), in, nil, nil)

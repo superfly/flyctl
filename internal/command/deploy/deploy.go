@@ -212,7 +212,13 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 	client := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
 
-	resolver := imgsrc.NewResolver(daemonType, client, appName, io)
+	deployApp, err := client.GetAppCompact(ctx, appName)
+
+	if err != nil {
+		return nil, err
+	}
+
+	resolver := imgsrc.NewResolver(daemonType, client, deployApp, io)
 
 	var imageRef string
 	if imageRef, err = fetchImageRef(ctx, appConfig); err != nil {

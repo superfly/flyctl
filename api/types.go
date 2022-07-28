@@ -57,7 +57,7 @@ type Query struct {
 
 	// mutations
 	CreateApp struct {
-		App App
+		AppCompact AppCompact
 	}
 
 	SetSecrets struct {
@@ -475,7 +475,7 @@ type Organization struct {
 	InternalNumericID  string
 	Name               string
 	RemoteBuilderImage string
-	RemoteBuilderApp   *App
+	RemoteBuilderApp   *AppCompact
 	Slug               string
 	Type               string
 	Domains            struct {

@@ -20,10 +20,10 @@ import (
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/app"
-	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/deploy"
+	"github.com/superfly/flyctl/internal/command/orgs/builder"
 	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -104,7 +104,7 @@ func run(ctx context.Context) (err error) {
 	// If we potentially are deploying, launch a remote builder to prepare for deployment
 
 	if !flag.GetBool(ctx, "no-deploy") {
-		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, client, org.Slug)
+		go builder.LaunchOrWake(ctx, org.Slug)
 	}
 
 	// Create the app

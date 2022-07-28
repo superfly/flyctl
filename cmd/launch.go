@@ -20,7 +20,7 @@ import (
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/build/imgsrc"
+	"github.com/superfly/flyctl/internal/command/orgs/builder"
 	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/scanner"
 	"github.com/superfly/graphql"
@@ -101,7 +101,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	if orgSlug == "" {
 		eagerBuilderOrg = "personal"
 	}
-	go imgsrc.EagerlyEnsureRemoteBuilder(ctx, cmdCtx.Client.API(), eagerBuilderOrg)
+	go builder.LaunchOrWake(ctx, eagerBuilderOrg)
 
 	appConfig := flyctl.NewAppConfig()
 
@@ -243,7 +243,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 
 	// spawn another builder if the chosen org is different
 	if org.Slug != eagerBuilderOrg {
-		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, cmdCtx.Client.API(), org.Slug)
+		go builder.LaunchOrWake(ctx, eagerBuilderOrg)
 	}
 
 	regionCode := cmdCtx.Config.GetString("region")
@@ -259,11 +259,17 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	app, err := cmdCtx.Client.API().CreateApp(ctx, input)
+
 	if err != nil {
 		return err
 	}
+
 	if !importedConfig {
-		appConfig.Definition = app.Config.Definition
+		appWithConfig, err := cmdCtx.Client.API().GetApp(ctx, cmdCtx.AppName)
+		if err != nil {
+			return err
+		}
+		appConfig.Definition = appWithConfig.Config.Definition
 	}
 
 	cmdCtx.AppName = app.Name

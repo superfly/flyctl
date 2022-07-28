@@ -307,11 +307,11 @@ func (client *Client) GetAppPostgres(ctx context.Context, appName string) (*AppP
 	return &data.AppPostgres, nil
 }
 
-func (client *Client) CreateApp(ctx context.Context, input CreateAppInput) (*App, error) {
+func (client *Client) CreateApp(ctx context.Context, input CreateAppInput) (*AppCompact, error) {
 	query := `
 		mutation($input: CreateAppInput!) {
 			createApp(input: $input) {
-				app {
+				appcompact:app {
 					id
 					name
 					organization {
@@ -338,7 +338,7 @@ func (client *Client) CreateApp(ctx context.Context, input CreateAppInput) (*App
 		return nil, err
 	}
 
-	return &data.CreateApp.App, nil
+	return &data.CreateApp.AppCompact, nil
 }
 
 func (client *Client) DeleteApp(ctx context.Context, appName string) error {

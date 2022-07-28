@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/command/orgs/builder"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -30,10 +31,10 @@ type dockerClientFactory struct {
 	remote    bool
 	buildFn   func(ctx context.Context) (*dockerclient.Client, error)
 	apiClient *api.Client
-	appName   string
+	app       *api.AppCompact
 }
 
-func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, appName string, streams *iostreams.IOStreams) *dockerClientFactory {
+func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, app *api.AppCompact, streams *iostreams.IOStreams) *dockerClientFactory {
 	remoteFactory := func() *dockerClientFactory {
 		terminal.Debug("trying remote docker daemon")
 		var cachedDocker *dockerclient.Client
@@ -45,7 +46,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 				if cachedDocker != nil {
 					return cachedDocker, nil
 				}
-				c, err := newRemoteDockerClient(ctx, apiClient, appName, streams)
+				c, err := newRemoteDockerClient(ctx, apiClient, app, streams)
 				if err != nil {
 					return nil, err
 				}
@@ -53,7 +54,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 				return cachedDocker, nil
 			},
 			apiClient: apiClient,
-			appName:   appName,
+			app:       app,
 		}
 	}
 
@@ -167,14 +168,14 @@ func NewLocalDockerClient() (*dockerclient.Client, error) {
 	return c, nil
 }
 
-func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, streams *iostreams.IOStreams) (*dockerclient.Client, error) {
+func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, app *api.AppCompact, streams *iostreams.IOStreams) (*dockerclient.Client, error) {
 	startedAt := time.Now()
 
 	var host string
-	var app *api.App
 	var err error
-	var machine *api.GqlMachine
-	machine, app, err = remoteBuilderMachine(ctx, apiClient, appName)
+
+	machine, err := remoteBuilderMachine(ctx, app)
+
 	if err != nil {
 		return nil, err
 	}
@@ -214,18 +215,13 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 		)
 	}
 
-	for _, ip := range machine.IPs.Nodes {
-		terminal.Debugf("checking ip %+v\n", ip)
-		if ip.Kind == "privatenet" {
-			host = "tcp://[" + ip.IP + "]:2375"
-			break
-		}
-	}
+	host = "tcp://[" + machine.PrivateIP + "]:2375"
+
 	if host == "" {
 		return nil, errors.New("machine did not have a private IP")
 	}
 
-	opts, err := buildRemoteClientOpts(ctx, apiClient, appName, host)
+	opts, err := buildRemoteClientOpts(ctx, apiClient, app.Name, host)
 	if err != nil {
 		streams.StopProgressIndicator()
 
@@ -447,33 +443,11 @@ func resolveDockerfile(cwd string) string {
 	return ""
 }
 
-func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient *api.Client, orgSlug string) {
-	// skip if local docker is available
-	if _, err := NewLocalDockerClient(); err == nil {
-		return
-	}
-
-	org, err := apiClient.GetOrganizationBySlug(ctx, orgSlug)
-	if err != nil {
-		terminal.Debugf("error resolving organization for slug %s: %s", orgSlug, err)
-		return
-	}
-
-	_, app, err := apiClient.EnsureRemoteBuilder(ctx, org.ID, "")
-	if err != nil {
-		terminal.Debugf("error ensuring remote builder for organization: %s", err)
-		return
-	}
-
-	terminal.Debugf("remote builder %s is being prepared", app.Name)
-}
-
-func remoteBuilderMachine(ctx context.Context, apiClient *api.Client, appName string) (*api.GqlMachine, *api.App, error) {
+func remoteBuilderMachine(ctx context.Context, app *api.AppCompact) (*api.Machine, error) {
 	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
-		return nil, nil, nil
+		return nil, nil
 	}
-
-	return apiClient.EnsureRemoteBuilder(ctx, "", appName)
+	return builder.GetMachine(ctx, app)
 }
 
 func (d *dockerClientFactory) IsRemote() bool {

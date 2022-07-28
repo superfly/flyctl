@@ -103,23 +103,18 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 			return nil, err
 		}
 
-		machine, app, err := remoteBuilderMachine(ctx, dockerFactory.apiClient, dockerFactory.appName)
+		machine, err := remoteBuilderMachine(ctx, dockerFactory.app)
 		if err != nil {
 			return nil, err
 		}
 
-		var remoteHost string
-		for _, ip := range machine.IPs.Nodes {
-			terminal.Debugf("checking ip %+v\n", ip)
-			if ip.Kind == "privatenet" {
-				remoteHost = ip.IP
-				break
-			}
-		}
+		remoteHost := machine.PrivateIP
 
 		if remoteHost == "" {
 			return nil, fmt.Errorf("could not find machine IP")
 		}
+
+		app := dockerFactory.app
 
 		dialer, err := agentclient.ConnectToTunnel(ctx, app.Organization.Slug)
 		if err != nil {

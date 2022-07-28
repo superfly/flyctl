@@ -144,6 +144,7 @@ func runTurboku(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	app, err := fly.CreateApp(ctx, input)
+	var appWithConfig *api.App
 
 	switch isTakenError(err) {
 
@@ -153,11 +154,12 @@ func runTurboku(cmdCtx *cmdctx.CmdContext) error {
 	case errAppNameTaken:
 		fmt.Printf("App %s already exists\n", appName)
 
-		app, err = fly.GetApp(ctx, appName)
-		if err != nil {
-			return err
-		}
 	default:
+		return err
+	}
+
+	appWithConfig, err = fly.GetApp(ctx, app.Name)
+	if err != nil {
 		return err
 	}
 
@@ -216,7 +218,7 @@ func runTurboku(cmdCtx *cmdctx.CmdContext) error {
 	// Generate an app config to write to fly.toml
 	appConfig := flyctl.NewAppConfig()
 
-	appConfig.Definition = app.Config.Definition
+	appConfig.Definition = appWithConfig.Config.Definition
 	procfile := ""
 
 	// Add each process to a Procfile and fly.toml

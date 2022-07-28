@@ -329,19 +329,19 @@ func parseKVFlag(ctx context.Context, flagName string, initialMap map[string]str
 	return parsed, nil
 }
 
-func determineImage(ctx context.Context, appName string, imageOrPath string) (img *imgsrc.DeploymentImage, err error) {
+func determineImage(ctx context.Context, app *api.AppCompact, imageOrPath string) (img *imgsrc.DeploymentImage, err error) {
 	var (
 		client = client.FromContext(ctx).API()
 		io     = iostreams.FromContext(ctx)
 	)
 
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-nixpacks"))
-	resolver := imgsrc.NewResolver(daemonType, client, appName, io)
+	resolver := imgsrc.NewResolver(daemonType, client, app, io)
 
 	// build if relative or absolute path
 	if strings.HasPrefix(imageOrPath, ".") || strings.HasPrefix(imageOrPath, "/") {
 		opts := imgsrc.ImageOptions{
-			AppName:    appName,
+			AppName:    app.Name,
 			WorkingDir: path.Join(state.WorkingDirectory(ctx), imageOrPath),
 			Publish:    !flag.GetBuildOnly(ctx),
 			ImageLabel: flag.GetString(ctx, "image-label"),
@@ -371,7 +371,7 @@ func determineImage(ctx context.Context, appName string, imageOrPath string) (im
 		}
 	} else {
 		opts := imgsrc.RefOptions{
-			AppName:    appName,
+			AppName:    app.Name,
 			WorkingDir: state.WorkingDirectory(ctx),
 			Publish:    !flag.GetBool(ctx, "build-only"),
 			ImageRef:   imageOrPath,
@@ -548,7 +548,7 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		return
 	}
 
-	img, err := determineImage(ctx, app.Name, image)
+	img, err := determineImage(ctx, app, image)
 	if err != nil {
 		return
 	}
