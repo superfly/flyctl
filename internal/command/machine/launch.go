@@ -45,7 +45,7 @@ func newLaunch() (cmd *cobra.Command) {
 		flag.Region(),
 		flag.Image(),
 		flag.Now(),
-		flag.RemoteOnly(true),
+		flag.RemoteOnly(false),
 		flag.LocalOnly(),
 		flag.BuildOnly(),
 		flag.Nixpacks(),

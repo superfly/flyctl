@@ -78,7 +78,7 @@ func newLaunchCommand(client *client.Client) *Command {
 	launchCmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "remote-only",
 		Description: "Perform builds remotely without using the local docker daemon",
-		Default:     true,
+		Default:     false,
 	})
 
 	return launchCmd
