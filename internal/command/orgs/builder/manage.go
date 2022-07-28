@@ -12,17 +12,25 @@ import (
 
 func GetMachine(ctx context.Context, orgSlug string) (builder *api.Machine, err error) {
 	client := client.FromContext(ctx).API()
+	out := iostreams.FromContext(ctx).Out
 
 	org, err := client.GetOrganizationBySlug(ctx, orgSlug)
+
+	builderApp := org.RemoteBuilderApp
 
 	if err != nil {
 		return
 	}
 
 	if org.RemoteBuilderApp == nil {
-		return nil, fmt.Errorf("organization %s has no remote builder app", orgSlug)
+		fmt.Fprintf(out, "organization %s has no remote builder app, so starting one now", orgSlug)
+		_, builderApp, err = LaunchOrWake(ctx, orgSlug)
+
+		if err != nil {
+			return nil, err
+		}
 	}
-	flapsClient, err := flaps.New(ctx, org.RemoteBuilderApp)
+	flapsClient, err := flaps.New(ctx, builderApp)
 
 	if err != nil {
 		return
@@ -44,37 +52,53 @@ func LaunchOrWake(ctx context.Context, orgSlug string) (builder *api.Machine, bu
 
 	org, err := client.GetOrganizationBySlug(ctx, orgSlug)
 
+	if err != nil {
+		return nil, nil, err
+	}
+
 	builderApp = org.RemoteBuilderApp
 
-	if err != nil {
-		return
-	}
-
-	var builderVolume api.Volume
-
-	volumes, err := client.GetVolumes(ctx, builderApp.Name)
-
-	if len(volumes) > 0 {
-		builderVolume = volumes[0]
-	} else {
-
-	}
-
-	if err != nil {
-		return
-	}
-
-	if org.RemoteBuilderApp == nil {
+	if builderApp == nil {
 		builderApp, err = client.CreateApp(ctx, api.CreateAppInput{
 			OrganizationID: org.ID,
 			AppRoleID:      "remote-docker-builder",
 			Machines:       true,
 		})
 
+	}
+
+	if err != nil {
+		return
+	}
+
+	var builderVolume *api.Volume
+
+	volumes, err := client.GetVolumes(ctx, builderApp.Name)
+
+	if len(volumes) > 0 {
+		builderVolume = &volumes[0]
+	} else {
+		region, err := client.GetNearestRegion(ctx)
+
 		if err != nil {
 			return nil, nil, err
 		}
 
+		builderVolume, err = client.CreateVolume(ctx, api.CreateVolumeInput{
+			AppID:  builderApp.ID,
+			Name:   "builder_data",
+			SizeGb: 50,
+			Region: region.Code,
+		})
+
+		if err != nil {
+			return nil, nil, err
+		}
+
+	}
+
+	if err != nil {
+		return
 	}
 
 	flapsClient, err := flaps.New(ctx, builderApp)
@@ -108,7 +132,7 @@ func LaunchOrWake(ctx context.Context, orgSlug string) (builder *api.Machine, bu
 		}
 
 		input := api.LaunchMachineInput{
-			AppID:  org.RemoteBuilderApp.ID,
+			AppID:  builderApp.ID,
 			Region: region.Code,
 			Config: &api.MachineConfig{
 				Image:  "flyio/rchab:sha-58e72ae",

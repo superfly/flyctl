@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
+	"github.com/superfly/flyctl/internal/command/orgs/builder"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -94,6 +95,8 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 	if strategy == "" {
 		strategy = "rolling"
 	}
+
+	go builder.LaunchOrWake(ctx, app.Organization.Slug)
 
 	fmt.Fprintf(io.Out, "Deploying with %s strategy\n", strategy)
 
