@@ -157,7 +157,6 @@ type MachineConfig struct {
 	Env      map[string]string `json:"env"`
 	Init     MachineInit       `json:"init,omitempty"`
 	Image    string            `json:"image"`
-	ImageRef machineImageRef   `json:"image_ref"`
 	Metadata map[string]string `json:"metadata"`
 	Mounts   []MachineMount    `json:"mounts,omitempty"`
 	Restart  MachineRestart    `json:"restart,omitempty"`
