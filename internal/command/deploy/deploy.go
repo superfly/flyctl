@@ -218,7 +218,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 		return nil, err
 	}
 
-	resolver := imgsrc.NewResolver(daemonType, client, deployApp, io)
+	resolver := imgsrc.NewResolver(ctx, daemonType, deployApp, io)
 
 	var imageRef string
 	if imageRef, err = fetchImageRef(ctx, appConfig); err != nil {

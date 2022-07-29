@@ -6,6 +6,7 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/logger"
 )
@@ -16,10 +17,13 @@ type Builder struct {
 	Client  *flaps.Client
 }
 
+// TODO: Once the launch command is refactored, we can remove the api.Client
+// from the code path leading here, since the api client will come from context
 func NewBuilder(ctx context.Context, orgSlug string) (builder *Builder, err error) {
-	client := client.FromContext(ctx).API()
 
-	org, err := client.GetOrganizationBySlug(ctx, orgSlug)
+	api := client.FromContext(ctx).API()
+
+	org, err := api.GetOrganizationBySlug(ctx, orgSlug)
 
 	if err != nil {
 		return nil, err
@@ -28,7 +32,7 @@ func NewBuilder(ctx context.Context, orgSlug string) (builder *Builder, err erro
 	builderApp := org.RemoteBuilderApp
 
 	if builderApp == nil {
-		_, builderApp, err = client.EnsureRemoteBuilder(ctx, org.ID)
+		_, builderApp, err = api.EnsureRemoteBuilder(ctx, org.ID)
 
 		if err != nil {
 			return nil, err

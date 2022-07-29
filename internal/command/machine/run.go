@@ -331,12 +331,11 @@ func parseKVFlag(ctx context.Context, flagName string, initialMap map[string]str
 
 func determineImage(ctx context.Context, app *api.AppCompact, imageOrPath string) (img *imgsrc.DeploymentImage, err error) {
 	var (
-		client = client.FromContext(ctx).API()
-		io     = iostreams.FromContext(ctx)
+		io = iostreams.FromContext(ctx)
 	)
 
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-nixpacks"))
-	resolver := imgsrc.NewResolver(daemonType, client, app, io)
+	resolver := imgsrc.NewResolver(ctx, daemonType, app, io)
 
 	// build if relative or absolute path
 	if strings.HasPrefix(imageOrPath, ".") || strings.HasPrefix(imageOrPath, "/") {

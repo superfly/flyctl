@@ -101,6 +101,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	if orgSlug == "" {
 		eagerBuilderOrg = "personal"
 	}
+
 	go func() {
 		builder, _ := builder.NewBuilder(ctx, eagerBuilderOrg)
 		builder.Start(ctx)
@@ -271,7 +272,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	if !importedConfig {
-		appWithConfig, err := cmdCtx.Client.API().GetApp(ctx, cmdCtx.AppName)
+		appWithConfig, err := cmdCtx.Client.API().GetApp(ctx, app.Name)
 		if err != nil {
 			return err
 		}
@@ -324,7 +325,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		}
 	}
 
-	fmt.Printf("Created app %s in organization %s\n", cmdCtx.AppName, org.Slug)
+	fmt.Printf("Created app %s in organization %s\n", app.Name, org.Slug)
 
 	// If secrets are requested by the launch scanner, ask the user to input them
 	if srcInfo != nil && len(srcInfo.Secrets) > 0 {
@@ -362,12 +363,12 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		}
 
 		if len(secrets) > 0 {
-			_, err := cmdCtx.Client.API().SetSecrets(ctx, cmdCtx.AppName, secrets)
+			_, err := cmdCtx.Client.API().SetSecrets(ctx, app.Name, secrets)
 
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Set secrets on %s: %s\n", cmdCtx.AppName, strings.Join(keys, ", "))
+			fmt.Printf("Set secrets on %s: %s\n", app.Name, strings.Join(keys, ", "))
 		}
 	}
 
@@ -376,7 +377,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 
 		for _, vol := range srcInfo.Volumes {
 
-			appID, err := cmdCtx.Client.API().GetAppID(ctx, cmdCtx.AppName)
+			appID, err := cmdCtx.Client.API().GetAppID(ctx, app.Name)
 
 			if err != nil {
 				return err
@@ -431,13 +432,13 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 
 	if !cmdCtx.Config.GetBool("no-deploy") && !cmdCtx.Config.GetBool("now") && !srcInfo.SkipDatabase && confirm("Would you like to setup a Postgresql database now?") {
 
-		appID, err := cmdCtx.Client.API().GetAppID(ctx, cmdCtx.AppName)
+		appID, err := cmdCtx.Client.API().GetAppID(ctx, app.Name)
 
 		if err != nil {
 			return err
 		}
 
-		clusterAppName := cmdCtx.AppName + "-db"
+		clusterAppName := app.Name + "-db"
 
 		cmdCtx.Config.Set("name", clusterAppName)
 		cmdCtx.Config.Set("region", region.Code)

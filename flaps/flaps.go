@@ -193,7 +193,7 @@ func (f *Client) Wake(ctx context.Context, machineID string) (err error) {
 	err = f.sendRequest(ctx, http.MethodPost, fmt.Sprintf("/%s/signal", machineID), in, nil, nil)
 
 	if err != nil {
-		return fmt.Errorf("failed to send USR1 signal to VM %s: %w", machineID, err)
+		return fmt.Errorf("failed to send USR1 signal VM %s: %w", machineID, err)
 	}
 	return
 }

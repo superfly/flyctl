@@ -14,6 +14,7 @@ import (
 	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -77,8 +78,10 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
+	ctx = client.NewContext(ctx, cmdCtx.Client)
+
 	daemonType := imgsrc.NewDockerDaemonType(!cmdCtx.Config.GetBool("remote-only"), !cmdCtx.Config.GetBool("local-only"), env.IsCI(), cmdCtx.Config.GetBool("nixpacks"))
-	resolver := imgsrc.NewResolver(daemonType, cmdCtx.Client.API(), app, cmdCtx.IO)
+	resolver := imgsrc.NewResolver(ctx, daemonType, app, cmdCtx.IO)
 
 	var img *imgsrc.DeploymentImage
 
