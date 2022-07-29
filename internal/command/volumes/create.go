@@ -58,7 +58,7 @@ sets the size as the number of gigabytes the volume will consume.`
 		},
 		flag.String{
 			Name:        "snapshot-id",
-			Description: "Creates the volume from the specified snapshot",
+			Description: "Provisons Volume from the specified snapshot",
 		},
 	)
 
