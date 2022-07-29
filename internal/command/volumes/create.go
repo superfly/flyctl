@@ -85,6 +85,11 @@ func runCreate(ctx context.Context) error {
 		return err
 	}
 
+	var snapshotID *string
+	if flag.GetString(ctx, "snapshot-id") != "" {
+		snapshotID = api.StringPointer(flag.GetString(ctx, "snapshot-id"))
+	}
+
 	input := api.CreateVolumeInput{
 		AppID:             appID,
 		Name:              volumeName,
@@ -92,7 +97,7 @@ func runCreate(ctx context.Context) error {
 		SizeGb:            flag.GetInt(ctx, "size"),
 		Encrypted:         !flag.GetBool(ctx, "no-encryption"),
 		RequireUniqueZone: flag.GetBool(ctx, "require-unique-zone"),
-		SnapshotID:        api.StringPointer(flag.GetString(ctx, "snapshot-id")),
+		SnapshotID:        snapshotID,
 	}
 
 	volume, err := client.CreateVolume(ctx, input)
