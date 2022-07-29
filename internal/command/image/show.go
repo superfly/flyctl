@@ -159,8 +159,8 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 
 		var version = "N/A"
 
-		if machine.ImageRef.Labels != nil && machine.ImageRef.Labels["fly.version"] != "" {
-			version = machine.ImageRef.Labels["fly.version"]
+		if machine.ImageVersion() != "" {
+			version = machine.ImageVersion()
 		}
 
 		obj := [][]string{
@@ -195,8 +195,8 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 
 		var version = "N/A"
 
-		if image.Labels != nil && image.Labels["fly.version"] != "" {
-			version = image.Labels["fly.version"]
+		if machine.ImageVersion() != "" {
+			version = machine.ImageVersion()
 		}
 
 		rows = append(rows, []string{

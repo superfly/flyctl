@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"syscall"
 	"time"
 )
@@ -259,6 +260,10 @@ type ImageVersion struct {
 	Tag        string
 	Version    string
 	Digest     string
+}
+
+func (img *ImageVersion) FullImageRef() string {
+	return fmt.Sprintf("%s:%s", img.Repository, img.Tag)
 }
 
 type App struct {

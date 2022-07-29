@@ -35,6 +35,17 @@ func (m Machine) FullImageRef() string {
 	return fmt.Sprintf("%s:%s", m.ImageRef.Repository, m.ImageRef.Tag)
 }
 
+func (m Machine) ImageVersion() string {
+	if m.ImageRef.Labels == nil {
+		return ""
+	}
+	return m.ImageRef.Labels["fly.version"]
+}
+
+func (m Machine) ImageRepository() string {
+	return m.ImageRef.Repository
+}
+
 type machineImageRef struct {
 	Registry   string            `json:"registry"`
 	Repository string            `json:"repository"`

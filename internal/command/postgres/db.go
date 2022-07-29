@@ -73,19 +73,6 @@ func runListDbs(ctx context.Context) error {
 		return fmt.Errorf("%s is not a postgres app", appName)
 	}
 
-	switch app.PlatformVersion {
-	case "nomad":
-		if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
-			return err
-		}
-	case "machines":
-		if err := hasRequiredVersionOnMachines(); err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("unsupported platform %s", app.PlatformVersion)
-	}
-
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
 		return fmt.Errorf("can't establish agent %w", err)
@@ -94,6 +81,23 @@ func runListDbs(ctx context.Context) error {
 	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
 	if err != nil {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
+	}
+
+	switch app.PlatformVersion {
+	case "nomad":
+		if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+			return err
+		}
+	case "machines":
+		leader, err := fetchLeader(ctx, app, dialer)
+		if err != nil {
+			return fmt.Errorf("can't fetch leader: %w", err)
+		}
+		if err := hasRequiredVersionOnMachines(leader, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupported platform %s", app.PlatformVersion)
 	}
 
 	pgclient := flypg.New(appName, dialer)

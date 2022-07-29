@@ -68,7 +68,21 @@ func runDetach(ctx context.Context) error {
 			return err
 		}
 	case "machines":
-		if err := hasRequiredVersionOnMachines(); err != nil {
+		agentclient, err := agent.Establish(ctx, client)
+		if err != nil {
+			return fmt.Errorf("can't establish agent %w", err)
+		}
+
+		dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+		if err != nil {
+			return fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
+		}
+
+		leader, err := fetchLeader(ctx, pgApp, dialer)
+		if err != nil {
+			return fmt.Errorf("can't fetch leader: %w", err)
+		}
+		if err := hasRequiredVersionOnMachines(leader, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
 	}

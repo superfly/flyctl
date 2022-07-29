@@ -89,24 +89,6 @@ func runConfigView(ctx context.Context) (err error) {
 		return fmt.Errorf("app %s is not a postgres app", app.Name)
 	}
 
-	switch app.PlatformVersion {
-	case "nomad":
-		if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
-			return err
-		}
-	case "machines":
-		fclt, err := flaps.New(ctx, app)
-		if err != nil {
-			return err
-		}
-
-		fclt.List(ctx, "started")
-
-		if err := hasRequiredVersionOnMachines(); err != nil {
-			return err
-		}
-	}
-
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
 		return errors.Wrap(err, "can't establish agent")
@@ -115,6 +97,21 @@ func runConfigView(ctx context.Context) (err error) {
 	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
 	if err != nil {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
+	}
+
+	switch app.PlatformVersion {
+	case "nomad":
+		if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+			return err
+		}
+	case "machines":
+		leader, err := fetchLeader(ctx, app, dialer)
+		if err != nil {
+			return fmt.Errorf("can't fetch leader: %w", err)
+		}
+		if err := hasRequiredVersionOnMachines(leader, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+			return err
+		}
 	}
 
 	pgclient := flypg.New(app.Name, dialer)
@@ -378,7 +375,7 @@ func updateMachinesConfig(ctx context.Context, app *api.AppCompact, changes map[
 	var leader *api.Machine
 
 	for _, machine := range machines {
-		address := formatAddress(machine)
+		address := fmt.Sprintf("[%s]", machine.PrivateIP)
 
 		pgclient := flypg.NewFromInstance(address, dialer)
 		if err != nil {

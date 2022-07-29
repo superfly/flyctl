@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hashicorp/go-version"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
@@ -103,17 +102,6 @@ func runAttach(ctx context.Context) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	switch app.PlatformVersion {
-	case "nomad":
-		if err := hasRequiredVersionOnNomad(pgApp, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
-			return err
-		}
-	case "machines":
-		if err := hasRequiredVersionOnMachines(); err != nil {
-			return err
-		}
-	}
-
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
 		return errors.Wrap(err, "can't establish agent")
@@ -122,6 +110,22 @@ func runAttach(ctx context.Context) error {
 	dialer, err := agentclient.Dialer(ctx, pgApp.Organization.Slug)
 	if err != nil {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s", pgApp.Organization.Slug, err)
+	}
+
+	switch app.PlatformVersion {
+	case "nomad":
+		if err := hasRequiredVersionOnNomad(pgApp, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+			return err
+		}
+	case "machines":
+		leader, err := fetchLeader(ctx, pgApp, dialer)
+		if err != nil {
+			return fmt.Errorf("can't fetch leader: %w", err)
+		}
+		if err := hasRequiredVersionOnMachines(leader, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+			return err
+		}
+	default:
 	}
 
 	pgclient := flypg.New(pgAppName, dialer)
@@ -205,50 +209,5 @@ func runAttach(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "\nPostgres cluster %s is now attached to %s\n", pgAppName, appName)
 	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  %s=%s\n", appName, *input.VariableName, connectionString)
 
-	return nil
-}
-
-func hasRequiredVersionOnNomad(app *api.AppCompact, cluster, standalone string) error {
-	// Validate image version to ensure it's compatible with this feature.
-	if app.ImageDetails.Version == "" || app.ImageDetails.Version == "unknown" {
-		return fmt.Errorf("command is not compatible with this image")
-	}
-
-	imageVersionStr := app.ImageDetails.Version[1:]
-	imageVersion, err := version.NewVersion(imageVersionStr)
-	if err != nil {
-		return err
-	}
-
-	// Specify compatible versions per repo.
-	requiredVersion := &version.Version{}
-	if app.ImageDetails.Repository == "flyio/postgres-standalone" {
-		requiredVersion, err = version.NewVersion(standalone)
-		if err != nil {
-			return err
-		}
-	}
-	if app.ImageDetails.Repository == "flyio/postgres" {
-		requiredVersion, err = version.NewVersion(cluster)
-		if err != nil {
-			return err
-		}
-	}
-
-	if requiredVersion == nil {
-		return fmt.Errorf("unable to resolve image version")
-	}
-
-	if imageVersion.LessThan(requiredVersion) {
-		return fmt.Errorf(
-			"image version is not compatible. (Current: %s, Required: >= %s)\n"+
-				"Please run 'flyctl image show' and update to the latest available version",
-			imageVersion, requiredVersion.String())
-	}
-
-	return nil
-}
-
-func hasRequiredVersionOnMachines() error {
 	return nil
 }

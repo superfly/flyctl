@@ -54,6 +54,10 @@ func newConnect() *cobra.Command {
 
 func runConnect(ctx context.Context) error {
 	var (
+		MinPostgresStandaloneVersion = "0.0.4"
+		MinPostgresHaVersion         = "0.0.9"
+	)
+	var (
 		appName = app.NameFromContext(ctx)
 		client  = client.FromContext(ctx).API()
 	)
@@ -75,6 +79,23 @@ func runConnect(ctx context.Context) error {
 	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
 	if err != nil {
 		return fmt.Errorf("failed to build tunnel for %s: %v", app.Organization.Slug, err)
+	}
+
+	switch app.PlatformVersion {
+	case "nomad":
+		if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresStandaloneVersion); err != nil {
+			return err
+		}
+	case "machines":
+		leader, err := fetchLeader(ctx, app, dialer)
+		if err != nil {
+			return fmt.Errorf("can't fetch leader: %w", err)
+		}
+		if err := hasRequiredVersionOnMachines(leader, MinPostgresHaVersion, MinPostgresStandaloneVersion); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("platform %s is not supported", app.PlatformVersion)
 	}
 
 	database := flag.GetString(ctx, "database")
