@@ -37,6 +37,7 @@ func newConsole() *cobra.Command {
 	flag.Add(cmd,
 		flag.Org(),
 		flag.App(),
+		flag.AppConfig(),
 		flag.String{
 			Name:        "command",
 			Shorthand:   "C",
