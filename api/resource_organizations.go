@@ -45,6 +45,10 @@ func (client *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*
 				remoteBuilderApp {
 					id
 					name
+					organization {
+						id
+						slug
+					}
 				}
 			}
 		}

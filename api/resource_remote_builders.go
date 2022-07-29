@@ -2,7 +2,7 @@ package api
 
 import "context"
 
-func (client *Client) EnsureRemoteBuilder(ctx context.Context, orgID, appName string) (*GqlMachine, *App, error) {
+func (client *Client) EnsureRemoteBuilder(ctx context.Context, orgID string) (*GqlMachine, *AppCompact, error) {
 	query := `
 		mutation($input: EnsureMachineRemoteBuilderInput!) {
 			ensureMachineRemoteBuilder(input: $input) {
@@ -30,16 +30,9 @@ func (client *Client) EnsureRemoteBuilder(ctx context.Context, orgID, appName st
 
 	req := client.NewRequest(query)
 
-	if orgID != "" {
-		req.Var("input", EnsureRemoteBuilderInput{
-			OrganizationID: StringPointer(orgID),
-		})
-	} else {
-		req.Var("input", EnsureRemoteBuilderInput{
-			AppName: StringPointer(appName),
-		})
-
-	}
+	req.Var("input", EnsureRemoteBuilderInput{
+		OrganizationID: StringPointer(orgID),
+	})
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {

@@ -7,29 +7,34 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/internal/logger"
 )
 
-func GetMachine(ctx context.Context, orgSlug string) (builder *api.Machine, err error) {
+type Builder struct {
+	Machine *api.Machine
+	App     *api.AppCompact
+	Client  *flaps.Client
+}
+
+func NewBuilder(ctx context.Context, orgSlug string) (builder *Builder, err error) {
 	client := client.FromContext(ctx).API()
-	out := iostreams.FromContext(ctx).Out
 
 	org, err := client.GetOrganizationBySlug(ctx, orgSlug)
 
-	builderApp := org.RemoteBuilderApp
-
 	if err != nil {
-		return
+		return nil, err
 	}
 
-	if org.RemoteBuilderApp == nil {
-		fmt.Fprintf(out, "organization %s has no remote builder app, so starting one now", orgSlug)
-		_, builderApp, err = LaunchOrWake(ctx, orgSlug)
+	builderApp := org.RemoteBuilderApp
+
+	if builderApp == nil {
+		_, builderApp, err = client.EnsureRemoteBuilder(ctx, org.ID)
 
 		if err != nil {
 			return nil, err
 		}
 	}
+
 	flapsClient, err := flaps.New(ctx, builderApp)
 
 	if err != nil {
@@ -37,117 +42,63 @@ func GetMachine(ctx context.Context, orgSlug string) (builder *api.Machine, err 
 	}
 
 	machines, err := flapsClient.List(ctx, "")
+
+	if err != nil {
+		return
+	}
 
 	if len(machines) < 1 {
 		return nil, fmt.Errorf("builder app %s has no machines", org.RemoteBuilderApp.Name)
-	} else {
-		builder = machines[0]
 	}
+
+	machine, err := flapsClient.Get(ctx, machines[0].ID)
+
+	if err != nil {
+		return
+	}
+
+	builder = &Builder{
+		App:     builderApp,
+		Machine: machine,
+		Client:  flapsClient,
+	}
+
 	return
 }
 
-func LaunchOrWake(ctx context.Context, orgSlug string) (builder *api.Machine, builderApp *api.AppCompact, err error) {
-	out := iostreams.FromContext(ctx).Out
-	client := client.FromContext(ctx).API()
+func (b *Builder) Start(ctx context.Context) (err error) {
+	logger := logger.FromContext(ctx)
 
-	org, err := client.GetOrganizationBySlug(ctx, orgSlug)
+	// The builder may be in a transitional state now, so we ignore its recorded state and run a series
+	// of start/wait/wake requests to ensure the builder is ready
 
-	if err != nil {
-		return nil, nil, err
-	}
+	logger.Debugf("Starting builder instance %s for builder app %s", b.Machine.ID, b.App.Name)
 
-	builderApp = org.RemoteBuilderApp
-
-	if builderApp == nil {
-		builderApp, err = client.CreateApp(ctx, api.CreateAppInput{
-			OrganizationID: org.ID,
-			AppRoleID:      "remote-docker-builder",
-			Machines:       true,
-		})
-
-	}
+	_, err = b.Client.Start(ctx, b.Machine.ID)
 
 	if err != nil {
 		return
 	}
 
-	var builderVolume *api.Volume
+	logger.Debugf("Starting builder instance %s for builder app %s", b.Machine.ID, b.App.Name)
 
-	volumes, err := client.GetVolumes(ctx, builderApp.Name)
-
-	if len(volumes) > 0 {
-		builderVolume = &volumes[0]
-	} else {
-		region, err := client.GetNearestRegion(ctx)
-
-		if err != nil {
-			return nil, nil, err
-		}
-
-		builderVolume, err = client.CreateVolume(ctx, api.CreateVolumeInput{
-			AppID:  builderApp.ID,
-			Name:   "builder_data",
-			SizeGb: 50,
-			Region: region.Code,
-		})
-
-		if err != nil {
-			return nil, nil, err
-		}
-
-	}
+	err = b.Client.Wait(ctx, b.Machine)
 
 	if err != nil {
 		return
 	}
 
-	flapsClient, err := flaps.New(ctx, builderApp)
+	logger.Debugf("Builder instance %s for builder app %s  was started", b.Machine.ID, b.App.Name)
 
-	if err != nil {
-		return
-	}
+	return
+}
 
-	machines, err := flapsClient.List(ctx, "")
+func (b *Builder) Wake(ctx context.Context) (err error) {
+	logger := logger.FromContext(ctx)
 
-	// We found a machine, so start or wake it
-	if len(machines) > 0 {
-		builder = machines[0]
-		if builder.State == "started" {
-			flapsClient.Wake(ctx, builder.ID)
-		} else {
-			flapsClient.Start(ctx, builder.ID)
-		}
+	logger.Debugf("Waking builder instance %s for builder app %s", b.Machine.ID, b.App.Name)
 
-	} else {
-
-		region, err := client.GetNearestRegion(ctx)
-
-		if err != nil {
-			return nil, nil, err
-		}
-
-		builderVolumeConf := api.MachineMount{
-			Path:   "/data",
-			Volume: builderVolume.Name,
-		}
-
-		input := api.LaunchMachineInput{
-			AppID:  builderApp.ID,
-			Region: region.Code,
-			Config: &api.MachineConfig{
-				Image:  "flyio/rchab:sha-58e72ae",
-				Mounts: []api.MachineMount{builderVolumeConf},
-			},
-		}
-
-		builder, err = flapsClient.Launch(ctx, input)
-
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
-	fmt.Fprintf(out, "Builder instance %s is ready\n", builder.ID)
+	err = b.Client.Wake(ctx, b.Machine.ID)
 
 	return
 }

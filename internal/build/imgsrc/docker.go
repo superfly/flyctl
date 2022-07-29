@@ -171,22 +171,19 @@ func NewLocalDockerClient() (*dockerclient.Client, error) {
 func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, app *api.AppCompact, streams *iostreams.IOStreams) (*dockerclient.Client, error) {
 	startedAt := time.Now()
 
-	var host string
 	var err error
 
-	machine, err := builder.GetMachine(ctx, app.Organization.Slug)
+	// Attempt to start the builder instance, in case it's stopped
+	builder, err := builder.NewBuilder(ctx, app.Organization.Slug)
+	builder.Start(ctx)
 
 	if err != nil {
 		return nil, err
 	}
-	remoteBuilderAppName := app.Name
-	remoteBuilderOrg := app.Organization.Slug
 
-	if host != "" {
-		terminal.Debugf("Remote Docker builder host: %s\n", host)
-	}
+	terminal.Debugf("Remote Docker builder host: %s\n", builder.Machine.PrivateIP)
 
-	if msg := fmt.Sprintf("Waiting for remote builder %s...", remoteBuilderAppName); streams.IsInteractive() {
+	if msg := fmt.Sprintf("Waiting for remote builder %s...", builder.App.Name); streams.IsInteractive() {
 		streams.StartProgressIndicatorMsg(msg)
 	} else {
 		fmt.Fprintln(streams.ErrOut, msg)
@@ -205,21 +202,17 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, app *api.
 					"name": app.Name,
 				},
 				"organization": map[string]interface{}{
-					"name": remoteBuilderOrg,
+					"name": builder.App.Organization.Slug,
 				},
 				"builder": map[string]interface{}{
-					"app_name": remoteBuilderAppName,
+					"app_name": builder.App.Name,
 				},
 				"elapsed": time.Since(startedAt),
 			}),
 		)
 	}
 
-	host = "tcp://[" + machine.PrivateIP + "]:2375"
-
-	if host == "" {
-		return nil, errors.New("machine did not have a private IP")
-	}
+	host := "tcp://[" + builder.Machine.PrivateIP + "]:2375"
 
 	opts, err := buildRemoteClientOpts(ctx, apiClient, app.Name, host)
 	if err != nil {
@@ -252,16 +245,19 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, app *api.
 	case !up:
 		streams.StopProgressIndicator()
 
-		terminal.Warnf("Remote builder did not start in time. Check remote builder logs with `flyctl logs -a %s`\n", remoteBuilderAppName)
+		terminal.Warnf("Remote builder did not start in time.")
+		terminal.Infof("Check remote builder logs with `flyctl logs -a %s`\n", builder.App.Name)
 
-		return nil, errors.New("remote builder app unavailable")
+		return nil, errors.New("remote builder app did not start in time")
 	default:
-		if msg := fmt.Sprintf("Remote builder %s ready", remoteBuilderAppName); streams.IsInteractive() {
+		if msg := fmt.Sprintf("Remote builder %s ready", builder.App.Name); streams.IsInteractive() {
 			streams.StopProgressIndicatorMsg(msg)
 		} else {
 			fmt.Fprintln(streams.ErrOut, msg)
 		}
 	}
+
+	err = builder.Wake(ctx)
 
 	return client, nil
 }

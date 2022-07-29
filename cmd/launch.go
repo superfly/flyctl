@@ -101,7 +101,10 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	if orgSlug == "" {
 		eagerBuilderOrg = "personal"
 	}
-	go builder.LaunchOrWake(ctx, eagerBuilderOrg)
+	go func() {
+		builder, _ := builder.NewBuilder(ctx, eagerBuilderOrg)
+		builder.Start(ctx)
+	}()
 
 	appConfig := flyctl.NewAppConfig()
 
@@ -243,7 +246,10 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 
 	// spawn another builder if the chosen org is different
 	if org.Slug != eagerBuilderOrg {
-		go builder.LaunchOrWake(ctx, eagerBuilderOrg)
+		go func() {
+			builder, _ := builder.NewBuilder(ctx, eagerBuilderOrg)
+			builder.Start(ctx)
+		}()
 	}
 
 	regionCode := cmdCtx.Config.GetString("region")

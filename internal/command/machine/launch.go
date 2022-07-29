@@ -101,10 +101,13 @@ func run(ctx context.Context) (err error) {
 		return
 	}
 
-	// If we potentially are deploying, launch a remote builder to prepare for deployment
+	// If we potentially are deploying, start the remote builder to prepare for deployment
 
 	if !flag.GetBool(ctx, "no-deploy") {
-		go builder.LaunchOrWake(ctx, org.Slug)
+		go func() {
+			builder, _ := builder.NewBuilder(ctx, org.Slug)
+			builder.Start(ctx)
+		}()
 	}
 
 	// Create the app

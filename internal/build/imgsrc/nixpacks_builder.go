@@ -47,6 +47,11 @@ func ensureNixpacksBinary(ctx context.Context, streams *iostreams.IOStreams) err
 
 	err = func() error {
 		out, err := os.Create(installPath)
+
+		if err != nil {
+			return err
+		}
+
 		defer out.Close()
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://raw.githubusercontent.com/railwayapp/nixpacks/master/install.sh", nil)
 		if err != nil {
@@ -104,12 +109,13 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 			return nil, err
 		}
 
-		machine, err := builder.GetMachine(ctx, dockerFactory.app.Organization.Slug)
+		builder, err := builder.NewBuilder(ctx, dockerFactory.app.Organization.Slug)
+
 		if err != nil {
 			return nil, err
 		}
 
-		remoteHost := machine.PrivateIP
+		remoteHost := builder.Machine.PrivateIP
 
 		if remoteHost == "" {
 			return nil, fmt.Errorf("could not find machine IP")

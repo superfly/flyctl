@@ -73,14 +73,8 @@ type Query struct {
 		ReleaseCommand *ReleaseCommand
 	}
 
-	EnsureRemoteBuilder *struct {
-		App     *App
-		URL     string
-		Release Release
-	}
-
 	EnsureMachineRemoteBuilder *struct {
-		App     *App
+		App     *AppCompact
 		Machine *GqlMachine
 	}
 
