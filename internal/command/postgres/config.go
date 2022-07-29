@@ -176,7 +176,7 @@ func runConfigView(ctx context.Context) (err error) {
 
 	if pendingRestart {
 		fmt.Fprintln(io.Out, colorize.Yellow("Some changes are awaiting a restart!"))
-		fmt.Fprintln(io.Out, colorize.Yellow(fmt.Sprintf("To apply changes, run: `DEV=1 fly services postgres restart --app %s`", appName)))
+		fmt.Fprintln(io.Out, colorize.Yellow(fmt.Sprintf("To apply changes, run: `fly postgres restart --app %s`", appName)))
 	}
 
 	return
@@ -353,7 +353,7 @@ func runConfigUpdate(ctx context.Context) (err error) {
 
 	if restartRequired {
 		fmt.Fprintln(io.Out, colorize.Yellow("Please note that some of your changes will require a cluster restart before they will be applied."))
-		fmt.Fprintln(io.Out, colorize.Yellow("To review the state of your changes, run: `DEV=1 fly services postgres config view`"))
+		fmt.Fprintln(io.Out, colorize.Yellow("To review the state of your changes, run: `fly postgres config view`"))
 	}
 	return
 }
