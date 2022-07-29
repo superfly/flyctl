@@ -123,7 +123,7 @@ func runUpdate(ctx context.Context) error {
 		return fmt.Errorf("this cluster has no leader")
 	}
 
-	image := fmt.Sprintf("%s:%s", leader.Config.ImageRef.Repository, leader.Config.ImageRef.Tag)
+	image := fmt.Sprintf("%s:%s", leader.ImageRef.Repository, leader.ImageRef.Tag)
 
 	latest, err := client.GetLatestImageDetails(ctx, image)
 	if err != nil {
@@ -133,7 +133,7 @@ func runUpdate(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "Updating replicas\n")
 
 	for _, replica := range replicas {
-		current := replica.Config.ImageRef
+		current := replica.ImageRef
 
 		if current.Labels["fly.version"] == latest.Version {
 			fmt.Fprintf(io.Out, "  %s: already up to date\n", replica.ID)
@@ -147,7 +147,7 @@ func runUpdate(ctx context.Context) error {
 		}
 	}
 
-	current := leader.Config.ImageRef
+	current := leader.ImageRef
 
 	if current.Labels["fly.version"] == latest.Version {
 		fmt.Fprintf(io.Out, "%s(leader): already up to date\n", leader.ID)

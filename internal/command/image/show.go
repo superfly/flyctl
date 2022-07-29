@@ -191,12 +191,12 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 	rows := [][]string{}
 
 	for _, machine := range machines {
-		var image = machine.Config.ImageRef
+		var image = machine.ImageRef
 
 		var version = "N/A"
 
-		if image.Labels != nil && image.Labels["version"] != "" {
-			version = image.Labels["version"]
+		if image.Labels != nil && image.Labels["fly.version"] != "" {
+			version = image.Labels["fly.version"]
 		}
 
 		rows = append(rows, []string{
