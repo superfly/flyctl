@@ -17,8 +17,6 @@ type Builder struct {
 	Client  *flaps.Client
 }
 
-// TODO: Once the launch command is refactored, we can remove the api.Client
-// from the code path leading here, since the api client will come from context
 func NewBuilder(ctx context.Context, orgSlug string) (builder *Builder, err error) {
 
 	api := client.FromContext(ctx).API()
