@@ -86,6 +86,7 @@ func newLaunchCommand(client *client.Client) *Command {
 
 func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
+	ctx = client.NewContext(ctx, cmdCtx.Client)
 
 	dir := cmdCtx.Config.GetString("path")
 
@@ -102,10 +103,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		eagerBuilderOrg = "personal"
 	}
 
-	go func() {
-		builder, _ := builder.NewBuilder(ctx, eagerBuilderOrg)
-		builder.Start(ctx)
-	}()
+	go eageryStartBuilder(ctx, eagerBuilderOrg)
 
 	appConfig := flyctl.NewAppConfig()
 
@@ -247,10 +245,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 
 	// spawn another builder if the chosen org is different
 	if org.Slug != eagerBuilderOrg {
-		go func() {
-			builder, _ := builder.NewBuilder(ctx, eagerBuilderOrg)
-			builder.Start(ctx)
-		}()
+		go eageryStartBuilder(ctx, org.Slug)
 	}
 
 	regionCode := cmdCtx.Config.GetString("region")
@@ -581,4 +576,11 @@ func shouldDeployExistingApp(cmdCtx *cmdctx.CmdContext, appName string) (bool, e
 	}
 
 	return true, nil
+}
+
+func eageryStartBuilder(ctx context.Context, org string) {
+	builder, err := builder.NewBuilder(ctx, org)
+	if err == nil {
+		builder.Start(ctx)
+	}
 }

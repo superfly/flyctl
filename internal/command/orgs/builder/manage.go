@@ -68,11 +68,9 @@ func NewBuilder(ctx context.Context, orgSlug string) (builder *Builder, err erro
 	return
 }
 
+// Start will attempt to start and wait for a machine to be ready, regardless of its current state
 func (b *Builder) Start(ctx context.Context) (err error) {
 	logger := logger.FromContext(ctx)
-
-	// The builder may be in a transitional state now, so we ignore its recorded state and run a series
-	// of start/wait/wake requests to ensure the builder is ready
 
 	logger.Debugf("Starting builder instance %s for builder app %s", b.Machine.ID, b.App.Name)
 
@@ -95,6 +93,7 @@ func (b *Builder) Start(ctx context.Context) (err error) {
 	return
 }
 
+// Wake sends a USR1 signal to a machine, which for remote builders means "stay alive"
 func (b *Builder) Wake(ctx context.Context) (err error) {
 	logger := logger.FromContext(ctx)
 
