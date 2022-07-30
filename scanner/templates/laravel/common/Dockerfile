@@ -19,6 +19,7 @@ RUN apk update \
            php8-simplexml php8-pecl-redis php8-sockets \
            php8-pcntl     php8-posix      php8-pecl-swoole \
            php8-fpm \
+    && ln -sf /usr/bin/php8 /usr/bin/php \
     && cp /etc/nginx/nginx.conf /etc/nginx/nginx.old.conf \
     && rm -rf /etc/nginx/http.d/default.conf \
     && curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
