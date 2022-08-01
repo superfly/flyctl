@@ -6,13 +6,15 @@ func configureNode(sourceDir string) (*SourceInfo, error) {
 	}
 
 	s := &SourceInfo{
-		Builder: "heroku/buildpacks:20",
-		Family:  "NodeJS",
-		Port:    8080,
+		//Builder: "heroku/buildpacks:20",
+		Family: "NodeJS",
+		Port:   8080,
 		Env: map[string]string{
 			"PORT": "8080",
 		},
 	}
+
+	s.Files = templates("templates/node")
 
 	return s, nil
 }
