@@ -34,7 +34,9 @@ sent, and the user will be pending until they respond. See also orgs revoke.
 }
 
 func runInvite(ctx context.Context) error {
-	slug, err := slugFromFirstArgOrSelect(ctx)
+	client := client.FromContext(ctx).API()
+
+	org, err := OrgFromFirstArgOrSelect(ctx)
 	if err != nil {
 		return nil
 	}
@@ -42,13 +44,6 @@ func runInvite(ctx context.Context) error {
 	email, err := emailFromSecondArgOrPrompt(ctx)
 	if err != nil {
 		return nil
-	}
-
-	client := client.FromContext(ctx).API()
-
-	org, err := detailsFromSlug(ctx, slug)
-	if err != nil {
-		return err
 	}
 
 	inv, err := client.CreateOrganizationInvite(ctx, org.ID, email)

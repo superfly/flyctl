@@ -88,7 +88,7 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 
 	archiveOpts := archiveOptions{
 		sourcePath: opts.WorkingDir,
-		compressed: dockerFactory.mode.IsRemote(),
+		compressed: dockerFactory.IsRemote(),
 	}
 
 	excludes, err := readDockerignore(opts.WorkingDir)

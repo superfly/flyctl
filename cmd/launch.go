@@ -78,7 +78,7 @@ func newLaunchCommand(client *client.Client) *Command {
 	launchCmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "remote-only",
 		Description: "Perform builds remotely without using the local docker daemon",
-		Default:     true,
+		Default:     false,
 	})
 
 	return launchCmd
@@ -146,7 +146,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 			Image: img,
 		}
 	} else if dockerfile := cmdCtx.Config.GetString("dockerfile"); dockerfile != "" {
-		fmt.Println("Using dockefile", dockerfile)
+		fmt.Println("Using dockerfile", dockerfile)
 		appConfig.Build = &flyctl.Build{
 			Dockerfile: dockerfile,
 		}

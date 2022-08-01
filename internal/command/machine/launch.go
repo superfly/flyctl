@@ -45,9 +45,11 @@ func newLaunch() (cmd *cobra.Command) {
 		flag.Region(),
 		flag.Image(),
 		flag.Now(),
-		flag.RemoteOnly(true),
+		flag.RemoteOnly(false),
 		flag.LocalOnly(),
 		flag.BuildOnly(),
+		flag.Nixpacks(),
+		flag.Strategy(),
 		flag.Push(),
 		flag.Org(),
 		flag.Dockerfile(),
@@ -59,10 +61,6 @@ func newLaunch() (cmd *cobra.Command) {
 		flag.Bool{
 			Name:        "no-deploy",
 			Description: "Do not prompt for deployment",
-		},
-		flag.Bool{
-			Name:        "copy-config",
-			Description: "Use the configuration file if present, without prompting",
 		},
 		flag.Bool{
 			Name:        "generate-name",
@@ -123,7 +121,7 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	fmt.Fprintf(io.Out, "Created app %s in org %s", createdApp.Name, org.Slug)
+	fmt.Fprintf(io.Out, "Created app %s in org %s\n", createdApp.Name, org.Slug)
 
 	// TODO: Handle imported fly.toml config
 
@@ -139,7 +137,14 @@ func run(ctx context.Context) (err error) {
 	regionCode := flag.GetString(ctx, "region")
 
 	if regionCode == "" {
-		region, err := client.GetNearestRegion(ctx)
+
+		regions, requestRegion, err := client.PlatformRegions(ctx)
+
+		if err != nil {
+			return fmt.Errorf("couldn't fetch platform regions: %w", err)
+		}
+
+		region, err := prompt.SelectRegion(ctx, regions, requestRegion.Code)
 
 		if err != nil {
 			return err
@@ -151,6 +156,8 @@ func run(ctx context.Context) (err error) {
 	appConfig.SetPrimaryRegion(regionCode)
 
 	var srcInfo *scanner.SourceInfo
+
+	appConfig.Build = &app.Build{}
 
 	// Determine whether to deploy from an image
 	if img := flag.GetString(ctx, "image"); img != "" {
@@ -174,35 +181,10 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
-	// If this project runs an http service, setup it up in fly.toml
-	var choseHttpService bool = false
+	err = setupHttpService(ctx, appConfig, srcInfo)
 
-	if appConfig.HttpService == nil {
-		choseHttpService, err = prompt.Confirm(ctx, "Does this app run an HTTP service?")
-
-		if err != nil {
-			return
-		}
-
-		if choseHttpService {
-			err = setupHttpService(ctx, appConfig)
-
-			if err != nil {
-				return err
-			}
-		}
-		// Allocate an IP because machine apps don't do this automaticallt yet
-		_, err = client.AllocateIPAddress(ctx, appConfig.AppName, "v4", "")
-
-		if err != nil {
-			fmt.Fprintln(io.Out, "Failed allocating IpV4 address")
-		}
-
-		_, err = client.AllocateIPAddress(ctx, appConfig.AppName, "v6", "")
-
-		if err != nil {
-			fmt.Fprintln(io.Out, "Failed allocating IpV6 address")
-		}
+	if err != nil {
+		return
 	}
 
 	appConfig.WriteToDisk()
@@ -211,7 +193,7 @@ func run(ctx context.Context) (err error) {
 
 	var deployNow bool = false
 
-	if !flag.GetBool(ctx, "no-deploy") && !srcInfo.SkipDeploy {
+	if !flag.GetBool(ctx, "no-deploy") && (srcInfo != nil && !srcInfo.SkipDeploy) {
 		if flag.GetBool(ctx, "now") {
 			deployNow = true
 		} else {
@@ -224,7 +206,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	// Alternative deploy documentation if our standard deploy method is not correct
-	if srcInfo.DeployDocs != "" {
+	if srcInfo != nil && srcInfo.DeployDocs != "" {
 		fmt.Fprintln(io.Out, srcInfo.DeployDocs)
 	} else {
 		fmt.Fprintln(io.Out, "Your app is ready. Deploy with `flyctl deploy`")
@@ -287,41 +269,52 @@ func setScannerPrefs(ctx context.Context, appConfig *app.Config, srcInfo *scanne
 		appConfig.SetInternalPort(srcInfo.Port)
 	}
 
+	appConfig.Env = make(map[string]string)
+
 	for envName, envVal := range srcInfo.Env {
 		if envVal == "APP_FQDN" {
-			appConfig.SetEnvVariable(envName, appConfig.AppName+".fly.dev")
+			appConfig.Env[envName] = appConfig.AppName + ".fly.dev"
 		} else {
-			appConfig.SetEnvVariable(envName, envVal)
+			appConfig.Env[envName] = envVal
 		}
 	}
 
 	if len(srcInfo.Statics) > 0 {
-		appConfig.SetStatics(srcInfo.Statics)
+		for _, static := range srcInfo.Statics {
+			appConfig.Statics = append(appConfig.Statics, &app.Static{
+				GuestPath: static.GuestPath,
+				UrlPrefix: static.UrlPrefix,
+			})
+		}
 	}
 
 	if len(srcInfo.Volumes) > 0 {
-		appConfig.SetVolumes(srcInfo.Volumes)
+		fmt.Println("Warning: this scanner requested volume mounts in fly.toml which are not supported by machine apps yet")
 	}
 
-	for procName, procCommand := range srcInfo.Processes {
-		appConfig.SetProcess(procName, procCommand)
-	}
+	appConfig.Deploy = &app.Deploy{}
 
 	if srcInfo.ReleaseCmd != "" {
-		appConfig.SetReleaseCommand(srcInfo.ReleaseCmd)
+		appConfig.Deploy.ReleaseCommand = srcInfo.ReleaseCmd
 	}
 
-	if srcInfo.DockerCommand != "" {
-		appConfig.SetDockerCommand(srcInfo.DockerCommand)
-	}
+	// TBD: Support init, signals and process groups
 
-	if srcInfo.DockerEntrypoint != "" {
-		appConfig.SetDockerEntrypoint(srcInfo.DockerEntrypoint)
-	}
+	// if srcInfo.DockerCommand != "" {
+	// 	appConfig.SetDockerCommand(srcInfo.DockerCommand)
+	// }
 
-	if srcInfo.KillSignal != "" {
-		appConfig.SetKillSignal(srcInfo.KillSignal)
-	}
+	// if srcInfo.DockerEntrypoint != "" {
+	// 	appConfig.SetDockerEntrypoint(srcInfo.DockerEntrypoint)
+	// }
+
+	// if srcInfo.KillSignal != "" {
+	// 	appConfig.SetKillSignal(srcInfo.KillSignal)
+	// }
+
+	// for procName, procCommand := range srcInfo.Processes {
+	// 	appConfig.SetProcess(procName, procCommand)
+	// }
 
 	if len(srcInfo.Secrets) > 0 {
 		secrets := make(map[string]string)
@@ -384,7 +377,7 @@ func setScannerPrefs(ctx context.Context, appConfig *app.Config, srcInfo *scanne
 				Name:      vol.Source,
 				Region:    region,
 				SizeGb:    1,
-				Encrypted: true,
+				Encrypted: false,
 			})
 
 			if err != nil {
@@ -414,6 +407,7 @@ func setScannerPrefs(ctx context.Context, appConfig *app.Config, srcInfo *scanne
 
 	// Set Docker build arguments
 	if len(srcInfo.BuildArgs) > 0 {
+
 		appConfig.Build.Args = srcInfo.BuildArgs
 	}
 
@@ -475,20 +469,50 @@ func printAppType(ctx context.Context, srcInfo *scanner.SourceInfo) {
 	fmt.Printf("Detected %s %s app\n", article, io.ColorScheme().Green(appType))
 }
 
-func setupHttpService(ctx context.Context, appConfig *app.Config) (err error) {
+func setupHttpService(ctx context.Context, appConfig *app.Config, srcInfo *scanner.SourceInfo) (err error) {
+	client := client.FromContext(ctx).API()
 
-	var internalPort string
+	var choseHttpService bool = false
+	var port, sourcePort int
 
-	err = prompt.String(ctx, &internalPort, "Which port does your service listen on?", "8080", true)
-
-	if err != nil {
-		return
+	if srcInfo != nil && srcInfo.Port != 0 {
+		sourcePort = srcInfo.Port
 	}
 
-	appConfig.HttpService = new(app.HttpService)
-	appConfig.HttpService.ForceHttps = true
-	port, err := strconv.Atoi(internalPort)
-	appConfig.HttpService.InternalPort = port
+	if sourcePort == 0 {
+		choseHttpService, err = prompt.Confirm(ctx, "Does this app run an HTTP service?")
+	}
+
+	if sourcePort > 0 || choseHttpService {
+		appConfig.HttpService = new(app.HttpService)
+		appConfig.HttpService.ForceHttps = true
+
+		if choseHttpService {
+			var portString string
+			err = prompt.String(ctx, &portString, "Which port does your service listen on?", "8080", true)
+			if err != nil {
+				return
+			}
+
+			port, err = strconv.Atoi(portString)
+
+			if err != nil {
+				return
+			}
+			_, err = client.AllocateIPAddress(ctx, appConfig.AppName, "v4", "")
+
+			if err != nil {
+				return err
+			}
+
+			_, err = client.AllocateIPAddress(ctx, appConfig.AppName, "v6", "")
+			if err != nil {
+				return err
+			}
+		}
+
+		appConfig.HttpService.InternalPort = port
+	}
 
 	return
 }

@@ -22,7 +22,7 @@ func (*localImageResolver) Name() string {
 }
 
 func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts RefOptions) (*DeploymentImage, error) {
-	if !dockerFactory.mode.IsLocal() {
+	if !dockerFactory.IsLocal() {
 		terminal.Debug("local docker daemon not available, skipping")
 		return nil, nil
 	}

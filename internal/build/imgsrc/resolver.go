@@ -82,10 +82,16 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 		opts.Tag = NewDeploymentTag(opts.AppName, opts.ImageLabel)
 	}
 
-	strategies := []imageBuilder{
-		&buildpacksBuilder{},
-		&dockerfileBuilder{},
-		&builtinBuilder{},
+	strategies := []imageBuilder{}
+
+	if r.dockerFactory.mode.UseNixpacks() {
+		strategies = append(strategies, &nixpacksBuilder{})
+	} else {
+		strategies = []imageBuilder{
+			&buildpacksBuilder{},
+			&dockerfileBuilder{},
+			&builtinBuilder{},
+		}
 	}
 
 	for _, s := range strategies {

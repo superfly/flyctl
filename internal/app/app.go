@@ -73,41 +73,48 @@ type SlimConfig struct {
 
 // Config wraps the properties of app configuration.
 type Config struct {
-	AppName     string                 `toml:"app,omitempty"`
-	Build       *Build                 `toml:"build,omitempty"`
-	HttpService *HttpService           `toml:"http_service,omitempty"`
-	VM          *VM                    `toml:"vm,omitempty"`
-	Definition  map[string]interface{} `toml:"definition,omitempty"`
-	Path        string                 `toml:"path,omitempty"`
-	Services    []api.MachineService   `toml:"services"`
-	Env         map[string]string      `toml:"env" json:"env"`
-	Metrics     *api.MachineMetrics    `toml:"metrics" json:"metrics"`
-	// PrimaryRegion is only used for temporarily storing the target region for a new CM
-	primaryRegion   string
+	AppName         string                 `toml:"app,omitempty"`
+	Build           *Build                 `toml:"build,omitempty"`
+	HttpService     *HttpService           `toml:"http_service,omitempty"`
+	Definition      map[string]interface{} `toml:"definition,omitempty"`
+	Path            string                 `toml:"path,omitempty"`
+	Services        []api.MachineService   `toml:"services"`
+	Env             map[string]string      `toml:"env" json:"env"`
+	Metrics         *api.MachineMetrics    `toml:"metrics" json:"metrics"`
+	Statics         []*Static              `toml:"statics,omitempty" json:"statics"`
+	Deploy          *Deploy                `toml:"deploy, omitempty"`
 	platformVersion string
+	primaryRegion   string
 }
 
-type HttpService struct {
-	InternalPort int  `json:"internal_port" toml:"internal_port" validate:"required,numeric"`
-	ForceHttps   bool `toml:"force_https"`
+type Deploy struct {
+	ReleaseCommand string `toml:"release_command,omitempty"`
 }
+
+type Static struct {
+	GuestPath string `toml:"guest_path" json:"guest_path" validate:"required"`
+	UrlPrefix string `toml:"url_prefix" json:"url_prefix" validate:"required"`
+}
+type HttpService struct {
+	InternalPort int                            `json:"internal_port" toml:"internal_port" validate:"required,numeric"`
+	ForceHttps   bool                           `toml:"force_https"`
+	Concurrency  *api.MachineServiceConcurrency `toml:"concurrency,omitempty"`
+}
+
 type VM struct {
 	CpuCount int `toml:"cpu_count,omitempty"`
 	Memory   int `toml:"memory,omitempty"`
 }
 
 type Build struct {
-	Builder    string
-	Args       map[string]string
-	Buildpacks []string
-	// Or...
-	Builtin  string
-	Settings map[string]interface{}
-	// Or...
-	Image string
-	// Or...
-	Dockerfile        string
-	DockerBuildTarget string
+	Builder           string                 `toml:"builder,omitempty"`
+	Args              map[string]string      `toml:"args,omitempty"`
+	Buildpacks        []string               `toml:"buildpacks,omitempty"`
+	Image             string                 `toml:"image,omitempty"`
+	Settings          map[string]interface{} `toml:"settings,omitempty"`
+	Builtin           string                 `toml:"builtin,omitempty"`
+	Dockerfile        string                 `toml:"dockerfile,omitempty"`
+	DockerBuildTarget string                 `toml:"buildpacks,omitempty"`
 }
 
 // SetMachinesPlatform informs the TOML marshaller that this config is for the machines platform

@@ -3,7 +3,7 @@ module github.com/superfly/flyctl
 go 1.18
 
 require (
-	github.com/AlecAivazis/survey/v2 v2.2.7
+	github.com/AlecAivazis/survey/v2 v2.3.5
 	github.com/BurntSushi/toml v1.1.1-0.20220529222432-dcb2346503b4
 	github.com/alecthomas/chroma v0.10.0
 	github.com/azazeal/pause v1.0.6
@@ -35,6 +35,7 @@ require (
 	github.com/muesli/termenv v0.7.4
 	github.com/nats-io/nats.go v1.12.1
 	github.com/novln/docker-parser v1.0.0
+	github.com/oklog/ulid/v2 v2.1.0
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/pelletier/go-toml v1.9.4
 	github.com/pkg/errors v0.9.1

@@ -32,7 +32,7 @@ type Machine struct {
 }
 
 func (m Machine) FullImageRef() string {
-	return fmt.Sprintf("%s:%s", m.ImageRef.Repository, m.ImageRef.Tag)
+	return fmt.Sprintf("%s/%s:%s", m.ImageRef.Registry, m.ImageRef.Repository, m.ImageRef.Tag)
 }
 
 func (m Machine) ImageVersion() string {
@@ -152,16 +152,22 @@ type MachinePort struct {
 }
 
 type MachineService struct {
-	Protocol     string        `json:"protocol" toml:"protocol"`
-	InternalPort int           `json:"internal_port" toml:"internal_port"`
-	Ports        []MachinePort `json:"ports" toml:"ports"`
+	Protocol     string                     `json:"protocol" toml:"protocol"`
+	InternalPort int                        `json:"internal_port" toml:"internal_port"`
+	Ports        []MachinePort              `json:"ports" toml:"ports"`
+	Concurrency  *MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
+}
+
+type MachineServiceConcurrency struct {
+	Type      string `json:"type" toml:"type,omitempty"`
+	HardLimit int    `json:"hard_limit" toml:"hard_limit,omitempty"`
+	SoftLimit int    `json:"soft_limit" toml:"soft_limit,omitempty"`
 }
 
 type MachineConfig struct {
 	Env      map[string]string `json:"env"`
 	Init     MachineInit       `json:"init,omitempty"`
 	Image    string            `json:"image"`
-	ImageRef machineImageRef   `json:"image_ref"`
 	Metadata map[string]string `json:"metadata"`
 	Mounts   []MachineMount    `json:"mounts,omitempty"`
 	Restart  MachineRestart    `json:"restart,omitempty"`
@@ -169,6 +175,7 @@ type MachineConfig struct {
 	VMSize   string            `json:"size,omitempty"`
 	Guest    *MachineGuest     `json:"guest,omitempty"`
 	Metrics  *MachineMetrics   `json:"metrics"`
+	Schedule string            `json:"schedule,omitempty"`
 }
 
 type MachineLease struct {

@@ -31,19 +31,23 @@ invitation to join (if not, see orgs revoke).
 }
 
 func runRemove(ctx context.Context) error {
-	slug, err := slugFromFirstArgOrSelect(ctx)
+	client := client.FromContext(ctx).API()
+	selectedOrg, err := OrgFromFirstArgOrSelect(ctx)
+
+	if err != nil {
+		return nil
+	}
+
+	org, err := client.GetDetailedOrganizationBySlug(ctx, selectedOrg.Slug)
+
 	if err != nil {
 		return nil
 	}
 
 	email, err := emailFromSecondArgOrPrompt(ctx)
+
 	if err != nil {
 		return nil
-	}
-
-	org, err := detailsFromSlug(ctx, slug)
-	if err != nil {
-		return err
 	}
 
 	var id string
@@ -58,7 +62,6 @@ func runRemove(ctx context.Context) error {
 		return errors.New("user not found")
 	}
 
-	client := client.FromContext(ctx).API()
 	if _, _, err := client.DeleteOrganizationMembership(ctx, org.ID, id); err != nil {
 		return fmt.Errorf("failed removing user %s from %s: %w", email, org.Name, err)
 	}

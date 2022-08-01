@@ -56,6 +56,14 @@ type Flag interface {
 	addTo(*cobra.Command)
 }
 
+type Set []Flag
+
+func (s Set) addTo(cmd *cobra.Command) {
+	for _, flag := range s {
+		flag.addTo(cmd)
+	}
+}
+
 // Add adds flag to cmd, binding them on v should v not be nil.
 func Add(cmd *cobra.Command, flags ...Flag) {
 	for _, flag := range flags {
@@ -336,5 +344,20 @@ func BuildTarget() String {
 	return String{
 		Name:        "build-target",
 		Description: "Set the target build stage to build if the Dockerfile has more than one stage",
+	}
+}
+
+func Nixpacks() Bool {
+	return Bool{
+		Name:        "nixpacks",
+		Description: "Deploy using nixpacks to generate the image",
+		Default:     false,
+	}
+}
+
+func Strategy() String {
+	return String{
+		Name:        "strategy",
+		Description: "The strategy for replacing running instances. Options are canary, rolling, bluegreen, or immediate. Default is canary, or rolling when max-per-region is set.",
 	}
 }

@@ -14,7 +14,6 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/logger"
-	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
 )
@@ -63,9 +62,6 @@ func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
 }
 
 func (f *Client) CreateApp(ctx context.Context, name string, org string) (err error) {
-	io := iostreams.FromContext(ctx)
-	fmt.Fprintf(io.Out, "Creating app: %s", name)
-
 	var in = map[string]interface{}{
 		"app_name": name,
 		"org_slug": org,
@@ -76,8 +72,6 @@ func (f *Client) CreateApp(ctx context.Context, name string, org string) (err er
 }
 
 func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (*api.Machine, error) {
-	fmt.Println("Machine is launching...")
-
 	var endpoint string
 	if builder.ID != "" {
 		endpoint = fmt.Sprintf("/%s", builder.ID)
@@ -93,8 +87,6 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (*a
 }
 
 func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput, nonce string) (*api.Machine, error) {
-	fmt.Println("Machine is updating...")
-
 	var headers = make(map[string][]string)
 
 	if nonce != "" {
@@ -112,7 +104,6 @@ func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput, non
 }
 
 func (f *Client) Start(ctx context.Context, machineID string) (*api.MachineStartResponse, error) {
-	fmt.Println("Machine is starting...")
 	startEndpoint := fmt.Sprintf("/%s/start", machineID)
 
 	out := new(api.MachineStartResponse)
@@ -124,8 +115,6 @@ func (f *Client) Start(ctx context.Context, machineID string) (*api.MachineStart
 }
 
 func (f *Client) Wait(ctx context.Context, machine *api.Machine) (err error) {
-	fmt.Println("Waiting on firecracker VM...")
-
 	waitEndpoint := fmt.Sprintf("/%s/wait", machine.ID)
 
 	version := machine.InstanceID
@@ -134,7 +123,6 @@ func (f *Client) Wait(ctx context.Context, machine *api.Machine) (err error) {
 		version = machine.Version
 	}
 	if version != "" {
-		fmt.Printf("Waiting on machine version %s...\n", version)
 		waitEndpoint += fmt.Sprintf("?instance_id=%s&timeout=30", version)
 	} else {
 		waitEndpoint += "?timeout=30"
