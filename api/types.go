@@ -209,6 +209,8 @@ type Query struct {
 	UpdateRemoteBuilder struct {
 		Organization Organization
 	}
+
+	ProvisionThirdPartyService ProvisionThirdPartyServicePayload
 }
 
 type CreatedWireGuardPeer struct {
@@ -356,6 +358,16 @@ type Volume struct {
 	Host               struct {
 		ID string
 	}
+}
+
+type ProvisionThirdPartyServiceInput struct {
+	OrganizationId string `json:"organizationId"`
+	Region         string `json:"region"`
+	Type           string `json:"type"`
+}
+
+type ProvisionThirdPartyServicePayload struct {
+	Service ThirdPartyService
 }
 
 type CreateVolumeInput struct {
@@ -1253,4 +1265,7 @@ type Filters struct {
 type Logger interface {
 	Debug(v ...interface{})
 	Debugf(format string, v ...interface{})
+}
+type ThirdPartyService struct {
+	PublicUrl string
 }
