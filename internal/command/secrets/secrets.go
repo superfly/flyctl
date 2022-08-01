@@ -60,7 +60,7 @@ func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Rel
 		return
 	}
 
-	err = watch.Deployment(ctx, release.EvaluationID)
+	err = watch.Deployment(ctx, app.Name, release.EvaluationID)
 
 	return err
 }
