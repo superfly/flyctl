@@ -91,6 +91,7 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 			&buildpacksBuilder{},
 			&dockerfileBuilder{},
 			&builtinBuilder{},
+			&nixpacksBuilder{},
 		}
 	}
 

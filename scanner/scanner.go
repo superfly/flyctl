@@ -84,8 +84,6 @@ func Scan(sourceDir string) (*SourceInfo, error) {
 		configurePython,
 		configureDeno,
 		configureRemix,
-		configureNuxt,
-		configureNextJs,
 		configureNode,
 		configureStatic,
 	}
