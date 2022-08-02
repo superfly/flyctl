@@ -15,6 +15,9 @@ func New() (cmd *cobra.Command) {
 
 	cmd = command.New("redis", short, long, nil)
 
+	// To be exposed once Redis instances are being deployed inside Fly
+	cmd.Hidden = true
+
 	cmd.AddCommand(
 		newCreate(),
 		newList(),
