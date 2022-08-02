@@ -36,7 +36,6 @@ func newCreate() (cmd *cobra.Command) {
 func runCreate(ctx context.Context) (err error) {
 	var (
 		out = iostreams.FromContext(ctx).Out
-		//client = client.FromContext(ctx).API()
 	)
 
 	org, err := prompt.Org(ctx)
@@ -65,8 +64,4 @@ func ProvisionRedis(ctx context.Context, org *api.Organization, region string) (
 	}
 
 	return service, nil
-	// client.SetSecrets(ctx, app.Name, secrets)
-	// fmt.Fprintln(out, "Launching Redis instance...")
-	// machine, err := flapsClient.Launch(ctx, launchInput)
-
 }
