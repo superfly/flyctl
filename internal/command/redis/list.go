@@ -35,19 +35,20 @@ func runList(ctx context.Context) (err error) {
 		client = client.FromContext(ctx).API()
 	)
 
-	services, err := client.GetServices(ctx, "upstash_redis")
+	services, err := client.GetThirdPartyServices(ctx, "upstash_redis")
 
 	var rows [][]string
 
 	for _, service := range services {
 		rows = append(rows, []string{
+			service.ID,
 			service.Name,
 			service.Organization.Slug,
 			service.PrimaryRegion,
 		})
 	}
 
-	_ = render.Table(out, "", rows, "Name", "Org", "Region")
+	_ = render.Table(out, "", rows, "Id", "Name", "Org", "Region")
 
 	return
 }

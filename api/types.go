@@ -30,6 +30,9 @@ type Query struct {
 	ThirdPartyServices struct {
 		Nodes []ThirdPartyService
 	}
+
+	ThirdPartyService *ThirdPartyService
+
 	Organization *Organization
 	// PersonalOrganizations PersonalOrganizations
 	OrganizationDetails OrganizationDetails
@@ -95,6 +98,8 @@ type Query struct {
 	}
 
 	DeleteCertificate DeleteCertificatePayload
+
+	DeleteThirdPartyService DeleteThirdPartyServicePayload
 
 	CheckCertificate struct {
 		App         *App
@@ -795,6 +800,10 @@ type HostnameCheck struct {
 type DeleteCertificatePayload struct {
 	App         App
 	Certificate AppCertificate
+}
+
+type DeleteThirdPartyServicePayload struct {
+	ID string
 }
 
 type DeployImageInput struct {

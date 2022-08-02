@@ -18,6 +18,8 @@ func New() (cmd *cobra.Command) {
 	cmd.AddCommand(
 		newCreate(),
 		newList(),
+		newDelete(),
+		newStatus(),
 	)
 
 	return cmd
