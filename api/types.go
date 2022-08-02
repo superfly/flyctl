@@ -27,6 +27,12 @@ type Query struct {
 		Nodes []Organization
 	}
 
+	AddOns struct {
+		Nodes []AddOn
+	}
+
+	AddOn *AddOn
+
 	Organization *Organization
 	// PersonalOrganizations PersonalOrganizations
 	OrganizationDetails OrganizationDetails
@@ -92,6 +98,8 @@ type Query struct {
 	}
 
 	DeleteCertificate DeleteCertificatePayload
+
+	DeleteAddOn DeleteAddOnPayload
 
 	CheckCertificate struct {
 		App         *App
@@ -209,6 +217,8 @@ type Query struct {
 	UpdateRemoteBuilder struct {
 		Organization Organization
 	}
+
+	ProvisionAddOn ProvisionAddOnPayload
 }
 
 type CreatedWireGuardPeer struct {
@@ -356,6 +366,16 @@ type Volume struct {
 	Host               struct {
 		ID string
 	}
+}
+
+type ProvisionAddOnInput struct {
+	OrganizationId string `json:"organizationId"`
+	Region         string `json:"region"`
+	Type           string `json:"type"`
+}
+
+type ProvisionAddOnPayload struct {
+	Service AddOn
 }
 
 type CreateVolumeInput struct {
@@ -780,6 +800,10 @@ type HostnameCheck struct {
 type DeleteCertificatePayload struct {
 	App         App
 	Certificate AppCertificate
+}
+
+type DeleteAddOnPayload struct {
+	ID string
 }
 
 type DeployImageInput struct {
@@ -1253,4 +1277,11 @@ type Filters struct {
 type Logger interface {
 	Debug(v ...interface{})
 	Debugf(format string, v ...interface{})
+}
+type AddOn struct {
+	PublicUrl     string
+	Name          string
+	ID            string
+	PrimaryRegion string
+	Organization  *OrganizationBasic
 }
