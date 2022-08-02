@@ -41,7 +41,7 @@ func runDelete(ctx context.Context) (err error) {
 
 	id := flag.FirstArg(ctx)
 
-	_, err = client.DeleteThirdPartyService(ctx, id)
+	_, err = client.DeleteAddOn(ctx, id)
 
 	if err != nil {
 		return

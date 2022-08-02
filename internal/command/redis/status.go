@@ -37,7 +37,7 @@ func runStatus(ctx context.Context) (err error) {
 		client = client.FromContext(ctx).API()
 	)
 
-	service, err := client.GetThirdPartyService(ctx, id)
+	service, err := client.GetAddOn(ctx, id)
 
 	if err != nil {
 		return err

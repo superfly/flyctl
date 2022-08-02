@@ -56,7 +56,7 @@ func runCreate(ctx context.Context) (err error) {
 	return
 }
 
-func ProvisionRedis(ctx context.Context, org *api.Organization, region string) (service *api.ThirdPartyService, err error) {
+func ProvisionRedis(ctx context.Context, org *api.Organization, region string) (service *api.AddOn, err error) {
 	client := client.FromContext(ctx).API()
 	service, err = client.ProvisionService(ctx, "upstash_redis", org.ID, region)
 

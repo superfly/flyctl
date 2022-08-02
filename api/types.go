@@ -27,11 +27,11 @@ type Query struct {
 		Nodes []Organization
 	}
 
-	ThirdPartyServices struct {
-		Nodes []ThirdPartyService
+	AddOns struct {
+		Nodes []AddOn
 	}
 
-	ThirdPartyService *ThirdPartyService
+	AddOn *AddOn
 
 	Organization *Organization
 	// PersonalOrganizations PersonalOrganizations
@@ -99,7 +99,7 @@ type Query struct {
 
 	DeleteCertificate DeleteCertificatePayload
 
-	DeleteThirdPartyService DeleteThirdPartyServicePayload
+	DeleteAddOn DeleteAddOnPayload
 
 	CheckCertificate struct {
 		App         *App
@@ -218,7 +218,7 @@ type Query struct {
 		Organization Organization
 	}
 
-	ProvisionThirdPartyService ProvisionThirdPartyServicePayload
+	ProvisionAddOn ProvisionAddOnPayload
 }
 
 type CreatedWireGuardPeer struct {
@@ -368,14 +368,14 @@ type Volume struct {
 	}
 }
 
-type ProvisionThirdPartyServiceInput struct {
+type ProvisionAddOnInput struct {
 	OrganizationId string `json:"organizationId"`
 	Region         string `json:"region"`
 	Type           string `json:"type"`
 }
 
-type ProvisionThirdPartyServicePayload struct {
-	Service ThirdPartyService
+type ProvisionAddOnPayload struct {
+	Service AddOn
 }
 
 type CreateVolumeInput struct {
@@ -802,7 +802,7 @@ type DeleteCertificatePayload struct {
 	Certificate AppCertificate
 }
 
-type DeleteThirdPartyServicePayload struct {
+type DeleteAddOnPayload struct {
 	ID string
 }
 
@@ -1278,7 +1278,7 @@ type Logger interface {
 	Debug(v ...interface{})
 	Debugf(format string, v ...interface{})
 }
-type ThirdPartyService struct {
+type AddOn struct {
 	PublicUrl     string
 	Name          string
 	ID            string
