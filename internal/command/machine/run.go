@@ -31,6 +31,95 @@ import (
 	"github.com/superfly/flyctl/internal/state"
 )
 
+var sharedFlags = flag.Set{
+	flag.App(),
+	flag.AppConfig(),
+	flag.StringSlice{
+		Name:        "port",
+		Shorthand:   "p",
+		Description: "Exposed port mappings (format: edgePort[:machinePort]/[protocol[:handler]])",
+	},
+	flag.String{
+		Name:        "size",
+		Shorthand:   "s",
+		Description: "Preset guest cpu and memory for a machine, defaults to shared-cpu-1x",
+	},
+	flag.Int{
+		Name:        "cpus",
+		Description: "Number of CPUs",
+	},
+	flag.Int{
+		Name:        "memory",
+		Description: "Memory (in megabytes) to attribute to the machine",
+	},
+	flag.StringSlice{
+		Name:        "env",
+		Shorthand:   "e",
+		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
+	},
+	flag.StringSlice{
+		Name:        "volume",
+		Shorthand:   "v",
+		Description: "Volumes to mount in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
+	},
+	flag.String{
+		Name:        "entrypoint",
+		Description: "ENTRYPOINT replacement",
+	},
+	flag.Bool{
+		Name:        "build-only",
+		Description: "Only build the image without running the machine",
+		Hidden:      true,
+	},
+	flag.Bool{
+		Name:        "build-remote-only",
+		Description: "Perform builds remotely without using the local docker daemon",
+		Hidden:      true,
+	},
+	flag.Bool{
+		Name:        "build-local-only",
+		Description: "Only perform builds locally using the local docker daemon",
+		Hidden:      true,
+	},
+	flag.Bool{
+		Name:   "build-nixpacks",
+		Hidden: true,
+	},
+	flag.String{
+		Name:        "dockerfile",
+		Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
+	},
+	flag.StringSlice{
+		Name:        "build-arg",
+		Description: "Set of build time variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
+		Hidden:      true,
+	},
+	flag.String{
+		Name:        "image-label",
+		Description: "Image label to use when tagging and pushing to the fly registry. Defaults to \"deployment-{timestamp}\".",
+		Hidden:      true,
+	},
+	flag.String{
+		Name:        "build-target",
+		Description: "Set the target build stage to build if the Dockerfile has more than one stage",
+		Hidden:      true,
+	},
+	flag.Bool{
+		Name:        "no-build-cache",
+		Description: "Do not use the cache when building the image",
+		Hidden:      true,
+	},
+	flag.StringSlice{
+		Name:        "kernel-arg",
+		Description: "List of kernel arguments to be provided to the init. Can be specified multiple times.",
+	},
+	flag.StringSlice{
+		Name:        "metadata",
+		Shorthand:   "m",
+		Description: "Metadata in the form of NAME=VALUE pairs. Can be specified multiple times.",
+	},
+}
+
 func newRun() *cobra.Command {
 	const (
 		short = "Run a machine"
@@ -46,9 +135,8 @@ func newRun() *cobra.Command {
 
 	flag.Add(
 		cmd,
-		flag.App(),
 		flag.Region(),
-		flag.AppConfig(),
+		// deprecated in favor of `flyctl machine update`
 		flag.String{
 			Name:        "id",
 			Description: "Machine ID, if previously known",
@@ -62,92 +150,7 @@ func newRun() *cobra.Command {
 			Name:        "org",
 			Description: `The organization that will own the app`,
 		},
-		flag.StringSlice{
-			Name:        "port",
-			Shorthand:   "p",
-			Description: "Exposed port mappings (format: edgePort[:machinePort]/[protocol[:handler]])",
-		},
-		flag.String{
-			Name:        "size",
-			Shorthand:   "s",
-			Description: "Preset guest cpu and memory for a machine, defaults to shared-cpu-1x",
-		},
-		flag.Int{
-			Name:        "cpus",
-			Description: "Number of CPUs",
-			Hidden:      true,
-		},
-		flag.Int{
-			Name:        "memory",
-			Description: "Memory (in megabytes) to attribute to the machine",
-			Hidden:      true,
-		},
-		flag.StringSlice{
-			Name:        "env",
-			Shorthand:   "e",
-			Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
-		},
-		flag.StringSlice{
-			Name:        "volume",
-			Shorthand:   "v",
-			Description: "Volumes to mount in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
-			Hidden:      true,
-		},
-		flag.String{
-			Name:        "entrypoint",
-			Description: "ENTRYPOINT replacement",
-			Hidden:      true,
-		},
-		flag.Bool{
-			Name:        "detach",
-			Shorthand:   "d",
-			Description: "Detach from the machine's logs",
-			Hidden:      true,
-		},
-		flag.Bool{
-			Name:        "build-only",
-			Description: "Only build the image without running the machine",
-			Hidden:      true,
-		},
-		flag.Bool{
-			Name:        "build-remote-only",
-			Description: "Perform builds remotely without using the local docker daemon",
-			Hidden:      true,
-		},
-		flag.Bool{
-			Name:        "build-local-only",
-			Description: "Only perform builds locally using the local docker daemon",
-			Hidden:      true,
-		},
-		flag.String{
-			Name:        "dockerfile",
-			Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
-		},
-		flag.StringSlice{
-			Name:        "build-arg",
-			Description: "Set of build time variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
-			Hidden:      true,
-		},
-		flag.String{
-			Name:        "image-label",
-			Description: "Image label to use when tagging and pushing to the fly registry. Defaults to \"deployment-{timestamp}\".",
-			Hidden:      true,
-		},
-		flag.String{
-			Name:        "build-target",
-			Description: "Set the target build stage to build if the Dockerfile has more than one stage",
-			Hidden:      true,
-		},
-		flag.Bool{
-			Name:        "no-build-cache",
-			Description: "Do not use the cache when building the image",
-			Hidden:      true,
-		},
-		flag.StringSlice{
-			Name:        "kernel-arg",
-			Description: "List of kernel arguments to be provided to the init. Can be specified multiple times.",
-			Hidden:      true,
-		},
+		sharedFlags,
 	)
 
 	cmd.Args = cobra.MinimumNArgs(1)
@@ -157,23 +160,23 @@ func newRun() *cobra.Command {
 
 func runMachineRun(ctx context.Context) error {
 	var (
-		appName    = app.NameFromContext(ctx)
-		client     = client.FromContext(ctx).API()
-		io         = iostreams.FromContext(ctx)
-		err        error
-		machineApp *api.AppCompact
+		appName = app.NameFromContext(ctx)
+		client  = client.FromContext(ctx).API()
+		io      = iostreams.FromContext(ctx)
+		err     error
+		app     *api.AppCompact
 	)
 
 	if appName == "" {
-		machineApp, err = createApp(ctx, "Running a machine without specifying an app will create one for you, is this what you want?", "", client)
+		app, err = createApp(ctx, "Running a machine without specifying an app will create one for you, is this what you want?", "", client)
 		if err != nil {
 			return err
 		}
 	} else {
-		machineApp, err = client.GetAppCompact(ctx, appName)
+		app, err = client.GetAppCompact(ctx, appName)
 		if err != nil && strings.Contains(err.Error(), "Could not find App") {
-			machineApp, err = createApp(ctx, fmt.Sprintf("App '%s' does not exist, would you like to create it?", appName), appName, client)
-			if machineApp == nil {
+			app, err = createApp(ctx, fmt.Sprintf("App '%s' does not exist, would you like to create it?", appName), appName, client)
+			if app == nil {
 				return nil
 			}
 		}
@@ -192,88 +195,26 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	input := api.LaunchMachineInput{
-		AppID:  machineApp.Name,
+		AppID:  app.Name,
 		Name:   flag.GetString(ctx, "name"),
 		Region: flag.GetString(ctx, "region"),
 	}
 
-	flapsClient, err := flaps.New(ctx, machineApp)
+	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
 		return fmt.Errorf("could not make API client: %w", err)
 	}
 
 	machineID := flag.GetString(ctx, "id")
 	if machineID != "" {
-
-		machine, err := flapsClient.Get(ctx, machineID)
-		if err != nil {
-			return fmt.Errorf("failed to get machine, %s: %w", machineID, err)
-		}
-		fmt.Fprintf(io.Out, "machine %s was found and is currently in a %s state, attempting to update...\n", machineID, machine.State)
-		input.ID = machineID
-		input.Name = machine.Name
-		input.Region = ""
-		machineConf = *machine.Config
+		return fmt.Errorf("To update an existing machine, use 'flyctl machine update'.")
 	}
 
-	if guestSize := flag.GetString(ctx, "size"); guestSize != "" {
-		guest, ok := api.MachinePresets[guestSize]
-		if !ok {
-			validSizes := []string{}
-			for size := range api.MachinePresets {
-				if strings.HasPrefix(size, "shared") {
-					validSizes = append(validSizes, size)
-				}
-			}
-			sort.Strings(validSizes)
-			return fmt.Errorf("invalid machine size requested, '%s', available:\n%s", guestSize, strings.Join(validSizes, "\n"))
-		}
-		machineConf.Guest = guest
-	} else {
-		if cpus := flag.GetInt(ctx, "cpus"); cpus != 0 {
-			machineConf.Guest.CPUs = cpus
-		}
+	machineConf, err = determineMachineConfig(ctx, machineConf, app, flag.FirstArg(ctx))
 
-		if memory := flag.GetInt(ctx, "memory"); memory != 0 {
-			machineConf.Guest.MemoryMB = memory
-		}
-	}
-
-	machineConf.Env, err = parseEnvVars(ctx)
 	if err != nil {
 		return err
 	}
-
-	services, err := determineServices(ctx)
-	if err != nil {
-		return err
-	}
-	if len(services) > 0 {
-		machineConf.Services = services
-	}
-
-	if entrypoint := flag.GetString(ctx, "entrypoint"); entrypoint != "" {
-		splitted, err := shlex.Split(entrypoint)
-		if err != nil {
-			return errors.Wrap(err, "invalid entrypoint")
-		}
-		machineConf.Init.Entrypoint = splitted
-	}
-
-	if cmd := flag.Args(ctx)[1:]; len(cmd) > 0 {
-		machineConf.Init.Cmd = cmd
-	}
-
-	machineConf.Mounts, err = determineMounts(ctx)
-	if err != nil {
-		return err
-	}
-
-	img, err := determineImage(ctx, machineApp.Name)
-	if err != nil {
-		return err
-	}
-	machineConf.Image = img.Tag
 
 	if flag.GetBool(ctx, "build-only") {
 		return nil
@@ -375,29 +316,28 @@ func WaitForStart(ctx context.Context, flapsClient *flaps.Client, machine *api.M
 	}
 }
 
-func parseEnvVars(ctx context.Context) (map[string]string, error) {
-	var env = make(map[string]string)
+func parseKVFlag(ctx context.Context, flagName string, initialMap map[string]string) (parsed map[string]string, err error) {
 
-	if extraEnv := flag.GetStringSlice(ctx, "env"); len(extraEnv) > 0 {
-		parsedEnv, err := cmdutil.ParseKVStringsToMap(flag.GetStringSlice(ctx, "env"))
+	parsed = initialMap
+
+	if value := flag.GetStringSlice(ctx, flagName); len(value) > 0 {
+		parsed, err = cmdutil.ParseKVStringsToMap(value)
 		if err != nil {
-			return nil, errors.Wrap(err, "invalid env")
+			return nil, fmt.Errorf("invalid key/value pairs specified for flag %s", flagName)
 		}
-		env = parsedEnv
 	}
-	return env, nil
+	return parsed, nil
 }
 
-func determineImage(ctx context.Context, appName string) (img *imgsrc.DeploymentImage, err error) {
+func determineImage(ctx context.Context, appName string, imageOrPath string) (img *imgsrc.DeploymentImage, err error) {
 	var (
 		client = client.FromContext(ctx).API()
 		io     = iostreams.FromContext(ctx)
 	)
 
-	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI())
+	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-nixpacks"))
 	resolver := imgsrc.NewResolver(daemonType, client, appName, io)
 
-	imageOrPath := flag.FirstArg(ctx)
 	// build if relative or absolute path
 	if strings.HasPrefix(imageOrPath, ".") || strings.HasPrefix(imageOrPath, "/") {
 		opts := imgsrc.ImageOptions{
@@ -541,4 +481,78 @@ func selectAppName(ctx context.Context) (name string, err error) {
 	}
 
 	return
+}
+
+func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, image string) (machineConf api.MachineConfig, err error) {
+
+	machineConf = initialMachineConf
+
+	if guestSize := flag.GetString(ctx, "size"); guestSize != "" {
+		guest, ok := api.MachinePresets[guestSize]
+		if !ok {
+			validSizes := []string{}
+			for size := range api.MachinePresets {
+				if strings.HasPrefix(size, "shared") {
+					validSizes = append(validSizes, size)
+				}
+			}
+			sort.Strings(validSizes)
+			err = fmt.Errorf("invalid machine size requested, '%s', available:\n%s", guestSize, strings.Join(validSizes, "\n"))
+			return
+		}
+		machineConf.Guest = guest
+	} else {
+		if cpus := flag.GetInt(ctx, "cpus"); cpus != 0 {
+			machineConf.Guest.CPUs = cpus
+		}
+
+		if memory := flag.GetInt(ctx, "memory"); memory != 0 {
+			machineConf.Guest.MemoryMB = memory
+		}
+	}
+
+	machineConf.Env, err = parseKVFlag(ctx, "env", machineConf.Env)
+
+	if err != nil {
+		return
+	}
+
+	machineConf.Metadata, err = parseKVFlag(ctx, "metadata", machineConf.Metadata)
+
+	if err != nil {
+		return
+	}
+
+	services, err := determineServices(ctx)
+	if err != nil {
+		return
+	}
+	if len(services) > 0 {
+		machineConf.Services = services
+	}
+
+	if entrypoint := flag.GetString(ctx, "entrypoint"); entrypoint != "" {
+		splitted, err := shlex.Split(entrypoint)
+		if err != nil {
+			return machineConf, errors.Wrap(err, "invalid entrypoint")
+		}
+		machineConf.Init.Entrypoint = splitted
+	}
+
+	if cmd := flag.Args(ctx)[1:]; len(cmd) > 0 {
+		machineConf.Init.Cmd = cmd
+	}
+
+	machineConf.Mounts, err = determineMounts(ctx)
+	if err != nil {
+		return
+	}
+
+	img, err := determineImage(ctx, app.Name, image)
+	if err != nil {
+		return
+	}
+	machineConf.Image = img.Tag
+
+	return machineConf, nil
 }

@@ -581,7 +581,7 @@ func runPostgresConnect(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("%s is not a postgres app", cmdCtx.AppName)
 	}
 
-	if err := hasRequiredVersion(app, MinPostgresStandaloneVersion, MinPostgresHaVersion); err != nil {
+	if err := hasRequiredVersion(app, MinPostgresHaVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 

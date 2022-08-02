@@ -29,8 +29,8 @@ import (
 
 func New() (cmd *cobra.Command) {
 	const (
-		long = `Deploy Fly applications from source or an image using a local or remote builder. 
-		
+		long = `Deploy Fly applications from source or an image using a local or remote builder.
+
 		To disable colorized output and show full Docker build output, set the environment variable NO_COLOR=1.
 	`
 		short = "Deploy Fly applications"
@@ -52,13 +52,11 @@ func New() (cmd *cobra.Command) {
 		flag.Now(),
 		flag.RemoteOnly(false),
 		flag.LocalOnly(),
+		flag.Nixpacks(),
 		flag.BuildOnly(),
 		flag.Push(),
 		flag.Detach(),
-		flag.String{
-			Name:        "strategy",
-			Description: "The strategy for replacing running instances. Options are canary, rolling, bluegreen, or immediate. Default is canary, or rolling when max-per-region is set.",
-		},
+		flag.Strategy(),
 		flag.Dockerfile(),
 		flag.StringSlice{
 			Name:        "env",
@@ -204,7 +202,7 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.DeploymentImage, err error) {
 	tb := render.NewTextBlock(ctx, "Building image")
 
-	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI())
+	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), flag.GetBool(ctx, "nixpacks"))
 
 	var appName string = app.NameFromContext(ctx)
 	if appConfig.AppName != "" && appName == "" {

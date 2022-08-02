@@ -32,19 +32,23 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 	// Convert the new, slimmer http service config to standard services
 	if config.HttpService != nil {
 		concurrency := config.HttpService.Concurrency
-		if concurrency.Type == "" {
-			concurrency.Type = "requests"
+
+		if concurrency != nil {
+			if concurrency.Type == "" {
+				concurrency.Type = "requests"
+			}
+			if concurrency.HardLimit == 0 {
+				concurrency.HardLimit = 25
+			}
+			if concurrency.SoftLimit == 0 {
+				concurrency.SoftLimit = int(math.Ceil(float64(concurrency.HardLimit) * 0.8))
+			}
 		}
-		if concurrency.HardLimit == 0 {
-			concurrency.HardLimit = 25
-		}
-		if concurrency.SoftLimit == 0 {
-			concurrency.SoftLimit = int(math.Ceil(float64(concurrency.HardLimit) * 0.8))
-		}
+
 		httpService := api.MachineService{
 			Protocol:     "tcp",
 			InternalPort: config.HttpService.InternalPort,
-			Concurrency:  &concurrency,
+			Concurrency:  concurrency,
 			Ports: []api.MachinePort{
 				{
 					Port:       80,
@@ -86,6 +90,11 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 
 func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string, machineConfig *api.MachineConfig) (err error) {
 	io := iostreams.FromContext(ctx)
+
+	if strategy == "" {
+		strategy = "rolling"
+	}
+
 	fmt.Fprintf(io.Out, "Deploying with %s strategy\n", strategy)
 
 	flapsClient, err := flaps.New(ctx, app)

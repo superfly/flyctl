@@ -32,7 +32,7 @@ type Machine struct {
 }
 
 func (m Machine) FullImageRef() string {
-	return fmt.Sprintf("%s:%s", m.ImageRef.Repository, m.ImageRef.Tag)
+	return fmt.Sprintf("%s/%s:%s", m.ImageRef.Registry, m.ImageRef.Repository, m.ImageRef.Tag)
 }
 
 type machineImageRef struct {
@@ -157,7 +157,6 @@ type MachineConfig struct {
 	Env      map[string]string `json:"env"`
 	Init     MachineInit       `json:"init,omitempty"`
 	Image    string            `json:"image"`
-	ImageRef machineImageRef   `json:"image_ref"`
 	Metadata map[string]string `json:"metadata"`
 	Mounts   []MachineMount    `json:"mounts,omitempty"`
 	Restart  MachineRestart    `json:"restart,omitempty"`
