@@ -68,6 +68,10 @@ func ensureNixpacksBinary(ctx context.Context, streams *iostreams.IOStreams) err
 		return err
 	}
 
+	if err := os.MkdirAll(binDir, 0700); err != nil {
+		return errors.Wrapf(err, "could not create directory at %s", binDir)
+	}
+
 	cmd := exec.CommandContext(ctx, "bash", installPath, "--bin-dir", binDir)
 	cmd.Stdout = streams.Out
 	cmd.Stderr = streams.ErrOut
