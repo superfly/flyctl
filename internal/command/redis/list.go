@@ -5,7 +5,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
@@ -36,22 +35,19 @@ func runList(ctx context.Context) (err error) {
 		client = client.FromContext(ctx).API()
 	)
 
-	if err != nil {
-		return
-	}
-
-	apps, err := client.GetApps(ctx, api.StringPointer("redis"))
+	services, err := client.GetServices(ctx, "upstash_redis")
 
 	var rows [][]string
 
-	for _, app := range apps {
+	for _, service := range services {
 		rows = append(rows, []string{
-			app.Name,
-			app.Organization.Slug,
+			service.Name,
+			service.Organization.Slug,
+			service.PrimaryRegion,
 		})
 	}
 
-	_ = render.Table(out, "", rows, "Name", "Org")
+	_ = render.Table(out, "", rows, "Name", "Org", "Region")
 
 	return
 }

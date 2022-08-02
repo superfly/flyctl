@@ -24,3 +24,32 @@ func (c *Client) ProvisionService(ctx context.Context, serviceType string, orgID
 
 	return &data.ProvisionThirdPartyService.Service, nil
 }
+
+func (c *Client) GetServices(ctx context.Context, serviceType string) ([]ThirdPartyService, error) {
+	query := `
+		query($type: ThirdPartyServiceType) {
+			thirdPartyServices(type: $type) {
+				nodes {
+					id
+					name
+					primaryRegion
+					organization {
+						id
+						slug
+					}
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("type", serviceType)
+
+	data, err := c.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.ThirdPartyServices.Nodes, nil
+}

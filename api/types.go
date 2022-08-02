@@ -27,6 +27,9 @@ type Query struct {
 		Nodes []Organization
 	}
 
+	ThirdPartyServices struct {
+		Nodes []ThirdPartyService
+	}
 	Organization *Organization
 	// PersonalOrganizations PersonalOrganizations
 	OrganizationDetails OrganizationDetails
@@ -1267,5 +1270,9 @@ type Logger interface {
 	Debugf(format string, v ...interface{})
 }
 type ThirdPartyService struct {
-	PublicUrl string
+	PublicUrl     string
+	Name          string
+	ID            string
+	PrimaryRegion string
+	Organization  *OrganizationBasic
 }
