@@ -229,8 +229,6 @@ func reportNextStepCert(cmdCtx *cmdctx.CmdContext, hostname string, cert *api.Ap
 				cmdCtx.Statusf("certs", cmdctx.SINFO, "%d: Adding an AAAA record to your DNS service which reads:\n\n", stepcnt)
 				cmdCtx.Statusf("certs", cmdctx.SINFO, "    AAAA @ %s\n\n", ipV6.Address)
 				cmdCtx.Statusf("certs", cmdctx.SINFO, " OR \n\n")
-				cmdCtx.Statusf("certs", cmdctx.SINFO, "%d: Adding an CNAME record to your DNS service which reads:\n\n", stepcnt)
-				cmdCtx.Statusf("certs", cmdctx.SINFO, "    %s\n", cert.DNSValidationInstructions)
 				// stepcnt = stepcnt + 1 Uncomment if more steps
 
 			}
