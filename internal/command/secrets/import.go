@@ -25,12 +25,7 @@ func newImport() (cmd *cobra.Command) {
 	cmd = command.New(usage, short, long, runImport, command.RequireSession, command.LoadAppNameIfPresent)
 
 	flag.Add(cmd,
-		flag.App(),
-		flag.AppConfig(),
-		flag.Bool{
-			Name:        "stage",
-			Description: "Import secrets but skip deployment (only for Machine apps)",
-		},
+		sharedFlags,
 	)
 
 	return cmd
