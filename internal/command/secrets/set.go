@@ -27,6 +27,10 @@ func newSet() (cmd *cobra.Command) {
 		flag.App(),
 		flag.AppConfig(),
 		flag.Detach(),
+		flag.Bool{
+			Name:        "stage",
+			Description: "Set secrets but skip deployment (only for Machine apps)",
+		},
 	)
 
 	cmd.Args = cobra.MinimumNArgs(1)
