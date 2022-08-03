@@ -228,9 +228,7 @@ func reportNextStepCert(cmdCtx *cmdctx.CmdContext, hostname string, cert *api.Ap
 				cmdCtx.Statusf("certs", cmdctx.SINFO, "You can validate your ownership of %s by:\n\n", hostname)
 				cmdCtx.Statusf("certs", cmdctx.SINFO, "%d: Adding an AAAA record to your DNS service which reads:\n\n", stepcnt)
 				cmdCtx.Statusf("certs", cmdctx.SINFO, "    AAAA @ %s\n\n", ipV6.Address)
-				cmdCtx.Statusf("certs", cmdctx.SINFO, " OR \n\n")
 				// stepcnt = stepcnt + 1 Uncomment if more steps
-
 			}
 		} else {
 			if cert.ClientStatus == "Ready" {
