@@ -54,7 +54,11 @@ func newAttach() (cmd *cobra.Command) {
 			Default:     "DATABASE_URL",
 			Description: "The environment variable name that will be added to the consuming app. ",
 		},
-	)
+		flag.Bool{
+			Name:        "force",
+			Default:     false,
+			Description: "Force attach (bypass confirmation)",
+		})
 
 	return
 }
@@ -122,7 +126,7 @@ func runAttach(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if dbExists {
+	if dbExists && !flag.GetBool(ctx, "force") {
 		confirm := false
 		msg := fmt.Sprintf("Database %q already exists. Continue with the attachment process?", *input.DatabaseName)
 		confirm, err := prompt.Confirm(ctx, msg)
