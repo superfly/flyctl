@@ -242,9 +242,9 @@ func reportNextStepCert(cmdCtx *cmdctx.CmdContext, hostname string, cert *api.Ap
 			}
 		}
 	} else if cert.IsWildcard {
-		// If this is an wildcard domain we should guide towards creating A and AAAA records
+		// If this is an wildcard domain we should guide towards satisfying a DNS-01 challenge
 		addArecord := !configuredipV4
-		addAAAArecord := !cert.AcmeALPNConfigured
+		addCNAMErecord := !cert.AcmeDNSConfigured
 
 		stepcnt := 1
 		cmdCtx.Statusf("certs", cmdctx.SINFO, "You are creating a wildcard certificate for %s\n", hostname)
@@ -256,11 +256,8 @@ func reportNextStepCert(cmdCtx *cmdctx.CmdContext, hostname string, cert *api.Ap
 			cmdCtx.Statusf("certs", cmdctx.SINFO, "\n    A @ %s\n\n", ipV4.Address)
 		}
 
-		if addAAAArecord {
+		if addCNAMErecord {
 			cmdCtx.Statusf("certs", cmdctx.SINFO, "You can validate your ownership of %s by:\n\n", hostname)
-			cmdCtx.Statusf("certs", cmdctx.SINFO, "%d: Adding an AAAA record to your DNS service which reads:\n\n", stepcnt)
-			cmdCtx.Statusf("certs", cmdctx.SINFO, "    AAAA @ %s\n\n", ipV6.Address)
-			cmdCtx.Statusf("certs", cmdctx.SINFO, " OR \n\n")
 			cmdCtx.Statusf("certs", cmdctx.SINFO, "%d: Adding an CNAME record to your DNS service which reads:\n\n", stepcnt)
 			cmdCtx.Statusf("certs", cmdctx.SINFO, "    %s\n", cert.DNSValidationInstructions)
 			// stepcnt = stepcnt + 1 Uncomment if more steps
