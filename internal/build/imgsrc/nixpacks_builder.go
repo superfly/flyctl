@@ -29,7 +29,15 @@ func ensureNixpacksBinary(ctx context.Context, streams *iostreams.IOStreams) err
 	confDir := flyctl.ConfigDir()
 	binDir := path.Join(confDir, "bin")
 
-	_, err := os.Stat(filepath.Join(binDir, "nixpacks"))
+	_, err := os.Stat(binDir)
+
+	if errors.Is(err, os.ErrNotExist) {
+		if err := os.Mkdir(binDir, os.ModePerm); err != nil {
+			return err
+		}
+	}
+
+	_, err = os.Stat(filepath.Join(binDir, "nixpacks"))
 	if err == nil {
 		return nil
 	}
