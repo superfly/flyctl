@@ -15,6 +15,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var sharedFlags = flag.Set{
+	flag.App(),
+	flag.AppConfig(),
+	flag.Detach(),
+	flag.Bool{
+		Name:        "stage",
+		Description: "Set secrets but skip deployment for machine apps",
+	},
+}
+
 func New() *cobra.Command {
 
 	const (
