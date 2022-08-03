@@ -43,7 +43,7 @@ func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Rel
 
 	if flag.GetBool(ctx, "stage") {
 
-		if app.PlatformVersion == "nomad" {
+		if app.PlatformVersion != "machines" {
 			return errors.New("--stage isn't available for Nomad apps")
 		}
 
