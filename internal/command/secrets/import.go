@@ -27,6 +27,10 @@ func newImport() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Bool{
+			Name:        "stage",
+			Description: "Import secrets but skip deployment (only for Machine apps)",
+		},
 	)
 
 	return cmd

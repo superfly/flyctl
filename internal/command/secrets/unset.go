@@ -22,6 +22,10 @@ func newUnset() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Bool{
+			Name:        "stage",
+			Description: "Unset secrets but skip deployment (only for Machine apps)",
+		},
 	)
 
 	cmd.Args = cobra.MinimumNArgs(1)
