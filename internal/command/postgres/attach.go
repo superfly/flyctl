@@ -96,11 +96,6 @@ func runAttach(ctx context.Context) error {
 		VariableName:         api.StringPointer(varName),
 	}
 
-	app, err := client.GetApp(ctx, appName)
-	if err != nil {
-		return fmt.Errorf("get app: %w", err)
-	}
-
 	pgApp, err := client.GetAppCompact(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
@@ -116,7 +111,7 @@ func runAttach(ctx context.Context) error {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s", pgApp.Organization.Slug, err)
 	}
 
-	switch app.PlatformVersion {
+	switch pgApp.PlatformVersion {
 	case "nomad":
 		if err := hasRequiredVersionOnNomad(pgApp, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
