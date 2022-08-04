@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/flag"
 )
 
 type PostgresConfiguration struct {
@@ -114,6 +115,7 @@ func newPostgresCommand(client *client.Client) *Command {
 	attachCmd.AddStringFlag(StringFlagOpts{Name: "database-name", Description: "database to use, defaults to a new database with the same name as the app"})
 	attachCmd.AddStringFlag(StringFlagOpts{Name: "database-user", Description: "the database user to create, defaults to creating a user with the same name as the consuming app"})
 	attachCmd.AddStringFlag(StringFlagOpts{Name: "variable-name", Description: "the env variable name that will be added to the app. Defaults to DATABASE_URL"})
+	attachCmd.AddBoolFlag(BoolFlagOpts{Name: "force", Description: "Force attach (bypass confirmation)", Default: false})
 
 	detachStrngs := docstrings.Get("postgres.detach")
 	detachCmd := BuildCommandKS(cmd, runDetachPostgresCluster, detachStrngs, client, requireSession, requireAppName)
@@ -399,7 +401,7 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 	if err != nil {
 		return err
 	}
-	if dbExists {
+	if dbExists && !flag.GetBool(ctx, "force") {
 		confirm := false
 		prompt := &survey.Confirm{
 			Message: fmt.Sprintf("Database %q already exists. Continue with the attachment process?", *input.DatabaseName),

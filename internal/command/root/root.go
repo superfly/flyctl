@@ -31,6 +31,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/platform"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/proxy"
+	"github.com/superfly/flyctl/internal/command/redis"
 	"github.com/superfly/flyctl/internal/command/releases"
 	"github.com/superfly/flyctl/internal/command/restart"
 	"github.com/superfly/flyctl/internal/command/resume"
@@ -147,6 +148,7 @@ func New() *cobra.Command {
 		ips.New(),
 		secrets.New(),
 		ssh.New(),
+		redis.New(),
 	}
 
 	// if os.Getenv("DEV") != "" {

@@ -2,6 +2,7 @@ package secrets
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/superfly/flyctl/api"
@@ -13,6 +14,16 @@ import (
 
 	"github.com/spf13/cobra"
 )
+
+var sharedFlags = flag.Set{
+	flag.App(),
+	flag.AppConfig(),
+	flag.Detach(),
+	flag.Bool{
+		Name:        "stage",
+		Description: "Set secrets but skip deployment for machine apps",
+	},
+}
 
 func New() *cobra.Command {
 
@@ -39,6 +50,16 @@ func New() *cobra.Command {
 
 func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Release) (err error) {
 	out := iostreams.FromContext(ctx).Out
+
+	if flag.GetBool(ctx, "stage") {
+
+		if app.PlatformVersion != "machines" {
+			return errors.New("--stage isn't available for Nomad apps")
+		}
+
+		fmt.Fprint(out, "Secrets have been staged, but not set on VMs. Deploy or update machines in this app for the secrets to take effect.\n")
+		return
+	}
 
 	if app.PlatformVersion == "machines" {
 

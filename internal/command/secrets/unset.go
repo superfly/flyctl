@@ -20,8 +20,7 @@ func newUnset() (cmd *cobra.Command) {
 	cmd = command.New(usage, short, long, runUnset, command.RequireSession, command.LoadAppNameIfPresent)
 
 	flag.Add(cmd,
-		flag.App(),
-		flag.AppConfig(),
+		sharedFlags,
 	)
 
 	cmd.Args = cobra.MinimumNArgs(1)

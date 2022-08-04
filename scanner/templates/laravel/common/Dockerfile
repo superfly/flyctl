@@ -1,5 +1,5 @@
 # syntax = docker/dockerfile:experimental
-FROM alpine:edge as base
+FROM alpine:3.16 as base
 
 LABEL fly_launch_runtime="laravel"
 
