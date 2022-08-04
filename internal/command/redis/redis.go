@@ -23,6 +23,7 @@ func New() (cmd *cobra.Command) {
 		newList(),
 		newDelete(),
 		newStatus(),
+		newPlans(),
 	)
 
 	return cmd
