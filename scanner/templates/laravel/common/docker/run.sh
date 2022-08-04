@@ -12,4 +12,10 @@ if [ -f /var/www/html/composer.json ]; then
   fi
 fi
 
-exec supervisord -c /etc/supervisord.conf
+if [ $# -gt 0 ];then
+    # If we passed a command, run it as root
+    exec "$@"
+else
+    # Otherwise start supervisord
+    exec supervisord -c /etc/supervisord.conf
+fi
