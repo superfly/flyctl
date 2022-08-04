@@ -11,6 +11,7 @@ func (client *Client) GetApps(ctx context.Context, role *string) ([]App, error) 
 					name
 					deployed
 					hostname
+					platformVersion
 					organization {
 						slug
 					}
