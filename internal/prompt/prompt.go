@@ -82,6 +82,21 @@ func Password(ctx context.Context, dst *string, msg string, required bool) error
 	return survey.AskOne(p, dst, opts...)
 }
 
+func MultiSelect(ctx context.Context, indices *[]int, msg string, options ...string) error {
+	opt, err := newSurveyIO(ctx)
+	if err != nil {
+		return err
+	}
+
+	p := &survey.MultiSelect{
+		Message:  msg,
+		Options:  options,
+		PageSize: 15,
+	}
+
+	return survey.AskOne(p, indices, opt)
+}
+
 func Select(ctx context.Context, index *int, msg, def string, options ...string) error {
 	opt, err := newSurveyIO(ctx)
 	if err != nil {
@@ -220,18 +235,52 @@ func SelectOrg(ctx context.Context, orgs []api.Organization) (org *api.Organizat
 	return
 }
 
-var errRegionSlugRequired = NonInteractiveError("region slug must be specified when not running interactively")
+var errRegionCodeRequired = NonInteractiveError("region code must be specified when not running interactively")
+var errRegionCodesRequired = NonInteractiveError("regions codes must be specified in a comma-separated when not running interactively")
 
-// Region returns the region the user has passed in via flag or prompts the
-// user for one.
-func Region(ctx context.Context) (*api.Region, error) {
+func sortedRegions(ctx context.Context) ([]api.Region, *api.Region, error) {
+
 	client := client.FromContext(ctx).API()
 
 	regions, defaultRegion, err := client.PlatformRegions(ctx)
 	if err != nil {
+		return nil, nil, err
+	}
+
+	sort.RegionsByNameAndCode(regions)
+
+	return regions, defaultRegion, err
+}
+
+// Region returns the region the user has passed in via flag or prompts the
+// user for one.
+func MultiRegion(ctx context.Context, msg string, excludeRegion *api.Region) (*[]api.Region, error) {
+
+	regions, _, err := sortedRegions(ctx)
+
+	if err != nil {
 		return nil, err
 	}
-	sort.RegionsByNameAndCode(regions)
+
+	switch regions, err := MultiSelectRegion(ctx, msg, regions, excludeRegion); {
+	case err == nil:
+		return &regions, nil
+	case IsNonInteractive(err):
+		return nil, errRegionCodesRequired
+	default:
+		return nil, err
+	}
+}
+
+// Region returns the region the user has passed in via flag or prompts the
+// user for one.
+func Region(ctx context.Context, msg string) (*api.Region, error) {
+
+	regions, defaultRegion, err := sortedRegions(ctx)
+
+	if err != nil {
+		return nil, err
+	}
 
 	slug := config.FromContext(ctx).Region
 
@@ -250,18 +299,18 @@ func Region(ctx context.Context) (*api.Region, error) {
 			defaultRegionCode = defaultRegion.Code
 		}
 
-		switch region, err := SelectRegion(ctx, regions, defaultRegionCode); {
+		switch region, err := SelectRegion(ctx, msg, regions, defaultRegionCode); {
 		case err == nil:
 			return region, nil
 		case IsNonInteractive(err):
-			return nil, errRegionSlugRequired
+			return nil, errRegionCodeRequired
 		default:
 			return nil, err
 		}
 	}
 }
 
-func SelectRegion(ctx context.Context, regions []api.Region, defaultCode string) (region *api.Region, err error) {
+func SelectRegion(ctx context.Context, msg string, regions []api.Region, defaultCode string) (region *api.Region, err error) {
 	var defaultOption string
 
 	var options []string
@@ -274,9 +323,41 @@ func SelectRegion(ctx context.Context, regions []api.Region, defaultCode string)
 		options = append(options, option)
 	}
 
+	if msg == "" {
+		msg = "Select regions:"
+	}
+
 	var index int
-	if err = Select(ctx, &index, "Select region:", defaultOption, options...); err == nil {
+	if err = Select(ctx, &index, msg, defaultOption, options...); err == nil {
 		region = &regions[index]
+	}
+
+	return
+}
+
+func MultiSelectRegion(ctx context.Context, msg string, regions []api.Region, excludeRegion *api.Region) (selectedRegions []api.Region, err error) {
+
+	var options []string
+	for _, r := range regions {
+
+		if r.Code == excludeRegion.Code {
+			continue
+		}
+
+		option := fmt.Sprintf("%s (%s)", r.Name, r.Code)
+		options = append(options, option)
+	}
+
+	var indices []int
+
+	if msg == "" {
+		msg = "Select regions:"
+	}
+
+	if err = MultiSelect(ctx, &indices, msg, options...); err == nil {
+		for _, index := range indices {
+			selectedRegions = append(selectedRegions, regions[index])
+		}
 	}
 
 	return

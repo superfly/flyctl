@@ -144,7 +144,7 @@ func run(ctx context.Context) (err error) {
 			return fmt.Errorf("couldn't fetch platform regions: %w", err)
 		}
 
-		region, err := prompt.SelectRegion(ctx, regions, requestRegion.Code)
+		region, err := prompt.SelectRegion(ctx, "", regions, requestRegion.Code)
 
 		if err != nil {
 			return err

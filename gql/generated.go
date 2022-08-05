@@ -97,9 +97,10 @@ func (v *ListAddOnPlansResponse) GetAddOnPlans() ListAddOnPlansAddOnPlansAddOnPl
 
 // __CreateAddOnInput is used internally by genqlient
 type __CreateAddOnInput struct {
-	OrganizationId string `json:"organizationId"`
-	PrimaryRegion  string `json:"primaryRegion"`
-	PlanId         string `json:"planId"`
+	OrganizationId string   `json:"organizationId"`
+	PrimaryRegion  string   `json:"primaryRegion"`
+	PlanId         string   `json:"planId"`
+	ReadRegions    []string `json:"readRegions"`
 }
 
 // GetOrganizationId returns __CreateAddOnInput.OrganizationId, and is useful for accessing the field via an interface.
@@ -111,18 +112,22 @@ func (v *__CreateAddOnInput) GetPrimaryRegion() string { return v.PrimaryRegion 
 // GetPlanId returns __CreateAddOnInput.PlanId, and is useful for accessing the field via an interface.
 func (v *__CreateAddOnInput) GetPlanId() string { return v.PlanId }
 
+// GetReadRegions returns __CreateAddOnInput.ReadRegions, and is useful for accessing the field via an interface.
+func (v *__CreateAddOnInput) GetReadRegions() []string { return v.ReadRegions }
+
 func CreateAddOn(
 	ctx context.Context,
 	client graphql.Client,
 	organizationId string,
 	primaryRegion string,
 	planId string,
+	readRegions []string,
 ) (*CreateAddOnResponse, error) {
 	req := &graphql.Request{
 		OpName: "CreateAddOn",
 		Query: `
-mutation CreateAddOn ($organizationId: ID!, $primaryRegion: String!, $planId: ID!) {
-	createAddOn(input: {organizationId:$organizationId,primaryRegion:$primaryRegion,type:redis,planId:$planId}) {
+mutation CreateAddOn ($organizationId: ID!, $primaryRegion: String!, $planId: ID!, $readRegions: [String!]) {
+	createAddOn(input: {organizationId:$organizationId,type:redis,planId:$planId,primaryRegion:$primaryRegion,readRegions:$readRegions}) {
 		addOn {
 			id
 			publicUrl
@@ -134,6 +139,7 @@ mutation CreateAddOn ($organizationId: ID!, $primaryRegion: String!, $planId: ID
 			OrganizationId: organizationId,
 			PrimaryRegion:  primaryRegion,
 			PlanId:         planId,
+			ReadRegions:    readRegions,
 		},
 	}
 	var err error

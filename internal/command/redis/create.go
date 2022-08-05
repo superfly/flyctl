@@ -46,7 +46,13 @@ func runCreate(ctx context.Context) (err error) {
 		return err
 	}
 
-	region, err := prompt.Region(ctx)
+	primaryRegion, err := prompt.Region(ctx, "Choose a primary region (can't be changed later)")
+
+	if err != nil {
+		return err
+	}
+
+	readRegions, err := prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", primaryRegion)
 
 	if err != nil {
 		return
@@ -71,7 +77,7 @@ func runCreate(ctx context.Context) (err error) {
 		return fmt.Errorf("failed to select a plan: %w", err)
 	}
 
-	url, err := ProvisionRedis(ctx, org, result.AddOnPlans.Nodes[index].Id, region.Code)
+	url, err := ProvisionRedis(ctx, org, result.AddOnPlans.Nodes[index].Id, primaryRegion, readRegions)
 
 	if err != nil {
 		return
@@ -83,21 +89,27 @@ func runCreate(ctx context.Context) (err error) {
 	return
 }
 
-func ProvisionRedis(ctx context.Context, org *api.Organization, planId string, primaryRegion string) (publicUrl string, err error) {
+func ProvisionRedis(ctx context.Context, org *api.Organization, planId string, primaryRegion *api.Region, readRegions *[]api.Region) (publicUrl string, err error) {
 	client := client.FromContext(ctx).API().GenqClient
 
 	_ = `# @genqlient
-  mutation CreateAddOn($organizationId: ID!, $primaryRegion: String!, $planId: ID!) {
-		createAddOn(input: {organizationId: $organizationId, primaryRegion: $primaryRegion, type: redis, planId: $planId}) {
+  mutation CreateAddOn($organizationId: ID!, $primaryRegion: String!, $planId: ID!, $readRegions: [String!]) {
+		createAddOn(input: {organizationId: $organizationId, type: redis, planId: $planId, primaryRegion: $primaryRegion, readRegions: $readRegions}) {
 			addOn {
 				id
 				publicUrl
 			}
 		}
   }
-`
+	`
 
-	response, err := gql.CreateAddOn(ctx, client, org.ID, primaryRegion, planId)
+	var readRegionCodes []string
+
+	for _, region := range *readRegions {
+		readRegionCodes = append(readRegionCodes, region.Code)
+	}
+
+	response, err := gql.CreateAddOn(ctx, client, org.ID, primaryRegion.Code, planId, readRegionCodes)
 
 	if err != nil {
 		return

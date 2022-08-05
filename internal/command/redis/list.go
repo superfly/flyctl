@@ -35,7 +35,7 @@ func runList(ctx context.Context) (err error) {
 		client = client.FromContext(ctx).API()
 	)
 
-	services, err := client.GetAddOns(ctx, "upstash_redis")
+	services, err := client.GetAddOns(ctx, "redis")
 
 	var rows [][]string
 
