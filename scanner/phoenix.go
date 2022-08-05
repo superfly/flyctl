@@ -62,7 +62,7 @@ Your Phoenix app should be ready for deployment!.
 
 If you need something else, post on our community forum at https://community.fly.io.
 
-When you're ready to deploy, use 'fly deploy --remote-only'.
+When you're ready to deploy, use 'fly deploy'.
 `
 	} else {
 		s.SkipDeploy = true
