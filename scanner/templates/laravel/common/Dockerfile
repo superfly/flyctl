@@ -39,7 +39,7 @@ RUN composer update \
     && composer install --optimize-autoloader --no-dev \
     && mkdir -p storage/logs \
     && chown -R app:app /var/www/html \
-    && /usr/bin/crontab docker/crontab \
+    && echo "* * * * * /usr/bin/php /var/www/html/artisan schedule:run" > /etc/crontabs/app \
     && mv docker/supervisor.conf /etc/supervisord.conf \
     && mv docker/nginx.conf /etc/nginx/nginx.conf \
     && mv docker/server.conf /etc/nginx/server.conf \
