@@ -1,4 +1,4 @@
-package postgres
+package flypg
 
 import (
 	"context"
@@ -23,14 +23,14 @@ type commandResponse struct {
 	Data    string `json:"data"`
 }
 
-type postgresCmd struct {
-	ctx    *context.Context
+type Command struct {
+	ctx    context.Context
 	app    *api.AppCompact
 	dialer agent.Dialer
 	io     *iostreams.IOStreams
 }
 
-func newPostgresCmd(ctx context.Context, app *api.AppCompact) (*postgresCmd, error) {
+func NewCommand(ctx context.Context, app *api.AppCompact) (*Command, error) {
 	client := client.FromContext(ctx).API()
 
 	agentclient, err := agent.Establish(ctx, client)
@@ -43,15 +43,15 @@ func newPostgresCmd(ctx context.Context, app *api.AppCompact) (*postgresCmd, err
 		return nil, fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
 
-	return &postgresCmd{
-		ctx:    &ctx,
+	return &Command{
+		ctx:    ctx,
 		app:    app,
 		dialer: dialer,
 		io:     iostreams.FromContext(ctx),
 	}, nil
 }
 
-func (pc *postgresCmd) updateSettings(config map[string]string) error {
+func (pc *Command) UpdateSettings(ctx context.Context, config map[string]string) error {
 	payload := updateRequest{PGParameters: config}
 	configBytes, err := json.Marshal(payload)
 	if err != nil {
@@ -61,7 +61,7 @@ func (pc *postgresCmd) updateSettings(config map[string]string) error {
 	subCmd := fmt.Sprintf("update --patch '%s'", string(configBytes))
 	cmd := fmt.Sprintf("stolonctl-run %s", encodeCommand(subCmd))
 
-	resp, err := ssh.RunSSHCommand(*pc.ctx, pc.app, pc.dialer, nil, cmd)
+	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, nil, cmd)
 	if err != nil {
 		return err
 	}

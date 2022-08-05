@@ -29,10 +29,11 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) (err error) {
 			app.Name,
 			app.Organization.Slug,
 			app.Hostname,
+			app.PlatformVersion,
 		},
 	}
 
-	if err = render.VerticalTable(io.Out, "App", obj, "Name", "Owner", "Hostname"); err != nil {
+	if err = render.VerticalTable(io.Out, "App", obj, "Name", "Owner", "Hostname", "Platform"); err != nil {
 		return
 	}
 

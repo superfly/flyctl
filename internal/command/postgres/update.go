@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
@@ -47,6 +46,10 @@ func runUpdate(ctx context.Context) error {
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
+	}
+
+	if app.PlatformVersion != "machines" {
+		return fmt.Errorf("this command is only supported for machines clusters.\n For nomad clusters, use `flyctl image update`")
 	}
 
 	agentclient, err := agent.Establish(ctx, client)
@@ -95,7 +98,7 @@ func runUpdate(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "Resolving cluster roles\n")
 
 	for _, machine := range machines {
-		address := formatAddress(machine)
+		address := fmt.Sprintf("[%s]", machine.PrivateIP)
 
 		pgclient := flypg.NewFromInstance(address, dialer)
 		if err != nil {
@@ -120,7 +123,7 @@ func runUpdate(ctx context.Context) error {
 		return fmt.Errorf("this cluster has no leader")
 	}
 
-	image := fmt.Sprintf("%s:%s", leader.ImageRef.Repository, leader.ImageRef.Tag)
+	image := leader.FullImageRef()
 
 	latest, err := client.GetLatestImageDetails(ctx, image)
 	if err != nil {
@@ -130,9 +133,9 @@ func runUpdate(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "Updating replicas\n")
 
 	for _, replica := range replicas {
-		current := replica.ImageRef
+		current := replica
 
-		if current.Labels["fly.version"] == latest.Version {
+		if current.ImageVersion() == latest.Version {
 			fmt.Fprintf(io.Out, "  %s: already up to date\n", replica.ID)
 			continue
 		}
@@ -144,9 +147,9 @@ func runUpdate(ctx context.Context) error {
 		}
 	}
 
-	current := leader.ImageRef
+	current := leader
 
-	if current.Labels["fly.version"] == latest.Version {
+	if current.ImageVersion() == latest.Version {
 		fmt.Fprintf(io.Out, "%s(leader): already up to date\n", leader.ID)
 		return nil
 	}
@@ -209,8 +212,4 @@ func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machin
 	}
 
 	return nil
-}
-
-func formatAddress(machine *api.Machine) string {
-	return fmt.Sprintf("[%s]", machine.PrivateIP)
 }

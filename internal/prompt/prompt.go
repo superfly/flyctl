@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -34,6 +35,32 @@ func String(ctx context.Context, dst *string, msg, def string, required bool) er
 		opts = append(opts, survey.WithValidator(survey.Required))
 	}
 
+	return survey.AskOne(p, dst, opts...)
+}
+
+func Int(ctx context.Context, dst *int, msg string, def int, required bool) error {
+	opt, err := newSurveyIO(ctx)
+	if err != nil {
+		return err
+	}
+
+	p := &survey.Input{
+		Message: msg,
+		Default: strconv.Itoa(def),
+	}
+
+	opts := []survey.AskOpt{opt}
+	if required {
+		opts = append(opts, survey.WithValidator(survey.Required))
+	}
+	// add a validator to ensure that the input is an integer
+	opts = append(opts, survey.WithValidator(func(val interface{}) error {
+		_, err := strconv.Atoi(val.(string))
+		if err != nil {
+			return errors.New("must be an integer")
+		}
+		return nil
+	}))
 	return survey.AskOne(p, dst, opts...)
 }
 
@@ -223,9 +250,9 @@ func Region(ctx context.Context) (*api.Region, error) {
 			defaultRegionCode = defaultRegion.Code
 		}
 
-		switch org, err := SelectRegion(ctx, regions, defaultRegionCode); {
+		switch region, err := SelectRegion(ctx, regions, defaultRegionCode); {
 		case err == nil:
-			return org, nil
+			return region, nil
 		case IsNonInteractive(err):
 			return nil, errRegionSlugRequired
 		default:
@@ -253,4 +280,51 @@ func SelectRegion(ctx context.Context, regions []api.Region, defaultCode string)
 	}
 
 	return
+}
+
+var errVMsizeRequired = NonInteractiveError("vm size must be specified when not running interactively")
+
+func VMSize(ctx context.Context, def string) (size *api.VMSize, err error) {
+	client := client.FromContext(ctx).API()
+
+	vmSizes, err := client.PlatformVMSizes(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	sort.VMSizesBySize(vmSizes)
+
+	switch {
+	case def != "":
+		for _, vmSize := range vmSizes {
+			if def == vmSize.Name {
+				return &vmSize, nil
+			}
+		}
+		return nil, fmt.Errorf("vm size %s not found", def)
+	default:
+		switch vmSize, err := SelectVMSize(ctx, vmSizes); {
+		case err == nil:
+			return vmSize, nil
+		case IsNonInteractive(err):
+			return nil, errVMsizeRequired
+		default:
+			return nil, err
+		}
+	}
+}
+
+func SelectVMSize(ctx context.Context, vmSizes []api.VMSize) (vmSize *api.VMSize, err error) {
+	var options = []string{}
+
+	for _, vmSize := range vmSizes {
+		options = append(options, fmt.Sprintf("%s - %d", vmSize.Name, vmSize.MemoryMB))
+	}
+
+	var index int
+
+	if err := Select(ctx, &index, "Select VM size:", "", options...); err != nil {
+		return nil, err
+	}
+	return &vmSizes[index], nil
 }

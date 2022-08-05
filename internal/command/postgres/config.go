@@ -9,7 +9,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
 	"github.com/spf13/cobra"
-
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
@@ -23,12 +22,21 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
+// pgSettings maps the command-line argument to the actual pgParameter.
+// This also acts as a whitelist as far as what's configurable via flyctl and
+// can be expanded on as needed.
+var pgSettings = map[string]string{
+	"wal-level":                  "wal_level",
+	"max-connections":            "max_connections",
+	"log-statement":              "log_statement",
+	"log-min-duration-statement": "log_min_duration_statement",
+}
+
 func newConfig() (cmd *cobra.Command) {
 	// TODO - Add better top level docs.
 	const (
-		long = `View and manage Postgres configuration.
-`
 		short = "View and manage Postgres configuration."
+		long  = short + "\n"
 	)
 
 	cmd = command.New("config", short, long, nil)
@@ -39,16 +47,6 @@ func newConfig() (cmd *cobra.Command) {
 	)
 
 	return
-}
-
-// pgSettingMap maps the command-line argument to the actual pgParameter.
-// This also acts as a whitelist as far as what's configurable via flyctl and
-// can be expanded on as needed.
-var pgSettingMap = map[string]string{
-	"wal-level":                  "wal_level",
-	"max-connections":            "max_connections",
-	"log-statement":              "log_statement",
-	"log-min-duration-statement": "log_min_duration_statement",
 }
 
 func newConfigView() (cmd *cobra.Command) {
@@ -72,16 +70,23 @@ func newConfigView() (cmd *cobra.Command) {
 	return
 }
 
-func runConfigView(ctx context.Context) error {
-	client := client.FromContext(ctx).API()
-	appName := app.NameFromContext(ctx)
+func runConfigView(ctx context.Context) (err error) {
+	var (
+		client   = client.FromContext(ctx).API()
+		appName  = app.NameFromContext(ctx)
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
+	)
 
-	io := iostreams.FromContext(ctx)
-	colorize := io.ColorScheme()
+	var MinPostgresHaVersion = "0.0.19"
 
-	app, err := client.GetAppBasic(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
+	}
+
+	if !app.IsPostgresApp() {
+		return fmt.Errorf("app %s is not a postgres app", app.Name)
 	}
 
 	agentclient, err := agent.Establish(ctx, client)
@@ -94,21 +99,37 @@ func runConfigView(ctx context.Context) error {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
 
+	switch app.PlatformVersion {
+	case "nomad":
+		if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+			return err
+		}
+	case "machines":
+		leader, err := fetchLeader(ctx, app, dialer)
+		if err != nil {
+			return fmt.Errorf("can't fetch leader: %w", err)
+		}
+		if err := hasRequiredVersionOnMachines(leader, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+			return err
+		}
+	}
+
 	pgclient := flypg.New(app.Name, dialer)
 
 	var settings []string
-	for _, k := range pgSettingMap {
+	for _, k := range pgSettings {
 		settings = append(settings, k)
 	}
 
-	resp, err := pgclient.SettingsView(ctx, settings)
+	res, err := pgclient.SettingsView(ctx, settings)
 	if err != nil {
 		return err
 	}
 
-	pendingRestart := false
-	rows := make([][]string, 0, len(resp.Settings))
-	for _, setting := range resp.Settings {
+	var pendingRestart = false
+
+	rows := make([][]string, 0, len(res.Settings))
+	for _, setting := range res.Settings {
 		desc := setting.Desc
 		switch setting.VarType {
 		case "enum":
@@ -152,10 +173,11 @@ func runConfigView(ctx context.Context) error {
 
 	if pendingRestart {
 		fmt.Fprintln(io.Out, colorize.Yellow("Some changes are awaiting a restart!"))
-		fmt.Fprintln(io.Out, colorize.Yellow(fmt.Sprintf("To apply changes, run: `DEV=1 fly services postgres restart --app %s`", appName)))
+		fmt.Fprintln(io.Out, colorize.Yellow(fmt.Sprintf("To apply changes, run: `fly postgres restart --app %s`", appName)))
 	}
 
-	return nil
+	return
+
 }
 
 func newConfigUpdate() (cmd *cobra.Command) {
@@ -199,31 +221,34 @@ func newConfigUpdate() (cmd *cobra.Command) {
 	return
 }
 
-func runConfigUpdate(ctx context.Context) error {
-	client := client.FromContext(ctx).API()
-	appName := app.NameFromContext(ctx)
+func runConfigUpdate(ctx context.Context) (err error) {
+	var (
+		client   = client.FromContext(ctx).API()
+		appName  = app.NameFromContext(ctx)
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
+	)
 
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	pgCmd, err := newPostgresCmd(ctx, app)
+	cmd, err := flypg.NewCommand(ctx, app)
 	if err != nil {
 		return err
 	}
 
-	io := iostreams.FromContext(ctx)
-	colorize := io.ColorScheme()
+	ctx = flypg.CommandWithContext(ctx, cmd)
 
 	// Identify requested configuration changes.
 	rChanges := map[string]string{}
 	keys := []string{}
-	for key := range pgSettingMap {
+	for key := range pgSettings {
 		val := flag.GetString(ctx, key)
 		if val != "" {
-			rChanges[pgSettingMap[key]] = val
-			keys = append(keys, pgSettingMap[key])
+			rChanges[pgSettings[key]] = val
+			keys = append(keys, pgSettings[key])
 		}
 	}
 
@@ -241,18 +266,14 @@ func runConfigUpdate(ctx context.Context) error {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
 
+	ctx = agent.DialerWithContext(ctx, dialer)
+
 	pgclient := flypg.New(app.Name, dialer)
 
 	settings, err := pgclient.SettingsView(ctx, keys)
 	if err != nil {
 		return err
 	}
-
-	// // Pull existing configuration
-	// settings, err := pgCmd.viewSettings(keys)
-	// if err != nil {
-	// 	return err
-	// }
 
 	// Verfiy that input values are within acceptible ranges.
 	// Stolon does not verify this, so we need to do it here.
@@ -312,12 +333,41 @@ func runConfigUpdate(ctx context.Context) error {
 		}
 	}
 
-	flapsClient, err := flaps.New(ctx, app)
+	switch app.PlatformVersion {
+	case "nomad":
+		if err = updateNomadConfig(ctx, app, rChanges); err != nil {
+			return err
+		}
+	case "machines":
+		if err := updateMachinesConfig(ctx, app, rChanges); err != nil {
+			return fmt.Errorf("error updating config: %w", err)
+		}
+	case "":
+		return fmt.Errorf("app %s has an invalid platform flag", app.Name)
+	}
+
+	fmt.Fprintln(io.Out, "Update complete!")
+
+	if restartRequired {
+		fmt.Fprintln(io.Out, colorize.Yellow("Please note that some of your changes will require a cluster restart before they will be applied."))
+		fmt.Fprintln(io.Out, colorize.Yellow("To review the state of your changes, run: `fly postgres config view`"))
+	}
+	return
+}
+
+func updateMachinesConfig(ctx context.Context, app *api.AppCompact, changes map[string]string) (err error) {
+	var (
+		io     = iostreams.FromContext(ctx)
+		dialer = agent.DialerFromContext(ctx)
+		cmd    = flypg.CommandFromContext(ctx)
+	)
+
+	fclt, err := flaps.New(ctx, app)
 	if err != nil {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
 
-	machines, err := flapsClient.List(ctx, "started")
+	machines, err := fclt.List(ctx, "started")
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved")
 	}
@@ -325,7 +375,7 @@ func runConfigUpdate(ctx context.Context) error {
 	var leader *api.Machine
 
 	for _, machine := range machines {
-		address := formatAddress(machine)
+		address := fmt.Sprintf("[%s]", machine.PrivateIP)
 
 		pgclient := flypg.NewFromInstance(address, dialer)
 		if err != nil {
@@ -349,13 +399,8 @@ func runConfigUpdate(ctx context.Context) error {
 		return fmt.Errorf("no leader found")
 	}
 
-	info, err := client.GetAppCompact(ctx, appName)
-	if err != nil {
-		return fmt.Errorf("get app: %w", err)
-	}
-
 	// obtain lease on leader
-	flaps, err := flaps.New(ctx, info)
+	flaps, err := flaps.New(ctx, app)
 	if err != nil {
 		return err
 	}
@@ -369,7 +414,7 @@ func runConfigUpdate(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "Acquired lease %s on machine: %s\n", lease.Data.Nonce, leader.ID)
 
 	fmt.Fprintln(io.Out, "Performing update...")
-	err = pgCmd.updateSettings(rChanges)
+	err = cmd.UpdateSettings(ctx, changes)
 	if err != nil {
 		return err
 	}
@@ -379,14 +424,22 @@ func runConfigUpdate(ctx context.Context) error {
 		return fmt.Errorf("failed to release lease: %w", err)
 	}
 
-	fmt.Fprintln(io.Out, "Update complete!")
+	return
+}
 
-	if restartRequired {
-		fmt.Fprintln(io.Out, colorize.Yellow("Please note that some of your changes will require a cluster restart before they will be applied."))
-		fmt.Fprintln(io.Out, colorize.Yellow("To review the state of your changes, run: `DEV=1 fly services postgres config view`"))
+func updateNomadConfig(ctx context.Context, app *api.AppCompact, changes map[string]string) (err error) {
+	var (
+		io  = iostreams.FromContext(ctx)
+		cmd = flypg.CommandFromContext(ctx)
+	)
+
+	fmt.Fprintln(io.Out, "Performing update...")
+
+	err = cmd.UpdateSettings(ctx, changes)
+	if err != nil {
+		return err
 	}
-
-	return nil
+	return
 }
 
 func isRestartRequired(pgSettings *flypg.PGSettings, name string) bool {

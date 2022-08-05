@@ -6,7 +6,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
@@ -18,42 +17,74 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func newDetach() (cmd *cobra.Command) {
+func newDetach() *cobra.Command {
 	const (
-		long = `Detach Postgres from an App
-`
-		short = "Detach Postgres from an existing App"
+		short = "Detach a postgres cluster from an app"
+		long  = short + "\n"
 		usage = "detach [POSTGRES APP]"
 	)
 
-	cmd = command.New(usage, short, long, runDetach,
+	cmd := command.New(usage, short, long, runDetach,
 		command.RequireSession,
 		command.RequireAppName,
 	)
+
 	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+
+		flag.String{
+			Name:        "postgres-app",
+			Description: "Name of the postgres app to detach",
+		},
 	)
 
-	return
+	return cmd
 }
 
 func runDetach(ctx context.Context) error {
-	appName := app.NameFromContext(ctx)
-	pgAppName := flag.FirstArg(ctx)
+	var (
+		MinPostgresHaVersion = "0.0.19"
+		appName              = app.NameFromContext(ctx)
+		pgAppName            = flag.FirstArg(ctx)
+		client               = client.FromContext(ctx).API()
+	)
 
-	client := client.FromContext(ctx).API()
-
-	app, err := client.GetAppBasic(ctx, appName)
+	app, err := client.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	pgApp, err := client.GetAppBasic(ctx, pgAppName)
+	pgApp, err := client.GetAppCompact(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
+	}
+
+	switch pgApp.PlatformVersion {
+	case "nomad":
+		if err := hasRequiredVersionOnNomad(pgApp, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+			return err
+		}
+	case "machines":
+		agentclient, err := agent.Establish(ctx, client)
+		if err != nil {
+			return fmt.Errorf("can't establish agent %w", err)
+		}
+
+		dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+		if err != nil {
+			return fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
+		}
+
+		leader, err := fetchLeader(ctx, pgApp, dialer)
+		if err != nil {
+			return fmt.Errorf("can't fetch leader: %w", err)
+		}
+		if err := hasRequiredVersionOnMachines(leader, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+			return err
+		}
 	}
 
 	attachments, err := client.ListPostgresClusterAttachments(ctx, app.ID, pgApp.ID)
@@ -92,7 +123,7 @@ func runDetach(ctx context.Context) error {
 		return fmt.Errorf("can't build tunnel for %s: %w", app.Organization.Slug, err)
 	}
 
-	pgclient := flypg.New(pgApp.Name, dialer)
+	pgclient := flypg.New(pgAppName, dialer)
 
 	// Remove user if exists
 	exists, err := pgclient.UserExists(ctx, targetAttachment.DatabaseUser)

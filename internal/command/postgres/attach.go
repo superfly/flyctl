@@ -7,7 +7,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
@@ -20,15 +19,14 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func newAttach() (cmd *cobra.Command) {
+func newAttach() *cobra.Command {
 	const (
-		long = `Attach Postgres to an existing App
-`
-		short = "Attach Postgres to an existing App"
+		short = "Attach a postgres cluster to an app"
+		long  = short + "\n"
 		usage = "attach [POSTGRES APP]"
 	)
 
-	cmd = command.New(usage, short, long, runAttach,
+	cmd := command.New(usage, short, long, runAttach,
 		command.RequireSession,
 		command.RequireAppName,
 	)
@@ -60,12 +58,17 @@ func newAttach() (cmd *cobra.Command) {
 			Description: "Force attach (bypass confirmation)",
 		})
 
-	return
+	return cmd
 }
 
 func runAttach(ctx context.Context) error {
-	appName := app.NameFromContext(ctx)
-	pgAppName := flag.FirstArg(ctx)
+	// Minimum image version requirements
+	var (
+		MinPostgresHaVersion = "0.0.19"
+		appName              = app.NameFromContext(ctx)
+		pgAppName            = flag.FirstArg(ctx)
+		client               = client.FromContext(ctx).API()
+	)
 
 	dbName := flag.GetString(ctx, "database-name")
 	if dbName == "" {
@@ -93,9 +96,7 @@ func runAttach(ctx context.Context) error {
 		VariableName:         api.StringPointer(varName),
 	}
 
-	client := client.FromContext(ctx).API()
-
-	pgApp, err := client.GetAppBasic(ctx, pgAppName)
+	pgApp, err := client.GetAppCompact(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
@@ -110,7 +111,23 @@ func runAttach(ctx context.Context) error {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s", pgApp.Organization.Slug, err)
 	}
 
-	pgclient := flypg.New(pgApp.Name, dialer)
+	switch pgApp.PlatformVersion {
+	case "nomad":
+		if err := hasRequiredVersionOnNomad(pgApp, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+			return err
+		}
+	case "machines":
+		leader, err := fetchLeader(ctx, pgApp, dialer)
+		if err != nil {
+			return fmt.Errorf("can't fetch leader: %w", err)
+		}
+		if err := hasRequiredVersionOnMachines(leader, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+			return err
+		}
+	default:
+	}
+
+	pgclient := flypg.New(pgAppName, dialer)
 
 	secrets, err := client.GetAppSecrets(ctx, appName)
 	if err != nil {
@@ -118,9 +135,10 @@ func runAttach(ctx context.Context) error {
 	}
 	for _, secret := range secrets {
 		if secret.Name == *input.VariableName {
-			return fmt.Errorf("consumer app %q already contains an environment variable named %s", appName, *input.VariableName)
+			return fmt.Errorf("consumer app %q already contains a secret named %s", appName, *input.VariableName)
 		}
 	}
+
 	// Check to see if database exists
 	dbExists, err := pgclient.DatabaseExists(ctx, *input.DatabaseName)
 	if err != nil {

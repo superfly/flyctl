@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/app"
@@ -15,19 +14,18 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 )
 
-func newConnect() (cmd *cobra.Command) {
+func newConnect() *cobra.Command {
 	const (
-		long = `Connect to the Postgres console
-`
 		short = "Connect to the Postgres console"
+		long  = short + "\n"
+
 		usage = "connect"
 	)
 
-	cmd = command.New(usage, short, long, runConnect,
+	cmd := command.New(usage, short, long, runConnect,
 		command.RequireSession,
 		command.RequireAppName,
 	)
-	cmd.Args = cobra.MaximumNArgs(1)
 
 	flag.Add(cmd,
 		flag.App(),
@@ -51,16 +49,26 @@ func newConnect() (cmd *cobra.Command) {
 		},
 	)
 
-	return
+	return cmd
 }
 
 func runConnect(ctx context.Context) error {
-	appName := app.NameFromContext(ctx)
-	client := client.FromContext(ctx).API()
+	var (
+		MinPostgresStandaloneVersion = "0.0.4"
+		MinPostgresHaVersion         = "0.0.9"
+	)
+	var (
+		appName = app.NameFromContext(ctx)
+		client  = client.FromContext(ctx).API()
+	)
 
-	app, err := client.GetAppBasic(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
+	}
+
+	if !app.IsPostgresApp() {
+		return fmt.Errorf("app %s is not a postgres app", appName)
 	}
 
 	agentclient, err := agent.Establish(ctx, client)
@@ -71,6 +79,23 @@ func runConnect(ctx context.Context) error {
 	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
 	if err != nil {
 		return fmt.Errorf("failed to build tunnel for %s: %v", app.Organization.Slug, err)
+	}
+
+	switch app.PlatformVersion {
+	case "nomad":
+		if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresStandaloneVersion); err != nil {
+			return err
+		}
+	case "machines":
+		leader, err := fetchLeader(ctx, app, dialer)
+		if err != nil {
+			return fmt.Errorf("can't fetch leader: %w", err)
+		}
+		if err := hasRequiredVersionOnMachines(leader, MinPostgresHaVersion, MinPostgresStandaloneVersion); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("platform %s is not supported", app.PlatformVersion)
 	}
 
 	database := flag.GetString(ctx, "database")

@@ -135,10 +135,11 @@ func once(ctx context.Context, out io.Writer) (err error) {
 			strconv.Itoa(status.Version),
 			status.Status,
 			status.Hostname,
+			app.PlatformVersion,
 		},
 	}
 
-	if err = render.VerticalTable(out, "App", obj, "Name", "Owner", "Version", "Status", "Hostname"); err != nil {
+	if err = render.VerticalTable(out, "App", obj, "Name", "Owner", "Version", "Status", "Hostname", "Platform"); err != nil {
 		return
 	}
 	if !status.Deployed && platformVersion == "" {
