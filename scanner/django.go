@@ -4,7 +4,7 @@ import "github.com/superfly/flyctl/helpers"
 
 // setup django with a postgres database
 func configureDjango(sourceDir string) (*SourceInfo, error) {
-	if !checksPass(sourceDir, fileExists("requirements.txt", "manage.py")) {
+	if !checksPass(sourceDir, dirContains("requirements.txt", "Django")) {
 		return nil, nil
 	}
 
