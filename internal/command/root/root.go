@@ -2,8 +2,6 @@
 package root
 
 import (
-	"os"
-
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/client"
@@ -31,13 +29,13 @@ import (
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/command/ping"
 	"github.com/superfly/flyctl/internal/command/platform"
+	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/proxy"
 	"github.com/superfly/flyctl/internal/command/redis"
 	"github.com/superfly/flyctl/internal/command/releases"
 	"github.com/superfly/flyctl/internal/command/restart"
 	"github.com/superfly/flyctl/internal/command/resume"
 	"github.com/superfly/flyctl/internal/command/secrets"
-	"github.com/superfly/flyctl/internal/command/services"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/command/status"
 	"github.com/superfly/flyctl/internal/command/suspend"
@@ -146,15 +144,16 @@ func New() *cobra.Command {
 		proxy.New(),
 		machine.New(),
 		monitor.New(),
+		postgres.New(),
 		ips.New(),
 		secrets.New(),
 		ssh.New(),
 		redis.New(),
 	}
 
-	if os.Getenv("DEV") != "" {
-		newCommands = append(newCommands, services.New())
-	}
+	// if os.Getenv("DEV") != "" {
+	// 	newCommands = append(newCommands, services.New())
+	// }
 
 	// newCommandNames is the set of the names of the above commands
 	newCommandNames := make(map[string]struct{}, len(newCommands))

@@ -52,6 +52,6 @@ func run(ctx context.Context) (err error) {
 		return fmt.Errorf("app %s is not currently deploying a release. The build and release command must succeed before a release is deployed. The latest release version is %d", appName, app.CurrentRelease.Version)
 	}
 
-	return watch.Deployment(ctx, app.CurrentRelease.EvaluationID)
+	return watch.Deployment(ctx, appName, app.CurrentRelease.EvaluationID)
 
 }

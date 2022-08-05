@@ -162,6 +162,13 @@ func (client *Client) GetAppCompact(ctx context.Context, appName string) (*AppCo
 					id
 					slug
 				}
+				postgresAppRole: role {
+					name
+				}
+				imageDetails {
+					repository
+					version
+				}
 			}
 		}
 	`
@@ -209,6 +216,9 @@ func (client *Client) GetAppInfo(ctx context.Context, appName string) (*AppInfo,
 						type
 						createdAt
 					}
+				}
+				postgresAppRole: role {
+					name
 				}
 			}
 		}
@@ -282,6 +292,7 @@ func (client *Client) GetAppPostgres(ctx context.Context, appName string) (*AppP
 		query ($appName: String!) {
 			apppostgres:app(name: $appName) {
 				id
+				name
 				organization {
 					id
 					slug
@@ -293,6 +304,7 @@ func (client *Client) GetAppPostgres(ctx context.Context, appName string) (*AppP
 				postgresAppRole: role {
 					name
 				}
+				platformVersion
 			}
 		}
 	`

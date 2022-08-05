@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"syscall"
 	"time"
 )
@@ -271,6 +272,10 @@ type ImageVersion struct {
 	Digest     string
 }
 
+func (img *ImageVersion) FullImageRef() string {
+	return fmt.Sprintf("%s:%s", img.Repository, img.Tag)
+}
+
 type App struct {
 	ID             string
 	Name           string
@@ -432,6 +437,15 @@ type AppCompact struct {
 	AppURL          string
 	Organization    *OrganizationBasic
 	PlatformVersion string
+	PostgresAppRole *struct {
+		Name string
+	}
+	ImageDetails ImageVersion
+}
+
+func (app *AppCompact) IsPostgresApp() bool {
+	// check app.PostgresAppRole.Name == "postgres_cluster"
+	return app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster"
 }
 
 type AppInfo struct {
@@ -462,6 +476,7 @@ type AppMonitoring struct {
 
 type AppPostgres struct {
 	ID              string
+	Name            string
 	Organization    *OrganizationBasic
 	ImageDetails    ImageVersion
 	PostgresAppRole *struct {
@@ -469,6 +484,13 @@ type AppPostgres struct {
 		Databases *[]PostgresClusterDatabase
 		Users     *[]PostgresClusterUser
 	}
+	PlatformVersion string
+	Services        []Service
+}
+
+func (app *AppPostgres) IsPostgresApp() bool {
+	// check app.PostgresAppRole.Name == "postgres_cluster"
+	return app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster"
 }
 
 type AppStatus struct {

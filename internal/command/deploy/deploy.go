@@ -147,7 +147,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 		return nil
 	}
 
-	err = watch.Deployment(ctx, release.EvaluationID)
+	err = watch.Deployment(ctx, appConfig.AppName, release.EvaluationID)
 
 	return err
 }
