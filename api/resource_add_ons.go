@@ -2,29 +2,6 @@ package api
 
 import "context"
 
-func (c *Client) ProvisionService(ctx context.Context, serviceType string, orgID string, region string) (*AddOn, error) {
-	query := `
-		mutation ($input: ProvisionAddOnInput!) {
-			provisionAddOn(input: $input) {
-				service {
-					publicUrl
-				}
-			}
-		}
-	`
-
-	req := c.NewRequest(query)
-
-	req.Var("input", ProvisionAddOnInput{OrganizationId: orgID, Region: region, Type: serviceType})
-
-	data, err := c.RunWithContext(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	return &data.ProvisionAddOn.Service, nil
-}
-
 func (c *Client) GetAddOn(ctx context.Context, id string) (*AddOn, error) {
 	query := `
 		query($id: ID!) {

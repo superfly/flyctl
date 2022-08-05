@@ -46,7 +46,12 @@ func runCreate(ctx context.Context) (err error) {
 		return err
 	}
 
-	//region, err := prompt.Region()
+	region, err := prompt.Region(ctx)
+
+	if err != nil {
+		return
+	}
+
 	var index int
 	var promptOptions []string
 
@@ -66,23 +71,24 @@ func runCreate(ctx context.Context) (err error) {
 		return fmt.Errorf("failed to select a plan: %w", err)
 	}
 
-	url, err := ProvisionRedis(ctx, org, result.AddOnPlans.Nodes[index].Id, "us-east-1")
+	url, err := ProvisionRedis(ctx, org, result.AddOnPlans.Nodes[index].Id, region.Code)
 
 	if err != nil {
 		return
 	}
 
-	fmt.Fprintf(out, "Your Redis instance is available to apps in the %s organization at %s\n", org.Slug, url)
+	fmt.Fprintf(out, "Connect to your Redis instance at: %s\n", url)
+	fmt.Fprintf(out, "Redis instance are visible to all applications in the %s organization.\n", org.Slug)
 
 	return
 }
 
-func ProvisionRedis(ctx context.Context, org *api.Organization, planId string, region string) (publicUrl string, err error) {
+func ProvisionRedis(ctx context.Context, org *api.Organization, planId string, primaryRegion string) (publicUrl string, err error) {
 	client := client.FromContext(ctx).API().GenqClient
 
 	_ = `# @genqlient
-  mutation ProvisionAddOn($organizationId: ID!, $region: String!, $planId: ID!) {
-		provisionAddOn(input: {organizationId: $organizationId, region: $region, type: upstash_redis, planId: $planId}) {
+  mutation CreateAddOn($organizationId: ID!, $primaryRegion: String!, $planId: ID!) {
+		createAddOn(input: {organizationId: $organizationId, primaryRegion: $primaryRegion, type: redis, planId: $planId}) {
 			addOn {
 				id
 				publicUrl
@@ -91,11 +97,11 @@ func ProvisionRedis(ctx context.Context, org *api.Organization, planId string, r
   }
 `
 
-	response, err := gql.ProvisionAddOn(ctx, client, org.ID, region, planId)
+	response, err := gql.CreateAddOn(ctx, client, org.ID, primaryRegion, planId)
 
 	if err != nil {
 		return
 	}
 
-	return response.ProvisionAddOn.AddOn.PublicUrl, nil
+	return response.CreateAddOn.AddOn.PublicUrl, nil
 }
