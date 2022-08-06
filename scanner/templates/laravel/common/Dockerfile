@@ -1,4 +1,6 @@
 # syntax = docker/dockerfile:experimental
+
+# The "base" container installs PHP, etc
 FROM alpine:3.16 as base
 
 LABEL fly_launch_runtime="laravel"
@@ -63,7 +65,9 @@ RUN composer dump-autoload \
     && chmod -R ug+w /var/www/html/storage \
     && chmod -R 755 /var/www/html
 
+
 # Multi-stage build: Build static assets
+# This allows us to not include Node within the final container
 FROM node:14 as node_modules_go_brrr
 
 RUN mkdir /app
@@ -71,6 +75,10 @@ RUN mkdir /app
 RUN mkdir -p  /app
 WORKDIR /app
 COPY . .
+
+# Use yarn or npm depending on what type of
+# lock file we might find. Defaults to
+# NPM if no lock file is found.
 RUN if [ -f "yarn.lock" ]; then \
         yarn install; \
     elif [ -f "package-lock.json" ]; then \
@@ -79,9 +87,14 @@ RUN if [ -f "yarn.lock" ]; then \
         npm install; \
     fi
 
-# Create final container, adding in static assets
+# From our base container created above, we
+# create our image, adding in static assets
+# generated above
 FROM base
 
+# Packages like Laravel Nova may have added assets to the public directory
+# or maybe some custom assets were added manually! Either way, we merge
+# in the assets we generated above rather than overwrite them
 COPY --from=node_modules_go_brrr /app/public /var/www/html/public-npm
 RUN rsync -ar /var/www/html/public-npm/ /var/www/html/public/ \
     && rm -rf /var/www/html/public-npm
