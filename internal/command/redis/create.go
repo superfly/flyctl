@@ -46,7 +46,18 @@ func runCreate(ctx context.Context) (err error) {
 		return err
 	}
 
-	//region, err := prompt.Region()
+	primaryRegion, err := prompt.Region(ctx, "Choose a primary region (can't be changed later)")
+
+	if err != nil {
+		return err
+	}
+
+	readRegions, err := prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", primaryRegion)
+
+	if err != nil {
+		return
+	}
+
 	var index int
 	var promptOptions []string
 
@@ -66,36 +77,43 @@ func runCreate(ctx context.Context) (err error) {
 		return fmt.Errorf("failed to select a plan: %w", err)
 	}
 
-	url, err := ProvisionRedis(ctx, org, result.AddOnPlans.Nodes[index].Id, "us-east-1")
+	url, err := ProvisionRedis(ctx, org, result.AddOnPlans.Nodes[index].Id, primaryRegion, readRegions)
 
 	if err != nil {
 		return
 	}
 
-	fmt.Fprintf(out, "Your Redis instance is available to apps in the %s organization at %s\n", org.Slug, url)
+	fmt.Fprintf(out, "Connect to your Redis instance at: %s\n", url)
+	fmt.Fprintf(out, "Redis instance are visible to all applications in the %s organization.\n", org.Slug)
 
 	return
 }
 
-func ProvisionRedis(ctx context.Context, org *api.Organization, planId string, region string) (publicUrl string, err error) {
+func ProvisionRedis(ctx context.Context, org *api.Organization, planId string, primaryRegion *api.Region, readRegions *[]api.Region) (publicUrl string, err error) {
 	client := client.FromContext(ctx).API().GenqClient
 
 	_ = `# @genqlient
-  mutation ProvisionAddOn($organizationId: ID!, $region: String!, $planId: ID!) {
-		provisionAddOn(input: {organizationId: $organizationId, region: $region, type: upstash_redis, planId: $planId}) {
+  mutation CreateAddOn($organizationId: ID!, $primaryRegion: String!, $planId: ID!, $readRegions: [String!]) {
+		createAddOn(input: {organizationId: $organizationId, type: redis, planId: $planId, primaryRegion: $primaryRegion, readRegions: $readRegions}) {
 			addOn {
 				id
 				publicUrl
 			}
 		}
   }
-`
+	`
 
-	response, err := gql.ProvisionAddOn(ctx, client, org.ID, region, planId)
+	var readRegionCodes []string
+
+	for _, region := range *readRegions {
+		readRegionCodes = append(readRegionCodes, region.Code)
+	}
+
+	response, err := gql.CreateAddOn(ctx, client, org.ID, primaryRegion.Code, planId, readRegionCodes)
 
 	if err != nil {
 		return
 	}
 
-	return response.ProvisionAddOn.AddOn.PublicUrl, nil
+	return response.CreateAddOn.AddOn.PublicUrl, nil
 }

@@ -81,7 +81,7 @@ func runCreate(ctx context.Context) error {
 
 	var region *api.Region
 
-	if region, err = prompt.Region(ctx); err != nil {
+	if region, err = prompt.Region(ctx, ""); err != nil {
 		return err
 	}
 
