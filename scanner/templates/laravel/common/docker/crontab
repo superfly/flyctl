@@ -1,1 +1,0 @@
-* * * * * /bin/su -c "/usr/bin/php /var/www/html/artisan schedule:run" - app > /proc/1/fd/1 2>&1

@@ -17,5 +17,11 @@ if [ $# -gt 0 ];then
     exec "$@"
 else
     # Otherwise start supervisord
+
+    ## Do some caching
+    /usr/bin/php /var/www/html/artisan config:cache
+    /usr/bin/php /var/www/html/artisan route:cache
+    /usr/bin/php /var/www/html/artisan view:cache
+    # chown -R app:app /var/www/html
     exec supervisord -c /etc/supervisord.conf
 fi
