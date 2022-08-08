@@ -85,7 +85,6 @@ func run(ctx context.Context) error {
 }
 
 func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
-
 	apiClient := client.FromContext(ctx).API()
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
@@ -147,7 +146,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 		return nil
 	}
 
-	err = watch.Deployment(ctx, appConfig.AppName, release.EvaluationID)
+	err = watch.Deployment(ctx, app.NameFromContext(ctx), release.EvaluationID)
 
 	return err
 }
