@@ -9,7 +9,7 @@ import (
 // TODO: make internal once the open command has been deprecated
 func New() (cmd *cobra.Command) {
 	const (
-		long  = `Launch and manage a Redis instance`
+		long  = `Launch and manage an Upstash Redis instance`
 		short = long
 	)
 

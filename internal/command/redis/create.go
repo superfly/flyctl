@@ -71,7 +71,7 @@ func runCreate(ctx context.Context) (err error) {
 		promptOptions = append(promptOptions, fmt.Sprintf("%s: %s Max Data Size, $%d/month/region", plan.DisplayName, plan.MaxDataSize, plan.PricePerMonth))
 	}
 
-	err = prompt.Select(ctx, &index, "Select a Redis plan", "", promptOptions...)
+	err = prompt.Select(ctx, &index, "Select an Upstash Redis plan", "", promptOptions...)
 
 	if err != nil {
 		return fmt.Errorf("failed to select a plan: %w", err)
@@ -83,8 +83,8 @@ func runCreate(ctx context.Context) (err error) {
 		return
 	}
 
-	fmt.Fprintf(out, "Connect to your Redis instance at: %s\n", url)
-	fmt.Fprintf(out, "Redis instance are visible to all applications in the %s organization.\n", org.Slug)
+	fmt.Fprintf(out, "Connect to your Upstash Redis instance at: %s\n", url)
+	fmt.Fprintf(out, "This redis instance is visible to all applications in the %s organization.\n", org.Slug)
 
 	return
 }
