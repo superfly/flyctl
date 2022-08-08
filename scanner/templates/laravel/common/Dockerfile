@@ -80,7 +80,7 @@ COPY . .
 # lock file we might find. Defaults to
 # NPM if no lock file is found.
 RUN if [ -f "yarn.lock" ]; then \
-        yarn install; \
+        yarn install --frozen-lockfile; \
         yarn production; \
     elif [ -f "package-lock.json" ]; then \
         npm ci --no-audit; \
