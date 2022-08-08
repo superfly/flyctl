@@ -81,10 +81,13 @@ COPY . .
 # NPM if no lock file is found.
 RUN if [ -f "yarn.lock" ]; then \
         yarn install; \
+        yarn production; \
     elif [ -f "package-lock.json" ]; then \
         npm ci --no-audit; \
+        npm run production; \
     else \
         npm install; \
+        npm run production; \
     fi
 
 # From our base container created above, we
