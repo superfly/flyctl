@@ -48,9 +48,9 @@ func NewLauncher(client *api.Client) *Launcher {
 
 // Launches a postgres cluster using the machines runtime
 func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClusterInput) error {
-	var (
-		client = client.FromContext(ctx).API()
-	)
+	// var (
+	// 	client = client.FromContext(ctx).API()
+	// )
 
 	app, err := l.createApp(ctx, config)
 	if err != nil {
@@ -81,6 +81,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			SizeGb:            *config.VolumeSize,
 			Encrypted:         false,
 			RequireUniqueZone: false,
+			SnapshotID:        &config.SnapshotID,
 		}
 
 		vol, err := l.client.CreateVolume(ctx, volInput)
@@ -95,12 +96,12 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			Encrypted: false,
 		})
 
-		imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres")
-		if err != nil {
-			return err
-		}
+		// imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres")
+		// if err != nil {
+		// 	return err
+		// }
 
-		machineConf.Image = imageRef
+		machineConf.Image = "flyio/postgres:13"
 
 		launchInput := api.LaunchMachineInput{
 			AppID:   app.ID,
@@ -269,6 +270,10 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 		"SU_PASSWORD":       suPassword,
 		"REPL_PASSWORD":     replPassword,
 		"OPERATOR_PASSWORD": opPassword,
+	}
+
+	if config.SnapshotID != "" {
+		secrets["FLY_RESTORED_FROM"] = config.SnapshotID
 	}
 
 	if config.ConsulURL == "" {
