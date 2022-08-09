@@ -338,11 +338,12 @@ func SelectRegion(ctx context.Context, msg string, regions []api.Region, default
 func MultiSelectRegion(ctx context.Context, msg string, regions []api.Region, excludeRegion *api.Region) (selectedRegions []api.Region, err error) {
 
 	var options []string
-	for _, r := range regions {
 
-		if r.Code == excludeRegion.Code {
-			continue
-		}
+	includedRegions := filter(regions, func(r api.Region) bool {
+		return r.Code != excludeRegion.Code
+	})
+
+	for _, r := range includedRegions {
 
 		option := fmt.Sprintf("%s (%s)", r.Name, r.Code)
 		options = append(options, option)
@@ -355,11 +356,12 @@ func MultiSelectRegion(ctx context.Context, msg string, regions []api.Region, ex
 	}
 
 	if err = MultiSelect(ctx, &indices, msg, options...); err == nil {
+		fmt.Println(indices)
+
 		for _, index := range indices {
-			selectedRegions = append(selectedRegions, regions[index])
+			selectedRegions = append(selectedRegions, includedRegions[index])
 		}
 	}
-
 	return
 }
 
@@ -408,4 +410,14 @@ func SelectVMSize(ctx context.Context, vmSizes []api.VMSize) (vmSize *api.VMSize
 		return nil, err
 	}
 	return &vmSizes[index], nil
+}
+
+func filter[T any](slice []T, f func(T) bool) []T {
+	var n []T
+	for _, e := range slice {
+		if f(e) {
+			n = append(n, e)
+		}
+	}
+	return n
 }

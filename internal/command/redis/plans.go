@@ -72,6 +72,6 @@ func runPlans(ctx context.Context) (err error) {
 
 	_ = render.Table(out, "", rows, "Name", "Max Data Size", "Price per Month")
 
-	fmt.Fprintln(out, "\nFly Redis is managed by Upstash.com. Other limitations apply to plans. Learn more at https://fly.io/docs/reference/redis")
+	fmt.Fprintln(out, "\nRedis is fully managed by Upstash.com and runs on Fly infrastructure. Other limits apply to most plans. Learn more at https://fly.io/docs/reference/redis")
 	return
 }
