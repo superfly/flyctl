@@ -7,6 +7,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/render"
@@ -37,6 +38,7 @@ func runList(ctx context.Context) (err error) {
 	appName := app.NameFromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 	secrets, err := client.GetAppSecrets(ctx, appName)
+	cfg := config.FromContext(ctx)
 
 	if err != nil {
 		return err
@@ -57,6 +59,9 @@ func runList(ctx context.Context) (err error) {
 		"Digest",
 		"Created At",
 	}
-
-	return render.Table(out, "", rows, headers...)
+	if cfg.JSONOutput {
+		return render.JSON(out, secrets)
+	} else {
+		return render.Table(out, "", rows, headers...)
+	}
 }
