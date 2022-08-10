@@ -5,13 +5,16 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
+	"github.com/superfly/flyctl/internal/spinner"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/retry"
 )
 
 // Deploy ta machines app directly from flyctl, applying the desired config to running machines,
@@ -96,7 +99,7 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 }
 
 func RunReleaseCommand(ctx context.Context, app *api.AppCompact, appConfig *app.Config, machineConf *api.MachineConfig) (err error) {
-	out := iostreams.FromContext(ctx).Out
+	io := iostreams.FromContext(ctx)
 
 	flapsClient, err := flaps.New(ctx, app)
 
@@ -104,7 +107,9 @@ func RunReleaseCommand(ctx context.Context, app *api.AppCompact, appConfig *app.
 		return
 	}
 
-	fmt.Fprintf(out, "Running release command: %s", appConfig.Deploy.ReleaseCommand)
+	spin := spinner.Run(io, fmt.Sprintf("Running release command: %s", appConfig.Deploy.ReleaseCommand))
+	defer spin.Stop()
+
 	// Override the machine default command to run the release command
 	machineConf.Init.Cmd = strings.Split(appConfig.Deploy.ReleaseCommand, " ")
 
@@ -136,25 +141,37 @@ func RunReleaseCommand(ctx context.Context, app *api.AppCompact, appConfig *app.
 	if err != nil {
 		return err
 	}
+	fn := func() error {
+		return flapsClient.Wait(ctx, machine, "stopped")
+	}
 
-	err = flapsClient.Wait(ctx, machine, "stopped")
+	err = retry.Retry(fn, 3)
 
 	if err != nil {
 		return fmt.Errorf("Failed determining whether the release command finished. %w", err)
 	}
 
-	machine, err = flapsClient.Get(ctx, machine.ID)
-
 	var lastExitEvent *api.MachineEvent
 
-	for _, event := range machine.Events {
-		if event.Type != "exit" {
-			continue
+	// Poll until the 'stopped' event arrives
+	for {
+		machine, err = flapsClient.Get(ctx, machine.ID)
+
+		for _, event := range machine.Events {
+			if event.Type != "exit" {
+				continue
+			}
+
+			if lastExitEvent == nil || event.Timestamp > lastExitEvent.Timestamp {
+				lastExitEvent = event
+			}
 		}
 
-		if lastExitEvent == nil || event.Timestamp > lastExitEvent.Timestamp {
-			lastExitEvent = event
+		if lastExitEvent != nil {
+			break
 		}
+
+		time.Sleep(1 * time.Second)
 	}
 
 	exitCode := lastExitEvent.Request.ExitEvent.ExitCode
@@ -196,7 +213,6 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 
 		for _, machine := range machines {
 
-			fmt.Fprintf(out, "Taking lease out on VM %s\n", machine.ID)
 			leaseTTL := api.IntPointer(30)
 			lease, err := flapsClient.GetLease(ctx, machine.ID, leaseTTL)
 
@@ -209,8 +225,6 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 		}
 
 		for _, machine := range machines {
-
-			fmt.Fprintf(out, "Updating VM %s\n", machine.ID)
 
 			launchInput.ID = machine.ID
 
