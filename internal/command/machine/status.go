@@ -123,7 +123,7 @@ func runMachineStatus(ctx context.Context) (err error) {
 		if event.Request != nil && event.Request.ExitEvent != nil {
 			exitEvent := event.Request.ExitEvent
 			fields = append(fields, fmt.Sprintf("exit_code=%d,oom_killed=%t,requested_stop=%t",
-				exitEvent.GuestExitCode, exitEvent.OOMKilled, exitEvent.RequestedStop))
+				exitEvent.ExitCode, exitEvent.OOMKilled, exitEvent.RequestedStop))
 		}
 
 		eventLogs = append(eventLogs, fields)

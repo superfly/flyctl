@@ -114,7 +114,7 @@ func (f *Client) Start(ctx context.Context, machineID string) (*api.MachineStart
 	return out, nil
 }
 
-func (f *Client) Wait(ctx context.Context, machine *api.Machine) (err error) {
+func (f *Client) Wait(ctx context.Context, machine *api.Machine, state string) (err error) {
 	waitEndpoint := fmt.Sprintf("/%s/wait", machine.ID)
 
 	version := machine.InstanceID
@@ -128,8 +128,14 @@ func (f *Client) Wait(ctx context.Context, machine *api.Machine) (err error) {
 		waitEndpoint += "?timeout=30"
 	}
 
+	if state == "" {
+		state = "started"
+	}
+
+	waitEndpoint += fmt.Sprintf("&state=%s", state)
+
 	if err := f.sendRequest(ctx, http.MethodGet, waitEndpoint, nil, nil, nil); err != nil {
-		return fmt.Errorf("failed to wait for VM %s: %w", machine.ID, err)
+		return fmt.Errorf("failed to wait for VM %s in %s state: %w", machine.ID, state, err)
 	}
 	return
 }
