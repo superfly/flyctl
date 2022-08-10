@@ -37,7 +37,7 @@ type CreateClusterInput struct {
 	Region             string
 	VolumeSize         *int
 	VMSize             *string
-	SnapshotID         string
+	SnapshotID         *string
 }
 
 func NewLauncher(client *api.Client) *Launcher {
@@ -48,9 +48,9 @@ func NewLauncher(client *api.Client) *Launcher {
 
 // Launches a postgres cluster using the machines runtime
 func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClusterInput) error {
-	// var (
-	// 	client = client.FromContext(ctx).API()
-	// )
+	var (
+		client = client.FromContext(ctx).API()
+	)
 
 	app, err := l.createApp(ctx, config)
 	if err != nil {
@@ -81,7 +81,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			SizeGb:            *config.VolumeSize,
 			Encrypted:         false,
 			RequireUniqueZone: false,
-			SnapshotID:        &config.SnapshotID,
+			SnapshotID:        config.SnapshotID,
 		}
 
 		vol, err := l.client.CreateVolume(ctx, volInput)
@@ -96,12 +96,12 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			Encrypted: false,
 		})
 
-		// imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres")
-		// if err != nil {
-		// 	return err
-		// }
+		imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres", config.SnapshotID)
+		if err != nil {
+			return err
+		}
 
-		machineConf.Image = "flyio/postgres:13"
+		machineConf.Image = imageRef
 
 		launchInput := api.LaunchMachineInput{
 			AppID:   app.ID,
@@ -167,8 +167,8 @@ func (l *Launcher) LaunchNomadPostgres(ctx context.Context, config *CreateCluste
 		VolumeSizeGB:   config.VolumeSize,
 	}
 
-	if config.SnapshotID != "" {
-		input.SnapshotID = &config.SnapshotID
+	if config.SnapshotID != nil {
+		input.SnapshotID = config.SnapshotID
 	}
 
 	s := spinner.Run(io, "Launching...")
@@ -272,8 +272,8 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 		"OPERATOR_PASSWORD": opPassword,
 	}
 
-	if config.SnapshotID != "" {
-		secrets["FLY_RESTORED_FROM"] = config.SnapshotID
+	if config.SnapshotID != nil {
+		secrets["FLY_RESTORED_FROM"] = *config.SnapshotID
 	}
 
 	if config.ConsulURL == "" {

@@ -194,7 +194,7 @@ func runCreate(ctx context.Context) (err error) {
 
 	snapshot := flag.GetString(ctx, "snapshot-id")
 	if snapshot != "" {
-		input.SnapshotID = snapshot
+		input.SnapshotID = &snapshot
 	}
 
 	fmt.Fprintf(io.Out, "Creating postgres cluster %s in organization %s\n", appName, org.Slug)
