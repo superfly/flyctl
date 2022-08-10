@@ -29,6 +29,18 @@ RUN composer install --optimize-autoloader --no-dev \
     && cp docker/entrypoint.sh /entrypoint \
     && chmod +x /entrypoint
 
+# If we're using Octane...
+RUN if grep -Fq "laravel/octane" /var/www/html/composer.json; then \
+        rm -rf /etc/services.d/php-fpm; \
+        if grep -Fq "spiral/roadrunner" /var/www/html/composer.json; then \
+            mv docker/octane-rr /etc/services.d/octane; \
+            if [ -f ./vendor/bin/rr ]; then ./vendor/bin/rr get-binary; fi; \
+            rm -f .rr.yaml; \
+        else \
+            mv docker/octane-swoole /etc/services.d/octane; \
+        fi \
+    fi
+
 # Multi-stage build: Build static assets
 # This allows us to not include Node within the final container
 FROM node:${NODE_VERSION} as node_modules_go_brrr
