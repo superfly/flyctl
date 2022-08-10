@@ -90,6 +90,7 @@ func runMachineStatus(ctx context.Context) (err error) {
 			machine.Name,
 			machine.PrivateIP,
 			machine.Region,
+			machine.Config.Metadata["process_group"],
 			fmt.Sprint(machine.Config.Guest.MemoryMB),
 			fmt.Sprint(machine.Config.Guest.CPUs),
 			machine.CreatedAt,
@@ -98,7 +99,7 @@ func runMachineStatus(ctx context.Context) (err error) {
 		},
 	}
 
-	var cols []string = []string{"ID", "Instance ID", "State", "Image", "Name", "Private IP", "Region", "Memory", "CPUs", "Created", "Updated", "Command"}
+	var cols []string = []string{"ID", "Instance ID", "State", "Image", "Name", "Private IP", "Region", "Process Group", "Memory", "CPUs", "Created", "Updated", "Command"}
 
 	if len(machine.Config.Mounts) > 0 {
 		cols = append(cols, "Volume")

@@ -15,6 +15,7 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/sort"
 )
@@ -339,7 +340,7 @@ func MultiSelectRegion(ctx context.Context, msg string, regions []api.Region, ex
 
 	var options []string
 
-	includedRegions := filter(regions, func(r api.Region) bool {
+	includedRegions := helpers.Filter(regions, func(r api.Region) bool {
 		return r.Code != excludeRegion.Code
 	})
 
@@ -410,14 +411,4 @@ func SelectVMSize(ctx context.Context, vmSizes []api.VMSize) (vmSize *api.VMSize
 		return nil, err
 	}
 	return &vmSizes[index], nil
-}
-
-func filter[T any](slice []T, f func(T) bool) []T {
-	var n []T
-	for _, e := range slice {
-		if f(e) {
-			n = append(n, e)
-		}
-	}
-	return n
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/spinner"
@@ -29,7 +30,7 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 		return
 	}
 
-	machineConfig := &api.MachineConfig{
+	machineConfig := api.MachineConfig{
 		Image: img.Tag,
 	}
 
@@ -98,7 +99,7 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 	return DeployMachinesApp(ctx, app, strategy, machineConfig)
 }
 
-func RunReleaseCommand(ctx context.Context, app *api.AppCompact, appConfig *app.Config, machineConf *api.MachineConfig) (err error) {
+func RunReleaseCommand(ctx context.Context, app *api.AppCompact, appConfig *app.Config, machineConfig api.MachineConfig) (err error) {
 	io := iostreams.FromContext(ctx)
 
 	flapsClient, err := flaps.New(ctx, app)
@@ -110,6 +111,11 @@ func RunReleaseCommand(ctx context.Context, app *api.AppCompact, appConfig *app.
 	spin := spinner.Run(io, fmt.Sprintf("Running release command: %s", appConfig.Deploy.ReleaseCommand))
 	defer spin.Stop()
 
+	machineConf := machineConfig
+
+	machineConf.Metadata = map[string]string{
+		"process_group": "release_command",
+	}
 	// Override the machine default command to run the release command
 	machineConf.Init.Cmd = strings.Split(appConfig.Deploy.ReleaseCommand, " ")
 
@@ -120,7 +126,7 @@ func RunReleaseCommand(ctx context.Context, app *api.AppCompact, appConfig *app.
 		api.LaunchMachineInput{
 			AppID:   app.ID,
 			OrgSlug: app.Organization.ID,
-			Config:  machineConf,
+			Config:  &machineConf,
 		},
 	)
 
@@ -183,7 +189,7 @@ func RunReleaseCommand(ctx context.Context, app *api.AppCompact, appConfig *app.
 	return
 }
 
-func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string, machineConfig *api.MachineConfig) (err error) {
+func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string, machineConfig api.MachineConfig) (err error) {
 	out := iostreams.FromContext(ctx).Out
 	flapsClient, err := flaps.New(ctx, app)
 
@@ -197,10 +203,14 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 		return
 	}
 
+	machineConfig.Metadata = map[string]string{"process_group": "app"}
+	machineConfig.Init.Cmd = nil
+
+	fmt.Println(machineConfig.Init.Cmd)
 	launchInput := api.LaunchMachineInput{
 		AppID:   app.Name,
 		OrgSlug: app.Organization.ID,
-		Config:  machineConfig,
+		Config:  &machineConfig,
 	}
 
 	machines, err := flapsClient.List(ctx, "")
@@ -208,6 +218,12 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 	if err != nil {
 		return
 	}
+
+	machines = helpers.Filter(machines, func(m *api.Machine) bool {
+		m, err = flapsClient.Get(ctx, m.ID)
+		fmt.Println(m.Config.Metadata)
+		return m.Config.Metadata["process_group"] != "release_command"
+	})
 
 	if len(machines) > 0 {
 
@@ -231,7 +247,7 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 			// We assume an empty config means the deploy should simply recreate machines with the existing config,
 			// for example for applying recently set secrets
 
-			if launchInput.Config == nil {
+			if launchInput.Config.Guest == nil {
 				freshMachine, err := flapsClient.Get(ctx, machine.ID)
 
 				if err != nil {
