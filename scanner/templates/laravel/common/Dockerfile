@@ -3,6 +3,7 @@
 # Default to PHP 8.1, but we attempt to match
 # the PHP version from composer.lock (valid: 7.4, 8.0, 8.1)
 ARG PHP_VERSION=8.1
+ARG NODE_VERSION=14
 FROM serversideup/php:${PHP_VERSION}-fpm-nginx as base
 
 LABEL fly_launch_runtime="laravel"
@@ -30,7 +31,7 @@ RUN composer install --optimize-autoloader --no-dev \
 
 # Multi-stage build: Build static assets
 # This allows us to not include Node within the final container
-FROM node:14 as node_modules_go_brrr
+FROM node:${NODE_VERSION} as node_modules_go_brrr
 
 RUN mkdir /app
 
