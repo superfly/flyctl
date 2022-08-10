@@ -21,6 +21,7 @@ RUN composer install --optimize-autoloader --no-dev \
     && php artisan optimize:clear \
     && chown -R webuser:webgroup /var/www/html \
     && sed -i 's/protected \$proxies/protected \$proxies = "*"/g' app/Http/Middleware/TrustProxies.php \
+    && echo "MAILTO=\"\"\n* * * * * webuser /usr/bin/php /var/www/html/artisan schedule:run" > /etc/cron.d/laravel \
     && rm -rf /etc/cont-init.d/* \
     && cp docker/nginx-websockets.conf /etc/nginx/conf.d/websockets.conf \
     && cp docker/nginx-default /etc/nginx/sites-available/default \
