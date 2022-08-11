@@ -3,6 +3,7 @@ package flypg
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/api"
@@ -37,7 +38,7 @@ type CreateClusterInput struct {
 	Region             string
 	VolumeSize         *int
 	VMSize             *string
-	SnapshotID         string
+	SnapshotID         *string
 }
 
 func NewLauncher(client *api.Client) *Launcher {
@@ -70,9 +71,27 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	}
 
 	for i := 0; i < config.InitialClusterSize; i++ {
-		fmt.Fprintf(io.Out, "Provisioning %d of %d machines with image %s\n", i+1, config.InitialClusterSize, config.ImageRef)
-
 		machineConf := l.getPostgresConfig(config)
+
+		imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres", config.SnapshotID)
+		if err != nil {
+			return err
+		}
+
+		machineConf.Image = imageRef
+
+		snapshot := config.SnapshotID
+		verb := "Provisioning"
+
+		// When a snapshot is specified, we only want to pass it into the first volume created.
+		if snapshot != nil {
+			verb = "Restoring"
+			if i > 0 {
+				snapshot = nil
+			}
+		}
+
+		fmt.Fprintf(io.Out, "%s %d of %d machines with image %s\n", verb, i+1, config.InitialClusterSize, imageRef)
 
 		volInput := api.CreateVolumeInput{
 			AppID:             app.ID,
@@ -81,6 +100,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			SizeGb:            *config.VolumeSize,
 			Encrypted:         false,
 			RequireUniqueZone: false,
+			SnapshotID:        snapshot,
 		}
 
 		vol, err := l.client.CreateVolume(ctx, volInput)
@@ -95,13 +115,6 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			Encrypted: false,
 		})
 
-		imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres")
-		if err != nil {
-			return err
-		}
-
-		machineConf.Image = imageRef
-
 		launchInput := api.LaunchMachineInput{
 			AppID:   app.ID,
 			OrgSlug: config.Organization.ID,
@@ -114,7 +127,14 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			return err
 		}
 
-		err = machines.WaitForStart(ctx, flaps, machine)
+		fmt.Printf("Waiting for machine to start...")
+
+		waitTimeout := time.Minute * 5
+		if snapshot != nil {
+			waitTimeout = time.Hour
+		}
+
+		err = machines.WaitForStart(ctx, flaps, machine, waitTimeout)
 		if err != nil {
 			return err
 		}
@@ -166,8 +186,8 @@ func (l *Launcher) LaunchNomadPostgres(ctx context.Context, config *CreateCluste
 		VolumeSizeGB:   config.VolumeSize,
 	}
 
-	if config.SnapshotID != "" {
-		input.SnapshotID = &config.SnapshotID
+	if config.SnapshotID != nil {
+		input.SnapshotID = config.SnapshotID
 	}
 
 	s := spinner.Run(io, "Launching...")
@@ -269,6 +289,10 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 		"SU_PASSWORD":       suPassword,
 		"REPL_PASSWORD":     replPassword,
 		"OPERATOR_PASSWORD": opPassword,
+	}
+
+	if config.SnapshotID != nil {
+		secrets["FLY_RESTORED_FROM"] = *config.SnapshotID
 	}
 
 	if config.ConsulURL == "" {
