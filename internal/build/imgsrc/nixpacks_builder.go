@@ -46,7 +46,11 @@ func ensureNixpacksBinary(ctx context.Context, streams *iostreams.IOStreams) err
 
 	err = func() error {
 		out, err := os.Create(installPath)
+		if err != nil {
+			return err
+		}
 		defer out.Close()
+
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://raw.githubusercontent.com/railwayapp/nixpacks/master/install.sh", nil)
 		if err != nil {
 			return err
@@ -56,6 +60,7 @@ func ensureNixpacksBinary(ctx context.Context, streams *iostreams.IOStreams) err
 			return err
 		}
 		defer resp.Body.Close()
+
 		n, err := io.Copy(out, resp.Body)
 		if err != nil {
 			return err

@@ -34,7 +34,7 @@ linters:
     - gosimple
     - govet
     # - ineffassign
-    # - staticcheck
+    - staticcheck
     - unconvert
     - unused
     # - varcheck
