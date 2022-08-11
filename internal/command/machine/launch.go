@@ -191,9 +191,8 @@ func run(ctx context.Context) (err error) {
 
 	fmt.Fprintf(io.Out, "Wrote to fly.toml\n")
 
-	var deployNow bool = false
-
 	if !flag.GetBool(ctx, "no-deploy") && (srcInfo != nil && !srcInfo.SkipDeploy) {
+		var deployNow bool
 		if flag.GetBool(ctx, "now") {
 			deployNow = true
 		} else {

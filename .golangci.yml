@@ -33,7 +33,7 @@ linters:
     - goimports
     - gosimple
     - govet
-    # - ineffassign
+    - ineffassign
     - staticcheck
     - unconvert
     - unused
