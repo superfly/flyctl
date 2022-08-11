@@ -311,7 +311,6 @@ func resolve(ctx context.Context, tunnel *wg.Tunnel, addr string) (string, error
 
 var (
 	errMalformedConnect = errors.New("malformed connect command")
-	errInvalidTimeout   = errors.New("invalid timeout")
 	errDone             = errors.New("done")
 )
 

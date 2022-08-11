@@ -16,8 +16,6 @@ const (
 	workDirKey
 	userHomeDirKey
 	configDirKey
-	accessTokenKey
-	appNameKey
 )
 
 // WithHostname returns a copy of ctx that carries hostname.

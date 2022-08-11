@@ -219,10 +219,6 @@ func argOrPromptLoop(ctx context.Context, nth int, prompt, last string) (string,
 	return argOrPromptImpl(ctx, nth, prompt, last == "")
 }
 
-func argOrPrompt(ctx context.Context, nth int, prompt string) (string, error) {
-	return argOrPromptImpl(ctx, nth, prompt, true)
-}
-
 // stolen from `mikesmitty`, thanks, you are a mikesmitty and a scholar
 func MarshalED25519PrivateKey(key ed25519.PrivateKey, comment string) []byte {
 	magic := append([]byte("openssh-key-v1"), 0)
