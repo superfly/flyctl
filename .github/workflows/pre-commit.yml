@@ -6,7 +6,7 @@ on:
     branches: [master]
 
 jobs:
-  pre-commit:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -15,4 +15,5 @@ jobs:
           go-version-file: 'go.mod'
           cache: true
       - uses: pre-commit/action@v3.0.0
+      - uses: golangci/golangci-lint-action@v3
       - run: go mod download
