@@ -440,6 +440,7 @@ type AppCompact struct {
 	PostgresAppRole *struct {
 		Name string
 	}
+	Autoscaling  *AutoscalingConfig
 	ImageDetails ImageVersion
 }
 
@@ -955,11 +956,12 @@ type Region struct {
 }
 
 type AutoscalingConfig struct {
-	BalanceRegions bool
-	Enabled        bool
-	MaxCount       int
-	MinCount       int
-	Regions        []AutoscalingRegionConfig
+	BalanceRegions  bool
+	Enabled         bool
+	MaxCount        int
+	MinCount        int
+	PreferredRegion string
+	Regions         []AutoscalingRegionConfig
 }
 
 type AutoscalingRegionConfig struct {

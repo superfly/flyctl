@@ -16,11 +16,8 @@ import (
 // Deploy ta machines app directly from flyctl, applying the desired config to running machines,
 // or launching new ones
 func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.DeploymentImage, strategy string) (err error) {
-
 	client := client.FromContext(ctx).API()
-
 	app, err := client.GetAppCompact(ctx, config.AppName)
-
 	if err != nil {
 		return
 	}
@@ -96,15 +93,12 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 	}
 
 	fmt.Fprintf(io.Out, "Deploying with %s strategy\n", strategy)
-
 	flapsClient, err := flaps.New(ctx, app)
-
 	if err != nil {
 		return
 	}
 
 	machines, err := flapsClient.List(ctx, "")
-
 	if err != nil {
 		return
 	}
@@ -113,36 +107,29 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 		AppID:   app.Name,
 		OrgSlug: app.Organization.ID,
 		Config:  machineConfig,
+		Region:  app.Autoscaling.PreferredRegion,
 	}
 
 	if len(machines) > 0 {
-
 		for _, machine := range machines {
-
 			fmt.Fprintf(io.Out, "Taking lease out on VM %s\n", machine.ID)
 			leaseTTL := api.IntPointer(30)
-			lease, err := flapsClient.GetLease(ctx, machine.ID, leaseTTL)
 
+			lease, err := flapsClient.GetLease(ctx, machine.ID, leaseTTL)
 			if err != nil {
 				return err
 			}
-
 			machine.LeaseNonce = lease.Data.Nonce
-
 		}
 
 		for _, machine := range machines {
-
 			fmt.Fprintf(io.Out, "Updating VM %s\n", machine.ID)
-
 			launchInput.ID = machine.ID
 
 			// We assume an empty config means the deploy should simply recreate machines with the existing config,
 			// for example for applying recently set secrets
-
 			if launchInput.Config == nil {
 				freshMachine, err := flapsClient.Get(ctx, machine.ID)
-
 				if err != nil {
 					return err
 				}
@@ -158,18 +145,13 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 			}
 
 			updateResult, err := flapsClient.Update(ctx, launchInput, machine.LeaseNonce)
-
 			if err != nil {
-
 				if strategy != "immediate" {
 					leaseErr := flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
-
 					if leaseErr != nil {
 						fmt.Fprintf(io.Out, "Could not release lease for %s\n", machine.ID)
 					}
-
 					return err
-
 				} else {
 					fmt.Printf("Continuing after error: %s\n", err)
 				}
@@ -184,17 +166,14 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 					return err
 				}
 			}
-
 		}
 
 		for _, machine := range machines {
-
 			fmt.Fprintf(io.Out, "Releasing lease on %s\n", machine.ID)
 			err = flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
 			if err != nil {
 				fmt.Println(io.Out, fmt.Errorf("could not release lease on %s (%w)", machine.ID, err))
 			}
-
 		}
 
 		fmt.Fprintln(io.Out)
@@ -202,13 +181,11 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 	} else {
 		fmt.Fprintf(io.Out, "Launching VM with image %s\n", launchInput.Config.Image)
 		_, err = flapsClient.Launch(ctx, launchInput)
-
 		if err != nil {
 			return err
 		}
 	}
 
 	fmt.Fprintln(io.Out, "Deploy complete. Check the result with 'fly status'.")
-
 	return
 }

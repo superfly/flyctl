@@ -169,6 +169,9 @@ func (client *Client) GetAppCompact(ctx context.Context, appName string) (*AppCo
 					repository
 					version
 				}
+				autoscaling {
+					preferredRegion
+				}
 			}
 		}
 	`

@@ -85,9 +85,9 @@ func run(ctx context.Context) (err error) {
 	if absDir, err := filepath.Abs(workingDir); err == nil {
 		workingDir = absDir
 	}
+
 	// Prompt for an app name
 	var appName string
-
 	if !flag.GetBool(ctx, "generate-name") {
 		if appName, err = apps.SelectAppName(ctx); err != nil {
 			return
@@ -96,27 +96,39 @@ func run(ctx context.Context) (err error) {
 
 	// Prompt for an org
 	org, err := prompt.Org(ctx)
-
 	if err != nil {
 		return
 	}
 
 	// If we potentially are deploying, launch a remote builder to prepare for deployment
-
 	if !flag.GetBool(ctx, "no-deploy") {
 		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, client, org.Slug)
 	}
 
-	// Create the app
+	// Launch in the specified region, or when not specified, in the nearest region
+	regionCode := flag.GetString(ctx, "region")
+	if regionCode == "" {
+		regions, requestRegion, err := client.PlatformRegions(ctx)
+		if err != nil {
+			return fmt.Errorf("couldn't fetch platform regions: %w", err)
+		}
 
+		region, err := prompt.SelectRegion(ctx, "", regions, requestRegion.Code)
+		if err != nil {
+			return err
+		}
+		regionCode = region.Code
+	}
+
+	// Create the app
 	input := api.CreateAppInput{
-		Name:           appName,
-		OrganizationID: org.ID,
-		Machines:       true,
+		Name:            appName,
+		OrganizationID:  org.ID,
+		PreferredRegion: &regionCode,
+		Machines:        true,
 	}
 
 	createdApp, err := client.CreateApp(ctx, input)
-
 	if err != nil {
 		return err
 	}
@@ -126,34 +138,11 @@ func run(ctx context.Context) (err error) {
 	// TODO: Handle imported fly.toml config
 
 	// Setup new fly.toml config file with default values
-
 	appConfig := app.NewConfig()
-
 	// Config version 2 is for machine apps
 	appConfig.SetMachinesPlatform()
-	appConfig.AppName = createdApp.Name
-
-	// Launch in the specified region, or when not specified, in the nearest region
-	regionCode := flag.GetString(ctx, "region")
-
-	if regionCode == "" {
-
-		regions, requestRegion, err := client.PlatformRegions(ctx)
-
-		if err != nil {
-			return fmt.Errorf("couldn't fetch platform regions: %w", err)
-		}
-
-		region, err := prompt.SelectRegion(ctx, "", regions, requestRegion.Code)
-
-		if err != nil {
-			return err
-		}
-
-		regionCode = region.Code
-	}
-
 	appConfig.SetPrimaryRegion(regionCode)
+	appConfig.AppName = createdApp.Name
 
 	var srcInfo *scanner.SourceInfo
 
