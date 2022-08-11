@@ -163,7 +163,7 @@ PersistentKeepalive = 15
 
 	addr[15] = 3
 
-	data.Meta.DNS = fmt.Sprintf("%s", addr)
+	data.Meta.DNS = addr.String()
 	data.Meta.Privkey = privkey
 
 	tmpl := template.Must(template.New("name").Parse(templateStr))

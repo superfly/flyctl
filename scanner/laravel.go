@@ -35,9 +35,7 @@ func configureLaravel(sourceDir string) (*SourceInfo, error) {
 	}
 
 	// Merge common files with runtime-specific files (standard or octane)
-	for _, f := range extra {
-		files = append(files, f)
-	}
+	files = append(files, extra...)
 
 	s := &SourceInfo{
 		Env: map[string]string{

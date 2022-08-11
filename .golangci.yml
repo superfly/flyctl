@@ -31,7 +31,7 @@ linters:
     # - deadcode
     # - errcheck
     - goimports
-    #  - gosimple
+    - gosimple
     # - govet
     # - ineffassign
     # - staticcheck
