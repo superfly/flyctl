@@ -1,74 +1,50 @@
 # syntax = docker/dockerfile:experimental
 
-# The "base" container installs PHP, etc
-FROM alpine:3.16 as base
+# Default to PHP 8.1, but we attempt to match
+# the PHP version from the user (wherever `flyctl launch` is run)
+# Valid version values are PHP 7.4+
+ARG PHP_VERSION=8.1
+ARG NODE_VERSION=14
+FROM serversideup/php:${PHP_VERSION}-fpm-nginx as base
 
 LABEL fly_launch_runtime="laravel"
 
-RUN apk update \
-    && apk add curl zip unzip tzdata supervisor nginx htop vim ca-certificates rsync \
-           php8           php8-cli        php8-pecl-mcrypt \
-           php8-soap      php8-openssl    php8-gmp \
-           php8-pdo_odbc  php8-json       php8-dom \
-           php8-pdo       php8-zip        php8-pdo_mysql \
-           php8-sqlite3   php8-pdo_pgsql  php8-bcmath \
-           php8-gd        php8-odbc       php8-pdo_sqlite \
-           php8-gettext   php8-xmlreader  php8-bz2 \
-           php8-iconv     php8-pdo_dblib  php8-curl \
-           php8-ctype     php8-phar       php8-xml \
-           php8-common    php8-mbstring   php8-tokenizer \
-           php8-xmlwriter php8-fileinfo   php8-opcache \
-           php8-simplexml php8-pecl-redis php8-sockets \
-           php8-pcntl     php8-posix      php8-pecl-swoole \
-           php8-fpm \
-    && ln -sf /usr/bin/php8 /usr/bin/php \
-    && cp /etc/nginx/nginx.conf /etc/nginx/nginx.old.conf \
-    && rm -rf /etc/nginx/http.d/default.conf \
-    && curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
-    && adduser -D -u 1000 -g 'app' app \
-    && addgroup nginx app \
-    && mkdir -p /var/run/php \
-    && chown -R app:app /var/run/php \
-    && mkdir -p /var/www/html
+RUN apt-get update && apt-get install -y \
+    git curl zip unzip rsync ca-certificates vim htop cron \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
 
 WORKDIR /var/www/html
 # copy application code, skipping files based on .dockerignore
 COPY . /var/www/html
 
-# Install dependencies, configure server
-# For the time being, we run "composer update" as best effort to get php 8.0 working
-RUN composer update \
-    && composer install --optimize-autoloader --no-dev \
+RUN composer install --optimize-autoloader --no-dev \
     && mkdir -p storage/logs \
-    && chown -R app:app /var/www/html \
-    && echo "* * * * * /usr/bin/php /var/www/html/artisan schedule:run" > /etc/crontabs/app \
-    && mv docker/supervisor.conf /etc/supervisord.conf \
-    && mv docker/nginx.conf /etc/nginx/nginx.conf \
-    && mv docker/server.conf /etc/nginx/server.conf \
-    && mv docker/php.ini /etc/php8/conf.d/php.ini \
-    && sed -i 's/protected \$proxies/protected \$proxies = "*"/g' app/Http/Middleware/TrustProxies.php
-
-# If we're not using Octane, configure php-fpm
-RUN if ! grep -Fq "laravel/octane" /var/www/html/composer.json; then \
-        rm -rf /etc/php8/php-fpm.conf; \
-        rm -rf /etc/php8/php-fpm.d/www.conf; \
-        mv docker/php-fpm.conf /etc/php8/php-fpm.conf; \
-        mv docker/app.conf /etc/php8/php-fpm.d/app.conf; \
-    elif grep -Fq "spiral/roadrunner" /var/www/html/composer.json; then \
-        if [ -f ./vendor/bin/rr ]; then ./vendor/bin/rr get-binary; fi; \
-        rm -f .rr.yaml; \
-    fi
-
-# clear Laravel cache that may be left over
-RUN composer dump-autoload \
     && php artisan optimize:clear \
-    && chmod -R ug+w /var/www/html/storage \
-    && chmod -R 755 /var/www/html
+    && chown -R webuser:webgroup /var/www/html \
+    && sed -i 's/protected \$proxies/protected \$proxies = "*"/g' app/Http/Middleware/TrustProxies.php \
+    && echo "MAILTO=\"\"\n* * * * * webuser /usr/bin/php /var/www/html/artisan schedule:run" > /etc/cron.d/laravel \
+    && rm -rf /etc/cont-init.d/* \
+    && cp docker/nginx-websockets.conf /etc/nginx/conf.d/websockets.conf \
+    && cp docker/nginx-default /etc/nginx/sites-available/default \
+    && cp docker/entrypoint.sh /entrypoint \
+    && chmod +x /entrypoint
 
+# If we're using Octane...
+RUN if grep -Fq "laravel/octane" /var/www/html/composer.json; then \
+        rm -rf /etc/services.d/php-fpm; \
+        if grep -Fq "spiral/roadrunner" /var/www/html/composer.json; then \
+            mv docker/octane-rr /etc/services.d/octane; \
+            if [ -f ./vendor/bin/rr ]; then ./vendor/bin/rr get-binary; fi; \
+            rm -f .rr.yaml; \
+        else \
+            mv docker/octane-swoole /etc/services.d/octane; \
+        fi \
+    fi
 
 # Multi-stage build: Build static assets
 # This allows us to not include Node within the final container
-FROM node:14 as node_modules_go_brrr
+FROM node:${NODE_VERSION} as node_modules_go_brrr
 
 RUN mkdir /app
 
@@ -79,17 +55,26 @@ COPY . .
 # Use yarn or npm depending on what type of
 # lock file we might find. Defaults to
 # NPM if no lock file is found.
-RUN if [ -f "yarn.lock" ]; then \
-        yarn install; \
+# Note: We run "production" for Mix and "build" for Vite
+RUN if [ -f "vite.config.js" ]; then \
+        ASSET_CMD="build"; \
+    else \
+        ASSET_CMD="production"; \
+    fi; \
+    if [ -f "yarn.lock" ]; then \
+        yarn install --frozen-lockfile; \
+        yarn $ASSET_CMD; \
     elif [ -f "package-lock.json" ]; then \
         npm ci --no-audit; \
+        npm run $ASSET_CMD; \
     else \
         npm install; \
-    fi
+        npm run $ASSET_CMD; \
+    fi;
 
 # From our base container created above, we
-# create our image, adding in static assets
-# generated above
+# create our final image, adding in static
+# assets that we generated above
 FROM base
 
 # Packages like Laravel Nova may have added assets to the public directory
@@ -97,9 +82,9 @@ FROM base
 # in the assets we generated above rather than overwrite them
 COPY --from=node_modules_go_brrr /app/public /var/www/html/public-npm
 RUN rsync -ar /var/www/html/public-npm/ /var/www/html/public/ \
-    && rm -rf /var/www/html/public-npm
+    && rm -rf /var/www/html/public-npm \
+    && chown -R webuser:webgroup /var/www/html/public
 
-# The same port nginx.conf is set to listen on and fly.toml references (standard is 8080)
 EXPOSE 8080
 
-ENTRYPOINT ["/var/www/html/docker/run.sh"]
+ENTRYPOINT ["/entrypoint"]
