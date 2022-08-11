@@ -5,6 +5,7 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -19,6 +20,10 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) (err error) {
 	}
 
 	machines, err := flapsClient.List(ctx, "")
+
+	machines = helpers.Filter(machines, func(m *api.Machine) bool {
+		return m.Config.Metadata["process_group"] != "release_command"
+	})
 
 	if err != nil {
 		return err

@@ -302,7 +302,7 @@ func WaitForStart(ctx context.Context, flapsClient *flaps.Client, machine *api.M
 		Jitter: false,
 	}
 	for {
-		err := flapsClient.Wait(waitCtx, machine)
+		err := flapsClient.Wait(waitCtx, machine, "started")
 		switch {
 		case errors.Is(err, context.Canceled):
 			return err

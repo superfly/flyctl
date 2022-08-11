@@ -110,7 +110,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		return err
 	}
 
-	err = flapsClient.Wait(ctx, launchedMachine)
+	err = flapsClient.Wait(ctx, launchedMachine, "started")
 
 	if err != nil {
 		return err

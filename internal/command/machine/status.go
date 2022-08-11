@@ -90,6 +90,7 @@ func runMachineStatus(ctx context.Context) (err error) {
 			machine.Name,
 			machine.PrivateIP,
 			machine.Region,
+			machine.Config.Metadata["process_group"],
 			fmt.Sprint(machine.Config.Guest.MemoryMB),
 			fmt.Sprint(machine.Config.Guest.CPUs),
 			machine.CreatedAt,
@@ -98,7 +99,7 @@ func runMachineStatus(ctx context.Context) (err error) {
 		},
 	}
 
-	var cols []string = []string{"ID", "Instance ID", "State", "Image", "Name", "Private IP", "Region", "Memory", "CPUs", "Created", "Updated", "Command"}
+	var cols []string = []string{"ID", "Instance ID", "State", "Image", "Name", "Private IP", "Region", "Process Group", "Memory", "CPUs", "Created", "Updated", "Command"}
 
 	if len(machine.Config.Mounts) > 0 {
 		cols = append(cols, "Volume")
@@ -123,7 +124,7 @@ func runMachineStatus(ctx context.Context) (err error) {
 		if event.Request != nil && event.Request.ExitEvent != nil {
 			exitEvent := event.Request.ExitEvent
 			fields = append(fields, fmt.Sprintf("exit_code=%d,oom_killed=%t,requested_stop=%t",
-				exitEvent.GuestExitCode, exitEvent.OOMKilled, exitEvent.RequestedStop))
+				exitEvent.ExitCode, exitEvent.OOMKilled, exitEvent.RequestedStop))
 		}
 
 		eventLogs = append(eventLogs, fields)

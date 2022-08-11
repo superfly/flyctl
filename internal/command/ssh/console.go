@@ -257,7 +257,7 @@ func addrForMachines(ctx context.Context, app *api.AppCompact) (addr string, err
 				return "", err
 			}
 
-			err = flapsClient.Wait(ctx, selectedMachine)
+			err = flapsClient.Wait(ctx, selectedMachine, "started")
 
 			if err != nil {
 				return "", err

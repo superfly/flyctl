@@ -234,7 +234,7 @@ func (s *IOStreams) StartProgressIndicatorMsg(msg string) {
 	if !s.progressIndicatorEnabled {
 		return
 	}
-	sp := spinner.New(spinner.CharSets[11], 250*time.Millisecond, spinner.WithWriter(s.ErrOut))
+	sp := spinner.New(spinner.CharSets[39], 250*time.Millisecond, spinner.WithWriter(s.ErrOut))
 	sp.Prefix = appendMissingCharacter(msg, ' ')
 	sp.Start()
 	s.progressIndicator = sp

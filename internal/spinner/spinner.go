@@ -1,6 +1,7 @@
 package spinner
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/superfly/flyctl/iostreams"
@@ -8,7 +9,8 @@ import (
 
 func Run(io *iostreams.IOStreams, msg string) (s *Spinner) {
 	s = &Spinner{
-		io: io,
+		io:  io,
+		msg: msg,
 	}
 
 	s.StartWithMessage(msg)
@@ -35,6 +37,10 @@ func (s *Spinner) Set(msg string) string {
 
 func (s *Spinner) Stop() string {
 	return s.StopWithMessage("")
+}
+
+func (s *Spinner) StopWithSuccess() string {
+	return s.StopWithMessage(fmt.Sprintf("%s %s", s.msg, s.io.ColorScheme().Green("✓")))
 }
 
 func (s *Spinner) StopWithMessage(msg string) string {
