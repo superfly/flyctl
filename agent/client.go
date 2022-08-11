@@ -592,7 +592,7 @@ func (p *Pinger) WriteTo(buf []byte, addr net.Addr) (int64, error) {
 	lbuf := make([]byte, 2)
 	binary.BigEndian.PutUint16(lbuf, uint16(len(buf)))
 
-	_, err = p.c.Write([]byte(lbuf))
+	_, err = p.c.Write(lbuf)
 	if err != nil {
 		p.err = fmt.Errorf("icmp write: length: %w", err)
 		return 0, p.err

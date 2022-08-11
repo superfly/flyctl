@@ -4,15 +4,15 @@ import "context"
 
 func (c *Client) GetLoggedCertificates(ctx context.Context, slug string) ([]LoggedCertificate, error) {
 	req := c.NewRequest(`
-query($slug: String!) { 
-  organization(slug: $slug) { 
-    loggedCertificates { 
-      nodes { 
+query($slug: String!) {
+  organization(slug: $slug) {
+    loggedCertificates {
+      nodes {
         root
         cert
-      } 
+      }
     }
-  } 
+  }
 }
 `)
 	req.Var("slug", slug)
@@ -27,10 +27,10 @@ query($slug: String!) {
 
 func (c *Client) EstablishSSHKey(ctx context.Context, org *Organization, override bool) (*SSHCertificate, error) {
 	req := c.NewRequest(`
-mutation($input: EstablishSSHKeyInput!) { 
-  establishSshKey(input: $input) { 
+mutation($input: EstablishSSHKeyInput!) {
+  establishSshKey(input: $input) {
     certificate
-  } 
+  }
 }
 `)
 	req.Var("input", map[string]interface{}{
@@ -48,10 +48,10 @@ mutation($input: EstablishSSHKeyInput!) {
 
 func (c *Client) IssueSSHCertificate(ctx context.Context, org OrganizationImpl, email string, username *string, valid_hours *int) (*IssuedCertificate, error) {
 	req := c.NewRequest(`
-mutation($input: IssueCertificateInput!) { 
-  issueCertificate(input: $input) { 
+mutation($input: IssueCertificateInput!) {
+  issueCertificate(input: $input) {
     certificate, key
-  } 
+  }
 }
 `)
 	inputs := map[string]interface{}{

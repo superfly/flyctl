@@ -18,4 +18,3 @@ package() {
     ln -s flyctl "$pkgdir/usr/bin/fly"
     install -m755 flyctl "$pkgdir/usr/bin"
 }
-

@@ -39,7 +39,7 @@ func (client *Client) GetImageInfo(ctx context.Context, appName string) (*App, e
 func (client *Client) GetLatestImageTag(ctx context.Context, repository string, snapshotId *string) (string, error) {
 	query := `
 		query($repository: String!, $snapshotId: ID) {
-			latestImageTag(repository: $repository, snapshotId: $snapshotId) 
+			latestImageTag(repository: $repository, snapshotId: $snapshotId)
 		}
 	`
 	req := client.NewRequest(query)
