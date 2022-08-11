@@ -115,8 +115,7 @@ func DefaultClient(ctx context.Context) (*Client, error) {
 }
 
 const (
-	timeout = 2 * time.Second
-	cycle   = time.Second / 20
+	cycle = time.Second / 20
 )
 
 type Client struct {

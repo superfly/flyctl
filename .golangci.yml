@@ -28,7 +28,7 @@ linters:
   disable-all: true
   enable:
     - gofmt
-    # - deadcode
+    - deadcode
     # - errcheck
     - goimports
     - gosimple
