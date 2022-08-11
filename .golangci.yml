@@ -32,7 +32,7 @@ linters:
     # - errcheck
     - goimports
     - gosimple
-    # - govet
+    - govet
     # - ineffassign
     # - staticcheck
     - unconvert

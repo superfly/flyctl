@@ -140,6 +140,7 @@ func run(ctx context.Context) error {
 	mu.Unlock()
 
 	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	if name != "" && name != "gateway" && !strings.HasPrefix(name, "fdaa:") {
 		// look up names in the background because I was too
@@ -275,7 +276,6 @@ func run(ctx context.Context) error {
 	for i := 0; count == 0 || i <= count; i++ {
 		select {
 		case <-stp:
-			cancel()
 			return nil
 		case <-ticker.C:
 		}
@@ -288,8 +288,6 @@ func run(ctx context.Context) error {
 			}
 		}
 	}
-
-	cancel()
 
 	return nil
 }
