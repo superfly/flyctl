@@ -19,7 +19,7 @@ if [[ $(git status --porcelain) != "" ]]; then
 elif [[ $(git status --porcelain -b | grep -e "ahead" -e "behind") != "" ]]; then
   echo "Error: repo has unpushed commits. Push commits to remote and try again."
   exit 1
-fi  
+fi
 
 dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
@@ -54,4 +54,3 @@ then
   git tag -m "release ${new_version}" -a "$new_version" && git push "${ORIGIN}" tag "$new_version"
   echo "done"
 fi
-

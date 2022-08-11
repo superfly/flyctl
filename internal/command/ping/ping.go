@@ -242,7 +242,7 @@ func run(ctx context.Context) error {
 			replies <- reply{
 				src: raddr,
 				pkt: echoRep,
-				lat: time.Now().Sub(t),
+				lat: time.Since(t),
 			}
 		}
 	}()
