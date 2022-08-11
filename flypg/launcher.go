@@ -3,6 +3,7 @@ package flypg
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/api"
@@ -70,9 +71,27 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	}
 
 	for i := 0; i < config.InitialClusterSize; i++ {
-		fmt.Fprintf(io.Out, "Provisioning %d of %d machines with image %s\n", i+1, config.InitialClusterSize, config.ImageRef)
-
 		machineConf := l.getPostgresConfig(config)
+
+		imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres", config.SnapshotID)
+		if err != nil {
+			return err
+		}
+
+		machineConf.Image = imageRef
+
+		snapshot := config.SnapshotID
+		verb := "Provisioning"
+
+		// When a snapshot is specified, we only want to pass it into the first volume created.
+		if snapshot != nil {
+			verb = "Restoring"
+			if i > 0 {
+				snapshot = nil
+			}
+		}
+
+		fmt.Fprintf(io.Out, "%s %d of %d machines with image %s\n", verb, i+1, config.InitialClusterSize, imageRef)
 
 		volInput := api.CreateVolumeInput{
 			AppID:             app.ID,
@@ -81,7 +100,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			SizeGb:            *config.VolumeSize,
 			Encrypted:         false,
 			RequireUniqueZone: false,
-			SnapshotID:        config.SnapshotID,
+			SnapshotID:        snapshot,
 		}
 
 		vol, err := l.client.CreateVolume(ctx, volInput)
@@ -96,13 +115,6 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			Encrypted: false,
 		})
 
-		imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres", config.SnapshotID)
-		if err != nil {
-			return err
-		}
-
-		machineConf.Image = imageRef
-
 		launchInput := api.LaunchMachineInput{
 			AppID:   app.ID,
 			OrgSlug: config.Organization.ID,
@@ -115,7 +127,13 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			return err
 		}
 
-		err = machines.WaitForStart(ctx, flaps, machine)
+		timeout := time.Minute * 5
+		if snapshot != nil {
+			timeout = time.Hour
+		}
+
+		fmt.Printf("Waiting for machine to start...")
+		err = machines.WaitForStart(ctx, flaps, machine, timeout)
 		if err != nil {
 			return err
 		}

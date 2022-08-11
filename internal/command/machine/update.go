@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -88,7 +89,7 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 
 	// wait for machine to be started
-	if err := WaitForStart(ctx, flapsClient, machine); err != nil {
+	if err := WaitForStart(ctx, flapsClient, machine, time.Minute*5); err != nil {
 		return err
 	}
 
