@@ -30,4 +30,3 @@ server {
 	# additional config
 	include /etc/nginx/server-opts.d/*.conf;
 }
-

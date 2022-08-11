@@ -4,12 +4,12 @@ var basicbuiltins = []Builtin{
 	{
 		Name:        "node",
 		Description: "Nodejs builtin",
-		Details: `Requires package.json, package-lock.json and an app in server.js. 
-Runs a production npm install and copies all files across. 
+		Details: `Requires package.json, package-lock.json and an app in server.js.
+Runs a production npm install and copies all files across.
 When run will call npm start to start the application.
 Uses and exposes port 8080 internally.`,
 		Template: `FROM node:current-slim
-WORKDIR /app			
+WORKDIR /app
 COPY package.json .
 COPY package-lock.json .
 RUN npm install --production
@@ -23,7 +23,7 @@ CMD [ "npm","start" ]
 	{
 		Name:        "ruby",
 		Description: "Ruby builtin",
-		Details: `Builtin for a Ruby application with a Gemfile. Runs bundle install to build. 
+		Details: `Builtin for a Ruby application with a Gemfile. Runs bundle install to build.
 At runtime, it uses rackup to run config.ru and start the application as configured.
 Uses and exposes port 8080 internally.`,
 		Template: `FROM ruby:{{.version}}
@@ -65,7 +65,7 @@ WORKDIR /go/src/app
 COPY . .
 RUN go mod download
 RUN CGO_ENABLED=0 GOOS=linux go build -v -o app
-FROM alpine:latest  
+FROM alpine:latest
 COPY --from=builder /go/src/app/app /goapp/app
 WORKDIR /goapp
 COPY . /throwaway

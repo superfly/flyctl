@@ -41,7 +41,7 @@ archives:
       amd64: x86_64
     builds:
       - windows
-    files: 
+    files:
       - wintun.dll
     wrap_in_directory: false
     format: zip

@@ -44,5 +44,3 @@ COPY .fly .fly
 
 ENTRYPOINT ["sh"]
 CMD [".fly/start.sh"]
-
-
