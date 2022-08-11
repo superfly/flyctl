@@ -13,7 +13,10 @@ jobs:
       - uses: actions/setup-go@v3
         with:
           go-version-file: 'go.mod'
-          cache: true
       - uses: pre-commit/action@v3.0.0
+        with:
+          extra_args: --all-files --hook-stage=manual
       - uses: golangci/golangci-lint-action@v3
+        with:
+          version: v1.47.3
       - run: go mod download
