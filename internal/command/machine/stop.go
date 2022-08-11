@@ -74,6 +74,9 @@ func runMachineStop(ctx context.Context) (err error) {
 		}
 
 		app, err := appFromMachineOrName(ctx, arg, appName)
+		if err != nil {
+			return fmt.Errorf("could not get app: %w", err)
+		}
 
 		flapsClient, err := flaps.New(ctx, app)
 		if err != nil {
