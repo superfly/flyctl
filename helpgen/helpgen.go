@@ -14,7 +14,6 @@ func main() {
 	readFile := os.Args[1]
 
 	tree, err := toml.LoadFile(readFile)
-
 	if err != nil {
 		log.Fatal("Can't parse docStrings", err)
 	}

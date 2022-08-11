@@ -39,7 +39,6 @@ func runShow(ctx context.Context) (err error) {
 	selectedOrg, err := OrgFromFirstArgOrSelect(ctx)
 
 	org, err := client.GetDetailedOrganizationBySlug(ctx, selectedOrg.Slug)
-
 	if err != nil {
 		return err
 	}

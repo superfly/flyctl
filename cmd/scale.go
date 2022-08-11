@@ -173,7 +173,7 @@ func countMessage(counts []api.TaskGroupCount) string {
 
 	return msg
 
-	//return fmt.Sprintf("Count changed to %s\n", msg)
+	// return fmt.Sprintf("Count changed to %s\n", msg)
 }
 
 func maxPerRegionMessage(groups []api.ProcessGroup) string {

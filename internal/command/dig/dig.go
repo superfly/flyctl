@@ -23,9 +23,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 )
 
-var (
-	nameErrorRx = regexp.MustCompile(`\[.*?\]:53`)
-)
+var nameErrorRx = regexp.MustCompile(`\[.*?\]:53`)
 
 func New() *cobra.Command {
 	const (

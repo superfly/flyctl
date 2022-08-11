@@ -220,7 +220,6 @@ func BuildCommand(parent *Command, fn RunFn, usageText string, shortHelpText str
 		Short: shortHelpText,
 		Long:  longHelpText,
 	}, client, options...)
-
 }
 
 const defaultConfigFilePath = "./fly.toml"

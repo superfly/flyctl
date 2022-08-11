@@ -27,12 +27,12 @@ func newTestDir(filenames ...string) (tempDir string, err error) {
 	for _, filename := range filenames {
 		content := []byte(filename)
 		filename = filepath.Join(tempDir, filename)
-		err = os.MkdirAll(filepath.Dir(filename), 0777)
+		err = os.MkdirAll(filepath.Dir(filename), 0o777)
 		if err != nil {
 			return
 		}
 
-		err = os.WriteFile(filename, content, 0777)
+		err = os.WriteFile(filename, content, 0o777)
 		if err != nil {
 			return
 		}
@@ -192,5 +192,4 @@ func TestIsPathInRoot(t *testing.T) {
 	for _, c := range cases {
 		assert.Equal(t, c.rooted, isPathInRoot(c.filename, c.rootDir), "target: %s root:%s", c.filename, c.rootDir)
 	}
-
 }

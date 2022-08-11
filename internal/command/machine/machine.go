@@ -37,11 +37,9 @@ func New() *cobra.Command {
 	)
 
 	return cmd
-
 }
 
 func appFromMachineOrName(ctx context.Context, machineId string, appName string) (app *api.AppCompact, err error) {
-
 	client := client.FromContext(ctx).API()
 
 	if appName == "" {

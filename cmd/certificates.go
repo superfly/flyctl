@@ -18,7 +18,6 @@ import (
 )
 
 func getAlternateHostname(hostname string) string {
-
 	if strings.Split(hostname, ".")[0] == "www" {
 		return strings.Replace(hostname, "www.", "", 1)
 	} else {
@@ -85,7 +84,6 @@ func runCertShow(commandContext *cmdctx.CmdContext) error {
 	commandContext.Statusf("certs", cmdctx.STITLE, "The certificate for %s has not been issued yet.\n\n", hostname)
 	printCertificate(commandContext, cert)
 	return reportNextStepCert(commandContext, hostname, cert, hostcheck)
-
 }
 
 func runCertCheck(commandContext *cmdctx.CmdContext) error {

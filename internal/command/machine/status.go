@@ -47,9 +47,7 @@ func newStatus() *cobra.Command {
 }
 
 func runMachineStatus(ctx context.Context) (err error) {
-	var (
-		io = iostreams.FromContext(ctx)
-	)
+	io := iostreams.FromContext(ctx)
 
 	var (
 		appName   = app.NameFromContext(ctx)
@@ -57,7 +55,6 @@ func runMachineStatus(ctx context.Context) (err error) {
 	)
 
 	app, err := appFromMachineOrName(ctx, machineID, appName)
-
 	if err != nil {
 		return err
 	}

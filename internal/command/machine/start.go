@@ -44,7 +44,6 @@ func runMachineStart(ctx context.Context) (err error) {
 	)
 
 	app, err := appFromMachineOrName(ctx, machineID, appName)
-
 	if err != nil {
 		return
 	}

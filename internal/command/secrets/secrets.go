@@ -26,7 +26,6 @@ var sharedFlags = flag.Set{
 }
 
 func New() *cobra.Command {
-
 	const (
 		long = `Secrets are provided to applications at runtime as ENV variables. Names are
 		case sensitive and stored as-is, so ensure names are appropriate for

@@ -48,7 +48,6 @@ func runUpdate(ctx context.Context) (err error) {
 	machineID := flag.FirstArg(ctx)
 
 	app, err := appFromMachineOrName(ctx, machineID, appName)
-
 	if err != nil {
 		return err
 	}

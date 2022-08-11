@@ -19,7 +19,6 @@ type Server struct {
 }
 
 func (srv *Server) ProxyServer(ctx context.Context) error {
-
 	defer srv.Listener.Close()
 
 	for {

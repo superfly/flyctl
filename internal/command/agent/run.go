@@ -71,7 +71,7 @@ func run(ctx context.Context) error {
 func setupLogger(path string) (logger *log.Logger, close func(), err error) {
 	var out io.Writer
 	if path != "" {
-		f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0600)
+		f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0o600)
 		if err != nil {
 			return nil, nil, err
 		}

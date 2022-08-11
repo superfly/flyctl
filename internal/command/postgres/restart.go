@@ -93,7 +93,7 @@ func restartMachinesCluster(ctx context.Context, app *api.AppCompact) error {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
 	// map of machine lease to machine
-	var machines = make(map[string]*api.Machine)
+	machines := make(map[string]*api.Machine)
 
 	out, err := flapsClient.List(ctx, "started")
 	if err != nil {
@@ -104,7 +104,6 @@ func restartMachinesCluster(ctx context.Context, app *api.AppCompact) error {
 
 	for _, machine := range out {
 		lease, err := flapsClient.GetLease(ctx, machine.ID, api.IntPointer(40))
-
 		if err != nil {
 			return fmt.Errorf("failed to obtain lease: %w", err)
 		}
@@ -167,7 +166,6 @@ func restartNomadCluster(ctx context.Context, app *api.AppCompact) (err error) {
 	}
 
 	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
-
 	if err != nil {
 		return fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}

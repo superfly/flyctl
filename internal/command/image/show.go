@@ -107,7 +107,7 @@ func showNomadImage(ctx context.Context, app *api.AppCompact) error {
 			latest = fmt.Sprintf("%s %s", latest, info.LatestImageDetails.Version)
 		}
 
-		var message = fmt.Sprintf("Update available! (%s -> %s)\n", current, latest)
+		message := fmt.Sprintf("Update available! (%s -> %s)\n", current, latest)
 		message += "Run `flyctl image update` to migrate to the latest image version.\n"
 
 		fmt.Fprintln(io.ErrOut, colorize.Yellow(message))
@@ -139,12 +139,9 @@ func showNomadImage(ctx context.Context, app *api.AppCompact) error {
 }
 
 func showMachineImage(ctx context.Context, app *api.AppCompact) error {
-	var (
-		io = iostreams.FromContext(ctx)
-	)
+	io := iostreams.FromContext(ctx)
 
 	flaps, err := flaps.New(ctx, app)
-
 	if err != nil {
 		return err
 	}
@@ -157,7 +154,7 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 			return fmt.Errorf("failed to get machine: %w", err)
 		}
 
-		var version = "N/A"
+		version := "N/A"
 
 		if machine.ImageVersion() != "" {
 			version = machine.ImageVersion()
@@ -191,9 +188,9 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 	rows := [][]string{}
 
 	for _, machine := range machines {
-		var image = machine.ImageRef
+		image := machine.ImageRef
 
-		var version = "N/A"
+		version := "N/A"
 
 		if machine.ImageVersion() != "" {
 			version = machine.ImageVersion()
@@ -220,5 +217,4 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 		"Version",
 		"Digest",
 	)
-
 }

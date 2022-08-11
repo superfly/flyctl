@@ -96,7 +96,6 @@ func run(ctx context.Context) (err error) {
 
 	// Prompt for an org
 	org, err := prompt.Org(ctx)
-
 	if err != nil {
 		return
 	}
@@ -116,7 +115,6 @@ func run(ctx context.Context) (err error) {
 	}
 
 	createdApp, err := client.CreateApp(ctx, input)
-
 	if err != nil {
 		return err
 	}
@@ -139,13 +137,11 @@ func run(ctx context.Context) (err error) {
 	if regionCode == "" {
 
 		regions, requestRegion, err := client.PlatformRegions(ctx)
-
 		if err != nil {
 			return fmt.Errorf("couldn't fetch platform regions: %w", err)
 		}
 
 		region, err := prompt.SelectRegion(ctx, "", regions, requestRegion.Code)
-
 		if err != nil {
 			return err
 		}
@@ -215,7 +211,6 @@ func run(ctx context.Context) (err error) {
 }
 
 func scanAndConfigure(ctx context.Context, dir string, appConfig *app.Config) (srcInfo *scanner.SourceInfo, err error) {
-
 	io := iostreams.FromContext(ctx)
 
 	srcInfo = new(scanner.SourceInfo)
@@ -261,7 +256,6 @@ func scanAndConfigure(ctx context.Context, dir string, appConfig *app.Config) (s
 }
 
 func setScannerPrefs(ctx context.Context, appConfig *app.Config, srcInfo *scanner.SourceInfo) (err error) {
-
 	client := client.FromContext(ctx).API()
 
 	if srcInfo.Port > 0 {
@@ -329,7 +323,6 @@ func setScannerPrefs(ctx context.Context, appConfig *app.Config, srcInfo *scanne
 				if val, err = secret.Generate(); err != nil {
 					return fmt.Errorf("could not generate random string: %w", err)
 				}
-
 			} else if secret.Value != "" {
 				val = secret.Value
 			} else {
@@ -351,7 +344,6 @@ func setScannerPrefs(ctx context.Context, appConfig *app.Config, srcInfo *scanne
 
 		if len(secrets) > 0 {
 			_, err := client.SetSecrets(ctx, appConfig.AppName, secrets)
-
 			if err != nil {
 				return err
 			}
@@ -361,11 +353,9 @@ func setScannerPrefs(ctx context.Context, appConfig *app.Config, srcInfo *scanne
 
 	// If volumes are requested by the launch scanner, create them
 	if len(srcInfo.Volumes) > 0 {
-
 		for _, vol := range srcInfo.Volumes {
 
 			appID, err := client.GetAppID(ctx, appConfig.AppName)
-
 			if err != nil {
 				return err
 			}
@@ -406,7 +396,6 @@ func setScannerPrefs(ctx context.Context, appConfig *app.Config, srcInfo *scanne
 
 	// Set Docker build arguments
 	if len(srcInfo.BuildArgs) > 0 {
-
 		appConfig.Build.Args = srcInfo.BuildArgs
 	}
 
@@ -423,7 +412,6 @@ func installFiles(ctx context.Context, dir string, srcInfo *scanner.SourceInfo) 
 		path := filepath.Join(dir, f.Path)
 
 		overwrite, err := prompt.ConfirmOverwrite(ctx, path)
-
 		if err != nil {
 			return err
 		}
@@ -432,14 +420,14 @@ func installFiles(ctx context.Context, dir string, srcInfo *scanner.SourceInfo) 
 			continue
 		}
 
-		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 			return err
 		}
 
-		perms := 0600
+		perms := 0o600
 
 		if strings.Contains(string(f.Contents), "#!") {
-			perms = 0700
+			perms = 0o700
 		}
 
 		if err := os.WriteFile(path, f.Contents, fs.FileMode(perms)); err != nil {
@@ -559,7 +547,7 @@ func appendDockerfileAppendix(appendix []string) (err error) {
 
 	var f *os.File
 	// TODO: we don't flush
-	if f, err = os.OpenFile(dockerfilePath, os.O_APPEND|os.O_WRONLY, 0600); err != nil {
+	if f, err = os.OpenFile(dockerfilePath, os.O_APPEND|os.O_WRONLY, 0o600); err != nil {
 		return
 	}
 	defer func() {

@@ -34,8 +34,10 @@ COPY . .
 ENV PORT=8080
 EXPOSE 8080
 CMD ["bundle", "exec", "rackup", "--host", "0.0.0.0", "-p", "8080"]
-`, Settings: []Setting{{"version", "latest", "Version of Ruby to use (https://registry.hub.docker.com/_/ruby)"}}},
-	{Name: "deno",
+`, Settings: []Setting{{"version", "latest", "Version of Ruby to use (https://registry.hub.docker.com/_/ruby)"}},
+	},
+	{
+		Name:        "deno",
 		Description: "Deno builtin",
 		Details: `Uses Debian image from https://github.com/hayd/deno-docker.
 runs main.ts with --allow-net set and requires deps.ts for dependencies.
@@ -51,10 +53,13 @@ ADD . .
 RUN deno cache main.ts
 CMD ["run", {{range .perms}}"{{.}}",{{end}} "main.ts"]
 `,
-		Settings: []Setting{{"perms", []string{`--allow-net`}, "Array of command line settings to grant permissions, e.g. [\"--allow-net\",\"--allow-read\"] "},
-			{"version", "latest", "Version of Deno to use (https://registry.hub.docker.com/r/hayd/debian-deno)"}},
+		Settings: []Setting{
+			{"perms", []string{`--allow-net`}, "Array of command line settings to grant permissions, e.g. [\"--allow-net\",\"--allow-read\"] "},
+			{"version", "latest", "Version of Deno to use (https://registry.hub.docker.com/r/hayd/debian-deno)"},
+		},
 	},
-	{Name: "go",
+	{
+		Name:        "go",
 		Description: "Go Builtin",
 		Details: `Builds main.go from the directory, the app should use go modules.
 Uses and exposes port 8080 internally.
@@ -75,23 +80,29 @@ RUN apk --no-cache add ca-certificates
 ENV PORT=8080
 EXPOSE 8080
 CMD ["/goapp/app"]
-`, Settings: []Setting{{"version", "latest", "Version of Go to use (https://hub.docker.com/_/golang)"}}},
-	{Name: "static",
+`, Settings: []Setting{{"version", "latest", "Version of Go to use (https://hub.docker.com/_/golang)"}},
+	},
+	{
+		Name:        "static",
 		Description: "Web server builtin",
 		Details:     `All files are copied to the image and served, except files with executable permission set.`,
 		Template: `FROM pierrezemb/gostatic
 COPY . /srv/http/
 CMD ["-port","8080"{{if .httpsonly}},"-https-promote"{{ end }}{{if .log}},"-enable-logging"{{end}}]
-	`, Settings: []Setting{{"httpsonly", false, "Enable http to https promotion"}, {"log", false, "Enable basic logging"}}},
-	{Name: "hugo-static",
+	`, Settings: []Setting{{"httpsonly", false, "Enable http to https promotion"}, {"log", false, "Enable basic logging"}},
+	},
+	{
+		Name:        "hugo-static",
 		Description: "Hugo static build with web server builtin",
 		Details:     `Hugo static build, then all public files are copied to the image and served, except files with executable permission set. Uses and exposes port 8080 internally.`,
 		Template: `FROM klakegg/hugo:0.74.0-onbuild AS hugo
 FROM pierrezemb/gostatic
 COPY --from=hugo /target /srv/http/
 CMD ["-port","8080"{{if .httpsonly}},"-https-promote"{{ end }}{{if .log}},"-enable-logging"{{end}}]
-`, Settings: []Setting{{"httpsonly", false, "Enable http to https promotion"}, {"log", false, "Enable basic logging"}}},
-	{Name: "python",
+`, Settings: []Setting{{"httpsonly", false, "Enable http to https promotion"}, {"log", false, "Enable basic logging"}},
+	},
+	{
+		Name:        "python",
 		Description: "Python builtin",
 		Details:     `Python/Procfile based builder. Requires requirements.txt and Procfile. Uses and exposes port 8080 internally.`,
 		Template: `FROM python:{{- .pythonbase }}
@@ -107,5 +118,6 @@ COPY . /app
 WORKDIR /app
 RUN pip install -r requirements.txt
 CMD ["/usr/bin/hivemind", "/app/Procfile"]
-`, Settings: []Setting{{"hiveversion", "1.0.6", "Version of Hivemind"}, {"pythonbase", "3.8-slim-buster", "Tag for base Python image"}}},
+`, Settings: []Setting{{"hiveversion", "1.0.6", "Version of Hivemind"}, {"pythonbase", "3.8-slim-buster", "Tag for base Python image"}},
+	},
 }

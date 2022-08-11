@@ -38,7 +38,6 @@ func runStatus(ctx context.Context) (err error) {
 	)
 
 	service, err := client.GetAddOn(ctx, id)
-
 	if err != nil {
 		return err
 	}

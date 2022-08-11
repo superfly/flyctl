@@ -114,13 +114,11 @@ func templates(name string) (files []SourceFile) {
 		}
 
 		relPath, err := filepath.Rel(name, path)
-
 		if err != nil {
 			return errors.Wrap(err, "error removing template prefix")
 		}
 
 		data, err := fs.ReadFile(content, path)
-
 		if err != nil {
 			return err
 		}
@@ -137,7 +135,6 @@ func templates(name string) (files []SourceFile) {
 		files = append(files, f)
 		return nil
 	})
-
 	if err != nil {
 		panic(err)
 	}

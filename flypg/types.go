@@ -117,7 +117,7 @@ func ErrorStatus(err error) int {
 }
 
 func newError(status int, res *http.Response) error {
-	var e = new(Error)
+	e := new(Error)
 
 	e.StatusCode = status
 

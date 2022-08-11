@@ -11,6 +11,7 @@ type Secrets struct {
 func (p *Secrets) APIStruct() interface{} {
 	return nil
 }
+
 func (p *Secrets) FieldNames() []string {
 	return []string{"Name", "Digest", "Date"}
 }

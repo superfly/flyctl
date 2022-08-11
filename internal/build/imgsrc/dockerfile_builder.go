@@ -54,7 +54,6 @@ func (out *lastProgressOutput) WriteProgress(prog progress.Progress) error {
 }
 
 func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions) (*DeploymentImage, error) {
-
 	if !dockerFactory.mode.IsAvailable() {
 		// Where should debug messages be sent?
 		terminal.Debug("docker daemon not available, skipping")
@@ -151,7 +150,6 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 	docker_tb.Done(msg)
 
 	buildArgs, err := normalizeBuildArgsForDocker(ctx, opts.BuildArgs)
-
 	if err != nil {
 		return nil, fmt.Errorf("error parsing build args: %w", err)
 	}
@@ -197,8 +195,8 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 }
 
 func normalizeBuildArgsForDocker(ctx context.Context, buildArgs map[string]string) (map[string]*string, error) {
-	var out = map[string]*string{}
-	//workingDirectory := state.WorkingDirectory(ctx)
+	out := map[string]*string{}
+	// workingDirectory := state.WorkingDirectory(ctx)
 
 	for k, v := range buildArgs {
 		val := v
@@ -368,7 +366,7 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 			}
 
 			if os.Getenv("LOG_LEVEL") == "debug" {
-				f, err := os.OpenFile("build.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
+				f, err := os.OpenFile("build.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
 				if err != nil {
 					return err
 				}

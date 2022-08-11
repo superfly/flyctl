@@ -8,12 +8,16 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-var buildDate = "<date>"
-var version = "<version>"
-var commit = "<commit>"
+var (
+	buildDate = "<date>"
+	version   = "<version>"
+	commit    = "<commit>"
+)
 
-var parsedVersion semver.Version
-var parsedBuildDate time.Time
+var (
+	parsedVersion   semver.Version
+	parsedBuildDate time.Time
+)
 
 func init() {
 	loadMeta()
@@ -40,7 +44,6 @@ func loadMeta() {
 			},
 			Build: []string{"dev"},
 		}
-
 	} else {
 		parsedBuildDate = parsedBuildDate.UTC()
 

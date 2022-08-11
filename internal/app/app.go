@@ -39,7 +39,6 @@ func NewConfig() *Config {
 
 // LoadConfig loads the app config at the given path.
 func LoadConfig(ctx context.Context, path string, platformVersion string) (cfg *Config, err error) {
-
 	cfg = &Config{
 		Definition: map[string]interface{}{},
 	}
@@ -193,7 +192,6 @@ func (c *Config) DeterminePlatform(ctx context.Context, r io.ReadSeeker) (err er
 	}
 
 	basicApp, err := client.API().GetAppBasic(ctx, slimConfig.AppName)
-
 	if err != nil {
 		return err
 	}
@@ -292,7 +290,7 @@ func unmarshalBuild(data map[string]interface{}) *Build {
 		case "settings":
 			if settingsMap, ok := v.(map[string]interface{}); ok {
 				for settingK, settingV := range settingsMap {
-					b.Settings[settingK] = settingV //fmt.Sprint(argV)
+					b.Settings[settingK] = settingV // fmt.Sprint(argV)
 				}
 			}
 		case "image":
@@ -409,7 +407,7 @@ func (c *Config) WriteToDisk() (err error) {
 }
 
 func (c *Config) Validate() (err error) {
-	var Validator = validator.New()
+	Validator := validator.New()
 	Validator.RegisterTagNameFunc(func(fld reflect.StructField) string {
 		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
 		// skip if tag key says it should be ignored

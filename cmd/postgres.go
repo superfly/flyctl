@@ -247,9 +247,9 @@ func runApiCreatePostgresCluster(cmdCtx *cmdctx.CmdContext, org string, input *a
 
 func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 	// Minimum image version requirements
-	var (
-		MinPostgresHaVersion = "0.0.19"
-	)
+
+	MinPostgresHaVersion := "0.0.19"
+
 	ctx := cmdCtx.Command.Context()
 
 	postgresAppName := cmdCtx.Config.GetString("postgres-app")

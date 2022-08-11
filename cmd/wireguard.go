@@ -192,7 +192,7 @@ func resolveOutputWriter(ctx *cmdctx.CmdContext, idx int, prompt string) (w io.W
 			return os.Stdout, false, nil
 		}
 
-		f, err = os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		f, err = os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 		if err == nil {
 			return f, true, nil
 		}

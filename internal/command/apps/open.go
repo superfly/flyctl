@@ -41,7 +41,6 @@ to the root URL of the deployed application.
 	)
 
 	return
-
 }
 
 func runOpen(ctx context.Context) error {

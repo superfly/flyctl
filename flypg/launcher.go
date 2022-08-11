@@ -49,9 +49,7 @@ func NewLauncher(client *api.Client) *Launcher {
 
 // Launches a postgres cluster using the machines runtime
 func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClusterInput) error {
-	var (
-		client = client.FromContext(ctx).API()
-	)
+	client := client.FromContext(ctx).API()
 
 	app, err := l.createApp(ctx, config)
 	if err != nil {

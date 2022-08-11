@@ -173,7 +173,6 @@ func setSlackChecksHandler(cmdCtx *cmdctx.CmdContext, org *api.Organization, nam
 	// }
 
 	handler, err := cmdCtx.Client.API().SetSlackHealthCheckHandler(ctx, input)
-
 	if err != nil {
 		return err
 	}
@@ -205,7 +204,6 @@ func setPagerDutyChecksHandler(cmdCtx *cmdctx.CmdContext, org *api.Organization,
 	}
 
 	handler, err := cmdCtx.Client.API().SetPagerdutyHealthCheckHandler(ctx, input)
-
 	if err != nil {
 		return err
 	}

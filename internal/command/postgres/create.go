@@ -124,7 +124,7 @@ func runCreate(ctx context.Context) (err error) {
 	if !customConfig {
 		fmt.Fprintf(io.Out, "For pricing information visit: https://fly.io/docs/about/pricing/#postgresql-clusters")
 
-		var msg = "Select configuration:"
+		msg := "Select configuration:"
 
 		var selected int
 

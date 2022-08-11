@@ -44,7 +44,7 @@ func ensureDockerConfigDir(home string) error {
 		}
 		// It needs to be readable by Docker, if it gets installed in the
 		// future.
-		if err := os.Mkdir(dockerDir, 0755); err != nil {
+		if err := os.Mkdir(dockerDir, 0o755); err != nil {
 			return err
 		}
 	} else if !fi.IsDir() {
@@ -130,7 +130,7 @@ func configureDockerJSON(cfg *config.Config) error {
 		return err
 	}
 	// It needs to be readable by Docker, if it gets installed in the future.
-	return os.WriteFile(configPath, updatedJSON, 0644)
+	return os.WriteFile(configPath, updatedJSON, 0o644)
 }
 
 func runDocker(ctx context.Context) (err error) {

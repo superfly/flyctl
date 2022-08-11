@@ -19,7 +19,7 @@ func newAutoscaleCommand(client *client.Client) *Command {
 	autoscaleStrings := docstrings.Get("autoscale")
 
 	cmd := BuildCommandKS(nil, nil, autoscaleStrings, client, requireSession, requireAppName)
-	//cmd.Deprecated = "use `flyctl scale` instead"
+	// cmd.Deprecated = "use `flyctl scale` instead"
 
 	disableCmdStrings := docstrings.Get("autoscale.disable")
 	disableCmd := BuildCommand(cmd, runDisableAutoscaling, disableCmdStrings.Usage, disableCmdStrings.Short, disableCmdStrings.Long, client, requireSession, requireAppName)
@@ -100,7 +100,6 @@ func actualScale(cmdCtx *cmdctx.CmdContext, balanceRegions bool, setParamsOnly b
 
 	if found {
 		minint64val, err := strconv.ParseInt(minval, 10, 64)
-
 		if err != nil {
 			return errors.New("could not parse min count value")
 		}
@@ -113,7 +112,6 @@ func actualScale(cmdCtx *cmdctx.CmdContext, balanceRegions bool, setParamsOnly b
 
 	if found {
 		maxint64val, err := strconv.ParseInt(maxval, 10, 64)
-
 		if err != nil {
 			return errors.New("could not parse max count value")
 		}
@@ -158,7 +156,6 @@ func runAutoscalingShow(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func printScaleConfig(cmdCtx *cmdctx.CmdContext, cfg *api.AutoscalingConfig) {
-
 	asJSON := cmdCtx.OutputJSON()
 
 	if asJSON {

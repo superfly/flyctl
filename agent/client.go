@@ -353,7 +353,6 @@ func (c *Client) WaitForTunnel(parent context.Context, slug string) (err error) 
 
 // WaitForDNS waits for a Fly host internal DNS entry to register
 func (c *Client) WaitForDNS(parent context.Context, dialer Dialer, slug string, host string) (err error) {
-
 	io := iostreams.FromContext(parent)
 	io.StartProgressIndicatorMsg(fmt.Sprintf("Waiting for host %s", host))
 	ctx, cancel := context.WithTimeout(parent, 4*time.Minute)

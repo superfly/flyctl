@@ -74,7 +74,6 @@ func runMachineClone(ctx context.Context) (err error) {
 	} else {
 		fmt.Fprintf(out, "No machine ID specified, so picking one at random\n")
 		machines, err := flapsClient.List(ctx, "started")
-
 		if err != nil {
 			return err
 		}
@@ -105,7 +104,6 @@ func runMachineClone(ctx context.Context) (err error) {
 	}
 
 	launchedMachine, err := flapsClient.Launch(ctx, input)
-
 	if err != nil {
 		return err
 	}
