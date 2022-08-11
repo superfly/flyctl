@@ -15,7 +15,6 @@ import (
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/spinner"
 	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/retry"
 )
 
 // Deploy ta machines app directly from flyctl, applying the desired config to running machines,
@@ -108,8 +107,9 @@ func RunReleaseCommand(ctx context.Context, app *api.AppCompact, appConfig *app.
 		return
 	}
 
-	spin := spinner.Run(io, fmt.Sprintf("Running release command: %s", appConfig.Deploy.ReleaseCommand))
-	defer spin.Stop()
+	msg := fmt.Sprintf("Running release command: %s", appConfig.Deploy.ReleaseCommand)
+	spin := spinner.Run(io, msg)
+	defer spin.StopWithSuccess()
 
 	machineConf := machineConfig
 
@@ -137,30 +137,35 @@ func RunReleaseCommand(ctx context.Context, app *api.AppCompact, appConfig *app.
 	removeInput := api.RemoveMachineInput{
 		AppID: app.Name,
 		ID:    machine.ID,
-		Kill:  true,
 	}
 
+	// Make sure we clean up the release command VM
 	defer flapsClient.Destroy(ctx, removeInput)
 
+	// Ensure the command starts running
 	err = flapsClient.Wait(ctx, machine, "started")
 
 	if err != nil {
 		return err
 	}
-	fn := func() error {
-		return flapsClient.Wait(ctx, machine, "stopped")
-	}
 
-	err = retry.Retry(fn, 3)
+	// Wait for the release command VM to stop before moving on
+	err = flapsClient.Wait(ctx, machine, "stopped")
 
 	if err != nil {
-		return fmt.Errorf("Failed determining whether the release command finished. %w", err)
+		return fmt.Errorf("failed determining whether the release command finished. %w", err)
 	}
 
 	var lastExitEvent *api.MachineEvent
+	var pollMaxAttempts int = 10
+	var pollAttempts int = 0
 
-	// Poll until the 'stopped' event arrives
+	// Poll until the 'stopped' event arrives, so we can determine the release command exit status
 	for {
+		if pollAttempts >= pollMaxAttempts {
+			return fmt.Errorf("could not determine whether the release command succeeded, so aborting the deployment")
+		}
+
 		machine, err = flapsClient.Get(ctx, machine.ID)
 
 		for _, event := range machine.Events {
@@ -178,26 +183,29 @@ func RunReleaseCommand(ctx context.Context, app *api.AppCompact, appConfig *app.
 		}
 
 		time.Sleep(1 * time.Second)
+		pollAttempts += 1
 	}
 
 	exitCode := lastExitEvent.Request.ExitEvent.ExitCode
 
 	if exitCode != 0 {
-		return fmt.Errorf("Release command exited with non-zero status of %d", exitCode)
+		return fmt.Errorf("release command exited with non-zero status of %d", exitCode)
 	}
 
 	return
 }
 
 func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string, machineConfig api.MachineConfig) (err error) {
-	out := iostreams.FromContext(ctx).Out
+	io := iostreams.FromContext(ctx)
 	flapsClient, err := flaps.New(ctx, app)
 
 	if strategy == "" {
 		strategy = "rolling"
 	}
 
-	fmt.Fprintf(out, "Deploying with %s strategy\n", strategy)
+	msg := fmt.Sprintf("Deploying with %s strategy", strategy)
+	spin := spinner.Run(io, msg)
+	defer spin.StopWithSuccess()
 
 	if err != nil {
 		return
@@ -206,7 +214,6 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 	machineConfig.Metadata = map[string]string{"process_group": "app"}
 	machineConfig.Init.Cmd = nil
 
-	fmt.Println(machineConfig.Init.Cmd)
 	launchInput := api.LaunchMachineInput{
 		AppID:   app.Name,
 		OrgSlug: app.Organization.ID,
@@ -221,7 +228,6 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 
 	machines = helpers.Filter(machines, func(m *api.Machine) bool {
 		m, err = flapsClient.Get(ctx, m.ID)
-		fmt.Println(m.Config.Metadata)
 		return m.Config.Metadata["process_group"] != "release_command"
 	})
 
@@ -272,7 +278,7 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 					leaseErr := flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
 
 					if leaseErr != nil {
-						fmt.Fprintf(out, "Could not release lease for %s\n", machine.ID)
+						fmt.Fprintf(io.Out, "Could not release lease for %s\n", machine.ID)
 					}
 
 					return err
@@ -283,7 +289,6 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 			}
 
 			if strategy != "immediate" {
-				fmt.Fprintf(out, "Waiting for update to finish on %s\n", machine.ID)
 				err = flapsClient.Wait(ctx, updateResult, "started")
 
 				if err != nil {
@@ -296,26 +301,21 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 
 		for _, machine := range machines {
 
-			fmt.Fprintf(out, "Releasing lease on %s\n", machine.ID)
 			err = flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
 			if err != nil {
-				fmt.Println(out, fmt.Errorf("could not release lease on %s (%w)", machine.ID, err))
+				fmt.Println(io.Out, fmt.Errorf("could not release lease on %s (%w)", machine.ID, err))
 			}
 
 		}
 
-		fmt.Fprintln(out)
-
 	} else {
-		fmt.Fprintf(out, "Launching VM with image %s\n", launchInput.Config.Image)
+		fmt.Fprintf(io.Out, "Launching VM with image %s\n", launchInput.Config.Image)
 		_, err = flapsClient.Launch(ctx, launchInput)
 
 		if err != nil {
 			return err
 		}
 	}
-
-	fmt.Fprintln(out, "Deploy complete. Check the result with 'fly status'.")
 
 	return
 }
