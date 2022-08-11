@@ -36,7 +36,7 @@ linters:
     # - ineffassign
     # - staticcheck
     - unconvert
-    # - unused
+    - unused
     # - varcheck
   fast: true
 

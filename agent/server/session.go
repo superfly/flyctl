@@ -552,16 +552,6 @@ func (s *session) exactArgs(count int, args []string, err error) bool {
 	return true
 }
 
-func (s *session) minMaxArgs(min, max int, args []string, err error) bool {
-	if len(args) < min || len(args) > max {
-		s.error(err)
-
-		return false
-	}
-
-	return true
-}
-
 func (s *session) marshal(v interface{}) (ok bool) {
 	var sb strings.Builder
 
