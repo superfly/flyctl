@@ -90,12 +90,11 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 	}
 
 	err = RunReleaseCommand(ctx, app, config, machineConfig)
-
 	if err != nil {
 		return fmt.Errorf("release command failed - aborting deployment. %w", err)
 	}
 
-	return DeployMachinesApp(ctx, app, strategy, machineConfig)
+	return DeployMachinesApp(ctx, app, strategy, machineConfig, config)
 }
 
 func RunReleaseCommand(ctx context.Context, app *api.AppCompact, appConfig *app.Config, machineConfig api.MachineConfig) (err error) {
@@ -195,21 +194,25 @@ func RunReleaseCommand(ctx context.Context, app *api.AppCompact, appConfig *app.
 	return
 }
 
-func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string, machineConfig api.MachineConfig) (err error) {
+func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string, machineConfig api.MachineConfig, appConfig *app.Config) (err error) {
 	io := iostreams.FromContext(ctx)
 	flapsClient, err := flaps.New(ctx, app)
+	if err != nil {
+		return
+	}
 
 	if strategy == "" {
 		strategy = "rolling"
 	}
 
+	var regionCode string
+	if appConfig != nil {
+		regionCode = appConfig.GetPrimaryRegion()
+	}
+
 	msg := fmt.Sprintf("Deploying with %s strategy", strategy)
 	spin := spinner.Run(io, msg)
 	defer spin.StopWithSuccess()
-
-	if err != nil {
-		return
-	}
 
 	machineConfig.Metadata = map[string]string{"process_group": "app"}
 	machineConfig.Init.Cmd = nil
@@ -218,10 +221,10 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 		AppID:   app.Name,
 		OrgSlug: app.Organization.ID,
 		Config:  &machineConfig,
+		Region:  regionCode,
 	}
 
 	machines, err := flapsClient.List(ctx, "")
-
 	if err != nil {
 		return
 	}
