@@ -28,16 +28,16 @@ linters:
   disable-all: true
   enable:
     - gofmt
-    - deadcode
-    - errcheck
-    - goimports
-    - gosimple
-    - govet
-    - ineffassign
-    - staticcheck
-    - unconvert
-    - unused
-    - varcheck
+    # - deadcode
+    # - errcheck
+    # - goimports
+    #  - gosimple
+    # - govet
+    # - ineffassign
+    # - staticcheck
+    # - unconvert
+    # - unused
+    # - varcheck
   fast: true
 
 # options for analysis running
