@@ -3,8 +3,9 @@ package presenters
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/logrusorgru/aurora"
 	"io"
+
+	"github.com/logrusorgru/aurora"
 
 	"github.com/olekukonko/tablewriter"
 )

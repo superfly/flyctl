@@ -3,10 +3,11 @@ package scanner
 import (
 	"encoding/base64"
 	"fmt"
-	"github.com/superfly/flyctl/helpers"
 	"os/exec"
 	"regexp"
 	"strconv"
+
+	"github.com/superfly/flyctl/helpers"
 )
 
 type ComposerLock struct {

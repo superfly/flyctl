@@ -30,7 +30,7 @@ linters:
     - gofmt
     # - deadcode
     # - errcheck
-    # - goimports
+    - goimports
     #  - gosimple
     # - govet
     # - ineffassign
