@@ -15,7 +15,6 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/sort"
 )
@@ -337,7 +336,7 @@ func SelectRegion(ctx context.Context, msg string, regions []api.Region, default
 func MultiSelectRegion(ctx context.Context, msg string, regions []api.Region, currentRegions []string, excludeRegion string) (selectedRegions []api.Region, err error) {
 	var options []string
 
-	includedRegions := helpers.Filter(regions, func(r api.Region) bool {
+	includedRegions := lo.Filter(regions, func(r api.Region, _ int) bool {
 		return r.Code != excludeRegion
 	})
 
