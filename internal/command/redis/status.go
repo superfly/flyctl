@@ -2,9 +2,11 @@ package redis
 
 import (
 	"context"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
@@ -34,24 +36,28 @@ func runStatus(ctx context.Context) (err error) {
 	var (
 		io     = iostreams.FromContext(ctx)
 		id     = flag.FirstArg(ctx)
-		client = client.FromContext(ctx).API()
+		client = client.FromContext(ctx).API().GenqClient
 	)
 
-	service, err := client.GetAddOn(ctx, id)
+	response, err := gql.GetAddOn(ctx, client, id)
 	if err != nil {
 		return err
 	}
 
+	addOn := response.AddOn
+
 	obj := [][]string{
 		{
-			service.ID,
-			service.Name,
-			service.PrimaryRegion,
-			service.PublicUrl,
+			addOn.Id,
+			addOn.Name,
+			addOn.AddOnPlan.DisplayName,
+			addOn.PrimaryRegion,
+			strings.Join(addOn.ReadRegions, ","),
+			addOn.PublicUrl,
 		},
 	}
 
-	var cols []string = []string{"ID", "Name", "Primary Region", "Public URL"}
+	var cols []string = []string{"ID", "Name", "Plan", "Primary Region", "Read Regions", "Public URL"}
 
 	if err = render.VerticalTable(io.Out, "Redis", obj, cols...); err != nil {
 		return

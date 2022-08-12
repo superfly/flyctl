@@ -50,7 +50,7 @@ func runCreate(ctx context.Context) (err error) {
 		return err
 	}
 
-	readRegions, err := prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", primaryRegion)
+	readRegions, err := prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", []string{}, primaryRegion.Code)
 	if err != nil {
 		return
 	}

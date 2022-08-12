@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
@@ -32,16 +33,22 @@ func newDelete() (cmd *cobra.Command) {
 func runDelete(ctx context.Context) (err error) {
 	var (
 		out    = iostreams.FromContext(ctx).Out
-		client = client.FromContext(ctx).API()
+		client = client.FromContext(ctx).API().GenqClient
 	)
-
-	if err != nil {
-		return err
-	}
 
 	id := flag.FirstArg(ctx)
 
-	_, err = client.DeleteAddOn(ctx, id)
+	_ = `# @genqlient
+  mutation DeleteAddOn($addOnId: ID!) {
+		deleteAddOn(input: {addOnId: $addOnId}) {
+			addOn {
+				id
+			}
+		}
+  }
+	`
+
+	_, err = gql.DeleteAddOn(ctx, client, id)
 
 	if err != nil {
 		return
