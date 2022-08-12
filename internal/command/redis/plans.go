@@ -46,10 +46,13 @@ func runPlans(ctx context.Context) (err error) {
 			}
 		}
   }
-`
+	`
+
 	result, err := gql.ListAddOnPlans(ctx, client)
 
 	var rows [][]string
+
+	fmt.Fprintf(out, "\nRedis clusters run on Fly.io, fully managed by Upstash.com. \nOther limits, besides memory, apply to most plans. Learn more at https://fly.io/docs/reference/redis\n\n")
 
 	for _, plan := range result.AddOnPlans.Nodes {
 
@@ -60,18 +63,11 @@ func runPlans(ctx context.Context) (err error) {
 
 		var price string
 
-		if plan.PricePerMonth == 0 {
-			price = "Free, unlimited regions"
-		} else {
-			price = fmt.Sprintf("$%d per month, per region", plan.PricePerMonth)
-		}
-
 		row = append(row, price)
 		rows = append(rows, row)
 	}
 
-	_ = render.Table(out, "", rows, "Name", "Max Data Size", "Price per Month")
+	_ = render.Table(out, "", rows, "Name", "Max Data Size")
 
-	fmt.Fprintln(out, "\nRedis is fully managed by Upstash.com and runs on Fly infrastructure. Other limits apply to most plans. Learn more at https://fly.io/docs/reference/redis")
 	return
 }
