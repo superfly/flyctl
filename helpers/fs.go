@@ -40,5 +40,5 @@ func MkdirAll(pathname string) error {
 	}
 
 	// TODO: this should probably be 0755
-	return os.MkdirAll(pathname, 0777)
+	return os.MkdirAll(pathname, 0o777)
 }

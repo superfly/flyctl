@@ -36,13 +36,11 @@ func runSet(ctx context.Context) (err error) {
 	client := client.FromContext(ctx).API()
 	appName := app.NameFromContext(ctx)
 	app, err := client.GetAppCompact(ctx, appName)
-
 	if err != nil {
 		return err
 	}
 
 	secrets, err := cmdutil.ParseKVStringsToMap(flag.Args(ctx))
-
 	if err != nil {
 		return fmt.Errorf("could not parse secrets: %w", err)
 	}
@@ -65,7 +63,6 @@ func runSet(ctx context.Context) (err error) {
 	}
 
 	release, err := client.SetSecrets(ctx, appName, secrets)
-
 	if err != nil {
 		return err
 	}

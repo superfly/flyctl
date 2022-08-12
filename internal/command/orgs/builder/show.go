@@ -39,7 +39,6 @@ func runShow(ctx context.Context) error {
 	orgName := flag.FirstArg(ctx)
 
 	org, err := client.GetOrganizationBySlug(ctx, orgName)
-
 	if err != nil {
 		return fmt.Errorf("failed getting org: %w", err)
 	}

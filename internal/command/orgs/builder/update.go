@@ -40,7 +40,6 @@ func runUpdate(ctx context.Context) error {
 	image := flag.Args(ctx)[1]
 
 	org, err := client.UpdateRemoteBuilder(ctx, orgName, image)
-
 	if err != nil {
 		return fmt.Errorf("failed updating remote builder: %w", err)
 	}

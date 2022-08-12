@@ -23,9 +23,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 )
 
-var (
-	nameErrorRx = regexp.MustCompile(`\[.*?\]:53`)
-)
+var nameErrorRx = regexp.MustCompile(`\[.*?\]:53`)
 
 func New() *cobra.Command {
 	const (
@@ -245,7 +243,6 @@ func ResolverForOrg(ctx context.Context, c *agent.Client, orgSlug string) (*net.
 				return nil, err
 			}
 
-			network = "tcp"
 			server := net.JoinHostPort(ts.TunnelConfig.DNS.String(), "53")
 
 			// the connections we get from the agent are over a unix domain socket proxy,
@@ -255,7 +252,7 @@ func ResolverForOrg(ctx context.Context, c *agent.Client, orgSlug string) (*net.
 				net.Conn
 			}
 
-			c, err := d.DialContext(ctx, network, server)
+			c, err := d.DialContext(ctx, "tcp", server)
 			if err != nil {
 				return nil, err
 			}

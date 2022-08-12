@@ -108,7 +108,7 @@ func (p *Presenter) renderFieldList() error {
 }
 
 func (p *Presenter) renderJSON() error {
-	var data = p.Item.APIStruct()
+	data := p.Item.APIStruct()
 
 	if data == nil {
 		return fmt.Errorf("JSON output not available")

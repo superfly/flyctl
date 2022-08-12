@@ -62,5 +62,4 @@ func runList(ctx context.Context) error {
 	b.WriteTo(out)
 
 	return nil
-
 }

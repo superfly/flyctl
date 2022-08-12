@@ -130,7 +130,7 @@ func runListUsers(ctx context.Context) (err error) {
 			}
 		}
 
-		var superuser = "no"
+		superuser := "no"
 		if user.Superuser {
 			superuser = "yes"
 		}

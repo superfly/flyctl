@@ -54,7 +54,6 @@ We recommend using the database_url(pip install dj-database-url) to parse the DA
 For detailed documentation, see https://fly.dev/docs/django/
 		`
 		} else {
-
 			s.DeployDocs = `
 Your Django app is ready to deploy!
 

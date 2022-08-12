@@ -20,11 +20,9 @@ import (
 // Deploy ta machines app directly from flyctl, applying the desired config to running machines,
 // or launching new ones
 func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.DeploymentImage, strategy string) (err error) {
-
 	client := client.FromContext(ctx).API()
 
 	app, err := client.GetAppCompact(ctx, config.AppName)
-
 	if err != nil {
 		return
 	}
@@ -128,7 +126,6 @@ func RunReleaseCommand(ctx context.Context, app *api.AppCompact, appConfig *app.
 			Config:  &machineConf,
 		},
 	)
-
 	if err != nil {
 		return err
 	}
@@ -240,7 +237,6 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 
 			leaseTTL := api.IntPointer(30)
 			lease, err := flapsClient.GetLease(ctx, machine.ID, leaseTTL)
-
 			if err != nil {
 				return err
 			}
@@ -258,7 +254,6 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 
 			if launchInput.Config.Guest == nil {
 				freshMachine, err := flapsClient.Get(ctx, machine.ID)
-
 				if err != nil {
 					return err
 				}
@@ -274,9 +269,7 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 			}
 
 			updateResult, err := flapsClient.Update(ctx, launchInput, machine.LeaseNonce)
-
 			if err != nil {
-
 				if strategy != "immediate" {
 					leaseErr := flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
 

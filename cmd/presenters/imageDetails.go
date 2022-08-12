@@ -14,7 +14,6 @@ func (p *ImageDetails) APIStruct() interface{} {
 }
 
 func (p *ImageDetails) FieldNames() []string {
-
 	return []string{"Registry", "Repository", "Tag", "Version", "Digest"}
 }
 
@@ -35,7 +34,6 @@ func (p *ImageDetails) Records() []map[string]string {
 		} else {
 			info["Version"] = "N/A"
 		}
-
 	}
 
 	out = append(out, info)

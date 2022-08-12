@@ -47,7 +47,6 @@ func NewServer(ctx context.Context, p *ConnectParams) (*Server, error) {
 	}
 
 	agentclient, err := agent.Establish(ctx, client)
-
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +54,6 @@ func NewServer(ctx context.Context, p *ConnectParams) (*Server, error) {
 	// Prompt for a specific instance and set it as the remote target
 	if p.PromptInstance {
 		instance, err := selectInstance(ctx, p.OrganizationSlug, p.AppName, agentclient)
-
 		if err != nil {
 			return nil, err
 		}

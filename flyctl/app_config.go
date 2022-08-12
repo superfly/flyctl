@@ -164,7 +164,7 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 			case "settings":
 				if settingsMap, ok := v.(map[string]interface{}); ok {
 					for settingK, settingV := range settingsMap {
-						b.Settings[settingK] = settingV //fmt.Sprint(argV)
+						b.Settings[settingK] = settingV // fmt.Sprint(argV)
 					}
 				}
 				insection = true
@@ -461,7 +461,6 @@ func ResolveConfigFileFromPath(p string) (string, error) {
 
 	// Is this a bare directory path? Stat the path
 	pd, err := os.Stat(p)
-
 	if err != nil {
 		if os.IsNotExist(err) {
 			return p, nil

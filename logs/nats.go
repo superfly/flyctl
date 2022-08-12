@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
 	"net"
 
 	"github.com/nats-io/nats.go"

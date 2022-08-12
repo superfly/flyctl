@@ -17,7 +17,6 @@ func (*remoteImageResolver) Name() string {
 }
 
 func (s *remoteImageResolver) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts RefOptions) (*DeploymentImage, error) {
-
 	fmt.Fprintf(streams.ErrOut, "Searching for image '%s' remotely...\n", opts.ImageRef)
 
 	img, err := s.flyApi.ResolveImageForApp(ctx, opts.AppName, opts.ImageRef)

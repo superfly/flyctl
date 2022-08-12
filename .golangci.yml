@@ -27,17 +27,17 @@ issues:
 linters:
   disable-all: true
   enable:
-    - gofmt
+    - gofumpt
     - deadcode
     # - errcheck
     - goimports
     - gosimple
     - govet
-    # - ineffassign
-    # - staticcheck
+    - ineffassign
+    - staticcheck
     - unconvert
     - unused
-    # - varcheck
+    - varcheck
   fast: true
 
 # options for analysis running

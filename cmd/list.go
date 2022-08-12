@@ -113,13 +113,15 @@ func runListApps(cmdCtx *cmdctx.CmdContext) error {
 				createdAt = apps[i].CurrentRelease.CreatedAt
 			}
 
-			filteredApps = append(filteredApps, appCondensed{ID: apps[i].ID,
+			filteredApps = append(filteredApps, appCondensed{
+				ID:           apps[i].ID,
 				Name:         apps[i].Name,
 				Status:       apps[i].Status,
 				Deployed:     apps[i].Deployed,
 				Hostname:     apps[i].Hostname,
 				Organization: apps[i].Organization.Slug,
-				CreatedAt:    createdAt})
+				CreatedAt:    createdAt,
+			})
 		}
 	}
 
@@ -168,7 +170,6 @@ func runListOrgs(cmdCtx *cmdctx.CmdContext) error {
 	asJSON := cmdCtx.OutputJSON()
 
 	orgs, err := cmdCtx.Client.API().GetOrganizations(ctx)
-
 	if err != nil {
 		return err
 	}

@@ -55,7 +55,6 @@ func levelFromEnv() Level {
 }
 
 func (l *Logger) debug(v ...interface{}) {
-
 	if str, ok := v[0].(string); ok {
 		byteString := []byte(str)
 		if json.Valid(byteString) {

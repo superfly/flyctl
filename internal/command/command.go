@@ -193,7 +193,7 @@ func ensureConfigDirExists(ctx context.Context) (context.Context, error) {
 
 	switch fi, err := os.Stat(dir); {
 	case errors.Is(err, fs.ErrNotExist):
-		if err := os.MkdirAll(dir, 0700); err != nil {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return nil, fmt.Errorf("failed creating config directory: %w", err)
 		}
 	case err != nil:

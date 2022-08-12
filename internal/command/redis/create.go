@@ -41,13 +41,11 @@ func runCreate(ctx context.Context) (err error) {
 	)
 
 	org, err := prompt.Org(ctx)
-
 	if err != nil {
 		return err
 	}
 
 	primaryRegion, err := prompt.Region(ctx, "Choose a primary region (can't be changed later)")
-
 	if err != nil {
 		return err
 	}
@@ -62,7 +60,6 @@ func runCreate(ctx context.Context) (err error) {
 	var promptOptions []string
 
 	result, err := gql.ListAddOnPlans(ctx, client)
-
 	if err != nil {
 		return
 	}
@@ -78,7 +75,6 @@ func runCreate(ctx context.Context) (err error) {
 	}
 
 	url, err := ProvisionRedis(ctx, org, result.AddOnPlans.Nodes[index].Id, primaryRegion, readRegions)
-
 	if err != nil {
 		return
 	}
@@ -110,7 +106,6 @@ func ProvisionRedis(ctx context.Context, org *api.Organization, planId string, p
 	}
 
 	response, err := gql.CreateAddOn(ctx, client, org.ID, primaryRegion.Code, planId, readRegionCodes)
-
 	if err != nil {
 		return
 	}

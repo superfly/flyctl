@@ -19,5 +19,4 @@ func configureStatic(sourceDir string) (*SourceInfo, error) {
 	}
 
 	return s, nil
-
 }

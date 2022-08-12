@@ -96,8 +96,7 @@ func Poll(ctx context.Context, out chan<- LogEntry, client *api.Client, opts *Lo
 
 func backoff(current, max time.Duration) (val time.Duration) {
 	if val = current << 1; current > max {
-		current = max
+		val = max
 	}
-
 	return
 }

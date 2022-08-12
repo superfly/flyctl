@@ -40,10 +40,9 @@ func main() {
 		return "/docs/flyctl/" + strings.ToLower(base)
 	}
 
-	os.MkdirAll("out", 0700)
+	os.MkdirAll("out", 0o700)
 
 	err := GenMarkdownTreeCustom(cmd, "./out", filePrepender, linkHandler)
-
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -75,7 +74,7 @@ func GenMarkdownCustom(cmd *cobra.Command, w io.Writer, linkHandler func(string)
 
 	buf := new(bytes.Buffer)
 	name := cmd.CommandPath()
-	//name := cmd.Name()
+	// name := cmd.Name()
 
 	short := cmd.Short
 	long := cmd.Long

@@ -169,7 +169,6 @@ func runBackupRegionsSet(cmdCtx *cmdctx.CmdContext) error {
 }
 
 func printRegions(ctx *cmdctx.CmdContext, regions []api.Region, backupRegions []api.Region) {
-
 	if ctx.OutputJSON() {
 
 		data := struct {

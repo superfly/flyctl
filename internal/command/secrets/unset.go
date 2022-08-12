@@ -32,13 +32,11 @@ func runUnset(ctx context.Context) (err error) {
 	client := client.FromContext(ctx).API()
 	appName := app.NameFromContext(ctx)
 	app, err := client.GetAppCompact(ctx, appName)
-
 	if err != nil {
 		return err
 	}
 
 	release, err := client.UnsetSecrets(ctx, appName, flag.Args(ctx))
-
 	if err != nil {
 		return err
 	}

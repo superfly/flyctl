@@ -145,9 +145,7 @@ func (s *session) ping(_ context.Context, args ...string) {
 	})
 }
 
-var (
-	errMalformedEstablish = errors.New("malformed establish command")
-)
+var errMalformedEstablish = errors.New("malformed establish command")
 
 func (s *session) doEstablish(ctx context.Context, recycle bool, args ...string) {
 	if !s.exactArgs(1, args, errMalformedEstablish) {
@@ -389,7 +387,6 @@ func (s *session) connect(ctx context.Context, args ...string) {
 }
 
 func (s *session) ping6(ctx context.Context, args ...string) {
-
 	// As with "dial", "ping6" handles an agent command and then
 	// repurposes the agent connection as a transport.
 

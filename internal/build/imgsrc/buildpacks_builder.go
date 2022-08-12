@@ -105,7 +105,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 }
 
 func normalizeBuildArgs(buildArgs map[string]string) map[string]string {
-	var out = map[string]string{}
+	out := map[string]string{}
 
 	for k, v := range buildArgs {
 		out[k] = v

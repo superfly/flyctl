@@ -18,7 +18,6 @@ func (ds *builtinBuilder) Name() string {
 }
 
 func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions) (*DeploymentImage, error) {
-
 	if !dockerFactory.mode.IsAvailable() {
 		terminal.Debug("docker daemon not available, skipping")
 		return nil, nil
@@ -81,7 +80,6 @@ func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	cmdfmt.PrintDone(streams.ErrOut, msg)
 
 	buildArgs, err := normalizeBuildArgsForDocker(ctx, opts.BuildArgs)
-
 	if err != nil {
 		return nil, fmt.Errorf("error parsing build args: %w", err)
 	}
@@ -114,5 +112,4 @@ func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		Tag:  opts.Tag,
 		Size: img.Size,
 	}, nil
-
 }

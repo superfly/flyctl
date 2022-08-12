@@ -44,7 +44,6 @@ including type, when, success/fail and which user triggered the release.
 	)
 
 	return
-
 }
 
 func runReleases(ctx context.Context) error {

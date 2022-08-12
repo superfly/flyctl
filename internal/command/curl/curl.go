@@ -145,7 +145,7 @@ type requestWrapper struct {
 }
 
 func wrapRequestForRegion(ctx context.Context, regionCode string, url *url.URL) (rw *requestWrapper, err error) {
-	var payload = struct {
+	payload := struct {
 		URL    string `json:"url"`
 		Region string `json:"region"`
 	}{
