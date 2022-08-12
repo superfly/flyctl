@@ -350,7 +350,7 @@ func MultiSelectRegion(ctx context.Context, msg string, regions []api.Region, cu
 
 	for i, r := range includedRegions {
 		if lo.Contains(currentRegions, r.Code) {
-			indices = append(currentIndices, i)
+			currentIndices = append(currentIndices, i)
 		}
 		option := fmt.Sprintf("%s (%s)", r.Name, r.Code)
 		options = append(options, option)

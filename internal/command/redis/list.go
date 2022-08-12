@@ -43,6 +43,9 @@ func runList(ctx context.Context) (err error) {
 				nodes {
 					id
 					name
+					addOnPlan {
+						name
+					}
 					primaryRegion
 					readRegions
 					organization {
@@ -62,12 +65,13 @@ func runList(ctx context.Context) (err error) {
 			addon.Id,
 			addon.Name,
 			addon.Organization.Slug,
+			addon.AddOnPlan.Name,
 			addon.PrimaryRegion,
 			strings.Join(addon.ReadRegions, ","),
 		})
 	}
 
-	_ = render.Table(out, "", rows, "Id", "Name", "Org", "Primary Region", "Read Regions")
+	_ = render.Table(out, "", rows, "Id", "Name", "Org", "Plan", "Primary Region", "Read Regions")
 
 	return
 }

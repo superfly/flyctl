@@ -202,6 +202,8 @@ type ListAddOnsAddOnsAddOnConnectionNodesAddOn struct {
 	Id string `json:"id"`
 	// The service name according to the provider
 	Name string `json:"name"`
+	// The add-on plan
+	AddOnPlan ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan `json:"addOnPlan"`
 	// Region where the primary instance is deployed
 	PrimaryRegion string `json:"primaryRegion"`
 	// Regions where replica instances are deployed
@@ -216,6 +218,11 @@ func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetId() string { return v.Id
 // GetName returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.Name, and is useful for accessing the field via an interface.
 func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetName() string { return v.Name }
 
+// GetAddOnPlan returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.AddOnPlan, and is useful for accessing the field via an interface.
+func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetAddOnPlan() ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan {
+	return v.AddOnPlan
+}
+
 // GetPrimaryRegion returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.PrimaryRegion, and is useful for accessing the field via an interface.
 func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetPrimaryRegion() string { return v.PrimaryRegion }
 
@@ -226,6 +233,14 @@ func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetReadRegions() []string { 
 func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetOrganization() ListAddOnsAddOnsAddOnConnectionNodesAddOnOrganization {
 	return v.Organization
 }
+
+// ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan includes the requested fields of the GraphQL type AddOnPlan.
+type ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan struct {
+	Name string `json:"name"`
+}
+
+// GetName returns ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan.Name, and is useful for accessing the field via an interface.
+func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan) GetName() string { return v.Name }
 
 // ListAddOnsAddOnsAddOnConnectionNodesAddOnOrganization includes the requested fields of the GraphQL type Organization.
 type ListAddOnsAddOnsAddOnConnectionNodesAddOnOrganization struct {
@@ -500,6 +515,9 @@ query ListAddOns ($addOnType: AddOnType) {
 		nodes {
 			id
 			name
+			addOnPlan {
+				name
+			}
 			primaryRegion
 			readRegions
 			organization {
