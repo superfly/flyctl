@@ -356,8 +356,6 @@ func MultiSelectRegion(ctx context.Context, msg string, regions []api.Region, cu
 	}
 
 	if err = MultiSelect(ctx, &indices, msg, currentIndices, options...); err == nil {
-		fmt.Println(indices)
-
 		for _, index := range indices {
 			selectedRegions = append(selectedRegions, includedRegions[index])
 		}

@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/spinner"
 )
 
 func newCreate() (cmd *cobra.Command) {
@@ -36,7 +37,7 @@ func newCreate() (cmd *cobra.Command) {
 
 func runCreate(ctx context.Context) (err error) {
 	var (
-		out    = iostreams.FromContext(ctx).Out
+		io     = iostreams.FromContext(ctx)
 		client = client.FromContext(ctx).API().GenqClient
 	)
 
@@ -64,7 +65,7 @@ func runCreate(ctx context.Context) (err error) {
 	}
 
 	for _, plan := range result.AddOnPlans.Nodes {
-		promptOptions = append(promptOptions, fmt.Sprintf("%s: %s Max Data Size, $%d/month/region", plan.DisplayName, plan.MaxDataSize, plan.PricePerMonth))
+		promptOptions = append(promptOptions, fmt.Sprintf("%s: %s Max Data Size", plan.DisplayName, plan.MaxDataSize))
 	}
 
 	err = prompt.Select(ctx, &index, "Select an Upstash Redis plan", "", promptOptions...)
@@ -73,13 +74,17 @@ func runCreate(ctx context.Context) (err error) {
 		return fmt.Errorf("failed to select a plan: %w", err)
 	}
 
+	s := spinner.Run(io, "Launching...")
+
 	url, err := ProvisionRedis(ctx, org, result.AddOnPlans.Nodes[index].Id, primaryRegion, readRegions)
+
+	s.Stop()
 	if err != nil {
 		return
 	}
 
-	fmt.Fprintf(out, "Connect to your Upstash Redis cluster at: %s\n", url)
-	fmt.Fprintf(out, "This redis cluster is visible to all applications in the %s organization.\n", org.Slug)
+	fmt.Fprintf(io.Out, "\nConnect to your Upstash Redis cluster at: %s\n", url)
+	fmt.Fprintf(io.Out, "This redis cluster is visible to all applications in the %s organization.\n", org.Slug)
 
 	return
 }
