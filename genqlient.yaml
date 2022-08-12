@@ -1,9 +1,9 @@
 # Default genqlient config; for full documentation see:
 # https://github.com/Khan/genqlient/blob/main/docs/genqlient.yaml
-schema: schema.graphql
+schema: gql/schema.graphql
 operations:
-  - ../internal/command/**/*.go
+  - internal/command/**/*.go
 bindings:
   JSON:
     type: interface{}
-generated: generated.go
+generated: gql/generated.go
