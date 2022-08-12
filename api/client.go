@@ -1,3 +1,5 @@
+//go:generate go run github.com/Khan/genqlient
+
 package api
 
 import (

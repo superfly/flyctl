@@ -24,6 +24,7 @@ func New() (cmd *cobra.Command) {
 		newDelete(),
 		newStatus(),
 		newPlans(),
+		newUpdate(),
 	)
 
 	return cmd

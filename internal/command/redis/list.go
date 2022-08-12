@@ -2,9 +2,11 @@ package redis
 
 import (
 	"context"
+	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
@@ -32,23 +34,40 @@ func newList() (cmd *cobra.Command) {
 func runList(ctx context.Context) (err error) {
 	var (
 		out    = iostreams.FromContext(ctx).Out
-		client = client.FromContext(ctx).API()
+		client = client.FromContext(ctx).API().GenqClient
 	)
 
-	services, err := client.GetAddOns(ctx, "redis")
+	_ = `# @genqlient
+		query ListAddOns($addOnType: AddOnType) {
+			addOns(type: $addOnType) {
+				nodes {
+					id
+					name
+					primaryRegion
+					readRegions
+					organization {
+						id
+						slug
+					}
+				}
+			}
+		}
+	`
+	response, err := gql.ListAddOns(ctx, client, "redis")
 
 	var rows [][]string
 
-	for _, service := range services {
+	for _, addon := range response.AddOns.Nodes {
 		rows = append(rows, []string{
-			service.ID,
-			service.Name,
-			service.Organization.Slug,
-			service.PrimaryRegion,
+			addon.Id,
+			addon.Name,
+			addon.Organization.Slug,
+			addon.PrimaryRegion,
+			strings.Join(addon.ReadRegions, ","),
 		})
 	}
 
-	_ = render.Table(out, "", rows, "Id", "Name", "Org", "Region")
+	_ = render.Table(out, "", rows, "Id", "Name", "Org", "Primary Region", "Read Regions")
 
 	return
 }

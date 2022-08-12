@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
@@ -34,21 +35,23 @@ func runStatus(ctx context.Context) (err error) {
 	var (
 		io     = iostreams.FromContext(ctx)
 		id     = flag.FirstArg(ctx)
-		client = client.FromContext(ctx).API()
+		client = client.FromContext(ctx).API().GenqClient
 	)
 
-	service, err := client.GetAddOn(ctx, id)
+	response, err := gql.GetAddOn(ctx, client, id)
 
 	if err != nil {
 		return err
 	}
 
+	addOn := response.AddOn
+
 	obj := [][]string{
 		{
-			service.ID,
-			service.Name,
-			service.PrimaryRegion,
-			service.PublicUrl,
+			addOn.Id,
+			addOn.Name,
+			addOn.PrimaryRegion,
+			addOn.PublicUrl,
 		},
 	}
 
