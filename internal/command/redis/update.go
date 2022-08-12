@@ -51,6 +51,8 @@ func runUpdate(ctx context.Context) (err error) {
 			readRegions
 			addOnPlan {
 				id
+				name
+				displayName
 			}
 		}
 	}

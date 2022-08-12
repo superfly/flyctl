@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/client"
@@ -50,12 +51,14 @@ func runStatus(ctx context.Context) (err error) {
 		{
 			addOn.Id,
 			addOn.Name,
+			addOn.AddOnPlan.DisplayName,
 			addOn.PrimaryRegion,
+			strings.Join(addOn.ReadRegions, ","),
 			addOn.PublicUrl,
 		},
 	}
 
-	var cols []string = []string{"ID", "Name", "Primary Region", "Public URL"}
+	var cols []string = []string{"ID", "Name", "Plan", "Primary Region", "Read Regions", "Public URL"}
 
 	if err = render.VerticalTable(io.Out, "Redis", obj, cols...); err != nil {
 		return

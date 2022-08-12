@@ -117,11 +117,19 @@ func (v *GetAddOnAddOn) GetAddOnPlan() GetAddOnAddOnAddOnPlan { return v.AddOnPl
 
 // GetAddOnAddOnAddOnPlan includes the requested fields of the GraphQL type AddOnPlan.
 type GetAddOnAddOnAddOnPlan struct {
-	Id string `json:"id"`
+	Id          string `json:"id"`
+	Name        string `json:"name"`
+	DisplayName string `json:"displayName"`
 }
 
 // GetId returns GetAddOnAddOnAddOnPlan.Id, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOnAddOnPlan) GetId() string { return v.Id }
+
+// GetName returns GetAddOnAddOnAddOnPlan.Name, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnPlan) GetName() string { return v.Name }
+
+// GetDisplayName returns GetAddOnAddOnAddOnPlan.DisplayName, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnPlan) GetDisplayName() string { return v.DisplayName }
 
 // GetAddOnResponse is returned by GetAddOn on success.
 type GetAddOnResponse struct {
@@ -447,6 +455,8 @@ query GetAddOn ($id: ID!) {
 		readRegions
 		addOnPlan {
 			id
+			name
+			displayName
 		}
 	}
 }
