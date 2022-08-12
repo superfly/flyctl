@@ -44,7 +44,7 @@ func runList(ctx context.Context) (err error) {
 					id
 					name
 					addOnPlan {
-						name
+						displayName
 					}
 					primaryRegion
 					readRegions
@@ -65,7 +65,7 @@ func runList(ctx context.Context) (err error) {
 			addon.Id,
 			addon.Name,
 			addon.Organization.Slug,
-			addon.AddOnPlan.Name,
+			addon.AddOnPlan.DisplayName,
 			addon.PrimaryRegion,
 			strings.Join(addon.ReadRegions, ","),
 		})

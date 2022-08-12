@@ -41,9 +41,7 @@ func runDelete(ctx context.Context) (err error) {
 	_ = `# @genqlient
   mutation DeleteAddOn($addOnId: ID!) {
 		deleteAddOn(input: {addOnId: $addOnId}) {
-			addOn {
-				id
-			}
+			deletedAddOnId
 		}
   }
 	`
