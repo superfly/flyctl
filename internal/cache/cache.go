@@ -172,7 +172,7 @@ func (c *cache) Save(path string) (err error) {
 	}()
 
 	// TODO: os.WriteFile does NOT flush
-	err = os.WriteFile(path, b.Bytes(), 0600)
+	err = os.WriteFile(path, b.Bytes(), 0o600)
 
 	return
 }

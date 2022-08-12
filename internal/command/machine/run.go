@@ -317,7 +317,6 @@ func WaitForStart(ctx context.Context, flapsClient *flaps.Client, machine *api.M
 }
 
 func parseKVFlag(ctx context.Context, flagName string, initialMap map[string]string) (parsed map[string]string, err error) {
-
 	parsed = initialMap
 
 	if value := flag.GetStringSlice(ctx, flagName); len(value) > 0 {
@@ -484,7 +483,6 @@ func selectAppName(ctx context.Context) (name string, err error) {
 }
 
 func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, image string) (machineConf api.MachineConfig, err error) {
-
 	machineConf = initialMachineConf
 
 	if guestSize := flag.GetString(ctx, "size"); guestSize != "" {

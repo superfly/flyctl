@@ -163,7 +163,6 @@ func runTurboku(cmdCtx *cmdctx.CmdContext) error {
 
 	// retrieve heroku app ENV map[key]value and set it on fly.io as secrets
 	env, err := heroku.ConfigVarInfoForApp(ctx, appID)
-
 	if err != nil {
 		return err
 	}
@@ -209,7 +208,7 @@ func runTurboku(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	if err := os.MkdirAll(app.Name, 0750); err != nil {
+	if err := os.MkdirAll(app.Name, 0o750); err != nil {
 		return err
 	}
 
@@ -235,7 +234,7 @@ func runTurboku(cmdCtx *cmdctx.CmdContext) error {
 		}
 	}
 
-	if err := ioutil.WriteFile(fmt.Sprintf("%s/Procfile", app.Name), []byte(procfile), 0644); err != nil {
+	if err := ioutil.WriteFile(fmt.Sprintf("%s/Procfile", app.Name), []byte(procfile), 0o644); err != nil {
 		return err
 	}
 
@@ -284,7 +283,7 @@ func createDockerfile(appName, baseImage, slugURL string) error {
 for f in /app/.profile.d/*.sh; do . $f; done
 eval "exec $@"
 `
-	ioutil.WriteFile(fmt.Sprintf("%s/entrypoint.sh", appName), []byte(entrypoint), 06750)
+	ioutil.WriteFile(fmt.Sprintf("%s/entrypoint.sh", appName), []byte(entrypoint), 0o6750)
 
 	dockerfileTemplate := `FROM %s
 RUN useradd -m heroku
@@ -302,7 +301,7 @@ RUN curl "%s" | tar xzf - --strip 2 -C /app`
 	dockerfile += "\nRUN chown -R heroku:heroku /app\n"
 	dockerfile += "\nUSER heroku\n"
 
-	return ioutil.WriteFile(fmt.Sprintf("%s/Dockerfile", appName), []byte(dockerfile), 0640)
+	return ioutil.WriteFile(fmt.Sprintf("%s/Dockerfile", appName), []byte(dockerfile), 0o640)
 }
 
 func isTakenError(err error) error {

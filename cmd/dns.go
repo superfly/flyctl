@@ -93,14 +93,14 @@ func runRecordsExport(cmdCtx *cmdctx.CmdContext) error {
 	if len(cmdCtx.Args) == 1 {
 		fmt.Println(records)
 	} else {
-		var filename = cmdCtx.Args[1]
+		filename := cmdCtx.Args[1]
 
 		_, err := os.Stat(filename)
 		if err == nil {
 			return fmt.Errorf("File %s already exists", filename)
 		}
 
-		err = ioutil.WriteFile(filename, []byte(records), 0644)
+		err = ioutil.WriteFile(filename, []byte(records), 0o644)
 		if err != nil {
 			return err
 		}

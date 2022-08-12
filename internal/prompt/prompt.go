@@ -236,11 +236,12 @@ func SelectOrg(ctx context.Context, orgs []api.Organization) (org *api.Organizat
 	return
 }
 
-var errRegionCodeRequired = NonInteractiveError("region code must be specified when not running interactively")
-var errRegionCodesRequired = NonInteractiveError("regions codes must be specified in a comma-separated when not running interactively")
+var (
+	errRegionCodeRequired  = NonInteractiveError("region code must be specified when not running interactively")
+	errRegionCodesRequired = NonInteractiveError("regions codes must be specified in a comma-separated when not running interactively")
+)
 
 func sortedRegions(ctx context.Context) ([]api.Region, *api.Region, error) {
-
 	client := client.FromContext(ctx).API()
 
 	regions, defaultRegion, err := client.PlatformRegions(ctx)
@@ -256,9 +257,7 @@ func sortedRegions(ctx context.Context) ([]api.Region, *api.Region, error) {
 // Region returns the region the user has passed in via flag or prompts the
 // user for one.
 func MultiRegion(ctx context.Context, msg string, excludeRegion *api.Region) (*[]api.Region, error) {
-
 	regions, _, err := sortedRegions(ctx)
-
 	if err != nil {
 		return nil, err
 	}
@@ -276,9 +275,7 @@ func MultiRegion(ctx context.Context, msg string, excludeRegion *api.Region) (*[
 // Region returns the region the user has passed in via flag or prompts the
 // user for one.
 func Region(ctx context.Context, msg string) (*api.Region, error) {
-
 	regions, defaultRegion, err := sortedRegions(ctx)
-
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +334,6 @@ func SelectRegion(ctx context.Context, msg string, regions []api.Region, default
 }
 
 func MultiSelectRegion(ctx context.Context, msg string, regions []api.Region, excludeRegion *api.Region) (selectedRegions []api.Region, err error) {
-
 	var options []string
 
 	includedRegions := helpers.Filter(regions, func(r api.Region) bool {
@@ -399,7 +395,7 @@ func VMSize(ctx context.Context, def string) (size *api.VMSize, err error) {
 }
 
 func SelectVMSize(ctx context.Context, vmSizes []api.VMSize) (vmSize *api.VMSize, err error) {
-	var options = []string{}
+	options := []string{}
 
 	for _, vmSize := range vmSizes {
 		options = append(options, fmt.Sprintf("%s - %d", vmSize.Name, vmSize.MemoryMB))

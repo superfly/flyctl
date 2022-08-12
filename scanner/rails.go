@@ -8,7 +8,6 @@ import (
 )
 
 func configureRails(sourceDir string) (*SourceInfo, error) {
-
 	if !checksPass(sourceDir, dirContains("Gemfile", "rails")) {
 		return nil, nil
 	}
@@ -96,7 +95,6 @@ Now: run 'fly deploy' to deploy your Rails app.
 `, rubyVersion, bundlerVersion, nodeVersion)
 
 	return s, nil
-
 }
 
 func extractRubyVersion(gemfilePath string, rubyVersionPath string) (string, error) {
@@ -121,14 +119,12 @@ func extractRubyVersion(gemfilePath string, rubyVersionPath string) (string, err
 		if _, err := os.Stat(rubyVersionPath); err == nil {
 
 			versionString, err := os.ReadFile(rubyVersionPath)
-
 			if err != nil {
 				return "", err
 			}
 
 			version = string(versionString)
 		}
-
 	}
 
 	return version, nil

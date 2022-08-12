@@ -78,7 +78,7 @@ func runConfigView(ctx context.Context) (err error) {
 		colorize = io.ColorScheme()
 	)
 
-	var MinPostgresHaVersion = "0.0.19"
+	MinPostgresHaVersion := "0.0.19"
 
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
@@ -126,7 +126,7 @@ func runConfigView(ctx context.Context) (err error) {
 		return err
 	}
 
-	var pendingRestart = false
+	pendingRestart := false
 
 	rows := make([][]string, 0, len(res.Settings))
 	for _, setting := range res.Settings {
@@ -177,7 +177,6 @@ func runConfigView(ctx context.Context) (err error) {
 	}
 
 	return
-
 }
 
 func newConfigUpdate() (cmd *cobra.Command) {

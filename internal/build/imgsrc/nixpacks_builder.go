@@ -73,7 +73,7 @@ func ensureNixpacksBinary(ctx context.Context, streams *iostreams.IOStreams) err
 		return err
 	}
 
-	if err := os.MkdirAll(binDir, 0700); err != nil {
+	if err := os.MkdirAll(binDir, 0o700); err != nil {
 		return errors.Wrapf(err, "could not create directory at %s", binDir)
 	}
 

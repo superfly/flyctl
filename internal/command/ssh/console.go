@@ -68,7 +68,6 @@ func runConsole(ctx context.Context) error {
 	terminal.Debugf("Retrieving app info for %s\n", appName)
 
 	app, err := client.GetAppCompact(ctx, appName)
-
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
@@ -211,7 +210,6 @@ func sshConnect(p *SSHParams, addr string) error {
 func addrForMachines(ctx context.Context, app *api.AppCompact) (addr string, err error) {
 	out := iostreams.FromContext(ctx).Out
 	flapsClient, err := flaps.New(ctx, app)
-
 	if err != nil {
 		return "", err
 	}
@@ -252,7 +250,6 @@ func addrForMachines(ctx context.Context, app *api.AppCompact) (addr string, err
 		if selectedMachine.State != "started" {
 			fmt.Fprintf(out, "Starting machine %s..", selectedMachine.ID)
 			_, err := flapsClient.Start(ctx, selectedMachine.ID)
-
 			if err != nil {
 				return "", err
 			}
@@ -279,11 +276,9 @@ func addrForMachines(ctx context.Context, app *api.AppCompact) (addr string, err
 }
 
 func addrForNomad(ctx context.Context, agentclient *agent.Client, app *api.AppCompact) (addr string, err error) {
-
 	if flag.GetBool(ctx, "select") {
 
 		instances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
-
 		if err != nil {
 			return "", fmt.Errorf("look up %s: %w", app.Name, err)
 		}

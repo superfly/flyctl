@@ -69,7 +69,7 @@ func runUpdate(ctx context.Context) error {
 	}
 
 	// map of machine lease to machine
-	var machines = make(map[string]*api.Machine)
+	machines := make(map[string]*api.Machine)
 
 	out, err := flapsClient.List(ctx, "started")
 	if err != nil {
@@ -84,7 +84,6 @@ func runUpdate(ctx context.Context) error {
 
 	for _, machine := range out {
 		lease, err := flapsClient.GetLease(ctx, machine.ID, api.IntPointer(40))
-
 		if err != nil {
 			return fmt.Errorf("failed to obtain lease: %w", err)
 		}
@@ -183,7 +182,7 @@ func runUpdate(ctx context.Context) error {
 }
 
 func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machine, image, version string) error {
-	var io = iostreams.FromContext(ctx)
+	io := iostreams.FromContext(ctx)
 
 	flaps, err := flaps.New(ctx, app)
 	if err != nil {

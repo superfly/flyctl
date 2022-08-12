@@ -24,7 +24,6 @@ func fileExists(filenames ...string) checkFn {
 
 func fileContains(path string, pattern string) bool {
 	file, err := os.Open(path)
-
 	if err != nil {
 		return false
 	}

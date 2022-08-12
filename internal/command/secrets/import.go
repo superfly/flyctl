@@ -35,7 +35,6 @@ func runImport(ctx context.Context) (err error) {
 	client := client.FromContext(ctx).API()
 	appName := app.NameFromContext(ctx)
 	app, err := client.GetAppCompact(ctx, appName)
-
 	if err != nil {
 		return
 	}
@@ -43,7 +42,6 @@ func runImport(ctx context.Context) (err error) {
 	secrets := make(map[string]string)
 
 	secretsString, err := ioutil.ReadAll(os.Stdin)
-
 	if err != nil {
 		return err
 	}
@@ -90,7 +88,6 @@ func runImport(ctx context.Context) (err error) {
 			}
 
 		}
-
 	}
 
 	if len(secrets) < 1 {
@@ -98,7 +95,6 @@ func runImport(ctx context.Context) (err error) {
 	}
 
 	release, err := client.SetSecrets(ctx, appName, secrets)
-
 	if err != nil {
 		return err
 	}

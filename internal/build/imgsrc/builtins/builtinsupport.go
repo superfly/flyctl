@@ -67,7 +67,6 @@ func (b *Builtin) ResolveSettings(vars map[string]interface{}) map[string]interf
 // GetVDockerfile - given an map of variables, get the definition and populate it
 func (b *Builtin) GetVDockerfile(vars map[string]interface{}) (string, error) {
 	template, err := template.New("builtin").Parse(b.Template)
-
 	if err != nil {
 		return "", err
 	}

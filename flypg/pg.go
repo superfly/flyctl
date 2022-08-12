@@ -7,7 +7,7 @@ import (
 )
 
 func (c *Client) ListUsers(ctx context.Context) ([]PostgresUser, error) {
-	var endpoint = "/commands/users/list"
+	endpoint := "/commands/users/list"
 
 	out := new(UserListResponse)
 
@@ -18,7 +18,7 @@ func (c *Client) ListUsers(ctx context.Context) ([]PostgresUser, error) {
 }
 
 func (c *Client) CreateUser(ctx context.Context, name, password string, superuser bool) error {
-	var endpoint = "/commands/users/create"
+	endpoint := "/commands/users/create"
 
 	in := &CreateUserRequest{
 		Username:  name,
@@ -33,7 +33,7 @@ func (c *Client) CreateUser(ctx context.Context, name, password string, superuse
 }
 
 func (c Client) DeleteUser(ctx context.Context, name string) error {
-	var endpoint = "/commands/users/delete"
+	endpoint := "/commands/users/delete"
 
 	endpoint = fmt.Sprintf("%s/%s", endpoint, name)
 
@@ -44,7 +44,7 @@ func (c Client) DeleteUser(ctx context.Context, name string) error {
 }
 
 func (c *Client) ListDatabases(ctx context.Context) ([]PostgresDatabase, error) {
-	var endpoint = "/commands/databases/list"
+	endpoint := "/commands/databases/list"
 
 	out := new(DatabaseListResponse)
 
@@ -52,11 +52,10 @@ func (c *Client) ListDatabases(ctx context.Context) ([]PostgresDatabase, error) 
 		return nil, err
 	}
 	return out.Result, nil
-
 }
 
 func (c *Client) CreateDatabase(ctx context.Context, name string) error {
-	var endpoint = "/commands/databases/create"
+	endpoint := "/commands/databases/create"
 
 	in := &CreateDatabaseRequest{
 		Name: name,
@@ -69,7 +68,7 @@ func (c *Client) CreateDatabase(ctx context.Context, name string) error {
 }
 
 func (c *Client) DeleteDatabase(ctx context.Context, name string) error {
-	var endpoint = "/commands/databases/delete"
+	endpoint := "/commands/databases/delete"
 
 	in := &DeleteDatabaseRequest{
 		Name: name,
@@ -82,7 +81,7 @@ func (c *Client) DeleteDatabase(ctx context.Context, name string) error {
 }
 
 func (c *Client) DatabaseExists(ctx context.Context, name string) (bool, error) {
-	var endpoint = "/commands/databases"
+	endpoint := "/commands/databases"
 
 	endpoint = fmt.Sprintf("%s/%s", endpoint, name)
 
@@ -102,7 +101,7 @@ func (c *Client) DatabaseExists(ctx context.Context, name string) (bool, error) 
 }
 
 func (c *Client) UserExists(ctx context.Context, name string) (bool, error) {
-	var endpoint = "/commands/users"
+	endpoint := "/commands/users"
 
 	endpoint = fmt.Sprintf("%s/%s", endpoint, name)
 
@@ -122,7 +121,7 @@ func (c *Client) UserExists(ctx context.Context, name string) (bool, error) {
 }
 
 func (c *Client) NodeRole(ctx context.Context) (string, error) {
-	var endpoint = "/commands/admin/role"
+	endpoint := "/commands/admin/role"
 
 	out := new(NodeRoleResponse)
 
@@ -133,7 +132,7 @@ func (c *Client) NodeRole(ctx context.Context) (string, error) {
 }
 
 func (c *Client) RestartNodePG(ctx context.Context) error {
-	var endpoint = "/commands/admin/restart"
+	endpoint := "/commands/admin/restart"
 
 	out := new(RestartResponse)
 
@@ -144,7 +143,7 @@ func (c *Client) RestartNodePG(ctx context.Context) error {
 }
 
 func (c *Client) Failover(ctx context.Context) error {
-	var endpoint = "/commands/admin/failover/trigger"
+	endpoint := "/commands/admin/failover/trigger"
 
 	if err := c.Do(ctx, http.MethodGet, endpoint, nil, nil); err != nil {
 		return err
@@ -153,7 +152,7 @@ func (c *Client) Failover(ctx context.Context) error {
 }
 
 func (c *Client) SettingsView(ctx context.Context, settings []string) (*PGSettings, error) {
-	var endpoint = "/commands/admin/settings/view"
+	endpoint := "/commands/admin/settings/view"
 
 	out := new(SettingsViewResponse)
 

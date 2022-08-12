@@ -172,7 +172,7 @@ func createLogFile() (path string, err error) {
 func setupLogDirectory() (dir string, err error) {
 	dir = filepath.Join(flyctl.ConfigDir(), "agent-logs")
 
-	if err = os.MkdirAll(dir, 0700); err != nil {
+	if err = os.MkdirAll(dir, 0o700); err != nil {
 		err = fmt.Errorf("failed creating agent log directory at %s: %w", dir, err)
 
 		return

@@ -74,14 +74,12 @@ func New() (cmd *cobra.Command) {
 }
 
 func run(ctx context.Context) error {
-
 	appConfig, err := determineAppConfig(ctx)
 	if err != nil {
 		return err
 	}
 
 	return DeployWithConfig(ctx, appConfig)
-
 }
 
 func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
@@ -89,7 +87,6 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
 	img, err := determineImage(ctx, appConfig)
-
 	if err != nil {
 		return fmt.Errorf("failed to fetch an image or build from source: %w", err)
 	}
@@ -166,7 +163,6 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 		}
 
 		basicApp, err := client.GetAppBasic(ctx, app.NameFromContext(ctx))
-
 		if err != nil {
 			return nil, err
 		}
@@ -255,7 +251,6 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 	}
 
 	cliBuildSecrets, err := cmdutil.ParseKVStringsToMap(flag.GetStringSlice(ctx, "build-secret"))
-
 	if err != nil {
 		return
 	}
@@ -313,7 +308,6 @@ func resolveDockerfilePath(ctx context.Context, appConfig *app.Config) (path str
 }
 
 func mergeBuildArgs(ctx context.Context, args map[string]string) (map[string]string, error) {
-
 	if args == nil {
 		args = make(map[string]string)
 	}

@@ -26,9 +26,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-var (
-	urlrx = regexp.MustCompile(`https://.*?/[0-9]+/([a-z0-9-]+).zip\\?`)
-)
+var urlrx = regexp.MustCompile(`https://.*?/[0-9]+/([a-z0-9-]+).zip\\?`)
 
 func New() (cmd *cobra.Command) {
 	var (

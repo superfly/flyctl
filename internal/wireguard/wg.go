@@ -19,9 +19,7 @@ import (
 	"golang.org/x/crypto/curve25519"
 )
 
-var (
-	cleanDNSPattern = regexp.MustCompile(`[^a-zA-Z0-9\\-]`)
-)
+var cleanDNSPattern = regexp.MustCompile(`[^a-zA-Z0-9\\-]`)
 
 func generatePeerName(ctx context.Context, apiClient *api.Client) (string, error) {
 	user, err := apiClient.GetCurrentUser(ctx)

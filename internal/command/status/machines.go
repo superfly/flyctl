@@ -14,7 +14,6 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) (err error) {
 	io := iostreams.FromContext(ctx)
 
 	flapsClient, err := flaps.New(ctx, app)
-
 	if err != nil {
 		return err
 	}

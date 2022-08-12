@@ -35,12 +35,10 @@ func New() (cmd *cobra.Command) {
 }
 
 func run(ctx context.Context) (err error) {
-
 	appName := app.NameFromContext(ctx)
 	client := client.FromContext(ctx).API()
 
 	app, err := client.GetAppMonitoring(ctx, appName)
-
 	if err != nil {
 		return fmt.Errorf("failed to get app from context")
 	}
@@ -53,5 +51,4 @@ func run(ctx context.Context) (err error) {
 	}
 
 	return watch.Deployment(ctx, appName, app.CurrentRelease.EvaluationID)
-
 }

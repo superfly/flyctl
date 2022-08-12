@@ -28,7 +28,6 @@ type Client struct {
 }
 
 func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
-
 	logger := logger.MaybeFromContext(ctx)
 
 	client := client.FromContext(ctx).API()
@@ -62,7 +61,7 @@ func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
 }
 
 func (f *Client) CreateApp(ctx context.Context, name string, org string) (err error) {
-	var in = map[string]interface{}{
+	in := map[string]interface{}{
 		"app_name": name,
 		"org_slug": org,
 	}
@@ -77,7 +76,7 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (*a
 		endpoint = fmt.Sprintf("/%s", builder.ID)
 	}
 
-	var out = new(api.Machine)
+	out := new(api.Machine)
 
 	if err := f.sendRequest(ctx, http.MethodPost, endpoint, builder, out, nil); err != nil {
 		return nil, fmt.Errorf("failed to launch VM: %w", err)
@@ -87,7 +86,7 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (*a
 }
 
 func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput, nonce string) (*api.Machine, error) {
-	var headers = make(map[string][]string)
+	headers := make(map[string][]string)
 
 	if nonce != "" {
 		headers[NonceHeader] = []string{nonce}
@@ -95,7 +94,7 @@ func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput, non
 
 	endpoint := fmt.Sprintf("/%s", builder.ID)
 
-	var out = new(api.Machine)
+	out := new(api.Machine)
 
 	if err := f.sendRequest(ctx, http.MethodPost, endpoint, builder, out, headers); err != nil {
 		return nil, fmt.Errorf("failed to update VM %s: %w", builder.ID, err)
@@ -150,7 +149,7 @@ func (f *Client) Stop(ctx context.Context, machine api.StopMachineInput) (err er
 }
 
 func (f *Client) Get(ctx context.Context, machineID string) (*api.Machine, error) {
-	var getEndpoint = ""
+	getEndpoint := ""
 
 	if machineID != "" {
 		getEndpoint = fmt.Sprintf("/%s", machineID)
@@ -166,7 +165,7 @@ func (f *Client) Get(ctx context.Context, machineID string) (*api.Machine, error
 }
 
 func (f *Client) List(ctx context.Context, state string) ([]*api.Machine, error) {
-	var getEndpoint = ""
+	getEndpoint := ""
 
 	if state != "" {
 		getEndpoint = fmt.Sprintf("?%s", state)
@@ -192,8 +191,7 @@ func (f *Client) Destroy(ctx context.Context, input api.RemoveMachineInput) (err
 }
 
 func (f *Client) Kill(ctx context.Context, machineID string) (err error) {
-
-	var in = map[string]interface{}{
+	in := map[string]interface{}{
 		"signal": 9,
 	}
 	err = f.sendRequest(ctx, http.MethodPost, fmt.Sprintf("/%s/signal", machineID), in, nil, nil)
@@ -205,7 +203,7 @@ func (f *Client) Kill(ctx context.Context, machineID string) (err error) {
 }
 
 func (f *Client) GetLease(ctx context.Context, machineID string, ttl *int) (*api.MachineLease, error) {
-	var endpoint = fmt.Sprintf("/%s/lease", machineID)
+	endpoint := fmt.Sprintf("/%s/lease", machineID)
 
 	if ttl != nil {
 		endpoint += fmt.Sprintf("?ttl=%d", *ttl)
@@ -221,9 +219,9 @@ func (f *Client) GetLease(ctx context.Context, machineID string, ttl *int) (*api
 }
 
 func (f *Client) ReleaseLease(ctx context.Context, machineID, nonce string) error {
-	var endpoint = fmt.Sprintf("/%s/lease", machineID)
+	endpoint := fmt.Sprintf("/%s/lease", machineID)
 
-	var headers = make(map[string][]string)
+	headers := make(map[string][]string)
 
 	if nonce != "" {
 		headers[NonceHeader] = []string{nonce}
@@ -233,7 +231,6 @@ func (f *Client) ReleaseLease(ctx context.Context, machineID, nonce string) erro
 }
 
 func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
-
 	req, err := f.NewRequest(ctx, method, endpoint, in, headers)
 	if err != nil {
 		return err

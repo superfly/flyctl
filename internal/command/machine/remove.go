@@ -2,7 +2,6 @@ package machine
 
 import (
 	"context"
-
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -58,7 +57,6 @@ func runMachineRemove(ctx context.Context) (err error) {
 	)
 
 	app, err := appFromMachineOrName(ctx, machineID, appName)
-
 	if err != nil {
 		return err
 	}

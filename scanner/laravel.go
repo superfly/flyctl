@@ -86,7 +86,6 @@ func extractPhpVersion() (string, error) {
 	*/
 	cmd := exec.Command("php", "-v")
 	out, err := cmd.CombinedOutput()
-
 	if err != nil {
 		return "", err
 	}

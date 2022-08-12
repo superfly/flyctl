@@ -38,7 +38,6 @@ func runLog(ctx context.Context) (err error) {
 	out := iostreams.FromContext(ctx).Out
 
 	org, err := orgs.OrgFromFirstArgOrSelect(ctx)
-
 	if err != nil {
 		return err
 	}

@@ -76,12 +76,10 @@ validity.`
 }
 
 func runSSHIssue(ctx context.Context) (err error) {
-
 	client := client.FromContext(ctx).API()
 	out := iostreams.FromContext(ctx).Out
 
 	org, err := orgs.OrgFromFirstArgOrSelect(ctx)
-
 	if err != nil {
 		return err
 	}
@@ -105,9 +103,7 @@ func runSSHIssue(ctx context.Context) (err error) {
 		}
 	}
 
-	var (
-		username *string
-	)
+	var username *string
 
 	if vals := flag.GetString(ctx, "username"); vals != "" {
 		username = &vals
@@ -174,16 +170,15 @@ func runSSHIssue(ctx context.Context) (err error) {
 				fmt.Fprintf(out, "File exists, but isn't a fly.io ed25519 private key\n")
 				continue
 			}
-
 		}
 
-		pf, err = os.OpenFile(rootname, mode, 0600)
+		pf, err = os.OpenFile(rootname, mode, 0o600)
 		if err != nil {
 			fmt.Fprintf(out, "Can't open private key file: %s\n", err)
 			continue
 		}
 
-		cf, err = os.OpenFile(rootname+"-cert.pub", mode, 0600)
+		cf, err = os.OpenFile(rootname+"-cert.pub", mode, 0o600)
 		if err != nil {
 			pf.Close()
 			fmt.Fprintf(out, "Can't open certificate file %s: %s", rootname+"-cert.pub", err)

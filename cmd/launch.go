@@ -33,7 +33,8 @@ func newLaunchCommand(client *client.Client) *Command {
 	launchCmd.AddStringFlag(StringFlagOpts{
 		Name:        "path",
 		Description: `path to app code and where a fly.toml file will be saved.`,
-		Default:     "."},
+		Default:     ".",
+	},
 	)
 	launchCmd.AddStringFlag(StringFlagOpts{
 		Name:        "org",
@@ -138,7 +139,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 
 	fmt.Println("Creating app in", dir)
 
-	var srcInfo = new(scanner.SourceInfo)
+	srcInfo := new(scanner.SourceInfo)
 
 	if img := cmdCtx.Config.GetString("image"); img != "" {
 		fmt.Println("Using image", img)
@@ -201,14 +202,14 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 				continue
 			}
 
-			if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 				return err
 			}
 
-			perms := 0600
+			perms := 0o600
 
 			if strings.Contains(string(f.Contents), "#!") {
-				perms = 0700
+				perms = 0o700
 			}
 
 			if err := os.WriteFile(path, f.Contents, fs.FileMode(perms)); err != nil {
@@ -225,7 +226,6 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		if appName == "" {
 			// Prompt the user for the app name
 			inputName, err := inputAppName("", true)
-
 			if err != nil {
 				return err
 			}
@@ -329,7 +329,6 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 				if val, err = secret.Generate(); err != nil {
 					return fmt.Errorf("could not generate random string: %w", err)
 				}
-
 			} else if secret.Value != "" {
 				val = secret.Value
 			} else {
@@ -351,7 +350,6 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 
 		if len(secrets) > 0 {
 			_, err := cmdCtx.Client.API().SetSecrets(ctx, cmdCtx.AppName, secrets)
-
 			if err != nil {
 				return err
 			}
@@ -361,11 +359,9 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 
 	// If volumes are requested by the launch scanner, create them
 	if srcInfo != nil && len(srcInfo.Volumes) > 0 {
-
 		for _, vol := range srcInfo.Volumes {
 
 			appID, err := cmdCtx.Client.API().GetAppID(ctx, cmdCtx.AppName)
-
 			if err != nil {
 				return err
 			}
@@ -420,7 +416,6 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	if !cmdCtx.Config.GetBool("no-deploy") && !cmdCtx.Config.GetBool("now") && !srcInfo.SkipDatabase && confirm("Would you like to setup a Postgresql database now?") {
 
 		appID, err := cmdCtx.Client.API().GetAppID(ctx, cmdCtx.AppName)
-
 		if err != nil {
 			return err
 		}
@@ -532,7 +527,7 @@ func appendDockerfileAppendix(appendix []string) (err error) {
 
 	var f *os.File
 	// TODO: we don't flush
-	if f, err = os.OpenFile(dockerfilePath, os.O_APPEND|os.O_WRONLY, 0600); err != nil {
+	if f, err = os.OpenFile(dockerfilePath, os.O_APPEND|os.O_WRONLY, 0o600); err != nil {
 		return
 	}
 	defer func() {

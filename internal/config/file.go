@@ -99,7 +99,7 @@ func marshalUnlocked(path string, v interface{}) (err error) {
 	var b bytes.Buffer
 	if err = yaml.NewEncoder(&b).Encode(v); err == nil {
 		// TODO: os.WriteFile does not flush
-		err = os.WriteFile(path, b.Bytes(), 0600)
+		err = os.WriteFile(path, b.Bytes(), 0o600)
 	}
 
 	return

@@ -17,7 +17,6 @@ import (
 )
 
 func newConfigCommand(client *client.Client) *Command {
-
 	configStrings := docstrings.Get("config")
 
 	cmd := BuildCommandKS(nil, nil, configStrings, client, requireSession, requireAppName)
@@ -45,9 +44,9 @@ func runDisplayConfig(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	//encoder := json.NewEncoder(os.Stdout)
-	//encoder.SetIndent("", "  ")
-	//encoder.Encode(cfg.Definition)
+	// encoder := json.NewEncoder(os.Stdout)
+	// encoder.SetIndent("", "  ")
+	// encoder.Encode(cfg.Definition)
 	cmdCtx.WriteJSON(cfg.Definition)
 	return nil
 }
@@ -56,7 +55,6 @@ func runSaveConfig(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 
 	configfilename, err := flyctl.ResolveConfigFileFromPath(cmdCtx.WorkingDir)
-
 	if err != nil {
 		return err
 	}
@@ -121,8 +119,9 @@ func runEnvConfig(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	if len(secrets) > 0 {
-		err = cmdCtx.Frender(cmdctx.PresenterOption{Presentable: &presenters.Secrets{Secrets: secrets},
-			Title: "Secrets",
+		err = cmdCtx.Frender(cmdctx.PresenterOption{
+			Presentable: &presenters.Secrets{Secrets: secrets},
+			Title:       "Secrets",
 		})
 		if err != nil {
 			return err
@@ -160,7 +159,6 @@ func printAppConfigErrors(cfg api.AppConfig) {
 }
 
 func writeAppConfig(path string, appConfig *flyctl.AppConfig) error {
-
 	if err := appConfig.WriteToFile(path); err != nil {
 		return err
 	}
