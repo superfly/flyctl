@@ -18,7 +18,7 @@ import (
 
 func newCreate() (cmd *cobra.Command) {
 	const (
-		long = `Create a new Redis instance`
+		long = `Create a new Redis cluster`
 
 		short = long
 		usage = "create"
@@ -78,8 +78,8 @@ func runCreate(ctx context.Context) (err error) {
 		return
 	}
 
-	fmt.Fprintf(out, "Connect to your Upstash Redis instance at: %s\n", url)
-	fmt.Fprintf(out, "This redis instance is visible to all applications in the %s organization.\n", org.Slug)
+	fmt.Fprintf(out, "Connect to your Upstash Redis cluster at: %s\n", url)
+	fmt.Fprintf(out, "This redis cluster is visible to all applications in the %s organization.\n", org.Slug)
 
 	return
 }
