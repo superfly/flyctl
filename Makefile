@@ -16,3 +16,7 @@ test:
 cmddocs: generate
 	@echo Running Docs Generation
 	bash scripts/generate_docs.sh
+
+
+pre:
+	pre-commit run --all-files
