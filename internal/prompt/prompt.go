@@ -335,7 +335,6 @@ func SelectRegion(ctx context.Context, msg string, regions []api.Region, default
 }
 
 func MultiSelectRegion(ctx context.Context, msg string, regions []api.Region, currentRegions []string, excludeRegion string) (selectedRegions []api.Region, err error) {
-
 	var options []string
 
 	includedRegions := helpers.Filter(regions, func(r api.Region) bool {

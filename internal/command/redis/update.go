@@ -58,7 +58,6 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 `
 	response, err := gql.GetAddOn(ctx, client, id)
-
 	if err != nil {
 		return
 	}
@@ -66,7 +65,6 @@ func runUpdate(ctx context.Context) (err error) {
 	addOn := response.AddOn
 
 	readRegions, err := prompt.MultiRegion(ctx, "Choose replica regions, or unselect to remove replica regions:", addOn.ReadRegions, addOn.PrimaryRegion)
-
 	if err != nil {
 		return
 	}
@@ -75,7 +73,6 @@ func runUpdate(ctx context.Context) (err error) {
 	var promptOptions []string
 
 	result, err := gql.ListAddOnPlans(ctx, client)
-
 	if err != nil {
 		return
 	}

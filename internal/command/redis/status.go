@@ -40,7 +40,6 @@ func runStatus(ctx context.Context) (err error) {
 	)
 
 	response, err := gql.GetAddOn(ctx, client, id)
-
 	if err != nil {
 		return err
 	}
