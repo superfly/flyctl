@@ -236,11 +236,13 @@ func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetOrganization() ListAddOns
 
 // ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan includes the requested fields of the GraphQL type AddOnPlan.
 type ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan struct {
-	Name string `json:"name"`
+	DisplayName string `json:"displayName"`
 }
 
-// GetName returns ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan.Name, and is useful for accessing the field via an interface.
-func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan) GetName() string { return v.Name }
+// GetDisplayName returns ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan.DisplayName, and is useful for accessing the field via an interface.
+func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan) GetDisplayName() string {
+	return v.DisplayName
+}
 
 // ListAddOnsAddOnsAddOnConnectionNodesAddOnOrganization includes the requested fields of the GraphQL type Organization.
 type ListAddOnsAddOnsAddOnConnectionNodesAddOnOrganization struct {
@@ -516,7 +518,7 @@ query ListAddOns ($addOnType: AddOnType) {
 			id
 			name
 			addOnPlan {
-				name
+				displayName
 			}
 			primaryRegion
 			readRegions
