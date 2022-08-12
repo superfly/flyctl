@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/spinner"
@@ -226,7 +226,7 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 		return
 	}
 
-	machines = helpers.Filter(machines, func(m *api.Machine) bool {
+	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
 		m, err = flapsClient.Get(ctx, m.ID)
 		return m.Config.Metadata["process_group"] != "release_command"
 	})
