@@ -17,7 +17,7 @@ import (
 
 func newUpdate() (cmd *cobra.Command) {
 	const (
-		long = `Update an Upstash Redis cluster`
+		long = `Update an Upstash Redis database`
 
 		short = long
 		usage = "update <id>"
@@ -109,7 +109,7 @@ func runUpdate(ctx context.Context) (err error) {
 		return
 	}
 
-	fmt.Fprintf(out, "Your Upstash Redis cluster %s was updated.\n", addOn.Id)
+	fmt.Fprintf(out, "Your Upstash Redis database %s was updated.\n", addOn.Id)
 
 	return
 }

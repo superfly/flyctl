@@ -52,7 +52,7 @@ func runPlans(ctx context.Context) (err error) {
 
 	var rows [][]string
 
-	fmt.Fprintf(out, "\nRedis clusters run on Fly.io, fully managed by Upstash.com. \nOther limits, besides memory, apply to most plans. Learn more at https://fly.io/docs/reference/redis\n\n")
+	fmt.Fprintf(out, "\nRedis databases run on Fly.io, fully managed by Upstash.com. \nOther limits, besides memory, apply to most plans. Learn more at https://fly.io/docs/reference/redis\n\n")
 
 	for _, plan := range result.AddOnPlans.Nodes {
 

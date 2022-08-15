@@ -2032,6 +2032,11 @@ input CreateAddOnInput {
   clientMutationId: String
 
   """
+  Options specific to the add-on
+  """
+  options: JSON
+
+  """
   The organization which owns the add-on
   """
   organizationId: ID

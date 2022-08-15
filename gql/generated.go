@@ -299,10 +299,11 @@ func (v *UpdateAddOnUpdateAddOnUpdateAddOnPayloadAddOn) GetId() string { return 
 
 // __CreateAddOnInput is used internally by genqlient
 type __CreateAddOnInput struct {
-	OrganizationId string   `json:"organizationId"`
-	PrimaryRegion  string   `json:"primaryRegion"`
-	PlanId         string   `json:"planId"`
-	ReadRegions    []string `json:"readRegions"`
+	OrganizationId string      `json:"organizationId"`
+	PrimaryRegion  string      `json:"primaryRegion"`
+	PlanId         string      `json:"planId"`
+	ReadRegions    []string    `json:"readRegions"`
+	Options        interface{} `json:"options"`
 }
 
 // GetOrganizationId returns __CreateAddOnInput.OrganizationId, and is useful for accessing the field via an interface.
@@ -316,6 +317,9 @@ func (v *__CreateAddOnInput) GetPlanId() string { return v.PlanId }
 
 // GetReadRegions returns __CreateAddOnInput.ReadRegions, and is useful for accessing the field via an interface.
 func (v *__CreateAddOnInput) GetReadRegions() []string { return v.ReadRegions }
+
+// GetOptions returns __CreateAddOnInput.Options, and is useful for accessing the field via an interface.
+func (v *__CreateAddOnInput) GetOptions() interface{} { return v.Options }
 
 // __DeleteAddOnInput is used internally by genqlient
 type __DeleteAddOnInput struct {
@@ -364,12 +368,13 @@ func CreateAddOn(
 	primaryRegion string,
 	planId string,
 	readRegions []string,
+	options interface{},
 ) (*CreateAddOnResponse, error) {
 	req := &graphql.Request{
 		OpName: "CreateAddOn",
 		Query: `
-mutation CreateAddOn ($organizationId: ID!, $primaryRegion: String!, $planId: ID!, $readRegions: [String!]) {
-	createAddOn(input: {organizationId:$organizationId,type:redis,planId:$planId,primaryRegion:$primaryRegion,readRegions:$readRegions}) {
+mutation CreateAddOn ($organizationId: ID!, $primaryRegion: String!, $planId: ID!, $readRegions: [String!], $options: JSON!) {
+	createAddOn(input: {organizationId:$organizationId,type:redis,planId:$planId,primaryRegion:$primaryRegion,readRegions:$readRegions,options:$options}) {
 		addOn {
 			id
 			publicUrl
@@ -382,6 +387,7 @@ mutation CreateAddOn ($organizationId: ID!, $primaryRegion: String!, $planId: ID
 			PrimaryRegion:  primaryRegion,
 			PlanId:         planId,
 			ReadRegions:    readRegions,
+			Options:        options,
 		},
 	}
 	var err error
