@@ -17,7 +17,7 @@ import (
 
 func newList() (cmd *cobra.Command) {
 	const (
-		long  = `List Redis clusters for an organization`
+		long  = `List Redis databases for an organization`
 		short = long
 		usage = "list"
 	)

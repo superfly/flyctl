@@ -16,7 +16,7 @@ import (
 
 func newDelete() (cmd *cobra.Command) {
 	const (
-		long = `Delete a Redis cluster`
+		long = `Delete a Redis database`
 
 		short = long
 		usage = "delete [ID]"
@@ -52,7 +52,7 @@ func runDelete(ctx context.Context) (err error) {
 		return
 	}
 
-	fmt.Fprintf(out, "Your Redis cluster %s was deleted\n", id)
+	fmt.Fprintf(out, "Your Redis database %s was deleted\n", id)
 
 	return
 }
