@@ -221,7 +221,7 @@ func runApiCreatePostgresCluster(cmdCtx *cmdctx.CmdContext, org string, input *a
 	fmt.Printf("  Proxy Port:  5432\n")
 	fmt.Printf("  PG Port: 5433\n")
 
-	fmt.Println(aurora.Italic("Save your credentials in a secure place, you won't be able to see them again!"))
+	fmt.Println(aurora.Italic("Save your credentials in a secure place -- you won't be able to see them again!"))
 	fmt.Println()
 
 	cancelCtx := cmdCtx.Command.Context()
@@ -239,7 +239,7 @@ func runApiCreatePostgresCluster(cmdCtx *cmdctx.CmdContext, org string, input *a
 		fmt.Printf("For example: postgres://%s:%s@%s.internal:%d\n", payload.Username, payload.Password, payload.App.Name, 5432)
 
 		fmt.Println()
-		fmt.Println("Now you've setup postgres, here's what you need to understand: https://fly.io/docs/reference/postgres-whats-next/")
+		fmt.Println("Now that you've set up postgres, here's what you need to understand: https://fly.io/docs/reference/postgres-whats-next/")
 	}
 
 	return payload, err

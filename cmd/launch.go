@@ -413,7 +413,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		return nil
 	}
 
-	if !cmdCtx.Config.GetBool("no-deploy") && !cmdCtx.Config.GetBool("now") && !srcInfo.SkipDatabase && confirm("Would you like to setup a Postgresql database now?") {
+	if !cmdCtx.Config.GetBool("no-deploy") && !cmdCtx.Config.GetBool("now") && !srcInfo.SkipDatabase && confirm("Would you like to set up a Postgresql database now?") {
 
 		appID, err := cmdCtx.Client.API().GetAppID(ctx, cmdCtx.AppName)
 		if err != nil {

@@ -147,7 +147,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	fmt.Fprintf(io.Out, "  Hostname:    %s.internal\n", config.AppName)
 	fmt.Fprintf(io.Out, "  Proxy port:  5432\n")
 	fmt.Fprintf(io.Out, "  Postgres port:  5433\n")
-	fmt.Fprintln(io.Out, aurora.Italic("Save your credentials in a secure place, you won't be able to see them again!"))
+	fmt.Fprintln(io.Out, aurora.Italic("Save your credentials in a secure place -- you won't be able to see them again!"))
 
 	fmt.Fprintln(io.Out)
 	fmt.Fprintln(io.Out, aurora.Bold("Connect to postgres"))
@@ -155,7 +155,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	fmt.Fprintf(io.Out, "For example: %s\n", connStr)
 
 	fmt.Fprintln(io.Out)
-	fmt.Fprintln(io.Out, "Now you've setup postgres, here's what you need to understand: https://fly.io/docs/reference/postgres-whats-next/")
+	fmt.Fprintln(io.Out, "Now that you've set up postgres, here's what you need to understand: https://fly.io/docs/reference/postgres-whats-next/")
 
 	// TODO: wait for the cluster to be ready
 
@@ -201,7 +201,7 @@ func (l *Launcher) LaunchNomadPostgres(ctx context.Context, config *CreateCluste
 	fmt.Fprintf(io.Out, "  Hostname:    %s.internal\n", payload.App.Name)
 	fmt.Fprintf(io.Out, "  Proxy Port:  5432\n")
 	fmt.Fprintf(io.Out, "  Postgres Port: 5433\n")
-	fmt.Fprintln(io.Out, aurora.Italic("Save your credentials in a secure place, you won't be able to see them again!"))
+	fmt.Fprintln(io.Out, aurora.Italic("Save your credentials in a secure place -- you won't be able to see them again!"))
 
 	if !flag.GetDetach(ctx) {
 		if err := watch.Deployment(ctx, payload.App.Name, ""); err != nil {
@@ -215,7 +215,7 @@ func (l *Launcher) LaunchNomadPostgres(ctx context.Context, config *CreateCluste
 	fmt.Fprintf(io.Out, "For example: postgres://%s:%s@%s.internal:%d\n", payload.Username, payload.Password, payload.App.Name, 5432)
 
 	fmt.Fprintln(io.Out)
-	fmt.Fprintln(io.Out, "Now you've setup postgres, here's what you need to understand: https://fly.io/docs/reference/postgres-whats-next/")
+	fmt.Fprintln(io.Out, "Now that you've set up postgres, here's what you need to understand: https://fly.io/docs/reference/postgres-whats-next/")
 
 	return
 }
