@@ -55,7 +55,7 @@ func configurePhoenix(sourceDir string) (*SourceInfo, error) {
 	}
 
 	// We found Phoenix, so check if the Docker generator is present
-	cmd := exec.Command("mix", "do", "deps.get,", "compile,", "help", "phx.gen.release")
+	cmd := exec.Command("mix", "do", "deps.get,", "compile,", "run", "-e", "\"true = Code.ensure_loaded?(Mix.Tasks.Phx.Gen.Release)\"")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
