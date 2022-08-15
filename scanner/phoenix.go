@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -54,7 +55,9 @@ func configurePhoenix(sourceDir string) (*SourceInfo, error) {
 	}
 
 	// We found Phoenix, so check if the Docker generator is present
-	cmd := exec.Command("mix", "help", "phx.gen.release")
+	cmd := exec.Command("mix", "do", "deps.get,", "compile,", "help", "phx.gen.release")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	err := cmd.Run()
 	if err == nil {
 		s.DeployDocs = `
