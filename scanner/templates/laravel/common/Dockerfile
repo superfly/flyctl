@@ -10,7 +10,7 @@ FROM serversideup/php:${PHP_VERSION}-fpm-nginx as base
 LABEL fly_launch_runtime="laravel"
 
 RUN apt-get update && apt-get install -y \
-    git curl zip unzip rsync ca-certificates vim htop cron \
+    git curl zip unzip rsync ca-certificates vim htop cron php${DOCKER_VERSION}-swoole \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
 
