@@ -95,12 +95,12 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 		return nil
 	}
 
-	if err != nil {
-		return err
-	}
-
 	var release *api.Release
 	var releaseCommand *api.ReleaseCommand
+
+	if appConfig.PrimaryRegion != "" {
+		appConfig.Env["PRIMARY_REGION"] = appConfig.PrimaryRegion
+	}
 
 	if appConfig.ForMachines() {
 		return createMachinesRelease(ctx, appConfig, img, flag.GetString(ctx, "strategy"))
@@ -188,12 +188,8 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 	if regionCode := flag.GetString(ctx, flag.RegionName); regionCode != "" {
 		cfg.PrimaryRegion = regionCode
 	}
-	if cfg.PrimaryRegion != "" {
-		cfg.SetEnvVariable("PRIMARY_REGION", cfg.PrimaryRegion)
-	}
 
 	tb.Done("Verified app config")
-
 	return
 }
 
