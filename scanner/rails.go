@@ -75,7 +75,7 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 
 	s.SkipDeploy = true
 	s.DeployDocs = fmt.Sprintf(`
-Your Rails app is prepared for deployment. Production will be setup with these versions of core runtime packages:
+Your Rails app is prepared for deployment. Production will be set up with these versions of core runtime packages:
 
 Ruby %s
 Bundler %s
