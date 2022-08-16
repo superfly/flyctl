@@ -74,9 +74,19 @@ type AddOn implements Node {
   organization: Organization!
 
   """
+  Password for the add-on
+  """
+  password: String
+
+  """
   Region where the primary instance is deployed
   """
   primaryRegion: String
+
+  """
+  Private flycast IP address of the add-on
+  """
+  privateIp: String
 
   """
   Public URL for this service

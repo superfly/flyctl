@@ -47,8 +47,13 @@ func runUpdate(ctx context.Context) (err error) {
 			id
 			name
 			publicUrl
+			privateIp
+			password
 			primaryRegion
 			readRegions
+			organization {
+				slug
+			}
 			addOnPlan {
 				id
 				name
