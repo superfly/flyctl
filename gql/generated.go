@@ -81,10 +81,16 @@ type GetAddOnAddOn struct {
 	Name string `json:"name"`
 	// Public URL for this service
 	PublicUrl string `json:"publicUrl"`
+	// Private flycast IP address of the add-on
+	PrivateIp string `json:"privateIp"`
+	// Password for the add-on
+	Password string `json:"password"`
 	// Region where the primary instance is deployed
 	PrimaryRegion string `json:"primaryRegion"`
 	// Regions where replica instances are deployed
 	ReadRegions []string `json:"readRegions"`
+	// Organization that owns this service
+	Organization GetAddOnAddOnOrganization `json:"organization"`
 	// The add-on plan
 	AddOnPlan GetAddOnAddOnAddOnPlan `json:"addOnPlan"`
 }
@@ -98,11 +104,20 @@ func (v *GetAddOnAddOn) GetName() string { return v.Name }
 // GetPublicUrl returns GetAddOnAddOn.PublicUrl, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetPublicUrl() string { return v.PublicUrl }
 
+// GetPrivateIp returns GetAddOnAddOn.PrivateIp, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOn) GetPrivateIp() string { return v.PrivateIp }
+
+// GetPassword returns GetAddOnAddOn.Password, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOn) GetPassword() string { return v.Password }
+
 // GetPrimaryRegion returns GetAddOnAddOn.PrimaryRegion, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetPrimaryRegion() string { return v.PrimaryRegion }
 
 // GetReadRegions returns GetAddOnAddOn.ReadRegions, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetReadRegions() []string { return v.ReadRegions }
+
+// GetOrganization returns GetAddOnAddOn.Organization, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOn) GetOrganization() GetAddOnAddOnOrganization { return v.Organization }
 
 // GetAddOnPlan returns GetAddOnAddOn.AddOnPlan, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetAddOnPlan() GetAddOnAddOnAddOnPlan { return v.AddOnPlan }
@@ -122,6 +137,15 @@ func (v *GetAddOnAddOnAddOnPlan) GetName() string { return v.Name }
 
 // GetDisplayName returns GetAddOnAddOnAddOnPlan.DisplayName, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOnAddOnPlan) GetDisplayName() string { return v.DisplayName }
+
+// GetAddOnAddOnOrganization includes the requested fields of the GraphQL type Organization.
+type GetAddOnAddOnOrganization struct {
+	// Unique organization slug
+	Slug string `json:"slug"`
+}
+
+// GetSlug returns GetAddOnAddOnOrganization.Slug, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnOrganization) GetSlug() string { return v.Slug }
 
 // GetAddOnResponse is returned by GetAddOn on success.
 type GetAddOnResponse struct {
@@ -204,6 +228,8 @@ type ListAddOnsAddOnsAddOnConnectionNodesAddOn struct {
 	Name string `json:"name"`
 	// The add-on plan
 	AddOnPlan ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan `json:"addOnPlan"`
+	// Private flycast IP address of the add-on
+	PrivateIp string `json:"privateIp"`
 	// Region where the primary instance is deployed
 	PrimaryRegion string `json:"primaryRegion"`
 	// Regions where replica instances are deployed
@@ -222,6 +248,9 @@ func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetName() string { return v.
 func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetAddOnPlan() ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan {
 	return v.AddOnPlan
 }
+
+// GetPrivateIp returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.PrivateIp, and is useful for accessing the field via an interface.
+func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetPrivateIp() string { return v.PrivateIp }
 
 // GetPrimaryRegion returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.PrimaryRegion, and is useful for accessing the field via an interface.
 func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetPrimaryRegion() string { return v.PrimaryRegion }
@@ -449,8 +478,13 @@ query GetAddOn ($id: ID!) {
 		id
 		name
 		publicUrl
+		privateIp
+		password
 		primaryRegion
 		readRegions
+		organization {
+			slug
+		}
 		addOnPlan {
 			id
 			name
@@ -526,6 +560,7 @@ query ListAddOns ($addOnType: AddOnType) {
 			addOnPlan {
 				displayName
 			}
+			privateIp
 			primaryRegion
 			readRegions
 			organization {

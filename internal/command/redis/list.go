@@ -46,6 +46,7 @@ func runList(ctx context.Context) (err error) {
 					addOnPlan {
 						displayName
 					}
+					privateIp
 					primaryRegion
 					readRegions
 					organization {
