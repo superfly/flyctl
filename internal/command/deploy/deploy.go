@@ -98,7 +98,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 	var release *api.Release
 	var releaseCommand *api.ReleaseCommand
 
-	if appConfig.PrimaryRegion != "" {
+	if appConfig.PrimaryRegion != "" && appConfig.Env["PRIMARY_REGION"] == "" {
 		appConfig.Env["PRIMARY_REGION"] = appConfig.PrimaryRegion
 	}
 
