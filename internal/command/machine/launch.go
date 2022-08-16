@@ -101,13 +101,11 @@ func run(ctx context.Context) (err error) {
 	}
 
 	// If we potentially are deploying, launch a remote builder to prepare for deployment
-
 	if !flag.GetBool(ctx, "no-deploy") {
 		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, client, org.Slug)
 	}
 
 	// Create the app
-
 	input := api.CreateAppInput{
 		Name:           appName,
 		OrganizationID: org.ID,
@@ -124,7 +122,6 @@ func run(ctx context.Context) (err error) {
 	// TODO: Handle imported fly.toml config
 
 	// Setup new fly.toml config file with default values
-
 	appConfig := app.NewConfig()
 
 	// Config version 2 is for machine apps
@@ -132,10 +129,8 @@ func run(ctx context.Context) (err error) {
 	appConfig.AppName = createdApp.Name
 
 	// Launch in the specified region, or when not specified, in the nearest region
-	regionCode := flag.GetString(ctx, "region")
-
-	if regionCode == "" {
-
+	appConfig.PrimaryRegion = flag.GetString(ctx, "region")
+	if appConfig.PrimaryRegion == "" {
 		regions, requestRegion, err := client.PlatformRegions(ctx)
 		if err != nil {
 			return fmt.Errorf("couldn't fetch platform regions: %w", err)
@@ -145,46 +140,34 @@ func run(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
-
-		regionCode = region.Code
+		appConfig.PrimaryRegion = region.Code
 	}
 
-	appConfig.PrimaryRegion = regionCode
-
 	var srcInfo *scanner.SourceInfo
-
 	appConfig.Build = &app.Build{}
 
-	// Determine whether to deploy from an image
 	if img := flag.GetString(ctx, "image"); img != "" {
+		// Determine whether to deploy from an image
 		fmt.Fprintf(io.Out, "Lauching with image: %s", img)
-
 		appConfig.Build.Image = img
-
-		// Deploy from specified Dokerfile
 	} else if dockerfile := flag.GetString(ctx, "dockerfile"); dockerfile != "" {
+		// Deploy from specified Dokerfile
 		fmt.Fprintf(io.Out, "Launching with Dockerfile: %s", dockerfile)
-
 		appConfig.Build.Dockerfile = dockerfile
-
-		// Scan the working directory for a compatible launcher
 	} else {
-
+		// Scan the working directory for a compatible launcher
 		srcInfo, err = scanAndConfigure(ctx, workingDir, appConfig)
-
 		if err != nil {
 			return err
 		}
 	}
 
 	err = setupHttpService(ctx, appConfig, srcInfo)
-
 	if err != nil {
 		return
 	}
 
 	appConfig.WriteToDisk()
-
 	fmt.Fprintf(io.Out, "Wrote to fly.toml\n")
 
 	if !flag.GetBool(ctx, "no-deploy") && (srcInfo != nil && !srcInfo.SkipDeploy) {
