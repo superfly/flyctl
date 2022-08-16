@@ -32,7 +32,7 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 		},
 		ReleaseCmd: "bundle exec rails db:migrate",
 		Env: map[string]string{
-			"SERVER_COMMAND": "bundle exec puma -C config/puma.rb",
+			"SERVER_COMMAND": "bundle exec puma",
 			"PORT":           "8080",
 		},
 	}
