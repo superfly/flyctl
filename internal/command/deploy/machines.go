@@ -228,7 +228,7 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 
 	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
 		m, err = flapsClient.Get(ctx, m.ID)
-		return m.Config.Metadata["process_group"] != "release_command"
+		return m.Config.Metadata["process_group"] != "release_command" && m.State != "destroyed"
 	})
 
 	if len(machines) > 0 {
