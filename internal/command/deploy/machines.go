@@ -204,7 +204,7 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 
 	var regionCode string
 	if appConfig != nil {
-		regionCode = appConfig.GetPrimaryRegion()
+		regionCode = appConfig.PrimaryRegion
 	}
 
 	msg := fmt.Sprintf("Deploying with %s strategy", strategy)

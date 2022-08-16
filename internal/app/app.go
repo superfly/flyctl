@@ -82,8 +82,8 @@ type Config struct {
 	Metrics         *api.MachineMetrics    `toml:"metrics" json:"metrics"`
 	Statics         []*Static              `toml:"statics,omitempty" json:"statics"`
 	Deploy          *Deploy                `toml:"deploy, omitempty"`
+	PrimaryRegion   string                 `toml:"primary_region,omitempty"`
 	platformVersion string
-	primaryRegion   string
 }
 
 type Deploy struct {
@@ -133,16 +133,6 @@ func (c *Config) SetPlatformVersion(platform string) {
 // ForMachines is true when the config is intended for the machines platform
 func (c *Config) ForMachines() bool {
 	return c.platformVersion == MachinesPlatform
-}
-
-// SetPrimaryRegion sets the region to be used for deployment. primaryRegion is private to avoid being marshalled to TOML.
-func (c *Config) SetPrimaryRegion(regionCode string) {
-	c.primaryRegion = regionCode
-}
-
-// SetPrimaryRegion gets the region to be used for deployment. primaryRegion is private to avoid being marshalled to TOML.
-func (c *Config) GetPrimaryRegion() string {
-	return c.primaryRegion
 }
 
 func (c *Config) HasDefinition() bool {

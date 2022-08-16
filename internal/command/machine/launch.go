@@ -149,7 +149,7 @@ func run(ctx context.Context) (err error) {
 		regionCode = region.Code
 	}
 
-	appConfig.SetPrimaryRegion(regionCode)
+	appConfig.PrimaryRegion = regionCode
 
 	var srcInfo *scanner.SourceInfo
 
@@ -360,7 +360,7 @@ func setScannerPrefs(ctx context.Context, appConfig *app.Config, srcInfo *scanne
 				return err
 			}
 
-			region := appConfig.GetPrimaryRegion()
+			region := appConfig.PrimaryRegion
 			volume, err := client.CreateVolume(ctx, api.CreateVolumeInput{
 				AppID:     appID,
 				Name:      vol.Source,

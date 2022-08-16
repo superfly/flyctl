@@ -187,7 +187,7 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 	}
 
 	if regionCode := flag.GetString(ctx, flag.RegionName); regionCode != "" {
-		cfg.SetPrimaryRegion(regionCode)
+		cfg.PrimaryRegion = regionCode
 	}
 
 	tb.Done("Verified app config")
