@@ -85,6 +85,9 @@ func run(ctx context.Context) error {
 func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 	apiClient := client.FromContext(ctx).API()
 
+	// Assign an empty map so later assignments won't fail
+	appConfig.Env = map[string]string{}
+
 	// Fetch an image ref or build from source to get the final image reference to deploy
 	img, err := determineImage(ctx, appConfig)
 	if err != nil {
