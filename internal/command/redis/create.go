@@ -91,6 +91,7 @@ func runCreate(ctx context.Context) (err error) {
 	}
 
 	fmt.Fprintf(io.Out, "\nConnect to your Upstash Redis database at: %s\n", url)
+	fmt.Fprintf(io.Out, "Run \"fly redis connect\" command to connect to your database with redis-cli.\n")
 	fmt.Fprintf(io.Out, "This redis database is visible to all applications in the %s organization.\n", org.Slug)
 
 	return
