@@ -19,7 +19,7 @@ import (
 
 func newCreate() (cmd *cobra.Command) {
 	const (
-		long = `Create a new Redis database`
+		long = `Create an Upstash Redis database`
 
 		short = long
 		usage = "create"
@@ -42,6 +42,14 @@ func runCreate(ctx context.Context) (err error) {
 	)
 
 	org, err := prompt.Org(ctx)
+	if err != nil {
+		return err
+	}
+
+	var name string
+
+	prompt.String(ctx, &name, "Choose a Redis database name (leave blank to generate one):", "", false)
+
 	if err != nil {
 		return err
 	}
@@ -83,28 +91,28 @@ func runCreate(ctx context.Context) (err error) {
 
 	s := spinner.Run(io, "Launching...")
 
-	url, err := ProvisionRedis(ctx, org, result.AddOnPlans.Nodes[planIndex].Id, primaryRegion, readRegions, eviction)
+	url, err := ProvisionRedis(ctx, org, name, result.AddOnPlans.Nodes[planIndex].Id, primaryRegion, readRegions, eviction)
 
 	s.Stop()
 	if err != nil {
 		return
 	}
 
-	fmt.Fprintf(io.Out, "\nConnect to your Upstash Redis database at: %s\n", url)
+	fmt.Fprintf(io.Out, "\nConnect to your Upstash Redis database %s at: %s\n", name, url)
 	fmt.Fprintf(io.Out, "This redis database is visible to all applications in the %s organization.\n", org.Slug)
 
 	return
 }
 
-func ProvisionRedis(ctx context.Context, org *api.Organization, planId string, primaryRegion *api.Region, readRegions *[]api.Region, eviction bool) (publicUrl string, err error) {
+func ProvisionRedis(ctx context.Context, org *api.Organization, name string, planId string, primaryRegion *api.Region, readRegions *[]api.Region, eviction bool) (publicUrl string, err error) {
 	client := client.FromContext(ctx).API().GenqClient
 
 	_ = `# @genqlient
-  mutation CreateAddOn($organizationId: ID!, $primaryRegion: String!, $planId: ID!, $readRegions: [String!], $options: JSON!) {
-		createAddOn(input: {organizationId: $organizationId, type: redis, planId: $planId, primaryRegion: $primaryRegion,
+  mutation CreateAddOn($organizationId: ID!, $primaryRegion: String!, $name: String, $planId: ID!, $readRegions: [String!], $options: JSON!) {
+		createAddOn(input: {organizationId: $organizationId, type: redis, name: $name, planId: $planId, primaryRegion: $primaryRegion,
 				readRegions: $readRegions, options: $options}) {
 			addOn {
-				id
+				name
 				publicUrl
 			}
 		}
@@ -124,7 +132,7 @@ func ProvisionRedis(ctx context.Context, org *api.Organization, planId string, p
 		options["eviction"] = true
 	}
 
-	response, err := gql.CreateAddOn(ctx, client, org.ID, primaryRegion.Code, planId, readRegionCodes, options)
+	response, err := gql.CreateAddOn(ctx, client, org.ID, primaryRegion.Code, name, planId, readRegionCodes, options)
 	if err != nil {
 		return
 	}

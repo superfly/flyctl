@@ -15,10 +15,10 @@ import (
 
 func newStatus() *cobra.Command {
 	const (
-		short = "Show status of a Redis service"
+		short = "Show status of a Redis database"
 		long  = short + "\n"
 
-		usage = "status <id>"
+		usage = "status <name>"
 	)
 
 	cmd := command.New(usage, short, long, runStatus,
@@ -35,11 +35,11 @@ func newStatus() *cobra.Command {
 func runStatus(ctx context.Context) (err error) {
 	var (
 		io     = iostreams.FromContext(ctx)
-		id     = flag.FirstArg(ctx)
+		name   = flag.FirstArg(ctx)
 		client = client.FromContext(ctx).API().GenqClient
 	)
 
-	response, err := gql.GetAddOn(ctx, client, id)
+	response, err := gql.GetAddOn(ctx, client, name)
 	if err != nil {
 		return err
 	}
@@ -57,7 +57,7 @@ func runStatus(ctx context.Context) (err error) {
 		},
 	}
 
-	var cols []string = []string{"ID", "Name", "Plan", "Primary Region", "Read Regions", "Public URL"}
+	var cols []string = []string{"ID", "Name", "Plan", "Primary Region", "Read Regions", "Private URL"}
 
 	if err = render.VerticalTable(io.Out, "Redis", obj, cols...); err != nil {
 		return

@@ -16,10 +16,10 @@ import (
 
 func newDelete() (cmd *cobra.Command) {
 	const (
-		long = `Delete a Redis database`
+		long = `Delete an Upstash Redis database`
 
 		short = long
-		usage = "delete [ID]"
+		usage = "delete <name>"
 	)
 
 	cmd = command.New(usage, short, long, runDelete, command.RequireSession)
@@ -36,23 +36,23 @@ func runDelete(ctx context.Context) (err error) {
 		client = client.FromContext(ctx).API().GenqClient
 	)
 
-	id := flag.FirstArg(ctx)
+	name := flag.FirstArg(ctx)
 
 	_ = `# @genqlient
-  mutation DeleteAddOn($addOnId: ID!) {
-		deleteAddOn(input: {addOnId: $addOnId}) {
-			deletedAddOnId
+  mutation DeleteAddOn($name: String) {
+		deleteAddOn(input: {name: $name}) {
+			deletedAddOnName
 		}
   }
 	`
 
-	_, err = gql.DeleteAddOn(ctx, client, id)
+	_, err = gql.DeleteAddOn(ctx, client, name)
 
 	if err != nil {
 		return
 	}
 
-	fmt.Fprintf(out, "Your Redis database %s was deleted\n", id)
+	fmt.Fprintf(out, "Your Redis database %s was deleted\n", name)
 
 	return
 }
