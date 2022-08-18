@@ -243,10 +243,10 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 
 			launchInput.ID = machine.ID
 
-			// We assume an empty config means the deploy should simply recreate machines with the existing config,
-			// for example for applying recently set secrets
+			// We assume a config with no image specificed means the deploy should recreate machines
+			// with the existing config. For example, for applying recently set secrets.
 
-			if launchInput.Config.Guest == nil {
+			if launchInput.Config.Image == "" {
 				freshMachine, err := flapsClient.Get(ctx, machine.ID)
 				if err != nil {
 					return err

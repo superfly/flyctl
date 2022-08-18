@@ -181,8 +181,7 @@ func (f *Client) List(ctx context.Context, state string) ([]*api.Machine, error)
 	return out, nil
 }
 
-// ListActive returns stopped and started machines that aren't in a
-// destroyed or in a reserved process group.
+// ListActive returns only non-destroyed that aren't in a reserved process group.
 func (f *Client) ListActive(ctx context.Context) ([]*api.Machine, error) {
 	getEndpoint := ""
 
