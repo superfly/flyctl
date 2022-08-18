@@ -20,7 +20,7 @@ func newUpdate() (cmd *cobra.Command) {
 		long = `Update an Upstash Redis database`
 
 		short = long
-		usage = "update <id>"
+		usage = "update <name>"
 	)
 
 	cmd = command.New(usage, short, long, runUpdate, command.RequireSession)
@@ -42,8 +42,8 @@ func runUpdate(ctx context.Context) (err error) {
 	id := flag.FirstArg(ctx)
 
 	_ = `# @genqlient
-	query GetAddOn($id: ID!) {
-		addOn(id: $id) {
+	query GetAddOn($name: String) {
+		addOn(name: $name) {
 			id
 			name
 			publicUrl
@@ -114,7 +114,7 @@ func runUpdate(ctx context.Context) (err error) {
 		return
 	}
 
-	fmt.Fprintf(out, "Your Upstash Redis database %s was updated.\n", addOn.Id)
+	fmt.Fprintf(out, "Your Upstash Redis database %s was updated.\n", addOn.Name)
 
 	return
 }

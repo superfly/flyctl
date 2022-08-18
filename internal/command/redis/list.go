@@ -17,7 +17,7 @@ import (
 
 func newList() (cmd *cobra.Command) {
 	const (
-		long  = `List Redis databases for an organization`
+		long  = `List Upstash Redis databases for an organization`
 		short = long
 		usage = "list"
 	)
@@ -63,7 +63,6 @@ func runList(ctx context.Context) (err error) {
 
 	for _, addon := range response.AddOns.Nodes {
 		rows = append(rows, []string{
-			addon.Id,
 			addon.Name,
 			addon.Organization.Slug,
 			addon.AddOnPlan.DisplayName,
@@ -72,7 +71,7 @@ func runList(ctx context.Context) (err error) {
 		})
 	}
 
-	_ = render.Table(out, "", rows, "Id", "Name", "Org", "Plan", "Primary Region", "Read Regions")
+	_ = render.Table(out, "", rows, "Name", "Org", "Plan", "Primary Region", "Read Regions")
 
 	return
 }
