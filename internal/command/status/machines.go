@@ -3,7 +3,6 @@ package status
 import (
 	"context"
 
-	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/render"
@@ -18,12 +17,7 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) (err error) {
 		return err
 	}
 
-	machines, err := flapsClient.List(ctx, "")
-
-	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
-		return m.Config.Metadata["process_group"] != "release_command"
-	})
-
+	machines, err := flapsClient.ListActive(ctx)
 	if err != nil {
 		return err
 	}

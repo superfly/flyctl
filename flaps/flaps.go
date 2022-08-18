@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/samber/lo"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
@@ -178,6 +179,29 @@ func (f *Client) List(ctx context.Context, state string) ([]*api.Machine, error)
 		return nil, fmt.Errorf("failed to list VMs: %w", err)
 	}
 	return out, nil
+}
+
+// ListActive returns stopped and started machines that aren't in a
+// reserved process group. Since the state from 'list' is unreliable,
+// this function fetches the updated status of candidate non-destroyed machines.
+func (f *Client) ListActive(ctx context.Context) ([]*api.Machine, error) {
+	getEndpoint := ""
+
+	machines := make([]*api.Machine, 0)
+
+	err := f.sendRequest(ctx, http.MethodGet, getEndpoint, nil, &machines, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list VMs: %w", err)
+	}
+
+	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
+		if m.State != "destroyed" {
+			m, err = f.Get(ctx, m.ID)
+		}
+		return m.Config.Metadata["process_group"] != "release_command" && m.State != "destroyed"
+	})
+
+	return machines, nil
 }
 
 func (f *Client) Destroy(ctx context.Context, input api.RemoveMachineInput) (err error) {
