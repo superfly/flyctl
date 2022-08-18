@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
@@ -221,15 +220,10 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 		Region:  regionCode,
 	}
 
-	machines, err := flapsClient.List(ctx, "")
+	machines, err := flapsClient.ListActive(ctx)
 	if err != nil {
 		return
 	}
-
-	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
-		m, err = flapsClient.Get(ctx, m.ID)
-		return m.Config.Metadata["process_group"] != "release_command" && m.State != "destroyed"
-	})
 
 	if len(machines) > 0 {
 
