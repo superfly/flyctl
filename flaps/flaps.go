@@ -182,8 +182,7 @@ func (f *Client) List(ctx context.Context, state string) ([]*api.Machine, error)
 }
 
 // ListActive returns stopped and started machines that aren't in a
-// reserved process group. Since the state from 'list' is unreliable,
-// this function fetches the updated status of candidate non-destroyed machines.
+// destroyed or in a reserved process group.
 func (f *Client) ListActive(ctx context.Context) ([]*api.Machine, error) {
 	getEndpoint := ""
 
@@ -195,9 +194,6 @@ func (f *Client) ListActive(ctx context.Context) ([]*api.Machine, error) {
 	}
 
 	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
-		if m.State != "destroyed" {
-			m, err = f.Get(ctx, m.ID)
-		}
 		return m.Config.Metadata["process_group"] != "release_command" && m.State != "destroyed"
 	})
 
