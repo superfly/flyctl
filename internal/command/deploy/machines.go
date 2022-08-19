@@ -115,16 +115,21 @@ func RunReleaseCommand(ctx context.Context, app *api.AppCompact, appConfig *app.
 	// Override the machine default command to run the release command
 	machineConf.Init.Cmd = strings.Split(appConfig.Deploy.ReleaseCommand, " ")
 
-	// We don't want temporary release command VMs to serve traffic
+	launchMachineInput := api.LaunchMachineInput{
+		AppID:   app.ID,
+		OrgSlug: app.Organization.ID,
+		Config:  &machineConf,
+	}
+
+	// Ensure release commands run in the primary region
+	if appConfig.PrimaryRegion != "" {
+		launchMachineInput.Region = appConfig.PrimaryRegion
+	}
+
+	// We don't want temporary release command VMs to serve traffic, so kill the services
 	machineConf.Services = nil
 
-	machine, err := flapsClient.Launch(ctx,
-		api.LaunchMachineInput{
-			AppID:   app.ID,
-			OrgSlug: app.Organization.ID,
-			Config:  &machineConf,
-		},
-	)
+	machine, err := flapsClient.Launch(ctx, launchMachineInput)
 	if err != nil {
 		return err
 	}
@@ -243,10 +248,10 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 
 			launchInput.ID = machine.ID
 
-			// We assume an empty config means the deploy should simply recreate machines with the existing config,
-			// for example for applying recently set secrets
+			// We assume a config with no image specificed means the deploy should recreate machines
+			// with the existing config. For example, for applying recently set secrets.
 
-			if launchInput.Config.Guest == nil {
+			if launchInput.Config.Image == "" {
 				freshMachine, err := flapsClient.Get(ctx, machine.ID)
 				if err != nil {
 					return err
