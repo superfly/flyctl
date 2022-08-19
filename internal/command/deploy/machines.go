@@ -115,16 +115,22 @@ func RunReleaseCommand(ctx context.Context, app *api.AppCompact, appConfig *app.
 	// Override the machine default command to run the release command
 	machineConf.Init.Cmd = strings.Split(appConfig.Deploy.ReleaseCommand, " ")
 
-	// We don't want temporary release command VMs to serve traffic
+	launchMachineInput := api.LaunchMachineInput{
+		AppID:   app.ID,
+		OrgSlug: app.Organization.ID,
+		Config:  &machineConf,
+	}
+
+	// Ensure release commands run in the primary region
+	if appConfig.PrimaryRegion != "" {
+		launchMachineInput.Region = appConfig.PrimaryRegion
+	}
+
+	// We don't want temporary release command VMs to serve traffic, so kill the services
 	machineConf.Services = nil
 
-	machine, err := flapsClient.Launch(ctx,
-		api.LaunchMachineInput{
-			AppID:   app.ID,
-			OrgSlug: app.Organization.ID,
-			Config:  &machineConf,
-		},
-	)
+	machine, err := flapsClient.Launch(ctx, launchMachineInput)
+
 	if err != nil {
 		return err
 	}
