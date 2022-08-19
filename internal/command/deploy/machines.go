@@ -130,7 +130,6 @@ func RunReleaseCommand(ctx context.Context, app *api.AppCompact, appConfig *app.
 	machineConf.Services = nil
 
 	machine, err := flapsClient.Launch(ctx, launchMachineInput)
-
 	if err != nil {
 		return err
 	}
