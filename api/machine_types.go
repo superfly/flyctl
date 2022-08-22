@@ -174,17 +174,18 @@ type MachineServiceConcurrency struct {
 }
 
 type MachineConfig struct {
-	Env      map[string]string `json:"env"`
-	Init     MachineInit       `json:"init,omitempty"`
-	Image    string            `json:"image"`
-	Metadata map[string]string `json:"metadata"`
-	Mounts   []MachineMount    `json:"mounts,omitempty"`
-	Restart  MachineRestart    `json:"restart,omitempty"`
-	Services []MachineService  `json:"services,omitempty"`
-	VMSize   string            `json:"size,omitempty"`
-	Guest    *MachineGuest     `json:"guest,omitempty"`
-	Metrics  *MachineMetrics   `json:"metrics"`
-	Schedule string            `json:"schedule,omitempty"`
+	Env      map[string]string       `json:"env"`
+	Init     MachineInit             `json:"init,omitempty"`
+	Image    string                  `json:"image"`
+	Metadata map[string]string       `json:"metadata"`
+	Mounts   []MachineMount          `json:"mounts,omitempty"`
+	Restart  MachineRestart          `json:"restart,omitempty"`
+	Services []MachineService        `json:"services,omitempty"`
+	VMSize   string                  `json:"size,omitempty"`
+	Guest    *MachineGuest           `json:"guest,omitempty"`
+	Metrics  *MachineMetrics         `json:"metrics"`
+	Schedule string                  `json:"schedule,omitempty"`
+	Checks   map[string]MachineCheck `toml:"checks,omitempty"`
 }
 
 type MachineLease struct {
