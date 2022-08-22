@@ -118,6 +118,10 @@ var sharedFlags = flag.Set{
 		Shorthand:   "m",
 		Description: "Metadata in the form of NAME=VALUE pairs. Can be specified multiple times.",
 	},
+	flag.Int{
+		Name:   "node-id",
+		Hidden: true,
+	},
 }
 
 func newRun() *cobra.Command {
@@ -198,6 +202,12 @@ func runMachineRun(ctx context.Context) error {
 		AppID:  app.Name,
 		Name:   flag.GetString(ctx, "name"),
 		Region: flag.GetString(ctx, "region"),
+	}
+
+	nodeId := flag.GetInt(ctx, "node-id")
+
+	if nodeId != 0 {
+		input.NodeId = nodeId
 	}
 
 	flapsClient, err := flaps.New(ctx, app)
