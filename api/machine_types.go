@@ -147,7 +147,7 @@ type MachineMetrics struct {
 
 type MachineCheck struct {
 	Type       string         `json:"type"`
-	Port       *uint64        `json:"port"`
+	Port       uint16         `json:"port"`
 	Interval   *time.Duration `json:"interval"`
 	Timeout    *time.Duration `json:"timeout"`
 	HTTPMethod *string        `json:"method"`
