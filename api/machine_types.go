@@ -145,6 +145,15 @@ type MachineMetrics struct {
 	Path string `toml:"path" json:"path"`
 }
 
+type MachineCheck struct {
+	Type       string         `json:"type"`
+	Port       *uint64        `json:"port"`
+	Interval   *time.Duration `json:"interval"`
+	Timeout    *time.Duration `json:"timeout"`
+	HTTPMethod *string        `json:"method"`
+	HTTPPath   *string        `json:"path"`
+}
+
 type MachinePort struct {
 	Port       int      `json:"port" toml:"port"`
 	Handlers   []string `json:"handlers,omitempty" toml:"handlers,omitempty"`

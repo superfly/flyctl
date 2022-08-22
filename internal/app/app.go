@@ -72,17 +72,18 @@ type SlimConfig struct {
 
 // Config wraps the properties of app configuration.
 type Config struct {
-	AppName         string                 `toml:"app,omitempty"`
-	Build           *Build                 `toml:"build,omitempty"`
-	HttpService     *HttpService           `toml:"http_service,omitempty"`
-	Definition      map[string]interface{} `toml:"definition,omitempty"`
-	Path            string                 `toml:"path,omitempty"`
-	Services        []api.MachineService   `toml:"services"`
-	Env             map[string]string      `toml:"env" json:"env"`
-	Metrics         *api.MachineMetrics    `toml:"metrics" json:"metrics"`
-	Statics         []*Static              `toml:"statics,omitempty" json:"statics"`
-	Deploy          *Deploy                `toml:"deploy, omitempty"`
-	PrimaryRegion   string                 `toml:"primary_region,omitempty"`
+	AppName         string                      `toml:"app,omitempty"`
+	Build           *Build                      `toml:"build,omitempty"`
+	HttpService     *HttpService                `toml:"http_service,omitempty"`
+	Definition      map[string]interface{}      `toml:"definition,omitempty"`
+	Path            string                      `toml:"path,omitempty"`
+	Services        []api.MachineService        `toml:"services"`
+	Env             map[string]string           `toml:"env" json:"env"`
+	Metrics         *api.MachineMetrics         `toml:"metrics" json:"metrics"`
+	Statics         []*Static                   `toml:"statics,omitempty" json:"statics"`
+	Deploy          *Deploy                     `toml:"deploy, omitempty"`
+	PrimaryRegion   string                      `toml:"primary_region,omitempty"`
+	Checks          map[string]api.MachineCheck `toml:"checks,omitempty"`
 	platformVersion string
 }
 
