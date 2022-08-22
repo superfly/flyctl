@@ -40,6 +40,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/status"
 	"github.com/superfly/flyctl/internal/command/suspend"
 	"github.com/superfly/flyctl/internal/command/version"
+	"github.com/superfly/flyctl/internal/command/vm"
 	"github.com/superfly/flyctl/internal/command/volumes"
 )
 
@@ -149,6 +150,7 @@ func New() *cobra.Command {
 		secrets.New(),
 		ssh.New(),
 		redis.New(),
+		vm.New(),
 	}
 
 	// if os.Getenv("DEV") != "" {
