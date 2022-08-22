@@ -1,6 +1,7 @@
 package render
 
 import (
+	"fmt"
 	"io"
 	"strconv"
 	"time"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/format"
+	"github.com/superfly/flyctl/logs"
 )
 
 func AllocationStatuses(w io.Writer, title string, backupRegions []api.Region, statuses ...*api.AllocationStatus) error {
@@ -85,4 +87,47 @@ func AllocationEvents(w io.Writer, title string, events ...api.AllocationEvent) 
 	}
 
 	return Table(w, title, rows, "Timestamp", "Type", "Message")
+}
+
+func AllocationStatus(w io.Writer, title string, status *api.AllocationStatus) error {
+	var rows [][]string
+
+	rows = append(rows, []string{
+		status.IDShort,
+		status.TaskName,
+		strconv.Itoa(status.Version),
+		status.Region,
+		status.DesiredStatus,
+		format.AllocStatus(status),
+		format.HealthChecksSummary(status),
+		strconv.Itoa(status.Restarts),
+		format.RelativeTime(status.CreatedAt),
+	})
+	return VerticalTable(w, title, rows, "ID", "Process", "Version", "Region", "Desired", "Status", "Health Checks", "Restarts", "Created")
+}
+
+func AllocationChecks(w io.Writer, title string, checks ...api.CheckState) error {
+	var rows [][]string
+
+	for _, check := range checks {
+		rows = append(rows, []string{
+			check.Name,
+			check.ServiceName,
+			check.Status,
+			check.Output,
+		})
+	}
+
+	return Table(w, title, rows, "ID", "Service", "State", "Output")
+}
+
+func AllocationLogs(w io.Writer, title string, entries []logs.LogEntry) error {
+	fmt.Fprintln(w, aurora.Bold(title))
+
+	for _, e := range entries {
+		if err := LogEntry(w, e); err != nil {
+			return err
+		}
+	}
+	return nil
 }
