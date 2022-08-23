@@ -58,7 +58,7 @@ func runConnect(ctx context.Context) (err error) {
 	databases := result.AddOns.Nodes
 
 	for _, database := range databases {
-		options = append(options, fmt.Sprintf("%s (%s) %s", database.Name, database.PrimaryRegion, database.AddOnPlan.DisplayName))
+		options = append(options, fmt.Sprintf("%s (%s) %s", database.Name, database.PrimaryRegion, database.Organization.Slug))
 	}
 
 	err = prompt.Select(ctx, &index, "Select a database to connect to", "", options...)
@@ -66,7 +66,7 @@ func runConnect(ctx context.Context) (err error) {
 		return
 	}
 
-	response, err := gql.GetAddOn(ctx, client.GenqClient, databases[index].Id)
+	response, err := gql.GetAddOn(ctx, client.GenqClient, databases[index].Name)
 	if err != nil {
 		return err
 	}
