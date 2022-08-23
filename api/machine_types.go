@@ -199,5 +199,6 @@ type LaunchMachineInput struct {
 	Name    string         `json:"name,omitempty"`
 	OrgSlug string         `json:"organizationId,omitempty"`
 	Region  string         `json:"region,omitempty"`
+	NodeId  int            `json:"node_id,omitempty"`
 	Config  *MachineConfig `json:"config"`
 }
