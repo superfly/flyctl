@@ -14,6 +14,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/jpillora/backoff"
+	"github.com/oklog/ulid/v2"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/agent"
@@ -420,7 +421,7 @@ func NewDeploymentTag(appName string, label string) string {
 	}
 
 	if label == "" {
-		label = fmt.Sprintf("deployment-%d", time.Now().Unix())
+		label = fmt.Sprintf("deployment-%s", ulid.Make())
 	}
 
 	registry := viper.GetString(flyctl.ConfigRegistryHost)
