@@ -99,9 +99,11 @@ type RemoveMachineInput struct {
 
 type MachineRestartPolicy string
 
-var MachineRestartPolicyNo MachineRestartPolicy = "no"
-var MachineRestartPolicyOnFailure MachineRestartPolicy = "on-failure"
-var MachineRestartPolicyAlways MachineRestartPolicy = "always"
+var (
+	MachineRestartPolicyNo        MachineRestartPolicy = "no"
+	MachineRestartPolicyOnFailure MachineRestartPolicy = "on-failure"
+	MachineRestartPolicyAlways    MachineRestartPolicy = "always"
+)
 
 type MachineRestart struct {
 	Policy MachineRestartPolicy `json:"policy"`
@@ -185,7 +187,7 @@ type MachineConfig struct {
 	Guest    *MachineGuest           `json:"guest,omitempty"`
 	Metrics  *MachineMetrics         `json:"metrics"`
 	Schedule string                  `json:"schedule,omitempty"`
-	Checks   map[string]MachineCheck `toml:"checks,omitempty"`
+	Checks   map[string]MachineCheck `json:"checks,omitempty"`
 }
 
 type MachineLease struct {
