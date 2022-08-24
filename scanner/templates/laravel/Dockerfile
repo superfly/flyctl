@@ -27,7 +27,6 @@ RUN composer install --optimize-autoloader --no-dev \
     && echo "MAILTO=\"\"\n* * * * * webuser /usr/bin/php /var/www/html/artisan schedule:run" > /etc/cron.d/laravel \
     && rm -rf /etc/cont-init.d/* \
     && cp docker/nginx-websockets.conf /etc/nginx/conf.d/websockets.conf \
-    && cp docker/nginx-default /etc/nginx/sites-available/default \
     && cp docker/entrypoint.sh /entrypoint \
     && chmod +x /entrypoint
 
@@ -41,6 +40,9 @@ RUN if grep -Fq "laravel/octane" /var/www/html/composer.json; then \
         else \
             mv docker/octane-swoole /etc/services.d/octane; \
         fi \
+        cp docker/nginx-default-swoole /etc/nginx/sites-available/default \
+    else \
+        cp docker/nginx-default /etc/nginx/sites-available/default \
     fi
 
 # Multi-stage build: Build static assets
