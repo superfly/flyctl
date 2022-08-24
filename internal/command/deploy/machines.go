@@ -86,8 +86,7 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 		return err
 	}
 
-	err = RunReleaseCommand(ctx, app, config, machineConfig)
-	if err != nil {
+	if err := RunReleaseCommand(ctx, app, config, machineConfig); err != nil {
 		return fmt.Errorf("release command failed - aborting deployment. %w", err)
 	}
 
@@ -95,13 +94,13 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 }
 
 func RunReleaseCommand(ctx context.Context, app *api.AppCompact, appConfig *app.Config, machineConfig api.MachineConfig) (err error) {
+	if appConfig.Deploy == nil || appConfig.Deploy.ReleaseCommand == "" {
+		return nil
+	}
+
 	io := iostreams.FromContext(ctx)
 
 	flapsClient, err := flaps.New(ctx, app)
-
-	if appConfig.Deploy.ReleaseCommand == "" {
-		return
-	}
 
 	msg := fmt.Sprintf("Running release command: %s", appConfig.Deploy.ReleaseCommand)
 	spin := spinner.Run(io, msg)
