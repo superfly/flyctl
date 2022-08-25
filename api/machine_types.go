@@ -29,6 +29,8 @@ type Machine struct {
 
 	Events     []*MachineEvent `json:"events,omitempty"`
 	LeaseNonce string
+
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 func (m Machine) FullImageRef() string {
@@ -168,13 +170,13 @@ type MachineConfig struct {
 	Env      map[string]string `json:"env"`
 	Init     MachineInit       `json:"init,omitempty"`
 	Image    string            `json:"image"`
-	Metadata map[string]string `json:"metadata"`
 	Mounts   []MachineMount    `json:"mounts,omitempty"`
 	Restart  MachineRestart    `json:"restart,omitempty"`
 	Services []MachineService  `json:"services,omitempty"`
 	VMSize   string            `json:"size,omitempty"`
 	Guest    *MachineGuest     `json:"guest,omitempty"`
 	Metrics  *MachineMetrics   `json:"metrics"`
+	Metadata *MachineMetadata  `json:"metadata"`
 	Schedule string            `json:"schedule,omitempty"`
 }
 
@@ -200,4 +202,9 @@ type LaunchMachineInput struct {
 	OrgSlug string         `json:"organizationId,omitempty"`
 	Region  string         `json:"region,omitempty"`
 	Config  *MachineConfig `json:"config"`
+}
+
+type MachineMetadata struct {
+	Port int    `json:"port"`
+	Path string `json:"path"`
 }
