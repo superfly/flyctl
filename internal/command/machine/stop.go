@@ -18,10 +18,10 @@ import (
 
 func newStop() *cobra.Command {
 	const (
-		short = "Stop a Fly machine"
+		short = "Stop one or more Fly machines"
 		long  = short + "\n"
 
-		usage = "stop <id>"
+		usage = "stop <id> [<id>...]"
 	)
 
 	cmd := command.New(usage, short, long, runMachineStop,
@@ -29,7 +29,7 @@ func newStop() *cobra.Command {
 		command.LoadAppNameIfPresent,
 	)
 
-	cmd.Args = cobra.MaximumNArgs(1)
+	cmd.Args = cobra.MinimumNArgs(1)
 
 	flag.Add(
 		cmd,

@@ -14,10 +14,10 @@ import (
 
 func newStart() *cobra.Command {
 	const (
-		short = "Start a Fly machine"
+		short = "Start one or more Fly machines"
 		long  = short + "\n"
 
-		usage = "start <id>"
+		usage = "start <id> [<id>...]"
 	)
 
 	cmd := command.New(usage, short, long, runMachineStart,
@@ -25,7 +25,7 @@ func newStart() *cobra.Command {
 		command.LoadAppNameIfPresent,
 	)
 
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.MinimumNArgs(1)
 
 	flag.Add(
 		cmd,
@@ -38,31 +38,32 @@ func newStart() *cobra.Command {
 
 func runMachineStart(ctx context.Context) (err error) {
 	var (
-		out       = iostreams.FromContext(ctx).Out
-		appName   = app.NameFromContext(ctx)
-		machineID = flag.FirstArg(ctx)
+		out     = iostreams.FromContext(ctx).Out
+		appName = app.NameFromContext(ctx)
+		args    = flag.Args(ctx)
 	)
 
-	app, err := appFromMachineOrName(ctx, machineID, appName)
-	if err != nil {
-		return
-	}
+	for _, machineID := range args {
+		app, err := appFromMachineOrName(ctx, machineID, appName)
+		if err != nil {
+			return fmt.Errorf("could not make flaps client: %w", err)
+		}
 
-	flapsClient, err := flaps.New(ctx, app)
-	if err != nil {
-		return fmt.Errorf("could not make flaps client: %w", err)
-	}
+		flapsClient, err := flaps.New(ctx, app)
+		if err != nil {
+			return fmt.Errorf("could not make flaps client: %w", err)
+		}
 
-	machine, err := flapsClient.Start(ctx, machineID)
-	if err != nil {
-		return fmt.Errorf("could not start machine %s: %w", machineID, err)
-	}
+		machine, err := flapsClient.Start(ctx, machineID)
+		if err != nil {
+			return fmt.Errorf("could not start machine %s: %w", machineID, err)
+		}
 
-	if machine.Status == "error" {
-		return fmt.Errorf("machine could not be started %s", machine.Message)
+		if machine.Status == "error" {
+			return fmt.Errorf("machine could not be started %s", machine.Message)
+		}
+		fmt.Fprintf(out, "%s has been started\n", machineID)
 	}
-
-	fmt.Fprintf(out, "%s has been started\n", machineID)
 
 	return
 }
