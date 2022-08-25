@@ -214,7 +214,7 @@ func newConfigUpdate() (cmd *cobra.Command) {
 		},
 		flag.String{
 			Name:        "shared-preload-libraries",
-			Description: "Lists the shared libraries to preload. (comma separated string)",
+			Description: "Sets the shared libraries to preload. (comma separated string)",
 		},
 		flag.Bool{
 			Name:        "auto-confirm",
