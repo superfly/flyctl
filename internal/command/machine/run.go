@@ -393,9 +393,7 @@ func determineImage(ctx context.Context, appName string, imageOrPath string) (im
 	return img, nil
 }
 
-func determineMounts(ctx context.Context) ([]api.MachineMount, error) {
-	var mounts []api.MachineMount
-
+func determineMounts(ctx context.Context, mounts []api.MachineMount) ([]api.MachineMount, error) {
 	for _, v := range flag.GetStringSlice(ctx, "volume") {
 		splittedIDDestOpts := strings.Split(v, ":")
 
@@ -541,7 +539,7 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		machineConf.Init.Cmd = cmd
 	}
 
-	machineConf.Mounts, err = determineMounts(ctx)
+	machineConf.Mounts, err = determineMounts(ctx, machineConf.Mounts)
 	if err != nil {
 		return
 	}
