@@ -30,6 +30,7 @@ var pgSettings = map[string]string{
 	"max-connections":            "max_connections",
 	"log-statement":              "log_statement",
 	"log-min-duration-statement": "log_min_duration_statement",
+	"shared-preload-libraries":   "shared_preload_libraries",
 }
 
 func newConfig() (cmd *cobra.Command) {
@@ -211,9 +212,17 @@ func newConfigUpdate() (cmd *cobra.Command) {
 			Name:        "log-min-duration-statement",
 			Description: "Sets the minimum execution time above which all statements will be logged. (ms)",
 		},
+		flag.String{
+			Name:        "shared-preload-libraries",
+			Description: "Sets the shared libraries to preload. (comma separated string)",
+		},
 		flag.Bool{
 			Name:        "auto-confirm",
 			Description: "Will automatically confirm changes without an interactive prompt.",
+		},
+		flag.Bool{
+			Name:        "force",
+			Description: "Skips pg-setting value verification.",
 		},
 	)
 
@@ -269,66 +278,69 @@ func runConfigUpdate(ctx context.Context) (err error) {
 
 	pgclient := flypg.New(app.Name, dialer)
 
-	settings, err := pgclient.SettingsView(ctx, keys)
-	if err != nil {
-		return err
-	}
-
-	// Verfiy that input values are within acceptible ranges.
-	// Stolon does not verify this, so we need to do it here.
-	for k, v := range rChanges {
-		for _, setting := range settings.Settings {
-			if setting.Name == k {
-				if err = validateConfigValue(setting, k, v); err != nil {
-					return err
-				}
-			}
-		}
-	}
-
-	// Construct a map of the active configuration settings so we can compare.
-	oValues := map[string]string{}
-	for _, setting := range settings.Settings {
-		oValues[setting.Name] = setting.Setting
-	}
-
-	// Calculate diff
-	changelog, _ := diff.Diff(oValues, rChanges)
-	if len(changelog) == 0 {
-		return fmt.Errorf("no changes to apply")
-	}
+	force := flag.GetBool(ctx, "force")
 
 	restartRequired := false
 
-	rows := make([][]string, 0, len(changelog))
-	for _, change := range changelog {
-		requiresRestart := isRestartRequired(settings, change.Path[len(change.Path)-1])
-		if requiresRestart {
-			restartRequired = true
-		}
-		name := strings.Replace(change.Path[len(change.Path)-1], "_", "-", -1)
-
-		rows = append(rows, []string{
-			name,
-			fmt.Sprint(change.From),
-			fmt.Sprint(change.To),
-			fmt.Sprint(requiresRestart),
-		})
-	}
-	_ = render.Table(io.Out, "", rows, "Name", "Value", "Target value", "Restart Required")
-
-	if !flag.GetBool(ctx, "auto-confirm") {
-		const msg = "Are you sure you want to apply these changes?"
-
-		switch confirmed, err := prompt.Confirmf(ctx, msg); {
-		case err == nil:
-			if !confirmed {
-				return nil
-			}
-		case prompt.IsNonInteractive(err):
-			return prompt.NonInteractiveError("auto-confirm flag must be specified when not running interactively")
-		default:
+	if !force {
+		settings, err := pgclient.SettingsView(ctx, keys)
+		if err != nil {
 			return err
+		}
+		// Verfiy that input values are within acceptible ranges.
+		// Stolon does not verify this, so we need to do it here.
+		for k, v := range rChanges {
+			for _, setting := range settings.Settings {
+				if setting.Name == k {
+					if err = validateConfigValue(setting, k, v); err != nil {
+						return err
+					}
+				}
+			}
+		}
+
+		// Construct a map of the active configuration settings so we can compare.
+		oValues := map[string]string{}
+		for _, setting := range settings.Settings {
+			oValues[setting.Name] = setting.Setting
+		}
+
+		// Calculate diff
+		changelog, _ := diff.Diff(oValues, rChanges)
+		if len(changelog) == 0 {
+			return fmt.Errorf("no changes to apply")
+		}
+
+		rows := make([][]string, 0, len(changelog))
+		for _, change := range changelog {
+			requiresRestart := isRestartRequired(settings, change.Path[len(change.Path)-1])
+			if requiresRestart {
+				restartRequired = true
+			}
+			name := strings.Replace(change.Path[len(change.Path)-1], "_", "-", -1)
+
+			rows = append(rows, []string{
+				name,
+				fmt.Sprint(change.From),
+				fmt.Sprint(change.To),
+				fmt.Sprint(requiresRestart),
+			})
+		}
+		_ = render.Table(io.Out, "", rows, "Name", "Value", "Target value", "Restart Required")
+
+		if !flag.GetBool(ctx, "auto-confirm") {
+			const msg = "Are you sure you want to apply these changes?"
+
+			switch confirmed, err := prompt.Confirmf(ctx, msg); {
+			case err == nil:
+				if !confirmed {
+					return nil
+				}
+			case prompt.IsNonInteractive(err):
+				return prompt.NonInteractiveError("auto-confirm flag must be specified when not running interactively")
+			default:
+				return err
+			}
 		}
 	}
 
