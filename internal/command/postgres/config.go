@@ -214,7 +214,7 @@ func newConfigUpdate() (cmd *cobra.Command) {
 		},
 		flag.String{
 			Name:        "shared-preload-libraries",
-			Description: "Lists shared libraries to preload into server (comma separated string)",
+			Description: "Lists the shared libraries to preload. (comma separated string)",
 		},
 		flag.Bool{
 			Name:        "auto-confirm",
@@ -342,7 +342,6 @@ func runConfigUpdate(ctx context.Context) (err error) {
 				return err
 			}
 		}
-
 	}
 
 	switch app.PlatformVersion {
