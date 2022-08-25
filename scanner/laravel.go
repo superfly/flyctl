@@ -25,17 +25,7 @@ func configureLaravel(sourceDir string) (*SourceInfo, error) {
 		return nil, nil
 	}
 
-	files := templates("templates/laravel/common")
-
-	var extra []SourceFile
-	if checksPass(sourceDir, dirContains("composer.json", "laravel/octane")) {
-		extra = templates("templates/laravel/octane")
-	} else {
-		extra = templates("templates/laravel/standard")
-	}
-
-	// Merge common files with runtime-specific files (standard or octane)
-	files = append(files, extra...)
+	files := templates("templates/laravel")
 
 	s := &SourceInfo{
 		Env: map[string]string{
