@@ -2,6 +2,7 @@ package imgsrc
 
 import (
 	"archive/tar"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -159,17 +160,21 @@ func TestArchiverNoCompressionWithAdditions(t *testing.T) {
 }
 
 func TestParseDockerignore(t *testing.T) {
-	cases := map[string][]string{
-		"node_modules\n*.jpg":                {"node_modules", "*.jpg", "fly.toml"},
-		"node_modules\n*.jpg\nDockerfile":    {"node_modules", "*.jpg", "Dockerfile", "fly.toml", "![Dd]ockerfile"},
-		"node_modules\n*.jpg\ndockerfile":    {"node_modules", "*.jpg", "dockerfile", "fly.toml", "![Dd]ockerfile"},
-		"node_modules\n*.jpg\n.dockerignore": {"node_modules", "*.jpg", ".dockerignore", "fly.toml", "!.dockerignore"},
+	cases := []struct {
+		dockerignore  string
+		dockerfileRel string
+		excludes      []string
+	}{
+		{"node_modules\n*.jpg", "Dockerfile", []string{"node_modules", "*.jpg", "fly.toml"}},
+		{"node_modules\n*.jpg\nDockerfile", "Dockerfile", []string{"node_modules", "*.jpg", "Dockerfile", "fly.toml", "!Dockerfile"}},
+		{"node_modules\n*.jpg\ndockerfile", "dockerfile", []string{"node_modules", "*.jpg", "dockerfile", "fly.toml", "!dockerfile"}},
+		{"node_modules\n*.jpg\n.dockerignore", "Dockerfile", []string{"node_modules", "*.jpg", ".dockerignore", "fly.toml", "!.dockerignore"}},
 	}
 
-	for input, expected := range cases {
-		excludes, err := parseDockerignore(strings.NewReader(input))
+	for i, testCase := range cases {
+		excludes, err := parseDockerignore(strings.NewReader(testCase.dockerignore), testCase.dockerfileRel)
 		assert.NoError(t, err)
-		assert.Equal(t, expected, excludes, input)
+		assert.Equal(t, testCase.excludes, excludes, fmt.Sprintf("test case %d", i))
 	}
 }
 

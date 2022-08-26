@@ -76,6 +76,11 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 		return nil, nil
 	}
 
+	dockerfile, err := filepath.EvalSymlinks(dockerfile)
+	if err != nil {
+		return nil, errors.Wrap(err, "error evaluating Dockerfile symbolic link")
+	}
+
 	docker, err := dockerFactory.buildFn(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "error connecting to docker")
@@ -90,22 +95,17 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 		compressed: dockerFactory.IsRemote(),
 	}
 
-	excludes, err := readDockerignore(opts.WorkingDir)
-	if err != nil {
-		return nil, errors.Wrap(err, "error reading .dockerignore")
-	}
-	archiveOpts.exclusions = excludes
-
 	var relativedockerfilePath string
 
 	// copy dockerfile into the archive if it's outside the context dir
 	if !isPathInRoot(dockerfile, opts.WorkingDir) {
+		relativedockerfilePath = "Dockerfile"
 		dockerfileData, err := os.ReadFile(dockerfile)
 		if err != nil {
 			return nil, errors.Wrap(err, "error reading Dockerfile")
 		}
 		archiveOpts.additions = map[string][]byte{
-			"Dockerfile": dockerfileData,
+			relativedockerfilePath: dockerfileData,
 		}
 	} else {
 		// pass the relative path to Dockerfile within the context
@@ -115,6 +115,12 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 		}
 		relativedockerfilePath = p
 	}
+
+	excludes, err := readDockerignore(opts.WorkingDir, relativedockerfilePath)
+	if err != nil {
+		return nil, errors.Wrap(err, "error reading .dockerignore")
+	}
+	archiveOpts.exclusions = excludes
 
 	// Start tracking this build
 

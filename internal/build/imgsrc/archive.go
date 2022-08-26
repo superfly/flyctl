@@ -51,7 +51,7 @@ func archiveDirectory(options archiveOptions) (io.ReadCloser, error) {
 	return r, nil
 }
 
-func readDockerignore(workingDir string) ([]string, error) {
+func readDockerignore(workingDir string, dockerfileRel string) ([]string, error) {
 	file, err := os.Open(filepath.Join(workingDir, ".dockerignore"))
 	if os.IsNotExist(err) {
 		return []string{}, nil
@@ -60,10 +60,10 @@ func readDockerignore(workingDir string) ([]string, error) {
 	}
 	defer file.Close()
 
-	return parseDockerignore(file)
+	return parseDockerignore(file, dockerfileRel)
 }
 
-func parseDockerignore(r io.Reader) ([]string, error) {
+func parseDockerignore(r io.Reader, dockerfileRel string) ([]string, error) {
 	excludes, err := dockerignore.ReadAll(r)
 	if err != nil {
 		return nil, err
@@ -73,16 +73,16 @@ func parseDockerignore(r io.Reader) ([]string, error) {
 		excludes = append(excludes, "fly.toml")
 	}
 
+	// When a user writes a dockerignore file, they might include a rule for "Dockerfile", or ".dockerignore".
+	// Those files must still be sent to the Docker daemon via this archive, however the user's intent of having
+	// the file excluded from the image that gets built is still preserved because their dockerignore file
+	// is transmitted in the archive as-is before these exclusions are added.
 	if match, _ := fileutils.Matches(".dockerignore", excludes); match {
 		excludes = append(excludes, "!.dockerignore")
 	}
 
-	if match, _ := fileutils.Matches("Dockerfile", excludes); match {
-		excludes = append(excludes, "![Dd]ockerfile")
-	}
-
-	if match, _ := fileutils.Matches("dockerfile", excludes); match {
-		excludes = append(excludes, "![Dd]ockerfile")
+	if match, _ := fileutils.Matches(dockerfileRel, excludes); match {
+		excludes = append(excludes, "!"+dockerfileRel)
 	}
 
 	return excludes, nil

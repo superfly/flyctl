@@ -51,7 +51,7 @@ func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		compressed: dockerFactory.IsRemote(),
 	}
 
-	excludes, err := readDockerignore(opts.WorkingDir)
+	excludes, err := readDockerignore(opts.WorkingDir, "Dockerfile")
 	if err != nil {
 		return nil, errors.Wrap(err, "error reading .dockerignore")
 	}

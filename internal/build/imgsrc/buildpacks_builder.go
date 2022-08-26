@@ -55,7 +55,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	msg := fmt.Sprintf("docker host: %s %s %s", serverInfo.ServerVersion, serverInfo.OSType, serverInfo.Architecture)
 	cmdfmt.PrintDone(streams.ErrOut, msg)
 
-	excludes, err := readDockerignore(opts.WorkingDir)
+	excludes, err := readDockerignore(opts.WorkingDir, "Dockerfile")
 	if err != nil {
 		return nil, errors.Wrap(err, "error reading .dockerignore")
 	}
