@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y \
     php${DOCKER_VERSION}-pgsql php${PHP_VERSION}-bcmath \
     php${DOCKER_VERSION}-swoole php${PHP_VERSION}-xml php${PHP_VERSION}-mbstring \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /var/www/html
 # copy application code, skipping files based on .dockerignore
