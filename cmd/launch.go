@@ -313,14 +313,12 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 			appConfig.SetKillSignal(srcInfo.KillSignal)
 		}
 	}
-	appName := "tinker"
-	appID := "bleep"
 
 	out := iostreams.FromContext(ctx).Out
 
 	adminLink := fmt.Sprintf("https://fly.io/apps/%s", appName)
 	appLink := fmt.Sprintf("%s.fly.dev", appName)
-	links := fmt.Sprintf("Admin URL: %s\nURL: %s \nApp ID: %s \n", adminLink, appLink, appID)
+	links := fmt.Sprintf("Admin URL: %s\nURL: %s \nApp ID: %s \n", adminLink, appLink, cmdCtx.AppName)
 
 	fmt.Fprintln(out, colorize.Yellow(aurora.Underline("App Created\n").String()))
 	fmt.Fprintln(out, links)
