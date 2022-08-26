@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/heroku"
 )
 
 var errAppNameTaken = fmt.Errorf("app already exists")
@@ -82,13 +83,11 @@ func runTurboku(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("heroku-token is required")
 	}
 
-	hero.DefaultTransport.BearerToken = herokuToken
-
 	appID := cmdCtx.Args[0]
 
-	heroku := hero.NewService(hero.DefaultClient)
+	herokuClient := heroku.New(herokuToken)
 
-	hkApp, err := heroku.AppInfo(ctx, appID)
+	hkApp, err := herokuClient.AppInfo(ctx, appID)
 	if err != nil {
 		return err
 	}
@@ -162,7 +161,7 @@ func runTurboku(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	// retrieve heroku app ENV map[key]value and set it on fly.io as secrets
-	env, err := heroku.ConfigVarInfoForApp(ctx, appID)
+	env, err := herokuClient.ConfigVarInfoForApp(ctx, appID)
 	if err != nil {
 		return err
 	}
@@ -190,7 +189,7 @@ func runTurboku(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	// get latest release
-	releases, err := heroku.ReleaseList(ctx, appID, &hero.ListRange{Field: "version", Descending: true, Max: 1})
+	releases, err := herokuClient.ReleaseList(ctx, appID, &hero.ListRange{Field: "version", Descending: true, Max: 1})
 	if err != nil {
 		return err
 	}
@@ -203,7 +202,7 @@ func runTurboku(cmdCtx *cmdctx.CmdContext) error {
 	latestRelease := releases[0]
 
 	// get the latest release's slug
-	slug, err := heroku.SlugInfo(ctx, hkApp.ID, latestRelease.Slug.ID)
+	slug, err := herokuClient.SlugInfo(ctx, hkApp.ID, latestRelease.Slug.ID)
 	if err != nil {
 		return err
 	}
