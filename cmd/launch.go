@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/filemu"
+	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 	"github.com/superfly/graphql"
 )
@@ -86,16 +87,20 @@ func newLaunchCommand(client *client.Client) *Command {
 }
 
 func runLaunch(cmdCtx *cmdctx.CmdContext) error {
-	ctx := cmdCtx.Command.Context()
-
-	dir := cmdCtx.Config.GetString("path")
+	var (
+		importedConfig bool
+		ctx            = cmdCtx.Command.Context()
+		dir            = cmdCtx.Config.GetString("path")
+		orgSlug        = cmdCtx.Config.GetString("org")
+		appConfig      = flyctl.NewAppConfig()
+		io             = iostreams.FromContext(ctx)
+		colorize       = io.ColorScheme()
+	)
 
 	if absDir, err := filepath.Abs(dir); err == nil {
 		dir = absDir
 	}
 	cmdCtx.WorkingDir = dir
-
-	orgSlug := cmdCtx.Config.GetString("org")
 
 	// start a remote builder for the personal org if necessary
 	eagerBuilderOrg := orgSlug
@@ -104,9 +109,6 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	}
 	go imgsrc.EagerlyEnsureRemoteBuilder(ctx, cmdCtx.Client.API(), eagerBuilderOrg)
 
-	appConfig := flyctl.NewAppConfig()
-
-	var importedConfig bool
 	configFilePath := filepath.Join(dir, "fly.toml")
 	if exists, _ := flyctl.ConfigFileExistsAtPath(configFilePath); exists {
 		cfg, err := flyctl.LoadAppConfig(configFilePath)
@@ -311,8 +313,17 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 			appConfig.SetKillSignal(srcInfo.KillSignal)
 		}
 	}
+	appName := "tinker"
+	appID := "bleep"
 
-	fmt.Printf("Created app %s in organization %s\n", cmdCtx.AppName, org.Slug)
+	out := iostreams.FromContext(ctx).Out
+
+	adminLink := fmt.Sprintf("https://fly.io/apps/%s", appName)
+	appLink := fmt.Sprintf("%s.fly.dev", appName)
+	links := fmt.Sprintf("Admin URL: %s\nURL: %s \nApp ID: %s \n", adminLink, appLink, appID)
+
+	fmt.Fprintln(out, colorize.Yellow(aurora.Underline("App Created\n").String()))
+	fmt.Fprintln(out, links)
 
 	// If secrets are requested by the launch scanner, ask the user to input them
 	if srcInfo != nil && len(srcInfo.Secrets) > 0 {
