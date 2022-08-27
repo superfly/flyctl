@@ -34,11 +34,6 @@ func newDetach() *cobra.Command {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
-
-		flag.String{
-			Name:        "postgres-app",
-			Description: "Name of the postgres app to detach",
-		},
 	)
 
 	return cmd
