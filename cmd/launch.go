@@ -443,7 +443,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		cmdCtx.AppName = appID
 
 		if err != nil {
-			msg := `Failed attaching %s to the Postgres cluster %s: %w.\nTry attaching manually with 'fly postgres attach --app %s --postgres-app %s'`
+			msg := `Failed attaching %s to the Postgres cluster %s: %w.\nTry attaching manually with 'fly postgres attach --app %s %s'`
 			err = fmt.Errorf(msg, clusterAppName, appID, err, appID, clusterAppName)
 			return err
 		}

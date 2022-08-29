@@ -35,10 +35,6 @@ func newAttach() *cobra.Command {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
-		// flag.String{
-		// 	Name:        "postgres-app",
-		// 	Description: "The name of the postgres app we are looking to attach.",
-		// },
 		flag.String{
 			Name:        "database-name",
 			Description: "The designated database name for this consuming app.",
