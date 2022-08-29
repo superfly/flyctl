@@ -59,9 +59,14 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 		"NODE_VERSION":    nodeVersion,
 	}
 
-	// master.key comes with Rails apps from v6 onwards, but may not be present
-	// if the app does not use Rails encrypted credentials
-	masterKey, err := ioutil.ReadFile("config/master.key")
+	// master.key comes with Rails apps from v5.2 onwards, but may not be present
+	// if the app does not use Rails encrypted credentials.  Rails v6 added
+	// support for multi-environment credentials.  Use the Rails searching
+	// sequence for production credentials to determine the RAILS_MASTER_KEY.
+	masterKey, err := ioutil.ReadFile("config/credentials/production.key")
+	if err != nil {
+		masterKey, err = ioutil.ReadFile("config/master.key")
+	}
 
 	if err == nil {
 		s.Secrets = []Secret{
