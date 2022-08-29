@@ -118,27 +118,28 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 	}
 
 	rake := strings.TrimSpace(`
+# commands used to deploy a Rails application
 namespace :fly do
-  # commands used to deploy a Rails application
+
+  # BUILD step:
+  #  - changes to the fs make here DO get deployed
+  #  - NO access to secrets, volumes, databases
+  #  - Failures here prevent deployment
   task :build => 'assets:precompile'
 
+  # RELEASE step:
+  #  - changes to the fs make here are DISCARDED
+  #  - access secrets, databases
+  #  - Failures here prevent deployment
   task :release => 'db:migrate'
 
+  # SERVER step:
+  #  - changes to the fs make here are deployed
+  #  - access secrets, databases
+  #  - Failures here result in VM being stated, shutdown, and rollback
+  #    to last successful VM.
   task :server do
     sh 'bin/rails server'
-  end
-
-  # commands useful on the development machine
-  task :ssh do
-    sh 'fly ssh console'
-  end
-
-  task :console do
-    sh 'fly ssh console -C "/home/app/showcase/bin/rails console"'
-  end
-
-  task :dbconsole do
-    sh 'fly ssh console -C "/home/app/showcase/bin/rails dbconsole"'
   end
 end
 `)
