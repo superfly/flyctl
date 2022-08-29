@@ -146,7 +146,7 @@ end
 
 	_, err = os.Stat("lib/tasks/fly.rake")
 	if errors.Is(err, os.ErrNotExist) {
-		os.WriteFile("lib/tasks/fly.rake", []byte(rake), 0o644)
+		os.WriteFile("lib/tasks/fly.rake", []byte(rake), 0o600)
 	}
 
 	s.SkipDeploy = true
