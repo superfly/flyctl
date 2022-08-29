@@ -29,6 +29,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyd"
 )
 
 var sharedFlags = flag.Set{
@@ -118,6 +119,10 @@ var sharedFlags = flag.Set{
 		Shorthand:   "m",
 		Description: "Metadata in the form of NAME=VALUE pairs. Can be specified multiple times.",
 	},
+	flag.String{
+		Name:        "schedule",
+		Description: `Schedule a machine run at hourly, daily and monthly intervals`,
+	},
 }
 
 func newRun() *cobra.Command {
@@ -192,6 +197,17 @@ func runMachineRun(ctx context.Context) error {
 			MemoryMB:   256,
 			KernelArgs: flag.GetStringSlice(ctx, "kernel-arg"),
 		},
+	}
+
+	schedule := flag.GetString(ctx, "schedule")
+	if schedule != "" {
+		//validate
+		_, scheduleIsSupported := flyd.Cronschedule[schedule]
+		if !scheduleIsSupported {
+			return fmt.Errorf("invalid schedule was set %s", schedule)
+		}
+		machineConf.Schedule = schedule
+
 	}
 
 	input := api.LaunchMachineInput{
