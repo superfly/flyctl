@@ -81,7 +81,7 @@ ENV SECRET_KEY_BASE 1
 
 COPY . .
 
-RUN bundle exec rails assets:precompile
+RUN bin/rails fly:build
 
 ENV PORT 8080
 

@@ -1,10 +1,12 @@
 package scanner
 
 import (
+	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
+	"os/exec"
 	"regexp"
+	"strings"
 )
 
 func configureRails(sourceDir string) (*SourceInfo, error) {
@@ -30,27 +32,64 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 				Condition:   !checksPass(sourceDir, dirContains("Gemfile", "pg")),
 			},
 		},
-		ReleaseCmd: "bundle exec rails db:migrate",
+		ReleaseCmd: "bin/rails fly:release",
 		Env: map[string]string{
-			"SERVER_COMMAND": "bundle exec puma",
+			"SERVER_COMMAND": "bin/rails fly:server",
 			"PORT":           "8080",
 		},
 	}
 
 	var rubyVersion string
 	var bundlerVersion string
-	var nodeVersion string = "14"
+	var nodeVersion string = "16.17.0"
 
-	rubyVersion, err := extractRubyVersion("Gemfile", ".ruby_version")
+	out, err := exec.Command("node", "-v").Output()
+
+	if err == nil {
+		nodeVersion = strings.TrimSpace(string(out))
+		if nodeVersion[:1] == "v" {
+			nodeVersion = nodeVersion[1:]
+		}
+	}
+
+	rubyVersion, err = extractRubyVersion("Gemfile", ".ruby_version")
 
 	if err != nil || rubyVersion == "" {
-		rubyVersion = "3.1.1"
+		rubyVersion = "3.1.2"
+
+		out, err := exec.Command("ruby", "-v").Output()
+		if err == nil {
+
+			version := strings.TrimSpace(string(out))
+			re := regexp.MustCompile(`ruby (?P<version>[\d.]+)`)
+			m := re.FindStringSubmatch(version)
+
+			for i, name := range re.SubexpNames() {
+				if len(m) > 0 && name == "version" {
+					rubyVersion = m[i]
+				}
+			}
+		}
 	}
 
 	bundlerVersion, err = extractBundlerVersion("Gemfile.lock")
 
 	if err != nil || bundlerVersion == "" {
-		bundlerVersion = "2.3.9"
+		bundlerVersion = "2.3.21"
+
+		out, err := exec.Command("bundle", "-v").Output()
+		if err == nil {
+
+			version := strings.TrimSpace(string(out))
+			re := regexp.MustCompile(`Bundler version (?P<version>[\d.]+)`)
+			m := re.FindStringSubmatch(version)
+
+			for i, name := range re.SubexpNames() {
+				if len(m) > 0 && name == "version" {
+					bundlerVersion = m[i]
+				}
+			}
+		}
 	}
 
 	s.BuildArgs = map[string]string{
@@ -63,9 +102,9 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 	// if the app does not use Rails encrypted credentials.  Rails v6 added
 	// support for multi-environment credentials.  Use the Rails searching
 	// sequence for production credentials to determine the RAILS_MASTER_KEY.
-	masterKey, err := ioutil.ReadFile("config/credentials/production.key")
+	masterKey, err := os.ReadFile("config/credentials/production.key")
 	if err != nil {
-		masterKey, err = ioutil.ReadFile("config/master.key")
+		masterKey, err = os.ReadFile("config/master.key")
 	}
 
 	if err == nil {
@@ -78,6 +117,37 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 		}
 	}
 
+	rake := strings.TrimSpace(`
+namespace :fly do
+  # commands used to deploy a Rails application
+  task :build => 'assets:precompile'
+
+  task :release => 'db:migrate'
+
+  task :server do
+    sh 'bin/rails server'
+  end
+
+  # commands useful on the development machine
+  task :ssh do
+    sh 'fly ssh console'
+  end
+
+  task :console do
+    sh 'fly ssh console -C "/home/app/showcase/bin/rails console"'
+  end
+
+  task :dbconsole do
+    sh 'fly ssh console -C "/home/app/showcase/bin/rails dbconsole"'
+  end
+end
+`)
+
+	_, err = os.Stat("lib/tasks/fly.rake")
+	if errors.Is(err, os.ErrNotExist) {
+		os.WriteFile("lib/tasks/fly.rake", []byte(rake), 0o644)
+	}
+
 	s.SkipDeploy = true
 	s.DeployDocs = fmt.Sprintf(`
 Your Rails app is prepared for deployment. Production will be set up with these versions of core runtime packages:
@@ -88,7 +158,7 @@ NodeJS %s
 
 You can configure these in the [build] section in the generated fly.toml.
 
-Ruby versions available are: 3.1.1, 3.0.3, 2.7.5, and 2.6.9. Learn more about the chosen Ruby stack, Fullstaq Ruby, here: https://github.com/evilmartians/fullstaq-ruby-docker.
+Ruby versions available are: 3.1.2, 3.0.4, and 2.7.6. Learn more about the chosen Ruby stack, Fullstaq Ruby, here: https://github.com/evilmartians/fullstaq-ruby-docker.
 We recommend using the highest patch level for better security and performance.
 
 For the other packages, specify any version you need.
