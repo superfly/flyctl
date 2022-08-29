@@ -29,7 +29,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
-	"github.com/superfly/flyd"
 )
 
 var sharedFlags = flag.Set{
@@ -201,13 +200,7 @@ func runMachineRun(ctx context.Context) error {
 
 	schedule := flag.GetString(ctx, "schedule")
 	if schedule != "" {
-		//validate
-		_, scheduleIsSupported := flyd.Cronschedule[schedule]
-		if !scheduleIsSupported {
-			return fmt.Errorf("invalid schedule was set %s", schedule)
-		}
 		machineConf.Schedule = schedule
-
 	}
 
 	input := api.LaunchMachineInput{
