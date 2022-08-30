@@ -96,7 +96,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			Name:              volumeName,
 			Region:            config.Region,
 			SizeGb:            *config.VolumeSize,
-			Encrypted:         false,
+			Encrypted:         true,
 			RequireUniqueZone: false,
 			SnapshotID:        snapshot,
 		}
@@ -110,7 +110,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			Volume:    vol.ID,
 			Path:      volumePath,
 			SizeGb:    *config.VolumeSize,
-			Encrypted: false,
+			Encrypted: vol.Encrypted,
 		})
 
 		launchInput := api.LaunchMachineInput{
