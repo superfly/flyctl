@@ -85,7 +85,6 @@ func runMachineList(ctx context.Context) (err error) {
 		}
 		_ = render.Table(io.Out, appName, rows, "ID")
 	} else {
-
 		for _, machine := range machines {
 			var volName string
 			if machine.Config != nil && len(machine.Config.Mounts) > 0 {
