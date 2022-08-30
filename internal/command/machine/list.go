@@ -86,19 +86,25 @@ func runMachineList(ctx context.Context) (err error) {
 		_ = render.Table(io.Out, appName, rows, "ID")
 	} else {
 		for _, machine := range machines {
+			var volName string
+			if machine.Config != nil && len(machine.Config.Mounts) > 0 {
+				volName = machine.Config.Mounts[0].Volume
+			}
+
 			rows = append(rows, []string{
 				machine.ID,
-				fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag),
-				machine.CreatedAt,
-				machine.UpdatedAt,
+				machine.Name,
 				machine.State,
 				machine.Region,
-				machine.Name,
+				fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag),
 				machine.PrivateIP,
+				volName,
+				machine.CreatedAt,
+				machine.UpdatedAt,
 			})
 		}
 
-		_ = render.Table(io.Out, appName, rows, "ID", "Image", "Created", "Last Updated", "State", "Region", "Name", "IP Address")
+		_ = render.Table(io.Out, appName, rows, "ID", "Name", "State", "Region", "Image", "IP Address", "Volume", "Created", "Last Updated")
 	}
 	return nil
 }
