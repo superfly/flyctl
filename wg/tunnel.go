@@ -38,14 +38,14 @@ func doConnect(ctx context.Context, state *WireGuardState, wswg bool) (*Tunnel, 
 	addr, ok := netip.AddrFromSlice(cfg.LocalNetwork.IP)
 
 	if !ok {
-		return nil, fmt.Errorf("Could not parse generate addr from IP %s: ", cfg.LocalNetwork.IP)
+		return nil, fmt.Errorf("could not generate local network addr from IP %s: ", cfg.LocalNetwork.IP)
 	}
 
 	localIPs := []netip.Addr{addr}
 	dnsIP, ok := netip.AddrFromSlice(cfg.DNS)
 
 	if !ok {
-		return nil, fmt.Errorf("Could not parse generate addr from IP %s: ", cfg.DNS)
+		return nil, fmt.Errorf("could not generate DNS addr from IP %s: ", cfg.DNS)
 	}
 
 	mtu := cfg.MTU
@@ -158,7 +158,7 @@ func (t *Tunnel) ListenPing() (*netstack.PingConn, error) {
 	laddr, ok := netip.AddrFromSlice(t.Config.LocalNetwork.IP)
 
 	if !ok {
-		return nil, fmt.Errorf("Could not parse generate addr from IP %s: ", t.Config.LocalNetwork.IP)
+		return nil, fmt.Errorf("could not generate local network addr from IP %s: ", t.Config.LocalNetwork.IP)
 	}
 
 	raddr := netip.IPv6Unspecified()
