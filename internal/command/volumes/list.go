@@ -74,11 +74,12 @@ func runList(ctx context.Context) error {
 			strconv.Itoa(volume.SizeGb) + "GB",
 			volume.Region,
 			volume.Host.ID,
+			fmt.Sprint(volume.Encrypted),
 			attachedAllocID,
 			humanize.Time(volume.CreatedAt),
 		})
 
 	}
 
-	return render.Table(out, "", rows, "ID", "State", "Name", "Size", "Region", "Zone", "Attached VM", "Created At")
+	return render.Table(out, "", rows, "ID", "State", "Name", "Size", "Region", "Zone", "Encrypted", "Attached VM", "Created At")
 }
