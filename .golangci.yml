@@ -28,7 +28,7 @@ linters:
   disable-all: true
   enable:
     # - gofumpt
-    - goimports
+    # - goimports
     - gosimple
     - govet
     - ineffassign
