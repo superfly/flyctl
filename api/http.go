@@ -64,7 +64,6 @@ func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 }
 
 func (t *LoggingTransport) logRequest(req *http.Request) {
-
 	t.Logger.Debugf("--> %s %s\n", req.Method, req.URL)
 
 	if req.Body == nil {
@@ -93,7 +92,7 @@ func (t *LoggingTransport) logResponse(resp *http.Response) {
 	defer resp.Body.Close()
 
 	if start, ok := ctx.Value(contextKeyRequestStart).(time.Time); ok {
-		t.Logger.Debugf("<-- %d %s (%s)\n", resp.StatusCode, resp.Request.URL, Duration(time.Since(start), 2))
+		t.Logger.Debugf("<-- %d %s (%s)\n", resp.StatusCode, resp.Request.URL, shiftedDuration(time.Since(start), 2))
 	} else {
 		t.Logger.Debugf("<-- %d %s %s\n", resp.StatusCode, resp.Request.URL)
 	}
@@ -109,7 +108,7 @@ func (t *LoggingTransport) logResponse(resp *http.Response) {
 	resp.Body = ioutil.NopCloser(bytes.NewReader(data))
 }
 
-func Duration(d time.Duration, dicimal int) time.Duration {
+func shiftedDuration(d time.Duration, dicimal int) time.Duration {
 	shift := int(math.Pow10(dicimal))
 
 	units := []time.Duration{time.Second, time.Millisecond, time.Microsecond, time.Nanosecond}
