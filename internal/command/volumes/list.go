@@ -57,13 +57,17 @@ func runList(ctx context.Context) error {
 
 	rows := make([][]string, 0, len(volumes))
 	for _, volume := range volumes {
-		var attachedAllocID string
+		var attachedVMID string
 
-		if volume.AttachedAllocation != nil {
-			attachedAllocID = volume.AttachedAllocation.IDShort
+		if volume.App.PlatformVersion == "machines" {
+			if volume.AttachedMachine != nil {
+				attachedVMID = volume.AttachedMachine.ID
+			}
+		} else {
+			attachedVMID = volume.AttachedAllocation.IDShort
 
 			if volume.AttachedAllocation.TaskName != "app" {
-				attachedAllocID = fmt.Sprintf("%s (%s)", volume.AttachedAllocation.IDShort, volume.AttachedAllocation.TaskName)
+				attachedVMID = fmt.Sprintf("%s (%s)", volume.AttachedAllocation.IDShort, volume.AttachedAllocation.TaskName)
 			}
 		}
 
@@ -75,10 +79,9 @@ func runList(ctx context.Context) error {
 			volume.Region,
 			volume.Host.ID,
 			fmt.Sprint(volume.Encrypted),
-			attachedAllocID,
+			attachedVMID,
 			humanize.Time(volume.CreatedAt),
 		})
-
 	}
 
 	return render.Table(out, "", rows, "ID", "State", "Name", "Size", "Region", "Zone", "Encrypted", "Attached VM", "Created At")

@@ -356,7 +356,8 @@ type Snapshot struct {
 type Volume struct {
 	ID  string `json:"id"`
 	App struct {
-		Name string
+		Name            string
+		PlatformVersion string
 	}
 	Name      string
 	SizeGb    int
@@ -368,6 +369,7 @@ type Volume struct {
 	Encrypted          bool
 	CreatedAt          time.Time
 	AttachedAllocation *AllocationStatus
+	AttachedMachine    *GqlMachine
 	Host               struct {
 		ID string
 	}
