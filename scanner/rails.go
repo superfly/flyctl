@@ -149,7 +149,7 @@ func extractRubyVersion(gemfilePath string, rubyVersionPath string) (string, err
 		return "", err
 	}
 
-	re := regexp.MustCompile(`ruby \"(?P<version>.+)\"`)
+	re := regexp.MustCompile(`ruby \"(?P<version>[\d.]+)\"`)
 	m := re.FindStringSubmatch(string(gemfileContents))
 
 	for i, name := range re.SubexpNames() {
@@ -182,7 +182,7 @@ func extractBundlerVersion(gemfileLockPath string) (string, error) {
 		return "", err
 	}
 
-	re := regexp.MustCompile(`BUNDLED WITH\n\s{3}(?P<version>.+)\n`)
+	re := regexp.MustCompile(`BUNDLED WITH\n\s{3}(?P<version>[\d.]+)\n`)
 	m := re.FindStringSubmatch(string(gemfileContents))
 	for i, name := range re.SubexpNames() {
 		if len(m) > 0 && name == "version" {
