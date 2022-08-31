@@ -11,12 +11,12 @@ import (
 	"net/http"
 
 	"github.com/samber/lo"
+
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/logger"
-
-	"github.com/superfly/flyctl/client"
 )
 
 var NonceHeader = "fly-machine-lease-nonce"
@@ -290,7 +290,6 @@ func (f *Client) NewRequest(ctx context.Context, method, path string, in interfa
 			return nil, err
 		}
 		headers["Content-Type"] = []string{"application/json"}
-
 		body = bytes.NewReader(b)
 	}
 

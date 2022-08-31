@@ -99,9 +99,11 @@ type RemoveMachineInput struct {
 
 type MachineRestartPolicy string
 
-var MachineRestartPolicyNo MachineRestartPolicy = "no"
-var MachineRestartPolicyOnFailure MachineRestartPolicy = "on-failure"
-var MachineRestartPolicyAlways MachineRestartPolicy = "always"
+var (
+	MachineRestartPolicyNo        MachineRestartPolicy = "no"
+	MachineRestartPolicyOnFailure MachineRestartPolicy = "on-failure"
+	MachineRestartPolicyAlways    MachineRestartPolicy = "always"
+)
 
 type MachineRestart struct {
 	Policy MachineRestartPolicy `json:"policy"`
@@ -145,6 +147,15 @@ type MachineMetrics struct {
 	Path string `toml:"path" json:"path"`
 }
 
+type MachineCheck struct {
+	Type       string    `json:"type"`
+	Port       uint16    `json:"port"`
+	Interval   *Duration `json:"interval"`
+	Timeout    *Duration `json:"timeout"`
+	HTTPMethod *string   `json:"method"`
+	HTTPPath   *string   `json:"path"`
+}
+
 type MachinePort struct {
 	Port       int      `json:"port" toml:"port"`
 	Handlers   []string `json:"handlers,omitempty" toml:"handlers,omitempty"`
@@ -165,17 +176,18 @@ type MachineServiceConcurrency struct {
 }
 
 type MachineConfig struct {
-	Env      map[string]string `json:"env"`
-	Init     MachineInit       `json:"init,omitempty"`
-	Image    string            `json:"image"`
-	Metadata map[string]string `json:"metadata"`
-	Mounts   []MachineMount    `json:"mounts,omitempty"`
-	Restart  MachineRestart    `json:"restart,omitempty"`
-	Services []MachineService  `json:"services,omitempty"`
-	VMSize   string            `json:"size,omitempty"`
-	Guest    *MachineGuest     `json:"guest,omitempty"`
-	Metrics  *MachineMetrics   `json:"metrics"`
-	Schedule string            `json:"schedule,omitempty"`
+	Env      map[string]string       `json:"env"`
+	Init     MachineInit             `json:"init,omitempty"`
+	Image    string                  `json:"image"`
+	Metadata map[string]string       `json:"metadata"`
+	Mounts   []MachineMount          `json:"mounts,omitempty"`
+	Restart  MachineRestart          `json:"restart,omitempty"`
+	Services []MachineService        `json:"services,omitempty"`
+	VMSize   string                  `json:"size,omitempty"`
+	Guest    *MachineGuest           `json:"guest,omitempty"`
+	Metrics  *MachineMetrics         `json:"metrics"`
+	Schedule string                  `json:"schedule,omitempty"`
+	Checks   map[string]MachineCheck `json:"checks,omitempty"`
 }
 
 type MachineLease struct {
