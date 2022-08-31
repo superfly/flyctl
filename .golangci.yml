@@ -28,8 +28,6 @@ linters:
   disable-all: true
   enable:
     - gofumpt
-    - deadcode
-    # - errcheck
     - goimports
     - gosimple
     - govet
@@ -37,12 +35,12 @@ linters:
     - staticcheck
     - unconvert
     - unused
-    - varcheck
   fast: true
 
 # options for analysis running
 run:
   go: "1.19"
+
   # default concurrency is a available CPU number
   concurrency: 4
 
@@ -106,6 +104,8 @@ output:
 
 # all available settings of specific linters
 linters-settings:
+  gofumpt:
+    module-path: github.com/superfly/flyctl
   errcheck:
     # report about not checking of errors in type assetions: `a := b.(MyStruct)`;
     # default is false: such cases aren't reported by default.
