@@ -80,15 +80,12 @@ func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Ma
 	rows := [][]string{}
 
 	for _, machine := range machines {
-		var role string
+		pgCli := flypg.NewFromInstance(fmt.Sprintf("[%s]", machine.PrivateIP), dialer)
 
-		if app.PostgresAppRole != nil {
-			pgCli := flypg.NewFromInstance(fmt.Sprintf("[%s]", machine.PrivateIP), dialer)
-
-			role, err = pgCli.NodeRole(ctx)
-			if err != nil {
-				role = "error"
-			}
+		role, err := pgCli.NodeRole(ctx)
+		if err != nil {
+			// TODO - Determine best way to present this error.
+			role = "error"
 		}
 
 		rows = append(rows, []string{
