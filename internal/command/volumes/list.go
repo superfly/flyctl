@@ -64,10 +64,12 @@ func runList(ctx context.Context) error {
 				attachedVMID = volume.AttachedMachine.ID
 			}
 		} else {
-			attachedVMID = volume.AttachedAllocation.IDShort
+			if volume.AttachedAllocation != nil {
+				attachedVMID = volume.AttachedAllocation.IDShort
 
-			if volume.AttachedAllocation.TaskName != "app" {
-				attachedVMID = fmt.Sprintf("%s (%s)", volume.AttachedAllocation.IDShort, volume.AttachedAllocation.TaskName)
+				if volume.AttachedAllocation.TaskName != "app" {
+					attachedVMID = fmt.Sprintf("%s (%s)", volume.AttachedAllocation.IDShort, volume.AttachedAllocation.TaskName)
+				}
 			}
 		}
 
