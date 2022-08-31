@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
@@ -72,8 +73,18 @@ func runDetach(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
 		}
+		ctx = agent.DialerWithContext(ctx, dialer)
 
-		leader, err := fetchLeader(ctx, pgApp, dialer)
+		flapsClient, err := flaps.New(ctx, pgApp)
+		if err != nil {
+			return fmt.Errorf("list of machines could not be retrieved: %w", err)
+		}
+
+		members, err := flapsClient.List(ctx, "started")
+		if err != nil {
+			return fmt.Errorf("machines could not be retrieved %w", err)
+		}
+		leader, err := fetchPGLeader(ctx, pgApp, members)
 		if err != nil {
 			return fmt.Errorf("can't fetch leader: %w", err)
 		}

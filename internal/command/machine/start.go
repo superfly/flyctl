@@ -37,13 +37,21 @@ func newStart() *cobra.Command {
 }
 
 func runMachineStart(ctx context.Context) (err error) {
+	var args = flag.Args(ctx)
+
+	if err = Start(ctx, args); err != nil {
+		return
+	}
+	return
+}
+
+func Start(ctx context.Context, machineIDs []string) (err error) {
 	var (
 		out     = iostreams.FromContext(ctx).Out
 		appName = app.NameFromContext(ctx)
-		args    = flag.Args(ctx)
 	)
 
-	for _, machineID := range args {
+	for _, machineID := range machineIDs {
 		app, err := appFromMachineOrName(ctx, machineID, appName)
 		if err != nil {
 			return fmt.Errorf("could not make flaps client: %w", err)
@@ -64,6 +72,5 @@ func runMachineStart(ctx context.Context) (err error) {
 		}
 		fmt.Fprintf(out, "%s has been started\n", machineID)
 	}
-
 	return
 }

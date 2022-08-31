@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
 )
@@ -123,28 +122,17 @@ func hasRequiredVersionOnMachines(leader *api.Machine, cluster, standalone strin
 	return nil
 }
 
-func fetchLeader(ctx context.Context, app *api.AppCompact, dialer agent.Dialer) (*api.Machine, error) {
-	flapsClient, err := flaps.New(ctx, app)
-	if err != nil {
-		return nil, fmt.Errorf("list of machines could not be retrieved: %w", err)
-	}
-
-	members, err := flapsClient.List(ctx, "started")
-	if err != nil {
-		return nil, fmt.Errorf("machines could not be retrieved %w", err)
-	}
+func fetchPGLeader(ctx context.Context, app *api.AppCompact, members []*api.Machine) (*api.Machine, error) {
+	var (
+		dialer = agent.DialerFromContext(ctx)
+	)
 
 	if len(members) == 0 {
 		return nil, fmt.Errorf("no machines found")
 	}
 
 	for _, member := range members {
-		address := fmt.Sprintf("[%s]", member.PrivateIP)
-
-		pgclient := flypg.NewFromInstance(address, dialer)
-		if err != nil {
-			return nil, fmt.Errorf("can't connect to %s: %w", member.Name, err)
-		}
+		pgclient := flypg.NewFromInstance(fmt.Sprintf("[%s]", member.PrivateIP), dialer)
 
 		role, err := pgclient.NodeRole(ctx)
 		if err != nil {

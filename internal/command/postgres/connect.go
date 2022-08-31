@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/ssh"
@@ -80,6 +81,7 @@ func runConnect(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to build tunnel for %s: %v", app.Organization.Slug, err)
 	}
+	ctx = agent.DialerWithContext(ctx, dialer)
 
 	switch app.PlatformVersion {
 	case "nomad":
@@ -87,7 +89,16 @@ func runConnect(ctx context.Context) error {
 			return err
 		}
 	case "machines":
-		leader, err := fetchLeader(ctx, app, dialer)
+		flapsClient, err := flaps.New(ctx, app)
+		if err != nil {
+			return fmt.Errorf("list of machines could not be retrieved: %w", err)
+		}
+
+		members, err := flapsClient.List(ctx, "started")
+		if err != nil {
+			return fmt.Errorf("machines could not be retrieved %w", err)
+		}
+		leader, err := fetchPGLeader(ctx, app, members)
 		if err != nil {
 			return fmt.Errorf("can't fetch leader: %w", err)
 		}

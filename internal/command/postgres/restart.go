@@ -12,7 +12,9 @@ import (
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/spinner"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -31,6 +33,10 @@ func newRestart() *cobra.Command {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Bool{
+			Name:        "hard",
+			Description: "Forces cluster VMs restarts",
+		},
 	)
 
 	return cmd
@@ -39,6 +45,7 @@ func newRestart() *cobra.Command {
 func runRestart(ctx context.Context) error {
 	var (
 		MinPostgresHaVersion = "0.0.20"
+		io                   = iostreams.FromContext(ctx)
 		client               = client.FromContext(ctx).API()
 		appName              = app.NameFromContext(ctx)
 	)
@@ -52,37 +59,86 @@ func runRestart(ctx context.Context) error {
 		return fmt.Errorf("app %s is not a Postgres app", app.Name)
 	}
 
+	agentclient, err := agent.Establish(ctx, client)
+	if err != nil {
+		return fmt.Errorf("can't establish agent %w", err)
+	}
+
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+	if err != nil {
+		return fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
+	}
+	ctx = agent.DialerWithContext(ctx, dialer)
+
 	switch app.PlatformVersion {
 	case "nomad":
 		if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
-		return restartNomadCluster(ctx, app)
+		if flag.GetBool(ctx, "hard") {
+			s := spinner.Run(io, "Restarting cluster VMs")
+
+			allocs, err := client.GetAllocations(ctx, appName, false)
+			if err != nil {
+				return fmt.Errorf("get app status: %w", err)
+			}
+			for _, alloc := range allocs {
+
+				if err := client.RestartAllocation(ctx, appName, alloc.ID); err != nil {
+					return fmt.Errorf("failed to restart vm %s: %w", alloc.ID, err)
+				}
+
+			}
+			s.StopWithMessage("Successfully restarted all cluster VMs")
+
+			return nil
+		}
+		return restartNomadPG(ctx, app)
 	case "machines":
-		agentclient, err := agent.Establish(ctx, client)
+		flapsClient, err := flaps.New(ctx, app)
 		if err != nil {
-			return fmt.Errorf("can't establish agent %w", err)
+			return fmt.Errorf("list of machines could not be retrieved: %w", err)
 		}
 
-		dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+		members, err := flapsClient.List(ctx, "started")
 		if err != nil {
-			return fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
+			return fmt.Errorf("machines could not be retrieved %w", err)
 		}
-
-		leader, err := fetchLeader(ctx, app, dialer)
+		leader, err := fetchPGLeader(ctx, app, members)
 		if err != nil {
 			return fmt.Errorf("can't fetch leader: %w", err)
 		}
 		if err := hasRequiredVersionOnMachines(leader, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
-		return restartMachinesCluster(ctx, app)
+		if flag.GetBool(ctx, "hard") {
+			s := spinner.Run(io, "Restarting cluster VMs")
+
+			var machines []string
+
+			for _, machine := range members {
+				machines = append(machines, machine.ID)
+			}
+
+			if err := machine.Stop(ctx, machines, "0", 50); err != nil {
+				return fmt.Errorf("could not restart cluster %w", err)
+			}
+
+			if err := machine.Start(ctx, machines); err != nil {
+				return fmt.Errorf("could not restart cluster %w", err)
+			}
+
+			s.StopWithMessage("Successfully restarted all cluster VMs")
+
+			return nil
+		}
+		return restartMachinesPG(ctx, app)
 	}
 
 	return nil
 }
 
-func restartMachinesCluster(ctx context.Context, app *api.AppCompact) error {
+func restartMachinesPG(ctx context.Context, app *api.AppCompact) error {
 	var (
 		client = client.FromContext(ctx).API()
 		io     = iostreams.FromContext(ctx)
@@ -124,10 +180,10 @@ func restartMachinesCluster(ctx context.Context, app *api.AppCompact) error {
 		return fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
 
-	fmt.Fprintf(io.Out, "Restarting Postgres\n")
+	fmt.Fprintln(io.Out, "Restarting the Postgres Processs")
 
-	for lease, machine := range machines {
-		fmt.Fprintf(io.Out, " Restarting %s with lease %s\n", machine.ID, lease)
+	for _, machine := range machines {
+		fmt.Fprintf(io.Out, " Restarting %s \n", machine.ID)
 
 		pgclient := flypg.NewFromInstance(fmt.Sprintf("[%s]", machine.PrivateIP), dialer)
 
@@ -141,7 +197,7 @@ func restartMachinesCluster(ctx context.Context, app *api.AppCompact) error {
 	return nil
 }
 
-func restartNomadCluster(ctx context.Context, app *api.AppCompact) (err error) {
+func restartNomadPG(ctx context.Context, app *api.AppCompact) (err error) {
 	var (
 		client = client.FromContext(ctx).API()
 		io     = iostreams.FromContext(ctx)
@@ -170,7 +226,7 @@ func restartNomadCluster(ctx context.Context, app *api.AppCompact) (err error) {
 		return fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
 
-	fmt.Fprintf(io.Out, "Restarting Postgres\n")
+	fmt.Fprintln(io.Out, "Restarting the Postgres Processs")
 
 	for _, vm := range vms {
 		fmt.Fprintf(io.Out, " Restarting %s\n", vm.ID)

@@ -53,14 +53,26 @@ func newStop() *cobra.Command {
 func runMachineStop(ctx context.Context) (err error) {
 	var (
 		args    = flag.Args(ctx)
+		signal  = flag.GetString(ctx, "signal")
+		timeout = flag.GetInt(ctx, "time")
+	)
+
+	if err = Stop(ctx, args, signal, timeout); err != nil {
+		return
+	}
+	return
+}
+
+func Stop(ctx context.Context, machines []string, sig string, timeOut int) (err error) {
+	var (
 		out     = iostreams.FromContext(ctx).Out
 		appName = app.NameFromContext(ctx)
 	)
 
-	for _, arg := range args {
+	for _, arg := range machines {
 		signal := api.Signal{}
-		if flag.GetString(ctx, "signal") != "" {
-			s, err := strconv.Atoi(flag.GetString(ctx, "signal"))
+		if sig != "" {
+			s, err := strconv.Atoi(sig)
 			if err != nil {
 				return fmt.Errorf("could not get signal %s", err)
 			}
@@ -69,7 +81,7 @@ func runMachineStop(ctx context.Context) (err error) {
 		machineStopInput := api.StopMachineInput{
 			ID:      arg,
 			Signal:  signal,
-			Timeout: time.Duration(flag.GetInt(ctx, "time")),
+			Timeout: time.Duration(timeOut),
 			Filters: &api.Filters{},
 		}
 
