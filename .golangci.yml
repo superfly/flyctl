@@ -7,7 +7,7 @@ issues:
   exclude-rules:
     # Exclude gosimple bool check
     - linters:
-      - gosimple
+        - gosimple
       text: "S(1002|1008|1021)"
     # Exclude failing staticchecks for now
     - linters:
@@ -42,6 +42,7 @@ linters:
 
 # options for analysis running
 run:
+  go: "1.19"
   # default concurrency is a available CPU number
   concurrency: 4
 
@@ -89,7 +90,6 @@ run:
   # the dependency descriptions in go.mod.
   # modules-download-mode: vendor
 
-
 # output configuration options
 output:
   # colored-line-number|line-number|json|tab|checkstyle|code-climate, default is "colored-line-number"
@@ -104,10 +104,9 @@ output:
   # make issues output unique by line, default is true
   uniq-by-line: true
 
-
 # all available settings of specific linters
 linters-settings:
- errcheck:
+  errcheck:
     # report about not checking of errors in type assetions: `a := b.(MyStruct)`;
     # default is false: such cases aren't reported by default.
     check-type-assertions: false
