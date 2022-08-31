@@ -81,10 +81,10 @@ ENV SECRET_KEY_BASE 1
 
 COPY . .
 
-RUN bundle exec rails assets:precompile
+RUN bin/rails fly:build
 
 ENV PORT 8080
 
-ARG SERVER_COMMAND="bundle exec puma"
+ARG SERVER_COMMAND="bin/rails fly:server"
 ENV SERVER_COMMAND ${SERVER_COMMAND}
 CMD ${SERVER_COMMAND}
