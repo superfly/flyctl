@@ -229,8 +229,6 @@ type ListAddOnsAddOnsAddOnConnectionNodesAddOn struct {
 	Name string `json:"name"`
 	// The add-on plan
 	AddOnPlan ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan `json:"addOnPlan"`
-	// Add-on options
-	Options interface{} `json:"options"`
 	// Private flycast IP address of the add-on
 	PrivateIp string `json:"privateIp"`
 	// Region where the primary instance is deployed
@@ -251,9 +249,6 @@ func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetName() string { return v.
 func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetAddOnPlan() ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan {
 	return v.AddOnPlan
 }
-
-// GetOptions returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.Options, and is useful for accessing the field via an interface.
-func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetOptions() interface{} { return v.Options }
 
 // GetPrivateIp returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.PrivateIp, and is useful for accessing the field via an interface.
 func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetPrivateIp() string { return v.PrivateIp }
@@ -572,7 +567,6 @@ query ListAddOns ($addOnType: AddOnType) {
 			addOnPlan {
 				displayName
 			}
-			options
 			privateIp
 			primaryRegion
 			readRegions
@@ -612,7 +606,7 @@ func UpdateAddOn(
 	req := &graphql.Request{
 		OpName: "UpdateAddOn",
 		Query: `
-mutation UpdateAddOn ($addOnId: ID!, $planId: ID!, $readRegions: [String!]) {
+mutation UpdateAddOn ($addOnId: ID!, $planId: ID!, $readRegions: [String!]!) {
 	updateAddOn(input: {addOnId:$addOnId,planId:$planId,readRegions:$readRegions}) {
 		addOn {
 			id

@@ -3,7 +3,7 @@ NOW_RFC3339 = $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 all: build cmddocs
 
 generate:
-	@echo Running Generate for Help
+	@echo Running Generate for Help and GraphQL client
 	go generate ./...
 
 build: generate
