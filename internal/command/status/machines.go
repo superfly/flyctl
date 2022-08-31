@@ -2,9 +2,13 @@ package status
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -35,6 +39,10 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) (err error) {
 		return
 	}
 
+	if app.IsPostgresApp() {
+		return renderPGStatus(ctx, app, machines)
+	}
+
 	rows := [][]string{}
 
 	for _, machine := range machines {
@@ -49,6 +57,47 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) (err error) {
 	}
 
 	_ = render.Table(io.Out, "", rows, "ID", "State", "Region", "Image", "Created", "Updated")
+
+	return
+}
+
+func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Machine) (err error) {
+	io := iostreams.FromContext(ctx)
+	client := client.FromContext(ctx).API()
+
+	agentclient, err := agent.Establish(ctx, client)
+	if err != nil {
+		return fmt.Errorf("unable to establish agent: %s", err)
+	}
+
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+	if err != nil {
+		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
+	}
+
+	rows := [][]string{}
+
+	for _, machine := range machines {
+		pgCli := flypg.NewFromInstance(fmt.Sprintf("[%s]", machine.PrivateIP), dialer)
+
+		role, err := pgCli.NodeRole(ctx)
+		if err != nil {
+			// TODO - Determine best way to present this error.
+			role = "error"
+		}
+
+		rows = append(rows, []string{
+			machine.ID,
+			machine.State,
+			role,
+			machine.Region,
+			machine.FullImageRef(),
+			machine.CreatedAt,
+			machine.UpdatedAt,
+		})
+	}
+
+	_ = render.Table(io.Out, "", rows, "ID", "State", "Role", "Region", "Image", "Created", "Updated")
 
 	return
 }
