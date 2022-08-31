@@ -2,7 +2,7 @@ name: CI
 env:
   # Increment this to bust the build cache
   CACHE_VERSION: 1
-  GO_VERSION: 1.18.x
+  GO_VERSION: 1.19.x
 on:
   push:
   workflow_dispatch:
