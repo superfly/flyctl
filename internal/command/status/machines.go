@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
@@ -64,12 +63,11 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) (err error) {
 
 func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Machine) (err error) {
 	io := iostreams.FromContext(ctx)
-
 	client := client.FromContext(ctx).API()
 
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
-		return errors.Wrap(err, "can't establish agent")
+		return fmt.Errorf("unable to establish agent: %s", err)
 	}
 
 	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
