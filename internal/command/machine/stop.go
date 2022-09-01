@@ -52,54 +52,55 @@ func newStop() *cobra.Command {
 
 func runMachineStop(ctx context.Context) (err error) {
 	var (
+		io      = iostreams.FromContext(ctx)
 		args    = flag.Args(ctx)
 		signal  = flag.GetString(ctx, "signal")
 		timeout = flag.GetInt(ctx, "time")
 	)
 
-	if err = Stop(ctx, args, signal, timeout); err != nil {
-		return
+	for _, machineID := range args {
+		if err = Stop(ctx, machineID, signal, timeout); err != nil {
+			return
+		}
+		fmt.Fprintf(io.Out, "%s has been successfully stopped\n", machineID)
 	}
 	return
 }
 
-func Stop(ctx context.Context, machines []string, sig string, timeOut int) (err error) {
+func Stop(ctx context.Context, machineID string, sig string, timeOut int) (err error) {
 	var (
-		out     = iostreams.FromContext(ctx).Out
 		appName = app.NameFromContext(ctx)
 	)
 
-	for _, arg := range machines {
-		signal := api.Signal{}
-		if sig != "" {
-			s, err := strconv.Atoi(sig)
-			if err != nil {
-				return fmt.Errorf("could not get signal %s", err)
-			}
-			signal.Signal = syscall.Signal(s)
-		}
-		machineStopInput := api.StopMachineInput{
-			ID:      arg,
-			Signal:  signal,
-			Timeout: time.Duration(timeOut),
-			Filters: &api.Filters{},
-		}
-
-		app, err := appFromMachineOrName(ctx, arg, appName)
+	signal := api.Signal{}
+	if sig != "" {
+		s, err := strconv.Atoi(sig)
 		if err != nil {
-			return fmt.Errorf("could not get app: %w", err)
+			return fmt.Errorf("could not get signal %s", err)
 		}
-
-		flapsClient, err := flaps.New(ctx, app)
-		if err != nil {
-			return fmt.Errorf("could not make flaps client: %w", err)
-		}
-
-		err = flapsClient.Stop(ctx, machineStopInput)
-		if err != nil {
-			return fmt.Errorf("could not stop machine %s: %w", machineStopInput.ID, err)
-		}
-		fmt.Fprintf(out, "%s has been successfully stopped\n", machineStopInput.ID)
+		signal.Signal = syscall.Signal(s)
 	}
+	machineStopInput := api.StopMachineInput{
+		ID:      machineID,
+		Signal:  signal,
+		Timeout: time.Duration(timeOut),
+		Filters: &api.Filters{},
+	}
+
+	app, err := appFromMachineOrName(ctx, machineID, appName)
+	if err != nil {
+		return fmt.Errorf("could not get app: %w", err)
+	}
+
+	flapsClient, err := flaps.New(ctx, app)
+	if err != nil {
+		return fmt.Errorf("could not make flaps client: %w", err)
+	}
+
+	err = flapsClient.Stop(ctx, machineStopInput)
+	if err != nil {
+		return fmt.Errorf("could not stop machine %s: %w", machineStopInput.ID, err)
+	}
+
 	return
 }

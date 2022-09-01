@@ -114,18 +114,23 @@ func runRestart(ctx context.Context) error {
 		if flag.GetBool(ctx, "hard") {
 			s := spinner.Run(io, "Restarting cluster VMs")
 
-			var machines []string
+			for _, member := range members {
 
-			for _, machine := range members {
-				machines = append(machines, machine.ID)
-			}
+				if err := machine.Stop(ctx, member.ID, "0", 50); err != nil {
+					return fmt.Errorf("could not restart cluster %w", err)
+				}
 
-			if err := machine.Stop(ctx, machines, "0", 50); err != nil {
-				return fmt.Errorf("could not restart cluster %w", err)
-			}
+				if err := flapsClient.Wait(ctx, member, "stopped"); err != nil {
+					return fmt.Errorf("erro waiting for machine %s to stop: %w", member.ID, err)
+				}
 
-			if err := machine.Start(ctx, machines); err != nil {
-				return fmt.Errorf("could not restart cluster %w", err)
+				if err := machine.Start(ctx, member.ID); err != nil {
+					return fmt.Errorf("could not restart cluster %w", err)
+				}
+
+				if err := flapsClient.Wait(ctx, member, "started"); err != nil {
+					return fmt.Errorf("erro waiting for machine %s to stop: %w", member.ID, err)
+				}
 			}
 
 			s.StopWithMessage("Successfully restarted all cluster VMs")
