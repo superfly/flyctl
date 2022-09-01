@@ -51,7 +51,7 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 		}
 	}
 
-	rubyVersion, err = extractRubyVersion("Gemfile", ".ruby_version")
+	rubyVersion, err = extractRubyVersion("Gemfile.lock", "Gemfile", ".ruby_version")
 
 	if err != nil || rubyVersion == "" {
 		rubyVersion = "3.1.2"
@@ -140,21 +140,37 @@ Now: run 'fly deploy' to deploy your Rails app.
 	return s, nil
 }
 
-func extractRubyVersion(gemfilePath string, rubyVersionPath string) (string, error) {
-	gemfileContents, err := os.ReadFile(gemfilePath)
+func extractRubyVersion(lockfilePath string, gemfilePath string, rubyVersionPath string) (string, error) {
 
 	var version string
 
-	if err != nil {
-		return "", err
+	lockfileContents, err := os.ReadFile(lockfilePath)
+
+	if err == nil {
+		re := regexp.MustCompile(`RUBY VERSION\s+ruby (?P<version>[\d.]+)`)
+		m := re.FindStringSubmatch(string(lockfileContents))
+
+		for i, name := range re.SubexpNames() {
+			if len(m) > 0 && name == "version" {
+				version = m[i]
+			}
+		}
 	}
 
-	re := regexp.MustCompile(`ruby \"(?P<version>[\d.]+)\"`)
-	m := re.FindStringSubmatch(string(gemfileContents))
+	if version == "" {
+		gemfileContents, err := os.ReadFile(gemfilePath)
 
-	for i, name := range re.SubexpNames() {
-		if len(m) > 0 && name == "version" {
-			version = m[i]
+		if err != nil {
+			return "", err
+		}
+
+		re := regexp.MustCompile(`ruby \"(?P<version>[\d.]+)\"`)
+		m := re.FindStringSubmatch(string(gemfileContents))
+
+		for i, name := range re.SubexpNames() {
+			if len(m) > 0 && name == "version" {
+				version = m[i]
+			}
 		}
 	}
 
