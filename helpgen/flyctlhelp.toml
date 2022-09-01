@@ -652,7 +652,7 @@ e.g. flyctl scale vm shared-cpu-1x --memory=2048
 
 For dedicated vms, this should be a multiple of 1024MB.
 
-For shared vms, this can be 256MB or a a multiple of 1024MB.
+For shared vms, this can be 256MB or a multiple of 1024MB.
 
 For pricing, see https://fly.io/docs/about/pricing/
 """
