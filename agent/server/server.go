@@ -21,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/wg"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/wireguard"
 )
@@ -218,7 +219,7 @@ func (s *server) buildTunnel(org *api.Organization, recycle bool) (tunnel *wg.Tu
 	}
 
 	// WIP: can't stay this way, need something more clever than this
-	if os.Getenv("WSWG") != "" || viper.GetBool(flyctl.ConfigWireGuardWebsockets) {
+	if env.IsCI() || os.Getenv("WSWG") != "" || viper.GetBool(flyctl.ConfigWireGuardWebsockets) {
 		if tunnel, err = wg.ConnectWS(context.Background(), state); err != nil {
 			return
 		}
