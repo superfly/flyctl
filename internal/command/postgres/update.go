@@ -172,9 +172,11 @@ func runUpdate(ctx context.Context) error {
 	// Update leader
 	ref := updateList[leader.ID]
 	if ref != nil {
-		pgclient := flypg.New(app.Name, dialer)
-
+		// Don't perform failover if the cluster is only running a
+		// single node.
 		if len(machines) > 1 {
+			pgclient := flypg.New(app.Name, dialer)
+
 			fmt.Fprintf(io.Out, "Performing a failover\n")
 			if err := pgclient.Failover(ctx); err != nil {
 				return fmt.Errorf("failed to trigger failover %w", err)
