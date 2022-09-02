@@ -123,7 +123,7 @@ func runUpdate(ctx context.Context) error {
 		return fmt.Errorf("this cluster has no leader")
 	}
 
-	image := leader.FullImageRef()
+	image := fmt.Sprintf("%s:%s", leader.ImageRef.Repository, leader.ImageRef.Tag)
 
 	latest, err := client.GetLatestImageDetails(ctx, image)
 	if err != nil {
