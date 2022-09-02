@@ -149,32 +149,36 @@ func runUpdate(ctx context.Context) error {
 	}
 
 	// Update replicas
-	fmt.Fprintf(io.Out, "Updating replicas\n")
-	for _, replica := range replicas {
-		ref := updateList[replica.ID]
+	if len(replicas) > 0 {
+		fmt.Fprintf(io.Out, "Updating replicas\n")
 
-		if ref == nil {
-			fmt.Fprintf(io.Out, "  Machine %s is already running the latest image\n", replica.ID)
-			continue
-		}
+		for _, replica := range replicas {
+			ref := updateList[replica.ID]
 
-		image := fmt.Sprintf("%s:%s", ref.Repository, ref.Tag)
+			if ref == nil {
+				fmt.Fprintf(io.Out, "  Machine %s is already running the latest image\n", replica.ID)
+				continue
+			}
 
-		fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", replica.ID, image, ref.Version)
-		if err := updateMachine(ctx, app, replica, image); err != nil {
-			return fmt.Errorf("can't update %s: %w", replica.ID, err)
+			image := fmt.Sprintf("%s:%s", ref.Repository, ref.Tag)
+
+			fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", replica.ID, image, ref.Version)
+			if err := updateMachine(ctx, app, replica, image); err != nil {
+				return fmt.Errorf("can't update %s: %w", replica.ID, err)
+			}
 		}
 	}
 
 	// Update leader
-
 	ref := updateList[leader.ID]
 	if ref != nil {
 		pgclient := flypg.New(app.Name, dialer)
 
-		fmt.Fprintf(io.Out, "Performing a failover\n")
-		if err := pgclient.Failover(ctx); err != nil {
-			return fmt.Errorf("failed to trigger failover %w", err)
+		if len(machines) > 1 {
+			fmt.Fprintf(io.Out, "Performing a failover\n")
+			if err := pgclient.Failover(ctx); err != nil {
+				return fmt.Errorf("failed to trigger failover %w", err)
+			}
 		}
 
 		fmt.Fprintf(io.Out, "Updating leader\n")
