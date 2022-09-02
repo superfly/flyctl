@@ -81,9 +81,9 @@ ENV SECRET_KEY_BASE 1
 
 COPY . .
 
-RUN chmod +x app/bin/* \
-    sed -i 's/ruby.exe/ruby/' app/bin/* \
-    sed -i '/^#!/aDir.chdir File.expand_path("..", __dir__)' app/bin/*
+RUN chmod +x /app/bin/* \
+    sed -i 's/ruby.exe/ruby/' /app/bin/* \
+    sed -i '/^#!/aDir.chdir File.expand_path("..", __dir__)' /app/bin/*
 
 RUN bin/rails fly:build
 
