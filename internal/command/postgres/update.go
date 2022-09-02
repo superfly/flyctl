@@ -77,7 +77,6 @@ func runUpdate(ctx context.Context) error {
 		return fmt.Errorf("no machines found")
 	}
 
-	// Verify that we actually have updates to perform
 	fmt.Fprintf(io.Out, "Checking for available updates\n")
 
 	// Track machines that have available updates so we can avoid doing unnecessary work.
@@ -129,6 +128,7 @@ func runUpdate(ctx context.Context) error {
 		fmt.Fprintf(io.Out, "  Machine %s: %s\n", machine.ID, role)
 	}
 
+	// Don't perform an update if the cluster is not healthy.
 	if leader == nil {
 		return fmt.Errorf("this cluster has no leader")
 	}
@@ -152,7 +152,7 @@ func runUpdate(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "Updating replicas\n")
 	for _, replica := range replicas {
 		if updateList[replica.ID] == nil {
-			fmt.Fprintf(io.Out, "  Machine %s is already running the latest image", replica.ID)
+			fmt.Fprintf(io.Out, "  Machine %s is already running the latest image\n", replica.ID)
 			continue
 		}
 
