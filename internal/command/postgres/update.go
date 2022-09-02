@@ -151,12 +151,13 @@ func runUpdate(ctx context.Context) error {
 	// Update replicas
 	fmt.Fprintf(io.Out, "Updating replicas\n")
 	for _, replica := range replicas {
-		if updateList[replica.ID] == nil {
+		ref := updateList[replica.ID]
+
+		if ref == nil {
 			fmt.Fprintf(io.Out, "  Machine %s is already running the latest image\n", replica.ID)
 			continue
 		}
 
-		ref := updateList[replica.ID]
 		image := fmt.Sprintf("%s:%s", ref.Repository, ref.Tag)
 
 		fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", replica.ID, image, ref.Version)
@@ -166,7 +167,9 @@ func runUpdate(ctx context.Context) error {
 	}
 
 	// Update leader
-	if updateList[leader.ID] != nil {
+
+	ref := updateList[leader.ID]
+	if ref != nil {
 		pgclient := flypg.New(app.Name, dialer)
 
 		fmt.Fprintf(io.Out, "Performing a failover\n")
@@ -175,8 +178,6 @@ func runUpdate(ctx context.Context) error {
 		}
 
 		fmt.Fprintf(io.Out, "Updating leader\n")
-
-		ref := updateList[leader.ID]
 		image := fmt.Sprintf("%s:%s", ref.Repository, ref.Tag)
 
 		fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", leader.ID, image, ref.Version)
