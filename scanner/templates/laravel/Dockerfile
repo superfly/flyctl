@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /var/www/html
 # copy application code, skipping files based on .dockerignore
 COPY . /var/www/html
+COPY --from=base /var/www/html/vendor /app/vendor
 
 RUN composer install --optimize-autoloader --no-dev \
     && mkdir -p storage/logs \
