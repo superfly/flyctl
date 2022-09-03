@@ -244,7 +244,7 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 				AppID:   app.Name,
 				OrgSlug: app.Organization.ID,
 				Config:  machine.Config,
-				Region:  regionCode,
+				Region:  machine.Region,
 			}
 
 			updateResult, err := flapsClient.Update(ctx, launchInput, machine.LeaseNonce)
