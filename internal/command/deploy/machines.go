@@ -243,25 +243,9 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 				ID:      machine.ID,
 				AppID:   app.Name,
 				OrgSlug: app.Organization.ID,
-				Config:  &machineConfig,
+				Config:  machine.Config,
 				Region:  regionCode,
 			}
-
-			// We assume a config with no image specificed means the deploy should recreate machines
-			// with the existing config. For example, for applying recently set secrets.
-			if launchInput.Config.Image == "" {
-				freshMachine, err := flapsClient.Get(ctx, machine.ID)
-				if err != nil {
-					return err
-				}
-
-				launchInput.Config = freshMachine.Config
-				launchInput.Region = machine.Region
-			}
-
-			// Until mounts are supported in fly.toml, ensure deployments
-			// maintain any existing volume attachments
-			launchInput.Config.Mounts = machine.Config.Mounts
 
 			updateResult, err := flapsClient.Update(ctx, launchInput, machine.LeaseNonce)
 			if err != nil {
