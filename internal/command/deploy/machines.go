@@ -209,17 +209,9 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 		strategy = "rolling"
 	}
 
-	var regionCode string
-	if appConfig != nil {
-		regionCode = appConfig.PrimaryRegion
-	}
-
 	msg := fmt.Sprintf("Deploying with %s strategy", strategy)
 	spin := spinner.Run(io, msg)
 	defer spin.StopWithSuccess()
-
-	machineConfig.Metadata = map[string]string{"process_group": "app"}
-	machineConfig.Init.Cmd = nil
 
 	machines, err := flapsClient.ListActive(ctx)
 	if err != nil {
@@ -266,6 +258,14 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 
 		return
 	}
+
+	var regionCode string
+	if appConfig != nil {
+		regionCode = appConfig.PrimaryRegion
+	}
+
+	machineConfig.Metadata = map[string]string{"process_group": "app"}
+	machineConfig.Init.Cmd = nil
 
 	launchInput := api.LaunchMachineInput{
 		AppID:   app.Name,
