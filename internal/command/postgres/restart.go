@@ -99,40 +99,41 @@ func runRestart(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("list of machines could not be retrieved: %w", err)
 		}
+		ctx = flaps.NewContext(ctx, flapsClient)
 
 		members, err := flapsClient.List(ctx, "started")
 		if err != nil {
 			return fmt.Errorf("machines could not be retrieved %w", err)
 		}
-		leader, err := fetchPGLeader(ctx, app, members)
+		leader, replicas, err := nodeRoles(ctx, members)
 		if err != nil {
 			return fmt.Errorf("can't fetch leader: %w", err)
 		}
+		if leader == nil {
+			return fmt.Errorf("no leader found")
+		}
+
 		if err := hasRequiredVersionOnMachines(leader, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
 		if flag.GetBool(ctx, "hard") {
 			s := spinner.Run(io, "Restarting cluster VMs")
 
-			for _, member := range members {
-
-				if err := machine.Stop(ctx, member.ID, "0", 50); err != nil {
-					return fmt.Errorf("could not restart cluster %w", err)
-				}
-
-				if err := flapsClient.Wait(ctx, member, "stopped"); err != nil {
-					return fmt.Errorf("erro waiting for machine %s to stop: %w", member.ID, err)
-				}
-
-				if err := machine.Start(ctx, member.ID); err != nil {
-					return fmt.Errorf("could not restart cluster %w", err)
-				}
-
-				if err := flapsClient.Wait(ctx, member, "started"); err != nil {
-					return fmt.Errorf("erro waiting for machine %s to stop: %w", member.ID, err)
+			for _, replica := range replicas {
+				if err := restartMachine(ctx, replica); err != nil {
+					return fmt.Errorf("failed to restart vm %s: %w", replica.ID, err)
 				}
 			}
 
+			pgclient := flypg.New(app.Name, dialer)
+
+			if err := pgclient.Failover(ctx); err != nil {
+				return fmt.Errorf("failed to trigger failover %w", err)
+			}
+
+			if err := restartMachine(ctx, leader); err != nil {
+				return fmt.Errorf("failed to restart vm %s: %w", leader.ID, err)
+			}
 			s.StopWithMessage("Successfully restarted all cluster VMs")
 
 			return nil
@@ -145,7 +146,7 @@ func runRestart(ctx context.Context) error {
 
 func restartMachinesPG(ctx context.Context, app *api.AppCompact) error {
 	var (
-		client = client.FromContext(ctx).API()
+		dialer = agent.DialerFromContext(ctx)
 		io     = iostreams.FromContext(ctx)
 	)
 
@@ -173,16 +174,6 @@ func restartMachinesPG(ctx context.Context, app *api.AppCompact) error {
 
 	if len(out) == 0 {
 		return fmt.Errorf("no machines found")
-	}
-
-	agentclient, err := agent.Establish(ctx, client)
-	if err != nil {
-		return fmt.Errorf("can't establish agent %w", err)
-	}
-
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
-	if err != nil {
-		return fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
 
 	fmt.Fprintln(io.Out, "Restarting the Postgres Processs")
@@ -244,5 +235,28 @@ func restartNomadPG(ctx context.Context, app *api.AppCompact) (err error) {
 	}
 	fmt.Fprintf(io.Out, "Restart complete\n")
 
+	return
+}
+
+func restartMachine(ctx context.Context, instance *api.Machine) (err error) {
+	var (
+		flapsClient = flaps.FromContext(ctx)
+	)
+
+	if err = machine.Stop(ctx, instance.ID, "0", 50); err != nil {
+		return
+	}
+
+	if err = flapsClient.Wait(ctx, instance, "stopped"); err != nil {
+		return
+	}
+
+	if err = machine.Start(ctx, instance.ID); err != nil {
+		return
+	}
+
+	if err = flapsClient.Wait(ctx, instance, "started"); err != nil {
+		return
+	}
 	return
 }
