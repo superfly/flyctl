@@ -267,7 +267,7 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 			// Until mounts are supported in fly.toml, ensure deployments
 			// maintain any existing volume attachments
 			if machine.Config.Mounts != nil {
-				launchInput.Config.Mounts = append(launchInput.Config.Mounts, machine.Config.Mounts[0])
+				launchInput.Config.Mounts = machine.Config.Mounts
 			}
 
 			updateResult, err := flapsClient.Update(ctx, launchInput, machine.LeaseNonce)
