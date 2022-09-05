@@ -125,7 +125,7 @@ func runAttach(ctx context.Context) error {
 			return fmt.Errorf("machines could not be retrieved %w", err)
 		}
 
-		leader, err := fetchPGLeader(ctx, pgApp, members)
+		leader, err := fetchPGLeader(ctx, members)
 		if err != nil {
 			return fmt.Errorf("can't fetch leader: %w", err)
 		}

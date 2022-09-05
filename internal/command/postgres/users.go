@@ -101,7 +101,7 @@ func runListUsers(ctx context.Context) (err error) {
 		if err != nil {
 			return fmt.Errorf("machines could not be retrieved %w", err)
 		}
-		leader, err := fetchPGLeader(ctx, app, members)
+		leader, err := fetchPGLeader(ctx, members)
 		if err != nil {
 			return fmt.Errorf("can't fetch leader: %w", err)
 		}

@@ -122,26 +122,40 @@ func hasRequiredVersionOnMachines(leader *api.Machine, cluster, standalone strin
 	return nil
 }
 
-func fetchPGLeader(ctx context.Context, app *api.AppCompact, members []*api.Machine) (*api.Machine, error) {
-	var (
-		dialer = agent.DialerFromContext(ctx)
-	)
-
-	if len(members) == 0 {
-		return nil, fmt.Errorf("no machines found")
+func fetchPGLeader(ctx context.Context, members []*api.Machine) (*api.Machine, error) {
+	leader, _, err := nodeRoles(ctx, members)
+	if err != nil {
+		return nil, err
 	}
 
-	for _, member := range members {
-		pgclient := flypg.NewFromInstance(fmt.Sprintf("[%s]", member.PrivateIP), dialer)
+	if leader == nil {
+		return nil, fmt.Errorf("no leader found")
+	}
+	return leader, nil
+}
+
+func nodeRoles(ctx context.Context, machines []*api.Machine) (leader *api.Machine, replicas []*api.Machine, err error) {
+	var dialer = agent.DialerFromContext(ctx)
+
+	for _, machine := range machines {
+		address := fmt.Sprintf("[%s]", machine.PrivateIP)
+
+		pgclient := flypg.NewFromInstance(address, dialer)
+		if err != nil {
+			return nil, nil, fmt.Errorf("can't connect to %s: %w", machine.Name, err)
+		}
 
 		role, err := pgclient.NodeRole(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("can't get role for %s: %w", member.Name, err)
+			return nil, nil, fmt.Errorf("can't get role for %s: %w", machine.Name, err)
 		}
 
-		if role == "leader" {
-			return member, nil
+		switch role {
+		case "leader":
+			leader = machine
+		case "replica":
+			replicas = append(replicas, machine)
 		}
 	}
-	return nil, fmt.Errorf("no leader found")
+	return leader, replicas, nil
 }

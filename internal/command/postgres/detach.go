@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
@@ -58,22 +57,23 @@ func runDetach(ctx context.Context) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
+	agentclient, err := agent.Establish(ctx, client)
+	if err != nil {
+		return fmt.Errorf("can't establish agent %w", err)
+	}
+
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+	if err != nil {
+		return fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
+	}
+	ctx = agent.DialerWithContext(ctx, dialer)
+
 	switch pgApp.PlatformVersion {
 	case "nomad":
 		if err := hasRequiredVersionOnNomad(pgApp, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
 	case "machines":
-		agentclient, err := agent.Establish(ctx, client)
-		if err != nil {
-			return fmt.Errorf("can't establish agent %w", err)
-		}
-
-		dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
-		if err != nil {
-			return fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
-		}
-		ctx = agent.DialerWithContext(ctx, dialer)
 
 		flapsClient, err := flaps.New(ctx, pgApp)
 		if err != nil {
@@ -84,7 +84,7 @@ func runDetach(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("machines could not be retrieved %w", err)
 		}
-		leader, err := fetchPGLeader(ctx, pgApp, members)
+		leader, err := fetchPGLeader(ctx, members)
 		if err != nil {
 			return fmt.Errorf("can't fetch leader: %w", err)
 		}
@@ -118,16 +118,6 @@ func runDetach(ctx context.Context) error {
 	}
 
 	targetAttachment := attachments[selected]
-
-	agentclient, err := agent.Establish(ctx, client)
-	if err != nil {
-		return errors.Wrap(err, "can't establish agent")
-	}
-
-	dialer, err := agentclient.Dialer(ctx, pgApp.Organization.Slug)
-	if err != nil {
-		return fmt.Errorf("can't build tunnel for %s: %w", app.Organization.Slug, err)
-	}
 
 	pgclient := flypg.New(pgAppName, dialer)
 
