@@ -2,4 +2,4 @@
 
 set -eux
 
-docker build -t flyctl -f Dockerfile.dev .
+(cd $(dirname $0)/..; docker build -t flyctl -f Dockerfile.dev .)

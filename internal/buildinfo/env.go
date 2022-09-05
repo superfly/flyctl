@@ -1,6 +1,6 @@
 package buildinfo
 
-var environment = "development"
+var environment = "staging"
 
 func Environment() string {
 	return environment

@@ -88,6 +88,7 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 		strategies = append(strategies, &nixpacksBuilder{})
 	} else {
 		strategies = []imageBuilder{
+			&nixflakesBuilder{},
 			&buildpacksBuilder{},
 			&dockerfileBuilder{},
 			&builtinBuilder{},

@@ -1,4 +1,4 @@
 #!/bin/sh
 
 set -eu
-docker run --workdir /app -e FLY_API_TOKEN=$(fly auth token) -v $(PWD):/app -it --rm flyctl $@
+docker run --workdir /app -e FLY_API_TOKEN=$(fly auth token) -e LOG_LEVEL=debug -v $(pwd):/app -it --rm flyctl $@
