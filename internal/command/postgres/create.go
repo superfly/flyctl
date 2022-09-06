@@ -82,8 +82,12 @@ func runCreate(ctx context.Context) (err error) {
 		io     = iostreams.FromContext(ctx)
 	)
 	var (
-		appName  = flag.GetString(ctx, "name")
-		imageRef = flag.GetString(ctx, "image-ref")
+		appName            = flag.GetString(ctx, "name")
+		imageRef           = flag.GetString(ctx, "image-ref")
+		volumeSize         = flag.GetInt(ctx, "volume-size")
+		initialClusterSize = flag.GetInt(ctx, "initial-cluster-size")
+		vmSizeName         = flag.GetString(ctx, "vm-size")
+		targetPlatform     = resolveTargetPlatform(ctx)
 	)
 
 	if appName == "" {
@@ -112,13 +116,6 @@ func runCreate(ctx context.Context) (err error) {
 		ImageRef:     imageRef,
 		Region:       region.Code,
 	}
-
-	volumeSize := flag.GetInt(ctx, "volume-size")
-	initialClusterSize := flag.GetInt(ctx, "initial-cluster-size")
-	vmSizeName := flag.GetString(ctx, "vm-size")
-
-	targetPlatform := resolvePlatform(ctx)
-
 	customConfig := volumeSize != 0 || vmSizeName != "" || initialClusterSize != 0
 
 	var config *PostgresConfiguration
@@ -140,7 +137,7 @@ func runCreate(ctx context.Context) (err error) {
 		}
 		config = &postgresConfigurations(targetPlatform)[selected]
 
-		if config.VmSize == "" {
+		if config.VMSize == "" {
 			// User has opted into choosing a custom configuration.
 			customConfig = true
 		}
@@ -170,7 +167,7 @@ func runCreate(ctx context.Context) (err error) {
 			}
 		}
 
-		input.VMSize = api.StringPointer(vmSize.Name)
+		input.VMSize = vmSize
 
 		// Resolve volume size
 		if volumeSize == 0 {
@@ -185,20 +182,22 @@ func runCreate(ctx context.Context) (err error) {
 
 		if targetPlatform == "machines" {
 			for _, size := range MachineVMSizes() {
-				if config.VmSize == size.Name {
+				if config.VMSize == size.Name {
 					vmSize = &size
 					break
 				}
 			}
-			return fmt.Errorf("vm size %s not found", config.VmSize)
+			if vmSize == nil {
+				return fmt.Errorf("vm size %s not found", config.VMSize)
+			}
 		} else {
-			vmSize, err = prompt.VMSize(ctx, config.VmSize)
+			vmSize, err = prompt.VMSize(ctx, config.VMSize)
 			if err != nil {
 				return err
 			}
 		}
 
-		input.VMSize = api.StringPointer(vmSize.Name)
+		input.VMSize = vmSize
 		input.VolumeSize = api.IntPointer(config.DiskGb)
 
 		input.InitialClusterSize = config.InitialClusterSize
@@ -229,7 +228,7 @@ func runCreate(ctx context.Context) (err error) {
 	return launcher.LaunchNomadPostgres(ctx, input)
 }
 
-func resolvePlatform(ctx context.Context) string {
+func resolveTargetPlatform(ctx context.Context) string {
 	if flag.GetBool(ctx, "machines") {
 		return "machines"
 	}
@@ -242,7 +241,7 @@ type PostgresConfiguration struct {
 	Description        string
 	ImageRef           string
 	InitialClusterSize int
-	VmSize             string
+	VMSize             string
 	MemoryMb           int
 	DiskGb             int
 }
@@ -265,7 +264,7 @@ func postgresMachineConfigurations() []PostgresConfiguration {
 			ImageRef:           "flyio/postgres",
 			InitialClusterSize: 1,
 			MemoryMb:           256,
-			VmSize:             "shared-cpu-1x",
+			VMSize:             "shared-cpu-1x",
 		},
 		{
 			Description:        "Production - Highly available, 2x shared CPUs, 4GB RAM, 40GB disk",
@@ -273,7 +272,7 @@ func postgresMachineConfigurations() []PostgresConfiguration {
 			ImageRef:           "flyio/postgres",
 			InitialClusterSize: 2,
 			MemoryMb:           4096,
-			VmSize:             "shared-cpu-2x",
+			VMSize:             "shared-cpu-2x",
 		},
 		{
 			Description:        "Production - Highly available, 4x shared CPUs, 8GB RAM, 80GB disk",
@@ -281,7 +280,7 @@ func postgresMachineConfigurations() []PostgresConfiguration {
 			ImageRef:           "flyio/postgres",
 			InitialClusterSize: 2,
 			MemoryMb:           8192,
-			VmSize:             "shared-cpu-4x",
+			VMSize:             "shared-cpu-4x",
 		},
 		{
 			Description:        "Specify custom configuration",
@@ -289,7 +288,7 @@ func postgresMachineConfigurations() []PostgresConfiguration {
 			ImageRef:           "flyio/postgres",
 			InitialClusterSize: 0,
 			MemoryMb:           0,
-			VmSize:             "",
+			VMSize:             "",
 		},
 	}
 }
@@ -303,7 +302,7 @@ func postgresNomadConfigurations() []PostgresConfiguration {
 			ImageRef:           "flyio/postgres",
 			InitialClusterSize: 1,
 			MemoryMb:           256,
-			VmSize:             "shared-cpu-1x",
+			VMSize:             "shared-cpu-1x",
 		},
 		{
 			Description:        "Production - Highly available, 1x shared CPU, 256MB RAM, 10GB disk",
@@ -311,7 +310,7 @@ func postgresNomadConfigurations() []PostgresConfiguration {
 			ImageRef:           "flyio/postgres",
 			InitialClusterSize: 2,
 			MemoryMb:           256,
-			VmSize:             "shared-cpu-1x",
+			VMSize:             "shared-cpu-1x",
 		},
 		{
 			Description:        "Production - Highly available, 1x Dedicated CPU, 2GB RAM, 50GB disk",
@@ -319,7 +318,7 @@ func postgresNomadConfigurations() []PostgresConfiguration {
 			ImageRef:           "flyio/postgres",
 			InitialClusterSize: 2,
 			MemoryMb:           2048,
-			VmSize:             "dedicated-cpu-1x",
+			VMSize:             "dedicated-cpu-1x",
 		},
 		{
 			Description:        "Production - Highly available, 2x Dedicated CPUs, 4GB RAM, 100GB disk",
@@ -327,7 +326,7 @@ func postgresNomadConfigurations() []PostgresConfiguration {
 			ImageRef:           "flyio/postgres",
 			InitialClusterSize: 2,
 			MemoryMb:           4096,
-			VmSize:             "dedicated-cpu-2x",
+			VMSize:             "dedicated-cpu-2x",
 		},
 		{
 			Description:        "Specify custom configuration",
@@ -335,35 +334,39 @@ func postgresNomadConfigurations() []PostgresConfiguration {
 			ImageRef:           "flyio/postgres",
 			InitialClusterSize: 0,
 			MemoryMb:           0,
-			VmSize:             "",
+			VMSize:             "",
 		},
 	}
 }
 
-// TODO - This should eventually be queried from flaps.
 // machineVMSizes represents the available VM configurations for Machines.
 func MachineVMSizes() []api.VMSize {
+	// TODO - This should eventually be queried from flaps.
 	return []api.VMSize{
 		{
 			Name:     "shared-cpu-1x",
+			CPUClass: "shared",
 			CPUCores: 1,
 			MemoryMB: 256,
 			MemoryGB: 0.25,
 		},
 		{
 			Name:     "shared-cpu-2x",
+			CPUClass: "shared",
 			CPUCores: 2,
 			MemoryMB: 4096,
 			MemoryGB: 4,
 		},
 		{
 			Name:     "shared-cpu-4x",
+			CPUClass: "shared",
 			CPUCores: 4,
 			MemoryMB: 8192,
 			MemoryGB: 8,
 		},
 		{
 			Name:     "shared-cpu-8x",
+			CPUClass: "shared",
 			CPUCores: 8,
 			MemoryMB: 16384,
 			MemoryGB: 16,
