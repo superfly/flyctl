@@ -341,7 +341,7 @@ func postgresNomadConfigurations() []PostgresConfiguration {
 
 // machineVMSizes represents the available VM configurations for Machines.
 func MachineVMSizes() []api.VMSize {
-	// TODO - This should eventually be queried from flaps.
+	// TODO - Eventually we will have a flaps endpoint for this.
 	return []api.VMSize{
 		{
 			Name:     "shared-cpu-1x",
