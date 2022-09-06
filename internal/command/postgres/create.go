@@ -117,6 +117,8 @@ func runCreate(ctx context.Context) (err error) {
 	initialClusterSize := flag.GetInt(ctx, "initial-cluster-size")
 	vmSizeName := flag.GetString(ctx, "vm-size")
 
+	targetPlatform := resolvePlatform(ctx)
+
 	customConfig := volumeSize != 0 || vmSizeName != "" || initialClusterSize != 0
 
 	var config *PostgresConfiguration
@@ -129,14 +131,14 @@ func runCreate(ctx context.Context) (err error) {
 		var selected int
 
 		options := []string{}
-		for _, cfg := range postgresConfigurations() {
+		for _, cfg := range postgresConfigurations(targetPlatform) {
 			options = append(options, cfg.Description)
 		}
 
 		if err := prompt.Select(ctx, &selected, msg, "", options...); err != nil {
 			return err
 		}
-		config = &postgresConfigurations()[selected]
+		config = &postgresConfigurations(targetPlatform)[selected]
 
 		if config.VmSize == "" {
 			// User has opted into choosing a custom configuration.
@@ -155,9 +157,17 @@ func runCreate(ctx context.Context) (err error) {
 		input.InitialClusterSize = initialClusterSize
 
 		// Resolve VM size
-		vmSize, err := prompt.VMSize(ctx, vmSizeName)
-		if err != nil {
-			return err
+		var vmSize *api.VMSize
+		if targetPlatform == "machines" {
+			vmSize, err = prompt.SelectVMSize(ctx, MachineVMSizes())
+			if err != nil {
+				return err
+			}
+		} else {
+			vmSize, err = prompt.VMSize(ctx, vmSizeName)
+			if err != nil {
+				return err
+			}
 		}
 
 		input.VMSize = api.StringPointer(vmSize.Name)
@@ -171,9 +181,21 @@ func runCreate(ctx context.Context) (err error) {
 		input.VolumeSize = api.IntPointer(volumeSize)
 	} else {
 		// Resolve configuration from pre-defined configuration.
-		vmSize, err := prompt.VMSize(ctx, config.VmSize)
-		if err != nil {
-			return err
+		var vmSize *api.VMSize
+
+		if targetPlatform == "machines" {
+			for _, size := range MachineVMSizes() {
+				if config.VmSize == size.Name {
+					vmSize = &size
+					break
+				}
+			}
+			return fmt.Errorf("vm size %s not found", config.VmSize)
+		} else {
+			vmSize, err = prompt.VMSize(ctx, config.VmSize)
+			if err != nil {
+				return err
+			}
 		}
 
 		input.VMSize = api.StringPointer(vmSize.Name)
@@ -207,6 +229,14 @@ func runCreate(ctx context.Context) (err error) {
 	return launcher.LaunchNomadPostgres(ctx, input)
 }
 
+func resolvePlatform(ctx context.Context) string {
+	if flag.GetBool(ctx, "machines") {
+		return "machines"
+	}
+
+	return "nomad"
+}
+
 type PostgresConfiguration struct {
 	Name               string
 	Description        string
@@ -217,7 +247,55 @@ type PostgresConfiguration struct {
 	DiskGb             int
 }
 
-func postgresConfigurations() []PostgresConfiguration {
+func postgresConfigurations(platform string) []PostgresConfiguration {
+	switch platform {
+	case "machines":
+		return postgresMachineConfigurations()
+	default:
+		return postgresNomadConfigurations()
+	}
+}
+
+// postgresMachineConfiguration represents our pre-defined configurations for our Machine platform.
+func postgresMachineConfigurations() []PostgresConfiguration {
+	return []PostgresConfiguration{
+		{
+			Description:        "Development - Single node, 1x shared CPU, 256MB RAM, 1GB disk",
+			DiskGb:             1,
+			ImageRef:           "flyio/postgres",
+			InitialClusterSize: 1,
+			MemoryMb:           256,
+			VmSize:             "shared-cpu-1x",
+		},
+		{
+			Description:        "Production - Highly available, 2x shared CPUs, 4GB RAM, 40GB disk",
+			DiskGb:             40,
+			ImageRef:           "flyio/postgres",
+			InitialClusterSize: 2,
+			MemoryMb:           4096,
+			VmSize:             "shared-cpu-2x",
+		},
+		{
+			Description:        "Production - Highly available, 4x shared CPUs, 8GB RAM, 80GB disk",
+			DiskGb:             80,
+			ImageRef:           "flyio/postgres",
+			InitialClusterSize: 2,
+			MemoryMb:           8192,
+			VmSize:             "shared-cpu-4x",
+		},
+		{
+			Description:        "Specify custom configuration",
+			DiskGb:             0,
+			ImageRef:           "flyio/postgres",
+			InitialClusterSize: 0,
+			MemoryMb:           0,
+			VmSize:             "",
+		},
+	}
+}
+
+// postgresConfiguration represents our pre-defined configurations for our Nomad platform.
+func postgresNomadConfigurations() []PostgresConfiguration {
 	return []PostgresConfiguration{
 		{
 			Description:        "Development - Single node, 1x shared CPU, 256MB RAM, 1GB disk",
@@ -244,7 +322,7 @@ func postgresConfigurations() []PostgresConfiguration {
 			VmSize:             "dedicated-cpu-1x",
 		},
 		{
-			Description:        "Production - Highly available, 2x Dedicated CPU's, 4GB RAM, 100GB disk",
+			Description:        "Production - Highly available, 2x Dedicated CPUs, 4GB RAM, 100GB disk",
 			DiskGb:             100,
 			ImageRef:           "flyio/postgres",
 			InitialClusterSize: 2,
@@ -258,6 +336,37 @@ func postgresConfigurations() []PostgresConfiguration {
 			InitialClusterSize: 0,
 			MemoryMb:           0,
 			VmSize:             "",
+		},
+	}
+}
+
+// TODO - This should eventually be queried from flaps.
+// machineVMSizes represents the available VM configurations for Machines.
+func MachineVMSizes() []api.VMSize {
+	return []api.VMSize{
+		{
+			Name:     "shared-cpu-1x",
+			CPUCores: 1,
+			MemoryMB: 256,
+			MemoryGB: 0.25,
+		},
+		{
+			Name:     "shared-cpu-2x",
+			CPUCores: 2,
+			MemoryMB: 4096,
+			MemoryGB: 4,
+		},
+		{
+			Name:     "shared-cpu-4x",
+			CPUCores: 4,
+			MemoryMB: 8192,
+			MemoryGB: 8,
+		},
+		{
+			Name:     "shared-cpu-8x",
+			CPUCores: 8,
+			MemoryMB: 16384,
+			MemoryGB: 16,
 		},
 	}
 }
