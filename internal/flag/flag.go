@@ -350,8 +350,7 @@ func BuildTarget() String {
 func Nixpacks() Bool {
 	return Bool{
 		Name:        "nixpacks",
-		Description: "Deploy using nixpacks to generate the image",
-		Default:     false,
+		Description: "Deploy using nixpacks to build the image",
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -175,6 +176,11 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 
 	cmd := exec.CommandContext(ctx, nixpacksPath, nixpacksArgs...)
 	cmd.Env = append(cmd.Env, fmt.Sprintf("DOCKER_HOST=%s", dockerHost), fmt.Sprintf("PATH=%s", os.Getenv("PATH")))
+	for _, kv := range os.Environ() {
+		if strings.HasPrefix(kv, "NIXPACKS_") {
+			cmd.Env = append(cmd.Env, kv)
+		}
+	}
 	cmd.Stdout = streams.Out
 	cmd.Stderr = streams.ErrOut
 	cmd.Stdin = nil
