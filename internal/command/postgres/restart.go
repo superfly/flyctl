@@ -120,7 +120,7 @@ func runRestart(ctx context.Context) error {
 			s := spinner.Run(io, "Restarting cluster VMs")
 
 			for _, replica := range replicas {
-				if err := restartMachine(ctx, replica); err != nil {
+				if err := machine.Restart(ctx, replica); err != nil {
 					return fmt.Errorf("failed to restart vm %s: %w", replica.ID, err)
 				}
 			}
@@ -131,7 +131,7 @@ func runRestart(ctx context.Context) error {
 				return fmt.Errorf("failed to trigger failover %w", err)
 			}
 
-			if err := restartMachine(ctx, leader); err != nil {
+			if err := machine.Restart(ctx, leader); err != nil {
 				return fmt.Errorf("failed to restart vm %s: %w", leader.ID, err)
 			}
 			s.StopWithMessage("Successfully restarted all cluster VMs")
@@ -235,28 +235,5 @@ func restartNomadPG(ctx context.Context, app *api.AppCompact) (err error) {
 	}
 	fmt.Fprintf(io.Out, "Restart complete\n")
 
-	return
-}
-
-func restartMachine(ctx context.Context, instance *api.Machine) (err error) {
-	var (
-		flapsClient = flaps.FromContext(ctx)
-	)
-
-	if err = machine.Stop(ctx, instance.ID, "0", 50); err != nil {
-		return
-	}
-
-	if err = flapsClient.Wait(ctx, instance, "stopped"); err != nil {
-		return
-	}
-
-	if err = machine.Start(ctx, instance.ID); err != nil {
-		return
-	}
-
-	if err = flapsClient.Wait(ctx, instance, "started"); err != nil {
-		return
-	}
 	return
 }
