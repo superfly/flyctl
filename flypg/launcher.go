@@ -37,7 +37,7 @@ type CreateClusterInput struct {
 	Password           string
 	Region             string
 	VolumeSize         *int
-	VMSize             *string
+	VMSize             *api.VMSize
 	SnapshotID         *string
 }
 
@@ -180,7 +180,7 @@ func (l *Launcher) LaunchNomadPostgres(ctx context.Context, config *CreateCluste
 		ImageRef:       &config.ImageRef,
 		Count:          &config.InitialClusterSize,
 		Password:       &config.Password,
-		VMSize:         config.VMSize,
+		VMSize:         &config.VMSize.Name,
 		VolumeSizeGB:   config.VolumeSize,
 	}
 
@@ -228,7 +228,11 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 		"PRIMARY_REGION": config.Region,
 	}
 
-	machineConfig.VMSize = *config.VMSize
+	machineConfig.Guest = &api.MachineGuest{
+		CPUKind:  config.VMSize.CPUClass,
+		CPUs:     int(config.VMSize.CPUCores),
+		MemoryMB: config.VMSize.MemoryMB,
+	}
 	machineConfig.Restart.Policy = api.MachineRestartPolicyAlways
 
 	return &machineConfig
