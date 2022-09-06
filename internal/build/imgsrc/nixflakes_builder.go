@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/docker/docker/api/types"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"io/ioutil"
 	"os"
 	"os/exec"
 )
@@ -16,13 +18,17 @@ type nixBuildOutput struct {
 	Outputs        map[string]string `json:"outputs"`
 }
 
+type dockerImageImportOutput struct {
+	Status string `json:"status"`
+}
+
 type nixflakesBuilder struct{}
 
 func (*nixflakesBuilder) Name() string {
 	return "Nix Flakes"
 }
 
-func (*nixflakesBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions) (*DeploymentImage, error) {
+func (b *nixflakesBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions) (*DeploymentImage, error) {
 	if !dockerFactory.mode.IsAvailable() {
 		terminal.Debug("docker daemon not available, skipping")
 		return nil, nil
@@ -35,7 +41,7 @@ func (*nixflakesBuilder) Run(ctx context.Context, dockerFactory *dockerClientFac
 
 	dockerHost := docker.DaemonHost()
 
-	defer clearDeploymentTags(ctx, docker, opts.Tag)
+	// defer clearDeploymentTags(ctx, docker, opts.Tag)
 
 	nixArgs := []string{"build", "--no-link", "--json"}
 	if buildAttr, ok := opts.BuildArgs["attr"]; ok {
@@ -52,10 +58,9 @@ func (*nixflakesBuilder) Run(ctx context.Context, dockerFactory *dockerClientFac
 	cmd.Stdin = nil
 
 	if err := cmd.Run(); err != nil {
+		terminal.Debugf("nix output: %s\n", nixOutput)
 		return nil, err
 	}
-
-	terminal.Debug(nixOutput.String())
 
 	outputs := make([]nixBuildOutput, 0)
 	if err := json.Unmarshal(nixOutput.Bytes(), &outputs); err != nil {
@@ -66,9 +71,42 @@ func (*nixflakesBuilder) Run(ctx context.Context, dockerFactory *dockerClientFac
 		return nil, fmt.Errorf("unexpected number of outputs: %d", len(outputs))
 	}
 
-	output := outputs[0]
+	reader, err := os.Open(outputs[0].Outputs["out"])
+	if err != nil {
+		return nil, fmt.Errorf("error opening %q for reading: %v", outputs[0].Outputs["out"], err)
+	}
 
-	return nil, fmt.Errorf("not implemented")
+	terminal.Debugf("importing %s\n", outputs[0].DerivationPath)
+
+	importResp, err := docker.ImageImport(ctx, types.ImageImportSource{
+		SourceName: "-",
+		Source:     reader,
+	}, "", types.ImageImportOptions{})
+
+	if err != nil {
+		terminal.Debugf("error importing: %v\n", err)
+		return nil, err
+	}
+
+	importRespBytes, err := ioutil.ReadAll(importResp)
+	if err != nil {
+		terminal.Debugf("error importing: %v\n", err)
+		return nil, err
+	}
+
+	var importRespData dockerImageImportOutput
+	if err := json.Unmarshal(importRespBytes, &importRespData); err != nil {
+		terminal.Debugf("error importing: %v\n", err)
+		return nil, err
+	}
+
+	terminal.Debugf("successful import: %q\n", importRespData.Status)
+
+	terminal.Debugf("tagging %q as %q\n", importRespData.Status, opts.Tag)
+
+	if err := docker.ImageTag(ctx, importRespData.Status, opts.Tag); err != nil {
+		terminal.Debugf("error tagging: %v\n", err)
+	}
 
 	if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
 		return nil, err
