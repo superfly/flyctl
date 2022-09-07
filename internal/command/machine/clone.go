@@ -93,14 +93,45 @@ func runMachineClone(ctx context.Context) (err error) {
 		region = source.Region
 	}
 
-	// Ensure attached volumes are not copied to the clone
-	source.Config.Mounts = nil
+	targetConfig := source.Config
+
+	// Hack to support Volume cloning for Postgres clusters.
+	if app.PostgresAppRole.Name == "postgres_cluster" {
+		if len(source.Config.Mounts) > 0 {
+			mnt := source.Config.Mounts[0]
+
+			volInput := api.CreateVolumeInput{
+				AppID:             app.ID,
+				Name:              "pg_data",
+				Region:            region,
+				SizeGb:            mnt.SizeGb,
+				Encrypted:         mnt.Encrypted,
+				RequireUniqueZone: false,
+			}
+
+			vol, err := client.CreateVolume(ctx, volInput)
+			if err != nil {
+				return err
+			}
+
+			targetConfig.Mounts = []api.MachineMount{
+				{
+					Volume:    vol.ID,
+					Path:      mnt.Path,
+					SizeGb:    mnt.SizeGb,
+					Encrypted: mnt.Encrypted,
+				},
+			}
+		}
+	} else {
+		targetConfig.Mounts = nil
+	}
 
 	input := api.LaunchMachineInput{
 		AppID:  app.Name,
 		Name:   flag.GetString(ctx, "name"),
 		Region: region,
-		Config: source.Config,
+		Config: targetConfig,
 	}
 
 	launchedMachine, err := flapsClient.Launch(ctx, input)
