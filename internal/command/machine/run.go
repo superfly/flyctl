@@ -198,11 +198,6 @@ func runMachineRun(ctx context.Context) error {
 		},
 	}
 
-	schedule := flag.GetString(ctx, "schedule")
-	if schedule != "" {
-		machineConf.Schedule = schedule
-	}
-
 	input := api.LaunchMachineInput{
 		AppID:  app.Name,
 		Name:   flag.GetString(ctx, "name"),
@@ -521,6 +516,8 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 	if err != nil {
 		return
 	}
+
+	machineConf.Schedule = flag.GetString(ctx, "schedule")
 
 	machineConf.Metadata, err = parseKVFlag(ctx, "metadata", machineConf.Metadata)
 
