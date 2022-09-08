@@ -6,12 +6,12 @@ func configureNextJs(sourceDir string) (*SourceInfo, error) {
 	}
 
 	env := map[string]string{
-		"PORT": "8080",
+		"PORT": "3000",
 	}
 
 	s := &SourceInfo{
 		Family:       "NextJS",
-		Port:         8080,
+		Port:         3000,
 		SkipDatabase: true,
 	}
 
