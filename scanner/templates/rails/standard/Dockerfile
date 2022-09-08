@@ -44,7 +44,8 @@ RUN --mount=type=cache,id=dev-apt-cache,sharing=locked,target=/var/cache/apt \
 
 FROM build_deps as gems
 
-RUN gem install -N bundler -v ${BUNDLER_VERSION}
+RUN gem update --system --no-document && \
+    gem install -N bundler -v ${BUNDLER_VERSION}
 
 COPY Gemfile* ./
 RUN bundle install &&  rm -rf vendor/bundle/ruby/*/cache
@@ -76,6 +77,8 @@ RUN --mount=type=cache,id=prod-apt-cache,sharing=locked,target=/var/cache/apt \
 
 COPY --from=gems /app /app
 COPY --from=node_modules /app/node_modules /app/node_modules
+COPY --from=gems /usr/lib/fullstaq-ruby/versions /usr/lib/fullstaq-ruby/versions
+COPY --from=gems /usr/local/bundle /usr/local/bundle
 
 # The following enable assets to precompile on the build server.  Adjust
 # as necessary.  If no combination works for you, see:
