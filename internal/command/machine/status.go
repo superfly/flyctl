@@ -78,18 +78,12 @@ func runMachineStatus(ctx context.Context) (err error) {
 	fmt.Fprintf(io.Out, "Instance ID: %s\n", machine.InstanceID)
 	fmt.Fprintf(io.Out, "State: %s\n\n", machine.State)
 
-	imageRef := machine.FullImageRef()
-
-	if machine.ImageRef.Labels["fly.version"] != "" {
-		imageRef = fmt.Sprintf("%s (%s)", imageRef, machine.ImageRef.Labels["fly.version"])
-	}
-
 	obj := [][]string{
 		{
 			machine.ID,
 			machine.InstanceID,
 			machine.State,
-			imageRef,
+			machine.ImageRefWithVersion(),
 			machine.Name,
 			machine.PrivateIP,
 			machine.Region,

@@ -91,18 +91,12 @@ func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Ma
 			role = "error"
 		}
 
-		imageRef := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
-
-		if machine.ImageRef.Labels["fly.version"] != "" {
-			imageRef = fmt.Sprintf("%s (%s)", imageRef, machine.ImageRef.Labels["fly.version"])
-		}
-
 		rows = append(rows, []string{
 			machine.ID,
 			machine.State,
 			role,
 			machine.Region,
-			imageRef,
+			machine.ImageRefWithVersion(),
 			machine.CreatedAt,
 			machine.UpdatedAt,
 		})
