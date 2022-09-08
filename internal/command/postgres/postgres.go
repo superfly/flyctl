@@ -161,8 +161,10 @@ func machinesNodeRoles(ctx context.Context, machines []*api.Machine) (leader *ap
 }
 
 func nomadNodeRoles(ctx context.Context, allocs []*api.AllocationStatus) (leader *api.AllocationStatus, replicas []*api.AllocationStatus, err error) {
+	var dialer = agent.DialerFromContext(ctx)
+
 	for _, alloc := range allocs {
-		pgclient := flypg.NewFromInstance(alloc.PrivateIP, nil)
+		pgclient := flypg.NewFromInstance(alloc.PrivateIP, dialer)
 		if err != nil {
 			return nil, nil, fmt.Errorf("can't connect to %s: %w", alloc.ID, err)
 		}

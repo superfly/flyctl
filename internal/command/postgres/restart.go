@@ -81,49 +81,32 @@ func runRestart(ctx context.Context) error {
 		}
 		ctx = flaps.NewContext(ctx, flapsClient)
 
-		members, err := flapsClient.List(ctx, "started")
+		machines, err := flapsClient.List(ctx, "started")
 		if err != nil {
 			return fmt.Errorf("machines could not be retrieved %w", err)
 		}
-		leader, _, err := machinesNodeRoles(ctx, members)
-		if err != nil {
-			return fmt.Errorf("can't fetch leader: %w", err)
+		if len(machines) == 0 {
+			return fmt.Errorf("no machines found")
 		}
-		if leader == nil {
-			return fmt.Errorf("no leader found")
-		}
-
-		if err := hasRequiredVersionOnMachines(leader, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		if err := hasRequiredVersionOnMachines(machines[0], MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
 		if flag.GetBool(ctx, "hard") {
-			return machinesHardRestart(ctx, members)
+			return machinesHardRestart(ctx, machines)
 		}
-		return machinesSoftRestart(ctx, app)
+		return machinesSoftRestart(ctx, machines)
 	}
 
 	return nil
 }
 
-func machinesSoftRestart(ctx context.Context, app *api.AppCompact) error {
+func machinesSoftRestart(ctx context.Context, machines []*api.Machine) error {
 	var (
-		dialer = agent.DialerFromContext(ctx)
-		io     = iostreams.FromContext(ctx)
+		flapsClient = flaps.FromContext(ctx)
+		dialer      = agent.DialerFromContext(ctx)
+		appName     = app.NameFromContext(ctx)
+		io          = iostreams.FromContext(ctx)
 	)
-
-	flapsClient, err := flaps.New(ctx, app)
-	if err != nil {
-		return fmt.Errorf("list of machines could not be retrieved: %w", err)
-	}
-
-	machines, err := flapsClient.List(ctx, "started")
-	if err != nil {
-		return fmt.Errorf("machines could not be retrieved %w", err)
-	}
-
-	if len(machines) == 0 {
-		return fmt.Errorf("no machines found")
-	}
 
 	leader, replicas, err := machinesNodeRoles(ctx, machines)
 	if err != nil {
@@ -166,7 +149,7 @@ func machinesSoftRestart(ctx context.Context, app *api.AppCompact) error {
 	// Don't perform failover if the cluster is only running a
 	// single node.
 	if len(machines) > 1 {
-		pgclient := flypg.New(app.Name, dialer)
+		pgclient := flypg.New(appName, dialer)
 
 		fmt.Fprintf(io.Out, "Performing a failover\n")
 		if err := pgclient.Failover(ctx); err != nil {
@@ -190,6 +173,7 @@ func machinesSoftRestart(ctx context.Context, app *api.AppCompact) error {
 func nomadSoftRestart(ctx context.Context, app *api.AppCompact) (err error) {
 	var (
 		client = client.FromContext(ctx).API()
+		dialer = agent.DialerFromContext(ctx)
 		io     = iostreams.FromContext(ctx)
 	)
 
@@ -214,19 +198,11 @@ func nomadSoftRestart(ctx context.Context, app *api.AppCompact) (err error) {
 		return fmt.Errorf("no leader found")
 	}
 
-	agentclient, err := agent.Establish(ctx, client)
-	if err != nil {
-		return fmt.Errorf("can't establish agent %w", err)
-	}
-
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
-	if err != nil {
-		return fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
-	}
-
-	fmt.Fprintln(io.Out, "Restarting the Postgres Processs")
+	fmt.Fprintln(io.Out, "Restarting the Postgres Process")
 
 	if len(replicas) > 0 {
+		fmt.Fprintln(io.Out, "Attempting to restart replica(s)")
+
 		for _, replica := range replicas {
 			fmt.Fprintf(io.Out, " Restarting %s\n", replica.ID)
 
@@ -235,6 +211,7 @@ func nomadSoftRestart(ctx context.Context, app *api.AppCompact) (err error) {
 			if err := pgclient.RestartNodePG(ctx); err != nil {
 				return fmt.Errorf("failed to restart postgres on node: %w", err)
 			}
+			// wait for health checks to pass
 		}
 	}
 
@@ -277,11 +254,15 @@ func machinesHardRestart(ctx context.Context, machines []*api.Machine) (err erro
 	}
 
 	if len(replicas) > 0 {
+		fmt.Fprintln(io.Out, "Attempting to restart replica(s)")
 
 		for _, replica := range replicas {
+			fmt.Fprintf(io.Out, " Restarting %s\n", replica.ID)
+
 			if err := machine.Restart(ctx, replica); err != nil {
 				return fmt.Errorf("failed to restart vm %s: %w", replica.ID, err)
 			}
+			// wait for health checks to pass
 		}
 	}
 
