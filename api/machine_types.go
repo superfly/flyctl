@@ -35,6 +35,16 @@ func (m Machine) FullImageRef() string {
 	return fmt.Sprintf("%s/%s:%s", m.ImageRef.Registry, m.ImageRef.Repository, m.ImageRef.Tag)
 }
 
+func (m Machine) ImageRefWithVersion() string {
+	ref := fmt.Sprintf("%s:%s", m.ImageRef.Repository, m.ImageRef.Tag)
+	version := m.ImageRef.Labels["fly.version"]
+	if version != "" {
+		ref = fmt.Sprintf("%s (%s)", ref, version)
+	}
+
+	return ref
+}
+
 func (m Machine) ImageVersion() string {
 	if m.ImageRef.Labels == nil {
 		return ""

@@ -50,7 +50,7 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) (err error) {
 			machine.ID,
 			machine.State,
 			machine.Region,
-			machine.FullImageRef(),
+			machine.ImageRefWithVersion(),
 			machine.CreatedAt,
 			machine.UpdatedAt,
 		})
@@ -91,7 +91,7 @@ func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Ma
 			machine.State,
 			role,
 			machine.Region,
-			machine.FullImageRef(),
+			machine.ImageRefWithVersion(),
 			machine.CreatedAt,
 			machine.UpdatedAt,
 		})
