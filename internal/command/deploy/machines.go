@@ -302,6 +302,4 @@ func releaseLease(ctx context.Context, client *flaps.Client, machine *api.Machin
 	if err := client.ReleaseLease(ctx, machine.ID, machine.LeaseNonce); err != nil {
 		fmt.Println(io.Out, fmt.Errorf("could not release lease on %s (%w)", machine.ID, err))
 	}
-
-	return
 }
