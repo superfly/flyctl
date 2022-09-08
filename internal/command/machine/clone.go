@@ -79,7 +79,6 @@ func runMachineClone(ctx context.Context) (err error) {
 		}
 
 		source, err = flapsClient.Get(ctx, machines[0].ID)
-
 		if err != nil {
 			return err
 		}
@@ -88,14 +87,15 @@ func runMachineClone(ctx context.Context) (err error) {
 	}
 
 	region := flag.GetString(ctx, "region")
-
 	if region == "" {
 		region = source.Region
 	}
 
 	targetConfig := source.Config
 
-	// Hack to support Volume cloning for Postgres clusters.
+	// This is a temperary hack to add volume support for PG apps.
+	// Flaps does not currently specify the volume name within the Machine mount spec,
+	// which is required before we can handle this more generally.
 	if app.PostgresAppRole.Name == "postgres_cluster" {
 		if len(source.Config.Mounts) > 0 {
 			mnt := source.Config.Mounts[0]
