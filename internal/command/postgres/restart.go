@@ -70,10 +70,18 @@ func runRestart(ctx context.Context) error {
 
 	switch app.PlatformVersion {
 	case "nomad":
-		if flag.GetBool(ctx, "hard") {
-			return fmt.Errorf("hard restart is not supported for nomad")
+		if err = hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+			return err
 		}
-		return nomadSoftRestart(ctx, app)
+		vms, err := client.GetAllocations(ctx, app.Name, false)
+		if err != nil {
+			return fmt.Errorf("can't fetch allocations: %w", err)
+		}
+		if flag.GetBool(ctx, "hard") {
+			return nomadHardRestart(ctx, vms)
+		}
+		return nomadSoftRestart(ctx, vms)
+
 	case "machines":
 		flapsClient, err := flaps.New(ctx, app)
 		if err != nil {
@@ -143,6 +151,8 @@ func machinesSoftRestart(ctx context.Context, machines []*api.Machine) error {
 			if err := pgclient.RestartNodePG(ctx); err != nil {
 				return fmt.Errorf("failed to restart postgres on node: %w", err)
 			}
+
+			// wait for health checks to pass
 		}
 	}
 
@@ -170,25 +180,12 @@ func machinesSoftRestart(ctx context.Context, machines []*api.Machine) error {
 	return nil
 }
 
-func nomadSoftRestart(ctx context.Context, app *api.AppCompact) (err error) {
+func nomadSoftRestart(ctx context.Context, vms []*api.AllocationStatus) (err error) {
 	var (
-		client = client.FromContext(ctx).API()
-		dialer = agent.DialerFromContext(ctx)
-		io     = iostreams.FromContext(ctx)
+		dialer  = agent.DialerFromContext(ctx)
+		appName = app.NameFromContext(ctx)
+		io      = iostreams.FromContext(ctx)
 	)
-
-	status, err := client.GetAppStatus(ctx, app.Name, false)
-	if err != nil {
-		return fmt.Errorf("get app status: %w", err)
-	}
-
-	var vms []*api.AllocationStatus
-
-	vms = append(vms, status.Allocations...)
-
-	if len(vms) == 0 {
-		return fmt.Errorf("no vms found")
-	}
 
 	leader, replicas, err := nomadNodeRoles(ctx, vms)
 	if err != nil {
@@ -218,7 +215,7 @@ func nomadSoftRestart(ctx context.Context, app *api.AppCompact) (err error) {
 	// Don't perform failover if the cluster is only running a
 	// single node.
 	if len(vms) > 1 {
-		pgclient := flypg.New(app.Name, dialer)
+		pgclient := flypg.New(appName, dialer)
 
 		fmt.Fprintf(io.Out, "Performing a failover\n")
 		if err := pgclient.Failover(ctx); err != nil {
@@ -277,13 +274,61 @@ func machinesHardRestart(ctx context.Context, machines []*api.Machine) (err erro
 		}
 	}
 
-	pgclient := flypg.New(appName, dialer)
-
-	if err := pgclient.Failover(ctx); err != nil {
-		return fmt.Errorf("failed to trigger failover %w", err)
-	}
+	fmt.Fprintln(io.Out, "Attempting to restart leader")
 
 	if err := machine.Restart(ctx, leader); err != nil {
+		return fmt.Errorf("failed to restart vm %s: %w", leader.ID, err)
+	}
+
+	fmt.Fprintf(io.Out, "Postgres cluster has been successfully restarted!\n")
+
+	return
+}
+
+func nomadHardRestart(ctx context.Context, allocs []*api.AllocationStatus) (err error) {
+	var (
+		dialer  = agent.DialerFromContext(ctx)
+		client  = client.FromContext(ctx).API()
+		appName = app.NameFromContext(ctx)
+		io      = iostreams.FromContext(ctx)
+	)
+
+	leader, replicas, err := nomadNodeRoles(ctx, allocs)
+	if err != nil {
+		return
+	}
+
+	if leader == nil {
+		return fmt.Errorf("no leader found")
+	}
+
+	if len(replicas) > 0 {
+		fmt.Fprintln(io.Out, "Attempting to restart replica(s)")
+
+		for _, replica := range replicas {
+			fmt.Fprintf(io.Out, " Restarting %s\n", replica.ID)
+
+			if err := client.RestartAllocation(ctx, appName, replica.ID); err != nil {
+				return fmt.Errorf("failed to restart vm %s: %w", replica.ID, err)
+			}
+			// wait for health checks to pass
+		}
+	}
+
+	// Don't perform failover if the cluster is only running a
+	// single node.
+	if len(allocs) > 1 {
+		pgclient := flypg.New(appName, dialer)
+
+		fmt.Fprintf(io.Out, "Performing a failover\n")
+		if err := pgclient.Failover(ctx); err != nil {
+			return fmt.Errorf("failed to trigger failover %w", err)
+		}
+	}
+
+	fmt.Fprintln(io.Out, "Attempting to restart leader")
+
+	if err := client.RestartAllocation(ctx, appName, leader.ID); err != nil {
 		return fmt.Errorf("failed to restart vm %s: %w", leader.ID, err)
 	}
 
