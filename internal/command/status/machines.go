@@ -46,11 +46,16 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) (err error) {
 	rows := [][]string{}
 
 	for _, machine := range machines {
+		imageRef := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
+		if machine.ImageRef.Labels["fly.version"] != "" {
+			imageRef = fmt.Sprintf("%s (%s)", imageRef, machine.ImageRef.Labels["fly.version"])
+		}
+
 		rows = append(rows, []string{
 			machine.ID,
 			machine.State,
 			machine.Region,
-			machine.FullImageRef(),
+			imageRef,
 			machine.CreatedAt,
 			machine.UpdatedAt,
 		})
@@ -86,12 +91,18 @@ func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Ma
 			role = "error"
 		}
 
+		imageRef := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
+
+		if machine.ImageRef.Labels["fly.version"] != "" {
+			imageRef = fmt.Sprintf("%s (%s)", imageRef, machine.ImageRef.Labels["fly.version"])
+		}
+
 		rows = append(rows, []string{
 			machine.ID,
 			machine.State,
 			role,
 			machine.Region,
-			machine.FullImageRef(),
+			imageRef,
 			machine.CreatedAt,
 			machine.UpdatedAt,
 		})

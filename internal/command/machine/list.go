@@ -91,12 +91,18 @@ func runMachineList(ctx context.Context) (err error) {
 				volName = machine.Config.Mounts[0].Volume
 			}
 
+			imageRef := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
+
+			if machine.ImageRef.Labels["fly.version"] != "" {
+				imageRef = fmt.Sprintf("%s (%s)", imageRef, machine.ImageRef.Labels["fly.version"])
+			}
+
 			rows = append(rows, []string{
 				machine.ID,
 				machine.Name,
 				machine.State,
 				machine.Region,
-				fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag),
+				imageRef,
 				machine.PrivateIP,
 				volName,
 				machine.CreatedAt,
