@@ -233,10 +233,27 @@ func nomadSoftRestart(ctx context.Context, vms []*api.AllocationStatus) (err err
 
 func machinesHardRestart(ctx context.Context, machines []*api.Machine) (err error) {
 	var (
-		dialer  = agent.DialerFromContext(ctx)
-		appName = app.NameFromContext(ctx)
-		io      = iostreams.FromContext(ctx)
+		dialer      = agent.DialerFromContext(ctx)
+		flapsClient = flaps.FromContext(ctx)
+		appName     = app.NameFromContext(ctx)
+		io          = iostreams.FromContext(ctx)
 	)
+
+	// Acquire leases
+	fmt.Fprintf(io.Out, "Attempting to acquire lease(s)\n")
+
+	for _, machine := range machines {
+		lease, err := flapsClient.GetLease(ctx, machine.ID, api.IntPointer(40))
+		if err != nil {
+			return fmt.Errorf("failed to obtain lease: %w", err)
+		}
+		machine.LeaseNonce = lease.Data.Nonce
+
+		// Ensure lease is released on return
+		defer releaseLease(ctx, flapsClient, machine)
+
+		fmt.Fprintf(io.Out, "  Machine %s: %s\n", machine.ID, lease.Status)
+	}
 
 	leader, replicas, err := machinesNodeRoles(ctx, machines)
 	if err != nil {
