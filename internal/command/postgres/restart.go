@@ -112,7 +112,6 @@ func machinesSoftRestart(ctx context.Context, machines []*api.Machine) error {
 	var (
 		flapsClient = flaps.FromContext(ctx)
 		dialer      = agent.DialerFromContext(ctx)
-		appName     = app.NameFromContext(ctx)
 		io          = iostreams.FromContext(ctx)
 	)
 
@@ -156,16 +155,15 @@ func machinesSoftRestart(ctx context.Context, machines []*api.Machine) error {
 		}
 	}
 
-	// Don't perform failover if the cluster is only running a
-	// single node.
-	if len(machines) > 1 {
-		pgclient := flypg.New(appName, dialer)
+	// TODO: test if failover does not result in more downtime
+	// if len(machines) > 1 {
+	// 	pgclient := flypg.New(appName, dialer)
 
-		fmt.Fprintf(io.Out, "Performing a failover\n")
-		if err := pgclient.Failover(ctx); err != nil {
-			return fmt.Errorf("failed to trigger failover %w", err)
-		}
-	}
+	// 	fmt.Fprintf(io.Out, "Performing a failover\n")
+	// 	if err := pgclient.Failover(ctx); err != nil {
+	// 		return fmt.Errorf("failed to trigger failover %w", err)
+	// 	}
+	// }
 
 	fmt.Fprintf(io.Out, "Attempting to restart leader\n")
 
@@ -182,9 +180,8 @@ func machinesSoftRestart(ctx context.Context, machines []*api.Machine) error {
 
 func nomadSoftRestart(ctx context.Context, vms []*api.AllocationStatus) (err error) {
 	var (
-		dialer  = agent.DialerFromContext(ctx)
-		appName = app.NameFromContext(ctx)
-		io      = iostreams.FromContext(ctx)
+		dialer = agent.DialerFromContext(ctx)
+		io     = iostreams.FromContext(ctx)
 	)
 
 	leader, replicas, err := nomadNodeRoles(ctx, vms)
@@ -212,16 +209,15 @@ func nomadSoftRestart(ctx context.Context, vms []*api.AllocationStatus) (err err
 		}
 	}
 
-	// Don't perform failover if the cluster is only running a
-	// single node.
-	if len(vms) > 1 {
-		pgclient := flypg.New(appName, dialer)
+	// TODO: test if failover does not result in more downtime
+	// if len(vms) > 1 {
+	// 	pgclient := flypg.New(appName, dialer)
 
-		fmt.Fprintf(io.Out, "Performing a failover\n")
-		if err := pgclient.Failover(ctx); err != nil {
-			return fmt.Errorf("failed to trigger failover %w", err)
-		}
-	}
+	// 	fmt.Fprintf(io.Out, "Performing a failover\n")
+	// 	if err := pgclient.Failover(ctx); err != nil {
+	// 		return fmt.Errorf("failed to trigger failover %w", err)
+	// 	}
+	// }
 
 	fmt.Fprintf(io.Out, "Attempting to restart leader\n")
 
