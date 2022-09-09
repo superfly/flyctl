@@ -207,7 +207,7 @@ func runMachineRun(ctx context.Context) error {
 
 	machineID := flag.GetString(ctx, "id")
 	if machineID != "" {
-		return fmt.Errorf("To update an existing machine, use 'flyctl machine update'.")
+		return fmt.Errorf("to update an existing machine, use 'flyctl machine update'")
 	}
 
 	machineConf, err = determineMachineConfig(ctx, machineConf, app, flag.FirstArg(ctx))

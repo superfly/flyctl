@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/command"
 )
 
@@ -53,4 +54,27 @@ func appFromMachineOrName(ctx context.Context, machineId string, appName string)
 	}
 
 	return app, err
+}
+
+func Restart(ctx context.Context, instance *api.Machine) (err error) {
+	var (
+		flapsClient = flaps.FromContext(ctx)
+	)
+
+	if err = Stop(ctx, instance.ID, "0", 50); err != nil {
+		return
+	}
+
+	if err = flapsClient.Wait(ctx, instance, "stopped"); err != nil {
+		return
+	}
+
+	if err = Start(ctx, instance.ID); err != nil {
+		return
+	}
+
+	if err = flapsClient.Wait(ctx, instance, "started"); err != nil {
+		return
+	}
+	return
 }

@@ -99,6 +99,7 @@ func runConfigView(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
+	ctx = agent.DialerWithContext(ctx, dialer)
 
 	switch app.PlatformVersion {
 	case "nomad":
@@ -106,7 +107,17 @@ func runConfigView(ctx context.Context) (err error) {
 			return err
 		}
 	case "machines":
-		leader, err := fetchLeader(ctx, app, dialer)
+		flapsClient, err := flaps.New(ctx, app)
+		if err != nil {
+			return fmt.Errorf("list of machines could not be retrieved: %w", err)
+		}
+
+		members, err := flapsClient.List(ctx, "started")
+		if err != nil {
+			return fmt.Errorf("machines could not be retrieved %w", err)
+		}
+
+		leader, err := fetchPGLeader(ctx, members)
 		if err != nil {
 			return fmt.Errorf("can't fetch leader: %w", err)
 		}
