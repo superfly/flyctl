@@ -148,7 +148,7 @@ func machinesSoftRestart(ctx context.Context, machines []*api.Machine) error {
 			pgclient := flypg.NewFromInstance(fmt.Sprintf("[%s]", replica.PrivateIP), dialer)
 
 			if err := pgclient.RestartNodePG(ctx); err != nil {
-				return fmt.Errorf("failed to restart postgres on node: %w", err)
+				return fmt.Errorf("failed to restart postgres on node %s: %w", replica.ID, err)
 			}
 
 			// wait for health checks to pass
@@ -170,7 +170,7 @@ func machinesSoftRestart(ctx context.Context, machines []*api.Machine) error {
 	pgclient := flypg.NewFromInstance(fmt.Sprintf("[%s]", leader.PrivateIP), dialer)
 
 	if err := pgclient.RestartNodePG(ctx); err != nil {
-		return fmt.Errorf("failed to restart postgres on node: %w", err)
+		return fmt.Errorf("failed to restart postgres on node %s: %w", leader.ID, err)
 	}
 
 	fmt.Fprintf(io.Out, "Postgres cluster has been successfully restarted!\n")
@@ -203,7 +203,7 @@ func nomadSoftRestart(ctx context.Context, vms []*api.AllocationStatus) (err err
 			pgclient := flypg.NewFromInstance(fmt.Sprintf("[%s]", replica.PrivateIP), dialer)
 
 			if err := pgclient.RestartNodePG(ctx); err != nil {
-				return fmt.Errorf("failed to restart postgres on node: %w", err)
+				return fmt.Errorf("failed to restart postgres on node %s: %w", replica.ID, err)
 			}
 			// wait for health checks to pass
 		}
@@ -224,7 +224,7 @@ func nomadSoftRestart(ctx context.Context, vms []*api.AllocationStatus) (err err
 	pgclient := flypg.NewFromInstance(fmt.Sprintf("[%s]", leader.PrivateIP), dialer)
 
 	if err := pgclient.RestartNodePG(ctx); err != nil {
-		return fmt.Errorf("failed to restart postgres on node: %w", err)
+		return fmt.Errorf("failed to restart postgres on node %s: %w", leader.ID, err)
 	}
 	fmt.Fprintf(io.Out, "Postgres cluster has been successfully restarted!\n")
 
