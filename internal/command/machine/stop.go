@@ -59,6 +59,8 @@ func runMachineStop(ctx context.Context) (err error) {
 	)
 
 	for _, machineID := range args {
+		fmt.Fprintf(io.Out, "Sending kill signal to machine %s...", machineID)
+
 		if err = Stop(ctx, machineID, signal, timeout); err != nil {
 			return
 		}
