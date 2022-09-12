@@ -228,11 +228,20 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 		"PRIMARY_REGION": config.Region,
 	}
 
+	// Set VM resources
 	machineConfig.Guest = &api.MachineGuest{
 		CPUKind:  config.VMSize.CPUClass,
 		CPUs:     int(config.VMSize.CPUCores),
 		MemoryMB: config.VMSize.MemoryMB,
 	}
+
+	// Metrics
+	machineConfig.Metrics = &api.MachineMetrics{
+		Path: "/metrics",
+		Port: 9187,
+	}
+
+	// Restart policy
 	machineConfig.Restart.Policy = api.MachineRestartPolicyAlways
 
 	return &machineConfig
