@@ -71,6 +71,10 @@ func runMachineList(ctx context.Context) (err error) {
 		return fmt.Errorf("machines could not be retrieved")
 	}
 
+	if len(machines) == 0 {
+		return fmt.Errorf("no machines are available on this app %s", appName)
+	}
+
 	if cfg.JSONOutput {
 		return render.JSON(io.Out, machines)
 	}
