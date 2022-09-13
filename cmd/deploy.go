@@ -328,7 +328,7 @@ func watchDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext, evaluationI
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
-		out      = iostreams.FromContext(ctx).Out
+		out      = io.Out
 	)
 	cmdCtx.Status("deploy", cmdctx.STITLE, "Monitoring Deployment")
 

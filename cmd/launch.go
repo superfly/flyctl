@@ -314,13 +314,13 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		}
 	}
 
-	out := iostreams.FromContext(ctx).Out
+	out := io.Out
 
 	adminLink := fmt.Sprintf("https://fly.io/apps/%s", appName)
 	appLink := fmt.Sprintf("%s.fly.dev", appName)
 	links := fmt.Sprintf("Admin URL: %s\nURL: %s \nApp ID: %s \n", adminLink, appLink, cmdCtx.AppName)
 
-	fmt.Fprintln(out, colorize.Yellow(aurora.Underline("App Created\n").String()))
+	fmt.Fprintln(out, colorize.Underline("App Created\n"))
 	fmt.Fprintln(out, links)
 
 	// If secrets are requested by the launch scanner, ask the user to input them
