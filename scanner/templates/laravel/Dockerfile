@@ -19,7 +19,6 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /var/www/html
 # copy application code, skipping files based on .dockerignore
 COPY . /var/www/html
-COPY --from=base /var/www/html/vendor /app/vendor
 
 RUN composer install --optimize-autoloader --no-dev \
     && mkdir -p storage/logs \
@@ -56,6 +55,7 @@ RUN mkdir /app
 RUN mkdir -p  /app
 WORKDIR /app
 COPY . .
+COPY --from=base /var/www/html/vendor /app/vendor
 
 # Use yarn or npm depending on what type of
 # lock file we might find. Defaults to
