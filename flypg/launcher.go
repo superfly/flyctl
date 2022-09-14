@@ -223,11 +223,6 @@ func (l *Launcher) LaunchNomadPostgres(ctx context.Context, config *CreateCluste
 func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineConfig {
 	machineConfig := api.MachineConfig{}
 
-	// Set env
-	machineConfig.Env = map[string]string{
-		"PRIMARY_REGION": config.Region,
-	}
-
 	// Set VM resources
 	machineConfig.Guest = &api.MachineGuest{
 		CPUKind:  config.VMSize.CPUClass,
@@ -300,6 +295,7 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 		"SU_PASSWORD":       suPassword,
 		"REPL_PASSWORD":     replPassword,
 		"OPERATOR_PASSWORD": opPassword,
+		"PRIMARY_REGION":    config.Region,
 	}
 
 	if config.SnapshotID != nil {
