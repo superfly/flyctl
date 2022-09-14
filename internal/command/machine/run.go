@@ -118,6 +118,10 @@ var sharedFlags = flag.Set{
 		Shorthand:   "m",
 		Description: "Metadata in the form of NAME=VALUE pairs. Can be specified multiple times.",
 	},
+	flag.String{
+		Name:        "schedule",
+		Description: `Schedule a machine run at hourly, daily and monthly intervals`,
+	},
 }
 
 func newRun() *cobra.Command {
@@ -512,6 +516,8 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 	if err != nil {
 		return
 	}
+
+	machineConf.Schedule = flag.GetString(ctx, "schedule")
 
 	machineConf.Metadata, err = parseKVFlag(ctx, "metadata", machineConf.Metadata)
 
