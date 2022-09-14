@@ -153,6 +153,12 @@ WireGuard runs on 51820/udp, which your local network may block.
 
 If this is the first time you've ever used 'flyctl' on this machine, you
 can try running 'flyctl doctor' again.
+
+If this was working before, you can ask 'flyctl' to create a new peer for
+you by running 'flyctl wireguard reset'.
+
+If your network might be blocking UDP, you can run 'flyctl wireguard websockets enable',
+followed by 'flyctl agent restart', and we'll run WireGuard over HTTPS.
 `)
 		return nil
 	}
