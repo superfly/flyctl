@@ -211,6 +211,7 @@ func runCreate(ctx context.Context) (err error) {
 
 func resolveVMSize(ctx context.Context, platform string, targetSize string) (*api.VMSize, error) {
 	if platform == "machines" {
+		// verify the specified size
 		if targetSize != "" {
 			for _, size := range MachineVMSizes() {
 				if targetSize == size.Name {
@@ -218,9 +219,9 @@ func resolveVMSize(ctx context.Context, platform string, targetSize string) (*ap
 				}
 			}
 
-			return nil, fmt.Errorf("vm size %s not found", targetSize)
+			return nil, fmt.Errorf("vm size %q is not valid", targetSize)
 		}
-		// prompt user to select machine specific machine size.
+		// prompt user to select machine specific size.
 		return prompt.SelectVMSize(ctx, MachineVMSizes())
 	}
 
