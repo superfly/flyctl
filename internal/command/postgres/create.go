@@ -188,8 +188,6 @@ func runCreate(ctx context.Context) (err error) {
 		}
 	}
 
-	fmt.Printf("Select vm-size: %+v\n", input.VMSize)
-
 	if password := flag.GetString(ctx, "password"); password != "" {
 		input.Password = password
 	}
