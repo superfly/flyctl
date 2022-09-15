@@ -116,6 +116,7 @@ func runCreate(ctx context.Context) (err error) {
 		ImageRef:     imageRef,
 		Region:       region.Code,
 	}
+
 	customConfig := volumeSize != 0 || vmSizeName != "" || initialClusterSize != 0
 
 	var config *PostgresConfiguration
@@ -154,17 +155,9 @@ func runCreate(ctx context.Context) (err error) {
 		input.InitialClusterSize = initialClusterSize
 
 		// Resolve VM size
-		var vmSize *api.VMSize
-		if targetPlatform == "machines" {
-			vmSize, err = prompt.SelectVMSize(ctx, MachineVMSizes())
-			if err != nil {
-				return err
-			}
-		} else {
-			vmSize, err = prompt.VMSize(ctx, vmSizeName)
-			if err != nil {
-				return err
-			}
+		vmSize, err := resolveVMSize(ctx, targetPlatform, vmSizeName)
+		if err != nil {
+			return err
 		}
 
 		input.VMSize = vmSize
@@ -178,23 +171,9 @@ func runCreate(ctx context.Context) (err error) {
 		input.VolumeSize = api.IntPointer(volumeSize)
 	} else {
 		// Resolve configuration from pre-defined configuration.
-		var vmSize *api.VMSize
-
-		if targetPlatform == "machines" {
-			for _, size := range MachineVMSizes() {
-				if config.VMSize == size.Name {
-					vmSize = &size
-					break
-				}
-			}
-			if vmSize == nil {
-				return fmt.Errorf("vm size %s not found", config.VMSize)
-			}
-		} else {
-			vmSize, err = prompt.VMSize(ctx, config.VMSize)
-			if err != nil {
-				return err
-			}
+		vmSize, err := resolveVMSize(ctx, targetPlatform, config.VMSize)
+		if err != nil {
+			return err
 		}
 
 		input.VMSize = vmSize
@@ -226,6 +205,25 @@ func runCreate(ctx context.Context) (err error) {
 		return launcher.LaunchMachinesPostgres(ctx, input)
 	}
 	return launcher.LaunchNomadPostgres(ctx, input)
+}
+
+func resolveVMSize(ctx context.Context, platform string, targetSize string) (*api.VMSize, error) {
+	if platform == "machines" {
+		// verify the specified size
+		if targetSize != "" {
+			for _, size := range MachineVMSizes() {
+				if targetSize == size.Name {
+					return &size, nil
+				}
+			}
+
+			return nil, fmt.Errorf("vm size %q is not valid", targetSize)
+		}
+		// prompt user to select machine specific size.
+		return prompt.SelectVMSize(ctx, MachineVMSizes())
+	}
+
+	return prompt.VMSize(ctx, targetSize)
 }
 
 func resolveTargetPlatform(ctx context.Context) string {
