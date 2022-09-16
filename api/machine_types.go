@@ -6,28 +6,21 @@ import (
 )
 
 type Machine struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	State string `json:"state"`
-
-	Region string `json:"region"`
-
+	ID       string          `json:"id"`
+	Name     string          `json:"name"`
+	State    string          `json:"state"`
+	Region   string          `json:"region"`
 	ImageRef machineImageRef `json:"image_ref"`
-
 	// InstanceID is unique for each version of the machine
 	InstanceID string `json:"instance_id"`
 	Version    string `json:"version"`
-
 	// PrivateIP is the internal 6PN address of the machine.
-	PrivateIP string `json:"private_ip"`
-
-	CreatedAt string `json:"created_at"`
-
-	UpdatedAt string `json:"updated_at"`
-
-	Config *MachineConfig `json:"config"`
-
-	Events     []*MachineEvent `json:"events,omitempty"`
+	PrivateIP  string                `json:"private_ip"`
+	CreatedAt  string                `json:"created_at"`
+	UpdatedAt  string                `json:"updated_at"`
+	Config     *MachineConfig        `json:"config"`
+	Events     []*MachineEvent       `json:"events,omitempty"`
+	Checks     []*MachineCheckStatus `json:"checks,omitempty"`
 	LeaseNonce string
 }
 
@@ -76,6 +69,7 @@ type MachineRequest struct {
 	ExitEvent    *MachineExitEvent `json:"exit_event,omitempty"`
 	RestartCount int64             `json:"restart_count"`
 }
+
 type MachineExitEvent struct {
 	ExitCode      int16 `json:"exit_code"`
 	GuestExitCode int16 `json:"guest_exit_code"`
@@ -164,6 +158,13 @@ type MachineCheck struct {
 	Timeout    *Duration `json:"timeout,omitempty" toml:",omitempty"`
 	HTTPMethod *string   `json:"method,omitempty" toml:"method,omitempty"`
 	HTTPPath   *string   `json:"path,omitempty" toml:"path,omitempty"`
+}
+
+type MachineCheckStatus struct {
+	Name      string     `json:"name,omitempty"`
+	Status    string     `json:"status,omitempty"`
+	Output    string     `json:"output,omitempty"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
 }
 
 type MachinePort struct {
