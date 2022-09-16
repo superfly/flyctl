@@ -299,6 +299,16 @@ func WaitForStartOrStop(ctx context.Context, flapsClient *flaps.Client, machine 
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	var waitOnAction string
+	switch action {
+	case "start":
+		waitOnAction = "started"
+	case "stop":
+		waitOnAction = "stopped"
+	default:
+		return fmt.Errorf("action must be either start or stop")
+	}
+
 	b := &backoff.Backoff{
 		Min:    500 * time.Millisecond,
 		Max:    2 * time.Second,
@@ -306,7 +316,7 @@ func WaitForStartOrStop(ctx context.Context, flapsClient *flaps.Client, machine 
 		Jitter: false,
 	}
 	for {
-		err := flapsClient.Wait(waitCtx, machine, action)
+		err := flapsClient.Wait(waitCtx, machine, waitOnAction)
 		switch {
 		case errors.Is(err, context.Canceled):
 			return err
