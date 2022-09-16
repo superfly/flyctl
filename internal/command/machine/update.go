@@ -41,8 +41,9 @@ func newUpdate() *cobra.Command {
 
 func runUpdate(ctx context.Context) (err error) {
 	var (
-		appName = app.NameFromContext(ctx)
-		io      = iostreams.FromContext(ctx)
+		appName  = app.NameFromContext(ctx)
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
 	)
 
 	machineID := flag.FirstArg(ctx)
@@ -91,6 +92,14 @@ func runUpdate(ctx context.Context) (err error) {
 	if machine.Config.Schedule != "" {
 		waitForAction = "stop"
 	}
+
+	out := io.Out
+	fmt.Fprintln(out, colorize.Yellow(fmt.Sprintf("Machine %s has been updated\n", machine.ID)))
+	fmt.Fprintf(out, "Instance ID: %s\n", machine.InstanceID)
+	fmt.Fprintf(out, "Image: %s\n\n", machine.Config.Image)
+	fmt.Fprintf(out, "State: %s\n", machine.State)
+
+	fmt.Fprintf(out, "Monitor machine status here:\nhttps://fly.io/apps/%s/machines/%s\n", app.Name, machine.ID)
 
 	// wait for machine to be started
 	if err := WaitForStartOrStop(ctx, flapsClient, machine, waitForAction, time.Minute*5); err != nil {
