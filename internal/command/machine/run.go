@@ -239,7 +239,7 @@ func runMachineRun(ctx context.Context) error {
 	fmt.Fprintf(io.Out, " State: %s\n", state)
 
 	// wait for machine to be started
-	if err := WaitForStart(ctx, flapsClient, machine, time.Minute*5); err != nil {
+	if err := WaitForStartOrStop(ctx, flapsClient, machine, "start", time.Minute*5); err != nil {
 		return err
 	}
 
@@ -295,9 +295,19 @@ func createApp(ctx context.Context, message, name string, client *api.Client) (*
 	}, nil
 }
 
-func WaitForStart(ctx context.Context, flapsClient *flaps.Client, machine *api.Machine, timeout time.Duration) error {
+func WaitForStartOrStop(ctx context.Context, flapsClient *flaps.Client, machine *api.Machine, action string, timeout time.Duration) error {
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+
+	var waitOnAction string
+	switch action {
+	case "start":
+		waitOnAction = "started"
+	case "stop":
+		waitOnAction = "stopped"
+	default:
+		return fmt.Errorf("action must be either start or stop")
+	}
 
 	b := &backoff.Backoff{
 		Min:    500 * time.Millisecond,
@@ -306,7 +316,7 @@ func WaitForStart(ctx context.Context, flapsClient *flaps.Client, machine *api.M
 		Jitter: false,
 	}
 	for {
-		err := flapsClient.Wait(waitCtx, machine, "started")
+		err := flapsClient.Wait(waitCtx, machine, waitOnAction)
 		switch {
 		case errors.Is(err, context.Canceled):
 			return err

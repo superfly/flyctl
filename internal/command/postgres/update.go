@@ -219,7 +219,7 @@ func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machin
 		return err
 	}
 
-	if err := machines.WaitForStart(ctx, flaps, updated, time.Minute*5); err != nil {
+	if err := machines.WaitForStartOrStop(ctx, flaps, updated, "start", time.Minute*5); err != nil {
 		return err
 	}
 

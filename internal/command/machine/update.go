@@ -87,8 +87,13 @@ func runUpdate(ctx context.Context) (err error) {
 		return err
 	}
 
+	waitForAction := "started"
+	if machine.Config.Schedule != "" {
+		waitForAction = "stopped"
+	}
+
 	// wait for machine to be started
-	if err := WaitForStart(ctx, flapsClient, machine, time.Minute*5); err != nil {
+	if err := WaitForStartOrStop(ctx, flapsClient, machine, waitForAction, time.Minute*5); err != nil {
 		return err
 	}
 
