@@ -160,10 +160,10 @@ type MachineMetrics struct {
 type MachineCheck struct {
 	Type       string    `json:"type,omitempty"`
 	Port       uint16    `json:"port,omitempty"`
-	Interval   *Duration `json:"interval,omitempty"`
-	Timeout    *Duration `json:"timeout,omitempty"`
-	HTTPMethod *string   `json:"method,omitempty"`
-	HTTPPath   *string   `json:"path,omitempty"`
+	Interval   *Duration `json:"interval,omitempty" toml:",omitempty"`
+	Timeout    *Duration `json:"timeout,omitempty" toml:",omitempty"`
+	HTTPMethod *string   `json:"method,omitempty" toml:"method,omitempty"`
+	HTTPPath   *string   `json:"path,omitempty" toml:"path,omitempty"`
 }
 
 type MachinePort struct {
