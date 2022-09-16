@@ -87,9 +87,9 @@ func runUpdate(ctx context.Context) (err error) {
 		return err
 	}
 
-	waitForAction := "started"
+	waitForAction := "start"
 	if machine.Config.Schedule != "" {
-		waitForAction = "stopped"
+		waitForAction = "stop"
 	}
 
 	// wait for machine to be started
