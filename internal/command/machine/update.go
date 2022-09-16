@@ -63,6 +63,8 @@ func runUpdate(ctx context.Context) (err error) {
 		return err
 	}
 
+	prevInstanceID := machine.InstanceID
+
 	fmt.Fprintf(io.Out, "Machine %s was found and is currently in a %s state, attempting to update...\n", machineID, machine.State)
 
 	input := api.LaunchMachineInput{
@@ -95,9 +97,10 @@ func runUpdate(ctx context.Context) (err error) {
 
 	out := io.Out
 	fmt.Fprintln(out, colorize.Yellow(fmt.Sprintf("Machine %s has been updated\n", machine.ID)))
-	fmt.Fprintf(out, "Instance ID: %s\n", machine.InstanceID)
-	fmt.Fprintf(out, "Image: %s\n\n", machine.Config.Image)
-	fmt.Fprintf(out, "State: %s\n", machine.State)
+	fmt.Fprintf(out, "Instance ID has been updated:\n")
+	fmt.Fprintf(out, "%s -> %s\n\n", prevInstanceID, machine.InstanceID)
+	fmt.Fprintf(out, "Image: %s\n", machine.Config.Image)
+	fmt.Fprintf(out, "State: %s\n\n", machine.State)
 
 	fmt.Fprintf(out, "Monitor machine status here:\nhttps://fly.io/apps/%s/machines/%s\n", app.Name, machine.ID)
 
