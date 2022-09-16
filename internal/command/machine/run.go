@@ -402,7 +402,7 @@ func determineImage(ctx context.Context, appName string, imageOrPath string) (im
 	}
 
 	fmt.Fprintf(io.Out, "Image: %s\n", img.Tag)
-	fmt.Fprintf(io.Out, "Image size: %s\n", humanize.Bytes(uint64(img.Size)))
+	fmt.Fprintf(io.Out, "Image size: %s\n\n", humanize.Bytes(uint64(img.Size)))
 
 	return img, nil
 }

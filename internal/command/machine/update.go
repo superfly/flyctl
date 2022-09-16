@@ -99,15 +99,25 @@ func runUpdate(ctx context.Context) (err error) {
 	fmt.Fprintln(out, colorize.Yellow(fmt.Sprintf("Machine %s has been updated\n", machine.ID)))
 	fmt.Fprintf(out, "Instance ID has been updated:\n")
 	fmt.Fprintf(out, "%s -> %s\n\n", prevInstanceID, machine.InstanceID)
-	fmt.Fprintf(out, "Image: %s\n", machine.Config.Image)
-	fmt.Fprintf(out, "State: %s\n\n", machine.State)
 
-	fmt.Fprintf(out, "Monitor machine status here:\nhttps://fly.io/apps/%s/machines/%s\n", app.Name, machine.ID)
+	fmt.Fprintf(out, "Waiting on machine to %s", waitForAction)
 
 	// wait for machine to be started
 	if err := WaitForStartOrStop(ctx, flapsClient, machine, waitForAction, time.Minute*5); err != nil {
 		return err
 	}
+
+	m, err := flapsClient.Get(ctx, machineID)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(out, "Image: %s\n", machine.Config.Image)
+	fmt.Fprintf(out, "State: %sed\n\n", waitForAction)
+
+	fmt.Fprintf(out, "Monitor machine status here:\nhttps://fly.io/apps/%s/machines/%s\n", app.Name, machine.ID)
+
+	fmt.Println("hello hello", m.State)
 
 	return nil
 }
