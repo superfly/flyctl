@@ -34,16 +34,7 @@ func runAppCheckList(ctx context.Context) error {
 
 func runMachinesAppCheckList(ctx context.Context, app *api.AppCompact) error {
 	out := iostreams.FromContext(ctx).Out
-	web := client.FromContext(ctx).API()
-
-	var nameFilter *string
-	if val := flag.GetString(ctx, "check-name"); val != "" {
-		nameFilter = api.StringPointer(val)
-	}
-
-	_ = nameFilter
-	_ = out
-	_ = web
+	nameFilter := flag.GetString(ctx, "check-name")
 
 	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
@@ -55,7 +46,18 @@ func runMachinesAppCheckList(ctx context.Context, app *api.AppCompact) error {
 		return err
 	}
 
-	_ = machines
+	fmt.Fprintf(out, "Health Checks for %s\n", app.Name)
+	table := helpers.MakeSimpleTable(out, []string{"Name", "Status", "Machine", "Last Updated", "Output"})
+	for _, machine := range machines {
+		for _, check := range machine.Checks {
+			if nameFilter != "" && nameFilter != check.Name {
+				continue
+			}
+			formattedOutput := formatOutput(check.Output)
+			table.Append([]string{check.Name, check.Status, machine.ID, presenters.FormatRelativeTime(*check.UpdatedAt), formattedOutput})
+		}
+	}
+	table.Render()
 
 	return nil
 }
