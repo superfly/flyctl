@@ -1,4 +1,4 @@
-# syntax = .fly/dockerfile:experimental
+# syntax = docker/dockerfile:experimental
 
 # Default to PHP 8.1, but we attempt to match
 # the PHP version from the user (wherever `flyctl launch` is run)
