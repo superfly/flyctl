@@ -60,7 +60,6 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 		newDNSCommand(client),
 		newDomainsCommand(client),
 		newWireGuardCommand(client),
-		newChecksCommand(client),
 		newTurbokuCommand(client),
 		newLaunchCommand(client),
 	)
