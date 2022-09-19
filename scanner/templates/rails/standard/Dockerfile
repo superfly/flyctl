@@ -45,7 +45,7 @@ RUN mkdir -p tmp/pids
 RUN curl https://get.volta.sh | bash
 ENV VOLTA_HOME /root/.volta
 ENV PATH $VOLTA_HOME/bin:/usr/local/bin:$PATH
-RUN volta install node@${NODE_VERSION}
+RUN volta install node@${NODE_VERSION} yarn
 
 {{ end -}}
 #######################################################################
@@ -85,7 +85,7 @@ FROM build_deps as node_modules
 COPY package*json ./
 {{ if .yarn -}}
 COPY yarn.* ./
-RUN volta install yarn && yarn install;
+RUN yarn install
 {{ else -}}
 RUN npm install
 {{ end }}
