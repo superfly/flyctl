@@ -20,14 +20,14 @@ import (
 )
 
 var (
-	volumeName      = "pg_data"
-	volumePath      = "/data"
-	duration10s, _  = time.ParseDuration("10s")
-	duration15s, _  = time.ParseDuration("15s")
-	duration1m, _   = time.ParseDuration("1m")
-	check_path_pg   = "/flycheck/pg"
-	check_path_role = "/flycheck/role"
-	check_path_vm   = "/flycheck/vm"
+	volumeName     = "pg_data"
+	volumePath     = "/data"
+	duration10s, _ = time.ParseDuration("10s")
+	duration15s, _ = time.ParseDuration("15s")
+	duration1m, _  = time.ParseDuration("1m")
+	checkPathPg    = "/flycheck/pg"
+	checkPathRole  = "/flycheck/role"
+	checkPathVm    = "/flycheck/vm"
 )
 
 type Launcher struct {
@@ -251,21 +251,21 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 		"pg": {
 			Port:     5500,
 			Type:     "http",
-			HTTPPath: &check_path_pg,
+			HTTPPath: &checkPathPg,
 			Interval: &api.Duration{Duration: duration15s},
 			Timeout:  &api.Duration{Duration: duration10s},
 		},
 		"role": {
 			Port:     5500,
 			Type:     "http",
-			HTTPPath: &check_path_role,
+			HTTPPath: &checkPathRole,
 			Interval: &api.Duration{Duration: duration15s},
 			Timeout:  &api.Duration{Duration: duration10s},
 		},
 		"vm": {
 			Port:     5500,
 			Type:     "http",
-			HTTPPath: &check_path_vm,
+			HTTPPath: &checkPathVm,
 			Interval: &api.Duration{Duration: duration1m},
 			Timeout:  &api.Duration{Duration: duration10s},
 		},
