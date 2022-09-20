@@ -7,12 +7,12 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -54,7 +54,7 @@ func runMachinesAppCheckList(ctx context.Context, app *api.AppCompact) error {
 				continue
 			}
 			formattedOutput := formatOutput(check.Output)
-			table.Append([]string{check.Name, check.Status, machine.ID, presenters.FormatRelativeTime(*check.UpdatedAt), formattedOutput})
+			table.Append([]string{check.Name, check.Status, machine.ID, format.RelativeTime(*check.UpdatedAt), formattedOutput})
 		}
 	}
 	table.Render()
@@ -85,7 +85,7 @@ func runNomadAppCheckList(ctx context.Context) error {
 	table := helpers.MakeSimpleTable(out, []string{"Name", "Status", "Allocation", "Region", "Type", "Last Updated", "Output"})
 	for _, check := range checks {
 		formattedOutput := formatOutput(check.Output)
-		table.Append([]string{check.Name, check.Status, check.Allocation.IDShort, check.Allocation.Region, check.Type, presenters.FormatRelativeTime(check.UpdatedAt), formattedOutput})
+		table.Append([]string{check.Name, check.Status, check.Allocation.IDShort, check.Allocation.Region, check.Type, format.RelativeTime(check.UpdatedAt), formattedOutput})
 	}
 	table.Render()
 
