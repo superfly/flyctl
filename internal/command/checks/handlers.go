@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -40,9 +40,6 @@ func runListChecksHandlers(ctx context.Context) error {
 type createHandlerFn func(context.Context, *api.Organization, string) error
 
 func runCreateChecksHandler(ctx context.Context) error {
-	web := client.FromContext(ctx).API()
-	orgSlug := flag.GetString(ctx, "organization")
-
 	handlerFn := map[string]createHandlerFn{
 		"slack":     setSlackChecksHandler,
 		"pagerduty": setPagerDutyChecksHandler,
@@ -54,18 +51,15 @@ func runCreateChecksHandler(ctx context.Context) error {
 		return fmt.Errorf("\"%s\" is not a valid handler type", handlerType)
 	}
 
-	org, err := selectOrganization(ctx, web, orgSlug)
+	org, err := prompt.Org(ctx)
 	if err != nil {
 		return err
 	}
 
 	name := flag.GetString(ctx, "name")
 	if name == "" {
-		prompt := &survey.Input{Message: "Name:"}
-		if err := survey.AskOne(prompt, &name, survey.WithValidator(survey.Required)); err != nil {
-			if isInterrupt(err) {
-				return nil
-			}
+		if err := prompt.String(ctx, &name, "Name:", "", true); err != nil {
+			return err
 		}
 	}
 
@@ -78,21 +72,15 @@ func setSlackChecksHandler(ctx context.Context, org *api.Organization, name stri
 
 	webhookURL := flag.GetString(ctx, "webhook-url")
 	if webhookURL == "" {
-		prompt := &survey.Input{Message: "Webhook URL:"}
-		if err := survey.AskOne(prompt, &webhookURL, survey.WithValidator(survey.Required)); err != nil {
-			if isInterrupt(err) {
-				return nil
-			}
+		if err := prompt.String(ctx, &webhookURL, "Webhook URL:", "", true); err != nil {
+			return err
 		}
 	}
 
 	slackChannel := flag.GetString(ctx, "slack-channel")
 	if slackChannel == "" {
-		prompt := &survey.Input{Message: "Slack Channel (defaults to webhook's configured channel):"}
-		if err := survey.AskOne(prompt, &slackChannel); err != nil {
-			if isInterrupt(err) {
-				return nil
-			}
+		if err := prompt.String(ctx, &slackChannel, "Slack Channel (defaults to webhook's configured channel):", "", false); err != nil {
+			return nil
 		}
 	}
 
@@ -119,11 +107,8 @@ func setPagerDutyChecksHandler(ctx context.Context, org *api.Organization, name 
 
 	pagerDutyToken := flag.GetString(ctx, "pagerduty-token")
 	if pagerDutyToken == "" {
-		prompt := &survey.Input{Message: "PagerDuty Token:"}
-		if err := survey.AskOne(prompt, &pagerDutyToken, survey.WithValidator(survey.Required)); err != nil {
-			if isInterrupt(err) {
-				return nil
-			}
+		if err := prompt.String(ctx, &pagerDutyToken, "PagerDuty Token:", "", true); err != nil {
+			return err
 		}
 	}
 
