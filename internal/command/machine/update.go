@@ -41,8 +41,9 @@ func newUpdate() *cobra.Command {
 
 func runUpdate(ctx context.Context) (err error) {
 	var (
-		appName = app.NameFromContext(ctx)
-		io      = iostreams.FromContext(ctx)
+		appName  = app.NameFromContext(ctx)
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
 	)
 
 	machineID := flag.FirstArg(ctx)
@@ -61,6 +62,8 @@ func runUpdate(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+
+	prevInstanceID := machine.InstanceID
 
 	fmt.Fprintf(io.Out, "Machine %s was found and is currently in a %s state, attempting to update...\n", machineID, machine.State)
 
@@ -92,10 +95,25 @@ func runUpdate(ctx context.Context) (err error) {
 		waitForAction = "stop"
 	}
 
+	out := io.Out
+	fmt.Fprintln(out, colorize.Yellow(fmt.Sprintf("Machine %s has been updated\n", machine.ID)))
+	fmt.Fprintf(out, "Instance ID has been updated:\n")
+	fmt.Fprintf(out, "%s -> %s\n\n", prevInstanceID, machine.InstanceID)
+
 	// wait for machine to be started
-	if err := WaitForStartOrStop(ctx, flapsClient, machine, waitForAction, time.Minute*5); err != nil {
+	if err := WaitForStartOrStop(ctx, flapsClient, machine, waitForAction, time.Second*60); err != nil {
 		return err
 	}
+
+	fmt.Fprintf(out, "Image: %s\n", machine.Config.Image)
+
+	if waitForAction == "start" {
+		fmt.Fprintf(out, "State: Started\n\n")
+	} else {
+		fmt.Fprintf(out, "State: Stopped\n\n")
+	}
+
+	fmt.Fprintf(out, "Monitor machine status here:\nhttps://fly.io/apps/%s/machines/%s\n", app.Name, machine.ID)
 
 	return nil
 }

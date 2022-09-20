@@ -321,7 +321,7 @@ func WaitForStartOrStop(ctx context.Context, flapsClient *flaps.Client, machine 
 		case errors.Is(err, context.Canceled):
 			return err
 		case errors.Is(err, context.DeadlineExceeded):
-			return fmt.Errorf("timeout reached waiting for machine to start %w", err)
+			return fmt.Errorf("timeout reached waiting for machine to %s %w", waitOnAction, err)
 		case err != nil:
 			time.Sleep(b.Duration())
 			continue
@@ -402,7 +402,7 @@ func determineImage(ctx context.Context, appName string, imageOrPath string) (im
 	}
 
 	fmt.Fprintf(io.Out, "Image: %s\n", img.Tag)
-	fmt.Fprintf(io.Out, "Image size: %s\n", humanize.Bytes(uint64(img.Size)))
+	fmt.Fprintf(io.Out, "Image size: %s\n\n", humanize.Bytes(uint64(img.Size)))
 
 	return img, nil
 }
