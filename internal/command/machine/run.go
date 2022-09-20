@@ -321,7 +321,7 @@ func WaitForStartOrStop(ctx context.Context, flapsClient *flaps.Client, machine 
 		case errors.Is(err, context.Canceled):
 			return err
 		case errors.Is(err, context.DeadlineExceeded):
-			return fmt.Errorf("timeout reached waiting for machine to start %w", err)
+			return fmt.Errorf("timeout reached waiting for machine to %s %w", waitOnAction, err)
 		case err != nil:
 			time.Sleep(b.Duration())
 			continue
