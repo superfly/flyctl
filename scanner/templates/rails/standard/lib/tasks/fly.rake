@@ -20,4 +20,15 @@ namespace :fly do
   task :server do
     sh 'bin/rails server'
   end
+
+  # optional SWAPFILE task:
+  #  - adjust fallocate size as needed
+  #  - enable by adding as a depenency on the :server task, thus:
+  #        task :server => :swapfile do
+  task :swapfile do
+    sh 'fallocate -l 512M /swapfile'
+    sh 'chmod 0600 /swapfile'
+    sh 'mkswap /swapfile'
+    sh 'swapon /swapfile'
+  end
 end
