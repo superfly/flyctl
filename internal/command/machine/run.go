@@ -527,7 +527,9 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		return
 	}
 
-	machineConf.Schedule = flag.GetString(ctx, "schedule")
+	if flag.GetString(ctx, "schedule") != "" {
+		machineConf.Schedule = flag.GetString(ctx, "schedule")
+	}
 
 	machineConf.Metadata, err = parseKVFlag(ctx, "metadata", machineConf.Metadata)
 
