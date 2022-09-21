@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -101,7 +102,12 @@ func Stop(ctx context.Context, machineID string, sig string, timeOut int) (err e
 
 	err = flapsClient.Stop(ctx, machineStopInput)
 	if err != nil {
-		return fmt.Errorf("could not stop machine %s: %w", machineStopInput.ID, err)
+		switch {
+		case strings.Contains(err.Error(), "not found") && appName != "":
+			return fmt.Errorf("machine %s was not found in app %s", machineID, appName)
+		default:
+			return fmt.Errorf("could not stop machine %s: %w", machineStopInput.ID, err)
+		}
 	}
 
 	return

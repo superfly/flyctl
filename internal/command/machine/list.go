@@ -82,7 +82,7 @@ func runMachineList(ctx context.Context) (err error) {
 	rows := [][]string{}
 
 	listOfMachinesLink := io.CreateLink("View them in the UI here", fmt.Sprintf("https://fly.io/apps/%s/machines/", appName))
-	fmt.Fprintf(io.Out, "%d machines have been retrieved.\n%s\n\n", len(machines), listOfMachinesLink)
+	fmt.Fprintf(io.Out, "%d machines have been retrieved from app %s.\n%s\n\n", len(machines), appName, listOfMachinesLink)
 	if silence {
 		for _, machine := range machines {
 			rows = append(rows, []string{machine.ID})
