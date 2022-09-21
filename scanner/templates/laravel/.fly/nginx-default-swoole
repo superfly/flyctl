@@ -1,22 +1,22 @@
 # HTTP configuration
 #
 server {
-	listen 8080 default_server;
-	listen [::]:8080 default_server;
+    listen 8080 default_server;
+    listen [::]:8080 default_server;
 
-	root /var/www/html/public;
+    root /var/www/html/public;
 
-	# Set allowed "index" files
-	index index.html index.htm index.php;
+    # Set allowed "index" files
+    index index.html index.htm index.php;
 
-	server_name _;
+    server_name _;
 
-	charset utf-8;
+    charset utf-8;
 
-	# Set max upload to 2048M
-	client_max_body_size 2048M;
+    # Set max upload to 2048M
+    client_max_body_size 2048M;
 
-	location /index.php {
+    location /index.php {
         try_files /not_exists @octane;
     }
 
@@ -43,6 +43,6 @@ server {
         proxy_pass http://127.0.0.1:8000$suffix;
     }
 
-	# additional config
-	include /etc/nginx/server-opts.d/*.conf;
+    # additional config
+    include /etc/nginx/server-opts.d/*.conf;
 }
