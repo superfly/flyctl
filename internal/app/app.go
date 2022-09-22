@@ -265,7 +265,7 @@ func unmarshalBuild(data map[string]interface{}) *Build {
 		switch k {
 		case "builder":
 			b.Builder = fmt.Sprint(v)
-			configValueSet = b.Builder != ""
+			configValueSet = configValueSet || b.Builder != ""
 		case "buildpacks":
 			if bpSlice, ok := v.([]interface{}); ok {
 				for _, argV := range bpSlice {
@@ -280,7 +280,7 @@ func unmarshalBuild(data map[string]interface{}) *Build {
 			}
 		case "builtin":
 			b.Builtin = fmt.Sprint(v)
-			configValueSet = b.Builtin != ""
+			configValueSet = configValueSet || b.Builtin != ""
 		case "settings":
 			if settingsMap, ok := v.(map[string]interface{}); ok {
 				for settingK, settingV := range settingsMap {
@@ -289,13 +289,13 @@ func unmarshalBuild(data map[string]interface{}) *Build {
 			}
 		case "image":
 			b.Image = fmt.Sprint(v)
-			configValueSet = b.Image != ""
+			configValueSet = configValueSet || b.Image != ""
 		case "dockerfile":
 			b.Dockerfile = fmt.Sprint(v)
-			configValueSet = b.Dockerfile != ""
+			configValueSet = configValueSet || b.Dockerfile != ""
 		case "build_target", "build-target":
 			b.DockerBuildTarget = fmt.Sprint(v)
-			configValueSet = b.DockerBuildTarget != ""
+			configValueSet = configValueSet || b.DockerBuildTarget != ""
 		default:
 			b.Args[k] = fmt.Sprint(v)
 		}
