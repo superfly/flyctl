@@ -61,6 +61,14 @@ func newScaleCommand(client *client.Client) *Command {
 func runScaleVM(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 
+	app, err := cmdCtx.Client.API().GetApp(ctx, cmdCtx.AppName)
+	if err != nil {
+		return fmt.Errorf("failed to fetch app: %w", err)
+	}
+	if app.PlatformVersion == "machines" {
+		return fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine update instead")
+	}
+
 	sizeName := cmdCtx.Args[0]
 
 	memoryMB := int64(cmdCtx.Config.GetInt("memory"))
