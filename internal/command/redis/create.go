@@ -33,7 +33,7 @@ func newCreate() (cmd *cobra.Command) {
 		flag.String{
 			Name:        "name",
 			Shorthand:   "n",
-			Description: "The name of your Redis cluster",
+			Description: "The name of your Redis database",
 		},
 		flag.Bool{
 			Name:        "no-replicas",
@@ -124,7 +124,7 @@ func runCreate(ctx context.Context) (err error) {
 		}
 
 		if planIndex == -1 {
-			return fmt.Errorf("Invalid plan name: %s", planFlag)
+			return fmt.Errorf("invalid plan name: %s", planFlag)
 		}
 	} else {
 		var planOptions []string
