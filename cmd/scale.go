@@ -8,6 +8,7 @@ import (
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/command"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/docstrings"
@@ -60,12 +61,14 @@ func newScaleCommand(client *client.Client) *Command {
 
 func runScaleVM(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
+	apiClient := cmdCtx.Client.API()
 
-	app, err := cmdCtx.Client.API().GetApp(ctx, cmdCtx.AppName)
+	isMachine, err := command.CheckPlatform(apiClient, ctx, cmdCtx.AppName)
 	if err != nil {
-		return fmt.Errorf("failed to fetch app: %w", err)
+		return fmt.Errorf("failed to check platform version %w", err)
 	}
-	if app.PlatformVersion == "machines" {
+
+	if isMachine {
 		return fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine update instead")
 	}
 
@@ -92,13 +95,14 @@ func runScaleVM(cmdCtx *cmdctx.CmdContext) error {
 
 func runScaleCount(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
+	apiClient := cmdCtx.Client.API()
 
-	app, err := cmdCtx.Client.API().GetApp(ctx, cmdCtx.AppName)
+	isMachine, err := command.CheckPlatform(apiClient, ctx, cmdCtx.AppName)
 	if err != nil {
-		return fmt.Errorf("failed to retrieve app: %w", err)
+		return fmt.Errorf("failed to check platform version %w", err)
 	}
 
-	if app.PlatformVersion == "machines" {
+	if isMachine {
 		return fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine clone instead")
 	}
 
@@ -157,13 +161,14 @@ func runScaleCount(cmdCtx *cmdctx.CmdContext) error {
 
 func runScaleShow(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
+	apiClient := cmdCtx.Client.API()
 
-	app, err := cmdCtx.Client.API().GetApp(ctx, cmdCtx.AppName)
+	isMachine, err := command.CheckPlatform(apiClient, ctx, cmdCtx.AppName)
 	if err != nil {
-		return fmt.Errorf("failed to retrieve app: %w", err)
+		return fmt.Errorf("failed to check platform version %w", err)
 	}
 
-	if app.PlatformVersion == "machines" {
+	if isMachine {
 		return fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine status instead")
 	}
 
@@ -253,12 +258,14 @@ func printVMResources(commandContext *cmdctx.CmdContext, vmSize api.VMSize, coun
 
 func runScaleMemory(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
+	apiClient := cmdCtx.Client.API()
 
-	app, err := cmdCtx.Client.API().GetApp(ctx, cmdCtx.AppName)
+	isMachine, err := command.CheckPlatform(apiClient, ctx, cmdCtx.AppName)
 	if err != nil {
-		return fmt.Errorf("failed to fetch app: %w", err)
+		return fmt.Errorf("failed to check platform version %w", err)
 	}
-	if app.PlatformVersion == "machines" {
+
+	if isMachine {
 		return fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine update instead")
 	}
 
