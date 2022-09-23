@@ -93,6 +93,15 @@ func runScaleVM(cmdCtx *cmdctx.CmdContext) error {
 func runScaleCount(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 
+	app, err := cmdCtx.Client.API().GetApp(ctx, cmdCtx.AppName)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve app: %w", err)
+	}
+
+	if app.PlatformVersion == "machines" {
+		return fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine clone instead")
+	}
+
 	groups := map[string]int{}
 
 	// single numeric arg: fly scale count 3
@@ -148,6 +157,15 @@ func runScaleCount(cmdCtx *cmdctx.CmdContext) error {
 
 func runScaleShow(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
+
+	app, err := cmdCtx.Client.API().GetApp(ctx, cmdCtx.AppName)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve app: %w", err)
+	}
+
+	if app.PlatformVersion == "machines" {
+		return fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine status instead")
+	}
 
 	size, tgCounts, processGroups, err := cmdCtx.Client.API().AppVMResources(ctx, cmdCtx.AppName)
 	if err != nil {
@@ -235,6 +253,14 @@ func printVMResources(commandContext *cmdctx.CmdContext, vmSize api.VMSize, coun
 
 func runScaleMemory(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
+
+	app, err := cmdCtx.Client.API().GetApp(ctx, cmdCtx.AppName)
+	if err != nil {
+		return fmt.Errorf("failed to fetch app: %w", err)
+	}
+	if app.PlatformVersion == "machines" {
+		return fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine update instead")
+	}
 
 	memoryMB, err := strconv.ParseInt(cmdCtx.Args[0], 10, 64)
 	if err != nil {
