@@ -30,6 +30,27 @@ func newCreate() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.Org(),
 		flag.Region(),
+		flag.String{
+			Name:        "name",
+			Shorthand:   "n",
+			Description: "The name of your Redis cluster",
+		},
+		flag.Bool{
+			Name:        "no-replicas",
+			Description: "No replica regions",
+		},
+		flag.Bool{
+			Name:        "enable-eviction",
+			Description: "Evict objects when memory is full",
+		},
+		flag.Bool{
+			Name:        "disable-eviction",
+			Description: "Disallow writes when the max data size limit has been reached",
+		},
+		flag.String{
+			Name:        "plan",
+			Description: "Upstash Redis plan",
+		},
 	)
 
 	return cmd
@@ -47,12 +68,14 @@ func runCreate(ctx context.Context) (err error) {
 		return err
 	}
 
-	var name string
+	var name = flag.GetString(ctx, "name")
 
-	prompt.String(ctx, &name, "Choose a Redis database name (leave blank to generate one):", "", false)
+	if name == "" {
+		prompt.String(ctx, &name, "Choose a Redis database name (leave blank to generate one):", "", false)
 
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
 	}
 
 	primaryRegion, err := prompt.Region(ctx, "Choose a primary region (can't be changed later)")
@@ -60,34 +83,61 @@ func runCreate(ctx context.Context) (err error) {
 		return err
 	}
 
-	readRegions, err := prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", []string{}, primaryRegion.Code)
-	if err != nil {
-		return
+	readRegions := &[]api.Region{}
+
+	if !flag.GetBool(ctx, "no-replicas") {
+		readRegions, err = prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", []string{}, primaryRegion.Code)
+		if err != nil {
+			return
+		}
 	}
 
-	fmt.Fprintf(io.Out, "\nUpstash Redis can evict objects when memory is full. This is useful when caching in Redis. This setting can be changed later.\nLearn more at https://fly.io/docs/reference/redis/#memory-limits-and-object-eviction-policies\n")
+	var eviction bool
 
-	eviction, err := prompt.Confirm(ctx, "Would you like to enable eviction?")
-	if err != nil {
-		return
+	if flag.GetBool(ctx, "enable-eviction") {
+		eviction = true
+	} else if !flag.GetBool(ctx, "disable-eviction") {
+		fmt.Fprintf(io.Out, "\nUpstash Redis can evict objects when memory is full. This is useful when caching in Redis. This setting can be changed later.\nLearn more at https://fly.io/docs/reference/redis/#memory-limits-and-object-eviction-policies\n")
+
+		eviction, err = prompt.Confirm(ctx, "Would you like to enable eviction?")
+		if err != nil {
+			return
+		}
 	}
 
 	var planIndex int
-	var planOptions []string
 
 	result, err := gql.ListAddOnPlans(ctx, client)
 	if err != nil {
 		return
 	}
 
-	for _, plan := range result.AddOnPlans.Nodes {
-		planOptions = append(planOptions, fmt.Sprintf("%s: %s Max Data Size", plan.DisplayName, plan.MaxDataSize))
-	}
+	planFlag := flag.GetString(ctx, "plan")
 
-	err = prompt.Select(ctx, &planIndex, "Select an Upstash Redis plan", "", planOptions...)
+	if planFlag != "" {
+		planIndex = -1
+		for index, plan := range result.AddOnPlans.Nodes {
+			if plan.DisplayName == planFlag {
+				planIndex = index
+				break
+			}
+		}
 
-	if err != nil {
-		return fmt.Errorf("failed to select a plan: %w", err)
+		if planIndex == -1 {
+			return fmt.Errorf("Invalid plan name: %s", planFlag)
+		}
+	} else {
+		var planOptions []string
+
+		for _, plan := range result.AddOnPlans.Nodes {
+			planOptions = append(planOptions, fmt.Sprintf("%s: %s Max Data Size", plan.DisplayName, plan.MaxDataSize))
+		}
+
+		err = prompt.Select(ctx, &planIndex, "Select an Upstash Redis plan", "", planOptions...)
+
+		if err != nil {
+			return fmt.Errorf("failed to select a plan: %w", err)
+		}
 	}
 
 	s := spinner.Run(io, "Launching...")
