@@ -644,7 +644,7 @@ longHelp = """Change an application's VM size to one of the named VM sizes.
 
 Size names include shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x.
 
-For a full list of supported sizes use the command FLYCTL PLATFORM VM-SIZES
+For a full list of supported sizes use the command flyctl platform vm-sizes
 
 Memory size can be set with --memory=number-of-MB
 

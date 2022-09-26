@@ -301,6 +301,15 @@ func initTaskManager(ctx context.Context) (context.Context, error) {
 	return task.NewContext(ctx, tm), nil
 }
 
+func CheckPlatform(apiClient *api.Client, ctx context.Context, appName string) (bool, error) {
+	app, err := apiClient.GetApp(ctx, appName)
+	if err != nil {
+		return false, fmt.Errorf("failed to retrieve app: %w", err)
+	}
+
+	return app.PlatformVersion == "machines", nil
+}
+
 func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 	logger := logger.FromContext(ctx)
 
