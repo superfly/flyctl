@@ -132,7 +132,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			return err
 		}
 
-		fmt.Printf("Waiting for machine to start...")
+		fmt.Println("Waiting for machine to start...")
 
 		waitTimeout := time.Minute * 5
 		if snapshot != nil {

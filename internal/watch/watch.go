@@ -323,8 +323,18 @@ func MachineChecks(ctx context.Context) error {
 				continue
 			}
 			for _, m := range machines {
+				if m.Checks == nil {
+					continue
+				}
 				checks = append(checks, m.Checks...)
 			}
+			if len(checks) == 0 {
+				tb.Println()
+
+				tb.Done("No health checks found")
+				return nil
+			}
+
 			pass, warn, fail = CountChecks(checks)
 
 			if io.IsInteractive() {
