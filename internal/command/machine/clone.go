@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -141,7 +142,8 @@ func runMachineClone(ctx context.Context) (err error) {
 
 	fmt.Printf("Cloning machine in region %s for app %s\n", region, app.Name)
 
-	err = flapsClient.TryWait(ctx, launchedMachine, "started", 3 /*num of tries*/)
+	// wait for a machine to be started
+	err = WaitForStartOrStop(ctx, flapsClient, launchedMachine, "start", time.Minute*5)
 	if err != nil {
 		return err
 	}
