@@ -69,10 +69,11 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 
 	io := iostreams.FromContext(ctx)
 
-	flaps, err := flaps.New(ctx, app)
+	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
 		return err
 	}
+	ctx = flaps.NewContext(ctx, flapsClient)
 
 	for i := 0; i < config.InitialClusterSize; i++ {
 		machineConf := l.getPostgresConfig(config)
@@ -126,7 +127,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			Config:  machineConf,
 		}
 
-		machine, err := flaps.Launch(ctx, launchInput)
+		machine, err := flapsClient.Launch(ctx, launchInput)
 		if err != nil {
 			return err
 		}
@@ -138,12 +139,20 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			waitTimeout = time.Hour
 		}
 
-		err = machines.WaitForStartOrStop(ctx, flaps, machine, "start", waitTimeout)
+		err = machines.WaitForStartOrStop(ctx, flapsClient, machine, "start", waitTimeout)
 		if err != nil {
 			return err
 		}
 		fmt.Fprintf(io.Out, "Machine %s is %s\n", machine.ID, machine.State)
 
+	}
+
+	if !flag.GetBool(ctx, "detach") {
+		fmt.Println()
+
+		if err := watch.MachineChecks(ctx); err != nil {
+			return err
+		}
 	}
 
 	connStr := fmt.Sprintf("postgres://postgres:%s@%s.internal:5432\n", secrets["OPERATOR_PASSWORD"], config.AppName)

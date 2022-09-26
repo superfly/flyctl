@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/logs"
 
@@ -287,4 +288,72 @@ func renderLogs(ctx context.Context, alloc *api.AllocationStatus) {
 			render.HideRegion(),
 		)
 	}
+}
+
+func MachineChecks(ctx context.Context) error {
+	var (
+		io          = iostreams.FromContext(ctx)
+		flapsClient = flaps.FromContext(ctx)
+	)
+
+	tb := render.NewTextBlock(ctx, "Monitoring health checks")
+
+	tb.Println()
+
+	var pass, warn, fail int
+
+	var errCount int
+
+	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	defer cancel()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(100 * time.Millisecond):
+			var checks []*api.MachineCheckStatus
+
+			machines, err := flapsClient.ListActive(ctx)
+			if err != nil {
+				errCount++
+				if errCount > 3 {
+					return err
+				}
+				continue
+			}
+			for _, m := range machines {
+				checks = append(checks, m.Checks...)
+			}
+			pass, warn, fail = CountChecks(checks)
+
+			if io.IsInteractive() {
+				tb.Overwrite()
+			}
+
+			tb.Printf("Health Checks: %d passing, %d warning, %d failing\n", pass, warn, fail)
+
+			// if all checks are passing, we're done
+			if pass == len(checks) {
+				tb.Println()
+
+				tb.Done("All checks passing")
+				return nil
+			}
+		}
+	}
+}
+
+func CountChecks(checks []*api.MachineCheckStatus) (pass, warn, crit int) {
+	for _, check := range checks {
+		switch check.Status {
+		case "passing":
+			pass++
+		case "warn":
+			warn++
+		case "critical":
+			crit++
+		}
+	}
+	return pass, warn, crit
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -202,6 +203,7 @@ func newConfigUpdate() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Detach(),
 		flag.String{
 			Name:        "max-connections",
 			Description: "Sets the maximum number of concurrent connections.",
@@ -435,6 +437,14 @@ func updateMachinesConfig(ctx context.Context, app *api.AppCompact, changes map[
 	err = cmd.UpdateSettings(ctx, changes)
 	if err != nil {
 		return err
+	}
+
+	if !flag.GetBool(ctx, "detach") {
+		fmt.Println()
+
+		if err = watch.MachineChecks(ctx); err != nil {
+			return
+		}
 	}
 
 	return
