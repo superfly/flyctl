@@ -48,13 +48,13 @@ func runMachinesAppCheckList(ctx context.Context, app *api.AppCompact) error {
 
 	fmt.Fprintf(out, "Health Checks for %s\n", app.Name)
 	table := helpers.MakeSimpleTable(out, []string{"Name", "Status", "Machine", "Last Updated", "Output"})
+	table.SetRowLine(true)
 	for _, machine := range machines {
 		for _, check := range machine.Checks {
 			if nameFilter != "" && nameFilter != check.Name {
 				continue
 			}
-			formattedOutput := formatOutput(check.Output)
-			table.Append([]string{check.Name, check.Status, machine.ID, format.RelativeTime(*check.UpdatedAt), formattedOutput})
+			table.Append([]string{check.Name, check.Status, machine.ID, format.RelativeTime(*check.UpdatedAt), check.Output})
 		}
 	}
 	table.Render()
