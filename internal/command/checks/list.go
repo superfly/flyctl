@@ -48,6 +48,7 @@ func runMachinesAppCheckList(ctx context.Context, app *api.AppCompact) error {
 
 	fmt.Fprintf(out, "Health Checks for %s\n", app.Name)
 	table := helpers.MakeSimpleTable(out, []string{"Name", "Status", "Machine", "Last Updated", "Output"})
+	table.SetRowLine(true)
 	for _, machine := range machines {
 		for _, check := range machine.Checks {
 			if nameFilter != "" && nameFilter != check.Name {
