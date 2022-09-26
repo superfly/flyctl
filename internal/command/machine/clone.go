@@ -96,7 +96,7 @@ func runMachineClone(ctx context.Context) (err error) {
 	// This is a temperary hack to add volume support for PG apps.
 	// Flaps does not currently specify the volume name within the Machine mount spec,
 	// which is required before we can handle this more generally.
-	if app.PostgresAppRole.Name == "postgres_cluster" {
+	if app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster" {
 		if len(source.Config.Mounts) > 0 {
 			mnt := source.Config.Mounts[0]
 
@@ -139,8 +139,9 @@ func runMachineClone(ctx context.Context) (err error) {
 		return err
 	}
 
-	err = flapsClient.Wait(ctx, launchedMachine, "started")
+	fmt.Printf("Cloning machine in region %s for app %s\n", region, app.Name)
 
+	err = flapsClient.TryWait(ctx, launchedMachine, "started", 3 /*num of tries*/)
 	if err != nil {
 		return err
 	}

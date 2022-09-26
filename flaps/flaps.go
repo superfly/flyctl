@@ -114,6 +114,17 @@ func (f *Client) Start(ctx context.Context, machineID string) (*api.MachineStart
 	return out, nil
 }
 
+func (f *Client) TryWait(ctx context.Context, machine *api.Machine, state string, tries int) (err error) {
+	for i := tries; i > 0; i-- {
+		if err = f.Wait(ctx, machine, state); err != nil {
+			fmt.Printf("Try#%d: %v\n", i, err)
+		} else {
+			break
+		}
+	}
+	return
+}
+
 func (f *Client) Wait(ctx context.Context, machine *api.Machine, state string) (err error) {
 	waitEndpoint := fmt.Sprintf("/%s/wait", machine.ID)
 
