@@ -21,6 +21,8 @@ ARG RUBY_VERSION={{ .rubyVersion }}
 ARG VARIANT=jemalloc-slim
 FROM quay.io/evl.ms/fullstaq-ruby:${RUBY_VERSION}-${VARIANT} as base
 
+LABEL fly_launch_runtime="rails"
+
 {{ if .node -}}
 ARG NODE_VERSION={{ .nodeVersion }}
 {{ end -}}
