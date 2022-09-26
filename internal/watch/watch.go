@@ -341,7 +341,7 @@ func MachineChecks(ctx context.Context) error {
 				tb.Overwrite()
 			}
 
-			tb.Printf("Health Checks: %d passing, %d warning, %d failing\n", pass, warn, fail)
+			tb.Printf("Health checks: %d Total, %d passing, %d warning, %d failing\n", len(checks), pass, warn, fail)
 
 			// if all checks are passing, we're done
 			if pass == len(checks) {
