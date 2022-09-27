@@ -2,6 +2,7 @@ package status
 
 import (
 	"context"
+	"sort"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
@@ -21,6 +22,10 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 	if err != nil {
 		return err
 	}
+
+	sort.Slice(machines, func(i, j int) bool {
+		return machines[i].ID < machines[j].ID
+	})
 
 	if app.IsPostgresApp() {
 		return renderPGStatus(ctx, app, machines)

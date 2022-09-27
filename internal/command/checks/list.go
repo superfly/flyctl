@@ -3,6 +3,7 @@ package checks
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/superfly/flyctl/api"
@@ -45,11 +46,18 @@ func runMachinesAppCheckList(ctx context.Context, app *api.AppCompact) error {
 	if err != nil {
 		return err
 	}
+	sort.Slice(machines, func(i, j int) bool {
+		return machines[i].ID < machines[j].ID
+	})
 
 	fmt.Fprintf(out, "Health Checks for %s\n", app.Name)
 	table := helpers.MakeSimpleTable(out, []string{"Name", "Status", "Machine", "Last Updated", "Output"})
 	table.SetRowLine(true)
 	for _, machine := range machines {
+		sort.Slice(machine.Checks, func(i, j int) bool {
+			return machine.Checks[i].Name < machine.Checks[j].Name
+		})
+
 		for _, check := range machine.Checks {
 			if nameFilter != "" && nameFilter != check.Name {
 				continue
