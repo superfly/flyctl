@@ -348,6 +348,8 @@ func MachineChecks(ctx context.Context) error {
 				tb.Println()
 
 				tb.Done("All checks passing")
+
+				tb.Println()
 				return nil
 			}
 		}
