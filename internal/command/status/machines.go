@@ -57,7 +57,7 @@ func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Ma
 				if check.Status == "passing" {
 					role = check.Output
 				} else {
-					role = "failing"
+					role = "error"
 				}
 			}
 		}
