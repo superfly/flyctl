@@ -64,9 +64,13 @@ func runUpdate(ctx context.Context) (err error) {
 		return err
 	}
 
+	imageOrPath := machine.Config.Image
 	image := flag.GetString(ctx, flag.ImageName)
-	if len(image) <= 0 {
-		image = machine.Config.Image
+	dockerfile := flag.GetString(ctx, flag.Dockerfile().Name)
+	if len(image) > 0 {
+		imageOrPath = image
+	} else if len(dockerfile) > 0 {
+		imageOrPath = "." // cwd
 	}
 
 	prevInstanceID := machine.InstanceID
@@ -74,7 +78,7 @@ func runUpdate(ctx context.Context) (err error) {
 	fmt.Fprintf(io.Out, "Machine %s was found and is currently in a %s state, attempting to update...\n", machineID, machine.State)
 
 	machineConf := *machine.Config
-	machineConf, err = determineMachineConfig(ctx, machineConf, app, image)
+	machineConf, err = determineMachineConfig(ctx, machineConf, app, imageOrPath)
 	if err != nil {
 		return
 	}
@@ -107,7 +111,7 @@ func runUpdate(ctx context.Context) (err error) {
 		return err
 	}
 
-	fmt.Fprintf(out, "Image: %s\n", image)
+	fmt.Fprintf(out, "Image: %s\n", machineConf.Image)
 
 	if waitForAction == "start" {
 		fmt.Fprintf(out, "State: Started\n\n")

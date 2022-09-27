@@ -355,7 +355,7 @@ func determineImage(ctx context.Context, appName string, imageOrPath string) (im
 	if strings.HasPrefix(imageOrPath, ".") || strings.HasPrefix(imageOrPath, "/") {
 		opts := imgsrc.ImageOptions{
 			AppName:    appName,
-			WorkingDir: path.Join(state.WorkingDirectory(ctx), imageOrPath),
+			WorkingDir: path.Join(state.WorkingDirectory(ctx)),
 			Publish:    !flag.GetBuildOnly(ctx),
 			ImageLabel: flag.GetString(ctx, "image-label"),
 			Target:     flag.GetString(ctx, "build-target"),
@@ -494,7 +494,7 @@ func selectAppName(ctx context.Context) (name string, err error) {
 	return
 }
 
-func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, image string) (machineConf api.MachineConfig, err error) {
+func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, imageOrPath string) (machineConf api.MachineConfig, err error) {
 	machineConf = initialMachineConf
 
 	if guestSize := flag.GetString(ctx, "size"); guestSize != "" {
@@ -562,7 +562,7 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		return
 	}
 
-	img, err := determineImage(ctx, app.Name, image)
+	img, err := determineImage(ctx, app.Name, imageOrPath)
 	if err != nil {
 		return
 	}
