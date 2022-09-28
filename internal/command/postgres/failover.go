@@ -80,6 +80,10 @@ func runFailover(ctx context.Context) (err error) {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		return err
+	}
+
 	// acquire cluster wide lock
 	for _, machine := range machines {
 		lease, err := flapsClient.GetLease(ctx, machine.ID, api.IntPointer(40))
@@ -90,15 +94,6 @@ func runFailover(ctx context.Context) (err error) {
 
 		// Ensure lease is released on return
 		defer releaseLease(ctx, flapsClient, machine)
-	}
-
-	leader, err := fetchPGLeader(ctx, machines)
-	if err != nil {
-		return fmt.Errorf("leader could not be retrieved %w", err)
-	}
-
-	if err := hasRequiredVersionOnMachines(leader, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
-		return err
 	}
 
 	// You can not failerover for single node postgres
