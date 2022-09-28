@@ -87,6 +87,13 @@ type StopMachineInput struct {
 	Filters *Filters      `json:"filters,omitempty"`
 }
 
+type RestartMachineInput struct {
+	ID        string        `json:"id"`
+	Signal    *Signal       `json:"signal,omitempty"`
+	Timeout   time.Duration `json:"timeout,omitempty"`
+	ForceStop bool          `json:"force_stop,omitempty"`
+}
+
 type MachineIP struct {
 	Family   string
 	Kind     string
