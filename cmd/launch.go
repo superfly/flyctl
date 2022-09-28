@@ -38,19 +38,19 @@ func newLaunchCommand(client *client.Client) *Command {
 	)
 	launchCmd.AddStringFlag(StringFlagOpts{
 		Name:        "org",
-		Description: `The organization that will own the app`,
+		Description: `Organization that will own the app`,
 	})
 	launchCmd.AddStringFlag(StringFlagOpts{
 		Name:        "name",
-		Description: "The name of the new app",
+		Description: "Name of the new app",
 	})
 	launchCmd.AddStringFlag(StringFlagOpts{
 		Name:        "region",
-		Description: "The region to launch the new app in",
+		Description: "Region to launch the new app in",
 	})
 	launchCmd.AddStringFlag(StringFlagOpts{
 		Name:        "image",
-		Description: "The image to launch",
+		Description: "Image to launch",
 	})
 	launchCmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "now",
