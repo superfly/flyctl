@@ -80,58 +80,48 @@ func hasRequiredVersionOnNomad(app *api.AppCompact, cluster, standalone string) 
 	return nil
 }
 
-func hasRequiredVersionOnMachines(leader *api.Machine, cluster, standalone string) error {
-	// Validate image version to ensure it's compatible with this feature.
-	if leader.ImageVersion() == "" || leader.ImageVersion() == "unknown" {
-		return fmt.Errorf("command is not compatible with this image")
-	}
+func hasRequiredVersionOnMachines(machines []*api.Machine, cluster, standalone string) error {
+	for _, machine := range machines {
+		// Validate image version to ensure it's compatible with this feature.
+		if machine.ImageVersion() == "" || machine.ImageVersion() == "unknown" {
+			return fmt.Errorf("command is not compatible with this image")
+		}
 
-	imageVersionStr := leader.ImageVersion()[1:]
+		imageVersionStr := machine.ImageVersion()[1:]
 
-	imageVersion, err := version.NewVersion(imageVersionStr)
-	if err != nil {
-		return err
-	}
-
-	// Specify compatible versions per repo.
-	requiredVersion := &version.Version{}
-	if leader.ImageRepository() == "flyio/postgres-standalone" {
-		requiredVersion, err = version.NewVersion(standalone)
+		imageVersion, err := version.NewVersion(imageVersionStr)
 		if err != nil {
 			return err
 		}
-	}
-	if leader.ImageRepository() == "flyio/postgres" {
-		requiredVersion, err = version.NewVersion(cluster)
-		if err != nil {
-			return err
+
+		// Specify compatible versions per repo.
+		requiredVersion := &version.Version{}
+		if machine.ImageRepository() == "flyio/postgres-standalone" {
+			requiredVersion, err = version.NewVersion(standalone)
+			if err != nil {
+				return err
+			}
 		}
-	}
+		if machine.ImageRepository() == "flyio/postgres" {
+			requiredVersion, err = version.NewVersion(cluster)
+			if err != nil {
+				return err
+			}
+		}
 
-	if requiredVersion == nil {
-		return fmt.Errorf("unable to resolve image version")
-	}
+		if requiredVersion == nil {
+			return fmt.Errorf("unable to resolve image version")
+		}
 
-	if imageVersion.LessThan(requiredVersion) {
-		return fmt.Errorf(
-			"image version is not compatible. (Current: %s, Required: >= %s)\n"+
-				"Please run 'flyctl image show' and update to the latest available version",
-			imageVersion, requiredVersion.String())
-	}
+		if imageVersion.LessThan(requiredVersion) {
+			return fmt.Errorf(
+				"%s is running an incompatible image version. (Current: %s, Required: >= %s)\n"+
+					"Please run 'flyctl pg update' to update to the latest available version",
+				machine.ID, imageVersion, requiredVersion.String())
+		}
 
+	}
 	return nil
-}
-
-func fetchPGLeader(ctx context.Context, members []*api.Machine) (*api.Machine, error) {
-	leader, _, err := machinesNodeRoles(ctx, members)
-	if err != nil {
-		return nil, err
-	}
-
-	if leader == nil {
-		return nil, fmt.Errorf("no leader found")
-	}
-	return leader, nil
 }
 
 func machinesNodeRoles(ctx context.Context, machines []*api.Machine) (leader *api.Machine, replicas []*api.Machine, err error) {
