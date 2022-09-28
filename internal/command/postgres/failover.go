@@ -84,6 +84,11 @@ func runFailover(ctx context.Context) (err error) {
 		return err
 	}
 
+	// You can not failerover for single node postgres
+	if len(machines) <= 1 {
+		return fmt.Errorf("failover is not available for standalone postgres")
+	}
+
 	// acquire cluster wide lock
 	for _, machine := range machines {
 		lease, err := flapsClient.GetLease(ctx, machine.ID, api.IntPointer(40))
@@ -94,11 +99,6 @@ func runFailover(ctx context.Context) (err error) {
 
 		// Ensure lease is released on return
 		defer releaseLease(ctx, flapsClient, machine)
-	}
-
-	// You can not failerover for single node postgres
-	if len(machines) <= 1 {
-		return fmt.Errorf("failover is not available for standalone postgres")
 	}
 
 	pgclient := flypg.New(appName, dialer)
