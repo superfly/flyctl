@@ -19,6 +19,11 @@ import (
 	"github.com/superfly/flyctl/internal/sort"
 )
 
+type RegionParams struct {
+	Message             string
+	ExcludedRegionCodes []string
+}
+
 func String(ctx context.Context, dst *string, msg, def string, required bool) error {
 	opt, err := newSurveyIO(ctx)
 	if err != nil {
@@ -241,12 +246,19 @@ var (
 	errRegionCodesRequired = NonInteractiveError("regions codes must be specified in a comma-separated when not running interactively")
 )
 
-func sortedRegions(ctx context.Context) ([]api.Region, *api.Region, error) {
+func sortedRegions(ctx context.Context, excludedRegionCodes []string) ([]api.Region, *api.Region, error) {
 	client := client.FromContext(ctx).API()
 
 	regions, defaultRegion, err := client.PlatformRegions(ctx)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if len(excludedRegionCodes) > 0 {
+
+		regions = lo.Filter(regions, func(r api.Region, _ int) bool {
+			return !lo.Contains[string](excludedRegionCodes, r.Code)
+		})
 	}
 
 	sort.RegionsByNameAndCode(regions)
@@ -256,13 +268,13 @@ func sortedRegions(ctx context.Context) ([]api.Region, *api.Region, error) {
 
 // Region returns the region the user has passed in via flag or prompts the
 // user for one.
-func MultiRegion(ctx context.Context, msg string, currentRegions []string, excludeRegion string) (*[]api.Region, error) {
-	regions, _, err := sortedRegions(ctx)
+func MultiRegion(ctx context.Context, msg string, currentRegions []string, excludedRegionCodes []string) (*[]api.Region, error) {
+	regions, _, err := sortedRegions(ctx, excludedRegionCodes)
 	if err != nil {
 		return nil, err
 	}
 
-	switch regions, err := MultiSelectRegion(ctx, msg, regions, currentRegions, excludeRegion); {
+	switch regions, err := MultiSelectRegion(ctx, msg, regions, currentRegions); {
 	case err == nil:
 		return &regions, nil
 	case IsNonInteractive(err):
@@ -274,8 +286,9 @@ func MultiRegion(ctx context.Context, msg string, currentRegions []string, exclu
 
 // Region returns the region the user has passed in via flag or prompts the
 // user for one.
-func Region(ctx context.Context, msg string) (*api.Region, error) {
-	regions, defaultRegion, err := sortedRegions(ctx)
+func Region(ctx context.Context, params RegionParams) (*api.Region, error) {
+	regions, defaultRegion, err := sortedRegions(ctx, params.ExcludedRegionCodes)
+
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +310,7 @@ func Region(ctx context.Context, msg string) (*api.Region, error) {
 			defaultRegionCode = defaultRegion.Code
 		}
 
-		switch region, err := SelectRegion(ctx, msg, regions, defaultRegionCode); {
+		switch region, err := SelectRegion(ctx, params.Message, regions, defaultRegionCode); {
 		case err == nil:
 			return region, nil
 		case IsNonInteractive(err):
@@ -333,17 +346,13 @@ func SelectRegion(ctx context.Context, msg string, regions []api.Region, default
 	return
 }
 
-func MultiSelectRegion(ctx context.Context, msg string, regions []api.Region, currentRegions []string, excludeRegion string) (selectedRegions []api.Region, err error) {
+func MultiSelectRegion(ctx context.Context, msg string, regions []api.Region, currentRegions []string) (selectedRegions []api.Region, err error) {
 	var options []string
-
-	includedRegions := lo.Filter(regions, func(r api.Region, _ int) bool {
-		return r.Code != excludeRegion
-	})
 
 	var currentIndices []int
 	var indices []int
 
-	for i, r := range includedRegions {
+	for i, r := range regions {
 		if lo.Contains(currentRegions, r.Code) {
 			currentIndices = append(currentIndices, i)
 		}
@@ -357,7 +366,7 @@ func MultiSelectRegion(ctx context.Context, msg string, regions []api.Region, cu
 
 	if err = MultiSelect(ctx, &indices, msg, currentIndices, options...); err == nil {
 		for _, index := range indices {
-			selectedRegions = append(selectedRegions, includedRegions[index])
+			selectedRegions = append(selectedRegions, regions[index])
 		}
 	}
 	return

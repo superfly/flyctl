@@ -78,7 +78,35 @@ func runCreate(ctx context.Context) (err error) {
 		}
 	}
 
-	primaryRegion, err := prompt.Region(ctx, "Choose a primary region (can't be changed later)")
+	_ = `# @genqlient
+	query GetAddOnProvider($name: String!) {
+		addOnProvider(name: $name) {
+			id
+			name
+			excludedRegions {
+				code
+			}
+		}
+	}
+	`
+
+	response, err := gql.GetAddOnProvider(ctx, client, "upstash_redis")
+
+	if err != nil {
+		return err
+	}
+
+	var excludedRegions []string
+
+	for _, region := range response.AddOnProvider.ExcludedRegions {
+		excludedRegions = append(excludedRegions, region.Code)
+	}
+
+	primaryRegion, err := prompt.Region(ctx, prompt.RegionParams{
+		Message:             "Choose a primary region (can't be changed later)",
+		ExcludedRegionCodes: excludedRegions,
+	})
+
 	if err != nil {
 		return err
 	}
@@ -86,7 +114,8 @@ func runCreate(ctx context.Context) (err error) {
 	readRegions := &[]api.Region{}
 
 	if !flag.GetBool(ctx, "no-replicas") {
-		readRegions, err = prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", []string{}, primaryRegion.Code)
+		readRegions, err = prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", []string{}, []string{primaryRegion.Code})
+
 		if err != nil {
 			return
 		}
