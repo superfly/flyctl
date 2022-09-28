@@ -32,29 +32,29 @@ func newLaunchCommand(client *client.Client) *Command {
 	launchCmd.Args = cobra.NoArgs
 	launchCmd.AddStringFlag(StringFlagOpts{
 		Name:        "path",
-		Description: `path to app code and where a fly.toml file will be saved.`,
+		Description: `Path to app code and where a fly.toml file will be saved`,
 		Default:     ".",
 	},
 	)
 	launchCmd.AddStringFlag(StringFlagOpts{
 		Name:        "org",
-		Description: `the organization that will own the app`,
+		Description: `Organization that will own the app`,
 	})
 	launchCmd.AddStringFlag(StringFlagOpts{
 		Name:        "name",
-		Description: "the name of the new app",
+		Description: "Name of the new app",
 	})
 	launchCmd.AddStringFlag(StringFlagOpts{
 		Name:        "region",
-		Description: "the region to launch the new app in",
+		Description: "Region to launch the new app in",
 	})
 	launchCmd.AddStringFlag(StringFlagOpts{
 		Name:        "image",
-		Description: "the image to launch",
+		Description: "Image to launch",
 	})
 	launchCmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "now",
-		Description: "deploy now without confirmation",
+		Description: "Deploy now without confirmation",
 		Default:     false,
 	})
 	launchCmd.AddBoolFlag(BoolFlagOpts{
@@ -69,11 +69,11 @@ func newLaunchCommand(client *client.Client) *Command {
 	})
 	launchCmd.AddStringFlag(StringFlagOpts{
 		Name:        "dockerfile",
-		Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
+		Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory",
 	})
 	launchCmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "copy-config",
-		Description: "Use the configuration file if present without prompting.",
+		Description: "Use the configuration file if present without prompting",
 		Default:     false,
 	})
 	launchCmd.AddBoolFlag(BoolFlagOpts{
