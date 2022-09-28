@@ -115,9 +115,9 @@ func hasRequiredVersionOnMachines(machines []*api.Machine, cluster, standalone s
 
 		if imageVersion.LessThan(requiredVersion) {
 			return fmt.Errorf(
-				"image version is not compatible. (Current: %s, Required: >= %s)\n"+
-					"Please run 'flyctl image show' and update to the latest available version",
-				imageVersion, requiredVersion.String())
+				"%s is running an incompatible image version. (Current: %s, Required: >= %s)\n"+
+					"Please run 'flyctl pg update' to update to the latest available version",
+				machine.ID, imageVersion, requiredVersion.String())
 		}
 
 	}
