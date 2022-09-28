@@ -50,12 +50,12 @@ func runFailover(ctx context.Context) (err error) {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	if app.PlatformVersion != "machines" {
-		return fmt.Errorf("failerover is only supported for machines apps")
-	}
-
 	if !app.IsPostgresApp() {
 		return fmt.Errorf("app %s is not a Postgres app", app.Name)
+	}
+
+	if app.PlatformVersion != "machines" {
+		return fmt.Errorf("failerover is only supported for machines apps")
 	}
 
 	agentclient, err := agent.Establish(ctx, client)
