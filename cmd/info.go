@@ -57,7 +57,7 @@ func runInfo(cmdCtx *cmdctx.CmdContext) error {
 			return err
 		}
 
-		err = cmdCtx.Frender(cmdctx.PresenterOption{Presentable: &presenters.IPAddresses{IPAddresses: app.IPAddresses.Nodes}, Title: "IP Adresses"})
+		err = cmdCtx.Frender(cmdctx.PresenterOption{Presentable: &presenters.IPAddresses{IPAddresses: app.IPAddresses.Nodes}, Title: "IP Addresses"})
 		if err != nil {
 			return err
 		}
