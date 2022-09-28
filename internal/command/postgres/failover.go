@@ -75,13 +75,18 @@ func runFailover(ctx context.Context) (err error) {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+	leader, err := fetchPGLeader(ctx, machines)
+	if err != nil {
+		return fmt.Errorf("leader could not be retrieved %w", err)
+	}
+
+	if err := hasRequiredVersionOnMachines(leader, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 		return err
 	}
 
 	// You can not failerover for single node postgres
 	if len(machines) <= 1 {
-		return fmt.Errorf("failover is not available for single node postgres")
+		return fmt.Errorf("failover is not available for standalone postgres")
 	}
 
 	pgclient := flypg.New(appName, dialer)
