@@ -6,33 +6,36 @@ import (
 )
 
 type Machine struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	State string `json:"state"`
-
-	Region string `json:"region"`
-
+	ID       string          `json:"id"`
+	Name     string          `json:"name"`
+	State    string          `json:"state"`
+	Region   string          `json:"region"`
 	ImageRef machineImageRef `json:"image_ref"`
-
 	// InstanceID is unique for each version of the machine
 	InstanceID string `json:"instance_id"`
 	Version    string `json:"version"`
-
 	// PrivateIP is the internal 6PN address of the machine.
-	PrivateIP string `json:"private_ip"`
-
-	CreatedAt string `json:"created_at"`
-
-	UpdatedAt string `json:"updated_at"`
-
-	Config *MachineConfig `json:"config"`
-
-	Events     []*MachineEvent `json:"events,omitempty"`
+	PrivateIP  string                `json:"private_ip"`
+	CreatedAt  string                `json:"created_at"`
+	UpdatedAt  string                `json:"updated_at"`
+	Config     *MachineConfig        `json:"config"`
+	Events     []*MachineEvent       `json:"events,omitempty"`
+	Checks     []*MachineCheckStatus `json:"checks,omitempty"`
 	LeaseNonce string
 }
 
 func (m Machine) FullImageRef() string {
 	return fmt.Sprintf("%s/%s:%s", m.ImageRef.Registry, m.ImageRef.Repository, m.ImageRef.Tag)
+}
+
+func (m Machine) ImageRefWithVersion() string {
+	ref := fmt.Sprintf("%s:%s", m.ImageRef.Repository, m.ImageRef.Tag)
+	version := m.ImageRef.Labels["fly.version"]
+	if version != "" {
+		ref = fmt.Sprintf("%s (%s)", ref, version)
+	}
+
+	return ref
 }
 
 func (m Machine) ImageVersion() string {
@@ -66,6 +69,7 @@ type MachineRequest struct {
 	ExitEvent    *MachineExitEvent `json:"exit_event,omitempty"`
 	RestartCount int64             `json:"restart_count"`
 }
+
 type MachineExitEvent struct {
 	ExitCode      int16 `json:"exit_code"`
 	GuestExitCode int16 `json:"guest_exit_code"`
@@ -99,9 +103,11 @@ type RemoveMachineInput struct {
 
 type MachineRestartPolicy string
 
-var MachineRestartPolicyNo MachineRestartPolicy = "no"
-var MachineRestartPolicyOnFailure MachineRestartPolicy = "on-failure"
-var MachineRestartPolicyAlways MachineRestartPolicy = "always"
+var (
+	MachineRestartPolicyNo        MachineRestartPolicy = "no"
+	MachineRestartPolicyOnFailure MachineRestartPolicy = "on-failure"
+	MachineRestartPolicyAlways    MachineRestartPolicy = "always"
+)
 
 type MachineRestart struct {
 	Policy MachineRestartPolicy `json:"policy"`
@@ -145,6 +151,22 @@ type MachineMetrics struct {
 	Path string `toml:"path" json:"path"`
 }
 
+type MachineCheck struct {
+	Type       string    `json:"type,omitempty"`
+	Port       uint16    `json:"port,omitempty"`
+	Interval   *Duration `json:"interval,omitempty" toml:",omitempty"`
+	Timeout    *Duration `json:"timeout,omitempty" toml:",omitempty"`
+	HTTPMethod *string   `json:"method,omitempty" toml:"method,omitempty"`
+	HTTPPath   *string   `json:"path,omitempty" toml:"path,omitempty"`
+}
+
+type MachineCheckStatus struct {
+	Name      string     `json:"name,omitempty"`
+	Status    string     `json:"status,omitempty"`
+	Output    string     `json:"output,omitempty"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+}
+
 type MachinePort struct {
 	Port       int      `json:"port" toml:"port"`
 	Handlers   []string `json:"handlers,omitempty" toml:"handlers,omitempty"`
@@ -165,17 +187,18 @@ type MachineServiceConcurrency struct {
 }
 
 type MachineConfig struct {
-	Env      map[string]string `json:"env"`
-	Init     MachineInit       `json:"init,omitempty"`
-	Image    string            `json:"image"`
-	Metadata map[string]string `json:"metadata"`
-	Mounts   []MachineMount    `json:"mounts,omitempty"`
-	Restart  MachineRestart    `json:"restart,omitempty"`
-	Services []MachineService  `json:"services,omitempty"`
-	VMSize   string            `json:"size,omitempty"`
-	Guest    *MachineGuest     `json:"guest,omitempty"`
-	Metrics  *MachineMetrics   `json:"metrics"`
-	Schedule string            `json:"schedule,omitempty"`
+	Env      map[string]string       `json:"env"`
+	Init     MachineInit             `json:"init,omitempty"`
+	Image    string                  `json:"image"`
+	Metadata map[string]string       `json:"metadata"`
+	Mounts   []MachineMount          `json:"mounts,omitempty"`
+	Restart  MachineRestart          `json:"restart,omitempty"`
+	Services []MachineService        `json:"services,omitempty"`
+	VMSize   string                  `json:"size,omitempty"`
+	Guest    *MachineGuest           `json:"guest,omitempty"`
+	Metrics  *MachineMetrics         `json:"metrics"`
+	Schedule string                  `json:"schedule,omitempty"`
+	Checks   map[string]MachineCheck `json:"checks,omitempty"`
 }
 
 type MachineLease struct {

@@ -11,12 +11,12 @@ import (
 	"net/http"
 
 	"github.com/samber/lo"
+
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/logger"
-
-	"github.com/superfly/flyctl/client"
 )
 
 var NonceHeader = "fly-machine-lease-nonce"
@@ -193,7 +193,7 @@ func (f *Client) ListActive(ctx context.Context) ([]*api.Machine, error) {
 	}
 
 	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
-		return m.Config.Metadata["process_group"] != "release_command" && m.State != "destroyed"
+		return m.Config != nil && m.Config.Metadata["process_group"] != "release_command" && m.State != "destroyed"
 	})
 
 	return machines, nil
@@ -290,7 +290,6 @@ func (f *Client) NewRequest(ctx context.Context, method, path string, in interfa
 			return nil, err
 		}
 		headers["Content-Type"] = []string{"application/json"}
-
 		body = bytes.NewReader(b)
 	}
 

@@ -416,9 +416,12 @@ func flyRegistryAuth() string {
 // NewDeploymentTag generates a Docker image reference including the current registry,
 // the app name, and a timestamp: registry.fly.io/appname:deployment-$timestamp
 func NewDeploymentTag(appName string, label string) string {
-	if tag := os.Getenv("FLY_IMAGE_REF"); tag != "" {
-		return tag
-	}
+	// MD: this was used by remote builders long ago to set a precomputed ref for deployment.
+	// flyd now sets this to the current image in machine env.
+	// stop using it in flyctl and if nobody has a problem remove it by 2022-11-01
+	// if tag := os.Getenv("FLY_IMAGE_REF"); tag != "" {
+	// 	return tag
+	// }
 
 	if label == "" {
 		label = fmt.Sprintf("deployment-%s", ulid.Make())

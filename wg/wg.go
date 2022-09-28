@@ -2,6 +2,7 @@ package wg
 
 import (
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"net"
 
@@ -59,7 +60,10 @@ func (pk *PrivateKey) UnmarshalText(text []byte) error {
 	return nil
 }
 
-func (pk PrivateKey) ToHex() string { return (device.NoisePrivateKey)(pk).ToHex() }
+func (pk PrivateKey) ToHex() string {
+	val := (device.NoisePrivateKey)(pk)
+	return hex.EncodeToString(val[:])
+}
 
 type PublicKey device.NoisePublicKey
 
@@ -80,4 +84,7 @@ func (pk *PublicKey) UnmarshalText(text []byte) error {
 	return nil
 }
 
-func (pk PublicKey) ToHex() string { return (device.NoisePublicKey)(pk).ToHex() }
+func (pk PublicKey) ToHex() string {
+	val := (device.NoisePublicKey)(pk)
+	return hex.EncodeToString(val[:])
+}

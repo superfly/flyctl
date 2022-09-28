@@ -38,32 +38,41 @@ func newStart() *cobra.Command {
 
 func runMachineStart(ctx context.Context) (err error) {
 	var (
-		out     = iostreams.FromContext(ctx).Out
-		appName = app.NameFromContext(ctx)
-		args    = flag.Args(ctx)
+		io   = iostreams.FromContext(ctx)
+		args = flag.Args(ctx)
 	)
 
 	for _, machineID := range args {
-		app, err := appFromMachineOrName(ctx, machineID, appName)
-		if err != nil {
-			return fmt.Errorf("could not make flaps client: %w", err)
+		if err = Start(ctx, machineID); err != nil {
+			return
 		}
+		fmt.Fprintf(io.Out, "%s has been started\n", machineID)
+	}
+	return
+}
 
-		flapsClient, err := flaps.New(ctx, app)
-		if err != nil {
-			return fmt.Errorf("could not make flaps client: %w", err)
-		}
+func Start(ctx context.Context, machineID string) (err error) {
+	var (
+		appName = app.NameFromContext(ctx)
+	)
 
-		machine, err := flapsClient.Start(ctx, machineID)
-		if err != nil {
-			return fmt.Errorf("could not start machine %s: %w", machineID, err)
-		}
-
-		if machine.Status == "error" {
-			return fmt.Errorf("machine could not be started %s", machine.Message)
-		}
-		fmt.Fprintf(out, "%s has been started\n", machineID)
+	app, err := appFromMachineOrName(ctx, machineID, appName)
+	if err != nil {
+		return fmt.Errorf("could not make flaps client: %w", err)
 	}
 
+	flapsClient, err := flaps.New(ctx, app)
+	if err != nil {
+		return fmt.Errorf("could not make flaps client: %w", err)
+	}
+
+	machine, err := flapsClient.Start(ctx, machineID)
+	if err != nil {
+		return fmt.Errorf("could not start machine %s: %w", machineID, err)
+	}
+
+	if machine.Status == "error" {
+		return fmt.Errorf("machine could not be started %s", machine.Message)
+	}
 	return
 }

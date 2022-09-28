@@ -20,9 +20,16 @@ func (c *Client) GetVolumes(ctx context.Context, appName string) ([]Volume, erro
 					host{
 						id
 					}
+					app {
+						platformVersion
+					}
 					attachedAllocation {
 						idShort
 						taskName
+					}
+					attachedMachine {
+						id
+						name
 					}
 				}
 			}

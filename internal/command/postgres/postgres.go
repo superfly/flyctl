@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
 )
@@ -123,37 +122,64 @@ func hasRequiredVersionOnMachines(leader *api.Machine, cluster, standalone strin
 	return nil
 }
 
-func fetchLeader(ctx context.Context, app *api.AppCompact, dialer agent.Dialer) (*api.Machine, error) {
-	flapsClient, err := flaps.New(ctx, app)
+func fetchPGLeader(ctx context.Context, members []*api.Machine) (*api.Machine, error) {
+	leader, _, err := machinesNodeRoles(ctx, members)
 	if err != nil {
-		return nil, fmt.Errorf("list of machines could not be retrieved: %w", err)
+		return nil, err
 	}
 
-	members, err := flapsClient.List(ctx, "started")
-	if err != nil {
-		return nil, fmt.Errorf("machines could not be retrieved %w", err)
+	if leader == nil {
+		return nil, fmt.Errorf("no leader found")
 	}
+	return leader, nil
+}
 
-	if len(members) == 0 {
-		return nil, fmt.Errorf("no machines found")
-	}
+func machinesNodeRoles(ctx context.Context, machines []*api.Machine) (leader *api.Machine, replicas []*api.Machine, err error) {
+	var dialer = agent.DialerFromContext(ctx)
 
-	for _, member := range members {
-		address := fmt.Sprintf("[%s]", member.PrivateIP)
+	for _, machine := range machines {
+		address := fmt.Sprintf("[%s]", machine.PrivateIP)
 
 		pgclient := flypg.NewFromInstance(address, dialer)
 		if err != nil {
-			return nil, fmt.Errorf("can't connect to %s: %w", member.Name, err)
+			return nil, nil, fmt.Errorf("can't connect to %s: %w", machine.Name, err)
 		}
 
 		role, err := pgclient.NodeRole(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("can't get role for %s: %w", member.Name, err)
+			return nil, nil, fmt.Errorf("can't get role for %s: %w", machine.Name, err)
 		}
 
-		if role == "leader" {
-			return member, nil
+		switch role {
+		case "leader":
+			leader = machine
+		case "replica":
+			replicas = append(replicas, machine)
 		}
 	}
-	return nil, fmt.Errorf("no leader found")
+	return leader, replicas, nil
+}
+
+func nomadNodeRoles(ctx context.Context, allocs []*api.AllocationStatus) (leader *api.AllocationStatus, replicas []*api.AllocationStatus, err error) {
+	var dialer = agent.DialerFromContext(ctx)
+
+	for _, alloc := range allocs {
+		pgclient := flypg.NewFromInstance(alloc.PrivateIP, dialer)
+		if err != nil {
+			return nil, nil, fmt.Errorf("can't connect to %s: %w", alloc.ID, err)
+		}
+
+		role, err := pgclient.NodeRole(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("can't get role for %s: %w", alloc.ID, err)
+		}
+
+		switch role {
+		case "leader":
+			leader = alloc
+		case "replica":
+			replicas = append(replicas, alloc)
+		}
+	}
+	return leader, replicas, nil
 }

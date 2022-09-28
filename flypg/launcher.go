@@ -20,8 +20,14 @@ import (
 )
 
 var (
-	volumeName = "pg_data"
-	volumePath = "/data"
+	volumeName     = "pg_data"
+	volumePath     = "/data"
+	duration10s, _ = time.ParseDuration("10s")
+	duration15s, _ = time.ParseDuration("15s")
+	duration1m, _  = time.ParseDuration("1m")
+	checkPathPg    = "/flycheck/pg"
+	checkPathRole  = "/flycheck/role"
+	checkPathVm    = "/flycheck/vm"
 )
 
 type Launcher struct {
@@ -37,7 +43,7 @@ type CreateClusterInput struct {
 	Password           string
 	Region             string
 	VolumeSize         *int
-	VMSize             *string
+	VMSize             *api.VMSize
 	SnapshotID         *string
 }
 
@@ -96,7 +102,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			Name:              volumeName,
 			Region:            config.Region,
 			SizeGb:            *config.VolumeSize,
-			Encrypted:         false,
+			Encrypted:         true,
 			RequireUniqueZone: false,
 			SnapshotID:        snapshot,
 		}
@@ -110,7 +116,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			Volume:    vol.ID,
 			Path:      volumePath,
 			SizeGb:    *config.VolumeSize,
-			Encrypted: false,
+			Encrypted: vol.Encrypted,
 		})
 
 		launchInput := api.LaunchMachineInput{
@@ -132,7 +138,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			waitTimeout = time.Hour
 		}
 
-		err = machines.WaitForStart(ctx, flaps, machine, waitTimeout)
+		err = machines.WaitForStartOrStop(ctx, flaps, machine, "start", waitTimeout)
 		if err != nil {
 			return err
 		}
@@ -180,7 +186,7 @@ func (l *Launcher) LaunchNomadPostgres(ctx context.Context, config *CreateCluste
 		ImageRef:       &config.ImageRef,
 		Count:          &config.InitialClusterSize,
 		Password:       &config.Password,
-		VMSize:         config.VMSize,
+		VMSize:         &config.VMSize.Name,
 		VolumeSizeGB:   config.VolumeSize,
 	}
 
@@ -228,7 +234,44 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 		"PRIMARY_REGION": config.Region,
 	}
 
-	machineConfig.VMSize = *config.VMSize
+	// Set VM resources
+	machineConfig.Guest = &api.MachineGuest{
+		CPUKind:  config.VMSize.CPUClass,
+		CPUs:     int(config.VMSize.CPUCores),
+		MemoryMB: config.VMSize.MemoryMB,
+	}
+
+	// Metrics
+	machineConfig.Metrics = &api.MachineMetrics{
+		Path: "/metrics",
+		Port: 9187,
+	}
+
+	machineConfig.Checks = map[string]api.MachineCheck{
+		"pg": {
+			Port:     5500,
+			Type:     "http",
+			HTTPPath: &checkPathPg,
+			Interval: &api.Duration{Duration: duration15s},
+			Timeout:  &api.Duration{Duration: duration10s},
+		},
+		"role": {
+			Port:     5500,
+			Type:     "http",
+			HTTPPath: &checkPathRole,
+			Interval: &api.Duration{Duration: duration15s},
+			Timeout:  &api.Duration{Duration: duration10s},
+		},
+		"vm": {
+			Port:     5500,
+			Type:     "http",
+			HTTPPath: &checkPathVm,
+			Interval: &api.Duration{Duration: duration1m},
+			Timeout:  &api.Duration{Duration: duration10s},
+		},
+	}
+
+	// Restart policy
 	machineConfig.Restart.Policy = api.MachineRestartPolicyAlways
 
 	return &machineConfig

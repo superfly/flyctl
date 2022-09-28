@@ -118,6 +118,10 @@ var sharedFlags = flag.Set{
 		Shorthand:   "m",
 		Description: "Metadata in the form of NAME=VALUE pairs. Can be specified multiple times.",
 	},
+	flag.String{
+		Name:        "schedule",
+		Description: `Schedule a machine run at hourly, daily and monthly intervals`,
+	},
 }
 
 func newRun() *cobra.Command {
@@ -207,7 +211,7 @@ func runMachineRun(ctx context.Context) error {
 
 	machineID := flag.GetString(ctx, "id")
 	if machineID != "" {
-		return fmt.Errorf("To update an existing machine, use 'flyctl machine update'.")
+		return fmt.Errorf("to update an existing machine, use 'flyctl machine update'")
 	}
 
 	machineConf, err = determineMachineConfig(ctx, machineConf, app, flag.FirstArg(ctx))
@@ -235,7 +239,7 @@ func runMachineRun(ctx context.Context) error {
 	fmt.Fprintf(io.Out, " State: %s\n", state)
 
 	// wait for machine to be started
-	if err := WaitForStart(ctx, flapsClient, machine, time.Minute*5); err != nil {
+	if err := WaitForStartOrStop(ctx, flapsClient, machine, "start", time.Minute*5); err != nil {
 		return err
 	}
 
@@ -291,9 +295,19 @@ func createApp(ctx context.Context, message, name string, client *api.Client) (*
 	}, nil
 }
 
-func WaitForStart(ctx context.Context, flapsClient *flaps.Client, machine *api.Machine, timeout time.Duration) error {
+func WaitForStartOrStop(ctx context.Context, flapsClient *flaps.Client, machine *api.Machine, action string, timeout time.Duration) error {
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+
+	var waitOnAction string
+	switch action {
+	case "start":
+		waitOnAction = "started"
+	case "stop":
+		waitOnAction = "stopped"
+	default:
+		return fmt.Errorf("action must be either start or stop")
+	}
 
 	b := &backoff.Backoff{
 		Min:    500 * time.Millisecond,
@@ -302,12 +316,12 @@ func WaitForStart(ctx context.Context, flapsClient *flaps.Client, machine *api.M
 		Jitter: false,
 	}
 	for {
-		err := flapsClient.Wait(waitCtx, machine, "started")
+		err := flapsClient.Wait(waitCtx, machine, waitOnAction)
 		switch {
 		case errors.Is(err, context.Canceled):
 			return err
 		case errors.Is(err, context.DeadlineExceeded):
-			return fmt.Errorf("timeout reached waiting for machine to start %w", err)
+			return fmt.Errorf("timeout reached waiting for machine to %s %w", waitOnAction, err)
 		case err != nil:
 			time.Sleep(b.Duration())
 			continue
@@ -341,7 +355,7 @@ func determineImage(ctx context.Context, appName string, imageOrPath string) (im
 	if strings.HasPrefix(imageOrPath, ".") || strings.HasPrefix(imageOrPath, "/") {
 		opts := imgsrc.ImageOptions{
 			AppName:    appName,
-			WorkingDir: path.Join(state.WorkingDirectory(ctx), imageOrPath),
+			WorkingDir: path.Join(state.WorkingDirectory(ctx)),
 			Publish:    !flag.GetBuildOnly(ctx),
 			ImageLabel: flag.GetString(ctx, "image-label"),
 			Target:     flag.GetString(ctx, "build-target"),
@@ -388,7 +402,7 @@ func determineImage(ctx context.Context, appName string, imageOrPath string) (im
 	}
 
 	fmt.Fprintf(io.Out, "Image: %s\n", img.Tag)
-	fmt.Fprintf(io.Out, "Image size: %s\n", humanize.Bytes(uint64(img.Size)))
+	fmt.Fprintf(io.Out, "Image size: %s\n\n", humanize.Bytes(uint64(img.Size)))
 
 	return img, nil
 }
@@ -480,7 +494,7 @@ func selectAppName(ctx context.Context) (name string, err error) {
 	return
 }
 
-func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, image string) (machineConf api.MachineConfig, err error) {
+func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, imageOrPath string) (machineConf api.MachineConfig, err error) {
 	machineConf = initialMachineConf
 
 	if guestSize := flag.GetString(ctx, "size"); guestSize != "" {
@@ -511,6 +525,10 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 
 	if err != nil {
 		return
+	}
+
+	if flag.GetString(ctx, "schedule") != "" {
+		machineConf.Schedule = flag.GetString(ctx, "schedule")
 	}
 
 	machineConf.Metadata, err = parseKVFlag(ctx, "metadata", machineConf.Metadata)
@@ -544,7 +562,7 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		return
 	}
 
-	img, err := determineImage(ctx, app.Name, image)
+	img, err := determineImage(ctx, app.Name, imageOrPath)
 	if err != nil {
 		return
 	}

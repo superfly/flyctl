@@ -79,6 +79,10 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 		machineConfig.Metrics = config.Metrics
 	}
 
+	if config.Checks != nil {
+		machineConfig.Checks = config.Checks
+	}
+
 	// Run validations against struct types and their JSON tags
 	err = config.Validate()
 
@@ -232,19 +236,17 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 	if len(machines) > 0 {
 
 		for _, machine := range machines {
-
 			leaseTTL := api.IntPointer(30)
 			lease, err := flapsClient.GetLease(ctx, machine.ID, leaseTTL)
 			if err != nil {
 				return err
 			}
-
 			machine.LeaseNonce = lease.Data.Nonce
 
+			defer releaseLease(ctx, flapsClient, machine)
 		}
 
 		for _, machine := range machines {
-
 			launchInput.ID = machine.ID
 
 			// We assume a config with no image specificed means the deploy should recreate machines
@@ -263,18 +265,12 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 			// Until mounts are supported in fly.toml, ensure deployments
 			// maintain any existing volume attachments
 			if machine.Config.Mounts != nil {
-				launchInput.Config.Mounts = append(launchInput.Config.Mounts, machine.Config.Mounts[0])
+				launchInput.Config.Mounts = machine.Config.Mounts
 			}
 
 			updateResult, err := flapsClient.Update(ctx, launchInput, machine.LeaseNonce)
 			if err != nil {
 				if strategy != "immediate" {
-					leaseErr := flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
-
-					if leaseErr != nil {
-						fmt.Fprintf(io.Out, "Could not release lease for %s\n", machine.ID)
-					}
-
 					return err
 
 				} else {
@@ -284,32 +280,26 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 
 			if strategy != "immediate" {
 				err = flapsClient.Wait(ctx, updateResult, "started")
-
 				if err != nil {
-					err = flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
 					return err
 				}
 			}
-
-		}
-
-		for _, machine := range machines {
-
-			err = flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
-			if err != nil {
-				fmt.Println(io.Out, fmt.Errorf("could not release lease on %s (%w)", machine.ID, err))
-			}
-
 		}
 
 	} else {
 		fmt.Fprintf(io.Out, "Launching VM with image %s\n", launchInput.Config.Image)
 		_, err = flapsClient.Launch(ctx, launchInput)
-
 		if err != nil {
 			return err
 		}
 	}
 
 	return
+}
+
+func releaseLease(ctx context.Context, client *flaps.Client, machine *api.Machine) {
+	io := iostreams.FromContext(ctx)
+	if err := client.ReleaseLease(ctx, machine.ID, machine.LeaseNonce); err != nil {
+		fmt.Println(io.Out, fmt.Errorf("could not release lease on %s (%w)", machine.ID, err))
+	}
 }

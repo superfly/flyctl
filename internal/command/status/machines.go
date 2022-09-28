@@ -2,6 +2,7 @@ package status
 
 import (
 	"context"
+	"sort"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
@@ -9,7 +10,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func renderMachineStatus(ctx context.Context, app *api.AppCompact) (err error) {
+func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 	io := iostreams.FromContext(ctx)
 
 	flapsClient, err := flaps.New(ctx, app)
@@ -22,33 +23,60 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) (err error) {
 		return err
 	}
 
-	obj := [][]string{
-		{
-			app.Name,
-			app.Organization.Slug,
-			app.Hostname,
-			app.PlatformVersion,
-		},
+	sort.Slice(machines, func(i, j int) bool {
+		return machines[i].ID < machines[j].ID
+	})
+
+	if app.IsPostgresApp() {
+		return renderPGStatus(ctx, app, machines)
 	}
 
-	if err = render.VerticalTable(io.Out, "App", obj, "Name", "Owner", "Hostname", "Platform"); err != nil {
-		return
+	obj := [][]string{{app.Name, app.Organization.Slug, app.Hostname, app.PlatformVersion}}
+	if err := render.VerticalTable(io.Out, "App", obj, "Name", "Owner", "Hostname", "Platform"); err != nil {
+		return err
 	}
 
 	rows := [][]string{}
-
 	for _, machine := range machines {
 		rows = append(rows, []string{
 			machine.ID,
 			machine.State,
 			machine.Region,
-			machine.FullImageRef(),
+			render.MachineHealthChecksSummary(machine),
+			machine.ImageRefWithVersion(),
 			machine.CreatedAt,
 			machine.UpdatedAt,
 		})
 	}
+	return render.Table(io.Out, "", rows, "ID", "State", "Region", "Health checks", "Image", "Created", "Updated")
+}
 
-	_ = render.Table(io.Out, "", rows, "ID", "State", "Region", "Image", "Created", "Updated")
+func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Machine) (err error) {
+	io := iostreams.FromContext(ctx)
+	rows := [][]string{}
 
-	return
+	for _, machine := range machines {
+		role := "unknown"
+		for _, check := range machine.Checks {
+			if check.Name == "role" {
+				if check.Status == "passing" {
+					role = check.Output
+				} else {
+					role = "error"
+				}
+			}
+		}
+
+		rows = append(rows, []string{
+			machine.ID,
+			machine.State,
+			role,
+			machine.Region,
+			render.MachineHealthChecksSummary(machine),
+			machine.ImageRefWithVersion(),
+			machine.CreatedAt,
+			machine.UpdatedAt,
+		})
+	}
+	return render.Table(io.Out, "", rows, "ID", "State", "Role", "Region", "Health checks", "Image", "Created", "Updated")
 }

@@ -68,34 +68,43 @@ func runUpdate(ctx context.Context) error {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
 
-	// map of machine lease to machine
-	machines := make(map[string]*api.Machine)
-
-	out, err := flapsClient.List(ctx, "started")
+	machines, err := flapsClient.List(ctx, "started")
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	if len(out) == 0 {
+	if len(machines) == 0 {
 		return fmt.Errorf("no machines found")
 	}
 
-	fmt.Fprintf(io.Out, "Acquiring lease on postgres cluster\n")
+	fmt.Fprintf(io.Out, "Checking for available updates\n")
 
-	for _, machine := range out {
-		lease, err := flapsClient.GetLease(ctx, machine.ID, api.IntPointer(40))
+	// Track machines that have available updates so we can avoid doing unnecessary work.
+	updateList := map[string]*api.ImageVersion{}
+	for _, machine := range machines {
+		image := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
+
+		latest, err := client.GetLatestImageDetails(ctx, image)
 		if err != nil {
-			return fmt.Errorf("failed to obtain lease: %w", err)
+			return fmt.Errorf("can't get latest image details for %s: %w", image, err)
 		}
-		machines[lease.Data.Nonce] = machine
+
+		if machine.ImageVersion() != latest.Version {
+			updateList[machine.ID] = latest
+		}
 	}
 
+	if len(updateList) == 0 {
+		fmt.Fprintf(io.Out, "No updates available...\n")
+		return nil
+	}
+
+	// Resolve cluster roles
+	fmt.Fprintf(io.Out, "Identifying cluster roles\n")
 	var (
 		leader   *api.Machine
 		replicas []*api.Machine
 	)
-
-	fmt.Fprintf(io.Out, "Resolving cluster roles\n")
 
 	for _, machine := range machines {
 		address := fmt.Sprintf("[%s]", machine.PrivateIP)
@@ -116,80 +125,83 @@ func runUpdate(ctx context.Context) error {
 		case "replica":
 			replicas = append(replicas, machine)
 		}
-		fmt.Fprintf(io.Out, "  %s: %s\n", machine.ID, role)
+		fmt.Fprintf(io.Out, "  Machine %s: %s\n", machine.ID, role)
 	}
 
+	// Don't perform an update if the cluster is not healthy.
 	if leader == nil {
 		return fmt.Errorf("this cluster has no leader")
 	}
 
-	image := leader.FullImageRef()
-
-	latest, err := client.GetLatestImageDetails(ctx, image)
-	if err != nil {
-		return fmt.Errorf("can't get latest image details for %s: %w", image, err)
-	}
-
-	fmt.Fprintf(io.Out, "Updating replicas\n")
-
-	for _, replica := range replicas {
-		current := replica
-
-		if current.ImageVersion() == latest.Version {
-			fmt.Fprintf(io.Out, "  %s: already up to date\n", replica.ID)
-			continue
+	// Acquire leases
+	fmt.Fprintf(io.Out, "Attempting to acquire lease(s)\n")
+	for _, machine := range machines {
+		lease, err := flapsClient.GetLease(ctx, machine.ID, api.IntPointer(40))
+		if err != nil {
+			return fmt.Errorf("failed to obtain lease: %w", err)
 		}
+		machine.LeaseNonce = lease.Data.Nonce
 
-		ref := fmt.Sprintf("%s:%s", latest.Repository, latest.Tag)
+		// Ensure lease is released on return
+		defer releaseLease(ctx, flapsClient, machine)
 
-		if err := updateMachine(ctx, app, replica, ref, latest.Version); err != nil {
-			return fmt.Errorf("can't update %s: %w", replica.ID, err)
-		}
+		fmt.Fprintf(io.Out, "  Machine %s: %s\n", machine.ID, lease.Status)
 	}
 
-	current := leader
+	// Update replicas
+	if len(replicas) > 0 {
+		fmt.Fprintf(io.Out, "Updating replicas\n")
 
-	if current.ImageVersion() == latest.Version {
-		fmt.Fprintf(io.Out, "%s(leader): already up to date\n", leader.ID)
-		return nil
-	}
+		for _, replica := range replicas {
+			ref := updateList[replica.ID]
 
-	ref := fmt.Sprintf("%s:%s", latest.Repository, latest.Tag)
+			if ref == nil {
+				fmt.Fprintf(io.Out, "  Machine %s is already running the latest image\n", replica.ID)
+				continue
+			}
 
-	pgclient := flypg.New(app.Name, dialer)
+			image := fmt.Sprintf("%s:%s", ref.Repository, ref.Tag)
 
-	fmt.Fprintf(io.Out, "Failing over to a new leader\n")
-
-	if err := pgclient.Failover(ctx); err != nil {
-		return fmt.Errorf("failed to trigger failover %w", err)
-	}
-
-	fmt.Fprintf(io.Out, "Updating leader\n")
-
-	if err := updateMachine(ctx, app, leader, ref, latest.Version); err != nil {
-		return err
-	}
-
-	for lease, machine := range machines {
-		if err := flapsClient.ReleaseLease(ctx, machine.ID, lease); err != nil {
-			return fmt.Errorf("failed to release lease: %w", err)
+			fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", replica.ID, image, ref.Version)
+			if err := updateMachine(ctx, app, replica, image); err != nil {
+				return fmt.Errorf("can't update %s: %w", replica.ID, err)
+			}
 		}
 	}
 
-	fmt.Fprintf(io.Out, "Successfully updated Postgres cluster\n")
+	// Update leader
+	ref := updateList[leader.ID]
+	if ref != nil {
+		// Don't perform failover if the cluster is only running a
+		// single node.
+		if len(machines) > 1 {
+			pgclient := flypg.New(app.Name, dialer)
+
+			fmt.Fprintf(io.Out, "Performing a failover\n")
+			if err := pgclient.Failover(ctx); err != nil {
+				return fmt.Errorf("failed to trigger failover %w", err)
+			}
+		}
+
+		fmt.Fprintf(io.Out, "Updating leader\n")
+		image := fmt.Sprintf("%s:%s", ref.Repository, ref.Tag)
+
+		fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", leader.ID, image, ref.Version)
+		if err := updateMachine(ctx, app, leader, image); err != nil {
+			return err
+		}
+	}
+
+	fmt.Fprintf(io.Out, "Postgres cluster has been successfully updated!\n")
 
 	return nil
 }
 
-func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machine, image, version string) error {
-	io := iostreams.FromContext(ctx)
-
+func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machine, image string) error {
 	flaps, err := flaps.New(ctx, app)
 	if err != nil {
 		return err
 	}
-
-	fmt.Fprintf(io.Out, "Updating machine %s with image %s %s\n", machine.ID, image, version)
 
 	machineConf := machine.Config
 	machineConf.Image = image
@@ -202,13 +214,21 @@ func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machin
 		Config:  machineConf,
 	}
 
-	updated, err := flaps.Update(ctx, input, "")
+	updated, err := flaps.Update(ctx, input, machine.LeaseNonce)
 	if err != nil {
 		return err
 	}
 
-	if err := machines.WaitForStart(ctx, flaps, updated, time.Minute*5); err != nil {
+	if err := machines.WaitForStartOrStop(ctx, flaps, updated, "start", time.Minute*5); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func releaseLease(ctx context.Context, client *flaps.Client, machine *api.Machine) error {
+	if err := client.ReleaseLease(ctx, machine.ID, machine.LeaseNonce); err != nil {
+		return fmt.Errorf("failed to release lease: %w", err)
 	}
 
 	return nil

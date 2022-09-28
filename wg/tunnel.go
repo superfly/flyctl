@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"net/netip"
 
 	"github.com/miekg/dns"
-	"golang.zx2c4.com/go118/netip"
+	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
 	"golang.zx2c4.com/wireguard/tun/netstack"
@@ -34,8 +35,18 @@ func Connect(ctx context.Context, state *WireGuardState) (*Tunnel, error) {
 func doConnect(ctx context.Context, state *WireGuardState, wswg bool) (*Tunnel, error) {
 	cfg := state.TunnelConfig()
 	fmt.Println("wg connect", cfg.DNS, cfg.Endpoint, cfg.LocalNetwork.IP, cfg.RemoteNetwork.IP)
-	localIPs := []netip.Addr{netip.AddrFromSlice(cfg.LocalNetwork.IP)}
-	dnsIP := netip.AddrFromSlice(cfg.DNS)
+	addr, ok := netip.AddrFromSlice(cfg.LocalNetwork.IP)
+
+	if !ok {
+		return nil, fmt.Errorf("could not generate local network addr from IP %s: ", cfg.LocalNetwork.IP)
+	}
+
+	localIPs := []netip.Addr{addr}
+	dnsIP, ok := netip.AddrFromSlice(cfg.DNS)
+
+	if !ok {
+		return nil, fmt.Errorf("could not generate DNS addr from IP %s: ", cfg.DNS)
+	}
 
 	mtu := cfg.MTU
 	if mtu == 0 {
@@ -69,7 +80,7 @@ func doConnect(ctx context.Context, state *WireGuardState, wswg bool) (*Tunnel, 
 		endpointAddr = fmt.Sprintf("127.0.0.1:%d", port)
 	}
 
-	wgDev := device.NewDevice(tunDev, device.NewLogger(cfg.LogLevel, "(fly-ssh) "))
+	wgDev := device.NewDevice(tunDev, conn.NewDefaultBind(), device.NewLogger(cfg.LogLevel, "(fly-ssh) "))
 
 	wgConf := bytes.NewBuffer(nil)
 	fmt.Fprintf(wgConf, "private_key=%s\n", cfg.LocalPrivateKey.ToHex())
@@ -144,7 +155,12 @@ func (t *Tunnel) LookupTXT(ctx context.Context, name string) ([]string, error) {
 }
 
 func (t *Tunnel) ListenPing() (*netstack.PingConn, error) {
-	laddr := netip.AddrFromSlice(t.Config.LocalNetwork.IP)
+	laddr, ok := netip.AddrFromSlice(t.Config.LocalNetwork.IP)
+
+	if !ok {
+		return nil, fmt.Errorf("could not generate local network addr from IP %s: ", t.Config.LocalNetwork.IP)
+	}
+
 	raddr := netip.IPv6Unspecified()
 
 	conn, err := t.net.DialPingAddr(laddr, raddr)

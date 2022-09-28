@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/app"
@@ -106,6 +107,7 @@ func runAttach(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s", pgApp.Organization.Slug, err)
 	}
+	ctx = agent.DialerWithContext(ctx, dialer)
 
 	switch pgApp.PlatformVersion {
 	case "nomad":
@@ -113,7 +115,17 @@ func runAttach(ctx context.Context) error {
 			return err
 		}
 	case "machines":
-		leader, err := fetchLeader(ctx, pgApp, dialer)
+		flapsClient, err := flaps.New(ctx, pgApp)
+		if err != nil {
+			return fmt.Errorf("list of machines could not be retrieved: %w", err)
+		}
+
+		members, err := flapsClient.List(ctx, "started")
+		if err != nil {
+			return fmt.Errorf("machines could not be retrieved %w", err)
+		}
+
+		leader, err := fetchPGLeader(ctx, members)
 		if err != nil {
 			return fmt.Errorf("can't fetch leader: %w", err)
 		}

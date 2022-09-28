@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -79,7 +80,6 @@ func runMachineClone(ctx context.Context) (err error) {
 		}
 
 		source, err = flapsClient.Get(ctx, machines[0].ID)
-
 		if err != nil {
 			return err
 		}
@@ -88,19 +88,51 @@ func runMachineClone(ctx context.Context) (err error) {
 	}
 
 	region := flag.GetString(ctx, "region")
-
 	if region == "" {
 		region = source.Region
 	}
 
-	// Ensure attached volumes are not copied to the clone
-	source.Config.Mounts = nil
+	targetConfig := source.Config
+
+	// This is a temperary hack to add volume support for PG apps.
+	// Flaps does not currently specify the volume name within the Machine mount spec,
+	// which is required before we can handle this more generally.
+	if app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster" {
+		if len(source.Config.Mounts) > 0 {
+			mnt := source.Config.Mounts[0]
+
+			volInput := api.CreateVolumeInput{
+				AppID:             app.ID,
+				Name:              "pg_data",
+				Region:            region,
+				SizeGb:            mnt.SizeGb,
+				Encrypted:         mnt.Encrypted,
+				RequireUniqueZone: false,
+			}
+
+			vol, err := client.CreateVolume(ctx, volInput)
+			if err != nil {
+				return err
+			}
+
+			targetConfig.Mounts = []api.MachineMount{
+				{
+					Volume:    vol.ID,
+					Path:      mnt.Path,
+					SizeGb:    mnt.SizeGb,
+					Encrypted: mnt.Encrypted,
+				},
+			}
+		}
+	} else {
+		targetConfig.Mounts = nil
+	}
 
 	input := api.LaunchMachineInput{
 		AppID:  app.Name,
 		Name:   flag.GetString(ctx, "name"),
 		Region: region,
-		Config: source.Config,
+		Config: targetConfig,
 	}
 
 	launchedMachine, err := flapsClient.Launch(ctx, input)
@@ -108,8 +140,10 @@ func runMachineClone(ctx context.Context) (err error) {
 		return err
 	}
 
-	err = flapsClient.Wait(ctx, launchedMachine, "started")
+	fmt.Printf("Cloning machine in region %s for app %s\n", region, app.Name)
 
+	// wait for a machine to be started
+	err = WaitForStartOrStop(ctx, flapsClient, launchedMachine, "start", time.Minute*5)
 	if err != nil {
 		return err
 	}
