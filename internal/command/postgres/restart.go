@@ -96,7 +96,7 @@ func runRestart(ctx context.Context) error {
 		if len(machines) == 0 {
 			return fmt.Errorf("no machines found")
 		}
-		if err := hasRequiredVersionOnMachines(machines[0], MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
 		if flag.GetBool(ctx, "hard") {

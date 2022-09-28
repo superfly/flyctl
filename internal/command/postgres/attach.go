@@ -124,12 +124,7 @@ func runAttach(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("machines could not be retrieved %w", err)
 		}
-
-		leader, err := fetchPGLeader(ctx, members)
-		if err != nil {
-			return fmt.Errorf("can't fetch leader: %w", err)
-		}
-		if err := hasRequiredVersionOnMachines(leader, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		if err := hasRequiredVersionOnMachines(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
 	default:
