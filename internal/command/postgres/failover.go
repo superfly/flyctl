@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/flypg"
@@ -77,6 +78,18 @@ func runFailover(ctx context.Context) (err error) {
 	machines, err := flapsClient.List(ctx, "started")
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved %w", err)
+	}
+
+	// acquire cluster wide lock
+	for _, machine := range machines {
+		lease, err := flapsClient.GetLease(ctx, machine.ID, api.IntPointer(40))
+		if err != nil {
+			return fmt.Errorf("failed to obtain lease: %w", err)
+		}
+		machine.LeaseNonce = lease.Data.Nonce
+
+		// Ensure lease is released on return
+		defer releaseLease(ctx, flapsClient, machine)
 	}
 
 	leader, err := fetchPGLeader(ctx, machines)
