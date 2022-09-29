@@ -322,7 +322,7 @@ func waitForDaemon(parent context.Context, client *dockerclient.Client) (up bool
 	)
 
 	for ctx.Err() == nil {
-		switch _, err := client.Ping(ctx); err {
+		switch _, err := clientPing(parent, client); err {
 		default:
 			consecutiveSuccesses = 0
 
@@ -352,6 +352,14 @@ func waitForDaemon(parent context.Context, client *dockerclient.Client) (up bool
 	default:
 		return false, nil
 	}
+}
+
+func clientPing(parent context.Context, client *dockerclient.Client) (types.Ping, error) {
+	fmt.Println("Trying to ping remote docker")
+	ctx, cancel := context.WithTimeout(parent, 2*time.Second)
+	defer cancel()
+
+	return client.Ping(ctx)
 }
 
 func clearDeploymentTags(ctx context.Context, docker *dockerclient.Client, tag string) error {
