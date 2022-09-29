@@ -355,7 +355,6 @@ func waitForDaemon(parent context.Context, client *dockerclient.Client) (up bool
 }
 
 func clientPing(parent context.Context, client *dockerclient.Client) (types.Ping, error) {
-	fmt.Println("Trying to ping remote docker")
 	ctx, cancel := context.WithTimeout(parent, 2*time.Second)
 	defer cancel()
 
