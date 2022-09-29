@@ -305,53 +305,38 @@ func buildRemoteClientOpts(ctx context.Context, apiClient *api.Client, appName, 
 	return
 }
 
-func waitForDaemon(parent context.Context, client *dockerclient.Client) (bool, error) {
+func waitForDaemon(parent context.Context, client *dockerclient.Client) (up bool, err error) {
 	ctx, cancel := context.WithTimeout(parent, 2*time.Minute)
 	defer cancel()
 
-	select {
-	case <-ctx.Done():
-		return false, nil
-	case up := <-stablePing(ctx, client):
-		return up, nil
+	b := &backoff.Backoff{
+		Min:    50 * time.Millisecond,
+		Max:    200 * time.Millisecond,
+		Factor: 1.2,
+		Jitter: true,
 	}
-}
 
-// Ping until we have 1s worth of successful pings
-func stablePing(ctx context.Context, client *dockerclient.Client) chan bool {
-	respChan := make(chan bool, 1)
+	var (
+		consecutiveSuccesses int
+		healthyStart         time.Time
+	)
 
-	go func() {
-		var (
-			consecutiveSuccesses int
-			healthyStart         time.Time
-		)
+	for ctx.Err() == nil {
+		switch _, err := clientPing(parent, client); err {
+		default:
+			consecutiveSuccesses = 0
 
-		b := &backoff.Backoff{
-			Min:    50 * time.Millisecond,
-			Max:    200 * time.Millisecond,
-			Factor: 1.2,
-			Jitter: true,
-		}
-
-		for ctx.Err() == nil {
-			if _, err := clientPing(ctx, client); err != nil {
-				consecutiveSuccesses = 0
-
-				dur := b.Duration()
-				terminal.Debugf("Remote builder unavailable, retrying in %s (err: %v)\n", dur, err)
-				pause.For(ctx, dur)
-				continue
-			}
-
+			dur := b.Duration()
+			terminal.Debugf("Remote builder unavailable, retrying in %s (err: %v)\n", dur, err)
+			pause.For(ctx, dur)
+		case nil:
 			if consecutiveSuccesses++; consecutiveSuccesses == 1 {
 				healthyStart = time.Now()
 			}
 
 			if time.Since(healthyStart) > time.Second {
 				terminal.Debug("Remote builder is ready to build!")
-				respChan <- true
-				return
+				return true, nil
 			}
 
 			b.Reset()
@@ -359,9 +344,14 @@ func stablePing(ctx context.Context, client *dockerclient.Client) chan bool {
 			terminal.Debugf("Remote builder available, but pinging again in %s to be sure\n", dur)
 			pause.For(ctx, dur)
 		}
-	}()
+	}
 
-	return respChan
+	switch {
+	case parent.Err() != nil:
+		return false, parent.Err()
+	default:
+		return false, nil
+	}
 }
 
 func clientPing(parent context.Context, client *dockerclient.Client) (types.Ping, error) {
