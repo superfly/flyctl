@@ -205,7 +205,7 @@ func runUpdate(ctx context.Context) error {
 		if len(machines) > 1 {
 			pgclient := flypg.New(app.Name, dialer)
 
-			fmt.Fprintf(io.Out, "Performing a failover\n")
+			fmt.Fprintf(io.Out, "Performing failover\n")
 			if err := pgclient.Failover(ctx); err != nil {
 				return fmt.Errorf("failed to trigger failover %w", err)
 			}
