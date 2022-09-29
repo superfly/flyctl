@@ -88,30 +88,32 @@ func runUpdate(ctx context.Context) error {
 	// Filter out machines that are not eligible for updates
 	var machines []*api.Machine
 	for _, machine := range machineList {
-		// Only target machines from our target repository
-		if machine.ImageRef.Repository == validRepository {
-			image := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
-			latestImage, err := client.GetLatestImageDetails(ctx, image)
-			if err != nil {
-				return fmt.Errorf("unalbe to fetch latest image details for %s: %w", image, err)
-			}
-
-			if latest == nil {
-				latest = latestImage
-			}
-
-			// Abort if we detect postgres machines spanning major versions
-			if latest.Tag != latestImage.Tag {
-				return fmt.Errorf("major version mismatch detected")
-			}
-
-			// Exclude machines that are already running the latest version
-			if machine.ImageRef.Tag == latest.Tag && machine.ImageVersion() == latest.Version {
-				continue
-			}
-
-			machines = append(machines, machine)
+		// Skip machines that are not running our internal images.
+		if machine.ImageRef.Repository != validRepository {
+			continue
 		}
+
+		image := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
+		latestImage, err := client.GetLatestImageDetails(ctx, image)
+		if err != nil {
+			return fmt.Errorf("unalbe to fetch latest image details for %s: %w", image, err)
+		}
+
+		if latest == nil {
+			latest = latestImage
+		}
+
+		// Abort if we detect a postgres machine running a different major version.
+		if latest.Tag != latestImage.Tag {
+			return fmt.Errorf("major version mismatch detected")
+		}
+
+		// Exclude machines that are already running the latest version
+		if machine.ImageRef.Tag == latest.Tag && machine.ImageVersion() == latest.Version {
+			continue
+		}
+
+		machines = append(machines, machine)
 	}
 
 	if len(machines) == 0 {
