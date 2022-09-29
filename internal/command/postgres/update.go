@@ -51,7 +51,7 @@ func runUpdate(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 
 	// only target machines running a valid repository
-	const validRepo = "flyio/postgres"
+	const validRepository = "flyio/postgres"
 
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
@@ -85,20 +85,27 @@ func runUpdate(ctx context.Context) error {
 	// Tracks latest eligible version
 	var latest *api.ImageVersion
 
-	// filter out machines that are not eligible
+	// Filter out machines that are not eligible for updates
 	var machines []*api.Machine
 	for _, machine := range machineList {
-		// only target machines from our target repository
-		if machine.ImageRef.Repository == validRepo {
-			if latest == nil {
-				image := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
-
-				latest, err = client.GetLatestImageDetails(ctx, image)
-				if err != nil {
-					return fmt.Errorf("can't get latest image details for %s: %w", image, err)
-				}
+		// Only target machines from our target repository
+		if machine.ImageRef.Repository == validRepository {
+			image := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
+			latestImage, err := client.GetLatestImageDetails(ctx, image)
+			if err != nil {
+				return fmt.Errorf("unalbe to fetch latest image details for %s: %w", image, err)
 			}
-			// exclude machines that are already running the latest version
+
+			if latest == nil {
+				latest = latestImage
+			}
+
+			// Abort if we detect postgres machines spanning major versions
+			if latest.Tag != latestImage.Tag {
+				return fmt.Errorf("major version mismatch detected")
+			}
+
+			// Exclude machines that are already running the latest version
 			if machine.ImageRef.Tag == latest.Tag && machine.ImageVersion() == latest.Version {
 				continue
 			}
@@ -194,7 +201,7 @@ func runUpdate(ctx context.Context) error {
 
 	// Update leader
 	if leader != nil {
-		// Don't perform failover if the cluster is only running a single node.
+		// Only perform failover if there's potentially eligible replicas
 		if len(machines) > 1 {
 			pgclient := flypg.New(app.Name, dialer)
 
