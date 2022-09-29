@@ -119,10 +119,12 @@ func runUpdate(ctx context.Context) error {
 		return nil
 	}
 
+	// Confirmation prompt
 	if !flag.GetBool(ctx, "auto-confirm") {
 		msgs := []string{"The following machine(s) will be updated:\n"}
 		for _, machine := range machines {
-			msg := fmt.Sprintf("Machine %q %s -> %s\n", machine.ID, machine.ImageRefWithVersion(), formatVersion(latest))
+			latestStr := fmt.Sprintf("%s:%s (%s)", latest.Repository, latest.Tag, latest.Version)
+			msg := fmt.Sprintf("Machine %q %s -> %s\n", machine.ID, machine.ImageRefWithVersion(), latestStr)
 			msgs = append(msgs, msg)
 		}
 		msgs = append(msgs, "\nPerform the specified update(s)?")
@@ -260,8 +262,4 @@ func releaseLease(ctx context.Context, client *flaps.Client, machine *api.Machin
 	}
 
 	return nil
-}
-
-func formatVersion(version *api.ImageVersion) string {
-	return fmt.Sprintf("%s:%s (%s)", version.Repository, version.Tag, version.Version)
 }
