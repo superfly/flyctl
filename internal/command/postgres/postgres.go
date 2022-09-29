@@ -14,7 +14,7 @@ import (
 
 func New() *cobra.Command {
 	const (
-		short = `Manage Postgre clusters.`
+		short = `Manage Postgres clusters.`
 
 		long = short + "\n"
 	)
