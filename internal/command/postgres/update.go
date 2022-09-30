@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -15,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	machines "github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -34,6 +36,10 @@ func newUpdate() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Bool{
+			Name:        "auto-confirm",
+			Description: "Will automatically confirm changes without an interactive prompt.",
+		},
 	)
 
 	return
@@ -43,6 +49,9 @@ func runUpdate(ctx context.Context) error {
 	appName := app.NameFromContext(ctx)
 	client := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
+
+	// only target machines running a valid repository
+	const validRepository = "flyio/postgres"
 
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
@@ -68,36 +77,73 @@ func runUpdate(ctx context.Context) error {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
 
-	machines, err := flapsClient.List(ctx, "started")
+	machineList, err := flapsClient.List(ctx, "started")
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	if len(machines) == 0 {
-		return fmt.Errorf("no machines found")
-	}
+	// Tracks latest eligible version
+	var latest *api.ImageVersion
 
-	fmt.Fprintf(io.Out, "Checking for available updates\n")
+	// Filter out machines that are not eligible for updates
+	var machines []*api.Machine
+	for _, machine := range machineList {
+		// Skip machines that are not running our internal images.
+		if machine.ImageRef.Repository != validRepository {
+			continue
+		}
 
-	// Track machines that have available updates so we can avoid doing unnecessary work.
-	updateList := map[string]*api.ImageVersion{}
-	for _, machine := range machines {
 		image := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
-
-		latest, err := client.GetLatestImageDetails(ctx, image)
+		latestImage, err := client.GetLatestImageDetails(ctx, image)
 		if err != nil {
-			return fmt.Errorf("can't get latest image details for %s: %w", image, err)
+			return fmt.Errorf("unable to fetch latest image details for %s: %w", image, err)
 		}
 
-		if machine.ImageVersion() != latest.Version {
-			updateList[machine.ID] = latest
+		if latest == nil {
+			latest = latestImage
 		}
+
+		// Abort if we detect a postgres machine running a different major version.
+		if latest.Tag != latestImage.Tag {
+			return fmt.Errorf("major version mismatch detected")
+		}
+
+		// Exclude machines that are already running the latest version
+		if machine.ImageRef.Tag == latest.Tag && machine.ImageVersion() == latest.Version {
+			continue
+		}
+
+		machines = append(machines, machine)
 	}
 
-	if len(updateList) == 0 {
+	if len(machines) == 0 {
 		fmt.Fprintf(io.Out, "No updates available...\n")
 		return nil
 	}
+
+	// Confirmation prompt
+	if !flag.GetBool(ctx, "auto-confirm") {
+		msgs := []string{"The following machine(s) will be updated:\n"}
+		for _, machine := range machines {
+			latestStr := fmt.Sprintf("%s:%s (%s)", latest.Repository, latest.Tag, latest.Version)
+			msg := fmt.Sprintf("Machine %q %s -> %s\n", machine.ID, machine.ImageRefWithVersion(), latestStr)
+			msgs = append(msgs, msg)
+		}
+		msgs = append(msgs, "\nPerform the specified update(s)?")
+
+		switch confirmed, err := prompt.Confirmf(ctx, strings.Join(msgs, "")); {
+		case err == nil:
+			if !confirmed {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError("auto-confirm flag must be specified when not running interactively")
+		default:
+			return err
+		}
+	}
+
+	// TODO - Verify cluster health before performing update.
 
 	// Resolve cluster roles
 	fmt.Fprintf(io.Out, "Identifying cluster roles\n")
@@ -128,11 +174,6 @@ func runUpdate(ctx context.Context) error {
 		fmt.Fprintf(io.Out, "  Machine %s: %s\n", machine.ID, role)
 	}
 
-	// Don't perform an update if the cluster is not healthy.
-	if leader == nil {
-		return fmt.Errorf("this cluster has no leader")
-	}
-
 	// Acquire leases
 	fmt.Fprintf(io.Out, "Attempting to acquire lease(s)\n")
 	for _, machine := range machines {
@@ -150,19 +191,12 @@ func runUpdate(ctx context.Context) error {
 
 	// Update replicas
 	if len(replicas) > 0 {
-		fmt.Fprintf(io.Out, "Updating replicas\n")
+		fmt.Fprintf(io.Out, "Updating replica(s)\n")
 
 		for _, replica := range replicas {
-			ref := updateList[replica.ID]
+			image := fmt.Sprintf("%s:%s", latest.Repository, latest.Tag)
 
-			if ref == nil {
-				fmt.Fprintf(io.Out, "  Machine %s is already running the latest image\n", replica.ID)
-				continue
-			}
-
-			image := fmt.Sprintf("%s:%s", ref.Repository, ref.Tag)
-
-			fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", replica.ID, image, ref.Version)
+			fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", replica.ID, image, latest.Version)
 			if err := updateMachine(ctx, app, replica, image); err != nil {
 				return fmt.Errorf("can't update %s: %w", replica.ID, err)
 			}
@@ -170,23 +204,21 @@ func runUpdate(ctx context.Context) error {
 	}
 
 	// Update leader
-	ref := updateList[leader.ID]
-	if ref != nil {
-		// Don't perform failover if the cluster is only running a
-		// single node.
+	if leader != nil {
+		// Only perform failover if there's potentially eligible replicas
 		if len(machines) > 1 {
 			pgclient := flypg.New(app.Name, dialer)
 
-			fmt.Fprintf(io.Out, "Performing a failover\n")
+			fmt.Fprintf(io.Out, "Performing failover\n")
 			if err := pgclient.Failover(ctx); err != nil {
 				return fmt.Errorf("failed to trigger failover %w", err)
 			}
 		}
 
-		fmt.Fprintf(io.Out, "Updating leader\n")
-		image := fmt.Sprintf("%s:%s", ref.Repository, ref.Tag)
+		fmt.Fprintf(io.Out, "Updating replica\n")
+		image := fmt.Sprintf("%s:%s", latest.Repository, latest.Tag)
 
-		fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", leader.ID, image, ref.Version)
+		fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", leader.ID, image, latest.Version)
 		if err := updateMachine(ctx, app, leader, image); err != nil {
 			return err
 		}
