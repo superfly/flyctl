@@ -5,13 +5,15 @@ func configureNextJs(sourceDir string) (*SourceInfo, error) {
 		return nil, nil
 	}
 
+	env := map[string]string{
+		"PORT": "8080",
+	}
+
 	s := &SourceInfo{
 		Family:       "NextJS",
 		Port:         8080,
 		SkipDatabase: true,
-		Env: map[string]string{
-			"PORT": "8080",
-		},
+		Env: env,
 	}
 
 	s.Files = templates("templates/nextjs")
@@ -20,6 +22,5 @@ func configureNextJs(sourceDir string) (*SourceInfo, error) {
 		"NEXT_PUBLIC_EXAMPLE": "Value goes here",
 	}
 
-	s.Env = env
 	return s, nil
 }
