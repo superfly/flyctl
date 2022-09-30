@@ -5,12 +5,13 @@ func configureRemix(sourceDir string) (*SourceInfo, error) {
 		return nil, nil
 	}
 
+	env := map[string]string{
+		"PORT": "8080",
+	}
+
 	s := &SourceInfo{
 		Family: "Remix",
 		Port:   8080,
-		Env: map[string]string{
-			"PORT": "8080",
-		},
 	}
 
 	if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "sqlite")) {
