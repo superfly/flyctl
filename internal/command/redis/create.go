@@ -113,8 +113,10 @@ func runCreate(ctx context.Context) (err error) {
 
 	readRegions := &[]api.Region{}
 
+	excludedRegions = append(excludedRegions, primaryRegion.Code)
+
 	if !flag.GetBool(ctx, "no-replicas") {
-		readRegions, err = prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", []string{}, []string{primaryRegion.Code})
+		readRegions, err = prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", []string{}, excludedRegions)
 
 		if err != nil {
 			return
