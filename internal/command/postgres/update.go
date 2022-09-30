@@ -96,7 +96,7 @@ func runUpdate(ctx context.Context) error {
 		image := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
 		latestImage, err := client.GetLatestImageDetails(ctx, image)
 		if err != nil {
-			return fmt.Errorf("unalbe to fetch latest image details for %s: %w", image, err)
+			return fmt.Errorf("unable to fetch latest image details for %s: %w", image, err)
 		}
 
 		if latest == nil {
