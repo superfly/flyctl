@@ -126,7 +126,7 @@ func runConsole(ctx context.Context) error {
 	if !ip.IsV6(addr) {
 		if err := agentclient.WaitForDNS(ctx, dialer, app.Organization.Slug, addr); err != nil {
 			captureError(err)
-			return errors.Wrapf(err, "host unavailable")
+			return errors.Wrapf(err, "host unavailable at %s", addr)
 		}
 	}
 
