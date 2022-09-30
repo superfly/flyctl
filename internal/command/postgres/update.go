@@ -17,7 +17,6 @@ import (
 	machines "github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -222,14 +221,6 @@ func runUpdate(ctx context.Context) error {
 
 		fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", leader.ID, image, latest.Version)
 		if err := updateMachine(ctx, app, leader, image); err != nil {
-			return err
-		}
-	}
-
-	if !flag.GetBool(ctx, "detach") {
-		fmt.Println()
-
-		if err := watch.MachineChecks(ctx); err != nil {
 			return err
 		}
 	}

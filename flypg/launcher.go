@@ -148,9 +148,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	}
 
 	if !flag.GetBool(ctx, "detach") {
-		fmt.Println()
-
-		if err := watch.MachineChecks(ctx); err != nil {
+		if err := watch.MachinesChecks(ctx); err != nil {
 			return err
 		}
 	}

@@ -19,7 +19,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -437,14 +436,6 @@ func updateMachinesConfig(ctx context.Context, app *api.AppCompact, changes map[
 	err = cmd.UpdateSettings(ctx, changes)
 	if err != nil {
 		return err
-	}
-
-	if !flag.GetBool(ctx, "detach") {
-		fmt.Println()
-
-		if err = watch.MachineChecks(ctx); err != nil {
-			return
-		}
 	}
 
 	return

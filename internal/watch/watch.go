@@ -290,31 +290,28 @@ func renderLogs(ctx context.Context, alloc *api.AllocationStatus) {
 	}
 }
 
-func MachineChecks(ctx context.Context) error {
+func MachinesChecks(ctx context.Context) error {
 	var (
 		io          = iostreams.FromContext(ctx)
+		colorize    = io.ColorScheme()
 		flapsClient = flaps.FromContext(ctx)
 	)
-
-	tb := render.NewTextBlock(ctx, "Monitoring health checks")
-
-	tb.Println()
-
-	var pass, warn, fail int
-
 	var errCount int
 
-	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 300*time.Second)
 	defer cancel()
+
+	fmt.Fprintln(io.Out)
+	fmt.Fprintln(io.Out, colorize.Green("==> "+"Monitoring health checks"))
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(100 * time.Millisecond):
-			var checks []*api.MachineCheckStatus
+			var allChecks []*api.MachineCheckStatus
 
-			machines, err := flapsClient.ListActive(ctx)
+			machines, err := flapsClient.List(ctx, "")
 			if err != nil {
 				errCount++
 				if errCount > 3 {
@@ -322,41 +319,56 @@ func MachineChecks(ctx context.Context) error {
 				}
 				continue
 			}
-			for _, m := range machines {
-				if m.Checks == nil {
-					continue
-				}
-				checks = append(checks, m.Checks...)
-			}
-			if len(checks) == 0 {
-				tb.Println()
 
-				tb.Done("No health checks found")
+			var rows [][]string
+
+			for _, m := range machines {
+
+				allChecks = append(allChecks, m.Checks...)
+
+				var pass, warn, fail = countChecks(m.Checks)
+
+				var role = "unknown"
+
+				for _, check := range m.Checks {
+					if check.Name == "role" {
+						if check.Status == "passing" {
+							role = check.Output
+						}
+					}
+				}
+				rows = append(rows, []string{
+					m.ID,
+					m.State,
+					role,
+					fmt.Sprintf("%d total, %d passing, %d warning, %d failing", len(m.Checks), pass, warn, fail),
+				})
+			}
+
+			render.Table(io.Out, "", rows)
+
+			if len(allChecks) == 0 {
+				fmt.Fprintln(io.Out)
+
+				fmt.Fprintln(io.Out, "No health checks found")
 				return nil
 			}
-
-			pass, warn, fail = CountChecks(checks)
-
-			if io.IsInteractive() {
-				tb.Overwrite()
-			}
-
-			tb.Printf("Health checks: %d Total, %d passing, %d warning, %d failing\n", len(checks), pass, warn, fail)
+			var pass, _, _ = countChecks(allChecks)
 
 			// if all checks are passing, we're done
-			if pass == len(checks) {
-				tb.Println()
+			if pass == len(allChecks) {
+				fmt.Fprintln(io.Out)
 
-				tb.Done("All checks passing")
+				fmt.Fprintln(io.Out, "All checks passing")
 
-				tb.Println()
+				fmt.Fprintln(io.Out)
 				return nil
 			}
 		}
 	}
 }
 
-func CountChecks(checks []*api.MachineCheckStatus) (pass, warn, crit int) {
+func countChecks(checks []*api.MachineCheckStatus) (pass, warn, crit int) {
 	for _, check := range checks {
 		switch check.Status {
 		case "passing":
