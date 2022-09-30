@@ -148,6 +148,43 @@ type GetAddOnAddOnOrganization struct {
 // GetSlug returns GetAddOnAddOnOrganization.Slug, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOnOrganization) GetSlug() string { return v.Slug }
 
+// GetAddOnProviderAddOnProvider includes the requested fields of the GraphQL type AddOnProvider.
+type GetAddOnProviderAddOnProvider struct {
+	Id              string                                               `json:"id"`
+	Name            string                                               `json:"name"`
+	ExcludedRegions []GetAddOnProviderAddOnProviderExcludedRegionsRegion `json:"excludedRegions"`
+}
+
+// GetId returns GetAddOnProviderAddOnProvider.Id, and is useful for accessing the field via an interface.
+func (v *GetAddOnProviderAddOnProvider) GetId() string { return v.Id }
+
+// GetName returns GetAddOnProviderAddOnProvider.Name, and is useful for accessing the field via an interface.
+func (v *GetAddOnProviderAddOnProvider) GetName() string { return v.Name }
+
+// GetExcludedRegions returns GetAddOnProviderAddOnProvider.ExcludedRegions, and is useful for accessing the field via an interface.
+func (v *GetAddOnProviderAddOnProvider) GetExcludedRegions() []GetAddOnProviderAddOnProviderExcludedRegionsRegion {
+	return v.ExcludedRegions
+}
+
+// GetAddOnProviderAddOnProviderExcludedRegionsRegion includes the requested fields of the GraphQL type Region.
+type GetAddOnProviderAddOnProviderExcludedRegionsRegion struct {
+	// The IATA airport code for this region
+	Code string `json:"code"`
+}
+
+// GetCode returns GetAddOnProviderAddOnProviderExcludedRegionsRegion.Code, and is useful for accessing the field via an interface.
+func (v *GetAddOnProviderAddOnProviderExcludedRegionsRegion) GetCode() string { return v.Code }
+
+// GetAddOnProviderResponse is returned by GetAddOnProvider on success.
+type GetAddOnProviderResponse struct {
+	AddOnProvider GetAddOnProviderAddOnProvider `json:"addOnProvider"`
+}
+
+// GetAddOnProvider returns GetAddOnProviderResponse.AddOnProvider, and is useful for accessing the field via an interface.
+func (v *GetAddOnProviderResponse) GetAddOnProvider() GetAddOnProviderAddOnProvider {
+	return v.AddOnProvider
+}
+
 // GetAddOnResponse is returned by GetAddOn on success.
 type GetAddOnResponse struct {
 	// Find an add-on by ID or name
@@ -371,6 +408,14 @@ type __GetAddOnInput struct {
 // GetName returns __GetAddOnInput.Name, and is useful for accessing the field via an interface.
 func (v *__GetAddOnInput) GetName() string { return v.Name }
 
+// __GetAddOnProviderInput is used internally by genqlient
+type __GetAddOnProviderInput struct {
+	Name string `json:"name"`
+}
+
+// GetName returns __GetAddOnProviderInput.Name, and is useful for accessing the field via an interface.
+func (v *__GetAddOnProviderInput) GetName() string { return v.Name }
+
 // __ListAddOnsInput is used internally by genqlient
 type __ListAddOnsInput struct {
 	AddOnType AddOnType `json:"addOnType"`
@@ -507,6 +552,42 @@ query GetAddOn ($name: String) {
 	var err error
 
 	var data GetAddOnResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
+func GetAddOnProvider(
+	ctx context.Context,
+	client graphql.Client,
+	name string,
+) (*GetAddOnProviderResponse, error) {
+	req := &graphql.Request{
+		OpName: "GetAddOnProvider",
+		Query: `
+query GetAddOnProvider ($name: String!) {
+	addOnProvider(name: $name) {
+		id
+		name
+		excludedRegions {
+			code
+		}
+	}
+}
+`,
+		Variables: &__GetAddOnProviderInput{
+			Name: name,
+		},
+	}
+	var err error
+
+	var data GetAddOnProviderResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(
