@@ -66,9 +66,14 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 		machineConfig.Services = append(machineConfig.Services, httpService)
 	}
 
-	// Copy standard services to the machine vonfig
-	if config.Services != nil {
-		machineConfig.Services = append(machineConfig.Services, config.Services...)
+	// Copy standard services to the machine config
+	for _, s := range config.Services {
+		// skip appending if Services isn't valid
+		// ex: when the [[services]] section in toml is empty
+		if len(s.Protocol) > 0 {
+			// TODO: validate for presence of tcp and udp?
+			machineConfig.Services = append(machineConfig.Services, s)
+		}
 	}
 
 	if config.Env != nil {
@@ -291,7 +296,7 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 				if strategy != "immediate" {
 					return err
 				} else {
-					fmt.Printf("Skip deploying to Machine[%s] %s; error: %s\n", machine.Name, machine.ID, err)
+					fmt.Printf("\nSkip deploying to Machine[%s] %s; error: %s\n", machine.Name, machine.ID, err)
 				}
 			}
 
