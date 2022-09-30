@@ -266,10 +266,18 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 				launchInput.Config = machine.Config
 			}
 
+			// on a case-by-case basis, retain individual machine config
+			// over what's defined in appConfig (fly.toml) as appropriate
 			launchInput.Region = machine.Region
 
 			if machine.Config.Guest != nil {
 				launchInput.Config.Guest = machine.Config.Guest
+			}
+
+			waitOnAction := "started"
+			if len(machine.Config.Schedule) > 0 {
+				launchInput.Config.Schedule = machine.Config.Schedule
+				waitOnAction = "stopped"
 			}
 
 			// Until mounts are supported in fly.toml, ensure deployments
@@ -282,14 +290,13 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 			if err != nil {
 				if strategy != "immediate" {
 					return err
-
 				} else {
-					fmt.Printf("Continuing after error: %s\n", err)
+					fmt.Printf("Skip deploying to Machine[%s] %s; error: %s\n", machine.Name, machine.ID, err)
 				}
 			}
 
 			if strategy != "immediate" {
-				err = flapsClient.Wait(ctx, updateResult, "started")
+				err = flapsClient.Wait(ctx, updateResult, waitOnAction)
 				if err != nil {
 					return err
 				}
