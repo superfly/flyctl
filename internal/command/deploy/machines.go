@@ -233,10 +233,21 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 		return
 	}
 
-	if len(machines) > 0 {
+	leaseTTL := api.IntPointer(30)
+	// obtain a lease in proportion to number of machines
+	if strategy == "immediate" {
+		immediateLeaseTTL := 2 * len(machines)
+		if immediateLeaseTTL > *leaseTTL {
+			leaseTTL = api.IntPointer(immediateLeaseTTL)
+		}
+	} else {
+		// account for 30s wait in flaps.Client.Wait
+		rollingLeaseTTL := 30 * len(machines)
+		leaseTTL = api.IntPointer(rollingLeaseTTL)
+	}
 
+	if len(machines) > 0 {
 		for _, machine := range machines {
-			leaseTTL := api.IntPointer(30)
 			lease, err := flapsClient.GetLease(ctx, machine.ID, leaseTTL)
 			if err != nil {
 				return err
