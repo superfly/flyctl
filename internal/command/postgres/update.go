@@ -215,7 +215,7 @@ func runUpdate(ctx context.Context) error {
 			}
 		}
 
-		fmt.Fprintf(io.Out, "Updating leader\n")
+		fmt.Fprintf(io.Out, "Updating replica\n")
 		image := fmt.Sprintf("%s:%s", latest.Repository, latest.Tag)
 
 		fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", leader.ID, image, latest.Version)
