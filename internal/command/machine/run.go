@@ -238,12 +238,20 @@ func runMachineRun(ctx context.Context) error {
 	fmt.Fprintf(io.Out, " Instance ID: %s\n", instanceID)
 	fmt.Fprintf(io.Out, " State: %s\n", state)
 
-	// wait for machine to be started
-	if err := WaitForStartOrStop(ctx, flapsClient, machine, "start", time.Minute*5); err != nil {
+	waitForAction := "start"
+	if machine.Config.Schedule != "" {
+		waitForAction = "stop"
+	}
+
+	if err := WaitForStartOrStop(ctx, flapsClient, machine, waitForAction, time.Minute*5); err != nil {
 		return err
 	}
 
-	fmt.Fprintf(io.Out, "Machine started, you can connect via the following private ip\n")
+	if machine.Config.Schedule == "" {
+		fmt.Fprintf(io.Out, "Machine started, you can connect via the following private ip\n")
+	} else {
+		fmt.Fprintf(io.Out, "Machine scheduled, you can connect via the following private ip\n")
+	}
 	fmt.Fprintf(io.Out, "  %s\n", privateIP)
 
 	return nil
