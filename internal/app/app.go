@@ -19,6 +19,8 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/env"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/scanner"
 )
 
@@ -43,6 +45,19 @@ func LoadConfig(ctx context.Context, path string, platformVersion string) (cfg *
 		Definition: map[string]interface{}{},
 	}
 
+	cfg.Path = path
+
+	if len(platformVersion) <= 0 {
+		name := AppNameFromFlagOrEnv(ctx)
+		if len(name) > 0 {
+			cfg.DeterminePlatform(ctx, name)
+		} else {
+			cfg.DeterminePlatformFromTOML(ctx, path)
+		}
+	} else {
+		cfg.SetPlatformVersion(platformVersion)
+	}
+
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -53,16 +68,17 @@ func LoadConfig(ctx context.Context, path string, platformVersion string) (cfg *
 		}
 	}()
 
-	cfg.Path = path
-	cfg.platformVersion = platformVersion
-
-	if platformVersion == "" {
-		cfg.DeterminePlatform(ctx, file)
-	}
-
 	err = cfg.unmarshalTOML(file)
 
 	return
+}
+
+func AppNameFromFlagOrEnv(ctx context.Context) string {
+	name := flag.GetApp(ctx)
+	if name == "" {
+		name = env.First("FLY_APP")
+	}
+	return name
 }
 
 // Use this type to unmarshal fly.toml with the goal of retreiving the app name only
@@ -173,16 +189,29 @@ func (c *Config) EncodeTo(w io.Writer) error {
 	return c.marshalTOML(w)
 }
 
-func (c *Config) DeterminePlatform(ctx context.Context, r io.ReadSeeker) (err error) {
-	client := client.FromContext(ctx)
-	slimConfig := &SlimConfig{}
-	_, err = toml.NewDecoder(r).Decode(&slimConfig)
-
+func (c *Config) DeterminePlatformFromTOML(ctx context.Context, path string) (err error) {
+	file, err := os.Open(path)
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if e := file.Close(); err == nil {
+			err = e
+		}
+	}()
 
-	basicApp, err := client.API().GetAppBasic(ctx, slimConfig.AppName)
+	slimConfig := &SlimConfig{}
+	if _, err = toml.NewDecoder(file).Decode(&slimConfig); err != nil {
+		return err
+	}
+
+	return c.DeterminePlatform(ctx, slimConfig.AppName)
+}
+
+func (c *Config) DeterminePlatform(ctx context.Context, appName string) (err error) {
+	client := client.FromContext(ctx)
+
+	basicApp, err := client.API().GetAppBasic(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -196,34 +225,16 @@ func (c *Config) DeterminePlatform(ctx context.Context, r io.ReadSeeker) (err er
 	return
 }
 
+// Call unmarshal only after config.platformVersion has been determined
 func (c *Config) unmarshalTOML(r io.ReadSeeker) (err error) {
 	var data map[string]interface{}
 
-	slimConfig := &SlimConfig{}
-
-	// Fetch the app name only, to check which platform we're on via the API
-	if _, err = toml.NewDecoder(r).Decode(&slimConfig); err == nil {
-
-		if err != nil {
-			return err
-		}
-
-		// Rewind TOML in preparation for parsing the full config
-		r.Seek(0, io.SeekStart)
-		if c.ForMachines() {
-			_, err = toml.NewDecoder(r).Decode(&c)
-
-			if err != nil {
-				return err
-			}
-
-		} else {
-			_, err = toml.NewDecoder(r).Decode(&data)
-
-			if err != nil {
-				return err
-			}
-
+	// Rewind TOML in preparation for parsing the full config
+	r.Seek(0, io.SeekStart)
+	if c.ForMachines() {
+		_, err = toml.NewDecoder(r).Decode(&c)
+	} else {
+		if _, err = toml.NewDecoder(r).Decode(&data); err == nil {
 			err = c.unmarshalNativeMap(data)
 		}
 	}

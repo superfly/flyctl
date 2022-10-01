@@ -20,8 +20,10 @@ import (
 // or launching new ones
 func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.DeploymentImage, strategy string) (err error) {
 	client := client.FromContext(ctx).API()
+	// context has name either fetched from flag, env, or config
+	name := app.NameFromContext(ctx)
 
-	app, err := client.GetAppCompact(ctx, config.AppName)
+	app, err := client.GetAppCompact(ctx, name)
 	if err != nil {
 		return
 	}
