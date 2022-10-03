@@ -38,7 +38,7 @@ func newLaunchCommand(client *client.Client) *Command {
 	)
 	launchCmd.AddStringFlag(StringFlagOpts{
 		Name:        "org",
-		Description: `Organization that will own the app`,
+		Description: `Organization that will own the app (use org slug here; see "fly orgs list")`,
 	})
 	launchCmd.AddStringFlag(StringFlagOpts{
 		Name:        "name",
