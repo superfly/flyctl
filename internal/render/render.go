@@ -81,7 +81,7 @@ func VerticalTable(w io.Writer, title string, objects [][]string, cols ...string
 	return nil
 }
 
-func ReusableTable(w io.Writer, title string, rows [][]string, cols ...string) (clear func(), err error) {
+func ReusableTable(w io.Writer, title string, rows [][]string, cols ...string) (err error) {
 	if title != "" {
 		fmt.Fprintln(w, aurora.Bold(title))
 	}
@@ -108,9 +108,7 @@ func ReusableTable(w io.Writer, title string, rows [][]string, cols ...string) (
 
 	fmt.Fprintln(w)
 
-	return func() {
-		table.ClearRows()
-	}, nil
+	return
 }
 
 func NewTextBlock(ctx context.Context, v ...interface{}) (tb *TextBlock) {

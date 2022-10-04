@@ -309,12 +309,16 @@ func MachinesChecks(ctx context.Context) error {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
+	var iterations int
+
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
 			var allChecks []*api.MachineCheckStatus
+
+			iterations++
 
 			machines, err := flapsClient.List(ctx, "")
 			if err != nil {
@@ -324,12 +328,14 @@ func MachinesChecks(ctx context.Context) error {
 				}
 				continue
 			}
-
-			if io.IsInteractive() {
+			if io.IsInteractive() && iterations > 1 {
 				fmt.Fprint(io.ErrOut, aec.Up(uint(len(machines))), aec.EraseLine(aec.EraseModes.All))
 			}
 
 			for _, m := range machines {
+				if m.Checks == nil {
+					continue
+				}
 
 				allChecks = append(allChecks, m.Checks...)
 
@@ -346,7 +352,6 @@ func MachinesChecks(ctx context.Context) error {
 				}
 				checks := fmt.Sprintf("%d total, %d passing, %d warning, %d failing", len(m.Checks), pass, warn, fail)
 
-				// print a line for the machine
 				fmt.Fprintf(io.ErrOut, "%s %s %s %s\n", m.ID, role, m.State, colorize.Yellow(checks))
 
 			}
