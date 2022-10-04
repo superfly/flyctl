@@ -98,21 +98,22 @@ func runRestart(ctx context.Context) error {
 	return nil
 }
 
-func nomadRestart(ctx context.Context, vms []*api.AllocationStatus) (err error) {
+func nomadRestart(ctx context.Context, allocs []*api.AllocationStatus) (err error) {
 	var (
-		dialer = agent.DialerFromContext(ctx)
-		io     = iostreams.FromContext(ctx)
+		dialer  = agent.DialerFromContext(ctx)
+		client  = client.FromContext(ctx).API()
+		appName = app.NameFromContext(ctx)
+		io      = iostreams.FromContext(ctx)
 	)
 
-	leader, replicas, err := nomadNodeRoles(ctx, vms)
+	leader, replicas, err := nomadNodeRoles(ctx, allocs)
 	if err != nil {
-		return fmt.Errorf("can't fetch leader: %w", err)
+		return
 	}
+
 	if leader == nil {
 		return fmt.Errorf("no leader found")
 	}
-
-	fmt.Fprintln(io.Out, "Restarting the Postgres Process")
 
 	if len(replicas) > 0 {
 		fmt.Fprintln(io.Out, "Attempting to restart replica(s)")
@@ -120,32 +121,30 @@ func nomadRestart(ctx context.Context, vms []*api.AllocationStatus) (err error) 
 		for _, replica := range replicas {
 			fmt.Fprintf(io.Out, " Restarting %s\n", replica.ID)
 
-			pgclient := flypg.NewFromInstance(fmt.Sprintf("[%s]", replica.PrivateIP), dialer)
-
-			if err := pgclient.RestartNodePG(ctx); err != nil {
-				return fmt.Errorf("failed to restart postgres on node %s: %w", replica.ID, err)
+			if err := client.RestartAllocation(ctx, appName, replica.ID); err != nil {
+				return fmt.Errorf("failed to restart vm %s: %w", replica.ID, err)
 			}
 			// wait for health checks to pass
 		}
 	}
 
-	// TODO: test if failover does not result in more downtime
-	// if len(vms) > 1 {
-	// 	pgclient := flypg.New(appName, dialer)
+	// Don't perform failover if the cluster is only running a
+	// single node.
+	if len(allocs) > 1 {
+		pgclient := flypg.New(appName, dialer)
 
-	// 	fmt.Fprintf(io.Out, "Performing a failover\n")
-	// 	if err := pgclient.Failover(ctx); err != nil {
-	// 		return fmt.Errorf("failed to trigger failover %w", err)
-	// 	}
-	// }
-
-	fmt.Fprintf(io.Out, "Attempting to restart leader\n")
-
-	pgclient := flypg.NewFromInstance(fmt.Sprintf("[%s]", leader.PrivateIP), dialer)
-
-	if err := pgclient.RestartNodePG(ctx); err != nil {
-		return fmt.Errorf("failed to restart postgres on node %s: %w", leader.ID, err)
+		fmt.Fprintf(io.Out, "Performing a failover\n")
+		if err := pgclient.Failover(ctx); err != nil {
+			return fmt.Errorf("failed to trigger failover %w", err)
+		}
 	}
+
+	fmt.Fprintln(io.Out, "Attempting to restart leader")
+
+	if err := client.RestartAllocation(ctx, appName, leader.ID); err != nil {
+		return fmt.Errorf("failed to restart vm %s: %w", leader.ID, err)
+	}
+
 	fmt.Fprintf(io.Out, "Postgres cluster has been successfully restarted!\n")
 
 	return
