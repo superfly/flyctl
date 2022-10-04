@@ -152,10 +152,10 @@ func nomadRestart(ctx context.Context, allocs []*api.AllocationStatus) (err erro
 
 func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 	var (
-		// dialer      = agent.DialerFromContext(ctx)
+		appName     = app.NameFromContext(ctx)
+		io          = iostreams.FromContext(ctx)
 		flapsClient = flaps.FromContext(ctx)
-		// appName     = app.NameFromContext(ctx)
-		io = iostreams.FromContext(ctx)
+		dialer      = agent.DialerFromContext(ctx)
 	)
 
 	// Acquire leases
@@ -197,6 +197,17 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 				return fmt.Errorf("failed to restart vm %s: %w", replica.ID, err)
 			}
 			// wait for health checks to pass
+		}
+	}
+
+	// Don't perform failover if the cluster is only running a
+	// single node.
+	if len(machines) > 1 {
+		pgclient := flypg.New(appName, dialer)
+
+		fmt.Fprintln(io.Out, "Performing a failover")
+		if err := pgclient.Failover(ctx); err != nil {
+			return fmt.Errorf("failed to trigger failover %w", err)
 		}
 	}
 
