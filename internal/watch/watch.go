@@ -11,6 +11,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/morikuni/aec"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
@@ -303,12 +304,16 @@ func MachinesChecks(ctx context.Context) error {
 
 	fmt.Fprintln(io.Out)
 	fmt.Fprintln(io.Out, colorize.Green("==> "+"Monitoring health checks"))
+	fmt.Fprintln(io.Out)
+
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(100 * time.Millisecond):
+		case <-ticker.C:
 			var allChecks []*api.MachineCheckStatus
 
 			machines, err := flapsClient.List(ctx, "")
@@ -320,7 +325,9 @@ func MachinesChecks(ctx context.Context) error {
 				continue
 			}
 
-			var rows [][]string
+			if io.IsInteractive() {
+				fmt.Fprint(io.ErrOut, aec.Up(uint(len(machines))), aec.EraseLine(aec.EraseModes.All))
+			}
 
 			for _, m := range machines {
 
@@ -337,15 +344,12 @@ func MachinesChecks(ctx context.Context) error {
 						}
 					}
 				}
-				rows = append(rows, []string{
-					m.ID,
-					m.State,
-					role,
-					fmt.Sprintf("%d total, %d passing, %d warning, %d failing", len(m.Checks), pass, warn, fail),
-				})
-			}
+				checks := fmt.Sprintf("%d total, %d passing, %d warning, %d failing", len(m.Checks), pass, warn, fail)
 
-			render.Table(io.Out, "", rows)
+				// print a line for the machine
+				fmt.Fprintf(io.ErrOut, "%s %s %s %s\n", m.ID, role, m.State, colorize.Yellow(checks))
+
+			}
 
 			if len(allChecks) == 0 {
 				fmt.Fprintln(io.Out)
