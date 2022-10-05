@@ -150,6 +150,7 @@ func New() *cobra.Command {
 		ips.New(),
 		secrets.New(),
 		ssh.New(),
+		ssh.NewSFTP(),
 		redis.New(),
 		vm.New(),
 		checks.New(),

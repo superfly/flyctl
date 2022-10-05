@@ -18,7 +18,7 @@ func New() *cobra.Command {
 		newConsole(),
 		newIssue(),
 		newLog(),
-		newSftp(),
+		NewSFTP(),
 	)
 
 	return cmd

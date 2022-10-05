@@ -23,7 +23,7 @@ import (
 	"github.com/google/shlex"
 )
 
-func newSftp() *cobra.Command {
+func NewSFTP() *cobra.Command {
 	const (
 		long  = `Get or put files from a remote VM.`
 		short = long
@@ -33,16 +33,17 @@ func newSftp() *cobra.Command {
 	cmd := command.New("sftp", short, long, nil)
 
 	cmd.AddCommand(
-		newLs(),
-		newShell(),
+		newFind(),
+		newSFTPShell(),
+		newGet(),
 	)
 
 	return cmd
 }
 
-func newShell() *cobra.Command {
+func newSFTPShell() *cobra.Command {
 	const (
-		long  = `tktktktk.`
+		long  = `The SFTP SHELL command brings up an interactive SFTP session to fetch and push files to a VM:.`
 		short = long
 		usage = "shell"
 	)
@@ -54,11 +55,11 @@ func newShell() *cobra.Command {
 	return cmd
 }
 
-func newLs() *cobra.Command {
+func newFind() *cobra.Command {
 	const (
-		long  = `tktktktk.`
+		long  = `The SFTP FIND command lists files (from an optional root directory) on a remote VM.`
 		short = long
-		usage = "ls [path]"
+		usage = "find [path]"
 	)
 
 	cmd := command.New(usage, short, long, runLs, command.RequireSession, command.LoadAppNameIfPresent)
@@ -68,7 +69,24 @@ func newLs() *cobra.Command {
 	return cmd
 }
 
-func newSFTP(ctx context.Context) (*sftp.Client, error) {
+func newGet() *cobra.Command {
+	const (
+		long  = `The SFTP GET retrieves a file from a remote VM.`
+		short = long
+		usage = "get <path>"
+	)
+
+	cmd := command.New(usage, short, long, runGet, command.RequireSession, command.LoadAppNameIfPresent)
+
+	cmd.Args = cobra.MaximumNArgs(2)
+
+	stdArgsSSH(cmd)
+
+	return cmd
+
+}
+
+func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
 	client := client.FromContext(ctx).API()
 	appName := app.NameFromContext(ctx)
 
@@ -111,7 +129,7 @@ func newSFTP(ctx context.Context) (*sftp.Client, error) {
 }
 
 func runLs(ctx context.Context) error {
-	ftp, err := newSFTP(ctx)
+	ftp, err := newSFTPConnection(ctx)
 	if err != nil {
 		return err
 	}
@@ -131,6 +149,57 @@ func runLs(ctx context.Context) error {
 		fmt.Printf(walker.Path() + "\n")
 	}
 
+	return nil
+}
+
+func runGet(ctx context.Context) error {
+	var (
+		remote = "/"
+		local  = remote
+		args   = flag.Args(ctx)
+	)
+
+	switch len(args) {
+	case 0:
+		fmt.Printf("get <remote-path> [local-path]\n")
+		return nil
+
+	case 1:
+		remote = args[0]
+		local = remote
+
+	default:
+		remote = args[0]
+		local = args[1]
+	}
+
+	if _, err := os.Stat(local); err == nil {
+		return fmt.Errorf("get: local file %s: already exists", remote)
+	}
+
+	ftp, err := newSFTPConnection(ctx)
+	if err != nil {
+		return err
+	}
+
+	rf, err := ftp.Open(remote)
+	if err != nil {
+		return fmt.Errorf("get: remote file %s: %w", remote, err)
+	}
+	defer rf.Close()
+
+	f, err := os.OpenFile(local, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0644)
+	if err != nil {
+		return fmt.Errorf("get: local file %s: %w", local, err)
+	}
+	defer f.Close()
+
+	bytes, err := rf.WriteTo(f)
+	if err != nil {
+		return fmt.Errorf("get: copy file: %w (%d bytes written)", err, bytes)
+	}
+
+	fmt.Printf("%d bytes written to %s\n", bytes, local)
 	return nil
 }
 
@@ -246,7 +315,7 @@ func (sc *sftpContext) getDir(rpath string, args []string) {
 		return
 	}
 
-	f, err := os.OpenFile(lpath, os.O_WRONLY|os.O_CREATE, 0644)
+	f, err := os.OpenFile(lpath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		sc.out("get %s -> %s: %s", rpath, lpath, err)
 		return
@@ -370,7 +439,7 @@ func (sc *sftpContext) put(args ...string) error {
 	}
 	defer f.Close()
 
-	rf, err := sc.ftp.OpenFile(rpath, os.O_WRONLY|os.O_CREATE)
+	rf, err := sc.ftp.OpenFile(rpath, os.O_WRONLY|os.O_CREATE|os.O_EXCL)
 	if err != nil {
 		sc.out("put %s -> %s: create remote file: %s", lpath, rpath, err)
 		return nil
@@ -431,7 +500,7 @@ func (sc *sftpContext) get(args ...string) error {
 		}
 		defer rf.Close()
 
-		f, err := os.OpenFile(localFile, os.O_WRONLY|os.O_CREATE, 0644)
+		f, err := os.OpenFile(localFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 		if err != nil {
 			sc.out("get %s -> %s: %s", rpath, localFile, err)
 			return
@@ -452,7 +521,7 @@ func (sc *sftpContext) get(args ...string) error {
 }
 
 func runShell(ctx context.Context) error {
-	ftp, err := newSFTP(ctx)
+	ftp, err := newSFTPConnection(ctx)
 	if err != nil {
 		return err
 	}
