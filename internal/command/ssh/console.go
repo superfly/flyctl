@@ -23,17 +23,7 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-func newConsole() *cobra.Command {
-	const (
-		long  = `Connect to a running instance of the current app.`
-		short = long
-		usage = "console"
-	)
-
-	cmd := command.New(usage, short, long, runConsole, command.RequireSession, command.LoadAppNameIfPresent)
-
-	cmd.Args = cobra.MaximumNArgs(1)
-
+func stdArgsSSH(cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.Org(),
 		flag.App(),
