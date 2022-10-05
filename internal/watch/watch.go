@@ -334,7 +334,7 @@ func MachinesChecks(ctx context.Context, machines []*api.Machine) (err error) {
 			}()
 			if err != nil {
 				errCount++
-				if errCount > 3 {
+				if errCount > 6 {
 					return
 				}
 				continue
@@ -344,14 +344,14 @@ func MachinesChecks(ctx context.Context, machines []*api.Machine) (err error) {
 				fmt.Fprint(io.ErrOut, aec.Up(uint(len(checked))), aec.EraseLine(aec.EraseModes.All))
 			}
 
-			for _, machine := range machines {
+			for _, machine := range checked {
 				if machine.Checks == nil {
 					continue
 				}
 
 				allChecks = append(allChecks, machine.Checks...)
 
-				var pass, warn, fail = countChecks(machine.Checks)
+				var pass, warn, crit = countChecks(machine.Checks)
 
 				var role = "error"
 
@@ -362,7 +362,7 @@ func MachinesChecks(ctx context.Context, machines []*api.Machine) (err error) {
 						}
 					}
 				}
-				checks := fmt.Sprintf("%d total, %d passing, %d warning, %d failing", len(machine.Checks), pass, warn, fail)
+				checks := fmt.Sprintf("%d total, %d passing, %d warning, %d failing", len(machine.Checks), pass, warn, crit)
 
 				fmt.Fprintf(io.ErrOut, "%s %s %s %s\n", machine.ID, role, machine.State, colorize.Yellow(checks))
 
@@ -378,10 +378,6 @@ func MachinesChecks(ctx context.Context, machines []*api.Machine) (err error) {
 
 			// if all checks are passing, we're done
 			if pass == len(allChecks) {
-				fmt.Fprintln(io.Out)
-
-				fmt.Fprintln(io.Out, "All checks passing")
-
 				fmt.Fprintln(io.Out)
 				return
 			}
