@@ -140,11 +140,28 @@ func (f *Client) Wait(ctx context.Context, machine *api.Machine, state string) (
 	return
 }
 
-func (f *Client) Stop(ctx context.Context, machine api.StopMachineInput) (err error) {
-	stopEndpoint := fmt.Sprintf("/%s/stop", machine.ID)
+func (f *Client) Stop(ctx context.Context, in api.StopMachineInput) (err error) {
+	stopEndpoint := fmt.Sprintf("/%s/stop", in.ID)
 
 	if err := f.sendRequest(ctx, http.MethodPost, stopEndpoint, nil, nil, nil); err != nil {
-		return fmt.Errorf("failed to stop VM %s: %w", machine.ID, err)
+		return fmt.Errorf("failed to stop VM %s: %w", in.ID, err)
+	}
+	return
+}
+
+func (f *Client) Restart(ctx context.Context, in api.RestartMachineInput) (err error) {
+	restartEndpoint := fmt.Sprintf("/%s/restart?force_stop=%t", in.ID, in.ForceStop)
+
+	if in.Timeout != 0 {
+		restartEndpoint += fmt.Sprintf("&timeout=%d", in.Timeout)
+	}
+
+	if in.Signal != nil {
+		restartEndpoint += fmt.Sprintf("&signal=%s", in.Signal)
+	}
+
+	if err := f.sendRequest(ctx, http.MethodPost, restartEndpoint, nil, nil, nil); err != nil {
+		return fmt.Errorf("failed to restart VM %s: %w", in.ID, err)
 	}
 	return
 }
