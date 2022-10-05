@@ -155,6 +155,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		return err
 	}
 
-	fmt.Fprintf(out, "Machine has been successfully cloned!\n"))
+	fmt.Fprintf(out, "Machine has been successfully cloned!\n")
+
 	return
 }
