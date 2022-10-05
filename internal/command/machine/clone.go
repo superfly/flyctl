@@ -83,7 +83,6 @@ func runMachineClone(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
-
 		fmt.Fprintf(out, "Picked %s for cloning\n", source.ID)
 	}
 
@@ -91,6 +90,8 @@ func runMachineClone(ctx context.Context) (err error) {
 	if region == "" {
 		region = source.Region
 	}
+
+	fmt.Fprintf(out, "Cloning machine %s into region %s\n", source.ID, region)
 
 	targetConfig := source.Config
 
@@ -109,6 +110,8 @@ func runMachineClone(ctx context.Context) (err error) {
 				Encrypted:         mnt.Encrypted,
 				RequireUniqueZone: false,
 			}
+
+			fmt.Fprintf(out, "  Preparing volume...\n")
 
 			vol, err := client.CreateVolume(ctx, volInput)
 			if err != nil {
@@ -135,12 +138,16 @@ func runMachineClone(ctx context.Context) (err error) {
 		Config: targetConfig,
 	}
 
+	fmt.Fprintf(out, "  Creating a new machine with image %s...\n", source.Config.Image)
+
 	launchedMachine, err := flapsClient.Launch(ctx, input)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Cloning machine in region %s for app %s\n", region, app.Name)
+	fmt.Fprintf(out, fmt.Sprintf("  Machine %s has been created...\n", launchedMachine.ID))
+
+	fmt.Fprintf(out, fmt.Sprintf("  Waiting for machine %s to start...\n", launchedMachine.ID))
 
 	// wait for a machine to be started
 	err = WaitForStartOrStop(ctx, flapsClient, launchedMachine, "start", time.Minute*5)
@@ -148,6 +155,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		return err
 	}
 
-	fmt.Fprintf(out, "Machine %s was cloned to %s\n", source.ID, launchedMachine.ID)
+	fmt.Fprintf(out, "Machine has been successfully cloned!\n")
+
 	return
 }
