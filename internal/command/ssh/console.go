@@ -181,26 +181,44 @@ func runConsole(ctx context.Context) error {
 		Stdin:  os.Stdin,
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
-	}, addr)
+	}
 
+	if quiet(ctx) {
+		params.DisableSpinner = true
+	}
+
+	sshc, err := sshConnect(params, addr)
 	if err != nil {
-		captureError(err)
+		captureError(err, app)
+		return err
+	}
+
+	term := &ssh.Terminal{
+		Stdin:  params.Stdin,
+		Stdout: params.Stdout,
+		Stderr: params.Stderr,
+		Mode:   "xterm",
+	}
+
+	if err := sshc.Shell(params.Ctx, term, params.Cmd); err != nil {
+		captureError(err, app)
+		return errors.Wrap(err, "ssh shell")
 	}
 
 	return err
 }
 
-func sshConnect(p *SSHParams, addr string) error {
+func sshConnect(p *SSHParams, addr string) (*ssh.Client, error) {
 	terminal.Debugf("Fetching certificate for %s\n", addr)
 
 	cert, err := singleUseSSHCertificate(p.Ctx, p.Org)
 	if err != nil {
-		return fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh establish`)", err)
+		return nil, fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh establish`)", err)
 	}
 
 	pk, err := parsePrivateKey(cert.Key)
 	if err != nil {
-		return errors.Wrap(err, "parse ssh certificate")
+		return nil, errors.Wrap(err, "parse ssh certificate")
 	}
 
 	pemkey := marshalED25519PrivateKey(pk, "single-use certificate")
@@ -225,9 +243,8 @@ func sshConnect(p *SSHParams, addr string) error {
 	}
 
 	if err := sshClient.Connect(p.Ctx); err != nil {
-		return errors.Wrap(err, "error connecting to SSH server")
+		return nil, errors.Wrap(err, "error connecting to SSH server")
 	}
-	defer sshClient.Close()
 
 	terminal.Debugf("Connection completed.\n", addr)
 
@@ -235,21 +252,10 @@ func sshConnect(p *SSHParams, addr string) error {
 		endSpin()
 	}
 
-	term := &ssh.Terminal{
-		Stdin:  p.Stdin,
-		Stdout: p.Stdout,
-		Stderr: p.Stderr,
-		Mode:   "xterm",
-	}
-
-	if err := sshClient.Shell(p.Ctx, term, p.Cmd); err != nil {
-		return errors.Wrap(err, "ssh shell")
-	}
-
-	return nil
+	return sshClient, nil
 }
 
-func addrForMachines(ctx context.Context, app *api.AppCompact) (addr string, err error) {
+func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (addr string, err error) {
 	out := iostreams.FromContext(ctx).Out
 	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
@@ -304,12 +310,17 @@ func addrForMachines(ctx context.Context, app *api.AppCompact) (addr string, err
 			if err != nil {
 				return "", err
 			}
-
 		}
 	}
 
-	if len(flag.Args(ctx)) != 0 {
-		return flag.Args(ctx)[0], nil
+	if addr = flag.GetString(ctx, "address"); addr != "" {
+		return addr, nil
+	}
+
+	if console {
+		if len(flag.Args(ctx)) != 0 {
+			return flag.Args(ctx)[0], nil
+		}
 	}
 
 	if selectedMachine == nil {
@@ -320,7 +331,7 @@ func addrForMachines(ctx context.Context, app *api.AppCompact) (addr string, err
 	return fmt.Sprintf("[%s]", selectedMachine.PrivateIP), nil
 }
 
-func addrForNomad(ctx context.Context, agentclient *agent.Client, app *api.AppCompact) (addr string, err error) {
+func addrForNomad(ctx context.Context, agentclient *agent.Client, app *api.AppCompact, console bool) (addr string, err error) {
 	if flag.GetBool(ctx, "select") {
 
 		instances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
@@ -343,8 +354,14 @@ func addrForNomad(ctx context.Context, agentclient *agent.Client, app *api.AppCo
 		return addr, nil
 	}
 
-	if len(flag.Args(ctx)) != 0 {
-		return flag.Args(ctx)[0], nil
+	if addr = flag.GetString(ctx, "address"); addr != "" {
+		return addr, nil
+	}
+
+	if console {
+		if len(flag.Args(ctx)) != 0 {
+			return flag.Args(ctx)[0], nil
+		}
 	}
 
 	return fmt.Sprintf("top1.nearest.of.%s.internal", app.Name), nil
