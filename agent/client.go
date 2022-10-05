@@ -25,6 +25,7 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/wireguard"
 )
@@ -354,10 +355,15 @@ func (c *Client) WaitForTunnel(parent context.Context, slug string) (err error) 
 // WaitForDNS waits for a Fly host internal DNS entry to register
 func (c *Client) WaitForDNS(parent context.Context, dialer Dialer, slug string, host string) (err error) {
 	io := iostreams.FromContext(parent)
-	io.StartProgressIndicatorMsg(fmt.Sprintf("Waiting for host %s", host))
+
+	if !flag.GetBool(parent, "quiet") {
+		io.StartProgressIndicatorMsg(fmt.Sprintf("Waiting for host %s", host))
+	}
 	ctx, cancel := context.WithTimeout(parent, 4*time.Minute)
 	defer cancel()
-	io.StopProgressIndicator()
+	if !flag.GetBool(parent, "quiet") {
+		io.StopProgressIndicator()
+	}
 
 	for {
 		if _, err = c.Resolve(ctx, slug, host); !errors.Is(err, ErrNoSuchHost) {
