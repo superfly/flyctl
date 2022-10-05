@@ -304,7 +304,7 @@ func MachinesChecks(ctx context.Context, machines []*api.Machine) (err error) {
 	fmt.Fprintln(io.Out, colorize.Green("==> "+"Monitoring health checks"))
 	fmt.Fprintln(io.Out)
 
-	ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
 	var iterations int
