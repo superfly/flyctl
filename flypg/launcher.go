@@ -75,6 +75,8 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
 
+	var nodes = make([]*api.Machine, 0)
+
 	for i := 0; i < config.InitialClusterSize; i++ {
 		machineConf := l.getPostgresConfig(config)
 
@@ -143,12 +145,14 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		if err != nil {
 			return err
 		}
+		nodes = append(nodes, machine)
+
 		fmt.Fprintf(io.Out, "Machine %s is %s\n", machine.ID, machine.State)
 
 	}
 
 	if !flag.GetBool(ctx, "detach") {
-		if err := watch.MachinesChecks(ctx); err != nil {
+		if err := watch.MachinesChecks(ctx, nodes); err != nil {
 			return err
 		}
 	}

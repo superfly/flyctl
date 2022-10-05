@@ -291,14 +291,12 @@ func renderLogs(ctx context.Context, alloc *api.AllocationStatus) {
 	}
 }
 
-func MachinesChecks(ctx context.Context) error {
+func MachinesChecks(ctx context.Context, machines []*api.Machine) (err error) {
 	var (
 		io          = iostreams.FromContext(ctx)
 		colorize    = io.ColorScheme()
 		flapsClient = flaps.FromContext(ctx)
 	)
-	var errCount int
-
 	ctx, cancel := context.WithTimeout(ctx, 300*time.Second)
 	defer cancel()
 
@@ -310,6 +308,7 @@ func MachinesChecks(ctx context.Context) error {
 	defer ticker.Stop()
 
 	var iterations int
+	var errCount int
 
 	for {
 		select {
@@ -320,39 +319,52 @@ func MachinesChecks(ctx context.Context) error {
 
 			iterations++
 
-			machines, err := flapsClient.List(ctx, "")
+			var checked []*api.Machine
+
+			err = func() (err error) {
+				for _, machine := range machines {
+					machine, err = flapsClient.Get(ctx, machine.ID)
+					if err != nil {
+						return
+					}
+					checked = append(checked, machine)
+
+				}
+				return
+			}()
 			if err != nil {
 				errCount++
 				if errCount > 3 {
-					return err
+					return
 				}
 				continue
 			}
+
 			if io.IsInteractive() && iterations > 1 {
-				fmt.Fprint(io.ErrOut, aec.Up(uint(len(machines))), aec.EraseLine(aec.EraseModes.All))
+				fmt.Fprint(io.ErrOut, aec.Up(uint(len(checked))), aec.EraseLine(aec.EraseModes.All))
 			}
 
-			for _, m := range machines {
-				if m.Checks == nil {
+			for _, machine := range machines {
+				if machine.Checks == nil {
 					continue
 				}
 
-				allChecks = append(allChecks, m.Checks...)
+				allChecks = append(allChecks, machine.Checks...)
 
-				var pass, warn, fail = countChecks(m.Checks)
+				var pass, warn, fail = countChecks(machine.Checks)
 
-				var role = "unknown"
+				var role = "error"
 
-				for _, check := range m.Checks {
+				for _, check := range machine.Checks {
 					if check.Name == "role" {
 						if check.Status == "passing" {
 							role = check.Output
 						}
 					}
 				}
-				checks := fmt.Sprintf("%d total, %d passing, %d warning, %d failing", len(m.Checks), pass, warn, fail)
+				checks := fmt.Sprintf("%d total, %d passing, %d warning, %d failing", len(machine.Checks), pass, warn, fail)
 
-				fmt.Fprintf(io.ErrOut, "%s %s %s %s\n", m.ID, role, m.State, colorize.Yellow(checks))
+				fmt.Fprintf(io.ErrOut, "%s %s %s %s\n", machine.ID, role, machine.State, colorize.Yellow(checks))
 
 			}
 
@@ -360,7 +372,7 @@ func MachinesChecks(ctx context.Context) error {
 				fmt.Fprintln(io.Out)
 
 				fmt.Fprintln(io.Out, "No health checks found")
-				return nil
+				return
 			}
 			var pass, _, _ = countChecks(allChecks)
 
@@ -371,7 +383,7 @@ func MachinesChecks(ctx context.Context) error {
 				fmt.Fprintln(io.Out, "All checks passing")
 
 				fmt.Fprintln(io.Out)
-				return nil
+				return
 			}
 		}
 	}
