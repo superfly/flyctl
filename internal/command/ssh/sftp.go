@@ -3,10 +3,13 @@ package ssh
 import (
 	"archive/zip"
 	"context"
+	goflag "flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/sftp"
@@ -135,6 +138,8 @@ var completer = readline.NewPrefixCompleter(
 	readline.PcItem("ls"),
 	readline.PcItem("cd"),
 	readline.PcItem("get"),
+	readline.PcItem("put"),
+	readline.PcItem("chmod"),
 )
 
 type sftpContext struct {
@@ -177,14 +182,25 @@ func (sc *sftpContext) cd(args ...string) error {
 	return nil
 }
 
+// BUG(tqbf): these return `error` because in theory an error might be bad enough
+// that we want to kill the session, but nothing does that right now.
 func (sc *sftpContext) ls(args ...string) error {
+	fgs := goflag.NewFlagSet("ls", goflag.ContinueOnError)
+
+	long := fgs.Bool("l", false, "detailed file output")
+
+	if err := fgs.Parse(args[1:]); err != nil {
+		sc.out("ls: invalid arguments: %s", err)
+		return nil
+	}
+
 	rpath := sc.wd
 
-	if len(args) > 2 {
-		if args[1][0] == '/' {
-			rpath = args[1]
+	if rarg := fgs.Arg(0); rarg != "" {
+		if rarg[0] == '/' {
+			rpath = rarg
 		} else {
-			rpath = sc.wd + rpath
+			rpath = sc.wd + rarg
 		}
 	}
 
@@ -195,12 +211,20 @@ func (sc *sftpContext) ls(args ...string) error {
 	}
 
 	for _, f := range files {
-		tl := ""
-		if f.IsDir() {
-			tl = "/"
-		}
+		if !*long {
+			tl := ""
+			if f.IsDir() {
+				tl = "/"
+			}
 
-		sc.out("%s%s\n", f.Name(), tl)
+			sc.out("%s%s", f.Name(), tl)
+		} else {
+			if f.IsDir() {
+				sc.out("%s      -\t%s\t%s/", f.Mode().String(), f.ModTime(), f.Name())
+			} else {
+				sc.out("%s  %d\t%s\t%s", f.Mode().String(), f.Size(), f.ModTime(), f.Name())
+			}
+		}
 	}
 
 	return nil
@@ -278,9 +302,100 @@ func (sc *sftpContext) getDir(rpath string, args []string) {
 	z.Close()
 }
 
+func (sc *sftpContext) chmod(args ...string) error {
+	if len(args) < 3 {
+		sc.out("chmod <numeric-mode> <file>")
+		return nil
+	}
+
+	mode, err := strconv.ParseInt(args[1], 8, 16)
+	if err != nil {
+		sc.out("chmod: invalid permissions (only numeric allowed) '%s': %s", args[1], err)
+		return nil
+	}
+
+	rpath := args[2]
+	if rpath[0] != '/' {
+		rpath = sc.wd + rpath
+	}
+
+	if err = sc.ftp.Chmod(rpath, fs.FileMode(mode)); err != nil {
+		sc.out("chmod %s: %s", rpath, err)
+		return nil
+	}
+
+	return nil
+}
+
+func (sc *sftpContext) put(args ...string) error {
+	fgs := goflag.NewFlagSet("put", goflag.ContinueOnError)
+
+	perm := fgs.String("m", "0644", "file mode")
+
+	permbits, err := strconv.ParseInt(*perm, 8, 16)
+	if err != nil {
+		sc.out("put: invalid permissions (only numeric allowed) '%s': %s", *perm, err)
+		return nil
+	}
+
+	if err := fgs.Parse(args[1:]); err != nil {
+		sc.out("put [-m] <local-filename> [filename]")
+		return nil
+	}
+
+	lpath := fgs.Arg(0)
+	if lpath == "" {
+		sc.out("put [-m] <local-filename> [filename]")
+		return nil
+	}
+
+	rpath := sc.wd + path.Base(lpath)
+	if rarg := fgs.Arg(1); rarg != "" {
+		if rarg[0] == '/' {
+			rpath = rarg
+		} else {
+			rpath = sc.wd + rarg
+		}
+	}
+
+	if _, err = sc.ftp.Stat(rpath); err == nil {
+		sc.out("put %s -> %s: file exists on VM", lpath, rpath)
+		return nil
+	}
+
+	f, err := os.Open(lpath)
+	if err != nil {
+		sc.out("put %s -> %s: open local file: %s", lpath, rpath, err)
+		return nil
+	}
+	defer f.Close()
+
+	rf, err := sc.ftp.OpenFile(rpath, os.O_WRONLY|os.O_CREATE)
+	if err != nil {
+		sc.out("put %s -> %s: create remote file: %s", lpath, rpath, err)
+		return nil
+	}
+	defer rf.Close()
+
+	bytes, err := rf.ReadFrom(f)
+	if err != nil {
+		sc.out("put %s -> %s: copy file file: %s (%d bytes written)", lpath, rpath, err, bytes)
+		return nil
+	}
+
+	sc.out("%d bytes written", bytes)
+
+	if err = sc.ftp.Chmod(rpath, fs.FileMode(permbits)); err != nil {
+		sc.out("put %s -> %s: set permissions: %s", lpath, rpath, err)
+		return nil
+	}
+
+	return nil
+}
+
 func (sc *sftpContext) get(args ...string) error {
 	if len(args) < 2 {
-		sc.out("get <filename>")
+		sc.out("get <filename> [local-filename]")
 		return nil
 	}
 
@@ -405,6 +520,19 @@ func runShell(ctx context.Context) error {
 			if err = sc.get(args...); err != nil {
 				return err
 			}
+
+		case "put":
+			if err = sc.put(args...); err != nil {
+				return err
+			}
+
+		case "chmod":
+			if err = sc.chmod(args...); err != nil {
+				return err
+			}
+
+		default:
+			out("unrecognized command; try 'cd', 'ls', 'get', 'put', or 'chmod'")
 		}
 	}
 
