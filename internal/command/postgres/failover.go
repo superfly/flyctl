@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -106,6 +107,11 @@ func runFailover(ctx context.Context) (err error) {
 	fmt.Fprintf(io.Out, "Performing a failover\n")
 	if err := pgclient.Failover(ctx); err != nil {
 		return fmt.Errorf("failed to trigger failover %w", err)
+	}
+
+	// wait for health checks to pass
+	if err := watch.MachinesChecks(ctx, machines); err != nil {
+		return fmt.Errorf("failed to wait for health checks to pass: %w", err)
 	}
 
 	fmt.Fprintf(io.Out, "Failover complete\n")

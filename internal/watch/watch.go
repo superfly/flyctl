@@ -11,7 +11,9 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/morikuni/aec"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/logs"
 
@@ -287,4 +289,112 @@ func renderLogs(ctx context.Context, alloc *api.AllocationStatus) {
 			render.HideRegion(),
 		)
 	}
+}
+
+func MachinesChecks(ctx context.Context, machines []*api.Machine) (err error) {
+	var (
+		io          = iostreams.FromContext(ctx)
+		colorize    = io.ColorScheme()
+		flapsClient = flaps.FromContext(ctx)
+	)
+	ctx, cancel := context.WithTimeout(ctx, 300*time.Second)
+	defer cancel()
+
+	fmt.Fprintln(io.Out)
+	fmt.Fprintln(io.Out, colorize.Green("==> "+"Monitoring health checks"))
+	fmt.Fprintln(io.Out)
+
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	var iterations int
+	var errCount int
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			var allChecks []*api.MachineCheckStatus
+
+			iterations++
+
+			var checked []*api.Machine
+
+			err = func() (err error) {
+				for _, machine := range machines {
+					machine, err = flapsClient.Get(ctx, machine.ID)
+					if err != nil {
+						return
+					}
+					checked = append(checked, machine)
+
+				}
+				return
+			}()
+			if err != nil {
+				errCount++
+				if errCount > 6 {
+					return
+				}
+				continue
+			}
+
+			if io.IsInteractive() && iterations > 1 {
+				fmt.Fprint(io.ErrOut, aec.Up(uint(len(checked))), aec.EraseLine(aec.EraseModes.All))
+			}
+
+			for _, machine := range checked {
+				if machine.Checks == nil {
+					continue
+				}
+
+				allChecks = append(allChecks, machine.Checks...)
+
+				var pass, warn, crit = countChecks(machine.Checks)
+
+				var role = "error"
+
+				for _, check := range machine.Checks {
+					if check.Name == "role" {
+						if check.Status == "passing" {
+							role = check.Output
+						}
+					}
+				}
+				checks := fmt.Sprintf("%d total, %d passing, %d warning, %d failing", len(machine.Checks), pass, warn, crit)
+
+				fmt.Fprintf(io.ErrOut, "%s %s %s %s\n", machine.ID, role, machine.State, colorize.Yellow(checks))
+
+			}
+
+			if len(allChecks) == 0 {
+				fmt.Fprintln(io.Out)
+
+				fmt.Fprintln(io.Out, "No health checks found")
+				return
+			}
+			var pass, _, _ = countChecks(allChecks)
+
+			// if all checks are passing, we're done
+			if pass == len(allChecks) {
+				fmt.Fprintln(io.Out)
+				return
+			}
+		}
+	}
+}
+
+func countChecks(checks []*api.MachineCheckStatus) (pass, warn, crit int) {
+	for _, check := range checks {
+		switch check.Status {
+		case "passing":
+			pass++
+		case "warn":
+			warn++
+		case "critical":
+			crit++
+		}
+	}
+	return pass, warn, crit
 }

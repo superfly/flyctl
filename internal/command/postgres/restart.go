@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -199,6 +200,9 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 				return fmt.Errorf("failed to restart vm %s: %w", replica.ID, err)
 			}
 			// wait for health checks to pass
+			if err := watch.MachinesChecks(ctx, []*api.Machine{replica}); err != nil {
+				return fmt.Errorf("failed to wait for health checks to pass: %w", err)
+			}
 		}
 	}
 
@@ -224,6 +228,10 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 	}
 
 	//wait for health checks to pass
+	// wait for health checks to pass
+	if err := watch.MachinesChecks(ctx, []*api.Machine{leader}); err != nil {
+		return fmt.Errorf("failed to wait for health checks to pass: %w", err)
+	}
 
 	fmt.Fprintf(io.Out, "Postgres cluster has been successfully restarted!\n")
 

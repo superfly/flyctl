@@ -202,6 +202,7 @@ func newConfigUpdate() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Detach(),
 		flag.String{
 			Name:        "max-connections",
 			Description: "Sets the maximum number of concurrent connections.",

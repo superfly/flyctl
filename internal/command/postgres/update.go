@@ -17,6 +17,7 @@ import (
 	machines "github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -40,6 +41,7 @@ func newUpdate() (cmd *cobra.Command) {
 			Name:        "auto-confirm",
 			Description: "Will automatically confirm changes without an interactive prompt.",
 		},
+		flag.Detach(),
 	)
 
 	return
@@ -200,6 +202,11 @@ func runUpdate(ctx context.Context) error {
 			if err := updateMachine(ctx, app, replica, image); err != nil {
 				return fmt.Errorf("can't update %s: %w", replica.ID, err)
 			}
+
+			// wait for health checks to pass
+			if err := watch.MachinesChecks(ctx, []*api.Machine{replica}); err != nil {
+				return fmt.Errorf("failed to wait for health checks to pass: %w", err)
+			}
 		}
 	}
 
@@ -221,6 +228,11 @@ func runUpdate(ctx context.Context) error {
 		fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", leader.ID, image, latest.Version)
 		if err := updateMachine(ctx, app, leader, image); err != nil {
 			return err
+		}
+
+		// wait for health checks to pass
+		if err := watch.MachinesChecks(ctx, []*api.Machine{leader}); err != nil {
+			return fmt.Errorf("failed to wait for health checks to pass: %w", err)
 		}
 	}
 
