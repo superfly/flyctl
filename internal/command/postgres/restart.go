@@ -158,6 +158,8 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 		dialer      = agent.DialerFromContext(ctx)
 	)
 
+	var timeout = time.Duration(40)
+
 	// Acquire leases
 	fmt.Fprintf(io.Out, "Attempting to acquire lease(s)\n")
 
@@ -190,7 +192,7 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 
 			in := api.RestartMachineInput{
 				ID:      replica.ID,
-				Timeout: time.Duration(40),
+				Timeout: timeout,
 			}
 
 			if err = flapsClient.Restart(ctx, in); err != nil {
@@ -215,7 +217,7 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 
 	in := api.RestartMachineInput{
 		ID:      leader.ID,
-		Timeout: time.Duration(120),
+		Timeout: timeout,
 	}
 	if err := flapsClient.Restart(ctx, in); err != nil {
 		return fmt.Errorf("failed to restart vm %s: %w", leader.ID, err)
