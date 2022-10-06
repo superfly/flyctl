@@ -141,7 +141,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			waitTimeout = time.Hour
 		}
 
-		err = machines.WaitForStartOrStop(ctx, flapsClient, machine, "start", waitTimeout)
+		err = machines.WaitForStartOrStop(ctx, machine, "start", waitTimeout)
 		if err != nil {
 			return err
 		}

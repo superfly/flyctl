@@ -208,6 +208,7 @@ func runMachineRun(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("could not make API client: %w", err)
 	}
+	ctx = flaps.NewContext(ctx, flapsClient)
 
 	machineID := flag.GetString(ctx, "id")
 	if machineID != "" {
@@ -239,7 +240,7 @@ func runMachineRun(ctx context.Context) error {
 	fmt.Fprintf(io.Out, " State: %s\n", state)
 
 	// wait for machine to be started
-	if err := WaitForStartOrStop(ctx, flapsClient, machine, "start", time.Minute*5); err != nil {
+	if err := WaitForStartOrStop(ctx, machine, "start", time.Minute*5); err != nil {
 		return err
 	}
 
@@ -295,7 +296,9 @@ func createApp(ctx context.Context, message, name string, client *api.Client) (*
 	}, nil
 }
 
-func WaitForStartOrStop(ctx context.Context, flapsClient *flaps.Client, machine *api.Machine, action string, timeout time.Duration) error {
+func WaitForStartOrStop(ctx context.Context, machine *api.Machine, action string, timeout time.Duration) error {
+	var flapsClient = flaps.FromContext(ctx)
+
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 

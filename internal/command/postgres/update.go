@@ -242,10 +242,11 @@ func runUpdate(ctx context.Context) error {
 }
 
 func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machine, image string) error {
-	flaps, err := flaps.New(ctx, app)
+	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
 		return err
 	}
+	ctx = flaps.NewContext(ctx, flapsClient)
 
 	machineConf := machine.Config
 	machineConf.Image = image
@@ -258,12 +259,12 @@ func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machin
 		Config:  machineConf,
 	}
 
-	updated, err := flaps.Update(ctx, input, machine.LeaseNonce)
+	updated, err := flapsClient.Update(ctx, input, machine.LeaseNonce)
 	if err != nil {
 		return err
 	}
 
-	if err := machines.WaitForStartOrStop(ctx, flaps, updated, "start", time.Minute*5); err != nil {
+	if err := machines.WaitForStartOrStop(ctx, updated, "start", time.Minute*5); err != nil {
 		return err
 	}
 

@@ -64,6 +64,7 @@ func runMachineClone(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("could not make flaps client: %w", err)
 	}
+	ctx = flaps.NewContext(ctx, flapsClient)
 
 	var source *api.Machine
 
@@ -150,7 +151,7 @@ func runMachineClone(ctx context.Context) (err error) {
 	fmt.Fprintf(out, fmt.Sprintf("  Waiting for machine %s to start...\n", launchedMachine.ID))
 
 	// wait for a machine to be started
-	err = WaitForStartOrStop(ctx, flapsClient, launchedMachine, "start", time.Minute*5)
+	err = WaitForStartOrStop(ctx, launchedMachine, "start", time.Minute*5)
 	if err != nil {
 		return err
 	}

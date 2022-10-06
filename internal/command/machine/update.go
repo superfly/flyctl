@@ -58,6 +58,7 @@ func runUpdate(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("could not make API client: %w", err)
 	}
+	ctx = flaps.NewContext(ctx, flapsClient)
 
 	machine, err := flapsClient.Get(ctx, machineID)
 	if err != nil {
@@ -107,7 +108,7 @@ func runUpdate(ctx context.Context) (err error) {
 	fmt.Fprintf(out, "%s -> %s\n\n", prevInstanceID, machine.InstanceID)
 
 	// wait for machine to be started
-	if err := WaitForStartOrStop(ctx, flapsClient, machine, waitForAction, time.Second*60); err != nil {
+	if err := WaitForStartOrStop(ctx, machine, waitForAction, time.Second*60); err != nil {
 		return err
 	}
 
