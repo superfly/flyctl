@@ -35,6 +35,11 @@ func newList() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.String{
+			Name:        "state",
+			Shorthand:   "s",
+			Description: "Return machines within a given state",
+		},
 		flag.Bool{
 			Name:        "quiet",
 			Shorthand:   "q",
@@ -66,7 +71,12 @@ func runMachineList(ctx context.Context) (err error) {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
 
-	machines, err := flapsClient.List(ctx, "")
+	var state string
+	if flag.GetString(ctx, "state") != "" {
+		state = flag.GetString(ctx, "state")
+	}
+
+	machines, err := flapsClient.List(ctx, state)
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved")
 	}

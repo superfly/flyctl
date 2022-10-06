@@ -189,6 +189,8 @@ func (f *Client) List(ctx context.Context, state string) ([]*api.Machine, error)
 		getEndpoint = fmt.Sprintf("?%s", state)
 	}
 
+	fmt.Println(getEndpoint)
+
 	out := make([]*api.Machine, 0)
 
 	err := f.sendRequest(ctx, http.MethodGet, getEndpoint, nil, &out, nil)
