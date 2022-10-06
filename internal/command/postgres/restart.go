@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
@@ -13,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
@@ -159,8 +159,6 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 		dialer      = agent.DialerFromContext(ctx)
 	)
 
-	var timeout = time.Duration(40)
-
 	// Acquire leases
 	fmt.Fprintf(io.Out, "Attempting to acquire lease(s)\n")
 
@@ -191,12 +189,7 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 		for _, replica := range replicas {
 			fmt.Fprintf(io.Out, " Restarting %s\n", replica.ID)
 
-			in := api.RestartMachineInput{
-				ID:      replica.ID,
-				Timeout: timeout,
-			}
-
-			if err = flapsClient.Restart(ctx, in); err != nil {
+			if err = machine.Restart(ctx, replica.ID, "", 120, false); err != nil {
 				return fmt.Errorf("failed to restart vm %s: %w", replica.ID, err)
 			}
 			// wait for health checks to pass
@@ -219,14 +212,9 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 
 	fmt.Fprintln(io.Out, "Attempting to restart leader")
 
-	in := api.RestartMachineInput{
-		ID:      leader.ID,
-		Timeout: timeout,
-	}
-	if err := flapsClient.Restart(ctx, in); err != nil {
+	if err = machine.Restart(ctx, leader.ID, "", 120, false); err != nil {
 		return fmt.Errorf("failed to restart vm %s: %w", leader.ID, err)
 	}
-
 	//wait for health checks to pass
 	// wait for health checks to pass
 	if err := watch.MachinesChecks(ctx, []*api.Machine{leader}); err != nil {
