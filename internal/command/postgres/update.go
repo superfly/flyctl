@@ -212,11 +212,20 @@ func runUpdate(ctx context.Context) error {
 
 	// Update leader
 	if leader != nil {
-		// Only perform failover if there's potentially eligible replicas
-		if len(machines) > 1 {
+
+		// Only attempt to failover if there are additional in-region replias.
+		inRegionReplicas := 0
+		for _, replica := range replicas {
+			if replica.Region == leader.Region {
+				inRegionReplicas++
+			}
+		}
+
+		if inRegionReplicas > 0 {
 			pgclient := flypg.New(app.Name, dialer)
 
 			fmt.Fprintf(io.Out, "Performing failover\n")
+			// TODO - This should really be best effort.
 			if err := pgclient.Failover(ctx); err != nil {
 				return fmt.Errorf("failed to trigger failover %w", err)
 			}
