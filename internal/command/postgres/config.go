@@ -112,7 +112,7 @@ func runConfigView(ctx context.Context) (err error) {
 			return fmt.Errorf("list of machines could not be retrieved: %w", err)
 		}
 
-		members, err := flapsClient.List(ctx, "started")
+		members, err := flapsClient.ListActive(ctx)
 		if err != nil {
 			return fmt.Errorf("machines could not be retrieved %w", err)
 		}
@@ -385,7 +385,7 @@ func updateMachinesConfig(ctx context.Context, app *api.AppCompact, changes map[
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
 
-	machines, err := fclt.List(ctx, "started")
+	machines, err := fclt.ListActive(ctx)
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved")
 	}
