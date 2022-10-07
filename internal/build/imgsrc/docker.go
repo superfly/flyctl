@@ -226,6 +226,13 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 		return nil, errors.New("machine did not have a private IP")
 	}
 
+	builderHostOverride, ok := os.LookupEnv("FLY_RCHAP_OVERRIDE_HOST")
+	if ok {
+		oldHost := host
+		host = builderHostOverride
+		terminal.Infof("Override builder host with: %s (was %s)", host, oldHost)
+	}
+
 	opts, err := buildRemoteClientOpts(ctx, apiClient, appName, host)
 	if err != nil {
 		streams.StopProgressIndicator()
