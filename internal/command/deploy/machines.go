@@ -257,6 +257,10 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 
 			launchInput.Region = machine.Region
 
+			if launchInput.Config.Env["PRIMARY_REGION"] == "" {
+				launchInput.Config.Env["PRIMARY_REGION"] = machine.Config.Env["PRIMARY_REGION"]
+			}
+
 			launchInput.Config.Checks = machine.Config.Checks
 
 			if machine.Config.Guest != nil {
