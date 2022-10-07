@@ -25,9 +25,6 @@ import (
 	"github.com/superfly/flyctl/internal/watch"
 )
 
-// only target machines running a valid repository
-const validRepository = "flyio/postgres"
-
 func newUpdate() *cobra.Command {
 	const (
 		long = `This will update the application's image to the latest available version.
