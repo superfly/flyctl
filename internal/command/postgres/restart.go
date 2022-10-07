@@ -199,11 +199,17 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 		}
 	}
 
-	// Don't perform failover if the cluster is only running a
-	// single node.
-	if len(machines) > 1 {
-		pgclient := flypg.New(appName, dialer)
+	// Don't attempt to failover unless we have in-region replicas
+	inRegionReplicas := 0
+	for _, replica := range replicas {
+		if replica.Region == leader.Region {
+			inRegionReplicas++
+		}
+	}
 
+	if inRegionReplicas > 0 {
+		pgclient := flypg.New(appName, dialer)
+		// TODO - This should really be best effort.
 		fmt.Fprintln(io.Out, "Performing a failover")
 		if err := pgclient.Failover(ctx); err != nil {
 			return fmt.Errorf("failed to trigger failover %w", err)
