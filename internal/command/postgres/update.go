@@ -48,10 +48,11 @@ func newUpdate() (cmd *cobra.Command) {
 }
 
 func runUpdate(ctx context.Context) error {
-	appName := app.NameFromContext(ctx)
-	client := client.FromContext(ctx).API()
-	io := iostreams.FromContext(ctx)
-
+	var (
+		appName = app.NameFromContext(ctx)
+		client  = client.FromContext(ctx).API()
+		io      = iostreams.FromContext(ctx)
+	)
 	// only target machines running a valid repository
 	const validRepository = "flyio/postgres"
 
@@ -78,6 +79,7 @@ func runUpdate(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
+	ctx = flaps.NewContext(ctx, flapsClient)
 
 	machineList, err := flapsClient.List(ctx, "started")
 	if err != nil {
@@ -186,7 +188,7 @@ func runUpdate(ctx context.Context) error {
 		machine.LeaseNonce = lease.Data.Nonce
 
 		// Ensure lease is released on return
-		defer releaseLease(ctx, flapsClient, machine)
+		defer releaseLease(ctx, machine)
 
 		fmt.Fprintf(io.Out, "  Machine %s: %s\n", machine.ID, lease.Status)
 	}
@@ -242,11 +244,7 @@ func runUpdate(ctx context.Context) error {
 }
 
 func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machine, image string) error {
-	flapsClient, err := flaps.New(ctx, app)
-	if err != nil {
-		return err
-	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	var flapsClient = flaps.FromContext(ctx)
 
 	machineConf := machine.Config
 	machineConf.Image = image
@@ -271,7 +269,9 @@ func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machin
 	return nil
 }
 
-func releaseLease(ctx context.Context, client *flaps.Client, machine *api.Machine) error {
+func releaseLease(ctx context.Context, machine *api.Machine) error {
+	var client = flaps.FromContext(ctx)
+
 	if err := client.ReleaseLease(ctx, machine.ID, machine.LeaseNonce); err != nil {
 		return fmt.Errorf("failed to release lease: %w", err)
 	}

@@ -54,7 +54,27 @@ The update will perform a rolling restart against each VM, which may result in a
 	return cmd
 }
 
-func runUpdate(ctx context.Context) error {
+func runUpdate(ctx context.Context) (err error) {
+	var (
+		appName = app.NameFromContext(ctx)
+		client  = client.FromContext(ctx).API()
+	)
+
+	app, err := client.GetAppCompact(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("get app: %w", err)
+	}
+
+	switch app.PlatformVersion {
+	case "nomad":
+		return updateImageForNomad(ctx)
+	case "machines":
+		return updateImageForMachines(ctx)
+	}
+	return
+}
+
+func updateImageForNomad(ctx context.Context) error {
 	var (
 		client  = client.FromContext(ctx).API()
 		io      = iostreams.FromContext(ctx)
@@ -142,6 +162,9 @@ func runUpdate(ctx context.Context) error {
 			return err
 		}
 	}
-
 	return watch.Deployment(ctx, appName, release.EvaluationID)
+}
+
+func updateImageForMachines(ctx context.Context) (err error) {
+	return fmt.Errorf("image updates are not supported for machines")
 }
