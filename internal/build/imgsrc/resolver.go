@@ -149,7 +149,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) chan<- interface{} {
 	time.AfterFunc(maxTime, func() { close(done) })
 
 	go func() {
-		pulse := time.Tick(pulseInterval)
+		pulse := time.NewTicker(pulseInterval)
 		defer close(done)
 		for {
 			select {
@@ -157,7 +157,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) chan<- interface{} {
 				return
 			case <-ctx.Done():
 				return
-			case <-pulse:
+			case <-pulse.C:
 				terminal.Debugf("Sending remote builder heartbeat pulse to %s...", heartbeatUrl)
 				resp, err := dockerClient.HTTPClient().Do(heartbeatReq)
 				if err != nil {
