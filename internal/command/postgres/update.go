@@ -111,7 +111,7 @@ func runUpdate(ctx context.Context) error {
 		}
 
 		// Exclude machines that are already running the latest version
-		if machine.ImageRef.Tag == latest.Tag && machine.ImageVersion() == latest.Version {
+		if machine.ImageRef.Digest == latest.Digest {
 			continue
 		}
 
