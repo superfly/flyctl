@@ -87,7 +87,6 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 
 	if appConfig.ForMachines() {
 		return fmt.Errorf("This command has been temperarily disabled for v2 applications")
-		// return createMachinesRelease(ctx, appConfig, img, flag.GetString(ctx, "strategy"))
 	}
 
 	// Assign an empty map if nil so later assignments won't fail

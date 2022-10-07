@@ -3,99 +3,96 @@ package deploy
 import (
 	"context"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
-	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/spinner"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 // Deploy ta machines app directly from flyctl, applying the desired config to running machines,
 // or launching new ones
-func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.DeploymentImage, strategy string) (err error) {
-	client := client.FromContext(ctx).API()
+// func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.DeploymentImage, strategy string) (err error) {
+// 	client := client.FromContext(ctx).API()
 
-	app, err := client.GetAppCompact(ctx, config.AppName)
-	if err != nil {
-		return
-	}
+// 	app, err := client.GetAppCompact(ctx, config.AppName)
+// 	if err != nil {
+// 		return
+// 	}
 
-	machineConfig := api.MachineConfig{
-		Image: img.Tag,
-	}
+// 	machineConfig := api.MachineConfig{
+// 		Image: img.Tag,
+// 	}
 
-	// Convert the new, slimmer http service config to standard services
-	if config.HttpService != nil {
-		concurrency := config.HttpService.Concurrency
+// 	// Convert the new, slimmer http service config to standard services
+// 	if config.HttpService != nil {
+// 		concurrency := config.HttpService.Concurrency
 
-		if concurrency != nil {
-			if concurrency.Type == "" {
-				concurrency.Type = "requests"
-			}
-			if concurrency.HardLimit == 0 {
-				concurrency.HardLimit = 25
-			}
-			if concurrency.SoftLimit == 0 {
-				concurrency.SoftLimit = int(math.Ceil(float64(concurrency.HardLimit) * 0.8))
-			}
-		}
+// 		if concurrency != nil {
+// 			if concurrency.Type == "" {
+// 				concurrency.Type = "requests"
+// 			}
+// 			if concurrency.HardLimit == 0 {
+// 				concurrency.HardLimit = 25
+// 			}
+// 			if concurrency.SoftLimit == 0 {
+// 				concurrency.SoftLimit = int(math.Ceil(float64(concurrency.HardLimit) * 0.8))
+// 			}
+// 		}
 
-		httpService := api.MachineService{
-			Protocol:     "tcp",
-			InternalPort: config.HttpService.InternalPort,
-			Concurrency:  concurrency,
-			Ports: []api.MachinePort{
-				{
-					Port:       80,
-					Handlers:   []string{"http"},
-					ForceHttps: config.HttpService.ForceHttps,
-				},
-				{
-					Port:     443,
-					Handlers: []string{"http", "tls"},
-				},
-			},
-		}
+// 		httpService := api.MachineService{
+// 			Protocol:     "tcp",
+// 			InternalPort: config.HttpService.InternalPort,
+// 			Concurrency:  concurrency,
+// 			Ports: []api.MachinePort{
+// 				{
+// 					Port:       80,
+// 					Handlers:   []string{"http"},
+// 					ForceHttps: config.HttpService.ForceHttps,
+// 				},
+// 				{
+// 					Port:     443,
+// 					Handlers: []string{"http", "tls"},
+// 				},
+// 			},
+// 		}
 
-		machineConfig.Services = append(machineConfig.Services, httpService)
-	}
+// 		machineConfig.Services = append(machineConfig.Services, httpService)
+// 	}
 
-	// Copy standard services to the machine vonfig
-	if config.Services != nil {
-		machineConfig.Services = append(machineConfig.Services, config.Services...)
-	}
+// 	// Copy standard services to the machine vonfig
+// 	if config.Services != nil {
+// 		machineConfig.Services = append(machineConfig.Services, config.Services...)
+// 	}
 
-	if config.Env != nil {
-		machineConfig.Env = config.Env
-	}
+// 	if config.Env != nil {
+// 		machineConfig.Env = config.Env
+// 	}
 
-	if config.Metrics != nil {
-		machineConfig.Metrics = config.Metrics
-	}
+// 	if config.Metrics != nil {
+// 		machineConfig.Metrics = config.Metrics
+// 	}
 
-	if config.Checks != nil {
-		machineConfig.Checks = config.Checks
-	}
+// 	if config.Checks != nil {
+// 		machineConfig.Checks = config.Checks
+// 	}
 
-	// Run validations against struct types and their JSON tags
-	err = config.Validate()
+// 	// Run validations against struct types and their JSON tags
+// 	err = config.Validate()
 
-	if err != nil {
-		return err
-	}
+// 	if err != nil {
+// 		return err
+// 	}
 
-	if err := RunReleaseCommand(ctx, app, config, machineConfig); err != nil {
-		return fmt.Errorf("release command failed - aborting deployment. %w", err)
-	}
+// 	if err := RunReleaseCommand(ctx, app, config, machineConfig); err != nil {
+// 		return fmt.Errorf("release command failed - aborting deployment. %w", err)
+// 	}
 
-	return DeployMachinesApp(ctx, app, strategy, machineConfig, config)
-}
+// 	return DeployMachinesApp(ctx, app, strategy, machineConfig, config)
+// }
 
 func RunReleaseCommand(ctx context.Context, app *api.AppCompact, appConfig *app.Config, machineConfig api.MachineConfig) (err error) {
 	if appConfig.Deploy == nil || appConfig.Deploy.ReleaseCommand == "" {
