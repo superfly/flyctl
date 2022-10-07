@@ -257,6 +257,8 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 
 			launchInput.Region = machine.Region
 
+			launchInput.Config.Checks = machine.Config.Checks
+
 			if machine.Config.Guest != nil {
 				launchInput.Config.Guest = machine.Config.Guest
 			}
