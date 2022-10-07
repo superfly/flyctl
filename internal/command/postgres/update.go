@@ -93,7 +93,7 @@ func runUpdate(ctx context.Context) error {
 	var machines []*api.Machine
 	for _, machine := range machineList {
 		// Skip machines that are not running our internal images.
-		if machine.ImageRef.Repository != validRepository {
+		if machine.ImageRef.Repository != validRepository && machine.ImageVersionTrackingEnabled() {
 			continue
 		}
 
