@@ -219,7 +219,7 @@ func updateImageForMachines(ctx context.Context) (err error) {
 
 	for _, machine := range candidates {
 		// Skip machines that are not running our internal images.
-		if machine.ImageRef.Repository != validRepository && machine.ImageVersionTrackingEnabled() {
+		if machine.ImageRef.Repository != validRepository || machine.ImageVersionTrackingEnabled() {
 			continue
 		}
 
