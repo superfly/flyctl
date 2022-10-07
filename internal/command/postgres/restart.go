@@ -221,7 +221,6 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 	if err = machine.Restart(ctx, leader.ID, "", 120, false); err != nil {
 		return fmt.Errorf("failed to restart vm %s: %w", leader.ID, err)
 	}
-	//wait for health checks to pass
 	// wait for health checks to pass
 	if err := watch.MachinesChecks(ctx, []*api.Machine{leader}); err != nil {
 		return fmt.Errorf("failed to wait for health checks to pass: %w", err)
