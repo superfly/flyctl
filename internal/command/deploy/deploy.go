@@ -85,6 +85,11 @@ func run(ctx context.Context) error {
 func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 	apiClient := client.FromContext(ctx).API()
 
+	if appConfig.ForMachines() {
+		return fmt.Errorf("This command has been temperarily disabled for v2 applications")
+		// return createMachinesRelease(ctx, appConfig, img, flag.GetString(ctx, "strategy"))
+	}
+
 	// Assign an empty map if nil so later assignments won't fail
 	if appConfig.Env == nil {
 		appConfig.Env = map[string]string{}
@@ -105,10 +110,6 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 
 	if appConfig.PrimaryRegion != "" && appConfig.Env["PRIMARY_REGION"] == "" {
 		appConfig.Env["PRIMARY_REGION"] = appConfig.PrimaryRegion
-	}
-
-	if appConfig.ForMachines() {
-		return createMachinesRelease(ctx, appConfig, img, flag.GetString(ctx, "strategy"))
 	}
 
 	release, releaseCommand, err = createRelease(ctx, appConfig, img)
