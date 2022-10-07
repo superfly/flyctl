@@ -247,7 +247,7 @@ func updateImageForMachines(ctx context.Context) (err error) {
 	}
 
 	if len(candidates) == 0 {
-		fmt.Fprintf(io.Out, "No updates available...\n")
+		fmt.Fprintln(io.Out, "No updates available")
 		return nil
 	}
 
@@ -288,9 +288,12 @@ func updateImageForMachines(ctx context.Context) (err error) {
 		fmt.Fprintf(io.Out, "  Machine %s: %s\n", machine.ID, lease.Status)
 	}
 
+	var order = "none"
+
 	if app.IsPostgresApp() {
-		return updatePostgres(ctx, app, candidates, latest)
+		order = "leader-last"
 	}
+	eligible = updateOrder(eligible, order)
 
 	// Update replicas
 	if len(eligible) > 0 {
@@ -300,6 +303,19 @@ func updateImageForMachines(ctx context.Context) (err error) {
 			image := fmt.Sprintf("%s:%s", latest.Repository, latest.Tag)
 
 			fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", machine.ID, image, latest.Version)
+
+			// if the next machine in the slice(len(eligible>1) is the last one and order==leader-last, we should do a failover
+			if machine.ID == eligible[len(eligible)-1].ID && order == "leader-last" && len(eligible) > 1 {
+				fmt.Fprintf(io.Out, "  Performing failover\n")
+
+				pgclient := flypg.New(app.Name, dialer)
+
+				fmt.Fprintf(io.Out, "Performing failover\n")
+				if err := pgclient.Failover(ctx); err != nil {
+					return fmt.Errorf("failed to trigger failover %w", err)
+				}
+			}
+
 			if err := updateMachine(ctx, app, machine, image); err != nil {
 				return fmt.Errorf("can't update %s: %w", machine.ID, err)
 			}
@@ -308,6 +324,7 @@ func updateImageForMachines(ctx context.Context) (err error) {
 			if err := watch.MachinesChecks(ctx, []*api.Machine{machine}); err != nil {
 				return fmt.Errorf("failed to wait for health checks to pass: %w", err)
 			}
+
 		}
 	}
 
@@ -340,86 +357,6 @@ func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machin
 	return nil
 }
 
-func updatePostgres(ctx context.Context, app *api.AppCompact, machines []*api.Machine, latest *api.ImageVersion) error {
-	var (
-		io     = iostreams.FromContext(ctx)
-		dialer = agent.DialerFromContext(ctx)
-	)
-
-	// Resolve cluster roles
-	fmt.Fprintf(io.Out, "Identifying cluster roles\n")
-	var (
-		leader   *api.Machine
-		replicas []*api.Machine
-	)
-
-	for _, machine := range machines {
-		address := fmt.Sprintf("[%s]", machine.PrivateIP)
-
-		pgclient := flypg.NewFromInstance(address, dialer)
-
-		role, err := pgclient.NodeRole(ctx)
-		if err != nil {
-			return fmt.Errorf("can't get role for %s: %w", machine.Name, err)
-		}
-
-		switch role {
-		case "leader":
-			leader = machine
-		case "replica":
-			replicas = append(replicas, machine)
-		}
-		fmt.Fprintf(io.Out, "  Machine %s: %s\n", machine.ID, role)
-	}
-
-	// Update replicas
-	if len(replicas) > 0 {
-		fmt.Fprintf(io.Out, "Updating machines\n")
-
-		for _, machine := range replicas {
-			image := fmt.Sprintf("%s:%s", latest.Repository, latest.Tag)
-
-			fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", machine.ID, image, latest.Version)
-			if err := updateMachine(ctx, app, machine, image); err != nil {
-				return fmt.Errorf("can't update %s: %w", machine.ID, err)
-			}
-
-			// wait for health checks to pass
-			if err := watch.MachinesChecks(ctx, []*api.Machine{machine}); err != nil {
-				return fmt.Errorf("failed to wait for health checks to pass: %w", err)
-			}
-		}
-	}
-
-	// Update leader
-	if leader != nil {
-		// Only perform failover if there's potentially eligible replicas
-		if len(machines) > 1 {
-			pgclient := flypg.New(app.Name, dialer)
-
-			fmt.Fprintf(io.Out, "Performing failover\n")
-			if err := pgclient.Failover(ctx); err != nil {
-				return fmt.Errorf("failed to trigger failover %w", err)
-			}
-		}
-
-		fmt.Fprintf(io.Out, "Updating replica\n")
-		image := fmt.Sprintf("%s:%s", latest.Repository, latest.Tag)
-
-		fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", leader.ID, image, latest.Version)
-		if err := updateMachine(ctx, app, leader, image); err != nil {
-			return err
-		}
-
-		// wait for health checks to pass
-		if err := watch.MachinesChecks(ctx, []*api.Machine{leader}); err != nil {
-			return fmt.Errorf("failed to wait for health checks to pass: %w", err)
-		}
-	}
-
-	return nil
-}
-
 func releaseLease(ctx context.Context, machine *api.Machine) error {
 	var client = flaps.FromContext(ctx)
 
@@ -428,4 +365,39 @@ func releaseLease(ctx context.Context, machine *api.Machine) error {
 	}
 
 	return nil
+}
+
+// updateOrder takes a list of *api.Machine(s) a deploy strategy and  returns a list of *api.Machine(s) in the order they should be updated
+func updateOrder(machines []*api.Machine, strategy string) []*api.Machine {
+	switch strategy {
+	case "leader-last":
+
+		for i, machine := range machines {
+			// append leader to the end of the list
+			if machineRole(machine) == "leader" {
+				machines = append(machines[:i], machines[i+1:]...)
+				machines = append(machines, machine)
+				break
+			}
+		}
+
+	default:
+		// do nothing
+	}
+	return machines
+}
+
+func machineRole(machine *api.Machine) (role string) {
+	role = "unknown"
+
+	for _, check := range machine.Checks {
+		if check.Name == "role" {
+			if check.Status == "passing" {
+				role = check.Output
+			} else {
+				role = "error"
+			}
+		}
+	}
+	return role
 }
