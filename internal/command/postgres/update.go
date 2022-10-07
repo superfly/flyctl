@@ -79,7 +79,7 @@ func runUpdate(ctx context.Context) error {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
 
-	machineList, err := flapsClient.List(ctx, "started")
+	machineList, err := flapsClient.ListActive(ctx)
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}

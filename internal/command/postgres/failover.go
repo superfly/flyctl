@@ -76,7 +76,7 @@ func runFailover(ctx context.Context) (err error) {
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
 
-	machines, err := flapsClient.List(ctx, "started")
+	machines, err := flapsClient.ListActive(ctx)
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
