@@ -11,8 +11,8 @@ LABEL fly_launch_runtime="laravel"
 
 RUN apt-get update && apt-get install -y \
     git curl zip unzip rsync ca-certificates vim htop cron \
-    php${DOCKER_VERSION}-pgsql php${PHP_VERSION}-bcmath \
-    php${DOCKER_VERSION}-swoole php${PHP_VERSION}-xml php${PHP_VERSION}-mbstring \
+    php${PHP_VERSION}-pgsql php${PHP_VERSION}-bcmath \
+    php${PHP_VERSION}-swoole php${PHP_VERSION}-xml php${PHP_VERSION}-mbstring \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
