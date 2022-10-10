@@ -226,7 +226,7 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) (err error
 		}
 
 		// Exclude machines that are already running the latest version
-		if machine.ImageRef.Tag == latest.Tag && machine.ImageVersion() == latest.Version {
+		if machine.ImageRef.Digest == latest.Digest {
 			continue
 		}
 
