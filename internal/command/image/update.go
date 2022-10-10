@@ -263,7 +263,7 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) (err error
 	// Acquire leases
 	fmt.Fprintf(io.Out, "Attempting to acquire lease(s)\n")
 	for _, machine := range candidates {
-		lease, err := flapsClient.GetLease(ctx, machine.ID, api.IntPointer(40))
+		lease, err := flapsClient.GetLease(ctx, machine.ID, api.IntPointer(120))
 		if err != nil {
 			return fmt.Errorf("failed to obtain lease: %w", err)
 		}
