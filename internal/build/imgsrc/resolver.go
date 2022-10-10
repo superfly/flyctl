@@ -123,7 +123,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) chan<- interface{} {
 		return nil
 	}
 
-	errMsg := "Failed to start remote builder heartbeat: %v"
+	errMsg := "Failed to start remote builder heartbeat: %v\n"
 	dockerClient, err := r.dockerFactory.buildFn(ctx)
 	if err != nil {
 		terminal.Warnf(errMsg, err)
