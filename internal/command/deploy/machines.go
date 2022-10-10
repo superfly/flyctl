@@ -204,6 +204,7 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 	if err != nil {
 		return
 	}
+	ctx = flaps.NewContext(ctx, flapsClient)
 
 	if strategy == "" {
 		strategy = "rolling"
@@ -243,7 +244,7 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 			}
 			machine.LeaseNonce = lease.Data.Nonce
 
-			defer releaseLease(ctx, flapsClient, machine)
+			defer releaseLease(ctx, machine)
 		}
 
 		for _, machine := range machines {
@@ -302,9 +303,12 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 	return
 }
 
-func releaseLease(ctx context.Context, client *flaps.Client, machine *api.Machine) {
-	io := iostreams.FromContext(ctx)
+func releaseLease(ctx context.Context, machine *api.Machine) error {
+	var client = flaps.FromContext(ctx)
+
 	if err := client.ReleaseLease(ctx, machine.ID, machine.LeaseNonce); err != nil {
-		fmt.Println(io.Out, fmt.Errorf("could not release lease on %s (%w)", machine.ID, err))
+		return fmt.Errorf("failed to release lease: %w", err)
 	}
+
+	return nil
 }

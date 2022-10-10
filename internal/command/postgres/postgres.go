@@ -33,7 +33,6 @@ func New() *cobra.Command {
 		newList(),
 		newRestart(),
 		newUsers(),
-		newUpdate(),
 		newFailover(),
 	)
 

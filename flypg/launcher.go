@@ -282,6 +282,11 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 		},
 	}
 
+	// medatata
+	machineConfig.Metadata = map[string]string{
+		"image_version_tracking_enabled": "true",
+	}
+
 	// Restart policy
 	machineConfig.Restart.Policy = api.MachineRestartPolicyAlways
 

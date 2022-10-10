@@ -49,6 +49,10 @@ func (m Machine) ImageRepository() string {
 	return m.ImageRef.Repository
 }
 
+func (m *Machine) ImageVersionTrackingEnabled() bool {
+	return m.Config.Metadata["image_version_tracking_enabled"] == "true"
+}
+
 type machineImageRef struct {
 	Registry   string            `json:"registry"`
 	Repository string            `json:"repository"`

@@ -170,7 +170,7 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 		machine.LeaseNonce = lease.Data.Nonce
 
 		// Ensure lease is released on return
-		defer releaseLease(ctx, flapsClient, machine)
+		defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
 
 		fmt.Fprintf(io.Out, "  Machine %s: %s\n", machine.ID, lease.Status)
 	}

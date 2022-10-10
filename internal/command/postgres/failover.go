@@ -99,7 +99,7 @@ func runFailover(ctx context.Context) (err error) {
 		machine.LeaseNonce = lease.Data.Nonce
 
 		// Ensure lease is released on return
-		defer releaseLease(ctx, flapsClient, machine)
+		defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
 	}
 
 	pgclient := flypg.New(appName, dialer)
