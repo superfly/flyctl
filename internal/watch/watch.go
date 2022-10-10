@@ -345,7 +345,7 @@ func MachinesChecks(ctx context.Context, machines []*api.Machine) (err error) {
 			}
 
 			for _, machine := range checked {
-				if machine.Checks == nil {
+				if machine.Config.Checks == nil || machine.Checks == nil {
 					continue
 				}
 
