@@ -54,10 +54,6 @@ The update will perform a rolling restart against each VM, which may result in a
 			Name:        "detach",
 			Description: "Return immediately instead of monitoring update progress",
 		},
-		flag.Bool{
-			Name:        "auto-confirm",
-			Description: "Will automatically confirm changes without an interactive prompt.",
-		},
 	)
 
 	return cmd
@@ -78,7 +74,7 @@ func runUpdate(ctx context.Context) (err error) {
 	case "nomad":
 		return updateImageForNomad(ctx)
 	case "machines":
-		return updateImageForMachines(ctx)
+		return updateImageForMachines(ctx, app)
 	}
 	return
 }
@@ -174,17 +170,11 @@ func updateImageForNomad(ctx context.Context) error {
 	return watch.Deployment(ctx, appName, release.EvaluationID)
 }
 
-func updateImageForMachines(ctx context.Context) (err error) {
+func updateImageForMachines(ctx context.Context, app *api.AppCompact) (err error) {
 	var (
-		io      = iostreams.FromContext(ctx)
-		appName = app.NameFromContext(ctx)
-		client  = client.FromContext(ctx).API()
+		io     = iostreams.FromContext(ctx)
+		client = client.FromContext(ctx).API()
 	)
-
-	app, err := client.GetAppCompact(ctx, appName)
-	if err != nil {
-		return fmt.Errorf("get app: %w", err)
-	}
 
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
@@ -216,7 +206,7 @@ func updateImageForMachines(ctx context.Context) (err error) {
 
 	for _, machine := range candidates {
 		// Skip machines that are not running our internal images.
-		if machine.ImageVersionTrackingEnabled() {
+		if !machine.ImageVersionTrackingEnabled() {
 			continue
 		}
 
@@ -243,15 +233,15 @@ func updateImageForMachines(ctx context.Context) (err error) {
 		eligible = append(eligible, machine)
 	}
 
-	if len(candidates) == 0 {
+	if len(eligible) == 0 {
 		fmt.Fprintln(io.Out, "No updates available")
 		return nil
 	}
 
 	// Confirmation prompt
-	if !flag.GetBool(ctx, "auto-confirm") {
+	if !flag.GetYes(ctx) {
 		msgs := []string{"The following machine(s) will be updated:\n"}
-		for _, machine := range candidates {
+		for _, machine := range eligible {
 			latestStr := fmt.Sprintf("%s:%s (%s)", latest.Repository, latest.Tag, latest.Version)
 			msg := fmt.Sprintf("Machine %q %s -> %s\n", machine.ID, machine.ImageRefWithVersion(), latestStr)
 			msgs = append(msgs, msg)
@@ -264,7 +254,7 @@ func updateImageForMachines(ctx context.Context) (err error) {
 				return nil
 			}
 		case prompt.IsNonInteractive(err):
-			return prompt.NonInteractiveError("auto-confirm flag must be specified when not running interactively")
+			return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
 		default:
 			return err
 		}
@@ -285,12 +275,9 @@ func updateImageForMachines(ctx context.Context) (err error) {
 		fmt.Fprintf(io.Out, "  Machine %s: %s\n", machine.ID, lease.Status)
 	}
 
-	var order = "none"
-
 	if app.IsPostgresApp() {
-		order = "leader-last"
+		return updatePostgresOnMachines(ctx, app, eligible, latest)
 	}
-	eligible = updateOrder(eligible, order)
 
 	// Update replicas
 	if len(eligible) > 0 {
@@ -301,18 +288,6 @@ func updateImageForMachines(ctx context.Context) (err error) {
 
 			fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", machine.ID, image, latest.Version)
 
-			// if the next machine in the slice(len(eligible>1) is the last one and order==leader-last, we should do a failover
-			if machine.ID == eligible[len(eligible)-1].ID && order == "leader-last" && len(eligible) > 1 {
-				fmt.Fprintf(io.Out, "  Performing failover\n")
-
-				pgclient := flypg.New(app.Name, dialer)
-
-				fmt.Fprintf(io.Out, "Performing failover\n")
-				if err := pgclient.Failover(ctx); err != nil {
-					return fmt.Errorf("failed to trigger failover %w", err)
-				}
-			}
-
 			if err := updateMachine(ctx, app, machine, image); err != nil {
 				return fmt.Errorf("can't update %s: %w", machine.ID, err)
 			}
@@ -321,9 +296,48 @@ func updateImageForMachines(ctx context.Context) (err error) {
 			if err := watch.MachinesChecks(ctx, []*api.Machine{machine}); err != nil {
 				return fmt.Errorf("failed to wait for health checks to pass: %w", err)
 			}
-
 		}
 	}
+	fmt.Fprintln(io.Out, "Machines successfully updated")
+
+	return
+}
+
+func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact, machines []*api.Machine, latest *api.ImageVersion) (err error) {
+	var (
+		io     = iostreams.FromContext(ctx)
+		dialer = agent.DialerFromContext(ctx)
+	)
+	machines = sortPostgresMachines(machines)
+
+	if len(machines) > 0 {
+		fmt.Fprintf(io.Out, "Updating machines\n")
+
+		for _, machine := range machines {
+			image := fmt.Sprintf("%s:%s", latest.Repository, latest.Tag)
+			fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", machine.ID, image, latest.Version)
+
+			// if the next machine in the slice(len(eligible>1) is the last one we should do a failover
+			if machine.ID == machines[len(machines)-1].ID && len(machines) > 1 {
+				pgclient := flypg.New(app.Name, dialer)
+
+				fmt.Fprintln(io.Out)
+				fmt.Fprintf(io.Out, "Performing failover\n")
+
+				if err := pgclient.Failover(ctx); err != nil {
+					return fmt.Errorf("failed to trigger failover %w", err)
+				}
+			}
+
+			if err := updateMachine(ctx, app, machine, image); err != nil {
+				return fmt.Errorf("can't update %s: %w", machine.ID, err)
+			}
+			if err := watch.MachinesChecks(ctx, []*api.Machine{machine}); err != nil {
+				return fmt.Errorf("failed to wait for health checks to pass: %w", err)
+			}
+		}
+	}
+	fmt.Fprintln(io.Out, "Machines successfully updated")
 
 	return
 }
@@ -364,22 +378,14 @@ func releaseLease(ctx context.Context, machine *api.Machine) error {
 	return nil
 }
 
-// updateOrder takes a list of *api.Machine(s) a deploy strategy and  returns a list of *api.Machine(s) in the order they should be updated
-func updateOrder(machines []*api.Machine, strategy string) []*api.Machine {
-	switch strategy {
-	case "leader-last":
-
-		for i, machine := range machines {
-			// append leader to the end of the list
-			if machineRole(machine) == "leader" {
-				machines = append(machines[:i], machines[i+1:]...)
-				machines = append(machines, machine)
-				break
-			}
+// sortPostgresMachines appends the leader at the end of the update list
+func sortPostgresMachines(machines []*api.Machine) []*api.Machine {
+	for i, machine := range machines {
+		if machineRole(machine) == "leader" {
+			machines = append(machines[:i], machines[i+1:]...)
+			machines = append(machines, machine)
+			break
 		}
-
-	default:
-		// do nothing
 	}
 	return machines
 }
