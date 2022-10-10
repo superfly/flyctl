@@ -308,26 +308,31 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact, machines
 		io     = iostreams.FromContext(ctx)
 		dialer = agent.DialerFromContext(ctx)
 	)
-	machines = sortPostgresMachines(machines)
+	fmt.Fprintln(io.Out, "Identifying cluster roles")
+
+	var (
+		leader   *api.Machine
+		replicas []*api.Machine
+	)
+
+	for _, machine := range machines {
+		var role = machineRole(machine)
+
+		switch role {
+		case "leader":
+			leader = machine
+		case "replica":
+			replicas = append(replicas, machine)
+		}
+		fmt.Fprintf(io.Out, "  Machine %s: %s\n", machine.ID, role)
+	}
 
 	if len(machines) > 0 {
-		fmt.Fprintf(io.Out, "Updating machines\n")
+		fmt.Fprintln(io.Out, "Updating machines")
 
 		for _, machine := range machines {
 			image := fmt.Sprintf("%s:%s", latest.Repository, latest.Tag)
 			fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", machine.ID, image, latest.Version)
-
-			// if the next machine in the slice(len(eligible>1) is the last one we should do a failover
-			if machine.ID == machines[len(machines)-1].ID && len(machines) > 1 {
-				pgclient := flypg.New(app.Name, dialer)
-
-				fmt.Fprintln(io.Out)
-				fmt.Fprintf(io.Out, "Performing failover\n")
-
-				if err := pgclient.Failover(ctx); err != nil {
-					return fmt.Errorf("failed to trigger failover %w", err)
-				}
-			}
 
 			if err := updateMachine(ctx, app, machine, image); err != nil {
 				return fmt.Errorf("can't update %s: %w", machine.ID, err)
@@ -337,7 +342,42 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact, machines
 			}
 		}
 	}
-	fmt.Fprintln(io.Out, "Machines successfully updated")
+
+	// Update leader
+	if leader != nil {
+
+		// Only attempt to failover if there are additional in-region replias.
+		inRegionReplicas := 0
+		for _, replica := range replicas {
+			if replica.Region == leader.Region {
+				inRegionReplicas++
+			}
+		}
+
+		if inRegionReplicas > 0 {
+			pgclient := flypg.New(app.Name, dialer)
+
+			fmt.Fprintln(io.Out, "Performing failover")
+			// TODO - This should really be best effort.
+			if err := pgclient.Failover(ctx); err != nil {
+				return fmt.Errorf("failed to trigger failover %w", err)
+			}
+		}
+
+		fmt.Fprintln(io.Out, "Updating replica")
+		image := fmt.Sprintf("%s:%s", latest.Repository, latest.Tag)
+
+		fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", leader.ID, image, latest.Version)
+		if err := updateMachine(ctx, app, leader, image); err != nil {
+			return err
+		}
+
+		// wait for health checks to pass
+		if err := watch.MachinesChecks(ctx, []*api.Machine{leader}); err != nil {
+			return fmt.Errorf("failed to wait for health checks to pass: %w", err)
+		}
+	}
+	fmt.Fprintln(io.Out, "Postgres cluster has been successfully updated!")
 
 	return
 }
@@ -376,18 +416,6 @@ func releaseLease(ctx context.Context, machine *api.Machine) error {
 	}
 
 	return nil
-}
-
-// sortPostgresMachines appends the leader at the end of the update list
-func sortPostgresMachines(machines []*api.Machine) []*api.Machine {
-	for i, machine := range machines {
-		if machineRole(machine) == "leader" {
-			machines = append(machines[:i], machines[i+1:]...)
-			machines = append(machines, machine)
-			break
-		}
-	}
-	return machines
 }
 
 func machineRole(machine *api.Machine) (role string) {
