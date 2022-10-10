@@ -44,7 +44,7 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 
 	for _, machine := range machines {
 		// Skip machines that are not running our internal images.
-		if machine.ImageVersionTrackingEnabled() {
+		if !machine.ImageVersionTrackingEnabled() {
 			continue
 		}
 
