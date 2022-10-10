@@ -142,13 +142,13 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) chan<- interface{} {
 	heartbeatReq.SetBasicAuth(r.dockerFactory.appName, flyctl.GetAPIToken())
 	heartbeatReq.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Version().String()))
 
-	terminal.Debugf("Sending remote builder heartbeat pulse to %s...", heartbeatUrl)
+	terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)
 	resp, err := dockerClient.HTTPClient().Do(heartbeatReq)
 	if err != nil {
-		terminal.Debugf("Remote builder heartbeat pulse failed, not going to run heartbeat: %v", err)
+		terminal.Debugf("Remote builder heartbeat pulse failed, not going to run heartbeat: %v\n", err)
 		return nil
 	} else if resp.StatusCode != http.StatusAccepted {
-		terminal.Debugf("Unexpected remote builder heartbeat response, not going to run heartbeat: %s", resp.Status)
+		terminal.Debugf("Unexpected remote builder heartbeat response, not going to run heartbeat: %s\n", resp.Status)
 		return nil
 	}
 
@@ -168,12 +168,12 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) chan<- interface{} {
 			case <-ctx.Done():
 				return
 			case <-pulse.C:
-				terminal.Debugf("Sending remote builder heartbeat pulse to %s...", heartbeatUrl)
+				terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)
 				resp, err := dockerClient.HTTPClient().Do(heartbeatReq)
 				if err != nil {
-					terminal.Debugf("Remote builder heartbeat pulse failed: %v", err)
+					terminal.Debugf("Remote builder heartbeat pulse failed: %v\n", err)
 				} else {
-					terminal.Debugf("Remote builder heartbeat response: %s", resp.Status)
+					terminal.Debugf("Remote builder heartbeat response: %s\n", resp.Status)
 				}
 			}
 		}
@@ -196,7 +196,9 @@ func getHeartbeatUrl(dockerClient *dockerclient.Client) (string, error) {
 }
 
 func (r *Resolver) StopHeartbeat(heartbeat chan<- interface{}) {
-	heartbeat <- struct{}{}
+	if heartbeat != nil {
+		heartbeat <- struct{}{}
+	}
 }
 
 func NewResolver(daemonType DockerDaemonType, apiClient *api.Client, appName string, iostreams *iostreams.IOStreams) *Resolver {
