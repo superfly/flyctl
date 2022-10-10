@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
 )
@@ -33,7 +34,6 @@ func New() *cobra.Command {
 		newList(),
 		newRestart(),
 		newUsers(),
-		newUpdate(),
 		newFailover(),
 	)
 
@@ -173,4 +173,14 @@ func nomadNodeRoles(ctx context.Context, allocs []*api.AllocationStatus) (leader
 		}
 	}
 	return leader, replicas, nil
+}
+
+func releaseLease(ctx context.Context, machine *api.Machine) error {
+	var client = flaps.FromContext(ctx)
+
+	if err := client.ReleaseLease(ctx, machine.ID, machine.LeaseNonce); err != nil {
+		return fmt.Errorf("failed to release lease: %w", err)
+	}
+
+	return nil
 }
