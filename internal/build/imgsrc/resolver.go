@@ -123,7 +123,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) chan<- interface{} {
 		return nil
 	}
 
-	errMsg := "Failed to start remote builder heartbeat. For builds longer than 10 minutes, this may cause issues. Please report issues to https://community.fly.io. %v"
+	errMsg := "Failed to start remote builder heartbeat: %v"
 	dockerClient, err := r.dockerFactory.buildFn(ctx)
 	if err != nil {
 		terminal.Warnf(errMsg, err)
@@ -141,6 +141,16 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) chan<- interface{} {
 	}
 	heartbeatReq.SetBasicAuth(r.dockerFactory.appName, flyctl.GetAPIToken())
 	heartbeatReq.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Version().String()))
+
+	terminal.Debugf("Sending remote builder heartbeat pulse to %s...", heartbeatUrl)
+	resp, err := dockerClient.HTTPClient().Do(heartbeatReq)
+	if err != nil {
+		terminal.Debugf("Remote builder heartbeat pulse failed, not going to run heartbeat: %v", err)
+		return nil
+	} else if resp.StatusCode != http.StatusAccepted {
+		terminal.Debugf("Unexpected remote builder heartbeat response, not going to run heartbeat: %s", resp.Status)
+		return nil
+	}
 
 	pulseInterval := 30 * time.Second
 	maxTime := 1 * time.Hour
