@@ -193,7 +193,7 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) (err error
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
 
-	candidates, err := flapsClient.List(ctx, "started")
+	candidates, err := flapsClient.ListActive(ctx)
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
@@ -220,9 +220,11 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) (err error
 			latest = latestImage
 		}
 
-		// Abort if we detect a postgres machine running a different major version.
-		if latest.Tag != latestImage.Tag {
-			return fmt.Errorf("major version mismatch detected")
+		if app.IsPostgresApp() {
+			// Abort if we detect a postgres machine running a different major version.
+			if latest.Tag != latestImage.Tag {
+				return fmt.Errorf("major version mismatch detected")
+			}
 		}
 
 		// Exclude machines that are already running the latest version
@@ -270,7 +272,7 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) (err error
 		machine.LeaseNonce = lease.Data.Nonce
 
 		// Ensure lease is released on return
-		defer releaseLease(ctx, machine)
+		defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
 
 		fmt.Fprintf(io.Out, "  Machine %s: %s\n", machine.ID, lease.Status)
 	}
@@ -279,7 +281,6 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) (err error
 		return updatePostgresOnMachines(ctx, app, eligible, latest)
 	}
 
-	// Update replicas
 	if len(eligible) > 0 {
 		fmt.Fprintf(io.Out, "Updating machines\n")
 
@@ -403,16 +404,6 @@ func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machin
 
 	if err := machines.WaitForStartOrStop(ctx, updated, "start", time.Minute*5); err != nil {
 		return err
-	}
-
-	return nil
-}
-
-func releaseLease(ctx context.Context, machine *api.Machine) error {
-	var client = flaps.FromContext(ctx)
-
-	if err := client.ReleaseLease(ctx, machine.ID, machine.LeaseNonce); err != nil {
-		return fmt.Errorf("failed to release lease: %w", err)
 	}
 
 	return nil
