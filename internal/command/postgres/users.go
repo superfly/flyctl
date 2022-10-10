@@ -97,7 +97,7 @@ func runListUsers(ctx context.Context) (err error) {
 			return fmt.Errorf("list of machines could not be retrieved: %w", err)
 		}
 
-		members, err := flapsClient.List(ctx, "started")
+		members, err := flapsClient.ListActive(ctx)
 		if err != nil {
 			return fmt.Errorf("machines could not be retrieved %w", err)
 		}

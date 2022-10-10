@@ -49,6 +49,10 @@ func (m Machine) ImageRepository() string {
 	return m.ImageRef.Repository
 }
 
+func (m *Machine) ImageVersionTrackingEnabled() bool {
+	return m.Config.Metadata["image_version_tracking_enabled"] == "true"
+}
+
 type machineImageRef struct {
 	Registry   string            `json:"registry"`
 	Repository string            `json:"repository"`
@@ -194,18 +198,19 @@ type MachineServiceConcurrency struct {
 }
 
 type MachineConfig struct {
-	Env      map[string]string       `json:"env"`
-	Init     MachineInit             `json:"init,omitempty"`
-	Image    string                  `json:"image"`
-	Metadata map[string]string       `json:"metadata"`
-	Mounts   []MachineMount          `json:"mounts,omitempty"`
-	Restart  MachineRestart          `json:"restart,omitempty"`
-	Services []MachineService        `json:"services,omitempty"`
-	VMSize   string                  `json:"size,omitempty"`
-	Guest    *MachineGuest           `json:"guest,omitempty"`
-	Metrics  *MachineMetrics         `json:"metrics"`
-	Schedule string                  `json:"schedule,omitempty"`
-	Checks   map[string]MachineCheck `json:"checks,omitempty"`
+	Env       map[string]string       `json:"env"`
+	Init      MachineInit             `json:"init,omitempty"`
+	Processes []MachineProcess        `json:"processes,omitempty"`
+	Image     string                  `json:"image"`
+	Metadata  map[string]string       `json:"metadata"`
+	Mounts    []MachineMount          `json:"mounts,omitempty"`
+	Restart   MachineRestart          `json:"restart,omitempty"`
+	Services  []MachineService        `json:"services,omitempty"`
+	VMSize    string                  `json:"size,omitempty"`
+	Guest     *MachineGuest           `json:"guest,omitempty"`
+	Metrics   *MachineMetrics         `json:"metrics"`
+	Schedule  string                  `json:"schedule,omitempty"`
+	Checks    map[string]MachineCheck `json:"checks,omitempty"`
 }
 
 type MachineLease struct {
@@ -230,4 +235,12 @@ type LaunchMachineInput struct {
 	OrgSlug string         `json:"organizationId,omitempty"`
 	Region  string         `json:"region,omitempty"`
 	Config  *MachineConfig `json:"config"`
+}
+
+type MachineProcess struct {
+	ExecOverride       []string          `json:"exec,omitempty"`
+	EntrypointOverride []string          `json:"entrypoint,omitempty"`
+	CmdOverride        []string          `json:"cmd,omitempty"`
+	UserOverride       string            `json:"user,omitempty"`
+	ExtraEnv           map[string]string `json:"env"`
 }

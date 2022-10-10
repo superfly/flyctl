@@ -83,7 +83,7 @@ func runRestart(ctx context.Context) error {
 		}
 		ctx = flaps.NewContext(ctx, flapsClient)
 
-		machines, err := flapsClient.List(ctx, "started")
+		machines, err := flapsClient.ListActive(ctx)
 		if err != nil {
 			return fmt.Errorf("machines could not be retrieved %w", err)
 		}
@@ -170,7 +170,7 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 		machine.LeaseNonce = lease.Data.Nonce
 
 		// Ensure lease is released on return
-		defer releaseLease(ctx, flapsClient, machine)
+		defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
 
 		fmt.Fprintf(io.Out, "  Machine %s: %s\n", machine.ID, lease.Status)
 	}
@@ -199,11 +199,17 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 		}
 	}
 
-	// Don't perform failover if the cluster is only running a
-	// single node.
-	if len(machines) > 1 {
-		pgclient := flypg.New(appName, dialer)
+	// Don't attempt to failover unless we have in-region replicas
+	inRegionReplicas := 0
+	for _, replica := range replicas {
+		if replica.Region == leader.Region {
+			inRegionReplicas++
+		}
+	}
 
+	if inRegionReplicas > 0 {
+		pgclient := flypg.New(appName, dialer)
+		// TODO - This should really be best effort.
 		fmt.Fprintln(io.Out, "Performing a failover")
 		if err := pgclient.Failover(ctx); err != nil {
 			return fmt.Errorf("failed to trigger failover %w", err)
@@ -215,7 +221,6 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 	if err = machine.Restart(ctx, leader.ID, "", 120, false); err != nil {
 		return fmt.Errorf("failed to restart vm %s: %w", leader.ID, err)
 	}
-	//wait for health checks to pass
 	// wait for health checks to pass
 	if err := watch.MachinesChecks(ctx, []*api.Machine{leader}); err != nil {
 		return fmt.Errorf("failed to wait for health checks to pass: %w", err)

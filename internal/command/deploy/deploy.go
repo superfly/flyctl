@@ -18,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/state"
 
@@ -68,6 +69,10 @@ func New() (cmd *cobra.Command) {
 		flag.BuildSecret(),
 		flag.BuildTarget(),
 		flag.NoCache(),
+		flag.Bool{
+			Name:        "auto-confirm",
+			Description: "Will automatically confirm changes without an interactive prompt.",
+		},
 	)
 
 	return
@@ -85,15 +90,15 @@ func run(ctx context.Context) error {
 func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 	apiClient := client.FromContext(ctx).API()
 
-	// Assign an empty map if nil so later assignments won't fail
-	if appConfig.Env == nil {
-		appConfig.Env = map[string]string{}
-	}
-
 	// Fetch an image ref or build from source to get the final image reference to deploy
 	img, err := determineImage(ctx, appConfig)
 	if err != nil {
 		return fmt.Errorf("failed to fetch an image or build from source: %w", err)
+	}
+
+	// Assign an empty map if nil so later assignments won't fail
+	if appConfig.Env == nil {
+		appConfig.Env = map[string]string{}
 	}
 
 	if flag.GetBuildOnly(ctx) {
@@ -108,6 +113,19 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 	}
 
 	if appConfig.ForMachines() {
+		if !flag.GetBool(ctx, "auto-confirm") {
+			switch confirmed, err := prompt.Confirmf(ctx, "This feature is highly experimental and may produce unexpected results. Proceed?"); {
+			case err == nil:
+				if !confirmed {
+					return nil
+				}
+			case prompt.IsNonInteractive(err):
+				return prompt.NonInteractiveError("auto-confirm flag must be specified when not running interactively")
+			default:
+				return err
+			}
+		}
+
 		return createMachinesRelease(ctx, appConfig, img, flag.GetString(ctx, "strategy"))
 	}
 

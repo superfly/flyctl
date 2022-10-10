@@ -345,7 +345,7 @@ func MachinesChecks(ctx context.Context, machines []*api.Machine) (err error) {
 			}
 
 			for _, machine := range checked {
-				if machine.Checks == nil {
+				if machine.Config.Checks == nil {
 					continue
 				}
 
@@ -362,7 +362,7 @@ func MachinesChecks(ctx context.Context, machines []*api.Machine) (err error) {
 						}
 					}
 				}
-				checks := fmt.Sprintf("%d total, %d passing, %d warning, %d failing", len(machine.Checks), pass, warn, crit)
+				checks := fmt.Sprintf("%d total, %d passing, %d warning, %d critical", len(machine.Checks), pass, warn, crit)
 
 				fmt.Fprintf(io.ErrOut, "%s %s %s %s\n", machine.ID, role, machine.State, colorize.Yellow(checks))
 

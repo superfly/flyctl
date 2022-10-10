@@ -76,7 +76,7 @@ func runFailover(ctx context.Context) (err error) {
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
 
-	machines, err := flapsClient.List(ctx, "started")
+	machines, err := flapsClient.ListActive(ctx)
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
@@ -99,7 +99,7 @@ func runFailover(ctx context.Context) (err error) {
 		machine.LeaseNonce = lease.Data.Nonce
 
 		// Ensure lease is released on return
-		defer releaseLease(ctx, flapsClient, machine)
+		defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
 	}
 
 	pgclient := flypg.New(appName, dialer)
