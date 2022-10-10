@@ -4,7 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"net/http"
+	"net/url"
+	"time"
 
+	dockerclient "github.com/docker/docker/client"
+	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/api"
@@ -107,6 +114,91 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 	}
 
 	return nil, errors.New("app does not have a Dockerfile or buildpacks configured. See https://fly.io/docs/reference/configuration/#the-build-section")
+}
+
+// For remote builders send a periodic heartbeat during build to ensure machine stays alive
+// This is a noop for local builders
+func (r *Resolver) StartHeartbeat(ctx context.Context) chan<- interface{} {
+	if !r.dockerFactory.remote {
+		return nil
+	}
+
+	errMsg := "Failed to start remote builder heartbeat: %v"
+	dockerClient, err := r.dockerFactory.buildFn(ctx)
+	if err != nil {
+		terminal.Warnf(errMsg, err)
+		return nil
+	}
+	heartbeatUrl, err := getHeartbeatUrl(dockerClient)
+	if err != nil {
+		terminal.Warnf(errMsg, err)
+		return nil
+	}
+	heartbeatReq, err := http.NewRequestWithContext(ctx, http.MethodGet, heartbeatUrl, http.NoBody)
+	if err != nil {
+		terminal.Warnf(errMsg, err)
+		return nil
+	}
+	heartbeatReq.SetBasicAuth(r.dockerFactory.appName, flyctl.GetAPIToken())
+	heartbeatReq.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Version().String()))
+
+	terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)
+	resp, err := dockerClient.HTTPClient().Do(heartbeatReq)
+	if err != nil {
+		terminal.Debugf("Remote builder heartbeat pulse failed, not going to run heartbeat: %v\n", err)
+		return nil
+	} else if resp.StatusCode != http.StatusAccepted {
+		terminal.Debugf("Unexpected remote builder heartbeat response, not going to run heartbeat: %s\n", resp.Status)
+		return nil
+	}
+
+	pulseInterval := 30 * time.Second
+	maxTime := 1 * time.Hour
+
+	done := make(chan interface{})
+	time.AfterFunc(maxTime, func() { close(done) })
+
+	go func() {
+		pulse := time.NewTicker(pulseInterval)
+		defer close(done)
+		for {
+			select {
+			case <-done:
+				return
+			case <-ctx.Done():
+				return
+			case <-pulse.C:
+				terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)
+				resp, err := dockerClient.HTTPClient().Do(heartbeatReq)
+				if err != nil {
+					terminal.Debugf("Remote builder heartbeat pulse failed: %v\n", err)
+				} else {
+					terminal.Debugf("Remote builder heartbeat response: %s\n", resp.Status)
+				}
+			}
+		}
+	}()
+	return done
+}
+
+func getHeartbeatUrl(dockerClient *dockerclient.Client) (string, error) {
+	daemonHost := dockerClient.DaemonHost()
+	parsed, err := url.Parse(daemonHost)
+	if err != nil {
+		return "", err
+	}
+	hostPort := parsed.Host
+	host, _, _ := net.SplitHostPort(hostPort)
+	parsed.Host = host + ":8080"
+	parsed.Scheme = "http"
+	parsed.Path = "/flyio/v1/extendDeadline"
+	return parsed.String(), nil
+}
+
+func (r *Resolver) StopHeartbeat(heartbeat chan<- interface{}) {
+	if heartbeat != nil {
+		heartbeat <- struct{}{}
+	}
 }
 
 func NewResolver(daemonType DockerDaemonType, apiClient *api.Client, appName string, iostreams *iostreams.IOStreams) *Resolver {
