@@ -230,7 +230,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	if ok {
 		oldHost := host
 		host = builderHostOverride
-		terminal.Infof("Override builder host with: %s (was %s)", host, oldHost)
+		terminal.Infof("Override builder host with: %s (was %s)\n", host, oldHost)
 	}
 
 	opts, err := buildRemoteClientOpts(ctx, apiClient, appName, host)
