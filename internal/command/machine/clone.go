@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -146,14 +147,18 @@ func runMachineClone(ctx context.Context) (err error) {
 		return err
 	}
 
-	fmt.Fprintf(out, fmt.Sprintf("  Machine %s has been created...\n", launchedMachine.ID))
+	fmt.Fprintf(out, "  Machine %s has been created...\n", launchedMachine.ID)
 
-	fmt.Fprintf(out, fmt.Sprintf("  Waiting for machine %s to start...\n", launchedMachine.ID))
+	fmt.Fprintf(out, "  Waiting for machine %s to start...\n", launchedMachine.ID)
 
 	// wait for a machine to be started
 	err = WaitForStartOrStop(ctx, launchedMachine, "start", time.Minute*5)
 	if err != nil {
 		return err
+	}
+
+	if err = watch.MachinesChecks(ctx, []*api.Machine{launchedMachine}); err != nil {
+		return fmt.Errorf("error while watching health checks: %w", err)
 	}
 
 	fmt.Fprintf(out, "Machine has been successfully cloned!\n")
