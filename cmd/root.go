@@ -15,6 +15,9 @@ import (
 	"github.com/superfly/flyctl/internal/flyerr"
 )
 
+// BUG(tqbf): this code is called by root.New() in internal/command/root/root.go; we're apparently
+// halfway through a migration out of flyctl/cmd/ and into internal/command/, which I support, but
+// this is obviously pretty confusing. I lost 8 minutes to figuring this out so you don't have to.
 func NewRootCmd(client *client.Client) *cobra.Command {
 	rootStrings := docstrings.Get("flyctl")
 	rootCmd := &Command{
