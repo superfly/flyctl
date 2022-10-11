@@ -205,13 +205,13 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) (err error
 	var eligible []*api.Machine
 
 	for _, machine := range candidates {
-		// Skip machines that are not running our internal images.
-		if !machine.ImageVersionTrackingEnabled() {
+		image := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
+
+		latestImage, err := client.GetLatestImageDetails(ctx, image)
+
+		if err != nil && strings.Contains(err.Error(), "Unknown repository") {
 			continue
 		}
-
-		image := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
-		latestImage, err := client.GetLatestImageDetails(ctx, image)
 		if err != nil {
 			return fmt.Errorf("unable to fetch latest image details for %s: %w", image, err)
 		}
