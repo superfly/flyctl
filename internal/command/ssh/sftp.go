@@ -155,8 +155,7 @@ func runLs(ctx context.Context) error {
 func runGet(ctx context.Context) error {
 	args := flag.Args(ctx)
 
-	var remote string
-	var local string
+	var remote, local string
 
 	switch len(args) {
 	case 0:
