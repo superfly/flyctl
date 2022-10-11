@@ -190,7 +190,7 @@ func New() *cobra.Command {
 	// and finally, add the new commands
 	root.AddCommand(newCommands...)
 
-	root.AddCommand(help.New(root))
+	root.SetHelpCommand(help.New(root))
 
 	root.RunE = help.NewRootHelp().RunE
 
