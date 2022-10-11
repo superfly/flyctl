@@ -48,6 +48,11 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 	err = rootCmd.PersistentFlags().MarkHidden("builtinsfile")
 	checkErr(err)
 
+	rootCmd.SetHelpCommand(&cobra.Command{
+		Use:    "no-help",
+		Hidden: true,
+	})
+
 	rootCmd.AddCommand(
 		newCertificatesCommand(client),
 		newConfigCommand(client),
