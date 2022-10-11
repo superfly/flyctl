@@ -7,12 +7,16 @@ ARG PHP_VERSION=8.1
 ARG NODE_VERSION=14
 FROM serversideup/php:${PHP_VERSION}-fpm-nginx as base
 
+# PHP_VERSION needs to be repeated here
+# See https://docs.docker.com/engine/reference/builder/#understand-how-arg-and-from-interact
+ARG PHP_VERSION
+
 LABEL fly_launch_runtime="laravel"
 
 RUN apt-get update && apt-get install -y \
     git curl zip unzip rsync ca-certificates vim htop cron \
-    php${DOCKER_VERSION}-pgsql php${PHP_VERSION}-bcmath \
-    php${DOCKER_VERSION}-swoole php${PHP_VERSION}-xml php${PHP_VERSION}-mbstring \
+    php${PHP_VERSION}-pgsql php${PHP_VERSION}-bcmath \
+    php${PHP_VERSION}-swoole php${PHP_VERSION}-xml php${PHP_VERSION}-mbstring \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
