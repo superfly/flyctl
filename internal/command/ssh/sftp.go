@@ -153,11 +153,9 @@ func runLs(ctx context.Context) error {
 }
 
 func runGet(ctx context.Context) error {
-	var (
-		remote = "/"
-		local  = remote
-		args   = flag.Args(ctx)
-	)
+	args := flag.Args(ctx)
+
+	var remote, local string
 
 	switch len(args) {
 	case 0:
