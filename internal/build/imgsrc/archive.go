@@ -27,7 +27,11 @@ func archiveDirectory(options archiveOptions) (io.ReadCloser, error) {
 		opts.Compression = archive.Gzip
 	}
 
-	r, err := archive.TarWithOptions(options.sourcePath, opts)
+	sourcePath, err := fileutils.ReadSymlinkedDirectory(options.sourcePath)
+	if err != nil {
+		return nil, err
+	}
+	r, err := archive.TarWithOptions(sourcePath, opts)
 	if err != nil {
 		return nil, err
 	}
