@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
@@ -55,8 +54,11 @@ func NewLauncher(client *api.Client) *Launcher {
 
 // Launches a postgres cluster using the machines runtime
 func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClusterInput) error {
-	client := client.FromContext(ctx).API()
-
+	var (
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
+		client   = client.FromContext(ctx).API()
+	)
 	app, err := l.createApp(ctx, config)
 	if err != nil {
 		return err
@@ -66,8 +68,6 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	if err != nil {
 		return err
 	}
-
-	io := iostreams.FromContext(ctx)
 
 	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
@@ -152,22 +152,26 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	}
 
 	if !flag.GetBool(ctx, "detach") {
+		fmt.Fprintln(io.Out, colorize.Green("==> "+"Monitoring health checks"))
+
 		if err := watch.MachinesChecks(ctx, nodes); err != nil {
 			return err
 		}
+		fmt.Fprintln(io.Out)
 	}
 
 	connStr := fmt.Sprintf("postgres://postgres:%s@%s.internal:5432\n", secrets["OPERATOR_PASSWORD"], config.AppName)
 
+	fmt.Fprintf(io.Out, "Postgres cluster %s created\n", config.AppName)
 	fmt.Fprintf(io.Out, "  Username:    postgres\n")
 	fmt.Fprintf(io.Out, "  Password:    %s\n", secrets["OPERATOR_PASSWORD"])
 	fmt.Fprintf(io.Out, "  Hostname:    %s.internal\n", config.AppName)
 	fmt.Fprintf(io.Out, "  Proxy port:  5432\n")
 	fmt.Fprintf(io.Out, "  Postgres port:  5433\n")
-	fmt.Fprintln(io.Out, aurora.Italic("Save your credentials in a secure place -- you won't be able to see them again!"))
+	fmt.Fprintln(io.Out, colorize.Italic("Save your credentials in a secure place -- you won't be able to see them again!"))
 
 	fmt.Fprintln(io.Out)
-	fmt.Fprintln(io.Out, aurora.Bold("Connect to postgres"))
+	fmt.Fprintln(io.Out, colorize.Bold("Connect to postgres"))
 	fmt.Fprintf(io.Out, "Any app within the %s organization can connect to this Postgres using the following credentials:\n", config.Organization.Name)
 	fmt.Fprintf(io.Out, "For example: %s\n", connStr)
 
@@ -182,8 +186,9 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 // Launches a postgres cluster using the nomad runtime
 func (l *Launcher) LaunchNomadPostgres(ctx context.Context, config *CreateClusterInput) (err error) {
 	var (
-		client = client.FromContext(ctx).API()
-		io     = iostreams.FromContext(ctx)
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
+		client   = client.FromContext(ctx).API()
 	)
 
 	if config.ImageRef == "" {
@@ -218,7 +223,7 @@ func (l *Launcher) LaunchNomadPostgres(ctx context.Context, config *CreateCluste
 	fmt.Fprintf(io.Out, "  Hostname:    %s.internal\n", payload.App.Name)
 	fmt.Fprintf(io.Out, "  Proxy Port:  5432\n")
 	fmt.Fprintf(io.Out, "  Postgres Port: 5433\n")
-	fmt.Fprintln(io.Out, aurora.Italic("Save your credentials in a secure place -- you won't be able to see them again!"))
+	fmt.Fprintln(io.Out, colorize.Italic("Save your credentials in a secure place -- you won't be able to see them again!"))
 
 	if !flag.GetDetach(ctx) {
 		if err := watch.Deployment(ctx, payload.App.Name, ""); err != nil {
@@ -227,7 +232,7 @@ func (l *Launcher) LaunchNomadPostgres(ctx context.Context, config *CreateCluste
 	}
 
 	fmt.Fprintln(io.Out)
-	fmt.Fprintln(io.Out, aurora.Bold("Connect to postgres"))
+	fmt.Fprintln(io.Out, colorize.Bold("Connect to postgres"))
 	fmt.Fprintf(io.Out, "Any app within the %s organization can connect to postgres using the above credentials and the hostname \"%s.internal.\"\n", config.Organization.Name, payload.App.Name)
 	fmt.Fprintf(io.Out, "For example: postgres://%s:%s@%s.internal:%d\n", payload.Username, payload.Password, payload.App.Name, 5432)
 

@@ -101,10 +101,11 @@ func runRestart(ctx context.Context) error {
 
 func nomadRestart(ctx context.Context, allocs []*api.AllocationStatus) (err error) {
 	var (
-		dialer  = agent.DialerFromContext(ctx)
-		client  = client.FromContext(ctx).API()
-		appName = app.NameFromContext(ctx)
-		io      = iostreams.FromContext(ctx)
+		dialer   = agent.DialerFromContext(ctx)
+		client   = client.FromContext(ctx).API()
+		appName  = app.NameFromContext(ctx)
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
 	)
 
 	leader, replicas, err := nomadNodeRoles(ctx, allocs)
@@ -136,7 +137,9 @@ func nomadRestart(ctx context.Context, allocs []*api.AllocationStatus) (err erro
 
 		fmt.Fprintf(io.Out, "Performing a failover\n")
 		if err := pgclient.Failover(ctx); err != nil {
-			return fmt.Errorf("failed to trigger failover %w", err)
+			if err := pgclient.Failover(ctx); err != nil {
+				fmt.Fprintln(io.Out, colorize.Yellow(fmt.Sprintf("WARN: failed to perform failover: %s", err.Error())))
+			}
 		}
 	}
 
@@ -155,6 +158,7 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 	var (
 		appName     = app.NameFromContext(ctx)
 		io          = iostreams.FromContext(ctx)
+		colorize    = io.ColorScheme()
 		flapsClient = flaps.FromContext(ctx)
 		dialer      = agent.DialerFromContext(ctx)
 	)
@@ -172,13 +176,11 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 		// Ensure lease is released on return
 		defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
 
-		fmt.Fprintf(io.Out, "  Machine %s: %s\n", machine.ID, lease.Status)
+		fmt.Fprintf(io.Out, "  Machine %s: %s\n", colorize.Bold(machine.ID), lease.Status)
 	}
 
-	leader, replicas, err := machinesNodeRoles(ctx, machines)
-	if err != nil {
-		return fmt.Errorf("can't fetch leader: %w", err)
-	}
+	leader, replicas := machinesNodeRoles(ctx, machines)
+
 	if leader == nil {
 		return fmt.Errorf("no leader found")
 	}
@@ -187,7 +189,7 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 		fmt.Fprintln(io.Out, "Attempting to restart replica(s)")
 
 		for _, replica := range replicas {
-			fmt.Fprintf(io.Out, " Restarting %s\n", replica.ID)
+			fmt.Fprintf(io.Out, " Restarting %s\n", colorize.Bold(replica.ID))
 
 			if err = machine.Restart(ctx, replica.ID, "", 120, false); err != nil {
 				return fmt.Errorf("failed to restart vm %s: %w", replica.ID, err)
@@ -209,14 +211,14 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 
 	if inRegionReplicas > 0 {
 		pgclient := flypg.New(appName, dialer)
-		// TODO - This should really be best effort.
+
 		fmt.Fprintln(io.Out, "Performing a failover")
 		if err := pgclient.Failover(ctx); err != nil {
-			return fmt.Errorf("failed to trigger failover %w", err)
+			fmt.Fprintln(io.Out, colorize.Red(fmt.Sprintf("failed to perform failover: %s", err.Error())))
 		}
 	}
 
-	fmt.Fprintln(io.Out, "Attempting to restart leader")
+	fmt.Fprintf(io.Out, "Attempting to restart leader %s\n", colorize.Bold(leader.ID))
 
 	if err = machine.Restart(ctx, leader.ID, "", 120, false); err != nil {
 		return fmt.Errorf("failed to restart vm %s: %w", leader.ID, err)
