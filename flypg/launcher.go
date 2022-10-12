@@ -162,6 +162,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 
 	connStr := fmt.Sprintf("postgres://postgres:%s@%s.internal:5432\n", secrets["OPERATOR_PASSWORD"], config.AppName)
 
+	fmt.Fprintf(io.Out, "Postgres cluster %s created\n", config.AppName)
 	fmt.Fprintf(io.Out, "  Username:    postgres\n")
 	fmt.Fprintf(io.Out, "  Password:    %s\n", secrets["OPERATOR_PASSWORD"])
 	fmt.Fprintf(io.Out, "  Hostname:    %s.internal\n", config.AppName)
