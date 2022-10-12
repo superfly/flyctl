@@ -14,5 +14,5 @@ if [ $? -gt 0 ]; then
   git commit -a -m "[flyctl-bot] Update docs from flyctl"
   git push -f --set-upstream origin HEAD:$BRANCH
   gh pr create -t "[flybot] Fly CLI docs update" -b "Fly CLI docs update" -B main -H $BRANCH -r jsierles
-  gh pr merge --delete-branch
+  gh pr merge --delete-branch --merge
 fi
