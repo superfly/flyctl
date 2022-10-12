@@ -67,6 +67,11 @@ func newCreate() *cobra.Command {
 			Default: "flyio/postgres",
 		},
 		flag.Bool{
+			Name:        "machines",
+			Description: "Create postgres cluster on fly machines",
+			Default:     true,
+		},
+		flag.Bool{
 			Name:        "nomad",
 			Description: "Create postgres cluster on Nomad",
 			Default:     false,
