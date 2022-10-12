@@ -6,6 +6,8 @@ import (
 	"os"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/docker/docker/pkg/ioutils"
+	"github.com/mattn/go-colorable"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
@@ -179,8 +181,8 @@ func runConsole(ctx context.Context) error {
 		App:    appName,
 		Cmd:    flag.GetString(ctx, "command"),
 		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
+		Stdout: ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
+		Stderr: ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
 	}
 
 	if quiet(ctx) {
