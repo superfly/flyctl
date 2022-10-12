@@ -69,6 +69,11 @@ func newCreate() *cobra.Command {
 		flag.Bool{
 			Name:        "machines",
 			Description: "Create postgres cluster on fly machines",
+			Default:     true,
+		},
+		flag.Bool{
+			Name:        "nomad",
+			Description: "Create postgres cluster on Nomad",
 			Default:     false,
 		},
 	)
@@ -203,10 +208,10 @@ func runCreate(ctx context.Context) (err error) {
 
 	launcher := flypg.NewLauncher(client)
 
-	if flag.GetBool(ctx, "machines") {
-		return launcher.LaunchMachinesPostgres(ctx, input)
+	if flag.GetBool(ctx, "nomad") {
+		return launcher.LaunchNomadPostgres(ctx, input)
 	}
-	return launcher.LaunchNomadPostgres(ctx, input)
+	return launcher.LaunchMachinesPostgres(ctx, input)
 }
 
 func resolveVMSize(ctx context.Context, platform string, targetSize string) (*api.VMSize, error) {
@@ -229,11 +234,11 @@ func resolveVMSize(ctx context.Context, platform string, targetSize string) (*ap
 }
 
 func resolveTargetPlatform(ctx context.Context) string {
-	if flag.GetBool(ctx, "machines") {
-		return "machines"
+	if flag.GetBool(ctx, "nomad") {
+		return "nomad"
 	}
 
-	return "nomad"
+	return "machines"
 }
 
 type PostgresConfiguration struct {
