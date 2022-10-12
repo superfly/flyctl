@@ -329,7 +329,7 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact, machines
 	}
 
 	if len(replicas) > 0 {
-		fmt.Fprintln(io.Out, "Updating machines")
+		fmt.Fprintln(io.Out, "Updating replicas")
 
 		for _, machine := range replicas {
 			image := fmt.Sprintf("%s:%s", latest.Repository, latest.Tag)
@@ -365,7 +365,7 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact, machines
 			}
 		}
 
-		fmt.Fprintln(io.Out, "Updating replica")
+		fmt.Fprintln(io.Out, "Updating previously assigned leader")
 		image := fmt.Sprintf("%s:%s", latest.Repository, latest.Tag)
 
 		fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", leader.ID, image, latest.Version)
