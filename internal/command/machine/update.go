@@ -54,6 +54,10 @@ func runUpdate(ctx context.Context) (err error) {
 		return err
 	}
 
+	if app.IsPostgresApp() {
+		return fmt.Errorf("fly machine update may break your Postgres app.\n For image updates use `fly image update` instead")
+	}
+
 	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
 		return fmt.Errorf("could not make API client: %w", err)
