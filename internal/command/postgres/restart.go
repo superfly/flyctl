@@ -189,7 +189,7 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 		fmt.Fprintln(io.Out, "Attempting to restart replica(s)")
 
 		for _, replica := range replicas {
-			fmt.Fprintf(io.Out, " Restarting %s\n", colorize.Bold(replica.ID))
+			fmt.Fprintf(io.Out, "  Restarting %s\n", colorize.Bold(replica.ID))
 
 			if err = machine.Restart(ctx, replica.ID, "", 120, false); err != nil {
 				return fmt.Errorf("failed to restart vm %s: %w", replica.ID, err)
