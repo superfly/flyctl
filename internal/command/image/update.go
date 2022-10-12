@@ -275,7 +275,7 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) (err error
 		// Ensure lease is released on return
 		defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
 
-		fmt.Fprintf(io.Out, "  Machine %s: %s\n", machine.ID, lease.Status)
+		fmt.Fprintf(io.Out, "  Machine %s: %s\n", colorize.Bold(machine.ID), lease.Status)
 	}
 
 	if app.IsPostgresApp() {
