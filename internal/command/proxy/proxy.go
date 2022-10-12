@@ -37,6 +37,11 @@ func New() *cobra.Command {
 			Default:     false,
 			Description: "Prompt to select from available instances from the current application",
 		},
+		flag.Bool{
+			Name:        "quiet",
+			Shorthand:   "q",
+			Description: "Don't print progress indicators for WireGuard",
+		},
 	)
 
 	return cmd
