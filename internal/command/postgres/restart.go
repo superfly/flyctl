@@ -185,11 +185,15 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 		return fmt.Errorf("no leader found")
 	}
 
-	if len(replicas) > 0 {
-		fmt.Fprintln(io.Out, "Attempting to restart replica(s)")
+	fmt.Fprintln(io.Out, "Identifying cluster roles")
 
+	for _, machine := range machines {
+		fmt.Fprintf(io.Out, "  Machine %s: %s\n", colorize.Bold(machine.ID), machineRole(machine))
+	}
+
+	if len(replicas) > 0 {
 		for _, replica := range replicas {
-			fmt.Fprintf(io.Out, "  Restarting %s\n", colorize.Bold(replica.ID))
+			fmt.Fprintf(io.Out, "Restarting machine %s\n", colorize.Bold(replica.ID))
 
 			if err = machine.Restart(ctx, replica.ID, "", 120, false); err != nil {
 				return fmt.Errorf("failed to restart vm %s: %w", replica.ID, err)
@@ -212,13 +216,13 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 	if inRegionReplicas > 0 {
 		pgclient := flypg.New(appName, dialer)
 
-		fmt.Fprintln(io.Out, "Performing a failover")
+		fmt.Fprintf(io.Out, "Attempting to failover %s\n", colorize.Bold(leader.ID))
 		if err := pgclient.Failover(ctx); err != nil {
 			fmt.Fprintln(io.Out, colorize.Red(fmt.Sprintf("failed to perform failover: %s", err.Error())))
 		}
 	}
 
-	fmt.Fprintf(io.Out, "Attempting to restart leader %s\n", colorize.Bold(leader.ID))
+	fmt.Fprintf(io.Out, "Restarting machine %s\n", colorize.Bold(leader.ID))
 
 	if err = machine.Restart(ctx, leader.ID, "", 120, false); err != nil {
 		return fmt.Errorf("failed to restart vm %s: %w", leader.ID, err)

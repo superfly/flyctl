@@ -331,11 +331,9 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact, machines
 	}
 
 	if len(replicas) > 0 {
-		fmt.Fprintln(io.Out, "Updating replica(s)")
-
 		for _, machine := range replicas {
 			image := fmt.Sprintf("%s:%s", latest.Repository, latest.Tag)
-			fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", colorize.Bold(machine.ID), colorize.Bold(image), colorize.Bold(latest.Version))
+			fmt.Fprintf(io.Out, "Updating machine %s with image %s %s\n", colorize.Bold(machine.ID), colorize.Bold(image), colorize.Bold(latest.Version))
 
 			if err := updateMachine(ctx, app, machine, image); err != nil {
 				return fmt.Errorf("can't update %s: %w", machine.ID, err)
@@ -359,16 +357,15 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact, machines
 
 		if inRegionReplicas > 0 {
 			pgclient := flypg.New(app.Name, dialer)
-			fmt.Fprintln(io.Out, "Performing a failover")
+			fmt.Fprintf(io.Out, "Failing over %s\n", colorize.Bold(leader.ID))
 			if err := pgclient.Failover(ctx); err != nil {
 				fmt.Fprintln(io.Out, colorize.Red(fmt.Sprintf("failed to perform failover: %s", err.Error())))
 			}
 		}
 
-		fmt.Fprintln(io.Out, "Updating previously assigned leader")
 		image := fmt.Sprintf("%s:%s", latest.Repository, latest.Tag)
 
-		fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", colorize.Bold(leader.ID), colorize.Bold(image), colorize.Bold(latest.Version))
+		fmt.Fprintf(io.Out, "Updating machine %s with image %s %s\n", colorize.Bold(leader.ID), colorize.Bold(image), colorize.Bold(latest.Version))
 		if err := updateMachine(ctx, app, leader, image); err != nil {
 			return err
 		}
