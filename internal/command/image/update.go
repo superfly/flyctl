@@ -419,6 +419,7 @@ func machineRole(machine *api.Machine) (role string) {
 			} else {
 				role = "error"
 			}
+			break
 		}
 	}
 	return role
