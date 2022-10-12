@@ -116,6 +116,7 @@ func Restart(ctx context.Context, machineID, sig string, timeOut int, forceStop 
 		return fmt.Errorf("could not stop machine %s: %w", input.ID, err)
 	}
 
+	ctx = flaps.NewContext(ctx, flapsClient)
 	if err = WaitForStartOrStop(ctx, &api.Machine{ID: input.ID}, "start", time.Minute*5); err != nil {
 		return
 	}
