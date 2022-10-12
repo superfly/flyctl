@@ -22,7 +22,7 @@ func newProxy() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runMachineProxy, command.RequireSession)
 
-	flag.Add(cmd, 
+	flag.Add(cmd,
 		flag.Org(),
 		flag.Bool{
 			Name:        "quiet",
