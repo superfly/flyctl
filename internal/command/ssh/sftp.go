@@ -43,7 +43,7 @@ func NewSFTP() *cobra.Command {
 
 func newSFTPShell() *cobra.Command {
 	const (
-		long  = `The SFTP SHELL command brings up an interactive SFTP session to fetch and push files to a VM:.`
+		long  = `The SFTP SHELL command brings up an interactive SFTP session to fetch and push files from/to a VM:.`
 		short = long
 		usage = "shell"
 	)
