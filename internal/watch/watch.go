@@ -312,9 +312,6 @@ func MachinesChecks(ctx context.Context, machines []*api.Machine) (err error) {
 			return ctx.Err()
 		case <-ticker.C:
 			var allChecks []*api.MachineCheckStatus
-
-			iterations++
-
 			var checked []*api.Machine
 
 			err = func() (err error) {
@@ -336,8 +333,12 @@ func MachinesChecks(ctx context.Context, machines []*api.Machine) (err error) {
 				continue
 			}
 
+			iterations++
+
 			if io.IsInteractive() && iterations > 1 {
-				fmt.Fprint(io.ErrOut, aec.Up(uint(len(checked))), aec.EraseLine(aec.EraseModes.All))
+				builder := aec.EmptyBuilder
+				str := builder.Up(uint(len(checked))).EraseLine(aec.EraseModes.All).ANSI
+				fmt.Fprint(io.ErrOut, str.String())
 			}
 
 			for _, machine := range checked {
@@ -350,12 +351,11 @@ func MachinesChecks(ctx context.Context, machines []*api.Machine) (err error) {
 				var pass, _, _ = countChecks(machine.Checks)
 
 				// Waiting for xxxxxxxx to become healthy (started, 3/3)
-				fmt.Fprintf(io.ErrOut, "Waiting for %s to become healthy (%s, %s)\n",
+				fmt.Fprintf(io.ErrOut, "  Waiting for %s to become healthy (%s, %s)\n",
 					colorize.Bold(machine.ID),
 					colorize.Green(machine.State),
 					colorize.Green(fmt.Sprintf("%d/%d", pass, len(machine.Checks))),
 				)
-
 			}
 
 			if len(allChecks) == 0 {
