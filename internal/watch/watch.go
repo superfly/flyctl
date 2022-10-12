@@ -300,10 +300,6 @@ func MachinesChecks(ctx context.Context, machines []*api.Machine) (err error) {
 	ctx, cancel := context.WithTimeout(ctx, 300*time.Second)
 	defer cancel()
 
-	fmt.Fprintln(io.Out)
-	fmt.Fprintln(io.Out, colorize.Green("==> "+"Monitoring health checks"))
-	fmt.Fprintln(io.Out)
-
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
@@ -351,20 +347,14 @@ func MachinesChecks(ctx context.Context, machines []*api.Machine) (err error) {
 
 				allChecks = append(allChecks, machine.Checks...)
 
-				var pass, warn, crit = countChecks(machine.Checks)
+				var pass, _, _ = countChecks(machine.Checks)
 
-				var role = "error"
-
-				for _, check := range machine.Checks {
-					if check.Name == "role" {
-						if check.Status == "passing" {
-							role = check.Output
-						}
-					}
-				}
-				checks := fmt.Sprintf("%d total, %d passing, %d warning, %d critical", len(machine.Checks), pass, warn, crit)
-
-				fmt.Fprintf(io.ErrOut, "%s %s %s %s\n", machine.ID, role, machine.State, colorize.Yellow(checks))
+				// Waiting for xxxxxxxx to become healthy (started, 3/3)
+				fmt.Fprintf(io.ErrOut, "Waiting for %s to become healthy (%s, %s)\n",
+					colorize.Bold(machine.ID),
+					colorize.Green(machine.State),
+					colorize.Green(fmt.Sprintf("%d/%d", pass, len(machine.Checks))),
+				)
 
 			}
 
@@ -378,7 +368,6 @@ func MachinesChecks(ctx context.Context, machines []*api.Machine) (err error) {
 
 			// if all checks are passing, we're done
 			if pass == len(allChecks) {
-				fmt.Fprintln(io.Out)
 				return
 			}
 		}

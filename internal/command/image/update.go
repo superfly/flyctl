@@ -172,8 +172,9 @@ func updateImageForNomad(ctx context.Context) error {
 
 func updateImageForMachines(ctx context.Context, app *api.AppCompact) (err error) {
 	var (
-		io     = iostreams.FromContext(ctx)
-		client = client.FromContext(ctx).API()
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
+		client   = client.FromContext(ctx).API()
 	)
 
 	agentclient, err := agent.Establish(ctx, client)
@@ -287,7 +288,7 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) (err error
 		for _, machine := range eligible {
 			image := fmt.Sprintf("%s:%s", latest.Repository, latest.Tag)
 
-			fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", machine.ID, image, latest.Version)
+			fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", colorize.Bold(machine.ID), colorize.Bold(image), colorize.Bold(latest.Version))
 
 			if err := updateMachine(ctx, app, machine, image); err != nil {
 				return fmt.Errorf("can't update %s: %w", machine.ID, err)
@@ -306,8 +307,9 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) (err error
 
 func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact, machines []*api.Machine, latest *api.ImageVersion) (err error) {
 	var (
-		io     = iostreams.FromContext(ctx)
-		dialer = agent.DialerFromContext(ctx)
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
+		dialer   = agent.DialerFromContext(ctx)
 	)
 	fmt.Fprintln(io.Out, "Identifying cluster roles")
 
@@ -325,7 +327,7 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact, machines
 		case "replica":
 			replicas = append(replicas, machine)
 		}
-		fmt.Fprintf(io.Out, "  Machine %s: %s\n", machine.ID, role)
+		fmt.Fprintf(io.Out, "  Machine %s: %s\n", colorize.Bold(machine.ID), role)
 	}
 
 	if len(machines) > 0 {
@@ -333,7 +335,7 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact, machines
 
 		for _, machine := range machines {
 			image := fmt.Sprintf("%s:%s", latest.Repository, latest.Tag)
-			fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", machine.ID, image, latest.Version)
+			fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", colorize.Bold(machine.ID), colorize.Bold(image), colorize.Bold(latest.Version))
 
 			if err := updateMachine(ctx, app, machine, image); err != nil {
 				return fmt.Errorf("can't update %s: %w", machine.ID, err)
@@ -357,18 +359,16 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact, machines
 
 		if inRegionReplicas > 0 {
 			pgclient := flypg.New(app.Name, dialer)
-
-			fmt.Fprintln(io.Out, "Performing failover")
-			// TODO - This should really be best effort.
+			fmt.Fprintln(io.Out, "Performing a failover")
 			if err := pgclient.Failover(ctx); err != nil {
-				return fmt.Errorf("failed to trigger failover %w", err)
+				fmt.Fprintln(io.Out, colorize.Red(fmt.Sprintf("failed to perform failover: %s", err.Error())))
 			}
 		}
 
 		fmt.Fprintln(io.Out, "Updating replica")
 		image := fmt.Sprintf("%s:%s", latest.Repository, latest.Tag)
 
-		fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", leader.ID, image, latest.Version)
+		fmt.Fprintf(io.Out, "  Updating machine %s with image %s %s\n", colorize.Bold(leader.ID), colorize.Bold(image), colorize.Bold(latest.Version))
 		if err := updateMachine(ctx, app, leader, image); err != nil {
 			return err
 		}
