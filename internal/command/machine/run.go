@@ -513,6 +513,7 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 			err = fmt.Errorf("invalid machine size requested, '%s', available:\n%s", guestSize, strings.Join(validSizes, "\n"))
 			return
 		}
+		guest.KernelArgs = machineConf.Guest.KernelArgs
 		machineConf.Guest = guest
 	} else {
 		if cpus := flag.GetInt(ctx, "cpus"); cpus != 0 {
@@ -522,6 +523,10 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		if memory := flag.GetInt(ctx, "memory"); memory != 0 {
 			machineConf.Guest.MemoryMB = memory
 		}
+	}
+
+	if len(flag.GetStringSlice(ctx, "kernel-arg")) != 0 {
+		machineConf.Guest.KernelArgs = flag.GetStringSlice(ctx, "kernel-arg")
 	}
 
 	machineConf.Env, err = parseKVFlag(ctx, "env", machineConf.Env)
