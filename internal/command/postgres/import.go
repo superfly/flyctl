@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
@@ -18,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/ip"
 )
 
 func newImport() *cobra.Command {
@@ -73,9 +75,9 @@ func runImport(ctx context.Context) error {
 		return fmt.Errorf("can't establish agent %w", err)
 	}
 
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+	dialer, err := agentclient.ConnectToTunnel(ctx, app.Organization.Slug)
 	if err != nil {
-		return fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
+		return err
 	}
 	ctx = agent.DialerWithContext(ctx, dialer)
 
@@ -203,9 +205,17 @@ func runImport(ctx context.Context) error {
 
 	fmt.Fprintln(io.Out, "Running database import with pgdumb...")
 
-	var host = fmt.Sprintf("[%s]", migrator.PrivateIP)
+	var addr = fmt.Sprintf("[%s]", migrator.PrivateIP)
 
-	res, err := ssh.RunSSHCommand(ctx, app, dialer, &host, "migrate")
+	if !ip.IsV6(addr) {
+		fmt.Fprintln(io.Out, "Waiting for dns ...")
+
+		if err := agentclient.WaitForDNS(ctx, dialer, app.Organization.Slug, addr); err != nil {
+			return errors.Wrapf(err, "host unavailable at %s", addr)
+		}
+	}
+
+	res, err := ssh.RunSSHCommand(ctx, app, dialer, &addr, "migrate")
 	if err != nil {
 		return fmt.Errorf("error running command %w", err)
 	}
