@@ -50,10 +50,12 @@ func newClone() *cobra.Command {
 
 func runMachineClone(ctx context.Context) (err error) {
 	var (
-		args    = flag.Args(ctx)
-		out     = iostreams.FromContext(ctx).Out
-		appName = app.NameFromContext(ctx)
-		client  = client.FromContext(ctx).API()
+		args     = flag.Args(ctx)
+		out      = iostreams.FromContext(ctx).Out
+		appName  = app.NameFromContext(ctx)
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
+		client   = client.FromContext(ctx).API()
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -93,7 +95,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		region = source.Region
 	}
 
-	fmt.Fprintf(out, "Cloning machine %s into region %s\n", source.ID, region)
+	fmt.Fprintf(out, "Cloning machine %s into region %s\n", colorize.Bold(source.ID), colorize.Bold(region))
 
 	targetConfig := source.Config
 
@@ -112,8 +114,6 @@ func runMachineClone(ctx context.Context) (err error) {
 				Encrypted:         mnt.Encrypted,
 				RequireUniqueZone: false,
 			}
-
-			fmt.Fprintf(out, "  Preparing volume...\n")
 
 			vol, err := client.CreateVolume(ctx, volInput)
 			if err != nil {
@@ -140,16 +140,15 @@ func runMachineClone(ctx context.Context) (err error) {
 		Config: targetConfig,
 	}
 
-	fmt.Fprintf(out, "  Creating a new machine with image %s...\n", source.Config.Image)
+	fmt.Fprintf(out, "Provisioning a new machine with image %s...\n", source.Config.Image)
 
 	launchedMachine, err := flapsClient.Launch(ctx, input)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(out, "  Machine %s has been created...\n", launchedMachine.ID)
-
-	fmt.Fprintf(out, "  Waiting for machine %s to start...\n", launchedMachine.ID)
+	fmt.Fprintf(out, "  Machine %s has been created...\n", colorize.Bold(launchedMachine.ID))
+	fmt.Fprintf(out, "  Waiting for machine %s to start...\n", colorize.Bold(launchedMachine.ID))
 
 	// wait for a machine to be started
 	err = WaitForStartOrStop(ctx, launchedMachine, "start", time.Minute*5)
