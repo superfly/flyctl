@@ -34,6 +34,7 @@ func New() *cobra.Command {
 		newRestart(),
 		newUsers(),
 		newFailover(),
+		newImport(),
 	)
 
 	return cmd
