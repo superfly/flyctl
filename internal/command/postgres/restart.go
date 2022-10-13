@@ -185,7 +185,7 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 		return fmt.Errorf("no leader found")
 	}
 
-	fmt.Fprintln(io.Out, "Identifying cluster roles")
+	fmt.Fprintln(io.Out, "Identifying cluster role(s)")
 
 	for _, machine := range machines {
 		fmt.Fprintf(io.Out, "  Machine %s: %s\n", colorize.Bold(machine.ID), machineRole(machine))

@@ -311,7 +311,7 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact, machines
 		colorize = io.ColorScheme()
 		dialer   = agent.DialerFromContext(ctx)
 	)
-	fmt.Fprintln(io.Out, "Identifying cluster roles")
+	fmt.Fprintln(io.Out, "Identifying cluster role(s)")
 
 	var (
 		leader   *api.Machine
