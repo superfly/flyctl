@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
@@ -19,7 +18,6 @@ import (
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/ip"
 )
 
 func newImport() *cobra.Command {
@@ -164,6 +162,9 @@ func runImport(ctx context.Context) error {
 			Metadata: map[string]string{
 				"process": "postgres-migrator",
 			},
+			Env: map[string]string{
+				"POSTGRES_PASSWORD": "pass",
+			},
 		},
 	}
 
@@ -207,15 +208,9 @@ func runImport(ctx context.Context) error {
 
 	var addr = fmt.Sprintf("[%s]", migrator.PrivateIP)
 
-	if !ip.IsV6(addr) {
-		fmt.Fprintln(io.Out, "Waiting for dns ...")
+	var cmd = "pg_dump --no-owner -d $SOURCE_DATABASE_URI -C | psql -d $TARGET_DATABASE_URI"
 
-		if err := agentclient.WaitForDNS(ctx, dialer, app.Organization.Slug, addr); err != nil {
-			return errors.Wrapf(err, "host unavailable at %s", addr)
-		}
-	}
-
-	res, err := ssh.RunSSHCommand(ctx, app, dialer, &addr, "migrate")
+	res, err := ssh.RunSSHCommand(ctx, app, dialer, &addr, cmd)
 	if err != nil {
 		return fmt.Errorf("error running command %w", err)
 	}
