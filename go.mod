@@ -7,7 +7,6 @@ require (
 	github.com/BurntSushi/toml v1.1.1-0.20220529222432-dcb2346503b4
 	github.com/Khan/genqlient v0.5.0
 	github.com/alecthomas/chroma v0.10.0
-	github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239
 	github.com/azazeal/pause v1.0.6
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/briandowns/spinner v1.12.0

@@ -89,19 +89,26 @@ func ensureNixpacksBinary(ctx context.Context, streams *iostreams.IOStreams) err
 	return err
 }
 
-func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions) (*DeploymentImage, error) {
+func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error) {
+	build.BuildStart()
 	if !dockerFactory.mode.IsAvailable() {
-		terminal.Debug("docker daemon not available, skipping")
-		return nil, nil
+		note := "docker daemon not available, skipping"
+		terminal.Debug(note)
+		build.BuildFinish()
+		return nil, note, nil
 	}
 
 	if err := ensureNixpacksBinary(ctx, streams); err != nil {
-		return nil, errors.Wrap(err, "could not install nixpacks")
+		build.BuildFinish()
+		return nil, "", errors.Wrap(err, "could not install nixpacks")
 	}
 
-	docker, err := dockerFactory.buildFn(ctx)
+	build.BuilderInitStart()
+	docker, err := dockerFactory.buildFn(ctx, build)
 	if err != nil {
-		return nil, err
+		build.BuilderInitFinish()
+		build.BuildFinish()
+		return nil, "", err
 	}
 
 	dockerHost := docker.DaemonHost()
@@ -109,12 +116,16 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 	if dockerFactory.IsRemote() {
 		agentclient, err := agent.Establish(ctx, dockerFactory.apiClient)
 		if err != nil {
-			return nil, err
+			build.BuilderInitFinish()
+			build.BuildFinish()
+			return nil, "", err
 		}
 
 		machine, app, err := remoteBuilderMachine(ctx, dockerFactory.apiClient, dockerFactory.appName)
 		if err != nil {
-			return nil, err
+			build.BuilderInitFinish()
+			build.BuildFinish()
+			return nil, "", err
 		}
 
 		var remoteHost string
@@ -127,17 +138,23 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 		}
 
 		if remoteHost == "" {
-			return nil, fmt.Errorf("could not find machine IP")
+			build.BuilderInitFinish()
+			build.BuildFinish()
+			return nil, "", fmt.Errorf("could not find machine IP")
 		}
 
 		dialer, err := agentclient.ConnectToTunnel(ctx, app.Organization.Slug)
 		if err != nil {
-			return nil, err
+			build.BuilderInitFinish()
+			build.BuildFinish()
+			return nil, "", err
 		}
 
 		tmpdir, err := os.MkdirTemp("", "")
 		if err != nil {
-			return nil, err
+			build.BuilderInitFinish()
+			build.BuildFinish()
+			return nil, "", err
 		}
 
 		defer os.RemoveAll(tmpdir)
@@ -157,7 +174,9 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 
 		server, err := proxy.NewServer(ctx, params)
 		if err != nil {
-			return nil, err
+			build.BuilderInitFinish()
+			build.BuildFinish()
+			return nil, "", err
 		}
 
 		go server.ProxyServer(ctx)
@@ -165,7 +184,9 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 	}
 
 	defer clearDeploymentTags(ctx, docker, opts.Tag)
+	build.BuilderInitFinish()
 
+	build.ImageBuildStart()
 	confDir := flyctl.ConfigDir()
 	nixpacksPath := filepath.Join(confDir, "bin", "nixpacks")
 
@@ -180,21 +201,28 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 	cmd.Stdin = nil
 
 	if err := cmd.Run(); err != nil {
-		return nil, err
+		build.ImageBuildFinish()
+		build.BuildFinish()
+		return nil, "", err
 	}
+	build.ImageBuildFinish()
+	build.BuildFinish()
 
+	build.PushStart()
 	if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
-		return nil, err
+		build.PushFinish()
+		return nil, "", err
 	}
+	build.PushFinish()
 
 	img, err := findImageWithDocker(ctx, docker, opts.Tag)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	return &DeploymentImage{
 		ID:   img.ID,
 		Tag:  opts.Tag,
 		Size: img.Size,
-	}, nil
+	}, "", nil
 }

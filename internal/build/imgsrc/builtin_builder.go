@@ -17,34 +17,46 @@ func (ds *builtinBuilder) Name() string {
 	return "Builtin"
 }
 
-func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions) (*DeploymentImage, error) {
+func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error) {
+	build.BuildStart()
 	if !dockerFactory.mode.IsAvailable() {
-		terminal.Debug("docker daemon not available, skipping")
-		return nil, nil
+		note := "docker daemon not available, skipping"
+		terminal.Debug(note)
+		build.BuildFinish()
+		return nil, note, nil
 	}
 
 	if opts.BuiltIn == "" {
-		terminal.Debug("fly.toml does not include a builtin config")
-		return nil, nil
+		note := "fly.toml does not include a builtin config"
+		terminal.Debug(note)
+		build.BuildFinish()
+		return nil, note, nil
 	}
 
 	builtin, err := builtins.GetBuiltin(opts.BuiltIn)
 	if err != nil {
-		return nil, err
+		build.BuildFinish()
+		return nil, "", err
 	}
 	// Expand args
 	vdockerfile, err := builtin.GetVDockerfile(opts.BuiltInSettings)
 	if err != nil {
-		return nil, err
+		build.BuildFinish()
+		return nil, "", err
 	}
 
-	docker, err := dockerFactory.buildFn(ctx)
+	build.BuilderInitStart()
+	docker, err := dockerFactory.buildFn(ctx, build)
 	if err != nil {
-		return nil, errors.Wrap(err, "error connecting to docker")
+		build.BuilderInitFinish()
+		build.BuildFinish()
+		return nil, "", errors.Wrap(err, "error connecting to docker")
 	}
 
+	build.BuilderInitFinish()
 	defer clearDeploymentTags(ctx, docker, opts.Tag)
 
+	build.ContextBuildStart()
 	cmdfmt.PrintBegin(streams.ErrOut, "Creating build context")
 	archiveOpts := archiveOptions{
 		sourcePath: opts.WorkingDir,
@@ -53,7 +65,8 @@ func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 
 	excludes, err := readDockerignore(opts.WorkingDir)
 	if err != nil {
-		return nil, errors.Wrap(err, "error reading .dockerignore")
+		build.BuildFinish()
+		return nil, "", errors.Wrap(err, "error reading .dockerignore")
 	}
 	archiveOpts.exclusions = excludes
 
@@ -64,15 +77,21 @@ func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 
 	r, err := archiveDirectory(archiveOpts)
 	if err != nil {
-		return nil, errors.Wrap(err, "error archiving build context")
+		build.ContextBuildFinish()
+		build.BuildFinish()
+		return nil, "", errors.Wrap(err, "error archiving build context")
 	}
+	build.ContextBuildFinish()
 	cmdfmt.PrintDone(streams.ErrOut, "Creating build context done")
 
+	build.ImageBuildStart()
 	var imageID string
 
 	serverInfo, err := docker.Info(ctx)
 	if err != nil {
 		terminal.Debug("error fetching docker server info:", err)
+	} else {
+		build.SetBuilderMetaPart2(false, serverInfo.ServerVersion, fmt.Sprintf("%s/%s/%s", serverInfo.OSType, serverInfo.Architecture, serverInfo.OSVersion))
 	}
 
 	cmdfmt.PrintBegin(streams.ErrOut, "Building image with Docker")
@@ -81,29 +100,38 @@ func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 
 	buildArgs, err := normalizeBuildArgsForDocker(ctx, opts.BuildArgs)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing build args: %w", err)
+		build.ImageBuildFinish()
+		build.BuildFinish()
+		return nil, "", fmt.Errorf("error parsing build args: %w", err)
 	}
 
 	imageID, err = runClassicBuild(ctx, streams, docker, r, opts, "", buildArgs)
 	if err != nil {
-		return nil, errors.Wrap(err, "error building")
+		build.ImageBuildFinish()
+		build.BuildFinish()
+		return nil, "", errors.Wrap(err, "error building")
 	}
 
+	build.ImageBuildFinish()
+	build.BuildFinish()
 	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
 
 	if opts.Publish {
+		build.PushStart()
 		cmdfmt.PrintBegin(streams.ErrOut, "Pushing image to fly")
 
 		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
-			return nil, err
+			build.PushFinish()
+			return nil, "", err
 		}
+		build.PushFinish()
 
 		cmdfmt.PrintDone(streams.ErrOut, "Pushing image done")
 	}
 
 	img, _, err := docker.ImageInspectWithRaw(ctx, imageID)
 	if err != nil {
-		return nil, errors.Wrap(err, "count not find built image")
+		return nil, "", errors.Wrap(err, "count not find built image")
 	}
 	fmt.Println(img)
 
@@ -111,5 +139,5 @@ func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		ID:   img.ID,
 		Tag:  opts.Tag,
 		Size: img.Size,
-	}, nil
+	}, "", nil
 }
