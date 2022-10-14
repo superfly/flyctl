@@ -33,7 +33,7 @@ import (
 
 type dockerfileBuilder struct{}
 
-func (ds *dockerfileBuilder) Name() string {
+func (*dockerfileBuilder) Name() string {
 	return "Dockerfile"
 }
 
@@ -53,7 +53,7 @@ func (out *lastProgressOutput) WriteProgress(prog progress.Progress) error {
 	return out.output.WriteProgress(prog)
 }
 
-func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error) {
+func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error) {
 	build.BuildStart()
 	if !dockerFactory.mode.IsAvailable() {
 		// Where should debug messages be sent?
@@ -170,7 +170,7 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 	msg := fmt.Sprintf("docker host: %s %s %s", serverInfo.ServerVersion, serverInfo.OSType, serverInfo.Architecture)
 	docker_tb.Done(msg)
 
-	buildArgs, err := normalizeBuildArgsForDocker(ctx, opts.BuildArgs)
+	buildArgs, err := normalizeBuildArgsForDocker(opts.BuildArgs)
 	if err != nil {
 		build.ImageBuildFinish()
 		build.BuildFinish()
@@ -229,9 +229,8 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 	}, "", nil
 }
 
-func normalizeBuildArgsForDocker(ctx context.Context, buildArgs map[string]string) (map[string]*string, error) {
+func normalizeBuildArgsForDocker(buildArgs map[string]string) (map[string]*string, error) {
 	out := map[string]*string{}
-	// workingDirectory := state.WorkingDirectory(ctx)
 
 	for k, v := range buildArgs {
 		val := v
@@ -405,7 +404,12 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 				if err != nil {
 					return err
 				}
-				defer f.Close()
+				defer func() {
+					err := f.Close()
+					if err != nil {
+						terminal.Debugf("error closing build.log: %v", err)
+					}
+				}()
 			}
 
 			return nil

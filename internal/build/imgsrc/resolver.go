@@ -70,7 +70,10 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 		&remoteImageResolver{flyApi: r.apiClient},
 	}
 
-	bld, err := r.CreateImageBuild(ctx, strategies, opts)
+	bld, err := r.createImageBuild(ctx, strategies, opts)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create build")
+	}
 
 	for _, s := range strategies {
 		terminal.Debugf("Trying '%s' strategy\n", s.Name())
@@ -82,20 +85,20 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 		if err != nil {
 			bld.BuildAndPushFinish()
 			bld.FinishImageStrategy(s, true /* failed */, err, note)
-			r.FinishBuild(ctx, bld, true /* failed */, err.Error(), nil)
+			r.finishBuild(ctx, bld, true /* failed */, err.Error(), nil)
 			return nil, err
 		}
 		if img != nil {
 			bld.BuildAndPushFinish()
 			bld.FinishImageStrategy(s, false /* success */, nil, note)
-			r.FinishBuild(ctx, bld, false /* completed */, "", img)
+			r.finishBuild(ctx, bld, false /* completed */, "", img)
 			return img, nil
 		}
 		bld.BuildAndPushFinish()
 		bld.FinishImageStrategy(s, false /* failed */, nil, note)
 	}
 
-	r.FinishBuild(ctx, bld, true /* failed */, "no strategies resulted in an image", nil)
+	r.finishBuild(ctx, bld, true /* failed */, "no strategies resulted in an image", nil)
 	return nil, fmt.Errorf("could not find image \"%s\"", opts.ImageRef)
 }
 
@@ -120,7 +123,7 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 			&builtinBuilder{},
 		}
 	}
-	bld, err := r.CreateBuild(ctx, strategies, opts)
+	bld, err := r.createBuild(ctx, strategies, opts)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create build")
 	}
@@ -134,24 +137,24 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 		if err != nil {
 			bld.BuildAndPushFinish()
 			bld.FinishStrategy(s, true /* failed */, err, note)
-			r.FinishBuild(ctx, bld, true /* failed */, err.Error(), nil)
+			r.finishBuild(ctx, bld, true /* failed */, err.Error(), nil)
 			return nil, err
 		}
 		if img != nil {
 			bld.BuildAndPushFinish()
 			bld.FinishStrategy(s, false /* success */, nil, note)
-			r.FinishBuild(ctx, bld, false /* completed */, "", img)
+			r.finishBuild(ctx, bld, false /* completed */, "", img)
 			return img, nil
 		}
 		bld.BuildAndPushFinish()
 		bld.FinishStrategy(s, false /* failed */, nil, note)
 	}
 
-	r.FinishBuild(ctx, bld, true /* failed */, "no strategies resulted in an image", nil)
+	r.finishBuild(ctx, bld, true /* failed */, "no strategies resulted in an image", nil)
 	return nil, errors.New("app does not have a Dockerfile or buildpacks configured. See https://fly.io/docs/reference/configuration/#the-build-section")
 }
 
-func (r *Resolver) CreateImageBuild(ctx context.Context, strategies []imageResolver, opts RefOptions) (*build, error) {
+func (r *Resolver) createImageBuild(ctx context.Context, strategies []imageResolver, opts RefOptions) (*build, error) {
 	strategiesAvailable := make([]string, 0)
 	for _, r := range strategies {
 		strategiesAvailable = append(strategiesAvailable, r.Name())
@@ -162,10 +165,10 @@ func (r *Resolver) CreateImageBuild(ctx context.Context, strategies []imageResol
 		Publish:    opts.Publish,
 		Tag:        opts.Tag,
 	}
-	return r.createBuild(ctx, strategiesAvailable, imageOps)
+	return r.createBuildGql(ctx, strategiesAvailable, imageOps)
 }
 
-func (r *Resolver) CreateBuild(ctx context.Context, strategies []imageBuilder, opts ImageOptions) (*build, error) {
+func (r *Resolver) createBuild(ctx context.Context, strategies []imageBuilder, opts ImageOptions) (*build, error) {
 
 	strategiesAvailable := make([]string, 0)
 	for _, s := range strategies {
@@ -186,10 +189,10 @@ func (r *Resolver) CreateBuild(ctx context.Context, strategies []imageBuilder, o
 		Tag:             opts.Tag,
 		Target:          opts.Target,
 	}
-	return r.createBuild(ctx, strategiesAvailable, imageOpts)
+	return r.createBuildGql(ctx, strategiesAvailable, imageOpts)
 }
 
-func (r *Resolver) createBuild(ctx context.Context, strategiesAvailable []string, imageOpts *gql.BuildImageOptsInput) (*build, error) {
+func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []string, imageOpts *gql.BuildImageOptsInput) (*build, error) {
 	gqlClient := client.FromContext(ctx).API().GenqClient
 	_ = `# @genqlient
 	mutation ResolverCreateBuild($input:CreateBuildInput!) {
@@ -322,7 +325,7 @@ func (b *build) PushFinish() {
 	b.Timings.PushMs = time.Now().UnixMilli() - b.StartTimes.PushMs
 }
 
-func (b *build) finishStrategy(strategy string, failed bool, err error, note string) {
+func (b *build) finishStrategyCommon(strategy string, failed bool, err error, note string) {
 	result := "failed"
 	if !failed {
 		result = "success"
@@ -341,14 +344,14 @@ func (b *build) finishStrategy(strategy string, failed bool, err error, note str
 }
 
 func (b *build) FinishStrategy(strategy imageBuilder, failed bool, err error, note string) {
-	b.finishStrategy(strategy.Name(), failed, err, note)
+	b.finishStrategyCommon(strategy.Name(), failed, err, note)
 }
 
 func (b *build) FinishImageStrategy(strategy imageResolver, failed bool, err error, note string) {
-	b.finishStrategy(strategy.Name(), failed, err, note)
+	b.finishStrategyCommon(strategy.Name(), failed, err, note)
 }
 
-func (r *Resolver) FinishBuild(ctx context.Context, build *build, failed bool, logs string, img *DeploymentImage) (*gql.ResolverFinishBuildFinishBuildFinishBuildPayloadSourceBuild, error) {
+func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, logs string, img *DeploymentImage) (*gql.ResolverFinishBuildFinishBuildFinishBuildPayloadSourceBuild, error) {
 	gqlClient := client.FromContext(ctx).API().GenqClient
 	_ = `# @genqlient
 	mutation ResolverFinishBuild($input:FinishBuildInput!) {

@@ -13,11 +13,11 @@ import (
 
 type builtinBuilder struct{}
 
-func (ds *builtinBuilder) Name() string {
+func (*builtinBuilder) Name() string {
 	return "Builtin"
 }
 
-func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error) {
+func (*builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error) {
 	build.BuildStart()
 	if !dockerFactory.mode.IsAvailable() {
 		note := "docker daemon not available, skipping"
@@ -98,7 +98,7 @@ func (ds *builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	msg := fmt.Sprintf("docker host: %s %s %s", serverInfo.ServerVersion, serverInfo.OSType, serverInfo.Architecture)
 	cmdfmt.PrintDone(streams.ErrOut, msg)
 
-	buildArgs, err := normalizeBuildArgsForDocker(ctx, opts.BuildArgs)
+	buildArgs, err := normalizeBuildArgsForDocker(opts.BuildArgs)
 	if err != nil {
 		build.ImageBuildFinish()
 		build.BuildFinish()

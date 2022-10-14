@@ -49,7 +49,12 @@ func ensureNixpacksBinary(ctx context.Context, streams *iostreams.IOStreams) err
 		if err != nil {
 			return err
 		}
-		defer out.Close()
+		defer func() {
+			err := out.Close()
+			if err != nil {
+				terminal.Debugf("error closing install.sh: %v", err)
+			}
+		}()
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://raw.githubusercontent.com/railwayapp/nixpacks/master/install.sh", nil)
 		if err != nil {
