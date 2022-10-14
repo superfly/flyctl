@@ -197,10 +197,8 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 	_ = `# @genqlient
 	mutation ResolverCreateBuild($input:CreateBuildInput!) {
 		createBuild(input:$input) {
-			sourceBuild {
-				id
-				status
-			}
+			id
+			status
 		}
 	}
 	`
@@ -220,7 +218,7 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 		return nil, err
 	}
 
-	b := newBuild(&resp.CreateBuild.SourceBuild)
+	b := newBuild(resp.CreateBuild.Id)
 	// TODO: maybe try to capture SIGINT, SIGTERM and send r.FinishBuild(). I tried, and it usually segfaulted. (tvd, 2022-10-14)
 	return b, nil
 }
@@ -233,16 +231,16 @@ func limitLogs(log string) string {
 }
 
 type build struct {
-	SourceBuild     *gql.ResolverCreateBuildCreateBuildCreateBuildPayloadSourceBuild
+	BuildId         string
 	BuilderMeta     *gql.BuilderMetaInput
 	StrategyResults []gql.BuildStrategyAttemptInput
 	Timings         *gql.BuildTimingsInput
 	StartTimes      *gql.BuildTimingsInput
 }
 
-func newBuild(sourceBuild *gql.ResolverCreateBuildCreateBuildCreateBuildPayloadSourceBuild) *build {
+func newBuild(buildId string) *build {
 	return &build{
-		SourceBuild:     sourceBuild,
+		BuildId:         buildId,
 		BuilderMeta:     &gql.BuilderMetaInput{},
 		StrategyResults: make([]gql.BuildStrategyAttemptInput, 0),
 		StartTimes:      &gql.BuildTimingsInput{},
@@ -351,18 +349,20 @@ func (b *build) FinishImageStrategy(strategy imageResolver, failed bool, err err
 	b.finishStrategyCommon(strategy.Name(), failed, err, note)
 }
 
-func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, logs string, img *DeploymentImage) (*gql.ResolverFinishBuildFinishBuildFinishBuildPayloadSourceBuild, error) {
+type buildResult struct {
+	BuildId         string
+	Status          string
+	wallclockTimeMs int64
+}
+
+func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, logs string, img *DeploymentImage) (*buildResult, error) {
 	gqlClient := client.FromContext(ctx).API().GenqClient
 	_ = `# @genqlient
 	mutation ResolverFinishBuild($input:FinishBuildInput!) {
 		finishBuild(input:$input) {
-			sourceBuild {
-				id
-				status
-				timings {
-					wallclockTimeMs
-				}
-			}
+			id
+			status
+			wallclockTimeMs
 		}
 	}
 	`
@@ -371,7 +371,7 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 		status = "completed"
 	}
 	input := gql.FinishBuildInput{
-		BuildId:             build.SourceBuild.Id,
+		BuildId:             build.BuildId,
 		AppName:             r.dockerFactory.appName,
 		MachineId:           "",
 		Status:              status,
@@ -391,7 +391,11 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 	if err != nil {
 		return nil, err
 	}
-	return &resp.FinishBuild.SourceBuild, nil
+	return &buildResult{
+		BuildId:         resp.FinishBuild.Id,
+		Status:          resp.FinishBuild.Status,
+		wallclockTimeMs: resp.FinishBuild.WallclockTimeMs,
+	}, nil
 }
 
 // For remote builders send a periodic heartbeat during build to ensure machine stays alive

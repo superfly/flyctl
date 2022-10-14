@@ -1316,23 +1316,6 @@ type BuildEdge {
   node: Build
 }
 
-type BuildFinalImage {
-  """
-  Sha256 id of docker image
-  """
-  id: String!
-
-  """
-  Size in bytes of the docker image
-  """
-  sizeBytes: BigInt!
-
-  """
-  Tag used for docker image
-  """
-  tag: String!
-}
-
 input BuildFinalImageInput {
   """
   Sha256 id of docker image
@@ -1348,73 +1331,6 @@ input BuildFinalImageInput {
   Tag used for docker image
   """
   tag: String!
-}
-
-type BuildImageOpts {
-  """
-  Set of build time variables passed to cli
-  """
-  buildArgs: JSON
-
-  """
-  Fly.toml build.buildpacks setting
-  """
-  buildPacks: [String!]
-
-  """
-  Fly.toml build.builder setting
-  """
-  builder: String
-
-  """
-  Builtin builder to use
-  """
-  builtIn: String
-
-  """
-  Builtin builder settings
-  """
-  builtInSettings: JSON
-
-  """
-  Path to dockerfile, if one exists
-  """
-  dockerfilePath: String
-
-  """
-  Unused in cli?
-  """
-  extraBuildArgs: JSON
-
-  """
-  Image label to use when tagging and pushing to the fly registry
-  """
-  imageLabel: String
-
-  """
-  Image to be deployed directly
-  """
-  imageRef: String
-
-  """
-  Do not use the build cache when building the image
-  """
-  noCache: Boolean
-
-  """
-  Whether publishing to the registry was requested
-  """
-  publish: Boolean
-
-  """
-  Docker tag used to publish image to registry
-  """
-  tag: String
-
-  """
-  Set the target build stage to build if the Dockerfile has more than one stage
-  """
-  target: String
 }
 
 input BuildImageOptsInput {
@@ -1536,28 +1452,6 @@ type BuildMachinePayload {
   timeout: Int!
 }
 
-type BuildStrategyAttempt {
-  """
-  Optional error message from strategy
-  """
-  error: String
-
-  """
-  Optional note about this strategy or its result
-  """
-  note: String!
-
-  """
-  Result attempting this strategy
-  """
-  result: String!
-
-  """
-  Build strategy attempted
-  """
-  strategy: String!
-}
-
 input BuildStrategyAttemptInput {
   """
   Optional error message from strategy
@@ -1578,43 +1472,6 @@ input BuildStrategyAttemptInput {
   Build strategy attempted
   """
   strategy: String!
-}
-
-type BuildTimings {
-  """
-  Time to build and push the image, measured by flyctl
-  """
-  buildAndPushMs: BigInt
-
-  """
-  Time to build the image including create context, measured by flyctl
-  """
-  buildMs: BigInt
-
-  """
-  Time to initialize client used to connect to either remote or local builder
-  """
-  builderInitMs: BigInt
-
-  """
-  Time to create the build context tar file, measured by flyctl
-  """
-  contextBuildMs: BigInt
-
-  """
-  Time for builder to build image after receiving context, measured by flyctl
-  """
-  imageBuildMs: BigInt
-
-  """
-  Time to push completed image to registry, measured by flyctl
-  """
-  pushMs: BigInt
-
-  """
-  Time from creating build to finishing build, all inclusive, measured server side
-  """
-  wallclockTimeMs: BigInt
 }
 
 input BuildTimingsInput {
@@ -1647,38 +1504,6 @@ input BuildTimingsInput {
   Time to push completed image to registry, measured by flyctl
   """
   pushMs: BigInt
-}
-
-type BuilderMeta {
-  """
-  Local or remote builder type
-  """
-  builderType: String!
-
-  """
-  Whther or not buildkit is enabled on builder
-  """
-  buildkitEnabled: Boolean
-
-  """
-  Docker version reported by builder
-  """
-  dockerVersion: String
-
-  """
-  Platform reported by the builder
-  """
-  platform: String
-
-  """
-  Remote builder app used
-  """
-  remoteApp: App
-
-  """
-  Remote builder machine used
-  """
-  remoteMachine: Machine
 }
 
 input BuilderMetaInput {
@@ -2637,7 +2462,16 @@ type CreateBuildPayload {
   A unique identifier for the client performing the mutation.
   """
   clientMutationId: String
-  sourceBuild: SourceBuild!
+
+  """
+  build id
+  """
+  id: ID!
+
+  """
+  stored build status
+  """
+  status: String!
 }
 
 """
@@ -4860,7 +4694,21 @@ type FinishBuildPayload {
   A unique identifier for the client performing the mutation.
   """
   clientMutationId: String
-  sourceBuild: SourceBuild!
+
+  """
+  build id
+  """
+  id: ID!
+
+  """
+  stored build status
+  """
+  status: String!
+
+  """
+  wall clock time for this build
+  """
+  wallclockTimeMs: BigInt!
 }
 
 type FlyPlatform {
@@ -8898,18 +8746,14 @@ type SignedDocumentEdge {
 
 type SourceBuild implements Node {
   app: App!
-  builderMeta: BuilderMeta
-  builderType: String!
   createdAt: ISO8601DateTime!
 
   """
   The user who initiated the build
   """
   createdBy: User
-  finalImage: BuildFinalImage
   id: ID!
   image: String
-  imageOpts: BuildImageOpts!
 
   """
   Log output
@@ -8921,9 +8765,6 @@ type SourceBuild implements Node {
   Status of the build
   """
   status: String!
-  strategiesAttempted: [BuildStrategyAttempt!]
-  strategiesAvailable: [String!]!
-  timings: BuildTimings
   updatedAt: ISO8601DateTime!
 }
 
