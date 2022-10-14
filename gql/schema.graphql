@@ -8759,7 +8759,6 @@ type SourceBuild implements Node {
   Log output
   """
   logs: String
-  machineId: ID
 
   """
   Status of the build
