@@ -1461,7 +1461,7 @@ input BuildStrategyAttemptInput {
   """
   Optional note about this strategy or its result
   """
-  note: String!
+  note: String
 
   """
   Result attempting this strategy
