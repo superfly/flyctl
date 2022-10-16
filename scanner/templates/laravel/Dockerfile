@@ -76,7 +76,7 @@ RUN if [ -f "vite.config.js" ]; then \
     elif [ -f "package-lock.json" ]; then \
         npm ci --no-audit; \
         npm run $ASSET_CMD; \
-    else \
+    elseif [ -f package.json ]; then \
         npm install; \
         npm run $ASSET_CMD; \
     fi;
