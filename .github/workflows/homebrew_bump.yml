@@ -1,23 +1,46 @@
 name: Homebrew Bump Formula
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        required: true
-        description: "flyctl release version"
-      sha:
-        required: true
-        description: "flyctl release git SHA"
+  push:
+    branches:
+      - tvd-brew-failure-notify
+  # workflow_dispatch:
+  #   inputs:
+  #     version:
+  #       required: true
+  #       description: "flyctl release version"
+  #     sha:
+  #       required: true
+  #       description: "flyctl release git SHA"
 
 jobs:
   homebrew:
     name: Bump Homebrew formula
     runs-on: macos-latest
     steps:
-      - uses: dawidd6/action-homebrew-bump-formula@v3
+      # - uses: dawidd6/action-homebrew-bump-formula@v3
+      #   with:
+      #     token: ${{ secrets.FLYIO_BUILDBOT_GITHUB_TOKEN }}
+      #     formula: flyctl
+      #     org: superfly
+      #     tag: ${{ github.event.inputs.version }}
+      #     revision: ${{ github.event.inputs.sha }}
+      - run: false
+      - name: Post failure to slack
+        if: failure()
+        uses: slackapi/slack-github-action@007b2c3c751a190b6f0f040e47ed024deaa72844
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.HOMEBREW_SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
         with:
-          token: ${{ secrets.FLYIO_BUILDBOT_GITHUB_TOKEN }}
-          formula: flyctl
-          org: superfly
-          tag: ${{ github.event.inputs.version }}
-          revision: ${{ github.event.inputs.sha }}
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": ":fire: flyctl bump homebrew formula failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                  }
+                }
+              ]
+            }
