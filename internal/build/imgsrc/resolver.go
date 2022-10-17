@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/api"
@@ -72,7 +73,7 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 
 	bld, err := r.createImageBuild(ctx, strategies, opts)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create build")
+		terminal.Warnf("failed to create build in graphql: %v\n", err)
 	}
 
 	for _, s := range strategies {
@@ -125,7 +126,7 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 	}
 	bld, err := r.createBuild(ctx, strategies, opts)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create build")
+		terminal.Warnf("failed to create build in graphql: %v\n", err)
 	}
 	for _, s := range strategies {
 		terminal.Debugf("Trying '%s' strategy\n", s.Name())
@@ -215,10 +216,21 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 	}
 	resp, err := gql.ResolverCreateBuild(ctx, gqlClient, input)
 	if err != nil {
-		return nil, err
+		sentry.CaptureException(err,
+			sentry.WithTag("feature", "build-api-create-build"),
+			sentry.WithContexts(map[string]interface{}{
+				"app": map[string]interface{}{
+					"name": input.AppName,
+				},
+				"builder": map[string]interface{}{
+					"type": input.BuilderType,
+				},
+			}),
+		)
+		return newFailedBuild(), err
 	}
 
-	b := newBuild(resp.CreateBuild.Id)
+	b := newBuild(resp.CreateBuild.Id, false)
 	// TODO: maybe try to capture SIGINT, SIGTERM and send r.FinishBuild(). I tried, and it usually segfaulted. (tvd, 2022-10-14)
 	return b, nil
 }
@@ -231,6 +243,7 @@ func limitLogs(log string) string {
 }
 
 type build struct {
+	CreateApiFailed bool
 	BuildId         string
 	BuilderMeta     *gql.BuilderMetaInput
 	StrategyResults []gql.BuildStrategyAttemptInput
@@ -238,8 +251,13 @@ type build struct {
 	StartTimes      *gql.BuildTimingsInput
 }
 
-func newBuild(buildId string) *build {
+func newFailedBuild() *build {
+	return newBuild("", true)
+}
+
+func newBuild(buildId string, createApiFailed bool) *build {
 	return &build{
+		CreateApiFailed: createApiFailed,
 		BuildId:         buildId,
 		BuilderMeta:     &gql.BuilderMetaInput{},
 		StrategyResults: make([]gql.BuildStrategyAttemptInput, 0),
@@ -352,10 +370,14 @@ func (b *build) FinishImageStrategy(strategy imageResolver, failed bool, err err
 type buildResult struct {
 	BuildId         string
 	Status          string
-	wallclockTimeMs int64
+	wallclockTimeMs int
 }
 
 func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, logs string, img *DeploymentImage) (*buildResult, error) {
+	if build.CreateApiFailed {
+		terminal.Debug("Skipping FinishBuild() gql call, because CreateBuild() failed.\n")
+		return nil, nil
+	}
 	gqlClient := client.FromContext(ctx).API().GenqClient
 	_ = `# @genqlient
 	mutation ResolverFinishBuild($input:FinishBuildInput!) {
@@ -389,6 +411,25 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 	}
 	resp, err := gql.ResolverFinishBuild(ctx, gqlClient, input)
 	if err != nil {
+		terminal.Warnf("failed to finish build in graphql: %v\n", err)
+		sentry.CaptureException(err,
+			sentry.WithTag("feature", "build-api-finish-build"),
+			sentry.WithContexts(map[string]interface{}{
+				"app": map[string]interface{}{
+					"name": r.dockerFactory.appName,
+				},
+				"sourceBuild": map[string]interface{}{
+					"id": build.BuildId,
+				},
+				"builder": map[string]interface{}{
+					"type":            build.BuilderMeta.BuilderType,
+					"appName":         build.BuilderMeta.RemoteAppName,
+					"machineId":       build.BuilderMeta.RemoteMachineId,
+					"dockerVersion":   build.BuilderMeta.DockerVersion,
+					"buildkitEnabled": build.BuilderMeta.BuildkitEnabled,
+				},
+			}),
+		)
 		return nil, err
 	}
 	return &buildResult{

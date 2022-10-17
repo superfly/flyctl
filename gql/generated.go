@@ -635,7 +635,7 @@ type ResolverFinishBuildFinishBuildFinishBuildPayload struct {
 	// stored build status
 	Status string `json:"status"`
 	// wall clock time for this build
-	WallclockTimeMs int64 `json:"wallclockTimeMs"`
+	WallclockTimeMs int `json:"wallclockTimeMs"`
 }
 
 // GetId returns ResolverFinishBuildFinishBuildFinishBuildPayload.Id, and is useful for accessing the field via an interface.
@@ -645,7 +645,7 @@ func (v *ResolverFinishBuildFinishBuildFinishBuildPayload) GetId() string { retu
 func (v *ResolverFinishBuildFinishBuildFinishBuildPayload) GetStatus() string { return v.Status }
 
 // GetWallclockTimeMs returns ResolverFinishBuildFinishBuildFinishBuildPayload.WallclockTimeMs, and is useful for accessing the field via an interface.
-func (v *ResolverFinishBuildFinishBuildFinishBuildPayload) GetWallclockTimeMs() int64 {
+func (v *ResolverFinishBuildFinishBuildFinishBuildPayload) GetWallclockTimeMs() int {
 	return v.WallclockTimeMs
 }
 
