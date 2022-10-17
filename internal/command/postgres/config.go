@@ -28,6 +28,7 @@ import (
 var pgSettings = map[string]string{
 	"wal-level":                  "wal_level",
 	"max-connections":            "max_connections",
+	"shared-buffers":             "shared_buffers",
 	"log-statement":              "log_statement",
 	"log-min-duration-statement": "log_min_duration_statement",
 	"shared-preload-libraries":   "shared_preload_libraries",
@@ -206,6 +207,10 @@ func newConfigUpdate() (cmd *cobra.Command) {
 		flag.String{
 			Name:        "max-connections",
 			Description: "Sets the maximum number of concurrent connections.",
+		},
+		flag.String{
+			Name:        "shared-buffers",
+			Description: "Sets the amount of memory the database server uses for shared memory buffers",
 		},
 		flag.String{
 			Name:        "wal-level",
