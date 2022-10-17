@@ -123,23 +123,6 @@ More help:
 		listCommands([]string{"docs", "doctor"})
 		fmt.Printf("  help commands   A complete list of commands (there are a bunch more)\n")
 
-		oneliners := []struct {
-			name, desc string
-		}{
-			{"flyctl platform regions", "List all current Fly.io regions"},
-			{"flyctl scale count 4", "Run 4 instances of the current app"},
-			{"flyctl regions set ams syd", "Run in Amsterdam and Sydney"},
-			{"flyctl ssh console", "Log into an instance of the current app"},
-			{"flyctl sftp", "Copy files to and from an instance"},
-		}
-
-		fmt.Printf(`
-Handy one-liners:
-`)
-		for _, o := range oneliners {
-			fmt.Printf("  %s\n        %s\n\n", o.name, o.desc)
-		}
-
 		return nil
 	}
 }
