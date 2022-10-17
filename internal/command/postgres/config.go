@@ -173,11 +173,12 @@ func runConfigView(ctx context.Context) (err error) {
 		rows = append(rows, []string{
 			strings.Replace(setting.Name, "_", "-", -1),
 			value,
+			setting.Unit,
 			desc,
 			restart,
 		})
 	}
-	_ = render.Table(io.Out, "", rows, "Name", "Value", "Description", "Pending Restart")
+	_ = render.Table(io.Out, "", rows, "Name", "Value", "Unit", "Description", "Pending Restart")
 
 	if pendingRestart {
 		fmt.Fprintln(io.Out, colorize.Yellow("Some changes are awaiting a restart!"))
