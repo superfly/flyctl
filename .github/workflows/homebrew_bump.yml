@@ -1,30 +1,26 @@
 name: Homebrew Bump Formula
 on:
-  push:
-    branches:
-      - tvd-brew-failure-notify
-  # workflow_dispatch:
-  #   inputs:
-  #     version:
-  #       required: true
-  #       description: "flyctl release version"
-  #     sha:
-  #       required: true
-  #       description: "flyctl release git SHA"
+  workflow_dispatch:
+    inputs:
+      version:
+        required: true
+        description: "flyctl release version"
+      sha:
+        required: true
+        description: "flyctl release git SHA"
 
 jobs:
   homebrew:
     name: Bump Homebrew formula
     runs-on: macos-latest
     steps:
-      # - uses: dawidd6/action-homebrew-bump-formula@v3
-      #   with:
-      #     token: ${{ secrets.FLYIO_BUILDBOT_GITHUB_TOKEN }}
-      #     formula: flyctl
-      #     org: superfly
-      #     tag: ${{ github.event.inputs.version }}
-      #     revision: ${{ github.event.inputs.sha }}
-      - run: false
+      - uses: dawidd6/action-homebrew-bump-formula@v3
+        with:
+          token: ${{ secrets.FLYIO_BUILDBOT_GITHUB_TOKEN }}
+          formula: flyctl
+          org: superfly
+          tag: ${{ github.event.inputs.version }}
+          revision: ${{ github.event.inputs.sha }}
       - name: Check for slack secret
         if: ${{ failure() }}
         env:
