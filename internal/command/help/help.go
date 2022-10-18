@@ -61,7 +61,7 @@ flyctl does a lot of stuff! Don't panic, it's easy to get started:
    
   * fly redis:    create and manage Redis databases ("fly help redis")
    
-  * fly help:     for more help, and a complete list of commands. 
+  * fly help:     for more help, and a complete list of commands.
 `, auth)
 		return nil
 	})
