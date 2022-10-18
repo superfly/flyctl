@@ -3,7 +3,10 @@
 schema: gql/schema.graphql
 operations:
   - internal/command/**/*.go
+  - internal/build/imgsrc/*.go
 bindings:
   JSON:
     type: interface{}
+  BigInt:
+    type: int64
 generated: gql/generated.go

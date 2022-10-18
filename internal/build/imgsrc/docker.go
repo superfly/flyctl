@@ -29,7 +29,7 @@ import (
 type dockerClientFactory struct {
 	mode      DockerDaemonType
 	remote    bool
-	buildFn   func(ctx context.Context) (*dockerclient.Client, error)
+	buildFn   func(ctx context.Context, build *build) (*dockerclient.Client, error)
 	apiClient *api.Client
 	appName   string
 }
@@ -42,11 +42,11 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 		return &dockerClientFactory{
 			mode:   daemonType,
 			remote: true,
-			buildFn: func(ctx context.Context) (*dockerclient.Client, error) {
+			buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
 				if cachedDocker != nil {
 					return cachedDocker, nil
 				}
-				c, err := newRemoteDockerClient(ctx, apiClient, appName, streams)
+				c, err := newRemoteDockerClient(ctx, apiClient, appName, streams, build)
 				if err != nil {
 					return nil, err
 				}
@@ -64,9 +64,11 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 		if c != nil && err == nil {
 			return &dockerClientFactory{
 				mode: DockerDaemonTypeLocal,
-				buildFn: func(ctx context.Context) (*dockerclient.Client, error) {
+				buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
+					build.SetBuilderMetaPart1(false, "", "")
 					return c, nil
 				},
+				appName: appName,
 			}
 		} else if err != nil && !dockerclient.IsErrConnectionFailed(err) {
 			terminal.Warn("Error connecting to local docker daemon:", err)
@@ -90,7 +92,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 
 	return &dockerClientFactory{
 		mode: DockerDaemonTypeNone,
-		buildFn: func(ctx context.Context) (*dockerclient.Client, error) {
+		buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
 			return nil, errors.New("no docker daemon available")
 		},
 	}
@@ -168,7 +170,7 @@ func NewLocalDockerClient() (*dockerclient.Client, error) {
 	return c, nil
 }
 
-func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, streams *iostreams.IOStreams) (*dockerclient.Client, error) {
+func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, streams *iostreams.IOStreams, build *build) (*dockerclient.Client, error) {
 	startedAt := time.Now()
 
 	var host string
@@ -181,6 +183,8 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	}
 	remoteBuilderAppName := app.Name
 	remoteBuilderOrg := app.Organization.Slug
+
+	build.SetBuilderMetaPart1(true, remoteBuilderAppName, machine.ID)
 
 	if host != "" {
 		terminal.Debugf("Remote Docker builder host: %s\n", host)
