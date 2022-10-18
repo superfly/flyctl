@@ -52,16 +52,16 @@ or "flyctl auth login" to log in to an existing account.`
 flyctl does a lot of stuff! Don't panic, it's easy to get started:
 
   * fly launch:   launch a new application ("fly help launch" for more)
-   
+
   * fly apps:     create and manage apps ("fly help apps")
-   
+
   * fly machines: create and manage individual Fly.io machines ("fly help machines")
-   
+
   * fly postgres: create and manage Postgres databases ("fly help postgres")
-   
+
   * fly redis:    create and manage Redis databases ("fly help redis")
-   
-  * fly help:     for more help, and a complete list of commands. 
+
+  * fly help:     for more help, and a complete list of commands.
 `, auth)
 		return nil
 	})

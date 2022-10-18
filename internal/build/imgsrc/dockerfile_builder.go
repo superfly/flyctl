@@ -33,7 +33,7 @@ import (
 
 type dockerfileBuilder struct{}
 
-func (ds *dockerfileBuilder) Name() string {
+func (*dockerfileBuilder) Name() string {
 	return "Dockerfile"
 }
 
@@ -53,18 +53,21 @@ func (out *lastProgressOutput) WriteProgress(prog progress.Progress) error {
 	return out.output.WriteProgress(prog)
 }
 
-func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions) (*DeploymentImage, error) {
+func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error) {
+	build.BuildStart()
 	if !dockerFactory.mode.IsAvailable() {
 		// Where should debug messages be sent?
 		terminal.Debug("docker daemon not available, skipping")
-		return nil, nil
+		build.BuildFinish()
+		return nil, "", nil
 	}
 
 	var dockerfile string
 
 	if opts.DockerfilePath != "" {
 		if !helpers.FileExists(opts.DockerfilePath) {
-			return nil, fmt.Errorf("Dockerfile '%s' not found", opts.DockerfilePath)
+			build.BuildFinish()
+			return nil, "", fmt.Errorf("Dockerfile '%s' not found", opts.DockerfilePath)
 		}
 		dockerfile = opts.DockerfilePath
 	} else {
@@ -73,16 +76,22 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 
 	if dockerfile == "" {
 		terminal.Debug("dockerfile not found, skipping")
-		return nil, nil
+		build.BuildFinish()
+		return nil, "", nil
 	}
 
-	docker, err := dockerFactory.buildFn(ctx)
+	build.BuilderInitStart()
+	docker, err := dockerFactory.buildFn(ctx, build)
 	if err != nil {
-		return nil, errors.Wrap(err, "error connecting to docker")
+		build.BuildFinish()
+		build.BuilderInitFinish()
+		return nil, "", errors.Wrap(err, "error connecting to docker")
 	}
 
+	build.BuilderInitFinish()
 	defer clearDeploymentTags(ctx, docker, opts.Tag)
 
+	build.ContextBuildStart()
 	tb := render.NewTextBlock(ctx, "Creating build context")
 
 	archiveOpts := archiveOptions{
@@ -92,7 +101,9 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 
 	excludes, err := readDockerignore(opts.WorkingDir)
 	if err != nil {
-		return nil, errors.Wrap(err, "error reading .dockerignore")
+		build.BuildFinish()
+		build.ContextBuildFinish()
+		return nil, "", errors.Wrap(err, "error reading .dockerignore")
 	}
 	archiveOpts.exclusions = excludes
 
@@ -102,7 +113,9 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 	if !isPathInRoot(dockerfile, opts.WorkingDir) {
 		dockerfileData, err := os.ReadFile(dockerfile)
 		if err != nil {
-			return nil, errors.Wrap(err, "error reading Dockerfile")
+			build.BuildFinish()
+			build.ContextBuildFinish()
+			return nil, "", errors.Wrap(err, "error reading Dockerfile")
 		}
 		archiveOpts.additions = map[string][]byte{
 			"Dockerfile": dockerfileData,
@@ -111,7 +124,9 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 		// pass the relative path to Dockerfile within the context
 		p, err := filepath.Rel(opts.WorkingDir, dockerfile)
 		if err != nil {
-			return nil, err
+			build.BuildFinish()
+			build.ContextBuildFinish()
+			return nil, "", err
 		}
 		relativedockerfilePath = p
 	}
@@ -121,8 +136,11 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 	// Create the docker build context as a compressed tar stream
 	r, err := archiveDirectory(archiveOpts)
 	if err != nil {
-		return nil, errors.Wrap(err, "error archiving build context")
+		build.BuildFinish()
+		build.ContextBuildFinish()
+		return nil, "", errors.Wrap(err, "error archiving build context")
 	}
+	build.ContextBuildFinish()
 	tb.Done("Creating build context done")
 
 	// Setup an upload progress bar
@@ -135,6 +153,7 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 
 	var imageID string
 
+	build.ImageBuildStart()
 	terminal.Debug("fetching docker server info")
 	serverInfo, err := func() (types.Info, error) {
 		infoCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -142,61 +161,76 @@ func (ds *dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClien
 		return docker.Info(infoCtx)
 	}()
 	if err != nil {
-		return nil, errors.Wrap(err, "error fetching docker server info")
+		build.ImageBuildFinish()
+		build.BuildFinish()
+		return nil, "", errors.Wrap(err, "error fetching docker server info")
 	}
 
 	docker_tb := render.NewTextBlock(ctx, "Building image with Docker")
 	msg := fmt.Sprintf("docker host: %s %s %s", serverInfo.ServerVersion, serverInfo.OSType, serverInfo.Architecture)
 	docker_tb.Done(msg)
 
-	buildArgs, err := normalizeBuildArgsForDocker(ctx, opts.BuildArgs)
+	buildArgs, err := normalizeBuildArgsForDocker(opts.BuildArgs)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing build args: %w", err)
+		build.ImageBuildFinish()
+		build.BuildFinish()
+		return nil, "", fmt.Errorf("error parsing build args: %w", err)
 	}
 
 	buildkitEnabled, err := buildkitEnabled(docker)
 	terminal.Debugf("buildkitEnabled", buildkitEnabled)
 	if err != nil {
-		return nil, errors.Wrap(err, "error checking for buildkit support")
+		build.ImageBuildFinish()
+		build.BuildFinish()
+		return nil, "", errors.Wrap(err, "error checking for buildkit support")
 	}
+	build.SetBuilderMetaPart2(buildkitEnabled, serverInfo.ServerVersion, fmt.Sprintf("%s/%s/%s", serverInfo.OSType, serverInfo.Architecture, serverInfo.OSVersion))
 	if buildkitEnabled {
 		imageID, err = runBuildKitBuild(ctx, streams, docker, r, opts, relativedockerfilePath, buildArgs)
 		if err != nil {
-			return nil, errors.Wrap(err, "error building")
+			build.ImageBuildFinish()
+			build.BuildFinish()
+			return nil, "", errors.Wrap(err, "error building")
 		}
 	} else {
 		imageID, err = runClassicBuild(ctx, streams, docker, r, opts, relativedockerfilePath, buildArgs)
 		if err != nil {
-			return nil, errors.Wrap(err, "error building")
+			build.ImageBuildFinish()
+			build.BuildFinish()
+			return nil, "", errors.Wrap(err, "error building")
 		}
 	}
 
+	build.ImageBuildFinish()
+	build.BuildFinish()
 	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
 
 	if opts.Publish {
+		build.PushStart()
 		tb := render.NewTextBlock(ctx, "Pushing image to fly")
 		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
-			return nil, err
+			build.PushFinish()
+			return nil, "", err
 		}
+		build.PushFinish()
 
 		tb.Done("Pushing image done")
 	}
 
 	img, _, err := docker.ImageInspectWithRaw(ctx, imageID)
 	if err != nil {
-		return nil, errors.Wrap(err, "count not find built image")
+		return nil, "", errors.Wrap(err, "count not find built image")
 	}
 
 	return &DeploymentImage{
 		ID:   img.ID,
 		Tag:  opts.Tag,
 		Size: img.Size,
-	}, nil
+	}, "", nil
 }
 
-func normalizeBuildArgsForDocker(ctx context.Context, buildArgs map[string]string) (map[string]*string, error) {
+func normalizeBuildArgsForDocker(buildArgs map[string]string) (map[string]*string, error) {
 	out := map[string]*string{}
-	// workingDirectory := state.WorkingDirectory(ctx)
 
 	for k, v := range buildArgs {
 		val := v
@@ -370,7 +404,12 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 				if err != nil {
 					return err
 				}
-				defer f.Close()
+				defer func() {
+					err := f.Close()
+					if err != nil {
+						terminal.Debugf("error closing build.log: %v", err)
+					}
+				}()
 			}
 
 			return nil

@@ -21,37 +21,59 @@ func (*localImageResolver) Name() string {
 	return "Local Image Reference"
 }
 
-func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts RefOptions) (*DeploymentImage, error) {
+func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts RefOptions, build *build) (*DeploymentImage, string, error) {
+	build.BuildStart()
 	if !dockerFactory.IsLocal() {
-		terminal.Debug("local docker daemon not available, skipping")
-		return nil, nil
+		note := "local docker daemon not available, skipping"
+		terminal.Debug(note)
+		build.BuildFinish()
+		return nil, note, nil
 	}
 
 	if opts.Tag == "" {
 		opts.Tag = NewDeploymentTag(opts.AppName, opts.ImageLabel)
 	}
 
-	docker, err := dockerFactory.buildFn(ctx)
+	build.BuilderInitStart()
+	docker, err := dockerFactory.buildFn(ctx, build)
+	build.BuilderInitFinish()
 	if err != nil {
-		return nil, err
+		build.BuildFinish()
+		return nil, "", err
+	}
+
+	serverInfo, err := docker.Info(ctx)
+	if err != nil {
+		terminal.Debug("error fetching docker server info:", err)
+	} else {
+		buildkitEnabled, err := buildkitEnabled(docker)
+		terminal.Debugf("buildkitEnabled", buildkitEnabled)
+		if err == nil {
+			build.SetBuilderMetaPart2(buildkitEnabled, serverInfo.ServerVersion, fmt.Sprintf("%s/%s/%s", serverInfo.OSType, serverInfo.Architecture, serverInfo.OSVersion))
+		}
 	}
 
 	fmt.Fprintf(streams.ErrOut, "Searching for image '%s' locally...\n", opts.ImageRef)
 
 	img, err := findImageWithDocker(ctx, docker, opts.ImageRef)
 	if err != nil {
-		return nil, err
+		build.BuildFinish()
+		return nil, "", err
 	}
 	if img == nil {
-		return nil, nil
+		build.BuildFinish()
+		return nil, "no image found and no error occurred", nil
 	}
 
+	build.BuildFinish()
 	fmt.Fprintf(streams.ErrOut, "image found: %s\n", img.ID)
 
 	if opts.Publish {
+		build.PushStart()
 		err = docker.ImageTag(ctx, img.ID, opts.Tag)
 		if err != nil {
-			return nil, errors.Wrap(err, "error tagging image")
+			build.PushFinish()
+			return nil, "", errors.Wrap(err, "error tagging image")
 		}
 
 		defer clearDeploymentTags(ctx, docker, opts.Tag)
@@ -59,7 +81,8 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 		cmdfmt.PrintBegin(streams.ErrOut, "Pushing image to fly")
 
 		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
-			return nil, err
+			build.PushFinish()
+			return nil, "", err
 		}
 
 		cmdfmt.PrintDone(streams.ErrOut, "Pushing image done")
@@ -71,7 +94,7 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 		Size: img.Size,
 	}
 
-	return di, nil
+	return di, "", nil
 }
 
 var imageIDPattern = regexp.MustCompile("[a-f0-9]")

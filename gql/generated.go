@@ -15,6 +15,181 @@ const (
 	AddOnTypeRedis AddOnType = "redis"
 )
 
+type BuildFinalImageInput struct {
+	// Sha256 id of docker image
+	Id string `json:"id"`
+	// Size in bytes of the docker image
+	SizeBytes int64 `json:"sizeBytes"`
+	// Tag used for docker image
+	Tag string `json:"tag"`
+}
+
+// GetId returns BuildFinalImageInput.Id, and is useful for accessing the field via an interface.
+func (v *BuildFinalImageInput) GetId() string { return v.Id }
+
+// GetSizeBytes returns BuildFinalImageInput.SizeBytes, and is useful for accessing the field via an interface.
+func (v *BuildFinalImageInput) GetSizeBytes() int64 { return v.SizeBytes }
+
+// GetTag returns BuildFinalImageInput.Tag, and is useful for accessing the field via an interface.
+func (v *BuildFinalImageInput) GetTag() string { return v.Tag }
+
+type BuildImageOptsInput struct {
+	// Set of build time variables passed to cli
+	BuildArgs interface{} `json:"buildArgs"`
+	// Fly.toml build.buildpacks setting
+	BuildPacks []string `json:"buildPacks"`
+	// Fly.toml build.builder setting
+	Builder string `json:"builder"`
+	// Builtin builder to use
+	BuiltIn string `json:"builtIn"`
+	// Builtin builder settings
+	BuiltInSettings interface{} `json:"builtInSettings"`
+	// Path to dockerfile, if one exists
+	DockerfilePath string `json:"dockerfilePath"`
+	// Unused in cli?
+	ExtraBuildArgs interface{} `json:"extraBuildArgs"`
+	// Image label to use when tagging and pushing to the fly registry
+	ImageLabel string `json:"imageLabel"`
+	// Unused in cli?
+	ImageRef string `json:"imageRef"`
+	// Do not use the build cache when building the image
+	NoCache bool `json:"noCache"`
+	// Whether publishing to the registry was requested
+	Publish bool `json:"publish"`
+	// Docker tag used to publish image to registry
+	Tag string `json:"tag"`
+	// Set the target build stage to build if the Dockerfile has more than one stage
+	Target string `json:"target"`
+}
+
+// GetBuildArgs returns BuildImageOptsInput.BuildArgs, and is useful for accessing the field via an interface.
+func (v *BuildImageOptsInput) GetBuildArgs() interface{} { return v.BuildArgs }
+
+// GetBuildPacks returns BuildImageOptsInput.BuildPacks, and is useful for accessing the field via an interface.
+func (v *BuildImageOptsInput) GetBuildPacks() []string { return v.BuildPacks }
+
+// GetBuilder returns BuildImageOptsInput.Builder, and is useful for accessing the field via an interface.
+func (v *BuildImageOptsInput) GetBuilder() string { return v.Builder }
+
+// GetBuiltIn returns BuildImageOptsInput.BuiltIn, and is useful for accessing the field via an interface.
+func (v *BuildImageOptsInput) GetBuiltIn() string { return v.BuiltIn }
+
+// GetBuiltInSettings returns BuildImageOptsInput.BuiltInSettings, and is useful for accessing the field via an interface.
+func (v *BuildImageOptsInput) GetBuiltInSettings() interface{} { return v.BuiltInSettings }
+
+// GetDockerfilePath returns BuildImageOptsInput.DockerfilePath, and is useful for accessing the field via an interface.
+func (v *BuildImageOptsInput) GetDockerfilePath() string { return v.DockerfilePath }
+
+// GetExtraBuildArgs returns BuildImageOptsInput.ExtraBuildArgs, and is useful for accessing the field via an interface.
+func (v *BuildImageOptsInput) GetExtraBuildArgs() interface{} { return v.ExtraBuildArgs }
+
+// GetImageLabel returns BuildImageOptsInput.ImageLabel, and is useful for accessing the field via an interface.
+func (v *BuildImageOptsInput) GetImageLabel() string { return v.ImageLabel }
+
+// GetImageRef returns BuildImageOptsInput.ImageRef, and is useful for accessing the field via an interface.
+func (v *BuildImageOptsInput) GetImageRef() string { return v.ImageRef }
+
+// GetNoCache returns BuildImageOptsInput.NoCache, and is useful for accessing the field via an interface.
+func (v *BuildImageOptsInput) GetNoCache() bool { return v.NoCache }
+
+// GetPublish returns BuildImageOptsInput.Publish, and is useful for accessing the field via an interface.
+func (v *BuildImageOptsInput) GetPublish() bool { return v.Publish }
+
+// GetTag returns BuildImageOptsInput.Tag, and is useful for accessing the field via an interface.
+func (v *BuildImageOptsInput) GetTag() string { return v.Tag }
+
+// GetTarget returns BuildImageOptsInput.Target, and is useful for accessing the field via an interface.
+func (v *BuildImageOptsInput) GetTarget() string { return v.Target }
+
+type BuildStrategyAttemptInput struct {
+	// Optional error message from strategy
+	Error string `json:"error"`
+	// Optional note about this strategy or its result
+	Note string `json:"note"`
+	// Result attempting this strategy
+	Result string `json:"result"`
+	// Build strategy attempted
+	Strategy string `json:"strategy"`
+}
+
+// GetError returns BuildStrategyAttemptInput.Error, and is useful for accessing the field via an interface.
+func (v *BuildStrategyAttemptInput) GetError() string { return v.Error }
+
+// GetNote returns BuildStrategyAttemptInput.Note, and is useful for accessing the field via an interface.
+func (v *BuildStrategyAttemptInput) GetNote() string { return v.Note }
+
+// GetResult returns BuildStrategyAttemptInput.Result, and is useful for accessing the field via an interface.
+func (v *BuildStrategyAttemptInput) GetResult() string { return v.Result }
+
+// GetStrategy returns BuildStrategyAttemptInput.Strategy, and is useful for accessing the field via an interface.
+func (v *BuildStrategyAttemptInput) GetStrategy() string { return v.Strategy }
+
+type BuildTimingsInput struct {
+	// Time to build and push the image, measured by flyctl
+	BuildAndPushMs int64 `json:"buildAndPushMs"`
+	// Time to build the image including create context, measured by flyctl
+	BuildMs int64 `json:"buildMs"`
+	// Time to initialize client used to connect to either remote or local builder
+	BuilderInitMs int64 `json:"builderInitMs"`
+	// Time to create the build context tar file, measured by flyctl
+	ContextBuildMs int64 `json:"contextBuildMs"`
+	// Time for builder to build image after receiving context, measured by flyctl
+	ImageBuildMs int64 `json:"imageBuildMs"`
+	// Time to push completed image to registry, measured by flyctl
+	PushMs int64 `json:"pushMs"`
+}
+
+// GetBuildAndPushMs returns BuildTimingsInput.BuildAndPushMs, and is useful for accessing the field via an interface.
+func (v *BuildTimingsInput) GetBuildAndPushMs() int64 { return v.BuildAndPushMs }
+
+// GetBuildMs returns BuildTimingsInput.BuildMs, and is useful for accessing the field via an interface.
+func (v *BuildTimingsInput) GetBuildMs() int64 { return v.BuildMs }
+
+// GetBuilderInitMs returns BuildTimingsInput.BuilderInitMs, and is useful for accessing the field via an interface.
+func (v *BuildTimingsInput) GetBuilderInitMs() int64 { return v.BuilderInitMs }
+
+// GetContextBuildMs returns BuildTimingsInput.ContextBuildMs, and is useful for accessing the field via an interface.
+func (v *BuildTimingsInput) GetContextBuildMs() int64 { return v.ContextBuildMs }
+
+// GetImageBuildMs returns BuildTimingsInput.ImageBuildMs, and is useful for accessing the field via an interface.
+func (v *BuildTimingsInput) GetImageBuildMs() int64 { return v.ImageBuildMs }
+
+// GetPushMs returns BuildTimingsInput.PushMs, and is useful for accessing the field via an interface.
+func (v *BuildTimingsInput) GetPushMs() int64 { return v.PushMs }
+
+type BuilderMetaInput struct {
+	// Local or remote builder type
+	BuilderType string `json:"builderType"`
+	// Whther or not buildkit is enabled on builder
+	BuildkitEnabled bool `json:"buildkitEnabled"`
+	// Docker version reported by builder
+	DockerVersion string `json:"dockerVersion"`
+	// Platform reported by the builder
+	Platform string `json:"platform"`
+	// Remote builder app used
+	RemoteAppName string `json:"remoteAppName"`
+	// Remote builder machine used
+	RemoteMachineId string `json:"remoteMachineId"`
+}
+
+// GetBuilderType returns BuilderMetaInput.BuilderType, and is useful for accessing the field via an interface.
+func (v *BuilderMetaInput) GetBuilderType() string { return v.BuilderType }
+
+// GetBuildkitEnabled returns BuilderMetaInput.BuildkitEnabled, and is useful for accessing the field via an interface.
+func (v *BuilderMetaInput) GetBuildkitEnabled() bool { return v.BuildkitEnabled }
+
+// GetDockerVersion returns BuilderMetaInput.DockerVersion, and is useful for accessing the field via an interface.
+func (v *BuilderMetaInput) GetDockerVersion() string { return v.DockerVersion }
+
+// GetPlatform returns BuilderMetaInput.Platform, and is useful for accessing the field via an interface.
+func (v *BuilderMetaInput) GetPlatform() string { return v.Platform }
+
+// GetRemoteAppName returns BuilderMetaInput.RemoteAppName, and is useful for accessing the field via an interface.
+func (v *BuilderMetaInput) GetRemoteAppName() string { return v.RemoteAppName }
+
+// GetRemoteMachineId returns BuilderMetaInput.RemoteMachineId, and is useful for accessing the field via an interface.
+func (v *BuilderMetaInput) GetRemoteMachineId() string { return v.RemoteMachineId }
+
 // CreateAddOnCreateAddOnCreateAddOnPayload includes the requested fields of the GraphQL type CreateAddOnPayload.
 // The GraphQL type's documentation follows.
 //
@@ -52,6 +227,40 @@ func (v *CreateAddOnResponse) GetCreateAddOn() CreateAddOnCreateAddOnCreateAddOn
 	return v.CreateAddOn
 }
 
+// Autogenerated input type of CreateBuild
+type CreateBuildInput struct {
+	// The name of the app being built
+	AppName string `json:"appName"`
+	// Whether builder is remote or local
+	BuilderType string `json:"builderType"`
+	// A unique identifier for the client performing the mutation.
+	ClientMutationId string `json:"clientMutationId"`
+	// Options set for building image
+	ImageOpts BuildImageOptsInput `json:"imageOpts"`
+	// The ID of the machine being built (only set for machine builds)
+	MachineId string `json:"machineId"`
+	// List of available build strategies that will be attempted
+	StrategiesAvailable []string `json:"strategiesAvailable"`
+}
+
+// GetAppName returns CreateBuildInput.AppName, and is useful for accessing the field via an interface.
+func (v *CreateBuildInput) GetAppName() string { return v.AppName }
+
+// GetBuilderType returns CreateBuildInput.BuilderType, and is useful for accessing the field via an interface.
+func (v *CreateBuildInput) GetBuilderType() string { return v.BuilderType }
+
+// GetClientMutationId returns CreateBuildInput.ClientMutationId, and is useful for accessing the field via an interface.
+func (v *CreateBuildInput) GetClientMutationId() string { return v.ClientMutationId }
+
+// GetImageOpts returns CreateBuildInput.ImageOpts, and is useful for accessing the field via an interface.
+func (v *CreateBuildInput) GetImageOpts() BuildImageOptsInput { return v.ImageOpts }
+
+// GetMachineId returns CreateBuildInput.MachineId, and is useful for accessing the field via an interface.
+func (v *CreateBuildInput) GetMachineId() string { return v.MachineId }
+
+// GetStrategiesAvailable returns CreateBuildInput.StrategiesAvailable, and is useful for accessing the field via an interface.
+func (v *CreateBuildInput) GetStrategiesAvailable() []string { return v.StrategiesAvailable }
+
 // DeleteAddOnDeleteAddOnDeleteAddOnPayload includes the requested fields of the GraphQL type DeleteAddOnPayload.
 // The GraphQL type's documentation follows.
 //
@@ -74,6 +283,62 @@ type DeleteAddOnResponse struct {
 func (v *DeleteAddOnResponse) GetDeleteAddOn() DeleteAddOnDeleteAddOnDeleteAddOnPayload {
 	return v.DeleteAddOn
 }
+
+// Autogenerated input type of FinishBuild
+type FinishBuildInput struct {
+	// The name of the app being built
+	AppName string `json:"appName"`
+	// Build id returned by createBuild() mutation
+	BuildId string `json:"buildId"`
+	// Metadata about the builder
+	BuilderMeta BuilderMetaInput `json:"builderMeta"`
+	// A unique identifier for the client performing the mutation.
+	ClientMutationId string `json:"clientMutationId"`
+	// Information about the docker image that was built
+	FinalImage BuildFinalImageInput `json:"finalImage"`
+	// Log or error output
+	Logs string `json:"logs"`
+	// The ID of the machine being built (only set for machine builds)
+	MachineId string `json:"machineId"`
+	// Indicate whether build completed or failed
+	Status string `json:"status"`
+	// Build strategies attempted and their result, should be in order of attempt
+	StrategiesAttempted []BuildStrategyAttemptInput `json:"strategiesAttempted"`
+	// Timings for different phases of the build
+	Timings BuildTimingsInput `json:"timings"`
+}
+
+// GetAppName returns FinishBuildInput.AppName, and is useful for accessing the field via an interface.
+func (v *FinishBuildInput) GetAppName() string { return v.AppName }
+
+// GetBuildId returns FinishBuildInput.BuildId, and is useful for accessing the field via an interface.
+func (v *FinishBuildInput) GetBuildId() string { return v.BuildId }
+
+// GetBuilderMeta returns FinishBuildInput.BuilderMeta, and is useful for accessing the field via an interface.
+func (v *FinishBuildInput) GetBuilderMeta() BuilderMetaInput { return v.BuilderMeta }
+
+// GetClientMutationId returns FinishBuildInput.ClientMutationId, and is useful for accessing the field via an interface.
+func (v *FinishBuildInput) GetClientMutationId() string { return v.ClientMutationId }
+
+// GetFinalImage returns FinishBuildInput.FinalImage, and is useful for accessing the field via an interface.
+func (v *FinishBuildInput) GetFinalImage() BuildFinalImageInput { return v.FinalImage }
+
+// GetLogs returns FinishBuildInput.Logs, and is useful for accessing the field via an interface.
+func (v *FinishBuildInput) GetLogs() string { return v.Logs }
+
+// GetMachineId returns FinishBuildInput.MachineId, and is useful for accessing the field via an interface.
+func (v *FinishBuildInput) GetMachineId() string { return v.MachineId }
+
+// GetStatus returns FinishBuildInput.Status, and is useful for accessing the field via an interface.
+func (v *FinishBuildInput) GetStatus() string { return v.Status }
+
+// GetStrategiesAttempted returns FinishBuildInput.StrategiesAttempted, and is useful for accessing the field via an interface.
+func (v *FinishBuildInput) GetStrategiesAttempted() []BuildStrategyAttemptInput {
+	return v.StrategiesAttempted
+}
+
+// GetTimings returns FinishBuildInput.Timings, and is useful for accessing the field via an interface.
+func (v *FinishBuildInput) GetTimings() BuildTimingsInput { return v.Timings }
 
 // GetAddOnAddOn includes the requested fields of the GraphQL type AddOn.
 type GetAddOnAddOn struct {
@@ -333,6 +598,67 @@ type ListAddOnsResponse struct {
 // GetAddOns returns ListAddOnsResponse.AddOns, and is useful for accessing the field via an interface.
 func (v *ListAddOnsResponse) GetAddOns() ListAddOnsAddOnsAddOnConnection { return v.AddOns }
 
+// ResolverCreateBuildCreateBuildCreateBuildPayload includes the requested fields of the GraphQL type CreateBuildPayload.
+// The GraphQL type's documentation follows.
+//
+// Autogenerated return type of CreateBuild
+type ResolverCreateBuildCreateBuildCreateBuildPayload struct {
+	// build id
+	Id string `json:"id"`
+	// stored build status
+	Status string `json:"status"`
+}
+
+// GetId returns ResolverCreateBuildCreateBuildCreateBuildPayload.Id, and is useful for accessing the field via an interface.
+func (v *ResolverCreateBuildCreateBuildCreateBuildPayload) GetId() string { return v.Id }
+
+// GetStatus returns ResolverCreateBuildCreateBuildCreateBuildPayload.Status, and is useful for accessing the field via an interface.
+func (v *ResolverCreateBuildCreateBuildCreateBuildPayload) GetStatus() string { return v.Status }
+
+// ResolverCreateBuildResponse is returned by ResolverCreateBuild on success.
+type ResolverCreateBuildResponse struct {
+	CreateBuild ResolverCreateBuildCreateBuildCreateBuildPayload `json:"createBuild"`
+}
+
+// GetCreateBuild returns ResolverCreateBuildResponse.CreateBuild, and is useful for accessing the field via an interface.
+func (v *ResolverCreateBuildResponse) GetCreateBuild() ResolverCreateBuildCreateBuildCreateBuildPayload {
+	return v.CreateBuild
+}
+
+// ResolverFinishBuildFinishBuildFinishBuildPayload includes the requested fields of the GraphQL type FinishBuildPayload.
+// The GraphQL type's documentation follows.
+//
+// Autogenerated return type of FinishBuild
+type ResolverFinishBuildFinishBuildFinishBuildPayload struct {
+	// build id
+	Id string `json:"id"`
+	// stored build status
+	Status string `json:"status"`
+	// wall clock time for this build
+	WallclockTimeMs int `json:"wallclockTimeMs"`
+}
+
+// GetId returns ResolverFinishBuildFinishBuildFinishBuildPayload.Id, and is useful for accessing the field via an interface.
+func (v *ResolverFinishBuildFinishBuildFinishBuildPayload) GetId() string { return v.Id }
+
+// GetStatus returns ResolverFinishBuildFinishBuildFinishBuildPayload.Status, and is useful for accessing the field via an interface.
+func (v *ResolverFinishBuildFinishBuildFinishBuildPayload) GetStatus() string { return v.Status }
+
+// GetWallclockTimeMs returns ResolverFinishBuildFinishBuildFinishBuildPayload.WallclockTimeMs, and is useful for accessing the field via an interface.
+func (v *ResolverFinishBuildFinishBuildFinishBuildPayload) GetWallclockTimeMs() int {
+	return v.WallclockTimeMs
+}
+
+// ResolverFinishBuildResponse is returned by ResolverFinishBuild on success.
+type ResolverFinishBuildResponse struct {
+	FinishBuild ResolverFinishBuildFinishBuildFinishBuildPayload `json:"finishBuild"`
+}
+
+// GetFinishBuild returns ResolverFinishBuildResponse.FinishBuild, and is useful for accessing the field via an interface.
+func (v *ResolverFinishBuildResponse) GetFinishBuild() ResolverFinishBuildFinishBuildFinishBuildPayload {
+	return v.FinishBuild
+}
+
 // UpdateAddOnResponse is returned by UpdateAddOn on success.
 type UpdateAddOnResponse struct {
 	UpdateAddOn UpdateAddOnUpdateAddOnUpdateAddOnPayload `json:"updateAddOn"`
@@ -423,6 +749,22 @@ type __ListAddOnsInput struct {
 
 // GetAddOnType returns __ListAddOnsInput.AddOnType, and is useful for accessing the field via an interface.
 func (v *__ListAddOnsInput) GetAddOnType() AddOnType { return v.AddOnType }
+
+// __ResolverCreateBuildInput is used internally by genqlient
+type __ResolverCreateBuildInput struct {
+	Input CreateBuildInput `json:"input"`
+}
+
+// GetInput returns __ResolverCreateBuildInput.Input, and is useful for accessing the field via an interface.
+func (v *__ResolverCreateBuildInput) GetInput() CreateBuildInput { return v.Input }
+
+// __ResolverFinishBuildInput is used internally by genqlient
+type __ResolverFinishBuildInput struct {
+	Input FinishBuildInput `json:"input"`
+}
+
+// GetInput returns __ResolverFinishBuildInput.Input, and is useful for accessing the field via an interface.
+func (v *__ResolverFinishBuildInput) GetInput() FinishBuildInput { return v.Input }
 
 // __UpdateAddOnInput is used internally by genqlient
 type __UpdateAddOnInput struct {
@@ -666,6 +1008,73 @@ query ListAddOns ($addOnType: AddOnType) {
 	var err error
 
 	var data ListAddOnsResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
+func ResolverCreateBuild(
+	ctx context.Context,
+	client graphql.Client,
+	input CreateBuildInput,
+) (*ResolverCreateBuildResponse, error) {
+	req := &graphql.Request{
+		OpName: "ResolverCreateBuild",
+		Query: `
+mutation ResolverCreateBuild ($input: CreateBuildInput!) {
+	createBuild(input: $input) {
+		id
+		status
+	}
+}
+`,
+		Variables: &__ResolverCreateBuildInput{
+			Input: input,
+		},
+	}
+	var err error
+
+	var data ResolverCreateBuildResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
+func ResolverFinishBuild(
+	ctx context.Context,
+	client graphql.Client,
+	input FinishBuildInput,
+) (*ResolverFinishBuildResponse, error) {
+	req := &graphql.Request{
+		OpName: "ResolverFinishBuild",
+		Query: `
+mutation ResolverFinishBuild ($input: FinishBuildInput!) {
+	finishBuild(input: $input) {
+		id
+		status
+		wallclockTimeMs
+	}
+}
+`,
+		Variables: &__ResolverFinishBuildInput{
+			Input: input,
+		},
+	}
+	var err error
+
+	var data ResolverFinishBuildResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(
