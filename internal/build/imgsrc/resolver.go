@@ -96,7 +96,7 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 			return img, nil
 		}
 		bld.BuildAndPushFinish()
-		bld.FinishImageStrategy(s, false /* failed */, nil, note)
+		bld.FinishImageStrategy(s, true /* failed */, nil, note)
 	}
 
 	r.finishBuild(ctx, bld, true /* failed */, "no strategies resulted in an image", nil)
@@ -148,7 +148,7 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 			return img, nil
 		}
 		bld.BuildAndPushFinish()
-		bld.FinishStrategy(s, false /* failed */, nil, note)
+		bld.FinishStrategy(s, true /* failed */, nil, note)
 	}
 
 	r.finishBuild(ctx, bld, true /* failed */, "no strategies resulted in an image", nil)
