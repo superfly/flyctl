@@ -113,6 +113,14 @@ func (c *Client) AppVMResources(ctx context.Context, appName string) (VMSize, []
 				}
 				processGroups {
 					name
+					vmSize {
+						name
+						cpuCores
+						memoryGb
+						memoryMb
+						priceMonth
+						priceSecond
+					}
 					maxPerRegion
 				}
 			}

@@ -180,7 +180,7 @@ func runScaleShow(cmdCtx *cmdctx.CmdContext) error {
 	countMsg := countMessage(tgCounts)
 	maxPerRegionMsg := maxPerRegionMessage(processGroups)
 
-	printVMResources(cmdCtx, size, countMsg, maxPerRegionMsg)
+	printVMResources(cmdCtx, size, countMsg, maxPerRegionMsg, processGroups)
 
 	return nil
 }
@@ -231,7 +231,7 @@ func maxPerRegionMessage(groups []api.ProcessGroup) string {
 	return msg
 }
 
-func printVMResources(commandContext *cmdctx.CmdContext, vmSize api.VMSize, count string, maxPerRegion string) {
+func printVMResources(commandContext *cmdctx.CmdContext, vmSize api.VMSize, count string, maxPerRegion string, processGroups []api.ProcessGroup) {
 	if commandContext.OutputJSON() {
 		out := struct {
 			api.VMSize
@@ -250,10 +250,22 @@ func printVMResources(commandContext *cmdctx.CmdContext, vmSize api.VMSize, coun
 
 	fmt.Printf("VM Resources for %s\n", commandContext.AppName)
 
-	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Size", vmSize.Name)
-	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Memory", formatMemory(vmSize))
+	if len(processGroups) <= 1 {
+		fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Size", vmSize.Name)
+		fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Memory", formatMemory(vmSize))
+	}
+
 	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "Count", count)
 	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "Max Per Region", maxPerRegion)
+
+	if len(processGroups) > 1 {
+		for _, pg := range processGroups {
+			fmt.Printf("\nProcess group %s\n", pg.Name)
+			fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Size", pg.VMSize.Name)
+			fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Memory", formatMemory(*pg.VMSize))
+			fmt.Fprintf(commandContext.Out, "%15s: %s\n", "Max Per Region", strconv.Itoa(pg.MaxPerRegion))
+		}
+	}
 }
 
 func runScaleMemory(cmdCtx *cmdctx.CmdContext) error {
