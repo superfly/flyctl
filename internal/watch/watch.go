@@ -356,7 +356,7 @@ func retryGetMachines(ctx context.Context, machineIDs ...string) (result []*api.
 			result, err2 = flapsClient.GetMany(ctx, machineIDs...)
 			return err2
 		},
-		retry.Attempts(6), retry.MaxDelay(10*time.Second),
+		retry.Attempts(6), retry.MaxDelay(10*time.Second), retry.Context(ctx),
 	)
 	return
 }
