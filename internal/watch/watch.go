@@ -295,60 +295,70 @@ func renderLogs(ctx context.Context, alloc *api.AllocationStatus) {
 
 func MachinesChecks(ctx context.Context, machines []*api.Machine) error {
 	var (
-		io          = iostreams.FromContext(ctx)
-		colorize    = io.ColorScheme()
-		flapsClient = flaps.FromContext(ctx)
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
 	)
-	ctx, cancel := context.WithTimeout(ctx, 300*time.Second)
-	defer cancel()
 
 	checksTotal := lo.SumBy(machines, func(m *api.Machine) int { return len(m.Checks) })
 	if checksTotal == 0 {
 		fmt.Fprintln(io.Out, "No health checks found")
 		return nil
 	}
-	// fmt.Fprintf(io.Out, "Waiting for %d checks\n", checksTotal)
 
-	err := retry.Do(
-		func() error {
-			var err error
-			ids := lo.Map(machines, func(m *api.Machine, _ int) string { return m.ID })
-			checked, err := flapsClient.GetMany(ctx, ids...)
-			if err != nil {
-				return err
-			}
-			// fmt.Fprintf(io.Out, "\nWaiting for %d checks\n", len(checked))
+	machineIDs := lo.Map(machines, func(m *api.Machine, _ int) string { return m.ID })
+	ctx, cancel := context.WithTimeout(ctx, 300*time.Second)
+	defer cancel()
+	iteration := 0
 
-			if io.IsInteractive() {
-				builder := aec.EmptyBuilder
-				str := builder.Up(uint(len(checked))).EraseLine(aec.EraseModes.All).ANSI
-				fmt.Fprint(io.ErrOut, str.String())
-			}
+	fn := func() error {
+		checked, err := retryGetMachines(ctx, machineIDs...)
+		if err != nil {
+			return retry.Unrecoverable(err)
+		}
 
-			checksPassed := 0
-			for _, machine := range checked {
-				if machine.Config.Checks == nil {
-					continue
-				}
-				pass, _, _ := countChecks(machine.Checks)
-				checksPassed += pass
-				// Waiting for xxxxxxxx to become healthy (started, 3/3)
-				fmt.Fprintf(io.ErrOut, "  Waiting for %s to become healthy (%s, %s)\n",
-					colorize.Bold(machine.ID),
-					colorize.Green(machine.State),
-					colorize.Green(fmt.Sprintf("%d/%d", pass, len(machine.Checks))),
-				)
-			}
+		iteration++
+		if io.IsInteractive() && iteration > 1 {
+			builder := aec.EmptyBuilder
+			str := builder.Up(uint(len(checked))).EraseLine(aec.EraseModes.All).ANSI
+			fmt.Fprint(io.ErrOut, str.String())
+		}
 
-			// if all checks are passing, we're done
-			if checksPassed != checksTotal {
-				return fmt.Errorf("Waiting for %d non-passing checks", checksTotal-checksPassed)
+		checksPassed := 0
+		for _, machine := range checked {
+			if machine.Config.Checks == nil {
+				continue
 			}
-			return nil
+			pass, _, _ := countChecks(machine.Checks)
+			checksPassed += pass
+			// Waiting for xxxxxxxx to become healthy (started, 3/3)
+			fmt.Fprintf(io.ErrOut, "  Waiting for %s to become healthy (%s, %s)\n",
+				colorize.Bold(machine.ID),
+				colorize.Green(machine.State),
+				colorize.Green(fmt.Sprintf("%d/%d", pass, len(machine.Checks))),
+			)
+		}
+
+		// if all checks are passing, we're done
+		if checksPassed != checksTotal {
+			return fmt.Errorf("Waiting for %d non-passing checks", checksTotal-checksPassed)
+		}
+		return nil
+	}
+
+	return retry.Do(fn, retry.Delay(time.Second), retry.DelayType(retry.FixedDelay), retry.Attempts(0), retry.Context(ctx))
+}
+
+// retryGetMachines calls flaps with exponential backoff 10s max interval and up to 6 times
+func retryGetMachines(ctx context.Context, machineIDs ...string) (result []*api.Machine, err error) {
+	flapsClient := flaps.FromContext(ctx)
+	err = retry.Do(
+		func() (err2 error) {
+			result, err2 = flapsClient.GetMany(ctx, machineIDs...)
+			return err2
 		},
-		retry.Delay(time.Second), retry.DelayType(retry.FixedDelay), retry.Attempts(0), retry.Context(ctx),
+		retry.Attempts(6), retry.MaxDelay(10*time.Second),
 	)
-	return err
+	return
 }
 
 func countChecks(checks []*api.MachineCheckStatus) (pass, warn, crit int) {
