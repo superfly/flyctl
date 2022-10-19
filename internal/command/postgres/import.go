@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -37,7 +38,7 @@ func newImport() *cobra.Command {
 		flag.App(),
 		flag.AppConfig(),
 		flag.String{
-			Name:        "source-uri",
+			Name:        "source",
 			Shorthand:   "s",
 			Description: "Source database URI",
 		},
@@ -101,18 +102,18 @@ func runImport(ctx context.Context) error {
 
 	fmt.Fprintln(io.Out, "Creating temporary user on target cluster")
 
-	user, err := helpers.RandString(6)
+	user, err := helpers.RandString(4)
 	if err != nil {
 		return err
 	}
-	password, err := helpers.RandString(16)
+	password, err := helpers.RandString(15)
 	if err != nil {
 		return err
 	}
 
-	user = fmt.Sprintf("flyctl_%s", user)
+	user = fmt.Sprintf("migrator_%s", user)
 
-	if err = pgclient.CreateUser(ctx, user, password, false); err != nil {
+	if err = pgclient.CreateUser(ctx, user, password, true); err != nil {
 		return fmt.Errorf("error creating user %w", err)
 	}
 
@@ -123,9 +124,9 @@ func runImport(ctx context.Context) error {
 		return
 	}()
 
-	target := fmt.Sprintf("postgres://%s:%s@%s:5432/postgres", user, password, app.Name)
+	target := fmt.Sprintf("postgres://%s:%s@%s.internal:5432", user, password, app.Name)
 
-	source := flag.GetString(ctx, "source-uri")
+	source := flag.GetString(ctx, "source")
 
 	secrets := map[string]string{
 		"SOURCE_DATABASE_URI": source,
@@ -138,13 +139,6 @@ func runImport(ctx context.Context) error {
 		return fmt.Errorf("error setting secrets %w", err)
 	}
 
-	defer func() (err error) {
-		if _, err = client.UnsetSecrets(ctx, app.Name, []string{"SOURCE_DATABASE_URI", "TARGET_DATABASE_URI"}); err != nil {
-			fmt.Fprintf(io.ErrOut, "error deleting secrets %s", err)
-		}
-		return
-	}()
-
 	fmt.Fprintln(io.Out, "Creating temporary machine")
 
 	flapClient, err := flaps.New(ctx, app)
@@ -152,12 +146,14 @@ func runImport(ctx context.Context) error {
 		return fmt.Errorf("error creating flap client %w", err)
 	}
 
+	var migratorIMage = "flyio/postgres-migrator:latest"
+
 	input := api.LaunchMachineInput{
 		OrgSlug: app.Organization.Slug,
 		AppID:   app.ID,
 		Region:  region,
 		Config: &api.MachineConfig{
-			Image:  "codebaker/postgres-migrator:latest",
+			Image:  migratorIMage,
 			VMSize: "shared-cpu-2x",
 			Metadata: map[string]string{
 				"process": "postgres-migrator",
@@ -204,15 +200,20 @@ func runImport(ctx context.Context) error {
 		fmt.Fprintf(io.Out, "  Machine %s: %s\n", colorize.Bold(machine.ID), lease.Status)
 	}
 
-	fmt.Fprintln(io.Out, "Running database import with pgdumb...")
+	fmt.Fprintln(io.Out, "Running database import with pgdumb ...")
+
+	fmt.Fprintf(io.Out, "  Source: %s\n", colorize.Bold(source))
+	fmt.Fprintf(io.Out, "  Target: %s\n", colorize.Bold(target))
 
 	var addr = fmt.Sprintf("[%s]", migrator.PrivateIP)
 
-	var cmd = "pg_dump --no-owner -d $SOURCE_DATABASE_URI -C | psql -d $TARGET_DATABASE_URI"
-
-	res, err := ssh.RunSSHCommand(ctx, app, dialer, &addr, cmd)
+	res, err := ssh.RunSSHCommand(ctx, app, dialer, &addr, "migrate")
 	if err != nil {
 		return fmt.Errorf("error running command %w", err)
+	}
+
+	if strings.Contains(string(res), "error") {
+		return fmt.Errorf("error running command %s", res)
 	}
 
 	fmt.Fprintln(io.Out, string(res))
