@@ -139,7 +139,7 @@ func machinesNodeRoles(ctx context.Context, machines []*api.Machine) (leader *ap
 }
 
 func nomadNodeRoles(ctx context.Context, allocs []*api.AllocationStatus) (leader *api.AllocationStatus, replicas []*api.AllocationStatus, err error) {
-	var dialer = agent.DialerFromContext(ctx)
+	dialer := agent.DialerFromContext(ctx)
 
 	for _, alloc := range allocs {
 		pgclient := flypg.NewFromInstance(alloc.PrivateIP, dialer)
@@ -176,4 +176,13 @@ func machineRole(machine *api.Machine) (role string) {
 		}
 	}
 	return role
+}
+
+func pickLeader(ctx context.Context, machines []*api.Machine) (*api.Machine, error) {
+	for _, machine := range machines {
+		if machineRole(machine) == "leader" {
+			return machine, nil
+		}
+	}
+	return nil, fmt.Errorf("No active leader")
 }

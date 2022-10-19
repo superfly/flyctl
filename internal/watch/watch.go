@@ -11,7 +11,9 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/morikuni/aec"
+	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
@@ -291,7 +293,7 @@ func renderLogs(ctx context.Context, alloc *api.AllocationStatus) {
 	}
 }
 
-func MachinesChecks(ctx context.Context, machines []*api.Machine) (err error) {
+func MachinesChecks(ctx context.Context, machines []*api.Machine) error {
 	var (
 		io          = iostreams.FromContext(ctx)
 		colorize    = io.ColorScheme()
@@ -300,56 +302,36 @@ func MachinesChecks(ctx context.Context, machines []*api.Machine) (err error) {
 	ctx, cancel := context.WithTimeout(ctx, 300*time.Second)
 	defer cancel()
 
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
+	checksTotal := lo.SumBy(machines, func(m *api.Machine) int { return len(m.Checks) })
+	if checksTotal == 0 {
+		fmt.Fprintln(io.Out, "No health checks found")
+		return nil
+	}
+	// fmt.Fprintf(io.Out, "Waiting for %d checks\n", checksTotal)
 
-	var iterations int
-	var errCount int
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			var allChecks []*api.MachineCheckStatus
-			var checked []*api.Machine
-
-			err = func() (err error) {
-				for _, machine := range machines {
-					machine, err = flapsClient.Get(ctx, machine.ID)
-					if err != nil {
-						return
-					}
-					checked = append(checked, machine)
-
-				}
-				return
-			}()
+	err := retry.Do(
+		func() error {
+			var err error
+			ids := lo.Map(machines, func(m *api.Machine, _ int) string { return m.ID })
+			checked, err := flapsClient.GetMany(ctx, ids...)
 			if err != nil {
-				errCount++
-				if errCount > 6 {
-					return
-				}
-				continue
+				return err
 			}
+			// fmt.Fprintf(io.Out, "\nWaiting for %d checks\n", len(checked))
 
-			iterations++
-
-			if io.IsInteractive() && iterations > 1 {
+			if io.IsInteractive() {
 				builder := aec.EmptyBuilder
 				str := builder.Up(uint(len(checked))).EraseLine(aec.EraseModes.All).ANSI
 				fmt.Fprint(io.ErrOut, str.String())
 			}
 
+			checksPassed := 0
 			for _, machine := range checked {
 				if machine.Config.Checks == nil {
 					continue
 				}
-
-				allChecks = append(allChecks, machine.Checks...)
-
-				var pass, _, _ = countChecks(machine.Checks)
-
+				pass, _, _ := countChecks(machine.Checks)
+				checksPassed += pass
 				// Waiting for xxxxxxxx to become healthy (started, 3/3)
 				fmt.Fprintf(io.ErrOut, "  Waiting for %s to become healthy (%s, %s)\n",
 					colorize.Bold(machine.ID),
@@ -358,20 +340,15 @@ func MachinesChecks(ctx context.Context, machines []*api.Machine) (err error) {
 				)
 			}
 
-			if len(allChecks) == 0 {
-				fmt.Fprintln(io.Out)
-
-				fmt.Fprintln(io.Out, "No health checks found")
-				return
-			}
-			var pass, _, _ = countChecks(allChecks)
-
 			// if all checks are passing, we're done
-			if pass == len(allChecks) {
-				return
+			if checksPassed != checksTotal {
+				return fmt.Errorf("Waiting for %d non-passing checks", checksTotal-checksPassed)
 			}
-		}
-	}
+			return nil
+		},
+		retry.Delay(time.Second), retry.DelayType(retry.FixedDelay), retry.Attempts(0), retry.Context(ctx),
+	)
+	return err
 }
 
 func countChecks(checks []*api.MachineCheckStatus) (pass, warn, crit int) {
