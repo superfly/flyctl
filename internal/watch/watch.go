@@ -294,10 +294,8 @@ func renderLogs(ctx context.Context, alloc *api.AllocationStatus) {
 }
 
 func MachinesChecks(ctx context.Context, machines []*api.Machine) error {
-	var (
-		io       = iostreams.FromContext(ctx)
-		colorize = io.ColorScheme()
-	)
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
 
 	checksTotal := lo.SumBy(machines, func(m *api.Machine) int { return len(m.Checks) })
 	if checksTotal == 0 {
@@ -353,7 +351,7 @@ func retryGetMachines(ctx context.Context, machineIDs ...string) (result []*api.
 	flapsClient := flaps.FromContext(ctx)
 	err = retry.Do(
 		func() (err2 error) {
-			result, err2 = flapsClient.GetMany(ctx, machineIDs...)
+			result, err2 = flapsClient.GetMany(ctx, machineIDs)
 			return err2
 		},
 		retry.Attempts(6), retry.MaxDelay(10*time.Second), retry.Context(ctx),

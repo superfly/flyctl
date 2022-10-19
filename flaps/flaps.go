@@ -182,7 +182,7 @@ func (f *Client) Get(ctx context.Context, machineID string) (*api.Machine, error
 	return out, nil
 }
 
-func (f *Client) GetMany(ctx context.Context, machineIDs ...string) ([]*api.Machine, error) {
+func (f *Client) GetMany(ctx context.Context, machineIDs []string) ([]*api.Machine, error) {
 	machines := make([]*api.Machine, 0, len(machineIDs))
 	for _, id := range machineIDs {
 		m, err := f.Get(ctx, id)
