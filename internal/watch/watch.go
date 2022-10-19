@@ -297,7 +297,8 @@ func MachinesChecks(ctx context.Context, machines []*api.Machine) error {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	checksTotal := lo.SumBy(machines, func(m *api.Machine) int { return len(m.Checks) })
+	// m.Checks is empty on launch, we have to look at m.Config.Checks for expected count
+	checksTotal := lo.SumBy(machines, func(m *api.Machine) int { return len(m.Config.Checks) })
 	if checksTotal == 0 {
 		fmt.Fprintln(io.Out, "No health checks found")
 		return nil
