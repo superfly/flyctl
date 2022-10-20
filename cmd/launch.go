@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -23,6 +24,7 @@ import (
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/scanner"
+	"github.com/superfly/flyctl/terminal"
 	"github.com/superfly/graphql"
 )
 
@@ -79,6 +81,11 @@ func newLaunchCommand(client *client.Client) *Command {
 	launchCmd.AddBoolFlag(BoolFlagOpts{
 		Name:        "remote-only",
 		Description: "Perform builds remotely without using the local docker daemon",
+		Default:     false,
+	})
+	launchCmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "dockerignore-from-gitignore",
+		Description: "If a .dockerignore does not exist create one from .gitignore files",
 		Default:     false,
 	})
 
@@ -216,6 +223,25 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 				return err
 			}
 		}
+	}
+
+	dockerIgnore := ".dockerignore"
+	gitIgnore := ".gitignore"
+	allGitIgnores := scanner.FindGitignores(dir)
+	if helpers.FileExists(dockerIgnore) {
+		fmt.Printf("Found %s file. Will use when deploying to Fly.\n", dockerIgnore)
+	} else if len(allGitIgnores) > 0 && (cmdCtx.Config.GetBool("dockerignore-from-gitignore") || confirm(fmt.Sprintf("Create %s from %d %s files?", dockerIgnore, len(allGitIgnores), gitIgnore))) {
+		createdDockerIgnore, err := createDockerignoreFromGitignores(dir, allGitIgnores)
+		if err != nil {
+			terminal.Warnf("Error creating %s from %d %s files: %v\n", dockerIgnore, len(allGitIgnores), gitIgnore, err)
+		} else {
+			fmt.Printf("Created %s from %d %s files.\n", createdDockerIgnore, len(allGitIgnores), gitIgnore)
+		}
+	} else {
+		fmt.Printf(`Found no %s to limit docker context size. Large docker contexts can slow down builds.
+Create a %s file to indicate which files and directories may be ignored when building the docker image for this app.
+More info at: https://docs.docker.com/engine/reference/builder/#dockerignore-file
+`, dockerIgnore, dockerIgnore)
 	}
 
 	appName := ""
@@ -563,4 +589,81 @@ func shouldDeployExistingApp(cmdCtx *cmdctx.CmdContext, appName string) (bool, e
 	}
 
 	return true, nil
+}
+
+func createDockerignoreFromGitignores(root string, gitIgnores []string) (string, error) {
+	dockerIgnore := filepath.Join(root, ".dockerignore")
+	f, err := os.Create(dockerIgnore)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			terminal.Debugf("error closing %s file after writing: %v\n", dockerIgnore, err)
+		}
+	}()
+
+	firstHeaderWritten := false
+	linebreak := []byte("\n")
+	for _, gitIgnore := range gitIgnores {
+		gitF, err := os.Open(gitIgnore)
+		defer func() {
+			if err := gitF.Close(); err != nil {
+				terminal.Debugf("error closing %s file after reading: %v\n", gitIgnore, err)
+			}
+		}()
+		if err != nil {
+			terminal.Debugf("error opening %s file: %v\n", gitIgnore, err)
+			continue
+		}
+		relDir, err := filepath.Rel(root, filepath.Dir(gitIgnore))
+		if err != nil {
+			terminal.Debugf("error finding relative directory of %s relative to root %s: %v\n", gitIgnore, root, err)
+			continue
+		}
+		relFile, err := filepath.Rel(root, gitIgnore)
+		if err != nil {
+			terminal.Debugf("error finding relative file of %s relative to root %s: %v\n", gitIgnore, root, err)
+			continue
+		}
+
+		headerWritten := false
+		scanner := bufio.NewScanner(gitF)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if !headerWritten {
+				if !firstHeaderWritten {
+					firstHeaderWritten = true
+				} else {
+					f.Write(linebreak)
+				}
+				_, err := f.WriteString(fmt.Sprintf("# flyctl launch added from %s\n", relFile))
+				if err != nil {
+					return "", err
+				}
+				headerWritten = true
+			}
+			var dockerIgnoreLine string
+			if strings.TrimSpace(line) == "" {
+				dockerIgnoreLine = ""
+			} else if strings.HasPrefix(line, "#") {
+				dockerIgnoreLine = line
+			} else if strings.HasPrefix(line, "!/") {
+				dockerIgnoreLine = fmt.Sprintf("!%s", filepath.Join(relDir, line[2:]))
+			} else if strings.HasPrefix(line, "!") {
+				dockerIgnoreLine = fmt.Sprintf("!%s", filepath.Join(relDir, "**", line[1:]))
+			} else if strings.HasPrefix(line, "/") {
+				dockerIgnoreLine = filepath.Join(relDir, line[1:])
+			} else {
+				dockerIgnoreLine = filepath.Join(relDir, "**", line)
+			}
+			if _, err := f.WriteString(dockerIgnoreLine); err != nil {
+				return "", err
+			}
+			if _, err := f.Write(linebreak); err != nil {
+				return "", err
+			}
+		}
+	}
+	return dockerIgnore, nil
 }
