@@ -289,8 +289,7 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 
 	// Metadata
 	machineConfig.Metadata = map[string]string{
-		"image_version_tracking_enabled": "true",
-		"managed-by-fly-deploy":          "true",
+		"managed-by-fly-deploy": "true",
 	}
 
 	// Restart policy
