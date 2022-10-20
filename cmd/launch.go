@@ -83,6 +83,11 @@ func newLaunchCommand(client *client.Client) *Command {
 		Description: "Perform builds remotely without using the local docker daemon",
 		Default:     false,
 	})
+	launchCmd.AddBoolFlag(BoolFlagOpts{
+		Name:        "dockerignore-from-gitignore",
+		Description: "If a .dockerignore does not exist create one from .gitignore files",
+		Default:     false,
+	})
 
 	return launchCmd
 }
@@ -225,7 +230,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	allGitIgnores := scanner.FindGitignores(dir)
 	if helpers.FileExists(dockerIgnore) {
 		fmt.Printf("Found %s file. Will use when deploying to Fly.\n", dockerIgnore)
-	} else if len(allGitIgnores) > 0 && confirm(fmt.Sprintf("Create %s from %d %s files?", dockerIgnore, len(allGitIgnores), gitIgnore)) {
+	} else if len(allGitIgnores) > 0 && (cmdCtx.Config.GetBool("dockerignore-from-gitignore") || confirm(fmt.Sprintf("Create %s from %d %s files?", dockerIgnore, len(allGitIgnores), gitIgnore))) {
 		createdDockerIgnore, err := createDockerignoreFromGitignores(dir, allGitIgnores)
 		if err != nil {
 			terminal.Warnf("Error creating %s from %d %s files: %v\n", dockerIgnore, len(allGitIgnores), gitIgnore, err)
@@ -233,10 +238,10 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 			fmt.Printf("Created %s from %d %s files.\n", createdDockerIgnore, len(allGitIgnores), gitIgnore)
 		}
 	} else {
-		fmt.Printf(`Found no %s or %s files. Large docker contexts can slow down builds.
+		fmt.Printf(`Found no %s to limit docker context size. Large docker contexts can slow down builds.
 Create a %s file to indicate which files and directories may be ignored when building the docker image for this app.
 More info at: https://docs.docker.com/engine/reference/builder/#dockerignore-file
-`, dockerIgnore, gitIgnore, dockerIgnore)
+`, dockerIgnore, dockerIgnore)
 	}
 
 	appName := ""
