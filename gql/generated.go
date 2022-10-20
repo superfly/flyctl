@@ -459,6 +459,59 @@ type GetAddOnResponse struct {
 // GetAddOn returns GetAddOnResponse.AddOn, and is useful for accessing the field via an interface.
 func (v *GetAddOnResponse) GetAddOn() GetAddOnAddOn { return v.AddOn }
 
+// InternalDnsGetAllocsApp includes the requested fields of the GraphQL type App.
+type InternalDnsGetAllocsApp struct {
+	// Unique application ID
+	Id string `json:"id"`
+	// The unique application name
+	Name        string                                         `json:"name"`
+	Allocations []InternalDnsGetAllocsAppAllocationsAllocation `json:"allocations"`
+}
+
+// GetId returns InternalDnsGetAllocsApp.Id, and is useful for accessing the field via an interface.
+func (v *InternalDnsGetAllocsApp) GetId() string { return v.Id }
+
+// GetName returns InternalDnsGetAllocsApp.Name, and is useful for accessing the field via an interface.
+func (v *InternalDnsGetAllocsApp) GetName() string { return v.Name }
+
+// GetAllocations returns InternalDnsGetAllocsApp.Allocations, and is useful for accessing the field via an interface.
+func (v *InternalDnsGetAllocsApp) GetAllocations() []InternalDnsGetAllocsAppAllocationsAllocation {
+	return v.Allocations
+}
+
+// InternalDnsGetAllocsAppAllocationsAllocation includes the requested fields of the GraphQL type Allocation.
+type InternalDnsGetAllocsAppAllocationsAllocation struct {
+	// Unique ID for this instance
+	Id string `json:"id"`
+	// Short unique ID for this instance
+	IdShort string `json:"idShort"`
+	// Region this allocation is running in
+	Region string `json:"region"`
+	// Private IPv6 address for this instance
+	PrivateIP string `json:"privateIP"`
+}
+
+// GetId returns InternalDnsGetAllocsAppAllocationsAllocation.Id, and is useful for accessing the field via an interface.
+func (v *InternalDnsGetAllocsAppAllocationsAllocation) GetId() string { return v.Id }
+
+// GetIdShort returns InternalDnsGetAllocsAppAllocationsAllocation.IdShort, and is useful for accessing the field via an interface.
+func (v *InternalDnsGetAllocsAppAllocationsAllocation) GetIdShort() string { return v.IdShort }
+
+// GetRegion returns InternalDnsGetAllocsAppAllocationsAllocation.Region, and is useful for accessing the field via an interface.
+func (v *InternalDnsGetAllocsAppAllocationsAllocation) GetRegion() string { return v.Region }
+
+// GetPrivateIP returns InternalDnsGetAllocsAppAllocationsAllocation.PrivateIP, and is useful for accessing the field via an interface.
+func (v *InternalDnsGetAllocsAppAllocationsAllocation) GetPrivateIP() string { return v.PrivateIP }
+
+// InternalDnsGetAllocsResponse is returned by InternalDnsGetAllocs on success.
+type InternalDnsGetAllocsResponse struct {
+	// Find an app by name
+	App InternalDnsGetAllocsApp `json:"app"`
+}
+
+// GetApp returns InternalDnsGetAllocsResponse.App, and is useful for accessing the field via an interface.
+func (v *InternalDnsGetAllocsResponse) GetApp() InternalDnsGetAllocsApp { return v.App }
+
 // ListAddOnPlansAddOnPlansAddOnPlanConnection includes the requested fields of the GraphQL type AddOnPlanConnection.
 // The GraphQL type's documentation follows.
 //
@@ -742,6 +795,14 @@ type __GetAddOnProviderInput struct {
 // GetName returns __GetAddOnProviderInput.Name, and is useful for accessing the field via an interface.
 func (v *__GetAddOnProviderInput) GetName() string { return v.Name }
 
+// __InternalDnsGetAllocsInput is used internally by genqlient
+type __InternalDnsGetAllocsInput struct {
+	AppName string `json:"appName"`
+}
+
+// GetAppName returns __InternalDnsGetAllocsInput.AppName, and is useful for accessing the field via an interface.
+func (v *__InternalDnsGetAllocsInput) GetAppName() string { return v.AppName }
+
 // __ListAddOnsInput is used internally by genqlient
 type __ListAddOnsInput struct {
 	AddOnType AddOnType `json:"addOnType"`
@@ -930,6 +991,45 @@ query GetAddOnProvider ($name: String!) {
 	var err error
 
 	var data GetAddOnProviderResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
+func InternalDnsGetAllocs(
+	ctx context.Context,
+	client graphql.Client,
+	appName string,
+) (*InternalDnsGetAllocsResponse, error) {
+	req := &graphql.Request{
+		OpName: "InternalDnsGetAllocs",
+		Query: `
+query InternalDnsGetAllocs ($appName: String!) {
+	app(name: $appName) {
+		id
+		name
+		allocations(showCompleted: false) {
+			id
+			idShort
+			region
+			privateIP
+		}
+	}
+}
+`,
+		Variables: &__InternalDnsGetAllocsInput{
+			AppName: appName,
+		},
+	}
+	var err error
+
+	var data InternalDnsGetAllocsResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(

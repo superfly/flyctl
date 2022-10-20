@@ -109,6 +109,7 @@ func runConnect(ctx context.Context) error {
 	user := flag.GetString(ctx, "user")
 	password := flag.GetString(ctx, "password")
 
+	// FIXME: lookup ip to connect to here with gql+dns, prefer gql if diff
 	addr := fmt.Sprintf("%s.internal", appName)
 	cmdStr := fmt.Sprintf("connect %s %s %s", database, user, password)
 

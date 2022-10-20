@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -15,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/dnsclient"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -65,6 +67,7 @@ func runAttach(ctx context.Context) error {
 		appName              = app.NameFromContext(ctx)
 		pgAppName            = flag.FirstArg(ctx)
 		client               = client.FromContext(ctx).API()
+		dnsClient            = dnsclient.DnsClientFromContext(ctx)
 	)
 
 	dbName := flag.GetString(ctx, "database-name")
@@ -109,11 +112,20 @@ func runAttach(ctx context.Context) error {
 	}
 	ctx = agent.DialerWithContext(ctx, dialer)
 
+	var firstPgIp net.IP
 	switch pgApp.PlatformVersion {
 	case "nomad":
 		if err := hasRequiredVersionOnNomad(pgApp, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
+		pgIps, err := dnsClient.LookupAppAAAA(ctx, pgAppName)
+		if err != nil {
+			return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", pgAppName, err)
+		}
+		if len(pgIps) == 0 {
+			return fmt.Errorf("no 6pn ips found for %s app", pgAppName)
+		}
+		firstPgIp = pgIps[0]
 	case "machines":
 		flapsClient, err := flaps.New(ctx, pgApp)
 		if err != nil {
@@ -127,10 +139,13 @@ func runAttach(ctx context.Context) error {
 		if err := hasRequiredVersionOnMachines(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
+		if len(members) > 0 {
+			firstPgIp = net.ParseIP(members[0].PrivateIP)
+		}
 	default:
 	}
 
-	pgclient := flypg.New(pgAppName, dialer)
+	pgclient := flypg.NewFromInstance(string(firstPgIp), dialer)
 
 	secrets, err := client.GetAppSecrets(ctx, appName)
 	if err != nil {

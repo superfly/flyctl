@@ -108,6 +108,7 @@ func run(ctx context.Context) (err error) {
 		PromptInstance:   promptInstance,
 	}
 
+	// FIXME: lookup remote host with gql+dns, prefer gql if diff
 	if len(args) > 1 {
 		params.RemoteHost = args[1]
 	} else {

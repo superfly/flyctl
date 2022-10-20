@@ -113,6 +113,7 @@ func run(ctx context.Context) error {
 	// add the trailing dot
 	name = dns.Fqdn(name)
 
+	// FIXME: if .internal, also check against gql and report internal error if gql is different
 	if strings.HasSuffix(name, ".internal.") {
 		msg.RecursionDesired = false
 	} else {
@@ -160,6 +161,7 @@ func run(ctx context.Context) error {
 		}
 
 	case "AAAA-NATIVE":
+		// FIXME: change this to use gql+dns lookup?
 		hosts, err := r.LookupHost(ctx, name)
 		if err != nil {
 			return fixNameError(err, ns)
@@ -170,6 +172,7 @@ func run(ctx context.Context) error {
 		}
 
 	case "TXT-NATIVE":
+		// FIXME: change this to use gql+dns lookup?
 		txts, err := r.LookupTXT(ctx, name)
 		if err != nil {
 			return fixNameError(err, ns)

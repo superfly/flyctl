@@ -70,6 +70,7 @@ func RunSSHCommand(ctx context.Context, app *api.AppCompact, dialer agent.Dialer
 	stderrWriter := ioutils.NewWriteCloserWrapper(&errBuf, func() error { return nil })
 	inReader := ioutils.NewReadCloserWrapper(&inBuf, func() error { return nil })
 
+	// FIXME: fetch ip via gql + dns, prefer gql if diff
 	if addr == nil {
 		str := fmt.Sprintf("%s.internal", app.Name)
 		addr = &str

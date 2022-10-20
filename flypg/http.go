@@ -24,6 +24,7 @@ type Client struct {
 // New creates an http client to the fly postgres http server running on port 5500
 // over userland wireguard provided by the agent
 func New(app string, dialer agent.Dialer) *Client {
+	// FIXME: snag the ip directly via dns + gql
 	url := fmt.Sprintf("http://%s.internal:5500", app)
 
 	return &Client{
