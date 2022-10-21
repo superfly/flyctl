@@ -375,14 +375,21 @@ func promptToUpdate(ctx context.Context) (context.Context, error) {
 
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
-
-	msg := fmt.Sprintf("Update available %s -> %s.\nRun \"%s\" to upgrade.",
-		current,
-		r.Version,
-		colorize.Bold(buildinfo.Name()+" version update"),
-	)
-
+	
+	msg := fmt.Sprintf("Update available %s -> %s.", current, r.Version)
 	fmt.Fprintln(io.ErrOut, colorize.Yellow(msg))
+
+	if (c.AutoUpdate()) {
+		msg = fmt.Sprintf("Automatically updating to %s.", r.Version,)
+		fmt.Fprintln(io.ErrOut, colorize.Green(msg))
+		io := iostreams.FromContext(ctx)
+		update.UpgradeInPlace(ctx, io, r.Prerelease)
+	} else {
+		msg := fmt.Sprintf("Run \"%s\" to upgrade.",
+			colorize.Bold(buildinfo.Name()+" version update"),
+		)
+		fmt.Fprintln(io.ErrOut, colorize.Yellow(msg))
+	}
 
 	return ctx, nil
 }

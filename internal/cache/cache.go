@@ -51,6 +51,12 @@ type Cache interface {
 	// Save writes the YAML-encoded representation of c to the named file path via
 	// os.WriteFile.
 	Save(path string) error
+
+	// AutoUpdate reports whether or not the CLI should update automatically
+	AutoUpdate() bool
+
+	// Set AutoUpdate ON or OFF
+	SetAutoUpdate(setting bool)
 }
 
 const defaultChannel = "latest"
@@ -68,6 +74,7 @@ type cache struct {
 	channel       string
 	lastCheckedAt time.Time
 	latestRelease *update.Release
+	autoUpdate    bool
 }
 
 func (c *cache) Channel() string {
@@ -135,10 +142,27 @@ func (c *cache) SetLatestRelease(channel string, r *update.Release) {
 	c.lastCheckedAt = time.Now()
 }
 
+func (c *cache) AutoUpdate() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.autoUpdate
+}
+
+func (c *cache) SetAutoUpdate(setting bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	c.dirty = true
+	c.autoUpdate = setting
+}
+
+
 type wrapper struct {
 	Channel       string          `yaml:"channel,omitempty"`
 	LastCheckedAt time.Time       `yaml:"last_checked_at,omitempty"`
 	LatestRelease *update.Release `yaml:"latest_release,omitempty"`
+	AutoUpdate    bool            `yaml:"auto_update,omitempty"`
 }
 
 var lockPath = filepath.Join(os.TempDir(), "flyctl.cache.lock")
@@ -155,6 +179,7 @@ func (c *cache) Save(path string) (err error) {
 		Channel:       c.channel,
 		LastCheckedAt: c.lastCheckedAt,
 		LatestRelease: c.latestRelease,
+		AutoUpdate:    c.autoUpdate,
 	}
 
 	if err = yaml.NewEncoder(&b).Encode(w); err != nil {
@@ -205,6 +230,7 @@ func Load(path string) (c Cache, err error) {
 			channel:       w.Channel,
 			lastCheckedAt: w.LastCheckedAt,
 			latestRelease: w.LatestRelease,
+			autoUpdate:    w.AutoUpdate,
 		}
 	}
 

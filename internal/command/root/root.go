@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/agent"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/auth"
+	"github.com/superfly/flyctl/internal/command/autoupdate"
 	"github.com/superfly/flyctl/internal/command/checks"
 	"github.com/superfly/flyctl/internal/command/create"
 	"github.com/superfly/flyctl/internal/command/curl"
@@ -121,6 +122,7 @@ func New() *cobra.Command {
 	newCommands := []*cobra.Command{
 		version.New(),
 		apps.New(),
+		autoupdate.New(),
 		create.New(),  // TODO: deprecate
 		destroy.New(), // TODO: deprecate
 		move.New(),    // TODO: deprecate
