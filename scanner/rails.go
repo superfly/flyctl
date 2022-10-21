@@ -44,6 +44,7 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 	var rubyVersion string
 	var bundlerVersion string
 	var nodeVersion string = "16.17.0"
+	var yarnVersion string = "latest"
 
 	out, err := exec.Command("node", "-v").Output()
 
@@ -52,6 +53,12 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 		if nodeVersion[:1] == "v" {
 			nodeVersion = nodeVersion[1:]
 		}
+	}
+
+	out, err = exec.Command("yarn", "-v").Output()
+
+	if err == nil {
+		yarnVersion = strings.TrimSpace(string(out))
 	}
 
 	rubyVersion, err = extractRubyVersion("Gemfile.lock", "Gemfile", ".ruby_version")
@@ -122,6 +129,7 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 	vars["rubyVersion"] = rubyVersion
 	vars["bundlerVersion"] = bundlerVersion
 	vars["nodeVersion"] = nodeVersion
+	vars["yarnVersion"] = yarnVersion
 	s.Files = templatesExecute("templates/rails/standard", vars)
 
 	s.SkipDeploy = true
