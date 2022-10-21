@@ -26,7 +26,7 @@ type Client struct {
 func New(app string, dialer agent.Dialer) *Client {
 	// FIXME: snag the ip directly via dns + gql
 	url := fmt.Sprintf("http://%s.internal:5500", app)
-
+	terminal.Debugf("flypg will connect to: %s\n", url)
 	return &Client{
 		httpClient: newHttpClient(dialer),
 		BaseURL:    url,
@@ -36,7 +36,7 @@ func New(app string, dialer agent.Dialer) *Client {
 // NewFromInstance creates a new Client that targets a specific instance(address)
 func NewFromInstance(address string, dialer agent.Dialer) *Client {
 	url := fmt.Sprintf("http://%s:5500", address)
-
+	terminal.Debugf("flypg will connect to: %s\n", url)
 	return &Client{
 		httpClient: newHttpClient(dialer),
 		BaseURL:    url,

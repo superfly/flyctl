@@ -67,7 +67,6 @@ func runAttach(ctx context.Context) error {
 		appName              = app.NameFromContext(ctx)
 		pgAppName            = flag.FirstArg(ctx)
 		client               = client.FromContext(ctx).API()
-		dnsClient            = dnsclient.DnsClientFromContext(ctx)
 	)
 
 	dbName := flag.GetString(ctx, "database-name")
@@ -112,6 +111,7 @@ func runAttach(ctx context.Context) error {
 	}
 	ctx = agent.DialerWithContext(ctx, dialer)
 
+	dnsClient := dnsclient.DnsClientFromContext(ctx)
 	var firstPgIp net.IP
 	switch pgApp.PlatformVersion {
 	case "nomad":
@@ -139,13 +139,16 @@ func runAttach(ctx context.Context) error {
 		if err := hasRequiredVersionOnMachines(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
-		if len(members) > 0 {
-			firstPgIp = net.ParseIP(members[0].PrivateIP)
+		for _, member := range members {
+			if member.Region == member.Config.Env["PRIMARY_REGION"] {
+				firstPgIp = net.ParseIP(members[0].PrivateIP)
+				break
+			}
 		}
 	default:
 	}
 
-	pgclient := flypg.NewFromInstance(string(firstPgIp), dialer)
+	pgclient := flypg.NewFromInstance(firstPgIp.String(), dialer)
 
 	secrets, err := client.GetAppSecrets(ctx, appName)
 	if err != nil {

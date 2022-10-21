@@ -7,8 +7,10 @@ import (
 	"strings"
 
 	"github.com/miekg/dns"
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/terminal"
 )
 
 // Internal DnsClient, which queries both the graphql api and .internal dns to answer queries
@@ -19,10 +21,29 @@ type DnsClient struct {
 }
 
 func DnsClientFromContext(ctx context.Context) *DnsClient {
-	return NewDnsClient(&dns.Client{}, client.FromContext(ctx))
+	dnsClient := &dns.Client{
+		Net: "tcp",
+		Dialer: &net.Dialer{
+			Resolver: &net.Resolver{
+				PreferGo: true,
+				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+					// FIXME: remove
+					terminal.Errorf("agent.DialerFromContext()\n")
+					dialer := agent.DialerFromContext(ctx)
+					if dialer == nil {
+						return nil, fmt.Errorf("failed to get dialer from context")
+					}
+					// FIXME: remove
+					terminal.Errorf("dialer.DialContext(ctx, network, address) network: %s address: %s\n", network, address)
+					return dialer.DialContext(ctx, network, address)
+				},
+			},
+		},
+	}
+	return newDnsClient(dnsClient, client.FromContext(ctx))
 }
 
-func NewDnsClient(dnsClient *dns.Client, flyClient *client.Client) *DnsClient {
+func newDnsClient(dnsClient *dns.Client, flyClient *client.Client) *DnsClient {
 	return &DnsClient{
 		dnsClient: dnsClient,
 		flyClient: flyClient,
@@ -48,13 +69,13 @@ func (dc *DnsClient) LookupAppAAAA(ctx context.Context, appName string) ([]net.I
 	if err != nil {
 		return nil, err
 	}
-	dnsAnswer, err := dc.dnsQuery(ctx, fmt.Sprintf("%s.internal.", appName), dns.TypeAAAA)
-	dnsResult := make([]net.IP, 0)
-	for _, answer := range dnsAnswer {
-		if aaaa, ok := answer.(*dns.AAAA); ok {
-			dnsResult = append(dnsResult, aaaa.AAAA)
-		}
-	}
+	// dnsAnswer, err := dc.dnsQuery(ctx, fmt.Sprintf("%s.internal.", appName), dns.TypeAAAA)
+	// dnsResult := make([]net.IP, 0)
+	// for _, answer := range dnsAnswer {
+	// 	if aaaa, ok := answer.(*dns.AAAA); ok {
+	// 		dnsResult = append(dnsResult, aaaa.AAAA)
+	// 	}
+	// }
 	// FIXME: verify gql and dns results match, and if not report error to Fly error service
 	return gqlResult, err
 }
@@ -74,18 +95,11 @@ func appNameFromQuery(name string) (string, error) {
 	return appName, nil
 }
 
+const internalResolver string = "[fdaa::3]:53"
+
 func (dc *DnsClient) dnsQuery(ctx context.Context, name string, qType uint16) ([]dns.RR, error) {
-	msg := &dns.Msg{}
-	msg.SetQuestion(name, qType)
-	msg.RecursionDesired = false
-	resp, _, err := dc.dnsClient.Exchange(msg, "fdaa::3")
-	if err != nil {
-		return nil, err
-	}
-	if resp.Rcode != dns.RcodeSuccess {
-		return nil, fmt.Errorf("invalid result when querying %s record for %s: %s", dns.TypeToString[qType], name, dns.RcodeToString[resp.Rcode])
-	}
-	return resp.Answer, nil
+	// FIXME: send query through agent (maybe use client get instances() call)
+	return nil, fmt.Errorf("not implemented")
 }
 
 func (dc *DnsClient) gql6pnFromAppName(ctx context.Context, appName string) ([]net.IP, error) {
