@@ -636,7 +636,6 @@ func (d *dialer) DialContext(ctx context.Context, network, addr string) (conn ne
 	default:
 		err = errInvalidResponse(data)
 	case string(data) == "ok":
-		break
 	case isError(data):
 		err = extractError(data)
 	}
