@@ -13,6 +13,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/helpers"
@@ -250,7 +251,7 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 
 	MinPostgresHaVersion := "0.0.19"
 
-	ctx := cmdCtx.Command.Context()
+	ctx := client.NewContext(cmdCtx.Command.Context(), cmdCtx.Client)
 
 	postgresAppName := cmdCtx.Config.GetString("postgres-app")
 	appName := cmdCtx.AppName
