@@ -462,7 +462,7 @@ func updateMachinesConfig(ctx context.Context, app *api.AppCompact, changes map[
 	fmt.Fprintf(io.Out, "Acquired lease %s on machine: %s\n", lease.Data.Nonce, leader.ID)
 	fmt.Fprintln(io.Out, "Performing update...")
 
-	err = cmd.UpdateSettings(ctx, changes)
+	err = cmd.UpdateSettings(ctx, leader.PrivateIP, changes)
 	if err != nil {
 		return err
 	}
@@ -472,13 +472,31 @@ func updateMachinesConfig(ctx context.Context, app *api.AppCompact, changes map[
 
 func updateNomadConfig(ctx context.Context, app *api.AppCompact, changes map[string]string) (err error) {
 	var (
-		io  = iostreams.FromContext(ctx)
-		cmd = flypg.CommandFromContext(ctx)
+		io     = iostreams.FromContext(ctx)
+		cmd    = flypg.CommandFromContext(ctx)
+		client = client.FromContext(ctx).API()
 	)
+
+	agentclient, err := agent.Establish(ctx, client)
+	if err != nil {
+		return errors.Wrap(err, "can't establish agent")
+	}
+
+	pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
+	if err != nil {
+		return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", app.Name, err)
+	}
+	if len(pgInstances.Addresses) == 0 {
+		return fmt.Errorf("no 6pn ips found for %s app", app.Name)
+	}
+	leaderIp, err := leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
+	if err != nil {
+		return err
+	}
 
 	fmt.Fprintln(io.Out, "Performing update...")
 
-	err = cmd.UpdateSettings(ctx, changes)
+	err = cmd.UpdateSettings(ctx, leaderIp, changes)
 	if err != nil {
 		return err
 	}
