@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"net"
 	"os"
 	"time"
 
@@ -110,7 +111,7 @@ func SSHConnect(p *SSHParams, addr string) error {
 	terminal.Debugf("Keys for %s configured; connecting...\n", addr)
 
 	sshClient := &ssh.Client{
-		Addr: addr + ":22",
+		Addr: net.JoinHostPort(addr, "22"),
 		User: "root",
 
 		Dial: p.Dialer.DialContext,
