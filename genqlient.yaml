@@ -2,9 +2,9 @@
 # https://github.com/Khan/genqlient/blob/main/docs/genqlient.yaml
 schema: gql/schema.graphql
 operations:
+  - agent/**.go
   - internal/command/**/*.go
   - internal/build/imgsrc/*.go
-  - internal/dnsclient/*.go
 bindings:
   JSON:
     type: interface{}

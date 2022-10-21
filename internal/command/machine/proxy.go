@@ -75,8 +75,7 @@ func runMachineProxy(ctx context.Context) error {
 		Ports:            []string{"4280"},
 		OrganizationSlug: orgSlug,
 		Dialer:           dialer,
-		// FIXME: consider using fdaa::3 here
-		RemoteHost: "_api.internal",
+		RemoteHost:       "_api.internal",
 	}
 
 	return proxy.Connect(ctx, params)

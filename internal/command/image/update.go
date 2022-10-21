@@ -356,7 +356,7 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact, machines
 		}
 
 		if inRegionReplicas > 0 {
-			pgclient := flypg.New(app.Name, dialer)
+			pgclient := flypg.NewFromInstance(leader.PrivateIP, dialer)
 			fmt.Fprintf(io.Out, "Attempting to failover %s\n", colorize.Bold(leader.ID))
 			if err := pgclient.Failover(ctx); err != nil {
 				fmt.Fprintln(io.Out, colorize.Red(fmt.Sprintf("failed to perform failover: %s", err.Error())))

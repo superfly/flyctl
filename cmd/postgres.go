@@ -307,7 +307,15 @@ func runAttachPostgresCluster(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("ssh: can't build tunnel for %s: %s", pgApp.Organization.Slug, err)
 	}
 
-	pgclient := flypg.New(postgresAppName, dialer)
+	instances, err := agentclient.Instances(ctx, pgApp.Organization.Slug, pgApp.Name)
+	if err != nil {
+		return err
+	}
+	if len(instances.Addresses) == 0 {
+		return fmt.Errorf("no instances found for org: %s app: %s", pgApp.Organization.Slug, pgApp.Name)
+	}
+	pgInstanceIp := instances.Addresses[0]
+	pgclient := flypg.NewFromInstance(pgInstanceIp, dialer)
 
 	secrets, err := client.GetAppSecrets(ctx, appName)
 	if err != nil {

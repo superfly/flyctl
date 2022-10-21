@@ -133,7 +133,7 @@ func nomadRestart(ctx context.Context, allocs []*api.AllocationStatus) (err erro
 	// Don't perform failover if the cluster is only running a
 	// single node.
 	if len(allocs) > 1 {
-		pgclient := flypg.New(appName, dialer)
+		pgclient := flypg.NewFromInstance(leader.PrivateIP, dialer)
 
 		fmt.Fprintf(io.Out, "Performing a failover\n")
 		if err := pgclient.Failover(ctx); err != nil {
@@ -156,7 +156,6 @@ func nomadRestart(ctx context.Context, allocs []*api.AllocationStatus) (err erro
 
 func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 	var (
-		appName     = app.NameFromContext(ctx)
 		io          = iostreams.FromContext(ctx)
 		colorize    = io.ColorScheme()
 		flapsClient = flaps.FromContext(ctx)
@@ -214,7 +213,7 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 	}
 
 	if inRegionReplicas > 0 {
-		pgclient := flypg.New(appName, dialer)
+		pgclient := flypg.NewFromInstance(leader.PrivateIP, dialer)
 
 		fmt.Fprintf(io.Out, "Attempting to failover %s\n", colorize.Bold(leader.ID))
 		if err := pgclient.Failover(ctx); err != nil {

@@ -162,6 +162,22 @@ func nomadNodeRoles(ctx context.Context, allocs []*api.AllocationStatus) (leader
 	return leader, replicas, nil
 }
 
+func leaderIpFromNomadInstances(ctx context.Context, addrs []string) (string, error) {
+	dialer := agent.DialerFromContext(ctx)
+	for _, addr := range addrs {
+		pgclient := flypg.NewFromInstance(addr, dialer)
+		role, err := pgclient.NodeRole(ctx)
+		if err != nil {
+			return "", fmt.Errorf("can't get role for %s: %w", addr, err)
+		}
+
+		if role == "leader" {
+			return addr, nil
+		}
+	}
+	return "", fmt.Errorf("no instances found with leader role")
+}
+
 func machineRole(machine *api.Machine) (role string) {
 	role = "unknown"
 

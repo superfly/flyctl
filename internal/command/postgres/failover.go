@@ -109,7 +109,7 @@ func runFailover(ctx context.Context) (err error) {
 		return err
 	}
 
-	pgclient := flypg.New(appName, dialer)
+	pgclient := flypg.NewFromInstance(leader.PrivateIP, dialer)
 	fmt.Fprintf(io.Out, "Performing a failover\n")
 	if err := pgclient.Failover(ctx); err != nil {
 		return fmt.Errorf("failed to trigger failover %w", err)

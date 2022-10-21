@@ -238,7 +238,6 @@ func (s *server) fetchInstances(ctx context.Context, tunnel *wg.Tunnel, app stri
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	// FIXME: snag regions via dns + gql, prefer gql if there are differences
 	regionsv, err := tunnel.LookupTXT(ctx, fmt.Sprintf("regions.%s.internal", app))
 	if err != nil {
 		return nil, fmt.Errorf("look up regions for %s: %w", app, err)
@@ -257,7 +256,6 @@ func (s *server) fetchInstances(ctx context.Context, tunnel *wg.Tunnel, app stri
 	ret := &agent.Instances{}
 
 	for _, region := range strings.Split(regions, ",") {
-		// FIXME: get ipv6 via gql and dns, prefer gql when diff
 		name := fmt.Sprintf("%s.%s.internal", region, app)
 		addrs, err := tunnel.LookupAAAA(ctx, name)
 		if err != nil {
@@ -301,8 +299,6 @@ func (s *server) probeTunnel(ctx context.Context, slug string) (err error) {
 	defer cancel()
 
 	var results []net.IP
-	// FIXME: probe tunnel with ip directly? get ipv6 via gql and dns, prefer gql when diff
-	// "_api.internal in AAAAA" should always be fdaa::3 (for now)
 	switch results, err = tunnel.LookupAAAA(ctx, "_api.internal"); {
 	case err != nil:
 		err = fmt.Errorf("failed probing %q: %w", slug, err)

@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"net"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -16,7 +15,6 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/dnsclient"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -111,21 +109,23 @@ func runAttach(ctx context.Context) error {
 	}
 	ctx = agent.DialerWithContext(ctx, dialer)
 
-	dnsClient := dnsclient.DnsClientFromContext(ctx)
-	var firstPgIp net.IP
+	var leaderIp string
 	switch pgApp.PlatformVersion {
 	case "nomad":
 		if err := hasRequiredVersionOnNomad(pgApp, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
-		pgIps, err := dnsClient.LookupAppAAAA(ctx, pgAppName)
+		pgInstances, err := agentclient.Instances(ctx, pgApp.Organization.Slug, pgApp.Name)
 		if err != nil {
 			return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", pgAppName, err)
 		}
-		if len(pgIps) == 0 {
+		if len(pgInstances.Addresses) == 0 {
 			return fmt.Errorf("no 6pn ips found for %s app", pgAppName)
 		}
-		firstPgIp = pgIps[0]
+		leaderIp, err = leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
+		if err != nil {
+			return err
+		}
 	case "machines":
 		flapsClient, err := flaps.New(ctx, pgApp)
 		if err != nil {
@@ -139,16 +139,12 @@ func runAttach(ctx context.Context) error {
 		if err := hasRequiredVersionOnMachines(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
-		for _, member := range members {
-			if member.Region == member.Config.Env["PRIMARY_REGION"] {
-				firstPgIp = net.ParseIP(members[0].PrivateIP)
-				break
-			}
-		}
+		leader, _ := machinesNodeRoles(ctx, members)
+		leaderIp = leader.PrivateIP
 	default:
 	}
 
-	pgclient := flypg.NewFromInstance(firstPgIp.String(), dialer)
+	pgclient := flypg.NewFromInstance(leaderIp, dialer)
 
 	secrets, err := client.GetAppSecrets(ctx, appName)
 	if err != nil {

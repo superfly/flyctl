@@ -151,7 +151,6 @@ func run(ctx context.Context) error {
 			app := labels[len(labels)-2]
 			regionName := fmt.Sprintf("regions.%s.internal", app)
 
-			// FIXME: lookup via gql + dns, prefer gql when different
 			regionFrags, err := r.LookupTXT(ctx, regionName)
 			if err != nil {
 				return
@@ -160,7 +159,6 @@ func run(ctx context.Context) error {
 			regions := strings.Join(regionFrags, "")
 
 			for _, region := range strings.Split(regions, ",") {
-				// FIXME: lookup via gql + dns, prefer gql when different
 				regHost := fmt.Sprintf("%s.%s.internal", region, app)
 				addrs, err := r.LookupHost(ctx, regHost)
 				if err == nil {

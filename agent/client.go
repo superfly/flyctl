@@ -20,7 +20,10 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/superfly/flyctl/agent/internal/proto"
+	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/terminal"
 	"github.com/superfly/flyctl/wg"
 
 	"github.com/superfly/flyctl/api"
@@ -381,30 +384,149 @@ func (c *Client) WaitForDNS(parent context.Context, dialer Dialer, slug string, 
 }
 
 func (c *Client) Instances(ctx context.Context, org, app string) (instances Instances, err error) {
-	err = c.do(ctx, func(conn net.Conn) (err error) {
-		if err = proto.Write(conn, "instances", org, app); err != nil {
+	agentChan := make(chan error)
+	gqlChan := make(chan instancesResult)
+	var agentInstances Instances
+	go func() {
+		agentChan <- c.do(ctx, func(conn net.Conn) (err error) {
+			if err = proto.Write(conn, "instances", org, app); err != nil {
+				return
+			}
+
+			// this goes out to the network; don't time it out aggressively
+			var data []byte
+			if data, err = proto.Read(conn); err != nil {
+				return
+			}
+
+			switch {
+			default:
+				err = errInvalidResponse(data)
+			case isOK(data):
+				err = unmarshal(&agentInstances, data)
+			case isError(data):
+				err = extractError(data)
+			}
+
 			return
-		}
-
-		// this goes out to the network; don't time it out aggressively
-		var data []byte
-		if data, err = proto.Read(conn); err != nil {
-			return
-		}
-
-		switch {
-		default:
-			err = errInvalidResponse(data)
-		case isOK(data):
-			err = unmarshal(&instances, data)
-		case isError(data):
-			err = extractError(data)
-		}
-
-		return
-	})
-
+		})
+	}()
+	go func() {
+		gqlChan <- gqlGetInstances(ctx, org, app)
+	}()
+	r, err := compareAndChooseResults(<-gqlChan, &agentInstances, <-agentChan, org, app)
+	instances = *r
 	return
+}
+
+type instancesResult struct {
+	Instances *Instances
+	Err       error
+}
+
+func compareAndChooseResults(gqlResult instancesResult, agentResult *Instances, agentErr error, orgSlug, appName string) (*Instances, error) {
+	terminal.Debugf("gqlErr: %v agentErr: %v\n", gqlResult.Err, agentErr)
+	if gqlResult.Err != nil && agentErr != nil {
+		// FIXME: report error to sentry (tvd, 2022-10-20)
+		terminal.Debugf("no results founds for instances from: %s %s\n", orgSlug, appName)
+		return nil, gqlResult.Err
+	} else if gqlResult.Err != nil {
+		// FIXME: report gql error to sentry (tvd, 2022-10-20)
+		terminal.Debugf("gql error looking up: %s %s: %v\n", orgSlug, appName, gqlResult.Err)
+		return agentResult, nil
+	} else if agentErr != nil {
+		// FIXME: report dns error to sentry (tvd, 2022-10-20)
+		terminal.Debugf("dns error looking up: %s %s: %v\n", orgSlug, appName, agentErr)
+		return gqlResult.Instances, nil
+	} else if !arrayEqual(gqlResult.Instances.Addresses, agentResult.Addresses) {
+		// FIXME: report error to sentry
+		terminal.Debugf("gql and dns lookup results were different for: %s %s: gqlResult: %v dnsResult: %v\n", orgSlug, appName, gqlResult.Instances.Addresses, agentResult.Addresses)
+		return gqlResult.Instances, nil
+	} else {
+		return gqlResult.Instances, nil
+	}
+}
+
+func arrayEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, v := range a {
+		if v != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func gqlGetInstances(ctx context.Context, orgSlug, appName string) instancesResult {
+	flyClient := client.FromContext(ctx)
+	gqlClient := flyClient.API().GenqClient
+	_ = `# @genqlient
+	query AgentGetInstances($appName: String!) {
+		app(name: $appName) {
+			organization {
+				slug
+			}
+			id
+			name
+			allocations(showCompleted: false) {
+				id
+				region
+				privateIP
+			}
+			machines {
+				nodes {
+					id
+					region
+					ips {
+						nodes {
+							kind
+							family
+							ip
+						}
+					}
+				}
+			}
+		}
+	}
+	`
+	resp, err := gql.AgentGetInstances(ctx, gqlClient, appName)
+	if err != nil {
+		terminal.Debugf("gql.AgentGetInstances() error: %v\n", err)
+		// FIXME: sentry?
+		return instancesResult{nil, err}
+	}
+	if resp.App.Organization.Slug != orgSlug {
+		return instancesResult{nil, fmt.Errorf("could not find app %s in org %s", appName, orgSlug)}
+	}
+	result := &Instances{
+		Labels:    make([]string, 0),
+		Addresses: make([]string, 0),
+	}
+	for _, alloc := range resp.App.Allocations {
+		ip := net.ParseIP(alloc.PrivateIP)
+		if ip != nil {
+			result.Addresses = append(result.Addresses, ip.String())
+			result.Labels = append(result.Labels, fmt.Sprintf("%s.%s.internal", alloc.Region, appName))
+		}
+	}
+	for _, machine := range resp.App.Machines.Nodes {
+		for _, machineIp := range machine.Ips.Nodes {
+			if machineIp.Kind == "privatenet" && machineIp.Family == "v6" {
+				ip := net.ParseIP(machineIp.Ip)
+				result.Addresses = append(result.Addresses, ip.String())
+				result.Labels = append(result.Labels, fmt.Sprintf("%s.%s.internal", machine.Region, appName))
+			}
+		}
+	}
+	if len(result.Addresses) > 1 {
+		for i, addr := range result.Addresses {
+			result.Labels[i] = fmt.Sprintf("%s (%s)", result.Labels[i], addr)
+		}
+	}
+	terminal.Debugf("gqlGetInstances() result: %v\n", result)
+	return instancesResult{result, nil}
 }
 
 func unmarshal(dst interface{}, data []byte) (err error) {

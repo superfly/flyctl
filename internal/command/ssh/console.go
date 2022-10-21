@@ -334,7 +334,6 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 func addrForNomad(ctx context.Context, agentclient *agent.Client, app *api.AppCompact, console bool) (addr string, err error) {
 	if flag.GetBool(ctx, "select") {
 
-		// FIXME: lookup instances via gql + dns, prefer gql if diff
 		instances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
 		if err != nil {
 			return "", fmt.Errorf("look up %s: %w", app.Name, err)
