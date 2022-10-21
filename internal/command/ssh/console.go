@@ -364,5 +364,6 @@ func addrForNomad(ctx context.Context, agentclient *agent.Client, app *api.AppCo
 		}
 	}
 
+	// FIXME: lookup ip via dns + gql, prefer gql when different
 	return fmt.Sprintf("top1.nearest.of.%s.internal", app.Name), nil
 }

@@ -15,6 +15,146 @@ const (
 	AddOnTypeRedis AddOnType = "redis"
 )
 
+// AgentGetInstancesApp includes the requested fields of the GraphQL type App.
+type AgentGetInstancesApp struct {
+	// Organization that owns this app
+	Organization AgentGetInstancesAppOrganization `json:"organization"`
+	// Unique application ID
+	Id string `json:"id"`
+	// The unique application name
+	Name        string                                        `json:"name"`
+	Allocations []AgentGetInstancesAppAllocationsAllocation   `json:"allocations"`
+	Machines    AgentGetInstancesAppMachinesMachineConnection `json:"machines"`
+}
+
+// GetOrganization returns AgentGetInstancesApp.Organization, and is useful for accessing the field via an interface.
+func (v *AgentGetInstancesApp) GetOrganization() AgentGetInstancesAppOrganization {
+	return v.Organization
+}
+
+// GetId returns AgentGetInstancesApp.Id, and is useful for accessing the field via an interface.
+func (v *AgentGetInstancesApp) GetId() string { return v.Id }
+
+// GetName returns AgentGetInstancesApp.Name, and is useful for accessing the field via an interface.
+func (v *AgentGetInstancesApp) GetName() string { return v.Name }
+
+// GetAllocations returns AgentGetInstancesApp.Allocations, and is useful for accessing the field via an interface.
+func (v *AgentGetInstancesApp) GetAllocations() []AgentGetInstancesAppAllocationsAllocation {
+	return v.Allocations
+}
+
+// GetMachines returns AgentGetInstancesApp.Machines, and is useful for accessing the field via an interface.
+func (v *AgentGetInstancesApp) GetMachines() AgentGetInstancesAppMachinesMachineConnection {
+	return v.Machines
+}
+
+// AgentGetInstancesAppAllocationsAllocation includes the requested fields of the GraphQL type Allocation.
+type AgentGetInstancesAppAllocationsAllocation struct {
+	// Unique ID for this instance
+	Id string `json:"id"`
+	// Region this allocation is running in
+	Region string `json:"region"`
+	// Private IPv6 address for this instance
+	PrivateIP string `json:"privateIP"`
+}
+
+// GetId returns AgentGetInstancesAppAllocationsAllocation.Id, and is useful for accessing the field via an interface.
+func (v *AgentGetInstancesAppAllocationsAllocation) GetId() string { return v.Id }
+
+// GetRegion returns AgentGetInstancesAppAllocationsAllocation.Region, and is useful for accessing the field via an interface.
+func (v *AgentGetInstancesAppAllocationsAllocation) GetRegion() string { return v.Region }
+
+// GetPrivateIP returns AgentGetInstancesAppAllocationsAllocation.PrivateIP, and is useful for accessing the field via an interface.
+func (v *AgentGetInstancesAppAllocationsAllocation) GetPrivateIP() string { return v.PrivateIP }
+
+// AgentGetInstancesAppMachinesMachineConnection includes the requested fields of the GraphQL type MachineConnection.
+// The GraphQL type's documentation follows.
+//
+// The connection type for Machine.
+type AgentGetInstancesAppMachinesMachineConnection struct {
+	// A list of nodes.
+	Nodes []AgentGetInstancesAppMachinesMachineConnectionNodesMachine `json:"nodes"`
+}
+
+// GetNodes returns AgentGetInstancesAppMachinesMachineConnection.Nodes, and is useful for accessing the field via an interface.
+func (v *AgentGetInstancesAppMachinesMachineConnection) GetNodes() []AgentGetInstancesAppMachinesMachineConnectionNodesMachine {
+	return v.Nodes
+}
+
+// AgentGetInstancesAppMachinesMachineConnectionNodesMachine includes the requested fields of the GraphQL type Machine.
+type AgentGetInstancesAppMachinesMachineConnectionNodesMachine struct {
+	Id     string                                                                          `json:"id"`
+	Region string                                                                          `json:"region"`
+	Ips    AgentGetInstancesAppMachinesMachineConnectionNodesMachineIpsMachineIPConnection `json:"ips"`
+}
+
+// GetId returns AgentGetInstancesAppMachinesMachineConnectionNodesMachine.Id, and is useful for accessing the field via an interface.
+func (v *AgentGetInstancesAppMachinesMachineConnectionNodesMachine) GetId() string { return v.Id }
+
+// GetRegion returns AgentGetInstancesAppMachinesMachineConnectionNodesMachine.Region, and is useful for accessing the field via an interface.
+func (v *AgentGetInstancesAppMachinesMachineConnectionNodesMachine) GetRegion() string {
+	return v.Region
+}
+
+// GetIps returns AgentGetInstancesAppMachinesMachineConnectionNodesMachine.Ips, and is useful for accessing the field via an interface.
+func (v *AgentGetInstancesAppMachinesMachineConnectionNodesMachine) GetIps() AgentGetInstancesAppMachinesMachineConnectionNodesMachineIpsMachineIPConnection {
+	return v.Ips
+}
+
+// AgentGetInstancesAppMachinesMachineConnectionNodesMachineIpsMachineIPConnection includes the requested fields of the GraphQL type MachineIPConnection.
+// The GraphQL type's documentation follows.
+//
+// The connection type for MachineIP.
+type AgentGetInstancesAppMachinesMachineConnectionNodesMachineIpsMachineIPConnection struct {
+	// A list of nodes.
+	Nodes []AgentGetInstancesAppMachinesMachineConnectionNodesMachineIpsMachineIPConnectionNodesMachineIP `json:"nodes"`
+}
+
+// GetNodes returns AgentGetInstancesAppMachinesMachineConnectionNodesMachineIpsMachineIPConnection.Nodes, and is useful for accessing the field via an interface.
+func (v *AgentGetInstancesAppMachinesMachineConnectionNodesMachineIpsMachineIPConnection) GetNodes() []AgentGetInstancesAppMachinesMachineConnectionNodesMachineIpsMachineIPConnectionNodesMachineIP {
+	return v.Nodes
+}
+
+// AgentGetInstancesAppMachinesMachineConnectionNodesMachineIpsMachineIPConnectionNodesMachineIP includes the requested fields of the GraphQL type MachineIP.
+type AgentGetInstancesAppMachinesMachineConnectionNodesMachineIpsMachineIPConnectionNodesMachineIP struct {
+	Kind   string `json:"kind"`
+	Family string `json:"family"`
+	Ip     string `json:"ip"`
+}
+
+// GetKind returns AgentGetInstancesAppMachinesMachineConnectionNodesMachineIpsMachineIPConnectionNodesMachineIP.Kind, and is useful for accessing the field via an interface.
+func (v *AgentGetInstancesAppMachinesMachineConnectionNodesMachineIpsMachineIPConnectionNodesMachineIP) GetKind() string {
+	return v.Kind
+}
+
+// GetFamily returns AgentGetInstancesAppMachinesMachineConnectionNodesMachineIpsMachineIPConnectionNodesMachineIP.Family, and is useful for accessing the field via an interface.
+func (v *AgentGetInstancesAppMachinesMachineConnectionNodesMachineIpsMachineIPConnectionNodesMachineIP) GetFamily() string {
+	return v.Family
+}
+
+// GetIp returns AgentGetInstancesAppMachinesMachineConnectionNodesMachineIpsMachineIPConnectionNodesMachineIP.Ip, and is useful for accessing the field via an interface.
+func (v *AgentGetInstancesAppMachinesMachineConnectionNodesMachineIpsMachineIPConnectionNodesMachineIP) GetIp() string {
+	return v.Ip
+}
+
+// AgentGetInstancesAppOrganization includes the requested fields of the GraphQL type Organization.
+type AgentGetInstancesAppOrganization struct {
+	// Unique organization slug
+	Slug string `json:"slug"`
+}
+
+// GetSlug returns AgentGetInstancesAppOrganization.Slug, and is useful for accessing the field via an interface.
+func (v *AgentGetInstancesAppOrganization) GetSlug() string { return v.Slug }
+
+// AgentGetInstancesResponse is returned by AgentGetInstances on success.
+type AgentGetInstancesResponse struct {
+	// Find an app by name
+	App AgentGetInstancesApp `json:"app"`
+}
+
+// GetApp returns AgentGetInstancesResponse.App, and is useful for accessing the field via an interface.
+func (v *AgentGetInstancesResponse) GetApp() AgentGetInstancesApp { return v.App }
+
 type BuildFinalImageInput struct {
 	// Sha256 id of docker image
 	Id string `json:"id"`
@@ -690,6 +830,14 @@ type UpdateAddOnUpdateAddOnUpdateAddOnPayloadAddOn struct {
 // GetId returns UpdateAddOnUpdateAddOnUpdateAddOnPayloadAddOn.Id, and is useful for accessing the field via an interface.
 func (v *UpdateAddOnUpdateAddOnUpdateAddOnPayloadAddOn) GetId() string { return v.Id }
 
+// __AgentGetInstancesInput is used internally by genqlient
+type __AgentGetInstancesInput struct {
+	AppName string `json:"appName"`
+}
+
+// GetAppName returns __AgentGetInstancesInput.AppName, and is useful for accessing the field via an interface.
+func (v *__AgentGetInstancesInput) GetAppName() string { return v.AppName }
+
 // __CreateAddOnInput is used internally by genqlient
 type __CreateAddOnInput struct {
 	OrganizationId string      `json:"organizationId"`
@@ -781,6 +929,60 @@ func (v *__UpdateAddOnInput) GetPlanId() string { return v.PlanId }
 
 // GetReadRegions returns __UpdateAddOnInput.ReadRegions, and is useful for accessing the field via an interface.
 func (v *__UpdateAddOnInput) GetReadRegions() []string { return v.ReadRegions }
+
+func AgentGetInstances(
+	ctx context.Context,
+	client graphql.Client,
+	appName string,
+) (*AgentGetInstancesResponse, error) {
+	req := &graphql.Request{
+		OpName: "AgentGetInstances",
+		Query: `
+query AgentGetInstances ($appName: String!) {
+	app(name: $appName) {
+		organization {
+			slug
+		}
+		id
+		name
+		allocations(showCompleted: false) {
+			id
+			region
+			privateIP
+		}
+		machines {
+			nodes {
+				id
+				region
+				ips {
+					nodes {
+						kind
+						family
+						ip
+					}
+				}
+			}
+		}
+	}
+}
+`,
+		Variables: &__AgentGetInstancesInput{
+			AppName: appName,
+		},
+	}
+	var err error
+
+	var data AgentGetInstancesResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
 
 func CreateAddOn(
 	ctx context.Context,
