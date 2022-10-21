@@ -174,7 +174,7 @@ func marshalED25519PrivateKey(key ed25519.PrivateKey, comment string) []byte {
 		Pad     []byte `ssh:"rest"`
 	}{}
 
-	ci := rand.Uint32()
+	ci := rand.Uint32() // skipcq: GSC-G404
 	pk1.Check1 = ci
 	pk1.Check2 = ci
 
