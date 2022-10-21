@@ -3,6 +3,7 @@ package ssh
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -226,7 +227,7 @@ func sshConnect(p *SSHParams, addr string) (*ssh.Client, error) {
 	terminal.Debugf("Keys for %s configured; connecting...\n", addr)
 
 	sshClient := &ssh.Client{
-		Addr: addr + ":22",
+		Addr: net.JoinHostPort(addr, "22"),
 		User: "root",
 
 		Dial: p.Dialer.DialContext,
@@ -328,7 +329,7 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 	}
 	// No VM was selected or passed as an argument, so just pick the first one for now
 	// Later, we might want to use 'nearest.of' but also resolve the machine IP to be able to start it
-	return fmt.Sprintf("[%s]", selectedMachine.PrivateIP), nil
+	return selectedMachine.PrivateIP, nil
 }
 
 func addrForNomad(ctx context.Context, agentclient *agent.Client, app *api.AppCompact, console bool) (addr string, err error) {
@@ -350,7 +351,7 @@ func addrForNomad(ctx context.Context, agentclient *agent.Client, app *api.AppCo
 			return "", fmt.Errorf("selecting instance: %w", err)
 		}
 
-		addr = fmt.Sprintf("[%s]", instances.Addresses[selected])
+		addr = instances.Addresses[selected]
 		return addr, nil
 	}
 
@@ -364,6 +365,14 @@ func addrForNomad(ctx context.Context, agentclient *agent.Client, app *api.AppCo
 		}
 	}
 
-	// FIXME: lookup ip via dns + gql, prefer gql when different
-	return fmt.Sprintf("top1.nearest.of.%s.internal", app.Name), nil
+	// No VM was selected or passed as an argument, so just pick the first one for now
+	// We may use 'nearest.of' in the future
+	instances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
+	if err != nil {
+		return "", fmt.Errorf("look up %s: %w", app.Name, err)
+	}
+	if len(instances.Addresses) < 1 {
+		return "", fmt.Errorf("no instances found for %s", app.Name)
+	}
+	return instances.Addresses[0], nil
 }

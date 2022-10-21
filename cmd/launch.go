@@ -229,7 +229,7 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 	gitIgnore := ".gitignore"
 	allGitIgnores := scanner.FindGitignores(dir)
 	if helpers.FileExists(dockerIgnore) {
-		fmt.Printf("Found %s file. Will use when deploying to Fly.\n", dockerIgnore)
+		terminal.Debugf("Found %s file. Will use when deploying to Fly.\n", dockerIgnore)
 	} else if len(allGitIgnores) > 0 && (cmdCtx.Config.GetBool("dockerignore-from-gitignore") || confirm(fmt.Sprintf("Create %s from %d %s files?", dockerIgnore, len(allGitIgnores), gitIgnore))) {
 		createdDockerIgnore, err := createDockerignoreFromGitignores(dir, allGitIgnores)
 		if err != nil {
