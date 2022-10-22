@@ -48,6 +48,12 @@ func Check() bool {
 // LatestRelease reports the latest release for the given channel.
 func LatestRelease(ctx context.Context, channel string) (*Release, error) {
 	updateUrl := fmt.Sprintf("https://api.fly.io/app/flyctl_releases/%s/%s/%s", runtime.GOOS, runtime.GOARCH, channel)
+
+	// If running under homebrew, use the homebrew API to get the latest release
+	if isUnderHomebrew() {
+		return latestHomebrewRelease(ctx, channel)
+	}
+
 	req, err := http.NewRequestWithContext(ctx, "GET", updateUrl, nil)
 	if err != nil {
 		return nil, err
@@ -66,6 +72,34 @@ func LatestRelease(ctx context.Context, channel string) (*Release, error) {
 	}
 
 	return &release, nil
+}
+
+func latestHomebrewRelease(ctx context.Context, channel string) (*Release, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", "https://formulae.brew.sh/api/formula/flyctl.json", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Add("Accept", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var brewResp struct {
+		Versions struct {
+			Stable string `json:"stable"`
+		} `json:"versions"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&brewResp); err != nil {
+		return nil, err
+	}
+
+	return &Release{
+		Version: brewResp.Versions.Stable,
+	}, nil
 }
 
 // isUnderHomebrew reports whether the fly binary was found under the Homebrew
