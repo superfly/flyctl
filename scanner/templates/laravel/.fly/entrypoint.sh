@@ -11,5 +11,5 @@ if [ $# -gt 0 ]; then
     # If we passed a command, run it as root
     exec "$@"
 else
-    exec /init
+    exec supervisord -c /etc/supervisor/supervisord.conf
 fi

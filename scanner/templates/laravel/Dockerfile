@@ -14,7 +14,7 @@ ARG PHP_VERSION
 LABEL fly_launch_runtime="laravel"
 
 RUN apt-get update && apt-get install -y \
-    git curl zip unzip rsync ca-certificates vim htop cron \
+    supervisor git curl zip unzip rsync ca-certificates vim htop cron \
     php${PHP_VERSION}-pgsql php${PHP_VERSION}-bcmath \
     php${PHP_VERSION}-swoole php${PHP_VERSION}-xml php${PHP_VERSION}-mbstring \
     && apt-get clean \
@@ -31,19 +31,22 @@ RUN composer install --optimize-autoloader --no-dev \
     && sed -i 's/protected \$proxies/protected \$proxies = "*"/g' app/Http/Middleware/TrustProxies.php \
     && echo "MAILTO=\"\"\n* * * * * webuser /usr/bin/php /var/www/html/artisan schedule:run" > /etc/cron.d/laravel \
     && rm -rf /etc/cont-init.d/* \
+    && rm -rf /etc/services.d/* \
+    && cp .fly/fpm.conf /etc/supervisor/conf.d/fpm.conf \
+    && cp .fly/nginx.conf /etc/supervisor/conf.d/nginx.conf \
     && cp .fly/nginx-websockets.conf /etc/nginx/conf.d/websockets.conf \
     && cp .fly/entrypoint.sh /entrypoint \
     && chmod +x /entrypoint
 
 # If we're using Octane...
 RUN if grep -Fq "laravel/octane" /var/www/html/composer.json; then \
-        rm -rf /etc/services.d/php-fpm; \
+        rm -rf /etc/supervisor/conf.d/fpm.conf; \
         if grep -Fq "spiral/roadrunner" /var/www/html/composer.json; then \
-            mv .fly/octane-rr /etc/services.d/octane; \
+            mv .fly/octane/octane-rr.conf /etc/supervisor/conf.d/octane-rr.conf \
             if [ -f ./vendor/bin/rr ]; then ./vendor/bin/rr get-binary; fi; \
             rm -f .rr.yaml; \
         else \
-            mv .fly/octane-swoole /etc/services.d/octane; \
+            mv .fly/octane/octane-swoole.conf /etc/supervisor/conf.d/octane-swoole.conf \
         fi; \
         cp .fly/nginx-default-swoole /etc/nginx/sites-available/default; \
     else \
