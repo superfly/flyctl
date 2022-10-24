@@ -43,7 +43,7 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 
 	var rubyVersion string
 	var bundlerVersion string
-	var nodeVersion string = "16.17.0"
+	var nodeVersion string = "latest"
 	var yarnVersion string = "latest"
 
 	out, err := exec.Command("node", "-v").Output()
