@@ -77,7 +77,10 @@ func configureNode(sourceDir string) (*SourceInfo, error) {
 
 	s.SkipDeploy = true
 	s.DeployDocs = `
-Your Node app is prepared for deployment.
+Your Node app is prepared for deployment.  Be sure to set your listen port
+to 8080 using code similar to the following:
+
+    const port = process.env.PORT || "8080";
 
 If you need custom packages installed, or have problems with your deployment
 build, you may need to edit the Dockerfile for app-specific changes. If you
