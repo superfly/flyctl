@@ -59,18 +59,23 @@ func newAttach() *cobra.Command {
 }
 
 func runAttach(ctx context.Context) error {
-	// Minimum image version requirements
-	var (
-		MinPostgresHaVersion = "0.0.19"
-		appName              = app.NameFromContext(ctx)
-		pgAppName            = flag.FirstArg(ctx)
-		client               = client.FromContext(ctx).API()
-	)
+	appName := app.NameFromContext(ctx)
 
 	dbName := flag.GetString(ctx, "database-name")
 	if dbName == "" {
 		dbName = appName
 	}
+	return AttachCluster(ctx, dbName, appName)
+}
+
+func AttachCluster(ctx context.Context, dbName string, appName string) error {
+	// Minimum image version requirements
+	var (
+		MinPostgresHaVersion = "0.0.19"
+		pgAppName            = flag.FirstArg(ctx)
+		client               = client.FromContext(ctx).API()
+	)
+
 	dbName = strings.ToLower(strings.ReplaceAll(dbName, "-", "_"))
 
 	dbUser := flag.GetString(ctx, "database-user")

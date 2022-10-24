@@ -21,7 +21,7 @@ func newCreate() *cobra.Command {
 		long  = short + "\n"
 	)
 
-	cmd := command.New("create", short, long, runCreate,
+	cmd := command.New("create", short, long, run,
 		command.RequireSession,
 	)
 
@@ -81,19 +81,13 @@ func newCreate() *cobra.Command {
 	return cmd
 }
 
-func runCreate(ctx context.Context) (err error) {
-	var (
-		client = client.FromContext(ctx).API()
-		io     = iostreams.FromContext(ctx)
-	)
-	var (
-		appName            = flag.GetString(ctx, "name")
-		imageRef           = flag.GetString(ctx, "image-ref")
-		volumeSize         = flag.GetInt(ctx, "volume-size")
-		initialClusterSize = flag.GetInt(ctx, "initial-cluster-size")
-		vmSizeName         = flag.GetString(ctx, "vm-size")
-		targetPlatform     = resolveTargetPlatform(ctx)
-	)
+// Since we want to be able to create PG clusters from other commands,
+// we pass the name, region and org to CreateCluster. Other flags that don't prompt may
+// be safely passed through from other commands.
+
+func run(ctx context.Context) (err error) {
+
+	appName := flag.GetString(ctx, "name")
 
 	if appName == "" {
 		if appName, err = apps.SelectAppName(ctx); err != nil {
@@ -116,9 +110,31 @@ func runCreate(ctx context.Context) (err error) {
 	if err != nil {
 		return
 	}
+	config := &PostgresConfiguration{
+		Name:               appName,
+		VMSize:             flag.GetString(ctx, "vm-size"),
+		InitialClusterSize: flag.GetInt(ctx, "initial-cluster-size"),
+		ImageRef:           flag.GetString(ctx, "image-ref"),
+	}
+	return CreateCluster(ctx, org, region, config)
+}
+
+// CreateCluster creates a Postgres cluster with an optional name. The name will be prompted for if not supplied.
+func CreateCluster(ctx context.Context, org *api.Organization, region *api.Region, pgConfig *PostgresConfiguration) (err error) {
+	var (
+		client = client.FromContext(ctx).API()
+		io     = iostreams.FromContext(ctx)
+	)
+	var (
+		imageRef           = pgConfig.ImageRef
+		volumeSize         = pgConfig.DiskGb
+		initialClusterSize = pgConfig.InitialClusterSize
+		vmSizeName         = pgConfig.VMSize
+		targetPlatform     = resolveTargetPlatform(ctx)
+	)
 
 	input := &flypg.CreateClusterInput{
-		AppName:      appName,
+		AppName:      pgConfig.Name,
 		Organization: org,
 		ImageRef:     imageRef,
 		Region:       region.Code,

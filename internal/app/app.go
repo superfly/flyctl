@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 )
 
@@ -399,8 +400,11 @@ func (c *Config) WriteToFile(filename string) (err error) {
 	return
 }
 
-func (c *Config) WriteToDisk() (err error) {
-	return c.WriteToFile(DefaultConfigFileName)
+func (c *Config) WriteToDisk(ctx context.Context, path string) (err error) {
+	io := iostreams.FromContext(ctx)
+	err = c.WriteToFile(path)
+	fmt.Fprintf(io.Out, "Wrote config file %s", helpers.PathRelativeToCWD(path))
+	return
 }
 
 func (c *Config) Validate() (err error) {

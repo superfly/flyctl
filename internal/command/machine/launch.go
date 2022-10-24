@@ -168,7 +168,7 @@ func run(ctx context.Context) (err error) {
 		return
 	}
 
-	appConfig.WriteToDisk()
+	//	appConfig.WriteToDisk()
 	fmt.Fprintf(io.Out, "Wrote to fly.toml\n")
 
 	if !flag.GetBool(ctx, "no-deploy") && (srcInfo != nil && !srcInfo.SkipDeploy) {
