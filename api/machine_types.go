@@ -209,6 +209,12 @@ type MachineConfig struct {
 	Checks    map[string]MachineCheck `json:"checks,omitempty"`
 }
 
+type MachineDiff struct {
+	Key     string
+	Initial interface{}
+	New     interface{}
+}
+
 type MachineLease struct {
 	Status string `json:"status"`
 	Data   struct {
