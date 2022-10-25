@@ -110,37 +110,45 @@ func run(ctx context.Context) (err error) {
 	if err != nil {
 		return
 	}
-	config := &PostgresConfiguration{
+
+	platform := "machines"
+
+	if flag.GetBool(ctx, "nomad") {
+		platform = "nomad"
+	}
+
+	pgConfig := PostgresConfiguration{
 		Name:               appName,
 		VMSize:             flag.GetString(ctx, "vm-size"),
 		InitialClusterSize: flag.GetInt(ctx, "initial-cluster-size"),
 		ImageRef:           flag.GetString(ctx, "image-ref"),
+		DiskGb:             flag.GetInt(ctx, "volume-size"),
 	}
-	return CreateCluster(ctx, org, region, config)
+
+	params := &ClusterParams{
+		PostgresConfiguration: pgConfig,
+		Password:              flag.GetString(ctx, "password"),
+		SnapshotID:            flag.GetString(ctx, "snapshot-id"),
+		Detach:                flag.GetDetach(ctx),
+	}
+	return CreateCluster(ctx, org, region, platform, params)
 }
 
 // CreateCluster creates a Postgres cluster with an optional name. The name will be prompted for if not supplied.
-func CreateCluster(ctx context.Context, org *api.Organization, region *api.Region, pgConfig *PostgresConfiguration) (err error) {
+func CreateCluster(ctx context.Context, org *api.Organization, region *api.Region, platform string, params *ClusterParams) (err error) {
 	var (
 		client = client.FromContext(ctx).API()
 		io     = iostreams.FromContext(ctx)
 	)
-	var (
-		imageRef           = pgConfig.ImageRef
-		volumeSize         = pgConfig.DiskGb
-		initialClusterSize = pgConfig.InitialClusterSize
-		vmSizeName         = pgConfig.VMSize
-		targetPlatform     = resolveTargetPlatform(ctx)
-	)
 
 	input := &flypg.CreateClusterInput{
-		AppName:      pgConfig.Name,
+		AppName:      params.Name,
 		Organization: org,
-		ImageRef:     imageRef,
+		ImageRef:     params.ImageRef,
 		Region:       region.Code,
 	}
 
-	customConfig := volumeSize != 0 || vmSizeName != "" || initialClusterSize != 0
+	customConfig := params.DiskGb != 0 || params.VMSize != "" || params.InitialClusterSize != 0
 
 	var config *PostgresConfiguration
 
@@ -152,14 +160,14 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 		var selected int
 
 		options := []string{}
-		for _, cfg := range postgresConfigurations(targetPlatform) {
+		for _, cfg := range postgresConfigurations(platform) {
 			options = append(options, cfg.Description)
 		}
 
 		if err := prompt.Select(ctx, &selected, msg, "", options...); err != nil {
 			return err
 		}
-		config = &postgresConfigurations(targetPlatform)[selected]
+		config = &postgresConfigurations(platform)[selected]
 
 		if config.VMSize == "" {
 			// User has opted into choosing a custom configuration.
@@ -169,16 +177,16 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 
 	if customConfig {
 		// Resolve cluster size
-		if initialClusterSize == 0 {
-			err := prompt.Int(ctx, &initialClusterSize, "Initial cluster size", 2, true)
+		if params.InitialClusterSize == 0 {
+			err := prompt.Int(ctx, &params.InitialClusterSize, "Initial cluster size", 2, true)
 			if err != nil {
 				return err
 			}
 		}
-		input.InitialClusterSize = initialClusterSize
+		input.InitialClusterSize = params.InitialClusterSize
 
 		// Resolve VM size
-		vmSize, err := resolveVMSize(ctx, targetPlatform, vmSizeName)
+		vmSize, err := resolveVMSize(ctx, platform, params.VMSize)
 		if err != nil {
 			return err
 		}
@@ -186,15 +194,15 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 		input.VMSize = vmSize
 
 		// Resolve volume size
-		if volumeSize == 0 {
-			if err = prompt.Int(ctx, &volumeSize, "Volume size", 10, false); err != nil {
+		if params.DiskGb == 0 {
+			if err = prompt.Int(ctx, &params.DiskGb, "Volume size", 10, false); err != nil {
 				return err
 			}
 		}
-		input.VolumeSize = api.IntPointer(volumeSize)
+		input.VolumeSize = api.IntPointer(params.DiskGb)
 	} else {
 		// Resolve configuration from pre-defined configuration.
-		vmSize, err := resolveVMSize(ctx, targetPlatform, config.VMSize)
+		vmSize, err := resolveVMSize(ctx, platform, config.VMSize)
 		if err != nil {
 			return err
 		}
@@ -204,30 +212,29 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 
 		input.InitialClusterSize = config.InitialClusterSize
 
-		if imageRef := flag.GetString(ctx, "image-ref"); imageRef != "" {
-			input.ImageRef = imageRef
-		} else {
+		input.ImageRef = params.ImageRef
+
+		if input.ImageRef == "" {
 			input.ImageRef = config.ImageRef
 		}
 	}
 
-	if password := flag.GetString(ctx, "password"); password != "" {
-		input.Password = password
+	if params.Password != "" {
+		input.Password = params.Password
 	}
 
-	snapshot := flag.GetString(ctx, "snapshot-id")
-	if snapshot != "" {
-		input.SnapshotID = &snapshot
+	if params.SnapshotID != "" {
+		input.SnapshotID = &params.SnapshotID
 	}
 
-	fmt.Fprintf(io.Out, "Creating postgres cluster %s in organization %s\n", appName, org.Slug)
+	fmt.Fprintf(io.Out, "Creating postgres cluster %s in organization %s\n", params.Name, org.Slug)
 
 	launcher := flypg.NewLauncher(client)
 
-	if flag.GetBool(ctx, "nomad") {
-		return launcher.LaunchNomadPostgres(ctx, input)
+	if platform == "nomad" {
+		return launcher.LaunchNomadPostgres(ctx, input, params.Detach)
 	}
-	return launcher.LaunchMachinesPostgres(ctx, input)
+	return launcher.LaunchMachinesPostgres(ctx, input, params.Detach)
 }
 
 func resolveVMSize(ctx context.Context, platform string, targetSize string) (*api.VMSize, error) {
@@ -249,14 +256,6 @@ func resolveVMSize(ctx context.Context, platform string, targetSize string) (*ap
 	return prompt.VMSize(ctx, targetSize)
 }
 
-func resolveTargetPlatform(ctx context.Context) string {
-	if flag.GetBool(ctx, "nomad") {
-		return "nomad"
-	}
-
-	return "machines"
-}
-
 type PostgresConfiguration struct {
 	Name               string
 	Description        string
@@ -265,6 +264,13 @@ type PostgresConfiguration struct {
 	VMSize             string
 	MemoryMb           int
 	DiskGb             int
+}
+
+type ClusterParams struct {
+	PostgresConfiguration
+	Password   string
+	SnapshotID string
+	Detach     bool
 }
 
 func postgresConfigurations(platform string) []PostgresConfiguration {

@@ -10,7 +10,6 @@ import (
 	"github.com/superfly/flyctl/helpers"
 
 	machines "github.com/superfly/flyctl/internal/command/machine"
-	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/spinner"
 	"github.com/superfly/flyctl/internal/watch"
 
@@ -53,7 +52,7 @@ func NewLauncher(client *api.Client) *Launcher {
 }
 
 // Launches a postgres cluster using the machines runtime
-func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClusterInput) error {
+func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClusterInput, detach bool) error {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
@@ -151,7 +150,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 
 	}
 
-	if !flag.GetBool(ctx, "detach") {
+	if !detach {
 		fmt.Fprintln(io.Out, colorize.Green("==> "+"Monitoring health checks"))
 
 		if err := watch.MachinesChecks(ctx, nodes); err != nil {
@@ -184,7 +183,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 }
 
 // Launches a postgres cluster using the nomad runtime
-func (l *Launcher) LaunchNomadPostgres(ctx context.Context, config *CreateClusterInput) (err error) {
+func (l *Launcher) LaunchNomadPostgres(ctx context.Context, config *CreateClusterInput, detach bool) (err error) {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
@@ -225,7 +224,7 @@ func (l *Launcher) LaunchNomadPostgres(ctx context.Context, config *CreateCluste
 	fmt.Fprintf(io.Out, "  Postgres Port: 5433\n")
 	fmt.Fprintln(io.Out, colorize.Italic("Save your credentials in a secure place -- you won't be able to see them again!"))
 
-	if !flag.GetDetach(ctx) {
+	if !detach {
 		if err := watch.Deployment(ctx, payload.App.Name, ""); err != nil {
 			return err
 		}

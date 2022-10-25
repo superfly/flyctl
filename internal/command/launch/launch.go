@@ -436,12 +436,20 @@ func run(ctx context.Context) (err error) {
 
 		if confirm && err == nil {
 			clusterAppName := createdApp.Name + "-db"
-			err = postgres.CreateCluster(ctx, clusterAppName, region, org)
+			err = postgres.CreateCluster(ctx, org, region, "machines",
+				&postgres.ClusterParams{
+					PostgresConfiguration: postgres.PostgresConfiguration{
+						Name: clusterAppName,
+					},
+				})
 
 			if err != nil {
 				fmt.Fprintf(io.Out, "Failed creating the Postgres cluster %s: %s", clusterAppName, err)
 			} else {
-				err = postgres.AttachCluster(ctx, clusterAppName, createdApp.Name)
+				err = postgres.AttachCluster(ctx, postgres.AttachParams{
+					PgAppName: clusterAppName,
+					AppName:   createdApp.Name,
+				})
 
 				if err != nil {
 					msg := `Failed attaching %s to the Postgres cluster %s: %w.\nTry attaching manually with 'fly postgres attach --app %s %s'`
