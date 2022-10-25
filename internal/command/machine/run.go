@@ -522,8 +522,8 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		if len(changelog) > 0 {
 			machineDiff = append(machineDiff, api.MachineDiff{
 				Key:     "Guest",
-				Initial: initialMachineConf.Guest,
-				New:     machineConf.Guest,
+				Initial: fmt.Sprintf("%s-cpu-%dx", initialMachineConf.Guest.CPUKind, initialMachineConf.Guest.CPUs),
+				New:     guestSize,
 			})
 		}
 	} else {
@@ -534,8 +534,8 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 			if len(changelog) > 0 {
 				machineDiff = append(machineDiff, api.MachineDiff{
 					Key:     "CPUs",
-					Initial: initialMachineConf.Guest.CPUs,
-					New:     machineConf.Guest.CPUs,
+					Initial: fmt.Sprint(initialMachineConf.Guest.CPUs),
+					New:     fmt.Sprint(machineConf.Guest.CPUs),
 				})
 			}
 		}
@@ -545,10 +545,11 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 			changelog, _ := diff.Diff(initialMachineConf.Guest.MemoryMB, machineConf.Guest.MemoryMB)
 
 			if len(changelog) > 0 {
-				// machineDiff["Memory"] = diffy{
-				// 	initial: initialMachineConf.Guest.MemoryMB,
-				// 	new:     machineConf.Guest.MemoryMB,
-				// }
+				machineDiff = append(machineDiff, api.MachineDiff{
+					Key:     "MemoryMB",
+					Initial: fmt.Sprint(initialMachineConf.Guest.MemoryMB),
+					New:     fmt.Sprint(machineConf.Guest.MemoryMB),
+				})
 			}
 		}
 	}
@@ -562,8 +563,8 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 	if len(changelog) > 0 {
 		machineDiff = append(machineDiff, api.MachineDiff{
 			Key:     "Env",
-			Initial: initialMachineConf.Env,
-			New:     machineConf.Env,
+			Initial: fmt.Sprint(initialMachineConf.Env),
+			New:     fmt.Sprint(machineConf.Env),
 		})
 	}
 
@@ -590,8 +591,8 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 	if len(changelog) > 0 {
 		machineDiff = append(machineDiff, api.MachineDiff{
 			Key:     "Metadata",
-			Initial: initialMachineConf.Metadata,
-			New:     machineConf.Metadata,
+			Initial: fmt.Sprint(initialMachineConf.Metadata),
+			New:     fmt.Sprint(machineConf.Metadata),
 		})
 	}
 
@@ -606,8 +607,8 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		if len(changelog) > 0 {
 			machineDiff = append(machineDiff, api.MachineDiff{
 				Key:     "Services",
-				Initial: initialMachineConf.Services,
-				New:     machineConf.Services,
+				Initial: fmt.Sprint(initialMachineConf.Services),
+				New:     fmt.Sprint(machineConf.Services),
 			})
 		}
 	}
@@ -633,8 +634,8 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 	if len(changelog) > 0 {
 		machineDiff = append(machineDiff, api.MachineDiff{
 			Key:     "Mounts",
-			Initial: initialMachineConf.Mounts,
-			New:     machineConf.Mounts,
+			Initial: fmt.Sprint(initialMachineConf.Mounts),
+			New:     fmt.Sprint(machineConf.Mounts),
 		})
 	}
 
@@ -652,8 +653,6 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 			New:     machineConf.Image,
 		})
 	}
-
-	fmt.Println(machineDiff)
 
 	return machineConf, machineDiff, nil
 }

@@ -211,8 +211,8 @@ type MachineConfig struct {
 
 type MachineDiff struct {
 	Key     string
-	Initial interface{}
-	New     interface{}
+	Initial string
+	New     string
 }
 
 type MachineLease struct {

@@ -79,7 +79,7 @@ func runUpdate(ctx context.Context) (err error) {
 	fmt.Fprintf(io.Out, "Machine %s was found and is currently in a %s state, attempting to update...\n", machineID, machine.State)
 
 	machineConf := *machine.Config
-	machineConf, err = determineMachineConfig(ctx, machineConf, app, imageOrPath)
+	machineConf, machineDiff, err := determineMachineConfig(ctx, machineConf, app, imageOrPath)
 	if err != nil {
 		return
 	}
@@ -106,6 +106,14 @@ func runUpdate(ctx context.Context) (err error) {
 	fmt.Fprintln(out, colorize.Yellow(fmt.Sprintf("Machine %s has been updated\n", machine.ID)))
 	fmt.Fprintf(out, "Instance ID has been updated:\n")
 	fmt.Fprintf(out, "%s -> %s\n\n", prevInstanceID, machine.InstanceID)
+	fmt.Fprintln(out, "The following config has been updated")
+
+	for _, v := range machineDiff {
+		fmt.Fprintf(out, "%s: ", v.Key)
+		initial := colorize.Red(fmt.Sprintf("%s", string(v.Initial)))
+		new := colorize.Yellow(fmt.Sprintf("%s", string(v.New)))
+		fmt.Fprintf(out, "%s -> %s\n", initial, new)
+	}
 
 	// wait for machine to be started
 	if err := WaitForStartOrStop(ctx, machine, waitForAction, time.Second*60); err != nil {
@@ -120,7 +128,7 @@ func runUpdate(ctx context.Context) (err error) {
 		fmt.Fprintf(out, "State: Stopped\n\n")
 	}
 
-	fmt.Fprintf(out, "Monitor machine status here:\nhttps://fly.io/apps/%s/machines/%s\n", app.Name, machine.ID)
+	fmt.Fprintf(out, "\nMonitor machine status here:\nhttps://fly.io/apps/%s/machines/%s\n", app.Name, machine.ID)
 
 	return nil
 }
