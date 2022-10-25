@@ -86,7 +86,7 @@ If you need custom packages installed, or have problems with your deployment
 build, you may need to edit the Dockerfile for app-specific changes. If you
 need help, please post on https://community.fly.io.
 
-Now: run 'fly deploy' to deploy your Rails app.
+Now: run 'fly deploy' to deploy your Node app.
 `
 
 	return s, nil
