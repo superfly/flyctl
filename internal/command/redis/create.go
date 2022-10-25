@@ -17,6 +17,9 @@ import (
 	"github.com/superfly/flyctl/internal/spinner"
 )
 
+// Alias unwieldy types from GraphQL generated code
+type RedisAddOn = gql.CreateAddOnCreateAddOnCreateAddOnPayloadAddOn
+
 func newCreate() (cmd *cobra.Command) {
 	const (
 		long = `Create an Upstash Redis database`
@@ -173,7 +176,15 @@ func runCreate(ctx context.Context) (err error) {
 
 	s := spinner.Run(io, "Launching...")
 
-	addOn, err := ProvisionRedis(ctx, org, name, result.AddOnPlans.Nodes[planIndex].Id, primaryRegion, readRegions, eviction)
+	params := RedisConfiguration{
+		Name:          name,
+		PlanId:        result.AddOnPlans.Nodes[planIndex].Id,
+		PrimaryRegion: primaryRegion,
+		ReadRegions:   *readRegions,
+		Eviction:      eviction,
+	}
+
+	addOn, err := ProvisionDatabase(ctx, org, params)
 
 	s.Stop()
 	if err != nil {
@@ -187,7 +198,15 @@ func runCreate(ctx context.Context) (err error) {
 	return
 }
 
-func ProvisionRedis(ctx context.Context, org *api.Organization, name string, planId string, primaryRegion *api.Region, readRegions *[]api.Region, eviction bool) (addOn gql.CreateAddOnCreateAddOnCreateAddOnPayloadAddOn, err error) {
+type RedisConfiguration struct {
+	Name          string
+	PlanId        string
+	PrimaryRegion *api.Region
+	ReadRegions   []api.Region
+	Eviction      bool
+}
+
+func ProvisionDatabase(ctx context.Context, org *api.Organization, config RedisConfiguration) (addOn RedisAddOn, err error) {
 	client := client.FromContext(ctx).API().GenqClient
 
 	_ = `# @genqlient
@@ -204,18 +223,18 @@ func ProvisionRedis(ctx context.Context, org *api.Organization, name string, pla
 
 	var readRegionCodes []string
 
-	for _, region := range *readRegions {
+	for _, region := range config.ReadRegions {
 		readRegionCodes = append(readRegionCodes, region.Code)
 	}
 
 	type AddOnOptions map[string]interface{}
 	options := AddOnOptions{}
 
-	if eviction {
+	if config.Eviction {
 		options["eviction"] = true
 	}
 
-	response, err := gql.CreateAddOn(ctx, client, org.ID, primaryRegion.Code, name, planId, readRegionCodes, options)
+	response, err := gql.CreateAddOn(ctx, client, org.ID, config.PrimaryRegion.Code, config.Name, config.PlanId, readRegionCodes, options)
 	if err != nil {
 		return
 	}

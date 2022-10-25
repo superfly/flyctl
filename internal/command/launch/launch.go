@@ -25,6 +25,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/command/postgres"
+	"github.com/superfly/flyctl/internal/command/redis"
 	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -432,33 +433,16 @@ func run(ctx context.Context) (err error) {
 
 	if !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !srcInfo.SkipDatabase {
 
-		confirm, err := prompt.Confirm(ctx, "Would you like to set up a Postgresql database now?")
+		confirmPg, err := prompt.Confirm(ctx, "Would you like to set up a Postgresql database now?")
 
-		if confirm && err == nil {
-			clusterAppName := createdApp.Name + "-db"
-			err = postgres.CreateCluster(ctx, org, region, "machines",
-				&postgres.ClusterParams{
-					PostgresConfiguration: postgres.PostgresConfiguration{
-						Name: clusterAppName,
-					},
-				})
+		if confirmPg && err == nil {
+			LaunchPostgres(ctx, createdApp, org, region)
+		}
 
-			if err != nil {
-				fmt.Fprintf(io.Out, "Failed creating the Postgres cluster %s: %s", clusterAppName, err)
-			} else {
-				err = postgres.AttachCluster(ctx, postgres.AttachParams{
-					PgAppName: clusterAppName,
-					AppName:   createdApp.Name,
-				})
+		confirmRedis, err := prompt.Confirm(ctx, "Would you like to set up an Upstash Redis database now?")
 
-				if err != nil {
-					msg := `Failed attaching %s to the Postgres cluster %s: %w.\nTry attaching manually with 'fly postgres attach --app %s %s'`
-					fmt.Fprintf(io.Out, msg, createdApp.Name, clusterAppName, err, createdApp.Name, clusterAppName)
-
-				} else {
-					fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", clusterAppName, createdApp.Name)
-				}
-			}
+		if confirmRedis && err == nil {
+			LaunchRedis(ctx, createdApp, org, region)
 		}
 
 		// Run any initialization commands required for postgres support
@@ -709,4 +693,47 @@ func determineDockerIgnore(ctx context.Context, workingDir string) (err error) {
 		}
 	}
 	return
+}
+
+func LaunchPostgres(ctx context.Context, app *api.App, org *api.Organization, region *api.Region) {
+	io := iostreams.FromContext(ctx)
+	clusterAppName := app.Name + "-db"
+	err := postgres.CreateCluster(ctx, org, region, "machines",
+		&postgres.ClusterParams{
+			PostgresConfiguration: postgres.PostgresConfiguration{
+				Name: clusterAppName,
+			},
+		})
+
+	if err != nil {
+		fmt.Fprintf(io.Out, "Failed creating the Postgres cluster %s: %s", clusterAppName, err)
+	} else {
+		err = postgres.AttachCluster(ctx, postgres.AttachParams{
+			PgAppName: clusterAppName,
+			AppName:   app.Name,
+		})
+
+		if err != nil {
+			msg := `Failed attaching %s to the Postgres cluster %s: %w.\nTry attaching manually with 'fly postgres attach --app %s %s'`
+			fmt.Fprintf(io.Out, msg, app.Name, clusterAppName, err, app.Name, clusterAppName)
+
+		} else {
+			fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", clusterAppName, app.Name)
+		}
+	}
+}
+
+func LaunchRedis(ctx context.Context, app *api.App, org *api.Organization, region *api.Region) {
+	params := redis.RedisConfiguration{
+		Name:          app.Name + "-redis",
+		PlanId:        "redis_free",
+		PrimaryRegion: region,
+	}
+
+	db, err := redis.ProvisionDatabase(ctx, org, params)
+	if err != nil {
+		fmt.Println(fmt.Errorf("%w", err))
+	} else {
+		redis.AttachDatabase(ctx, db, app)
+	}
 }
