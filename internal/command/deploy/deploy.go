@@ -28,6 +28,34 @@ import (
 	"github.com/superfly/flyctl/internal/watch"
 )
 
+var CommonFlags = flag.Set{
+	flag.Region(),
+	flag.Image(),
+	flag.Now(),
+	flag.RemoteOnly(false),
+	flag.LocalOnly(),
+	flag.Push(),
+	flag.Detach(),
+	flag.Strategy(),
+	flag.Dockerfile(),
+	flag.ImageLabel(),
+	flag.BuildArg(),
+	flag.BuildSecret(),
+	flag.BuildTarget(),
+	flag.NoCache(),
+	flag.Nixpacks(),
+	flag.BuildOnly(),
+	flag.StringSlice{
+		Name:        "env",
+		Shorthand:   "e",
+		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
+	},
+	flag.Bool{
+		Name:        "auto-confirm",
+		Description: "Will automatically confirm changes when running non-interactively.",
+	},
+}
+
 func New() (cmd *cobra.Command) {
 	const (
 		long = `Deploy Fly applications from source or an image using a local or remote builder.
@@ -46,33 +74,9 @@ func New() (cmd *cobra.Command) {
 	cmd.Args = cobra.MaximumNArgs(1)
 
 	flag.Add(cmd,
+		CommonFlags,
 		flag.App(),
 		flag.AppConfig(),
-		flag.Region(),
-		flag.Image(),
-		flag.Now(),
-		flag.RemoteOnly(false),
-		flag.LocalOnly(),
-		flag.Nixpacks(),
-		flag.BuildOnly(),
-		flag.Push(),
-		flag.Detach(),
-		flag.Strategy(),
-		flag.Dockerfile(),
-		flag.StringSlice{
-			Name:        "env",
-			Shorthand:   "e",
-			Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
-		},
-		flag.ImageLabel(),
-		flag.BuildArg(),
-		flag.BuildSecret(),
-		flag.BuildTarget(),
-		flag.NoCache(),
-		flag.Bool{
-			Name:        "auto-confirm",
-			Description: "Will automatically confirm changes without an interactive prompt.",
-		},
 	)
 
 	return
