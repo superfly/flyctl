@@ -51,6 +51,7 @@ func New() (cmd *cobra.Command) {
 		// See a proposed 'flag grouping' feature in Viper that could help with DX: https://github.com/spf13/cobra/pull/1778
 		deploy.CommonFlags,
 
+		flag.Org(),
 		flag.Bool{
 			Name:        "no-deploy",
 			Description: "Do not prompt for deployment",
