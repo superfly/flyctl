@@ -68,7 +68,7 @@ func configureNode(sourceDir string) (*SourceInfo, error) {
 		vars["packager"] = "yarn"
 	}
 
-	vars["build"] = scripts["start"] != nil
+	vars["build"] = scripts["build"] != nil
 
 	vars["nodeVersion"] = nodeVersion
 	vars["yarnVersion"] = yarnVersion
