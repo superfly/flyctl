@@ -43,7 +43,6 @@ func New() (cmd *cobra.Command) {
 
 	cmd = command.New("launch", short, long, run, command.RequireSession, command.LoadAppConfigIfPresent)
 
-	cmd.Hidden = true
 	cmd.Args = cobra.NoArgs
 
 	flag.Add(cmd,
