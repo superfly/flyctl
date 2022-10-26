@@ -190,7 +190,7 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 	if flag.GetBool(ctx, "force") && leader == nil {
 		fmt.Fprintln(io.Out, colorize.Yellow("No leader found, but continuing with restart"))
 	} else if leader == nil {
-		return fmt.Errorf("no leader found")
+		return fmt.Errorf("no active leader found")
 	}
 
 	fmt.Fprintln(io.Out, "Identifying cluster role(s)")
@@ -204,7 +204,7 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 			fmt.Fprintf(io.Out, "Restarting machine %s\n", colorize.Bold(replica.ID))
 
 			if err = machine.Restart(ctx, replica.ID, "", 120, false); err != nil {
-				return fmt.Errorf("failed to restart vm %s: %w", replica.ID, err)
+				return err
 			}
 			// wait for health checks to pass
 			if err := watch.MachinesChecks(ctx, []*api.Machine{replica}); err != nil {
@@ -233,7 +233,7 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 	fmt.Fprintf(io.Out, "Restarting machine %s\n", colorize.Bold(leader.ID))
 
 	if err = machine.Restart(ctx, leader.ID, "", 120, false); err != nil {
-		return fmt.Errorf("failed to restart vm %s: %w", leader.ID, err)
+		return err
 	}
 	// wait for health checks to pass
 	if err := watch.MachinesChecks(ctx, []*api.Machine{leader}); err != nil {
