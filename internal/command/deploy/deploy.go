@@ -28,6 +28,34 @@ import (
 	"github.com/superfly/flyctl/internal/watch"
 )
 
+var CommonFlags = flag.Set{
+	flag.Region(),
+	flag.Image(),
+	flag.Now(),
+	flag.RemoteOnly(false),
+	flag.LocalOnly(),
+	flag.Push(),
+	flag.Detach(),
+	flag.Strategy(),
+	flag.Dockerfile(),
+	flag.ImageLabel(),
+	flag.BuildArg(),
+	flag.BuildSecret(),
+	flag.BuildTarget(),
+	flag.NoCache(),
+	flag.Nixpacks(),
+	flag.BuildOnly(),
+	flag.StringSlice{
+		Name:        "env",
+		Shorthand:   "e",
+		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
+	},
+	flag.Bool{
+		Name:        "auto-confirm",
+		Description: "Will automatically confirm changes when running non-interactively.",
+	},
+}
+
 func New() (cmd *cobra.Command) {
 	const (
 		long = `Deploy Fly applications from source or an image using a local or remote builder.
@@ -46,33 +74,9 @@ func New() (cmd *cobra.Command) {
 	cmd.Args = cobra.MaximumNArgs(1)
 
 	flag.Add(cmd,
+		CommonFlags,
 		flag.App(),
 		flag.AppConfig(),
-		flag.Region(),
-		flag.Image(),
-		flag.Now(),
-		flag.RemoteOnly(false),
-		flag.LocalOnly(),
-		flag.Nixpacks(),
-		flag.BuildOnly(),
-		flag.Push(),
-		flag.Detach(),
-		flag.Strategy(),
-		flag.Dockerfile(),
-		flag.StringSlice{
-			Name:        "env",
-			Shorthand:   "e",
-			Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
-		},
-		flag.ImageLabel(),
-		flag.BuildArg(),
-		flag.BuildSecret(),
-		flag.BuildTarget(),
-		flag.NoCache(),
-		flag.Bool{
-			Name:        "auto-confirm",
-			Description: "Will automatically confirm changes without an interactive prompt.",
-		},
 	)
 
 	return
@@ -152,7 +156,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 			return err
 		}
 
-		release, err = apiClient.GetAppRelease(ctx, app.NameFromContext(ctx), release.ID)
+		release, err = apiClient.GetAppRelease(ctx, appConfig.AppName, release.ID)
 		if err != nil {
 			return err
 		}
@@ -165,7 +169,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 		return nil
 	}
 
-	err = watch.Deployment(ctx, app.NameFromContext(ctx), release.EvaluationID)
+	err = watch.Deployment(ctx, appConfig.AppName, release.EvaluationID)
 
 	return err
 }
@@ -223,15 +227,10 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), flag.GetBool(ctx, "nixpacks"))
 
-	var appName string = app.NameFromContext(ctx)
-	if appConfig.AppName != "" && appName == "" {
-		appName = appConfig.AppName
-	}
-
 	client := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
 
-	resolver := imgsrc.NewResolver(daemonType, client, appName, io)
+	resolver := imgsrc.NewResolver(daemonType, client, appConfig.AppName, io)
 
 	var imageRef string
 	if imageRef, err = fetchImageRef(ctx, appConfig); err != nil {
@@ -241,7 +240,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 	// we're using a pre-built Docker image
 	if imageRef != "" {
 		opts := imgsrc.RefOptions{
-			AppName:    appName,
+			AppName:    appConfig.AppName,
 			WorkingDir: state.WorkingDirectory(ctx),
 			Publish:    !flag.GetBuildOnly(ctx),
 			ImageRef:   imageRef,
@@ -260,7 +259,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 
 	// We're building from source
 	opts := imgsrc.ImageOptions{
-		AppName:         appName,
+		AppName:         appConfig.AppName,
 		WorkingDir:      state.WorkingDirectory(ctx),
 		Publish:         flag.GetBool(ctx, "push") || !flag.GetBuildOnly(ctx),
 		ImageLabel:      flag.GetString(ctx, "image-label"),
@@ -365,7 +364,7 @@ func createRelease(ctx context.Context, appConfig *app.Config, img *imgsrc.Deplo
 	tb := render.NewTextBlock(ctx, "Creating release")
 
 	input := api.DeployImageInput{
-		AppID: app.NameFromContext(ctx),
+		AppID: appConfig.AppName,
 		Image: img.Tag,
 	}
 

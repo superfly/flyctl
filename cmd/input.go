@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -15,17 +14,6 @@ func confirm(message string) bool {
 	confirm := false
 	prompt := &survey.Confirm{
 		Message: message,
-	}
-	err := survey.AskOne(prompt, &confirm)
-	checkErr(err)
-
-	return confirm
-}
-
-func confirmOverwrite(filename string) bool {
-	confirm := false
-	prompt := &survey.Confirm{
-		Message: fmt.Sprintf(`Overwrite "%s"?`, filename),
 	}
 	err := survey.AskOne(prompt, &confirm)
 	checkErr(err)
@@ -143,41 +131,6 @@ func selectRegion(ctx context.Context, client *api.Client, regionCode string) (*
 	return &regions[selectedRegion], nil
 }
 
-func selectVMSize(ctx context.Context, client *api.Client, vmSizeName string) (*api.VMSize, error) {
-	vmSizes, err := client.PlatformVMSizes(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if vmSizeName != "" {
-		for _, vmSize := range vmSizes {
-			if vmSize.Name == vmSizeName {
-				return &vmSize, nil
-			}
-		}
-
-		return nil, fmt.Errorf(`vm size "%s" not found`, vmSizeName)
-	}
-
-	options := []string{}
-
-	for _, vmSize := range vmSizes {
-		options = append(options, fmt.Sprintf("%s - %d", vmSize.Name, vmSize.MemoryMB))
-	}
-
-	selectedVMSize := 0
-	prompt := &survey.Select{
-		Message:  "Select VM size:",
-		Options:  options,
-		PageSize: 15,
-	}
-	if err := survey.AskOne(prompt, &selectedVMSize); err != nil {
-		return nil, err
-	}
-
-	return &vmSizes[selectedVMSize], nil
-}
-
 func inputAppName(defaultName string, autoGenerate bool) (name string, err error) {
 	message := "App Name"
 
@@ -197,30 +150,4 @@ func inputAppName(defaultName string, autoGenerate bool) (name string, err error
 	}
 
 	return name, nil
-}
-
-func initialClusterSizeInput(defaultVal int) (int, error) {
-	var count int
-	prompt := &survey.Input{
-		Message: "Specify the initial cluster size:",
-		Default: strconv.Itoa(defaultVal),
-	}
-	if err := survey.AskOne(prompt, &count); err != nil {
-		return 0, err
-	}
-
-	return count, nil
-}
-
-func volumeSizeInput(defaultVal int) (int, error) {
-	var volumeSize int
-	prompt := &survey.Input{
-		Message: "Volume size (GB):",
-		Default: strconv.Itoa(defaultVal),
-	}
-	if err := survey.AskOne(prompt, &volumeSize); err != nil {
-		return 0, err
-	}
-
-	return volumeSize, nil
 }

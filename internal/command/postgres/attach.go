@@ -58,31 +58,56 @@ func newAttach() *cobra.Command {
 	return cmd
 }
 
+type AttachParams struct {
+	DbName       string
+	AppName      string
+	PgAppName    string
+	DbUser       string
+	VariableName string
+	Force        bool
+}
+
 func runAttach(ctx context.Context) error {
+
+	params := AttachParams{
+		AppName:      app.NameFromContext(ctx),
+		DbName:       flag.GetString(ctx, "database-name"),
+		PgAppName:    flag.FirstArg(ctx),
+		DbUser:       flag.GetString(ctx, "database-user"),
+		VariableName: flag.GetString(ctx, "variable-name"),
+		Force:        flag.GetBool(ctx, "force"),
+	}
+
+	return AttachCluster(ctx, params)
+}
+
+func AttachCluster(ctx context.Context, params AttachParams) error {
 	// Minimum image version requirements
 	var (
 		MinPostgresHaVersion = "0.0.19"
-		appName              = app.NameFromContext(ctx)
-		pgAppName            = flag.FirstArg(ctx)
 		client               = client.FromContext(ctx).API()
+		appName              = params.AppName
+		pgAppName            = params.PgAppName
+		dbName               = params.DbName
+		dbUser               = params.DbUser
+		varName              = params.VariableName
 	)
 
-	dbName := flag.GetString(ctx, "database-name")
 	if dbName == "" {
 		dbName = appName
 	}
-	dbName = strings.ToLower(strings.ReplaceAll(dbName, "-", "_"))
 
-	dbUser := flag.GetString(ctx, "database-user")
 	if dbUser == "" {
 		dbUser = appName
 	}
+
 	dbUser = strings.ToLower(strings.ReplaceAll(dbUser, "-", "_"))
 
-	varName := flag.GetString(ctx, "variable-name")
 	if varName == "" {
 		varName = "DATABASE_URL"
 	}
+
+	dbName = strings.ToLower(strings.ReplaceAll(dbName, "-", "_"))
 
 	input := api.AttachPostgresClusterInput{
 		AppID:                appName,
@@ -161,7 +186,7 @@ func runAttach(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if dbExists && !flag.GetBool(ctx, "force") {
+	if dbExists && !params.Force {
 		confirm := false
 		msg := fmt.Sprintf("Database %q already exists. Continue with the attachment process?", *input.DatabaseName)
 		confirm, err := prompt.Confirm(ctx, msg)

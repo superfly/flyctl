@@ -1,4 +1,4 @@
-package cmd
+package launch
 
 import (
 	"bufio"
@@ -17,106 +17,89 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/cmdctx"
-	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
+	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/apps"
+	"github.com/superfly/flyctl/internal/command/deploy"
+	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/filemu"
+	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 	"github.com/superfly/flyctl/terminal"
 	"github.com/superfly/graphql"
 )
 
-func newLaunchCommand(client *client.Client) *Command {
-	launchStrings := docstrings.Get("launch")
-	launchCmd := BuildCommandKS(nil, runLaunch, launchStrings, client, requireSession)
-	launchCmd.Args = cobra.NoArgs
-	launchCmd.AddStringFlag(StringFlagOpts{
-		Name:        "path",
-		Description: `Path to app code and where a fly.toml file will be saved`,
-		Default:     ".",
-	},
+func New() (cmd *cobra.Command) {
+	const (
+		long  = `Create and configure a new app from source code or a Docker image.`
+		short = long
 	)
-	launchCmd.AddStringFlag(StringFlagOpts{
-		Name:        "org",
-		Description: `Organization that will own the app (use org slug here; see "fly orgs list")`,
-	})
-	launchCmd.AddStringFlag(StringFlagOpts{
-		Name:        "name",
-		Description: "Name of the new app",
-	})
-	launchCmd.AddStringFlag(StringFlagOpts{
-		Name:        "region",
-		Description: "Region to launch the new app in",
-	})
-	launchCmd.AddStringFlag(StringFlagOpts{
-		Name:        "image",
-		Description: "Image to launch",
-	})
-	launchCmd.AddBoolFlag(BoolFlagOpts{
-		Name:        "now",
-		Description: "Deploy now without confirmation",
-		Default:     false,
-	})
-	launchCmd.AddBoolFlag(BoolFlagOpts{
-		Name:        "no-deploy",
-		Description: "Do not prompt for deployment",
-		Default:     false,
-	})
-	launchCmd.AddBoolFlag(BoolFlagOpts{
-		Name:        "generate-name",
-		Description: "Always generate a name for the app",
-		Default:     false,
-	})
-	launchCmd.AddStringFlag(StringFlagOpts{
-		Name:        "dockerfile",
-		Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory",
-	})
-	launchCmd.AddBoolFlag(BoolFlagOpts{
-		Name:        "copy-config",
-		Description: "Use the configuration file if present without prompting",
-		Default:     false,
-	})
-	launchCmd.AddBoolFlag(BoolFlagOpts{
-		Name:        "remote-only",
-		Description: "Perform builds remotely without using the local docker daemon",
-		Default:     false,
-	})
-	launchCmd.AddBoolFlag(BoolFlagOpts{
-		Name:        "dockerignore-from-gitignore",
-		Description: "If a .dockerignore does not exist create one from .gitignore files",
-		Default:     false,
-	})
 
-	return launchCmd
+	cmd = command.New("launch", short, long, run, command.RequireSession, command.LoadAppConfigIfPresent)
+
+	cmd.Args = cobra.NoArgs
+
+	flag.Add(cmd,
+		// Since launch can perform a deployment, we offer the full set of deployment flags for those using
+		// the launch command in CI environments. We may want to rescind this decision down the line, because
+		// the list of flags is long, but it follows from the precedent of already offering some deployment flags.
+		// See a proposed 'flag grouping' feature in Viper that could help with DX: https://github.com/spf13/cobra/pull/1778
+		deploy.CommonFlags,
+
+		flag.Bool{
+			Name:        "no-deploy",
+			Description: "Do not prompt for deployment",
+		},
+		flag.Bool{
+			Name:        "generate-name",
+			Description: "Always generate a name for the app, without prompting",
+		},
+		flag.String{
+			Name:        "path",
+			Description: `Path to the app source root, where fly.toml file will be saved`,
+			Default:     ".",
+		},
+		flag.String{
+			Name:        "name",
+			Description: `Name of the new app`,
+		},
+		flag.Bool{
+			Name:        "copy-config",
+			Description: "Use the configuration file if present without prompting",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "dockerignore-from-gitignore",
+			Description: "If a .dockerignore does not exist, create one from .gitignore files",
+			Default:     false,
+		},
+	)
+
+	return
 }
 
-func runLaunch(cmdCtx *cmdctx.CmdContext) error {
-	ctx := cmdCtx.Command.Context()
+func run(ctx context.Context) (err error) {
+	io := iostreams.FromContext(ctx)
+	client := client.FromContext(ctx).API()
+	workingDir := flag.GetString(ctx, "path")
 
-	dir := cmdCtx.Config.GetString("path")
-
-	if absDir, err := filepath.Abs(dir); err == nil {
-		dir = absDir
+	// Determine the working directory
+	if absDir, err := filepath.Abs(workingDir); err == nil {
+		workingDir = absDir
 	}
-	cmdCtx.WorkingDir = dir
 
-	orgSlug := cmdCtx.Config.GetString("org")
-
-	// start a remote builder for the personal org if necessary
-	eagerBuilderOrg := orgSlug
-	if orgSlug == "" {
-		eagerBuilderOrg = "personal"
-	}
-	go imgsrc.EagerlyEnsureRemoteBuilder(ctx, cmdCtx.Client.API(), eagerBuilderOrg)
-
-	appConfig := flyctl.NewAppConfig()
+	appConfig := app.NewConfig()
 
 	var importedConfig bool
-	configFilePath := filepath.Join(dir, "fly.toml")
+	configFilePath := filepath.Join(workingDir, "fly.toml")
+
 	if exists, _ := flyctl.ConfigFileExistsAtPath(configFilePath); exists {
-		cfg, err := flyctl.LoadAppConfig(configFilePath)
+		cfg, err := app.LoadConfig(ctx, configFilePath, "nomad")
 		if err != nil {
 			return err
 		}
@@ -124,51 +107,62 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		var deployExisting bool
 
 		if cfg.AppName != "" {
-			fmt.Println("An existing fly.toml file was found for app", cfg.AppName)
-			deployExisting, err = shouldDeployExistingApp(cmdCtx, cfg.AppName)
+			fmt.Fprintln(io.Out, "An existing fly.toml file was found for app", cfg.AppName)
+			deployExisting, err = shouldDeployExistingApp(ctx, cfg.AppName)
 			if err != nil {
 				return err
 			}
 		} else {
-			fmt.Println("An existing fly.toml file was found")
+			fmt.Fprintln(io.Out, "An existing fly.toml file was found")
 		}
 
 		if deployExisting {
-			fmt.Println("App is not running, deploy...")
-			cmdCtx.AppName = cfg.AppName
-			cmdCtx.AppConfig = cfg
-			return runDeploy(cmdCtx)
-		} else if cmdCtx.Config.GetBool("copy-config") || confirm("Would you like to copy its configuration to the new app?") {
+			fmt.Fprintln(io.Out, "App is not running, deploy...")
+			return deploy.DeployWithConfig(ctx, appConfig)
+		}
+
+		copyConfig := false
+
+		if flag.GetBool(ctx, "copy-config") {
+			copyConfig = true
+		} else {
+			copy, err := prompt.Confirm(ctx, "Would you like to copy its configuration to the new app?")
+			if copy && err == nil {
+				copyConfig = true
+			}
+		}
+
+		if copyConfig {
 			appConfig.Definition = cfg.Definition
 			importedConfig = true
 		}
 	}
 
-	fmt.Println("Creating app in", dir)
+	fmt.Fprintln(io.Out, "Creating app in", workingDir)
 
 	srcInfo := new(scanner.SourceInfo)
 
-	if img := cmdCtx.Config.GetString("image"); img != "" {
-		fmt.Println("Using image", img)
-		appConfig.Build = &flyctl.Build{
+	if img := flag.GetString(ctx, "image"); img != "" {
+		fmt.Fprintln(io.Out, "Using image", img)
+		appConfig.Build = &app.Build{
 			Image: img,
 		}
-	} else if dockerfile := cmdCtx.Config.GetString("dockerfile"); dockerfile != "" {
-		fmt.Println("Using dockerfile", dockerfile)
-		appConfig.Build = &flyctl.Build{
+	} else if dockerfile := flag.GetString(ctx, "dockerfile"); dockerfile != "" {
+		fmt.Fprintln(io.Out, "Using dockerfile", dockerfile)
+		appConfig.Build = &app.Build{
 			Dockerfile: dockerfile,
 		}
 	} else {
-		fmt.Println("Scanning source code")
+		fmt.Fprintln(io.Out, "Scanning source code")
 
-		if si, err := scanner.Scan(dir); err != nil {
+		if si, err := scanner.Scan(workingDir); err != nil {
 			return err
 		} else {
 			srcInfo = si
 		}
 
 		if srcInfo == nil {
-			fmt.Println(aurora.Green("Could not find a Dockerfile, nor detect a runtime or framework from source code. Continuing with a blank app."))
+			fmt.Fprintln(io.Out, aurora.Green("Could not find a Dockerfile, nor detect a runtime or framework from source code. Continuing with a blank app."))
 		} else {
 
 			var article string = "a"
@@ -184,16 +178,16 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 				appType = appType + " " + srcInfo.Version
 			}
 
-			fmt.Printf("Detected %s %s app\n", article, aurora.Green(appType))
+			fmt.Fprintf(io.Out, "Detected %s %s app\n", article, aurora.Green(appType))
 
 			if srcInfo.Builder != "" {
-				fmt.Println("Using the following build configuration:")
-				fmt.Println("\tBuilder:", srcInfo.Builder)
+				fmt.Fprintln(io.Out, "Using the following build configuration:")
+				fmt.Fprintln(io.Out, "\tBuilder:", srcInfo.Builder)
 				if srcInfo.Buildpacks != nil && len(srcInfo.Buildpacks) > 0 {
-					fmt.Println("\tBuildpacks:", strings.Join(srcInfo.Buildpacks, " "))
+					fmt.Fprintln(io.Out, "\tBuildpacks:", strings.Join(srcInfo.Buildpacks, " "))
 				}
 
-				appConfig.Build = &flyctl.Build{
+				appConfig.Build = &app.Build{
 					Builder:    srcInfo.Builder,
 					Buildpacks: srcInfo.Buildpacks,
 				}
@@ -203,10 +197,13 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 
 	if srcInfo != nil {
 		for _, f := range srcInfo.Files {
-			path := filepath.Join(dir, f.Path)
+			path := filepath.Join(workingDir, f.Path)
 
-			if helpers.FileExists(path) && !confirmOverwrite(path) {
-				continue
+			if helpers.FileExists(path) {
+				confirm, err := prompt.ConfirmOverwrite(ctx, path)
+				if confirm && err == nil {
+					continue
+				}
 			}
 
 			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
@@ -225,55 +222,44 @@ func runLaunch(cmdCtx *cmdctx.CmdContext) error {
 		}
 	}
 
-	dockerIgnore := ".dockerignore"
-	gitIgnore := ".gitignore"
-	allGitIgnores := scanner.FindGitignores(dir)
-	if helpers.FileExists(dockerIgnore) {
-		terminal.Debugf("Found %s file. Will use when deploying to Fly.\n", dockerIgnore)
-	} else if len(allGitIgnores) > 0 && (cmdCtx.Config.GetBool("dockerignore-from-gitignore") || confirm(fmt.Sprintf("Create %s from %d %s files?", dockerIgnore, len(allGitIgnores), gitIgnore))) {
-		createdDockerIgnore, err := createDockerignoreFromGitignores(dir, allGitIgnores)
-		if err != nil {
-			terminal.Warnf("Error creating %s from %d %s files: %v\n", dockerIgnore, len(allGitIgnores), gitIgnore, err)
-		} else {
-			fmt.Printf("Created %s from %d %s files.\n", createdDockerIgnore, len(allGitIgnores), gitIgnore)
-		}
-	} else {
-		fmt.Printf(`Found no %s to limit docker context size. Large docker contexts can slow down builds.
-Create a %s file to indicate which files and directories may be ignored when building the docker image for this app.
-More info at: https://docs.docker.com/engine/reference/builder/#dockerignore-file
-`, dockerIgnore, dockerIgnore)
-	}
+	// Attempt to create a .dockerignore from .gitignore
+	determineDockerIgnore(ctx, workingDir)
 
+	// Prompt for an app name or fetch from flags
 	appName := ""
 
-	if !cmdCtx.Config.GetBool("generate-name") {
-		appName = cmdCtx.Config.GetString("name")
+	if !flag.GetBool(ctx, "generate-name") {
+		appName = flag.GetString(ctx, "name")
 
 		if appName == "" {
 			// Prompt the user for the app name
-			inputName, err := inputAppName("", true)
+			inputName, err := apps.SelectAppName(ctx)
 			if err != nil {
 				return err
 			}
 
 			appName = inputName
 		} else {
-			fmt.Printf("Selected App Name: %s\n", appName)
+			fmt.Fprintf(io.Out, "Selected App Name: %s\n", appName)
 		}
 	}
 
-	org, err := selectOrganization(ctx, cmdCtx.Client.API(), orgSlug)
+	// Prompt for an org
+	// TODO: determine if eager remote builder is still required here
+	org, err := prompt.Org(ctx)
 	if err != nil {
-		return err
+		return
 	}
 
-	// spawn another builder if the chosen org is different
-	if org.Slug != eagerBuilderOrg {
-		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, cmdCtx.Client.API(), org.Slug)
+	// If we potentially are deploying, launch a remote builder to prepare for deployment.
+	if !flag.GetBool(ctx, "no-deploy") {
+		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, client, org.Slug)
 	}
 
-	regionCode := cmdCtx.Config.GetString("region")
-	region, err := selectRegion(ctx, cmdCtx.Client.API(), regionCode)
+	region, err := prompt.Region(ctx, prompt.RegionParams{
+		Message: "Choose a region for deployment:",
+	})
+
 	if err != nil {
 		return err
 	}
@@ -284,17 +270,15 @@ More info at: https://docs.docker.com/engine/reference/builder/#dockerignore-fil
 		PreferredRegion: &region.Code,
 	}
 
-	app, err := cmdCtx.Client.API().CreateApp(ctx, input)
+	createdApp, err := client.CreateApp(ctx, input)
 	if err != nil {
 		return err
 	}
 	if !importedConfig {
-		appConfig.Definition = app.Config.Definition
+		appConfig.Definition = createdApp.Config.Definition
 	}
 
-	cmdCtx.AppName = app.Name
-	appConfig.AppName = app.Name
-	cmdCtx.AppConfig = appConfig
+	appConfig.AppName = createdApp.Name
 
 	if srcInfo != nil {
 		if srcInfo.Port > 0 {
@@ -303,7 +287,7 @@ More info at: https://docs.docker.com/engine/reference/builder/#dockerignore-fil
 
 		for envName, envVal := range srcInfo.Env {
 			if envVal == "APP_FQDN" {
-				appConfig.SetEnvVariable(envName, app.Name+".fly.dev")
+				appConfig.SetEnvVariable(envName, createdApp.Name+".fly.dev")
 			} else {
 				appConfig.SetEnvVariable(envName, envVal)
 			}
@@ -338,7 +322,7 @@ More info at: https://docs.docker.com/engine/reference/builder/#dockerignore-fil
 		}
 	}
 
-	fmt.Printf("Created app %s in organization %s\n", cmdCtx.AppName, org.Slug)
+	fmt.Fprintf(io.Out, "Created app %s in organization %s\n", createdApp.Name, org.Slug)
 
 	// If secrets are requested by the launch scanner, ask the user to input them
 	if srcInfo != nil && len(srcInfo.Secrets) > 0 {
@@ -375,11 +359,11 @@ More info at: https://docs.docker.com/engine/reference/builder/#dockerignore-fil
 		}
 
 		if len(secrets) > 0 {
-			_, err := cmdCtx.Client.API().SetSecrets(ctx, cmdCtx.AppName, secrets)
+			_, err := client.SetSecrets(ctx, createdApp.Name, secrets)
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Set secrets on %s: %s\n", cmdCtx.AppName, strings.Join(keys, ", "))
+			fmt.Fprintf(io.Out, "Set secrets on %s: %s\n", createdApp.Name, strings.Join(keys, ", "))
 		}
 	}
 
@@ -387,12 +371,12 @@ More info at: https://docs.docker.com/engine/reference/builder/#dockerignore-fil
 	if srcInfo != nil && len(srcInfo.Volumes) > 0 {
 		for _, vol := range srcInfo.Volumes {
 
-			appID, err := cmdCtx.Client.API().GetAppID(ctx, cmdCtx.AppName)
+			appID, err := client.GetAppID(ctx, createdApp.Name)
 			if err != nil {
 				return err
 			}
 
-			volume, err := cmdCtx.Client.API().CreateVolume(ctx, api.CreateVolumeInput{
+			volume, err := client.CreateVolume(ctx, api.CreateVolumeInput{
 				AppID:     appID,
 				Name:      vol.Source,
 				Region:    region.Code,
@@ -403,7 +387,7 @@ More info at: https://docs.docker.com/engine/reference/builder/#dockerignore-fil
 			if err != nil {
 				return err
 			} else {
-				fmt.Printf("Created a %dGB volume %s in the %s region\n", volume.SizeGb, volume.ID, region.Code)
+				fmt.Fprintf(io.Out, "Created a %dGB volume %s in the %s region\n", volume.SizeGb, volume.ID, region.Code)
 			}
 
 		}
@@ -426,12 +410,13 @@ More info at: https://docs.docker.com/engine/reference/builder/#dockerignore-fil
 	}
 
 	if srcInfo != nil && len(srcInfo.BuildArgs) > 0 {
-		appConfig.Build = &flyctl.Build{}
+		appConfig.Build = &app.Build{}
 		appConfig.Build.Args = srcInfo.BuildArgs
 	}
 
 	// Finally, write the config
-	if err := writeAppConfig(filepath.Join(dir, "fly.toml"), appConfig); err != nil {
+
+	if err = appConfig.WriteToDisk(ctx, filepath.Join(workingDir, "fly.toml")); err != nil {
 		return err
 	}
 
@@ -439,42 +424,36 @@ More info at: https://docs.docker.com/engine/reference/builder/#dockerignore-fil
 		return nil
 	}
 
-	if !cmdCtx.Config.GetBool("no-deploy") && !cmdCtx.Config.GetBool("now") && !srcInfo.SkipDatabase && confirm("Would you like to set up a Postgresql database now?") {
+	if !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !srcInfo.SkipDatabase {
 
-		appID, err := cmdCtx.Client.API().GetAppID(ctx, cmdCtx.AppName)
-		if err != nil {
-			return err
+		confirm, err := prompt.Confirm(ctx, "Would you like to set up a Postgresql database now?")
+
+		if confirm && err == nil {
+			clusterAppName := createdApp.Name + "-db"
+			err = postgres.CreateCluster(ctx, org, region, "machines",
+				&postgres.ClusterParams{
+					PostgresConfiguration: postgres.PostgresConfiguration{
+						Name: clusterAppName,
+					},
+				})
+
+			if err != nil {
+				fmt.Fprintf(io.Out, "Failed creating the Postgres cluster %s: %s", clusterAppName, err)
+			} else {
+				err = postgres.AttachCluster(ctx, postgres.AttachParams{
+					PgAppName: clusterAppName,
+					AppName:   createdApp.Name,
+				})
+
+				if err != nil {
+					msg := `Failed attaching %s to the Postgres cluster %s: %w.\nTry attaching manually with 'fly postgres attach --app %s %s'`
+					fmt.Fprintf(io.Out, msg, createdApp.Name, clusterAppName, err, createdApp.Name, clusterAppName)
+
+				} else {
+					fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", clusterAppName, createdApp.Name)
+				}
+			}
 		}
-
-		clusterAppName := cmdCtx.AppName + "-db"
-
-		cmdCtx.Config.Set("name", clusterAppName)
-		cmdCtx.Config.Set("region", region.Code)
-		cmdCtx.Config.Set("organization", org.Slug)
-
-		err = runCreatePostgresCluster(cmdCtx)
-
-		if err != nil {
-			err = fmt.Errorf("failed creating the Postgres cluster %s: %w", clusterAppName, err)
-			return err
-		}
-
-		cmdCtx.Config.Set("postgres-app", clusterAppName)
-
-		// Reset the app name here beacuse runCreatePostgresCluster overrides it
-		cmdCtx.AppName = appID
-		err = runAttachPostgresCluster(cmdCtx)
-
-		// Reset the app name here beacuse AttachPostgresCluster overrides it
-		cmdCtx.AppName = appID
-
-		if err != nil {
-			msg := `Failed attaching %s to the Postgres cluster %s: %w.\nTry attaching manually with 'fly postgres attach --app %s %s'`
-			err = fmt.Errorf(msg, clusterAppName, appID, err, appID, clusterAppName)
-			return err
-		}
-
-		fmt.Printf("Postgres cluster %s is now attached to %s\n", clusterAppName, cmdCtx.AppName)
 
 		// Run any initialization commands required for postgres support
 		if len(srcInfo.PostgresInitCommands) > 0 {
@@ -491,31 +470,51 @@ More info at: https://docs.docker.com/engine/reference/builder/#dockerignore-fil
 
 	// Notices from a launcher about its behavior that should always be displayed
 	if srcInfo.Notice != "" {
-		fmt.Println(srcInfo.Notice)
+		fmt.Fprintln(io.Out, srcInfo.Notice)
 	}
 
-	if !cmdCtx.Config.GetBool("no-deploy") &&
-		!srcInfo.SkipDeploy &&
-		(cmdCtx.Config.GetBool("now") || confirm("Would you like to deploy now?")) {
-		return runDeploy(cmdCtx)
+	deployNow := false
+	promptForDeploy := true
+
+	if srcInfo.SkipDeploy || flag.GetBool(ctx, "no-deploy") {
+		deployNow = false
+		promptForDeploy = false
+	}
+
+	if flag.GetBool(ctx, "now") {
+		deployNow = true
+		promptForDeploy = false
+	}
+
+	if promptForDeploy {
+		confirm, err := prompt.Confirm(ctx, "Would you like to deploy now?")
+		if confirm && err == nil {
+			deployNow = true
+		}
+	}
+
+	if deployNow {
+		return deploy.DeployWithConfig(ctx, appConfig)
 	}
 
 	// Alternative deploy documentation if our standard deploy method is not correct
 	if srcInfo.DeployDocs != "" {
-		fmt.Println(srcInfo.DeployDocs)
+		fmt.Fprintln(io.Out, srcInfo.DeployDocs)
 	} else {
-		fmt.Println("Your app is ready. Deploy with `flyctl deploy`")
+		fmt.Fprintln(io.Out, "Your app is ready! Deploy with `flyctl deploy`")
 	}
 
 	return nil
 }
 
 func execInitCommand(ctx context.Context, command scanner.InitCommand) (err error) {
+	io := iostreams.FromContext(ctx)
+
 	binary, err := exec.LookPath(command.Command)
 	if err != nil {
 		return fmt.Errorf("%s not found in $PATH - make sure app dependencies are installed and try again", command.Command)
 	}
-	fmt.Println(command.Description)
+	fmt.Fprintln(io.Out, command.Description)
 	// Run a requested generator command, for example to generate a Dockerfile
 	cmd := exec.CommandContext(ctx, binary, command.Args...)
 
@@ -567,10 +566,10 @@ func appendDockerfileAppendix(appendix []string) (err error) {
 	return
 }
 
-func shouldDeployExistingApp(cmdCtx *cmdctx.CmdContext, appName string) (bool, error) {
-	ctx := cmdCtx.Command.Context()
+func shouldDeployExistingApp(ctx context.Context, appName string) (bool, error) {
 
-	status, err := cmdCtx.Client.API().GetAppStatus(ctx, appName, false)
+	client := client.FromContext(ctx).API()
+	status, err := client.GetAppStatus(ctx, appName, false)
 	if err != nil {
 		if api.IsNotFoundError(err) || graphql.IsNotFoundError(err) {
 			return false, nil
@@ -666,4 +665,42 @@ func createDockerignoreFromGitignores(root string, gitIgnores []string) (string,
 		}
 	}
 	return dockerIgnore, nil
+}
+
+func determineDockerIgnore(ctx context.Context, workingDir string) (err error) {
+	io := iostreams.FromContext(ctx)
+	dockerIgnore := ".dockerignore"
+	gitIgnore := ".gitignore"
+	allGitIgnores := scanner.FindGitignores(workingDir)
+	createDockerignoreFromGitignore := false
+
+	// An existing .dockerignore should always be used instead of .gitignore
+	if helpers.FileExists(dockerIgnore) {
+		terminal.Debugf("Found %s file. Will use when deploying to Fly.\n", dockerIgnore)
+		return
+	}
+
+	// If we find .gitignore files, determine whether they should be converted to .dockerignore
+	if len(allGitIgnores) > 0 {
+
+		if flag.GetBool(ctx, "dockerignore-from-gitignore") {
+			createDockerignoreFromGitignore = true
+		} else {
+			confirm, err := prompt.Confirm(ctx, fmt.Sprintf("Create %s from %d %s files?", dockerIgnore, len(allGitIgnores), gitIgnore))
+			if confirm && err == nil {
+				createDockerignoreFromGitignore = true
+			}
+		}
+
+		if createDockerignoreFromGitignore {
+			createdDockerIgnore, err := createDockerignoreFromGitignores(workingDir, allGitIgnores)
+			if err != nil {
+				terminal.Warnf("Error creating %s from %d %s files: %v\n", dockerIgnore, len(allGitIgnores), gitIgnore, err)
+			} else {
+				fmt.Fprintf(io.Out, "Created %s from %d %s files.\n", createdDockerIgnore, len(allGitIgnores), gitIgnore)
+			}
+			return nil
+		}
+	}
+	return
 }

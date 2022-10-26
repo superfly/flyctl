@@ -335,7 +335,7 @@ func SelectRegion(ctx context.Context, msg string, regions []api.Region, default
 	}
 
 	if msg == "" {
-		msg = "Select regions:"
+		msg = "Select region:"
 	}
 
 	var index int
