@@ -133,6 +133,8 @@ func machinesNodeRoles(ctx context.Context, machines []*api.Machine) (leader *ap
 			leader = machine
 		case "replica":
 			replicas = append(replicas, machine)
+		default:
+			replicas = append(replicas, machine)
 		}
 	}
 	return leader, replicas
