@@ -201,8 +201,12 @@ func run(ctx context.Context) (err error) {
 			path := filepath.Join(workingDir, f.Path)
 
 			if helpers.FileExists(path) {
+				if flag.GetBool(ctx, "now") {
+					fmt.Fprintf(io.Out, "You specified --now, so not overwriting %s\n", path)
+					continue
+				}
 				confirm, err := prompt.ConfirmOverwrite(ctx, path)
-				if confirm && err == nil {
+				if !confirm || err != nil {
 					continue
 				}
 			}
