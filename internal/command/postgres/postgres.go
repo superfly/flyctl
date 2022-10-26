@@ -133,6 +133,8 @@ func machinesNodeRoles(ctx context.Context, machines []*api.Machine) (leader *ap
 			leader = machine
 		case "replica":
 			replicas = append(replicas, machine)
+		default:
+			replicas = append(replicas, machine)
 		}
 	}
 	return leader, replicas
@@ -200,5 +202,5 @@ func pickLeader(ctx context.Context, machines []*api.Machine) (*api.Machine, err
 			return machine, nil
 		}
 	}
-	return nil, fmt.Errorf("No active leader")
+	return nil, fmt.Errorf("no active leader found")
 }
