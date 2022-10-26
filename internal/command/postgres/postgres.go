@@ -202,5 +202,5 @@ func pickLeader(ctx context.Context, machines []*api.Machine) (*api.Machine, err
 			return machine, nil
 		}
 	}
-	return nil, fmt.Errorf("No active leader")
+	return nil, fmt.Errorf("no active leader found")
 }
