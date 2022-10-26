@@ -5,7 +5,7 @@
 # Valid version values are PHP 7.4+
 ARG PHP_VERSION=8.1
 ARG NODE_VERSION=14
-FROM serversideup/php:${PHP_VERSION}-fpm-nginx as base
+FROM serversideup/php:${PHP_VERSION}-fpm-nginx-v1.5.0 as base
 
 # PHP_VERSION needs to be repeated here
 # See https://docs.docker.com/engine/reference/builder/#understand-how-arg-and-from-interact

@@ -403,7 +403,7 @@ func (c *Config) WriteToFile(filename string) (err error) {
 func (c *Config) WriteToDisk(ctx context.Context, path string) (err error) {
 	io := iostreams.FromContext(ctx)
 	err = c.WriteToFile(path)
-	fmt.Fprintf(io.Out, "Wrote config file %s", helpers.PathRelativeToCWD(path))
+	fmt.Fprintf(io.Out, "Wrote config file %s\n", helpers.PathRelativeToCWD(path))
 	return
 }
 

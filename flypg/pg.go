@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+
+	"github.com/superfly/flyctl/terminal"
 )
 
 func (c *Client) ListUsers(ctx context.Context) ([]PostgresUser, error) {
@@ -125,10 +127,25 @@ func (c *Client) NodeRole(ctx context.Context) (string, error) {
 
 	out := new(NodeRoleResponse)
 
-	if err := c.Do(ctx, http.MethodGet, endpoint, nil, out); err != nil {
+	err := c.Do(ctx, http.MethodGet, endpoint, nil, out)
+	if err != nil && ErrorStatus(err) == http.StatusNotFound {
+		terminal.Debugf("404 response from %s endpoint. Calling legacy endpoint.\n", endpoint)
+		return c.legacyNodeRole(ctx)
+	}
+	if err != nil {
 		return "", err
 	}
 	return out.Result, nil
+}
+
+func (c *Client) legacyNodeRole(ctx context.Context) (string, error) {
+	endpoint := "/flycheck/role"
+	var out string
+	err := c.Do(ctx, http.MethodGet, endpoint, nil, &out)
+	if err != nil {
+		return "", err
+	}
+	return out, nil
 }
 
 func (c *Client) RestartNodePG(ctx context.Context) error {

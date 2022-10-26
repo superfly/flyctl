@@ -46,6 +46,12 @@ func New() (cmd *cobra.Command) {
 	cmd.Args = cobra.NoArgs
 
 	flag.Add(cmd,
+		// Since launch can perform a deployment, we offer the full set of deployment flags for those using
+		// the launch command in CI environments. We may want to rescind this decision down the line, because
+		// the list of flags is long, but it follows from the precedent of already offering some deployment flags.
+		// See a proposed 'flag grouping' feature in Viper that could help with DX: https://github.com/spf13/cobra/pull/1778
+		deploy.CommonFlags,
+
 		flag.Bool{
 			Name:        "no-deploy",
 			Description: "Do not prompt for deployment",
@@ -68,22 +74,11 @@ func New() (cmd *cobra.Command) {
 			Description: "Use the configuration file if present without prompting",
 			Default:     false,
 		},
-		flag.Region(),
-		flag.Image(),
-		flag.Now(),
-		flag.RemoteOnly(false),
-		flag.LocalOnly(),
-		flag.BuildOnly(),
-		flag.Nixpacks(),
-		flag.Strategy(),
-		flag.Push(),
-		flag.Org(),
-		flag.Dockerfile(),
-		flag.ImageLabel(),
-		flag.NoCache(),
-		flag.BuildSecret(),
-		flag.BuildArg(),
-		flag.BuildTarget(),
+		flag.Bool{
+			Name:        "dockerignore-from-gitignore",
+			Description: "If a .dockerignore does not exist, create one from .gitignore files",
+			Default:     false,
+		},
 	)
 
 	return
