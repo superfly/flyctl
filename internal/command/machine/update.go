@@ -3,11 +3,13 @@ package machine
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/flaps"
@@ -107,9 +109,23 @@ func runUpdate(ctx context.Context) (err error) {
 	fmt.Fprintf(out, "Instance ID has been updated:\n")
 	fmt.Fprintf(out, "%s -> %s\n\n", prevInstanceID, machine.InstanceID)
 	fmt.Fprintln(out, "The following config has been updated")
-	fmt.Fprintln(out, machineDiff)
 
-	// wait for machine to be started
+	s := strings.Split(machineDiff, ",")
+	var str string
+	for _, val := range s {
+		_, found := presenters.GetStringInBetweenTwoString(val, "-", ":")
+		_, found2 := presenters.GetStringInBetweenTwoString(val, "+", ":")
+		if found2 {
+			str += colorize.Green(val)
+		} else if found {
+			str += colorize.Red(val)
+		} else {
+			str += val
+		}
+	}
+	fmt.Fprintln(out, str)
+
+	//wait for machine to be started
 	if err := WaitForStartOrStop(ctx, machine, waitForAction, time.Second*60); err != nil {
 		return err
 	}
