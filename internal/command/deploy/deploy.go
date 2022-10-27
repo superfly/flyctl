@@ -179,7 +179,6 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 	tb := render.NewTextBlock(ctx, "Verifying app config")
 	client := client.FromContext(ctx).API()
 	appNameFromContext := app.NameFromContext(ctx)
-
 	if cfg = app.ConfigFromContext(ctx); cfg == nil {
 		logger := logger.FromContext(ctx)
 		logger.Debug("no local app config detected; fetching from backend ...")
@@ -217,7 +216,9 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 		cfg.PrimaryRegion = regionCode
 	}
 
-	if cfg.AppName == "" {
+	// Always prefer the app name passed via --app
+
+	if appNameFromContext != "" {
 		cfg.AppName = appNameFromContext
 	}
 
