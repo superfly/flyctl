@@ -156,7 +156,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 			return err
 		}
 
-		release, err = apiClient.GetAppRelease(ctx, appConfig.AppName, release.ID)
+		release, err = apiClient.GetAppRelease(ctx, app.NameFromContext(ctx), release.ID)
 		if err != nil {
 			return err
 		}
@@ -169,7 +169,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 		return nil
 	}
 
-	err = watch.Deployment(ctx, appConfig.AppName, release.EvaluationID)
+	err = watch.Deployment(ctx, app.NameFromContext(ctx), release.EvaluationID)
 
 	return err
 }
@@ -232,10 +232,15 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 	tb := render.NewTextBlock(ctx, "Building image")
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), flag.GetBool(ctx, "nixpacks"))
 
+	var appName string = app.NameFromContext(ctx)
+	if appConfig.AppName != "" && appName == "" {
+		appName = appConfig.AppName
+	}
+
 	client := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
 
-	resolver := imgsrc.NewResolver(daemonType, client, appConfig.AppName, io)
+	resolver := imgsrc.NewResolver(daemonType, client, appName, io)
 
 	var imageRef string
 	if imageRef, err = fetchImageRef(ctx, appConfig); err != nil {
@@ -245,7 +250,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 	// we're using a pre-built Docker image
 	if imageRef != "" {
 		opts := imgsrc.RefOptions{
-			AppName:    appConfig.AppName,
+			AppName:    appName,
 			WorkingDir: state.WorkingDirectory(ctx),
 			Publish:    !flag.GetBuildOnly(ctx),
 			ImageRef:   imageRef,
@@ -264,7 +269,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 
 	// We're building from source
 	opts := imgsrc.ImageOptions{
-		AppName:         appConfig.AppName,
+		AppName:         appName,
 		WorkingDir:      state.WorkingDirectory(ctx),
 		Publish:         flag.GetBool(ctx, "push") || !flag.GetBuildOnly(ctx),
 		ImageLabel:      flag.GetString(ctx, "image-label"),
@@ -369,7 +374,7 @@ func createRelease(ctx context.Context, appConfig *app.Config, img *imgsrc.Deplo
 	tb := render.NewTextBlock(ctx, "Creating release")
 
 	input := api.DeployImageInput{
-		AppID: appConfig.AppName,
+		AppID: app.NameFromContext(ctx),
 		Image: img.Tag,
 	}
 
