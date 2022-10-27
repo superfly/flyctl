@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/shlex"
 	"github.com/jpillora/backoff"
 	"github.com/pkg/errors"
-	"github.com/r3labs/diff"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
@@ -161,12 +161,6 @@ func newRun() *cobra.Command {
 	cmd.Args = cobra.MinimumNArgs(1)
 
 	return cmd
-}
-
-type machineDiff struct {
-	key     string
-	initial string
-	new     string
 }
 
 func runMachineRun(ctx context.Context) error {
@@ -504,9 +498,7 @@ func selectAppName(ctx context.Context) (name string, err error) {
 	return
 }
 
-func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, imageOrPath string) (machineConf api.MachineConfig, configDiff []machineDiff, err error) {
-	machineConfigDiff := []machineDiff{}
-
+func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, imageOrPath string) (machineConf api.MachineConfig, machineDiff string, err error) {
 	machineConf = initialMachineConf
 
 	if guestSize := flag.GetString(ctx, "size"); guestSize != "" {
@@ -523,40 +515,13 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 			return
 		}
 		machineConf.Guest = guest
-
-		changelog, _ := diff.Diff(initialMachineConf.Guest, machineConf.Guest)
-		if len(changelog) > 0 {
-			machineConfigDiff = append(machineConfigDiff, machineDiff{
-				key:     "Guest",
-				initial: fmt.Sprintf("%s-cpu-%dx", initialMachineConf.Guest.CPUKind, initialMachineConf.Guest.CPUs),
-				new:     guestSize,
-			})
-		}
 	} else {
 		if cpus := flag.GetInt(ctx, "cpus"); cpus != 0 {
 			machineConf.Guest.CPUs = cpus
-			changelog, _ := diff.Diff(initialMachineConf.Guest.CPUs, machineConf.Guest.CPUs)
-
-			if len(changelog) > 0 {
-				machineConfigDiff = append(machineConfigDiff, machineDiff{
-					key:     "CPUs",
-					initial: fmt.Sprint(initialMachineConf.Guest.CPUs),
-					new:     fmt.Sprint(machineConf.Guest.CPUs),
-				})
-			}
 		}
 
 		if memory := flag.GetInt(ctx, "memory"); memory != 0 {
 			machineConf.Guest.MemoryMB = memory
-			changelog, _ := diff.Diff(initialMachineConf.Guest.MemoryMB, machineConf.Guest.MemoryMB)
-
-			if len(changelog) > 0 {
-				machineConfigDiff = append(machineConfigDiff, machineDiff{
-					key:     "MemoryMB",
-					initial: fmt.Sprint(initialMachineConf.Guest.MemoryMB),
-					new:     fmt.Sprint(machineConf.Guest.MemoryMB),
-				})
-			}
 		}
 	}
 
@@ -564,27 +529,9 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 	if err != nil {
 		return
 	}
-	changelog, _ := diff.Diff(initialMachineConf.Env, machineConf.Env)
-
-	if len(changelog) > 0 {
-		machineConfigDiff = append(machineConfigDiff, machineDiff{
-			key:     "Env",
-			initial: fmt.Sprint(initialMachineConf.Env),
-			new:     fmt.Sprint(machineConf.Env),
-		})
-	}
 
 	if flag.GetString(ctx, "schedule") != "" {
 		machineConf.Schedule = flag.GetString(ctx, "schedule")
-		changelog, _ = diff.Diff(initialMachineConf.Schedule, machineConf.Schedule)
-
-		if len(changelog) > 0 {
-			machineConfigDiff = append(machineConfigDiff, machineDiff{
-				key:     "Schedule",
-				initial: initialMachineConf.Schedule,
-				new:     machineConf.Schedule,
-			})
-		}
 	}
 
 	machineConf.Metadata, err = parseKVFlag(ctx, "metadata", machineConf.Metadata)
@@ -593,36 +540,18 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		return
 	}
 
-	changelog, _ = diff.Diff(initialMachineConf.Metadata, machineConf.Metadata)
-	if len(changelog) > 0 {
-		machineConfigDiff = append(machineConfigDiff, machineDiff{
-			key:     "Metadata",
-			initial: fmt.Sprint(initialMachineConf.Metadata),
-			new:     fmt.Sprint(machineConf.Metadata),
-		})
-	}
-
 	services, err := determineServices(ctx)
 	if err != nil {
 		return
 	}
 	if len(services) > 0 {
 		machineConf.Services = services
-		changelog, _ := diff.Diff(initialMachineConf.Services, machineConf.Services)
-
-		if len(changelog) > 0 {
-			machineConfigDiff = append(machineConfigDiff, machineDiff{
-				key:     "Services",
-				initial: fmt.Sprint(initialMachineConf.Services),
-				new:     fmt.Sprint(machineConf.Services),
-			})
-		}
 	}
 
 	if entrypoint := flag.GetString(ctx, "entrypoint"); entrypoint != "" {
 		splitted, err := shlex.Split(entrypoint)
 		if err != nil {
-			return machineConf, machineConfigDiff, errors.Wrap(err, "invalid entrypoint")
+			return machineConf, "", errors.Wrap(err, "invalid entrypoint")
 		}
 		machineConf.Init.Entrypoint = splitted
 	}
@@ -635,30 +564,14 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 	if err != nil {
 		return
 	}
-	changelog, _ = diff.Diff(initialMachineConf.Mounts, machineConf.Mounts)
-
-	if len(changelog) > 0 {
-		machineConfigDiff = append(machineConfigDiff, machineDiff{
-			key:     "Mounts",
-			initial: fmt.Sprint(initialMachineConf.Mounts),
-			new:     fmt.Sprint(machineConf.Mounts),
-		})
-	}
 
 	img, err := determineImage(ctx, app.Name, imageOrPath)
 	if err != nil {
 		return
 	}
 	machineConf.Image = img.Tag
-	changelog, _ = diff.Diff(initialMachineConf.Image, machineConf.Image)
 
-	if len(changelog) > 0 {
-		machineConfigDiff = append(machineConfigDiff, machineDiff{
-			key:     "Image",
-			initial: initialMachineConf.Image,
-			new:     machineConf.Image,
-		})
-	}
+	diff := cmp.Diff(initialMachineConf, machineConf)
 
-	return machineConf, machineConfigDiff, nil
+	return machineConf, diff, nil
 }

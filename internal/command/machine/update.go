@@ -107,13 +107,7 @@ func runUpdate(ctx context.Context) (err error) {
 	fmt.Fprintf(out, "Instance ID has been updated:\n")
 	fmt.Fprintf(out, "%s -> %s\n\n", prevInstanceID, machine.InstanceID)
 	fmt.Fprintln(out, "The following config has been updated")
-
-	for _, v := range machineDiff {
-		fmt.Fprintf(out, "%s: ", v.Key)
-		initial := colorize.Red(fmt.Sprintf("%s", string(v.Initial)))
-		new := colorize.Yellow(fmt.Sprintf("%s", string(v.New)))
-		fmt.Fprintf(out, "%s -> %s\n", initial, new)
-	}
+	fmt.Fprintln(out, machineDiff)
 
 	// wait for machine to be started
 	if err := WaitForStartOrStop(ctx, machine, waitForAction, time.Second*60); err != nil {
