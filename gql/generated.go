@@ -599,6 +599,35 @@ type GetAddOnResponse struct {
 // GetAddOn returns GetAddOnResponse.AddOn, and is useful for accessing the field via an interface.
 func (v *GetAddOnResponse) GetAddOn() GetAddOnAddOn { return v.AddOn }
 
+// GetOrganizationOrganization includes the requested fields of the GraphQL type Organization.
+type GetOrganizationOrganization struct {
+	Id string `json:"id"`
+	// Organization name
+	Name string `json:"name"`
+	// Single sign-on link for the given integration type
+	AddOnSsoLink string `json:"addOnSsoLink"`
+}
+
+// GetId returns GetOrganizationOrganization.Id, and is useful for accessing the field via an interface.
+func (v *GetOrganizationOrganization) GetId() string { return v.Id }
+
+// GetName returns GetOrganizationOrganization.Name, and is useful for accessing the field via an interface.
+func (v *GetOrganizationOrganization) GetName() string { return v.Name }
+
+// GetAddOnSsoLink returns GetOrganizationOrganization.AddOnSsoLink, and is useful for accessing the field via an interface.
+func (v *GetOrganizationOrganization) GetAddOnSsoLink() string { return v.AddOnSsoLink }
+
+// GetOrganizationResponse is returned by GetOrganization on success.
+type GetOrganizationResponse struct {
+	// Find an organization by ID
+	Organization GetOrganizationOrganization `json:"organization"`
+}
+
+// GetOrganization returns GetOrganizationResponse.Organization, and is useful for accessing the field via an interface.
+func (v *GetOrganizationResponse) GetOrganization() GetOrganizationOrganization {
+	return v.Organization
+}
+
 // ListAddOnPlansAddOnPlansAddOnPlanConnection includes the requested fields of the GraphQL type AddOnPlanConnection.
 // The GraphQL type's documentation follows.
 //
@@ -890,6 +919,14 @@ type __GetAddOnProviderInput struct {
 // GetName returns __GetAddOnProviderInput.Name, and is useful for accessing the field via an interface.
 func (v *__GetAddOnProviderInput) GetName() string { return v.Name }
 
+// __GetOrganizationInput is used internally by genqlient
+type __GetOrganizationInput struct {
+	Slug string `json:"slug"`
+}
+
+// GetSlug returns __GetOrganizationInput.Slug, and is useful for accessing the field via an interface.
+func (v *__GetOrganizationInput) GetSlug() string { return v.Slug }
+
 // __ListAddOnsInput is used internally by genqlient
 type __ListAddOnsInput struct {
 	AddOnType AddOnType `json:"addOnType"`
@@ -1132,6 +1169,40 @@ query GetAddOnProvider ($name: String!) {
 	var err error
 
 	var data GetAddOnProviderResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
+func GetOrganization(
+	ctx context.Context,
+	client graphql.Client,
+	slug string,
+) (*GetOrganizationResponse, error) {
+	req := &graphql.Request{
+		OpName: "GetOrganization",
+		Query: `
+query GetOrganization ($slug: String!) {
+	organization(slug: $slug) {
+		id
+		name
+		addOnSsoLink
+	}
+}
+`,
+		Variables: &__GetOrganizationInput{
+			Slug: slug,
+		},
+	}
+	var err error
+
+	var data GetOrganizationResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(

@@ -6432,7 +6432,12 @@ type Organization implements Node {
   activeDiscountName: String
 
   """
-  List third party services associated with an organization
+  Single sign-on link for the given integration type
+  """
+  addOnSsoLink: String!
+
+  """
+  List third party integrations associated with an organization
   """
   addOns(
     """
