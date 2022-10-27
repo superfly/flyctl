@@ -6434,7 +6434,7 @@ type Organization implements Node {
   """
   Single sign-on link for the given integration type
   """
-  addOnSsoLink(type: AddOnType): String!
+  addOnSsoLink: String!
 
   """
   List third party integrations associated with an organization
