@@ -170,6 +170,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	fmt.Fprintf(io.Out, "  Hostname:    %s.internal\n", config.AppName)
 	fmt.Fprintf(io.Out, "  Proxy port:  5432\n")
 	fmt.Fprintf(io.Out, "  Postgres port:  5433\n")
+	fmt.Fprintf(io.Out, "  Connection string: %s\n", connStr)
 	fmt.Fprintln(io.Out, colorize.Italic("Save your credentials in a secure place -- you won't be able to see them again!"))
 
 	fmt.Fprintln(io.Out)
