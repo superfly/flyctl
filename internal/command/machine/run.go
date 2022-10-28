@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/shlex"
 	"github.com/jpillora/backoff"
 	"github.com/pkg/errors"
@@ -215,7 +216,7 @@ func runMachineRun(ctx context.Context) error {
 		return fmt.Errorf("to update an existing machine, use 'flyctl machine update'")
 	}
 
-	machineConf, err = determineMachineConfig(ctx, machineConf, app, flag.FirstArg(ctx))
+	machineConf, _, err = determineMachineConfig(ctx, machineConf, app, flag.FirstArg(ctx))
 
 	if err != nil {
 		return err
@@ -497,7 +498,7 @@ func selectAppName(ctx context.Context) (name string, err error) {
 	return
 }
 
-func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, imageOrPath string) (machineConf api.MachineConfig, err error) {
+func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, imageOrPath string) (machineConf api.MachineConfig, machineDiff string, err error) {
 	machineConf = initialMachineConf
 
 	if guestSize := flag.GetString(ctx, "size"); guestSize != "" {
@@ -530,7 +531,6 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 	}
 
 	machineConf.Env, err = parseKVFlag(ctx, "env", machineConf.Env)
-
 	if err != nil {
 		return
 	}
@@ -556,7 +556,7 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 	if entrypoint := flag.GetString(ctx, "entrypoint"); entrypoint != "" {
 		splitted, err := shlex.Split(entrypoint)
 		if err != nil {
-			return machineConf, errors.Wrap(err, "invalid entrypoint")
+			return machineConf, "", errors.Wrap(err, "invalid entrypoint")
 		}
 		machineConf.Init.Entrypoint = splitted
 	}
@@ -576,5 +576,7 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 	}
 	machineConf.Image = img.Tag
 
-	return machineConf, nil
+	diff := cmp.Diff(initialMachineConf, machineConf)
+
+	return machineConf, diff, nil
 }
