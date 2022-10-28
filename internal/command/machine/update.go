@@ -113,11 +113,11 @@ func runUpdate(ctx context.Context) (err error) {
 	s := strings.Split(machineDiff, ",")
 	var str string
 	for _, val := range s {
-		_, found := presenters.GetStringInBetweenTwoString(val, "-", ":")
-		_, found2 := presenters.GetStringInBetweenTwoString(val, "+", ":")
-		if found2 {
+		_, foundDeletion := presenters.GetStringInBetweenTwoString(val, "-", ":")
+		_, foundAddition := presenters.GetStringInBetweenTwoString(val, "+", ":")
+		if foundAddition {
 			str += colorize.Green(val)
-		} else if found {
+		} else if foundDeletion {
 			str += colorize.Red(val)
 		} else {
 			str += val
