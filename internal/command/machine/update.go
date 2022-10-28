@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
@@ -47,6 +48,7 @@ func runUpdate(ctx context.Context) (err error) {
 		appName  = app.NameFromContext(ctx)
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
+		out      = io.Out
 	)
 
 	machineID := flag.FirstArg(ctx)
@@ -86,6 +88,32 @@ func runUpdate(ctx context.Context) (err error) {
 		return
 	}
 
+	s := strings.Split(machineDiff, ",")
+	var str string
+	for _, val := range s {
+		_, foundDeletion := presenters.GetStringInBetweenTwoString(val, "-", ":")
+		_, foundAddition := presenters.GetStringInBetweenTwoString(val, "+", ":")
+		if foundAddition {
+			str += colorize.Green(val)
+		} else if foundDeletion {
+			str += colorize.Red(val)
+		} else {
+			str += val
+		}
+	}
+	fmt.Fprintln(out, str)
+
+	// interactive update //
+	name := false
+	prompt := &survey.Confirm{
+		Message: "Confirm update?",
+	}
+	survey.AskOne(prompt, &name)
+	if !name {
+		fmt.Fprintln(out, colorize.Yellow(fmt.Sprintf("\nCancelling update to machine %s\n", machine.ID)))
+		return
+	}
+
 	input := api.LaunchMachineInput{
 		ID:     machine.ID,
 		AppID:  app.Name,
@@ -104,26 +132,10 @@ func runUpdate(ctx context.Context) (err error) {
 		waitForAction = "stop"
 	}
 
-	out := io.Out
 	fmt.Fprintln(out, colorize.Yellow(fmt.Sprintf("Machine %s has been updated\n", machine.ID)))
 	fmt.Fprintf(out, "Instance ID has been updated:\n")
 	fmt.Fprintf(out, "%s -> %s\n\n", prevInstanceID, machine.InstanceID)
 	fmt.Fprintln(out, "The following config has been updated")
-
-	s := strings.Split(machineDiff, ",")
-	var str string
-	for _, val := range s {
-		_, foundDeletion := presenters.GetStringInBetweenTwoString(val, "-", ":")
-		_, foundAddition := presenters.GetStringInBetweenTwoString(val, "+", ":")
-		if foundAddition {
-			str += colorize.Green(val)
-		} else if foundDeletion {
-			str += colorize.Red(val)
-		} else {
-			str += val
-		}
-	}
-	fmt.Fprintln(out, str)
 
 	//wait for machine to be started
 	if err := WaitForStartOrStop(ctx, machine, waitForAction, time.Second*60); err != nil {
