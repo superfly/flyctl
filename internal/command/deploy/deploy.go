@@ -374,7 +374,7 @@ func createRelease(ctx context.Context, appConfig *app.Config, img *imgsrc.Deplo
 	tb := render.NewTextBlock(ctx, "Creating release")
 
 	input := api.DeployImageInput{
-		AppID: app.NameFromContext(ctx),
+		AppID: appConfig.AppName,
 		Image: img.Tag,
 	}
 
