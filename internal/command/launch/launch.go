@@ -497,7 +497,7 @@ func run(ctx context.Context) (err error) {
 			deployNow = true
 		}
 	}
-	fmt.Printf("%#v", appConfig)
+
 	if deployNow {
 		return deploy.DeployWithConfig(ctx, appConfig)
 	}
