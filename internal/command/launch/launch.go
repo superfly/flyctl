@@ -284,6 +284,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	appConfig.AppName = createdApp.Name
+	ctx = app.WithName(ctx, createdApp.Name)
 
 	if srcInfo != nil {
 		if srcInfo.Port > 0 {
