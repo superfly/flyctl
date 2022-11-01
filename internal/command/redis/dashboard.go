@@ -26,7 +26,6 @@ func newDashboard() (cmd *cobra.Command) {
 
 	flag.Add(cmd)
 	cmd.Args = cobra.ExactArgs(1)
-	cmd.Hidden = true
 	return cmd
 }
 
