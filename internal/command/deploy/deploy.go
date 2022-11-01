@@ -178,18 +178,18 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 	tb := render.NewTextBlock(ctx, "Verifying app config")
 	client := client.FromContext(ctx).API()
-
+	appNameFromContext := app.NameFromContext(ctx)
 	if cfg = app.ConfigFromContext(ctx); cfg == nil {
 		logger := logger.FromContext(ctx)
 		logger.Debug("no local app config detected; fetching from backend ...")
 
 		var apiConfig *api.AppConfig
-		if apiConfig, err = client.GetConfig(ctx, app.NameFromContext(ctx)); err != nil {
+		if apiConfig, err = client.GetConfig(ctx, appNameFromContext); err != nil {
 			err = fmt.Errorf("failed fetching existing app config: %w", err)
 			return
 		}
 
-		basicApp, err := client.GetAppBasic(ctx, app.NameFromContext(ctx))
+		basicApp, err := client.GetAppBasic(ctx, appNameFromContext)
 		if err != nil {
 			return nil, err
 		}
@@ -216,6 +216,12 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 		cfg.PrimaryRegion = regionCode
 	}
 
+	// Always prefer the app name passed via --app
+
+	if appNameFromContext != "" {
+		cfg.AppName = appNameFromContext
+	}
+
 	tb.Done("Verified app config")
 	return
 }
@@ -224,7 +230,6 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 // DeploymentImage struct
 func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.DeploymentImage, err error) {
 	tb := render.NewTextBlock(ctx, "Building image")
-
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), flag.GetBool(ctx, "nixpacks"))
 
 	client := client.FromContext(ctx).API()

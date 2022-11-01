@@ -52,6 +52,7 @@ func New() (cmd *cobra.Command) {
 		// See a proposed 'flag grouping' feature in Viper that could help with DX: https://github.com/spf13/cobra/pull/1778
 		deploy.CommonFlags,
 
+		flag.Org(),
 		flag.Bool{
 			Name:        "no-deploy",
 			Description: "Do not prompt for deployment",
@@ -201,8 +202,12 @@ func run(ctx context.Context) (err error) {
 			path := filepath.Join(workingDir, f.Path)
 
 			if helpers.FileExists(path) {
+				if flag.GetBool(ctx, "now") {
+					fmt.Fprintf(io.Out, "You specified --now, so not overwriting %s\n", path)
+					continue
+				}
 				confirm, err := prompt.ConfirmOverwrite(ctx, path)
-				if confirm && err == nil {
+				if !confirm || err != nil {
 					continue
 				}
 			}

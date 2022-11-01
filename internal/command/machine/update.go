@@ -3,11 +3,13 @@ package machine
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/flaps"
@@ -79,7 +81,7 @@ func runUpdate(ctx context.Context) (err error) {
 	fmt.Fprintf(io.Out, "Machine %s was found and is currently in a %s state, attempting to update...\n", machineID, machine.State)
 
 	machineConf := *machine.Config
-	machineConf, err = determineMachineConfig(ctx, machineConf, app, imageOrPath)
+	machineConf, machineDiff, err := determineMachineConfig(ctx, machineConf, app, imageOrPath)
 	if err != nil {
 		return
 	}
@@ -106,8 +108,24 @@ func runUpdate(ctx context.Context) (err error) {
 	fmt.Fprintln(out, colorize.Yellow(fmt.Sprintf("Machine %s has been updated\n", machine.ID)))
 	fmt.Fprintf(out, "Instance ID has been updated:\n")
 	fmt.Fprintf(out, "%s -> %s\n\n", prevInstanceID, machine.InstanceID)
+	fmt.Fprintln(out, "The following config has been updated")
 
-	// wait for machine to be started
+	s := strings.Split(machineDiff, ",")
+	var str string
+	for _, val := range s {
+		_, foundDeletion := presenters.GetStringInBetweenTwoString(val, "-", ":")
+		_, foundAddition := presenters.GetStringInBetweenTwoString(val, "+", ":")
+		if foundAddition {
+			str += colorize.Green(val)
+		} else if foundDeletion {
+			str += colorize.Red(val)
+		} else {
+			str += val
+		}
+	}
+	fmt.Fprintln(out, str)
+
+	//wait for machine to be started
 	if err := WaitForStartOrStop(ctx, machine, waitForAction, time.Second*60); err != nil {
 		return err
 	}
@@ -120,7 +138,7 @@ func runUpdate(ctx context.Context) (err error) {
 		fmt.Fprintf(out, "State: Stopped\n\n")
 	}
 
-	fmt.Fprintf(out, "Monitor machine status here:\nhttps://fly.io/apps/%s/machines/%s\n", app.Name, machine.ID)
+	fmt.Fprintf(out, "\nMonitor machine status here:\nhttps://fly.io/apps/%s/machines/%s\n", app.Name, machine.ID)
 
 	return nil
 }

@@ -128,7 +128,9 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 			build.ContextBuildFinish()
 			return nil, "", err
 		}
-		relativedockerfilePath = p
+		// On Windows, convert \ to a slash / as the docker build will
+		// run in a Linux VM at the end.
+		relativedockerfilePath = filepath.ToSlash(p)
 	}
 
 	// Start tracking this build
