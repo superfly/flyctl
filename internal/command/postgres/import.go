@@ -121,7 +121,7 @@ func runImport(ctx context.Context) error {
 	}
 	defer pgclient.DeleteUser(ctx, user)
 
-	target := fmt.Sprintf("postgres://%s:%s@%s:5432", user, password, leader.PrivateIP)
+	target := fmt.Sprintf("postgres://%s:%s@[%s]:5432", user, password, leader.PrivateIP)
 
 	source := flag.GetString(ctx, "source")
 
@@ -144,7 +144,7 @@ func runImport(ctx context.Context) error {
 		return fmt.Errorf("error creating flap client %w", err)
 	}
 
-	var migratorIMage = "flyio/postgres-migrator:latest"
+	var migratorIMage = "codebaker/postgres-migrator:34cdddb"
 
 	input := api.LaunchMachineInput{
 		OrgSlug: app.Organization.Slug,
@@ -197,9 +197,7 @@ func runImport(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "  Source: %s\n", colorize.Bold(source))
 	fmt.Fprintf(io.Out, "  Target: %s\n", colorize.Bold(target))
 
-	var addr = fmt.Sprintf("[%s]", migrator.PrivateIP)
-
-	res, err := ssh.RunSSHCommand(ctx, app, dialer, addr, "migrate")
+	res, err := ssh.RunSSHCommand(ctx, app, dialer, migrator.PrivateIP, "migrate")
 	if err != nil {
 		return fmt.Errorf("error running command %w", err)
 	}
