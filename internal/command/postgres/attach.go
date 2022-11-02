@@ -68,7 +68,6 @@ type AttachParams struct {
 }
 
 func runAttach(ctx context.Context) error {
-
 	params := AttachParams{
 		AppName:      app.NameFromContext(ctx),
 		DbName:       flag.GetString(ctx, "database-name"),
@@ -235,7 +234,10 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 		return fmt.Errorf("failed executing create-user: %w", err)
 	}
 
-	connectionString := fmt.Sprintf("postgres://%s:%s@top2.nearest.of.%s.internal:5432/%s", *input.DatabaseUser, pwd, pgAppName, *input.DatabaseName)
+	connectionString := fmt.Sprintf(
+		"postgres://%s:%s@top2.nearest.of.%s.internal:5432/%s?sslmode=disable",
+		*input.DatabaseUser, pwd, pgAppName, *input.DatabaseName,
+	)
 	s := map[string]string{}
 	s[*input.VariableName] = connectionString
 
