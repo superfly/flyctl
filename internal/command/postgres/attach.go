@@ -230,7 +230,7 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 		return err
 	}
 
-	err = pgclient.CreateUser(ctx, *input.DatabaseUser, pwd, true)
+	err = pgclient.CreateUser(ctx, *input.DatabaseUser, pwd, true, false)
 	if err != nil {
 		return fmt.Errorf("failed executing create-user: %w", err)
 	}

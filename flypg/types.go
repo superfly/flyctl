@@ -41,6 +41,7 @@ type CreateUserRequest struct {
 	Username  string `json:"username"`
 	Password  string `json:"password"`
 	Superuser bool   `json:"superuser"`
+	Login     bool   `json:"login"`
 }
 
 type DeleteUserRequest struct {

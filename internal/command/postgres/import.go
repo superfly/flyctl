@@ -98,7 +98,7 @@ func runImport(ctx context.Context) error {
 
 	region := leader.Region
 
-	pgclient := flypg.New(appName, dialer)
+	pgclient := flypg.NewFromInstance(leader.PrivateIP, dialer)
 
 	fmt.Fprintln(io.Out, "Creating temporary user on target cluster")
 
@@ -111,18 +111,12 @@ func runImport(ctx context.Context) error {
 		return err
 	}
 
-	user = fmt.Sprintf("migrator_%s", user)
+	user = fmt.Sprintf("flyctl_migrator_%s", user)
 
-	if err = pgclient.CreateUser(ctx, user, password, true); err != nil {
+	if err = pgclient.CreateUser(ctx, user, password, true, true); err != nil {
 		return fmt.Errorf("error creating user %w", err)
 	}
-
-	defer func() (err error) {
-		if err = pgclient.DeleteUser(ctx, user); err != nil {
-			return fmt.Errorf("error deleting user %w", err)
-		}
-		return
-	}()
+	defer pgclient.DeleteUser(ctx, user)
 
 	target := fmt.Sprintf("postgres://%s:%s@%s.internal:5432", user, password, app.Name)
 
@@ -138,6 +132,7 @@ func runImport(ctx context.Context) error {
 	if _, err := client.SetSecrets(ctx, app.Name, secrets); err != nil {
 		return fmt.Errorf("error setting secrets %w", err)
 	}
+	defer client.UnsetSecrets(ctx, app.Name, []string{"SOURCE_DATABASE_URI", "TARGET_DATABASE_URI"})
 
 	fmt.Fprintln(io.Out, "Creating temporary machine")
 
@@ -168,13 +163,7 @@ func runImport(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error launching machine %w", err)
 	}
-
-	defer func() (err error) {
-		if err = flapClient.Destroy(ctx, api.RemoveMachineInput{AppID: app.ID, ID: migrator.ID, Kill: true}); err != nil {
-			return fmt.Errorf("error destroying machine %w", err)
-		}
-		return
-	}()
+	defer flapClient.Destroy(ctx, api.RemoveMachineInput{AppID: app.ID, ID: migrator.ID, Kill: true})
 
 	fmt.Fprintf(io.Out, "Waiting for machine to be ready %s\n", colorize.Bold(migrator.ID))
 
@@ -207,7 +196,7 @@ func runImport(ctx context.Context) error {
 
 	var addr = fmt.Sprintf("[%s]", migrator.PrivateIP)
 
-	res, err := ssh.RunSSHCommand(ctx, app, dialer, &addr, "migrate")
+	res, err := ssh.RunSSHCommand(ctx, app, dialer, addr, "migrate")
 	if err != nil {
 		return fmt.Errorf("error running command %w", err)
 	}

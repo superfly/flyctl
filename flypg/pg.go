@@ -19,13 +19,14 @@ func (c *Client) ListUsers(ctx context.Context) ([]PostgresUser, error) {
 	return out.Result, nil
 }
 
-func (c *Client) CreateUser(ctx context.Context, name, password string, superuser bool) error {
+func (c *Client) CreateUser(ctx context.Context, name, password string, superuser, login bool) error {
 	endpoint := "/commands/users/create"
 
 	in := &CreateUserRequest{
 		Username:  name,
 		Password:  password,
 		Superuser: superuser,
+		Login:     login,
 	}
 
 	if err := c.Do(ctx, http.MethodPost, endpoint, in, nil); err != nil {
