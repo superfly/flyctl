@@ -94,7 +94,10 @@ func runImport(ctx context.Context) error {
 		return err
 	}
 
-	leader, _ := machinesNodeRoles(ctx, machines)
+	leader, err := pickLeader(ctx, machines)
+	if err != nil {
+		return err
+	}
 
 	region := leader.Region
 
@@ -118,7 +121,7 @@ func runImport(ctx context.Context) error {
 	}
 	defer pgclient.DeleteUser(ctx, user)
 
-	target := fmt.Sprintf("postgres://%s:%s@%s.internal:5432", user, password, app.Name)
+	target := fmt.Sprintf("postgres://%s:%s@%s:5432", user, password, leader.PrivateIP)
 
 	source := flag.GetString(ctx, "source")
 
@@ -189,7 +192,7 @@ func runImport(ctx context.Context) error {
 		fmt.Fprintf(io.Out, "  Machine %s: %s\n", colorize.Bold(machine.ID), lease.Status)
 	}
 
-	fmt.Fprintln(io.Out, "Running database import with pgdumb ...")
+	fmt.Fprintln(io.Out, "Running database import ...")
 
 	fmt.Fprintf(io.Out, "  Source: %s\n", colorize.Bold(source))
 	fmt.Fprintf(io.Out, "  Target: %s\n", colorize.Bold(target))
