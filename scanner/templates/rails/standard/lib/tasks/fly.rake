@@ -34,4 +34,46 @@ namespace :fly do
     sh 'echo 10 > /proc/sys/vm/swappiness'
     sh 'swapon /swapfile'
   end
+
+  # BUILD step:
+  # - Checks that Gemfile.lock matches up with environment.
+  # - Displays error messages on how to rectify the environment.
+  task :verify do
+    lockfile = Bundler::LockfileParser.new(File.read("Gemfile.lock"))
+    platform = Gem::Platform.new("x86_64-linux")
+
+    if lockfile.ruby_version.nil?
+      fail <<~ERROR
+        A Ruby version is not specified in the Gemfile.
+
+        Set the Ruby version in the Gemfile by adding the following to your Gemfile:
+
+        ```
+        ruby #{RUBY_VERSION.inspect}
+        ```
+
+        Then run `bundle` and deploy again.
+      ERROR
+    elsif lockfile.ruby_version != RUBY_VERSION
+      fail <<~ERROR
+        The version of Ruby specified in the Gemfile is #{lockfile.ruby_version.inspect}, which does not match #{RUBY_VERSION.inspect}.
+
+        Set the RUBY_VERSION in the `Dockerfile` file:
+
+        ```
+        ARG RUBY_VERSION=#{lockfile.ruby_version}
+        ```
+
+        Then deploy again.
+      ERROR
+    end
+
+    if lockfile.platforms.include? platform
+      fail <<~ERROR
+        Gemfile.lock does not have the platform #{platform.to_s.inspect}.
+
+        Add the platform by running `bundle lock --add-platform #{platform.to_s}`, then deploy again.
+      ERROR
+    end
+  end
 end

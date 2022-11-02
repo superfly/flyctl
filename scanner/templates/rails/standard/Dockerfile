@@ -76,7 +76,8 @@ RUN gem update --system --no-document && \
     gem install -N bundler -v ${BUNDLER_VERSION}
 
 COPY Gemfile* ./
-RUN bundle install &&  rm -rf vendor/bundle/ruby/*/cache
+COPY Gemfile.lock ./
+RUN bundle install --frozen &&  rm -rf vendor/bundle/ruby/*/cache
 
 {{ if .node -}}
 #######################################################################
@@ -135,6 +136,9 @@ RUN chmod +x /app/bin/* && \
 ENV SECRET_KEY_BASE 1
 # ENV AWS_ACCESS_KEY_ID=1
 # ENV AWS_SECRET_ACCESS_KEY=1
+
+# Verify the environment matches Gemfile.lock
+RUN "bin/rails fly:verify"
 
 # Run build task defined in lib/tasks/fly.rake
 ARG BUILD_COMMAND="bin/rails fly:build"
