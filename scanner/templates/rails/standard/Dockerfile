@@ -48,7 +48,13 @@ RUN mkdir -p tmp/pids
 RUN curl https://get.volta.sh | bash
 ENV VOLTA_HOME /root/.volta
 ENV PATH $VOLTA_HOME/bin:/usr/local/bin:$PATH
-RUN volta install node@${NODE_VERSION} yarn@${YARN_VERSION}
+RUN volta install node@${NODE_VERSION} yarn@${YARN_VERSION} && \
+    gem update --system --no-document && \
+    gem install -N bundler -v ${BUNDLER_VERSION}
+
+{{ else -}}
+RUN gem update --system --no-document && \
+    gem install -N bundler -v ${BUNDLER_VERSION}
 
 {{ end -}}
 #######################################################################
@@ -71,9 +77,6 @@ RUN --mount=type=cache,id=dev-apt-cache,sharing=locked,target=/var/cache/apt \
 # install gems
 
 FROM build_deps as gems
-
-RUN gem update --system --no-document && \
-    gem install -N bundler -v ${BUNDLER_VERSION}
 
 COPY Gemfile* ./
 RUN bundle install &&  rm -rf vendor/bundle/ruby/*/cache
