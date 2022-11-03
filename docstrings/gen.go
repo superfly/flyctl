@@ -119,34 +119,20 @@ authenticated and in use.`,
 		return KeyStrings{"autoscale", "Autoscaling app resources",
 			`Autoscaling application resources`,
 		}
-	case "autoscale.balanced":
-		return KeyStrings{"balanced", "Configure a traffic balanced app with params (min=int max=int)",
-			`Configure the app to balance regions based on traffic with given parameters:
-
-min=int - minimum number of instances to be allocated from region pool.
-max=int - maximum number of instances to be allocated from region pool.`,
-		}
 	case "autoscale.disable":
 		return KeyStrings{"disable", "Disable autoscaling",
 			`Disable autoscaling to manually controlling app resources`,
 		}
 	case "autoscale.set":
-		return KeyStrings{"set", "Set current models autoscaling parameters",
-			`Allows the setting of the current models autoscaling parameters:
+		return KeyStrings{"set", "Set app autoscaling parameters",
+			`Enable autoscaling and set the application's autoscaling parameters:
 
-min=int - minimum number of instances to be allocated from region pool.
-max=int - maximum number of instances to be allocated from region pool.`,
+min=int - minimum number of instances to be allocated globally.
+max=int - maximum number of instances to be allocated globally.`,
 		}
 	case "autoscale.show":
 		return KeyStrings{"show", "Show current autoscaling configuration",
 			`Show current autoscaling configuration`,
-		}
-	case "autoscale.standard":
-		return KeyStrings{"standard", "Configure a standard balanced app with params (min=int max=int)",
-			`Configure the app without traffic balancing with the given parameters:
-
-min=int - minimum number of instances to be allocated from region pool.
-max=int - maximum number of instances to be allocated from region pool.`,
 		}
 	case "builds":
 		return KeyStrings{"builds", "Work with Fly builds",
