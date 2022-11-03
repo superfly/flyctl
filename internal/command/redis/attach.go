@@ -9,7 +9,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func AttachDatabase(ctx context.Context, db RedisAddOn, app *api.App) (err error) {
+func AttachDatabase(ctx context.Context, db *RedisAddOn, app *api.App) (err error) {
 	client := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
 	s := map[string]string{}
@@ -18,9 +18,9 @@ func AttachDatabase(ctx context.Context, db RedisAddOn, app *api.App) (err error
 	_, err = client.SetSecrets(ctx, app.Name, s)
 
 	if err != nil {
-		fmt.Fprintf(io.Out, "\nRedis database %s is set on %s as the REDIS_URL environment variable\n", db.Name, app.Name)
-	} else {
 		fmt.Fprintf(io.Out, "\nCould not attach Redis database %s to app %s\n", db.Name, app.Name)
+	} else {
+		fmt.Fprintf(io.Out, "\nRedis database %s is set on %s as the REDIS_URL environment variable\n", db.Name, app.Name)
 	}
 
 	return err

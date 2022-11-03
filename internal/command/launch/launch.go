@@ -723,13 +723,11 @@ func LaunchPostgres(ctx context.Context, app *api.App, org *api.Organization, re
 }
 
 func LaunchRedis(ctx context.Context, app *api.App, org *api.Organization, region *api.Region) {
-	params := redis.RedisConfiguration{
-		Name:          app.Name + "-redis",
-		PlanId:        "redis_free",
-		PrimaryRegion: region,
-	}
 
-	db, err := redis.ProvisionDatabase(ctx, org, params)
+	name := app.Name + "-redis"
+
+	db, err := redis.Create(ctx, org, name, region, "", true, false)
+
 	if err != nil {
 		fmt.Println(fmt.Errorf("%w", err))
 	} else {
