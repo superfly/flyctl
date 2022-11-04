@@ -20,7 +20,6 @@ import (
 	"github.com/superfly/flyctl/logs"
 
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/deployment"
 	"github.com/superfly/flyctl/internal/flyerr"
@@ -146,12 +145,11 @@ func Deployment(ctx context.Context, appName, evaluationID string) error {
 	return nil
 }
 
-func ReleaseCommand(ctx context.Context, id string) error {
+func ReleaseCommand(ctx context.Context, appName string, id string) error {
 	g, ctx := errgroup.WithContext(ctx)
 	io := iostreams.FromContext(ctx)
 	client := client.FromContext(ctx).API()
 	interactive := io.IsInteractive()
-	appName := app.NameFromContext(ctx)
 
 	s := spinner.Run(io, "Running release task ...")
 	defer s.Stop()
