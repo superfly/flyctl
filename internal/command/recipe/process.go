@@ -63,9 +63,10 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 		}
 
 		for _, machine := range targetMachines {
+			fmt.Printf("Performing %s command %q against: %s\n", op.Type, op.Name, machine.ID)
+
 			switch op.Type {
 			case OperationTypeMachine:
-				fmt.Printf("Performing %q against Machine: %s\n", op.Name, machine.ID)
 
 				switch op.MachineCommand.Action {
 				case "restart":
@@ -76,6 +77,13 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 
 						flapsClient.Restart(ctx, input)
 					}
+				}
+			case OperationTypeHTTP:
+
+				client := NewFromInstance(machine.PrivateIP, op.HTTPCommand.Port, *r.Dialer)
+
+				if err := client.Do(ctx, op.HTTPCommand.Method, op.HTTPCommand.Endpoint, nil, nil); err != nil {
+					fmt.Printf("Error running http command: %s\n", err)
 				}
 			}
 

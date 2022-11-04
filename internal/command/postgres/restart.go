@@ -72,18 +72,32 @@ func runRestart(ctx context.Context) error {
 	template := recipe.RecipeTemplate{
 		Name:         "Rolling restart",
 		App:          app,
+		Dialer:       &dialer,
 		RequireLease: true,
 		Operations: []recipe.Operation{
 			{
-				Name:    "restart",
-				Type:    recipe.OperationTypeMachine,
-				Monitor: true,
+				Name: "restart",
+				Type: recipe.OperationTypeMachine,
 				MachineCommand: recipe.MachineCommand{
 					Action: "restart",
 				},
 				HealthCheckSelector: recipe.HealthCheckSelector{
 					Name:  "role",
 					Value: "replica",
+				},
+			},
+			{
+				Name: "failover",
+				Type: recipe.OperationTypeHTTP,
+				HTTPCommand: recipe.HTTPCommand{
+					Method:   "GET",
+					Endpoint: "/commands/admin/failover/trigger",
+					Port:     5500,
+					Data:     map[string]string{},
+				},
+				HealthCheckSelector: recipe.HealthCheckSelector{
+					Name:  "role",
+					Value: "leader",
 				},
 			},
 			{

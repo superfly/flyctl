@@ -1,11 +1,14 @@
 package recipe
 
-import "github.com/superfly/flyctl/api"
+import (
+	"github.com/superfly/flyctl/agent"
+	"github.com/superfly/flyctl/api"
+)
 
 type OperationType string
 
 const (
-	OperationTypeFlaps   = "flaps"
+	OperationTypeHTTP    = "http"
 	OperationTypeMachine = "machine"
 )
 
@@ -13,7 +16,11 @@ type MachineCommand struct {
 	Action string
 }
 
-type FlapsCommand struct {
+type HTTPCommand struct {
+	Method   string
+	Endpoint string
+	Port     int
+	Data     map[string]string
 }
 
 type Operation struct {
@@ -21,13 +28,14 @@ type Operation struct {
 	Type                OperationType
 	Monitor             bool
 	MachineCommand      MachineCommand
-	FlapsCommand        FlapsCommand
+	HTTPCommand         HTTPCommand
 	HealthCheckSelector HealthCheckSelector
 }
 
 type RecipeTemplate struct {
 	Name         string
 	App          *api.AppCompact
+	Dialer       *agent.Dialer
 	RequireLease bool
 	Operations   []Operation
 }
