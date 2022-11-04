@@ -26,7 +26,7 @@ type HTTPCommand struct {
 type Operation struct {
 	Name                string
 	Type                OperationType
-	Monitor             bool
+	WaitForHealthChecks bool
 	MachineCommand      MachineCommand
 	HTTPCommand         HTTPCommand
 	HealthCheckSelector HealthCheckSelector
@@ -35,7 +35,7 @@ type Operation struct {
 type RecipeTemplate struct {
 	Name         string
 	App          *api.AppCompact
-	Dialer       *agent.Dialer
+	Dialer       agent.Dialer
 	RequireLease bool
 	Operations   []Operation
 }

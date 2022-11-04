@@ -72,7 +72,7 @@ func runRestart(ctx context.Context) error {
 	template := recipe.RecipeTemplate{
 		Name:         "Rolling restart",
 		App:          app,
-		Dialer:       &dialer,
+		Dialer:       dialer,
 		RequireLease: true,
 		Operations: []recipe.Operation{
 			{
@@ -93,7 +93,6 @@ func runRestart(ctx context.Context) error {
 					Method:   "GET",
 					Endpoint: "/commands/admin/failover/trigger",
 					Port:     5500,
-					Data:     map[string]string{},
 				},
 				HealthCheckSelector: recipe.HealthCheckSelector{
 					Name:  "role",

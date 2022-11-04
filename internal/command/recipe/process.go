@@ -66,8 +66,8 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 			fmt.Printf("Performing %s command %q against: %s\n", op.Type, op.Name, machine.ID)
 
 			switch op.Type {
+			// Machine commands
 			case OperationTypeMachine:
-
 				switch op.MachineCommand.Action {
 				case "restart":
 					if op.MachineCommand.Action == "restart" {
@@ -78,16 +78,15 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 						flapsClient.Restart(ctx, input)
 					}
 				}
+			// HTTP commands
 			case OperationTypeHTTP:
-
-				client := NewFromInstance(machine.PrivateIP, op.HTTPCommand.Port, *r.Dialer)
-
+				client := NewFromInstance(machine.PrivateIP, op.HTTPCommand.Port, r.Dialer)
 				if err := client.Do(ctx, op.HTTPCommand.Method, op.HTTPCommand.Endpoint, nil, nil); err != nil {
 					fmt.Printf("Error running http command: %s\n", err)
 				}
 			}
 
-			if op.Monitor {
+			if op.WaitForHealthChecks {
 				// wait for health checks to pass
 				if err := watch.MachinesChecks(ctx, []*api.Machine{machine}); err != nil {
 					return fmt.Errorf("failed to wait for health checks to pass: %w", err)
