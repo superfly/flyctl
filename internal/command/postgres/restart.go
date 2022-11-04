@@ -43,36 +43,9 @@ func newRestart() *cobra.Command {
 }
 
 func runRestart(ctx context.Context) error {
-	var (
-		// MinPostgresHaVersion = "0.0.20"
-		client  = client.FromContext(ctx).API()
-		appName = app.NameFromContext(ctx)
-	)
-
-	app, err := client.GetAppCompact(ctx, appName)
-	if err != nil {
-		return fmt.Errorf("get app: %w", err)
-	}
-
-	if !app.IsPostgresApp() {
-		return fmt.Errorf("app %s is not a Postgres app", app.Name)
-	}
-
-	agentclient, err := agent.Establish(ctx, client)
-	if err != nil {
-		return fmt.Errorf("can't establish agent %w", err)
-	}
-
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
-	if err != nil {
-		return fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
-	}
-	ctx = agent.DialerWithContext(ctx, dialer)
 
 	template := recipe.RecipeTemplate{
 		Name:         "Rolling restart",
-		App:          app,
-		Dialer:       dialer,
 		RequireLease: true,
 		Operations: []recipe.Operation{
 			{

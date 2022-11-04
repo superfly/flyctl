@@ -4,13 +4,36 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/watch"
 )
 
 func (r *RecipeTemplate) Process(ctx context.Context) error {
-	flapsClient, err := flaps.New(ctx, r.App)
+	var (
+		client  = client.FromContext(ctx).API()
+		appName = app.NameFromContext(ctx)
+	)
+
+	app, err := client.GetAppCompact(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("get app: %w", err)
+	}
+	agentclient, err := agent.Establish(ctx, client)
+	if err != nil {
+		return fmt.Errorf("can't establish agent %w", err)
+	}
+
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+	if err != nil {
+		return fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
+	}
+	ctx = agent.DialerWithContext(ctx, dialer)
+
+	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
 		return fmt.Errorf("Unable to establish connection with flaps: %w", err)
 	}
@@ -80,7 +103,7 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 				}
 			// HTTP commands
 			case OperationTypeHTTP:
-				client := NewFromInstance(machine.PrivateIP, op.HTTPCommand.Port, r.Dialer)
+				client := NewFromInstance(machine.PrivateIP, op.HTTPCommand.Port, dialer)
 				if err := client.Do(ctx, op.HTTPCommand.Method, op.HTTPCommand.Endpoint, nil, nil); err != nil {
 					fmt.Printf("Error running http command: %s\n", err)
 				}

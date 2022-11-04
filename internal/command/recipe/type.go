@@ -1,10 +1,5 @@
 package recipe
 
-import (
-	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
-)
-
 type OperationType string
 
 const (
@@ -34,8 +29,6 @@ type Operation struct {
 
 type RecipeTemplate struct {
 	Name         string
-	App          *api.AppCompact
-	Dialer       agent.Dialer
 	RequireLease bool
 	Operations   []Operation
 }
