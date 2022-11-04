@@ -43,50 +43,72 @@ func newRestart() *cobra.Command {
 }
 
 func runRestart(ctx context.Context) error {
+	var (
+		MinPostgresHaVersion = "0.0.20"
+		client               = client.FromContext(ctx).API()
+		appName              = app.NameFromContext(ctx)
+	)
 
-	template := recipe.RecipeTemplate{
-		Name:         "Rolling restart",
-		RequireLease: true,
-		Operations: []recipe.Operation{
-			{
-				Name: "restart",
-				Type: recipe.OperationTypeMachine,
-				MachineCommand: recipe.MachineCommand{
-					Action: "restart",
-				},
-				HealthCheckSelector: recipe.HealthCheckSelector{
-					Name:  "role",
-					Value: "replica",
-				},
-			},
-			{
-				Name: "failover",
-				Type: recipe.OperationTypeHTTP,
-				HTTPCommand: recipe.HTTPCommand{
-					Method:   "GET",
-					Endpoint: "/commands/admin/failover/trigger",
-					Port:     5500,
-				},
-				HealthCheckSelector: recipe.HealthCheckSelector{
-					Name:  "role",
-					Value: "leader",
-				},
-			},
-			{
-				Name: "restart",
-				Type: recipe.OperationTypeMachine,
-				MachineCommand: recipe.MachineCommand{
-					Action: "restart",
-				},
-				HealthCheckSelector: recipe.HealthCheckSelector{
-					Name:  "role",
-					Value: "leader",
-				},
-			},
-		},
+	app, err := client.GetAppCompact(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("get app: %w", err)
 	}
 
-	template.Process(ctx)
+	switch app.PlatformVersion {
+	case "nomad":
+		if err = hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+			return err
+		}
+		vms, err := client.GetAllocations(ctx, app.Name, false)
+		if err != nil {
+			return fmt.Errorf("can't fetch allocations: %w", err)
+		}
+		return nomadRestart(ctx, vms)
+	case "machines":
+		template := recipe.RecipeTemplate{
+			Name:         "Rolling restart",
+			RequireLease: true,
+			Operations: []recipe.Operation{
+				{
+					Name: "restart",
+					Type: recipe.OperationTypeMachine,
+					MachineCommand: recipe.MachineCommand{
+						Action: "restart",
+					},
+					HealthCheckSelector: recipe.HealthCheckSelector{
+						Name:  "role",
+						Value: "replica",
+					},
+				},
+				{
+					Name: "failover",
+					Type: recipe.OperationTypeHTTP,
+					HTTPCommand: recipe.HTTPCommand{
+						Method:   "GET",
+						Endpoint: "/commands/admin/failover/trigger",
+						Port:     5500,
+					},
+					HealthCheckSelector: recipe.HealthCheckSelector{
+						Name:  "role",
+						Value: "leader",
+					},
+				},
+				{
+					Name: "restart",
+					Type: recipe.OperationTypeMachine,
+					MachineCommand: recipe.MachineCommand{
+						Action: "restart",
+					},
+					HealthCheckSelector: recipe.HealthCheckSelector{
+						Name:  "role",
+						Value: "leader",
+					},
+				},
+			},
+		}
+
+		template.Process(ctx)
+	}
 
 	return nil
 }

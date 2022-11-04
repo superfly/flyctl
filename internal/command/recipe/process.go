@@ -8,32 +8,26 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/watch"
 )
 
 func (r *RecipeTemplate) Process(ctx context.Context) error {
 	var (
-		client  = client.FromContext(ctx).API()
-		appName = app.NameFromContext(ctx)
+		client = client.FromContext(ctx).API()
 	)
 
-	app, err := client.GetAppCompact(ctx, appName)
-	if err != nil {
-		return fmt.Errorf("get app: %w", err)
-	}
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
 		return fmt.Errorf("can't establish agent %w", err)
 	}
 
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+	dialer, err := agentclient.Dialer(ctx, r.App.Organization.Slug)
 	if err != nil {
-		return fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
+		return fmt.Errorf("can't build tunnel for %s: %s", r.App.Organization.Slug, err)
 	}
 	ctx = agent.DialerWithContext(ctx, dialer)
 
-	flapsClient, err := flaps.New(ctx, app)
+	flapsClient, err := flaps.New(ctx, r.App)
 	if err != nil {
 		return fmt.Errorf("Unable to establish connection with flaps: %w", err)
 	}
