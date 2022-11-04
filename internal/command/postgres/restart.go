@@ -8,13 +8,11 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/machine"
+	"github.com/superfly/flyctl/internal/command/recipe"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -46,9 +44,9 @@ func newRestart() *cobra.Command {
 
 func runRestart(ctx context.Context) error {
 	var (
-		MinPostgresHaVersion = "0.0.20"
-		client               = client.FromContext(ctx).API()
-		appName              = app.NameFromContext(ctx)
+		// MinPostgresHaVersion = "0.0.20"
+		client  = client.FromContext(ctx).API()
+		appName = app.NameFromContext(ctx)
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -71,36 +69,38 @@ func runRestart(ctx context.Context) error {
 	}
 	ctx = agent.DialerWithContext(ctx, dialer)
 
-	switch app.PlatformVersion {
-	case "nomad":
-		if err = hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
-			return err
-		}
-		vms, err := client.GetAllocations(ctx, app.Name, false)
-		if err != nil {
-			return fmt.Errorf("can't fetch allocations: %w", err)
-		}
-		return nomadRestart(ctx, vms)
-
-	case "machines":
-		flapsClient, err := flaps.New(ctx, app)
-		if err != nil {
-			return fmt.Errorf("list of machines could not be retrieved: %w", err)
-		}
-		ctx = flaps.NewContext(ctx, flapsClient)
-
-		machines, err := flapsClient.ListActive(ctx)
-		if err != nil {
-			return fmt.Errorf("machines could not be retrieved %w", err)
-		}
-		if len(machines) == 0 {
-			return fmt.Errorf("no machines found")
-		}
-		if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
-			return err
-		}
-		return machinesRestart(ctx, machines)
+	template := recipe.RecipeTemplate{
+		Name:         "Rolling restart",
+		App:          app,
+		RequireLease: true,
+		Operations: []recipe.Operation{
+			{
+				Name:    "restart",
+				Type:    recipe.OperationTypeMachine,
+				Monitor: true,
+				MachineCommand: recipe.MachineCommand{
+					Action: "restart",
+				},
+				HealthCheckSelector: recipe.HealthCheckSelector{
+					Name:  "role",
+					Value: "replica",
+				},
+			},
+			{
+				Name: "restart",
+				Type: recipe.OperationTypeMachine,
+				MachineCommand: recipe.MachineCommand{
+					Action: "restart",
+				},
+				HealthCheckSelector: recipe.HealthCheckSelector{
+					Name:  "role",
+					Value: "leader",
+				},
+			},
+		},
 	}
+
+	template.Process(ctx)
 
 	return nil
 }
@@ -153,91 +153,6 @@ func nomadRestart(ctx context.Context, allocs []*api.AllocationStatus) (err erro
 
 	if err := client.RestartAllocation(ctx, appName, leader.ID); err != nil {
 		return fmt.Errorf("failed to restart vm %s: %w", leader.ID, err)
-	}
-
-	fmt.Fprintf(io.Out, "Postgres cluster has been successfully restarted!\n")
-
-	return
-}
-
-func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
-	var (
-		io          = iostreams.FromContext(ctx)
-		colorize    = io.ColorScheme()
-		flapsClient = flaps.FromContext(ctx)
-		dialer      = agent.DialerFromContext(ctx)
-	)
-
-	// Acquire leases
-	fmt.Fprintf(io.Out, "Attempting to acquire lease(s)\n")
-
-	for _, machine := range machines {
-		lease, err := flapsClient.GetLease(ctx, machine.ID, api.IntPointer(40))
-		if err != nil {
-			return fmt.Errorf("failed to obtain lease: %w", err)
-		}
-		machine.LeaseNonce = lease.Data.Nonce
-
-		// Ensure lease is released on return
-		defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
-
-		fmt.Fprintf(io.Out, "  Machine %s: %s\n", colorize.Bold(machine.ID), lease.Status)
-	}
-
-	leader, replicas := machinesNodeRoles(ctx, machines)
-
-	// unless flag.force is set, we should error if leader==nil
-	if flag.GetBool(ctx, "force") && leader == nil {
-		fmt.Fprintln(io.Out, colorize.Yellow("No leader found, but continuing with restart"))
-	} else if leader == nil {
-		return fmt.Errorf("no active leader found")
-	}
-
-	fmt.Fprintln(io.Out, "Identifying cluster role(s)")
-
-	for _, machine := range machines {
-		fmt.Fprintf(io.Out, "  Machine %s: %s\n", colorize.Bold(machine.ID), machineRole(machine))
-	}
-
-	if len(replicas) > 0 {
-		for _, replica := range replicas {
-			fmt.Fprintf(io.Out, "Restarting machine %s\n", colorize.Bold(replica.ID))
-
-			if err = machine.Restart(ctx, replica.ID, "", 120, false); err != nil {
-				return err
-			}
-			// wait for health checks to pass
-			if err := watch.MachinesChecks(ctx, []*api.Machine{replica}); err != nil {
-				return fmt.Errorf("failed to wait for health checks to pass: %w", err)
-			}
-		}
-	}
-
-	// Don't attempt to failover unless we have in-region replicas
-	inRegionReplicas := 0
-	for _, replica := range replicas {
-		if replica.Region == leader.Region {
-			inRegionReplicas++
-		}
-	}
-
-	if inRegionReplicas > 0 {
-		pgclient := flypg.NewFromInstance(leader.PrivateIP, dialer)
-
-		fmt.Fprintf(io.Out, "Attempting to failover %s\n", colorize.Bold(leader.ID))
-		if err := pgclient.Failover(ctx); err != nil {
-			fmt.Fprintln(io.Out, colorize.Red(fmt.Sprintf("failed to perform failover: %s", err.Error())))
-		}
-	}
-
-	fmt.Fprintf(io.Out, "Restarting machine %s\n", colorize.Bold(leader.ID))
-
-	if err = machine.Restart(ctx, leader.ID, "", 120, false); err != nil {
-		return err
-	}
-	// wait for health checks to pass
-	if err := watch.MachinesChecks(ctx, []*api.Machine{leader}); err != nil {
-		return fmt.Errorf("failed to wait for health checks to pass: %w", err)
 	}
 
 	fmt.Fprintf(io.Out, "Postgres cluster has been successfully restarted!\n")
