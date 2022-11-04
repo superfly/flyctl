@@ -152,7 +152,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 		tb := render.NewTextBlock(ctx, fmt.Sprintf("Release command detected: %s\n", releaseCommand.Command))
 		tb.Done("This release will not be available until the release command succeeds.")
 
-		if err := watch.ReleaseCommand(ctx, releaseCommand.ID); err != nil {
+		if err := watch.ReleaseCommand(ctx, appConfig.AppName, releaseCommand.ID); err != nil {
 			return err
 		}
 
