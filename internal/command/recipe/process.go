@@ -3,11 +3,14 @@ package recipe
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/watch"
 )
 
@@ -84,23 +87,37 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 
 			switch op.Type {
 			// Machine commands
-			case OperationTypeMachine:
-				switch op.MachineCommand.Action {
-				case "restart":
-					if op.MachineCommand.Action == "restart" {
-						input := api.RestartMachineInput{
-							ID: machine.ID,
-						}
-
-						flapsClient.Restart(ctx, input)
-					}
+			case OperationTypeFlaps:
+				var argArr []string
+				for key, value := range op.FlapsCommand.Options {
+					argArr = append(argArr, fmt.Sprintf("%s=%s", key, value))
 				}
+
+				options := strings.Join(argArr, "&")
+				path := fmt.Sprintf("/%s/%s?%s", machine.ID, op.FlapsCommand.Action, options)
+				fmt.Printf("Path: %s\n", path)
+				if err = flapsClient.SendRequest(ctx, op.FlapsCommand.Method, path, nil, nil, nil); err != nil {
+					return err
+				}
+
 			// HTTP commands
 			case OperationTypeHTTP:
 				client := NewFromInstance(machine.PrivateIP, op.HTTPCommand.Port, dialer)
 				if err := client.Do(ctx, op.HTTPCommand.Method, op.HTTPCommand.Endpoint, nil, nil); err != nil {
 					fmt.Printf("Error running http command: %s\n", err)
 				}
+			// SSH commands
+			case OperationTypeSSH:
+				return ssh.SSHConnect(&ssh.SSHParams{
+					Ctx:    ctx,
+					Org:    r.App.Organization,
+					Dialer: dialer,
+					App:    r.App.Name,
+					Cmd:    op.SSHCommand.Command,
+					Stdin:  os.Stdin,
+					Stdout: os.Stdout,
+					Stderr: os.Stderr,
+				}, machine.PrivateIP)
 			}
 
 			if op.WaitForHealthChecks {

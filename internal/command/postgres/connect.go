@@ -8,9 +8,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/recipe"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
 )
@@ -57,10 +57,8 @@ func runConnect(ctx context.Context) error {
 	var (
 		MinPostgresStandaloneVersion = "0.0.4"
 		MinPostgresHaVersion         = "0.0.9"
-	)
-	var (
-		appName = app.NameFromContext(ctx)
-		client  = client.FromContext(ctx).API()
+		appName                      = app.NameFromContext(ctx)
+		client                       = client.FromContext(ctx).API()
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -72,67 +70,75 @@ func runConnect(ctx context.Context) error {
 		return fmt.Errorf("app %s is not a postgres app", appName)
 	}
 
-	agentclient, err := agent.Establish(ctx, client)
-	if err != nil {
-		return fmt.Errorf("failed to establish agent: %w", err)
-	}
-
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
-	if err != nil {
-		return fmt.Errorf("failed to build tunnel for %s: %v", app.Organization.Slug, err)
-	}
-	ctx = agent.DialerWithContext(ctx, dialer)
-
-	var leaderIp string
-	switch app.PlatformVersion {
-	case "nomad":
-		if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresStandaloneVersion); err != nil {
-			return err
-		}
-		pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
-		if err != nil {
-			return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", app.Name, err)
-		}
-		if len(pgInstances.Addresses) == 0 {
-			return fmt.Errorf("no 6pn ips found for %s app", app.Name)
-		}
-		leaderIp, err = leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
-		if err != nil {
-			return err
-		}
-	case "machines":
-		flapsClient, err := flaps.New(ctx, app)
-		if err != nil {
-			return fmt.Errorf("list of machines could not be retrieved: %w", err)
-		}
-
-		members, err := flapsClient.ListActive(ctx)
-		if err != nil {
-			return fmt.Errorf("machines could not be retrieved %w", err)
-		}
-		if err := hasRequiredVersionOnMachines(members, MinPostgresHaVersion, MinPostgresStandaloneVersion); err != nil {
-			return err
-		}
-		leader, _ := machinesNodeRoles(ctx, members)
-		leaderIp = leader.PrivateIP
-	default:
-		return fmt.Errorf("platform %s is not supported", app.PlatformVersion)
-	}
-
 	database := flag.GetString(ctx, "database")
 	user := flag.GetString(ctx, "user")
 	password := flag.GetString(ctx, "password")
 
 	cmdStr := fmt.Sprintf("connect %s %s %s", database, user, password)
 
-	return ssh.SSHConnect(&ssh.SSHParams{
-		Ctx:    ctx,
-		Org:    app.Organization,
-		Dialer: dialer,
-		App:    appName,
-		Cmd:    cmdStr,
-		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
-	}, leaderIp)
+	switch app.PlatformVersion {
+	case "nomad":
+		agentclient, err := agent.Establish(ctx, client)
+		if err != nil {
+			return fmt.Errorf("failed to establish agent: %w", err)
+		}
+
+		dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+		if err != nil {
+			return fmt.Errorf("failed to build tunnel for %s: %v", app.Organization.Slug, err)
+		}
+		ctx = agent.DialerWithContext(ctx, dialer)
+		if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresStandaloneVersion); err != nil {
+			return err
+		}
+
+		pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
+		if err != nil {
+			return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", app.Name, err)
+		}
+
+		if len(pgInstances.Addresses) == 0 {
+			return fmt.Errorf("no 6pn ips found for %s app", app.Name)
+		}
+
+		leaderIP, err := leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
+		if err != nil {
+			return err
+		}
+
+		return ssh.SSHConnect(&ssh.SSHParams{
+			Ctx:    ctx,
+			Org:    app.Organization,
+			Dialer: dialer,
+			App:    app.Name,
+			Cmd:    cmdStr,
+			Stdin:  os.Stdin,
+			Stdout: os.Stdout,
+			Stderr: os.Stderr,
+		}, leaderIP)
+
+	case "machines":
+		template := recipe.RecipeTemplate{
+			Name: "Connect",
+			App:  app,
+			Operations: []recipe.Operation{
+				{
+					Name: "connect",
+					Type: recipe.OperationTypeSSH,
+					SSHCommand: recipe.SSHCommand{
+						Command: fmt.Sprintf("connect %s %s %s", database, user, password),
+					},
+					HealthCheckSelector: recipe.HealthCheckSelector{
+						Name:  "role",
+						Value: "leader",
+					},
+				},
+			},
+		}
+
+		return template.Process(ctx)
+	default:
+		return fmt.Errorf("platform %s is not supported", app.PlatformVersion)
+	}
+
 }

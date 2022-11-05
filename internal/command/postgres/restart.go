@@ -67,43 +67,52 @@ func runRestart(ctx context.Context) error {
 	case "machines":
 		template := recipe.RecipeTemplate{
 			Name:         "Rolling restart",
+			App:          app,
 			RequireLease: true,
 			Operations: []recipe.Operation{
 				{
 					Name: "restart",
-					Type: recipe.OperationTypeMachine,
-					MachineCommand: recipe.MachineCommand{
+					Type: recipe.OperationTypeFlaps,
+					FlapsCommand: recipe.FlapsCommand{
 						Action: "restart",
+						Method: "POST",
+						Options: map[string]string{
+							"force_stop": "true",
+						},
 					},
 					HealthCheckSelector: recipe.HealthCheckSelector{
 						Name:  "role",
 						Value: "replica",
 					},
+					WaitForHealthChecks: true,
 				},
-				{
-					Name: "failover",
-					Type: recipe.OperationTypeHTTP,
-					HTTPCommand: recipe.HTTPCommand{
-						Method:   "GET",
-						Endpoint: "/commands/admin/failover/trigger",
-						Port:     5500,
-					},
-					HealthCheckSelector: recipe.HealthCheckSelector{
-						Name:  "role",
-						Value: "leader",
-					},
-				},
-				{
-					Name: "restart",
-					Type: recipe.OperationTypeMachine,
-					MachineCommand: recipe.MachineCommand{
-						Action: "restart",
-					},
-					HealthCheckSelector: recipe.HealthCheckSelector{
-						Name:  "role",
-						Value: "leader",
-					},
-				},
+				// {
+				// 	Name: "failover",
+				// 	Type: recipe.OperationTypeHTTP,
+				// 	HTTPCommand: recipe.HTTPCommand{
+				// 		Method:   "GET",
+				// 		Endpoint: "/commands/admin/failover/trigger",
+				// 		Port:     5500,
+				// 	},
+				// 	HealthCheckSelector: recipe.HealthCheckSelector{
+				// 		Name:  "role",
+				// 		Value: "leader",
+				// 	},
+				// },
+				// {
+				// 	Name: "restart",
+				// 	Type: recipe.OperationTypeMachine,
+				// 	MachineCommand: recipe.MachineCommand{
+				// 		Action: "restart",
+				// 		Input: api.RestartMachineInput{
+				// 			ForceStop: true,
+				// 		}},
+				// 	HealthCheckSelector: recipe.HealthCheckSelector{
+				// 		Name:  "role",
+				// 		Value: "leader",
+				// 	},
+				// 	WaitForHealthChecks: true,
+				// },
 			},
 		}
 

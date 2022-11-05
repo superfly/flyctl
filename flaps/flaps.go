@@ -301,6 +301,29 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 	return nil
 }
 
+func (f *Client) SendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
+	req, err := f.NewRequest(ctx, method, endpoint, in, headers)
+	if err != nil {
+		return err
+	}
+
+	resp, err := f.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode > 299 {
+		return handleAPIError(resp)
+	}
+	if out != nil {
+		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (f *Client) NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error) {
 	var (
 		body   io.Reader
