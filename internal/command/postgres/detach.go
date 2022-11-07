@@ -68,9 +68,21 @@ func runDetach(ctx context.Context) error {
 	}
 	ctx = agent.DialerWithContext(ctx, dialer)
 
+	var leaderIp string
 	switch pgApp.PlatformVersion {
 	case "nomad":
 		if err := hasRequiredVersionOnNomad(pgApp, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+			return err
+		}
+		pgInstances, err := agentclient.Instances(ctx, pgApp.Organization.Slug, pgApp.Name)
+		if err != nil {
+			return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", pgAppName, err)
+		}
+		if len(pgInstances.Addresses) == 0 {
+			return fmt.Errorf("no 6pn ips found for %s app", pgAppName)
+		}
+		leaderIp, err = leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
+		if err != nil {
 			return err
 		}
 	case "machines":
@@ -87,6 +99,11 @@ func runDetach(ctx context.Context) error {
 		if err := hasRequiredVersionOnMachines(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
+		if len(members) == 0 {
+			return fmt.Errorf("no 6pn ips founds for %s app", pgAppName)
+		}
+		leader, _ := machinesNodeRoles(ctx, members)
+		leaderIp = leader.PrivateIP
 	}
 
 	attachments, err := client.ListPostgresClusterAttachments(ctx, app.ID, pgApp.ID)
@@ -115,7 +132,7 @@ func runDetach(ctx context.Context) error {
 
 	targetAttachment := attachments[selected]
 
-	pgclient := flypg.New(pgAppName, dialer)
+	pgclient := flypg.NewFromInstance(leaderIp, dialer)
 
 	// Remove user if exists
 	exists, err := pgclient.UserExists(ctx, targetAttachment.DatabaseUser)

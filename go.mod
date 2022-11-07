@@ -7,7 +7,7 @@ require (
 	github.com/BurntSushi/toml v1.1.1-0.20220529222432-dcb2346503b4
 	github.com/Khan/genqlient v0.5.0
 	github.com/alecthomas/chroma v0.10.0
-	github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239
+	github.com/avast/retry-go/v4 v4.2.0
 	github.com/azazeal/pause v1.0.6
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/briandowns/spinner v1.12.0
@@ -21,6 +21,7 @@ require (
 	github.com/getsentry/sentry-go v0.12.0
 	github.com/go-playground/validator/v10 v10.11.0
 	github.com/gofrs/flock v0.8.0
+	github.com/google/go-cmp v0.5.9
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-version v1.3.0
@@ -49,7 +50,7 @@ require (
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.8.1
-	github.com/stretchr/testify v1.7.1
+	github.com/stretchr/testify v1.8.0
 	github.com/superfly/flyctl/api v0.0.0-20220708073423-b6d7c3cf5161
 	github.com/superfly/graphql v0.2.3
 	golang.org/x/crypto v0.0.0-20220926161630-eccd6366d1be

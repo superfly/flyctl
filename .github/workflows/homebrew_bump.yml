@@ -21,3 +21,28 @@ jobs:
           org: superfly
           tag: ${{ github.event.inputs.version }}
           revision: ${{ github.event.inputs.sha }}
+          force: true
+      - name: Check for slack secret
+        if: ${{ failure() }}
+        env:
+          SLACK_WEBHOOK_EXISTS: ${{ secrets.HOMEBREW_SLACK_WEBHOOK_URL != '' }}
+        run: if [ ${{ env.SLACK_WEBHOOK_EXISTS }} != "true" ] ; then echo "No webhook url :-(" ; fi
+      - name: Post failure to slack
+        if: ${{ failure() }}
+        uses: slackapi/slack-github-action@007b2c3c751a190b6f0f040e47ed024deaa72844
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.HOMEBREW_SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+        with:
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": ":fire: flyctl bump homebrew formula failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                  }
+                }
+              ]
+            }

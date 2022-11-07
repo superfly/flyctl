@@ -85,9 +85,21 @@ func runConnect(ctx context.Context) error {
 	}
 	ctx = agent.DialerWithContext(ctx, dialer)
 
+	var leaderIp string
 	switch app.PlatformVersion {
 	case "nomad":
 		if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresStandaloneVersion); err != nil {
+			return err
+		}
+		pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
+		if err != nil {
+			return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", app.Name, err)
+		}
+		if len(pgInstances.Addresses) == 0 {
+			return fmt.Errorf("no 6pn ips found for %s app", app.Name)
+		}
+		leaderIp, err = leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
+		if err != nil {
 			return err
 		}
 	case "machines":
@@ -103,6 +115,8 @@ func runConnect(ctx context.Context) error {
 		if err := hasRequiredVersionOnMachines(members, MinPostgresHaVersion, MinPostgresStandaloneVersion); err != nil {
 			return err
 		}
+		leader, _ := machinesNodeRoles(ctx, members)
+		leaderIp = leader.PrivateIP
 	default:
 		return fmt.Errorf("platform %s is not supported", app.PlatformVersion)
 	}
@@ -111,7 +125,6 @@ func runConnect(ctx context.Context) error {
 	user := flag.GetString(ctx, "user")
 	password := flag.GetString(ctx, "password")
 
-	addr := fmt.Sprintf("%s.internal", appName)
 	cmdStr := fmt.Sprintf("connect %s %s %s", database, user, password)
 
 	return ssh.SSHConnect(&ssh.SSHParams{
@@ -123,5 +136,5 @@ func runConnect(ctx context.Context) error {
 		Stdin:  os.Stdin,
 		Stdout: ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
 		Stderr: ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
-	}, addr)
+	}, leaderIp)
 }

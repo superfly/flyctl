@@ -124,34 +124,24 @@ func hasRequiredVersionOnMachines(machines []*api.Machine, cluster, standalone s
 	return nil
 }
 
-func machinesNodeRoles(ctx context.Context, machines []*api.Machine) (leader *api.Machine, replicas []*api.Machine, err error) {
-	var dialer = agent.DialerFromContext(ctx)
-
+func machinesNodeRoles(ctx context.Context, machines []*api.Machine) (leader *api.Machine, replicas []*api.Machine) {
 	for _, machine := range machines {
-		address := fmt.Sprintf("[%s]", machine.PrivateIP)
-
-		pgclient := flypg.NewFromInstance(address, dialer)
-		if err != nil {
-			return nil, nil, fmt.Errorf("can't connect to %s: %w", machine.Name, err)
-		}
-
-		role, err := pgclient.NodeRole(ctx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("can't get role for %s: %w", machine.Name, err)
-		}
+		role := machineRole(machine)
 
 		switch role {
 		case "leader":
 			leader = machine
 		case "replica":
 			replicas = append(replicas, machine)
+		default:
+			replicas = append(replicas, machine)
 		}
 	}
-	return leader, replicas, nil
+	return leader, replicas
 }
 
 func nomadNodeRoles(ctx context.Context, allocs []*api.AllocationStatus) (leader *api.AllocationStatus, replicas []*api.AllocationStatus, err error) {
-	var dialer = agent.DialerFromContext(ctx)
+	dialer := agent.DialerFromContext(ctx)
 
 	for _, alloc := range allocs {
 		pgclient := flypg.NewFromInstance(alloc.PrivateIP, dialer)
@@ -172,4 +162,45 @@ func nomadNodeRoles(ctx context.Context, allocs []*api.AllocationStatus) (leader
 		}
 	}
 	return leader, replicas, nil
+}
+
+func leaderIpFromNomadInstances(ctx context.Context, addrs []string) (string, error) {
+	dialer := agent.DialerFromContext(ctx)
+	for _, addr := range addrs {
+		pgclient := flypg.NewFromInstance(addr, dialer)
+		role, err := pgclient.NodeRole(ctx)
+		if err != nil {
+			return "", fmt.Errorf("can't get role for %s: %w", addr, err)
+		}
+
+		if role == "leader" {
+			return addr, nil
+		}
+	}
+	return "", fmt.Errorf("no instances found with leader role")
+}
+
+func machineRole(machine *api.Machine) (role string) {
+	role = "unknown"
+
+	for _, check := range machine.Checks {
+		if check.Name == "role" {
+			if check.Status == "passing" {
+				role = check.Output
+			} else {
+				role = "error"
+			}
+			break
+		}
+	}
+	return role
+}
+
+func pickLeader(ctx context.Context, machines []*api.Machine) (*api.Machine, error) {
+	for _, machine := range machines {
+		if machineRole(machine) == "leader" {
+			return machine, nil
+		}
+	}
+	return nil, fmt.Errorf("no active leader found")
 }

@@ -58,31 +58,55 @@ func newAttach() *cobra.Command {
 	return cmd
 }
 
+type AttachParams struct {
+	DbName       string
+	AppName      string
+	PgAppName    string
+	DbUser       string
+	VariableName string
+	Force        bool
+}
+
 func runAttach(ctx context.Context) error {
+	params := AttachParams{
+		AppName:      app.NameFromContext(ctx),
+		DbName:       flag.GetString(ctx, "database-name"),
+		PgAppName:    flag.FirstArg(ctx),
+		DbUser:       flag.GetString(ctx, "database-user"),
+		VariableName: flag.GetString(ctx, "variable-name"),
+		Force:        flag.GetBool(ctx, "force"),
+	}
+
+	return AttachCluster(ctx, params)
+}
+
+func AttachCluster(ctx context.Context, params AttachParams) error {
 	// Minimum image version requirements
 	var (
 		MinPostgresHaVersion = "0.0.19"
-		appName              = app.NameFromContext(ctx)
-		pgAppName            = flag.FirstArg(ctx)
 		client               = client.FromContext(ctx).API()
+		appName              = params.AppName
+		pgAppName            = params.PgAppName
+		dbName               = params.DbName
+		dbUser               = params.DbUser
+		varName              = params.VariableName
 	)
 
-	dbName := flag.GetString(ctx, "database-name")
 	if dbName == "" {
 		dbName = appName
 	}
-	dbName = strings.ToLower(strings.ReplaceAll(dbName, "-", "_"))
 
-	dbUser := flag.GetString(ctx, "database-user")
 	if dbUser == "" {
 		dbUser = appName
 	}
+
 	dbUser = strings.ToLower(strings.ReplaceAll(dbUser, "-", "_"))
 
-	varName := flag.GetString(ctx, "variable-name")
 	if varName == "" {
 		varName = "DATABASE_URL"
 	}
+
+	dbName = strings.ToLower(strings.ReplaceAll(dbName, "-", "_"))
 
 	input := api.AttachPostgresClusterInput{
 		AppID:                appName,
@@ -109,9 +133,21 @@ func runAttach(ctx context.Context) error {
 	}
 	ctx = agent.DialerWithContext(ctx, dialer)
 
+	var leaderIp string
 	switch pgApp.PlatformVersion {
 	case "nomad":
 		if err := hasRequiredVersionOnNomad(pgApp, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+			return err
+		}
+		pgInstances, err := agentclient.Instances(ctx, pgApp.Organization.Slug, pgApp.Name)
+		if err != nil {
+			return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", pgAppName, err)
+		}
+		if len(pgInstances.Addresses) == 0 {
+			return fmt.Errorf("no 6pn ips found for %s app", pgAppName)
+		}
+		leaderIp, err = leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
+		if err != nil {
 			return err
 		}
 	case "machines":
@@ -127,10 +163,12 @@ func runAttach(ctx context.Context) error {
 		if err := hasRequiredVersionOnMachines(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
+		leader, _ := machinesNodeRoles(ctx, members)
+		leaderIp = leader.PrivateIP
 	default:
 	}
 
-	pgclient := flypg.New(pgAppName, dialer)
+	pgclient := flypg.NewFromInstance(leaderIp, dialer)
 
 	secrets, err := client.GetAppSecrets(ctx, appName)
 	if err != nil {
@@ -147,7 +185,7 @@ func runAttach(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if dbExists && !flag.GetBool(ctx, "force") {
+	if dbExists && !params.Force {
 		confirm := false
 		msg := fmt.Sprintf("Database %q already exists. Continue with the attachment process?", *input.DatabaseName)
 		confirm, err := prompt.Confirm(ctx, msg)
@@ -196,7 +234,10 @@ func runAttach(ctx context.Context) error {
 		return fmt.Errorf("failed executing create-user: %w", err)
 	}
 
-	connectionString := fmt.Sprintf("postgres://%s:%s@top2.nearest.of.%s.internal:5432/%s", *input.DatabaseUser, pwd, pgAppName, *input.DatabaseName)
+	connectionString := fmt.Sprintf(
+		"postgres://%s:%s@top2.nearest.of.%s.internal:5432/%s?sslmode=disable",
+		*input.DatabaseUser, pwd, pgAppName, *input.DatabaseName,
+	)
 	s := map[string]string{}
 	s[*input.VariableName] = connectionString
 

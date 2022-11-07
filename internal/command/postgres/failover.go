@@ -3,7 +3,9 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
@@ -24,7 +26,7 @@ func newFailover() *cobra.Command {
 		usage = "failover"
 	)
 
-	var cmd = command.New(usage, short, long, runFailover,
+	cmd := command.New(usage, short, long, runFailover,
 		command.RequireSession,
 		command.RequireAppName,
 	)
@@ -102,11 +104,32 @@ func runFailover(ctx context.Context) (err error) {
 		defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
 	}
 
-	pgclient := flypg.New(appName, dialer)
+	leader, err := pickLeader(ctx, machines)
+	if err != nil {
+		return err
+	}
 
+	pgclient := flypg.NewFromInstance(leader.PrivateIP, dialer)
 	fmt.Fprintf(io.Out, "Performing a failover\n")
 	if err := pgclient.Failover(ctx); err != nil {
 		return fmt.Errorf("failed to trigger failover %w", err)
+	}
+
+	// Wait until the leader lost its role
+	if err := retry.Do(
+		func() error {
+			var err error
+			leader, err = flapsClient.Get(ctx, leader.ID)
+			if err != nil {
+				return err
+			} else if machineRole(leader) == "leader" {
+				return fmt.Errorf("%s hasn't lost its leader role", leader.ID)
+			}
+			return nil
+		},
+		retry.Context(ctx), retry.Attempts(30), retry.Delay(time.Second), retry.DelayType(retry.FixedDelay),
+	); err != nil {
+		return err
 	}
 
 	// wait for health checks to pass

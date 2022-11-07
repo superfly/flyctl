@@ -19,9 +19,11 @@ import (
 	"github.com/superfly/flyctl/internal/command/dig"
 	"github.com/superfly/flyctl/internal/command/docs"
 	"github.com/superfly/flyctl/internal/command/doctor"
+	"github.com/superfly/flyctl/internal/command/help"
 	"github.com/superfly/flyctl/internal/command/history"
 	"github.com/superfly/flyctl/internal/command/image"
 	"github.com/superfly/flyctl/internal/command/ips"
+	"github.com/superfly/flyctl/internal/command/launch"
 	"github.com/superfly/flyctl/internal/command/logs"
 	"github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/command/monitor"
@@ -154,6 +156,7 @@ func New() *cobra.Command {
 		redis.New(),
 		vm.New(),
 		checks.New(),
+		launch.New(),
 	}
 
 	// if os.Getenv("DEV") != "" {
@@ -188,6 +191,10 @@ func New() *cobra.Command {
 
 	// and finally, add the new commands
 	root.AddCommand(newCommands...)
+
+	root.SetHelpCommand(help.New(root))
+
+	root.RunE = help.NewRootHelp().RunE
 
 	return root
 }

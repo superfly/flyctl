@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 
@@ -28,6 +29,7 @@ import (
 var pgSettings = map[string]string{
 	"wal-level":                  "wal_level",
 	"max-connections":            "max_connections",
+	"shared-buffers":             "shared_buffers",
 	"log-statement":              "log_statement",
 	"log-min-duration-statement": "log_min_duration_statement",
 	"shared-preload-libraries":   "shared_preload_libraries",
@@ -101,11 +103,20 @@ func runConfigView(ctx context.Context) (err error) {
 	}
 	ctx = agent.DialerWithContext(ctx, dialer)
 
+	var firstPgIp net.IP
 	switch app.PlatformVersion {
 	case "nomad":
 		if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
+		pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
+		if err != nil {
+			return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", app.Name, err)
+		}
+		if len(pgInstances.Addresses) == 0 {
+			return fmt.Errorf("no 6pn ips found for %s app", app.Name)
+		}
+		firstPgIp = net.ParseIP(pgInstances.Addresses[0])
 	case "machines":
 		flapsClient, err := flaps.New(ctx, app)
 		if err != nil {
@@ -119,9 +130,11 @@ func runConfigView(ctx context.Context) (err error) {
 		if err := hasRequiredVersionOnMachines(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
+		leader, _ := machinesNodeRoles(ctx, members)
+		firstPgIp = net.ParseIP(leader.PrivateIP)
 	}
 
-	pgclient := flypg.New(app.Name, dialer)
+	pgclient := flypg.NewFromInstance(firstPgIp.String(), dialer)
 
 	var settings []string
 	for _, k := range pgSettings {
@@ -172,11 +185,12 @@ func runConfigView(ctx context.Context) (err error) {
 		rows = append(rows, []string{
 			strings.Replace(setting.Name, "_", "-", -1),
 			value,
+			setting.Unit,
 			desc,
 			restart,
 		})
 	}
-	_ = render.Table(io.Out, "", rows, "Name", "Value", "Description", "Pending Restart")
+	_ = render.Table(io.Out, "", rows, "Name", "Value", "Unit", "Description", "Pending Restart")
 
 	if pendingRestart {
 		fmt.Fprintln(io.Out, colorize.Yellow("Some changes are awaiting a restart!"))
@@ -206,6 +220,10 @@ func newConfigUpdate() (cmd *cobra.Command) {
 		flag.String{
 			Name:        "max-connections",
 			Description: "Sets the maximum number of concurrent connections.",
+		},
+		flag.String{
+			Name:        "shared-buffers",
+			Description: "Sets the amount of memory the database server uses for shared memory buffers",
 		},
 		flag.String{
 			Name:        "wal-level",
@@ -283,7 +301,18 @@ func runConfigUpdate(ctx context.Context) (err error) {
 
 	ctx = agent.DialerWithContext(ctx, dialer)
 
-	pgclient := flypg.New(app.Name, dialer)
+	pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
+	if err != nil {
+		return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", app.Name, err)
+	}
+	if len(pgInstances.Addresses) == 0 {
+		return fmt.Errorf("no 6pn ips found for %s app", app.Name)
+	}
+	leaderIp, err := leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
+	if err != nil {
+		return err
+	}
+	pgclient := flypg.NewFromInstance(leaderIp, dialer)
 
 	force := flag.GetBool(ctx, "force")
 
@@ -433,7 +462,7 @@ func updateMachinesConfig(ctx context.Context, app *api.AppCompact, changes map[
 	fmt.Fprintf(io.Out, "Acquired lease %s on machine: %s\n", lease.Data.Nonce, leader.ID)
 	fmt.Fprintln(io.Out, "Performing update...")
 
-	err = cmd.UpdateSettings(ctx, changes)
+	err = cmd.UpdateSettings(ctx, leader.PrivateIP, changes)
 	if err != nil {
 		return err
 	}
@@ -443,13 +472,31 @@ func updateMachinesConfig(ctx context.Context, app *api.AppCompact, changes map[
 
 func updateNomadConfig(ctx context.Context, app *api.AppCompact, changes map[string]string) (err error) {
 	var (
-		io  = iostreams.FromContext(ctx)
-		cmd = flypg.CommandFromContext(ctx)
+		io     = iostreams.FromContext(ctx)
+		cmd    = flypg.CommandFromContext(ctx)
+		client = client.FromContext(ctx).API()
 	)
+
+	agentclient, err := agent.Establish(ctx, client)
+	if err != nil {
+		return errors.Wrap(err, "can't establish agent")
+	}
+
+	pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
+	if err != nil {
+		return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", app.Name, err)
+	}
+	if len(pgInstances.Addresses) == 0 {
+		return fmt.Errorf("no 6pn ips found for %s app", app.Name)
+	}
+	leaderIp, err := leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
+	if err != nil {
+		return err
+	}
 
 	fmt.Fprintln(io.Out, "Performing update...")
 
-	err = cmd.UpdateSettings(ctx, changes)
+	err = cmd.UpdateSettings(ctx, leaderIp, changes)
 	if err != nil {
 		return err
 	}

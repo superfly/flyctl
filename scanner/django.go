@@ -10,10 +10,10 @@ func configureDjango(sourceDir string) (*SourceInfo, error) {
 
 	s := &SourceInfo{
 		Family: "Django",
-		Port:   8080,
+		Port:   8000,
 		Files:  templates("templates/django"),
 		Env: map[string]string{
-			"PORT": "8080",
+			"PORT": "8000",
 		},
 		Secrets: []Secret{
 			{

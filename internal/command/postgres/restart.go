@@ -33,6 +33,12 @@ func newRestart() *cobra.Command {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Bool{
+			Name:        "force",
+			Shorthand:   "f",
+			Description: "Force a restart even we don't have an active leader",
+			Default:     false,
+		},
 	)
 
 	return cmd
@@ -101,10 +107,11 @@ func runRestart(ctx context.Context) error {
 
 func nomadRestart(ctx context.Context, allocs []*api.AllocationStatus) (err error) {
 	var (
-		dialer  = agent.DialerFromContext(ctx)
-		client  = client.FromContext(ctx).API()
-		appName = app.NameFromContext(ctx)
-		io      = iostreams.FromContext(ctx)
+		dialer   = agent.DialerFromContext(ctx)
+		client   = client.FromContext(ctx).API()
+		appName  = app.NameFromContext(ctx)
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
 	)
 
 	leader, replicas, err := nomadNodeRoles(ctx, allocs)
@@ -132,11 +139,13 @@ func nomadRestart(ctx context.Context, allocs []*api.AllocationStatus) (err erro
 	// Don't perform failover if the cluster is only running a
 	// single node.
 	if len(allocs) > 1 {
-		pgclient := flypg.New(appName, dialer)
+		pgclient := flypg.NewFromInstance(leader.PrivateIP, dialer)
 
 		fmt.Fprintf(io.Out, "Performing a failover\n")
 		if err := pgclient.Failover(ctx); err != nil {
-			return fmt.Errorf("failed to trigger failover %w", err)
+			if err := pgclient.Failover(ctx); err != nil {
+				fmt.Fprintln(io.Out, colorize.Yellow(fmt.Sprintf("WARN: failed to perform failover: %s", err.Error())))
+			}
 		}
 	}
 
@@ -153,8 +162,8 @@ func nomadRestart(ctx context.Context, allocs []*api.AllocationStatus) (err erro
 
 func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 	var (
-		appName     = app.NameFromContext(ctx)
 		io          = iostreams.FromContext(ctx)
+		colorize    = io.ColorScheme()
 		flapsClient = flaps.FromContext(ctx)
 		dialer      = agent.DialerFromContext(ctx)
 	)
@@ -172,25 +181,30 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 		// Ensure lease is released on return
 		defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
 
-		fmt.Fprintf(io.Out, "  Machine %s: %s\n", machine.ID, lease.Status)
+		fmt.Fprintf(io.Out, "  Machine %s: %s\n", colorize.Bold(machine.ID), lease.Status)
 	}
 
-	leader, replicas, err := machinesNodeRoles(ctx, machines)
-	if err != nil {
-		return fmt.Errorf("can't fetch leader: %w", err)
+	leader, replicas := machinesNodeRoles(ctx, machines)
+
+	// unless flag.force is set, we should error if leader==nil
+	if flag.GetBool(ctx, "force") && leader == nil {
+		fmt.Fprintln(io.Out, colorize.Yellow("No leader found, but continuing with restart"))
+	} else if leader == nil {
+		return fmt.Errorf("no active leader found")
 	}
-	if leader == nil {
-		return fmt.Errorf("no leader found")
+
+	fmt.Fprintln(io.Out, "Identifying cluster role(s)")
+
+	for _, machine := range machines {
+		fmt.Fprintf(io.Out, "  Machine %s: %s\n", colorize.Bold(machine.ID), machineRole(machine))
 	}
 
 	if len(replicas) > 0 {
-		fmt.Fprintln(io.Out, "Attempting to restart replica(s)")
-
 		for _, replica := range replicas {
-			fmt.Fprintf(io.Out, " Restarting %s\n", replica.ID)
+			fmt.Fprintf(io.Out, "Restarting machine %s\n", colorize.Bold(replica.ID))
 
 			if err = machine.Restart(ctx, replica.ID, "", 120, false); err != nil {
-				return fmt.Errorf("failed to restart vm %s: %w", replica.ID, err)
+				return err
 			}
 			// wait for health checks to pass
 			if err := watch.MachinesChecks(ctx, []*api.Machine{replica}); err != nil {
@@ -208,18 +222,18 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 	}
 
 	if inRegionReplicas > 0 {
-		pgclient := flypg.New(appName, dialer)
-		// TODO - This should really be best effort.
-		fmt.Fprintln(io.Out, "Performing a failover")
+		pgclient := flypg.NewFromInstance(leader.PrivateIP, dialer)
+
+		fmt.Fprintf(io.Out, "Attempting to failover %s\n", colorize.Bold(leader.ID))
 		if err := pgclient.Failover(ctx); err != nil {
-			return fmt.Errorf("failed to trigger failover %w", err)
+			fmt.Fprintln(io.Out, colorize.Red(fmt.Sprintf("failed to perform failover: %s", err.Error())))
 		}
 	}
 
-	fmt.Fprintln(io.Out, "Attempting to restart leader")
+	fmt.Fprintf(io.Out, "Restarting machine %s\n", colorize.Bold(leader.ID))
 
 	if err = machine.Restart(ctx, leader.ID, "", 120, false); err != nil {
-		return fmt.Errorf("failed to restart vm %s: %w", leader.ID, err)
+		return err
 	}
 	// wait for health checks to pass
 	if err := watch.MachinesChecks(ctx, []*api.Machine{leader}); err != nil {
