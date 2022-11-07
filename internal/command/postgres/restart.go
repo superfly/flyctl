@@ -128,7 +128,7 @@ func runRestart(ctx context.Context) error {
 		}
 
 		if err := template.Process(ctx); err != nil {
-			fmt.Printf("error: %v", err)
+			return nil
 		}
 
 		fmt.Printf("Result: %+v", template.Operations[0].HTTPCommand.Result)

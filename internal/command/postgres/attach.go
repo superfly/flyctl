@@ -178,11 +178,11 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 					Type: recipe.CommandTypeGraphql,
 					GraphQLCommand: recipe.GraphQLCommand{
 						Query: `mutation($input: AttachPostgresClusterInput!) {
-								      attachPostgresCluster(input: $input) {
-									    connectionString
-									    environmentVariableName
-								      }
-									}`,
+							attachPostgresCluster(input: $input) {
+								connectionString
+								environmentVariableName
+							}
+						}`,
 						Variables: map[string]interface{}{
 							"input": input,
 						},
@@ -200,7 +200,7 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 						},
 					},
 					Selector: recipe.Selector{
-						recipe.HealthCheckSelector{
+						HealthCheck: recipe.HealthCheckSelector{
 							Name:  "role",
 							Value: "leader",
 						},
@@ -220,7 +220,7 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 						},
 					},
 					Selector: recipe.Selector{
-						recipe.HealthCheckSelector{
+						HealthCheck: recipe.HealthCheckSelector{
 							Name:  "role",
 							Value: "leader",
 						},
@@ -231,13 +231,13 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 					Type: recipe.CommandTypeGraphql,
 					GraphQLCommand: recipe.GraphQLCommand{
 						Query: `mutation($input: SetSecretsInput!) {
-										setSecrets(input: $input) {
-											release {
-												id
-												version
-											}
-										}
-								}`,
+							setSecrets(input: $input) {
+								release {
+									id
+									version
+								}
+							}
+						}`,
 						Variables: map[string]interface{}{
 							"input": api.SetSecretsInput{
 								AppID: input.AppID,
