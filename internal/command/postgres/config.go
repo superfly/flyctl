@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net"
 	"strconv"
@@ -17,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/recipe"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
@@ -403,71 +406,44 @@ func runConfigUpdate(ctx context.Context) (err error) {
 }
 
 func updateMachinesConfig(ctx context.Context, app *api.AppCompact, changes map[string]string) (err error) {
-	var (
-		io     = iostreams.FromContext(ctx)
-		dialer = agent.DialerFromContext(ctx)
-		cmd    = flypg.CommandFromContext(ctx)
-	)
 
-	fclt, err := flaps.New(ctx, app)
-	if err != nil {
-		return fmt.Errorf("list of machines could not be retrieved: %w", err)
+	type updateRequest struct {
+		PGParameters map[string]string `json:"pgParameters,omitempty"`
 	}
 
-	machines, err := fclt.ListActive(ctx)
-	if err != nil {
-		return fmt.Errorf("machines could not be retrieved")
-	}
-
-	var leader *api.Machine
-
-	for _, machine := range machines {
-		address := fmt.Sprintf("[%s]", machine.PrivateIP)
-
-		pgclient := flypg.NewFromInstance(address, dialer)
-		if err != nil {
-			return fmt.Errorf("can't connect to %s: %w", machine.Name, err)
-		}
-
-		role, err := pgclient.NodeRole(ctx)
-		if err != nil {
-			return fmt.Errorf("can't get role for %s: %w", machine.Name, err)
-		}
-
-		if role == "leader" {
-			leader = machine
-			break
-		} else if role == "replica" {
-			continue
-		}
-	}
-
-	if leader == nil {
-		return fmt.Errorf("no leader found")
-	}
-
-	// obtain lease on leader
-	flaps, err := flaps.New(ctx, app)
+	payload := updateRequest{PGParameters: changes}
+	configBytes, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
 
-	// get lease on machine
-	lease, err := flaps.GetLease(ctx, leader.ID, api.IntPointer(40))
-	if err != nil {
-		return fmt.Errorf("failed to obtain lease: %w", err)
+	subCmd := fmt.Sprintf("update --patch '%s'", string(configBytes))
+	encodedSubCmd := base64.StdEncoding.Strict().EncodeToString([]byte(subCmd))
+	cmd := fmt.Sprintf("stolonctl-run %s", encodedSubCmd)
+
+	template := recipe.RecipeTemplate{
+		Name:         "PG Config Update",
+		App:          app,
+		RequireLease: true,
+		Operations: []*recipe.Operation{
+			{
+				Name: "pg-config-update",
+				Type: recipe.CommandTypeSSHCommand,
+				SSHRunCommand: recipe.SSHRunCommand{
+					Command: cmd,
+				},
+				Selector: recipe.Selector{
+					HealthCheck: recipe.HealthCheckSelector{
+						Name:  "role",
+						Value: "leader",
+					},
+				},
+				WaitForHealthChecks: false,
+			},
+		},
 	}
-	defer flaps.ReleaseLease(ctx, leader.ID, lease.Data.Nonce)
 
-	fmt.Fprintf(io.Out, "Acquired lease %s on machine: %s\n", lease.Data.Nonce, leader.ID)
-	fmt.Fprintln(io.Out, "Performing update...")
-
-	err = cmd.UpdateSettings(ctx, leader.PrivateIP, changes)
-	if err != nil {
-		return err
-	}
-
-	return
+	return template.Process(ctx)
 }
 
 func updateNomadConfig(ctx context.Context, app *api.AppCompact, changes map[string]string) (err error) {

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
@@ -65,58 +66,72 @@ func runRestart(ctx context.Context) error {
 		}
 		return nomadRestart(ctx, vms)
 	case "machines":
+
 		template := recipe.RecipeTemplate{
 			Name:         "Rolling restart",
 			App:          app,
 			RequireLease: true,
-			Operations: []recipe.Operation{
+			Operations: []*recipe.Operation{
 				{
 					Name: "restart",
-					Type: recipe.OperationTypeFlaps,
+					Type: recipe.CommandTypeFlaps,
 					FlapsCommand: recipe.FlapsCommand{
 						Action: "restart",
-						Method: "POST",
+						Method: http.MethodPost,
 						Options: map[string]string{
 							"force_stop": "true",
 						},
 					},
-					HealthCheckSelector: recipe.HealthCheckSelector{
-						Name:  "role",
-						Value: "replica",
+					Selector: recipe.Selector{
+						HealthCheck: recipe.HealthCheckSelector{
+							Name:  "role",
+							Value: "replica",
+						},
 					},
 					WaitForHealthChecks: true,
 				},
-				// {
-				// 	Name: "failover",
-				// 	Type: recipe.OperationTypeHTTP,
-				// 	HTTPCommand: recipe.HTTPCommand{
-				// 		Method:   "GET",
-				// 		Endpoint: "/commands/admin/failover/trigger",
-				// 		Port:     5500,
-				// 	},
-				// 	HealthCheckSelector: recipe.HealthCheckSelector{
-				// 		Name:  "role",
-				// 		Value: "leader",
-				// 	},
-				// },
-				// {
-				// 	Name: "restart",
-				// 	Type: recipe.OperationTypeMachine,
-				// 	MachineCommand: recipe.MachineCommand{
-				// 		Action: "restart",
-				// 		Input: api.RestartMachineInput{
-				// 			ForceStop: true,
-				// 		}},
-				// 	HealthCheckSelector: recipe.HealthCheckSelector{
-				// 		Name:  "role",
-				// 		Value: "leader",
-				// 	},
-				// 	WaitForHealthChecks: true,
-				// },
+				{
+					Name: "failover",
+					Type: recipe.CommandTypeHTTP,
+					HTTPCommand: recipe.HTTPCommand{
+						Method:   "GET",
+						Endpoint: "/commands/admin/failover/trigger",
+						Port:     5500,
+						Result:   new(recipe.HTTPCommandResponse),
+					},
+					Selector: recipe.Selector{
+						HealthCheck: recipe.HealthCheckSelector{
+							Name:  "role",
+							Value: "leader",
+						},
+					},
+				},
+				{
+					Name: "restart",
+					Type: recipe.CommandTypeFlaps,
+					FlapsCommand: recipe.FlapsCommand{
+						Action: "restart",
+						Method: http.MethodPost,
+						Options: map[string]string{
+							"force_stop": "true",
+						},
+					},
+					Selector: recipe.Selector{
+						HealthCheck: recipe.HealthCheckSelector{
+							Name:  "role",
+							Value: "leader",
+						},
+					},
+					WaitForHealthChecks: true,
+				},
 			},
 		}
 
-		template.Process(ctx)
+		if err := template.Process(ctx); err != nil {
+			fmt.Printf("error: %v", err)
+		}
+
+		fmt.Printf("Result: %+v", template.Operations[0].HTTPCommand.Result)
 	}
 
 	return nil

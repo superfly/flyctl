@@ -1,22 +1,24 @@
 package recipe
 
 import (
-	"context"
-
 	"github.com/superfly/flyctl/api"
 )
 
-type OperationType string
+type CommandType string
 
 const (
-	OperationTypeHTTP  = "http"
-	OperationTypeFlaps = "flaps"
-	OperationTypeSSH   = "ssh"
+	CommandTypeHTTP       = "http"
+	CommandTypeFlaps      = "flaps"
+	CommandTypeSSHConnect = "ssh_connect"
+	CommandTypeSSHCommand = "ssh_command"
+	CommandTypeGraphql    = "graphql"
+	CommandTypeCustom     = "custom"
 )
 
-type GraphQLCommand struct {
-	Endpoint string
-	Args     []interface{}
+type HTTPCommandResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Data    string `json:"data"`
 }
 
 type FlapsCommand struct {
@@ -25,28 +27,13 @@ type FlapsCommand struct {
 	Options map[string]string
 }
 
-// func (f *Client) Restart(ctx context.Context, in api.RestartMachineInput) (err error) {
-// 	restartEndpoint := fmt.Sprintf("/%s/restart?force_stop=%t", in.ID, in.ForceStop)
-
-// 	if in.Timeout != 0 {
-// 		restartEndpoint += fmt.Sprintf("&timeout=%d", in.Timeout)
-// 	}
-
-// 	if in.Signal != nil {
-// 		restartEndpoint += fmt.Sprintf("&signal=%s", in.Signal)
-// 	}
-
-// 	if err := f.sendRequest(ctx, http.MethodPost, restartEndpoint, nil, nil, nil); err != nil {
-// 		return fmt.Errorf("failed to restart VM %s: %w", in.ID, err)
-// 	}
-// 	return
-// }
-
-type MachineCommands interface {
-	Launch(ctx context.Context, builder api.LaunchMachineInput) (*api.Machine, error)
+type SSHRunCommand struct {
+	App     *api.AppCompact
+	Command string
 }
 
-type SSHCommand struct {
+type SSHConnectCommand struct {
+	App     *api.AppCompact
 	Command string
 }
 
@@ -54,20 +41,41 @@ type HTTPCommand struct {
 	Method   string
 	Endpoint string
 	Port     int
-	Data     map[string]string
+	Data     map[string]interface{}
+	Result   interface{}
+}
+
+type GraphQLCommand struct {
+	Query     string
+	Variables map[string]interface{}
+	Result    *api.Query
 }
 
 type WaitForDefinition struct {
 	HealthCheck HealthCheckSelector
 }
 
+type PromptDefinition struct {
+	Message string
+}
+
+type Selector struct {
+	HealthCheck HealthCheckSelector
+}
+
+type CustomCommand func() error
+
 type Operation struct {
 	Name                string
-	Type                OperationType
+	Prompt              PromptDefinition
+	Type                CommandType
 	FlapsCommand        FlapsCommand
 	HTTPCommand         HTTPCommand
-	SSHCommand          SSHCommand
-	HealthCheckSelector HealthCheckSelector
+	SSHConnectCommand   SSHConnectCommand
+	SSHRunCommand       SSHRunCommand
+	CustomCommand       CustomCommand
+	GraphQLCommand      GraphQLCommand
+	Selector            Selector
 	WaitForHealthChecks bool
 }
 
@@ -75,7 +83,7 @@ type RecipeTemplate struct {
 	Name         string
 	App          *api.AppCompact
 	RequireLease bool
-	Operations   []Operation
+	Operations   []*Operation
 }
 
 type HealthCheckSelector struct {

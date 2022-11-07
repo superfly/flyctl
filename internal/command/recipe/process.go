@@ -11,33 +11,44 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/command/ssh"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/watch"
 )
 
-func (r *RecipeTemplate) Process(ctx context.Context) error {
-	var (
-		client = client.FromContext(ctx).API()
-	)
+func (r *RecipeTemplate) Setup(ctx context.Context) (context.Context, error) {
+	client := client.FromContext(ctx).API()
 
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
-		return fmt.Errorf("can't establish agent %w", err)
+		return nil, fmt.Errorf("can't establish agent %w", err)
 	}
 
 	dialer, err := agentclient.Dialer(ctx, r.App.Organization.Slug)
 	if err != nil {
-		return fmt.Errorf("can't build tunnel for %s: %s", r.App.Organization.Slug, err)
+		return nil, fmt.Errorf("can't build tunnel for %s: %s", r.App.Organization.Slug, err)
 	}
 	ctx = agent.DialerWithContext(ctx, dialer)
 
 	flapsClient, err := flaps.New(ctx, r.App)
 	if err != nil {
-		return fmt.Errorf("Unable to establish connection with flaps: %w", err)
+		return nil, fmt.Errorf("Unable to establish connection with flaps: %w", err)
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
 
-	// Evaluate whether we require a lease. If true, assume that a lease needs to be
-	// acquired on all Machines.
+	return ctx, nil
+}
+
+func (r *RecipeTemplate) Process(ctx context.Context) error {
+	ctx, err := r.Setup(ctx)
+	if err != nil {
+		return err
+	}
+
+	flapsClient := flaps.FromContext(ctx)
+	dialer := agent.DialerFromContext(ctx)
+	client := client.FromContext(ctx).API()
+
+	// Evaluate whether we require a lease.
 	if r.RequireLease {
 		fmt.Printf("Acquiring lease\n")
 		machines, err := flapsClient.ListActive(ctx)
@@ -55,7 +66,6 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 			// Ensure lease is released on return
 			defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
 		}
-
 	}
 
 	// Requery machines after lease acquisition so we can ensure we are evaluating the most
@@ -65,16 +75,16 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	// Time to evaluate the operations
+	// Evaluate operations
 	for _, op := range r.Operations {
 		targetMachines := machines
 
 		// Evaluate selectors if provided
-		if op.HealthCheckSelector != (HealthCheckSelector{}) {
+		if op.Selector.HealthCheck != (HealthCheckSelector{}) {
 			var newTargets []*api.Machine
 			for _, m := range targetMachines {
 				for _, check := range m.Checks {
-					if check.Name == op.HealthCheckSelector.Name && check.Output == op.HealthCheckSelector.Value {
+					if check.Name == op.Selector.HealthCheck.Name && check.Output == op.Selector.HealthCheck.Value {
 						newTargets = append(newTargets, m)
 					}
 				}
@@ -82,12 +92,69 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 			targetMachines = newTargets
 		}
 
+		if op.Prompt != (PromptDefinition{}) {
+			confirm := false
+			confirm, err := prompt.Confirm(ctx, op.Prompt.Message)
+			if err != nil {
+				return err
+			}
+			if !confirm {
+				return fmt.Errorf("I guess we are done here")
+			}
+		}
+
+		switch op.Type {
+		// SSH Connect
+		case CommandTypeSSHConnect:
+			err := ssh.SSHConnect(&ssh.SSHParams{
+				Ctx:    ctx,
+				Org:    r.App.Organization,
+				Dialer: dialer,
+				App:    r.App.Name,
+				Cmd:    op.SSHConnectCommand.Command,
+				Stdin:  os.Stdin,
+				Stdout: os.Stdout,
+				Stderr: os.Stderr,
+			}, targetMachines[0].PrivateIP)
+			if err != nil {
+				return err
+			}
+
+			continue
+		// GraphQL
+		case CommandTypeGraphql:
+			fmt.Printf("Performing %s command %q\n", op.Type, op.Name)
+			req := client.NewRequest(op.GraphQLCommand.Query)
+
+			for key, value := range op.GraphQLCommand.Variables {
+				req.Var(key, value)
+			}
+
+			data, err := client.RunWithContext(ctx, req)
+			if err != nil {
+				return err
+			}
+
+			op.GraphQLCommand.Result = &data
+
+			continue
+
+		case CommandTypeCustom:
+			fmt.Printf("Performing %s command %q\n", op.Type, op.Name)
+
+			if err := op.CustomCommand(); err != nil {
+				return err
+			}
+
+			continue
+		}
+
 		for _, machine := range targetMachines {
 			fmt.Printf("Performing %s command %q against: %s\n", op.Type, op.Name, machine.ID)
 
 			switch op.Type {
-			// Machine commands
-			case OperationTypeFlaps:
+			// Flaps
+			case CommandTypeFlaps:
 				var argArr []string
 				for key, value := range op.FlapsCommand.Options {
 					argArr = append(argArr, fmt.Sprintf("%s=%s", key, value))
@@ -100,24 +167,22 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 					return err
 				}
 
-			// HTTP commands
-			case OperationTypeHTTP:
-				client := NewFromInstance(machine.PrivateIP, op.HTTPCommand.Port, dialer)
-				if err := client.Do(ctx, op.HTTPCommand.Method, op.HTTPCommand.Endpoint, nil, nil); err != nil {
-					fmt.Printf("Error running http command: %s\n", err)
+			// HTTP
+			case CommandTypeHTTP:
+				cmd := op.HTTPCommand
+				client := NewFromInstance(machine.PrivateIP, cmd.Port, dialer)
+
+				if err := client.Do(ctx, cmd.Method, cmd.Endpoint, cmd.Data, cmd.Result); err != nil {
+					return err
 				}
-			// SSH commands
-			case OperationTypeSSH:
-				return ssh.SSHConnect(&ssh.SSHParams{
-					Ctx:    ctx,
-					Org:    r.App.Organization,
-					Dialer: dialer,
-					App:    r.App.Name,
-					Cmd:    op.SSHCommand.Command,
-					Stdin:  os.Stdin,
-					Stdout: os.Stdout,
-					Stderr: os.Stderr,
-				}, machine.PrivateIP)
+
+			// SSH Connect
+			case CommandTypeSSHCommand:
+				_, err := ssh.RunSSHCommand(ctx, r.App, dialer, machine.PrivateIP, op.SSHRunCommand.Command)
+				if err != nil {
+					return err
+				}
+
 			}
 
 			if op.WaitForHealthChecks {

@@ -6,15 +6,11 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/recipe"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/iostreams"
 )
 
 func newDetach() *cobra.Command {
@@ -57,20 +53,20 @@ func runDetach(ctx context.Context) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	agentclient, err := agent.Establish(ctx, client)
-	if err != nil {
-		return fmt.Errorf("can't establish agent %w", err)
-	}
-
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
-	if err != nil {
-		return fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
-	}
-	ctx = agent.DialerWithContext(ctx, dialer)
-
-	var leaderIp string
 	switch pgApp.PlatformVersion {
 	case "nomad":
+
+		agentclient, err := agent.Establish(ctx, client)
+		if err != nil {
+			return fmt.Errorf("can't establish agent %w", err)
+		}
+
+		dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+		if err != nil {
+			return fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
+		}
+		ctx = agent.DialerWithContext(ctx, dialer)
+
 		if err := hasRequiredVersionOnNomad(pgApp, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
@@ -81,95 +77,134 @@ func runDetach(ctx context.Context) error {
 		if len(pgInstances.Addresses) == 0 {
 			return fmt.Errorf("no 6pn ips found for %s app", pgAppName)
 		}
-		leaderIp, err = leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
-		if err != nil {
-			return err
-		}
+		// leaderIP, err = leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
+		// if err != nil {
+		// 	return err
+		// }
 	case "machines":
 
-		flapsClient, err := flaps.New(ctx, pgApp)
-		if err != nil {
-			return fmt.Errorf("list of machines could not be retrieved: %w", err)
+		template := recipe.RecipeTemplate{
+			Name:         "Detach",
+			App:          pgApp,
+			RequireLease: true,
+			Operations: []*recipe.Operation{
+				{
+					Name: "list-attachments",
+					Type: recipe.CommandTypeGraphql,
+					GraphQLCommand: recipe.GraphQLCommand{
+						Query: `
+							query($appName: String!, $postgresAppName: String!) {
+								postgresAttachments(appName: $appName, postgresAppName: $postgresAppName) {
+									nodes { id databaseName databaseUser environmentVariableName }
+							  	}
+							}`,
+						Variables: map[string]interface{}{
+							"appName":         app.ID,
+							"postgresAppName": pgApp.ID,
+						},
+					},
+				},
+				{
+					Name: "prompt-user-for-selection",
+					Type: recipe.CommandTypeCustom,
+					CustomCommand: func() error {
+
+						return nil
+					},
+				},
+			},
 		}
 
-		members, err := flapsClient.ListActive(ctx)
-		if err != nil {
-			return fmt.Errorf("machines could not be retrieved %w", err)
-		}
-		if err := hasRequiredVersionOnMachines(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
-			return err
-		}
-		if len(members) == 0 {
-			return fmt.Errorf("no 6pn ips founds for %s app", pgAppName)
-		}
-		leader, _ := machinesNodeRoles(ctx, members)
-		leaderIp = leader.PrivateIP
-	}
-
-	attachments, err := client.ListPostgresClusterAttachments(ctx, app.ID, pgApp.ID)
-	if err != nil {
-		return err
-	}
-
-	if len(attachments) == 0 {
-		return fmt.Errorf("no attachments found")
-	}
-
-	selected := 0
-	msg := "Select the attachment that you would like to detach (Database will remain intact): "
-	options := []string{}
-	for _, opt := range attachments {
-		str := fmt.Sprintf("PG Database: %s, PG User: %s, Environment variable: %s",
-			opt.DatabaseName,
-			opt.DatabaseUser,
-			opt.EnvironmentVariableName,
-		)
-		options = append(options, str)
-	}
-	if err = prompt.Select(ctx, &selected, msg, "", options...); err != nil {
-		return err
-	}
-
-	targetAttachment := attachments[selected]
-
-	pgclient := flypg.NewFromInstance(leaderIp, dialer)
-
-	// Remove user if exists
-	exists, err := pgclient.UserExists(ctx, targetAttachment.DatabaseUser)
-	if err != nil {
-		return err
-	}
-	if exists {
-		err := pgclient.DeleteUser(ctx, targetAttachment.DatabaseUser)
-		if err != nil {
-			return fmt.Errorf("error running user-delete: %w", err)
+		if err := template.Process(ctx); err != nil {
+			fmt.Printf("error: %v", err)
 		}
 	}
 
-	io := iostreams.FromContext(ctx)
+	// attachments := tmpl.Operations[0].GraphQLCommand.Result.PostgresAttachments.Nodes
+	// if len(attachments) == 0 {
+	// 	return fmt.Errorf("no attachments found")
+	// }
+	// selected := 0
+	// msg := "Select the attachment that you would like to detach (Database will remain intact): "
+	// options := []string{}
+	// for _, opt := range attachments {
+	// 	str := fmt.Sprintf("PG Database: %s, PG User: %s, Environment variable: %s",
+	// 		opt.DatabaseName,
+	// 		opt.DatabaseUser,
+	// 		opt.EnvironmentVariableName,
+	// 	)
+	// 	options = append(options, str)
+	// }
+	// if err = prompt.Select(ctx, &selected, msg, "", options...); err != nil {
+	// 	return err
+	// }
 
-	// Remove secret from consumer app.
-	_, err = client.UnsetSecrets(ctx, appName, []string{targetAttachment.EnvironmentVariableName})
-	if err != nil {
-		// This will error if secret doesn't exist, so just send to stdout.
-		fmt.Fprintln(io.Out, err.Error())
-	} else {
-		fmt.Fprintf(io.Out, "Secret %q was scheduled to be removed from app %s\n",
-			targetAttachment.EnvironmentVariableName,
-			app.Name,
-		)
-	}
+	// return nil
 
-	input := api.DetachPostgresClusterInput{
-		AppID:                       appName,
-		PostgresClusterId:           pgAppName,
-		PostgresClusterAttachmentId: targetAttachment.ID,
-	}
+	// attachments, err := client.ListPostgresClusterAttachments(ctx, app.ID, pgApp.ID)
+	// if err != nil {
+	// 	return err
+	// }
 
-	if err = client.DetachPostgresCluster(ctx, input); err != nil {
-		return err
-	}
-	fmt.Fprintln(io.Out, "Detach completed successfully!")
+	// if len(attachments) == 0 {
+	// 	return fmt.Errorf("no attachments found")
+	// }
+
+	// selected := 0
+	// msg := "Select the attachment that you would like to detach (Database will remain intact): "
+	// options := []string{}
+	// for _, opt := range attachments {
+	// 	str := fmt.Sprintf("PG Database: %s, PG User: %s, Environment variable: %s",
+	// 		opt.DatabaseName,
+	// 		opt.DatabaseUser,
+	// 		opt.EnvironmentVariableName,
+	// 	)
+	// 	options = append(options, str)
+	// }
+	// if err = prompt.Select(ctx, &selected, msg, "", options...); err != nil {
+	// 	return err
+	// }
+
+	// targetAttachment := attachments[selected]
+
+	// pgclient := flypg.NewFromInstance(leaderIp, dialer)
+
+	// // Remove user if exists
+	// exists, err := pgclient.UserExists(ctx, targetAttachment.DatabaseUser)
+	// if err != nil {
+	// 	return err
+	// }
+	// if exists {
+	// 	err := pgclient.DeleteUser(ctx, targetAttachment.DatabaseUser)
+	// 	if err != nil {
+	// 		return fmt.Errorf("error running user-delete: %w", err)
+	// 	}
+	// }
+
+	// io := iostreams.FromContext(ctx)
+
+	// // Remove secret from consumer app.
+	// _, err = client.UnsetSecrets(ctx, appName, []string{targetAttachment.EnvironmentVariableName})
+	// if err != nil {
+	// 	// This will error if secret doesn't exist, so just send to stdout.
+	// 	fmt.Fprintln(io.Out, err.Error())
+	// } else {
+	// 	fmt.Fprintf(io.Out, "Secret %q was scheduled to be removed from app %s\n",
+	// 		targetAttachment.EnvironmentVariableName,
+	// 		app.Name,
+	// 	)
+	// }
+
+	// input := api.DetachPostgresClusterInput{
+	// 	AppID:                       appName,
+	// 	PostgresClusterId:           pgAppName,
+	// 	PostgresClusterAttachmentId: targetAttachment.ID,
+	// }
+
+	// if err = client.DetachPostgresCluster(ctx, input); err != nil {
+	// 	return err
+	// }
+	// fmt.Fprintln(io.Out, "Detach completed successfully!")
 
 	return nil
 }

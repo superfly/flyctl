@@ -1,0 +1,33 @@
+
+name: Rolling Restart
+require_lease: true
+operations:
+  - name: restart
+    type: flaps
+    flaps_command: 
+      action: restart
+      method: POST
+    selector:
+      health_check:
+        role: replica
+    wait_for_health_checks: true
+
+  - name: failover
+    type: http
+    http_command:
+      method: GET
+      endpoint: "/commands/admin/failover/trigger"
+      port: 5500
+    selector: 
+      health_check:
+        role: leader
+
+  - name: restart
+    type: flaps
+    flaps_command: 
+      action: restart
+      method: POST
+    selector:
+      health_check:
+        role: leader
+    wait_for_health_checks: true

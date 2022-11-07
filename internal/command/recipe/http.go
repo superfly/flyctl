@@ -70,6 +70,7 @@ func (c *Client) Do(ctx context.Context, method, path string, in, out interface{
 		return err
 	}
 	defer res.Body.Close()
+	fmt.Printf("Body: %+v", res)
 
 	if res.StatusCode > 299 {
 		return newError(res.StatusCode, res)

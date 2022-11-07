@@ -121,22 +121,25 @@ func runConnect(ctx context.Context) error {
 		template := recipe.RecipeTemplate{
 			Name: "Connect",
 			App:  app,
-			Operations: []recipe.Operation{
+			Operations: []*recipe.Operation{
 				{
 					Name: "connect",
-					Type: recipe.OperationTypeSSH,
-					SSHCommand: recipe.SSHCommand{
-						Command: fmt.Sprintf("connect %s %s %s", database, user, password),
+					Type: recipe.CommandTypeSSHConnect,
+					SSHConnectCommand: recipe.SSHConnectCommand{
+						Command: fmt.Sprintf("connect %s %s %s",
+							database, user, password),
 					},
-					HealthCheckSelector: recipe.HealthCheckSelector{
-						Name:  "role",
-						Value: "leader",
+					Selector: recipe.Selector{
+						HealthCheck: recipe.HealthCheckSelector{
+							Name:  "role",
+							Value: "leader",
+						},
 					},
 				},
 			},
 		}
-
 		return template.Process(ctx)
+
 	default:
 		return fmt.Errorf("platform %s is not supported", app.PlatformVersion)
 	}
