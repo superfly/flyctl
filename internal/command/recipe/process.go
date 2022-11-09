@@ -39,6 +39,7 @@ func (r *RecipeTemplate) Setup(ctx context.Context) (context.Context, error) {
 }
 
 func (r *RecipeTemplate) Process(ctx context.Context) error {
+	fmt.Printf("Starting recipe %q\n", r.Name)
 	ctx, err := r.Setup(ctx)
 	if err != nil {
 		return err
@@ -75,21 +76,18 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
+	// Evaluate selectors that require pre-processing.
+	for _, op := range r.Operations {
+		if op.Selector.Preprocess {
+			op.Targets = processSelectors(machines, op)
+		}
+	}
+
 	// Evaluate operations
 	for _, op := range r.Operations {
-		targetMachines := machines
-
-		// Evaluate selectors if provided
-		if op.Selector.HealthCheck != (HealthCheckSelector{}) {
-			var newTargets []*api.Machine
-			for _, m := range targetMachines {
-				for _, check := range m.Checks {
-					if check.Name == op.Selector.HealthCheck.Name && check.Output == op.Selector.HealthCheck.Value {
-						newTargets = append(newTargets, m)
-					}
-				}
-			}
-			targetMachines = newTargets
+		// Process selectors if they were not pre-processed.
+		if !op.Selector.Preprocess {
+			op.Targets = processSelectors(machines, op)
 		}
 
 		if op.Prompt != (PromptDefinition{}) {
@@ -115,7 +113,7 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 				Stdin:  os.Stdin,
 				Stdout: os.Stdout,
 				Stderr: os.Stderr,
-			}, targetMachines[0].PrivateIP)
+			}, op.Targets[0].PrivateIP)
 			if err != nil {
 				return err
 			}
@@ -149,7 +147,7 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 			continue
 		}
 
-		for _, machine := range targetMachines {
+		for _, machine := range op.Targets {
 			fmt.Printf("Performing %s command %q against: %s\n", op.Type, op.Name, machine.ID)
 
 			switch op.Type {
@@ -162,7 +160,6 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 
 				options := strings.Join(argArr, "&")
 				path := fmt.Sprintf("/%s/%s?%s", machine.ID, op.FlapsCommand.Action, options)
-				fmt.Printf("Path: %s\n", path)
 				if err = flapsClient.SendRequest(ctx, op.FlapsCommand.Method, path, nil, nil, nil); err != nil {
 					return err
 				}
@@ -194,5 +191,27 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 		}
 	}
 
+	fmt.Printf("Recipe %q finished successfully!\n", r.Name)
+
 	return nil
+}
+
+func processSelectors(machines []*api.Machine, op *Operation) []*api.Machine {
+	if op.Selector == (Selector{}) {
+		return machines
+	}
+
+	var targets []*api.Machine
+
+	for _, m := range machines {
+		if op.Selector.HealthCheck != (HealthCheckSelector{}) {
+			for _, check := range m.Checks {
+				if check.Name == op.Selector.HealthCheck.Name && check.Output == op.Selector.HealthCheck.Value {
+					targets = append(targets, m)
+				}
+			}
+		}
+	}
+
+	return targets
 }

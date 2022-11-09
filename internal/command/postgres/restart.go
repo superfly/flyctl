@@ -88,7 +88,7 @@ func runRestart(ctx context.Context) error {
 							Value: "replica",
 						},
 					},
-					WaitForHealthChecks: true,
+					WaitForHealthChecks: false,
 				},
 				{
 					Name: "failover",
@@ -121,8 +121,9 @@ func runRestart(ctx context.Context) error {
 							Name:  "role",
 							Value: "leader",
 						},
+						Preprocess: true,
 					},
-					WaitForHealthChecks: true,
+					WaitForHealthChecks: false,
 				},
 			},
 		}
@@ -131,7 +132,6 @@ func runRestart(ctx context.Context) error {
 			return nil
 		}
 
-		fmt.Printf("Result: %+v", template.Operations[0].HTTPCommand.Result)
 	}
 
 	return nil

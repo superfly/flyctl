@@ -12,6 +12,7 @@ const (
 	CommandTypeSSHConnect = "ssh_connect"
 	CommandTypeSSHCommand = "ssh_command"
 	CommandTypeGraphql    = "graphql"
+	CommandTypeWait       = "wait"
 	CommandTypeCustom     = "custom"
 )
 
@@ -51,7 +52,7 @@ type GraphQLCommand struct {
 	Result    *api.Query
 }
 
-type WaitForDefinition struct {
+type WaitCommand struct {
 	HealthCheck HealthCheckSelector
 }
 
@@ -59,24 +60,30 @@ type PromptDefinition struct {
 	Message string
 }
 
-type Selector struct {
-	HealthCheck HealthCheckSelector
-}
-
 type CustomCommand func() error
 
 type Operation struct {
-	Name                string
-	Prompt              PromptDefinition
-	Type                CommandType
-	FlapsCommand        FlapsCommand
-	HTTPCommand         HTTPCommand
-	SSHConnectCommand   SSHConnectCommand
-	SSHRunCommand       SSHRunCommand
-	CustomCommand       CustomCommand
-	GraphQLCommand      GraphQLCommand
+	Name   string
+	Prompt PromptDefinition
+	Type   CommandType
+
+	GraphQLCommand    GraphQLCommand
+	FlapsCommand      FlapsCommand
+	HTTPCommand       HTTPCommand
+	SSHConnectCommand SSHConnectCommand
+	SSHRunCommand     SSHRunCommand
+	WaitCommand       WaitCommand
+	CustomCommand     CustomCommand
+
 	Selector            Selector
 	WaitForHealthChecks bool
+
+	Targets []*api.Machine
+}
+
+type Selector struct {
+	HealthCheck HealthCheckSelector
+	Preprocess  bool
 }
 
 type RecipeTemplate struct {
