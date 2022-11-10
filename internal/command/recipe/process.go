@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
+	"github.com/avast/retry-go/v4"
+	"github.com/hashicorp/go-version"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
@@ -13,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/watch"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func (r *RecipeTemplate) Setup(ctx context.Context) (context.Context, error) {
@@ -39,23 +43,26 @@ func (r *RecipeTemplate) Setup(ctx context.Context) (context.Context, error) {
 }
 
 func (r *RecipeTemplate) Process(ctx context.Context) error {
-	fmt.Printf("Starting recipe %q\n", r.Name)
 	ctx, err := r.Setup(ctx)
 	if err != nil {
 		return err
 	}
 
+	io := iostreams.FromContext(ctx)
 	flapsClient := flaps.FromContext(ctx)
 	dialer := agent.DialerFromContext(ctx)
 	client := client.FromContext(ctx).API()
 
+	fmt.Fprintf(io.Out, "Processing Recipe: %q\n", r.Name)
+
+	machines, err := flapsClient.ListActive(ctx)
+	if err != nil {
+		return fmt.Errorf("machines could not be retrieved %w", err)
+	}
+
 	// Evaluate whether we require a lease.
 	if r.RequireLease {
-		fmt.Printf("Acquiring lease\n")
-		machines, err := flapsClient.ListActive(ctx)
-		if err != nil {
-			return fmt.Errorf("machines could not be retrieved %w", err)
-		}
+		fmt.Fprintln(io.Out, "Acquiring lease")
 
 		for _, machine := range machines {
 			lease, err := flapsClient.GetLease(ctx, machine.ID, api.IntPointer(40))
@@ -67,19 +74,25 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 			// Ensure lease is released on return
 			defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
 		}
+
+		// Requery machines after lease acquisition so we can ensure we are evaluating the most
+		// up-to-date configuration.
+		machines, err = flapsClient.ListActive(ctx)
+		if err != nil {
+			return fmt.Errorf("machines could not be retrieved %w", err)
+		}
 	}
 
-	// Requery machines after lease acquisition so we can ensure we are evaluating the most
-	// up-to-date configuration.
-	machines, err := flapsClient.ListActive(ctx)
-	if err != nil {
-		return fmt.Errorf("machines could not be retrieved %w", err)
+	// Verify constraints
+	fmt.Fprintln(io.Out, "Verifying constraints")
+	if err = r.verifyConstraints(machines); err != nil {
+		return err
 	}
 
 	// Evaluate selectors that require pre-processing.
 	for _, op := range r.Operations {
 		if op.Selector.Preprocess {
-			op.Targets = processSelectors(machines, op)
+			op.Targets = op.ProcessSelectors(machines)
 		}
 	}
 
@@ -87,7 +100,7 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 	for _, op := range r.Operations {
 		// Process selectors if they were not pre-processed.
 		if !op.Selector.Preprocess {
-			op.Targets = processSelectors(machines, op)
+			op.Targets = op.ProcessSelectors(machines)
 		}
 
 		if op.Prompt != (PromptDefinition{}) {
@@ -104,6 +117,8 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 		switch op.Type {
 		// SSH Connect
 		case CommandTypeSSHConnect:
+			fmt.Fprintf(io.Out, "Performing %s command %q\n", op.Type, op.Name)
+
 			err := ssh.SSHConnect(&ssh.SSHParams{
 				Ctx:    ctx,
 				Org:    r.App.Organization,
@@ -121,7 +136,8 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 			continue
 		// GraphQL
 		case CommandTypeGraphql:
-			fmt.Printf("Performing %s command %q\n", op.Type, op.Name)
+			fmt.Fprintf(io.Out, "Performing %s command %q\n", op.Type, op.Name)
+
 			req := client.NewRequest(op.GraphQLCommand.Query)
 
 			for key, value := range op.GraphQLCommand.Variables {
@@ -137,8 +153,47 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 
 			continue
 
+		case CommandTypeWaitFor:
+			fmt.Fprintf(io.Out, "Performing %s command %q\n", op.Type, op.Name)
+
+			if op.WaitForCommand.HealthCheck == (HealthCheckSelector{}) {
+				continue
+			}
+
+			retries := op.WaitForCommand.Retries
+			if retries != 0 {
+				retries = 30 // default
+			}
+
+			interval := op.WaitForCommand.Interval
+			if interval.String() == "0s" {
+				interval = time.Second // default
+			}
+
+			// TODO - This should work with multiple targets
+			machine := op.Targets[0]
+
+			if err := retry.Do(
+				func() error {
+					machine, err = flapsClient.Get(ctx, machine.ID)
+					if err != nil {
+						return err
+					}
+					if matchesHealthCheckConstraints(machine, op.WaitForCommand.HealthCheck) {
+						return fmt.Errorf("%s does not meet condition yet: %v", machine.ID, op.WaitForCommand.HealthCheck)
+					}
+
+					return nil
+				},
+				retry.Context(ctx), retry.Attempts(uint(retries)), retry.Delay(interval), retry.DelayType(retry.FixedDelay),
+			); err != nil {
+				return err
+			}
+
+			continue
+
 		case CommandTypeCustom:
-			fmt.Printf("Performing %s command %q\n", op.Type, op.Name)
+			fmt.Fprintf(io.Out, "Performing %s command %q\n", op.Type, op.Name)
 
 			if err := op.CustomCommand(); err != nil {
 				return err
@@ -148,7 +203,7 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 		}
 
 		for _, machine := range op.Targets {
-			fmt.Printf("Performing %s command %q against: %s\n", op.Type, op.Name, machine.ID)
+			fmt.Fprintf(io.Out, "Performing %s command %q against: %s\n", op.Type, op.Name, machine.ID)
 
 			switch op.Type {
 			// Flaps
@@ -191,27 +246,73 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 		}
 	}
 
-	fmt.Printf("Recipe %q finished successfully!\n", r.Name)
+	fmt.Fprintf(io.Out, "%q finished successfully!\n", r.Name)
 
 	return nil
 }
 
-func processSelectors(machines []*api.Machine, op *Operation) []*api.Machine {
-	if op.Selector == (Selector{}) {
-		return machines
+func (r *RecipeTemplate) verifyConstraints(machines []*api.Machine) error {
+
+	if r.Constraints.AppRoleID != "" && r.Constraints.AppRoleID != r.App.PostgresAppRole.Name {
+		return fmt.Errorf("Recipe %s is not compatible with app %s", r.Name, r.App.Name)
 	}
 
-	var targets []*api.Machine
+	if r.Constraints.PlatformVersion != "" && r.App.PlatformVersion != r.Constraints.PlatformVersion {
+		return fmt.Errorf("Recipe %s is not compatible with apps running on %s", r.Name, r.App.PlatformVersion)
+	}
 
-	for _, m := range machines {
-		if op.Selector.HealthCheck != (HealthCheckSelector{}) {
-			for _, check := range m.Checks {
-				if check.Name == op.Selector.HealthCheck.Name && check.Output == op.Selector.HealthCheck.Value {
-					targets = append(targets, m)
+	if len(r.Constraints.Images) != 0 {
+		var verfiedMachines []*api.Machine
+		for _, m := range machines {
+			valid := false
+
+			// If there are multiple image requirements present only one
+			// of the image requirements need to be met.
+			for _, img := range r.Constraints.Images {
+
+				if img.Registry != "" {
+					if img.Registry != m.ImageRef.Registry {
+						continue
+					}
 				}
+
+				if img.Repository != "" {
+					if img.Repository != m.ImageRef.Repository {
+						continue
+					}
+				}
+
+				if img.MinFlyVersion != "" {
+					requiredVersion, err := version.NewVersion(img.MinFlyVersion)
+					if err != nil {
+						return err
+					}
+
+					imageVersionStr := m.ImageVersion()[1:]
+					imageVersion, err := version.NewVersion(imageVersionStr)
+					if err != nil {
+						return err
+					}
+
+					if imageVersion.LessThan(requiredVersion) {
+						continue
+					}
+				}
+				valid = true
+			}
+
+			if valid {
+				verfiedMachines = append(verfiedMachines, m)
 			}
 		}
+
+		// Expand on the output provided here so it's clear to the end user
+		// which requirements were not met.
+		if len(verfiedMachines) != len(machines) {
+			return fmt.Errorf("Image requirements were not met")
+		}
+
 	}
 
-	return targets
+	return nil
 }

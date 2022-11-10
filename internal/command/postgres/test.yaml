@@ -1,6 +1,12 @@
-
-name: Rolling Restart
+name: Postgres Rolling Restart
 require_lease: true
+constraints: 
+  app_role_id: "postgres_cluster"
+  platform_version: "machines"
+  images: 
+  - repository: "flyio/postgres"
+    min_fly_version: "0.0.20"
+  - repository: "flyio/postgres-standalone"
 operations:
   - name: restart
     type: flaps
@@ -30,4 +36,17 @@ operations:
     selector:
       health_check:
         role: leader
+      preprocess: true
+    wait_for_health_checks: true
+
+
+---
+name: Rolling Restart
+require_lease: true
+operations:
+  - name: restart
+    type: flaps
+    flaps_command: 
+      action: restart
+      method: POST
     wait_for_health_checks: true

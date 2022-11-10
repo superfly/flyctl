@@ -1,6 +1,8 @@
 package recipe
 
 import (
+	"time"
+
 	"github.com/superfly/flyctl/api"
 )
 
@@ -12,7 +14,7 @@ const (
 	CommandTypeSSHConnect = "ssh_connect"
 	CommandTypeSSHCommand = "ssh_command"
 	CommandTypeGraphql    = "graphql"
-	CommandTypeWait       = "wait"
+	CommandTypeWaitFor    = "wait_for"
 	CommandTypeCustom     = "custom"
 )
 
@@ -52,8 +54,11 @@ type GraphQLCommand struct {
 	Result    *api.Query
 }
 
-type WaitCommand struct {
+type WaitForCommand struct {
 	HealthCheck HealthCheckSelector
+
+	Retries  int
+	Interval time.Duration
 }
 
 type PromptDefinition struct {
@@ -72,7 +77,7 @@ type Operation struct {
 	HTTPCommand       HTTPCommand
 	SSHConnectCommand SSHConnectCommand
 	SSHRunCommand     SSHRunCommand
-	WaitCommand       WaitCommand
+	WaitForCommand    WaitForCommand
 	CustomCommand     CustomCommand
 
 	Selector            Selector
@@ -86,11 +91,24 @@ type Selector struct {
 	Preprocess  bool
 }
 
+type Constraints struct {
+	AppRoleID       string
+	PlatformVersion string
+	Images          []ImageRequirements
+}
+
+type ImageRequirements struct {
+	Registry      string
+	Repository    string
+	MinFlyVersion string
+}
+
 type RecipeTemplate struct {
 	Name         string
 	App          *api.AppCompact
 	RequireLease bool
 	Operations   []*Operation
+	Constraints  Constraints
 }
 
 type HealthCheckSelector struct {

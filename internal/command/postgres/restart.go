@@ -43,6 +43,40 @@ func newRestart() *cobra.Command {
 	return cmd
 }
 
+// imageVersionStr := app.ImageDetails.Version[1:]
+// imageVersion, err := version.NewVersion(imageVersionStr)
+// if err != nil {
+// 	return err
+// }
+
+// // Specify compatible versions per repo.
+// requiredVersion := &version.Version{}
+// if app.ImageDetails.Repository == "flyio/postgres-standalone" {
+// 	requiredVersion, err = version.NewVersion(standalone)
+// 	if err != nil {
+// 		return err
+// 	}
+// }
+// if app.ImageDetails.Repository == "flyio/postgres" {
+// 	requiredVersion, err = version.NewVersion(cluster)
+// 	if err != nil {
+// 		return err
+// 	}
+// }
+
+// if requiredVersion == nil {
+// 	return fmt.Errorf("unable to resolve image version")
+// }
+
+// if imageVersion.LessThan(requiredVersion) {
+// 	return fmt.Errorf(
+// 		"image version is not compatible. (Current: %s, Required: >= %s)\n"+
+// 			"Please run 'flyctl image show' and update to the latest available version",
+// 		imageVersion, requiredVersion.String())
+// }
+
+// return nil
+
 func runRestart(ctx context.Context) error {
 	var (
 		MinPostgresHaVersion = "0.0.20"
@@ -71,6 +105,18 @@ func runRestart(ctx context.Context) error {
 			Name:         "Rolling restart",
 			App:          app,
 			RequireLease: true,
+			Constraints: recipe.Constraints{
+				AppRoleID: "postgres_cluster",
+				Images: []recipe.ImageRequirements{
+					{
+						Repository:    "flyio/postgres",
+						MinFlyVersion: "0.0.20",
+					},
+					{
+						Repository: "flyio/postgres-standalone",
+					},
+				},
+			},
 			Operations: []*recipe.Operation{
 				{
 					Name: "restart",
@@ -88,7 +134,7 @@ func runRestart(ctx context.Context) error {
 							Value: "replica",
 						},
 					},
-					WaitForHealthChecks: false,
+					WaitForHealthChecks: true,
 				},
 				{
 					Name: "failover",
@@ -123,13 +169,13 @@ func runRestart(ctx context.Context) error {
 						},
 						Preprocess: true,
 					},
-					WaitForHealthChecks: false,
+					WaitForHealthChecks: true,
 				},
 			},
 		}
 
 		if err := template.Process(ctx); err != nil {
-			return nil
+			return err
 		}
 
 	}

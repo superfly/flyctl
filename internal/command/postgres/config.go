@@ -270,6 +270,18 @@ func runConfigUpdate(ctx context.Context) (err error) {
 		return fmt.Errorf("get app: %w", err)
 	}
 
+	agentclient, err := agent.Establish(ctx, client)
+	if err != nil {
+		return errors.Wrap(err, "can't establish agent")
+	}
+
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+	if err != nil {
+		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
+	}
+
+	ctx = agent.DialerWithContext(ctx, dialer)
+
 	cmd, err := flypg.NewCommand(ctx, app)
 	if err != nil {
 		return err
@@ -291,18 +303,6 @@ func runConfigUpdate(ctx context.Context) (err error) {
 	if len(rChanges) == 0 {
 		return fmt.Errorf("no changes were specified")
 	}
-
-	agentclient, err := agent.Establish(ctx, client)
-	if err != nil {
-		return errors.Wrap(err, "can't establish agent")
-	}
-
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
-	if err != nil {
-		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
-	}
-
-	ctx = agent.DialerWithContext(ctx, dialer)
 
 	pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
 	if err != nil {

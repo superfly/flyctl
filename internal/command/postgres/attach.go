@@ -172,6 +172,15 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 			Name:         "PG Attach",
 			App:          pgApp,
 			RequireLease: true,
+			Constraints: recipe.Constraints{
+				AppRoleID: "postgres_cluster",
+				Images: []recipe.ImageRequirements{
+					{
+						Repository:    "flyio/postgres",
+						MinFlyVersion: MinPostgresHaVersion,
+					},
+				},
+			},
 			Operations: []*recipe.Operation{
 				{
 					Name: "create-attachment",

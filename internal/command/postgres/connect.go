@@ -66,10 +66,6 @@ func runConnect(ctx context.Context) error {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	if !app.IsPostgresApp() {
-		return fmt.Errorf("app %s is not a postgres app", appName)
-	}
-
 	database := flag.GetString(ctx, "database")
 	user := flag.GetString(ctx, "user")
 	password := flag.GetString(ctx, "password")
@@ -78,6 +74,11 @@ func runConnect(ctx context.Context) error {
 
 	switch app.PlatformVersion {
 	case "nomad":
+
+		if !app.IsPostgresApp() {
+			return fmt.Errorf("app %s is not a postgres app", appName)
+		}
+
 		agentclient, err := agent.Establish(ctx, client)
 		if err != nil {
 			return fmt.Errorf("failed to establish agent: %w", err)
@@ -118,9 +119,23 @@ func runConnect(ctx context.Context) error {
 		}, leaderIP)
 
 	case "machines":
+
 		template := recipe.RecipeTemplate{
-			Name: "Connect",
+			Name: "Postgres connect",
 			App:  app,
+			Constraints: recipe.Constraints{
+				AppRoleID: "postgres_cluster",
+				Images: []recipe.ImageRequirements{
+					{
+						Repository:    "flyio/postgres",
+						MinFlyVersion: MinPostgresHaVersion,
+					},
+					{
+						Repository:    "flyio/postgres-standalone",
+						MinFlyVersion: MinPostgresStandaloneVersion,
+					},
+				},
+			},
 			Operations: []*recipe.Operation{
 				{
 					Name: "connect",
@@ -138,7 +153,12 @@ func runConnect(ctx context.Context) error {
 				},
 			},
 		}
-		return template.Process(ctx)
+
+		if err = template.Process(ctx); err != nil {
+			return err
+		}
+
+		return nil
 
 	default:
 		return fmt.Errorf("platform %s is not supported", app.PlatformVersion)
