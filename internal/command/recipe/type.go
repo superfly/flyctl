@@ -57,8 +57,8 @@ type GraphQLCommand struct {
 type WaitForCommand struct {
 	HealthCheck HealthCheckSelector
 
-	Retries  int
-	Interval time.Duration
+	MaxRetries int
+	Interval   time.Duration
 }
 
 type PromptDefinition struct {

@@ -160,7 +160,7 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 				continue
 			}
 
-			retries := op.WaitForCommand.Retries
+			retries := op.WaitForCommand.MaxRetries
 			if retries != 0 {
 				retries = 30 // default
 			}

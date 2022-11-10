@@ -84,8 +84,8 @@ func runFailover(ctx context.Context) error {
 						Name:  "role",
 						Value: "replica",
 					},
-					Retries:  30,
-					Interval: time.Second,
+					MaxRetries: 30,
+					Interval:   time.Second,
 				},
 				Selector: recipe.Selector{
 					HealthCheck: recipe.HealthCheckSelector{
