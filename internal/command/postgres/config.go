@@ -416,7 +416,7 @@ func runConfigUpdate(ctx context.Context) (err error) {
 					return nil
 				}
 			case prompt.IsNonInteractive(err):
-				return prompt.NonInteractiveError("auto-confirm flag must be specified when not running interactively")
+				return prompt.NonInteractiveError("confirm-restart flag must be specified when not running interactively")
 			default:
 				return err
 			}
