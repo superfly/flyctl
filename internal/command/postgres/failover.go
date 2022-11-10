@@ -47,7 +47,7 @@ func runFailover(ctx context.Context) error {
 	}
 
 	template := recipe.RecipeTemplate{
-		Name:         "Rolling restart",
+		Name:         "PG Failover",
 		App:          app,
 		RequireLease: true,
 		Constraints: recipe.Constraints{
