@@ -167,7 +167,6 @@ func runRestart(ctx context.Context) error {
 							Name:  "role",
 							Value: "leader",
 						},
-						Preprocess: true,
 					},
 					WaitForHealthChecks: true,
 				},

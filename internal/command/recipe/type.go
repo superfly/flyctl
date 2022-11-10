@@ -88,7 +88,7 @@ type Operation struct {
 
 type Selector struct {
 	HealthCheck HealthCheckSelector
-	Preprocess  bool
+	Runtime     bool
 }
 
 type Constraints struct {

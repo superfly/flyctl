@@ -92,7 +92,6 @@ func runFailover(ctx context.Context) error {
 						Name:  "role",
 						Value: "leader",
 					},
-					Preprocess: true,
 				},
 			},
 		},

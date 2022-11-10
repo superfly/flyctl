@@ -89,9 +89,9 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 		return err
 	}
 
-	// Evaluate selectors that require pre-processing.
+	// Evaluate selectors
 	for _, op := range r.Operations {
-		if op.Selector.Preprocess {
+		if !op.Selector.Runtime {
 			op.Targets = op.ProcessSelectors(machines)
 		}
 	}
@@ -99,7 +99,7 @@ func (r *RecipeTemplate) Process(ctx context.Context) error {
 	// Evaluate operations
 	for _, op := range r.Operations {
 		// Process selectors if they were not pre-processed.
-		if !op.Selector.Preprocess {
+		if op.Selector.Runtime {
 			op.Targets = op.ProcessSelectors(machines)
 		}
 
