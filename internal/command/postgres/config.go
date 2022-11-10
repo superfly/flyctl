@@ -249,6 +249,10 @@ func newConfigUpdate() (cmd *cobra.Command) {
 			Name:        "force",
 			Description: "Skips pg-setting value verification.",
 		},
+		flag.Bool{
+			Name:        "confirm-restart",
+			Description: "Will automatically confirm restart without an interactive prompt.",
+		},
 	)
 
 	return
@@ -300,6 +304,12 @@ func runConfigUpdate(ctx context.Context) (err error) {
 	}
 
 	ctx = agent.DialerWithContext(ctx, dialer)
+
+	flapsClient, err := flaps.New(ctx, app)
+	if err != nil {
+		return err
+	}
+	ctx = flaps.NewContext(ctx, flapsClient)
 
 	pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
 	if err != nil {
@@ -398,7 +408,43 @@ func runConfigUpdate(ctx context.Context) (err error) {
 	if restartRequired {
 		fmt.Fprintln(io.Out, colorize.Yellow("Please note that some of your changes will require a cluster restart before they will be applied."))
 		fmt.Fprintln(io.Out, colorize.Yellow("To review the state of your changes, run: `fly postgres config view`"))
+
+		if !flag.GetBool(ctx, "confirm-restart") {
+			switch confirmed, err := prompt.Confirm(ctx, "Restart cluster now?"); {
+			case err == nil:
+				if !confirmed {
+					return nil
+				}
+			case prompt.IsNonInteractive(err):
+				return prompt.NonInteractiveError("confirm-restart flag must be specified when not running interactively")
+			default:
+				return err
+			}
+		}
+
+		switch app.PlatformVersion {
+		case "nomad":
+			allocs, err := client.GetAllocations(ctx, app.Name, false)
+			if err != nil {
+				return fmt.Errorf("can't fetch allocations: %w", err)
+			}
+			if err := nomadRestart(ctx, allocs); err != nil {
+				return err
+			}
+		case "machines":
+			machines, err := flapsClient.ListActive(ctx)
+			if err != nil {
+				return fmt.Errorf("machines could not be retrieved %w", err)
+			}
+			if err := machinesRestart(ctx, machines); err != nil {
+				return fmt.Errorf("error restarting cluster: %w", err)
+			}
+		default:
+			return fmt.Errorf("app %s has an invalid platform flag", app.Name)
+		}
+
 	}
+
 	return
 }
 
@@ -407,12 +453,8 @@ func updateMachinesConfig(ctx context.Context, app *api.AppCompact, changes map[
 		io     = iostreams.FromContext(ctx)
 		dialer = agent.DialerFromContext(ctx)
 		cmd    = flypg.CommandFromContext(ctx)
+		fclt   = flaps.FromContext(ctx)
 	)
-
-	fclt, err := flaps.New(ctx, app)
-	if err != nil {
-		return fmt.Errorf("list of machines could not be retrieved: %w", err)
-	}
 
 	machines, err := fclt.ListActive(ctx)
 	if err != nil {
