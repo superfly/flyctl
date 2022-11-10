@@ -53,7 +53,7 @@ func runFailover(ctx context.Context) error {
 		Constraints: recipe.Constraints{
 			AppRoleID:       "postgres_cluster",
 			PlatformVersion: "machines",
-			Images: []recipe.ImageRequirements{
+			Images: []recipe.ImageConstraints{
 				{
 					Repository:    "flyio/postgres",
 					MinFlyVersion: MinPostgresHaVersion,

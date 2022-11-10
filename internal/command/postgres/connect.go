@@ -125,7 +125,7 @@ func runConnect(ctx context.Context) error {
 			App:  app,
 			Constraints: recipe.Constraints{
 				AppRoleID: "postgres_cluster",
-				Images: []recipe.ImageRequirements{
+				Images: []recipe.ImageConstraints{
 					{
 						Repository:    "flyio/postgres",
 						MinFlyVersion: MinPostgresHaVersion,

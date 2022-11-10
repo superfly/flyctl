@@ -174,7 +174,7 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 			RequireLease: true,
 			Constraints: recipe.Constraints{
 				AppRoleID: "postgres_cluster",
-				Images: []recipe.ImageRequirements{
+				Images: []recipe.ImageConstraints{
 					{
 						Repository:    "flyio/postgres",
 						MinFlyVersion: MinPostgresHaVersion,

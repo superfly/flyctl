@@ -94,10 +94,10 @@ type Selector struct {
 type Constraints struct {
 	AppRoleID       string
 	PlatformVersion string
-	Images          []ImageRequirements
+	Images          []ImageConstraints
 }
 
-type ImageRequirements struct {
+type ImageConstraints struct {
 	Registry      string
 	Repository    string
 	MinFlyVersion string

@@ -107,7 +107,7 @@ func runRestart(ctx context.Context) error {
 			RequireLease: true,
 			Constraints: recipe.Constraints{
 				AppRoleID: "postgres_cluster",
-				Images: []recipe.ImageRequirements{
+				Images: []recipe.ImageConstraints{
 					{
 						Repository:    "flyio/postgres",
 						MinFlyVersion: "0.0.20",
