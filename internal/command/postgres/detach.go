@@ -71,7 +71,7 @@ func runDetach(ctx context.Context) error {
 	var leaderIp string
 	switch pgApp.PlatformVersion {
 	case "nomad":
-		if err := hasRequiredVersionOnNomad(pgApp, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		if err := NomadPGVersionCompatible(pgApp, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
 		pgInstances, err := agentclient.Instances(ctx, pgApp.Organization.Slug, pgApp.Name)
@@ -96,13 +96,13 @@ func runDetach(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("machines could not be retrieved %w", err)
 		}
-		if err := hasRequiredVersionOnMachines(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		if err := MachinePGVersionCompatible(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
 		if len(members) == 0 {
 			return fmt.Errorf("no 6pn ips founds for %s app", pgAppName)
 		}
-		leader, _ := machinesNodeRoles(ctx, members)
+		leader, _ := MachinesNodeRoles(ctx, members)
 		leaderIp = leader.PrivateIP
 	}
 

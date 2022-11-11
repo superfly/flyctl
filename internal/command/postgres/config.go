@@ -106,7 +106,7 @@ func runConfigView(ctx context.Context) (err error) {
 	var firstPgIp net.IP
 	switch app.PlatformVersion {
 	case "nomad":
-		if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		if err := NomadPGVersionCompatible(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
 		pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
@@ -127,10 +127,10 @@ func runConfigView(ctx context.Context) (err error) {
 		if err != nil {
 			return fmt.Errorf("machines could not be retrieved %w", err)
 		}
-		if err := hasRequiredVersionOnMachines(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		if err := MachinePGVersionCompatible(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
-		leader, _ := machinesNodeRoles(ctx, members)
+		leader, _ := MachinesNodeRoles(ctx, members)
 		firstPgIp = net.ParseIP(leader.PrivateIP)
 	}
 

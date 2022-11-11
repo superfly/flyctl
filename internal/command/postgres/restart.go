@@ -25,7 +25,7 @@ func newRestart() *cobra.Command {
 		usage = "restart"
 	)
 
-	cmd := command.New(usage, short, long, runRestart,
+	cmd := command.New(usage, short, long, Restart,
 		command.RequireSession,
 		command.RequireAppName,
 	)
@@ -44,7 +44,7 @@ func newRestart() *cobra.Command {
 	return cmd
 }
 
-func runRestart(ctx context.Context) error {
+func Restart(ctx context.Context) error {
 	var (
 		MinPostgresHaVersion = "0.0.20"
 		client               = client.FromContext(ctx).API()
@@ -73,7 +73,7 @@ func runRestart(ctx context.Context) error {
 
 	switch app.PlatformVersion {
 	case "nomad":
-		if err = hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		if err = NomadPGVersionCompatible(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
 		vms, err := client.GetAllocations(ctx, app.Name, false)
@@ -96,7 +96,7 @@ func runRestart(ctx context.Context) error {
 		if len(machines) == 0 {
 			return fmt.Errorf("no machines found")
 		}
-		if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		if err := MachinePGVersionCompatible(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
 		return machinesRestart(ctx, machines)
@@ -114,7 +114,7 @@ func nomadRestart(ctx context.Context, allocs []*api.AllocationStatus) (err erro
 		colorize = io.ColorScheme()
 	)
 
-	leader, replicas, err := nomadNodeRoles(ctx, allocs)
+	leader, replicas, err := NomadNodeRoles(ctx, allocs)
 	if err != nil {
 		return
 	}
@@ -184,7 +184,7 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 		fmt.Fprintf(io.Out, "  Machine %s: %s\n", colorize.Bold(machine.ID), lease.Status)
 	}
 
-	leader, replicas := machinesNodeRoles(ctx, machines)
+	leader, replicas := MachinesNodeRoles(ctx, machines)
 
 	// unless flag.force is set, we should error if leader==nil
 	if flag.GetBool(ctx, "force") && leader == nil {
@@ -196,7 +196,7 @@ func machinesRestart(ctx context.Context, machines []*api.Machine) (err error) {
 	fmt.Fprintln(io.Out, "Identifying cluster role(s)")
 
 	for _, machine := range machines {
-		fmt.Fprintf(io.Out, "  Machine %s: %s\n", colorize.Bold(machine.ID), machineRole(machine))
+		fmt.Fprintf(io.Out, "  Machine %s: %s\n", colorize.Bold(machine.ID), MachineRole(machine))
 	}
 
 	if len(replicas) > 0 {

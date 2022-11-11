@@ -39,7 +39,7 @@ func New() *cobra.Command {
 	return cmd
 }
 
-func hasRequiredVersionOnNomad(app *api.AppCompact, cluster, standalone string) error {
+func NomadPGVersionCompatible(app *api.AppCompact, cluster, standalone string) error {
 	// Validate image version to ensure it's compatible with this feature.
 	if app.ImageDetails.Version == "" || app.ImageDetails.Version == "unknown" {
 		return fmt.Errorf("command is not compatible with this image")
@@ -80,7 +80,7 @@ func hasRequiredVersionOnNomad(app *api.AppCompact, cluster, standalone string) 
 	return nil
 }
 
-func hasRequiredVersionOnMachines(machines []*api.Machine, cluster, standalone string) error {
+func MachinePGVersionCompatible(machines []*api.Machine, cluster, standalone string) error {
 	for _, machine := range machines {
 		// Validate image version to ensure it's compatible with this feature.
 		if machine.ImageVersion() == "" || machine.ImageVersion() == "unknown" {
@@ -124,9 +124,9 @@ func hasRequiredVersionOnMachines(machines []*api.Machine, cluster, standalone s
 	return nil
 }
 
-func machinesNodeRoles(ctx context.Context, machines []*api.Machine) (leader *api.Machine, replicas []*api.Machine) {
+func MachinesNodeRoles(ctx context.Context, machines []*api.Machine) (leader *api.Machine, replicas []*api.Machine) {
 	for _, machine := range machines {
-		role := machineRole(machine)
+		role := MachineRole(machine)
 
 		switch role {
 		case "leader":
@@ -140,7 +140,7 @@ func machinesNodeRoles(ctx context.Context, machines []*api.Machine) (leader *ap
 	return leader, replicas
 }
 
-func nomadNodeRoles(ctx context.Context, allocs []*api.AllocationStatus) (leader *api.AllocationStatus, replicas []*api.AllocationStatus, err error) {
+func NomadNodeRoles(ctx context.Context, allocs []*api.AllocationStatus) (leader *api.AllocationStatus, replicas []*api.AllocationStatus, err error) {
 	dialer := agent.DialerFromContext(ctx)
 
 	for _, alloc := range allocs {
@@ -164,6 +164,22 @@ func nomadNodeRoles(ctx context.Context, allocs []*api.AllocationStatus) (leader
 	return leader, replicas, nil
 }
 
+func MachineRole(machine *api.Machine) (role string) {
+	role = "unknown"
+
+	for _, check := range machine.Checks {
+		if check.Name == "role" {
+			if check.Status == "passing" {
+				role = check.Output
+			} else {
+				role = "error"
+			}
+			break
+		}
+	}
+	return role
+}
+
 func leaderIpFromNomadInstances(ctx context.Context, addrs []string) (string, error) {
 	dialer := agent.DialerFromContext(ctx)
 	for _, addr := range addrs {
@@ -180,25 +196,9 @@ func leaderIpFromNomadInstances(ctx context.Context, addrs []string) (string, er
 	return "", fmt.Errorf("no instances found with leader role")
 }
 
-func machineRole(machine *api.Machine) (role string) {
-	role = "unknown"
-
-	for _, check := range machine.Checks {
-		if check.Name == "role" {
-			if check.Status == "passing" {
-				role = check.Output
-			} else {
-				role = "error"
-			}
-			break
-		}
-	}
-	return role
-}
-
 func pickLeader(ctx context.Context, machines []*api.Machine) (*api.Machine, error) {
 	for _, machine := range machines {
-		if machineRole(machine) == "leader" {
+		if MachineRole(machine) == "leader" {
 			return machine, nil
 		}
 	}
