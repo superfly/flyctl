@@ -24,6 +24,7 @@ func New() (cmd *cobra.Command) {
 		newUpdate(),
 		newConnect(),
 		newDashboard(),
+		newReset(),
 	)
 
 	return cmd
