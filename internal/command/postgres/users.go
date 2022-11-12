@@ -116,7 +116,7 @@ func runListUsers(ctx context.Context) (err error) {
 		if err := hasRequiredVersionOnMachines(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
-		leader, _ := machineNodeRoles(ctx, members)
+		leader, _ := machinesNodeRoles(ctx, members)
 		leaderIp = leader.PrivateIP
 	default:
 		return fmt.Errorf("unsupported platform %s", app.PlatformVersion)

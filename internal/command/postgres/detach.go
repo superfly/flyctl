@@ -102,7 +102,7 @@ func runDetach(ctx context.Context) error {
 		if len(members) == 0 {
 			return fmt.Errorf("no 6pn ips founds for %s app", pgAppName)
 		}
-		leader, _ := machineNodeRoles(ctx, members)
+		leader, _ := machinesNodeRoles(ctx, members)
 		leaderIp = leader.PrivateIP
 	}
 

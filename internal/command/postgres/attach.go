@@ -163,7 +163,7 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 		if err := hasRequiredVersionOnMachines(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
-		leader, _ := machineNodeRoles(ctx, members)
+		leader, _ := machinesNodeRoles(ctx, members)
 		leaderIp = leader.PrivateIP
 	default:
 	}

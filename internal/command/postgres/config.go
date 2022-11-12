@@ -130,7 +130,7 @@ func runConfigView(ctx context.Context) (err error) {
 		if err := hasRequiredVersionOnMachines(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
-		leader, _ := machineNodeRoles(ctx, members)
+		leader, _ := machinesNodeRoles(ctx, members)
 		firstPgIp = net.ParseIP(leader.PrivateIP)
 	}
 

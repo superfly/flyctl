@@ -59,7 +59,7 @@ func RestartMachines(ctx context.Context, machines []*api.Machine) (err error) {
 		return err
 	}
 
-	leader, replicas := machineNodeRoles(ctx, machines)
+	leader, replicas := machinesNodeRoles(ctx, machines)
 
 	// unless flag.force is set, we should error if leader==nil
 	if flag.GetBool(ctx, "force") && leader == nil {

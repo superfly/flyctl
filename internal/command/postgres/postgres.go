@@ -124,7 +124,7 @@ func hasRequiredVersionOnMachines(machines []*api.Machine, cluster, standalone s
 	return nil
 }
 
-func machineNodeRoles(ctx context.Context, machines []*api.Machine) (leader *api.Machine, replicas []*api.Machine) {
+func machinesNodeRoles(ctx context.Context, machines []*api.Machine) (leader *api.Machine, replicas []*api.Machine) {
 	for _, machine := range machines {
 		role := machineRole(machine)
 

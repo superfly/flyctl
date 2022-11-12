@@ -113,7 +113,7 @@ func runConnect(ctx context.Context) error {
 		if err := hasRequiredVersionOnMachines(members, MinPostgresHaVersion, MinPostgresStandaloneVersion); err != nil {
 			return err
 		}
-		leader, _ := machineNodeRoles(ctx, members)
+		leader, _ := machinesNodeRoles(ctx, members)
 		leaderIp = leader.PrivateIP
 	default:
 		return fmt.Errorf("platform %s is not supported", app.PlatformVersion)

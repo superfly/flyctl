@@ -117,7 +117,7 @@ func runListDbs(ctx context.Context) error {
 		if len(members) == 0 {
 			return fmt.Errorf("no 6pn ips founds for %s app", app.Name)
 		}
-		leader, _ := machineNodeRoles(ctx, members)
+		leader, _ := machinesNodeRoles(ctx, members)
 		leaderIp = leader.PrivateIP
 	default:
 		return fmt.Errorf("unsupported platform %s", app.PlatformVersion)
