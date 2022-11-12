@@ -15,10 +15,10 @@ func runNomadRestart(ctx context.Context, app *api.AppCompact) error {
 		return postgres.RestartNomad(ctx, app)
 	}
 
-	return RunNomadBaseRestart(ctx, app)
+	return runNomadBaseRestart(ctx, app)
 }
 
-func RunNomadBaseRestart(ctx context.Context, app *api.AppCompact) error {
+func runNomadBaseRestart(ctx context.Context, app *api.AppCompact) error {
 	client := client.FromContext(ctx).API()
 
 	if _, err := client.RestartApp(ctx, app.Name); err != nil {

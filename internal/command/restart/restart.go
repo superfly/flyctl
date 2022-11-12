@@ -59,7 +59,7 @@ func RunRestart(ctx context.Context) error {
 	}
 
 	if app.PlatformVersion == "machines" {
-		return RunMachineRestart(ctx, app)
+		return runMachineRestart(ctx, app)
 	}
 
 	return runNomadRestart(ctx, app)

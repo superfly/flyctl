@@ -11,7 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/watch"
 )
 
-func RunMachineRestart(ctx context.Context, app *api.AppCompact) error {
+func runMachineRestart(ctx context.Context, app *api.AppCompact) error {
 	flapsClient := flaps.FromContext(ctx)
 
 	machines, err := flapsClient.ListActive(ctx)
