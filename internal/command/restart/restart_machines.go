@@ -36,7 +36,7 @@ func runMachineRestart(ctx context.Context, app *api.AppCompact) error {
 		return err
 	}
 
-	if app.PostgresAppRole.Name == "postgres_cluster" {
+	if app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster" {
 		return postgres.RestartMachines(ctx, machines)
 	}
 
