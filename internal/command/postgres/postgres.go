@@ -39,7 +39,7 @@ func New() *cobra.Command {
 	return cmd
 }
 
-func nomadVersionCompatible(app *api.AppCompact, cluster, standalone string) error {
+func hasRequiredVersionOnNomad(app *api.AppCompact, cluster, standalone string) error {
 	// Validate image version to ensure it's compatible with this feature.
 	if app.ImageDetails.Version == "" || app.ImageDetails.Version == "unknown" {
 		return fmt.Errorf("command is not compatible with this image")
@@ -80,7 +80,7 @@ func nomadVersionCompatible(app *api.AppCompact, cluster, standalone string) err
 	return nil
 }
 
-func machineVersionCompatible(machines []*api.Machine, cluster, standalone string) error {
+func hasRequiredVersionOnMachines(machines []*api.Machine, cluster, standalone string) error {
 	for _, machine := range machines {
 		// Validate image version to ensure it's compatible with this feature.
 		if machine.ImageVersion() == "" || machine.ImageVersion() == "unknown" {

@@ -83,7 +83,7 @@ func runFailover(ctx context.Context) (err error) {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	if err := machineVersionCompatible(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 		return err
 	}
 

@@ -89,7 +89,7 @@ func runListUsers(ctx context.Context) (err error) {
 	var leaderIp string
 	switch app.PlatformVersion {
 	case "nomad":
-		if err := nomadVersionCompatible(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
 		pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
@@ -113,7 +113,7 @@ func runListUsers(ctx context.Context) (err error) {
 		if err != nil {
 			return fmt.Errorf("machines could not be retrieved %w", err)
 		}
-		if err := machineVersionCompatible(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		if err := hasRequiredVersionOnMachines(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
 		leader, _ := machineNodeRoles(ctx, members)

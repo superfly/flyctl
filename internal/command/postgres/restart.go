@@ -55,7 +55,7 @@ func RestartMachines(ctx context.Context, machines []*api.Machine) (err error) {
 		MinPostgresHaVersion = "0.0.20"
 	)
 
-	if err := machineVersionCompatible(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 		return err
 	}
 
@@ -129,7 +129,7 @@ func RestartNomad(ctx context.Context, app *api.AppCompact) error {
 		MinPostgresHaVersion = "0.0.20"
 	)
 
-	if err := nomadVersionCompatible(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+	if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 		return err
 	}
 
