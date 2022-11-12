@@ -86,7 +86,7 @@ func runConnect(ctx context.Context) error {
 	var leaderIp string
 	switch app.PlatformVersion {
 	case "nomad":
-		if err := NomadPGVersionCompatible(app, MinPostgresHaVersion, MinPostgresStandaloneVersion); err != nil {
+		if err := nomadVersionCompatible(app, MinPostgresHaVersion, MinPostgresStandaloneVersion); err != nil {
 			return err
 		}
 		pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
@@ -110,10 +110,10 @@ func runConnect(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("machines could not be retrieved %w", err)
 		}
-		if err := MachinePGVersionCompatible(members, MinPostgresHaVersion, MinPostgresStandaloneVersion); err != nil {
+		if err := machineVersionCompatible(members, MinPostgresHaVersion, MinPostgresStandaloneVersion); err != nil {
 			return err
 		}
-		leader, _ := MachinesNodeRoles(ctx, members)
+		leader, _ := machineNodeRoles(ctx, members)
 		leaderIp = leader.PrivateIP
 	default:
 		return fmt.Errorf("platform %s is not supported", app.PlatformVersion)

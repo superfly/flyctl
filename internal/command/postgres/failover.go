@@ -83,7 +83,7 @@ func runFailover(ctx context.Context) (err error) {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	if err := MachinePGVersionCompatible(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+	if err := machineVersionCompatible(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 		return err
 	}
 
@@ -122,7 +122,7 @@ func runFailover(ctx context.Context) (err error) {
 			leader, err = flapsClient.Get(ctx, leader.ID)
 			if err != nil {
 				return err
-			} else if MachineRole(leader) == "leader" {
+			} else if machineRole(leader) == "leader" {
 				return fmt.Errorf("%s hasn't lost its leader role", leader.ID)
 			}
 			return nil

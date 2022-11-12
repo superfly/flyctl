@@ -136,7 +136,7 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 	var leaderIp string
 	switch pgApp.PlatformVersion {
 	case "nomad":
-		if err := NomadPGVersionCompatible(pgApp, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		if err := nomadVersionCompatible(pgApp, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
 		pgInstances, err := agentclient.Instances(ctx, pgApp.Organization.Slug, pgApp.Name)
@@ -160,10 +160,10 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 		if err != nil {
 			return fmt.Errorf("machines could not be retrieved %w", err)
 		}
-		if err := MachinePGVersionCompatible(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		if err := machineVersionCompatible(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
-		leader, _ := MachinesNodeRoles(ctx, members)
+		leader, _ := machineNodeRoles(ctx, members)
 		leaderIp = leader.PrivateIP
 	default:
 	}

@@ -106,7 +106,7 @@ func runConfigView(ctx context.Context) (err error) {
 	var firstPgIp net.IP
 	switch app.PlatformVersion {
 	case "nomad":
-		if err := NomadPGVersionCompatible(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		if err := nomadVersionCompatible(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
 		pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
@@ -127,10 +127,10 @@ func runConfigView(ctx context.Context) (err error) {
 		if err != nil {
 			return fmt.Errorf("machines could not be retrieved %w", err)
 		}
-		if err := MachinePGVersionCompatible(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		if err := machineVersionCompatible(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 			return err
 		}
-		leader, _ := MachinesNodeRoles(ctx, members)
+		leader, _ := machineNodeRoles(ctx, members)
 		firstPgIp = net.ParseIP(leader.PrivateIP)
 	}
 
@@ -424,19 +424,16 @@ func runConfigUpdate(ctx context.Context) (err error) {
 
 		switch app.PlatformVersion {
 		case "nomad":
-			allocs, err := client.GetAllocations(ctx, app.Name, false)
-			if err != nil {
-				return fmt.Errorf("can't fetch allocations: %w", err)
-			}
-			if err := nomadRestart(ctx, allocs); err != nil {
+			if err := RestartNomad(ctx, app); err != nil {
 				return err
 			}
 		case "machines":
 			machines, err := flapsClient.ListActive(ctx)
 			if err != nil {
-				return fmt.Errorf("machines could not be retrieved %w", err)
+				return err
 			}
-			if err := machinesRestart(ctx, machines); err != nil {
+
+			if err := RestartMachines(ctx, machines); err != nil {
 				return fmt.Errorf("error restarting cluster: %w", err)
 			}
 		default:
