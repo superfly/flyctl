@@ -23,7 +23,7 @@ func newRestart() *cobra.Command {
 		usage = "restart"
 	)
 
-	cmd := command.New(usage, short, long, Restart,
+	cmd := command.New(usage, short, long, runRestart,
 		command.RequireSession,
 		command.RequireAppName,
 	)
@@ -42,8 +42,7 @@ func newRestart() *cobra.Command {
 	return cmd
 }
 
-// TODO - Remove this command from the cli.
-func Restart(ctx context.Context) error {
+func runRestart(ctx context.Context) error {
 	return fmt.Errorf("this command has been removed. Use `flyctl restart` instead")
 }
 
