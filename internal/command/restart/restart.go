@@ -15,7 +15,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 )
 
-// TODO: deprecate & remove
 func New() *cobra.Command {
 	const (
 		short = "Restarts each VM one by one."
@@ -23,7 +22,7 @@ func New() *cobra.Command {
 		usage = "restart"
 	)
 
-	cmd := command.New(usage, short, long, RunRestart,
+	cmd := command.New(usage, short, long, runRestart,
 		command.RequireSession,
 		command.RequireAppName,
 	)
@@ -42,7 +41,7 @@ func New() *cobra.Command {
 	return cmd
 }
 
-func RunRestart(ctx context.Context) error {
+func runRestart(ctx context.Context) error {
 	var (
 		appName = app.NameFromContext(ctx)
 		client  = client.FromContext(ctx).API()
