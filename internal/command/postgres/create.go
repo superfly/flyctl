@@ -62,9 +62,8 @@ func newCreate() *cobra.Command {
 			Description: "Creates the volume with the contents of the snapshot",
 		},
 		flag.String{
-			Name:    "image-ref",
-			Hidden:  true,
-			Default: "flyio/postgres",
+			Name:   "image-ref",
+			Hidden: true,
 		},
 		flag.Bool{
 			Name:        "machines",
@@ -209,14 +208,8 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 
 		input.VMSize = vmSize
 		input.VolumeSize = api.IntPointer(config.DiskGb)
-
 		input.InitialClusterSize = config.InitialClusterSize
-
 		input.ImageRef = params.ImageRef
-
-		if input.ImageRef == "" {
-			input.ImageRef = config.ImageRef
-		}
 	}
 
 	if params.Password != "" {
@@ -288,7 +281,6 @@ func postgresMachineConfigurations() []PostgresConfiguration {
 		{
 			Description:        "Development - Single node, 1x shared CPU, 256MB RAM, 1GB disk",
 			DiskGb:             1,
-			ImageRef:           "flyio/postgres",
 			InitialClusterSize: 1,
 			MemoryMb:           256,
 			VMSize:             "shared-cpu-1x",
@@ -296,7 +288,6 @@ func postgresMachineConfigurations() []PostgresConfiguration {
 		{
 			Description:        "Production - Highly available, 2x shared CPUs, 4GB RAM, 40GB disk",
 			DiskGb:             40,
-			ImageRef:           "flyio/postgres",
 			InitialClusterSize: 2,
 			MemoryMb:           4096,
 			VMSize:             "shared-cpu-2x",
@@ -304,7 +295,6 @@ func postgresMachineConfigurations() []PostgresConfiguration {
 		{
 			Description:        "Production - Highly available, 4x shared CPUs, 8GB RAM, 80GB disk",
 			DiskGb:             80,
-			ImageRef:           "flyio/postgres",
 			InitialClusterSize: 2,
 			MemoryMb:           8192,
 			VMSize:             "shared-cpu-4x",
@@ -312,7 +302,6 @@ func postgresMachineConfigurations() []PostgresConfiguration {
 		{
 			Description:        "Specify custom configuration",
 			DiskGb:             0,
-			ImageRef:           "flyio/postgres",
 			InitialClusterSize: 0,
 			MemoryMb:           0,
 			VMSize:             "",
@@ -326,7 +315,6 @@ func postgresNomadConfigurations() []PostgresConfiguration {
 		{
 			Description:        "Development - Single node, 1x shared CPU, 256MB RAM, 1GB disk",
 			DiskGb:             1,
-			ImageRef:           "flyio/postgres",
 			InitialClusterSize: 1,
 			MemoryMb:           256,
 			VMSize:             "shared-cpu-1x",
@@ -334,7 +322,6 @@ func postgresNomadConfigurations() []PostgresConfiguration {
 		{
 			Description:        "Production - Highly available, 1x shared CPU, 256MB RAM, 10GB disk",
 			DiskGb:             10,
-			ImageRef:           "flyio/postgres",
 			InitialClusterSize: 2,
 			MemoryMb:           256,
 			VMSize:             "shared-cpu-1x",
@@ -342,7 +329,6 @@ func postgresNomadConfigurations() []PostgresConfiguration {
 		{
 			Description:        "Production - Highly available, 1x Dedicated CPU, 2GB RAM, 50GB disk",
 			DiskGb:             50,
-			ImageRef:           "flyio/postgres",
 			InitialClusterSize: 2,
 			MemoryMb:           2048,
 			VMSize:             "dedicated-cpu-1x",
@@ -350,7 +336,6 @@ func postgresNomadConfigurations() []PostgresConfiguration {
 		{
 			Description:        "Production - Highly available, 2x Dedicated CPUs, 4GB RAM, 100GB disk",
 			DiskGb:             100,
-			ImageRef:           "flyio/postgres",
 			InitialClusterSize: 2,
 			MemoryMb:           4096,
 			VMSize:             "dedicated-cpu-2x",
@@ -358,7 +343,6 @@ func postgresNomadConfigurations() []PostgresConfiguration {
 		{
 			Description:        "Specify custom configuration",
 			DiskGb:             0,
-			ImageRef:           "flyio/postgres",
 			InitialClusterSize: 0,
 			MemoryMb:           0,
 			VMSize:             "",
