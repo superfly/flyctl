@@ -22,7 +22,7 @@ func New() *cobra.Command {
 		usage = "restart"
 	)
 
-	cmd := command.New(usage, short, long, runRestart,
+	cmd := command.New(usage, short, long, Run,
 		command.RequireSession,
 		command.RequireAppName,
 	)
@@ -33,7 +33,7 @@ func New() *cobra.Command {
 		flag.Bool{
 			Name:        "force",
 			Shorthand:   "f",
-			Description: "Force a restart even we don't have an active leader",
+			Description: "Force a restart even if we don't have an active leader. (Postgres only)",
 			Default:     false,
 		},
 	)
@@ -41,7 +41,7 @@ func New() *cobra.Command {
 	return cmd
 }
 
-func runRestart(ctx context.Context) error {
+func Run(ctx context.Context) error {
 	var (
 		appName = app.NameFromContext(ctx)
 		client  = client.FromContext(ctx).API()
