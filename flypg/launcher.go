@@ -82,12 +82,17 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	for i := 0; i < config.InitialClusterSize; i++ {
 		machineConf := l.getPostgresConfig(config)
 
-		imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres", config.SnapshotID)
-		if err != nil {
-			return err
-		}
+		machineConf.Image = config.ImageRef
 
-		machineConf.Image = imageRef
+		// If no image is specifed fetch the latest available tag.
+		if machineConf.Image == "" {
+			imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres", config.SnapshotID)
+			if err != nil {
+				return err
+			}
+
+			machineConf.Image = imageRef
+		}
 
 		snapshot := config.SnapshotID
 		verb := "Provisioning"
@@ -100,7 +105,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			}
 		}
 
-		fmt.Fprintf(io.Out, "%s %d of %d machines with image %s\n", verb, i+1, config.InitialClusterSize, imageRef)
+		fmt.Fprintf(io.Out, "%s %d of %d machines with image %s\n", verb, i+1, config.InitialClusterSize, machineConf.Image)
 
 		volInput := api.CreateVolumeInput{
 			AppID:             app.ID,
