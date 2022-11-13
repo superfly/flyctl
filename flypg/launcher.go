@@ -58,6 +58,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		colorize = io.ColorScheme()
 		client   = client.FromContext(ctx).API()
 	)
+
 	app, err := l.createApp(ctx, config)
 	if err != nil {
 		return err
@@ -90,7 +91,6 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			if err != nil {
 				return err
 			}
-
 			machineConf.Image = imageRef
 		}
 
@@ -200,7 +200,13 @@ func (l *Launcher) LaunchNomadPostgres(ctx context.Context, config *CreateCluste
 	)
 
 	if config.ImageRef == "" {
-		api.StringPointer("flyio/postgres")
+		// If no image is specifed fetch the latest available tag.
+		imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres", config.SnapshotID)
+		if err != nil {
+			return err
+		}
+		config.ImageRef = imageRef
+
 	}
 
 	input := api.CreatePostgresClusterInput{
