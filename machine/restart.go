@@ -17,27 +17,13 @@ func RollingRestart(ctx context.Context) error {
 		flapsClient = flaps.FromContext(ctx)
 	)
 
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := AcquireLease(ctx)
 	if err != nil {
 		return err
 	}
 
-	// Acquire leases
-	for _, machine := range machines {
-		lease, err := flapsClient.GetLease(ctx, machine.ID, api.IntPointer(40))
-		if err != nil {
-			return fmt.Errorf("failed to obtain lease: %w", err)
-		}
-		machine.LeaseNonce = lease.Data.Nonce
-
-		// Ensure lease is released on return
-		defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
-	}
-
-	// Requery machines to ensure we are working against the most up-to-date configuration.
-	machines, err = flapsClient.ListActive(ctx)
-	if err != nil {
-		return err
+	for _, m := range machines {
+		defer flapsClient.ReleaseLease(ctx, m.ID, m.LeaseNonce)
 	}
 
 	for _, m := range machines {
@@ -53,7 +39,6 @@ func Restart(ctx context.Context, m *api.Machine) error {
 
 	skipHealthChecks := flag.GetBool(ctx, "skip-health-checks")
 	forceStop := flag.GetBool(ctx, "force-stop")
-	// force := flag.GetBool(ctx, "force")
 
 	fmt.Fprintf(io.Out, "Restarting machine %s\n", colorize.Bold(m.ID))
 	if err := machine.Restart(ctx, m.ID, "", 120, forceStop); err != nil {

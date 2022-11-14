@@ -36,7 +36,7 @@ func New() *cobra.Command {
 		flag.Bool{
 			Name:        "force",
 			Shorthand:   "f",
-			Description: "Will  ",
+			Description: "Will issue a restart against each Machine even if there are errors. ( Machines only )",
 			Default:     false,
 		},
 		flag.Bool{
@@ -71,19 +71,23 @@ func Run(ctx context.Context) error {
 	}
 
 	if app.PlatformVersion == "machines" {
+		// PG specific restart process
 		if app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster" {
 			return postgres.MachinesRestart(ctx)
 		}
 
+		// Generic machine restart process
 		if err := machine.RollingRestart(ctx); err != nil {
 			return err
 		}
 	}
 
+	// Nomad specific restart logic
 	return runNomadRestart(ctx, app)
 }
 
 func runNomadRestart(ctx context.Context, app *api.AppCompact) error {
+	// PG specific restart process
 	if app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster" {
 		return postgres.NomadRestart(ctx, app)
 	}
