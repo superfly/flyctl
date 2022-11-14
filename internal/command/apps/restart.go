@@ -60,6 +60,10 @@ func RunRestart(ctx context.Context) error {
 		return err
 	}
 
+	if app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster" {
+		return fmt.Errorf("postgres apps should use `fly pg restart` instead")
+	}
+
 	ctx, err = BuildContext(ctx, app)
 	if err != nil {
 		return err
@@ -71,11 +75,6 @@ func RunRestart(ctx context.Context) error {
 	}
 
 	if app.PlatformVersion == "machines" {
-		// PG specific restart process
-		if app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster" {
-			return fmt.Errorf("postgres apps should use `fly pg restart` instead")
-		}
-
 		// Generic machine restart process
 		if err := machine.RollingRestart(ctx, input); err != nil {
 			return err
@@ -87,11 +86,6 @@ func RunRestart(ctx context.Context) error {
 }
 
 func runNomadRestart(ctx context.Context, app *api.AppCompact) error {
-	// PG specific restart process
-	if app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster" {
-		return fmt.Errorf("postgres apps should use `fly pg restart` instead")
-	}
-
 	client := client.FromContext(ctx).API()
 
 	if _, err := client.RestartApp(ctx, app.Name); err != nil {
