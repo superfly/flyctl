@@ -211,6 +211,10 @@ func runMachineRun(ctx context.Context) error {
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
 
+	if app.PlatformVersion == "nomad" {
+		return fmt.Errorf("the app %s uses an earlier version of the platform that does not support machines", app.Name)
+	}
+
 	machineID := flag.GetString(ctx, "id")
 	if machineID != "" {
 		return fmt.Errorf("to update an existing machine, use 'flyctl machine update'")
