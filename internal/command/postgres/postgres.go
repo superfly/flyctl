@@ -127,6 +127,7 @@ func hasRequiredVersionOnMachines(machines []*api.Machine, cluster, standalone s
 func machinesNodeRoles(ctx context.Context, machines []*api.Machine) (leader *api.Machine, replicas []*api.Machine) {
 	for _, machine := range machines {
 		role := machineRole(machine)
+		fmt.Printf("Machine: %s, Role: %q\n", machine.ID, role)
 
 		switch role {
 		case "leader":

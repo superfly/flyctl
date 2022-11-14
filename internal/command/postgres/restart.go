@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/machine"
@@ -58,6 +59,11 @@ func runRestart(ctx context.Context) error {
 		return err
 	}
 
+	ctx, err = apps.BuildContext(ctx, app)
+	if err != nil {
+		return err
+	}
+
 	if app.PostgresAppRole == nil || app.PostgresAppRole.Name != "postgres_cluster" {
 		return fmt.Errorf("this app is not compatible")
 	}
@@ -96,10 +102,11 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 
 	leader, replicas := machinesNodeRoles(ctx, machines)
 
-	if leader == nil && flag.GetBool(ctx, "force") {
+	if leader == nil {
+		if !flag.GetBool(ctx, "ignore-failover") {
+			return fmt.Errorf("no active leader found")
+		}
 		fmt.Fprintln(io.Out, colorize.Yellow("No leader found, but continuing with restart"))
-	} else {
-		return fmt.Errorf("no active leader found")
 	}
 
 	fmt.Fprintln(io.Out, "Identifying cluster role(s)")

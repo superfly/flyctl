@@ -10,7 +10,6 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
@@ -27,8 +26,9 @@ func newRestart() *cobra.Command {
 	cmd := command.New(usage, short, long, RunRestart,
 		command.RequireSession,
 	)
-	cmd.Args = cobra.RangeArgs(0, 1)
+	cmd.Args = cobra.ExactArgs(1)
 
+	// Note -
 	flag.Add(cmd,
 		flag.Bool{
 			Name:        "force",
@@ -53,7 +53,7 @@ func newRestart() *cobra.Command {
 
 func RunRestart(ctx context.Context) error {
 	var (
-		appName = app.NameFromContext(ctx)
+		appName = flag.FirstArg(ctx)
 		client  = client.FromContext(ctx).API()
 	)
 
@@ -69,7 +69,7 @@ func RunRestart(ctx context.Context) error {
 
 	input := &api.RestartMachineInput{
 		ForceStop:        flag.GetBool(ctx, "force-stop"),
-		SkipHealthChecks: flag.GetBool(ctx, "skip_health_checks"),
+		SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),
 	}
 
 	if app.PlatformVersion == "machines" {
