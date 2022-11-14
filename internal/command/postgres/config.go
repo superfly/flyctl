@@ -424,11 +424,11 @@ func runConfigUpdate(ctx context.Context) (err error) {
 
 		switch app.PlatformVersion {
 		case "nomad":
-			if err := NomadRestart(ctx, app); err != nil {
+			if err := nomadRestart(ctx, app); err != nil {
 				return err
 			}
 		case "machines":
-			if err := MachinesRestart(ctx, &api.RestartMachineInput{}); err != nil {
+			if err := machinesRestart(ctx, &api.RestartMachineInput{}); err != nil {
 				return fmt.Errorf("error restarting cluster: %w", err)
 			}
 		default:
