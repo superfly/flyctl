@@ -75,13 +75,11 @@ func RunRestart(ctx context.Context) error {
 	}
 
 	if app.PlatformVersion == "machines" {
-		// Generic machine restart process
 		if err := machine.RollingRestart(ctx, input); err != nil {
 			return err
 		}
 	}
 
-	// Nomad specific restart logic
 	return runNomadRestart(ctx, app)
 }
 
