@@ -15,7 +15,6 @@ import (
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/machine"
 )
 
@@ -59,7 +58,6 @@ func newRestart() *cobra.Command {
 
 func runMachineRestart(ctx context.Context) error {
 	var (
-		io      = iostreams.FromContext(ctx)
 		args    = flag.Args(ctx)
 		signal  = flag.GetString(ctx, "signal")
 		timeout = flag.GetInt(ctx, "time")
@@ -109,7 +107,6 @@ func runMachineRestart(ctx context.Context) error {
 		if err := machine.Restart(ctx, m, input); err != nil {
 			return fmt.Errorf("failed to restart machine %s: %w", m.ID, err)
 		}
-
 	}
 
 	return nil

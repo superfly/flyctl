@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
@@ -42,6 +43,10 @@ func Restart(ctx context.Context, m *api.Machine, input *api.RestartMachineInput
 	input.ID = m.ID
 	if err := flapsClient.Restart(ctx, *input); err != nil {
 		return fmt.Errorf("could not stop machine %s: %w", input.ID, err)
+	}
+
+	if err := WaitForStartOrStop(ctx, &api.Machine{ID: input.ID}, "start", time.Minute*5); err != nil {
+		return err
 	}
 
 	if !input.SkipHealthChecks {
