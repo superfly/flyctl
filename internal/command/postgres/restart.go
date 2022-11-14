@@ -57,29 +57,10 @@ func MachinesRestart(ctx context.Context) (err error) {
 		MinPostgresHaVersion = "0.0.20"
 	)
 
-	force := flag.GetBool(ctx, "force")
-
-	machines, err := flapsClient.ListActive(ctx)
-	if err != nil {
-		return err
-	}
-
 	// Acquire leases
-	for _, machine := range machines {
-		lease, err := flapsClient.GetLease(ctx, machine.ID, api.IntPointer(40))
-		if err != nil {
-			return fmt.Errorf("failed to obtain lease: %w", err)
-		}
-		machine.LeaseNonce = lease.Data.Nonce
-
-		// Ensure lease is released on return
-		defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
-	}
-
-	// Requery machines to ensure we are working against the most up-to-date configuration.
-	machines, err = flapsClient.ListActive(ctx)
-	if err != nil {
-		return err
+	machines, err := machine.AcquireLease(ctx)
+	for _, m := range machines {
+		defer flapsClient.ReleaseLease(ctx, m.ID, m.LeaseNonce)
 	}
 
 	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
@@ -88,7 +69,7 @@ func MachinesRestart(ctx context.Context) (err error) {
 
 	leader, replicas := machinesNodeRoles(ctx, machines)
 
-	if leader == nil && force {
+	if leader == nil && flag.GetBool(ctx, "force") {
 		fmt.Fprintln(io.Out, colorize.Yellow("No leader found, but continuing with restart"))
 	} else {
 		return fmt.Errorf("no active leader found")

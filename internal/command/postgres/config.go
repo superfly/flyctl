@@ -424,16 +424,11 @@ func runConfigUpdate(ctx context.Context) (err error) {
 
 		switch app.PlatformVersion {
 		case "nomad":
-			if err := RestartNomad(ctx, app); err != nil {
+			if err := NomadRestart(ctx, app); err != nil {
 				return err
 			}
 		case "machines":
-			machines, err := flapsClient.ListActive(ctx)
-			if err != nil {
-				return err
-			}
-
-			if err := RestartMachines(ctx, machines); err != nil {
+			if err := MachinesRestart(ctx); err != nil {
 				return fmt.Errorf("error restarting cluster: %w", err)
 			}
 		default:
