@@ -20,7 +20,7 @@ func RollingRestart(ctx context.Context, input *api.RestartMachineInput) error {
 	if err != nil {
 		return err
 	}
-
+	// Defer lease release
 	for _, m := range machines {
 		defer flapsClient.ReleaseLease(ctx, m.ID, m.LeaseNonce)
 	}

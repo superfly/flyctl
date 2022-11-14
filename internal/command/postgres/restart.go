@@ -59,13 +59,13 @@ func runRestart(ctx context.Context) error {
 		return err
 	}
 
+	if app.PostgresAppRole == nil || app.PostgresAppRole.Name != "postgres_cluster" {
+		return fmt.Errorf("this app is not compatible")
+	}
+
 	ctx, err = apps.BuildContext(ctx, app)
 	if err != nil {
 		return err
-	}
-
-	if app.PostgresAppRole == nil || app.PostgresAppRole.Name != "postgres_cluster" {
-		return fmt.Errorf("this app is not compatible")
 	}
 
 	if app.PlatformVersion == "machines" {
