@@ -51,6 +51,11 @@ func newRestart() *cobra.Command {
 			Name:        "force",
 			Description: "Force stop the machine(s)",
 		},
+		flag.Bool{
+			Name:        "skip-health-checks",
+			Description: "Restarts app without waiting for health checks. ( Machines only )",
+			Default:     false,
+		},
 	)
 
 	return cmd
@@ -77,7 +82,8 @@ func runMachineRestart(ctx context.Context) error {
 
 	// Resolve flags
 	input := &api.RestartMachineInput{
-		ForceStop: flag.GetBool(ctx, "force"),
+		ForceStop:        flag.GetBool(ctx, "force"),
+		SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),
 	}
 
 	if timeout != 0 {
@@ -112,6 +118,7 @@ func runMachineRestart(ctx context.Context) error {
 	return nil
 }
 
+// TODO - Work to move this kind of thing into the apps package.
 func buildContext(ctx context.Context, app *api.AppCompact) (context.Context, error) {
 	client := client.FromContext(ctx).API()
 

@@ -1,4 +1,4 @@
-package restart
+package apps
 
 import (
 	"context"
@@ -12,25 +12,22 @@ import (
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/machine"
 )
 
-func New() *cobra.Command {
+func newRestart() *cobra.Command {
 	const (
 		long  = `The APPS RESTART command will perform a rolling restart against all running VM's`
 		short = "Restart an application"
 		usage = "restart [APPNAME]"
 	)
 
-	cmd := command.New(usage, short, long, Run,
+	cmd := command.New(usage, short, long, runRestart,
 		command.RequireSession,
 	)
 	cmd.Args = cobra.RangeArgs(0, 1)
-
-	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(cmd,
 		flag.Bool{
@@ -54,7 +51,7 @@ func New() *cobra.Command {
 	return cmd
 }
 
-func Run(ctx context.Context) error {
+func runRestart(ctx context.Context) error {
 	var (
 		appName = app.NameFromContext(ctx)
 		client  = client.FromContext(ctx).API()
@@ -78,7 +75,7 @@ func Run(ctx context.Context) error {
 	if app.PlatformVersion == "machines" {
 		// PG specific restart process
 		if app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster" {
-			return postgres.MachinesRestart(ctx, input)
+			return fmt.Errorf("postgres apps should use `fly pg restart` instead")
 		}
 
 		// Generic machine restart process
@@ -94,7 +91,7 @@ func Run(ctx context.Context) error {
 func runNomadRestart(ctx context.Context, app *api.AppCompact) error {
 	// PG specific restart process
 	if app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster" {
-		return postgres.NomadRestart(ctx, app)
+		return fmt.Errorf("postgres apps should use `fly pg restart` instead")
 	}
 
 	client := client.FromContext(ctx).API()
@@ -109,6 +106,7 @@ func runNomadRestart(ctx context.Context, app *api.AppCompact) error {
 	return nil
 }
 
+// TODO - Work to move this kind of thing into the apps package.
 func buildContext(ctx context.Context, app *api.AppCompact) (context.Context, error) {
 	client := client.FromContext(ctx).API()
 

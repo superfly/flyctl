@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/flypg"
+	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
@@ -32,9 +33,13 @@ func newRestart() *cobra.Command {
 		flag.App(),
 		flag.AppConfig(),
 		flag.Bool{
-			Name:        "force",
-			Shorthand:   "f",
+			Name:        "ignore-failover",
 			Description: "Force a restart even we don't have an active leader",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "skip-health-checks",
+			Description: "Runs rolling restart process without waiting for health checks",
 			Default:     false,
 		},
 	)
@@ -42,13 +47,35 @@ func newRestart() *cobra.Command {
 	return cmd
 }
 
-// The cli aspects of this file can be removed after December 1st 2022
 func runRestart(ctx context.Context) error {
-	return fmt.Errorf("this command has been removed. Use `flyctl restart` instead")
+	var (
+		appName = app.NameFromContext(ctx)
+		client  = client.FromContext(ctx).API()
+	)
+
+	app, err := client.GetAppCompact(ctx, appName)
+	if err != nil {
+		return err
+	}
+
+	if app.PostgresAppRole == nil || app.PostgresAppRole.Name != "postgres_cluster" {
+		return fmt.Errorf("this app is not compatible")
+	}
+
+	if app.PlatformVersion == "machines" {
+		input := api.RestartMachineInput{
+			SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),
+		}
+
+		return machinesRestart(ctx, &input)
+	}
+
+	return nomadRestart(ctx, app)
+
 }
 
 // Machine specific restart logic.
-func MachinesRestart(ctx context.Context, input *api.RestartMachineInput) (err error) {
+func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err error) {
 	var (
 		io                   = iostreams.FromContext(ctx)
 		colorize             = io.ColorScheme()
@@ -113,7 +140,7 @@ func MachinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 	return
 }
 
-func NomadRestart(ctx context.Context, app *api.AppCompact) error {
+func nomadRestart(ctx context.Context, app *api.AppCompact) error {
 	var (
 		dialer               = agent.DialerFromContext(ctx)
 		client               = client.FromContext(ctx).API()
