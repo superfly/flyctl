@@ -428,7 +428,7 @@ func runConfigUpdate(ctx context.Context) (err error) {
 				return err
 			}
 		case "machines":
-			if err := MachinesRestart(ctx); err != nil {
+			if err := MachinesRestart(ctx, &api.RestartMachineInput{}); err != nil {
 				return fmt.Errorf("error restarting cluster: %w", err)
 			}
 		default:

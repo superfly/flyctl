@@ -70,14 +70,19 @@ func Run(ctx context.Context) error {
 		return err
 	}
 
+	input := &api.RestartMachineInput{
+		ForceStop:        flag.GetBool(ctx, "force-stop"),
+		SkipHealthChecks: flag.GetBool(ctx, "skip_health_checks"),
+	}
+
 	if app.PlatformVersion == "machines" {
 		// PG specific restart process
 		if app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster" {
-			return postgres.MachinesRestart(ctx)
+			return postgres.MachinesRestart(ctx, input)
 		}
 
 		// Generic machine restart process
-		if err := machine.RollingRestart(ctx); err != nil {
+		if err := machine.RollingRestart(ctx, input); err != nil {
 			return err
 		}
 	}

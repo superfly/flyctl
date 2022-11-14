@@ -10,7 +10,7 @@ import (
 
 // AcquireLease acquire leases for all active Machines.
 // WARNING: Make sure you defer the lease release process.
-func AcquireLease(ctx context.Context) ([]*api.Machine, error) {
+func AcquireLeases(ctx context.Context) ([]*api.Machine, error) {
 	var (
 		flapsClient = flaps.FromContext(ctx)
 	)

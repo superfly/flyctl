@@ -8,12 +8,15 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/machine"
 )
 
 func newRestart() *cobra.Command {
@@ -54,72 +57,84 @@ func newRestart() *cobra.Command {
 	return cmd
 }
 
-func runMachineRestart(ctx context.Context) (err error) {
+func runMachineRestart(ctx context.Context) error {
 	var (
 		io      = iostreams.FromContext(ctx)
 		args    = flag.Args(ctx)
 		signal  = flag.GetString(ctx, "signal")
 		timeout = flag.GetInt(ctx, "time")
-	)
-
-	var forceStop = false
-
-	if flag.GetBool(ctx, "force") {
-		forceStop = true
-	}
-
-	for _, machineID := range args {
-		fmt.Fprintf(io.Out, "Sending kill signal to machine %s...", machineID)
-
-		if err = Restart(ctx, machineID, signal, timeout, forceStop); err != nil {
-			return
-		}
-		fmt.Fprintf(io.Out, "%s has been successfully stopped\n", machineID)
-	}
-	return
-}
-
-func Restart(ctx context.Context, machineID, sig string, timeOut int, forceStop bool) (err error) {
-	var (
 		appName = app.NameFromContext(ctx)
+		client  = client.FromContext(ctx).API()
 	)
 
-	input := api.RestartMachineInput{
-		ID:        machineID,
-		Timeout:   time.Duration(timeOut),
-		ForceStop: forceStop,
-	}
-
-	if sig != "" {
-		signal := &api.Signal{}
-
-		s, err := strconv.Atoi(sig)
-		if err != nil {
-			return fmt.Errorf("could not get signal %s", err)
-		}
-		signal.Signal = syscall.Signal(s)
-		input.Signal = signal
-	}
-
-	app, err := appFromMachineOrName(ctx, machineID, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("could not get app: %w", err)
 	}
 
-	flapsClient, err := flaps.New(ctx, app)
+	ctx, err = buildContext(ctx, app)
 	if err != nil {
-		return fmt.Errorf("could not make flaps client: %w", err)
+		return err
 	}
 
-	err = flapsClient.Restart(ctx, input)
+	// Resolve flags
+	input := &api.RestartMachineInput{
+		ForceStop: flag.GetBool(ctx, "force"),
+	}
+
+	if timeout != 0 {
+		input.Timeout = time.Duration(timeout)
+	}
+
+	if signal != "" {
+		sig := &api.Signal{}
+
+		s, err := strconv.Atoi(flag.GetString(ctx, "signal"))
+		if err != nil {
+			return fmt.Errorf("could not get signal %s", err)
+		}
+		sig.Signal = syscall.Signal(s)
+		input.Signal = sig
+	}
+
+	flapsClient := flaps.FromContext(ctx)
+
+	// Restart each machine
+	for _, machineID := range args {
+		m, err := flapsClient.Get(ctx, machineID)
+		if err != nil {
+			return fmt.Errorf("could not get machine %s: %w", machineID, err)
+		}
+
+		if err := machine.Restart(ctx, m, input); err != nil {
+			return fmt.Errorf("failed to restart machine %s: %w", m.ID, err)
+		}
+
+	}
+
+	return nil
+}
+
+func buildContext(ctx context.Context, app *api.AppCompact) (context.Context, error) {
+	client := client.FromContext(ctx).API()
+
+	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
-		return fmt.Errorf("could not stop machine %s: %w", input.ID, err)
+		return nil, fmt.Errorf("can't establish agent %w", err)
+	}
+
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+	if err != nil {
+		return nil, fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
+	}
+	ctx = agent.DialerWithContext(ctx, dialer)
+
+	flapsClient, err := flaps.New(ctx, app)
+	if err != nil {
+		return nil, err
 	}
 
 	ctx = flaps.NewContext(ctx, flapsClient)
-	if err = WaitForStartOrStop(ctx, &api.Machine{ID: input.ID}, "start", time.Minute*5); err != nil {
-		return
-	}
 
-	return
+	return ctx, nil
 }

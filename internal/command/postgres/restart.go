@@ -48,7 +48,7 @@ func runRestart(ctx context.Context) error {
 }
 
 // Machine specific restart logic.
-func MachinesRestart(ctx context.Context) (err error) {
+func MachinesRestart(ctx context.Context, input *api.RestartMachineInput) (err error) {
 	var (
 		io                   = iostreams.FromContext(ctx)
 		colorize             = io.ColorScheme()
@@ -58,7 +58,7 @@ func MachinesRestart(ctx context.Context) (err error) {
 	)
 
 	// Acquire leases
-	machines, err := machine.AcquireLease(ctx)
+	machines, err := machine.AcquireLeases(ctx)
 	for _, m := range machines {
 		defer flapsClient.ReleaseLease(ctx, m.ID, m.LeaseNonce)
 	}
@@ -82,7 +82,7 @@ func MachinesRestart(ctx context.Context) (err error) {
 
 	// Restarting replicas
 	for _, replica := range replicas {
-		if err = machine.Restart(ctx, replica); err != nil {
+		if err = machine.Restart(ctx, replica, input); err != nil {
 			return err
 		}
 	}
@@ -104,7 +104,7 @@ func MachinesRestart(ctx context.Context) (err error) {
 		}
 	}
 
-	if err = machine.Restart(ctx, leader); err != nil {
+	if err = machine.Restart(ctx, leader, input); err != nil {
 		return err
 	}
 
@@ -113,7 +113,6 @@ func MachinesRestart(ctx context.Context) (err error) {
 	return
 }
 
-// Nomad specific restart logic
 func NomadRestart(ctx context.Context, app *api.AppCompact) error {
 	var (
 		dialer               = agent.DialerFromContext(ctx)
