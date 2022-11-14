@@ -8,12 +8,12 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/machine"
 )
 
 func newRestart() *cobra.Command {
@@ -42,17 +42,45 @@ func newRestart() *cobra.Command {
 	return cmd
 }
 
+// The cli aspects of this file can be removed after December 1st 2022
 func runRestart(ctx context.Context) error {
 	return fmt.Errorf("this command has been removed. Use `flyctl restart` instead")
 }
 
-func RestartMachines(ctx context.Context, machines []*api.Machine) (err error) {
+// Machine specific restart logic.
+func MachinesRestart(ctx context.Context) (err error) {
 	var (
 		io                   = iostreams.FromContext(ctx)
 		colorize             = io.ColorScheme()
 		dialer               = agent.DialerFromContext(ctx)
+		flapsClient          = flaps.FromContext(ctx)
 		MinPostgresHaVersion = "0.0.20"
 	)
+
+	force := flag.GetBool(ctx, "force")
+
+	machines, err := flapsClient.ListActive(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Acquire leases
+	for _, machine := range machines {
+		lease, err := flapsClient.GetLease(ctx, machine.ID, api.IntPointer(40))
+		if err != nil {
+			return fmt.Errorf("failed to obtain lease: %w", err)
+		}
+		machine.LeaseNonce = lease.Data.Nonce
+
+		// Ensure lease is released on return
+		defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
+	}
+
+	// Requery machines to ensure we are working against the most up-to-date configuration.
+	machines, err = flapsClient.ListActive(ctx)
+	if err != nil {
+		return err
+	}
 
 	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 		return err
@@ -60,30 +88,21 @@ func RestartMachines(ctx context.Context, machines []*api.Machine) (err error) {
 
 	leader, replicas := machinesNodeRoles(ctx, machines)
 
-	// unless flag.force is set, we should error if leader==nil
-	if flag.GetBool(ctx, "force") && leader == nil {
+	if leader == nil && force {
 		fmt.Fprintln(io.Out, colorize.Yellow("No leader found, but continuing with restart"))
-	} else if leader == nil {
+	} else {
 		return fmt.Errorf("no active leader found")
 	}
 
 	fmt.Fprintln(io.Out, "Identifying cluster role(s)")
-
 	for _, machine := range machines {
 		fmt.Fprintf(io.Out, "  Machine %s: %s\n", colorize.Bold(machine.ID), machineRole(machine))
 	}
 
-	if len(replicas) > 0 {
-		for _, replica := range replicas {
-			fmt.Fprintf(io.Out, "Restarting machine %s\n", colorize.Bold(replica.ID))
-
-			if err = machine.Restart(ctx, replica.ID, "", 120, false); err != nil {
-				return err
-			}
-			// wait for health checks to pass
-			if err := watch.MachinesChecks(ctx, []*api.Machine{replica}); err != nil {
-				return fmt.Errorf("failed to wait for health checks to pass: %w", err)
-			}
+	// Restarting replicas
+	for _, replica := range replicas {
+		if err = machine.Restart(ctx, replica); err != nil {
+			return err
 		}
 	}
 
@@ -104,14 +123,8 @@ func RestartMachines(ctx context.Context, machines []*api.Machine) (err error) {
 		}
 	}
 
-	fmt.Fprintf(io.Out, "Restarting machine %s\n", colorize.Bold(leader.ID))
-
-	if err = machine.Restart(ctx, leader.ID, "", 120, false); err != nil {
+	if err = machine.Restart(ctx, leader); err != nil {
 		return err
-	}
-	// wait for health checks to pass
-	if err := watch.MachinesChecks(ctx, []*api.Machine{leader}); err != nil {
-		return fmt.Errorf("failed to wait for health checks to pass: %w", err)
 	}
 
 	fmt.Fprintf(io.Out, "Postgres cluster has been successfully restarted!\n")
@@ -119,7 +132,8 @@ func RestartMachines(ctx context.Context, machines []*api.Machine) (err error) {
 	return
 }
 
-func RestartNomad(ctx context.Context, app *api.AppCompact) error {
+// Nomad specific restart logic
+func NomadRestart(ctx context.Context, app *api.AppCompact) error {
 	var (
 		dialer               = agent.DialerFromContext(ctx)
 		client               = client.FromContext(ctx).API()

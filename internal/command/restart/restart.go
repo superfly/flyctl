@@ -12,28 +12,41 @@ import (
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/machine"
 )
 
 func New() *cobra.Command {
 	const (
-		short = "Restarts each VM one by one."
-		long  = short + " Downtime should be minimal." + "\n"
-		usage = "restart"
+		long  = `The APPS RESTART command will perform a rolling restart against all running VM's`
+		short = "Restart an application"
+		usage = "restart [APPNAME]"
 	)
 
 	cmd := command.New(usage, short, long, Run,
 		command.RequireSession,
-		command.RequireAppName,
 	)
+	cmd.Args = cobra.RangeArgs(0, 1)
+
+	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(cmd,
-		flag.App(),
-		flag.AppConfig(),
 		flag.Bool{
 			Name:        "force",
 			Shorthand:   "f",
-			Description: "Force a restart even if we don't have an active leader. (Postgres only)",
+			Description: "Will  ",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "force-stop",
+			Description: "Performs a force stop against the target Machine. ( Machines only )",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "skip-health-checks",
+			Description: "Restarts app without waiting for health checks. ( Machines only )",
 			Default:     false,
 		},
 	)
@@ -58,10 +71,33 @@ func Run(ctx context.Context) error {
 	}
 
 	if app.PlatformVersion == "machines" {
-		return runMachineRestart(ctx, app)
+		if app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster" {
+			return postgres.MachinesRestart(ctx)
+		}
+
+		if err := machine.RollingRestart(ctx); err != nil {
+			return err
+		}
 	}
 
 	return runNomadRestart(ctx, app)
+}
+
+func runNomadRestart(ctx context.Context, app *api.AppCompact) error {
+	if app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster" {
+		return postgres.NomadRestart(ctx, app)
+	}
+
+	client := client.FromContext(ctx).API()
+
+	if _, err := client.RestartApp(ctx, app.Name); err != nil {
+		return fmt.Errorf("failed restarting app: %w", err)
+	}
+
+	io := iostreams.FromContext(ctx)
+	fmt.Fprintf(io.Out, "%s is being restarted\n", app.Name)
+
+	return nil
 }
 
 func buildContext(ctx context.Context, app *api.AppCompact) (context.Context, error) {
