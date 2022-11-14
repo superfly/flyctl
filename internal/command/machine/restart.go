@@ -8,14 +8,14 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/machine"
+	"github.com/superfly/flyctl/internal/machine"
 )
 
 func newRestart() *cobra.Command {
@@ -75,19 +75,16 @@ func runMachineRestart(ctx context.Context) error {
 		return fmt.Errorf("could not get app: %w", err)
 	}
 
-	ctx, err = buildContext(ctx, app)
+	ctx, err = apps.BuildContext(ctx, app)
 	if err != nil {
 		return err
 	}
 
 	// Resolve flags
 	input := &api.RestartMachineInput{
+		Timeout:          time.Duration(timeout),
 		ForceStop:        flag.GetBool(ctx, "force"),
 		SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),
-	}
-
-	if timeout != 0 {
-		input.Timeout = time.Duration(timeout)
 	}
 
 	if signal != "" {
@@ -110,35 +107,16 @@ func runMachineRestart(ctx context.Context) error {
 			return fmt.Errorf("could not get machine %s: %w", machineID, err)
 		}
 
+		m, err = machine.AcquireLease(ctx, m)
+		if err != nil {
+			return err
+		}
+		defer flapsClient.ReleaseLease(ctx, m.ID, m.LeaseNonce)
+
 		if err := machine.Restart(ctx, m, input); err != nil {
 			return fmt.Errorf("failed to restart machine %s: %w", m.ID, err)
 		}
 	}
 
 	return nil
-}
-
-// TODO - Work to move this kind of thing into the apps package.
-func buildContext(ctx context.Context, app *api.AppCompact) (context.Context, error) {
-	client := client.FromContext(ctx).API()
-
-	agentclient, err := agent.Establish(ctx, client)
-	if err != nil {
-		return nil, fmt.Errorf("can't establish agent %w", err)
-	}
-
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
-	if err != nil {
-		return nil, fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
-	}
-	ctx = agent.DialerWithContext(ctx, dialer)
-
-	flapsClient, err := flaps.New(ctx, app)
-	if err != nil {
-		return nil, err
-	}
-
-	ctx = flaps.NewContext(ctx, flapsClient)
-
-	return ctx, nil
 }

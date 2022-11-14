@@ -14,8 +14,8 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/machine"
 )
 
 func newRestart() *cobra.Command {
@@ -80,7 +80,6 @@ func runRestart(ctx context.Context) error {
 
 }
 
-// Machine specific restart logic.
 func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err error) {
 	var (
 		io                   = iostreams.FromContext(ctx)
@@ -90,7 +89,6 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 		MinPostgresHaVersion = "0.0.20"
 	)
 
-	// Acquire leases
 	machines, err := machine.AcquireLeases(ctx)
 	for _, m := range machines {
 		defer flapsClient.ReleaseLease(ctx, m.ID, m.LeaseNonce)

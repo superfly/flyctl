@@ -6,14 +6,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/machine"
 )
 
 func newRestart() *cobra.Command {
@@ -62,7 +60,7 @@ func RunRestart(ctx context.Context) error {
 		return err
 	}
 
-	ctx, err = buildContext(ctx, app)
+	ctx, err = BuildContext(ctx, app)
 	if err != nil {
 		return err
 	}
@@ -104,29 +102,4 @@ func runNomadRestart(ctx context.Context, app *api.AppCompact) error {
 	fmt.Fprintf(io.Out, "%s is being restarted\n", app.Name)
 
 	return nil
-}
-
-// TODO - Work to move this kind of thing into the apps package.
-func buildContext(ctx context.Context, app *api.AppCompact) (context.Context, error) {
-	client := client.FromContext(ctx).API()
-
-	agentclient, err := agent.Establish(ctx, client)
-	if err != nil {
-		return nil, fmt.Errorf("can't establish agent %w", err)
-	}
-
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
-	if err != nil {
-		return nil, fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
-	}
-	ctx = agent.DialerWithContext(ctx, dialer)
-
-	flapsClient, err := flaps.New(ctx, app)
-	if err != nil {
-		return nil, err
-	}
-
-	ctx = flaps.NewContext(ctx, flapsClient)
-
-	return ctx, nil
 }
