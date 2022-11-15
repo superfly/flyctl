@@ -45,5 +45,5 @@ func New() *cobra.Command {
 }
 
 func runRestart(ctx context.Context) error {
-	return fmt.Errorf("this command has been removed, please use `fly apps restart` instead")
+	return fmt.Errorf("this command has been removed. please use `fly apps restart` instead")
 }

@@ -54,6 +54,7 @@ func Restart(ctx context.Context, m *api.Machine, input *api.RestartMachineInput
 			return fmt.Errorf("failed to wait for health checks to pass: %w", err)
 		}
 	}
+	fmt.Fprintf(io.Out, "Machine %s restarted successfully!\n", colorize.Bold(m.ID))
 
 	return nil
 }

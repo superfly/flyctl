@@ -87,6 +87,7 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 		dialer               = agent.DialerFromContext(ctx)
 		flapsClient          = flaps.FromContext(ctx)
 		MinPostgresHaVersion = "0.0.20"
+		force                = flag.GetBool(ctx, "force")
 	)
 
 	machines, err := machine.AcquireLeases(ctx)
@@ -101,7 +102,7 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 	leader, replicas := machinesNodeRoles(ctx, machines)
 
 	if leader == nil {
-		if !flag.GetBool(ctx, "force") {
+		if !force {
 			return fmt.Errorf("no active leader found")
 		}
 		fmt.Fprintln(io.Out, colorize.Yellow("No leader found, but continuing with restart"))
@@ -129,10 +130,15 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 
 	if inRegionReplicas > 0 {
 		pgclient := flypg.NewFromInstance(leader.PrivateIP, dialer)
-
 		fmt.Fprintf(io.Out, "Attempting to failover %s\n", colorize.Bold(leader.ID))
+
 		if err := pgclient.Failover(ctx); err != nil {
-			fmt.Fprintln(io.Out, colorize.Red(fmt.Sprintf("failed to perform failover: %s", err.Error())))
+			msg := fmt.Sprintf("failed to perform failover: %s", err.Error())
+			if !force {
+				return fmt.Errorf(msg)
+			}
+
+			fmt.Fprintln(io.Out, colorize.Red(msg))
 		}
 	}
 
