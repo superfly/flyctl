@@ -21,7 +21,7 @@ func newRestart() *cobra.Command {
 		usage = "restart [APPNAME]"
 	)
 
-	cmd := command.New(usage, short, long, RunRestart,
+	cmd := command.New(usage, short, long, runRestart,
 		command.RequireSession,
 	)
 	cmd.Args = cobra.ExactArgs(1)
@@ -43,7 +43,7 @@ func newRestart() *cobra.Command {
 	return cmd
 }
 
-func RunRestart(ctx context.Context) error {
+func runRestart(ctx context.Context) error {
 	var (
 		appName = flag.FirstArg(ctx)
 		client  = client.FromContext(ctx).API()
