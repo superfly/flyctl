@@ -54,7 +54,7 @@ func runRestart(ctx context.Context) error {
 		return err
 	}
 
-	if app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster" {
+	if app.IsPostgresApp() {
 		return fmt.Errorf("postgres apps should use `fly pg restart` instead")
 	}
 
