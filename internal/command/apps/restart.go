@@ -29,12 +29,6 @@ func newRestart() *cobra.Command {
 	// Note -
 	flag.Add(cmd,
 		flag.Bool{
-			Name:        "force",
-			Shorthand:   "f",
-			Description: "Will issue a restart against each Machine even if there are errors. ( Machines only )",
-			Default:     false,
-		},
-		flag.Bool{
 			Name:        "force-stop",
 			Description: "Performs a force stop against the target Machine. ( Machines only )",
 			Default:     false,
