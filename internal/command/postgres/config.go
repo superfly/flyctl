@@ -424,19 +424,11 @@ func runConfigUpdate(ctx context.Context) (err error) {
 
 		switch app.PlatformVersion {
 		case "nomad":
-			allocs, err := client.GetAllocations(ctx, app.Name, false)
-			if err != nil {
-				return fmt.Errorf("can't fetch allocations: %w", err)
-			}
-			if err := nomadRestart(ctx, allocs); err != nil {
+			if err := nomadRestart(ctx, app); err != nil {
 				return err
 			}
 		case "machines":
-			machines, err := flapsClient.ListActive(ctx)
-			if err != nil {
-				return fmt.Errorf("machines could not be retrieved %w", err)
-			}
-			if err := machinesRestart(ctx, machines); err != nil {
+			if err := machinesRestart(ctx, &api.RestartMachineInput{}); err != nil {
 				return fmt.Errorf("error restarting cluster: %w", err)
 			}
 		default:

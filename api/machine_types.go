@@ -88,10 +88,11 @@ type StopMachineInput struct {
 }
 
 type RestartMachineInput struct {
-	ID        string        `json:"id"`
-	Signal    *Signal       `json:"signal,omitempty"`
-	Timeout   time.Duration `json:"timeout,omitempty"`
-	ForceStop bool          `json:"force_stop,omitempty"`
+	ID               string        `json:"id"`
+	Signal           *Signal       `json:"signal,omitempty"`
+	Timeout          time.Duration `json:"timeout,omitempty"`
+	ForceStop        bool          `json:"force_stop,omitempty"`
+	SkipHealthChecks bool          `json:"skip_health_checks,omitempty"`
 }
 
 type MachineIP struct {
