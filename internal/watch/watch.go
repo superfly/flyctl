@@ -328,7 +328,7 @@ func MachinesChecks(ctx context.Context, machines []*api.Machine) error {
 			pass, _, _ := countChecks(machine.Checks)
 			checksPassed += pass
 			// Waiting for xxxxxxxx to become healthy (started, 3/3)
-			fmt.Fprintf(io.ErrOut, "Waiting for %s to become healthy (%s, %s)\n",
+			fmt.Fprintf(io.ErrOut, "  Waiting for %s to become healthy (%s, %s)\n",
 				colorize.Bold(machine.ID),
 				colorize.Green(machine.State),
 				colorize.Green(fmt.Sprintf("%d/%d", pass, len(machine.Checks))),

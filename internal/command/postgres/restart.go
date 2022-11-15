@@ -197,8 +197,6 @@ func nomadRestart(ctx context.Context, app *api.AppCompact) error {
 		}
 	}
 
-	fmt.Fprintln(io.Out, "Attempting to restart leader")
-
 	if err := client.RestartAllocation(ctx, app.Name, leader.ID); err != nil {
 		return fmt.Errorf("failed to restart vm %s: %w", leader.ID, err)
 	}
