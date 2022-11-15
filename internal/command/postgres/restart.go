@@ -34,7 +34,7 @@ func newRestart() *cobra.Command {
 		flag.App(),
 		flag.AppConfig(),
 		flag.Bool{
-			Name:        "ignore-failover",
+			Name:        "force",
 			Description: "Force a restart even we don't have an active leader",
 			Default:     false,
 		},
@@ -101,7 +101,7 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 	leader, replicas := machinesNodeRoles(ctx, machines)
 
 	if leader == nil {
-		if !flag.GetBool(ctx, "ignore-failover") {
+		if !flag.GetBool(ctx, "force") {
 			return fmt.Errorf("no active leader found")
 		}
 		fmt.Fprintln(io.Out, colorize.Yellow("No leader found, but continuing with restart"))
