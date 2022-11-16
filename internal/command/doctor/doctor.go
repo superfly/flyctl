@@ -24,22 +24,6 @@ import (
 	"github.com/superfly/flyctl/internal/render"
 )
 
-type errDoctor struct {
-	Err     error
-	JsonErr string
-}
-
-func newFromErr(err error) *errDoctor {
-	return newErrDoctor(err, err.Error())
-}
-
-func newErrDoctor(err error, jsonErr string) *errDoctor {
-	return &errDoctor{
-		Err:     err,
-		JsonErr: jsonErr,
-	}
-}
-
 // New initializes and returns a new doctor Command.
 func New() (cmd *cobra.Command) {
 	const (
