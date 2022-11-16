@@ -18,8 +18,8 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
-	machines "github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/flag"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/watch"
@@ -266,7 +266,7 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) (err error
 	// Acquire leases
 	fmt.Fprintf(io.Out, "Attempting to acquire lease(s)\n")
 	for _, machine := range candidates {
-		lease, err := flapsClient.GetLease(ctx, machine.ID, api.IntPointer(120))
+		lease, err := flapsClient.AcquireLease(ctx, machine.ID, api.IntPointer(120))
 		if err != nil {
 			return fmt.Errorf("failed to obtain lease: %w", err)
 		}
@@ -399,7 +399,7 @@ func updateMachine(ctx context.Context, app *api.AppCompact, machine *api.Machin
 		return err
 	}
 
-	if err := machines.WaitForStartOrStop(ctx, updated, "start", time.Minute*5); err != nil {
+	if err := mach.WaitForStartOrStop(ctx, updated, "start", time.Minute*5); err != nil {
 		return err
 	}
 

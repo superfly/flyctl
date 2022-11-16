@@ -36,7 +36,7 @@ func AcquireLease(ctx context.Context, machine *api.Machine) (*api.Machine, erro
 		flapsClient = flaps.FromContext(ctx)
 	)
 
-	lease, err := flapsClient.GetLease(ctx, machine.ID, api.IntPointer(40))
+	lease, err := flapsClient.AcquireLease(ctx, machine.ID, api.IntPointer(40))
 	if err != nil {
 		return nil, fmt.Errorf("failed to obtain lease: %w", err)
 	}

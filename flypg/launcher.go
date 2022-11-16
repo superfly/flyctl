@@ -9,7 +9,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
 
-	machines "github.com/superfly/flyctl/internal/command/machine"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/spinner"
 	"github.com/superfly/flyctl/internal/watch"
 
@@ -148,7 +148,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			waitTimeout = time.Hour
 		}
 
-		err = machines.WaitForStartOrStop(ctx, machine, "start", waitTimeout)
+		err = mach.WaitForStartOrStop(ctx, machine, "start", waitTimeout)
 		if err != nil {
 			return err
 		}

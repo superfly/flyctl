@@ -487,7 +487,7 @@ func updateMachinesConfig(ctx context.Context, app *api.AppCompact, changes map[
 	}
 
 	// get lease on machine
-	lease, err := flaps.GetLease(ctx, leader.ID, api.IntPointer(40))
+	lease, err := flaps.AcquireLease(ctx, leader.ID, api.IntPointer(40))
 	if err != nil {
 		return fmt.Errorf("failed to obtain lease: %w", err)
 	}
