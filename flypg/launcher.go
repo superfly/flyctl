@@ -342,7 +342,7 @@ func (l *Launcher) createApp(ctx context.Context, config *CreateClusterInput) (*
 func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (map[string]string, error) {
 	out := iostreams.FromContext(ctx).Out
 
-	fmt.Fprintf(out, "Setting secrets on app %s...", config.AppName)
+	fmt.Fprintf(out, "Setting secrets on app %s...\n", config.AppName)
 
 	var suPassword, replPassword, opPassword string
 	var err error
