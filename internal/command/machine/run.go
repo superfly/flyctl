@@ -122,10 +122,6 @@ var sharedFlags = flag.Set{
 		Name:        "schedule",
 		Description: `Schedule a machine run at hourly, daily and monthly intervals`,
 	},
-	flag.Bool{
-		Name:        "auto-confirm",
-		Description: "Auto-confirm changes",
-	},
 }
 
 func newRun() *cobra.Command {
@@ -468,7 +464,7 @@ func selectAppName(ctx context.Context) (name string, err error) {
 }
 
 func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, imageOrPath string) (*api.MachineConfig, error) {
-	machineConf, err := mach.CloneStruct(initialMachineConf)
+	machineConf, err := mach.CloneConfig(initialMachineConf)
 	if err != nil {
 		return nil, err
 	}

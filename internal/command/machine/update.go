@@ -16,7 +16,6 @@ import (
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
-	"github.com/superfly/flyctl/internal/prompt"
 )
 
 func newUpdate() *cobra.Command {
@@ -36,6 +35,10 @@ func newUpdate() *cobra.Command {
 		cmd,
 		flag.Image(),
 		sharedFlags,
+		flag.Bool{
+			Name:        "auto-confirm",
+			Description: "Auto-confirm changes",
+		},
 	)
 
 	cmd.Args = cobra.ExactArgs(1)
@@ -45,10 +48,11 @@ func newUpdate() *cobra.Command {
 
 func runUpdate(ctx context.Context) (err error) {
 	var (
-		appName   = app.NameFromContext(ctx)
-		io        = iostreams.FromContext(ctx)
-		client    = client.FromContext(ctx).API()
-		machineID = flag.FirstArg(ctx)
+		appName     = app.NameFromContext(ctx)
+		io          = iostreams.FromContext(ctx)
+		client      = client.FromContext(ctx).API()
+		machineID   = flag.FirstArg(ctx)
+		autoConfirm = flag.GetBool(ctx, "auto-confirm")
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -91,28 +95,6 @@ func runUpdate(ctx context.Context) (err error) {
 		return err
 	}
 
-	diff := mach.ConfigCompare(ctx, *machine.Config, *machineConf)
-	if diff == "" {
-		return fmt.Errorf("No changes detected")
-	}
-
-	fmt.Fprintf(io.Out, "%s\n", diff)
-
-	if !flag.GetBool(ctx, "auto-confirm") {
-		const msg = "Are you sure you want to apply these changes?"
-
-		switch confirmed, err := prompt.Confirmf(ctx, msg); {
-		case err == nil:
-			if !confirmed {
-				return nil
-			}
-		case prompt.IsNonInteractive(err):
-			return prompt.NonInteractiveError("auto-confirm flag must be specified when not running interactively")
-		default:
-			return err
-		}
-	}
-
 	input := &api.LaunchMachineInput{
 		ID:     machine.ID,
 		AppID:  app.Name,
@@ -121,15 +103,10 @@ func runUpdate(ctx context.Context) (err error) {
 		Config: machineConf,
 	}
 
-	if err := mach.Update(ctx, machine, input); err != nil {
+	if err := mach.Update(ctx, machine, input, autoConfirm); err != nil {
 		return err
 	}
 
-	// fmt.Fprintf(io.Out, "Instance ID has been updated:\n")
-	// fmt.Fprintf(io.Out, "%s -> %s\n\n", prevInstanceID, machine.InstanceID)
-	// fmt.Fprintln(io.Out, "The following config has been updated")
-
-	// fmt.Fprintf(io.Out, "Image: %s\n", machineConf.Image)
 	fmt.Fprintf(io.Out, "\nMonitor machine status here:\nhttps://fly.io/apps/%s/machines/%s\n", app.Name, machine.ID)
 
 	return nil

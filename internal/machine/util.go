@@ -6,7 +6,7 @@ import (
 	"github.com/superfly/flyctl/api"
 )
 
-func CloneStruct(orig api.MachineConfig) (*api.MachineConfig, error) {
+func CloneConfig(orig api.MachineConfig) (*api.MachineConfig, error) {
 	config := &api.MachineConfig{}
 
 	data, err := json.Marshal(orig)
