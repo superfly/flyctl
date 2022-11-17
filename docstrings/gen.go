@@ -363,15 +363,6 @@ events and their results.`,
 			`This will update the application's image to the latest available version.
 The update will perform a rolling restart against each VM, which may result in a brief service disruption.`,
 		}
-	case "info":
-		return KeyStrings{"info", "Show detailed app information",
-			`Shows information about the application on the Fly platform
-
-Information includes the application's
-* name, owner, version, status and hostname
-* services
-* IP addresses`,
-		}
 	case "ips":
 		return KeyStrings{"ips", "Manage IP addresses for apps",
 			`The IPS commands manage IP addresses for applications. An application

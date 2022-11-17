@@ -15,17 +15,6 @@ To read more, use the docs command to view Fly's help on the web.
 shortHelp = "The Fly CLI"
 usage = "flyctl"
 
-[info]
-longHelp = """Shows information about the application on the Fly platform
-
-Information includes the application's
-* name, owner, version, status and hostname
-* services
-* IP addresses
-"""
-shortHelp = "Show detailed app information"
-usage = "info"
-
 [image]
 longHelp = "Manage app image"
 shortHelp = "Manage app image"

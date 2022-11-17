@@ -13,8 +13,8 @@ import (
 
 func New() *cobra.Command {
 	const (
-		long  = `Commands for managing IP addresses associated with an application`
-		short = `Manage IP addresses for apps`
+		long  = `Shows information about the application on the Fly platform.`
+		short = `Shows information about the application`
 	)
 
 	cmd := command.New("info", short, long, runInfo,
