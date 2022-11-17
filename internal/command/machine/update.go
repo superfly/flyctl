@@ -48,9 +48,10 @@ func newUpdate() *cobra.Command {
 
 func runUpdate(ctx context.Context) (err error) {
 	var (
-		appName     = app.NameFromContext(ctx)
-		io          = iostreams.FromContext(ctx)
-		client      = client.FromContext(ctx).API()
+		appName = app.NameFromContext(ctx)
+		io      = iostreams.FromContext(ctx)
+		client  = client.FromContext(ctx).API()
+
 		machineID   = flag.FirstArg(ctx)
 		autoConfirm = flag.GetBool(ctx, "auto-confirm")
 	)
@@ -95,7 +96,7 @@ func runUpdate(ctx context.Context) (err error) {
 		return err
 	}
 
-	confirmed, err := mach.ConfirmUpdate(ctx, machine, *machineConf)
+	confirmed, err := mach.ConfirmConfigChange(ctx, machine, *machineConf)
 	if err != nil {
 		return err
 	}
