@@ -1,39 +1,27 @@
 package checks
 
-import (
-	"context"
-	"fmt"
+// func runListChecksHandlers(ctx context.Context) error {
+// 	out := iostreams.FromContext(ctx).Out
+// 	web := client.FromContext(ctx).API()
+// 	org := flag.FirstArg(ctx)
 
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/config"
-	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/iostreams"
-)
+// 	handlers, err := web.GetHealthCheckHandlers(ctx, org)
+// 	if err != nil {
+// 		return err
+// 	}
 
-func runListChecksHandlers(ctx context.Context) error {
-	out := iostreams.FromContext(ctx).Out
-	web := client.FromContext(ctx).API()
-	org := flag.FirstArg(ctx)
+// 	if config.FromContext(ctx).JSONOutput {
+// 		return render.JSON(out, handlers)
+// 	}
 
-	handlers, err := web.GetHealthCheckHandlers(ctx, org)
-	if err != nil {
-		return err
-	}
-
-	if config.FromContext(ctx).JSONOutput {
-		return render.JSON(out, handlers)
-	}
-
-	fmt.Fprintf(out, "Health Check Handlers for %s\n", org)
-	table := helpers.MakeSimpleTable(out, []string{"Name", "Type"})
-	for _, handler := range handlers {
-		table.Append([]string{handler.Name, handler.Type})
-	}
-	table.Render()
-	return nil
-}
+// 	fmt.Fprintf(out, "Health Check Handlers for %s\n", org)
+// 	table := helpers.MakeSimpleTable(out, []string{"Name", "Type"})
+// 	for _, handler := range handlers {
+// 		table.Append([]string{handler.Name, handler.Type})
+// 	}
+// 	table.Render()
+// 	return nil
+// }
 
 // type createHandlerFn func(context.Context, *api.Organization, string) error
 
