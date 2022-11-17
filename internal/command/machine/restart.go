@@ -101,6 +101,7 @@ func runMachineRestart(ctx context.Context) error {
 	flapsClient := flaps.FromContext(ctx)
 
 	// Restart each machine
+	// TODO - Leases need to be acquired up front for each Machine
 	for _, machineID := range args {
 		m, err := flapsClient.Get(ctx, machineID)
 		if err != nil {

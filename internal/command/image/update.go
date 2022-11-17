@@ -19,7 +19,6 @@ import (
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
-	"github.com/superfly/flyctl/internal/prompt"
 )
 
 func newUpdate() *cobra.Command {
@@ -96,7 +95,6 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) error {
 	var (
 		io          = iostreams.FromContext(ctx)
 		flapsClient = flaps.FromContext(ctx)
-		colorize    = io.ColorScheme()
 
 		autoConfirm = flag.GetBool(ctx, "auto-confirm")
 	)
@@ -126,21 +124,12 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) error {
 		machineConf.Image = image
 
 		if !autoConfirm {
-			diff := mach.ConfigCompare(ctx, *machine.Config, *machineConf)
-			fmt.Fprintf(io.Out, "You are about to apply the following changes to machine %s.\n", colorize.Bold(machine.ID))
-			fmt.Fprintf(io.Out, "%s\n", diff)
-
-			const msg = "Apply changes?"
-
-			switch confirmed, err := prompt.Confirmf(ctx, msg); {
-			case err == nil:
-				if !confirmed {
-					continue
-				}
-			case prompt.IsNonInteractive(err):
-				return prompt.NonInteractiveError("auto-confirm flag must be specified when not running interactively")
-			default:
+			confirmed, err := mach.ConfirmUpdate(ctx, machine, *machineConf)
+			if err != nil {
 				return err
+			}
+			if !confirmed {
+				continue
 			}
 		}
 
@@ -204,24 +193,12 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 		machineConf.Image = image
 
 		if !autoConfirm {
-			diff := mach.ConfigCompare(ctx, *machine.Config, *machineConf)
-			if diff == "" {
-				continue
-			}
-			fmt.Fprintf(io.Out, "Configuration changes to be applied to machine: %s.\n", colorize.Bold(machine.ID))
-			fmt.Fprintf(io.Out, "%s\n", diff)
-
-			const msg = "Apply changes?"
-
-			switch confirmed, err := prompt.Confirmf(ctx, msg); {
-			case err == nil:
-				if !confirmed {
-					continue
-				}
-			case prompt.IsNonInteractive(err):
-				return prompt.NonInteractiveError("auto-confirm flag must be specified when not running interactively")
-			default:
+			confirmed, err := mach.ConfirmUpdate(ctx, machine, *machineConf)
+			if err != nil {
 				return err
+			}
+			if !confirmed {
+				continue
 			}
 		}
 

@@ -95,6 +95,15 @@ func runUpdate(ctx context.Context) (err error) {
 		return err
 	}
 
+	confirmed, err := mach.ConfirmUpdate(ctx, machine, *machineConf)
+	if err != nil {
+		return err
+	}
+	if !confirmed {
+		fmt.Fprintf(io.Out, "No changes to apply\n")
+		return nil
+	}
+
 	input := &api.LaunchMachineInput{
 		ID:     machine.ID,
 		AppID:  app.Name,
