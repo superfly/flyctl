@@ -253,10 +253,10 @@ type IssuedCertificate struct {
 type Definition map[string]interface{}
 
 type MachineInit struct {
-	Exec       []string `json:"exec,omitempty"`
-	Entrypoint []string `json:"entrypoint,omitempty"`
-	Cmd        []string `json:"cmd,omitempty"`
-	Tty        bool     `json:"tty,omitempty"`
+	Exec       []string `json:"exec"`
+	Entrypoint []string `json:"entrypoint"`
+	Cmd        []string `json:"cmd"`
+	Tty        bool     `json:"tty"`
 }
 
 func DefinitionPtr(in map[string]interface{}) *Definition {

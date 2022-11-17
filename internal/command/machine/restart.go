@@ -113,16 +113,9 @@ func runMachineRestart(ctx context.Context) error {
 		}
 		defer flapsClient.ReleaseLease(ctx, m.ID, m.LeaseNonce)
 
-		lease, err := flapsClient.FindLease(ctx, m.ID)
-		if err != nil {
-			return err
+		if err := machine.Restart(ctx, m, input); err != nil {
+			return fmt.Errorf("failed to restart machine %s: %w", m.ID, err)
 		}
-
-		fmt.Printf("Lease: %+v", lease)
-
-		// if err := machine.Restart(ctx, m, input); err != nil {
-		// 	return fmt.Errorf("failed to restart machine %s: %w", m.ID, err)
-		// }
 	}
 
 	return nil

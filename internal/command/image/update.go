@@ -127,10 +127,10 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) error {
 
 		if !autoConfirm {
 			diff := mach.ConfigCompare(ctx, *machine.Config, *machineConf)
-			fmt.Fprintf(io.Out, "Configuration changes for machine %s\n", colorize.Bold(machine.ID))
+			fmt.Fprintf(io.Out, "You are about to apply the following changes to machine %s.\n", colorize.Bold(machine.ID))
 			fmt.Fprintf(io.Out, "%s\n", diff)
 
-			const msg = "Are you sure you want to apply these changes?"
+			const msg = "Apply changes?"
 
 			switch confirmed, err := prompt.Confirmf(ctx, msg); {
 			case err == nil:
@@ -208,7 +208,7 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 			if diff == "" {
 				continue
 			}
-			fmt.Fprintf(io.Out, "Configuration changes for machine: %s.\n", colorize.Bold(machine.ID))
+			fmt.Fprintf(io.Out, "Configuration changes to be applied to machine: %s.\n", colorize.Bold(machine.ID))
 			fmt.Fprintf(io.Out, "%s\n", diff)
 
 			const msg = "Apply changes?"
