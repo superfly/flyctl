@@ -451,14 +451,15 @@ func (app *AppCompact) IsPostgresApp() bool {
 }
 
 type AppInfo struct {
-	ID           string
-	Name         string
-	Status       string
-	Deployed     bool
-	Hostname     string
-	Version      int
-	Organization *OrganizationBasic
-	IPAddresses  struct {
+	ID              string
+	Name            string
+	Status          string
+	Deployed        bool
+	Hostname        string
+	Version         int
+	PlatformVersion string
+	Organization    *OrganizationBasic
+	IPAddresses     struct {
 		Nodes []IPAddress
 	}
 	Services []Service
