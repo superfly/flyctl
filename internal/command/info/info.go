@@ -16,7 +16,7 @@ import (
 
 func New() *cobra.Command {
 	const (
-		long  = `Shows information about the application on the Fly platform.`
+		long  = `Shows information about the application.`
 		short = `Shows information about the application`
 	)
 
