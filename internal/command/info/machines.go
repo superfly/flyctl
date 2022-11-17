@@ -126,12 +126,12 @@ func showMachineIPInfo(ctx context.Context, appName string) error {
 			ip.Type,
 			ip.Address,
 			ip.Region,
-			ip.CreatedAt.String(),
+			formatRelativeTime(ip.CreatedAt),
 		}
 		ips = append(ips, fields)
 	}
 
-	_ = render.Table(io.Out, "IP Addresses", ips, "Type", "Address", "Region", "Createde at")
+	_ = render.Table(io.Out, "IP Addresses", ips, "Type", "Address", "Region", "Created at")
 
 	return nil
 }
