@@ -70,7 +70,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	cmdfmt.PrintDone(streams.ErrOut, msg)
 
 	build.ContextBuildStart()
-	excludes, err := readDockerignore(opts.WorkingDir)
+	excludes, err := readDockerignore(opts.WorkingDir, opts.IgnorefilePath)
 	if err != nil {
 		build.ContextBuildFinish()
 		build.BuildFinish()
