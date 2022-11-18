@@ -124,7 +124,7 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) error {
 		machineConf.Image = image
 
 		if !autoConfirm {
-			confirmed, err := mach.ConfirmConfigChange(ctx, machine, *machineConf)
+			confirmed, err := mach.ConfirmConfigChanges(ctx, machine, *machineConf)
 			if err != nil {
 				return err
 			}
@@ -193,7 +193,7 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 		machineConf.Image = image
 
 		if !autoConfirm {
-			confirmed, err := mach.ConfirmConfigChange(ctx, machine, *machineConf)
+			confirmed, err := mach.ConfirmConfigChanges(ctx, machine, *machineConf)
 			if err != nil {
 				return err
 			}

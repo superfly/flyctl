@@ -13,7 +13,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func ConfirmConfigChange(ctx context.Context, machine *api.Machine, targetConfig api.MachineConfig) (bool, error) {
+func ConfirmConfigChanges(ctx context.Context, machine *api.Machine, targetConfig api.MachineConfig) (bool, error) {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
@@ -26,8 +26,8 @@ func ConfirmConfigChange(ctx context.Context, machine *api.Machine, targetConfig
 	if diff == "" {
 		return false, nil
 	}
-	fmt.Fprintf(io.Out, "Configuration changes to be applied to machine %s (%s)\n", colorize.Bold(machine.Name), colorize.Bold(machine.ID))
-	fmt.Fprintf(io.Out, "%s\n", diff)
+	fmt.Fprintf(io.Out, "Configuration changes to be applied to machine: %s (%s)\n", colorize.Bold(machine.ID), colorize.Bold(machine.Name))
+	fmt.Fprintf(io.Out, "\n%s\n", diff)
 
 	const msg = "Apply changes?"
 
@@ -80,22 +80,24 @@ func configCompare(ctx context.Context, original api.MachineConfig, new api.Mach
 	diffSlice := strings.Split(diff, "\n")
 
 	var str string
+	additionReg := regexp.MustCompile(`^\+.*`)
+	deletionReg := regexp.MustCompile(`^\-.*`)
+
+	// Highlight additions/deletions
 	for _, val := range diffSlice {
 		vB := []byte(val)
-		addition, _ := regexp.Match(`^\+.*`, vB)
-		deletion, _ := regexp.Match(`^\-.*`, vB)
 
-		if addition {
+		if additionReg.Match(vB) {
 			str += colorize.Green(val) + "\n"
-		} else if deletion {
+		} else if deletionReg.Match(vB) {
 			str += colorize.Red(val) + "\n"
 		} else {
 			str += val + "\n"
 		}
 	}
 
+	// Cleanup output
 	delim := "\"\"\""
-
 	rx := regexp.MustCompile(`(?s)` + regexp.QuoteMeta(delim) + `(.*?)` + regexp.QuoteMeta(delim))
 	match := rx.FindStringSubmatch(str)
 	if len(match) > 0 {

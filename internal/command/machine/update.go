@@ -96,7 +96,7 @@ func runUpdate(ctx context.Context) (err error) {
 		return err
 	}
 
-	confirmed, err := mach.ConfirmConfigChange(ctx, machine, *machineConf)
+	confirmed, err := mach.ConfirmConfigChanges(ctx, machine, *machineConf)
 	if err != nil {
 		return err
 	}
