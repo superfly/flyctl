@@ -124,7 +124,7 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) error {
 		machineConf.Image = image
 
 		if !autoConfirm {
-			confirmed, err := mach.ConfirmConfigChanges(ctx, machine, *machineConf)
+			confirmed, err := mach.ConfirmConfigChanges(ctx, machine, *machineConf, "")
 			if err != nil {
 				return err
 			}
@@ -144,7 +144,7 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) error {
 			Region:  machine.Region,
 			Config:  &machineConf,
 		}
-		if err := mach.Update(ctx, machine, input, autoConfirm); err != nil {
+		if err := mach.Update(ctx, machine, input); err != nil {
 			return err
 		}
 	}
@@ -179,7 +179,18 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 	// Identify target images
 	members := map[string][]Member{}
 
+	// This prompt should only apply if we auto-generate the image.
+	prompt := colorize.Bold("The following changes will be applied to all Postgres machines.\n")
+	prompt += colorize.Yellow("Machines not running the official Postgres image will be skipped.\n")
+
 	for _, machine := range machines {
+		// Ignore any non PG machines
+		if !strings.Contains(machine.ImageRef.Repository, "postgres") {
+			continue
+		}
+
+		role := machineRole(machine)
+
 		machineConf, err := mach.CloneConfig(*machine.Config)
 		if err != nil {
 			return err
@@ -192,17 +203,24 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 
 		machineConf.Image = image
 
+		// Postgres only needs single confirmation.
 		if !autoConfirm {
-			confirmed, err := mach.ConfirmConfigChanges(ctx, machine, *machineConf)
+			confirmed, err := mach.ConfirmConfigChanges(ctx, machine, *machineConf, prompt)
 			if err != nil {
-				return err
+				switch err.(type) {
+				case *mach.ErrNoConfigChangesFound:
+					continue
+				default:
+					return err
+				}
 			}
+
 			if !confirmed {
-				continue
+				return fmt.Errorf("image upgrade aborted")
 			}
+			autoConfirm = true
 		}
 
-		role := machineRole(machine)
 		member := Member{Machine: machine, TargetConfig: *machineConf}
 		members[role] = append(members[role], member)
 	}
@@ -228,25 +246,33 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 			Region:  machine.Region,
 			Config:  &member.TargetConfig,
 		}
-		if err := mach.Update(ctx, machine, input, false); err != nil {
+		if err := mach.Update(ctx, machine, input); err != nil {
 			return err
 		}
 	}
 
-	if len(members["leader"]) == 0 {
-
-	} else if len(members["leader"]) > 1 {
-
-	} else {
+	if len(members["leader"]) > 0 {
 		leader := members["leader"][0]
 		machine := leader.Machine
 
-		dialer := agent.DialerFromContext(ctx)
-		pgclient := flypg.NewFromInstance(machine.PrivateIP, dialer)
-		fmt.Fprintf(io.Out, "Attempting to failover %s\n", colorize.Bold(machine.ID))
+		// Verify that we have an in region replica before attempting failover.
+		attemptFailover := false
+		for _, replica := range members["replicas"] {
+			if replica.Machine.Region == leader.Machine.Region {
+				attemptFailover = true
+				break
+			}
+		}
 
-		if err := pgclient.Failover(ctx); err != nil {
-			fmt.Fprintln(io.Out, colorize.Red(fmt.Sprintf("failed to perform failover: %s", err.Error())))
+		// Skip failover if we don't have any replicas.
+		if attemptFailover {
+			dialer := agent.DialerFromContext(ctx)
+			pgclient := flypg.NewFromInstance(machine.PrivateIP, dialer)
+			fmt.Fprintf(io.Out, "Attempting to failover %s\n", colorize.Bold(machine.ID))
+
+			if err := pgclient.Failover(ctx); err != nil {
+				fmt.Fprintln(io.Out, colorize.Red(fmt.Sprintf("failed to perform failover: %s", err.Error())))
+			}
 		}
 
 		input := &api.LaunchMachineInput{
@@ -256,7 +282,7 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 			Region:  machine.Region,
 			Config:  &leader.TargetConfig,
 		}
-		if err := mach.Update(ctx, machine, input, false); err != nil {
+		if err := mach.Update(ctx, machine, input); err != nil {
 			return err
 		}
 	}
@@ -291,8 +317,8 @@ func resolveImage(ctx context.Context, machine api.Machine) (string, error) {
 	if image == "" {
 		ref := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
 		latestImage, err := client.GetLatestImageDetails(ctx, ref)
-		if err != nil && strings.Contains(err.Error(), "Unknown repository") {
-			// do something
+		if err != nil && !strings.Contains(err.Error(), "Unknown repository") {
+			return "", err
 		}
 
 		if latestImage != nil {

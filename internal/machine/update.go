@@ -11,7 +11,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput, autoConfirm bool) error {
+func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) error {
 	var (
 		flapsClient = flaps.FromContext(ctx)
 		io          = iostreams.FromContext(ctx)

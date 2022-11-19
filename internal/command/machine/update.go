@@ -52,8 +52,7 @@ func runUpdate(ctx context.Context) (err error) {
 		io      = iostreams.FromContext(ctx)
 		client  = client.FromContext(ctx).API()
 
-		machineID   = flag.FirstArg(ctx)
-		autoConfirm = flag.GetBool(ctx, "auto-confirm")
+		machineID = flag.FirstArg(ctx)
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -96,7 +95,7 @@ func runUpdate(ctx context.Context) (err error) {
 		return err
 	}
 
-	confirmed, err := mach.ConfirmConfigChanges(ctx, machine, *machineConf)
+	confirmed, err := mach.ConfirmConfigChanges(ctx, machine, *machineConf, "")
 	if err != nil {
 		return err
 	}
@@ -113,7 +112,7 @@ func runUpdate(ctx context.Context) (err error) {
 		Config: machineConf,
 	}
 
-	if err := mach.Update(ctx, machine, input, autoConfirm); err != nil {
+	if err := mach.Update(ctx, machine, input); err != nil {
 		return err
 	}
 

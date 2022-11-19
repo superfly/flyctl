@@ -13,7 +13,13 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func ConfirmConfigChanges(ctx context.Context, machine *api.Machine, targetConfig api.MachineConfig) (bool, error) {
+type ErrNoConfigChangesFound struct{}
+
+func (e *ErrNoConfigChangesFound) Error() string {
+	return "no config changes found"
+}
+
+func ConfirmConfigChanges(ctx context.Context, machine *api.Machine, targetConfig api.MachineConfig, customPrompt string) (bool, error) {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
@@ -24,13 +30,18 @@ func ConfirmConfigChanges(ctx context.Context, machine *api.Machine, targetConfi
 	// TODO - This may not be the right thing to do.  Consider throwing an exception and
 	// allow the caller to decide what to do here.
 	if diff == "" {
-		return false, nil
+		return false, &ErrNoConfigChangesFound{}
 	}
-	fmt.Fprintf(io.Out, "Configuration changes to be applied to machine: %s (%s)\n", colorize.Bold(machine.ID), colorize.Bold(machine.Name))
+
+	if customPrompt != "" {
+		fmt.Fprintf(io.Out, customPrompt)
+	} else {
+		fmt.Fprintf(io.Out, "Configuration changes to be applied to machine: %s (%s)\n", colorize.Bold(machine.ID), colorize.Bold(machine.Name))
+	}
+
 	fmt.Fprintf(io.Out, "\n%s\n", diff)
 
 	const msg = "Apply changes?"
-
 	switch confirmed, err := prompt.Confirmf(ctx, msg); {
 	case err == nil:
 		if !confirmed {
