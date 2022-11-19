@@ -34,8 +34,10 @@ func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) 
 		return err
 	}
 
-	if err := watch.MachinesChecks(ctx, []*api.Machine{m}); err != nil {
-		return fmt.Errorf("failed to wait for health checks to pass: %w", err)
+	if !input.SkipHealthChecks {
+		if err := watch.MachinesChecks(ctx, []*api.Machine{m}); err != nil {
+			return fmt.Errorf("failed to wait for health checks to pass: %w", err)
+		}
 	}
 
 	fmt.Fprintf(io.Out, "Machine %s updated successfully!\n", colorize.Bold(m.ID))

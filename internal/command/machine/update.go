@@ -39,6 +39,11 @@ func newUpdate() *cobra.Command {
 			Name:        "auto-confirm",
 			Description: "Auto-confirm changes",
 		},
+		flag.Bool{
+			Name:        "skip-health-checks",
+			Description: "Restarts app without waiting for health checks. ( Machines only )",
+			Default:     false,
+		},
 	)
 
 	cmd.Args = cobra.ExactArgs(1)
@@ -52,7 +57,8 @@ func runUpdate(ctx context.Context) (err error) {
 		io      = iostreams.FromContext(ctx)
 		client  = client.FromContext(ctx).API()
 
-		machineID = flag.FirstArg(ctx)
+		machineID        = flag.FirstArg(ctx)
+		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -105,11 +111,12 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 
 	input := &api.LaunchMachineInput{
-		ID:     machine.ID,
-		AppID:  app.Name,
-		Name:   machine.Name,
-		Region: machine.Region,
-		Config: machineConf,
+		ID:               machine.ID,
+		AppID:            app.Name,
+		Name:             machine.Name,
+		Region:           machine.Region,
+		Config:           machineConf,
+		SkipHealthChecks: skipHealthChecks,
 	}
 
 	if err := mach.Update(ctx, machine, input); err != nil {

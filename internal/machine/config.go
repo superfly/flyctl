@@ -26,9 +26,6 @@ func ConfirmConfigChanges(ctx context.Context, machine *api.Machine, targetConfi
 	)
 
 	diff := configCompare(ctx, *machine.Config, targetConfig)
-	// If there's no diff we can treat it as if it wasn't confirmed.
-	// TODO - This may not be the right thing to do.  Consider throwing an exception and
-	// allow the caller to decide what to do here.
 	if diff == "" {
 		return false, &ErrNoConfigChangesFound{}
 	}
