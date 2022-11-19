@@ -25,9 +25,7 @@ func newUpdate() *cobra.Command {
 	const (
 		long = `This will update the application's image to the latest available version.
 The update will perform a rolling restart against each VM, which may result in a brief service disruption.`
-
 		short = "Updates the app's image to the latest available version. (Fly Postgres only)"
-
 		usage = "update"
 	)
 
@@ -57,6 +55,11 @@ The update will perform a rolling restart against each VM, which may result in a
 		flag.Bool{
 			Name:        "auto-confirm",
 			Description: "Auto-confirm changes",
+		},
+		flag.Bool{
+			Name:        "skip-health-checks",
+			Description: "Runs rolling restart process without waiting for health checks. ( Machines only )",
+			Default:     false,
 		},
 	)
 
@@ -96,7 +99,8 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) error {
 		io          = iostreams.FromContext(ctx)
 		flapsClient = flaps.FromContext(ctx)
 
-		autoConfirm = flag.GetBool(ctx, "auto-confirm")
+		autoConfirm      = flag.GetBool(ctx, "auto-confirm")
+		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
 	)
 
 	machines, err := mach.AcquireLeases(ctx)
@@ -138,11 +142,12 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) error {
 
 	for machine, machineConf := range eligible {
 		input := &api.LaunchMachineInput{
-			ID:      machine.ID,
-			AppID:   app.Name,
-			OrgSlug: app.Organization.Slug,
-			Region:  machine.Region,
-			Config:  &machineConf,
+			ID:               machine.ID,
+			AppID:            app.Name,
+			OrgSlug:          app.Organization.Slug,
+			Region:           machine.Region,
+			Config:           &machineConf,
+			SkipHealthChecks: skipHealthChecks,
 		}
 		if err := mach.Update(ctx, machine, input); err != nil {
 			return err
@@ -154,7 +159,7 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) error {
 	return nil
 }
 
-type Member struct {
+type member struct {
 	Machine      *api.Machine
 	TargetConfig api.MachineConfig
 }
@@ -177,7 +182,7 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 	}
 
 	// Identify target images
-	members := map[string][]Member{}
+	members := map[string][]member{}
 
 	// This prompt should only apply if we auto-generate the image.
 	prompt := colorize.Bold("The following changes will be applied to all Postgres machines.\n")
@@ -221,7 +226,7 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 			autoConfirm = true
 		}
 
-		member := Member{Machine: machine, TargetConfig: *machineConf}
+		member := member{Machine: machine, TargetConfig: *machineConf}
 		members[role] = append(members[role], member)
 	}
 
@@ -322,7 +327,7 @@ func resolveImage(ctx context.Context, machine api.Machine) (string, error) {
 		}
 
 		if latestImage != nil {
-			image = fmt.Sprintf("%s/%s", latestImage.Registry, latestImage.FullImageRef())
+			image = latestImage.FullImageRef()
 		}
 
 		if image == "" {
