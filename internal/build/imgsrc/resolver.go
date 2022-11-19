@@ -26,6 +26,7 @@ type ImageOptions struct {
 	AppName         string
 	WorkingDir      string
 	DockerfilePath  string
+	IgnorefilePath  string
 	ImageRef        string
 	BuildArgs       map[string]string
 	ExtraBuildArgs  map[string]string
