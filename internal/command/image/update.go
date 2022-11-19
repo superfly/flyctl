@@ -185,7 +185,7 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 
 	for _, machine := range machines {
 		// Ignore any non PG machines
-		if !strings.Contains(machine.ImageRef.Repository, "postgres") {
+		if !strings.Contains(machine.ImageRef.Repository, "flyio/postgres") {
 			continue
 		}
 
