@@ -25,7 +25,7 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) error {
 	)
 
 	// Fetch active machines and acquire leases
-	machines, err := mach.AcquireLeases(ctx)
+	machines, err := mach.AcquireAllLeases(ctx)
 	if err != nil {
 		return err
 	}
@@ -96,7 +96,7 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 	)
 
 	// Acquire leases
-	machines, err := mach.AcquireLeases(ctx)
+	machines, err := mach.AcquireAllLeases(ctx)
 	if err != nil {
 		return err
 	}

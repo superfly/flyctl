@@ -8,15 +8,21 @@ import (
 	"github.com/superfly/flyctl/flaps"
 )
 
-// AcquireLeases works to acquire a lease for each active machine and returns
-// a reference with the lease nonce attached.
+// AcquireAllLeases works to acquire/attach a lease for each active machine.
 // WARNING: Make sure you defer the lease release process.
-func AcquireLeases(ctx context.Context) ([]*api.Machine, error) {
+func AcquireAllLeases(ctx context.Context) ([]*api.Machine, error) {
 	machines, err := ListActive(ctx)
 	if err != nil {
 		return nil, err
 	}
 
+	return AcquireLeases(ctx, machines)
+
+}
+
+// AcquireLeases works to acquire/attach a lease for each machine specified.
+// WARNING: Make sure you defer the lease release process.
+func AcquireLeases(ctx context.Context, machines []*api.Machine) ([]*api.Machine, error) {
 	var leaseHoldingMachines []*api.Machine
 
 	for _, machine := range machines {
@@ -30,7 +36,7 @@ func AcquireLeases(ctx context.Context) ([]*api.Machine, error) {
 	return leaseHoldingMachines, nil
 }
 
-// AcquireLease works to acquire a leases for the specified machine.
+// AcquireLease works to acquire/attach a lease for the specified machine.
 // WARNING: Make sure you defer the lease release process.
 func AcquireLease(ctx context.Context, machine *api.Machine) (*api.Machine, error) {
 	var (
