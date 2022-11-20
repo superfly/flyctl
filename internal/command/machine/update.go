@@ -38,7 +38,7 @@ func newUpdate() *cobra.Command {
 		flag.Yes(),
 		flag.Bool{
 			Name:        "skip-health-checks",
-			Description: "Restarts app without waiting for health checks. ( Machines only )",
+			Description: "Updates machine without waiting for health checks.",
 			Default:     false,
 		},
 	)
