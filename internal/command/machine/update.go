@@ -35,10 +35,7 @@ func newUpdate() *cobra.Command {
 		cmd,
 		flag.Image(),
 		sharedFlags,
-		flag.Bool{
-			Name:        "auto-confirm",
-			Description: "Auto-confirm changes",
-		},
+		flag.Yes(),
 		flag.Bool{
 			Name:        "skip-health-checks",
 			Description: "Restarts app without waiting for health checks. ( Machines only )",
@@ -58,6 +55,7 @@ func runUpdate(ctx context.Context) (err error) {
 		client  = client.FromContext(ctx).API()
 
 		machineID        = flag.FirstArg(ctx)
+		autoConfirm      = flag.GetBool(ctx, "yes")
 		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
 	)
 
@@ -71,8 +69,8 @@ func runUpdate(ctx context.Context) (err error) {
 		return err
 	}
 
+	// Get machine
 	flapsClient := flaps.FromContext(ctx)
-
 	machine, err := flapsClient.Get(ctx, machineID)
 	if err != nil {
 		return err
@@ -101,15 +99,19 @@ func runUpdate(ctx context.Context) (err error) {
 		return err
 	}
 
-	confirmed, err := mach.ConfirmConfigChanges(ctx, machine, *machineConf, "")
-	if err != nil {
-		return err
-	}
-	if !confirmed {
-		fmt.Fprintf(io.Out, "No changes to apply\n")
-		return nil
+	// Prompt user to confirm changes
+	if !autoConfirm {
+		confirmed, err := mach.ConfirmConfigChanges(ctx, machine, *machineConf, "")
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			fmt.Fprintf(io.Out, "No changes to apply\n")
+			return nil
+		}
 	}
 
+	// Perform update
 	input := &api.LaunchMachineInput{
 		ID:               machine.ID,
 		AppID:            app.Name,
@@ -118,7 +120,6 @@ func runUpdate(ctx context.Context) (err error) {
 		Config:           machineConf,
 		SkipHealthChecks: skipHealthChecks,
 	}
-
 	if err := mach.Update(ctx, machine, input); err != nil {
 		return err
 	}

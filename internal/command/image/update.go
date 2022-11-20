@@ -3,22 +3,14 @@ package image
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/flypg"
-	"github.com/superfly/flyctl/iostreams"
-
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
-	mach "github.com/superfly/flyctl/internal/machine"
 )
 
 func newUpdate() *cobra.Command {
@@ -42,31 +34,27 @@ The update will perform a rolling restart against each VM, which may result in a
 		flag.Yes(),
 		flag.String{
 			Name:        "strategy",
-			Description: "Deployment strategy",
-		},
-		flag.Bool{
-			Name:        "detach",
-			Description: "Return immediately instead of monitoring update progress",
+			Description: "Deployment strategy. ( Nomad only )",
 		},
 		flag.String{
 			Name:        "image",
-			Description: "Target a specific image",
-		},
-		flag.Bool{
-			Name:        "auto-confirm",
-			Description: "Auto-confirm changes",
+			Description: "Target a specific image. ( Machines only )",
 		},
 		flag.Bool{
 			Name:        "skip-health-checks",
 			Description: "Runs rolling restart process without waiting for health checks. ( Machines only )",
 			Default:     false,
 		},
+		flag.Bool{
+			Name:        "detach",
+			Description: "Return immediately instead of monitoring update progress",
+		},
 	)
 
 	return cmd
 }
 
-func runUpdate(ctx context.Context) (err error) {
+func runUpdate(ctx context.Context) error {
 	var (
 		appName = app.NameFromContext(ctx)
 		client  = client.FromContext(ctx).API()
@@ -90,250 +78,7 @@ func runUpdate(ctx context.Context) (err error) {
 			return updatePostgresOnMachines(ctx, app)
 		}
 		return updateImageForMachines(ctx, app)
+	default:
+		return fmt.Errorf("unable to determine platform version. please contact support")
 	}
-	return
-}
-
-func updateImageForMachines(ctx context.Context, app *api.AppCompact) error {
-	var (
-		io          = iostreams.FromContext(ctx)
-		flapsClient = flaps.FromContext(ctx)
-
-		autoConfirm      = flag.GetBool(ctx, "auto-confirm")
-		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
-	)
-
-	machines, err := mach.AcquireLeases(ctx)
-	if err != nil {
-		return err
-	}
-	for _, machine := range machines {
-		defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
-	}
-
-	eligible := map[*api.Machine]api.MachineConfig{}
-
-	// Loop through machines and compare/confirm changes.
-	for _, machine := range machines {
-		machineConf, err := mach.CloneConfig(*machine.Config)
-		if err != nil {
-			return err
-		}
-
-		image, err := resolveImage(ctx, *machine)
-		if err != nil {
-			return err
-		}
-
-		machineConf.Image = image
-
-		if !autoConfirm {
-			confirmed, err := mach.ConfirmConfigChanges(ctx, machine, *machineConf, "")
-			if err != nil {
-				return err
-			}
-			if !confirmed {
-				continue
-			}
-		}
-
-		eligible[machine] = *machineConf
-	}
-
-	for machine, machineConf := range eligible {
-		input := &api.LaunchMachineInput{
-			ID:               machine.ID,
-			AppID:            app.Name,
-			OrgSlug:          app.Organization.Slug,
-			Region:           machine.Region,
-			Config:           &machineConf,
-			SkipHealthChecks: skipHealthChecks,
-		}
-		if err := mach.Update(ctx, machine, input); err != nil {
-			return err
-		}
-	}
-
-	fmt.Fprintln(io.Out, "Machines successfully updated")
-
-	return nil
-}
-
-type member struct {
-	Machine      *api.Machine
-	TargetConfig api.MachineConfig
-}
-
-func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err error) {
-	var (
-		io          = iostreams.FromContext(ctx)
-		colorize    = io.ColorScheme()
-		flapsClient = flaps.FromContext(ctx)
-		autoConfirm = flag.GetBool(ctx, "auto-confirm")
-	)
-
-	// Acquire leases
-	machines, err := mach.AcquireLeases(ctx)
-	if err != nil {
-		return err
-	}
-	for _, machine := range machines {
-		defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
-	}
-
-	// Identify target images
-	members := map[string][]member{}
-
-	// This prompt should only apply if we auto-generate the image.
-	prompt := colorize.Bold("The following changes will be applied to all Postgres machines.\n")
-	prompt += colorize.Yellow("Machines not running the official Postgres image will be skipped.\n")
-
-	for _, machine := range machines {
-		// Ignore any non PG machines
-		if !strings.Contains(machine.ImageRef.Repository, "flyio/postgres") {
-			continue
-		}
-
-		role := machineRole(machine)
-
-		machineConf, err := mach.CloneConfig(*machine.Config)
-		if err != nil {
-			return err
-		}
-
-		image, err := resolveImage(ctx, *machine)
-		if err != nil {
-			return err
-		}
-
-		machineConf.Image = image
-
-		// Postgres only needs single confirmation.
-		if !autoConfirm {
-			confirmed, err := mach.ConfirmConfigChanges(ctx, machine, *machineConf, prompt)
-			if err != nil {
-				switch err.(type) {
-				case *mach.ErrNoConfigChangesFound:
-					continue
-				default:
-					return err
-				}
-			}
-
-			if !confirmed {
-				return fmt.Errorf("image upgrade aborted")
-			}
-			autoConfirm = true
-		}
-
-		member := member{Machine: machine, TargetConfig: *machineConf}
-		members[role] = append(members[role], member)
-	}
-
-	if len(members) == 0 {
-		fmt.Fprintln(io.Out, colorize.Bold("No changes to apply"))
-		return nil
-	}
-
-	fmt.Fprintln(io.Out, "Identifying cluster role(s)")
-	for role, nodes := range members {
-		for _, node := range nodes {
-			fmt.Fprintf(io.Out, "  Machine %s: %s\n", colorize.Bold(node.Machine.ID), role)
-		}
-	}
-
-	for _, member := range members["replica"] {
-		machine := member.Machine
-		input := &api.LaunchMachineInput{
-			ID:      machine.ID,
-			AppID:   app.Name,
-			OrgSlug: app.Organization.Slug,
-			Region:  machine.Region,
-			Config:  &member.TargetConfig,
-		}
-		if err := mach.Update(ctx, machine, input); err != nil {
-			return err
-		}
-	}
-
-	if len(members["leader"]) > 0 {
-		leader := members["leader"][0]
-		machine := leader.Machine
-
-		// Verify that we have an in region replica before attempting failover.
-		attemptFailover := false
-		for _, replica := range members["replicas"] {
-			if replica.Machine.Region == leader.Machine.Region {
-				attemptFailover = true
-				break
-			}
-		}
-
-		// Skip failover if we don't have any replicas.
-		if attemptFailover {
-			dialer := agent.DialerFromContext(ctx)
-			pgclient := flypg.NewFromInstance(machine.PrivateIP, dialer)
-			fmt.Fprintf(io.Out, "Attempting to failover %s\n", colorize.Bold(machine.ID))
-
-			if err := pgclient.Failover(ctx); err != nil {
-				fmt.Fprintln(io.Out, colorize.Red(fmt.Sprintf("failed to perform failover: %s", err.Error())))
-			}
-		}
-
-		input := &api.LaunchMachineInput{
-			ID:      machine.ID,
-			AppID:   app.Name,
-			OrgSlug: app.Organization.Slug,
-			Region:  machine.Region,
-			Config:  &leader.TargetConfig,
-		}
-		if err := mach.Update(ctx, machine, input); err != nil {
-			return err
-		}
-	}
-
-	fmt.Fprintln(io.Out, "Postgres cluster has been successfully updated!")
-
-	return nil
-}
-
-func machineRole(machine *api.Machine) (role string) {
-	role = "unknown"
-
-	for _, check := range machine.Checks {
-		if check.Name == "role" {
-			if check.Status == "passing" {
-				role = check.Output
-			} else {
-				role = "error"
-			}
-			break
-		}
-	}
-	return role
-}
-
-func resolveImage(ctx context.Context, machine api.Machine) (string, error) {
-	var (
-		client = client.FromContext(ctx).API()
-		image  = flag.GetString(ctx, "image")
-	)
-
-	if image == "" {
-		ref := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
-		latestImage, err := client.GetLatestImageDetails(ctx, ref)
-		if err != nil && !strings.Contains(err.Error(), "Unknown repository") {
-			return "", err
-		}
-
-		if latestImage != nil {
-			image = latestImage.FullImageRef()
-		}
-
-		if image == "" {
-			image = machine.Config.Image
-		}
-	}
-
-	return image, nil
 }

@@ -21,6 +21,8 @@ func updateImageForNomad(ctx context.Context) error {
 		client  = client.FromContext(ctx).API()
 		io      = iostreams.FromContext(ctx)
 		appName = app.NameFromContext(ctx)
+
+		autoConfirm = flag.GetBool(ctx, "yes")
 	)
 
 	app, err := client.GetImageInfo(ctx, appName)
@@ -50,7 +52,7 @@ func updateImageForNomad(ctx context.Context) error {
 		target = fmt.Sprintf("%s %s", target, lI.Version)
 	}
 
-	if !flag.GetYes(ctx) {
+	if !autoConfirm {
 		switch confirmed, err := prompt.Confirmf(ctx, "Update `%s` from %s to %s?", appName, current, target); {
 		case err == nil:
 			if !confirmed {
