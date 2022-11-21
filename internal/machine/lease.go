@@ -9,11 +9,11 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-type ReleaseLeasesFunc func(ctx context.Context, machines []*api.Machine)
-type ReleaseLeaseFunc func(ctx context.Context, machine *api.Machine)
+type releaseLeasesFunc func(ctx context.Context, machines []*api.Machine)
+type releaseLeaseFunc func(ctx context.Context, machine *api.Machine)
 
 // AcquireAllLeases works to acquire/attach a lease for each active machine.
-func AcquireAllLeases(ctx context.Context) ([]*api.Machine, ReleaseLeasesFunc, error) {
+func AcquireAllLeases(ctx context.Context) ([]*api.Machine, releaseLeasesFunc, error) {
 	releaseFunc := func(ctx context.Context, machines []*api.Machine) {}
 
 	machines, err := ListActive(ctx)
@@ -25,7 +25,7 @@ func AcquireAllLeases(ctx context.Context) ([]*api.Machine, ReleaseLeasesFunc, e
 }
 
 // AcquireLeases works to acquire/attach a lease for each machine specified.
-func AcquireLeases(ctx context.Context, machines []*api.Machine) ([]*api.Machine, ReleaseLeasesFunc, error) {
+func AcquireLeases(ctx context.Context, machines []*api.Machine) ([]*api.Machine, releaseLeasesFunc, error) {
 	var (
 		flapsClient = flaps.FromContext(ctx)
 		io          = iostreams.FromContext(ctx)
@@ -53,14 +53,17 @@ func AcquireLeases(ctx context.Context, machines []*api.Machine) ([]*api.Machine
 
 // AcquireLease works to acquire/attach a lease for the specified machine.
 // WARNING: Make sure you defer the lease release process.
-func AcquireLease(ctx context.Context, machine *api.Machine) (*api.Machine, ReleaseLeaseFunc, error) {
+func AcquireLease(ctx context.Context, machine *api.Machine) (*api.Machine, releaseLeaseFunc, error) {
 	var (
 		flapsClient = flaps.FromContext(ctx)
+		io          = iostreams.FromContext(ctx)
 	)
 
 	releaseFunc := func(ctx context.Context, machine *api.Machine) {
 		if machine != nil {
-			flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
+			if err := flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce); err != nil {
+				fmt.Fprintf(io.Out, "failed to release lease for machine %s: %s", machine.ID, err.Error())
+			}
 		}
 	}
 
