@@ -8,7 +8,6 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
@@ -17,20 +16,17 @@ import (
 
 func updateImageForMachines(ctx context.Context, app *api.AppCompact) error {
 	var (
-		io          = iostreams.FromContext(ctx)
-		flapsClient = flaps.FromContext(ctx)
+		io = iostreams.FromContext(ctx)
 
 		autoConfirm      = flag.GetBool(ctx, "yes")
 		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
 	)
 
-	// Fetch active machines and acquire leases
-	machines, err := mach.AcquireAllLeases(ctx)
+	// Acquire leases for all machines
+	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
+	defer releaseLeaseFunc(ctx, machines)
 	if err != nil {
 		return err
-	}
-	for _, machine := range machines {
-		defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
 	}
 
 	eligible := map[*api.Machine]api.MachineConfig{}
@@ -88,20 +84,17 @@ type member struct {
 
 func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err error) {
 	var (
-		io          = iostreams.FromContext(ctx)
-		colorize    = io.ColorScheme()
-		flapsClient = flaps.FromContext(ctx)
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
 
 		autoConfirm = flag.GetBool(ctx, "yes")
 	)
 
 	// Acquire leases
-	machines, err := mach.AcquireAllLeases(ctx)
+	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
+	defer releaseLeaseFunc(ctx, machines)
 	if err != nil {
 		return err
-	}
-	for _, machine := range machines {
-		defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
 	}
 
 	// Identify target images
