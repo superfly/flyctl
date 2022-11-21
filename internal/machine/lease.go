@@ -58,22 +58,28 @@ func AcquireLease(ctx context.Context, machine *api.Machine) (*api.Machine, Rele
 		flapsClient = flaps.FromContext(ctx)
 	)
 
-	lease, err := flapsClient.AcquireLease(ctx, machine.ID, api.IntPointer(40))
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to obtain lease: %w", err)
+	releaseFunc := func(ctx context.Context, machine *api.Machine) {
+		if machine != nil {
+			flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
+		}
 	}
 
+	lease, err := flapsClient.AcquireLease(ctx, machine.ID, api.IntPointer(40))
+	if err != nil {
+		return nil, releaseFunc, fmt.Errorf("failed to obtain lease: %w", err)
+	}
+
+	// Set lease nonce before we re-fetch the Machines latest configuration.
+	// This will ensure the lease can still be released in the event the upcoming GET fails.
+	machine.LeaseNonce = lease.Data.Nonce
+
+	// Re-query machine post-lease acquisition to ensure we are working against the latest configuration.
 	machine, err = flapsClient.Get(ctx, machine.ID)
 	if err != nil {
-		return nil, nil, err
+		return machine, releaseFunc, err
 	}
 
 	machine.LeaseNonce = lease.Data.Nonce
-
-	releaseFunc := func(ctx context.Context, machine *api.Machine) {
-		flapsClient := flaps.FromContext(ctx)
-		flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
-	}
 
 	return machine, releaseFunc, nil
 }
