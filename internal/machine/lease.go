@@ -13,18 +13,18 @@ type ReleaseLeasesFunc func(ctx context.Context, machines []*api.Machine)
 type ReleaseLeaseFunc func(ctx context.Context, machine *api.Machine)
 
 // AcquireAllLeases works to acquire/attach a lease for each active machine.
-// WARNING: Make sure you defer the lease release process.
 func AcquireAllLeases(ctx context.Context) ([]*api.Machine, ReleaseLeasesFunc, error) {
+	releaseFunc := func(ctx context.Context, machines []*api.Machine) { return }
+
 	machines, err := ListActive(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, releaseFunc, err
 	}
 
 	return AcquireLeases(ctx, machines)
 }
 
 // AcquireLeases works to acquire/attach a lease for each machine specified.
-// WARNING: Make sure you defer the lease release process.
 func AcquireLeases(ctx context.Context, machines []*api.Machine) ([]*api.Machine, ReleaseLeasesFunc, error) {
 	var (
 		flapsClient = flaps.FromContext(ctx)
