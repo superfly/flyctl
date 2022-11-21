@@ -89,9 +89,8 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 		force                = flag.GetBool(ctx, "force")
 	)
 
-	fmt.Println("Acquiring lease")
-	machines, leaseReleaseFunc, err := mach.AcquireAllLeases(ctx)
-	defer leaseReleaseFunc(ctx, machines)
+	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
+	defer releaseLeaseFunc(ctx, machines)
 	if err != nil {
 		return err
 	}

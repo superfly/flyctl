@@ -77,8 +77,8 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 
 	// Acquire lease
-	machine, leaseReleaseFunc, err := mach.AcquireLease(ctx, machine)
-	defer leaseReleaseFunc(ctx, machine)
+	machine, releaseLeaseFunc, err := mach.AcquireLease(ctx, machine)
+	defer releaseLeaseFunc(ctx, machine)
 	if err != nil {
 		return err
 	}
