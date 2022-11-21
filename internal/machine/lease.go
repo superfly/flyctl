@@ -14,7 +14,7 @@ type ReleaseLeaseFunc func(ctx context.Context, machine *api.Machine)
 
 // AcquireAllLeases works to acquire/attach a lease for each active machine.
 func AcquireAllLeases(ctx context.Context) ([]*api.Machine, ReleaseLeasesFunc, error) {
-	releaseFunc := func(ctx context.Context, machines []*api.Machine) { return }
+	releaseFunc := func(ctx context.Context, machines []*api.Machine) {}
 
 	machines, err := ListActive(ctx)
 	if err != nil {
