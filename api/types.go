@@ -273,6 +273,10 @@ type ImageVersion struct {
 }
 
 func (img *ImageVersion) FullImageRef() string {
+	return fmt.Sprintf("%s/%s:%s", img.Registry, img.Repository, img.Tag)
+}
+
+func (img *ImageVersion) ImageRef() string {
 	return fmt.Sprintf("%s:%s", img.Repository, img.Tag)
 }
 

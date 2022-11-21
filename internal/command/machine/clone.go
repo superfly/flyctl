@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -151,7 +152,7 @@ func runMachineClone(ctx context.Context) (err error) {
 	fmt.Fprintf(out, "  Waiting for machine %s to start...\n", colorize.Bold(launchedMachine.ID))
 
 	// wait for a machine to be started
-	err = WaitForStartOrStop(ctx, launchedMachine, "start", time.Minute*5)
+	err = mach.WaitForStartOrStop(ctx, launchedMachine, "start", time.Minute*5)
 	if err != nil {
 		return err
 	}

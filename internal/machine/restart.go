@@ -16,7 +16,7 @@ func RollingRestart(ctx context.Context, input *api.RestartMachineInput) error {
 		flapsClient = flaps.FromContext(ctx)
 	)
 
-	machines, err := AcquireLeases(ctx)
+	machines, err := AcquireAllLeases(ctx)
 	if err != nil {
 		return err
 	}

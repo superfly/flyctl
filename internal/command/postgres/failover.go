@@ -94,7 +94,7 @@ func runFailover(ctx context.Context) (err error) {
 
 	// acquire cluster wide lock
 	for _, machine := range machines {
-		lease, err := flapsClient.GetLease(ctx, machine.ID, api.IntPointer(40))
+		lease, err := flapsClient.AcquireLease(ctx, machine.ID, api.IntPointer(40))
 		if err != nil {
 			return fmt.Errorf("failed to obtain lease: %w", err)
 		}

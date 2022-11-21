@@ -40,7 +40,7 @@ func newRestart() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "skip-health-checks",
-			Description: "Runs rolling restart process without waiting for health checks",
+			Description: "Runs rolling restart process without waiting for health checks. ( Machines only )",
 			Default:     false,
 		},
 	)
@@ -90,7 +90,7 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 		force                = flag.GetBool(ctx, "force")
 	)
 
-	machines, err := machine.AcquireLeases(ctx)
+	machines, err := machine.AcquireAllLeases(ctx)
 	for _, m := range machines {
 		defer flapsClient.ReleaseLease(ctx, m.ID, m.LeaseNonce)
 	}

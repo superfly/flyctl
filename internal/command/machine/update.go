@@ -3,19 +3,19 @@ package machine
 import (
 	"context"
 	"fmt"
-	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/cmd/presenters"
+	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
+	mach "github.com/superfly/flyctl/internal/machine"
 )
 
 func newUpdate() *cobra.Command {
@@ -35,6 +35,12 @@ func newUpdate() *cobra.Command {
 		cmd,
 		flag.Image(),
 		sharedFlags,
+		flag.Yes(),
+		flag.Bool{
+			Name:        "skip-health-checks",
+			Description: "Updates machine without waiting for health checks.",
+			Default:     false,
+		},
 	)
 
 	cmd.Args = cobra.ExactArgs(1)
@@ -44,29 +50,40 @@ func newUpdate() *cobra.Command {
 
 func runUpdate(ctx context.Context) (err error) {
 	var (
-		appName  = app.NameFromContext(ctx)
-		io       = iostreams.FromContext(ctx)
-		colorize = io.ColorScheme()
+		appName = app.NameFromContext(ctx)
+		io      = iostreams.FromContext(ctx)
+		client  = client.FromContext(ctx).API()
+
+		machineID        = flag.FirstArg(ctx)
+		autoConfirm      = flag.GetBool(ctx, "yes")
+		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
 	)
 
-	machineID := flag.FirstArg(ctx)
+	app, err := client.GetAppCompact(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("could not get app: %w", err)
+	}
 
-	app, err := appFromMachineOrName(ctx, machineID, appName)
+	ctx, err = apps.BuildContext(ctx, app)
 	if err != nil {
 		return err
 	}
 
-	flapsClient, err := flaps.New(ctx, app)
-	if err != nil {
-		return fmt.Errorf("could not make API client: %w", err)
-	}
-	ctx = flaps.NewContext(ctx, flapsClient)
-
+	// Get machine
+	flapsClient := flaps.FromContext(ctx)
 	machine, err := flapsClient.Get(ctx, machineID)
 	if err != nil {
 		return err
 	}
 
+	// Acquire lease
+	machine, err = mach.AcquireLease(ctx, machine)
+	if err != nil {
+		return err
+	}
+	defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
+
+	// Resolve image
 	imageOrPath := machine.Config.Image
 	image := flag.GetString(ctx, flag.ImageName)
 	dockerfile := flag.GetString(ctx, flag.Dockerfile().Name)
@@ -76,69 +93,38 @@ func runUpdate(ctx context.Context) (err error) {
 		imageOrPath = "." // cwd
 	}
 
-	prevInstanceID := machine.InstanceID
-
-	fmt.Fprintf(io.Out, "Machine %s was found and is currently in a %s state, attempting to update...\n", machineID, machine.State)
-
-	machineConf := *machine.Config
-	machineConf, machineDiff, err := determineMachineConfig(ctx, machineConf, app, imageOrPath)
-	if err != nil {
-		return
-	}
-
-	input := api.LaunchMachineInput{
-		ID:     machine.ID,
-		AppID:  app.Name,
-		Name:   machine.Name,
-		Region: machine.Region,
-		Config: &machineConf,
-	}
-
-	machine, err = flapsClient.Update(ctx, input, "")
+	// Identify configuration changes
+	machineConf, err := determineMachineConfig(ctx, *machine.Config, app, imageOrPath)
 	if err != nil {
 		return err
 	}
 
-	waitForAction := "start"
-	if machine.Config.Schedule != "" {
-		waitForAction = "stop"
-	}
-
-	out := io.Out
-	fmt.Fprintln(out, colorize.Yellow(fmt.Sprintf("Machine %s has been updated\n", machine.ID)))
-	fmt.Fprintf(out, "Instance ID has been updated:\n")
-	fmt.Fprintf(out, "%s -> %s\n\n", prevInstanceID, machine.InstanceID)
-	fmt.Fprintln(out, "The following config has been updated")
-
-	s := strings.Split(machineDiff, ",")
-	var str string
-	for _, val := range s {
-		_, foundDeletion := presenters.GetStringInBetweenTwoString(val, "-", ":")
-		_, foundAddition := presenters.GetStringInBetweenTwoString(val, "+", ":")
-		if foundAddition {
-			str += colorize.Green(val)
-		} else if foundDeletion {
-			str += colorize.Red(val)
-		} else {
-			str += val
+	// Prompt user to confirm changes
+	if !autoConfirm {
+		confirmed, err := mach.ConfirmConfigChanges(ctx, machine, *machineConf, "")
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			fmt.Fprintf(io.Out, "No changes to apply\n")
+			return nil
 		}
 	}
-	fmt.Fprintln(out, str)
 
-	//wait for machine to be started
-	if err := WaitForStartOrStop(ctx, machine, waitForAction, time.Second*60); err != nil {
+	// Perform update
+	input := &api.LaunchMachineInput{
+		ID:               machine.ID,
+		AppID:            app.Name,
+		Name:             machine.Name,
+		Region:           machine.Region,
+		Config:           machineConf,
+		SkipHealthChecks: skipHealthChecks,
+	}
+	if err := mach.Update(ctx, machine, input); err != nil {
 		return err
 	}
 
-	fmt.Fprintf(out, "Image: %s\n", machineConf.Image)
-
-	if waitForAction == "start" {
-		fmt.Fprintf(out, "State: Started\n\n")
-	} else {
-		fmt.Fprintf(out, "State: Stopped\n\n")
-	}
-
-	fmt.Fprintf(out, "\nMonitor machine status here:\nhttps://fly.io/apps/%s/machines/%s\n", app.Name, machine.ID)
+	fmt.Fprintf(io.Out, "\nMonitor machine status here:\nhttps://fly.io/apps/%s/machines/%s\n", app.Name, machine.ID)
 
 	return nil
 }
