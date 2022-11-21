@@ -9022,6 +9022,11 @@ input UpdateAddOnInput {
   name: String
 
   """
+  Options specific to the add-on
+  """
+  options: JSON
+
+  """
   The add-on plan ID
   """
   planId: ID

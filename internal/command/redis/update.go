@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -51,6 +52,7 @@ func runUpdate(ctx context.Context) (err error) {
 			password
 			primaryRegion
 			readRegions
+			options
 			organization {
 				slug
 			}
@@ -92,9 +94,33 @@ func runUpdate(ctx context.Context) (err error) {
 		return fmt.Errorf("failed to select a plan: %w", err)
 	}
 
+	type Options struct {
+		Eviction bool
+	}
+	options := &Options{}
+	err = json.Unmarshal(addOn.Options.([]byte), options)
+
+	if err != nil {
+		return
+	}
+
+	var enableEviction bool = true
+
+	if options.Eviction {
+		enableEviction, err = prompt.Confirm(ctx, "Eviction is enabled. Would you like to disable eviction?")
+	} else {
+		enableEviction, err = prompt.Confirm(ctx, " Would you like to enable eviction?")
+	}
+
+	if err != nil {
+		return
+	}
+
+	options.Eviction = enableEviction
+
 	_ = `# @genqlient
-  mutation UpdateAddOn($addOnId: ID!, $planId: ID!, $readRegions: [String!]!) {
-		updateAddOn(input: {addOnId: $addOnId, planId: $planId, readRegions: $readRegions}) {
+  mutation UpdateAddOn($addOnId: ID!, $planId: ID!, $readRegions: [String!]!, $options: JSON!) {
+		updateAddOn(input: {addOnId: $addOnId, planId: $planId, readRegions: $readRegions, options: $options}) {
 			addOn {
 				id
 			}
@@ -108,7 +134,7 @@ func runUpdate(ctx context.Context) (err error) {
 		readRegionCodes = append(readRegionCodes, region.Code)
 	}
 
-	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, result.AddOnPlans.Nodes[index].Id, readRegionCodes)
+	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, result.AddOnPlans.Nodes[index].Id, readRegionCodes, options)
 
 	if err != nil {
 		return

@@ -495,6 +495,8 @@ type GetAddOnAddOn struct {
 	PrimaryRegion string `json:"primaryRegion"`
 	// Regions where replica instances are deployed
 	ReadRegions []string `json:"readRegions"`
+	// Add-on options
+	Options interface{} `json:"options"`
 	// Organization that owns this service
 	Organization GetAddOnAddOnOrganization `json:"organization"`
 	// The add-on plan
@@ -521,6 +523,9 @@ func (v *GetAddOnAddOn) GetPrimaryRegion() string { return v.PrimaryRegion }
 
 // GetReadRegions returns GetAddOnAddOn.ReadRegions, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetReadRegions() []string { return v.ReadRegions }
+
+// GetOptions returns GetAddOnAddOn.Options, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOn) GetOptions() interface{} { return v.Options }
 
 // GetOrganization returns GetAddOnAddOn.Organization, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetOrganization() GetAddOnAddOnOrganization { return v.Organization }
@@ -995,9 +1000,10 @@ func (v *__ResolverFinishBuildInput) GetInput() FinishBuildInput { return v.Inpu
 
 // __UpdateAddOnInput is used internally by genqlient
 type __UpdateAddOnInput struct {
-	AddOnId     string   `json:"addOnId"`
-	PlanId      string   `json:"planId"`
-	ReadRegions []string `json:"readRegions"`
+	AddOnId     string      `json:"addOnId"`
+	PlanId      string      `json:"planId"`
+	ReadRegions []string    `json:"readRegions"`
+	Options     interface{} `json:"options"`
 }
 
 // GetAddOnId returns __UpdateAddOnInput.AddOnId, and is useful for accessing the field via an interface.
@@ -1008,6 +1014,9 @@ func (v *__UpdateAddOnInput) GetPlanId() string { return v.PlanId }
 
 // GetReadRegions returns __UpdateAddOnInput.ReadRegions, and is useful for accessing the field via an interface.
 func (v *__UpdateAddOnInput) GetReadRegions() []string { return v.ReadRegions }
+
+// GetOptions returns __UpdateAddOnInput.Options, and is useful for accessing the field via an interface.
+func (v *__UpdateAddOnInput) GetOptions() interface{} { return v.Options }
 
 func AgentGetInstances(
 	ctx context.Context,
@@ -1157,6 +1166,7 @@ query GetAddOn ($name: String) {
 		password
 		primaryRegion
 		readRegions
+		options
 		organization {
 			slug
 		}
@@ -1441,12 +1451,13 @@ func UpdateAddOn(
 	addOnId string,
 	planId string,
 	readRegions []string,
+	options interface{},
 ) (*UpdateAddOnResponse, error) {
 	req := &graphql.Request{
 		OpName: "UpdateAddOn",
 		Query: `
-mutation UpdateAddOn ($addOnId: ID!, $planId: ID!, $readRegions: [String!]!) {
-	updateAddOn(input: {addOnId:$addOnId,planId:$planId,readRegions:$readRegions}) {
+mutation UpdateAddOn ($addOnId: ID!, $planId: ID!, $readRegions: [String!]!, $options: JSON!) {
+	updateAddOn(input: {addOnId:$addOnId,planId:$planId,readRegions:$readRegions,options:$options}) {
 		addOn {
 			id
 		}
@@ -1457,6 +1468,7 @@ mutation UpdateAddOn ($addOnId: ID!, $planId: ID!, $readRegions: [String!]!) {
 			AddOnId:     addOnId,
 			PlanId:      planId,
 			ReadRegions: readRegions,
+			Options:     options,
 		},
 	}
 	var err error
