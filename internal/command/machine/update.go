@@ -77,11 +77,11 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 
 	// Acquire lease
-	machine, err = mach.AcquireLease(ctx, machine)
+	machine, leaseReleaseFunc, err := mach.AcquireLease(ctx, machine)
 	if err != nil {
 		return err
 	}
-	defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
+	defer leaseReleaseFunc(ctx, machine)
 
 	// Resolve image
 	imageOrPath := machine.Config.Image

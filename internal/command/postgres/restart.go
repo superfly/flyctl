@@ -8,7 +8,6 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
@@ -85,15 +84,12 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 		io                   = iostreams.FromContext(ctx)
 		colorize             = io.ColorScheme()
 		dialer               = agent.DialerFromContext(ctx)
-		flapsClient          = flaps.FromContext(ctx)
 		MinPostgresHaVersion = "0.0.20"
 		force                = flag.GetBool(ctx, "force")
 	)
 
-	machines, err := machine.AcquireAllLeases(ctx)
-	for _, m := range machines {
-		defer flapsClient.ReleaseLease(ctx, m.ID, m.LeaseNonce)
-	}
+	machines, leaseReleaseFunc, err := machine.AcquireAllLeases(ctx)
+	defer leaseReleaseFunc(ctx, machines)
 
 	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 		return err
