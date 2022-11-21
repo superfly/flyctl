@@ -19,6 +19,7 @@ import (
 
 // Alias unwieldy types from GraphQL generated code
 type RedisAddOn = gql.CreateAddOnCreateAddOnCreateAddOnPayloadAddOn
+type AddOnOptions map[string]interface{}
 
 func newCreate() (cmd *cobra.Command) {
 	const (
@@ -214,7 +215,6 @@ func ProvisionDatabase(ctx context.Context, org *api.Organization, config RedisC
 		readRegionCodes = append(readRegionCodes, region.Code)
 	}
 
-	type AddOnOptions map[string]interface{}
 	options := AddOnOptions{}
 
 	if config.Eviction {

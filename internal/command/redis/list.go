@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -49,6 +50,7 @@ func runList(ctx context.Context) (err error) {
 					privateIp
 					primaryRegion
 					readRegions
+					options
 					organization {
 						id
 						slug
@@ -62,16 +64,25 @@ func runList(ctx context.Context) (err error) {
 	var rows [][]string
 
 	for _, addon := range response.AddOns.Nodes {
+		options, _ := addon.Options.(map[string]interface{})
+		fmt.Println(options)
+		var eviction = "Disabled"
+
+		if options["eviction"] != nil && options["eviction"].(bool) {
+			eviction = "Enabled"
+		}
+
 		rows = append(rows, []string{
 			addon.Name,
 			addon.Organization.Slug,
 			addon.AddOnPlan.DisplayName,
+			eviction,
 			addon.PrimaryRegion,
 			strings.Join(addon.ReadRegions, ","),
 		})
 	}
 
-	_ = render.Table(out, "", rows, "Name", "Org", "Plan", "Primary Region", "Read Regions")
+	_ = render.Table(out, "", rows, "Name", "Org", "Plan", "Eviction", "Primary Region", "Read Regions")
 
 	return
 }

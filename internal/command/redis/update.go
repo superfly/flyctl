@@ -2,7 +2,6 @@ package redis
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -94,29 +93,30 @@ func runUpdate(ctx context.Context) (err error) {
 		return fmt.Errorf("failed to select a plan: %w", err)
 	}
 
-	type Options struct {
-		Eviction bool
-	}
-	options := &Options{}
-	err = json.Unmarshal(addOn.Options.([]byte), options)
+	// type Options struct {
+	// 	Eviction bool
+	// }
+
+	// options := &Options{}
+
+	options, _ := addOn.Options.(map[string]interface{})
 
 	if err != nil {
 		return
 	}
 
-	var enableEviction bool = true
+	if options != nil && options["eviction"].(bool) {
+		if disableEviction, err := prompt.Confirm(ctx, " Would you like to disable eviction?"); disableEviction || err != nil {
+			options["eviction"] = false
+		}
 
-	if options.Eviction {
-		enableEviction, err = prompt.Confirm(ctx, "Eviction is enabled. Would you like to disable eviction?")
 	} else {
-		enableEviction, err = prompt.Confirm(ctx, " Would you like to enable eviction?")
+		options["eviction"], err = prompt.Confirm(ctx, " Would you like to enable eviction?")
 	}
 
 	if err != nil {
 		return
 	}
-
-	options.Eviction = enableEviction
 
 	_ = `# @genqlient
   mutation UpdateAddOn($addOnId: ID!, $planId: ID!, $readRegions: [String!]!, $options: JSON!) {

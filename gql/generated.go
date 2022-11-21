@@ -711,6 +711,8 @@ type ListAddOnsAddOnsAddOnConnectionNodesAddOn struct {
 	PrimaryRegion string `json:"primaryRegion"`
 	// Regions where replica instances are deployed
 	ReadRegions []string `json:"readRegions"`
+	// Add-on options
+	Options interface{} `json:"options"`
 	// Organization that owns this service
 	Organization ListAddOnsAddOnsAddOnConnectionNodesAddOnOrganization `json:"organization"`
 }
@@ -734,6 +736,9 @@ func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetPrimaryRegion() string { 
 
 // GetReadRegions returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.ReadRegions, and is useful for accessing the field via an interface.
 func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetReadRegions() []string { return v.ReadRegions }
+
+// GetOptions returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.Options, and is useful for accessing the field via an interface.
+func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetOptions() interface{} { return v.Options }
 
 // GetOrganization returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.Organization, and is useful for accessing the field via an interface.
 func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetOrganization() ListAddOnsAddOnsAddOnConnectionNodesAddOnOrganization {
@@ -1318,6 +1323,7 @@ query ListAddOns ($addOnType: AddOnType) {
 			privateIp
 			primaryRegion
 			readRegions
+			options
 			organization {
 				id
 				slug
