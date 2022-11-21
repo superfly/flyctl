@@ -442,10 +442,9 @@ func runConfigUpdate(ctx context.Context) (err error) {
 
 func updateMachinesConfig(ctx context.Context, app *api.AppCompact, changes map[string]string) (err error) {
 	var (
-		io     = iostreams.FromContext(ctx)
-		dialer = agent.DialerFromContext(ctx)
-		cmd    = flypg.CommandFromContext(ctx)
-		fclt   = flaps.FromContext(ctx)
+		io   = iostreams.FromContext(ctx)
+		cmd  = flypg.CommandFromContext(ctx)
+		fclt = flaps.FromContext(ctx)
 	)
 
 	machines, err := fclt.ListActive(ctx)
@@ -453,31 +452,9 @@ func updateMachinesConfig(ctx context.Context, app *api.AppCompact, changes map[
 		return fmt.Errorf("machines could not be retrieved")
 	}
 
-	var leader *api.Machine
-
-	for _, machine := range machines {
-		address := fmt.Sprintf("[%s]", machine.PrivateIP)
-
-		pgclient := flypg.NewFromInstance(address, dialer)
-		if err != nil {
-			return fmt.Errorf("can't connect to %s: %w", machine.Name, err)
-		}
-
-		role, err := pgclient.NodeRole(ctx)
-		if err != nil {
-			return fmt.Errorf("can't get role for %s: %w", machine.Name, err)
-		}
-
-		if role == "leader" {
-			leader = machine
-			break
-		} else if role == "replica" {
-			continue
-		}
-	}
-
-	if leader == nil {
-		return fmt.Errorf("no leader found")
+	leader, err := pickLeader(ctx, machines)
+	if err != nil {
+		return err
 	}
 
 	// obtain lease on leader
