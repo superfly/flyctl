@@ -78,10 +78,10 @@ func runUpdate(ctx context.Context) (err error) {
 
 	// Acquire lease
 	machine, leaseReleaseFunc, err := mach.AcquireLease(ctx, machine)
+	defer leaseReleaseFunc(ctx, machine)
 	if err != nil {
 		return err
 	}
-	defer leaseReleaseFunc(ctx, machine)
 
 	// Resolve image
 	imageOrPath := machine.Config.Image

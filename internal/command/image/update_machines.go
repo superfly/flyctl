@@ -22,12 +22,12 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) error {
 		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
 	)
 
-	// Fetch active machines and acquire leases
+	// Acquire leases for all machines
 	machines, leaseReleaseFunc, err := mach.AcquireAllLeases(ctx)
+	defer leaseReleaseFunc(ctx, machines)
 	if err != nil {
 		return err
 	}
-	defer leaseReleaseFunc(ctx, machines)
 
 	eligible := map[*api.Machine]api.MachineConfig{}
 
@@ -92,10 +92,10 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 
 	// Acquire leases
 	machines, leaseReleaseFunc, err := mach.AcquireAllLeases(ctx)
+	defer leaseReleaseFunc(ctx, machines)
 	if err != nil {
 		return err
 	}
-	defer leaseReleaseFunc(ctx, machines)
 
 	// Identify target images
 	members := map[string][]member{}

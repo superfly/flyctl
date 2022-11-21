@@ -14,27 +14,12 @@ type ReleaseLeaseFunc func(ctx context.Context, machine *api.Machine)
 // AcquireAllLeases works to acquire/attach a lease for each active machine.
 // WARNING: Make sure you defer the lease release process.
 func AcquireAllLeases(ctx context.Context) ([]*api.Machine, ReleaseLeasesFunc, error) {
-	var (
-		flapsClient = flaps.FromContext(ctx)
-	)
 	machines, err := ListActive(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	machines, _, err = AcquireLeases(ctx, machines)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	releaseFunc := func(ctx context.Context, machines []*api.Machine) {
-		for _, m := range machines {
-			defer flapsClient.ReleaseLease(ctx, m.ID, m.LeaseNonce)
-		}
-	}
-
-	return machines, releaseFunc, nil
-
+	return AcquireLeases(ctx, machines)
 }
 
 // AcquireLeases works to acquire/attach a lease for each machine specified.
@@ -44,19 +29,22 @@ func AcquireLeases(ctx context.Context, machines []*api.Machine) ([]*api.Machine
 		flapsClient = flaps.FromContext(ctx)
 	)
 
+	releaseFunc := func(ctx context.Context, machines []*api.Machine) {
+		for _, m := range machines {
+			if m.LeaseNonce != "" {
+				defer flapsClient.ReleaseLease(ctx, m.ID, m.LeaseNonce)
+			}
+		}
+	}
+
 	leaseHoldingMachines := []*api.Machine{}
 	for _, machine := range machines {
 		m, _, err := AcquireLease(ctx, machine)
 		if err != nil {
-			return nil, nil, err
+			return leaseHoldingMachines, releaseFunc, err
 		}
-		leaseHoldingMachines = append(leaseHoldingMachines, m)
-	}
 
-	releaseFunc := func(ctx context.Context, machines []*api.Machine) {
-		for _, m := range machines {
-			defer flapsClient.ReleaseLease(ctx, m.ID, m.LeaseNonce)
-		}
+		leaseHoldingMachines = append(leaseHoldingMachines, m)
 	}
 
 	return leaseHoldingMachines, releaseFunc, nil
@@ -83,7 +71,9 @@ func AcquireLease(ctx context.Context, machine *api.Machine) (*api.Machine, Rele
 
 	releaseFunc := func(ctx context.Context, machine *api.Machine) {
 		flapsClient := flaps.FromContext(ctx)
-		defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
+		if machine.LeaseNonce != "" {
+			defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
+		}
 	}
 
 	return machine, releaseFunc, nil

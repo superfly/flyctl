@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/machine"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -88,8 +89,11 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 		force                = flag.GetBool(ctx, "force")
 	)
 
-	machines, leaseReleaseFunc, err := machine.AcquireAllLeases(ctx)
+	machines, leaseReleaseFunc, err := mach.AcquireAllLeases(ctx)
 	defer leaseReleaseFunc(ctx, machines)
+	if err != nil {
+		return err
+	}
 
 	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
 		return err
