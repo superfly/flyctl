@@ -111,11 +111,11 @@ func runMachineRestart(ctx context.Context) error {
 	}
 
 	// Acquire leases
-	machines, leaseReleaseFunc, err := mach.AcquireLeases(ctx, machines)
+	machines, releaseLeaseFunc, err := mach.AcquireLeases(ctx, machines)
+	defer releaseLeaseFunc(ctx, machines)
 	if err != nil {
 		return err
 	}
-	defer leaseReleaseFunc(ctx, machines)
 
 	// Restart each machine
 	for _, machine := range machines {
