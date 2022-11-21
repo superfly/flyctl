@@ -12,12 +12,11 @@ import (
 )
 
 func RollingRestart(ctx context.Context, input *api.RestartMachineInput) error {
-
 	machines, releaseFunc, err := AcquireAllLeases(ctx)
+	defer releaseFunc(ctx, machines)
 	if err != nil {
 		return err
 	}
-	defer releaseFunc(ctx, machines)
 
 	for _, m := range machines {
 		Restart(ctx, m, input)
