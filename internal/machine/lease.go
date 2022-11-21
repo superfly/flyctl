@@ -6,6 +6,7 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 type ReleaseLeasesFunc func(ctx context.Context, machines []*api.Machine)
@@ -27,12 +28,13 @@ func AcquireAllLeases(ctx context.Context) ([]*api.Machine, ReleaseLeasesFunc, e
 func AcquireLeases(ctx context.Context, machines []*api.Machine) ([]*api.Machine, ReleaseLeasesFunc, error) {
 	var (
 		flapsClient = flaps.FromContext(ctx)
+		io          = iostreams.FromContext(ctx)
 	)
 
 	releaseFunc := func(ctx context.Context, machines []*api.Machine) {
 		for _, m := range machines {
-			if m.LeaseNonce != "" {
-				defer flapsClient.ReleaseLease(ctx, m.ID, m.LeaseNonce)
+			if err := flapsClient.ReleaseLease(ctx, m.ID, m.LeaseNonce); err != nil {
+				fmt.Fprintf(io.Out, "failed to release lease for machine %s: %s", m.ID, err.Error())
 			}
 		}
 	}
@@ -43,7 +45,6 @@ func AcquireLeases(ctx context.Context, machines []*api.Machine) ([]*api.Machine
 		if err != nil {
 			return leaseHoldingMachines, releaseFunc, err
 		}
-
 		leaseHoldingMachines = append(leaseHoldingMachines, m)
 	}
 
@@ -71,9 +72,7 @@ func AcquireLease(ctx context.Context, machine *api.Machine) (*api.Machine, Rele
 
 	releaseFunc := func(ctx context.Context, machine *api.Machine) {
 		flapsClient := flaps.FromContext(ctx)
-		if machine.LeaseNonce != "" {
-			defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
-		}
+		flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
 	}
 
 	return machine, releaseFunc, nil
