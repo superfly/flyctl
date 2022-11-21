@@ -12,17 +12,10 @@ import (
 )
 
 func RollingRestart(ctx context.Context, input *api.RestartMachineInput) error {
-	var (
-		flapsClient = flaps.FromContext(ctx)
-	)
-
-	machines, err := AcquireLeases(ctx)
+	machines, releaseFunc, err := AcquireAllLeases(ctx)
+	defer releaseFunc(ctx, machines)
 	if err != nil {
 		return err
-	}
-	// Defer lease release
-	for _, m := range machines {
-		defer flapsClient.ReleaseLease(ctx, m.ID, m.LeaseNonce)
 	}
 
 	for _, m := range machines {

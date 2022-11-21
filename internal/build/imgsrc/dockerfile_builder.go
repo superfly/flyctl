@@ -99,7 +99,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		compressed: dockerFactory.IsRemote(),
 	}
 
-	excludes, err := readDockerignore(opts.WorkingDir)
+	excludes, err := readDockerignore(opts.WorkingDir, opts.IgnorefilePath)
 	if err != nil {
 		build.BuildFinish()
 		build.ContextBuildFinish()

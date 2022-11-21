@@ -8,13 +8,13 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/machine"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -40,7 +40,7 @@ func newRestart() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "skip-health-checks",
-			Description: "Runs rolling restart process without waiting for health checks",
+			Description: "Runs rolling restart process without waiting for health checks. ( Machines only )",
 			Default:     false,
 		},
 	)
@@ -85,14 +85,14 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 		io                   = iostreams.FromContext(ctx)
 		colorize             = io.ColorScheme()
 		dialer               = agent.DialerFromContext(ctx)
-		flapsClient          = flaps.FromContext(ctx)
 		MinPostgresHaVersion = "0.0.20"
 		force                = flag.GetBool(ctx, "force")
 	)
 
-	machines, err := machine.AcquireLeases(ctx)
-	for _, m := range machines {
-		defer flapsClient.ReleaseLease(ctx, m.ID, m.LeaseNonce)
+	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
+	defer releaseLeaseFunc(ctx, machines)
+	if err != nil {
+		return err
 	}
 
 	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {

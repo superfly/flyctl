@@ -250,7 +250,19 @@ func (f *Client) Kill(ctx context.Context, machineID string) (err error) {
 	return
 }
 
-func (f *Client) GetLease(ctx context.Context, machineID string, ttl *int) (*api.MachineLease, error) {
+func (f *Client) FindLease(ctx context.Context, machineID string) (*api.MachineLease, error) {
+	endpoint := fmt.Sprintf("/%s/lease", machineID)
+
+	out := new(api.MachineLease)
+
+	err := f.sendRequest(ctx, http.MethodGet, endpoint, nil, out, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get lease on VM %s: %w", machineID, err)
+	}
+	return out, nil
+}
+
+func (f *Client) AcquireLease(ctx context.Context, machineID string, ttl *int) (*api.MachineLease, error) {
 	endpoint := fmt.Sprintf("/%s/lease", machineID)
 
 	if ttl != nil {

@@ -143,15 +143,12 @@ const (
 	MEMORY_MB_PER_CPU        = 2048
 )
 
+// TODO - Determine if we want allocate max memory allocation, or minimum per # cpus.
 var MachinePresets map[string]*MachineGuest = map[string]*MachineGuest{
-	"shared-cpu-1x":    {CPUKind: "shared", CPUs: 1, MemoryMB: 1 * MEMORY_MB_PER_SHARED_CPU},
-	"shared-cpu-2x":    {CPUKind: "shared", CPUs: 2, MemoryMB: 2 * MEMORY_MB_PER_SHARED_CPU},
-	"shared-cpu-4x":    {CPUKind: "shared", CPUs: 4, MemoryMB: 4 * MEMORY_MB_PER_SHARED_CPU},
-	"shared-cpu-8x":    {CPUKind: "shared", CPUs: 8, MemoryMB: 8 * MEMORY_MB_PER_SHARED_CPU},
-	"dedicated-cpu-1x": {CPUKind: "dedicated", CPUs: 1, MemoryMB: 1 * MEMORY_MB_PER_CPU},
-	"dedicated-cpu-2x": {CPUKind: "dedicated", CPUs: 2, MemoryMB: 2 * MEMORY_MB_PER_CPU},
-	"dedicated-cpu-4x": {CPUKind: "dedicated", CPUs: 4, MemoryMB: 4 * MEMORY_MB_PER_CPU},
-	"dedicated-cpu-8x": {CPUKind: "dedicated", CPUs: 8, MemoryMB: 8 * MEMORY_MB_PER_CPU},
+	"shared-cpu-1x": {CPUKind: "shared", CPUs: 1, MemoryMB: 1 * MEMORY_MB_PER_SHARED_CPU},
+	"shared-cpu-2x": {CPUKind: "shared", CPUs: 2, MemoryMB: 2 * MEMORY_MB_PER_SHARED_CPU},
+	"shared-cpu-4x": {CPUKind: "shared", CPUs: 4, MemoryMB: 4 * MEMORY_MB_PER_SHARED_CPU},
+	"shared-cpu-8x": {CPUKind: "shared", CPUs: 8, MemoryMB: 8 * MEMORY_MB_PER_SHARED_CPU},
 }
 
 type MachineMetrics struct {
@@ -232,6 +229,8 @@ type LaunchMachineInput struct {
 	OrgSlug string         `json:"organizationId,omitempty"`
 	Region  string         `json:"region,omitempty"`
 	Config  *MachineConfig `json:"config"`
+	// Client side only
+	SkipHealthChecks bool
 }
 
 type MachineProcess struct {

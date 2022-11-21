@@ -101,8 +101,12 @@ func archiveDirectory(options archiveOptions) (io.ReadCloser, error) {
 	return r, nil
 }
 
-func readDockerignore(workingDir string) ([]string, error) {
-	file, err := os.Open(filepath.Join(workingDir, ".dockerignore"))
+func readDockerignore(workingDir string, ignoreFile string) ([]string, error) {
+	if ignoreFile == "" {
+		ignoreFile = filepath.Join(workingDir, ".dockerignore")
+	}
+
+	file, err := os.Open(ignoreFile)
 	if os.IsNotExist(err) {
 		return []string{}, nil
 	} else if err != nil {

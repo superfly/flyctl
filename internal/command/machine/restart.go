@@ -15,7 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/machine"
+	mach "github.com/superfly/flyctl/internal/machine"
 )
 
 func newRestart() *cobra.Command {
@@ -100,21 +100,27 @@ func runMachineRestart(ctx context.Context) error {
 
 	flapsClient := flaps.FromContext(ctx)
 
-	// Restart each machine
+	var machines []*api.Machine
+	// Resolve machines
 	for _, machineID := range args {
-		m, err := flapsClient.Get(ctx, machineID)
+		machine, err := flapsClient.Get(ctx, machineID)
 		if err != nil {
 			return fmt.Errorf("could not get machine %s: %w", machineID, err)
 		}
+		machines = append(machines, machine)
+	}
 
-		m, err = machine.AcquireLease(ctx, m)
-		if err != nil {
-			return err
-		}
-		defer flapsClient.ReleaseLease(ctx, m.ID, m.LeaseNonce)
+	// Acquire leases
+	machines, releaseLeaseFunc, err := mach.AcquireLeases(ctx, machines)
+	defer releaseLeaseFunc(ctx, machines)
+	if err != nil {
+		return err
+	}
 
-		if err := machine.Restart(ctx, m, input); err != nil {
-			return fmt.Errorf("failed to restart machine %s: %w", m.ID, err)
+	// Restart each machine
+	for _, machine := range machines {
+		if err := mach.Restart(ctx, machine, input); err != nil {
+			return fmt.Errorf("failed to restart machine %s: %w", machine.ID, err)
 		}
 	}
 

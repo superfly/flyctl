@@ -238,7 +238,7 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 
 		for _, machine := range machines {
 			leaseTTL := api.IntPointer(30)
-			lease, err := flapsClient.GetLease(ctx, machine.ID, leaseTTL)
+			lease, err := flapsClient.AcquireLease(ctx, machine.ID, leaseTTL)
 			if err != nil {
 				return err
 			}
