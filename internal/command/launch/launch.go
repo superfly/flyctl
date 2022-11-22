@@ -444,8 +444,8 @@ func run(ctx context.Context) (err error) {
 			LaunchRedis(ctx, createdApp, org, region)
 		}
 
-		// Run any initialization commands required for postgres support
-		if len(srcInfo.PostgresInitCommands) > 0 {
+		// Run any initialization commands required for Postgres if it was installed
+		if confirmPg && len(srcInfo.PostgresInitCommands) > 0 {
 			for _, cmd := range srcInfo.PostgresInitCommands {
 				if cmd.Condition {
 					if err := execInitCommand(ctx, cmd); err != nil {
