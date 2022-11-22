@@ -105,7 +105,7 @@ func runUpdate(ctx context.Context) (err error) {
 		return
 	}
 
-	if options != nil && options["eviction"].(bool) {
+	if options["eviction"] != nil && options["eviction"].(bool) {
 		if disableEviction, err := prompt.Confirm(ctx, " Would you like to disable eviction?"); disableEviction || err != nil {
 			options["eviction"] = false
 		}
