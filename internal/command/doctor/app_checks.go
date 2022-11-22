@@ -286,7 +286,7 @@ func (ac *appChecker) checkDockerContext() int {
 		ac.lprint(nil, "Nope, Dockerfile not found")
 		return -1
 	}
-	archiveInfo, err := imgsrc.CreateArchive(dockerfile, ac.workDir, true)
+	archiveInfo, err := imgsrc.CreateArchive(dockerfile, ac.workDir, ac.appConfig.Ignorefile(), true)
 	if err != nil {
 		ac.lprint(nil, "Nope, failed to create archive\n\t%s", err.Error())
 		return -1

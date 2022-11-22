@@ -26,13 +26,13 @@ type ArchiveInfo struct {
 	Content     []byte
 }
 
-func CreateArchive(dockerfile, workingDir string, compressed bool) (*ArchiveInfo, error) {
+func CreateArchive(dockerfile, workingDir, ignoreFile string, compressed bool) (*ArchiveInfo, error) {
 	archiveOpts := archiveOptions{
 		sourcePath: workingDir,
 		compressed: compressed,
 	}
 
-	excludes, err := readDockerignore(workingDir)
+	excludes, err := readDockerignore(workingDir, ignoreFile)
 	if err != nil {
 		return nil, errors.Wrap(err, "error reading .dockerignore")
 	}
