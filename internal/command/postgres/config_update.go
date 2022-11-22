@@ -63,15 +63,11 @@ func newConfigUpdate() (cmd *cobra.Command) {
 			Name:        "shared-preload-libraries",
 			Description: "Sets the shared libraries to preload. (comma separated string)",
 		},
-		flag.Yes(),
 		flag.Bool{
 			Name:        "force",
 			Description: "Skips pg-setting value verification.",
 		},
-		flag.Bool{
-			Name:        "confirm-restart",
-			Description: "Will automatically confirm restart without an interactive prompt.",
-		},
+		flag.Yes(),
 	)
 
 	return
@@ -108,7 +104,14 @@ func runConfigUpdate(ctx context.Context) error {
 }
 
 func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
-	machines, err := mach.ListActive(ctx)
+	var (
+		io          = iostreams.FromContext(ctx)
+		colorize    = io.ColorScheme()
+		autoConfirm = flag.GetBool(ctx, "yes")
+	)
+
+	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
+	defer releaseLeaseFunc(ctx, machines)
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved")
 	}
@@ -118,10 +121,45 @@ func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 		return err
 	}
 
-	return configUpdate(ctx, app, leader.PrivateIP)
+	requiresRestart, err := updateStolonConfig(ctx, app, leader.PrivateIP)
+	if err != nil {
+		return err
+	}
+
+	if requiresRestart {
+		if !autoConfirm {
+			fmt.Fprintln(io.Out, colorize.Yellow("Please note that some of your changes will require a cluster restart before they will be applied."))
+
+			switch confirmed, err := prompt.Confirm(ctx, "Restart cluster now?"); {
+			case err == nil:
+				if !confirmed {
+					return nil
+				}
+			case prompt.IsNonInteractive(err):
+				return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+			default:
+				return err
+			}
+		}
+
+		// Ensure leases are released before we issue restart.
+		releaseLeaseFunc(ctx, machines)
+		if err := machinesRestart(ctx, &api.RestartMachineInput{}); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func runNomadConfigUpdate(ctx context.Context, app *api.AppCompact) error {
+	var (
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
+
+		autoConfirm = flag.GetBool(ctx, "yes")
+	)
+
 	client := client.FromContext(ctx).API()
 
 	agentclient, err := agent.Establish(ctx, client)
@@ -142,10 +180,36 @@ func runNomadConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 		return err
 	}
 
-	return configUpdate(ctx, app, leaderIP)
+	requiresRestart, err := updateStolonConfig(ctx, app, leaderIP)
+	if err != nil {
+		return err
+	}
+
+	if requiresRestart {
+		if !autoConfirm {
+			fmt.Fprintln(io.Out, colorize.Yellow("Please note that some of your changes will require a cluster restart before they will be applied."))
+
+			switch confirmed, err := prompt.Confirm(ctx, "Restart cluster now?"); {
+			case err == nil:
+				if !confirmed {
+					return nil
+				}
+			case prompt.IsNonInteractive(err):
+				return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+			default:
+				return err
+			}
+		}
+
+		if err := nomadRestart(ctx, app); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-func configUpdate(ctx context.Context, app *api.AppCompact, leaderIP string) error {
+func updateStolonConfig(ctx context.Context, app *api.AppCompact, leaderIP string) (bool, error) {
 	var (
 		io     = iostreams.FromContext(ctx)
 		dialer = agent.DialerFromContext(ctx)
@@ -171,18 +235,18 @@ func configUpdate(ctx context.Context, app *api.AppCompact, leaderIP string) err
 		pgclient := flypg.NewFromInstance(leaderIP, dialer)
 		settings, err := pgclient.SettingsView(ctx, keys)
 		if err != nil {
-			return err
+			return false, err
 		}
 		if len(changes) == 0 {
-			return fmt.Errorf("no changes were specified")
+			return false, fmt.Errorf("no changes were specified")
 		}
 
 		changelog, err := resolveChangeLog(ctx, changes, settings)
 		if err != nil {
-			return err
+			return false, err
 		}
 		if len(changelog) == 0 {
-			return fmt.Errorf("no changes to apply")
+			return false, fmt.Errorf("no changes to apply")
 		}
 
 		rows := make([][]string, 0, len(changelog))
@@ -208,34 +272,30 @@ func configUpdate(ctx context.Context, app *api.AppCompact, leaderIP string) err
 			switch confirmed, err := prompt.Confirmf(ctx, msg); {
 			case err == nil:
 				if !confirmed {
-					return nil
+					return false, nil
 				}
 			case prompt.IsNonInteractive(err):
-				return prompt.NonInteractiveError("auto-confirm flag must be specified when not running interactively")
+				return false, prompt.NonInteractiveError("auto-confirm flag must be specified when not running interactively")
 			default:
-				return err
+				return false, err
 			}
 		}
 	}
 
-	fmt.Fprintln(io.Out, "Performing update...")
 	cmd, err := flypg.NewCommand(ctx, app)
 	if err != nil {
-		return err
+		return false, err
 	}
+
+	fmt.Fprintln(io.Out, "Performing update...")
 
 	err = cmd.UpdateSettings(ctx, leaderIP, changes)
 	if err != nil {
-		return err
+		return false, err
 	}
-
-	if restartRequired {
-		return confirmClusterRestart(ctx, app)
-	}
-
 	fmt.Fprintln(io.Out, "Update complete!")
 
-	return nil
+	return restartRequired, nil
 }
 
 func resolveChangeLog(ctx context.Context, changes map[string]string, settings *flypg.PGSettings) (diff.Changelog, error) {
@@ -259,42 +319,6 @@ func resolveChangeLog(ctx context.Context, changes map[string]string, settings *
 
 	// Calculate diff
 	return diff.Diff(oValues, changes)
-}
-
-func confirmClusterRestart(ctx context.Context, app *api.AppCompact) error {
-	var (
-		io          = iostreams.FromContext(ctx)
-		colorize    = io.ColorScheme()
-		autoConfirm = flag.GetBool(ctx, "yes")
-	)
-
-	if !autoConfirm {
-		fmt.Fprintln(io.Out, colorize.Yellow("Please note that some of your changes will require a cluster restart before they will be applied."))
-
-		switch confirmed, err := prompt.Confirm(ctx, "Restart cluster now?"); {
-		case err == nil:
-			if !confirmed {
-				return nil
-			}
-		case prompt.IsNonInteractive(err):
-			return prompt.NonInteractiveError("confirm-restart flag must be specified when not running interactively")
-		default:
-			return err
-		}
-	}
-
-	switch app.PlatformVersion {
-	case "machines":
-		if err := machinesRestart(ctx, &api.RestartMachineInput{}); err != nil {
-			return fmt.Errorf("error restarting cluster: %w", err)
-		}
-	case "nomad":
-		if err := nomadRestart(ctx, app); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func isRestartRequired(pgSettings *flypg.PGSettings, name string) bool {
