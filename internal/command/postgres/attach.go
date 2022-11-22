@@ -148,7 +148,6 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 	default:
 		return fmt.Errorf("platform is not supported")
 	}
-
 }
 
 func nomadAttachCluster(ctx context.Context, pgApp *api.AppCompact, params AttachParams) error {
@@ -181,7 +180,6 @@ func nomadAttachCluster(ctx context.Context, pgApp *api.AppCompact, params Attac
 	}
 
 	return runAttachCluster(ctx, leaderIP, params)
-
 }
 
 func machineAttachCluster(ctx context.Context, params AttachParams) error {
@@ -209,7 +207,6 @@ func machineAttachCluster(ctx context.Context, params AttachParams) error {
 	}
 
 	return runAttachCluster(ctx, leader.PrivateIP, params)
-
 }
 
 func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams) error {
@@ -333,5 +330,4 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams)
 	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  %s=%s\n", input.AppID, *input.VariableName, connectionString)
 
 	return nil
-
 }
