@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"net"
 	"strconv"
 	"strings"
 
@@ -13,11 +12,12 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -73,68 +73,103 @@ func newConfigView() (cmd *cobra.Command) {
 	return
 }
 
-func runConfigView(ctx context.Context) (err error) {
+func runConfigView(ctx context.Context) error {
 	var (
-		client   = client.FromContext(ctx).API()
-		appName  = app.NameFromContext(ctx)
-		io       = iostreams.FromContext(ctx)
-		colorize = io.ColorScheme()
+		client  = client.FromContext(ctx).API()
+		appName = app.NameFromContext(ctx)
 	)
-
-	MinPostgresHaVersion := "0.0.19"
 
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
-		return fmt.Errorf("get app: %w", err)
+		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
 	if !app.IsPostgresApp() {
-		return fmt.Errorf("app %s is not a postgres app", app.Name)
+		return fmt.Errorf("app %s is not a postgres app", appName)
 	}
+
+	ctx, err = apps.BuildContext(ctx, app)
+	if err != nil {
+		return err
+	}
+
+	switch app.PlatformVersion {
+	case "machines":
+		return runMachineConfigView(ctx, app)
+	case "nomad":
+		return runNomadConfigView(ctx, app)
+	default:
+		return fmt.Errorf("unknown platform version")
+	}
+}
+
+func runMachineConfigView(ctx context.Context, app *api.AppCompact) (err error) {
+	var (
+		MinPostgresHaVersion = "0.0.19"
+	)
+
+	ctx, err = apps.BuildContext(ctx, app)
+	if err != nil {
+		return err
+	}
+
+	machines, err := mach.ListActive(ctx)
+	if err != nil {
+		return fmt.Errorf("machines could not be retrieved %w", err)
+	}
+
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		return err
+	}
+
+	leader, err := pickLeader(ctx, machines)
+	if err != nil {
+		return err
+	}
+
+	return viewSettings(ctx, app, leader.PrivateIP)
+}
+
+func runNomadConfigView(ctx context.Context, app *api.AppCompact) (err error) {
+	var (
+		MinPostgresHaVersion = "0.0.19"
+		client               = client.FromContext(ctx).API()
+	)
 
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
 		return errors.Wrap(err, "can't establish agent")
 	}
 
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+	if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		return err
+	}
+
+	pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
 	if err != nil {
-		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
-	}
-	ctx = agent.DialerWithContext(ctx, dialer)
-
-	var firstPgIp net.IP
-	switch app.PlatformVersion {
-	case "nomad":
-		if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
-			return err
-		}
-		pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
-		if err != nil {
-			return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", app.Name, err)
-		}
-		if len(pgInstances.Addresses) == 0 {
-			return fmt.Errorf("no 6pn ips found for %s app", app.Name)
-		}
-		firstPgIp = net.ParseIP(pgInstances.Addresses[0])
-	case "machines":
-		flapsClient, err := flaps.New(ctx, app)
-		if err != nil {
-			return fmt.Errorf("list of machines could not be retrieved: %w", err)
-		}
-
-		members, err := flapsClient.ListActive(ctx)
-		if err != nil {
-			return fmt.Errorf("machines could not be retrieved %w", err)
-		}
-		if err := hasRequiredVersionOnMachines(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
-			return err
-		}
-		leader, _ := machinesNodeRoles(ctx, members)
-		firstPgIp = net.ParseIP(leader.PrivateIP)
+		return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", app.Name, err)
 	}
 
-	pgclient := flypg.NewFromInstance(firstPgIp.String(), dialer)
+	if len(pgInstances.Addresses) == 0 {
+		return fmt.Errorf("no 6pn ips found for %s app", app.Name)
+	}
+
+	leaderIP, err := leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
+	if err != nil {
+		return err
+	}
+
+	return viewSettings(ctx, app, leaderIP)
+}
+
+func viewSettings(ctx context.Context, app *api.AppCompact, leaderIP string) error {
+	var (
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
+		dialer   = agent.DialerFromContext(ctx)
+	)
+
+	pgclient := flypg.NewFromInstance(leaderIP, dialer)
 
 	var settings []string
 	for _, k := range pgSettings {
@@ -169,7 +204,6 @@ func runConfigView(ctx context.Context) (err error) {
 			desc = fmt.Sprintf("%s (%.1f, %.1f)", desc, min, max)
 		case "bool":
 			desc = fmt.Sprintf("%s [on, off]", desc)
-
 		}
 
 		value := setting.Setting
@@ -194,10 +228,11 @@ func runConfigView(ctx context.Context) (err error) {
 
 	if pendingRestart {
 		fmt.Fprintln(io.Out, colorize.Yellow("Some changes are awaiting a restart!"))
-		fmt.Fprintln(io.Out, colorize.Yellow(fmt.Sprintf("To apply changes, run: `fly postgres restart --app %s`", appName)))
+		fmt.Fprintln(io.Out, colorize.Yellow(fmt.Sprintf("To apply changes, run: `fly postgres restart --app %s`", app.Name)))
 	}
 
-	return
+	return nil
+
 }
 
 func newConfigUpdate() (cmd *cobra.Command) {
@@ -271,11 +306,15 @@ func runConfigUpdate(ctx context.Context) (err error) {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	cmd, err := flypg.NewCommand(ctx, app)
+	ctx, err = apps.BuildContext(ctx, app)
 	if err != nil {
 		return err
 	}
 
+	cmd, err := flypg.NewCommand(ctx, app)
+	if err != nil {
+		return err
+	}
 	ctx = flypg.CommandWithContext(ctx, cmd)
 
 	// Identify requested configuration changes.
@@ -298,18 +337,7 @@ func runConfigUpdate(ctx context.Context) (err error) {
 		return errors.Wrap(err, "can't establish agent")
 	}
 
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
-	if err != nil {
-		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
-	}
-
-	ctx = agent.DialerWithContext(ctx, dialer)
-
-	flapsClient, err := flaps.New(ctx, app)
-	if err != nil {
-		return err
-	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	dialer := agent.DialerFromContext(ctx)
 
 	pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
 	if err != nil {
@@ -442,12 +470,12 @@ func runConfigUpdate(ctx context.Context) (err error) {
 
 func updateMachinesConfig(ctx context.Context, app *api.AppCompact, changes map[string]string) (err error) {
 	var (
-		io   = iostreams.FromContext(ctx)
-		cmd  = flypg.CommandFromContext(ctx)
-		fclt = flaps.FromContext(ctx)
+		io  = iostreams.FromContext(ctx)
+		cmd = flypg.CommandFromContext(ctx)
 	)
 
-	machines, err := fclt.ListActive(ctx)
+	machines, releaseFunc, err := mach.AcquireAllLeases(ctx)
+	defer releaseFunc(ctx, machines)
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved")
 	}
@@ -457,22 +485,7 @@ func updateMachinesConfig(ctx context.Context, app *api.AppCompact, changes map[
 		return err
 	}
 
-	// obtain lease on leader
-	flaps, err := flaps.New(ctx, app)
-	if err != nil {
-		return err
-	}
-
-	// get lease on machine
-	lease, err := flaps.AcquireLease(ctx, leader.ID, api.IntPointer(40))
-	if err != nil {
-		return fmt.Errorf("failed to obtain lease: %w", err)
-	}
-	defer flaps.ReleaseLease(ctx, leader.ID, lease.Data.Nonce)
-
-	fmt.Fprintf(io.Out, "Acquired lease %s on machine: %s\n", lease.Data.Nonce, leader.ID)
 	fmt.Fprintln(io.Out, "Performing update...")
-
 	err = cmd.UpdateSettings(ctx, leader.PrivateIP, changes)
 	if err != nil {
 		return err
