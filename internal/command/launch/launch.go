@@ -120,7 +120,7 @@ func run(ctx context.Context) (err error) {
 
 		if deployExisting {
 			fmt.Fprintln(io.Out, "App is not running, deploy...")
-			return deploy.DeployWithConfig(ctx, appConfig)
+			return deploy.DeployWithConfig(ctx, cfg)
 		}
 
 		copyConfig := false
