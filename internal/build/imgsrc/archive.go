@@ -12,6 +12,7 @@ import (
 	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/pkg/fileutils"
 	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/terminal"
 )
 
 type archiveOptions struct {
@@ -112,7 +113,12 @@ func readDockerignore(workingDir string, ignoreFile string) ([]string, error) {
 	} else if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		err := file.Close()
+		if err != nil {
+			terminal.Debugf("error closing dockerignore %s: %v\n", ignoreFile, err)
+		}
+	}()
 
 	return parseDockerignore(file)
 }

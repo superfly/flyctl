@@ -21,7 +21,7 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-type appChecker struct {
+type AppChecker struct {
 	jsonOutput bool
 	checks     map[string]string
 	color      *iostreams.ColorScheme
@@ -32,7 +32,7 @@ type appChecker struct {
 	apiClient  *api.Client
 }
 
-func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorScheme) *appChecker {
+func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorScheme) *AppChecker {
 	appName := app.NameFromContext(ctx)
 	if appName == "" {
 		if !jsonOutput {
@@ -41,7 +41,7 @@ func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorS
 		return nil
 	}
 
-	ac := &appChecker{
+	ac := &AppChecker{
 		jsonOutput: jsonOutput,
 		checks:     make(map[string]string),
 		color:      color,
@@ -70,7 +70,7 @@ func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorS
 	return ac
 }
 
-func (ac *appChecker) lprint(color func(string) string, fmtstr string, args ...interface{}) {
+func (ac *AppChecker) lprint(color func(string) string, fmtstr string, args ...interface{}) {
 	if ac.jsonOutput {
 		return
 	}
@@ -82,7 +82,7 @@ func (ac *appChecker) lprint(color func(string) string, fmtstr string, args ...i
 	}
 }
 
-func (ac *appChecker) checkAll() map[string]string {
+func (ac *AppChecker) checkAll() map[string]string {
 	ac.lprint(nil, "\nApp specific checks for %s:\n", ac.app.Name)
 
 	ipAddresses := ac.checkIpsAllocated()
@@ -99,7 +99,7 @@ func (ac *appChecker) checkAll() map[string]string {
 	return ac.checks
 }
 
-func (ac *appChecker) checkIpsAllocated() []api.IPAddress {
+func (ac *AppChecker) checkIpsAllocated() []api.IPAddress {
 	ac.lprint(nil, "Checking that app has ip addresses allocated... ")
 
 	ipAddresses, err := ac.apiClient.GetIPAddresses(ac.ctx, ac.app.Name)
@@ -122,7 +122,7 @@ func (ac *appChecker) checkIpsAllocated() []api.IPAddress {
 	return ipAddresses
 }
 
-func (ac *appChecker) checkDnsRecords(ipAddresses []api.IPAddress) {
+func (ac *AppChecker) checkDnsRecords(ipAddresses []api.IPAddress) {
 	v4s := make(map[string]bool)
 	v6s := make(map[string]bool)
 	for _, ip := range ipAddresses {
@@ -262,7 +262,7 @@ func checkDnsRecords(dnsClient *dns.Client, nsAddr string, appName string, appFq
 	}
 }
 
-func (ac *appChecker) checkDockerContext() int {
+func (ac *AppChecker) checkDockerContext() int {
 	ac.lprint(nil, "Checking docker context size (this may take little bit)... ")
 	checkKey := "appDockerContextSizeBytes"
 	var dockerfile string
@@ -299,7 +299,7 @@ func (ac *appChecker) checkDockerContext() int {
 	return archiveSize
 }
 
-func (ac *appChecker) checkDockerIgnore(printDetailedMsg bool) {
+func (ac *AppChecker) checkDockerIgnore(printDetailedMsg bool) {
 	if ac.appConfig.Build != nil && ac.appConfig.Build.Image != "" {
 		return
 	}
