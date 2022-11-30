@@ -118,6 +118,10 @@ var sharedFlags = flag.Set{
 		Shorthand:   "m",
 		Description: "Metadata in the form of NAME=VALUE pairs. Can be specified multiple times.",
 	},
+	flag.String{
+		Name:        "schedule",
+		Description: `Schedule a machine run at hourly, daily and monthly intervals`,
+	},
 }
 
 func newRun() *cobra.Command {
