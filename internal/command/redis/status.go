@@ -46,18 +46,33 @@ func runStatus(ctx context.Context) (err error) {
 
 	addOn := response.AddOn
 
+	var readRegions string = "None"
+
+	if len(addOn.ReadRegions) > 0 {
+		readRegions = strings.Join(addOn.ReadRegions, ",")
+	}
+
+	options, _ := addOn.Options.(map[string]interface{})
+
+	evictionStatus := "Disabled"
+
+	if options["eviction"] != nil && options["eviction"].(bool) {
+		evictionStatus = "Enabled"
+	}
+
 	obj := [][]string{
 		{
 			addOn.Id,
 			addOn.Name,
 			addOn.AddOnPlan.DisplayName,
 			addOn.PrimaryRegion,
-			strings.Join(addOn.ReadRegions, ","),
+			readRegions,
+			evictionStatus,
 			addOn.PublicUrl,
 		},
 	}
 
-	var cols []string = []string{"ID", "Name", "Plan", "Primary Region", "Read Regions", "Private URL"}
+	var cols []string = []string{"ID", "Name", "Plan", "Primary Region", "Read Regions", "Eviction", "Private URL"}
 
 	if err = render.VerticalTable(io.Out, "Redis", obj, cols...); err != nil {
 		return

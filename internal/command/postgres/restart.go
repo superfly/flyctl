@@ -8,13 +8,13 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/machine"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -40,7 +40,7 @@ func newRestart() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "skip-health-checks",
-			Description: "Runs rolling restart process without waiting for health checks",
+			Description: "Runs rolling restart process without waiting for health checks. ( Machines only )",
 			Default:     false,
 		},
 	)
@@ -68,31 +68,34 @@ func runRestart(ctx context.Context) error {
 		return err
 	}
 
-	if app.PlatformVersion == "machines" {
+	switch app.PlatformVersion {
+	case "machines":
 		input := api.RestartMachineInput{
 			SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),
 		}
-
 		return machinesRestart(ctx, &input)
+	case "nomad":
+		return nomadRestart(ctx, app)
+	default:
+		return fmt.Errorf("unknown platform version")
 	}
-
-	return nomadRestart(ctx, app)
-
 }
 
 func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err error) {
 	var (
-		io                   = iostreams.FromContext(ctx)
-		colorize             = io.ColorScheme()
-		dialer               = agent.DialerFromContext(ctx)
-		flapsClient          = flaps.FromContext(ctx)
 		MinPostgresHaVersion = "0.0.20"
-		force                = flag.GetBool(ctx, "force")
+
+		dialer   = agent.DialerFromContext(ctx)
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
+
+		force = flag.GetBool(ctx, "force")
 	)
 
-	machines, err := machine.AcquireLeases(ctx)
-	for _, m := range machines {
-		defer flapsClient.ReleaseLease(ctx, m.ID, m.LeaseNonce)
+	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
+	defer releaseLeaseFunc(ctx, machines)
+	if err != nil {
+		return err
 	}
 
 	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
@@ -153,11 +156,12 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 
 func nomadRestart(ctx context.Context, app *api.AppCompact) error {
 	var (
-		dialer               = agent.DialerFromContext(ctx)
-		client               = client.FromContext(ctx).API()
-		io                   = iostreams.FromContext(ctx)
-		colorize             = io.ColorScheme()
 		MinPostgresHaVersion = "0.0.20"
+
+		client   = client.FromContext(ctx).API()
+		dialer   = agent.DialerFromContext(ctx)
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
 	)
 
 	if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {

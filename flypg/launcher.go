@@ -9,7 +9,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
 
-	machines "github.com/superfly/flyctl/internal/command/machine"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/spinner"
 	"github.com/superfly/flyctl/internal/watch"
 
@@ -148,7 +148,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			waitTimeout = time.Hour
 		}
 
-		err = machines.WaitForStartOrStop(ctx, machine, "start", waitTimeout)
+		err = mach.WaitForStartOrStop(ctx, machine, "start", waitTimeout)
 		if err != nil {
 			return err
 		}
@@ -183,7 +183,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	fmt.Fprintf(io.Out, "Any app within the %s organization can connect to this Postgres using the following connection string:\n", config.Organization.Name)
 
 	fmt.Fprintln(io.Out)
-	fmt.Fprintln(io.Out, "Now that you've set up postgres, here's what you need to understand: https://fly.io/docs/reference/postgres-whats-next/")
+	fmt.Fprintln(io.Out, "Now that you've set up Postgres, here's what you need to understand: https://fly.io/docs/postgres/getting-started/what-you-should-know/")
 
 	// TODO: wait for the cluster to be ready
 
@@ -250,7 +250,7 @@ func (l *Launcher) LaunchNomadPostgres(ctx context.Context, config *CreateCluste
 	fmt.Fprintf(io.Out, "For example: postgres://%s:%s@%s.internal:%d\n", payload.Username, payload.Password, payload.App.Name, 5432)
 
 	fmt.Fprintln(io.Out)
-	fmt.Fprintln(io.Out, "Now that you've set up postgres, here's what you need to understand: https://fly.io/docs/reference/postgres-whats-next/")
+	fmt.Fprintln(io.Out, "Now that you've set up Postgres, here's what you need to understand: https://fly.io/docs/postgres/getting-started/what-you-should-know/")
 
 	return
 }

@@ -10,15 +10,25 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
+
+type AttachParams struct {
+	DbName       string
+	AppName      string
+	PgAppName    string
+	DbUser       string
+	VariableName string
+	Force        bool
+}
 
 func newAttach() *cobra.Command {
 	const (
@@ -49,47 +59,168 @@ func newAttach() *cobra.Command {
 			Default:     "DATABASE_URL",
 			Description: "The environment variable name that will be added to the consuming app. ",
 		},
-		flag.Bool{
-			Name:        "force",
-			Default:     false,
-			Description: "Force attach (bypass confirmation)",
-		})
+		flag.Yes(),
+	)
 
 	return cmd
 }
 
-type AttachParams struct {
-	DbName       string
-	AppName      string
-	PgAppName    string
-	DbUser       string
-	VariableName string
-	Force        bool
-}
-
 func runAttach(ctx context.Context) error {
-	params := AttachParams{
-		AppName:      app.NameFromContext(ctx),
-		DbName:       flag.GetString(ctx, "database-name"),
-		PgAppName:    flag.FirstArg(ctx),
-		DbUser:       flag.GetString(ctx, "database-user"),
-		VariableName: flag.GetString(ctx, "variable-name"),
-		Force:        flag.GetBool(ctx, "force"),
+	var (
+		pgAppName = flag.FirstArg(ctx)
+		appName   = app.NameFromContext(ctx)
+		client    = client.FromContext(ctx).API()
+	)
+
+	pgApp, err := client.GetAppCompact(ctx, pgAppName)
+	if err != nil {
+		return fmt.Errorf("failed retrieving postgres app %s: %w", pgAppName, err)
 	}
 
-	return AttachCluster(ctx, params)
+	if !pgApp.IsPostgresApp() {
+		return fmt.Errorf("app %s is not a postgres app", pgAppName)
+	}
+
+	app, err := client.GetAppCompact(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
+	}
+
+	// Build context around the postgres app
+	ctx, err = apps.BuildContext(ctx, pgApp)
+	if err != nil {
+		return err
+	}
+
+	params := AttachParams{
+		AppName:      app.Name,
+		PgAppName:    pgApp.Name,
+		DbName:       flag.GetString(ctx, "database-name"),
+		DbUser:       flag.GetString(ctx, "database-user"),
+		VariableName: flag.GetString(ctx, "variable-name"),
+		Force:        flag.GetBool(ctx, "yes"),
+	}
+
+	switch pgApp.PlatformVersion {
+	case "machines":
+		return machineAttachCluster(ctx, params)
+	case "nomad":
+		return nomadAttachCluster(ctx, pgApp, params)
+	default:
+		return fmt.Errorf("platform is not supported")
+	}
 }
 
+// AttachCluster is mean't to be called from an external package.
 func AttachCluster(ctx context.Context, params AttachParams) error {
-	// Minimum image version requirements
+	var (
+		client = client.FromContext(ctx).API()
+
+		pgAppName = params.PgAppName
+		appName   = params.AppName
+	)
+
+	pgApp, err := client.GetAppCompact(ctx, pgAppName)
+	if err != nil {
+		return fmt.Errorf("failed retrieving postgres app %s: %w", pgAppName, err)
+	}
+
+	if !pgApp.IsPostgresApp() {
+		return fmt.Errorf("app %s is not a postgres app", pgAppName)
+	}
+
+	ctx, err = apps.BuildContext(ctx, pgApp)
+	if err != nil {
+		return err
+	}
+
+	// Verify that the target app exists.
+	_, err = client.GetAppCompact(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
+	}
+
+	switch pgApp.PlatformVersion {
+	case "machines":
+		return machineAttachCluster(ctx, params)
+	case "nomad":
+		return nomadAttachCluster(ctx, pgApp, params)
+	default:
+		return fmt.Errorf("platform is not supported")
+	}
+}
+
+func nomadAttachCluster(ctx context.Context, pgApp *api.AppCompact, params AttachParams) error {
 	var (
 		MinPostgresHaVersion = "0.0.19"
 		client               = client.FromContext(ctx).API()
-		appName              = params.AppName
-		pgAppName            = params.PgAppName
-		dbName               = params.DbName
-		dbUser               = params.DbUser
-		varName              = params.VariableName
+	)
+
+	if err := hasRequiredVersionOnNomad(pgApp, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		return err
+	}
+
+	agentclient, err := agent.Establish(ctx, client)
+	if err != nil {
+		return errors.Wrap(err, "can't establish agent")
+	}
+
+	pgInstances, err := agentclient.Instances(ctx, pgApp.Organization.Slug, pgApp.Name)
+	if err != nil {
+		return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", pgApp.Name, err)
+	}
+
+	if len(pgInstances.Addresses) == 0 {
+		return fmt.Errorf("no 6pn ips found for %s app", pgApp.Name)
+	}
+
+	leaderIP, err := leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
+	if err != nil {
+		return err
+	}
+
+	return runAttachCluster(ctx, leaderIP, params)
+}
+
+func machineAttachCluster(ctx context.Context, params AttachParams) error {
+	// Minimum image version requirements
+	var (
+		MinPostgresHaVersion = "0.0.19"
+	)
+
+	machines, err := mach.ListActive(ctx)
+	if err != nil {
+		return fmt.Errorf("machines could not be retrieved %w", err)
+	}
+
+	if len(machines) == 0 {
+		return fmt.Errorf("no active machines found")
+	}
+
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		return err
+	}
+
+	leader, err := pickLeader(ctx, machines)
+	if err != nil {
+		return err
+	}
+
+	return runAttachCluster(ctx, leader.PrivateIP, params)
+}
+
+func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams) error {
+	var (
+		client = client.FromContext(ctx).API()
+		dialer = agent.DialerFromContext(ctx)
+		io     = iostreams.FromContext(ctx)
+
+		appName   = params.AppName
+		pgAppName = params.PgAppName
+		dbName    = params.DbName
+		dbUser    = params.DbUser
+		varName   = params.VariableName
+		force     = params.Force
 	)
 
 	if dbName == "" {
@@ -117,66 +248,15 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 		VariableName:         api.StringPointer(varName),
 	}
 
-	pgApp, err := client.GetAppCompact(ctx, pgAppName)
-	if err != nil {
-		return fmt.Errorf("get app: %w", err)
-	}
+	pgclient := flypg.NewFromInstance(leaderIP, dialer)
 
-	agentclient, err := agent.Establish(ctx, client)
-	if err != nil {
-		return errors.Wrap(err, "can't establish agent")
-	}
-
-	dialer, err := agentclient.Dialer(ctx, pgApp.Organization.Slug)
-	if err != nil {
-		return fmt.Errorf("ssh: can't build tunnel for %s: %s", pgApp.Organization.Slug, err)
-	}
-	ctx = agent.DialerWithContext(ctx, dialer)
-
-	var leaderIp string
-	switch pgApp.PlatformVersion {
-	case "nomad":
-		if err := hasRequiredVersionOnNomad(pgApp, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
-			return err
-		}
-		pgInstances, err := agentclient.Instances(ctx, pgApp.Organization.Slug, pgApp.Name)
-		if err != nil {
-			return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", pgAppName, err)
-		}
-		if len(pgInstances.Addresses) == 0 {
-			return fmt.Errorf("no 6pn ips found for %s app", pgAppName)
-		}
-		leaderIp, err = leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
-		if err != nil {
-			return err
-		}
-	case "machines":
-		flapsClient, err := flaps.New(ctx, pgApp)
-		if err != nil {
-			return fmt.Errorf("list of machines could not be retrieved: %w", err)
-		}
-
-		members, err := flapsClient.ListActive(ctx)
-		if err != nil {
-			return fmt.Errorf("machines could not be retrieved %w", err)
-		}
-		if err := hasRequiredVersionOnMachines(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
-			return err
-		}
-		leader, _ := machinesNodeRoles(ctx, members)
-		leaderIp = leader.PrivateIP
-	default:
-	}
-
-	pgclient := flypg.NewFromInstance(leaderIp, dialer)
-
-	secrets, err := client.GetAppSecrets(ctx, appName)
+	secrets, err := client.GetAppSecrets(ctx, input.AppID)
 	if err != nil {
 		return err
 	}
 	for _, secret := range secrets {
 		if secret.Name == *input.VariableName {
-			return fmt.Errorf("consumer app %q already contains a secret named %s", appName, *input.VariableName)
+			return fmt.Errorf("consumer app %q already contains a secret named %s", input.AppID, *input.VariableName)
 		}
 	}
 
@@ -185,7 +265,7 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 	if err != nil {
 		return err
 	}
-	if dbExists && !params.Force {
+	if dbExists && !force {
 		confirm := false
 		msg := fmt.Sprintf("Database %q already exists. Continue with the attachment process?", *input.DatabaseName)
 		confirm, err := prompt.Confirm(ctx, msg)
@@ -236,21 +316,18 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 
 	connectionString := fmt.Sprintf(
 		"postgres://%s:%s@top2.nearest.of.%s.internal:5432/%s?sslmode=disable",
-		*input.DatabaseUser, pwd, pgAppName, *input.DatabaseName,
+		*input.DatabaseUser, pwd, input.PostgresClusterAppID, *input.DatabaseName,
 	)
 	s := map[string]string{}
 	s[*input.VariableName] = connectionString
 
-	// TODO - We need to consider the possibility that the consumer app is another Machine.
-	_, err = client.SetSecrets(ctx, appName, s)
+	_, err = client.SetSecrets(ctx, input.AppID, s)
 	if err != nil {
 		return err
 	}
 
-	io := iostreams.FromContext(ctx)
-
-	fmt.Fprintf(io.Out, "\nPostgres cluster %s is now attached to %s\n", pgAppName, appName)
-	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  %s=%s\n", appName, *input.VariableName, connectionString)
+	fmt.Fprintf(io.Out, "\nPostgres cluster %s is now attached to %s\n", input.PostgresClusterAppID, input.AppID)
+	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  %s=%s\n", input.AppID, *input.VariableName, connectionString)
 
 	return nil
 }

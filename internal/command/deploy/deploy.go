@@ -38,6 +38,7 @@ var CommonFlags = flag.Set{
 	flag.Detach(),
 	flag.Strategy(),
 	flag.Dockerfile(),
+	flag.Ignorefile(),
 	flag.ImageLabel(),
 	flag.BuildArg(),
 	flag.BuildSecret(),
@@ -295,6 +296,10 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 		return
 	}
 
+	if opts.IgnorefilePath, err = resolveIgnorefilePath(ctx, appConfig); err != nil {
+		return
+	}
+
 	if target := appConfig.DockerBuildTarget(); target != "" {
 		opts.Target = target
 	} else if target := flag.GetString(ctx, "build-target"); target != "" {
@@ -329,6 +334,24 @@ func resolveDockerfilePath(ctx context.Context, appConfig *app.Config) (path str
 		path = filepath.Join(filepath.Dir(appConfig.Path), path)
 	} else {
 		path = flag.GetString(ctx, "dockerfile")
+	}
+
+	return
+}
+
+// resolveIgnorefilePath returns the absolute path to the Dockerfile
+// if one was specified in the app config or a command line argument
+func resolveIgnorefilePath(ctx context.Context, appConfig *app.Config) (path string, err error) {
+	defer func() {
+		if err == nil && path != "" {
+			path, err = filepath.Abs(path)
+		}
+	}()
+
+	if path = appConfig.Ignorefile(); path != "" {
+		path = filepath.Join(filepath.Dir(appConfig.Path), path)
+	} else {
+		path = flag.GetString(ctx, "ignorefile")
 	}
 
 	return
