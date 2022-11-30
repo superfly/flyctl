@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"net"
 	"os"
 	"time"
 
@@ -62,18 +63,13 @@ type SSHParams struct {
 	DisableSpinner bool
 }
 
-func RunSSHCommand(ctx context.Context, app *api.AppCompact, dialer agent.Dialer, addr *string, cmd string) ([]byte, error) {
+func RunSSHCommand(ctx context.Context, app *api.AppCompact, dialer agent.Dialer, addr string, cmd string) ([]byte, error) {
 	var inBuf bytes.Buffer
 	var errBuf bytes.Buffer
 	var outBuf bytes.Buffer
 	stdoutWriter := ioutils.NewWriteCloserWrapper(&outBuf, func() error { return nil })
 	stderrWriter := ioutils.NewWriteCloserWrapper(&errBuf, func() error { return nil })
 	inReader := ioutils.NewReadCloserWrapper(&inBuf, func() error { return nil })
-
-	if addr == nil {
-		str := fmt.Sprintf("%s.internal", app.Name)
-		addr = &str
-	}
 
 	err := SSHConnect(&SSHParams{
 		Ctx:            ctx,
@@ -85,7 +81,7 @@ func RunSSHCommand(ctx context.Context, app *api.AppCompact, dialer agent.Dialer
 		Stdout:         stdoutWriter,
 		Stderr:         stderrWriter,
 		DisableSpinner: true,
-	}, *addr)
+	}, addr)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +111,7 @@ func SSHConnect(p *SSHParams, addr string) error {
 	terminal.Debugf("Keys for %s configured; connecting...\n", addr)
 
 	sshClient := &ssh.Client{
-		Addr: addr + ":22",
+		Addr: net.JoinHostPort(addr, "22"),
 		User: "root",
 
 		Dial: p.Dialer.DialContext,
@@ -179,7 +175,7 @@ func marshalED25519PrivateKey(key ed25519.PrivateKey, comment string) []byte {
 		Pad     []byte `ssh:"rest"`
 	}{}
 
-	ci := rand.Uint32()
+	ci := rand.Uint32() // skipcq: GSC-G404
 	pk1.Check1 = ci
 	pk1.Check2 = ci
 

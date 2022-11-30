@@ -29,7 +29,7 @@ import (
 type dockerClientFactory struct {
 	mode      DockerDaemonType
 	remote    bool
-	buildFn   func(ctx context.Context) (*dockerclient.Client, error)
+	buildFn   func(ctx context.Context, build *build) (*dockerclient.Client, error)
 	apiClient *api.Client
 	appName   string
 }
@@ -42,11 +42,11 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 		return &dockerClientFactory{
 			mode:   daemonType,
 			remote: true,
-			buildFn: func(ctx context.Context) (*dockerclient.Client, error) {
+			buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
 				if cachedDocker != nil {
 					return cachedDocker, nil
 				}
-				c, err := newRemoteDockerClient(ctx, apiClient, appName, streams)
+				c, err := newRemoteDockerClient(ctx, apiClient, appName, streams, build)
 				if err != nil {
 					return nil, err
 				}
@@ -64,9 +64,11 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 		if c != nil && err == nil {
 			return &dockerClientFactory{
 				mode: DockerDaemonTypeLocal,
-				buildFn: func(ctx context.Context) (*dockerclient.Client, error) {
+				buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
+					build.SetBuilderMetaPart1(false, "", "")
 					return c, nil
 				},
+				appName: appName,
 			}
 		} else if err != nil && !dockerclient.IsErrConnectionFailed(err) {
 			terminal.Warn("Error connecting to local docker daemon:", err)
@@ -90,7 +92,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 
 	return &dockerClientFactory{
 		mode: DockerDaemonTypeNone,
-		buildFn: func(ctx context.Context) (*dockerclient.Client, error) {
+		buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
 			return nil, errors.New("no docker daemon available")
 		},
 	}
@@ -168,7 +170,7 @@ func NewLocalDockerClient() (*dockerclient.Client, error) {
 	return c, nil
 }
 
-func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, streams *iostreams.IOStreams) (*dockerclient.Client, error) {
+func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, streams *iostreams.IOStreams, build *build) (*dockerclient.Client, error) {
 	startedAt := time.Now()
 
 	var host string
@@ -181,6 +183,8 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	}
 	remoteBuilderAppName := app.Name
 	remoteBuilderOrg := app.Organization.Slug
+
+	build.SetBuilderMetaPart1(true, remoteBuilderAppName, machine.ID)
 
 	if host != "" {
 		terminal.Debugf("Remote Docker builder host: %s\n", host)
@@ -224,6 +228,13 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	}
 	if host == "" {
 		return nil, errors.New("machine did not have a private IP")
+	}
+
+	builderHostOverride, ok := os.LookupEnv("FLY_RCHAB_OVERRIDE_HOST")
+	if ok {
+		oldHost := host
+		host = builderHostOverride
+		terminal.Infof("Override builder host with: %s (was %s)\n", host, oldHost)
 	}
 
 	opts, err := buildRemoteClientOpts(ctx, apiClient, appName, host)
@@ -322,7 +333,7 @@ func waitForDaemon(parent context.Context, client *dockerclient.Client) (up bool
 	)
 
 	for ctx.Err() == nil {
-		switch _, err := client.Ping(ctx); err {
+		switch _, err := clientPing(parent, client); err {
 		default:
 			consecutiveSuccesses = 0
 
@@ -352,6 +363,13 @@ func waitForDaemon(parent context.Context, client *dockerclient.Client) (up bool
 	default:
 		return false, nil
 	}
+}
+
+func clientPing(parent context.Context, client *dockerclient.Client) (types.Ping, error) {
+	ctx, cancel := context.WithTimeout(parent, 2*time.Second)
+	defer cancel()
+
+	return client.Ping(ctx)
 }
 
 func clearDeploymentTags(ctx context.Context, docker *dockerclient.Client, tag string) error {
@@ -416,9 +434,12 @@ func flyRegistryAuth() string {
 // NewDeploymentTag generates a Docker image reference including the current registry,
 // the app name, and a timestamp: registry.fly.io/appname:deployment-$timestamp
 func NewDeploymentTag(appName string, label string) string {
-	if tag := os.Getenv("FLY_IMAGE_REF"); tag != "" {
-		return tag
-	}
+	// MD: this was used by remote builders long ago to set a precomputed ref for deployment.
+	// flyd now sets this to the current image in machine env.
+	// stop using it in flyctl and if nobody has a problem remove it by 2022-11-01
+	// if tag := os.Getenv("FLY_IMAGE_REF"); tag != "" {
+	// 	return tag
+	// }
 
 	if label == "" {
 		label = fmt.Sprintf("deployment-%s", ulid.Make())

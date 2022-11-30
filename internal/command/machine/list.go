@@ -96,7 +96,7 @@ func runMachineList(ctx context.Context) (err error) {
 				machine.Name,
 				machine.State,
 				machine.Region,
-				fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag),
+				machine.ImageRefWithVersion(),
 				machine.PrivateIP,
 				volName,
 				machine.CreatedAt,

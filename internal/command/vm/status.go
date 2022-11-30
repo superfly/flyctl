@@ -44,6 +44,16 @@ func runStatus(ctx context.Context) (err error) {
 		logLimit = 25
 	)
 
+	// vm status is not supported for machines
+	isMachine, err := command.CheckPlatform(client, ctx, appName)
+	if err != nil {
+		return fmt.Errorf("failed to check platform version %w", err)
+	}
+
+	if isMachine {
+		return fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine status instead")
+	}
+
 	alloc, err := client.GetAllocationStatus(ctx, appName, flag.FirstArg(ctx), logLimit)
 	if err != nil {
 		return fmt.Errorf("failed to fetch allocation status: %w", err)

@@ -68,23 +68,3 @@ func runList(ctx context.Context) (err error) {
 
 	return
 }
-
-// // if --json
-// if cfg.JSONOutput {
-// 	return render.JSON(io.Out, apps)
-// }
-
-// // if --table
-// if cfg.TableOutput {
-// 	return render.Table(io.Out, apps)
-// }
-
-// // if --yaml
-// if cfg.YAMLOutput {
-// 	return render.YAML(io.Out, apps)
-// }
-
-// // if --json | --table | --yaml
-// for _, app := range apps {
-// 	fmt.Fprintln(io.Out, app.Name)
-// }

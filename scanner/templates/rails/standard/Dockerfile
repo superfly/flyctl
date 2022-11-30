@@ -1,10 +1,33 @@
 # syntax = docker/dockerfile:experimental
-ARG RUBY_VERSION=2.7.3
+
+# Dockerfile used to build a deployable image for a Rails application.
+# Adjust as required.
+#
+# Common adjustments you may need to make over time:
+#  * Modify version numbers for Ruby, Bundler, and other products.
+#  * Add library packages needed at build time for your gems, node modules.
+#  * Add deployment packages needed by your application
+#  * Add (often fake) secrets needed to compile your assets
+
+#######################################################################
+
+# Learn more about the chosen Ruby stack, Fullstaq Ruby, here:
+#   https://github.com/evilmartians/fullstaq-ruby-docker.
+#
+# We recommend using the highest patch level for better security and
+# performance.
+
+ARG RUBY_VERSION={{ .rubyVersion }}
 ARG VARIANT=jemalloc-slim
 FROM quay.io/evl.ms/fullstaq-ruby:${RUBY_VERSION}-${VARIANT} as base
 
-ARG NODE_VERSION=16
-ARG BUNDLER_VERSION=2.3.9
+LABEL fly_launch_runtime="rails"
+
+{{ if .node -}}
+ARG NODE_VERSION={{ .nodeVersion }}
+ARG YARN_VERSION={{ .yarnVersion }}
+{{ end -}}
+ARG BUNDLER_VERSION={{ .bundlerVersion }}
 
 ARG RAILS_ENV=production
 ENV RAILS_ENV=${RAILS_ENV}
@@ -21,74 +44,107 @@ RUN mkdir /app
 WORKDIR /app
 RUN mkdir -p tmp/pids
 
-SHELL ["/bin/bash", "-c"]
-
+{{ if .node -}}
 RUN curl https://get.volta.sh | bash
-
-ENV BASH_ENV ~/.bashrc
 ENV VOLTA_HOME /root/.volta
 ENV PATH $VOLTA_HOME/bin:/usr/local/bin:$PATH
+RUN volta install node@${NODE_VERSION} yarn@${YARN_VERSION} && \
+    gem update --system --no-document && \
+    gem install -N bundler -v ${BUNDLER_VERSION}
 
-RUN volta install node@${NODE_VERSION} && volta install yarn
+{{ else -}}
+RUN gem update --system --no-document && \
+    gem install -N bundler -v ${BUNDLER_VERSION}
+
+{{ end -}}
+#######################################################################
+
+# install packages only needed at build time
 
 FROM base as build_deps
 
-ARG DEV_PACKAGES="git build-essential libpq-dev wget vim curl gzip xz-utils libsqlite3-dev"
-ENV DEV_PACKAGES ${DEV_PACKAGES}
+ARG BUILD_PACKAGES="git build-essential libpq-dev wget vim curl gzip xz-utils libsqlite3-dev"
+ENV BUILD_PACKAGES ${BUILD_PACKAGES}
 
 RUN --mount=type=cache,id=dev-apt-cache,sharing=locked,target=/var/cache/apt \
     --mount=type=cache,id=dev-apt-lib,sharing=locked,target=/var/lib/apt \
     apt-get update -qq && \
-    apt-get install --no-install-recommends -y ${DEV_PACKAGES} \
+    apt-get install --no-install-recommends -y ${BUILD_PACKAGES} \
     && rm -rf /var/lib/apt/lists /var/cache/apt/archives
+
+#######################################################################
+
+# install gems
 
 FROM build_deps as gems
 
-RUN gem install -N bundler -v ${BUNDLER_VERSION}
-
 COPY Gemfile* ./
-RUN bundle install &&  rm -rf vendor/bundle/ruby/*/cache
+RUN bundle install && rm -rf vendor/bundle/ruby/*/cache
+
+{{ if .node -}}
+#######################################################################
+
+# install node modules
 
 FROM build_deps as node_modules
 
 COPY package*json ./
+{{ if .yarn -}}
 COPY yarn.* ./
+RUN yarn install
+{{ else -}}
+RUN npm install
+{{ end }}
+{{ end -}}
+#######################################################################
 
-RUN if [ -f "yarn.lock" ]; then \
-    yarn install; \
-    elif [ -f "package-lock.json" ]; then \
-    npm install; \
-    else \
-    mkdir node_modules; \
-    fi
+# install deployment packages
 
 FROM base
 
-ARG PROD_PACKAGES="postgresql-client file vim curl gzip libsqlite3-0"
-ENV PROD_PACKAGES=${PROD_PACKAGES}
+ARG DEPLOY_PACKAGES="postgresql-client file vim curl gzip libsqlite3-0"
+ENV DEPLOY_PACKAGES=${DEPLOY_PACKAGES}
 
 RUN --mount=type=cache,id=prod-apt-cache,sharing=locked,target=/var/cache/apt \
     --mount=type=cache,id=prod-apt-lib,sharing=locked,target=/var/lib/apt \
     apt-get update -qq && \
     apt-get install --no-install-recommends -y \
-    ${PROD_PACKAGES} \
+    ${DEPLOY_PACKAGES} \
     && rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
+# copy installed gems
 COPY --from=gems /app /app
+COPY --from=gems /usr/lib/fullstaq-ruby/versions /usr/lib/fullstaq-ruby/versions
+COPY --from=gems /usr/local/bundle /usr/local/bundle
+
+{{ if .node -}}
+# copy installed node modules
 COPY --from=node_modules /app/node_modules /app/node_modules
 
-ENV SECRET_KEY_BASE 1
+{{ end -}}
+#######################################################################
 
+# Deploy your application
 COPY . .
 
+# Adjust binstubs to run on Linux and set current working directory
 RUN chmod +x /app/bin/* && \
-    sed -i 's/ruby.exe/ruby/' /app/bin/* && \
+    sed -i 's/ruby.exe\r*/ruby/' /app/bin/* && \
     sed -i '/^#!/aDir.chdir File.expand_path("..", __dir__)' /app/bin/*
 
-RUN bin/rails fly:build
+# The following enable assets to precompile on the build server.  Adjust
+# as necessary.  If no combination works for you, see:
+# https://fly.io/docs/rails/getting-started/existing/#access-to-environment-variables-at-build-time
+ENV SECRET_KEY_BASE 1
+# ENV AWS_ACCESS_KEY_ID=1
+# ENV AWS_SECRET_ACCESS_KEY=1
 
+# Run build task defined in lib/tasks/fly.rake
+ARG BUILD_COMMAND="bin/rails fly:build"
+RUN ${BUILD_COMMAND}
+
+# Default server start instructions.  Generally Overridden by fly.toml.
 ENV PORT 8080
-
 ARG SERVER_COMMAND="bin/rails fly:server"
 ENV SERVER_COMMAND ${SERVER_COMMAND}
 CMD ${SERVER_COMMAND}

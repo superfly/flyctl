@@ -51,6 +51,7 @@ func runUpdate(ctx context.Context) (err error) {
 			password
 			primaryRegion
 			readRegions
+			options
 			organization {
 				slug
 			}
@@ -69,7 +70,7 @@ func runUpdate(ctx context.Context) (err error) {
 
 	addOn := response.AddOn
 
-	readRegions, err := prompt.MultiRegion(ctx, "Choose replica regions, or unselect to remove replica regions:", addOn.ReadRegions, addOn.PrimaryRegion)
+	readRegions, err := prompt.MultiRegion(ctx, "Choose replica regions, or unselect to remove replica regions:", addOn.ReadRegions, []string{addOn.PrimaryRegion})
 	if err != nil {
 		return
 	}
@@ -92,9 +93,34 @@ func runUpdate(ctx context.Context) (err error) {
 		return fmt.Errorf("failed to select a plan: %w", err)
 	}
 
+	// type Options struct {
+	// 	Eviction bool
+	// }
+
+	// options := &Options{}
+
+	options, _ := addOn.Options.(map[string]interface{})
+
+	if err != nil {
+		return
+	}
+
+	if options["eviction"] != nil && options["eviction"].(bool) {
+		if disableEviction, err := prompt.Confirm(ctx, " Would you like to disable eviction?"); disableEviction || err != nil {
+			options["eviction"] = false
+		}
+
+	} else {
+		options["eviction"], err = prompt.Confirm(ctx, " Would you like to enable eviction?")
+	}
+
+	if err != nil {
+		return
+	}
+
 	_ = `# @genqlient
-  mutation UpdateAddOn($addOnId: ID!, $planId: ID!, $readRegions: [String!]!) {
-		updateAddOn(input: {addOnId: $addOnId, planId: $planId, readRegions: $readRegions}) {
+  mutation UpdateAddOn($addOnId: ID!, $planId: ID!, $readRegions: [String!]!, $options: JSON!) {
+		updateAddOn(input: {addOnId: $addOnId, planId: $planId, readRegions: $readRegions, options: $options}) {
 			addOn {
 				id
 			}
@@ -108,7 +134,7 @@ func runUpdate(ctx context.Context) (err error) {
 		readRegionCodes = append(readRegionCodes, region.Code)
 	}
 
-	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, result.AddOnPlans.Nodes[index].Id, readRegionCodes)
+	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, result.AddOnPlans.Nodes[index].Id, readRegionCodes, options)
 
 	if err != nil {
 		return

@@ -17,6 +17,10 @@ import (
 	"github.com/superfly/flyctl/internal/spinner"
 )
 
+// Alias unwieldy types from GraphQL generated code
+type RedisAddOn = gql.CreateAddOnCreateAddOnCreateAddOnPayloadAddOn
+type AddOnOptions map[string]interface{}
+
 func newCreate() (cmd *cobra.Command) {
 	const (
 		long = `Create an Upstash Redis database`
@@ -30,69 +34,145 @@ func newCreate() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.Org(),
 		flag.Region(),
+		flag.String{
+			Name:        "name",
+			Shorthand:   "n",
+			Description: "The name of your Redis database",
+		},
+		flag.Bool{
+			Name:        "no-replicas",
+			Description: "Don't prompt for selecting replica regions",
+		},
+		flag.Bool{
+			Name:        "enable-eviction",
+			Description: "Evict objects when memory is full",
+		},
+		flag.Bool{
+			Name:        "disable-eviction",
+			Description: "Disallow writes when the max data size limit has been reached",
+		},
+		flag.String{
+			Name:        "plan",
+			Description: "Upstash Redis plan",
+		},
 	)
 
 	return cmd
 }
 
 func runCreate(ctx context.Context) (err error) {
-	var (
-		io       = iostreams.FromContext(ctx)
-		client   = client.FromContext(ctx).API().GenqClient
-		colorize = io.ColorScheme()
-	)
+	io := iostreams.FromContext(ctx)
 
 	org, err := prompt.Org(ctx)
 	if err != nil {
 		return err
 	}
 
-	var name string
+	var name = flag.GetString(ctx, "name")
 
-	prompt.String(ctx, &name, "Choose a Redis database name (leave blank to generate one):", "", false)
+	if name == "" {
+		err = prompt.String(ctx, &name, "Choose a Redis database name (leave blank to generate one):", "", false)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	excludedRegions, err := getExcludedRegions(ctx)
 
 	if err != nil {
 		return err
 	}
 
-	primaryRegion, err := prompt.Region(ctx, "Choose a primary region (can't be changed later)")
+	primaryRegion, err := prompt.Region(ctx, prompt.RegionParams{
+		Message:             "Choose a primary region (can't be changed later)",
+		ExcludedRegionCodes: excludedRegions,
+	})
+
+	var enableEviction bool = false
+
+	if flag.GetBool(ctx, "enable-eviction") {
+		enableEviction = true
+	} else if !flag.GetBool(ctx, "disable-eviction") {
+		fmt.Fprintf(io.Out, "\nUpstash Redis can evict objects when memory is full. This is useful when caching in Redis. This setting can be changed later.\nLearn more at https://fly.io/docs/reference/redis/#memory-limits-and-object-eviction-policies\n")
+
+		enableEviction, err = prompt.Confirm(ctx, "Would you like to enable eviction?")
+		if err != nil {
+			return
+		}
+	}
+	_, err = Create(ctx, org, name, primaryRegion, flag.GetString(ctx, "plan"), flag.GetBool(ctx, "no-replicas"), enableEviction)
+	return err
+}
+
+func Create(ctx context.Context, org *api.Organization, name string, region *api.Region, planFlag string, disallowReplicas bool, enableEviction bool) (addOn *RedisAddOn, err error) {
+	var (
+		io       = iostreams.FromContext(ctx)
+		client   = client.FromContext(ctx).API().GenqClient
+		colorize = io.ColorScheme()
+	)
+
+	excludedRegions, err := getExcludedRegions(ctx)
+
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	readRegions, err := prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", []string{}, primaryRegion.Code)
-	if err != nil {
-		return
-	}
+	readRegions := &[]api.Region{}
+	excludedRegions = append(excludedRegions, region.Code)
 
-	fmt.Fprintf(io.Out, "\nUpstash Redis can evict objects when memory is full. This is useful when caching in Redis. This setting can be changed later.\nLearn more at https://fly.io/docs/reference/redis/#memory-limits-and-object-eviction-policies\n")
+	if !disallowReplicas {
+		readRegions, err = prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", []string{}, excludedRegions)
 
-	eviction, err := prompt.Confirm(ctx, "Would you like to enable eviction?")
-	if err != nil {
-		return
+		if err != nil {
+			return
+		}
 	}
 
 	var planIndex int
-	var planOptions []string
 
 	result, err := gql.ListAddOnPlans(ctx, client)
 	if err != nil {
 		return
 	}
 
-	for _, plan := range result.AddOnPlans.Nodes {
-		planOptions = append(planOptions, fmt.Sprintf("%s: %s Max Data Size", plan.DisplayName, plan.MaxDataSize))
-	}
+	if planFlag != "" {
+		planIndex = -1
+		for index, plan := range result.AddOnPlans.Nodes {
+			if plan.DisplayName == planFlag {
+				planIndex = index
+				break
+			}
+		}
 
-	err = prompt.Select(ctx, &planIndex, "Select an Upstash Redis plan", "", planOptions...)
+		if planIndex == -1 {
+			return nil, fmt.Errorf("invalid plan name: %s", planFlag)
+		}
+	} else {
+		var planOptions []string
 
-	if err != nil {
-		return fmt.Errorf("failed to select a plan: %w", err)
+		for _, plan := range result.AddOnPlans.Nodes {
+			planOptions = append(planOptions, fmt.Sprintf("%s: %s Max Data Size", plan.DisplayName, plan.MaxDataSize))
+		}
+
+		err = prompt.Select(ctx, &planIndex, "Select an Upstash Redis plan", "", planOptions...)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to select a plan: %w", err)
+		}
 	}
 
 	s := spinner.Run(io, "Launching...")
 
-	addOn, err := ProvisionRedis(ctx, org, name, result.AddOnPlans.Nodes[planIndex].Id, primaryRegion, readRegions, eviction)
+	params := RedisConfiguration{
+		Name:          name,
+		PlanId:        result.AddOnPlans.Nodes[planIndex].Id,
+		PrimaryRegion: region,
+		ReadRegions:   *readRegions,
+		Eviction:      enableEviction,
+	}
+
+	addOn, err = ProvisionDatabase(ctx, org, params)
 
 	s.Stop()
 	if err != nil {
@@ -103,10 +183,18 @@ func runCreate(ctx context.Context) (err error) {
 	fmt.Fprintf(io.Out, "Apps in the %s org can connect to at %s\n", colorize.Green(org.Slug), colorize.Green(addOn.PublicUrl))
 	fmt.Fprintf(io.Out, "If you have redis-cli installed, use %s to connect to your database.\n", colorize.Green("fly redis connect"))
 
-	return
+	return addOn, err
 }
 
-func ProvisionRedis(ctx context.Context, org *api.Organization, name string, planId string, primaryRegion *api.Region, readRegions *[]api.Region, eviction bool) (addOn gql.CreateAddOnCreateAddOnCreateAddOnPayloadAddOn, err error) {
+type RedisConfiguration struct {
+	Name          string
+	PlanId        string
+	PrimaryRegion *api.Region
+	ReadRegions   []api.Region
+	Eviction      bool
+}
+
+func ProvisionDatabase(ctx context.Context, org *api.Organization, config RedisConfiguration) (addOn *RedisAddOn, err error) {
 	client := client.FromContext(ctx).API().GenqClient
 
 	_ = `# @genqlient
@@ -123,21 +211,48 @@ func ProvisionRedis(ctx context.Context, org *api.Organization, name string, pla
 
 	var readRegionCodes []string
 
-	for _, region := range *readRegions {
+	for _, region := range config.ReadRegions {
 		readRegionCodes = append(readRegionCodes, region.Code)
 	}
 
-	type AddOnOptions map[string]interface{}
 	options := AddOnOptions{}
 
-	if eviction {
+	if config.Eviction {
 		options["eviction"] = true
 	}
 
-	response, err := gql.CreateAddOn(ctx, client, org.ID, primaryRegion.Code, name, planId, readRegionCodes, options)
+	response, err := gql.CreateAddOn(ctx, client, org.ID, config.PrimaryRegion.Code, config.Name, config.PlanId, readRegionCodes, options)
 	if err != nil {
 		return
 	}
 
-	return response.CreateAddOn.AddOn, nil
+	return &response.CreateAddOn.AddOn, nil
+}
+
+func getExcludedRegions(ctx context.Context) (excludedRegions []string, err error) {
+	client := client.FromContext(ctx).API().GenqClient
+
+	_ = `# @genqlient
+	query GetAddOnProvider($name: String!) {
+		addOnProvider(name: $name) {
+			id
+			name
+			excludedRegions {
+				code
+			}
+		}
+	}
+	`
+
+	response, err := gql.GetAddOnProvider(ctx, client, "upstash_redis")
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, region := range response.AddOnProvider.ExcludedRegions {
+		excludedRegions = append(excludedRegions, region.Code)
+	}
+
+	return
 }

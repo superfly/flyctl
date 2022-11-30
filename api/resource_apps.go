@@ -214,6 +214,7 @@ func (client *Client) GetAppInfo(ctx context.Context, appName string) (*AppInfo,
 						id
 						address
 						type
+						region
 						createdAt
 					}
 				}

@@ -298,14 +298,14 @@ func (s *server) probeTunnel(ctx context.Context, slug string) (err error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	var results []string
-	switch results, err = tunnel.LookupTXT(ctx, "_apps.internal"); {
+	var results []net.IP
+	switch results, err = tunnel.LookupAAAA(ctx, "_api.internal"); {
 	case err != nil:
 		err = fmt.Errorf("failed probing %q: %w", slug, err)
 	case len(results) == 0:
 		s.printf("%q probed.", slug)
 	default:
-		s.printf("%q probed: %s", slug, strings.Join(results, ", "))
+		s.printf("%q probed: %s", slug, results[0])
 	}
 
 	return

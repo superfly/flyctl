@@ -17,7 +17,7 @@ type Client struct {
 
 	PrivateKey, Certificate string
 
-	client *ssh.Client
+	Client *ssh.Client
 	conn   ssh.Conn
 }
 
@@ -97,20 +97,20 @@ func (c *Client) Connect(ctx context.Context) error {
 				return resp.err
 			}
 			c.conn = resp.conn
-			c.client = resp.client
+			c.Client = resp.client
 			return nil
 		}
 	}
 }
 
 func (c *Client) Shell(ctx context.Context, term *Terminal, cmd string) error {
-	if c.client == nil {
+	if c.Client == nil {
 		if err := c.Connect(ctx); err != nil {
 			return err
 		}
 	}
 
-	sess, err := c.client.NewSession()
+	sess, err := c.Client.NewSession()
 	if err != nil {
 		return err
 	}

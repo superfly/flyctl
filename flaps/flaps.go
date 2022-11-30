@@ -140,11 +140,28 @@ func (f *Client) Wait(ctx context.Context, machine *api.Machine, state string) (
 	return
 }
 
-func (f *Client) Stop(ctx context.Context, machine api.StopMachineInput) (err error) {
-	stopEndpoint := fmt.Sprintf("/%s/stop", machine.ID)
+func (f *Client) Stop(ctx context.Context, in api.StopMachineInput) (err error) {
+	stopEndpoint := fmt.Sprintf("/%s/stop", in.ID)
 
 	if err := f.sendRequest(ctx, http.MethodPost, stopEndpoint, nil, nil, nil); err != nil {
-		return fmt.Errorf("failed to stop VM %s: %w", machine.ID, err)
+		return fmt.Errorf("failed to stop VM %s: %w", in.ID, err)
+	}
+	return
+}
+
+func (f *Client) Restart(ctx context.Context, in api.RestartMachineInput) (err error) {
+	restartEndpoint := fmt.Sprintf("/%s/restart?force_stop=%t", in.ID, in.ForceStop)
+
+	if in.Timeout != 0 {
+		restartEndpoint += fmt.Sprintf("&timeout=%d", in.Timeout)
+	}
+
+	if in.Signal != nil {
+		restartEndpoint += fmt.Sprintf("&signal=%s", in.Signal)
+	}
+
+	if err := f.sendRequest(ctx, http.MethodPost, restartEndpoint, nil, nil, nil); err != nil {
+		return fmt.Errorf("failed to restart VM %s: %w", in.ID, err)
 	}
 	return
 }
@@ -163,6 +180,18 @@ func (f *Client) Get(ctx context.Context, machineID string) (*api.Machine, error
 		return nil, fmt.Errorf("failed to get VM %s: %w", machineID, err)
 	}
 	return out, nil
+}
+
+func (f *Client) GetMany(ctx context.Context, machineIDs []string) ([]*api.Machine, error) {
+	machines := make([]*api.Machine, 0, len(machineIDs))
+	for _, id := range machineIDs {
+		m, err := f.Get(ctx, id)
+		if err != nil {
+			return machines, err
+		}
+		machines = append(machines, m)
+	}
+	return machines, nil
 }
 
 func (f *Client) List(ctx context.Context, state string) ([]*api.Machine, error) {
@@ -193,7 +222,7 @@ func (f *Client) ListActive(ctx context.Context) ([]*api.Machine, error) {
 	}
 
 	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
-		return m.Config.Metadata["process_group"] != "release_command" && m.State != "destroyed"
+		return m.Config != nil && m.Config.Metadata["process_group"] != "release_command" && m.State != "destroyed"
 	})
 
 	return machines, nil
@@ -221,7 +250,19 @@ func (f *Client) Kill(ctx context.Context, machineID string) (err error) {
 	return
 }
 
-func (f *Client) GetLease(ctx context.Context, machineID string, ttl *int) (*api.MachineLease, error) {
+func (f *Client) FindLease(ctx context.Context, machineID string) (*api.MachineLease, error) {
+	endpoint := fmt.Sprintf("/%s/lease", machineID)
+
+	out := new(api.MachineLease)
+
+	err := f.sendRequest(ctx, http.MethodGet, endpoint, nil, out, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get lease on VM %s: %w", machineID, err)
+	}
+	return out, nil
+}
+
+func (f *Client) AcquireLease(ctx context.Context, machineID string, ttl *int) (*api.MachineLease, error) {
 	endpoint := fmt.Sprintf("/%s/lease", machineID)
 
 	if ttl != nil {

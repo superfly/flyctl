@@ -83,7 +83,7 @@ func runMachineStatus(ctx context.Context) (err error) {
 			machine.ID,
 			machine.InstanceID,
 			machine.State,
-			machine.FullImageRef(),
+			machine.ImageRefWithVersion(),
 			machine.Name,
 			machine.PrivateIP,
 			machine.Region,

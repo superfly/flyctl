@@ -40,6 +40,7 @@ type Build struct {
 	Image string
 	// Or...
 	Dockerfile        string
+	Ignorefile        string
 	DockerBuildTarget string
 }
 
@@ -99,6 +100,13 @@ func (ac *AppConfig) Dockerfile() string {
 		return ""
 	}
 	return ac.Build.Dockerfile
+}
+
+func (ac *AppConfig) Ignorefile() string {
+	if ac.Build == nil {
+		return ""
+	}
+	return ac.Build.Ignorefile
 }
 
 func (ac *AppConfig) DockerBuildTarget() string {

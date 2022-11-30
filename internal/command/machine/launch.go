@@ -39,6 +39,7 @@ func newLaunch() (cmd *cobra.Command) {
 
 	cmd = command.New("launch", short, long, run, command.RequireSession, command.LoadAppConfigIfPresent)
 
+	cmd.Hidden = true
 	cmd.Args = cobra.NoArgs
 
 	flag.Add(cmd,
@@ -167,7 +168,7 @@ func run(ctx context.Context) (err error) {
 		return
 	}
 
-	appConfig.WriteToDisk()
+	//	appConfig.WriteToDisk()
 	fmt.Fprintf(io.Out, "Wrote to fly.toml\n")
 
 	if !flag.GetBool(ctx, "no-deploy") && (srcInfo != nil && !srcInfo.SkipDeploy) {

@@ -3,9 +3,6 @@ package machine
 import (
 	"context"
 	"fmt"
-	"strconv"
-	"syscall"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -35,16 +32,6 @@ func newStop() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
-		flag.String{
-			Name:        "signal",
-			Shorthand:   "s",
-			Description: "Signal to stop the machine with (default: SIGINT)",
-		},
-
-		flag.Int{
-			Name:        "time",
-			Description: "Seconds to wait before killing the machine",
-		},
 	)
 
 	return cmd
@@ -52,42 +39,45 @@ func newStop() *cobra.Command {
 
 func runMachineStop(ctx context.Context) (err error) {
 	var (
-		args    = flag.Args(ctx)
-		out     = iostreams.FromContext(ctx).Out
+		io   = iostreams.FromContext(ctx)
+		args = flag.Args(ctx)
+	)
+
+	for _, machineID := range args {
+		fmt.Fprintf(io.Out, "Sending kill signal to machine %s...\n", machineID)
+
+		if err = Stop(ctx, machineID); err != nil {
+			return
+		}
+		fmt.Fprintf(io.Out, "%s has been successfully stopped\n", machineID)
+	}
+	return
+}
+
+func Stop(ctx context.Context, machineID string) (err error) {
+	var (
 		appName = app.NameFromContext(ctx)
 	)
 
-	for _, arg := range args {
-		signal := api.Signal{}
-		if flag.GetString(ctx, "signal") != "" {
-			s, err := strconv.Atoi(flag.GetString(ctx, "signal"))
-			if err != nil {
-				return fmt.Errorf("could not get signal %s", err)
-			}
-			signal.Signal = syscall.Signal(s)
-		}
-		machineStopInput := api.StopMachineInput{
-			ID:      arg,
-			Signal:  signal,
-			Timeout: time.Duration(flag.GetInt(ctx, "time")),
-			Filters: &api.Filters{},
-		}
-
-		app, err := appFromMachineOrName(ctx, arg, appName)
-		if err != nil {
-			return fmt.Errorf("could not get app: %w", err)
-		}
-
-		flapsClient, err := flaps.New(ctx, app)
-		if err != nil {
-			return fmt.Errorf("could not make flaps client: %w", err)
-		}
-
-		err = flapsClient.Stop(ctx, machineStopInput)
-		if err != nil {
-			return fmt.Errorf("could not stop machine %s: %w", machineStopInput.ID, err)
-		}
-		fmt.Fprintf(out, "%s has been successfully stopped\n", machineStopInput.ID)
+	machineStopInput := api.StopMachineInput{
+		ID:      machineID,
+		Filters: &api.Filters{},
 	}
+
+	app, err := appFromMachineOrName(ctx, machineID, appName)
+	if err != nil {
+		return fmt.Errorf("could not get app: %w", err)
+	}
+
+	flapsClient, err := flaps.New(ctx, app)
+	if err != nil {
+		return fmt.Errorf("could not make flaps client: %w", err)
+	}
+
+	err = flapsClient.Stop(ctx, machineStopInput)
+	if err != nil {
+		return fmt.Errorf("could not stop machine %s: %w", machineStopInput.ID, err)
+	}
+
 	return
 }

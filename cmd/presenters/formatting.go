@@ -3,6 +3,7 @@ package presenters
 import (
 	"fmt"
 	"math"
+	"strings"
 	"time"
 )
 
@@ -41,4 +42,18 @@ func FormatRelativeTime(t time.Time) string {
 
 func FormatTime(t time.Time) string {
 	return t.Format(time.RFC3339)
+}
+
+func GetStringInBetweenTwoString(str string, startS string, endS string) (result string, found bool) {
+	s := strings.Index(str, startS)
+	if s == -1 {
+		return result, false
+	}
+	newS := str[s+len(startS):]
+	e := strings.Index(newS, endS)
+	if e == -1 {
+		return result, false
+	}
+	result = newS[:e]
+	return result, true
 }

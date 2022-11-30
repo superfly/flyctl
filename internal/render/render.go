@@ -81,6 +81,36 @@ func VerticalTable(w io.Writer, title string, objects [][]string, cols ...string
 	return nil
 }
 
+func ReusableTable(w io.Writer, title string, rows [][]string, cols ...string) (err error) {
+	if title != "" {
+		fmt.Fprintln(w, aurora.Bold(title))
+	}
+
+	table := tablewriter.NewWriter(w)
+
+	if len(cols) > 0 {
+		table.SetHeader(cols)
+	}
+
+	table.SetBorder(false)
+	table.SetHeaderLine(false)
+	table.SetAutoWrapText(false)
+	table.SetAutoFormatHeaders(true)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table.SetColumnSeparator(" ")
+	table.SetNoWhiteSpace(true)
+	table.SetTablePadding("\t")
+
+	table.AppendBulk(rows)
+
+	table.Render()
+
+	fmt.Fprintln(w)
+
+	return
+}
+
 func NewTextBlock(ctx context.Context, v ...interface{}) (tb *TextBlock) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()

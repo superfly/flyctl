@@ -43,7 +43,7 @@ func (c *Client) GetAppLogs(ctx context.Context, appName, token, region, instanc
 	var result getLogsResponse
 
 	var res *http.Response
-	if res, err = http.DefaultClient.Do(req); err != nil {
+	if res, err = c.httpClient.Do(req); err != nil {
 		return
 	}
 	defer res.Body.Close()
