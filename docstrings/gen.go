@@ -201,22 +201,22 @@ Takes hostname as a parameter to locate the certificate.`,
 		return KeyStrings{"checks", "Manage health checks",
 			`Manage health checks`,
 		}
-	// case "checks.handlers":
-	// 	return KeyStrings{"handlers", "Manage health check handlers",
-	// 		`Manage health check handlers`,
-	// 	}
-	// case "checks.handlers.create":
-	// 	return KeyStrings{"create", "Create a health check handler",
-	// 		`Create a health check handler`,
-	// 	}
-	// case "checks.handlers.delete":
-	// 	return KeyStrings{"delete <organization> <handler-name>", "Delete a health check handler",
-	// 		`Delete a health check handler`,
-	// 	}
-	// case "checks.handlers.list":
-	// 	return KeyStrings{"list", "List health check handlers",
-	// 		`List health check handlers`,
-	// 	}
+	case "checks.handlers":
+		return KeyStrings{"handlers", "Manage health check handlers",
+			`Manage health check handlers`,
+		}
+	case "checks.handlers.create":
+		return KeyStrings{"create", "Create a health check handler",
+			`Create a health check handler`,
+		}
+	case "checks.handlers.delete":
+		return KeyStrings{"delete <organization> <handler-name>", "Delete a health check handler",
+			`Delete a health check handler`,
+		}
+	case "checks.handlers.list":
+		return KeyStrings{"list", "List health check handlers",
+			`List health check handlers`,
+		}
 	case "checks.list":
 		return KeyStrings{"list", "List app health checks",
 			`List app health checks`,
