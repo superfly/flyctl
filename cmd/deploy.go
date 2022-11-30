@@ -14,6 +14,7 @@ import (
 	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -30,7 +31,7 @@ import (
 )
 
 func runDeploy(cmdCtx *cmdctx.CmdContext) error {
-	ctx := cmdCtx.Command.Context()
+	ctx := client.NewContext(cmdCtx.Command.Context(), cmdCtx.Client)
 
 	cmdCtx.Status("deploy", cmdctx.STITLE, "Deploying", cmdCtx.AppName)
 

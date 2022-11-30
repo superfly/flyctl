@@ -57,13 +57,19 @@ func runList(ctx context.Context) error {
 
 	rows := make([][]string, 0, len(volumes))
 	for _, volume := range volumes {
-		var attachedAllocID string
+		var attachedVMID string
 
-		if volume.AttachedAllocation != nil {
-			attachedAllocID = volume.AttachedAllocation.IDShort
+		if volume.App.PlatformVersion == "machines" {
+			if volume.AttachedMachine != nil {
+				attachedVMID = volume.AttachedMachine.ID
+			}
+		} else {
+			if volume.AttachedAllocation != nil {
+				attachedVMID = volume.AttachedAllocation.IDShort
 
-			if volume.AttachedAllocation.TaskName != "app" {
-				attachedAllocID = fmt.Sprintf("%s (%s)", volume.AttachedAllocation.IDShort, volume.AttachedAllocation.TaskName)
+				if volume.AttachedAllocation.TaskName != "app" {
+					attachedVMID = fmt.Sprintf("%s (%s)", volume.AttachedAllocation.IDShort, volume.AttachedAllocation.TaskName)
+				}
 			}
 		}
 
@@ -74,11 +80,11 @@ func runList(ctx context.Context) error {
 			strconv.Itoa(volume.SizeGb) + "GB",
 			volume.Region,
 			volume.Host.ID,
-			attachedAllocID,
+			fmt.Sprint(volume.Encrypted),
+			attachedVMID,
 			humanize.Time(volume.CreatedAt),
 		})
-
 	}
 
-	return render.Table(out, "", rows, "ID", "State", "Name", "Size", "Region", "Zone", "Attached VM", "Created At")
+	return render.Table(out, "", rows, "ID", "State", "Name", "Size", "Region", "Zone", "Encrypted", "Attached VM", "Created At")
 }

@@ -25,7 +25,7 @@ func New() *cobra.Command {
 
 	cmd := command.New(usage, short, long, nil)
 
-	cmd.Aliases = []string{"vol"}
+	cmd.Aliases = []string{"volume","vol"}
 
 	cmd.AddCommand(
 		newCreate(),

@@ -5,11 +5,16 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/docker/docker/pkg/ioutils"
+	"github.com/mattn/go-colorable"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
 )
@@ -54,12 +59,8 @@ func newConnect() *cobra.Command {
 
 func runConnect(ctx context.Context) error {
 	var (
-		MinPostgresStandaloneVersion = "0.0.4"
-		MinPostgresHaVersion         = "0.0.9"
-	)
-	var (
-		appName = app.NameFromContext(ctx)
 		client  = client.FromContext(ctx).API()
+		appName = app.NameFromContext(ctx)
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -71,48 +72,99 @@ func runConnect(ctx context.Context) error {
 		return fmt.Errorf("app %s is not a postgres app", appName)
 	}
 
+	ctx, err = apps.BuildContext(ctx, app)
+	if err != nil {
+		return err
+	}
+
+	switch app.PlatformVersion {
+	case "machines":
+		return runMachineConnect(ctx, app)
+	case "nomad":
+		return runNomadConnect(ctx, app)
+	default:
+		return fmt.Errorf("unknown platform version")
+	}
+}
+
+func runMachineConnect(ctx context.Context, app *api.AppCompact) error {
+	var (
+		MinPostgresStandaloneVersion = "0.0.4"
+		MinPostgresHaVersion         = "0.0.9"
+
+		database = flag.GetString(ctx, "database")
+		user     = flag.GetString(ctx, "user")
+		password = flag.GetString(ctx, "password")
+	)
+
+	flapsClient := flaps.FromContext(ctx)
+
+	machines, err := flapsClient.ListActive(ctx)
+	if err != nil {
+		return fmt.Errorf("machines could not be retrieved %w", err)
+	}
+
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresStandaloneVersion); err != nil {
+		return err
+	}
+
+	leader, err := pickLeader(ctx, machines)
+	if err != nil {
+		return err
+	}
+	return ssh.SSHConnect(&ssh.SSHParams{
+		Ctx:    ctx,
+		Org:    app.Organization,
+		Dialer: agent.DialerFromContext(ctx),
+		App:    app.Name,
+		Cmd:    fmt.Sprintf("connect %s %s %s", database, user, password),
+		Stdin:  os.Stdin,
+		Stdout: ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
+		Stderr: ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
+	}, leader.PrivateIP)
+}
+
+func runNomadConnect(ctx context.Context, app *api.AppCompact) error {
+	var (
+		client = client.FromContext(ctx).API()
+
+		MinPostgresStandaloneVersion = "0.0.4"
+		MinPostgresHaVersion         = "0.0.9"
+
+		database = flag.GetString(ctx, "database")
+		user     = flag.GetString(ctx, "user")
+		password = flag.GetString(ctx, "password")
+	)
+
+	if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresStandaloneVersion); err != nil {
+		return err
+	}
+
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
 		return fmt.Errorf("failed to establish agent: %w", err)
 	}
 
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+	pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
 	if err != nil {
-		return fmt.Errorf("failed to build tunnel for %s: %v", app.Organization.Slug, err)
+		return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", app.Name, err)
 	}
-
-	switch app.PlatformVersion {
-	case "nomad":
-		if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresStandaloneVersion); err != nil {
-			return err
-		}
-	case "machines":
-		leader, err := fetchLeader(ctx, app, dialer)
-		if err != nil {
-			return fmt.Errorf("can't fetch leader: %w", err)
-		}
-		if err := hasRequiredVersionOnMachines(leader, MinPostgresHaVersion, MinPostgresStandaloneVersion); err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("platform %s is not supported", app.PlatformVersion)
+	if len(pgInstances.Addresses) == 0 {
+		return fmt.Errorf("no 6pn ips found for %s app", app.Name)
 	}
-
-	database := flag.GetString(ctx, "database")
-	user := flag.GetString(ctx, "user")
-	password := flag.GetString(ctx, "password")
-
-	addr := fmt.Sprintf("%s.internal", appName)
-	cmdStr := fmt.Sprintf("connect %s %s %s", database, user, password)
+	leaderIP, err := leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
+	if err != nil {
+		return err
+	}
 
 	return ssh.SSHConnect(&ssh.SSHParams{
 		Ctx:    ctx,
 		Org:    app.Organization,
-		Dialer: dialer,
-		App:    appName,
-		Cmd:    cmdStr,
+		Dialer: agent.DialerFromContext(ctx),
+		App:    app.Name,
+		Cmd:    fmt.Sprintf("connect %s %s %s", database, user, password),
 		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
-	}, addr)
+		Stdout: ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
+		Stderr: ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
+	}, leaderIP)
 }

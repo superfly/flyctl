@@ -1,10 +1,10 @@
 package scanner
 
 import (
-	"fmt"
-	"io/ioutil"
 	"os"
+	"os/exec"
 	"regexp"
+	"strings"
 )
 
 func configureRails(sourceDir string) (*SourceInfo, error) {
@@ -12,8 +12,9 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 		return nil, nil
 	}
 
+	vars := make(map[string]interface{})
+
 	s := &SourceInfo{
-		Files:  templates("templates/rails/standard"),
 		Family: "Rails",
 		Port:   8080,
 		Statics: []Static{
@@ -30,38 +31,84 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 				Condition:   !checksPass(sourceDir, dirContains("Gemfile", "pg")),
 			},
 		},
-		ReleaseCmd: "bundle exec rails db:migrate",
+		ReleaseCmd: "bin/rails fly:release",
 		Env: map[string]string{
-			"SERVER_COMMAND": "bundle exec puma",
-			"PORT":           "8080",
+			"PORT": "8080",
+		},
+		BuildArgs: map[string]string{
+			"BUILD_COMMAND":  "bin/rails fly:build",
+			"SERVER_COMMAND": "bin/rails fly:server",
 		},
 	}
 
 	var rubyVersion string
 	var bundlerVersion string
-	var nodeVersion string = "14"
+	var nodeVersion string = "latest"
+	var yarnVersion string = "latest"
 
-	rubyVersion, err := extractRubyVersion("Gemfile", ".ruby_version")
+	out, err := exec.Command("node", "-v").Output()
+
+	if err == nil {
+		nodeVersion = strings.TrimSpace(string(out))
+		if nodeVersion[:1] == "v" {
+			nodeVersion = nodeVersion[1:]
+		}
+	}
+
+	out, err = exec.Command("yarn", "-v").Output()
+
+	if err == nil {
+		yarnVersion = strings.TrimSpace(string(out))
+	}
+
+	rubyVersion, err = extractRubyVersion("Gemfile.lock", "Gemfile", ".ruby_version")
 
 	if err != nil || rubyVersion == "" {
-		rubyVersion = "3.1.1"
+		rubyVersion = "3.1.2"
+
+		out, err := exec.Command("ruby", "-v").Output()
+		if err == nil {
+
+			version := strings.TrimSpace(string(out))
+			re := regexp.MustCompile(`ruby (?P<version>[\d.]+)`)
+			m := re.FindStringSubmatch(version)
+
+			for i, name := range re.SubexpNames() {
+				if len(m) > 0 && name == "version" {
+					rubyVersion = m[i]
+				}
+			}
+		}
 	}
 
 	bundlerVersion, err = extractBundlerVersion("Gemfile.lock")
 
 	if err != nil || bundlerVersion == "" {
-		bundlerVersion = "2.3.9"
+		bundlerVersion = "2.3.21"
+
+		out, err := exec.Command("bundle", "-v").Output()
+		if err == nil {
+
+			version := strings.TrimSpace(string(out))
+			re := regexp.MustCompile(`Bundler version (?P<version>[\d.]+)`)
+			m := re.FindStringSubmatch(version)
+
+			for i, name := range re.SubexpNames() {
+				if len(m) > 0 && name == "version" {
+					bundlerVersion = m[i]
+				}
+			}
+		}
 	}
 
-	s.BuildArgs = map[string]string{
-		"RUBY_VERSION":    rubyVersion,
-		"BUNDLER_VERSION": bundlerVersion,
-		"NODE_VERSION":    nodeVersion,
+	// master.key comes with Rails apps from v5.2 onwards, but may not be present
+	// if the app does not use Rails encrypted credentials.  Rails v6 added
+	// support for multi-environment credentials.  Use the Rails searching
+	// sequence for production credentials to determine the RAILS_MASTER_KEY.
+	masterKey, err := os.ReadFile("config/credentials/production.key")
+	if err != nil {
+		masterKey, err = os.ReadFile("config/master.key")
 	}
-
-	// master.key comes with Rails apps from v6 onwards, but may not be present
-	// if the app does not use Rails encrypted credentials
-	masterKey, err := ioutil.ReadFile("config/master.key")
 
 	if err == nil {
 		s.Secrets = []Secret{
@@ -73,45 +120,63 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 		}
 	}
 
+	_, err = os.Stat("node_modules")
+	vars["node"] = !os.IsNotExist(err)
+
+	_, err = os.Stat("yarn.lock")
+	vars["yarn"] = !os.IsNotExist(err)
+
+	vars["rubyVersion"] = rubyVersion
+	vars["bundlerVersion"] = bundlerVersion
+	vars["nodeVersion"] = nodeVersion
+	vars["yarnVersion"] = yarnVersion
+	s.Files = templatesExecute("templates/rails/standard", vars)
+
 	s.SkipDeploy = true
-	s.DeployDocs = fmt.Sprintf(`
-Your Rails app is prepared for deployment. Production will be set up with these versions of core runtime packages:
+	s.DeployDocs = `
+Your Rails app is prepared for deployment.
 
-Ruby %s
-Bundler %s
-NodeJS %s
-
-You can configure these in the [build] section in the generated fly.toml.
-
-Ruby versions available are: 3.1.1, 3.0.3, 2.7.5, and 2.6.9. Learn more about the chosen Ruby stack, Fullstaq Ruby, here: https://github.com/evilmartians/fullstaq-ruby-docker.
-We recommend using the highest patch level for better security and performance.
-
-For the other packages, specify any version you need.
-
-If you need custom packages installed, or have problems with your deployment build, you may need to edit the Dockerfile
-for app-specific changes. If you need help, please post on https://community.fly.io.
+If you need custom packages installed, or have problems with your deployment
+build, you may need to edit the Dockerfile for app-specific changes. If you
+need help, please post on https://community.fly.io.
 
 Now: run 'fly deploy' to deploy your Rails app.
-`, rubyVersion, bundlerVersion, nodeVersion)
+`
 
 	return s, nil
 }
 
-func extractRubyVersion(gemfilePath string, rubyVersionPath string) (string, error) {
-	gemfileContents, err := os.ReadFile(gemfilePath)
+func extractRubyVersion(lockfilePath string, gemfilePath string, rubyVersionPath string) (string, error) {
 
 	var version string
 
-	if err != nil {
-		return "", err
+	lockfileContents, err := os.ReadFile(lockfilePath)
+
+	if err == nil {
+		re := regexp.MustCompile(`RUBY VERSION\s+ruby (?P<version>[\d.]+)`)
+		m := re.FindStringSubmatch(string(lockfileContents))
+
+		for i, name := range re.SubexpNames() {
+			if len(m) > 0 && name == "version" {
+				version = m[i]
+			}
+		}
 	}
 
-	re := regexp.MustCompile(`ruby \"(?P<version>.+)\"`)
-	m := re.FindStringSubmatch(string(gemfileContents))
+	if version == "" {
+		gemfileContents, err := os.ReadFile(gemfilePath)
 
-	for i, name := range re.SubexpNames() {
-		if len(m) > 0 && name == "version" {
-			version = m[i]
+		if err != nil {
+			return "", err
+		}
+
+		re := regexp.MustCompile(`ruby \"(?P<version>[\d.]+)\"`)
+		m := re.FindStringSubmatch(string(gemfileContents))
+
+		for i, name := range re.SubexpNames() {
+			if len(m) > 0 && name == "version" {
+				version = m[i]
+			}
 		}
 	}
 
@@ -139,7 +204,7 @@ func extractBundlerVersion(gemfileLockPath string) (string, error) {
 		return "", err
 	}
 
-	re := regexp.MustCompile(`BUNDLED WITH\n\s{3}(?P<version>.+)\n`)
+	re := regexp.MustCompile(`BUNDLED WITH\n\s{3}(?P<version>[\d.]+)\n`)
 	m := re.FindStringSubmatch(string(gemfileContents))
 	for i, name := range re.SubexpNames() {
 		if len(m) > 0 && name == "version" {

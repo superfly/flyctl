@@ -16,15 +16,17 @@ func (*remoteImageResolver) Name() string {
 	return "Remote Image Reference"
 }
 
-func (s *remoteImageResolver) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts RefOptions) (*DeploymentImage, error) {
+func (s *remoteImageResolver) Run(ctx context.Context, _ *dockerClientFactory, streams *iostreams.IOStreams, opts RefOptions, build *build) (*DeploymentImage, string, error) {
 	fmt.Fprintf(streams.ErrOut, "Searching for image '%s' remotely...\n", opts.ImageRef)
 
+	build.BuildStart()
 	img, err := s.flyApi.ResolveImageForApp(ctx, opts.AppName, opts.ImageRef)
+	build.BuildFinish()
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if img == nil {
-		return nil, nil
+		return nil, "no image found and no error occurred", nil
 	}
 
 	fmt.Fprintf(streams.ErrOut, "image found: %s\n", img.ID)
@@ -35,5 +37,5 @@ func (s *remoteImageResolver) Run(ctx context.Context, dockerFactory *dockerClie
 		Size: int64(img.CompressedSize),
 	}
 
-	return di, nil
+	return di, "", nil
 }

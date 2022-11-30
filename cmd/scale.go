@@ -8,6 +8,7 @@ import (
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/command"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/docstrings"
@@ -60,6 +61,16 @@ func newScaleCommand(client *client.Client) *Command {
 
 func runScaleVM(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
+	apiClient := cmdCtx.Client.API()
+
+	isMachine, err := command.CheckPlatform(apiClient, ctx, cmdCtx.AppName)
+	if err != nil {
+		return fmt.Errorf("failed to check platform version %w", err)
+	}
+
+	if isMachine {
+		return fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine update instead")
+	}
 
 	sizeName := cmdCtx.Args[0]
 
@@ -84,6 +95,16 @@ func runScaleVM(cmdCtx *cmdctx.CmdContext) error {
 
 func runScaleCount(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
+	apiClient := cmdCtx.Client.API()
+
+	isMachine, err := command.CheckPlatform(apiClient, ctx, cmdCtx.AppName)
+	if err != nil {
+		return fmt.Errorf("failed to check platform version %w", err)
+	}
+
+	if isMachine {
+		return fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine clone instead")
+	}
 
 	groups := map[string]int{}
 
@@ -140,6 +161,16 @@ func runScaleCount(cmdCtx *cmdctx.CmdContext) error {
 
 func runScaleShow(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
+	apiClient := cmdCtx.Client.API()
+
+	isMachine, err := command.CheckPlatform(apiClient, ctx, cmdCtx.AppName)
+	if err != nil {
+		return fmt.Errorf("failed to check platform version %w", err)
+	}
+
+	if isMachine {
+		return fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine status instead")
+	}
 
 	size, tgCounts, processGroups, err := cmdCtx.Client.API().AppVMResources(ctx, cmdCtx.AppName)
 	if err != nil {
@@ -149,7 +180,7 @@ func runScaleShow(cmdCtx *cmdctx.CmdContext) error {
 	countMsg := countMessage(tgCounts)
 	maxPerRegionMsg := maxPerRegionMessage(processGroups)
 
-	printVMResources(cmdCtx, size, countMsg, maxPerRegionMsg)
+	printVMResources(cmdCtx, size, countMsg, maxPerRegionMsg, processGroups)
 
 	return nil
 }
@@ -200,7 +231,7 @@ func maxPerRegionMessage(groups []api.ProcessGroup) string {
 	return msg
 }
 
-func printVMResources(commandContext *cmdctx.CmdContext, vmSize api.VMSize, count string, maxPerRegion string) {
+func printVMResources(commandContext *cmdctx.CmdContext, vmSize api.VMSize, count string, maxPerRegion string, processGroups []api.ProcessGroup) {
 	if commandContext.OutputJSON() {
 		out := struct {
 			api.VMSize
@@ -219,14 +250,36 @@ func printVMResources(commandContext *cmdctx.CmdContext, vmSize api.VMSize, coun
 
 	fmt.Printf("VM Resources for %s\n", commandContext.AppName)
 
-	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Size", vmSize.Name)
-	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Memory", formatMemory(vmSize))
+	if len(processGroups) <= 1 {
+		fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Size", vmSize.Name)
+		fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Memory", formatMemory(vmSize))
+	}
+
 	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "Count", count)
 	fmt.Fprintf(commandContext.Out, "%15s: %s\n", "Max Per Region", maxPerRegion)
+
+	if len(processGroups) > 1 {
+		for _, pg := range processGroups {
+			fmt.Printf("\nProcess group %s\n", pg.Name)
+			fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Size", pg.VMSize.Name)
+			fmt.Fprintf(commandContext.Out, "%15s: %s\n", "VM Memory", formatMemory(*pg.VMSize))
+			fmt.Fprintf(commandContext.Out, "%15s: %s\n", "Max Per Region", strconv.Itoa(pg.MaxPerRegion))
+		}
+	}
 }
 
 func runScaleMemory(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
+	apiClient := cmdCtx.Client.API()
+
+	isMachine, err := command.CheckPlatform(apiClient, ctx, cmdCtx.AppName)
+	if err != nil {
+		return fmt.Errorf("failed to check platform version %w", err)
+	}
+
+	if isMachine {
+		return fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine update instead")
+	}
 
 	memoryMB, err := strconv.ParseInt(cmdCtx.Args[0], 10, 64)
 	if err != nil {

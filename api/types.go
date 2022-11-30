@@ -273,6 +273,10 @@ type ImageVersion struct {
 }
 
 func (img *ImageVersion) FullImageRef() string {
+	return fmt.Sprintf("%s/%s:%s", img.Registry, img.Repository, img.Tag)
+}
+
+func (img *ImageVersion) ImageRef() string {
 	return fmt.Sprintf("%s:%s", img.Repository, img.Tag)
 }
 
@@ -356,7 +360,8 @@ type Snapshot struct {
 type Volume struct {
 	ID  string `json:"id"`
 	App struct {
-		Name string
+		Name            string
+		PlatformVersion string
 	}
 	Name      string
 	SizeGb    int
@@ -368,6 +373,7 @@ type Volume struct {
 	Encrypted          bool
 	CreatedAt          time.Time
 	AttachedAllocation *AllocationStatus
+	AttachedMachine    *GqlMachine
 	Host               struct {
 		ID string
 	}
@@ -449,14 +455,15 @@ func (app *AppCompact) IsPostgresApp() bool {
 }
 
 type AppInfo struct {
-	ID           string
-	Name         string
-	Status       string
-	Deployed     bool
-	Hostname     string
-	Version      int
-	Organization *OrganizationBasic
-	IPAddresses  struct {
+	ID              string
+	Name            string
+	Status          string
+	Deployed        bool
+	Hostname        string
+	Version         int
+	PlatformVersion string
+	Organization    *OrganizationBasic
+	IPAddresses     struct {
 		Nodes []IPAddress
 	}
 	Services []Service
@@ -988,6 +995,7 @@ type AutoscaleRegionConfigInput struct {
 type VMSize struct {
 	Name        string
 	CPUCores    float32
+	CPUClass    string
 	MemoryGB    float32
 	MemoryMB    int
 	PriceMonth  float32

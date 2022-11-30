@@ -2,8 +2,12 @@
 # https://github.com/Khan/genqlient/blob/main/docs/genqlient.yaml
 schema: gql/schema.graphql
 operations:
+  - agent/**.go
   - internal/command/**/*.go
+  - internal/build/imgsrc/*.go
 bindings:
   JSON:
     type: interface{}
+  BigInt:
+    type: int64
 generated: gql/generated.go

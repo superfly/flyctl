@@ -119,34 +119,20 @@ authenticated and in use.`,
 		return KeyStrings{"autoscale", "Autoscaling app resources",
 			`Autoscaling application resources`,
 		}
-	case "autoscale.balanced":
-		return KeyStrings{"balanced", "Configure a traffic balanced app with params (min=int max=int)",
-			`Configure the app to balance regions based on traffic with given parameters:
-
-min=int - minimum number of instances to be allocated from region pool.
-max=int - maximum number of instances to be allocated from region pool.`,
-		}
 	case "autoscale.disable":
 		return KeyStrings{"disable", "Disable autoscaling",
 			`Disable autoscaling to manually controlling app resources`,
 		}
 	case "autoscale.set":
-		return KeyStrings{"set", "Set current models autoscaling parameters",
-			`Allows the setting of the current models autoscaling parameters:
+		return KeyStrings{"set", "Set app autoscaling parameters",
+			`Enable autoscaling and set the application's autoscaling parameters:
 
-min=int - minimum number of instances to be allocated from region pool.
-max=int - maximum number of instances to be allocated from region pool.`,
+min=int - minimum number of instances to be allocated globally.
+max=int - maximum number of instances to be allocated globally.`,
 		}
 	case "autoscale.show":
 		return KeyStrings{"show", "Show current autoscaling configuration",
 			`Show current autoscaling configuration`,
-		}
-	case "autoscale.standard":
-		return KeyStrings{"standard", "Configure a standard balanced app with params (min=int max=int)",
-			`Configure the app without traffic balancing with the given parameters:
-
-min=int - minimum number of instances to be allocated from region pool.
-max=int - maximum number of instances to be allocated from region pool.`,
 		}
 	case "builds":
 		return KeyStrings{"builds", "Work with Fly builds",
@@ -376,15 +362,6 @@ events and their results.`,
 		return KeyStrings{"update", "Updates the app's image to the latest available version. (Fly Postgres only)",
 			`This will update the application's image to the latest available version.
 The update will perform a rolling restart against each VM, which may result in a brief service disruption.`,
-		}
-	case "info":
-		return KeyStrings{"info", "Show detailed app information",
-			`Shows information about the application on the Fly platform
-
-Information includes the application's
-* name, owner, version, status and hostname
-* services
-* IP addresses`,
 		}
 	case "ips":
 		return KeyStrings{"ips", "Manage IP addresses for apps",
@@ -677,7 +654,7 @@ For pricing, see https://fly.io/docs/about/pricing/`,
 
 Size names include shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x.
 
-For a full list of supported sizes use the command FLYCTL PLATFORM VM-SIZES
+For a full list of supported sizes use the command flyctl platform vm-sizes
 
 Memory size can be set with --memory=number-of-MB
 
