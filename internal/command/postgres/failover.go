@@ -8,13 +8,14 @@ import (
 	"github.com/avast/retry-go/v4"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -58,27 +59,16 @@ func runFailover(ctx context.Context) (err error) {
 	}
 
 	if app.PlatformVersion != "machines" {
-		return fmt.Errorf("failerover is only supported for machines apps")
+		return fmt.Errorf("failover is only supported for machines apps")
 	}
 
-	agentclient, err := agent.Establish(ctx, client)
+	ctx, err = apps.BuildContext(ctx, app)
 	if err != nil {
-		return fmt.Errorf("error establishing agent: %w", err)
+		return err
 	}
 
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
-	if err != nil {
-		return fmt.Errorf("flaps: can't build tunnel for %s: %w", app.Organization.Slug, err)
-	}
-	ctx = agent.DialerWithContext(ctx, dialer)
-
-	flapsClient, err := flaps.New(ctx, app)
-	if err != nil {
-		return fmt.Errorf("list of machines could not be retrieved: %w", err)
-	}
-	ctx = flaps.NewContext(ctx, flapsClient)
-
-	machines, err := flapsClient.ListActive(ctx)
+	machines, releaseFunc, err := mach.AcquireAllLeases(ctx)
+	defer releaseFunc(ctx, machines)
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
@@ -92,22 +82,13 @@ func runFailover(ctx context.Context) (err error) {
 		return fmt.Errorf("failover is not available for standalone postgres")
 	}
 
-	// acquire cluster wide lock
-	for _, machine := range machines {
-		lease, err := flapsClient.GetLease(ctx, machine.ID, api.IntPointer(40))
-		if err != nil {
-			return fmt.Errorf("failed to obtain lease: %w", err)
-		}
-		machine.LeaseNonce = lease.Data.Nonce
-
-		// Ensure lease is released on return
-		defer flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
-	}
-
 	leader, err := pickLeader(ctx, machines)
 	if err != nil {
 		return err
 	}
+
+	flapsClient := flaps.FromContext(ctx)
+	dialer := agent.DialerFromContext(ctx)
 
 	pgclient := flypg.NewFromInstance(leader.PrivateIP, dialer)
 	fmt.Fprintf(io.Out, "Performing a failover\n")

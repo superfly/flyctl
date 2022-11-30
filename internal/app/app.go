@@ -115,6 +115,7 @@ type Build struct {
 	Settings          map[string]interface{} `toml:"settings,omitempty"`
 	Builtin           string                 `toml:"builtin,omitempty"`
 	Dockerfile        string                 `toml:"dockerfile,omitempty"`
+	Ignorefile        string                 `toml:"ignorefile,omitempty"`
 	DockerBuildTarget string                 `toml:"buildpacks,omitempty"`
 }
 
@@ -161,6 +162,13 @@ func (c *Config) Dockerfile() string {
 		return ""
 	}
 	return c.Build.Dockerfile
+}
+
+func (c *Config) Ignorefile() string {
+	if c.Build == nil {
+		return ""
+	}
+	return c.Build.Ignorefile
 }
 
 func (c *Config) DockerBuildTarget() string {

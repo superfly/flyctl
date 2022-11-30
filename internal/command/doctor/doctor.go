@@ -5,18 +5,15 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"strings"
 	"time"
 
 	dockerclient "github.com/docker/docker/client"
-	"github.com/miekg/dns"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/dig"
@@ -169,102 +166,14 @@ followed by 'flyctl agent restart', and we'll run WireGuard over HTTPS.
 	// ------------------------------------------------------------
 	// App specific checks below here
 	// ------------------------------------------------------------
-	appName := app.NameFromContext(ctx)
-	if appName == "" {
-		lprint(nil, "No app provided; skipping app specific checks\n")
+
+	appChecker := NewAppChecker(ctx, isJson, color)
+	if appChecker == nil {
 		return nil
 	}
-	lprint(nil, "\nApp specific checks for %s:\n", appName)
-
-	apiClient := client.FromContext(ctx).API()
-	app, err := apiClient.GetAppCompact(ctx, appName)
-	if err != nil {
-		lprint(nil, "API error looking up app with name %s: %w\n", appName, err)
-		return nil
-	}
-
-	if !app.Deployed && app.PlatformVersion != "machines" {
-		lprint(color.Yellow, "%s app has not been deployed yet. Deploy using `flyctl deploy`.\n", appName)
-		return nil
-	}
-
-	lprint(nil, "Checking that app has ip addresses allocated... ")
-
-	ipAddresses, err := apiClient.GetIPAddresses(ctx, appName)
-	if err != nil {
-		lprint(nil, "API error listing IP addresses for app %s: %w\n", appName, err)
-		return nil
-	}
-
-	if len(ipAddresses) > 0 {
-		checks["appHasIps"] = "ok"
-		lprint(color.Green, "PASSED\n")
-	} else {
-		checks["appHasIps"] = "No ips"
-		lprint(nil, `Nope
-	No ip addresses assigned to this app. If the app is not intended to receive traffic, this is fine.
-	Otherwise, it likely means that the services configuration is not correctly setup to receive http, tls, tcp, or udp traffic.
-	https://fly.io/docs/reference/configuration/#the-services-sections
-`)
-	}
-
-	v4s := make(map[string]bool)
-	v6s := make(map[string]bool)
-	for _, ip := range ipAddresses {
-		switch ip.Type {
-		case "v4":
-			v4s[ip.Address] = true
-		case "v6":
-			v6s[ip.Address] = true
-		default:
-			lprint(nil, "Ip address %s has unexpected type '%s'. Please file a bug with this message at https://github.com/superfly/flyctl/issues/new?assignees=&labels=bug&template=flyctl-bug-report.md&title=", ip.Address, ip.Type)
-		}
-	}
-	if len(v4s) == 0 && len(v6s) == 0 {
-		lprint(nil, "No ipv4 or ipv6 ip addresses allocated to app %s", appName)
-		return nil
-	}
-
-	appHostname := app.Hostname
-	appFqdn := dns.Fqdn(appHostname)
-	dnsClient := &dns.Client{}
-	ns, err := getFirstFlyDevNameserver(dnsClient)
-	if err != nil {
-		lprint(nil, "%s. Can't proceed to check A or AAAA records.\n", err.Error())
-		return nil
-	}
-	nsAddr := fmt.Sprintf("%s:53", strings.TrimSuffix(ns, "."))
-
-	if len(v4s) > 0 {
-		lprint(nil, "Checking A record for %s... ", appHostname)
-		err, jsonErr := checkDnsRecords(dnsClient, nsAddr, appName, appFqdn, "A", v4s)
-		if err == nil {
-			lprint(color.Green, "PASSED\n")
-			checks["appARecord"] = "ok"
-		} else {
-			lprint(nil, "%s\n\n", err.Error())
-			if jsonErr != "" {
-				checks["appARecord"] = jsonErr
-			} else {
-				checks["appARecord"] = err.Error()
-			}
-		}
-	}
-
-	if len(v6s) > 0 {
-		lprint(nil, "Checking AAAA record for %s... ", appHostname)
-		err, jsonErr := checkDnsRecords(dnsClient, nsAddr, appName, appFqdn, "AAAA", v6s)
-		if err == nil {
-			lprint(color.Green, "PASSED\n")
-			checks["appAAAARecord"] = "ok"
-		} else {
-			lprint(nil, "%s\n\n", err.Error())
-			if jsonErr != "" {
-				checks["appAAAARecord"] = jsonErr
-			} else {
-				checks["appAAAARecord"] = err.Error()
-			}
-		}
+	appChecks := appChecker.checkAll()
+	for k, v := range appChecks {
+		checks[k] = v
 	}
 
 	// ------------------------------------------------------------
@@ -358,83 +267,4 @@ func runLocalDocker(ctx context.Context) (err error) {
 	}
 
 	return
-}
-
-func getFirstFlyDevNameserver(dnsClient *dns.Client) (string, error) {
-	const resolver = "9.9.9.9:53"
-	msg := &dns.Msg{}
-	flydev := "fly.dev"
-	msg.SetQuestion(dns.Fqdn(flydev), dns.TypeNS)
-	msg.RecursionDesired = true
-	// TODO: use ipv6 when system supports it
-	r, _, err := dnsClient.Exchange(msg, resolver)
-	if err != nil {
-		return "", err
-	}
-	if r.Rcode != dns.RcodeSuccess {
-		return "", fmt.Errorf("failed to resolve NS record for %s. Got error code: %s", flydev, dns.RcodeToString[r.Rcode])
-	}
-	for _, a := range r.Answer {
-		if ns, ok := a.(*dns.NS); ok {
-			return ns.Ns, nil
-		}
-	}
-	return "", fmt.Errorf("no NS records found for %s", flydev)
-}
-
-func checkDnsRecords(dnsClient *dns.Client, nsAddr string, appName string, appFqdn string, qType string, appIps map[string]bool) (error, string) {
-	msg := &dns.Msg{}
-	msg.SetQuestion(appFqdn, dns.StringToType[qType])
-	msg.RecursionDesired = true
-
-	r, _, err := dnsClient.Exchange(msg, nsAddr)
-	if err != nil {
-		return fmt.Errorf("failed to lookup A record for %s: %w", appFqdn, err), ""
-	}
-	if r.Rcode != dns.RcodeSuccess {
-		return fmt.Errorf("invalid result when looking up A record for %s: %s", appFqdn, dns.RcodeToString[r.Rcode]), ""
-	}
-	dnsIps := make(map[string]bool)
-	for _, a := range r.Answer {
-		if qType == "A" {
-			if aRec, ok := a.(*dns.A); ok {
-				dnsIps[aRec.A.String()] = true
-			}
-		} else if qType == "AAAA" {
-			if aRec, ok := a.(*dns.AAAA); ok {
-				dnsIps[aRec.AAAA.String()] = true
-			}
-		}
-	}
-
-	ipsOnAppNotInDns := make([]string, 0)
-	for appIp := range appIps {
-		if _, present := dnsIps[appIp]; !present {
-			ipsOnAppNotInDns = append(ipsOnAppNotInDns, appIp)
-		}
-	}
-	ipsInDnsNotInApp := make([]string, 0)
-	for dnsIp := range dnsIps {
-		if _, present := appIps[dnsIp]; !present {
-			ipsInDnsNotInApp = append(ipsInDnsNotInApp, dnsIp)
-		}
-	}
-
-	if len(ipsOnAppNotInDns) == 0 && len(ipsInDnsNotInApp) == 0 {
-		return nil, ""
-	} else if len(ipsOnAppNotInDns) > 0 {
-		missingIps := strings.Join(ipsOnAppNotInDns, ", ")
-		return fmt.Errorf(`Nope
-	These IPs are missing from the %s %s record: %s
-	This likely means we had an operational issue when we tried to create the record.
-	Post in https://community.fly.io/ or send us an email if you have a support plan, and we'll get this fixed`,
-			appFqdn, qType, missingIps), fmt.Sprintf("missing these ips from the %s record: %s", qType, missingIps)
-	} else { // len(ipsInDnsNotInApp) > 0
-		missingIps := strings.Join(ipsInDnsNotInApp, ", ")
-		return fmt.Errorf(`Nope
-	These IPs are set in the %s record for %s, but they are not associated with the %s app: %s
-	This likely means we had an operational issue when we tried to create the record.
-	Post in https://community.fly.io/ or send us an email if you have a support plan, and we'll get this fixed`,
-			qType, appFqdn, appName, missingIps), fmt.Sprintf("extra ips on %s record not associated with app: %s", qType, missingIps)
-	}
 }

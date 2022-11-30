@@ -8,11 +8,12 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -41,70 +42,103 @@ func newDetach() *cobra.Command {
 
 func runDetach(ctx context.Context) error {
 	var (
-		MinPostgresHaVersion = "0.0.19"
-		appName              = app.NameFromContext(ctx)
-		pgAppName            = flag.FirstArg(ctx)
-		client               = client.FromContext(ctx).API()
-	)
+		client = client.FromContext(ctx).API()
 
-	app, err := client.GetApp(ctx, appName)
-	if err != nil {
-		return fmt.Errorf("get app: %w", err)
-	}
+		pgAppName = flag.FirstArg(ctx)
+		appName   = app.NameFromContext(ctx)
+	)
 
 	pgApp, err := client.GetAppCompact(ctx, pgAppName)
 	if err != nil {
+		return fmt.Errorf("get postgres app: %w", err)
+	}
+
+	app, err := client.GetAppCompact(ctx, appName)
+	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
+
+	ctx, err = apps.BuildContext(ctx, pgApp)
+	if err != nil {
+		return err
+	}
+
+	switch pgApp.PlatformVersion {
+	case "machines":
+		return runMachineDetach(ctx, app, pgApp)
+	case "nomad":
+		return runNomadDetach(ctx, app, pgApp)
+	default:
+		return fmt.Errorf("unknown platform version")
+	}
+}
+
+func runMachineDetach(ctx context.Context, app *api.AppCompact, pgApp *api.AppCompact) error {
+	var (
+		MinPostgresHaVersion = "0.0.19"
+	)
+
+	machines, err := mach.ListActive(ctx)
+	if err != nil {
+		return fmt.Errorf("machines could not be retrieved %w", err)
+	}
+
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		return err
+	}
+
+	if len(machines) == 0 {
+		return fmt.Errorf("no 6pn ips founds for %s app", pgApp.Name)
+	}
+
+	leader, err := pickLeader(ctx, machines)
+	if err != nil {
+		return err
+	}
+
+	return detachAppFromPostgres(ctx, leader.PrivateIP, app, pgApp)
+
+}
+
+func runNomadDetach(ctx context.Context, app *api.AppCompact, pgApp *api.AppCompact) error {
+	var (
+		MinPostgresHaVersion = "0.0.19"
+		client               = client.FromContext(ctx).API()
+	)
 
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
 		return fmt.Errorf("can't establish agent %w", err)
 	}
 
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+	if err := hasRequiredVersionOnNomad(pgApp, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		return err
+	}
+
+	pgInstances, err := agentclient.Instances(ctx, pgApp.Organization.Slug, pgApp.Name)
 	if err != nil {
-		return fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
+		return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", pgApp.Name, err)
 	}
-	ctx = agent.DialerWithContext(ctx, dialer)
 
-	var leaderIp string
-	switch pgApp.PlatformVersion {
-	case "nomad":
-		if err := hasRequiredVersionOnNomad(pgApp, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
-			return err
-		}
-		pgInstances, err := agentclient.Instances(ctx, pgApp.Organization.Slug, pgApp.Name)
-		if err != nil {
-			return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", pgAppName, err)
-		}
-		if len(pgInstances.Addresses) == 0 {
-			return fmt.Errorf("no 6pn ips found for %s app", pgAppName)
-		}
-		leaderIp, err = leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
-		if err != nil {
-			return err
-		}
-	case "machines":
-
-		flapsClient, err := flaps.New(ctx, pgApp)
-		if err != nil {
-			return fmt.Errorf("list of machines could not be retrieved: %w", err)
-		}
-
-		members, err := flapsClient.ListActive(ctx)
-		if err != nil {
-			return fmt.Errorf("machines could not be retrieved %w", err)
-		}
-		if err := hasRequiredVersionOnMachines(members, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
-			return err
-		}
-		if len(members) == 0 {
-			return fmt.Errorf("no 6pn ips founds for %s app", pgAppName)
-		}
-		leader, _ := machinesNodeRoles(ctx, members)
-		leaderIp = leader.PrivateIP
+	if len(pgInstances.Addresses) == 0 {
+		return fmt.Errorf("no 6pn ips found for %s app", pgApp.Name)
 	}
+
+	leaderIP, err := leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
+	if err != nil {
+		return err
+	}
+
+	return detachAppFromPostgres(ctx, leaderIP, app, pgApp)
+}
+
+// TODO - This process needs to be re-written to suppport non-interactive terminals.
+func detachAppFromPostgres(ctx context.Context, leaderIP string, app *api.AppCompact, pgApp *api.AppCompact) error {
+	var (
+		client = client.FromContext(ctx).API()
+		dialer = agent.DialerFromContext(ctx)
+		io     = iostreams.FromContext(ctx)
+	)
 
 	attachments, err := client.ListPostgresClusterAttachments(ctx, app.ID, pgApp.ID)
 	if err != nil {
@@ -132,7 +166,7 @@ func runDetach(ctx context.Context) error {
 
 	targetAttachment := attachments[selected]
 
-	pgclient := flypg.NewFromInstance(leaderIp, dialer)
+	pgclient := flypg.NewFromInstance(leaderIP, dialer)
 
 	// Remove user if exists
 	exists, err := pgclient.UserExists(ctx, targetAttachment.DatabaseUser)
@@ -146,10 +180,8 @@ func runDetach(ctx context.Context) error {
 		}
 	}
 
-	io := iostreams.FromContext(ctx)
-
 	// Remove secret from consumer app.
-	_, err = client.UnsetSecrets(ctx, appName, []string{targetAttachment.EnvironmentVariableName})
+	_, err = client.UnsetSecrets(ctx, app.Name, []string{targetAttachment.EnvironmentVariableName})
 	if err != nil {
 		// This will error if secret doesn't exist, so just send to stdout.
 		fmt.Fprintln(io.Out, err.Error())
@@ -161,8 +193,8 @@ func runDetach(ctx context.Context) error {
 	}
 
 	input := api.DetachPostgresClusterInput{
-		AppID:                       appName,
-		PostgresClusterId:           pgAppName,
+		AppID:                       app.Name,
+		PostgresClusterId:           pgApp.Name,
 		PostgresClusterAttachmentId: targetAttachment.ID,
 	}
 

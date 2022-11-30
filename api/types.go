@@ -273,6 +273,10 @@ type ImageVersion struct {
 }
 
 func (img *ImageVersion) FullImageRef() string {
+	return fmt.Sprintf("%s/%s:%s", img.Registry, img.Repository, img.Tag)
+}
+
+func (img *ImageVersion) ImageRef() string {
 	return fmt.Sprintf("%s:%s", img.Repository, img.Tag)
 }
 
@@ -451,14 +455,15 @@ func (app *AppCompact) IsPostgresApp() bool {
 }
 
 type AppInfo struct {
-	ID           string
-	Name         string
-	Status       string
-	Deployed     bool
-	Hostname     string
-	Version      int
-	Organization *OrganizationBasic
-	IPAddresses  struct {
+	ID              string
+	Name            string
+	Status          string
+	Deployed        bool
+	Hostname        string
+	Version         int
+	PlatformVersion string
+	Organization    *OrganizationBasic
+	IPAddresses     struct {
 		Nodes []IPAddress
 	}
 	Services []Service

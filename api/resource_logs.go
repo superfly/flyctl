@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-
-	"github.com/superfly/flyctl/internal/logger"
 )
 
 type getLogsResponse struct {
@@ -21,14 +19,6 @@ type getLogsResponse struct {
 }
 
 func (c *Client) GetAppLogs(ctx context.Context, appName, token, region, instanceID string) (entries []LogEntry, nextToken string, err error) {
-	logger := logger.MaybeFromContext(ctx)
-
-	httpClient, err := NewHTTPClient(logger, http.DefaultTransport)
-
-	if err != nil {
-		return
-	}
-
 	data := url.Values{}
 	data.Set("next_token", token)
 	if instanceID != "" {
@@ -53,7 +43,7 @@ func (c *Client) GetAppLogs(ctx context.Context, appName, token, region, instanc
 	var result getLogsResponse
 
 	var res *http.Response
-	if res, err = httpClient.Do(req); err != nil {
+	if res, err = c.httpClient.Do(req); err != nil {
 		return
 	}
 	defer res.Body.Close()

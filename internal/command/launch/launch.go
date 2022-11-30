@@ -120,7 +120,7 @@ func run(ctx context.Context) (err error) {
 
 		if deployExisting {
 			fmt.Fprintln(io.Out, "App is not running, deploy...")
-			return deploy.DeployWithConfig(ctx, appConfig)
+			return deploy.DeployWithConfig(ctx, cfg)
 		}
 
 		copyConfig := false
@@ -444,8 +444,8 @@ func run(ctx context.Context) (err error) {
 			LaunchRedis(ctx, createdApp, org, region)
 		}
 
-		// Run any initialization commands required for postgres support
-		if len(srcInfo.PostgresInitCommands) > 0 {
+		// Run any initialization commands required for Postgres if it was installed
+		if confirmPg && len(srcInfo.PostgresInitCommands) > 0 {
 			for _, cmd := range srcInfo.PostgresInitCommands {
 				if cmd.Condition {
 					if err := execInitCommand(ctx, cmd); err != nil {

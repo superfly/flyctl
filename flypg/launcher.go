@@ -9,7 +9,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
 
-	machines "github.com/superfly/flyctl/internal/command/machine"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/spinner"
 	"github.com/superfly/flyctl/internal/watch"
 
@@ -58,6 +58,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		colorize = io.ColorScheme()
 		client   = client.FromContext(ctx).API()
 	)
+
 	app, err := l.createApp(ctx, config)
 	if err != nil {
 		return err
@@ -82,12 +83,16 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	for i := 0; i < config.InitialClusterSize; i++ {
 		machineConf := l.getPostgresConfig(config)
 
-		imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres", config.SnapshotID)
-		if err != nil {
-			return err
-		}
+		machineConf.Image = config.ImageRef
 
-		machineConf.Image = imageRef
+		// If no image is specifed fetch the latest available tag.
+		if machineConf.Image == "" {
+			imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres", config.SnapshotID)
+			if err != nil {
+				return err
+			}
+			machineConf.Image = imageRef
+		}
 
 		snapshot := config.SnapshotID
 		verb := "Provisioning"
@@ -100,7 +105,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			}
 		}
 
-		fmt.Fprintf(io.Out, "%s %d of %d machines with image %s\n", verb, i+1, config.InitialClusterSize, imageRef)
+		fmt.Fprintf(io.Out, "%s %d of %d machines with image %s\n", verb, i+1, config.InitialClusterSize, machineConf.Image)
 
 		volInput := api.CreateVolumeInput{
 			AppID:             app.ID,
@@ -143,7 +148,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			waitTimeout = time.Hour
 		}
 
-		err = machines.WaitForStartOrStop(ctx, machine, "start", waitTimeout)
+		err = mach.WaitForStartOrStop(ctx, machine, "start", waitTimeout)
 		if err != nil {
 			return err
 		}
@@ -175,11 +180,10 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 
 	fmt.Fprintln(io.Out)
 	fmt.Fprintln(io.Out, colorize.Bold("Connect to postgres"))
-	fmt.Fprintf(io.Out, "Any app within the %s organization can connect to this Postgres using the following credentials:\n", config.Organization.Name)
-	fmt.Fprintf(io.Out, "For example: %s\n", connStr)
+	fmt.Fprintf(io.Out, "Any app within the %s organization can connect to this Postgres using the following connection string:\n", config.Organization.Name)
 
 	fmt.Fprintln(io.Out)
-	fmt.Fprintln(io.Out, "Now that you've set up postgres, here's what you need to understand: https://fly.io/docs/reference/postgres-whats-next/")
+	fmt.Fprintln(io.Out, "Now that you've set up Postgres, here's what you need to understand: https://fly.io/docs/postgres/getting-started/what-you-should-know/")
 
 	// TODO: wait for the cluster to be ready
 
@@ -195,7 +199,13 @@ func (l *Launcher) LaunchNomadPostgres(ctx context.Context, config *CreateCluste
 	)
 
 	if config.ImageRef == "" {
-		api.StringPointer("flyio/postgres")
+		// If no image is specifed fetch the latest available tag.
+		imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres", config.SnapshotID)
+		if err != nil {
+			return err
+		}
+		config.ImageRef = imageRef
+
 	}
 
 	input := api.CreatePostgresClusterInput{
@@ -240,7 +250,7 @@ func (l *Launcher) LaunchNomadPostgres(ctx context.Context, config *CreateCluste
 	fmt.Fprintf(io.Out, "For example: postgres://%s:%s@%s.internal:%d\n", payload.Username, payload.Password, payload.App.Name, 5432)
 
 	fmt.Fprintln(io.Out)
-	fmt.Fprintln(io.Out, "Now that you've set up postgres, here's what you need to understand: https://fly.io/docs/reference/postgres-whats-next/")
+	fmt.Fprintln(io.Out, "Now that you've set up Postgres, here's what you need to understand: https://fly.io/docs/postgres/getting-started/what-you-should-know/")
 
 	return
 }
@@ -332,7 +342,7 @@ func (l *Launcher) createApp(ctx context.Context, config *CreateClusterInput) (*
 func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (map[string]string, error) {
 	out := iostreams.FromContext(ctx).Out
 
-	fmt.Fprintf(out, "Setting secrets on app %s...", config.AppName)
+	fmt.Fprintf(out, "Setting secrets on app %s...\n", config.AppName)
 
 	var suPassword, replPassword, opPassword string
 	var err error

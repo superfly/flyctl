@@ -312,6 +312,15 @@ func Dockerfile() String {
 	}
 }
 
+const ignorefileName = "ignorefile"
+
+func Ignorefile() String {
+	return String{
+		Name:        ignorefileName,
+		Description: "Path to a Docker ignore file. Defaults to the .dockerignore file in the working directory.",
+	}
+}
+
 func ImageLabel() String {
 	return String{
 		Name:        "image-label",
