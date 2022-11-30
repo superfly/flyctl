@@ -2,7 +2,6 @@ package redis
 
 import (
 	"context"
-	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -55,6 +54,12 @@ func runStatus(ctx context.Context) (err error) {
 
 	options, _ := addOn.Options.(map[string]interface{})
 
+	evictionStatus := "Disabled"
+
+	if options["eviction"] != nil && options["eviction"].(bool) {
+		evictionStatus = "Enabled"
+	}
+
 	obj := [][]string{
 		{
 			addOn.Id,
@@ -62,7 +67,7 @@ func runStatus(ctx context.Context) (err error) {
 			addOn.AddOnPlan.DisplayName,
 			addOn.PrimaryRegion,
 			readRegions,
-			strconv.FormatBool(options["eviction"].(bool)),
+			evictionStatus,
 			addOn.PublicUrl,
 		},
 	}

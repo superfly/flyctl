@@ -68,25 +68,28 @@ func runRestart(ctx context.Context) error {
 		return err
 	}
 
-	if app.PlatformVersion == "machines" {
+	switch app.PlatformVersion {
+	case "machines":
 		input := api.RestartMachineInput{
 			SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),
 		}
-
 		return machinesRestart(ctx, &input)
+	case "nomad":
+		return nomadRestart(ctx, app)
+	default:
+		return fmt.Errorf("unknown platform version")
 	}
-
-	return nomadRestart(ctx, app)
-
 }
 
 func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err error) {
 	var (
-		io                   = iostreams.FromContext(ctx)
-		colorize             = io.ColorScheme()
-		dialer               = agent.DialerFromContext(ctx)
 		MinPostgresHaVersion = "0.0.20"
-		force                = flag.GetBool(ctx, "force")
+
+		dialer   = agent.DialerFromContext(ctx)
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
+
+		force = flag.GetBool(ctx, "force")
 	)
 
 	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
@@ -153,11 +156,12 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 
 func nomadRestart(ctx context.Context, app *api.AppCompact) error {
 	var (
-		dialer               = agent.DialerFromContext(ctx)
-		client               = client.FromContext(ctx).API()
-		io                   = iostreams.FromContext(ctx)
-		colorize             = io.ColorScheme()
 		MinPostgresHaVersion = "0.0.20"
+
+		client   = client.FromContext(ctx).API()
+		dialer   = agent.DialerFromContext(ctx)
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
 	)
 
 	if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {

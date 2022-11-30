@@ -59,7 +59,7 @@ func runFailover(ctx context.Context) (err error) {
 	}
 
 	if app.PlatformVersion != "machines" {
-		return fmt.Errorf("failerover is only supported for machines apps")
+		return fmt.Errorf("failover is only supported for machines apps")
 	}
 
 	ctx, err = apps.BuildContext(ctx, app)
