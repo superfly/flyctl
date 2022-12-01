@@ -49,19 +49,18 @@ or "flyctl auth login" to log in to an existing account.`
 
 		fmt.Printf(`This is flyctl, the Fly.io command line interface.%s
 
-flyctl does a lot of stuff! Don't panic, it's easy to get started:
+Here's a few commands to get you started:
+  fly launch      Launch a new application
+  fly apps        Create and manage apps
+  fly postgres    Create and manage Postgres databases
+  fly redis       Create and manage Redis databases
+  fly machines    Create and manage individual Fly.io machines
 
-  * fly launch:   launch a new application ("fly help launch" for more)
+If you need help along the way:
+  fly help            Display a complete list of commands
+  fly help <command>  Display help for a specific command, e.g. 'fly help launch'
 
-  * fly apps:     create and manage apps ("fly help apps")
-
-  * fly machines: create and manage individual Fly.io machines ("fly help machines")
-
-  * fly postgres: create and manage Postgres databases ("fly help postgres")
-
-  * fly redis:    create and manage Redis databases ("fly help redis")
-
-  * fly help:     for more help, and a complete list of commands.
+Visit https://fly.io/docs for additional documentation & guides
 `, auth)
 		return nil
 	})
