@@ -203,14 +203,17 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 		cfg.AppName = basicApp.Name
 		cfg.SetPlatformVersion(basicApp.PlatformVersion)
 	} else {
-		cfg, err := client.ParseConfig(ctx, appNameFromContext, cfg.Definition)
+		parsedCfg, err := client.ParseConfig(ctx, appNameFromContext, cfg.Definition)
 		if err != nil {
 			return nil, err
 		}
-		if !cfg.Valid {
+		if !parsedCfg.Valid {
 			fmt.Println()
-			for _, error := range cfg.Errors {
-				fmt.Println("   ", aurora.Red("✘").String(), error)
+			if len(parsedCfg.Errors) > 0 {
+				tb.Printf("\nConfiguration errors in %s:\n\n", cfg.Path)
+			}
+			for _, e := range parsedCfg.Errors {
+				tb.Println("   ", aurora.Red("✘").String(), e)
 			}
 			fmt.Println()
 			return nil, errors.New("App configuration is not valid")
