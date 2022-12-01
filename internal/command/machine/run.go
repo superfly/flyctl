@@ -237,7 +237,7 @@ func runMachineRun(ctx context.Context) error {
 
 	id, instanceID, state, privateIP := machine.ID, machine.InstanceID, machine.State, machine.PrivateIP
 
-	fmt.Fprintf(io.Out, "Success! A machine has been successfully launched, waiting for it to be started\n")
+	fmt.Fprintf(io.Out, "Success! A machine has been successfully launched in app %s, waiting for it to be started\n", appName)
 	fmt.Fprintf(io.Out, " Machine ID: %s\n", id)
 	fmt.Fprintf(io.Out, " Instance ID: %s\n", instanceID)
 	fmt.Fprintf(io.Out, " State: %s\n", state)

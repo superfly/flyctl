@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -76,7 +77,12 @@ func Stop(ctx context.Context, machineID string) (err error) {
 
 	err = flapsClient.Stop(ctx, machineStopInput)
 	if err != nil {
-		return fmt.Errorf("could not stop machine %s: %w", machineStopInput.ID, err)
+		switch {
+		case strings.Contains(err.Error(), "not found") && appName != "":
+			return fmt.Errorf("machine %s was not found in app %s", machineID, appName)
+		default:
+			return fmt.Errorf("could not stop machine %s: %w", machineStopInput.ID, err)
+		}
 	}
 
 	return
