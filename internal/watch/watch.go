@@ -32,6 +32,7 @@ func Deployment(ctx context.Context, appName, evaluationID string) error {
 	tb := render.NewTextBlock(ctx, "Monitoring deployment")
 
 	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
 	client := client.FromContext(ctx).API()
 	endmessage := ""
 
@@ -126,6 +127,9 @@ func Deployment(ctx context.Context, appName, evaluationID string) error {
 
 		return nil
 	}
+
+	logURL := fmt.Sprintf("https://fly.io/apps/%s/monitoring", appName)
+	fmt.Fprintln(io.Out, colorize.Yellow("Logs:"), logURL)
 
 	monitor.Start(ctx)
 

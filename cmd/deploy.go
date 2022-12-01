@@ -451,9 +451,7 @@ func watchDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext, evaluationI
 	}
 
 	logURL := fmt.Sprintf("https://fly.io/apps/%s/monitoring", cmdCtx.AppName)
-
-	fmt.Fprintln(out, colorize.Yellow("Logs:"))
-	fmt.Fprintln(out, logURL)
+	fmt.Fprintln(out, colorize.Yellow("Logs:"), logURL)
 
 	monitor.Start(ctx)
 
