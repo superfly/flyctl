@@ -14,6 +14,7 @@ import (
 	"github.com/morikuni/aec"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -23,13 +24,14 @@ import (
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/spinner"
+	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/logs"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/sync/errgroup"
 )
 
 func runDeploy(cmdCtx *cmdctx.CmdContext) error {
-	ctx := cmdCtx.Command.Context()
+	ctx := client.NewContext(cmdCtx.Command.Context(), cmdCtx.Client)
 
 	cmdCtx.Status("deploy", cmdctx.STITLE, "Deploying", cmdCtx.AppName)
 
@@ -324,6 +326,11 @@ func watchReleaseCommand(ctx context.Context, cc *cmdctx.CmdContext, apiClient *
 }
 
 func watchDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext, evaluationID string) error {
+	var (
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
+		out      = io.Out
+	)
 	cmdCtx.Status("deploy", cmdctx.STITLE, "Monitoring Deployment")
 
 	interactive := cmdCtx.IO.IsInteractive()
@@ -442,6 +449,9 @@ func watchDeployment(ctx context.Context, cmdCtx *cmdctx.CmdContext, evaluationI
 		cmdCtx.Statusf("deploy", cmdctx.SDONE, "v%d deployed successfully\n", d.Version)
 		return nil
 	}
+
+	logURL := fmt.Sprintf("https://fly.io/apps/%s/monitoring", cmdCtx.AppName)
+	fmt.Fprintln(out, colorize.Yellow("Logs:"), logURL)
 
 	monitor.Start(ctx)
 

@@ -3,6 +3,7 @@ package image
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -139,7 +140,11 @@ func showNomadImage(ctx context.Context, app *api.AppCompact) error {
 }
 
 func showMachineImage(ctx context.Context, app *api.AppCompact) error {
-	io := iostreams.FromContext(ctx)
+	var (
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
+		client   = client.FromContext(ctx).API()
+	)
 
 	flaps, err := flaps.New(ctx, app)
 	if err != nil {
@@ -183,6 +188,54 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 	machines, err := flaps.List(ctx, "")
 	if err != nil {
 		return fmt.Errorf("failed to get machines: %w", err)
+	}
+
+	// Tracks latest eligible version
+	var latest *api.ImageVersion
+
+	var updatable []*api.Machine
+
+	for _, machine := range machines {
+		image := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
+
+		latestImage, err := client.GetLatestImageDetails(ctx, image)
+
+		if err != nil && strings.Contains(err.Error(), "Unknown repository") {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("unable to fetch latest image details for %s: %w", image, err)
+		}
+
+		if latest == nil {
+			latest = latestImage
+		}
+
+		if app.IsPostgresApp() {
+			// Abort if we detect a postgres machine running a different major version.
+			if latest.Tag != latestImage.Tag {
+				return fmt.Errorf("major version mismatch detected")
+			}
+		}
+
+		// Exclude machines that are already running the latest version
+		if machine.ImageRef.Digest == latest.Digest {
+			continue
+		}
+		updatable = append(updatable, machine)
+	}
+
+	if len(updatable) > 0 {
+		msgs := []string{"Updates available:\n\n"}
+
+		for _, machine := range updatable {
+			latestStr := fmt.Sprintf("%s:%s (%s)", latest.Repository, latest.Tag, latest.Version)
+			msg := fmt.Sprintf("Machine %q %s -> %s\n", machine.ID, machine.ImageRefWithVersion(), latestStr)
+			msgs = append(msgs, msg)
+		}
+
+		fmt.Fprintln(io.ErrOut, colorize.Yellow(strings.Join(msgs, "")))
+		fmt.Fprintln(io.ErrOut, colorize.Yellow("Run `flyctl image update` to migrate to the latest image version."))
 	}
 
 	rows := [][]string{}

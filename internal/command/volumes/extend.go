@@ -44,6 +44,10 @@ func newExtend() *cobra.Command {
 			Shorthand:   "s",
 			Description: "Target volume size in gigabytes",
 		},
+		flag.Bool{
+			Name:        "auto-confirm",
+			Description: "Will automatically confirm changes without an interactive prompt.",
+		},
 	)
 
 	return cmd
@@ -70,15 +74,17 @@ func runExtend(ctx context.Context) error {
 	}
 
 	if app.PlatformVersion == "nomad" {
-		switch confirmed, err := prompt.Confirm(ctx, "Extending this volume will result in a VM restart. Continue?"); {
-		case err == nil:
-			if !confirmed {
-				return nil
+		if !flag.GetBool(ctx, "auto-confirm") {
+			switch confirmed, err := prompt.Confirm(ctx, "Extending this volume will result in a VM restart. Continue?"); {
+			case err == nil:
+				if !confirmed {
+					return nil
+				}
+			case prompt.IsNonInteractive(err):
+				return prompt.NonInteractiveError("auto-confirm flag must be specified when not running interactively")
+			default:
+				return err
 			}
-		case prompt.IsNonInteractive(err):
-			return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
-		default:
-			return err
 		}
 	}
 

@@ -25,16 +25,8 @@ func newAutoscaleCommand(client *client.Client) *Command {
 	disableCmd := BuildCommand(cmd, runDisableAutoscaling, disableCmdStrings.Usage, disableCmdStrings.Short, disableCmdStrings.Long, client, requireSession, requireAppName)
 	disableCmd.Args = cobra.RangeArgs(0, 2)
 
-	balanceCmdStrings := docstrings.Get("autoscale.balanced")
-	balanceCmd := BuildCommand(cmd, runBalanceScale, balanceCmdStrings.Usage, balanceCmdStrings.Short, balanceCmdStrings.Long, client, requireSession, requireAppName)
-	balanceCmd.Args = cobra.RangeArgs(0, 2)
-
-	standardCmdStrings := docstrings.Get("autoscale.standard")
-	standardCmd := BuildCommand(cmd, runStandardScale, standardCmdStrings.Usage, standardCmdStrings.Short, standardCmdStrings.Long, client, requireSession, requireAppName)
-	standardCmd.Args = cobra.RangeArgs(0, 2)
-
 	setCmdStrings := docstrings.Get("autoscale.set")
-	setCmd := BuildCommand(cmd, runSetParamsOnly, setCmdStrings.Usage, setCmdStrings.Short, setCmdStrings.Long, client, requireSession, requireAppName)
+	setCmd := BuildCommand(cmd, runSetParams, setCmdStrings.Usage, setCmdStrings.Short, setCmdStrings.Long, client, requireSession, requireAppName)
 	setCmd.Args = cobra.RangeArgs(0, 2)
 
 	showCmdStrings := docstrings.Get("autoscale.show")
@@ -43,16 +35,8 @@ func newAutoscaleCommand(client *client.Client) *Command {
 	return cmd
 }
 
-func runBalanceScale(commandContext *cmdctx.CmdContext) error {
-	return actualScale(commandContext, true, false)
-}
-
-func runStandardScale(commandContext *cmdctx.CmdContext) error {
-	return actualScale(commandContext, false, false)
-}
-
-func runSetParamsOnly(commandContext *cmdctx.CmdContext) error {
-	return actualScale(commandContext, false, true)
+func runSetParams(commandContext *cmdctx.CmdContext) error {
+	return actualScale(commandContext, false)
 }
 
 func runDisableAutoscaling(cmdCtx *cmdctx.CmdContext) error {
@@ -70,7 +54,7 @@ func runDisableAutoscaling(cmdCtx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func actualScale(cmdCtx *cmdctx.CmdContext, balanceRegions bool, setParamsOnly bool) error {
+func actualScale(cmdCtx *cmdctx.CmdContext, balanceRegions bool) error {
 	ctx := cmdCtx.Command.Context()
 
 	currentcfg, err := cmdCtx.Client.API().AppAutoscalingConfig(ctx, cmdCtx.AppName)
@@ -165,13 +149,11 @@ func printScaleConfig(cmdCtx *cmdctx.CmdContext, cfg *api.AutoscalingConfig) {
 
 		if !cfg.Enabled {
 			mode = "Disabled"
-		} else if cfg.BalanceRegions {
-			mode = "Balanced"
 		} else {
-			mode = "Standard"
+			mode = "Enabled"
 		}
 
-		fmt.Fprintf(cmdCtx.Out, "%15s: %s\n", "Scale Mode", mode)
+		fmt.Fprintf(cmdCtx.Out, "%15s: %s\n", "Autoscaling", mode)
 		if cfg.Enabled {
 			fmt.Fprintf(cmdCtx.Out, "%15s: %d\n", "Min Count", cfg.MinCount)
 			fmt.Fprintf(cmdCtx.Out, "%15s: %d\n", "Max Count", cfg.MaxCount)

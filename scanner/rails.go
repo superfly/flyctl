@@ -1,7 +1,6 @@
 package scanner
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"regexp"
@@ -13,8 +12,9 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 		return nil, nil
 	}
 
+	vars := make(map[string]interface{})
+
 	s := &SourceInfo{
-		Files:  templates("templates/rails/standard"),
 		Family: "Rails",
 		Port:   8080,
 		Statics: []Static{
@@ -33,14 +33,18 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 		},
 		ReleaseCmd: "bin/rails fly:release",
 		Env: map[string]string{
+			"PORT": "8080",
+		},
+		BuildArgs: map[string]string{
+			"BUILD_COMMAND":  "bin/rails fly:build",
 			"SERVER_COMMAND": "bin/rails fly:server",
-			"PORT":           "8080",
 		},
 	}
 
 	var rubyVersion string
 	var bundlerVersion string
-	var nodeVersion string = "16.17.0"
+	var nodeVersion string = "latest"
+	var yarnVersion string = "latest"
 
 	out, err := exec.Command("node", "-v").Output()
 
@@ -49,6 +53,12 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 		if nodeVersion[:1] == "v" {
 			nodeVersion = nodeVersion[1:]
 		}
+	}
+
+	out, err = exec.Command("yarn", "-v").Output()
+
+	if err == nil {
+		yarnVersion = strings.TrimSpace(string(out))
 	}
 
 	rubyVersion, err = extractRubyVersion("Gemfile.lock", "Gemfile", ".ruby_version")
@@ -91,12 +101,6 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 		}
 	}
 
-	s.BuildArgs = map[string]string{
-		"RUBY_VERSION":    rubyVersion,
-		"BUNDLER_VERSION": bundlerVersion,
-		"NODE_VERSION":    nodeVersion,
-	}
-
 	// master.key comes with Rails apps from v5.2 onwards, but may not be present
 	// if the app does not use Rails encrypted credentials.  Rails v6 added
 	// support for multi-environment credentials.  Use the Rails searching
@@ -116,26 +120,28 @@ func configureRails(sourceDir string) (*SourceInfo, error) {
 		}
 	}
 
+	_, err = os.Stat("node_modules")
+	vars["node"] = !os.IsNotExist(err)
+
+	_, err = os.Stat("yarn.lock")
+	vars["yarn"] = !os.IsNotExist(err)
+
+	vars["rubyVersion"] = rubyVersion
+	vars["bundlerVersion"] = bundlerVersion
+	vars["nodeVersion"] = nodeVersion
+	vars["yarnVersion"] = yarnVersion
+	s.Files = templatesExecute("templates/rails/standard", vars)
+
 	s.SkipDeploy = true
-	s.DeployDocs = fmt.Sprintf(`
-Your Rails app is prepared for deployment. Production will be set up with these versions of core runtime packages:
+	s.DeployDocs = `
+Your Rails app is prepared for deployment.
 
-Ruby %s
-Bundler %s
-NodeJS %s
-
-You can configure these in the [build] section in the generated fly.toml.
-
-Ruby versions available are: 3.1.2, 3.0.4, and 2.7.6. Learn more about the chosen Ruby stack, Fullstaq Ruby, here: https://github.com/evilmartians/fullstaq-ruby-docker.
-We recommend using the highest patch level for better security and performance.
-
-For the other packages, specify any version you need.
-
-If you need custom packages installed, or have problems with your deployment build, you may need to edit the Dockerfile
-for app-specific changes. If you need help, please post on https://community.fly.io.
+If you need custom packages installed, or have problems with your deployment
+build, you may need to edit the Dockerfile for app-specific changes. If you
+need help, please post on https://community.fly.io.
 
 Now: run 'fly deploy' to deploy your Rails app.
-`, rubyVersion, bundlerVersion, nodeVersion)
+`
 
 	return s, nil
 }

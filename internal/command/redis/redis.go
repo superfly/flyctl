@@ -23,6 +23,8 @@ func New() (cmd *cobra.Command) {
 		newPlans(),
 		newUpdate(),
 		newConnect(),
+		newDashboard(),
+		newReset(),
 	)
 
 	return cmd

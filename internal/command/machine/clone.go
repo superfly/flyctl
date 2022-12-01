@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -11,6 +12,8 @@ import (
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	mach "github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -48,10 +51,12 @@ func newClone() *cobra.Command {
 
 func runMachineClone(ctx context.Context) (err error) {
 	var (
-		args    = flag.Args(ctx)
-		out     = iostreams.FromContext(ctx).Out
-		appName = app.NameFromContext(ctx)
-		client  = client.FromContext(ctx).API()
+		args     = flag.Args(ctx)
+		out      = iostreams.FromContext(ctx).Out
+		appName  = app.NameFromContext(ctx)
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
+		client   = client.FromContext(ctx).API()
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -63,6 +68,7 @@ func runMachineClone(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("could not make flaps client: %w", err)
 	}
+	ctx = flaps.NewContext(ctx, flapsClient)
 
 	var source *api.Machine
 
@@ -82,7 +88,6 @@ func runMachineClone(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
-
 		fmt.Fprintf(out, "Picked %s for cloning\n", source.ID)
 	}
 
@@ -91,12 +96,14 @@ func runMachineClone(ctx context.Context) (err error) {
 		region = source.Region
 	}
 
+	fmt.Fprintf(out, "Cloning machine %s into region %s\n", colorize.Bold(source.ID), colorize.Bold(region))
+
 	targetConfig := source.Config
 
 	// This is a temperary hack to add volume support for PG apps.
 	// Flaps does not currently specify the volume name within the Machine mount spec,
 	// which is required before we can handle this more generally.
-	if app.PostgresAppRole.Name == "postgres_cluster" {
+	if app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster" {
 		if len(source.Config.Mounts) > 0 {
 			mnt := source.Config.Mounts[0]
 
@@ -134,17 +141,27 @@ func runMachineClone(ctx context.Context) (err error) {
 		Config: targetConfig,
 	}
 
+	fmt.Fprintf(out, "Provisioning a new machine with image %s...\n", source.Config.Image)
+
 	launchedMachine, err := flapsClient.Launch(ctx, input)
 	if err != nil {
 		return err
 	}
 
-	err = flapsClient.Wait(ctx, launchedMachine, "started")
+	fmt.Fprintf(out, "  Machine %s has been created...\n", colorize.Bold(launchedMachine.ID))
+	fmt.Fprintf(out, "  Waiting for machine %s to start...\n", colorize.Bold(launchedMachine.ID))
 
+	// wait for a machine to be started
+	err = mach.WaitForStartOrStop(ctx, launchedMachine, "start", time.Minute*5)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(out, "Machine %s was cloned to %s\n", source.ID, launchedMachine.ID)
+	if err = watch.MachinesChecks(ctx, []*api.Machine{launchedMachine}); err != nil {
+		return fmt.Errorf("error while watching health checks: %w", err)
+	}
+
+	fmt.Fprintf(out, "Machine has been successfully cloned!\n")
+
 	return
 }

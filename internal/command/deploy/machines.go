@@ -204,6 +204,7 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 	if err != nil {
 		return
 	}
+	ctx = flaps.NewContext(ctx, flapsClient)
 
 	if strategy == "" {
 		strategy = "rolling"
@@ -237,13 +238,13 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 
 		for _, machine := range machines {
 			leaseTTL := api.IntPointer(30)
-			lease, err := flapsClient.GetLease(ctx, machine.ID, leaseTTL)
+			lease, err := flapsClient.AcquireLease(ctx, machine.ID, leaseTTL)
 			if err != nil {
 				return err
 			}
 			machine.LeaseNonce = lease.Data.Nonce
 
-			defer releaseLease(ctx, flapsClient, machine)
+			defer releaseLease(ctx, machine)
 		}
 
 		for _, machine := range machines {
@@ -251,15 +252,20 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 
 			// We assume a config with no image specificed means the deploy should recreate machines
 			// with the existing config. For example, for applying recently set secrets.
+			if machineConfig.Image == "" {
+				launchInput.Config = machine.Config
+			}
 
-			if launchInput.Config.Image == "" {
-				freshMachine, err := flapsClient.Get(ctx, machine.ID)
-				if err != nil {
-					return err
-				}
+			launchInput.Region = machine.Region
 
-				launchInput.Config = freshMachine.Config
-				launchInput.Region = machine.Region
+			if launchInput.Config.Env["PRIMARY_REGION"] == "" {
+				launchInput.Config.Env["PRIMARY_REGION"] = machine.Config.Env["PRIMARY_REGION"]
+			}
+
+			launchInput.Config.Checks = machine.Config.Checks
+
+			if machine.Config.Guest != nil {
+				launchInput.Config.Guest = machine.Config.Guest
 			}
 
 			// Until mounts are supported in fly.toml, ensure deployments
@@ -297,9 +303,12 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 	return
 }
 
-func releaseLease(ctx context.Context, client *flaps.Client, machine *api.Machine) {
-	io := iostreams.FromContext(ctx)
+func releaseLease(ctx context.Context, machine *api.Machine) error {
+	var client = flaps.FromContext(ctx)
+
 	if err := client.ReleaseLease(ctx, machine.ID, machine.LeaseNonce); err != nil {
-		fmt.Println(io.Out, fmt.Errorf("could not release lease on %s (%w)", machine.ID, err))
+		return fmt.Errorf("failed to release lease: %w", err)
 	}
+
+	return nil
 }

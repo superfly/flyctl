@@ -1,26 +1,26 @@
-ARG PYTHON_VERSION=3.7
+ARG PYTHON_VERSION=3.10-slim-buster
 
 FROM python:${PYTHON_VERSION}
 
-RUN apt-get update && apt-get install -y \
-    python3-pip \
-    python3-venv \
-    python3-dev \
-    python3-setuptools \
-    python3-wheel
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
 
-RUN mkdir -p /app
-WORKDIR /app
+RUN mkdir -p /code
 
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+WORKDIR /code
 
-COPY . .
+COPY requirements.txt /tmp/requirements.txt
+
+RUN set -ex && \
+    pip install --upgrade pip && \
+    pip install -r /tmp/requirements.txt && \
+    rm -rf /root/.cache/
+
+COPY . /code/
 
 RUN python manage.py collectstatic --noinput
 
+EXPOSE 8000
 
-EXPOSE 8080
-
-# replace APP_NAME with module name
-CMD ["gunicorn", "--bind", ":8080", "--workers", "2", "demo.wsgi"]
+# replace demo.wsgi with <project_name>.wsgi
+CMD ["gunicorn", "--bind", ":8000", "--workers", "2", "demo.wsgi"]

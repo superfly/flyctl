@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 )
 
@@ -114,6 +115,7 @@ type Build struct {
 	Settings          map[string]interface{} `toml:"settings,omitempty"`
 	Builtin           string                 `toml:"builtin,omitempty"`
 	Dockerfile        string                 `toml:"dockerfile,omitempty"`
+	Ignorefile        string                 `toml:"ignorefile,omitempty"`
 	DockerBuildTarget string                 `toml:"buildpacks,omitempty"`
 }
 
@@ -160,6 +162,13 @@ func (c *Config) Dockerfile() string {
 		return ""
 	}
 	return c.Build.Dockerfile
+}
+
+func (c *Config) Ignorefile() string {
+	if c.Build == nil {
+		return ""
+	}
+	return c.Build.Ignorefile
 }
 
 func (c *Config) DockerBuildTarget() string {
@@ -260,10 +269,12 @@ func unmarshalBuild(data map[string]interface{}) *Build {
 		Buildpacks: []string{},
 	}
 
+	configValueSet := false
 	for k, v := range buildConfig {
 		switch k {
 		case "builder":
 			b.Builder = fmt.Sprint(v)
+			configValueSet = configValueSet || b.Builder != ""
 		case "buildpacks":
 			if bpSlice, ok := v.([]interface{}); ok {
 				for _, argV := range bpSlice {
@@ -278,6 +289,7 @@ func unmarshalBuild(data map[string]interface{}) *Build {
 			}
 		case "builtin":
 			b.Builtin = fmt.Sprint(v)
+			configValueSet = configValueSet || b.Builtin != ""
 		case "settings":
 			if settingsMap, ok := v.(map[string]interface{}); ok {
 				for settingK, settingV := range settingsMap {
@@ -286,16 +298,19 @@ func unmarshalBuild(data map[string]interface{}) *Build {
 			}
 		case "image":
 			b.Image = fmt.Sprint(v)
+			configValueSet = configValueSet || b.Image != ""
 		case "dockerfile":
 			b.Dockerfile = fmt.Sprint(v)
+			configValueSet = configValueSet || b.Dockerfile != ""
 		case "build_target", "build-target":
 			b.DockerBuildTarget = fmt.Sprint(v)
+			configValueSet = configValueSet || b.DockerBuildTarget != ""
 		default:
 			b.Args[k] = fmt.Sprint(v)
 		}
 	}
 
-	if b.Builder == "" && b.Builtin == "" && b.Image == "" && b.Dockerfile == "" && len(b.Args) == 0 {
+	if !configValueSet && len(b.Args) == 0 {
 		return nil
 	}
 
@@ -393,8 +408,11 @@ func (c *Config) WriteToFile(filename string) (err error) {
 	return
 }
 
-func (c *Config) WriteToDisk() (err error) {
-	return c.WriteToFile(DefaultConfigFileName)
+func (c *Config) WriteToDisk(ctx context.Context, path string) (err error) {
+	io := iostreams.FromContext(ctx)
+	err = c.WriteToFile(path)
+	fmt.Fprintf(io.Out, "Wrote config file %s\n", helpers.PathRelativeToCWD(path))
+	return
 }
 
 func (c *Config) Validate() (err error) {

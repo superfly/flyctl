@@ -12,7 +12,6 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
-	"github.com/jpillora/backoff"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
@@ -27,6 +26,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
 )
@@ -82,8 +82,8 @@ var sharedFlags = flag.Set{
 		Hidden:      true,
 	},
 	flag.Bool{
-		Name:   "build-nixpacks",
-		Hidden: true,
+		Name:        "build-nixpacks",
+		Description: "Build your image with nixpacks",
 	},
 	flag.String{
 		Name:        "dockerfile",
@@ -117,6 +117,10 @@ var sharedFlags = flag.Set{
 		Name:        "metadata",
 		Shorthand:   "m",
 		Description: "Metadata in the form of NAME=VALUE pairs. Can be specified multiple times.",
+	},
+	flag.String{
+		Name:        "schedule",
+		Description: `Schedule a machine run at hourly, daily and monthly intervals`,
 	},
 }
 
@@ -185,7 +189,7 @@ func runMachineRun(ctx context.Context) error {
 		}
 	}
 
-	machineConf := api.MachineConfig{
+	machineConf := &api.MachineConfig{
 		Guest: &api.MachineGuest{
 			CPUKind:    "shared",
 			CPUs:       1,
@@ -204,14 +208,18 @@ func runMachineRun(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("could not make API client: %w", err)
 	}
+	ctx = flaps.NewContext(ctx, flapsClient)
+
+	if app.PlatformVersion == "nomad" {
+		return fmt.Errorf("the app %s uses an earlier version of the platform that does not support machines", app.Name)
+	}
 
 	machineID := flag.GetString(ctx, "id")
 	if machineID != "" {
 		return fmt.Errorf("to update an existing machine, use 'flyctl machine update'")
 	}
 
-	machineConf, err = determineMachineConfig(ctx, machineConf, app, flag.FirstArg(ctx))
-
+	machineConf, err = determineMachineConfig(ctx, *machineConf, app, flag.FirstArg(ctx))
 	if err != nil {
 		return err
 	}
@@ -220,7 +228,7 @@ func runMachineRun(ctx context.Context) error {
 		return nil
 	}
 
-	input.Config = &machineConf
+	input.Config = machineConf
 
 	machine, err := flapsClient.Launch(ctx, input)
 	if err != nil {
@@ -235,7 +243,7 @@ func runMachineRun(ctx context.Context) error {
 	fmt.Fprintf(io.Out, " State: %s\n", state)
 
 	// wait for machine to be started
-	if err := WaitForStart(ctx, flapsClient, machine, time.Minute*5); err != nil {
+	if err := mach.WaitForStartOrStop(ctx, machine, "start", time.Minute*5); err != nil {
 		return err
 	}
 
@@ -291,31 +299,6 @@ func createApp(ctx context.Context, message, name string, client *api.Client) (*
 	}, nil
 }
 
-func WaitForStart(ctx context.Context, flapsClient *flaps.Client, machine *api.Machine, timeout time.Duration) error {
-	waitCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	b := &backoff.Backoff{
-		Min:    500 * time.Millisecond,
-		Max:    2 * time.Second,
-		Factor: 2,
-		Jitter: false,
-	}
-	for {
-		err := flapsClient.Wait(waitCtx, machine, "started")
-		switch {
-		case errors.Is(err, context.Canceled):
-			return err
-		case errors.Is(err, context.DeadlineExceeded):
-			return fmt.Errorf("timeout reached waiting for machine to start %w", err)
-		case err != nil:
-			time.Sleep(b.Duration())
-			continue
-		}
-		return nil
-	}
-}
-
 func parseKVFlag(ctx context.Context, flagName string, initialMap map[string]string) (parsed map[string]string, err error) {
 	parsed = initialMap
 
@@ -341,7 +324,7 @@ func determineImage(ctx context.Context, appName string, imageOrPath string) (im
 	if strings.HasPrefix(imageOrPath, ".") || strings.HasPrefix(imageOrPath, "/") {
 		opts := imgsrc.ImageOptions{
 			AppName:    appName,
-			WorkingDir: path.Join(state.WorkingDirectory(ctx), imageOrPath),
+			WorkingDir: path.Join(state.WorkingDirectory(ctx)),
 			Publish:    !flag.GetBuildOnly(ctx),
 			ImageLabel: flag.GetString(ctx, "image-label"),
 			Target:     flag.GetString(ctx, "build-target"),
@@ -388,7 +371,7 @@ func determineImage(ctx context.Context, appName string, imageOrPath string) (im
 	}
 
 	fmt.Fprintf(io.Out, "Image: %s\n", img.Tag)
-	fmt.Fprintf(io.Out, "Image size: %s\n", humanize.Bytes(uint64(img.Size)))
+	fmt.Fprintf(io.Out, "Image size: %s\n\n", humanize.Bytes(uint64(img.Size)))
 
 	return img, nil
 }
@@ -480,8 +463,11 @@ func selectAppName(ctx context.Context) (name string, err error) {
 	return
 }
 
-func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, image string) (machineConf api.MachineConfig, err error) {
-	machineConf = initialMachineConf
+func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, imageOrPath string) (*api.MachineConfig, error) {
+	machineConf, err := mach.CloneConfig(initialMachineConf)
+	if err != nil {
+		return nil, err
+	}
 
 	if guestSize := flag.GetString(ctx, "size"); guestSize != "" {
 		guest, ok := api.MachinePresets[guestSize]
@@ -493,35 +479,47 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 				}
 			}
 			sort.Strings(validSizes)
-			err = fmt.Errorf("invalid machine size requested, '%s', available:\n%s", guestSize, strings.Join(validSizes, "\n"))
-			return
+			return machineConf, fmt.Errorf("invalid machine size requested, '%s', available:\n%s", guestSize, strings.Join(validSizes, "\n"))
 		}
+		guest.KernelArgs = machineConf.Guest.KernelArgs
 		machineConf.Guest = guest
-	} else {
-		if cpus := flag.GetInt(ctx, "cpus"); cpus != 0 {
-			machineConf.Guest.CPUs = cpus
-		}
+	}
 
-		if memory := flag.GetInt(ctx, "memory"); memory != 0 {
-			machineConf.Guest.MemoryMB = memory
-		}
+	// Potential overrides for Guest
+	if cpus := flag.GetInt(ctx, "cpus"); cpus != 0 {
+		machineConf.Guest.CPUs = cpus
+	}
+
+	if memory := flag.GetInt(ctx, "memory"); memory != 0 {
+		machineConf.Guest.MemoryMB = memory
+	}
+
+	if len(flag.GetStringSlice(ctx, "kernel-arg")) != 0 {
+		machineConf.Guest.KernelArgs = flag.GetStringSlice(ctx, "kernel-arg")
 	}
 
 	machineConf.Env, err = parseKVFlag(ctx, "env", machineConf.Env)
-
 	if err != nil {
-		return
+		return machineConf, err
 	}
 
-	machineConf.Metadata, err = parseKVFlag(ctx, "metadata", machineConf.Metadata)
+	if flag.GetString(ctx, "schedule") != "" {
+		machineConf.Schedule = flag.GetString(ctx, "schedule")
+	}
 
+	// Metadata
+	parsedMetadata, err := parseKVFlag(ctx, "metadata", machineConf.Metadata)
 	if err != nil {
-		return
+		return machineConf, err
+	}
+
+	for k, v := range parsedMetadata {
+		machineConf.Metadata[k] = v
 	}
 
 	services, err := determineServices(ctx)
 	if err != nil {
-		return
+		return machineConf, err
 	}
 	if len(services) > 0 {
 		machineConf.Services = services
@@ -541,12 +539,12 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 
 	machineConf.Mounts, err = determineMounts(ctx, machineConf.Mounts)
 	if err != nil {
-		return
+		return machineConf, err
 	}
 
-	img, err := determineImage(ctx, app.Name, image)
+	img, err := determineImage(ctx, app.Name, imageOrPath)
 	if err != nil {
-		return
+		return machineConf, err
 	}
 	machineConf.Image = img.Tag
 

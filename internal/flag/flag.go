@@ -167,7 +167,7 @@ func (ss StringSlice) addTo(cmd *cobra.Command) {
 func Org() String {
 	return String{
 		Name:        OrgName,
-		Description: "The organization to operate on",
+		Description: "The target Fly organization",
 		Shorthand:   "o",
 	}
 }
@@ -176,7 +176,7 @@ func Org() String {
 func Region() String {
 	return String{
 		Name:        RegionName,
-		Description: "The region to operate on",
+		Description: "The target region (see 'flyctl platform regions')",
 		Shorthand:   "r",
 	}
 }
@@ -213,7 +213,7 @@ func Image() String {
 	return String{
 		Name:        ImageName,
 		Shorthand:   "i",
-		Description: "The image tag or ID to deploy",
+		Description: "The Docker image to deploy",
 	}
 }
 
@@ -312,6 +312,15 @@ func Dockerfile() String {
 	}
 }
 
+const ignorefileName = "ignorefile"
+
+func Ignorefile() String {
+	return String{
+		Name:        ignorefileName,
+		Description: "Path to a Docker ignore file. Defaults to the .dockerignore file in the working directory.",
+	}
+}
+
 func ImageLabel() String {
 	return String{
 		Name:        "image-label",
@@ -350,8 +359,8 @@ func BuildTarget() String {
 func Nixpacks() Bool {
 	return Bool{
 		Name:        "nixpacks",
-		Description: "Deploy using nixpacks to generate the image",
 		Default:     false,
+		Description: "Deploy using nixpacks to build the image",
 	}
 }
 

@@ -22,7 +22,14 @@ func newProxy() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runMachineProxy, command.RequireSession)
 
-	flag.Add(cmd, flag.Org())
+	flag.Add(cmd,
+		flag.Org(),
+		flag.Bool{
+			Name:        "quiet",
+			Shorthand:   "q",
+			Description: "Don't print progress indicators for WireGuard",
+		},
+	)
 
 	return cmd
 }

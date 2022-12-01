@@ -13,10 +13,10 @@ func configureNuxt(sourceDir string) (*SourceInfo, error) {
 		Family:       "NuxtJS",
 		Port:         8080,
 		SkipDatabase: true,
+		Env: env,
 	}
 
 	s.Files = templates("templates/nuxtjs")
 
-	s.Env = env
 	return s, nil
 }

@@ -51,7 +51,7 @@ func NewCommand(ctx context.Context, app *api.AppCompact) (*Command, error) {
 	}, nil
 }
 
-func (pc *Command) UpdateSettings(ctx context.Context, config map[string]string) error {
+func (pc *Command) UpdateSettings(ctx context.Context, leaderIp string, config map[string]string) error {
 	payload := updateRequest{PGParameters: config}
 	configBytes, err := json.Marshal(payload)
 	if err != nil {
@@ -61,7 +61,7 @@ func (pc *Command) UpdateSettings(ctx context.Context, config map[string]string)
 	subCmd := fmt.Sprintf("update --patch '%s'", string(configBytes))
 	cmd := fmt.Sprintf("stolonctl-run %s", encodeCommand(subCmd))
 
-	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, nil, cmd)
+	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIp, cmd)
 	if err != nil {
 		return err
 	}

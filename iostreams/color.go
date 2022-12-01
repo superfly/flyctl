@@ -9,18 +9,22 @@ import (
 )
 
 var (
-	magenta  = ansi.ColorFunc("magenta")
-	cyan     = ansi.ColorFunc("cyan")
-	red      = ansi.ColorFunc("red")
-	yellow   = ansi.ColorFunc("yellow")
-	blue     = ansi.ColorFunc("blue")
-	green    = ansi.ColorFunc("green")
-	gray     = ansi.ColorFunc("black+h")
-	bold     = ansi.ColorFunc("default+b")
-	cyanBold = ansi.ColorFunc("cyan+b")
+	magenta   = ansi.ColorFunc("magenta")
+	cyan      = ansi.ColorFunc("cyan")
+	red       = ansi.ColorFunc("red")
+	yellow    = ansi.ColorFunc("yellow")
+	blue      = ansi.ColorFunc("blue")
+	green     = ansi.ColorFunc("green")
+	gray      = ansi.ColorFunc("black+h")
+	bold      = ansi.ColorFunc("default+b")
+	underline = ansi.ColorFunc("default+u")
+	cyanBold  = ansi.ColorFunc("cyan+b")
 
 	gray256 = func(t string) string {
 		return fmt.Sprintf("\x1b[%d;5;%dm%s\x1b[m", 38, 242, t)
+	}
+	italic = func(t string) string {
+		return fmt.Sprintf("\x1b[%dm%s\x1b[m", 3, t)
 	}
 )
 
@@ -61,6 +65,13 @@ func (c *ColorScheme) Bold(t string) string {
 		return t
 	}
 	return bold(t)
+}
+
+func (c *ColorScheme) Underline(t string) string {
+	if !c.enabled {
+		return t
+	}
+	return underline(t)
 }
 
 func (c *ColorScheme) Red(t string) string {
@@ -120,6 +131,13 @@ func (c *ColorScheme) Blue(t string) string {
 		return t
 	}
 	return blue(t)
+}
+
+func (c *ColorScheme) Italic(t string) string {
+	if !c.enabled {
+		return t
+	}
+	return italic(t)
 }
 
 func (c *ColorScheme) SuccessIcon() string {

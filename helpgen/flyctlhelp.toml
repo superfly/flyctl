@@ -15,17 +15,6 @@ To read more, use the docs command to view Fly's help on the web.
 shortHelp = "The Fly CLI"
 usage = "flyctl"
 
-[info]
-longHelp = """Shows information about the application on the Fly platform
-
-Information includes the application's
-* name, owner, version, status and hostname
-* services
-* IP addresses
-"""
-shortHelp = "Show detailed app information"
-usage = "info"
-
 [image]
 longHelp = "Manage app image"
 shortHelp = "Manage app image"
@@ -600,24 +589,6 @@ longHelp = """Disable autoscaling to manually controlling app resources
 shortHelp = "Disable autoscaling"
 usage = "disable"
 
-[autoscale.balanced]
-longHelp = """Configure the app to balance regions based on traffic with given parameters:
-
-min=int - minimum number of instances to be allocated from region pool.
-max=int - maximum number of instances to be allocated from region pool.
-"""
-shortHelp = "Configure a traffic balanced app with params (min=int max=int)"
-usage = "balanced"
-
-[autoscale.standard]
-longHelp = """Configure the app without traffic balancing with the given parameters:
-
-min=int - minimum number of instances to be allocated from region pool.
-max=int - maximum number of instances to be allocated from region pool.
-"""
-shortHelp = "Configure a standard balanced app with params (min=int max=int)"
-usage = "standard"
-
 [autoscale.show]
 longHelp = """Show current autoscaling configuration
 """
@@ -625,12 +596,12 @@ shortHelp = "Show current autoscaling configuration"
 usage = "show"
 
 [autoscale.set]
-longHelp = """Allows the setting of the current models autoscaling parameters:
+longHelp = """Enable autoscaling and set the application's autoscaling parameters:
 
-min=int - minimum number of instances to be allocated from region pool.
-max=int - maximum number of instances to be allocated from region pool.
+min=int - minimum number of instances to be allocated globally.
+max=int - maximum number of instances to be allocated globally.
 """
-shortHelp = "Set current models autoscaling parameters"
+shortHelp = "Set app autoscaling parameters"
 usage = "set"
 
 [scale]
@@ -644,7 +615,7 @@ longHelp = """Change an application's VM size to one of the named VM sizes.
 
 Size names include shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x.
 
-For a full list of supported sizes use the command FLYCTL PLATFORM VM-SIZES
+For a full list of supported sizes use the command flyctl platform vm-sizes
 
 Memory size can be set with --memory=number-of-MB
 

@@ -6,13 +6,15 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -56,63 +58,98 @@ func newListUsers() *cobra.Command {
 	return cmd
 }
 
-func runListUsers(ctx context.Context) (err error) {
-	// Minimum image version requirements
+func runListUsers(ctx context.Context) error {
 	var (
-		MinPostgresHaVersion = "0.0.19"
-		appName              = app.NameFromContext(ctx)
-		client               = client.FromContext(ctx).API()
-		cfg                  = config.FromContext(ctx)
-		io                   = iostreams.FromContext(ctx)
+		client  = client.FromContext(ctx).API()
+		appName = app.NameFromContext(ctx)
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
-		return fmt.Errorf("error getting app %s: %w", appName, err)
+		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
 	if !app.IsPostgresApp() {
-		return fmt.Errorf("%s is not a postgres app", appName)
+		return fmt.Errorf("app %s is not a postgres app", appName)
+	}
+
+	ctx, err = apps.BuildContext(ctx, app)
+	if err != nil {
+		return err
+	}
+
+	switch app.PlatformVersion {
+	case "machines":
+		return runMachineListUsers(ctx, app)
+	case "nomad":
+		return runNomadListUsers(ctx, app)
+	default:
+		return fmt.Errorf("unknown platform version")
+	}
+}
+
+func runMachineListUsers(ctx context.Context, app *api.AppCompact) (err error) {
+	// Minimum image version requirements
+	var (
+		MinPostgresHaVersion = "0.0.19"
+	)
+
+	machines, err := mach.ListActive(ctx)
+	if err != nil {
+		return fmt.Errorf("machines could not be retrieved %w", err)
+	}
+
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		return err
+	}
+
+	leader, err := pickLeader(ctx, machines)
+	if err != nil {
+		return err
+	}
+
+	return renderUsers(ctx, leader.PrivateIP)
+}
+
+func runNomadListUsers(ctx context.Context, app *api.AppCompact) (err error) {
+	var (
+		MinPostgresHaVersion = "0.0.19"
+		client               = client.FromContext(ctx).API()
+	)
+
+	if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+		return err
 	}
 
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
-		return fmt.Errorf("can't establish agent %w", err)
+		return fmt.Errorf("failed to establish agent: %w", err)
 	}
 
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+	pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
 	if err != nil {
-		return fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
+		return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", app.Name, err)
 	}
-	ctx = agent.DialerWithContext(ctx, dialer)
-
-	switch app.PlatformVersion {
-	case "nomad":
-		if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
-			return err
-		}
-	case "machines":
-		flapsClient, err := flaps.New(ctx, app)
-		if err != nil {
-			return fmt.Errorf("list of machines could not be retrieved: %w", err)
-		}
-
-		members, err := flapsClient.List(ctx, "started")
-		if err != nil {
-			return fmt.Errorf("machines could not be retrieved %w", err)
-		}
-		leader, err := fetchPGLeader(ctx, members)
-		if err != nil {
-			return fmt.Errorf("can't fetch leader: %w", err)
-		}
-		if err := hasRequiredVersionOnMachines(leader, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("unsupported platform %s", app.PlatformVersion)
+	if len(pgInstances.Addresses) == 0 {
+		return fmt.Errorf("no 6pn ips found for %s app", app.Name)
 	}
 
-	pgclient := flypg.New(appName, dialer)
+	leaderIP, err := leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
+	if err != nil {
+		return err
+	}
+
+	return renderUsers(ctx, leaderIP)
+}
+
+func renderUsers(ctx context.Context, leaderIP string) error {
+	var (
+		io     = iostreams.FromContext(ctx)
+		cfg    = config.FromContext(ctx)
+		dialer = agent.DialerFromContext(ctx)
+	)
+
+	pgclient := flypg.NewFromInstance(leaderIP, dialer)
 
 	users, err := pgclient.ListUsers(ctx)
 	if err != nil {

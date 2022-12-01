@@ -3,9 +3,12 @@ package ssh
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/docker/docker/pkg/ioutils"
+	"github.com/mattn/go-colorable"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
@@ -23,17 +26,7 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-func newConsole() *cobra.Command {
-	const (
-		long  = `Connect to a running instance of the current app.`
-		short = long
-		usage = "console"
-	)
-
-	cmd := command.New(usage, short, long, runConsole, command.RequireSession, command.LoadAppNameIfPresent)
-
-	cmd.Args = cobra.MaximumNArgs(1)
-
+func stdArgsSSH(cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.Org(),
 		flag.App(),
@@ -55,110 +48,180 @@ func newConsole() *cobra.Command {
 			Shorthand:   "r",
 			Description: "Region to create WireGuard connection in",
 		},
+		flag.Bool{
+			Name:        "quiet",
+			Shorthand:   "q",
+			Description: "Don't print progress indicators for WireGuard",
+		},
+		flag.String{
+			Name:        "address",
+			Shorthand:   "A",
+			Description: "Address of VM to connect to",
+		},
+	)
+}
+
+func quiet(ctx context.Context) bool {
+	return flag.GetBool(ctx, "quiet")
+}
+
+func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, app *api.AppCompact, console bool) (addr string, err error) {
+	if app.PlatformVersion == "machines" {
+		addr, err = addrForMachines(ctx, app, console)
+	} else {
+		addr, err = addrForNomad(ctx, cli, app, console)
+	}
+
+	if err != nil {
+		return
+	}
+
+	// wait for the addr to be resolved in dns unless it's an ip address
+	if !ip.IsV6(addr) {
+		if err := cli.WaitForDNS(ctx, dialer, app.Organization.Slug, addr); err != nil {
+			captureError(err, app)
+			return "", errors.Wrapf(err, "host unavailable at %s", addr)
+		}
+	}
+
+	return
+}
+
+func newConsole() *cobra.Command {
+	const (
+		long  = `Connect to a running instance of the current app.`
+		short = long
+		usage = "console"
 	)
 
+	cmd := command.New(usage, short, long, runConsole, command.RequireSession, command.LoadAppNameIfPresent)
+
+	cmd.Args = cobra.MaximumNArgs(1)
+
+	stdArgsSSH(cmd)
+
 	return cmd
+}
+
+func captureError(err error, app *api.AppCompact) {
+	// ignore cancelled errors
+	if errors.Is(err, context.Canceled) {
+		return
+	}
+
+	sentry.CaptureException(err,
+		sentry.WithTag("feature", "ssh-console"),
+		sentry.WithContexts(map[string]interface{}{
+			"app": map[string]interface{}{
+				"name": app.Name,
+			},
+			"organization": map[string]interface{}{
+				"name": app.Organization.Slug,
+			},
+		}),
+	)
+}
+
+func bringUp(ctx context.Context, client *api.Client, app *api.AppCompact) (*agent.Client, agent.Dialer, error) {
+	io := iostreams.FromContext(ctx)
+
+	agentclient, err := agent.Establish(ctx, client)
+	if err != nil {
+		captureError(err, app)
+		return nil, nil, errors.Wrap(err, "can't establish agent")
+	}
+
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+	if err != nil {
+		captureError(err, app)
+		return nil, nil, fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
+	}
+
+	if !quiet(ctx) {
+		io.StartProgressIndicatorMsg("Connecting to tunnel")
+	}
+	if err := agentclient.WaitForTunnel(ctx, app.Organization.Slug); err != nil {
+		captureError(err, app)
+		return nil, nil, errors.Wrapf(err, "tunnel unavailable")
+	}
+	if !quiet(ctx) {
+		io.StopProgressIndicator()
+	}
+
+	return agentclient, dialer, nil
 }
 
 func runConsole(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
 	appName := app.NameFromContext(ctx)
-	io := iostreams.FromContext(ctx)
 
-	terminal.Debugf("Retrieving app info for %s\n", appName)
+	if !quiet(ctx) {
+		terminal.Debugf("Retrieving app info for %s\n", appName)
+	}
 
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	captureError := func(err error) {
-		// ignore cancelled errors
-		if errors.Is(err, context.Canceled) {
-			return
-		}
-
-		sentry.CaptureException(err,
-			sentry.WithTag("feature", "ssh-console"),
-			sentry.WithContexts(map[string]interface{}{
-				"app": map[string]interface{}{
-					"name": app.Name,
-				},
-				"organization": map[string]interface{}{
-					"name": app.Organization.Slug,
-				},
-			}),
-		)
-	}
-
-	agentclient, err := agent.Establish(ctx, client)
-	if err != nil {
-		captureError(err)
-		return errors.Wrap(err, "can't establish agent")
-	}
-
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
-	if err != nil {
-		captureError(err)
-		return fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
-	}
-
-	io.StartProgressIndicatorMsg("Connecting to tunnel")
-	if err := agentclient.WaitForTunnel(ctx, app.Organization.Slug); err != nil {
-		captureError(err)
-		return errors.Wrapf(err, "tunnel unavailable")
-	}
-	io.StopProgressIndicator()
-
-	var addr string
-
-	if app.PlatformVersion == "machines" {
-		addr, err = addrForMachines(ctx, app)
-	} else {
-		addr, err = addrForNomad(ctx, agentclient, app)
-	}
-
+	agentclient, dialer, err := bringUp(ctx, client, app)
 	if err != nil {
 		return err
 	}
 
-	// wait for the addr to be resolved in dns unless it's an ip address
-	if !ip.IsV6(addr) {
-		if err := agentclient.WaitForDNS(ctx, dialer, app.Organization.Slug, addr); err != nil {
-			captureError(err)
-			return errors.Wrapf(err, "host unavailable")
-		}
+	addr, err := lookupAddress(ctx, agentclient, dialer, app, true)
+	if err != nil {
+		return err
 	}
 
-	err = sshConnect(&SSHParams{
+	// BUG(tqbf): many of these are no longer really params
+	params := &SSHParams{
 		Ctx:    ctx,
 		Org:    app.Organization,
 		Dialer: dialer,
 		App:    appName,
 		Cmd:    flag.GetString(ctx, "command"),
 		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
-	}, addr)
+		Stdout: ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
+		Stderr: ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
+	}
 
+	if quiet(ctx) {
+		params.DisableSpinner = true
+	}
+
+	sshc, err := sshConnect(params, addr)
 	if err != nil {
-		captureError(err)
+		captureError(err, app)
+		return err
+	}
+
+	term := &ssh.Terminal{
+		Stdin:  params.Stdin,
+		Stdout: params.Stdout,
+		Stderr: params.Stderr,
+		Mode:   "xterm",
+	}
+
+	if err := sshc.Shell(params.Ctx, term, params.Cmd); err != nil {
+		captureError(err, app)
+		return errors.Wrap(err, "ssh shell")
 	}
 
 	return err
 }
 
-func sshConnect(p *SSHParams, addr string) error {
+func sshConnect(p *SSHParams, addr string) (*ssh.Client, error) {
 	terminal.Debugf("Fetching certificate for %s\n", addr)
 
 	cert, err := singleUseSSHCertificate(p.Ctx, p.Org)
 	if err != nil {
-		return fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh establish`)", err)
+		return nil, fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh establish`)", err)
 	}
 
 	pk, err := parsePrivateKey(cert.Key)
 	if err != nil {
-		return errors.Wrap(err, "parse ssh certificate")
+		return nil, errors.Wrap(err, "parse ssh certificate")
 	}
 
 	pemkey := marshalED25519PrivateKey(pk, "single-use certificate")
@@ -166,7 +229,7 @@ func sshConnect(p *SSHParams, addr string) error {
 	terminal.Debugf("Keys for %s configured; connecting...\n", addr)
 
 	sshClient := &ssh.Client{
-		Addr: addr + ":22",
+		Addr: net.JoinHostPort(addr, "22"),
 		User: "root",
 
 		Dial: p.Dialer.DialContext,
@@ -183,9 +246,8 @@ func sshConnect(p *SSHParams, addr string) error {
 	}
 
 	if err := sshClient.Connect(p.Ctx); err != nil {
-		return errors.Wrap(err, "error connecting to SSH server")
+		return nil, errors.Wrap(err, "error connecting to SSH server")
 	}
-	defer sshClient.Close()
 
 	terminal.Debugf("Connection completed.\n", addr)
 
@@ -193,21 +255,10 @@ func sshConnect(p *SSHParams, addr string) error {
 		endSpin()
 	}
 
-	term := &ssh.Terminal{
-		Stdin:  p.Stdin,
-		Stdout: p.Stdout,
-		Stderr: p.Stderr,
-		Mode:   "xterm",
-	}
-
-	if err := sshClient.Shell(p.Ctx, term, p.Cmd); err != nil {
-		return errors.Wrap(err, "ssh shell")
-	}
-
-	return nil
+	return sshClient, nil
 }
 
-func addrForMachines(ctx context.Context, app *api.AppCompact) (addr string, err error) {
+func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (addr string, err error) {
 	out := iostreams.FromContext(ctx).Out
 	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
@@ -262,12 +313,17 @@ func addrForMachines(ctx context.Context, app *api.AppCompact) (addr string, err
 			if err != nil {
 				return "", err
 			}
-
 		}
 	}
 
-	if len(flag.Args(ctx)) != 0 {
-		return flag.Args(ctx)[0], nil
+	if addr = flag.GetString(ctx, "address"); addr != "" {
+		return addr, nil
+	}
+
+	if console {
+		if len(flag.Args(ctx)) != 0 {
+			return flag.Args(ctx)[0], nil
+		}
 	}
 
 	if selectedMachine == nil {
@@ -275,10 +331,10 @@ func addrForMachines(ctx context.Context, app *api.AppCompact) (addr string, err
 	}
 	// No VM was selected or passed as an argument, so just pick the first one for now
 	// Later, we might want to use 'nearest.of' but also resolve the machine IP to be able to start it
-	return fmt.Sprintf("[%s]", selectedMachine.PrivateIP), nil
+	return selectedMachine.PrivateIP, nil
 }
 
-func addrForNomad(ctx context.Context, agentclient *agent.Client, app *api.AppCompact) (addr string, err error) {
+func addrForNomad(ctx context.Context, agentclient *agent.Client, app *api.AppCompact, console bool) (addr string, err error) {
 	if flag.GetBool(ctx, "select") {
 
 		instances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
@@ -297,13 +353,28 @@ func addrForNomad(ctx context.Context, agentclient *agent.Client, app *api.AppCo
 			return "", fmt.Errorf("selecting instance: %w", err)
 		}
 
-		addr = fmt.Sprintf("[%s]", instances.Addresses[selected])
+		addr = instances.Addresses[selected]
 		return addr, nil
 	}
 
-	if len(flag.Args(ctx)) != 0 {
-		return flag.Args(ctx)[0], nil
+	if addr = flag.GetString(ctx, "address"); addr != "" {
+		return addr, nil
 	}
 
-	return fmt.Sprintf("top1.nearest.of.%s.internal", app.Name), nil
+	if console {
+		if len(flag.Args(ctx)) != 0 {
+			return flag.Args(ctx)[0], nil
+		}
+	}
+
+	// No VM was selected or passed as an argument, so just pick the first one for now
+	// We may use 'nearest.of' in the future
+	instances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
+	if err != nil {
+		return "", fmt.Errorf("look up %s: %w", app.Name, err)
+	}
+	if len(instances.Addresses) < 1 {
+		return "", fmt.Errorf("no instances found for %s", app.Name)
+	}
+	return instances.Addresses[0], nil
 }

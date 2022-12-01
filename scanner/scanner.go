@@ -4,6 +4,8 @@ import (
 	"embed"
 	"io/fs"
 	"path/filepath"
+	"strings"
+	"text/template"
 
 	"github.com/pkg/errors"
 )
@@ -108,6 +110,29 @@ type sourceScanner func(sourceDir string) (*SourceInfo, error)
 // templates recursively returns files from the templates directory within the named directory
 // will panic on errors since these files are embedded and should work
 func templates(name string) (files []SourceFile) {
+	filter := func(input []byte) []byte { return input }
+	return templatesFilter(name, filter)
+}
+
+// same thing as templates (above) but with template execution given a map of variables
+func templatesExecute(name string, vars map[string]interface{}) (files []SourceFile) {
+	filter := func(input []byte) []byte {
+		template := template.Must(template.New("name").Parse(string(input)))
+		result := strings.Builder{}
+		err := template.Execute(&result, vars)
+
+		if err != nil {
+			panic(err)
+		}
+
+		return []byte(result.String())
+	}
+
+	return templatesFilter(name, filter)
+}
+
+// templates with a filter function applied to the content of each template
+func templatesFilter(name string, filter func(input []byte) []byte) (files []SourceFile) {
 	err := fs.WalkDir(content, name, func(path string, d fs.DirEntry, e error) error {
 		if d.IsDir() {
 			return nil
@@ -129,7 +154,7 @@ func templates(name string) (files []SourceFile) {
 
 		f := SourceFile{
 			Path:     relPath,
-			Contents: data,
+			Contents: filter(data),
 		}
 
 		files = append(files, f)
