@@ -72,7 +72,8 @@ func runMachineList(ctx context.Context) (err error) {
 	}
 
 	if len(machines) == 0 {
-		return fmt.Errorf("no machines are available on this app %s", appName)
+		fmt.Printf("No machines are available on this app %s", appName)
+		return nil
 	}
 
 	if cfg.JSONOutput {
