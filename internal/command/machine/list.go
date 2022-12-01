@@ -72,7 +72,7 @@ func runMachineList(ctx context.Context) (err error) {
 	}
 
 	if len(machines) == 0 {
-		fmt.Printf("No machines are available on this app %s", appName)
+		fmt.Fprintf(io.Out, "No machines are available on this app %s\n", appName)
 		return nil
 	}
 
