@@ -110,10 +110,16 @@ func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 		autoConfirm = flag.GetBool(ctx, "yes")
 	)
 
+	var MinPostgresVersion = "v0.0.32"
+
 	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
 	defer releaseLeaseFunc(ctx, machines)
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved")
+	}
+
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresVersion, MinPostgresVersion); err != nil {
+		return err
 	}
 
 	leader, err := pickLeader(ctx, machines)
@@ -159,6 +165,12 @@ func runNomadConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 
 		autoConfirm = flag.GetBool(ctx, "yes")
 	)
+
+	var MinPostgresVersion = "v0.0.32"
+
+	if err := hasRequiredVersionOnNomad(app, MinPostgresVersion, MinPostgresVersion); err != nil {
+		return err
+	}
 
 	client := client.FromContext(ctx).API()
 
@@ -233,7 +245,7 @@ func updateStolonConfig(ctx context.Context, app *api.AppCompact, leaderIP strin
 	if !force {
 		// Query PG settings
 		pgclient := flypg.NewFromInstance(leaderIP, dialer)
-		settings, err := pgclient.SettingsView(ctx, keys)
+		settings, err := pgclient.ViewSettings(ctx, keys)
 		if err != nil {
 			return false, err
 		}
@@ -282,15 +294,11 @@ func updateStolonConfig(ctx context.Context, app *api.AppCompact, leaderIP strin
 		}
 	}
 
-	cmd, err := flypg.NewCommand(ctx, app)
-	if err != nil {
-		return false, err
-	}
+	cmd := flypg.NewFromInstance(leaderIP, dialer)
 
 	fmt.Fprintln(io.Out, "Performing update...")
 
-	err = cmd.UpdateSettings(ctx, leaderIP, changes)
-	if err != nil {
+	if err := cmd.UpdateSettings(ctx, changes); err != nil {
 		return false, err
 	}
 	fmt.Fprintln(io.Out, "Update complete!")
