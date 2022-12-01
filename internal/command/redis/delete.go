@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
 )
 
 func newDelete() (cmd *cobra.Command) {
@@ -32,19 +33,33 @@ func newDelete() (cmd *cobra.Command) {
 
 func runDelete(ctx context.Context) (err error) {
 	var (
-		out    = iostreams.FromContext(ctx).Out
-		client = client.FromContext(ctx).API().GenqClient
+		io       = iostreams.FromContext(ctx)
+		out      = io.Out
+		colorize = io.ColorScheme()
+		client   = client.FromContext(ctx).API().GenqClient
 	)
 
 	name := flag.FirstArg(ctx)
 
-	_ = `# @genqlient
-  mutation DeleteAddOn($name: String) {
-		deleteAddOn(input: {name: $name}) {
-			deletedAddOnName
+	const msg = "Deleting a redis instance is not reversible."
+	fmt.Fprintln(out, colorize.Red(msg))
+
+	switch confirmed, err := prompt.Confirmf(ctx, "Destroy redis instance for app %s?", name); {
+	case err == nil:
+		if !confirmed {
+			return nil
 		}
-  }
-	`
+	default:
+		return err
+	}
+
+	_ = `# @genqlient
+	  mutation DeleteAddOn($name: String) {
+			deleteAddOn(input: {name: $name}) {
+				deletedAddOnName
+			}
+	  }
+		`
 
 	_, err = gql.DeleteAddOn(ctx, client, name)
 

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/vektah/gqlparser/v2/gqlerror"
 
 	dockerclient "github.com/docker/docker/client"
 	"github.com/superfly/flyctl/client"
@@ -217,17 +218,21 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 	}
 	resp, err := gql.ResolverCreateBuild(ctx, gqlClient, input)
 	if err != nil {
-		sentry.CaptureException(err,
-			sentry.WithTag("feature", "build-api-create-build"),
-			sentry.WithContexts(map[string]interface{}{
-				"app": map[string]interface{}{
-					"name": input.AppName,
-				},
-				"builder": map[string]interface{}{
-					"type": input.BuilderType,
-				},
-			}),
-		)
+		var gqlErr *gqlerror.Error
+		isAppNotFoundErr := errors.As(err, &gqlErr) && gqlErr.Path.String() == "createBuild" && gqlErr.Message == "Could not find App"
+		if !isAppNotFoundErr {
+			sentry.CaptureException(err,
+				sentry.WithTag("feature", "build-api-create-build"),
+				sentry.WithContexts(map[string]interface{}{
+					"app": map[string]interface{}{
+						"name": input.AppName,
+					},
+					"builder": map[string]interface{}{
+						"type": input.BuilderType,
+					},
+				}),
+			)
+		}
 		return newFailedBuild(), err
 	}
 

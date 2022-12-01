@@ -82,8 +82,8 @@ var sharedFlags = flag.Set{
 		Hidden:      true,
 	},
 	flag.Bool{
-		Name:   "build-nixpacks",
-		Hidden: true,
+		Name:        "build-nixpacks",
+		Description: "Build your image with nixpacks",
 	},
 	flag.String{
 		Name:        "dockerfile",

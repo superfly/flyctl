@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/docker/docker/pkg/ioutils"
+	"github.com/mattn/go-colorable"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
@@ -117,8 +119,8 @@ func runMachineConnect(ctx context.Context, app *api.AppCompact) error {
 		App:    app.Name,
 		Cmd:    fmt.Sprintf("connect %s %s %s", database, user, password),
 		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
+		Stdout: ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
+		Stderr: ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
 	}, leader.PrivateIP)
 }
 
@@ -162,8 +164,7 @@ func runNomadConnect(ctx context.Context, app *api.AppCompact) error {
 		App:    app.Name,
 		Cmd:    fmt.Sprintf("connect %s %s %s", database, user, password),
 		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
+		Stdout: ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
+		Stderr: ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
 	}, leaderIP)
-
 }
