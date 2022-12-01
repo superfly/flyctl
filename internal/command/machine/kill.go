@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/flaps"
@@ -65,7 +66,12 @@ func runMachineKill(ctx context.Context) (err error) {
 
 	err = flapsClient.Kill(ctx, machineID)
 	if err != nil {
-		return fmt.Errorf("could not kill machine %s: %w", machineID, err)
+		switch {
+		case strings.Contains(err.Error(), "not found") && appName != "":
+			return fmt.Errorf("could not find machine %s in app %s to kill", machineID, appName)
+		default:
+			return fmt.Errorf("could not kill machine %s: %w", machineID, err)
+		}
 	}
 
 	fmt.Fprintln(io.Out, "kill signal has been sent")

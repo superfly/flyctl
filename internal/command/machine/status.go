@@ -69,6 +69,8 @@ func runMachineStatus(ctx context.Context) (err error) {
 		switch {
 		case strings.Contains(err.Error(), "status"):
 			return fmt.Errorf("retrieve machine failed %s", err)
+		case strings.Contains(err.Error(), "not found") && appName != "":
+			return fmt.Errorf("machine %s was not found in app %s", machineID, appName)
 		default:
 			return fmt.Errorf("machine %s could not be retrieved", machineID)
 		}
