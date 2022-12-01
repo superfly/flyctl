@@ -332,7 +332,7 @@ func run(ctx context.Context) (err error) {
 
 	adminLink := fmt.Sprintf("https://fly.io/apps/%s", createdApp.Name)
 	appLink := fmt.Sprintf("%s.fly.dev", createdApp.Name)
-	fmt.Fprintf(io.Out, "Admin URL: %s\nHostname: %s \n", adminLink, appLink)
+	fmt.Fprintf(io.Out, "Admin URL: %s\nHostname: %s\n", adminLink, appLink)
 
 	// If secrets are requested by the launch scanner, ask the user to input them
 	if srcInfo != nil && len(srcInfo.Secrets) > 0 {
