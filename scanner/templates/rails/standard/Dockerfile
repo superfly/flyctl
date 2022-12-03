@@ -129,7 +129,7 @@ COPY . .
 
 # Adjust binstubs to run on Linux and set current working directory
 RUN chmod +x /app/bin/* && \
-    sed -i 's/ruby.exe/ruby/' /app/bin/* && \
+    sed -i 's/ruby.exe\r*/ruby/' /app/bin/* && \
     sed -i 's/ruby\r*/ruby/' /app/bin/* && \
     sed -i '/^#!/aDir.chdir File.expand_path("..", __dir__)' /app/bin/*
 
