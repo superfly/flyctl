@@ -196,6 +196,10 @@ func runDeploy(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	fmt.Println()
+	logURL := fmt.Sprintf("https://fly.io/apps/%s/monitoring", cmdCtx.AppName)
+	fmt.Fprintln(cmdCtx.Out, "Logs:", logURL)
+
+	fmt.Println()
 	cmdCtx.Status("deploy", cmdctx.SDETAIL, "You can detach the terminal anytime without stopping the deployment")
 
 	if releaseCommand != nil {
