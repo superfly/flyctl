@@ -110,7 +110,7 @@ func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 		autoConfirm = flag.GetBool(ctx, "yes")
 	)
 
-	var MinPostgresVersion = "v0.0.32"
+	var MinPostgresVersion = "v0.0.33"
 
 	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
 	defer releaseLeaseFunc(ctx, machines)
