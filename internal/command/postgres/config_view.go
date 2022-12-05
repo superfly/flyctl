@@ -144,7 +144,7 @@ func viewSettings(ctx context.Context, app *api.AppCompact, leaderIP string) err
 		settings = append(settings, k)
 	}
 
-	res, err := pgclient.SettingsView(ctx, settings)
+	res, err := pgclient.ViewSettings(ctx, settings)
 	if err != nil {
 		return err
 	}

@@ -168,7 +168,7 @@ func (c *Client) Failover(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) SettingsView(ctx context.Context, settings []string) (*PGSettings, error) {
+func (c *Client) ViewSettings(ctx context.Context, settings []string) (*PGSettings, error) {
 	endpoint := "/commands/admin/settings/view"
 
 	out := new(SettingsViewResponse)
@@ -178,4 +178,14 @@ func (c *Client) SettingsView(ctx context.Context, settings []string) (*PGSettin
 	}
 
 	return &out.Result, nil
+}
+
+func (c *Client) UpdateSettings(ctx context.Context, settings map[string]string) error {
+	endpoint := "/commands/admin/settings/update"
+
+	if err := c.Do(ctx, http.MethodPost, endpoint, settings, nil); err != nil {
+		return err
+	}
+
+	return nil
 }
