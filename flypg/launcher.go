@@ -180,7 +180,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 
 	fmt.Fprintln(io.Out)
 	fmt.Fprintln(io.Out, colorize.Bold("Connect to postgres"))
-	fmt.Fprintf(io.Out, "Any app within the %s organization can connect to this Postgres using the following connection string:\n", config.Organization.Name)
+	fmt.Fprintf(io.Out, "Any app within the %s organization can connect to this Postgres using the above connection string\n", config.Organization.Name)
 
 	fmt.Fprintln(io.Out)
 	fmt.Fprintln(io.Out, "Now that you've set up Postgres, here's what you need to understand: https://fly.io/docs/postgres/getting-started/what-you-should-know/")
