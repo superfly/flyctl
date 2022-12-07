@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"os/exec"
@@ -19,7 +20,7 @@ type PhpVersion struct {
 }
 
 // setup Laravel with a sqlite database
-func configureLaravel(sourceDir string) (*SourceInfo, error) {
+func configureLaravel(sourceDir string, ctx context.Context) (*SourceInfo, error) {
 	// Laravel projects contain the `artisan` command
 	if !checksPass(sourceDir, fileExists("artisan")) {
 		return nil, nil

@@ -1,6 +1,8 @@
 package scanner
 
-func configurePython(sourceDir string) (*SourceInfo, error) {
+import "context"
+
+func configurePython(sourceDir string, ctx context.Context) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("requirements.txt", "environment.yml")) {
 		return nil, nil
 	}

@@ -1,13 +1,14 @@
 package scanner
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
 	"strings"
 )
 
-func configureNode(sourceDir string) (*SourceInfo, error) {
+func configureNode(sourceDir string, ctx context.Context) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("package.json")) {
 		return nil, nil
 	}

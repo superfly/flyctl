@@ -1,12 +1,13 @@
 package scanner
 
 import (
+	"context"
 	"path/filepath"
 
 	"github.com/superfly/flyctl/helpers"
 )
 
-func configureElixir(sourceDir string) (*SourceInfo, error) {
+func configureElixir(sourceDir string, ctx context.Context) (*SourceInfo, error) {
 	if !helpers.FileExists(filepath.Join(sourceDir, "mix.exs")) {
 		return nil, nil
 	}

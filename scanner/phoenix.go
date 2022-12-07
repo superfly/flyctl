@@ -32,7 +32,8 @@ func configurePhoenix(sourceDir string, ctx context.Context) (*SourceInfo, error
 				},
 			},
 			Env: map[string]string{
-				"PHX_HOST": "APP_FQDN",
+				"PHX_HOST":        "APP_FQDN",
+				"FLY_LAUNCH_MODE": "copy-config-now",
 			},
 		}
 

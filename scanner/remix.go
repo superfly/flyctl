@@ -1,6 +1,8 @@
 package scanner
 
-func configureRemix(sourceDir string) (*SourceInfo, error) {
+import "context"
+
+func configureRemix(sourceDir string, ctx context.Context) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("remix.config.js")) {
 		return nil, nil
 	}

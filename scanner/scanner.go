@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"context"
 	"embed"
 	"io/fs"
 	"path/filepath"

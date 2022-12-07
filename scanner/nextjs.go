@@ -1,6 +1,8 @@
 package scanner
 
-func configureNextJs(sourceDir string) (*SourceInfo, error) {
+import "context"
+
+func configureNextJs(sourceDir string, ctx context.Context) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("next.config.js")) && !checksPass(sourceDir, dirContains("package.json", "\"next\"")) {
 		return nil, nil
 	}
@@ -13,7 +15,7 @@ func configureNextJs(sourceDir string) (*SourceInfo, error) {
 		Family:       "NextJS",
 		Port:         8080,
 		SkipDatabase: true,
-		Env: env,
+		Env:          env,
 	}
 
 	s.Files = templates("templates/nextjs")

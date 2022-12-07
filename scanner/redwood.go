@@ -1,6 +1,8 @@
 package scanner
 
-func configureRedwood(sourceDir string) (*SourceInfo, error) {
+import "context"
+
+func configureRedwood(sourceDir string, ctx context.Context) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("redwood.toml")) {
 		return nil, nil
 	}

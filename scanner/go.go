@@ -1,6 +1,8 @@
 package scanner
 
-func configureGo(sourceDir string) (*SourceInfo, error) {
+import "context"
+
+func configureGo(sourceDir string, ctx context.Context) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("go.mod", "Gopkg.lock")) {
 		return nil, nil
 	}
