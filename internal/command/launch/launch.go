@@ -157,7 +157,7 @@ func run(ctx context.Context) (err error) {
 	} else {
 		fmt.Fprintln(io.Out, "Scanning source code")
 
-		if si, err := scanner.Scan(workingDir); err != nil {
+		if si, err := scanner.Scan(workingDir, ctx); err != nil {
 			return err
 		} else {
 			srcInfo = si

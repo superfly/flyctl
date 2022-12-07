@@ -1,17 +1,42 @@
 package scanner
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/flag"
 )
 
-func configurePhoenix(sourceDir string) (*SourceInfo, error) {
+func configurePhoenix(sourceDir string, ctx context.Context) (*SourceInfo, error) {
 	// Not phoenix, move on
 	if !helpers.FileExists(filepath.Join(sourceDir, "mix.exs")) || !checksPass(sourceDir, dirContains("mix.exs", "phoenix")) {
 		return nil, nil
+	}
+
+	// Detect if --copy-config and --now flags are set. If so, limited set of
+	// fly.toml file updates. Helpful for deploying PRs when the project is
+	// already setup and we only need fly.toml config changes.
+	if flag.GetBool(ctx, "copy-config") && flag.GetBool(ctx, "now") {
+		s := &SourceInfo{
+			Family: "Phoenix",
+			Secrets: []Secret{
+				{
+					Key:  "SECRET_KEY_BASE",
+					Help: "Phoenix needs a random, secret key. Use the random default we've generated, or generate your own.",
+					Generate: func() (string, error) {
+						return helpers.RandString(64)
+					},
+				},
+			},
+			Env: map[string]string{
+				"PHX_HOST": "APP_FQDN",
+			},
+		}
+
+		return s, nil
 	}
 
 	s := &SourceInfo{
