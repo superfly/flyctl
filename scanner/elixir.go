@@ -7,7 +7,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 )
 
-func configureElixir(sourceDir string, ctx context.Context) (*SourceInfo, error) {
+func configureElixir(ctx context.Context, sourceDir string) (*SourceInfo, error) {
 	if !helpers.FileExists(filepath.Join(sourceDir, "mix.exs")) {
 		return nil, nil
 	}

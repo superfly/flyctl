@@ -2,7 +2,7 @@ package scanner
 
 import "context"
 
-func configureDeno(sourceDir string, ctx context.Context) (*SourceInfo, error) {
+func configureDeno(ctx context.Context, sourceDir string) (*SourceInfo, error) {
 	if !checksPass(sourceDir, dirContains("*.ts", "denopkg")) {
 		return nil, nil
 	}

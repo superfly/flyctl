@@ -20,7 +20,7 @@ type PhpVersion struct {
 }
 
 // setup Laravel with a sqlite database
-func configureLaravel(sourceDir string, ctx context.Context) (*SourceInfo, error) {
+func configureLaravel(ctx context.Context, sourceDir string) (*SourceInfo, error) {
 	// Laravel projects contain the `artisan` command
 	if !checksPass(sourceDir, fileExists("artisan")) {
 		return nil, nil

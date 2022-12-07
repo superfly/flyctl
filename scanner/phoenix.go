@@ -10,7 +10,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 )
 
-func configurePhoenix(sourceDir string, ctx context.Context) (*SourceInfo, error) {
+func configurePhoenix(ctx context.Context, sourceDir string) (*SourceInfo, error) {
 	// Not phoenix, move on
 	if !helpers.FileExists(filepath.Join(sourceDir, "mix.exs")) || !checksPass(sourceDir, dirContains("mix.exs", "phoenix")) {
 		return nil, nil

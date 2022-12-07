@@ -7,7 +7,7 @@ import (
 )
 
 // setup django with a postgres database
-func configureDjango(sourceDir string, ctx context.Context) (*SourceInfo, error) {
+func configureDjango(ctx context.Context, sourceDir string) (*SourceInfo, error) {
 	if !checksPass(sourceDir, dirContains("requirements.txt", "Django")) {
 		return nil, nil
 	}

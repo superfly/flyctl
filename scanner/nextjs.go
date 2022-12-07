@@ -2,7 +2,7 @@ package scanner
 
 import "context"
 
-func configureNextJs(sourceDir string, ctx context.Context) (*SourceInfo, error) {
+func configureNextJs(ctx context.Context, sourceDir string) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("next.config.js")) && !checksPass(sourceDir, dirContains("package.json", "\"next\"")) {
 		return nil, nil
 	}

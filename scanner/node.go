@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func configureNode(sourceDir string, ctx context.Context) (*SourceInfo, error) {
+func configureNode(ctx context.Context, sourceDir string) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("package.json")) {
 		return nil, nil
 	}

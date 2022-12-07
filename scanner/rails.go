@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func configureRails(sourceDir string, ctx context.Context) (*SourceInfo, error) {
+func configureRails(ctx context.Context, sourceDir string) (*SourceInfo, error) {
 	if !checksPass(sourceDir, dirContains("Gemfile", "rails")) {
 		return nil, nil
 	}

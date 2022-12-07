@@ -199,7 +199,7 @@ func scanAndConfigure(ctx context.Context, dir string, appConfig *app.Config) (s
 
 	srcInfo = new(scanner.SourceInfo)
 
-	scannedDirInfo, err := scanner.Scan(dir, ctx)
+	scannedDirInfo, err := scanner.Scan(ctx, dir)
 
 	if err != nil {
 		return srcInfo, err

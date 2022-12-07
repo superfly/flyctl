@@ -2,7 +2,7 @@ package scanner
 
 import "context"
 
-func configureRedwood(sourceDir string, ctx context.Context) (*SourceInfo, error) {
+func configureRedwood(ctx context.Context, sourceDir string) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("redwood.toml")) {
 		return nil, nil
 	}

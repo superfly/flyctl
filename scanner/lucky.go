@@ -6,7 +6,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 )
 
-func configureLucky(sourceDir string, ctx context.Context) (*SourceInfo, error) {
+func configureLucky(ctx context.Context, sourceDir string) (*SourceInfo, error) {
 	if !checksPass(sourceDir, dirContains("shard.yml", "lucky")) {
 		return nil, nil
 	}
