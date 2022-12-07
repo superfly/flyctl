@@ -470,7 +470,7 @@ func setupHttpService(ctx context.Context, appConfig *app.Config, srcInfo *scann
 			if err != nil {
 				return
 			}
-			_, err = client.AllocateIPAddress(ctx, appConfig.AppName, "v4", "")
+			_, err = client.AllocateIPAddress(ctx, appConfig.AppName, "shared_v4", "")
 
 			if err != nil {
 				return err
