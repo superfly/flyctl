@@ -1,3 +1,5 @@
+fly.toml
+
 .git
 tmp
 !tmp/pids
