@@ -56,7 +56,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
-		client   = client.FromContext(ctx).API()
+		// client   = client.FromContext(ctx).API()
 	)
 
 	app, err := l.createApp(ctx, config)
@@ -83,27 +83,9 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	for i := 0; i < config.InitialClusterSize; i++ {
 		machineConf := l.getPostgresConfig(config)
 
-		machineConf.Image = config.ImageRef
+		machineConf.Image = "davissp14/postgres-flex:0.003"
 
-		// If no image is specifed fetch the latest available tag.
-		if machineConf.Image == "" {
-			imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres", config.SnapshotID)
-			if err != nil {
-				return err
-			}
-			machineConf.Image = imageRef
-		}
-
-		snapshot := config.SnapshotID
 		verb := "Provisioning"
-
-		// When a snapshot is specified, we only want to pass it into the first volume created.
-		if snapshot != nil {
-			verb = "Restoring"
-			if i > 0 {
-				snapshot = nil
-			}
-		}
 
 		fmt.Fprintf(io.Out, "%s %d of %d machines with image %s\n", verb, i+1, config.InitialClusterSize, machineConf.Image)
 
@@ -114,7 +96,6 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			SizeGb:            *config.VolumeSize,
 			Encrypted:         true,
 			RequireUniqueZone: false,
-			SnapshotID:        snapshot,
 		}
 
 		vol, err := l.client.CreateVolume(ctx, volInput)
@@ -144,9 +125,6 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		fmt.Fprintf(io.Out, "Waiting for machine to start...\n")
 
 		waitTimeout := time.Minute * 5
-		if snapshot != nil {
-			waitTimeout = time.Hour
-		}
 
 		err = mach.WaitForStartOrStop(ctx, machine, "start", waitTimeout)
 		if err != nil {
@@ -261,6 +239,9 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 	// Set env
 	machineConfig.Env = map[string]string{
 		"PRIMARY_REGION": config.Region,
+		"PGPASSFILE":     "/data/.pgpass",
+		"PGDATA":         "/data/postgresql",
+		"DEBUG":          "true",
 	}
 
 	// Set VM resources
@@ -276,29 +257,29 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 		Port: 9187,
 	}
 
-	machineConfig.Checks = map[string]api.MachineCheck{
-		"pg": {
-			Port:     5500,
-			Type:     "http",
-			HTTPPath: &checkPathPg,
-			Interval: &api.Duration{Duration: duration15s},
-			Timeout:  &api.Duration{Duration: duration10s},
-		},
-		"role": {
-			Port:     5500,
-			Type:     "http",
-			HTTPPath: &checkPathRole,
-			Interval: &api.Duration{Duration: duration15s},
-			Timeout:  &api.Duration{Duration: duration10s},
-		},
-		"vm": {
-			Port:     5500,
-			Type:     "http",
-			HTTPPath: &checkPathVm,
-			Interval: &api.Duration{Duration: duration1m},
-			Timeout:  &api.Duration{Duration: duration10s},
-		},
-	}
+	// machineConfig.Checks = map[string]api.MachineCheck{
+	// 	"pg": {
+	// 		Port:     5500,
+	// 		Type:     "http",
+	// 		HTTPPath: &checkPathPg,
+	// 		Interval: &api.Duration{Duration: duration15s},
+	// 		Timeout:  &api.Duration{Duration: duration10s},
+	// 	},
+	// 	"role": {
+	// 		Port:     5500,
+	// 		Type:     "http",
+	// 		HTTPPath: &checkPathRole,
+	// 		Interval: &api.Duration{Duration: duration15s},
+	// 		Timeout:  &api.Duration{Duration: duration10s},
+	// 	},
+	// 	"vm": {
+	// 		Port:     5500,
+	// 		Type:     "http",
+	// 		HTTPPath: &checkPathVm,
+	// 		Interval: &api.Duration{Duration: duration1m},
+	// 		Timeout:  &api.Duration{Duration: duration10s},
+	// 	},
+	// }
 
 	// Metadata
 	machineConfig.Metadata = map[string]string{
@@ -344,15 +325,10 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 
 	fmt.Fprintf(out, "Setting secrets on app %s...\n", config.AppName)
 
-	var suPassword, replPassword, opPassword string
+	var suPassword, opPassword string
 	var err error
 
 	suPassword, err = helpers.RandString(15)
-	if err != nil {
-		return nil, err
-	}
-
-	replPassword, err = helpers.RandString(15)
 	if err != nil {
 		return nil, err
 	}
@@ -364,12 +340,7 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 
 	secrets := map[string]string{
 		"SU_PASSWORD":       suPassword,
-		"REPL_PASSWORD":     replPassword,
 		"OPERATOR_PASSWORD": opPassword,
-	}
-
-	if config.SnapshotID != nil {
-		secrets["FLY_RESTORED_FROM"] = *config.SnapshotID
 	}
 
 	if config.ConsulURL == "" {

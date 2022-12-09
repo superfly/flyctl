@@ -75,6 +75,11 @@ func newCreate() *cobra.Command {
 			Description: "Create postgres cluster on Nomad",
 			Default:     false,
 		},
+		flag.Bool{
+			Name:        "repmgr",
+			Description: "Provision the new new",
+			Default:     true,
+		},
 	)
 
 	return cmd
@@ -130,6 +135,7 @@ func run(ctx context.Context) (err error) {
 		SnapshotID:            flag.GetString(ctx, "snapshot-id"),
 		Detach:                flag.GetDetach(ctx),
 	}
+
 	return CreateCluster(ctx, org, region, platform, params)
 }
 
