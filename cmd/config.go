@@ -28,7 +28,7 @@ func newConfigCommand(client *client.Client) *Command {
 	BuildCommandKS(cmd, runSaveConfig, configSaveStrings, client, requireSession, requireAppName)
 
 	configValidateStrings := docstrings.Get("config.validate")
-	BuildCommandKS(cmd, runValidateConfig, configValidateStrings, client, requireSession, requireAppName)
+	BuildCommandKS(cmd, runValidateConfig, configValidateStrings, client, requireAppName)
 
 	configEnvStrings := docstrings.Get("config.env")
 	BuildCommandKS(cmd, runEnvConfig, configEnvStrings, client, requireSession, requireAppName)
@@ -91,7 +91,8 @@ func runValidateConfig(commandContext *cmdctx.CmdContext) error {
 
 	commandContext.Status("config", cmdctx.STITLE, "Validating", commandContext.ConfigFile)
 
-	serverCfg, err := commandContext.Client.API().ParseConfig(ctx, commandContext.AppName, commandContext.AppConfig.Definition)
+	// separate query from authenticated app validation (in deploy etc)
+	serverCfg, err := client.NewClient("").ValidateConfig(ctx, commandContext.AppName, commandContext.AppConfig.Definition)
 	if err != nil {
 		return err
 	}

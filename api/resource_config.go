@@ -50,3 +50,25 @@ func (client *Client) ParseConfig(ctx context.Context, appName string, definitio
 
 	return &data.App.ParseConfig, nil
 }
+
+func (client *Client) ValidateConfig(ctx context.Context, appName string, definition Definition) (*AppConfig, error) {
+	query := `
+			query($definition: JSON!) {
+				validateConfig(definition: $definition) {
+					definition
+					valid
+					errors
+				}
+			}
+		`
+
+	req := client.NewRequest(query)
+	req.Var("definition", definition)
+
+	data, err := client.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.ValidateConfig, nil
+}
