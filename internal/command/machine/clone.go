@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
@@ -43,6 +44,10 @@ func newClone() *cobra.Command {
 		flag.String{
 			Name:        "name",
 			Description: "Optional name for the new machine",
+		},
+		flag.Bool{
+			Name:        "from-last-snapshot",
+			Description: "Clone attached volumes from last snapshot, otherwise it will be empty",
 		},
 	)
 
@@ -100,38 +105,49 @@ func runMachineClone(ctx context.Context) (err error) {
 
 	targetConfig := source.Config
 
-	// This is a temperary hack to add volume support for PG apps.
-	// Flaps does not currently specify the volume name within the Machine mount spec,
-	// which is required before we can handle this more generally.
-	if app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster" {
-		if len(source.Config.Mounts) > 0 {
-			mnt := source.Config.Mounts[0]
+	for _, mnt := range source.Config.Mounts {
+		srcVol, err := client.GetVolume(ctx, mnt.Volume)
+		if err != nil {
+			return err
+		}
 
-			volInput := api.CreateVolumeInput{
-				AppID:             app.ID,
-				Name:              "pg_data",
-				Region:            region,
-				SizeGb:            mnt.SizeGb,
-				Encrypted:         mnt.Encrypted,
-				RequireUniqueZone: false,
-			}
-
-			vol, err := client.CreateVolume(ctx, volInput)
+		var snapshotID *string
+		if flag.GetBool(ctx, "from-last-snapshot") {
+			snapshots, err := client.GetVolumeSnapshots(ctx, srcVol.ID)
 			if err != nil {
 				return err
 			}
-
-			targetConfig.Mounts = []api.MachineMount{
-				{
-					Volume:    vol.ID,
-					Path:      mnt.Path,
-					SizeGb:    mnt.SizeGb,
-					Encrypted: mnt.Encrypted,
-				},
+			if len(snapshots) > 0 {
+				snapshot := lo.MaxBy(snapshots, func(i, j api.Snapshot) bool { return i.CreatedAt.After(j.CreatedAt) })
+				snapshotID = &snapshot.ID
+				fmt.Fprintf(out, "Creating new volume from snapshot %s of %s\n", colorize.Bold(*snapshotID), colorize.Bold(srcVol.ID))
+			} else {
+				fmt.Fprintf(out, "No snapshot for source volume %s, the new volume will start empty\n", colorize.Bold(srcVol.ID))
 			}
 		}
-	} else {
-		targetConfig.Mounts = nil
+
+		volInput := api.CreateVolumeInput{
+			AppID:             app.ID,
+			Name:              srcVol.Name,
+			Region:            region,
+			SizeGb:            mnt.SizeGb,
+			Encrypted:         mnt.Encrypted,
+			SnapshotID:        snapshotID,
+			RequireUniqueZone: false,
+		}
+		vol, err := client.CreateVolume(ctx, volInput)
+		if err != nil {
+			return err
+		}
+
+		targetConfig.Mounts = []api.MachineMount{
+			{
+				Volume:    vol.ID,
+				Path:      mnt.Path,
+				SizeGb:    mnt.SizeGb,
+				Encrypted: mnt.Encrypted,
+			},
+		}
 	}
 
 	input := api.LaunchMachineInput{
@@ -140,7 +156,6 @@ func runMachineClone(ctx context.Context) (err error) {
 		Region: region,
 		Config: targetConfig,
 	}
-
 	fmt.Fprintf(out, "Provisioning a new machine with image %s...\n", source.Config.Image)
 
 	launchedMachine, err := flapsClient.Launch(ctx, input)
