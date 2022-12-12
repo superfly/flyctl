@@ -58,7 +58,7 @@ func (c *Client) FindIPAddress(ctx context.Context, appName string, address stri
 	return data.App.IPAddress, nil
 }
 
-func (c *Client) AllocateIPAddress(ctx context.Context, appName string, addrType string, region string) (*IPAddress, error) {
+func (c *Client) AllocateIPAddress(ctx context.Context, appName string, addrType string, region string, org *Organization) (*IPAddress, error) {
 	query := `
 		mutation($input: AllocateIPAddressInput!) {
 			allocateIpAddress(input: $input) {
@@ -74,8 +74,13 @@ func (c *Client) AllocateIPAddress(ctx context.Context, appName string, addrType
 	`
 
 	req := c.NewRequest(query)
+	input := AllocateIPAddressInput{AppID: appName, Type: addrType, Region: region}
 
-	req.Var("input", AllocateIPAddressInput{AppID: appName, Type: addrType, Region: region})
+	if org != nil {
+		input.OrganizationID = org.ID
+	}
+
+	req.Var("input", input)
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
