@@ -8,6 +8,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/flag"
 )
 
@@ -49,6 +50,7 @@ func newAllocatev6() *cobra.Command {
 			Name:        "private",
 			Description: "Allocate a private IPv6 address",
 		},
+		flag.Org(),
 	)
 
 	return cmd
@@ -66,13 +68,22 @@ func runAllocateIPAddressV6(ctx context.Context) error {
 	return runAllocateIPAddress(ctx, "v6")
 }
 
-func runAllocateIPAddress(ctx context.Context, addrType string) error {
+func runAllocateIPAddress(ctx context.Context, addrType string) (err error) {
 	client := client.FromContext(ctx).API()
 
 	appName := app.NameFromContext(ctx)
 	region := flag.GetRegion(ctx)
+	orgSlug := flag.GetString(ctx, "org")
+	var org *api.Organization
 
-	ipAddress, err := client.AllocateIPAddress(ctx, appName, addrType, region)
+	if orgSlug != "" {
+		org, err = orgs.OrgFromSlug(ctx, orgSlug)
+		if err != nil {
+			return err
+		}
+
+	}
+	ipAddress, err := client.AllocateIPAddress(ctx, appName, addrType, region, org)
 	if err != nil {
 		return err
 	}
