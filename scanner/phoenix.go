@@ -33,7 +33,7 @@ func configurePhoenix(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 	if config.QuickClone {
 		s.Env = map[string]string{
 			"PHX_HOST":        "APP_FQDN",
-			"FLY_LAUNCH_MODE": "quick-clone",
+			"FLY_LAUNCH_MODE": "clone",
 		}
 
 		return s, nil
