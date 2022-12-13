@@ -109,7 +109,8 @@ func readDockerignore(workingDir string, ignoreFile string) ([]string, error) {
 
 	file, err := os.Open(ignoreFile)
 	if os.IsNotExist(err) {
-		return []string{}, nil
+		// ignore fly.toml by default if no dockerignore file is provided
+		return []string{"fly.toml"}, nil
 	} else if err != nil {
 		return nil, err
 	}
@@ -127,10 +128,6 @@ func parseDockerignore(r io.Reader) ([]string, error) {
 	excludes, err := dockerignore.ReadAll(r)
 	if err != nil {
 		return nil, err
-	}
-
-	if match, _ := fileutils.Matches("fly.toml", excludes); !match {
-		excludes = append(excludes, "fly.toml")
 	}
 
 	if match, _ := fileutils.Matches(".dockerignore", excludes); match {

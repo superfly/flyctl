@@ -596,6 +596,7 @@ func createDockerignoreFromGitignores(root string, gitIgnores []string) (string,
 	}()
 
 	firstHeaderWritten := false
+	foundFlyDotToml := false
 	linebreak := []byte("\n")
 	for _, gitIgnore := range gitIgnores {
 		gitF, err := os.Open(gitIgnore)
@@ -649,6 +650,9 @@ func createDockerignoreFromGitignores(root string, gitIgnores []string) (string,
 			} else {
 				dockerIgnoreLine = filepath.Join(relDir, "**", line)
 			}
+			if strings.Contains(dockerIgnoreLine, "fly.toml") {
+				foundFlyDotToml = true
+			}
 			if _, err := f.WriteString(dockerIgnoreLine); err != nil {
 				return "", err
 			}
@@ -657,6 +661,16 @@ func createDockerignoreFromGitignores(root string, gitIgnores []string) (string,
 			}
 		}
 	}
+
+	if !foundFlyDotToml {
+		if _, err := f.WriteString("fly.toml"); err != nil {
+			return "", err
+		}
+		if _, err := f.Write(linebreak); err != nil {
+			return "", err
+		}
+	}
+
 	return dockerIgnore, nil
 }
 

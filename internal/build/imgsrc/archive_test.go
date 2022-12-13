@@ -160,10 +160,10 @@ func TestArchiverNoCompressionWithAdditions(t *testing.T) {
 
 func TestParseDockerignore(t *testing.T) {
 	cases := map[string][]string{
-		"node_modules\n*.jpg":                {"node_modules", "*.jpg", "fly.toml"},
-		"node_modules\n*.jpg\nDockerfile":    {"node_modules", "*.jpg", "Dockerfile", "fly.toml", "![Dd]ockerfile"},
-		"node_modules\n*.jpg\ndockerfile":    {"node_modules", "*.jpg", "dockerfile", "fly.toml", "![Dd]ockerfile"},
-		"node_modules\n*.jpg\n.dockerignore": {"node_modules", "*.jpg", ".dockerignore", "fly.toml", "!.dockerignore"},
+		"node_modules\n*.jpg":                {"node_modules", "*.jpg"},
+		"node_modules\n*.jpg\nDockerfile":    {"node_modules", "*.jpg", "Dockerfile", "![Dd]ockerfile"},
+		"node_modules\n*.jpg\ndockerfile":    {"node_modules", "*.jpg", "dockerfile", "![Dd]ockerfile"},
+		"node_modules\n*.jpg\n.dockerignore": {"node_modules", "*.jpg", ".dockerignore", "!.dockerignore"},
 	}
 
 	for input, expected := range cases {
