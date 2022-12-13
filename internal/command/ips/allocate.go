@@ -24,6 +24,11 @@ func newAllocatev4() *cobra.Command {
 	)
 
 	flag.Add(cmd,
+		flag.Bool{
+			Name:        "shared",
+			Description: "Allocates a shared IPv4",
+			Default:     false,
+		},
 		flag.App(),
 		flag.AppConfig(),
 		flag.Region(),
@@ -57,7 +62,11 @@ func newAllocatev6() *cobra.Command {
 }
 
 func runAllocateIPAddressV4(ctx context.Context) error {
-	return runAllocateIPAddress(ctx, "v4")
+	addrType := "v4"
+	if flag.GetBool(ctx, "shared") {
+		addrType = "shared_v4"
+	}
+	return runAllocateIPAddress(ctx, addrType)
 }
 
 func runAllocateIPAddressV6(ctx context.Context) error {
@@ -72,6 +81,18 @@ func runAllocateIPAddress(ctx context.Context, addrType string) (err error) {
 	client := client.FromContext(ctx).API()
 
 	appName := app.NameFromContext(ctx)
+
+	if addrType == "shared_v4" {
+		ip, err := client.AllocateSharedIPAddress(ctx, appName)
+		if err != nil {
+			return err
+		}
+
+		renderSharedTable(ctx, ip)
+
+		return nil
+	}
+
 	region := flag.GetRegion(ctx)
 	orgSlug := flag.GetString(ctx, "org")
 	var org *api.Organization
