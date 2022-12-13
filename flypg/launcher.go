@@ -56,7 +56,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
-		// client   = client.FromContext(ctx).API()
+		client   = client.FromContext(ctx).API()
 	)
 
 	app, err := l.createApp(ctx, config)
@@ -83,7 +83,16 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	for i := 0; i < config.InitialClusterSize; i++ {
 		machineConf := l.getPostgresConfig(config)
 
-		machineConf.Image = "davissp14/postgres-flex:0.027"
+		machineConf.Image = config.ImageRef
+
+		// If no image is specifed fetch the latest available tag.
+		if machineConf.Image == "" {
+			imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres-flex", config.SnapshotID)
+			if err != nil {
+				return err
+			}
+			machineConf.Image = imageRef
+		}
 
 		verb := "Provisioning"
 
@@ -183,7 +192,6 @@ func (l *Launcher) LaunchNomadPostgres(ctx context.Context, config *CreateCluste
 			return err
 		}
 		config.ImageRef = imageRef
-
 	}
 
 	input := api.CreatePostgresClusterInput{
