@@ -883,7 +883,7 @@ type AllocateIPAddressInput struct {
 	AppID          string `json:"appId"`
 	Type           string `json:"type"`
 	Region         string `json:"region"`
-	OrganizationID string `json:"organizationId"`
+	OrganizationID string `json:"organizationId,omitempty"`
 }
 
 type ReleaseIPAddressInput struct {
