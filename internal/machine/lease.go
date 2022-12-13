@@ -62,7 +62,7 @@ func AcquireLease(ctx context.Context, machine *api.Machine) (*api.Machine, rele
 	releaseFunc := func(ctx context.Context, machine *api.Machine) {
 		if machine != nil {
 			if err := flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce); err != nil {
-				fmt.Fprintf(io.Out, "failed to release lease for machine %s: %s", machine.ID, err.Error())
+				fmt.Fprintf(io.Out, "failed to release lease for machine %s: %s\n", machine.ID, err.Error())
 			}
 		}
 	}
