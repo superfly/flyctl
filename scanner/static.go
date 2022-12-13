@@ -1,13 +1,12 @@
 package scanner
 
 import (
-	"context"
 	"path/filepath"
 
 	"github.com/superfly/flyctl/helpers"
 )
 
-func configureStatic(ctx context.Context, sourceDir string) (*SourceInfo, error) {
+func configureStatic(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	// No index.html detected, move on
 	if !helpers.FileExists(filepath.Join(sourceDir, "index.html")) {
 		return nil, nil

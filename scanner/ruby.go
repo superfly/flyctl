@@ -1,8 +1,6 @@
 package scanner
 
-import "context"
-
-func configureRuby(ctx context.Context, sourceDir string) (*SourceInfo, error) {
+func configureRuby(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("Gemfile", "config.ru")) {
 		return nil, nil
 	}

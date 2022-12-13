@@ -1,13 +1,11 @@
 package scanner
 
 import (
-	"context"
-
 	"github.com/superfly/flyctl/helpers"
 )
 
 // setup django with a postgres database
-func configureDjango(ctx context.Context, sourceDir string) (*SourceInfo, error) {
+func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, dirContains("requirements.txt", "Django")) {
 		return nil, nil
 	}

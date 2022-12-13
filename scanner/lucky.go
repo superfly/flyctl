@@ -1,12 +1,10 @@
 package scanner
 
 import (
-	"context"
-
 	"github.com/superfly/flyctl/helpers"
 )
 
-func configureLucky(ctx context.Context, sourceDir string) (*SourceInfo, error) {
+func configureLucky(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, dirContains("shard.yml", "lucky")) {
 		return nil, nil
 	}

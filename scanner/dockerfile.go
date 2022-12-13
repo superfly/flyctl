@@ -1,19 +1,18 @@
 package scanner
 
 import (
-"context"
-"path/filepath"
+	"path/filepath"
 )
 
-func configureDockerfile(ctx context.Context, sourceDir string) (*SourceInfo, error) {
-if !checksPass(sourceDir, fileExists("Dockerfile")) {
-return nil, nil
-}
+func configureDockerfile(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
+	if !checksPass(sourceDir, fileExists("Dockerfile")) {
+		return nil, nil
+	}
 
-s := &SourceInfo{
-DockerfilePath: filepath.Join(sourceDir, "Dockerfile"),
-Family:         "Dockerfile",
-}
+	s := &SourceInfo{
+		DockerfilePath: filepath.Join(sourceDir, "Dockerfile"),
+		Family:         "Dockerfile",
+	}
 
-return s, nil
+	return s, nil
 }

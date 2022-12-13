@@ -1,8 +1,6 @@
 package scanner
 
-import "context"
-
-func configureNuxt(ctx context.Context, sourceDir string) (*SourceInfo, error) {
+func configureNuxt(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("nuxt.config.js")) {
 		return nil, nil
 	}

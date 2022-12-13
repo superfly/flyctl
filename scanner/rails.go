@@ -1,14 +1,13 @@
 package scanner
 
 import (
-	"context"
 	"os"
 	"os/exec"
 	"regexp"
 	"strings"
 )
 
-func configureRails(ctx context.Context, sourceDir string) (*SourceInfo, error) {
+func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, dirContains("Gemfile", "rails")) {
 		return nil, nil
 	}
