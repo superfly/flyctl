@@ -68,7 +68,7 @@ type Volume struct {
 	Destination string `toml:"destination" json:"destination"`
 }
 type ScannerConfig struct {
-	QuickClone bool
+	Mode string
 }
 
 func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {

@@ -148,7 +148,11 @@ func run(ctx context.Context) (err error) {
 	// Detect if --copy-config and --now flags are set. If so, limited set of
 	// fly.toml file updates. Helpful for deploying PRs when the project is
 	// already setup and we only need fly.toml config changes.
-	config.QuickClone = flag.GetBool(ctx, "copy-config") && flag.GetBool(ctx, "now")
+	if flag.GetBool(ctx, "copy-config") && flag.GetBool(ctx, "now") {
+		config.Mode = "clone"
+	} else {
+		config.Mode = "launch"
+	}
 
 	if img := flag.GetString(ctx, "image"); img != "" {
 		fmt.Fprintln(io.Out, "Using image", img)

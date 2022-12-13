@@ -30,7 +30,7 @@ func configurePhoenix(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 	// Detect if --copy-config and --now flags are set. If so, limited set of
 	// fly.toml file updates. Helpful for deploying PRs when the project is
 	// already setup and we only need fly.toml config changes.
-	if config.QuickClone {
+	if config.Mode == "clone" {
 		s.Env = map[string]string{
 			"PHX_HOST":        "APP_FQDN",
 			"FLY_LAUNCH_MODE": "clone",
