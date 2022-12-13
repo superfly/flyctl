@@ -1,6 +1,10 @@
 package api
 
-import "context"
+import (
+	"context"
+	"net"
+	"time"
+)
 
 func (c *Client) GetIPAddresses(ctx context.Context, appName string) ([]IPAddress, error) {
 	query := `
@@ -15,6 +19,7 @@ func (c *Client) GetIPAddresses(ctx context.Context, appName string) ([]IPAddres
 						createdAt
 					}
 				}
+				sharedIpAddress
 			}
 		}
 	`
@@ -27,7 +32,20 @@ func (c *Client) GetIPAddresses(ctx context.Context, appName string) ([]IPAddres
 		return nil, err
 	}
 
-	return data.App.IPAddresses.Nodes, nil
+	ips := data.App.IPAddresses.Nodes
+
+	// ugly hack
+	if data.App.SharedIPAddress != "" {
+		ips = append(ips, IPAddress{
+			ID:        "",
+			Address:   data.App.SharedIPAddress,
+			Type:      "shared_v4",
+			Region:    "",
+			CreatedAt: time.Time{},
+		})
+	}
+
+	return ips, nil
 }
 
 func (c *Client) FindIPAddress(ctx context.Context, appName string, address string) (*IPAddress, error) {
@@ -90,7 +108,30 @@ func (c *Client) AllocateIPAddress(ctx context.Context, appName string, addrType
 	return &data.AllocateIPAddress.IPAddress, nil
 }
 
-func (c *Client) ReleaseIPAddress(ctx context.Context, id string) error {
+func (c *Client) AllocateSharedIPAddress(ctx context.Context, appName string) (net.IP, error) {
+	query := `
+		mutation($input: AllocateIPAddressInput!) {
+			allocateIpAddress(input: $input) {
+				app {
+					sharedIpAddress
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("input", AllocateIPAddressInput{AppID: appName, Type: "shared_v4"})
+
+	data, err := c.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return net.ParseIP(data.AllocateIPAddress.App.SharedIPAddress), nil
+}
+
+func (c *Client) ReleaseIPAddress(ctx context.Context, appName string, ip string) error {
 	query := `
 		mutation($input: ReleaseIPAddressInput!) {
 			releaseIpAddress(input: $input) {
@@ -101,7 +142,7 @@ func (c *Client) ReleaseIPAddress(ctx context.Context, id string) error {
 
 	req := c.NewRequest(query)
 
-	req.Var("input", ReleaseIPAddressInput{IPAddressID: id})
+	req.Var("input", ReleaseIPAddressInput{AppID: &appName, IP: &ip})
 
 	_, err := c.RunWithContext(ctx, req)
 	if err != nil {

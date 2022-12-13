@@ -42,16 +42,11 @@ func runReleaseIPAddress(ctx context.Context) error {
 		return fmt.Errorf("Invalid IP address: '%s'", address)
 	}
 
-	ipAddress, err := client.FindIPAddress(ctx, appName, address)
-	if err != nil {
+	if err := client.ReleaseIPAddress(ctx, appName, address); err != nil {
 		return err
 	}
 
-	if err := client.ReleaseIPAddress(ctx, ipAddress.ID); err != nil {
-		return err
-	}
-
-	fmt.Printf("Released %s from %s\n", ipAddress.Address, appName)
+	fmt.Printf("Released %s from %s\n", address, appName)
 
 	return nil
 }

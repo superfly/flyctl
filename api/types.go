@@ -299,8 +299,9 @@ type App struct {
 	IPAddresses struct {
 		Nodes []IPAddress
 	}
-	IPAddress *IPAddress
-	Builds    struct {
+	SharedIPAddress string
+	IPAddress       *IPAddress
+	Builds          struct {
 		Nodes []Build
 	}
 	SourceBuilds struct {
@@ -886,7 +887,9 @@ type AllocateIPAddressInput struct {
 }
 
 type ReleaseIPAddressInput struct {
-	IPAddressID string `json:"ipAddressId"`
+	AppID       *string `json:"appId"`
+	IPAddressID *string `json:"ipAddressId"`
+	IP          *string `json:"ip"`
 }
 
 type ScaleAppInput struct {
