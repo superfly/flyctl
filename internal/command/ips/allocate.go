@@ -66,18 +66,28 @@ func runAllocateIPAddressV4(ctx context.Context) error {
 	if flag.GetBool(ctx, "shared") {
 		addrType = "shared_v4"
 	}
-	return runAllocateIPAddress(ctx, addrType)
+	return runAllocateIPAddress(ctx, addrType, nil)
 }
 
-func runAllocateIPAddressV6(ctx context.Context) error {
+func runAllocateIPAddressV6(ctx context.Context) (err error) {
 	private := flag.GetBool(ctx, "private")
 	if private {
-		return runAllocateIPAddress(ctx, "private_v6")
+		orgSlug := flag.GetOrg(ctx)
+		var org *api.Organization
+
+		if orgSlug != "" {
+			org, err = orgs.OrgFromSlug(ctx, orgSlug)
+			if err != nil {
+				return err
+			}
+		}
+		return runAllocateIPAddress(ctx, "private_v6", org)
 	}
-	return runAllocateIPAddress(ctx, "v6")
+
+	return runAllocateIPAddress(ctx, "v6", nil)
 }
 
-func runAllocateIPAddress(ctx context.Context, addrType string) (err error) {
+func runAllocateIPAddress(ctx context.Context, addrType string, org *api.Organization) (err error) {
 	client := client.FromContext(ctx).API()
 
 	appName := app.NameFromContext(ctx)
@@ -94,16 +104,7 @@ func runAllocateIPAddress(ctx context.Context, addrType string) (err error) {
 	}
 
 	region := flag.GetRegion(ctx)
-	orgSlug := flag.GetString(ctx, "org")
-	var org *api.Organization
 
-	if orgSlug != "" {
-		org, err = orgs.OrgFromSlug(ctx, orgSlug)
-		if err != nil {
-			return err
-		}
-
-	}
 	ipAddress, err := client.AllocateIPAddress(ctx, appName, addrType, region, org)
 	if err != nil {
 		return err
