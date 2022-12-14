@@ -59,6 +59,8 @@ type Query struct {
 	TemplateDeploymentNode *TemplateDeployment
 	ReleaseCommandNode     *ReleaseCommand
 
+	ValidateConfig AppConfig
+
 	// hack to let us alias node to a type
 	// DNSZone *DNSZone
 
