@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func configureNode(sourceDir string) (*SourceInfo, error) {
+func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("package.json")) {
 		return nil, nil
 	}

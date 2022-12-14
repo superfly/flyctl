@@ -8,7 +8,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 )
 
-func configurePhoenix(sourceDir string) (*SourceInfo, error) {
+func configurePhoenix(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	// Not phoenix, move on
 	if !helpers.FileExists(filepath.Join(sourceDir, "mix.exs")) || !checksPass(sourceDir, dirContains("mix.exs", "phoenix")) {
 		return nil, nil
@@ -25,32 +25,45 @@ func configurePhoenix(sourceDir string) (*SourceInfo, error) {
 				},
 			},
 		},
-		KillSignal: "SIGTERM",
-		Port:       8080,
-		Env: map[string]string{
-			"PORT":     "8080",
-			"PHX_HOST": "APP_FQDN",
+	}
+
+	// Detect if --copy-config and --now flags are set. If so, limited set of
+	// fly.toml file updates. Helpful for deploying PRs when the project is
+	// already setup and we only need fly.toml config changes.
+	if config.Mode == "clone" {
+		s.Env = map[string]string{
+			"PHX_HOST":        "APP_FQDN",
+			"FLY_LAUNCH_MODE": "clone",
+		}
+
+		return s, nil
+	}
+
+	s.KillSignal = "SIGTERM"
+	s.Port = 8080
+	s.Env = map[string]string{
+		"PORT":     "8080",
+		"PHX_HOST": "APP_FQDN",
+	}
+	s.DockerfileAppendix = []string{
+		"ENV ECTO_IPV6 true",
+		"ENV ERL_AFLAGS \"-proto_dist inet6_tcp\"",
+	}
+	s.InitCommands = []InitCommand{
+		{
+			Command:     "mix",
+			Args:        []string{"local.rebar", "--force"},
+			Description: "Preparing system for Elixir builds",
 		},
-		DockerfileAppendix: []string{
-			"ENV ECTO_IPV6 true",
-			"ENV ERL_AFLAGS \"-proto_dist inet6_tcp\"",
+		{
+			Command:     "mix",
+			Args:        []string{"deps.get"},
+			Description: "Installing application dependencies",
 		},
-		InitCommands: []InitCommand{
-			{
-				Command:     "mix",
-				Args:        []string{"local.rebar", "--force"},
-				Description: "Preparing system for Elixir builds",
-			},
-			{
-				Command:     "mix",
-				Args:        []string{"deps.get"},
-				Description: "Installing application dependencies",
-			},
-			{
-				Command:     "mix",
-				Args:        []string{"phx.gen.release", "--docker"},
-				Description: "Running Docker release generator",
-			},
+		{
+			Command:     "mix",
+			Args:        []string{"phx.gen.release", "--docker"},
+			Description: "Running Docker release generator",
 		},
 	}
 

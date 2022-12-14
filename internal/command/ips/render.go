@@ -2,6 +2,7 @@ package ips
 
 import (
 	"context"
+	"net"
 	"strings"
 
 	"github.com/superfly/flyctl/api"
@@ -21,7 +22,11 @@ func renderListTable(ctx context.Context, ipAddresses []api.IPAddress) {
 			ipType = "public"
 		}
 
-		rows = append(rows, []string{ipAddr.Type, ipAddr.Address, ipType, ipAddr.Region, presenters.FormatRelativeTime(ipAddr.CreatedAt)})
+		if ipAddr.Type == "shared_v4" {
+			rows = append(rows, []string{"v4", ipAddr.Address, "public (shared)", ipAddr.Region, ""})
+		} else {
+			rows = append(rows, []string{ipAddr.Type, ipAddr.Address, ipType, ipAddr.Region, presenters.FormatRelativeTime(ipAddr.CreatedAt)})
+		}
 	}
 
 	out := iostreams.FromContext(ctx).Out
@@ -48,4 +53,13 @@ func renderPrivateTable(ctx context.Context, allocations []*api.AllocationStatus
 
 	out := iostreams.FromContext(ctx).Out
 	render.Table(out, "", rows, "ID", "Region", "IP")
+}
+
+func renderSharedTable(ctx context.Context, ip net.IP) {
+	rows := make([][]string, 0, 1)
+
+	rows = append(rows, []string{"v4", ip.String(), "shared", "global"})
+
+	out := iostreams.FromContext(ctx).Out
+	render.Table(out, "", rows, "Version", "IP", "Type", "Region")
 }

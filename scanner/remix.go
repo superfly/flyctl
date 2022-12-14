@@ -1,6 +1,6 @@
 package scanner
 
-func configureRemix(sourceDir string) (*SourceInfo, error) {
+func configureRemix(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("remix.config.js")) {
 		return nil, nil
 	}

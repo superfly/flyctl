@@ -1,8 +1,10 @@
 package scanner
 
-import "path/filepath"
+import (
+	"path/filepath"
+)
 
-func configureDockerfile(sourceDir string) (*SourceInfo, error) {
+func configureDockerfile(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("Dockerfile")) {
 		return nil, nil
 	}

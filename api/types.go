@@ -299,8 +299,9 @@ type App struct {
 	IPAddresses struct {
 		Nodes []IPAddress
 	}
-	IPAddress *IPAddress
-	Builds    struct {
+	SharedIPAddress string
+	IPAddress       *IPAddress
+	Builds          struct {
 		Nodes []Build
 	}
 	SourceBuilds struct {
@@ -879,13 +880,16 @@ type HTTPHeader struct {
 }
 
 type AllocateIPAddressInput struct {
-	AppID  string `json:"appId"`
-	Type   string `json:"type"`
-	Region string `json:"region"`
+	AppID          string `json:"appId"`
+	Type           string `json:"type"`
+	Region         string `json:"region"`
+	OrganizationID string `json:"organizationId,omitempty"`
 }
 
 type ReleaseIPAddressInput struct {
-	IPAddressID string `json:"ipAddressId"`
+	AppID       *string `json:"appId"`
+	IPAddressID *string `json:"ipAddressId"`
+	IP          *string `json:"ip"`
 }
 
 type ScaleAppInput struct {

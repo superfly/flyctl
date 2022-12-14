@@ -169,7 +169,7 @@ func reportNextStepCert(cmdCtx *cmdctx.CmdContext, hostname string, cert *api.Ap
 
 	// Extract the v4 and v6 addresses we have allocated
 	for _, x := range ips {
-		if x.Type == "v4" {
+		if x.Type == "v4" || x.Type == "shared_v4" {
 			ipV4 = x
 		} else if x.Type == "v6" {
 			ipV6 = x
