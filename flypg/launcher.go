@@ -303,6 +303,7 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 	// Metadata
 	machineConfig.Metadata = map[string]string{
 		"managed-by-fly-deploy": "true",
+		"fly-managed-postgres":  "true",
 	}
 
 	// Restart policy
