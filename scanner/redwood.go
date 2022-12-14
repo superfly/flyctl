@@ -1,6 +1,6 @@
 package scanner
 
-func configureRedwood(sourceDir string) (*SourceInfo, error) {
+func configureRedwood(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("redwood.toml")) {
 		return nil, nil
 	}

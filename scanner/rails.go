@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func configureRails(sourceDir string) (*SourceInfo, error) {
+func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, dirContains("Gemfile", "rails")) {
 		return nil, nil
 	}
