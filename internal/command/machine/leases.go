@@ -187,6 +187,9 @@ func runLeaseClear(ctx context.Context) (err error) {
 	for _, machineID := range args {
 		lease, err := flapsClient.FindLease(ctx, machineID)
 		if err != nil {
+			if strings.Contains(err.Error(), " lease not found") {
+				continue
+			}
 			return err
 		}
 		fmt.Fprintf(io.Out, "clearing lease for machine %s\n", machineID)
