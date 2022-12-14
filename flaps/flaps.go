@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 
 	"github.com/samber/lo"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/logger"
 )
 
@@ -26,6 +28,7 @@ type Client struct {
 	peerIP     string
 	authToken  string
 	httpClient *http.Client
+	userAgent  string
 }
 
 func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
@@ -58,6 +61,7 @@ func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
 		peerIP:     resolvePeerIP(dialer.State().Peer.Peerip),
 		authToken:  flyctl.GetAPIToken(),
 		httpClient: httpClient,
+		userAgent:  strings.TrimSpace(fmt.Sprintf("fly-cli/%s", buildinfo.Version())),
 	}, nil
 }
 
@@ -295,6 +299,7 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 	if err != nil {
 		return err
 	}
+	req.Header.Set("User-Agent", f.userAgent)
 
 	resp, err := f.httpClient.Do(req)
 	if err != nil {
