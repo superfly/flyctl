@@ -380,6 +380,10 @@ func (client *Client) MoveApp(ctx context.Context, appName string, orgID string)
 			moveApp(input: $input) {
 				app {
 					id
+					networkId
+					organization {
+						slug
+					}
 				}
 			}
 		}
