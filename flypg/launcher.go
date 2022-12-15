@@ -334,7 +334,7 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 
 	fmt.Fprintf(out, "Setting secrets on app %s...\n", config.AppName)
 
-	var suPassword, opPassword string
+	var suPassword, opPassword, replPassword string
 	var err error
 
 	suPassword, err = helpers.RandString(15)
@@ -347,9 +347,15 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 		return nil, err
 	}
 
+	replPassword, err = helpers.RandString(15)
+	if err != nil {
+		return nil, err
+	}
+
 	secrets := map[string]string{
 		"SU_PASSWORD":       suPassword,
 		"OPERATOR_PASSWORD": opPassword,
+		"REPL_PASSWORD":     replPassword,
 	}
 
 	if config.ConsulURL == "" {
