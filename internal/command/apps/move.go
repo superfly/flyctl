@@ -6,13 +6,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/iostreams"
-
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/logger"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newMove() *cobra.Command {
@@ -33,6 +34,11 @@ organization the current user belongs to.
 	flag.Add(move,
 		flag.Yes(),
 		flag.Org(),
+		flag.Bool{
+			Name:        "skip-health-checks",
+			Description: "Update machines without waiting for health checks. (Machines only)",
+			Default:     false,
+		},
 	)
 
 	return move
@@ -40,25 +46,29 @@ organization the current user belongs to.
 
 // TODO: make internal once the move package is removed
 func RunMove(ctx context.Context) error {
-	appName := flag.FirstArg(ctx)
+	var (
+		appName  = flag.FirstArg(ctx)
+		client   = client.FromContext(ctx).API()
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
+		logger   = logger.FromContext(ctx)
+	)
 
-	client := client.FromContext(ctx).API()
-
-	app, err := client.GetAppBasic(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed fetching app: %w", err)
 	}
 
-	logger := logger.FromContext(ctx)
 	logger.Infof("app %q is currently in organization %q", app.Name, app.Organization.Slug)
-
 	org, err := prompt.Org(ctx)
 	if err != nil {
-		return nil
+		return err
 	}
 
-	io := iostreams.FromContext(ctx)
-	colorize := io.ColorScheme()
+	if app.Organization.Slug == org.Slug {
+		fmt.Fprintln(io.Out, "No changes to apply")
+		return nil
+	}
 
 	if !flag.GetYes(ctx) {
 		const msg = `Moving an app between organizations requires a complete shutdown and restart. This will result in some app downtime.
@@ -78,11 +88,60 @@ Please confirm whether you wish to restart this app now.`
 		}
 	}
 
-	if _, err := client.MoveApp(ctx, appName, org.ID); err != nil {
+	// Run machine specific migration process.
+	if app.PlatformVersion == "machines" {
+		return runMoveAppOnMachines(ctx, app, org)
+	}
+
+	_, err = client.MoveApp(ctx, appName, org.ID)
+	if err != nil {
 		return fmt.Errorf("failed moving app: %w", err)
 	}
 
 	fmt.Fprintf(io.Out, "successfully moved %s to %s\n", appName, org.Slug)
+
+	return nil
+}
+
+func runMoveAppOnMachines(ctx context.Context, app *api.AppCompact, targetOrg *api.Organization) error {
+	var (
+		client           = client.FromContext(ctx).API()
+		io               = iostreams.FromContext(ctx)
+		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
+	)
+
+	ctx, err := BuildContext(ctx, app)
+	if err != nil {
+		return err
+	}
+
+	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
+	defer releaseLeaseFunc(ctx, machines)
+	if err != nil {
+		return err
+	}
+
+	updatedApp, err := client.MoveApp(ctx, app.Name, targetOrg.ID)
+	if err != nil {
+		return fmt.Errorf("failed moving app: %w", err)
+	}
+
+	for _, machine := range machines {
+		config := machine.Config
+		config.Network.ID = updatedApp.NetworkID
+
+		input := &api.LaunchMachineInput{
+			AppID:            app.ID,
+			ID:               machine.ID,
+			Name:             machine.Name,
+			Region:           machine.Region,
+			OrgSlug:          targetOrg.ID,
+			Config:           config,
+			SkipHealthChecks: skipHealthChecks,
+		}
+		mach.Update(ctx, machine, input)
+	}
+	fmt.Fprintf(io.Out, "successfully moved %s to %s\n", app.Name, targetOrg.Name)
 
 	return nil
 }
