@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
@@ -34,7 +35,9 @@ func AcquireLeases(ctx context.Context, machines []*api.Machine) ([]*api.Machine
 	releaseFunc := func(ctx context.Context, machines []*api.Machine) {
 		for _, m := range machines {
 			if err := flapsClient.ReleaseLease(ctx, m.ID, m.LeaseNonce); err != nil {
-				fmt.Fprintf(io.Out, "failed to release lease for machine %s: %s", m.ID, err.Error())
+				if !strings.Contains(err.Error(), "lease not found") {
+					fmt.Fprintf(io.Out, "failed to release lease for machine %s: %s", m.ID, err.Error())
+				}
 			}
 		}
 	}
@@ -67,7 +70,7 @@ func AcquireLease(ctx context.Context, machine *api.Machine) (*api.Machine, rele
 		}
 	}
 
-	lease, err := flapsClient.AcquireLease(ctx, machine.ID, api.IntPointer(40))
+	lease, err := flapsClient.AcquireLease(ctx, machine.ID, api.IntPointer(120))
 	if err != nil {
 		return nil, releaseFunc, fmt.Errorf("failed to obtain lease: %w", err)
 	}
