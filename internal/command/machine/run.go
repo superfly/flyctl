@@ -513,6 +513,10 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		return machineConf, err
 	}
 
+	if machineConf.Metadata == nil {
+		machineConf.Metadata = make(map[string]string)
+	}
+
 	for k, v := range parsedMetadata {
 		machineConf.Metadata[k] = v
 	}
