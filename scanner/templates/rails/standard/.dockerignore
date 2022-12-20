@@ -2,7 +2,7 @@ fly.toml
 
 .git
 tmp
-!tmp/pids
+!tmp/pids/.keep
 log
 public/assets
 public/packs
