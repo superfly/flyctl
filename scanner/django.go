@@ -6,7 +6,7 @@ import (
 
 // setup django with a postgres database
 func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
-	if !checksPass(sourceDir, dirContains("requirements.txt", "Django")) {
+	if !checksPass(sourceDir, dirContains("requirements.txt", "(?i)Django")) {
 		return nil, nil
 	}
 
