@@ -3,6 +3,7 @@ package root
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/command/jobs"
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmd"
@@ -121,6 +122,7 @@ func New() *cobra.Command {
 
 	// newCommands is the set of commands which work with the new way
 	newCommands := []*cobra.Command{
+		jobs.New(),
 		version.New(),
 		apps.New(),
 		create.New(),  // TODO: deprecate
