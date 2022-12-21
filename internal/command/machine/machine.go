@@ -25,7 +25,7 @@ func New() *cobra.Command {
 	cmd.AddCommand(
 		newKill(),
 		newList(),
-		newRemove(),
+		newDestroy(),
 		newRun(),
 		newStart(),
 		newStop(),
