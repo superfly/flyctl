@@ -14,18 +14,19 @@ import (
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
-func newDelete() *cobra.Command {
+func newDestroy() *cobra.Command {
 	const (
-		long = `Delete a volume Requires the volume's ID
+		long = `Destroy a volume Requires the volume's ID
 number to operate. This can be found through the volumes list command`
 
-		short = "Delete a volume from the app"
+		short = "Destroy a volume"
 	)
 
-	cmd := command.New("delete <id>", short, long, runDelete,
+	cmd := command.New("destroy <id>", short, long, runDestroy,
 		command.RequireSession,
 	)
 	cmd.Args = cobra.ExactArgs(1)
+	cmd.Aliases = []string{"rm"}
 
 	flag.Add(cmd,
 		flag.Yes(),
@@ -34,7 +35,7 @@ number to operate. This can be found through the volumes list command`
 	return cmd
 }
 
-func runDelete(ctx context.Context) error {
+func runDestroy(ctx context.Context) error {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
@@ -46,7 +47,7 @@ func runDelete(ctx context.Context) error {
 		const msg = "Deleting a volume is not reversible."
 		fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 
-		switch confirmed, err := prompt.Confirm(ctx, "Are you sure you want to delete this volume?"); {
+		switch confirmed, err := prompt.Confirm(ctx, "Are you sure you want to destroy this volume?"); {
 		case err == nil:
 			if !confirmed {
 				return nil
@@ -60,10 +61,10 @@ func runDelete(ctx context.Context) error {
 
 	data, err := client.DeleteVolume(ctx, volID)
 	if err != nil {
-		return fmt.Errorf("failed deleting volume: %w", err)
+		return fmt.Errorf("failed destroying volume: %w", err)
 	}
 
-	fmt.Fprintf(io.Out, "Deleted volume %s from %s\n", volID, data.Name)
+	fmt.Fprintf(io.Out, "Destroyed volume %s from %s\n", volID, data.Name)
 
 	return nil
 }
