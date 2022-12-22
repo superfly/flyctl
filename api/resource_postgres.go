@@ -130,7 +130,7 @@ func (client *Client) ListPostgresDatabases(ctx context.Context, appName string)
 	return *data.AppPostgres.PostgresAppRole.Databases, nil
 }
 
-func (client *Client) ListPostgresClusterAttachments(ctx context.Context, appName, postgresAppName string) ([]*PostgresClusterAttachment, error) {
+func (client *Client) ListPostgresClusterAttachmentsForApp(ctx context.Context, appName, postgresAppName string) ([]*PostgresClusterAttachment, error) {
 	query := `
 		query($appName: String!, $postgresAppName: String!) {
 			postgresAttachments(appName: $appName, postgresAppName: $postgresAppName) {
@@ -146,6 +146,31 @@ func (client *Client) ListPostgresClusterAttachments(ctx context.Context, appNam
 
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
+	req.Var("postgresAppName", postgresAppName)
+
+	data, err := client.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.PostgresAttachments.Nodes, nil
+}
+
+func (client *Client) ListPostgresClusterAttachments(ctx context.Context, postgresAppName string) ([]*PostgresClusterAttachment, error) {
+	query := `
+		query($postgresAppName: String!) {
+			postgresAttachments(postgresAppName: $postgresAppName) {
+				nodes {
+					id
+					databaseName
+					databaseUser
+					environmentVariableName
+				}
+		  }
+		}
+		`
+
+	req := client.NewRequest(query)
 	req.Var("postgresAppName", postgresAppName)
 
 	data, err := client.RunWithContext(ctx, req)

@@ -140,7 +140,7 @@ func detachAppFromPostgres(ctx context.Context, leaderIP string, app *api.AppCom
 		io     = iostreams.FromContext(ctx)
 	)
 
-	attachments, err := client.ListPostgresClusterAttachments(ctx, app.ID, pgApp.ID)
+	attachments, err := client.ListPostgresClusterAttachmentsForApp(ctx, pgApp.ID, app.ID)
 	if err != nil {
 		return err
 	}
