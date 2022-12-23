@@ -194,7 +194,7 @@ func runLeaseClear(ctx context.Context) (err error) {
 		}
 		fmt.Fprintf(io.Out, "clearing lease for machine %s\n", machineID)
 
-		if err := flapsClient.ReleaseLease(ctx, lease.Data.Nonce, machineID); err != nil {
+		if err := flapsClient.ReleaseLease(ctx, machineID, lease.Data.Nonce); err != nil {
 			return err
 		}
 	}
