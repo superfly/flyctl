@@ -115,7 +115,6 @@ func runScaleCount(cmdCtx *cmdctx.CmdContext) error {
 		count, err := strconv.Atoi(cmdCtx.Args[0])
 		if err == nil {
 			groups[defaultGroupName] = count
-			fmt.Println("Using default process group:", defaultGroupName)
 		}
 	}
 
