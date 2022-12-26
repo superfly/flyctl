@@ -128,6 +128,7 @@ type MachineMount struct {
 	Path      string `json:"path"`
 	SizeGb    int    `json:"size_gb"`
 	Volume    string `json:"volume"`
+	PoolName  string `json:"pool_name"`
 }
 
 type MachineGuest struct {
