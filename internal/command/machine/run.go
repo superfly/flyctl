@@ -498,9 +498,17 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		machineConf.Guest.KernelArgs = flag.GetStringSlice(ctx, "kernel-arg")
 	}
 
-	machineConf.Env, err = parseKVFlag(ctx, "env", machineConf.Env)
+	parsedEnv, err := parseKVFlag(ctx, "env", machineConf.Env)
 	if err != nil {
 		return machineConf, err
+	}
+
+	if machineConf.Env == nil {
+		machineConf.Env = make(map[string]string)
+	}
+
+	for k, v := range parsedEnv {
+		machineConf.Env[k] = v
 	}
 
 	if flag.GetString(ctx, "schedule") != "" {
