@@ -45,9 +45,9 @@ func newClone() *cobra.Command {
 			Name:        "name",
 			Description: "Optional name for the new machine",
 		},
-		flag.Bool{
-			Name:        "from-last-snapshot",
-			Description: "Clone attached volumes from last snapshot, otherwise it will be empty",
+		flag.String{
+			Name:        "from-snapshot",
+			Description: "Clone attached volumes and restore from snapshot, use 'last' for most recent snapshot. The default is an empty volume",
 		},
 	)
 
@@ -106,35 +106,47 @@ func runMachineClone(ctx context.Context) (err error) {
 	targetConfig := source.Config
 
 	for _, mnt := range source.Config.Mounts {
-		srcVol, err := client.GetVolume(ctx, mnt.Volume)
-		if err != nil {
-			return err
+		volName := mnt.Name
+		if mnt.Name == "" {
+			// Fallback for mounts that doesn't have pool name set
+			vol, err := client.GetVolume(ctx, mnt.Volume)
+			if err != nil {
+				return err
+			}
+			volName = vol.Name
 		}
 
 		var snapshotID *string
-		if flag.GetBool(ctx, "from-last-snapshot") {
-			snapshots, err := client.GetVolumeSnapshots(ctx, srcVol.ID)
+		switch snapID := flag.GetString(ctx, "from-snapshot"); snapID {
+		case "last":
+			snapshots, err := client.GetVolumeSnapshots(ctx, mnt.Volume)
 			if err != nil {
 				return err
 			}
 			if len(snapshots) > 0 {
 				snapshot := lo.MaxBy(snapshots, func(i, j api.Snapshot) bool { return i.CreatedAt.After(j.CreatedAt) })
 				snapshotID = &snapshot.ID
-				fmt.Fprintf(out, "Creating new volume from snapshot %s of %s\n", colorize.Bold(*snapshotID), colorize.Bold(srcVol.ID))
+				fmt.Fprintf(out, "Creating new volume from snapshot %s of %s\n", colorize.Bold(*snapshotID), colorize.Bold(mnt.Volume))
 			} else {
-				fmt.Fprintf(out, "No snapshot for source volume %s, the new volume will start empty\n", colorize.Bold(srcVol.ID))
+				fmt.Fprintf(out, "No snapshot for source volume %s, the new volume will start empty\n", colorize.Bold(mnt.Volume))
+				snapshotID = nil
 			}
+		case "":
+			fmt.Fprintf(out, "Volume '%s' will start empty\n", colorize.Bold(volName))
+		default:
+			snapshotID = &snapID
 		}
 
 		volInput := api.CreateVolumeInput{
 			AppID:             app.ID,
-			Name:              srcVol.Name,
+			Name:              volName,
 			Region:            region,
 			SizeGb:            mnt.SizeGb,
 			Encrypted:         mnt.Encrypted,
 			SnapshotID:        snapshotID,
 			RequireUniqueZone: false,
 		}
+		fmt.Printf("%#v\n", volInput)
 		vol, err := client.CreateVolume(ctx, volInput)
 		if err != nil {
 			return err
