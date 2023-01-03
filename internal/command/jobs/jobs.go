@@ -3,6 +3,7 @@ package jobs
 import (
 	"context"
 	"fmt"
+
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/iostreams"
@@ -15,7 +16,9 @@ func New() *cobra.Command {
 		long = `Show jobs at Fly.io, including maybe ones you should apply to`
 	)
 
-	return command.New("jobs", short, long, run)
+	cmd := command.New("jobs", short, long, run)
+	cmd.AddCommand(NewOpen())
+	return cmd
 }
 func run(ctx context.Context) (err error) {
 	out := iostreams.FromContext(ctx).Out
@@ -25,7 +28,7 @@ The tl;dr is that we build on Rust, Go, Ruby, and Elixir, on Linux. If you're co
 
 We've got roles on our API backend, defining our developer experience; on our Elixir frontend; in security engineering; on infrastructure; and, of course, on the platform itself.
 
-Check out https://fly.io/jobs to see our open roles.`)
+Check out https://fly.io/jobs to see our open roles. Or run: fly jobs open`)
 
 	if err != nil {
 		return err
