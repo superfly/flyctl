@@ -146,7 +146,6 @@ func runMachineClone(ctx context.Context) (err error) {
 			SnapshotID:        snapshotID,
 			RequireUniqueZone: false,
 		}
-		fmt.Printf("%#v\n", volInput)
 		vol, err := client.CreateVolume(ctx, volInput)
 		if err != nil {
 			return err
