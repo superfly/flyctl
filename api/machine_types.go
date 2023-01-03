@@ -204,7 +204,7 @@ type MachineConfig struct {
 	Guest     *MachineGuest           `json:"guest,omitempty"`
 	Metrics   *MachineMetrics         `json:"metrics"`
 	Schedule  string                  `json:"schedule,omitempty"`
-	Network   MachineNetwork          `json:"network,omitempty"`
+	Network   *MachineNetwork         `json:"network,omitempty"`
 	Checks    map[string]MachineCheck `json:"checks,omitempty"`
 }
 

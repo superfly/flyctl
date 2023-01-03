@@ -128,7 +128,7 @@ func runMoveAppOnMachines(ctx context.Context, app *api.AppCompact, targetOrg *a
 
 	for _, machine := range machines {
 		config := machine.Config
-		config.Network.ID = updatedApp.NetworkID
+		config.Network = &api.MachineNetwork{ID: updatedApp.NetworkID}
 
 		input := &api.LaunchMachineInput{
 			AppID:            app.ID,
