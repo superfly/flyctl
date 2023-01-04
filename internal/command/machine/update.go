@@ -37,7 +37,6 @@ func newUpdate() *cobra.Command {
 		flag.Image(),
 		sharedFlags,
 		flag.Yes(),
-		flag.Detach(),
 		flag.Bool{
 			Name:        "skip-health-checks",
 			Description: "Updates machine without waiting for health checks.",
