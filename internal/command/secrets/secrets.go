@@ -66,7 +66,13 @@ func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Rel
 			fmt.Fprint(out, "The --detach option isn't available for Machine apps")
 		}
 
-		return deploy.DeployMachinesApp(ctx, app, "rolling", api.MachineConfig{}, nil)
+		md, err := deploy.NewMachineDeployment(ctx, deploy.MachineDeploymentArgs{
+			RestartOnly: true,
+		})
+		if err != nil {
+			return err
+		}
+		return md.DeployMachinesApp(ctx)
 	}
 
 	if !app.Deployed {
