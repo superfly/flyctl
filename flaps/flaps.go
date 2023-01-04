@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/terminal"
 )
 
 var NonceHeader = "fly-machine-lease-nonce"
@@ -226,9 +227,25 @@ func (f *Client) ListActive(ctx context.Context) ([]*api.Machine, error) {
 	}
 
 	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
-		return m.Config != nil && m.Config.Metadata["process_group"] != "release_command" && m.State != "destroyed"
+		return !m.HasProcessGroup(api.MachineProcessGroupReleaseCommand) && m.IsActive()
 	})
 
+	return machines, nil
+}
+
+// returns apps that are part of the fly apps platform that are not destroyed
+func (f *Client) ListFlyAppsMachines(ctx context.Context) ([]*api.Machine, error) {
+	allMachines := make([]*api.Machine, 0)
+	err := f.sendRequest(ctx, http.MethodGet, "", nil, &allMachines, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list VMs: %w", err)
+	}
+	machines := make([]*api.Machine, 0)
+	for _, m := range allMachines {
+		if m.IsFlyAppsPlatform() && m.IsActive() {
+			machines = append(machines, m)
+		}
+	}
 	return machines, nil
 }
 
@@ -279,6 +296,7 @@ func (f *Client) AcquireLease(ctx context.Context, machineID string, ttl *int) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to get lease on VM %s: %w", machineID, err)
 	}
+	terminal.Debugf("got lease on machine %s: %v\n", machineID, out)
 	return out, nil
 }
 

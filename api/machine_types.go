@@ -5,6 +5,13 @@ import (
 	"time"
 )
 
+const MachineConfigMetadataKeyFlyPlatformVersion = "fly_platform_version"
+const MachineConfigMetadataKeyFlyRelease = "fly_release"
+const MachineFlyPlatformVersion2 = "v2"
+const MachineProcessGroupApp = "app"
+const MachineProcessGroupReleaseCommand = "release_command"
+const MachineStateDestroyed = "destroyed"
+
 type Machine struct {
 	ID       string          `json:"id"`
 	Name     string          `json:"name"`
@@ -36,6 +43,18 @@ func (m Machine) ImageRefWithVersion() string {
 	}
 
 	return ref
+}
+
+func (m *Machine) IsFlyAppsPlatform() bool {
+	return m.Config != nil && m.Config.Metadata[MachineConfigMetadataKeyFlyPlatformVersion] == MachineFlyPlatformVersion2 && m.State != MachineStateDestroyed
+}
+
+func (m *Machine) IsActive() bool {
+	return m.State != MachineStateDestroyed
+}
+
+func (m *Machine) HasProcessGroup(desired string) bool {
+	return m.Config != nil && m.Config.Metadata["process_group"] == desired
 }
 
 func (m Machine) ImageVersion() string {
@@ -174,9 +193,9 @@ type MachineCheckStatus struct {
 }
 
 type MachinePort struct {
-	Port       *int32   `json:"port,omitempty" toml:"port,omitempty"`
-	StartPort  *int32   `json:"start_port,omitempty" toml:"start_port,omitempty"`
-	EndPort    *int32   `json:"end_port,omitempty" toml:"end_port,omitempty"`
+	Port       *int     `json:"port,omitempty" toml:"port,omitempty"`
+	StartPort  *int     `json:"start_port,omitempty" toml:"start_port,omitempty"`
+	EndPort    *int     `json:"end_port,omitempty" toml:"end_port,omitempty"`
 	Handlers   []string `json:"handlers,omitempty" toml:"handlers,omitempty"`
 	ForceHttps bool     `json:"force_https,omitempty" toml:"force_https,omitempty"`
 }
