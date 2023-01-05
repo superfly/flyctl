@@ -294,11 +294,15 @@ func updateStolonConfig(ctx context.Context, app *api.AppCompact, leaderIP strin
 		}
 	}
 
-	cmd := flypg.NewFromInstance(leaderIP, dialer)
+	cmd, err := flypg.NewCommand(ctx, app)
+	if err != nil {
+		return false, err
+	}
 
 	fmt.Fprintln(io.Out, "Performing update...")
 
-	if err := cmd.UpdateSettings(ctx, changes); err != nil {
+	err = cmd.UpdateSettings(ctx, leaderIP, changes)
+	if err != nil {
 		return false, err
 	}
 	fmt.Fprintln(io.Out, "Update complete!")
