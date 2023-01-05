@@ -108,6 +108,12 @@ func hasRequiredVersionOnMachines(machines []*api.Machine, cluster, standalone s
 				return err
 			}
 		}
+		if machine.ImageRepository() == "flyio/postgres-timescaledb" {
+			requiredVersion, err = version.NewVersion(cluster)
+			if err != nil {
+				return err
+			}
+		}
 
 		if requiredVersion == nil {
 			return fmt.Errorf("unable to resolve image version")
