@@ -73,7 +73,9 @@ func runConfigView(ctx context.Context) error {
 
 func runMachineConfigView(ctx context.Context, app *api.AppCompact) (err error) {
 	var (
-		MinPostgresHaVersion = "0.0.19"
+		MinPostgresHaVersion         = "0.0.19"
+		MinPostgresStandaloneVersion = "0.0.7"
+		MinPostgresFlexVersion       = "0.0.3"
 	)
 
 	ctx, err = apps.BuildContext(ctx, app)
@@ -86,7 +88,11 @@ func runMachineConfigView(ctx context.Context, app *api.AppCompact) (err error) 
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+	if app.ImageDetails.Repository == "flyio/postgres-flex" {
+		return fmt.Errorf("this feature is not currently supported for this image type")
+	}
+
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 

@@ -91,7 +91,9 @@ func runListUsers(ctx context.Context) error {
 func runMachineListUsers(ctx context.Context, app *api.AppCompact) (err error) {
 	// Minimum image version requirements
 	var (
-		MinPostgresHaVersion = "0.0.19"
+		MinPostgresHaVersion         = "0.0.19"
+		MinPostgresFlexVersion       = "0.0.3"
+		MinPostgresStandaloneVersion = "0.0.7"
 	)
 
 	machines, err := mach.ListActive(ctx)
@@ -99,7 +101,7 @@ func runMachineListUsers(ctx context.Context, app *api.AppCompact) (err error) {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 

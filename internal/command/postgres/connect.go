@@ -89,8 +89,9 @@ func runConnect(ctx context.Context) error {
 
 func runMachineConnect(ctx context.Context, app *api.AppCompact) error {
 	var (
-		MinPostgresStandaloneVersion = "0.0.4"
 		MinPostgresHaVersion         = "0.0.9"
+		MinPostgresFlexVersion       = "0.0.3"
+		MinPostgresStandaloneVersion = "0.0.4"
 
 		database = flag.GetString(ctx, "database")
 		user     = flag.GetString(ctx, "user")
@@ -104,7 +105,7 @@ func runMachineConnect(ctx context.Context, app *api.AppCompact) error {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresStandaloneVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 
