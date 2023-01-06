@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/google/shlex"
+	"github.com/jpillora/backoff"
 	"github.com/morikuni/aec"
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
@@ -77,6 +79,215 @@ type machineDeployment struct {
 	waitTimeout           time.Duration
 	leaseTimeout          time.Duration
 	leaseDelayBetween     time.Duration
+}
+
+type MachineSet interface {
+	AcquireLeases(context.Context, time.Duration) error
+	ReleaseLeases(context.Context) error
+	IsEmpty() bool
+	GetMachines() []LeasableMachine
+}
+
+type machineSet struct {
+	machines []LeasableMachine
+}
+
+type LeasableMachine interface {
+	Machine() *api.Machine
+	HasLease() bool
+	AcquireLease(context.Context, time.Duration) error
+	ReleaseLease(context.Context) error
+	Update(context.Context, api.LaunchMachineInput) error
+	WaitForState(context.Context, string, time.Duration) error
+}
+
+type leasableMachine struct {
+	flapsClient *flaps.Client
+
+	lock            sync.RWMutex
+	machine         *api.Machine
+	leaseNonce      string
+	leaseExpiration time.Time
+}
+
+func NewLeasableMachine(flapsClient *flaps.Client, machine *api.Machine) LeasableMachine {
+	return &leasableMachine{
+		flapsClient: flapsClient,
+		machine:     machine,
+	}
+}
+
+func (lm *leasableMachine) Update(ctx context.Context, input api.LaunchMachineInput) error {
+	if !lm.HasLease() {
+		return fmt.Errorf("no current lease for machine %s", lm.machine.ID)
+	}
+	lm.lock.Lock()
+	defer lm.lock.Unlock()
+	updateMachine, err := lm.flapsClient.Update(ctx, input, lm.leaseNonce)
+	if err != nil {
+		return err
+	}
+	lm.machine = updateMachine
+	return nil
+}
+
+func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string, timeout time.Duration) error {
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	b := &backoff.Backoff{
+		Min:    500 * time.Millisecond,
+		Max:    2 * time.Second,
+		Factor: 2,
+		Jitter: true,
+	}
+	for {
+		err := lm.flapsClient.Wait(waitCtx, lm.Machine(), desiredState, timeout)
+		switch {
+		case errors.Is(err, context.Canceled):
+			return err
+		case errors.Is(err, context.DeadlineExceeded):
+			return fmt.Errorf("timeout reached waiting for machine to %s %w", desiredState, err)
+		case err != nil:
+			time.Sleep(b.Duration())
+			continue
+		}
+		return nil
+	}
+}
+
+func (lm *leasableMachine) Machine() *api.Machine {
+	lm.lock.RLock()
+	defer lm.lock.RUnlock()
+	return lm.machine
+}
+
+func (lm *leasableMachine) HasLease() bool {
+	lm.lock.RLock()
+	defer lm.lock.RUnlock()
+	return lm.leaseNonce != "" && lm.leaseExpiration.After(time.Now())
+}
+
+func (lm *leasableMachine) AcquireLease(ctx context.Context, duration time.Duration) error {
+	if lm.HasLease() {
+		return nil
+	}
+	seconds := int(duration.Seconds())
+	lease, err := lm.flapsClient.AcquireLease(ctx, lm.machine.ID, &seconds)
+	if err != nil {
+		return err
+	}
+	if lease.Status != "success" {
+		return fmt.Errorf("did not acquire lease for machine %s status: %s code: %s message: %s", lm.machine.ID, lease.Status, lease.Code, lease.Message)
+	}
+	if lease.Data == nil {
+		return fmt.Errorf("missing data from lease response for machine %s, assuming not successful", lm.machine.ID)
+	}
+	lm.lock.Lock()
+	defer lm.lock.Unlock()
+	lm.leaseNonce = lease.Data.Nonce
+	lm.leaseExpiration = time.Unix(lease.Data.ExpiresAt, 0)
+	return nil
+}
+
+func (lm *leasableMachine) ReleaseLease(ctx context.Context) error {
+	if !lm.HasLease() {
+		lm.resetLease()
+		return nil
+	}
+	// don't bother releasing expired leases, and allow for some clock skew between flyctl and flaps
+	if time.Since(lm.leaseExpiration) > 5*time.Second {
+		lm.resetLease()
+		return nil
+	}
+	err := lm.flapsClient.ReleaseLease(ctx, lm.machine.ID, lm.leaseNonce)
+	if err != nil {
+		terminal.Warnf("failed to release lease for machine %s (expires at %s): %v\n", lm.machine.ID, lm.leaseExpiration.Format(time.RFC3339), err)
+		lm.resetLease()
+		return err
+	}
+	lm.resetLease()
+	return nil
+}
+
+func (lm *leasableMachine) resetLease() {
+	lm.lock.Lock()
+	defer lm.lock.Unlock()
+	lm.leaseNonce = ""
+}
+
+func NewMachineSet(flapsClient *flaps.Client, machines []*api.Machine) MachineSet {
+	leaseMachines := make([]LeasableMachine, 0)
+	for _, m := range machines {
+		leaseMachines = append(leaseMachines, NewLeasableMachine(flapsClient, m))
+	}
+	return &machineSet{
+		machines: leaseMachines,
+	}
+}
+
+func (ms *machineSet) IsEmpty() bool {
+	return len(ms.machines) == 0
+}
+
+func (ms *machineSet) GetMachines() []LeasableMachine {
+	return ms.machines
+}
+
+func (ms *machineSet) AcquireLeases(ctx context.Context, duration time.Duration) error {
+	results := make(chan error, len(ms.machines))
+	var wg sync.WaitGroup
+	for _, m := range ms.machines {
+		wg.Add(1)
+		go func(m LeasableMachine) {
+			defer wg.Done()
+			results <- m.AcquireLease(ctx, duration)
+		}(m)
+	}
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+	hadError := false
+	for err := range results {
+		if err != nil {
+			hadError = true
+			terminal.Warnf("failed to acquire lease: %v\n", err)
+		}
+	}
+	if hadError {
+		if err := ms.ReleaseLeases(ctx); err != nil {
+			terminal.Warnf("error releasing machine leases: %v\n", err)
+		}
+		return fmt.Errorf("error acquiring leases on all machines")
+	}
+	return nil
+}
+
+func (ms *machineSet) ReleaseLeases(ctx context.Context) error {
+	results := make(chan error, len(ms.machines))
+	var wg sync.WaitGroup
+	for _, m := range ms.machines {
+		wg.Add(1)
+		go func(m LeasableMachine) {
+			defer wg.Done()
+			results <- m.ReleaseLease(ctx)
+		}(m)
+	}
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+	hadError := false
+	for err := range results {
+		if err != nil {
+			hadError = true
+			terminal.Warnf("failed to release lease: %v\n", err)
+		}
+	}
+	if hadError {
+		return fmt.Errorf("error releasing leases on machines")
+	}
+	return nil
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
