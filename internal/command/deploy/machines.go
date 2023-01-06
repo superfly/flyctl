@@ -523,7 +523,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 			return err
 		}
 		if len(machines) > 0 {
-			rows := [][]string{}
+			rows := make([][]string, 0)
 			for _, machine := range machines {
 				var volName string
 				if machine.Config != nil && len(machine.Config.Mounts) > 0 {
