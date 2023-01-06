@@ -28,6 +28,11 @@ var (
 	checkPathVm    = "/flycheck/vm"
 )
 
+const (
+	ReplicationManager = "repmgr"
+	StolonManager      = "stolon"
+)
+
 type Launcher struct {
 	client *api.Client
 }
@@ -90,7 +95,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		if machineConf.Image == "" {
 
 			imageRepo := "flyio/postgres"
-			if config.Manager == "flex" {
+			if config.Manager == ReplicationManager {
 				imageRepo = "flyio/postgres-flex"
 			}
 
