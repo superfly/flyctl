@@ -2,12 +2,16 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/jpillora/backoff"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
@@ -21,6 +25,7 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
+// FIXME: move a lot of this stuff to internal/machine pkg... maybe all of it?
 type MachineDeployment interface {
 	DeployMachinesApp(context.Context) error
 }
@@ -37,11 +42,221 @@ type machineDeployment struct {
 	app                        *api.AppCompact
 	appConfig                  *app.Config
 	img                        *imgsrc.DeploymentImage
+	machineSet                 MachineSet
 	strategy                   string
 	releaseId                  string
 	releaseVersion             int
 	autoConfirmAppsV2Migration bool
 	restartOnly                bool
+}
+
+type MachineSet interface {
+	AcquireLeases(context.Context, time.Duration) error
+	ReleaseLeases(context.Context) error
+	IsEmpty() bool
+	GetMachines() []LeasableMachine
+}
+
+type machineSet struct {
+	machines []LeasableMachine
+}
+
+type LeasableMachine interface {
+	Machine() *api.Machine
+	HasLease() bool
+	AcquireLease(context.Context, time.Duration) error
+	ReleaseLease(context.Context) error
+	Update(context.Context, api.LaunchMachineInput) error
+	WaitForState(context.Context, string, time.Duration) error
+}
+
+type leasableMachine struct {
+	flapsClient *flaps.Client
+
+	lock            sync.RWMutex
+	machine         *api.Machine
+	leaseNonce      string
+	leaseExpiration time.Time
+}
+
+func NewLeasableMachine(flapsClient *flaps.Client, machine *api.Machine) LeasableMachine {
+	return &leasableMachine{
+		flapsClient: flapsClient,
+		machine:     machine,
+	}
+}
+
+func (lm *leasableMachine) Update(ctx context.Context, input api.LaunchMachineInput) error {
+	if !lm.HasLease() {
+		return fmt.Errorf("no current lease for machine %s", lm.machine.ID)
+	}
+	lm.lock.Lock()
+	defer lm.lock.Unlock()
+	updateMachine, err := lm.flapsClient.Update(ctx, input, lm.leaseNonce)
+	if err != nil {
+		return err
+	}
+	lm.machine = updateMachine
+	return nil
+}
+
+func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string, timeout time.Duration) error {
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	b := &backoff.Backoff{
+		Min:    500 * time.Millisecond,
+		Max:    2 * time.Second,
+		Factor: 2,
+		Jitter: true,
+	}
+	for {
+		err := lm.flapsClient.Wait(waitCtx, lm.Machine(), desiredState, timeout)
+		switch {
+		case errors.Is(err, context.Canceled):
+			return err
+		case errors.Is(err, context.DeadlineExceeded):
+			return fmt.Errorf("timeout reached waiting for machine to %s %w", desiredState, err)
+		case err != nil:
+			time.Sleep(b.Duration())
+			continue
+		}
+		return nil
+	}
+}
+
+func (lm *leasableMachine) Machine() *api.Machine {
+	lm.lock.RLock()
+	defer lm.lock.RUnlock()
+	return lm.machine
+}
+
+func (lm *leasableMachine) HasLease() bool {
+	lm.lock.RLock()
+	defer lm.lock.RUnlock()
+	return lm.leaseNonce != "" && lm.leaseExpiration.After(time.Now())
+}
+
+func (lm *leasableMachine) AcquireLease(ctx context.Context, duration time.Duration) error {
+	if lm.HasLease() {
+		return nil
+	}
+	seconds := int(duration.Seconds())
+	lease, err := lm.flapsClient.AcquireLease(ctx, lm.machine.ID, &seconds)
+	if err != nil {
+		return err
+	}
+	if lease.Status != "success" {
+		return fmt.Errorf("did not acquire lease for machine %s status: %s code: %s message: %s", lm.machine.ID, lease.Status, lease.Code, lease.Message)
+	}
+	if lease.Data == nil {
+		return fmt.Errorf("missing data from lease response for machine %s, assuming not successful", lm.machine.ID)
+	}
+	lm.lock.Lock()
+	defer lm.lock.Unlock()
+	lm.leaseNonce = lease.Data.Nonce
+	lm.leaseExpiration = time.Unix(lease.Data.ExpiresAt, 0)
+	return nil
+}
+
+func (lm *leasableMachine) ReleaseLease(ctx context.Context) error {
+	if !lm.HasLease() {
+		lm.resetLease()
+		return nil
+	}
+	// don't bother releasing expired leases, and allow for some clock skew between flyctl and flaps
+	if time.Since(lm.leaseExpiration) > 5*time.Second {
+		lm.resetLease()
+		return nil
+	}
+	err := lm.flapsClient.ReleaseLease(ctx, lm.machine.ID, lm.leaseNonce)
+	if err != nil {
+		terminal.Warnf("failed to release lease for machine %s (expires at %s): %v\n", lm.machine.ID, lm.leaseExpiration.Format(time.RFC3339), err)
+		lm.resetLease()
+		return err
+	}
+	lm.resetLease()
+	return nil
+}
+
+func (lm *leasableMachine) resetLease() {
+	lm.lock.Lock()
+	defer lm.lock.Unlock()
+	lm.leaseNonce = ""
+}
+
+func NewMachineSet(flapsClient *flaps.Client, machines []*api.Machine) MachineSet {
+	leaseMachines := make([]LeasableMachine, 0)
+	for _, m := range machines {
+		leaseMachines = append(leaseMachines, NewLeasableMachine(flapsClient, m))
+	}
+	return &machineSet{
+		machines: leaseMachines,
+	}
+}
+
+func (ms *machineSet) IsEmpty() bool {
+	return len(ms.machines) == 0
+}
+
+func (ms *machineSet) GetMachines() []LeasableMachine {
+	return ms.machines
+}
+
+func (ms *machineSet) AcquireLeases(ctx context.Context, duration time.Duration) error {
+	results := make(chan error, len(ms.machines))
+	var wg sync.WaitGroup
+	for _, m := range ms.machines {
+		wg.Add(1)
+		go func(m LeasableMachine) {
+			defer wg.Done()
+			results <- m.AcquireLease(ctx, duration)
+		}(m)
+	}
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+	hadError := false
+	for err := range results {
+		if err != nil {
+			hadError = true
+			terminal.Warnf("failed to acquire lease: %v\n", err)
+		}
+	}
+	if hadError {
+		if err := ms.ReleaseLeases(ctx); err != nil {
+			terminal.Warnf("error releasing machine leases: %v\n", err)
+		}
+		return fmt.Errorf("error acquiring leases on all machines")
+	}
+	return nil
+}
+
+func (ms *machineSet) ReleaseLeases(ctx context.Context) error {
+	results := make(chan error, len(ms.machines))
+	var wg sync.WaitGroup
+	for _, m := range ms.machines {
+		wg.Add(1)
+		go func(m LeasableMachine) {
+			defer wg.Done()
+			results <- m.ReleaseLease(ctx)
+		}(m)
+	}
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+	hadError := false
+	for err := range results {
+		if err != nil {
+			hadError = true
+			terminal.Warnf("failed to release lease: %v\n", err)
+		}
+	}
+	if hadError {
+		return fmt.Errorf("error releasing leases on machines")
+	}
+	return nil
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
@@ -75,6 +290,10 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		restartOnly:                args.RestartOnly,
 	}
 	md.setStrategy(args.Strategy)
+	err = md.setMachinesForDeployment(ctx)
+	if err != nil {
+		return nil, err
+	}
 	err = md.createReleaseInBackend(ctx)
 	if err != nil {
 		return nil, err
@@ -131,14 +350,16 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) (err error) 
 	defer md.flapsClient.Destroy(ctx, removeInput)
 
 	// Ensure the command starts running
-	err = md.flapsClient.Wait(ctx, machine, "started")
+	// FIXME: get these times from fly.toml?
+	err = md.flapsClient.Wait(ctx, machine, "started", 60*time.Second)
 
 	if err != nil {
 		return err
 	}
 
 	// Wait for the release command VM to stop before moving on
-	err = md.flapsClient.Wait(ctx, machine, "stopped")
+	// FIXME: get these times from fly.toml?
+	err = md.flapsClient.Wait(ctx, machine, "stopped", 120*time.Second)
 
 	if err != nil {
 		return fmt.Errorf("failed determining whether the release command finished. %w", err)
@@ -204,78 +425,23 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) (err error) 
 		Region:  regionCode,
 	}
 
-	machines, err := md.flapsClient.ListFlyAppsMachines(ctx)
-	if err != nil {
-		return err
-	}
-
-	// migrate non-platform machines into fly platform
-	if len(machines) == 0 {
-		terminal.Debug("Found no machines that are part of Fly Apps platform. Check for other machines...")
-		machines, err = md.flapsClient.ListActive(ctx)
-		if err != nil {
-			return err
-		}
-		if len(machines) > 0 {
-			rows := [][]string{}
-			for _, machine := range machines {
-				var volName string
-				if machine.Config != nil && len(machine.Config.Mounts) > 0 {
-					volName = machine.Config.Mounts[0].Volume
-				}
-
-				rows = append(rows, []string{
-					machine.ID,
-					machine.Name,
-					machine.State,
-					machine.Region,
-					machine.ImageRefWithVersion(),
-					machine.PrivateIP,
-					volName,
-					machine.CreatedAt,
-					machine.UpdatedAt,
-				})
-			}
-			terminal.Warnf("Found %d machines that are not part of Fly Apps platform:\n", len(machines))
-			_ = render.Table(io.Out, md.app.Name, rows, "ID", "Name", "State", "Region", "Image", "IP Address", "Volume", "Created", "Last Updated")
-			if !md.autoConfirmAppsV2Migration {
-				switch confirmed, err := prompt.Confirmf(ctx, "Migrate %d existing machines into Fly Apps platform?", len(machines)); {
-				case err == nil:
-					if !confirmed {
-						terminal.Info("Skipping machines migration to Fly Apps platforms and the deployment")
-						return nil
-					}
-				case prompt.IsNonInteractive(err):
-					return prompt.NonInteractiveError("not running interactively, use --auto-confirm flag to confirm")
-				default:
-					return err
-				}
-			}
-			terminal.Infof("Migrating %d machines to the Fly Apps platform\n", len(machines))
-		}
-	}
-
 	msg := fmt.Sprintf("Deploying with %s strategy", md.strategy)
 	spin := spinner.Run(io, msg)
+	// FIXME: set success/failure based on deployment result
 	defer spin.StopWithSuccess()
 
-	if len(machines) > 0 {
+	if !md.machineSet.IsEmpty() {
 
-		// FIXME: pull this out to its own method, and do retries for a little bit before giving up
-		for _, machine := range machines {
-			leaseTTL := api.IntPointer(30)
-			lease, err := md.flapsClient.AcquireLease(ctx, machine.ID, leaseTTL)
-			if err != nil {
-				return err
-			}
-			machine.LeaseNonce = lease.Data.Nonce
-
-			defer releaseLease(ctx, machine)
+		err := md.machineSet.AcquireLeases(ctx, 120*time.Second)
+		defer md.machineSet.ReleaseLeases(ctx)
+		if err != nil {
+			return err
 		}
 
 		// FIXME: handle deploy strategy: rolling, immediate, canary, bluegreen
 
-		for _, machine := range machines {
+		for _, m := range md.machineSet.GetMachines() {
+			machine := m.Machine()
 			launchInput.ID = machine.ID
 
 			if md.restartOnly {
@@ -315,18 +481,17 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) (err error) 
 				launchInput.Config.Mounts = machine.Config.Mounts
 			}
 
-			updateResult, err := md.flapsClient.Update(ctx, launchInput, machine.LeaseNonce)
+			err := m.Update(ctx, launchInput)
 			if err != nil {
 				if md.strategy != "immediate" {
 					return err
-
 				} else {
 					fmt.Printf("Continuing after error: %s\n", err)
 				}
 			}
 
 			if md.strategy != "immediate" {
-				err = md.flapsClient.Wait(ctx, updateResult, "started")
+				err := m.WaitForState(ctx, api.MachineStateStarted, 120*time.Second)
 				if err != nil {
 					return err
 				}
@@ -344,13 +509,59 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) (err error) 
 	return
 }
 
-func releaseLease(ctx context.Context, machine *api.Machine) error {
-	var client = flaps.FromContext(ctx)
-
-	if err := client.ReleaseLease(ctx, machine.ID, machine.LeaseNonce); err != nil {
-		return fmt.Errorf("failed to release lease: %w", err)
+func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error {
+	machines, err := md.flapsClient.ListFlyAppsMachines(ctx)
+	if err != nil {
+		return err
 	}
 
+	// migrate non-platform machines into fly platform
+	if len(machines) == 0 {
+		terminal.Debug("Found no machines that are part of Fly Apps Platform. Check for other machines...")
+		machines, err = md.flapsClient.ListActive(ctx)
+		if err != nil {
+			return err
+		}
+		if len(machines) > 0 {
+			rows := [][]string{}
+			for _, machine := range machines {
+				var volName string
+				if machine.Config != nil && len(machine.Config.Mounts) > 0 {
+					volName = machine.Config.Mounts[0].Volume
+				}
+
+				rows = append(rows, []string{
+					machine.ID,
+					machine.Name,
+					machine.State,
+					machine.Region,
+					machine.ImageRefWithVersion(),
+					machine.PrivateIP,
+					volName,
+					machine.CreatedAt,
+					machine.UpdatedAt,
+				})
+			}
+			terminal.Warnf("Found %d machines that are not part of the Fly Apps Platform:\n", len(machines))
+			_ = render.Table(iostreams.FromContext(ctx).Out, fmt.Sprintf("%s machines", md.app.Name), rows, "ID", "Name", "State", "Region", "Image", "IP Address", "Volume", "Created", "Last Updated")
+			if !md.autoConfirmAppsV2Migration {
+				switch confirmed, err := prompt.Confirmf(ctx, "Migrate %d existing machines into Fly Apps Platform?", len(machines)); {
+				case err == nil:
+					if !confirmed {
+						terminal.Info("Skipping machines migration to Fly Apps Platform and the deployment")
+						return nil
+					}
+				case prompt.IsNonInteractive(err):
+					return prompt.NonInteractiveError("not running interactively, use --auto-confirm flag to confirm")
+				default:
+					return err
+				}
+			}
+			terminal.Infof("Migrating %d machines to the Fly Apps Platform\n", len(machines))
+		}
+	}
+
+	md.machineSet = NewMachineSet(md.flapsClient, machines)
 	return nil
 }
 
@@ -395,15 +606,12 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 	return nil
 }
 
-func (md *machineDeployment) flyRelease() string {
-	return fmt.Sprintf("%s_%d", md.releaseId, md.releaseVersion)
-}
-
 func (md *machineDeployment) baseMachineConfig() *api.MachineConfig {
 	machineConfig := &api.MachineConfig{}
 	machineConfig.Metadata = map[string]string{
 		api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
-		api.MachineConfigMetadataKeyFlyRelease:         md.flyRelease(),
+		api.MachineConfigMetadataKeyFlyReleaseId:       md.releaseId,
+		api.MachineConfigMetadataKeyFlyReleaseVersion:  strconv.Itoa(md.releaseVersion),
 	}
 
 	if md.restartOnly {

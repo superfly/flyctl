@@ -6,11 +6,14 @@ import (
 )
 
 const MachineConfigMetadataKeyFlyPlatformVersion = "fly_platform_version"
-const MachineConfigMetadataKeyFlyRelease = "fly_release"
+const MachineConfigMetadataKeyFlyReleaseId = "fly_release_id"
+const MachineConfigMetadataKeyFlyReleaseVersion = "fly_release_version"
 const MachineFlyPlatformVersion2 = "v2"
 const MachineProcessGroupApp = "app"
 const MachineProcessGroupReleaseCommand = "release_command"
 const MachineStateDestroyed = "destroyed"
+const MachineStateStarted = "started"
+const MachineStateStopped = "stopped"
 
 type Machine struct {
 	ID       string          `json:"id"`
@@ -230,12 +233,16 @@ type MachineConfig struct {
 }
 
 type MachineLease struct {
-	Status string `json:"status"`
-	Data   struct {
-		Nonce     string `json:"nonce"`
-		ExpiresAt int64  `json:"expires_at"`
-		Owner     string `json:"owner"`
-	}
+	Status  string            `json:"status"`
+	Data    *MachineLeaseData `json:"data,omitempty"`
+	Message string            `json:"message,omitempty"`
+	Code    string            `json:"code,omitempty"`
+}
+
+type MachineLeaseData struct {
+	Nonce     string `json:"nonce"`
+	ExpiresAt int64  `json:"expires_at"`
+	Owner     string `json:"owner"`
 }
 
 type MachineStartResponse struct {
