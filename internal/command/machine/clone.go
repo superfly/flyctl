@@ -106,16 +106,6 @@ func runMachineClone(ctx context.Context) (err error) {
 	targetConfig := source.Config
 
 	for _, mnt := range source.Config.Mounts {
-		volName := mnt.Name
-		if mnt.Name == "" {
-			// Fallback for mounts that doesn't have pool name set
-			vol, err := client.GetVolume(ctx, mnt.Volume)
-			if err != nil {
-				return err
-			}
-			volName = vol.Name
-		}
-
 		var snapshotID *string
 		switch snapID := flag.GetString(ctx, "from-snapshot"); snapID {
 		case "last":
@@ -132,14 +122,14 @@ func runMachineClone(ctx context.Context) (err error) {
 				snapshotID = nil
 			}
 		case "":
-			fmt.Fprintf(out, "Volume '%s' will start empty\n", colorize.Bold(volName))
+			fmt.Fprintf(out, "Volume '%s' will start empty\n", colorize.Bold(mnt.Name))
 		default:
 			snapshotID = &snapID
 		}
 
 		volInput := api.CreateVolumeInput{
 			AppID:             app.ID,
-			Name:              volName,
+			Name:              mnt.Name,
 			Region:            region,
 			SizeGb:            mnt.SizeGb,
 			Encrypted:         mnt.Encrypted,
