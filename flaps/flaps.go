@@ -339,7 +339,12 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		err := resp.Body.Close()
+		if err != nil {
+			terminal.Debugf("error closing response body: %v\n", err)
+		}
+	}()
 
 	if resp.StatusCode > 299 {
 		return handleAPIError(resp)
