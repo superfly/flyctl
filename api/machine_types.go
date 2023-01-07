@@ -71,6 +71,30 @@ func (m Machine) ImageRepository() string {
 	return m.ImageRef.Repository
 }
 
+type HealthCheckStatus struct {
+	Total, Passing, Warn, Critical int
+}
+
+func (hcs *HealthCheckStatus) AllPassing() bool {
+	return hcs.Passing == hcs.Total
+}
+
+func (m *Machine) HealthCheckStatus() *HealthCheckStatus {
+	res := &HealthCheckStatus{}
+	res.Total = len(m.Checks)
+	for _, check := range m.Checks {
+		switch check.Status {
+		case "passing":
+			res.Passing += 1
+		case "warn":
+			res.Warn += 1
+		case "critical":
+			res.Critical += 1
+		}
+	}
+	return res
+}
+
 type machineImageRef struct {
 	Registry   string            `json:"registry"`
 	Repository string            `json:"repository"`
