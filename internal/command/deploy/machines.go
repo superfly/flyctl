@@ -33,6 +33,7 @@ type MachineDeployment interface {
 type MachineDeploymentArgs struct {
 	Strategy             string
 	AutoConfirmMigration bool
+	SkipHealthChecks     bool
 	RestartOnly          bool
 }
 
@@ -47,6 +48,7 @@ type machineDeployment struct {
 	releaseId                  string
 	releaseVersion             int
 	autoConfirmAppsV2Migration bool
+	skipHealthChecks           bool
 	restartOnly                bool
 }
 
@@ -68,6 +70,7 @@ type LeasableMachine interface {
 	ReleaseLease(context.Context) error
 	Update(context.Context, api.LaunchMachineInput) error
 	WaitForState(context.Context, string, time.Duration) error
+	WaitForHealthchecksToPass(ctx context.Context, timeout time.Duration) error
 }
 
 type leasableMachine struct {
@@ -117,6 +120,42 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 		case errors.Is(err, context.DeadlineExceeded):
 			return fmt.Errorf("timeout reached waiting for machine to %s %w", desiredState, err)
 		case err != nil:
+			time.Sleep(b.Duration())
+			continue
+		}
+		return nil
+	}
+}
+
+func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeout time.Duration) error {
+	if lm.machine.Config.Checks == nil {
+		return nil
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	shortestInterval := 120 * time.Second
+	for _, c := range lm.machine.Config.Checks {
+		ci := c.Interval.Duration
+		if ci < shortestInterval {
+			shortestInterval = ci
+		}
+	}
+	b := &backoff.Backoff{
+		Min:    shortestInterval / 2,
+		Max:    2 * shortestInterval,
+		Factor: 2,
+		Jitter: true,
+	}
+	for {
+		updateMachine, err := lm.flapsClient.Get(waitCtx, lm.machine.ID)
+		switch {
+		case errors.Is(err, context.Canceled):
+			return err
+		case errors.Is(err, context.DeadlineExceeded):
+			return fmt.Errorf("timeout reached waiting for healthchecks to pass for machine %s %w", lm.machine.ID, err)
+		case err != nil:
+			return fmt.Errorf("error getting machine %s from api: %w", lm.machine.ID, err)
+		case !updateMachine.HealthCheckStatus().AllPassing():
 			time.Sleep(b.Duration())
 			continue
 		}
@@ -287,6 +326,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		appConfig:                  appConfig,
 		img:                        img,
 		autoConfirmAppsV2Migration: args.AutoConfirmMigration,
+		skipHealthChecks:           args.SkipHealthChecks,
 		restartOnly:                args.RestartOnly,
 	}
 	md.setStrategy(args.Strategy)
@@ -492,6 +532,13 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) (err error) 
 
 			if md.strategy != "immediate" {
 				err := m.WaitForState(ctx, api.MachineStateStarted, 120*time.Second)
+				if err != nil {
+					return err
+				}
+			}
+
+			if md.strategy != "immediate" && !md.skipHealthChecks {
+				err := m.WaitForHealthchecksToPass(ctx, 120*time.Second)
 				if err != nil {
 					return err
 				}
