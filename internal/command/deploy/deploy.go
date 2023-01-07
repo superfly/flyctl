@@ -56,6 +56,11 @@ var CommonFlags = flag.Set{
 		Name:        "auto-confirm",
 		Description: "Will automatically confirm changes when running non-interactively.",
 	},
+	flag.Bool{
+		Name:        "skip-health-checks",
+		Description: "Skip waiting for health checks on VM updates. (Machines only)",
+		Default:     false,
+	},
 }
 
 func New() (cmd *cobra.Command) {
@@ -136,6 +141,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 		md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 			Strategy:             flag.GetString(ctx, "strategy"),
 			AutoConfirmMigration: autoConfirm,
+			SkipHealthChecks:     flag.GetBool(ctx, "skip-health-checks"),
 		})
 		if err != nil {
 			return err
