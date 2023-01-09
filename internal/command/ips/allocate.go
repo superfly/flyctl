@@ -56,6 +56,10 @@ func newAllocatev6() *cobra.Command {
 			Description: "Allocate a private IPv6 address",
 		},
 		flag.Org(),
+		flag.String{
+			Name:        "network",
+			Description: "Target network name for a Flycast private IPv6 address",
+		},
 	)
 
 	return cmd
@@ -66,7 +70,7 @@ func runAllocateIPAddressV4(ctx context.Context) error {
 	if flag.GetBool(ctx, "shared") {
 		addrType = "shared_v4"
 	}
-	return runAllocateIPAddress(ctx, addrType, nil)
+	return runAllocateIPAddress(ctx, addrType, nil, "")
 }
 
 func runAllocateIPAddressV6(ctx context.Context) (err error) {
@@ -81,13 +85,16 @@ func runAllocateIPAddressV6(ctx context.Context) (err error) {
 				return err
 			}
 		}
-		return runAllocateIPAddress(ctx, "private_v6", org)
+
+		network := flag.GetString(ctx, "network")
+
+		return runAllocateIPAddress(ctx, "private_v6", org, network)
 	}
 
-	return runAllocateIPAddress(ctx, "v6", nil)
+	return runAllocateIPAddress(ctx, "v6", nil, "")
 }
 
-func runAllocateIPAddress(ctx context.Context, addrType string, org *api.Organization) (err error) {
+func runAllocateIPAddress(ctx context.Context, addrType string, org *api.Organization, network string) (err error) {
 	client := client.FromContext(ctx).API()
 
 	appName := app.NameFromContext(ctx)
@@ -105,7 +112,7 @@ func runAllocateIPAddress(ctx context.Context, addrType string, org *api.Organiz
 
 	region := flag.GetRegion(ctx)
 
-	ipAddress, err := client.AllocateIPAddress(ctx, appName, addrType, region, org)
+	ipAddress, err := client.AllocateIPAddress(ctx, appName, addrType, region, org, network)
 	if err != nil {
 		return err
 	}

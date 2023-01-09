@@ -888,6 +888,7 @@ type AllocateIPAddressInput struct {
 	Type           string `json:"type"`
 	Region         string `json:"region"`
 	OrganizationID string `json:"organizationId,omitempty"`
+	Network        string `json:"network,omitempty"`
 }
 
 type ReleaseIPAddressInput struct {
