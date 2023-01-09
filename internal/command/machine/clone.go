@@ -50,7 +50,7 @@ func newClone() *cobra.Command {
 			Description: "Clone attached volumes and restore from snapshot, use 'last' for most recent snapshot. The default is an empty volume",
 		},
 		flag.String{
-			Name:        "volume-id",
+			Name:        "attach-volume",
 			Description: "Existing volume to attach to the new machine",
 		},
 	)
@@ -112,7 +112,7 @@ func runMachineClone(ctx context.Context) (err error) {
 	for _, mnt := range source.Config.Mounts {
 		var vol *api.Volume
 
-		if volID := flag.GetString(ctx, "volume-id"); volID != "" {
+		if volID := flag.GetString(ctx, "attach-volume"); volID != "" {
 
 			fmt.Fprintf(out, "Attaching existing volume %s\n", colorize.Bold(volID))
 
@@ -126,16 +126,6 @@ func runMachineClone(ctx context.Context) (err error) {
 			}
 
 		} else {
-			volName := mnt.Name
-			if mnt.Name == "" {
-				// Fallback for mounts that doesn't have pool name set
-				vol, err := client.GetVolume(ctx, mnt.Volume)
-				if err != nil {
-					return err
-				}
-				volName = vol.Name
-			}
-
 			var snapshotID *string
 			switch snapID := flag.GetString(ctx, "from-snapshot"); snapID {
 			case "last":
@@ -152,7 +142,7 @@ func runMachineClone(ctx context.Context) (err error) {
 					snapshotID = nil
 				}
 			case "":
-				fmt.Fprintf(out, "Volume '%s' will start empty\n", colorize.Bold(volName))
+				fmt.Fprintf(out, "Volume '%s' will start empty\n", colorize.Bold(mnt.Name))
 			default:
 				snapshotID = &snapID
 			}
