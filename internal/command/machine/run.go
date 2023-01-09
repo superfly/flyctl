@@ -439,12 +439,14 @@ func determineServices(ctx context.Context) ([]api.MachineService, error) {
 			}
 		}
 
+		edgePort32 := int32(edgePort)
+
 		machineServices[i] = api.MachineService{
 			Protocol:     proto,
 			InternalPort: machinePort,
 			Ports: []api.MachinePort{
 				{
-					Port:     edgePort,
+					Port:     &edgePort32,
 					Handlers: handlers,
 				},
 			},
