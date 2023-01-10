@@ -120,7 +120,7 @@ func run(ctx context.Context) (err error) {
 
 		if deployExisting {
 			fmt.Fprintln(io.Out, "App is not running, deploy...")
-			return deploy.DeployWithConfig(ctx, appConfig)
+			return deploy.DeployWithConfig(ctx, cfg)
 		}
 
 		copyConfig := false
@@ -143,6 +143,16 @@ func run(ctx context.Context) (err error) {
 	fmt.Fprintln(io.Out, "Creating app in", workingDir)
 
 	srcInfo := new(scanner.SourceInfo)
+	config := new(scanner.ScannerConfig)
+
+	// Detect if --copy-config and --now flags are set. If so, limited set of
+	// fly.toml file updates. Helpful for deploying PRs when the project is
+	// already setup and we only need fly.toml config changes.
+	if flag.GetBool(ctx, "copy-config") && flag.GetBool(ctx, "now") {
+		config.Mode = "clone"
+	} else {
+		config.Mode = "launch"
+	}
 
 	if img := flag.GetString(ctx, "image"); img != "" {
 		fmt.Fprintln(io.Out, "Using image", img)
@@ -157,7 +167,7 @@ func run(ctx context.Context) (err error) {
 	} else {
 		fmt.Fprintln(io.Out, "Scanning source code")
 
-		if si, err := scanner.Scan(workingDir); err != nil {
+		if si, err := scanner.Scan(workingDir, config); err != nil {
 			return err
 		} else {
 			srcInfo = si
@@ -329,6 +339,10 @@ func run(ctx context.Context) (err error) {
 	}
 
 	fmt.Fprintf(io.Out, "Created app %s in organization %s\n", createdApp.Name, org.Slug)
+
+	adminLink := fmt.Sprintf("https://fly.io/apps/%s", createdApp.Name)
+	appLink := fmt.Sprintf("%s.fly.dev", createdApp.Name)
+	fmt.Fprintf(io.Out, "Admin URL: %s\nHostname: %s\n", adminLink, appLink)
 
 	// If secrets are requested by the launch scanner, ask the user to input them
 	if srcInfo != nil && len(srcInfo.Secrets) > 0 {
@@ -592,6 +606,7 @@ func createDockerignoreFromGitignores(root string, gitIgnores []string) (string,
 	}()
 
 	firstHeaderWritten := false
+	foundFlyDotToml := false
 	linebreak := []byte("\n")
 	for _, gitIgnore := range gitIgnores {
 		gitF, err := os.Open(gitIgnore)
@@ -645,6 +660,9 @@ func createDockerignoreFromGitignores(root string, gitIgnores []string) (string,
 			} else {
 				dockerIgnoreLine = filepath.Join(relDir, "**", line)
 			}
+			if strings.Contains(dockerIgnoreLine, "fly.toml") {
+				foundFlyDotToml = true
+			}
 			if _, err := f.WriteString(dockerIgnoreLine); err != nil {
 				return "", err
 			}
@@ -653,6 +671,16 @@ func createDockerignoreFromGitignores(root string, gitIgnores []string) (string,
 			}
 		}
 	}
+
+	if !foundFlyDotToml {
+		if _, err := f.WriteString("fly.toml"); err != nil {
+			return "", err
+		}
+		if _, err := f.Write(linebreak); err != nil {
+			return "", err
+		}
+	}
+
 	return dockerIgnore, nil
 }
 

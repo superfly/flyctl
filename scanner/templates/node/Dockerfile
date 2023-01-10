@@ -4,7 +4,7 @@ ARG NODE_VERSION={{ .nodeVersion }}
 {{ if .yarn -}}
 ARG YARN_VERSION={{ .yarnVersion }}
 {{ end }}
-RUN apt-get update; apt install -y curl
+RUN apt-get update; apt install -y curl python-is-python3 pkg-config build-essential
 RUN curl https://get.volta.sh | bash
 ENV VOLTA_HOME /root/.volta
 ENV PATH /root/.volta/bin:$PATH

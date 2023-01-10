@@ -401,19 +401,6 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 				return err
 			}
 
-			if os.Getenv("LOG_LEVEL") == "debug" {
-				f, err := os.OpenFile("build.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
-				if err != nil {
-					return err
-				}
-				defer func() {
-					err := f.Close()
-					if err != nil {
-						terminal.Debugf("error closing build.log: %v", err)
-					}
-				}()
-			}
-
 			return nil
 		}()
 	})

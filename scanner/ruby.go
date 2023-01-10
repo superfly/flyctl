@@ -1,6 +1,6 @@
 package scanner
 
-func configureRuby(sourceDir string) (*SourceInfo, error) {
+func configureRuby(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("Gemfile", "config.ru")) {
 		return nil, nil
 	}

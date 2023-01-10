@@ -31,10 +31,10 @@ func New() *cobra.Command {
 		newStop(),
 		newStatus(),
 		newProxy(),
-		newLaunch(),
 		newClone(),
 		newUpdate(),
 		newRestart(),
+		newLeases(),
 	)
 
 	return cmd

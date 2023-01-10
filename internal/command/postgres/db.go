@@ -88,7 +88,9 @@ func runListDbs(ctx context.Context) error {
 
 func runMachineListDbs(ctx context.Context, app *api.AppCompact) error {
 	var (
-		MinPostgresHaVersion = "0.0.19"
+		MinPostgresHaVersion         = "0.0.19"
+		MinPostgresFlexVersion       = "0.0.3"
+		MinPostgresStandaloneVersion = "0.0.7"
 	)
 
 	machines, err := mach.ListActive(ctx)
@@ -100,7 +102,7 @@ func runMachineListDbs(ctx context.Context, app *api.AppCompact) error {
 		return fmt.Errorf("no 6pn ips founds for %s app", app.Name)
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 

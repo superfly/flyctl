@@ -16,6 +16,9 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
+var httpPort = int32(80)
+var httpsPort = int32(443)
+
 // Deploy ta machines app directly from flyctl, applying the desired config to running machines,
 // or launching new ones
 func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.DeploymentImage, strategy string) (err error) {
@@ -52,12 +55,12 @@ func createMachinesRelease(ctx context.Context, config *app.Config, img *imgsrc.
 			Concurrency:  concurrency,
 			Ports: []api.MachinePort{
 				{
-					Port:       80,
+					Port:       &httpPort,
 					Handlers:   []string{"http"},
 					ForceHttps: config.HttpService.ForceHttps,
 				},
 				{
-					Port:     443,
+					Port:     &httpsPort,
 					Handlers: []string{"http", "tls"},
 				},
 			},

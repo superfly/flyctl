@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/docker/docker/pkg/ioutils"
+	"github.com/mattn/go-colorable"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
@@ -87,8 +89,9 @@ func runConnect(ctx context.Context) error {
 
 func runMachineConnect(ctx context.Context, app *api.AppCompact) error {
 	var (
-		MinPostgresStandaloneVersion = "0.0.4"
 		MinPostgresHaVersion         = "0.0.9"
+		MinPostgresFlexVersion       = "0.0.3"
+		MinPostgresStandaloneVersion = "0.0.4"
 
 		database = flag.GetString(ctx, "database")
 		user     = flag.GetString(ctx, "user")
@@ -102,7 +105,7 @@ func runMachineConnect(ctx context.Context, app *api.AppCompact) error {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresStandaloneVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 
@@ -117,8 +120,8 @@ func runMachineConnect(ctx context.Context, app *api.AppCompact) error {
 		App:    app.Name,
 		Cmd:    fmt.Sprintf("connect %s %s %s", database, user, password),
 		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
+		Stdout: ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
+		Stderr: ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
 	}, leader.PrivateIP)
 }
 
@@ -162,8 +165,7 @@ func runNomadConnect(ctx context.Context, app *api.AppCompact) error {
 		App:    app.Name,
 		Cmd:    fmt.Sprintf("connect %s %s %s", database, user, password),
 		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
+		Stdout: ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
+		Stderr: ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
 	}, leaderIP)
-
 }

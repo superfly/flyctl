@@ -108,12 +108,24 @@ func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 		io          = iostreams.FromContext(ctx)
 		colorize    = io.ColorScheme()
 		autoConfirm = flag.GetBool(ctx, "yes")
+
+		MinPostgresHaVersion         = "0.0.33"
+		MinPostgresStandaloneVersion = "0.0.7"
+		MinPostgresFlexVersion       = "0.0.3" // Not currently supported
 	)
 
 	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
 	defer releaseLeaseFunc(ctx, machines)
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved")
+	}
+
+	if app.ImageDetails.Repository == "flyio/postgres-flex" {
+		return fmt.Errorf("this feature is not currently supported for this image type")
+	}
+
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
+		return err
 	}
 
 	leader, err := pickLeader(ctx, machines)
@@ -159,6 +171,12 @@ func runNomadConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 
 		autoConfirm = flag.GetBool(ctx, "yes")
 	)
+
+	var MinPostgresVersion = "v0.0.32"
+
+	if err := hasRequiredVersionOnNomad(app, MinPostgresVersion, MinPostgresVersion); err != nil {
+		return err
+	}
 
 	client := client.FromContext(ctx).API()
 
@@ -233,7 +251,7 @@ func updateStolonConfig(ctx context.Context, app *api.AppCompact, leaderIP strin
 	if !force {
 		// Query PG settings
 		pgclient := flypg.NewFromInstance(leaderIP, dialer)
-		settings, err := pgclient.SettingsView(ctx, keys)
+		settings, err := pgclient.ViewSettings(ctx, keys)
 		if err != nil {
 			return false, err
 		}

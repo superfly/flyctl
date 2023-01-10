@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -84,7 +85,12 @@ func runMachineRemove(ctx context.Context) (err error) {
 
 	err = flapsClient.Destroy(ctx, input)
 	if err != nil {
-		return fmt.Errorf("could not destroy machine %s: %w", machineID, err)
+		switch {
+		case strings.Contains(err.Error(), "not found") && appName != "":
+			return fmt.Errorf("could not find machine %s in app %s to destroy", machineID, appName)
+		default:
+			return fmt.Errorf("could not destroy machine %s: %w", machineID, err)
+		}
 	}
 
 	fmt.Fprintf(out, "%s has been destroyed\n", machineID)

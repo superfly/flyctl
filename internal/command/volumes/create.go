@@ -21,7 +21,7 @@ import (
 func newCreate() *cobra.Command {
 	const (
 		long = `Create new volume for app. --region flag must be included to specify
-region the volume exists in. --size flag is optional, defaults to 10,
+region the volume exists in. --size flag is optional, defaults to 3,
 sets the size as the number of gigabytes the volume will consume.`
 
 		short = "Create new volume for app"

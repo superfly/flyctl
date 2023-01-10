@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/flaps"
@@ -68,7 +69,12 @@ func Start(ctx context.Context, machineID string) (err error) {
 
 	machine, err := flapsClient.Start(ctx, machineID)
 	if err != nil {
-		return fmt.Errorf("could not start machine %s: %w", machineID, err)
+		switch {
+		case strings.Contains(err.Error(), "not found") && appName != "":
+			return fmt.Errorf("machine %s was not found in app %s", machineID, appName)
+		default:
+			return fmt.Errorf("could not start machine %s: %w", machineID, err)
+		}
 	}
 
 	if machine.Status == "error" {

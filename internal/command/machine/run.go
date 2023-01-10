@@ -82,8 +82,8 @@ var sharedFlags = flag.Set{
 		Hidden:      true,
 	},
 	flag.Bool{
-		Name:   "build-nixpacks",
-		Hidden: true,
+		Name:        "build-nixpacks",
+		Description: "Build your image with nixpacks",
 	},
 	flag.String{
 		Name:        "dockerfile",
@@ -237,7 +237,7 @@ func runMachineRun(ctx context.Context) error {
 
 	id, instanceID, state, privateIP := machine.ID, machine.InstanceID, machine.State, machine.PrivateIP
 
-	fmt.Fprintf(io.Out, "Success! A machine has been successfully launched, waiting for it to be started\n")
+	fmt.Fprintf(io.Out, "Success! A machine has been successfully launched in app %s, waiting for it to be started\n", appName)
 	fmt.Fprintf(io.Out, " Machine ID: %s\n", id)
 	fmt.Fprintf(io.Out, " Instance ID: %s\n", instanceID)
 	fmt.Fprintf(io.Out, " State: %s\n", state)
@@ -439,12 +439,14 @@ func determineServices(ctx context.Context) ([]api.MachineService, error) {
 			}
 		}
 
+		edgePort32 := int32(edgePort)
+
 		machineServices[i] = api.MachineService{
 			Protocol:     proto,
 			InternalPort: machinePort,
 			Ports: []api.MachinePort{
 				{
-					Port:     edgePort,
+					Port:     &edgePort32,
 					Handlers: handlers,
 				},
 			},
@@ -498,9 +500,17 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		machineConf.Guest.KernelArgs = flag.GetStringSlice(ctx, "kernel-arg")
 	}
 
-	machineConf.Env, err = parseKVFlag(ctx, "env", machineConf.Env)
+	parsedEnv, err := parseKVFlag(ctx, "env", machineConf.Env)
 	if err != nil {
 		return machineConf, err
+	}
+
+	if machineConf.Env == nil {
+		machineConf.Env = make(map[string]string)
+	}
+
+	for k, v := range parsedEnv {
+		machineConf.Env[k] = v
 	}
 
 	if flag.GetString(ctx, "schedule") != "" {
@@ -511,6 +521,10 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 	parsedMetadata, err := parseKVFlag(ctx, "metadata", machineConf.Metadata)
 	if err != nil {
 		return machineConf, err
+	}
+
+	if machineConf.Metadata == nil {
+		machineConf.Metadata = make(map[string]string)
 	}
 
 	for k, v := range parsedMetadata {

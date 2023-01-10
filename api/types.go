@@ -59,6 +59,8 @@ type Query struct {
 	TemplateDeploymentNode *TemplateDeployment
 	ReleaseCommandNode     *ReleaseCommand
 
+	ValidateConfig AppConfig
+
 	// hack to let us alias node to a type
 	// DNSZone *DNSZone
 
@@ -281,14 +283,16 @@ func (img *ImageVersion) ImageRef() string {
 }
 
 type App struct {
-	ID             string
-	Name           string
-	State          string
-	Status         string
-	Deployed       bool
-	Hostname       string
-	AppURL         string
-	Version        int
+	ID        string
+	Name      string
+	State     string
+	Status    string
+	Deployed  bool
+	Hostname  string
+	AppURL    string
+	Version   int
+	NetworkID int
+
 	Release        *Release
 	Organization   Organization
 	Secrets        []Secret
@@ -299,8 +303,9 @@ type App struct {
 	IPAddresses struct {
 		Nodes []IPAddress
 	}
-	IPAddress *IPAddress
-	Builds    struct {
+	SharedIPAddress string
+	IPAddress       *IPAddress
+	Builds          struct {
 		Nodes []Build
 	}
 	SourceBuilds struct {
@@ -377,6 +382,10 @@ type Volume struct {
 	Host               struct {
 		ID string
 	}
+}
+
+func (v *Volume) IsAttached() bool {
+	return v.AttachedAllocation != nil || v.AttachedMachine != nil
 }
 
 type ProvisionAddOnInput struct {
@@ -879,13 +888,16 @@ type HTTPHeader struct {
 }
 
 type AllocateIPAddressInput struct {
-	AppID  string `json:"appId"`
-	Type   string `json:"type"`
-	Region string `json:"region"`
+	AppID          string `json:"appId"`
+	Type           string `json:"type"`
+	Region         string `json:"region"`
+	OrganizationID string `json:"organizationId,omitempty"`
 }
 
 type ReleaseIPAddressInput struct {
-	IPAddressID string `json:"ipAddressId"`
+	AppID       *string `json:"appId"`
+	IPAddressID *string `json:"ipAddressId"`
+	IP          *string `json:"ip"`
 }
 
 type ScaleAppInput struct {

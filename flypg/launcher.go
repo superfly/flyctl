@@ -28,6 +28,11 @@ var (
 	checkPathVm    = "/flycheck/vm"
 )
 
+const (
+	ReplicationManager = "repmgr"
+	StolonManager      = "stolon"
+)
+
 type Launcher struct {
 	client *api.Client
 }
@@ -43,6 +48,7 @@ type CreateClusterInput struct {
 	VolumeSize         *int
 	VMSize             *api.VMSize
 	SnapshotID         *string
+	Manager            string
 }
 
 func NewLauncher(client *api.Client) *Launcher {
@@ -87,7 +93,13 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 
 		// If no image is specifed fetch the latest available tag.
 		if machineConf.Image == "" {
-			imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres", config.SnapshotID)
+
+			imageRepo := "flyio/postgres"
+			if config.Manager == ReplicationManager {
+				imageRepo = "flyio/postgres-flex"
+			}
+
+			imageRef, err := client.GetLatestImageTag(ctx, imageRepo, config.SnapshotID)
 			if err != nil {
 				return err
 			}
@@ -180,7 +192,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 
 	fmt.Fprintln(io.Out)
 	fmt.Fprintln(io.Out, colorize.Bold("Connect to postgres"))
-	fmt.Fprintf(io.Out, "Any app within the %s organization can connect to this Postgres using the following connection string:\n", config.Organization.Name)
+	fmt.Fprintf(io.Out, "Any app within the %s organization can connect to this Postgres using the above connection string\n", config.Organization.Name)
 
 	fmt.Fprintln(io.Out)
 	fmt.Fprintln(io.Out, "Now that you've set up Postgres, here's what you need to understand: https://fly.io/docs/postgres/getting-started/what-you-should-know/")
@@ -303,6 +315,7 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 	// Metadata
 	machineConfig.Metadata = map[string]string{
 		"managed-by-fly-deploy": "true",
+		"fly-managed-postgres":  "true",
 	}
 
 	// Restart policy

@@ -67,8 +67,11 @@ type Volume struct {
 	Source      string `toml:"source" json:"source"`
 	Destination string `toml:"destination" json:"destination"`
 }
+type ScannerConfig struct {
+	Mode string
+}
 
-func Scan(sourceDir string) (*SourceInfo, error) {
+func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	scanners := []sourceScanner{
 		configureDjango,
 		configureLaravel,
@@ -93,7 +96,7 @@ func Scan(sourceDir string) (*SourceInfo, error) {
 	}
 
 	for _, scanner := range scanners {
-		si, err := scanner(sourceDir)
+		si, err := scanner(sourceDir, config)
 		if err != nil {
 			return nil, err
 		}
@@ -105,7 +108,7 @@ func Scan(sourceDir string) (*SourceInfo, error) {
 	return nil, nil
 }
 
-type sourceScanner func(sourceDir string) (*SourceInfo, error)
+type sourceScanner func(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 
 // templates recursively returns files from the templates directory within the named directory
 // will panic on errors since these files are embedded and should work

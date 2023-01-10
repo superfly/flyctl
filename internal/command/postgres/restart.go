@@ -13,7 +13,6 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/machine"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -83,7 +82,9 @@ func runRestart(ctx context.Context) error {
 
 func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err error) {
 	var (
-		MinPostgresHaVersion = "0.0.20"
+		MinPostgresHaVersion         = "0.0.20"
+		MinPostgresFlexVersion       = "0.0.3"
+		MinPostgresStandaloneVersion = "0.0.7"
 
 		dialer   = agent.DialerFromContext(ctx)
 		io       = iostreams.FromContext(ctx)
@@ -98,7 +99,7 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 		return err
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 
@@ -118,7 +119,7 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 
 	// Restarting replicas
 	for _, replica := range replicas {
-		if err = machine.Restart(ctx, replica, input); err != nil {
+		if err = mach.Restart(ctx, replica, input); err != nil {
 			return err
 		}
 	}
@@ -145,7 +146,7 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 		}
 	}
 
-	if err = machine.Restart(ctx, leader, input); err != nil {
+	if err = mach.Restart(ctx, leader, input); err != nil {
 		return err
 	}
 

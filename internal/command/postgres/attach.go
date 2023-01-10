@@ -185,7 +185,9 @@ func nomadAttachCluster(ctx context.Context, pgApp *api.AppCompact, params Attac
 func machineAttachCluster(ctx context.Context, params AttachParams) error {
 	// Minimum image version requirements
 	var (
-		MinPostgresHaVersion = "0.0.19"
+		MinPostgresHaVersion         = "0.0.19"
+		MinPostgresStandaloneVersion = "0.0.7"
+		MinPostgresFlexVersion       = "0.0.3"
 	)
 
 	machines, err := mach.ListActive(ctx)
@@ -197,7 +199,7 @@ func machineAttachCluster(ctx context.Context, params AttachParams) error {
 		return fmt.Errorf("no active machines found")
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 
@@ -250,6 +252,8 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams)
 
 	pgclient := flypg.NewFromInstance(leaderIP, dialer)
 
+	fmt.Fprintln(io.Out, "Checking for existing attachments")
+
 	secrets, err := client.GetAppSecrets(ctx, input.AppID)
 	if err != nil {
 		return err
@@ -286,6 +290,8 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams)
 		return fmt.Errorf("database user %q already exists. Please specify a new database user via --database-user", *input.DatabaseUser)
 	}
 
+	fmt.Fprintln(io.Out, "Registering attachment")
+
 	// Create attachment
 	_, err = client.AttachPostgresCluster(ctx, input)
 	if err != nil {
@@ -294,6 +300,8 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams)
 
 	// Create database if it doesn't already exist
 	if !dbExists {
+		fmt.Fprintln(io.Out, "Creating database")
+
 		err := pgclient.CreateDatabase(ctx, *input.DatabaseName)
 		if err != nil {
 			if flypg.ErrorStatus(err) >= 500 {
@@ -308,6 +316,8 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams)
 	if err != nil {
 		return err
 	}
+
+	fmt.Fprintln(io.Out, "Creating user")
 
 	err = pgclient.CreateUser(ctx, *input.DatabaseUser, pwd, true)
 	if err != nil {

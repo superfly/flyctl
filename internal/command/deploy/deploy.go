@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/dustin/go-humanize"
+	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/iostreams"
@@ -201,6 +202,22 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 
 		cfg.AppName = basicApp.Name
 		cfg.SetPlatformVersion(basicApp.PlatformVersion)
+	} else {
+		parsedCfg, err := client.ParseConfig(ctx, appNameFromContext, cfg.Definition)
+		if err != nil {
+			return nil, err
+		}
+		if !parsedCfg.Valid {
+			fmt.Println()
+			if len(parsedCfg.Errors) > 0 {
+				tb.Printf("\nConfiguration errors in %s:\n\n", cfg.Path)
+			}
+			for _, e := range parsedCfg.Errors {
+				tb.Println("   ", aurora.Red("✘").String(), e)
+			}
+			fmt.Println()
+			return nil, errors.New("App configuration is not valid")
+		}
 	}
 
 	if env := flag.GetStringSlice(ctx, "env"); len(env) > 0 {

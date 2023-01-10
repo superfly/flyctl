@@ -1,6 +1,6 @@
 package scanner
 
-func configureDeno(sourceDir string) (*SourceInfo, error) {
+func configureDeno(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, dirContains("*.ts", "denopkg")) {
 		return nil, nil
 	}
