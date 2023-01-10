@@ -384,6 +384,10 @@ type Volume struct {
 	}
 }
 
+func (v *Volume) IsAttached() bool {
+	return v.AttachedAllocation != nil || v.AttachedMachine != nil
+}
+
 type ProvisionAddOnInput struct {
 	OrganizationId string `json:"organizationId"`
 	Region         string `json:"region"`

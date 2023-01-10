@@ -37,7 +37,7 @@ var sharedFlags = flag.Set{
 	flag.StringSlice{
 		Name:        "port",
 		Shorthand:   "p",
-		Description: "Exposed port mappings (format: edgePort[:machinePort]/[protocol[:handler]])",
+		Description: "Exposed port mappings (format: (edgePort|startPort-endPort)[:machinePort]/[protocol[:handler]])",
 	},
 	flag.String{
 		Name:        "size",
@@ -420,37 +420,93 @@ func determineServices(ctx context.Context) ([]api.MachineService, error) {
 		handlers := []string{}
 
 		splittedPortsProto := strings.Split(p, "/")
-		if len(splittedPortsProto) > 1 {
+		if len(splittedPortsProto) == 2 {
 			splittedProtoHandlers := strings.Split(splittedPortsProto[1], ":")
 			proto = splittedProtoHandlers[0]
 			handlers = append(handlers, splittedProtoHandlers[1:]...)
+		} else if len(splittedPortsProto) > 2 {
+			return nil, errors.New("port must be at most two elements (ports/protocol:handler)")
 		}
 
-		splittedPorts := strings.Split(splittedPortsProto[0], ":")
-		edgePort, err := strconv.Atoi(splittedPorts[0])
+		edgePort, edgeStartPort, edgeEndPort, internalPort, err := parsePorts(splittedPortsProto[0])
 		if err != nil {
-			return nil, errors.Wrap(err, "invalid edge port")
-		}
-		machinePort := edgePort
-		if len(splittedPorts) > 1 {
-			machinePort, err = strconv.Atoi(splittedPorts[1])
-			if err != nil {
-				return nil, errors.Wrap(err, "invalid machine (internal) port")
-			}
+			return nil, err
 		}
 
 		machineServices[i] = api.MachineService{
 			Protocol:     proto,
-			InternalPort: machinePort,
+			InternalPort: internalPort,
 			Ports: []api.MachinePort{
 				{
-					Port:     edgePort,
-					Handlers: handlers,
+					Port:      edgePort,
+					StartPort: edgeStartPort,
+					EndPort:   edgeEndPort,
+					Handlers:  handlers,
 				},
 			},
 		}
 	}
 	return machineServices, nil
+}
+
+func parsePorts(input string) (port, start_port, end_port *int32, internal_port int, err error) {
+	split := strings.Split(input, ":")
+	if len(split) == 1 {
+		var external_port int
+		external_port, err = strconv.Atoi(split[0])
+		if err != nil {
+			err = errors.Wrap(err, "invalid port")
+			return
+		}
+
+		p := int32(external_port)
+		port = &p
+	} else if len(split) == 2 {
+		internal_port, err = strconv.Atoi(split[1])
+		if err != nil {
+			err = errors.Wrap(err, "invalid machine (internal) port")
+			return
+		}
+
+		external_split := strings.Split(split[0], "-")
+		if len(external_split) == 1 {
+			var external_port int
+			external_port, err = strconv.Atoi(external_split[0])
+			if err != nil {
+				err = errors.Wrap(err, "invalid external port")
+				return
+			}
+
+			p := int32(external_port)
+			port = &p
+		} else if len(external_split) == 2 {
+			var start int
+			start, err = strconv.Atoi(external_split[0])
+			if err != nil {
+				err = errors.Wrap(err, "invalid start port for port range")
+				return
+			}
+
+			s := int32(start)
+			start_port = &s
+
+			var end int
+			end, err = strconv.Atoi(external_split[0])
+			if err != nil {
+				err = errors.Wrap(err, "invalid end port for port range")
+				return
+			}
+
+			e := int32(end)
+			end_port = &e
+		} else {
+			err = errors.New("external port must be at most 2 elements (port, or range start-end)")
+		}
+	} else {
+		err = errors.New("port definition must be at most 2 elements (external:internal)")
+	}
+
+	return
 }
 
 func selectAppName(ctx context.Context) (name string, err error) {

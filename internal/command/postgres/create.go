@@ -75,6 +75,11 @@ func newCreate() *cobra.Command {
 			Description: "Create postgres cluster on Nomad",
 			Default:     false,
 		},
+		flag.Bool{
+			Name:        "repmgr",
+			Description: "Create a postgres cluster on top of fly machines that is managed by Repmgr. ( Experimental )",
+			Default:     false,
+		},
 	)
 
 	return cmd
@@ -129,7 +134,13 @@ func run(ctx context.Context) (err error) {
 		Password:              flag.GetString(ctx, "password"),
 		SnapshotID:            flag.GetString(ctx, "snapshot-id"),
 		Detach:                flag.GetDetach(ctx),
+		Manager:               flypg.StolonManager,
 	}
+
+	if flag.GetBool(ctx, "repmgr") {
+		params.Manager = flypg.ReplicationManager
+	}
+
 	return CreateCluster(ctx, org, region, platform, params)
 }
 
@@ -145,6 +156,7 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 		Organization: org,
 		ImageRef:     params.ImageRef,
 		Region:       region.Code,
+		Manager:      params.Manager,
 	}
 
 	customConfig := params.DiskGb != 0 || params.VMSize != "" || params.InitialClusterSize != 0
@@ -264,6 +276,7 @@ type ClusterParams struct {
 	Password   string
 	SnapshotID string
 	Detach     bool
+	Manager    string
 }
 
 func postgresConfigurations(platform string) []PostgresConfiguration {
