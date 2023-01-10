@@ -432,16 +432,14 @@ func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]
 		return nil, fmt.Errorf("Error fetching application volumes: %w", err)
 	}
 
-	unattached := lo.Filter[api.Volume](volumes, func(v api.Volume, _ int) bool {
+	unattached := lo.Filter(volumes, func(v api.Volume, _ int) bool {
 		return !v.IsAttached() && (regionCode == v.Region)
 	})
 	if len(unattached) == 0 {
 		return nil, fmt.Errorf("No unattached volumes in region '%s'", regionCode)
 	}
 
-	unattachedMap := lo.GroupBy[api.Volume, string](unattached, func(v api.Volume) string {
-		return v.Name
-	})
+	unattachedMap := lo.GroupBy(unattached, func(v api.Volume) string { return v.Name })
 	return unattachedMap, nil
 }
 
