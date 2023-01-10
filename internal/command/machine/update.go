@@ -94,7 +94,7 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 
 	// Identify configuration changes
-	machineConf, err := determineMachineConfig(ctx, *machine.Config, app, imageOrPath)
+	machineConf, err := determineMachineConfig(ctx, *machine.Config, app, imageOrPath, machine.Region)
 	if err != nil {
 		return err
 	}

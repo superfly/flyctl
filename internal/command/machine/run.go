@@ -13,6 +13,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
 	"github.com/pkg/errors"
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
@@ -219,7 +220,7 @@ func runMachineRun(ctx context.Context) error {
 		return fmt.Errorf("to update an existing machine, use 'flyctl machine update'")
 	}
 
-	machineConf, err = determineMachineConfig(ctx, *machineConf, app, flag.FirstArg(ctx))
+	machineConf, err = determineMachineConfig(ctx, *machineConf, app, flag.FirstArg(ctx), input.Region)
 	if err != nil {
 		return err
 	}
@@ -376,34 +377,72 @@ func determineImage(ctx context.Context, appName string, imageOrPath string) (im
 	return img, nil
 }
 
-func determineMounts(ctx context.Context, mounts []api.MachineMount) ([]api.MachineMount, error) {
+func determineMounts(ctx context.Context, mounts []api.MachineMount, region string) ([]api.MachineMount, error) {
+	unattachedVolumes := make(map[string][]api.Volume)
+
 	for _, v := range flag.GetStringSlice(ctx, "volume") {
 		splittedIDDestOpts := strings.Split(v, ":")
-
-		mount := api.MachineMount{
-			Volume: splittedIDDestOpts[0],
-			Path:   splittedIDDestOpts[1],
+		if len(splittedIDDestOpts) < 2 {
+			return nil, fmt.Errorf("Can't infer volume and mount path from '%s'", v)
 		}
+		volID := splittedIDDestOpts[0]
+		mountPath := splittedIDDestOpts[1]
 
-		if len(splittedIDDestOpts) > 2 {
-			splittedOpts := strings.Split(splittedIDDestOpts[2], ",")
-			for _, opt := range splittedOpts {
-				splittedKeyValue := strings.Split(opt, "=")
-				if splittedKeyValue[0] == "size" {
-					i, err := strconv.Atoi(splittedKeyValue[1])
-					if err != nil {
-						return nil, errors.Wrapf(err, "could not parse volume '%s' size option value '%s', must be an integer", splittedIDDestOpts[0], splittedKeyValue[1])
-					}
-					mount.SizeGb = i
-				} else if splittedKeyValue[0] == "encrypt" {
-					mount.Encrypted = true
+		if !strings.HasPrefix(volID, "vol_") {
+			volName := volID
+
+			// Load app volumes the first time
+			if len(unattachedVolumes) == 0 {
+				var err error
+				unattachedVolumes, err = getUnattachedVolumes(ctx, region)
+				if err != nil {
+					return nil, err
 				}
 			}
+
+			if len(unattachedVolumes[volName]) == 0 {
+				return nil, fmt.Errorf("not enough unattached volumes for '%s'", volName)
+			}
+			volID = unattachedVolumes[volName][0].ID
+			unattachedVolumes[volName] = unattachedVolumes[volName][1:]
 		}
 
-		mounts = append(mounts, mount)
+		mounts = append(mounts, api.MachineMount{
+			Volume: volID,
+			Path:   mountPath,
+		})
 	}
 	return mounts, nil
+}
+
+func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]api.Volume, error) {
+	appName := app.NameFromContext(ctx)
+	apiclient := client.FromContext(ctx).API()
+
+	if regionCode == "" {
+		region, err := apiclient.GetNearestRegion(ctx)
+		if err != nil {
+			return nil, err
+		}
+		regionCode = region.Code
+	}
+
+	volumes, err := apiclient.GetVolumes(ctx, appName)
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching application volumes: %w", err)
+	}
+
+	unattached := lo.Filter[api.Volume](volumes, func(v api.Volume, _ int) bool {
+		return !v.IsAttached() && (regionCode == v.Region)
+	})
+	if len(unattached) == 0 {
+		return nil, fmt.Errorf("No unattached volumes in region '%s'", regionCode)
+	}
+
+	unattachedMap := lo.GroupBy[api.Volume, string](unattached, func(v api.Volume) string {
+		return v.Name
+	})
+	return unattachedMap, nil
 }
 
 func determineServices(ctx context.Context) ([]api.MachineService, error) {
@@ -519,7 +558,7 @@ func selectAppName(ctx context.Context) (name string, err error) {
 	return
 }
 
-func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, imageOrPath string) (*api.MachineConfig, error) {
+func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, imageOrPath string, region string) (*api.MachineConfig, error) {
 	machineConf, err := mach.CloneConfig(initialMachineConf)
 	if err != nil {
 		return nil, err
@@ -605,7 +644,7 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		machineConf.Init.Cmd = cmd
 	}
 
-	machineConf.Mounts, err = determineMounts(ctx, machineConf.Mounts)
+	machineConf.Mounts, err = determineMounts(ctx, machineConf.Mounts, region)
 	if err != nil {
 		return machineConf, err
 	}
