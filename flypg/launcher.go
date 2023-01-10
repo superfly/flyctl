@@ -28,6 +28,11 @@ var (
 	checkPathVm    = "/flycheck/vm"
 )
 
+const (
+	ReplicationManager = "repmgr"
+	StolonManager      = "stolon"
+)
+
 type Launcher struct {
 	client *api.Client
 }
@@ -43,6 +48,7 @@ type CreateClusterInput struct {
 	VolumeSize         *int
 	VMSize             *api.VMSize
 	SnapshotID         *string
+	Manager            string
 }
 
 func NewLauncher(client *api.Client) *Launcher {
@@ -87,7 +93,13 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 
 		// If no image is specifed fetch the latest available tag.
 		if machineConf.Image == "" {
-			imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres", config.SnapshotID)
+
+			imageRepo := "flyio/postgres"
+			if config.Manager == ReplicationManager {
+				imageRepo = "flyio/postgres-flex"
+			}
+
+			imageRef, err := client.GetLatestImageTag(ctx, imageRepo, config.SnapshotID)
 			if err != nil {
 				return err
 			}

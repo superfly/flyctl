@@ -185,7 +185,9 @@ func nomadAttachCluster(ctx context.Context, pgApp *api.AppCompact, params Attac
 func machineAttachCluster(ctx context.Context, params AttachParams) error {
 	// Minimum image version requirements
 	var (
-		MinPostgresHaVersion = "0.0.19"
+		MinPostgresHaVersion         = "0.0.19"
+		MinPostgresStandaloneVersion = "0.0.7"
+		MinPostgresFlexVersion       = "0.0.3"
 	)
 
 	machines, err := mach.ListActive(ctx)
@@ -197,7 +199,7 @@ func machineAttachCluster(ctx context.Context, params AttachParams) error {
 		return fmt.Errorf("no active machines found")
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 
