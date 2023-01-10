@@ -380,6 +380,11 @@ func determineImage(ctx context.Context, appName string, imageOrPath string) (im
 func determineMounts(ctx context.Context, mounts []api.MachineMount, region string) ([]api.MachineMount, error) {
 	unattachedVolumes := make(map[string][]api.Volume)
 
+	pathIndex := make(map[string]int)
+	for idx, m := range mounts {
+		pathIndex[m.Path] = idx
+	}
+
 	for _, v := range flag.GetStringSlice(ctx, "volume") {
 		splittedIDDestOpts := strings.Split(v, ":")
 		if len(splittedIDDestOpts) < 2 {
@@ -407,10 +412,14 @@ func determineMounts(ctx context.Context, mounts []api.MachineMount, region stri
 			unattachedVolumes[volName] = unattachedVolumes[volName][1:]
 		}
 
-		mounts = append(mounts, api.MachineMount{
-			Volume: volID,
-			Path:   mountPath,
-		})
+		if idx, found := pathIndex[mountPath]; found {
+			mounts[idx].Volume = volID
+		} else {
+			mounts = append(mounts, api.MachineMount{
+				Volume: volID,
+				Path:   mountPath,
+			})
+		}
 	}
 	return mounts, nil
 }
