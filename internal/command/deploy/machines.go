@@ -46,6 +46,8 @@ type machineDeployment struct {
 	appConfig                  *app.Config
 	img                        *imgsrc.DeploymentImage
 	machineSet                 MachineSet
+	volumeName                 string
+	volumeDestination          string
 	strategy                   string
 	releaseId                  string
 	releaseVersion             int
@@ -332,7 +334,15 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		restartOnly:                args.RestartOnly,
 	}
 	md.setStrategy(args.Strategy)
+	err = md.setVolumeConfig()
+	if err != nil {
+		return nil, err
+	}
 	err = md.setMachinesForDeployment(ctx)
+	if err != nil {
+		return nil, err
+	}
+	err = md.validateVolumeConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -515,10 +525,13 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) (err error) 
 				launchInput.Config.Guest = machine.Config.Guest
 			}
 
-			// Until mounts are supported in fly.toml, ensure deployments
-			// maintain any existing volume attachments
 			if machine.Config.Mounts != nil {
 				launchInput.Config.Mounts = machine.Config.Mounts
+			}
+			if len(launchInput.Config.Mounts) == 1 && launchInput.Config.Mounts[0].Path != md.volumeDestination {
+				currentMount := launchInput.Config.Mounts[0]
+				terminal.Warnf("Updating the mount path for volume %s on machine %s from %s to %s due to fly.toml [mounts] destination value\n", currentMount.Volume, machine.ID, currentMount.Path, md.volumeDestination)
+				launchInput.Config.Mounts[0].Path = md.volumeDestination
 			}
 
 			fmt.Fprintf(io.ErrOut, "  Updating %s\n", aurora.Bold(m.Machine().ID))
@@ -600,6 +613,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 				case err == nil:
 					if !confirmed {
 						terminal.Info("Skipping machines migration to Fly Apps Platform and the deployment")
+						md.machineSet = NewMachineSet(md.flapsClient, nil)
 						return nil
 					}
 				case prompt.IsNonInteractive(err):
@@ -613,6 +627,45 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 	}
 
 	md.machineSet = NewMachineSet(md.flapsClient, machines)
+	return nil
+}
+
+func (md *machineDeployment) setVolumeConfig() error {
+	configuredVols := md.appConfig.GetVolumes()
+	if len(configuredVols) > 1 {
+		return fmt.Errorf("error more than one mount specified in fly.toml")
+	}
+	if len(configuredVols) == 1 {
+		md.volumeName = configuredVols[0].Source
+		md.volumeDestination = configuredVols[0].Destination
+	}
+	return nil
+}
+
+func (md *machineDeployment) validateVolumeConfig() error {
+	if md.machineSet.IsEmpty() {
+		return nil
+	}
+	for _, m := range md.machineSet.GetMachines() {
+		mid := m.Machine().ID
+		mountsConfig := m.Machine().Config.Mounts
+		if len(mountsConfig) > 1 {
+			return fmt.Errorf("error machine %s has %d mounts and expected 1", mid, len(mountsConfig))
+		}
+		if md.volumeName == "" {
+			if len(mountsConfig) != 0 {
+				return fmt.Errorf("error machine %s has a volume mounted and app config does not specify a volume; remove the volume from the machine or add a [mounts] configuration to fly.toml", mid)
+			}
+		} else {
+			if len(mountsConfig) == 0 {
+				return fmt.Errorf("error machine %s does not have a volume configured and fly.toml expects one with name %s; remove the [mounts] configuration in fly.toml or use the machines API to add a volume to this machine", mid, md.volumeName)
+			}
+			mVolName := mountsConfig[0].Name
+			if md.volumeName != mVolName {
+				return fmt.Errorf("error machine %s has volume with name %s and fly.toml has [mounts] source set to %s; update the source to %s or use the machines API to attach a volume with name %s to this machine", mid, mVolName, md.volumeName, md.volumeName, md.volumeName)
+			}
+		}
+	}
 	return nil
 }
 
