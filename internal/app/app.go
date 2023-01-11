@@ -85,6 +85,7 @@ type Config struct {
 	Deploy          *Deploy                     `toml:"deploy, omitempty"`
 	PrimaryRegion   string                      `toml:"primary_region,omitempty"`
 	Checks          map[string]api.MachineCheck `toml:"checks,omitempty"`
+	Mounts          *scanner.Volume             `toml:"mounts,omitempty"`
 	platformVersion string
 }
 
@@ -647,16 +648,4 @@ func (c *Config) SetStatics(statics []scanner.Static) {
 
 func (c *Config) SetVolumes(volumes []scanner.Volume) {
 	c.Definition["mounts"] = volumes
-}
-
-func (c *Config) GetVolumes() []scanner.Volume {
-	mounts, ok := c.Definition["mounts"]
-	if !ok {
-		return nil
-	}
-	vols, ok := mounts.([]scanner.Volume)
-	if !ok {
-		return nil
-	}
-	return vols
 }
