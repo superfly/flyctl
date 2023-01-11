@@ -648,3 +648,15 @@ func (c *Config) SetStatics(statics []scanner.Static) {
 func (c *Config) SetVolumes(volumes []scanner.Volume) {
 	c.Definition["mounts"] = volumes
 }
+
+func (c *Config) GetVolumes() []scanner.Volume {
+	mounts, ok := c.Definition["mounts"]
+	if !ok {
+		return nil
+	}
+	vols, ok := mounts.([]scanner.Volume)
+	if !ok {
+		return nil
+	}
+	return vols
+}
