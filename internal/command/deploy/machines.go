@@ -479,6 +479,8 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) (err error) 
 
 	if !md.machineSet.IsEmpty() {
 
+		// FIXME: consolidate all this config stuff into a md.ResolveConfig() or something like that, and deal with restartOnly there
+
 		err := md.machineSet.AcquireLeases(ctx, 120*time.Second)
 		// FIXME: should this use context.Background() or context.TODO(), since we want it to try even on CTRL+C?
 		defer md.machineSet.ReleaseLeases(ctx)
@@ -496,6 +498,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) (err error) 
 
 			if md.restartOnly {
 				launchInput.Config = machine.Config
+				// FIXME: should we skip over all the other config stuff?
 			}
 
 			launchInput.Region = machine.Region
@@ -519,8 +522,10 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) (err error) 
 				launchInput.Config.Env["PRIMARY_REGION"] = machine.Config.Env["PRIMARY_REGION"]
 			}
 
+			// FIXME: this should just come from appConfig, right? we want folks to configure [checks] to manage these
 			launchInput.Config.Checks = machine.Config.Checks
 
+			// FIXME: this should be set from the appConfig, right? in particular this ensures all the machines have the same cpu, mem, etc
 			if machine.Config.Guest != nil {
 				launchInput.Config.Guest = machine.Config.Guest
 			}
@@ -631,13 +636,9 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 }
 
 func (md *machineDeployment) setVolumeConfig() error {
-	configuredVols := md.appConfig.GetVolumes()
-	if len(configuredVols) > 1 {
-		return fmt.Errorf("error more than one mount specified in fly.toml")
-	}
-	if len(configuredVols) == 1 {
-		md.volumeName = configuredVols[0].Source
-		md.volumeDestination = configuredVols[0].Destination
+	if md.appConfig.Mounts != nil {
+		md.volumeName = md.appConfig.Mounts.Source
+		md.volumeDestination = md.appConfig.Mounts.Destination
 	}
 	return nil
 }
@@ -662,7 +663,7 @@ func (md *machineDeployment) validateVolumeConfig() error {
 			}
 			mVolName := mountsConfig[0].Name
 			if md.volumeName != mVolName {
-				return fmt.Errorf("error machine %s has volume with name %s and fly.toml has [mounts] source set to %s; update the source to %s or use the machines API to attach a volume with name %s to this machine", mid, mVolName, md.volumeName, md.volumeName, md.volumeName)
+				return fmt.Errorf("error machine %s has volume with name %s and fly.toml has [mounts] source set to %s; update the source to %s or use the machines API to attach a volume with name %s to this machine", mid, mVolName, md.volumeName, mVolName, md.volumeName)
 			}
 		}
 	}
