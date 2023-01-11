@@ -29,11 +29,13 @@ import (
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/internal/watch"
 )
 
 var sharedFlags = flag.Set{
 	flag.App(),
 	flag.AppConfig(),
+	flag.Detach(),
 	flag.StringSlice{
 		Name:        "port",
 		Shorthand:   "p",
@@ -164,11 +166,12 @@ func newRun() *cobra.Command {
 
 func runMachineRun(ctx context.Context) error {
 	var (
-		appName = app.NameFromContext(ctx)
-		client  = client.FromContext(ctx).API()
-		io      = iostreams.FromContext(ctx)
-		err     error
-		app     *api.AppCompact
+		appName  = app.NameFromContext(ctx)
+		client   = client.FromContext(ctx).API()
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
+		err      error
+		app      *api.AppCompact
 	)
 
 	if appName == "" {
@@ -245,6 +248,15 @@ func runMachineRun(ctx context.Context) error {
 	// wait for machine to be started
 	if err := mach.WaitForStartOrStop(ctx, machine, "start", time.Minute*5); err != nil {
 		return err
+	}
+
+	if !flag.GetDetach(ctx) {
+		fmt.Fprintln(io.Out, colorize.Green("==> "+"Monitoring health checks"))
+
+		if err := watch.MachinesChecks(ctx, []*api.Machine{machine}); err != nil {
+			return err
+		}
+		fmt.Fprintln(io.Out)
 	}
 
 	fmt.Fprintf(io.Out, "Machine started, you can connect via the following private ip\n")
