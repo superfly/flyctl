@@ -85,7 +85,6 @@ func (c *Client) AllocateIPAddress(ctx context.Context, appName string, addrType
 					address
 					type
 					region
-					network
 					createdAt
 				}
 			}
