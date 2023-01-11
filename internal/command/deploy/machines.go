@@ -12,6 +12,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/jpillora/backoff"
+	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
@@ -21,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/spinner"
+	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -465,18 +467,16 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) (err error) 
 		Region:  regionCode,
 	}
 
-	msg := fmt.Sprintf("Deploying with %s strategy", md.strategy)
-	spin := spinner.Run(io, msg)
-	// FIXME: set success/failure based on deployment result
-	defer spin.StopWithSuccess()
-
 	if !md.machineSet.IsEmpty() {
 
 		err := md.machineSet.AcquireLeases(ctx, 120*time.Second)
+		// FIXME: should this use context.Background() or context.TODO(), since we want it to try even on CTRL+C?
 		defer md.machineSet.ReleaseLeases(ctx)
 		if err != nil {
 			return err
 		}
+
+		fmt.Fprintf(io.Out, "Deploying %s app with %s strategy\n", aurora.Bold(md.app.Name), md.strategy)
 
 		// FIXME: handle deploy strategy: rolling, immediate, canary, bluegreen
 
@@ -521,6 +521,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) (err error) 
 				launchInput.Config.Mounts = machine.Config.Mounts
 			}
 
+			fmt.Fprintf(io.ErrOut, "  Updating %s\n", aurora.Bold(m.Machine().ID))
 			err := m.Update(ctx, launchInput)
 			if err != nil {
 				if md.strategy != "immediate" {
@@ -538,12 +539,15 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) (err error) 
 			}
 
 			if md.strategy != "immediate" && !md.skipHealthChecks {
-				err := m.WaitForHealthchecksToPass(ctx, 120*time.Second)
+				err := watch.MachinesChecks(ctx, []*api.Machine{m.Machine()})
+				// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
 				if err != nil {
 					return err
 				}
 			}
 		}
+
+		fmt.Fprintf(io.ErrOut, "  Finished deploying\n")
 
 	} else {
 		fmt.Fprintf(io.Out, "Launching VM with image %s\n", launchInput.Config.Image)
