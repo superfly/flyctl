@@ -84,7 +84,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
 
-	var nodes = make([]*api.Machine, 0)
+	nodes := make([]*api.Machine, 0)
 
 	for i := 0; i < config.InitialClusterSize; i++ {
 		machineConf := l.getPostgresConfig(config)
@@ -135,10 +135,8 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		}
 
 		machineConf.Mounts = append(machineConf.Mounts, api.MachineMount{
-			Volume:    vol.ID,
-			Path:      volumePath,
-			SizeGb:    *config.VolumeSize,
-			Encrypted: vol.Encrypted,
+			Volume: vol.ID,
+			Path:   volumePath,
 		})
 
 		launchInput := api.LaunchMachineInput{
