@@ -214,14 +214,9 @@ func runConsole(ctx context.Context) error {
 func sshConnect(p *SSHParams, addr string) (*ssh.Client, error) {
 	terminal.Debugf("Fetching certificate for %s\n", addr)
 
-	cert, err := singleUseSSHCertificate(p.Ctx, p.Org)
+	cert, pk, err := singleUseSSHCertificate(p.Ctx, p.Org)
 	if err != nil {
 		return nil, fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh establish`)", err)
-	}
-
-	pk, err := parsePrivateKey(cert.Key)
-	if err != nil {
-		return nil, errors.Wrap(err, "parse ssh certificate")
 	}
 
 	pemkey := marshalED25519PrivateKey(pk, "single-use certificate")
