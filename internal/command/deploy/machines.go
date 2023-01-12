@@ -276,6 +276,14 @@ func (ms *machineSet) AcquireLeases(ctx context.Context, duration time.Duration)
 }
 
 func (ms *machineSet) ReleaseLeases(ctx context.Context) error {
+	// when context is canceled, take 500ms to attempt to release the leases
+	contextWasAlreadyCanceled := errors.Is(ctx.Err(), context.Canceled)
+	if contextWasAlreadyCanceled {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.TODO(), 500*time.Millisecond)
+		defer cancel()
+	}
+
 	results := make(chan error, len(ms.machines))
 	var wg sync.WaitGroup
 	for _, m := range ms.machines {
@@ -291,7 +299,8 @@ func (ms *machineSet) ReleaseLeases(ctx context.Context) error {
 	}()
 	hadError := false
 	for err := range results {
-		if err != nil {
+		contextTimedOutOrCanceled := errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
+		if err != nil && (!contextWasAlreadyCanceled || !contextTimedOutOrCanceled) {
 			hadError = true
 			terminal.Warnf("failed to release lease: %v\n", err)
 		}
@@ -482,7 +491,6 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) (err error) 
 		// FIXME: consolidate all this config stuff into a md.ResolveConfig() or something like that, and deal with restartOnly there
 
 		err := md.machineSet.AcquireLeases(ctx, 120*time.Second)
-		// FIXME: should this use context.Background() or context.TODO(), since we want it to try even on CTRL+C?
 		defer md.machineSet.ReleaseLeases(ctx)
 		if err != nil {
 			return err
