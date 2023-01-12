@@ -14,20 +14,20 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func newRemove() *cobra.Command {
+func newDestroy() *cobra.Command {
 	const (
-		short = "Remove a Fly machine"
+		short = "Destroy a Fly machine"
 		long  = short + "\n"
 
-		usage = "remove <id>"
+		usage = "destroy <id>"
 	)
 
-	cmd := command.New(usage, short, long, runMachineRemove,
+	cmd := command.New(usage, short, long, runMachineDestroy,
 		command.RequireSession,
 		command.LoadAppNameIfPresent,
 	)
 
-	cmd.Aliases = []string{"rm"}
+	cmd.Aliases = []string{"remove", "rm"}
 
 	flag.Add(
 		cmd,
@@ -45,7 +45,7 @@ func newRemove() *cobra.Command {
 	return cmd
 }
 
-func runMachineRemove(ctx context.Context) (err error) {
+func runMachineDestroy(ctx context.Context) (err error) {
 	var (
 		appName   = app.NameFromContext(ctx)
 		out       = iostreams.FromContext(ctx).Out

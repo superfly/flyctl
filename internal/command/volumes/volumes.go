@@ -30,7 +30,7 @@ func New() *cobra.Command {
 	cmd.AddCommand(
 		newCreate(),
 		newList(),
-		newDelete(),
+		newDestroy(),
 		newExtend(),
 		newShow(),
 		snapshots.New(),
