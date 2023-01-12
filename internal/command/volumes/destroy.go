@@ -26,7 +26,7 @@ number to operate. This can be found through the volumes list command`
 		command.RequireSession,
 	)
 	cmd.Args = cobra.ExactArgs(1)
-	cmd.Aliases = []string{"rm"}
+	cmd.Aliases = []string{"delete", "rm"}
 
 	flag.Add(cmd,
 		flag.Yes(),

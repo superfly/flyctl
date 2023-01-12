@@ -27,7 +27,7 @@ func newDestroy() *cobra.Command {
 		command.LoadAppNameIfPresent,
 	)
 
-	cmd.Aliases = []string{"rm"}
+	cmd.Aliases = []string{"remove", "rm"}
 
 	flag.Add(
 		cmd,
