@@ -33,6 +33,8 @@ func newConfigShow() (cmd *cobra.Command) {
 		command.RequireAppName,
 	)
 
+	cmd.Aliases = []string{"view"}
+
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
