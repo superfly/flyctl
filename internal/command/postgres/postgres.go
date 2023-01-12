@@ -80,7 +80,7 @@ func hasRequiredVersionOnNomad(app *api.AppCompact, cluster, standalone string) 
 	return nil
 }
 
-func hasRequiredVersionOnMachines(machines []*api.Machine, cluster, standalone string) error {
+func hasRequiredVersionOnMachines(machines []*api.Machine, cluster, flex, standalone string) error {
 	for _, machine := range machines {
 		// Validate image version to ensure it's compatible with this feature.
 		if machine.ImageVersion() == "" || machine.ImageVersion() == "unknown" {
@@ -109,6 +109,20 @@ func hasRequiredVersionOnMachines(machines []*api.Machine, cluster, standalone s
 			}
 		}
 
+		if machine.ImageRepository() == "flyio/postgres-timescaledb" {
+			requiredVersion, err = version.NewVersion(cluster)
+			if err != nil {
+				return err
+			}
+		}
+
+		if machine.ImageRepository() == "flyio/postgres-flex" {
+			requiredVersion, err = version.NewVersion(flex)
+			if err != nil {
+				return err
+			}
+		}
+
 		if requiredVersion == nil {
 			return fmt.Errorf("unable to resolve image version")
 		}
@@ -129,9 +143,9 @@ func machinesNodeRoles(ctx context.Context, machines []*api.Machine) (leader *ap
 		role := machineRole(machine)
 
 		switch role {
-		case "leader":
+		case "leader", "primary":
 			leader = machine
-		case "replica":
+		case "replica", "standby":
 			replicas = append(replicas, machine)
 		default:
 			replicas = append(replicas, machine)
@@ -189,7 +203,7 @@ func leaderIpFromNomadInstances(ctx context.Context, addrs []string) (string, er
 			return "", fmt.Errorf("can't get role for %s: %w", addr, err)
 		}
 
-		if role == "leader" {
+		if role == "leader" || role == "primary" {
 			return addr, nil
 		}
 	}
@@ -198,7 +212,7 @@ func leaderIpFromNomadInstances(ctx context.Context, addrs []string) (string, er
 
 func pickLeader(ctx context.Context, machines []*api.Machine) (*api.Machine, error) {
 	for _, machine := range machines {
-		if machineRole(machine) == "leader" {
+		if machineRole(machine) == "leader" || machineRole(machine) == "primary" {
 			return machine, nil
 		}
 	}

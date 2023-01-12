@@ -261,12 +261,12 @@ longHelp = """The CONFIG commands allow you to work with an application's config
 """
 shortHelp = "Manage an app's configuration"
 usage = "config"
-[config.display]
-longHelp = """Display an application's configuration. The configuration is presented
+[config.show]
+longHelp = """Show an application's configuration. The configuration is presented
 in JSON format. The configuration data is retrieved from the Fly service.
 """
-shortHelp = "Display an app's configuration"
-usage = "display"
+shortHelp = "Show an app's configuration"
+usage = "show"
 [config.save]
 longHelp = """Save an application's configuration locally. The configuration data is
 retrieved from the Fly service and saved in TOML format.
@@ -805,7 +805,7 @@ usage = "volumes <command>"
 
 [volumes.create]
 longHelp = """Create new volume for app. --region flag must be included to specify
-region the volume exists in. --size flag is optional, defaults to 10,
+region the volume exists in. --size flag is optional, defaults to 3,
 sets the size as the number of gigabytes the volume will consume."""
 shortHelp = "Create new volume for app"
 usage = "create <volumename>"

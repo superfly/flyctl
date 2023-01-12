@@ -82,7 +82,9 @@ func runRestart(ctx context.Context) error {
 
 func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err error) {
 	var (
-		MinPostgresHaVersion = "0.0.20"
+		MinPostgresHaVersion         = "0.0.20"
+		MinPostgresFlexVersion       = "0.0.3"
+		MinPostgresStandaloneVersion = "0.0.7"
 
 		dialer   = agent.DialerFromContext(ctx)
 		io       = iostreams.FromContext(ctx)
@@ -97,7 +99,7 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 		return err
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 

@@ -24,6 +24,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/image"
 	"github.com/superfly/flyctl/internal/command/info"
 	"github.com/superfly/flyctl/internal/command/ips"
+	"github.com/superfly/flyctl/internal/command/jobs"
 	"github.com/superfly/flyctl/internal/command/launch"
 	"github.com/superfly/flyctl/internal/command/logs"
 	"github.com/superfly/flyctl/internal/command/machine"
@@ -159,6 +160,7 @@ func New() *cobra.Command {
 		checks.New(),
 		launch.New(),
 		info.New(),
+		jobs.New(),
 	}
 
 	// if os.Getenv("DEV") != "" {

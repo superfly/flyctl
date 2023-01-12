@@ -225,9 +225,9 @@ Takes hostname as a parameter to locate the certificate.`,
 		return KeyStrings{"config", "Manage an app's configuration",
 			`The CONFIG commands allow you to work with an application's configuration.`,
 		}
-	case "config.display":
-		return KeyStrings{"display", "Display an app's configuration",
-			`Display an application's configuration. The configuration is presented
+	case "config.show":
+		return KeyStrings{"show", "Show an app's configuration",
+			`Show an application's configuration. The configuration is presented
 in JSON format. The configuration data is retrieved from the Fly service.`,
 		}
 	case "config.env":
@@ -777,7 +777,7 @@ command to update the application.`,
 	case "volumes.create":
 		return KeyStrings{"create <volumename>", "Create new volume for app",
 			`Create new volume for app. --region flag must be included to specify
-region the volume exists in. --size flag is optional, defaults to 10,
+region the volume exists in. --size flag is optional, defaults to 3,
 sets the size as the number of gigabytes the volume will consume.`,
 		}
 	case "volumes.delete":

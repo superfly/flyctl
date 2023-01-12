@@ -128,6 +128,7 @@ type MachineMount struct {
 	Path      string `json:"path"`
 	SizeGb    int    `json:"size_gb"`
 	Volume    string `json:"volume"`
+	Name      string `json:"name"`
 }
 
 type MachineGuest struct {
@@ -173,7 +174,9 @@ type MachineCheckStatus struct {
 }
 
 type MachinePort struct {
-	Port       int      `json:"port" toml:"port"`
+	Port       *int32   `json:"port,omitempty" toml:"port,omitempty"`
+	StartPort  *int32   `json:"start_port,omitempty" toml:"start_port,omitempty"`
+	EndPort    *int32   `json:"end_port,omitempty" toml:"end_port,omitempty"`
 	Handlers   []string `json:"handlers,omitempty" toml:"handlers,omitempty"`
 	ForceHttps bool     `json:"force_https,omitempty" toml:"force_https,omitempty"`
 }
@@ -204,12 +207,7 @@ type MachineConfig struct {
 	Guest     *MachineGuest           `json:"guest,omitempty"`
 	Metrics   *MachineMetrics         `json:"metrics"`
 	Schedule  string                  `json:"schedule,omitempty"`
-	Network   MachineNetwork          `json:"network,omitempty"`
 	Checks    map[string]MachineCheck `json:"checks,omitempty"`
-}
-
-type MachineNetwork struct {
-	ID int `json:"id"`
 }
 
 type MachineLease struct {

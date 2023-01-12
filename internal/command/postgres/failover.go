@@ -43,10 +43,13 @@ func newFailover() *cobra.Command {
 
 func runFailover(ctx context.Context) (err error) {
 	var (
-		MinPostgresHaVersion = "0.0.20"
-		io                   = iostreams.FromContext(ctx)
-		client               = client.FromContext(ctx).API()
-		appName              = app.NameFromContext(ctx)
+		MinPostgresHaVersion         = "0.0.20"
+		MinPostgresFlexVersion       = "0.0.3"
+		MinPostgresStandaloneVersion = "0.0.7"
+
+		io      = iostreams.FromContext(ctx)
+		client  = client.FromContext(ctx).API()
+		appName = app.NameFromContext(ctx)
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -62,6 +65,10 @@ func runFailover(ctx context.Context) (err error) {
 		return fmt.Errorf("failover is only supported for machines apps")
 	}
 
+	if app.ImageDetails.Repository != "flyio/postgres" {
+		return fmt.Errorf("failover is not currently supported for this image type")
+	}
+
 	ctx, err = apps.BuildContext(ctx, app)
 	if err != nil {
 		return err
@@ -73,7 +80,7 @@ func runFailover(ctx context.Context) (err error) {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 

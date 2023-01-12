@@ -13,6 +13,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
 	"github.com/pkg/errors"
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
@@ -29,15 +30,17 @@ import (
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/internal/watch"
 )
 
 var sharedFlags = flag.Set{
 	flag.App(),
 	flag.AppConfig(),
+	flag.Detach(),
 	flag.StringSlice{
 		Name:        "port",
 		Shorthand:   "p",
-		Description: "Exposed port mappings (format: edgePort[:machinePort]/[protocol[:handler]])",
+		Description: "Exposed port mappings (format: (edgePort|startPort-endPort)[:machinePort]/[protocol[:handler]])",
 	},
 	flag.String{
 		Name:        "size",
@@ -164,11 +167,12 @@ func newRun() *cobra.Command {
 
 func runMachineRun(ctx context.Context) error {
 	var (
-		appName = app.NameFromContext(ctx)
-		client  = client.FromContext(ctx).API()
-		io      = iostreams.FromContext(ctx)
-		err     error
-		app     *api.AppCompact
+		appName  = app.NameFromContext(ctx)
+		client   = client.FromContext(ctx).API()
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
+		err      error
+		app      *api.AppCompact
 	)
 
 	if appName == "" {
@@ -219,7 +223,7 @@ func runMachineRun(ctx context.Context) error {
 		return fmt.Errorf("to update an existing machine, use 'flyctl machine update'")
 	}
 
-	machineConf, err = determineMachineConfig(ctx, *machineConf, app, flag.FirstArg(ctx))
+	machineConf, err = determineMachineConfig(ctx, *machineConf, app, flag.FirstArg(ctx), input.Region)
 	if err != nil {
 		return err
 	}
@@ -245,6 +249,15 @@ func runMachineRun(ctx context.Context) error {
 	// wait for machine to be started
 	if err := mach.WaitForStartOrStop(ctx, machine, "start", time.Minute*5); err != nil {
 		return err
+	}
+
+	if !flag.GetDetach(ctx) {
+		fmt.Fprintln(io.Out, colorize.Green("==> "+"Monitoring health checks"))
+
+		if err := watch.MachinesChecks(ctx, []*api.Machine{machine}); err != nil {
+			return err
+		}
+		fmt.Fprintln(io.Out)
 	}
 
 	fmt.Fprintf(io.Out, "Machine started, you can connect via the following private ip\n")
@@ -376,34 +389,79 @@ func determineImage(ctx context.Context, appName string, imageOrPath string) (im
 	return img, nil
 }
 
-func determineMounts(ctx context.Context, mounts []api.MachineMount) ([]api.MachineMount, error) {
+func determineMounts(ctx context.Context, mounts []api.MachineMount, region string) ([]api.MachineMount, error) {
+	unattachedVolumes := make(map[string][]api.Volume)
+
+	pathIndex := make(map[string]int)
+	for idx, m := range mounts {
+		pathIndex[m.Path] = idx
+	}
+
 	for _, v := range flag.GetStringSlice(ctx, "volume") {
 		splittedIDDestOpts := strings.Split(v, ":")
-
-		mount := api.MachineMount{
-			Volume: splittedIDDestOpts[0],
-			Path:   splittedIDDestOpts[1],
+		if len(splittedIDDestOpts) < 2 {
+			return nil, fmt.Errorf("Can't infer volume and mount path from '%s'", v)
 		}
+		volID := splittedIDDestOpts[0]
+		mountPath := splittedIDDestOpts[1]
 
-		if len(splittedIDDestOpts) > 2 {
-			splittedOpts := strings.Split(splittedIDDestOpts[2], ",")
-			for _, opt := range splittedOpts {
-				splittedKeyValue := strings.Split(opt, "=")
-				if splittedKeyValue[0] == "size" {
-					i, err := strconv.Atoi(splittedKeyValue[1])
-					if err != nil {
-						return nil, errors.Wrapf(err, "could not parse volume '%s' size option value '%s', must be an integer", splittedIDDestOpts[0], splittedKeyValue[1])
-					}
-					mount.SizeGb = i
-				} else if splittedKeyValue[0] == "encrypt" {
-					mount.Encrypted = true
+		if !strings.HasPrefix(volID, "vol_") {
+			volName := volID
+
+			// Load app volumes the first time
+			if len(unattachedVolumes) == 0 {
+				var err error
+				unattachedVolumes, err = getUnattachedVolumes(ctx, region)
+				if err != nil {
+					return nil, err
 				}
 			}
+
+			if len(unattachedVolumes[volName]) == 0 {
+				return nil, fmt.Errorf("not enough unattached volumes for '%s'", volName)
+			}
+			volID = unattachedVolumes[volName][0].ID
+			unattachedVolumes[volName] = unattachedVolumes[volName][1:]
 		}
 
-		mounts = append(mounts, mount)
+		if idx, found := pathIndex[mountPath]; found {
+			mounts[idx].Volume = volID
+		} else {
+			mounts = append(mounts, api.MachineMount{
+				Volume: volID,
+				Path:   mountPath,
+			})
+		}
 	}
 	return mounts, nil
+}
+
+func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]api.Volume, error) {
+	appName := app.NameFromContext(ctx)
+	apiclient := client.FromContext(ctx).API()
+
+	if regionCode == "" {
+		region, err := apiclient.GetNearestRegion(ctx)
+		if err != nil {
+			return nil, err
+		}
+		regionCode = region.Code
+	}
+
+	volumes, err := apiclient.GetVolumes(ctx, appName)
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching application volumes: %w", err)
+	}
+
+	unattached := lo.Filter(volumes, func(v api.Volume, _ int) bool {
+		return !v.IsAttached() && (regionCode == v.Region)
+	})
+	if len(unattached) == 0 {
+		return nil, fmt.Errorf("No unattached volumes in region '%s'", regionCode)
+	}
+
+	unattachedMap := lo.GroupBy(unattached, func(v api.Volume) string { return v.Name })
+	return unattachedMap, nil
 }
 
 func determineServices(ctx context.Context) ([]api.MachineService, error) {
@@ -420,37 +478,93 @@ func determineServices(ctx context.Context) ([]api.MachineService, error) {
 		handlers := []string{}
 
 		splittedPortsProto := strings.Split(p, "/")
-		if len(splittedPortsProto) > 1 {
+		if len(splittedPortsProto) == 2 {
 			splittedProtoHandlers := strings.Split(splittedPortsProto[1], ":")
 			proto = splittedProtoHandlers[0]
 			handlers = append(handlers, splittedProtoHandlers[1:]...)
+		} else if len(splittedPortsProto) > 2 {
+			return nil, errors.New("port must be at most two elements (ports/protocol:handler)")
 		}
 
-		splittedPorts := strings.Split(splittedPortsProto[0], ":")
-		edgePort, err := strconv.Atoi(splittedPorts[0])
+		edgePort, edgeStartPort, edgeEndPort, internalPort, err := parsePorts(splittedPortsProto[0])
 		if err != nil {
-			return nil, errors.Wrap(err, "invalid edge port")
-		}
-		machinePort := edgePort
-		if len(splittedPorts) > 1 {
-			machinePort, err = strconv.Atoi(splittedPorts[1])
-			if err != nil {
-				return nil, errors.Wrap(err, "invalid machine (internal) port")
-			}
+			return nil, err
 		}
 
 		machineServices[i] = api.MachineService{
 			Protocol:     proto,
-			InternalPort: machinePort,
+			InternalPort: internalPort,
 			Ports: []api.MachinePort{
 				{
-					Port:     edgePort,
-					Handlers: handlers,
+					Port:      edgePort,
+					StartPort: edgeStartPort,
+					EndPort:   edgeEndPort,
+					Handlers:  handlers,
 				},
 			},
 		}
 	}
 	return machineServices, nil
+}
+
+func parsePorts(input string) (port, start_port, end_port *int32, internal_port int, err error) {
+	split := strings.Split(input, ":")
+	if len(split) == 1 {
+		var external_port int
+		external_port, err = strconv.Atoi(split[0])
+		if err != nil {
+			err = errors.Wrap(err, "invalid port")
+			return
+		}
+
+		p := int32(external_port)
+		port = &p
+	} else if len(split) == 2 {
+		internal_port, err = strconv.Atoi(split[1])
+		if err != nil {
+			err = errors.Wrap(err, "invalid machine (internal) port")
+			return
+		}
+
+		external_split := strings.Split(split[0], "-")
+		if len(external_split) == 1 {
+			var external_port int
+			external_port, err = strconv.Atoi(external_split[0])
+			if err != nil {
+				err = errors.Wrap(err, "invalid external port")
+				return
+			}
+
+			p := int32(external_port)
+			port = &p
+		} else if len(external_split) == 2 {
+			var start int
+			start, err = strconv.Atoi(external_split[0])
+			if err != nil {
+				err = errors.Wrap(err, "invalid start port for port range")
+				return
+			}
+
+			s := int32(start)
+			start_port = &s
+
+			var end int
+			end, err = strconv.Atoi(external_split[0])
+			if err != nil {
+				err = errors.Wrap(err, "invalid end port for port range")
+				return
+			}
+
+			e := int32(end)
+			end_port = &e
+		} else {
+			err = errors.New("external port must be at most 2 elements (port, or range start-end)")
+		}
+	} else {
+		err = errors.New("port definition must be at most 2 elements (external:internal)")
+	}
+
+	return
 }
 
 func selectAppName(ctx context.Context) (name string, err error) {
@@ -463,7 +577,7 @@ func selectAppName(ctx context.Context) (name string, err error) {
 	return
 }
 
-func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, imageOrPath string) (*api.MachineConfig, error) {
+func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, imageOrPath string, region string) (*api.MachineConfig, error) {
 	machineConf, err := mach.CloneConfig(initialMachineConf)
 	if err != nil {
 		return nil, err
@@ -498,9 +612,17 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		machineConf.Guest.KernelArgs = flag.GetStringSlice(ctx, "kernel-arg")
 	}
 
-	machineConf.Env, err = parseKVFlag(ctx, "env", machineConf.Env)
+	parsedEnv, err := parseKVFlag(ctx, "env", machineConf.Env)
 	if err != nil {
 		return machineConf, err
+	}
+
+	if machineConf.Env == nil {
+		machineConf.Env = make(map[string]string)
+	}
+
+	for k, v := range parsedEnv {
+		machineConf.Env[k] = v
 	}
 
 	if flag.GetString(ctx, "schedule") != "" {
@@ -541,7 +663,7 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		machineConf.Init.Cmd = cmd
 	}
 
-	machineConf.Mounts, err = determineMounts(ctx, machineConf.Mounts)
+	machineConf.Mounts, err = determineMounts(ctx, machineConf.Mounts, region)
 	if err != nil {
 		return machineConf, err
 	}

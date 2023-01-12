@@ -121,22 +121,18 @@ func runMoveAppOnMachines(ctx context.Context, app *api.AppCompact, targetOrg *a
 		return err
 	}
 
-	updatedApp, err := client.MoveApp(ctx, app.Name, targetOrg.ID)
-	if err != nil {
+	if _, err := client.MoveApp(ctx, app.Name, targetOrg.ID); err != nil {
 		return fmt.Errorf("failed moving app: %w", err)
 	}
 
 	for _, machine := range machines {
-		config := machine.Config
-		config.Network.ID = updatedApp.NetworkID
-
 		input := &api.LaunchMachineInput{
 			AppID:            app.ID,
 			ID:               machine.ID,
 			Name:             machine.Name,
 			Region:           machine.Region,
 			OrgSlug:          targetOrg.ID,
-			Config:           config,
+			Config:           machine.Config,
 			SkipHealthChecks: skipHealthChecks,
 		}
 		mach.Update(ctx, machine, input)

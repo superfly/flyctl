@@ -21,17 +21,19 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func newConfigView() (cmd *cobra.Command) {
+func newConfigShow() (cmd *cobra.Command) {
 	const (
-		long  = `View your Postgres configuration`
-		short = "View your Postgres configuration"
-		usage = "view"
+		long  = `Show Postgres configuration`
+		short = "Show Postgres configuration"
+		usage = "show"
 	)
 
-	cmd = command.New(usage, short, long, runConfigView,
+	cmd = command.New(usage, short, long, runConfigShow,
 		command.RequireSession,
 		command.RequireAppName,
 	)
+
+	cmd.Aliases = []string{"view"}
 
 	flag.Add(cmd,
 		flag.App(),
@@ -41,7 +43,7 @@ func newConfigView() (cmd *cobra.Command) {
 	return
 }
 
-func runConfigView(ctx context.Context) error {
+func runConfigShow(ctx context.Context) error {
 	var (
 		client  = client.FromContext(ctx).API()
 		appName = app.NameFromContext(ctx)
@@ -63,17 +65,19 @@ func runConfigView(ctx context.Context) error {
 
 	switch app.PlatformVersion {
 	case "machines":
-		return runMachineConfigView(ctx, app)
+		return runMachineConfigShow(ctx, app)
 	case "nomad":
-		return runNomadConfigView(ctx, app)
+		return runNomadConfigShow(ctx, app)
 	default:
 		return fmt.Errorf("unknown platform version")
 	}
 }
 
-func runMachineConfigView(ctx context.Context, app *api.AppCompact) (err error) {
+func runMachineConfigShow(ctx context.Context, app *api.AppCompact) (err error) {
 	var (
-		MinPostgresHaVersion = "0.0.19"
+		MinPostgresHaVersion         = "0.0.19"
+		MinPostgresStandaloneVersion = "0.0.7"
+		MinPostgresFlexVersion       = "0.0.3"
 	)
 
 	ctx, err = apps.BuildContext(ctx, app)
@@ -86,7 +90,11 @@ func runMachineConfigView(ctx context.Context, app *api.AppCompact) (err error) 
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
+	if app.ImageDetails.Repository == "flyio/postgres-flex" {
+		return fmt.Errorf("this feature is not currently supported for this image type")
+	}
+
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 
@@ -95,10 +103,10 @@ func runMachineConfigView(ctx context.Context, app *api.AppCompact) (err error) 
 		return err
 	}
 
-	return viewSettings(ctx, app, leader.PrivateIP)
+	return showSettings(ctx, app, leader.PrivateIP)
 }
 
-func runNomadConfigView(ctx context.Context, app *api.AppCompact) (err error) {
+func runNomadConfigShow(ctx context.Context, app *api.AppCompact) (err error) {
 	var (
 		MinPostgresHaVersion = "0.0.19"
 		client               = client.FromContext(ctx).API()
@@ -127,10 +135,10 @@ func runNomadConfigView(ctx context.Context, app *api.AppCompact) (err error) {
 		return err
 	}
 
-	return viewSettings(ctx, app, leaderIP)
+	return showSettings(ctx, app, leaderIP)
 }
 
-func viewSettings(ctx context.Context, app *api.AppCompact, leaderIP string) error {
+func showSettings(ctx context.Context, app *api.AppCompact, leaderIP string) error {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()

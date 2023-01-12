@@ -108,9 +108,11 @@ func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 		io          = iostreams.FromContext(ctx)
 		colorize    = io.ColorScheme()
 		autoConfirm = flag.GetBool(ctx, "yes")
-	)
 
-	var MinPostgresVersion = "v0.0.33"
+		MinPostgresHaVersion         = "0.0.33"
+		MinPostgresStandaloneVersion = "0.0.7"
+		MinPostgresFlexVersion       = "0.0.3" // Not currently supported
+	)
 
 	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
 	defer releaseLeaseFunc(ctx, machines)
@@ -118,7 +120,11 @@ func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 		return fmt.Errorf("machines could not be retrieved")
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresVersion, MinPostgresVersion); err != nil {
+	if app.ImageDetails.Repository == "flyio/postgres-flex" {
+		return fmt.Errorf("this feature is not currently supported for this image type")
+	}
+
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 
@@ -294,11 +300,15 @@ func updateStolonConfig(ctx context.Context, app *api.AppCompact, leaderIP strin
 		}
 	}
 
-	cmd := flypg.NewFromInstance(leaderIP, dialer)
+	cmd, err := flypg.NewCommand(ctx, app)
+	if err != nil {
+		return false, err
+	}
 
 	fmt.Fprintln(io.Out, "Performing update...")
 
-	if err := cmd.UpdateSettings(ctx, changes); err != nil {
+	err = cmd.UpdateSettings(ctx, leaderIP, changes)
+	if err != nil {
 		return false, err
 	}
 	fmt.Fprintln(io.Out, "Update complete!")
