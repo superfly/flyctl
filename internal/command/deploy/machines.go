@@ -272,8 +272,6 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 				machineConfig.Metadata["fly-managed-postgres"] = "true"
 			}
 
-			machineConfig.Metadata = map[string]string{"process_group": "app"}
-
 			if launchInput.Config.Env["PRIMARY_REGION"] == "" {
 				launchInput.Config.Env["PRIMARY_REGION"] = machine.Config.Env["PRIMARY_REGION"]
 			}
