@@ -25,6 +25,7 @@ func newDestroy() (cmd *cobra.Command) {
 
 	cmd = command.New(usage, short, long, runDestroy, command.RequireSession)
 
+	cmd.Aliases = []string{"delete"}
 	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(cmd,
