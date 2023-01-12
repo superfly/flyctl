@@ -21,8 +21,9 @@ func newConfigCommand(client *client.Client) *Command {
 
 	cmd := BuildCommandKS(nil, nil, configStrings, client, requireSession, requireAppName)
 
-	configDisplayStrings := docstrings.Get("config.display")
-	BuildCommandKS(cmd, runDisplayConfig, configDisplayStrings, client, requireSession, requireAppName)
+	configShowStrings := docstrings.Get("config.show")
+	cmdShow := BuildCommandKS(cmd, runShowConfig, configShowStrings, client, requireSession, requireAppName)
+	cmdShow.Aliases = []string{"display"}
 
 	configSaveStrings := docstrings.Get("config.save")
 	BuildCommandKS(cmd, runSaveConfig, configSaveStrings, client, requireSession, requireAppName)
@@ -36,7 +37,7 @@ func newConfigCommand(client *client.Client) *Command {
 	return cmd
 }
 
-func runDisplayConfig(cmdCtx *cmdctx.CmdContext) error {
+func runShowConfig(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 
 	cfg, err := cmdCtx.Client.API().GetConfig(ctx, cmdCtx.AppName)
