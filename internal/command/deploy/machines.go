@@ -222,7 +222,6 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 	spin := spinner.Run(io, msg)
 	defer spin.StopWithSuccess()
 
-	machineConfig.Metadata = map[string]string{"process_group": "app"}
 	machineConfig.Init.Cmd = nil
 
 	launchInput := api.LaunchMachineInput{
@@ -260,6 +259,18 @@ func DeployMachinesApp(ctx context.Context, app *api.AppCompact, strategy string
 			}
 
 			launchInput.Region = machine.Region
+
+			machineConfig.Metadata = machine.Config.Metadata
+
+			if machineConfig.Metadata == nil {
+				machineConfig.Metadata = map[string]string{
+					"process_group": "app",
+				}
+			}
+
+			if app.IsPostgresApp() {
+				machineConfig.Metadata["fly-managed-postgres"] = "true"
+			}
 
 			if launchInput.Config.Env["PRIMARY_REGION"] == "" {
 				launchInput.Config.Env["PRIMARY_REGION"] = machine.Config.Env["PRIMARY_REGION"]
