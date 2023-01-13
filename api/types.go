@@ -1210,6 +1210,10 @@ type NomadToMachinesMigrationInput struct {
 	AppID string `json:"appId"`
 }
 
+type NomadToMachinesMigrationPrepInput struct {
+	AppID string `json:"appId"`
+}
+
 type AttachPostgresClusterInput struct {
 	AppID                string  `json:"appId"`
 	PostgresClusterAppID string  `json:"postgresClusterAppId"`
