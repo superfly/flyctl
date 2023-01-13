@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -90,12 +91,11 @@ func runMachineConfigShow(ctx context.Context, app *api.AppCompact) (err error) 
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	if app.ImageDetails.Repository == "flyio/postgres-flex" {
-		return fmt.Errorf("this feature is not currently supported for this image type")
-	}
-
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
-		return err
+	_, dev := os.LookupEnv("FLY_DEV")
+	if !dev {
+		if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
+			return err
+		}
 	}
 
 	leader, err := pickLeader(ctx, machines)
@@ -152,7 +152,12 @@ func showSettings(ctx context.Context, app *api.AppCompact, leaderIP string) err
 		settings = append(settings, k)
 	}
 
-	res, err := pgclient.ViewSettings(ctx, settings)
+	_, flex := os.LookupEnv("FORCE_FLEX")
+	if app.ImageDetails.Repository == "flyio/postgres-flex" {
+		flex = true
+	}
+
+	res, err := pgclient.ViewSettings(ctx, settings, flex)
 	if err != nil {
 		return err
 	}

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -111,7 +112,7 @@ func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 
 		MinPostgresHaVersion         = "0.0.33"
 		MinPostgresStandaloneVersion = "0.0.7"
-		MinPostgresFlexVersion       = "0.0.3" // Not currently supported
+		MinPostgresFlexVersion       = "0.0.3"
 	)
 
 	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
@@ -120,12 +121,11 @@ func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 		return fmt.Errorf("machines could not be retrieved")
 	}
 
-	if app.ImageDetails.Repository == "flyio/postgres-flex" {
-		return fmt.Errorf("this feature is not currently supported for this image type")
-	}
-
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
-		return err
+	_, dev := os.LookupEnv("FLY_DEV")
+	if !dev {
+		if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
+			return err
+		}
 	}
 
 	leader, err := pickLeader(ctx, machines)
@@ -251,7 +251,13 @@ func updateStolonConfig(ctx context.Context, app *api.AppCompact, leaderIP strin
 	if !force {
 		// Query PG settings
 		pgclient := flypg.NewFromInstance(leaderIP, dialer)
-		settings, err := pgclient.ViewSettings(ctx, keys)
+
+		_, flex := os.LookupEnv("FORCE_FLEX")
+		if app.ImageDetails.Repository == "flyio/postgres-flex" {
+			flex = true
+		}
+
+		settings, err := pgclient.ViewSettings(ctx, keys, flex)
 		if err != nil {
 			return false, err
 		}
@@ -300,16 +306,30 @@ func updateStolonConfig(ctx context.Context, app *api.AppCompact, leaderIP strin
 		}
 	}
 
-	cmd, err := flypg.NewCommand(ctx, app)
-	if err != nil {
-		return false, err
-	}
-
 	fmt.Fprintln(io.Out, "Performing update...")
 
-	err = cmd.UpdateSettings(ctx, leaderIP, changes)
-	if err != nil {
-		return false, err
+	_, flex := os.LookupEnv("FORCE_FLEX")
+	if app.ImageDetails.Repository == "flyio/postgres-flex" || flex {
+		pgclient := flypg.NewFromInstance(leaderIP, dialer)
+		err := pgclient.UpdateSettings(ctx, changes)
+		if err != nil {
+			return false, err
+		}
+		fmt.Fprintln(io.Out, "Performing apply...")
+		err = pgclient.ApplySettings(ctx)
+		if err != nil {
+			return false, err
+		}
+		fmt.Fprintln(io.Out, "Apply complete!")
+	} else {
+		cmd, err := flypg.NewCommand(ctx, app)
+		if err != nil {
+			return false, err
+		}
+		err = cmd.UpdateSettings(ctx, leaderIP, changes)
+		if err != nil {
+			return false, err
+		}
 	}
 	fmt.Fprintln(io.Out, "Update complete!")
 

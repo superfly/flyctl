@@ -168,8 +168,11 @@ func (c *Client) Failover(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) ViewSettings(ctx context.Context, settings []string) (*PGSettings, error) {
+func (c *Client) ViewSettings(ctx context.Context, settings []string, flex bool) (*PGSettings, error) {
 	endpoint := "/commands/admin/settings/view"
+	if flex {
+		endpoint = "/commands/admin/settings/view/postgres"
+	}
 
 	out := new(SettingsViewResponse)
 
@@ -181,11 +184,20 @@ func (c *Client) ViewSettings(ctx context.Context, settings []string) (*PGSettin
 }
 
 func (c *Client) UpdateSettings(ctx context.Context, settings map[string]string) error {
-	endpoint := "/commands/admin/settings/update"
+	endpoint := "/commands/admin/settings/update/postgres"
 
 	if err := c.Do(ctx, http.MethodPost, endpoint, settings, nil); err != nil {
 		return err
 	}
 
+	return nil
+}
+
+func (c *Client) ApplySettings(ctx context.Context) error {
+	endpoint := "/commands/admin/settings/apply"
+
+	if err := c.Do(ctx, http.MethodPost, endpoint, nil, nil); err != nil {
+		return err
+	}
 	return nil
 }
