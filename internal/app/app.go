@@ -85,6 +85,7 @@ type Config struct {
 	Deploy          *Deploy                     `toml:"deploy, omitempty"`
 	PrimaryRegion   string                      `toml:"primary_region,omitempty"`
 	Checks          map[string]api.MachineCheck `toml:"checks,omitempty"`
+	Mounts          *scanner.Volume             `toml:"mounts,omitempty"`
 	platformVersion string
 }
 
@@ -578,6 +579,26 @@ func (c *Config) GetEnvVariables() map[string]string {
 	}
 
 	return env
+}
+
+func (c *Config) GetDeployStrategy() string {
+	dep, ok := c.Definition["deploy"]
+	if !ok {
+		return ""
+	}
+	depMap, ok := dep.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+	strategy, ok := depMap["strategy"]
+	if !ok {
+		return ""
+	}
+	stratStr, ok := strategy.(string)
+	if !ok {
+		return ""
+	}
+	return stratStr
 }
 
 func (c *Config) SetProcess(name, value string) {

@@ -5,6 +5,18 @@ import (
 	"time"
 )
 
+const MachineConfigMetadataKeyFlyManagedPostgres = "fly-managed-postgres"
+const MachineConfigMetadataKeyFlyPlatformVersion = "fly_platform_version"
+const MachineConfigMetadataKeyFlyReleaseId = "fly_release_id"
+const MachineConfigMetadataKeyFlyReleaseVersion = "fly_release_version"
+const MachineConfigMetadataKeyProcessGroup = "process_group"
+const MachineFlyPlatformVersion2 = "v2"
+const MachineProcessGroupApp = "app"
+const MachineProcessGroupReleaseCommand = "release_command"
+const MachineStateDestroyed = "destroyed"
+const MachineStateStarted = "started"
+const MachineStateStopped = "stopped"
+
 type Machine struct {
 	ID       string          `json:"id"`
 	Name     string          `json:"name"`
@@ -38,6 +50,26 @@ func (m Machine) ImageRefWithVersion() string {
 	return ref
 }
 
+func (m *Machine) IsFlyAppsPlatform() bool {
+	return m.Config != nil && m.Config.Metadata[MachineConfigMetadataKeyFlyPlatformVersion] == MachineFlyPlatformVersion2 && m.State != MachineStateDestroyed
+}
+
+func (m *Machine) IsFlyAppsInstance() bool {
+	return m.IsFlyAppsPlatform() && m.HasProcessGroup(MachineProcessGroupApp)
+}
+
+func (m *Machine) IsFlyAppsReleaseCommand() bool {
+	return m.IsFlyAppsPlatform() && m.HasProcessGroup(MachineProcessGroupReleaseCommand)
+}
+
+func (m *Machine) IsActive() bool {
+	return m.State != MachineStateDestroyed
+}
+
+func (m *Machine) HasProcessGroup(desired string) bool {
+	return m.Config != nil && m.Config.Metadata[MachineConfigMetadataKeyProcessGroup] == desired
+}
+
 func (m Machine) ImageVersion() string {
 	if m.ImageRef.Labels == nil {
 		return ""
@@ -47,6 +79,47 @@ func (m Machine) ImageVersion() string {
 
 func (m Machine) ImageRepository() string {
 	return m.ImageRef.Repository
+}
+
+type HealthCheckStatus struct {
+	Total, Passing, Warn, Critical int
+}
+
+func (hcs *HealthCheckStatus) AllPassing() bool {
+	return hcs.Passing == hcs.Total
+}
+
+func (m *Machine) HealthCheckStatus() *HealthCheckStatus {
+	res := &HealthCheckStatus{}
+	res.Total = len(m.Checks)
+	for _, check := range m.Checks {
+		switch check.Status {
+		case "passing":
+			res.Passing += 1
+		case "warn":
+			res.Warn += 1
+		case "critical":
+			res.Critical += 1
+		}
+	}
+	return res
+}
+
+// Finds the latest event of type latestEventType, which happened after the most recent event of type firstEventType
+func (m *Machine) GetLatestEventOfTypeAfterType(latestEventType, firstEventType string) *MachineEvent {
+	firstIndex := 0
+	for i, e := range m.Events {
+		if e.Type == firstEventType {
+			firstIndex = i
+			break
+		}
+	}
+	for _, e := range m.Events[0:firstIndex] {
+		if e.Type == latestEventType {
+			return e
+		}
+	}
+	return nil
 }
 
 type machineImageRef struct {
@@ -66,18 +139,37 @@ type MachineEvent struct {
 }
 
 type MachineRequest struct {
-	ExitEvent    *MachineExitEvent `json:"exit_event,omitempty"`
-	RestartCount int64             `json:"restart_count"`
+	// FIXME: are we ever sending back ExitEvent? Or is everything using MonitorEvent.ExitCode now? are there older events that have it here?
+	ExitEvent    *MachineExitEvent    `json:"exit_event,omitempty"`
+	MonitorEvent *MachineMonitorEvent `json:"MonitorEvent,omitempty"`
+	RestartCount int                  `json:"restart_count"`
+}
+
+// returns the ExitCode from MonitorEvent if it exists, otherwise ExitEvent
+// error when MonitorEvent and ExitEvent are both nil
+func (mr *MachineRequest) GetExitCode() (int, error) {
+	if mr.MonitorEvent != nil && mr.MonitorEvent.ExitEvent != nil {
+		return mr.MonitorEvent.ExitEvent.ExitCode, nil
+	} else if mr.ExitEvent != nil {
+		return mr.MonitorEvent.ExitEvent.ExitCode, nil
+	} else {
+		return -1, fmt.Errorf("error no exit code in this MachineRequest")
+	}
+}
+
+type MachineMonitorEvent struct {
+	ExitEvent *MachineExitEvent `json:"exit_event,omitempty"`
 }
 
 type MachineExitEvent struct {
-	ExitCode      int16 `json:"exit_code"`
-	GuestExitCode int16 `json:"guest_exit_code"`
-	GuestSignal   int16 `json:"guest_signal"`
-	OOMKilled     bool  `json:"oom_killed"`
-	RequestedStop bool  `json:"requested_stop"`
-	Resarting     bool  `json:"restarting"`
-	Signal        int16 `json:"signal"`
+	ExitCode      int       `json:"exit_code,omitempty"`
+	GuestExitCode int       `json:"guest_exit_code,omitempty"`
+	GuestSignal   int       `json:"guest_signal,omitempty"`
+	OOMKilled     bool      `json:"oom_killed,omitempty"`
+	RequestedStop bool      `json:"requested_stop,omitempty"`
+	Restarting    bool      `json:"restarting,omitempty"`
+	Signal        int       `json:"signal,omitempty"`
+	ExitedAt      time.Time `json:"exited_at,omitempty"`
 }
 
 type StopMachineInput struct {
@@ -174,9 +266,9 @@ type MachineCheckStatus struct {
 }
 
 type MachinePort struct {
-	Port       *int32   `json:"port,omitempty" toml:"port,omitempty"`
-	StartPort  *int32   `json:"start_port,omitempty" toml:"start_port,omitempty"`
-	EndPort    *int32   `json:"end_port,omitempty" toml:"end_port,omitempty"`
+	Port       *int     `json:"port,omitempty" toml:"port,omitempty"`
+	StartPort  *int     `json:"start_port,omitempty" toml:"start_port,omitempty"`
+	EndPort    *int     `json:"end_port,omitempty" toml:"end_port,omitempty"`
 	Handlers   []string `json:"handlers,omitempty" toml:"handlers,omitempty"`
 	ForceHttps bool     `json:"force_https,omitempty" toml:"force_https,omitempty"`
 }
@@ -211,12 +303,16 @@ type MachineConfig struct {
 }
 
 type MachineLease struct {
-	Status string `json:"status"`
-	Data   struct {
-		Nonce     string `json:"nonce"`
-		ExpiresAt int64  `json:"expires_at"`
-		Owner     string `json:"owner"`
-	}
+	Status  string            `json:"status"`
+	Data    *MachineLeaseData `json:"data,omitempty"`
+	Message string            `json:"message,omitempty"`
+	Code    string            `json:"code,omitempty"`
+}
+
+type MachineLeaseData struct {
+	Nonce     string `json:"nonce"`
+	ExpiresAt int64  `json:"expires_at"`
+	Owner     string `json:"owner"`
 }
 
 type MachineStartResponse struct {

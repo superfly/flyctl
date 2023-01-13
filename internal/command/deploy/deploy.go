@@ -119,20 +119,29 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 	}
 
 	if appConfig.ForMachines() {
-		if !flag.GetBool(ctx, "auto-confirm") {
-			switch confirmed, err := prompt.Confirmf(ctx, "This feature is highly experimental and may produce unexpected results. Proceed?"); {
+		autoConfirm := flag.GetBool(ctx, "auto-confirm")
+		if !autoConfirm {
+			switch confirmed, err := prompt.Confirmf(ctx, "Deploying machines with `fly deploy` is highly experimental and may produce unexpected results. Proceed?"); {
 			case err == nil:
 				if !confirmed {
 					return nil
 				}
 			case prompt.IsNonInteractive(err):
-				return prompt.NonInteractiveError("auto-confirm flag must be specified when not running interactively")
+				return prompt.NonInteractiveError("--auto-confirm flag must be specified when not running interactively")
 			default:
 				return err
 			}
 		}
 
-		return createMachinesRelease(ctx, appConfig, img, flag.GetString(ctx, "strategy"))
+		md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
+			Strategy:             flag.GetString(ctx, "strategy"),
+			AutoConfirmMigration: autoConfirm,
+			SkipHealthChecks:     flag.GetDetach(ctx),
+		})
+		if err != nil {
+			return err
+		}
+		return md.DeployMachinesApp(ctx)
 	}
 
 	release, releaseCommand, err = createRelease(ctx, appConfig, img)
