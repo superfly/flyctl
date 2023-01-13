@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
@@ -99,8 +100,11 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 		return err
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
-		return err
+	_, dev := os.LookupEnv("FLY_DEV")
+	if !dev {
+		if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
+			return err
+		}
 	}
 
 	leader, replicas := machinesNodeRoles(ctx, machines)
