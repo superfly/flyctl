@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -34,6 +35,7 @@ func newNomadToMachines() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Yes(),
 	)
 
 	return cmd
@@ -57,6 +59,19 @@ func runNomadToMachinesMigration(ctx context.Context) error {
 
 	if app.PlatformVersion != "nomad" {
 		return fmt.Errorf("this app has already been migrated")
+	}
+
+	if !flag.GetBool(ctx, "yes") {
+		switch confirmed, err := prompt.Confirmf(ctx, "This process will require about two minutes of downtime. Continue?"); {
+		case err == nil:
+			if !confirmed {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+		default:
+			return err
+		}
 	}
 
 	fmt.Fprintln(io.Out, "Preparing migration by scaling to zero. This may take a minute...")
