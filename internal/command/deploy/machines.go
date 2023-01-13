@@ -134,15 +134,17 @@ func (lm *leasableMachine) logClearLinesAbove(count int) {
 	}
 }
 
-func (lm *leasableMachine) logStatus(desired, current string) {
-	cur := lm.colorize.Green(current)
-	if desired != current {
-		cur = lm.colorize.Yellow(current)
-	}
-	fmt.Fprintf(lm.io.ErrOut, "  Waiting for %s to have state %s, currently: %s\n",
+func (lm *leasableMachine) logStatusWaiting(desired string) {
+	fmt.Fprintf(lm.io.ErrOut, "  Waiting for %s to have state: %s\n",
 		lm.colorize.Bold(lm.Machine().ID),
-		lm.colorize.Green(desired),
-		cur,
+		lm.colorize.Yellow(desired),
+	)
+}
+
+func (lm *leasableMachine) logStatusFinished(current string) {
+	fmt.Fprintf(lm.io.ErrOut, "  Machine %s has state: %s\n",
+		lm.colorize.Bold(lm.Machine().ID),
+		lm.colorize.Green(current),
 	)
 }
 
@@ -166,7 +168,7 @@ func (lm *leasableMachine) Start(ctx context.Context) error {
 	}
 	lm.lock.RLock()
 	defer lm.lock.RUnlock()
-	lm.logStatus(api.MachineStateStarted, lm.machine.State)
+	lm.logStatusWaiting(api.MachineStateStarted)
 	_, err := lm.flapsClient.Start(ctx, lm.machine.ID)
 	if err != nil {
 		return err
@@ -183,6 +185,8 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 		Factor: 2,
 		Jitter: true,
 	}
+	lm.logClearLinesAbove(1)
+	lm.logStatusWaiting(desiredState)
 	for {
 		err := lm.flapsClient.Wait(waitCtx, lm.Machine(), desiredState, timeout)
 		switch {
@@ -191,20 +195,11 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 		case errors.Is(err, context.DeadlineExceeded):
 			return fmt.Errorf("timeout reached waiting for machine to %s %w", desiredState, err)
 		case err != nil:
-			if lm.io.IsInteractive() {
-				updatedMachine, err := lm.flapsClient.Get(ctx, lm.machine.ID)
-				if err == nil && updatedMachine != nil {
-					lm.logClearLinesAbove(1)
-					lm.logStatus(desiredState, updatedMachine.State)
-				}
-			}
 			time.Sleep(b.Duration())
 			continue
 		}
-		if lm.io.IsInteractive() {
-			lm.logClearLinesAbove(1)
-		}
-		lm.logStatus(desiredState, desiredState)
+		lm.logClearLinesAbove(1)
+		lm.logStatusFinished(desiredState)
 		return nil
 	}
 }
