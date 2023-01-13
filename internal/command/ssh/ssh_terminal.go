@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
-	"encoding/base64"
 	"encoding/pem"
 	"fmt"
 	"io"
@@ -96,14 +95,9 @@ func RunSSHCommand(ctx context.Context, app *api.AppCompact, dialer agent.Dialer
 func SSHConnect(p *SSHParams, addr string) error {
 	terminal.Debugf("Fetching certificate for %s\n", addr)
 
-	cert, err := singleUseSSHCertificate(p.Ctx, p.Org)
+	cert, pk, err := singleUseSSHCertificate(p.Ctx, p.Org)
 	if err != nil {
 		return fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh establish`)", err)
-	}
-
-	pk, err := parsePrivateKey(cert.Key)
-	if err != nil {
-		return errors.Wrap(err, "parse ssh certificate")
 	}
 
 	pemkey := marshalED25519PrivateKey(pk, "single-use certificate")
@@ -219,22 +213,19 @@ func marshalED25519PrivateKey(key ed25519.PrivateKey, comment string) []byte {
 	})
 }
 
-func singleUseSSHCertificate(ctx context.Context, org api.OrganizationImpl) (*api.IssuedCertificate, error) {
+func singleUseSSHCertificate(ctx context.Context, org api.OrganizationImpl) (*api.IssuedCertificate, ed25519.PrivateKey, error) {
 	client := client.FromContext(ctx).API()
-
-	user, err := client.GetCurrentUser(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	hours := 1
-	return client.IssueSSHCertificate(ctx, org, user.Email, nil, &hours)
-}
 
-func parsePrivateKey(key64 string) (ed25519.PrivateKey, error) {
-	pkeys, err := base64.StdEncoding.DecodeString(key64)
+	pub, priv, err := ed25519.GenerateKey(nil)
 	if err != nil {
-		return nil, fmt.Errorf("API error: can't parse API-provided private key: %w", err)
+		return nil, nil, err
 	}
-	return ed25519.NewKeyFromSeed(pkeys), nil
+
+	icert, err := client.IssueSSHCertificate(ctx, org, []string{"root", "fly"}, nil, &hours, pub)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return icert, priv, nil
 }
