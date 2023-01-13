@@ -4,9 +4,9 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	"net/mail"
@@ -33,7 +33,7 @@ func newIssue() *cobra.Command {
 into SSH agent. With -hour, set the number of hours (1-72) for credential
 validity.`
 		short = `Issue a new SSH credential`
-		usage = "issue [org] [email] [path]"
+		usage = "issue [org] [path]"
 	)
 
 	cmd := command.New(usage, short, long, runSSHIssue, command.RequireSession)
@@ -42,10 +42,11 @@ validity.`
 
 	flag.Add(cmd,
 		flag.Org(),
-		flag.String{
+		flag.StringSlice{
 			Name:        "username",
 			Shorthand:   "u",
-			Description: "Unix username for SSH cert",
+			Description: "Unix usernames the SSH cert can authenticate as",
+			Default:     []string{"root", "fly"},
 		},
 		flag.Int{
 			Name:        "hours",
@@ -84,29 +85,50 @@ func runSSHIssue(ctx context.Context) (err error) {
 		return err
 	}
 
+	// The API used to take an optional `principals` argument, then fall back
+	// to `username`, then fall back to the name section of `email`. The
+	// `username` and `email` arguments are now deprecated in favor of
+	// `principals`. We add the fallback logic here for when the API arguments
+	// are removed. For a more consistent ux, we call `principals` `usernames`
+	// here.
+	principals := flag.GetStringSlice(ctx, "username")
+
 	var (
-		emails string
-		email  *mail.Address
+		emails   string
+		rootname string
 	)
-
-	for email == nil {
-		prompt := "Email address for user to issue cert: "
-		emails, err = argOrPromptLoop(ctx, 1, prompt, emails)
-		if err != nil {
-			return err
+	switch args := flag.Args(ctx); len(args) {
+	case 0:
+		// neither
+	case 1:
+		// org only
+	case 2:
+		// org+email or org+path
+		if _, err = mail.ParseAddress(args[1]); err == nil {
+			emails = args[1]
+		} else {
+			rootname = args[1]
 		}
-
-		email, err = mail.ParseAddress(emails)
-		if err != nil {
-			fmt.Fprintf(out, "Invalid email address: %s (keep it simple!)\n", err)
-			email = nil
-		}
+	case 3:
+		// org+email+path
+		emails = args[1]
+		rootname = args[2]
+	default:
+		return errors.New("Too many positional arguments\n")
 	}
 
-	var username *string
+	if len(emails) > 0 {
+		email, err := mail.ParseAddress(emails)
+		if err != nil {
+			return fmt.Errorf("Invalid email address: %s\n", err)
+		}
 
-	if vals := flag.GetString(ctx, "username"); vals != "" {
-		username = &vals
+		name, _, hasAt := strings.Cut(email.Address, "@")
+		if !hasAt {
+			return fmt.Errorf("Invalid email address: %s\n", emails)
+		}
+
+		principals = append(principals, name)
 	}
 
 	hours := flag.GetInt(ctx, "hours")
@@ -114,24 +136,24 @@ func runSSHIssue(ctx context.Context) (err error) {
 		return fmt.Errorf("Invalid expiration time (1-72 hours)\n")
 	}
 
-	icert, err := client.IssueSSHCertificate(ctx, org, email.Address, username, &hours)
+	pub, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		return err
+	}
+
+	icert, err := client.IssueSSHCertificate(ctx, org, principals, nil, &hours, pub)
 	if err != nil {
 		return err
 	}
 
 	doAgent := flag.GetBool(ctx, "agent")
 	if doAgent {
-		if err = populateAgent(icert); err != nil {
+		if err = populateAgent(icert, priv); err != nil {
 			return err
 		}
 
 		fmt.Printf("Populated agent with cert:\n%s\n", icert.Certificate)
 		return nil
-	}
-
-	pk, err := parsePrivateKey(icert.Key)
-	if err != nil {
-		return err
 	}
 
 	fmt.Printf(`
@@ -143,16 +165,16 @@ func runSSHIssue(ctx context.Context) (err error) {
 `)
 
 	var (
-		rootname string
-		pf       *os.File
-		cf       *os.File
+		pf *os.File
+		cf *os.File
 	)
 
 	for pf == nil && cf == nil {
-		prompt := "Path to store private key: "
-		rootname, err = argOrPromptLoop(ctx, 2, prompt, rootname)
-		if err != nil {
-			return err
+		if rootname == "" {
+			prompt := "Path to store private key: "
+			if err := survey.AskOne(&survey.Input{Message: prompt}, &rootname); err != nil {
+				return err
+			}
 		}
 
 		if flag.GetBool(ctx, "dotssh") {
@@ -163,7 +185,7 @@ func runSSHIssue(ctx context.Context) (err error) {
 		if !flag.GetBool(ctx, "overwrite") {
 			mode |= os.O_EXCL
 		} else if _, err = os.Stat(rootname); err == nil {
-			if buf, err := ioutil.ReadFile(rootname); err != nil {
+			if buf, err := os.ReadFile(rootname); err != nil {
 				fmt.Fprintf(out, "File exists, but we can't read it to make sure it's safe to overwrite: %s\n", err)
 				continue
 			} else if !strings.Contains(string(buf), "fly.io" /* BUG(tqbf): do better */) {
@@ -188,30 +210,13 @@ func runSSHIssue(ctx context.Context) (err error) {
 	io.WriteString(cf, icert.Certificate)
 	cf.Close()
 
-	buf := MarshalED25519PrivateKey(pk, "fly.io")
+	buf := MarshalED25519PrivateKey(priv, "fly.io")
 	pf.Write(buf)
 	pf.Close()
 
 	fmt.Printf("Wrote %d-hour SSH credential to %s, %s-cert.pub\n", hours, rootname, rootname)
 
 	return nil
-}
-
-func argOrPromptImpl(ctx context.Context, nth int, prompt string, first bool) (string, error) {
-	if len(flag.Args(ctx)) >= (nth + 1) {
-		return flag.Args(ctx)[nth], nil
-	}
-
-	val := ""
-	err := survey.AskOne(&survey.Input{
-		Message: prompt,
-	}, &val)
-
-	return val, err
-}
-
-func argOrPromptLoop(ctx context.Context, nth int, prompt, last string) (string, error) {
-	return argOrPromptImpl(ctx, nth, prompt, last == "")
 }
 
 // stolen from `mikesmitty`, thanks, you are a mikesmitty and a scholar
@@ -237,7 +242,7 @@ func MarshalED25519PrivateKey(key ed25519.PrivateKey, comment string) []byte {
 		Pad     []byte `ssh:"rest"`
 	}{}
 
-	ci := rand.Uint32()
+	ci := rand.Uint32() // skipcq: GSC-G404
 	pk1.Check1 = ci
 	pk1.Check2 = ci
 
@@ -281,7 +286,7 @@ func MarshalED25519PrivateKey(key ed25519.PrivateKey, comment string) []byte {
 	})
 }
 
-func populateAgent(icert *api.IssuedCertificate) error {
+func populateAgent(icert *api.IssuedCertificate, priv ed25519.PrivateKey) error {
 	acon, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))
 	if err != nil {
 		return fmt.Errorf("can't connect to SSH agent: %w", err)
@@ -294,13 +299,8 @@ func populateAgent(icert *api.IssuedCertificate) error {
 		return fmt.Errorf("API error: can't parse API-provided SSH certificate: %w", err)
 	}
 
-	pkey, err := parsePrivateKey(icert.Key)
-	if err != nil {
-		return err
-	}
-
 	if err = ssha.Add(agent.AddedKey{
-		PrivateKey:  pkey,
+		PrivateKey:  priv,
 		Certificate: cert.(*ssh.Certificate),
 	}); err != nil {
 		return fmt.Errorf("ssh-agent failure: %w", err)

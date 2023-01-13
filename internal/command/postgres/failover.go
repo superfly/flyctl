@@ -65,10 +65,6 @@ func runFailover(ctx context.Context) (err error) {
 		return fmt.Errorf("failover is only supported for machines apps")
 	}
 
-	if app.ImageDetails.Repository != "flyio/postgres" {
-		return fmt.Errorf("failover is not currently supported for this image type")
-	}
-
 	ctx, err = apps.BuildContext(ctx, app)
 	if err != nil {
 		return err

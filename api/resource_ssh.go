@@ -1,6 +1,12 @@
 package api
 
-import "context"
+import (
+	"context"
+	"crypto/ed25519"
+	"strings"
+
+	"golang.org/x/crypto/ssh"
+)
 
 func (c *Client) GetLoggedCertificates(ctx context.Context, slug string) ([]LoggedCertificate, error) {
 	req := c.NewRequest(`
@@ -46,7 +52,7 @@ mutation($input: EstablishSSHKeyInput!) {
 	return &data.EstablishSSHKey, nil
 }
 
-func (c *Client) IssueSSHCertificate(ctx context.Context, org OrganizationImpl, email string, username *string, valid_hours *int) (*IssuedCertificate, error) {
+func (c *Client) IssueSSHCertificate(ctx context.Context, org OrganizationImpl, principals []string, apps []App, valid_hours *int, publicKey ed25519.PublicKey) (*IssuedCertificate, error) {
 	req := c.NewRequest(`
 mutation($input: IssueCertificateInput!) {
   issueCertificate(input: $input) {
@@ -54,13 +60,27 @@ mutation($input: IssueCertificateInput!) {
   }
 }
 `)
-	inputs := map[string]interface{}{
-		"organizationId": org.GetID(),
-		"email":          email,
+
+	appNames := make([]string, 0, len(apps))
+	for _, app := range apps {
+		appNames = append(appNames, app.Name)
 	}
 
-	if username != nil {
-		inputs["username"] = *username
+	var pubStr string
+	if len(publicKey) > 0 {
+		sshPub, err := ssh.NewPublicKey(publicKey)
+		if err != nil {
+			return nil, err
+		}
+
+		pubStr = strings.TrimSpace(string(ssh.MarshalAuthorizedKey(sshPub)))
+	}
+
+	inputs := map[string]interface{}{
+		"organizationId": org.GetID(),
+		"principals":     principals,
+		"appNames":       appNames,
+		"publicKey":      pubStr,
 	}
 
 	if valid_hours != nil {
