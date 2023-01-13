@@ -8,6 +8,7 @@ import (
 const MachineConfigMetadataKeyFlyPlatformVersion = "fly_platform_version"
 const MachineConfigMetadataKeyFlyReleaseId = "fly_release_id"
 const MachineConfigMetadataKeyFlyReleaseVersion = "fly_release_version"
+const MachineConfigMetadataKeyProcessGroup = "process_group"
 const MachineFlyPlatformVersion2 = "v2"
 const MachineProcessGroupApp = "app"
 const MachineProcessGroupReleaseCommand = "release_command"
@@ -52,12 +53,20 @@ func (m *Machine) IsFlyAppsPlatform() bool {
 	return m.Config != nil && m.Config.Metadata[MachineConfigMetadataKeyFlyPlatformVersion] == MachineFlyPlatformVersion2 && m.State != MachineStateDestroyed
 }
 
+func (m *Machine) IsFlyAppsInstance() bool {
+	return m.IsFlyAppsPlatform() && m.HasProcessGroup(MachineProcessGroupApp)
+}
+
+func (m *Machine) IsFlyAppsReleaseCommand() bool {
+	return m.IsFlyAppsPlatform() && m.HasProcessGroup(MachineProcessGroupReleaseCommand)
+}
+
 func (m *Machine) IsActive() bool {
 	return m.State != MachineStateDestroyed
 }
 
 func (m *Machine) HasProcessGroup(desired string) bool {
-	return m.Config != nil && m.Config.Metadata["process_group"] == desired
+	return m.Config != nil && m.Config.Metadata[MachineConfigMetadataKeyProcessGroup] == desired
 }
 
 func (m Machine) ImageVersion() string {
@@ -95,6 +104,23 @@ func (m *Machine) HealthCheckStatus() *HealthCheckStatus {
 	return res
 }
 
+// Finds the latest event of type latestEventType, which happened after the most recent event of type firstEventType
+func (m *Machine) GetLatestEventOfTypeAfterType(latestEventType, firstEventType string) *MachineEvent {
+	firstIndex := 0
+	for i, e := range m.Events {
+		if e.Type == firstEventType {
+			firstIndex = i
+			break
+		}
+	}
+	for _, e := range m.Events[0:firstIndex] {
+		if e.Type == latestEventType {
+			return e
+		}
+	}
+	return nil
+}
+
 type machineImageRef struct {
 	Registry   string            `json:"registry"`
 	Repository string            `json:"repository"`
@@ -112,18 +138,37 @@ type MachineEvent struct {
 }
 
 type MachineRequest struct {
-	ExitEvent    *MachineExitEvent `json:"exit_event,omitempty"`
-	RestartCount int64             `json:"restart_count"`
+	// FIXME: are we ever sending back ExitEvent? Or is everything using MonitorEvent.ExitCode now? are there older events that have it here?
+	ExitEvent    *MachineExitEvent    `json:"exit_event,omitempty"`
+	MonitorEvent *MachineMonitorEvent `json:"MonitorEvent,omitempty"`
+	RestartCount int                  `json:"restart_count"`
+}
+
+// returns the ExitCode from MonitorEvent if it exists, otherwise ExitEvent
+// error when MonitorEvent and ExitEvent are both nil
+func (mr *MachineRequest) GetExitCode() (int, error) {
+	if mr.MonitorEvent != nil && mr.MonitorEvent.ExitEvent != nil {
+		return mr.MonitorEvent.ExitEvent.ExitCode, nil
+	} else if mr.ExitEvent != nil {
+		return mr.MonitorEvent.ExitEvent.ExitCode, nil
+	} else {
+		return -1, fmt.Errorf("error no exit code in this MachineRequest")
+	}
+}
+
+type MachineMonitorEvent struct {
+	ExitEvent *MachineExitEvent `json:"exit_event,omitempty"`
 }
 
 type MachineExitEvent struct {
-	ExitCode      int16 `json:"exit_code"`
-	GuestExitCode int16 `json:"guest_exit_code"`
-	GuestSignal   int16 `json:"guest_signal"`
-	OOMKilled     bool  `json:"oom_killed"`
-	RequestedStop bool  `json:"requested_stop"`
-	Resarting     bool  `json:"restarting"`
-	Signal        int16 `json:"signal"`
+	ExitCode      int       `json:"exit_code,omitempty"`
+	GuestExitCode int       `json:"guest_exit_code,omitempty"`
+	GuestSignal   int       `json:"guest_signal,omitempty"`
+	OOMKilled     bool      `json:"oom_killed,omitempty"`
+	RequestedStop bool      `json:"requested_stop,omitempty"`
+	Restarting    bool      `json:"restarting,omitempty"`
+	Signal        int       `json:"signal,omitempty"`
+	ExitedAt      time.Time `json:"exited_at,omitempty"`
 }
 
 type StopMachineInput struct {

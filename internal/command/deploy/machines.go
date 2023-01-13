@@ -13,6 +13,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/jpillora/backoff"
 	"github.com/logrusorgru/aurora"
+	"github.com/morikuni/aec"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
@@ -21,11 +22,12 @@ import (
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/internal/spinner"
-	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
+
+const defaultLeaseTtl = 120 * time.Second
+const defaultWaitTimeout = 120 * time.Second
 
 // FIXME: move a lot of this stuff to internal/machine pkg... maybe all of it?
 type MachineDeployment interface {
@@ -42,10 +44,13 @@ type MachineDeploymentArgs struct {
 type machineDeployment struct {
 	gqlClient                  graphql.Client
 	flapsClient                *flaps.Client
+	io                         *iostreams.IOStreams
 	app                        *api.AppCompact
 	appConfig                  *app.Config
 	img                        *imgsrc.DeploymentImage
 	machineSet                 MachineSet
+	releaseCommandMachine      MachineSet
+	releaseCommand             string
 	volumeName                 string
 	volumeDestination          string
 	strategy                   string
@@ -73,12 +78,15 @@ type LeasableMachine interface {
 	AcquireLease(context.Context, time.Duration) error
 	ReleaseLease(context.Context) error
 	Update(context.Context, api.LaunchMachineInput) error
+	Start(context.Context) error
 	WaitForState(context.Context, string, time.Duration) error
-	WaitForHealthchecksToPass(ctx context.Context, timeout time.Duration) error
+	WaitForHealthchecksToPass(context.Context, time.Duration) error
+	WaitForEventTypeAfterType(context.Context, string, string, time.Duration) (*api.MachineEvent, error)
 }
 
 type leasableMachine struct {
 	flapsClient *flaps.Client
+	io          *iostreams.IOStreams
 
 	lock            sync.RWMutex
 	machine         *api.Machine
@@ -86,9 +94,10 @@ type leasableMachine struct {
 	leaseExpiration time.Time
 }
 
-func NewLeasableMachine(flapsClient *flaps.Client, machine *api.Machine) LeasableMachine {
+func NewLeasableMachine(flapsClient *flaps.Client, io *iostreams.IOStreams, machine *api.Machine) LeasableMachine {
 	return &leasableMachine{
 		flapsClient: flapsClient,
+		io:          io,
 		machine:     machine,
 	}
 }
@@ -104,6 +113,62 @@ func (lm *leasableMachine) Update(ctx context.Context, input api.LaunchMachineIn
 		return err
 	}
 	lm.machine = updateMachine
+	return nil
+}
+
+func (md *machineDeployment) logClearLinesAbove(count int) {
+	if md.io.IsInteractive() {
+		builder := aec.EmptyBuilder
+		str := builder.Up(uint(count)).EraseLine(aec.EraseModes.All).ANSI
+		fmt.Fprint(md.io.ErrOut, str.String())
+	}
+}
+
+func (lm *leasableMachine) logClearLinesAbove(count int) {
+	if lm.io.IsInteractive() {
+		builder := aec.EmptyBuilder
+		str := builder.Up(uint(count)).EraseLine(aec.EraseModes.All).ANSI
+		fmt.Fprint(lm.io.ErrOut, str.String())
+	}
+}
+
+func (lm *leasableMachine) logStatus(desired, current string) {
+	cur := aurora.Green(current)
+	if desired != current {
+		cur = aurora.Yellow(current)
+	}
+	fmt.Fprintf(lm.io.ErrOut, "  Waiting for %s to have state %s, currently: %s\n",
+		aurora.Bold(lm.Machine().ID),
+		aurora.Green(desired),
+		cur,
+	)
+}
+
+func (lm *leasableMachine) logHealthCheckStatus(status *api.HealthCheckStatus) {
+	if status == nil {
+		return
+	}
+	resColor := aurora.Green
+	if status.Passing != status.Total {
+		resColor = aurora.Yellow
+	}
+	fmt.Fprintf(lm.io.ErrOut, "  Waiting for %s to become healthy: %s\n",
+		aurora.Bold(lm.Machine().ID),
+		resColor(fmt.Sprintf("%d/%d", status.Passing, status.Total)),
+	)
+}
+
+func (lm *leasableMachine) Start(ctx context.Context) error {
+	if lm.HasLease() {
+		return fmt.Errorf("error cannot start machine %s because it has a lease expiring at %s", lm.machine.ID, lm.leaseExpiration.Format(time.RFC3339))
+	}
+	lm.lock.RLock()
+	defer lm.lock.RUnlock()
+	lm.logStatus(api.MachineStateStarted, lm.machine.State)
+	_, err := lm.flapsClient.Start(ctx, lm.machine.ID)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -124,9 +189,20 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 		case errors.Is(err, context.DeadlineExceeded):
 			return fmt.Errorf("timeout reached waiting for machine to %s %w", desiredState, err)
 		case err != nil:
+			if lm.io.IsInteractive() {
+				updatedMachine, err := lm.flapsClient.Get(ctx, lm.machine.ID)
+				if err == nil && updatedMachine != nil {
+					lm.logClearLinesAbove(1)
+					lm.logStatus(desiredState, updatedMachine.State)
+				}
+			}
 			time.Sleep(b.Duration())
 			continue
 		}
+		if lm.io.IsInteractive() {
+			lm.logClearLinesAbove(1)
+		}
+		lm.logStatus(desiredState, desiredState)
 		return nil
 	}
 }
@@ -138,7 +214,7 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	shortestInterval := 120 * time.Second
-	for _, c := range lm.machine.Config.Checks {
+	for _, c := range lm.Machine().Config.Checks {
 		ci := c.Interval.Duration
 		if ci < shortestInterval {
 			shortestInterval = ci
@@ -150,20 +226,62 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 		Factor: 2,
 		Jitter: true,
 	}
+	printedFirst := false
 	for {
-		updateMachine, err := lm.flapsClient.Get(waitCtx, lm.machine.ID)
+		updateMachine, err := lm.flapsClient.Get(waitCtx, lm.Machine().ID)
 		switch {
 		case errors.Is(err, context.Canceled):
 			return err
 		case errors.Is(err, context.DeadlineExceeded):
-			return fmt.Errorf("timeout reached waiting for healthchecks to pass for machine %s %w", lm.machine.ID, err)
+			return fmt.Errorf("timeout reached waiting for healthchecks to pass for machine %s %w", lm.Machine().ID, err)
 		case err != nil:
-			return fmt.Errorf("error getting machine %s from api: %w", lm.machine.ID, err)
+			return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
 		case !updateMachine.HealthCheckStatus().AllPassing():
+			if !printedFirst || lm.io.IsInteractive() {
+				lm.logClearLinesAbove(1)
+				lm.logHealthCheckStatus(updateMachine.HealthCheckStatus())
+				printedFirst = true
+			}
 			time.Sleep(b.Duration())
 			continue
 		}
+		lm.logClearLinesAbove(1)
+		lm.logHealthCheckStatus(updateMachine.HealthCheckStatus())
 		return nil
+	}
+}
+
+// waits for an eventType1 type event to show up after we see a eventType2 event, and returns it
+func (lm *leasableMachine) WaitForEventTypeAfterType(ctx context.Context, eventType1, eventType2 string, timeout time.Duration) (*api.MachineEvent, error) {
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	b := &backoff.Backoff{
+		Min:    500 * time.Millisecond,
+		Max:    2 * time.Second,
+		Factor: 2,
+		Jitter: true,
+	}
+	lm.logClearLinesAbove(1)
+	fmt.Fprintf(lm.io.ErrOut, "  Waiting for %s to get %s event\n",
+		aurora.Bold(lm.Machine().ID),
+		aurora.Yellow(eventType1),
+	)
+	for {
+		updateMachine, err := lm.flapsClient.Get(waitCtx, lm.Machine().ID)
+		switch {
+		case errors.Is(err, context.Canceled):
+			return nil, err
+		case errors.Is(err, context.DeadlineExceeded):
+			return nil, fmt.Errorf("timeout reached waiting for healthchecks to pass for machine %s %w", lm.Machine().ID, err)
+		case err != nil:
+			return nil, fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
+		}
+		exitEvent := updateMachine.GetLatestEventOfTypeAfterType(eventType1, eventType2)
+		if exitEvent != nil {
+			return exitEvent, nil
+		} else {
+			time.Sleep(b.Duration())
+		}
 	}
 }
 
@@ -227,10 +345,10 @@ func (lm *leasableMachine) resetLease() {
 	lm.leaseNonce = ""
 }
 
-func NewMachineSet(flapsClient *flaps.Client, machines []*api.Machine) MachineSet {
+func NewMachineSet(flapsClient *flaps.Client, io *iostreams.IOStreams, machines []*api.Machine) MachineSet {
 	leaseMachines := make([]LeasableMachine, 0)
 	for _, m := range machines {
-		leaseMachines = append(leaseMachines, NewLeasableMachine(flapsClient, m))
+		leaseMachines = append(leaseMachines, NewLeasableMachine(flapsClient, io, m))
 	}
 	return &machineSet{
 		machines: leaseMachines,
@@ -280,7 +398,9 @@ func (ms *machineSet) ReleaseLeases(ctx context.Context) error {
 	contextWasAlreadyCanceled := errors.Is(ctx.Err(), context.Canceled)
 	if contextWasAlreadyCanceled {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(context.TODO(), 500*time.Millisecond)
+		cancelTimeout := 500 * time.Millisecond
+		ctx, cancel = context.WithTimeout(context.TODO(), cancelTimeout)
+		terminal.Infof("detected canceled context and allowing %s to release machine leases\n", cancelTimeout)
 		defer cancel()
 	}
 
@@ -324,6 +444,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err != nil {
 		return nil, err
 	}
+	// FIXME: don't call this here... it rebuilds everything... we'll have to pass it in I guess?
 	img, err := determineImage(ctx, appConfig)
 	if err != nil {
 		return nil, err
@@ -332,15 +453,21 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err != nil {
 		return nil, err
 	}
+	releaseCmd := ""
+	if appConfig.Deploy != nil {
+		releaseCmd = appConfig.Deploy.ReleaseCommand
+	}
 	md := &machineDeployment{
 		gqlClient:                  client.FromContext(ctx).API().GenqClient,
 		flapsClient:                flapsClient,
+		io:                         iostreams.FromContext(ctx),
 		app:                        app,
 		appConfig:                  appConfig,
 		img:                        img,
 		autoConfirmAppsV2Migration: args.AutoConfirmMigration,
 		skipHealthChecks:           args.SkipHealthChecks,
 		restartOnly:                args.RestartOnly,
+		releaseCommand:             releaseCmd,
 	}
 	md.setStrategy(args.Strategy)
 	err = md.setVolumeConfig()
@@ -362,111 +489,47 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	return md, nil
 }
 
-func (md *machineDeployment) runReleaseCommand(ctx context.Context) (err error) {
-	if md.restartOnly {
+func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
+	if md.releaseCommand == "" || md.releaseCommandMachine.IsEmpty() || md.restartOnly {
 		return nil
 	}
-	if md.appConfig.Deploy == nil || md.appConfig.Deploy.ReleaseCommand == "" {
-		return nil
-	}
-
 	io := iostreams.FromContext(ctx)
-
-	msg := fmt.Sprintf("Running release command: %s", md.appConfig.Deploy.ReleaseCommand)
-	spin := spinner.Run(io, msg)
-	defer spin.StopWithSuccess()
-
-	machineConf := md.baseMachineConfig()
-
-	machineConf.Metadata["process_group"] = api.MachineProcessGroupReleaseCommand
-
-	// Override the machine default command to run the release command
-	machineConf.Init.Cmd = strings.Split(md.appConfig.Deploy.ReleaseCommand, " ")
-
-	launchMachineInput := api.LaunchMachineInput{
-		AppID:   md.app.ID,
-		OrgSlug: md.app.Organization.ID,
-		Config:  machineConf,
-	}
-
-	// Ensure release commands run in the primary region
-	if md.appConfig.PrimaryRegion != "" {
-		launchMachineInput.Region = md.appConfig.PrimaryRegion
-	}
-
-	// We don't want temporary release command VMs to serve traffic, so kill the services
-	machineConf.Services = nil
-
-	machine, err := md.flapsClient.Launch(ctx, launchMachineInput)
+	fmt.Fprintf(io.ErrOut, "Running release command: %s\n", md.appConfig.Deploy.ReleaseCommand)
+	err := md.createOrUpdateReleaseCmdMachine(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("error running release_command machine: %w", err)
 	}
-
-	removeInput := api.RemoveMachineInput{
-		AppID: md.app.Name,
-		ID:    machine.ID,
-	}
-
-	// Make sure we clean up the release command VM
-	defer md.flapsClient.Destroy(ctx, removeInput)
-
-	// Ensure the command starts running
-	// FIXME: get these times from fly.toml?
-	err = md.flapsClient.Wait(ctx, machine, "started", 60*time.Second)
-
+	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
+	// FIXME: consolidate this wait stuff with deploy waits? Especially once we improve the outpu
+	err = releaseCmdMachine.WaitForState(ctx, api.MachineStateStarted, defaultWaitTimeout)
 	if err != nil {
-		return err
+		return fmt.Errorf("error waiting for release_command machine %s to start: %w", releaseCmdMachine.Machine().ID, err)
 	}
-
-	// Wait for the release command VM to stop before moving on
-	// FIXME: get these times from fly.toml?
-	err = md.flapsClient.Wait(ctx, machine, "stopped", 120*time.Second)
-
+	err = releaseCmdMachine.WaitForState(ctx, api.MachineStateStopped, defaultWaitTimeout)
 	if err != nil {
-		return fmt.Errorf("failed determining whether the release command finished. %w", err)
+		return fmt.Errorf("error waiting for release_command machine %s to finish running: %w", releaseCmdMachine.Machine().ID, err)
 	}
-
-	var lastExitEvent *api.MachineEvent
-	var pollMaxAttempts int = 10
-	var pollAttempts int = 0
-
-	// Poll until the 'stopped' event arrives, so we can determine the release command exit status
-	for {
-		if pollAttempts >= pollMaxAttempts {
-			return fmt.Errorf("could not determine whether the release command succeeded, so aborting the deployment")
-		}
-
-		machine, err = md.flapsClient.Get(ctx, machine.ID)
-
-		for _, event := range machine.Events {
-			if event.Type != "exit" {
-				continue
-			}
-
-			if lastExitEvent == nil || event.Timestamp > lastExitEvent.Timestamp {
-				lastExitEvent = event
-			}
-		}
-
-		if lastExitEvent != nil {
-			break
-		}
-
-		time.Sleep(1 * time.Second)
-		pollAttempts += 1
+	lastExitEvent, err := releaseCmdMachine.WaitForEventTypeAfterType(ctx, "exit", "start", defaultWaitTimeout)
+	if err != nil {
+		return fmt.Errorf("error finding the release_command machine %s exit event: %w", releaseCmdMachine.Machine().ID, err)
 	}
-
-	exitCode := lastExitEvent.Request.ExitEvent.ExitCode
-
+	exitCode, err := lastExitEvent.Request.GetExitCode()
+	if err != nil {
+		return fmt.Errorf("error get release_command machine %s exit code: %w", releaseCmdMachine.Machine().ID, err)
+	}
 	if exitCode != 0 {
-		return fmt.Errorf("release command exited with non-zero status of %d", exitCode)
+		fmt.Fprintf(md.io.ErrOut, "Error release_command failed running on machine %s with exit code %d. Check the logs at: https://fly.io/apps/%s/monitoring\n",
+			aurora.Bold(releaseCmdMachine.Machine().ID), aurora.Red(exitCode), md.app.Name)
+		return fmt.Errorf("error release_command machine %s exited with non-zero status of %d", releaseCmdMachine.Machine().ID, exitCode)
 	}
-
-	return
+	md.logClearLinesAbove(1)
+	fmt.Fprintf(md.io.ErrOut, "  release_command %s completed successfully\n", aurora.Bold(releaseCmdMachine.Machine().ID))
+	return nil
 }
 
-func (md *machineDeployment) DeployMachinesApp(ctx context.Context) (err error) {
-	if err := md.runReleaseCommand(ctx); err != nil {
+func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
+	err := md.runReleaseCommand(ctx)
+	if err != nil {
 		return fmt.Errorf("release command failed - aborting deployment. %w", err)
 	}
 
@@ -475,23 +538,21 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) (err error) 
 
 	regionCode := md.appConfig.PrimaryRegion
 
-	machineConfig := md.baseMachineConfig()
+	machineConfig := md.baseMachineConfig(api.MachineProcessGroupApp)
 	machineConfig.Metadata["process_group"] = api.MachineProcessGroupApp
 	machineConfig.Init.Cmd = nil
-
-	launchInput := api.LaunchMachineInput{
-		AppID:   md.app.Name,
-		OrgSlug: md.app.Organization.ID,
-		Config:  machineConfig,
-		Region:  regionCode,
-	}
 
 	if !md.machineSet.IsEmpty() {
 
 		// FIXME: consolidate all this config stuff into a md.ResolveConfig() or something like that, and deal with restartOnly there
 
-		err := md.machineSet.AcquireLeases(ctx, 120*time.Second)
-		defer md.machineSet.ReleaseLeases(ctx)
+		err := md.machineSet.AcquireLeases(ctx, defaultLeaseTtl)
+		defer func() {
+			err := md.machineSet.ReleaseLeases(ctx)
+			if err != nil {
+				terminal.Warnf("error releasing leases on machines: %v\n", err)
+			}
+		}()
 		if err != nil {
 			return err
 		}
@@ -502,7 +563,13 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) (err error) 
 
 		for _, m := range md.machineSet.GetMachines() {
 			machine := m.Machine()
-			launchInput.ID = machine.ID
+			launchInput := api.LaunchMachineInput{
+				ID:      machine.ID,
+				AppID:   md.app.Name,
+				OrgSlug: md.app.Organization.ID,
+				Config:  machineConfig,
+				Region:  regionCode,
+			}
 
 			if md.restartOnly {
 				launchInput.Config = machine.Config
@@ -558,14 +625,14 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) (err error) 
 			}
 
 			if md.strategy != "immediate" {
-				err := m.WaitForState(ctx, api.MachineStateStarted, 120*time.Second)
+				err := m.WaitForState(ctx, api.MachineStateStarted, defaultWaitTimeout)
 				if err != nil {
 					return err
 				}
 			}
 
 			if md.strategy != "immediate" && !md.skipHealthChecks {
-				err := watch.MachinesChecks(ctx, []*api.Machine{m.Machine()})
+				err := m.WaitForHealthchecksToPass(ctx, defaultWaitTimeout)
 				// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
 				if err != nil {
 					return err
@@ -576,18 +643,20 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) (err error) 
 		fmt.Fprintf(io.ErrOut, "  Finished deploying\n")
 
 	} else {
-		fmt.Fprintf(io.Out, "Launching VM with image %s\n", launchInput.Config.Image)
-		_, err = md.flapsClient.Launch(ctx, launchInput)
-		if err != nil {
-			return err
-		}
+		// FIXME: what do we want to do when no machines are present? Launch one? maybe only do that if there aren't other machines in the app, at all?
+		return fmt.Errorf("NOPE NOPE NOPE: not implemented yet :-(")
+		// fmt.Fprintf(io.Out, "Launching VM with image %s\n", launchInput.Config.Image)
+		// _, err = md.flapsClient.Launch(ctx, launchInput)
+		// if err != nil {
+		// 	return err
+		// }
 	}
 
-	return
+	return nil
 }
 
 func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error {
-	machines, err := md.flapsClient.ListFlyAppsMachines(ctx)
+	machines, releaseCmdMachine, err := md.flapsClient.ListFlyAppsMachines(ctx)
 	if err != nil {
 		return err
 	}
@@ -626,7 +695,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 				case err == nil:
 					if !confirmed {
 						terminal.Info("Skipping machines migration to Fly Apps Platform and the deployment")
-						md.machineSet = NewMachineSet(md.flapsClient, nil)
+						md.machineSet = NewMachineSet(md.flapsClient, md.io, nil)
 						return nil
 					}
 				case prompt.IsNonInteractive(err):
@@ -639,7 +708,98 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		}
 	}
 
-	md.machineSet = NewMachineSet(md.flapsClient, machines)
+	md.machineSet = NewMachineSet(md.flapsClient, md.io, machines)
+	var releaseCmdSet []*api.Machine
+	if releaseCmdMachine != nil {
+		releaseCmdSet = []*api.Machine{releaseCmdMachine}
+	}
+	md.releaseCommandMachine = NewMachineSet(md.flapsClient, md.io, releaseCmdSet)
+	return nil
+}
+
+func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context) error {
+	if md.releaseCommandMachine.IsEmpty() {
+		err := md.createReleaseCommandMachine(ctx)
+		if err != nil {
+			return err
+		}
+	} else {
+		err := md.updateReleaseCommandMachine(ctx)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) error {
+	if md.releaseCommand == "" || !md.releaseCommandMachine.IsEmpty() {
+		return nil
+	}
+	machineConf := md.baseMachineConfig(api.MachineProcessGroupReleaseCommand)
+	machineConf.Init.Cmd = strings.Split(md.releaseCommand, " ")
+	machineConf.Services = nil
+	machineConf.Restart = api.MachineRestart{
+		Policy: api.MachineRestartPolicyNo,
+	}
+	// FIXME: do we need to set volumes on release_command machines? I think no?
+	// FIXME: figure out how to set cpu/mem/vmclass for release_command machine
+	updatedConfig := api.LaunchMachineInput{
+		AppID:   md.app.Name,
+		OrgSlug: md.app.Organization.ID,
+		Config:  machineConf,
+	}
+	if md.appConfig.PrimaryRegion != "" {
+		updatedConfig.Region = md.appConfig.PrimaryRegion
+	}
+	releaseCmdMachine, err := md.flapsClient.Launch(ctx, updatedConfig)
+	if err != nil {
+		return fmt.Errorf("error creating a release_command machine: %w", err)
+	}
+	md.releaseCommandMachine = NewMachineSet(md.flapsClient, md.io, []*api.Machine{releaseCmdMachine})
+	return nil
+}
+
+func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) error {
+	if md.releaseCommand == "" {
+		return nil
+	}
+	if md.releaseCommandMachine.IsEmpty() {
+		return fmt.Errorf("expected release_command machine to exist already, but it does not :-(")
+	}
+	io := iostreams.FromContext(ctx)
+	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
+	fmt.Fprintf(io.ErrOut, "Updating release command machine %s in preparation to run later\n", releaseCmdMachine.Machine().ID)
+	err := releaseCmdMachine.WaitForState(ctx, api.MachineStateStopped, defaultWaitTimeout)
+	if err != nil {
+		return err
+	}
+	err = md.releaseCommandMachine.AcquireLeases(ctx, defaultLeaseTtl)
+	defer func() {
+		_ = md.releaseCommandMachine.ReleaseLeases(ctx)
+	}()
+	if err != nil {
+		return err
+	}
+	machineConf := md.baseMachineConfig(api.MachineProcessGroupReleaseCommand)
+	machineConf.Init.Cmd = strings.Split(md.releaseCommand, " ")
+	machineConf.Services = nil
+	machineConf.Restart = api.MachineRestart{
+		Policy: api.MachineRestartPolicyNo,
+	}
+	// FIXME: do we need to set volumes on release_command machines? I think no?
+	// FIXME: figure out how to set cpu/mem/vmclass for release_command machine
+	updatedConfig := api.LaunchMachineInput{
+		ID:      releaseCmdMachine.Machine().ID,
+		AppID:   md.app.Name,
+		OrgSlug: md.app.Organization.ID,
+		Config:  machineConf,
+		Region:  releaseCmdMachine.Machine().Region,
+	}
+	err = releaseCmdMachine.Update(ctx, updatedConfig)
+	if err != nil {
+		return fmt.Errorf("error updating release_command machine: %w", err)
+	}
 	return nil
 }
 
@@ -719,12 +879,13 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 	return nil
 }
 
-func (md *machineDeployment) baseMachineConfig() *api.MachineConfig {
+func (md *machineDeployment) baseMachineConfig(processGroup string) *api.MachineConfig {
 	machineConfig := &api.MachineConfig{}
 	machineConfig.Metadata = map[string]string{
 		api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
 		api.MachineConfigMetadataKeyFlyReleaseId:       md.releaseId,
 		api.MachineConfigMetadataKeyFlyReleaseVersion:  strconv.Itoa(md.releaseVersion),
+		api.MachineConfigMetadataKeyProcessGroup:       processGroup,
 	}
 
 	if md.restartOnly {

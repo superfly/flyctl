@@ -250,19 +250,22 @@ func (f *Client) ListActive(ctx context.Context) ([]*api.Machine, error) {
 }
 
 // returns apps that are part of the fly apps platform that are not destroyed
-func (f *Client) ListFlyAppsMachines(ctx context.Context) ([]*api.Machine, error) {
+func (f *Client) ListFlyAppsMachines(ctx context.Context) ([]*api.Machine, *api.Machine, error) {
 	allMachines := make([]*api.Machine, 0)
 	err := f.sendRequest(ctx, http.MethodGet, "", nil, &allMachines, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list VMs: %w", err)
+		return nil, nil, fmt.Errorf("failed to list VMs: %w", err)
 	}
+	var releaseCmdMachine *api.Machine
 	machines := make([]*api.Machine, 0)
 	for _, m := range allMachines {
-		if m.IsFlyAppsPlatform() && m.IsActive() {
+		if m.IsFlyAppsInstance() && m.IsActive() {
 			machines = append(machines, m)
+		} else if m.IsFlyAppsReleaseCommand() {
+			releaseCmdMachine = m
 		}
 	}
-	return machines, nil
+	return machines, releaseCmdMachine, nil
 }
 
 func (f *Client) Destroy(ctx context.Context, input api.RemoveMachineInput) (err error) {
