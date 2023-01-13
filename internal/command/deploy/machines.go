@@ -582,16 +582,10 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 
 			launchInput.Region = machine.Region
 
-			machineConfig.Metadata = machine.Config.Metadata
-
-			if machineConfig.Metadata == nil {
-				machineConfig.Metadata = map[string]string{
-					"process_group": "app",
+			for k, v := range machine.Config.Metadata {
+				if !isFlyAppsPlatformMetadata(k) {
+					machineConfig.Metadata[k] = v
 				}
-			}
-
-			if md.app.IsPostgresApp() {
-				machineConfig.Metadata["fly-managed-postgres"] = "true"
 			}
 
 			if launchInput.Config.Env["PRIMARY_REGION"] == "" {
@@ -892,6 +886,10 @@ func (md *machineDeployment) baseMachineConfig(processGroup string) *api.Machine
 		api.MachineConfigMetadataKeyProcessGroup:       processGroup,
 	}
 
+	if md.app.IsPostgresApp() {
+		machineConfig.Metadata[api.MachineConfigMetadataKeyFlyManagedPostgres] = "true"
+	}
+
 	if md.restartOnly {
 		return machineConfig
 	}
@@ -952,4 +950,12 @@ func (md *machineDeployment) baseMachineConfig(processGroup string) *api.Machine
 	}
 
 	return machineConfig
+}
+
+func isFlyAppsPlatformMetadata(key string) bool {
+	return key == api.MachineConfigMetadataKeyFlyPlatformVersion ||
+		key == api.MachineConfigMetadataKeyFlyReleaseId ||
+		key == api.MachineConfigMetadataKeyFlyReleaseVersion ||
+		key == api.MachineConfigMetadataKeyProcessGroup ||
+		key == api.MachineConfigMetadataKeyFlyManagedPostgres
 }
