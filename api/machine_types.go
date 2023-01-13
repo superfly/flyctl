@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+const MachineConfigMetadataKeyFlyManagedPostgres = "fly-managed-postgres"
 const MachineConfigMetadataKeyFlyPlatformVersion = "fly_platform_version"
 const MachineConfigMetadataKeyFlyReleaseId = "fly_release_id"
 const MachineConfigMetadataKeyFlyReleaseVersion = "fly_release_version"
