@@ -26,7 +26,7 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-const defaultLeaseTtl = 120 * time.Second
+const defaultLeaseTtl = 10 * time.Minute
 const defaultWaitTimeout = 120 * time.Second
 
 // FIXME: move a lot of this stuff to internal/machine pkg... maybe all of it?
