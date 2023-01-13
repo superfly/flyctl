@@ -39,16 +39,6 @@ func newNomadToMachines() *cobra.Command {
 	return cmd
 }
 
-type Migrations struct {
-	migrations []Migration
-}
-
-type Migration struct {
-	Healthy bool
-	Region  string
-	Volume  *api.Volume
-}
-
 func runNomadToMachinesMigration(ctx context.Context) error {
 	var (
 		client  = client.FromContext(ctx).API()
@@ -70,12 +60,12 @@ func runNomadToMachinesMigration(ctx context.Context) error {
 	}
 
 	fmt.Fprintln(io.Out, "Preparing migration by scaling to zero. This may take a minute...")
+	// Nomad can be slow to spin down allocations so we may have to retry a few times.
 	retryMax := 3
 	count := 0
-	// Nomad can be slow to spin down allocations so we may have to retry
-	// a few times.
+	input := api.NomadToMachinesMigrationPrepInput{AppID: app.Name}
 	for count <= retryMax {
-		if err := prepare(ctx, app); err != nil {
+		if _, err := client.MigrateNomadToMachinesPrep(ctx, input); err != nil {
 			if strings.Contains(err.Error(), "Timeout") {
 				count++
 				continue
@@ -84,14 +74,13 @@ func runNomadToMachinesMigration(ctx context.Context) error {
 		}
 		break
 	}
-
 	fmt.Fprintln(io.Out, "Preparation complete")
+
 	fmt.Fprintln(io.Out, "Starting migration")
 	_, err = client.MigrateNomadToMachines(ctx, api.NomadToMachinesMigrationInput{AppID: app.Name})
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(io.Out, "Monitoring provisioned Machines")
 
 	ctx, err = apps.BuildContext(ctx, app)
 	if err != nil {
@@ -103,6 +92,7 @@ func runNomadToMachinesMigration(ctx context.Context) error {
 		return err
 	}
 
+	fmt.Fprintln(io.Out, "Monitoring provisioned Machines")
 	if err := watch.MachinesChecks(ctx, machines); err != nil {
 		return fmt.Errorf("failed to wait for health checks to pass: %w", err)
 	}
@@ -110,13 +100,4 @@ func runNomadToMachinesMigration(ctx context.Context) error {
 	fmt.Fprintln(io.Out, "Migration complete!")
 
 	return nil
-}
-
-func prepare(ctx context.Context, app *api.AppCompact) error {
-	var (
-		client = client.FromContext(ctx).API()
-	)
-	_, err := client.MigrateNomadToMachinesPrep(ctx, api.NomadToMachinesMigrationPrepInput{AppID: app.Name})
-
-	return err
 }
