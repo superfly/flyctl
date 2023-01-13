@@ -58,7 +58,7 @@ func runNomadToMachinesMigration(ctx context.Context) error {
 	}
 
 	if app.PlatformVersion != "nomad" {
-		return fmt.Errorf("this app has already been migrated")
+		return fmt.Errorf("the specified app is already running on Machines")
 	}
 
 	if !flag.GetBool(ctx, "yes") {
