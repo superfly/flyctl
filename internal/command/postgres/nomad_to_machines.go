@@ -19,7 +19,7 @@ import (
 
 func newNomadToMachines() *cobra.Command {
 	const (
-		short = "Migrate Nomad cluster to Machines"
+		short = "Migrate a Postgres app running on Nomad to Machines."
 		long  = short + "\n"
 
 		usage = "migrate_to_machines"
