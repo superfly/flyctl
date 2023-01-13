@@ -38,6 +38,8 @@ func newNomadToMachines() *cobra.Command {
 		flag.Yes(),
 	)
 
+	cmd.Hidden = true
+
 	return cmd
 }
 
