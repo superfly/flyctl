@@ -12,7 +12,6 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/jpillora/backoff"
-	"github.com/logrusorgru/aurora"
 	"github.com/morikuni/aec"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
@@ -45,6 +44,7 @@ type machineDeployment struct {
 	gqlClient                  graphql.Client
 	flapsClient                *flaps.Client
 	io                         *iostreams.IOStreams
+	colorize                   *iostreams.ColorScheme
 	app                        *api.AppCompact
 	appConfig                  *app.Config
 	img                        *imgsrc.DeploymentImage
@@ -87,6 +87,7 @@ type LeasableMachine interface {
 type leasableMachine struct {
 	flapsClient *flaps.Client
 	io          *iostreams.IOStreams
+	colorize    *iostreams.ColorScheme
 
 	lock            sync.RWMutex
 	machine         *api.Machine
@@ -98,6 +99,7 @@ func NewLeasableMachine(flapsClient *flaps.Client, io *iostreams.IOStreams, mach
 	return &leasableMachine{
 		flapsClient: flapsClient,
 		io:          io,
+		colorize:    io.ColorScheme(),
 		machine:     machine,
 	}
 }
@@ -133,13 +135,13 @@ func (lm *leasableMachine) logClearLinesAbove(count int) {
 }
 
 func (lm *leasableMachine) logStatus(desired, current string) {
-	cur := aurora.Green(current)
+	cur := lm.colorize.Green(current)
 	if desired != current {
-		cur = aurora.Yellow(current)
+		cur = lm.colorize.Yellow(current)
 	}
 	fmt.Fprintf(lm.io.ErrOut, "  Waiting for %s to have state %s, currently: %s\n",
-		aurora.Bold(lm.Machine().ID),
-		aurora.Green(desired),
+		lm.colorize.Bold(lm.Machine().ID),
+		lm.colorize.Green(desired),
 		cur,
 	)
 }
@@ -148,12 +150,12 @@ func (lm *leasableMachine) logHealthCheckStatus(status *api.HealthCheckStatus) {
 	if status == nil {
 		return
 	}
-	resColor := aurora.Green
+	resColor := lm.colorize.Green
 	if status.Passing != status.Total {
-		resColor = aurora.Yellow
+		resColor = lm.colorize.Yellow
 	}
 	fmt.Fprintf(lm.io.ErrOut, "  Waiting for %s to become healthy: %s\n",
-		aurora.Bold(lm.Machine().ID),
+		lm.colorize.Bold(lm.Machine().ID),
 		resColor(fmt.Sprintf("%d/%d", status.Passing, status.Total)),
 	)
 }
@@ -263,8 +265,8 @@ func (lm *leasableMachine) WaitForEventTypeAfterType(ctx context.Context, eventT
 	}
 	lm.logClearLinesAbove(1)
 	fmt.Fprintf(lm.io.ErrOut, "  Waiting for %s to get %s event\n",
-		aurora.Bold(lm.Machine().ID),
-		aurora.Yellow(eventType1),
+		lm.colorize.Bold(lm.Machine().ID),
+		lm.colorize.Yellow(eventType1),
 	)
 	for {
 		updateMachine, err := lm.flapsClient.Get(waitCtx, lm.Machine().ID)
@@ -457,10 +459,12 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if appConfig.Deploy != nil {
 		releaseCmd = appConfig.Deploy.ReleaseCommand
 	}
+	io := iostreams.FromContext(ctx)
 	md := &machineDeployment{
 		gqlClient:                  client.FromContext(ctx).API().GenqClient,
 		flapsClient:                flapsClient,
-		io:                         iostreams.FromContext(ctx),
+		io:                         io,
+		colorize:                   io.ColorScheme(),
 		app:                        app,
 		appConfig:                  appConfig,
 		img:                        img,
@@ -518,12 +522,12 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
 		return fmt.Errorf("error get release_command machine %s exit code: %w", releaseCmdMachine.Machine().ID, err)
 	}
 	if exitCode != 0 {
-		fmt.Fprintf(md.io.ErrOut, "Error release_command failed running on machine %s with exit code %d. Check the logs at: https://fly.io/apps/%s/monitoring\n",
-			aurora.Bold(releaseCmdMachine.Machine().ID), aurora.Red(exitCode), md.app.Name)
+		fmt.Fprintf(md.io.ErrOut, "Error release_command failed running on machine %s with exit code %s. Check the logs at: https://fly.io/apps/%s/monitoring\n",
+			md.colorize.Bold(releaseCmdMachine.Machine().ID), md.colorize.Red(strconv.Itoa(exitCode)), md.app.Name)
 		return fmt.Errorf("error release_command machine %s exited with non-zero status of %d", releaseCmdMachine.Machine().ID, exitCode)
 	}
 	md.logClearLinesAbove(1)
-	fmt.Fprintf(md.io.ErrOut, "  release_command %s completed successfully\n", aurora.Bold(releaseCmdMachine.Machine().ID))
+	fmt.Fprintf(md.io.ErrOut, "  release_command %s completed successfully\n", md.colorize.Bold(releaseCmdMachine.Machine().ID))
 	return nil
 }
 
@@ -557,7 +561,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 			return err
 		}
 
-		fmt.Fprintf(io.Out, "Deploying %s app with %s strategy\n", aurora.Bold(md.app.Name), md.strategy)
+		fmt.Fprintf(io.Out, "Deploying %s app with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
 
 		// FIXME: handle deploy strategy: rolling, immediate, canary, bluegreen
 
@@ -614,7 +618,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 				launchInput.Config.Mounts[0].Path = md.volumeDestination
 			}
 
-			fmt.Fprintf(io.ErrOut, "  Updating %s\n", aurora.Bold(m.Machine().ID))
+			fmt.Fprintf(io.ErrOut, "  Updating %s\n", md.colorize.Bold(m.Machine().ID))
 			err := m.Update(ctx, launchInput)
 			if err != nil {
 				if md.strategy != "immediate" {
