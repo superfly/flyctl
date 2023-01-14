@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,8 +24,8 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-const defaultLeaseTtl = 10 * time.Minute
-const defaultWaitTimeout = 120 * time.Second
+const DefaultWaitTimeout = 120 * time.Second
+const DefaultLeaseTtl = 30 * time.Minute
 
 // FIXME: move a lot of this stuff to internal/machine pkg... maybe all of it?
 type MachineDeployment interface {
@@ -38,6 +37,8 @@ type MachineDeploymentArgs struct {
 	AutoConfirmMigration bool
 	SkipHealthChecks     bool
 	RestartOnly          bool
+	WaitTimeout          time.Duration
+	LeaseTimeout         time.Duration
 }
 
 type machineDeployment struct {
@@ -53,12 +54,16 @@ type machineDeployment struct {
 	releaseCommand             string
 	volumeName                 string
 	volumeDestination          string
+	appChecksForMachines       map[string]api.MachineCheck
+	appServicesForMachines     []api.MachineService
 	strategy                   string
 	releaseId                  string
 	releaseVersion             int
 	autoConfirmAppsV2Migration bool
 	skipHealthChecks           bool
 	restartOnly                bool
+	waitTimeout                time.Duration
+	leaseTimeout               time.Duration
 }
 
 type MachineSet interface {
@@ -89,6 +94,7 @@ type leasableMachine struct {
 	io          *iostreams.IOStreams
 	colorize    *iostreams.ColorScheme
 
+	// FIXME: remove this lock... or use it correctly... (we're making multiple calls to access machine that should be the same, but we unlock inbetween... so not really atomic)
 	lock            sync.RWMutex
 	machine         *api.Machine
 	leaseNonce      string
@@ -454,6 +460,9 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if appConfig.Deploy != nil {
 		releaseCmd = appConfig.Deploy.ReleaseCommand
 	}
+	if args.WaitTimeout != DefaultWaitTimeout || args.LeaseTimeout != DefaultLeaseTtl {
+		terminal.Infof("Using wait timeout: %s and lease timeout: %s\n", args.WaitTimeout, args.LeaseTimeout)
+	}
 	io := iostreams.FromContext(ctx)
 	md := &machineDeployment{
 		gqlClient:                  client.FromContext(ctx).API().GenqClient,
@@ -466,9 +475,15 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		autoConfirmAppsV2Migration: args.AutoConfirmMigration,
 		skipHealthChecks:           args.SkipHealthChecks,
 		restartOnly:                args.RestartOnly,
+		waitTimeout:                args.WaitTimeout,
+		leaseTimeout:               args.LeaseTimeout,
 		releaseCommand:             releaseCmd,
 	}
 	md.setStrategy(args.Strategy)
+	err = md.translateServicesAndChecksForMachines()
+	if err != nil {
+		return nil, err
+	}
 	err = md.setVolumeConfig()
 	if err != nil {
 		return nil, err
@@ -493,22 +508,22 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
 		return nil
 	}
 	io := iostreams.FromContext(ctx)
-	fmt.Fprintf(io.ErrOut, "Running release command: %s\n", md.appConfig.Deploy.ReleaseCommand)
+	fmt.Fprintf(io.ErrOut, "Running %s release_command: %s\n", md.colorize.Bold(md.app.Name), md.appConfig.Deploy.ReleaseCommand)
 	err := md.createOrUpdateReleaseCmdMachine(ctx)
 	if err != nil {
 		return fmt.Errorf("error running release_command machine: %w", err)
 	}
 	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
 	// FIXME: consolidate this wait stuff with deploy waits? Especially once we improve the outpu
-	err = releaseCmdMachine.WaitForState(ctx, api.MachineStateStarted, defaultWaitTimeout)
+	err = releaseCmdMachine.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout)
 	if err != nil {
 		return fmt.Errorf("error waiting for release_command machine %s to start: %w", releaseCmdMachine.Machine().ID, err)
 	}
-	err = releaseCmdMachine.WaitForState(ctx, api.MachineStateStopped, defaultWaitTimeout)
+	err = releaseCmdMachine.WaitForState(ctx, api.MachineStateStopped, md.waitTimeout)
 	if err != nil {
 		return fmt.Errorf("error waiting for release_command machine %s to finish running: %w", releaseCmdMachine.Machine().ID, err)
 	}
-	lastExitEvent, err := releaseCmdMachine.WaitForEventTypeAfterType(ctx, "exit", "start", defaultWaitTimeout)
+	lastExitEvent, err := releaseCmdMachine.WaitForEventTypeAfterType(ctx, "exit", "start", md.waitTimeout)
 	if err != nil {
 		return fmt.Errorf("error finding the release_command machine %s exit event: %w", releaseCmdMachine.Machine().ID, err)
 	}
@@ -535,107 +550,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	ctx = flaps.NewContext(ctx, md.flapsClient)
 
-	regionCode := md.appConfig.PrimaryRegion
-
-	machineConfig := md.baseMachineConfig(api.MachineProcessGroupApp)
-	machineConfig.Metadata["process_group"] = api.MachineProcessGroupApp
-	machineConfig.Init.Cmd = nil
-
-	if !md.machineSet.IsEmpty() {
-
-		// FIXME: consolidate all this config stuff into a md.ResolveConfig() or something like that, and deal with restartOnly there
-
-		err := md.machineSet.AcquireLeases(ctx, defaultLeaseTtl)
-		defer func() {
-			err := md.machineSet.ReleaseLeases(ctx)
-			if err != nil {
-				terminal.Warnf("error releasing leases on machines: %v\n", err)
-			}
-		}()
-		if err != nil {
-			return err
-		}
-
-		fmt.Fprintf(io.Out, "Deploying %s app with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
-
-		// FIXME: handle deploy strategy: rolling, immediate, canary, bluegreen
-
-		for _, m := range md.machineSet.GetMachines() {
-			machine := m.Machine()
-			launchInput := api.LaunchMachineInput{
-				ID:      machine.ID,
-				AppID:   md.app.Name,
-				OrgSlug: md.app.Organization.ID,
-				Config:  machineConfig,
-				Region:  regionCode,
-			}
-
-			if md.restartOnly {
-				launchInput.Config = machine.Config
-				// FIXME: should we skip over all the other config stuff?
-			}
-
-			launchInput.Region = machine.Region
-
-			for k, v := range machine.Config.Metadata {
-				if !isFlyAppsPlatformMetadata(k) {
-					machineConfig.Metadata[k] = v
-				}
-			}
-
-			if launchInput.Config.Env["PRIMARY_REGION"] == "" {
-				if launchInput.Config.Env == nil {
-					launchInput.Config.Env = map[string]string{}
-				}
-				launchInput.Config.Env["PRIMARY_REGION"] = machine.Config.Env["PRIMARY_REGION"]
-			}
-
-			// FIXME: this should just come from appConfig, right? we want folks to configure [checks] to manage these
-			launchInput.Config.Checks = machine.Config.Checks
-
-			// FIXME: this should be set from the appConfig, right? in particular this ensures all the machines have the same cpu, mem, etc
-			if machine.Config.Guest != nil {
-				launchInput.Config.Guest = machine.Config.Guest
-			}
-
-			if machine.Config.Mounts != nil {
-				launchInput.Config.Mounts = machine.Config.Mounts
-			}
-			if len(launchInput.Config.Mounts) == 1 && launchInput.Config.Mounts[0].Path != md.volumeDestination {
-				currentMount := launchInput.Config.Mounts[0]
-				terminal.Warnf("Updating the mount path for volume %s on machine %s from %s to %s due to fly.toml [mounts] destination value\n", currentMount.Volume, machine.ID, currentMount.Path, md.volumeDestination)
-				launchInput.Config.Mounts[0].Path = md.volumeDestination
-			}
-
-			fmt.Fprintf(io.ErrOut, "  Updating %s\n", md.colorize.Bold(m.Machine().ID))
-			err := m.Update(ctx, launchInput)
-			if err != nil {
-				if md.strategy != "immediate" {
-					return err
-				} else {
-					fmt.Printf("Continuing after error: %s\n", err)
-				}
-			}
-
-			if md.strategy != "immediate" {
-				err := m.WaitForState(ctx, api.MachineStateStarted, defaultWaitTimeout)
-				if err != nil {
-					return err
-				}
-			}
-
-			if md.strategy != "immediate" && !md.skipHealthChecks {
-				err := m.WaitForHealthchecksToPass(ctx, defaultWaitTimeout)
-				// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
-				if err != nil {
-					return err
-				}
-			}
-		}
-
-		fmt.Fprintf(io.ErrOut, "  Finished deploying\n")
-
-	} else {
+	if md.machineSet.IsEmpty() {
 		// FIXME: what do we want to do when no machines are present? Launch one? maybe only do that if there aren't other machines in the app, at all?
 		return fmt.Errorf("NOPE NOPE NOPE: not implemented yet :-(")
 		// fmt.Fprintf(io.Out, "Launching VM with image %s\n", launchInput.Config.Image)
@@ -645,6 +560,50 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		// }
 	}
 
+	err = md.machineSet.AcquireLeases(ctx, md.leaseTimeout)
+	defer func() {
+		err := md.machineSet.ReleaseLeases(ctx)
+		if err != nil {
+			terminal.Warnf("error releasing leases on machines: %v\n", err)
+		}
+	}()
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(io.Out, "Deploying %s app with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
+
+	// FIXME: handle deploy strategy: rolling, immediate, canary, bluegreen
+
+	for _, m := range md.machineSet.GetMachines() {
+		launchInput := md.resolveUpdatedMachineConfig(api.MachineProcessGroupApp, m.Machine())
+		fmt.Fprintf(io.ErrOut, "  Updating %s\n", md.colorize.Bold(m.Machine().ID))
+		err := m.Update(ctx, *launchInput)
+		if err != nil {
+			if md.strategy != "immediate" {
+				return err
+			} else {
+				fmt.Printf("Continuing after error: %s\n", err)
+			}
+		}
+
+		if md.strategy != "immediate" {
+			err := m.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout)
+			if err != nil {
+				return err
+			}
+		}
+
+		if md.strategy != "immediate" && !md.skipHealthChecks {
+			err := m.WaitForHealthchecksToPass(ctx, md.waitTimeout)
+			// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	fmt.Fprintf(io.ErrOut, "  Finished deploying\n")
 	return nil
 }
 
@@ -725,27 +684,25 @@ func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context
 	return nil
 }
 
+func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *api.LaunchMachineInput) *api.LaunchMachineInput {
+	launchInput.Config.Init.Cmd = strings.Split(md.releaseCommand, " ")
+	launchInput.Config.Services = nil
+	launchInput.Config.Restart = api.MachineRestart{
+		Policy: api.MachineRestartPolicyNo,
+	}
+	if md.appConfig.PrimaryRegion != "" {
+		launchInput.Region = md.appConfig.PrimaryRegion
+	}
+	return launchInput
+}
+
 func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) error {
 	if md.releaseCommand == "" || !md.releaseCommandMachine.IsEmpty() {
 		return nil
 	}
-	machineConf := md.baseMachineConfig(api.MachineProcessGroupReleaseCommand)
-	machineConf.Init.Cmd = strings.Split(md.releaseCommand, " ")
-	machineConf.Services = nil
-	machineConf.Restart = api.MachineRestart{
-		Policy: api.MachineRestartPolicyNo,
-	}
-	// FIXME: do we need to set volumes on release_command machines? I think no?
-	// FIXME: figure out how to set cpu/mem/vmclass for release_command machine
-	updatedConfig := api.LaunchMachineInput{
-		AppID:   md.app.Name,
-		OrgSlug: md.app.Organization.ID,
-		Config:  machineConf,
-	}
-	if md.appConfig.PrimaryRegion != "" {
-		updatedConfig.Region = md.appConfig.PrimaryRegion
-	}
-	releaseCmdMachine, err := md.flapsClient.Launch(ctx, updatedConfig)
+	launchInput := md.resolveUpdatedMachineConfig(api.MachineProcessGroupReleaseCommand, nil)
+	launchInput = md.configureLaunchInputForReleaseCommand(launchInput)
+	releaseCmdMachine, err := md.flapsClient.Launch(ctx, *launchInput)
 	if err != nil {
 		return fmt.Errorf("error creating a release_command machine: %w", err)
 	}
@@ -763,33 +720,20 @@ func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) er
 	io := iostreams.FromContext(ctx)
 	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
 	fmt.Fprintf(io.ErrOut, "Updating release command machine %s in preparation to run later\n", releaseCmdMachine.Machine().ID)
-	err := releaseCmdMachine.WaitForState(ctx, api.MachineStateStopped, defaultWaitTimeout)
+	err := releaseCmdMachine.WaitForState(ctx, api.MachineStateStopped, md.waitTimeout)
 	if err != nil {
 		return err
 	}
-	err = md.releaseCommandMachine.AcquireLeases(ctx, defaultLeaseTtl)
+	updatedConfig := md.resolveUpdatedMachineConfig(api.MachineProcessGroupReleaseCommand, releaseCmdMachine.Machine())
+	updatedConfig = md.configureLaunchInputForReleaseCommand(updatedConfig)
+	err = md.releaseCommandMachine.AcquireLeases(ctx, md.leaseTimeout)
 	defer func() {
 		_ = md.releaseCommandMachine.ReleaseLeases(ctx)
 	}()
 	if err != nil {
 		return err
 	}
-	machineConf := md.baseMachineConfig(api.MachineProcessGroupReleaseCommand)
-	machineConf.Init.Cmd = strings.Split(md.releaseCommand, " ")
-	machineConf.Services = nil
-	machineConf.Restart = api.MachineRestart{
-		Policy: api.MachineRestartPolicyNo,
-	}
-	// FIXME: do we need to set volumes on release_command machines? I think no?
-	// FIXME: figure out how to set cpu/mem/vmclass for release_command machine
-	updatedConfig := api.LaunchMachineInput{
-		ID:      releaseCmdMachine.Machine().ID,
-		AppID:   md.app.Name,
-		OrgSlug: md.app.Organization.ID,
-		Config:  machineConf,
-		Region:  releaseCmdMachine.Machine().Region,
-	}
-	err = releaseCmdMachine.Update(ctx, updatedConfig)
+	err = releaseCmdMachine.Update(ctx, *updatedConfig)
 	if err != nil {
 		return fmt.Errorf("error updating release_command machine: %w", err)
 	}
@@ -872,79 +816,112 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 	return nil
 }
 
-func (md *machineDeployment) baseMachineConfig(processGroup string) *api.MachineConfig {
-	machineConfig := &api.MachineConfig{}
-	machineConfig.Metadata = map[string]string{
+func (md *machineDeployment) resolveUpdatedMachineConfig(processGroup string, origMachineRaw *api.Machine) *api.LaunchMachineInput {
+	machineConf := &api.MachineConfig{}
+	if md.restartOnly {
+		machineConf = origMachineRaw.Config
+	}
+	launchInput := &api.LaunchMachineInput{
+		ID:      origMachineRaw.ID,
+		AppID:   md.app.Name,
+		OrgSlug: md.app.Organization.ID,
+		Config:  machineConf,
+		Region:  origMachineRaw.Region,
+	}
+	launchInput.Config.Metadata = md.defaultMachineMetadata(processGroup)
+	for k, v := range origMachineRaw.Config.Metadata {
+		if !isFlyAppsPlatformMetadata(k) {
+			launchInput.Config.Metadata[k] = v
+		}
+	}
+	if md.restartOnly {
+		return launchInput
+	}
+
+	launchInput.Config.Image = md.img.Tag
+	launchInput.Config.Init.Cmd = nil
+	launchInput.Config.Checks = md.appChecksForMachines
+	launchInput.Config.Services = md.appServicesForMachines
+	launchInput.Config.Metrics = md.appConfig.Metrics
+
+	// FIXME: can we set launchInput.Config.Restart from fly.toml?
+
+	launchInput.Config.Env = md.appConfig.Env
+	if launchInput.Config.Env == nil {
+		launchInput.Config.Env = map[string]string{}
+	}
+	if launchInput.Config.Env["PRIMARY_REGION"] == "" && origMachineRaw.Config.Env["PRIMARY_REGION"] != "" {
+		launchInput.Config.Env["PRIMARY_REGION"] = origMachineRaw.Config.Env["PRIMARY_REGION"]
+	}
+
+	if origMachineRaw.Config.Mounts != nil {
+		launchInput.Config.Mounts = origMachineRaw.Config.Mounts
+	}
+	if len(launchInput.Config.Mounts) == 1 && launchInput.Config.Mounts[0].Path != md.volumeDestination {
+		currentMount := launchInput.Config.Mounts[0]
+		terminal.Warnf("Updating the mount path for volume %s on machine %s from %s to %s due to fly.toml [mounts] destination value\n", currentMount.Volume, origMachineRaw.ID, currentMount.Path, md.volumeDestination)
+		launchInput.Config.Mounts[0].Path = md.volumeDestination
+	}
+
+	// FIXME: this should be set from the appConfig, right? in particular this ensures all the machines have the same cpu, mem, etc
+	if origMachineRaw.Config.Guest != nil {
+		launchInput.Config.Guest = origMachineRaw.Config.Guest
+	}
+
+	return launchInput
+}
+
+func (md *machineDeployment) translateServicesAndChecksForMachines() error {
+	md.appServicesForMachines = make([]api.MachineService, 0)
+	if md.appConfig.HttpService != nil {
+		md.appServicesForMachines = append(md.appServicesForMachines, *md.appConfig.HttpService.ToMachineService())
+	}
+	checkCount := 0
+	md.appChecksForMachines = make(map[string]api.MachineCheck)
+	for checkName, check := range md.appConfig.Checks {
+		fullCheckName := fmt.Sprintf("chk-%s-%s", checkName, check.String())
+		machineCheck, err := check.ToMachineCheck()
+		if err != nil {
+			return err
+		}
+		md.appChecksForMachines[fullCheckName] = *machineCheck
+	}
+	checkCount += len(md.appConfig.Checks)
+	for _, service := range md.appConfig.Services {
+		md.appServicesForMachines = append(md.appServicesForMachines, *service.ToMachineService())
+		for i, httpCheck := range service.HttpChecks {
+			checkName := fmt.Sprintf("svcchk%d-%s", checkCount+i, httpCheck.String(service.InternalPort))
+			machineCheck, err := httpCheck.ToMachineCheck(service.InternalPort)
+			if err != nil {
+				return err
+			}
+			md.appChecksForMachines[checkName] = *machineCheck
+		}
+		checkCount += len(service.HttpChecks)
+		for i, tcpCheck := range service.TcpChecks {
+			checkName := fmt.Sprintf("svcchk%d-%s", checkCount+i, tcpCheck.String(service.InternalPort))
+			machineCheck, err := tcpCheck.ToMachineCheck(service.InternalPort)
+			if err != nil {
+				return err
+			}
+			md.appChecksForMachines[checkName] = *machineCheck
+		}
+		checkCount += len(service.TcpChecks)
+	}
+	return nil
+}
+
+func (md *machineDeployment) defaultMachineMetadata(processGroup string) map[string]string {
+	res := map[string]string{
 		api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
 		api.MachineConfigMetadataKeyFlyReleaseId:       md.releaseId,
 		api.MachineConfigMetadataKeyFlyReleaseVersion:  strconv.Itoa(md.releaseVersion),
 		api.MachineConfigMetadataKeyProcessGroup:       processGroup,
 	}
-
 	if md.app.IsPostgresApp() {
-		machineConfig.Metadata[api.MachineConfigMetadataKeyFlyManagedPostgres] = "true"
+		res[api.MachineConfigMetadataKeyFlyManagedPostgres] = "true"
 	}
-
-	if md.restartOnly {
-		return machineConfig
-	}
-
-	machineConfig.Image = md.img.Tag
-
-	// Convert the new, slimmer http service config to standard services
-	if md.appConfig.HttpService != nil {
-		concurrency := md.appConfig.HttpService.Concurrency
-
-		if concurrency != nil {
-			if concurrency.Type == "" {
-				concurrency.Type = "requests"
-			}
-			if concurrency.HardLimit == 0 {
-				concurrency.HardLimit = 25
-			}
-			if concurrency.SoftLimit == 0 {
-				concurrency.SoftLimit = int(math.Ceil(float64(concurrency.HardLimit) * 0.8))
-			}
-		}
-
-		httpService := api.MachineService{
-			Protocol:     "tcp",
-			InternalPort: md.appConfig.HttpService.InternalPort,
-			Concurrency:  concurrency,
-			Ports: []api.MachinePort{
-				{
-					Port:       api.IntPointer(80),
-					Handlers:   []string{"http"},
-					ForceHttps: md.appConfig.HttpService.ForceHttps,
-				},
-				{
-					Port:     api.IntPointer(443),
-					Handlers: []string{"http", "tls"},
-				},
-			},
-		}
-
-		machineConfig.Services = append(machineConfig.Services, httpService)
-	}
-
-	// Copy standard services to the machine vonfig
-	if md.appConfig.Services != nil {
-		machineConfig.Services = append(machineConfig.Services, md.appConfig.Services...)
-	}
-
-	if md.appConfig.Env != nil {
-		machineConfig.Env = md.appConfig.Env
-	}
-
-	if md.appConfig.Metrics != nil {
-		machineConfig.Metrics = md.appConfig.Metrics
-	}
-
-	if md.appConfig.Checks != nil {
-		machineConfig.Checks = md.appConfig.Checks
-	}
-
-	return machineConfig
+	return res
 }
 
 func isFlyAppsPlatformMetadata(key string) bool {
