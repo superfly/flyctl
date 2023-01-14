@@ -687,6 +687,7 @@ func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context
 func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *api.LaunchMachineInput) *api.LaunchMachineInput {
 	launchInput.Config.Init.Cmd = strings.Split(md.releaseCommand, " ")
 	launchInput.Config.Services = nil
+	launchInput.Config.Checks = nil
 	launchInput.Config.Restart = api.MachineRestart{
 		Policy: api.MachineRestartPolicyNo,
 	}
