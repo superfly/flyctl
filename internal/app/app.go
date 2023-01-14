@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"reflect"
 	"strings"
@@ -73,19 +74,19 @@ type SlimConfig struct {
 
 // Config wraps the properties of app configuration.
 type Config struct {
-	AppName         string                      `toml:"app,omitempty"`
-	Build           *Build                      `toml:"build,omitempty"`
-	HttpService     *HttpService                `toml:"http_service,omitempty"`
-	Definition      map[string]interface{}      `toml:"definition,omitempty"`
-	Path            string                      `toml:"path,omitempty"`
-	Services        []api.MachineService        `toml:"services"`
-	Env             map[string]string           `toml:"env" json:"env"`
-	Metrics         *api.MachineMetrics         `toml:"metrics" json:"metrics"`
-	Statics         []*Static                   `toml:"statics,omitempty" json:"statics"`
-	Deploy          *Deploy                     `toml:"deploy, omitempty"`
-	PrimaryRegion   string                      `toml:"primary_region,omitempty"`
-	Checks          map[string]api.MachineCheck `toml:"checks,omitempty"`
-	Mounts          *scanner.Volume             `toml:"mounts,omitempty"`
+	AppName         string                 `toml:"app,omitempty"`
+	Build           *Build                 `toml:"build,omitempty"`
+	HttpService     *HttpService           `toml:"http_service,omitempty"`
+	Definition      map[string]interface{} `toml:"definition,omitempty"`
+	Path            string                 `toml:"path,omitempty"`
+	Services        []Service              `toml:"services"`
+	Env             map[string]string      `toml:"env" json:"env"`
+	Metrics         *api.MachineMetrics    `toml:"metrics" json:"metrics"`
+	Statics         []*Static              `toml:"statics,omitempty" json:"statics"`
+	Deploy          *Deploy                `toml:"deploy, omitempty"`
+	PrimaryRegion   string                 `toml:"primary_region,omitempty"`
+	Checks          map[string]*Check      `toml:"checks,omitempty"`
+	Mounts          *scanner.Volume        `toml:"mounts,omitempty"`
 	platformVersion string
 }
 
@@ -101,6 +102,177 @@ type HttpService struct {
 	InternalPort int                            `json:"internal_port" toml:"internal_port" validate:"required,numeric"`
 	ForceHttps   bool                           `toml:"force_https"`
 	Concurrency  *api.MachineServiceConcurrency `toml:"concurrency,omitempty"`
+}
+
+type Service struct {
+	Protocol     string                         `json:"protocol" toml:"protocol"`
+	InternalPort int                            `json:"internal_port" toml:"internal_port"`
+	Ports        []api.MachinePort              `json:"ports" toml:"ports"`
+	Concurrency  *api.MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
+	TcpChecks    []*TcpCheck                    `json:"tcp_checks,omitempty" toml:"tcp_checks,omitempty"`
+	HttpChecks   []*HttpCheck                   `json:"http_checks,omitempty" toml:"http_checks,omitempty"`
+}
+
+func (hs *HttpService) ToMachineService() *api.MachineService {
+	concurrency := hs.Concurrency
+	if concurrency != nil {
+		if concurrency.Type == "" {
+			concurrency.Type = "requests"
+		}
+		if concurrency.HardLimit == 0 {
+			concurrency.HardLimit = 25
+		}
+		if concurrency.SoftLimit == 0 {
+			concurrency.SoftLimit = int(math.Ceil(float64(concurrency.HardLimit) * 0.8))
+		}
+	}
+	return &api.MachineService{
+		Protocol:     "tcp",
+		InternalPort: hs.InternalPort,
+		Ports: []api.MachinePort{{
+			Port:       api.IntPointer(80),
+			Handlers:   []string{"http"},
+			ForceHttps: hs.ForceHttps,
+		}, {
+			Port:     api.IntPointer(443),
+			Handlers: []string{"http", "tls"},
+		}},
+		Concurrency: concurrency,
+	}
+
+}
+
+func (s *Service) ToMachineService() *api.MachineService {
+	return &api.MachineService{
+		Protocol:     s.Protocol,
+		InternalPort: s.InternalPort,
+		Ports:        s.Ports,
+		Concurrency:  s.Concurrency,
+	}
+}
+
+type TcpCheck struct {
+	Interval     *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
+	Timeout      *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
+	GracePeriod  *api.Duration `json:"grace_period,omitempty" toml:"grace_period,omitempty"`
+	RestartLimit int           `json:"restart_limit,omitempty" toml:"restart_limit,omitempty"`
+}
+
+type HttpCheck struct {
+	Interval      *api.Duration     `json:"interval,omitempty" toml:"interval,omitempty"`
+	Timeout       *api.Duration     `json:"timeout,omitempty" toml:"timeout,omitempty"`
+	GracePeriod   *api.Duration     `json:"grace_period,omitempty" toml:"grace_period,omitempty"`
+	RestartLimit  int               `json:"restart_limit,omitempty" toml:"restart_limit,omitempty"`
+	HTTPMethod    string            `json:"method,omitempty" toml:"method,omitempty"`
+	HTTPPath      string            `json:"path,omitempty" toml:"path,omitempty"`
+	HTTPProtocol  string            `json:"protocol,omitempty" toml:"protocol,omitempty"`
+	TLSSkipVerify bool              `json:"tls_skip_verify,omitempty" toml:"tls_skip_verify,omitempty"`
+	Headers       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
+}
+
+type Check struct {
+	Type          string            `json:"type,omitempty" toml:"type,omitempty"`
+	Port          int               `json:"port,omitempty" toml:"port,omitempty"`
+	Interval      *api.Duration     `json:"interval,omitempty" toml:"interval,omitempty"`
+	Timeout       *api.Duration     `json:"timeout,omitempty" toml:"timeout,omitempty"`
+	GracePeriod   *api.Duration     `json:"grace_period,omitempty" toml:"grace_period,omitempty"`
+	RestartLimit  int               `json:"restart_limit,omitempty" toml:"restart_limit,omitempty"`
+	HTTPMethod    string            `json:"method,omitempty" toml:"method,omitempty"`
+	HTTPPath      string            `json:"path,omitempty" toml:"path,omitempty"`
+	HTTPProtocol  string            `json:"protocol,omitempty" toml:"protocol,omitempty"`
+	TLSSkipVerify bool              `json:"tls_skip_verify,omitempty" toml:"tls_skip_verify,omitempty"`
+	Headers       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
+}
+
+func (c *Check) ToMachineCheck() (*api.MachineCheck, error) {
+	if c.GracePeriod != nil {
+		return nil, fmt.Errorf("checks for machines do not yet support grace_period")
+	}
+	if c.RestartLimit != 0 {
+		return nil, fmt.Errorf("checks for machines do not yet support restart_limit")
+	}
+	if c.HTTPProtocol != "" {
+		return nil, fmt.Errorf("checks for machines do not yet support protocol")
+	}
+	if len(c.Headers) > 0 {
+		return nil, fmt.Errorf("checks for machines do not yet support headers")
+	}
+	res := &api.MachineCheck{
+		Type:     c.Type,
+		Port:     uint16(c.Port),
+		Interval: c.Interval,
+		Timeout:  c.Timeout,
+	}
+	switch c.Type {
+	case "tcp":
+	case "http":
+		methodUpper := strings.ToUpper(c.HTTPMethod)
+		res.HTTPMethod = &methodUpper
+		res.HTTPPath = &c.HTTPPath
+		// FIXME: enable this when machines support it
+		// res.TLSSkipVerify = &c.TLSSkipVerify
+	default:
+		return nil, fmt.Errorf("error unknown check type: %s", c.Type)
+	}
+	return res, nil
+}
+
+func (c *Check) String() string {
+	switch c.Type {
+	case "tcp":
+		return fmt.Sprintf("tcp-%d", c.Port)
+	case "http":
+		return fmt.Sprintf("http-%d-%s", c.Port, c.HTTPMethod)
+	default:
+		return fmt.Sprintf("%s-%d", c.Type, c.Port)
+	}
+}
+
+func (hc *HttpCheck) ToMachineCheck(port int) (*api.MachineCheck, error) {
+	if hc.GracePeriod != nil {
+		return nil, fmt.Errorf("checks for machines do not yet support grace_period")
+	}
+	if hc.RestartLimit != 0 {
+		return nil, fmt.Errorf("checks for machines do not yet support restart_limit")
+	}
+	if hc.HTTPProtocol != "" {
+		return nil, fmt.Errorf("checks for machines do not yet support protocol")
+	}
+	if len(hc.Headers) > 0 {
+		return nil, fmt.Errorf("checks for machines do not yet support headers")
+	}
+	methodUpper := strings.ToUpper(hc.HTTPMethod)
+	return &api.MachineCheck{
+		Type:       "http",
+		Port:       uint16(port),
+		Interval:   hc.Interval,
+		Timeout:    hc.Timeout,
+		HTTPMethod: &methodUpper,
+		HTTPPath:   &hc.HTTPPath,
+	}, nil
+}
+
+func (hc *HttpCheck) String(port int) string {
+	return fmt.Sprintf("http-%d-%s", port, hc.HTTPMethod)
+}
+
+func (tc *TcpCheck) ToMachineCheck(port int) (*api.MachineCheck, error) {
+	if tc.GracePeriod != nil {
+		return nil, fmt.Errorf("checks for machines do not yet support grace_period")
+	}
+	if tc.RestartLimit != 0 {
+		return nil, fmt.Errorf("checks for machines do not yet support restart_limit")
+	}
+	return &api.MachineCheck{
+		Type:     "tcp",
+		Port:     uint16(port),
+		Interval: tc.Interval,
+		Timeout:  tc.Timeout,
+	}, nil
+}
+
+func (tc *TcpCheck) String(port int) string {
+	return fmt.Sprintf("tcp-%d", port)
 }
 
 type VM struct {
