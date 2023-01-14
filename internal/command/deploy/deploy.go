@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/logrusorgru/aurora"
@@ -55,6 +56,16 @@ var CommonFlags = flag.Set{
 	flag.Bool{
 		Name:        "auto-confirm",
 		Description: "Will automatically confirm changes when running non-interactively.",
+	},
+	flag.Int{
+		Name:        "wait-timeout",
+		Description: "Seconds to wait for individual machines to transition states and become healthy.",
+		Default:     int(DefaultWaitTimeout.Seconds()),
+	},
+	flag.Int{
+		Name:        "lease-timeout",
+		Description: "Seconds to lease individual machines while running deployment. All machines are leased at the beginning and released at the end, so this needs to be as long as the entire deployment. flyctl releases leases in most cases.",
+		Default:     int(DefaultLeaseTtl.Seconds()),
 	},
 }
 
@@ -137,6 +148,8 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 			Strategy:             flag.GetString(ctx, "strategy"),
 			AutoConfirmMigration: autoConfirm,
 			SkipHealthChecks:     flag.GetDetach(ctx),
+			WaitTimeout:          time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
+			LeaseTimeout:         time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
 		})
 		if err != nil {
 			return err
