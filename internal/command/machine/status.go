@@ -10,7 +10,6 @@ import (
 	"github.com/alecthomas/chroma/quick"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
@@ -27,14 +26,12 @@ func newStatus() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runMachineStatus,
 		command.RequireSession,
-		command.LoadAppNameIfPresent,
 	)
 
 	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(
 		cmd,
-		flag.App(),
 		flag.AppConfig(),
 		flag.Bool{
 			Name:        "display-config",
@@ -50,11 +47,10 @@ func runMachineStatus(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 
 	var (
-		appName   = app.NameFromContext(ctx)
 		machineID = flag.FirstArg(ctx)
 	)
 
-	app, err := appFromMachineOrName(ctx, machineID, appName)
+	app, err := appFromMachineOrName(ctx, machineID, "")
 	if err != nil {
 		return err
 	}
@@ -69,8 +65,6 @@ func runMachineStatus(ctx context.Context) (err error) {
 		switch {
 		case strings.Contains(err.Error(), "status"):
 			return fmt.Errorf("retrieve machine failed %s", err)
-		case strings.Contains(err.Error(), "not found") && appName != "":
-			return fmt.Errorf("machine %s was not found in app %s", machineID, appName)
 		default:
 			return fmt.Errorf("machine %s could not be retrieved", machineID)
 		}
