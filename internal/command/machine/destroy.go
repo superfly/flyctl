@@ -93,6 +93,9 @@ func runMachineDestroy(ctx context.Context) (err error) {
 		}
 	}
 
+	// Best effort post-deletion hook.
+	runOnDeletionHook(ctx, app, current)
+
 	fmt.Fprintf(out, "%s has been destroyed\n", machineID)
 
 	return
