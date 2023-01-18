@@ -195,21 +195,21 @@ type MachineServiceConcurrency struct {
 }
 
 type MachineConfig struct {
-	Env       map[string]string       `json:"env"`
-	Init      MachineInit             `json:"init,omitempty"`
-	Processes []MachineProcess        `json:"processes,omitempty"`
-	Image     string                  `json:"image"`
-	Metadata  map[string]string       `json:"metadata"`
-	Mounts    []MachineMount          `json:"mounts,omitempty"`
-	Restart   MachineRestart          `json:"restart,omitempty"`
-	Services  []MachineService        `json:"services,omitempty"`
-	VMSize    string                  `json:"size,omitempty"`
-	Guest     *MachineGuest           `json:"guest,omitempty"`
-	Metrics   *MachineMetrics         `json:"metrics"`
-	Schedule  string                  `json:"schedule,omitempty"`
-	Checks    map[string]MachineCheck `json:"checks,omitempty"`
-	Destroy   bool                    `json:"destroy"`
-	Network   *NetworkConfig          `json:"network"`
+	Env         map[string]string       `json:"env"`
+	Init        MachineInit             `json:"init,omitempty"`
+	Processes   []MachineProcess        `json:"processes,omitempty"`
+	Image       string                  `json:"image"`
+	Metadata    map[string]string       `json:"metadata"`
+	Mounts      []MachineMount          `json:"mounts,omitempty"`
+	Restart     MachineRestart          `json:"restart,omitempty"`
+	Services    []MachineService        `json:"services,omitempty"`
+	VMSize      string                  `json:"size,omitempty"`
+	Guest       *MachineGuest           `json:"guest,omitempty"`
+	Metrics     *MachineMetrics         `json:"metrics"`
+	Schedule    string                  `json:"schedule,omitempty"`
+	Checks      map[string]MachineCheck `json:"checks,omitempty"`
+	AutoDestroy bool                    `json:"auto_destroy"`
+	Network     *NetworkConfig          `json:"network"`
 }
 
 type NetworkConfig struct {
