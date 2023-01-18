@@ -142,7 +142,6 @@ func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 
 	switch manager {
 	case flypg.ReplicationManager:
-		fmt.Println("Updating flex config")
 		requiresRestart, err = updateFlexConfig(ctx, app, leader.PrivateIP)
 		if err != nil {
 			return err
@@ -173,67 +172,6 @@ func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 		// Ensure leases are released before we issue restart.
 		releaseLeaseFunc(ctx, machines)
 		if err := machinesRestart(ctx, &api.RestartMachineInput{}); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func runNomadConfigUpdate(ctx context.Context, app *api.AppCompact) error {
-	var (
-		client      = client.FromContext(ctx).API()
-		io          = iostreams.FromContext(ctx)
-		colorize    = io.ColorScheme()
-		autoConfirm = flag.GetBool(ctx, "yes")
-
-		MinPostgresVersion = "v0.0.32"
-	)
-
-	if err := hasRequiredVersionOnNomad(app, MinPostgresVersion, MinPostgresVersion); err != nil {
-		return err
-	}
-
-	agentclient, err := agent.Establish(ctx, client)
-	if err != nil {
-		return errors.Wrap(err, "can't establish agent")
-	}
-
-	pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
-	if err != nil {
-		return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", app.Name, err)
-	}
-	if len(pgInstances.Addresses) == 0 {
-		return fmt.Errorf("no 6pn ips found for %s app", app.Name)
-	}
-
-	leaderIP, err := leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
-	if err != nil {
-		return err
-	}
-
-	requiresRestart, err := updateStolonConfig(ctx, app, leaderIP)
-	if err != nil {
-		return err
-	}
-
-	if requiresRestart {
-		if !autoConfirm {
-			fmt.Fprintln(io.Out, colorize.Yellow("Please note that some of your changes will require a cluster restart before they will be applied."))
-
-			switch confirmed, err := prompt.Confirm(ctx, "Restart cluster now?"); {
-			case err == nil:
-				if !confirmed {
-					return nil
-				}
-			case prompt.IsNonInteractive(err):
-				return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
-			default:
-				return err
-			}
-		}
-
-		if err := nomadRestart(ctx, app); err != nil {
 			return err
 		}
 	}
@@ -274,8 +212,6 @@ func updateFlexConfig(ctx context.Context, app *api.AppCompact, leaderIP string)
 	if err != nil {
 		return false, err
 	}
-
-	fmt.Printf("Changes: %+v\n", changes)
 
 	fmt.Fprintln(io.Out, "Performing update...")
 	leaderClient := flypg.NewFromInstance(leaderIP, dialer)
@@ -330,12 +266,10 @@ func resolveConfigChanges(ctx context.Context, app *api.AppCompact, manager stri
 		// Query PG settings
 		pgclient := flypg.NewFromInstance(leaderIP, dialer)
 
-		fmt.Printf("Viewing settings for manager %s\n", manager)
 		settings, err := pgclient.ViewSettings(ctx, keys, manager)
 		if err != nil {
 			return false, nil, err
 		}
-		fmt.Println("Post settings")
 
 		if len(changes) == 0 {
 			return false, nil, fmt.Errorf("no changes were specified")
@@ -418,6 +352,67 @@ func isRestartRequired(pgSettings *flypg.PGSettings, name string) bool {
 	}
 
 	return false
+}
+
+func runNomadConfigUpdate(ctx context.Context, app *api.AppCompact) error {
+	var (
+		client      = client.FromContext(ctx).API()
+		io          = iostreams.FromContext(ctx)
+		colorize    = io.ColorScheme()
+		autoConfirm = flag.GetBool(ctx, "yes")
+
+		MinPostgresVersion = "v0.0.32"
+	)
+
+	if err := hasRequiredVersionOnNomad(app, MinPostgresVersion, MinPostgresVersion); err != nil {
+		return err
+	}
+
+	agentclient, err := agent.Establish(ctx, client)
+	if err != nil {
+		return errors.Wrap(err, "can't establish agent")
+	}
+
+	pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
+	if err != nil {
+		return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", app.Name, err)
+	}
+	if len(pgInstances.Addresses) == 0 {
+		return fmt.Errorf("no 6pn ips found for %s app", app.Name)
+	}
+
+	leaderIP, err := leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
+	if err != nil {
+		return err
+	}
+
+	requiresRestart, err := updateStolonConfig(ctx, app, leaderIP)
+	if err != nil {
+		return err
+	}
+
+	if requiresRestart {
+		if !autoConfirm {
+			fmt.Fprintln(io.Out, colorize.Yellow("Please note that some of your changes will require a cluster restart before they will be applied."))
+
+			switch confirmed, err := prompt.Confirm(ctx, "Restart cluster now?"); {
+			case err == nil:
+				if !confirmed {
+					return nil
+				}
+			case prompt.IsNonInteractive(err):
+				return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+			default:
+				return err
+			}
+		}
+
+		if err := nomadRestart(ctx, app); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func validateConfigValue(setting flypg.PGSetting, key, val string) error {
