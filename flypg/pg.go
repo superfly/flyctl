@@ -168,9 +168,9 @@ func (c *Client) Failover(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) ViewSettings(ctx context.Context, settings []string, flex bool) (*PGSettings, error) {
+func (c *Client) ViewSettings(ctx context.Context, settings []string, manager string) (*PGSettings, error) {
 	endpoint := "/commands/admin/settings/view"
-	if flex {
+	if manager == ReplicationManager {
 		endpoint = "/commands/admin/settings/view/postgres"
 	}
 
@@ -193,7 +193,8 @@ func (c *Client) UpdateSettings(ctx context.Context, settings map[string]string)
 	return nil
 }
 
-func (c *Client) ApplySettings(ctx context.Context) error {
+// SyncSettings is specific to the repmgr/flex implementation.
+func (c *Client) SyncSettings(ctx context.Context) error {
 	endpoint := "/commands/admin/settings/apply"
 
 	if err := c.Do(ctx, http.MethodPost, endpoint, nil, nil); err != nil {

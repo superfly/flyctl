@@ -112,7 +112,7 @@ func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 
 		MinPostgresHaVersion         = "0.0.33"
 		MinPostgresStandaloneVersion = "0.0.7"
-		MinPostgresFlexVersion       = "0.0.3"
+		MinPostgresFlexVersion       = "0.0.5"
 	)
 
 	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
@@ -133,9 +133,25 @@ func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 		return err
 	}
 
-	requiresRestart, err := updateStolonConfig(ctx, app, leader.PrivateIP)
-	if err != nil {
-		return err
+	manager := flypg.StolonManager
+	if leader.ImageRef.Repository == "flyio/postgres-flex" {
+		manager = flypg.ReplicationManager
+	}
+
+	requiresRestart := false
+
+	switch manager {
+	case flypg.ReplicationManager:
+		fmt.Println("Updating flex config")
+		requiresRestart, err = updateFlexConfig(ctx, app, leader.PrivateIP)
+		if err != nil {
+			return err
+		}
+	default:
+		requiresRestart, err = updateStolonConfig(ctx, app, leader.PrivateIP)
+		if err != nil {
+			return err
+		}
 	}
 
 	if requiresRestart {
@@ -166,19 +182,17 @@ func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 
 func runNomadConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 	var (
-		io       = iostreams.FromContext(ctx)
-		colorize = io.ColorScheme()
-
+		client      = client.FromContext(ctx).API()
+		io          = iostreams.FromContext(ctx)
+		colorize    = io.ColorScheme()
 		autoConfirm = flag.GetBool(ctx, "yes")
-	)
 
-	var MinPostgresVersion = "v0.0.32"
+		MinPostgresVersion = "v0.0.32"
+	)
 
 	if err := hasRequiredVersionOnNomad(app, MinPostgresVersion, MinPostgresVersion); err != nil {
 		return err
 	}
-
-	client := client.FromContext(ctx).API()
 
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
@@ -228,6 +242,70 @@ func runNomadConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 }
 
 func updateStolonConfig(ctx context.Context, app *api.AppCompact, leaderIP string) (bool, error) {
+	io := iostreams.FromContext(ctx)
+
+	restartRequired, changes, err := resolveConfigChanges(ctx, app, flypg.StolonManager, leaderIP)
+	if err != nil {
+		return false, err
+	}
+
+	fmt.Fprintln(io.Out, "Performing update...")
+	cmd, err := flypg.NewCommand(ctx, app)
+	if err != nil {
+		return false, err
+	}
+
+	err = cmd.UpdateSettings(ctx, leaderIP, changes)
+	if err != nil {
+		return false, err
+	}
+	fmt.Fprintln(io.Out, "Update complete!")
+
+	return restartRequired, nil
+}
+
+func updateFlexConfig(ctx context.Context, app *api.AppCompact, leaderIP string) (bool, error) {
+	var (
+		io     = iostreams.FromContext(ctx)
+		dialer = agent.DialerFromContext(ctx)
+	)
+
+	restartRequired, changes, err := resolveConfigChanges(ctx, app, flypg.ReplicationManager, leaderIP)
+	if err != nil {
+		return false, err
+	}
+
+	fmt.Printf("Changes: %+v\n", changes)
+
+	fmt.Fprintln(io.Out, "Performing update...")
+	leaderClient := flypg.NewFromInstance(leaderIP, dialer)
+
+	// Push configuration settings to consul.
+	if err := leaderClient.UpdateSettings(ctx, changes); err != nil {
+		return false, err
+	}
+
+	machines, err := mach.ListActive(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	// Sync configuration settings for each node. This should be safe to apply out-of-order.
+	for _, machine := range machines {
+		client := flypg.NewFromInstance(machine.PrivateIP, dialer)
+
+		// Pull configuration settings down from Consul for each node and reload the config.
+		err := client.SyncSettings(ctx)
+		if err != nil {
+			return false, fmt.Errorf("failed to sync configuration on %s: %s", machine.ID, err)
+		}
+	}
+	fmt.Fprintln(io.Out, "Update complete!")
+
+	return restartRequired, nil
+}
+
+func resolveConfigChanges(ctx context.Context, app *api.AppCompact, manager string, leaderIP string) (bool, map[string]string, error) {
 	var (
 		io     = iostreams.FromContext(ctx)
 		dialer = agent.DialerFromContext(ctx)
@@ -252,25 +330,23 @@ func updateStolonConfig(ctx context.Context, app *api.AppCompact, leaderIP strin
 		// Query PG settings
 		pgclient := flypg.NewFromInstance(leaderIP, dialer)
 
-		_, flex := os.LookupEnv("FORCE_FLEX")
-		if app.ImageDetails.Repository == "flyio/postgres-flex" {
-			flex = true
-		}
-
-		settings, err := pgclient.ViewSettings(ctx, keys, flex)
+		fmt.Printf("Viewing settings for manager %s\n", manager)
+		settings, err := pgclient.ViewSettings(ctx, keys, manager)
 		if err != nil {
-			return false, err
+			return false, nil, err
 		}
+		fmt.Println("Post settings")
+
 		if len(changes) == 0 {
-			return false, fmt.Errorf("no changes were specified")
+			return false, nil, fmt.Errorf("no changes were specified")
 		}
 
 		changelog, err := resolveChangeLog(ctx, changes, settings)
 		if err != nil {
-			return false, err
+			return false, nil, err
 		}
 		if len(changelog) == 0 {
-			return false, fmt.Errorf("no changes to apply")
+			return false, nil, fmt.Errorf("no changes to apply")
 		}
 
 		rows := make([][]string, 0, len(changelog))
@@ -296,44 +372,17 @@ func updateStolonConfig(ctx context.Context, app *api.AppCompact, leaderIP strin
 			switch confirmed, err := prompt.Confirmf(ctx, msg); {
 			case err == nil:
 				if !confirmed {
-					return false, nil
+					return false, nil, nil
 				}
 			case prompt.IsNonInteractive(err):
-				return false, prompt.NonInteractiveError("auto-confirm flag must be specified when not running interactively")
+				return false, nil, prompt.NonInteractiveError("auto-confirm flag must be specified when not running interactively")
 			default:
-				return false, err
+				return false, nil, err
 			}
 		}
 	}
 
-	fmt.Fprintln(io.Out, "Performing update...")
-
-	_, flex := os.LookupEnv("FORCE_FLEX")
-	if app.ImageDetails.Repository == "flyio/postgres-flex" || flex {
-		pgclient := flypg.NewFromInstance(leaderIP, dialer)
-		err := pgclient.UpdateSettings(ctx, changes)
-		if err != nil {
-			return false, err
-		}
-		fmt.Fprintln(io.Out, "Performing apply...")
-		err = pgclient.ApplySettings(ctx)
-		if err != nil {
-			return false, err
-		}
-		fmt.Fprintln(io.Out, "Apply complete!")
-	} else {
-		cmd, err := flypg.NewCommand(ctx, app)
-		if err != nil {
-			return false, err
-		}
-		err = cmd.UpdateSettings(ctx, leaderIP, changes)
-		if err != nil {
-			return false, err
-		}
-	}
-	fmt.Fprintln(io.Out, "Update complete!")
-
-	return restartRequired, nil
+	return restartRequired, changes, nil
 }
 
 func resolveChangeLog(ctx context.Context, changes map[string]string, settings *flypg.PGSettings) (diff.Changelog, error) {
