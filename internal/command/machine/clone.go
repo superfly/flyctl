@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -16,6 +17,7 @@ import (
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/terminal"
 )
 
 func newClone() *cobra.Command {
@@ -53,6 +55,10 @@ func newClone() *cobra.Command {
 			Name:        "attach-volume",
 			Description: "Existing volume to attach to the new machine",
 		},
+		flag.String{
+			Name:        "process-group",
+			Description: "For machines that are part of Fly Apps v2 does a regular clone and changes the process group to what is specified here",
+		},
 	)
 
 	return cmd
@@ -72,6 +78,7 @@ func runMachineClone(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+	appConfig, err := getAppConfig(ctx, appName)
 
 	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
@@ -92,7 +99,23 @@ func runMachineClone(ctx context.Context) (err error) {
 	fmt.Fprintf(out, "Cloning machine %s into region %s\n", colorize.Bold(source.ID), colorize.Bold(region))
 
 	targetConfig := source.Config
-
+	if targetProcessGroup := flag.GetString(ctx, "process-group"); targetProcessGroup != "" {
+		allCmdAndServices, err := appConfig.GetProcessNamesToCmdAndService()
+		if err != nil {
+			return err
+		}
+		cmdAndServices, present := allCmdAndServices[targetProcessGroup]
+		if !present {
+			return fmt.Errorf("process group %s is not present in app configuration, add a [processes] section to fly.toml", targetProcessGroup)
+		}
+		if targetProcessGroup == api.MachineProcessGroupFlyAppReleaseCommand {
+			return fmt.Errorf("invalid process group %s, %s is reserved for internal use", targetProcessGroup, api.MachineProcessGroupFlyAppReleaseCommand)
+		}
+		targetConfig.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = targetProcessGroup
+		terminal.Infof("Setting process group to %s for new machine and updating cmd and services\n", targetProcessGroup)
+		targetConfig.Init.Cmd = cmdAndServices.Cmd
+		targetConfig.Services = cmdAndServices.MachineServices
+	}
 	for _, mnt := range source.Config.Mounts {
 		var vol *api.Volume
 
@@ -184,4 +207,47 @@ func runMachineClone(ctx context.Context) (err error) {
 	fmt.Fprintf(out, "Machine has been successfully cloned!\n")
 
 	return
+}
+
+func getAppConfig(ctx context.Context, appName string) (*app.Config, error) {
+	apiClient := client.FromContext(ctx).API()
+	cfg := app.ConfigFromContext(ctx)
+	if cfg == nil {
+		terminal.Debug("no local app config detected; fetching from backend ...")
+
+		apiConfig, err := apiClient.GetConfig(ctx, appName)
+		if err != nil {
+			return nil, fmt.Errorf("failed fetching existing app config: %w", err)
+		}
+
+		basicApp, err := apiClient.GetAppBasic(ctx, appName)
+		if err != nil {
+			return nil, err
+		}
+
+		cfg = &app.Config{
+			Definition: apiConfig.Definition,
+		}
+
+		cfg.AppName = basicApp.Name
+		cfg.SetPlatformVersion(basicApp.PlatformVersion)
+		return cfg, nil
+	} else {
+		parsedCfg, err := apiClient.ParseConfig(ctx, appName, cfg.Definition)
+		if err != nil {
+			return nil, err
+		}
+		if !parsedCfg.Valid {
+			fmt.Println()
+			if len(parsedCfg.Errors) > 0 {
+				terminal.Errorf("\nConfiguration errors in %s:\n\n", cfg.Path)
+			}
+			for _, e := range parsedCfg.Errors {
+				terminal.Errorf("   %s\n", e)
+			}
+			fmt.Println()
+			return nil, errors.New("error app configuration is not valid")
+		}
+		return cfg, nil
+	}
 }

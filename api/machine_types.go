@@ -9,10 +9,10 @@ const MachineConfigMetadataKeyFlyManagedPostgres = "fly-managed-postgres"
 const MachineConfigMetadataKeyFlyPlatformVersion = "fly_platform_version"
 const MachineConfigMetadataKeyFlyReleaseId = "fly_release_id"
 const MachineConfigMetadataKeyFlyReleaseVersion = "fly_release_version"
-const MachineConfigMetadataKeyProcessGroup = "process_group"
+const MachineConfigMetadataKeyFlyProcessGroup = "fly_process_group"
 const MachineFlyPlatformVersion2 = "v2"
 const MachineProcessGroupApp = "app"
-const MachineProcessGroupReleaseCommand = "release_command"
+const MachineProcessGroupFlyAppReleaseCommand = "fly_app_release_command"
 const MachineStateDestroyed = "destroyed"
 const MachineStateStarted = "started"
 const MachineStateStopped = "stopped"
@@ -54,12 +54,8 @@ func (m *Machine) IsFlyAppsPlatform() bool {
 	return m.Config != nil && m.Config.Metadata[MachineConfigMetadataKeyFlyPlatformVersion] == MachineFlyPlatformVersion2 && m.State != MachineStateDestroyed
 }
 
-func (m *Machine) IsFlyAppsInstance() bool {
-	return m.IsFlyAppsPlatform() && m.HasProcessGroup(MachineProcessGroupApp)
-}
-
 func (m *Machine) IsFlyAppsReleaseCommand() bool {
-	return m.IsFlyAppsPlatform() && m.HasProcessGroup(MachineProcessGroupReleaseCommand)
+	return m.IsFlyAppsPlatform() && m.HasProcessGroup(MachineProcessGroupFlyAppReleaseCommand)
 }
 
 func (m *Machine) IsActive() bool {
@@ -67,7 +63,7 @@ func (m *Machine) IsActive() bool {
 }
 
 func (m *Machine) HasProcessGroup(desired string) bool {
-	return m.Config != nil && m.Config.Metadata[MachineConfigMetadataKeyProcessGroup] == desired
+	return m.Config != nil && m.Config.Metadata[MachineConfigMetadataKeyFlyProcessGroup] == desired
 }
 
 func (m Machine) ImageVersion() string {
