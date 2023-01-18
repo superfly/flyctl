@@ -87,6 +87,7 @@ type Config struct {
 	PrimaryRegion   string                 `toml:"primary_region,omitempty"`
 	Checks          map[string]*Check      `toml:"checks,omitempty"`
 	Mounts          *scanner.Volume        `toml:"mounts,omitempty"`
+	Processes       map[string]string      `toml:"processes,omitempty"`
 	platformVersion string
 }
 
@@ -111,6 +112,7 @@ type Service struct {
 	Concurrency  *api.MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
 	TcpChecks    []*TcpCheck                    `json:"tcp_checks,omitempty" toml:"tcp_checks,omitempty"`
 	HttpChecks   []*HttpCheck                   `json:"http_checks,omitempty" toml:"http_checks,omitempty"`
+	Processes    []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
 func (hs *HttpService) ToMachineService() *api.MachineService {
@@ -797,4 +799,67 @@ func (c *Config) SetStatics(statics []scanner.Static) {
 
 func (c *Config) SetVolumes(volumes []scanner.Volume) {
 	c.Definition["mounts"] = volumes
+}
+
+type CmdAndMachineServices struct {
+	Cmd             []string
+	MachineServices []api.MachineService
+}
+
+func (c *Config) GetProcessNamesToCmdAndService() (map[string]CmdAndMachineServices, error) {
+	res := make(map[string]CmdAndMachineServices)
+	processCount := 0
+	if c.Processes != nil {
+		processCount = len(c.Processes)
+	}
+	defaultProcessName := ""
+	firstProcessNameOrDefault := ""
+	if processCount == 1 {
+		for procName := range c.Processes {
+			firstProcessNameOrDefault = procName
+			break
+		}
+	}
+	if processCount > 0 {
+		for procName := range c.Processes {
+			res[procName] = CmdAndMachineServices{
+				Cmd:             strings.Split(c.Processes[procName], " "),
+				MachineServices: make([]api.MachineService, 0),
+			}
+		}
+	} else {
+		res[defaultProcessName] = CmdAndMachineServices{
+			Cmd:             strings.Split(c.Processes[defaultProcessName], " "),
+			MachineServices: make([]api.MachineService, 0),
+		}
+	}
+	if c.HttpService != nil {
+		if processCount > 1 {
+			return nil, fmt.Errorf("http_service is not supported when more than one processes are defined for an app, and this app has %d processes", processCount)
+		}
+		servicesToUpdate := res[firstProcessNameOrDefault]
+		servicesToUpdate.MachineServices = append(servicesToUpdate.MachineServices, *c.HttpService.ToMachineService())
+		res[firstProcessNameOrDefault] = servicesToUpdate
+	}
+	for _, service := range c.Services {
+		if len(service.Processes) == 0 && processCount > 1 {
+			return nil, fmt.Errorf("error service has no processes set and app has %d processes defined; update fly.toml to set processes for each service", processCount)
+		} else if len(service.Processes) > 1 && processCount == 0 {
+			return nil, fmt.Errorf("error services has %d processes defined, but no processes are defined in app config; add a [processes] section to fly.toml", processCount)
+		} else if len(service.Processes) == 0 {
+			servicesToUpdate := res[firstProcessNameOrDefault]
+			servicesToUpdate.MachineServices = append(servicesToUpdate.MachineServices, *service.ToMachineService())
+			res[firstProcessNameOrDefault] = servicesToUpdate
+		} else { // len(service.Processes) > 1
+			for _, processName := range service.Processes {
+				if _, present := res[processName]; !present {
+					return nil, fmt.Errorf("error service specifies '%s' as one of its processes, but no processes are defined with that name; update fly.toml [processes] to include a %s process", processName, processName)
+				}
+				servicesToUpdate := res[processName]
+				servicesToUpdate.MachineServices = append(servicesToUpdate.MachineServices, *service.ToMachineService())
+				res[processName] = servicesToUpdate
+			}
+		}
+	}
+	return res, nil
 }

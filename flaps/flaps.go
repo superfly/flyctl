@@ -243,7 +243,7 @@ func (f *Client) ListActive(ctx context.Context) ([]*api.Machine, error) {
 	}
 
 	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
-		return !m.HasProcessGroup(api.MachineProcessGroupReleaseCommand) && m.IsActive()
+		return !m.HasProcessGroup(api.MachineProcessGroupFlyAppReleaseCommand) && m.IsActive()
 	})
 
 	return machines, nil
@@ -259,7 +259,7 @@ func (f *Client) ListFlyAppsMachines(ctx context.Context) ([]*api.Machine, *api.
 	var releaseCmdMachine *api.Machine
 	machines := make([]*api.Machine, 0)
 	for _, m := range allMachines {
-		if m.IsFlyAppsInstance() && m.IsActive() {
+		if m.IsFlyAppsPlatform() && m.IsActive() && !m.IsFlyAppsReleaseCommand() {
 			machines = append(machines, m)
 		} else if m.IsFlyAppsReleaseCommand() {
 			releaseCmdMachine = m
