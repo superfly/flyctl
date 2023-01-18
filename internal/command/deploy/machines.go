@@ -33,8 +33,12 @@ type MachineDeployment interface {
 }
 
 type MachineDeploymentArgs struct {
+	DeploymentImage      *imgsrc.DeploymentImage
 	Strategy             string
+	EnvFromFlags         []string
+	PrimaryRegionFlag    string
 	AutoConfirmMigration bool
+	BuildOnly            bool
 	SkipHealthChecks     bool
 	RestartOnly          bool
 	WaitTimeout          time.Duration
@@ -90,12 +94,9 @@ type LeasableMachine interface {
 }
 
 type leasableMachine struct {
-	flapsClient *flaps.Client
-	io          *iostreams.IOStreams
-	colorize    *iostreams.ColorScheme
-
-	// FIXME: remove this lock... or use it correctly... (we're making multiple calls to access machine that should be the same, but we unlock inbetween... so not really atomic)
-	lock            sync.RWMutex
+	flapsClient     *flaps.Client
+	io              *iostreams.IOStreams
+	colorize        *iostreams.ColorScheme
 	machine         *api.Machine
 	leaseNonce      string
 	leaseExpiration time.Time
@@ -114,8 +115,6 @@ func (lm *leasableMachine) Update(ctx context.Context, input api.LaunchMachineIn
 	if !lm.HasLease() {
 		return fmt.Errorf("no current lease for machine %s", lm.machine.ID)
 	}
-	lm.lock.Lock()
-	defer lm.lock.Unlock()
 	updateMachine, err := lm.flapsClient.Update(ctx, input, lm.leaseNonce)
 	if err != nil {
 		return err
@@ -172,8 +171,6 @@ func (lm *leasableMachine) Start(ctx context.Context) error {
 	if lm.HasLease() {
 		return fmt.Errorf("error cannot start machine %s because it has a lease expiring at %s", lm.machine.ID, lm.leaseExpiration.Format(time.RFC3339))
 	}
-	lm.lock.RLock()
-	defer lm.lock.RUnlock()
 	lm.logStatusWaiting(api.MachineStateStarted)
 	_, err := lm.flapsClient.Start(ctx, lm.machine.ID)
 	if err != nil {
@@ -289,14 +286,10 @@ func (lm *leasableMachine) WaitForEventTypeAfterType(ctx context.Context, eventT
 }
 
 func (lm *leasableMachine) Machine() *api.Machine {
-	lm.lock.RLock()
-	defer lm.lock.RUnlock()
 	return lm.machine
 }
 
 func (lm *leasableMachine) HasLease() bool {
-	lm.lock.RLock()
-	defer lm.lock.RUnlock()
 	return lm.leaseNonce != "" && lm.leaseExpiration.After(time.Now())
 }
 
@@ -315,8 +308,6 @@ func (lm *leasableMachine) AcquireLease(ctx context.Context, duration time.Durat
 	if lease.Data == nil {
 		return fmt.Errorf("missing data from lease response for machine %s, assuming not successful", lm.machine.ID)
 	}
-	lm.lock.Lock()
-	defer lm.lock.Unlock()
 	lm.leaseNonce = lease.Data.Nonce
 	lm.leaseExpiration = time.Unix(lease.Data.ExpiresAt, 0)
 	return nil
@@ -343,9 +334,8 @@ func (lm *leasableMachine) ReleaseLease(ctx context.Context) error {
 }
 
 func (lm *leasableMachine) resetLease() {
-	lm.lock.Lock()
-	defer lm.lock.Unlock()
 	lm.leaseNonce = ""
+	lm.leaseExpiration = time.Time{}
 }
 
 func NewMachineSet(flapsClient *flaps.Client, io *iostreams.IOStreams, machines []*api.Machine) MachineSet {
@@ -435,20 +425,24 @@ func (ms *machineSet) ReleaseLeases(ctx context.Context) error {
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
-	appConfig, err := determineAppConfig(ctx)
+	if !args.RestartOnly && args.DeploymentImage == nil {
+		return nil, fmt.Errorf("BUG: machines deployment created without specifying the image")
+	}
+	if args.RestartOnly && args.DeploymentImage != nil {
+		return nil, fmt.Errorf("BUG: restartOnly machines deployment created and specified an image")
+	}
+	appConfig, err := determineAppConfig(ctx, args.EnvFromFlags, args.PrimaryRegionFlag)
 	if err != nil {
 		return nil, err
+	}
+	if appConfig.Env == nil {
+		appConfig.Env = map[string]string{}
 	}
 	err = appConfig.Validate()
 	if err != nil {
 		return nil, err
 	}
 	app, err := client.FromContext(ctx).API().GetAppCompact(ctx, appConfig.AppName)
-	if err != nil {
-		return nil, err
-	}
-	// FIXME: don't call this here... it rebuilds everything... we'll have to pass it in I guess?
-	img, err := determineImage(ctx, appConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -460,8 +454,16 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if appConfig.Deploy != nil {
 		releaseCmd = appConfig.Deploy.ReleaseCommand
 	}
-	if args.WaitTimeout != DefaultWaitTimeout || args.LeaseTimeout != DefaultLeaseTtl {
-		terminal.Infof("Using wait timeout: %s and lease timeout: %s\n", args.WaitTimeout, args.LeaseTimeout)
+	waitTimeout := args.WaitTimeout
+	if waitTimeout == 0 {
+		waitTimeout = DefaultWaitTimeout
+	}
+	leaseTimeout := args.LeaseTimeout
+	if leaseTimeout == 0 {
+		leaseTimeout = DefaultLeaseTtl
+	}
+	if waitTimeout != DefaultWaitTimeout || leaseTimeout != DefaultLeaseTtl || args.WaitTimeout == 0 || args.LeaseTimeout == 0 {
+		terminal.Infof("Using wait timeout: %s and lease timeout: %s\n", waitTimeout, leaseTimeout)
 	}
 	io := iostreams.FromContext(ctx)
 	md := &machineDeployment{
@@ -471,12 +473,12 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		colorize:                   io.ColorScheme(),
 		app:                        app,
 		appConfig:                  appConfig,
-		img:                        img,
+		img:                        args.DeploymentImage,
 		autoConfirmAppsV2Migration: args.AutoConfirmMigration,
 		skipHealthChecks:           args.SkipHealthChecks,
 		restartOnly:                args.RestartOnly,
-		waitTimeout:                args.WaitTimeout,
-		leaseTimeout:               args.LeaseTimeout,
+		waitTimeout:                waitTimeout,
+		leaseTimeout:               leaseTimeout,
 		releaseCommand:             releaseCmd,
 	}
 	md.setStrategy(args.Strategy)
@@ -508,7 +510,10 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
 		return nil
 	}
 	io := iostreams.FromContext(ctx)
-	fmt.Fprintf(io.ErrOut, "Running %s release_command: %s\n", md.colorize.Bold(md.app.Name), md.appConfig.Deploy.ReleaseCommand)
+	fmt.Fprintf(io.ErrOut, "Running %s release_command: %s\n",
+		md.colorize.Bold(md.app.Name),
+		md.appConfig.Deploy.ReleaseCommand,
+	)
 	err := md.createOrUpdateReleaseCmdMachine(ctx)
 	if err != nil {
 		return fmt.Errorf("error running release_command machine: %w", err)
@@ -547,17 +552,8 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		return fmt.Errorf("release command failed - aborting deployment. %w", err)
 	}
 
-	io := iostreams.FromContext(ctx)
-	ctx = flaps.NewContext(ctx, md.flapsClient)
-
 	if md.machineSet.IsEmpty() {
-		// FIXME: what do we want to do when no machines are present? Launch one? maybe only do that if there aren't other machines in the app, at all?
-		return fmt.Errorf("NOPE NOPE NOPE: not implemented yet :-(")
-		// fmt.Fprintf(io.Out, "Launching VM with image %s\n", launchInput.Config.Image)
-		// _, err = md.flapsClient.Launch(ctx, launchInput)
-		// if err != nil {
-		// 	return err
-		// }
+		return md.createOneMachine(ctx)
 	}
 
 	err = md.machineSet.AcquireLeases(ctx, md.leaseTimeout)
@@ -571,13 +567,12 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		return err
 	}
 
-	fmt.Fprintf(io.Out, "Deploying %s app with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
-
 	// FIXME: handle deploy strategy: rolling, immediate, canary, bluegreen
 
+	fmt.Fprintf(md.io.Out, "Deploying %s app with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
 	for _, m := range md.machineSet.GetMachines() {
 		launchInput := md.resolveUpdatedMachineConfig(api.MachineProcessGroupApp, m.Machine())
-		fmt.Fprintf(io.ErrOut, "  Updating %s\n", md.colorize.Bold(m.Machine().ID))
+		fmt.Fprintf(md.io.ErrOut, "  Updating %s\n", md.colorize.Bold(m.Machine().ID))
 		err := m.Update(ctx, *launchInput)
 		if err != nil {
 			if md.strategy != "immediate" {
@@ -603,7 +598,34 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		}
 	}
 
-	fmt.Fprintf(io.ErrOut, "  Finished deploying\n")
+	fmt.Fprintf(md.io.ErrOut, "  Finished deploying\n")
+	return nil
+}
+
+func (md *machineDeployment) createOneMachine(ctx context.Context) error {
+	fmt.Fprintf(md.io.Out, "No machines in %s app, launching one new machine\n", md.colorize.Bold(md.app.Name))
+	launchInput := md.resolveUpdatedMachineConfig(api.MachineProcessGroupReleaseCommand, nil)
+	newMachineRaw, err := md.flapsClient.Launch(ctx, *launchInput)
+	newMachine := NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
+	if err != nil {
+		return fmt.Errorf("error creating a new machine machine: %w", err)
+	}
+	// FIXME: dry this up with release commands and non-empty update
+	fmt.Fprintf(md.io.ErrOut, "No machines in %s app, launching one new machine\n", md.colorize.Bold(md.app.Name))
+	if md.strategy != "immediate" {
+		err := newMachine.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout)
+		if err != nil {
+			return err
+		}
+	}
+	if md.strategy != "immediate" && !md.skipHealthChecks {
+		err := newMachine.WaitForHealthchecksToPass(ctx, md.waitTimeout)
+		// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
+		if err != nil {
+			return err
+		}
+	}
+	fmt.Fprintf(md.io.ErrOut, "  Finished deploying\n")
 	return nil
 }
 
@@ -694,6 +716,9 @@ func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *
 	if md.appConfig.PrimaryRegion != "" {
 		launchInput.Region = md.appConfig.PrimaryRegion
 	}
+	if _, present := launchInput.Config.Env["RELEASE_COMMAND"]; !present {
+		launchInput.Config.Env["RELEASE_COMMAND"] = "1"
+	}
 	return launchInput
 }
 
@@ -702,6 +727,7 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 		return nil
 	}
 	launchInput := md.resolveUpdatedMachineConfig(api.MachineProcessGroupReleaseCommand, nil)
+
 	launchInput = md.configureLaunchInputForReleaseCommand(launchInput)
 	releaseCmdMachine, err := md.flapsClient.Launch(ctx, *launchInput)
 	if err != nil {
@@ -718,9 +744,8 @@ func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) er
 	if md.releaseCommandMachine.IsEmpty() {
 		return fmt.Errorf("expected release_command machine to exist already, but it does not :-(")
 	}
-	io := iostreams.FromContext(ctx)
 	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
-	fmt.Fprintf(io.ErrOut, "Updating release command machine %s in preparation to run later\n", releaseCmdMachine.Machine().ID)
+	fmt.Fprintf(md.io.ErrOut, "  Updating release_command machine %s\n", md.colorize.Bold(releaseCmdMachine.Machine().ID))
 	err := releaseCmdMachine.WaitForState(ctx, api.MachineStateStopped, md.waitTimeout)
 	if err != nil {
 		return err
@@ -803,10 +828,14 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 	`
 	input := gql.CreateReleaseInput{
 		AppId:           md.appConfig.AppName,
-		Image:           md.img.Tag,
 		PlatformVersion: "machines",
 		Strategy:        gql.DeploymentStrategy(strings.ToUpper(md.strategy)),
 		Definition:      md.appConfig.Definition,
+	}
+	if !md.restartOnly {
+		input.Image = md.img.Tag
+	} else if !md.machineSet.IsEmpty() {
+		input.Image = md.machineSet.GetMachines()[0].Machine().Config.Image
 	}
 	resp, err := gql.MachinesCreateRelease(ctx, md.gqlClient, input)
 	if err != nil {

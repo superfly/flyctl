@@ -96,7 +96,7 @@ func New() (cmd *cobra.Command) {
 }
 
 func run(ctx context.Context) error {
-	appConfig, err := determineAppConfig(ctx)
+	appConfig, err := determineAppConfig(ctx, flag.GetStringSlice(ctx, "env"), flag.GetString(ctx, flag.RegionName))
 	if err != nil {
 		return err
 	}
@@ -145,8 +145,12 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 		}
 
 		md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
+			DeploymentImage:      img,
 			Strategy:             flag.GetString(ctx, "strategy"),
+			EnvFromFlags:         flag.GetStringSlice(ctx, "env"),
+			PrimaryRegionFlag:    flag.GetString(ctx, flag.RegionName),
 			AutoConfirmMigration: autoConfirm,
+			BuildOnly:            flag.GetBuildOnly(ctx),
 			SkipHealthChecks:     flag.GetDetach(ctx),
 			WaitTimeout:          time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
 			LeaseTimeout:         time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
@@ -199,7 +203,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 }
 
 // determineAppConfig fetches the app config from a local file, or in its absence, from the API
-func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
+func determineAppConfig(ctx context.Context, envFromFlags []string, primaryRegion string) (cfg *app.Config, err error) {
 	tb := render.NewTextBlock(ctx, "Verifying app config")
 	client := client.FromContext(ctx).API()
 	appNameFromContext := app.NameFromContext(ctx)
@@ -242,9 +246,9 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 		}
 	}
 
-	if env := flag.GetStringSlice(ctx, "env"); len(env) > 0 {
+	if len(envFromFlags) > 0 {
 		var parsedEnv map[string]string
-		if parsedEnv, err = cmdutil.ParseKVStringsToMap(env); err != nil {
+		if parsedEnv, err = cmdutil.ParseKVStringsToMap(envFromFlags); err != nil {
 			err = fmt.Errorf("failed parsing environment: %w", err)
 
 			return
@@ -252,8 +256,8 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 		cfg.SetEnvVariables(parsedEnv)
 	}
 
-	if regionCode := flag.GetString(ctx, flag.RegionName); regionCode != "" {
-		cfg.PrimaryRegion = regionCode
+	if primaryRegion != "" {
+		cfg.PrimaryRegion = primaryRegion
 	}
 
 	// Always prefer the app name passed via --app
