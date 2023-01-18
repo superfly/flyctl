@@ -18,7 +18,7 @@ func New() (cmd *cobra.Command) {
 	cmd.AddCommand(
 		newCreate(),
 		newList(),
-		newDelete(),
+		newDestroy(),
 		newStatus(),
 		newPlans(),
 		newUpdate(),
