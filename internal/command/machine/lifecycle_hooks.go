@@ -22,6 +22,5 @@ func runOnDeletionHook(ctx context.Context, app *api.AppCompact, machine *api.Ma
 			fmt.Fprintf(io.Out, "failed to unregister postgres member: %v\n", err)
 		}
 		fmt.Fprintln(io.Out, "(success)")
-
 	}
 }
