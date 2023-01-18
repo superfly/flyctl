@@ -208,6 +208,12 @@ type MachineConfig struct {
 	Metrics   *MachineMetrics         `json:"metrics"`
 	Schedule  string                  `json:"schedule,omitempty"`
 	Checks    map[string]MachineCheck `json:"checks,omitempty"`
+	Destroy   bool                    `json:"destroy"`
+	Network   *NetworkConfig          `json:"network"`
+}
+
+type NetworkConfig struct {
+	SkipDNSRegistration bool `json:"skip_dns_registration"`
 }
 
 type MachineLease struct {
