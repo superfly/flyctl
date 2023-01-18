@@ -70,6 +70,7 @@ func runScaleVM(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	if isMachine {
+		// FIXME: link to docs or show commands to scale here
 		return fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine update instead")
 	}
 
@@ -104,6 +105,7 @@ func runScaleCount(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	if isMachine {
+		// FIXME: link to docs or show commands to scale here
 		return fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine clone instead")
 	}
 
@@ -171,6 +173,7 @@ func runScaleShow(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	if isMachine {
+		// FIXME: link to docs or show commands to scale here
 		return fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine status instead")
 	}
 
@@ -280,6 +283,7 @@ func runScaleMemory(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	if isMachine {
+		// FIXME: link to docs or show commands to scale here
 		return fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine update instead")
 	}
 
