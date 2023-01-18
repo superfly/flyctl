@@ -290,7 +290,7 @@ func resolveConfigChanges(ctx context.Context, app *api.AppCompact, manager stri
 				restartRequired = true
 			}
 
-			name := strings.Replace(change.Path[len(change.Path)-1], "_", "-", -1)
+			name := strings.ReplaceAll(change.Path[len(change.Path)-1], "_", "-")
 			rows = append(rows, []string{
 				name,
 				fmt.Sprint(change.From),

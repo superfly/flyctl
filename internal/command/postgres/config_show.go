@@ -198,7 +198,7 @@ func showSettings(ctx context.Context, app *api.AppCompact, manager string, lead
 			value = fmt.Sprintf("%s -> %s", value, p)
 		}
 		rows = append(rows, []string{
-			strings.Replace(setting.Name, "_", "-", -1),
+			strings.ReplaceAll(setting.Name, "_", "-"),
 			value,
 			setting.Unit,
 			desc,
