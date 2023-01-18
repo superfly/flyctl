@@ -112,7 +112,7 @@ func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 
 		MinPostgresHaVersion         = "0.0.33"
 		MinPostgresStandaloneVersion = "0.0.7"
-		MinPostgresFlexVersion       = "0.0.5"
+		MinPostgresFlexVersion       = "0.0.6"
 	)
 
 	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
