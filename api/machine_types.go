@@ -14,6 +14,7 @@ const MachineFlyPlatformVersion2 = "v2"
 const MachineProcessGroupApp = "app"
 const MachineProcessGroupFlyAppReleaseCommand = "fly_app_release_command"
 const MachineStateDestroyed = "destroyed"
+const MachineStateDestroying = "destroying"
 const MachineStateStarted = "started"
 const MachineStateStopped = "stopped"
 
@@ -51,7 +52,7 @@ func (m Machine) ImageRefWithVersion() string {
 }
 
 func (m *Machine) IsFlyAppsPlatform() bool {
-	return m.Config != nil && m.Config.Metadata[MachineConfigMetadataKeyFlyPlatformVersion] == MachineFlyPlatformVersion2 && m.State != MachineStateDestroyed
+	return m.Config != nil && m.Config.Metadata[MachineConfigMetadataKeyFlyPlatformVersion] == MachineFlyPlatformVersion2 && m.IsActive()
 }
 
 func (m *Machine) IsFlyAppsReleaseCommand() bool {
@@ -59,7 +60,7 @@ func (m *Machine) IsFlyAppsReleaseCommand() bool {
 }
 
 func (m *Machine) IsActive() bool {
-	return m.State != MachineStateDestroyed
+	return m.State != MachineStateDestroyed && m.State != MachineStateDestroying
 }
 
 func (m *Machine) HasProcessGroup(desired string) bool {

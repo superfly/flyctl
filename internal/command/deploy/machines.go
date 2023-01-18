@@ -564,12 +564,6 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
 		return fmt.Errorf("error running release_command machine: %w", err)
 	}
 	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
-	defer func() {
-		err := releaseCmdMachine.Destroy(ctx, true)
-		if err != nil {
-			terminal.Warnf("Error destroying release_command machine %s: %v\n", md.colorize.Bold(releaseCmdMachine.Machine().ID), err)
-		}
-	}()
 	// FIXME: consolidate this wait stuff with deploy waits? Especially once we improve the outpu
 	err = releaseCmdMachine.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout)
 	if err != nil {
