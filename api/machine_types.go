@@ -245,7 +245,8 @@ type MachineProcess struct {
 }
 
 type MachineExecRequest struct {
-	Cmd []string `json:"cmd"`
+	Cmd     string `json:"cmd"`
+	Timeout int    `json:"timeout,omitempty"`
 }
 
 type MachineExecResponse struct {
