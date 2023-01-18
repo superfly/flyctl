@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -53,6 +54,12 @@ func runMachineStatus(ctx context.Context) (err error) {
 		appName   = app.NameFromContext(ctx)
 		machineID = flag.FirstArg(ctx)
 	)
+
+	if appName == "" {
+		if err = prompt.String(ctx, &appName, "Please select an app:", "", false); prompt.IsNonInteractive(err) {
+			err = prompt.NonInteractiveError("app argument or flag must be specified when not running interactively")
+		}
+	}
 
 	app, err := appFromMachineOrName(ctx, machineID, appName)
 	if err != nil {
