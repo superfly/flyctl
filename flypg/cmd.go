@@ -78,6 +78,27 @@ func (pc *Command) UpdateSettings(ctx context.Context, leaderIp string, config m
 	return nil
 }
 
+func (pc *Command) UnregisterMember(ctx context.Context, leaderIP string, standbyIP string) error {
+	payload := encodeCommand(standbyIP)
+	cmd := fmt.Sprintf("pg_unregister %s", payload)
+
+	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIP, cmd)
+	if err != nil {
+		return err
+	}
+
+	var result commandResponse
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return err
+	}
+
+	if !result.Success {
+		return fmt.Errorf(result.Message)
+	}
+
+	return nil
+}
+
 // encodeCommand will base64 encode a command string so it can be passed
 // in with  exec.Command.
 func encodeCommand(command string) string {
