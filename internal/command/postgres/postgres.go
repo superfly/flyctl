@@ -10,9 +10,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/apps"
 	mach "github.com/superfly/flyctl/internal/machine"
-	"github.com/superfly/flyctl/iostreams"
 )
 
 func New() *cobra.Command {
@@ -224,13 +222,6 @@ func pickLeader(ctx context.Context, machines []*api.Machine) (*api.Machine, err
 }
 
 func UnregisterMember(ctx context.Context, app *api.AppCompact, machine *api.Machine) error {
-	ctx, err := apps.BuildContext(ctx, app)
-	if err != nil {
-		return err
-	}
-
-	io := iostreams.FromContext(ctx)
-
 	machines, err := mach.ListActive(ctx)
 	if err != nil {
 		return err
@@ -246,12 +237,9 @@ func UnregisterMember(ctx context.Context, app *api.AppCompact, machine *api.Mac
 		return err
 	}
 
-	fmt.Fprintf(io.Out, "Unregistering postgres member '%s' from the cluster... ", machine.PrivateIP)
 	if err := cmd.UnregisterMember(ctx, leader.PrivateIP, machine.PrivateIP); err != nil {
-		fmt.Fprintln(io.Out, "(failed)")
 		return err
 	}
-	fmt.Fprintln(io.Out, "(success)")
 
 	return nil
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -62,10 +63,12 @@ func runMachineDestroy(ctx context.Context) (err error) {
 		return err
 	}
 
-	flapsClient, err := flaps.New(ctx, app)
+	ctx, err = apps.BuildContext(ctx, app)
 	if err != nil {
-		return fmt.Errorf("could not make flaps client: %w", err)
+		return err
 	}
+
+	flapsClient := flaps.FromContext(ctx)
 
 	// check if machine even exists
 	current, err := flapsClient.Get(ctx, machineID)
