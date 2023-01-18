@@ -209,11 +209,11 @@ type MachineConfig struct {
 	Schedule    string                  `json:"schedule,omitempty"`
 	Checks      map[string]MachineCheck `json:"checks,omitempty"`
 	AutoDestroy bool                    `json:"auto_destroy"`
-	Network     *NetworkConfig          `json:"network"`
+	DNS         *DNSConfig              `json:"dns,omitempty"`
 }
 
-type NetworkConfig struct {
-	SkipDNSRegistration bool `json:"skip_dns_registration"`
+type DNSConfig struct {
+	SkipRegistration bool `json:"skip_registration"`
 }
 
 type MachineLease struct {
