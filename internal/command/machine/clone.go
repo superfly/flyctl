@@ -247,7 +247,6 @@ func getAppConfig(ctx context.Context, appName string) (*app.Config, error) {
 		}
 
 		cfg.AppName = basicApp.Name
-		cfg.SetPlatformVersion(basicApp.PlatformVersion)
 		return cfg, nil
 	} else {
 		parsedCfg, err := apiClient.ParseConfig(ctx, appName, cfg.Definition)
