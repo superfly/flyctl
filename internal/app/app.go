@@ -683,12 +683,10 @@ func (c *Config) GetProcessConfigs() (map[string]ProcessConfig, error) {
 	for _, service := range c.Services {
 		if len(service.Processes) == 0 && processCount > 1 {
 			return nil, fmt.Errorf("error service has no processes set and app has %d processes defined; update fly.toml to set processes for each service", processCount)
-		} else if len(service.Processes) > 0 && processCount == 0 {
-			return nil, fmt.Errorf("error services has %d processes defined, but no processes are defined in app config; add a [processes] section to fly.toml", processCount)
-		} else if len(service.Processes) == 0 {
+		} else if len(service.Processes) == 0 || processCount == 0 {
 			processName := firstProcessNameOrDefault
 			procConfigToUpdate, present := res[processName]
-			if !present {
+			if processCount > 0 && !present {
 				return nil, fmt.Errorf("error service specifies '%s' as one of its processes, but no processes are defined with that name; update fly.toml [processes] to include a %s process", processName, processName)
 			}
 			procConfigToUpdate.MachineServices = append(procConfigToUpdate.MachineServices, *service.ToMachineService())
@@ -709,7 +707,7 @@ func (c *Config) GetProcessConfigs() (map[string]ProcessConfig, error) {
 				procConfigToUpdate.MachineChecks[checkName] = *machineCheck
 			}
 			res[processName] = procConfigToUpdate
-		} else { // len(service.Processes) > 0
+		} else { // len(service.Processes) > 0 && processCount > 0
 			for _, processName := range service.Processes {
 				procConfigToUpdate, present := res[processName]
 				if !present {
