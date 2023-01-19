@@ -93,6 +93,7 @@ type Config struct {
 
 type Deploy struct {
 	ReleaseCommand string `toml:"release_command,omitempty"`
+	Strategy       string `toml:"strategy,omitempty"`
 }
 
 type Static struct {
@@ -755,26 +756,6 @@ func (c *Config) GetEnvVariables() map[string]string {
 	return env
 }
 
-func (c *Config) GetDeployStrategy() string {
-	dep, ok := c.Definition["deploy"]
-	if !ok {
-		return ""
-	}
-	depMap, ok := dep.(map[string]interface{})
-	if !ok {
-		return ""
-	}
-	strategy, ok := depMap["strategy"]
-	if !ok {
-		return ""
-	}
-	stratStr, ok := strategy.(string)
-	if !ok {
-		return ""
-	}
-	return stratStr
-}
-
 func (c *Config) SetProcess(name, value string) {
 	var processes map[string]string
 
@@ -823,15 +804,20 @@ func (c *Config) GetProcessConfigs() (map[string]ProcessConfig, error) {
 	}
 	if processCount > 0 {
 		for processName := range c.Processes {
+			cmdStr := c.Processes[processName]
+			cmd := make([]string, 0)
+			if cmdStr != "" {
+				cmd = strings.Split(cmdStr, " ")
+			}
 			res[processName] = ProcessConfig{
-				Cmd:             strings.Split(c.Processes[processName], " "),
+				Cmd:             cmd,
 				MachineServices: make([]api.MachineService, 0),
 				MachineChecks:   make(map[string]api.MachineCheck),
 			}
 		}
 	} else {
 		res[defaultProcessName] = ProcessConfig{
-			Cmd:             strings.Split(c.Processes[defaultProcessName], " "),
+			Cmd:             make([]string, 0),
 			MachineServices: make([]api.MachineService, 0),
 			MachineChecks:   make(map[string]api.MachineCheck),
 		}

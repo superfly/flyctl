@@ -156,8 +156,8 @@ func (lm *leasableMachine) FormattedMachineId() string {
 	if lm.Machine().Config.Metadata == nil {
 		return res
 	}
-	procGroup, present := lm.Machine().Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
-	if !present {
+	procGroup := lm.Machine().Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
+	if procGroup == "" || lm.Machine().IsFlyAppsReleaseCommand() {
 		return res
 	}
 	return fmt.Sprintf("%s [%s]", res, procGroup)
@@ -525,7 +525,10 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		leaseTimeout:               leaseTimeout,
 		releaseCommand:             releaseCmd,
 	}
-	md.setStrategy(args.Strategy)
+	err = md.setStrategy(args.Strategy)
+	if err != nil {
+		return nil, err
+	}
 	err = md.setVolumeConfig()
 	if err != nil {
 		return nil, err
@@ -843,7 +846,8 @@ func (md *machineDeployment) validateProcessesConfig() error {
 	}
 	for _, m := range md.machineSet.GetMachines() {
 		mid := m.Machine().ID
-		machineProcGroup, machineProcGroupPresent := m.Machine().Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
+		machineProcGroup := m.Machine().Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
+		machineProcGroupPresent := machineProcGroup != ""
 		if machineProcGroup == api.MachineProcessGroupFlyAppReleaseCommand {
 			continue
 		}
@@ -851,12 +855,12 @@ func (md *machineDeployment) validateProcessesConfig() error {
 			return fmt.Errorf("error machine %s does not have a process group and should have one from app configuration: %s", mid, appConfigProcessesStr)
 		}
 		if machineProcGroupPresent && !appConfigProcessesExist {
-			return fmt.Errorf("error machine %s has process group %s and no processes are defined in app config; add [processes] to fly.toml or remove the process group from this machine", mid, machineProcGroup)
+			return fmt.Errorf("error machine %s has process group '%s' and no processes are defined in app config; add [processes] to fly.toml or remove the process group from this machine", mid, machineProcGroup)
 		}
 		if machineProcGroupPresent {
 			_, appConfigProcGroupPresent := md.appConfig.Processes[machineProcGroup]
 			if !appConfigProcGroupPresent {
-				return fmt.Errorf("error machine %s has process group %s, which is missing from the processes in the app config: %s", mid, machineProcGroup, appConfigProcessesStr)
+				return fmt.Errorf("error machine %s has process group '%s', which is missing from the processes in the app config: %s", mid, machineProcGroup, appConfigProcessesStr)
 			}
 		}
 	}
@@ -886,18 +890,18 @@ func (md *machineDeployment) validateVolumeConfig() error {
 	return nil
 }
 
-func (md *machineDeployment) setStrategy(passedInStrategy string) {
+func (md *machineDeployment) setStrategy(passedInStrategy string) error {
 	if passedInStrategy != "" {
 		md.strategy = passedInStrategy
-		return
+	} else if md.appConfig.Deploy != nil && md.appConfig.Deploy.Strategy != "" {
+		md.strategy = md.appConfig.Deploy.Strategy
+	} else {
+		md.strategy = "rolling"
 	}
-	stratFromConfig := md.appConfig.GetDeployStrategy()
-	if stratFromConfig != "" {
-		md.strategy = stratFromConfig
-		return
+	if md.strategy != "rolling" && md.strategy != "immediate" {
+		return fmt.Errorf("error unsupported deployment strategy '%s'; fly deploy for machines supports rolling and immediate strategies", md.strategy)
 	}
-	// FIXME: any other checks we want to do here? e.g., we used to do canary if any max_per_region==0 && app.distinct_regions?==false
-	md.strategy = "rolling"
+	return nil
 }
 
 func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
@@ -962,12 +966,10 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 
 	launchInput.Config.Image = md.img.Tag
 	launchInput.Config.Metrics = md.appConfig.Metrics
-
 	launchInput.Config.Restart = origMachineRaw.Config.Restart
-	launchInput.Config.Metrics = md.appConfig.Metrics
-	launchInput.Config.Env = md.appConfig.Env
-	if launchInput.Config.Env == nil {
-		launchInput.Config.Env = map[string]string{}
+	launchInput.Config.Env = make(map[string]string)
+	for k, v := range md.appConfig.Env {
+		launchInput.Config.Env[k] = v
 	}
 	if launchInput.Config.Env["PRIMARY_REGION"] == "" && origMachineRaw.Config.Env["PRIMARY_REGION"] != "" {
 		launchInput.Config.Env["PRIMARY_REGION"] = origMachineRaw.Config.Env["PRIMARY_REGION"]
