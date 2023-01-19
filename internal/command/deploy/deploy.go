@@ -174,6 +174,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 		md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 			DeploymentImage:      img,
 			Strategy:             flag.GetString(ctx, "strategy"),
+			Launching:            args.Launching,
 			EnvFromFlags:         flag.GetStringSlice(ctx, "env"),
 			PrimaryRegionFlag:    flag.GetString(ctx, flag.RegionName),
 			AutoConfirmMigration: flag.GetBool(ctx, "auto-confirm"),
@@ -241,7 +242,7 @@ func useMachines(ctx context.Context, appConfig app.Config, appBasic *api.AppBas
 		return appBasic.PlatformVersion == app.MachinesPlatform, nil
 	}
 	// statics are not supported in Apps v2 yet
-	if appConfig.Statics != nil {
+	if len(appConfig.Statics) > 0 {
 		return false, nil
 	}
 	// if running automated, stay on nomad platform for now

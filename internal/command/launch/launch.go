@@ -90,12 +90,11 @@ func New() (cmd *cobra.Command) {
 			Description: "Use the Apps v2 platform built with Machines",
 			Default:     false,
 		},
-		// FIXME: pipe this through
-		// flag.Int{
-		// 	Name:        "internal-port",
-		// 	Description: "Set internal_port for all services in the generated fly.toml",
-		// 	Default:     8080,
-		// },
+		flag.Int{
+			Name:        "internal-port",
+			Description: "Set internal_port for all services in the generated fly.toml",
+			Default:     -1,
+		},
 	)
 
 	return
@@ -294,7 +293,6 @@ func run(ctx context.Context) (err error) {
 	region, err := prompt.Region(ctx, prompt.RegionParams{
 		Message: "Choose a region for deployment:",
 	})
-
 	if err != nil {
 		return err
 	}
@@ -315,6 +313,58 @@ func run(ctx context.Context) (err error) {
 
 	appConfig.AppName = createdApp.Name
 	ctx = app.WithName(ctx, appConfig.AppName)
+
+	internalPortFromFlag := flag.GetInt(ctx, "internal-port")
+	if internalPortFromFlag > 0 {
+		appConfig.SetInternalPort(internalPortFromFlag)
+	}
+
+	if srcInfo != nil {
+
+		if srcInfo.Port > 0 {
+			appConfig.SetInternalPort(srcInfo.Port)
+		}
+
+		if srcInfo.Concurrency != nil {
+			appConfig.SetConcurrency(srcInfo.Concurrency["soft_limit"], srcInfo.Concurrency["hard_limit"])
+		}
+
+		for envName, envVal := range srcInfo.Env {
+			if envVal == "APP_FQDN" {
+				appConfig.SetEnvVariable(envName, createdApp.Name+".fly.dev")
+			} else {
+				appConfig.SetEnvVariable(envName, envVal)
+			}
+		}
+
+		if len(srcInfo.Statics) > 0 {
+			appConfig.SetStatics(srcInfo.Statics)
+		}
+
+		if len(srcInfo.Volumes) > 0 {
+			appConfig.SetVolumes(srcInfo.Volumes)
+		}
+
+		for procName, procCommand := range srcInfo.Processes {
+			appConfig.SetProcess(procName, procCommand)
+		}
+
+		if srcInfo.ReleaseCmd != "" {
+			appConfig.SetReleaseCommand(srcInfo.ReleaseCmd)
+		}
+
+		if srcInfo.DockerCommand != "" {
+			appConfig.SetDockerCommand(srcInfo.DockerCommand)
+		}
+
+		if srcInfo.DockerEntrypoint != "" {
+			appConfig.SetDockerEntrypoint(srcInfo.DockerEntrypoint)
+		}
+
+		if srcInfo.KillSignal != "" {
+			appConfig.SetKillSignal(srcInfo.KillSignal)
+		}
+	}
 
 	fmt.Fprintf(io.Out, "Created app %s in organization %s\n", createdApp.Name, org.Slug)
 
@@ -503,9 +553,16 @@ func run(ctx context.Context) (err error) {
 
 	// Finally, write the config
 
-	if err = appConfig.WriteToDisk(ctx, filepath.Join(workingDir, "fly.toml")); err != nil {
+	flyTomlPath := filepath.Join(workingDir, "fly.toml")
+	if err = appConfig.WriteToDisk(ctx, flyTomlPath); err != nil {
 		return err
 	}
+	// round trip config, because some magic happens to populate stuff like services
+	reloadedAppConfig, err := app.LoadConfig(ctx, flyTomlPath)
+	if err != nil {
+		return err
+	}
+	ctx = app.WithConfig(ctx, reloadedAppConfig)
 
 	if srcInfo == nil {
 		return nil
@@ -615,7 +672,6 @@ func appendDockerfileAppendix(appendix []string) (err error) {
 }
 
 func shouldDeployExistingApp(ctx context.Context, appName string) (bool, error) {
-
 	client := client.FromContext(ctx).API()
 	status, err := client.GetAppStatus(ctx, appName, false)
 	if err != nil {
@@ -796,7 +852,6 @@ func LaunchPostgres(ctx context.Context, app *api.App, org *api.Organization, re
 }
 
 func LaunchRedis(ctx context.Context, app *api.App, org *api.Organization, region *api.Region) {
-
 	name := app.Name + "-redis"
 
 	db, err := redis.Create(ctx, org, name, region, "", true, false)
