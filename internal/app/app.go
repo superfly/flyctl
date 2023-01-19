@@ -681,7 +681,7 @@ func (c *Config) GetProcessConfigs() (map[string]ProcessConfig, error) {
 		res[firstProcessNameOrDefault] = servicesToUpdate
 	}
 	for _, service := range c.Services {
-		if len(service.Processes) == 0 && processCount > 1 {
+		if len(service.Processes) == 0 && processCount > 0 {
 			return nil, fmt.Errorf("error service has no processes set and app has %d processes defined; update fly.toml to set processes for each service", processCount)
 		} else if len(service.Processes) == 0 || processCount == 0 {
 			processName := firstProcessNameOrDefault
