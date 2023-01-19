@@ -331,6 +331,18 @@ func (f *Client) ReleaseLease(ctx context.Context, machineID, nonce string) erro
 	return f.sendRequest(ctx, http.MethodDelete, endpoint, nil, nil, headers)
 }
 
+func (f *Client) Exec(ctx context.Context, machineID string, in *api.MachineExecRequest) (*api.MachineExecResponse, error) {
+	endpoint := fmt.Sprintf("/%s/exec", machineID)
+
+	out := new(api.MachineExecResponse)
+
+	err := f.sendRequest(ctx, http.MethodPost, endpoint, in, out, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to exec on VM %s: %w", machineID, err)
+	}
+	return out, nil
+}
+
 func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
 	req, err := f.NewRequest(ctx, method, endpoint, in, headers)
 	if err != nil {

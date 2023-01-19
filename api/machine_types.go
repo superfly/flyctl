@@ -342,3 +342,14 @@ type MachineProcess struct {
 	UserOverride       string            `json:"user,omitempty"`
 	ExtraEnv           map[string]string `json:"env"`
 }
+
+type MachineExecRequest struct {
+	Cmd     string `json:"cmd"`
+	Timeout int    `json:"timeout,omitempty"`
+}
+
+type MachineExecResponse struct {
+	ExitCode int32   `json:"exit_code"`
+	StdOut   *string `json:"stdout"`
+	StdErr   *string `json:"stderr"`
+}
