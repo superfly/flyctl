@@ -2,6 +2,7 @@ package ssh
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"runtime"
 
@@ -50,7 +51,7 @@ func getFd(reader io.Reader) (fd int, ok bool) {
 	return fd, term.IsTerminal(fd)
 }
 
-func (t *Terminal) attach(ctx context.Context, sess *ssh.Session, cmd string) error {
+func (t *Terminal) attach(ctx context.Context, sess *ssh.Session, cmd string, workdir string) error {
 	width, height := DefaultWidth, DefaultHeight
 	if fd, ok := getFd(t.Stdin); ok {
 		state, err := term.MakeRaw(fd)
@@ -82,6 +83,14 @@ func (t *Terminal) attach(ctx context.Context, sess *ssh.Session, cmd string) er
 	}
 	defer stdin.Close()
 
+	if workdir != "" {
+		cd := fmt.Sprintf("cd %s\n", workdir)
+		_, err := stdin.Write([]byte(cd))
+		if err != nil {
+			return err
+		}
+	}
+
 	stdout, err := sess.StdoutPipe()
 	if err != nil {
 		return err
@@ -90,6 +99,14 @@ func (t *Terminal) attach(ctx context.Context, sess *ssh.Session, cmd string) er
 	stderr, err := sess.StderrPipe()
 	if err != nil {
 		return err
+	}
+
+	if workdir != "" {
+		cd := fmt.Sprintf("cd %s\n", workdir)
+		_, err := stdin.Write([]byte(cd))
+		if err != nil {
+			return err
+		}
 	}
 
 	go io.Copy(stdin, t.Stdin)

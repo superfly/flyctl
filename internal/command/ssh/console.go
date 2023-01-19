@@ -58,6 +58,12 @@ func stdArgsSSH(cmd *cobra.Command) {
 			Shorthand:   "A",
 			Description: "Address of VM to connect to",
 		},
+		flag.String{
+			Name:        "workdir",
+			Shorthand:   "w",
+			Default:     "",
+			Description: "working directory inside the SSH session",
+		},
 	)
 }
 
@@ -176,14 +182,15 @@ func runConsole(ctx context.Context) error {
 
 	// BUG(tqbf): many of these are no longer really params
 	params := &SSHParams{
-		Ctx:    ctx,
-		Org:    app.Organization,
-		Dialer: dialer,
-		App:    appName,
-		Cmd:    flag.GetString(ctx, "command"),
-		Stdin:  os.Stdin,
-		Stdout: ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
-		Stderr: ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
+		Ctx:     ctx,
+		Org:     app.Organization,
+		Dialer:  dialer,
+		App:     appName,
+		Cmd:     flag.GetString(ctx, "command"),
+		Workdir: flag.GetString(ctx, "workdir"),
+		Stdin:   os.Stdin,
+		Stdout:  ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
+		Stderr:  ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
 	}
 
 	if quiet(ctx) {
@@ -203,7 +210,7 @@ func runConsole(ctx context.Context) error {
 		Mode:   "xterm",
 	}
 
-	if err := sshc.Shell(params.Ctx, term, params.Cmd); err != nil {
+	if err := sshc.Shell(params.Ctx, term, params.Cmd, params.Workdir); err != nil {
 		captureError(err, app)
 		return errors.Wrap(err, "ssh shell")
 	}

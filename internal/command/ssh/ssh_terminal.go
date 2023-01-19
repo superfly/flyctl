@@ -56,6 +56,7 @@ type SSHParams struct {
 	App            string
 	Dialer         agent.Dialer
 	Cmd            string
+	Workdir        string
 	Stdin          io.Reader
 	Stdout         io.WriteCloser
 	Stderr         io.WriteCloser
@@ -139,7 +140,7 @@ func SSHConnect(p *SSHParams, addr string) error {
 		Mode:   "xterm",
 	}
 
-	if err := sshClient.Shell(context.Background(), term, p.Cmd); err != nil {
+	if err := sshClient.Shell(context.Background(), term, p.Cmd, ""); err != nil {
 		return errors.Wrap(err, "ssh shell")
 	}
 
