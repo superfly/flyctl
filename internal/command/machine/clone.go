@@ -116,11 +116,11 @@ func runMachineClone(ctx context.Context) (err error) {
 
 	targetConfig := source.Config
 	if targetProcessGroup := flag.GetString(ctx, "process-group"); targetProcessGroup != "" {
-		allCmdAndServices, err := appConfig.GetProcessNamesToCmdAndService()
+		allProcessConfigs, err := appConfig.GetProcessConfigs()
 		if err != nil {
 			return err
 		}
-		cmdAndServices, present := allCmdAndServices[targetProcessGroup]
+		processConfig, present := allProcessConfigs[targetProcessGroup]
 		if !present {
 			return fmt.Errorf("process group %s is not present in app configuration, add a [processes] section to fly.toml", targetProcessGroup)
 		}
@@ -128,9 +128,10 @@ func runMachineClone(ctx context.Context) (err error) {
 			return fmt.Errorf("invalid process group %s, %s is reserved for internal use", targetProcessGroup, api.MachineProcessGroupFlyAppReleaseCommand)
 		}
 		targetConfig.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = targetProcessGroup
-		terminal.Infof("Setting process group to %s for new machine and updating cmd and services\n", targetProcessGroup)
-		targetConfig.Init.Cmd = cmdAndServices.Cmd
-		targetConfig.Services = cmdAndServices.MachineServices
+		terminal.Infof("Setting process group to %s for new machine and updating cmd, services, and checks\n", targetProcessGroup)
+		targetConfig.Init.Cmd = processConfig.Cmd
+		targetConfig.Services = processConfig.MachineServices
+		targetConfig.Checks = processConfig.MachineChecks
 	}
 	for _, mnt := range source.Config.Mounts {
 		var vol *api.Volume

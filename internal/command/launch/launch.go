@@ -80,6 +80,12 @@ func New() (cmd *cobra.Command) {
 			Description: "If a .dockerignore does not exist, create one from .gitignore files",
 			Default:     false,
 		},
+		// FIXME: pipe this through
+		// flag.Int{
+		// 	Name:        "internal-port",
+		// 	Description: "Set internal_port for all services in the generated fly.toml",
+		// 	Default:     8080,
+		// },
 	)
 
 	return
@@ -101,6 +107,7 @@ func run(ctx context.Context) (err error) {
 	configFilePath := filepath.Join(workingDir, "fly.toml")
 
 	if exists, _ := flyctl.ConfigFileExistsAtPath(configFilePath); exists {
+		// FIXME: don't assume nomad platform here... this might be a place where we need to support migration
 		cfg, err := app.LoadConfig(ctx, configFilePath, "nomad")
 		if err != nil {
 			return err
@@ -497,6 +504,8 @@ func run(ctx context.Context) (err error) {
 	}
 
 	if deployNow {
+		// FIXME: teach this how to do pick machines vs nomad
+		terminal.Errorf("BOOM: appConfig.ForMachines(): %t\n", appConfig.ForMachines())
 		return deploy.DeployWithConfig(ctx, appConfig)
 	}
 

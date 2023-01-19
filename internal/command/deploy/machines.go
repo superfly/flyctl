@@ -46,28 +46,26 @@ type MachineDeploymentArgs struct {
 }
 
 type machineDeployment struct {
-	gqlClient                    graphql.Client
-	flapsClient                  *flaps.Client
-	io                           *iostreams.IOStreams
-	colorize                     *iostreams.ColorScheme
-	app                          *api.AppCompact
-	appConfig                    *app.Config
-	img                          *imgsrc.DeploymentImage
-	machineSet                   MachineSet
-	releaseCommandMachine        MachineSet
-	releaseCommand               string
-	volumeName                   string
-	volumeDestination            string
-	appChecksForMachines         map[string]api.MachineCheck
-	appCmdAndServicesForMachines map[string]app.CmdAndMachineServices
-	strategy                     string
-	releaseId                    string
-	releaseVersion               int
-	autoConfirmAppsV2Migration   bool
-	skipHealthChecks             bool
-	restartOnly                  bool
-	waitTimeout                  time.Duration
-	leaseTimeout                 time.Duration
+	gqlClient                  graphql.Client
+	flapsClient                *flaps.Client
+	io                         *iostreams.IOStreams
+	colorize                   *iostreams.ColorScheme
+	app                        *api.AppCompact
+	appConfig                  *app.Config
+	processConfigs             map[string]app.ProcessConfig
+	img                        *imgsrc.DeploymentImage
+	machineSet                 MachineSet
+	releaseCommandMachine      MachineSet
+	releaseCommand             string
+	volumeDestination          string
+	strategy                   string
+	releaseId                  string
+	releaseVersion             int
+	autoConfirmAppsV2Migration bool
+	skipHealthChecks           bool
+	restartOnly                bool
+	waitTimeout                time.Duration
+	leaseTimeout               time.Duration
 }
 
 type MachineSet interface {
@@ -506,6 +504,10 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if waitTimeout != DefaultWaitTimeout || leaseTimeout != DefaultLeaseTtl || args.WaitTimeout == 0 || args.LeaseTimeout == 0 {
 		terminal.Infof("Using wait timeout: %s and lease timeout: %s\n", waitTimeout, leaseTimeout)
 	}
+	processConfigs, err := appConfig.GetProcessConfigs()
+	if err != nil {
+		return nil, err
+	}
 	io := iostreams.FromContext(ctx)
 	md := &machineDeployment{
 		gqlClient:                  client.FromContext(ctx).API().GenqClient,
@@ -514,6 +516,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		colorize:                   io.ColorScheme(),
 		app:                        app,
 		appConfig:                  appConfig,
+		processConfigs:             processConfigs,
 		img:                        args.DeploymentImage,
 		autoConfirmAppsV2Migration: args.AutoConfirmMigration,
 		skipHealthChecks:           args.SkipHealthChecks,
@@ -523,10 +526,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		releaseCommand:             releaseCmd,
 	}
 	md.setStrategy(args.Strategy)
-	err = md.translateServicesAndChecksForMachines()
-	if err != nil {
-		return nil, err
-	}
 	err = md.setVolumeConfig()
 	if err != nil {
 		return nil, err
@@ -639,6 +638,12 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 			// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
 			if err != nil {
 				return err
+			} else {
+				md.logClearLinesAbove(1)
+				fmt.Fprintf(md.io.ErrOut, "  Machine %s update finished: %s\n",
+					md.colorize.Bold(m.FormattedMachineId()),
+					md.colorize.Green("success"),
+				)
 			}
 		}
 	}
@@ -813,8 +818,10 @@ func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) er
 }
 
 func (md *machineDeployment) setVolumeConfig() error {
+	if md.appConfig.Mounts.Source != "" {
+		return fmt.Errorf("error source setting under [mounts] is not supported for machines; remove source from fly.toml")
+	}
 	if md.appConfig.Mounts != nil {
-		md.volumeName = md.appConfig.Mounts.Source
 		md.volumeDestination = md.appConfig.Mounts.Destination
 	}
 	return nil
@@ -867,18 +874,11 @@ func (md *machineDeployment) validateVolumeConfig() error {
 		if len(mountsConfig) > 1 {
 			return fmt.Errorf("error machine %s has %d mounts and expected 1", mid, len(mountsConfig))
 		}
-		if md.volumeName == "" {
-			if len(mountsConfig) != 0 {
-				return fmt.Errorf("error machine %s has a volume mounted and app config does not specify a volume; remove the volume from the machine or add a [mounts] configuration to fly.toml", mid)
-			}
-		} else {
-			if len(mountsConfig) == 0 {
-				return fmt.Errorf("error machine %s does not have a volume configured and fly.toml expects one with name %s; remove the [mounts] configuration in fly.toml or use the machines API to add a volume to this machine", mid, md.volumeName)
-			}
-			mVolName := mountsConfig[0].Name
-			if md.volumeName != mVolName {
-				return fmt.Errorf("error machine %s has volume with name %s and fly.toml has [mounts] source set to %s; update the source to %s or use the machines API to attach a volume with name %s to this machine", mid, mVolName, md.volumeName, mVolName, md.volumeName)
-			}
+		if md.volumeDestination == "" && len(mountsConfig) != 0 {
+			return fmt.Errorf("error machine %s has a volume mounted and app config does not specify a volume; remove the volume from the machine or add a [mounts] configuration to fly.toml", mid)
+		}
+		if md.volumeDestination != "" && len(mountsConfig) == 0 {
+			return fmt.Errorf("error machine %s does not have a volume configured and fly.toml expects one with destination %s; remove the [mounts] configuration in fly.toml or use the machines API to add a volume to this machine", mid, md.volumeDestination)
 		}
 	}
 	return nil
@@ -959,10 +959,10 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 	}
 
 	launchInput.Config.Image = md.img.Tag
-	launchInput.Config.Checks = md.appChecksForMachines
 	launchInput.Config.Metrics = md.appConfig.Metrics
 
 	launchInput.Config.Restart = origMachineRaw.Config.Restart
+	launchInput.Config.Metrics = md.appConfig.Metrics
 	launchInput.Config.Env = md.appConfig.Env
 	if launchInput.Config.Env == nil {
 		launchInput.Config.Env = map[string]string{}
@@ -981,54 +981,13 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 	if origMachineRaw.Config.Guest != nil {
 		launchInput.Config.Guest = origMachineRaw.Config.Guest
 	}
-	processGroup := origMachineRaw.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
-	cmdAndServices := md.appCmdAndServicesForMachines[processGroup]
-	launchInput.Config.Services = cmdAndServices.MachineServices
 	launchInput.Config.Init = origMachineRaw.Config.Init
-	if cmdAndServices.Cmd != nil {
-		launchInput.Config.Init.Cmd = cmdAndServices.Cmd
-	}
+	processGroup := origMachineRaw.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
+	processConfig := md.processConfigs[processGroup]
+	launchInput.Config.Services = processConfig.MachineServices
+	launchInput.Config.Init.Cmd = processConfig.Cmd
+	launchInput.Config.Checks = processConfig.MachineChecks
 	return launchInput
-}
-
-func (md *machineDeployment) translateServicesAndChecksForMachines() error {
-	processNamesToCmdAndService, err := md.appConfig.GetProcessNamesToCmdAndService()
-	if err != nil {
-		return err
-	}
-	md.appCmdAndServicesForMachines = processNamesToCmdAndService
-	checkCount := 0
-	md.appChecksForMachines = make(map[string]api.MachineCheck)
-	for checkName, check := range md.appConfig.Checks {
-		fullCheckName := fmt.Sprintf("chk-%s-%s", checkName, check.String())
-		machineCheck, err := check.ToMachineCheck()
-		if err != nil {
-			return err
-		}
-		md.appChecksForMachines[fullCheckName] = *machineCheck
-	}
-	checkCount += len(md.appConfig.Checks)
-	for _, service := range md.appConfig.Services {
-		for i, httpCheck := range service.HttpChecks {
-			checkName := fmt.Sprintf("svcchk%d-%s", checkCount+i, httpCheck.String(service.InternalPort))
-			machineCheck, err := httpCheck.ToMachineCheck(service.InternalPort)
-			if err != nil {
-				return err
-			}
-			md.appChecksForMachines[checkName] = *machineCheck
-		}
-		checkCount += len(service.HttpChecks)
-		for i, tcpCheck := range service.TcpChecks {
-			checkName := fmt.Sprintf("svcchk%d-%s", checkCount+i, tcpCheck.String(service.InternalPort))
-			machineCheck, err := tcpCheck.ToMachineCheck(service.InternalPort)
-			if err != nil {
-				return err
-			}
-			md.appChecksForMachines[checkName] = *machineCheck
-		}
-		checkCount += len(service.TcpChecks)
-	}
-	return nil
 }
 
 func (md *machineDeployment) defaultMachineMetadata() map[string]string {
