@@ -130,6 +130,7 @@ func run(ctx context.Context) (err error) {
 			if err != nil {
 				return err
 			}
+			ctx = app.WithName(ctx, cfg.AppName)
 		} else {
 			fmt.Fprintln(io.Out, "An existing fly.toml file was found")
 		}
@@ -316,6 +317,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	appConfig.AppName = createdApp.Name
+	ctx = app.WithName(ctx, appConfig.AppName)
 
 	if srcInfo != nil {
 		if srcInfo.Port > 0 {
