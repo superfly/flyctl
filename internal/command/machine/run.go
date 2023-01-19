@@ -125,6 +125,10 @@ var sharedFlags = flag.Set{
 		Name:        "schedule",
 		Description: `Schedule a machine run at hourly, daily and monthly intervals`,
 	},
+	flag.Bool{
+		Name:        "skip-dns-registration",
+		Description: "Do not register the machine's 6PN IP with the intenral DNS system",
+	},
 }
 
 func newRun() *cobra.Command {
@@ -156,6 +160,10 @@ func newRun() *cobra.Command {
 		flag.String{
 			Name:        "org",
 			Description: `The organization that will own the app`,
+		},
+		flag.Bool{
+			Name:        "rm",
+			Description: "Automatically remove the machine when it exits",
 		},
 		sharedFlags,
 	)
@@ -199,6 +207,10 @@ func runMachineRun(ctx context.Context) error {
 			CPUs:       1,
 			MemoryMB:   256,
 			KernelArgs: flag.GetStringSlice(ctx, "kernel-arg"),
+		},
+		AutoDestroy: flag.GetBool(ctx, "rm"),
+		DNS: &api.DNSConfig{
+			SkipRegistration: flag.GetBool(ctx, "skip-dns-registration"),
 		},
 	}
 
@@ -627,6 +639,12 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 
 	if flag.GetString(ctx, "schedule") != "" {
 		machineConf.Schedule = flag.GetString(ctx, "schedule")
+	}
+
+	if machineConf.DNS == nil {
+		machineConf.DNS = &api.DNSConfig{
+			SkipRegistration: flag.GetBool(ctx, "skip-dns-registration"),
+		}
 	}
 
 	// Metadata
