@@ -764,6 +764,8 @@ func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *
 	launchInput.Config.Restart = api.MachineRestart{
 		Policy: api.MachineRestartPolicyNo,
 	}
+	launchInput.Config.AutoDestroy = true
+	launchInput.Config.DNS = &api.DNSConfig{SkipRegistration: true}
 	if md.appConfig.PrimaryRegion != "" {
 		launchInput.Region = md.appConfig.PrimaryRegion
 	}
