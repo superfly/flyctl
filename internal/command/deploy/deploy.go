@@ -101,11 +101,52 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	return DeployWithConfig(ctx, appConfig)
+	return DeployWithConfig(ctx, appConfig, DeployWithConfigArgs{})
 }
 
-func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
+type DeployWithConfigArgs struct {
+	ForceMachines bool
+	ForceNomad    bool
+	ForceYes      bool
+	Launching     bool
+}
+
+func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWithConfigArgs) (err error) {
 	apiClient := client.FromContext(ctx).API()
+	appNameFromContext := app.NameFromContext(ctx)
+	appBasic, err := apiClient.GetAppBasic(ctx, appNameFromContext)
+	if err != nil {
+		return err
+	}
+	deployToMachines, err := useMachines(ctx, *appConfig, appBasic, args)
+	if err != nil {
+		return err
+	}
+	// this uses the gql validation, which only knows about nomad configs
+	if !deployToMachines {
+		tb := render.NewTextBlock(ctx, "Verifying app config")
+		parsedCfg, err := apiClient.ParseConfig(ctx, appNameFromContext, appConfig.Definition)
+		if err != nil {
+			return err
+		}
+		if !parsedCfg.Valid {
+			fmt.Println()
+			if len(parsedCfg.Errors) > 0 {
+				path := "fly.toml"
+				cfg := app.ConfigFromContext(ctx)
+				if cfg != nil {
+					path = cfg.Path
+				}
+				tb.Printf("\nConfiguration errors in %s:\n\n", path)
+			}
+			for _, e := range parsedCfg.Errors {
+				tb.Println("   ", aurora.Red("✘").String(), e)
+			}
+			fmt.Println()
+			return errors.New("app configuration is not valid")
+		}
+		tb.Done("Verified app config")
+	}
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
 	img, err := determineImage(ctx, appConfig)
@@ -129,27 +170,13 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 		appConfig.Env["PRIMARY_REGION"] = appConfig.PrimaryRegion
 	}
 
-	if appConfig.ForMachines() {
-		autoConfirm := flag.GetBool(ctx, "auto-confirm")
-		if !autoConfirm {
-			switch confirmed, err := prompt.Confirmf(ctx, "Deploying machines with `fly deploy` is highly experimental and may produce unexpected results. Proceed?"); {
-			case err == nil:
-				if !confirmed {
-					return nil
-				}
-			case prompt.IsNonInteractive(err):
-				return prompt.NonInteractiveError("--auto-confirm flag must be specified when not running interactively")
-			default:
-				return err
-			}
-		}
-
+	if deployToMachines {
 		md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 			DeploymentImage:      img,
 			Strategy:             flag.GetString(ctx, "strategy"),
 			EnvFromFlags:         flag.GetStringSlice(ctx, "env"),
 			PrimaryRegionFlag:    flag.GetString(ctx, flag.RegionName),
-			AutoConfirmMigration: autoConfirm,
+			AutoConfirmMigration: flag.GetBool(ctx, "auto-confirm"),
 			BuildOnly:            flag.GetBuildOnly(ctx),
 			SkipHealthChecks:     flag.GetDetach(ctx),
 			WaitTimeout:          time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
@@ -202,9 +229,41 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 	return err
 }
 
+func useMachines(ctx context.Context, appConfig app.Config, appBasic *api.AppBasic, args DeployWithConfigArgs) (bool, error) {
+	if args.ForceNomad {
+		return false, nil
+	}
+	if args.ForceMachines {
+		return true, nil
+	}
+	// if we are not in launch scenario, use the existing platform set on the app
+	if !args.Launching {
+		return appBasic.PlatformVersion == app.MachinesPlatform, nil
+	}
+	// statics are not supported in Apps v2 yet
+	if appConfig.Statics != nil {
+		return false, nil
+	}
+	// if running automated, stay on nomad platform for now
+	if args.ForceYes {
+		return false, nil
+	}
+	switch willUseStatics, err := prompt.Confirmf(ctx, "Will you use statics for this app (see https://fly.io/docs/reference/configuration/#the-statics-sections)?"); {
+	case err == nil:
+		if willUseStatics {
+			return false, nil
+		}
+	case prompt.IsNonInteractive(err):
+		return false, prompt.NonInteractiveError("not running interactively, use --auto-confirm flag to confirm")
+	default:
+		return false, err
+	}
+	// if we didn't find an exception above, use the machines platform by default!
+	return true, nil
+}
+
 // determineAppConfig fetches the app config from a local file, or in its absence, from the API
 func determineAppConfig(ctx context.Context, envFromFlags []string, primaryRegion string) (cfg *app.Config, err error) {
-	tb := render.NewTextBlock(ctx, "Verifying app config")
 	client := client.FromContext(ctx).API()
 	appNameFromContext := app.NameFromContext(ctx)
 	if cfg = app.ConfigFromContext(ctx); cfg == nil {
@@ -227,23 +286,9 @@ func determineAppConfig(ctx context.Context, envFromFlags []string, primaryRegio
 		}
 
 		cfg.AppName = basicApp.Name
-		cfg.SetPlatformVersion(basicApp.PlatformVersion)
 	} else {
-		parsedCfg, err := client.ParseConfig(ctx, appNameFromContext, cfg.Definition)
-		if err != nil {
-			return nil, err
-		}
-		if !parsedCfg.Valid {
-			fmt.Println()
-			if len(parsedCfg.Errors) > 0 {
-				tb.Printf("\nConfiguration errors in %s:\n\n", cfg.Path)
-			}
-			for _, e := range parsedCfg.Errors {
-				tb.Println("   ", aurora.Red("✘").String(), e)
-			}
-			fmt.Println()
-			return nil, errors.New("App configuration is not valid")
-		}
+		// FIXME: don't do this for now, until parse config know
+
 	}
 
 	if len(envFromFlags) > 0 {
@@ -266,7 +311,6 @@ func determineAppConfig(ctx context.Context, envFromFlags []string, primaryRegio
 		cfg.AppName = appNameFromContext
 	}
 
-	tb.Done("Verified app config")
 	return
 }
 
