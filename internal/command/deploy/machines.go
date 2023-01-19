@@ -922,7 +922,7 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 		AppId:           md.appConfig.AppName,
 		PlatformVersion: "machines",
 		Strategy:        gql.DeploymentStrategy(strings.ToUpper(md.strategy)),
-		Definition:      md.appConfig.Definition,
+		Definition:      md.appConfig,
 	}
 	if !md.restartOnly {
 		input.Image = md.img.Tag

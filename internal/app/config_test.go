@@ -54,7 +54,8 @@ func TestLoadTOMLAppConfigWithServices(t *testing.T) {
 
 	rawData := map[string]interface{}{}
 	toml.DecodeFile("./testdata/services.toml", &rawData)
-
+	delete(rawData, "app")
+	delete(rawData, "build")
 	assert.NoError(t, err)
 	assert.Equal(t, p.Definition, rawData)
 }
