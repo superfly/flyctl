@@ -90,12 +90,11 @@ func New() (cmd *cobra.Command) {
 			Description: "Use the Apps v2 platform built with Machines",
 			Default:     false,
 		},
-		// FIXME: pipe this through
-		// flag.Int{
-		// 	Name:        "internal-port",
-		// 	Description: "Set internal_port for all services in the generated fly.toml",
-		// 	Default:     8080,
-		// },
+		flag.Int{
+			Name:        "internal-port",
+			Description: "Set internal_port for all services in the generated fly.toml",
+			Default:     -1,
+		},
 	)
 
 	return
@@ -319,6 +318,11 @@ func run(ctx context.Context) (err error) {
 	appConfig.AppName = createdApp.Name
 	ctx = app.WithName(ctx, appConfig.AppName)
 
+	internalPortFromFlag := flag.GetInt(ctx, "internal-port")
+	if internalPortFromFlag > 0 {
+		appConfig.SetInternalPort(internalPortFromFlag)
+	}
+
 	if srcInfo != nil {
 
 		if srcInfo.Port > 0 {
@@ -464,9 +468,16 @@ func run(ctx context.Context) (err error) {
 
 	// Finally, write the config
 
-	if err = appConfig.WriteToDisk(ctx, filepath.Join(workingDir, "fly.toml")); err != nil {
+	flyTomlPath := filepath.Join(workingDir, "fly.toml")
+	if err = appConfig.WriteToDisk(ctx, flyTomlPath); err != nil {
 		return err
 	}
+	// round trip config, because some magic happens to populate stuff like services
+	reloadedAppConfig, err := app.LoadConfig(ctx, flyTomlPath)
+	if err != nil {
+		return err
+	}
+	ctx = app.WithConfig(ctx, reloadedAppConfig)
 
 	if srcInfo == nil {
 		return nil

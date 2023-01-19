@@ -178,8 +178,9 @@ type Check struct {
 	Headers       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
 }
 
-func (c *Check) ToMachineCheck() (*api.MachineCheck, error) {
-	if c.GracePeriod != nil {
+func (c *Check) toMachineCheck(launching bool) (*api.MachineCheck, error) {
+	// don't error when launching; it's a bad experience!
+	if !launching && c.GracePeriod != nil {
 		return nil, fmt.Errorf("checks for machines do not yet support grace_period")
 	}
 	if c.RestartLimit != 0 {
@@ -222,8 +223,9 @@ func (c *Check) String() string {
 	}
 }
 
-func (hc *HttpCheck) ToMachineCheck(port int) (*api.MachineCheck, error) {
-	if hc.GracePeriod != nil {
+func (hc *HttpCheck) toMachineCheck(port int, launching bool) (*api.MachineCheck, error) {
+	// don't error when launching; it's a bad experience!
+	if !launching && hc.GracePeriod != nil {
 		return nil, fmt.Errorf("checks for machines do not yet support grace_period")
 	}
 	if hc.RestartLimit != 0 {
@@ -250,8 +252,9 @@ func (hc *HttpCheck) String(port int) string {
 	return fmt.Sprintf("http-%d-%s", port, hc.HTTPMethod)
 }
 
-func (tc *TcpCheck) ToMachineCheck(port int) (*api.MachineCheck, error) {
-	if tc.GracePeriod != nil {
+func (tc *TcpCheck) toMachineCheck(port int, launching bool) (*api.MachineCheck, error) {
+	// don't error when launching; it's a bad experience!
+	if !launching && tc.GracePeriod != nil {
 		return nil, fmt.Errorf("checks for machines do not yet support grace_period")
 	}
 	if tc.RestartLimit != 0 {
@@ -662,7 +665,7 @@ type ProcessConfig struct {
 	MachineChecks   map[string]api.MachineCheck
 }
 
-func (c *Config) GetProcessConfigs() (map[string]ProcessConfig, error) {
+func (c *Config) GetProcessConfigs(appLaunching bool) (map[string]ProcessConfig, error) {
 	res := make(map[string]ProcessConfig)
 	processCount := 0
 	if c.Processes != nil {
@@ -698,7 +701,7 @@ func (c *Config) GetProcessConfigs() (map[string]ProcessConfig, error) {
 	}
 	for checkName, check := range c.Checks {
 		fullCheckName := fmt.Sprintf("chk-%s-%s", checkName, check.String())
-		machineCheck, err := check.ToMachineCheck()
+		machineCheck, err := check.toMachineCheck(appLaunching)
 		if err != nil {
 			return nil, err
 		}
@@ -728,7 +731,7 @@ func (c *Config) GetProcessConfigs() (map[string]ProcessConfig, error) {
 			procConfigToUpdate.MachineServices = append(procConfigToUpdate.MachineServices, *service.ToMachineService())
 			for _, httpCheck := range service.HttpChecks {
 				checkName := fmt.Sprintf("svcchk-%s", httpCheck.String(service.InternalPort))
-				machineCheck, err := httpCheck.ToMachineCheck(service.InternalPort)
+				machineCheck, err := httpCheck.toMachineCheck(service.InternalPort, appLaunching)
 				if err != nil {
 					return nil, err
 				}
@@ -736,7 +739,7 @@ func (c *Config) GetProcessConfigs() (map[string]ProcessConfig, error) {
 			}
 			for _, tcpCheck := range service.TcpChecks {
 				checkName := fmt.Sprintf("svcchk-%s", tcpCheck.String(service.InternalPort))
-				machineCheck, err := tcpCheck.ToMachineCheck(service.InternalPort)
+				machineCheck, err := tcpCheck.toMachineCheck(service.InternalPort, appLaunching)
 				if err != nil {
 					return nil, err
 				}
@@ -752,7 +755,7 @@ func (c *Config) GetProcessConfigs() (map[string]ProcessConfig, error) {
 				procConfigToUpdate.MachineServices = append(procConfigToUpdate.MachineServices, *service.ToMachineService())
 				for _, httpCheck := range service.HttpChecks {
 					checkName := fmt.Sprintf("svcchk-%s", httpCheck.String(service.InternalPort))
-					machineCheck, err := httpCheck.ToMachineCheck(service.InternalPort)
+					machineCheck, err := httpCheck.toMachineCheck(service.InternalPort, appLaunching)
 					if err != nil {
 						return nil, err
 					}
@@ -760,7 +763,7 @@ func (c *Config) GetProcessConfigs() (map[string]ProcessConfig, error) {
 				}
 				for _, tcpCheck := range service.TcpChecks {
 					checkName := fmt.Sprintf("svcchk-%s", tcpCheck.String(service.InternalPort))
-					machineCheck, err := tcpCheck.ToMachineCheck(service.InternalPort)
+					machineCheck, err := tcpCheck.toMachineCheck(service.InternalPort, appLaunching)
 					if err != nil {
 						return nil, err
 					}

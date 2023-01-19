@@ -35,6 +35,7 @@ type MachineDeployment interface {
 type MachineDeploymentArgs struct {
 	DeploymentImage      *imgsrc.DeploymentImage
 	Strategy             string
+	Launching            bool
 	EnvFromFlags         []string
 	PrimaryRegionFlag    string
 	AutoConfirmMigration bool
@@ -61,6 +62,7 @@ type machineDeployment struct {
 	strategy                   string
 	releaseId                  string
 	releaseVersion             int
+	launching                  bool
 	autoConfirmAppsV2Migration bool
 	skipHealthChecks           bool
 	restartOnly                bool
@@ -507,7 +509,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if waitTimeout != DefaultWaitTimeout || leaseTimeout != DefaultLeaseTtl || args.WaitTimeout == 0 || args.LeaseTimeout == 0 {
 		terminal.Infof("Using wait timeout: %s and lease timeout: %s\n", waitTimeout, leaseTimeout)
 	}
-	processConfigs, err := appConfig.GetProcessConfigs()
+	processConfigs, err := appConfig.GetProcessConfigs(args.Launching)
 	if err != nil {
 		return nil, err
 	}
@@ -521,6 +523,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		appConfig:                  appConfig,
 		processConfigs:             processConfigs,
 		img:                        args.DeploymentImage,
+		launching:                  args.Launching,
 		autoConfirmAppsV2Migration: args.AutoConfirmMigration,
 		skipHealthChecks:           args.SkipHealthChecks,
 		restartOnly:                args.RestartOnly,

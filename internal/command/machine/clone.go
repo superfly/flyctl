@@ -100,7 +100,7 @@ func runMachineClone(ctx context.Context) (err error) {
 
 	targetConfig := source.Config
 	if targetProcessGroup := flag.GetString(ctx, "process-group"); targetProcessGroup != "" {
-		allProcessConfigs, err := appConfig.GetProcessConfigs()
+		allProcessConfigs, err := appConfig.GetProcessConfigs(false)
 		if err != nil {
 			return err
 		}
