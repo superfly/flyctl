@@ -130,6 +130,7 @@ func run(ctx context.Context) (err error) {
 			if err != nil {
 				return err
 			}
+			ctx = app.WithName(ctx, cfg.AppName)
 		} else {
 			fmt.Fprintln(io.Out, "An existing fly.toml file was found")
 		}
@@ -313,6 +314,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	appConfig.AppName = createdApp.Name
+	ctx = app.WithName(ctx, appConfig.AppName)
 
 	fmt.Fprintf(io.Out, "Created app %s in organization %s\n", createdApp.Name, org.Slug)
 

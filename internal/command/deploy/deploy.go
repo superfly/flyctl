@@ -286,9 +286,6 @@ func determineAppConfig(ctx context.Context, envFromFlags []string, primaryRegio
 		}
 
 		cfg.AppName = basicApp.Name
-	} else {
-		// FIXME: don't do this for now, until parse config know
-
 	}
 
 	if len(envFromFlags) > 0 {
