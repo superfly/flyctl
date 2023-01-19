@@ -331,10 +331,20 @@ func (c *Config) EncodeTo(w io.Writer) error {
 }
 
 func (c *Config) unmarshalTOML(r io.ReadSeeker) error {
-	_, err := toml.NewDecoder(r).Decode(&c)
+	var definition map[string]interface{}
+	_, err := toml.NewDecoder(r).Decode(&definition)
 	if err != nil {
 		return err
 	}
+	_, err = r.Seek(0, io.SeekStart)
+	if err != nil {
+		return err
+	}
+	_, err = toml.NewDecoder(r).Decode(&c)
+	if err != nil {
+		return err
+	}
+	c.Definition = definition
 	return nil
 }
 
