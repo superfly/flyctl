@@ -18,7 +18,6 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/go-playground/validator/v10"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
@@ -40,7 +39,7 @@ func NewConfig() *Config {
 }
 
 // LoadConfig loads the app config at the given path.
-func LoadConfig(ctx context.Context, path string, platformVersion string) (cfg *Config, err error) {
+func LoadConfig(ctx context.Context, path string) (cfg *Config, err error) {
 	cfg = &Config{
 		Definition: map[string]interface{}{},
 	}
@@ -56,14 +55,7 @@ func LoadConfig(ctx context.Context, path string, platformVersion string) (cfg *
 	}()
 
 	cfg.Path = path
-	cfg.platformVersion = platformVersion
-
-	if platformVersion == "" {
-		cfg.DeterminePlatform(ctx, file)
-	}
-
 	err = cfg.unmarshalTOML(file)
-
 	return
 }
 
@@ -74,21 +66,20 @@ type SlimConfig struct {
 
 // Config wraps the properties of app configuration.
 type Config struct {
-	AppName         string                 `toml:"app,omitempty"`
-	Build           *Build                 `toml:"build,omitempty"`
-	HttpService     *HttpService           `toml:"http_service,omitempty"`
-	Definition      map[string]interface{} `toml:"definition,omitempty"`
-	Path            string                 `toml:"path,omitempty"`
-	Services        []Service              `toml:"services"`
-	Env             map[string]string      `toml:"env" json:"env"`
-	Metrics         *api.MachineMetrics    `toml:"metrics" json:"metrics"`
-	Statics         []*Static              `toml:"statics,omitempty" json:"statics"`
-	Deploy          *Deploy                `toml:"deploy, omitempty"`
-	PrimaryRegion   string                 `toml:"primary_region,omitempty"`
-	Checks          map[string]*Check      `toml:"checks,omitempty"`
-	Mounts          *scanner.Volume        `toml:"mounts,omitempty"`
-	Processes       map[string]string      `toml:"processes,omitempty"`
-	platformVersion string
+	AppName       string                 `toml:"app,omitempty"`
+	Build         *Build                 `toml:"build,omitempty"`
+	HttpService   *HttpService           `toml:"http_service,omitempty"`
+	Definition    map[string]interface{} `toml:"definition,omitempty"`
+	Path          string                 `toml:"path,omitempty"`
+	Services      []Service              `toml:"services"`
+	Env           map[string]string      `toml:"env" json:"env"`
+	Metrics       *api.MachineMetrics    `toml:"metrics" json:"metrics"`
+	Statics       []*Static              `toml:"statics,omitempty" json:"statics"`
+	Deploy        *Deploy                `toml:"deploy, omitempty"`
+	PrimaryRegion string                 `toml:"primary_region,omitempty"`
+	Checks        map[string]*Check      `toml:"checks,omitempty"`
+	Mounts        *scanner.Volume        `toml:"mounts,omitempty"`
+	Processes     map[string]string      `toml:"processes,omitempty"`
 }
 
 type Deploy struct {
@@ -292,26 +283,7 @@ type Build struct {
 	Builtin           string                 `toml:"builtin,omitempty"`
 	Dockerfile        string                 `toml:"dockerfile,omitempty"`
 	Ignorefile        string                 `toml:"ignorefile,omitempty"`
-	DockerBuildTarget string                 `toml:"buildpacks,omitempty"`
-}
-
-// SetMachinesPlatform informs the TOML marshaller that this config is for the machines platform
-func (c *Config) SetMachinesPlatform() {
-	c.platformVersion = MachinesPlatform
-}
-
-// SetNomadPlatform informs the TOML marshaller that this config is for the nomad platform
-func (c *Config) SetNomadPlatform() {
-	c.platformVersion = NomadPlatform
-}
-
-func (c *Config) SetPlatformVersion(platform string) {
-	c.platformVersion = platform
-}
-
-// ForMachines is true when the config is intended for the machines platform
-func (c *Config) ForMachines() bool {
-	return c.platformVersion == MachinesPlatform
+	DockerBuildTarget string                 `toml:"build-target,omitempty"`
 }
 
 func (c *Config) HasDefinition() bool {
@@ -358,139 +330,12 @@ func (c *Config) EncodeTo(w io.Writer) error {
 	return c.marshalTOML(w)
 }
 
-func (c *Config) DeterminePlatform(ctx context.Context, r io.ReadSeeker) (err error) {
-	client := client.FromContext(ctx)
-	slimConfig := &SlimConfig{}
-	_, err = toml.NewDecoder(r).Decode(&slimConfig)
-
+func (c *Config) unmarshalTOML(r io.ReadSeeker) error {
+	_, err := toml.NewDecoder(r).Decode(&c)
 	if err != nil {
 		return err
 	}
-
-	basicApp, err := client.API().GetAppBasic(ctx, slimConfig.AppName)
-	if err != nil {
-		return err
-	}
-
-	if basicApp.PlatformVersion == MachinesPlatform {
-		c.SetMachinesPlatform()
-	} else {
-		c.SetNomadPlatform()
-	}
-
-	return
-}
-
-func (c *Config) unmarshalTOML(r io.ReadSeeker) (err error) {
-	var data map[string]interface{}
-
-	slimConfig := &SlimConfig{}
-
-	// Fetch the app name only, to check which platform we're on via the API
-	if _, err = toml.NewDecoder(r).Decode(&slimConfig); err == nil {
-
-		if err != nil {
-			return err
-		}
-
-		// Rewind TOML in preparation for parsing the full config
-		r.Seek(0, io.SeekStart)
-		if c.ForMachines() {
-			_, err = toml.NewDecoder(r).Decode(&c)
-
-			if err != nil {
-				return err
-			}
-
-		} else {
-			_, err = toml.NewDecoder(r).Decode(&data)
-
-			if err != nil {
-				return err
-			}
-
-			err = c.unmarshalNativeMap(data)
-		}
-	}
-
-	return
-}
-
-func (c *Config) unmarshalNativeMap(data map[string]interface{}) error {
-	if name, ok := (data["app"]).(string); ok {
-		c.AppName = name
-	}
-	delete(data, "app")
-
-	c.Build = unmarshalBuild(data)
-	delete(data, "build")
-
-	for k := range c.Definition {
-		delete(c.Definition, k)
-	}
-	c.Definition = data
-
 	return nil
-}
-
-func unmarshalBuild(data map[string]interface{}) *Build {
-	buildConfig, ok := (data["build"]).(map[string]interface{})
-	if !ok {
-		return nil
-	}
-
-	b := &Build{
-		Args:       map[string]string{},
-		Settings:   map[string]interface{}{},
-		Buildpacks: []string{},
-	}
-
-	configValueSet := false
-	for k, v := range buildConfig {
-		switch k {
-		case "builder":
-			b.Builder = fmt.Sprint(v)
-			configValueSet = configValueSet || b.Builder != ""
-		case "buildpacks":
-			if bpSlice, ok := v.([]interface{}); ok {
-				for _, argV := range bpSlice {
-					b.Buildpacks = append(b.Buildpacks, fmt.Sprint(argV))
-				}
-			}
-		case "args":
-			if argMap, ok := v.(map[string]interface{}); ok {
-				for argK, argV := range argMap {
-					b.Args[argK] = fmt.Sprint(argV)
-				}
-			}
-		case "builtin":
-			b.Builtin = fmt.Sprint(v)
-			configValueSet = configValueSet || b.Builtin != ""
-		case "settings":
-			if settingsMap, ok := v.(map[string]interface{}); ok {
-				for settingK, settingV := range settingsMap {
-					b.Settings[settingK] = settingV // fmt.Sprint(argV)
-				}
-			}
-		case "image":
-			b.Image = fmt.Sprint(v)
-			configValueSet = configValueSet || b.Image != ""
-		case "dockerfile":
-			b.Dockerfile = fmt.Sprint(v)
-			configValueSet = configValueSet || b.Dockerfile != ""
-		case "build_target", "build-target":
-			b.DockerBuildTarget = fmt.Sprint(v)
-			configValueSet = configValueSet || b.DockerBuildTarget != ""
-		default:
-			b.Args[k] = fmt.Sprint(v)
-		}
-	}
-
-	if !configValueSet && len(b.Args) == 0 {
-		return nil
-	}
-
-	return b
 }
 
 func (c *Config) marshalTOML(w io.Writer) error {
@@ -498,13 +343,6 @@ func (c *Config) marshalTOML(w io.Writer) error {
 
 	encoder := toml.NewEncoder(&b)
 	fmt.Fprintf(w, "# fly.toml file generated for %s on %s\n\n", c.AppName, time.Now().Format(time.RFC3339))
-
-	// For machines apps, encode and write directly, bypassing custom marshalling
-	if c.platformVersion == MachinesPlatform {
-		encoder.Encode(&c)
-		_, err := b.WriteTo(w)
-		return err
-	}
 
 	rawData := map[string]interface{}{
 		"app": c.AppName,

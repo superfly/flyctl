@@ -481,6 +481,9 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err != nil {
 		return nil, err
 	}
+	if len(appConfig.Statics) > 0 {
+		return nil, fmt.Errorf("error [statics] are not yet supported when deploying to machines; remove the [statics] section from fly.toml")
+	}
 	app, err := client.FromContext(ctx).API().GetAppCompact(ctx, appConfig.AppName)
 	if err != nil {
 		return nil, err
@@ -823,7 +826,7 @@ func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) er
 }
 
 func (md *machineDeployment) setVolumeConfig() error {
-	if md.appConfig.Mounts.Source != "" {
+	if md.appConfig.Mounts != nil && md.appConfig.Mounts.Source != "" {
 		return fmt.Errorf("error source setting under [mounts] is not supported for machines; remove source from fly.toml")
 	}
 	if md.appConfig.Mounts != nil {

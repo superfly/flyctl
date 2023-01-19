@@ -80,6 +80,16 @@ func New() (cmd *cobra.Command) {
 			Description: "If a .dockerignore does not exist, create one from .gitignore files",
 			Default:     false,
 		},
+		flag.Bool{
+			Name:        "force-nomad",
+			Description: "Use the Apps v1 platform built with Nomad",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "force-machines",
+			Description: "Use the Apps v2 platform built with Machines",
+			Default:     false,
+		},
 		// FIXME: pipe this through
 		// flag.Int{
 		// 	Name:        "internal-port",
@@ -107,8 +117,7 @@ func run(ctx context.Context) (err error) {
 	configFilePath := filepath.Join(workingDir, "fly.toml")
 
 	if exists, _ := flyctl.ConfigFileExistsAtPath(configFilePath); exists {
-		// FIXME: don't assume nomad platform here... this might be a place where we need to support migration
-		cfg, err := app.LoadConfig(ctx, configFilePath, "nomad")
+		cfg, err := app.LoadConfig(ctx, configFilePath)
 		if err != nil {
 			return err
 		}
@@ -127,7 +136,12 @@ func run(ctx context.Context) (err error) {
 
 		if deployExisting {
 			fmt.Fprintln(io.Out, "App is not running, deploy...")
-			return deploy.DeployWithConfig(ctx, cfg)
+			return deploy.DeployWithConfig(ctx, cfg, deploy.DeployWithConfigArgs{
+				Launching:     true,
+				ForceNomad:    flag.GetBool(ctx, "force-nomad"),
+				ForceMachines: flag.GetBool(ctx, "force-machines"),
+				ForceYes:      flag.GetBool(ctx, "now"),
+			})
 		}
 
 		copyConfig := false
@@ -521,9 +535,12 @@ func run(ctx context.Context) (err error) {
 	}
 
 	if deployNow {
-		// FIXME: teach this how to do pick machines vs nomad
-		terminal.Errorf("BOOM: appConfig.ForMachines(): %t\n", appConfig.ForMachines())
-		return deploy.DeployWithConfig(ctx, appConfig)
+		return deploy.DeployWithConfig(ctx, appConfig, deploy.DeployWithConfigArgs{
+			Launching:     true,
+			ForceNomad:    flag.GetBool(ctx, "force-nomad"),
+			ForceMachines: flag.GetBool(ctx, "force-machines"),
+			ForceYes:      flag.GetBool(ctx, "now"),
+		})
 	}
 
 	// Alternative deploy documentation if our standard deploy method is not correct
