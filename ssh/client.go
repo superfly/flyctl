@@ -103,7 +103,7 @@ func (c *Client) Connect(ctx context.Context) error {
 	}
 }
 
-func (c *Client) Shell(ctx context.Context, term *Terminal, cmd string) error {
+func (c *Client) Shell(ctx context.Context, term *Terminal, cmd string, env map[string]string) error {
 	if c.Client == nil {
 		if err := c.Connect(ctx); err != nil {
 			return err
@@ -115,6 +115,13 @@ func (c *Client) Shell(ctx context.Context, term *Terminal, cmd string) error {
 		return err
 	}
 	defer sess.Close()
+
+	for key, val := range env {
+		err := sess.Setenv(key, val)
+		if err != nil {
+			return err
+		}
+	}
 
 	return term.attach(ctx, sess, cmd)
 }

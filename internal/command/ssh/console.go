@@ -17,6 +17,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/sentry"
@@ -36,6 +37,11 @@ func stdArgsSSH(cmd *cobra.Command) {
 			Shorthand:   "C",
 			Default:     "",
 			Description: "command to run on SSH session",
+		},
+		flag.StringSlice{
+			Name:        "env",
+			Shorthand:   "e",
+			Description: "set environment variables",
 		},
 		flag.Bool{
 			Name:        "select",
@@ -151,6 +157,18 @@ func bringUp(ctx context.Context, client *api.Client, app *api.AppCompact) (*age
 	return agentclient, dialer, nil
 }
 
+func parseEnv(ctx context.Context) (map[string]string, error) {
+	parsed := make(map[string]string)
+	if value := flag.GetStringSlice(ctx, "env"); len(value) > 0 {
+		var err error
+		parsed, err = cmdutil.ParseKVStringsToMap(value)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return parsed, nil
+}
+
 func runConsole(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
 	appName := app.NameFromContext(ctx)
@@ -174,6 +192,11 @@ func runConsole(ctx context.Context) error {
 		return err
 	}
 
+	env, err := parseEnv(ctx)
+	if err != nil {
+		return err
+	}
+
 	// BUG(tqbf): many of these are no longer really params
 	params := &SSHParams{
 		Ctx:    ctx,
@@ -181,6 +204,7 @@ func runConsole(ctx context.Context) error {
 		Dialer: dialer,
 		App:    appName,
 		Cmd:    flag.GetString(ctx, "command"),
+		Env:    env,
 		Stdin:  os.Stdin,
 		Stdout: ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
 		Stderr: ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
@@ -203,7 +227,7 @@ func runConsole(ctx context.Context) error {
 		Mode:   "xterm",
 	}
 
-	if err := sshc.Shell(params.Ctx, term, params.Cmd); err != nil {
+	if err := sshc.Shell(params.Ctx, term, params.Cmd, params.Env); err != nil {
 		captureError(err, app)
 		return errors.Wrap(err, "ssh shell")
 	}
