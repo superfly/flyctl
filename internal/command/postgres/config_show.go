@@ -103,7 +103,12 @@ func runMachineConfigShow(ctx context.Context, app *api.AppCompact) (err error) 
 		return err
 	}
 
-	return showSettings(ctx, app, leader.PrivateIP)
+	manager := flypg.StolonManager
+	if leader.ImageRef.Repository == "flyio/postgres-flex" {
+		manager = flypg.ReplicationManager
+	}
+
+	return showSettings(ctx, app, manager, leader.PrivateIP)
 }
 
 func runNomadConfigShow(ctx context.Context, app *api.AppCompact) (err error) {
@@ -135,10 +140,10 @@ func runNomadConfigShow(ctx context.Context, app *api.AppCompact) (err error) {
 		return err
 	}
 
-	return showSettings(ctx, app, leaderIP)
+	return showSettings(ctx, app, flypg.StolonManager, leaderIP)
 }
 
-func showSettings(ctx context.Context, app *api.AppCompact, leaderIP string) error {
+func showSettings(ctx context.Context, app *api.AppCompact, manager string, leaderIP string) error {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
@@ -152,12 +157,7 @@ func showSettings(ctx context.Context, app *api.AppCompact, leaderIP string) err
 		settings = append(settings, k)
 	}
 
-	_, flex := os.LookupEnv("FORCE_FLEX")
-	if app.ImageDetails.Repository == "flyio/postgres-flex" {
-		flex = true
-	}
-
-	res, err := pgclient.ViewSettings(ctx, settings, flex)
+	res, err := pgclient.ViewSettings(ctx, settings, manager)
 	if err != nil {
 		return err
 	}
@@ -198,7 +198,7 @@ func showSettings(ctx context.Context, app *api.AppCompact, leaderIP string) err
 			value = fmt.Sprintf("%s -> %s", value, p)
 		}
 		rows = append(rows, []string{
-			strings.Replace(setting.Name, "_", "-", -1),
+			strings.ReplaceAll(setting.Name, "_", "-"),
 			value,
 			setting.Unit,
 			desc,

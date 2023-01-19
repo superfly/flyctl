@@ -73,6 +73,7 @@ func runRestart(ctx context.Context) error {
 		input := api.RestartMachineInput{
 			SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),
 		}
+
 		return machinesRestart(ctx, &input)
 	case "nomad":
 		return nomadRestart(ctx, app)
@@ -108,12 +109,16 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 	}
 
 	leader, replicas := machinesNodeRoles(ctx, machines)
-
 	if leader == nil {
 		if !force {
 			return fmt.Errorf("no active leader found")
 		}
 		fmt.Fprintln(io.Out, colorize.Yellow("No leader found, but continuing with restart"))
+	}
+
+	manager := flypg.StolonManager
+	if leader.ImageRef.Repository == "flyio/postgres-flex" {
+		manager = flypg.ReplicationManager
 	}
 
 	fmt.Fprintln(io.Out, "Identifying cluster role(s)")
@@ -136,7 +141,7 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 		}
 	}
 
-	if inRegionReplicas > 0 {
+	if inRegionReplicas > 0 && manager != flypg.ReplicationManager {
 		pgclient := flypg.NewFromInstance(leader.PrivateIP, dialer)
 		fmt.Fprintf(io.Out, "Attempting to failover %s\n", colorize.Bold(leader.ID))
 
