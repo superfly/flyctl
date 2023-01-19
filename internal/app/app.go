@@ -824,13 +824,14 @@ func (c *Config) SetVolumes(volumes []scanner.Volume) {
 	c.Definition["mounts"] = volumes
 }
 
-type CmdAndMachineServices struct {
+type ProcessConfig struct {
 	Cmd             []string
 	MachineServices []api.MachineService
+	MachineChecks   map[string]api.MachineCheck
 }
 
-func (c *Config) GetProcessNamesToCmdAndService() (map[string]CmdAndMachineServices, error) {
-	res := make(map[string]CmdAndMachineServices)
+func (c *Config) GetProcessConfigs() (map[string]ProcessConfig, error) {
+	res := make(map[string]ProcessConfig)
 	processCount := 0
 	if c.Processes != nil {
 		processCount = len(c.Processes)
@@ -844,16 +845,30 @@ func (c *Config) GetProcessNamesToCmdAndService() (map[string]CmdAndMachineServi
 		}
 	}
 	if processCount > 0 {
-		for procName := range c.Processes {
-			res[procName] = CmdAndMachineServices{
-				Cmd:             strings.Split(c.Processes[procName], " "),
+		for processName := range c.Processes {
+			res[processName] = ProcessConfig{
+				Cmd:             strings.Split(c.Processes[processName], " "),
 				MachineServices: make([]api.MachineService, 0),
+				MachineChecks:   make(map[string]api.MachineCheck),
 			}
 		}
 	} else {
-		res[defaultProcessName] = CmdAndMachineServices{
+		res[defaultProcessName] = ProcessConfig{
 			Cmd:             strings.Split(c.Processes[defaultProcessName], " "),
 			MachineServices: make([]api.MachineService, 0),
+			MachineChecks:   make(map[string]api.MachineCheck),
+		}
+	}
+	for checkName, check := range c.Checks {
+		fullCheckName := fmt.Sprintf("chk-%s-%s", checkName, check.String())
+		machineCheck, err := check.ToMachineCheck()
+		if err != nil {
+			return nil, err
+		}
+		for processName := range res {
+			procToUpdate := res[processName]
+			procToUpdate.MachineChecks[fullCheckName] = *machineCheck
+			res[processName] = procToUpdate
 		}
 	}
 	if c.HttpService != nil {
@@ -867,20 +882,56 @@ func (c *Config) GetProcessNamesToCmdAndService() (map[string]CmdAndMachineServi
 	for _, service := range c.Services {
 		if len(service.Processes) == 0 && processCount > 1 {
 			return nil, fmt.Errorf("error service has no processes set and app has %d processes defined; update fly.toml to set processes for each service", processCount)
-		} else if len(service.Processes) > 1 && processCount == 0 {
+		} else if len(service.Processes) > 0 && processCount == 0 {
 			return nil, fmt.Errorf("error services has %d processes defined, but no processes are defined in app config; add a [processes] section to fly.toml", processCount)
 		} else if len(service.Processes) == 0 {
-			servicesToUpdate := res[firstProcessNameOrDefault]
-			servicesToUpdate.MachineServices = append(servicesToUpdate.MachineServices, *service.ToMachineService())
-			res[firstProcessNameOrDefault] = servicesToUpdate
-		} else { // len(service.Processes) > 1
+			processName := firstProcessNameOrDefault
+			procConfigToUpdate, present := res[processName]
+			if !present {
+				return nil, fmt.Errorf("error service specifies '%s' as one of its processes, but no processes are defined with that name; update fly.toml [processes] to include a %s process", processName, processName)
+			}
+			procConfigToUpdate.MachineServices = append(procConfigToUpdate.MachineServices, *service.ToMachineService())
+			for _, httpCheck := range service.HttpChecks {
+				checkName := fmt.Sprintf("svcchk-%s", httpCheck.String(service.InternalPort))
+				machineCheck, err := httpCheck.ToMachineCheck(service.InternalPort)
+				if err != nil {
+					return nil, err
+				}
+				procConfigToUpdate.MachineChecks[checkName] = *machineCheck
+			}
+			for _, tcpCheck := range service.TcpChecks {
+				checkName := fmt.Sprintf("svcchk-%s", tcpCheck.String(service.InternalPort))
+				machineCheck, err := tcpCheck.ToMachineCheck(service.InternalPort)
+				if err != nil {
+					return nil, err
+				}
+				procConfigToUpdate.MachineChecks[checkName] = *machineCheck
+			}
+			res[processName] = procConfigToUpdate
+		} else { // len(service.Processes) > 0
 			for _, processName := range service.Processes {
-				if _, present := res[processName]; !present {
+				procConfigToUpdate, present := res[processName]
+				if !present {
 					return nil, fmt.Errorf("error service specifies '%s' as one of its processes, but no processes are defined with that name; update fly.toml [processes] to include a %s process", processName, processName)
 				}
-				servicesToUpdate := res[processName]
-				servicesToUpdate.MachineServices = append(servicesToUpdate.MachineServices, *service.ToMachineService())
-				res[processName] = servicesToUpdate
+				procConfigToUpdate.MachineServices = append(procConfigToUpdate.MachineServices, *service.ToMachineService())
+				for _, httpCheck := range service.HttpChecks {
+					checkName := fmt.Sprintf("svcchk-%s", httpCheck.String(service.InternalPort))
+					machineCheck, err := httpCheck.ToMachineCheck(service.InternalPort)
+					if err != nil {
+						return nil, err
+					}
+					procConfigToUpdate.MachineChecks[checkName] = *machineCheck
+				}
+				for _, tcpCheck := range service.TcpChecks {
+					checkName := fmt.Sprintf("svcchk-%s", tcpCheck.String(service.InternalPort))
+					machineCheck, err := tcpCheck.ToMachineCheck(service.InternalPort)
+					if err != nil {
+						return nil, err
+					}
+					procConfigToUpdate.MachineChecks[checkName] = *machineCheck
+				}
+				res[processName] = procConfigToUpdate
 			}
 		}
 	}
