@@ -66,20 +66,20 @@ type SlimConfig struct {
 
 // Config wraps the properties of app configuration.
 type Config struct {
-	AppName       string                 `toml:"app,omitempty"`
-	Build         *Build                 `toml:"build,omitempty"`
-	HttpService   *HttpService           `toml:"http_service,omitempty"`
-	Definition    map[string]interface{} `toml:"definition,omitempty"`
-	Path          string                 `toml:"path,omitempty"`
-	Services      []Service              `toml:"services"`
-	Env           map[string]string      `toml:"env" json:"env"`
-	Metrics       *api.MachineMetrics    `toml:"metrics" json:"metrics"`
-	Statics       []*Static              `toml:"statics,omitempty" json:"statics"`
-	Deploy        *Deploy                `toml:"deploy, omitempty"`
-	PrimaryRegion string                 `toml:"primary_region,omitempty"`
-	Checks        map[string]*Check      `toml:"checks,omitempty"`
-	Mounts        *scanner.Volume        `toml:"mounts,omitempty"`
-	Processes     map[string]string      `toml:"processes,omitempty"`
+	AppName       string                 `toml:"app,omitempty" json:"app,omitempty"`
+	Build         *Build                 `toml:"build,omitempty" json:"build,omitempty"`
+	HttpService   *HttpService           `toml:"http_service,omitempty" json:"http_service,omitempty"`
+	Definition    map[string]interface{} `toml:"definition,omitempty" json:"definition,omitempty"`
+	Path          string                 `toml:"path,omitempty" json:"path,omitempty"`
+	Services      []Service              `toml:"services" json:"services,omitempty"`
+	Env           map[string]string      `toml:"env" json:"env,omitempty"`
+	Metrics       *api.MachineMetrics    `toml:"metrics" json:"metrics,omitempty"`
+	Statics       []*Static              `toml:"statics,omitempty" json:"statics,omitempty"`
+	Deploy        *Deploy                `toml:"deploy, omitempty" json:"deploy,omitempty"`
+	PrimaryRegion string                 `toml:"primary_region,omitempty" json:"primary_region,omitempty"`
+	Checks        map[string]*Check      `toml:"checks,omitempty" json:"checks,omitempty"`
+	Mounts        *scanner.Volume        `toml:"mounts,omitempty" json:"mounts,omitempty"`
+	Processes     map[string]string      `toml:"processes,omitempty" json:"processes,omitempty"`
 }
 
 type Deploy struct {
@@ -336,6 +336,9 @@ func (c *Config) unmarshalTOML(r io.ReadSeeker) error {
 	if err != nil {
 		return err
 	}
+	delete(definition, "app")
+	delete(definition, "build")
+	// FIXME: i need to better understand what Definition is being used for
 	_, err = r.Seek(0, io.SeekStart)
 	if err != nil {
 		return err
