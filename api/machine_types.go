@@ -283,19 +283,25 @@ type MachineServiceConcurrency struct {
 }
 
 type MachineConfig struct {
-	Env       map[string]string       `json:"env"`
-	Init      MachineInit             `json:"init,omitempty"`
-	Processes []MachineProcess        `json:"processes,omitempty"`
-	Image     string                  `json:"image"`
-	Metadata  map[string]string       `json:"metadata"`
-	Mounts    []MachineMount          `json:"mounts,omitempty"`
-	Restart   MachineRestart          `json:"restart,omitempty"`
-	Services  []MachineService        `json:"services,omitempty"`
-	VMSize    string                  `json:"size,omitempty"`
-	Guest     *MachineGuest           `json:"guest,omitempty"`
-	Metrics   *MachineMetrics         `json:"metrics"`
-	Schedule  string                  `json:"schedule,omitempty"`
-	Checks    map[string]MachineCheck `json:"checks,omitempty"`
+	Env         map[string]string       `json:"env"`
+	Init        MachineInit             `json:"init,omitempty"`
+	Processes   []MachineProcess        `json:"processes,omitempty"`
+	Image       string                  `json:"image"`
+	Metadata    map[string]string       `json:"metadata"`
+	Mounts      []MachineMount          `json:"mounts,omitempty"`
+	Restart     MachineRestart          `json:"restart,omitempty"`
+	Services    []MachineService        `json:"services,omitempty"`
+	VMSize      string                  `json:"size,omitempty"`
+	Guest       *MachineGuest           `json:"guest,omitempty"`
+	Metrics     *MachineMetrics         `json:"metrics"`
+	Schedule    string                  `json:"schedule,omitempty"`
+	Checks      map[string]MachineCheck `json:"checks,omitempty"`
+	AutoDestroy bool                    `json:"auto_destroy"`
+	DNS         *DNSConfig              `json:"dns,omitempty"`
+}
+
+type DNSConfig struct {
+	SkipRegistration bool `json:"skip_registration"`
 }
 
 type MachineLease struct {
@@ -334,4 +340,15 @@ type MachineProcess struct {
 	CmdOverride        []string          `json:"cmd,omitempty"`
 	UserOverride       string            `json:"user,omitempty"`
 	ExtraEnv           map[string]string `json:"env"`
+}
+
+type MachineExecRequest struct {
+	Cmd     string `json:"cmd"`
+	Timeout int    `json:"timeout,omitempty"`
+}
+
+type MachineExecResponse struct {
+	ExitCode int32   `json:"exit_code"`
+	StdOut   *string `json:"stdout"`
+	StdErr   *string `json:"stderr"`
 }
