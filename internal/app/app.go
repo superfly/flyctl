@@ -18,6 +18,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/shlex"
+	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/iostreams"
@@ -67,21 +68,21 @@ type SlimConfig struct {
 
 // Config wraps the properties of app configuration.
 type Config struct {
-	AppName       string                 `toml:"app,omitempty" json:"app,omitempty"`
-	Build         *Build                 `toml:"build,omitempty" json:"build,omitempty"`
-	HttpService   *HttpService           `toml:"http_service,omitempty" json:"http_service,omitempty"`
-	Definition    map[string]interface{} `toml:"definition,omitempty" json:"definition,omitempty"`
-	Path          string                 `toml:"path,omitempty" json:"path,omitempty"`
-	Services      []Service              `toml:"services" json:"services,omitempty"`
-	Env           map[string]string      `toml:"env" json:"env,omitempty"`
-	Metrics       *api.MachineMetrics    `toml:"metrics" json:"metrics,omitempty"`
-	Statics       []*Static              `toml:"statics,omitempty" json:"statics,omitempty"`
-	Deploy        *Deploy                `toml:"deploy, omitempty" json:"deploy,omitempty"`
-	PrimaryRegion string                 `toml:"primary_region,omitempty" json:"primary_region,omitempty"`
-	Checks        map[string]*Check      `toml:"checks,omitempty" json:"checks,omitempty"`
-	Mounts        *scanner.Volume        `toml:"mounts,omitempty" json:"mounts,omitempty"`
-	Processes     map[string]string      `toml:"processes,omitempty" json:"processes,omitempty"`
-	Experimental  Experimental           `toml:"experimental,omitempty" json:"experimental,omitempty"`
+	AppName       string                    `toml:"app,omitempty" json:"app,omitempty"`
+	Build         *Build                    `toml:"build,omitempty" json:"build,omitempty"`
+	HttpService   *HTTPService              `toml:"http_service,omitempty" json:"http_service,omitempty"`
+	Definition    map[string]interface{}    `toml:"definition,omitempty" json:"definition,omitempty"`
+	Path          string                    `toml:"path,omitempty" json:"path,omitempty"`
+	Services      []Service                 `toml:"services" json:"services,omitempty"`
+	Env           map[string]string         `toml:"env" json:"env,omitempty"`
+	Metrics       *api.MachineMetrics       `toml:"metrics" json:"metrics,omitempty"`
+	Statics       []*Static                 `toml:"statics,omitempty" json:"statics,omitempty"`
+	Deploy        *Deploy                   `toml:"deploy, omitempty" json:"deploy,omitempty"`
+	PrimaryRegion string                    `toml:"primary_region,omitempty" json:"primary_region,omitempty"`
+	Checks        map[string]*ToplevelCheck `toml:"checks,omitempty" json:"checks,omitempty"`
+	Mounts        *scanner.Volume           `toml:"mounts,omitempty" json:"mounts,omitempty"`
+	Processes     map[string]string         `toml:"processes,omitempty" json:"processes,omitempty"`
+	Experimental  Experimental              `toml:"experimental,omitempty" json:"experimental,omitempty"`
 }
 
 type Deploy struct {
@@ -93,7 +94,7 @@ type Static struct {
 	GuestPath string `toml:"guest_path" json:"guest_path" validate:"required"`
 	UrlPrefix string `toml:"url_prefix" json:"url_prefix" validate:"required"`
 }
-type HttpService struct {
+type HTTPService struct {
 	InternalPort int                            `json:"internal_port" toml:"internal_port" validate:"required,numeric"`
 	ForceHttps   bool                           `toml:"force_https"`
 	Concurrency  *api.MachineServiceConcurrency `toml:"concurrency,omitempty"`
@@ -104,12 +105,12 @@ type Service struct {
 	InternalPort int                            `json:"internal_port" toml:"internal_port"`
 	Ports        []api.MachinePort              `json:"ports" toml:"ports"`
 	Concurrency  *api.MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
-	TcpChecks    []*TcpCheck                    `json:"tcp_checks,omitempty" toml:"tcp_checks,omitempty"`
-	HttpChecks   []*HttpCheck                   `json:"http_checks,omitempty" toml:"http_checks,omitempty"`
+	TCPChecks    []*ServiceTCPCheck             `json:"tcp_checks,omitempty" toml:"tcp_checks,omitempty"`
+	HTTPChecks   []*ServiceHTTPCheck            `json:"http_checks,omitempty" toml:"http_checks,omitempty"`
 	Processes    []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
-func (hs *HttpService) ToMachineService() *api.MachineService {
+func (hs *HTTPService) toMachineService() *api.MachineService {
 	concurrency := hs.Concurrency
 	if concurrency != nil {
 		if concurrency.Type == "" {
@@ -135,26 +136,33 @@ func (hs *HttpService) ToMachineService() *api.MachineService {
 		}},
 		Concurrency: concurrency,
 	}
-
 }
 
-func (s *Service) ToMachineService() *api.MachineService {
+func (s *Service) toMachineService() *api.MachineService {
+	checks := make([]api.Check, len(s.TCPChecks)+len(s.HTTPChecks))
+	for _, tc := range s.TCPChecks {
+		checks = append(checks, *tc.toCheck())
+	}
+	for _, hc := range s.HTTPChecks {
+		checks = append(checks, *hc.toCheck())
+	}
 	return &api.MachineService{
 		Protocol:     s.Protocol,
 		InternalPort: s.InternalPort,
 		Ports:        s.Ports,
 		Concurrency:  s.Concurrency,
+		Checks:       checks,
 	}
 }
 
-type TcpCheck struct {
+type ServiceTCPCheck struct {
 	Interval     *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
 	Timeout      *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
 	GracePeriod  *api.Duration `json:"grace_period,omitempty" toml:"grace_period,omitempty"`
 	RestartLimit int           `json:"restart_limit,omitempty" toml:"restart_limit,omitempty"`
 }
 
-type HttpCheck struct {
+type ServiceHTTPCheck struct {
 	Interval      *api.Duration     `json:"interval,omitempty" toml:"interval,omitempty"`
 	Timeout       *api.Duration     `json:"timeout,omitempty" toml:"timeout,omitempty"`
 	GracePeriod   *api.Duration     `json:"grace_period,omitempty" toml:"grace_period,omitempty"`
@@ -166,7 +174,7 @@ type HttpCheck struct {
 	Headers       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
 }
 
-type Check struct {
+type ToplevelCheck struct {
 	Type          string            `json:"type,omitempty" toml:"type,omitempty"`
 	Port          int               `json:"port,omitempty" toml:"port,omitempty"`
 	Interval      *api.Duration     `json:"interval,omitempty" toml:"interval,omitempty"`
@@ -180,7 +188,7 @@ type Check struct {
 	Headers       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
 }
 
-func (c *Check) toMachineCheck(launching bool) (*api.MachineCheck, error) {
+func (c *ToplevelCheck) toMachineCheck(launching bool) (*api.MachineCheck, error) {
 	// don't error when launching; it's a bad experience!
 	if !launching && c.GracePeriod != nil {
 		return nil, fmt.Errorf("checks for machines do not yet support grace_period")
@@ -214,7 +222,7 @@ func (c *Check) toMachineCheck(launching bool) (*api.MachineCheck, error) {
 	return res, nil
 }
 
-func (c *Check) String() string {
+func (c *ToplevelCheck) String() string {
 	switch c.Type {
 	case "tcp":
 		return fmt.Sprintf("tcp-%d", c.Port)
@@ -225,52 +233,62 @@ func (c *Check) String() string {
 	}
 }
 
-func (hc *HttpCheck) toMachineCheck(port int, launching bool) (*api.MachineCheck, error) {
-	// don't error when launching; it's a bad experience!
-	if !launching && hc.GracePeriod != nil {
-		return nil, fmt.Errorf("checks for machines do not yet support grace_period")
+func (hc *ServiceHTTPCheck) toCheck() *api.Check {
+	check := &api.Check{Type: "http"}
+	if hc.Interval != nil {
+		check.Interval = api.Pointer(uint64(hc.Interval.Milliseconds()))
 	}
-	if hc.RestartLimit != 0 {
-		return nil, fmt.Errorf("checks for machines do not yet support restart_limit")
+	if hc.Timeout != nil {
+		check.Timeout = api.Pointer(uint64(hc.Timeout.Milliseconds()))
+	}
+	if hc.GracePeriod != nil {
+		check.GracePeriod = api.Pointer(uint64(hc.GracePeriod.Milliseconds()))
+	}
+	if hc.RestartLimit > 0 {
+		check.RestartLimit = api.Pointer(uint64(hc.RestartLimit))
+	}
+
+	if hc.HTTPMethod != "" {
+		check.HTTPMethod = api.Pointer(hc.HTTPMethod)
+	}
+	if hc.HTTPPath != "" {
+		check.HTTPPath = api.Pointer(hc.HTTPPath)
 	}
 	if hc.HTTPProtocol != "" {
-		return nil, fmt.Errorf("checks for machines do not yet support protocol")
+		check.HTTPProtocol = api.Pointer(hc.HTTPProtocol)
 	}
+	check.HTTPSkipTLSVerify = api.Pointer(hc.TLSSkipVerify)
 	if len(hc.Headers) > 0 {
-		return nil, fmt.Errorf("checks for machines do not yet support headers")
+		headers := make([]api.HTTPHeader, len(hc.Headers))
+		for name, value := range hc.Headers {
+			headers = append(headers, api.HTTPHeader{Name: name, Value: value})
+		}
 	}
-	methodUpper := strings.ToUpper(hc.HTTPMethod)
-	return &api.MachineCheck{
-		Type:       "http",
-		Port:       uint16(port),
-		Interval:   hc.Interval,
-		Timeout:    hc.Timeout,
-		HTTPMethod: &methodUpper,
-		HTTPPath:   &hc.HTTPPath,
-	}, nil
+	return check
 }
 
-func (hc *HttpCheck) String(port int) string {
+func (hc *ServiceHTTPCheck) String(port int) string {
 	return fmt.Sprintf("http-%d-%s", port, hc.HTTPMethod)
 }
 
-func (tc *TcpCheck) toMachineCheck(port int, launching bool) (*api.MachineCheck, error) {
-	// don't error when launching; it's a bad experience!
-	if !launching && tc.GracePeriod != nil {
-		return nil, fmt.Errorf("checks for machines do not yet support grace_period")
+func (tc *ServiceTCPCheck) toCheck() *api.Check {
+	check := &api.Check{Type: "tcp"}
+	if tc.Interval != nil {
+		check.Interval = api.Pointer(uint64(tc.Interval.Milliseconds()))
 	}
-	if tc.RestartLimit != 0 {
-		return nil, fmt.Errorf("checks for machines do not yet support restart_limit")
+	if tc.Timeout != nil {
+		check.Timeout = api.Pointer(uint64(tc.Timeout.Milliseconds()))
 	}
-	return &api.MachineCheck{
-		Type:     "tcp",
-		Port:     uint16(port),
-		Interval: tc.Interval,
-		Timeout:  tc.Timeout,
-	}, nil
+	if tc.GracePeriod != nil {
+		check.GracePeriod = api.Pointer(uint64(tc.GracePeriod.Milliseconds()))
+	}
+	if tc.RestartLimit > 0 {
+		check.RestartLimit = api.Pointer(uint64(tc.RestartLimit))
+	}
+	return check
 }
 
-func (tc *TcpCheck) String(port int) string {
+func (tc *ServiceTCPCheck) String(port int) string {
 	return fmt.Sprintf("tcp-%d", port)
 }
 
@@ -677,49 +695,31 @@ func (c *Config) SetVolumes(volumes []scanner.Volume) {
 }
 
 type ProcessConfig struct {
-	Cmd             []string
-	MachineServices []api.MachineService
-	MachineChecks   map[string]api.MachineCheck
+	Cmd      []string
+	Services []api.MachineService
+	Checks   map[string]api.MachineCheck
 }
 
 func (c *Config) GetProcessConfigs(appLaunching bool) (map[string]ProcessConfig, error) {
 	res := make(map[string]ProcessConfig)
-	processCount := 0
-	if c.Processes != nil {
-		processCount = len(c.Processes)
+	processCount := len(c.Processes)
+	if processCount == 0 {
+		c.Processes[""] = ""
 	}
-	defaultProcessName := ""
-	firstProcessNameOrDefault := ""
-	if processCount == 1 {
-		for procName := range c.Processes {
-			firstProcessNameOrDefault = procName
-			break
+	defaultProcessName := lo.Keys(c.Processes)[0]
+
+	for processName, cmdStr := range c.Processes {
+		cmd := make([]string, 0)
+		if cmdStr != "" {
+			cmd = shlex.Split(cmdStr, " ")
+		}
+		res[processName] = ProcessConfig{
+			Cmd:      cmd,
+			Services: make([]api.MachineService, 0),
+			Checks:   make(map[string]api.MachineCheck),
 		}
 	}
-	if processCount > 0 {
-		for processName := range c.Processes {
-			cmdStr := c.Processes[processName]
-			cmd := make([]string, 0)
-			if cmdStr != "" {
-				splitCmd, err := shlex.Split(cmdStr)
-				if err != nil {
-					return nil, fmt.Errorf("could not parse command for %s process group: %w", processName, err)
-				}
-				cmd = splitCmd
-			}
-			res[processName] = ProcessConfig{
-				Cmd:             cmd,
-				MachineServices: make([]api.MachineService, 0),
-				MachineChecks:   make(map[string]api.MachineCheck),
-			}
-		}
-	} else {
-		res[defaultProcessName] = ProcessConfig{
-			Cmd:             make([]string, 0),
-			MachineServices: make([]api.MachineService, 0),
-			MachineChecks:   make(map[string]api.MachineCheck),
-		}
-	}
+
 	for checkName, check := range c.Checks {
 		fullCheckName := fmt.Sprintf("chk-%s-%s", checkName, check.String())
 		machineCheck, err := check.toMachineCheck(appLaunching)
@@ -728,68 +728,43 @@ func (c *Config) GetProcessConfigs(appLaunching bool) (map[string]ProcessConfig,
 		}
 		for processName := range res {
 			procToUpdate := res[processName]
-			procToUpdate.MachineChecks[fullCheckName] = *machineCheck
+			procToUpdate.Checks[fullCheckName] = *machineCheck
 			res[processName] = procToUpdate
 		}
 	}
+
 	if c.HttpService != nil {
 		if processCount > 1 {
-			return nil, fmt.Errorf("http_service is not supported when more than one processes are defined for an app, and this app has %d processes", processCount)
+			return nil, fmt.Errorf("http_service is not supported when more than one processes are defined "+
+				"for an app, and this app has %d processes", processCount)
 		}
-		servicesToUpdate := res[firstProcessNameOrDefault]
-		servicesToUpdate.MachineServices = append(servicesToUpdate.MachineServices, *c.HttpService.ToMachineService())
-		res[firstProcessNameOrDefault] = servicesToUpdate
+		servicesToUpdate := res[defaultProcessName]
+		servicesToUpdate.Services = append(servicesToUpdate.Services, *c.HttpService.toMachineService())
+		res[defaultProcessName] = servicesToUpdate
 	}
+
 	for _, service := range c.Services {
-		if len(service.Processes) == 0 && processCount > 0 {
-			return nil, fmt.Errorf("error service has no processes set and app has %d processes defined; update fly.toml to set processes for each service", processCount)
-		} else if len(service.Processes) == 0 || processCount == 0 {
-			processName := firstProcessNameOrDefault
+		switch {
+		case len(service.Processes) == 0 && processCount > 0:
+			return nil, fmt.Errorf("error service has no processes set and app has %d processes defined;"+
+				"update fly.toml to set processes for each service", processCount)
+		case len(service.Processes) == 0 || processCount == 0:
+			processName := defaultProcessName
 			procConfigToUpdate, present := res[processName]
 			if processCount > 0 && !present {
-				return nil, fmt.Errorf("error service specifies '%s' as one of its processes, but no processes are defined with that name; update fly.toml [processes] to include a %s process", processName, processName)
+				return nil, fmt.Errorf("error service specifies '%s' as one of its processes, but no "+
+					"processes are defined with that name; update fly.toml [processes] to include a %s process", processName, processName)
 			}
-			procConfigToUpdate.MachineServices = append(procConfigToUpdate.MachineServices, *service.ToMachineService())
-			for _, httpCheck := range service.HttpChecks {
-				checkName := fmt.Sprintf("svcchk-%s", httpCheck.String(service.InternalPort))
-				machineCheck, err := httpCheck.toMachineCheck(service.InternalPort, appLaunching)
-				if err != nil {
-					return nil, err
-				}
-				procConfigToUpdate.MachineChecks[checkName] = *machineCheck
-			}
-			for _, tcpCheck := range service.TcpChecks {
-				checkName := fmt.Sprintf("svcchk-%s", tcpCheck.String(service.InternalPort))
-				machineCheck, err := tcpCheck.toMachineCheck(service.InternalPort, appLaunching)
-				if err != nil {
-					return nil, err
-				}
-				procConfigToUpdate.MachineChecks[checkName] = *machineCheck
-			}
+			procConfigToUpdate.Services = append(procConfigToUpdate.Services, *service.toMachineService())
 			res[processName] = procConfigToUpdate
-		} else { // len(service.Processes) > 0 && processCount > 0
+		default:
 			for _, processName := range service.Processes {
 				procConfigToUpdate, present := res[processName]
 				if !present {
-					return nil, fmt.Errorf("error service specifies '%s' as one of its processes, but no processes are defined with that name; update fly.toml [processes] to include a %s process", processName, processName)
+					return nil, fmt.Errorf("error service specifies '%s' as one of its processes, but no "+
+						"processes are defined with that name; update fly.toml [processes] to include a %s process", processName, processName)
 				}
-				procConfigToUpdate.MachineServices = append(procConfigToUpdate.MachineServices, *service.ToMachineService())
-				for _, httpCheck := range service.HttpChecks {
-					checkName := fmt.Sprintf("svcchk-%s", httpCheck.String(service.InternalPort))
-					machineCheck, err := httpCheck.toMachineCheck(service.InternalPort, appLaunching)
-					if err != nil {
-						return nil, err
-					}
-					procConfigToUpdate.MachineChecks[checkName] = *machineCheck
-				}
-				for _, tcpCheck := range service.TcpChecks {
-					checkName := fmt.Sprintf("svcchk-%s", tcpCheck.String(service.InternalPort))
-					machineCheck, err := tcpCheck.toMachineCheck(service.InternalPort, appLaunching)
-					if err != nil {
-						return nil, err
-					}
-					procConfigToUpdate.MachineChecks[checkName] = *machineCheck
-				}
+				procConfigToUpdate.Services = append(procConfigToUpdate.Services, *service.toMachineService())
 				res[processName] = procConfigToUpdate
 			}
 		}
