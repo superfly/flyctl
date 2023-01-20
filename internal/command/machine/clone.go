@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/buildkite/shellwords"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
@@ -58,6 +59,18 @@ func newClone() *cobra.Command {
 		flag.String{
 			Name:        "process-group",
 			Description: "For machines that are part of Fly Apps v2 does a regular clone and changes the process group to what is specified here",
+		},
+		flag.String{
+			Name:        "override-cmd",
+			Description: "Set CMD on the new machine to this value",
+		},
+		flag.Bool{
+			Name:        "clear-cmd",
+			Description: "Set empty CMD on the new machine so it uses default CMD for the image",
+		},
+		flag.Bool{
+			Name:        "clear-auto-destroy",
+			Description: "Disable auto destroy setting on new machine",
 		},
 	)
 
@@ -116,6 +129,21 @@ func runMachineClone(ctx context.Context) (err error) {
 		targetConfig.Init.Cmd = processConfig.Cmd
 		targetConfig.Services = processConfig.MachineServices
 		targetConfig.Checks = processConfig.MachineChecks
+	}
+	if flag.GetBool(ctx, "clear-cmd") {
+		targetConfig.Init.Cmd = make([]string, 0)
+	} else if targetCmd := flag.GetString(ctx, "override-cmd"); targetCmd != "" {
+		theCmd, err := shellwords.Split(targetCmd)
+		if err != nil {
+			return fmt.Errorf("error splitting cmd: %w", err)
+		}
+		targetConfig.Init.Cmd = theCmd
+	}
+	if flag.GetBool(ctx, "clear-auto-destroy") {
+		targetConfig.AutoDestroy = false
+	}
+	if targetConfig.AutoDestroy {
+		fmt.Fprintf(io.Out, "Auto destroy enabled and will destroy machine on exit. Use --clear-auto-destroy to remove this setting.\n")
 	}
 	for _, mnt := range source.Config.Mounts {
 		var vol *api.Volume
@@ -237,6 +265,7 @@ func getAppConfig(ctx context.Context, appName string) (*app.Config, error) {
 		if err != nil {
 			return nil, err
 		}
+		// FIXME: ignore this for machines... (flyctl needs a validator for machines)
 		if !parsedCfg.Valid {
 			fmt.Println()
 			if len(parsedCfg.Errors) > 0 {
