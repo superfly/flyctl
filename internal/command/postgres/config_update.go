@@ -108,6 +108,7 @@ func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 		io          = iostreams.FromContext(ctx)
 		colorize    = io.ColorScheme()
 		autoConfirm = flag.GetBool(ctx, "yes")
+		force       = flag.GetBool(ctx, "force")
 
 		MinPostgresHaVersion         = "0.0.33"
 		MinPostgresStandaloneVersion = "0.0.7"
@@ -128,12 +129,20 @@ func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 		return err
 	}
 
-	leader, err := pickLeader(ctx, machines)
-	if err != nil {
-		return err
+	var node *api.Machine
+	leader, replicas := machinesNodeRoles(ctx, machines)
+	switch {
+	case leader != nil:
+		node = leader
+	case len(replicas) == 0:
+		return fmt.Errorf("No active leader found and no other node in the cluster")
+	case force:
+		node = replicas[0]
+	default:
+		return fmt.Errorf("No active leader found. Try --force flag to apply setting to any node")
 	}
 
-	requiresRestart, err := updateStolonConfig(ctx, app, leader.PrivateIP)
+	requiresRestart, err := updateStolonConfig(ctx, app, node.PrivateIP)
 	if err != nil {
 		return err
 	}
@@ -172,7 +181,7 @@ func runNomadConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 		autoConfirm = flag.GetBool(ctx, "yes")
 	)
 
-	var MinPostgresVersion = "v0.0.32"
+	MinPostgresVersion := "v0.0.32"
 
 	if err := hasRequiredVersionOnNomad(app, MinPostgresVersion, MinPostgresVersion); err != nil {
 		return err
