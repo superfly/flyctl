@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/buildkite/shellwords"
 	"github.com/go-playground/validator/v10"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
@@ -713,7 +714,11 @@ func (c *Config) GetProcessConfigs(appLaunching bool) (map[string]ProcessConfig,
 			cmdStr := c.Processes[processName]
 			cmd := make([]string, 0)
 			if cmdStr != "" {
-				cmd = strings.Split(cmdStr, " ")
+				splitCmd, err := shellwords.Split(cmdStr)
+				if err != nil {
+					return nil, fmt.Errorf("could not parse command for %s process group: %w", processName, err)
+				}
+				cmd = splitCmd
 			}
 			res[processName] = ProcessConfig{
 				Cmd:             cmd,
