@@ -1037,7 +1037,7 @@ func isFlyAppsPlatformMetadata(key string) bool {
 }
 
 func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context) error {
-	if md.app.Deployed {
+	if md.app.Deployed || !md.machineSet.IsEmpty() {
 		return nil
 	}
 	if md.appConfig.HttpService != nil || len(md.appConfig.Services) > 0 {
