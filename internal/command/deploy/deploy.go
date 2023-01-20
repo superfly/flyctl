@@ -108,17 +108,17 @@ type DeployWithConfigArgs struct {
 	ForceMachines bool
 	ForceNomad    bool
 	ForceYes      bool
-	Launching     bool
+	Launching     bool // FIXME: drop this and the other stuff that uses it once https://github.com/superfly/flyctl/pull/1602 is merged
 }
 
 func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWithConfigArgs) (err error) {
 	apiClient := client.FromContext(ctx).API()
 	appNameFromContext := app.NameFromContext(ctx)
-	appBasic, err := apiClient.GetAppBasic(ctx, appNameFromContext)
+	appCompact, err := apiClient.GetAppCompact(ctx, appNameFromContext)
 	if err != nil {
 		return err
 	}
-	deployToMachines, err := useMachines(ctx, *appConfig, appBasic, args)
+	deployToMachines, err := useMachines(ctx, *appConfig, appCompact, args)
 	if err != nil {
 		return err
 	}
@@ -230,16 +230,15 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 	return err
 }
 
-func useMachines(ctx context.Context, appConfig app.Config, appBasic *api.AppBasic, args DeployWithConfigArgs) (bool, error) {
+func useMachines(ctx context.Context, appConfig app.Config, appCompact *api.AppCompact, args DeployWithConfigArgs) (bool, error) {
 	if args.ForceNomad {
 		return false, nil
 	}
 	if args.ForceMachines {
 		return true, nil
 	}
-	// if we are not in launch scenario, use the existing platform set on the app
-	if !args.Launching {
-		return appBasic.PlatformVersion == app.MachinesPlatform, nil
+	if appCompact.Deployed {
+		return appCompact.PlatformVersion == app.MachinesPlatform, nil
 	}
 	// statics are not supported in Apps v2 yet
 	if len(appConfig.Statics) > 0 {
@@ -254,8 +253,9 @@ func useMachines(ctx context.Context, appConfig app.Config, appBasic *api.AppBas
 		if willUseStatics {
 			return false, nil
 		}
+	// if running automated, stay on nomad platform for now
 	case prompt.IsNonInteractive(err):
-		return false, prompt.NonInteractiveError("not running interactively, use --auto-confirm flag to confirm")
+		return false, nil
 	default:
 		return false, err
 	}
