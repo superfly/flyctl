@@ -127,9 +127,10 @@ func runMachineClone(ctx context.Context) (err error) {
 		targetConfig.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = targetProcessGroup
 		terminal.Infof("Setting process group to %s for new machine and updating cmd, services, and checks\n", targetProcessGroup)
 		targetConfig.Init.Cmd = processConfig.Cmd
-		targetConfig.Services = processConfig.MachineServices
-		targetConfig.Checks = processConfig.MachineChecks
+		targetConfig.Services = processConfig.Services
+		targetConfig.Checks = processConfig.Checks
 	}
+
 	if flag.GetBool(ctx, "clear-cmd") {
 		targetConfig.Init.Cmd = make([]string, 0)
 	} else if targetCmd := flag.GetString(ctx, "override-cmd"); targetCmd != "" {
@@ -147,11 +148,8 @@ func runMachineClone(ctx context.Context) (err error) {
 	}
 	for _, mnt := range source.Config.Mounts {
 		var vol *api.Volume
-
 		if volID := flag.GetString(ctx, "attach-volume"); volID != "" {
-
 			fmt.Fprintf(out, "Attaching existing volume %s\n", colorize.Bold(volID))
-
 			vol, err = client.GetVolume(ctx, volID)
 			if err != nil {
 				return fmt.Errorf("could not get existing volume: %w", err)
@@ -160,7 +158,6 @@ func runMachineClone(ctx context.Context) (err error) {
 			if vol.IsAttached() {
 				return fmt.Errorf("volume %s is already attached to a machine", vol.ID)
 			}
-
 		} else {
 			var snapshotID *string
 			switch snapID := flag.GetString(ctx, "from-snapshot"); snapID {

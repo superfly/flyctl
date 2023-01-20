@@ -875,6 +875,8 @@ type Check struct {
 	Type              string       `json:"type"`
 	Interval          *uint64      `json:"interval"`
 	Timeout           *uint64      `json:"timeout"`
+	GracePeriod       *uint64      `json:"grace_period"`
+	RestartLimit      *uint64      `json:"restart_limit"`
 	HTTPMethod        *string      `json:"httpMethod"`
 	HTTPPath          *string      `json:"httpPath"`
 	HTTPProtocol      *string      `json:"httpProtocol"`

@@ -25,8 +25,10 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-const DefaultWaitTimeout = 120 * time.Second
-const DefaultLeaseTtl = 30 * time.Minute
+const (
+	DefaultWaitTimeout = 120 * time.Second
+	DefaultLeaseTtl    = 30 * time.Minute
+)
 
 // FIXME: move a lot of this stuff to internal/machine pkg... maybe all of it?
 type MachineDeployment interface {
@@ -1011,9 +1013,9 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 	launchInput.Config.Init = origMachineRaw.Config.Init
 	processGroup := origMachineRaw.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
 	processConfig := md.processConfigs[processGroup]
-	launchInput.Config.Services = processConfig.MachineServices
+	launchInput.Config.Services = processConfig.Services
 	launchInput.Config.Init.Cmd = processConfig.Cmd
-	launchInput.Config.Checks = processConfig.MachineChecks
+	launchInput.Config.Checks = processConfig.Checks
 	return launchInput
 }
 
