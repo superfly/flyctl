@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/buildkite/shellwords"
+	"github.com/google/shlex"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
@@ -149,7 +149,7 @@ func runMachineClone(ctx context.Context) (err error) {
 	if flag.GetBool(ctx, "clear-cmd") {
 		targetConfig.Init.Cmd = make([]string, 0)
 	} else if targetCmd := flag.GetString(ctx, "override-cmd"); targetCmd != "" {
-		theCmd, err := shellwords.Split(targetCmd)
+		theCmd, err := shlex.Split(targetCmd)
 		if err != nil {
 			return fmt.Errorf("error splitting cmd: %w", err)
 		}

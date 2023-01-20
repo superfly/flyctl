@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
-	"github.com/buildkite/shellwords"
+	"github.com/google/shlex"
 	"github.com/jpillora/backoff"
 	"github.com/morikuni/aec"
 	"github.com/superfly/flyctl/api"
@@ -498,7 +498,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	}
 	var releaseCmd []string
 	if appConfig.Deploy != nil {
-		releaseCmd, err = shellwords.Split(appConfig.Deploy.ReleaseCommand)
+		releaseCmd, err = shlex.Split(appConfig.Deploy.ReleaseCommand)
 		if err != nil {
 			return nil, err
 		}
