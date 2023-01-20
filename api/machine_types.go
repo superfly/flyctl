@@ -136,7 +136,6 @@ type MachineEvent struct {
 }
 
 type MachineRequest struct {
-	// FIXME: are we ever sending back ExitEvent? Or is everything using MonitorEvent.ExitCode now? are there older events that have it here?
 	ExitEvent    *MachineExitEvent    `json:"exit_event,omitempty"`
 	MonitorEvent *MachineMonitorEvent `json:"MonitorEvent,omitempty"`
 	RestartCount int                  `json:"restart_count"`
@@ -268,6 +267,54 @@ type MachinePort struct {
 	EndPort    *int     `json:"end_port,omitempty" toml:"end_port,omitempty"`
 	Handlers   []string `json:"handlers,omitempty" toml:"handlers,omitempty"`
 	ForceHttps bool     `json:"force_https,omitempty" toml:"force_https,omitempty"`
+}
+
+func (mp *MachinePort) ContainsPort(port int) bool {
+	if mp.Port != nil && port == *mp.Port {
+		return true
+	}
+	if mp.StartPort == nil && mp.EndPort == nil {
+		return false
+	}
+	startPort := 0
+	endPort := 65535
+	if mp.StartPort != nil {
+		startPort = *mp.StartPort
+	}
+	if mp.EndPort != nil {
+		endPort = *mp.EndPort
+	}
+	return startPort <= port && port <= endPort
+}
+
+func (mp *MachinePort) HasNonHttpPorts() bool {
+	if mp.Port != nil && *mp.Port != 443 && *mp.Port != 80 {
+		return true
+	}
+	if mp.StartPort == nil && mp.EndPort == nil {
+		return false
+	}
+	startPort := 0
+	endPort := 65535
+	if mp.StartPort != nil {
+		startPort = *mp.StartPort
+	}
+	if mp.EndPort != nil {
+		endPort = *mp.EndPort
+	}
+	portRangeCount := endPort - startPort + 1
+	if portRangeCount > 2 {
+		return true
+	}
+	httpInRange := startPort <= 80 && 80 <= endPort
+	httpsInRange := startPort <= 443 && 443 <= endPort
+	switch {
+	case portRangeCount == 2:
+		return !httpInRange || !httpsInRange
+	case portRangeCount == 1:
+		return !httpInRange && !httpsInRange
+	}
+	return false
 }
 
 type MachineService struct {
