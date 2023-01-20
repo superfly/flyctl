@@ -17,8 +17,8 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/go-playground/validator/v10"
+	"github.com/google/shlex"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
@@ -40,7 +40,7 @@ func NewConfig() *Config {
 }
 
 // LoadConfig loads the app config at the given path.
-func LoadConfig(ctx context.Context, path string, platformVersion string) (cfg *Config, err error) {
+func LoadConfig(ctx context.Context, path string) (cfg *Config, err error) {
 	cfg = &Config{
 		Definition: map[string]interface{}{},
 	}
@@ -56,14 +56,7 @@ func LoadConfig(ctx context.Context, path string, platformVersion string) (cfg *
 	}()
 
 	cfg.Path = path
-	cfg.platformVersion = platformVersion
-
-	if platformVersion == "" {
-		cfg.DeterminePlatform(ctx, file)
-	}
-
 	err = cfg.unmarshalTOML(file)
-
 	return
 }
 
@@ -74,25 +67,25 @@ type SlimConfig struct {
 
 // Config wraps the properties of app configuration.
 type Config struct {
-	AppName         string                 `toml:"app,omitempty"`
-	Build           *Build                 `toml:"build,omitempty"`
-	HttpService     *HttpService           `toml:"http_service,omitempty"`
-	Definition      map[string]interface{} `toml:"definition,omitempty"`
-	Path            string                 `toml:"path,omitempty"`
-	Services        []Service              `toml:"services"`
-	Env             map[string]string      `toml:"env" json:"env"`
-	Metrics         *api.MachineMetrics    `toml:"metrics" json:"metrics"`
-	Statics         []*Static              `toml:"statics,omitempty" json:"statics"`
-	Deploy          *Deploy                `toml:"deploy, omitempty"`
-	PrimaryRegion   string                 `toml:"primary_region,omitempty"`
-	Checks          map[string]*Check      `toml:"checks,omitempty"`
-	Mounts          *scanner.Volume        `toml:"mounts,omitempty"`
-	Processes       map[string]string      `toml:"processes,omitempty"`
-	platformVersion string
+	AppName       string                 `toml:"app,omitempty" json:"app,omitempty"`
+	Build         *Build                 `toml:"build,omitempty" json:"build,omitempty"`
+	HttpService   *HttpService           `toml:"http_service,omitempty" json:"http_service,omitempty"`
+	Definition    map[string]interface{} `toml:"definition,omitempty" json:"definition,omitempty"`
+	Path          string                 `toml:"path,omitempty" json:"path,omitempty"`
+	Services      []Service              `toml:"services" json:"services,omitempty"`
+	Env           map[string]string      `toml:"env" json:"env,omitempty"`
+	Metrics       *api.MachineMetrics    `toml:"metrics" json:"metrics,omitempty"`
+	Statics       []*Static              `toml:"statics,omitempty" json:"statics,omitempty"`
+	Deploy        *Deploy                `toml:"deploy, omitempty" json:"deploy,omitempty"`
+	PrimaryRegion string                 `toml:"primary_region,omitempty" json:"primary_region,omitempty"`
+	Checks        map[string]*Check      `toml:"checks,omitempty" json:"checks,omitempty"`
+	Mounts        *scanner.Volume        `toml:"mounts,omitempty" json:"mounts,omitempty"`
+	Processes     map[string]string      `toml:"processes,omitempty" json:"processes,omitempty"`
 }
 
 type Deploy struct {
 	ReleaseCommand string `toml:"release_command,omitempty"`
+	Strategy       string `toml:"strategy,omitempty"`
 }
 
 type Static struct {
@@ -186,8 +179,9 @@ type Check struct {
 	Headers       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
 }
 
-func (c *Check) ToMachineCheck() (*api.MachineCheck, error) {
-	if c.GracePeriod != nil {
+func (c *Check) toMachineCheck(launching bool) (*api.MachineCheck, error) {
+	// don't error when launching; it's a bad experience!
+	if !launching && c.GracePeriod != nil {
 		return nil, fmt.Errorf("checks for machines do not yet support grace_period")
 	}
 	if c.RestartLimit != 0 {
@@ -230,8 +224,9 @@ func (c *Check) String() string {
 	}
 }
 
-func (hc *HttpCheck) ToMachineCheck(port int) (*api.MachineCheck, error) {
-	if hc.GracePeriod != nil {
+func (hc *HttpCheck) toMachineCheck(port int, launching bool) (*api.MachineCheck, error) {
+	// don't error when launching; it's a bad experience!
+	if !launching && hc.GracePeriod != nil {
 		return nil, fmt.Errorf("checks for machines do not yet support grace_period")
 	}
 	if hc.RestartLimit != 0 {
@@ -258,8 +253,9 @@ func (hc *HttpCheck) String(port int) string {
 	return fmt.Sprintf("http-%d-%s", port, hc.HTTPMethod)
 }
 
-func (tc *TcpCheck) ToMachineCheck(port int) (*api.MachineCheck, error) {
-	if tc.GracePeriod != nil {
+func (tc *TcpCheck) toMachineCheck(port int, launching bool) (*api.MachineCheck, error) {
+	// don't error when launching; it's a bad experience!
+	if !launching && tc.GracePeriod != nil {
 		return nil, fmt.Errorf("checks for machines do not yet support grace_period")
 	}
 	if tc.RestartLimit != 0 {
@@ -291,26 +287,7 @@ type Build struct {
 	Builtin           string                 `toml:"builtin,omitempty"`
 	Dockerfile        string                 `toml:"dockerfile,omitempty"`
 	Ignorefile        string                 `toml:"ignorefile,omitempty"`
-	DockerBuildTarget string                 `toml:"buildpacks,omitempty"`
-}
-
-// SetMachinesPlatform informs the TOML marshaller that this config is for the machines platform
-func (c *Config) SetMachinesPlatform() {
-	c.platformVersion = MachinesPlatform
-}
-
-// SetNomadPlatform informs the TOML marshaller that this config is for the nomad platform
-func (c *Config) SetNomadPlatform() {
-	c.platformVersion = NomadPlatform
-}
-
-func (c *Config) SetPlatformVersion(platform string) {
-	c.platformVersion = platform
-}
-
-// ForMachines is true when the config is intended for the machines platform
-func (c *Config) ForMachines() bool {
-	return c.platformVersion == MachinesPlatform
+	DockerBuildTarget string                 `toml:"build-target,omitempty"`
 }
 
 func (c *Config) HasDefinition() bool {
@@ -323,6 +300,35 @@ func (ac *Config) HasBuilder() bool {
 
 func (ac *Config) HasBuiltin() bool {
 	return ac.Build != nil && ac.Build.Builtin != ""
+}
+
+func (c *Config) HasNonHttpAndHttpsStandardServices() bool {
+	for _, service := range c.Services {
+		switch service.Protocol {
+		case "udp":
+			return true
+		case "tcp":
+			for _, p := range service.Ports {
+				if p.HasNonHttpPorts() {
+					return true
+				} else if p.ContainsPort(80) && (len(p.Handlers) != 1 || p.Handlers[0] != "http") {
+					return true
+				} else if p.ContainsPort(443) && (len(p.Handlers) != 2 || p.Handlers[0] != "tls" || p.Handlers[1] != "http") {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (c *Config) HasUdpService() bool {
+	for _, service := range c.Services {
+		if service.Protocol == "udp" {
+			return true
+		}
+	}
+	return false
 }
 
 func (ac *Config) Image() string {
@@ -357,139 +363,25 @@ func (c *Config) EncodeTo(w io.Writer) error {
 	return c.marshalTOML(w)
 }
 
-func (c *Config) DeterminePlatform(ctx context.Context, r io.ReadSeeker) (err error) {
-	client := client.FromContext(ctx)
-	slimConfig := &SlimConfig{}
-	_, err = toml.NewDecoder(r).Decode(&slimConfig)
-
+func (c *Config) unmarshalTOML(r io.ReadSeeker) error {
+	var definition map[string]interface{}
+	_, err := toml.NewDecoder(r).Decode(&definition)
 	if err != nil {
 		return err
 	}
-
-	basicApp, err := client.API().GetAppBasic(ctx, slimConfig.AppName)
+	delete(definition, "app")
+	delete(definition, "build")
+	// FIXME: i need to better understand what Definition is being used for
+	_, err = r.Seek(0, io.SeekStart)
 	if err != nil {
 		return err
 	}
-
-	if basicApp.PlatformVersion == MachinesPlatform {
-		c.SetMachinesPlatform()
-	} else {
-		c.SetNomadPlatform()
+	_, err = toml.NewDecoder(r).Decode(&c)
+	if err != nil {
+		return err
 	}
-
-	return
-}
-
-func (c *Config) unmarshalTOML(r io.ReadSeeker) (err error) {
-	var data map[string]interface{}
-
-	slimConfig := &SlimConfig{}
-
-	// Fetch the app name only, to check which platform we're on via the API
-	if _, err = toml.NewDecoder(r).Decode(&slimConfig); err == nil {
-
-		if err != nil {
-			return err
-		}
-
-		// Rewind TOML in preparation for parsing the full config
-		r.Seek(0, io.SeekStart)
-		if c.ForMachines() {
-			_, err = toml.NewDecoder(r).Decode(&c)
-
-			if err != nil {
-				return err
-			}
-
-		} else {
-			_, err = toml.NewDecoder(r).Decode(&data)
-
-			if err != nil {
-				return err
-			}
-
-			err = c.unmarshalNativeMap(data)
-		}
-	}
-
-	return
-}
-
-func (c *Config) unmarshalNativeMap(data map[string]interface{}) error {
-	if name, ok := (data["app"]).(string); ok {
-		c.AppName = name
-	}
-	delete(data, "app")
-
-	c.Build = unmarshalBuild(data)
-	delete(data, "build")
-
-	for k := range c.Definition {
-		delete(c.Definition, k)
-	}
-	c.Definition = data
-
+	c.Definition = definition
 	return nil
-}
-
-func unmarshalBuild(data map[string]interface{}) *Build {
-	buildConfig, ok := (data["build"]).(map[string]interface{})
-	if !ok {
-		return nil
-	}
-
-	b := &Build{
-		Args:       map[string]string{},
-		Settings:   map[string]interface{}{},
-		Buildpacks: []string{},
-	}
-
-	configValueSet := false
-	for k, v := range buildConfig {
-		switch k {
-		case "builder":
-			b.Builder = fmt.Sprint(v)
-			configValueSet = configValueSet || b.Builder != ""
-		case "buildpacks":
-			if bpSlice, ok := v.([]interface{}); ok {
-				for _, argV := range bpSlice {
-					b.Buildpacks = append(b.Buildpacks, fmt.Sprint(argV))
-				}
-			}
-		case "args":
-			if argMap, ok := v.(map[string]interface{}); ok {
-				for argK, argV := range argMap {
-					b.Args[argK] = fmt.Sprint(argV)
-				}
-			}
-		case "builtin":
-			b.Builtin = fmt.Sprint(v)
-			configValueSet = configValueSet || b.Builtin != ""
-		case "settings":
-			if settingsMap, ok := v.(map[string]interface{}); ok {
-				for settingK, settingV := range settingsMap {
-					b.Settings[settingK] = settingV // fmt.Sprint(argV)
-				}
-			}
-		case "image":
-			b.Image = fmt.Sprint(v)
-			configValueSet = configValueSet || b.Image != ""
-		case "dockerfile":
-			b.Dockerfile = fmt.Sprint(v)
-			configValueSet = configValueSet || b.Dockerfile != ""
-		case "build_target", "build-target":
-			b.DockerBuildTarget = fmt.Sprint(v)
-			configValueSet = configValueSet || b.DockerBuildTarget != ""
-		default:
-			b.Args[k] = fmt.Sprint(v)
-		}
-	}
-
-	if !configValueSet && len(b.Args) == 0 {
-		return nil
-	}
-
-	return b
 }
 
 func (c *Config) marshalTOML(w io.Writer) error {
@@ -497,13 +389,6 @@ func (c *Config) marshalTOML(w io.Writer) error {
 
 	encoder := toml.NewEncoder(&b)
 	fmt.Fprintf(w, "# fly.toml file generated for %s on %s\n\n", c.AppName, time.Now().Format(time.RFC3339))
-
-	// For machines apps, encode and write directly, bypassing custom marshalling
-	if c.platformVersion == MachinesPlatform {
-		encoder.Encode(&c)
-		_, err := b.WriteTo(w)
-		return err
-	}
 
 	rawData := map[string]interface{}{
 		"app": c.AppName,
@@ -755,26 +640,6 @@ func (c *Config) GetEnvVariables() map[string]string {
 	return env
 }
 
-func (c *Config) GetDeployStrategy() string {
-	dep, ok := c.Definition["deploy"]
-	if !ok {
-		return ""
-	}
-	depMap, ok := dep.(map[string]interface{})
-	if !ok {
-		return ""
-	}
-	strategy, ok := depMap["strategy"]
-	if !ok {
-		return ""
-	}
-	stratStr, ok := strategy.(string)
-	if !ok {
-		return ""
-	}
-	return stratStr
-}
-
 func (c *Config) SetProcess(name, value string) {
 	var processes map[string]string
 
@@ -801,13 +666,14 @@ func (c *Config) SetVolumes(volumes []scanner.Volume) {
 	c.Definition["mounts"] = volumes
 }
 
-type CmdAndMachineServices struct {
+type ProcessConfig struct {
 	Cmd             []string
 	MachineServices []api.MachineService
+	MachineChecks   map[string]api.MachineCheck
 }
 
-func (c *Config) GetProcessNamesToCmdAndService() (map[string]CmdAndMachineServices, error) {
-	res := make(map[string]CmdAndMachineServices)
+func (c *Config) GetProcessConfigs(appLaunching bool) (map[string]ProcessConfig, error) {
+	res := make(map[string]ProcessConfig)
 	processCount := 0
 	if c.Processes != nil {
 		processCount = len(c.Processes)
@@ -821,16 +687,39 @@ func (c *Config) GetProcessNamesToCmdAndService() (map[string]CmdAndMachineServi
 		}
 	}
 	if processCount > 0 {
-		for procName := range c.Processes {
-			res[procName] = CmdAndMachineServices{
-				Cmd:             strings.Split(c.Processes[procName], " "),
+		for processName := range c.Processes {
+			cmdStr := c.Processes[processName]
+			cmd := make([]string, 0)
+			if cmdStr != "" {
+				splitCmd, err := shlex.Split(cmdStr)
+				if err != nil {
+					return nil, fmt.Errorf("could not parse command for %s process group: %w", processName, err)
+				}
+				cmd = splitCmd
+			}
+			res[processName] = ProcessConfig{
+				Cmd:             cmd,
 				MachineServices: make([]api.MachineService, 0),
+				MachineChecks:   make(map[string]api.MachineCheck),
 			}
 		}
 	} else {
-		res[defaultProcessName] = CmdAndMachineServices{
-			Cmd:             strings.Split(c.Processes[defaultProcessName], " "),
+		res[defaultProcessName] = ProcessConfig{
+			Cmd:             make([]string, 0),
 			MachineServices: make([]api.MachineService, 0),
+			MachineChecks:   make(map[string]api.MachineCheck),
+		}
+	}
+	for checkName, check := range c.Checks {
+		fullCheckName := fmt.Sprintf("chk-%s-%s", checkName, check.String())
+		machineCheck, err := check.toMachineCheck(appLaunching)
+		if err != nil {
+			return nil, err
+		}
+		for processName := range res {
+			procToUpdate := res[processName]
+			procToUpdate.MachineChecks[fullCheckName] = *machineCheck
+			res[processName] = procToUpdate
 		}
 	}
 	if c.HttpService != nil {
@@ -842,22 +731,56 @@ func (c *Config) GetProcessNamesToCmdAndService() (map[string]CmdAndMachineServi
 		res[firstProcessNameOrDefault] = servicesToUpdate
 	}
 	for _, service := range c.Services {
-		if len(service.Processes) == 0 && processCount > 1 {
+		if len(service.Processes) == 0 && processCount > 0 {
 			return nil, fmt.Errorf("error service has no processes set and app has %d processes defined; update fly.toml to set processes for each service", processCount)
-		} else if len(service.Processes) > 1 && processCount == 0 {
-			return nil, fmt.Errorf("error services has %d processes defined, but no processes are defined in app config; add a [processes] section to fly.toml", processCount)
-		} else if len(service.Processes) == 0 {
-			servicesToUpdate := res[firstProcessNameOrDefault]
-			servicesToUpdate.MachineServices = append(servicesToUpdate.MachineServices, *service.ToMachineService())
-			res[firstProcessNameOrDefault] = servicesToUpdate
-		} else { // len(service.Processes) > 1
+		} else if len(service.Processes) == 0 || processCount == 0 {
+			processName := firstProcessNameOrDefault
+			procConfigToUpdate, present := res[processName]
+			if processCount > 0 && !present {
+				return nil, fmt.Errorf("error service specifies '%s' as one of its processes, but no processes are defined with that name; update fly.toml [processes] to include a %s process", processName, processName)
+			}
+			procConfigToUpdate.MachineServices = append(procConfigToUpdate.MachineServices, *service.ToMachineService())
+			for _, httpCheck := range service.HttpChecks {
+				checkName := fmt.Sprintf("svcchk-%s", httpCheck.String(service.InternalPort))
+				machineCheck, err := httpCheck.toMachineCheck(service.InternalPort, appLaunching)
+				if err != nil {
+					return nil, err
+				}
+				procConfigToUpdate.MachineChecks[checkName] = *machineCheck
+			}
+			for _, tcpCheck := range service.TcpChecks {
+				checkName := fmt.Sprintf("svcchk-%s", tcpCheck.String(service.InternalPort))
+				machineCheck, err := tcpCheck.toMachineCheck(service.InternalPort, appLaunching)
+				if err != nil {
+					return nil, err
+				}
+				procConfigToUpdate.MachineChecks[checkName] = *machineCheck
+			}
+			res[processName] = procConfigToUpdate
+		} else { // len(service.Processes) > 0 && processCount > 0
 			for _, processName := range service.Processes {
-				if _, present := res[processName]; !present {
+				procConfigToUpdate, present := res[processName]
+				if !present {
 					return nil, fmt.Errorf("error service specifies '%s' as one of its processes, but no processes are defined with that name; update fly.toml [processes] to include a %s process", processName, processName)
 				}
-				servicesToUpdate := res[processName]
-				servicesToUpdate.MachineServices = append(servicesToUpdate.MachineServices, *service.ToMachineService())
-				res[processName] = servicesToUpdate
+				procConfigToUpdate.MachineServices = append(procConfigToUpdate.MachineServices, *service.ToMachineService())
+				for _, httpCheck := range service.HttpChecks {
+					checkName := fmt.Sprintf("svcchk-%s", httpCheck.String(service.InternalPort))
+					machineCheck, err := httpCheck.toMachineCheck(service.InternalPort, appLaunching)
+					if err != nil {
+						return nil, err
+					}
+					procConfigToUpdate.MachineChecks[checkName] = *machineCheck
+				}
+				for _, tcpCheck := range service.TcpChecks {
+					checkName := fmt.Sprintf("svcchk-%s", tcpCheck.String(service.InternalPort))
+					machineCheck, err := tcpCheck.toMachineCheck(service.InternalPort, appLaunching)
+					if err != nil {
+						return nil, err
+					}
+					procConfigToUpdate.MachineChecks[checkName] = *machineCheck
+				}
+				res[processName] = procConfigToUpdate
 			}
 		}
 	}

@@ -80,6 +80,21 @@ func New() (cmd *cobra.Command) {
 			Description: "If a .dockerignore does not exist, create one from .gitignore files",
 			Default:     false,
 		},
+		flag.Bool{
+			Name:        "force-nomad",
+			Description: "Use the Apps v1 platform built with Nomad",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "force-machines",
+			Description: "Use the Apps v2 platform built with Machines",
+			Default:     false,
+		},
+		flag.Int{
+			Name:        "internal-port",
+			Description: "Set internal_port for all services in the generated fly.toml",
+			Default:     -1,
+		},
 	)
 
 	return
@@ -101,7 +116,7 @@ func run(ctx context.Context) (err error) {
 	configFilePath := filepath.Join(workingDir, "fly.toml")
 
 	if exists, _ := flyctl.ConfigFileExistsAtPath(configFilePath); exists {
-		cfg, err := app.LoadConfig(ctx, configFilePath, "nomad")
+		cfg, err := app.LoadConfig(ctx, configFilePath)
 		if err != nil {
 			return err
 		}
@@ -114,13 +129,19 @@ func run(ctx context.Context) (err error) {
 			if err != nil {
 				return err
 			}
+			ctx = app.WithName(ctx, cfg.AppName)
 		} else {
 			fmt.Fprintln(io.Out, "An existing fly.toml file was found")
 		}
 
 		if deployExisting {
 			fmt.Fprintln(io.Out, "App is not running, deploy...")
-			return deploy.DeployWithConfig(ctx, cfg)
+			return deploy.DeployWithConfig(ctx, cfg, deploy.DeployWithConfigArgs{
+				Launching:     true,
+				ForceNomad:    flag.GetBool(ctx, "force-nomad"),
+				ForceMachines: flag.GetBool(ctx, "force-machines"),
+				ForceYes:      flag.GetBool(ctx, "now"),
+			})
 		}
 
 		copyConfig := false
@@ -295,6 +316,12 @@ func run(ctx context.Context) (err error) {
 	}
 
 	appConfig.AppName = createdApp.Name
+	ctx = app.WithName(ctx, appConfig.AppName)
+
+	internalPortFromFlag := flag.GetInt(ctx, "internal-port")
+	if internalPortFromFlag > 0 {
+		appConfig.SetInternalPort(internalPortFromFlag)
+	}
 
 	if srcInfo != nil {
 		if srcInfo.Port > 0 {
@@ -436,9 +463,16 @@ func run(ctx context.Context) (err error) {
 
 	// Finally, write the config
 
-	if err = appConfig.WriteToDisk(ctx, filepath.Join(workingDir, "fly.toml")); err != nil {
+	flyTomlPath := filepath.Join(workingDir, "fly.toml")
+	if err = appConfig.WriteToDisk(ctx, flyTomlPath); err != nil {
 		return err
 	}
+	// round trip config, because some magic happens to populate stuff like services
+	reloadedAppConfig, err := app.LoadConfig(ctx, flyTomlPath)
+	if err != nil {
+		return err
+	}
+	ctx = app.WithConfig(ctx, reloadedAppConfig)
 
 	if srcInfo == nil {
 		return nil
@@ -471,6 +505,29 @@ func run(ctx context.Context) (err error) {
 
 	}
 
+	if !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !flag.GetBool(ctx, "auto-confirm") && reloadedAppConfig.HasNonHttpAndHttpsStandardServices() {
+		hasUdpService := reloadedAppConfig.HasUdpService()
+		ipStuffStr := "a dedicated ipv4 address"
+		if !hasUdpService {
+			ipStuffStr = "dedicated ipv4 and ipv6 addresses"
+		}
+		confirmDedicatedIp, err := prompt.Confirmf(ctx, "Would you like to allocate %s now?", ipStuffStr)
+		if confirmDedicatedIp && err == nil {
+			v4Dedicated, err := client.AllocateIPAddress(ctx, createdApp.Name, "v4", "", nil, "")
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(io.Out, "Allocated dedicated ipv4: %s\n", v4Dedicated.Address)
+			if !hasUdpService {
+				v6Dedicated, err := client.AllocateIPAddress(ctx, createdApp.Name, "v6", "", nil, "")
+				if err != nil {
+					return err
+				}
+				fmt.Fprintf(io.Out, "Allocated dedicated ipv6: %s\n", v6Dedicated.Address)
+			}
+		}
+	}
+
 	// Notices from a launcher about its behavior that should always be displayed
 	if srcInfo.Notice != "" {
 		fmt.Fprintln(io.Out, srcInfo.Notice)
@@ -497,7 +554,12 @@ func run(ctx context.Context) (err error) {
 	}
 
 	if deployNow {
-		return deploy.DeployWithConfig(ctx, appConfig)
+		return deploy.DeployWithConfig(ctx, appConfig, deploy.DeployWithConfigArgs{
+			Launching:     true,
+			ForceNomad:    flag.GetBool(ctx, "force-nomad"),
+			ForceMachines: flag.GetBool(ctx, "force-machines"),
+			ForceYes:      flag.GetBool(ctx, "now"),
+		})
 	}
 
 	// Alternative deploy documentation if our standard deploy method is not correct
