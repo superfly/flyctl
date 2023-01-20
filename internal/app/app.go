@@ -259,9 +259,9 @@ func (hc *ServiceHTTPCheck) toCheck() *api.Check {
 	}
 	check.HTTPSkipTLSVerify = api.Pointer(hc.TLSSkipVerify)
 	if len(hc.Headers) > 0 {
-		headers := make([]api.HTTPHeader, len(hc.Headers))
+		check.HTTPHeaders = make([]api.HTTPHeader, len(hc.Headers))
 		for name, value := range hc.Headers {
-			headers = append(headers, api.HTTPHeader{Name: name, Value: value})
+			check.HTTPHeaders = append(check.HTTPHeaders, api.HTTPHeader{Name: name, Value: value})
 		}
 	}
 	return check
