@@ -703,12 +703,17 @@ type ProcessConfig struct {
 func (c *Config) GetProcessConfigs(appLaunching bool) (map[string]ProcessConfig, error) {
 	res := make(map[string]ProcessConfig)
 	processCount := len(c.Processes)
+	configProcesses := make(map[string]string)
 	if processCount == 0 {
-		c.Processes = map[string]string{"": ""}
+		configProcesses[""] = ""
+	} else {
+		for k, v := range c.Processes {
+			configProcesses[k] = v
+		}
 	}
-	defaultProcessName := lo.Keys(c.Processes)[0]
+	defaultProcessName := lo.Keys(configProcesses)[0]
 
-	for processName, cmdStr := range c.Processes {
+	for processName, cmdStr := range configProcesses {
 		cmd := make([]string, 0)
 		if cmdStr != "" {
 			cmd = shlex.Split(cmdStr, " ")
