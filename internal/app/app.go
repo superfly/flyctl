@@ -704,7 +704,7 @@ func (c *Config) GetProcessConfigs(appLaunching bool) (map[string]ProcessConfig,
 	res := make(map[string]ProcessConfig)
 	processCount := len(c.Processes)
 	if processCount == 0 {
-		c.Processes[""] = ""
+		c.Processes = map[string]string{"": ""}
 	}
 	defaultProcessName := lo.Keys(c.Processes)[0]
 
