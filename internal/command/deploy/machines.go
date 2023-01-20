@@ -682,6 +682,12 @@ func (md *machineDeployment) createOneMachine(ctx context.Context) error {
 		// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
 		if err != nil {
 			return err
+		} else {
+			md.logClearLinesAbove(1)
+			fmt.Fprintf(md.io.ErrOut, "  Machine %s update finished: %s\n",
+				md.colorize.Bold(newMachine.FormattedMachineId()),
+				md.colorize.Green("success"),
+			)
 		}
 	}
 	fmt.Fprintf(md.io.ErrOut, "  Finished deploying\n")
