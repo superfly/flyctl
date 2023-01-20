@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/buildkite/shellwords"
 	"github.com/jpillora/backoff"
 	"github.com/morikuni/aec"
 	"github.com/superfly/flyctl/api"
@@ -58,7 +59,7 @@ type machineDeployment struct {
 	img                        *imgsrc.DeploymentImage
 	machineSet                 MachineSet
 	releaseCommandMachine      MachineSet
-	releaseCommand             string
+	releaseCommand             []string
 	volumeDestination          string
 	strategy                   string
 	releaseId                  string
@@ -495,9 +496,12 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err != nil {
 		return nil, err
 	}
-	releaseCmd := ""
+	var releaseCmd []string
 	if appConfig.Deploy != nil {
-		releaseCmd = appConfig.Deploy.ReleaseCommand
+		releaseCmd, err = shellwords.Split(appConfig.Deploy.ReleaseCommand)
+		if err != nil {
+			return nil, err
+		}
 	}
 	waitTimeout := args.WaitTimeout
 	if waitTimeout == 0 {
@@ -566,7 +570,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 }
 
 func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
-	if md.releaseCommand == "" || md.restartOnly {
+	if len(md.releaseCommand) == 0 || md.restartOnly {
 		return nil
 	}
 	io := iostreams.FromContext(ctx)
@@ -779,7 +783,7 @@ func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context
 }
 
 func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *api.LaunchMachineInput) *api.LaunchMachineInput {
-	launchInput.Config.Init.Cmd = strings.Split(md.releaseCommand, " ")
+	launchInput.Config.Init.Cmd = md.releaseCommand
 	launchInput.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = api.MachineProcessGroupFlyAppReleaseCommand
 	launchInput.Config.Services = nil
 	launchInput.Config.Checks = nil
@@ -798,7 +802,7 @@ func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *
 }
 
 func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) error {
-	if md.releaseCommand == "" || !md.releaseCommandMachine.IsEmpty() {
+	if len(md.releaseCommand) == 0 || !md.releaseCommandMachine.IsEmpty() {
 		return nil
 	}
 	launchInput := md.resolveUpdatedMachineConfig(nil)
@@ -813,7 +817,7 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 }
 
 func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) error {
-	if md.releaseCommand == "" {
+	if len(md.releaseCommand) == 0 {
 		return nil
 	}
 	if md.releaseCommandMachine.IsEmpty() {
