@@ -139,7 +139,7 @@ func (hs *HTTPService) toMachineService() *api.MachineService {
 }
 
 func (s *Service) toMachineService() *api.MachineService {
-	checks := make([]api.Check, len(s.TCPChecks)+len(s.HTTPChecks))
+	checks := make([]api.Check, 0)
 	for _, tc := range s.TCPChecks {
 		checks = append(checks, *tc.toCheck())
 	}
