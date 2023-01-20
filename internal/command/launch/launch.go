@@ -568,6 +568,56 @@ func run(ctx context.Context) (err error) {
 		return nil
 	}
 
+	if !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !srcInfo.SkipDatabase {
+
+		confirmPg, err := prompt.Confirm(ctx, "Would you like to set up a Postgresql database now?")
+
+		if confirmPg && err == nil {
+			LaunchPostgres(ctx, createdApp, org, region)
+		}
+
+		confirmRedis, err := prompt.Confirm(ctx, "Would you like to set up an Upstash Redis database now?")
+
+		if confirmRedis && err == nil {
+			LaunchRedis(ctx, createdApp, org, region)
+		}
+
+		// Run any initialization commands required for Postgres if it was installed
+		if confirmPg && len(srcInfo.PostgresInitCommands) > 0 {
+			for _, cmd := range srcInfo.PostgresInitCommands {
+				if cmd.Condition {
+					if err := execInitCommand(ctx, cmd); err != nil {
+						return err
+					}
+				}
+			}
+		}
+
+	}
+
+	if !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !flag.GetBool(ctx, "auto-confirm") && reloadedAppConfig.HasNonHttpAndHttpsStandardServices() {
+		hasUdpService := reloadedAppConfig.HasUdpService()
+		ipStuffStr := "a dedicated ipv4 address"
+		if !hasUdpService {
+			ipStuffStr = "dedicated ipv4 and ipv6 addresses"
+		}
+		confirmDedicatedIp, err := prompt.Confirmf(ctx, "Would you like to allocate %s now?", ipStuffStr)
+		if confirmDedicatedIp && err == nil {
+			v4Dedicated, err := client.AllocateIPAddress(ctx, createdApp.Name, "v4", "", nil, "")
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(io.Out, "Allocated dedicated ipv4: %s\n", v4Dedicated.Address)
+			if !hasUdpService {
+				v6Dedicated, err := client.AllocateIPAddress(ctx, createdApp.Name, "v6", "", nil, "")
+				if err != nil {
+					return err
+				}
+				fmt.Fprintf(io.Out, "Allocated dedicated ipv6: %s\n", v6Dedicated.Address)
+			}
+		}
+	}
+
 	// Notices from a launcher about its behavior that should always be displayed
 	if srcInfo.Notice != "" {
 		fmt.Fprintln(io.Out, srcInfo.Notice)

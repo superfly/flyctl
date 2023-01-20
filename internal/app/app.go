@@ -301,6 +301,35 @@ func (ac *Config) HasBuiltin() bool {
 	return ac.Build != nil && ac.Build.Builtin != ""
 }
 
+func (c *Config) HasNonHttpAndHttpsStandardServices() bool {
+	for _, service := range c.Services {
+		switch service.Protocol {
+		case "udp":
+			return true
+		case "tcp":
+			for _, p := range service.Ports {
+				if p.HasNonHttpPorts() {
+					return true
+				} else if p.ContainsPort(80) && (len(p.Handlers) != 1 || p.Handlers[0] != "http") {
+					return true
+				} else if p.ContainsPort(443) && (len(p.Handlers) != 2 || p.Handlers[0] != "tls" || p.Handlers[1] != "http") {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (c *Config) HasUdpService() bool {
+	for _, service := range c.Services {
+		if service.Protocol == "udp" {
+			return true
+		}
+	}
+	return false
+}
+
 func (ac *Config) Image() string {
 	if ac.Build == nil {
 		return ""
