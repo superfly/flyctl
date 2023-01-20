@@ -47,6 +47,7 @@ type MachineDeploymentArgs struct {
 }
 
 type machineDeployment struct {
+	apiClient                  *api.Client
 	gqlClient                  graphql.Client
 	flapsClient                *flaps.Client
 	io                         *iostreams.IOStreams
@@ -514,8 +515,10 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		return nil, err
 	}
 	io := iostreams.FromContext(ctx)
+	apiClient := client.FromContext(ctx).API()
 	md := &machineDeployment{
-		gqlClient:                  client.FromContext(ctx).API().GenqClient,
+		apiClient:                  apiClient,
+		gqlClient:                  apiClient.GenqClient,
 		flapsClient:                flapsClient,
 		io:                         io,
 		colorize:                   io.ColorScheme(),
@@ -548,6 +551,10 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		return nil, err
 	}
 	err = md.validateVolumeConfig()
+	if err != nil {
+		return nil, err
+	}
+	err = md.provisionIpsOnFirstDeploy(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -1023,4 +1030,32 @@ func isFlyAppsPlatformMetadata(key string) bool {
 		key == api.MachineConfigMetadataKeyFlyReleaseId ||
 		key == api.MachineConfigMetadataKeyFlyReleaseVersion ||
 		key == api.MachineConfigMetadataKeyFlyManagedPostgres
+}
+
+func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context) error {
+	if md.app.Deployed {
+		return nil
+	}
+	if md.appConfig.HttpService != nil || len(md.appConfig.Services) > 0 {
+		ipAddrs, err := md.apiClient.GetIPAddresses(ctx, md.app.Name)
+		if err != nil {
+			return fmt.Errorf("error detecting ip addresses allocated to %s app: %w", md.app.Name, err)
+		}
+		if len(ipAddrs) > 0 {
+			return nil
+		}
+		fmt.Fprintf(md.io.Out, "Provisioning ips for %s\n", md.colorize.Bold(md.app.Name))
+		v6Addr, err := md.apiClient.AllocateIPAddress(ctx, md.app.Name, "v6", "", nil, "")
+		if err != nil {
+			return fmt.Errorf("error allocating ipv6 after detecting first deploy and presence of services: %w", err)
+		}
+		fmt.Fprintf(md.io.Out, "  Dedicated ipv6: %s\n", v6Addr.Address)
+		v4Shared, err := md.apiClient.AllocateSharedIPAddress(ctx, md.app.Name)
+		if err != nil {
+			return fmt.Errorf("error allocating shared ipv4 after detecting first deploy and presence of services: %w", err)
+		}
+		fmt.Fprintf(md.io.Out, "  Shared ipv4: %s\n", v4Shared)
+		fmt.Fprintf(md.io.Out, "  Add a dedicated ipv4 with: fly ips allocate-v4\n")
+	}
+	return nil
 }
