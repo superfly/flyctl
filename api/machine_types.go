@@ -5,18 +5,20 @@ import (
 	"time"
 )
 
-const MachineConfigMetadataKeyFlyManagedPostgres = "fly-managed-postgres"
-const MachineConfigMetadataKeyFlyPlatformVersion = "fly_platform_version"
-const MachineConfigMetadataKeyFlyReleaseId = "fly_release_id"
-const MachineConfigMetadataKeyFlyReleaseVersion = "fly_release_version"
-const MachineConfigMetadataKeyFlyProcessGroup = "fly_process_group"
-const MachineFlyPlatformVersion2 = "v2"
-const MachineProcessGroupApp = "app"
-const MachineProcessGroupFlyAppReleaseCommand = "fly_app_release_command"
-const MachineStateDestroyed = "destroyed"
-const MachineStateDestroying = "destroying"
-const MachineStateStarted = "started"
-const MachineStateStopped = "stopped"
+const (
+	MachineConfigMetadataKeyFlyManagedPostgres = "fly-managed-postgres"
+	MachineConfigMetadataKeyFlyPlatformVersion = "fly_platform_version"
+	MachineConfigMetadataKeyFlyReleaseId       = "fly_release_id"
+	MachineConfigMetadataKeyFlyReleaseVersion  = "fly_release_version"
+	MachineConfigMetadataKeyFlyProcessGroup    = "fly_process_group"
+	MachineFlyPlatformVersion2                 = "v2"
+	MachineProcessGroupApp                     = "app"
+	MachineProcessGroupFlyAppReleaseCommand    = "fly_app_release_command"
+	MachineStateDestroyed                      = "destroyed"
+	MachineStateDestroying                     = "destroying"
+	MachineStateStarted                        = "started"
+	MachineStateStopped                        = "stopped"
+)
 
 type Machine struct {
 	ID       string          `json:"id"`
@@ -246,12 +248,17 @@ type MachineMetrics struct {
 }
 
 type MachineCheck struct {
-	Type       string    `json:"type,omitempty"`
-	Port       uint16    `json:"port,omitempty"`
-	Interval   *Duration `json:"interval,omitempty" toml:",omitempty"`
-	Timeout    *Duration `json:"timeout,omitempty" toml:",omitempty"`
-	HTTPMethod *string   `json:"method,omitempty" toml:"method,omitempty"`
-	HTTPPath   *string   `json:"path,omitempty" toml:"path,omitempty"`
+	Type              string              `json:"type,omitempty"`
+	Port              uint16              `json:"port,omitempty"`
+	Interval          *Duration           `json:"interval,omitempty"`
+	Timeout           *Duration           `json:"timeout,omitempty"`
+	GracePeriod       *uint64             `json:"grace_period,omitempty"`
+	RestartLimit      *uint64             `json:"restart_limit,omitempty"`
+	HTTPMethod        *string             `json:"method,omitempty"`
+	HTTPPath          *string             `json:"path,omitempty"`
+	HTTPProtocol      *string             `json:"protocol,omitempty"`
+	HTTPSkipTLSVerify *bool               `json:"tls_skip_verify,omitempty"`
+	HTTPHeaders       map[string][]string `json:"headers,omitempty"`
 }
 
 type MachineCheckStatus struct {
@@ -321,6 +328,7 @@ type MachineService struct {
 	Protocol     string                     `json:"protocol" toml:"protocol"`
 	InternalPort int                        `json:"internal_port" toml:"internal_port"`
 	Ports        []MachinePort              `json:"ports" toml:"ports"`
+	Checks       []Check                    `json:"checks,omitempty" toml:"checks,omitempty"`
 	Concurrency  *MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
 }
 
