@@ -81,6 +81,7 @@ type Config struct {
 	Checks        map[string]*Check      `toml:"checks,omitempty" json:"checks,omitempty"`
 	Mounts        *scanner.Volume        `toml:"mounts,omitempty" json:"mounts,omitempty"`
 	Processes     map[string]string      `toml:"processes,omitempty" json:"processes,omitempty"`
+	Experimental  Experimental           `toml:"experimental,omitempty" json:"experimental,omitempty"`
 }
 
 type Deploy struct {
@@ -288,6 +289,15 @@ type Build struct {
 	Dockerfile        string                 `toml:"dockerfile,omitempty"`
 	Ignorefile        string                 `toml:"ignorefile,omitempty"`
 	DockerBuildTarget string                 `toml:"build-target,omitempty"`
+}
+
+type Experimental struct {
+	Cmd          []string `toml:"cmd,omitempty"`
+	Entrypoint   []string `toml:"entrypoint,omitempty"`
+	Exec         []string `toml:"exec,omitempty"`
+	AutoRollback bool     `toml:"auto_rollback,omitempty"`
+	EnableConsul bool     `toml:"enable_consul,omitempty"`
+	EnableEtcd   bool     `toml:"enable_etcd,omitempty"`
 }
 
 func (c *Config) HasDefinition() bool {
