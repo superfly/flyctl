@@ -197,6 +197,7 @@ func runSSHIssue(ctx context.Context) (err error) {
 		pf, err = os.OpenFile(rootname, mode, 0o600)
 		if err != nil {
 			fmt.Fprintf(out, "Can't open private key file: %s\n", err)
+			rootname = ""
 			continue
 		}
 
