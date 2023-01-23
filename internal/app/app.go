@@ -139,7 +139,7 @@ func (hs *HTTPService) toMachineService() *api.MachineService {
 }
 
 func (s *Service) toMachineService() *api.MachineService {
-	checks := make([]api.Check, 0)
+	checks := make([]api.Check, 0, len(s.TCPChecks)+len(s.HTTPChecks))
 	for _, tc := range s.TCPChecks {
 		checks = append(checks, *tc.toCheck())
 	}
@@ -259,7 +259,7 @@ func (hc *ServiceHTTPCheck) toCheck() *api.Check {
 	}
 	check.HTTPSkipTLSVerify = api.Pointer(hc.TLSSkipVerify)
 	if len(hc.Headers) > 0 {
-		check.HTTPHeaders = make([]api.HTTPHeader, len(hc.Headers))
+		check.HTTPHeaders = make([]api.HTTPHeader, 0, len(hc.Headers))
 		for name, value := range hc.Headers {
 			check.HTTPHeaders = append(check.HTTPHeaders, api.HTTPHeader{Name: name, Value: value})
 		}
