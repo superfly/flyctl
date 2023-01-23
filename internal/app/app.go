@@ -726,13 +726,9 @@ type ProcessConfig struct {
 func (c *Config) GetProcessConfigs(appLaunching bool) (map[string]ProcessConfig, error) {
 	res := make(map[string]ProcessConfig)
 	processCount := len(c.Processes)
-	configProcesses := make(map[string]string)
+	configProcesses := lo.Assign(c.Processes)
 	if processCount == 0 {
 		configProcesses[""] = ""
-	} else {
-		for k, v := range c.Processes {
-			configProcesses[k] = v
-		}
 	}
 	defaultProcessName := lo.Keys(configProcesses)[0]
 
