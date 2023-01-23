@@ -712,7 +712,11 @@ func (c *Config) GetProcessConfigs(appLaunching bool) (map[string]ProcessConfig,
 	for processName, cmdStr := range configProcesses {
 		cmd := make([]string, 0)
 		if cmdStr != "" {
-			cmd = shlex.Split(cmdStr, " ")
+			var err error
+			cmd, err = shlex.Split(cmdStr)
+			if err != nil {
+				return nil, fmt.Errorf("could not parse command for %s process group: %w", processName, err)
+			}
 		}
 		res[processName] = ProcessConfig{
 			Cmd:      cmd,
