@@ -726,15 +726,12 @@ func (c *Config) GetProcessConfigs(appLaunching bool) (map[string]ProcessConfig,
 	}
 
 	for checkName, check := range c.Checks {
-		fullCheckName := fmt.Sprintf("chk-%s-%s", checkName, check.String())
 		machineCheck, err := check.toMachineCheck(appLaunching)
 		if err != nil {
 			return nil, err
 		}
-		for processName := range res {
-			procToUpdate := res[processName]
-			procToUpdate.Checks[fullCheckName] = *machineCheck
-			res[processName] = procToUpdate
+		for _, toUpdate := range res {
+			toUpdate.Checks[checkName] = *machineCheck
 		}
 	}
 
@@ -743,9 +740,8 @@ func (c *Config) GetProcessConfigs(appLaunching bool) (map[string]ProcessConfig,
 			return nil, fmt.Errorf("http_service is not supported when more than one processes are defined "+
 				"for an app, and this app has %d processes", processCount)
 		}
-		servicesToUpdate := res[defaultProcessName]
-		servicesToUpdate.Services = append(servicesToUpdate.Services, *c.HttpService.toMachineService())
-		res[defaultProcessName] = servicesToUpdate
+		toUpdate := res[defaultProcessName]
+		toUpdate.Services = append(toUpdate.Services, *c.HttpService.toMachineService())
 	}
 
 	for _, service := range c.Services {
