@@ -254,11 +254,13 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 	}
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+
 	shortestInterval := 120 * time.Second
 	for _, c := range lm.Machine().Config.Checks {
-		ci := c.Interval.Duration
-		if ci < shortestInterval {
-			shortestInterval = ci
+		if c.Interval != nil {
+			if c.Interval.Duration < shortestInterval {
+				shortestInterval = c.Interval.Duration
+			}
 		}
 	}
 	b := &backoff.Backoff{
@@ -267,6 +269,7 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 		Factor: 2,
 		Jitter: true,
 	}
+
 	printedFirst := false
 	for {
 		updateMachine, err := lm.flapsClient.Get(waitCtx, lm.Machine().ID)
