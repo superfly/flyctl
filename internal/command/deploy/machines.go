@@ -2,8 +2,10 @@ package deploy
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -57,7 +59,7 @@ type machineDeployment struct {
 	colorize                   *iostreams.ColorScheme
 	app                        *api.AppCompact
 	appConfig                  *app.Config
-	processConfigs             map[string]app.ProcessConfig
+	processConfigs             map[string]*app.ProcessConfig
 	img                        *imgsrc.DeploymentImage
 	machineSet                 MachineSet
 	releaseCommandMachine      MachineSet
@@ -641,6 +643,10 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	fmt.Fprintf(md.io.Out, "Deploying %s app with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
 	for _, m := range md.machineSet.GetMachines() {
 		launchInput := md.resolveUpdatedMachineConfig(m.Machine())
+
+		ss, _ := json.Marshal(launchInput)
+		os.WriteFile("/tmp/launchinput.json", ss, 0666)
+
 		fmt.Fprintf(md.io.ErrOut, "  Updating %s\n", md.colorize.Bold(m.FormattedMachineId()))
 		err := m.Update(ctx, *launchInput)
 		if err != nil {
@@ -1015,10 +1021,11 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 	}
 	launchInput.Config.Init = origMachineRaw.Config.Init
 	processGroup := origMachineRaw.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
-	processConfig := md.processConfigs[processGroup]
-	launchInput.Config.Services = processConfig.Services
-	launchInput.Config.Init.Cmd = processConfig.Cmd
-	launchInput.Config.Checks = processConfig.Checks
+	if processConfig, ok := md.processConfigs[processGroup]; ok {
+		launchInput.Config.Services = processConfig.Services
+		launchInput.Config.Init.Cmd = processConfig.Cmd
+		launchInput.Config.Checks = processConfig.Checks
+	}
 	return launchInput
 }
 

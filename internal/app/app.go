@@ -723,8 +723,8 @@ type ProcessConfig struct {
 	Checks   map[string]api.MachineCheck
 }
 
-func (c *Config) GetProcessConfigs(appLaunching bool) (map[string]ProcessConfig, error) {
-	res := make(map[string]ProcessConfig)
+func (c *Config) GetProcessConfigs(appLaunching bool) (map[string]*ProcessConfig, error) {
+	res := make(map[string]*ProcessConfig)
 	processCount := len(c.Processes)
 	configProcesses := lo.Assign(c.Processes)
 	if processCount == 0 {
@@ -741,7 +741,7 @@ func (c *Config) GetProcessConfigs(appLaunching bool) (map[string]ProcessConfig,
 				return nil, fmt.Errorf("could not parse command for %s process group: %w", processName, err)
 			}
 		}
-		res[processName] = ProcessConfig{
+		res[processName] = &ProcessConfig{
 			Cmd:      cmd,
 			Services: make([]api.MachineService, 0),
 			Checks:   make(map[string]api.MachineCheck),
@@ -753,8 +753,8 @@ func (c *Config) GetProcessConfigs(appLaunching bool) (map[string]ProcessConfig,
 		if err != nil {
 			return nil, err
 		}
-		for _, toUpdate := range res {
-			toUpdate.Checks[checkName] = *machineCheck
+		for _, pc := range res {
+			pc.Checks[checkName] = *machineCheck
 		}
 	}
 
@@ -774,22 +774,20 @@ func (c *Config) GetProcessConfigs(appLaunching bool) (map[string]ProcessConfig,
 				"update fly.toml to set processes for each service", processCount)
 		case len(service.Processes) == 0 || processCount == 0:
 			processName := defaultProcessName
-			procConfigToUpdate, present := res[processName]
+			pc, present := res[processName]
 			if processCount > 0 && !present {
 				return nil, fmt.Errorf("error service specifies '%s' as one of its processes, but no "+
 					"processes are defined with that name; update fly.toml [processes] to include a %s process", processName, processName)
 			}
-			procConfigToUpdate.Services = append(procConfigToUpdate.Services, *service.toMachineService())
-			res[processName] = procConfigToUpdate
+			pc.Services = append(pc.Services, *service.toMachineService())
 		default:
 			for _, processName := range service.Processes {
-				procConfigToUpdate, present := res[processName]
+				pc, present := res[processName]
 				if !present {
 					return nil, fmt.Errorf("error service specifies '%s' as one of its processes, but no "+
 						"processes are defined with that name; update fly.toml [processes] to include a %s process", processName, processName)
 				}
-				procConfigToUpdate.Services = append(procConfigToUpdate.Services, *service.toMachineService())
-				res[processName] = procConfigToUpdate
+				pc.Services = append(pc.Services, *service.toMachineService())
 			}
 		}
 	}
