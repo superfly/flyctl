@@ -872,16 +872,16 @@ type PortHandler struct {
 }
 
 type Check struct {
-	Type              string       `json:"type"`
-	Interval          *uint64      `json:"interval"`
-	Timeout           *uint64      `json:"timeout"`
-	GracePeriod       *uint64      `json:"grace_period"`
-	RestartLimit      *uint64      `json:"restart_limit"`
-	HTTPMethod        *string      `json:"httpMethod"`
-	HTTPPath          *string      `json:"httpPath"`
-	HTTPProtocol      *string      `json:"httpProtocol"`
-	HTTPSkipTLSVerify *bool        `json:"httpTlsSkipVerify"`
-	HTTPHeaders       []HTTPHeader `json:"httpHeaders"`
+	Type              string       `json:"type,omitempty"`
+	Interval          *uint64      `json:"interval,omitempty"`
+	Timeout           *uint64      `json:"timeout,omitempty"`
+	GracePeriod       *uint64      `json:"grace_period,omitempty"`
+	RestartLimit      *uint64      `json:"restart_limit,omitempty"`
+	HTTPMethod        *string      `json:"httpMethod,omitempty"`
+	HTTPPath          *string      `json:"httpPath,omitempty"`
+	HTTPProtocol      *string      `json:"httpProtocol,omitempty"`
+	HTTPSkipTLSVerify *bool        `json:"httpTlsSkipVerify,omitempty"`
+	HTTPHeaders       []HTTPHeader `json:"httpHeaders,omitempty"`
 }
 
 type HTTPHeader struct {
