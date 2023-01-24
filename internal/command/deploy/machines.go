@@ -2,10 +2,8 @@ package deploy
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -643,9 +641,6 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	fmt.Fprintf(md.io.Out, "Deploying %s app with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
 	for _, m := range md.machineSet.GetMachines() {
 		launchInput := md.resolveUpdatedMachineConfig(m.Machine())
-
-		ss, _ := json.Marshal(launchInput)
-		os.WriteFile("/tmp/launchinput.json", ss, 0666)
 
 		fmt.Fprintf(md.io.ErrOut, "  Updating %s\n", md.colorize.Bold(m.FormattedMachineId()))
 		err := m.Update(ctx, *launchInput)
