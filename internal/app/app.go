@@ -23,6 +23,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -184,43 +185,28 @@ type ToplevelCheck struct {
 }
 
 func (chk *ToplevelCheck) toMachineCheck() (*api.MachineCheck, error) {
-	if chk.GracePeriod != nil {
-		return nil, fmt.Errorf("checks for machines do not yet support grace_period")
-	}
-	if chk.RestartLimit != nil {
-		return nil, fmt.Errorf("checks for machines do not yet support restart_limit")
-	}
-	if chk.HTTPProtocol != nil {
-		return nil, fmt.Errorf("checks for machines do not yet support protocol")
-	}
 	if len(chk.Headers) > 0 {
 		return nil, fmt.Errorf("checks for machines do not yet support headers")
 	}
-	res := &api.MachineCheck{
-		Type:     chk.Type,
-		Port:     chk.Port,
-		Interval: chk.Interval,
-		Timeout:  chk.Timeout,
+	if chk.Type == nil || !slices.Contains([]string{"http", "tcp"}, *chk.Type) {
+		return nil, fmt.Errorf("Missing or invalid check type, must be 'http' or 'tcp'")
 	}
-	if chk.Type == nil {
-		return nil, fmt.Errorf("Missing type, it must be one of 'http' or 'tcp'")
-	} else {
-		switch *chk.Type {
-		case "tcp":
-		case "http":
-			if chk.HTTPMethod != nil {
-				res.HTTPMethod = api.Pointer(strings.ToUpper(*chk.HTTPMethod))
-			}
-			res.HTTPPath = chk.HTTPPath
-			res.HTTPProtocol = chk.HTTPProtocol
-			res.HTTPSkipTLSVerify = chk.TLSSkipVerify
-			res.HTTPHeaders = lo.MapToSlice(
-				chk.Headers, func(k string, v string) api.MachineHTTPHeader {
-					return api.MachineHTTPHeader{Name: k, Values: []string{v}}
-				})
-		default:
-			return nil, fmt.Errorf("error unknown check type: %s", *chk.Type)
-		}
+
+	res := &api.MachineCheck{
+		Type:              chk.Type,
+		Port:              chk.Port,
+		Interval:          chk.Interval,
+		Timeout:           chk.Timeout,
+		HTTPPath:          chk.HTTPPath,
+		HTTPProtocol:      chk.HTTPProtocol,
+		HTTPSkipTLSVerify: chk.TLSSkipVerify,
+		HTTPHeaders: lo.MapToSlice(
+			chk.Headers, func(k string, v string) api.MachineHTTPHeader {
+				return api.MachineHTTPHeader{Name: k, Values: []string{v}}
+			}),
+	}
+	if chk.HTTPMethod != nil {
+		res.HTTPMethod = api.Pointer(strings.ToUpper(*chk.HTTPMethod))
 	}
 	return res, nil
 }
