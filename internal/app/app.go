@@ -110,8 +110,8 @@ type Service struct {
 	Processes    []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
-func (hs *HTTPService) toMachineService() *api.MachineService {
-	concurrency := hs.Concurrency
+func (svc *HTTPService) toMachineService() *api.MachineService {
+	concurrency := svc.Concurrency
 	if concurrency != nil {
 		if concurrency.Type == "" {
 			concurrency.Type = "requests"
@@ -125,11 +125,11 @@ func (hs *HTTPService) toMachineService() *api.MachineService {
 	}
 	return &api.MachineService{
 		Protocol:     "tcp",
-		InternalPort: hs.InternalPort,
+		InternalPort: svc.InternalPort,
 		Ports: []api.MachinePort{{
 			Port:       api.IntPointer(80),
 			Handlers:   []string{"http"},
-			ForceHttps: hs.ForceHttps,
+			ForceHttps: svc.ForceHttps,
 		}, {
 			Port:     api.IntPointer(443),
 			Handlers: []string{"http", "tls"},
@@ -138,19 +138,19 @@ func (hs *HTTPService) toMachineService() *api.MachineService {
 	}
 }
 
-func (s *Service) toMachineService() *api.MachineService {
-	checks := make([]api.Check, 0, len(s.TCPChecks)+len(s.HTTPChecks))
-	for _, tc := range s.TCPChecks {
-		checks = append(checks, *tc.toCheck())
+func (svc *Service) toMachineService() *api.MachineService {
+	checks := make([]api.MachineCheck, 0, len(svc.TCPChecks)+len(svc.HTTPChecks))
+	for _, tc := range svc.TCPChecks {
+		checks = append(checks, *tc.toMachineCheck())
 	}
-	for _, hc := range s.HTTPChecks {
-		checks = append(checks, *hc.toCheck())
+	for _, hc := range svc.HTTPChecks {
+		checks = append(checks, *hc.toMachineCheck())
 	}
 	return &api.MachineService{
-		Protocol:     s.Protocol,
-		InternalPort: s.InternalPort,
-		Ports:        s.Ports,
-		Concurrency:  s.Concurrency,
+		Protocol:     svc.Protocol,
+		InternalPort: svc.InternalPort,
+		Ports:        svc.Ports,
+		Concurrency:  svc.Concurrency,
 		Checks:       checks,
 	}
 }
@@ -159,136 +159,123 @@ type ServiceTCPCheck struct {
 	Interval     *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
 	Timeout      *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
 	GracePeriod  *api.Duration `json:"grace_period,omitempty" toml:"grace_period,omitempty"`
-	RestartLimit int           `json:"restart_limit,omitempty" toml:"restart_limit,omitempty"`
+	RestartLimit *int          `json:"restart_limit,omitempty" toml:"restart_limit,omitempty"`
 }
 
 type ServiceHTTPCheck struct {
 	Interval      *api.Duration     `json:"interval,omitempty" toml:"interval,omitempty"`
 	Timeout       *api.Duration     `json:"timeout,omitempty" toml:"timeout,omitempty"`
 	GracePeriod   *api.Duration     `json:"grace_period,omitempty" toml:"grace_period,omitempty"`
-	RestartLimit  int               `json:"restart_limit,omitempty" toml:"restart_limit,omitempty"`
-	HTTPMethod    string            `json:"method,omitempty" toml:"method,omitempty"`
-	HTTPPath      string            `json:"path,omitempty" toml:"path,omitempty"`
-	HTTPProtocol  string            `json:"protocol,omitempty" toml:"protocol,omitempty"`
-	TLSSkipVerify bool              `json:"tls_skip_verify,omitempty" toml:"tls_skip_verify,omitempty"`
+	RestartLimit  *int              `json:"restart_limit,omitempty" toml:"restart_limit,omitempty"`
+	HTTPMethod    *string           `json:"method,omitempty" toml:"method,omitempty"`
+	HTTPPath      *string           `json:"path,omitempty" toml:"path,omitempty"`
+	HTTPProtocol  *string           `json:"protocol,omitempty" toml:"protocol,omitempty"`
+	TLSSkipVerify *bool             `json:"tls_skip_verify,omitempty" toml:"tls_skip_verify,omitempty"`
 	Headers       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
 }
 
 type ToplevelCheck struct {
-	Type          string            `json:"type,omitempty" toml:"type,omitempty"`
-	Port          int               `json:"port,omitempty" toml:"port,omitempty"`
+	Type          *string           `json:"type,omitempty" toml:"type,omitempty"`
+	Port          *int              `json:"port,omitempty" toml:"port,omitempty"`
 	Interval      *api.Duration     `json:"interval,omitempty" toml:"interval,omitempty"`
 	Timeout       *api.Duration     `json:"timeout,omitempty" toml:"timeout,omitempty"`
 	GracePeriod   *api.Duration     `json:"grace_period,omitempty" toml:"grace_period,omitempty"`
-	RestartLimit  int               `json:"restart_limit,omitempty" toml:"restart_limit,omitempty"`
-	HTTPMethod    string            `json:"method,omitempty" toml:"method,omitempty"`
-	HTTPPath      string            `json:"path,omitempty" toml:"path,omitempty"`
-	HTTPProtocol  string            `json:"protocol,omitempty" toml:"protocol,omitempty"`
-	TLSSkipVerify bool              `json:"tls_skip_verify,omitempty" toml:"tls_skip_verify,omitempty"`
+	RestartLimit  *int              `json:"restart_limit,omitempty" toml:"restart_limit,omitempty"`
+	HTTPMethod    *string           `json:"method,omitempty" toml:"method,omitempty"`
+	HTTPPath      *string           `json:"path,omitempty" toml:"path,omitempty"`
+	HTTPProtocol  *string           `json:"protocol,omitempty" toml:"protocol,omitempty"`
+	TLSSkipVerify *bool             `json:"tls_skip_verify,omitempty" toml:"tls_skip_verify,omitempty"`
 	Headers       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
 }
 
-func (c *ToplevelCheck) toMachineCheck(launching bool) (*api.MachineCheck, error) {
-	// don't error when launching; it's a bad experience!
-	if !launching && c.GracePeriod != nil {
+func (chk *ToplevelCheck) toMachineCheck() (*api.MachineCheck, error) {
+	if chk.GracePeriod != nil {
 		return nil, fmt.Errorf("checks for machines do not yet support grace_period")
 	}
-	if c.RestartLimit != 0 {
+	if chk.RestartLimit != nil {
 		return nil, fmt.Errorf("checks for machines do not yet support restart_limit")
 	}
-	if c.HTTPProtocol != "" {
+	if chk.HTTPProtocol != nil {
 		return nil, fmt.Errorf("checks for machines do not yet support protocol")
 	}
-	if len(c.Headers) > 0 {
+	if len(chk.Headers) > 0 {
 		return nil, fmt.Errorf("checks for machines do not yet support headers")
 	}
 	res := &api.MachineCheck{
-		Type:     c.Type,
-		Port:     uint16(c.Port),
-		Interval: c.Interval,
-		Timeout:  c.Timeout,
+		Type:     chk.Type,
+		Port:     chk.Port,
+		Interval: chk.Interval,
+		Timeout:  chk.Timeout,
 	}
-	switch c.Type {
-	case "tcp":
-	case "http":
-		methodUpper := strings.ToUpper(c.HTTPMethod)
-		res.HTTPMethod = &methodUpper
-		res.HTTPPath = &c.HTTPPath
-		// FIXME: enable this when machines support it
-		// res.TLSSkipVerify = &c.TLSSkipVerify
-	default:
-		return nil, fmt.Errorf("error unknown check type: %s", c.Type)
+	if chk.Type == nil {
+		return nil, fmt.Errorf("Missing type, it must be one of 'http' or 'tcp'")
+	} else {
+		switch *chk.Type {
+		case "tcp":
+		case "http":
+			if chk.HTTPMethod != nil {
+				res.HTTPMethod = api.Pointer(strings.ToUpper(*chk.HTTPMethod))
+			}
+			res.HTTPPath = chk.HTTPPath
+			res.HTTPProtocol = chk.HTTPProtocol
+			res.HTTPSkipTLSVerify = chk.TLSSkipVerify
+			res.HTTPHeaders = lo.MapToSlice(
+				chk.Headers, func(k string, v string) api.MachineHTTPHeader {
+					return api.MachineHTTPHeader{Name: k, Values: []string{v}}
+				})
+		default:
+			return nil, fmt.Errorf("error unknown check type: %s", chk.Type)
+		}
 	}
 	return res, nil
 }
 
-func (c *ToplevelCheck) String() string {
-	switch c.Type {
+func (chk *ToplevelCheck) String() string {
+	chkType := "none"
+	if chk.Type != nil {
+		chkType = *chk.Type
+	}
+	switch chkType {
 	case "tcp":
-		return fmt.Sprintf("tcp-%d", c.Port)
+		return fmt.Sprintf("tcp-%d", chk.Port)
 	case "http":
-		return fmt.Sprintf("http-%d-%s", c.Port, c.HTTPMethod)
+		return fmt.Sprintf("http-%d-%s", chk.Port, chk.HTTPMethod)
 	default:
-		return fmt.Sprintf("%s-%d", c.Type, c.Port)
+		return fmt.Sprintf("%s-%d", chkType, chk.Port)
 	}
 }
 
-func (hc *ServiceHTTPCheck) toCheck() *api.Check {
-	check := &api.Check{Type: "http"}
-	if hc.Interval != nil {
-		check.Interval = api.Pointer(uint64(hc.Interval.Milliseconds()))
+func (chk *ServiceHTTPCheck) toMachineCheck() *api.MachineCheck {
+	return &api.MachineCheck{
+		Type:              api.Pointer("http"),
+		Interval:          chk.Interval,
+		Timeout:           chk.Timeout,
+		GracePeriod:       chk.GracePeriod,
+		HTTPMethod:        chk.HTTPMethod,
+		HTTPPath:          chk.HTTPPath,
+		HTTPProtocol:      chk.HTTPProtocol,
+		HTTPSkipTLSVerify: chk.TLSSkipVerify,
+		HTTPHeaders: lo.MapToSlice(
+			chk.Headers, func(k string, v string) api.MachineHTTPHeader {
+				return api.MachineHTTPHeader{Name: k, Values: []string{v}}
+			}),
 	}
-	if hc.Timeout != nil {
-		check.Timeout = api.Pointer(uint64(hc.Timeout.Milliseconds()))
-	}
-	if hc.GracePeriod != nil {
-		check.GracePeriod = api.Pointer(uint64(hc.GracePeriod.Milliseconds()))
-	}
-	if hc.RestartLimit > 0 {
-		check.RestartLimit = api.Pointer(uint64(hc.RestartLimit))
-	}
-
-	if hc.HTTPMethod != "" {
-		check.HTTPMethod = api.Pointer(hc.HTTPMethod)
-	}
-	if hc.HTTPPath != "" {
-		check.HTTPPath = api.Pointer(hc.HTTPPath)
-	}
-	if hc.HTTPProtocol != "" {
-		check.HTTPProtocol = api.Pointer(hc.HTTPProtocol)
-	}
-	check.HTTPSkipTLSVerify = api.Pointer(hc.TLSSkipVerify)
-	if len(hc.Headers) > 0 {
-		check.HTTPHeaders = make([]api.HTTPHeader, 0, len(hc.Headers))
-		for name, value := range hc.Headers {
-			check.HTTPHeaders = append(check.HTTPHeaders, api.HTTPHeader{Name: name, Value: value})
-		}
-	}
-	return check
 }
 
-func (hc *ServiceHTTPCheck) String(port int) string {
-	return fmt.Sprintf("http-%d-%s", port, hc.HTTPMethod)
+func (chk *ServiceHTTPCheck) String(port int) string {
+	return fmt.Sprintf("http-%d-%s", port, chk.HTTPMethod)
 }
 
-func (tc *ServiceTCPCheck) toCheck() *api.Check {
-	check := &api.Check{Type: "tcp"}
-	if tc.Interval != nil {
-		check.Interval = api.Pointer(uint64(tc.Interval.Milliseconds()))
+func (chk *ServiceTCPCheck) toMachineCheck() *api.MachineCheck {
+	return &api.MachineCheck{
+		Type:        api.Pointer("tcp"),
+		Interval:    chk.Interval,
+		Timeout:     chk.Timeout,
+		GracePeriod: chk.GracePeriod,
 	}
-	if tc.Timeout != nil {
-		check.Timeout = api.Pointer(uint64(tc.Timeout.Milliseconds()))
-	}
-	if tc.GracePeriod != nil {
-		check.GracePeriod = api.Pointer(uint64(tc.GracePeriod.Milliseconds()))
-	}
-	if tc.RestartLimit > 0 {
-		check.RestartLimit = api.Pointer(uint64(tc.RestartLimit))
-	}
-	return check
 }
 
-func (tc *ServiceTCPCheck) String(port int) string {
+func (chk *ServiceTCPCheck) String(port int) string {
 	return fmt.Sprintf("tcp-%d", port)
 }
 
@@ -322,12 +309,12 @@ func (c *Config) HasDefinition() bool {
 	return len(c.Definition) > 0
 }
 
-func (ac *Config) HasBuilder() bool {
-	return ac.Build != nil && ac.Build.Builder != ""
+func (c *Config) HasBuilder() bool {
+	return c.Build != nil && c.Build.Builder != ""
 }
 
-func (ac *Config) HasBuiltin() bool {
-	return ac.Build != nil && ac.Build.Builtin != ""
+func (c *Config) HasBuiltin() bool {
+	return c.Build != nil && c.Build.Builtin != ""
 }
 
 func (c *Config) HasNonHttpAndHttpsStandardServices() bool {
@@ -359,11 +346,11 @@ func (c *Config) HasUdpService() bool {
 	return false
 }
 
-func (ac *Config) Image() string {
-	if ac.Build == nil {
+func (c *Config) Image() string {
+	if c.Build == nil {
 		return ""
 	}
-	return ac.Build.Image
+	return c.Build.Image
 }
 
 func (c *Config) Dockerfile() string {
@@ -749,7 +736,7 @@ func (c *Config) GetProcessConfigs(appLaunching bool) (map[string]*ProcessConfig
 	}
 
 	for checkName, check := range c.Checks {
-		machineCheck, err := check.toMachineCheck(appLaunching)
+		machineCheck, err := check.toMachineCheck()
 		if err != nil {
 			return nil, err
 		}
