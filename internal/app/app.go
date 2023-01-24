@@ -61,11 +61,6 @@ func LoadConfig(ctx context.Context, path string) (cfg *Config, err error) {
 	return
 }
 
-// Use this type to unmarshal fly.toml with the goal of retreiving the app name only
-type SlimConfig struct {
-	AppName string `toml:"app,omitempty"`
-}
-
 // Config wraps the properties of app configuration.
 type Config struct {
 	AppName       string                    `toml:"app,omitempty" json:"app,omitempty"`
