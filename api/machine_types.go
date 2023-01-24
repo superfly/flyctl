@@ -248,12 +248,11 @@ type MachineMetrics struct {
 }
 
 type MachineCheck struct {
-	Port        *int      `json:"port,omitempty"`
-	Type        *string   `json:"type,omitempty"`
-	Interval    *Duration `json:"interval,omitempty"`
-	Timeout     *Duration `json:"timeout,omitempty"`
-	GracePeriod *Duration `json:"grace_period,omitempty"`
-	// RestartLimit      *uint64              `json:"restart_limit,omitempty"`
+	Port              *int                `json:"port,omitempty"`
+	Type              *string             `json:"type,omitempty"`
+	Interval          *Duration           `json:"interval,omitempty"`
+	Timeout           *Duration           `json:"timeout,omitempty"`
+	GracePeriod       *Duration           `json:"grace_period,omitempty"`
 	HTTPMethod        *string             `json:"method,omitempty"`
 	HTTPPath          *string             `json:"path,omitempty"`
 	HTTPProtocol      *string             `json:"protocol,omitempty"`
