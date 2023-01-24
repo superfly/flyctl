@@ -24,6 +24,7 @@ func newList() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runList)
 
+	cmd.Aliases = []string{"ls"}
 	return cmd
 }
 
