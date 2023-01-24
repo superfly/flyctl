@@ -271,7 +271,7 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 	})
 
 	if len(machines) < 1 {
-		return "", fmt.Errorf("app %s has no started or stopped VMs", app.Name)
+		return "", fmt.Errorf("app %s has no started VMs", app.Name)
 	}
 
 	if err != nil {
