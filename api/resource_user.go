@@ -5,7 +5,7 @@ import "context"
 func (c *Client) GetCurrentUser(ctx context.Context) (*User, error) {
 	query := `
 		query {
-			currentUser {
+			viewer {
 				email
 			}
 		}
