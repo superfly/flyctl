@@ -60,12 +60,12 @@ func newClone() *cobra.Command {
 
 func runMachineClone(ctx context.Context) (err error) {
 	var (
-		args     = flag.Args(ctx)
-		out      = iostreams.FromContext(ctx).Out
-		appName  = app.NameFromContext(ctx)
-		io       = iostreams.FromContext(ctx)
-		colorize = io.ColorScheme()
-		client   = client.FromContext(ctx).API()
+		machineID = flag.FirstArg(ctx)
+		out       = iostreams.FromContext(ctx).Out
+		appName   = app.NameFromContext(ctx)
+		io        = iostreams.FromContext(ctx)
+		colorize  = io.ColorScheme()
+		client    = client.FromContext(ctx).API()
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -79,25 +79,9 @@ func runMachineClone(ctx context.Context) (err error) {
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
 
-	var source *api.Machine
-
-	if len(args) > 0 {
-		source, err = flapsClient.Get(ctx, args[0])
-		if err != nil {
-			return err
-		}
-	} else {
-		fmt.Fprintf(out, "No machine ID specified, so picking one at random\n")
-		machines, err := flapsClient.List(ctx, "started")
-		if err != nil {
-			return err
-		}
-
-		source, err = flapsClient.Get(ctx, machines[0].ID)
-		if err != nil {
-			return err
-		}
-		fmt.Fprintf(out, "Picked %s for cloning\n", source.ID)
+	source, err := flapsClient.Get(ctx, machineID)
+	if err != nil {
+		return err
 	}
 
 	region := flag.GetString(ctx, "region")

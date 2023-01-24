@@ -225,11 +225,6 @@ Takes hostname as a parameter to locate the certificate.`,
 		return KeyStrings{"config", "Manage an app's configuration",
 			`The CONFIG commands allow you to work with an application's configuration.`,
 		}
-	case "config.show":
-		return KeyStrings{"show", "Show an app's configuration",
-			`Show an application's configuration. The configuration is presented
-in JSON format. The configuration data is retrieved from the Fly service.`,
-		}
 	case "config.env":
 		return KeyStrings{"env", "Display an app's runtime environment variables",
 			`Display an app's runtime environment variables. It displays a section for
@@ -239,6 +234,11 @@ secrets and another for config file defined environment variables.`,
 		return KeyStrings{"save", "Save an app's config file",
 			`Save an application's configuration locally. The configuration data is
 retrieved from the Fly service and saved in TOML format.`,
+		}
+	case "config.show":
+		return KeyStrings{"show", "Show an app's configuration",
+			`Show an application's configuration. The configuration is presented
+in JSON format. The configuration data is retrieved from the Fly service.`,
 		}
 	case "config.validate":
 		return KeyStrings{"validate", "Validate an app's config file",
