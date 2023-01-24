@@ -53,6 +53,7 @@ type SourceInfo struct {
 	InitCommands                 []InitCommand
 	PostgresInitCommands         []InitCommand
 	PostgresInitCommandCondition bool
+	Concurrency                  map[string]int
 }
 
 type SourceFile struct {
