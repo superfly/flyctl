@@ -152,17 +152,15 @@ func (svc *Service) toMachineService() *api.MachineService {
 }
 
 type ServiceTCPCheck struct {
-	Interval     *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
-	Timeout      *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
-	GracePeriod  *api.Duration `json:"grace_period,omitempty" toml:"grace_period,omitempty"`
-	RestartLimit *int          `json:"restart_limit,omitempty" toml:"restart_limit,omitempty"`
+	Interval    *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
+	Timeout     *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
+	GracePeriod *api.Duration `json:"grace_period,omitempty" toml:"grace_period,omitempty"`
 }
 
 type ServiceHTTPCheck struct {
 	Interval      *api.Duration     `json:"interval,omitempty" toml:"interval,omitempty"`
 	Timeout       *api.Duration     `json:"timeout,omitempty" toml:"timeout,omitempty"`
 	GracePeriod   *api.Duration     `json:"grace_period,omitempty" toml:"grace_period,omitempty"`
-	RestartLimit  *int              `json:"restart_limit,omitempty" toml:"restart_limit,omitempty"`
 	HTTPMethod    *string           `json:"method,omitempty" toml:"method,omitempty"`
 	HTTPPath      *string           `json:"path,omitempty" toml:"path,omitempty"`
 	HTTPProtocol  *string           `json:"protocol,omitempty" toml:"protocol,omitempty"`
@@ -176,7 +174,6 @@ type ToplevelCheck struct {
 	Interval      *api.Duration     `json:"interval,omitempty" toml:"interval,omitempty"`
 	Timeout       *api.Duration     `json:"timeout,omitempty" toml:"timeout,omitempty"`
 	GracePeriod   *api.Duration     `json:"grace_period,omitempty" toml:"grace_period,omitempty"`
-	RestartLimit  *int              `json:"restart_limit,omitempty" toml:"restart_limit,omitempty"`
 	HTTPMethod    *string           `json:"method,omitempty" toml:"method,omitempty"`
 	HTTPPath      *string           `json:"path,omitempty" toml:"path,omitempty"`
 	HTTPProtocol  *string           `json:"protocol,omitempty" toml:"protocol,omitempty"`
