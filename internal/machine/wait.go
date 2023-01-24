@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jpillora/backoff"
@@ -40,6 +41,8 @@ func WaitForStartOrStop(ctx context.Context, machine *api.Machine, action string
 			return err
 		case errors.Is(err, context.DeadlineExceeded):
 			return fmt.Errorf("timeout reached waiting for machine to %s %w", waitOnAction, err)
+		case strings.Contains(err.Error(), "currently stopped"):
+			return err
 		case err != nil:
 			time.Sleep(b.Duration())
 			continue
