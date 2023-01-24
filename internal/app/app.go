@@ -219,7 +219,7 @@ func (chk *ToplevelCheck) toMachineCheck() (*api.MachineCheck, error) {
 					return api.MachineHTTPHeader{Name: k, Values: []string{v}}
 				})
 		default:
-			return nil, fmt.Errorf("error unknown check type: %s", chk.Type)
+			return nil, fmt.Errorf("error unknown check type: %s", *chk.Type)
 		}
 	}
 	return res, nil
@@ -234,7 +234,7 @@ func (chk *ToplevelCheck) String() string {
 	case "tcp":
 		return fmt.Sprintf("tcp-%d", chk.Port)
 	case "http":
-		return fmt.Sprintf("http-%d-%s", chk.Port, chk.HTTPMethod)
+		return fmt.Sprintf("http-%d-%v", chk.Port, chk.HTTPMethod)
 	default:
 		return fmt.Sprintf("%s-%d", chkType, chk.Port)
 	}
@@ -258,7 +258,7 @@ func (chk *ServiceHTTPCheck) toMachineCheck() *api.MachineCheck {
 }
 
 func (chk *ServiceHTTPCheck) String(port int) string {
-	return fmt.Sprintf("http-%d-%s", port, chk.HTTPMethod)
+	return fmt.Sprintf("http-%d-%v", port, chk.HTTPMethod)
 }
 
 func (chk *ServiceTCPCheck) toMachineCheck() *api.MachineCheck {
