@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
+	mach "github.com/superfly/flyctl/internal/machine"
 )
 
 func New() *cobra.Command {
@@ -217,4 +218,27 @@ func pickLeader(ctx context.Context, machines []*api.Machine) (*api.Machine, err
 		}
 	}
 	return nil, fmt.Errorf("no active leader found")
+}
+
+func UnregisterMember(ctx context.Context, app *api.AppCompact, machine *api.Machine) error {
+	machines, err := mach.ListActive(ctx)
+	if err != nil {
+		return err
+	}
+
+	leader, err := pickLeader(ctx, machines)
+	if err != nil {
+		return err
+	}
+
+	cmd, err := flypg.NewCommand(ctx, app)
+	if err != nil {
+		return err
+	}
+
+	if err := cmd.UnregisterMember(ctx, leader.PrivateIP, machine.PrivateIP); err != nil {
+		return err
+	}
+
+	return nil
 }

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -90,12 +91,11 @@ func runMachineConfigShow(ctx context.Context, app *api.AppCompact) (err error) 
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	if app.ImageDetails.Repository == "flyio/postgres-flex" {
-		return fmt.Errorf("this feature is not currently supported for this image type")
-	}
-
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
-		return err
+	_, dev := os.LookupEnv("FLY_DEV")
+	if !dev {
+		if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
+			return err
+		}
 	}
 
 	leader, err := pickLeader(ctx, machines)
@@ -103,7 +103,12 @@ func runMachineConfigShow(ctx context.Context, app *api.AppCompact) (err error) 
 		return err
 	}
 
-	return showSettings(ctx, app, leader.PrivateIP)
+	manager := flypg.StolonManager
+	if leader.ImageRef.Repository == "flyio/postgres-flex" {
+		manager = flypg.ReplicationManager
+	}
+
+	return showSettings(ctx, app, manager, leader.PrivateIP)
 }
 
 func runNomadConfigShow(ctx context.Context, app *api.AppCompact) (err error) {
@@ -135,10 +140,10 @@ func runNomadConfigShow(ctx context.Context, app *api.AppCompact) (err error) {
 		return err
 	}
 
-	return showSettings(ctx, app, leaderIP)
+	return showSettings(ctx, app, flypg.StolonManager, leaderIP)
 }
 
-func showSettings(ctx context.Context, app *api.AppCompact, leaderIP string) error {
+func showSettings(ctx context.Context, app *api.AppCompact, manager string, leaderIP string) error {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
@@ -152,7 +157,7 @@ func showSettings(ctx context.Context, app *api.AppCompact, leaderIP string) err
 		settings = append(settings, k)
 	}
 
-	res, err := pgclient.ViewSettings(ctx, settings)
+	res, err := pgclient.ViewSettings(ctx, settings, manager)
 	if err != nil {
 		return err
 	}
@@ -193,7 +198,7 @@ func showSettings(ctx context.Context, app *api.AppCompact, leaderIP string) err
 			value = fmt.Sprintf("%s -> %s", value, p)
 		}
 		rows = append(rows, []string{
-			strings.Replace(setting.Name, "_", "-", -1),
+			strings.ReplaceAll(setting.Name, "_", "-"),
 			value,
 			setting.Unit,
 			desc,

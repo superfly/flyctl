@@ -65,10 +65,6 @@ func runFailover(ctx context.Context) (err error) {
 		return fmt.Errorf("failover is only supported for machines apps")
 	}
 
-	if app.ImageDetails.Repository != "flyio/postgres" {
-		return fmt.Errorf("failover is not currently supported for this image type")
-	}
-
 	ctx, err = apps.BuildContext(ctx, app)
 	if err != nil {
 		return err
@@ -92,6 +88,10 @@ func runFailover(ctx context.Context) (err error) {
 	leader, err := pickLeader(ctx, machines)
 	if err != nil {
 		return err
+	}
+
+	if leader.ImageRef.Repository == "flyio/postgres-flex" {
+		return fmt.Errorf("the 'flyio/postgres-flex' image does not currently support manual failovers")
 	}
 
 	flapsClient := flaps.FromContext(ctx)
