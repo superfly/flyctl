@@ -248,17 +248,22 @@ type MachineMetrics struct {
 }
 
 type MachineCheck struct {
-	Type              string              `json:"type,omitempty"`
-	Port              uint16              `json:"port,omitempty"`
-	Interval          *Duration           `json:"interval,omitempty"`
-	Timeout           *Duration           `json:"timeout,omitempty"`
-	GracePeriod       *uint64             `json:"grace_period,omitempty"`
-	RestartLimit      *uint64             `json:"restart_limit,omitempty"`
+	Port        *int      `json:"port,omitempty"`
+	Type        *string   `json:"type,omitempty"`
+	Interval    *Duration `json:"interval,omitempty"`
+	Timeout     *Duration `json:"timeout,omitempty"`
+	GracePeriod *Duration `json:"grace_period,omitempty"`
+	// RestartLimit      *uint64              `json:"restart_limit,omitempty"`
 	HTTPMethod        *string             `json:"method,omitempty"`
 	HTTPPath          *string             `json:"path,omitempty"`
 	HTTPProtocol      *string             `json:"protocol,omitempty"`
 	HTTPSkipTLSVerify *bool               `json:"tls_skip_verify,omitempty"`
-	HTTPHeaders       map[string][]string `json:"headers,omitempty"`
+	HTTPHeaders       []MachineHTTPHeader `json:"headers,omitempty"`
+}
+
+type MachineHTTPHeader struct {
+	Name   string   `json:"name"`
+	Values []string `json:"values"`
 }
 
 type MachineCheckStatus struct {
@@ -328,7 +333,7 @@ type MachineService struct {
 	Protocol     string                     `json:"protocol" toml:"protocol"`
 	InternalPort int                        `json:"internal_port" toml:"internal_port"`
 	Ports        []MachinePort              `json:"ports" toml:"ports"`
-	Checks       []Check                    `json:"checks,omitempty" toml:"checks,omitempty"`
+	Checks       []MachineCheck             `json:"checks,omitempty" toml:"checks,omitempty"`
 	Concurrency  *MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
 }
 
