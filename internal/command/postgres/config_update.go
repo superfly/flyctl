@@ -109,7 +109,6 @@ func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 		io          = iostreams.FromContext(ctx)
 		colorize    = io.ColorScheme()
 		autoConfirm = flag.GetBool(ctx, "yes")
-		force       = flag.GetBool(ctx, "force")
 
 		MinPostgresHaVersion         = "0.0.33"
 		MinPostgresStandaloneVersion = "0.0.7"
@@ -129,17 +128,9 @@ func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 		}
 	}
 
-	var node *api.Machine
-	leader, replicas := machinesNodeRoles(ctx, machines)
-	switch {
-	case leader != nil:
-		node = leader
-	case len(replicas) == 0:
-		return fmt.Errorf("No active leader found and no other node in the cluster")
-	case force:
-		node = replicas[0]
-	default:
-		return fmt.Errorf("No active leader found. Try --force flag to apply setting to any node")
+	leader, err := pickLeader(ctx, machines)
+	if err != nil {
+		return err
 	}
 
 	manager := flypg.StolonManager
