@@ -252,7 +252,6 @@ type MachineCheck struct {
 	Type              *string             `json:"type,omitempty"`
 	Interval          *Duration           `json:"interval,omitempty"`
 	Timeout           *Duration           `json:"timeout,omitempty"`
-	GracePeriod       *Duration           `json:"grace_period,omitempty"`
 	HTTPMethod        *string             `json:"method,omitempty"`
 	HTTPPath          *string             `json:"path,omitempty"`
 	HTTPProtocol      *string             `json:"protocol,omitempty"`

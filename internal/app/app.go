@@ -152,37 +152,34 @@ func (svc *Service) toMachineService() *api.MachineService {
 }
 
 type ServiceTCPCheck struct {
-	Interval    *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
-	Timeout     *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
-	GracePeriod *api.Duration `json:"grace_period,omitempty" toml:"grace_period,omitempty"`
+	Interval *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
+	Timeout  *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
 }
 
 type ServiceHTTPCheck struct {
-	Interval      *api.Duration     `json:"interval,omitempty" toml:"interval,omitempty"`
-	Timeout       *api.Duration     `json:"timeout,omitempty" toml:"timeout,omitempty"`
-	GracePeriod   *api.Duration     `json:"grace_period,omitempty" toml:"grace_period,omitempty"`
-	HTTPMethod    *string           `json:"method,omitempty" toml:"method,omitempty"`
-	HTTPPath      *string           `json:"path,omitempty" toml:"path,omitempty"`
-	HTTPProtocol  *string           `json:"protocol,omitempty" toml:"protocol,omitempty"`
-	TLSSkipVerify *bool             `json:"tls_skip_verify,omitempty" toml:"tls_skip_verify,omitempty"`
-	Headers       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
+	Interval          *api.Duration     `json:"interval,omitempty" toml:"interval,omitempty"`
+	Timeout           *api.Duration     `json:"timeout,omitempty" toml:"timeout,omitempty"`
+	HTTPMethod        *string           `json:"method,omitempty" toml:"method,omitempty"`
+	HTTPPath          *string           `json:"path,omitempty" toml:"path,omitempty"`
+	HTTPProtocol      *string           `json:"protocol,omitempty" toml:"protocol,omitempty"`
+	HTTPTLSSkipVerify *bool             `json:"tls_skip_verify,omitempty" toml:"tls_skip_verify,omitempty"`
+	HTTPHeaders       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
 }
 
 type ToplevelCheck struct {
-	Type          *string           `json:"type,omitempty" toml:"type,omitempty"`
-	Port          *int              `json:"port,omitempty" toml:"port,omitempty"`
-	Interval      *api.Duration     `json:"interval,omitempty" toml:"interval,omitempty"`
-	Timeout       *api.Duration     `json:"timeout,omitempty" toml:"timeout,omitempty"`
-	GracePeriod   *api.Duration     `json:"grace_period,omitempty" toml:"grace_period,omitempty"`
-	HTTPMethod    *string           `json:"method,omitempty" toml:"method,omitempty"`
-	HTTPPath      *string           `json:"path,omitempty" toml:"path,omitempty"`
-	HTTPProtocol  *string           `json:"protocol,omitempty" toml:"protocol,omitempty"`
-	TLSSkipVerify *bool             `json:"tls_skip_verify,omitempty" toml:"tls_skip_verify,omitempty"`
-	Headers       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
+	Port              *int              `json:"port,omitempty" toml:"port,omitempty"`
+	Type              *string           `json:"type,omitempty" toml:"type,omitempty"`
+	Interval          *api.Duration     `json:"interval,omitempty" toml:"interval,omitempty"`
+	Timeout           *api.Duration     `json:"timeout,omitempty" toml:"timeout,omitempty"`
+	HTTPMethod        *string           `json:"method,omitempty" toml:"method,omitempty"`
+	HTTPPath          *string           `json:"path,omitempty" toml:"path,omitempty"`
+	HTTPProtocol      *string           `json:"protocol,omitempty" toml:"protocol,omitempty"`
+	HTTPTLSSkipVerify *bool             `json:"tls_skip_verify,omitempty" toml:"tls_skip_verify,omitempty"`
+	HTTPHeaders       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
 }
 
 func (chk *ToplevelCheck) toMachineCheck() (*api.MachineCheck, error) {
-	if len(chk.Headers) > 0 {
+	if len(chk.HTTPHeaders) > 0 {
 		return nil, fmt.Errorf("checks for machines do not yet support headers")
 	}
 	if chk.Type == nil || !slices.Contains([]string{"http", "tcp"}, *chk.Type) {
@@ -196,9 +193,9 @@ func (chk *ToplevelCheck) toMachineCheck() (*api.MachineCheck, error) {
 		Timeout:           chk.Timeout,
 		HTTPPath:          chk.HTTPPath,
 		HTTPProtocol:      chk.HTTPProtocol,
-		HTTPSkipTLSVerify: chk.TLSSkipVerify,
+		HTTPSkipTLSVerify: chk.HTTPTLSSkipVerify,
 		HTTPHeaders: lo.MapToSlice(
-			chk.Headers, func(k string, v string) api.MachineHTTPHeader {
+			chk.HTTPHeaders, func(k string, v string) api.MachineHTTPHeader {
 				return api.MachineHTTPHeader{Name: k, Values: []string{v}}
 			}),
 	}
@@ -228,13 +225,12 @@ func (chk *ServiceHTTPCheck) toMachineCheck() *api.MachineCheck {
 		Type:              api.Pointer("http"),
 		Interval:          chk.Interval,
 		Timeout:           chk.Timeout,
-		GracePeriod:       chk.GracePeriod,
 		HTTPMethod:        chk.HTTPMethod,
 		HTTPPath:          chk.HTTPPath,
 		HTTPProtocol:      chk.HTTPProtocol,
-		HTTPSkipTLSVerify: chk.TLSSkipVerify,
+		HTTPSkipTLSVerify: chk.HTTPTLSSkipVerify,
 		HTTPHeaders: lo.MapToSlice(
-			chk.Headers, func(k string, v string) api.MachineHTTPHeader {
+			chk.HTTPHeaders, func(k string, v string) api.MachineHTTPHeader {
 				return api.MachineHTTPHeader{Name: k, Values: []string{v}}
 			}),
 	}
@@ -246,10 +242,9 @@ func (chk *ServiceHTTPCheck) String(port int) string {
 
 func (chk *ServiceTCPCheck) toMachineCheck() *api.MachineCheck {
 	return &api.MachineCheck{
-		Type:        api.Pointer("tcp"),
-		Interval:    chk.Interval,
-		Timeout:     chk.Timeout,
-		GracePeriod: chk.GracePeriod,
+		Type:     api.Pointer("tcp"),
+		Interval: chk.Interval,
+		Timeout:  chk.Timeout,
 	}
 }
 
