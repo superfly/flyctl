@@ -10,7 +10,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-//go:embed templates templates/*/.dockerignore templates/*/*/.dockerignore templates/**/.fly
+//go:embed templates templates/*/.dockerignore templates/**/.fly
 var content embed.FS
 
 type InitCommand struct {
