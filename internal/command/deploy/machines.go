@@ -257,10 +257,8 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 
 	shortestInterval := 120 * time.Second
 	for _, c := range lm.Machine().Config.Checks {
-		if c.Interval != nil {
-			if c.Interval.Duration < shortestInterval {
-				shortestInterval = c.Interval.Duration
-			}
+		if c.Interval != nil && c.Interval.Duration < shortestInterval {
+			shortestInterval = c.Interval.Duration
 		}
 	}
 	b := &backoff.Backoff{
