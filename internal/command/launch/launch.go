@@ -297,8 +297,13 @@ func run(ctx context.Context) (err error) {
 	appConfig.AppName = createdApp.Name
 
 	if srcInfo != nil {
+
 		if srcInfo.Port > 0 {
 			appConfig.SetInternalPort(srcInfo.Port)
+		}
+
+		if srcInfo.Concurrency != nil {
+			appConfig.SetConcurrency(srcInfo.Concurrency["soft_limit"], srcInfo.Concurrency["hard_limit"])
 		}
 
 		for envName, envVal := range srcInfo.Env {
