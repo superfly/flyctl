@@ -179,9 +179,6 @@ type ToplevelCheck struct {
 }
 
 func (chk *ToplevelCheck) toMachineCheck() (*api.MachineCheck, error) {
-	if len(chk.HTTPHeaders) > 0 {
-		return nil, fmt.Errorf("checks for machines do not yet support headers")
-	}
 	if chk.Type == nil || !slices.Contains([]string{"http", "tcp"}, *chk.Type) {
 		return nil, fmt.Errorf("Missing or invalid check type, must be 'http' or 'tcp'")
 	}
