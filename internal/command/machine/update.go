@@ -42,6 +42,11 @@ func newUpdate() *cobra.Command {
 			Description: "Updates machine without waiting for health checks.",
 			Default:     false,
 		},
+		flag.String{
+			Name:        "command",
+			Shorthand:   "C",
+			Description: "Command to run",
+		},
 	)
 
 	cmd.Args = cobra.ExactArgs(1)

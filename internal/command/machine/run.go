@@ -629,6 +629,14 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		machineConf.Schedule = flag.GetString(ctx, "schedule")
 	}
 
+	if command := flag.GetString(ctx, "command"); command != "" {
+		split, err := shlex.Split(command)
+		if err != nil {
+			return machineConf, errors.Wrap(err, "invalid command")
+		}
+		machineConf.Init.Cmd = split
+	}
+
 	// Metadata
 	parsedMetadata, err := parseKVFlag(ctx, "metadata", machineConf.Metadata)
 	if err != nil {
@@ -659,7 +667,7 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		machineConf.Init.Entrypoint = splitted
 	}
 
-	if cmd := flag.Args(ctx)[1:]; len(cmd) > 0 {
+	if cmd := flag.Args(ctx)[1:]; len(cmd) > 0 && len(machineConf.Init.Cmd) == 0 {
 		machineConf.Init.Cmd = cmd
 	}
 
