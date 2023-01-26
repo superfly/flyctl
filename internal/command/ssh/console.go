@@ -10,6 +10,7 @@ import (
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/mattn/go-colorable"
 	"github.com/pkg/errors"
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/agent"
@@ -265,8 +266,12 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 		return "", err
 	}
 
+	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
+		return m.State == "started"
+	})
+
 	if len(machines) < 1 {
-		return "", fmt.Errorf("app %s has no started or stopped VMs", app.Name)
+		return "", fmt.Errorf("app %s has no started VMs", app.Name)
 	}
 
 	if err != nil {
