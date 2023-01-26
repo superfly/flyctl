@@ -21,19 +21,19 @@ const (
 )
 
 type Machine struct {
-	ID       string          `json:"id"`
-	Name     string          `json:"name"`
-	State    string          `json:"state"`
-	Region   string          `json:"region"`
-	ImageRef machineImageRef `json:"image_ref"`
+	ID       string          `json:"id,omitempty"`
+	Name     string          `json:"name,omitempty"`
+	State    string          `json:"state,omitempty"`
+	Region   string          `json:"region,omitempty"`
+	ImageRef machineImageRef `json:"image_ref,omitempty"`
 	// InstanceID is unique for each version of the machine
-	InstanceID string `json:"instance_id"`
-	Version    string `json:"version"`
+	InstanceID string `json:"instance_id,omitempty"`
+	Version    string `json:"version,omitempty"`
 	// PrivateIP is the internal 6PN address of the machine.
-	PrivateIP  string                `json:"private_ip"`
-	CreatedAt  string                `json:"created_at"`
-	UpdatedAt  string                `json:"updated_at"`
-	Config     *MachineConfig        `json:"config"`
+	PrivateIP  string                `json:"private_ip,omitempty"`
+	CreatedAt  string                `json:"created_at,omitempty"`
+	UpdatedAt  string                `json:"updated_at,omitempty"`
+	Config     *MachineConfig        `json:"config,omitempty"`
 	Events     []*MachineEvent       `json:"events,omitempty"`
 	Checks     []*MachineCheckStatus `json:"checks,omitempty"`
 	LeaseNonce string
@@ -122,25 +122,25 @@ func (m *Machine) GetLatestEventOfTypeAfterType(latestEventType, firstEventType 
 }
 
 type machineImageRef struct {
-	Registry   string            `json:"registry"`
-	Repository string            `json:"repository"`
-	Tag        string            `json:"tag"`
-	Digest     string            `json:"digest"`
-	Labels     map[string]string `json:"labels"`
+	Registry   string            `json:"registry,omitempty"`
+	Repository string            `json:"repository,omitempty"`
+	Tag        string            `json:"tag,omitempty"`
+	Digest     string            `json:"digest,omitempty"`
+	Labels     map[string]string `json:"labels,omitempty"`
 }
 
 type MachineEvent struct {
-	Type      string          `json:"type"`
-	Status    string          `json:"status"`
+	Type      string          `json:"type,omitempty"`
+	Status    string          `json:"status,omitempty"`
 	Request   *MachineRequest `json:"request,omitempty"`
-	Source    string          `json:"source"`
-	Timestamp int64           `json:"timestamp"`
+	Source    string          `json:"source,omitempty"`
+	Timestamp int64           `json:"timestamp,omitempty"`
 }
 
 type MachineRequest struct {
 	ExitEvent    *MachineExitEvent    `json:"exit_event,omitempty"`
 	MonitorEvent *MachineMonitorEvent `json:"MonitorEvent,omitempty"`
-	RestartCount int                  `json:"restart_count"`
+	RestartCount int                  `json:"restart_count,omitempty"`
 }
 
 // returns the ExitCode from MonitorEvent if it exists, otherwise ExitEvent
@@ -171,14 +171,14 @@ type MachineExitEvent struct {
 }
 
 type StopMachineInput struct {
-	ID      string        `json:"id"`
+	ID      string        `json:"id,omitempty"`
 	Signal  Signal        `json:"signal,omitempty"`
 	Timeout time.Duration `json:"timeout,omitempty"`
 	Filters *Filters      `json:"filters,omitempty"`
 }
 
 type RestartMachineInput struct {
-	ID               string        `json:"id"`
+	ID               string        `json:"id,omitempty"`
 	Signal           *Signal       `json:"signal,omitempty"`
 	Timeout          time.Duration `json:"timeout,omitempty"`
 	ForceStop        bool          `json:"force_stop,omitempty"`
@@ -194,9 +194,9 @@ type MachineIP struct {
 
 type RemoveMachineInput struct {
 	AppID string `json:"appId,omitempty"`
-	ID    string `json:"id"`
+	ID    string `json:"id,omitempty"`
 
-	Kill bool `json:"kill"`
+	Kill bool `json:"kill,omitempty"`
 }
 
 type MachineRestartPolicy string
@@ -208,23 +208,23 @@ var (
 )
 
 type MachineRestart struct {
-	Policy MachineRestartPolicy `json:"policy"`
+	Policy MachineRestartPolicy `json:"policy,omitempty"`
 	// MaxRetries is only relevant with the on-failure policy.
 	MaxRetries int `json:"max_retries,omitempty"`
 }
 
 type MachineMount struct {
-	Encrypted bool   `json:"encrypted"`
-	Path      string `json:"path"`
-	SizeGb    int    `json:"size_gb"`
-	Volume    string `json:"volume"`
-	Name      string `json:"name"`
+	Encrypted bool   `json:"encrypted,omitempty"`
+	Path      string `json:"path,omitempty"`
+	SizeGb    int    `json:"size_gb,omitempty"`
+	Volume    string `json:"volume,omitempty"`
+	Name      string `json:"name,omitempty"`
 }
 
 type MachineGuest struct {
-	CPUKind  string `json:"cpu_kind"`
-	CPUs     int    `json:"cpus"`
-	MemoryMB int    `json:"memory_mb"`
+	CPUKind  string `json:"cpu_kind,omitempty"`
+	CPUs     int    `json:"cpus,omitempty"`
+	MemoryMB int    `json:"memory_mb,omitempty"`
 
 	KernelArgs []string `json:"kernel_args,omitempty"`
 }
@@ -243,8 +243,8 @@ var MachinePresets map[string]*MachineGuest = map[string]*MachineGuest{
 }
 
 type MachineMetrics struct {
-	Port int    `toml:"port" json:"port"`
-	Path string `toml:"path" json:"path"`
+	Port int    `toml:"port" json:"port,omitempty"`
+	Path string `toml:"path" json:"path,omitempty"`
 }
 
 type MachineCheck struct {
@@ -260,8 +260,8 @@ type MachineCheck struct {
 }
 
 type MachineHTTPHeader struct {
-	Name   string   `json:"name"`
-	Values []string `json:"values"`
+	Name   string   `json:"name,omitempty"`
+	Values []string `json:"values,omitempty"`
 }
 
 type MachineCheckStatus struct {
@@ -328,9 +328,9 @@ func (mp *MachinePort) HasNonHttpPorts() bool {
 }
 
 type MachineService struct {
-	Protocol     string                     `json:"protocol" toml:"protocol"`
-	InternalPort int                        `json:"internal_port" toml:"internal_port"`
-	Ports        []MachinePort              `json:"ports" toml:"ports"`
+	Protocol     string                     `json:"protocol,omitempty" toml:"protocol,omitempty"`
+	InternalPort int                        `json:"internal_port,omitempty" toml:"internal_port,omitempty"`
+	Ports        []MachinePort              `json:"ports,omitempty" toml:"ports,omitempty"`
 	Checks       []MachineCheck             `json:"checks,omitempty" toml:"checks,omitempty"`
 	Concurrency  *MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
 }
@@ -342,44 +342,51 @@ type MachineServiceConcurrency struct {
 }
 
 type MachineConfig struct {
-	Env         map[string]string       `json:"env"`
+	Env         map[string]string       `json:"env,omitempty"`
 	Init        MachineInit             `json:"init,omitempty"`
 	Processes   []MachineProcess        `json:"processes,omitempty"`
-	Image       string                  `json:"image"`
-	Metadata    map[string]string       `json:"metadata"`
+	Image       string                  `json:"image",omitempty`
+	Metadata    map[string]string       `json:"metadata,omitempty"`
 	Mounts      []MachineMount          `json:"mounts,omitempty"`
 	Restart     MachineRestart          `json:"restart,omitempty"`
 	Services    []MachineService        `json:"services,omitempty"`
 	VMSize      string                  `json:"size,omitempty"`
 	Guest       *MachineGuest           `json:"guest,omitempty"`
-	Metrics     *MachineMetrics         `json:"metrics"`
+	Metrics     *MachineMetrics         `json:"metrics,omitempty"`
 	Schedule    string                  `json:"schedule,omitempty"`
 	Checks      map[string]MachineCheck `json:"checks,omitempty"`
-	AutoDestroy bool                    `json:"auto_destroy"`
+	AutoDestroy bool                    `json:"auto_destroy,omitempty"`
 	DNS         *DNSConfig              `json:"dns,omitempty"`
 }
 
+type MachineInit struct {
+	Exec       []string `json:"exec,omitempty"`
+	Entrypoint []string `json:"entrypoint,omitempty"`
+	Cmd        []string `json:"cmd,omitempty"`
+	Tty        bool     `json:"tty,omitempty"`
+}
+
 type DNSConfig struct {
-	SkipRegistration bool `json:"skip_registration"`
+	SkipRegistration bool `json:"skip_registration,omitempty"`
 }
 
 type MachineLease struct {
-	Status  string            `json:"status"`
+	Status  string            `json:"status,omitempty"`
 	Data    *MachineLeaseData `json:"data,omitempty"`
 	Message string            `json:"message,omitempty"`
 	Code    string            `json:"code,omitempty"`
 }
 
 type MachineLeaseData struct {
-	Nonce     string `json:"nonce"`
-	ExpiresAt int64  `json:"expires_at"`
-	Owner     string `json:"owner"`
+	Nonce     string `json:"nonce,omitempty"`
+	ExpiresAt int64  `json:"expires_at,omitempty"`
+	Owner     string `json:"owner,omitempty"`
 }
 
 type MachineStartResponse struct {
 	Message       string `json:"message,omitempty"`
 	Status        string `json:"status,omitempty"`
-	PreviousState string `json:"previous_state"`
+	PreviousState string `json:"previous_state,omitempty"`
 }
 
 type LaunchMachineInput struct {
@@ -388,7 +395,7 @@ type LaunchMachineInput struct {
 	Name    string         `json:"name,omitempty"`
 	OrgSlug string         `json:"organizationId,omitempty"`
 	Region  string         `json:"region,omitempty"`
-	Config  *MachineConfig `json:"config"`
+	Config  *MachineConfig `json:"config,omitempty"`
 	// Client side only
 	SkipHealthChecks bool
 }
@@ -398,16 +405,16 @@ type MachineProcess struct {
 	EntrypointOverride []string          `json:"entrypoint,omitempty"`
 	CmdOverride        []string          `json:"cmd,omitempty"`
 	UserOverride       string            `json:"user,omitempty"`
-	ExtraEnv           map[string]string `json:"env"`
+	ExtraEnv           map[string]string `json:"env,omitempty"`
 }
 
 type MachineExecRequest struct {
-	Cmd     string `json:"cmd"`
+	Cmd     string `json:"cmd,omitempty"`
 	Timeout int    `json:"timeout,omitempty"`
 }
 
 type MachineExecResponse struct {
-	ExitCode int32   `json:"exit_code"`
-	StdOut   *string `json:"stdout"`
-	StdErr   *string `json:"stderr"`
+	ExitCode int32   `json:"exit_code,omitempty"`
+	StdOut   *string `json:"stdout,omitempty"`
+	StdErr   *string `json:"stderr,omitempty"`
 }
