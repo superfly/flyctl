@@ -5,17 +5,18 @@ import (
 	"fmt"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 func runOnDeletionHook(ctx context.Context, app *api.AppCompact, machine *api.Machine) {
-	io := iostreams.FromContext(ctx)
+	var (
+		io     = iostreams.FromContext(ctx)
+		labels = machine.ImageRef.Labels
+	)
 
-	image := machine.ImageRef.Repository
-
-	switch image {
-	case "flyio/postgres-flex":
+	if labels["fly.pg-manager"] == flypg.ReplicationManager {
 		fmt.Fprintf(io.Out, "unregistering postgres member '%s' from the cluster... ", machine.PrivateIP)
 		if err := postgres.UnregisterMember(ctx, app, machine); err != nil {
 			fmt.Fprintln(io.Out, "(failed)")
