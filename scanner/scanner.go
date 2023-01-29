@@ -54,6 +54,7 @@ type SourceInfo struct {
 	PostgresInitCommands         []InitCommand
 	PostgresInitCommandCondition bool
 	Concurrency                  map[string]int
+	Callback                     func(srcInfo *SourceInfo, options map[string]bool) error
 }
 
 type SourceFile struct {

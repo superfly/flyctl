@@ -238,9 +238,6 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
-	// Attempt to create a .dockerignore from .gitignore
-	determineDockerIgnore(ctx, workingDir)
-
 	// Prompt for an app name or fetch from flags
 	appName := ""
 
@@ -295,53 +292,6 @@ func run(ctx context.Context) (err error) {
 	}
 
 	appConfig.AppName = createdApp.Name
-
-	if srcInfo != nil {
-
-		if srcInfo.Port > 0 {
-			appConfig.SetInternalPort(srcInfo.Port)
-		}
-
-		if srcInfo.Concurrency != nil {
-			appConfig.SetConcurrency(srcInfo.Concurrency["soft_limit"], srcInfo.Concurrency["hard_limit"])
-		}
-
-		for envName, envVal := range srcInfo.Env {
-			if envVal == "APP_FQDN" {
-				appConfig.SetEnvVariable(envName, createdApp.Name+".fly.dev")
-			} else {
-				appConfig.SetEnvVariable(envName, envVal)
-			}
-		}
-
-		if len(srcInfo.Statics) > 0 {
-			appConfig.SetStatics(srcInfo.Statics)
-		}
-
-		if len(srcInfo.Volumes) > 0 {
-			appConfig.SetVolumes(srcInfo.Volumes)
-		}
-
-		for procName, procCommand := range srcInfo.Processes {
-			appConfig.SetProcess(procName, procCommand)
-		}
-
-		if srcInfo.ReleaseCmd != "" {
-			appConfig.SetReleaseCommand(srcInfo.ReleaseCmd)
-		}
-
-		if srcInfo.DockerCommand != "" {
-			appConfig.SetDockerCommand(srcInfo.DockerCommand)
-		}
-
-		if srcInfo.DockerEntrypoint != "" {
-			appConfig.SetDockerEntrypoint(srcInfo.DockerEntrypoint)
-		}
-
-		if srcInfo.KillSignal != "" {
-			appConfig.SetKillSignal(srcInfo.KillSignal)
-		}
-	}
 
 	fmt.Fprintf(io.Out, "Created app %s in organization %s\n", createdApp.Name, org.Slug)
 
@@ -418,12 +368,101 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
+	options := make(map[string]bool)
+
+	if !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !srcInfo.SkipDatabase {
+
+		confirmPg, err := prompt.Confirm(ctx, "Would you like to set up a Postgresql database now?")
+
+		if confirmPg && err == nil {
+			LaunchPostgres(ctx, createdApp, org, region)
+			options["postgresql"] = true
+		}
+
+		confirmRedis, err := prompt.Confirm(ctx, "Would you like to set up an Upstash Redis database now?")
+
+		if confirmRedis && err == nil {
+			LaunchRedis(ctx, createdApp, org, region)
+			options["redis"] = true
+		}
+
+		// Run any initialization commands required for Postgres if it was installed
+		if confirmPg && len(srcInfo.PostgresInitCommands) > 0 {
+			for _, cmd := range srcInfo.PostgresInitCommands {
+				if cmd.Condition {
+					if err := execInitCommand(ctx, cmd); err != nil {
+						return err
+					}
+				}
+			}
+		}
+
+	}
+
+	// Invoke Callback, if any
+	if srcInfo != nil && srcInfo.Callback != nil {
+		if err = srcInfo.Callback(srcInfo, options); err != nil {
+			return err
+		}
+	}
+
 	// Run any initialization commands
 	if srcInfo != nil && len(srcInfo.InitCommands) > 0 {
 		for _, cmd := range srcInfo.InitCommands {
 			if err := execInitCommand(ctx, cmd); err != nil {
 				return err
 			}
+		}
+	}
+
+	// Attempt to create a .dockerignore from .gitignore
+	determineDockerIgnore(ctx, workingDir)
+
+	// Complete the appConfig
+	if srcInfo != nil {
+
+		if srcInfo.Port > 0 {
+			appConfig.SetInternalPort(srcInfo.Port)
+		}
+
+		if srcInfo.Concurrency != nil {
+			appConfig.SetConcurrency(srcInfo.Concurrency["soft_limit"], srcInfo.Concurrency["hard_limit"])
+		}
+
+		for envName, envVal := range srcInfo.Env {
+			if envVal == "APP_FQDN" {
+				appConfig.SetEnvVariable(envName, createdApp.Name+".fly.dev")
+			} else {
+				appConfig.SetEnvVariable(envName, envVal)
+			}
+		}
+
+		if len(srcInfo.Statics) > 0 {
+			appConfig.SetStatics(srcInfo.Statics)
+		}
+
+		if len(srcInfo.Volumes) > 0 {
+			appConfig.SetVolumes(srcInfo.Volumes)
+		}
+
+		for procName, procCommand := range srcInfo.Processes {
+			appConfig.SetProcess(procName, procCommand)
+		}
+
+		if srcInfo.ReleaseCmd != "" {
+			appConfig.SetReleaseCommand(srcInfo.ReleaseCmd)
+		}
+
+		if srcInfo.DockerCommand != "" {
+			appConfig.SetDockerCommand(srcInfo.DockerCommand)
+		}
+
+		if srcInfo.DockerEntrypoint != "" {
+			appConfig.SetDockerEntrypoint(srcInfo.DockerEntrypoint)
+		}
+
+		if srcInfo.KillSignal != "" {
+			appConfig.SetKillSignal(srcInfo.KillSignal)
 		}
 	}
 
@@ -447,33 +486,6 @@ func run(ctx context.Context) (err error) {
 
 	if srcInfo == nil {
 		return nil
-	}
-
-	if !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !srcInfo.SkipDatabase {
-
-		confirmPg, err := prompt.Confirm(ctx, "Would you like to set up a Postgresql database now?")
-
-		if confirmPg && err == nil {
-			LaunchPostgres(ctx, createdApp, org, region)
-		}
-
-		confirmRedis, err := prompt.Confirm(ctx, "Would you like to set up an Upstash Redis database now?")
-
-		if confirmRedis && err == nil {
-			LaunchRedis(ctx, createdApp, org, region)
-		}
-
-		// Run any initialization commands required for Postgres if it was installed
-		if confirmPg && len(srcInfo.PostgresInitCommands) > 0 {
-			for _, cmd := range srcInfo.PostgresInitCommands {
-				if cmd.Condition {
-					if err := execInitCommand(ctx, cmd); err != nil {
-						return err
-					}
-				}
-			}
-		}
-
 	}
 
 	// Notices from a launcher about its behavior that should always be displayed
