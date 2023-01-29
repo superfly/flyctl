@@ -60,7 +60,7 @@ func RailsCallback(srcInfo *SourceInfo, options map[string]bool) error {
 		panic(err)
 	} else if !strings.Contains(string(gemfile), "dockerfile-rails") {
 		cmd := exec.Command("bundle", "add", "dockerfile-rails",
-			"--version", ">= 0.5.0", "--group", "development")
+			"--version", ">= 1.0.0", "--group", "development")
 		cmd.Stdin = nil
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
