@@ -381,7 +381,7 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 	}
 
 	app := api.App{Name: config.AppName}
-	cert, err := l.client.IssueSSHCertificate(ctx, config.Organization, []string{"root", "fly"}, []api.App{app}, nil, pub)
+	cert, err := l.client.IssueSSHCertificate(ctx, config.Organization, []string{"root", "fly", "postgres"}, []api.App{app}, nil, pub)
 	if err != nil {
 		return nil, err
 	}
