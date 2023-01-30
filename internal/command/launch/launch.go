@@ -370,7 +370,7 @@ func run(ctx context.Context) (err error) {
 
 	options := make(map[string]bool)
 
-	if !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !srcInfo.SkipDatabase {
+	if srcInfo != nil && !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !srcInfo.SkipDatabase {
 
 		confirmPg, err := prompt.Confirm(ctx, "Would you like to set up a Postgresql database now?")
 
