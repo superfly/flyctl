@@ -26,7 +26,7 @@ func newClone() *cobra.Command {
 		short = "Clone a Fly machine"
 		long  = short + "\n"
 
-		usage = "clone <id>"
+		usage = "clone <machine_id>"
 	)
 
 	cmd := command.New(usage, short, long, runMachineClone,
@@ -34,7 +34,7 @@ func newClone() *cobra.Command {
 		command.LoadAppNameIfPresent,
 	)
 
-	cmd.Args = cobra.MaximumNArgs(1)
+	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(
 		cmd,
