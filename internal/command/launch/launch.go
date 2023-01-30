@@ -442,18 +442,14 @@ func run(ctx context.Context) (err error) {
 	}
 
 	options := make(map[string]bool)
-
-	if srcInfo != nil && !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !srcInfo.SkipDatabase {
-
+	if !(srcInfo == nil || srcInfo.SkipDatabase || flag.GetBool(ctx, "no-deploy") || flag.GetBool(ctx, "now")) {
 		confirmPg, err := prompt.Confirm(ctx, "Would you like to set up a Postgresql database now?")
-
 		if confirmPg && err == nil {
 			LaunchPostgres(ctx, createdApp, org, region)
 			options["postgresql"] = true
 		}
 
 		confirmRedis, err := prompt.Confirm(ctx, "Would you like to set up an Upstash Redis database now?")
-
 		if confirmRedis && err == nil {
 			LaunchRedis(ctx, createdApp, org, region)
 			options["redis"] = true
@@ -469,7 +465,6 @@ func run(ctx context.Context) (err error) {
 				}
 			}
 		}
-
 	}
 
 	// Invoke Callback, if any
@@ -478,7 +473,6 @@ func run(ctx context.Context) (err error) {
 			return err
 		}
 	}
-
 	// Run any initialization commands
 	if srcInfo != nil && len(srcInfo.InitCommands) > 0 {
 		for _, cmd := range srcInfo.InitCommands {
@@ -566,33 +560,6 @@ func run(ctx context.Context) (err error) {
 
 	if srcInfo == nil {
 		return nil
-	}
-
-	if !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !srcInfo.SkipDatabase {
-
-		confirmPg, err := prompt.Confirm(ctx, "Would you like to set up a Postgresql database now?")
-
-		if confirmPg && err == nil {
-			LaunchPostgres(ctx, createdApp, org, region)
-		}
-
-		confirmRedis, err := prompt.Confirm(ctx, "Would you like to set up an Upstash Redis database now?")
-
-		if confirmRedis && err == nil {
-			LaunchRedis(ctx, createdApp, org, region)
-		}
-
-		// Run any initialization commands required for Postgres if it was installed
-		if confirmPg && len(srcInfo.PostgresInitCommands) > 0 {
-			for _, cmd := range srcInfo.PostgresInitCommands {
-				if cmd.Condition {
-					if err := execInitCommand(ctx, cmd); err != nil {
-						return err
-					}
-				}
-			}
-		}
-
 	}
 
 	if !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !flag.GetBool(ctx, "auto-confirm") && reloadedAppConfig.HasNonHttpAndHttpsStandardServices() {
