@@ -231,36 +231,31 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 }
 
 func useMachines(ctx context.Context, appConfig app.Config, appCompact *api.AppCompact, args DeployWithConfigArgs) (bool, error) {
-	if args.ForceNomad {
+	switch {
+	case args.ForceNomad:
 		return false, nil
-	}
-	if args.ForceMachines {
+	case args.ForceMachines:
 		return true, nil
-	}
-	if appCompact.Deployed {
+	case appCompact.Deployed:
 		return appCompact.PlatformVersion == app.MachinesPlatform, nil
-	}
-	// statics are not supported in Apps v2 yet
-	if len(appConfig.Statics) > 0 {
+	case len(appConfig.Statics) > 0:
+		// statics are not supported in Apps v2 yet
+		return false, nil
+	case args.ForceYes:
+		// if running automated, stay on nomad platform for now
 		return false, nil
 	}
-	// if running automated, stay on nomad platform for now
-	if args.ForceYes {
-		return false, nil
-	}
+
 	switch willUseStatics, err := prompt.Confirmf(ctx, "Will you use statics for this app (see https://fly.io/docs/reference/configuration/#the-statics-sections)?"); {
-	case err == nil:
-		if willUseStatics {
-			return false, nil
-		}
-	// if running automated, stay on nomad platform for now
+	case err == nil && willUseStatics:
+		return false, nil
 	case prompt.IsNonInteractive(err):
+		// if running automated, stay on nomad platform for now
 		return false, nil
 	default:
-		return false, err
+		// if we didn't find an exception above, use the machines platform by default!
+		return true, err
 	}
-	// if we didn't find an exception above, use the machines platform by default!
-	return true, nil
 }
 
 // determineAppConfig fetches the app config from a local file, or in its absence, from the API
