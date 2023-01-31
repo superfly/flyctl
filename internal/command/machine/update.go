@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -54,16 +53,15 @@ func runUpdate(ctx context.Context) (err error) {
 		appName  = app.NameFromContext(ctx)
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
-		client   = client.FromContext(ctx).API()
 
 		machineID        = flag.FirstArg(ctx)
 		autoConfirm      = flag.GetBool(ctx, "yes")
 		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
 	)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := appFromMachineOrName(ctx, machineID, appName)
 	if err != nil {
-		return fmt.Errorf("could not get app: %w", err)
+		return fmt.Errorf("could not make flaps client: %w", err)
 	}
 
 	ctx, err = apps.BuildContext(ctx, app)
@@ -71,8 +69,13 @@ func runUpdate(ctx context.Context) (err error) {
 		return err
 	}
 
+	flapsClient, err := flaps.New(ctx, app)
+	if err != nil {
+		return fmt.Errorf("could not make flaps client: %w", err)
+	}
+
 	// Get machine
-	flapsClient := flaps.FromContext(ctx)
+
 	machine, err := flapsClient.Get(ctx, machineID)
 	if err != nil {
 		return err
