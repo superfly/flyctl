@@ -37,7 +37,7 @@ const (
 
 func NewConfig() *Config {
 	return &Config{
-		Definition: map[string]interface{}{},
+		Definition: map[string]any{},
 	}
 }
 
@@ -65,7 +65,7 @@ type Config struct {
 	AppName       string                    `toml:"app,omitempty" json:"app,omitempty"`
 	Build         *Build                    `toml:"build,omitempty" json:"build,omitempty"`
 	HttpService   *HTTPService              `toml:"http_service,omitempty" json:"http_service,omitempty"`
-	Definition    map[string]interface{}    `toml:"definition,omitempty" json:"definition,omitempty"`
+	Definition    map[string]any            `toml:"definition,omitempty" json:"definition,omitempty"`
 	Path          string                    `toml:"path,omitempty" json:"path,omitempty"`
 	Services      []Service                 `toml:"services" json:"services,omitempty"`
 	Env           map[string]string         `toml:"env" json:"env,omitempty"`
@@ -253,15 +253,15 @@ type VM struct {
 }
 
 type Build struct {
-	Builder           string                 `toml:"builder,omitempty"`
-	Args              map[string]string      `toml:"args,omitempty"`
-	Buildpacks        []string               `toml:"buildpacks,omitempty"`
-	Image             string                 `toml:"image,omitempty"`
-	Settings          map[string]interface{} `toml:"settings,omitempty"`
-	Builtin           string                 `toml:"builtin,omitempty"`
-	Dockerfile        string                 `toml:"dockerfile,omitempty"`
-	Ignorefile        string                 `toml:"ignorefile,omitempty"`
-	DockerBuildTarget string                 `toml:"build-target,omitempty"`
+	Builder           string            `toml:"builder,omitempty"`
+	Args              map[string]string `toml:"args,omitempty"`
+	Buildpacks        []string          `toml:"buildpacks,omitempty"`
+	Image             string            `toml:"image,omitempty"`
+	Settings          map[string]any    `toml:"settings,omitempty"`
+	Builtin           string            `toml:"builtin,omitempty"`
+	Dockerfile        string            `toml:"dockerfile,omitempty"`
+	Ignorefile        string            `toml:"ignorefile,omitempty"`
+	DockerBuildTarget string            `toml:"build-target,omitempty"`
 }
 
 type Experimental struct {
@@ -347,7 +347,7 @@ func (c *Config) EncodeTo(w io.Writer) error {
 }
 
 func (c *Config) unmarshalTOML(r io.ReadSeeker) error {
-	var definition map[string]interface{}
+	var definition map[string]any
 	_, err := toml.NewDecoder(r).Decode(&definition)
 	if err != nil {
 		return err
@@ -374,7 +374,7 @@ func (c *Config) marshalTOML(w io.Writer) error {
 	rawData["app"] = c.AppName
 
 	if c.Build != nil {
-		buildData := make(map[string]interface{})
+		buildData := make(map[string]any)
 		if c.Build.Builder != "" {
 			buildData["builder"] = c.Build.Builder
 		}
@@ -414,12 +414,12 @@ func (c *Config) marshalTOML(w io.Writer) error {
 
 // normalizeDefinition roundtrips through json encoder to convert
 // float64 numbers to json.Number, otherwise numbers are floats in toml
-func normalizeDefinition(src map[string]interface{}) (map[string]interface{}, error) {
+func normalizeDefinition(src map[string]any) (map[string]any, error) {
 	if len(src) == 0 {
 		return src, nil
 	}
 
-	dst := make(map[string]interface{})
+	dst := make(map[string]any)
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(src); err != nil {
@@ -489,13 +489,13 @@ func (c *Config) Validate() (err error) {
 
 // HasServices - Does this config have a services section
 func (c *Config) HasServices() bool {
-	_, ok := c.Definition["services"].([]interface{})
+	_, ok := c.Definition["services"].([]any)
 
 	return ok
 }
 
 func (c *Config) SetInternalPort(port int) bool {
-	services, ok := c.Definition["services"].([]interface{})
+	services, ok := c.Definition["services"].([]any)
 	if !ok {
 		return false
 	}
@@ -504,7 +504,7 @@ func (c *Config) SetInternalPort(port int) bool {
 		return false
 	}
 
-	if service, ok := services[0].(map[string]interface{}); ok {
+	if service, ok := services[0].(map[string]any); ok {
 		service["internal_port"] = port
 
 		return true
@@ -514,13 +514,13 @@ func (c *Config) SetInternalPort(port int) bool {
 }
 
 func (c *Config) SetConcurrency(soft int, hard int) bool {
-	services, ok := c.Definition["services"].([]interface{})
+	services, ok := c.Definition["services"].([]any)
 	if !ok || len(services) == 0 {
 		return false
 	}
 
-	if service, ok := services[0].(map[string]interface{}); ok {
-		if concurrency, ok := service["concurrency"].(map[string]interface{}); ok {
+	if service, ok := services[0].(map[string]any); ok {
+		if concurrency, ok := service["concurrency"].(map[string]any); ok {
 			concurrency["hard_limit"] = hard
 			concurrency["soft_limit"] = soft
 			return true
@@ -537,7 +537,7 @@ func (c *Config) InternalPort() (int, error) {
 		return -1, errors.New("could not find internal port setting")
 	}
 
-	services, ok := tmpservices.([]map[string]interface{})
+	services, ok := tmpservices.([]map[string]any)
 	if ok {
 		internalport, ok := services[0]["internal_port"].(int64)
 		if ok {
@@ -627,11 +627,11 @@ func (c *Config) GetEnvVariables() map[string]string {
 	env := map[string]string{}
 
 	if rawEnv, ok := c.Definition["env"]; ok {
-		// we get map[string]interface{} when unmarshaling toml, and map[string]string from SetEnvVariables. Support them both :vomit:
+		// we get map[string]any when unmarshaling toml, and map[string]string from SetEnvVariables. Support them both :vomit:
 		switch castEnv := rawEnv.(type) {
 		case map[string]string:
 			env = castEnv
-		case map[string]interface{}:
+		case map[string]any:
 			for k, v := range castEnv {
 				if stringVal, ok := v.(string); ok {
 					env[k] = stringVal
