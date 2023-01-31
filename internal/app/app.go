@@ -55,7 +55,7 @@ func LoadConfig(ctx context.Context, path string) (cfg *Config, err error) {
 		}
 	}()
 
-	cfg.Path = path
+	cfg.FlyTomlPath = path
 	err = cfg.unmarshalTOML(file)
 	return
 }
@@ -66,7 +66,6 @@ type Config struct {
 	Build         *Build                    `toml:"build,omitempty" json:"build,omitempty"`
 	HttpService   *HTTPService              `toml:"http_service,omitempty" json:"http_service,omitempty"`
 	Definition    map[string]any            `toml:"definition,omitempty" json:"definition,omitempty"`
-	Path          string                    `toml:"path,omitempty" json:"path,omitempty"`
 	Services      []Service                 `toml:"services" json:"services,omitempty"`
 	Env           map[string]string         `toml:"env" json:"env,omitempty"`
 	Metrics       *api.MachineMetrics       `toml:"metrics" json:"metrics,omitempty"`
@@ -77,6 +76,7 @@ type Config struct {
 	Mounts        *scanner.Volume           `toml:"mounts,omitempty" json:"mounts,omitempty"`
 	Processes     map[string]string         `toml:"processes,omitempty" json:"processes,omitempty"`
 	Experimental  Experimental              `toml:"experimental,omitempty" json:"experimental,omitempty"`
+	FlyTomlPath   string                    `toml:"-" json:"-"`
 }
 
 type Deploy struct {

@@ -266,7 +266,7 @@ func getAppConfig(ctx context.Context, appName string) (*app.Config, error) {
 		if !parsedCfg.Valid {
 			fmt.Println()
 			if len(parsedCfg.Errors) > 0 {
-				terminal.Errorf("\nConfiguration errors in %s:\n\n", cfg.Path)
+				terminal.Errorf("\nConfiguration errors in %s:\n\n", cfg.FlyTomlPath)
 			}
 			for _, e := range parsedCfg.Errors {
 				terminal.Errorf("   %s\n", e)

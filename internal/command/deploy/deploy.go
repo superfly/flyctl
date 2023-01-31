@@ -135,7 +135,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 				path := "fly.toml"
 				cfg := app.ConfigFromContext(ctx)
 				if cfg != nil {
-					path = cfg.Path
+					path = cfg.FlyTomlPath
 				}
 				tb.Printf("\nConfiguration errors in %s:\n\n", path)
 			}
@@ -411,7 +411,7 @@ func resolveDockerfilePath(ctx context.Context, appConfig *app.Config) (path str
 	}()
 
 	if path = appConfig.Dockerfile(); path != "" {
-		path = filepath.Join(filepath.Dir(appConfig.Path), path)
+		path = filepath.Join(filepath.Dir(appConfig.FlyTomlPath), path)
 	} else {
 		path = flag.GetString(ctx, "dockerfile")
 	}
@@ -429,7 +429,7 @@ func resolveIgnorefilePath(ctx context.Context, appConfig *app.Config) (path str
 	}()
 
 	if path = appConfig.Ignorefile(); path != "" {
-		path = filepath.Join(filepath.Dir(appConfig.Path), path)
+		path = filepath.Join(filepath.Dir(appConfig.FlyTomlPath), path)
 	} else {
 		path = flag.GetString(ctx, "ignorefile")
 	}
