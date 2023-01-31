@@ -230,12 +230,14 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 
 func useMachines(ctx context.Context, appConfig app.Config, appCompact *api.AppCompact, args DeployWithConfigArgs) (bool, error) {
 	switch {
+	case appCompact.PlatformVersion == app.MachinesPlatform:
+		return true, nil
+	case appCompact.Deployed:
+		return appCompact.PlatformVersion == app.MachinesPlatform, nil
 	case args.ForceNomad:
 		return false, nil
 	case args.ForceMachines:
 		return true, nil
-	case appCompact.Deployed:
-		return appCompact.PlatformVersion == app.MachinesPlatform, nil
 	case len(appConfig.Statics) > 0:
 		// statics are not supported in Apps v2 yet
 		return false, nil
