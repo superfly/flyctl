@@ -43,9 +43,7 @@ func NewConfig() *Config {
 
 // LoadConfig loads the app config at the given path.
 func LoadConfig(ctx context.Context, path string) (cfg *Config, err error) {
-	cfg = &Config{
-		Definition: map[string]interface{}{},
-	}
+	cfg = NewConfig()
 
 	file, err := os.Open(path)
 	if err != nil {
@@ -361,8 +359,7 @@ func (c *Config) unmarshalTOML(r io.ReadSeeker) error {
 	if err != nil {
 		return err
 	}
-	_, err = toml.NewDecoder(r).Decode(&c)
-	if err != nil {
+	if _, err = toml.NewDecoder(r).Decode(&c); err != nil {
 		return err
 	}
 	c.Definition = definition
@@ -371,22 +368,13 @@ func (c *Config) unmarshalTOML(r io.ReadSeeker) error {
 
 func (c *Config) marshalTOML(w io.Writer) error {
 	var b bytes.Buffer
+	tomlEncoder := toml.NewEncoder(&b)
 
-	encoder := toml.NewEncoder(&b)
-	fmt.Fprintf(w, "# fly.toml file generated for %s on %s\n\n", c.AppName, time.Now().Format(time.RFC3339))
-
-	rawData := map[string]interface{}{
-		"app": c.AppName,
-	}
-
-	if err := encoder.Encode(rawData); err != nil {
-		return err
-	}
-
-	rawData = c.Definition
+	rawData := c.Definition
+	rawData["app"] = c.AppName
 
 	if c.Build != nil {
-		buildData := map[string]interface{}{}
+		buildData := make(map[string]interface{})
 		if c.Build.Builder != "" {
 			buildData["builder"] = c.Build.Builder
 		}
@@ -411,26 +399,40 @@ func (c *Config) marshalTOML(w io.Writer) error {
 		rawData["build"] = buildData
 	}
 
-	if len(c.Definition) > 0 {
-		// roundtrip through json encoder to convert float64 numbers to json.Number, otherwise numbers are floats in toml
-		var buf bytes.Buffer
-		if err := json.NewEncoder(&buf).Encode(c.Definition); err != nil {
-			return err
-		}
-
-		d := json.NewDecoder(&buf)
-		d.UseNumber()
-		if err := d.Decode(&c.Definition); err != nil {
-			return err
-		}
-
-		if err := encoder.Encode(c.Definition); err != nil {
-			return err
-		}
+	var err error
+	if rawData, err = normalizeDefinition(rawData); err != nil {
+		return err
+	}
+	if err := tomlEncoder.Encode(rawData); err != nil {
+		return err
 	}
 
-	_, err := b.WriteTo(w)
+	fmt.Fprintf(w, "# fly.toml file generated for %s on %s\n\n", c.AppName, time.Now().Format(time.RFC3339))
+	_, err = b.WriteTo(w)
 	return err
+}
+
+// normalizeDefinition roundtrips through json encoder to convert
+// float64 numbers to json.Number, otherwise numbers are floats in toml
+func normalizeDefinition(src map[string]interface{}) (map[string]interface{}, error) {
+	if len(src) == 0 {
+		return src, nil
+	}
+
+	dst := make(map[string]interface{})
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(src); err != nil {
+		return nil, err
+	}
+
+	d := json.NewDecoder(&buf)
+	d.UseNumber()
+	if err := d.Decode(&dst); err != nil {
+		return nil, err
+	}
+
+	return dst, nil
 }
 
 func (c *Config) WriteToFile(filename string) (err error) {
@@ -513,16 +515,11 @@ func (c *Config) SetInternalPort(port int) bool {
 
 func (c *Config) SetConcurrency(soft int, hard int) bool {
 	services, ok := c.Definition["services"].([]interface{})
-	if !ok {
-		return false
-	}
-
-	if len(services) == 0 {
+	if !ok || len(services) == 0 {
 		return false
 	}
 
 	if service, ok := services[0].(map[string]interface{}); ok {
-
 		if concurrency, ok := service["concurrency"].(map[string]interface{}); ok {
 			concurrency["hard_limit"] = hard
 			concurrency["soft_limit"] = soft
