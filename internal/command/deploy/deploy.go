@@ -108,7 +108,6 @@ type DeployWithConfigArgs struct {
 	ForceMachines bool
 	ForceNomad    bool
 	ForceYes      bool
-	Launching     bool // FIXME: drop this and the other stuff that uses it once https://github.com/superfly/flyctl/pull/1602 is merged
 }
 
 func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWithConfigArgs) (err error) {
@@ -174,7 +173,6 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 		md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 			DeploymentImage:      img,
 			Strategy:             flag.GetString(ctx, "strategy"),
-			Launching:            args.Launching,
 			EnvFromFlags:         flag.GetStringSlice(ctx, "env"),
 			PrimaryRegionFlag:    flag.GetString(ctx, flag.RegionName),
 			AutoConfirmMigration: flag.GetBool(ctx, "auto-confirm"),

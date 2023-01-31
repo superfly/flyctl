@@ -677,7 +677,7 @@ type ProcessConfig struct {
 	Checks   map[string]api.MachineCheck
 }
 
-func (c *Config) GetProcessConfigs(appLaunching bool) (map[string]*ProcessConfig, error) {
+func (c *Config) GetProcessConfigs() (map[string]*ProcessConfig, error) {
 	res := make(map[string]*ProcessConfig)
 	processCount := len(c.Processes)
 	configProcesses := lo.Assign(c.Processes)

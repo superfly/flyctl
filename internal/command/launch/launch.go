@@ -137,7 +137,6 @@ func run(ctx context.Context) (err error) {
 		if deployExisting {
 			fmt.Fprintln(io.Out, "App is not running, deploy...")
 			return deploy.DeployWithConfig(ctx, cfg, deploy.DeployWithConfigArgs{
-				Launching:     true,
 				ForceNomad:    flag.GetBool(ctx, "force-nomad"),
 				ForceMachines: flag.GetBool(ctx, "force-machines"),
 				ForceYes:      flag.GetBool(ctx, "now"),
@@ -612,7 +611,6 @@ func run(ctx context.Context) (err error) {
 
 	if deployNow {
 		return deploy.DeployWithConfig(ctx, appConfig, deploy.DeployWithConfigArgs{
-			Launching:     true,
 			ForceNomad:    flag.GetBool(ctx, "force-nomad"),
 			ForceMachines: flag.GetBool(ctx, "force-machines"),
 			ForceYes:      flag.GetBool(ctx, "now"),
