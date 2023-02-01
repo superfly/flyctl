@@ -60,7 +60,7 @@ func RailsCallback(srcInfo *SourceInfo, options map[string]bool) error {
 		panic(err)
 	} else if !strings.Contains(string(gemfile), "dockerfile-rails") {
 		cmd := exec.Command("bundle", "add", "dockerfile-rails",
-			"--version", ">= 1.0.0", "--group", "development")
+			"--optimistic", "--group", "development", "--skip-install")
 		cmd.Stdin = nil
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -68,12 +68,22 @@ func RailsCallback(srcInfo *SourceInfo, options map[string]bool) error {
 		if err := cmd.Run(); err != nil {
 			return errors.Wrap(err, "Failed to add dockerfile-rails gem, exiting")
 		}
+
+		cmd = exec.Command("bundle", "install", "--quiet")
+		cmd.Stdin = nil
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			return errors.Wrap(err, "Failed to install dockerfile-rails gem, exiting")
+		}
 	}
 
 	// generate Dockerfile if it doesn't already exist
 	_, err = os.Stat("Dockerfile")
 	if errors.Is(err, fs.ErrNotExist) {
-		args := []string{"./bin/rails", "generate", "dockerfile"}
+		args := []string{"./bin/rails", "generate", "dockerfile",
+			"--label=fly_launch_runtime:rails"}
 
 		if options["postgresql"] {
 			args = append(args, "--postgresql")
