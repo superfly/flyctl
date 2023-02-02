@@ -375,25 +375,28 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 		return nil, err
 	}
 
-	pub, priv, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		return nil, err
-	}
-
-	app := api.App{Name: config.AppName}
-	cert, err := l.client.IssueSSHCertificate(ctx, config.Organization, []string{"root", "fly", "postgres"}, []api.App{app}, nil, pub)
-	if err != nil {
-		return nil, err
-	}
-
-	pemkey := ssh.MarshalED25519PrivateKey(priv, "postgres inter-machine ssh")
-
 	secrets := map[string]string{
 		"SU_PASSWORD":       suPassword,
 		"REPL_PASSWORD":     replPassword,
 		"OPERATOR_PASSWORD": opPassword,
-		"SSH_KEY":           string(pemkey),
-		"SSH_CERT":          cert.Certificate,
+	}
+
+	if config.Manager == ReplicationManager {
+		pub, priv, err := ed25519.GenerateKey(nil)
+		if err != nil {
+			return nil, err
+		}
+
+		app := api.App{Name: config.AppName}
+		cert, err := l.client.IssueSSHCertificate(ctx, config.Organization, []string{"root", "fly", "postgres"}, []api.App{app}, nil, pub)
+		if err != nil {
+			return nil, err
+		}
+
+		pemkey := ssh.MarshalED25519PrivateKey(priv, "postgres inter-machine ssh")
+
+		secrets["SSH_KEY"] = string(pemkey)
+		secrets["SSH_CERT"] = cert.Certificate
 	}
 
 	if config.SnapshotID != nil {
