@@ -2,7 +2,9 @@ package flypg
 
 import (
 	"context"
+	"crypto/ed25519"
 	"fmt"
+	"github.com/superfly/flyctl/ssh"
 	"time"
 
 	"github.com/superfly/flyctl/api"
@@ -377,6 +379,24 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 		"SU_PASSWORD":       suPassword,
 		"REPL_PASSWORD":     replPassword,
 		"OPERATOR_PASSWORD": opPassword,
+	}
+
+	if config.Manager == ReplicationManager {
+		pub, priv, err := ed25519.GenerateKey(nil)
+		if err != nil {
+			return nil, err
+		}
+
+		app := api.App{Name: config.AppName}
+		cert, err := l.client.IssueSSHCertificate(ctx, config.Organization, []string{"root", "fly", "postgres"}, []api.App{app}, nil, pub)
+		if err != nil {
+			return nil, err
+		}
+
+		pemkey := ssh.MarshalED25519PrivateKey(priv, "postgres inter-machine ssh")
+
+		secrets["SSH_KEY"] = string(pemkey)
+		secrets["SSH_CERT"] = cert.Certificate
 	}
 
 	if config.SnapshotID != nil {
