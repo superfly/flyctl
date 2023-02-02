@@ -54,10 +54,11 @@ require (
 	github.com/superfly/flyctl/api v0.0.0-20220708073423-b6d7c3cf5161
 	github.com/superfly/graphql v0.2.3
 	github.com/vektah/gqlparser/v2 v2.4.8
-	golang.org/x/crypto v0.1.0
-	golang.org/x/net v0.4.0
+	golang.org/x/crypto v0.5.0
+	golang.org/x/exp v0.0.0-20220303212507-bbda1eaf7a17
+	golang.org/x/net v0.5.0
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
-	golang.org/x/term v0.3.0
+	golang.org/x/term v0.4.0
 	golang.zx2c4.com/wireguard v0.0.0-20220829161405-d1d08426b27b
 	google.golang.org/grpc v1.42.0-dev.0.20211020220737-f00baa6c3c84
 	gopkg.in/yaml.v2 v2.4.0
@@ -74,14 +75,13 @@ require (
 	github.com/google/btree v1.0.1 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
-	golang.org/x/exp v0.0.0-20220303212507-bbda1eaf7a17 // indirect
 	golang.org/x/tools v0.1.12 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20211104114900-415007cec224 // indirect
 	gvisor.dev/gvisor v0.0.0-20220817001344-846276b3dbc5 // indirect
 )
 
 require (
-	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
+	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Microsoft/go-winio v0.5.1 // indirect
 	github.com/Microsoft/hcsshim v0.8.18 // indirect
@@ -168,8 +168,8 @@ require (
 	go.opentelemetry.io/otel/trace v1.0.0-RC1 // indirect
 	go.opentelemetry.io/proto/otlp v0.9.0 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
-	golang.org/x/sys v0.3.0
-	golang.org/x/text v0.5.0 // indirect
+	golang.org/x/sys v0.4.0
+	golang.org/x/text v0.6.0 // indirect
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	google.golang.org/genproto v0.0.0-20210722135532-667f2b7c528f // indirect
 	google.golang.org/protobuf v1.27.1 // indirect

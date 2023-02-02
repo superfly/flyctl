@@ -221,7 +221,7 @@ func sshConnect(p *SSHParams, addr string) (*ssh.Client, error) {
 		return nil, fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh establish`)", err)
 	}
 
-	pemkey := marshalED25519PrivateKey(pk, "single-use certificate")
+	pemkey := ssh.MarshalED25519PrivateKey(pk, "single-use certificate")
 
 	terminal.Debugf("Keys for %s configured; connecting...\n", addr)
 
