@@ -1,6 +1,8 @@
 package api
 
-import "context"
+import (
+	"context"
+)
 
 func (c *Client) GetCurrentUser(ctx context.Context) (*User, error) {
 	query := `
@@ -18,5 +20,5 @@ func (c *Client) GetCurrentUser(ctx context.Context) (*User, error) {
 		return nil, err
 	}
 
-	return &data.CurrentUser, nil
+	return &data.Viewer, nil
 }
