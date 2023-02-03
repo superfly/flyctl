@@ -38,6 +38,20 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 				Value: string(masterKey),
 			},
 		}
+	} else {
+		// support Rails 4 through 5.1 applications, or ones that started out
+		// there and never were fully upgraded.
+		out, err := exec.Command("rake", "secret").Output()
+
+		if err == nil {
+			s.Secrets = []Secret{
+				{
+					Key:   "SECRET_KEY_BASE",
+					Help:  "Secret key used to verify the integrity of signed cookies",
+					Value: strings.TrimSpace(string(out)),
+				},
+			}
+		}
 	}
 
 	s.SkipDeploy = true
