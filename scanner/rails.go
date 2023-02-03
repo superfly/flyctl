@@ -138,23 +138,5 @@ func RailsCallback(srcInfo *SourceInfo, options map[string]bool) error {
 	}
 	srcInfo.Port = port
 
-	// extract workdir
-	workdir := "/rails"
-	re = regexp.MustCompile(`(?m).*^WORKDIR\s+(?P<dir>/\S+)`)
-	m = re.FindStringSubmatch(string(dockerfile))
-
-	for i, name := range re.SubexpNames() {
-		if len(m) > 0 && name == "dir" {
-			workdir = m[i]
-		}
-	}
-
-	srcInfo.Statics = []Static{
-		{
-			GuestPath: workdir + "/public",
-			UrlPrefix: "/",
-		},
-	}
-
 	return nil
 }
