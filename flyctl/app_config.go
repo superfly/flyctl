@@ -13,7 +13,6 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/scanner"
 )
 
 type ConfigFormat string
@@ -66,7 +65,7 @@ func LoadAppConfig(configFile string) (*AppConfig, error) {
 	}
 	defer file.Close()
 
-	switch ConfigFormatFromPath(fullConfigFilePath) {
+	switch configFormatFromPath(fullConfigFilePath) {
 	case TOMLFormat:
 		err = appConfig.unmarshalTOML(file)
 	default:
@@ -74,46 +73,6 @@ func LoadAppConfig(configFile string) (*AppConfig, error) {
 	}
 
 	return &appConfig, err
-}
-
-func (ac *AppConfig) HasDefinition() bool {
-	return len(ac.Definition) > 0
-}
-
-func (ac *AppConfig) HasBuilder() bool {
-	return ac.Build != nil && ac.Build.Builder != ""
-}
-
-func (ac *AppConfig) HasBuiltin() bool {
-	return ac.Build != nil && ac.Build.Builtin != ""
-}
-
-func (ac *AppConfig) Image() string {
-	if ac.Build == nil {
-		return ""
-	}
-	return ac.Build.Image
-}
-
-func (ac *AppConfig) Dockerfile() string {
-	if ac.Build == nil {
-		return ""
-	}
-	return ac.Build.Dockerfile
-}
-
-func (ac *AppConfig) Ignorefile() string {
-	if ac.Build == nil {
-		return ""
-	}
-	return ac.Build.Ignorefile
-}
-
-func (ac *AppConfig) DockerBuildTarget() string {
-	if ac.Build == nil {
-		return ""
-	}
-	return ac.Build.DockerBuildTarget
 }
 
 func (ac *AppConfig) WriteTo(w io.Writer, format ConfigFormat) error {
@@ -273,190 +232,7 @@ func (ac *AppConfig) WriteToFile(filename string) error {
 	}
 	defer file.Close()
 
-	return ac.WriteTo(file, ConfigFormatFromPath(filename))
-}
-
-// HasServices - Does this config have a services section
-func (ac *AppConfig) HasServices() bool {
-	_, ok := ac.Definition["services"].([]interface{})
-
-	return ok
-}
-
-func (ac *AppConfig) SetInternalPort(port int) bool {
-	if services, ok := ac.Definition["services"].([]interface{}); ok {
-		if len(services) == 0 {
-			return false
-		}
-
-		if service, ok := services[0].(map[string]interface{}); ok {
-			service["internal_port"] = port
-			return true
-		}
-	}
-
-	return false
-}
-
-func (ac *AppConfig) GetInternalPort() (int, error) {
-	tmpservices, ok := ac.Definition["services"]
-
-	if !ok {
-		return -1, errors.New("could not find internal port setting")
-	}
-
-	services, ok := tmpservices.([]map[string]interface{})
-
-	if ok {
-		internalport, ok := services[0]["internal_port"].(int64)
-		if ok {
-			return int(internalport), nil
-		}
-		internalportfloat, ok := services[0]["internal_port"].(float64)
-		if ok {
-			return int(internalportfloat), nil
-		}
-	}
-	return 8080, nil
-}
-
-func (ac *AppConfig) SetEnvVariable(name, value string) {
-	ac.SetEnvVariables(map[string]string{name: value})
-}
-
-func (ac *AppConfig) SetEnvVariables(vals map[string]string) {
-	env := ac.GetEnvVariables()
-
-	for k, v := range vals {
-		env[k] = v
-	}
-
-	ac.Definition["env"] = env
-}
-
-func (ac *AppConfig) GetEnvVariables() map[string]string {
-	env := map[string]string{}
-
-	if rawEnv, ok := ac.Definition["env"]; ok {
-		// we get map[string]interface{} when unmarshaling toml, and map[string]string from SetEnvVariables. Support them both :vomit:
-		switch castEnv := rawEnv.(type) {
-		case map[string]string:
-			env = castEnv
-		case map[string]interface{}:
-			for k, v := range castEnv {
-				if stringVal, ok := v.(string); ok {
-					env[k] = stringVal
-				} else {
-					env[k] = fmt.Sprintf("%v", v)
-				}
-			}
-		}
-	}
-
-	return env
-}
-
-func (ac *AppConfig) SetBuildSecrets(vals map[string]string) {
-	var env map[string]string
-
-	if rawEnv, ok := ac.Definition["env"]; ok {
-		if castEnv, ok := rawEnv.(map[string]string); ok {
-			env = castEnv
-		}
-	}
-	if env == nil {
-		env = map[string]string{}
-	}
-
-	for k, v := range vals {
-		env[k] = v
-	}
-
-	ac.Definition["env"] = env
-}
-
-func (ac *AppConfig) SetReleaseCommand(cmd string) {
-	var deploy map[string]string
-
-	if rawDeploy, ok := ac.Definition["deploy"]; ok {
-		if castDeploy, ok := rawDeploy.(map[string]string); ok {
-			deploy = castDeploy
-		}
-	}
-
-	if deploy == nil {
-		deploy = map[string]string{}
-	}
-
-	deploy["release_command"] = cmd
-
-	ac.Definition["deploy"] = deploy
-}
-
-func (ac *AppConfig) SetDockerCommand(cmd string) {
-	var experimental map[string]string
-
-	if rawExperimental, ok := ac.Definition["experimental"]; ok {
-		if castExperimental, ok := rawExperimental.(map[string]string); ok {
-			experimental = castExperimental
-		}
-	}
-
-	if experimental == nil {
-		experimental = map[string]string{}
-	}
-
-	experimental["cmd"] = cmd
-
-	ac.Definition["experimental"] = experimental
-}
-
-func (ac *AppConfig) SetKillSignal(signal string) {
-	ac.Definition["kill_signal"] = signal
-}
-
-func (ac *AppConfig) SetDockerEntrypoint(entrypoint string) {
-	var experimental map[string]string
-
-	if rawExperimental, ok := ac.Definition["experimental"]; ok {
-		if castExperimental, ok := rawExperimental.(map[string]string); ok {
-			experimental = castExperimental
-		}
-	}
-
-	if experimental == nil {
-		experimental = map[string]string{}
-	}
-
-	experimental["entrypoint"] = entrypoint
-
-	ac.Definition["experimental"] = experimental
-}
-
-func (ac *AppConfig) SetProcess(name, value string) {
-	var processes map[string]string
-
-	if rawProcesses, ok := ac.Definition["processes"]; ok {
-		if castProcesses, ok := rawProcesses.(map[string]string); ok {
-			processes = castProcesses
-		}
-	}
-
-	if processes == nil {
-		processes = map[string]string{}
-	}
-
-	processes[name] = value
-
-	ac.Definition["processes"] = processes
-}
-
-func (ac *AppConfig) SetStatics(statics []scanner.Static) {
-	ac.Definition["statics"] = statics
-}
-
-func (ac *AppConfig) SetVolumes(volumes []scanner.Volume) {
-	ac.Definition["mounts"] = volumes
+	return ac.WriteTo(file, configFormatFromPath(filename))
 }
 
 const defaultConfigFileName = "fly.toml"
@@ -484,7 +260,7 @@ func ResolveConfigFileFromPath(p string) (string, error) {
 	return p, nil
 }
 
-func ConfigFormatFromPath(p string) ConfigFormat {
+func configFormatFromPath(p string) ConfigFormat {
 	switch path.Ext(p) {
 	case ".toml":
 		return TOMLFormat
