@@ -70,7 +70,14 @@ func runUpdate(ctx context.Context) (err error) {
 
 	addOn := response.AddOn
 
-	readRegions, err := prompt.MultiRegion(ctx, "Choose replica regions, or unselect to remove replica regions:", addOn.ReadRegions, []string{addOn.PrimaryRegion})
+	excludedRegions, err := GetExcludedRegions(ctx)
+
+	if err != nil {
+		return err
+	}
+	excludedRegions = append(excludedRegions, addOn.PrimaryRegion)
+
+	readRegions, err := prompt.MultiRegion(ctx, "Choose replica regions, or unselect to remove replica regions:", addOn.ReadRegions, excludedRegions)
 	if err != nil {
 		return
 	}
