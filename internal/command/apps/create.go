@@ -81,7 +81,7 @@ func RunCreate(ctx context.Context) (err error) {
 	case fGenerateName:
 		break
 	default:
-		if name, err = SelectAppName(ctx); err != nil {
+		if name, err = prompt.SelectAppName(ctx); err != nil {
 			return
 		}
 	}
@@ -113,14 +113,4 @@ func RunCreate(ctx context.Context) (err error) {
 	}
 
 	return err
-}
-
-func SelectAppName(ctx context.Context) (name string, err error) {
-	const msg = "Choose an app name (leave blank to generate one):"
-
-	if err = prompt.String(ctx, &name, msg, "", false); prompt.IsNonInteractive(err) {
-		err = prompt.NonInteractiveError("name argument or flag must be specified when not running interactively")
-	}
-
-	return
 }

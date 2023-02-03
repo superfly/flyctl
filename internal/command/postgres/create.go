@@ -9,7 +9,6 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -94,7 +93,7 @@ func run(ctx context.Context) (err error) {
 	appName := flag.GetString(ctx, "name")
 
 	if appName == "" {
-		if appName, err = apps.SelectAppName(ctx); err != nil {
+		if appName, err = prompt.SelectAppName(ctx); err != nil {
 			return
 		}
 	}

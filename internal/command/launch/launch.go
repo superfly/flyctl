@@ -22,7 +22,6 @@ import (
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/redis"
@@ -53,10 +52,7 @@ func New() (cmd *cobra.Command) {
 		deploy.CommonFlags,
 
 		flag.Org(),
-		flag.Bool{
-			Name:        "no-deploy",
-			Description: "Do not prompt for deployment",
-		},
+		flag.NoDeploy(),
 		flag.Bool{
 			Name:        "generate-name",
 			Description: "Always generate a name for the app, without prompting",
@@ -246,7 +242,7 @@ func run(ctx context.Context) (err error) {
 
 		if appName == "" {
 			// Prompt the user for the app name
-			inputName, err := apps.SelectAppName(ctx)
+			inputName, err := prompt.SelectAppName(ctx)
 			if err != nil {
 				return err
 			}
