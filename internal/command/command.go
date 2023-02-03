@@ -532,7 +532,10 @@ func ChangeWorkingDirectoryToFirstArgIfPresent(ctx context.Context) (context.Con
 	if wd == "" {
 		return ctx, nil
 	}
+	return ChangeWorkingDirectory(ctx, wd)
+}
 
+func ChangeWorkingDirectory(ctx context.Context, wd string) (context.Context, error) {
 	if !filepath.IsAbs(wd) {
 		p, err := filepath.Abs(wd)
 		if err != nil {
