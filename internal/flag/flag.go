@@ -226,6 +226,13 @@ func Now() Bool {
 	}
 }
 
+func NoDeploy() Bool {
+	return Bool{
+		Name:        "no-deploy",
+		Description: "Do not prompt for deployment",
+	}
+}
+
 // GenerateName returns a boolean flag for generating an application name
 func GenerateName() Bool {
 	return Bool{
