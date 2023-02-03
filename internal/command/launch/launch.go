@@ -17,7 +17,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -111,7 +110,7 @@ func run(ctx context.Context) (err error) {
 	var importedConfig bool
 	configFilePath := filepath.Join(workingDir, "fly.toml")
 
-	if exists, _ := flyctl.ConfigFileExistsAtPath(configFilePath); exists {
+	if exists, _ := app.ConfigFileExistsAtPath(configFilePath); exists {
 		cfg, err := app.LoadConfig(ctx, configFilePath)
 		if err != nil {
 			return err

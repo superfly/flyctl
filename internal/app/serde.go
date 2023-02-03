@@ -14,12 +14,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func NewConfig() *Config {
-	return &Config{
-		Definition: map[string]any{},
-	}
-}
-
 // LoadConfig loads the app config at the given path.
 func LoadConfig(ctx context.Context, path string) (cfg *Config, err error) {
 	cfg = NewConfig()
@@ -34,8 +28,8 @@ func LoadConfig(ctx context.Context, path string) (cfg *Config, err error) {
 		}
 	}()
 
+	cfg, err = unmarshalTOML(file)
 	cfg.FlyTomlPath = path
-	err = cfg.unmarshalTOML(file)
 	return
 }
 
