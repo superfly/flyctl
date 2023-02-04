@@ -3,12 +3,9 @@ package app
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/BurntSushi/toml"
 )
 
 type patchFuncType func(map[string]any) (map[string]any, error)
@@ -18,32 +15,6 @@ var configPatches = []patchFuncType{
 	patchServices,
 	patchProcesses,
 	patchExperimental,
-}
-
-// LoadConfig loads the app config at the given path.
-func LoadConfig(path string) (cfg *Config, err error) {
-	buf, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	cfg, err = unmarshalTOML(buf)
-	if err != nil {
-		return nil, err
-	}
-
-	cfg.FlyTomlPath = path
-	// cfg.WriteToFile("patched-fly.toml")
-	return cfg, nil
-}
-
-func unmarshalTOML(buf []byte) (*Config, error) {
-	cfgMap := map[string]any{}
-	if err := toml.Unmarshal(buf, &cfgMap); err != nil {
-		return nil, err
-	}
-
-	return applyPatches(cfgMap)
 }
 
 func applyPatches(cfgMap map[string]any) (*Config, error) {
