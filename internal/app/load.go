@@ -34,8 +34,7 @@ func LoadConfig(ctx context.Context, path string) (cfg *Config, err error) {
 	}
 
 	cfg.FlyTomlPath = path
-
-	cfg.WriteToFile("fly-2.toml")
+	// cfg.WriteToFile("patched-fly.toml")
 	return cfg, nil
 }
 
