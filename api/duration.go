@@ -53,3 +53,11 @@ func (d *Duration) parseDuration(v any) error {
 	}
 	return nil
 }
+
+func MustParseDuration(v any) *Duration {
+	d := &Duration{}
+	if err := d.parseDuration(v); err != nil {
+		panic(err)
+	}
+	return d
+}

@@ -62,3 +62,53 @@ func TestLoadTOMLAppConfigWithServices(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, definition, rawData)
 }
+
+func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
+	const path = "./testdata/old-format.toml"
+	cfg, err := LoadConfig(path)
+	assert.NoError(t, err)
+	assert.Equal(t, cfg, &Config{
+		FlyTomlPath: "./testdata/old-format.toml",
+		AppName:     "foo",
+		Env: map[string]string{
+			"FOO": "STRING",
+			"BAR": "123",
+		},
+		Services: []Service{
+			{
+				InternalPort: 8080,
+				Ports: []api.MachinePort{
+					{
+						Port:     api.Pointer(80),
+						Handlers: []string{"http"},
+					},
+				},
+				Concurrency: &api.MachineServiceConcurrency{
+					Type:      "requests",
+					HardLimit: 23,
+					SoftLimit: 12,
+				},
+				TCPChecks: []*ServiceTCPCheck{
+					{
+						Interval: api.MustParseDuration("30s"),
+						Timeout:  api.MustParseDuration("4s"),
+					},
+					{
+						Interval: api.MustParseDuration("20s"),
+						Timeout:  api.MustParseDuration("3s"),
+					},
+				},
+				HTTPChecks: []*ServiceHTTPCheck{
+					{
+						Interval: api.MustParseDuration("30s"),
+						Timeout:  api.MustParseDuration("4s"),
+					},
+					{
+						Interval: api.MustParseDuration("20s"),
+						Timeout:  api.MustParseDuration("3s"),
+					},
+				},
+			},
+		},
+	})
+}

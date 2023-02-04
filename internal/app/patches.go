@@ -62,7 +62,8 @@ func patchEnv(cfg map[string]any) (map[string]any, error) {
 func patchProcesses(cfg map[string]any) (map[string]any, error) {
 	if raw, ok := cfg["processes"]; ok {
 		switch cast := raw.(type) {
-		case []any:
+		case []any, []map[string]any:
+			// GQL GetConfig returns an empty array when there are not processes
 			delete(cfg, "processes")
 		case map[string]string:
 			// Nothing to do here
@@ -78,6 +79,7 @@ func patchExperimental(cfg map[string]any) (map[string]any, error) {
 		switch cast := raw.(type) {
 		case map[string]any:
 			if len(cast) == 0 {
+				// Remove experiemntal section if empty
 				delete(cfg, "experimental")
 			}
 		default:
