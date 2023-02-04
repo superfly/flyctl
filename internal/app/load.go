@@ -223,26 +223,17 @@ func _patchChecks(rawChecks any) ([]map[string]any, error) {
 	}
 
 	for idx, check := range checks {
-		if v, ok := check["interval"]; ok {
-			switch cast := v.(type) {
-			case string:
-				// Nothing to do here
-			case int64:
-				// Convert milliseconds to microseconds as expected by api.ParseDuration
-				check["interval"] = time.Duration(cast) * time.Millisecond
+		for _, attr := range []string{"interval", "timeout"} {
+			if v, ok := check[attr]; ok {
+				switch cast := v.(type) {
+				case string:
+					// Nothing to do here
+				case int64:
+					// Convert milliseconds to microseconds as expected by api.ParseDuration
+					check[attr] = time.Duration(cast) * time.Millisecond
+				}
 			}
 		}
-
-		if v, ok := check["timeout"]; ok {
-			switch cast := v.(type) {
-			case string:
-				// Nothing to do here
-			case int64:
-				// Convert milliseconds to microseconds as expected by api.ParseDuration
-				check["interval"] = time.Duration(cast) * time.Millisecond
-			}
-		}
-
 		checks[idx] = check
 	}
 	return checks, nil
