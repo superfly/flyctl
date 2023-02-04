@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -22,7 +21,7 @@ var configPatches = []patchFuncType{
 }
 
 // LoadConfig loads the app config at the given path.
-func LoadConfig(ctx context.Context, path string) (cfg *Config, err error) {
+func LoadConfig(path string) (cfg *Config, err error) {
 	buf, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err

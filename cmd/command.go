@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"path/filepath"
 
@@ -275,7 +274,7 @@ func setupAppName(ctx *cmdctx.CmdContext) error {
 	// load the config file if it exists
 	if helpers.FileExists(ctx.ConfigFile) {
 		terminal.Debug("Loading app config from", ctx.ConfigFile)
-		appConfig, err := app.LoadConfig(context.TODO(), ctx.ConfigFile)
+		appConfig, err := app.LoadConfig(ctx.ConfigFile)
 		if err != nil {
 			return err
 		}

@@ -111,7 +111,7 @@ func run(ctx context.Context) (err error) {
 	configFilePath := filepath.Join(workingDir, "fly.toml")
 
 	if exists, _ := app.ConfigFileExistsAtPath(configFilePath); exists {
-		cfg, err := app.LoadConfig(ctx, configFilePath)
+		cfg, err := app.LoadConfig(configFilePath)
 		if err != nil {
 			return err
 		}
@@ -550,7 +550,7 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 	// round trip config, because some magic happens to populate stuff like services
-	reloadedAppConfig, err := app.LoadConfig(ctx, flyTomlPath)
+	reloadedAppConfig, err := app.LoadConfig(flyTomlPath)
 	if err != nil {
 		return err
 	}
