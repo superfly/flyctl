@@ -8,9 +8,9 @@ import (
 )
 
 type Service struct {
-	Protocol     string                         `json:"protocol" toml:"protocol"`
-	InternalPort int                            `json:"internal_port" toml:"internal_port"`
-	Ports        []api.MachinePort              `json:"ports" toml:"ports"`
+	Protocol     string                         `json:"protocol,omitempty" toml:"protocol"`
+	InternalPort int                            `json:"internal_port,omitempty" toml:"internal_port"`
+	Ports        []api.MachinePort              `json:"ports,omitempty" toml:"ports"`
 	Concurrency  *api.MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
 	TCPChecks    []*ServiceTCPCheck             `json:"tcp_checks,omitempty" toml:"tcp_checks,omitempty"`
 	HTTPChecks   []*ServiceHTTPCheck            `json:"http_checks,omitempty" toml:"http_checks,omitempty"`

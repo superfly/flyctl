@@ -181,9 +181,11 @@ func run(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "Changed to new app directory %s\n", createdApp.Name)
 
 	// Generate an app config to write to fly.toml
-	appConfig := app.NewConfig()
+	appConfig, err := app.FromDefinition(&createdApp.Config.Definition)
+	if err != nil {
+		return err
+	}
 
-	appConfig.Definition = createdApp.Config.Definition
 	procfile := ""
 
 	// Add each process to a Procfile and fly.toml

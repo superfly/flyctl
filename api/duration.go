@@ -27,7 +27,8 @@ func (d *Duration) UnmarshalTOML(v any) error {
 }
 
 func (d Duration) MarshalTOML() ([]byte, error) {
-	return []byte(d.Duration.String()), nil
+	v := fmt.Sprintf("\"%s\"", d.Duration.String())
+	return []byte(v), nil
 }
 
 func (d *Duration) parseDuration(v any) error {

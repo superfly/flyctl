@@ -17,9 +17,7 @@ const (
 )
 
 func NewConfig() *Config {
-	return &Config{
-		Definition: map[string]any{},
-	}
+	return &Config{}
 }
 
 // Config wraps the properties of app configuration.
@@ -27,62 +25,61 @@ type Config struct {
 	AppName       string                    `toml:"app,omitempty" json:"app,omitempty"`
 	KillSignal    string                    `toml:"kill_signal,omitempty" json:"kill_signal,omitempty"`
 	KillTimeout   int                       `toml:"kill_timeout,omitempty" json:"kill_timeout,omitempty"`
+	PrimaryRegion string                    `toml:"primary_region,omitempty" json:"primary_region,omitempty"`
+	Experimental  *Experimental             `toml:"experimental,omitempty" json:"experimental,omitempty"`
 	Build         *Build                    `toml:"build,omitempty" json:"build,omitempty"`
+	Deploy        *Deploy                   `toml:"deploy, omitempty" json:"deploy,omitempty"`
+	Env           map[string]string         `toml:"env,omitempty" json:"env,omitempty"`
 	HttpService   *HTTPService              `toml:"http_service,omitempty" json:"http_service,omitempty"`
-	Services      []Service                 `toml:"services" json:"services,omitempty"`
-	Env           map[string]string         `toml:"env" json:"env,omitempty"`
 	Metrics       *api.MachineMetrics       `toml:"metrics" json:"metrics,omitempty"`
 	Statics       []Static                  `toml:"statics,omitempty" json:"statics,omitempty"`
-	Deploy        *Deploy                   `toml:"deploy, omitempty" json:"deploy,omitempty"`
-	PrimaryRegion string                    `toml:"primary_region,omitempty" json:"primary_region,omitempty"`
-	Checks        map[string]*ToplevelCheck `toml:"checks,omitempty" json:"checks,omitempty"`
 	Mounts        *Volume                   `toml:"mounts,omitempty" json:"mounts,omitempty"`
 	Processes     map[string]string         `toml:"processes,omitempty" json:"processes,omitempty"`
-	Experimental  *Experimental             `toml:"experimental,omitempty" json:"experimental,omitempty"`
+	Checks        map[string]*ToplevelCheck `toml:"checks,omitempty" json:"checks,omitempty"`
+	Services      []Service                 `toml:"services" json:"services,omitempty"`
 
-	FlyTomlPath string         `toml:"-" json:"-"`
-	Definition  map[string]any `toml:"-" json:"-"`
+	FlyTomlPath string `toml:"-" json:"-"`
 }
 
 type Deploy struct {
-	ReleaseCommand string `toml:"release_command,omitempty"`
-	Strategy       string `toml:"strategy,omitempty"`
+	ReleaseCommand string `toml:"release_command,omitempty" json:"release_command,omitempty"`
+	Strategy       string `toml:"strategy,omitempty" json:"strategy,omitempty"`
 }
 
 type Static struct {
-	GuestPath string `toml:"guest_path" json:"guest_path" validate:"required"`
-	UrlPrefix string `toml:"url_prefix" json:"url_prefix" validate:"required"`
+	GuestPath string `toml:"guest_path" json:"guest_path,omitempty" validate:"required"`
+	UrlPrefix string `toml:"url_prefix" json:"url_prefix,omitempty" validate:"required"`
 }
 
 type Volume struct {
-	Source      string `toml:"source" json:"source"`
-	Destination string `toml:"destination" json:"destination"`
+	Source      string `toml:"source" json:"source,omitempty"`
+	Destination string `toml:"destination" json:"destination,omitempty"`
 }
 
 type VM struct {
-	CpuCount int `toml:"cpu_count,omitempty"`
-	Memory   int `toml:"memory,omitempty"`
+	CpuCount int `toml:"cpu_count,omitempty" json:"cpu_count,omitempty"`
+	Memory   int `toml:"memory,omitempty" json:"memory,omitempty"`
 }
 
 type Build struct {
-	Builder           string            `toml:"builder,omitempty"`
-	Args              map[string]string `toml:"args,omitempty"`
-	Buildpacks        []string          `toml:"buildpacks,omitempty"`
-	Image             string            `toml:"image,omitempty"`
-	Settings          map[string]any    `toml:"settings,omitempty"`
-	Builtin           string            `toml:"builtin,omitempty"`
-	Dockerfile        string            `toml:"dockerfile,omitempty"`
-	Ignorefile        string            `toml:"ignorefile,omitempty"`
-	DockerBuildTarget string            `toml:"build-target,omitempty"`
+	Builder           string            `toml:"builder,omitempty" json:"builder,omitempty"`
+	Args              map[string]string `toml:"args,omitempty" json:"args,omitempty"`
+	Buildpacks        []string          `toml:"buildpacks,omitempty" json:"buildpacks,omitempty"`
+	Image             string            `toml:"image,omitempty" json:"image,omitempty"`
+	Settings          map[string]any    `toml:"settings,omitempty" json:"settings,omitempty"`
+	Builtin           string            `toml:"builtin,omitempty" json:"builtin,omitempty"`
+	Dockerfile        string            `toml:"dockerfile,omitempty" json:"dockerfile,omitempty"`
+	Ignorefile        string            `toml:"ignorefile,omitempty" json:"ignorefile,omitempty"`
+	DockerBuildTarget string            `toml:"build-target,omitempty" json:"docker_build_target,omitempty"`
 }
 
 type Experimental struct {
-	Cmd          []string `toml:"cmd,omitempty"`
-	Entrypoint   []string `toml:"entrypoint,omitempty"`
-	Exec         []string `toml:"exec,omitempty"`
-	AutoRollback bool     `toml:"auto_rollback,omitempty"`
-	EnableConsul bool     `toml:"enable_consul,omitempty"`
-	EnableEtcd   bool     `toml:"enable_etcd,omitempty"`
+	Cmd          []string `toml:"cmd,omitempty" json:"cmd,omitempty"`
+	Entrypoint   []string `toml:"entrypoint,omitempty" json:"entrypoint,omitempty"`
+	Exec         []string `toml:"exec,omitempty" json:"exec,omitempty"`
+	AutoRollback bool     `toml:"auto_rollback,omitempty" json:"auto_rollback,omitempty"`
+	EnableConsul bool     `toml:"enable_consul,omitempty" json:"enable_consul,omitempty"`
+	EnableEtcd   bool     `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
 }
 
 func (c *Config) HasNonHttpAndHttpsStandardServices() bool {
@@ -183,6 +180,9 @@ func (c *Config) SetDockerEntrypoint(entrypoint string) {
 }
 
 func (c *Config) SetEnvVariable(name, value string) {
+	if c.Env == nil {
+		c.Env = make(map[string]string)
+	}
 	c.Env[name] = value
 }
 

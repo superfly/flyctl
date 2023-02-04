@@ -6,6 +6,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/stretchr/testify/assert"
+	"github.com/superfly/flyctl/api"
 )
 
 func TestLoadTOMLAppConfigWithAppName(t *testing.T) {
@@ -51,11 +52,14 @@ func TestLoadTOMLAppConfigWithBuilderNameAndArgs(t *testing.T) {
 func TestLoadTOMLAppConfigWithServices(t *testing.T) {
 	const path = "./testdata/services.toml"
 	p, err := LoadConfig(context.Background(), path)
-
-	rawData := map[string]interface{}{}
-	toml.DecodeFile("./testdata/services.toml", &rawData)
-	delete(rawData, "app")
-	delete(rawData, "build")
 	assert.NoError(t, err)
-	assert.Equal(t, p.Definition, rawData)
+
+	rawData := &api.Definition{}
+	toml.DecodeFile("./testdata/services.toml", rawData)
+	delete(*rawData, "app")
+	delete(*rawData, "build")
+
+	definition, err := p.ToDefinition()
+	assert.NoError(t, err)
+	assert.Equal(t, definition, rawData)
 }

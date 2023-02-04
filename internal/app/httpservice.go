@@ -7,9 +7,9 @@ import (
 )
 
 type HTTPService struct {
-	InternalPort int                            `json:"internal_port" toml:"internal_port" validate:"required,numeric"`
-	ForceHttps   bool                           `toml:"force_https"`
-	Concurrency  *api.MachineServiceConcurrency `toml:"concurrency,omitempty"`
+	InternalPort int                            `json:"internal_port,omitempty" toml:"internal_port" validate:"required,numeric"`
+	ForceHttps   bool                           `toml:"force_https" json:"force_https,omitempty"`
+	Concurrency  *api.MachineServiceConcurrency `toml:"concurrency,omitempty" json:"concurrency,omitempty"`
 }
 
 func (svc *HTTPService) toMachineService() *api.MachineService {

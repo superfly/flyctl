@@ -150,7 +150,7 @@ func run(ctx context.Context) (err error) {
 		}
 
 		if copyConfig {
-			appConfig.Definition = cfg.Definition
+			appConfig = cfg
 			importedConfig = true
 		}
 	}
@@ -302,7 +302,11 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 	if !importedConfig {
-		appConfig.Definition = createdApp.Config.Definition
+		if cfg, err := app.FromDefinition(&createdApp.Config.Definition); err != nil {
+			return err
+		} else {
+			appConfig = cfg
+		}
 	}
 
 	appConfig.AppName = createdApp.Name

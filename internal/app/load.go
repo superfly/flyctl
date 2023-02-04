@@ -1,9 +1,10 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"io"
+	"os"
 
 	"github.com/BurntSushi/toml"
 )
@@ -13,24 +14,40 @@ type patchFuncType func(map[string]any) (map[string]any, error)
 var configPatches = []patchFuncType{
 	patchEnv,
 	patchConcurrency,
+	patchProcesses,
+	patchExperimental,
 }
 
-func unmarshalTOML(r io.ReadSeeker) (*Config, error) {
+// LoadConfig loads the app config at the given path.
+func LoadConfig(ctx context.Context, path string) (cfg *Config, err error) {
+	buf, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg, err = unmarshalTOML(buf)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg.FlyTomlPath = path
+	return cfg, nil
+}
+
+func unmarshalTOML(buf []byte) (*Config, error) {
 	cfgMap := map[string]any{}
-	_, err := toml.NewDecoder(r).Decode(&cfgMap)
-	if err != nil {
+	if err := toml.Unmarshal(buf, &cfgMap); err != nil {
 		return nil, err
 	}
 
-	// Warn of TOML parsing errors
-	_, err = r.Seek(0, io.SeekStart)
-	if err != nil {
-		return nil, err
+	if err := toml.Unmarshal(buf, &Config{}); err != nil {
+		return nil, fmt.Errorf("Can not decode into app.Config: %w", err)
 	}
-	if _, err = toml.NewDecoder(r).Decode(&Config{}); err != nil {
-		return nil, err
-	}
+	return applyPatches(cfgMap)
+}
 
+func applyPatches(cfgMap map[string]any) (*Config, error) {
+	// Migrate whatever we found in old fly.toml files to newish format
 	for _, patchFunc := range configPatches {
 		var err error
 		cfgMap, err = patchFunc(cfgMap)
@@ -39,14 +56,12 @@ func unmarshalTOML(r io.ReadSeeker) (*Config, error) {
 		}
 	}
 
-	buf, err := json.Marshal(cfgMap)
+	newbuf, err := json.Marshal(cfgMap)
 	if err != nil {
 		return nil, err
 	}
-
 	cfg := &Config{}
-	err = json.Unmarshal(buf, cfg)
-	return cfg, err
+	return cfg, json.Unmarshal(newbuf, cfg)
 }
 
 func patchEnv(cfg map[string]any) (map[string]any, error) {
@@ -74,5 +89,33 @@ func patchEnv(cfg map[string]any) (map[string]any, error) {
 }
 
 func patchConcurrency(cfg map[string]any) (map[string]any, error) {
+	return cfg, nil
+}
+
+func patchProcesses(cfg map[string]any) (map[string]any, error) {
+	if raw, ok := cfg["processes"]; ok {
+		switch cast := raw.(type) {
+		case []any:
+			delete(cfg, "processes")
+		case map[string]string:
+			// Nothing to do here
+		default:
+			return nil, fmt.Errorf("Unknown processes type: %T", cast)
+		}
+	}
+	return cfg, nil
+}
+
+func patchExperimental(cfg map[string]any) (map[string]any, error) {
+	if raw, ok := cfg["experimental"]; ok {
+		switch cast := raw.(type) {
+		case map[string]any:
+			if len(cast) == 0 {
+				delete(cfg, "experimental")
+			}
+		default:
+			return nil, fmt.Errorf("Unknown type: %T", cast)
+		}
+	}
 	return cfg, nil
 }

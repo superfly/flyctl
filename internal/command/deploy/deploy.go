@@ -124,10 +124,17 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 	// this uses the gql validation, which only knows about nomad configs
 	if !deployToMachines {
 		tb := render.NewTextBlock(ctx, "Verifying app config")
-		parsedCfg, err := apiClient.ParseConfig(ctx, appNameFromContext, appConfig.Definition)
+
+		definition, err := appConfig.ToDefinition()
 		if err != nil {
 			return err
 		}
+
+		parsedCfg, err := apiClient.ParseConfig(ctx, appNameFromContext, *definition)
+		if err != nil {
+			return err
+		}
+
 		if !parsedCfg.Valid {
 			fmt.Println()
 			if len(parsedCfg.Errors) > 0 {
@@ -277,10 +284,10 @@ func determineAppConfig(ctx context.Context, envFromFlags []string, primaryRegio
 			return nil, err
 		}
 
-		cfg = &app.Config{
-			Definition: apiConfig.Definition,
+		cfg, err := app.FromDefinition(&apiConfig.Definition)
+		if err != nil {
+			return nil, err
 		}
-
 		cfg.AppName = basicApp.Name
 	}
 
@@ -481,9 +488,11 @@ func createRelease(ctx context.Context, appConfig *app.Config, img *imgsrc.Deplo
 		input.Strategy = api.StringPointer(strings.ReplaceAll(strings.ToUpper(val), "-", "_"))
 	}
 
-	if len(appConfig.Definition) > 0 {
-		input.Definition = api.DefinitionPtr(appConfig.Definition)
+	definition, err := appConfig.ToDefinition()
+	if err != nil {
+		return nil, nil, err
 	}
+	input.Definition = definition
 
 	// Start deployment of the determined image
 	client := client.FromContext(ctx).API()
