@@ -96,8 +96,10 @@ func RailsCallback(srcInfo *SourceInfo, options map[string]bool) error {
 	// generate Dockerfile if it doesn't already exist
 	_, err = os.Stat("Dockerfile")
 	if errors.Is(err, fs.ErrNotExist) {
-		args := []string{"./bin/rails", "generate", "dockerfile",
-			"--label=fly_launch_runtime:rails"}
+		args := []string{
+			"./bin/rails", "generate", "dockerfile",
+			"--label=fly_launch_runtime:rails",
+		}
 
 		if options["postgresql"] {
 			args = append(args, "--postgresql")

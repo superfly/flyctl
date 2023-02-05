@@ -4,7 +4,6 @@ package app
 
 import (
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/scanner"
 )
 
 const (
@@ -203,7 +202,7 @@ func (c *Config) SetProcess(name, value string) {
 	c.Processes[name] = value
 }
 
-func (c *Config) SetStatics(statics []scanner.Static) {
+func (c *Config) SetStatics(statics []Static) {
 	c.Statics = make([]Static, 0, len(statics))
 	for _, static := range statics {
 		c.Statics = append(c.Statics, Static{
@@ -213,7 +212,7 @@ func (c *Config) SetStatics(statics []scanner.Static) {
 	}
 }
 
-func (c *Config) SetVolumes(volumes []scanner.Volume) {
+func (c *Config) SetVolumes(volumes []Volume) {
 	if len(volumes) == 0 {
 		return
 	}

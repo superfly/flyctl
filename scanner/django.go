@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/app"
 )
 
 // setup django with a postgres database
@@ -26,7 +27,7 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 				},
 			},
 		},
-		Statics: []Static{
+		Statics: []app.Static{
 			{
 				GuestPath: "/app/public",
 				UrlPrefix: "/static/",
