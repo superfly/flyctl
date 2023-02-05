@@ -1,11 +1,12 @@
 package app
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pelletier/go-toml"
 )
 
 type patchFuncType func(map[string]any) (map[string]any, error)
@@ -27,12 +28,12 @@ func applyPatches(cfgMap map[string]any) (*Config, error) {
 		}
 	}
 
-	newbuf, err := json.Marshal(cfgMap)
+	newbuf, err := toml.Marshal(cfgMap)
 	if err != nil {
 		return nil, err
 	}
 	cfg := &Config{}
-	return cfg, json.Unmarshal(newbuf, cfg)
+	return cfg, toml.Unmarshal(newbuf, cfg)
 }
 
 func patchEnv(cfg map[string]any) (map[string]any, error) {
@@ -65,7 +66,7 @@ func patchProcesses(cfg map[string]any) (map[string]any, error) {
 		case []any, []map[string]any:
 			// GQL GetConfig returns an empty array when there are not processes
 			delete(cfg, "processes")
-		case map[string]string:
+		case map[string]any:
 			// Nothing to do here
 		default:
 			return nil, fmt.Errorf("Unknown processes type: %T", cast)
@@ -181,7 +182,7 @@ func _patchService(service map[string]any) (map[string]any, error) {
 		if err != nil {
 			return nil, fmt.Errorf("Error processing tcp_checks: %T", rawTcpChecks)
 		}
-		service["tcp_checks"] = checks
+		service["http_checks"] = checks
 	}
 
 	return service, nil

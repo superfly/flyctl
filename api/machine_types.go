@@ -336,9 +336,9 @@ type MachineService struct {
 }
 
 type MachineServiceConcurrency struct {
-	Type      string `json:"type" toml:"type,omitempty"`
-	HardLimit int    `json:"hard_limit" toml:"hard_limit,omitempty"`
-	SoftLimit int    `json:"soft_limit" toml:"soft_limit,omitempty"`
+	Type      string `json:"type,omitempty" toml:"type,omitempty"`
+	HardLimit int    `json:"hard_limit,omitempty" toml:"hard_limit,omitempty"`
+	SoftLimit int    `json:"soft_limit,omitempty" toml:"soft_limit,omitempty"`
 }
 
 type MachineConfig struct {
