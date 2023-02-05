@@ -17,7 +17,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -111,8 +110,8 @@ func run(ctx context.Context) (err error) {
 	var importedConfig bool
 	configFilePath := filepath.Join(workingDir, "fly.toml")
 
-	if exists, _ := flyctl.ConfigFileExistsAtPath(configFilePath); exists {
-		cfg, err := app.LoadConfig(ctx, configFilePath)
+	if exists, _ := app.ConfigFileExistsAtPath(configFilePath); exists {
+		cfg, err := app.LoadConfig(configFilePath)
 		if err != nil {
 			return err
 		}
@@ -151,7 +150,7 @@ func run(ctx context.Context) (err error) {
 		}
 
 		if copyConfig {
-			appConfig.Definition = cfg.Definition
+			appConfig = cfg
 			importedConfig = true
 		}
 	}
@@ -303,7 +302,11 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 	if !importedConfig {
-		appConfig.Definition = createdApp.Config.Definition
+		if cfg, err := app.FromDefinition(&createdApp.Config.Definition); err != nil {
+			return err
+		} else {
+			appConfig = cfg
+		}
 	}
 
 	appConfig.AppName = createdApp.Name
@@ -547,7 +550,7 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 	// round trip config, because some magic happens to populate stuff like services
-	reloadedAppConfig, err := app.LoadConfig(ctx, flyTomlPath)
+	reloadedAppConfig, err := app.LoadConfig(flyTomlPath)
 	if err != nil {
 		return err
 	}

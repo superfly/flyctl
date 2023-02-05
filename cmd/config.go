@@ -7,12 +7,12 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/app"
 
 	"github.com/superfly/flyctl/docstrings"
 
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 )
 
@@ -55,7 +55,7 @@ func runShowConfig(cmdCtx *cmdctx.CmdContext) error {
 func runSaveConfig(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 
-	configfilename, err := flyctl.ResolveConfigFileFromPath(cmdCtx.WorkingDir)
+	configfilename, err := app.ResolveConfigFileFromPath(cmdCtx.WorkingDir)
 	if err != nil {
 		return err
 	}
@@ -68,18 +68,17 @@ func runSaveConfig(cmdCtx *cmdctx.CmdContext) error {
 		}
 	}
 
-	if cmdCtx.AppConfig == nil {
-		cmdCtx.AppConfig = flyctl.NewAppConfig()
-	}
-	cmdCtx.AppConfig.AppName = cmdCtx.AppName
-
 	serverCfg, err := cmdCtx.Client.API().GetConfig(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
 
-	cmdCtx.AppConfig.Definition = serverCfg.Definition
-
+	appConfig, err := app.FromDefinition(&serverCfg.Definition)
+	if err != nil {
+		return err
+	}
+	appConfig.AppName = cmdCtx.AppName
+	cmdCtx.AppConfig = appConfig
 	return writeAppConfig(cmdCtx.ConfigFile, cmdCtx.AppConfig)
 }
 
@@ -93,7 +92,12 @@ func runValidateConfig(commandContext *cmdctx.CmdContext) error {
 	commandContext.Status("config", cmdctx.STITLE, "Validating", commandContext.ConfigFile)
 
 	// separate query from authenticated app validation (in deploy etc)
-	serverCfg, err := client.NewClient("").ValidateConfig(ctx, commandContext.AppName, commandContext.AppConfig.Definition)
+	definition, err := commandContext.AppConfig.ToDefinition()
+	if err != nil {
+		return err
+	}
+
+	serverCfg, err := client.NewClient("").ValidateConfig(ctx, commandContext.AppName, *definition)
 	if err != nil {
 		return err
 	}
@@ -160,7 +164,7 @@ func printAppConfigErrors(cfg api.AppConfig) {
 	fmt.Println()
 }
 
-func writeAppConfig(path string, appConfig *flyctl.AppConfig) error {
+func writeAppConfig(path string, appConfig *app.Config) error {
 	if err := appConfig.WriteToFile(path); err != nil {
 		return err
 	}

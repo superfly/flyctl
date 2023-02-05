@@ -251,29 +251,36 @@ func getAppConfig(ctx context.Context, appName string) (*app.Config, error) {
 			return nil, err
 		}
 
-		cfg = &app.Config{
-			Definition: apiConfig.Definition,
-		}
-
-		cfg.AppName = basicApp.Name
-		return cfg, nil
-	} else {
-		parsedCfg, err := apiClient.ParseConfig(ctx, appName, cfg.Definition)
+		cfg, err := app.FromDefinition(&apiConfig.Definition)
 		if err != nil {
 			return nil, err
 		}
-		// FIXME: ignore this for machines... (flyctl needs a validator for machines)
-		if !parsedCfg.Valid {
-			fmt.Println()
-			if len(parsedCfg.Errors) > 0 {
-				terminal.Errorf("\nConfiguration errors in %s:\n\n", cfg.FlyTomlPath)
-			}
-			for _, e := range parsedCfg.Errors {
-				terminal.Errorf("   %s\n", e)
-			}
-			fmt.Println()
-			return nil, errors.New("error app configuration is not valid")
-		}
+		cfg.AppName = basicApp.Name
 		return cfg, nil
 	}
+
+	definition, err := cfg.ToDefinition()
+	if err != nil {
+		return nil, err
+	}
+
+	parsedCfg, err := apiClient.ParseConfig(ctx, appName, *definition)
+	if err != nil {
+		return nil, err
+	}
+
+	// FIXME: ignore this for machines... (flyctl needs a validator for machines)
+	if !parsedCfg.Valid {
+		fmt.Println()
+		if len(parsedCfg.Errors) > 0 {
+			terminal.Errorf("\nConfiguration errors in %s:\n\n", cfg.FlyTomlPath)
+		}
+		for _, e := range parsedCfg.Errors {
+			terminal.Errorf("   %s\n", e)
+		}
+		fmt.Println()
+		return nil, errors.New("error app configuration is not valid")
+	}
+
+	return cfg, nil
 }
