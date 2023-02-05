@@ -191,10 +191,6 @@ func (c *Config) SetEnvVariables(vals map[string]string) {
 	}
 }
 
-func (c *Config) GetEnvVariables() map[string]string {
-	return c.Env
-}
-
 func (c *Config) SetProcess(name, value string) {
 	if c.Processes == nil {
 		c.Processes = make(map[string]string)

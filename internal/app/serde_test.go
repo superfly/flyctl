@@ -12,7 +12,7 @@ func TestGetAndSetEnvVariables(t *testing.T) {
 	cfg.SetEnvVariable("A", "B")
 	cfg.SetEnvVariable("C", "D")
 
-	assert.Equal(t, map[string]string{"A": "B", "C": "D"}, cfg.GetEnvVariables())
+	assert.Equal(t, map[string]string{"A": "B", "C": "D"}, cfg.Env)
 
 	buf := &bytes.Buffer{}
 	if err := cfg.marshalTOML(buf); err != nil {
@@ -22,5 +22,5 @@ func TestGetAndSetEnvVariables(t *testing.T) {
 	cfg2, err := unmarshalTOML(buf.Bytes())
 	assert.NoError(t, err)
 
-	assert.Equal(t, cfg.GetEnvVariables(), cfg2.GetEnvVariables())
+	assert.Equal(t, cfg.Env, cfg2.Env)
 }
