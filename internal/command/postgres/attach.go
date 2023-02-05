@@ -109,7 +109,6 @@ func runAttach(ctx context.Context) error {
 	var flycast *string
 
 	for _, ip := range pgAppFull.IPAddresses.Nodes {
-		fmt.Println(ip)
 		if ip.Type == "private_v6" {
 			flycast = &ip.Address
 		}
@@ -162,7 +161,6 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 	var flycast *string
 
 	for _, ip := range pgAppFull.IPAddresses.Nodes {
-		fmt.Println(ip)
 		if ip.Type == "private_v6" {
 			flycast = &ip.Address
 		}
