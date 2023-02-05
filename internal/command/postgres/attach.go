@@ -101,9 +101,22 @@ func runAttach(ctx context.Context) error {
 		Force:        flag.GetBool(ctx, "yes"),
 	}
 
+	pgAppFull, err := client.GetApp(ctx, pgAppName)
+	if err != nil {
+		return fmt.Errorf("failed retrieving postgres app %s: %w", pgAppName, err)
+	}
+
+	var flycast *string
+
+	for _, ip := range pgAppFull.IPAddresses.Nodes {
+		if ip.Type == "private_v6" {
+			flycast = &ip.Address
+		}
+	}
+
 	switch pgApp.PlatformVersion {
 	case "machines":
-		return machineAttachCluster(ctx, params)
+		return machineAttachCluster(ctx, params, flycast)
 	case "nomad":
 		return nomadAttachCluster(ctx, pgApp, params)
 	default:
@@ -135,14 +148,27 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 	}
 
 	// Verify that the target app exists.
-	_, err = client.GetAppCompact(ctx, appName)
+	_, err = client.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
+	pgAppFull, err := client.GetApp(ctx, pgAppName)
+	if err != nil {
+		return fmt.Errorf("failed retrieving postgres app %s: %w", pgAppName, err)
+	}
+
+	var flycast *string
+
+	for _, ip := range pgAppFull.IPAddresses.Nodes {
+		if ip.Type == "private_v6" {
+			flycast = &ip.Address
+		}
+	}
+
 	switch pgApp.PlatformVersion {
 	case "machines":
-		return machineAttachCluster(ctx, params)
+		return machineAttachCluster(ctx, params, flycast)
 	case "nomad":
 		return nomadAttachCluster(ctx, pgApp, params)
 	default:
@@ -179,11 +205,11 @@ func nomadAttachCluster(ctx context.Context, pgApp *api.AppCompact, params Attac
 		return err
 	}
 
-	return runAttachCluster(ctx, leaderIP, params)
+	return runAttachCluster(ctx, leaderIP, params, nil)
 }
 
-func machineAttachCluster(ctx context.Context, params AttachParams) error {
-	// Minimum image version requirements
+func machineAttachCluster(ctx context.Context, params AttachParams, flycast *string) error {
+	//Minimum image version requirements
 	var (
 		MinPostgresHaVersion         = "0.0.19"
 		MinPostgresStandaloneVersion = "0.0.7"
@@ -208,10 +234,10 @@ func machineAttachCluster(ctx context.Context, params AttachParams) error {
 		return err
 	}
 
-	return runAttachCluster(ctx, leader.PrivateIP, params)
+	return runAttachCluster(ctx, leader.PrivateIP, params, flycast)
 }
 
-func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams) error {
+func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams, flycast *string) error {
 	var (
 		client = client.FromContext(ctx).API()
 		dialer = agent.DialerFromContext(ctx)
@@ -328,6 +354,12 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams)
 		"postgres://%s:%s@top2.nearest.of.%s.internal:5432/%s?sslmode=disable",
 		*input.DatabaseUser, pwd, input.PostgresClusterAppID, *input.DatabaseName,
 	)
+	if flycast != nil {
+		connectionString = fmt.Sprintf(
+			"postgres://%s:%s@[%s]:5432/%s?sslmode=disable",
+			*input.DatabaseUser, pwd, *flycast, *input.DatabaseName,
+		)
+	}
 	s := map[string]string{}
 	s[*input.VariableName] = connectionString
 
