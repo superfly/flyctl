@@ -284,7 +284,7 @@ func run(ctx context.Context) (err error) {
 		if cfg, err := app.FromDefinition(&createdApp.Config.Definition); err != nil {
 			return err
 		} else {
-			cfg.AppName = appConfig.AppName
+			cfg.AppName = createdApp.Name
 			cfg.Build = appConfig.Build
 			appConfig = cfg
 		}
