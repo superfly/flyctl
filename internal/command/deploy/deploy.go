@@ -155,9 +155,6 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 		return nil
 	}
 
-	var release *api.Release
-	var releaseCommand *api.ReleaseCommand
-
 	if appConfig.PrimaryRegion != "" && appConfig.Env["PRIMARY_REGION"] == "" {
 		appConfig.SetEnvVariable("PRIMARY_REGION", appConfig.PrimaryRegion)
 	}
@@ -180,7 +177,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 		return md.DeployMachinesApp(ctx)
 	}
 
-	release, releaseCommand, err = createRelease(ctx, appConfig, img)
+	release, releaseCommand, err := createRelease(ctx, appConfig, img)
 	if err != nil {
 		return err
 	}
