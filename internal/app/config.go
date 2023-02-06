@@ -31,13 +31,14 @@ type Config struct {
 	Deploy        *Deploy                   `toml:"deploy, omitempty" json:"deploy,omitempty"`
 	Env           map[string]string         `toml:"env,omitempty" json:"env,omitempty"`
 	HttpService   *HTTPService              `toml:"http_service,omitempty" json:"http_service,omitempty"`
-	Metrics       *api.MachineMetrics       `toml:"metrics" json:"metrics,omitempty"`
+	Metrics       *api.MachineMetrics       `toml:"metrics,omitempty" json:"metrics,omitempty"`
 	Statics       []Static                  `toml:"statics,omitempty" json:"statics,omitempty"`
 	Mounts        *Volume                   `toml:"mounts,omitempty" json:"mounts,omitempty"`
 	Processes     map[string]string         `toml:"processes,omitempty" json:"processes,omitempty"`
 	Checks        map[string]*ToplevelCheck `toml:"checks,omitempty" json:"checks,omitempty"`
-	Services      []Service                 `toml:"services" json:"services,omitempty"`
+	Services      []Service                 `toml:"services,omitempty" json:"services,omitempty"`
 
+	// TODO: Move this to private attr
 	FlyTomlPath string `toml:"-" json:"-"`
 }
 
@@ -70,7 +71,7 @@ type Build struct {
 	Builtin           string            `toml:"builtin,omitempty" json:"builtin,omitempty"`
 	Dockerfile        string            `toml:"dockerfile,omitempty" json:"dockerfile,omitempty"`
 	Ignorefile        string            `toml:"ignorefile,omitempty" json:"ignorefile,omitempty"`
-	DockerBuildTarget string            `toml:"build-target,omitempty" json:"docker_build_target,omitempty"`
+	DockerBuildTarget string            `toml:"build-target,omitempty" json:"build-target,omitempty"`
 }
 
 type Experimental struct {

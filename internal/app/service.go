@@ -20,11 +20,20 @@ type Service struct {
 type ServiceTCPCheck struct {
 	Interval *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
 	Timeout  *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
+
+	// GracePeriod and RestartLimit are only supported on V1 Apps
+	GracePeriod  *api.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
+	RestartLimit int           `toml:"restart_limit,omitempty" json:"restart_limit,omitempty"`
 }
 
 type ServiceHTTPCheck struct {
-	Interval          *api.Duration     `json:"interval,omitempty" toml:"interval,omitempty"`
-	Timeout           *api.Duration     `json:"timeout,omitempty" toml:"timeout,omitempty"`
+	Interval *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
+	Timeout  *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
+	// GracePeriod and RestartLimit are only supported on V1 Apps
+	GracePeriod  *api.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
+	RestartLimit int           `toml:"restart_limit,omitempty" json:"restart_limit,omitempty"`
+
+	// HTTP Specifics
 	HTTPMethod        *string           `json:"method,omitempty" toml:"method,omitempty"`
 	HTTPPath          *string           `json:"path,omitempty" toml:"path,omitempty"`
 	HTTPProtocol      *string           `json:"protocol,omitempty" toml:"protocol,omitempty"`

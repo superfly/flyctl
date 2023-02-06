@@ -1,12 +1,11 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/pelletier/go-toml"
 )
 
 type patchFuncType func(map[string]any) (map[string]any, error)
@@ -28,12 +27,12 @@ func applyPatches(cfgMap map[string]any) (*Config, error) {
 		}
 	}
 
-	newbuf, err := toml.Marshal(cfgMap)
+	newbuf, err := json.Marshal(cfgMap)
 	if err != nil {
 		return nil, err
 	}
 	cfg := &Config{}
-	return cfg, toml.Unmarshal(newbuf, cfg)
+	return cfg, json.Unmarshal(newbuf, cfg)
 }
 
 func patchEnv(cfg map[string]any) (map[string]any, error) {
@@ -169,20 +168,18 @@ func _patchService(service map[string]any) (map[string]any, error) {
 		service["ports"] = ports
 	}
 
-	if rawTcpChecks, ok := service["tcp_checks"]; ok {
-		checks, err := _patchChecks(rawTcpChecks)
-		if err != nil {
-			return nil, fmt.Errorf("Error processing tcp_checks: %T", rawTcpChecks)
+	for _, checkType := range []string{"tcp_checks", "http_checks"} {
+		if rawChecks, ok := service[checkType]; ok {
+			checks, err := _patchChecks(rawChecks)
+			if err != nil {
+				return nil, fmt.Errorf("Error processing tcp_checks: %T", rawChecks)
+			}
+			if len(checks) > 0 {
+				service[checkType] = checks
+			} else {
+				delete(service, checkType)
+			}
 		}
-		service["tcp_checks"] = checks
-	}
-
-	if rawTcpChecks, ok := service["http_checks"]; ok {
-		checks, err := _patchChecks(rawTcpChecks)
-		if err != nil {
-			return nil, fmt.Errorf("Error processing tcp_checks: %T", rawTcpChecks)
-		}
-		service["http_checks"] = checks
 	}
 
 	return service, nil

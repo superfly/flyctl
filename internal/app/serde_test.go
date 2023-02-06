@@ -126,7 +126,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			Buildpacks:        []string{"packme", "well"},
 			Settings: map[string]any{
 				"foo":   "bar",
-				"other": int64(2),
+				"other": float64(2),
 			},
 
 			Args: map[string]string{
