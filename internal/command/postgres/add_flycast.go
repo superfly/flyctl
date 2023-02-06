@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newAddFlycast() *cobra.Command {
@@ -42,6 +43,7 @@ func runAddFlycast(ctx context.Context) error {
 	var (
 		client  = client.FromContext(ctx).API()
 		appName = app.NameFromContext(ctx)
+		io      = iostreams.FromContext(ctx)
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -60,12 +62,11 @@ func runAddFlycast(ctx context.Context) error {
 
 	switch app.PlatformVersion {
 	case "machines":
-		err := doAddFlycast(ctx)
-		if err != nil {
+		if err := doAddFlycast(ctx); err != nil {
 			return err
 		}
 
-		fmt.Println("Flycast added!")
+		fmt.Fprintln(io.Out, "Flycast added!")
 	case "nomad":
 		return fmt.Errorf("not supported on nomad")
 	default:
@@ -94,8 +95,7 @@ func doAddFlycast(ctx context.Context) error {
 			Message: "This will overwrite existing services you have manually added. Continue?",
 			Default: true,
 		}
-		err := survey.AskOne(prompt, &confirm)
-		if err != nil {
+		if err := survey.AskOne(prompt, &confirm); err != nil {
 			return err
 		}
 
@@ -108,7 +108,7 @@ func doAddFlycast(ctx context.Context) error {
 			[]api.MachineService{
 				{
 					Protocol:     "tcp",
-					InternalPort: 5432,
+					InternalPort: int(bouncerPort),
 					Ports: []api.MachinePort{
 						{
 							Port: &bouncerPort,
@@ -122,7 +122,7 @@ func doAddFlycast(ctx context.Context) error {
 				},
 				{
 					Protocol:     "tcp",
-					InternalPort: 5433,
+					InternalPort: int(pgPort),
 					Ports: []api.MachinePort{
 						{
 							Port: &pgPort,
