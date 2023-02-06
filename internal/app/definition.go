@@ -19,6 +19,7 @@ func (c *Config) ToDefinition() (*api.Definition, error) {
 	delete(*definition, "app")
 	delete(*definition, "build")
 	delete(*definition, "primary_region")
+	delete(*definition, "http_service")
 	return definition, nil
 }
 

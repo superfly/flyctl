@@ -140,15 +140,6 @@ func TestToDefinition(t *testing.T) {
 			"port": int64(9999),
 			"path": "/metrics",
 		},
-		"http_service": map[string]any{
-			"internal_port": int64(8080),
-			"force_https":   true,
-			"concurrency": map[string]any{
-				"type":       "donuts",
-				"hard_limit": int64(10),
-				"soft_limit": int64(4),
-			},
-		},
 		"statics": []map[string]any{
 			{
 				"guest_path": "/path/to/statics",
