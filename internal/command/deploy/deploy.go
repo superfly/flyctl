@@ -122,37 +122,28 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 		return err
 	}
 	// this uses the gql validation, which only knows about nomad configs
-	if !deployToMachines {
-		tb := render.NewTextBlock(ctx, "Verifying app config")
-
-		definition, err := appConfig.ToDefinition()
-		if err != nil {
-			return err
-		}
-
-		parsedCfg, err := apiClient.ParseConfig(ctx, appNameFromContext, *definition)
-		if err != nil {
-			return err
-		}
-
-		if !parsedCfg.Valid {
-			fmt.Println()
-			if len(parsedCfg.Errors) > 0 {
-				path := "fly.toml"
-				cfg := app.ConfigFromContext(ctx)
-				if cfg != nil {
-					path = cfg.FlyTomlPath
-				}
-				tb.Printf("\nConfiguration errors in %s:\n\n", path)
+	tb := render.NewTextBlock(ctx, "Verifying app config")
+	if definition, err := appConfig.ToDefinition(); err != nil {
+		return err
+	} else if parsedCfg, err := apiClient.ParseConfig(ctx, appNameFromContext, *definition); err != nil {
+		return err
+	} else if !parsedCfg.Valid {
+		fmt.Println()
+		if len(parsedCfg.Errors) > 0 {
+			path := "fly.toml"
+			cfg := app.ConfigFromContext(ctx)
+			if cfg != nil {
+				path = cfg.FlyTomlPath
 			}
-			for _, e := range parsedCfg.Errors {
-				tb.Println("   ", aurora.Red("✘").String(), e)
-			}
-			fmt.Println()
-			return errors.New("app configuration is not valid")
+			tb.Printf("\nConfiguration errors in %s:\n\n", path)
 		}
-		tb.Done("Verified app config")
+		for _, e := range parsedCfg.Errors {
+			tb.Println("   ", aurora.Red("✘").String(), e)
+		}
+		fmt.Println()
+		return errors.New("app configuration is not valid")
 	}
+	tb.Done("Verified app config")
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
 	img, err := determineImage(ctx, appConfig)
@@ -204,7 +195,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 	}
 
 	// TODO: This is a single message that doesn't belong to any block output, so we should have helpers to allow that
-	tb := render.NewTextBlock(ctx)
+	tb = render.NewTextBlock(ctx)
 	tb.Done("You can detach the terminal anytime without stopping the deployment")
 
 	// Run the pre-deployment release command if it's set
