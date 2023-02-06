@@ -217,8 +217,10 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 
 				TCPChecks: []*ServiceTCPCheck{
 					{
-						Interval: api.MustParseDuration("21s"),
-						Timeout:  api.MustParseDuration("4s"),
+						Interval:     api.MustParseDuration("21s"),
+						Timeout:      api.MustParseDuration("4s"),
+						GracePeriod:  api.MustParseDuration("1s"),
+						RestartLimit: 3,
 					},
 				},
 
@@ -226,6 +228,8 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 					{
 						Interval:          api.MustParseDuration("81s"),
 						Timeout:           api.MustParseDuration("7s"),
+						GracePeriod:       api.MustParseDuration("2s"),
+						RestartLimit:      4,
 						HTTPMethod:        api.Pointer("GET"),
 						HTTPPath:          api.Pointer("/"),
 						HTTPProtocol:      api.Pointer("https"),

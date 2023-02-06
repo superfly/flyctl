@@ -201,14 +201,18 @@ func TestToDefinition(t *testing.T) {
 				},
 				"tcp_checks": []map[string]any{
 					{
-						"interval": "21s",
-						"timeout":  "4s",
+						"interval":      "21s",
+						"timeout":       "4s",
+						"grace_period":  "1s",
+						"restart_limit": int64(3),
 					},
 				},
 				"http_checks": []map[string]any{
 					{
 						"interval":        "1m21s",
 						"timeout":         "7s",
+						"grace_period":    "2s",
+						"restart_limit":   int64(4),
 						"method":          "GET",
 						"path":            "/",
 						"protocol":        "https",
