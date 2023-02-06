@@ -14,8 +14,3 @@ func BoolPointer(val bool) *bool {
 func StringPointer(val string) *string {
 	return &val
 }
-
-// Pointer - Returns a pointer to a any type
-func Pointer[T any](val T) *T {
-	return &val
-}

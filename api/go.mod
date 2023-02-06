@@ -12,7 +12,6 @@ require (
 
 require (
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/stretchr/testify v1.8.0 // indirect
-	github.com/vektah/gqlparser/v2 v2.4.8 // indirect
+	github.com/vektah/gqlparser/v2 v2.4.5 // indirect
 	golang.org/x/sys v0.4.0 // indirect
 )

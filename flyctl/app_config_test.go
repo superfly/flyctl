@@ -1,7 +1,7 @@
-package app
+package flyctl
 
 import (
-	"context"
+	"bytes"
 	"testing"
 
 	"github.com/BurntSushi/toml"
@@ -9,48 +9,43 @@ import (
 )
 
 func TestLoadTOMLAppConfigWithAppName(t *testing.T) {
-	const path = "./testdata/app-name.toml"
-
-	p, err := LoadConfig(context.Background(), path, NomadPlatform)
+	path := "./testdata/app-name.toml"
+	p, err := LoadAppConfig(path)
 	assert.NoError(t, err)
 	assert.Equal(t, p.AppName, "test-app")
 }
 
 func TestLoadTOMLAppConfigWithBuilderName(t *testing.T) {
-	const path = "./testdata/build.toml"
-
-	p, err := LoadConfig(context.Background(), path, NomadPlatform)
+	path := "./testdata/build.toml"
+	p, err := LoadAppConfig(path)
 	assert.NoError(t, err)
 	assert.Equal(t, p.Build.Builder, "builder/name")
 }
 
 func TestLoadTOMLAppConfigWithImage(t *testing.T) {
-	const path = "./testdata/image.toml"
-
-	p, err := LoadConfig(context.Background(), path, NomadPlatform)
+	path := "./testdata/image.toml"
+	p, err := LoadAppConfig(path)
 	assert.NoError(t, err)
 	assert.Equal(t, p.Build.Image, "image/name")
 }
 
 func TestLoadTOMLAppConfigWithDockerfile(t *testing.T) {
-	const path = "./testdata/docker.toml"
-
-	p, err := LoadConfig(context.Background(), path, NomadPlatform)
+	path := "./testdata/docker.toml"
+	p, err := LoadAppConfig(path)
 	assert.NoError(t, err)
 	assert.Equal(t, p.Build.Dockerfile, "./Dockerfile")
 }
 
 func TestLoadTOMLAppConfigWithBuilderNameAndArgs(t *testing.T) {
-	const path = "./testdata/build-with-args.toml"
-
-	p, err := LoadConfig(context.Background(), path, NomadPlatform)
+	path := "./testdata/build-with-args.toml"
+	p, err := LoadAppConfig(path)
 	assert.NoError(t, err)
 	assert.Equal(t, p.Build.Args, map[string]string{"A": "B", "C": "D"})
 }
 
 func TestLoadTOMLAppConfigWithServices(t *testing.T) {
-	const path = "./testdata/services.toml"
-	p, err := LoadConfig(context.Background(), path, NomadPlatform)
+	path := "./testdata/services.toml"
+	p, err := LoadAppConfig(path)
 
 	rawData := map[string]interface{}{}
 	toml.DecodeFile("./testdata/services.toml", &rawData)
@@ -59,4 +54,27 @@ func TestLoadTOMLAppConfigWithServices(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, p.Definition, rawData)
+}
+
+func TestGetAndSetEnvVariables(t *testing.T) {
+	cfg := NewAppConfig()
+
+	cfg.SetEnvVariable("A", "B")
+	cfg.SetEnvVariable("C", "D")
+
+	assert.Equal(t, map[string]string{"A": "B", "C": "D"}, cfg.GetEnvVariables())
+
+	buf := &bytes.Buffer{}
+
+	if err := cfg.WriteTo(buf, TOMLFormat); err != nil {
+		assert.NoError(t, err)
+	}
+
+	cfg2 := NewAppConfig()
+
+	if err := cfg2.unmarshalTOML(bytes.NewReader(buf.Bytes())); err != nil {
+		assert.NoError(t, err)
+	}
+
+	assert.Equal(t, cfg.GetEnvVariables(), cfg2.GetEnvVariables())
 }

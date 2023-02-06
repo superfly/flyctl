@@ -8,7 +8,6 @@ import (
 	"text/template"
 
 	"github.com/pkg/errors"
-	"github.com/superfly/flyctl/internal/app"
 )
 
 //go:embed templates templates/*/.dockerignore templates/**/.fly
@@ -43,13 +42,13 @@ type SourceInfo struct {
 	Files                        []SourceFile
 	Port                         int
 	Env                          map[string]string
-	Statics                      []app.Static
+	Statics                      []Static
 	Processes                    map[string]string
 	DeployDocs                   string
 	Notice                       string
 	SkipDeploy                   bool
 	SkipDatabase                 bool
-	Volumes                      []app.Volume
+	Volumes                      []Volume
 	DockerfileAppendix           []string
 	InitCommands                 []InitCommand
 	PostgresInitCommands         []InitCommand
@@ -61,6 +60,14 @@ type SourceInfo struct {
 type SourceFile struct {
 	Path     string
 	Contents []byte
+}
+type Static struct {
+	GuestPath string `toml:"guest_path" json:"guest_path"`
+	UrlPrefix string `toml:"url_prefix" json:"url_prefix"`
+}
+type Volume struct {
+	Source      string `toml:"source" json:"source"`
+	Destination string `toml:"destination" json:"destination"`
 }
 type ScannerConfig struct {
 	Mode string
@@ -118,6 +125,7 @@ func templatesExecute(name string, vars map[string]interface{}) (files []SourceF
 		template := template.Must(template.New("name").Parse(string(input)))
 		result := strings.Builder{}
 		err := template.Execute(&result, vars)
+
 		if err != nil {
 			panic(err)
 		}

@@ -453,7 +453,7 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 	logger := logger.FromContext(ctx)
 
 	for _, path := range appConfigFilePaths(ctx) {
-		switch cfg, err := app.LoadConfig(path); {
+		switch cfg, err := app.LoadConfig(ctx, path, ""); {
 		case err == nil:
 			logger.Debugf("app config loaded from %s", path)
 

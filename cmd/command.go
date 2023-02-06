@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/terminal"
@@ -265,7 +264,7 @@ func setupAppName(ctx *cmdctx.CmdContext) error {
 		}
 		configPath = absConfigPath
 	}
-	resolvedPath, err := app.ResolveConfigFileFromPath(configPath)
+	resolvedPath, err := flyctl.ResolveConfigFileFromPath(configPath)
 	if err != nil {
 		return err
 	}
@@ -274,13 +273,13 @@ func setupAppName(ctx *cmdctx.CmdContext) error {
 	// load the config file if it exists
 	if helpers.FileExists(ctx.ConfigFile) {
 		terminal.Debug("Loading app config from", ctx.ConfigFile)
-		appConfig, err := app.LoadConfig(ctx.ConfigFile)
+		appConfig, err := flyctl.LoadAppConfig(ctx.ConfigFile)
 		if err != nil {
 			return err
 		}
 		ctx.AppConfig = appConfig
 	} else {
-		ctx.AppConfig = app.NewConfig()
+		ctx.AppConfig = flyctl.NewAppConfig()
 	}
 
 	// set the app name if provided

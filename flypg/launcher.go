@@ -4,9 +4,8 @@ import (
 	"context"
 	"crypto/ed25519"
 	"fmt"
-	"time"
-
 	"github.com/superfly/flyctl/ssh"
+	"time"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
@@ -119,8 +118,8 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		}
 
 		if config.Manager == ReplicationManager {
-			var bouncerPort int = 5432
-			var pgPort int = 5433
+			var bouncerPort int32 = 5432
+			var pgPort int32 = 5433
 			machineConf.Services = []api.MachineService{
 				{
 					Protocol:     "tcp",
@@ -342,22 +341,22 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 
 	machineConfig.Checks = map[string]api.MachineCheck{
 		"pg": {
-			Port:     api.Pointer(5500),
-			Type:     api.Pointer("http"),
+			Port:     5500,
+			Type:     "http",
 			HTTPPath: &checkPathPg,
 			Interval: &api.Duration{Duration: duration15s},
 			Timeout:  &api.Duration{Duration: duration10s},
 		},
 		"role": {
-			Port:     api.Pointer(5500),
-			Type:     api.Pointer("http"),
+			Port:     5500,
+			Type:     "http",
 			HTTPPath: &checkPathRole,
 			Interval: &api.Duration{Duration: duration15s},
 			Timeout:  &api.Duration{Duration: duration10s},
 		},
 		"vm": {
-			Port:     api.Pointer(5500),
-			Type:     api.Pointer("http"),
+			Port:     5500,
+			Type:     "http",
 			HTTPPath: &checkPathVm,
 			Interval: &api.Duration{Duration: duration1m},
 			Timeout:  &api.Duration{Duration: duration10s},

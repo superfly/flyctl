@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"time"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/docker/docker/pkg/ioutils"
@@ -309,7 +308,7 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 				return "", err
 			}
 
-			err = flapsClient.Wait(ctx, selectedMachine, "started", 60*time.Second)
+			err = flapsClient.Wait(ctx, selectedMachine, "started")
 
 			if err != nil {
 				return "", err
