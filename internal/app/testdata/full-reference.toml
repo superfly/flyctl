@@ -96,7 +96,7 @@ primary_region = "sea"
     timeout = "4s"
 
   [[services.http_checks]]
-    interval = "81s"
+    interval = "1m21s"
     timeout = "7s"
     method = "GET"
     path = "/"

@@ -8,6 +8,7 @@ import (
 	"github.com/superfly/flyctl/api"
 )
 
+// Usual Config response for api.GetConfig GQL call
 var GetConfigJSON = []byte(`
 {
   "env": {},
@@ -107,4 +108,123 @@ func TestFromDefinition(t *testing.T) {
 			},
 		},
 	}, cfg)
+}
+
+func TestToDefinition(t *testing.T) {
+	const path = "./testdata/full-reference.toml"
+	cfg, err := LoadConfig(path)
+	assert.NoError(t, err)
+
+	definition, err := cfg.ToDefinition()
+	assert.NoError(t, err)
+	assert.Equal(t, &api.Definition{
+		"kill_signal":    "SIGTERM",
+		"kill_timeout":   int64(3),
+		"primary_region": "sea",
+		"experimental": map[string]any{
+			"cmd":           []any{"cmd"},
+			"entrypoint":    []any{"entrypoint"},
+			"exec":          []any{"exec"},
+			"auto_rollback": true,
+			"enable_consul": true,
+			"enable_etcd":   true,
+		},
+
+		"deploy": map[string]any{
+			"release_command": "release command",
+			"strategy":        "rolling-eyes",
+		},
+		"env": map[string]any{
+			"FOO": "BAR",
+		},
+		"metrics": map[string]any{
+			"port": int64(9999),
+			"path": "/metrics",
+		},
+		"http_service": map[string]any{
+			"internal_port": int64(8080),
+			"force_https":   true,
+			"concurrency": map[string]any{
+				"type":       "donuts",
+				"hard_limit": int64(10),
+				"soft_limit": int64(4),
+			},
+		},
+		"statics": []map[string]any{
+			{
+				"guest_path": "/path/to/statics",
+				"url_prefix": "/static-assets",
+			},
+		},
+		"mounts": map[string]any{
+			"source":      "data",
+			"destination": "/data",
+		},
+		"processes": map[string]any{
+			"web":  "run web",
+			"task": "task all day",
+		},
+		"checks": map[string]any{
+			"status": map[string]any{
+				"port":            int64(2020),
+				"type":            "http",
+				"interval":        "10s",
+				"timeout":         "2s",
+				"method":          "GET",
+				"path":            "/status",
+				"protocol":        "https",
+				"tls_skip_verify": true,
+				"headers": map[string]any{
+					"Content-Type":  "application/json",
+					"Authorization": "super-duper-secret",
+				},
+			},
+		},
+		"services": []map[string]any{
+			{
+				"internal_port": int64(8081),
+				"protocol":      "tcp",
+				"processes":     []any{"app"},
+				"concurrency": map[string]any{
+					"type":       "requests",
+					"hard_limit": int64(22),
+					"soft_limit": int64(13),
+				},
+				"ports": []map[string]any{
+					{
+						"port":        int64(80),
+						"start_port":  int64(100),
+						"end_port":    int64(200),
+						"handlers":    []any{"https"},
+						"force_https": true,
+					},
+				},
+				"tcp_checks": []map[string]any{
+					{
+						"interval": "21s",
+						"timeout":  "4s",
+					},
+				},
+				"http_checks": []map[string]any{
+					{
+						"interval":        "1m21s",
+						"timeout":         "7s",
+						"method":          "GET",
+						"path":            "/",
+						"protocol":        "https",
+						"tls_skip_verify": true,
+						"headers": map[string]any{
+							"My-Custom-Header": "whatever",
+						},
+					},
+					{
+						"interval": "33s",
+						"timeout":  "10s",
+						"method":   "POST",
+						"path":     "/check2",
+					},
+				},
+			},
+		},
+	}, definition)
 }
