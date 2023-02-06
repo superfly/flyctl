@@ -16,25 +16,25 @@ app = "foo"
   handlers = ["http"]
 
   [[services.tcp_checks]]
-  # Parse as time.Duration in milliseconds
-  interval = 10000
-  timeout = 2000
+    # Parse as time.Duration in milliseconds
+    interval = 10000
+    timeout = 2000
 
   [[services.tcp_checks]]
-  interval = "20s"
-  timeout = "3s"
+    interval = "20s"
+    timeout = "3s"
 
   [[services.http_checks]]
-  # Parse as time.Duration in milliseconds
-  interval = 30000
-  timeout = 4000
+    # Parse as time.Duration in milliseconds
+    interval = 30000
+    timeout = 4000
 
   [[services.http_checks]]
-  interval = "20s"
-  timeout = "3s"
+    interval = "20s"
+    timeout = "3s"
 
 [experimental]
-# GQL GetConfig always returns an experimental section even if empty
+  # GQL GetConfig always returns an experimental section even if empty
 
 [[processes]]
-# The GQL GetConfig API returns an empty array when there are no processes
+  # The GQL GetConfig API returns an empty array when there are no processes

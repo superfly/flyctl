@@ -4,34 +4,34 @@ kill_timeout = 3
 primary_region = "sea"
 
 [experimental]
-cmd = ["cmd"]
-entrypoint = ["entrypoint"]
-exec = ["exec"]
-auto_rollback = true
-enable_consul = true
-enable_etcd = true
+  cmd = ["cmd"]
+  entrypoint = ["entrypoint"]
+  exec = ["exec"]
+  auto_rollback = true
+  enable_consul = true
+  enable_etcd = true
 
 [build]
-builder = "dockerfile"
-image = "foo/fighter"
-builtin = "whatisthis"
-dockerfile = "Dockerfile"
-ignorefile = ".gitignore"
-build-target = "target"
-#docker_build_target = "target"
-buildpacks = ["packme", "well"]
+  builder = "dockerfile"
+  image = "foo/fighter"
+  builtin = "whatisthis"
+  dockerfile = "Dockerfile"
+  ignorefile = ".gitignore"
+  build-target = "target"
+  #docker_build_target = "target"
+  buildpacks = ["packme", "well"]
 
-[build.settings]
-  foo = "bar"
-  other = 2
+  [build.settings]
+    foo = "bar"
+    other = 2
 
-[build.args]
-  param1 = "value1"
-  param2 = "value2"
+  [build.args]
+    param1 = "value1"
+    param2 = "value2"
 
 [deploy]
-release_command = "release command"
-strategy = "rolling-eyes"
+  release_command = "release command"
+  strategy = "rolling-eyes"
 
 [env]
   FOO = "BAR"
