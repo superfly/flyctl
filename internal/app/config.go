@@ -20,6 +20,7 @@ func NewConfig() *Config {
 }
 
 // Config wraps the properties of app configuration.
+// NOTE: If you any new setting here, please also add a value for it at testdata/rull-reference.toml
 type Config struct {
 	AppName       string                    `toml:"app,omitempty" json:"app,omitempty"`
 	KillSignal    string                    `toml:"kill_signal,omitempty" json:"kill_signal,omitempty"`
