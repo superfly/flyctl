@@ -329,13 +329,13 @@ func MachinesChecks(ctx context.Context, machines []*api.Machine) error {
 			if machine.Config.Checks == nil {
 				continue
 			}
-			checkStatus := machine.HealthCheckStatus()
-			checksPassed += checkStatus.Passing
+			pass, _, _ := countChecks(machine.Checks)
+			checksPassed += pass
 			// Waiting for xxxxxxxx to become healthy (started, 3/3)
 			fmt.Fprintf(io.ErrOut, "  Waiting for %s to become healthy (%s, %s)\n",
 				colorize.Bold(machine.ID),
 				colorize.Green(machine.State),
-				colorize.Green(fmt.Sprintf("%d/%d", checkStatus.Passing, checkStatus.Total)),
+				colorize.Green(fmt.Sprintf("%d/%d", pass, len(machine.Checks))),
 			)
 		}
 
@@ -360,4 +360,18 @@ func retryGetMachines(ctx context.Context, machineIDs ...string) (result []*api.
 		retry.Attempts(6), retry.MaxDelay(10*time.Second), retry.Context(ctx),
 	)
 	return
+}
+
+func countChecks(checks []*api.MachineCheckStatus) (pass, warn, crit int) {
+	for _, check := range checks {
+		switch check.Status {
+		case "passing":
+			pass++
+		case "warn":
+			warn++
+		case "critical":
+			crit++
+		}
+	}
+	return pass, warn, crit
 }
