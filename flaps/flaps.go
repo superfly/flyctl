@@ -10,7 +10,9 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/google/go-querystring/query"
 	"github.com/samber/lo"
 
 	"github.com/superfly/flyctl/agent"
@@ -19,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/terminal"
 )
 
 var NonceHeader = "fly-machine-lease-nonce"
@@ -118,26 +121,40 @@ func (f *Client) Start(ctx context.Context, machineID string) (*api.MachineStart
 	return out, nil
 }
 
-func (f *Client) Wait(ctx context.Context, machine *api.Machine, state string) (err error) {
+type waitQuerystring struct {
+	InstanceId     string `url:"instance_id,omitempty"`
+	TimeoutSeconds int    `url:"timeout,omitempty"`
+	State          string `url:"state,omitempty"`
+}
+
+const proxyTimeoutThreshold = 60 * time.Second
+
+func (f *Client) Wait(ctx context.Context, machine *api.Machine, state string, timeout time.Duration) (err error) {
 	waitEndpoint := fmt.Sprintf("/%s/wait", machine.ID)
-
-	version := machine.InstanceID
-
-	if machine.Version != "" {
-		version = machine.Version
-	}
-	if version != "" {
-		waitEndpoint += fmt.Sprintf("?instance_id=%s&timeout=30", version)
-	} else {
-		waitEndpoint += "?timeout=30"
-	}
-
 	if state == "" {
 		state = "started"
 	}
-
-	waitEndpoint += fmt.Sprintf("&state=%s", state)
-
+	version := machine.InstanceID
+	if machine.Version != "" {
+		version = machine.Version
+	}
+	if timeout > proxyTimeoutThreshold {
+		timeout = proxyTimeoutThreshold
+	}
+	if timeout < 1*time.Second {
+		timeout = 1 * time.Second
+	}
+	timeoutSeconds := int(timeout.Seconds())
+	waitQs := waitQuerystring{
+		InstanceId:     version,
+		TimeoutSeconds: timeoutSeconds,
+		State:          state,
+	}
+	qsVals, err := query.Values(waitQs)
+	if err != nil {
+		return fmt.Errorf("error making query string for wait request: %w", err)
+	}
+	waitEndpoint += fmt.Sprintf("?%s", qsVals.Encode())
 	if err := f.sendRequest(ctx, http.MethodGet, waitEndpoint, nil, nil, nil); err != nil {
 		return fmt.Errorf("failed to wait for VM %s in %s state: %w", machine.ID, state, err)
 	}
@@ -226,10 +243,29 @@ func (f *Client) ListActive(ctx context.Context) ([]*api.Machine, error) {
 	}
 
 	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
-		return m.Config != nil && m.Config.Metadata["process_group"] != "release_command" && m.State != "destroyed"
+		return !m.HasProcessGroup(api.MachineProcessGroupFlyAppReleaseCommand) && m.IsActive()
 	})
 
 	return machines, nil
+}
+
+// returns apps that are part of the fly apps platform that are not destroyed
+func (f *Client) ListFlyAppsMachines(ctx context.Context) ([]*api.Machine, *api.Machine, error) {
+	allMachines := make([]*api.Machine, 0)
+	err := f.sendRequest(ctx, http.MethodGet, "", nil, &allMachines, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list VMs: %w", err)
+	}
+	var releaseCmdMachine *api.Machine
+	machines := make([]*api.Machine, 0)
+	for _, m := range allMachines {
+		if m.IsFlyAppsPlatform() && m.IsActive() && !m.IsFlyAppsReleaseCommand() {
+			machines = append(machines, m)
+		} else if m.IsFlyAppsReleaseCommand() {
+			releaseCmdMachine = m
+		}
+	}
+	return machines, releaseCmdMachine, nil
 }
 
 func (f *Client) Destroy(ctx context.Context, input api.RemoveMachineInput) (err error) {
@@ -279,6 +315,7 @@ func (f *Client) AcquireLease(ctx context.Context, machineID string, ttl *int) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to get lease on VM %s: %w", machineID, err)
 	}
+	terminal.Debugf("got lease on machine %s: %v\n", machineID, out)
 	return out, nil
 }
 
@@ -317,7 +354,12 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		err := resp.Body.Close()
+		if err != nil {
+			terminal.Debugf("error closing response body: %v\n", err)
+		}
+	}()
 
 	if resp.StatusCode > 299 {
 		return handleAPIError(resp)

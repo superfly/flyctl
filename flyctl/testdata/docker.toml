@@ -1,4 +1,0 @@
-app = "image"
-
-[build]
-  dockerfile = "./Dockerfile"

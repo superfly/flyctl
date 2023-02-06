@@ -27,7 +27,8 @@ func (d *Duration) UnmarshalTOML(v any) error {
 }
 
 func (d Duration) MarshalTOML() ([]byte, error) {
-	return []byte(d.Duration.String()), nil
+	v := fmt.Sprintf("\"%s\"", d.Duration.String())
+	return []byte(v), nil
 }
 
 func (d *Duration) parseDuration(v any) error {
@@ -37,17 +38,26 @@ func (d *Duration) parseDuration(v any) error {
 	}
 
 	switch value := v.(type) {
-	case int64, float64:
-		d.Duration = time.Duration(value.(int64))
-		return nil
+	case int64:
+		d.Duration = time.Duration(value)
+	case float64:
+		d.Duration = time.Duration(int64(value))
 	case string:
 		var err error
 		d.Duration, err = time.ParseDuration(value)
 		if err != nil {
 			return err
 		}
-		return nil
 	default:
 		return fmt.Errorf("Unknown duration type: %T", value)
 	}
+	return nil
+}
+
+func MustParseDuration(v any) *Duration {
+	d := &Duration{}
+	if err := d.parseDuration(v); err != nil {
+		panic(err)
+	}
+	return d
 }
