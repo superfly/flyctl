@@ -62,10 +62,6 @@ type SourceFile struct {
 	Path     string
 	Contents []byte
 }
-type Static struct {
-	GuestPath string `toml:"guest_path" json:"guest_path"`
-	UrlPrefix string `toml:"url_prefix" json:"url_prefix"`
-}
 type ScannerConfig struct {
 	Mode string
 }
