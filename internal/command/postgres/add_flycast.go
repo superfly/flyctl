@@ -107,9 +107,9 @@ func runAddFlycast(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-
-			fmt.Println("Flycast added!")
 		}
+
+		fmt.Println("Flycast added!")
 	case "nomad":
 		return fmt.Errorf("not supported on nomad")
 	default:
