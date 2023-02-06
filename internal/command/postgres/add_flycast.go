@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
@@ -30,7 +31,6 @@ func newAddFlycast() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
-		flag.Yes(),
 	)
 
 	cmd.Hidden = true
@@ -60,53 +60,9 @@ func runAddFlycast(ctx context.Context) error {
 
 	switch app.PlatformVersion {
 	case "machines":
-		machines, err := mach.ListActive(ctx)
+		err := doAddFlycast(ctx)
 		if err != nil {
-			return fmt.Errorf("machines could not be retrieved %w", err)
-		}
-
-		var bouncerPort int32 = 5432
-		var pgPort int32 = 5433
-		for _, machine := range machines {
-			conf := machine.Config
-			conf.Services =
-				[]api.MachineService{
-					{
-						Protocol:     "tcp",
-						InternalPort: 5432,
-						Ports: []api.MachinePort{
-							{
-								Port: &bouncerPort,
-								Handlers: []string{
-									"pg_tls",
-								},
-								ForceHttps: false,
-							},
-						},
-						Concurrency: nil,
-					},
-					{
-						Protocol:     "tcp",
-						InternalPort: 5433,
-						Ports: []api.MachinePort{
-							{
-								Port: &pgPort,
-								Handlers: []string{
-									"pg_tls",
-								},
-								ForceHttps: false,
-							},
-						},
-						Concurrency: nil,
-					},
-				}
-
-			err := mach.Update(ctx, machine, &api.LaunchMachineInput{
-				Config: conf,
-			})
-			if err != nil {
-				return err
-			}
+			return err
 		}
 
 		fmt.Println("Flycast added!")
@@ -115,5 +71,78 @@ func runAddFlycast(ctx context.Context) error {
 	default:
 		return fmt.Errorf("unknown platform version")
 	}
+	return nil
+}
+
+func doAddFlycast(ctx context.Context) error {
+	machines, err := mach.ListActive(ctx)
+	if err != nil {
+		return fmt.Errorf("machines could not be retrieved %w", err)
+	}
+
+	var bouncerPort int32 = 5432
+	var pgPort int32 = 5433
+	for _, machine := range machines {
+		for _, service := range machine.Config.Services {
+			if service.InternalPort == 5432 || service.InternalPort == 5433 {
+				return fmt.Errorf("failed to enable flycast for pg machine %s because a service already exists on the postgres port(s)", machine.ID)
+			}
+		}
+
+		confirm := false
+		prompt := &survey.Confirm{
+			Message: "This will overwrite existing services you have manually added. Continue?",
+			Default: true,
+		}
+		err := survey.AskOne(prompt, &confirm)
+		if err != nil {
+			return err
+		}
+
+		if !confirm {
+			return nil
+		}
+
+		conf := machine.Config
+		conf.Services =
+			[]api.MachineService{
+				{
+					Protocol:     "tcp",
+					InternalPort: 5432,
+					Ports: []api.MachinePort{
+						{
+							Port: &bouncerPort,
+							Handlers: []string{
+								"pg_tls",
+							},
+							ForceHttps: false,
+						},
+					},
+					Concurrency: nil,
+				},
+				{
+					Protocol:     "tcp",
+					InternalPort: 5433,
+					Ports: []api.MachinePort{
+						{
+							Port: &pgPort,
+							Handlers: []string{
+								"pg_tls",
+							},
+							ForceHttps: false,
+						},
+					},
+					Concurrency: nil,
+				},
+			}
+
+		err = mach.Update(ctx, machine, &api.LaunchMachineInput{
+			Config: conf,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
