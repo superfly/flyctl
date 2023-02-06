@@ -150,6 +150,7 @@ func (c *Config) SetConcurrency(soft int, hard int) bool {
 	if service.Concurrency == nil {
 		service.Concurrency = &api.MachineServiceConcurrency{}
 	}
+	service.Concurrency.Type = "connections"
 	service.Concurrency.HardLimit = hard
 	service.Concurrency.SoftLimit = soft
 	return true

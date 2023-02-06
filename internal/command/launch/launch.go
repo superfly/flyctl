@@ -14,6 +14,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/logrusorgru/aurora"
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
@@ -40,7 +41,6 @@ func New() (cmd *cobra.Command) {
 	)
 
 	cmd = command.New("launch", short, long, run, command.RequireSession, command.LoadAppConfigIfPresent)
-
 	cmd.Args = cobra.NoArgs
 
 	flag.Add(cmd,
@@ -105,41 +105,36 @@ func run(ctx context.Context) (err error) {
 		workingDir = absDir
 	}
 
+	var importedConfig bool
 	appConfig := app.NewConfig()
 
-	var importedConfig bool
+	// Look for existing fly.toml and trigger an immediate deploy if app exists but wasn't deployed
+	// or there are unhealthy nomad allocations (??)
 	configFilePath := filepath.Join(workingDir, "fly.toml")
-
 	if exists, _ := app.ConfigFileExistsAtPath(configFilePath); exists {
 		cfg, err := app.LoadConfig(configFilePath)
 		if err != nil {
 			return err
 		}
 
-		var deployExisting bool
-
 		if cfg.AppName != "" {
 			fmt.Fprintln(io.Out, "An existing fly.toml file was found for app", cfg.AppName)
-			deployExisting, err = shouldDeployExistingApp(ctx, cfg.AppName)
-			if err != nil {
+			if deployExisting, err := shouldDeployExistingApp(ctx, cfg.AppName); err != nil {
 				return err
+			} else if deployExisting {
+				fmt.Fprintln(io.Out, "App is not running, deploy...")
+				ctx = app.WithName(ctx, cfg.AppName)
+				return deploy.DeployWithConfig(ctx, cfg, deploy.DeployWithConfigArgs{
+					ForceNomad:    flag.GetBool(ctx, "force-nomad"),
+					ForceMachines: flag.GetBool(ctx, "force-machines"),
+					ForceYes:      flag.GetBool(ctx, "now"),
+				})
 			}
-			ctx = app.WithName(ctx, cfg.AppName)
 		} else {
 			fmt.Fprintln(io.Out, "An existing fly.toml file was found")
 		}
 
-		if deployExisting {
-			fmt.Fprintln(io.Out, "App is not running, deploy...")
-			return deploy.DeployWithConfig(ctx, cfg, deploy.DeployWithConfigArgs{
-				ForceNomad:    flag.GetBool(ctx, "force-nomad"),
-				ForceMachines: flag.GetBool(ctx, "force-machines"),
-				ForceYes:      flag.GetBool(ctx, "now"),
-			})
-		}
-
 		copyConfig := false
-
 		if flag.GetBool(ctx, "copy-config") {
 			copyConfig = true
 		} else {
@@ -181,7 +176,6 @@ func run(ctx context.Context) (err error) {
 		}
 	} else {
 		fmt.Fprintln(io.Out, "Scanning source code")
-
 		if si, err := scanner.Scan(workingDir, config); err != nil {
 			return err
 		} else {
@@ -191,16 +185,12 @@ func run(ctx context.Context) (err error) {
 		if srcInfo == nil {
 			fmt.Fprintln(io.Out, aurora.Green("Could not find a Dockerfile, nor detect a runtime or framework from source code. Continuing with a blank app."))
 		} else {
-
 			var article string = "a"
-			matched, _ := regexp.MatchString(`^[aeiou]`, strings.ToLower(srcInfo.Family))
-
-			if matched {
+			if matched, _ := regexp.MatchString(`^[aeiou]`, strings.ToLower(srcInfo.Family)); matched {
 				article += "n"
 			}
 
 			appType := srcInfo.Family
-
 			if srcInfo.Version != "" {
 				appType = appType + " " + srcInfo.Version
 			}
@@ -225,7 +215,6 @@ func run(ctx context.Context) (err error) {
 	if srcInfo != nil {
 		for _, f := range srcInfo.Files {
 			path := filepath.Join(workingDir, f.Path)
-
 			if helpers.FileExists(path) {
 				if flag.GetBool(ctx, "now") {
 					fmt.Fprintf(io.Out, "You specified --now, so not overwriting %s\n", path)
@@ -242,7 +231,6 @@ func run(ctx context.Context) (err error) {
 			}
 
 			perms := 0o600
-
 			if strings.Contains(string(f.Contents), "#!") {
 				perms = 0o700
 			}
@@ -253,22 +241,16 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
-	// Prompt for an app name or fetch from flags
-	appName := ""
-
 	if !flag.GetBool(ctx, "generate-name") {
-		appName = flag.GetString(ctx, "name")
-
-		if appName == "" {
+		if appName := flag.GetString(ctx, "name"); appName == "" {
 			// Prompt the user for the app name
-			inputName, err := prompt.SelectAppName(ctx)
-			if err != nil {
+			if inputName, err := prompt.SelectAppName(ctx); err != nil {
 				return err
+			} else {
+				appConfig.AppName = inputName
 			}
-
-			appName = inputName
 		} else {
-			fmt.Fprintf(io.Out, "Selected App Name: %s\n", appName)
+			appConfig.AppName = appName
 		}
 	}
 
@@ -278,7 +260,6 @@ func run(ctx context.Context) (err error) {
 	if err != nil {
 		return
 	}
-
 	// If we potentially are deploying, launch a remote builder to prepare for deployment.
 	if !flag.GetBool(ctx, "no-deploy") {
 		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, client, org.Slug)
@@ -292,93 +273,33 @@ func run(ctx context.Context) (err error) {
 	}
 
 	input := api.CreateAppInput{
-		Name:            appName,
+		Name:            appConfig.AppName,
 		OrganizationID:  org.ID,
 		PreferredRegion: &region.Code,
 	}
 
-	createdApp, err := client.CreateApp(ctx, input)
-	if err != nil {
+	if createdApp, err := client.CreateApp(ctx, input); err != nil {
 		return err
-	}
-	if !importedConfig {
+	} else if !importedConfig {
 		if cfg, err := app.FromDefinition(&createdApp.Config.Definition); err != nil {
 			return err
 		} else {
+			cfg.AppName = appConfig.AppName
+			cfg.Build = appConfig.Build
 			appConfig = cfg
 		}
 	}
 
-	appConfig.AppName = createdApp.Name
 	ctx = app.WithName(ctx, appConfig.AppName)
-
-	internalPortFromFlag := flag.GetInt(ctx, "internal-port")
-	if internalPortFromFlag > 0 {
-		appConfig.SetInternalPort(internalPortFromFlag)
-	}
-
-	if srcInfo != nil {
-
-		if srcInfo.Port > 0 {
-			appConfig.SetInternalPort(srcInfo.Port)
-		}
-
-		if srcInfo.Concurrency != nil {
-			appConfig.SetConcurrency(srcInfo.Concurrency["soft_limit"], srcInfo.Concurrency["hard_limit"])
-		}
-
-		for envName, envVal := range srcInfo.Env {
-			if envVal == "APP_FQDN" {
-				appConfig.SetEnvVariable(envName, createdApp.Name+".fly.dev")
-			} else {
-				appConfig.SetEnvVariable(envName, envVal)
-			}
-		}
-
-		if len(srcInfo.Statics) > 0 {
-			appConfig.SetStatics(srcInfo.Statics)
-		}
-
-		if len(srcInfo.Volumes) > 0 {
-			appConfig.SetVolumes(srcInfo.Volumes)
-		}
-
-		for procName, procCommand := range srcInfo.Processes {
-			appConfig.SetProcess(procName, procCommand)
-		}
-
-		if srcInfo.ReleaseCmd != "" {
-			appConfig.SetReleaseCommand(srcInfo.ReleaseCmd)
-		}
-
-		if srcInfo.DockerCommand != "" {
-			appConfig.SetDockerCommand(srcInfo.DockerCommand)
-		}
-
-		if srcInfo.DockerEntrypoint != "" {
-			appConfig.SetDockerEntrypoint(srcInfo.DockerEntrypoint)
-		}
-
-		if srcInfo.KillSignal != "" {
-			appConfig.SetKillSignal(srcInfo.KillSignal)
-		}
-	}
-
-	fmt.Fprintf(io.Out, "Created app %s in organization %s\n", createdApp.Name, org.Slug)
-
-	adminLink := fmt.Sprintf("https://fly.io/apps/%s", createdApp.Name)
-	appLink := fmt.Sprintf("%s.fly.dev", createdApp.Name)
-	fmt.Fprintf(io.Out, "Admin URL: %s\nHostname: %s\n", adminLink, appLink)
+	fmt.Fprintf(io.Out, "Created app %s in organization %s\n", appConfig.AppName, org.Slug)
+	fmt.Fprintf(io.Out, "Admin URL: https://fly.io/apps/%s\n", appConfig.AppName)
+	fmt.Fprintf(io.Out, "Hostname: %s.fly.dev\n", appConfig.AppName)
 
 	// If secrets are requested by the launch scanner, ask the user to input them
 	if srcInfo != nil && len(srcInfo.Secrets) > 0 {
 		secrets := make(map[string]string)
-		keys := []string{}
-
 		for _, secret := range srcInfo.Secrets {
-
 			val := ""
-
 			// If a secret should be a random default, just generate it without displaying
 			// Otherwise, prompt to type it in
 			if secret.Generate != nil {
@@ -389,35 +310,28 @@ func run(ctx context.Context) (err error) {
 				val = secret.Value
 			} else {
 				prompt := fmt.Sprintf("Set secret %s:", secret.Key)
-
-				surveyInput := &survey.Input{
-					Message: prompt,
-					Help:    secret.Help,
-				}
-
+				surveyInput := &survey.Input{Message: prompt, Help: secret.Help}
 				survey.AskOne(surveyInput, &val)
 			}
 
 			if val != "" {
 				secrets[secret.Key] = val
-				keys = append(keys, secret.Key)
 			}
 		}
 
 		if len(secrets) > 0 {
-			_, err := client.SetSecrets(ctx, createdApp.Name, secrets)
+			_, err := client.SetSecrets(ctx, appConfig.AppName, secrets)
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(io.Out, "Set secrets on %s: %s\n", createdApp.Name, strings.Join(keys, ", "))
+			fmt.Fprintf(io.Out, "Set secrets on %s: %s\n", appConfig.AppName, strings.Join(lo.Keys(secrets), ", "))
 		}
 	}
 
 	// If volumes are requested by the launch scanner, create them
 	if srcInfo != nil && len(srcInfo.Volumes) > 0 {
 		for _, vol := range srcInfo.Volumes {
-
-			appID, err := client.GetAppID(ctx, createdApp.Name)
+			appID, err := client.GetAppID(ctx, appConfig.AppName)
 			if err != nil {
 				return err
 			}
@@ -443,13 +357,13 @@ func run(ctx context.Context) (err error) {
 	if !(srcInfo == nil || srcInfo.SkipDatabase || flag.GetBool(ctx, "no-deploy") || flag.GetBool(ctx, "now")) {
 		confirmPg, err := prompt.Confirm(ctx, "Would you like to set up a Postgresql database now?")
 		if confirmPg && err == nil {
-			LaunchPostgres(ctx, createdApp, org, region)
+			LaunchPostgres(ctx, appConfig.AppName, org, region)
 			options["postgresql"] = true
 		}
 
 		confirmRedis, err := prompt.Confirm(ctx, "Would you like to set up an Upstash Redis database now?")
 		if confirmRedis && err == nil {
-			LaunchRedis(ctx, createdApp, org, region)
+			LaunchRedis(ctx, appConfig.AppName, org, region)
 			options["redis"] = true
 		}
 
@@ -485,7 +399,6 @@ func run(ctx context.Context) (err error) {
 
 	// Complete the appConfig
 	if srcInfo != nil {
-
 		if srcInfo.Port > 0 {
 			appConfig.SetInternalPort(srcInfo.Port)
 		}
@@ -496,7 +409,7 @@ func run(ctx context.Context) (err error) {
 
 		for envName, envVal := range srcInfo.Env {
 			if envVal == "APP_FQDN" {
-				appConfig.SetEnvVariable(envName, createdApp.Name+".fly.dev")
+				appConfig.SetEnvVariable(envName, appConfig.AppName+".fly.dev")
 			} else {
 				appConfig.SetEnvVariable(envName, envVal)
 			}
@@ -529,52 +442,52 @@ func run(ctx context.Context) (err error) {
 		if srcInfo.KillSignal != "" {
 			appConfig.SetKillSignal(srcInfo.KillSignal)
 		}
-	}
 
-	// Append any requested Dockerfile entries
-	if srcInfo != nil && len(srcInfo.DockerfileAppendix) > 0 {
-		if err := appendDockerfileAppendix(srcInfo.DockerfileAppendix); err != nil {
-			return fmt.Errorf("failed appending Dockerfile appendix: %w", err)
+		// Append any requested Dockerfile entries
+		if len(srcInfo.DockerfileAppendix) > 0 {
+			if err := appendDockerfileAppendix(srcInfo.DockerfileAppendix); err != nil {
+				return fmt.Errorf("failed appending Dockerfile appendix: %w", err)
+			}
+		}
+
+		if len(srcInfo.BuildArgs) > 0 {
+			if appConfig.Build == nil {
+				appConfig.Build = &app.Build{}
+			}
+			appConfig.Build.Args = srcInfo.BuildArgs
 		}
 	}
 
-	if srcInfo != nil && len(srcInfo.BuildArgs) > 0 {
-		appConfig.Build = &app.Build{}
-		appConfig.Build.Args = srcInfo.BuildArgs
+	if n := flag.GetInt(ctx, "internal-port"); n > 0 {
+		appConfig.SetInternalPort(n)
 	}
 
 	// Finally, write the config
+	if err := appConfig.WriteToDisk(ctx, configFilePath); err != nil {
+		return err
+	}
 
-	flyTomlPath := filepath.Join(workingDir, "fly.toml")
-	if err = appConfig.WriteToDisk(ctx, flyTomlPath); err != nil {
-		return err
-	}
-	// round trip config, because some magic happens to populate stuff like services
-	reloadedAppConfig, err := app.LoadConfig(flyTomlPath)
-	if err != nil {
-		return err
-	}
-	ctx = app.WithConfig(ctx, reloadedAppConfig)
+	ctx = app.WithConfig(ctx, appConfig)
 
 	if srcInfo == nil {
 		return nil
 	}
 
-	if !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !flag.GetBool(ctx, "auto-confirm") && reloadedAppConfig.HasNonHttpAndHttpsStandardServices() {
-		hasUdpService := reloadedAppConfig.HasUdpService()
+	if !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !flag.GetBool(ctx, "auto-confirm") && appConfig.HasNonHttpAndHttpsStandardServices() {
+		hasUdpService := appConfig.HasUdpService()
 		ipStuffStr := "a dedicated ipv4 address"
 		if !hasUdpService {
 			ipStuffStr = "dedicated ipv4 and ipv6 addresses"
 		}
 		confirmDedicatedIp, err := prompt.Confirmf(ctx, "Would you like to allocate %s now?", ipStuffStr)
 		if confirmDedicatedIp && err == nil {
-			v4Dedicated, err := client.AllocateIPAddress(ctx, createdApp.Name, "v4", "", nil, "")
+			v4Dedicated, err := client.AllocateIPAddress(ctx, appConfig.AppName, "v4", "", nil, "")
 			if err != nil {
 				return err
 			}
 			fmt.Fprintf(io.Out, "Allocated dedicated ipv4: %s\n", v4Dedicated.Address)
 			if !hasUdpService {
-				v6Dedicated, err := client.AllocateIPAddress(ctx, createdApp.Name, "v6", "", nil, "")
+				v6Dedicated, err := client.AllocateIPAddress(ctx, appConfig.AppName, "v6", "", nil, "")
 				if err != nil {
 					return err
 				}
@@ -837,9 +750,9 @@ func determineDockerIgnore(ctx context.Context, workingDir string) (err error) {
 	return
 }
 
-func LaunchPostgres(ctx context.Context, app *api.App, org *api.Organization, region *api.Region) {
+func LaunchPostgres(ctx context.Context, appName string, org *api.Organization, region *api.Region) {
 	io := iostreams.FromContext(ctx)
-	clusterAppName := app.Name + "-db"
+	clusterAppName := appName + "-db"
 	err := postgres.CreateCluster(ctx, org, region, "machines",
 		&postgres.ClusterParams{
 			PostgresConfiguration: postgres.PostgresConfiguration{
@@ -852,27 +765,26 @@ func LaunchPostgres(ctx context.Context, app *api.App, org *api.Organization, re
 	} else {
 		err = postgres.AttachCluster(ctx, postgres.AttachParams{
 			PgAppName: clusterAppName,
-			AppName:   app.Name,
+			AppName:   appName,
 		})
 
 		if err != nil {
 			msg := `Failed attaching %s to the Postgres cluster %s: %w.\nTry attaching manually with 'fly postgres attach --app %s %s'`
-			fmt.Fprintf(io.Out, msg, app.Name, clusterAppName, err, app.Name, clusterAppName)
+			fmt.Fprintf(io.Out, msg, appName, clusterAppName, err, appName, clusterAppName)
 
 		} else {
-			fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", clusterAppName, app.Name)
+			fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", clusterAppName, appName)
 		}
 	}
 }
 
-func LaunchRedis(ctx context.Context, app *api.App, org *api.Organization, region *api.Region) {
-	name := app.Name + "-redis"
-
+func LaunchRedis(ctx context.Context, appName string, org *api.Organization, region *api.Region) {
+	name := appName + "-redis"
 	db, err := redis.Create(ctx, org, name, region, "", true, false)
 
 	if err != nil {
 		fmt.Println(fmt.Errorf("%w", err))
 	} else {
-		redis.AttachDatabase(ctx, db, app)
+		redis.AttachDatabase(ctx, db, appName)
 	}
 }
