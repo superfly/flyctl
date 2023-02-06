@@ -20,7 +20,6 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/state"
 
@@ -234,18 +233,23 @@ func useMachines(ctx context.Context, appConfig app.Config, appCompact *api.AppC
 	case args.ForceYes:
 		// if running automated, stay on nomad platform for now
 		return false, nil
+	default:
+		// Be conservative and choose Nomad while we iron out Apps v2
+		return false, nil
 	}
 
-	switch willUseStatics, err := prompt.Confirmf(ctx, "Will you use statics for this app (see https://fly.io/docs/reference/configuration/#the-statics-sections)?"); {
-	case err == nil && willUseStatics:
-		return false, nil
-	case prompt.IsNonInteractive(err):
-		// if running automated, stay on nomad platform for now
-		return false, nil
-	default:
-		// if we didn't find an exception above, use the machines platform by default!
-		return true, err
-	}
+	/*
+		switch willUseStatics, err := prompt.Confirmf(ctx, "Will you use statics for this app (see https://fly.io/docs/reference/configuration/#the-statics-sections)?"); {
+		case err == nil && willUseStatics:
+			return false, nil
+		case prompt.IsNonInteractive(err):
+			// if running automated, stay on nomad platform for now
+			return false, nil
+		default:
+			// if we didn't find an exception above, use the machines platform by default!
+			return true, err
+		}
+	*/
 }
 
 // determineAppConfig fetches the app config from a local file, or in its absence, from the API
