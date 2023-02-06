@@ -151,11 +151,6 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 		return fmt.Errorf("failed to fetch an image or build from source: %w", err)
 	}
 
-	// Assign an empty map if nil so later assignments won't fail
-	if appConfig.Env == nil {
-		appConfig.Env = map[string]string{}
-	}
-
 	if flag.GetBuildOnly(ctx) {
 		return nil
 	}
@@ -164,7 +159,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 	var releaseCommand *api.ReleaseCommand
 
 	if appConfig.PrimaryRegion != "" && appConfig.Env["PRIMARY_REGION"] == "" {
-		appConfig.Env["PRIMARY_REGION"] = appConfig.PrimaryRegion
+		appConfig.SetEnvVariable("PRIMARY_REGION", appConfig.PrimaryRegion)
 	}
 
 	if deployToMachines {

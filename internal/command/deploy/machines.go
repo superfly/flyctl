@@ -479,9 +479,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err != nil {
 		return nil, err
 	}
-	if appConfig.Env == nil {
-		appConfig.Env = map[string]string{}
-	}
 	err = appConfig.Validate()
 	if err != nil {
 		return nil, err
