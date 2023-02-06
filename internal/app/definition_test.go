@@ -118,9 +118,8 @@ func TestToDefinition(t *testing.T) {
 	definition, err := cfg.ToDefinition()
 	assert.NoError(t, err)
 	assert.Equal(t, &api.Definition{
-		"kill_signal":    "SIGTERM",
-		"kill_timeout":   int64(3),
-		"primary_region": "sea",
+		"kill_signal":  "SIGTERM",
+		"kill_timeout": int64(3),
 		"experimental": map[string]any{
 			"cmd":           []any{"cmd"},
 			"entrypoint":    []any{"entrypoint"},
