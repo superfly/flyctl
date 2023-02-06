@@ -237,10 +237,10 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 
 func useMachines(ctx context.Context, appConfig app.Config, appCompact *api.AppCompact, args DeployWithConfigArgs) (bool, error) {
 	switch {
-	case appCompact.PlatformVersion == app.MachinesPlatform:
+	case appCompact.PlatformVersion == app.AppsV2Platform:
 		return true, nil
 	case appCompact.Deployed:
-		return appCompact.PlatformVersion == app.MachinesPlatform, nil
+		return appCompact.PlatformVersion == app.AppsV2Platform, nil
 	case args.ForceNomad:
 		return false, nil
 	case args.ForceMachines:
