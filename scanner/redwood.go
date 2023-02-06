@@ -1,5 +1,7 @@
 package scanner
 
+import "github.com/superfly/flyctl/internal/app"
+
 func configureRedwood(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("redwood.toml")) {
 		return nil, nil
@@ -21,7 +23,7 @@ func configureRedwood(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 	if checksPass(sourceDir+"/api/db", dirContains("*.prisma", "sqlite")) {
 		s.Env["MIGRATE_ON_BOOT"] = "true"
 		s.Env["DATABASE_URL"] = "file://data/sqlite.db"
-		s.Volumes = []Volume{
+		s.Volumes = []app.Volume{
 			{
 				Source:      "data",
 				Destination: "/data",

@@ -1,5 +1,7 @@
 package scanner
 
+import "github.com/superfly/flyctl/internal/app"
+
 func configureRemix(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("remix.config.js")) {
 		return nil, nil
@@ -19,7 +21,7 @@ func configureRemix(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		s.Files = templates("templates/remix_prisma")
 		s.DockerCommand = "start_with_migrations.sh"
 		s.DockerEntrypoint = "sh"
-		s.Volumes = []Volume{
+		s.Volumes = []app.Volume{
 			{
 				Source:      "data",
 				Destination: "/data",

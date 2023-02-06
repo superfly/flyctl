@@ -1,0 +1,40 @@
+app = "foo"
+
+[env]
+  FOO = "STRING"
+  BAR = 123
+
+[[services]]
+  internal_port = 8080
+
+  # Old concurrency format
+  concurrency = "12,23"
+
+  [[services.ports]]
+  # Stringified port
+  port = "80"
+  handlers = ["http"]
+
+  [[services.tcp_checks]]
+    # Parse as time.Duration in milliseconds
+    interval = 10000
+    timeout = 2000
+
+  [[services.tcp_checks]]
+    interval = "20s"
+    timeout = "3s"
+
+  [[services.http_checks]]
+    # Parse as time.Duration in milliseconds
+    interval = 30000
+    timeout = 4000
+
+  [[services.http_checks]]
+    interval = "20s"
+    timeout = "3s"
+
+[experimental]
+  # GQL GetConfig always returns an experimental section even if empty
+
+[[processes]]
+  # The GQL GetConfig API returns an empty array when there are no processes

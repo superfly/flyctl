@@ -23,7 +23,6 @@ import (
 var errAppNameTaken = fmt.Errorf("app already exists")
 
 func New() (cmd *cobra.Command) {
-
 	const (
 		long  = `Launch a Heroku app on Fly.io`
 		short = long
@@ -54,7 +53,6 @@ func New() (cmd *cobra.Command) {
 
 // run fetches a heroku app and creates it on fly.io
 func run(ctx context.Context) error {
-
 	client := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
 
@@ -95,7 +93,6 @@ func run(ctx context.Context) error {
 	}
 
 	org, err := prompt.Org(ctx)
-
 	if err != nil {
 		return err
 	}
@@ -184,9 +181,11 @@ func run(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "Changed to new app directory %s\n", createdApp.Name)
 
 	// Generate an app config to write to fly.toml
-	appConfig := app.NewConfig()
+	appConfig, err := app.FromDefinition(&createdApp.Config.Definition)
+	if err != nil {
+		return err
+	}
 
-	appConfig.Definition = createdApp.Config.Definition
 	procfile := ""
 
 	// Add each process to a Procfile and fly.toml
@@ -250,7 +249,7 @@ func run(ctx context.Context) error {
 				return err
 			}
 		}
-		return deploy.DeployWithConfig(ctx, appConfig)
+		return deploy.DeployWithConfig(ctx, appConfig, deploy.DeployWithConfigArgs{})
 	}
 
 	return nil

@@ -53,8 +53,9 @@ require (
 	github.com/stretchr/testify v1.8.0
 	github.com/superfly/flyctl/api v0.0.0-20220708073423-b6d7c3cf5161
 	github.com/superfly/graphql v0.2.3
-	github.com/vektah/gqlparser/v2 v2.4.5
+	github.com/vektah/gqlparser/v2 v2.4.8
 	golang.org/x/crypto v0.5.0
+	golang.org/x/exp v0.0.0-20220303212507-bbda1eaf7a17
 	golang.org/x/net v0.5.0
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
 	golang.org/x/term v0.4.0
@@ -74,7 +75,6 @@ require (
 	github.com/google/btree v1.0.1 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
-	golang.org/x/exp v0.0.0-20220303212507-bbda1eaf7a17 // indirect
 	golang.org/x/tools v0.1.12 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20211104114900-415007cec224 // indirect
 	gvisor.dev/gvisor v0.0.0-20220817001344-846276b3dbc5 // indirect
@@ -114,7 +114,7 @@ require (
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.4-0.20210608040537-544b4180ac70 // indirect
 	github.com/google/go-containerregistry v0.6.0 // indirect
-	github.com/google/go-querystring v1.0.0 // indirect
+	github.com/google/go-querystring v1.0.0
 	github.com/google/uuid v1.2.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
