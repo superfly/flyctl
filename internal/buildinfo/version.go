@@ -2,6 +2,8 @@ package buildinfo
 
 import (
 	"errors"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/blang/semver"
@@ -35,10 +37,22 @@ func loadMeta() {
 	}
 
 	if IsDev() {
+		envVersionNum := os.Getenv("DEV_VERSION_NUM")
+		versionNum := uint64(parsedBuildDate.Unix())
+
+		if envVersionNum != "" {
+			num, err := strconv.ParseUint(envVersionNum, 10, 64)
+
+			if err == nil {
+				versionNum = num
+			}
+
+		}
+
 		parsedVersion = semver.Version{
 			Pre: []semver.PRVersion{
 				{
-					VersionNum: uint64(parsedBuildDate.Unix()),
+					VersionNum: versionNum,
 					IsNum:      true,
 				},
 			},
