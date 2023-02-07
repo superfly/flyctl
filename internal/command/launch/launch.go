@@ -421,6 +421,10 @@ func run(ctx context.Context) (err error) {
 			appConfig.SetInternalPort(srcInfo.Port)
 		}
 
+		if srcInfo.HttpCheckPath != "" {
+			appConfig.SetHttpCheck(srcInfo.HttpCheckPath)
+		}
+
 		if srcInfo.Concurrency != nil {
 			appConfig.SetConcurrency(srcInfo.Concurrency["soft_limit"], srcInfo.Concurrency["hard_limit"])
 		}
