@@ -51,6 +51,14 @@ func runMachineExec(ctx context.Context) (err error) {
 
 	app, err := appFromMachineOrName(ctx, machineID, appName)
 	if err != nil {
+		help := newMachineExec().Help()
+
+		if help != nil {
+			fmt.Println(help)
+
+		}
+
+		fmt.Println()
 		return err
 	}
 
