@@ -54,11 +54,17 @@ func runMachineList(ctx context.Context) (err error) {
 		cfg     = config.FromContext(ctx)
 	)
 
-	if appName == "" {
-		return fmt.Errorf("app is not found")
-	}
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
+		help := newList().Help()
+
+		if help != nil {
+			fmt.Println(help)
+
+		}
+
+		fmt.Println()
+
 		return err
 	}
 	flapsClient, err := flaps.New(ctx, app)

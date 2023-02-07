@@ -70,6 +70,15 @@ func runMachineClone(ctx context.Context) (err error) {
 
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
+		help := newClone().Help()
+
+		if help != nil {
+			fmt.Println(help)
+
+		}
+
+		fmt.Println()
+
 		return err
 	}
 
