@@ -40,6 +40,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/restart"
 	"github.com/superfly/flyctl/internal/command/resume"
 	"github.com/superfly/flyctl/internal/command/secrets"
+	"github.com/superfly/flyctl/internal/command/services"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/command/status"
 	"github.com/superfly/flyctl/internal/command/suspend"
@@ -161,6 +162,7 @@ func New() *cobra.Command {
 		launch.New(),
 		jobs.New(),
 		turboku.New(),
+		services.New(),
 	}
 
 	// if os.Getenv("DEV") != "" {
