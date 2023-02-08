@@ -59,6 +59,12 @@ func stdArgsSSH(cmd *cobra.Command) {
 			Shorthand:   "A",
 			Description: "Address of VM to connect to",
 		},
+		flag.String{
+			Name:        "user",
+			Shorthand:   "u",
+			Description: "Unix username to connect as",
+			Default:     defaultSshUsername,
+		},
 	)
 }
 
@@ -177,14 +183,15 @@ func runConsole(ctx context.Context) error {
 
 	// BUG(tqbf): many of these are no longer really params
 	params := &SSHParams{
-		Ctx:    ctx,
-		Org:    app.Organization,
-		Dialer: dialer,
-		App:    appName,
-		Cmd:    flag.GetString(ctx, "command"),
-		Stdin:  os.Stdin,
-		Stdout: ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
-		Stderr: ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
+		Ctx:      ctx,
+		Org:      app.Organization,
+		Dialer:   dialer,
+		App:      appName,
+		Username: flag.GetString(ctx, "user"),
+		Cmd:      flag.GetString(ctx, "command"),
+		Stdin:    os.Stdin,
+		Stdout:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
+		Stderr:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
 	}
 
 	if quiet(ctx) {
@@ -226,7 +233,7 @@ func sshConnect(p *SSHParams, addr string) (*ssh.Client, error) {
 
 	sshClient := &ssh.Client{
 		Addr: net.JoinHostPort(addr, "22"),
-		User: "root",
+		User: p.Username,
 
 		Dial: p.Dialer.DialContext,
 

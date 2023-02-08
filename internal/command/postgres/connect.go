@@ -19,6 +19,8 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 )
 
+const defaultSshUsername = "root"
+
 func newConnect() *cobra.Command {
 	const (
 		short = "Connect to the Postgres console"
@@ -114,14 +116,15 @@ func runMachineConnect(ctx context.Context, app *api.AppCompact) error {
 		return err
 	}
 	return ssh.SSHConnect(&ssh.SSHParams{
-		Ctx:    ctx,
-		Org:    app.Organization,
-		Dialer: agent.DialerFromContext(ctx),
-		App:    app.Name,
-		Cmd:    fmt.Sprintf("connect %s %s %s", database, user, password),
-		Stdin:  os.Stdin,
-		Stdout: ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
-		Stderr: ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
+		Ctx:      ctx,
+		Org:      app.Organization,
+		Dialer:   agent.DialerFromContext(ctx),
+		App:      app.Name,
+		Username: defaultSshUsername,
+		Cmd:      fmt.Sprintf("connect %s %s %s", database, user, password),
+		Stdin:    os.Stdin,
+		Stdout:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
+		Stderr:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
 	}, leader.PrivateIP)
 }
 
@@ -159,13 +162,14 @@ func runNomadConnect(ctx context.Context, app *api.AppCompact) error {
 	}
 
 	return ssh.SSHConnect(&ssh.SSHParams{
-		Ctx:    ctx,
-		Org:    app.Organization,
-		Dialer: agent.DialerFromContext(ctx),
-		App:    app.Name,
-		Cmd:    fmt.Sprintf("connect %s %s %s", database, user, password),
-		Stdin:  os.Stdin,
-		Stdout: ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
-		Stderr: ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
+		Ctx:      ctx,
+		Org:      app.Organization,
+		Dialer:   agent.DialerFromContext(ctx),
+		App:      app.Name,
+		Username: defaultSshUsername,
+		Cmd:      fmt.Sprintf("connect %s %s %s", database, user, password),
+		Stdin:    os.Stdin,
+		Stdout:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
+		Stderr:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
 	}, leaderIP)
 }

@@ -46,7 +46,7 @@ validity.`
 			Name:        "username",
 			Shorthand:   "u",
 			Description: "Unix usernames the SSH cert can authenticate as",
-			Default:     []string{"root", "fly"},
+			Default:     []string{defaultSshUsername, "fly"},
 		},
 		flag.Int{
 			Name:        "hours",

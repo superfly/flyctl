@@ -61,7 +61,7 @@ func (pc *Command) UpdateSettings(ctx context.Context, leaderIp string, config m
 	subCmd := fmt.Sprintf("update --patch '%s'", string(configBytes))
 	cmd := fmt.Sprintf("stolonctl-run %s", encodeCommand(subCmd))
 
-	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIp, cmd)
+	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIp, cmd, "root")
 	if err != nil {
 		return err
 	}
@@ -82,7 +82,7 @@ func (pc *Command) UnregisterMember(ctx context.Context, leaderIP string, standb
 	payload := encodeCommand(standbyIP)
 	cmd := fmt.Sprintf("pg_unregister %s", payload)
 
-	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIP, cmd)
+	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIP, cmd, "root")
 	if err != nil {
 		return err
 	}
