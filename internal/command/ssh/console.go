@@ -63,7 +63,7 @@ func stdArgsSSH(cmd *cobra.Command) {
 			Name:        "user",
 			Shorthand:   "u",
 			Description: "Unix username to connect as",
-			Default:     defaultSshUsername,
+			Default:     DefaultSshUsername,
 		},
 	)
 }

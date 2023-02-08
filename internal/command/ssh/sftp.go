@@ -110,7 +110,7 @@ func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
 		Org:            app.Organization,
 		Dialer:         dialer,
 		App:            appName,
-		Username:       defaultSshUsername,
+		Username:       DefaultSshUsername,
 		Stdin:          os.Stdin,
 		Stdout:         os.Stdout,
 		Stderr:         os.Stderr,

@@ -46,7 +46,7 @@ func spin(in, out string) context.CancelFunc {
 	return cancel
 }
 
-const defaultSshUsername = "root"
+const DefaultSshUsername = "root"
 
 type SSHParams struct {
 	Ctx            context.Context
@@ -155,7 +155,7 @@ func singleUseSSHCertificate(ctx context.Context, org api.OrganizationImpl) (*ap
 		return nil, nil, err
 	}
 
-	icert, err := client.IssueSSHCertificate(ctx, org, []string{defaultSshUsername, "fly"}, nil, &hours, pub)
+	icert, err := client.IssueSSHCertificate(ctx, org, []string{DefaultSshUsername, "fly"}, nil, &hours, pub)
 	if err != nil {
 		return nil, nil, err
 	}
