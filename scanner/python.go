@@ -1,7 +1,7 @@
 package scanner
 
 func configurePython(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
-	if !checksPass(sourceDir, fileExists("requirements.txt", "environment.yml")) {
+	if !checksPass(sourceDir, fileExists("requirements.txt", "environment.yml", "poetry.lock")) {
 		return nil, nil
 	}
 
