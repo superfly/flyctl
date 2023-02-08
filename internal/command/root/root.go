@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/help"
 	"github.com/superfly/flyctl/internal/command/history"
 	"github.com/superfly/flyctl/internal/command/image"
+	"github.com/superfly/flyctl/internal/command/info"
 	"github.com/superfly/flyctl/internal/command/ips"
 	"github.com/superfly/flyctl/internal/command/jobs"
 	"github.com/superfly/flyctl/internal/command/launch"
@@ -160,6 +161,7 @@ func New() *cobra.Command {
 		vm.New(),
 		checks.New(),
 		launch.New(),
+		info.New(),
 		jobs.New(),
 		turboku.New(),
 		services.New(),
