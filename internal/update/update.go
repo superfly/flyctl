@@ -151,8 +151,13 @@ func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease bool)
 		}
 	}
 
-	shellToUse, ok := os.LookupEnv("SHELL")
+	var shellToUse string
 	switchToUse := "-c"
+	ok := false
+
+	if runtime.GOOS != "windows" {
+		shellToUse, ok = os.LookupEnv("SHELL")
+	}
 
 	if !ok {
 		if runtime.GOOS == "windows" {
