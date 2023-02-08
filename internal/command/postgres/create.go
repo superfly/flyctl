@@ -66,7 +66,7 @@ func newCreate() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "machines",
-			Description: "Create postgres cluster on fly machines",
+			Description: "Create a postgres cluster on fly machines",
 			Default:     true,
 		},
 		flag.Bool{
@@ -75,8 +75,8 @@ func newCreate() *cobra.Command {
 			Default:     false,
 		},
 		flag.Bool{
-			Name:        "repmgr",
-			Description: "Create a postgres cluster on top of fly machines that is managed by Repmgr. ( Experimental )",
+			Name:        "flex",
+			Description: "Create a postgres cluster that runs our new PG Flex implementation. (Preview)",
 			Default:     false,
 		},
 	)
@@ -136,7 +136,7 @@ func run(ctx context.Context) (err error) {
 		Manager:               flypg.StolonManager,
 	}
 
-	if flag.GetBool(ctx, "repmgr") {
+	if flag.GetBool(ctx, "flex") {
 		params.Manager = flypg.ReplicationManager
 	}
 
