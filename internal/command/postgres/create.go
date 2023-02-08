@@ -76,7 +76,7 @@ func newCreate() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "flex",
-			Description: "Create a postgres cluster that runs our new PG Flex implementation. (Preview)",
+			Description: "Create a postgres cluster that runs our new flex implementation. (Preview)",
 			Default:     false,
 		},
 	)
