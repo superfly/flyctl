@@ -88,6 +88,8 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 		colorize = io.ColorScheme()
 
 		autoConfirm = flag.GetBool(ctx, "yes")
+
+		flex = false
 	)
 
 	// Acquire leases
@@ -107,6 +109,10 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 		// Ignore any non PG machines
 		if !strings.Contains(machine.ImageRef.Repository, "flyio/postgres") {
 			continue
+		}
+
+		if machine.ImageRef.Labels["fly.pg-manager"] == "flex" {
+			flex = true
 		}
 
 		role := machineRole(machine)
@@ -172,40 +178,59 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 		}
 	}
 
-	if len(members["leader"]) > 0 {
-		leader := members["leader"][0]
-		machine := leader.Machine
+	if flex {
+		if len(members["primary"]) > 0 {
+			primary := members["primary"][0]
+			machine := primary.Machine
 
-		// Verify that we have an in region replica before attempting failover.
-		attemptFailover := false
-		for _, replica := range members["replicas"] {
-			if replica.Machine.Region == leader.Machine.Region {
-				attemptFailover = true
-				break
+			input := &api.LaunchMachineInput{
+				ID:      machine.ID,
+				AppID:   app.Name,
+				OrgSlug: app.Organization.Slug,
+				Region:  machine.Region,
+				Config:  &primary.TargetConfig,
+			}
+			if err := mach.Update(ctx, machine, input); err != nil {
+				return err
 			}
 		}
+	} else {
 
-		// Skip failover if we don't have any replicas.
-		if attemptFailover {
-			dialer := agent.DialerFromContext(ctx)
-			pgclient := flypg.NewFromInstance(machine.PrivateIP, dialer)
-			fmt.Fprintf(io.Out, "Attempting to failover %s\n", colorize.Bold(machine.ID))
+		if len(members["leader"]) > 0 {
+			leader := members["leader"][0]
+			machine := leader.Machine
 
-			if err := pgclient.Failover(ctx); err != nil {
-				fmt.Fprintln(io.Out, colorize.Red(fmt.Sprintf("failed to perform failover: %s", err.Error())))
+			// Verify that we have an in region replica before attempting failover.
+			attemptFailover := false
+			for _, replica := range members["replicas"] {
+				if replica.Machine.Region == leader.Machine.Region {
+					attemptFailover = true
+					break
+				}
 			}
-		}
 
-		// Update leader
-		input := &api.LaunchMachineInput{
-			ID:      machine.ID,
-			AppID:   app.Name,
-			OrgSlug: app.Organization.Slug,
-			Region:  machine.Region,
-			Config:  &leader.TargetConfig,
-		}
-		if err := mach.Update(ctx, machine, input); err != nil {
-			return err
+			// Skip failover if we don't have any replicas.
+			if attemptFailover {
+				dialer := agent.DialerFromContext(ctx)
+				pgclient := flypg.NewFromInstance(machine.PrivateIP, dialer)
+				fmt.Fprintf(io.Out, "Attempting to failover %s\n", colorize.Bold(machine.ID))
+
+				if err := pgclient.Failover(ctx); err != nil {
+					fmt.Fprintln(io.Out, colorize.Red(fmt.Sprintf("failed to perform failover: %s", err.Error())))
+				}
+			}
+
+			// Update leader
+			input := &api.LaunchMachineInput{
+				ID:      machine.ID,
+				AppID:   app.Name,
+				OrgSlug: app.Organization.Slug,
+				Region:  machine.Region,
+				Config:  &leader.TargetConfig,
+			}
+			if err := mach.Update(ctx, machine, input); err != nil {
+				return err
+			}
 		}
 	}
 
