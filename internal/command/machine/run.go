@@ -2,7 +2,9 @@ package machine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"path"
 	"path/filepath"
 	"sort"
@@ -125,6 +127,10 @@ var sharedFlags = flag.Set{
 		Name:        "schedule",
 		Description: `Schedule a machine run at hourly, daily and monthly intervals`,
 	},
+	flag.String{
+		Name:        "machine-config",
+		Description: `Path to a machine configuration json file.`,
+	},
 }
 
 func newRun() *cobra.Command {
@@ -160,7 +166,21 @@ func newRun() *cobra.Command {
 		sharedFlags,
 	)
 
-	cmd.Args = cobra.MinimumNArgs(1)
+	// If we pass a JSON machine configuration, we don't build a local image.
+	// That introduces this ugliness, which changes the expected arg count depending
+	// on flags passed.
+	cmd.Args = func(cmd *cobra.Command, args []string) error {
+		if mc := cmd.Flag("machine-config"); mc != nil && mc.Changed {
+			if len(args) != 0 {
+				return fmt.Errorf("expected no arguments when a machine config is present, received %d", len(args))
+			}
+			return nil
+		}
+		if len(args) == 0 {
+			return fmt.Errorf("requires at least 1 arg, only received %d", len(args))
+		}
+		return nil
+	}
 
 	return cmd
 }
@@ -174,6 +194,41 @@ func runMachineRun(ctx context.Context) error {
 		err      error
 		app      *api.AppCompact
 	)
+
+	var input api.LaunchMachineInput
+	usingJsonInput := false
+
+	// if we're passing a JSON configuration, use that directly instead of deriving a configuration
+	if configJsonPath := flag.GetString(ctx, "machine-config"); configJsonPath != "" {
+
+		usingJsonInput = true
+
+		if !filepath.IsAbs(configJsonPath) {
+			absConfigJsonPath, err := filepath.Abs(filepath.Join(state.WorkingDirectory(ctx), configJsonPath))
+			if err != nil {
+				return err
+			}
+			configJsonPath = absConfigJsonPath
+		}
+
+		{
+			file, err := os.Open(configJsonPath)
+			if err != nil {
+				return fmt.Errorf("failed to open config file: %w", err)
+			}
+
+			defer file.Close()
+
+			if err = json.NewDecoder(file).Decode(&input); err != nil {
+
+				return fmt.Errorf("failed parsing machine configuration: %w", err)
+			}
+		}
+
+		if appName == "" {
+			appName = input.AppID
+		}
+	}
 
 	if appName == "" {
 		app, err = createApp(ctx, "Running a machine without specifying an app will create one for you, is this what you want?", "", client)
@@ -192,20 +247,8 @@ func runMachineRun(ctx context.Context) error {
 			return err
 		}
 	}
-
-	machineConf := &api.MachineConfig{
-		Guest: &api.MachineGuest{
-			CPUKind:    "shared",
-			CPUs:       1,
-			MemoryMB:   256,
-			KernelArgs: flag.GetStringSlice(ctx, "kernel-arg"),
-		},
-	}
-
-	input := api.LaunchMachineInput{
-		AppID:  app.Name,
-		Name:   flag.GetString(ctx, "name"),
-		Region: flag.GetString(ctx, "region"),
+	if app == nil {
+		return nil
 	}
 
 	flapsClient, err := flaps.New(ctx, app)
@@ -218,22 +261,44 @@ func runMachineRun(ctx context.Context) error {
 		return fmt.Errorf("the app %s uses an earlier version of the platform that does not support machines", app.Name)
 	}
 
-	machineID := flag.GetString(ctx, "id")
-	if machineID != "" {
-		return fmt.Errorf("to update an existing machine, use 'flyctl machine update'")
+	input.AppID = app.Name
+	if name := flag.GetString(ctx, "name"); name != "" {
+		input.Name = name
+	}
+	if region := flag.GetString(ctx, "region"); region != "" {
+		input.Region = region
 	}
 
-	machineConf, err = determineMachineConfig(ctx, *machineConf, app, flag.FirstArg(ctx), input.Region)
-	if err != nil {
-		return err
+	// if we aren't passing a JSON configuration (which we usually aren't), derive a machine configuration
+	if !usingJsonInput {
+
+		machineConf := &api.MachineConfig{
+			Guest: &api.MachineGuest{
+				CPUKind:    "shared",
+				CPUs:       1,
+				MemoryMB:   256,
+				KernelArgs: flag.GetStringSlice(ctx, "kernel-arg"),
+			},
+		}
+
+		machineID := flag.GetString(ctx, "id")
+		if machineID != "" {
+			return fmt.Errorf("to update an existing machine, use 'flyctl machine update'")
+		}
+
+		machineConf, err = determineMachineConfig(ctx, *machineConf, app, flag.FirstArg(ctx), input.Region)
+		if err != nil {
+			return err
+		}
+
+		if flag.GetBool(ctx, "build-only") {
+			return nil
+		}
+
+		input.Config = machineConf
 	}
 
-	if flag.GetBool(ctx, "build-only") {
-		return nil
-	}
-
-	input.Config = machineConf
-
+	// now actually launch the machine
 	machine, err := flapsClient.Launch(ctx, input)
 	if err != nil {
 		return fmt.Errorf("could not launch machine: %w", err)
@@ -241,7 +306,7 @@ func runMachineRun(ctx context.Context) error {
 
 	id, instanceID, state, privateIP := machine.ID, machine.InstanceID, machine.State, machine.PrivateIP
 
-	fmt.Fprintf(io.Out, "Success! A machine has been successfully launched in app %s, waiting for it to be started\n", appName)
+	fmt.Fprintf(io.Out, "Success! A machine has been successfully launched in app %s, waiting for it to be started\n", app.Name)
 	fmt.Fprintf(io.Out, " Machine ID: %s\n", id)
 	fmt.Fprintf(io.Out, " Instance ID: %s\n", instanceID)
 	fmt.Fprintf(io.Out, " State: %s\n", state)
