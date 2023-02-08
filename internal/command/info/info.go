@@ -14,7 +14,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// TODO: Deprecate and remove
 func New() *cobra.Command {
 	const (
 		long  = `Shows information about the application.`
