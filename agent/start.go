@@ -41,7 +41,7 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 
 	env := os.Environ()
 
-	env = append(env, fmt.Sprintf("DEV_VERSION_NUM=%d", versionNum))
+	env = append(env, fmt.Sprintf("FLY_DEV_VERSION_NUM=%d", versionNum))
 	env = append(env, "FLY_NO_UPDATE_CHECK=1")
 
 	cmd.Env = env
