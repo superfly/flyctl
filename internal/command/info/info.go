@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// TODO: Deprecate and remove
 func New() *cobra.Command {
 	const (
 		long  = `Shows information about the application.`
@@ -26,6 +27,8 @@ func New() *cobra.Command {
 	)
 
 	cmd.Args = cobra.NoArgs
+	cmd.Hidden = true
+	cmd.Deprecated = "Replaced by 'status', 'ips list', and 'services list'"
 
 	flag.Add(cmd,
 		flag.App(),
