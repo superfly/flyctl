@@ -37,7 +37,7 @@ func loadMeta() {
 	}
 
 	if IsDev() {
-		envVersionNum := os.Getenv("DEV_VERSION_NUM")
+		envVersionNum := os.Getenv("FLY_DEV_VERSION_NUM")
 		versionNum := uint64(parsedBuildDate.Unix())
 
 		if envVersionNum != "" {

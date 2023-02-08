@@ -44,7 +44,7 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 
 	if versionPre != nil {
 		versionNum := versionPre[0].VersionNum
-		env = append(env, fmt.Sprintf("DEV_VERSION_NUM=%d", versionNum))
+		env = append(env, fmt.Sprintf("FLY_DEV_VERSION_NUM=%d", versionNum))
 	}
 
 	cmd.Env = env
