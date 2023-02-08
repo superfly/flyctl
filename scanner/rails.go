@@ -11,6 +11,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+var healthcheck_channel = make(chan string)
+
 func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, dirContains("Gemfile", "rails")) {
 		return nil, nil
@@ -63,6 +65,18 @@ https://fly.io/docs/rails/getting-started/dockerfiles/.
 
 Once ready: run 'fly deploy' to deploy your Rails app.
 `
+
+	// fetch healthcheck route in a separate thread
+	go func() {
+		out, err := exec.Command("ruby", "./bin/rails", "runner",
+			"puts Rails.application.routes.url_helpers.rails_health_check_path").Output()
+
+		if err == nil {
+			healthcheck_channel <- strings.TrimSpace(string(out))
+		} else {
+			healthcheck_channel <- ""
+		}
+	}()
 
 	return s, nil
 }
@@ -155,6 +169,8 @@ func RailsCallback(srcInfo *SourceInfo, options map[string]bool) error {
 			UrlPrefix: "/",
 		},
 	}
+
+	srcInfo.HttpCheckPath = <-healthcheck_channel
 
 	return nil
 }
