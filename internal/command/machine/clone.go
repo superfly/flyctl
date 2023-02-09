@@ -12,7 +12,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appv2"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
@@ -81,7 +81,7 @@ func runMachineClone(ctx context.Context) (err error) {
 	var (
 		machineID = flag.FirstArg(ctx)
 		out       = iostreams.FromContext(ctx).Out
-		appName   = app.NameFromContext(ctx)
+		appName   = appv2.NameFromContext(ctx)
 		io        = iostreams.FromContext(ctx)
 		colorize  = io.ColorScheme()
 		client    = client.FromContext(ctx).API()
@@ -101,7 +101,9 @@ func runMachineClone(ctx context.Context) (err error) {
 		return err
 	}
 	appConfig, err := getAppConfig(ctx, appName)
-
+	if err != nil {
+		return fmt.Errorf("failed to get app config: %w", err)
+	}
 	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
 		return fmt.Errorf("could not make flaps client: %w", err)
@@ -244,9 +246,9 @@ func runMachineClone(ctx context.Context) (err error) {
 	return
 }
 
-func getAppConfig(ctx context.Context, appName string) (*app.Config, error) {
+func getAppConfig(ctx context.Context, appName string) (*appv2.Config, error) {
 	apiClient := client.FromContext(ctx).API()
-	cfg := app.ConfigFromContext(ctx)
+	cfg := appv2.ConfigFromContext(ctx)
 	if cfg == nil {
 		terminal.Debug("no local app config detected; fetching from backend ...")
 
@@ -260,7 +262,7 @@ func getAppConfig(ctx context.Context, appName string) (*app.Config, error) {
 			return nil, err
 		}
 
-		cfg, err := app.FromDefinition(&apiConfig.Definition)
+		cfg, err := appv2.FromDefinition(&apiConfig.Definition)
 		if err != nil {
 			return nil, err
 		}

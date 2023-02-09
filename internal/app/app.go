@@ -20,7 +20,6 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/scanner"
 )
 
 const (
@@ -95,6 +94,10 @@ type Deploy struct {
 type Static struct {
 	GuestPath string `toml:"guest_path" json:"guest_path" validate:"required"`
 	UrlPrefix string `toml:"url_prefix" json:"url_prefix" validate:"required"`
+}
+type Volume struct {
+	Source      string `toml:"source" json:"source"`
+	Destination string `toml:"destination" json:"destination"`
 }
 type HttpService struct {
 	InternalPort int                            `json:"internal_port" toml:"internal_port" validate:"required,numeric"`
@@ -652,10 +655,10 @@ func (c *Config) SetProcess(name, value string) {
 	c.Definition["processes"] = processes
 }
 
-func (c *Config) SetStatics(statics []scanner.Static) {
+func (c *Config) SetStatics(statics []Static) {
 	c.Definition["statics"] = statics
 }
 
-func (c *Config) SetVolumes(volumes []scanner.Volume) {
+func (c *Config) SetVolumes(volumes []Volume) {
 	c.Definition["mounts"] = volumes
 }

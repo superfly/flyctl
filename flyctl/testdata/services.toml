@@ -1,0 +1,9 @@
+app = "services"
+
+[[service]]
+  protocol = "tcp"
+  internal_port = 8080
+  [service.port.80]
+    handlers = ["http"]
+  [service.port.443]
+    handlers = ["tls", "http"]

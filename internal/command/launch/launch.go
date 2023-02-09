@@ -18,8 +18,10 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appv2"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
@@ -75,16 +77,6 @@ func New() (cmd *cobra.Command) {
 			Description: "If a .dockerignore does not exist, create one from .gitignore files",
 			Default:     false,
 		},
-		flag.Bool{
-			Name:        "force-nomad",
-			Description: "Use the Apps v1 platform built with Nomad",
-			Default:     false,
-		},
-		flag.Bool{
-			Name:        "force-machines",
-			Description: "Use the Apps v2 platform built with Machines",
-			Default:     false,
-		},
 		flag.Int{
 			Name:        "internal-port",
 			Description: "Set internal_port for all services in the generated fly.toml",
@@ -108,11 +100,9 @@ func run(ctx context.Context) (err error) {
 	var importedConfig bool
 	appConfig := app.NewConfig()
 
-	// Look for existing fly.toml and trigger an immediate deploy if app exists but wasn't deployed
-	// or there are unhealthy nomad allocations (??)
 	configFilePath := filepath.Join(workingDir, "fly.toml")
-	if exists, _ := app.ConfigFileExistsAtPath(configFilePath); exists {
-		cfg, err := app.LoadConfig(configFilePath)
+	if exists, _ := flyctl.ConfigFileExistsAtPath(configFilePath); exists {
+		cfg, err := app.LoadConfig(ctx, configFilePath, "nomad")
 		if err != nil {
 			return err
 		}
@@ -124,6 +114,7 @@ func run(ctx context.Context) (err error) {
 			} else if deployExisting {
 				fmt.Fprintln(io.Out, "App is not running, deploy...")
 				ctx = app.WithName(ctx, cfg.AppName)
+				ctx = appv2.WithName(ctx, cfg.AppName)
 				return deploy.DeployWithConfig(ctx, cfg, deploy.DeployWithConfigArgs{
 					ForceNomad:    flag.GetBool(ctx, "force-nomad"),
 					ForceMachines: flag.GetBool(ctx, "force-machines"),
@@ -278,22 +269,21 @@ func run(ctx context.Context) (err error) {
 		PreferredRegion: &region.Code,
 	}
 
-	if createdApp, err := client.CreateApp(ctx, input); err != nil {
+	createdApp, err := client.CreateApp(ctx, input)
+	if err != nil {
 		return err
-	} else if !importedConfig {
-		if cfg, err := app.FromDefinition(&createdApp.Config.Definition); err != nil {
-			return err
-		} else {
-			cfg.AppName = createdApp.Name
-			cfg.Build = appConfig.Build
-			appConfig = cfg
-		}
+	}
+	if !importedConfig {
+		appConfig.Definition = createdApp.Config.Definition
 	}
 
-	ctx = app.WithName(ctx, appConfig.AppName)
-	fmt.Fprintf(io.Out, "Created app %s in organization %s\n", appConfig.AppName, org.Slug)
-	fmt.Fprintf(io.Out, "Admin URL: https://fly.io/apps/%s\n", appConfig.AppName)
-	fmt.Fprintf(io.Out, "Hostname: %s.fly.dev\n", appConfig.AppName)
+	appConfig.AppName = createdApp.Name
+
+	fmt.Fprintf(io.Out, "Created app %s in organization %s\n", createdApp.Name, org.Slug)
+
+	adminLink := fmt.Sprintf("https://fly.io/apps/%s", createdApp.Name)
+	appLink := fmt.Sprintf("%s.fly.dev", createdApp.Name)
+	fmt.Fprintf(io.Out, "Admin URL: %s\nHostname: %s\n", adminLink, appLink)
 
 	// If secrets are requested by the launch scanner, ask the user to input them
 	if srcInfo != nil && len(srcInfo.Secrets) > 0 {
@@ -420,11 +410,25 @@ func run(ctx context.Context) (err error) {
 		}
 
 		if len(srcInfo.Statics) > 0 {
-			appConfig.SetStatics(srcInfo.Statics)
+			var appStatics []app.Static
+			for _, s := range srcInfo.Statics {
+				appStatics = append(appStatics, app.Static{
+					GuestPath: s.GuestPath,
+					UrlPrefix: s.UrlPrefix,
+				})
+			}
+			appConfig.SetStatics(appStatics)
 		}
 
 		if len(srcInfo.Volumes) > 0 {
-			appConfig.SetVolumes(srcInfo.Volumes)
+			var appVolumes []app.Volume
+			for _, v := range srcInfo.Volumes {
+				appVolumes = append(appVolumes, app.Volume{
+					Source:      v.Source,
+					Destination: v.Destination,
+				})
+			}
+			appConfig.SetVolumes(appVolumes)
 		}
 
 		for procName, procCommand := range srcInfo.Processes {
@@ -477,25 +481,40 @@ func run(ctx context.Context) (err error) {
 		return nil
 	}
 
-	if !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !flag.GetBool(ctx, "auto-confirm") && appConfig.HasNonHttpAndHttpsStandardServices() {
-		hasUdpService := appConfig.HasUdpService()
-		ipStuffStr := "a dedicated ipv4 address"
-		if !hasUdpService {
-			ipStuffStr = "dedicated ipv4 and ipv6 addresses"
+	deployArgs := deploy.DeployWithConfigArgs{
+		ForceNomad:    flag.GetBool(ctx, "force-nomad"),
+		ForceMachines: flag.GetBool(ctx, "force-machines"),
+		ForceYes:      flag.GetBool(ctx, "now"),
+	}
+	var v2AppConfig *appv2.Config
+	if deployArgs.ForceMachines {
+		v2AppConfig, err = appv2.LoadConfig(configFilePath)
+		if err != nil {
+			return fmt.Errorf("invalid config: %w", err)
 		}
-		confirmDedicatedIp, err := prompt.Confirmf(ctx, "Would you like to allocate %s now?", ipStuffStr)
-		if confirmDedicatedIp && err == nil {
-			v4Dedicated, err := client.AllocateIPAddress(ctx, appConfig.AppName, "v4", "", nil, "")
-			if err != nil {
-				return err
-			}
-			fmt.Fprintf(io.Out, "Allocated dedicated ipv4: %s\n", v4Dedicated.Address)
+		ctx = appv2.WithConfig(ctx, v2AppConfig)
+	}
+	if deployArgs.ForceMachines && !deployArgs.ForceYes {
+		if !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !flag.GetBool(ctx, "auto-confirm") && v2AppConfig.HasNonHttpAndHttpsStandardServices() {
+			hasUdpService := v2AppConfig.HasUdpService()
+			ipStuffStr := "a dedicated ipv4 address"
 			if !hasUdpService {
-				v6Dedicated, err := client.AllocateIPAddress(ctx, appConfig.AppName, "v6", "", nil, "")
+				ipStuffStr = "dedicated ipv4 and ipv6 addresses"
+			}
+			confirmDedicatedIp, err := prompt.Confirmf(ctx, "Would you like to allocate %s now?", ipStuffStr)
+			if confirmDedicatedIp && err == nil {
+				v4Dedicated, err := client.AllocateIPAddress(ctx, v2AppConfig.AppName, "v4", "", nil, "")
 				if err != nil {
 					return err
 				}
-				fmt.Fprintf(io.Out, "Allocated dedicated ipv6: %s\n", v6Dedicated.Address)
+				fmt.Fprintf(io.Out, "Allocated dedicated ipv4: %s\n", v4Dedicated.Address)
+				if !hasUdpService {
+					v6Dedicated, err := client.AllocateIPAddress(ctx, v2AppConfig.AppName, "v6", "", nil, "")
+					if err != nil {
+						return err
+					}
+					fmt.Fprintf(io.Out, "Allocated dedicated ipv6: %s\n", v6Dedicated.Address)
+				}
 			}
 		}
 	}
@@ -526,11 +545,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	if deployNow {
-		return deploy.DeployWithConfig(ctx, appConfig, deploy.DeployWithConfigArgs{
-			ForceNomad:    flag.GetBool(ctx, "force-nomad"),
-			ForceMachines: flag.GetBool(ctx, "force-machines"),
-			ForceYes:      flag.GetBool(ctx, "now"),
-		})
+		return deploy.DeployWithConfig(ctx, appConfig, deployArgs)
 	}
 
 	// Alternative deploy documentation if our standard deploy method is not correct

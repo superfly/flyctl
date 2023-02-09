@@ -2,7 +2,6 @@ package scanner
 
 import (
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/app"
 )
 
 func configureLucky(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
@@ -34,7 +33,7 @@ func configureLucky(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 				Value: "unused",
 			},
 		},
-		Statics: []app.Static{
+		Statics: []Static{
 			{
 				GuestPath: "/app/public",
 				UrlPrefix: "/",

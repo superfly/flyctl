@@ -8,7 +8,7 @@ import (
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmdctx"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/command"
 
 	"github.com/superfly/flyctl/api"
@@ -70,7 +70,6 @@ func runScaleVM(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	if isMachine {
-		// FIXME: link to docs or show commands to scale here
 		return fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine update instead")
 	}
 
@@ -105,7 +104,6 @@ func runScaleCount(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	if isMachine {
-		// FIXME: link to docs or show commands to scale here
 		return fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine clone instead")
 	}
 
@@ -173,7 +171,6 @@ func runScaleShow(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	if isMachine {
-		// FIXME: link to docs or show commands to scale here
 		return fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine status instead")
 	}
 
@@ -283,7 +280,6 @@ func runScaleMemory(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	if isMachine {
-		// FIXME: link to docs or show commands to scale here
 		return fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine update instead")
 	}
 
@@ -327,11 +323,22 @@ func formatMemory(size api.VMSize) string {
 	return fmt.Sprintf("%d GB", int(size.MemoryGB))
 }
 
-func getDefaultGroupName(cfg *app.Config) string {
-	if cfg != nil && len(cfg.Processes) == 1 {
-		for k := range cfg.Processes {
+func getDefaultGroupName(cfg *flyctl.AppConfig) string {
+	name := "app"
+	if cfg == nil {
+		return name
+	}
+
+	procsDef, ok := cfg.Definition["processes"]
+	if !ok {
+		return name
+	}
+
+	if procs, ok := procsDef.(map[string]interface{}); ok && len(procs) == 1 {
+		for k := range procs {
 			return k
 		}
 	}
-	return "app"
+
+	return name
 }

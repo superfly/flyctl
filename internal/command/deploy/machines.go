@@ -14,8 +14,10 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/gql"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appv2"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
+	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
@@ -34,6 +36,7 @@ type MachineDeployment interface {
 }
 
 type MachineDeploymentArgs struct {
+	AppCompact           *api.AppCompact
 	DeploymentImage      *imgsrc.DeploymentImage
 	Strategy             string
 	EnvFromFlags         []string
@@ -53,8 +56,8 @@ type machineDeployment struct {
 	io                         *iostreams.IOStreams
 	colorize                   *iostreams.ColorScheme
 	app                        *api.AppCompact
-	appConfig                  *app.Config
-	processConfigs             map[string]*app.ProcessConfig
+	appConfig                  *appv2.Config
+	processConfigs             map[string]*appv2.ProcessConfig
 	img                        *imgsrc.DeploymentImage
 	machineSet                 machine.MachineSet
 	releaseCommandMachine      machine.MachineSet
@@ -77,7 +80,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if args.RestartOnly && args.DeploymentImage != nil {
 		return nil, fmt.Errorf("BUG: restartOnly machines deployment created and specified an image")
 	}
-	appConfig, err := determineAppConfig(ctx, args.EnvFromFlags, args.PrimaryRegionFlag)
+	appConfig, err := determineAppConfigForMachines(ctx, args.EnvFromFlags, args.PrimaryRegionFlag)
 	if err != nil {
 		return nil, err
 	}
@@ -88,11 +91,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if len(appConfig.Statics) > 0 {
 		return nil, fmt.Errorf("error [statics] are not yet supported when deploying to machines; remove the [statics] section from fly.toml")
 	}
-	app, err := client.FromContext(ctx).API().GetAppCompact(ctx, appConfig.AppName)
-	if err != nil {
-		return nil, err
-	}
-	flapsClient, err := flaps.New(ctx, app)
+	flapsClient, err := flaps.New(ctx, args.AppCompact)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +125,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		flapsClient:                flapsClient,
 		io:                         io,
 		colorize:                   io.ColorScheme(),
-		app:                        app,
+		app:                        args.AppCompact,
 		appConfig:                  appConfig,
 		processConfigs:             processConfigs,
 		img:                        args.DeploymentImage,
@@ -671,4 +670,52 @@ func (md *machineDeployment) logClearLinesAbove(count int) {
 		str := builder.Up(uint(count)).EraseLine(aec.EraseModes.All).ANSI
 		fmt.Fprint(md.io.ErrOut, str.String())
 	}
+}
+
+func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion string) (cfg *appv2.Config, err error) {
+	client := client.FromContext(ctx).API()
+	appNameFromContext := appv2.NameFromContext(ctx)
+	if cfg = appv2.ConfigFromContext(ctx); cfg == nil {
+		logger := logger.FromContext(ctx)
+		logger.Debug("no local app config detected for machines deploy; fetching from backend ...")
+
+		var apiConfig *api.AppConfig
+		if apiConfig, err = client.GetConfig(ctx, appNameFromContext); err != nil {
+			err = fmt.Errorf("failed fetching existing app config: %w", err)
+			return
+		}
+
+		basicApp, err := client.GetAppBasic(ctx, appNameFromContext)
+		if err != nil {
+			return nil, err
+		}
+
+		cfg, err := appv2.FromDefinition(&apiConfig.Definition)
+		if err != nil {
+			return nil, err
+		}
+		cfg.AppName = basicApp.Name
+	}
+
+	if len(envFromFlags) > 0 {
+		var parsedEnv map[string]string
+		if parsedEnv, err = cmdutil.ParseKVStringsToMap(envFromFlags); err != nil {
+			err = fmt.Errorf("failed parsing environment: %w", err)
+
+			return
+		}
+		cfg.SetEnvVariables(parsedEnv)
+	}
+
+	if primaryRegion != "" {
+		cfg.PrimaryRegion = primaryRegion
+	}
+
+	// Always prefer the app name passed via --app
+
+	if appNameFromContext != "" {
+		cfg.AppName = appNameFromContext
+	}
+
+	return
 }

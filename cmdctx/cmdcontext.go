@@ -16,7 +16,6 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -33,7 +32,7 @@ type CmdContext struct {
 	WorkingDir    string
 	ConfigFile    string
 	AppName       string
-	AppConfig     *app.Config
+	AppConfig     *flyctl.AppConfig
 	MachineConfig *api.MachineConfig
 }
 
@@ -159,7 +158,7 @@ func (commandContext *CmdContext) StatusLn() {
 	fmt.Fprintln(commandContext.IO.Out)
 }
 
-func (commandContext *CmdContext) Status(source string, status string, args ...any) {
+func (commandContext *CmdContext) Status(source string, status string, args ...interface{}) {
 	outputJSON := commandContext.OutputJSON()
 
 	var message strings.Builder
@@ -207,7 +206,7 @@ func statusToEffect(status string, message string) string {
 	return message
 }
 
-func (commandContext *CmdContext) Statusf(source string, status string, format string, args ...any) {
+func (commandContext *CmdContext) Statusf(source string, status string, format string, args ...interface{}) {
 	outputJSON := commandContext.OutputJSON()
 
 	message := fmt.Sprintf(format, args...)
@@ -226,7 +225,7 @@ func (commandContext *CmdContext) Statusf(source string, status string, format s
 	}
 }
 
-func (commandContext *CmdContext) WriteJSON(myData any) {
+func (commandContext *CmdContext) WriteJSON(myData interface{}) {
 	outBuf, _ := json.MarshalIndent(myData, "", "    ")
 	fmt.Fprintln(commandContext.IO.Out, string(outBuf))
 }
