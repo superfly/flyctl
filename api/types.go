@@ -536,7 +536,9 @@ type Organization struct {
 	RemoteBuilderApp   *App
 	Slug               string
 	Type               string
-	Domains            struct {
+	PaidPlan           bool
+
+	Domains struct {
 		Nodes *[]*Domain
 		Edges *[]*struct {
 			Cursor *string
@@ -972,6 +974,7 @@ type Region struct {
 	Latitude         float32
 	Longitude        float32
 	GatewayAvailable bool
+	RequiresPaidPlan bool
 }
 
 type AutoscalingConfig struct {

@@ -321,6 +321,103 @@ func Region(ctx context.Context, params RegionParams) (*api.Region, error) {
 	}
 }
 
+// Region returns the region the user has passed in via flag or prompts the
+// user for one.
+func RegionCheckPlan(ctx context.Context, org *api.Organization, params RegionParams) (*api.Region, error) {
+	regions, defaultRegion, err := sortedRegions(ctx, params.ExcludedRegionCodes)
+	paidOnly := []api.Region{}
+	availableRegions := []api.Region{}
+	if err != nil {
+		return nil, err
+	}
+
+	if !org.PaidPlan {
+		for _, region := range regions {
+			if region.RequiresPaidPlan {
+				paidOnly = append(paidOnly, region)
+			} else {
+				availableRegions = append(availableRegions, region)
+			}
+		}
+
+		paidOnly = sortAndCleanRegions(paidOnly, params.ExcludedRegionCodes)
+		regions = sortAndCleanRegions(availableRegions, params.ExcludedRegionCodes)
+	}
+
+	slug := config.FromContext(ctx).Region
+
+	switch {
+	case slug != "":
+		for _, region := range regions {
+			if slug == region.Code {
+				return &region, nil
+			}
+		}
+
+		for _, region := range paidOnly {
+			if slug == region.Code {
+				return nil, fmt.Errorf("region %s requires an organization with a paid plan. See our plans: https://fly.io/plans", slug)
+			}
+		}
+
+		return nil, fmt.Errorf("region %s not found", slug)
+	default:
+		var defaultRegionCode string
+		if defaultRegion != nil {
+			defaultRegionCode = defaultRegion.Code
+		}
+
+		switch region, err := SelectRegionWithPaidPlanWarning(ctx, params.Message, paidOnly, regions, defaultRegionCode); {
+		case err == nil:
+			return region, nil
+		case IsNonInteractive(err):
+			return nil, errRegionCodeRequired
+		default:
+			return nil, err
+		}
+	}
+}
+
+func sortAndCleanRegions(regions []api.Region, excludedRegionCodes []string) []api.Region {
+	if len(excludedRegionCodes) > 0 {
+		regions = lo.Filter(regions, func(r api.Region, _ int) bool {
+			return !lo.Contains(excludedRegionCodes, r.Code)
+		})
+	}
+
+	sort.RegionsByNameAndCode(regions)
+
+	return regions
+}
+
+func SelectRegionWithPaidPlanWarning(ctx context.Context, msg string, paid []api.Region, regions []api.Region, defaultCode string) (region *api.Region, err error) {
+	var defaultOption string
+	var options []string
+	if len(paid) > 0 {
+		fmt.Printf("Some regions require a paid plan (%s).\nSee https://fly.io/plans to set up a plan.\n\n", strings.Join(lo.Map(paid, func(r api.Region, _ int) string { return r.Code }), ", "))
+	}
+
+	for _, r := range regions {
+		option := fmt.Sprintf("%s (%s)", r.Name, r.Code)
+		if r.Code == defaultCode {
+			defaultOption = option
+		}
+
+		options = append(options, option)
+	}
+
+	if msg == "" {
+		msg = "Select region:"
+	}
+
+	var index int
+	if err = Select(ctx, &index, msg, defaultOption, options...); err == nil {
+		region = &regions[index]
+	}
+
+	return
+}
+
 func SelectRegion(ctx context.Context, msg string, regions []api.Region, defaultCode string) (region *api.Region, err error) {
 	var defaultOption string
 
