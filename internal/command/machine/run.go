@@ -185,13 +185,12 @@ func newRun() *cobra.Command {
 	return cmd
 }
 
-func runMachineRun(ctx context.Context) error {
+func runMachineRun(ctx context.Context) (err error) {
 	var (
 		appName  = app.NameFromContext(ctx)
 		client   = client.FromContext(ctx).API()
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
-		err      error
 		app      *api.AppCompact
 	)
 
@@ -217,7 +216,11 @@ func runMachineRun(ctx context.Context) error {
 				return fmt.Errorf("failed to open config file: %w", err)
 			}
 
-			defer file.Close()
+			defer func() {
+				if e := file.Close(); err == nil {
+					err = e
+				}
+			}()
 
 			if err = json.NewDecoder(file).Decode(&input); err != nil {
 
