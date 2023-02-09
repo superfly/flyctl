@@ -3,6 +3,8 @@
 package app
 
 import (
+	"time"
+
 	"github.com/superfly/flyctl/api"
 )
 
@@ -139,6 +141,24 @@ func (c *Config) SetInternalPort(port int) bool {
 		return true
 	}
 	return false
+}
+
+func (c *Config) SetHttpCheck(path string) bool {
+	if len(c.Services) == 0 {
+		return false
+	}
+	service := &c.Services[0]
+	service.HTTPChecks = append(service.HTTPChecks, &ServiceHTTPCheck{
+		HTTPMethod:        api.StringPointer("GET"),
+		HTTPPath:          api.StringPointer(path),
+		HTTPProtocol:      api.StringPointer("http"),
+		HTTPTLSSkipVerify: api.BoolPointer(false),
+		Interval:          &api.Duration{Duration: 10 * time.Second},
+		GracePeriod:       &api.Duration{Duration: 5 * time.Second},
+		RestartLimit:      0,
+		Timeout:           &api.Duration{Duration: 2 * time.Second},
+	})
+	return true
 }
 
 func (c *Config) SetConcurrency(soft int, hard int) bool {
