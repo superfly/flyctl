@@ -162,6 +162,11 @@ func (e NonInteractiveError) Error() string { return string(e) }
 
 func (NonInteractiveError) Unwrap() error { return errNonInteractive }
 
+func isInteractive(ctx context.Context) bool {
+	io := iostreams.FromContext(ctx)
+	return io.IsInteractive()
+}
+
 func newSurveyIO(ctx context.Context) (survey.AskOpt, error) {
 	io := iostreams.FromContext(ctx)
 	if !io.IsInteractive() {
@@ -267,13 +272,28 @@ func sortedRegions(ctx context.Context, excludedRegionCodes []string) ([]api.Reg
 
 // Region returns the region the user has passed in via flag or prompts the
 // user for one.
-func MultiRegion(ctx context.Context, msg string, currentRegions []string, excludedRegionCodes []string) (*[]api.Region, error) {
+func MultiRegion(ctx context.Context, msg string, splitPaid bool, currentRegions []string, excludedRegionCodes []string) (*[]api.Region, error) {
 	regions, _, err := sortedRegions(ctx, excludedRegionCodes)
+	paidOnly := []api.Region{}
+	availableRegions := []api.Region{}
 	if err != nil {
 		return nil, err
 	}
 
-	switch regions, err := MultiSelectRegion(ctx, msg, regions, currentRegions); {
+	if splitPaid {
+		for _, region := range regions {
+			if region.RequiresPaidPlan {
+				paidOnly = append(paidOnly, region)
+			} else {
+				availableRegions = append(availableRegions, region)
+			}
+		}
+
+		paidOnly = sortAndCleanRegions(paidOnly, excludedRegionCodes)
+		regions = sortAndCleanRegions(availableRegions, excludedRegionCodes)
+	}
+
+	switch regions, err := MultiSelectRegion(ctx, msg, paidOnly, regions, currentRegions); {
 	case err == nil:
 		return &regions, nil
 	case IsNonInteractive(err):
@@ -285,7 +305,7 @@ func MultiRegion(ctx context.Context, msg string, currentRegions []string, exclu
 
 // Region returns the region the user has passed in via flag or prompts the
 // user for one.
-func Region(ctx context.Context, org api.OrganizationImpl, params RegionParams) (*api.Region, error) {
+func Region(ctx context.Context, splitPaid bool, params RegionParams) (*api.Region, error) {
 	regions, defaultRegion, err := sortedRegions(ctx, params.ExcludedRegionCodes)
 	paidOnly := []api.Region{}
 	availableRegions := []api.Region{}
@@ -293,7 +313,7 @@ func Region(ctx context.Context, org api.OrganizationImpl, params RegionParams) 
 		return nil, err
 	}
 
-	if !org.GetPaidPlan() {
+	if splitPaid {
 		for _, region := range regions {
 			if region.RequiresPaidPlan {
 				paidOnly = append(paidOnly, region)
@@ -329,7 +349,7 @@ func Region(ctx context.Context, org api.OrganizationImpl, params RegionParams) 
 			defaultRegionCode = defaultRegion.Code
 		}
 
-		switch region, err := SelectRegionWithPaidPlanWarning(ctx, params.Message, paidOnly, regions, defaultRegionCode); {
+		switch region, err := SelectRegion(ctx, params.Message, paidOnly, regions, defaultRegionCode); {
 		case err == nil:
 			return region, nil
 		case IsNonInteractive(err):
@@ -352,10 +372,10 @@ func sortAndCleanRegions(regions []api.Region, excludedRegionCodes []string) []a
 	return regions
 }
 
-func SelectRegionWithPaidPlanWarning(ctx context.Context, msg string, paid []api.Region, regions []api.Region, defaultCode string) (region *api.Region, err error) {
+func SelectRegion(ctx context.Context, msg string, paid []api.Region, regions []api.Region, defaultCode string) (region *api.Region, err error) {
 	var defaultOption string
 	var options []string
-	if len(paid) > 0 {
+	if isInteractive(ctx) && len(paid) > 0 {
 		fmt.Printf("Some regions require a paid plan (%s).\nSee https://fly.io/plans to set up a plan.\n\n", strings.Join(lo.Map(paid, func(r api.Region, _ int) string { return r.Code }), ", "))
 	}
 
@@ -380,36 +400,15 @@ func SelectRegionWithPaidPlanWarning(ctx context.Context, msg string, paid []api
 	return
 }
 
-func SelectRegion(ctx context.Context, msg string, regions []api.Region, defaultCode string) (region *api.Region, err error) {
-	var defaultOption string
-
-	var options []string
-	for _, r := range regions {
-		option := fmt.Sprintf("%s (%s)", r.Name, r.Code)
-		if r.Code == defaultCode {
-			defaultOption = option
-		}
-
-		options = append(options, option)
-	}
-
-	if msg == "" {
-		msg = "Select region:"
-	}
-
-	var index int
-	if err = Select(ctx, &index, msg, defaultOption, options...); err == nil {
-		region = &regions[index]
-	}
-
-	return
-}
-
-func MultiSelectRegion(ctx context.Context, msg string, regions []api.Region, currentRegions []string) (selectedRegions []api.Region, err error) {
+func MultiSelectRegion(ctx context.Context, msg string, paid []api.Region, regions []api.Region, currentRegions []string) (selectedRegions []api.Region, err error) {
 	var options []string
 
 	var currentIndices []int
 	var indices []int
+
+	if isInteractive(ctx) && len(paid) > 0 {
+		fmt.Printf("Some regions require a paid plan (%s).\nSee https://fly.io/plans to set up a plan.\n\n", strings.Join(lo.Map(paid, func(r api.Region, _ int) string { return r.Code }), ", "))
+	}
 
 	for i, r := range regions {
 		if lo.Contains(currentRegions, r.Code) {

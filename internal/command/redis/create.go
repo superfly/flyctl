@@ -84,7 +84,7 @@ func runCreate(ctx context.Context) (err error) {
 		return err
 	}
 
-	primaryRegion, err := prompt.Region(ctx, org, prompt.RegionParams{
+	primaryRegion, err := prompt.Region(ctx, !org.PaidPlan, prompt.RegionParams{
 		Message:             "Choose a primary region (can't be changed later)",
 		ExcludedRegionCodes: excludedRegions,
 	})
@@ -122,7 +122,7 @@ func Create(ctx context.Context, org *api.Organization, name string, region *api
 	excludedRegions = append(excludedRegions, region.Code)
 
 	if !disallowReplicas {
-		readRegions, err = prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", []string{}, excludedRegions)
+		readRegions, err = prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", !org.PaidPlan, []string{}, excludedRegions)
 
 		if err != nil {
 			return

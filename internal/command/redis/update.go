@@ -54,6 +54,7 @@ func runUpdate(ctx context.Context) (err error) {
 			options
 			organization {
 				slug
+				paidPlan
 			}
 			addOnPlan {
 				id
