@@ -142,7 +142,7 @@ func hasRequiredVersionOnMachines(machines []*api.Machine, cluster, flex, standa
 }
 
 func IsFlex(machine *api.Machine) bool {
-	if machine.ImageRef.Labels["fly.manager"] == "repmgr" {
+	if machine.ImageRef.Labels["fly.pg-manager"] == "repmgr" {
 		return true
 	}
 
