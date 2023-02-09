@@ -1,6 +1,6 @@
 // Package app implements functionality related to reading and writing app
 // configuration files.
-package app
+package appv2
 
 import (
 	"time"
