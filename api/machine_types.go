@@ -357,7 +357,7 @@ type MachineConfig struct {
 	Checks      map[string]MachineCheck `json:"checks,omitempty"`
 	AutoDestroy bool                    `json:"auto_destroy,omitempty"`
 	DNS         *DNSConfig              `json:"dns,omitempty"`
-	Statics     []*Static
+	Statics     []*Static               `json:"statics,omitempty"`
 }
 
 type Static struct {
