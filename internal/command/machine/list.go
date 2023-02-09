@@ -104,10 +104,16 @@ func runMachineList(ctx context.Context) (err error) {
 			}
 
 			appPlatform := ""
+			machineProcessGroup := ""
 
 			if machine.Config != nil {
 				if platformVersion, ok := machine.Config.Metadata[api.MachineConfigMetadataKeyFlyPlatformVersion]; ok {
 					appPlatform = platformVersion
+
+				}
+
+				if processGroup, ok := machine.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]; ok {
+					machineProcessGroup = processGroup
 
 				}
 
@@ -124,11 +130,12 @@ func runMachineList(ctx context.Context) (err error) {
 				machine.CreatedAt,
 				machine.UpdatedAt,
 				appPlatform,
+				machineProcessGroup,
 			})
 
 		}
 
-		_ = render.Table(io.Out, appName, rows, "ID", "Name", "State", "Region", "Image", "IP Address", "Volume", "Created", "Last Updated", "App Platform")
+		_ = render.Table(io.Out, appName, rows, "ID", "Name", "State", "Region", "Image", "IP Address", "Volume", "Created", "Last Updated", "App Platform", "Process Group")
 	}
 	return nil
 }
