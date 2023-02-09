@@ -26,6 +26,8 @@ func New() *cobra.Command {
 	)
 
 	cmd.Args = cobra.NoArgs
+	cmd.Hidden = true
+	cmd.Deprecated = "Replaced by 'status', 'ips list', and 'services list'"
 
 	flag.Add(cmd,
 		flag.App(),
