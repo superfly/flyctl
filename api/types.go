@@ -585,9 +585,14 @@ func (o *Organization) GetSlug() string {
 	return o.Slug
 }
 
+func (o *Organization) GetPaidPlan() bool {
+	return o.PaidPlan
+}
+
 type OrganizationBasic struct {
-	ID   string
-	Slug string
+	ID       string
+	Slug     string
+	PaidPlan bool
 }
 
 func (o *OrganizationBasic) GetID() string {
@@ -598,9 +603,14 @@ func (o *OrganizationBasic) GetSlug() string {
 	return o.Slug
 }
 
+func (o *OrganizationBasic) GetPaidPlan() bool {
+	return o.PaidPlan
+}
+
 type OrganizationImpl interface {
 	GetID() string
 	GetSlug() string
+	GetPaidPlan() bool
 }
 
 type OrganizationDetails struct {

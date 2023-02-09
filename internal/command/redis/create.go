@@ -84,7 +84,7 @@ func runCreate(ctx context.Context) (err error) {
 		return err
 	}
 
-	primaryRegion, err := prompt.Region(ctx, prompt.RegionParams{
+	primaryRegion, err := prompt.Region(ctx, org, prompt.RegionParams{
 		Message:             "Choose a primary region (can't be changed later)",
 		ExcludedRegionCodes: excludedRegions,
 	})

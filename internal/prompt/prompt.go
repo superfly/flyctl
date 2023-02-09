@@ -255,7 +255,6 @@ func sortedRegions(ctx context.Context, excludedRegionCodes []string) ([]api.Reg
 	}
 
 	if len(excludedRegionCodes) > 0 {
-
 		regions = lo.Filter(regions, func(r api.Region, _ int) bool {
 			return !lo.Contains[string](excludedRegionCodes, r.Code)
 		})
@@ -286,44 +285,7 @@ func MultiRegion(ctx context.Context, msg string, currentRegions []string, exclu
 
 // Region returns the region the user has passed in via flag or prompts the
 // user for one.
-func Region(ctx context.Context, params RegionParams) (*api.Region, error) {
-	regions, defaultRegion, err := sortedRegions(ctx, params.ExcludedRegionCodes)
-
-	if err != nil {
-		return nil, err
-	}
-
-	slug := config.FromContext(ctx).Region
-
-	switch {
-	case slug != "":
-		for _, region := range regions {
-			if slug == region.Code {
-				return &region, nil
-			}
-		}
-
-		return nil, fmt.Errorf("region %s not found", slug)
-	default:
-		var defaultRegionCode string
-		if defaultRegion != nil {
-			defaultRegionCode = defaultRegion.Code
-		}
-
-		switch region, err := SelectRegion(ctx, params.Message, regions, defaultRegionCode); {
-		case err == nil:
-			return region, nil
-		case IsNonInteractive(err):
-			return nil, errRegionCodeRequired
-		default:
-			return nil, err
-		}
-	}
-}
-
-// Region returns the region the user has passed in via flag or prompts the
-// user for one.
-func RegionCheckPlan(ctx context.Context, org *api.Organization, params RegionParams) (*api.Region, error) {
+func Region(ctx context.Context, org api.OrganizationImpl, params RegionParams) (*api.Region, error) {
 	regions, defaultRegion, err := sortedRegions(ctx, params.ExcludedRegionCodes)
 	paidOnly := []api.Region{}
 	availableRegions := []api.Region{}
@@ -331,7 +293,7 @@ func RegionCheckPlan(ctx context.Context, org *api.Organization, params RegionPa
 		return nil, err
 	}
 
-	if !org.PaidPlan {
+	if !org.GetPaidPlan() {
 		for _, region := range regions {
 			if region.RequiresPaidPlan {
 				paidOnly = append(paidOnly, region)
