@@ -2,9 +2,7 @@ package machine
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 	"path"
 	"path/filepath"
 	"sort"
@@ -71,6 +69,22 @@ var sharedFlags = flag.Set{
 		Name:        "entrypoint",
 		Description: "ENTRYPOINT replacement",
 	},
+	flag.StringSlice{
+		Name:        "kernel-arg",
+		Description: "List of kernel arguments to be provided to the init. Can be specified multiple times.",
+	},
+	flag.StringSlice{
+		Name:        "metadata",
+		Shorthand:   "m",
+		Description: "Metadata in the form of NAME=VALUE pairs. Can be specified multiple times.",
+	},
+	flag.String{
+		Name:        "schedule",
+		Description: `Schedule a machine run at hourly, daily and monthly intervals`,
+	},
+}
+
+var sharedBuildFlags = flag.Set{
 	flag.Bool{
 		Name:        "build-only",
 		Description: "Only build the image without running the machine",
@@ -114,23 +128,6 @@ var sharedFlags = flag.Set{
 		Description: "Do not use the cache when building the image",
 		Hidden:      true,
 	},
-	flag.StringSlice{
-		Name:        "kernel-arg",
-		Description: "List of kernel arguments to be provided to the init. Can be specified multiple times.",
-	},
-	flag.StringSlice{
-		Name:        "metadata",
-		Shorthand:   "m",
-		Description: "Metadata in the form of NAME=VALUE pairs. Can be specified multiple times.",
-	},
-	flag.String{
-		Name:        "schedule",
-		Description: `Schedule a machine run at hourly, daily and monthly intervals`,
-	},
-	flag.String{
-		Name:        "machine-config",
-		Description: `Path to a machine configuration json file.`,
-	},
 }
 
 func newRun() *cobra.Command {
@@ -164,74 +161,23 @@ func newRun() *cobra.Command {
 			Description: `The organization that will own the app`,
 		},
 		sharedFlags,
+		sharedBuildFlags,
 	)
 
-	// If we pass a JSON machine configuration, we don't build a local image.
-	// That introduces this ugliness, which changes the expected arg count depending
-	// on flags passed.
-	cmd.Args = func(cmd *cobra.Command, args []string) error {
-		if mc := cmd.Flag("machine-config"); mc != nil && mc.Changed {
-			if len(args) != 0 {
-				return fmt.Errorf("expected no arguments when a machine config is present, received %d", len(args))
-			}
-			return nil
-		}
-		if len(args) == 0 {
-			return fmt.Errorf("requires at least 1 arg, only received %d", len(args))
-		}
-		return nil
-	}
+	cmd.Args = cobra.MinimumNArgs(1)
 
 	return cmd
 }
 
-func runMachineRun(ctx context.Context) (err error) {
+func runMachineRun(ctx context.Context) error {
 	var (
 		appName  = app.NameFromContext(ctx)
 		client   = client.FromContext(ctx).API()
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
+		err      error
 		app      *api.AppCompact
 	)
-
-	var input api.LaunchMachineInput
-	usingJsonInput := false
-
-	// if we're passing a JSON configuration, use that directly instead of deriving a configuration
-	if configJsonPath := flag.GetString(ctx, "machine-config"); configJsonPath != "" {
-
-		usingJsonInput = true
-
-		if !filepath.IsAbs(configJsonPath) {
-			absConfigJsonPath, err := filepath.Abs(filepath.Join(state.WorkingDirectory(ctx), configJsonPath))
-			if err != nil {
-				return err
-			}
-			configJsonPath = absConfigJsonPath
-		}
-
-		{
-			file, err := os.Open(configJsonPath)
-			if err != nil {
-				return fmt.Errorf("failed to open config file: %w", err)
-			}
-
-			defer func() {
-				if e := file.Close(); err == nil {
-					err = e
-				}
-			}()
-
-			if err = json.NewDecoder(file).Decode(&input); err != nil {
-
-				return fmt.Errorf("failed parsing machine configuration: %w", err)
-			}
-		}
-
-		if appName == "" {
-			appName = input.AppID
-		}
-	}
 
 	if appName == "" {
 		app, err = createApp(ctx, "Running a machine without specifying an app will create one for you, is this what you want?", "", client)
@@ -254,6 +200,21 @@ func runMachineRun(ctx context.Context) (err error) {
 		return nil
 	}
 
+	machineConf := &api.MachineConfig{
+		Guest: &api.MachineGuest{
+			CPUKind:    "shared",
+			CPUs:       1,
+			MemoryMB:   256,
+			KernelArgs: flag.GetStringSlice(ctx, "kernel-arg"),
+		},
+	}
+
+	input := api.LaunchMachineInput{
+		AppID:  app.Name,
+		Name:   flag.GetString(ctx, "name"),
+		Region: flag.GetString(ctx, "region"),
+	}
+
 	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
 		return fmt.Errorf("could not make API client: %w", err)
@@ -264,44 +225,22 @@ func runMachineRun(ctx context.Context) (err error) {
 		return fmt.Errorf("the app %s uses an earlier version of the platform that does not support machines", app.Name)
 	}
 
-	input.AppID = app.Name
-	if name := flag.GetString(ctx, "name"); name != "" {
-		input.Name = name
-	}
-	if region := flag.GetString(ctx, "region"); region != "" {
-		input.Region = region
+	machineID := flag.GetString(ctx, "id")
+	if machineID != "" {
+		return fmt.Errorf("to update an existing machine, use 'flyctl machine update'")
 	}
 
-	// if we aren't passing a JSON configuration (which we usually aren't), derive a machine configuration
-	if !usingJsonInput {
-
-		machineConf := &api.MachineConfig{
-			Guest: &api.MachineGuest{
-				CPUKind:    "shared",
-				CPUs:       1,
-				MemoryMB:   256,
-				KernelArgs: flag.GetStringSlice(ctx, "kernel-arg"),
-			},
-		}
-
-		machineID := flag.GetString(ctx, "id")
-		if machineID != "" {
-			return fmt.Errorf("to update an existing machine, use 'flyctl machine update'")
-		}
-
-		machineConf, err = determineMachineConfig(ctx, *machineConf, app, flag.FirstArg(ctx), input.Region)
-		if err != nil {
-			return err
-		}
-
-		if flag.GetBool(ctx, "build-only") {
-			return nil
-		}
-
-		input.Config = machineConf
+	machineConf, err = determineMachineConfig(ctx, *machineConf, app, flag.FirstArg(ctx), input.Region, true)
+	if err != nil {
+		return err
 	}
 
-	// now actually launch the machine
+	if flag.GetBool(ctx, "build-only") {
+		return nil
+	}
+
+	input.Config = machineConf
+
 	machine, err := flapsClient.Launch(ctx, input)
 	if err != nil {
 		return fmt.Errorf("could not launch machine: %w", err)
@@ -645,7 +584,7 @@ func selectAppName(ctx context.Context) (name string, err error) {
 	return
 }
 
-func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, imageOrPath string, region string) (*api.MachineConfig, error) {
+func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, imageOrPath string, region string, buildImage bool) (*api.MachineConfig, error) {
 	machineConf, err := mach.CloneConfig(initialMachineConf)
 	if err != nil {
 		return nil, err
@@ -736,11 +675,13 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		return machineConf, err
 	}
 
-	img, err := determineImage(ctx, app.Name, imageOrPath)
-	if err != nil {
-		return machineConf, err
+	if buildImage {
+		img, err := determineImage(ctx, app.Name, imageOrPath)
+		if err != nil {
+			return machineConf, err
+		}
+		machineConf.Image = img.Tag
 	}
-	machineConf.Image = img.Tag
 
 	return machineConf, nil
 }

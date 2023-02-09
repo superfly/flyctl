@@ -35,6 +35,7 @@ func newUpdate() *cobra.Command {
 		cmd,
 		flag.Image(),
 		sharedFlags,
+		sharedBuildFlags,
 		flag.Yes(),
 		flag.Bool{
 			Name:        "skip-health-checks",
@@ -99,7 +100,7 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 
 	// Identify configuration changes
-	machineConf, err := determineMachineConfig(ctx, *machine.Config, app, imageOrPath, machine.Region)
+	machineConf, err := determineMachineConfig(ctx, *machine.Config, app, imageOrPath, machine.Region, true)
 	if err != nil {
 		return err
 	}

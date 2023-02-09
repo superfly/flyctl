@@ -27,6 +27,7 @@ func New() *cobra.Command {
 		newList(),
 		newDestroy(),
 		newRun(),
+		newRunFromJson(),
 		newStart(),
 		newStop(),
 		newStatus(),
