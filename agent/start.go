@@ -42,7 +42,7 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 
 	versionPre := buildinfo.Version().Pre
 
-	if versionPre != nil {
+	if len(versionPre) > 0 {
 		versionNum := versionPre[0].VersionNum
 		env = append(env, fmt.Sprintf("FLY_DEV_VERSION_NUM=%d", versionNum))
 	}
