@@ -7,6 +7,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/machine/flaps_api"
 )
 
 func New() *cobra.Command {
@@ -27,7 +28,6 @@ func New() *cobra.Command {
 		newList(),
 		newDestroy(),
 		newRun(),
-		newRunFromJson(),
 		newStart(),
 		newStop(),
 		newStatus(),
@@ -37,6 +37,7 @@ func New() *cobra.Command {
 		newRestart(),
 		newLeases(),
 		newMachineExec(),
+		flaps_api.New(),
 	)
 
 	return cmd

@@ -28,7 +28,6 @@ import (
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
-	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/watch"
 )
@@ -69,22 +68,6 @@ var sharedFlags = flag.Set{
 		Name:        "entrypoint",
 		Description: "ENTRYPOINT replacement",
 	},
-	flag.StringSlice{
-		Name:        "kernel-arg",
-		Description: "List of kernel arguments to be provided to the init. Can be specified multiple times.",
-	},
-	flag.StringSlice{
-		Name:        "metadata",
-		Shorthand:   "m",
-		Description: "Metadata in the form of NAME=VALUE pairs. Can be specified multiple times.",
-	},
-	flag.String{
-		Name:        "schedule",
-		Description: `Schedule a machine run at hourly, daily and monthly intervals`,
-	},
-}
-
-var sharedBuildFlags = flag.Set{
 	flag.Bool{
 		Name:        "build-only",
 		Description: "Only build the image without running the machine",
@@ -128,6 +111,19 @@ var sharedBuildFlags = flag.Set{
 		Description: "Do not use the cache when building the image",
 		Hidden:      true,
 	},
+	flag.StringSlice{
+		Name:        "kernel-arg",
+		Description: "List of kernel arguments to be provided to the init. Can be specified multiple times.",
+	},
+	flag.StringSlice{
+		Name:        "metadata",
+		Shorthand:   "m",
+		Description: "Metadata in the form of NAME=VALUE pairs. Can be specified multiple times.",
+	},
+	flag.String{
+		Name:        "schedule",
+		Description: `Schedule a machine run at hourly, daily and monthly intervals`,
+	},
 }
 
 func newRun() *cobra.Command {
@@ -161,7 +157,6 @@ func newRun() *cobra.Command {
 			Description: `The organization that will own the app`,
 		},
 		sharedFlags,
-		sharedBuildFlags,
 	)
 
 	cmd.Args = cobra.MinimumNArgs(1)
@@ -180,14 +175,14 @@ func runMachineRun(ctx context.Context) error {
 	)
 
 	if appName == "" {
-		app, err = createApp(ctx, "Running a machine without specifying an app will create one for you, is this what you want?", "", client)
+		app, err = mach.CreateApp(ctx, "Running a machine without specifying an app will create one for you, is this what you want?", "", client)
 		if err != nil {
 			return err
 		}
 	} else {
 		app, err = client.GetAppCompact(ctx, appName)
 		if err != nil && strings.Contains(err.Error(), "Could not find App") {
-			app, err = createApp(ctx, fmt.Sprintf("App '%s' does not exist, would you like to create it?", appName), appName, client)
+			app, err = mach.CreateApp(ctx, fmt.Sprintf("App '%s' does not exist, would you like to create it?", appName), appName, client)
 			if app == nil {
 				return nil
 			}
@@ -230,7 +225,7 @@ func runMachineRun(ctx context.Context) error {
 		return fmt.Errorf("to update an existing machine, use 'flyctl machine update'")
 	}
 
-	machineConf, err = determineMachineConfig(ctx, *machineConf, app, flag.FirstArg(ctx), input.Region, true)
+	machineConf, err = determineMachineConfig(ctx, *machineConf, app, flag.FirstArg(ctx), input.Region)
 	if err != nil {
 		return err
 	}
@@ -271,52 +266,6 @@ func runMachineRun(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "  %s\n", privateIP)
 
 	return nil
-}
-
-func createApp(ctx context.Context, message, name string, client *api.Client) (*api.AppCompact, error) {
-	confirm, err := prompt.Confirm(ctx, message)
-	if err != nil {
-		return nil, err
-	}
-
-	if !confirm {
-		return nil, nil
-	}
-
-	org, err := prompt.Org(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if name == "" {
-		name, err = selectAppName(ctx)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	input := api.CreateAppInput{
-		Name:           name,
-		OrganizationID: org.ID,
-	}
-
-	app, err := client.CreateApp(ctx, input)
-	if err != nil {
-		return nil, err
-	}
-
-	return &api.AppCompact{
-		ID:       app.ID,
-		Name:     app.Name,
-		Status:   app.Status,
-		Deployed: app.Deployed,
-		Hostname: app.Hostname,
-		AppURL:   app.AppURL,
-		Organization: &api.OrganizationBasic{
-			ID:   app.Organization.ID,
-			Slug: app.Organization.Slug,
-		},
-	}, nil
 }
 
 func parseKVFlag(ctx context.Context, flagName string, initialMap map[string]string) (parsed map[string]string, err error) {
@@ -574,17 +523,7 @@ func parsePorts(input string) (port, start_port, end_port *int32, internal_port 
 	return
 }
 
-func selectAppName(ctx context.Context) (name string, err error) {
-	const msg = "App Name:"
-
-	if err = prompt.String(ctx, &name, msg, "", false); prompt.IsNonInteractive(err) {
-		err = prompt.NonInteractiveError("name argument or flag must be specified when not running interactively")
-	}
-
-	return
-}
-
-func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, imageOrPath string, region string, buildImage bool) (*api.MachineConfig, error) {
+func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, imageOrPath string, region string) (*api.MachineConfig, error) {
 	machineConf, err := mach.CloneConfig(initialMachineConf)
 	if err != nil {
 		return nil, err
@@ -675,13 +614,11 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		return machineConf, err
 	}
 
-	if buildImage {
-		img, err := determineImage(ctx, app.Name, imageOrPath)
-		if err != nil {
-			return machineConf, err
-		}
-		machineConf.Image = img.Tag
+	img, err := determineImage(ctx, app.Name, imageOrPath)
+	if err != nil {
+		return machineConf, err
 	}
+	machineConf.Image = img.Tag
 
 	return machineConf, nil
 }
