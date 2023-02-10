@@ -230,16 +230,26 @@ type MachineGuest struct {
 }
 
 const (
-	MEMORY_MB_PER_SHARED_CPU = 256
-	MEMORY_MB_PER_CPU        = 2048
+	MIN_MEMORY_MB_PER_SHARED_CPU = 256
+	MIN_MEMORY_MB_PER_CPU        = 2048
+
+	MAX_MEMORY_MB_PER_SHARED_CPU = 2048
+	MAX_MEMORY_MB_PER_CPU        = 8192
 )
 
 // TODO - Determine if we want allocate max memory allocation, or minimum per # cpus.
 var MachinePresets map[string]*MachineGuest = map[string]*MachineGuest{
-	"shared-cpu-1x": {CPUKind: "shared", CPUs: 1, MemoryMB: 1 * MEMORY_MB_PER_SHARED_CPU},
-	"shared-cpu-2x": {CPUKind: "shared", CPUs: 2, MemoryMB: 2 * MEMORY_MB_PER_SHARED_CPU},
-	"shared-cpu-4x": {CPUKind: "shared", CPUs: 4, MemoryMB: 4 * MEMORY_MB_PER_SHARED_CPU},
-	"shared-cpu-8x": {CPUKind: "shared", CPUs: 8, MemoryMB: 8 * MEMORY_MB_PER_SHARED_CPU},
+	"shared-cpu-1x": {CPUKind: "shared", CPUs: 1, MemoryMB: 1 * MIN_MEMORY_MB_PER_SHARED_CPU},
+	"shared-cpu-2x": {CPUKind: "shared", CPUs: 2, MemoryMB: 2 * MIN_MEMORY_MB_PER_SHARED_CPU},
+	"shared-cpu-4x": {CPUKind: "shared", CPUs: 4, MemoryMB: 4 * MIN_MEMORY_MB_PER_SHARED_CPU},
+	"shared-cpu-8x": {CPUKind: "shared", CPUs: 8, MemoryMB: 8 * MIN_MEMORY_MB_PER_SHARED_CPU},
+
+	"performance-1x":  {CPUKind: "performance", CPUs: 1, MemoryMB: 1 * MIN_MEMORY_MB_PER_CPU},
+	"performance-2x":  {CPUKind: "performance", CPUs: 2, MemoryMB: 2 * MIN_MEMORY_MB_PER_CPU},
+	"performance-4x":  {CPUKind: "performance", CPUs: 4, MemoryMB: 4 * MIN_MEMORY_MB_PER_CPU},
+	"performance-8x":  {CPUKind: "performance", CPUs: 8, MemoryMB: 8 * MIN_MEMORY_MB_PER_CPU},
+	"performance-16x": {CPUKind: "performance", CPUs: 16, MemoryMB: 16 * MIN_MEMORY_MB_PER_CPU},
+	"performance-64x": {CPUKind: "performance", CPUs: 64, MemoryMB: 64 * MIN_MEMORY_MB_PER_CPU},
 }
 
 type MachineMetrics struct {
