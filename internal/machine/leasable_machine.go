@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/jpillora/backoff"
@@ -154,12 +155,19 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 	lm.logStatusWaiting(desiredState)
 	for {
 		err := lm.flapsClient.Wait(waitCtx, lm.Machine(), desiredState, timeout)
+		destroyedMachineNotFoundResponse := false
+		if err != nil {
+			var flapsErr *flaps.FlapsError
+			if errors.As(err, &flapsErr) {
+				destroyedMachineNotFoundResponse = desiredState == api.MachineStateDestroyed && flapsErr.ResponseStatusCode == http.StatusNotFound
+			}
+		}
 		switch {
 		case errors.Is(err, context.Canceled):
 			return err
 		case errors.Is(err, context.DeadlineExceeded):
 			return fmt.Errorf("timeout reached waiting for machine to %s %w", desiredState, err)
-		case err != nil:
+		case !destroyedMachineNotFoundResponse && err != nil:
 			time.Sleep(b.Duration())
 			continue
 		}

@@ -186,7 +186,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error waiting for release_command machine %s to start: %w", releaseCmdMachine.Machine().ID, err)
 	}
-	err = releaseCmdMachine.WaitForState(ctx, api.MachineStateStopped, md.waitTimeout)
+	err = releaseCmdMachine.WaitForState(ctx, api.MachineStateDestroyed, md.waitTimeout)
 	if err != nil {
 		return fmt.Errorf("error waiting for release_command machine %s to finish running: %w", releaseCmdMachine.Machine().ID, err)
 	}
