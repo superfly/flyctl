@@ -48,7 +48,7 @@ func New() (cmd *cobra.Command) {
 			Description: "the name of the new app",
 		},
 	)
-	cmd.Args = cobra.MinimumNArgs(2)
+	cmd.Args = cobra.ExactArgs(2)
 	return cmd
 }
 
