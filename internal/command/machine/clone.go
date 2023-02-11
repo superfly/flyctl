@@ -101,6 +101,12 @@ func runMachineClone(ctx context.Context) (err error) {
 	fmt.Fprintf(out, "Cloning machine %s into region %s\n", colorize.Bold(source.ID), colorize.Bold(region))
 
 	targetConfig := source.Config
+	targetConfig.Image = fmt.Sprintf("%s/%s:%s@%s",
+		source.ImageRef.Registry,
+		source.ImageRef.Repository,
+		source.ImageRef.Tag,
+		source.ImageRef.Digest,
+	)
 
 	for _, mnt := range source.Config.Mounts {
 		var vol *api.Volume
@@ -170,6 +176,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		Region: region,
 		Config: targetConfig,
 	}
+
 	fmt.Fprintf(out, "Provisioning a new machine with image %s...\n", source.Config.Image)
 
 	launchedMachine, err := flapsClient.Launch(ctx, input)
