@@ -57,6 +57,7 @@ func runUpdate(ctx context.Context) (err error) {
 		machineID        = flag.FirstArg(ctx)
 		autoConfirm      = flag.GetBool(ctx, "yes")
 		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
+		image            = flag.GetString(ctx, "image")
 	)
 
 	app, err := appFromMachineOrName(ctx, machineID, appName)
@@ -88,14 +89,21 @@ func runUpdate(ctx context.Context) (err error) {
 		return err
 	}
 
-	// Resolve image
-	imageOrPath := machine.Config.Image
-	image := flag.GetString(ctx, flag.ImageName)
-	dockerfile := flag.GetString(ctx, flag.Dockerfile().Name)
-	if len(image) > 0 {
+	var imageOrPath string
+
+	if image != "" {
 		imageOrPath = image
-	} else if len(dockerfile) > 0 {
-		imageOrPath = "." // cwd
+	} else if machine.Config.Image != "" {
+		imageOrPath = machine.Config.Image
+	} else {
+		dockerfile := flag.GetString(ctx, flag.Dockerfile().Name)
+		if len(dockerfile) > 0 {
+			imageOrPath = "."
+		}
+	}
+
+	if imageOrPath == "" {
+		return fmt.Errorf("failed to resolve machine image")
 	}
 
 	// Identify configuration changes

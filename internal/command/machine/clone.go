@@ -101,20 +101,7 @@ func runMachineClone(ctx context.Context) (err error) {
 	fmt.Fprintf(out, "Cloning machine %s into region %s\n", colorize.Bold(source.ID), colorize.Bold(region))
 
 	targetConfig := source.Config
-
-	image := fmt.Sprintf("%s/%s", source.ImageRef.Registry, source.ImageRef.Repository)
-	tag := source.ImageRef.Tag
-	digest := source.ImageRef.Digest
-
-	if tag != "" && digest != "" {
-		image = fmt.Sprintf("%s:%s@%s", image, tag, digest)
-	} else if digest != "" {
-		image = fmt.Sprintf("%s@%s", image, digest)
-	} else if tag != "" {
-		image = fmt.Sprintf("%s:%s", image, tag)
-	}
-
-	targetConfig.Image = image
+	targetConfig.Image = source.FullImageRef()
 
 	for _, mnt := range source.Config.Mounts {
 		var vol *api.Volume

@@ -41,8 +41,8 @@ func updateImageForNomad(ctx context.Context) error {
 	cI := app.ImageDetails
 	lI := app.LatestImageDetails
 
-	current := cI.ImageRef()
-	target := lI.ImageRef()
+	current := cI.FullImageRef()
+	target := lI.FullImageRef()
 
 	if cI.Version != "" {
 		current = fmt.Sprintf("%s %s", current, cI.Version)
@@ -67,7 +67,7 @@ func updateImageForNomad(ctx context.Context) error {
 
 	input := api.DeployImageInput{
 		AppID:    appName,
-		Image:    lI.ImageRef(),
+		Image:    lI.FullImageRef(),
 		Strategy: api.StringPointer("ROLLING"),
 	}
 
