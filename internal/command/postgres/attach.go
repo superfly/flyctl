@@ -27,6 +27,7 @@ type AttachParams struct {
 	PgAppName    string
 	DbUser       string
 	VariableName string
+	Superuser    bool
 	Force        bool
 }
 
@@ -99,6 +100,7 @@ func runAttach(ctx context.Context) error {
 		DbUser:       flag.GetString(ctx, "database-user"),
 		VariableName: flag.GetString(ctx, "variable-name"),
 		Force:        flag.GetBool(ctx, "yes"),
+		Superuser:    true, // Default for PG's running Stolon
 	}
 
 	pgAppFull, err := client.GetApp(ctx, pgAppName)
@@ -234,6 +236,11 @@ func machineAttachCluster(ctx context.Context, params AttachParams, flycast *str
 		return err
 	}
 
+	if IsFlex(leader) {
+		// TODO - Make this configurable
+		params.Superuser = false
+	}
+
 	return runAttachCluster(ctx, leader.PrivateIP, params, flycast)
 }
 
@@ -249,6 +256,7 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams,
 		dbUser    = params.DbUser
 		varName   = params.VariableName
 		force     = params.Force
+		superuser = params.Superuser
 	)
 
 	if dbName == "" {
@@ -345,7 +353,7 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams,
 
 	fmt.Fprintln(io.Out, "Creating user")
 
-	err = pgclient.CreateUser(ctx, *input.DatabaseUser, pwd, true)
+	err = pgclient.CreateUser(ctx, *input.DatabaseUser, pwd, superuser)
 	if err != nil {
 		return fmt.Errorf("failed executing create-user: %w", err)
 	}

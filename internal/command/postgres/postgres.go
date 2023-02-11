@@ -119,7 +119,7 @@ func hasRequiredVersionOnMachines(machines []*api.Machine, cluster, flex, standa
 			}
 		}
 
-		if machine.ImageRepository() == "flyio/postgres-flex" {
+		if IsFlex(machine) {
 			requiredVersion, err = version.NewVersion(flex)
 			if err != nil {
 				return err
@@ -139,6 +139,14 @@ func hasRequiredVersionOnMachines(machines []*api.Machine, cluster, flex, standa
 
 	}
 	return nil
+}
+
+func IsFlex(machine *api.Machine) bool {
+	if machine.ImageRef.Labels["fly.pg-manager"] == "repmgr" {
+		return true
+	}
+
+	return false
 }
 
 func machinesNodeRoles(ctx context.Context, machines []*api.Machine) (leader *api.Machine, replicas []*api.Machine) {
