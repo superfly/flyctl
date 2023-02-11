@@ -121,6 +121,9 @@ func runPost(ctx context.Context) error {
 		app, err = client.GetAppCompact(ctx, appName)
 		if err != nil && strings.Contains(err.Error(), "Could not find App") {
 			app, err = mach.CreateApp(ctx, fmt.Sprintf("App '%s' does not exist, would you like to create it?", appName), appName, client)
+			if err != nil {
+				return err
+			}
 			if app == nil {
 				return nil
 			}
