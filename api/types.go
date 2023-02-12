@@ -290,10 +290,6 @@ func (img *ImageVersion) FullImageRef() string {
 	return imgStr
 }
 
-// func (img *ImageVersion) ImageRef() string {
-// 	return fmt.Sprintf("%s:%s@%s", img.Repository, img.Tag, img.Digest)
-// }
-
 type App struct {
 	ID        string
 	Name      string
