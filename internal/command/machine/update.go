@@ -58,6 +58,7 @@ func runUpdate(ctx context.Context) (err error) {
 		autoConfirm      = flag.GetBool(ctx, "yes")
 		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
 		image            = flag.GetString(ctx, "image")
+		dockerfile       = flag.GetString(ctx, flag.Dockerfile().Name)
 	)
 
 	app, err := appFromMachineOrName(ctx, machineID, appName)
@@ -93,13 +94,10 @@ func runUpdate(ctx context.Context) (err error) {
 
 	if image != "" {
 		imageOrPath = image
-	} else if machine.Config.Image != "" {
-		imageOrPath = machine.Config.Image
+	} else if dockerfile != "" {
+		imageOrPath = "."
 	} else {
-		dockerfile := flag.GetString(ctx, flag.Dockerfile().Name)
-		if len(dockerfile) > 0 {
-			imageOrPath = "."
-		}
+		imageOrPath = machine.Config.Image
 	}
 
 	if imageOrPath == "" {
