@@ -354,11 +354,12 @@ func (mp *MachinePort) HasNonHttpPorts() bool {
 }
 
 type MachineService struct {
-	Protocol     string                     `json:"protocol,omitempty" toml:"protocol,omitempty"`
-	InternalPort int                        `json:"internal_port,omitempty" toml:"internal_port,omitempty"`
-	Ports        []MachinePort              `json:"ports,omitempty" toml:"ports,omitempty"`
-	Checks       []MachineCheck             `json:"checks,omitempty" toml:"checks,omitempty"`
-	Concurrency  *MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
+	Protocol          string                     `json:"protocol,omitempty" toml:"protocol,omitempty"`
+	InternalPort      int                        `json:"internal_port,omitempty" toml:"internal_port,omitempty"`
+	Ports             []MachinePort              `json:"ports,omitempty" toml:"ports,omitempty"`
+	Checks            []MachineCheck             `json:"checks,omitempty" toml:"checks,omitempty"`
+	Concurrency       *MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
+	AutostartMachines bool                       `json:"autostart_machines,omitempty" toml:"autostart_machines,omitempty"`
 }
 
 type MachineServiceConcurrency struct {
