@@ -38,6 +38,8 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) error {
 			return err
 		}
 
+		machineConf.Image = machine.FullImageRef()
+
 		image, err := resolveImage(ctx, *machine)
 		if err != nil {
 			return err
@@ -273,7 +275,7 @@ func resolveImage(ctx context.Context, machine api.Machine) (string, error) {
 		}
 
 		if image == "" {
-			image = machine.Config.Image
+			image = machine.FullImageRef()
 		}
 	}
 
