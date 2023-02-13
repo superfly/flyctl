@@ -13,6 +13,21 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
+func getProcessgroup(m *api.Machine) string {
+	var name string
+
+	if m.Config != nil && m.Config.Metadata != nil {
+		name = m.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
+	}
+
+	if name != "" {
+		return name
+	}
+
+	return "unknown"
+
+}
+
 func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 	var (
 		io       = iostreams.FromContext(ctx)
@@ -85,17 +100,19 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 
 	rows := [][]string{}
 	for _, machine := range machines {
+
 		rows = append(rows, []string{
 			machine.ID,
 			machine.State,
 			machine.Region,
+			getProcessgroup(machine),
 			render.MachineHealthChecksSummary(machine),
 			machine.ImageRefWithVersion(),
 			machine.CreatedAt,
 			machine.UpdatedAt,
 		})
 	}
-	return render.Table(io.Out, "", rows, "ID", "State", "Region", "Health checks", "Image", "Created", "Updated")
+	return render.Table(io.Out, "", rows, "ID", "State", "Region", "Process Group", "Health checks", "Image", "Created", "Updated")
 }
 
 func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Machine) (err error) {
