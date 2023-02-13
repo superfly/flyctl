@@ -142,6 +142,19 @@ func runMachineClone(ctx context.Context) (err error) {
 		targetConfig.Checks = processConfig.Checks
 	}
 
+	image := fmt.Sprintf("%s/%s", source.ImageRef.Registry, source.ImageRef.Repository)
+	tag := source.ImageRef.Tag
+	digest := source.ImageRef.Digest
+
+	if tag != "" && digest != "" {
+		image = fmt.Sprintf("%s:%s@%s", image, tag, digest)
+	} else if digest != "" {
+		image = fmt.Sprintf("%s@%s", image, digest)
+	} else if tag != "" {
+		image = fmt.Sprintf("%s:%s", image, tag)
+	}
+	targetConfig.Image = image
+
 	if flag.GetBool(ctx, "clear-cmd") {
 		targetConfig.Init.Cmd = make([]string, 0)
 	} else if targetCmd := flag.GetString(ctx, "override-cmd"); targetCmd != "" {
@@ -157,6 +170,7 @@ func runMachineClone(ctx context.Context) (err error) {
 	if targetConfig.AutoDestroy {
 		fmt.Fprintf(io.Out, "Auto destroy enabled and will destroy machine on exit. Use --clear-auto-destroy to remove this setting.\n")
 	}
+
 	for _, mnt := range source.Config.Mounts {
 		var vol *api.Volume
 		if volID := flag.GetString(ctx, "attach-volume"); volID != "" {
@@ -221,6 +235,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		Region: region,
 		Config: targetConfig,
 	}
+
 	fmt.Fprintf(out, "Provisioning a new machine with image %s...\n", source.Config.Image)
 
 	launchedMachine, err := flapsClient.Launch(ctx, input)
