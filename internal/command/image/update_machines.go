@@ -142,7 +142,6 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 			if err != nil {
 				switch err.(type) {
 				case *mach.ErrNoConfigChangesFound:
-					fmt.Printf("Machine %s has no changes", machine.ID)
 					continue
 				default:
 					return err
@@ -188,15 +187,15 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 
 	if flex {
 		if len(members["primary"]) > 0 {
-			leader := members["primary"][0]
-			machine := leader.Machine
+			primary := members["primary"][0]
+			machine := primary.Machine
 
 			input := &api.LaunchMachineInput{
 				ID:      machine.ID,
 				AppID:   app.Name,
 				OrgSlug: app.Organization.Slug,
 				Region:  machine.Region,
-				Config:  &leader.TargetConfig,
+				Config:  &primary.TargetConfig,
 			}
 			if err := mach.Update(ctx, machine, input); err != nil {
 				return err
