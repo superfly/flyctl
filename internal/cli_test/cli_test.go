@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/cli"
 )
@@ -22,7 +22,7 @@ func TestVersion(t *testing.T) {
 
 	assert.Equal(t, 0, code)
 	assert.NotEmpty(t, stdout)
-	assert.NotEmpty(t, stderr) // [33mWARN[0m no config file found at /home/azazeal/.fly/config.yml
+	assert.Empty(t, stderr)
 }
 
 func capture(ctx context.Context, t *testing.T, args ...string) (stdout, stderr string, code int) {

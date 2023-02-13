@@ -9,12 +9,15 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/docstrings"
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/flyerr"
 )
 
+// BUG(tqbf): this code is called by root.New() in internal/command/root/root.go; we're apparently
+// halfway through a migration out of flyctl/cmd/ and into internal/command/, which I support, but
+// this is obviously pretty confusing. I lost 8 minutes to figuring this out so you don't have to.
 func NewRootCmd(client *client.Client) *cobra.Command {
 	rootStrings := docstrings.Get("flyctl")
 	rootCmd := &Command{
@@ -48,42 +51,20 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 	err = rootCmd.PersistentFlags().MarkHidden("builtinsfile")
 	checkErr(err)
 
+	rootCmd.SetHelpCommand(&cobra.Command{
+		Use:    "no-help",
+		Hidden: true,
+	})
+
 	rootCmd.AddCommand(
-		newCurlCommand(client),
-		// newCertificatesCommand(client),
 		newConfigCommand(client),
 		newDashboardCommand(client),
-		newDeployCommand(client),
-		newDocsCommand(client),
-		newHistoryCommand(client),
-		newInfoCommand(client),
-		newIPAddressesCommand(client),
-		newListCommand(client),
-		newLogsCommand(client),
-		newMonitorCommand(client),
-		newOpenCommand(client),
-		newPlatformCommand(client),
 		newRegionsCommand(client),
-		newReleasesCommand(client),
 		newScaleCommand(client),
 		newAutoscaleCommand(client),
-		newSecretsCommand(client),
-		newStatusCommand(client),
 		newDNSCommand(client),
 		newDomainsCommand(client),
-		newImageCommand(client),
-		newVolumesCommand(client),
 		newWireGuardCommand(client),
-		newSSHCommand(client),
-		newAgentCommand(client),
-		newChecksCommand(client),
-		newPostgresCommand(client),
-		newVMCommand(client),
-		newLaunchCommand(client),
-		newMachineCommand(client),
-		newProxyCommand(client),
-		newDigCommand(client),
-		newTurbokuCommand(client),
 	)
 
 	return rootCmd.Command

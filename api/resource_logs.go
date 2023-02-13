@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -17,46 +18,49 @@ type getLogsResponse struct {
 	}
 }
 
-func (c *Client) GetAppLogs(appName string, nextToken string, region string, instanceId string) ([]LogEntry, string, error) {
-
+func (c *Client) GetAppLogs(ctx context.Context, appName, token, region, instanceID string) (entries []LogEntry, nextToken string, err error) {
 	data := url.Values{}
-	data.Set("next_token", nextToken)
-	if instanceId != "" {
-		data.Set("instance", instanceId)
+	data.Set("next_token", token)
+	if instanceID != "" {
+		data.Set("instance", instanceID)
 	}
 	if region != "" {
 		data.Set("region", region)
 	}
 
 	url := fmt.Sprintf("%s/api/v1/apps/%s/logs?%s", baseURL, appName, data.Encode())
-	entries := []LogEntry{}
 
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return entries, "", err
+	var req *http.Request
+	if req, err = http.NewRequestWithContext(ctx, "GET", url, nil); err != nil {
+		return
 	}
+
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
+	if c.trace != "" {
+		req.Header.Set("Fly-Force-Trace", c.trace)
+	}
 
 	var result getLogsResponse
 
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return entries, "", err
+	var res *http.Response
+	if res, err = c.httpClient.Do(req); err != nil {
+		return
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != 200 {
+		err = ErrorFromResp(res)
+
+		return
 	}
 
-	if resp.StatusCode != 200 {
-		return entries, "", ErrorFromResp(resp)
+	if err = json.NewDecoder(res.Body).Decode(&result); err == nil {
+		nextToken = result.Meta.NextToken
+
+		for _, d := range result.Data {
+			entries = append(entries, d.Attributes)
+		}
 	}
 
-	defer resp.Body.Close()
-
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return entries, "", err
-	}
-
-	for _, d := range result.Data {
-		entries = append(entries, d.Attributes)
-	}
-
-	return entries, result.Meta.NextToken, nil
+	return
 }

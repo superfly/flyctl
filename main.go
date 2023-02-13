@@ -1,13 +1,19 @@
 package main
 
+//go:generate go run github.com/Khan/genqlient
+
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"runtime"
 	"syscall"
 
-	"github.com/superfly/flyctl/pkg/iostreams"
+	dockerclient "github.com/docker/docker/client"
+	dockeropts "github.com/docker/docker/opts"
+
+	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cli"
@@ -15,17 +21,21 @@ import (
 )
 
 func main() {
+	guessDockerHost()
+
 	os.Exit(run())
 }
 
 func run() (exitCode int) {
+	defer sentry.Flush()
+
 	ctx, cancel := newContext()
 	defer cancel()
 
 	if !buildinfo.IsDev() {
 		defer func() {
 			if r := recover(); r != nil {
-				sentry.Record(r)
+				sentry.Recover(r)
 
 				exitCode = 3
 			}
@@ -47,4 +57,24 @@ func newContext() (context.Context, context.CancelFunc) {
 	}
 
 	return signal.NotifyContext(context.Background(), signals...)
+}
+
+func guessDockerHost() {
+	host := os.Getenv("DOCKER_HOST")
+	if host == "" {
+		return // no docker host specified
+	}
+
+	if _, err := dockerclient.ParseHostURL(host); err == nil {
+		return // host is well defined
+	}
+
+	host, err := dockeropts.ParseHost(false, false, host)
+	if err != nil {
+		return
+	}
+
+	if err := os.Setenv("DOCKER_HOST", host); err != nil {
+		panic(fmt.Errorf("failed fixing DOCKER_HOST: %w", err))
+	}
 }

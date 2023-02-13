@@ -21,6 +21,8 @@ type LogOptions struct {
 }
 
 func WatchLogs(cc *cmdctx.CmdContext, w io.Writer, opts LogOptions) error {
+	ctx := cc.Command.Context()
+
 	errorCount := 0
 
 	b := &backoff.Backoff{
@@ -39,8 +41,7 @@ func WatchLogs(cc *cmdctx.CmdContext, w io.Writer, opts LogOptions) error {
 	// logPresenter := presenters.LogPresenter{}
 
 	for {
-		entries, token, err := cc.Client.API().GetAppLogs(opts.AppName, nextToken, opts.RegionCode, opts.VMID)
-
+		entries, token, err := cc.Client.API().GetAppLogs(ctx, opts.AppName, nextToken, opts.RegionCode, opts.VMID)
 		if err != nil {
 			terminal.Debugf("error getting app logs: %v\n", err)
 			if api.IsNotAuthenticatedError(err) {
@@ -106,7 +107,7 @@ func (ls *LogStream) Stream(ctx context.Context, opts LogOptions) <-chan []api.L
 		var wait <-chan time.Time
 
 		for {
-			entries, token, err := ls.apiClient.GetAppLogs(opts.AppName, nextToken, opts.RegionCode, opts.VMID)
+			entries, token, err := ls.apiClient.GetAppLogs(ctx, opts.AppName, nextToken, opts.RegionCode, opts.VMID)
 
 			if err != nil {
 				errorCount++

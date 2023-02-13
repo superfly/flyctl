@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
-	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/superfly/flyctl/docstrings"
 
@@ -17,19 +17,19 @@ import (
 )
 
 func newConfigCommand(client *client.Client) *Command {
-
 	configStrings := docstrings.Get("config")
 
 	cmd := BuildCommandKS(nil, nil, configStrings, client, requireSession, requireAppName)
 
-	configDisplayStrings := docstrings.Get("config.display")
-	BuildCommandKS(cmd, runDisplayConfig, configDisplayStrings, client, requireSession, requireAppName)
+	configShowStrings := docstrings.Get("config.show")
+	cmdShow := BuildCommandKS(cmd, runShowConfig, configShowStrings, client, requireSession, requireAppName)
+	cmdShow.Aliases = []string{"display"}
 
 	configSaveStrings := docstrings.Get("config.save")
 	BuildCommandKS(cmd, runSaveConfig, configSaveStrings, client, requireSession, requireAppName)
 
 	configValidateStrings := docstrings.Get("config.validate")
-	BuildCommandKS(cmd, runValidateConfig, configValidateStrings, client, requireSession, requireAppName)
+	BuildCommandKS(cmd, runValidateConfig, configValidateStrings, client, requireAppName)
 
 	configEnvStrings := docstrings.Get("config.env")
 	BuildCommandKS(cmd, runEnvConfig, configEnvStrings, client, requireSession, requireAppName)
@@ -37,7 +37,7 @@ func newConfigCommand(client *client.Client) *Command {
 	return cmd
 }
 
-func runDisplayConfig(cmdCtx *cmdctx.CmdContext) error {
+func runShowConfig(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 
 	cfg, err := cmdCtx.Client.API().GetConfig(ctx, cmdCtx.AppName)
@@ -45,9 +45,9 @@ func runDisplayConfig(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	//encoder := json.NewEncoder(os.Stdout)
-	//encoder.SetIndent("", "  ")
-	//encoder.Encode(cfg.Definition)
+	// encoder := json.NewEncoder(os.Stdout)
+	// encoder.SetIndent("", "  ")
+	// encoder.Encode(cfg.Definition)
 	cmdCtx.WriteJSON(cfg.Definition)
 	return nil
 }
@@ -56,7 +56,6 @@ func runSaveConfig(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 
 	configfilename, err := flyctl.ResolveConfigFileFromPath(cmdCtx.WorkingDir)
-
 	if err != nil {
 		return err
 	}
@@ -93,7 +92,8 @@ func runValidateConfig(commandContext *cmdctx.CmdContext) error {
 
 	commandContext.Status("config", cmdctx.STITLE, "Validating", commandContext.ConfigFile)
 
-	serverCfg, err := commandContext.Client.API().ParseConfig(ctx, commandContext.AppName, commandContext.AppConfig.Definition)
+	// separate query from authenticated app validation (in deploy etc)
+	serverCfg, err := client.NewClient("").ValidateConfig(ctx, commandContext.AppName, commandContext.AppConfig.Definition)
 	if err != nil {
 		return err
 	}
@@ -121,8 +121,9 @@ func runEnvConfig(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	if len(secrets) > 0 {
-		err = cmdCtx.Frender(cmdctx.PresenterOption{Presentable: &presenters.Secrets{Secrets: secrets},
-			Title: "Secrets",
+		err = cmdCtx.Frender(cmdctx.PresenterOption{
+			Presentable: &presenters.Secrets{Secrets: secrets},
+			Title:       "Secrets",
 		})
 		if err != nil {
 			return err
@@ -160,7 +161,6 @@ func printAppConfigErrors(cfg api.AppConfig) {
 }
 
 func writeAppConfig(path string, appConfig *flyctl.AppConfig) error {
-
 	if err := appConfig.WriteToFile(path); err != nil {
 		return err
 	}

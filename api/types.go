@@ -1,6 +1,8 @@
 package api
 
 import (
+	"fmt"
+	"syscall"
 	"time"
 )
 
@@ -13,13 +15,24 @@ type Query struct {
 	}
 	App                  App
 	AppCompact           AppCompact
+	AppInfo              AppInfo
+	AppBasic             AppBasic
 	AppStatus            AppStatus
+	AppMonitoring        AppMonitoring
+	AppPostgres          AppPostgres
 	AppCertsCompact      AppCertsCompact
-	CurrentUser          User
+	Viewer               User
 	PersonalOrganization Organization
+	GqlMachine           GqlMachine
 	Organizations        struct {
 		Nodes []Organization
 	}
+
+	AddOns struct {
+		Nodes []AddOn
+	}
+
+	AddOn *AddOn
 
 	Organization *Organization
 	// PersonalOrganizations PersonalOrganizations
@@ -39,10 +52,14 @@ type Query struct {
 
 	NearestRegion *Region
 
+	LatestImageTag     string
+	LatestImageDetails ImageVersion
 	// aliases & nodes
 
 	TemplateDeploymentNode *TemplateDeployment
 	ReleaseCommandNode     *ReleaseCommand
+
+	ValidateConfig AppConfig
 
 	// hack to let us alias node to a type
 	// DNSZone *DNSZone
@@ -73,10 +90,10 @@ type Query struct {
 
 	EnsureMachineRemoteBuilder *struct {
 		App     *App
-		Machine *Machine
+		Machine *GqlMachine
 	}
 
-	CreateSignedUrl SignedUrls
+	CreateDoctorUrl SignedUrl
 
 	AddCertificate struct {
 		Certificate *AppCertificate
@@ -84,6 +101,8 @@ type Query struct {
 	}
 
 	DeleteCertificate DeleteCertificatePayload
+
+	DeleteAddOn DeleteAddOnPayload
 
 	CheckCertificate struct {
 		App         *App
@@ -127,7 +146,7 @@ type Query struct {
 	}
 
 	ResumeApp struct {
-		App App
+		App AppCompact
 	}
 
 	SuspendApp struct {
@@ -160,6 +179,7 @@ type Query struct {
 
 	CreateVolume CreateVolumePayload
 	DeleteVolume DeleteVolumePayload
+	ExtendVolume ExtendVolumePayload
 
 	AddWireGuardPeer              CreatedWireGuardPeer
 	EstablishSSHKey               SSHCertificate
@@ -183,46 +203,36 @@ type Query struct {
 
 	AttachPostgresCluster *AttachPostgresClusterPayload
 
+	EnablePostgresConsul *PostgresEnableConsulPayload
+
 	CreateOrganizationInvitation CreateOrganizationInvitation
 
 	ValidateWireGuardPeers struct {
 		InvalidPeerIPs []string
 	}
 
-	Machines struct {
-		Nodes []*Machine
-	}
 	PostgresAttachments struct {
 		Nodes []*PostgresClusterAttachment
 	}
-	LaunchMachine struct {
-		Machine *Machine
-		App     *App
-	}
-	StopMachine struct {
-		Machine *Machine
-	}
-	StartMachine struct {
-		Machine *Machine
-	}
-	KillMachine struct {
-		Machine *Machine
-	}
-	RemoveMachine struct {
-		Machine *Machine
-	}
-
-	StartSourceBuild struct {
-		SourceBuild *SourceBuild
-	}
 
 	DeleteOrganizationMembership *DeleteOrganizationMembershipPayload
+
+	UpdateRemoteBuilder struct {
+		Organization Organization
+	}
+
+	ProvisionAddOn ProvisionAddOnPayload
 }
 
 type CreatedWireGuardPeer struct {
 	Peerip     string `json:"peerip"`
 	Endpointip string `json:"endpointip"`
 	Pubkey     string `json:"pubkey"`
+}
+
+type DeleteOrganizationMembershipPayload struct {
+	Organization *Organization
+	User         *User
 }
 
 type DelegatedWireGuardToken struct {
@@ -244,7 +254,12 @@ type IssuedCertificate struct {
 
 type Definition map[string]interface{}
 
-type MachineConfig map[string]interface{}
+type MachineInit struct {
+	Exec       []string `json:"exec"`
+	Entrypoint []string `json:"entrypoint"`
+	Cmd        []string `json:"cmd"`
+	Tty        bool     `json:"tty"`
+}
 
 func DefinitionPtr(in map[string]interface{}) *Definition {
 	x := Definition(in)
@@ -259,15 +274,25 @@ type ImageVersion struct {
 	Digest     string
 }
 
+func (img *ImageVersion) FullImageRef() string {
+	return fmt.Sprintf("%s/%s:%s", img.Registry, img.Repository, img.Tag)
+}
+
+func (img *ImageVersion) ImageRef() string {
+	return fmt.Sprintf("%s:%s", img.Repository, img.Tag)
+}
+
 type App struct {
-	ID             string
-	Name           string
-	State          string
-	Status         string
-	Deployed       bool
-	Hostname       string
-	AppURL         string
-	Version        int
+	ID        string
+	Name      string
+	State     string
+	Status    string
+	Deployed  bool
+	Hostname  string
+	AppURL    string
+	Version   int
+	NetworkID int
+
 	Release        *Release
 	Organization   Organization
 	Secrets        []Secret
@@ -278,8 +303,9 @@ type App struct {
 	IPAddresses struct {
 		Nodes []IPAddress
 	}
-	IPAddress *IPAddress
-	Builds    struct {
+	SharedIPAddress string
+	IPAddress       *IPAddress
+	Builds          struct {
 		Nodes []Build
 	}
 	SourceBuilds struct {
@@ -310,6 +336,7 @@ type App struct {
 		Nodes []CheckState
 	}
 	PostgresAppRole *struct {
+		Name      string
 		Databases *[]PostgresClusterDatabase
 		Users     *[]PostgresClusterUser
 	}
@@ -319,6 +346,8 @@ type App struct {
 	ImageVersionTrackingEnabled bool
 	ImageDetails                ImageVersion
 	LatestImageDetails          ImageVersion
+
+	PlatformVersion string
 }
 
 type TaskGroupCount struct {
@@ -328,27 +357,45 @@ type TaskGroupCount struct {
 
 type Snapshot struct {
 	ID        string `json:"id"`
-	Key       string
-	Region    string
+	Digest    string
 	Size      string
 	CreatedAt time.Time
 }
 
 type Volume struct {
-	ID        string `json:"id"`
-	App       string
+	ID  string `json:"id"`
+	App struct {
+		Name            string
+		PlatformVersion string
+	}
 	Name      string
 	SizeGb    int
 	Snapshots struct {
 		Nodes []Snapshot
 	}
+	State              string
 	Region             string
 	Encrypted          bool
 	CreatedAt          time.Time
 	AttachedAllocation *AllocationStatus
+	AttachedMachine    *GqlMachine
 	Host               struct {
 		ID string
 	}
+}
+
+func (v *Volume) IsAttached() bool {
+	return v.AttachedAllocation != nil || v.AttachedMachine != nil
+}
+
+type ProvisionAddOnInput struct {
+	OrganizationId string `json:"organizationId"`
+	Region         string `json:"region"`
+	Type           string `json:"type"`
+}
+
+type ProvisionAddOnPayload struct {
+	Service AddOn
 }
 
 type CreateVolumeInput struct {
@@ -361,7 +408,17 @@ type CreateVolumeInput struct {
 	RequireUniqueZone bool    `json:"requireUniqueZone"`
 }
 
+type ExtendVolumeInput struct {
+	VolumeID string `json:"volumeId"`
+	SizeGb   int    `json:"sizeGb"`
+}
+
 type CreateVolumePayload struct {
+	App    App
+	Volume Volume
+}
+
+type ExtendVolumePayload struct {
 	App    App
 	Volume Volume
 }
@@ -387,19 +444,69 @@ type AppCertificateCompact struct {
 }
 
 type AppCompact struct {
-	ID           string
-	Name         string
-	Status       string
-	Deployed     bool
-	Hostname     string
-	AppURL       string
-	Version      int
-	Release      *Release
-	Organization Organization
-	IPAddresses  struct {
+	ID              string
+	Name            string
+	Status          string
+	Deployed        bool
+	Hostname        string
+	AppURL          string
+	Organization    *OrganizationBasic
+	PlatformVersion string
+	PostgresAppRole *struct {
+		Name string
+	}
+	ImageDetails ImageVersion
+}
+
+func (app *AppCompact) IsPostgresApp() bool {
+	// check app.PostgresAppRole.Name == "postgres_cluster"
+	return app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster"
+}
+
+type AppInfo struct {
+	ID              string
+	Name            string
+	Status          string
+	Deployed        bool
+	Hostname        string
+	Version         int
+	PlatformVersion string
+	Organization    *OrganizationBasic
+	IPAddresses     struct {
 		Nodes []IPAddress
 	}
 	Services []Service
+}
+
+type AppBasic struct {
+	ID              string
+	Name            string
+	PlatformVersion string
+	Organization    *OrganizationBasic
+}
+
+type AppMonitoring struct {
+	ID             string
+	CurrentRelease *Release
+}
+
+type AppPostgres struct {
+	ID              string
+	Name            string
+	Organization    *OrganizationBasic
+	ImageDetails    ImageVersion
+	PostgresAppRole *struct {
+		Name      string
+		Databases *[]PostgresClusterDatabase
+		Users     *[]PostgresClusterUser
+	}
+	PlatformVersion string
+	Services        []Service
+}
+
+func (app *AppPostgres) IsPostgresApp() bool {
+	// check app.PostgresAppRole.Name == "postgres_cluster"
+	return app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster"
 }
 
 type AppStatus struct {
@@ -421,21 +528,23 @@ type AppConfig struct {
 	Valid      bool
 	Errors     []string
 }
-
 type Organization struct {
-	ID                string
-	InternalNumericID string
-	Name              string
-	Slug              string
-	Type              string
-
-	Domains struct {
+	ID                 string
+	InternalNumericID  string
+	Name               string
+	RemoteBuilderImage string
+	RemoteBuilderApp   *App
+	Slug               string
+	Type               string
+	Domains            struct {
 		Nodes *[]*Domain
 		Edges *[]*struct {
 			Cursor *string
 			Node   *Domain
 		}
 	}
+
+	WireGuardPeer *WireGuardPeer
 
 	WireGuardPeers struct {
 		Nodes *[]*WireGuardPeer
@@ -466,14 +575,42 @@ type Organization struct {
 	}
 }
 
+func (o *Organization) GetID() string {
+	return o.ID
+}
+
+func (o *Organization) GetSlug() string {
+	return o.Slug
+}
+
+type OrganizationBasic struct {
+	ID   string
+	Slug string
+}
+
+func (o *OrganizationBasic) GetID() string {
+	return o.ID
+}
+
+func (o *OrganizationBasic) GetSlug() string {
+	return o.Slug
+}
+
+type OrganizationImpl interface {
+	GetID() string
+	GetSlug() string
+}
+
 type OrganizationDetails struct {
-	ID                string
-	InternalNumericID string
-	Name              string
-	Slug              string
-	Type              string
-	ViewerRole        string
-	Apps              struct {
+	ID                 string
+	InternalNumericID  string
+	Name               string
+	RemoteBuilderImage string
+	RemoteBuilderApp   *App
+	Slug               string
+	Type               string
+	ViewerRole         string
+	Apps               struct {
 		Nodes []App
 	}
 	Members struct {
@@ -547,10 +684,11 @@ type UnsetSecretsInput struct {
 
 type CreateAppInput struct {
 	OrganizationID  string  `json:"organizationId"`
-	Runtime         string  `json:"runtime"`
 	Name            string  `json:"name"`
 	PreferredRegion *string `json:"preferredRegion,omitempty"`
 	Network         *string `json:"network,omitempty"`
+	AppRoleID       string  `json:"appRoleId,omitempty"`
+	Machines        bool    `json:"machines,omitempty"`
 }
 
 type LogEntry struct {
@@ -595,7 +733,9 @@ type Release struct {
 	Status             string
 	DeploymentStrategy string
 	User               User
+	EvaluationID       string
 	CreatedAt          time.Time
+	ImageRef           string
 }
 
 type Build struct {
@@ -620,10 +760,11 @@ type SourceBuild struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
-type SignedUrls struct {
-	GetUrl string
+
+type SignedUrl struct {
 	PutUrl string
 }
+
 type AppChange struct {
 	ID        string
 	CreatedAt time.Time
@@ -699,12 +840,20 @@ type DeleteCertificatePayload struct {
 	Certificate AppCertificate
 }
 
+type DeleteAddOnPayload struct {
+	ID string
+}
+
 type DeployImageInput struct {
 	AppID      string      `json:"appId"`
 	Image      string      `json:"image"`
 	Services   *[]Service  `json:"services"`
 	Definition *Definition `json:"definition"`
 	Strategy   *string     `json:"strategy"`
+}
+
+type Signal struct {
+	syscall.Signal
 }
 
 type Service struct {
@@ -739,13 +888,17 @@ type HTTPHeader struct {
 }
 
 type AllocateIPAddressInput struct {
-	AppID  string `json:"appId"`
-	Type   string `json:"type"`
-	Region string `json:"region"`
+	AppID          string `json:"appId"`
+	Type           string `json:"type"`
+	Region         string `json:"region"`
+	OrganizationID string `json:"organizationId,omitempty"`
+	Network        string `json:"network,omitempty"`
 }
 
 type ReleaseIPAddressInput struct {
-	IPAddressID string `json:"ipAddressId"`
+	AppID       *string `json:"appId"`
+	IPAddressID *string `json:"ipAddressId"`
+	IP          *string `json:"ip"`
 }
 
 type ScaleAppInput struct {
@@ -855,6 +1008,7 @@ type AutoscaleRegionConfigInput struct {
 type VMSize struct {
 	Name        string
 	CPUCores    float32
+	CPUClass    string
 	MemoryGB    float32
 	MemoryMB    int
 	PriceMonth  float32
@@ -978,11 +1132,24 @@ type ImportDnsWarning struct {
 }
 
 type WireGuardPeer struct {
-	ID     string
-	Pubkey string
-	Region string
-	Name   string
-	Peerip string
+	ID            string
+	Pubkey        string
+	Region        string
+	Name          string
+	Peerip        string
+	GatewayStatus *WireGuardPeerStatus
+}
+
+type WireGuardPeerStatus struct {
+	Endpoint       string
+	LastHandshake  string
+	SinceHandshake string
+	Rx             int64
+	Tx             int64
+	Added          string
+	SinceAdded     string
+	Live           bool
+	WgError        string
 }
 
 type LoggedCertificate struct {
@@ -1044,6 +1211,14 @@ type TemplateDeployment struct {
 	}
 }
 
+type NomadToMachinesMigrationInput struct {
+	AppID string `json:"appId"`
+}
+
+type NomadToMachinesMigrationPrepInput struct {
+	AppID string `json:"appId"`
+}
+
 type AttachPostgresClusterInput struct {
 	AppID                string  `json:"appId"`
 	PostgresClusterAppID string  `json:"postgresClusterAppId"`
@@ -1064,6 +1239,10 @@ type AttachPostgresClusterPayload struct {
 	PostgresClusterApp      App
 	ConnectionString        string
 	EnvironmentVariableName string
+}
+
+type PostgresEnableConsulPayload struct {
+	ConsulURL string `json:"consulUrl"`
 }
 
 type EnsureRemoteBuilderInput struct {
@@ -1097,14 +1276,15 @@ type Image struct {
 }
 
 type ReleaseCommand struct {
-	ID         string
-	Command    string
-	Status     string
-	ExitCode   *int
-	InstanceID *string
-	InProgress bool
-	Succeeded  bool
-	Failed     bool
+	ID           string
+	Command      string
+	Status       string
+	ExitCode     *int
+	InstanceID   *string
+	InProgress   bool
+	Succeeded    bool
+	Failed       bool
+	EvaluationID string
 }
 
 type Invitation struct {
@@ -1120,62 +1300,39 @@ type CreateOrganizationInvitation struct {
 	Invitation Invitation
 }
 
-type LaunchMachineInput struct {
-	AppID   string         `json:"appId,omitempty"`
-	ID      string         `json:"id,omitempty"`
-	Name    string         `json:"name,omitempty"`
-	OrgSlug string         `json:"organizationId,omitempty"`
-	Region  string         `json:"region,omitempty"`
-	Config  *MachineConfig `json:"config"`
-}
-
-type Machine struct {
+type GqlMachine struct {
 	ID     string
 	Name   string
 	State  string
 	Region string
 	Config MachineConfig
 
-	App *App
+	App *AppCompact
 
 	IPs struct {
 		Nodes []*MachineIP
 	}
-
-	CreatedAt time.Time
 }
 
-type MachineIP struct {
-	Family   string
-	Kind     string
-	IP       string
-	MaskSize int
+type Condition struct {
+	Equal    interface{} `json:"equal,omitempty"`
+	NotEqual interface{} `json:"not_equal,omitempty"`
 }
 
-type StopMachineInput struct {
-	AppID           string `json:"appId,omitempty"`
-	ID              string `json:"id"`
-	Signal          string `json:"signal,omitempty"`
-	KillTimeoutSecs int    `json:"kill_timeout_secs,omitempty"`
+type Filters struct {
+	AppName      string               `json:"app_name"`
+	MachineState []Condition          `json:"machine_state"`
+	Meta         map[string]Condition `json:"meta"`
 }
 
-type StartMachineInput struct {
-	AppID string `json:"appId,omitempty"`
-	ID    string `json:"id"`
+type Logger interface {
+	Debug(v ...interface{})
+	Debugf(format string, v ...interface{})
 }
-
-type KillMachineInput struct {
-	AppID string `json:"appId,omitempty"`
-	ID    string `json:"id"`
-}
-
-type RemoveMachineInput struct {
-	AppID string `json:"appId,omitempty"`
-	ID    string `json:"id"`
-
-	Kill bool `json:"kill"`
-}
-type DeleteOrganizationMembershipPayload struct {
-	Organization *Organization
-	User         *User
+type AddOn struct {
+	PublicUrl     string
+	Name          string
+	ID            string
+	PrimaryRegion string
+	Organization  *OrganizationBasic
 }

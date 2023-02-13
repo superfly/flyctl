@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,12 +14,17 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/olekukonko/tablewriter"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
-	"github.com/superfly/flyctl/internal/client"
+	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/wireguard"
+	"github.com/superfly/flyctl/terminal"
 )
 
 func newWireGuardCommand(client *client.Client) *Command {
@@ -32,6 +38,9 @@ func newWireGuardCommand(client *client.Client) *Command {
 	child(cmd, runWireGuardList, "wireguard.list").Args = cobra.MaximumNArgs(1)
 	child(cmd, runWireGuardCreate, "wireguard.create").Args = cobra.MaximumNArgs(4)
 	child(cmd, runWireGuardRemove, "wireguard.remove").Args = cobra.MaximumNArgs(2)
+	child(cmd, runWireGuardStat, "wireguard.status").Args = cobra.MaximumNArgs(2)
+	child(cmd, runWireGuardResetPeer, "wireguard.reset").Args = cobra.MaximumNArgs(1)
+	child(cmd, runWireGuardWebSockets, "wireguard.websockets").Args = cobra.ExactArgs(1)
 
 	tokens := child(cmd, nil, "wireguard.token")
 
@@ -71,7 +80,7 @@ func orgByArg(cmdCtx *cmdctx.CmdContext) (*api.Organization, error) {
 	client := cmdCtx.Client.API()
 
 	if len(cmdCtx.Args) == 0 {
-		org, err := selectOrganization(ctx, client, "", nil)
+		org, err := selectOrganization(ctx, client, "")
 		if err != nil {
 			return nil, err
 		}
@@ -79,7 +88,7 @@ func orgByArg(cmdCtx *cmdctx.CmdContext) (*api.Organization, error) {
 		return org, nil
 	}
 
-	return client.FindOrganizationBySlug(ctx, cmdCtx.Args[0])
+	return client.GetOrganizationBySlug(ctx, cmdCtx.Args[0])
 }
 
 func runWireGuardList(cmdCtx *cmdctx.CmdContext) error {
@@ -154,7 +163,7 @@ PersistentKeepalive = 15
 
 	addr[15] = 3
 
-	data.Meta.DNS = fmt.Sprintf("%s", addr)
+	data.Meta.DNS = addr.String()
 	data.Meta.Privkey = privkey
 
 	tmpl := template.Must(template.New("name").Parse(templateStr))
@@ -183,7 +192,7 @@ func resolveOutputWriter(ctx *cmdctx.CmdContext, idx int, prompt string) (w io.W
 			return os.Stdout, false, nil
 		}
 
-		f, err = os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		f, err = os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 		if err == nil {
 			return f, true, nil
 		}
@@ -192,8 +201,64 @@ func resolveOutputWriter(ctx *cmdctx.CmdContext, idx int, prompt string) (w io.W
 	}
 }
 
-func runWireGuardCreate(ctx *cmdctx.CmdContext) error {
+func runWireGuardWebSockets(ctx *cmdctx.CmdContext) error {
+	switch ctx.Args[0] {
+	case "enable":
+		viper.Set(flyctl.ConfigWireGuardWebsockets, true)
 
+	case "disable":
+		viper.Set(flyctl.ConfigWireGuardWebsockets, false)
+
+	default:
+		fmt.Printf("bad arg: flyctl wireguard websockets (enable|disable)\n")
+	}
+
+	if err := flyctl.SaveConfig(); err != nil {
+		return errors.Wrap(err, "error saving config file")
+	}
+
+	tryKillingAgent := func() error {
+		client, err := agent.DefaultClient(ctx.Command.Context())
+		if err == agent.ErrAgentNotRunning {
+			return nil
+		} else if err != nil {
+			return err
+		}
+
+		return client.Kill(ctx.Command.Context())
+	}
+
+	// kill the agent if necessary, if that fails print manual instructions
+	if err := tryKillingAgent(); err != nil {
+		terminal.Debugf("error stopping the agent: %s", err)
+		fmt.Printf("Run `flyctl agent restart` to make changes take effect.\n")
+	}
+
+	return nil
+}
+
+func runWireGuardResetPeer(ctx *cmdctx.CmdContext) error {
+	org, err := orgByArg(ctx)
+	if err != nil {
+		return err
+	}
+
+	client := ctx.Client.API()
+	agentclient, err := agent.Establish(context.Background(), client)
+	if err != nil {
+		return err
+	}
+
+	conf, err := agentclient.Reestablish(context.Background(), org.Slug)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("New WireGuard peer for organization '%s': '%s'\n", org.Slug, conf.WireGuardState.Name)
+	return nil
+}
+
+func runWireGuardCreate(ctx *cmdctx.CmdContext) error {
 	org, err := orgByArg(ctx)
 	if err != nil {
 		return err
@@ -270,7 +335,67 @@ func runWireGuardRemove(cmdCtx *cmdctx.CmdContext) error {
 
 	fmt.Println("Removed peer.")
 
-	return wireguard.PruneInvalidPeers(cmdCtx.Client.API())
+	return wireguard.PruneInvalidPeers(ctx, cmdCtx.Client.API())
+}
+
+func runWireGuardStat(cmdCtx *cmdctx.CmdContext) error {
+	ctx := cmdCtx.Command.Context()
+
+	client := cmdCtx.Client.API()
+
+	org, err := orgByArg(cmdCtx)
+	if err != nil {
+		return err
+	}
+
+	var name string
+	if len(cmdCtx.Args) >= 2 {
+		name = cmdCtx.Args[1]
+	} else {
+		name, err = selectWireGuardPeer(ctx, cmdCtx.Client.API(), org.Slug)
+		if err != nil {
+			return err
+		}
+	}
+
+	status, err := client.GetWireGuardPeerStatus(ctx, org.Slug, name)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Alive: %+v\n", status.Live)
+
+	if status.WgError != "" {
+		fmt.Printf("Gateway error: %s\n", status.WgError)
+	}
+
+	if !status.Live {
+		return nil
+	}
+
+	if status.Endpoint != "" {
+		fmt.Printf("Last Source Address: %s\n", status.Endpoint)
+	}
+
+	ago := ""
+	if status.SinceAdded != "" {
+		ago = " (" + status.SinceAdded + " ago)"
+	}
+
+	if status.LastHandshake != "" {
+		fmt.Printf("Last Handshake At: %s%s\n", status.LastHandshake, ago)
+	}
+
+	ago = ""
+	if status.SinceHandshake != "" {
+		ago = " (" + status.SinceHandshake + " ago)"
+	}
+
+	fmt.Printf("Installed On Gateway At: %s%s\n", status.Added, ago)
+
+	fmt.Printf("Traffic: rx:%d tx:%d\n", status.Rx, status.Tx)
+
+	return nil
 }
 
 func runWireGuardTokenList(cmdCtx *cmdctx.CmdContext) error {
@@ -329,23 +454,23 @@ func runWireGuardTokenCreate(cmdCtx *cmdctx.CmdContext) error {
 	}
 
 	fmt.Printf(`
-!!!! WARNING: Output includes credential information. Credentials cannot !!!! 	
-!!!! be recovered after creation; if you lose the token, you'll need to  !!!! 	 
-!!!! remove and and re-add it.																		 			 !!!! 	
+!!!! WARNING: Output includes credential information. Credentials cannot !!!!
+!!!! be recovered after creation; if you lose the token, you'll need to  !!!!
+!!!! remove and and re-add it.																		 			 !!!!
 
 To use a token to create a WireGuard connection, you can use curl:
 
-    curl -v --request POST                 
-         -H "Authorization: Bearer ${WG_TOKEN}" 
-         -H "Content-Type: application/json" 
+    curl -v --request POST
+         -H "Authorization: Bearer ${WG_TOKEN}"
+         -H "Content-Type: application/json"
          --data '{"name": "node-1", \
                   "group": "k8s",   \
                   "pubkey": "'"${WG_PUBKEY}"'", \
-                  "region": "dev"}' 
+                  "region": "dev"}'
          http://fly.io/api/v3/wire_guard_peers
 
-We'll return 'us' (our local 6PN address), 'them' (the gateway IP address), 
-and 'pubkey' (the public key of the gateway), which you can inject into a 
+We'll return 'us' (our local 6PN address), 'them' (the gateway IP address),
+and 'pubkey' (the public key of the gateway), which you can inject into a
 "wg.con".
 `)
 

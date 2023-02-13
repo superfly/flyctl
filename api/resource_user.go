@@ -1,11 +1,13 @@
 package api
 
-import "context"
+import (
+	"context"
+)
 
 func (c *Client) GetCurrentUser(ctx context.Context) (*User, error) {
 	query := `
 		query {
-			currentUser {
+			viewer {
 				email
 			}
 		}
@@ -18,5 +20,5 @@ func (c *Client) GetCurrentUser(ctx context.Context) (*User, error) {
 		return nil, err
 	}
 
-	return &data.CurrentUser, nil
+	return &data.Viewer, nil
 }

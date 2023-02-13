@@ -12,10 +12,11 @@ import (
 	"github.com/pkg/errors"
 	"github.com/segmentio/textio"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/internal/client"
-	"github.com/superfly/flyctl/pkg/iostreams"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 // CmdContext - context passed to commands being run
@@ -32,7 +33,7 @@ type CmdContext struct {
 	ConfigFile    string
 	AppName       string
 	AppConfig     *flyctl.AppConfig
-	MachineConfig *flyctl.MachineConfig
+	MachineConfig *api.MachineConfig
 }
 
 // PresenterOption - options for RenderEx, RenderView, render etc...
@@ -45,16 +46,18 @@ type PresenterOption struct {
 	Title       string
 }
 
-//Thoughts on how we could illuminate output in flyctl. I'm thinking a set of tags - INFO (plain text),
-//DETAIL, TITLE (Bold Plain Text), BEGIN (Green bold with arrow), DONE (Blue with arrow), ERROR (red bold)...
+// Thoughts on how we could illuminate output in flyctl. I'm thinking a set of tags - INFO (plain text),
+// DETAIL, TITLE (Bold Plain Text), BEGIN (Green bold with arrow), DONE (Blue with arrow), ERROR (red bold)...
 
-const SINFO = "info"
-const SWARN = "warning"
-const SDETAIL = "detail"
-const STITLE = "title"
-const SBEGIN = "begin"
-const SDONE = "done"
-const SERROR = "error"
+const (
+	SINFO   = "info"
+	SWARN   = "warning"
+	SDETAIL = "detail"
+	STITLE  = "title"
+	SBEGIN  = "begin"
+	SDONE   = "done"
+	SERROR  = "error"
+)
 
 func NewCmdContext(flyctlClient *client.Client, ns string, cmd *cobra.Command, args []string) (*CmdContext, error) {
 	ctx := &CmdContext{
@@ -168,10 +171,12 @@ func (commandContext *CmdContext) Status(source string, status string, args ...i
 	}
 
 	if outputJSON {
-		outstruct := JSON{TS: time.Now().Format(time.RFC3339),
+		outstruct := JSON{
+			TS:      time.Now().Format(time.RFC3339),
 			Source:  source,
 			Status:  status,
-			Message: message.String()}
+			Message: message.String(),
+		}
 		outbuf, _ := json.Marshal(outstruct)
 		fmt.Fprintln(commandContext.IO.Out, string(outbuf))
 		return
@@ -207,10 +212,12 @@ func (commandContext *CmdContext) Statusf(source string, status string, format s
 	message := fmt.Sprintf(format, args...)
 
 	if outputJSON {
-		outbuf, _ := json.Marshal(JSON{TS: time.Now().Format(time.RFC3339),
+		outbuf, _ := json.Marshal(JSON{
+			TS:      time.Now().Format(time.RFC3339),
 			Source:  source,
 			Status:  status,
-			Message: message})
+			Message: message,
+		})
 		fmt.Fprintln(commandContext.IO.Out, string(outbuf))
 		return
 	} else {

@@ -7,8 +7,8 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmdctx"
-	"github.com/superfly/flyctl/internal/client"
 
 	"github.com/superfly/flyctl/docstrings"
 
@@ -16,6 +16,14 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/net/publicsuffix"
 )
+
+func getAlternateHostname(hostname string) string {
+	if strings.Split(hostname, ".")[0] == "www" {
+		return strings.Replace(hostname, "www.", "", 1)
+	} else {
+		return "www." + hostname
+	}
+}
 
 func newCertificatesCommand(client *client.Client) *Command {
 	certsStrings := docstrings.Get("certs")
@@ -76,7 +84,6 @@ func runCertShow(commandContext *cmdctx.CmdContext) error {
 	commandContext.Statusf("certs", cmdctx.STITLE, "The certificate for %s has not been issued yet.\n\n", hostname)
 	printCertificate(commandContext, cert)
 	return reportNextStepCert(commandContext, hostname, cert, hostcheck)
-
 }
 
 func runCertCheck(commandContext *cmdctx.CmdContext) error {
@@ -147,6 +154,8 @@ func runCertDelete(commandContext *cmdctx.CmdContext) error {
 
 func reportNextStepCert(cmdCtx *cmdctx.CmdContext, hostname string, cert *api.AppCertificate, hostcheck *api.HostnameCheck) error {
 	ctx := cmdCtx.Command.Context()
+	alternateHostname := getAlternateHostname(hostname)
+
 	// These are the IPs we have for the app
 	ips, err := cmdCtx.Client.API().GetIPAddresses(ctx, cmdCtx.AppName)
 	if err != nil {
@@ -160,7 +169,7 @@ func reportNextStepCert(cmdCtx *cmdctx.CmdContext, hostname string, cert *api.Ap
 
 	// Extract the v4 and v6 addresses we have allocated
 	for _, x := range ips {
-		if x.Type == "v4" {
+		if x.Type == "v4" || x.Type == "shared_v4" {
 			ipV4 = x
 		} else if x.Type == "v6" {
 			ipV6 = x
@@ -217,23 +226,19 @@ func reportNextStepCert(cmdCtx *cmdctx.CmdContext, hostname string, cert *api.Ap
 				cmdCtx.Statusf("certs", cmdctx.SINFO, "You can validate your ownership of %s by:\n\n", hostname)
 				cmdCtx.Statusf("certs", cmdctx.SINFO, "%d: Adding an AAAA record to your DNS service which reads:\n\n", stepcnt)
 				cmdCtx.Statusf("certs", cmdctx.SINFO, "    AAAA @ %s\n\n", ipV6.Address)
-				cmdCtx.Statusf("certs", cmdctx.SINFO, " OR \n\n")
-				cmdCtx.Statusf("certs", cmdctx.SINFO, "%d: Adding an CNAME record to your DNS service which reads:\n\n", stepcnt)
-				cmdCtx.Statusf("certs", cmdctx.SINFO, "    %s\n", cert.DNSValidationInstructions)
 				// stepcnt = stepcnt + 1 Uncomment if more steps
-
 			}
 		} else {
 			if cert.ClientStatus == "Ready" {
-				cmdCtx.Statusf("certs", cmdctx.SINFO, "Your certificate for %s has been issued\n", hostname)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "Your certificate for %s has been issued, make sure you create another certificate for %s \n", hostname, alternateHostname)
 			} else {
-				cmdCtx.Statusf("certs", cmdctx.SINFO, "Your certificate for %s is being issued. Status is %s.\n", hostname, cert.ClientStatus)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "Your certificate for %s is being issued. Status is %s. Make sure to create another certificate for %s when the current certificate is issued. \n", hostname, cert.ClientStatus, alternateHostname)
 			}
 		}
 	} else if cert.IsWildcard {
-		// If this is an wildcard domain we should guide towards creating A and AAAA records
+		// If this is an wildcard domain we should guide towards satisfying a DNS-01 challenge
 		addArecord := !configuredipV4
-		addAAAArecord := !cert.AcmeALPNConfigured
+		addCNAMErecord := !cert.AcmeDNSConfigured
 
 		stepcnt := 1
 		cmdCtx.Statusf("certs", cmdctx.SINFO, "You are creating a wildcard certificate for %s\n", hostname)
@@ -245,11 +250,8 @@ func reportNextStepCert(cmdCtx *cmdctx.CmdContext, hostname string, cert *api.Ap
 			cmdCtx.Statusf("certs", cmdctx.SINFO, "\n    A @ %s\n\n", ipV4.Address)
 		}
 
-		if addAAAArecord {
+		if addCNAMErecord {
 			cmdCtx.Statusf("certs", cmdctx.SINFO, "You can validate your ownership of %s by:\n\n", hostname)
-			cmdCtx.Statusf("certs", cmdctx.SINFO, "%d: Adding an AAAA record to your DNS service which reads:\n\n", stepcnt)
-			cmdCtx.Statusf("certs", cmdctx.SINFO, "    AAAA @ %s\n\n", ipV6.Address)
-			cmdCtx.Statusf("certs", cmdctx.SINFO, " OR \n\n")
 			cmdCtx.Statusf("certs", cmdctx.SINFO, "%d: Adding an CNAME record to your DNS service which reads:\n\n", stepcnt)
 			cmdCtx.Statusf("certs", cmdctx.SINFO, "    %s\n", cert.DNSValidationInstructions)
 			// stepcnt = stepcnt + 1 Uncomment if more steps
@@ -280,9 +282,9 @@ func reportNextStepCert(cmdCtx *cmdctx.CmdContext, hostname string, cert *api.Ap
 			}
 		} else {
 			if cert.ClientStatus == "Ready" {
-				cmdCtx.Statusf("certs", cmdctx.SINFO, "Your certificate for %s has been issued\n", hostname)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "Your certificate for %s has been issued, make sure you create another certificate for %s \n", hostname, alternateHostname)
 			} else {
-				cmdCtx.Statusf("certs", cmdctx.SINFO, "Your certificate for %s is being issued. Status is %s.\n", hostname, cert.ClientStatus)
+				cmdCtx.Statusf("certs", cmdctx.SINFO, "Your certificate for %s is being issued. Status is %s. Make sure to create another certificate for %s when the current certificate is issued. \n", hostname, cert.ClientStatus, alternateHostname)
 			}
 		}
 	}

@@ -4,16 +4,11 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/superfly/flyctl/api"
 )
-
-func isInterrupt(err error) bool {
-	return err != nil && err.Error() == "interrupt"
-}
 
 func confirm(message string) bool {
 	confirm := false
@@ -26,19 +21,8 @@ func confirm(message string) bool {
 	return confirm
 }
 
-func confirmOverwrite(filename string) bool {
-	confirm := false
-	prompt := &survey.Confirm{
-		Message: fmt.Sprintf(`Overwrite "%s"?`, filename),
-	}
-	err := survey.AskOne(prompt, &confirm)
-	checkErr(err)
-
-	return confirm
-}
-
-func selectOrganization(ctx context.Context, client *api.Client, slug string, typeFilter *api.OrganizationType) (*api.Organization, error) {
-	orgs, err := client.GetOrganizations(ctx, typeFilter)
+func selectOrganization(ctx context.Context, client *api.Client, slug string) (*api.Organization, error) {
+	orgs, err := client.GetOrganizations(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -105,124 +89,4 @@ func selectWireGuardPeer(ctx context.Context, client *api.Client, slug string) (
 	}
 
 	return peers[selectedPeer].Name, nil
-}
-
-func selectRegion(ctx context.Context, client *api.Client, regionCode string) (*api.Region, error) {
-	regions, requestRegion, err := client.PlatformRegions(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if regionCode != "" {
-		for _, region := range regions {
-			if region.Code == regionCode {
-				return &region, nil
-			}
-		}
-
-		return nil, fmt.Errorf(`region "%s" not found`, regionCode)
-	}
-
-	options := []string{}
-
-	for _, region := range regions {
-		options = append(options, fmt.Sprintf("%s (%s)", region.Code, region.Name))
-	}
-
-	selectedRegion := 0
-	prompt := &survey.Select{
-		Message:  "Select region:",
-		Options:  options,
-		PageSize: 15,
-	}
-
-	if requestRegion != nil {
-		prompt.Default = fmt.Sprintf("%s (%s)", requestRegion.Code, requestRegion.Name)
-	}
-
-	if err := survey.AskOne(prompt, &selectedRegion); err != nil {
-		return nil, err
-	}
-
-	return &regions[selectedRegion], nil
-}
-
-func selectVMSize(ctx context.Context, client *api.Client, vmSizeName string) (*api.VMSize, error) {
-	vmSizes, err := client.PlatformVMSizes(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if vmSizeName != "" {
-		for _, vmSize := range vmSizes {
-			if vmSize.Name == vmSizeName {
-				return &vmSize, nil
-			}
-		}
-
-		return nil, fmt.Errorf(`vm size "%s" not found`, vmSizeName)
-	}
-
-	options := []string{}
-
-	for _, vmSize := range vmSizes {
-		options = append(options, fmt.Sprintf("%s - %d", vmSize.Name, vmSize.MemoryMB))
-	}
-
-	selectedVMSize := 0
-	prompt := &survey.Select{
-		Message:  "Select VM size:",
-		Options:  options,
-		PageSize: 15,
-	}
-	if err := survey.AskOne(prompt, &selectedVMSize); err != nil {
-		return nil, err
-	}
-
-	return &vmSizes[selectedVMSize], nil
-}
-
-func inputAppName(defaultName string, autoGenerate bool) (name string, err error) {
-	message := "App Name"
-
-	if autoGenerate {
-		message += " (leave blank to use an auto-generated name)"
-	}
-
-	message += ":"
-
-	prompt := &survey.Input{
-		Message: message,
-		Default: defaultName,
-	}
-
-	if err := survey.AskOne(prompt, &name); err != nil {
-		return name, err
-	}
-
-	return name, nil
-}
-
-func volumeSizeInput(defaultVal int) (int, error) {
-	var volumeSize int
-	prompt := &survey.Input{
-		Message: "Volume size (GB):",
-		Default: strconv.Itoa(defaultVal),
-	}
-	if err := survey.AskOne(prompt, &volumeSize); err != nil {
-		return 0, err
-	}
-
-	return volumeSize, nil
-}
-
-func inputUserEmail() (email string, err error) {
-	prompt := &survey.Input{
-		Message: "User email:",
-	}
-	if err := survey.AskOne(prompt, &email); err != nil {
-		return email, err
-	}
-
-	return email, nil
 }

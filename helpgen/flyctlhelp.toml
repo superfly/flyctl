@@ -5,26 +5,15 @@ It allows users to manage authentication, application launch,
 deployment, network configuration, logging and more with just the
 one command.
 
-Launch an app with the launch command
-Deploy an app with the deploy command
-View a deployed web application with the open command
-Check the status of an application with the status command
+* Launch an app with the launch command
+* Deploy an app with the deploy command
+* View a deployed web application with the open command
+* Check the status of an application with the status command
 
 To read more, use the docs command to view Fly's help on the web.
 """
 shortHelp = "The Fly CLI"
 usage = "flyctl"
-
-[info]
-longHelp = """Shows information about the application on the Fly platform
-
-Information includes the application's
-* name, owner, version, status and hostname
-* services
-* IP addresses
-"""
-shortHelp = "Show detailed app information"
-usage = "info"
 
 [image]
 longHelp = "Manage app image"
@@ -54,15 +43,6 @@ from the Fly platform.
 """
 shortHelp = "Permanently destroys an app"
 usage = "destroy [APPNAME]"
-
-[suspend]
-longHelp = """The SUSPEND command will suspend an application.
-All instances will be halted leaving the application running nowhere.
-It will continue to consume networking resources (IP address). See RESUME
-for details on restarting it.
-"""
-shortHelp = "Suspend an application"
-usage = "suspend [APPNAME]"
 
 [resume]
 longHelp = """The RESUME command will restart a previously suspended application.
@@ -281,12 +261,12 @@ longHelp = """The CONFIG commands allow you to work with an application's config
 """
 shortHelp = "Manage an app's configuration"
 usage = "config"
-[config.display]
-longHelp = """Display an application's configuration. The configuration is presented
+[config.show]
+longHelp = """Show an application's configuration. The configuration is presented
 in JSON format. The configuration data is retrieved from the Fly service.
 """
-shortHelp = "Display an app's configuration"
-usage = "display"
+shortHelp = "Show an app's configuration"
+usage = "show"
 [config.save]
 longHelp = """Save an application's configuration locally. The configuration data is
 retrieved from the Fly service and saved in TOML format.
@@ -514,8 +494,8 @@ longHelp = "Attach a postgres cluster to an app"
 shortHelp = "Attach a postgres cluster to an app"
 usage = "attach"
 [postgres.connect]
-shortHelp = "Connect to postgres cluster"
-longHelp  = "Connect to postgres cluster"
+shortHelp = "Connect to the Postgres console"
+longHelp  = "Connect to the Postgres console"
 usage     = "connect"
 [postgres.create]
 longHelp = "Create a postgres cluster"
@@ -609,24 +589,6 @@ longHelp = """Disable autoscaling to manually controlling app resources
 shortHelp = "Disable autoscaling"
 usage = "disable"
 
-[autoscale.balanced]
-longHelp = """Configure the app to balance regions based on traffic with given parameters:
-
-min=int - minimum number of instances to be allocated from region pool.
-max=int - maximum number of instances to be allocated from region pool.
-"""
-shortHelp = "Configure a traffic balanced app with params (min=int max=int)"
-usage = "balanced"
-
-[autoscale.standard]
-longHelp = """Configure the app without traffic balancing with the given parameters:
-
-min=int - minimum number of instances to be allocated from region pool.
-max=int - maximum number of instances to be allocated from region pool.
-"""
-shortHelp = "Configure a standard balanced app with params (min=int max=int)"
-usage = "standard"
-
 [autoscale.show]
 longHelp = """Show current autoscaling configuration
 """
@@ -634,12 +596,12 @@ shortHelp = "Show current autoscaling configuration"
 usage = "show"
 
 [autoscale.set]
-longHelp = """Allows the setting of the current models autoscaling parameters:
+longHelp = """Enable autoscaling and set the application's autoscaling parameters:
 
-min=int - minimum number of instances to be allocated from region pool.
-max=int - maximum number of instances to be allocated from region pool.
+min=int - minimum number of instances to be allocated globally.
+max=int - maximum number of instances to be allocated globally.
 """
-shortHelp = "Set current models autoscaling parameters"
+shortHelp = "Set app autoscaling parameters"
 usage = "set"
 
 [scale]
@@ -653,7 +615,7 @@ longHelp = """Change an application's VM size to one of the named VM sizes.
 
 Size names include shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x.
 
-For a full list of supported sizes use the command FLYCTL PLATFORM VM-SIZES
+For a full list of supported sizes use the command flyctl platform vm-sizes
 
 Memory size can be set with --memory=number-of-MB
 
@@ -843,7 +805,7 @@ usage = "volumes <command>"
 
 [volumes.create]
 longHelp = """Create new volume for app. --region flag must be included to specify
-region the volume exists in. --size flag is optional, defaults to 10,
+region the volume exists in. --size flag is optional, defaults to 3,
 sets the size as the number of gigabytes the volume will consume."""
 shortHelp = "Create new volume for app"
 usage = "create <volumename>"
@@ -971,10 +933,25 @@ longHelp = """Add a WireGuard peer connection to an organization"""
 shortHelp = "Add a WireGuard peer connection"
 usage = "create [org] [region] [name]"
 
+[wireguard.reset]
+longHelp = """Reset WireGuard peer connection for an organization"""
+shortHelp = "Reset WireGuard peer connection for an organization"
+usage = "reset [org]"
+
 [wireguard.remove]
 longHelp = """Remove a WireGuard peer connection from an organization"""
 shortHelp = "Remove a WireGuard peer connection"
 usage = "remove [org] [name]"
+
+[wireguard.status]
+longHelp = """Get status for a WireGuard peer connection"""
+shortHelp = "Get status a WireGuard peer connection"
+usage = "status [org] [name]"
+
+[wireguard.websockets]
+longHelp = """Enable or disable WireGuard tunneling over WebSockets"""
+shortHelp = "Enable or disable WireGuard tunneling over WebSockets"
+usage = "websockets [enable/disable]"
 
 [wireguard.token]
 longHelp = """Commands that managed WireGuard delegated access tokens"""
@@ -1010,6 +987,10 @@ usage = "update [name] [file]"
 longHelp = """Commands that manage machines"""
 shortHelp = "Commands that manage machines"
 usage = "machine <command>"
+[machine.clone]
+longHelp = "Clones a Fly Machine"
+shortHelp = "Clones a Fly Machine"
+usage = "clone"
 [machine.run]
 longHelp = "Launch Fly machine with the provided image and command"
 shortHelp = "Launch a Fly machine"
@@ -1034,6 +1015,10 @@ usage = "kill <id>"
 longHelp = "Remove a Fly machine"
 shortHelp = "Remove a Fly machine"
 usage = "remove <id>"
+[machine.status]
+longHelp = """Show current status of a running machine"""
+shortHelp = "Show current status of a running machine"
+usage = "status <id>"
 
 [proxy]
 longHelp = """Proxies connections to a fly app through the wireguard tunnel"""

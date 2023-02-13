@@ -11,7 +11,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/machinebox/graphql"
+	genq "github.com/Khan/genqlient/graphql"
+	"github.com/superfly/graphql"
 )
 
 var baseURL string
@@ -31,21 +32,27 @@ func SetErrorLog(log bool) {
 type Client struct {
 	httpClient  *http.Client
 	client      *graphql.Client
+	GenqClient  genq.Client
 	accessToken string
 	userAgent   string
+	trace       string
 	logger      Logger
 }
 
 // NewClient - creates a new Client, takes an access token
 func NewClient(accessToken, name, version string, logger Logger) *Client {
 
-	httpClient, _ := newHTTPClient(logger)
+	httpClient, _ := NewHTTPClient(logger, http.DefaultTransport)
 
 	url := fmt.Sprintf("%s/graphql", baseURL)
 
 	client := graphql.NewClient(url, graphql.WithHTTPClient(httpClient))
+
+	genqHttpClient, _ := NewHTTPClient(logger, &Transport{UnderlyingTransport: http.DefaultTransport, Token: accessToken, Ctx: context.Background()})
+	genqClient := genq.NewClient(url, genqHttpClient)
+
 	userAgent := fmt.Sprintf("%s/%s", name, version)
-	return &Client{httpClient, client, accessToken, userAgent, logger}
+	return &Client{httpClient, client, genqClient, accessToken, userAgent, os.Getenv("FLY_FORCE_TRACE"), logger}
 }
 
 // NewRequest - creates a new GraphQL request
@@ -63,12 +70,12 @@ func (c *Client) Run(req *graphql.Request) (Query, error) {
 func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Query, error) {
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
 	req.Header.Set("User-Agent", c.userAgent)
+	if c.trace != "" {
+		req.Header.Set("Fly-Force-Trace", c.trace)
+	}
 
 	var resp Query
 	err := c.client.Run(ctx, req, &resp)
-	if err != nil && strings.HasPrefix(err.Error(), "graphql: ") {
-		return resp, errors.New(strings.TrimPrefix(err.Error(), "graphql: "))
-	}
 
 	if resp.Errors != nil && errorLog {
 		fmt.Fprintf(os.Stderr, "Error: %+v\n", resp.Errors)
@@ -115,7 +122,7 @@ func GetAccessToken(ctx context.Context, email, password, otp string) (token str
 
 	switch {
 	case res.StatusCode >= http.StatusInternalServerError:
-		err = errors.New("An unknown server error occured, please try again")
+		err = errors.New("An unknown server error occurred, please try again")
 	case res.StatusCode >= http.StatusBadRequest:
 		err = errors.New("Incorrect email and password combination")
 	default:
@@ -127,4 +134,19 @@ func GetAccessToken(ctx context.Context, email, password, otp string) (token str
 	}
 
 	return
+}
+
+type Transport struct {
+	UnderlyingTransport http.RoundTripper
+	Token               string
+	Ctx                 context.Context
+	EnableDebugTrace    bool
+}
+
+func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.Header.Add("Authorization", "Bearer "+t.Token)
+	if t.EnableDebugTrace {
+		req.Header.Add("Fly-Force-Trace", "true")
+	}
+	return t.UnderlyingTransport.RoundTrip(req)
 }

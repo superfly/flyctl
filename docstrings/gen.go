@@ -119,34 +119,20 @@ authenticated and in use.`,
 		return KeyStrings{"autoscale", "Autoscaling app resources",
 			`Autoscaling application resources`,
 		}
-	case "autoscale.balanced":
-		return KeyStrings{"balanced", "Configure a traffic balanced app with params (min=int max=int)",
-			`Configure the app to balance regions based on traffic with given parameters:
-
-min=int - minimum number of instances to be allocated from region pool.
-max=int - maximum number of instances to be allocated from region pool.`,
-		}
 	case "autoscale.disable":
 		return KeyStrings{"disable", "Disable autoscaling",
 			`Disable autoscaling to manually controlling app resources`,
 		}
 	case "autoscale.set":
-		return KeyStrings{"set", "Set current models autoscaling parameters",
-			`Allows the setting of the current models autoscaling parameters:
+		return KeyStrings{"set", "Set app autoscaling parameters",
+			`Enable autoscaling and set the application's autoscaling parameters:
 
-min=int - minimum number of instances to be allocated from region pool.
-max=int - maximum number of instances to be allocated from region pool.`,
+min=int - minimum number of instances to be allocated globally.
+max=int - maximum number of instances to be allocated globally.`,
 		}
 	case "autoscale.show":
 		return KeyStrings{"show", "Show current autoscaling configuration",
 			`Show current autoscaling configuration`,
-		}
-	case "autoscale.standard":
-		return KeyStrings{"standard", "Configure a standard balanced app with params (min=int max=int)",
-			`Configure the app without traffic balancing with the given parameters:
-
-min=int - minimum number of instances to be allocated from region pool.
-max=int - maximum number of instances to be allocated from region pool.`,
 		}
 	case "builds":
 		return KeyStrings{"builds", "Work with Fly builds",
@@ -239,11 +225,6 @@ Takes hostname as a parameter to locate the certificate.`,
 		return KeyStrings{"config", "Manage an app's configuration",
 			`The CONFIG commands allow you to work with an application's configuration.`,
 		}
-	case "config.display":
-		return KeyStrings{"display", "Display an app's configuration",
-			`Display an application's configuration. The configuration is presented
-in JSON format. The configuration data is retrieved from the Fly service.`,
-		}
 	case "config.env":
 		return KeyStrings{"env", "Display an app's runtime environment variables",
 			`Display an app's runtime environment variables. It displays a section for
@@ -253,6 +234,11 @@ secrets and another for config file defined environment variables.`,
 		return KeyStrings{"save", "Save an app's config file",
 			`Save an application's configuration locally. The configuration data is
 retrieved from the Fly service and saved in TOML format.`,
+		}
+	case "config.show":
+		return KeyStrings{"show", "Show an app's configuration",
+			`Show an application's configuration. The configuration is presented
+in JSON format. The configuration data is retrieved from the Fly service.`,
 		}
 	case "config.validate":
 		return KeyStrings{"validate", "Validate an app's config file",
@@ -352,10 +338,10 @@ It allows users to manage authentication, application launch,
 deployment, network configuration, logging and more with just the
 one command.
 
-Launch an app with the launch command
-Deploy an app with the deploy command
-View a deployed web application with the open command
-Check the status of an application with the status command
+* Launch an app with the launch command
+* Deploy an app with the deploy command
+* View a deployed web application with the open command
+* Check the status of an application with the status command
 
 To read more, use the docs command to view Fly's help on the web.`,
 		}
@@ -376,15 +362,6 @@ events and their results.`,
 		return KeyStrings{"update", "Updates the app's image to the latest available version. (Fly Postgres only)",
 			`This will update the application's image to the latest available version.
 The update will perform a rolling restart against each VM, which may result in a brief service disruption.`,
-		}
-	case "info":
-		return KeyStrings{"info", "Show detailed app information",
-			`Shows information about the application on the Fly platform
-
-Information includes the application's
-* name, owner, version, status and hostname
-* services
-* IP addresses`,
 		}
 	case "ips":
 		return KeyStrings{"ips", "Manage IP addresses for apps",
@@ -457,6 +434,10 @@ to all instances running in a specific region using the --region/-r flag.`,
 		return KeyStrings{"machine <command>", "Commands that manage machines",
 			`Commands that manage machines`,
 		}
+	case "machine.clone":
+		return KeyStrings{"clone", "Clones a Fly Machine",
+			`Clones a Fly Machine`,
+		}
 	case "machine.kill":
 		return KeyStrings{"kill <id>", "Kill (SIGKILL) a Fly machine",
 			`Kill (SIGKILL) a Fly machine`,
@@ -476,6 +457,10 @@ to all instances running in a specific region using the --region/-r flag.`,
 	case "machine.start":
 		return KeyStrings{"start <id>", "Start a Fly machine",
 			`Start a Fly machine`,
+		}
+	case "machine.status":
+		return KeyStrings{"status <id>", "Show current status of a running machine",
+			`Show current status of a running machine`,
 		}
 	case "machine.stop":
 		return KeyStrings{"stop <id>", "Stop a Fly machine",
@@ -562,8 +547,8 @@ about the Fly platform.`,
 			`Attach a postgres cluster to an app`,
 		}
 	case "postgres.connect":
-		return KeyStrings{"connect", "Connect to postgres cluster",
-			`Connect to postgres cluster`,
+		return KeyStrings{"connect", "Connect to the Postgres console",
+			`Connect to the Postgres console`,
 		}
 	case "postgres.create":
 		return KeyStrings{"create", "Create a postgres cluster",
@@ -669,7 +654,7 @@ For pricing, see https://fly.io/docs/about/pricing/`,
 
 Size names include shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x.
 
-For a full list of supported sizes use the command FLYCTL PLATFORM VM-SIZES
+For a full list of supported sizes use the command flyctl platform vm-sizes
 
 Memory size can be set with --memory=number-of-MB
 
@@ -755,13 +740,6 @@ currently allocated.`,
 			`Show the instance's current status including logs, checks,
 and events.`,
 		}
-	case "suspend":
-		return KeyStrings{"suspend [APPNAME]", "Suspend an application",
-			`The SUSPEND command will suspend an application.
-All instances will be halted leaving the application running nowhere.
-It will continue to consume networking resources (IP address). See RESUME
-for details on restarting it.`,
-		}
 	case "turboku":
 		return KeyStrings{"turboku <heroku-app>", "Launches heroku apps",
 			`Launches heroku apps`,
@@ -799,7 +777,7 @@ command to update the application.`,
 	case "volumes.create":
 		return KeyStrings{"create <volumename>", "Create new volume for app",
 			`Create new volume for app. --region flag must be included to specify
-region the volume exists in. --size flag is optional, defaults to 10,
+region the volume exists in. --size flag is optional, defaults to 3,
 sets the size as the number of gigabytes the volume will consume.`,
 		}
 	case "volumes.delete":
@@ -840,6 +818,14 @@ number to operate. This can be found through the volumes list command`,
 		return KeyStrings{"remove [org] [name]", "Remove a WireGuard peer connection",
 			`Remove a WireGuard peer connection from an organization`,
 		}
+	case "wireguard.reset":
+		return KeyStrings{"reset [org]", "Reset WireGuard peer connection for an organization",
+			`Reset WireGuard peer connection for an organization`,
+		}
+	case "wireguard.status":
+		return KeyStrings{"status [org] [name]", "Get status a WireGuard peer connection",
+			`Get status for a WireGuard peer connection`,
+		}
 	case "wireguard.token":
 		return KeyStrings{"token <command>", "Commands that managed WireGuard delegated access tokens",
 			`Commands that managed WireGuard delegated access tokens`,
@@ -863,6 +849,10 @@ number to operate. This can be found through the volumes list command`,
 	case "wireguard.token.update":
 		return KeyStrings{"update [name] [file]", "Rekey a WireGuard peer connection associated with a token (set FLY_WIREGUARD_TOKEN)",
 			`Rekey a WireGuard peer connection associated with a token (set FLY_WIREGUARD_TOKEN)`,
+		}
+	case "wireguard.websockets":
+		return KeyStrings{"websockets [enable/disable]", "Enable or disable WireGuard tunneling over WebSockets",
+			`Enable or disable WireGuard tunneling over WebSockets`,
 		}
 	}
 	panic("unknown command key " + key)

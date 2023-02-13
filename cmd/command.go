@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"path"
 	"path/filepath"
 
 	"github.com/superfly/flyctl/cmdctx"
@@ -11,9 +10,9 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/client"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -221,7 +220,6 @@ func BuildCommand(parent *Command, fn RunFn, usageText string, shortHelpText str
 		Short: shortHelpText,
 		Long:  longHelpText,
 	}, client, options...)
-
 }
 
 const defaultConfigFilePath = "./fly.toml"
@@ -295,13 +293,6 @@ func setupAppName(ctx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func optionalAppName(cmd *Command) Initializer {
-	addAppConfigFlags(cmd)
-	return Initializer{
-		Setup: setupAppName,
-	}
-}
-
 func requireAppName(cmd *Command) Initializer {
 	// TODO: Add Flags to docStrings
 
@@ -328,119 +319,5 @@ func requireAppName(cmd *Command) Initializer {
 
 			return nil
 		},
-	}
-}
-
-func requireAppNameAsArg(cmd *Command) Initializer {
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "app",
-		Shorthand:   "a",
-		Description: "App name to operate on",
-		EnvName:     "FLY_APP",
-	})
-
-	cmd.AddStringFlag(StringFlagOpts{
-		Name:        "config",
-		Shorthand:   "c",
-		Description: "Path to an app config file or directory containing one",
-		Default:     defaultConfigFilePath,
-		EnvName:     "FLY_APP_CONFIG",
-	})
-
-	return Initializer{
-		Setup: func(ctx *cmdctx.CmdContext) error {
-			// resolve the config file path
-			configPath := ctx.Config.GetString("config")
-			if configPath == "" {
-				configPath = defaultConfigFilePath
-			}
-			if !filepath.IsAbs(configPath) {
-				absConfigPath, err := filepath.Abs(filepath.Join(ctx.WorkingDir, configPath))
-				if err != nil {
-					return err
-				}
-				configPath = absConfigPath
-			}
-			resolvedPath, err := flyctl.ResolveConfigFileFromPath(configPath)
-			if err != nil {
-				return err
-			}
-			ctx.ConfigFile = resolvedPath
-
-			// load the config file if it exists
-			if helpers.FileExists(ctx.ConfigFile) {
-				terminal.Debug("Loading app config from", ctx.ConfigFile)
-				appConfig, err := flyctl.LoadAppConfig(ctx.ConfigFile)
-				if err != nil {
-					return err
-				}
-				ctx.AppConfig = appConfig
-			} else {
-				ctx.AppConfig = flyctl.NewAppConfig()
-			}
-
-			// set the app name if provided
-			appName := ctx.Config.GetString("app")
-			if appName != "" {
-				ctx.AppName = appName
-			} else if ctx.AppConfig != nil {
-				ctx.AppName = ctx.AppConfig.AppName
-			}
-
-			return nil
-		},
-		PreRun: func(ctx *cmdctx.CmdContext) error {
-			if len(ctx.Args) > 0 {
-				ctx.AppName = ctx.Args[0]
-			}
-
-			if ctx.AppName == "" {
-				return fmt.Errorf("No app specified")
-			}
-
-			if ctx.AppConfig == nil {
-				return nil
-			}
-
-			if ctx.AppConfig.AppName != "" && ctx.AppConfig.AppName != ctx.AppName {
-				terminal.Warnf("app flag '%s' does not match app name in config file '%s'\n", ctx.AppName, ctx.AppConfig.AppName)
-
-				if !confirm(fmt.Sprintf("Continue using '%s'", ctx.AppName)) {
-					return flyerr.ErrAbort
-				}
-			}
-
-			return nil
-		},
-	}
-}
-
-func workingDirectoryFromArg(index int) func(*Command) Initializer {
-	return func(cmd *Command) Initializer {
-		return Initializer{
-			Setup: func(ctx *cmdctx.CmdContext) error {
-				if len(ctx.Args) <= index {
-					return nil
-					// return fmt.Errorf("cannot resolve working directory from arg %d, not enough args", index)
-				}
-				wd := ctx.Args[index]
-
-				if !path.IsAbs(wd) {
-					wd = path.Join(ctx.WorkingDir, wd)
-				}
-
-				abs, err := filepath.Abs(wd)
-				if err != nil {
-					return err
-				}
-				ctx.WorkingDir = abs
-
-				if !helpers.DirectoryExists(ctx.WorkingDir) {
-					return fmt.Errorf("working directory '%s' not found", ctx.WorkingDir)
-				}
-
-				return nil
-			},
-		}
 	}
 }

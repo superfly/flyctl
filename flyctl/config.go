@@ -15,7 +15,8 @@ const (
 	ConfigInstaller       = "installer"
 	BuildKitNodeID        = "buildkit_node_id"
 
-	ConfigWireGuardState = "wire_guard_state"
+	ConfigWireGuardState      = "wire_guard_state"
+	ConfigWireGuardWebsockets = "wire_guard_websockets"
 
 	ConfigRegistryHost = "registry_host"
 )
@@ -28,6 +29,7 @@ type Config interface {
 	GetStringSlice(key string) []string
 	GetInt(key string) int
 	IsSet(key string) bool
+	Set(key string, value interface{})
 }
 
 type config struct {
@@ -73,6 +75,11 @@ func (cfg *config) IsSet(key string) bool {
 
 func ConfigNS(ns string) Config {
 	return &config{ns}
+}
+
+func (cfg *config) Set(key string, value interface{}) {
+	fullKey := cfg.nsKey(key)
+	viper.Set(fullKey, value)
 }
 
 var FlyConfig Config = ConfigNS(NSRoot)

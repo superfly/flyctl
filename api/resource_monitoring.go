@@ -89,6 +89,7 @@ func (c *Client) GetAllocationStatus(ctx context.Context, appName string, allocI
 					region
 					restarts
 					privateIP
+					taskName
 					checks {
 						status
 						output

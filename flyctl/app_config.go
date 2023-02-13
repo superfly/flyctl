@@ -13,7 +13,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/sourcecode"
+	"github.com/superfly/flyctl/scanner"
 )
 
 type ConfigFormat string
@@ -40,6 +40,7 @@ type Build struct {
 	Image string
 	// Or...
 	Dockerfile        string
+	Ignorefile        string
 	DockerBuildTarget string
 }
 
@@ -99,6 +100,13 @@ func (ac *AppConfig) Dockerfile() string {
 		return ""
 	}
 	return ac.Build.Dockerfile
+}
+
+func (ac *AppConfig) Ignorefile() string {
+	if ac.Build == nil {
+		return ""
+	}
+	return ac.Build.Ignorefile
 }
 
 func (ac *AppConfig) DockerBuildTarget() string {
@@ -164,7 +172,7 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 			case "settings":
 				if settingsMap, ok := v.(map[string]interface{}); ok {
 					for settingK, settingV := range settingsMap {
-						b.Settings[settingK] = settingV //fmt.Sprint(argV)
+						b.Settings[settingK] = settingV // fmt.Sprint(argV)
 					}
 				}
 				insection = true
@@ -312,7 +320,43 @@ func (ac *AppConfig) GetInternalPort() (int, error) {
 	return 8080, nil
 }
 
+func (ac *AppConfig) SetEnvVariable(name, value string) {
+	ac.SetEnvVariables(map[string]string{name: value})
+}
+
 func (ac *AppConfig) SetEnvVariables(vals map[string]string) {
+	env := ac.GetEnvVariables()
+
+	for k, v := range vals {
+		env[k] = v
+	}
+
+	ac.Definition["env"] = env
+}
+
+func (ac *AppConfig) GetEnvVariables() map[string]string {
+	env := map[string]string{}
+
+	if rawEnv, ok := ac.Definition["env"]; ok {
+		// we get map[string]interface{} when unmarshaling toml, and map[string]string from SetEnvVariables. Support them both :vomit:
+		switch castEnv := rawEnv.(type) {
+		case map[string]string:
+			env = castEnv
+		case map[string]interface{}:
+			for k, v := range castEnv {
+				if stringVal, ok := v.(string); ok {
+					env[k] = stringVal
+				} else {
+					env[k] = fmt.Sprintf("%v", v)
+				}
+			}
+		}
+	}
+
+	return env
+}
+
+func (ac *AppConfig) SetBuildSecrets(vals map[string]string) {
 	var env map[string]string
 
 	if rawEnv, ok := ac.Definition["env"]; ok {
@@ -389,24 +433,6 @@ func (ac *AppConfig) SetDockerEntrypoint(entrypoint string) {
 	ac.Definition["experimental"] = experimental
 }
 
-func (ac *AppConfig) SetEnvVariable(name, value string) {
-	var env map[string]string
-
-	if rawEnv, ok := ac.Definition["env"]; ok {
-		if castEnv, ok := rawEnv.(map[string]string); ok {
-			env = castEnv
-		}
-	}
-
-	if env == nil {
-		env = map[string]string{}
-	}
-
-	env[name] = value
-
-	ac.Definition["env"] = env
-}
-
 func (ac *AppConfig) SetProcess(name, value string) {
 	var processes map[string]string
 
@@ -425,11 +451,11 @@ func (ac *AppConfig) SetProcess(name, value string) {
 	ac.Definition["processes"] = processes
 }
 
-func (ac *AppConfig) SetStatics(statics []sourcecode.Static) {
+func (ac *AppConfig) SetStatics(statics []scanner.Static) {
 	ac.Definition["statics"] = statics
 }
 
-func (ac *AppConfig) SetVolumes(volumes []sourcecode.Volume) {
+func (ac *AppConfig) SetVolumes(volumes []scanner.Volume) {
 	ac.Definition["mounts"] = volumes
 }
 
@@ -443,7 +469,6 @@ func ResolveConfigFileFromPath(p string) (string, error) {
 
 	// Is this a bare directory path? Stat the path
 	pd, err := os.Stat(p)
-
 	if err != nil {
 		if os.IsNotExist(err) {
 			return p, nil

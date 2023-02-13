@@ -17,4 +17,4 @@ fi
 >&2 echo "previous tag: $previous_tag"
 
 # only include go files in the changelog
-git log --oneline --no-merges --no-decorate $previous_tag..HEAD -- '*.go' '**/*.go' 
+git log --oneline --no-merges --no-decorate $previous_tag..HEAD -- '*.go' '**/*.go'

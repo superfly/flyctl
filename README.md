@@ -12,7 +12,7 @@ During the transition, note that where you see `flyctl` as a command it can be r
 #### [Homebrew](https://brew.sh) (macOS, Linux, WSL)
 
 ```bash
-brew install superfly/tap/flyctl
+brew install flyctl
 ```
 To upgrade to the latest version:
 
@@ -22,7 +22,9 @@ brew upgrade flyctl
 
 ## Install Script
 
-Download `flyctl` and install into 
+Download `flyctl` and install into a local bin directory.
+
+#### MacOS, Linux, WSL
 
 Installing the latest version:
 
@@ -41,6 +43,15 @@ Installing a specific version:
 ```bash
 curl -L https://fly.io/install.sh | sh -s 0.0.200
 ```
+
+#### Windows
+
+Run the Powershell install script:
+
+```
+iwr https://fly.io/install.ps1 -useb | iex
+```
+
 
 ## Downloading from GitHub
 

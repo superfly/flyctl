@@ -1,6 +1,7 @@
 package flyctl
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/BurntSushi/toml"
@@ -53,4 +54,27 @@ func TestLoadTOMLAppConfigWithServices(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, p.Definition, rawData)
+}
+
+func TestGetAndSetEnvVariables(t *testing.T) {
+	cfg := NewAppConfig()
+
+	cfg.SetEnvVariable("A", "B")
+	cfg.SetEnvVariable("C", "D")
+
+	assert.Equal(t, map[string]string{"A": "B", "C": "D"}, cfg.GetEnvVariables())
+
+	buf := &bytes.Buffer{}
+
+	if err := cfg.WriteTo(buf, TOMLFormat); err != nil {
+		assert.NoError(t, err)
+	}
+
+	cfg2 := NewAppConfig()
+
+	if err := cfg2.unmarshalTOML(bytes.NewReader(buf.Bytes())); err != nil {
+		assert.NoError(t, err)
+	}
+
+	assert.Equal(t, cfg.GetEnvVariables(), cfg2.GetEnvVariables())
 }

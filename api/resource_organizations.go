@@ -9,10 +9,10 @@ const (
 	OrganizationTypeShared   OrganizationType = "SHARED"
 )
 
-func (client *Client) GetOrganizations(ctx context.Context, typeFilter *OrganizationType) ([]Organization, error) {
+func (client *Client) GetOrganizations(ctx context.Context) ([]Organization, error) {
 	q := `
-		query($orgType: OrganizationType) {
-			organizations(type: $orgType) {
+		query {
+			organizations {
 				nodes {
 					id
 					slug
@@ -24,19 +24,16 @@ func (client *Client) GetOrganizations(ctx context.Context, typeFilter *Organiza
 	`
 
 	req := client.NewRequest(q)
-	if typeFilter != nil {
-		req.Var("orgType", *typeFilter)
-	}
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
-		return []Organization{}, err
+		return nil, err
 	}
 
 	return data.Organizations.Nodes, nil
 }
 
-func (client *Client) FindOrganizationBySlug(ctx context.Context, slug string) (*Organization, error) {
+func (client *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*Organization, error) {
 	q := `
 		query($slug: String!) {
 			organization(slug: $slug) {
@@ -92,7 +89,7 @@ func (client *Client) GetCurrentOrganizations(ctx context.Context) (Organization
 	return data.PersonalOrganization, data.Organizations.Nodes, nil
 }
 
-func (client *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*OrganizationDetails, error) {
+func (client *Client) GetDetailedOrganizationBySlug(ctx context.Context, slug string) (*OrganizationDetails, error) {
 	query := `query($slug: String!) {
 		organizationdetails: organization(slug: $slug) {
 		  id
@@ -101,7 +98,11 @@ func (client *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*
 		  type
 		  viewerRole
 		  internalNumericId
-		  members {
+			remoteBuilderImage
+			remoteBuilderApp {
+				name
+			}
+			members {
 				edges {
 					cursor
 					node {
@@ -139,7 +140,7 @@ func (c *Client) CreateOrganization(ctx context.Context, organizationname string
 					type
 					viewerRole
 				  }
-			}	
+			}
 		}
 	`
 
@@ -164,7 +165,7 @@ func (c *Client) DeleteOrganization(ctx context.Context, id string) (deletedid s
 		  clientMutationId
 		  deletedOrganizationId
 		  }
-		}	  
+		}
 	`
 
 	req := c.NewRequest(query)
@@ -241,4 +242,37 @@ func (c *Client) DeleteOrganizationMembership(ctx context.Context, orgId, userId
 	}
 
 	return data.DeleteOrganizationMembership.Organization.Name, data.DeleteOrganizationMembership.User.Email, nil
+}
+
+func (c *Client) UpdateRemoteBuilder(ctx context.Context, orgName string, image string) (*Organization, error) {
+
+	org, err := c.GetOrganizationBySlug(ctx, orgName)
+
+	if err != nil {
+		return nil, err
+	}
+
+	query := `
+		mutation($input: UpdateRemoteBuilderInput!) {
+			updateRemoteBuilder(input: $input) {
+			    organization {
+						remoteBuilderImage
+					}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("input", map[string]string{
+		"organizationId": org.ID,
+		"image":          image,
+	})
+
+	data, err := c.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.UpdateRemoteBuilder.Organization, nil
 }

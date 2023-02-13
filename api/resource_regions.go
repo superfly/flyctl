@@ -57,3 +57,22 @@ func (c *Client) ListAppRegions(ctx context.Context, appName string) ([]Region, 
 
 	return *data.App.Regions, *data.App.BackupRegions, nil
 }
+
+func (c *Client) GetNearestRegion(ctx context.Context) (*Region, error) {
+	req := c.NewRequest(`
+		query {
+			nearestRegion {
+				code
+				name
+				gatewayAvailable
+			}
+		}
+`)
+
+	data, err := c.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.NearestRegion, nil
+}

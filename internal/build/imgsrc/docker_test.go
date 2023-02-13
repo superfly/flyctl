@@ -8,18 +8,24 @@ import (
 
 func TestAllowedDockerDaemonMode(t *testing.T) {
 	tests := []struct {
-		allowLocal  bool
-		allowRemote bool
-		expected    DockerDaemonType
+		allowLocal   bool
+		allowRemote  bool
+		preferslocal bool
+		useNixpacks  bool
+		expected     DockerDaemonType
 	}{
-		{true, true, DockerDaemonTypeNone | DockerDaemonTypeLocal | DockerDaemonTypeRemote},
-		{false, true, DockerDaemonTypeNone | DockerDaemonTypeRemote},
-		{true, false, DockerDaemonTypeNone | DockerDaemonTypeLocal},
-		{false, false, DockerDaemonTypeNone},
+		{false, false, false, false, DockerDaemonTypeNone},
+		{false, false, true, false, DockerDaemonTypeNone | DockerDaemonTypePrefersLocal},
+		{false, true, false, false, DockerDaemonTypeNone | DockerDaemonTypeRemote},
+		{false, true, true, false, DockerDaemonTypeNone | DockerDaemonTypeRemote | DockerDaemonTypePrefersLocal},
+		{true, false, false, false, DockerDaemonTypeNone | DockerDaemonTypeLocal},
+		{true, false, true, false, DockerDaemonTypeNone | DockerDaemonTypeLocal | DockerDaemonTypePrefersLocal},
+		{true, true, false, false, DockerDaemonTypeNone | DockerDaemonTypeLocal | DockerDaemonTypeRemote},
+		{true, true, true, false, DockerDaemonTypeNone | DockerDaemonTypeLocal | DockerDaemonTypeRemote | DockerDaemonTypePrefersLocal},
 	}
 
 	for _, test := range tests {
-		m := NewDockerDaemonType(test.allowLocal, test.allowRemote)
+		m := NewDockerDaemonType(test.allowLocal, test.allowRemote, test.preferslocal, test.useNixpacks)
 		assert.Equal(t, test.expected, m)
 	}
 }

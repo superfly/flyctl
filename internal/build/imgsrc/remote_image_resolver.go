@@ -5,33 +5,28 @@ import (
 	"fmt"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/pkg/iostreams"
-	"github.com/superfly/flyctl/terminal"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 type remoteImageResolver struct {
 	flyApi *api.Client
 }
 
-func (s *remoteImageResolver) Name() string {
+func (*remoteImageResolver) Name() string {
 	return "Remote Image Reference"
 }
 
-func (s *remoteImageResolver) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts RefOptions) (*DeploymentImage, error) {
-	ref := imageRefFromOpts(opts)
-	if ref == "" {
-		terminal.Debug("no image reference found, skipping")
-		return nil, nil
-	}
+func (s *remoteImageResolver) Run(ctx context.Context, _ *dockerClientFactory, streams *iostreams.IOStreams, opts RefOptions, build *build) (*DeploymentImage, string, error) {
+	fmt.Fprintf(streams.ErrOut, "Searching for image '%s' remotely...\n", opts.ImageRef)
 
-	fmt.Fprintf(streams.ErrOut, "Searching for image '%s' remotely...\n", ref)
-
-	img, err := s.flyApi.ResolveImageForApp(ctx, opts.AppName, ref)
+	build.BuildStart()
+	img, err := s.flyApi.ResolveImageForApp(ctx, opts.AppName, opts.ImageRef)
+	build.BuildFinish()
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if img == nil {
-		return nil, nil
+		return nil, "no image found and no error occurred", nil
 	}
 
 	fmt.Fprintf(streams.ErrOut, "image found: %s\n", img.ID)
@@ -42,5 +37,5 @@ func (s *remoteImageResolver) Run(ctx context.Context, dockerFactory *dockerClie
 		Size: int64(img.CompressedSize),
 	}
 
-	return di, nil
+	return di, "", nil
 }

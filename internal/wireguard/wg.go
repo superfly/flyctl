@@ -9,27 +9,55 @@ import (
 	"regexp"
 	"strings"
 
-	badrand "math/rand"
-
+	"github.com/oklog/ulid/v2"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/pkg/wg"
 	"github.com/superfly/flyctl/terminal"
+	"github.com/superfly/flyctl/wg"
 	"golang.org/x/crypto/curve25519"
 )
 
-func StateForOrg(apiClient *api.Client, org *api.Organization, regionCode string, name string) (*wg.WireGuardState, error) {
+var cleanDNSPattern = regexp.MustCompile(`[^a-zA-Z0-9\\-]`)
+
+func generatePeerName(ctx context.Context, apiClient *api.Client) (string, error) {
+	user, err := apiClient.GetCurrentUser(ctx)
+	if err != nil {
+		return "", err
+	}
+	emailSlug := cleanDNSPattern.ReplaceAllString(user.Email, "-")
+
+	host, err := os.Hostname()
+	if err != nil {
+		return "", err
+	}
+	hostSlug := cleanDNSPattern.ReplaceAllString(strings.Split(host, ".")[0], "-")
+
+	name := fmt.Sprintf("%s-%s-%s", hostSlug, emailSlug, ulid.Make())
+	return name, nil
+}
+
+func StateForOrg(apiClient *api.Client, org *api.Organization, regionCode string, name string, recycle bool) (*wg.WireGuardState, error) {
 	state, err := getWireGuardStateForOrg(org.Slug)
 	if err != nil {
 		return nil, err
 	}
-	if state != nil {
+	if state != nil && !recycle {
 		return state, nil
 	}
 
 	terminal.Debugf("Can't find matching WireGuard configuration; creating new one\n")
+
+	ctx := context.TODO()
+	if name == "" {
+		n, err := generatePeerName(ctx, apiClient)
+		if err != nil {
+			return nil, err
+		}
+
+		name = fmt.Sprintf("interactive-agent-%s", n)
+	}
 
 	stateb, err := Create(apiClient, org, regionCode, name)
 	if err != nil {
@@ -51,16 +79,16 @@ func Create(apiClient *api.Client, org *api.Organization, regionCode, name strin
 	)
 
 	if name == "" {
-		user, err := apiClient.GetCurrentUser(ctx)
+		n, err := generatePeerName(ctx, apiClient)
 		if err != nil {
 			return nil, err
 		}
-		host, _ := os.Hostname()
 
-		cleanEmailPattern := regexp.MustCompile(`[^a-zA-Z0-9\\-]`)
-		name = fmt.Sprintf("interactive-%s-%s-%d",
-			strings.Split(host, ".")[0],
-			cleanEmailPattern.ReplaceAllString(user.Email, "-"), badrand.Intn(1000))
+		name = fmt.Sprintf("interactive-%s", n)
+	}
+
+	if regionCode == "" {
+		regionCode = os.Getenv("FLYCTL_WG_REGION")
 	}
 
 	if regionCode == "" {
@@ -151,15 +179,13 @@ func setWireGuardStateForOrg(orgSlug string, s *wg.WireGuardState) error {
 	return setWireGuardState(states)
 }
 
-func PruneInvalidPeers(apiClient *api.Client) error {
-	ctx := context.TODO()
+func PruneInvalidPeers(ctx context.Context, apiClient *api.Client) error {
 	state, err := GetWireGuardState()
 	if err != nil {
 		return nil
 	}
 
-	peerIPs := []string{}
-
+	peerIPs := make([]string, 0, len(state))
 	for _, peer := range state {
 		peerIPs = append(peerIPs, peer.Peer.Peerip)
 	}

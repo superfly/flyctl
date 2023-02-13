@@ -45,7 +45,7 @@ func initConfigDir() error {
 	dir := filepath.Join(homeDir, ".fly")
 
 	if !helpers.DirectoryExists(dir) {
-		if err := os.MkdirAll(dir, 0700); err != nil {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return err
 		}
 	}
@@ -119,10 +119,9 @@ func GetAPIToken() string {
 	viperAuth := viper.GetString(ConfigAPIToken)
 
 	return viperAuth
-
 }
 
-var writeableConfigKeys = []string{ConfigAPIToken, ConfigInstaller, ConfigWireGuardState, BuildKitNodeID}
+var writeableConfigKeys = []string{ConfigAPIToken, ConfigInstaller, ConfigWireGuardState, ConfigWireGuardWebsockets, BuildKitNodeID}
 
 func SaveConfig() error {
 	out := map[string]interface{}{}
@@ -138,11 +137,10 @@ func SaveConfig() error {
 		return err
 	}
 
-	return ioutil.WriteFile(ConfigFilePath(), data, 0600)
+	return ioutil.WriteFile(ConfigFilePath(), data, 0o600)
 }
 
 func persistConfigKey(key string) bool {
-
 	if viper.InConfig(key) {
 		return true
 	}

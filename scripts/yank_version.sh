@@ -56,4 +56,3 @@ if [[ $REMOTE_EXISTS == 1 ]]; then
   git push $ORIGIN :refs/tags/$TAG
   echo "done"
 fi
-

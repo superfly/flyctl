@@ -8,9 +8,9 @@ import (
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/docstrings"
-	"github.com/superfly/flyctl/internal/client"
 )
 
 func newDNSCommand(client *client.Client) *Command {
@@ -93,14 +93,14 @@ func runRecordsExport(cmdCtx *cmdctx.CmdContext) error {
 	if len(cmdCtx.Args) == 1 {
 		fmt.Println(records)
 	} else {
-		var filename = cmdCtx.Args[1]
+		filename := cmdCtx.Args[1]
 
 		_, err := os.Stat(filename)
 		if err == nil {
 			return fmt.Errorf("File %s already exists", filename)
 		}
 
-		err = ioutil.WriteFile(filename, []byte(records), 0644)
+		err = ioutil.WriteFile(filename, []byte(records), 0o644)
 		if err != nil {
 			return err
 		}

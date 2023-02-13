@@ -1,6 +1,8 @@
 package api
 
-import "context"
+import (
+	"context"
+)
 
 func (c *Client) GetVolumes(ctx context.Context, appName string) ([]Volume, error) {
 	query := `
@@ -10,6 +12,7 @@ func (c *Client) GetVolumes(ctx context.Context, appName string) ([]Volume, erro
 				nodes {
 					id
 					name
+					state
 					sizeGb
 					region
 					encrypted
@@ -17,9 +20,16 @@ func (c *Client) GetVolumes(ctx context.Context, appName string) ([]Volume, erro
 					host{
 						id
 					}
+					app {
+						platformVersion
+					}
 					attachedAllocation {
 						idShort
 						taskName
+					}
+					attachedMachine {
+						id
+						name
 					}
 				}
 			}
@@ -49,6 +59,9 @@ func (c *Client) CreateVolume(ctx context.Context, input CreateVolumeInput) (*Vo
 				volume {
 					id
 					name
+					app{
+						name
+					}
 					region
 					sizeGb
 					encrypted
@@ -71,6 +84,44 @@ func (c *Client) CreateVolume(ctx context.Context, input CreateVolumeInput) (*Vo
 	}
 
 	return &data.CreateVolume.Volume, nil
+}
+
+func (c *Client) ExtendVolume(ctx context.Context, input ExtendVolumeInput) (*Volume, error) {
+	query := `
+		mutation($input: ExtendVolumeInput!) {
+			extendVolume(input: $input) {
+				app {
+					name
+					platformVersion
+				}
+				volume {
+					id
+					name
+					app{
+						name
+					}
+					region
+					sizeGb
+					encrypted
+					createdAt
+					host {
+						id
+					}
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("input", input)
+
+	data, err := c.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.ExtendVolume.Volume, nil
 }
 
 func (c *Client) DeleteVolume(ctx context.Context, volID string) (App *App, err error) {
@@ -104,6 +155,9 @@ func (c *Client) GetVolume(ctx context.Context, volID string) (Volume *Volume, e
 		volume: node(id: $id) {
 			... on Volume {
 				id
+				app {
+					name
+				}
 				name
 				sizeGb
 				region
@@ -128,7 +182,7 @@ func (c *Client) GetVolume(ctx context.Context, volID string) (Volume *Volume, e
 	return &data.Volume, nil
 }
 
-func (c *Client) GetVolumeSnapshots(ctx context.Context, volName string) ([]Snapshot, error) {
+func (c *Client) GetVolumeSnapshots(ctx context.Context, volID string) ([]Snapshot, error) {
 	query := `
 	query($id: ID!) {
 		volume: node(id: $id) {
@@ -139,6 +193,7 @@ func (c *Client) GetVolumeSnapshots(ctx context.Context, volName string) ([]Snap
 					nodes {
 						id
 						size
+						digest
 						createdAt
 					}
 				}
@@ -148,7 +203,7 @@ func (c *Client) GetVolumeSnapshots(ctx context.Context, volName string) ([]Snap
 
 	req := c.NewRequest(query)
 
-	req.Var("id", volName)
+	req.Var("id", volID)
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
