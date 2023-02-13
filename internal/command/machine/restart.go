@@ -9,7 +9,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
@@ -61,16 +60,29 @@ func newRestart() *cobra.Command {
 	return cmd
 }
 
-func runMachineRestart(ctx context.Context) error {
+func runMachineRestart(ctx context.Context) (err error) {
+
 	var (
-		args    = flag.Args(ctx)
+		args = flag.Args(ctx)
+	)
+
+	for _, machineID := range args {
+		if err = restart(ctx, machineID); err != nil {
+			return
+		}
+	}
+	return
+}
+
+func restart(ctx context.Context, machineID string) (err error) {
+
+	var (
 		signal  = flag.GetString(ctx, "signal")
 		timeout = flag.GetInt(ctx, "time")
 		appName = app.NameFromContext(ctx)
-		client  = client.FromContext(ctx).API()
 	)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := appFromMachineOrName(ctx, machineID, appName)
 	if err != nil {
 		return fmt.Errorf("could not get app: %w", err)
 	}
@@ -100,28 +112,21 @@ func runMachineRestart(ctx context.Context) error {
 
 	flapsClient := flaps.FromContext(ctx)
 
-	var machines []*api.Machine
-	// Resolve machines
-	for _, machineID := range args {
-		machine, err := flapsClient.Get(ctx, machineID)
-		if err != nil {
-			return fmt.Errorf("could not get machine %s: %w", machineID, err)
-		}
-		machines = append(machines, machine)
+	// Resolve machine
+	machine, err := flapsClient.Get(ctx, machineID)
+	if err != nil {
+		return fmt.Errorf("could not get machine %s: %w", machineID, err)
 	}
 
-	// Acquire leases
-	machines, releaseLeaseFunc, err := mach.AcquireLeases(ctx, machines)
+	// Acquire lease
+	machines, releaseLeaseFunc, err := mach.AcquireLease(ctx, machine)
 	defer releaseLeaseFunc(ctx, machines)
 	if err != nil {
 		return err
 	}
 
-	// Restart each machine
-	for _, machine := range machines {
-		if err := mach.Restart(ctx, machine, input); err != nil {
-			return fmt.Errorf("failed to restart machine %s: %w", machine.ID, err)
-		}
+	if err := mach.Restart(ctx, machine, input); err != nil {
+		return fmt.Errorf("failed to restart machine %s: %w", machine.ID, err)
 	}
 
 	return nil
