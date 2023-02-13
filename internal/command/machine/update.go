@@ -97,7 +97,7 @@ func runUpdate(ctx context.Context) (err error) {
 	} else if dockerfile != "" {
 		imageOrPath = "."
 	} else {
-		imageOrPath = machine.Config.Image
+		imageOrPath = machine.FullImageRef()
 	}
 
 	if imageOrPath == "" {
