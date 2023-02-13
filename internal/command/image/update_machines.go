@@ -113,7 +113,7 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 			continue
 		}
 
-		if machine.ImageRef.Labels["fly.pg-manager"] == "flex" {
+		if machine.ImageRef.Labels["fly.pg-manager"] == "repmgr" {
 			flex = true
 		}
 
@@ -129,6 +129,11 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 			return err
 		}
 
+		// Skip image update if images already match
+		if machine.Config.Image == image {
+			continue
+		}
+
 		machineConf.Image = image
 
 		// Postgres only needs single confirmation.
@@ -137,6 +142,7 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 			if err != nil {
 				switch err.(type) {
 				case *mach.ErrNoConfigChangesFound:
+					fmt.Printf("Machine %s has no changes", machine.ID)
 					continue
 				default:
 					return err
@@ -182,15 +188,15 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 
 	if flex {
 		if len(members["primary"]) > 0 {
-			primary := members["primary"][0]
-			machine := primary.Machine
+			leader := members["primary"][0]
+			machine := leader.Machine
 
 			input := &api.LaunchMachineInput{
 				ID:      machine.ID,
 				AppID:   app.Name,
 				OrgSlug: app.Organization.Slug,
 				Region:  machine.Region,
-				Config:  &primary.TargetConfig,
+				Config:  &leader.TargetConfig,
 			}
 			if err := mach.Update(ctx, machine, input); err != nil {
 				return err
