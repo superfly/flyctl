@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -109,31 +108,16 @@ func runPost(ctx context.Context) error {
 	}
 
 	if appName == "" {
-		appName = input.AppID
+		if input.AppID != "" {
+			appName = input.AppID
+		} else {
+			return fmt.Errorf("specify --app or fly.toml, or use 'flyctl apps create' to create a new app")
+		}
 	}
 
-	if appName == "" {
-		app, err = mach.CreateApp(ctx, "Running a machine without specifying an app will create one for you, is this what you want?", "", client)
-		if err != nil {
-			return err
-		}
-	} else {
-		app, err = client.GetAppCompact(ctx, appName)
-		if err != nil && strings.Contains(err.Error(), "Could not find App") {
-			app, err = mach.CreateApp(ctx, fmt.Sprintf("App '%s' does not exist, would you like to create it?", appName), appName, client)
-			if err != nil {
-				return err
-			}
-			if app == nil {
-				return nil
-			}
-		}
-		if err != nil {
-			return err
-		}
-	}
-	if app == nil {
-		return nil
+	app, err = client.GetAppCompact(ctx, appName)
+	if err != nil {
+		return err
 	}
 
 	flapsClient, err := flaps.New(ctx, app)
@@ -174,7 +158,7 @@ func runPost(ctx context.Context) error {
 	}
 
 	if !flag.GetDetach(ctx) {
-		fmt.Fprintln(io.Out, colorize.Green("==> "+"Monitoring health checks"))
+		fmt.Fprintln(io.Out, colorize.Green("==> Monitoring health checks"))
 
 		if err := watch.MachinesChecks(ctx, []*api.Machine{machine}); err != nil {
 			return err

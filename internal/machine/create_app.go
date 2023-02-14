@@ -2,6 +2,7 @@ package machine
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -14,7 +15,7 @@ func CreateApp(ctx context.Context, message, name string, client *api.Client) (*
 	}
 
 	if !confirm {
-		return nil, nil
+		return nil, fmt.Errorf("no app was found, and app creation was declined")
 	}
 
 	org, err := prompt.Org(ctx)

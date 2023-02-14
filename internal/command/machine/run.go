@@ -176,30 +176,15 @@ func runMachineRun(ctx context.Context) error {
 
 	if appName == "" {
 		app, err = mach.CreateApp(ctx, "Running a machine without specifying an app will create one for you, is this what you want?", "", client)
-		if err != nil {
-			return err
-		}
 	} else {
 		app, err = client.GetAppCompact(ctx, appName)
 		if err != nil && strings.Contains(err.Error(), "Could not find App") {
 
 			app, err = mach.CreateApp(ctx, fmt.Sprintf("App '%s' does not exist, would you like to create it?", appName), appName, client)
-
-			if err != nil {
-				return err
-			}
-
-			if app == nil {
-				return nil
-			}
-
-		}
-		if err != nil {
-			return err
 		}
 	}
-	if app == nil {
-		return nil
+	if err != nil {
+		return err
 	}
 
 	machineConf := &api.MachineConfig{
