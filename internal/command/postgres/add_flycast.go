@@ -109,7 +109,7 @@ func doAddFlycast(ctx context.Context) error {
 			[]api.MachineService{
 				{
 					Protocol:     "tcp",
-					InternalPort: int(bouncerPort),
+					InternalPort: bouncerPort,
 					Ports: []api.MachinePort{
 						{
 							Port: &bouncerPort,
@@ -123,7 +123,7 @@ func doAddFlycast(ctx context.Context) error {
 				},
 				{
 					Protocol:     "tcp",
-					InternalPort: int(pgPort),
+					InternalPort: pgPort,
 					Ports: []api.MachinePort{
 						{
 							Port: &pgPort,

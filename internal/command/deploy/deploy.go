@@ -9,18 +9,17 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appv2"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/state"
 
@@ -67,6 +66,16 @@ var CommonFlags = flag.Set{
 		Description: "Seconds to lease individual machines while running deployment. All machines are leased at the beginning and released at the end, so this needs to be as long as the entire deployment. flyctl releases leases in most cases.",
 		Default:     int(DefaultLeaseTtl.Seconds()),
 	},
+	flag.Bool{
+		Name:        "force-nomad",
+		Description: "Use the Apps v1 platform built with Nomad",
+		Default:     false,
+	},
+	flag.Bool{
+		Name:        "force-machines",
+		Description: "Use the Apps v2 platform built with Machines",
+		Default:     false,
+	},
 }
 
 func New() (cmd *cobra.Command) {
@@ -100,15 +109,17 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
-	return DeployWithConfig(ctx, appConfig, DeployWithConfigArgs{})
+	return DeployWithConfig(ctx, appConfig, DeployWithConfigArgs{
+		ForceNomad:    flag.GetBool(ctx, "force-nomad"),
+		ForceMachines: flag.GetBool(ctx, "force-machines"),
+		ForceYes:      flag.GetBool(ctx, "auto-confirm"),
+	})
 }
 
 type DeployWithConfigArgs struct {
 	ForceMachines bool
 	ForceNomad    bool
 	ForceYes      bool
-	Launching     bool // FIXME: drop this and the other stuff that uses it once https://github.com/superfly/flyctl/pull/1602 is merged
 }
 
 func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWithConfigArgs) (err error) {
@@ -121,31 +132,6 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 	deployToMachines, err := useMachines(ctx, *appConfig, appCompact, args)
 	if err != nil {
 		return err
-	}
-	// this uses the gql validation, which only knows about nomad configs
-	if !deployToMachines {
-		tb := render.NewTextBlock(ctx, "Verifying app config")
-		parsedCfg, err := apiClient.ParseConfig(ctx, appNameFromContext, appConfig.Definition)
-		if err != nil {
-			return err
-		}
-		if !parsedCfg.Valid {
-			fmt.Println()
-			if len(parsedCfg.Errors) > 0 {
-				path := "fly.toml"
-				cfg := app.ConfigFromContext(ctx)
-				if cfg != nil {
-					path = cfg.Path
-				}
-				tb.Printf("\nConfiguration errors in %s:\n\n", path)
-			}
-			for _, e := range parsedCfg.Errors {
-				tb.Println("   ", aurora.Red("✘").String(), e)
-			}
-			fmt.Println()
-			return errors.New("app configuration is not valid")
-		}
-		tb.Done("Verified app config")
 	}
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
@@ -171,10 +157,11 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 	}
 
 	if deployToMachines {
+		// FIXME: this function can't use flags anymore!!! too many other things are using it, and they have different flags!!!
 		md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
+			AppCompact:           appCompact,
 			DeploymentImage:      img,
 			Strategy:             flag.GetString(ctx, "strategy"),
-			Launching:            args.Launching,
 			EnvFromFlags:         flag.GetStringSlice(ctx, "env"),
 			PrimaryRegionFlag:    flag.GetString(ctx, flag.RegionName),
 			AutoConfirmMigration: flag.GetBool(ctx, "auto-confirm"),
@@ -231,36 +218,25 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 }
 
 func useMachines(ctx context.Context, appConfig app.Config, appCompact *api.AppCompact, args DeployWithConfigArgs) (bool, error) {
-	if args.ForceNomad {
-		return false, nil
-	}
-	if args.ForceMachines {
+	switch {
+	case appCompact.PlatformVersion == appv2.AppsV2Platform:
 		return true, nil
-	}
-	if appCompact.Deployed {
-		return appCompact.PlatformVersion == app.MachinesPlatform, nil
-	}
-	// statics are not supported in Apps v2 yet
-	if len(appConfig.Statics) > 0 {
+	case appCompact.Deployed:
+		return appCompact.PlatformVersion == appv2.AppsV2Platform, nil
+	case args.ForceNomad:
 		return false, nil
-	}
-	// if running automated, stay on nomad platform for now
-	if args.ForceYes {
+	case args.ForceMachines:
+		return true, nil
+	case len(appConfig.Statics) > 0:
+		// statics are not supported in Apps v2 yet
 		return false, nil
-	}
-	switch willUseStatics, err := prompt.Confirmf(ctx, "Will you use statics for this app (see https://fly.io/docs/reference/configuration/#the-statics-sections)?"); {
-	case err == nil:
-		if willUseStatics {
-			return false, nil
-		}
-	// if running automated, stay on nomad platform for now
-	case prompt.IsNonInteractive(err):
+	case args.ForceYes:
+		// if running automated, stay on nomad platform for now
 		return false, nil
 	default:
-		return false, err
+		// choose nomad for now if not otherwise specified
+		return false, nil
 	}
-	// if we didn't find an exception above, use the machines platform by default!
-	return true, nil
 }
 
 // determineAppConfig fetches the app config from a local file, or in its absence, from the API

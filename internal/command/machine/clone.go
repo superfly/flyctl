@@ -12,7 +12,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appv2"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
@@ -26,7 +26,7 @@ func newClone() *cobra.Command {
 		short = "Clone a Fly machine"
 		long  = short + "\n"
 
-		usage = "clone <id>"
+		usage = "clone <machine_id>"
 	)
 
 	cmd := command.New(usage, short, long, runMachineClone,
@@ -34,7 +34,7 @@ func newClone() *cobra.Command {
 		command.LoadAppNameIfPresent,
 	)
 
-	cmd.Args = cobra.MaximumNArgs(1)
+	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(
 		cmd,
@@ -81,7 +81,7 @@ func runMachineClone(ctx context.Context) (err error) {
 	var (
 		machineID = flag.FirstArg(ctx)
 		out       = iostreams.FromContext(ctx).Out
-		appName   = app.NameFromContext(ctx)
+		appName   = appv2.NameFromContext(ctx)
 		io        = iostreams.FromContext(ctx)
 		colorize  = io.ColorScheme()
 		client    = client.FromContext(ctx).API()
@@ -101,7 +101,9 @@ func runMachineClone(ctx context.Context) (err error) {
 		return err
 	}
 	appConfig, err := getAppConfig(ctx, appName)
-
+	if err != nil {
+		return fmt.Errorf("failed to get app config: %w", err)
+	}
 	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
 		return fmt.Errorf("could not make flaps client: %w", err)
@@ -122,7 +124,7 @@ func runMachineClone(ctx context.Context) (err error) {
 
 	targetConfig := source.Config
 	if targetProcessGroup := flag.GetString(ctx, "process-group"); targetProcessGroup != "" {
-		allProcessConfigs, err := appConfig.GetProcessConfigs(false)
+		allProcessConfigs, err := appConfig.GetProcessConfigs()
 		if err != nil {
 			return err
 		}
@@ -136,9 +138,23 @@ func runMachineClone(ctx context.Context) (err error) {
 		targetConfig.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = targetProcessGroup
 		terminal.Infof("Setting process group to %s for new machine and updating cmd, services, and checks\n", targetProcessGroup)
 		targetConfig.Init.Cmd = processConfig.Cmd
-		targetConfig.Services = processConfig.MachineServices
-		targetConfig.Checks = processConfig.MachineChecks
+		targetConfig.Services = processConfig.Services
+		targetConfig.Checks = processConfig.Checks
 	}
+
+	image := fmt.Sprintf("%s/%s", source.ImageRef.Registry, source.ImageRef.Repository)
+	tag := source.ImageRef.Tag
+	digest := source.ImageRef.Digest
+
+	if tag != "" && digest != "" {
+		image = fmt.Sprintf("%s:%s@%s", image, tag, digest)
+	} else if digest != "" {
+		image = fmt.Sprintf("%s@%s", image, digest)
+	} else if tag != "" {
+		image = fmt.Sprintf("%s:%s", image, tag)
+	}
+	targetConfig.Image = image
+
 	if flag.GetBool(ctx, "clear-cmd") {
 		targetConfig.Init.Cmd = make([]string, 0)
 	} else if targetCmd := flag.GetString(ctx, "override-cmd"); targetCmd != "" {
@@ -155,25 +171,10 @@ func runMachineClone(ctx context.Context) (err error) {
 		fmt.Fprintf(io.Out, "Auto destroy enabled and will destroy machine on exit. Use --clear-auto-destroy to remove this setting.\n")
 	}
 
-	image := fmt.Sprintf("%s/%s", source.ImageRef.Registry, source.ImageRef.Repository)
-	tag := source.ImageRef.Tag
-	digest := source.ImageRef.Digest
-	if tag != "" && digest != "" {
-		image = fmt.Sprintf("%s:%s@%s", image, tag, digest)
-	} else if digest != "" {
-		image = fmt.Sprintf("%s@%s", image, digest)
-	} else if tag != "" {
-		image = fmt.Sprintf("%s:%s", image, tag)
-	}
-	targetConfig.Image = image
-
 	for _, mnt := range source.Config.Mounts {
 		var vol *api.Volume
-
 		if volID := flag.GetString(ctx, "attach-volume"); volID != "" {
-
 			fmt.Fprintf(out, "Attaching existing volume %s\n", colorize.Bold(volID))
-
 			vol, err = client.GetVolume(ctx, volID)
 			if err != nil {
 				return fmt.Errorf("could not get existing volume: %w", err)
@@ -182,7 +183,6 @@ func runMachineClone(ctx context.Context) (err error) {
 			if vol.IsAttached() {
 				return fmt.Errorf("volume %s is already attached to a machine", vol.ID)
 			}
-
 		} else {
 			var snapshotID *string
 			switch snapID := flag.GetString(ctx, "from-snapshot"); snapID {
@@ -261,9 +261,9 @@ func runMachineClone(ctx context.Context) (err error) {
 	return
 }
 
-func getAppConfig(ctx context.Context, appName string) (*app.Config, error) {
+func getAppConfig(ctx context.Context, appName string) (*appv2.Config, error) {
 	apiClient := client.FromContext(ctx).API()
-	cfg := app.ConfigFromContext(ctx)
+	cfg := appv2.ConfigFromContext(ctx)
 	if cfg == nil {
 		terminal.Debug("no local app config detected; fetching from backend ...")
 
@@ -277,29 +277,36 @@ func getAppConfig(ctx context.Context, appName string) (*app.Config, error) {
 			return nil, err
 		}
 
-		cfg = &app.Config{
-			Definition: apiConfig.Definition,
-		}
-
-		cfg.AppName = basicApp.Name
-		return cfg, nil
-	} else {
-		parsedCfg, err := apiClient.ParseConfig(ctx, appName, cfg.Definition)
+		cfg, err := appv2.FromDefinition(&apiConfig.Definition)
 		if err != nil {
 			return nil, err
 		}
-		// FIXME: ignore this for machines... (flyctl needs a validator for machines)
-		if !parsedCfg.Valid {
-			fmt.Println()
-			if len(parsedCfg.Errors) > 0 {
-				terminal.Errorf("\nConfiguration errors in %s:\n\n", cfg.Path)
-			}
-			for _, e := range parsedCfg.Errors {
-				terminal.Errorf("   %s\n", e)
-			}
-			fmt.Println()
-			return nil, errors.New("error app configuration is not valid")
-		}
+		cfg.AppName = basicApp.Name
 		return cfg, nil
 	}
+
+	definition, err := cfg.ToDefinition()
+	if err != nil {
+		return nil, err
+	}
+
+	parsedCfg, err := apiClient.ParseConfig(ctx, appName, *definition)
+	if err != nil {
+		return nil, err
+	}
+
+	// FIXME: ignore this for machines... (flyctl needs a validator for machines)
+	if !parsedCfg.Valid {
+		fmt.Println()
+		if len(parsedCfg.Errors) > 0 {
+			terminal.Errorf("\nConfiguration errors in %s:\n\n", cfg.FlyTomlPath)
+		}
+		for _, e := range parsedCfg.Errors {
+			terminal.Errorf("   %s\n", e)
+		}
+		fmt.Println()
+		return nil, errors.New("error app configuration is not valid")
+	}
+
+	return cfg, nil
 }

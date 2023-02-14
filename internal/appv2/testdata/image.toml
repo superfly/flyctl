@@ -1,0 +1,4 @@
+app = "image"
+
+[build]
+  image = "image/name"

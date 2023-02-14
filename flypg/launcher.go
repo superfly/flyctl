@@ -342,22 +342,22 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 
 	machineConfig.Checks = map[string]api.MachineCheck{
 		"pg": {
-			Port:     5500,
-			Type:     "http",
+			Port:     api.Pointer(5500),
+			Type:     api.Pointer("http"),
 			HTTPPath: &checkPathPg,
 			Interval: &api.Duration{Duration: duration15s},
 			Timeout:  &api.Duration{Duration: duration10s},
 		},
 		"role": {
-			Port:     5500,
-			Type:     "http",
+			Port:     api.Pointer(5500),
+			Type:     api.Pointer("http"),
 			HTTPPath: &checkPathRole,
 			Interval: &api.Duration{Duration: duration15s},
 			Timeout:  &api.Duration{Duration: duration10s},
 		},
 		"vm": {
-			Port:     5500,
-			Type:     "http",
+			Port:     api.Pointer(5500),
+			Type:     api.Pointer("http"),
 			HTTPPath: &checkPathVm,
 			Interval: &api.Duration{Duration: duration1m},
 			Timeout:  &api.Duration{Duration: duration10s},

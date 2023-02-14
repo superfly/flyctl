@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"strings"
@@ -25,6 +26,8 @@ import (
 )
 
 var NonceHeader = "fly-machine-lease-nonce"
+
+const headerFlyRequestId = "fly-request-id"
 
 type Client struct {
 	app        *api.AppCompact
@@ -362,7 +365,16 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 	}()
 
 	if resp.StatusCode > 299 {
-		return handleAPIError(resp)
+		responseBody, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			responseBody = make([]byte, 0)
+		}
+		return &FlapsError{
+			OriginalError:      handleAPIError(resp.StatusCode, responseBody),
+			ResponseStatusCode: resp.StatusCode,
+			ResponseBody:       responseBody,
+			FlyRequestId:       resp.Header.Get(headerFlyRequestId),
+		}
 	}
 	if out != nil {
 		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
@@ -404,17 +416,17 @@ func (f *Client) NewRequest(ctx context.Context, method, path string, in interfa
 	return req, nil
 }
 
-func handleAPIError(resp *http.Response) error {
-	switch resp.StatusCode / 100 {
+func handleAPIError(statusCode int, responseBody []byte) error {
+	switch statusCode / 100 {
 	case 1, 3:
-		return fmt.Errorf("API returned unexpected status, %d", resp.StatusCode)
+		return fmt.Errorf("API returned unexpected status, %d", statusCode)
 	case 4, 5:
 		apiErr := struct {
 			Error   string `json:"error"`
 			Message string `json:"message,omitempty"`
 		}{}
-		if err := json.NewDecoder(resp.Body).Decode(&apiErr); err != nil {
-			return fmt.Errorf("request returned non-2xx status, %d", resp.StatusCode)
+		if err := json.Unmarshal(responseBody, &apiErr); err != nil {
+			return fmt.Errorf("request returned non-2xx status, %d", statusCode)
 		}
 		if apiErr.Message != "" {
 			return fmt.Errorf("%s", apiErr.Message)

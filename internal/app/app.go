@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"reflect"
 	"strings"
@@ -17,11 +16,10 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/go-playground/validator/v10"
-	"github.com/google/shlex"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/scanner"
 )
 
 const (
@@ -40,7 +38,7 @@ func NewConfig() *Config {
 }
 
 // LoadConfig loads the app config at the given path.
-func LoadConfig(ctx context.Context, path string) (cfg *Config, err error) {
+func LoadConfig(ctx context.Context, path string, platformVersion string) (cfg *Config, err error) {
 	cfg = &Config{
 		Definition: map[string]interface{}{},
 	}
@@ -56,7 +54,14 @@ func LoadConfig(ctx context.Context, path string) (cfg *Config, err error) {
 	}()
 
 	cfg.Path = path
+	cfg.platformVersion = platformVersion
+
+	if platformVersion == "" {
+		cfg.DeterminePlatform(ctx, file)
+	}
+
 	err = cfg.unmarshalTOML(file)
+
 	return
 }
 
@@ -67,210 +72,37 @@ type SlimConfig struct {
 
 // Config wraps the properties of app configuration.
 type Config struct {
-	AppName       string                 `toml:"app,omitempty" json:"app,omitempty"`
-	Build         *Build                 `toml:"build,omitempty" json:"build,omitempty"`
-	HttpService   *HttpService           `toml:"http_service,omitempty" json:"http_service,omitempty"`
-	Definition    map[string]interface{} `toml:"definition,omitempty" json:"definition,omitempty"`
-	Path          string                 `toml:"path,omitempty" json:"path,omitempty"`
-	Services      []Service              `toml:"services" json:"services,omitempty"`
-	Env           map[string]string      `toml:"env" json:"env,omitempty"`
-	Metrics       *api.MachineMetrics    `toml:"metrics" json:"metrics,omitempty"`
-	Statics       []*Static              `toml:"statics,omitempty" json:"statics,omitempty"`
-	Deploy        *Deploy                `toml:"deploy, omitempty" json:"deploy,omitempty"`
-	PrimaryRegion string                 `toml:"primary_region,omitempty" json:"primary_region,omitempty"`
-	Checks        map[string]*Check      `toml:"checks,omitempty" json:"checks,omitempty"`
-	Mounts        *scanner.Volume        `toml:"mounts,omitempty" json:"mounts,omitempty"`
-	Processes     map[string]string      `toml:"processes,omitempty" json:"processes,omitempty"`
+	AppName         string                      `toml:"app,omitempty"`
+	Build           *Build                      `toml:"build,omitempty"`
+	HttpService     *HttpService                `toml:"http_service,omitempty"`
+	Definition      map[string]interface{}      `toml:"definition,omitempty"`
+	Path            string                      `toml:"path,omitempty"`
+	Services        []api.MachineService        `toml:"services"`
+	Env             map[string]string           `toml:"env" json:"env"`
+	Metrics         *api.MachineMetrics         `toml:"metrics" json:"metrics"`
+	Statics         []*Static                   `toml:"statics,omitempty" json:"statics"`
+	Deploy          *Deploy                     `toml:"deploy, omitempty"`
+	PrimaryRegion   string                      `toml:"primary_region,omitempty"`
+	Checks          map[string]api.MachineCheck `toml:"checks,omitempty"`
+	platformVersion string
 }
 
 type Deploy struct {
 	ReleaseCommand string `toml:"release_command,omitempty"`
-	Strategy       string `toml:"strategy,omitempty"`
 }
 
 type Static struct {
 	GuestPath string `toml:"guest_path" json:"guest_path" validate:"required"`
 	UrlPrefix string `toml:"url_prefix" json:"url_prefix" validate:"required"`
 }
+type Volume struct {
+	Source      string `toml:"source" json:"source"`
+	Destination string `toml:"destination" json:"destination"`
+}
 type HttpService struct {
 	InternalPort int                            `json:"internal_port" toml:"internal_port" validate:"required,numeric"`
 	ForceHttps   bool                           `toml:"force_https"`
 	Concurrency  *api.MachineServiceConcurrency `toml:"concurrency,omitempty"`
-}
-
-type Service struct {
-	Protocol     string                         `json:"protocol" toml:"protocol"`
-	InternalPort int                            `json:"internal_port" toml:"internal_port"`
-	Ports        []api.MachinePort              `json:"ports" toml:"ports"`
-	Concurrency  *api.MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
-	TcpChecks    []*TcpCheck                    `json:"tcp_checks,omitempty" toml:"tcp_checks,omitempty"`
-	HttpChecks   []*HttpCheck                   `json:"http_checks,omitempty" toml:"http_checks,omitempty"`
-	Processes    []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
-}
-
-func (hs *HttpService) ToMachineService() *api.MachineService {
-	concurrency := hs.Concurrency
-	if concurrency != nil {
-		if concurrency.Type == "" {
-			concurrency.Type = "requests"
-		}
-		if concurrency.HardLimit == 0 {
-			concurrency.HardLimit = 25
-		}
-		if concurrency.SoftLimit == 0 {
-			concurrency.SoftLimit = int(math.Ceil(float64(concurrency.HardLimit) * 0.8))
-		}
-	}
-	return &api.MachineService{
-		Protocol:     "tcp",
-		InternalPort: hs.InternalPort,
-		Ports: []api.MachinePort{{
-			Port:       api.IntPointer(80),
-			Handlers:   []string{"http"},
-			ForceHttps: hs.ForceHttps,
-		}, {
-			Port:     api.IntPointer(443),
-			Handlers: []string{"http", "tls"},
-		}},
-		Concurrency: concurrency,
-	}
-
-}
-
-func (s *Service) ToMachineService() *api.MachineService {
-	return &api.MachineService{
-		Protocol:     s.Protocol,
-		InternalPort: s.InternalPort,
-		Ports:        s.Ports,
-		Concurrency:  s.Concurrency,
-	}
-}
-
-type TcpCheck struct {
-	Interval     *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
-	Timeout      *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
-	GracePeriod  *api.Duration `json:"grace_period,omitempty" toml:"grace_period,omitempty"`
-	RestartLimit int           `json:"restart_limit,omitempty" toml:"restart_limit,omitempty"`
-}
-
-type HttpCheck struct {
-	Interval      *api.Duration     `json:"interval,omitempty" toml:"interval,omitempty"`
-	Timeout       *api.Duration     `json:"timeout,omitempty" toml:"timeout,omitempty"`
-	GracePeriod   *api.Duration     `json:"grace_period,omitempty" toml:"grace_period,omitempty"`
-	RestartLimit  int               `json:"restart_limit,omitempty" toml:"restart_limit,omitempty"`
-	HTTPMethod    string            `json:"method,omitempty" toml:"method,omitempty"`
-	HTTPPath      string            `json:"path,omitempty" toml:"path,omitempty"`
-	HTTPProtocol  string            `json:"protocol,omitempty" toml:"protocol,omitempty"`
-	TLSSkipVerify bool              `json:"tls_skip_verify,omitempty" toml:"tls_skip_verify,omitempty"`
-	Headers       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
-}
-
-type Check struct {
-	Type          string            `json:"type,omitempty" toml:"type,omitempty"`
-	Port          int               `json:"port,omitempty" toml:"port,omitempty"`
-	Interval      *api.Duration     `json:"interval,omitempty" toml:"interval,omitempty"`
-	Timeout       *api.Duration     `json:"timeout,omitempty" toml:"timeout,omitempty"`
-	GracePeriod   *api.Duration     `json:"grace_period,omitempty" toml:"grace_period,omitempty"`
-	RestartLimit  int               `json:"restart_limit,omitempty" toml:"restart_limit,omitempty"`
-	HTTPMethod    string            `json:"method,omitempty" toml:"method,omitempty"`
-	HTTPPath      string            `json:"path,omitempty" toml:"path,omitempty"`
-	HTTPProtocol  string            `json:"protocol,omitempty" toml:"protocol,omitempty"`
-	TLSSkipVerify bool              `json:"tls_skip_verify,omitempty" toml:"tls_skip_verify,omitempty"`
-	Headers       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
-}
-
-func (c *Check) toMachineCheck(launching bool) (*api.MachineCheck, error) {
-	// don't error when launching; it's a bad experience!
-	if !launching && c.GracePeriod != nil {
-		return nil, fmt.Errorf("checks for machines do not yet support grace_period")
-	}
-	if c.RestartLimit != 0 {
-		return nil, fmt.Errorf("checks for machines do not yet support restart_limit")
-	}
-	if c.HTTPProtocol != "" {
-		return nil, fmt.Errorf("checks for machines do not yet support protocol")
-	}
-	if len(c.Headers) > 0 {
-		return nil, fmt.Errorf("checks for machines do not yet support headers")
-	}
-	res := &api.MachineCheck{
-		Type:     c.Type,
-		Port:     uint16(c.Port),
-		Interval: c.Interval,
-		Timeout:  c.Timeout,
-	}
-	switch c.Type {
-	case "tcp":
-	case "http":
-		methodUpper := strings.ToUpper(c.HTTPMethod)
-		res.HTTPMethod = &methodUpper
-		res.HTTPPath = &c.HTTPPath
-		// FIXME: enable this when machines support it
-		// res.TLSSkipVerify = &c.TLSSkipVerify
-	default:
-		return nil, fmt.Errorf("error unknown check type: %s", c.Type)
-	}
-	return res, nil
-}
-
-func (c *Check) String() string {
-	switch c.Type {
-	case "tcp":
-		return fmt.Sprintf("tcp-%d", c.Port)
-	case "http":
-		return fmt.Sprintf("http-%d-%s", c.Port, c.HTTPMethod)
-	default:
-		return fmt.Sprintf("%s-%d", c.Type, c.Port)
-	}
-}
-
-func (hc *HttpCheck) toMachineCheck(port int, launching bool) (*api.MachineCheck, error) {
-	// don't error when launching; it's a bad experience!
-	if !launching && hc.GracePeriod != nil {
-		return nil, fmt.Errorf("checks for machines do not yet support grace_period")
-	}
-	if hc.RestartLimit != 0 {
-		return nil, fmt.Errorf("checks for machines do not yet support restart_limit")
-	}
-	if hc.HTTPProtocol != "" {
-		return nil, fmt.Errorf("checks for machines do not yet support protocol")
-	}
-	if len(hc.Headers) > 0 {
-		return nil, fmt.Errorf("checks for machines do not yet support headers")
-	}
-	methodUpper := strings.ToUpper(hc.HTTPMethod)
-	return &api.MachineCheck{
-		Type:       "http",
-		Port:       uint16(port),
-		Interval:   hc.Interval,
-		Timeout:    hc.Timeout,
-		HTTPMethod: &methodUpper,
-		HTTPPath:   &hc.HTTPPath,
-	}, nil
-}
-
-func (hc *HttpCheck) String(port int) string {
-	return fmt.Sprintf("http-%d-%s", port, hc.HTTPMethod)
-}
-
-func (tc *TcpCheck) toMachineCheck(port int, launching bool) (*api.MachineCheck, error) {
-	// don't error when launching; it's a bad experience!
-	if !launching && tc.GracePeriod != nil {
-		return nil, fmt.Errorf("checks for machines do not yet support grace_period")
-	}
-	if tc.RestartLimit != 0 {
-		return nil, fmt.Errorf("checks for machines do not yet support restart_limit")
-	}
-	return &api.MachineCheck{
-		Type:     "tcp",
-		Port:     uint16(port),
-		Interval: tc.Interval,
-		Timeout:  tc.Timeout,
-	}, nil
-}
-
-func (tc *TcpCheck) String(port int) string {
-	return fmt.Sprintf("tcp-%d", port)
 }
 
 type VM struct {
@@ -287,7 +119,26 @@ type Build struct {
 	Builtin           string                 `toml:"builtin,omitempty"`
 	Dockerfile        string                 `toml:"dockerfile,omitempty"`
 	Ignorefile        string                 `toml:"ignorefile,omitempty"`
-	DockerBuildTarget string                 `toml:"build-target,omitempty"`
+	DockerBuildTarget string                 `toml:"buildpacks,omitempty"`
+}
+
+// SetMachinesPlatform informs the TOML marshaller that this config is for the machines platform
+func (c *Config) SetMachinesPlatform() {
+	c.platformVersion = MachinesPlatform
+}
+
+// SetNomadPlatform informs the TOML marshaller that this config is for the nomad platform
+func (c *Config) SetNomadPlatform() {
+	c.platformVersion = NomadPlatform
+}
+
+func (c *Config) SetPlatformVersion(platform string) {
+	c.platformVersion = platform
+}
+
+// ForMachines is true when the config is intended for the machines platform
+func (c *Config) ForMachines() bool {
+	return c.platformVersion == MachinesPlatform
 }
 
 func (c *Config) HasDefinition() bool {
@@ -300,35 +151,6 @@ func (ac *Config) HasBuilder() bool {
 
 func (ac *Config) HasBuiltin() bool {
 	return ac.Build != nil && ac.Build.Builtin != ""
-}
-
-func (c *Config) HasNonHttpAndHttpsStandardServices() bool {
-	for _, service := range c.Services {
-		switch service.Protocol {
-		case "udp":
-			return true
-		case "tcp":
-			for _, p := range service.Ports {
-				if p.HasNonHttpPorts() {
-					return true
-				} else if p.ContainsPort(80) && (len(p.Handlers) != 1 || p.Handlers[0] != "http") {
-					return true
-				} else if p.ContainsPort(443) && (len(p.Handlers) != 2 || p.Handlers[0] != "tls" || p.Handlers[1] != "http") {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
-func (c *Config) HasUdpService() bool {
-	for _, service := range c.Services {
-		if service.Protocol == "udp" {
-			return true
-		}
-	}
-	return false
 }
 
 func (ac *Config) Image() string {
@@ -363,25 +185,139 @@ func (c *Config) EncodeTo(w io.Writer) error {
 	return c.marshalTOML(w)
 }
 
-func (c *Config) unmarshalTOML(r io.ReadSeeker) error {
-	var definition map[string]interface{}
-	_, err := toml.NewDecoder(r).Decode(&definition)
+func (c *Config) DeterminePlatform(ctx context.Context, r io.ReadSeeker) (err error) {
+	client := client.FromContext(ctx)
+	slimConfig := &SlimConfig{}
+	_, err = toml.NewDecoder(r).Decode(&slimConfig)
+
 	if err != nil {
 		return err
 	}
-	delete(definition, "app")
-	delete(definition, "build")
-	// FIXME: i need to better understand what Definition is being used for
-	_, err = r.Seek(0, io.SeekStart)
+
+	basicApp, err := client.API().GetAppBasic(ctx, slimConfig.AppName)
 	if err != nil {
 		return err
 	}
-	_, err = toml.NewDecoder(r).Decode(&c)
-	if err != nil {
-		return err
+
+	if basicApp.PlatformVersion == MachinesPlatform {
+		c.SetMachinesPlatform()
+	} else {
+		c.SetNomadPlatform()
 	}
-	c.Definition = definition
+
+	return
+}
+
+func (c *Config) unmarshalTOML(r io.ReadSeeker) (err error) {
+	var data map[string]interface{}
+
+	slimConfig := &SlimConfig{}
+
+	// Fetch the app name only, to check which platform we're on via the API
+	if _, err = toml.NewDecoder(r).Decode(&slimConfig); err == nil {
+
+		if err != nil {
+			return err
+		}
+
+		// Rewind TOML in preparation for parsing the full config
+		r.Seek(0, io.SeekStart)
+		if c.ForMachines() {
+			_, err = toml.NewDecoder(r).Decode(&c)
+
+			if err != nil {
+				return err
+			}
+
+		} else {
+			_, err = toml.NewDecoder(r).Decode(&data)
+
+			if err != nil {
+				return err
+			}
+
+			err = c.unmarshalNativeMap(data)
+		}
+	}
+
+	return
+}
+
+func (c *Config) unmarshalNativeMap(data map[string]interface{}) error {
+	if name, ok := (data["app"]).(string); ok {
+		c.AppName = name
+	}
+	delete(data, "app")
+
+	c.Build = unmarshalBuild(data)
+	delete(data, "build")
+
+	for k := range c.Definition {
+		delete(c.Definition, k)
+	}
+	c.Definition = data
+
 	return nil
+}
+
+func unmarshalBuild(data map[string]interface{}) *Build {
+	buildConfig, ok := (data["build"]).(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	b := &Build{
+		Args:       map[string]string{},
+		Settings:   map[string]interface{}{},
+		Buildpacks: []string{},
+	}
+
+	configValueSet := false
+	for k, v := range buildConfig {
+		switch k {
+		case "builder":
+			b.Builder = fmt.Sprint(v)
+			configValueSet = configValueSet || b.Builder != ""
+		case "buildpacks":
+			if bpSlice, ok := v.([]interface{}); ok {
+				for _, argV := range bpSlice {
+					b.Buildpacks = append(b.Buildpacks, fmt.Sprint(argV))
+				}
+			}
+		case "args":
+			if argMap, ok := v.(map[string]interface{}); ok {
+				for argK, argV := range argMap {
+					b.Args[argK] = fmt.Sprint(argV)
+				}
+			}
+		case "builtin":
+			b.Builtin = fmt.Sprint(v)
+			configValueSet = configValueSet || b.Builtin != ""
+		case "settings":
+			if settingsMap, ok := v.(map[string]interface{}); ok {
+				for settingK, settingV := range settingsMap {
+					b.Settings[settingK] = settingV // fmt.Sprint(argV)
+				}
+			}
+		case "image":
+			b.Image = fmt.Sprint(v)
+			configValueSet = configValueSet || b.Image != ""
+		case "dockerfile":
+			b.Dockerfile = fmt.Sprint(v)
+			configValueSet = configValueSet || b.Dockerfile != ""
+		case "build_target", "build-target":
+			b.DockerBuildTarget = fmt.Sprint(v)
+			configValueSet = configValueSet || b.DockerBuildTarget != ""
+		default:
+			b.Args[k] = fmt.Sprint(v)
+		}
+	}
+
+	if !configValueSet && len(b.Args) == 0 {
+		return nil
+	}
+
+	return b
 }
 
 func (c *Config) marshalTOML(w io.Writer) error {
@@ -389,6 +325,13 @@ func (c *Config) marshalTOML(w io.Writer) error {
 
 	encoder := toml.NewEncoder(&b)
 	fmt.Fprintf(w, "# fly.toml file generated for %s on %s\n\n", c.AppName, time.Now().Format(time.RFC3339))
+
+	// For machines apps, encode and write directly, bypassing custom marshalling
+	if c.platformVersion == MachinesPlatform {
+		encoder.Encode(&c)
+		_, err := b.WriteTo(w)
+		return err
+	}
 
 	rawData := map[string]interface{}{
 		"app": c.AppName,
@@ -712,131 +655,10 @@ func (c *Config) SetProcess(name, value string) {
 	c.Definition["processes"] = processes
 }
 
-func (c *Config) SetStatics(statics []scanner.Static) {
+func (c *Config) SetStatics(statics []Static) {
 	c.Definition["statics"] = statics
 }
 
-func (c *Config) SetVolumes(volumes []scanner.Volume) {
+func (c *Config) SetVolumes(volumes []Volume) {
 	c.Definition["mounts"] = volumes
-}
-
-type ProcessConfig struct {
-	Cmd             []string
-	MachineServices []api.MachineService
-	MachineChecks   map[string]api.MachineCheck
-}
-
-func (c *Config) GetProcessConfigs(appLaunching bool) (map[string]ProcessConfig, error) {
-	res := make(map[string]ProcessConfig)
-	processCount := 0
-	if c.Processes != nil {
-		processCount = len(c.Processes)
-	}
-	defaultProcessName := ""
-	firstProcessNameOrDefault := ""
-	if processCount == 1 {
-		for procName := range c.Processes {
-			firstProcessNameOrDefault = procName
-			break
-		}
-	}
-	if processCount > 0 {
-		for processName := range c.Processes {
-			cmdStr := c.Processes[processName]
-			cmd := make([]string, 0)
-			if cmdStr != "" {
-				splitCmd, err := shlex.Split(cmdStr)
-				if err != nil {
-					return nil, fmt.Errorf("could not parse command for %s process group: %w", processName, err)
-				}
-				cmd = splitCmd
-			}
-			res[processName] = ProcessConfig{
-				Cmd:             cmd,
-				MachineServices: make([]api.MachineService, 0),
-				MachineChecks:   make(map[string]api.MachineCheck),
-			}
-		}
-	} else {
-		res[defaultProcessName] = ProcessConfig{
-			Cmd:             make([]string, 0),
-			MachineServices: make([]api.MachineService, 0),
-			MachineChecks:   make(map[string]api.MachineCheck),
-		}
-	}
-	for checkName, check := range c.Checks {
-		fullCheckName := fmt.Sprintf("chk-%s-%s", checkName, check.String())
-		machineCheck, err := check.toMachineCheck(appLaunching)
-		if err != nil {
-			return nil, err
-		}
-		for processName := range res {
-			procToUpdate := res[processName]
-			procToUpdate.MachineChecks[fullCheckName] = *machineCheck
-			res[processName] = procToUpdate
-		}
-	}
-	if c.HttpService != nil {
-		if processCount > 1 {
-			return nil, fmt.Errorf("http_service is not supported when more than one processes are defined for an app, and this app has %d processes", processCount)
-		}
-		servicesToUpdate := res[firstProcessNameOrDefault]
-		servicesToUpdate.MachineServices = append(servicesToUpdate.MachineServices, *c.HttpService.ToMachineService())
-		res[firstProcessNameOrDefault] = servicesToUpdate
-	}
-	for _, service := range c.Services {
-		if len(service.Processes) == 0 && processCount > 0 {
-			return nil, fmt.Errorf("error service has no processes set and app has %d processes defined; update fly.toml to set processes for each service", processCount)
-		} else if len(service.Processes) == 0 || processCount == 0 {
-			processName := firstProcessNameOrDefault
-			procConfigToUpdate, present := res[processName]
-			if processCount > 0 && !present {
-				return nil, fmt.Errorf("error service specifies '%s' as one of its processes, but no processes are defined with that name; update fly.toml [processes] to include a %s process", processName, processName)
-			}
-			procConfigToUpdate.MachineServices = append(procConfigToUpdate.MachineServices, *service.ToMachineService())
-			for _, httpCheck := range service.HttpChecks {
-				checkName := fmt.Sprintf("svcchk-%s", httpCheck.String(service.InternalPort))
-				machineCheck, err := httpCheck.toMachineCheck(service.InternalPort, appLaunching)
-				if err != nil {
-					return nil, err
-				}
-				procConfigToUpdate.MachineChecks[checkName] = *machineCheck
-			}
-			for _, tcpCheck := range service.TcpChecks {
-				checkName := fmt.Sprintf("svcchk-%s", tcpCheck.String(service.InternalPort))
-				machineCheck, err := tcpCheck.toMachineCheck(service.InternalPort, appLaunching)
-				if err != nil {
-					return nil, err
-				}
-				procConfigToUpdate.MachineChecks[checkName] = *machineCheck
-			}
-			res[processName] = procConfigToUpdate
-		} else { // len(service.Processes) > 0 && processCount > 0
-			for _, processName := range service.Processes {
-				procConfigToUpdate, present := res[processName]
-				if !present {
-					return nil, fmt.Errorf("error service specifies '%s' as one of its processes, but no processes are defined with that name; update fly.toml [processes] to include a %s process", processName, processName)
-				}
-				procConfigToUpdate.MachineServices = append(procConfigToUpdate.MachineServices, *service.ToMachineService())
-				for _, httpCheck := range service.HttpChecks {
-					checkName := fmt.Sprintf("svcchk-%s", httpCheck.String(service.InternalPort))
-					machineCheck, err := httpCheck.toMachineCheck(service.InternalPort, appLaunching)
-					if err != nil {
-						return nil, err
-					}
-					procConfigToUpdate.MachineChecks[checkName] = *machineCheck
-				}
-				for _, tcpCheck := range service.TcpChecks {
-					checkName := fmt.Sprintf("svcchk-%s", tcpCheck.String(service.InternalPort))
-					machineCheck, err := tcpCheck.toMachineCheck(service.InternalPort, appLaunching)
-					if err != nil {
-						return nil, err
-					}
-					procConfigToUpdate.MachineChecks[checkName] = *machineCheck
-				}
-				res[processName] = procConfigToUpdate
-			}
-		}
-	}
-	return res, nil
 }
