@@ -129,7 +129,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 	if err != nil {
 		return err
 	}
-	deployToMachines, err := useMachines(ctx, *appConfig, appCompact, args)
+	deployToMachines, err := useMachines(ctx, appConfig, appCompact, args)
 	if err != nil {
 		return err
 	}
@@ -217,7 +217,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 	return err
 }
 
-func useMachines(ctx context.Context, appConfig app.Config, appCompact *api.AppCompact, args DeployWithConfigArgs) (bool, error) {
+func useMachines(ctx context.Context, appConfig *app.Config, appCompact *api.AppCompact, args DeployWithConfigArgs) (bool, error) {
 	switch {
 	case appCompact.PlatformVersion == appv2.AppsV2Platform:
 		return true, nil
