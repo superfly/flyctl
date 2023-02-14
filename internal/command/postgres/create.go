@@ -123,9 +123,9 @@ func run(ctx context.Context) (err error) {
 		Manager:               flypg.StolonManager,
 	}
 
-	params.Manager = flypg.ReplicationManager
-	if flag.GetBool(ctx, "stolon") {
-		params.Manager = flypg.StolonManager
+	params.Manager = flypg.StolonManager
+	if flag.GetBool(ctx, "flex") {
+		params.Manager = flypg.ReplicationManager
 	}
 
 	return CreateCluster(ctx, org, region, params)
@@ -177,6 +177,7 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 		if params.InitialClusterSize == 0 {
 			defaultClusterSize := 3
 			clusterSizePrompt := "Initial cluster size - Specify at least 3 for HA"
+
 			if input.Manager == flypg.StolonManager {
 				clusterSizePrompt = "Initial cluster size"
 				defaultClusterSize = 2
