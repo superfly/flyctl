@@ -25,7 +25,19 @@ type Machine struct {
 }
 
 func (m Machine) FullImageRef() string {
-	return fmt.Sprintf("%s/%s:%s", m.ImageRef.Registry, m.ImageRef.Repository, m.ImageRef.Tag)
+	imgStr := fmt.Sprintf("%s/%s", m.ImageRef.Registry, m.ImageRef.Repository)
+	tag := m.ImageRef.Tag
+	digest := m.ImageRef.Digest
+
+	if tag != "" && digest != "" {
+		imgStr = fmt.Sprintf("%s:%s@%s", imgStr, tag, digest)
+	} else if digest != "" {
+		imgStr = fmt.Sprintf("%s@%s", imgStr, digest)
+	} else if tag != "" {
+		imgStr = fmt.Sprintf("%s:%s", imgStr, tag)
+	}
+
+	return imgStr
 }
 
 func (m Machine) ImageRefWithVersion() string {
