@@ -526,6 +526,60 @@ func (c *Config) SetInternalPort(port int) bool {
 	return false
 }
 
+func (c *Config) SetHttpCheck(path string) bool {
+	services, ok := c.Definition["services"].([]interface{})
+	if !ok {
+		return false
+	}
+
+	if len(services) == 0 {
+		return false
+	}
+
+	if service, ok := services[0].(map[string]interface{}); ok {
+		check := map[string]interface{}{
+			"interval":        10000,
+			"grace_period":    "5s",
+			"method":          "get",
+			"protocol":        "http",
+			"restart_limit":   0,
+			"timeout":         2000,
+			"tls_skip_verify": false,
+		}
+
+		check["path"] = path
+
+		service["http_checks"] = []map[string]interface{}{check}
+
+		return true
+	}
+
+	return false
+}
+
+func (c *Config) SetConcurrency(soft int, hard int) bool {
+	services, ok := c.Definition["services"].([]interface{})
+	if !ok {
+		return false
+	}
+
+	if len(services) == 0 {
+		return false
+	}
+
+	if service, ok := services[0].(map[string]interface{}); ok {
+
+		if concurrency, ok := service["concurrency"].(map[string]interface{}); ok {
+			concurrency["hard_limit"] = hard
+			concurrency["soft_limit"] = soft
+			return true
+
+		}
+	}
+
+	return false
+}
+
 func (c *Config) InternalPort() (int, error) {
 	tmpservices, ok := c.Definition["services"]
 	if !ok {

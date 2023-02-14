@@ -9,7 +9,6 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -67,7 +66,7 @@ func newCreate() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "machines",
-			Description: "Create postgres cluster on fly machines",
+			Description: "Create a postgres cluster on fly machines",
 			Default:     true,
 		},
 		flag.Bool{
@@ -76,8 +75,8 @@ func newCreate() *cobra.Command {
 			Default:     false,
 		},
 		flag.Bool{
-			Name:        "repmgr",
-			Description: "Create a postgres cluster on top of fly machines that is managed by Repmgr. ( Experimental )",
+			Name:        "flex",
+			Description: "Create a postgres cluster that runs our new flex implementation. (Preview)",
 			Default:     false,
 		},
 	)
@@ -94,7 +93,7 @@ func run(ctx context.Context) (err error) {
 	appName := flag.GetString(ctx, "name")
 
 	if appName == "" {
-		if appName, err = apps.SelectAppName(ctx); err != nil {
+		if appName, err = prompt.SelectAppName(ctx); err != nil {
 			return
 		}
 	}
@@ -137,7 +136,7 @@ func run(ctx context.Context) (err error) {
 		Manager:               flypg.StolonManager,
 	}
 
-	if flag.GetBool(ctx, "repmgr") {
+	if flag.GetBool(ctx, "flex") {
 		params.Manager = flypg.ReplicationManager
 	}
 

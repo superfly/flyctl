@@ -418,3 +418,13 @@ func SelectVMSize(ctx context.Context, vmSizes []api.VMSize) (vmSize *api.VMSize
 	}
 	return &vmSizes[index], nil
 }
+
+func SelectAppName(ctx context.Context) (name string, err error) {
+	const msg = "Choose an app name (leave blank to generate one):"
+
+	if err = String(ctx, &name, msg, "", false); IsNonInteractive(err) {
+		err = NonInteractiveError("name argument or flag must be specified when not running interactively")
+	}
+
+	return
+}

@@ -46,6 +46,14 @@ func runMachineKill(ctx context.Context) (err error) {
 
 	app, err := appFromMachineOrName(ctx, machineID, appName)
 	if err != nil {
+		help := newKill().Help()
+
+		if help != nil {
+			fmt.Println(help)
+
+		}
+
+		fmt.Println()
 		return err
 	}
 

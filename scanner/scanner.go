@@ -10,7 +10,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-//go:embed templates templates/*/.dockerignore templates/*/*/.dockerignore templates/**/.fly
+//go:embed templates templates/*/.dockerignore templates/**/.fly
 var content embed.FS
 
 type InitCommand struct {
@@ -53,6 +53,9 @@ type SourceInfo struct {
 	InitCommands                 []InitCommand
 	PostgresInitCommands         []InitCommand
 	PostgresInitCommandCondition bool
+	Concurrency                  map[string]int
+	Callback                     func(srcInfo *SourceInfo, options map[string]bool) error
+	HttpCheckPath                string
 }
 
 type SourceFile struct {

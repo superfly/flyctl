@@ -1,104 +1,26 @@
 package scanner
 
 import (
+	"io/fs"
 	"os"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
+
+	"github.com/pkg/errors"
 )
+
+var healthcheck_channel = make(chan string)
 
 func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, dirContains("Gemfile", "rails")) {
 		return nil, nil
 	}
 
-	vars := make(map[string]interface{})
-
 	s := &SourceInfo{
-		Family: "Rails",
-		Port:   8080,
-		Statics: []Static{
-			{
-				GuestPath: "/app/public",
-				UrlPrefix: "/",
-			},
-		},
-		PostgresInitCommands: []InitCommand{
-			{
-				Command:     "bundle",
-				Args:        []string{"add", "pg"},
-				Description: "Adding the 'pg' gem for Postgres database support",
-				Condition:   !checksPass(sourceDir, dirContains("Gemfile", "pg")),
-			},
-		},
-		ReleaseCmd: "bin/rails fly:release",
-		Env: map[string]string{
-			"PORT": "8080",
-		},
-		BuildArgs: map[string]string{
-			"BUILD_COMMAND":  "bin/rails fly:build",
-			"SERVER_COMMAND": "bin/rails fly:server",
-		},
-	}
-
-	var rubyVersion string
-	var bundlerVersion string
-	var nodeVersion string = "latest"
-	var yarnVersion string = "latest"
-
-	out, err := exec.Command("node", "-v").Output()
-
-	if err == nil {
-		nodeVersion = strings.TrimSpace(string(out))
-		if nodeVersion[:1] == "v" {
-			nodeVersion = nodeVersion[1:]
-		}
-	}
-
-	out, err = exec.Command("yarn", "-v").Output()
-
-	if err == nil {
-		yarnVersion = strings.TrimSpace(string(out))
-	}
-
-	rubyVersion, err = extractRubyVersion("Gemfile.lock", "Gemfile", ".ruby_version")
-
-	if err != nil || rubyVersion == "" {
-		rubyVersion = "3.1.2"
-
-		out, err := exec.Command("ruby", "-v").Output()
-		if err == nil {
-
-			version := strings.TrimSpace(string(out))
-			re := regexp.MustCompile(`ruby (?P<version>[\d.]+)`)
-			m := re.FindStringSubmatch(version)
-
-			for i, name := range re.SubexpNames() {
-				if len(m) > 0 && name == "version" {
-					rubyVersion = m[i]
-				}
-			}
-		}
-	}
-
-	bundlerVersion, err = extractBundlerVersion("Gemfile.lock")
-
-	if err != nil || bundlerVersion == "" {
-		bundlerVersion = "2.3.21"
-
-		out, err := exec.Command("bundle", "-v").Output()
-		if err == nil {
-
-			version := strings.TrimSpace(string(out))
-			re := regexp.MustCompile(`Bundler version (?P<version>[\d.]+)`)
-			m := re.FindStringSubmatch(version)
-
-			for i, name := range re.SubexpNames() {
-				if len(m) > 0 && name == "version" {
-					bundlerVersion = m[i]
-				}
-			}
-		}
+		Family:   "Rails",
+		Callback: RailsCallback,
 	}
 
 	// master.key comes with Rails apps from v5.2 onwards, but may not be present
@@ -118,99 +40,137 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 				Value: string(masterKey),
 			},
 		}
+	} else {
+		// support Rails 4 through 5.1 applications, or ones that started out
+		// there and never were fully upgraded.
+		out, err := exec.Command("rake", "secret").Output()
+
+		if err == nil {
+			s.Secrets = []Secret{
+				{
+					Key:   "SECRET_KEY_BASE",
+					Help:  "Secret key used to verify the integrity of signed cookies",
+					Value: strings.TrimSpace(string(out)),
+				},
+			}
+		}
 	}
-
-	_, err = os.Stat("node_modules")
-	vars["node"] = !os.IsNotExist(err)
-
-	_, err = os.Stat("yarn.lock")
-	vars["yarn"] = !os.IsNotExist(err)
-
-	vars["rubyVersion"] = rubyVersion
-	vars["bundlerVersion"] = bundlerVersion
-	vars["nodeVersion"] = nodeVersion
-	vars["yarnVersion"] = yarnVersion
-	s.Files = templatesExecute("templates/rails/standard", vars)
 
 	s.SkipDeploy = true
 	s.DeployDocs = `
 Your Rails app is prepared for deployment.
 
-If you need custom packages installed, or have problems with your deployment
-build, you may need to edit the Dockerfile for app-specific changes. If you
-need help, please post on https://community.fly.io.
+Before proceeding, please review the posted Rails FAQ:
+https://fly.io/docs/rails/getting-started/dockerfiles/.
 
-Now: run 'fly deploy' to deploy your Rails app.
+Once ready: run 'fly deploy' to deploy your Rails app.
 `
+
+	// fetch healthcheck route in a separate thread
+	go func() {
+		out, err := exec.Command("ruby", "./bin/rails", "runner",
+			"puts Rails.application.routes.url_helpers.rails_health_check_path").Output()
+
+		if err == nil {
+			healthcheck_channel <- strings.TrimSpace(string(out))
+		} else {
+			healthcheck_channel <- ""
+		}
+	}()
 
 	return s, nil
 }
 
-func extractRubyVersion(lockfilePath string, gemfilePath string, rubyVersionPath string) (string, error) {
-
-	var version string
-
-	lockfileContents, err := os.ReadFile(lockfilePath)
-
-	if err == nil {
-		re := regexp.MustCompile(`RUBY VERSION\s+ruby (?P<version>[\d.]+)`)
-		m := re.FindStringSubmatch(string(lockfileContents))
-
-		for i, name := range re.SubexpNames() {
-			if len(m) > 0 && name == "version" {
-				version = m[i]
-			}
-		}
-	}
-
-	if version == "" {
-		gemfileContents, err := os.ReadFile(gemfilePath)
-
-		if err != nil {
-			return "", err
-		}
-
-		re := regexp.MustCompile(`ruby \"(?P<version>[\d.]+)\"`)
-		m := re.FindStringSubmatch(string(gemfileContents))
-
-		for i, name := range re.SubexpNames() {
-			if len(m) > 0 && name == "version" {
-				version = m[i]
-			}
-		}
-	}
-
-	if version == "" {
-		if _, err := os.Stat(rubyVersionPath); err == nil {
-
-			versionString, err := os.ReadFile(rubyVersionPath)
-			if err != nil {
-				return "", err
-			}
-
-			version = string(versionString)
-		}
-	}
-
-	return version, nil
-}
-
-func extractBundlerVersion(gemfileLockPath string) (string, error) {
-	gemfileContents, err := os.ReadFile(gemfileLockPath)
-
-	var version string
-
+func RailsCallback(srcInfo *SourceInfo, options map[string]bool) error {
+	// install dockerfile-rails gem, if not already included
+	gemfile, err := os.ReadFile("Gemfile")
 	if err != nil {
-		return "", err
-	}
+		panic(err)
+	} else if !strings.Contains(string(gemfile), "dockerfile-rails") {
+		cmd := exec.Command("bundle", "add", "dockerfile-rails",
+			"--optimistic", "--group", "development", "--skip-install")
+		cmd.Stdin = nil
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
 
-	re := regexp.MustCompile(`BUNDLED WITH\n\s{3}(?P<version>[\d.]+)\n`)
-	m := re.FindStringSubmatch(string(gemfileContents))
-	for i, name := range re.SubexpNames() {
-		if len(m) > 0 && name == "version" {
-			version = m[i]
+		if err := cmd.Run(); err != nil {
+			return errors.Wrap(err, "Failed to add dockerfile-rails gem, exiting")
+		}
+
+		cmd = exec.Command("bundle", "install", "--quiet")
+		cmd.Stdin = nil
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			return errors.Wrap(err, "Failed to install dockerfile-rails gem, exiting")
 		}
 	}
 
-	return version, nil
+	// generate Dockerfile if it doesn't already exist
+	_, err = os.Stat("Dockerfile")
+	if errors.Is(err, fs.ErrNotExist) {
+		args := []string{"./bin/rails", "generate", "dockerfile",
+			"--label=fly_launch_runtime:rails"}
+
+		if options["postgresql"] {
+			args = append(args, "--postgresql")
+		}
+
+		if options["redis"] {
+			args = append(args, "--redis")
+		}
+
+		cmd := exec.Command("ruby", args...)
+		cmd.Stdin = nil
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			return errors.Wrap(err, "Failed to generate Dockefile")
+		}
+	}
+
+	// read dockerfile
+	dockerfile, err := os.ReadFile("Dockerfile")
+	if err != nil {
+		return errors.Wrap(err, "Dockerfile not found")
+	}
+
+	// extract port
+	port := 3000
+	re := regexp.MustCompile(`(?m)^EXPOSE\s+(?P<port>\d+)`)
+	m := re.FindStringSubmatch(string(dockerfile))
+
+	for i, name := range re.SubexpNames() {
+		if len(m) > 0 && name == "port" {
+			port, err = strconv.Atoi(m[i])
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
+	srcInfo.Port = port
+
+	// extract workdir
+	workdir := "/rails"
+	re = regexp.MustCompile(`(?m).*^WORKDIR\s+(?P<dir>/\S+)`)
+	m = re.FindStringSubmatch(string(dockerfile))
+
+	for i, name := range re.SubexpNames() {
+		if len(m) > 0 && name == "dir" {
+			workdir = m[i]
+		}
+	}
+
+	srcInfo.Statics = []Static{
+		{
+			GuestPath: workdir + "/public",
+			UrlPrefix: "/",
+		},
+	}
+
+	srcInfo.HttpCheckPath = <-healthcheck_channel
+
+	return nil
 }

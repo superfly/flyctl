@@ -8,6 +8,7 @@ import (
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/command"
 
 	"github.com/superfly/flyctl/api"
@@ -108,13 +109,14 @@ func runScaleCount(cmdCtx *cmdctx.CmdContext) error {
 		return fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine clone instead")
 	}
 
+	defaultGroupName := getDefaultGroupName(cmdCtx.AppConfig)
 	groups := map[string]int{}
 
 	// single numeric arg: fly scale count 3
 	if len(cmdCtx.Args) == 1 {
 		count, err := strconv.Atoi(cmdCtx.Args[0])
 		if err == nil {
-			groups["app"] = count
+			groups[defaultGroupName] = count
 		}
 	}
 
@@ -323,4 +325,24 @@ func formatMemory(size api.VMSize) string {
 		return fmt.Sprintf("%d MB", size.MemoryMB)
 	}
 	return fmt.Sprintf("%d GB", int(size.MemoryGB))
+}
+
+func getDefaultGroupName(cfg *flyctl.AppConfig) string {
+	name := "app"
+	if cfg == nil {
+		return name
+	}
+
+	procsDef, ok := cfg.Definition["processes"]
+	if !ok {
+		return name
+	}
+
+	if procs, ok := procsDef.(map[string]interface{}); ok && len(procs) == 1 {
+		for k := range procs {
+			return k
+		}
+	}
+
+	return name
 }

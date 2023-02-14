@@ -79,16 +79,25 @@ func newClone() *cobra.Command {
 
 func runMachineClone(ctx context.Context) (err error) {
 	var (
-		args     = flag.Args(ctx)
-		out      = iostreams.FromContext(ctx).Out
-		appName  = app.NameFromContext(ctx)
-		io       = iostreams.FromContext(ctx)
-		colorize = io.ColorScheme()
-		client   = client.FromContext(ctx).API()
+		machineID = flag.FirstArg(ctx)
+		out       = iostreams.FromContext(ctx).Out
+		appName   = app.NameFromContext(ctx)
+		io        = iostreams.FromContext(ctx)
+		colorize  = io.ColorScheme()
+		client    = client.FromContext(ctx).API()
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
+		help := newClone().Help()
+
+		if help != nil {
+			fmt.Println(help)
+
+		}
+
+		fmt.Println()
+
 		return err
 	}
 	appConfig, err := getAppConfig(ctx, appName)
@@ -99,25 +108,9 @@ func runMachineClone(ctx context.Context) (err error) {
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
 
-	var source *api.Machine
-
-	if len(args) > 0 {
-		source, err = flapsClient.Get(ctx, args[0])
-		if err != nil {
-			return err
-		}
-	} else {
-		fmt.Fprintf(out, "No machine ID specified, so picking one at random\n")
-		machines, err := flapsClient.List(ctx, "started")
-		if err != nil {
-			return err
-		}
-
-		source, err = flapsClient.Get(ctx, machines[0].ID)
-		if err != nil {
-			return err
-		}
-		fmt.Fprintf(out, "Picked %s for cloning\n", source.ID)
+	source, err := flapsClient.Get(ctx, machineID)
+	if err != nil {
+		return err
 	}
 
 	region := flag.GetString(ctx, "region")
@@ -161,6 +154,19 @@ func runMachineClone(ctx context.Context) (err error) {
 	if targetConfig.AutoDestroy {
 		fmt.Fprintf(io.Out, "Auto destroy enabled and will destroy machine on exit. Use --clear-auto-destroy to remove this setting.\n")
 	}
+
+	image := fmt.Sprintf("%s/%s", source.ImageRef.Registry, source.ImageRef.Repository)
+	tag := source.ImageRef.Tag
+	digest := source.ImageRef.Digest
+	if tag != "" && digest != "" {
+		image = fmt.Sprintf("%s:%s@%s", image, tag, digest)
+	} else if digest != "" {
+		image = fmt.Sprintf("%s@%s", image, digest)
+	} else if tag != "" {
+		image = fmt.Sprintf("%s:%s", image, tag)
+	}
+	targetConfig.Image = image
+
 	for _, mnt := range source.Config.Mounts {
 		var vol *api.Volume
 
@@ -229,6 +235,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		Region: region,
 		Config: targetConfig,
 	}
+
 	fmt.Fprintf(out, "Provisioning a new machine with image %s...\n", source.Config.Image)
 
 	launchedMachine, err := flapsClient.Launch(ctx, input)

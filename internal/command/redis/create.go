@@ -78,7 +78,7 @@ func runCreate(ctx context.Context) (err error) {
 		}
 	}
 
-	excludedRegions, err := getExcludedRegions(ctx)
+	excludedRegions, err := GetExcludedRegions(ctx)
 
 	if err != nil {
 		return err
@@ -112,7 +112,7 @@ func Create(ctx context.Context, org *api.Organization, name string, region *api
 		colorize = io.ColorScheme()
 	)
 
-	excludedRegions, err := getExcludedRegions(ctx)
+	excludedRegions, err := GetExcludedRegions(ctx)
 
 	if err != nil {
 		return nil, err
@@ -227,32 +227,4 @@ func ProvisionDatabase(ctx context.Context, org *api.Organization, config RedisC
 	}
 
 	return &response.CreateAddOn.AddOn, nil
-}
-
-func getExcludedRegions(ctx context.Context) (excludedRegions []string, err error) {
-	client := client.FromContext(ctx).API().GenqClient
-
-	_ = `# @genqlient
-	query GetAddOnProvider($name: String!) {
-		addOnProvider(name: $name) {
-			id
-			name
-			excludedRegions {
-				code
-			}
-		}
-	}
-	`
-
-	response, err := gql.GetAddOnProvider(ctx, client, "upstash_redis")
-
-	if err != nil {
-		return nil, err
-	}
-
-	for _, region := range response.AddOnProvider.ExcludedRegions {
-		excludedRegions = append(excludedRegions, region.Code)
-	}
-
-	return
 }

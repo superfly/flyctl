@@ -16,6 +16,10 @@ func configurePhoenix(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 
 	s := &SourceInfo{
 		Family: "Phoenix",
+		Concurrency: map[string]int{
+			"soft_limit": 1000,
+			"hard_limit": 1000,
+		},
 		Secrets: []Secret{
 			{
 				Key:  "SECRET_KEY_BASE",

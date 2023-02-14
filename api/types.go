@@ -21,7 +21,7 @@ type Query struct {
 	AppMonitoring        AppMonitoring
 	AppPostgres          AppPostgres
 	AppCertsCompact      AppCertsCompact
-	CurrentUser          User
+	Viewer               User
 	PersonalOrganization Organization
 	GqlMachine           GqlMachine
 	Organizations        struct {

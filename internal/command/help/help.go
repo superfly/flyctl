@@ -110,7 +110,7 @@ Networking configuration:
 		fmt.Printf(`
 Monitoring and managing things:
 `)
-		listCommands([]string{"logs", "list", "status", "dashboard", "dig", "ping", "ssh", "sftp"})
+		listCommands([]string{"logs", "status", "dashboard", "dig", "ping", "ssh", "sftp"})
 
 		fmt.Printf(`
 Access control:
