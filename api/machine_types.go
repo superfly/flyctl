@@ -345,7 +345,7 @@ type MachineConfig struct {
 	Env         map[string]string       `json:"env,omitempty"`
 	Init        MachineInit             `json:"init,omitempty"`
 	Processes   []MachineProcess        `json:"processes,omitempty"`
-	Image       string                  `json:"image",omitempty`
+	Image       string                  `json:"image,omitempty"`
 	Metadata    map[string]string       `json:"metadata,omitempty"`
 	Mounts      []MachineMount          `json:"mounts,omitempty"`
 	Restart     MachineRestart          `json:"restart,omitempty"`
