@@ -89,6 +89,10 @@ func runCreate(ctx context.Context) (err error) {
 		ExcludedRegionCodes: excludedRegions,
 	})
 
+	if err != nil {
+		return err
+	}
+
 	var enableEviction bool = false
 
 	if flag.GetBool(ctx, "enable-eviction") {
