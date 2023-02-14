@@ -6853,6 +6853,7 @@ type Organization implements Node {
   Organization name
   """
   name: String!
+  paidPlan: Boolean!
 
   """
   Email for paid plan support if available
@@ -7654,6 +7655,7 @@ type Region {
   """
   name: String!
   processGroup: String
+  requiresPaidPlan: Boolean!
 }
 
 enum RegionEnum {
