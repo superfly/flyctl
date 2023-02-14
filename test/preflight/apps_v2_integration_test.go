@@ -59,7 +59,11 @@ func TestAppsV2Example(t *testing.T) {
 	cmdStr = fmt.Sprintf("%s %s", flyctlBin, argsStr)
 	cmd = exec.CommandContext(ctx, flyctlBin, args...)
 	cmd.Dir = tempDir
-	cmd.Env = append(cmd.Env, fmt.Sprintf("FLY_ACCESS_TOKEN=%s", flyAccessToken), fmt.Sprintf("HOME=%s", tempDir))
+	cmd.Env = append(cmd.Env,
+		fmt.Sprintf("FLY_ACCESS_TOKEN=%s", flyAccessToken),
+		fmt.Sprintf("HOME=%s", tempDir),
+		// "LOG_LEVEL=debug",
+	)
 	output, err = cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("error [command]: %s [error]: %v [output]: %s", cmdStr, err, string(output))
@@ -67,7 +71,7 @@ func TestAppsV2Example(t *testing.T) {
 	var orgMap map[string]string
 	err = json.Unmarshal(output, &orgMap)
 	if err != nil {
-		t.Fatalf("failed to parse json: %v", err)
+		t.Fatalf("failed to parse json: %v [output]: %s\n", err, string(output))
 	}
 	if _, present := orgMap[flyOrg]; !present {
 		t.Fatalf("could not find org with name '%s' in `%s` output: %s", flyOrg, cmdStr, string(output))

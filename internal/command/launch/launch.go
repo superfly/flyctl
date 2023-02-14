@@ -273,6 +273,8 @@ func run(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+	ctx = app.WithName(ctx, createdApp.Name)
+	ctx = appv2.WithName(ctx, createdApp.Name)
 	if !importedConfig {
 		appConfig.Definition = createdApp.Config.Definition
 	}
