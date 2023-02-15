@@ -65,13 +65,13 @@ func newCreate() *cobra.Command {
 			Hidden: true,
 		},
 		flag.Bool{
-			Name:        "machines",
-			Description: "Create a postgres cluster on fly machines",
+			Name:        "stolon",
+			Description: "Create a postgres cluster that's managed by Stolon",
 			Default:     true,
 		},
 		flag.Bool{
 			Name:        "flex",
-			Description: "Create a postgres cluster that runs our new flex implementation. (Preview)",
+			Description: "Create a postgres cluster that's managed by Repmgr",
 			Default:     false,
 		},
 	)
@@ -82,9 +82,7 @@ func newCreate() *cobra.Command {
 // Since we want to be able to create PG clusters from other commands,
 // we pass the name, region and org to CreateCluster. Other flags that don't prompt may
 // be safely passed through from other commands.
-
 func run(ctx context.Context) (err error) {
-
 	appName := flag.GetString(ctx, "name")
 
 	if appName == "" {
@@ -125,6 +123,7 @@ func run(ctx context.Context) (err error) {
 		Manager:               flypg.StolonManager,
 	}
 
+	params.Manager = flypg.StolonManager
 	if flag.GetBool(ctx, "flex") {
 		params.Manager = flypg.ReplicationManager
 	}
@@ -155,18 +154,17 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 		fmt.Fprintf(io.Out, "For pricing information visit: https://fly.io/docs/about/pricing/#postgresql-clusters")
 
 		msg := "Select configuration:"
-
 		var selected int
 
 		options := []string{}
-		for _, cfg := range postgresConfigurations() {
+		for _, cfg := range postgresConfigurations(input.Manager) {
 			options = append(options, cfg.Description)
 		}
 
 		if err := prompt.Select(ctx, &selected, msg, "", options...); err != nil {
 			return err
 		}
-		config = &postgresConfigurations()[selected]
+		config = &postgresConfigurations(input.Manager)[selected]
 
 		if config.VMSize == "" {
 			// User has opted into choosing a custom configuration.
@@ -177,7 +175,15 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 	if customConfig {
 		// Resolve cluster size
 		if params.InitialClusterSize == 0 {
-			err := prompt.Int(ctx, &params.InitialClusterSize, "Initial cluster size", 2, true)
+			defaultClusterSize := 3
+			clusterSizePrompt := "Initial cluster size - Specify at least 3 for HA"
+
+			if input.Manager == flypg.StolonManager {
+				clusterSizePrompt = "Initial cluster size"
+				defaultClusterSize = 2
+			}
+
+			err := prompt.Int(ctx, &params.InitialClusterSize, clusterSizePrompt, defaultClusterSize, true)
 			if err != nil {
 				return err
 			}
@@ -260,11 +266,14 @@ type ClusterParams struct {
 	Manager    string
 }
 
-func postgresConfigurations() []PostgresConfiguration {
-	return postgresMachineConfigurations()
+func postgresConfigurations(manager string) []PostgresConfiguration {
+	if manager == flypg.StolonManager {
+		return stolonConfigurations()
+	}
+	return flexConfigurations()
 }
 
-func postgresMachineConfigurations() []PostgresConfiguration {
+func stolonConfigurations() []PostgresConfiguration {
 	return []PostgresConfiguration{
 		{
 			Description:        "Development - Single node, 1x shared CPU, 256MB RAM, 1GB disk",
@@ -284,6 +293,39 @@ func postgresMachineConfigurations() []PostgresConfiguration {
 			Description:        "Production - Highly available, 4x shared CPUs, 8GB RAM, 80GB disk",
 			DiskGb:             80,
 			InitialClusterSize: 2,
+			MemoryMb:           8192,
+			VMSize:             "shared-cpu-4x",
+		},
+		{
+			Description:        "Specify custom configuration",
+			DiskGb:             0,
+			InitialClusterSize: 0,
+			MemoryMb:           0,
+			VMSize:             "",
+		},
+	}
+}
+
+func flexConfigurations() []PostgresConfiguration {
+	return []PostgresConfiguration{
+		{
+			Description:        "Development - Single node, 1x shared CPU, 256MB RAM, 1GB disk",
+			DiskGb:             1,
+			InitialClusterSize: 1,
+			MemoryMb:           256,
+			VMSize:             "shared-cpu-1x",
+		},
+		{
+			Description:        "Production - Highly available, 2x shared CPUs, 4GB RAM, 40GB disk",
+			DiskGb:             40,
+			InitialClusterSize: 3,
+			MemoryMb:           4096,
+			VMSize:             "shared-cpu-2x",
+		},
+		{
+			Description:        "Production - Highly available, 4x shared CPUs, 8GB RAM, 80GB disk",
+			DiskGb:             80,
+			InitialClusterSize: 3,
 			MemoryMb:           8192,
 			VMSize:             "shared-cpu-4x",
 		},
