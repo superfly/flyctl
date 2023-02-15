@@ -204,6 +204,14 @@ func runConsole(ctx context.Context) error {
 		Mode:   "xterm",
 	}
 
+	currentStdin, currentStdout, currentStderr, err := setupConsole()
+	defer func() error {
+		if err := cleanupConsole(currentStdin, currentStdout, currentStderr); err != nil {
+			return err
+		}
+		return nil
+	}()
+
 	if err := sshc.Shell(params.Ctx, term, params.Cmd); err != nil {
 		captureError(err, app)
 		return errors.Wrap(err, "ssh shell")
