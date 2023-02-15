@@ -268,11 +268,19 @@ type ImageVersion struct {
 }
 
 func (img *ImageVersion) FullImageRef() string {
-	return fmt.Sprintf("%s/%s:%s", img.Registry, img.Repository, img.Tag)
-}
+	imgStr := fmt.Sprintf("%s/%s", img.Registry, img.Repository)
+	tag := img.Tag
+	digest := img.Digest
 
-func (img *ImageVersion) ImageRef() string {
-	return fmt.Sprintf("%s:%s", img.Repository, img.Tag)
+	if tag != "" && digest != "" {
+		imgStr = fmt.Sprintf("%s:%s@%s", imgStr, tag, digest)
+	} else if digest != "" {
+		imgStr = fmt.Sprintf("%s@%s", imgStr, digest)
+	} else if tag != "" {
+		imgStr = fmt.Sprintf("%s:%s", imgStr, tag)
+	}
+
+	return imgStr
 }
 
 type App struct {

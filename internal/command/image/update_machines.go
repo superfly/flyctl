@@ -38,6 +38,8 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) error {
 			return err
 		}
 
+		machineConf.Image = machine.FullImageRef()
+
 		image, err := resolveImage(ctx, *machine)
 		if err != nil {
 			return err
@@ -111,7 +113,7 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 			continue
 		}
 
-		if machine.ImageRef.Labels["fly.pg-manager"] == "flex" {
+		if machine.ImageRef.Labels["fly.pg-manager"] == "repmgr" {
 			flex = true
 		}
 
@@ -125,6 +127,11 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 		image, err := resolveImage(ctx, *machine)
 		if err != nil {
 			return err
+		}
+
+		// Skip image update if images already match
+		if machine.Config.Image == image {
+			continue
 		}
 
 		machineConf.Image = image
@@ -273,7 +280,7 @@ func resolveImage(ctx context.Context, machine api.Machine) (string, error) {
 		}
 
 		if image == "" {
-			image = machine.Config.Image
+			image = machine.FullImageRef()
 		}
 	}
 
