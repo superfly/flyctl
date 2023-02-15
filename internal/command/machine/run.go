@@ -636,6 +636,14 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		machineConf.Schedule = flag.GetString(ctx, "schedule")
 	}
 
+	if command := flag.GetString(ctx, "command"); command != "" {
+		split, err := shlex.Split(command)
+		if err != nil {
+			return machineConf, errors.Wrap(err, "invalid command")
+		}
+		machineConf.Init.Cmd = split
+	}
+
 	// Metadata
 	parsedMetadata, err := parseKVFlag(ctx, "metadata", machineConf.Metadata)
 	if err != nil {
@@ -666,7 +674,14 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		machineConf.Init.Entrypoint = splitted
 	}
 
-	if cmd := flag.Args(ctx)[1:]; len(cmd) > 0 {
+	// `machine update` and `machine run` both use `determineMachineConfig`` to populate
+	// `machineConf`, but `update` uses `-a` to set an app while `run` uses the
+	// first argument.
+	// Since these are mutually exclusive, we distinguish between them by
+	// checking if `len(machineConf.Init.Cmd) == 0` and is already set, in which case we're being
+	// called from `run`.
+	// Otherwise, pull the command from the first positional argument.
+	if cmd := flag.Args(ctx)[1:]; len(cmd) > 0 && len(machineConf.Init.Cmd) == 0 {
 		machineConf.Init.Cmd = cmd
 	}
 
