@@ -407,7 +407,8 @@ func MultiSelectRegion(ctx context.Context, msg string, paid []api.Region, regio
 	var indices []int
 
 	if isInteractive(ctx) && len(paid) > 0 {
-		fmt.Printf("Some regions require a paid plan (%s).\nSee https://fly.io/plans to set up a plan.\n\n", strings.Join(lo.Map(paid, func(r api.Region, _ int) string { return r.Code }), ", "))
+		io := iostreams.FromContext(ctx)
+		fmt.Fprintf(io.ErrOut, "Some regions require a paid plan (%s).\nSee https://fly.io/plans to set up a plan.\n\n", strings.Join(lo.Map(paid, func(r api.Region, _ int) string { return r.Code }), ", "))
 	}
 
 	for i, r := range regions {
