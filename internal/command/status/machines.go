@@ -93,26 +93,71 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 		fmt.Fprintln(io.ErrOut, colorize.Yellow("Run `flyctl image update` to migrate to the latest image version."))
 	}
 
+	managed, unmanaged := []*api.Machine{}, []*api.Machine{}
+
+	for _, machine := range machines {
+
+		if machine.Config != nil && machine.Config.Metadata != nil {
+
+			if machine.Config.Metadata[api.MachineConfigMetadataKeyFlyPlatformVersion] == api.MachineFlyPlatformVersion2 {
+				managed = append(managed, machine)
+			} else {
+				unmanaged = append(unmanaged, machine)
+			}
+
+		}
+
+	}
+
 	obj := [][]string{{app.Name, app.Organization.Slug, app.Hostname, app.PlatformVersion}}
 	if err := render.VerticalTable(io.Out, "App", obj, "Name", "Owner", "Hostname", "Platform"); err != nil {
 		return err
 	}
 
-	rows := [][]string{}
-	for _, machine := range machines {
+	if len(managed) > 0 {
+		rows := [][]string{}
+		for _, machine := range managed {
+			rows = append(rows, []string{
+				machine.ID,
+				machine.State,
+				machine.Region,
+				getProcessgroup(machine),
+				render.MachineHealthChecksSummary(machine),
+				machine.ImageRefWithVersion(),
+				machine.CreatedAt,
+				machine.UpdatedAt,
+			})
+		}
 
-		rows = append(rows, []string{
-			machine.ID,
-			machine.State,
-			machine.Region,
-			getProcessgroup(machine),
-			render.MachineHealthChecksSummary(machine),
-			machine.ImageRefWithVersion(),
-			machine.CreatedAt,
-			machine.UpdatedAt,
-		})
+		err := render.Table(io.Out, "Managed Machines", rows, "ID", "State", "Region", "Process_Group", "Health checks", "Image", "Created", "Updated")
+		if err != nil {
+			return err
+		}
 	}
-	return render.Table(io.Out, "", rows, "ID", "State", "Region", "Process Group", "Health checks", "Image", "Created", "Updated")
+
+	if len(unmanaged) > 0 {
+		rows := [][]string{}
+		for _, machine := range unmanaged {
+			rows = append(rows, []string{
+				machine.ID,
+				machine.State,
+				machine.Region,
+				getProcessgroup(machine),
+				render.MachineHealthChecksSummary(machine),
+				machine.ImageRefWithVersion(),
+				machine.CreatedAt,
+				machine.UpdatedAt,
+			})
+		}
+
+		err := render.Table(io.Out, "Unmanaged Machines", rows, "ID", "State", "Region", "Process_Group", "Health checks", "Image", "Created", "Updated")
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+
 }
 
 func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Machine) (err error) {
