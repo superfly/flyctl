@@ -234,3 +234,14 @@ jobs:
           ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
           commit_message: ${{ github.event.ref }}
           force_push: "true"
+  winget-publish:
+    name: Publish to Winget
+    needs: release
+    if: ${{ !contains(github.ref, 'pre') }}
+    runs-on: windows-latest # Action can only be run on windows
+    steps:
+      - uses: vedantmgoyal2009/winget-releaser@v2
+        with:
+          identifier: Fly-io.flyctl
+          installers-regex: '_Windows_\w+\.zip$'
+          token: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
