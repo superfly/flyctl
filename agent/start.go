@@ -69,7 +69,7 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 	default:
 		log := readLogFile(logFile)
 
-		err = &startError{
+		err = &StartError{
 			error:   err,
 			logFile: logFile,
 			log:     log,
@@ -124,19 +124,19 @@ func readLogFile(path string) (log string) {
 	return string(data)
 }
 
-type startError struct {
+type StartError struct {
 	error
 	logFile string
 	log     string
 }
 
-func (*startError) Error() string {
+func (*StartError) Error() string {
 	return "agent: failed to start"
 }
 
-func (se *startError) Unwrap() error { return se.error }
+func (se *StartError) Unwrap() error { return se.error }
 
-func (se *startError) Description() string {
+func (se *StartError) Description() string {
 	var sb strings.Builder
 
 	fmt.Fprintln(&sb, "The agent failed to start with the following error log:")
