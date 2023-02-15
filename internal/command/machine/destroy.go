@@ -41,7 +41,7 @@ func newDestroy() *cobra.Command {
 		},
 	)
 
-	cmd.Args = cobra.MinimumNArgs(1)
+	cmd.Args = cobra.ExactArgs(1)
 
 	return cmd
 }

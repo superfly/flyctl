@@ -23,7 +23,7 @@ func newUpdate() *cobra.Command {
 		short = "Update a machine"
 		long  = short + "\n"
 
-		usage = "update [machine_id]"
+		usage = "update <machine_id>"
 	)
 
 	cmd := command.New(usage, short, long, runUpdate,

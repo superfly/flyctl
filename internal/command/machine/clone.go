@@ -31,7 +31,7 @@ func newClone() *cobra.Command {
 		command.LoadAppNameIfPresent,
 	)
 
-	cmd.Args = cobra.MaximumNArgs(1)
+	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(
 		cmd,
