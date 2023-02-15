@@ -175,12 +175,12 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 	if customConfig {
 		// Resolve cluster size
 		if params.InitialClusterSize == 0 {
-			defaultClusterSize := 3
-			clusterSizePrompt := "Initial cluster size - Specify at least 3 for HA"
+			clusterSizePrompt := "Initial cluster size"
+			defaultClusterSize := 2
 
-			if input.Manager == flypg.StolonManager {
-				clusterSizePrompt = "Initial cluster size"
-				defaultClusterSize = 2
+			if input.Manager == flypg.ReplicationManager {
+				defaultClusterSize = 3
+				clusterSizePrompt = "Initial cluster size - Specify at least 3 for HA"
 			}
 
 			err := prompt.Int(ctx, &params.InitialClusterSize, clusterSizePrompt, defaultClusterSize, true)

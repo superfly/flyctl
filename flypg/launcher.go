@@ -102,10 +102,10 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 
 		machineConf.Image = config.ImageRef
 		if machineConf.Image == "" {
-			imageRepo := "flyio/postgres-flex"
+			imageRepo := "flyio/postgres"
 
-			if config.Manager == StolonManager {
-				imageRepo = "flyio/postgres"
+			if config.Manager == ReplicationManager {
+				imageRepo = "flyio/postgres-flex"
 			}
 
 			imageRef, err := client.GetLatestImageTag(ctx, imageRepo, config.SnapshotID)

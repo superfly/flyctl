@@ -23,7 +23,7 @@ func newUpdate() *cobra.Command {
 		short = "Update a machine"
 		long  = short + "\n"
 
-		usage = "update [machine_id]"
+		usage = "update <machine_id>"
 	)
 
 	cmd := command.New(usage, short, long, runUpdate,
@@ -40,6 +40,11 @@ func newUpdate() *cobra.Command {
 			Name:        "skip-health-checks",
 			Description: "Updates machine without waiting for health checks.",
 			Default:     false,
+		},
+		flag.String{
+			Name:        "command",
+			Shorthand:   "C",
+			Description: "Command to run",
 		},
 	)
 
