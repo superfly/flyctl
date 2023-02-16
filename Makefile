@@ -17,7 +17,7 @@ build: generate
 	@echo Running Build
 	go build -o bin/flyctl -ldflags="-X 'github.com/superfly/flyctl/internal/buildinfo.buildDate=$(NOW_RFC3339)' -X 'github.com/superfly/flyctl/internal/buildinfo.commit=$(GIT_COMMIT)'" .
 
-test:
+test: FORCE
 	go test ./... -ldflags="-X 'github.com/superfly/flyctl/internal/buildinfo.buildDate=$(NOW_RFC3339)'"
 
 preflight-test: build
@@ -30,3 +30,5 @@ cmddocs: generate
 
 pre:
 	pre-commit run --all-files
+
+FORCE:

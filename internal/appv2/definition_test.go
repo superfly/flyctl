@@ -99,10 +99,10 @@ func TestFromDefinition(t *testing.T) {
 				Processes: []string{"app"},
 				TCPChecks: []*ServiceTCPCheck{
 					{
-						Timeout:      api.MustParseDuration("2s"),
+						Timeout:      mustParseDuration("2s"),
 						RestartLimit: 0,
-						Interval:     api.MustParseDuration("15s"),
-						GracePeriod:  api.MustParseDuration("1s"),
+						Interval:     mustParseDuration("15s"),
+						GracePeriod:  mustParseDuration("1s"),
 					},
 				},
 			},
