@@ -20,8 +20,8 @@ build: generate
 test:
 	go test ./... -ldflags="-X 'github.com/superfly/flyctl/internal/buildinfo.buildDate=$(NOW_RFC3339)'"
 
-preflight-test:
-	go test ./test/preflight -v -ldflags="-X 'github.com/superfly/flyctl/internal/buildinfo.buildDate=$(NOW_RFC3339)' -X 'github.com/superfly/flyctl/internal/buildinfo.commit=$(GIT_COMMIT)'"
+preflight-test: build
+	go test ./test/preflight --tags=integration -v
 
 cmddocs: generate
 	@echo Running Docs Generation

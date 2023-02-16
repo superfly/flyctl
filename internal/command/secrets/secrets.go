@@ -62,6 +62,7 @@ func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Rel
 
 	if app.PlatformVersion == "machines" {
 		md, err := deploy.NewMachineDeployment(ctx, deploy.MachineDeploymentArgs{
+			AppCompact:       app,
 			RestartOnly:      true,
 			SkipHealthChecks: flag.GetBool(ctx, "detach"),
 		})
