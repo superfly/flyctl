@@ -9,23 +9,39 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func getProcessgroup(m *api.Machine) string {
-	var name string
-
+func getFromMetadata(m *api.Machine, key string) string {
 	if m.Config != nil && m.Config.Metadata != nil {
-		name = m.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
+		return m.Config.Metadata[key]
 	}
+
+	return ""
+}
+
+func getProcessgroup(m *api.Machine) string {
+	name := getFromMetadata(m, api.MachineConfigMetadataKeyFlyProcessGroup)
 
 	if name != "" {
 		return name
 	}
 
 	return "unknown"
+}
 
+func getReleaseVersion(m *api.Machine) string {
+	return getFromMetadata(m, api.MachineConfigMetadataKeyFlyReleaseVersion)
+}
+
+func getImage(m []*api.Machine) string {
+	// image is the same accross all machines in a single release
+	if len(m) > 0 {
+		return m[0].ImageRefWithVersion()
+	}
+	return "-"
 }
 
 func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
@@ -109,8 +125,8 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 
 	}
 
-	obj := [][]string{{app.Name, app.Organization.Slug, app.Hostname, app.PlatformVersion}}
-	if err := render.VerticalTable(io.Out, "App", obj, "Name", "Owner", "Hostname", "Platform"); err != nil {
+	obj := [][]string{{app.Name, app.Organization.Slug, app.Hostname, getImage(machines), app.PlatformVersion}}
+	if err := render.VerticalTable(io.Out, "App", obj, "Name", "Owner", "Hostname", "Image", "Platform"); err != nil {
 		return err
 	}
 
@@ -123,37 +139,21 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 				machine.Region,
 				getProcessgroup(machine),
 				render.MachineHealthChecksSummary(machine),
-				machine.ImageRefWithVersion(),
 				machine.CreatedAt,
 				machine.UpdatedAt,
+				getReleaseVersion(machine),
 			})
 		}
 
-		err := render.Table(io.Out, "Managed Machines", rows, "ID", "State", "Region", "Process_Group", "Health checks", "Image", "Created", "Updated")
+		err := render.Table(io.Out, "Machines", rows, "ID", "State", "Region", "Process Group", "Health checks", "Created", "Updated", "Version")
 		if err != nil {
 			return err
 		}
 	}
 
 	if len(unmanaged) > 0 {
-		rows := [][]string{}
-		for _, machine := range unmanaged {
-			rows = append(rows, []string{
-				machine.ID,
-				machine.State,
-				machine.Region,
-				getProcessgroup(machine),
-				render.MachineHealthChecksSummary(machine),
-				machine.ImageRefWithVersion(),
-				machine.CreatedAt,
-				machine.UpdatedAt,
-			})
-		}
-
-		err := render.Table(io.Out, "Unmanaged Machines", rows, "ID", "State", "Region", "Process_Group", "Health checks", "Image", "Created", "Updated")
-		if err != nil {
-			return err
-		}
+		cs, logger := io.ColorScheme(), logger.MaybeFromContext(ctx)
+		logger.Info("Found machines that aren't part of the Fly Apps Platform, run ", cs.Yellow("fly machines list"), " to see them.\n")
 	}
 
 	return nil
