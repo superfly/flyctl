@@ -774,7 +774,7 @@ func determineDockerIgnore(ctx context.Context, workingDir string) (err error) {
 func LaunchPostgres(ctx context.Context, appName string, org *api.Organization, region *api.Region) {
 	io := iostreams.FromContext(ctx)
 	clusterAppName := appName + "-db"
-	err := postgres.CreateCluster(ctx, org, region, "machines",
+	err := postgres.CreateCluster(ctx, org, region,
 		&postgres.ClusterParams{
 			PostgresConfiguration: postgres.PostgresConfiguration{
 				Name: clusterAppName,

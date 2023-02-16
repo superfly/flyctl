@@ -38,6 +38,8 @@ func newMachineExec() *cobra.Command {
 		},
 	)
 
+	cmd.Args = cobra.ExactArgs(2)
+
 	return cmd
 }
 
