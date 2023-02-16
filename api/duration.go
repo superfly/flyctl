@@ -19,11 +19,11 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &v); err != nil {
 		return err
 	}
-	return d.parseDuration(v)
+	return d.ParseDuration(v)
 }
 
 func (d *Duration) UnmarshalTOML(v any) error {
-	return d.parseDuration(v)
+	return d.ParseDuration(v)
 }
 
 func (d Duration) MarshalTOML() ([]byte, error) {
@@ -31,7 +31,7 @@ func (d Duration) MarshalTOML() ([]byte, error) {
 	return []byte(v), nil
 }
 
-func (d *Duration) parseDuration(v any) error {
+func (d *Duration) ParseDuration(v any) error {
 	if v == nil {
 		d.Duration = 0
 		return nil
@@ -52,12 +52,4 @@ func (d *Duration) parseDuration(v any) error {
 		return fmt.Errorf("Unknown duration type: %T", value)
 	}
 	return nil
-}
-
-func MustParseDuration(v any) *Duration {
-	d := &Duration{}
-	if err := d.parseDuration(v); err != nil {
-		panic(err)
-	}
-	return d
 }
