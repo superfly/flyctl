@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -115,6 +117,21 @@ func TestAppsV2Example(t *testing.T) {
 
 	result = env.Fly(t, "apps restart %s", appName)
 	result.AssertSuccessfulExit(t)
+
+	dockerfileContent := `FROM nginx:1.23.3
+
+ENV BUILT_BY_DOCKERFILE=true
+`
+	dockerfilePath := filepath.Join(env.homeDir, "Dockerfile")
+	err = os.WriteFile(dockerfilePath, []byte(dockerfileContent), 0644)
+	if err != nil {
+		t.Fatalf("failed to write dockerfile at %s error: %v", dockerfilePath, err)
+	}
+
+	result = env.Fly(t, "deploy")
+	result.AssertSuccessfulExit(t)
+
+	// FIXME: test the rest of the example:
 
 	// fly deploy
 

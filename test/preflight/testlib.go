@@ -194,6 +194,7 @@ func (f *flyctlTestEnv) FlyContext(t *testing.T, ctx context.Context, flyctlCmd 
 }
 
 func (f *flyctlTestEnv) StartAgent(t *testing.T) context.CancelFunc {
+	// FIXME: can we stop any existing agents?
 	ctx, cancelFunc := context.WithCancel(context.TODO())
 	go func() {
 		_ = f.FlyContext(t, ctx, "agent run")
