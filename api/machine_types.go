@@ -39,7 +39,7 @@ type Machine struct {
 	LeaseNonce string
 }
 
-func (m Machine) FullImageRef() string {
+func (m *Machine) FullImageRef() string {
 	imgStr := fmt.Sprintf("%s/%s", m.ImageRef.Registry, m.ImageRef.Repository)
 	tag := m.ImageRef.Tag
 	digest := m.ImageRef.Digest
@@ -55,7 +55,7 @@ func (m Machine) FullImageRef() string {
 	return imgStr
 }
 
-func (m Machine) ImageRefWithVersion() string {
+func (m *Machine) ImageRefWithVersion() string {
 	ref := fmt.Sprintf("%s:%s", m.ImageRef.Repository, m.ImageRef.Tag)
 	version := m.ImageRef.Labels["fly.version"]
 	if version != "" {
@@ -81,14 +81,14 @@ func (m *Machine) HasProcessGroup(desired string) bool {
 	return m.Config != nil && m.Config.Metadata[MachineConfigMetadataKeyFlyProcessGroup] == desired
 }
 
-func (m Machine) ImageVersion() string {
+func (m *Machine) ImageVersion() string {
 	if m.ImageRef.Labels == nil {
 		return ""
 	}
 	return m.ImageRef.Labels["fly.version"]
 }
 
-func (m Machine) ImageRepository() string {
+func (m *Machine) ImageRepository() string {
 	return m.ImageRef.Repository
 }
 

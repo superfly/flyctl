@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	genq "github.com/Khan/genqlient/graphql"
+	"github.com/superfly/flyctl/terminal"
 	"github.com/superfly/graphql"
 )
 
@@ -59,7 +60,7 @@ func NewClientWithBaseUrl(accessToken, name, version string, logger Logger, base
 }
 
 // NewRequest - creates a new GraphQL request
-func (c *Client) NewRequest(q string) *graphql.Request {
+func (*Client) NewRequest(q string) *graphql.Request {
 	q = compactQueryString(q)
 	return graphql.NewRequest(q)
 }
@@ -121,7 +122,12 @@ func GetAccessToken(ctx context.Context, email, password, otp string) (token str
 	if res, err = http.DefaultClient.Do(req); err != nil {
 		return
 	}
-	defer res.Body.Close()
+	defer func() {
+		err := res.Body.Close()
+		if err != nil {
+			terminal.Errorf("error closing response body: %v", err)
+		}
+	}()
 
 	switch {
 	case res.StatusCode >= http.StatusInternalServerError:
