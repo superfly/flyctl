@@ -161,7 +161,7 @@ func (mr *MachineRequest) GetExitCode() (int, error) {
 	if mr.MonitorEvent != nil && mr.MonitorEvent.ExitEvent != nil {
 		return mr.MonitorEvent.ExitEvent.ExitCode, nil
 	} else if mr.ExitEvent != nil {
-		return mr.MonitorEvent.ExitEvent.ExitCode, nil
+		return mr.ExitEvent.ExitCode, nil
 	} else {
 		return -1, fmt.Errorf("error no exit code in this MachineRequest")
 	}
