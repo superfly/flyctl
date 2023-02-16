@@ -625,6 +625,7 @@ func (md *machineDeployment) defaultMachineMetadata() map[string]string {
 		api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
 		api.MachineConfigMetadataKeyFlyReleaseId:       md.releaseId,
 		api.MachineConfigMetadataKeyFlyReleaseVersion:  strconv.Itoa(md.releaseVersion),
+		api.MachineConfigMetadataKeyFlyProcessGroup:    api.MachineProcessGroupApp,
 	}
 	if md.app.IsPostgresApp() {
 		res[api.MachineConfigMetadataKeyFlyManagedPostgres] = "true"
