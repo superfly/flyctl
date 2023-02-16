@@ -91,6 +91,9 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if len(appConfig.Statics) > 0 {
 		return nil, fmt.Errorf("error [statics] are not yet supported when deploying to machines; remove the [statics] section from fly.toml")
 	}
+	if args.AppCompact == nil {
+		return nil, fmt.Errorf("BUG: args.AppCompact should be set when calling this method")
+	}
 	flapsClient, err := flaps.New(ctx, args.AppCompact)
 	if err != nil {
 		return nil, err

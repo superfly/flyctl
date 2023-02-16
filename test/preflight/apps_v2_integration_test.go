@@ -1,71 +1,120 @@
-// FIXME: \\\\\build integration
+//go:build integration
+// +build integration
 
-package test
+package preflight
 
 import (
-	"bytes"
-	"context"
-	"crypto/rand"
-	"encoding/base32"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/google/shlex"
 	"github.com/stretchr/testify/assert"
-	"github.com/superfly/flyctl/internal/cli"
-	"github.com/superfly/flyctl/iostreams"
 )
 
 func TestAppsV2Example(t *testing.T) {
 	var (
 		err    error
-		result *flyCmdTest
+		result *flyctlResult
+		resp   *http.Response
 
-		orgSlug       = "tvd-preflight"        // FIXME: flag / env
-		primaryRegion = "sea"                  // FIXME: flag / env
-		otherRegions  = []string{"ams", "syd"} // FIXME: flag / env
-		// allRegions     = append([]string{primaryRegion}, otherRegions...)
 		appName = randomAppName(t)
+		appUrl  = fmt.Sprintf("https://%s.fly.dev", appName)
+		env     = newTestEnvFromEnv(t)
 	)
 
-	result = fly(t, "orgs list --json").Run(t).AssertSuccessfulExit(t)
+	result = env.Fly(t, "orgs list --json")
+	result.AssertSuccessfulExit(t)
 	var orgMap map[string]string
 	err = json.Unmarshal(result.stdOut.Bytes(), &orgMap)
 	if err != nil {
 		t.Fatalf("failed to parse json: %v [output]: %s\n", err, result.stdOut.String())
 	}
-	if _, present := orgMap[orgSlug]; !present {
-		t.Fatalf("could not find org with name '%s' in `%s` output: %s", orgSlug, result.cmdStr, result.stdOut.String())
+	if _, present := orgMap[env.orgSlug]; !present {
+		t.Fatalf("could not find org with name '%s' in `%s` output: %s", env.orgSlug, result.cmdStr, result.stdOut.String())
 	}
 
 	t.Cleanup(func() {
-		fly(t, "apps destroy --yes %s", appName).Run(t).AssertSuccessfulExit(t)
+		appDestroy := env.Fly(t, "apps destroy --yes %s", appName)
+		agentStop := env.Fly(t, "agent stop")
+		appDestroy.AssertSuccessfulExit(t)
+		agentStop.AssertSuccessfulExit(t)
 	})
 
-	result = fly(t, "launch --org %s --name %s --region %s --image nginx --force-machines --internal-port 80 --now --auto-confirm", orgSlug, appName, primaryRegion).Run(t)
+	result = env.Fly(t, "launch --org %s --name %s --region %s --image nginx --force-machines --internal-port 80 --now --auto-confirm", env.orgSlug, appName, env.primaryRegion)
 	result.AssertSuccessfulExit(t)
 	assert.Contains(t, result.stdOut.String(), "Using image nginx")
-	assert.Contains(t, result.stdOut.String(), fmt.Sprintf("Created app %s in organization %s", appName, orgSlug))
+	assert.Contains(t, result.stdOut.String(), fmt.Sprintf("Created app %s in organization %s", appName, env.orgSlug))
 	assert.Contains(t, result.stdOut.String(), "Wrote config file fly.toml")
-	// FIXME: set other regions
-	for _, r := range otherRegions {
-		// FIXME: set other regions...
-		t.Fatalf("FIXME: test launch in other regions! %s", r)
+
+	time.Sleep(10 * time.Second)
+	lastStatusCode := -1
+	attempts := 10
+	for i := 0; i < attempts; i++ {
+		resp, err = http.Get(appUrl)
+		if err == nil {
+			lastStatusCode = resp.StatusCode
+		}
+		if lastStatusCode == http.StatusOK {
+			break
+		} else {
+			time.Sleep(1 * time.Second)
+		}
+	}
+	if lastStatusCode == -1 {
+		t.Fatalf("error calling GET %s: %v", appUrl, err)
+	}
+	if lastStatusCode != http.StatusOK {
+		t.Fatalf("GET %s never returned 200 OK response after %d tries; last status code was: %d", appUrl, attempts, lastStatusCode)
 	}
 
-	// FIXME: do an interactive version, too
+	result = env.Fly(t, "m list --json")
+	result.AssertSuccessfulExit(t)
+	var machList []map[string]any
+	err = json.Unmarshal(result.stdOut.Bytes(), &machList)
+	if err != nil {
+		t.Fatalf("failed to parse json: %v [output]: %s\n", err, result.stdOut.String())
+	}
+	assert.Equal(t, 1, len(machList), "expected exactly 1 machine after launch")
+	firstMachine := machList[0]
+	firstMachineId, ok := firstMachine["id"].(string)
+	if !ok {
+		t.Fatalf("could find or convert id key to string from %s, stdout: %s firstMachine: %v", result.cmdStr, result.stdOut.String(), firstMachine)
+	}
 
-	// fly launch --image nginx --internal-port 80
-	// ? Would you like to set up a Postgresql database now? No
-	// ? Would you like to set up an Upstash Redis database now? No
-	// ? Would you like to deploy now? Yes
-	// ? Will you use statics for this app (see https://fly.io/docs/reference/configuration/#the-statics-sections)? No
+	secondReg := env.primaryRegion
+	if len(env.otherRegions) > 0 {
+		secondReg = env.otherRegions[0]
+	}
+	result = env.Fly(t, "m clone --region %s %s", secondReg, firstMachineId)
+	result.AssertSuccessfulExit(t)
+
+	result = env.Fly(t, "status")
+	result.AssertSuccessfulExit(t)
+	assert.Equal(t, 2, strings.Count(result.stdOut.String(), "started"), "expected 2 machines to be started after cloning the original, instead %s showed: %s", result.cmdStr, result.stdOut.String())
+
+	thirdReg := secondReg
+	if len(env.otherRegions) > 1 {
+		thirdReg = env.otherRegions[1]
+	}
+	result = env.Fly(t, "m clone --region %s %s", thirdReg, firstMachineId)
+	result.AssertSuccessfulExit(t)
+
+	result = env.Fly(t, "status")
+	result.AssertSuccessfulExit(t)
+	assert.Equal(t, 3, strings.Count(result.stdOut.String(), "started"), "expected 3 machines to be started after cloning the original, instead %s showed: %s", result.cmdStr, result.stdOut.String())
+
+	result = env.Fly(t, "secrets set PREFLIGHT_TESTING_SECRET=foo")
+	result.AssertSuccessfulExit(t)
+
+	result = env.Fly(t, "secrets list")
+	result.AssertSuccessfulExit(t)
+	assert.Contains(t, result.stdOut.String(), "PREFLIGHT_TESTING_SECRET")
+
+	result = env.Fly(t, "apps restart %s", appName)
+	result.AssertSuccessfulExit(t)
 
 	// fly deploy
 
@@ -74,10 +123,7 @@ func TestAppsV2Example(t *testing.T) {
 	// destination = "/my/new/director
 
 	// scaling
-	// fly machine clone 21781973f03e89
-	// fly machine clone --region syd 21781973f03e89
-	// fly machine clone --region ams 21781973f03e89
-	// fly machine stop 9080524f610e87
+	// fly machine stop   9080524f610e87
 	// fly machine remove 9080524f610e87
 	// fly machine remove --force 0e286039f42e86
 	// fly machine update --memory 1024 21781973f03e89
@@ -98,8 +144,6 @@ func TestAppsV2Example(t *testing.T) {
 
 	// call with --detach
 
-	// fly secrets set DB_PASSWORD=supersecret
-
 	// release commands
 	// failure mode:
 	// fly machine clone --clear-auto-destroy --clear-cmd MACHINE_ID
@@ -110,93 +154,4 @@ func TestAppsV2Example(t *testing.T) {
 	// migrate existing app with machines
 
 	// statics
-}
-
-func randomAppName(t *testing.T) string {
-	t.Helper()
-	b := make([]byte, 4)
-	_, err := rand.Read(b)
-	if err != nil {
-		t.Fatalf("failed to read from random: %v", err)
-	}
-	randStr := base32.StdEncoding.EncodeToString(b)
-	randStr = strings.Replace(randStr, "=", "z", -1)
-	dateStr := time.Now().Format("2006-01")
-	return fmt.Sprintf("preflight-%s-%s", dateStr, strings.ToLower(randStr))
-}
-
-type flyCmdTest struct {
-	hasRun                bool
-	argsStr               string
-	args                  []string
-	cmdStr                string
-	tempDir               string
-	testIoStreams         *iostreams.IOStreams
-	stdIn, stdOut, stdErr *bytes.Buffer
-	exitCode              int
-}
-
-func fly(t *testing.T, flyctlCmd string, vals ...interface{}) *flyCmdTest {
-	t.Helper()
-	argsStr := fmt.Sprintf(flyctlCmd, vals...)
-	args, err := shlex.Split(argsStr)
-	if err != nil {
-		t.Fatalf("failed to parse argStr: %s error: %v", argsStr, err)
-	}
-	tempDir := t.TempDir()
-	t.Setenv("FLY_ACCESS_TOKEN", os.Getenv("FLY_PREFLIGHT_TEST_ACCESS_TOKEN"))
-	// t.Setenv("LOG_LEVEL", "debug")
-	t.Setenv("HOME", tempDir)
-	assert.Nil(t, os.Chdir(tempDir))
-	testIoStreams, stdIn, stdOut, stdErr := iostreams.Test()
-	return &flyCmdTest{
-		argsStr:       argsStr,
-		args:          args,
-		cmdStr:        fmt.Sprintf("fly %s", argsStr),
-		tempDir:       tempDir,
-		testIoStreams: testIoStreams,
-		stdIn:         stdIn,
-		stdOut:        stdOut,
-		stdErr:        stdErr,
-	}
-}
-
-func (f *flyCmdTest) AgentLogs(t *testing.T) string {
-	t.Helper()
-	logDir := filepath.Join(f.tempDir, ".fly/agent-logs")
-	agentLogFiles, err := ioutil.ReadDir(logDir)
-	if err != nil {
-		t.Fatalf("failed to find agent log files in %s: %v", logDir, err)
-	}
-	for _, logFile := range agentLogFiles {
-		if !logFile.IsDir() {
-			filePath := filepath.Join(logDir, logFile.Name())
-			if logFile.Size() > 0 {
-				content, err := ioutil.ReadFile(filePath)
-				if err != nil {
-					t.Fatalf("failed to read agent log file at %s: %v", filePath, err)
-				}
-				return string(content)
-			}
-		}
-	}
-	return ""
-}
-
-func (f *flyCmdTest) Run(t *testing.T) *flyCmdTest {
-	t.Helper()
-	f.exitCode = cli.Run(context.TODO(), f.testIoStreams, f.args...)
-	f.hasRun = true
-	return f
-}
-
-func (f *flyCmdTest) AssertSuccessfulExit(t *testing.T) *flyCmdTest {
-	// t.Helper()
-	if !f.hasRun {
-		t.Fatal("cannot call AssertSuccessfulExit() before calling Run() :-(")
-	}
-	if f.exitCode != 0 {
-		t.Fatalf("expected successful zero exit code, got %d, for command: %s [stdout]: %s [strderr]: %s", f.exitCode, f.cmdStr, f.stdOut.String(), f.stdErr.String())
-	}
-	return f
 }
