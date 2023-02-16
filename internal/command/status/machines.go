@@ -29,7 +29,7 @@ func getProcessgroup(m *api.Machine) string {
 		return name
 	}
 
-	return "unknown"
+	return "<default>"
 }
 
 func getReleaseVersion(m *api.Machine) string {
@@ -139,13 +139,12 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 				machine.Region,
 				getProcessgroup(machine),
 				render.MachineHealthChecksSummary(machine),
-				machine.CreatedAt,
 				machine.UpdatedAt,
 				getReleaseVersion(machine),
 			})
 		}
 
-		err := render.Table(io.Out, "Machines", rows, "ID", "State", "Region", "Process Group", "Health checks", "Created", "Updated", "Version")
+		err := render.Table(io.Out, "Machines", rows, "ID", "State", "Region", "Process Group", "Health checks", "Last Updated", "Version")
 		if err != nil {
 			return err
 		}
