@@ -165,7 +165,7 @@ func run(ctx context.Context) (err error) {
 		appConfig.Build = &app.Build{
 			Dockerfile: dockerfile,
 		}
-	} else {
+	} else if !importedConfig {
 		fmt.Fprintln(io.Out, "Scanning source code")
 		if si, err := scanner.Scan(workingDir, config); err != nil {
 			return err
