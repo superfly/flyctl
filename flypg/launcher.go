@@ -4,15 +4,15 @@ import (
 	"context"
 	"crypto/ed25519"
 	"fmt"
-	"github.com/superfly/flyctl/ssh"
 	"time"
+
+	"github.com/superfly/flyctl/ssh"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
 
 	mach "github.com/superfly/flyctl/internal/machine"
-	"github.com/superfly/flyctl/internal/spinner"
 	"github.com/superfly/flyctl/internal/watch"
 
 	"github.com/superfly/flyctl/flaps"
@@ -101,11 +101,9 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		machineConf := l.getPostgresConfig(config)
 
 		machineConf.Image = config.ImageRef
-
-		// If no image is specifed fetch the latest available tag.
 		if machineConf.Image == "" {
-
 			imageRepo := "flyio/postgres"
+
 			if config.Manager == ReplicationManager {
 				imageRepo = "flyio/postgres-flex"
 			}
@@ -118,8 +116,8 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		}
 
 		if config.Manager == ReplicationManager {
-			var bouncerPort int32 = 5432
-			var pgPort int32 = 5433
+			var bouncerPort int = 5432
+			var pgPort int = 5433
 			machineConf.Services = []api.MachineService{
 				{
 					Protocol:     "tcp",
@@ -253,71 +251,6 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	return nil
 }
 
-// Launches a postgres cluster using the nomad runtime
-func (l *Launcher) LaunchNomadPostgres(ctx context.Context, config *CreateClusterInput, detach bool) (err error) {
-	var (
-		io       = iostreams.FromContext(ctx)
-		colorize = io.ColorScheme()
-		client   = client.FromContext(ctx).API()
-	)
-
-	if config.ImageRef == "" {
-		// If no image is specifed fetch the latest available tag.
-		imageRef, err := client.GetLatestImageTag(ctx, "flyio/postgres", config.SnapshotID)
-		if err != nil {
-			return err
-		}
-		config.ImageRef = imageRef
-
-	}
-
-	input := api.CreatePostgresClusterInput{
-		Name:           config.AppName,
-		OrganizationID: config.Organization.ID,
-		Region:         &config.Region,
-		ImageRef:       &config.ImageRef,
-		Count:          &config.InitialClusterSize,
-		Password:       &config.Password,
-		VMSize:         &config.VMSize.Name,
-		VolumeSizeGB:   config.VolumeSize,
-	}
-
-	if config.SnapshotID != nil {
-		input.SnapshotID = config.SnapshotID
-	}
-
-	s := spinner.Run(io, "Launching...")
-
-	payload, err := client.CreatePostgresCluster(ctx, input)
-	if err != nil {
-		return err
-	}
-	s.StopWithMessage(fmt.Sprintf("Postgres cluster %s created\n", payload.App.Name))
-
-	fmt.Fprintf(io.Out, "  Username:    %s\n", payload.Username)
-	fmt.Fprintf(io.Out, "  Password:    %s\n", payload.Password)
-	fmt.Fprintf(io.Out, "  Hostname:    %s.internal\n", payload.App.Name)
-	fmt.Fprintf(io.Out, "  Proxy Port:  5432\n")
-	fmt.Fprintf(io.Out, "  Postgres Port: 5433\n")
-	fmt.Fprintln(io.Out, colorize.Italic("Save your credentials in a secure place -- you won't be able to see them again!"))
-
-	if !detach {
-		if err := watch.Deployment(ctx, payload.App.Name, ""); err != nil {
-			return err
-		}
-	}
-
-	fmt.Fprintln(io.Out)
-	fmt.Fprintln(io.Out, colorize.Bold("Connect to postgres"))
-	fmt.Fprintf(io.Out, "Any app within the %s organization can connect to postgres using the above credentials and the hostname \"%s.internal.\"\n", config.Organization.Name, payload.App.Name)
-	fmt.Fprintf(io.Out, "For example: postgres://%s:%s@%s.internal:%d\n", payload.Username, payload.Password, payload.App.Name, 5432)
-
-	fmt.Fprintln(io.Out)
-	fmt.Fprintln(io.Out, "Now that you've set up Postgres, here's what you need to understand: https://fly.io/docs/postgres/getting-started/what-you-should-know/")
-
-	return
-}
-
 func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineConfig {
 	machineConfig := api.MachineConfig{}
 
@@ -341,22 +274,22 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 
 	machineConfig.Checks = map[string]api.MachineCheck{
 		"pg": {
-			Port:     5500,
-			Type:     "http",
+			Port:     api.Pointer(5500),
+			Type:     api.Pointer("http"),
 			HTTPPath: &checkPathPg,
 			Interval: &api.Duration{Duration: duration15s},
 			Timeout:  &api.Duration{Duration: duration10s},
 		},
 		"role": {
-			Port:     5500,
-			Type:     "http",
+			Port:     api.Pointer(5500),
+			Type:     api.Pointer("http"),
 			HTTPPath: &checkPathRole,
 			Interval: &api.Duration{Duration: duration15s},
 			Timeout:  &api.Duration{Duration: duration10s},
 		},
 		"vm": {
-			Port:     5500,
-			Type:     "http",
+			Port:     api.Pointer(5500),
+			Type:     api.Pointer("http"),
 			HTTPPath: &checkPathVm,
 			Interval: &api.Duration{Duration: duration1m},
 			Timeout:  &api.Duration{Duration: duration10s},

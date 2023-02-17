@@ -23,7 +23,7 @@ func newUpdate() *cobra.Command {
 		short = "Update a machine"
 		long  = short + "\n"
 
-		usage = "update [machine_id]"
+		usage = "update <machine_id>"
 	)
 
 	cmd := command.New(usage, short, long, runUpdate,
@@ -41,6 +41,11 @@ func newUpdate() *cobra.Command {
 			Description: "Updates machine without waiting for health checks.",
 			Default:     false,
 		},
+		flag.String{
+			Name:        "command",
+			Shorthand:   "C",
+			Description: "Command to run",
+		},
 	)
 
 	cmd.Args = cobra.ExactArgs(1)
@@ -57,6 +62,8 @@ func runUpdate(ctx context.Context) (err error) {
 		machineID        = flag.FirstArg(ctx)
 		autoConfirm      = flag.GetBool(ctx, "yes")
 		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
+		image            = flag.GetString(ctx, "image")
+		dockerfile       = flag.GetString(ctx, flag.Dockerfile().Name)
 	)
 
 	app, err := appFromMachineOrName(ctx, machineID, appName)
@@ -88,14 +95,18 @@ func runUpdate(ctx context.Context) (err error) {
 		return err
 	}
 
-	// Resolve image
-	imageOrPath := machine.Config.Image
-	image := flag.GetString(ctx, flag.ImageName)
-	dockerfile := flag.GetString(ctx, flag.Dockerfile().Name)
-	if len(image) > 0 {
+	var imageOrPath string
+
+	if image != "" {
 		imageOrPath = image
-	} else if len(dockerfile) > 0 {
-		imageOrPath = "." // cwd
+	} else if dockerfile != "" {
+		imageOrPath = "."
+	} else {
+		imageOrPath = machine.FullImageRef()
+	}
+
+	if imageOrPath == "" {
+		return fmt.Errorf("failed to resolve machine image")
 	}
 
 	// Identify configuration changes

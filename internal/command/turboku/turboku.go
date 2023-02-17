@@ -48,7 +48,7 @@ func New() (cmd *cobra.Command) {
 			Description: "the name of the new app",
 		},
 	)
-	cmd.Args = cobra.MinimumNArgs(2)
+	cmd.Args = cobra.ExactArgs(2)
 	return cmd
 }
 
@@ -250,7 +250,10 @@ func run(ctx context.Context) error {
 				return err
 			}
 		}
-		return deploy.DeployWithConfig(ctx, appConfig)
+		return deploy.DeployWithConfig(ctx, appConfig, deploy.DeployWithConfigArgs{
+			ForceNomad: true,
+			ForceYes:   deployNow,
+		})
 	}
 
 	return nil

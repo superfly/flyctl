@@ -61,12 +61,19 @@ func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Rel
 	}
 
 	if app.PlatformVersion == "machines" {
-
-		if flag.GetBool(ctx, "detach") {
-			fmt.Fprint(out, "The --detach option isn't available for Machine apps")
+		ctx, err = command.LoadAppV2ConfigIfPresent(ctx)
+		if err != nil {
+			return fmt.Errorf("error loading appv2 config: %w", err)
 		}
-
-		return deploy.DeployMachinesApp(ctx, app, "rolling", api.MachineConfig{}, nil)
+		md, err := deploy.NewMachineDeployment(ctx, deploy.MachineDeploymentArgs{
+			AppCompact:       app,
+			RestartOnly:      true,
+			SkipHealthChecks: flag.GetBool(ctx, "detach"),
+		})
+		if err != nil {
+			return err
+		}
+		return md.DeployMachinesApp(ctx)
 	}
 
 	if !app.Deployed {

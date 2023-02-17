@@ -19,35 +19,37 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &v); err != nil {
 		return err
 	}
-	return d.parseDuration(v)
+	return d.ParseDuration(v)
 }
 
 func (d *Duration) UnmarshalTOML(v any) error {
-	return d.parseDuration(v)
+	return d.ParseDuration(v)
 }
 
 func (d Duration) MarshalTOML() ([]byte, error) {
-	return []byte(d.Duration.String()), nil
+	v := fmt.Sprintf("\"%s\"", d.Duration.String())
+	return []byte(v), nil
 }
 
-func (d *Duration) parseDuration(v any) error {
+func (d *Duration) ParseDuration(v any) error {
 	if v == nil {
 		d.Duration = 0
 		return nil
 	}
 
 	switch value := v.(type) {
-	case int64, float64:
-		d.Duration = time.Duration(value.(int64))
-		return nil
+	case int64:
+		d.Duration = time.Duration(value)
+	case float64:
+		d.Duration = time.Duration(int64(value))
 	case string:
 		var err error
 		d.Duration, err = time.ParseDuration(value)
 		if err != nil {
 			return err
 		}
-		return nil
 	default:
 		return fmt.Errorf("Unknown duration type: %T", value)
 	}
+	return nil
 }

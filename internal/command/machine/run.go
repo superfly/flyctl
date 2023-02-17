@@ -184,9 +184,16 @@ func runMachineRun(ctx context.Context) error {
 		app, err = client.GetAppCompact(ctx, appName)
 		if err != nil && strings.Contains(err.Error(), "Could not find App") {
 			app, err = createApp(ctx, fmt.Sprintf("App '%s' does not exist, would you like to create it?", appName), appName, client)
+
+			if err != nil {
+				return err
+
+			}
+
 			if app == nil {
 				return nil
 			}
+
 		}
 		if err != nil {
 			return err
@@ -507,7 +514,7 @@ func determineServices(ctx context.Context) ([]api.MachineService, error) {
 	return machineServices, nil
 }
 
-func parsePorts(input string) (port, start_port, end_port *int32, internal_port int, err error) {
+func parsePorts(input string) (port, start_port, end_port *int, internal_port int, err error) {
 	split := strings.Split(input, ":")
 	if len(split) == 1 {
 		var external_port int
@@ -517,8 +524,7 @@ func parsePorts(input string) (port, start_port, end_port *int32, internal_port 
 			return
 		}
 
-		p := int32(external_port)
-		port = &p
+		port = api.IntPointer(external_port)
 	} else if len(split) == 2 {
 		internal_port, err = strconv.Atoi(split[1])
 		if err != nil {
@@ -535,8 +541,7 @@ func parsePorts(input string) (port, start_port, end_port *int32, internal_port 
 				return
 			}
 
-			p := int32(external_port)
-			port = &p
+			port = api.IntPointer(external_port)
 		} else if len(external_split) == 2 {
 			var start int
 			start, err = strconv.Atoi(external_split[0])
@@ -545,8 +550,7 @@ func parsePorts(input string) (port, start_port, end_port *int32, internal_port 
 				return
 			}
 
-			s := int32(start)
-			start_port = &s
+			start_port = api.IntPointer(start)
 
 			var end int
 			end, err = strconv.Atoi(external_split[0])
@@ -555,8 +559,7 @@ func parsePorts(input string) (port, start_port, end_port *int32, internal_port 
 				return
 			}
 
-			e := int32(end)
-			end_port = &e
+			end_port = api.IntPointer(end)
 		} else {
 			err = errors.New("external port must be at most 2 elements (port, or range start-end)")
 		}
@@ -629,6 +632,14 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		machineConf.Schedule = flag.GetString(ctx, "schedule")
 	}
 
+	if command := flag.GetString(ctx, "command"); command != "" {
+		split, err := shlex.Split(command)
+		if err != nil {
+			return machineConf, errors.Wrap(err, "invalid command")
+		}
+		machineConf.Init.Cmd = split
+	}
+
 	// Metadata
 	parsedMetadata, err := parseKVFlag(ctx, "metadata", machineConf.Metadata)
 	if err != nil {
@@ -659,7 +670,14 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		machineConf.Init.Entrypoint = splitted
 	}
 
-	if cmd := flag.Args(ctx)[1:]; len(cmd) > 0 {
+	// `machine update` and `machine run` both use `determineMachineConfig`` to populate
+	// `machineConf`, but `update` uses `-a` to set an app while `run` uses the
+	// first argument.
+	// Since these are mutually exclusive, we distinguish between them by
+	// checking if `len(machineConf.Init.Cmd) == 0` and is already set, in which case we're being
+	// called from `run`.
+	// Otherwise, pull the command from the first positional argument.
+	if cmd := flag.Args(ctx)[1:]; len(cmd) > 0 && len(machineConf.Init.Cmd) == 0 {
 		machineConf.Init.Cmd = cmd
 	}
 

@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
+	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -41,23 +42,31 @@ func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorS
 		return nil
 	}
 
-	ac := &AppChecker{
-		jsonOutput: jsonOutput,
-		checks:     make(map[string]string),
-		color:      color,
-		ctx:        ctx,
-		apiClient:  client.FromContext(ctx).API(),
-		workDir:    state.WorkingDirectory(ctx),
-		app:        nil,
-		appConfig:  nil,
-	}
-
-	appCompact, err := ac.apiClient.GetAppCompact(ctx, appName)
+	apiClient := client.FromContext(ctx).API()
+	appCompact, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		if !jsonOutput {
 			terminal.Debugf("API error looking up app with name %s: %v\n", appName, err)
 		}
 		return nil
+	}
+	ctx, err = apps.BuildContext(ctx, appCompact)
+	if err != nil {
+		if !jsonOutput {
+			terminal.Debugf("error building context for app %s: %v\n", appName, err)
+		}
+		return nil
+	}
+
+	ac := &AppChecker{
+		jsonOutput: jsonOutput,
+		checks:     make(map[string]string),
+		color:      color,
+		ctx:        ctx,
+		apiClient:  apiClient,
+		workDir:    state.WorkingDirectory(ctx),
+		app:        nil,
+		appConfig:  nil,
 	}
 
 	if !appCompact.Deployed && appCompact.PlatformVersion != "machines" {

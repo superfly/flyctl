@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -81,8 +82,8 @@ func doAddFlycast(ctx context.Context) error {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	var bouncerPort int32 = 5432
-	var pgPort int32 = 5433
+	var bouncerPort int = 5432
+	var pgPort int = 5433
 	for _, machine := range machines {
 		for _, service := range machine.Config.Services {
 			if service.InternalPort == 5432 || service.InternalPort == 5433 {
@@ -108,7 +109,7 @@ func doAddFlycast(ctx context.Context) error {
 			[]api.MachineService{
 				{
 					Protocol:     "tcp",
-					InternalPort: int(bouncerPort),
+					InternalPort: bouncerPort,
 					Ports: []api.MachinePort{
 						{
 							Port: &bouncerPort,
@@ -122,7 +123,7 @@ func doAddFlycast(ctx context.Context) error {
 				},
 				{
 					Protocol:     "tcp",
-					InternalPort: int(pgPort),
+					InternalPort: pgPort,
 					Ports: []api.MachinePort{
 						{
 							Port: &pgPort,

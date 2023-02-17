@@ -65,18 +65,13 @@ func newCreate() *cobra.Command {
 			Hidden: true,
 		},
 		flag.Bool{
-			Name:        "machines",
-			Description: "Create a postgres cluster on fly machines",
+			Name:        "stolon",
+			Description: "Create a postgres cluster that's managed by Stolon",
 			Default:     true,
 		},
 		flag.Bool{
-			Name:        "nomad",
-			Description: "Create postgres cluster on Nomad",
-			Default:     false,
-		},
-		flag.Bool{
 			Name:        "flex",
-			Description: "Create a postgres cluster that runs our new flex implementation. (Preview)",
+			Description: "Create a postgres cluster that's managed by Repmgr",
 			Default:     false,
 		},
 	)
@@ -87,9 +82,7 @@ func newCreate() *cobra.Command {
 // Since we want to be able to create PG clusters from other commands,
 // we pass the name, region and org to CreateCluster. Other flags that don't prompt may
 // be safely passed through from other commands.
-
 func run(ctx context.Context) (err error) {
-
 	appName := flag.GetString(ctx, "name")
 
 	if appName == "" {
@@ -114,12 +107,6 @@ func run(ctx context.Context) (err error) {
 		return
 	}
 
-	platform := "machines"
-
-	if flag.GetBool(ctx, "nomad") {
-		platform = "nomad"
-	}
-
 	pgConfig := PostgresConfiguration{
 		Name:               appName,
 		VMSize:             flag.GetString(ctx, "vm-size"),
@@ -136,15 +123,16 @@ func run(ctx context.Context) (err error) {
 		Manager:               flypg.StolonManager,
 	}
 
+	params.Manager = flypg.StolonManager
 	if flag.GetBool(ctx, "flex") {
 		params.Manager = flypg.ReplicationManager
 	}
 
-	return CreateCluster(ctx, org, region, platform, params)
+	return CreateCluster(ctx, org, region, params)
 }
 
 // CreateCluster creates a Postgres cluster with an optional name. The name will be prompted for if not supplied.
-func CreateCluster(ctx context.Context, org *api.Organization, region *api.Region, platform string, params *ClusterParams) (err error) {
+func CreateCluster(ctx context.Context, org *api.Organization, region *api.Region, params *ClusterParams) (err error) {
 	var (
 		client = client.FromContext(ctx).API()
 		io     = iostreams.FromContext(ctx)
@@ -166,18 +154,17 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 		fmt.Fprintf(io.Out, "For pricing information visit: https://fly.io/docs/about/pricing/#postgresql-clusters")
 
 		msg := "Select configuration:"
-
 		var selected int
 
 		options := []string{}
-		for _, cfg := range postgresConfigurations(platform) {
+		for _, cfg := range postgresConfigurations(input.Manager) {
 			options = append(options, cfg.Description)
 		}
 
 		if err := prompt.Select(ctx, &selected, msg, "", options...); err != nil {
 			return err
 		}
-		config = &postgresConfigurations(platform)[selected]
+		config = &postgresConfigurations(input.Manager)[selected]
 
 		if config.VMSize == "" {
 			// User has opted into choosing a custom configuration.
@@ -188,7 +175,15 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 	if customConfig {
 		// Resolve cluster size
 		if params.InitialClusterSize == 0 {
-			err := prompt.Int(ctx, &params.InitialClusterSize, "Initial cluster size", 2, true)
+			clusterSizePrompt := "Initial cluster size"
+			defaultClusterSize := 2
+
+			if input.Manager == flypg.ReplicationManager {
+				defaultClusterSize = 3
+				clusterSizePrompt = "Initial cluster size - Specify at least 3 for HA"
+			}
+
+			err := prompt.Int(ctx, &params.InitialClusterSize, clusterSizePrompt, defaultClusterSize, true)
 			if err != nil {
 				return err
 			}
@@ -196,7 +191,7 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 		input.InitialClusterSize = params.InitialClusterSize
 
 		// Resolve VM size
-		vmSize, err := resolveVMSize(ctx, platform, params.VMSize)
+		vmSize, err := resolveVMSize(ctx, params.VMSize)
 		if err != nil {
 			return err
 		}
@@ -212,7 +207,7 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 		input.VolumeSize = api.IntPointer(params.DiskGb)
 	} else {
 		// Resolve configuration from pre-defined configuration.
-		vmSize, err := resolveVMSize(ctx, platform, config.VMSize)
+		vmSize, err := resolveVMSize(ctx, config.VMSize)
 		if err != nil {
 			return err
 		}
@@ -235,29 +230,22 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 
 	launcher := flypg.NewLauncher(client)
 
-	if platform == "nomad" {
-		return launcher.LaunchNomadPostgres(ctx, input, params.Detach)
-	}
 	return launcher.LaunchMachinesPostgres(ctx, input, params.Detach)
 }
 
-func resolveVMSize(ctx context.Context, platform string, targetSize string) (*api.VMSize, error) {
-	if platform == "machines" {
-		// verify the specified size
-		if targetSize != "" {
-			for _, size := range MachineVMSizes() {
-				if targetSize == size.Name {
-					return &size, nil
-				}
+func resolveVMSize(ctx context.Context, targetSize string) (*api.VMSize, error) {
+	// verify the specified size
+	if targetSize != "" {
+		for _, size := range MachineVMSizes() {
+			if targetSize == size.Name {
+				return &size, nil
 			}
-
-			return nil, fmt.Errorf("vm size %q is not valid", targetSize)
 		}
-		// prompt user to select machine specific size.
-		return prompt.SelectVMSize(ctx, MachineVMSizes())
-	}
 
-	return prompt.VMSize(ctx, targetSize)
+		return nil, fmt.Errorf("vm size %q is not valid", targetSize)
+	}
+	// prompt user to select machine specific size.
+	return prompt.SelectVMSize(ctx, MachineVMSizes())
 }
 
 type PostgresConfiguration struct {
@@ -278,17 +266,14 @@ type ClusterParams struct {
 	Manager    string
 }
 
-func postgresConfigurations(platform string) []PostgresConfiguration {
-	switch platform {
-	case "machines":
-		return postgresMachineConfigurations()
-	default:
-		return postgresNomadConfigurations()
+func postgresConfigurations(manager string) []PostgresConfiguration {
+	if manager == flypg.StolonManager {
+		return stolonConfigurations()
 	}
+	return flexConfigurations()
 }
 
-// postgresMachineConfiguration represents our pre-defined configurations for our Machine platform.
-func postgresMachineConfigurations() []PostgresConfiguration {
+func stolonConfigurations() []PostgresConfiguration {
 	return []PostgresConfiguration{
 		{
 			Description:        "Development - Single node, 1x shared CPU, 256MB RAM, 1GB disk",
@@ -321,8 +306,7 @@ func postgresMachineConfigurations() []PostgresConfiguration {
 	}
 }
 
-// postgresConfiguration represents our pre-defined configurations for our Nomad platform.
-func postgresNomadConfigurations() []PostgresConfiguration {
+func flexConfigurations() []PostgresConfiguration {
 	return []PostgresConfiguration{
 		{
 			Description:        "Development - Single node, 1x shared CPU, 256MB RAM, 1GB disk",
@@ -332,25 +316,18 @@ func postgresNomadConfigurations() []PostgresConfiguration {
 			VMSize:             "shared-cpu-1x",
 		},
 		{
-			Description:        "Production - Highly available, 1x shared CPU, 256MB RAM, 10GB disk",
-			DiskGb:             10,
-			InitialClusterSize: 2,
-			MemoryMb:           256,
-			VMSize:             "shared-cpu-1x",
-		},
-		{
-			Description:        "Production - Highly available, 1x Dedicated CPU, 2GB RAM, 50GB disk",
-			DiskGb:             50,
-			InitialClusterSize: 2,
-			MemoryMb:           2048,
-			VMSize:             "dedicated-cpu-1x",
-		},
-		{
-			Description:        "Production - Highly available, 2x Dedicated CPUs, 4GB RAM, 100GB disk",
-			DiskGb:             100,
-			InitialClusterSize: 2,
+			Description:        "Production - Highly available, 2x shared CPUs, 4GB RAM, 40GB disk",
+			DiskGb:             40,
+			InitialClusterSize: 3,
 			MemoryMb:           4096,
-			VMSize:             "dedicated-cpu-2x",
+			VMSize:             "shared-cpu-2x",
+		},
+		{
+			Description:        "Production - Highly available, 4x shared CPUs, 8GB RAM, 80GB disk",
+			DiskGb:             80,
+			InitialClusterSize: 3,
+			MemoryMb:           8192,
+			VMSize:             "shared-cpu-4x",
 		},
 		{
 			Description:        "Specify custom configuration",
