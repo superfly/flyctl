@@ -476,6 +476,10 @@ func (md *machineDeployment) validateProcessesConfig() error {
 		if machineProcGroup == api.MachineProcessGroupFlyAppReleaseCommand {
 			continue
 		}
+		// we put the api.MachineProcessGroupApp process group on machine by default
+		if !appConfigProcessesExist && machineProcGroup == api.MachineProcessGroupApp {
+			continue
+		}
 		if !machineProcGroupPresent && appConfigProcessesExist {
 			return fmt.Errorf("error machine %s does not have a process group and should have one from app configuration: %s", mid, appConfigProcessesStr)
 		}

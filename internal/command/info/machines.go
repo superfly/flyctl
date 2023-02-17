@@ -80,6 +80,11 @@ func showMachineServiceInfo(ctx context.Context, app *api.AppCompact) error {
 		return err
 	}
 
+	if len(machines) == 0 {
+		fmt.Fprintf(io.ErrOut, "No machines found")
+		return nil
+	}
+
 	services := [][]string{}
 	for _, service := range machines[0].Config.Services {
 		for i, port := range service.Ports {
