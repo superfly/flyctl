@@ -6,6 +6,9 @@ import (
 	"strings"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/internal/command/apps"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -13,12 +16,33 @@ import (
 
 func showMachineServiceInfo(ctx context.Context, app *api.AppInfo) error {
 	var (
-		io = iostreams.FromContext(ctx)
+		io        = iostreams.FromContext(ctx)
+		client    = client.FromContext(ctx).API()
+		jsonOuput = flag.GetBool(ctx, "json")
 	)
+
+	if jsonOuput {
+		return fmt.Errorf("outputting to json is not yet supported")
+	}
+
+	appCompact, err := client.GetAppCompact(ctx, app.Name)
+	if err != nil {
+		return err
+	}
+
+	ctx, err = apps.BuildContext(ctx, appCompact)
+	if err != nil {
+		return err
+	}
 
 	machines, err := machine.ListActive(ctx)
 	if err != nil {
 		return err
+	}
+
+	if len(machines) == 0 {
+		fmt.Fprintf(io.ErrOut, "No machines found")
+		return nil
 	}
 
 	services := [][]string{}

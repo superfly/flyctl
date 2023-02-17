@@ -458,7 +458,7 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 		case err == nil:
 			cfgv2, err := appv2.LoadConfig(path)
 			if err != nil {
-				return nil, fmt.Errorf("failed loading app config from: %s: %w", path, err)
+				return nil, fmt.Errorf("failed loading appv2 config from: %s: %w", path, err)
 			}
 			ctx = appv2.WithConfig(ctx, cfgv2)
 			logger.Debugf("app config loaded from %s", path)
