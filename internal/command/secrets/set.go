@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/app"
@@ -63,6 +64,17 @@ func runSet(ctx context.Context) (err error) {
 	}
 
 	release, err := client.SetSecrets(ctx, appName, secrets)
+	if err != nil {
+		return err
+	}
+
+	return deployForSecrets(ctx, app, release)
+}
+
+func SetAndDeploy(ctx context.Context, app *api.AppCompact, secrets map[string]string) (err error) {
+	client := client.FromContext(ctx).API()
+
+	release, err := client.SetSecrets(ctx, app.Name, secrets)
 	if err != nil {
 		return err
 	}
