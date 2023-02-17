@@ -184,6 +184,20 @@ func (client *Client) GetAppCompact(ctx context.Context, appName string) (*AppCo
 	return &data.AppCompact, nil
 }
 
+func (client *Client) AppToCompact(app *App) *AppCompact {
+	return &AppCompact{
+		ID:       app.ID,
+		Name:     app.Name,
+		Status:   app.Status,
+		Deployed: app.Deployed,
+		Hostname: app.Hostname,
+		AppURL:   app.AppURL,
+		Organization: &OrganizationBasic{
+			ID:   app.Organization.ID,
+			Slug: app.Organization.Slug,
+		},
+	}
+}
 func (client *Client) GetAppInfo(ctx context.Context, appName string) (*AppInfo, error) {
 	query := `
 		query ($appName: String!) {
