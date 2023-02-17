@@ -456,13 +456,7 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 	for _, path := range appConfigFilePaths(ctx) {
 		switch cfg, err := app.LoadConfig(ctx, path, ""); {
 		case err == nil:
-			cfgv2, err := appv2.LoadConfig(path)
-			if err != nil {
-				return nil, fmt.Errorf("failed loading appv2 config from: %s: %w", path, err)
-			}
-			ctx = appv2.WithConfig(ctx, cfgv2)
 			logger.Debugf("app config loaded from %s", path)
-
 			return app.WithConfig(ctx, cfg), nil // we loaded a configuration file
 		case errors.Is(err, fs.ErrNotExist):
 			logger.Debugf("no app config found at %s; skipped.", path)
@@ -470,6 +464,26 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 			continue
 		default:
 			return nil, fmt.Errorf("failed loading app config from %s: %w", path, err)
+		}
+	}
+
+	return ctx, nil
+}
+
+func LoadAppV2ConfigIfPresent(ctx context.Context) (context.Context, error) {
+	logger := logger.FromContext(ctx)
+
+	for _, path := range appConfigFilePaths(ctx) {
+		switch cfg, err := appv2.LoadConfig(path); {
+		case err == nil:
+			logger.Debugf("appv2 config loaded from %s", path)
+			return appv2.WithConfig(ctx, cfg), nil // we loaded a configuration file
+		case errors.Is(err, fs.ErrNotExist):
+			logger.Debugf("no appv2 config found at %s; skipped.", path)
+
+			continue
+		default:
+			return nil, fmt.Errorf("failed loading appv2 config from %s: %w", path, err)
 		}
 	}
 

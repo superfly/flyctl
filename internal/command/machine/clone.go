@@ -32,6 +32,7 @@ func newClone() *cobra.Command {
 	cmd := command.New(usage, short, long, runMachineClone,
 		command.RequireSession,
 		command.LoadAppNameIfPresent,
+		command.LoadAppV2ConfigIfPresent,
 	)
 
 	cmd.Args = cobra.ExactArgs(1)

@@ -159,7 +159,10 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 	}
 
 	if deployToMachines {
-		// FIXME: this function can't use flags anymore!!! too many other things are using it, and they have different flags!!!
+		ctx, err = command.LoadAppV2ConfigIfPresent(ctx)
+		if err != nil {
+			return fmt.Errorf("error loading appv2 config: %w", err)
+		}
 		md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 			AppCompact:           appCompact,
 			DeploymentImage:      img,
