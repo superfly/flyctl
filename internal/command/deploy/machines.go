@@ -698,7 +698,7 @@ func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, p
 			return nil, err
 		}
 
-		cfg, err := appv2.FromDefinition(&apiConfig.Definition)
+		cfg, err = appv2.FromDefinition(&apiConfig.Definition)
 		if err != nil {
 			return nil, err
 		}
