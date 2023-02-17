@@ -1,0 +1,6 @@
+app = "foo"
+
+[experimental]
+cmd = "cmd"
+exec = "exec"
+entrypoint = "entrypoint"
