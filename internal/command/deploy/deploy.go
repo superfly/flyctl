@@ -63,8 +63,7 @@ var CommonFlags = flag.Set{
 		Default:     int(DefaultWaitTimeout.Seconds()),
 	},
 	flag.Int{
-		Name: "lease-timeout",
-		// FIXME: update this to match new reality
+		Name:        "lease-timeout",
 		Description: "Seconds to lease individual machines while running deployment. All machines are leased at the beginning and released at the end. The lease is refreshed periodically for this same time, which is why it is short. flyctl releases leases in most cases.",
 		Default:     int(DefaultLeaseTtl.Seconds()),
 	},
