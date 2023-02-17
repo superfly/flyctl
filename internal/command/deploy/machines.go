@@ -10,6 +10,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/google/shlex"
 	"github.com/morikuni/aec"
+	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
@@ -63,6 +64,7 @@ type machineDeployment struct {
 	releaseCommandMachine      machine.MachineSet
 	releaseCommand             []string
 	volumeDestination          string
+	volumes                    []api.Volume
 	strategy                   string
 	releaseId                  string
 	releaseVersion             int
@@ -143,11 +145,11 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err != nil {
 		return nil, err
 	}
-	err = md.setVolumeConfig()
+	err = md.setMachinesForDeployment(ctx)
 	if err != nil {
 		return nil, err
 	}
-	err = md.setMachinesForDeployment(ctx)
+	err = md.setVolumeConfig(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -447,12 +449,19 @@ func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) er
 	return nil
 }
 
-func (md *machineDeployment) setVolumeConfig() error {
-	if md.appConfig.Mounts != nil && md.appConfig.Mounts.Source != "" {
-		return fmt.Errorf("error source setting under [mounts] is not supported for machines; remove source from fly.toml")
+func (md *machineDeployment) setVolumeConfig(ctx context.Context) error {
+	if md.appConfig.Mounts == nil {
+		return nil
 	}
-	if md.appConfig.Mounts != nil {
-		md.volumeDestination = md.appConfig.Mounts.Destination
+
+	md.volumeDestination = md.appConfig.Mounts.Destination
+
+	if volumes, err := md.apiClient.GetVolumes(ctx, md.app.Name); err != nil {
+		return fmt.Errorf("Error fetching application volumes: %w", err)
+	} else {
+		md.volumes = lo.Filter(volumes, func(v api.Volume, _ int) bool {
+			return v.Name == md.appConfig.Mounts.Source && v.AttachedAllocation == nil && v.AttachedMachine == nil
+		})
 	}
 	return nil
 }
@@ -497,9 +506,6 @@ func (md *machineDeployment) validateProcessesConfig() error {
 }
 
 func (md *machineDeployment) validateVolumeConfig() error {
-	if md.machineSet.IsEmpty() {
-		return nil
-	}
 	for _, m := range md.machineSet.GetMachines() {
 		mid := m.Machine().ID
 		if m.Machine().Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] == api.MachineProcessGroupFlyAppReleaseCommand {
@@ -515,6 +521,11 @@ func (md *machineDeployment) validateVolumeConfig() error {
 		if md.volumeDestination != "" && len(mountsConfig) == 0 {
 			return fmt.Errorf("error machine %s does not have a volume configured and fly.toml expects one with destination %s; remove the [mounts] configuration in fly.toml or use the machines API to add a volume to this machine", mid, md.volumeDestination)
 		}
+	}
+
+	if md.machineSet.IsEmpty() && md.volumeDestination != "" && len(md.volumes) == 0 {
+		return fmt.Errorf("error new machine requires an unattached volume named '%s' on mount destination '%s'",
+			md.appConfig.Mounts.Source, md.volumeDestination)
 	}
 	return nil
 }
@@ -603,9 +614,16 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 	if launchInput.Config.Env["PRIMARY_REGION"] == "" && origMachineRaw.Config.Env["PRIMARY_REGION"] != "" {
 		launchInput.Config.Env["PRIMARY_REGION"] = origMachineRaw.Config.Env["PRIMARY_REGION"]
 	}
+
 	if origMachineRaw.Config.Mounts != nil {
 		launchInput.Config.Mounts = origMachineRaw.Config.Mounts
+	} else if md.appConfig.Mounts != nil {
+		launchInput.Config.Mounts = []api.MachineMount{{
+			Path:   md.volumeDestination,
+			Volume: md.volumes[0].ID,
+		}}
 	}
+
 	if len(launchInput.Config.Mounts) == 1 && launchInput.Config.Mounts[0].Path != md.volumeDestination {
 		currentMount := launchInput.Config.Mounts[0]
 		terminal.Warnf("Updating the mount path for volume %s on machine %s from %s to %s due to fly.toml [mounts] destination value\n", currentMount.Volume, origMachineRaw.ID, currentMount.Path, md.volumeDestination)
