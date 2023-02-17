@@ -82,7 +82,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if args.RestartOnly && args.DeploymentImage != nil {
 		return nil, fmt.Errorf("BUG: restartOnly machines deployment created and specified an image")
 	}
-	appConfig, err := determineAppConfigForMachines(ctx, args.EnvFromFlags, args.PrimaryRegionFlag)
+	appConfig, err := determineAppConfigForMachines(ctx, args.AppCompact, args.EnvFromFlags, args.PrimaryRegionFlag)
 	if err != nil {
 		return nil, err
 	}
@@ -485,10 +485,6 @@ func (md *machineDeployment) validateProcessesConfig() error {
 		if machineProcGroup == api.MachineProcessGroupFlyAppReleaseCommand {
 			continue
 		}
-		// we put the api.MachineProcessGroupApp process group on machine by default
-		if !appConfigProcessesExist && machineProcGroup == api.MachineProcessGroupApp {
-			continue
-		}
 		if !machineProcGroupPresent && appConfigProcessesExist {
 			return fmt.Errorf("error machine %s does not have a process group and should have one from app configuration: %s", mid, appConfigProcessesStr)
 		}
@@ -698,29 +694,41 @@ func (md *machineDeployment) logClearLinesAbove(count int) {
 	}
 }
 
-func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion string) (cfg *appv2.Config, err error) {
+func determineAppConfigForMachines(ctx context.Context, app *api.AppCompact, envFromFlags []string, primaryRegion string) (cfg *appv2.Config, err error) {
 	client := client.FromContext(ctx).API()
-	appNameFromContext := appv2.NameFromContext(ctx)
-	if cfg = appv2.ConfigFromContext(ctx); cfg == nil {
+
+	var appName string
+
+	if app != nil {
+		appName = app.Name
+	} else {
+		appName = appv2.NameFromContext(ctx)
+	}
+
+	cfg = appv2.ConfigFromContext(ctx)
+
+	if cfg == nil {
 		logger := logger.FromContext(ctx)
 		logger.Debug("no local app config detected for machines deploy; fetching from backend ...")
 
 		var apiConfig *api.AppConfig
-		if apiConfig, err = client.GetConfig(ctx, appNameFromContext); err != nil {
+		if apiConfig, err = client.GetConfig(ctx, appName); err != nil {
 			err = fmt.Errorf("failed fetching existing app config: %w", err)
 			return
 		}
 
-		basicApp, err := client.GetAppBasic(ctx, appNameFromContext)
-		if err != nil {
-			return nil, err
+		if app == nil {
+			app, err = client.GetAppCompact(ctx, appName)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		cfg, err = appv2.FromDefinition(&apiConfig.Definition)
 		if err != nil {
 			return nil, err
 		}
-		cfg.AppName = basicApp.Name
+		cfg.AppName = app.Name
 	}
 
 	if len(envFromFlags) > 0 {
@@ -739,8 +747,8 @@ func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, p
 
 	// Always prefer the app name passed via --app
 
-	if appNameFromContext != "" {
-		cfg.AppName = appNameFromContext
+	if appName != "" {
+		cfg.AppName = appName
 	}
 
 	return
