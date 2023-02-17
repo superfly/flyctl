@@ -112,20 +112,17 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 	managed, unmanaged := []*api.Machine{}, []*api.Machine{}
 
 	for _, machine := range machines {
+		version := getFromMetadata(machine, api.MachineConfigMetadataKeyFlyPlatformVersion)
 
-		if machine.Config != nil && machine.Config.Metadata != nil {
-
-			if machine.Config.Metadata[api.MachineConfigMetadataKeyFlyPlatformVersion] == api.MachineFlyPlatformVersion2 {
-				managed = append(managed, machine)
-			} else {
-				unmanaged = append(unmanaged, machine)
-			}
-
+		if version == api.MachineFlyPlatformVersion2 {
+			managed = append(managed, machine)
+		} else {
+			unmanaged = append(unmanaged, machine)
 		}
 
 	}
 
-	obj := [][]string{{app.Name, app.Organization.Slug, app.Hostname, getImage(machines), app.PlatformVersion}}
+	obj := [][]string{{app.Name, app.Organization.Slug, app.Hostname, getImage(managed), app.PlatformVersion}}
 	if err := render.VerticalTable(io.Out, "App", obj, "Name", "Owner", "Hostname", "Image", "Platform"); err != nil {
 		return err
 	}
@@ -135,16 +132,16 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 		for _, machine := range managed {
 			rows = append(rows, []string{
 				machine.ID,
-				machine.State,
-				machine.Region,
 				getProcessgroup(machine),
+				getReleaseVersion(machine),
+				machine.Region,
+				machine.State,
 				render.MachineHealthChecksSummary(machine),
 				machine.UpdatedAt,
-				getReleaseVersion(machine),
 			})
 		}
 
-		err := render.Table(io.Out, "Machines", rows, "ID", "State", "Region", "Process Group", "Health checks", "Last Updated", "Version")
+		err := render.Table(io.Out, "Machines", rows, "ID", "Process", "Version", "Region", "State", "Health Checks", "Last Updated")
 		if err != nil {
 			return err
 		}
