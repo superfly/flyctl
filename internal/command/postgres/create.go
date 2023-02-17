@@ -100,7 +100,7 @@ func run(ctx context.Context) (err error) {
 
 	var region *api.Region
 
-	region, err = prompt.Region(ctx, prompt.RegionParams{
+	region, err = prompt.Region(ctx, !org.PaidPlan, prompt.RegionParams{
 		Message: "",
 	})
 	if err != nil {

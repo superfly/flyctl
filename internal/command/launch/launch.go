@@ -256,7 +256,7 @@ func run(ctx context.Context) (err error) {
 		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, client, org.Slug)
 	}
 
-	region, err := prompt.Region(ctx, prompt.RegionParams{
+	region, err := prompt.Region(ctx, !org.PaidPlan, prompt.RegionParams{
 		Message: "Choose a region for deployment:",
 	})
 	if err != nil {
