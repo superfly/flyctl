@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/logrusorgru/aurora"
@@ -15,11 +16,11 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appv2"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/state"
 
@@ -56,6 +57,26 @@ var CommonFlags = flag.Set{
 		Name:        "auto-confirm",
 		Description: "Will automatically confirm changes when running non-interactively.",
 	},
+	flag.Int{
+		Name:        "wait-timeout",
+		Description: "Seconds to wait for individual machines to transition states and become healthy.",
+		Default:     int(DefaultWaitTimeout.Seconds()),
+	},
+	flag.Int{
+		Name:        "lease-timeout",
+		Description: "Seconds to lease individual machines while running deployment. All machines are leased at the beginning and released at the end, so this needs to be as long as the entire deployment. flyctl releases leases in most cases.",
+		Default:     int(DefaultLeaseTtl.Seconds()),
+	},
+	flag.Bool{
+		Name:        "force-nomad",
+		Description: "Use the Apps v1 platform built with Nomad",
+		Default:     false,
+	},
+	flag.Bool{
+		Name:        "force-machines",
+		Description: "Use the Apps v2 platform built with Machines",
+		Default:     false,
+	},
 }
 
 func New() (cmd *cobra.Command) {
@@ -90,11 +111,30 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	return DeployWithConfig(ctx, appConfig)
+	return DeployWithConfig(ctx, appConfig, DeployWithConfigArgs{
+		ForceNomad:    flag.GetBool(ctx, "force-nomad"),
+		ForceMachines: flag.GetBool(ctx, "force-machines"),
+		ForceYes:      flag.GetBool(ctx, "auto-confirm"),
+	})
 }
 
-func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
+type DeployWithConfigArgs struct {
+	ForceMachines bool
+	ForceNomad    bool
+	ForceYes      bool
+}
+
+func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWithConfigArgs) (err error) {
 	apiClient := client.FromContext(ctx).API()
+	appNameFromContext := app.NameFromContext(ctx)
+	appCompact, err := apiClient.GetAppCompact(ctx, appNameFromContext)
+	if err != nil {
+		return err
+	}
+	deployToMachines, err := useMachines(appConfig, appCompact, args)
+	if err != nil {
+		return err
+	}
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
 	img, err := determineImage(ctx, appConfig)
@@ -118,21 +158,24 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 		appConfig.Env["PRIMARY_REGION"] = appConfig.PrimaryRegion
 	}
 
-	if appConfig.ForMachines() {
-		if !flag.GetBool(ctx, "auto-confirm") {
-			switch confirmed, err := prompt.Confirmf(ctx, "This feature is highly experimental and may produce unexpected results. Proceed?"); {
-			case err == nil:
-				if !confirmed {
-					return nil
-				}
-			case prompt.IsNonInteractive(err):
-				return prompt.NonInteractiveError("auto-confirm flag must be specified when not running interactively")
-			default:
-				return err
-			}
+	if deployToMachines {
+		// FIXME: this function can't use flags anymore!!! too many other things are using it, and they have different flags!!!
+		md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
+			AppCompact:           appCompact,
+			DeploymentImage:      img,
+			Strategy:             flag.GetString(ctx, "strategy"),
+			EnvFromFlags:         flag.GetStringSlice(ctx, "env"),
+			PrimaryRegionFlag:    flag.GetString(ctx, flag.RegionName),
+			AutoConfirmMigration: flag.GetBool(ctx, "auto-confirm"),
+			BuildOnly:            flag.GetBuildOnly(ctx),
+			SkipHealthChecks:     flag.GetDetach(ctx),
+			WaitTimeout:          time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
+			LeaseTimeout:         time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
+		})
+		if err != nil {
+			return err
 		}
-
-		return createMachinesRelease(ctx, appConfig, img, flag.GetString(ctx, "strategy"))
+		return md.DeployMachinesApp(ctx)
 	}
 
 	release, releaseCommand, err = createRelease(ctx, appConfig, img)
@@ -174,6 +217,28 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config) (err error) {
 	err = watch.Deployment(ctx, appConfig.AppName, release.EvaluationID)
 
 	return err
+}
+
+func useMachines(appConfig *app.Config, appCompact *api.AppCompact, args DeployWithConfigArgs) (bool, error) {
+	switch {
+	case appCompact.PlatformVersion == appv2.AppsV2Platform:
+		return true, nil
+	case appCompact.Deployed:
+		return appCompact.PlatformVersion == appv2.AppsV2Platform, nil
+	case args.ForceNomad:
+		return false, nil
+	case args.ForceMachines:
+		return true, nil
+	case len(appConfig.Statics) > 0:
+		// statics are not supported in Apps v2 yet
+		return false, nil
+	case args.ForceYes:
+		// if running automated, stay on nomad platform for now
+		return false, nil
+	default:
+		// choose nomad for now if not otherwise specified
+		return false, nil
+	}
 }
 
 // determineAppConfig fetches the app config from a local file, or in its absence, from the API

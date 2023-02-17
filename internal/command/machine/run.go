@@ -514,7 +514,7 @@ func determineServices(ctx context.Context) ([]api.MachineService, error) {
 	return machineServices, nil
 }
 
-func parsePorts(input string) (port, start_port, end_port *int32, internal_port int, err error) {
+func parsePorts(input string) (port, start_port, end_port *int, internal_port int, err error) {
 	split := strings.Split(input, ":")
 	if len(split) == 1 {
 		var external_port int
@@ -524,8 +524,7 @@ func parsePorts(input string) (port, start_port, end_port *int32, internal_port 
 			return
 		}
 
-		p := int32(external_port)
-		port = &p
+		port = api.IntPointer(external_port)
 	} else if len(split) == 2 {
 		internal_port, err = strconv.Atoi(split[1])
 		if err != nil {
@@ -542,8 +541,7 @@ func parsePorts(input string) (port, start_port, end_port *int32, internal_port 
 				return
 			}
 
-			p := int32(external_port)
-			port = &p
+			port = api.IntPointer(external_port)
 		} else if len(external_split) == 2 {
 			var start int
 			start, err = strconv.Atoi(external_split[0])
@@ -552,8 +550,7 @@ func parsePorts(input string) (port, start_port, end_port *int32, internal_port 
 				return
 			}
 
-			s := int32(start)
-			start_port = &s
+			start_port = api.IntPointer(start)
 
 			var end int
 			end, err = strconv.Atoi(external_split[0])
@@ -562,8 +559,7 @@ func parsePorts(input string) (port, start_port, end_port *int32, internal_port 
 				return
 			}
 
-			e := int32(end)
-			end_port = &e
+			end_port = api.IntPointer(end)
 		} else {
 			err = errors.New("external port must be at most 2 elements (port, or range start-end)")
 		}

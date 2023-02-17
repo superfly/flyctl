@@ -250,7 +250,10 @@ func run(ctx context.Context) error {
 				return err
 			}
 		}
-		return deploy.DeployWithConfig(ctx, appConfig)
+		return deploy.DeployWithConfig(ctx, appConfig, deploy.DeployWithConfigArgs{
+			ForceNomad: true,
+			ForceYes:   deployNow,
+		})
 	}
 
 	return nil
