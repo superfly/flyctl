@@ -8,8 +8,10 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
+	"github.com/superfly/flyctl/internal/command/secrets"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -42,28 +44,36 @@ func runShip(ctx context.Context) (err error) {
 
 	appName := selectedOrg.Slug + "-auto-log-shipper"
 
-	_, err = client.GetAppCompact(ctx, appName)
+	var app *api.AppCompact
 
-	if err == nil {
-		return
+	app, err = client.GetAppCompact(ctx, appName)
+
+	if err != nil {
+		input := api.CreateAppInput{
+			Name:           appName,
+			OrganizationID: selectedOrg.ID,
+			Machines:       true,
+		}
+
+		createdApp, err := client.CreateApp(ctx, input)
+		app = client.AppToCompact(createdApp)
+
+		if err != nil {
+			return err
+		}
 	}
 
-	input := api.CreateAppInput{
-		Name:           appName,
-		OrganizationID: selectedOrg.ID,
-	}
+	fmt.Fprintf(io.Out, "Setting up secrets for %s\n", app.Name)
 
-	app, err := client.CreateApp(ctx, input)
+	err = secrets.SetAndDeploy(ctx, app, map[string]string{
+		"ACCESS_TOKEN": flyctl.GetAPIToken(),
+	})
 
 	if err != nil {
 		return err
 	}
 
-	if err != nil {
-		return err
-	}
-
-	flapsClient, err := flaps.New(ctx, client.AppToCompact(app))
+	flapsClient, err := flaps.New(ctx, app)
 
 	if err != nil {
 		return err
