@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -36,12 +36,34 @@ func getReleaseVersion(m *api.Machine) string {
 	return getFromMetadata(m, api.MachineConfigMetadataKeyFlyReleaseVersion)
 }
 
-func getImage(m []*api.Machine) string {
-	// image is the same accross all machines in a single release
-	if len(m) > 0 {
-		return m[0].ImageRefWithVersion()
+// getImage returns the image on the most recent machine released under an app.
+func getImage(machines []*api.Machine) (string, error) {
+	// for context, see this comment https://github.com/superfly/flyctl/pull/1709#discussion_r1110466239
+	versionToImage := map[int]string{}
+	for _, machine := range machines {
+		rv := getReleaseVersion(machine)
+		if rv == "" {
+			continue
+		}
+
+		version, err := strconv.Atoi(rv)
+		if err != nil {
+			return "", fmt.Errorf("could not parse release version (%s)", rv)
+		}
+
+		versionToImage[version] = machine.ImageRefWithVersion()
 	}
-	return "-"
+
+	highestVersion, latestImage := 0, "-"
+
+	for version, image := range versionToImage {
+		if version > highestVersion {
+			latestImage = image
+			highestVersion = version
+		}
+	}
+
+	return latestImage, nil
 }
 
 func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
@@ -112,9 +134,7 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 	managed, unmanaged := []*api.Machine{}, []*api.Machine{}
 
 	for _, machine := range machines {
-		version := getFromMetadata(machine, api.MachineConfigMetadataKeyFlyPlatformVersion)
-
-		if version == api.MachineFlyPlatformVersion2 {
+		if machine.IsAppsV2() {
 			managed = append(managed, machine)
 		} else {
 			unmanaged = append(unmanaged, machine)
@@ -122,7 +142,12 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 
 	}
 
-	obj := [][]string{{app.Name, app.Organization.Slug, app.Hostname, getImage(managed), app.PlatformVersion}}
+	image, err := getImage(managed)
+	if err != nil {
+		return err
+	}
+
+	obj := [][]string{{app.Name, app.Organization.Slug, app.Hostname, image, app.PlatformVersion}}
 	if err := render.VerticalTable(io.Out, "App", obj, "Name", "Owner", "Hostname", "Image", "Platform"); err != nil {
 		return err
 	}
@@ -148,8 +173,8 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 	}
 
 	if len(unmanaged) > 0 {
-		cs, logger := io.ColorScheme(), logger.MaybeFromContext(ctx)
-		logger.Info("Found machines that aren't part of the Fly Apps Platform, run ", cs.Yellow("fly machines list"), " to see them.\n")
+		msg := fmt.Sprintf("Found machines that aren't part of the Fly Apps Platform, run %s to see them.\n", io.ColorScheme().Yellow("fly machines list"))
+		fmt.Fprint(io.ErrOut, msg)
 	}
 
 	return nil

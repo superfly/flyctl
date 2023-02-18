@@ -25,7 +25,7 @@ type Machine struct {
 	Name     string          `json:"name,omitempty"`
 	State    string          `json:"state,omitempty"`
 	Region   string          `json:"region,omitempty"`
-	ImageRef machineImageRef `json:"image_ref,omitempty"`
+	ImageRef MachineImageRef `json:"image_ref,omitempty"`
 	// InstanceID is unique for each version of the machine
 	InstanceID string `json:"instance_id,omitempty"`
 	Version    string `json:"version,omitempty"`
@@ -65,8 +65,12 @@ func (m *Machine) ImageRefWithVersion() string {
 	return ref
 }
 
+func (m *Machine) IsAppsV2() bool {
+	return m.Config != nil && m.Config.Metadata[MachineConfigMetadataKeyFlyPlatformVersion] == MachineFlyPlatformVersion2
+}
+
 func (m *Machine) IsFlyAppsPlatform() bool {
-	return m.Config != nil && m.Config.Metadata[MachineConfigMetadataKeyFlyPlatformVersion] == MachineFlyPlatformVersion2 && m.IsActive()
+	return m.IsAppsV2() && m.IsActive()
 }
 
 func (m *Machine) IsFlyAppsReleaseCommand() bool {
@@ -133,7 +137,7 @@ func (m *Machine) GetLatestEventOfTypeAfterType(latestEventType, firstEventType 
 	return nil
 }
 
-type machineImageRef struct {
+type MachineImageRef struct {
 	Registry   string            `json:"registry,omitempty"`
 	Repository string            `json:"repository,omitempty"`
 	Tag        string            `json:"tag,omitempty"`
