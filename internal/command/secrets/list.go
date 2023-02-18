@@ -25,6 +25,8 @@ func newList() (cmd *cobra.Command) {
 
 	cmd = command.New(usage, short, long, runList, command.RequireSession, command.LoadAppNameIfPresent)
 
+	cmd.Aliases = []string{"ls"}
+
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
