@@ -25,9 +25,13 @@ be shown with its name, owner and when it was last deployed.
 		short = "List applications"
 	)
 
-	return command.New("list", short, long, runList,
+	cmd := command.New("list", short, long, runList,
 		command.RequireSession,
 	)
+
+	cmd.Aliases = []string{"ls"}
+
+	return cmd
 }
 
 func runList(ctx context.Context) (err error) {
