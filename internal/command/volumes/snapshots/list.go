@@ -29,6 +29,8 @@ func newList() *cobra.Command {
 		command.RequireSession,
 	)
 
+	cmd.Aliases = []string{"ls"}
+
 	cmd.Args = cobra.ExactArgs(1)
 
 	return cmd
