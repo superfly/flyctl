@@ -21,6 +21,8 @@ func newList() *cobra.Command {
 		command.RequireAppName,
 	)
 
+	cmd.Aliases = []string{"ls"}
+
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
