@@ -21,9 +21,13 @@ func newList() *cobra.Command {
 		short = "Lists organizations for current user"
 	)
 
-	return command.New("list", short, long, runList,
+	cmd := command.New("list", short, long, runList,
 		command.RequireSession,
 	)
+
+	cmd.Aliases = []string{"ls"}
+
+	return cmd
 }
 
 func runList(ctx context.Context) error {
