@@ -17,14 +17,16 @@ func newList() *cobra.Command {
 		short = "List services"
 	)
 
-	services := command.New("list", short, long, runList, command.RequireSession, command.RequireAppName)
+	cmd := command.New("list", short, long, runList, command.RequireSession, command.RequireAppName)
 
-	flag.Add(services,
+	cmd.Aliases = []string{"ls"}
+
+	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
 	)
 
-	return services
+	return cmd
 }
 
 func runList(ctx context.Context) error {
