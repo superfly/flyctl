@@ -681,9 +681,9 @@ are read from stdin as name=value`,
 		}
 	case "secrets.list":
 		return KeyStrings{"list", "Lists the secrets available to the app",
-			`List the secrets available to the application. It shows each
-secret's name, a digest of the its value and the time the secret was last set.
-The actual value of the secret is only available to the application.`,
+			`List the secrets available to the application. It shows each secret's
+name, a digest of its value and the time the secret was last set. The
+actual value of the secret is only available to the application.`,
 		}
 	case "secrets.set":
 		return KeyStrings{"set [flags] NAME=VALUE NAME=VALUE ...", "Set one or more encrypted secrets for an app",
