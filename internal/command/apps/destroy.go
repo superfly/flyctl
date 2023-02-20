@@ -92,7 +92,7 @@ func RunDestroy(ctx context.Context) error {
 
 	fmt.Fprintf(io.Out, "Destroyed app %s\n", appName)
 
-	destroy_db := flag.GetYes(ctx)
+	destroy_db := false
 
 	if app_has_db {
 		if !flag.GetYes(ctx) {
@@ -112,7 +112,7 @@ func RunDestroy(ctx context.Context) error {
 
 	}
 
-	destroy_redis := flag.GetYes(ctx)
+	destroy_redis := false
 
 	if app_has_redis {
 		if !flag.GetYes(ctx) {
