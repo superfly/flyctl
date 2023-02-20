@@ -90,7 +90,7 @@ func runFailover(ctx context.Context) (err error) {
 		return err
 	}
 
-	if leader.ImageRef.Repository == "flyio/postgres-flex" {
+	if leader.ImageRef.Labels["fly.pg-manager"] == "repmgr" {
 		return fmt.Errorf("the 'flyio/postgres-flex' image does not currently support manual failovers")
 	}
 

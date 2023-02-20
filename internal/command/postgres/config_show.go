@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
@@ -91,11 +90,8 @@ func runMachineConfigShow(ctx context.Context, app *api.AppCompact) (err error) 
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	_, dev := os.LookupEnv("FLY_DEV")
-	if !dev {
-		if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
-			return err
-		}
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
+		return err
 	}
 
 	leader, err := pickLeader(ctx, machines)
@@ -104,7 +100,7 @@ func runMachineConfigShow(ctx context.Context, app *api.AppCompact) (err error) 
 	}
 
 	manager := flypg.StolonManager
-	if leader.ImageRef.Repository == "flyio/postgres-flex" {
+	if leader.ImageRef.Labels["fly.pg-manager"] == "repmgr" {
 		manager = flypg.ReplicationManager
 	}
 
