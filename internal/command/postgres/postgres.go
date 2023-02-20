@@ -86,7 +86,7 @@ func hasRequiredVersionOnNomad(app *api.AppCompact, cluster, standalone string) 
 
 func hasRequiredVersionOnMachines(machines []*api.Machine, cluster, flex, standalone string) error {
 	_, dev := os.LookupEnv("FLY_DEV")
-	if !dev {
+	if dev {
 		return nil
 	}
 
