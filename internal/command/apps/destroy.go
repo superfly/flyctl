@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
@@ -40,6 +41,34 @@ func RunDestroy(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 	appName := flag.FirstArg(ctx)
+	client := client.FromContext(ctx).API()
+
+	db_app_name := fmt.Sprintf("%s-db", appName)
+	app_has_db := false
+	var db_app api.App
+
+	redis_app_name := fmt.Sprintf("%s-redis", appName)
+	app_has_redis := false
+	var redis_app api.App
+
+	if apps, err := client.GetApps(ctx, nil); err == nil {
+		for _, app := range apps {
+			if app.Name == db_app_name {
+				app_has_db = true
+				db_app = app
+
+			}
+
+			if app.Name == redis_app_name {
+				app_has_redis = true
+				redis_app = app
+
+			}
+
+		}
+	} else {
+		return err
+	}
 
 	if !flag.GetYes(ctx) {
 		const msg = "Destroying an app is not reversible."
@@ -57,12 +86,70 @@ func RunDestroy(ctx context.Context) error {
 		}
 	}
 
-	client := client.FromContext(ctx).API()
 	if err := client.DeleteApp(ctx, appName); err != nil {
 		return err
 	}
 
 	fmt.Fprintf(io.Out, "Destroyed app %s\n", appName)
+
+	destroy_db := flag.GetYes(ctx)
+
+	if app_has_db {
+		if !flag.GetYes(ctx) {
+			const msg = "This app also has a database. Should it be destroyed? This is not reversible."
+			fmt.Fprintln(io.ErrOut, colorize.Red(msg))
+
+			switch confirmed, err := prompt.Confirmf(ctx, "Destroy app %s?", db_app.Name); {
+			case err == nil:
+				destroy_db = confirmed
+			case prompt.IsNonInteractive(err):
+				return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+			default:
+				return err
+			}
+
+		}
+
+	}
+
+	destroy_redis := flag.GetYes(ctx)
+
+	if app_has_redis {
+		if !flag.GetYes(ctx) {
+			const msg = "This app also has a Redis database. Should it be destroyed? This is not reversible."
+			fmt.Fprintln(io.ErrOut, colorize.Red(msg))
+
+			switch confirmed, err := prompt.Confirmf(ctx, "Destroy app %s?", redis_app.Name); {
+			case err == nil:
+				destroy_redis = confirmed
+			case prompt.IsNonInteractive(err):
+				return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+			default:
+				return err
+			}
+
+		}
+
+		if err := client.DeleteApp(ctx, redis_app.Name); err != nil {
+			return err
+		}
+	}
+
+	if destroy_db && app_has_db {
+		if err := client.DeleteApp(ctx, db_app.Name); err != nil {
+			return err
+		}
+
+		fmt.Fprintf(io.Out, "Destroyed app %s\n", db_app.Name)
+	}
+
+	if destroy_redis && app_has_redis {
+		if err := client.DeleteApp(ctx, redis_app.Name); err != nil {
+			return err
+		}
+
+		fmt.Fprintf(io.Out, "Destroyed app %s\n", redis_app.Name)
+	}
 
 	return nil
 }
