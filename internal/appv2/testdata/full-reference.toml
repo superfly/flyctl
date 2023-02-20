@@ -53,7 +53,7 @@ primary_region = "sea"
   guest_path = "/path/to/statics"
   url_prefix = "/static-assets"
 
-[mounts]
+[mount]
   source = "data"
   destination = "/data"
 
