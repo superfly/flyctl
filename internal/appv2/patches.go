@@ -198,6 +198,23 @@ func _patchService(service map[string]any) (map[string]any, error) {
 		}
 	}
 
+	if rawInternalPort, ok := service["internal_port"]; ok {
+		switch cast := rawInternalPort.(type) {
+		case string:
+			n, err := strconv.Atoi(cast)
+			if err != nil {
+				return nil, fmt.Errorf("Can not convert internal_port '%s' to integer: %w", cast, err)
+			}
+			service["internal_port"] = n
+		case float64:
+			service["internal_port"] = int(cast)
+		case int64:
+			service["internal_port"] = int(cast)
+		default:
+			return nil, fmt.Errorf("Unknown type for internal_port number: %T", cast)
+		}
+	}
+
 	return service, nil
 }
 
