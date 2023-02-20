@@ -3,6 +3,7 @@ package deploy
 import (
 	"context"
 	"fmt"
+	"github.com/superfly/flyctl/gql"
 	"strconv"
 	"strings"
 	"time"
@@ -14,7 +15,6 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appv2"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
@@ -545,28 +545,17 @@ func (md *machineDeployment) setStrategy(passedInStrategy string) error {
 }
 
 func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
-	_ = `# @genqlient
-	mutation MachinesCreateRelease($input:CreateReleaseInput!) {
-		createRelease(input:$input) {
-			release {
-				id
-				version
-			}
-		}
-	}
-	`
-	input := gql.CreateReleaseInput{
-		AppId:           md.appConfig.AppName,
-		PlatformVersion: "machines",
-		Strategy:        gql.DeploymentStrategy(strings.ToUpper(md.strategy)),
-		Definition:      md.appConfig,
-	}
+
+	var image string
+
 	if !md.restartOnly {
-		input.Image = md.img.Tag
+		image = md.img.Tag
 	} else if !md.machineSet.IsEmpty() {
-		input.Image = md.machineSet.GetMachines()[0].Machine().Config.Image
+		image = md.machineSet.GetMachines()[0].Machine().Config.Image
 	}
-	resp, err := gql.MachinesCreateRelease(ctx, md.gqlClient, input)
+
+	resp, err := CreateReleaseInBackend(ctx, md.apiClient, md.appConfig, md.strategy, image)
+
 	if err != nil {
 		return err
 	}
@@ -744,4 +733,30 @@ func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, p
 	}
 
 	return
+}
+
+func CreateReleaseInBackend(ctx context.Context, client *api.Client, app *appv2.Config, strategy, image string) (*gql.MachinesCreateReleaseResponse, error) {
+	_ = `# @genqlient
+	mutation MachinesCreateRelease($input:CreateReleaseInput!) {
+		createRelease(input:$input) {
+			release {
+				id
+				version
+			}
+		}
+	}
+	`
+
+	input := gql.CreateReleaseInput{
+		AppId:           app.AppName,
+		PlatformVersion: "machines",
+		Strategy:        gql.DeploymentStrategy(strings.ToUpper(strategy)),
+		Definition:      app,
+	}
+	input.Image = image
+	resp, err := gql.MachinesCreateRelease(ctx, client.GenqClient, input)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
