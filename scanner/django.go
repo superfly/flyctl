@@ -47,7 +47,7 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 		}
 		s.ReleaseCmd = "python manage.py migrate"
 
-		if !checksPass(sourceDir, dirContains("requirements.txt", "database_url")) {
+		if !checksPass(sourceDir, dirContains("requirements.txt", "dj-database-url")) {
 			s.DeployDocs = `
 Your Django app is almost ready to deploy!
 
