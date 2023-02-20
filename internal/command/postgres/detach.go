@@ -99,7 +99,6 @@ func runMachineDetach(ctx context.Context, app *api.AppCompact, pgApp *api.AppCo
 	}
 
 	return detachAppFromPostgres(ctx, leader.PrivateIP, app, pgApp)
-
 }
 
 func runNomadDetach(ctx context.Context, app *api.AppCompact, pgApp *api.AppCompact) error {
