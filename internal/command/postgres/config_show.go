@@ -100,7 +100,7 @@ func runMachineConfigShow(ctx context.Context, app *api.AppCompact) (err error) 
 	}
 
 	manager := flypg.StolonManager
-	if leader.ImageRef.Labels["fly.pg-manager"] == "repmgr" {
+	if IsFlex(leader) {
 		manager = flypg.ReplicationManager
 	}
 

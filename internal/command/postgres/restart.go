@@ -113,7 +113,7 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 	}
 
 	manager := flypg.StolonManager
-	if leader.ImageRef.Labels["fly.pg-manager"] == "repmgr" {
+	if IsFlex(leader) {
 		manager = flypg.ReplicationManager
 	}
 
