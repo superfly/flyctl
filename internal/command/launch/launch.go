@@ -90,6 +90,7 @@ func New() (cmd *cobra.Command) {
 func run(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 	client := client.FromContext(ctx).API()
+	colorize := io.ColorScheme()
 	workingDir := flag.GetString(ctx, "path")
 
 	// Determine the working directory
@@ -349,13 +350,27 @@ func run(ctx context.Context) (err error) {
 	if !(srcInfo == nil || srcInfo.SkipDatabase || flag.GetBool(ctx, "no-deploy") || flag.GetBool(ctx, "now")) {
 		confirmPg, err := prompt.Confirm(ctx, "Would you like to set up a Postgresql database now?")
 		if confirmPg && err == nil {
-			LaunchPostgres(ctx, appConfig.AppName, org, region)
+			err := LaunchPostgres(ctx, appConfig.AppName, org, region)
+
+			if err != nil {
+				const msg = "Error creating Postgresql database. Be warned that this may affect deploys"
+				fmt.Fprintln(io.Out, colorize.Red(msg))
+
+			}
+
 			options["postgresql"] = true
 		}
 
 		confirmRedis, err := prompt.Confirm(ctx, "Would you like to set up an Upstash Redis database now?")
 		if confirmRedis && err == nil {
-			LaunchRedis(ctx, appConfig.AppName, org, region)
+			err := LaunchRedis(ctx, appConfig.AppName, org, region)
+
+			if err != nil {
+				const msg = "Error creating Redis database. Be warned that this may affect deploys"
+				fmt.Fprintf(io.Out, colorize.Red(msg))
+
+			}
+
 			options["redis"] = true
 		}
 
@@ -771,7 +786,7 @@ func determineDockerIgnore(ctx context.Context, workingDir string) (err error) {
 	return
 }
 
-func LaunchPostgres(ctx context.Context, appName string, org *api.Organization, region *api.Region) {
+func LaunchPostgres(ctx context.Context, appName string, org *api.Organization, region *api.Region) error {
 	io := iostreams.FromContext(ctx)
 	clusterAppName := appName + "-db"
 	err := postgres.CreateCluster(ctx, org, region,
@@ -782,7 +797,7 @@ func LaunchPostgres(ctx context.Context, appName string, org *api.Organization, 
 		})
 
 	if err != nil {
-		fmt.Fprintf(io.Out, "Failed creating the Postgres cluster %s: %s", clusterAppName, err)
+		fmt.Fprintf(io.Out, "Failed creating the Postgres cluster %s: %s\n", clusterAppName, err)
 	} else {
 		err = postgres.AttachCluster(ctx, postgres.AttachParams{
 			PgAppName: clusterAppName,
@@ -790,16 +805,18 @@ func LaunchPostgres(ctx context.Context, appName string, org *api.Organization, 
 		})
 
 		if err != nil {
-			msg := `Failed attaching %s to the Postgres cluster %s: %w.\nTry attaching manually with 'fly postgres attach --app %s %s'`
+			msg := `Failed attaching %s to the Postgres cluster %s: %w.\nTry attaching manually with 'fly postgres attach --app %s %s'\n`
 			fmt.Fprintf(io.Out, msg, appName, clusterAppName, err, appName, clusterAppName)
 
 		} else {
 			fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", clusterAppName, appName)
 		}
 	}
+
+	return err
 }
 
-func LaunchRedis(ctx context.Context, appName string, org *api.Organization, region *api.Region) {
+func LaunchRedis(ctx context.Context, appName string, org *api.Organization, region *api.Region) error {
 	name := appName + "-redis"
 	db, err := redis.Create(ctx, org, name, region, "", true, false)
 
@@ -808,4 +825,6 @@ func LaunchRedis(ctx context.Context, appName string, org *api.Organization, reg
 	} else {
 		redis.AttachDatabase(ctx, db, appName)
 	}
+
+	return err
 }
