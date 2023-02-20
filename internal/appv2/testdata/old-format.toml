@@ -4,6 +4,10 @@ app = "foo"
   FOO = "STRING"
   BAR = 123
 
+[mount]
+source = "data"
+destination = "/data"
+
 [[services]]
   internal_port = 8080
 

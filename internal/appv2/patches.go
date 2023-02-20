@@ -15,6 +15,7 @@ var configPatches = []patchFuncType{
 	patchServices,
 	patchProcesses,
 	patchExperimental,
+	patchMounts,
 }
 
 func applyPatches(cfgMap map[string]any) (*Config, error) {
@@ -102,6 +103,13 @@ func patchExperimental(cfg map[string]any) (map[string]any, error) {
 		cfg["experimental"] = cast
 	}
 
+	return cfg, nil
+}
+
+func patchMounts(cfg map[string]any) (map[string]any, error) {
+	if raw, ok := cfg["mount"]; ok {
+		cfg["mounts"] = raw
+	}
 	return cfg, nil
 }
 
