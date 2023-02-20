@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/appv2"
@@ -779,6 +780,7 @@ func LaunchPostgres(ctx context.Context, appName string, org *api.Organization, 
 			PostgresConfiguration: postgres.PostgresConfiguration{
 				Name: clusterAppName,
 			},
+			Manager: flypg.ReplicationManager,
 		})
 
 	if err != nil {

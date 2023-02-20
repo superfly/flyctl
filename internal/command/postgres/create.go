@@ -67,12 +67,12 @@ func newCreate() *cobra.Command {
 		flag.Bool{
 			Name:        "stolon",
 			Description: "Create a postgres cluster that's managed by Stolon",
-			Default:     true,
+			Default:     false,
 		},
 		flag.Bool{
 			Name:        "flex",
 			Description: "Create a postgres cluster that's managed by Repmgr",
-			Default:     false,
+			Default:     true,
 		},
 	)
 
