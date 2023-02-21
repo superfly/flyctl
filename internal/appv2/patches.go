@@ -244,7 +244,7 @@ func castToInt(num any) (int, error) {
 	case float64:
 		return int(cast), nil
 	case int:
-		return int(cast), nil
+		return cast, nil
 	case int32:
 		return int(cast), nil
 	case int64:
