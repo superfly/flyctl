@@ -51,7 +51,7 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 			s.DeployDocs = `
 Your Django app is almost ready to deploy!
 
-We recommend using the database_url(pip install dj-database-url) to parse the DATABASE_URL from os.environ['DATABASE_URL']
+We recommend using the dj-database-url(pip install dj-database-url) to parse the DATABASE_URL from os.environ['DATABASE_URL']
 
 For detailed documentation, see https://fly.dev/docs/django/
 		`
