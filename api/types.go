@@ -537,7 +537,9 @@ type Organization struct {
 	RemoteBuilderApp   *App
 	Slug               string
 	Type               string
-	Domains            struct {
+	PaidPlan           bool
+
+	Domains struct {
 		Nodes *[]*Domain
 		Edges *[]*struct {
 			Cursor *string
@@ -585,8 +587,9 @@ func (o *Organization) GetSlug() string {
 }
 
 type OrganizationBasic struct {
-	ID   string
-	Slug string
+	ID       string
+	Slug     string
+	PaidPlan bool
 }
 
 func (o *OrganizationBasic) GetID() string {
@@ -973,6 +976,7 @@ type Region struct {
 	Latitude         float32
 	Longitude        float32
 	GatewayAvailable bool
+	RequiresPaidPlan bool
 }
 
 type AutoscalingConfig struct {
