@@ -37,14 +37,6 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 
 	// check if requirements.txt has a postgres dependency
 	if checksPass(sourceDir, dirContains("requirements.txt", "psycopg2")) {
-		s.InitCommands = []InitCommand{
-			{
-				// python makemigrations
-				Command:     "python",
-				Args:        []string{"manage.py", "makemigrations"},
-				Description: "Creating database migrations",
-			},
-		}
 		s.ReleaseCmd = "python manage.py migrate"
 
 		if !checksPass(sourceDir, dirContains("requirements.txt", "database_url")) {
