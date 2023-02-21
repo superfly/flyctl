@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
@@ -43,23 +42,6 @@ func RunDestroy(ctx context.Context) error {
 	appName := flag.FirstArg(ctx)
 	client := client.FromContext(ctx).API()
 
-	db_app_name := fmt.Sprintf("%s-db", appName)
-	app_has_db := false
-	var db_app api.App
-
-	if apps, err := client.GetApps(ctx, nil); err == nil {
-		for _, app := range apps {
-			if app.Name == db_app_name {
-				app_has_db = true
-				db_app = app
-
-			}
-
-		}
-	} else {
-		return err
-	}
-
 	if !flag.GetYes(ctx) {
 		const msg = "Destroying an app is not reversible."
 		fmt.Fprintln(io.ErrOut, colorize.Red(msg))
@@ -81,34 +63,6 @@ func RunDestroy(ctx context.Context) error {
 	}
 
 	fmt.Fprintf(io.Out, "Destroyed app %s\n", appName)
-
-	destroy_db := false
-
-	if app_has_db {
-		if !flag.GetYes(ctx) {
-			const msg = "This app also has a database. Should it be destroyed? This is not reversible."
-			fmt.Fprintln(io.ErrOut, colorize.Red(msg))
-
-			switch confirmed, err := prompt.Confirmf(ctx, "Destroy app %s?", db_app.Name); {
-			case err == nil:
-				destroy_db = confirmed
-			case prompt.IsNonInteractive(err):
-				return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
-			default:
-				return err
-			}
-
-		}
-
-	}
-
-	if destroy_db && app_has_db {
-		if err := client.DeleteApp(ctx, db_app.Name); err != nil {
-			return err
-		}
-
-		fmt.Fprintf(io.Out, "Destroyed app %s\n", db_app.Name)
-	}
 
 	return nil
 }
