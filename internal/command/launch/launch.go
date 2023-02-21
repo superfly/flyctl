@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/logrusorgru/aurora"
@@ -350,15 +351,57 @@ func run(ctx context.Context) (err error) {
 	if !(srcInfo == nil || srcInfo.SkipDatabase || flag.GetBool(ctx, "no-deploy") || flag.GetBool(ctx, "now")) {
 		confirmPg, err := prompt.Confirm(ctx, "Would you like to set up a Postgresql database now?")
 		if confirmPg && err == nil {
-			err := LaunchPostgres(ctx, appConfig.AppName, org, region)
+			db_app_name := fmt.Sprintf("%s-db", appConfig.AppName)
+			should_attach_db := false
 
-			if err != nil {
-				const msg = "Error creating Postgresql database. Be warned that this may affect deploys"
-				fmt.Fprintln(io.Out, colorize.Red(msg))
+			if apps, err := client.GetApps(ctx, nil); err == nil {
+				for _, app := range apps {
+					if app.Name == db_app_name {
+						msg := fmt.Sprintf("We found an existing Postgresql database with the name %s. Would you like to attach it to your app?", app.Name)
+						confirmAttachPg, err := prompt.Confirm(ctx, msg)
+
+						if confirmAttachPg && err == nil {
+							should_attach_db = true
+
+						}
+
+					}
+
+				}
 
 			}
 
 			options["postgresql"] = true
+
+			if should_attach_db {
+				current_time := time.Now().Nanosecond()
+				db_user := fmt.Sprintf("%s-%d", db_app_name, current_time)
+				fmt.Println(db_user)
+				err = postgres.AttachCluster(ctx, postgres.AttachParams{
+					PgAppName: db_app_name,
+					AppName:   appConfig.AppName,
+					DbUser:    db_user,
+				})
+
+				if err != nil {
+					msg := `Failed attaching %s to the Postgres cluster %s: %w.\nTry attaching manually with 'fly postgres attach --app %s %s'\n`
+					fmt.Fprintf(io.Out, msg, appConfig.AppName, db_app_name, err, appConfig.AppName, db_app_name)
+
+				} else {
+					fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", db_app_name, appConfig.AppName)
+				}
+
+			} else {
+				err := LaunchPostgres(ctx, appConfig.AppName, org, region)
+
+				if err != nil {
+					const msg = "Error creating Postgresql database. Be warned that this may affect deploys"
+					fmt.Fprintln(io.Out, colorize.Red(msg))
+
+				}
+
+			}
+
 		}
 
 		confirmRedis, err := prompt.Confirm(ctx, "Would you like to set up an Upstash Redis database now?")
@@ -367,7 +410,7 @@ func run(ctx context.Context) (err error) {
 
 			if err != nil {
 				const msg = "Error creating Redis database. Be warned that this may affect deploys"
-				fmt.Fprintf(io.Out, colorize.Red(msg))
+				fmt.Fprintln(io.Out, colorize.Red(msg))
 
 			}
 
