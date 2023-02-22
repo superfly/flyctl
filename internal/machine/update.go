@@ -13,15 +13,18 @@ import (
 
 func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) error {
 	var (
-		flapsClient = flaps.FromContext(ctx)
-		io          = iostreams.FromContext(ctx)
-		colorize    = io.ColorScheme()
+		flapsClient    = flaps.FromContext(ctx)
+		io             = iostreams.FromContext(ctx)
+		colorize       = io.ColorScheme()
+		updatedMachine *api.Machine
+		err            error
 	)
 
 	fmt.Fprintf(io.Out, "Updating machine %s\n", colorize.Bold(m.ID))
 
 	input.ID = m.ID
-	if _, err := flapsClient.Update(ctx, *input, m.LeaseNonce); err != nil {
+	updatedMachine, err = flapsClient.Update(ctx, *input, m.LeaseNonce)
+	if err != nil {
 		return fmt.Errorf("could not stop machine %s: %w", input.ID, err)
 	}
 
@@ -30,12 +33,12 @@ func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) 
 		waitForAction = "stop"
 	}
 
-	if err := WaitForStartOrStop(ctx, &api.Machine{ID: input.ID}, waitForAction, time.Minute*5); err != nil {
+	if err := WaitForStartOrStop(ctx, updatedMachine, waitForAction, time.Minute*5); err != nil {
 		return err
 	}
 
 	if !input.SkipHealthChecks {
-		if err := watch.MachinesChecks(ctx, []*api.Machine{m}); err != nil {
+		if err := watch.MachinesChecks(ctx, []*api.Machine{updatedMachine}); err != nil {
 			return fmt.Errorf("failed to wait for health checks to pass: %w", err)
 		}
 	}
