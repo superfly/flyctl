@@ -28,7 +28,7 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 		},
 		Statics: []Static{
 			{
-				GuestPath: "/app/public",
+				GuestPath: "/code/static",
 				UrlPrefix: "/static/",
 			},
 		},
