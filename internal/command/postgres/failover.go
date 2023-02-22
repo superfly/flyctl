@@ -91,7 +91,7 @@ func runFailover(ctx context.Context) (err error) {
 	}
 
 	if IsFlex(leader) {
-		return fmt.Errorf("the 'flyio/postgres-flex' image does not currently support manual failovers")
+		return fmt.Errorf("This feature is not availble at this time. To issue a manual failover, please see: https://github.com/fly-apps/postgres-flex/blob/master/docs/manual_failovers.md")
 	}
 
 	flapsClient := flaps.FromContext(ctx)
