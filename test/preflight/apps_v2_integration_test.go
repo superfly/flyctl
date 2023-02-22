@@ -27,31 +27,19 @@ func TestAppsV2Example(t *testing.T) {
 		env     = newTestEnvFromEnv(t)
 	)
 
-	result = env.Fly(t, "orgs list --json")
-	result.AssertSuccessfulExit(t)
-	var orgMap map[string]string
-	err = json.Unmarshal(result.stdOut.Bytes(), &orgMap)
-	if err != nil {
-		t.Fatalf("failed to parse json: %v [output]: %s\n", err, result.stdOut.String())
-	}
-	if _, present := orgMap[env.orgSlug]; !present {
-		t.Fatalf("could not find org with name '%s' in `%s` output: %s", env.orgSlug, result.cmdStr, result.stdOut.String())
-	}
-
 	t.Cleanup(func() {
-		appDestroy := env.Fly(t, "apps destroy --yes %s", appName)
-		agentStop := env.Fly(t, "agent stop")
-		appDestroy.AssertSuccessfulExit(t)
-		agentStop.AssertSuccessfulExit(t)
+		env.Fly("apps destroy --yes %s", appName).AssertSuccessfulExit()
 	})
 
-	result = env.Fly(t, "launch --org %s --name %s --region %s --image nginx --force-machines --internal-port 80 --now --auto-confirm", env.orgSlug, appName, env.primaryRegion)
-	result.AssertSuccessfulExit(t)
+	result = env.Fly("launch --org %s --name %s --region %s --image nginx --force-machines --internal-port 80 --now --auto-confirm", env.orgSlug, appName, env.primaryRegion)
+	result.AssertSuccessfulExit()
 	assert.Contains(t, result.stdOut.String(), "Using image nginx")
 	assert.Contains(t, result.stdOut.String(), fmt.Sprintf("Created app %s in organization %s", appName, env.orgSlug))
 	assert.Contains(t, result.stdOut.String(), "Wrote config file fly.toml")
 
-	time.Sleep(10 * time.Second)
+	env.Fly("status").AssertSuccessfulExit()
+
+	time.Sleep(5 * time.Second)
 	lastStatusCode := -1
 	attempts := 10
 	for i := 0; i < attempts; i++ {
@@ -66,14 +54,15 @@ func TestAppsV2Example(t *testing.T) {
 		}
 	}
 	if lastStatusCode == -1 {
+		env.DebugPrintHistory()
 		t.Fatalf("error calling GET %s: %v", appUrl, err)
 	}
 	if lastStatusCode != http.StatusOK {
 		t.Fatalf("GET %s never returned 200 OK response after %d tries; last status code was: %d", appUrl, attempts, lastStatusCode)
 	}
 
-	result = env.Fly(t, "m list --json")
-	result.AssertSuccessfulExit(t)
+	result = env.Fly("m list --json")
+	result.AssertSuccessfulExit()
 	var machList []map[string]any
 	err = json.Unmarshal(result.stdOut.Bytes(), &machList)
 	if err != nil {
@@ -90,33 +79,33 @@ func TestAppsV2Example(t *testing.T) {
 	if len(env.otherRegions) > 0 {
 		secondReg = env.otherRegions[0]
 	}
-	result = env.Fly(t, "m clone --region %s %s", secondReg, firstMachineId)
-	result.AssertSuccessfulExit(t)
+	result = env.Fly("m clone --region %s %s", secondReg, firstMachineId)
+	result.AssertSuccessfulExit()
 
-	result = env.Fly(t, "status")
-	result.AssertSuccessfulExit(t)
+	result = env.Fly("status")
+	result.AssertSuccessfulExit()
 	assert.Equal(t, 2, strings.Count(result.stdOut.String(), "started"), "expected 2 machines to be started after cloning the original, instead %s showed: %s", result.cmdStr, result.stdOut.String())
 
 	thirdReg := secondReg
 	if len(env.otherRegions) > 1 {
 		thirdReg = env.otherRegions[1]
 	}
-	result = env.Fly(t, "m clone --region %s %s", thirdReg, firstMachineId)
-	result.AssertSuccessfulExit(t)
+	result = env.Fly("m clone --region %s %s", thirdReg, firstMachineId)
+	result.AssertSuccessfulExit()
 
-	result = env.Fly(t, "status")
-	result.AssertSuccessfulExit(t)
+	result = env.Fly("status")
+	result.AssertSuccessfulExit()
 	assert.Equal(t, 3, strings.Count(result.stdOut.String(), "started"), "expected 3 machines to be started after cloning the original, instead %s showed: %s", result.cmdStr, result.stdOut.String())
 
-	result = env.Fly(t, "secrets set PREFLIGHT_TESTING_SECRET=foo")
-	result.AssertSuccessfulExit(t)
+	result = env.Fly("secrets set PREFLIGHT_TESTING_SECRET=foo")
+	result.AssertSuccessfulExit()
 
-	result = env.Fly(t, "secrets list")
-	result.AssertSuccessfulExit(t)
+	result = env.Fly("secrets list")
+	result.AssertSuccessfulExit()
 	assert.Contains(t, result.stdOut.String(), "PREFLIGHT_TESTING_SECRET")
 
-	result = env.Fly(t, "apps restart %s", appName)
-	result.AssertSuccessfulExit(t)
+	result = env.Fly("apps restart %s", appName)
+	result.AssertSuccessfulExit()
 
 	dockerfileContent := `FROM nginx:1.23.3
 
@@ -128,8 +117,8 @@ ENV BUILT_BY_DOCKERFILE=true
 		t.Fatalf("failed to write dockerfile at %s error: %v", dockerfilePath, err)
 	}
 
-	result = env.Fly(t, "deploy")
-	result.AssertSuccessfulExit(t)
+	result = env.Fly("deploy")
+	result.AssertSuccessfulExit()
 
 	// FIXME: test the rest of the example:
 
