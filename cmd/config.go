@@ -195,7 +195,7 @@ func saveAppV2Config(ctx context.Context, apiClient *api.Client, appName, path s
 func writeAppV2Config(ctx context.Context, path string, appConfig *appv2.Config) error {
 	err := appConfig.WriteToDisk(ctx, path)
 	if err != nil {
-		return fmt.Errorf("faile to write config to %s with error: %w", path, err)
+		return fmt.Errorf("failed to write config to %s with error: %w", path, err)
 	}
 	fmt.Println("Wrote config file", helpers.PathRelativeToCWD(path))
 	return nil
