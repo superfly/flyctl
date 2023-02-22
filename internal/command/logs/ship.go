@@ -3,6 +3,7 @@ package logs
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -11,8 +12,8 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
-	"github.com/superfly/flyctl/internal/command/secrets"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -63,9 +64,9 @@ func runShip(ctx context.Context) (err error) {
 		}
 	}
 
-	fmt.Fprintf(io.Out, "Setting up secrets for %s\n", app.Name)
+	fmt.Fprintf(io.ErrOut, "Setting up secrets for %s\n", app.Name)
 
-	err = secrets.SetAndDeploy(ctx, app, map[string]string{
+	_, err = client.SetSecrets(ctx, appName, map[string]string{
 		"ACCESS_TOKEN": flyctl.GetAPIToken(),
 	})
 
@@ -89,7 +90,20 @@ func runShip(ctx context.Context) (err error) {
 
 	machines, err := flapsClient.List(ctx, "")
 
+	launchInput := api.LaunchMachineInput{
+		AppID:  app.Name,
+		Name:   "log-shipper",
+		Config: machineConf,
+	}
+
+	// We already have a log shipper VM, so just update it in-place to pick up any new secrets
 	if len(machines) > 0 {
+		machine := machine.NewLeasableMachine(flapsClient, io, machines[0])
+		machine.AcquireLease(ctx, time.Second*5)
+		launchInput.ID = machines[0].ID
+		launchInput.Config = machines[0].Config
+		machine.Update(ctx, launchInput)
+		machine.ReleaseLease(ctx)
 		return
 	}
 
@@ -99,12 +113,7 @@ func runShip(ctx context.Context) (err error) {
 		return err
 	}
 
-	launchInput := api.LaunchMachineInput{
-		AppID:  app.Name,
-		Name:   "log-shipper",
-		Region: region.Code,
-		Config: machineConf,
-	}
+	launchInput.Region = region.Code
 
 	machine, err := flapsClient.Launch(ctx, launchInput)
 
