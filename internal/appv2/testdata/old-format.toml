@@ -38,3 +38,7 @@ app = "foo"
 
 [[processes]]
   # The GQL GetConfig API returns an empty array when there are no processes
+
+[mount]
+  source = "data"
+  destination = "/data"

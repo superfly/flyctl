@@ -73,6 +73,10 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 			"FOO": "STRING",
 			"BAR": "123",
 		},
+		Mounts: &Volume{
+			Source:      "data",
+			Destination: "/data",
+		},
 		Services: []Service{
 			{
 				InternalPort: 8080,
