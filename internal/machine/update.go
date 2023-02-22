@@ -45,17 +45,11 @@ func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) 
 
 		}
 
-		if input.Config.Guest.CPUKind == "shared" {
-			if input.Config.Guest.MemoryMB%256 != 0 {
-				return fmt.Errorf("invalid config: invalid memory size; must be in 256 MiB increment\nView more information here: https://fly.io/docs/about/pricing/#machines")
+		if input.Config.Guest.CPUKind == "shared" && input.Config.Guest.MemoryMB%256 != 0 {
+			return fmt.Errorf("invalid config: invalid memory size; must be in 256 MiB increment\nView more information here: https://fly.io/docs/about/pricing/#machines")
 
-			}
-
-		} else if input.Config.Guest.CPUKind == "performance" {
-			if input.Config.Guest.MemoryMB%1024 != 0 {
-				return fmt.Errorf("invalid config: invalid memory size; must be in 1024 MiB increment\nView more information here: https://fly.io/docs/about/pricing/#machines")
-
-			}
+		} else if input.Config.Guest.CPUKind == "performance" && input.Config.Guest.MemoryMB%1024 != 0 {
+			return fmt.Errorf("invalid config: invalid memory size; must be in 1024 MiB increment\nView more information here: https://fly.io/docs/about/pricing/#machines")
 
 		}
 

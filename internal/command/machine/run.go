@@ -599,7 +599,7 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 				machine_type = "performance"
 
 			} else {
-				return machineConf, fmt.Errorf("invalid machine preset requested, '%s', expected 'shared' or 'performance'", guestSize)
+				return machineConf, fmt.Errorf("invalid machine preset requested, '%s', expected to start with 'shared' or 'performance'", guestSize)
 
 			}
 
