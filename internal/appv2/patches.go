@@ -245,13 +245,10 @@ func ensureArrayOfMap(raw any) ([]map[string]any, error) {
 }
 
 func patchMounts(cfg map[string]any) (map[string]any, error) {
-
 	if mount, ok := cfg["mount"]; ok {
 		cfg["mounts"] = mount
 	}
-
 	delete(cfg, "mount")
-
 	return cfg, nil
 
 }
