@@ -26,7 +26,7 @@ func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) 
 			validNumCpus = append(validNumCpus, 1, 2, 4, 8)
 
 		} else if input.Config.Guest.CPUKind == "performance" {
-			validNumCpus = append(validNumCpus, 1, 2, 4, 8, 16, 64)
+			validNumCpus = append(validNumCpus, 1, 2, 4, 8, 16)
 
 		}
 

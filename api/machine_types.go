@@ -265,7 +265,6 @@ var MachinePresets map[string]*MachineGuest = map[string]*MachineGuest{
 	"performance-4x":  {CPUKind: "performance", CPUs: 4, MemoryMB: 4 * MIN_MEMORY_MB_PER_CPU},
 	"performance-8x":  {CPUKind: "performance", CPUs: 8, MemoryMB: 8 * MIN_MEMORY_MB_PER_CPU},
 	"performance-16x": {CPUKind: "performance", CPUs: 16, MemoryMB: 16 * MIN_MEMORY_MB_PER_CPU},
-	"performance-64x": {CPUKind: "performance", CPUs: 64, MemoryMB: 64 * MIN_MEMORY_MB_PER_CPU},
 }
 
 type MachineMetrics struct {
