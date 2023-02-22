@@ -220,14 +220,11 @@ func getAppV2Config(ctx context.Context, apiClient *api.Client, appName string) 
 		return nil, err
 	}
 	configDefinition := resp.App.CurrentReleaseUnprocessed.Config.Definition
-	var (
-		apiDefinition *api.Definition
-		ok            bool
-	)
-	// FIXME: this cast doesn't work... probably need to figure out another way to do this
-	if apiDefinition, ok = configDefinition.(*api.Definition); !ok {
-		return nil, fmt.Errorf("likely a bug, could not cast config definition to api definition")
+	configMapDefinition, err := api.InterfaceToMapOfStringInterface(configDefinition)
+	if err != nil {
+		return nil, fmt.Errorf("likely a bug, could not cast config definition to api definition error: %w", err)
 	}
+	apiDefinition := api.DefinitionPtr(configMapDefinition)
 	appConfig, err := appv2.FromDefinition(apiDefinition)
 	if err != nil {
 		return nil, fmt.Errorf("error creating appv2 Config from api definition: %w", err)
