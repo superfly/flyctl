@@ -23,10 +23,10 @@ func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) 
 		var validNumCpus []int
 
 		if input.Config.Guest.CPUKind == "shared" {
-			validNumCpus = append(validNumCpus, 1, 2, 4, 8)
+			validNumCpus = append(validNumCpus, 1, 2, 4, 6, 8)
 
 		} else if input.Config.Guest.CPUKind == "performance" {
-			validNumCpus = append(validNumCpus, 1, 2, 4, 8, 16)
+			validNumCpus = append(validNumCpus, 1, 2, 4, 6, 8, 10, 12, 14, 16)
 
 		}
 
