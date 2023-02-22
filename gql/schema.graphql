@@ -536,9 +536,14 @@ type App implements Node {
   currentPlacement: [RegionPlacement!]!
 
   """
-  The latest release of this applicaion
+  The latest release of this application
   """
   currentRelease: Release
+
+  """
+  The latest release of this application, without any config processing
+  """
+  currentReleaseUnprocessed: Release
   deployed: Boolean!
 
   """
@@ -721,6 +726,31 @@ type App implements Node {
   Individual releases for this application
   """
   releases(
+    """
+    Returns the elements in the list that come after the specified cursor.
+    """
+    after: String
+
+    """
+    Returns the elements in the list that come before the specified cursor.
+    """
+    before: String
+
+    """
+    Returns the first _n_ elements from the list.
+    """
+    first: Int
+
+    """
+    Returns the last _n_ elements from the list.
+    """
+    last: Int
+  ): ReleaseConnection!
+
+  """
+  Individual releases for this application, without any config processing
+  """
+  releasesUnprocessed(
     """
     Returns the elements in the list that come after the specified cursor.
     """
@@ -6861,6 +6891,7 @@ type Organization implements Node {
   Organization name
   """
   name: String!
+  paidPlan: Boolean!
 
   """
   Email for paid plan support if available
@@ -7662,6 +7693,7 @@ type Region {
   """
   name: String!
   processGroup: String
+  requiresPaidPlan: Boolean!
 }
 
 enum RegionEnum {
@@ -9582,6 +9614,7 @@ type User implements Node {
   personalOrganization: Organization! @deprecated(reason: "Use query.personalOrganization instead")
   stripeVerificationStatus: String
   trust: OrganizationTrust!
+  trustScore: Int
   twoFactorProtection: Boolean!
 
   """

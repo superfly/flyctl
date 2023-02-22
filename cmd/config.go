@@ -1,12 +1,15 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/appv2"
 
 	"github.com/superfly/flyctl/docstrings"
 
@@ -73,14 +76,24 @@ func runSaveConfig(cmdCtx *cmdctx.CmdContext) error {
 	}
 	cmdCtx.AppConfig.AppName = cmdCtx.AppName
 
-	serverCfg, err := cmdCtx.Client.API().GetConfig(ctx, cmdCtx.AppName)
+	apiClient := cmdCtx.Client.API()
+	appCompact, err := apiClient.GetAppCompact(ctx, cmdCtx.AppName)
 	if err != nil {
-		return err
+		return fmt.Errorf("error getting app: %w", err)
 	}
-
-	cmdCtx.AppConfig.Definition = serverCfg.Definition
-
-	return writeAppConfig(cmdCtx.ConfigFile, cmdCtx.AppConfig)
+	switch appCompact.PlatformVersion {
+	case "nomad":
+		serverCfg, err := apiClient.GetConfig(ctx, cmdCtx.AppName)
+		if err != nil {
+			return err
+		}
+		cmdCtx.AppConfig.Definition = serverCfg.Definition
+		return writeAppConfig(cmdCtx.ConfigFile, cmdCtx.AppConfig)
+	case "machines":
+		return saveAppV2Config(ctx, apiClient, appCompact.Name, cmdCtx.ConfigFile)
+	default:
+		return fmt.Errorf("likely a bug, unknown platform version %s for app %s", appCompact.PlatformVersion, appCompact.Name)
+	}
 }
 
 func runValidateConfig(commandContext *cmdctx.CmdContext) error {
@@ -168,4 +181,56 @@ func writeAppConfig(path string, appConfig *flyctl.AppConfig) error {
 	fmt.Println("Wrote config file", helpers.PathRelativeToCWD(path))
 
 	return nil
+}
+
+func saveAppV2Config(ctx context.Context, apiClient *api.Client, appName, path string) error {
+	appConfig, err := getAppV2Config(ctx, apiClient, appName)
+	// FIXME: handle situation where no releases are found, make up a fly config from the app data we have + the machine config (will be fun!)
+	if err != nil {
+		return err
+	}
+	return writeAppV2Config(ctx, path, appConfig)
+}
+
+func writeAppV2Config(ctx context.Context, path string, appConfig *appv2.Config) error {
+	err := appConfig.WriteToDisk(ctx, path)
+	if err != nil {
+		return fmt.Errorf("faile to write config to %s with error: %w", path, err)
+	}
+	fmt.Println("Wrote config file", helpers.PathRelativeToCWD(path))
+	return nil
+}
+
+func getAppV2Config(ctx context.Context, apiClient *api.Client, appName string) (*appv2.Config, error) {
+	_ = `# @genqlient
+	query FlyctlConfigCurrentRelease($appName: String!) {
+		app(name:$appName) {
+			currentReleaseUnprocessed {
+				id
+				version
+				config {
+					definition
+				}
+			}
+		}
+	}
+	`
+	resp, err := gql.FlyctlConfigCurrentRelease(ctx, apiClient.GenqClient, appName)
+	if err != nil {
+		return nil, err
+	}
+	configDefinition := resp.App.CurrentReleaseUnprocessed.Config.Definition
+	var (
+		apiDefinition *api.Definition
+		ok            bool
+	)
+	// FIXME: this cast doesn't work... probably need to figure out another way to do this
+	if apiDefinition, ok = configDefinition.(*api.Definition); !ok {
+		return nil, fmt.Errorf("likely a bug, could not cast config definition to api definition")
+	}
+	appConfig, err := appv2.FromDefinition(apiDefinition)
+	if err != nil {
+		return nil, fmt.Errorf("error creating appv2 Config from api definition: %w", err)
+	}
+	return appConfig, nil
 }

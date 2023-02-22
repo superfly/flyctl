@@ -531,6 +531,58 @@ func (v *FinishBuildInput) GetStrategiesAttempted() []BuildStrategyAttemptInput 
 // GetTimings returns FinishBuildInput.Timings, and is useful for accessing the field via an interface.
 func (v *FinishBuildInput) GetTimings() BuildTimingsInput { return v.Timings }
 
+// FlyctlConfigCurrentReleaseApp includes the requested fields of the GraphQL type App.
+type FlyctlConfigCurrentReleaseApp struct {
+	// The latest release of this application, without any config processing
+	CurrentReleaseUnprocessed FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedRelease `json:"currentReleaseUnprocessed"`
+}
+
+// GetCurrentReleaseUnprocessed returns FlyctlConfigCurrentReleaseApp.CurrentReleaseUnprocessed, and is useful for accessing the field via an interface.
+func (v *FlyctlConfigCurrentReleaseApp) GetCurrentReleaseUnprocessed() FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedRelease {
+	return v.CurrentReleaseUnprocessed
+}
+
+// FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedRelease includes the requested fields of the GraphQL type Release.
+type FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedRelease struct {
+	// Unique ID
+	Id string `json:"id"`
+	// The version of the release
+	Version int                                                                          `json:"version"`
+	Config  FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedReleaseConfigAppConfig `json:"config"`
+}
+
+// GetId returns FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedRelease.Id, and is useful for accessing the field via an interface.
+func (v *FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedRelease) GetId() string { return v.Id }
+
+// GetVersion returns FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedRelease.Version, and is useful for accessing the field via an interface.
+func (v *FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedRelease) GetVersion() int {
+	return v.Version
+}
+
+// GetConfig returns FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedRelease.Config, and is useful for accessing the field via an interface.
+func (v *FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedRelease) GetConfig() FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedReleaseConfigAppConfig {
+	return v.Config
+}
+
+// FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedReleaseConfigAppConfig includes the requested fields of the GraphQL type AppConfig.
+type FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedReleaseConfigAppConfig struct {
+	Definition interface{} `json:"definition"`
+}
+
+// GetDefinition returns FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedReleaseConfigAppConfig.Definition, and is useful for accessing the field via an interface.
+func (v *FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedReleaseConfigAppConfig) GetDefinition() interface{} {
+	return v.Definition
+}
+
+// FlyctlConfigCurrentReleaseResponse is returned by FlyctlConfigCurrentRelease on success.
+type FlyctlConfigCurrentReleaseResponse struct {
+	// Find an app by name
+	App FlyctlConfigCurrentReleaseApp `json:"app"`
+}
+
+// GetApp returns FlyctlConfigCurrentReleaseResponse.App, and is useful for accessing the field via an interface.
+func (v *FlyctlConfigCurrentReleaseResponse) GetApp() FlyctlConfigCurrentReleaseApp { return v.App }
+
 // GetAddOnAddOn includes the requested fields of the GraphQL type AddOn.
 type GetAddOnAddOn struct {
 	Id string `json:"id"`
@@ -1037,6 +1089,14 @@ type __DeleteAddOnInput struct {
 // GetName returns __DeleteAddOnInput.Name, and is useful for accessing the field via an interface.
 func (v *__DeleteAddOnInput) GetName() string { return v.Name }
 
+// __FlyctlConfigCurrentReleaseInput is used internally by genqlient
+type __FlyctlConfigCurrentReleaseInput struct {
+	AppName string `json:"appName"`
+}
+
+// GetAppName returns __FlyctlConfigCurrentReleaseInput.AppName, and is useful for accessing the field via an interface.
+func (v *__FlyctlConfigCurrentReleaseInput) GetAppName() string { return v.AppName }
+
 // __GetAddOnInput is used internally by genqlient
 type __GetAddOnInput struct {
 	Name string `json:"name"`
@@ -1241,6 +1301,44 @@ mutation DeleteAddOn ($name: String) {
 	var err error
 
 	var data DeleteAddOnResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
+func FlyctlConfigCurrentRelease(
+	ctx context.Context,
+	client graphql.Client,
+	appName string,
+) (*FlyctlConfigCurrentReleaseResponse, error) {
+	req := &graphql.Request{
+		OpName: "FlyctlConfigCurrentRelease",
+		Query: `
+query FlyctlConfigCurrentRelease ($appName: String!) {
+	app(name: $appName) {
+		currentReleaseUnprocessed {
+			id
+			version
+			config {
+				definition
+			}
+		}
+	}
+}
+`,
+		Variables: &__FlyctlConfigCurrentReleaseInput{
+			AppName: appName,
+		},
+	}
+	var err error
+
+	var data FlyctlConfigCurrentReleaseResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(
