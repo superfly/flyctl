@@ -374,9 +374,13 @@ func run(ctx context.Context) (err error) {
 			options["postgresql"] = true
 
 			if should_attach_db {
+				// If we try to attach to a PG cluster with the usual username
+				// format, we'll get an error (since that username already exists)
+				// by generating a new username with a sufficiently random number
+				// (in this case, the nanon second that the database is being attached)
 				current_time := time.Now().Nanosecond()
 				db_user := fmt.Sprintf("%s-%d", db_app_name, current_time)
-				fmt.Println(db_user)
+
 				err = postgres.AttachCluster(ctx, postgres.AttachParams{
 					PgAppName: db_app_name,
 					AppName:   appConfig.AppName,
