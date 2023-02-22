@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/command/deploy"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
@@ -85,6 +87,8 @@ func runNomadRestart(ctx context.Context, app *api.AppCompact) error {
 
 func runMachinesRestart(ctx context.Context, app *api.AppCompact) error {
 
+	client := client.FromContext(ctx).API()
+
 	input := &api.RestartMachineInput{
 		ForceStop:        flag.GetBool(ctx, "force-stop"),
 		SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),
@@ -111,6 +115,26 @@ func runMachinesRestart(ctx context.Context, app *api.AppCompact) error {
 		if err := machine.Restart(ctx, m, input, m.LeaseNonce); err != nil {
 			return err
 		}
+	}
+
+	// Record a release after restarting the machines
+	apiConfig, err := client.GetConfig(ctx, app.Name)
+	if err != nil {
+		return fmt.Errorf("failed fetching existing app config: %w", err)
+	}
+
+	cfg, err := appv2.FromDefinition(&apiConfig.Definition)
+	if err != nil {
+		return err
+	}
+	cfg.AppName = app.Name
+
+	img := machines[0].Config.Image
+
+	_, err = deploy.CreateReleaseInBackend(ctx, client, cfg, "rolling", img)
+
+	if err != nil {
+		return err
 	}
 
 	return nil

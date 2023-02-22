@@ -501,7 +501,7 @@ func (md *machineDeployment) setStrategy(passedInStrategy string) error {
 	return nil
 }
 
-func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
+func CreateReleaseInBackend(ctx context.Context, client *api.Client, app *appv2.Config, strategy, image string) (*gql.MachinesCreateReleaseResponse, error) {
 	_ = `# @genqlient
 	mutation MachinesCreateRelease($input:CreateReleaseInput!) {
 		createRelease(input:$input) {
@@ -512,18 +512,33 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 		}
 	}
 	`
+
 	input := gql.CreateReleaseInput{
-		AppId:           md.appConfig.AppName,
+		AppId:           app.AppName,
 		PlatformVersion: "machines",
-		Strategy:        gql.DeploymentStrategy(strings.ToUpper(md.strategy)),
-		Definition:      md.appConfig,
+		Strategy:        gql.DeploymentStrategy(strings.ToUpper(strategy)),
+		Definition:      app,
 	}
+	input.Image = image
+	resp, err := gql.MachinesCreateRelease(ctx, client.GenqClient, input)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
+
+	var image string
+
 	if !md.restartOnly {
-		input.Image = md.img.Tag
+		image = md.img.Tag
 	} else if !md.machineSet.IsEmpty() {
-		input.Image = md.machineSet.GetMachines()[0].Machine().Config.Image
+		image = md.machineSet.GetMachines()[0].Machine().Config.Image
 	}
-	resp, err := gql.MachinesCreateRelease(ctx, md.gqlClient, input)
+
+	resp, err := CreateReleaseInBackend(ctx, md.apiClient, md.appConfig, md.strategy, image)
+
 	if err != nil {
 		return err
 	}
