@@ -634,6 +634,9 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 	}
 	launchInput.Config.Init = origMachineRaw.Config.Init
 	processGroup := origMachineRaw.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
+	if processGroup == "" {
+		processGroup = api.MachineProcessGroupApp
+	}
 	if processConfig, ok := md.processConfigs[processGroup]; ok {
 		launchInput.Config.Services = processConfig.Services
 		launchInput.Config.Init.Cmd = processConfig.Cmd
