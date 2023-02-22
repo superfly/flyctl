@@ -41,17 +41,24 @@ func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) 
 		}
 
 		if !validCpuNum {
-			return fmt.Errorf("invalid config: invalid number of CPUs for %s guest. Valid numbers are %v", input.Config.Guest.CPUKind, validNumCpus)
+			return fmt.Errorf("invalid config: invalid number of CPUs for %s guest. Valid numbers are %v\nView more information here: https://fly.io/docs/about/pricing/#machines", input.Config.Guest.CPUKind, validNumCpus)
 
 		}
 
-		// Check that the amount of memory is evenly divisible by 256 MiB
-		if input.Config.Guest.MemoryMB%256 != 0 {
-			return fmt.Errorf("invalid config: invalid memory size; must be in 256 MiB increment")
+		if input.Config.Guest.CPUKind == "shared" {
+			if input.Config.Guest.MemoryMB%256 != 0 {
+				return fmt.Errorf("invalid config: invalid memory size; must be in 256 MiB increment\nView more information here: https://fly.io/docs/about/pricing/#machines")
+
+			}
+
+		} else if input.Config.Guest.CPUKind == "performance" {
+			if input.Config.Guest.MemoryMB%1024 != 0 {
+				return fmt.Errorf("invalid config: invalid memory size; must be in 1024 MiB increment\nView more information here: https://fly.io/docs/about/pricing/#machines")
+
+			}
 
 		}
 
-		// Check that the amount of memory is valid
 		var presetName string
 
 		if input.Config.Guest.CPUKind == "shared" {
@@ -63,23 +70,26 @@ func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) 
 		// Check memory sizes
 		if machinePreset, ok := api.MachinePresets[presetName]; ok {
 			if machinePreset.MemoryMB > input.Config.Guest.MemoryMB {
-				return fmt.Errorf("invalid config: for machines with %d CPUs, the minimum amount of memory is %d MiB", machinePreset.CPUs, machinePreset.MemoryMB)
+				return fmt.Errorf("invalid config: for machines with %d CPUs, the minimum amount of memory is %d MiB\nView more information here: https://fly.io/docs/about/pricing/#machines", machinePreset.CPUs, machinePreset.MemoryMB)
 
 			}
 
 			var maxMemory int
 
 			if input.Config.Guest.CPUKind == "shared" {
-				maxMemory = input.Config.Guest.CPUs * api.MIN_MEMORY_MB_PER_SHARED_CPU
+				maxMemory = input.Config.Guest.CPUs * api.MAX_MEMORY_MB_PER_SHARED_CPU
 			} else if input.Config.Guest.CPUKind == "performance" {
-				maxMemory = input.Config.Guest.CPUs * api.MIN_MEMORY_MB_PER_CPU
+				maxMemory = input.Config.Guest.CPUs * api.MAX_MEMORY_MB_PER_CPU
 			}
 
 			if input.Config.Guest.MemoryMB > maxMemory {
-				return fmt.Errorf("invalid config: for machines with %d CPUs, the maximum amount of memory is %d MiB", machinePreset.CPUs, maxMemory)
+				return fmt.Errorf("invalid config: for machines with %d CPUs, the maximum amount of memory is %d MiB\nView more information here: https://fly.io/docs/about/pricing/#machines", machinePreset.CPUs, maxMemory)
 
 			}
 
+		} else {
+			// this shouldn't happen
+			return fmt.Errorf("invalid config: invalid number of CPUs for %s guest. Valid numbers are %v\nView more information here: https://fly.io/docs/about/pricing/#machines", input.Config.Guest.CPUKind, validNumCpus)
 		}
 
 	}
