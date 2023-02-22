@@ -206,11 +206,7 @@ func getAppV2Config(ctx context.Context, apiClient *api.Client, appName string) 
 	query FlyctlConfigCurrentRelease($appName: String!) {
 		app(name:$appName) {
 			currentReleaseUnprocessed {
-				id
-				version
-				config {
-					definition
-				}
+				configDefinition
 			}
 		}
 	}
@@ -219,7 +215,7 @@ func getAppV2Config(ctx context.Context, apiClient *api.Client, appName string) 
 	if err != nil {
 		return nil, err
 	}
-	configDefinition := resp.App.CurrentReleaseUnprocessed.Config.Definition
+	configDefinition := resp.App.CurrentReleaseUnprocessed.ConfigDefinition
 	configMapDefinition, err := api.InterfaceToMapOfStringInterface(configDefinition)
 	if err != nil {
 		return nil, fmt.Errorf("likely a bug, could not cast config definition to api definition error: %w", err)

@@ -534,44 +534,22 @@ func (v *FinishBuildInput) GetTimings() BuildTimingsInput { return v.Timings }
 // FlyctlConfigCurrentReleaseApp includes the requested fields of the GraphQL type App.
 type FlyctlConfigCurrentReleaseApp struct {
 	// The latest release of this application, without any config processing
-	CurrentReleaseUnprocessed FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedRelease `json:"currentReleaseUnprocessed"`
+	CurrentReleaseUnprocessed FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessed `json:"currentReleaseUnprocessed"`
 }
 
 // GetCurrentReleaseUnprocessed returns FlyctlConfigCurrentReleaseApp.CurrentReleaseUnprocessed, and is useful for accessing the field via an interface.
-func (v *FlyctlConfigCurrentReleaseApp) GetCurrentReleaseUnprocessed() FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedRelease {
+func (v *FlyctlConfigCurrentReleaseApp) GetCurrentReleaseUnprocessed() FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessed {
 	return v.CurrentReleaseUnprocessed
 }
 
-// FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedRelease includes the requested fields of the GraphQL type Release.
-type FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedRelease struct {
-	// Unique ID
-	Id string `json:"id"`
-	// The version of the release
-	Version int                                                                          `json:"version"`
-	Config  FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedReleaseConfigAppConfig `json:"config"`
+// FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessed includes the requested fields of the GraphQL type ReleaseUnprocessed.
+type FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessed struct {
+	ConfigDefinition interface{} `json:"configDefinition"`
 }
 
-// GetId returns FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedRelease.Id, and is useful for accessing the field via an interface.
-func (v *FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedRelease) GetId() string { return v.Id }
-
-// GetVersion returns FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedRelease.Version, and is useful for accessing the field via an interface.
-func (v *FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedRelease) GetVersion() int {
-	return v.Version
-}
-
-// GetConfig returns FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedRelease.Config, and is useful for accessing the field via an interface.
-func (v *FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedRelease) GetConfig() FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedReleaseConfigAppConfig {
-	return v.Config
-}
-
-// FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedReleaseConfigAppConfig includes the requested fields of the GraphQL type AppConfig.
-type FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedReleaseConfigAppConfig struct {
-	Definition interface{} `json:"definition"`
-}
-
-// GetDefinition returns FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedReleaseConfigAppConfig.Definition, and is useful for accessing the field via an interface.
-func (v *FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessedReleaseConfigAppConfig) GetDefinition() interface{} {
-	return v.Definition
+// GetConfigDefinition returns FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessed.ConfigDefinition, and is useful for accessing the field via an interface.
+func (v *FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessed) GetConfigDefinition() interface{} {
+	return v.ConfigDefinition
 }
 
 // FlyctlConfigCurrentReleaseResponse is returned by FlyctlConfigCurrentRelease on success.
@@ -1323,11 +1301,7 @@ func FlyctlConfigCurrentRelease(
 query FlyctlConfigCurrentRelease ($appName: String!) {
 	app(name: $appName) {
 		currentReleaseUnprocessed {
-			id
-			version
-			config {
-				definition
-			}
+			configDefinition
 		}
 	}
 }
