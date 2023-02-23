@@ -54,6 +54,9 @@ func runReleases(ctx context.Context) error {
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
+	}
 
 	if app.PlatformVersion == "machines" {
 		releases, err = client.GetAppReleasesMachines(ctx, appName, 25)
