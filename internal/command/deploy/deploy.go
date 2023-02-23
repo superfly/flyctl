@@ -204,7 +204,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 			return err
 		}
 
-		release, err = apiClient.GetAppRelease(ctx, appConfig.AppName, release.ID)
+		release, err = apiClient.GetAppReleaseNomad(ctx, appConfig.AppName, release.ID)
 		if err != nil {
 			return err
 		}
