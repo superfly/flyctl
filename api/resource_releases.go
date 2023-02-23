@@ -105,31 +105,3 @@ func (c *Client) GetAppReleaseNomad(ctx context.Context, appName string, id stri
 
 	return data.App.Release, nil
 }
-
-func (c *Client) GetAppReleaseMachines(ctx context.Context, appName string, id string) (*Release, error) {
-	query := `
-		query ($appName: String!, $releaseId: ID!) {
-			app(name: $appName) {
-				release: releaseUnprocessed(id: $releaseId) {
-					id
-					status
-					evaluationId
-					createdAt
-					deploymentStrategy
-				}
-			}
-		}
-	`
-
-	req := c.NewRequest(query)
-
-	req.Var("appName", appName)
-	req.Var("releaseId", id)
-
-	data, err := c.RunWithContext(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	return data.App.Release, nil
-}
