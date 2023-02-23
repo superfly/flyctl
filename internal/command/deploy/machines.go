@@ -578,6 +578,7 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Machine) *api.LaunchMachineInput {
 	if origMachineRaw == nil {
 		origMachineRaw = &api.Machine{
+			Region: md.appConfig.PrimaryRegion,
 			Config: &api.MachineConfig{},
 		}
 	}
@@ -736,6 +737,7 @@ func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, p
 		cfg.SetEnvVariables(parsedEnv)
 	}
 
+	// deleting this block will result in machines not being deployed in the user selected region
 	if primaryRegion != "" {
 		cfg.PrimaryRegion = primaryRegion
 	}

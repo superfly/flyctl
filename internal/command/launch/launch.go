@@ -553,6 +553,7 @@ func run(ctx context.Context) (err error) {
 	}
 	var v2AppConfig *appv2.Config
 	if deployArgs.ForceMachines {
+		appConfig.PrimaryRegion = region.Code
 		v2AppConfig, err = appv2.LoadConfig(configFilePath)
 		if err != nil {
 			return fmt.Errorf("invalid config: %w", err)
