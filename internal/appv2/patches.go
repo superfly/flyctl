@@ -15,6 +15,7 @@ var configPatches = []patchFuncType{
 	patchServices,
 	patchProcesses,
 	patchExperimental,
+	patchMounts,
 }
 
 func applyPatches(cfgMap map[string]any) (*Config, error) {
@@ -75,17 +76,33 @@ func patchProcesses(cfg map[string]any) (map[string]any, error) {
 }
 
 func patchExperimental(cfg map[string]any) (map[string]any, error) {
-	if raw, ok := cfg["experimental"]; ok {
-		switch cast := raw.(type) {
-		case map[string]any:
-			if len(cast) == 0 {
-				// Remove experiemntal section if empty
-				delete(cfg, "experimental")
+	raw, ok := cfg["experimental"]
+	if !ok {
+		return cfg, nil
+	}
+
+	cast, ok := raw.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("Experimental section of unknown type: %T", cast)
+	}
+
+	for k, v := range cast {
+		switch k {
+		case "cmd", "entrypoint", "exec":
+			if n, err := stringOrSliceToSlice(v, k); err != nil {
+				return nil, err
+			} else {
+				cast[k] = n
 			}
-		default:
-			return nil, fmt.Errorf("Unknown type: %T", cast)
 		}
 	}
+
+	if len(cast) == 0 {
+		delete(cfg, "experimental")
+	} else {
+		cfg["experimental"] = cast
+	}
+
 	return cfg, nil
 }
 
@@ -225,4 +242,37 @@ func ensureArrayOfMap(raw any) ([]map[string]any, error) {
 		return nil, fmt.Errorf("Unknown type '%T'", cast)
 	}
 	return out, nil
+}
+
+func patchMounts(cfg map[string]any) (map[string]any, error) {
+	if mount, ok := cfg["mount"]; ok {
+		cfg["mounts"] = mount
+	}
+	delete(cfg, "mount")
+	return cfg, nil
+
+}
+
+func stringOrSliceToSlice(input any, fieldName string) ([]string, error) {
+	if input == nil {
+		return nil, nil
+	}
+
+	if c, ok := input.([]string); ok {
+		return c, nil
+	} else if c, ok := input.(string); ok {
+		return []string{c}, nil
+	} else if c, ok := input.([]any); ok {
+		ret := []string{}
+		for _, v := range c {
+			if cv, ok := v.(string); ok {
+				ret = append(ret, cv)
+			} else {
+				return nil, fmt.Errorf("could not cast %v of type %T to string on %s", v, v, fieldName)
+			}
+		}
+		return ret, nil
+	} else {
+		return nil, fmt.Errorf("could not cast %v of type %T to []string on %s", input, input, fieldName)
+	}
 }

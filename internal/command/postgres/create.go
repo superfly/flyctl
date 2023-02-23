@@ -67,12 +67,12 @@ func newCreate() *cobra.Command {
 		flag.Bool{
 			Name:        "stolon",
 			Description: "Create a postgres cluster that's managed by Stolon",
-			Default:     true,
+			Default:     false,
 		},
 		flag.Bool{
 			Name:        "flex",
 			Description: "Create a postgres cluster that's managed by Repmgr",
-			Default:     false,
+			Default:     true,
 		},
 	)
 
@@ -100,7 +100,7 @@ func run(ctx context.Context) (err error) {
 
 	var region *api.Region
 
-	region, err = prompt.Region(ctx, prompt.RegionParams{
+	region, err = prompt.Region(ctx, !org.PaidPlan, prompt.RegionParams{
 		Message: "",
 	})
 	if err != nil {
@@ -316,14 +316,14 @@ func flexConfigurations() []PostgresConfiguration {
 			VMSize:             "shared-cpu-1x",
 		},
 		{
-			Description:        "Production - Highly available, 2x shared CPUs, 4GB RAM, 40GB disk",
+			Description:        "Production (High Availability) - 3 nodes, 2x shared CPUs, 4GB RAM, 40GB disk",
 			DiskGb:             40,
 			InitialClusterSize: 3,
 			MemoryMb:           4096,
 			VMSize:             "shared-cpu-2x",
 		},
 		{
-			Description:        "Production - Highly available, 4x shared CPUs, 8GB RAM, 80GB disk",
+			Description:        "Production (High Availability) - 3 nodes, 4x shared CPUs, 8GB RAM, 80GB disk",
 			DiskGb:             80,
 			InitialClusterSize: 3,
 			MemoryMb:           8192,

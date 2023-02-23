@@ -25,7 +25,7 @@ type Machine struct {
 	Name     string          `json:"name,omitempty"`
 	State    string          `json:"state,omitempty"`
 	Region   string          `json:"region,omitempty"`
-	ImageRef machineImageRef `json:"image_ref,omitempty"`
+	ImageRef MachineImageRef `json:"image_ref,omitempty"`
 	// InstanceID is unique for each version of the machine
 	InstanceID string `json:"instance_id,omitempty"`
 	Version    string `json:"version,omitempty"`
@@ -65,8 +65,12 @@ func (m *Machine) ImageRefWithVersion() string {
 	return ref
 }
 
+func (m *Machine) IsAppsV2() bool {
+	return m.Config != nil && m.Config.Metadata[MachineConfigMetadataKeyFlyPlatformVersion] == MachineFlyPlatformVersion2
+}
+
 func (m *Machine) IsFlyAppsPlatform() bool {
-	return m.Config != nil && m.Config.Metadata[MachineConfigMetadataKeyFlyPlatformVersion] == MachineFlyPlatformVersion2 && m.IsActive()
+	return m.IsAppsV2() && m.IsActive()
 }
 
 func (m *Machine) IsFlyAppsReleaseCommand() bool {
@@ -133,7 +137,7 @@ func (m *Machine) GetLatestEventOfTypeAfterType(latestEventType, firstEventType 
 	return nil
 }
 
-type machineImageRef struct {
+type MachineImageRef struct {
 	Registry   string            `json:"registry,omitempty"`
 	Repository string            `json:"repository,omitempty"`
 	Tag        string            `json:"tag,omitempty"`
@@ -242,16 +246,25 @@ type MachineGuest struct {
 }
 
 const (
-	MEMORY_MB_PER_SHARED_CPU = 256
-	MEMORY_MB_PER_CPU        = 2048
+	MIN_MEMORY_MB_PER_SHARED_CPU = 256
+	MIN_MEMORY_MB_PER_CPU        = 2048
+
+	MAX_MEMORY_MB_PER_SHARED_CPU = 2048
+	MAX_MEMORY_MB_PER_CPU        = 8192
 )
 
 // TODO - Determine if we want allocate max memory allocation, or minimum per # cpus.
 var MachinePresets map[string]*MachineGuest = map[string]*MachineGuest{
-	"shared-cpu-1x": {CPUKind: "shared", CPUs: 1, MemoryMB: 1 * MEMORY_MB_PER_SHARED_CPU},
-	"shared-cpu-2x": {CPUKind: "shared", CPUs: 2, MemoryMB: 2 * MEMORY_MB_PER_SHARED_CPU},
-	"shared-cpu-4x": {CPUKind: "shared", CPUs: 4, MemoryMB: 4 * MEMORY_MB_PER_SHARED_CPU},
-	"shared-cpu-8x": {CPUKind: "shared", CPUs: 8, MemoryMB: 8 * MEMORY_MB_PER_SHARED_CPU},
+	"shared-cpu-1x": {CPUKind: "shared", CPUs: 1, MemoryMB: 1 * MIN_MEMORY_MB_PER_SHARED_CPU},
+	"shared-cpu-2x": {CPUKind: "shared", CPUs: 2, MemoryMB: 2 * MIN_MEMORY_MB_PER_SHARED_CPU},
+	"shared-cpu-4x": {CPUKind: "shared", CPUs: 4, MemoryMB: 4 * MIN_MEMORY_MB_PER_SHARED_CPU},
+	"shared-cpu-8x": {CPUKind: "shared", CPUs: 8, MemoryMB: 8 * MIN_MEMORY_MB_PER_SHARED_CPU},
+
+	"performance-1x":  {CPUKind: "performance", CPUs: 1, MemoryMB: 1 * MIN_MEMORY_MB_PER_CPU},
+	"performance-2x":  {CPUKind: "performance", CPUs: 2, MemoryMB: 2 * MIN_MEMORY_MB_PER_CPU},
+	"performance-4x":  {CPUKind: "performance", CPUs: 4, MemoryMB: 4 * MIN_MEMORY_MB_PER_CPU},
+	"performance-8x":  {CPUKind: "performance", CPUs: 8, MemoryMB: 8 * MIN_MEMORY_MB_PER_CPU},
+	"performance-16x": {CPUKind: "performance", CPUs: 16, MemoryMB: 16 * MIN_MEMORY_MB_PER_CPU},
 }
 
 type MachineMetrics struct {

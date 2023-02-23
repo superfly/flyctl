@@ -61,7 +61,7 @@ func showMachineServiceInfo(ctx context.Context, app *api.AppInfo) error {
 
 			fields := []string{
 				strings.ToUpper(protocol),
-				fmt.Sprintf("%d => %d [%s]", port.Port, service.InternalPort, strings.Join(handlers, ",")),
+				fmt.Sprintf("%d => %d [%s]", *port.Port, service.InternalPort, strings.Join(handlers, ",")),
 				strings.Title(fmt.Sprint(port.ForceHttps)),
 			}
 			services = append(services, fields)

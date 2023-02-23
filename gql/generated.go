@@ -633,11 +633,15 @@ func (v *GetAddOnAddOnAddOnPlan) GetDisplayName() string { return v.DisplayName 
 // GetAddOnAddOnOrganization includes the requested fields of the GraphQL type Organization.
 type GetAddOnAddOnOrganization struct {
 	// Unique organization slug
-	Slug string `json:"slug"`
+	Slug     string `json:"slug"`
+	PaidPlan bool   `json:"paidPlan"`
 }
 
 // GetSlug returns GetAddOnAddOnOrganization.Slug, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOnOrganization) GetSlug() string { return v.Slug }
+
+// GetPaidPlan returns GetAddOnAddOnOrganization.PaidPlan, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnOrganization) GetPaidPlan() bool { return v.PaidPlan }
 
 // GetAddOnProviderAddOnProvider includes the requested fields of the GraphQL type AddOnProvider.
 type GetAddOnProviderAddOnProvider struct {
@@ -1344,6 +1348,7 @@ query GetAddOn ($name: String) {
 		options
 		organization {
 			slug
+			paidPlan
 		}
 		addOnPlan {
 			id

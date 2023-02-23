@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/appv2"
@@ -256,7 +257,7 @@ func run(ctx context.Context) (err error) {
 		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, client, org.Slug)
 	}
 
-	region, err := prompt.Region(ctx, prompt.RegionParams{
+	region, err := prompt.Region(ctx, !org.PaidPlan, prompt.RegionParams{
 		Message: "Choose a region for deployment:",
 	})
 	if err != nil {
@@ -779,6 +780,7 @@ func LaunchPostgres(ctx context.Context, appName string, org *api.Organization, 
 			PostgresConfiguration: postgres.PostgresConfiguration{
 				Name: clusterAppName,
 			},
+			Manager: flypg.ReplicationManager,
 		})
 
 	if err != nil {

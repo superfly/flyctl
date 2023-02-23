@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base32"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -43,6 +44,7 @@ func randomName(t *testing.T, prefix string) string {
 }
 
 type flyctlTestEnv struct {
+	t               *testing.T
 	homeDir         string
 	workDir         string
 	flyctlBin       string
@@ -50,6 +52,7 @@ type flyctlTestEnv struct {
 	primaryRegion   string
 	otherRegions    []string
 	agentCancelFunc context.CancelFunc
+	cmdHistory      []*flyctlResult
 }
 
 func currentRepoFlyctl() string {
@@ -95,7 +98,6 @@ func newTestEnvFromEnv(t *testing.T) *flyctlTestEnv {
 		accessToken:   os.Getenv("FLY_PREFLIGHT_TEST_ACCESS_TOKEN"),
 		logLevel:      os.Getenv("FLY_PREFLIGHT_TEST_LOG_LEVEL"),
 	})
-	env.agentCancelFunc = env.StartAgent(t)
 	return env
 }
 
@@ -108,6 +110,7 @@ type testEnvConfig struct {
 	otherRegions  []string
 	accessToken   string
 	logLevel      string
+	noAgentStart  bool
 }
 
 func newTestEnvFromConfig(t *testing.T, cfg testEnvConfig) *flyctlTestEnv {
@@ -128,7 +131,8 @@ func newTestEnvFromConfig(t *testing.T, cfg testEnvConfig) *flyctlTestEnv {
 			flyctlBin = "fly"
 		}
 	}
-	return &flyctlTestEnv{
+	testEnv := &flyctlTestEnv{
+		t:             t,
 		flyctlBin:     flyctlBin,
 		primaryRegion: primaryReg,
 		otherRegions:  cfg.otherRegions,
@@ -136,9 +140,16 @@ func newTestEnvFromConfig(t *testing.T, cfg testEnvConfig) *flyctlTestEnv {
 		homeDir:       cfg.homeDir,
 		workDir:       cfg.workDir,
 	}
+	testEnv.verifyTestOrgExists()
+	if !cfg.noAgentStart {
+		testEnv.agentCancelFunc = testEnv.StartAgent()
+	}
+	testEnv.setCleanup()
+	return testEnv
 }
 
 type flyctlResult struct {
+	t                     *testing.T
 	argsStr               string
 	args                  []string
 	cmdStr                string
@@ -147,25 +158,31 @@ type flyctlResult struct {
 	exitCode              int
 }
 
-func (r *flyctlResult) AssertSuccessfulExit(t *testing.T) {
-	t.Helper()
+func (r *flyctlResult) AssertSuccessfulExit() {
+	r.t.Helper()
 	if r.exitCode != 0 {
-		t.Fatalf("expected successful zero exit code, got %d, for command: %s [stdout]: %s [strderr]: %s", r.exitCode, r.cmdStr, r.stdOut.String(), r.stdErr.String())
+		r.t.Fatalf("expected successful zero exit code, got %d, for command: %s [stdout]: %s [strderr]: %s", r.exitCode, r.cmdStr, r.stdOut.String(), r.stdErr.String())
 	}
 }
 
-func (f *flyctlTestEnv) Fly(t *testing.T, flyctlCmd string, vals ...interface{}) *flyctlResult {
-	return f.FlyContext(t, context.TODO(), flyctlCmd, vals...)
+func (r *flyctlResult) DebugPrintOutput() {
+	r.t.Helper()
+	fmt.Printf("DBGCMD: %s\nOUTPUT:\n%s\n", r.cmdStr, r.stdOut.String())
 }
 
-func (f *flyctlTestEnv) FlyContext(t *testing.T, ctx context.Context, flyctlCmd string, vals ...interface{}) *flyctlResult {
+func (f *flyctlTestEnv) Fly(flyctlCmd string, vals ...interface{}) *flyctlResult {
+	return f.FlyContext(context.TODO(), flyctlCmd, vals...)
+}
+
+func (f *flyctlTestEnv) FlyContext(ctx context.Context, flyctlCmd string, vals ...interface{}) *flyctlResult {
 	argsStr := fmt.Sprintf(flyctlCmd, vals...)
 	args, err := shlex.Split(argsStr)
 	if err != nil {
-		t.Fatalf("failed to parse argStr: %s error: %v", argsStr, err)
+		f.t.Fatalf("failed to parse argStr: %s error: %v", argsStr, err)
 	}
 	testIostreams, stdIn, stdOut, stdErr := iostreams.Test()
 	res := &flyctlResult{
+		t:             f.t,
 		argsStr:       argsStr,
 		args:          args,
 		cmdStr:        fmt.Sprintf("%s %s", f.flyctlBin, argsStr),
@@ -180,7 +197,7 @@ func (f *flyctlTestEnv) FlyContext(t *testing.T, ctx context.Context, flyctlCmd 
 	cmd.Stderr = testIostreams.ErrOut
 	err = cmd.Start()
 	if err != nil {
-		t.Fatalf("failed to start command: %s [error]: %s", res.cmdStr, err)
+		f.t.Fatalf("failed to start command: %s [error]: %s", res.cmdStr, err)
 	}
 	err = cmd.Wait()
 	if err == nil {
@@ -188,16 +205,54 @@ func (f *flyctlTestEnv) FlyContext(t *testing.T, ctx context.Context, flyctlCmd 
 	} else if exitErr, ok := err.(*exec.ExitError); ok {
 		res.exitCode = exitErr.ExitCode()
 	} else {
-		t.Fatalf("unexpected error waiting on command: %s [error]: %v", res.cmdStr, err)
+		f.t.Fatalf("unexpected error waiting on command: %s [error]: %v", res.cmdStr, err)
 	}
+	f.cmdHistory = append(f.cmdHistory, res)
 	return res
 }
 
-func (f *flyctlTestEnv) StartAgent(t *testing.T) context.CancelFunc {
+func (f *flyctlTestEnv) StartAgent() context.CancelFunc {
 	// FIXME: can we stop any existing agents?
 	ctx, cancelFunc := context.WithCancel(context.TODO())
 	go func() {
-		_ = f.FlyContext(t, ctx, "agent run")
+		_ = f.FlyContext(ctx, "agent run")
 	}()
 	return cancelFunc
+}
+
+func (f *flyctlTestEnv) DebugPrintHistory() {
+	f.t.Helper()
+	for i, r := range f.cmdHistory {
+		fmt.Printf("%3d:\n", i+1)
+		r.DebugPrintOutput()
+	}
+}
+
+func (f *flyctlTestEnv) setCleanup() {
+	f.t.Cleanup(func() {
+		f.agentCancelFunc()
+		f.Fly("agent stop")
+	})
+}
+
+func (f *flyctlTestEnv) verifyTestOrgExists() {
+	result := f.Fly("orgs list --json")
+	result.AssertSuccessfulExit()
+	var orgMap map[string]string
+	err := json.Unmarshal(result.stdOut.Bytes(), &orgMap)
+	if err != nil {
+		f.t.Fatalf("failed to parse json: %v [output]: %s\n", err, result.stdOut.String())
+	}
+	if _, present := orgMap[f.orgSlug]; !present {
+		f.t.Fatalf("could not find org with name '%s' in `%s` output: %s", f.orgSlug, result.cmdStr, result.stdOut.String())
+	}
+}
+
+func (f *flyctlTestEnv) CreateRandomApp() string {
+	appName := randomAppName(f.t)
+	f.Fly("apps create %s", appName).AssertSuccessfulExit()
+	f.t.Cleanup(func() {
+		f.Fly("apps destroy --yes %s", appName).AssertSuccessfulExit()
+	})
+	return appName
 }

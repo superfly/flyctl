@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
@@ -67,10 +67,9 @@ func runMachineRestart(ctx context.Context) error {
 		signal  = flag.GetString(ctx, "signal")
 		timeout = flag.GetInt(ctx, "time")
 		appName = app.NameFromContext(ctx)
-		client  = client.FromContext(ctx).API()
 	)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := appFromMachineOrName(ctx, args[0], appName)
 	if err != nil {
 		return fmt.Errorf("could not get app: %w", err)
 	}
@@ -105,7 +104,11 @@ func runMachineRestart(ctx context.Context) error {
 	for _, machineID := range args {
 		machine, err := flapsClient.Get(ctx, machineID)
 		if err != nil {
-			return fmt.Errorf("could not get machine %s: %w", machineID, err)
+			if strings.Contains(err.Error(), "machine not found") {
+				return fmt.Errorf("could not get machine %s. perhaps this machine doesn't exist, or isn't part of the app '%s'", machineID, app.Name)
+			} else {
+				return fmt.Errorf("could not get machine %s: %w", machineID, err)
+			}
 		}
 		machines = append(machines, machine)
 	}

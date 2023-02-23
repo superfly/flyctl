@@ -3,8 +3,8 @@ package apps
 import (
 	"context"
 	"fmt"
-
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/flaps"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
@@ -63,15 +63,8 @@ func runRestart(ctx context.Context) error {
 		return err
 	}
 
-	input := &api.RestartMachineInput{
-		ForceStop:        flag.GetBool(ctx, "force-stop"),
-		SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),
-	}
-
 	if app.PlatformVersion == "machines" {
-		if err := machine.RollingRestart(ctx, input); err != nil {
-			return err
-		}
+		return runMachinesRestart(ctx, app)
 	}
 
 	return runNomadRestart(ctx, app)
@@ -88,4 +81,38 @@ func runNomadRestart(ctx context.Context, app *api.AppCompact) error {
 	fmt.Fprintf(io.Out, "%s is being restarted\n", app.Name)
 
 	return nil
+}
+
+func runMachinesRestart(ctx context.Context, app *api.AppCompact) error {
+
+	input := &api.RestartMachineInput{
+		ForceStop:        flag.GetBool(ctx, "force-stop"),
+		SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),
+	}
+
+	// Rolling restart against exclusively the machines managed by the Apps platform
+	flapsClient, err := flaps.New(ctx, app)
+	if err != nil {
+		return err
+	}
+
+	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
+	if err != nil {
+		return err
+	}
+
+	machines, releaseFunc, err := machine.AcquireLeases(ctx, machines)
+	defer releaseFunc(ctx, machines)
+	if err != nil {
+		return err
+	}
+
+	for _, m := range machines {
+		if err := machine.Restart(ctx, m, input); err != nil {
+			return err
+		}
+	}
+
+	return nil
+
 }
