@@ -227,11 +227,11 @@ func newFreqCounter[T any]() *freqCounter[T] {
 
 func (c *freqCounter[T]) Capture(valueForComparison any, originalValue T) error {
 	var key string
-	switch valueForComparison.(type) {
+	switch valueForComparison := valueForComparison.(type) {
 	case string:
-		key = valueForComparison.(string)
+		key = valueForComparison
 	case []byte:
-		key = string(valueForComparison.([]byte))
+		key = string(valueForComparison)
 	default:
 		b, err := json.Marshal(valueForComparison)
 		if err != nil {

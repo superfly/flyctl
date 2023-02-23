@@ -76,18 +76,6 @@ func (c *Config) marshalTOML(w io.Writer) error {
 	return err
 }
 
-func (c *Config) toTOMLBytes() ([]byte, error) {
-	var (
-		b   bytes.Buffer
-		err error
-	)
-	if err = toml.NewEncoder(&b).Encode(c); err != nil {
-		return nil, err
-	} else {
-		return b.Bytes(), nil
-	}
-}
-
 func (c *Config) toTOMLString() (string, error) {
 	var (
 		b   bytes.Buffer
