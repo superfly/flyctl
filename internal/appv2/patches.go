@@ -106,6 +106,27 @@ func patchExperimental(cfg map[string]any) (map[string]any, error) {
 	return cfg, nil
 }
 
+func patchMounts(cfg map[string]any) (map[string]any, error) {
+	if mount, ok := cfg["mount"]; ok {
+		cfg["mounts"] = mount
+		delete(cfg, "mount")
+	}
+
+	if raw, ok := cfg["mounts"]; ok {
+		mounts, err := ensureArrayOfMap(raw)
+		if err != nil {
+			return nil, fmt.Errorf("Error processing mounts: %w", err)
+		}
+		if len(mounts) > 0 {
+			cfg["mounts"] = mounts[0]
+		} else {
+			delete(cfg, "mounts")
+		}
+	}
+
+	return cfg, nil
+}
+
 func patchServices(cfg map[string]any) (map[string]any, error) {
 	if raw, ok := cfg["services"]; ok {
 		services, err := ensureArrayOfMap(raw)
@@ -238,19 +259,12 @@ func ensureArrayOfMap(raw any) ([]map[string]any, error) {
 		}
 	case []map[string]any:
 		out = cast
+	case map[string]any:
+		out = append(out, cast)
 	default:
 		return nil, fmt.Errorf("Unknown type '%T'", cast)
 	}
 	return out, nil
-}
-
-func patchMounts(cfg map[string]any) (map[string]any, error) {
-	if mount, ok := cfg["mount"]; ok {
-		cfg["mounts"] = mount
-	}
-	delete(cfg, "mount")
-	return cfg, nil
-
 }
 
 func stringOrSliceToSlice(input any, fieldName string) ([]string, error) {
