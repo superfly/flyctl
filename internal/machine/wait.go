@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/jpillora/backoff"
@@ -41,6 +42,10 @@ func WaitForStartOrStop(ctx context.Context, machine *api.Machine, action string
 		case errors.Is(err, context.DeadlineExceeded):
 			return fmt.Errorf("timeout reached waiting for machine to %s %w", waitOnAction, err)
 		case err != nil:
+			var flapsErr *flaps.FlapsError
+			if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode == http.StatusBadRequest {
+				return fmt.Errorf("failed waiting for machine: %w", err)
+			}
 			time.Sleep(b.Duration())
 			continue
 		}
