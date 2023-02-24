@@ -107,6 +107,16 @@ func RailsCallback(srcInfo *SourceInfo, options map[string]bool) error {
 		}
 	}
 
+	// ensure Gemfile.lock includes the x86_64-linux platform
+	if out, err := exec.Command("bundle", "platform").Output(); err == nil {
+		if !strings.Contains(string(out), "x86_64-linux") {
+			cmd := exec.Command("bundle", "lock", "--add-platform", "x86_64-linux")
+			if err := cmd.Run(); err != nil {
+				return errors.Wrap(err, "Failed to add x86_64-linux platform, exiting")
+			}
+		}
+	}
+
 	// generate Dockerfile if it doesn't already exist
 	_, err = os.Stat("Dockerfile")
 	if errors.Is(err, fs.ErrNotExist) {
