@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/samber/lo"
@@ -53,10 +54,12 @@ func FromAppAndMachineSet(ctx context.Context, appCompact *api.AppCompact, machi
 			}
 		}
 	}
-	return mostCommonConfig, strings.Join(warnings, "\n"), nil
+	finalWarningMsgs := lo.Filter(warnings, func(w string, _ int) bool {
+		return strings.TrimSpace(w) != ""
+	})
+	return mostCommonConfig, strings.Join(finalWarningMsgs, "\n"), nil
 }
 
-// FIXME: move this method somewhere else and share with machine.configCompare()
 func prettyDiff(original, new string, colorize *iostreams.ColorScheme) string {
 	diff := cmp.Diff(original, new)
 	diffSlice := strings.Split(diff, "\n")
@@ -142,6 +145,39 @@ fly.toml only supports one mount per machine at this time. These mounts will be 
 	}, warningMsg
 }
 
+const specialCharsToQuote = "!\"#$&'()*,;<=>?[]\\^`{}|~"
+
+func quotePosixOneWord(w string) string {
+	var builder strings.Builder
+	needToQuote := false
+	needSingleQuotes := false
+	for _, c := range w {
+		builder.WriteRune(c)
+		if strings.ContainsRune(specialCharsToQuote, c) {
+			needSingleQuotes = true
+			needToQuote = true
+		}
+		if unicode.IsSpace(c) {
+			needToQuote = true
+		}
+	}
+	if needToQuote && needSingleQuotes {
+		return fmt.Sprintf("'%s'", builder.String())
+	} else if needToQuote {
+		return fmt.Sprintf(`"%s"`, builder.String())
+	} else {
+		return builder.String()
+	}
+}
+
+func quotePosixWords(words []string) []string {
+	var quoted []string
+	for _, w := range words {
+		quoted = append(quoted, quotePosixOneWord(w))
+	}
+	return quoted
+}
+
 func processGroupsFromMachineSet(ms machine.MachineSet) (*processGroupInfo, string) {
 	var (
 		warningMsg     string
@@ -149,9 +185,9 @@ func processGroupsFromMachineSet(ms machine.MachineSet) (*processGroupInfo, stri
 		counter        = newFreqCounter[machine.LeasableMachine]()
 		serviceCounter = newFreqCounter[machine.LeasableMachine]()
 	)
-
 	for _, m := range ms.GetMachines() {
-		cmd := strings.Join(m.Machine().Config.Init.Cmd, " ")
+		cmdWords := quotePosixWords(m.Machine().Config.Init.Cmd)
+		cmd := strings.Join(cmdWords, " ")
 		counter.Capture(cmd, m)
 	}
 	report := counter.Report()
@@ -165,7 +201,7 @@ func processGroupsFromMachineSet(ms machine.MachineSet) (*processGroupInfo, stri
 			otherMachineIds = append(otherMachineIds, m.Machine().ID)
 		}
 		otherCmds := ""
-		for _, cmd := range report.otherValues {
+		for _, cmd := range report.others {
 			otherCmds += fmt.Sprintf("    %s\n", cmd)
 		}
 		warningMsg += warning("processes", fmt.Sprintf(`Found these additional commands on some machines. Consider adding process groups to your fly.toml and run machines with those process groups.
@@ -174,6 +210,7 @@ Machine IDs that were not saved to fly.toml: %s
 Commands they are running:
 %s
 `, strings.Join(otherMachineIds, ", "), otherCmds))
+		warningMsg += "\n"
 	}
 
 	for _, m := range report.mostCommonValues {
@@ -192,14 +229,26 @@ Commands they are running:
 		for _, m := range serviceReport.otherValues {
 			otherMachineIds = append(otherMachineIds, m.Machine().ID)
 		}
-		otherCmds := ""
-		for _, cmd := range serviceReport.others {
-			otherCmds += fmt.Sprintf("    %s\n", cmd)
+		otherServices := make(map[string]struct{})
+		for _, m := range serviceReport.otherValues {
+			for _, s := range m.Machine().Config.Services {
+				for _, p := range s.Ports {
+					if *p.Port > 0 {
+						otherServices[fmt.Sprintf("    %s:%d -> %d\n", s.Protocol, *p.Port, s.InternalPort)] = struct{}{}
+					} else if *p.StartPort > 0 {
+						otherServices[fmt.Sprintf("    %s:%d-%d -> %d\n", s.Protocol, *p.StartPort, *p.EndPort, s.InternalPort)] = struct{}{}
+					}
+				}
+			}
 		}
-		warningMsg += warning("services", fmt.Sprintf(`Found different services on some other machines. Consider adding [[services]] block to fly.toml to support them.
+		otherServicesString := strings.Join(lo.Keys(otherServices), "")
+		warningMsg += warning("services", `Found different services on some other machines. Consider adding [[services]] block to fly.toml to support them.
 For more info please see: https://fly.io/docs/reference/configuration/#the-services-sections
 Machine IDs with different services: %s
-`, strings.Join(otherMachineIds, ", ")))
+Other services:
+%s
+`, strings.Join(otherMachineIds, ", "), otherServicesString)
+		warningMsg += "\n"
 	}
 
 	return processGroups, warningMsg
