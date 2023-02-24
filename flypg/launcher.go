@@ -24,7 +24,6 @@ var (
 	volumePath     = "/data"
 	duration10s, _ = time.ParseDuration("10s")
 	duration15s, _ = time.ParseDuration("15s")
-	duration1m, _  = time.ParseDuration("1m")
 	checkPathPg    = "/flycheck/pg"
 	checkPathRole  = "/flycheck/role"
 	checkPathVm    = "/flycheck/vm"
@@ -291,7 +290,7 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 			Port:     api.Pointer(5500),
 			Type:     api.Pointer("http"),
 			HTTPPath: &checkPathVm,
-			Interval: &api.Duration{Duration: duration1m},
+			Interval: &api.Duration{Duration: duration15s},
 			Timeout:  &api.Duration{Duration: duration10s},
 		},
 	}
