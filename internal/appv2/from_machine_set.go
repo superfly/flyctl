@@ -185,6 +185,12 @@ func processGroupsFromMachineSet(ms machine.MachineSet) (*processGroupInfo, stri
 		counter        = newFreqCounter[machine.LeasableMachine]()
 		serviceCounter = newFreqCounter[machine.LeasableMachine]()
 	)
+
+	if ms.IsEmpty() {
+		return nil, "No machines configured for this app"
+
+	}
+
 	for _, m := range ms.GetMachines() {
 		cmdWords := quotePosixWords(m.Machine().Config.Init.Cmd)
 		cmd := strings.Join(cmdWords, " ")
