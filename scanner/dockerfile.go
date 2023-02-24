@@ -29,6 +29,8 @@ func configureDockerfile(sourceDir string, config *ScannerConfig) (*SourceInfo, 
 				port, err = strconv.Atoi(m[i])
 				if err != nil {
 					panic(err)
+				} else if port == 8080 {
+					break
 				}
 			}
 		}
