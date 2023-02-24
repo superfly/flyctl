@@ -55,7 +55,7 @@ type Static struct {
 }
 
 type Volume struct {
-	Source      string `toml:"source" json:"source,omitempty"`
+	Source      string `toml:"source,omitempty" json:"source,omitempty"`
 	Destination string `toml:"destination" json:"destination,omitempty"`
 }
 
