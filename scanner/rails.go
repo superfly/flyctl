@@ -163,7 +163,7 @@ func RailsCallback(srcInfo *SourceInfo, options map[string]bool) error {
 	srcInfo.Port = port
 
 	// extract workdir
-	workdir := "/rails"
+	workdir := "$"
 	re = regexp.MustCompile(`(?m).*^WORKDIR\s+(?P<dir>/\S+)`)
 	m = re.FindStringSubmatch(string(dockerfile))
 
@@ -173,13 +173,17 @@ func RailsCallback(srcInfo *SourceInfo, options map[string]bool) error {
 		}
 	}
 
-	srcInfo.Statics = []Static{
-		{
-			GuestPath: workdir + "/public",
-			UrlPrefix: "/",
-		},
+	// add Statics if workdir is found and doesn't contain a variable reference
+	if !strings.Contains(workdir, "$") {
+		srcInfo.Statics = []Static{
+			{
+				GuestPath: workdir + "/public",
+				UrlPrefix: "/",
+			},
+		}
 	}
 
+	// add HealthCheck (if found)
 	srcInfo.HttpCheckPath = <-healthcheck_channel
 
 	return nil
