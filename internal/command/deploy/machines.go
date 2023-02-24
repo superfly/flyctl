@@ -624,11 +624,6 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 
 	if origMachineRaw.Config.Mounts != nil {
 		launchInput.Config.Mounts = origMachineRaw.Config.Mounts
-	} else if md.appConfig.Mounts != nil {
-		launchInput.Config.Mounts = []api.MachineMount{{
-			Path:   md.volumeDestination,
-			Volume: md.volumes[0].ID,
-		}}
 	}
 
 	if len(launchInput.Config.Mounts) == 1 && launchInput.Config.Mounts[0].Path != md.volumeDestination {
