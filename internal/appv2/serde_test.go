@@ -62,6 +62,20 @@ func TestLoadTOMLAppConfigExperimental(t *testing.T) {
 	}, cfg)
 }
 
+func TestLoadTOMLAppConfigMountsArray(t *testing.T) {
+	const path = "./testdata/mounts-array.toml"
+	cfg, err := LoadConfig(path)
+	assert.NoError(t, err)
+	assert.Equal(t, &Config{
+		FlyTomlPath: "./testdata/mounts-array.toml",
+		AppName:     "foo",
+		Mounts: &Volume{
+			Source:      "pg_data",
+			Destination: "/data",
+		},
+	}, cfg)
+}
+
 func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 	const path = "./testdata/old-format.toml"
 	cfg, err := LoadConfig(path)

@@ -101,7 +101,7 @@ func updateImageForNomad(ctx context.Context) error {
 			return err
 		}
 
-		release, err = client.GetAppRelease(ctx, appName, release.ID)
+		release, err = client.GetAppReleaseNomad(ctx, appName, release.ID)
 		if err != nil {
 			return err
 		}

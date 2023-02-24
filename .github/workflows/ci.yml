@@ -219,10 +219,10 @@ jobs:
       - name: Generate PKGBUILD
         run: |
           mkdir -p aur/flyctl-bin
-          export version=${GITHUB_REF#refs/*/}
-          export pkgver=${version:1}
+          export tag=${GITHUB_REF#refs/*/}
+          export version=${tag:1}
           export sha256sum=$(grep "Linux_x86_64.tar.gz" checksums.txt | cut -d ' ' -f 1)
-          envsubst '${pkgver},${sha256sum}' < aur/PKGBUILD > aur/flyctl-bin/PKGBUILD
+          envsubst '${version},${sha256sum}' < aur/PKGBUILD > aur/flyctl-bin/PKGBUILD
           cat aur/flyctl-bin/PKGBUILD
       - name: Publish flyctl-bin to the AUR
         uses: superfly/aur-releaser@ba29a0a809d7221713a104f9c9a23c34ee5b0742
