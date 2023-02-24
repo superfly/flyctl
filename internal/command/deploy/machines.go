@@ -90,9 +90,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err != nil {
 		return nil, err
 	}
-	if len(appConfig.Statics) > 0 {
-		return nil, fmt.Errorf("error [statics] are not yet supported when deploying to machines; remove the [statics] section from fly.toml")
-	}
 	if args.AppCompact == nil {
 		return nil, fmt.Errorf("BUG: args.AppCompact should be set when calling this method")
 	}
@@ -611,6 +608,12 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 	launchInput.Config.Image = md.img.Tag
 	launchInput.Config.Metrics = md.appConfig.Metrics
 	launchInput.Config.Restart = origMachineRaw.Config.Restart
+	for _, s := range md.appConfig.Statics {
+		launchInput.Config.Statics = append(launchInput.Config.Statics, &api.Static{
+			GuestPath: s.GuestPath,
+			UrlPrefix: s.UrlPrefix,
+		})
+	}
 	launchInput.Config.Env = make(map[string]string)
 	for k, v := range md.appConfig.Env {
 		launchInput.Config.Env[k] = v
