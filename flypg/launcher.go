@@ -24,7 +24,6 @@ var (
 	volumePath     = "/data"
 	duration10s, _ = time.ParseDuration("10s")
 	duration15s, _ = time.ParseDuration("15s")
-	duration1m, _  = time.ParseDuration("1m")
 	checkPathPg    = "/flycheck/pg"
 	checkPathRole  = "/flycheck/role"
 	checkPathVm    = "/flycheck/vm"
