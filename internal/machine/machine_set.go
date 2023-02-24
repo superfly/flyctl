@@ -16,6 +16,7 @@ import (
 type MachineSet interface {
 	AcquireLeases(context.Context, time.Duration) error
 	ReleaseLeases(context.Context) error
+	StartBackgroundLeaseRefresh(context.Context, time.Duration, time.Duration)
 	IsEmpty() bool
 	GetMachines() []LeasableMachine
 }
@@ -108,4 +109,10 @@ func (ms *machineSet) ReleaseLeases(ctx context.Context) error {
 		return fmt.Errorf("error releasing leases on machines")
 	}
 	return nil
+}
+
+func (ms *machineSet) StartBackgroundLeaseRefresh(ctx context.Context, leaseDuration time.Duration, delayBetween time.Duration) {
+	for _, m := range ms.machines {
+		m.StartBackgroundLeaseRefresh(ctx, leaseDuration, delayBetween)
+	}
 }

@@ -28,10 +28,9 @@ import (
 
 const (
 	DefaultWaitTimeout = 120 * time.Second
-	DefaultLeaseTtl    = 30 * time.Minute
+	DefaultLeaseTtl    = 13 * time.Second
 )
 
-// FIXME: move a lot of this stuff to internal/machine pkg... maybe all of it?
 type MachineDeployment interface {
 	DeployMachinesApp(context.Context) error
 }
@@ -73,6 +72,7 @@ type machineDeployment struct {
 	restartOnly                bool
 	waitTimeout                time.Duration
 	leaseTimeout               time.Duration
+	leaseDelayBetween          time.Duration
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
@@ -115,8 +115,9 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if leaseTimeout == 0 {
 		leaseTimeout = DefaultLeaseTtl
 	}
+	leaseDelayBetween := (leaseTimeout - 1*time.Second) / 3
 	if waitTimeout != DefaultWaitTimeout || leaseTimeout != DefaultLeaseTtl || args.WaitTimeout == 0 || args.LeaseTimeout == 0 {
-		terminal.Infof("Using wait timeout: %s and lease timeout: %s\n", waitTimeout, leaseTimeout)
+		terminal.Infof("Using wait timeout: %s lease timeout: %s delay between lease refreshes: %s\n", waitTimeout, leaseTimeout, leaseDelayBetween)
 	}
 	processConfigs, err := appConfig.GetProcessConfigs()
 	if err != nil {
@@ -139,6 +140,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		restartOnly:                args.RestartOnly,
 		waitTimeout:                waitTimeout,
 		leaseTimeout:               leaseTimeout,
+		leaseDelayBetween:          leaseDelayBetween,
 		releaseCommand:             releaseCmd,
 	}
 	err = md.setStrategy(args.Strategy)
@@ -233,6 +235,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	md.machineSet.StartBackgroundLeaseRefresh(ctx, md.leaseTimeout, md.leaseDelayBetween)
 
 	// FIXME: handle deploy strategy: rolling, immediate, canary, bluegreen
 
