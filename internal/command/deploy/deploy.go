@@ -163,12 +163,16 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 		if err != nil {
 			return fmt.Errorf("error loading appv2 config: %w", err)
 		}
+		primaryRegion := appConfig.PrimaryRegion
+		if flag.GetString(ctx, flag.RegionName) != "" {
+			primaryRegion = flag.GetString(ctx, flag.RegionName)
+		}
 		md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 			AppCompact:           appCompact,
 			DeploymentImage:      img,
 			Strategy:             flag.GetString(ctx, "strategy"),
 			EnvFromFlags:         flag.GetStringSlice(ctx, "env"),
-			PrimaryRegionFlag:    flag.GetString(ctx, flag.RegionName),
+			PrimaryRegionFlag:    primaryRegion,
 			AutoConfirmMigration: flag.GetBool(ctx, "auto-confirm"),
 			BuildOnly:            flag.GetBuildOnly(ctx),
 			SkipHealthChecks:     flag.GetDetach(ctx),
