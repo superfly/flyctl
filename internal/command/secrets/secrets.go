@@ -60,6 +60,11 @@ func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Rel
 		return
 	}
 
+	if !app.Deployed {
+		fmt.Fprint(out, "Secrets are staged for the first deployment")
+		return
+	}
+
 	if app.PlatformVersion == "machines" {
 		ctx, err = command.LoadAppV2ConfigIfPresent(ctx)
 		if err != nil {
@@ -74,11 +79,6 @@ func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Rel
 			return err
 		}
 		return md.DeployMachinesApp(ctx)
-	}
-
-	if !app.Deployed {
-		fmt.Fprint(out, "Secrets are staged for the first deployment")
-		return
 	}
 
 	fmt.Fprintf(out, "Release v%d created\n", release.Version)
