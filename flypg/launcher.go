@@ -291,7 +291,7 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 			Port:     api.Pointer(5500),
 			Type:     api.Pointer("http"),
 			HTTPPath: &checkPathVm,
-			Interval: &api.Duration{Duration: duration1m},
+			Interval: &api.Duration{Duration: duration15s},
 			Timeout:  &api.Duration{Duration: duration10s},
 		},
 	}
