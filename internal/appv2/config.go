@@ -3,7 +3,6 @@
 package appv2
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/superfly/flyctl/api"
@@ -56,7 +55,7 @@ type Static struct {
 }
 
 type Volume struct {
-	Source      string `toml:"source" json:"source,omitempty"`
+	Source      string `toml:"source,omitempty" json:"source,omitempty"`
 	Destination string `toml:"destination" json:"destination,omitempty"`
 }
 
@@ -78,37 +77,12 @@ type Build struct {
 }
 
 type Experimental struct {
-	Cmd          any  `toml:"cmd,omitempty" json:"cmd,omitempty"`
-	Entrypoint   any  `toml:"entrypoint,omitempty" json:"entrypoint,omitempty"`
-	Exec         any  `toml:"exec,omitempty" json:"exec,omitempty"`
-	AutoRollback bool `toml:"auto_rollback,omitempty" json:"auto_rollback,omitempty"`
-	EnableConsul bool `toml:"enable_consul,omitempty" json:"enable_consul,omitempty"`
-	EnableEtcd   bool `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
-}
-
-func stringOrSliceToSlice(input any, fieldName string) ([]string, error) {
-	if input == nil {
-		return nil, nil
-	}
-	if c, ok := input.([]string); ok {
-		return c, nil
-	} else if c, ok := input.(string); ok {
-		return []string{c}, nil
-	} else {
-		return nil, fmt.Errorf("could not cast %v to type []string on %s", input, fieldName)
-	}
-}
-
-func (e *Experimental) CmdToStringSlice() ([]string, error) {
-	return stringOrSliceToSlice(e.Cmd, "Experimental.Cmd")
-}
-
-func (e *Experimental) EntrypointToStringSlice() ([]string, error) {
-	return stringOrSliceToSlice(e.Entrypoint, "Experimental.Entrypoint")
-}
-
-func (e *Experimental) ExecToStringSlice() ([]string, error) {
-	return stringOrSliceToSlice(e.Exec, "Experimental.Exec")
+	Cmd          []string `toml:"cmd,omitempty" json:"cmd,omitempty"`
+	Entrypoint   []string `toml:"entrypoint,omitempty" json:"entrypoint,omitempty"`
+	Exec         []string `toml:"exec,omitempty" json:"exec,omitempty"`
+	AutoRollback bool     `toml:"auto_rollback,omitempty" json:"auto_rollback,omitempty"`
+	EnableConsul bool     `toml:"enable_consul,omitempty" json:"enable_consul,omitempty"`
+	EnableEtcd   bool     `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
 }
 
 func (c *Config) HasNonHttpAndHttpsStandardServices() bool {

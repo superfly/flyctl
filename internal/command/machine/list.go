@@ -79,7 +79,9 @@ func runMachineList(ctx context.Context) (err error) {
 	}
 
 	if len(machines) == 0 {
-		fmt.Fprintf(io.Out, "No machines are available on this app %s\n", appName)
+		if !silence {
+			fmt.Fprintf(io.Out, "No machines are available on this app %s\n", appName)
+		}
 		return nil
 	}
 
@@ -90,12 +92,16 @@ func runMachineList(ctx context.Context) (err error) {
 	rows := [][]string{}
 
 	listOfMachinesLink := io.CreateLink("View them in the UI here", fmt.Sprintf("https://fly.io/apps/%s/machines/", appName))
-	fmt.Fprintf(io.Out, "%d machines have been retrieved from app %s.\n%s\n\n", len(machines), appName, listOfMachinesLink)
+
+	if !silence {
+		fmt.Fprintf(io.Out, "%d machines have been retrieved from app %s.\n%s\n\n", len(machines), appName, listOfMachinesLink)
+
+	}
 	if silence {
 		for _, machine := range machines {
 			rows = append(rows, []string{machine.ID})
 		}
-		_ = render.Table(io.Out, appName, rows, "ID")
+		_ = render.Table(io.Out, "", rows)
 	} else {
 		for _, machine := range machines {
 			var volName string

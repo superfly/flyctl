@@ -19,7 +19,9 @@ type LeasableMachine interface {
 	Machine() *api.Machine
 	HasLease() bool
 	AcquireLease(context.Context, time.Duration) error
+	RefreshLease(context.Context, time.Duration) error
 	ReleaseLease(context.Context) error
+	StartBackgroundLeaseRefresh(context.Context, time.Duration, time.Duration)
 	Update(context.Context, api.LaunchMachineInput) error
 	Start(context.Context) error
 	Destroy(context.Context, bool) error
@@ -30,13 +32,13 @@ type LeasableMachine interface {
 }
 
 type leasableMachine struct {
-	flapsClient     *flaps.Client
-	io              *iostreams.IOStreams
-	colorize        *iostreams.ColorScheme
-	machine         *api.Machine
-	leaseNonce      string
-	leaseExpiration time.Time
-	destroyed       bool
+	flapsClient            *flaps.Client
+	io                     *iostreams.IOStreams
+	colorize               *iostreams.ColorScheme
+	machine                *api.Machine
+	leaseNonce             string
+	leaseRefreshCancelFunc context.CancelFunc
+	destroyed              bool
 }
 
 func NewLeasableMachine(flapsClient *flaps.Client, io *iostreams.IOStreams, machine *api.Machine) LeasableMachine {
@@ -132,7 +134,7 @@ func (lm *leasableMachine) Start(ctx context.Context) error {
 		return fmt.Errorf("error cannot start machine %s that was already destroyed", lm.machine.ID)
 	}
 	if lm.HasLease() {
-		return fmt.Errorf("error cannot start machine %s because it has a lease expiring at %s", lm.machine.ID, lm.leaseExpiration.Format(time.RFC3339))
+		return fmt.Errorf("error cannot start machine %s because it has a lease", lm.machine.ID)
 	}
 	lm.logStatusWaiting(api.MachineStateStarted)
 	_, err := lm.flapsClient.Start(ctx, lm.machine.ID)
@@ -261,7 +263,7 @@ func (lm *leasableMachine) Machine() *api.Machine {
 }
 
 func (lm *leasableMachine) HasLease() bool {
-	return lm.leaseNonce != "" && lm.leaseExpiration.After(time.Now())
+	return lm.leaseNonce != ""
 }
 
 func (lm *leasableMachine) IsDestroyed() bool {
@@ -284,31 +286,67 @@ func (lm *leasableMachine) AcquireLease(ctx context.Context, duration time.Durat
 		return fmt.Errorf("missing data from lease response for machine %s, assuming not successful", lm.machine.ID)
 	}
 	lm.leaseNonce = lease.Data.Nonce
-	lm.leaseExpiration = time.Unix(lease.Data.ExpiresAt, 0)
 	return nil
 }
 
-func (lm *leasableMachine) ReleaseLease(ctx context.Context) error {
-	if !lm.HasLease() {
-		lm.resetLease()
-		return nil
+func (lm *leasableMachine) RefreshLease(ctx context.Context, duration time.Duration) error {
+	seconds := int(duration.Seconds())
+	refreshedLease, err := lm.flapsClient.RefreshLease(ctx, lm.machine.ID, &seconds, lm.leaseNonce)
+	if err != nil {
+		return err
 	}
-	// don't bother releasing expired leases in the backend. allow for some clock skew between flyctl and flaps.
-	if time.Since(lm.leaseExpiration) > 5*time.Second {
-		lm.resetLease()
+	if refreshedLease.Status != "success" {
+		return fmt.Errorf("did not acquire lease for machine %s status: %s code: %s message: %s", lm.machine.ID, refreshedLease.Status, refreshedLease.Code, refreshedLease.Message)
+	} else if refreshedLease.Data == nil {
+		return fmt.Errorf("missing data from lease response for machine %s, assuming not successful", lm.machine.ID)
+	} else if refreshedLease.Data.Nonce != lm.leaseNonce {
+		return fmt.Errorf("unexpectedly received a new nonce when trying to refresh lease on machine %s", lm.machine.ID)
+	}
+	return nil
+}
+
+func (lm *leasableMachine) StartBackgroundLeaseRefresh(ctx context.Context, leaseDuration time.Duration, delayBetween time.Duration) {
+	ctx, lm.leaseRefreshCancelFunc = context.WithCancel(ctx)
+	go lm.refreshLeaseUntilCanceled(ctx, leaseDuration, delayBetween)
+}
+
+func (lm *leasableMachine) refreshLeaseUntilCanceled(ctx context.Context, duration time.Duration, delayBetween time.Duration) {
+	var (
+		err error
+		b   = &backoff.Backoff{
+			Min:    delayBetween - 20*time.Millisecond,
+			Max:    delayBetween + 20*time.Millisecond,
+			Jitter: true,
+		}
+	)
+	for {
+		err = lm.RefreshLease(ctx, duration)
+		switch {
+		case errors.Is(err, context.Canceled):
+			return
+		case err != nil:
+			terminal.Warnf("error refreshing lease for machine %s: %v\n", lm.machine.ID, err)
+		}
+		time.Sleep(b.Duration())
+	}
+}
+
+func (lm *leasableMachine) ReleaseLease(ctx context.Context) error {
+	defer lm.resetLease()
+	if !lm.HasLease() {
 		return nil
 	}
 	err := lm.flapsClient.ReleaseLease(ctx, lm.machine.ID, lm.leaseNonce)
 	if err != nil {
-		terminal.Warnf("failed to release lease for machine %s (expires at %s): %v\n", lm.machine.ID, lm.leaseExpiration.Format(time.RFC3339), err)
-		lm.resetLease()
+		terminal.Warnf("failed to release lease for machine %s: %v\n", lm.machine.ID, err)
 		return err
 	}
-	lm.resetLease()
 	return nil
 }
 
 func (lm *leasableMachine) resetLease() {
 	lm.leaseNonce = ""
-	lm.leaseExpiration = time.Time{}
+	if lm.leaseRefreshCancelFunc != nil {
+		lm.leaseRefreshCancelFunc()
+	}
 }

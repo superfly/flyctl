@@ -10,6 +10,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/google/shlex"
 	"github.com/morikuni/aec"
+	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
@@ -27,10 +28,9 @@ import (
 
 const (
 	DefaultWaitTimeout = 120 * time.Second
-	DefaultLeaseTtl    = 30 * time.Minute
+	DefaultLeaseTtl    = 13 * time.Second
 )
 
-// FIXME: move a lot of this stuff to internal/machine pkg... maybe all of it?
 type MachineDeployment interface {
 	DeployMachinesApp(context.Context) error
 }
@@ -63,6 +63,7 @@ type machineDeployment struct {
 	releaseCommandMachine      machine.MachineSet
 	releaseCommand             []string
 	volumeDestination          string
+	volumes                    []api.Volume
 	strategy                   string
 	releaseId                  string
 	releaseVersion             int
@@ -71,6 +72,7 @@ type machineDeployment struct {
 	restartOnly                bool
 	waitTimeout                time.Duration
 	leaseTimeout               time.Duration
+	leaseDelayBetween          time.Duration
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
@@ -110,8 +112,9 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if leaseTimeout == 0 {
 		leaseTimeout = DefaultLeaseTtl
 	}
+	leaseDelayBetween := (leaseTimeout - 1*time.Second) / 3
 	if waitTimeout != DefaultWaitTimeout || leaseTimeout != DefaultLeaseTtl || args.WaitTimeout == 0 || args.LeaseTimeout == 0 {
-		terminal.Infof("Using wait timeout: %s and lease timeout: %s\n", waitTimeout, leaseTimeout)
+		terminal.Infof("Using wait timeout: %s lease timeout: %s delay between lease refreshes: %s\n", waitTimeout, leaseTimeout, leaseDelayBetween)
 	}
 	processConfigs, err := appConfig.GetProcessConfigs()
 	if err != nil {
@@ -134,17 +137,18 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		restartOnly:                args.RestartOnly,
 		waitTimeout:                waitTimeout,
 		leaseTimeout:               leaseTimeout,
+		leaseDelayBetween:          leaseDelayBetween,
 		releaseCommand:             releaseCmd,
 	}
 	err = md.setStrategy(args.Strategy)
 	if err != nil {
 		return nil, err
 	}
-	err = md.setVolumeConfig()
+	err = md.setMachinesForDeployment(ctx)
 	if err != nil {
 		return nil, err
 	}
-	err = md.setMachinesForDeployment(ctx)
+	err = md.setVolumeConfig(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -228,6 +232,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	md.machineSet.StartBackgroundLeaseRefresh(ctx, md.leaseTimeout, md.leaseDelayBetween)
 
 	// FIXME: handle deploy strategy: rolling, immediate, canary, bluegreen
 
@@ -444,12 +449,19 @@ func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) er
 	return nil
 }
 
-func (md *machineDeployment) setVolumeConfig() error {
-	if md.appConfig.Mounts != nil && md.appConfig.Mounts.Source != "" {
-		return fmt.Errorf("error source setting under [mounts] is not supported for machines; remove source from fly.toml")
+func (md *machineDeployment) setVolumeConfig(ctx context.Context) error {
+	if md.appConfig.Mounts == nil {
+		return nil
 	}
-	if md.appConfig.Mounts != nil {
-		md.volumeDestination = md.appConfig.Mounts.Destination
+
+	md.volumeDestination = md.appConfig.Mounts.Destination
+
+	if volumes, err := md.apiClient.GetVolumes(ctx, md.app.Name); err != nil {
+		return fmt.Errorf("Error fetching application volumes: %w", err)
+	} else {
+		md.volumes = lo.Filter(volumes, func(v api.Volume, _ int) bool {
+			return v.Name == md.appConfig.Mounts.Source && v.AttachedAllocation == nil && v.AttachedMachine == nil
+		})
 	}
 	return nil
 }
@@ -494,9 +506,6 @@ func (md *machineDeployment) validateProcessesConfig() error {
 }
 
 func (md *machineDeployment) validateVolumeConfig() error {
-	if md.machineSet.IsEmpty() {
-		return nil
-	}
 	for _, m := range md.machineSet.GetMachines() {
 		mid := m.Machine().ID
 		if m.Machine().Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] == api.MachineProcessGroupFlyAppReleaseCommand {
@@ -512,6 +521,11 @@ func (md *machineDeployment) validateVolumeConfig() error {
 		if md.volumeDestination != "" && len(mountsConfig) == 0 {
 			return fmt.Errorf("error machine %s does not have a volume configured and fly.toml expects one with destination %s; remove the [mounts] configuration in fly.toml or use the machines API to add a volume to this machine", mid, md.volumeDestination)
 		}
+	}
+
+	if md.machineSet.IsEmpty() && md.volumeDestination != "" && len(md.volumes) == 0 {
+		return fmt.Errorf("error new machine requires an unattached volume named '%s' on mount destination '%s'",
+			md.appConfig.Mounts.Source, md.volumeDestination)
 	}
 	return nil
 }
@@ -564,6 +578,7 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Machine) *api.LaunchMachineInput {
 	if origMachineRaw == nil {
 		origMachineRaw = &api.Machine{
+			Region: md.appConfig.PrimaryRegion,
 			Config: &api.MachineConfig{},
 		}
 	}
@@ -606,9 +621,16 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 	if launchInput.Config.Env["PRIMARY_REGION"] == "" && origMachineRaw.Config.Env["PRIMARY_REGION"] != "" {
 		launchInput.Config.Env["PRIMARY_REGION"] = origMachineRaw.Config.Env["PRIMARY_REGION"]
 	}
+
 	if origMachineRaw.Config.Mounts != nil {
 		launchInput.Config.Mounts = origMachineRaw.Config.Mounts
+	} else if md.appConfig.Mounts != nil {
+		launchInput.Config.Mounts = []api.MachineMount{{
+			Path:   md.volumeDestination,
+			Volume: md.volumes[0].ID,
+		}}
 	}
+
 	if len(launchInput.Config.Mounts) == 1 && launchInput.Config.Mounts[0].Path != md.volumeDestination {
 		currentMount := launchInput.Config.Mounts[0]
 		terminal.Warnf("Updating the mount path for volume %s on machine %s from %s to %s due to fly.toml [mounts] destination value\n", currentMount.Volume, origMachineRaw.ID, currentMount.Path, md.volumeDestination)
@@ -619,6 +641,9 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 	}
 	launchInput.Config.Init = origMachineRaw.Config.Init
 	processGroup := origMachineRaw.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
+	if processGroup == "" {
+		processGroup = api.MachineProcessGroupApp
+	}
 	if processConfig, ok := md.processConfigs[processGroup]; ok {
 		launchInput.Config.Services = processConfig.Services
 		launchInput.Config.Init.Cmd = processConfig.Cmd
@@ -718,6 +743,7 @@ func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, p
 		cfg.SetEnvVariables(parsedEnv)
 	}
 
+	// deleting this block will result in machines not being deployed in the user selected region
 	if primaryRegion != "" {
 		cfg.PrimaryRegion = primaryRegion
 	}

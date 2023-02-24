@@ -64,7 +64,7 @@ var CommonFlags = flag.Set{
 	},
 	flag.Int{
 		Name:        "lease-timeout",
-		Description: "Seconds to lease individual machines while running deployment. All machines are leased at the beginning and released at the end, so this needs to be as long as the entire deployment. flyctl releases leases in most cases.",
+		Description: "Seconds to lease individual machines while running deployment. All machines are leased at the beginning and released at the end. The lease is refreshed periodically for this same time, which is why it is short. flyctl releases leases in most cases.",
 		Default:     int(DefaultLeaseTtl.Seconds()),
 	},
 	flag.Bool{
@@ -163,12 +163,16 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 		if err != nil {
 			return fmt.Errorf("error loading appv2 config: %w", err)
 		}
+		primaryRegion := appConfig.PrimaryRegion
+		if flag.GetString(ctx, flag.RegionName) != "" {
+			primaryRegion = flag.GetString(ctx, flag.RegionName)
+		}
 		md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 			AppCompact:           appCompact,
 			DeploymentImage:      img,
 			Strategy:             flag.GetString(ctx, "strategy"),
 			EnvFromFlags:         flag.GetStringSlice(ctx, "env"),
-			PrimaryRegionFlag:    flag.GetString(ctx, flag.RegionName),
+			PrimaryRegionFlag:    primaryRegion,
 			AutoConfirmMigration: flag.GetBool(ctx, "auto-confirm"),
 			BuildOnly:            flag.GetBuildOnly(ctx),
 			SkipHealthChecks:     flag.GetDetach(ctx),
@@ -204,7 +208,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 			return err
 		}
 
-		release, err = apiClient.GetAppRelease(ctx, appConfig.AppName, release.ID)
+		release, err = apiClient.GetAppReleaseNomad(ctx, appConfig.AppName, release.ID)
 		if err != nil {
 			return err
 		}

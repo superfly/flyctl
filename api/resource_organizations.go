@@ -18,6 +18,7 @@ func (client *Client) GetOrganizations(ctx context.Context) ([]Organization, err
 					slug
 					name
 					type
+					paidPlan
 				}
 			}
 		}

@@ -1,12 +1,19 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/command/apps"
+	"github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/docstrings"
 
@@ -54,6 +61,7 @@ func runShowConfig(cmdCtx *cmdctx.CmdContext) error {
 
 func runSaveConfig(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
+	ctx = client.NewContext(ctx, client.New())
 
 	configfilename, err := flyctl.ResolveConfigFileFromPath(cmdCtx.WorkingDir)
 	if err != nil {
@@ -73,14 +81,28 @@ func runSaveConfig(cmdCtx *cmdctx.CmdContext) error {
 	}
 	cmdCtx.AppConfig.AppName = cmdCtx.AppName
 
-	serverCfg, err := cmdCtx.Client.API().GetConfig(ctx, cmdCtx.AppName)
+	apiClient := cmdCtx.Client.API()
+	appCompact, err := apiClient.GetAppCompact(ctx, cmdCtx.AppName)
+	if err != nil {
+		return fmt.Errorf("error getting app: %w", err)
+	}
+	ctx, err = apps.BuildContext(ctx, appCompact)
 	if err != nil {
 		return err
 	}
-
-	cmdCtx.AppConfig.Definition = serverCfg.Definition
-
-	return writeAppConfig(cmdCtx.ConfigFile, cmdCtx.AppConfig)
+	switch appCompact.PlatformVersion {
+	case "nomad":
+		serverCfg, err := apiClient.GetConfig(ctx, cmdCtx.AppName)
+		if err != nil {
+			return err
+		}
+		cmdCtx.AppConfig.Definition = serverCfg.Definition
+		return writeAppConfig(cmdCtx.ConfigFile, cmdCtx.AppConfig)
+	case "machines":
+		return saveAppV2Config(ctx, apiClient, appCompact, cmdCtx.ConfigFile)
+	default:
+		return fmt.Errorf("likely a bug, unknown platform version %s for app %s", appCompact.PlatformVersion, appCompact.Name)
+	}
 }
 
 func runValidateConfig(commandContext *cmdctx.CmdContext) error {
@@ -168,4 +190,74 @@ func writeAppConfig(path string, appConfig *flyctl.AppConfig) error {
 	fmt.Println("Wrote config file", helpers.PathRelativeToCWD(path))
 
 	return nil
+}
+
+func saveAppV2Config(ctx context.Context, apiClient *api.Client, appCompact *api.AppCompact, path string) error {
+	appConfig, err := getAppV2ConfigFromReleases(ctx, apiClient, appCompact.Name)
+	if appConfig == nil {
+		appConfig, err = getAppV2ConfigFromMachines(ctx, apiClient, appCompact)
+	}
+	if err != nil {
+		return err
+	}
+	return writeAppV2Config(ctx, path, appConfig)
+}
+
+func writeAppV2Config(ctx context.Context, path string, appConfig *appv2.Config) error {
+	err := appConfig.WriteToDisk(ctx, path)
+	if err != nil {
+		return fmt.Errorf("failed to write config to %s with error: %w", path, err)
+	}
+	fmt.Println("Wrote config file", helpers.PathRelativeToCWD(path))
+	return nil
+}
+
+func getAppV2ConfigFromMachines(ctx context.Context, apiClient *api.Client, appCompact *api.AppCompact) (*appv2.Config, error) {
+	var (
+		flapsClient = flaps.FromContext(ctx)
+		io          = iostreams.FromContext(ctx)
+	)
+	activeMachines, err := machine.ListActive(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error listing active machines for %s app: %w", appCompact.Name, err)
+	}
+	machineSet := machine.NewMachineSet(flapsClient, io, activeMachines)
+	appConfig, warnings, err := appv2.FromAppAndMachineSet(ctx, appCompact, machineSet)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create fly.toml from existing machines, error: %w", err)
+	}
+	if warnings != "" {
+		fmt.Fprintf(io.ErrOut, "WARNINGS:\n%s", warnings)
+	}
+	return appConfig, nil
+}
+
+func getAppV2ConfigFromReleases(ctx context.Context, apiClient *api.Client, appName string) (*appv2.Config, error) {
+	_ = `# @genqlient
+	query FlyctlConfigCurrentRelease($appName: String!) {
+		app(name:$appName) {
+			currentReleaseUnprocessed {
+				configDefinition
+			}
+		}
+	}
+	`
+	resp, err := gql.FlyctlConfigCurrentRelease(ctx, apiClient.GenqClient, appName)
+	if err != nil {
+		return nil, err
+	}
+	configDefinition := resp.App.CurrentReleaseUnprocessed.ConfigDefinition
+	if configDefinition == nil {
+		return nil, nil
+	}
+	configMapDefinition, err := api.InterfaceToMapOfStringInterface(configDefinition)
+	if err != nil {
+		return nil, fmt.Errorf("likely a bug, could not convert config definition to api definition error: %w", err)
+	}
+	apiDefinition := api.DefinitionPtr(configMapDefinition)
+	appConfig, err := appv2.FromDefinition(apiDefinition)
+	if err != nil {
+		return nil, fmt.Errorf("error creating appv2 Config from api definition: %w", err)
+	}
+	return appConfig, nil
 }

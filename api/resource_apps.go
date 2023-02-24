@@ -83,6 +83,7 @@ func (client *Client) GetApp(ctx context.Context, appName string) (*App, error) 
 				organization {
 					id
 					slug
+					paidPlan
 				}
 				services {
 					description
@@ -161,6 +162,7 @@ func (client *Client) GetAppCompact(ctx context.Context, appName string) (*AppCo
 				organization {
 					id
 					slug
+					paidPlan
 				}
 				postgresAppRole: role {
 					name
@@ -199,6 +201,7 @@ func (client *Client) GetAppInfo(ctx context.Context, appName string) (*AppInfo,
 				organization {
 					id
 					slug
+					paidPlan
 				}
 				services {
 					description
@@ -246,6 +249,7 @@ func (client *Client) GetAppBasic(ctx context.Context, appName string) (*AppBasi
 				organization {
 					id
 					slug
+					paidPlan
 				}
 			}
 		}
@@ -297,6 +301,7 @@ func (client *Client) GetAppPostgres(ctx context.Context, appName string) (*AppP
 				organization {
 					id
 					slug
+					paidPlan
 				}
 				imageDetails {
 					repository
