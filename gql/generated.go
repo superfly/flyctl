@@ -531,6 +531,36 @@ func (v *FinishBuildInput) GetStrategiesAttempted() []BuildStrategyAttemptInput 
 // GetTimings returns FinishBuildInput.Timings, and is useful for accessing the field via an interface.
 func (v *FinishBuildInput) GetTimings() BuildTimingsInput { return v.Timings }
 
+// FlyctlConfigCurrentReleaseApp includes the requested fields of the GraphQL type App.
+type FlyctlConfigCurrentReleaseApp struct {
+	// The latest release of this application, without any config processing
+	CurrentReleaseUnprocessed FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessed `json:"currentReleaseUnprocessed"`
+}
+
+// GetCurrentReleaseUnprocessed returns FlyctlConfigCurrentReleaseApp.CurrentReleaseUnprocessed, and is useful for accessing the field via an interface.
+func (v *FlyctlConfigCurrentReleaseApp) GetCurrentReleaseUnprocessed() FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessed {
+	return v.CurrentReleaseUnprocessed
+}
+
+// FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessed includes the requested fields of the GraphQL type ReleaseUnprocessed.
+type FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessed struct {
+	ConfigDefinition interface{} `json:"configDefinition"`
+}
+
+// GetConfigDefinition returns FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessed.ConfigDefinition, and is useful for accessing the field via an interface.
+func (v *FlyctlConfigCurrentReleaseAppCurrentReleaseUnprocessed) GetConfigDefinition() interface{} {
+	return v.ConfigDefinition
+}
+
+// FlyctlConfigCurrentReleaseResponse is returned by FlyctlConfigCurrentRelease on success.
+type FlyctlConfigCurrentReleaseResponse struct {
+	// Find an app by name
+	App FlyctlConfigCurrentReleaseApp `json:"app"`
+}
+
+// GetApp returns FlyctlConfigCurrentReleaseResponse.App, and is useful for accessing the field via an interface.
+func (v *FlyctlConfigCurrentReleaseResponse) GetApp() FlyctlConfigCurrentReleaseApp { return v.App }
+
 // GetAddOnAddOn includes the requested fields of the GraphQL type AddOn.
 type GetAddOnAddOn struct {
 	Id string `json:"id"`
@@ -603,11 +633,15 @@ func (v *GetAddOnAddOnAddOnPlan) GetDisplayName() string { return v.DisplayName 
 // GetAddOnAddOnOrganization includes the requested fields of the GraphQL type Organization.
 type GetAddOnAddOnOrganization struct {
 	// Unique organization slug
-	Slug string `json:"slug"`
+	Slug     string `json:"slug"`
+	PaidPlan bool   `json:"paidPlan"`
 }
 
 // GetSlug returns GetAddOnAddOnOrganization.Slug, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOnOrganization) GetSlug() string { return v.Slug }
+
+// GetPaidPlan returns GetAddOnAddOnOrganization.PaidPlan, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnOrganization) GetPaidPlan() bool { return v.PaidPlan }
 
 // GetAddOnProviderAddOnProvider includes the requested fields of the GraphQL type AddOnProvider.
 type GetAddOnProviderAddOnProvider struct {
@@ -1037,6 +1071,14 @@ type __DeleteAddOnInput struct {
 // GetName returns __DeleteAddOnInput.Name, and is useful for accessing the field via an interface.
 func (v *__DeleteAddOnInput) GetName() string { return v.Name }
 
+// __FlyctlConfigCurrentReleaseInput is used internally by genqlient
+type __FlyctlConfigCurrentReleaseInput struct {
+	AppName string `json:"appName"`
+}
+
+// GetAppName returns __FlyctlConfigCurrentReleaseInput.AppName, and is useful for accessing the field via an interface.
+func (v *__FlyctlConfigCurrentReleaseInput) GetAppName() string { return v.AppName }
+
 // __GetAddOnInput is used internally by genqlient
 type __GetAddOnInput struct {
 	Name string `json:"name"`
@@ -1252,6 +1294,40 @@ mutation DeleteAddOn ($name: String) {
 	return &data, err
 }
 
+func FlyctlConfigCurrentRelease(
+	ctx context.Context,
+	client graphql.Client,
+	appName string,
+) (*FlyctlConfigCurrentReleaseResponse, error) {
+	req := &graphql.Request{
+		OpName: "FlyctlConfigCurrentRelease",
+		Query: `
+query FlyctlConfigCurrentRelease ($appName: String!) {
+	app(name: $appName) {
+		currentReleaseUnprocessed {
+			configDefinition
+		}
+	}
+}
+`,
+		Variables: &__FlyctlConfigCurrentReleaseInput{
+			AppName: appName,
+		},
+	}
+	var err error
+
+	var data FlyctlConfigCurrentReleaseResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
 func GetAddOn(
 	ctx context.Context,
 	client graphql.Client,
@@ -1272,6 +1348,7 @@ query GetAddOn ($name: String) {
 		options
 		organization {
 			slug
+			paidPlan
 		}
 		addOnPlan {
 			id

@@ -18,10 +18,11 @@ build: generate
 	go build -o bin/flyctl -ldflags="-X 'github.com/superfly/flyctl/internal/buildinfo.buildDate=$(NOW_RFC3339)' -X 'github.com/superfly/flyctl/internal/buildinfo.commit=$(GIT_COMMIT)'" .
 
 test: FORCE
-	go test ./... -ldflags="-X 'github.com/superfly/flyctl/internal/buildinfo.buildDate=$(NOW_RFC3339)'"
+	go test ./... -ldflags="-X 'github.com/superfly/flyctl/internal/buildinfo.buildDate=$(NOW_RFC3339)'" --run=$(T)
 
+# to run one test, use: make preflight-test T=TestAppsV2ConfigSave
 preflight-test: build
-	go test ./test/preflight --tags=integration -v
+	go test ./test/preflight --tags=integration -v --run=$(T)
 
 cmddocs: generate
 	@echo Running Docs Generation

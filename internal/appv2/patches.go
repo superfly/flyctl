@@ -15,6 +15,7 @@ var configPatches = []patchFuncType{
 	patchServices,
 	patchProcesses,
 	patchExperimental,
+	patchMounts,
 }
 
 func applyPatches(cfgMap map[string]any) (*Config, error) {
@@ -75,17 +76,54 @@ func patchProcesses(cfg map[string]any) (map[string]any, error) {
 }
 
 func patchExperimental(cfg map[string]any) (map[string]any, error) {
-	if raw, ok := cfg["experimental"]; ok {
-		switch cast := raw.(type) {
-		case map[string]any:
-			if len(cast) == 0 {
-				// Remove experiemntal section if empty
-				delete(cfg, "experimental")
+	raw, ok := cfg["experimental"]
+	if !ok {
+		return cfg, nil
+	}
+
+	cast, ok := raw.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("Experimental section of unknown type: %T", cast)
+	}
+
+	for k, v := range cast {
+		switch k {
+		case "cmd", "entrypoint", "exec":
+			if n, err := stringOrSliceToSlice(v, k); err != nil {
+				return nil, err
+			} else {
+				cast[k] = n
 			}
-		default:
-			return nil, fmt.Errorf("Unknown type: %T", cast)
 		}
 	}
+
+	if len(cast) == 0 {
+		delete(cfg, "experimental")
+	} else {
+		cfg["experimental"] = cast
+	}
+
+	return cfg, nil
+}
+
+func patchMounts(cfg map[string]any) (map[string]any, error) {
+	if mount, ok := cfg["mount"]; ok {
+		cfg["mounts"] = mount
+		delete(cfg, "mount")
+	}
+
+	if raw, ok := cfg["mounts"]; ok {
+		mounts, err := ensureArrayOfMap(raw)
+		if err != nil {
+			return nil, fmt.Errorf("Error processing mounts: %w", err)
+		}
+		if len(mounts) > 0 {
+			cfg["mounts"] = mounts[0]
+		} else {
+			delete(cfg, "mounts")
+		}
+	}
+
 	return cfg, nil
 }
 
@@ -148,21 +186,16 @@ func _patchService(service map[string]any) (map[string]any, error) {
 
 		for idx, port := range ports {
 			if portN, ok := port["port"]; ok {
-				switch cast := portN.(type) {
-				case string:
-					n, err := strconv.Atoi(cast)
-					if err != nil {
-						return nil, fmt.Errorf("Can not convert port '%s' to integer: %w", cast, err)
-					}
-					port["port"] = n
-				case float64:
-					port["port"] = int(cast)
-				case int64:
-					port["port"] = int(cast)
-				default:
-					return nil, fmt.Errorf("Unknown type for port number: %T", cast)
+				casted_port, err := castToInt(portN)
+
+				if err != nil {
+					return nil, err
+
 				}
+
+				port["port"] = casted_port
 			}
+
 			ports[idx] = port
 		}
 		service["ports"] = ports
@@ -180,6 +213,17 @@ func _patchService(service map[string]any) (map[string]any, error) {
 				delete(service, checkType)
 			}
 		}
+	}
+
+	if rawInternalPort, ok := service["internal_port"]; ok {
+		internal_port, err := castToInt(rawInternalPort)
+
+		if err != nil {
+			return nil, err
+		}
+
+		service["internal_port"] = internal_port
+
 	}
 
 	return service, nil
@@ -208,6 +252,37 @@ func _patchChecks(rawChecks any) ([]map[string]any, error) {
 	return checks, nil
 }
 
+func castToInt(num any) (int, error) {
+	switch cast := num.(type) {
+	case string:
+		n, err := strconv.Atoi(cast)
+		if err != nil {
+			return 0, fmt.Errorf("Can not convert '%s' to integer: %w", cast, err)
+		}
+		return n, nil
+
+	case float32:
+		return int(cast), nil
+	case float64:
+		return int(cast), nil
+	case int:
+		return cast, nil
+	case int32:
+		return int(cast), nil
+	case int64:
+		return int(cast), nil
+	case uint:
+		return int(cast), nil
+	case uint32:
+		return int(cast), nil
+	case uint64:
+		return int(cast), nil
+	default:
+		return 0, fmt.Errorf("Unknown type for cast: %T", cast)
+
+	}
+}
+
 func ensureArrayOfMap(raw any) ([]map[string]any, error) {
 	out := []map[string]any{}
 	switch cast := raw.(type) {
@@ -221,8 +296,34 @@ func ensureArrayOfMap(raw any) ([]map[string]any, error) {
 		}
 	case []map[string]any:
 		out = cast
+	case map[string]any:
+		out = append(out, cast)
 	default:
 		return nil, fmt.Errorf("Unknown type '%T'", cast)
 	}
 	return out, nil
+}
+
+func stringOrSliceToSlice(input any, fieldName string) ([]string, error) {
+	if input == nil {
+		return nil, nil
+	}
+
+	if c, ok := input.([]string); ok {
+		return c, nil
+	} else if c, ok := input.(string); ok {
+		return []string{c}, nil
+	} else if c, ok := input.([]any); ok {
+		ret := []string{}
+		for _, v := range c {
+			if cv, ok := v.(string); ok {
+				ret = append(ret, cv)
+			} else {
+				return nil, fmt.Errorf("could not cast %v of type %T to string on %s", v, v, fieldName)
+			}
+		}
+		return ret, nil
+	} else {
+		return nil, fmt.Errorf("could not cast %v of type %T to []string on %s", input, input, fieldName)
+	}
 }

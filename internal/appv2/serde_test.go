@@ -47,6 +47,35 @@ func TestLoadTOMLAppConfigWithBuilderNameAndArgs(t *testing.T) {
 	assert.Equal(t, p.Build.Args, map[string]string{"A": "B", "C": "D"})
 }
 
+func TestLoadTOMLAppConfigExperimental(t *testing.T) {
+	const path = "./testdata/experimental-alt.toml"
+	cfg, err := LoadConfig(path)
+	assert.NoError(t, err)
+	assert.Equal(t, &Config{
+		FlyTomlPath: "./testdata/experimental-alt.toml",
+		AppName:     "foo",
+		Experimental: &Experimental{
+			Cmd:        []string{"cmd"},
+			Entrypoint: []string{"entrypoint"},
+			Exec:       []string{"exec"},
+		},
+	}, cfg)
+}
+
+func TestLoadTOMLAppConfigMountsArray(t *testing.T) {
+	const path = "./testdata/mounts-array.toml"
+	cfg, err := LoadConfig(path)
+	assert.NoError(t, err)
+	assert.Equal(t, &Config{
+		FlyTomlPath: "./testdata/mounts-array.toml",
+		AppName:     "foo",
+		Mounts: &Volume{
+			Source:      "pg_data",
+			Destination: "/data",
+		},
+	}, cfg)
+}
+
 func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 	const path = "./testdata/old-format.toml"
 	cfg, err := LoadConfig(path)
@@ -57,6 +86,10 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 		Env: map[string]string{
 			"FOO": "STRING",
 			"BAR": "123",
+		},
+		Mounts: &Volume{
+			Source:      "data",
+			Destination: "/data",
 		},
 		Services: []Service{
 			{
@@ -108,9 +141,9 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		KillTimeout:   3,
 		PrimaryRegion: "sea",
 		Experimental: &Experimental{
-			Cmd:          []interface{}{"cmd"},
-			Entrypoint:   []interface{}{"entrypoint"},
-			Exec:         []interface{}{"exec"},
+			Cmd:          []string{"cmd"},
+			Entrypoint:   []string{"entrypoint"},
+			Exec:         []string{"exec"},
 			AutoRollback: true,
 			EnableConsul: true,
 			EnableEtcd:   true,

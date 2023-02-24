@@ -6,6 +6,7 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/internal/sentry"
 	"golang.org/x/exp/slices"
 )
 
@@ -19,6 +20,29 @@ type ToplevelCheck struct {
 	HTTPProtocol      *string           `json:"protocol,omitempty" toml:"protocol,omitempty"`
 	HTTPTLSSkipVerify *bool             `json:"tls_skip_verify,omitempty" toml:"tls_skip_verify,omitempty"`
 	HTTPHeaders       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
+}
+
+func topLevelCheckFromMachineCheck(mc api.MachineCheck) *ToplevelCheck {
+	headers := make(map[string]string)
+	for _, h := range mc.HTTPHeaders {
+		if len(h.Values) > 0 {
+			headers[h.Name] = h.Values[0]
+		}
+		if len(h.Values) > 1 {
+			sentry.CaptureException(fmt.Errorf("bug: more than one header value provided by MachineCheck, but can only support one value for fly.toml"))
+		}
+	}
+	return &ToplevelCheck{
+		Port:              mc.Port,
+		Type:              mc.Type,
+		Interval:          mc.Interval,
+		Timeout:           mc.Timeout,
+		HTTPMethod:        mc.HTTPMethod,
+		HTTPPath:          mc.HTTPPath,
+		HTTPProtocol:      mc.HTTPProtocol,
+		HTTPTLSSkipVerify: mc.HTTPSkipTLSVerify,
+		HTTPHeaders:       headers,
+	}
 }
 
 func (chk *ToplevelCheck) toMachineCheck() (*api.MachineCheck, error) {

@@ -19,7 +19,7 @@ func (c *Config) GetProcessConfigs() (map[string]*ProcessConfig, error) {
 	processCount := len(c.Processes)
 	configProcesses := lo.Assign(c.Processes)
 	if processCount == 0 {
-		configProcesses[""] = ""
+		configProcesses[api.MachineProcessGroupApp] = ""
 	}
 	defaultProcessName := lo.Keys(configProcesses)[0]
 

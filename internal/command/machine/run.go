@@ -180,6 +180,11 @@ func runMachineRun(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+
+		if app == nil {
+			return nil
+		}
+
 	} else {
 		app, err = client.GetAppCompact(ctx, appName)
 		if err != nil && strings.Contains(err.Error(), "Could not find App") {
@@ -588,10 +593,24 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 
 	if guestSize := flag.GetString(ctx, "size"); guestSize != "" {
 		guest, ok := api.MachinePresets[guestSize]
+
 		if !ok {
+			var machine_type string
+
+			if strings.HasPrefix(guestSize, "shared") {
+				machine_type = "shared"
+
+			} else if strings.HasPrefix(guestSize, "performance") {
+				machine_type = "performance"
+
+			} else {
+				return machineConf, fmt.Errorf("invalid machine preset requested, '%s', expected to start with 'shared' or 'performance'", guestSize)
+
+			}
+
 			validSizes := []string{}
 			for size := range api.MachinePresets {
-				if strings.HasPrefix(size, "shared") {
+				if strings.HasPrefix(size, machine_type) {
 					validSizes = append(validSizes, size)
 				}
 			}
