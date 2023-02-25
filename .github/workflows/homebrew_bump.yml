@@ -18,7 +18,6 @@ jobs:
         with:
           token: ${{ secrets.FLYIO_FLYCTL_BOT_GITHUB_TOKEN }}
           formula: flyctl
-          org: superfly
           tag: ${{ github.event.inputs.version }}
           revision: ${{ github.event.inputs.sha }}
           force: true
