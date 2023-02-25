@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: dawidd6/action-homebrew-bump-formula@v3
         with:
-          token: ${{ secrets.FLYIO_BUILDBOT_GITHUB_TOKEN }}
+          token: ${{ secrets.FLYIO_FLYCTL_BOT_GITHUB_TOKEN }}
           formula: flyctl
           org: superfly
           tag: ${{ github.event.inputs.version }}
