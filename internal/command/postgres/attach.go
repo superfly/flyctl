@@ -60,6 +60,11 @@ func newAttach() *cobra.Command {
 			Default:     "DATABASE_URL",
 			Description: "The environment variable name that will be added to the consuming app. ",
 		},
+		flag.Bool{
+			Name:        "superuser",
+			Default:     true,
+			Description: "Grants attached user superuser privileges",
+		},
 		flag.Yes(),
 	)
 
@@ -234,11 +239,6 @@ func machineAttachCluster(ctx context.Context, params AttachParams, flycast *str
 	leader, err := pickLeader(ctx, machines)
 	if err != nil {
 		return err
-	}
-
-	if IsFlex(leader) {
-		// TODO - Make this configurable
-		params.Superuser = false
 	}
 
 	return runAttachCluster(ctx, leader.PrivateIP, params, flycast)

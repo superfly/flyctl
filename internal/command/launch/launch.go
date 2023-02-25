@@ -852,6 +852,7 @@ func LaunchPostgres(ctx context.Context, appName string, org *api.Organization, 
 		err = postgres.AttachCluster(ctx, postgres.AttachParams{
 			PgAppName: clusterAppName,
 			AppName:   appName,
+			Superuser: true,
 		})
 
 		if err != nil {
