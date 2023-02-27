@@ -139,6 +139,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		leaseTimeout:               leaseTimeout,
 		leaseDelayBetween:          leaseDelayBetween,
 		releaseCommand:             releaseCmd,
+		releaseCommandMachine:      machine.NewMachineSet(flapsClient, io, nil),
 	}
 	err = md.setStrategy(args.Strategy)
 	if err != nil {
