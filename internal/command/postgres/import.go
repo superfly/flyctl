@@ -167,7 +167,7 @@ func runImport(ctx context.Context) error {
 		return err
 	}
 
-	fmt.Fprintf(io.Out, "Waiting for machine to start...\n")
+	fmt.Fprintf(io.Out, "Waiting for machine %s to start...\n", machine.ID)
 	err = mach.WaitForStartOrStop(ctx, machine, "start", time.Minute*1)
 	if err != nil {
 		return err
