@@ -100,7 +100,7 @@ func runImport(ctx context.Context) error {
 	}
 
 	if !app.IsPostgresApp() {
-		return fmt.Errorf("This feature can only be run against a Postgres app")
+		return fmt.Errorf("The target app must be a Postgres app")
 	}
 
 	// Resolve region
