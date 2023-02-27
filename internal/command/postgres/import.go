@@ -27,7 +27,7 @@ func newImport() *cobra.Command {
 	const (
 		short = "Imports database from a specified Postgres URI"
 		long  = short + "\n"
-		usage = "import"
+		usage = "import <source-uri>"
 	)
 
 	cmd := command.New(usage, short, long, runImport,
@@ -35,13 +35,11 @@ func newImport() *cobra.Command {
 		command.RequireAppName,
 	)
 
+	cmd.Args = cobra.ExactArgs(1)
+
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
-		flag.String{
-			Name:        "source-uri",
-			Description: "The target postgres uri. This should target the individual database you wish to migrate.",
-		},
 		flag.String{
 			Name:        "image",
 			Description: "Path to public image containing custom migration process",
@@ -84,7 +82,7 @@ func runImport(ctx context.Context) error {
 		client  = client.FromContext(ctx).API()
 		appName = app.NameFromContext(ctx)
 
-		sourceURI = flag.GetString(ctx, "source-uri")
+		sourceURI = flag.FirstArg(ctx)
 		machSize  = flag.GetString(ctx, "vm-size")
 		imageRef  = flag.GetString(ctx, "image")
 	)
