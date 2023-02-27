@@ -34,7 +34,7 @@ type importOpts struct {
 
 func newImport() *cobra.Command {
 	const (
-		short = "Imports a database from a target URI"
+		short = "Imports a database from a Postgres URI"
 		long  = short + "\n"
 		usage = "import"
 	)
@@ -49,7 +49,7 @@ func newImport() *cobra.Command {
 		flag.AppConfig(),
 		flag.String{
 			Name:        "source-uri",
-			Description: "The target postgres uri",
+			Description: "The target postgres uri. This should target the individual database you wish to migrate.",
 		},
 		flag.String{
 			Name:        "image",
