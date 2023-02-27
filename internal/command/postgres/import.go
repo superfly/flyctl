@@ -23,15 +23,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-type importOpts struct {
-	sourceURI string
-	targetURI string
-	noOwner   bool
-	clean     bool
-	create    bool
-	dataOnly  bool
-}
-
 func newImport() *cobra.Command {
 	const (
 		short = "Imports a database from a Postgres URI"
