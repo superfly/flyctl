@@ -67,7 +67,7 @@ func newImport() *cobra.Command {
 		flag.Bool{
 			Name:        "clean",
 			Description: "Drop database objects prior to creating them.",
-			Default:     true,
+			Default:     false,
 		},
 		flag.Bool{
 			Name:        "data-only",
@@ -93,6 +93,14 @@ func runImport(ctx context.Context) error {
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed to resolve app: %w", err)
+	}
+
+	if app.PlatformVersion != "machines" {
+		return fmt.Errorf("This feature is only available on our Machines platform")
+	}
+
+	if !app.IsPostgresApp() {
+		return fmt.Errorf("The target app must be a Postgres app")
 	}
 
 	// Resolve region
