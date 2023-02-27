@@ -99,6 +99,10 @@ func runImport(ctx context.Context) error {
 		return fmt.Errorf("This feature is only available on our Machines platform")
 	}
 
+	if !app.IsPostgresApp() {
+		return fmt.Errorf("This feature can only be run against a Postgres app")
+	}
+
 	// Resolve region
 	region, err := prompt.Region(ctx, !app.Organization.PaidPlan, prompt.RegionParams{
 		Message: "Choose a region to deploy the migration machine:",
