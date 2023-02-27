@@ -25,7 +25,7 @@ import (
 
 func newImport() *cobra.Command {
 	const (
-		short = "Imports a database from a Postgres URI"
+		short = "Imports Postgres database from a Postgres URI"
 		long  = short + "\n"
 		usage = "import"
 	)
@@ -89,11 +89,13 @@ func runImport(ctx context.Context) error {
 		imageRef  = flag.GetString(ctx, "image")
 	)
 
+	// Resolve target app
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed to resolve app: %w", err)
 	}
 
+	// Resolve region
 	region, err := prompt.Region(ctx, !app.Organization.PaidPlan, prompt.RegionParams{
 		Message: "Choose a region to deploy the migration machine:",
 	})
@@ -101,11 +103,13 @@ func runImport(ctx context.Context) error {
 		return fmt.Errorf("failed to resolve region: %s", err)
 	}
 
+	// Resolve vm-size
 	vmSize, err := resolveVMSize(ctx, machSize)
 	if err != nil {
 		return err
 	}
 
+	// Set sourceURI as a secret
 	_, err = client.SetSecrets(ctx, app.Name, map[string]string{
 		"SOURCE_DATABASE_URI": sourceURI,
 	})
@@ -137,13 +141,13 @@ func runImport(ctx context.Context) error {
 		},
 	}
 
+	// If a custom migration image is not specified, resolve latest managed image.
 	if imageRef == "" {
 		imageRef, err = client.GetLatestImageTag(ctx, "flyio/postgres-importer", nil)
 		if err != nil {
 			return err
 		}
 	}
-
 	machineConfig.Image = imageRef
 
 	launchInput := api.LaunchMachineInput{
@@ -153,6 +157,7 @@ func runImport(ctx context.Context) error {
 		Config:  machineConfig,
 	}
 
+	// Create emphemeral machine
 	machine, err := flapsClient.Launch(ctx, launchInput)
 	if err != nil {
 		return err
@@ -164,6 +169,7 @@ func runImport(ctx context.Context) error {
 		return err
 	}
 
+	// Initiate migration process
 	err = ssh.SSHConnect(&ssh.SSHParams{
 		Ctx:    ctx,
 		Org:    app.Organization,
@@ -174,11 +180,11 @@ func runImport(ctx context.Context) error {
 		Stdout: ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
 		Stderr: ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
 	}, machine.PrivateIP)
-
 	if err != nil {
 		return fmt.Errorf("failed to run ssh: %s", err)
 	}
 
+	// Stop Machine
 	if err := flapsClient.Stop(ctx, api.StopMachineInput{ID: machine.ID}); err != nil {
 		return err
 	}
@@ -189,11 +195,13 @@ func runImport(ctx context.Context) error {
 		return fmt.Errorf("failed waiting for machine %s to stop: %s", machine.ID, err)
 	}
 
+	// Destroy machine
 	fmt.Fprintf(io.Out, "%s has been destroyed\n", machine.ID)
 	if err := flapsClient.Destroy(ctx, api.RemoveMachineInput{ID: machine.ID, AppID: app.ID}); err != nil {
 		return fmt.Errorf("failed to destroy machine %s: %s", machine.ID, err)
 	}
 
+	// Unset secret
 	_, err = client.UnsetSecrets(ctx, app.Name, []string{"SOURCE_DATABASE_URI"})
 	if err != nil {
 		return fmt.Errorf("failed to set secrets: %s", err)
