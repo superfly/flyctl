@@ -96,7 +96,7 @@ func runImport(ctx context.Context) error {
 	}
 
 	if app.PlatformVersion != "machines" {
-		return fmt.Errorf("This feature is only  ")
+		return fmt.Errorf("This feature is only available on our Machines platform")
 	}
 
 	// Resolve region
