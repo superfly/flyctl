@@ -337,6 +337,10 @@ func (c *Config) marshalTOML(w io.Writer) error {
 		"app": c.AppName,
 	}
 
+	if c.PrimaryRegion != "" {
+		rawData["primary_region"] = c.PrimaryRegion
+	}
+
 	if err := encoder.Encode(rawData); err != nil {
 		return err
 	}

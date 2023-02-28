@@ -95,6 +95,12 @@ func run(ctx context.Context) (err error) {
 	colorize := io.ColorScheme()
 	workingDir := flag.GetString(ctx, "path")
 
+	deployArgs := deploy.DeployWithConfigArgs{
+		ForceNomad:    flag.GetBool(ctx, "force-nomad"),
+		ForceMachines: flag.GetBool(ctx, "force-machines"),
+		ForceYes:      flag.GetBool(ctx, "now"),
+	}
+
 	// Determine the working directory
 	if absDir, err := filepath.Abs(workingDir); err == nil {
 		workingDir = absDir
@@ -118,11 +124,7 @@ func run(ctx context.Context) (err error) {
 				fmt.Fprintln(io.Out, "App is not running, deploy...")
 				ctx = app.WithName(ctx, cfg.AppName)
 				ctx = appv2.WithName(ctx, cfg.AppName)
-				return deploy.DeployWithConfig(ctx, cfg, deploy.DeployWithConfigArgs{
-					ForceNomad:    flag.GetBool(ctx, "force-nomad"),
-					ForceMachines: flag.GetBool(ctx, "force-machines"),
-					ForceYes:      flag.GetBool(ctx, "now"),
-				})
+				return deploy.DeployWithConfig(ctx, cfg, deployArgs)
 			}
 		} else {
 			fmt.Fprintln(io.Out, "An existing fly.toml file was found")
@@ -535,6 +537,10 @@ func run(ctx context.Context) (err error) {
 		appConfig.SetInternalPort(n)
 	}
 
+	if deployArgs.ForceMachines {
+		appConfig.PrimaryRegion = region.Code
+	}
+
 	// Finally, write the config
 	if err := appConfig.WriteToDisk(ctx, configFilePath); err != nil {
 		return err
@@ -546,14 +552,8 @@ func run(ctx context.Context) (err error) {
 		return nil
 	}
 
-	deployArgs := deploy.DeployWithConfigArgs{
-		ForceNomad:    flag.GetBool(ctx, "force-nomad"),
-		ForceMachines: flag.GetBool(ctx, "force-machines"),
-		ForceYes:      flag.GetBool(ctx, "now"),
-	}
 	var v2AppConfig *appv2.Config
 	if deployArgs.ForceMachines {
-		appConfig.PrimaryRegion = region.Code
 		v2AppConfig, err = appv2.LoadConfig(configFilePath)
 		if err != nil {
 			return fmt.Errorf("invalid config: %w", err)
