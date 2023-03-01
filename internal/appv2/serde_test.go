@@ -215,6 +215,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 				Type:              api.Pointer("http"),
 				Interval:          mustParseDuration("10s"),
 				Timeout:           mustParseDuration("2s"),
+				GracePeriod:       mustParseDuration("27s"),
 				HTTPMethod:        api.Pointer("GET"),
 				HTTPPath:          api.Pointer("/status"),
 				HTTPProtocol:      api.Pointer("https"),
