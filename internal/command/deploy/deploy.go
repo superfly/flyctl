@@ -168,16 +168,15 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 			primaryRegion = flag.GetString(ctx, flag.RegionName)
 		}
 		md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
-			AppCompact:           appCompact,
-			DeploymentImage:      img,
-			Strategy:             flag.GetString(ctx, "strategy"),
-			EnvFromFlags:         flag.GetStringSlice(ctx, "env"),
-			PrimaryRegionFlag:    primaryRegion,
-			AutoConfirmMigration: flag.GetBool(ctx, "auto-confirm"),
-			BuildOnly:            flag.GetBuildOnly(ctx),
-			SkipHealthChecks:     flag.GetDetach(ctx),
-			WaitTimeout:          time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
-			LeaseTimeout:         time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
+			AppCompact:        appCompact,
+			DeploymentImage:   img,
+			Strategy:          flag.GetString(ctx, "strategy"),
+			EnvFromFlags:      flag.GetStringSlice(ctx, "env"),
+			PrimaryRegionFlag: primaryRegion,
+			BuildOnly:         flag.GetBuildOnly(ctx),
+			SkipHealthChecks:  flag.GetDetach(ctx),
+			WaitTimeout:       time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
+			LeaseTimeout:      time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
 		})
 		if err != nil {
 			return err

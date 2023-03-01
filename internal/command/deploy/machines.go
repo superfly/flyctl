@@ -20,8 +20,6 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/machine"
-	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -36,43 +34,41 @@ type MachineDeployment interface {
 }
 
 type MachineDeploymentArgs struct {
-	AppCompact           *api.AppCompact
-	DeploymentImage      *imgsrc.DeploymentImage
-	Strategy             string
-	EnvFromFlags         []string
-	PrimaryRegionFlag    string
-	AutoConfirmMigration bool
-	BuildOnly            bool
-	SkipHealthChecks     bool
-	RestartOnly          bool
-	WaitTimeout          time.Duration
-	LeaseTimeout         time.Duration
+	AppCompact        *api.AppCompact
+	DeploymentImage   *imgsrc.DeploymentImage
+	Strategy          string
+	EnvFromFlags      []string
+	PrimaryRegionFlag string
+	BuildOnly         bool
+	SkipHealthChecks  bool
+	RestartOnly       bool
+	WaitTimeout       time.Duration
+	LeaseTimeout      time.Duration
 }
 
 type machineDeployment struct {
-	apiClient                  *api.Client
-	gqlClient                  graphql.Client
-	flapsClient                *flaps.Client
-	io                         *iostreams.IOStreams
-	colorize                   *iostreams.ColorScheme
-	app                        *api.AppCompact
-	appConfig                  *appv2.Config
-	processConfigs             map[string]*appv2.ProcessConfig
-	img                        *imgsrc.DeploymentImage
-	machineSet                 machine.MachineSet
-	releaseCommandMachine      machine.MachineSet
-	releaseCommand             []string
-	volumeDestination          string
-	volumes                    []api.Volume
-	strategy                   string
-	releaseId                  string
-	releaseVersion             int
-	autoConfirmAppsV2Migration bool
-	skipHealthChecks           bool
-	restartOnly                bool
-	waitTimeout                time.Duration
-	leaseTimeout               time.Duration
-	leaseDelayBetween          time.Duration
+	apiClient             *api.Client
+	gqlClient             graphql.Client
+	flapsClient           *flaps.Client
+	io                    *iostreams.IOStreams
+	colorize              *iostreams.ColorScheme
+	app                   *api.AppCompact
+	appConfig             *appv2.Config
+	processConfigs        map[string]*appv2.ProcessConfig
+	img                   *imgsrc.DeploymentImage
+	machineSet            machine.MachineSet
+	releaseCommandMachine machine.MachineSet
+	releaseCommand        []string
+	volumeDestination     string
+	volumes               []api.Volume
+	strategy              string
+	releaseId             string
+	releaseVersion        int
+	skipHealthChecks      bool
+	restartOnly           bool
+	waitTimeout           time.Duration
+	leaseTimeout          time.Duration
+	leaseDelayBetween     time.Duration
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
@@ -123,22 +119,21 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	io := iostreams.FromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 	md := &machineDeployment{
-		apiClient:                  apiClient,
-		gqlClient:                  apiClient.GenqClient,
-		flapsClient:                flapsClient,
-		io:                         io,
-		colorize:                   io.ColorScheme(),
-		app:                        args.AppCompact,
-		appConfig:                  appConfig,
-		processConfigs:             processConfigs,
-		img:                        args.DeploymentImage,
-		autoConfirmAppsV2Migration: args.AutoConfirmMigration,
-		skipHealthChecks:           args.SkipHealthChecks,
-		restartOnly:                args.RestartOnly,
-		waitTimeout:                waitTimeout,
-		leaseTimeout:               leaseTimeout,
-		leaseDelayBetween:          leaseDelayBetween,
-		releaseCommand:             releaseCmd,
+		apiClient:         apiClient,
+		gqlClient:         apiClient.GenqClient,
+		flapsClient:       flapsClient,
+		io:                io,
+		colorize:          io.ColorScheme(),
+		app:               args.AppCompact,
+		appConfig:         appConfig,
+		processConfigs:    processConfigs,
+		img:               args.DeploymentImage,
+		skipHealthChecks:  args.SkipHealthChecks,
+		restartOnly:       args.RestartOnly,
+		waitTimeout:       waitTimeout,
+		leaseTimeout:      leaseTimeout,
+		leaseDelayBetween: leaseDelayBetween,
+		releaseCommand:    releaseCmd,
 	}
 	err = md.setStrategy(args.Strategy)
 	if err != nil {
@@ -317,48 +312,10 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 
 	// migrate non-platform machines into fly platform
 	if len(machines) == 0 {
-		terminal.Debug("Found no machines that are part of Fly Apps Platform. Check for other machines...")
+		terminal.Debug("Found no machines that are part of Fly Apps Platform. Checking for active machines...")
 		machines, err = md.flapsClient.ListActive(ctx)
 		if err != nil {
 			return err
-		}
-		if len(machines) > 0 {
-			rows := make([][]string, 0)
-			for _, machine := range machines {
-				var volName string
-				if machine.Config != nil && len(machine.Config.Mounts) > 0 {
-					volName = machine.Config.Mounts[0].Volume
-				}
-
-				rows = append(rows, []string{
-					machine.ID,
-					machine.Name,
-					machine.State,
-					machine.Region,
-					machine.ImageRefWithVersion(),
-					machine.PrivateIP,
-					volName,
-					machine.CreatedAt,
-					machine.UpdatedAt,
-				})
-			}
-			terminal.Warnf("Found %d machines that are not part of the Fly Apps Platform:\n", len(machines))
-			_ = render.Table(iostreams.FromContext(ctx).Out, fmt.Sprintf("%s machines", md.app.Name), rows, "ID", "Name", "State", "Region", "Image", "IP Address", "Volume", "Created", "Last Updated")
-			if !md.autoConfirmAppsV2Migration {
-				switch confirmed, err := prompt.Confirmf(ctx, "Migrate %d existing machines into Fly Apps Platform?", len(machines)); {
-				case err == nil:
-					if !confirmed {
-						terminal.Info("Skipping machines migration to Fly Apps Platform and the deployment")
-						md.machineSet = machine.NewMachineSet(md.flapsClient, md.io, nil)
-						return nil
-					}
-				case prompt.IsNonInteractive(err):
-					return prompt.NonInteractiveError("not running interactively, use --auto-confirm flag to confirm")
-				default:
-					return err
-				}
-			}
-			terminal.Infof("Migrating %d machines to the Fly Apps Platform\n", len(machines))
 		}
 	}
 
