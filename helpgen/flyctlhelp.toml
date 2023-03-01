@@ -341,8 +341,10 @@ shortHelp = "View Fly documentation"
 usage = "docs"
 
 [domains]
-longHelp = """Manage domains"""
-shortHelp = "Manage domains"
+longHelp = """Manage domains
+Notice: this feature is deprecated and no longer supported.
+You can still view existing domains, but registration is no longer possible."""
+shortHelp = "Manage domains (deprecated)"
 usage = "domains"
 
 [domains.add]

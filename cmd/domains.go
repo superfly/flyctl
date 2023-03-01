@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -19,6 +18,7 @@ import (
 func newDomainsCommand(client *client.Client) *Command {
 	domainsStrings := docstrings.Get("domains")
 	cmd := BuildCommandKS(nil, nil, domainsStrings, client, requireSession)
+	cmd.Hidden = true
 
 	listStrings := docstrings.Get("domains.list")
 	listCmd := BuildCommandKS(cmd, runDomainsList, listStrings, client, requireSession)
@@ -32,6 +32,7 @@ func newDomainsCommand(client *client.Client) *Command {
 
 	registerCmd := BuildCommandKS(cmd, runDomainsRegister, docstrings.Get("domains.register"), client, requireSession)
 	registerCmd.Args = cobra.MaximumNArgs(2)
+	registerCmd.Hidden = true
 
 	return cmd
 }
@@ -157,68 +158,9 @@ func runDomainsCreate(cmdCtx *cmdctx.CmdContext) error {
 	return nil
 }
 
-func runDomainsRegister(cmdCtx *cmdctx.CmdContext) error {
-	ctx := cmdCtx.Command.Context()
+func runDomainsRegister(_ *cmdctx.CmdContext) error {
 
-	var org *api.Organization
-	var name string
-	var err error
-
-	if len(cmdCtx.Args) == 0 {
-		org, err = selectOrganization(ctx, cmdCtx.Client.API(), "")
-		if err != nil {
-			return err
-		}
-
-		prompt := &survey.Input{Message: "Domain name to add"}
-		err := survey.AskOne(prompt, &name)
-		checkErr(err)
-		// TODO: Add some domain validation here
-	} else if len(cmdCtx.Args) == 2 {
-		org, err = cmdCtx.Client.API().GetOrganizationBySlug(ctx, cmdCtx.Args[0])
-		if err != nil {
-			return err
-		}
-		name = cmdCtx.Args[1]
-	} else {
-		return errors.New("specify all arguments (or no arguments to be prompted)")
-	}
-
-	checkResult, err := cmdCtx.Client.API().CheckDomain(ctx, name)
-	if err != nil {
-		return err
-	}
-
-	if !checkResult.RegistrationSupported {
-		return fmt.Errorf("The domain %s is not supported at this time", checkResult.DomainName)
-	}
-
-	if !checkResult.RegistrationAvailable {
-		if checkResult.TransferAvailable {
-			return fmt.Errorf("The domain %s is not available but can be transferred", checkResult.DomainName)
-		}
-		return fmt.Errorf("The domain %s is not available", checkResult.DomainName)
-	}
-
-	formattedCost := humanize.FormatFloat("", float64(checkResult.RegistrationPrice)/100)
-
-	fmt.Printf("%s is available!\n", checkResult.DomainName)
-
-	fmt.Printf("Registration costs $%s per year and will renew automatically after the first year.\n", formattedCost)
-	fmt.Println("Your account will be charged once the domain is registered. This transaction is non-refundable.")
-
-	if !confirm(fmt.Sprintf("Register %s for $%s?", name, formattedCost)) {
-		return nil
-	}
-
-	fmt.Printf("Registering domain %s in organization %s\n", name, org.Slug)
-
-	_, err = cmdCtx.Client.API().CreateAndRegisterDomain(org.ID, name)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("Registration started")
+	fmt.Println("This command is no longer supported.")
 
 	return nil
 }
