@@ -120,9 +120,9 @@ func GetAccessToken(ctx context.Context, email, password, otp string) (token str
 		return
 	}
 	defer func() {
-		err := res.Body.Close()
-		if err != nil {
-			fmt.Println("Error closing response body: %v", err)
+		closeErr := res.Body.Close()
+		if err == nil {
+			err = closeErr
 		}
 	}()
 
