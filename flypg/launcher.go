@@ -223,7 +223,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	connStr := fmt.Sprintf("postgres://postgres:%s@%s.internal:5432\n", secrets["OPERATOR_PASSWORD"], config.AppName)
 
 	if config.Manager == ReplicationManager && addr != nil {
-		connStr = fmt.Sprintf("postgres://postgres:%s@[%s]:5432\n", secrets["OPERATOR_PASSWORD"], addr.Address)
+		connStr = fmt.Sprintf("postgres://postgres:%s@%s.flycast:5432\n", secrets["OPERATOR_PASSWORD"], config.AppName)
 	}
 
 	fmt.Fprintf(io.Out, "Postgres cluster %s created\n", config.AppName)
