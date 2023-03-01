@@ -161,7 +161,7 @@ func (ac *Config) Image() string {
 }
 
 func (c *Config) Dockerfile() string {
-	if c.Build == nil {
+	if c == nil || c.Build == nil {
 		return ""
 	}
 	return c.Build.Dockerfile

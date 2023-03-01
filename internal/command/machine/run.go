@@ -340,6 +340,7 @@ func determineImage(ctx context.Context, appName string, imageOrPath string) (im
 	var (
 		client = client.FromContext(ctx).API()
 		io     = iostreams.FromContext(ctx)
+		cfg    = app.ConfigFromContext(ctx)
 	)
 
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-nixpacks"))
@@ -355,7 +356,15 @@ func determineImage(ctx context.Context, appName string, imageOrPath string) (im
 			Target:     flag.GetString(ctx, "build-target"),
 			NoCache:    flag.GetBool(ctx, "no-build-cache"),
 		}
-		if dockerfilePath := flag.GetString(ctx, "dockerfile"); dockerfilePath != "" {
+
+		dockerfilePath := cfg.Dockerfile()
+
+		// dockerfile passed through flags takes precedence over the one set in config
+		if flag.GetString(ctx, "dockerfile") != "" {
+			dockerfilePath = flag.GetString(ctx, "dockerfile")
+		}
+
+		if dockerfilePath != "" {
 			dockerfilePath, err := filepath.Abs(dockerfilePath)
 			if err != nil {
 				return nil, err
