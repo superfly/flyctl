@@ -12,12 +12,13 @@ import (
 	"strings"
 
 	genq "github.com/Khan/genqlient/graphql"
-	"github.com/superfly/flyctl/terminal"
 	"github.com/superfly/graphql"
 )
 
-var baseURL string
-var errorLog bool
+var (
+	baseURL  string
+	errorLog bool
+)
 
 // SetBaseURL - Sets the base URL for the API
 func SetBaseURL(url string) {
@@ -121,7 +122,7 @@ func GetAccessToken(ctx context.Context, email, password, otp string) (token str
 	defer func() {
 		err := res.Body.Close()
 		if err != nil {
-			terminal.Errorf("error closing response body: %v", err)
+			fmt.Println("Error closing response body: %v", err)
 		}
 	}()
 
