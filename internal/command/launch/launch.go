@@ -537,13 +537,28 @@ func run(ctx context.Context) (err error) {
 		appConfig.SetInternalPort(n)
 	}
 
+	// Finally, determine whether we're using Machines and write the config
+	var v2AppConfig *appv2.Config
 	if deployArgs.ForceMachines {
-		appConfig.PrimaryRegion = region.Code
-	}
 
-	// Finally, write the config
-	if err := appConfig.WriteToDisk(ctx, configFilePath); err != nil {
-		return err
+		v2AppConfig, err = appv2.FromDefinition(api.DefinitionPtr(appConfig.Definition))
+		if err != nil {
+			return fmt.Errorf("invalid config: %w", err)
+		}
+		v2AppConfig.AppName = appConfig.AppName
+
+		appConfig.PrimaryRegion = region.Code
+		v2AppConfig.PrimaryRegion = region.Code
+
+		if err := v2AppConfig.WriteToDisk(ctx, configFilePath); err != nil {
+			return err
+		}
+
+		ctx = appv2.WithConfig(ctx, v2AppConfig)
+	} else {
+		if err := appConfig.WriteToDisk(ctx, configFilePath); err != nil {
+			return err
+		}
 	}
 
 	ctx = app.WithConfig(ctx, appConfig)
@@ -552,14 +567,6 @@ func run(ctx context.Context) (err error) {
 		return nil
 	}
 
-	var v2AppConfig *appv2.Config
-	if deployArgs.ForceMachines {
-		v2AppConfig, err = appv2.LoadConfig(configFilePath)
-		if err != nil {
-			return fmt.Errorf("invalid config: %w", err)
-		}
-		ctx = appv2.WithConfig(ctx, v2AppConfig)
-	}
 	if deployArgs.ForceMachines && !deployArgs.ForceYes {
 		if !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !flag.GetBool(ctx, "auto-confirm") && v2AppConfig.HasNonHttpAndHttpsStandardServices() {
 			hasUdpService := v2AppConfig.HasUdpService()
