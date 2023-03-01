@@ -364,8 +364,8 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams,
 	)
 	if flycast != nil {
 		connectionString = fmt.Sprintf(
-			"postgres://%s:%s@[%s]:5432/%s?sslmode=disable",
-			*input.DatabaseUser, pwd, *flycast, *input.DatabaseName,
+			"postgres://%s:%s@%s.flycast:5432/%s?sslmode=disable",
+			*input.DatabaseUser, pwd, input.PostgresClusterAppID, *input.DatabaseName,
 		)
 	}
 	s := map[string]string{}
