@@ -34,43 +34,41 @@ type MachineDeployment interface {
 }
 
 type MachineDeploymentArgs struct {
-	AppCompact           *api.AppCompact
-	DeploymentImage      *imgsrc.DeploymentImage
-	Strategy             string
-	EnvFromFlags         []string
-	PrimaryRegionFlag    string
-	AutoConfirmMigration bool
-	BuildOnly            bool
-	SkipHealthChecks     bool
-	RestartOnly          bool
-	WaitTimeout          time.Duration
-	LeaseTimeout         time.Duration
+	AppCompact        *api.AppCompact
+	DeploymentImage   *imgsrc.DeploymentImage
+	Strategy          string
+	EnvFromFlags      []string
+	PrimaryRegionFlag string
+	BuildOnly         bool
+	SkipHealthChecks  bool
+	RestartOnly       bool
+	WaitTimeout       time.Duration
+	LeaseTimeout      time.Duration
 }
 
 type machineDeployment struct {
-	apiClient                  *api.Client
-	gqlClient                  graphql.Client
-	flapsClient                *flaps.Client
-	io                         *iostreams.IOStreams
-	colorize                   *iostreams.ColorScheme
-	app                        *api.AppCompact
-	appConfig                  *appv2.Config
-	processConfigs             map[string]*appv2.ProcessConfig
-	img                        *imgsrc.DeploymentImage
-	machineSet                 machine.MachineSet
-	releaseCommandMachine      machine.MachineSet
-	releaseCommand             []string
-	volumeDestination          string
-	volumes                    []api.Volume
-	strategy                   string
-	releaseId                  string
-	releaseVersion             int
-	autoConfirmAppsV2Migration bool
-	skipHealthChecks           bool
-	restartOnly                bool
-	waitTimeout                time.Duration
-	leaseTimeout               time.Duration
-	leaseDelayBetween          time.Duration
+	apiClient             *api.Client
+	gqlClient             graphql.Client
+	flapsClient           *flaps.Client
+	io                    *iostreams.IOStreams
+	colorize              *iostreams.ColorScheme
+	app                   *api.AppCompact
+	appConfig             *appv2.Config
+	processConfigs        map[string]*appv2.ProcessConfig
+	img                   *imgsrc.DeploymentImage
+	machineSet            machine.MachineSet
+	releaseCommandMachine machine.MachineSet
+	releaseCommand        []string
+	volumeDestination     string
+	volumes               []api.Volume
+	strategy              string
+	releaseId             string
+	releaseVersion        int
+	skipHealthChecks      bool
+	restartOnly           bool
+	waitTimeout           time.Duration
+	leaseTimeout          time.Duration
+	leaseDelayBetween     time.Duration
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
@@ -121,22 +119,21 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	io := iostreams.FromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 	md := &machineDeployment{
-		apiClient:                  apiClient,
-		gqlClient:                  apiClient.GenqClient,
-		flapsClient:                flapsClient,
-		io:                         io,
-		colorize:                   io.ColorScheme(),
-		app:                        args.AppCompact,
-		appConfig:                  appConfig,
-		processConfigs:             processConfigs,
-		img:                        args.DeploymentImage,
-		autoConfirmAppsV2Migration: args.AutoConfirmMigration,
-		skipHealthChecks:           args.SkipHealthChecks,
-		restartOnly:                args.RestartOnly,
-		waitTimeout:                waitTimeout,
-		leaseTimeout:               leaseTimeout,
-		leaseDelayBetween:          leaseDelayBetween,
-		releaseCommand:             releaseCmd,
+		apiClient:         apiClient,
+		gqlClient:         apiClient.GenqClient,
+		flapsClient:       flapsClient,
+		io:                io,
+		colorize:          io.ColorScheme(),
+		app:               args.AppCompact,
+		appConfig:         appConfig,
+		processConfigs:    processConfigs,
+		img:               args.DeploymentImage,
+		skipHealthChecks:  args.SkipHealthChecks,
+		restartOnly:       args.RestartOnly,
+		waitTimeout:       waitTimeout,
+		leaseTimeout:      leaseTimeout,
+		leaseDelayBetween: leaseDelayBetween,
+		releaseCommand:    releaseCmd,
 	}
 	err = md.setStrategy(args.Strategy)
 	if err != nil {
