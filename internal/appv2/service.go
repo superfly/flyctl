@@ -122,6 +122,7 @@ func (chk *ServiceHTTPCheck) toMachineCheck() *api.MachineCheck {
 		Type:              api.Pointer("http"),
 		Interval:          chk.Interval,
 		Timeout:           chk.Timeout,
+		GracePeriod:       chk.GracePeriod,
 		HTTPMethod:        chk.HTTPMethod,
 		HTTPPath:          chk.HTTPPath,
 		HTTPProtocol:      chk.HTTPProtocol,
@@ -139,9 +140,10 @@ func (chk *ServiceHTTPCheck) String(port int) string {
 
 func (chk *ServiceTCPCheck) toMachineCheck() *api.MachineCheck {
 	return &api.MachineCheck{
-		Type:     api.Pointer("tcp"),
-		Interval: chk.Interval,
-		Timeout:  chk.Timeout,
+		Type:        api.Pointer("tcp"),
+		Interval:    chk.Interval,
+		Timeout:     chk.Timeout,
+		GracePeriod: chk.GracePeriod,
 	}
 }
 

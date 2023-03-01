@@ -160,6 +160,7 @@ func TestToDefinition(t *testing.T) {
 				"type":            "http",
 				"interval":        "10s",
 				"timeout":         "2s",
+				"grace_period":    "27s",
 				"method":          "GET",
 				"path":            "/status",
 				"protocol":        "https",

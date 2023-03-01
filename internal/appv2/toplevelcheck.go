@@ -15,6 +15,7 @@ type ToplevelCheck struct {
 	Type              *string           `json:"type,omitempty" toml:"type,omitempty"`
 	Interval          *api.Duration     `json:"interval,omitempty" toml:"interval,omitempty"`
 	Timeout           *api.Duration     `json:"timeout,omitempty" toml:"timeout,omitempty"`
+	GracePeriod       *api.Duration     `json:"grace_period,omitempty" toml:"grace_period,omitempty"`
 	HTTPMethod        *string           `json:"method,omitempty" toml:"method,omitempty"`
 	HTTPPath          *string           `json:"path,omitempty" toml:"path,omitempty"`
 	HTTPProtocol      *string           `json:"protocol,omitempty" toml:"protocol,omitempty"`
@@ -37,6 +38,7 @@ func topLevelCheckFromMachineCheck(mc api.MachineCheck) *ToplevelCheck {
 		Type:              mc.Type,
 		Interval:          mc.Interval,
 		Timeout:           mc.Timeout,
+		GracePeriod:       mc.GracePeriod,
 		HTTPMethod:        mc.HTTPMethod,
 		HTTPPath:          mc.HTTPPath,
 		HTTPProtocol:      mc.HTTPProtocol,
@@ -55,6 +57,7 @@ func (chk *ToplevelCheck) toMachineCheck() (*api.MachineCheck, error) {
 		Port:              chk.Port,
 		Interval:          chk.Interval,
 		Timeout:           chk.Timeout,
+		GracePeriod:       chk.GracePeriod,
 		HTTPPath:          chk.HTTPPath,
 		HTTPProtocol:      chk.HTTPProtocol,
 		HTTPSkipTLSVerify: chk.HTTPTLSSkipVerify,
