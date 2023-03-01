@@ -20,8 +20,6 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/machine"
-	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -317,48 +315,10 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 
 	// migrate non-platform machines into fly platform
 	if len(machines) == 0 {
-		terminal.Debug("Found no machines that are part of Fly Apps Platform. Check for other machines...")
+		terminal.Debug("Found no machines that are part of Fly Apps Platform. Checking for active machines...")
 		machines, err = md.flapsClient.ListActive(ctx)
 		if err != nil {
 			return err
-		}
-		if len(machines) > 0 {
-			rows := make([][]string, 0)
-			for _, machine := range machines {
-				var volName string
-				if machine.Config != nil && len(machine.Config.Mounts) > 0 {
-					volName = machine.Config.Mounts[0].Volume
-				}
-
-				rows = append(rows, []string{
-					machine.ID,
-					machine.Name,
-					machine.State,
-					machine.Region,
-					machine.ImageRefWithVersion(),
-					machine.PrivateIP,
-					volName,
-					machine.CreatedAt,
-					machine.UpdatedAt,
-				})
-			}
-			terminal.Warnf("Found %d machines that are not part of the Fly Apps Platform:\n", len(machines))
-			_ = render.Table(iostreams.FromContext(ctx).Out, fmt.Sprintf("%s machines", md.app.Name), rows, "ID", "Name", "State", "Region", "Image", "IP Address", "Volume", "Created", "Last Updated")
-			if !md.autoConfirmAppsV2Migration {
-				switch confirmed, err := prompt.Confirmf(ctx, "Migrate %d existing machines into Fly Apps Platform?", len(machines)); {
-				case err == nil:
-					if !confirmed {
-						terminal.Info("Skipping machines migration to Fly Apps Platform and the deployment")
-						md.machineSet = machine.NewMachineSet(md.flapsClient, md.io, nil)
-						return nil
-					}
-				case prompt.IsNonInteractive(err):
-					return prompt.NonInteractiveError("not running interactively, use --auto-confirm flag to confirm")
-				default:
-					return err
-				}
-			}
-			terminal.Infof("Migrating %d machines to the Fly Apps Platform\n", len(machines))
 		}
 	}
 
