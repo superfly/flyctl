@@ -12,16 +12,16 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/cmd"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/state"
 
 	"github.com/superfly/flyctl/client"
@@ -29,6 +29,8 @@ import (
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/watch"
 )
+
+var wrongAppVersionErr = fmt.Errorf("machines app, not nomad")
 
 var CommonFlags = flag.Set{
 	flag.Region(),
@@ -107,15 +109,29 @@ func New() (cmd *cobra.Command) {
 
 func run(ctx context.Context) error {
 	appConfig, err := determineAppConfig(ctx)
-	if err != nil {
-		return err
-	}
 
-	return DeployWithConfig(ctx, appConfig, DeployWithConfigArgs{
-		ForceNomad:    flag.GetBool(ctx, "force-nomad"),
-		ForceMachines: flag.GetBool(ctx, "force-machines"),
-		ForceYes:      flag.GetBool(ctx, "auto-confirm"),
-	})
+	if err == nil {
+		return DeployWithConfig(ctx, appConfig, DeployWithConfigArgs{
+			ForceNomad:    flag.GetBool(ctx, "force-nomad"),
+			ForceMachines: flag.GetBool(ctx, "force-machines"),
+			ForceYes:      flag.GetBool(ctx, "auto-confirm"),
+		})
+	} else {
+		if err == wrongAppVersionErr {
+			// appConfig, err := determineAppV2Config(ctx)
+			_, err := determineAppV2Config(ctx)
+
+			if err != nil {
+				return err
+			}
+
+			return nil
+
+		} else {
+			return err
+
+		}
+	}
 }
 
 type DeployWithConfigArgs struct {
@@ -245,6 +261,18 @@ func useMachines(ctx context.Context, appConfig *appconfig.Config, appCompact *a
 	default:
 		return appsV2DefaultOn, nil
 	}
+}
+
+// gets an app's name, whether its for apps v1 or v2
+func determineAppName(ctx context.Context) string {
+	appNameFromContext := app.NameFromContext(ctx)
+
+	if appNameFromContext == "" {
+		appNameFromContext = appv2.NameFromContext(ctx)
+
+	}
+
+	return appNameFromContext
 }
 
 // determineAppConfig fetches the app config from a local file, or in its absence, from the API
