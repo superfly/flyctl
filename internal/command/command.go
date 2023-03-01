@@ -553,7 +553,7 @@ func RequireAppName(ctx context.Context) (context.Context, error) {
 	} else if platform == appv2.AppsV2Platform {
 		return appv2.WithName(newCtx, name), nil
 	} else {
-		err := fmt.Errorf("invalid platform detected, this is a bug")
+		err := fmt.Errorf("invalid platform detected: %s; this is a bug", platform)
 
 		sentry.CaptureException(
 			err,
