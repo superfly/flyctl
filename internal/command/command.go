@@ -547,8 +547,8 @@ func RequireAppName(ctx context.Context) (context.Context, error) {
 		return nil, errRequireAppName
 	}
 
-	newCtx = appv2.WithName(ctx, name)
-	return app.WithName(ctx, name), nil
+	newCtx = appv2.WithName(newCtx, name)
+	return app.WithName(newCtx, name), nil
 
 }
 
