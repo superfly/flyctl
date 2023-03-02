@@ -274,6 +274,12 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 		cfg.AppName = basicApp.Name
 		cfg.SetPlatformVersion(basicApp.PlatformVersion)
 	} else {
+
+		// TODO: this function is called for every `fly deploy` but I'm pretty sure
+		//       this ends up hitting a nomad-specific code path. We'll cheat for now,
+		//       because ripping this out would be a huge change, but this is probably not *right*
+		delete(cfg.Definition, "primary_region")
+
 		parsedCfg, err := client.ParseConfig(ctx, appNameFromContext, cfg.Definition)
 		if err != nil {
 			return nil, err
