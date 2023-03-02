@@ -23,7 +23,6 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/logger"
-	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/update"
 
 	"github.com/superfly/flyctl/internal/app"
@@ -548,20 +547,9 @@ func RequireAppName(ctx context.Context) (context.Context, error) {
 		return nil, errRequireAppName
 	}
 
-	if platform == appv2.AppsV1Platform {
-		return app.WithName(newCtx, name), nil
-	} else if platform == appv2.AppsV2Platform {
-		return appv2.WithName(newCtx, name), nil
-	} else {
-		err := fmt.Errorf("invalid platform detected: %s; this is a bug", platform)
+	newCtx = appv2.WithName(ctx, name)
+	return app.WithName(ctx, name), nil
 
-		sentry.CaptureException(
-			err,
-		)
-
-		return nil, err
-
-	}
 }
 
 // LoadAppNameIfPresent is a Preparer which adds app name if the user has used --app or there appConfig
