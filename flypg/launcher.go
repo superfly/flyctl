@@ -114,6 +114,12 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			machineConf.Image = imageRef
 		}
 
+		concurrency := &api.MachineServiceConcurrency{
+			Type:      "connections",
+			HardLimit: 1000,
+			SoftLimit: 1000,
+		}
+
 		if config.Manager == ReplicationManager {
 			var bouncerPort int = 5432
 			var pgPort int = 5433
@@ -130,7 +136,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 							ForceHttps: false,
 						},
 					},
-					Concurrency: nil,
+					Concurrency: concurrency,
 				},
 				{
 					Protocol:     "tcp",
@@ -144,7 +150,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 							ForceHttps: false,
 						},
 					},
-					Concurrency: nil,
+					Concurrency: concurrency,
 				},
 			}
 		}
