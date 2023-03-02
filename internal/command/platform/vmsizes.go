@@ -62,6 +62,7 @@ func runMachineVMSizes(ctx context.Context) error {
 	out := iostreams.FromContext(ctx).Out
 	presets := api.MachinePresets
 
+	// Filter and display shared cpu sizes.
 	var shared [][]string
 	for key, guest := range presets {
 		if guest.CPUKind != "shared" {
@@ -73,7 +74,6 @@ func runMachineVMSizes(ctx context.Context) error {
 			memory(guest.MemoryMB),
 		})
 	}
-
 	sort.Slice(shared, func(i, j int) bool {
 		return shared[j][1] > shared[i][1]
 	})
@@ -82,6 +82,7 @@ func runMachineVMSizes(ctx context.Context) error {
 		return fmt.Errorf("failed to render shared vm-sizes: %s", err)
 	}
 
+	// Filter and display performance cpu sizes.
 	var performance [][]string
 	for key, guest := range presets {
 		if guest.CPUKind != "performance" {
@@ -93,11 +94,9 @@ func runMachineVMSizes(ctx context.Context) error {
 			memory(guest.MemoryMB),
 		})
 	}
-
 	sort.Slice(performance, func(i, j int) bool {
 		return performance[j][1] > performance[i][1]
 	})
-
 	return render.Table(out, "", performance, "Name", "CPU Cores", "Memory")
 }
 
