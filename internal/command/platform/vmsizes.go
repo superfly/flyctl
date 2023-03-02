@@ -72,11 +72,11 @@ func runMachineVMSizes(ctx context.Context) error {
 			cores(float32(guest.CPUs)),
 			memory(guest.MemoryMB),
 		})
-
-		sort.Slice(shared, func(i, j int) bool {
-			return shared[j][1] > shared[i][1]
-		})
 	}
+
+	sort.Slice(shared, func(i, j int) bool {
+		return shared[j][1] > shared[i][1]
+	})
 
 	render.Table(out, "Machines platform", shared, "Name", "CPU Cores", "Memory")
 	var performance [][]string
@@ -89,11 +89,11 @@ func runMachineVMSizes(ctx context.Context) error {
 			cores(float32(guest.CPUs)),
 			memory(guest.MemoryMB),
 		})
-
-		sort.Slice(performance, func(i, j int) bool {
-			return performance[j][0] > performance[i][0]
-		})
 	}
+
+	sort.Slice(performance, func(i, j int) bool {
+		return performance[j][0] > performance[i][0]
+	})
 
 	return render.Table(out, "", performance, "Name", "CPU Cores", "Memory")
 }
