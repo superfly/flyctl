@@ -3,6 +3,7 @@ package platform
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/spf13/cobra"
 
@@ -47,24 +48,66 @@ func runVMSizes(ctx context.Context) error {
 	for _, size := range sizes {
 		rows = append(rows, []string{
 			size.Name,
-			cores(size),
-			memory(size),
+			cores(size.CPUCores),
+			memory(size.MemoryMB),
 		})
 	}
 
-	return render.Table(out, "", rows, "Name", "CPU Cores", "Memory")
+	render.Table(out, "Nomad platform", rows, "Name", "CPU Cores", "Memory")
+
+	return runMachineVMSizes(ctx)
 }
 
-func cores(size api.VMSize) string {
-	if size.CPUCores < 1.0 {
-		return fmt.Sprintf("%.2f", size.CPUCores)
+func runMachineVMSizes(ctx context.Context) error {
+	out := iostreams.FromContext(ctx).Out
+	presets := api.MachinePresets
+
+	var shared [][]string
+	for key, guest := range presets {
+		if guest.CPUKind != "shared" {
+			continue
+		}
+		shared = append(shared, []string{
+			key,
+			cores(float32(guest.CPUs)),
+			memory(guest.MemoryMB),
+		})
+
+		sort.Slice(shared, func(i, j int) bool {
+			return shared[j][1] > shared[i][1]
+		})
 	}
-	return fmt.Sprintf("%d", int(size.CPUCores))
+
+	render.Table(out, "Machines platform", shared, "Name", "CPU Cores", "Memory")
+	var performance [][]string
+	for key, guest := range presets {
+		if guest.CPUKind != "performance" {
+			continue
+		}
+		performance = append(performance, []string{
+			key,
+			cores(float32(guest.CPUs)),
+			memory(guest.MemoryMB),
+		})
+
+		sort.Slice(performance, func(i, j int) bool {
+			return performance[j][0] > performance[i][0]
+		})
+	}
+
+	return render.Table(out, "", performance, "Name", "CPU Cores", "Memory")
 }
 
-func memory(size api.VMSize) string {
-	if size.MemoryGB < 1.0 {
-		return fmt.Sprintf("%d MB", size.MemoryMB)
+func cores(cores float32) string {
+	if cores < 1.0 {
+		return fmt.Sprintf("%.2f", cores)
 	}
-	return fmt.Sprintf("%d GB", int(size.MemoryGB))
+	return fmt.Sprintf("%d", int(cores))
+}
+
+func memory(size int) string {
+	if size < 1024 {
+		return fmt.Sprintf("%d MB", size)
+	}
+	return fmt.Sprintf("%d GB", int(size))
 }
