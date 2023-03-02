@@ -233,7 +233,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 
 	fmt.Fprintf(md.io.Out, "Deploying %s app with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
 	for _, m := range md.machineSet.GetMachines() {
-		launchInput := md.resolveUpdatedMachineConfig(m.Machine())
+		launchInput := md.resolveUpdatedMachineConfig(m.Machine(), false)
 
 		fmt.Fprintf(md.io.ErrOut, "  Updating %s\n", md.colorize.Bold(m.FormattedMachineId()))
 		err := m.Update(ctx, *launchInput)
@@ -273,7 +273,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 
 func (md *machineDeployment) createOneMachine(ctx context.Context) error {
 	fmt.Fprintf(md.io.Out, "No machines in %s app, launching one new machine\n", md.colorize.Bold(md.app.Name))
-	launchInput := md.resolveUpdatedMachineConfig(nil)
+	launchInput := md.resolveUpdatedMachineConfig(nil, false)
 	newMachineRaw, err := md.flapsClient.Launch(ctx, *launchInput)
 	newMachine := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
 	if err != nil {
@@ -366,7 +366,7 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 	if len(md.releaseCommand) == 0 || !md.releaseCommandMachine.IsEmpty() {
 		return nil
 	}
-	launchInput := md.resolveUpdatedMachineConfig(nil)
+	launchInput := md.resolveUpdatedMachineConfig(nil, true)
 	launchInput = md.configureLaunchInputForReleaseCommand(launchInput)
 	releaseCmdMachine, err := md.flapsClient.Launch(ctx, *launchInput)
 	if err != nil {
@@ -390,7 +390,7 @@ func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) er
 	if err != nil {
 		return err
 	}
-	updatedConfig := md.resolveUpdatedMachineConfig(releaseCmdMachine.Machine())
+	updatedConfig := md.resolveUpdatedMachineConfig(releaseCmdMachine.Machine(), true)
 	updatedConfig = md.configureLaunchInputForReleaseCommand(updatedConfig)
 	err = md.releaseCommandMachine.AcquireLeases(ctx, md.leaseTimeout)
 	defer func() {
@@ -532,7 +532,7 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 	return nil
 }
 
-func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Machine) *api.LaunchMachineInput {
+func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Machine, forReleaseCommand bool) *api.LaunchMachineInput {
 	if origMachineRaw == nil {
 		origMachineRaw = &api.Machine{
 			Region: md.appConfig.PrimaryRegion,
@@ -581,7 +581,7 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 
 	if origMachineRaw.Config.Mounts != nil {
 		launchInput.Config.Mounts = origMachineRaw.Config.Mounts
-	} else if md.appConfig.Mounts != nil {
+	} else if md.appConfig.Mounts != nil && !forReleaseCommand {
 		launchInput.Config.Mounts = []api.MachineMount{{
 			Path:   md.volumeDestination,
 			Volume: md.volumes[0].ID,
