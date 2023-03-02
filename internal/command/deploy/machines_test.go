@@ -54,6 +54,8 @@ func Test_resultUpdateMachineConfig_Basic(t *testing.T) {
 	}, launchInput)
 }
 
+// Test any LaunchMachineInput field that must not be set on a machine
+// used to run release command.
 func Test_resultUpdateMachineConfig_RelaseCommand(t *testing.T) {
 	md := &machineDeployment{
 		app: &api.AppCompact{

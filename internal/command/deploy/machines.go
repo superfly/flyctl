@@ -550,6 +550,7 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 		Config:  machineConf,
 		Region:  origMachineRaw.Region,
 	}
+
 	launchInput.Config.Metadata = md.defaultMachineMetadata()
 	if origMachineRaw.Config.Metadata != nil {
 		for k, v := range origMachineRaw.Config.Metadata {
@@ -581,7 +582,7 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 
 	if origMachineRaw.Config.Mounts != nil {
 		launchInput.Config.Mounts = origMachineRaw.Config.Mounts
-	} else if md.appConfig.Mounts != nil && !forReleaseCommand {
+	} else if md.appConfig.Mounts != nil {
 		launchInput.Config.Mounts = []api.MachineMount{{
 			Path:   md.volumeDestination,
 			Volume: md.volumes[0].ID,
