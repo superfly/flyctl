@@ -563,21 +563,21 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 	}
 
 	launchInput.Config.Image = md.img.Tag
-	launchInput.Config.Metrics = md.appConfig.Metrics
 	launchInput.Config.Restart = origMachineRaw.Config.Restart
-	for _, s := range md.appConfig.Statics {
-		launchInput.Config.Statics = append(launchInput.Config.Statics, &api.Static{
-			GuestPath: s.GuestPath,
-			UrlPrefix: s.UrlPrefix,
-		})
-	}
-	launchInput.Config.Env = make(map[string]string)
-	for k, v := range md.appConfig.Env {
-		launchInput.Config.Env[k] = v
-	}
+	launchInput.Config.Guest = origMachineRaw.Config.Guest
+	launchInput.Config.Init = origMachineRaw.Config.Init
+	launchInput.Config.Env = lo.Assign(md.appConfig.Env)
+
 	if launchInput.Config.Env["PRIMARY_REGION"] == "" && origMachineRaw.Config.Env["PRIMARY_REGION"] != "" {
 		launchInput.Config.Env["PRIMARY_REGION"] = origMachineRaw.Config.Env["PRIMARY_REGION"]
 	}
+
+	// Anything below this point doesn't apply to machines created to run ReleaseCommand
+	if forReleaseCommand {
+		return launchInput
+	}
+
+	launchInput.Config.Metrics = md.appConfig.Metrics
 
 	if origMachineRaw.Config.Mounts != nil {
 		launchInput.Config.Mounts = origMachineRaw.Config.Mounts
@@ -593,19 +593,28 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 		terminal.Warnf("Updating the mount path for volume %s on machine %s from %s to %s due to fly.toml [mounts] destination value\n", currentMount.Volume, origMachineRaw.ID, currentMount.Path, md.volumeDestination)
 		launchInput.Config.Mounts[0].Path = md.volumeDestination
 	}
-	if origMachineRaw.Config.Guest != nil {
-		launchInput.Config.Guest = origMachineRaw.Config.Guest
-	}
-	launchInput.Config.Init = origMachineRaw.Config.Init
+
 	processGroup := origMachineRaw.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
 	if processGroup == "" {
 		processGroup = api.MachineProcessGroupApp
 	}
 	if processConfig, ok := md.processConfigs[processGroup]; ok {
 		launchInput.Config.Services = processConfig.Services
-		launchInput.Config.Init.Cmd = processConfig.Cmd
 		launchInput.Config.Checks = processConfig.Checks
+		if len(processConfig.Cmd) > 0 {
+			launchInput.Config.Init.Cmd = processConfig.Cmd
+		} else {
+			launchInput.Config.Init.Cmd = nil
+		}
 	}
+
+	for _, s := range md.appConfig.Statics {
+		launchInput.Config.Statics = append(launchInput.Config.Statics, &api.Static{
+			GuestPath: s.GuestPath,
+			UrlPrefix: s.UrlPrefix,
+		})
+	}
+
 	return launchInput
 }
 
