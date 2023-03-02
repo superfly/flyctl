@@ -21,6 +21,7 @@ func New() *cobra.Command {
 		command.RequireSession,
 	)
 	cmd.Args = cobra.RangeArgs(0, 1)
+	cmd.Hidden = true
 
 	flag.Add(cmd,
 		flag.Bool{
