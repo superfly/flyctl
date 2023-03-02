@@ -633,10 +633,14 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 	// Potential overrides for Guest
 	if cpus := flag.GetInt(ctx, "cpus"); cpus != 0 {
 		machineConf.Guest.CPUs = cpus
+	} else if flag.IsSpecified(ctx, "cpus") {
+		return nil, fmt.Errorf("cannot have zero cpus")
 	}
 
 	if memory := flag.GetInt(ctx, "memory"); memory != 0 {
 		machineConf.Guest.MemoryMB = memory
+	} else if flag.IsSpecified(ctx, "memory") {
+		return nil, fmt.Errorf("memory cannot be zero")
 	}
 
 	if len(flag.GetStringSlice(ctx, "kernel-arg")) != 0 {
