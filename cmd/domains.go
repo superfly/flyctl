@@ -160,7 +160,5 @@ func runDomainsCreate(cmdCtx *cmdctx.CmdContext) error {
 
 func runDomainsRegister(_ *cmdctx.CmdContext) error {
 
-	fmt.Println("This command is no longer supported.")
-
-	return nil
+	return fmt.Errorf("This command is no longer supported.\n")
 }
