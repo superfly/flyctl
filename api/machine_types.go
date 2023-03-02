@@ -354,12 +354,11 @@ func (mp *MachinePort) HasNonHttpPorts() bool {
 }
 
 type MachineService struct {
-	Protocol                string                     `json:"protocol,omitempty" toml:"protocol,omitempty"`
-	InternalPort            int                        `json:"internal_port,omitempty" toml:"internal_port,omitempty"`
-	Ports                   []MachinePort              `json:"ports,omitempty" toml:"ports,omitempty"`
-	Checks                  []MachineCheck             `json:"checks,omitempty" toml:"checks,omitempty"`
-	Concurrency             *MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
-	DisableMachineAutostart bool                       `json:"disable_machine_autostart,omitempty" toml:"disable_machine_autostart,omitempty"`
+	Protocol     string                     `json:"protocol,omitempty" toml:"protocol,omitempty"`
+	InternalPort int                        `json:"internal_port,omitempty" toml:"internal_port,omitempty"`
+	Ports        []MachinePort              `json:"ports,omitempty" toml:"ports,omitempty"`
+	Checks       []MachineCheck             `json:"checks,omitempty" toml:"checks,omitempty"`
+	Concurrency  *MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
 }
 
 type MachineServiceConcurrency struct {
@@ -369,22 +368,23 @@ type MachineServiceConcurrency struct {
 }
 
 type MachineConfig struct {
-	Env         map[string]string       `json:"env,omitempty"`
-	Init        MachineInit             `json:"init,omitempty"`
-	Processes   []MachineProcess        `json:"processes,omitempty"`
-	Image       string                  `json:"image,omitempty"`
-	Metadata    map[string]string       `json:"metadata,omitempty"`
-	Mounts      []MachineMount          `json:"mounts,omitempty"`
-	Restart     MachineRestart          `json:"restart,omitempty"`
-	Services    []MachineService        `json:"services,omitempty"`
-	VMSize      string                  `json:"size,omitempty"`
-	Guest       *MachineGuest           `json:"guest,omitempty"`
-	Metrics     *MachineMetrics         `json:"metrics,omitempty"`
-	Schedule    string                  `json:"schedule,omitempty"`
-	Checks      map[string]MachineCheck `json:"checks,omitempty"`
-	AutoDestroy bool                    `json:"auto_destroy,omitempty"`
-	DNS         *DNSConfig              `json:"dns,omitempty"`
-	Statics     []*Static               `json:"statics,omitempty"`
+	Env                     map[string]string       `json:"env,omitempty"`
+	Init                    MachineInit             `json:"init,omitempty"`
+	Processes               []MachineProcess        `json:"processes,omitempty"`
+	Image                   string                  `json:"image,omitempty"`
+	Metadata                map[string]string       `json:"metadata,omitempty"`
+	Mounts                  []MachineMount          `json:"mounts,omitempty"`
+	Restart                 MachineRestart          `json:"restart,omitempty"`
+	Services                []MachineService        `json:"services,omitempty"`
+	VMSize                  string                  `json:"size,omitempty"`
+	Guest                   *MachineGuest           `json:"guest,omitempty"`
+	Metrics                 *MachineMetrics         `json:"metrics,omitempty"`
+	Schedule                string                  `json:"schedule,omitempty"`
+	Checks                  map[string]MachineCheck `json:"checks,omitempty"`
+	AutoDestroy             bool                    `json:"auto_destroy,omitempty"`
+	DNS                     *DNSConfig              `json:"dns,omitempty"`
+	Statics                 []*Static               `json:"statics,omitempty"`
+	DisableMachineAutostart bool                    `json:"disable_machine_autostart,omitempty"`
 }
 
 type Static struct {
