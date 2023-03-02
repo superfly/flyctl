@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/cavaliergopher/grab/v3"
 	"github.com/logrusorgru/aurora"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
@@ -166,9 +167,28 @@ func run(ctx context.Context) (err error) {
 			Image: img,
 		}
 	} else if dockerfile := flag.GetString(ctx, "dockerfile"); dockerfile != "" {
-		fmt.Fprintln(io.Out, "Using dockerfile", dockerfile)
-		appConfig.Build = &app.Build{
-			Dockerfile: dockerfile,
+		if strings.HasPrefix(dockerfile, "http://") || strings.HasPrefix(dockerfile, "https://") {
+			fmt.Fprintln(io.Out, "Downloading dockerfile", dockerfile)
+			resp, err := grab.Get("Dockerfile", dockerfile)
+			if err != nil {
+				return err
+			} else {
+				appConfig.Build = &app.Build{
+					Dockerfile: resp.Filename,
+				}
+
+				// scan Dockerfile for port
+				if si, err := scanner.Scan(workingDir, config); err != nil {
+					return err
+				} else {
+					srcInfo = si
+				}
+			}
+		} else {
+			fmt.Fprintln(io.Out, "Using dockerfile", dockerfile)
+			appConfig.Build = &app.Build{
+				Dockerfile: dockerfile,
+			}
 		}
 	} else {
 		fmt.Fprintln(io.Out, "Scanning source code")
