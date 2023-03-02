@@ -131,7 +131,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 	if err != nil {
 		return err
 	}
-	deployToMachines, err := useMachines(appConfig, appCompact, args)
+	deployToMachines, err := useMachines(ctx, appConfig, appCompact, args, apiClient)
 	if err != nil {
 		return err
 	}
@@ -225,7 +225,8 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 	return err
 }
 
-func useMachines(appConfig *app.Config, appCompact *api.AppCompact, args DeployWithConfigArgs) (bool, error) {
+func useMachines(ctx context.Context, appConfig *app.Config, appCompact *api.AppCompact, args DeployWithConfigArgs, apiClient *api.Client) (bool, error) {
+	appsV2DefaultOn, _ := apiClient.GetAppsV2DefaultOnForOrg(ctx, appCompact.Organization.Slug)
 	switch {
 	case appCompact.PlatformVersion == appv2.AppsV2Platform:
 		return true, nil
@@ -235,15 +236,10 @@ func useMachines(appConfig *app.Config, appCompact *api.AppCompact, args DeployW
 		return false, nil
 	case args.ForceMachines:
 		return true, nil
-	case len(appConfig.Statics) > 0:
-		// statics are not supported in Apps v2 yet
-		return false, nil
 	case args.ForceYes:
-		// if running automated, stay on nomad platform for now
-		return false, nil
+		return appsV2DefaultOn, nil
 	default:
-		// choose nomad for now if not otherwise specified
-		return false, nil
+		return appsV2DefaultOn, nil
 	}
 }
 
