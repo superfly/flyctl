@@ -311,8 +311,10 @@ imports from StdIn.`,
 browser to view the content.`,
 		}
 	case "domains":
-		return KeyStrings{"domains", "Manage domains",
-			`Manage domains`,
+		return KeyStrings{"domains", "Manage domains (deprecated)",
+			`Manage domains
+Notice: this feature is deprecated and no longer supported.
+You can still view existing domains, but registration is no longer possible.`,
 		}
 	case "domains.add":
 		return KeyStrings{"add [org] [name]", "Add a domain",
