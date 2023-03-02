@@ -48,7 +48,7 @@ func runVMSizes(ctx context.Context) error {
 	for _, size := range sizes {
 		rows = append(rows, []string{
 			size.Name,
-			cores(size.CPUCores),
+			cores(int(size.CPUCores)),
 			memory(size.MemoryMB),
 		})
 	}
@@ -69,7 +69,7 @@ func runMachineVMSizes(ctx context.Context) error {
 		}
 		shared = append(shared, []string{
 			key,
-			cores(float32(guest.CPUs)),
+			cores(guest.CPUs),
 			memory(guest.MemoryMB),
 		})
 	}
@@ -89,7 +89,7 @@ func runMachineVMSizes(ctx context.Context) error {
 		}
 		performance = append(performance, []string{
 			key,
-			cores(float32(guest.CPUs)),
+			cores(guest.CPUs),
 			memory(guest.MemoryMB),
 		})
 	}
@@ -101,16 +101,16 @@ func runMachineVMSizes(ctx context.Context) error {
 	return render.Table(out, "", performance, "Name", "CPU Cores", "Memory")
 }
 
-func cores(cores float32) string {
+func cores(cores int) string {
 	if cores < 1.0 {
-		return fmt.Sprintf("%.2f", cores)
+		return fmt.Sprintf("%d", cores)
 	}
-	return fmt.Sprintf("%d", int(cores))
+	return fmt.Sprintf("%d", cores)
 }
 
 func memory(size int) string {
 	if size < 1024 {
 		return fmt.Sprintf("%d MB", size)
 	}
-	return fmt.Sprintf("%d GB", int(size))
+	return fmt.Sprintf("%d GB", size/1024)
 }
