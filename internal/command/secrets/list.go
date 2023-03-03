@@ -16,9 +16,9 @@ import (
 
 func newList() (cmd *cobra.Command) {
 	const (
-		long = `List the secrets available to the application. It shows each
-		secret's name, a digest of the its value and the time the secret was last set.
-		The actual value of the secret is only available to the application.`
+		long = `List the secrets available to the application. It shows each secret's
+name, a digest of its value and the time the secret was last set. The
+actual value of the secret is only available to the application.`
 		short = `List application secret names, digests and creation times`
 		usage = "list [flags]"
 	)
