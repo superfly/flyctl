@@ -6,17 +6,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
-	"reflect"
-	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/go-playground/validator/v10"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/iostreams"
@@ -72,23 +67,14 @@ type SlimConfig struct {
 
 // Config wraps the properties of app configuration.
 type Config struct {
-	AppName         string                      `toml:"app,omitempty"`
-	Build           *Build                      `toml:"build,omitempty"`
-	HttpService     *HttpService                `toml:"http_service,omitempty"`
-	Definition      map[string]interface{}      `toml:"definition,omitempty"`
-	Path            string                      `toml:"path,omitempty"`
-	Services        []api.MachineService        `toml:"services"`
-	Env             map[string]string           `toml:"env" json:"env"`
-	Metrics         *api.MachineMetrics         `toml:"metrics" json:"metrics"`
-	Statics         []*Static                   `toml:"statics,omitempty" json:"statics"`
-	Deploy          *Deploy                     `toml:"deploy, omitempty"`
-	PrimaryRegion   string                      `toml:"primary_region,omitempty"`
-	Checks          map[string]api.MachineCheck `toml:"checks,omitempty"`
-	platformVersion string
-}
+	AppName       string                 `toml:"app,omitempty"`
+	Build         *Build                 `toml:"build,omitempty"`
+	Definition    map[string]interface{} `toml:"definition,omitempty"`
+	Path          string                 `toml:"path,omitempty"`
+	Env           map[string]string      `toml:"env" json:"env"`
+	PrimaryRegion string                 `toml:"primary_region,omitempty"`
 
-type Deploy struct {
-	ReleaseCommand string `toml:"release_command,omitempty"`
+	platformVersion string
 }
 
 type Static struct {
@@ -98,16 +84,6 @@ type Static struct {
 type Volume struct {
 	Source      string `toml:"source" json:"source"`
 	Destination string `toml:"destination" json:"destination"`
-}
-type HttpService struct {
-	InternalPort int                            `json:"internal_port" toml:"internal_port" validate:"required,numeric"`
-	ForceHttps   bool                           `toml:"force_https"`
-	Concurrency  *api.MachineServiceConcurrency `toml:"concurrency,omitempty"`
-}
-
-type VM struct {
-	CpuCount int `toml:"cpu_count,omitempty"`
-	Memory   int `toml:"memory,omitempty"`
 }
 
 type Build struct {
@@ -139,25 +115,6 @@ func (c *Config) SetPlatformVersion(platform string) {
 // ForMachines is true when the config is intended for the machines platform
 func (c *Config) ForMachines() bool {
 	return c.platformVersion == MachinesPlatform
-}
-
-func (c *Config) HasDefinition() bool {
-	return len(c.Definition) > 0
-}
-
-func (ac *Config) HasBuilder() bool {
-	return ac.Build != nil && ac.Build.Builder != ""
-}
-
-func (ac *Config) HasBuiltin() bool {
-	return ac.Build != nil && ac.Build.Builtin != ""
-}
-
-func (ac *Config) Image() string {
-	if ac.Build == nil {
-		return ""
-	}
-	return ac.Build.Image
 }
 
 func (c *Config) Dockerfile() string {
@@ -418,38 +375,6 @@ func (c *Config) WriteToDisk(ctx context.Context, path string) (err error) {
 	return
 }
 
-func (c *Config) Validate() (err error) {
-	Validator := validator.New()
-	Validator.RegisterTagNameFunc(func(fld reflect.StructField) string {
-		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
-		// skip if tag key says it should be ignored
-		if name == "-" {
-			return ""
-		}
-		return name
-	})
-
-	err = Validator.Struct(c)
-
-	if err != nil {
-		for _, err := range err.(validator.ValidationErrors) {
-			if err.Tag() == "required" {
-				fmt.Printf("%s is required\n", err.Field())
-			} else {
-				fmt.Printf("Validation error on %s: %s\n", err.Field(), err.Tag())
-			}
-		}
-	}
-	return
-}
-
-// HasServices - Does this config have a services section
-func (c *Config) HasServices() bool {
-	_, ok := c.Definition["services"].([]interface{})
-
-	return ok
-}
-
 func (c *Config) SetInternalPort(port int) bool {
 	services, ok := c.Definition["services"].([]interface{})
 	if !ok {
@@ -511,7 +436,6 @@ func (c *Config) SetConcurrency(soft int, hard int) bool {
 	}
 
 	if service, ok := services[0].(map[string]interface{}); ok {
-
 		if concurrency, ok := service["concurrency"].(map[string]interface{}); ok {
 			concurrency["hard_limit"] = hard
 			concurrency["soft_limit"] = soft
@@ -521,26 +445,6 @@ func (c *Config) SetConcurrency(soft int, hard int) bool {
 	}
 
 	return false
-}
-
-func (c *Config) InternalPort() (int, error) {
-	tmpservices, ok := c.Definition["services"]
-	if !ok {
-		return -1, errors.New("could not find internal port setting")
-	}
-
-	services, ok := tmpservices.([]map[string]interface{})
-	if ok {
-		internalport, ok := services[0]["internal_port"].(int64)
-		if ok {
-			return int(internalport), nil
-		}
-		internalportfloat, ok := services[0]["internal_port"].(float64)
-		if ok {
-			return int(internalportfloat), nil
-		}
-	}
-	return 8080, nil
 }
 
 func (c *Config) SetReleaseCommand(cmd string) {
