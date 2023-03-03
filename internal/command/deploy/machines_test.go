@@ -9,7 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 )
 
-func Test_resultUpdateMachineConfig_Basic(t *testing.T) {
+func stabMachineDeployment(appConfig *appv2.Config) (*machineDeployment, error) {
 	md := &machineDeployment{
 		app: &api.AppCompact{
 			ID: "my-cool-app",
@@ -20,20 +20,22 @@ func Test_resultUpdateMachineConfig_Basic(t *testing.T) {
 		img: &imgsrc.DeploymentImage{
 			Tag: "super/balloon",
 		},
-		appConfig: &appv2.Config{
-			AppName: "my-cool-app",
-			Env: map[string]string{
-				"PRIMARY_REGION": "scl",
-				"OTHER":          "value",
-			},
-		},
+		appConfig: appConfig,
 	}
 	var err error
 	md.processConfigs, err = md.appConfig.GetProcessConfigs()
+	return md, err
+}
+
+func Test_resultUpdateMachineConfig_Basic(t *testing.T) {
+	md, err := stabMachineDeployment(&appv2.Config{
+		AppName: "my-cool-app",
+		Env: map[string]string{
+			"PRIMARY_REGION": "scl",
+			"OTHER":          "value",
+		},
+	})
 	assert.NoError(t, err)
-
-	launchInput := md.resolveUpdatedMachineConfig(nil, false)
-
 	assert.Equal(t, &api.LaunchMachineInput{
 		OrgSlug: "my-dangling-org",
 		Config: &api.MachineConfig{
@@ -51,62 +53,48 @@ func Test_resultUpdateMachineConfig_Basic(t *testing.T) {
 			Services: []api.MachineService{},
 			Checks:   map[string]api.MachineCheck{},
 		},
-	}, launchInput)
+	}, md.resolveUpdatedMachineConfig(nil, false))
 }
 
 // Test any LaunchMachineInput field that must not be set on a machine
 // used to run release command.
-func Test_resultUpdateMachineConfig_RelaseCommand(t *testing.T) {
-	md := &machineDeployment{
-		app: &api.AppCompact{
-			ID: "my-cool-app",
-			Organization: &api.OrganizationBasic{
-				ID: "my-dangling-org",
+func Test_resultUpdateMachineConfig_ReleaseCommand(t *testing.T) {
+	md, err := stabMachineDeployment(&appv2.Config{
+		AppName: "my-cool-app",
+		Env: map[string]string{
+			"PRIMARY_REGION": "scl",
+			"OTHER":          "value",
+		},
+		Metrics: &api.MachineMetrics{
+			Port: 9000,
+			Path: "/prometheus",
+		},
+		Deploy: &appv2.Deploy{
+			ReleaseCommand: "echo foo",
+		},
+		Mounts: &appv2.Volume{
+			Source:      "data",
+			Destination: "/data",
+		},
+		Checks: map[string]*appv2.ToplevelCheck{
+			"alive": {
+				Port: api.Pointer(8080),
+				Type: api.Pointer("tcp"),
 			},
 		},
-		img: &imgsrc.DeploymentImage{
-			Tag: "super/balloon",
-		},
-		volumes: []api.Volume{
-			{ID: "vol_12345"},
-		},
-		volumeDestination: "/data",
-		appConfig: &appv2.Config{
-			AppName: "my-cool-app",
-			Env: map[string]string{
-				"PRIMARY_REGION": "scl",
-				"OTHER":          "value",
-			},
-			Metrics: &api.MachineMetrics{
-				Port: 9000,
-				Path: "/prometheus",
-			},
-			Deploy: &appv2.Deploy{
-				ReleaseCommand: "echo foo",
-			},
-			Mounts: &appv2.Volume{
-				Source:      "data",
-				Destination: "/data",
-			},
-			Checks: map[string]*appv2.ToplevelCheck{
-				"alive": {
-					Port: api.Pointer(8080),
-					Type: api.Pointer("tcp"),
-				},
-			},
-			Statics: []appv2.Static{{
-				GuestPath: "/app/assets",
-				UrlPrefix: "/statics",
-			}},
-			Services: []appv2.Service{{
-				Protocol:     "tcp",
-				InternalPort: 8080,
-			}},
-		},
-	}
-	var err error
-	md.processConfigs, err = md.appConfig.GetProcessConfigs()
+		Statics: []appv2.Static{{
+			GuestPath: "/app/assets",
+			UrlPrefix: "/statics",
+		}},
+		Services: []appv2.Service{{
+			Protocol:     "tcp",
+			InternalPort: 8080,
+		}},
+	})
 	assert.NoError(t, err)
+	md.volumes = []api.Volume{{ID: "vol_12345"}}
+	md.volumeDestination = "/data"
+	md.releaseCommand = []string{"touch", "sky"}
 
 	// New app machine
 	assert.Equal(t, &api.LaunchMachineInput{
@@ -148,18 +136,97 @@ func Test_resultUpdateMachineConfig_RelaseCommand(t *testing.T) {
 				},
 			},
 		},
-	},
-		md.resolveUpdatedMachineConfig(nil, false),
-	)
+	}, md.resolveUpdatedMachineConfig(nil, false))
 
 	// New release command machine
 	assert.Equal(t, &api.LaunchMachineInput{
 		OrgSlug: "my-dangling-org",
 		Config: &api.MachineConfig{
-			Env: map[string]string{
-				"PRIMARY_REGION": "scl",
-				"OTHER":          "value",
+			Init: api.MachineInit{
+				Cmd: []string{"touch", "sky"},
 			},
+			Env: map[string]string{
+				"PRIMARY_REGION":  "scl",
+				"OTHER":           "value",
+				"RELEASE_COMMAND": "1",
+			},
+			Image: "super/balloon",
+			Metadata: map[string]string{
+				"fly_platform_version": "v2",
+				"fly_process_group":    "fly_app_release_command",
+				"fly_release_id":       "",
+				"fly_release_version":  "0",
+			},
+			Restart: api.MachineRestart{
+				Policy: api.MachineRestartPolicyNo,
+			},
+			AutoDestroy: true,
+			DNS: &api.DNSConfig{
+				SkipRegistration: true,
+			},
+		},
+	}, md.resolveUpdatedMachineConfig(nil, true))
+
+	// Update existing release command machine
+	origMachine := &api.Machine{
+		Config: &api.MachineConfig{
+			Env: map[string]string{
+				"PRIMARY_REGION": "different-region",
+			},
+			AutoDestroy: false,
+			Restart: api.MachineRestart{
+				Policy: api.MachineRestartPolicyOnFailure,
+			},
+			Init: api.MachineInit{
+				Cmd: []string{"touch", "ground"},
+			},
+		},
+	}
+	assert.Equal(t, &api.LaunchMachineInput{
+		OrgSlug: "my-dangling-org",
+		Config: &api.MachineConfig{
+			Env: map[string]string{
+				"PRIMARY_REGION":  "scl",
+				"OTHER":           "value",
+				"RELEASE_COMMAND": "1",
+			},
+			Image: "super/balloon",
+			Metadata: map[string]string{
+				"fly_platform_version": "v2",
+				"fly_process_group":    "fly_app_release_command",
+				"fly_release_id":       "",
+				"fly_release_version":  "0",
+			},
+			Init: api.MachineInit{
+				Cmd: []string{"touch", "sky"},
+			},
+			Restart: api.MachineRestart{
+				Policy: api.MachineRestartPolicyNo,
+			},
+			AutoDestroy: true,
+			DNS: &api.DNSConfig{
+				SkipRegistration: true,
+			},
+		},
+	}, md.resolveUpdatedMachineConfig(origMachine, true))
+}
+
+// Test Mounts
+func Test_resultUpdateMachineConfig_Mounts(t *testing.T) {
+	md, err := stabMachineDeployment(&appv2.Config{
+		Mounts: &appv2.Volume{
+			Source:      "data",
+			Destination: "/data",
+		},
+	})
+	assert.NoError(t, err)
+	md.volumeDestination = "/data"
+	md.volumes = []api.Volume{{ID: "vol_12345"}}
+
+	// New app machine
+	assert.Equal(t, &api.LaunchMachineInput{
+		OrgSlug: "my-dangling-org",
+		Config: &api.MachineConfig{
 			Image: "super/balloon",
 			Metadata: map[string]string{
 				"fly_platform_version": "v2",
@@ -167,8 +234,82 @@ func Test_resultUpdateMachineConfig_RelaseCommand(t *testing.T) {
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
 			},
+			Env:      map[string]string{},
+			Services: []api.MachineService{},
+			Checks:   map[string]api.MachineCheck{},
+			Mounts: []api.MachineMount{{
+				Volume: "vol_12345",
+				Path:   "/data",
+			}},
 		},
 	},
-		md.resolveUpdatedMachineConfig(nil, true),
+		md.resolveUpdatedMachineConfig(nil, false),
 	)
+
+	origMachine := &api.Machine{
+		Config: &api.MachineConfig{
+			Mounts: []api.MachineMount{{
+				Volume: "vol_alreadyattached",
+				Path:   "/data",
+			}},
+		},
+	}
+
+	// Reuse app machine
+	assert.Equal(t, &api.LaunchMachineInput{
+		OrgSlug: "my-dangling-org",
+		Config: &api.MachineConfig{
+			Image: "super/balloon",
+			Metadata: map[string]string{
+				"fly_platform_version": "v2",
+				"fly_process_group":    "app",
+				"fly_release_id":       "",
+				"fly_release_version":  "0",
+			},
+			Env:      map[string]string{},
+			Services: []api.MachineService{},
+			Checks:   map[string]api.MachineCheck{},
+			Mounts: []api.MachineMount{{
+				Volume: "vol_alreadyattached",
+				Path:   "/data",
+			}},
+		},
+	}, md.resolveUpdatedMachineConfig(origMachine, false))
+}
+
+// Test machineDeployment.restartOnly
+func Test_resultUpdateMachineConfig_restartOnly(t *testing.T) {
+	md, err := stabMachineDeployment(&appv2.Config{
+		Env: map[string]string{
+			"Ignore": "me",
+		},
+		Mounts: &appv2.Volume{
+			Source:      "data",
+			Destination: "/data",
+		},
+	})
+	assert.NoError(t, err)
+	md.restartOnly = true
+	md.img.Tag = "SHOULD-NOT-USE-THIS-TAG"
+
+	origMachine := &api.Machine{
+		ID: "OrigID",
+		Config: &api.MachineConfig{
+			Image: "instead-use/the-redmoon",
+		},
+	}
+
+	assert.Equal(t, &api.LaunchMachineInput{
+		ID:      "OrigID",
+		OrgSlug: "my-dangling-org",
+		Config: &api.MachineConfig{
+			Image: "instead-use/the-redmoon",
+			Metadata: map[string]string{
+				"fly_platform_version": "v2",
+				"fly_process_group":    "app",
+				"fly_release_id":       "",
+				"fly_release_version":  "0",
+			},
+		},
+	}, md.resolveUpdatedMachineConfig(origMachine, false))
 }

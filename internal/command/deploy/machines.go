@@ -330,24 +330,15 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 
 func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context) error {
 	if md.releaseCommandMachine.IsEmpty() {
-		err := md.createReleaseCommandMachine(ctx)
-		if err != nil {
-			return err
-		}
+		return md.createReleaseCommandMachine(ctx)
 	} else {
-		err := md.updateReleaseCommandMachine(ctx)
-		if err != nil {
-			return err
-		}
+		return md.updateReleaseCommandMachine(ctx)
 	}
-	return nil
 }
 
 func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *api.LaunchMachineInput) *api.LaunchMachineInput {
 	launchInput.Config.Init.Cmd = md.releaseCommand
 	launchInput.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = api.MachineProcessGroupFlyAppReleaseCommand
-	launchInput.Config.Services = nil
-	launchInput.Config.Checks = nil
 	launchInput.Config.Restart = api.MachineRestart{
 		Policy: api.MachineRestartPolicyNo,
 	}
@@ -367,7 +358,6 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 		return nil
 	}
 	launchInput := md.resolveUpdatedMachineConfig(nil, true)
-	launchInput = md.configureLaunchInputForReleaseCommand(launchInput)
 	releaseCmdMachine, err := md.flapsClient.Launch(ctx, *launchInput)
 	if err != nil {
 		return fmt.Errorf("error creating a release_command machine: %w", err)
@@ -391,7 +381,6 @@ func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) er
 		return err
 	}
 	updatedConfig := md.resolveUpdatedMachineConfig(releaseCmdMachine.Machine(), true)
-	updatedConfig = md.configureLaunchInputForReleaseCommand(updatedConfig)
 	err = md.releaseCommandMachine.AcquireLeases(ctx, md.leaseTimeout)
 	defer func() {
 		_ = md.releaseCommandMachine.ReleaseLeases(ctx)
@@ -539,26 +528,23 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 			Config: &api.MachineConfig{},
 		}
 	}
-	machineConf := &api.MachineConfig{}
-	if md.restartOnly {
-		machineConf = origMachineRaw.Config
-	}
+
 	launchInput := &api.LaunchMachineInput{
 		ID:      origMachineRaw.ID,
 		AppID:   md.app.Name,
 		OrgSlug: md.app.Organization.ID,
-		Config:  machineConf,
+		Config:  lo.Ternary(md.restartOnly, origMachineRaw.Config, &api.MachineConfig{}),
 		Region:  origMachineRaw.Region,
 	}
 
 	launchInput.Config.Metadata = md.defaultMachineMetadata()
-	if origMachineRaw.Config.Metadata != nil {
-		for k, v := range origMachineRaw.Config.Metadata {
-			if !isFlyAppsPlatformMetadata(k) {
-				launchInput.Config.Metadata[k] = v
-			}
+	for k, v := range origMachineRaw.Config.Metadata {
+		if !isFlyAppsPlatformMetadata(k) {
+			launchInput.Config.Metadata[k] = v
 		}
 	}
+
+	// Stop here If the machine is restarting
 	if md.restartOnly {
 		return launchInput
 	}
@@ -573,16 +559,23 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 		launchInput.Config.Env["PRIMARY_REGION"] = origMachineRaw.Config.Env["PRIMARY_REGION"]
 	}
 
-	// Anything below this point doesn't apply to machines created to run ReleaseCommand
+	// Stop here If the machine is for release command
 	if forReleaseCommand {
-		return launchInput
+		return md.configureLaunchInputForReleaseCommand(launchInput)
 	}
 
+	// Anything below this point doesn't apply to machines created to run ReleaseCommand
 	launchInput.Config.Metrics = md.appConfig.Metrics
 
-	if origMachineRaw.Config.Mounts != nil {
-		launchInput.Config.Mounts = origMachineRaw.Config.Mounts
-	} else if md.appConfig.Mounts != nil {
+	for _, s := range md.appConfig.Statics {
+		launchInput.Config.Statics = append(launchInput.Config.Statics, &api.Static{
+			GuestPath: s.GuestPath,
+			UrlPrefix: s.UrlPrefix,
+		})
+	}
+
+	launchInput.Config.Mounts = origMachineRaw.Config.Mounts
+	if launchInput.Config.Mounts == nil && md.appConfig.Mounts != nil {
 		launchInput.Config.Mounts = []api.MachineMount{{
 			Path:   md.volumeDestination,
 			Volume: md.volumes[0].ID,
@@ -595,25 +588,14 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 		launchInput.Config.Mounts[0].Path = md.volumeDestination
 	}
 
-	processGroup := origMachineRaw.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
+	processGroup := launchInput.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
 	if processGroup == "" {
 		processGroup = api.MachineProcessGroupApp
 	}
 	if processConfig, ok := md.processConfigs[processGroup]; ok {
 		launchInput.Config.Services = processConfig.Services
 		launchInput.Config.Checks = processConfig.Checks
-		if len(processConfig.Cmd) > 0 {
-			launchInput.Config.Init.Cmd = processConfig.Cmd
-		} else {
-			launchInput.Config.Init.Cmd = nil
-		}
-	}
-
-	for _, s := range md.appConfig.Statics {
-		launchInput.Config.Statics = append(launchInput.Config.Statics, &api.Static{
-			GuestPath: s.GuestPath,
-			UrlPrefix: s.UrlPrefix,
-		})
+		launchInput.Config.Init.Cmd = lo.Ternary(len(processConfig.Cmd) > 0, processConfig.Cmd, nil)
 	}
 
 	return launchInput
