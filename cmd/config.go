@@ -46,11 +46,16 @@ func newConfigCommand(client *client.Client) *Command {
 
 func runShowConfig(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
+	ctx = client.NewContext(ctx, client.New())
 
 	apiClient := cmdCtx.Client.API()
 	appCompact, err := apiClient.GetAppCompact(ctx, cmdCtx.AppName)
 	if err != nil {
 		return fmt.Errorf("error getting app: %w", err)
+	}
+	ctx, err = apps.BuildContext(ctx, appCompact)
+	if err != nil {
+		return err
 	}
 
 	switch appCompact.PlatformVersion {
