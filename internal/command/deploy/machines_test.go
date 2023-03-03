@@ -274,7 +274,42 @@ func Test_resultUpdateMachineConfig_Mounts(t *testing.T) {
 				Path:   "/data",
 			}},
 		},
-	},
-		md.resolveUpdatedMachineConfig(origMachine, false),
-	)
+	}, md.resolveUpdatedMachineConfig(origMachine, false))
+}
+
+// Test machineDeployment.restartOnly
+func Test_resultUpdateMachineConfig_restartOnly(t *testing.T) {
+	md, err := stabMachineDeployment(&appv2.Config{
+		Env: map[string]string{
+			"Ignore": "me",
+		},
+		Mounts: &appv2.Volume{
+			Source:      "data",
+			Destination: "/data",
+		},
+	})
+	assert.NoError(t, err)
+	md.restartOnly = true
+	md.img.Tag = "SHOULD-NOT-USE-THIS-TAG"
+
+	origMachine := &api.Machine{
+		ID: "OrigID",
+		Config: &api.MachineConfig{
+			Image: "instead-use/the-redmoon",
+		},
+	}
+
+	assert.Equal(t, &api.LaunchMachineInput{
+		ID:      "OrigID",
+		OrgSlug: "my-dangling-org",
+		Config: &api.MachineConfig{
+			Image: "instead-use/the-redmoon",
+			Metadata: map[string]string{
+				"fly_platform_version": "v2",
+				"fly_process_group":    "app",
+				"fly_release_id":       "",
+				"fly_release_version":  "0",
+			},
+		},
+	}, md.resolveUpdatedMachineConfig(origMachine, false))
 }
