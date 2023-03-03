@@ -18,14 +18,13 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/update"
 
-	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/cache"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/state"
@@ -451,16 +450,30 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 // configuration file from the path the user has selected via command line args
 // or the current working directory.
 func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
-	logger := logger.FromContext(ctx)
+	// Shortcut to avoid unmarshaling and querying Web when
+	// LoadAppConfigIfPresent is chained with RequireAppName
+	if cfg := appconfig.ConfigFromContext(ctx); cfg != nil {
+		return ctx, nil
+	}
 
+	logger := logger.FromContext(ctx)
 	for _, path := range appConfigFilePaths(ctx) {
-		switch cfg, err := app.LoadConfig(ctx, path, ""); {
+		switch cfg, err := appconfig.LoadConfig(path); {
 		case err == nil:
 			logger.Debugf("app config loaded from %s", path)
-			return app.WithConfig(ctx, cfg), nil // we loaded a configuration file
+
+			// Query Web API for platform version
+			platformVersion, _ := determinePlatform(ctx, cfg.AppName)
+			if platformVersion != "" {
+				err := cfg.SetPlatformVersion(platformVersion)
+				if err != nil {
+					logger.Warnf("WARNING the config file at '%s' is not valid: %s", path, err)
+				}
+			}
+
+			return appconfig.WithConfig(ctx, cfg), nil // we loaded a configuration file
 		case errors.Is(err, fs.ErrNotExist):
 			logger.Debugf("no app config found at %s; skipped.", path)
-
 			continue
 		default:
 			return nil, fmt.Errorf("failed loading app config from %s: %w", path, err)
@@ -470,24 +483,17 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
-func LoadAppV2ConfigIfPresent(ctx context.Context) (context.Context, error) {
-	logger := logger.FromContext(ctx)
-
-	for _, path := range appConfigFilePaths(ctx) {
-		switch cfg, err := appv2.LoadConfig(path); {
-		case err == nil:
-			logger.Debugf("appv2 config loaded from %s", path)
-			return appv2.WithConfig(ctx, cfg), nil // we loaded a configuration file
-		case errors.Is(err, fs.ErrNotExist):
-			logger.Debugf("no appv2 config found at %s; skipped.", path)
-
-			continue
-		default:
-			return nil, fmt.Errorf("failed loading appv2 config from %s: %w", path, err)
-		}
+func determinePlatform(ctx context.Context, appName string) (string, error) {
+	client := client.FromContext(ctx)
+	if appName == "" {
+		return "", fmt.Errorf("Can't determine platform without an application name")
 	}
 
-	return ctx, nil
+	basicApp, err := client.API().GetAppBasic(ctx, appName)
+	if err != nil {
+		return "", err
+	}
+	return basicApp.PlatformVersion, nil
 }
 
 // appConfigFilePaths returns the possible paths at which we may find a fly.toml
@@ -495,13 +501,13 @@ func LoadAppV2ConfigIfPresent(ctx context.Context) (context.Context, error) {
 // specified a command-line path to a config file.
 func appConfigFilePaths(ctx context.Context) (paths []string) {
 	if p := flag.GetAppConfigFilePath(ctx); p != "" {
-		paths = append(paths, p, filepath.Join(p, app.DefaultConfigFileName))
+		paths = append(paths, p, filepath.Join(p, appconfig.DefaultConfigFileName))
 
 		return
 	}
 
 	wd := state.WorkingDirectory(ctx)
-	paths = append(paths, filepath.Join(wd, app.DefaultConfigFileName))
+	paths = append(paths, filepath.Join(wd, appconfig.DefaultConfigFileName))
 
 	return
 }
@@ -512,33 +518,18 @@ var errRequireAppName = fmt.Errorf("we couldn't find a fly.toml nor an app speci
 // application name via command line arguments, the environment or an application
 // config file (fly.toml). It embeds LoadAppConfigIfPresent.
 func RequireAppName(ctx context.Context) (context.Context, error) {
-	platform := appv2.AppsV1Platform
-	newCtx, err := LoadAppConfigIfPresent(ctx)
-
+	ctx, err := LoadAppConfigIfPresent(ctx)
 	if err != nil {
-		newCtx, err = LoadAppV2ConfigIfPresent(ctx)
-		platform = appv2.AppsV2Platform
-
-		if err != nil {
-			return nil, err
-		}
-
+		return nil, err
 	}
 
-	name := flag.GetApp(newCtx)
+	name := flag.GetApp(ctx)
 	if name == "" {
 		// if there's no flag present, first consult with the environment
 		if name = env.First("FLY_APP"); name == "" {
 			// and then with the config file (if any)
-			if platform == appv2.AppsV1Platform {
-				if cfg := app.ConfigFromContext(newCtx); cfg != nil {
-					name = cfg.AppName
-				}
-			} else if platform == appv2.AppsV2Platform {
-				if cfg := appv2.ConfigFromContext(newCtx); cfg != nil {
-					name = cfg.AppName
-				}
-
+			if cfg := appconfig.ConfigFromContext(ctx); cfg != nil {
+				name = cfg.AppName
 			}
 		}
 	}
@@ -547,9 +538,7 @@ func RequireAppName(ctx context.Context) (context.Context, error) {
 		return nil, errRequireAppName
 	}
 
-	newCtx = appv2.WithName(newCtx, name)
-	return app.WithName(newCtx, name), nil
-
+	return appconfig.WithName(ctx, name), nil
 }
 
 // LoadAppNameIfPresent is a Preparer which adds app name if the user has used --app or there appConfig
@@ -558,8 +547,7 @@ func LoadAppNameIfPresent(ctx context.Context) (context.Context, error) {
 	localCtx, err := RequireAppName(ctx)
 
 	if errors.Is(err, errRequireAppName) {
-		ctx = appv2.WithName(ctx, "")
-		return app.WithName(ctx, ""), nil
+		return appconfig.WithName(ctx, ""), nil
 	}
 
 	return localCtx, err
