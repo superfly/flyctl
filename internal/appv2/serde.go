@@ -25,7 +25,7 @@ func LoadConfig(path string) (cfg *Config, err error) {
 		return nil, err
 	}
 
-	cfg.FlyTomlPath = path
+	cfg.configFilePath = path
 	// cfg.WriteToFile("patched-fly.toml")
 	return cfg, nil
 }

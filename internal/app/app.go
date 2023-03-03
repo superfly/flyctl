@@ -48,7 +48,7 @@ func LoadConfig(ctx context.Context, path string, platformVersion string) (cfg *
 		}
 	}()
 
-	cfg.Path = path
+	cfg.configFilePath = path
 	cfg.platformVersion = platformVersion
 
 	if platformVersion == "" {
@@ -70,11 +70,11 @@ type Config struct {
 	AppName       string                 `toml:"app,omitempty"`
 	Build         *Build                 `toml:"build,omitempty"`
 	Definition    map[string]interface{} `toml:"definition,omitempty"`
-	Path          string                 `toml:"path,omitempty"`
 	Env           map[string]string      `toml:"env" json:"env"`
 	PrimaryRegion string                 `toml:"primary_region,omitempty"`
 
 	platformVersion string
+	configFilePath  string
 }
 
 type Static struct {
@@ -96,6 +96,10 @@ type Build struct {
 	Dockerfile        string                 `toml:"dockerfile,omitempty"`
 	Ignorefile        string                 `toml:"ignorefile,omitempty"`
 	DockerBuildTarget string                 `toml:"buildpacks,omitempty"`
+}
+
+func (c *Config) ConfigFilePath() string {
+	return c.configFilePath
 }
 
 // SetMachinesPlatform informs the TOML marshaller that this config is for the machines platform

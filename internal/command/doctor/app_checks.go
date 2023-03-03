@@ -97,7 +97,7 @@ func (ac *AppChecker) checkAll() map[string]string {
 	ipAddresses := ac.checkIpsAllocated()
 	ac.checkDnsRecords(ipAddresses)
 
-	relPath, err := filepath.Rel(ac.workDir, ac.appConfig.Path)
+	relPath, err := filepath.Rel(ac.workDir, ac.appConfig.ConfigFilePath())
 	if err == nil && relPath == app.DefaultConfigFileName {
 		ac.lprint(nil, "\nBuild checks for %s:\n", ac.app.Name)
 		contextSize := ac.checkDockerContext()
@@ -278,7 +278,7 @@ func (ac *AppChecker) checkDockerContext() int {
 	var dockerfile string
 	var err error
 	if dockerfile = ac.appConfig.Dockerfile(); dockerfile != "" {
-		dockerfile = filepath.Join(filepath.Dir(ac.appConfig.Path), dockerfile)
+		dockerfile = filepath.Join(filepath.Dir(ac.appConfig.ConfigFilePath()), dockerfile)
 	}
 	if dockerfile != "" {
 		dockerfile, err = filepath.Abs(dockerfile)

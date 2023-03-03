@@ -94,7 +94,6 @@ func runMachineClone(ctx context.Context) (err error) {
 
 		if help != nil {
 			fmt.Println(help)
-
 		}
 
 		fmt.Println()
@@ -289,7 +288,7 @@ func getAppConfig(ctx context.Context, appName string) (*appv2.Config, error) {
 	if !parsedCfg.Valid {
 		fmt.Println()
 		if len(parsedCfg.Errors) > 0 {
-			terminal.Errorf("\nConfiguration errors in %s:\n\n", cfg.FlyTomlPath)
+			terminal.Errorf("\nConfiguration errors in %s:\n\n", cfg.ConfigFilePath())
 		}
 		for _, e := range parsedCfg.Errors {
 			terminal.Errorf("   %s\n", e)

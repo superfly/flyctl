@@ -52,8 +52,8 @@ func TestLoadTOMLAppConfigExperimental(t *testing.T) {
 	cfg, err := LoadConfig(path)
 	assert.NoError(t, err)
 	assert.Equal(t, &Config{
-		FlyTomlPath: "./testdata/experimental-alt.toml",
-		AppName:     "foo",
+		configFilePath: "./testdata/experimental-alt.toml",
+		AppName:        "foo",
 		Experimental: &Experimental{
 			Cmd:        []string{"cmd"},
 			Entrypoint: []string{"entrypoint"},
@@ -67,8 +67,8 @@ func TestLoadTOMLAppConfigMountsArray(t *testing.T) {
 	cfg, err := LoadConfig(path)
 	assert.NoError(t, err)
 	assert.Equal(t, &Config{
-		FlyTomlPath: "./testdata/mounts-array.toml",
-		AppName:     "foo",
+		configFilePath: "./testdata/mounts-array.toml",
+		AppName:        "foo",
 		Mounts: &Volume{
 			Source:      "pg_data",
 			Destination: "/data",
@@ -81,8 +81,8 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 	cfg, err := LoadConfig(path)
 	assert.NoError(t, err)
 	assert.Equal(t, &Config{
-		FlyTomlPath: "./testdata/old-format.toml",
-		AppName:     "foo",
+		configFilePath: "./testdata/old-format.toml",
+		AppName:        "foo",
 		Env: map[string]string{
 			"FOO": "STRING",
 			"BAR": "123",
@@ -135,11 +135,11 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 	cfg, err := LoadConfig(path)
 	assert.NoError(t, err)
 	assert.Equal(t, &Config{
-		FlyTomlPath:   "./testdata/full-reference.toml",
-		AppName:       "foo",
-		KillSignal:    "SIGTERM",
-		KillTimeout:   3,
-		PrimaryRegion: "sea",
+		configFilePath: "./testdata/full-reference.toml",
+		AppName:        "foo",
+		KillSignal:     "SIGTERM",
+		KillTimeout:    3,
+		PrimaryRegion:  "sea",
 		Experimental: &Experimental{
 			Cmd:          []string{"cmd"},
 			Entrypoint:   []string{"entrypoint"},

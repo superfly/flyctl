@@ -40,8 +40,7 @@ type Config struct {
 	Checks        map[string]*ToplevelCheck `toml:"checks,omitempty" json:"checks,omitempty"`
 	Services      []Service                 `toml:"services,omitempty" json:"services,omitempty"`
 
-	// TODO: Move this to private attr
-	FlyTomlPath string `toml:"-" json:"-"`
+	configFilePath string
 }
 
 type Deploy struct {
@@ -83,6 +82,10 @@ type Experimental struct {
 	AutoRollback bool     `toml:"auto_rollback,omitempty" json:"auto_rollback,omitempty"`
 	EnableConsul bool     `toml:"enable_consul,omitempty" json:"enable_consul,omitempty"`
 	EnableEtcd   bool     `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
+}
+
+func (c *Config) ConfigFilePath() string {
+	return c.configFilePath
 }
 
 func (c *Config) HasNonHttpAndHttpsStandardServices() bool {

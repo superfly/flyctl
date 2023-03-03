@@ -289,7 +289,7 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 		if !parsedCfg.Valid {
 			fmt.Println()
 			if len(parsedCfg.Errors) > 0 {
-				tb.Printf("\nConfiguration errors in %s:\n\n", cfg.Path)
+				tb.Printf("\nConfiguration errors in %s:\n\n", cfg.ConfigFilePath())
 			}
 			for _, e := range parsedCfg.Errors {
 				tb.Println("   ", aurora.Red("✘").String(), e)
@@ -427,7 +427,7 @@ func resolveDockerfilePath(ctx context.Context, appConfig *app.Config) (path str
 	}()
 
 	if path = appConfig.Dockerfile(); path != "" {
-		path = filepath.Join(filepath.Dir(appConfig.Path), path)
+		path = filepath.Join(filepath.Dir(appConfig.ConfigFilePath()), path)
 	} else {
 		path = flag.GetString(ctx, "dockerfile")
 	}
@@ -445,7 +445,7 @@ func resolveIgnorefilePath(ctx context.Context, appConfig *app.Config) (path str
 	}()
 
 	if path = appConfig.Ignorefile(); path != "" {
-		path = filepath.Join(filepath.Dir(appConfig.Path), path)
+		path = filepath.Join(filepath.Dir(appConfig.ConfigFilePath()), path)
 	} else {
 		path = flag.GetString(ctx, "ignorefile")
 	}
