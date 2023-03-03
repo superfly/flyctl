@@ -14,7 +14,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func showMachineServiceInfo(ctx context.Context, app *api.AppInfo) error {
+func ShowMachineServiceInfo(ctx context.Context, app *api.AppInfo) error {
 	var (
 		io        = iostreams.FromContext(ctx)
 		client    = client.FromContext(ctx).API()
