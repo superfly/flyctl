@@ -69,12 +69,7 @@ func runShowConfig(cmdCtx *cmdctx.CmdContext) error {
 			return err
 		}
 
-		definition, err := appConfig.ToDefinition()
-		if err != nil {
-			return err
-		}
-
-		cmdCtx.WriteJSON(definition)
+		cmdCtx.WriteJSON(appConfig)
 	default:
 		return fmt.Errorf("likely a bug, unknown platform version %s for app %s", appCompact.PlatformVersion, appCompact.Name)
 	}
