@@ -1,11 +1,13 @@
 app = "foo"
 
 [env]
+  # Mixed value types
   FOO = "STRING"
   BAR = 123
 
 [[services]]
-  internal_port = 8080
+  # Stringified internal port
+  internal_port = "8080"
 
   # Old concurrency format
   concurrency = "12,23"
@@ -30,6 +32,7 @@ app = "foo"
     timeout = 4000
 
   [[services.http_checks]]
+    # Additional check of same type to ensure it is not overriden
     interval = "20s"
     timeout = "3s"
 
@@ -40,5 +43,6 @@ app = "foo"
   # The GQL GetConfig API returns an empty array when there are no processes
 
 [mount]
+  # singular mount
   source = "data"
   destination = "/data"
