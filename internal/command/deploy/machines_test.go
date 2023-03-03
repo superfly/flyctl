@@ -18,7 +18,7 @@ func Test_resultUpdateMachineConfig_Basic(t *testing.T) {
 			},
 		},
 		img: &imgsrc.DeploymentImage{
-			Tag: "super/ballon",
+			Tag: "super/balloon",
 		},
 		appConfig: &appv2.Config{
 			AppName: "my-cool-app",
@@ -41,7 +41,7 @@ func Test_resultUpdateMachineConfig_Basic(t *testing.T) {
 				"PRIMARY_REGION": "scl",
 				"OTHER":          "value",
 			},
-			Image: "super/ballon",
+			Image: "super/balloon",
 			Metadata: map[string]string{
 				"fly_platform_version": "v2",
 				"fly_process_group":    "app",
@@ -65,7 +65,7 @@ func Test_resultUpdateMachineConfig_RelaseCommand(t *testing.T) {
 			},
 		},
 		img: &imgsrc.DeploymentImage{
-			Tag: "super/ballon",
+			Tag: "super/balloon",
 		},
 		volumes: []api.Volume{
 			{ID: "vol_12345"},
@@ -116,7 +116,7 @@ func Test_resultUpdateMachineConfig_RelaseCommand(t *testing.T) {
 				"PRIMARY_REGION": "scl",
 				"OTHER":          "value",
 			},
-			Image: "super/ballon",
+			Image: "super/balloon",
 			Metadata: map[string]string{
 				"fly_platform_version": "v2",
 				"fly_process_group":    "app",
@@ -160,7 +160,7 @@ func Test_resultUpdateMachineConfig_RelaseCommand(t *testing.T) {
 				"PRIMARY_REGION": "scl",
 				"OTHER":          "value",
 			},
-			Image: "super/ballon",
+			Image: "super/balloon",
 			Metadata: map[string]string{
 				"fly_platform_version": "v2",
 				"fly_process_group":    "app",
