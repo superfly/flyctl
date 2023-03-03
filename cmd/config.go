@@ -47,15 +47,38 @@ func newConfigCommand(client *client.Client) *Command {
 func runShowConfig(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 
-	cfg, err := cmdCtx.Client.API().GetConfig(ctx, cmdCtx.AppName)
+	apiClient := cmdCtx.Client.API()
+	appCompact, err := apiClient.GetAppCompact(ctx, cmdCtx.AppName)
 	if err != nil {
-		return err
+		return fmt.Errorf("error getting app: %w", err)
 	}
 
-	// encoder := json.NewEncoder(os.Stdout)
-	// encoder.SetIndent("", "  ")
-	// encoder.Encode(cfg.Definition)
-	cmdCtx.WriteJSON(cfg.Definition)
+	switch appCompact.PlatformVersion {
+	case "nomad":
+		serverCfg, err := apiClient.GetConfig(ctx, cmdCtx.AppName)
+		if err != nil {
+			return err
+		}
+		cmdCtx.WriteJSON(serverCfg.Definition)
+	case "machines":
+		appConfig, err := getAppV2ConfigFromReleases(ctx, apiClient, appCompact.Name)
+		if appConfig == nil {
+			appConfig, err = getAppV2ConfigFromMachines(ctx, apiClient, appCompact)
+		}
+		if err != nil {
+			return err
+		}
+
+		definition, err := appConfig.ToDefinition()
+		if err != nil {
+			return err
+		}
+
+		cmdCtx.WriteJSON(definition)
+	default:
+		return fmt.Errorf("likely a bug, unknown platform version %s for app %s", appCompact.PlatformVersion, appCompact.Name)
+	}
+
 	return nil
 }
 
