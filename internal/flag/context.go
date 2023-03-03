@@ -71,6 +71,13 @@ func GetBool(ctx context.Context, name string) bool {
 	}
 }
 
+// IsSpecified returns whether a flag has been specified at all or not.
+// This is useful, for example, when differentiating between 0/"" and unspecified.
+func IsSpecified(ctx context.Context, name string) bool {
+	flag := FromContext(ctx).Lookup(name)
+	return flag != nil && flag.Changed
+}
+
 // GetOrg is shorthand for GetString(ctx, OrgName).
 func GetOrg(ctx context.Context) string {
 	return GetString(ctx, OrgName)
