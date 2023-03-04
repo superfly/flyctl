@@ -164,6 +164,36 @@ func (c *Client) CreateOrganization(ctx context.Context, organizationname string
 	return &data.CreateOrganization.Organization, nil
 }
 
+func (c *Client) CreateOrganizationWithAppsV2DefaultOn(ctx context.Context, organizationname string) (*Organization, error) {
+	query := `
+		mutation($input: CreateOrganizationInput!) {
+			createOrganization(input: $input) {
+			    organization {
+					id
+					name
+					slug
+					type
+					viewerRole
+				  }
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("input", map[string]interface{}{
+		"name":            organizationname,
+		"appsV2DefaultOn": true,
+	})
+
+	data, err := c.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.CreateOrganization.Organization, nil
+}
+
 func (c *Client) DeleteOrganization(ctx context.Context, id string) (deletedid string, err error) {
 	query := `
 	mutation($input: DeleteOrganizationInput!) {

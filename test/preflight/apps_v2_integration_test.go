@@ -237,7 +237,7 @@ func TestAppsV2ConfigSave_PostgresSingleNode(t *testing.T) {
   [checks.vm]
     port = 5500
     type = "http"
-    interval = "1m0s"
+    interval = "15s"
     timeout = "10s"
     path = "/flycheck/vm"`)
 }
@@ -281,7 +281,7 @@ func TestAppsV2ConfigSave_PostgresHA(t *testing.T) {
   [checks.vm]
     port = 5500
     type = "http"
-    interval = "1m0s"
+    interval = "15s"
     timeout = "10s"
     path = "/flycheck/vm"`)
 }
