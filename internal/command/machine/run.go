@@ -125,6 +125,10 @@ var sharedFlags = flag.Set{
 		Name:        "schedule",
 		Description: `Schedule a machine run at hourly, daily and monthly intervals`,
 	},
+	flag.Bool{
+		Name:        "skip-dns-registration",
+		Description: "Do not register the machine's 6PN IP with the intenral DNS system",
+	},
 }
 
 func newRun() *cobra.Command {
@@ -156,6 +160,10 @@ func newRun() *cobra.Command {
 		flag.String{
 			Name:        "org",
 			Description: `The organization that will own the app`,
+		},
+		flag.Bool{
+			Name:        "rm",
+			Description: "Automatically remove the machine when it exits",
 		},
 		sharedFlags,
 	)
@@ -192,7 +200,6 @@ func runMachineRun(ctx context.Context) error {
 
 			if err != nil {
 				return err
-
 			}
 
 			if app == nil {
@@ -211,6 +218,10 @@ func runMachineRun(ctx context.Context) error {
 			CPUs:       1,
 			MemoryMB:   256,
 			KernelArgs: flag.GetStringSlice(ctx, "kernel-arg"),
+		},
+		AutoDestroy: flag.GetBool(ctx, "rm"),
+		DNS: &api.DNSConfig{
+			SkipRegistration: flag.GetBool(ctx, "skip-dns-registration"),
 		},
 	}
 
@@ -608,13 +619,10 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 
 			if strings.HasPrefix(guestSize, "shared") {
 				machine_type = "shared"
-
 			} else if strings.HasPrefix(guestSize, "performance") {
 				machine_type = "performance"
-
 			} else {
 				return machineConf, fmt.Errorf("invalid machine preset requested, '%s', expected to start with 'shared' or 'performance'", guestSize)
-
 			}
 
 			validSizes := []string{}
@@ -670,6 +678,12 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 			return machineConf, errors.Wrap(err, "invalid command")
 		}
 		machineConf.Init.Cmd = split
+	}
+
+	if machineConf.DNS == nil {
+		machineConf.DNS = &api.DNSConfig{
+			SkipRegistration: flag.GetBool(ctx, "skip-dns-registration"),
+		}
 	}
 
 	// Metadata
