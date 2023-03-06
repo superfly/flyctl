@@ -7,15 +7,6 @@ import (
 	"github.com/superfly/flyctl/client"
 )
 
-const (
-	// Config is versioned, initially, to separate nomad from machine apps without having to consult
-	// the API
-	AppsV1Platform   = "nomad"
-	AppsV2Platform   = "machines"
-	MachinesPlatform = AppsV2Platform
-	NomadPlatform    = AppsV1Platform
-)
-
 // SetMachinesPlatform informs the TOML marshaller that this config is for the machines platform
 func (c *Config) SetMachinesPlatform() {
 	c.platformVersion = MachinesPlatform

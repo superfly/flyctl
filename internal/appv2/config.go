@@ -9,6 +9,12 @@ import (
 const (
 	// DefaultConfigFileName denotes the default application configuration file name.
 	DefaultConfigFileName = "fly.toml"
+	// Config is versioned, initially, to separate nomad from machine apps without having to consult
+	// the API
+	AppsV1Platform   = "nomad"
+	AppsV2Platform   = "machines"
+	MachinesPlatform = AppsV2Platform
+	NomadPlatform    = AppsV1Platform
 )
 
 func NewConfig() *Config {
