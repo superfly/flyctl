@@ -112,7 +112,7 @@ func run(ctx context.Context) (err error) {
 
 	configFilePath := filepath.Join(workingDir, "fly.toml")
 	if exists, _ := flyctl.ConfigFileExistsAtPath(configFilePath); exists {
-		cfg, err := app.LoadConfig(ctx, configFilePath, "nomad")
+		cfg, err := app.LoadConfig(configFilePath)
 		if err != nil {
 			return err
 		}

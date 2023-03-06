@@ -2,9 +2,8 @@ package appv2
 
 import (
 	"context"
-	"io"
+	"fmt"
 
-	"github.com/BurntSushi/toml"
 	"github.com/superfly/flyctl/client"
 )
 
@@ -36,20 +35,13 @@ func (c *Config) ForMachines() bool {
 	return c.platformVersion == MachinesPlatform
 }
 
-// Use this type to unmarshal fly.toml with the goal of retreiving the app name only
-type slimConfig struct {
-	AppName string `toml:"app,omitempty"`
-}
-
-func (c *Config) DeterminePlatform(ctx context.Context, r io.ReadSeeker) (err error) {
+func (c *Config) DeterminePlatform(ctx context.Context) (err error) {
 	client := client.FromContext(ctx)
-	cfg := &slimConfig{}
-	_, err = toml.NewDecoder(r).Decode(&cfg)
-	if err != nil {
-		return err
+	if c.AppName == "" {
+		return fmt.Errorf("Can't determine platform without an application name")
 	}
 
-	basicApp, err := client.API().GetAppBasic(ctx, cfg.AppName)
+	basicApp, err := client.API().GetAppBasic(ctx, c.AppName)
 	if err != nil {
 		return err
 	}

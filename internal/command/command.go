@@ -454,13 +454,13 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 	logger := logger.FromContext(ctx)
 
 	for _, path := range appConfigFilePaths(ctx) {
-		switch cfg, err := app.LoadConfig(ctx, path, ""); {
+		switch cfg, err := app.LoadConfig(path); {
 		case err == nil:
+			cfg.DeterminePlatform(ctx)
 			logger.Debugf("app config loaded from %s", path)
 			return app.WithConfig(ctx, cfg), nil // we loaded a configuration file
 		case errors.Is(err, fs.ErrNotExist):
 			logger.Debugf("no app config found at %s; skipped.", path)
-
 			continue
 		default:
 			return nil, fmt.Errorf("failed loading app config from %s: %w", path, err)

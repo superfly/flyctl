@@ -3,6 +3,7 @@ package appv2
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -86,11 +87,51 @@ func unmarshalTOML(buf []byte) (*Config, error) {
 
 func (c *Config) marshalTOML(w io.Writer) error {
 	var b bytes.Buffer
-	if err := toml.NewEncoder(&b).Encode(c); err != nil {
+	encoder := toml.NewEncoder(&b)
+
+	fmt.Fprintf(w, "# fly.toml file generated for %s on %s\n\n", c.AppName, time.Now().Format(time.RFC3339))
+
+	// For machines apps, encode and write directly, bypassing custom marshalling
+	if c.platformVersion == MachinesPlatform {
+		encoder.Encode(&c)
+		_, err := b.WriteTo(w)
 		return err
 	}
 
-	fmt.Fprintf(w, "# fly.toml file generated for %s on %s\n\n", c.AppName, time.Now().Format(time.RFC3339))
+	// Write app name first to be sure it will be there at the top
+	rawData := map[string]any{"app": c.AppName}
+	if err := encoder.Encode(rawData); err != nil {
+		return err
+	}
+
+	rawData = c.SanitizedDefinition()
+	// Restore sections removed by SanitizedDefinition
+	rawData["build"] = c.Build
+	if c.PrimaryRegion != "" {
+		rawData["primary_region"] = c.PrimaryRegion
+	}
+	if c.HttpService != nil {
+		rawData["http_service"] = c.HttpService
+	}
+
+	if len(rawData) > 0 {
+		// roundtrip through json encoder to convert float64 numbers to json.Number, otherwise numbers are floats in toml
+		var buf bytes.Buffer
+		if err := json.NewEncoder(&buf).Encode(rawData); err != nil {
+			return err
+		}
+
+		d := json.NewDecoder(&buf)
+		d.UseNumber()
+		if err := d.Decode(&rawData); err != nil {
+			return err
+		}
+
+		if err := encoder.Encode(rawData); err != nil {
+			return err
+		}
+	}
+
 	_, err := b.WriteTo(w)
 	return err
 }

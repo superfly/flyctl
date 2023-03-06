@@ -34,7 +34,7 @@ func NewConfig() *Config {
 }
 
 // LoadConfig loads the app config at the given path.
-func LoadConfig(ctx context.Context, path string, platformVersion string) (cfg *Config, err error) {
+func LoadConfig(path string) (cfg *Config, err error) {
 	cfg = &Config{
 		RawDefinition: map[string]interface{}{},
 	}
@@ -50,11 +50,6 @@ func LoadConfig(ctx context.Context, path string, platformVersion string) (cfg *
 	}()
 
 	cfg.configFilePath = path
-	cfg.platformVersion = platformVersion
-
-	if platformVersion == "" {
-		cfg.DeterminePlatform(ctx, file)
-	}
 
 	err = cfg.unmarshalTOML(file)
 
@@ -156,16 +151,9 @@ func (c *Config) EncodeTo(w io.Writer) error {
 	return c.marshalTOML(w)
 }
 
-func (c *Config) DeterminePlatform(ctx context.Context, r io.ReadSeeker) (err error) {
+func (c *Config) DeterminePlatform(ctx context.Context) (err error) {
 	client := client.FromContext(ctx)
-	slimConfig := &SlimConfig{}
-	_, err = toml.NewDecoder(r).Decode(&slimConfig)
-
-	if err != nil {
-		return err
-	}
-
-	basicApp, err := client.API().GetAppBasic(ctx, slimConfig.AppName)
+	basicApp, err := client.API().GetAppBasic(ctx, c.AppName)
 	if err != nil {
 		return err
 	}
