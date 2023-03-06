@@ -52,6 +52,10 @@ func newConfigUpdate() (cmd *cobra.Command) {
 			Description: "Sets the level of information written to the WAL. (minimal, replica, logical).",
 		},
 		flag.String{
+			Name:        "max-wal-senders",
+			Description: "Maximum number of concurrent connections from standby servers or streaming backup clients. (0 disables replication)",
+		},
+		flag.String{
 			Name:        "log-statement",
 			Description: "Sets the type of statements logged. (none, ddl, mod, all)",
 		},
