@@ -12,7 +12,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appv2"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
@@ -74,7 +74,7 @@ func newAttach() *cobra.Command {
 func runAttach(ctx context.Context) error {
 	var (
 		pgAppName = flag.FirstArg(ctx)
-		appName   = app.NameFromContext(ctx)
+		appName   = appv2.NameFromContext(ctx)
 		client    = client.FromContext(ctx).API()
 	)
 

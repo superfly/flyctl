@@ -10,7 +10,7 @@ import (
 	"github.com/alecthomas/chroma/quick"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appv2"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
@@ -50,7 +50,7 @@ func runMachineStatus(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 
 	var (
-		appName   = app.NameFromContext(ctx)
+		appName   = appv2.NameFromContext(ctx)
 		machineID = flag.FirstArg(ctx)
 	)
 

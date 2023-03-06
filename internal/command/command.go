@@ -18,7 +18,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/appv2"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
@@ -532,7 +531,6 @@ func RequireAppName(ctx context.Context) (context.Context, error) {
 		return nil, errRequireAppName
 	}
 
-	ctx = app.WithName(ctx, name)
 	return appv2.WithName(ctx, name), nil
 }
 
@@ -542,7 +540,6 @@ func LoadAppNameIfPresent(ctx context.Context) (context.Context, error) {
 	localCtx, err := RequireAppName(ctx)
 
 	if errors.Is(err, errRequireAppName) {
-		ctx = app.WithName(ctx, "")
 		return appv2.WithName(ctx, ""), nil
 	}
 

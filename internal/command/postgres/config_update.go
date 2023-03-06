@@ -13,7 +13,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flypg"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appv2"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
@@ -80,7 +80,7 @@ func newConfigUpdate() (cmd *cobra.Command) {
 func runConfigUpdate(ctx context.Context) error {
 	var (
 		client  = client.FromContext(ctx).API()
-		appName = app.NameFromContext(ctx)
+		appName = appv2.NameFromContext(ctx)
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
