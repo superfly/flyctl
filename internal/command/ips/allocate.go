@@ -2,6 +2,7 @@ package ips
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -10,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
 )
 
 func newAllocatev4() *cobra.Command {
@@ -70,7 +72,14 @@ func runAllocateIPAddressV4(ctx context.Context) error {
 	if flag.GetBool(ctx, "shared") {
 		addrType = "shared_v4"
 	}
-	return runAllocateIPAddress(ctx, addrType, nil, "")
+	confirmIPV4, err := prompt.Confirm(ctx, "Looks like you're accessing a paid feature. Dedicated IPv4 addresses now costs $2/mo. Are you ok with this?")
+	if err != nil {
+		return fmt.Errorf("IPv4 cannot be configured. %w", err)
+	}
+	if confirmIPV4 {
+		return runAllocateIPAddress(ctx, addrType, nil, "")
+	}
+	return nil
 }
 
 func runAllocateIPAddressV6(ctx context.Context) (err error) {
