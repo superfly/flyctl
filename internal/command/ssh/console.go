@@ -18,7 +18,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appv2"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/sentry"
@@ -155,7 +155,7 @@ func bringUp(ctx context.Context, client *api.Client, app *api.AppCompact) (*age
 
 func runConsole(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
-	appName := app.NameFromContext(ctx)
+	appName := appv2.NameFromContext(ctx)
 
 	if !quiet(ctx) {
 		terminal.Debugf("Retrieving app info for %s\n", appName)

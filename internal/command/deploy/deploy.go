@@ -15,7 +15,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/appv2"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command"
@@ -125,9 +124,9 @@ type DeployWithConfigArgs struct {
 	ForceYes      bool
 }
 
-func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWithConfigArgs) (err error) {
+func DeployWithConfig(ctx context.Context, appConfig *appv2.Config, args DeployWithConfigArgs) (err error) {
 	apiClient := client.FromContext(ctx).API()
-	appNameFromContext := app.NameFromContext(ctx)
+	appNameFromContext := appv2.NameFromContext(ctx)
 	appCompact, err := apiClient.GetAppCompact(ctx, appNameFromContext)
 	if err != nil {
 		return err
@@ -231,7 +230,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 	return err
 }
 
-func useMachines(ctx context.Context, appConfig *app.Config, appCompact *api.AppCompact, args DeployWithConfigArgs, apiClient *api.Client) (bool, error) {
+func useMachines(ctx context.Context, appConfig *appv2.Config, appCompact *api.AppCompact, args DeployWithConfigArgs, apiClient *api.Client) (bool, error) {
 	appsV2DefaultOn, _ := apiClient.GetAppsV2DefaultOnForOrg(ctx, appCompact.Organization.Slug)
 	switch {
 	case appCompact.PlatformVersion == appv2.AppsV2Platform:
@@ -250,11 +249,11 @@ func useMachines(ctx context.Context, appConfig *app.Config, appCompact *api.App
 }
 
 // determineAppConfig fetches the app config from a local file, or in its absence, from the API
-func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
+func determineAppConfig(ctx context.Context) (cfg *appv2.Config, err error) {
 	tb := render.NewTextBlock(ctx, "Verifying app config")
 	client := client.FromContext(ctx).API()
-	appNameFromContext := app.NameFromContext(ctx)
-	if cfg = app.ConfigFromContext(ctx); cfg == nil {
+	appNameFromContext := appv2.NameFromContext(ctx)
+	if cfg = appv2.ConfigFromContext(ctx); cfg == nil {
 		logger := logger.FromContext(ctx)
 		logger.Debug("no local app config detected; fetching from backend ...")
 
@@ -269,7 +268,7 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 			return nil, err
 		}
 
-		cfg = &app.Config{
+		cfg = &appv2.Config{
 			RawDefinition: apiConfig.Definition,
 		}
 
@@ -319,7 +318,7 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 
 // determineImage picks the deployment strategy, builds the image and returns a
 // DeploymentImage struct
-func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.DeploymentImage, err error) {
+func determineImage(ctx context.Context, appConfig *appv2.Config) (img *imgsrc.DeploymentImage, err error) {
 	tb := render.NewTextBlock(ctx, "Building image")
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), flag.GetBool(ctx, "nixpacks"))
 
@@ -350,7 +349,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 
 	build := appConfig.Build
 	if build == nil {
-		build = new(app.Build)
+		build = new(appv2.Build)
 	}
 
 	// We're building from source
@@ -413,7 +412,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 
 // resolveDockerfilePath returns the absolute path to the Dockerfile
 // if one was specified in the app config or a command line argument
-func resolveDockerfilePath(ctx context.Context, appConfig *app.Config) (path string, err error) {
+func resolveDockerfilePath(ctx context.Context, appConfig *appv2.Config) (path string, err error) {
 	defer func() {
 		if err == nil && path != "" {
 			path, err = filepath.Abs(path)
@@ -431,7 +430,7 @@ func resolveDockerfilePath(ctx context.Context, appConfig *app.Config) (path str
 
 // resolveIgnorefilePath returns the absolute path to the Dockerfile
 // if one was specified in the app config or a command line argument
-func resolveIgnorefilePath(ctx context.Context, appConfig *app.Config) (path string, err error) {
+func resolveIgnorefilePath(ctx context.Context, appConfig *appv2.Config) (path string, err error) {
 	defer func() {
 		if err == nil && path != "" {
 			path, err = filepath.Abs(path)
@@ -464,7 +463,7 @@ func mergeBuildArgs(ctx context.Context, args map[string]string) (map[string]str
 	return args, nil
 }
 
-func fetchImageRef(ctx context.Context, cfg *app.Config) (ref string, err error) {
+func fetchImageRef(ctx context.Context, cfg *appv2.Config) (ref string, err error) {
 	if ref = flag.GetString(ctx, "image"); ref != "" {
 		return
 	}
@@ -478,7 +477,7 @@ func fetchImageRef(ctx context.Context, cfg *app.Config) (ref string, err error)
 	return ref, nil
 }
 
-func createRelease(ctx context.Context, appConfig *app.Config, img *imgsrc.DeploymentImage) (*api.Release, *api.ReleaseCommand, error) {
+func createRelease(ctx context.Context, appConfig *appv2.Config, img *imgsrc.DeploymentImage) (*api.Release, *api.ReleaseCommand, error) {
 	tb := render.NewTextBlock(ctx, "Creating release")
 
 	input := api.DeployImageInput{
