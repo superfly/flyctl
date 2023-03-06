@@ -71,8 +71,17 @@ func unmarshalTOML(buf []byte) (*Config, error) {
 	}
 
 	cfg, err := applyPatches(cfgMap)
+	// In case of parsing error fallback to Nomad only compatibility
+	if err != nil {
+		cfg = &Config{parseError: err}
+		if name, ok := (rawDefinition["app"]).(string); ok {
+			cfg.AppName = name
+		}
+		cfg.Build = unmarshalBuild(rawDefinition)
+	}
+
 	cfg.RawDefinition = rawDefinition
-	return cfg, err
+	return cfg, nil
 }
 
 func (c *Config) marshalTOML(w io.Writer) error {
@@ -87,13 +96,75 @@ func (c *Config) marshalTOML(w io.Writer) error {
 }
 
 func (c *Config) toTOMLString() (string, error) {
-	var (
-		b   bytes.Buffer
-		err error
-	)
-	if err = toml.NewEncoder(&b).Encode(c); err != nil {
+	var b bytes.Buffer
+	if err := toml.NewEncoder(&b).Encode(c); err != nil {
 		return "", err
 	} else {
 		return b.String(), nil
 	}
+}
+
+// Fallback method when we fail to parse fly.toml into Config
+// XXX: High chances we can ditch and unmarshal directly into Build struct
+func unmarshalBuild(data map[string]interface{}) *Build {
+	buildConfig, ok := (data["build"]).(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	b := &Build{
+		Args:       map[string]string{},
+		Settings:   map[string]interface{}{},
+		Buildpacks: []string{},
+	}
+
+	configValueSet := false
+	for k, v := range buildConfig {
+		switch k {
+		case "builder":
+			b.Builder = fmt.Sprint(v)
+			configValueSet = configValueSet || b.Builder != ""
+		case "buildpacks":
+			if bpSlice, ok := v.([]interface{}); ok {
+				for _, argV := range bpSlice {
+					b.Buildpacks = append(b.Buildpacks, fmt.Sprint(argV))
+				}
+			}
+		case "args":
+			if argMap, ok := v.(map[string]interface{}); ok {
+				for argK, argV := range argMap {
+					b.Args[argK] = fmt.Sprint(argV)
+				}
+			}
+		case "builtin":
+			b.Builtin = fmt.Sprint(v)
+			configValueSet = configValueSet || b.Builtin != ""
+		case "settings":
+			if settingsMap, ok := v.(map[string]interface{}); ok {
+				for settingK, settingV := range settingsMap {
+					b.Settings[settingK] = settingV // fmt.Sprint(argV)
+				}
+			}
+		case "image":
+			b.Image = fmt.Sprint(v)
+			configValueSet = configValueSet || b.Image != ""
+		case "dockerfile":
+			b.Dockerfile = fmt.Sprint(v)
+			configValueSet = configValueSet || b.Dockerfile != ""
+		case "ignorefile":
+			b.Ignorefile = fmt.Sprint(v)
+			configValueSet = configValueSet || b.Ignorefile != ""
+		case "build_target", "build-target":
+			b.DockerBuildTarget = fmt.Sprint(v)
+			configValueSet = configValueSet || b.DockerBuildTarget != ""
+		default:
+			b.Args[k] = fmt.Sprint(v)
+		}
+	}
+
+	if !configValueSet && len(b.Args) == 0 {
+		return nil
+	}
+
+	return b
 }

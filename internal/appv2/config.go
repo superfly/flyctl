@@ -38,9 +38,17 @@ type Config struct {
 
 	// RawDefinition contains fly.toml parsed as-is
 	// If you add any config field that is v2 specific, be sure to remove it in SanitizeDefinition()
-	RawDefinition   map[string]any `toml:"-" json:"-"`
+	RawDefinition map[string]any `toml:"-" json:"-"`
+
+	// Path the application configuration file, usually fly.toml.
+	configFilePath string
+
+	// Indicates the intended platform to use: machines or nomad
 	platformVersion string
-	configFilePath  string
+
+	// Set when it fails to unmarshal fly.toml into Config
+	// Don't hard fail because RawDefinition still holds the app configuration for Nomad apps
+	parseError error
 }
 
 type Deploy struct {

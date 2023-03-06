@@ -1,6 +1,7 @@
 package appv2
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -45,6 +46,62 @@ func TestLoadTOMLAppConfigWithBuilderNameAndArgs(t *testing.T) {
 	p, err := LoadConfig(path)
 	assert.NoError(t, err)
 	assert.Equal(t, p.Build.Args, map[string]string{"A": "B", "C": "D"})
+}
+
+func TestLoadTOMLAppConfigInvalidV2(t *testing.T) {
+	const path = "./testdata/always-invalid-v2.toml"
+	cfg, err := LoadConfig(path)
+	assert.NoError(t, err)
+	assert.Error(t, cfg.parseError)
+	assert.Equal(t, &Config{
+		configFilePath: "./testdata/always-invalid-v2.toml",
+		parseError:     fmt.Errorf("Unknown type for service concurrency: int64"),
+
+		AppName: "unsupported-format",
+		Build: &Build{
+			Builder:           "dockerfile",
+			Image:             "foo/fighter",
+			Builtin:           "whatisthis",
+			Dockerfile:        "Dockerfile",
+			Ignorefile:        ".gitignore",
+			DockerBuildTarget: "target",
+			Buildpacks:        []string{"packme", "well"},
+			Settings: map[string]any{
+				"foo":   "bar",
+				"other": int64(2),
+			},
+
+			Args: map[string]string{
+				"param1": "value1",
+				"param2": "value2",
+			},
+		},
+
+		RawDefinition: map[string]any{
+			"app": "unsupported-format",
+			"build": map[string]any{
+				"builder":      "dockerfile",
+				"image":        "foo/fighter",
+				"builtin":      "whatisthis",
+				"dockerfile":   "Dockerfile",
+				"ignorefile":   ".gitignore",
+				"build-target": "target",
+				"buildpacks":   []any{"packme", "well"},
+				"args": map[string]any{
+					"param1": "value1",
+					"param2": "value2",
+				},
+				"settings": map[string]any{
+					"foo":   "bar",
+					"other": int64(2),
+				},
+			},
+			"services": []map[string]any{{
+				"concurrency":   int64(20),
+				"internal_port": "8080",
+			}},
+		},
+	}, cfg)
 }
 
 func TestLoadTOMLAppConfigExperimental(t *testing.T) {
