@@ -270,19 +270,13 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 		}
 
 		cfg = &app.Config{
-			Definition: apiConfig.Definition,
+			RawDefinition: apiConfig.Definition,
 		}
 
 		cfg.AppName = basicApp.Name
 		cfg.SetPlatformVersion(basicApp.PlatformVersion)
 	} else {
-
-		// TODO: this function is called for every `fly deploy` but I'm pretty sure
-		//       this ends up hitting a nomad-specific code path. We'll cheat for now,
-		//       because ripping this out would be a huge change, but this is probably not *right*
-		delete(cfg.Definition, "primary_region")
-
-		parsedCfg, err := client.ParseConfig(ctx, appNameFromContext, cfg.Definition)
+		parsedCfg, err := client.ParseConfig(ctx, appNameFromContext, cfg.SanitizedDefinition())
 		if err != nil {
 			return nil, err
 		}
@@ -497,9 +491,7 @@ func createRelease(ctx context.Context, appConfig *app.Config, img *imgsrc.Deplo
 		input.Strategy = api.StringPointer(strings.ReplaceAll(strings.ToUpper(val), "-", "_"))
 	}
 
-	if len(appConfig.Definition) > 0 {
-		input.Definition = api.DefinitionPtr(appConfig.Definition)
-	}
+	input.Definition = api.DefinitionPtr(appConfig.SanitizedDefinition())
 
 	// Start deployment of the determined image
 	client := client.FromContext(ctx).API()

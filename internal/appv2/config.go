@@ -40,6 +40,9 @@ type Config struct {
 	Checks        map[string]*ToplevelCheck `toml:"checks,omitempty" json:"checks,omitempty"`
 	Services      []Service                 `toml:"services,omitempty" json:"services,omitempty"`
 
+	// RawDefinition contains fly.toml parsed as-is
+	// If you add any config field that is v2 specific, be sure to remove it in SanitizeDefinition()
+	RawDefinition  map[string]any `toml:"-" json:"-"`
 	configFilePath string
 }
 

@@ -301,7 +301,7 @@ func run(ctx context.Context) (err error) {
 	ctx = app.WithName(ctx, createdApp.Name)
 	ctx = appv2.WithName(ctx, createdApp.Name)
 	if !importedConfig {
-		appConfig.Definition = createdApp.Config.Definition
+		appConfig.RawDefinition = createdApp.Config.Definition
 	}
 
 	appConfig.AppName = createdApp.Name
@@ -385,13 +385,10 @@ func run(ctx context.Context) (err error) {
 
 						if confirmAttachPg && err == nil {
 							should_attach_db = true
-
 						}
 
 					}
-
 				}
-
 			}
 
 			options["postgresql"] = true
@@ -420,7 +417,6 @@ func run(ctx context.Context) (err error) {
 
 			} else {
 				err := LaunchPostgres(ctx, appConfig.AppName, org, region)
-
 				if err != nil {
 					const msg = "Error creating Postgresql database. Be warned that this may affect deploys"
 					fmt.Fprintln(io.Out, colorize.Red(msg))
@@ -434,7 +430,6 @@ func run(ctx context.Context) (err error) {
 		confirmRedis, err := prompt.Confirm(ctx, "Would you like to set up an Upstash Redis database now?")
 		if confirmRedis && err == nil {
 			err := LaunchRedis(ctx, appConfig.AppName, org, region)
-
 			if err != nil {
 				const msg = "Error creating Redis database. Be warned that this may affect deploys"
 				fmt.Fprintln(io.Out, colorize.Red(msg))
@@ -561,7 +556,7 @@ func run(ctx context.Context) (err error) {
 	var v2AppConfig *appv2.Config
 	if deployArgs.ForceMachines {
 
-		v2AppConfig, err = appv2.FromDefinition(api.DefinitionPtr(appConfig.Definition))
+		v2AppConfig, err = appv2.FromDefinition(api.DefinitionPtr(appConfig.RawDefinition))
 		if err != nil {
 			return fmt.Errorf("invalid config: %w", err)
 		}

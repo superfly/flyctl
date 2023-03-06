@@ -58,5 +58,5 @@ func TestLoadTOMLAppConfigWithServices(t *testing.T) {
 	delete(rawData, "build")
 
 	assert.NoError(t, err)
-	assert.Equal(t, p.Definition, rawData)
+	assert.Equal(t, p.RawDefinition, rawData)
 }

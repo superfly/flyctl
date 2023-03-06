@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/samber/lo"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/iostreams"
@@ -28,14 +29,14 @@ const (
 
 func NewConfig() *Config {
 	return &Config{
-		Definition: map[string]interface{}{},
+		RawDefinition: map[string]interface{}{},
 	}
 }
 
 // LoadConfig loads the app config at the given path.
 func LoadConfig(ctx context.Context, path string, platformVersion string) (cfg *Config, err error) {
 	cfg = &Config{
-		Definition: map[string]interface{}{},
+		RawDefinition: map[string]interface{}{},
 	}
 
 	file, err := os.Open(path)
@@ -67,12 +68,12 @@ type SlimConfig struct {
 
 // Config wraps the properties of app configuration.
 type Config struct {
-	AppName       string                 `toml:"app,omitempty"`
-	Build         *Build                 `toml:"build,omitempty"`
-	Definition    map[string]interface{} `toml:"definition,omitempty"`
-	Env           map[string]string      `toml:"env" json:"env"`
-	PrimaryRegion string                 `toml:"primary_region,omitempty"`
+	AppName       string            `toml:"app,omitempty"`
+	Build         *Build            `toml:"build,omitempty"`
+	Env           map[string]string `toml:"env" json:"env"`
+	PrimaryRegion string            `toml:"primary_region,omitempty"`
 
+	RawDefinition   map[string]any `toml:"-" json:"-"`
 	platformVersion string
 	configFilePath  string
 }
@@ -100,6 +101,15 @@ type Build struct {
 
 func (c *Config) ConfigFilePath() string {
 	return c.configFilePath
+}
+
+func (c *Config) SanitizedDefinition() map[string]any {
+	definition := lo.Assign(c.RawDefinition)
+	delete(definition, "app")
+	delete(definition, "build")
+	delete(definition, "primary_region")
+	delete(definition, "http_service")
+	return definition
 }
 
 // SetMachinesPlatform informs the TOML marshaller that this config is for the machines platform
@@ -213,10 +223,10 @@ func (c *Config) unmarshalNativeMap(data map[string]interface{}) error {
 	c.Build = unmarshalBuild(data)
 	delete(data, "build")
 
-	for k := range c.Definition {
-		delete(c.Definition, k)
+	for k := range c.RawDefinition {
+		delete(c.RawDefinition, k)
 	}
-	c.Definition = data
+	c.RawDefinition = data
 
 	return nil
 }
@@ -302,7 +312,7 @@ func (c *Config) marshalTOML(w io.Writer) error {
 		return err
 	}
 
-	rawData = c.Definition
+	rawData = c.RawDefinition
 
 	if c.Build != nil {
 		buildData := map[string]interface{}{}
@@ -330,20 +340,20 @@ func (c *Config) marshalTOML(w io.Writer) error {
 		rawData["build"] = buildData
 	}
 
-	if len(c.Definition) > 0 {
+	if len(c.RawDefinition) > 0 {
 		// roundtrip through json encoder to convert float64 numbers to json.Number, otherwise numbers are floats in toml
 		var buf bytes.Buffer
-		if err := json.NewEncoder(&buf).Encode(c.Definition); err != nil {
+		if err := json.NewEncoder(&buf).Encode(c.RawDefinition); err != nil {
 			return err
 		}
 
 		d := json.NewDecoder(&buf)
 		d.UseNumber()
-		if err := d.Decode(&c.Definition); err != nil {
+		if err := d.Decode(&c.RawDefinition); err != nil {
 			return err
 		}
 
-		if err := encoder.Encode(c.Definition); err != nil {
+		if err := encoder.Encode(c.RawDefinition); err != nil {
 			return err
 		}
 	}
@@ -380,7 +390,7 @@ func (c *Config) WriteToDisk(ctx context.Context, path string) (err error) {
 }
 
 func (c *Config) SetInternalPort(port int) bool {
-	services, ok := c.Definition["services"].([]interface{})
+	services, ok := c.RawDefinition["services"].([]interface{})
 	if !ok {
 		return false
 	}
@@ -399,7 +409,7 @@ func (c *Config) SetInternalPort(port int) bool {
 }
 
 func (c *Config) SetHttpCheck(path string) bool {
-	services, ok := c.Definition["services"].([]interface{})
+	services, ok := c.RawDefinition["services"].([]interface{})
 	if !ok {
 		return false
 	}
@@ -430,7 +440,7 @@ func (c *Config) SetHttpCheck(path string) bool {
 }
 
 func (c *Config) SetConcurrency(soft int, hard int) bool {
-	services, ok := c.Definition["services"].([]interface{})
+	services, ok := c.RawDefinition["services"].([]interface{})
 	if !ok {
 		return false
 	}
@@ -454,7 +464,7 @@ func (c *Config) SetConcurrency(soft int, hard int) bool {
 func (c *Config) SetReleaseCommand(cmd string) {
 	var deploy map[string]string
 
-	if rawDeploy, ok := c.Definition["deploy"]; ok {
+	if rawDeploy, ok := c.RawDefinition["deploy"]; ok {
 		if castDeploy, ok := rawDeploy.(map[string]string); ok {
 			deploy = castDeploy
 		}
@@ -466,13 +476,13 @@ func (c *Config) SetReleaseCommand(cmd string) {
 
 	deploy["release_command"] = cmd
 
-	c.Definition["deploy"] = deploy
+	c.RawDefinition["deploy"] = deploy
 }
 
 func (c *Config) SetDockerCommand(cmd string) {
 	var experimental map[string]string
 
-	if rawExperimental, ok := c.Definition["experimental"]; ok {
+	if rawExperimental, ok := c.RawDefinition["experimental"]; ok {
 		if castExperimental, ok := rawExperimental.(map[string]string); ok {
 			experimental = castExperimental
 		}
@@ -484,17 +494,17 @@ func (c *Config) SetDockerCommand(cmd string) {
 
 	experimental["cmd"] = cmd
 
-	c.Definition["experimental"] = experimental
+	c.RawDefinition["experimental"] = experimental
 }
 
 func (c *Config) SetKillSignal(signal string) {
-	c.Definition["kill_signal"] = signal
+	c.RawDefinition["kill_signal"] = signal
 }
 
 func (c *Config) SetDockerEntrypoint(entrypoint string) {
 	var experimental map[string]string
 
-	if rawExperimental, ok := c.Definition["experimental"]; ok {
+	if rawExperimental, ok := c.RawDefinition["experimental"]; ok {
 		if castExperimental, ok := rawExperimental.(map[string]string); ok {
 			experimental = castExperimental
 		}
@@ -506,7 +516,7 @@ func (c *Config) SetDockerEntrypoint(entrypoint string) {
 
 	experimental["entrypoint"] = entrypoint
 
-	c.Definition["experimental"] = experimental
+	c.RawDefinition["experimental"] = experimental
 }
 
 func (c *Config) SetEnvVariable(name, value string) {
@@ -520,13 +530,13 @@ func (c *Config) SetEnvVariables(vals map[string]string) {
 		env[k] = v
 	}
 
-	c.Definition["env"] = env
+	c.RawDefinition["env"] = env
 }
 
 func (c *Config) GetEnvVariables() map[string]string {
 	env := map[string]string{}
 
-	if rawEnv, ok := c.Definition["env"]; ok {
+	if rawEnv, ok := c.RawDefinition["env"]; ok {
 		// we get map[string]interface{} when unmarshaling toml, and map[string]string from SetEnvVariables. Support them both :vomit:
 		switch castEnv := rawEnv.(type) {
 		case map[string]string:
@@ -548,7 +558,7 @@ func (c *Config) GetEnvVariables() map[string]string {
 func (c *Config) SetProcess(name, value string) {
 	var processes map[string]string
 
-	if rawProcesses, ok := c.Definition["processes"]; ok {
+	if rawProcesses, ok := c.RawDefinition["processes"]; ok {
 		if castProcesses, ok := rawProcesses.(map[string]string); ok {
 			processes = castProcesses
 		}
@@ -560,13 +570,13 @@ func (c *Config) SetProcess(name, value string) {
 
 	processes[name] = value
 
-	c.Definition["processes"] = processes
+	c.RawDefinition["processes"] = processes
 }
 
 func (c *Config) SetStatics(statics []Static) {
-	c.Definition["statics"] = statics
+	c.RawDefinition["statics"] = statics
 }
 
 func (c *Config) SetVolumes(volumes []Volume) {
-	c.Definition["mounts"] = volumes
+	c.RawDefinition["mounts"] = volumes
 }
