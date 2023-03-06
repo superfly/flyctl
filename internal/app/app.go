@@ -524,7 +524,7 @@ func (c *Config) SetEnvVariable(name, value string) {
 }
 
 func (c *Config) SetEnvVariables(vals map[string]string) {
-	env := c.GetEnvVariables()
+	env := c.v1GetEnvVariables()
 
 	for k, v := range vals {
 		env[k] = v
@@ -533,7 +533,7 @@ func (c *Config) SetEnvVariables(vals map[string]string) {
 	c.RawDefinition["env"] = env
 }
 
-func (c *Config) GetEnvVariables() map[string]string {
+func (c *Config) v1GetEnvVariables() map[string]string {
 	env := map[string]string{}
 
 	if rawEnv, ok := c.RawDefinition["env"]; ok {

@@ -13,7 +13,7 @@ func TestGetAndSetEnvVariables(t *testing.T) {
 	cfg.SetEnvVariable("A", "B")
 	cfg.SetEnvVariable("C", "D")
 
-	assert.Equal(t, map[string]string{"A": "B", "C": "D"}, cfg.GetEnvVariables())
+	assert.Equal(t, map[string]string{"A": "B", "C": "D"}, cfg.v1GetEnvVariables())
 
 	buf := &bytes.Buffer{}
 
@@ -27,5 +27,5 @@ func TestGetAndSetEnvVariables(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	assert.Equal(t, cfg.GetEnvVariables(), cfg2.GetEnvVariables())
+	assert.Equal(t, cfg.v1GetEnvVariables(), cfg2.v1GetEnvVariables())
 }
