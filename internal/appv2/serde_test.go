@@ -59,6 +59,14 @@ func TestLoadTOMLAppConfigExperimental(t *testing.T) {
 			Entrypoint: []string{"entrypoint"},
 			Exec:       []string{"exec"},
 		},
+		RawDefinition: map[string]any{
+			"app": "foo",
+			"experimental": map[string]any{
+				"cmd":        "cmd",
+				"entrypoint": "entrypoint",
+				"exec":       "exec",
+			},
+		},
 	}, cfg)
 }
 
@@ -72,6 +80,13 @@ func TestLoadTOMLAppConfigMountsArray(t *testing.T) {
 		Mounts: &Volume{
 			Source:      "pg_data",
 			Destination: "/data",
+		},
+		RawDefinition: map[string]any{
+			"app": "foo",
+			"mounts": []map[string]any{{
+				"source":      "pg_data",
+				"destination": "/data",
+			}},
 		},
 	}, cfg)
 }
@@ -127,6 +142,34 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 				},
 			},
 		},
+		RawDefinition: map[string]any{
+			"app": "foo",
+			"env": map[string]any{
+				"FOO": "STRING",
+				"BAR": int64(123),
+			},
+			"experimental": map[string]any{},
+			"mount": map[string]any{
+				"source":      "data",
+				"destination": "/data",
+			},
+			"processes": []map[string]any{{}},
+			"services": []map[string]any{{
+				"internal_port": "8080",
+				"ports": []map[string]any{
+					{"port": "80", "handlers": []any{"http"}},
+				},
+				"concurrency": "12,23",
+				"tcp_checks": []map[string]any{
+					{"interval": int64(10000), "timeout": int64(2000)},
+					{"interval": "20s", "timeout": "3s"},
+				},
+				"http_checks": []map[string]any{
+					{"interval": int64(30000), "timeout": int64(4000)},
+					{"interval": "20s", "timeout": "3s"},
+				},
+			}},
+		},
 	}, cfg)
 }
 
@@ -134,6 +177,10 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 	const path = "./testdata/full-reference.toml"
 	cfg, err := LoadConfig(path)
 	assert.NoError(t, err)
+
+	// Nullify cfg.RawDefinition because it won't mutate per test in TestLoadTOMLAppConfigOldFormat
+	cfg.RawDefinition = nil
+
 	assert.Equal(t, &Config{
 		configFilePath: "./testdata/full-reference.toml",
 		AppName:        "foo",

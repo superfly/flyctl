@@ -57,12 +57,22 @@ func (c *Config) WriteToDisk(ctx context.Context, path string) (err error) {
 }
 
 func unmarshalTOML(buf []byte) (*Config, error) {
+	// Keep this map as vanilla as possible
+	// This is what we send to Web API for Nomad apps
+	rawDefinition := map[string]any{}
+	if err := toml.Unmarshal(buf, &rawDefinition); err != nil {
+		return nil, err
+	}
+
+	// Unmarshal twice due to in-place updates
 	cfgMap := map[string]any{}
 	if err := toml.Unmarshal(buf, &cfgMap); err != nil {
 		return nil, err
 	}
 
-	return applyPatches(cfgMap)
+	cfg, err := applyPatches(cfgMap)
+	cfg.RawDefinition = rawDefinition
+	return cfg, err
 }
 
 func (c *Config) marshalTOML(w io.Writer) error {
