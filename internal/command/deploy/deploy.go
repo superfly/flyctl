@@ -233,10 +233,10 @@ func DeployWithConfig(ctx context.Context, appConfig *appv2.Config, args DeployW
 func useMachines(ctx context.Context, appConfig *appv2.Config, appCompact *api.AppCompact, args DeployWithConfigArgs, apiClient *api.Client) (bool, error) {
 	appsV2DefaultOn, _ := apiClient.GetAppsV2DefaultOnForOrg(ctx, appCompact.Organization.Slug)
 	switch {
-	case appCompact.PlatformVersion == appv2.AppsV2Platform:
+	case appCompact.PlatformVersion == appv2.MachinesPlatform:
 		return true, nil
 	case appCompact.Deployed:
-		return appCompact.PlatformVersion == appv2.AppsV2Platform, nil
+		return appCompact.PlatformVersion == appv2.MachinesPlatform, nil
 	case args.ForceNomad:
 		return false, nil
 	case args.ForceMachines:

@@ -11,10 +11,8 @@ const (
 	DefaultConfigFileName = "fly.toml"
 	// Config is versioned, initially, to separate nomad from machine apps without having to consult
 	// the API
-	AppsV1Platform   = "nomad"
-	AppsV2Platform   = "machines"
-	MachinesPlatform = AppsV2Platform
-	NomadPlatform    = AppsV1Platform
+	MachinesPlatform = "machines"
+	NomadPlatform    = "nomad"
 )
 
 func NewConfig() *Config {
@@ -46,7 +44,7 @@ type Config struct {
 	// If you add any config field that is v2 specific, be sure to remove it in SanitizeDefinition()
 	RawDefinition map[string]any `toml:"-" json:"-"`
 
-	// Path the application configuration file, usually fly.toml.
+	// Path to application configuration file, usually fly.toml.
 	configFilePath string
 
 	// Indicates the intended platform to use: machines or nomad
