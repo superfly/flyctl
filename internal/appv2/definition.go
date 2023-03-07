@@ -17,19 +17,15 @@ func (c *Config) ToDefinition() (*api.Definition, error) {
 	if err := toml.Unmarshal(buf, definition); err != nil {
 		return nil, err
 	}
-	delete(*definition, "app")
-	delete(*definition, "build")
-	delete(*definition, "primary_region")
-	delete(*definition, "http_service")
 	return definition, nil
 }
 
 func FromDefinition(definition *api.Definition) (*Config, error) {
-	hash := map[string]any{}
-	for k, v := range *definition {
-		hash[k] = v
+	buf, err := toml.Marshal(*definition)
+	if err != nil {
+		return nil, err
 	}
-	return applyPatches(hash)
+	return unmarshalTOML(buf)
 }
 
 // SanitizedDefinition returns a definition cleaned from any extra fields

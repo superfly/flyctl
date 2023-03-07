@@ -107,6 +107,48 @@ func TestFromDefinition(t *testing.T) {
 				},
 			},
 		},
+		RawDefinition: map[string]any{
+			"env": map[string]any{},
+			"experimental": map[string]any{
+				"auto_rollback": true,
+			},
+			"kill_signal":  "SIGINT",
+			"kill_timeout": float64(5),
+			"processes":    []any{},
+			"services": []any{
+				map[string]any{
+					"concurrency": map[string]any{
+						"hard_limit": float64(25),
+						"soft_limit": float64(20),
+						"type":       "connections",
+					},
+					"http_checks":   []any{},
+					"internal_port": float64(8080),
+					"ports": []any{
+						map[string]any{
+							"force_https": true,
+							"handlers":    []any{"http"},
+							"port":        float64(80),
+						},
+						map[string]any{
+							"handlers": []any{"tls", "http"},
+							"port":     float64(443),
+						},
+					},
+					"processes":     []any{"app"},
+					"protocol":      "tcp",
+					"script_checks": []any{},
+					"tcp_checks": []any{
+						map[string]any{
+							"grace_period":  "1s",
+							"interval":      "15s",
+							"restart_limit": float64(0),
+							"timeout":       "2s",
+						},
+					},
+				},
+			},
+		},
 	}, cfg)
 }
 
@@ -118,8 +160,39 @@ func TestToDefinition(t *testing.T) {
 	definition, err := cfg.ToDefinition()
 	assert.NoError(t, err)
 	assert.Equal(t, &api.Definition{
-		"kill_signal":  "SIGTERM",
-		"kill_timeout": int64(3),
+		"app":            "foo",
+		"primary_region": "sea",
+		"kill_signal":    "SIGTERM",
+		"kill_timeout":   int64(3),
+
+		"build": map[string]any{
+			"builder":      "dockerfile",
+			"image":        "foo/fighter",
+			"builtin":      "whatisthis",
+			"dockerfile":   "Dockerfile",
+			"ignorefile":   ".gitignore",
+			"build-target": "target",
+			"buildpacks":   []any{"packme", "well"},
+			"settings": map[string]any{
+				"foo":   "bar",
+				"other": float64(2),
+			},
+			"args": map[string]any{
+				"param1": "value1",
+				"param2": "value2",
+			},
+		},
+
+		"http_service": map[string]any{
+			"internal_port": int64(8080),
+			"force_https":   true,
+			"concurrency": map[string]any{
+				"type":       "donuts",
+				"hard_limit": int64(10),
+				"soft_limit": int64(4),
+			},
+		},
+
 		"experimental": map[string]any{
 			"cmd":           []any{"cmd"},
 			"entrypoint":    []any{"entrypoint"},
