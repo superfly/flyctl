@@ -557,6 +557,9 @@ func run(ctx context.Context) (err error) {
 	if img := flag.GetString(ctx, "image"); img != "" && appConfig.GetBuildImage() == "" {
 		appConfig.SetBuildImage(img)
 	}
+	if dockerfile := flag.GetString(ctx, "dockerfile"); dockerfile != "" && appConfig.GetBuildDockerfile() == "" {
+		appConfig.SetBuildDockerfile(dockerfile)
+	}
 
 	// Finally, determine whether we're using Machines and write the config
 	var v2AppConfig *appv2.Config

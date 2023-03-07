@@ -663,12 +663,12 @@ func (c *Config) SetVolumes(volumes []Volume) {
 	c.Definition["mounts"] = volumes
 }
 
-func (c *Config) GetBuildImage() string {
+func (c *Config) getBuildItem(buildKey string) string {
 	if buildInterface, present := c.Definition["build"]; !present {
 		return ""
 	} else if buildMap, ok := buildInterface.(map[string]interface{}); !ok {
 		return ""
-	} else if imageInterface, present := buildMap["image"]; !present {
+	} else if imageInterface, present := buildMap[buildKey]; !present {
 		return ""
 	} else if image, ok := imageInterface.(string); !ok {
 		return ""
@@ -677,15 +677,32 @@ func (c *Config) GetBuildImage() string {
 	}
 }
 
-func (c *Config) SetBuildImage(img string) {
+func (c *Config) GetBuildDockerfile() string {
+	return c.getBuildItem("dockerfile")
+}
+
+func (c *Config) GetBuildImage() string {
+	return c.getBuildItem("image")
+}
+
+func (c *Config) setBuildItem(key, value string) {
 	if c.Build == nil {
 		c.Build = &Build{}
 	}
-	c.Build.Image = img
 	if _, present := c.Definition["build"]; !present {
 		c.Definition["build"] = map[string]interface{}{}
 	}
 	if buildMap, ok := c.Definition["build"].(map[string]interface{}); ok {
-		buildMap["image"] = img
+		buildMap[key] = value
 	}
+}
+
+func (c *Config) SetBuildDockerfile(dockerfile string) {
+	c.setBuildItem("dockerfile", dockerfile)
+	c.Build.Dockerfile = dockerfile
+}
+
+func (c *Config) SetBuildImage(img string) {
+	c.setBuildItem("image", img)
+	c.Build.Image = img
 }
