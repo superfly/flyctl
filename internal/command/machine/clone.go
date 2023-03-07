@@ -12,7 +12,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
@@ -32,7 +32,7 @@ func newClone() *cobra.Command {
 	cmd := command.New(usage, short, long, runMachineClone,
 		command.RequireSession,
 		command.LoadAppNameIfPresent,
-		command.LoadAppV2ConfigIfPresent,
+		command.LoadAppConfigIfPresent,
 	)
 
 	cmd.Args = cobra.ExactArgs(1)
@@ -82,7 +82,7 @@ func runMachineClone(ctx context.Context) (err error) {
 	var (
 		machineID = flag.FirstArg(ctx)
 		out       = iostreams.FromContext(ctx).Out
-		appName   = appv2.NameFromContext(ctx)
+		appName   = appconfig.NameFromContext(ctx)
 		io        = iostreams.FromContext(ctx)
 		colorize  = io.ColorScheme()
 		client    = client.FromContext(ctx).API()
@@ -94,7 +94,6 @@ func runMachineClone(ctx context.Context) (err error) {
 
 		if help != nil {
 			fmt.Println(help)
-
 		}
 
 		fmt.Println()
@@ -251,9 +250,9 @@ func runMachineClone(ctx context.Context) (err error) {
 	return
 }
 
-func getAppConfig(ctx context.Context, appName string) (*appv2.Config, error) {
+func getAppConfig(ctx context.Context, appName string) (*appconfig.Config, error) {
 	apiClient := client.FromContext(ctx).API()
-	cfg := appv2.ConfigFromContext(ctx)
+	cfg := appconfig.ConfigFromContext(ctx)
 	if cfg == nil {
 		terminal.Debug("no local app config detected; fetching from backend ...")
 
@@ -267,7 +266,7 @@ func getAppConfig(ctx context.Context, appName string) (*appv2.Config, error) {
 			return nil, err
 		}
 
-		cfg, err := appv2.FromDefinition(&apiConfig.Definition)
+		cfg, err := appconfig.FromDefinition(&apiConfig.Definition)
 		if err != nil {
 			return nil, err
 		}
@@ -275,12 +274,7 @@ func getAppConfig(ctx context.Context, appName string) (*appv2.Config, error) {
 		return cfg, nil
 	}
 
-	definition, err := cfg.ToDefinition()
-	if err != nil {
-		return nil, err
-	}
-
-	parsedCfg, err := apiClient.ParseConfig(ctx, appName, *definition)
+	parsedCfg, err := apiClient.ParseConfig(ctx, appName, cfg.SanitizedDefinition())
 	if err != nil {
 		return nil, err
 	}
@@ -289,7 +283,7 @@ func getAppConfig(ctx context.Context, appName string) (*appv2.Config, error) {
 	if !parsedCfg.Valid {
 		fmt.Println()
 		if len(parsedCfg.Errors) > 0 {
-			terminal.Errorf("\nConfiguration errors in %s:\n\n", cfg.FlyTomlPath)
+			terminal.Errorf("\nConfiguration errors in %s:\n\n", cfg.ConfigFilePath())
 		}
 		for _, e := range parsedCfg.Errors {
 			terminal.Errorf("   %s\n", e)

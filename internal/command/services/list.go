@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 )
@@ -30,7 +30,7 @@ func newList() *cobra.Command {
 func runList(ctx context.Context) error {
 	var (
 		client  = client.FromContext(ctx).API()
-		appName = app.NameFromContext(ctx)
+		appName = appconfig.NameFromContext(ctx)
 	)
 
 	appInfo, err := client.GetAppInfo(ctx, appName)

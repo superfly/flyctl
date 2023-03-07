@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
@@ -39,7 +39,7 @@ func newKill() *cobra.Command {
 
 func runMachineKill(ctx context.Context) (err error) {
 	var (
-		appName   = app.NameFromContext(ctx)
+		appName   = appconfig.NameFromContext(ctx)
 		machineID = flag.FirstArg(ctx)
 		io        = iostreams.FromContext(ctx)
 	)

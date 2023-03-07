@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -34,7 +34,7 @@ func newPrivate() *cobra.Command {
 func runPrivateIPAddressesList(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
 
-	appName := app.NameFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
 	appstatus, err := client.GetAppStatus(ctx, appName, false)
 	if err != nil {
 		return err

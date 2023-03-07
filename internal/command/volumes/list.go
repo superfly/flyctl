@@ -11,7 +11,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -42,7 +42,7 @@ func runList(ctx context.Context) error {
 	cfg := config.FromContext(ctx)
 	client := client.FromContext(ctx).API()
 
-	appName := app.NameFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
 
 	volumes, err := client.GetVolumes(ctx, appName)
 	if err != nil {

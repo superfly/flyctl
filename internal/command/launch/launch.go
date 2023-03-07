@@ -23,8 +23,7 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/app"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
@@ -108,11 +107,11 @@ func run(ctx context.Context) (err error) {
 	}
 
 	var importedConfig bool
-	appConfig := app.NewConfig()
+	appConfig := appconfig.NewConfig()
 
 	configFilePath := filepath.Join(workingDir, "fly.toml")
 	if exists, _ := flyctl.ConfigFileExistsAtPath(configFilePath); exists {
-		cfg, err := app.LoadConfig(ctx, configFilePath, "nomad")
+		cfg, err := appconfig.LoadConfig(configFilePath)
 		if err != nil {
 			return err
 		}
@@ -123,8 +122,7 @@ func run(ctx context.Context) (err error) {
 				return err
 			} else if deployExisting {
 				fmt.Fprintln(io.Out, "App is not running, deploy...")
-				ctx = app.WithName(ctx, cfg.AppName)
-				ctx = appv2.WithName(ctx, cfg.AppName)
+				ctx = appconfig.WithName(ctx, cfg.AppName)
 				return deploy.DeployWithConfig(ctx, cfg, deployArgs)
 			}
 		} else {
@@ -163,7 +161,7 @@ func run(ctx context.Context) (err error) {
 
 	if img := flag.GetString(ctx, "image"); img != "" {
 		fmt.Fprintln(io.Out, "Using image", img)
-		appConfig.Build = &app.Build{
+		appConfig.Build = &appconfig.Build{
 			Image: img,
 		}
 	} else if dockerfile := flag.GetString(ctx, "dockerfile"); dockerfile != "" {
@@ -173,7 +171,7 @@ func run(ctx context.Context) (err error) {
 			if err != nil {
 				return err
 			} else {
-				appConfig.Build = &app.Build{
+				appConfig.Build = &appconfig.Build{
 					Dockerfile: resp.Filename,
 				}
 
@@ -186,7 +184,7 @@ func run(ctx context.Context) (err error) {
 			}
 		} else {
 			fmt.Fprintln(io.Out, "Using dockerfile", dockerfile)
-			appConfig.Build = &app.Build{
+			appConfig.Build = &appconfig.Build{
 				Dockerfile: dockerfile,
 			}
 		}
@@ -220,7 +218,7 @@ func run(ctx context.Context) (err error) {
 					fmt.Fprintln(io.Out, "\tBuildpacks:", strings.Join(srcInfo.Buildpacks, " "))
 				}
 
-				appConfig.Build = &app.Build{
+				appConfig.Build = &appconfig.Build{
 					Builder:    srcInfo.Builder,
 					Buildpacks: srcInfo.Buildpacks,
 				}
@@ -292,16 +290,21 @@ func run(ctx context.Context) (err error) {
 		Name:            appConfig.AppName,
 		OrganizationID:  org.ID,
 		PreferredRegion: &region.Code,
+		Machines:        deployArgs.ForceMachines,
 	}
 
 	createdApp, err := client.CreateApp(ctx, input)
 	if err != nil {
 		return err
 	}
-	ctx = app.WithName(ctx, createdApp.Name)
-	ctx = appv2.WithName(ctx, createdApp.Name)
+	ctx = appconfig.WithName(ctx, createdApp.Name)
 	if !importedConfig {
-		appConfig.Definition = createdApp.Config.Definition
+		newCfg, err := appconfig.FromDefinition(&createdApp.Config.Definition)
+		if err != nil {
+			return fmt.Errorf("Launch failed to get new app configuration: %w", err)
+		}
+		newCfg.Build = appConfig.Build
+		appConfig = newCfg
 	}
 
 	appConfig.AppName = createdApp.Name
@@ -385,13 +388,10 @@ func run(ctx context.Context) (err error) {
 
 						if confirmAttachPg && err == nil {
 							should_attach_db = true
-
 						}
 
 					}
-
 				}
-
 			}
 
 			options["postgresql"] = true
@@ -420,7 +420,6 @@ func run(ctx context.Context) (err error) {
 
 			} else {
 				err := LaunchPostgres(ctx, appConfig.AppName, org, region)
-
 				if err != nil {
 					const msg = "Error creating Postgresql database. Be warned that this may affect deploys"
 					fmt.Fprintln(io.Out, colorize.Red(msg))
@@ -434,7 +433,6 @@ func run(ctx context.Context) (err error) {
 		confirmRedis, err := prompt.Confirm(ctx, "Would you like to set up an Upstash Redis database now?")
 		if confirmRedis && err == nil {
 			err := LaunchRedis(ctx, appConfig.AppName, org, region)
-
 			if err != nil {
 				const msg = "Error creating Redis database. Be warned that this may affect deploys"
 				fmt.Fprintln(io.Out, colorize.Red(msg))
@@ -497,9 +495,9 @@ func run(ctx context.Context) (err error) {
 		}
 
 		if len(srcInfo.Statics) > 0 {
-			var appStatics []app.Static
+			var appStatics []appconfig.Static
 			for _, s := range srcInfo.Statics {
-				appStatics = append(appStatics, app.Static{
+				appStatics = append(appStatics, appconfig.Static{
 					GuestPath: s.GuestPath,
 					UrlPrefix: s.UrlPrefix,
 				})
@@ -508,9 +506,9 @@ func run(ctx context.Context) (err error) {
 		}
 
 		if len(srcInfo.Volumes) > 0 {
-			var appVolumes []app.Volume
+			var appVolumes []appconfig.Volume
 			for _, v := range srcInfo.Volumes {
-				appVolumes = append(appVolumes, app.Volume{
+				appVolumes = append(appVolumes, appconfig.Volume{
 					Source:      v.Source,
 					Destination: v.Destination,
 				})
@@ -547,7 +545,7 @@ func run(ctx context.Context) (err error) {
 
 		if len(srcInfo.BuildArgs) > 0 {
 			if appConfig.Build == nil {
-				appConfig.Build = &app.Build{}
+				appConfig.Build = &appconfig.Build{}
 			}
 			appConfig.Build.Args = srcInfo.BuildArgs
 		}
@@ -558,51 +556,39 @@ func run(ctx context.Context) (err error) {
 	}
 
 	// Finally, determine whether we're using Machines and write the config
-	var v2AppConfig *appv2.Config
 	if deployArgs.ForceMachines {
-
-		v2AppConfig, err = appv2.FromDefinition(api.DefinitionPtr(appConfig.Definition))
-		if err != nil {
-			return fmt.Errorf("invalid config: %w", err)
+		if err := appConfig.SetMachinesPlatform(); err != nil {
+			return fmt.Errorf("Can not use configuration for Apps V2, check fly.toml: %w", err)
 		}
-		v2AppConfig.AppName = appConfig.AppName
-
 		appConfig.PrimaryRegion = region.Code
-		v2AppConfig.PrimaryRegion = region.Code
-
-		if err := v2AppConfig.WriteToDisk(ctx, configFilePath); err != nil {
-			return err
-		}
-
-		ctx = appv2.WithConfig(ctx, v2AppConfig)
-	} else {
-		if err := appConfig.WriteToDisk(ctx, configFilePath); err != nil {
-			return err
-		}
 	}
 
-	ctx = app.WithConfig(ctx, appConfig)
+	if err := appConfig.WriteToDisk(ctx, configFilePath); err != nil {
+		return err
+	}
+
+	ctx = appconfig.WithConfig(ctx, appConfig)
 
 	if srcInfo == nil {
 		return nil
 	}
 
 	if deployArgs.ForceMachines && !deployArgs.ForceYes {
-		if !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !flag.GetBool(ctx, "auto-confirm") && v2AppConfig.HasNonHttpAndHttpsStandardServices() {
-			hasUdpService := v2AppConfig.HasUdpService()
+		if !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !flag.GetBool(ctx, "auto-confirm") && appConfig.HasNonHttpAndHttpsStandardServices() {
+			hasUdpService := appConfig.HasUdpService()
 			ipStuffStr := "a dedicated ipv4 address"
 			if !hasUdpService {
 				ipStuffStr = "dedicated ipv4 and ipv6 addresses"
 			}
 			confirmDedicatedIp, err := prompt.Confirmf(ctx, "Would you like to allocate %s now?", ipStuffStr)
 			if confirmDedicatedIp && err == nil {
-				v4Dedicated, err := client.AllocateIPAddress(ctx, v2AppConfig.AppName, "v4", "", nil, "")
+				v4Dedicated, err := client.AllocateIPAddress(ctx, appConfig.AppName, "v4", "", nil, "")
 				if err != nil {
 					return err
 				}
 				fmt.Fprintf(io.Out, "Allocated dedicated ipv4: %s\n", v4Dedicated.Address)
 				if !hasUdpService {
-					v6Dedicated, err := client.AllocateIPAddress(ctx, v2AppConfig.AppName, "v6", "", nil, "")
+					v6Dedicated, err := client.AllocateIPAddress(ctx, appConfig.AppName, "v6", "", nil, "")
 					if err != nil {
 						return err
 					}

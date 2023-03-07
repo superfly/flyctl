@@ -15,8 +15,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/gql"
-	"github.com/superfly/flyctl/internal/app"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/logger"
@@ -54,8 +53,8 @@ type machineDeployment struct {
 	io                    *iostreams.IOStreams
 	colorize              *iostreams.ColorScheme
 	app                   *api.AppCompact
-	appConfig             *appv2.Config
-	processConfigs        map[string]*appv2.ProcessConfig
+	appConfig             *appconfig.Config
+	processConfigs        map[string]*appconfig.ProcessConfig
 	img                   *imgsrc.DeploymentImage
 	machineSet            machine.MachineSet
 	releaseCommandMachine machine.MachineSet
@@ -326,7 +325,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 				api.MachineFlyPlatformVersion2,
 				api.MachineConfigMetadataKeyFlyPlatformVersion,
 				api.MachineFlyPlatformVersion2,
-				app.DefaultConfigFileName,
+				appconfig.DefaultConfigFileName,
 			)
 		}
 	}
@@ -669,10 +668,10 @@ func (md *machineDeployment) logClearLinesAbove(count int) {
 	}
 }
 
-func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion string) (cfg *appv2.Config, err error) {
+func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion string) (cfg *appconfig.Config, err error) {
 	client := client.FromContext(ctx).API()
-	appNameFromContext := appv2.NameFromContext(ctx)
-	if cfg = appv2.ConfigFromContext(ctx); cfg == nil {
+	appNameFromContext := appconfig.NameFromContext(ctx)
+	if cfg = appconfig.ConfigFromContext(ctx); cfg == nil {
 		logger := logger.FromContext(ctx)
 		logger.Debug("no local app config detected for machines deploy; fetching from backend ...")
 
@@ -687,7 +686,7 @@ func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, p
 			return nil, err
 		}
 
-		cfg, err = appv2.FromDefinition(&apiConfig.Definition)
+		cfg, err = appconfig.FromDefinition(&apiConfig.Definition)
 		if err != nil {
 			return nil, err
 		}

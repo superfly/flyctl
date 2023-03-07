@@ -1,0 +1,25 @@
+app = "unsupported-format"
+
+[build]
+  builder = "dockerfile"
+  image = "foo/fighter"
+  builtin = "whatisthis"
+  dockerfile = "Dockerfile"
+  ignorefile = ".gitignore"
+  build-target = "target"
+  buildpacks = ["packme", "well"]
+
+  [build.settings]
+    foo = "bar"
+    other = 2
+
+  [build.args]
+    param1 = "value1"
+    param2 = "value2"
+
+[[services]]
+  internal_port = "8080"
+  # Single numerical concurrency is not valid, even for nomad
+  # but we are testing here that this file can't be parsed into V2 Config
+  # yet its RawDefinition is usable for v1 apps
+  concurrency = 20

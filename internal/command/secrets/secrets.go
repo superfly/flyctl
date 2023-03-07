@@ -67,7 +67,7 @@ func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Rel
 	}
 
 	if app.PlatformVersion == "machines" {
-		ctx, err = command.LoadAppV2ConfigIfPresent(ctx)
+		ctx, err = command.LoadAppConfigIfPresent(ctx)
 		if err != nil {
 			return fmt.Errorf("error loading appv2 config: %w", err)
 		}

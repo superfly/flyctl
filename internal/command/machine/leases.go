@@ -10,7 +10,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/config"
@@ -93,7 +93,7 @@ func runLeaseView(ctx context.Context) (err error) {
 		io      = iostreams.FromContext(ctx)
 		args    = flag.Args(ctx)
 		cfg     = config.FromContext(ctx)
-		appName = app.NameFromContext(ctx)
+		appName = appconfig.NameFromContext(ctx)
 		client  = client.FromContext(ctx).API()
 	)
 
@@ -168,7 +168,7 @@ func runLeaseClear(ctx context.Context) (err error) {
 	var (
 		io      = iostreams.FromContext(ctx)
 		args    = flag.Args(ctx)
-		appName = app.NameFromContext(ctx)
+		appName = appconfig.NameFromContext(ctx)
 		client  = client.FromContext(ctx).API()
 	)
 

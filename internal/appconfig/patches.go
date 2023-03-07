@@ -1,4 +1,4 @@
-package appv2
+package appconfig
 
 import (
 	"encoding/json"
@@ -19,21 +19,32 @@ var configPatches = []patchFuncType{
 }
 
 func applyPatches(cfgMap map[string]any) (*Config, error) {
-	// Migrate whatever we found in old fly.toml files to newish format
-	for _, patchFunc := range configPatches {
-		var err error
-		cfgMap, err = patchFunc(cfgMap)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	newbuf, err := json.Marshal(cfgMap)
+	cfgMap, err := patchRoot(cfgMap)
 	if err != nil {
 		return nil, err
 	}
+	return mapToConfig(cfgMap)
+}
+
+func mapToConfig(cfgMap map[string]any) (*Config, error) {
 	cfg := &Config{}
+	newbuf, err := json.Marshal(cfgMap)
+	if err != nil {
+		return cfg, err
+	}
 	return cfg, json.Unmarshal(newbuf, cfg)
+}
+
+// Migrate whatever we found in old fly.toml files to newish format
+func patchRoot(cfgMap map[string]any) (map[string]any, error) {
+	var err error
+	for _, patchFunc := range configPatches {
+		cfgMap, err = patchFunc(cfgMap)
+		if err != nil {
+			return cfgMap, err
+		}
+	}
+	return cfgMap, nil
 }
 
 func patchEnv(cfg map[string]any) (map[string]any, error) {
@@ -187,10 +198,8 @@ func _patchService(service map[string]any) (map[string]any, error) {
 		for idx, port := range ports {
 			if portN, ok := port["port"]; ok {
 				casted_port, err := castToInt(portN)
-
 				if err != nil {
 					return nil, err
-
 				}
 
 				port["port"] = casted_port
@@ -217,7 +226,6 @@ func _patchService(service map[string]any) (map[string]any, error) {
 
 	if rawInternalPort, ok := service["internal_port"]; ok {
 		internal_port, err := castToInt(rawInternalPort)
-
 		if err != nil {
 			return nil, err
 		}

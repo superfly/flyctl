@@ -12,7 +12,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -46,7 +46,7 @@ func runShow(ctx context.Context) (err error) {
 	var (
 		client  = client.FromContext(ctx).API()
 		io      = iostreams.FromContext(ctx)
-		appName = app.NameFromContext(ctx)
+		appName = appconfig.NameFromContext(ctx)
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -84,7 +84,7 @@ func showNomadImage(ctx context.Context, app *api.AppCompact) error {
 		cfg      = config.FromContext(ctx)
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
-		// appName  = app.NameFromContext(ctx)
+		// appName  = appv2.NameFromContext(ctx)
 	)
 
 	info, err := client.GetImageInfo(ctx, app.Name)
