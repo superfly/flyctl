@@ -13,7 +13,7 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -46,7 +46,7 @@ func newInstance() (cmd *cobra.Command) {
 
 func runInstance(ctx context.Context) (err error) {
 	var (
-		appName = app.NameFromContext(ctx)
+		appName = appconfig.NameFromContext(ctx)
 		allocID = flag.FirstArg(ctx)
 		client  = client.FromContext(ctx).API()
 	)

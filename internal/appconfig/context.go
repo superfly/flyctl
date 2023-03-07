@@ -1,8 +1,6 @@
-package app
+package appconfig
 
-import (
-	"context"
-)
+import "context"
 
 type contextKeyType int
 

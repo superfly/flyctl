@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
@@ -66,7 +66,7 @@ func runMachineRestart(ctx context.Context) error {
 		args    = flag.Args(ctx)
 		signal  = flag.GetString(ctx, "signal")
 		timeout = flag.GetInt(ctx, "time")
-		appName = app.NameFromContext(ctx)
+		appName = appconfig.NameFromContext(ctx)
 	)
 
 	app, err := appFromMachineOrName(ctx, args[0], appName)

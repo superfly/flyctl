@@ -1,24 +1,22 @@
 // Package app implements functionality related to reading and writing app
 // configuration files.
-package appv2
+package appconfig
 
-import (
-	"time"
-
-	"github.com/superfly/flyctl/api"
-)
+import "github.com/superfly/flyctl/api"
 
 const (
 	// DefaultConfigFileName denotes the default application configuration file name.
 	DefaultConfigFileName = "fly.toml"
 	// Config is versioned, initially, to separate nomad from machine apps without having to consult
 	// the API
-	AppsV1Platform = "nomad"
-	AppsV2Platform = "machines"
+	MachinesPlatform = "machines"
+	NomadPlatform    = "nomad"
 )
 
 func NewConfig() *Config {
-	return &Config{}
+	return &Config{
+		RawDefinition: map[string]any{},
+	}
 }
 
 // Config wraps the properties of app configuration.
@@ -40,8 +38,19 @@ type Config struct {
 	Checks        map[string]*ToplevelCheck `toml:"checks,omitempty" json:"checks,omitempty"`
 	Services      []Service                 `toml:"services,omitempty" json:"services,omitempty"`
 
-	// TODO: Move this to private attr
-	FlyTomlPath string `toml:"-" json:"-"`
+	// RawDefinition contains fly.toml parsed as-is
+	// If you add any config field that is v2 specific, be sure to remove it in SanitizeDefinition()
+	RawDefinition map[string]any `toml:"-" json:"-"`
+
+	// Path to application configuration file, usually fly.toml.
+	configFilePath string
+
+	// Indicates the intended platform to use: machines or nomad
+	platformVersion string
+
+	// Set when it fails to unmarshal fly.toml into Config
+	// Don't hard fail because RawDefinition still holds the app configuration for Nomad apps
+	v2UnmarshalError error
 }
 
 type Deploy struct {
@@ -83,6 +92,10 @@ type Experimental struct {
 	AutoRollback bool     `toml:"auto_rollback,omitempty" json:"auto_rollback,omitempty"`
 	EnableConsul bool     `toml:"enable_consul,omitempty" json:"enable_consul,omitempty"`
 	EnableEtcd   bool     `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
+}
+
+func (c *Config) ConfigFilePath() string {
+	return c.configFilePath
 }
 
 func (c *Config) HasNonHttpAndHttpsStandardServices() bool {
@@ -133,111 +146,4 @@ func (c *Config) DockerBuildTarget() string {
 		return ""
 	}
 	return c.Build.DockerBuildTarget
-}
-
-func (c *Config) SetInternalPort(port int) bool {
-	if len(c.Services) > 0 {
-		c.Services[0].InternalPort = port
-		return true
-	}
-	return false
-}
-
-func (c *Config) SetHttpCheck(path string) bool {
-	if len(c.Services) == 0 {
-		return false
-	}
-	service := &c.Services[0]
-	service.HTTPChecks = append(service.HTTPChecks, &ServiceHTTPCheck{
-		HTTPMethod:        api.StringPointer("GET"),
-		HTTPPath:          api.StringPointer(path),
-		HTTPProtocol:      api.StringPointer("http"),
-		HTTPTLSSkipVerify: api.BoolPointer(false),
-		Interval:          &api.Duration{Duration: 10 * time.Second},
-		GracePeriod:       &api.Duration{Duration: 5 * time.Second},
-		RestartLimit:      0,
-		Timeout:           &api.Duration{Duration: 2 * time.Second},
-	})
-	return true
-}
-
-func (c *Config) SetConcurrency(soft int, hard int) bool {
-	if len(c.Services) == 0 {
-		return false
-	}
-
-	service := &c.Services[0]
-	if service.Concurrency == nil {
-		service.Concurrency = &api.MachineServiceConcurrency{}
-	}
-	service.Concurrency.Type = "connections"
-	service.Concurrency.HardLimit = hard
-	service.Concurrency.SoftLimit = soft
-	return true
-}
-
-func (c *Config) SetReleaseCommand(cmd string) {
-	if c.Deploy == nil {
-		c.Deploy = &Deploy{}
-	}
-	c.Deploy.ReleaseCommand = cmd
-}
-
-func (c *Config) SetDockerCommand(cmd string) {
-	if c.Experimental == nil {
-		c.Experimental = &Experimental{}
-	}
-	c.Experimental.Cmd = []string{cmd}
-}
-
-func (c *Config) SetKillSignal(signal string) {
-	c.KillSignal = signal
-}
-
-func (c *Config) SetDockerEntrypoint(entrypoint string) {
-	if c.Experimental == nil {
-		c.Experimental = &Experimental{}
-	}
-	c.Experimental.Entrypoint = []string{entrypoint}
-}
-
-func (c *Config) SetEnvVariable(name, value string) {
-	if c.Env == nil {
-		c.Env = make(map[string]string)
-	}
-	c.Env[name] = value
-}
-
-func (c *Config) SetEnvVariables(vals map[string]string) {
-	for k, v := range vals {
-		c.SetEnvVariable(k, v)
-	}
-}
-
-func (c *Config) SetProcess(name, value string) {
-	if c.Processes == nil {
-		c.Processes = make(map[string]string)
-	}
-	c.Processes[name] = value
-}
-
-func (c *Config) SetStatics(statics []Static) {
-	c.Statics = make([]Static, 0, len(statics))
-	for _, static := range statics {
-		c.Statics = append(c.Statics, Static{
-			GuestPath: static.GuestPath,
-			UrlPrefix: static.UrlPrefix,
-		})
-	}
-}
-
-func (c *Config) SetVolumes(volumes []Volume) {
-	if len(volumes) == 0 {
-		return
-	}
-	// FIXME: "mounts" section is confusing, it is plural but only allows one mount
-	c.Mounts = &Volume{
-		Source:      volumes[0].Source,
-		Destination: volumes[0].Destination,
-	}
 }

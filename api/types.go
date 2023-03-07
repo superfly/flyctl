@@ -255,8 +255,10 @@ type IssuedCertificate struct {
 type Definition map[string]interface{}
 
 func DefinitionPtr(in map[string]interface{}) *Definition {
-	x := Definition(in)
-	return &x
+	if len(in) > 0 {
+		return Pointer(Definition(in))
+	}
+	return nil
 }
 
 type ImageVersion struct {

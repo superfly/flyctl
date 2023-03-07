@@ -5,11 +5,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 )
 
-func stabMachineDeployment(appConfig *appv2.Config) (*machineDeployment, error) {
+func stabMachineDeployment(appConfig *appconfig.Config) (*machineDeployment, error) {
 	md := &machineDeployment{
 		app: &api.AppCompact{
 			ID: "my-cool-app",
@@ -28,7 +28,7 @@ func stabMachineDeployment(appConfig *appv2.Config) (*machineDeployment, error) 
 }
 
 func Test_resultUpdateMachineConfig_Basic(t *testing.T) {
-	md, err := stabMachineDeployment(&appv2.Config{
+	md, err := stabMachineDeployment(&appconfig.Config{
 		AppName: "my-cool-app",
 		Env: map[string]string{
 			"PRIMARY_REGION": "scl",
@@ -59,7 +59,7 @@ func Test_resultUpdateMachineConfig_Basic(t *testing.T) {
 // Test any LaunchMachineInput field that must not be set on a machine
 // used to run release command.
 func Test_resultUpdateMachineConfig_ReleaseCommand(t *testing.T) {
-	md, err := stabMachineDeployment(&appv2.Config{
+	md, err := stabMachineDeployment(&appconfig.Config{
 		AppName: "my-cool-app",
 		Env: map[string]string{
 			"PRIMARY_REGION": "scl",
@@ -69,24 +69,24 @@ func Test_resultUpdateMachineConfig_ReleaseCommand(t *testing.T) {
 			Port: 9000,
 			Path: "/prometheus",
 		},
-		Deploy: &appv2.Deploy{
+		Deploy: &appconfig.Deploy{
 			ReleaseCommand: "echo foo",
 		},
-		Mounts: &appv2.Volume{
+		Mounts: &appconfig.Volume{
 			Source:      "data",
 			Destination: "/data",
 		},
-		Checks: map[string]*appv2.ToplevelCheck{
+		Checks: map[string]*appconfig.ToplevelCheck{
 			"alive": {
 				Port: api.Pointer(8080),
 				Type: api.Pointer("tcp"),
 			},
 		},
-		Statics: []appv2.Static{{
+		Statics: []appconfig.Static{{
 			GuestPath: "/app/assets",
 			UrlPrefix: "/statics",
 		}},
-		Services: []appv2.Service{{
+		Services: []appconfig.Service{{
 			Protocol:     "tcp",
 			InternalPort: 8080,
 		}},
@@ -213,8 +213,8 @@ func Test_resultUpdateMachineConfig_ReleaseCommand(t *testing.T) {
 
 // Test Mounts
 func Test_resultUpdateMachineConfig_Mounts(t *testing.T) {
-	md, err := stabMachineDeployment(&appv2.Config{
-		Mounts: &appv2.Volume{
+	md, err := stabMachineDeployment(&appconfig.Config{
+		Mounts: &appconfig.Volume{
 			Source:      "data",
 			Destination: "/data",
 		},
@@ -279,11 +279,11 @@ func Test_resultUpdateMachineConfig_Mounts(t *testing.T) {
 
 // Test machineDeployment.restartOnly
 func Test_resultUpdateMachineConfig_restartOnly(t *testing.T) {
-	md, err := stabMachineDeployment(&appv2.Config{
+	md, err := stabMachineDeployment(&appconfig.Config{
 		Env: map[string]string{
 			"Ignore": "me",
 		},
-		Mounts: &appv2.Volume{
+		Mounts: &appconfig.Volume{
 			Source:      "data",
 			Destination: "/data",
 		},

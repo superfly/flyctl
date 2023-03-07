@@ -10,7 +10,7 @@ import (
 	"github.com/superfly/flyctl/cmdctx"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/gql"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
@@ -73,10 +73,12 @@ func runShowConfig(cmdCtx *cmdctx.CmdContext) error {
 		if err != nil {
 			return err
 		}
-
 		cmdCtx.WriteJSON(appConfig)
 	default:
-		return fmt.Errorf("likely a bug, unknown platform version %s for app %s", appCompact.PlatformVersion, appCompact.Name)
+		if !appCompact.Deployed {
+			return fmt.Errorf("Undeployed app '%s' has no platform version set", appCompact.Name)
+		}
+		return fmt.Errorf("likely a bug, unknown platform version '%s' for app '%s'. ", appCompact.PlatformVersion, appCompact.Name)
 	}
 
 	return nil
@@ -114,14 +116,14 @@ func runSaveConfig(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 	switch appCompact.PlatformVersion {
-	case "nomad":
+	case appconfig.NomadPlatform:
 		serverCfg, err := apiClient.GetConfig(ctx, cmdCtx.AppName)
 		if err != nil {
 			return err
 		}
 		cmdCtx.AppConfig.Definition = serverCfg.Definition
 		return writeAppConfig(cmdCtx.ConfigFile, cmdCtx.AppConfig)
-	case "machines":
+	case appconfig.MachinesPlatform:
 		return saveAppV2Config(ctx, apiClient, appCompact, cmdCtx.ConfigFile)
 	default:
 		return fmt.Errorf("likely a bug, unknown platform version %s for app %s", appCompact.PlatformVersion, appCompact.Name)
@@ -226,16 +228,15 @@ func saveAppV2Config(ctx context.Context, apiClient *api.Client, appCompact *api
 	return writeAppV2Config(ctx, path, appConfig)
 }
 
-func writeAppV2Config(ctx context.Context, path string, appConfig *appv2.Config) error {
+func writeAppV2Config(ctx context.Context, path string, appConfig *appconfig.Config) error {
 	err := appConfig.WriteToDisk(ctx, path)
 	if err != nil {
 		return fmt.Errorf("failed to write config to %s with error: %w", path, err)
 	}
-	fmt.Println("Wrote config file", helpers.PathRelativeToCWD(path))
 	return nil
 }
 
-func getAppV2ConfigFromMachines(ctx context.Context, apiClient *api.Client, appCompact *api.AppCompact) (*appv2.Config, error) {
+func getAppV2ConfigFromMachines(ctx context.Context, apiClient *api.Client, appCompact *api.AppCompact) (*appconfig.Config, error) {
 	var (
 		flapsClient = flaps.FromContext(ctx)
 		io          = iostreams.FromContext(ctx)
@@ -245,7 +246,7 @@ func getAppV2ConfigFromMachines(ctx context.Context, apiClient *api.Client, appC
 		return nil, fmt.Errorf("error listing active machines for %s app: %w", appCompact.Name, err)
 	}
 	machineSet := machine.NewMachineSet(flapsClient, io, activeMachines)
-	appConfig, warnings, err := appv2.FromAppAndMachineSet(ctx, appCompact, machineSet)
+	appConfig, warnings, err := appconfig.FromAppAndMachineSet(ctx, appCompact, machineSet)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fly.toml from existing machines, error: %w", err)
 	}
@@ -255,7 +256,7 @@ func getAppV2ConfigFromMachines(ctx context.Context, apiClient *api.Client, appC
 	return appConfig, nil
 }
 
-func getAppV2ConfigFromReleases(ctx context.Context, apiClient *api.Client, appName string) (*appv2.Config, error) {
+func getAppV2ConfigFromReleases(ctx context.Context, apiClient *api.Client, appName string) (*appconfig.Config, error) {
 	_ = `# @genqlient
 	query FlyctlConfigCurrentRelease($appName: String!) {
 		app(name:$appName) {
@@ -278,9 +279,12 @@ func getAppV2ConfigFromReleases(ctx context.Context, apiClient *api.Client, appN
 		return nil, fmt.Errorf("likely a bug, could not convert config definition to api definition error: %w", err)
 	}
 	apiDefinition := api.DefinitionPtr(configMapDefinition)
-	appConfig, err := appv2.FromDefinition(apiDefinition)
+	appConfig, err := appconfig.FromDefinition(apiDefinition)
 	if err != nil {
 		return nil, fmt.Errorf("error creating appv2 Config from api definition: %w", err)
 	}
-	return appConfig, nil
+	if err := appConfig.SetMachinesPlatform(); err != nil {
+		return nil, err
+	}
+	return appConfig, err
 }

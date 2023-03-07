@@ -10,7 +10,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/format"
@@ -20,7 +20,7 @@ import (
 
 func runAppCheckList(ctx context.Context) error {
 	web := client.FromContext(ctx).API()
-	appName := app.NameFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
 
 	app, err := web.GetAppCompact(ctx, appName)
 	if err != nil {
@@ -71,7 +71,7 @@ func runMachinesAppCheckList(ctx context.Context, app *api.AppCompact) error {
 }
 
 func runNomadAppCheckList(ctx context.Context) error {
-	appName := app.NameFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 	web := client.FromContext(ctx).API()
 

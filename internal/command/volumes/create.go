@@ -10,7 +10,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -71,7 +71,7 @@ func runCreate(ctx context.Context) error {
 		client = client.FromContext(ctx).API()
 
 		volumeName = flag.FirstArg(ctx)
-		appName    = app.NameFromContext(ctx)
+		appName    = appconfig.NameFromContext(ctx)
 	)
 
 	app, err := client.GetAppBasic(ctx, appName)

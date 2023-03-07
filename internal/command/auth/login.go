@@ -96,9 +96,9 @@ func runShellLogin(ctx context.Context, email, password, otp string) (err error)
 		case err == nil:
 			break
 		case prompt.IsNonInteractive(err):
-			err = nil
+			break
 		default:
-			return
+			return err
 		}
 	}
 
