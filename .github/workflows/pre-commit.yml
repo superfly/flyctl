@@ -18,5 +18,5 @@ jobs:
           extra_args: --all-files --hook-stage=manual
       - uses: golangci/golangci-lint-action@master
         with:
-          version: v1.49.0
+          version: v1.51.2
       - run: go mod download
