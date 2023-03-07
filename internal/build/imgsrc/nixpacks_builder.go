@@ -197,16 +197,16 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 	nixpacksPath := filepath.Join(confDir, "bin", "nixpacks")
 
 	nixpacksArgs := []string{"build", "--name", opts.Tag, opts.WorkingDir}
+	for _, kv := range os.Environ() {
+		if strings.HasPrefix(kv, "NIXPACKS_") {
+			nixpacksArgs = append(nixpacksArgs, "--env", kv)
+		}
+	}
 
 	terminal.Debugf("calling nixpacks at %s with args: %v and docker host: %s", nixpacksPath, nixpacksArgs, dockerHost)
 
 	cmd := exec.CommandContext(ctx, nixpacksPath, nixpacksArgs...)
 	cmd.Env = append(cmd.Env, fmt.Sprintf("DOCKER_HOST=%s", dockerHost), fmt.Sprintf("PATH=%s", os.Getenv("PATH")))
-	for _, kv := range os.Environ() {
-		if strings.HasPrefix(kv, "NIXPACKS_") {
-			cmd.Env = append(cmd.Env, kv)
-		}
-	}
 	cmd.Stdout = streams.Out
 	cmd.Stderr = streams.ErrOut
 	cmd.Stdin = nil

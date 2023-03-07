@@ -10,7 +10,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -42,7 +42,7 @@ events and their results.
 }
 
 func run(ctx context.Context) error {
-	appName := app.NameFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
 	client := client.FromContext(ctx).API()
 
 	changes, err := client.GetAppChanges(ctx, appName)

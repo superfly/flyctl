@@ -16,7 +16,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/dig"
 	"github.com/superfly/flyctl/internal/flag"
@@ -99,7 +99,7 @@ func run(ctx context.Context) error {
 	orgSlug := flag.GetOrg(ctx)
 
 	if orgSlug == "" {
-		appName := app.NameFromContext(ctx)
+		appName := appconfig.NameFromContext(ctx)
 
 		app, err := client.GetAppBasic(ctx, appName)
 		if err != nil {

@@ -1,0 +1,6 @@
+# Seen at https://community.fly.io/t/problem-exposing-postgresql-database-to-external-world/10869/7
+app = "foo"
+
+[[mounts]]
+source = "pg_data"
+destination = "/data"

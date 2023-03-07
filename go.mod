@@ -12,6 +12,7 @@ require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/briandowns/spinner v1.19.0
 	github.com/buildpacks/pack v0.21.0
+	github.com/cavaliergopher/grab/v3 v3.0.1
 	github.com/chzyer/readline v1.5.1
 	github.com/cli/safeexec v1.0.0
 	github.com/containerd/console v1.0.2
@@ -53,7 +54,6 @@ require (
 	github.com/stretchr/testify v1.8.0
 	github.com/superfly/flyctl/api v0.0.0-20220708073423-b6d7c3cf5161
 	github.com/superfly/graphql v0.2.3
-	github.com/tj/assert v0.0.3
 	github.com/vektah/gqlparser/v2 v2.4.8
 	golang.org/x/crypto v0.5.0
 	golang.org/x/exp v0.0.0-20220303212507-bbda1eaf7a17

@@ -16,7 +16,7 @@ import (
 	"github.com/superfly/flyctl/logs"
 
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -60,7 +60,7 @@ func run(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
 
 	opts := &logs.LogOptions{
-		AppName:    app.NameFromContext(ctx),
+		AppName:    appconfig.NameFromContext(ctx),
 		RegionCode: config.FromContext(ctx).Region,
 		VMID:       flag.GetString(ctx, "instance"),
 	}

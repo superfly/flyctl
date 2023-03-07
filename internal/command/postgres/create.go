@@ -62,7 +62,7 @@ func newCreate() *cobra.Command {
 		},
 		flag.String{
 			Name:   "image-ref",
-			Hidden: true,
+			Description: "Specify a non-default base image for the Postgres app",
 		},
 		flag.Bool{
 			Name:        "stolon",

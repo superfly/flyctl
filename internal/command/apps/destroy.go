@@ -40,6 +40,7 @@ func RunDestroy(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 	appName := flag.FirstArg(ctx)
+	client := client.FromContext(ctx).API()
 
 	if !flag.GetYes(ctx) {
 		const msg = "Destroying an app is not reversible."
@@ -57,7 +58,6 @@ func RunDestroy(ctx context.Context) error {
 		}
 	}
 
-	client := client.FromContext(ctx).API()
 	if err := client.DeleteApp(ctx, appName); err != nil {
 		return err
 	}

@@ -21,7 +21,7 @@ import (
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
@@ -125,6 +125,10 @@ var sharedFlags = flag.Set{
 		Name:        "schedule",
 		Description: `Schedule a machine run at hourly, daily and monthly intervals`,
 	},
+	flag.Bool{
+		Name:        "skip-dns-registration",
+		Description: "Do not register the machine's 6PN IP with the intenral DNS system",
+	},
 }
 
 func newRun() *cobra.Command {
@@ -157,6 +161,10 @@ func newRun() *cobra.Command {
 			Name:        "org",
 			Description: `The organization that will own the app`,
 		},
+		flag.Bool{
+			Name:        "rm",
+			Description: "Automatically remove the machine when it exits",
+		},
 		sharedFlags,
 	)
 
@@ -167,7 +175,7 @@ func newRun() *cobra.Command {
 
 func runMachineRun(ctx context.Context) error {
 	var (
-		appName  = app.NameFromContext(ctx)
+		appName  = appconfig.NameFromContext(ctx)
 		client   = client.FromContext(ctx).API()
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
@@ -180,6 +188,11 @@ func runMachineRun(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+
+		if app == nil {
+			return nil
+		}
+
 	} else {
 		app, err = client.GetAppCompact(ctx, appName)
 		if err != nil && strings.Contains(err.Error(), "Could not find App") {
@@ -187,7 +200,6 @@ func runMachineRun(ctx context.Context) error {
 
 			if err != nil {
 				return err
-
 			}
 
 			if app == nil {
@@ -206,6 +218,10 @@ func runMachineRun(ctx context.Context) error {
 			CPUs:       1,
 			MemoryMB:   256,
 			KernelArgs: flag.GetStringSlice(ctx, "kernel-arg"),
+		},
+		AutoDestroy: flag.GetBool(ctx, "rm"),
+		DNS: &api.DNSConfig{
+			SkipRegistration: flag.GetBool(ctx, "skip-dns-registration"),
 		},
 	}
 
@@ -335,6 +351,7 @@ func determineImage(ctx context.Context, appName string, imageOrPath string) (im
 	var (
 		client = client.FromContext(ctx).API()
 		io     = iostreams.FromContext(ctx)
+		cfg    = appconfig.ConfigFromContext(ctx)
 	)
 
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-nixpacks"))
@@ -350,7 +367,15 @@ func determineImage(ctx context.Context, appName string, imageOrPath string) (im
 			Target:     flag.GetString(ctx, "build-target"),
 			NoCache:    flag.GetBool(ctx, "no-build-cache"),
 		}
-		if dockerfilePath := flag.GetString(ctx, "dockerfile"); dockerfilePath != "" {
+
+		dockerfilePath := cfg.Dockerfile()
+
+		// dockerfile passed through flags takes precedence over the one set in config
+		if flag.GetString(ctx, "dockerfile") != "" {
+			dockerfilePath = flag.GetString(ctx, "dockerfile")
+		}
+
+		if dockerfilePath != "" {
 			dockerfilePath, err := filepath.Abs(dockerfilePath)
 			if err != nil {
 				return nil, err
@@ -444,7 +469,7 @@ func determineMounts(ctx context.Context, mounts []api.MachineMount, region stri
 }
 
 func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]api.Volume, error) {
-	appName := app.NameFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
 	apiclient := client.FromContext(ctx).API()
 
 	if regionCode == "" {
@@ -588,10 +613,21 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 
 	if guestSize := flag.GetString(ctx, "size"); guestSize != "" {
 		guest, ok := api.MachinePresets[guestSize]
+
 		if !ok {
+			var machine_type string
+
+			if strings.HasPrefix(guestSize, "shared") {
+				machine_type = "shared"
+			} else if strings.HasPrefix(guestSize, "performance") {
+				machine_type = "performance"
+			} else {
+				return machineConf, fmt.Errorf("invalid machine preset requested, '%s', expected to start with 'shared' or 'performance'", guestSize)
+			}
+
 			validSizes := []string{}
 			for size := range api.MachinePresets {
-				if strings.HasPrefix(size, "shared") {
+				if strings.HasPrefix(size, machine_type) {
 					validSizes = append(validSizes, size)
 				}
 			}
@@ -605,10 +641,14 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 	// Potential overrides for Guest
 	if cpus := flag.GetInt(ctx, "cpus"); cpus != 0 {
 		machineConf.Guest.CPUs = cpus
+	} else if flag.IsSpecified(ctx, "cpus") {
+		return nil, fmt.Errorf("cannot have zero cpus")
 	}
 
 	if memory := flag.GetInt(ctx, "memory"); memory != 0 {
 		machineConf.Guest.MemoryMB = memory
+	} else if flag.IsSpecified(ctx, "memory") {
+		return nil, fmt.Errorf("memory cannot be zero")
 	}
 
 	if len(flag.GetStringSlice(ctx, "kernel-arg")) != 0 {
@@ -638,6 +678,12 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 			return machineConf, errors.Wrap(err, "invalid command")
 		}
 		machineConf.Init.Cmd = split
+	}
+
+	if machineConf.DNS == nil {
+		machineConf.DNS = &api.DNSConfig{
+			SkipRegistration: flag.GetBool(ctx, "skip-dns-registration"),
+		}
 	}
 
 	// Metadata

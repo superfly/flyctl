@@ -11,6 +11,7 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/logrusorgru/aurora"
 
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/buildinfo"
 )
 
@@ -90,6 +91,29 @@ func CaptureMessage(msg string, opts ...CaptureOption) {
 
 		_ = sentry.CaptureMessage(msg)
 	})
+}
+
+func CaptureExceptionWithAppInfo(err error, featureName string, appCompact *api.AppCompact) {
+	if appCompact == nil {
+		CaptureException(
+			err,
+			WithTag("feature", featureName),
+		)
+		return
+	}
+	CaptureException(
+		err,
+		WithTag("feature", featureName),
+		WithTag("app-platform-version", appCompact.PlatformVersion),
+		WithContexts(map[string]interface{}{
+			"app": map[string]interface{}{
+				"name": appCompact.Name,
+			},
+			"organization": map[string]interface{}{
+				"slug": appCompact.Organization.Slug,
+			},
+		}),
+	)
 }
 
 // Recover records the given panic to sentry.

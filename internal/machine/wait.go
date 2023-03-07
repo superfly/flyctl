@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/jpillora/backoff"
@@ -35,15 +36,21 @@ func WaitForStartOrStop(ctx context.Context, machine *api.Machine, action string
 	}
 	for {
 		err := flapsClient.Wait(waitCtx, machine, waitOnAction, 60*time.Second)
-		switch {
-		case errors.Is(err, context.Canceled):
-			return err
-		case errors.Is(err, context.DeadlineExceeded):
-			return fmt.Errorf("timeout reached waiting for machine to %s %w", waitOnAction, err)
-		case err != nil:
-			time.Sleep(b.Duration())
-			continue
+		if err == nil {
+			return nil
 		}
-		return nil
+
+		switch {
+		case errors.Is(waitCtx.Err(), context.Canceled):
+			return err
+		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
+			return fmt.Errorf("timeout reached waiting for machine to %s %w", waitOnAction, err)
+		default:
+			var flapsErr *flaps.FlapsError
+			if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode == http.StatusBadRequest {
+				return fmt.Errorf("failed waiting for machine: %w", err)
+			}
+			time.Sleep(b.Duration())
+		}
 	}
 }

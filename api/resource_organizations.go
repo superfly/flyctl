@@ -1,6 +1,11 @@
 package api
 
-import "context"
+import (
+	"context"
+	"fmt"
+
+	"github.com/superfly/flyctl/gql"
+)
 
 type OrganizationType string
 
@@ -159,6 +164,36 @@ func (c *Client) CreateOrganization(ctx context.Context, organizationname string
 	return &data.CreateOrganization.Organization, nil
 }
 
+func (c *Client) CreateOrganizationWithAppsV2DefaultOn(ctx context.Context, organizationname string) (*Organization, error) {
+	query := `
+		mutation($input: CreateOrganizationInput!) {
+			createOrganization(input: $input) {
+			    organization {
+					id
+					name
+					slug
+					type
+					viewerRole
+				  }
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("input", map[string]interface{}{
+		"name":            organizationname,
+		"appsV2DefaultOn": true,
+	})
+
+	data, err := c.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.CreateOrganization.Organization, nil
+}
+
 func (c *Client) DeleteOrganization(ctx context.Context, id string) (deletedid string, err error) {
 	query := `
 	mutation($input: DeleteOrganizationInput!) {
@@ -276,4 +311,31 @@ func (c *Client) UpdateRemoteBuilder(ctx context.Context, orgName string, image 
 	}
 
 	return &data.UpdateRemoteBuilder.Organization, nil
+}
+
+const appsV2DefaultOnSettingsKey = "apps_v2_default_on"
+
+func (c *Client) GetAppsV2DefaultOnForOrg(ctx context.Context, orgSlug string) (bool, error) {
+	_ = `# @genqlient
+	query GetOrgSettings($orgSlug:String!) {
+		organization(slug:$orgSlug) {
+			settings
+		}
+	}
+	`
+	resp, err := gql.GetOrgSettings(ctx, c.GenqClient, orgSlug)
+	if err != nil {
+		return false, err
+	}
+	settingsMap, err := InterfaceToMapOfStringInterface(resp.Organization.Settings)
+	if err != nil {
+		return false, fmt.Errorf("failed to convert settings from to map with string keys error: %w original interface: %v", err, resp.Organization.Settings)
+	}
+	if val, present := settingsMap[appsV2DefaultOnSettingsKey]; !present {
+		return false, nil
+	} else if appsV2DefaultOn, ok := val.(bool); !ok {
+		return false, fmt.Errorf("failed to convert '%v' to boolean value for %s org setting", val, appsV2DefaultOnSettingsKey)
+	} else {
+		return appsV2DefaultOn, nil
+	}
 }

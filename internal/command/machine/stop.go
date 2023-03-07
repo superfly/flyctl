@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
@@ -57,7 +57,7 @@ func runMachineStop(ctx context.Context) (err error) {
 
 func Stop(ctx context.Context, machineID string) (err error) {
 	var (
-		appName = app.NameFromContext(ctx)
+		appName = appconfig.NameFromContext(ctx)
 	)
 
 	machineStopInput := api.StopMachineInput{

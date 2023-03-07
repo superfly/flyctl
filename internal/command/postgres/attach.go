@@ -12,7 +12,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
@@ -27,7 +27,7 @@ type AttachParams struct {
 	PgAppName    string
 	DbUser       string
 	VariableName string
-	Superuser    bool
+	SuperUser    bool
 	Force        bool
 }
 
@@ -60,6 +60,11 @@ func newAttach() *cobra.Command {
 			Default:     "DATABASE_URL",
 			Description: "The environment variable name that will be added to the consuming app. ",
 		},
+		flag.Bool{
+			Name:        "superuser",
+			Default:     true,
+			Description: "Grants attached user superuser privileges",
+		},
 		flag.Yes(),
 	)
 
@@ -69,7 +74,7 @@ func newAttach() *cobra.Command {
 func runAttach(ctx context.Context) error {
 	var (
 		pgAppName = flag.FirstArg(ctx)
-		appName   = app.NameFromContext(ctx)
+		appName   = appconfig.NameFromContext(ctx)
 		client    = client.FromContext(ctx).API()
 	)
 
@@ -100,7 +105,7 @@ func runAttach(ctx context.Context) error {
 		DbUser:       flag.GetString(ctx, "database-user"),
 		VariableName: flag.GetString(ctx, "variable-name"),
 		Force:        flag.GetBool(ctx, "yes"),
-		Superuser:    true, // Default for PG's running Stolon
+		SuperUser:    flag.GetBool(ctx, "superuser"),
 	}
 
 	pgAppFull, err := client.GetApp(ctx, pgAppName)
@@ -236,11 +241,6 @@ func machineAttachCluster(ctx context.Context, params AttachParams, flycast *str
 		return err
 	}
 
-	if IsFlex(leader) {
-		// TODO - Make this configurable
-		params.Superuser = false
-	}
-
 	return runAttachCluster(ctx, leader.PrivateIP, params, flycast)
 }
 
@@ -256,7 +256,7 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams,
 		dbUser    = params.DbUser
 		varName   = params.VariableName
 		force     = params.Force
-		superuser = params.Superuser
+		superuser = params.SuperUser
 	)
 
 	if dbName == "" {
@@ -364,8 +364,8 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams,
 	)
 	if flycast != nil {
 		connectionString = fmt.Sprintf(
-			"postgres://%s:%s@[%s]:5432/%s?sslmode=disable",
-			*input.DatabaseUser, pwd, *flycast, *input.DatabaseName,
+			"postgres://%s:%s@%s.flycast:5432/%s?sslmode=disable",
+			*input.DatabaseUser, pwd, input.PostgresClusterAppID, *input.DatabaseName,
 		)
 	}
 	s := map[string]string{}

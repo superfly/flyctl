@@ -246,16 +246,25 @@ type MachineGuest struct {
 }
 
 const (
-	MEMORY_MB_PER_SHARED_CPU = 256
-	MEMORY_MB_PER_CPU        = 2048
+	MIN_MEMORY_MB_PER_SHARED_CPU = 256
+	MIN_MEMORY_MB_PER_CPU        = 2048
+
+	MAX_MEMORY_MB_PER_SHARED_CPU = 2048
+	MAX_MEMORY_MB_PER_CPU        = 8192
 )
 
 // TODO - Determine if we want allocate max memory allocation, or minimum per # cpus.
 var MachinePresets map[string]*MachineGuest = map[string]*MachineGuest{
-	"shared-cpu-1x": {CPUKind: "shared", CPUs: 1, MemoryMB: 1 * MEMORY_MB_PER_SHARED_CPU},
-	"shared-cpu-2x": {CPUKind: "shared", CPUs: 2, MemoryMB: 2 * MEMORY_MB_PER_SHARED_CPU},
-	"shared-cpu-4x": {CPUKind: "shared", CPUs: 4, MemoryMB: 4 * MEMORY_MB_PER_SHARED_CPU},
-	"shared-cpu-8x": {CPUKind: "shared", CPUs: 8, MemoryMB: 8 * MEMORY_MB_PER_SHARED_CPU},
+	"shared-cpu-1x": {CPUKind: "shared", CPUs: 1, MemoryMB: 1 * MIN_MEMORY_MB_PER_SHARED_CPU},
+	"shared-cpu-2x": {CPUKind: "shared", CPUs: 2, MemoryMB: 2 * MIN_MEMORY_MB_PER_SHARED_CPU},
+	"shared-cpu-4x": {CPUKind: "shared", CPUs: 4, MemoryMB: 4 * MIN_MEMORY_MB_PER_SHARED_CPU},
+	"shared-cpu-8x": {CPUKind: "shared", CPUs: 8, MemoryMB: 8 * MIN_MEMORY_MB_PER_SHARED_CPU},
+
+	"performance-1x":  {CPUKind: "performance", CPUs: 1, MemoryMB: 1 * MIN_MEMORY_MB_PER_CPU},
+	"performance-2x":  {CPUKind: "performance", CPUs: 2, MemoryMB: 2 * MIN_MEMORY_MB_PER_CPU},
+	"performance-4x":  {CPUKind: "performance", CPUs: 4, MemoryMB: 4 * MIN_MEMORY_MB_PER_CPU},
+	"performance-8x":  {CPUKind: "performance", CPUs: 8, MemoryMB: 8 * MIN_MEMORY_MB_PER_CPU},
+	"performance-16x": {CPUKind: "performance", CPUs: 16, MemoryMB: 16 * MIN_MEMORY_MB_PER_CPU},
 }
 
 type MachineMetrics struct {
@@ -268,6 +277,7 @@ type MachineCheck struct {
 	Type              *string             `json:"type,omitempty"`
 	Interval          *Duration           `json:"interval,omitempty"`
 	Timeout           *Duration           `json:"timeout,omitempty"`
+	GracePeriod       *Duration           `json:"grace_period,omitempty"`
 	HTTPMethod        *string             `json:"method,omitempty"`
 	HTTPPath          *string             `json:"path,omitempty"`
 	HTTPProtocol      *string             `json:"protocol,omitempty"`
@@ -358,22 +368,23 @@ type MachineServiceConcurrency struct {
 }
 
 type MachineConfig struct {
-	Env         map[string]string       `json:"env,omitempty"`
-	Init        MachineInit             `json:"init,omitempty"`
-	Processes   []MachineProcess        `json:"processes,omitempty"`
-	Image       string                  `json:"image,omitempty"`
-	Metadata    map[string]string       `json:"metadata,omitempty"`
-	Mounts      []MachineMount          `json:"mounts,omitempty"`
-	Restart     MachineRestart          `json:"restart,omitempty"`
-	Services    []MachineService        `json:"services,omitempty"`
-	VMSize      string                  `json:"size,omitempty"`
-	Guest       *MachineGuest           `json:"guest,omitempty"`
-	Metrics     *MachineMetrics         `json:"metrics,omitempty"`
-	Schedule    string                  `json:"schedule,omitempty"`
-	Checks      map[string]MachineCheck `json:"checks,omitempty"`
-	AutoDestroy bool                    `json:"auto_destroy,omitempty"`
-	DNS         *DNSConfig              `json:"dns,omitempty"`
-	Statics     []*Static               `json:"statics,omitempty"`
+	Env                     map[string]string       `json:"env,omitempty"`
+	Init                    MachineInit             `json:"init,omitempty"`
+	Processes               []MachineProcess        `json:"processes,omitempty"`
+	Image                   string                  `json:"image,omitempty"`
+	Metadata                map[string]string       `json:"metadata,omitempty"`
+	Mounts                  []MachineMount          `json:"mounts,omitempty"`
+	Restart                 MachineRestart          `json:"restart,omitempty"`
+	Services                []MachineService        `json:"services,omitempty"`
+	VMSize                  string                  `json:"size,omitempty"`
+	Guest                   *MachineGuest           `json:"guest,omitempty"`
+	Metrics                 *MachineMetrics         `json:"metrics,omitempty"`
+	Schedule                string                  `json:"schedule,omitempty"`
+	Checks                  map[string]MachineCheck `json:"checks,omitempty"`
+	AutoDestroy             bool                    `json:"auto_destroy,omitempty"`
+	DNS                     *DNSConfig              `json:"dns,omitempty"`
+	Statics                 []*Static               `json:"statics,omitempty"`
+	DisableMachineAutostart bool                    `json:"disable_machine_autostart,omitempty"`
 }
 
 type Static struct {

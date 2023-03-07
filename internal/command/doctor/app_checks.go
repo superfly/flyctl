@@ -14,7 +14,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/state"
@@ -29,12 +29,12 @@ type AppChecker struct {
 	ctx        context.Context
 	app        *api.AppCompact
 	workDir    string
-	appConfig  *app.Config
+	appConfig  *appconfig.Config
 	apiClient  *api.Client
 }
 
 func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorScheme) *AppChecker {
-	appName := app.NameFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
 	if appName == "" {
 		if !jsonOutput {
 			fmt.Println("No app provided; skipping app specific checks")
@@ -75,7 +75,7 @@ func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorS
 	}
 
 	ac.app = appCompact
-	ac.appConfig = app.ConfigFromContext(ctx)
+	ac.appConfig = appconfig.ConfigFromContext(ctx)
 	return ac
 }
 
@@ -97,8 +97,8 @@ func (ac *AppChecker) checkAll() map[string]string {
 	ipAddresses := ac.checkIpsAllocated()
 	ac.checkDnsRecords(ipAddresses)
 
-	relPath, err := filepath.Rel(ac.workDir, ac.appConfig.Path)
-	if err == nil && relPath == app.DefaultConfigFileName {
+	relPath, err := filepath.Rel(ac.workDir, ac.appConfig.ConfigFilePath())
+	if err == nil && relPath == appconfig.DefaultConfigFileName {
 		ac.lprint(nil, "\nBuild checks for %s:\n", ac.app.Name)
 		contextSize := ac.checkDockerContext()
 		// only show longer .dockerignore message when context size > 50MB
@@ -278,7 +278,7 @@ func (ac *AppChecker) checkDockerContext() int {
 	var dockerfile string
 	var err error
 	if dockerfile = ac.appConfig.Dockerfile(); dockerfile != "" {
-		dockerfile = filepath.Join(filepath.Dir(ac.appConfig.Path), dockerfile)
+		dockerfile = filepath.Join(filepath.Dir(ac.appConfig.ConfigFilePath()), dockerfile)
 	}
 	if dockerfile != "" {
 		dockerfile, err = filepath.Abs(dockerfile)

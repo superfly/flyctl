@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -60,8 +61,13 @@ func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Rel
 		return
 	}
 
+	if !app.Deployed {
+		fmt.Fprint(out, "Secrets are staged for the first deployment")
+		return
+	}
+
 	if app.PlatformVersion == "machines" {
-		ctx, err = command.LoadAppV2ConfigIfPresent(ctx)
+		ctx, err = command.LoadAppConfigIfPresent(ctx)
 		if err != nil {
 			return fmt.Errorf("error loading appv2 config: %w", err)
 		}
@@ -71,14 +77,14 @@ func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Rel
 			SkipHealthChecks: flag.GetBool(ctx, "detach"),
 		})
 		if err != nil {
+			sentry.CaptureExceptionWithAppInfo(err, "secrets", app)
 			return err
 		}
-		return md.DeployMachinesApp(ctx)
-	}
-
-	if !app.Deployed {
-		fmt.Fprint(out, "Secrets are staged for the first deployment")
-		return
+		err = md.DeployMachinesApp(ctx)
+		if err != nil {
+			sentry.CaptureExceptionWithAppInfo(err, "secrets", app)
+		}
+		return err
 	}
 
 	fmt.Fprintf(out, "Release v%d created\n", release.Version)

@@ -15,64 +15,60 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/gql"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/machine"
-	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
 
 const (
 	DefaultWaitTimeout = 120 * time.Second
-	DefaultLeaseTtl    = 30 * time.Minute
+	DefaultLeaseTtl    = 13 * time.Second
 )
 
-// FIXME: move a lot of this stuff to internal/machine pkg... maybe all of it?
 type MachineDeployment interface {
 	DeployMachinesApp(context.Context) error
 }
 
 type MachineDeploymentArgs struct {
-	AppCompact           *api.AppCompact
-	DeploymentImage      *imgsrc.DeploymentImage
-	Strategy             string
-	EnvFromFlags         []string
-	PrimaryRegionFlag    string
-	AutoConfirmMigration bool
-	BuildOnly            bool
-	SkipHealthChecks     bool
-	RestartOnly          bool
-	WaitTimeout          time.Duration
-	LeaseTimeout         time.Duration
+	AppCompact        *api.AppCompact
+	DeploymentImage   *imgsrc.DeploymentImage
+	Strategy          string
+	EnvFromFlags      []string
+	PrimaryRegionFlag string
+	BuildOnly         bool
+	SkipHealthChecks  bool
+	RestartOnly       bool
+	WaitTimeout       time.Duration
+	LeaseTimeout      time.Duration
 }
 
 type machineDeployment struct {
-	apiClient                  *api.Client
-	gqlClient                  graphql.Client
-	flapsClient                *flaps.Client
-	io                         *iostreams.IOStreams
-	colorize                   *iostreams.ColorScheme
-	app                        *api.AppCompact
-	appConfig                  *appv2.Config
-	processConfigs             map[string]*appv2.ProcessConfig
-	img                        *imgsrc.DeploymentImage
-	machineSet                 machine.MachineSet
-	releaseCommandMachine      machine.MachineSet
-	releaseCommand             []string
-	volumeDestination          string
-	volumes                    []api.Volume
-	strategy                   string
-	releaseId                  string
-	releaseVersion             int
-	autoConfirmAppsV2Migration bool
-	skipHealthChecks           bool
-	restartOnly                bool
-	waitTimeout                time.Duration
-	leaseTimeout               time.Duration
+	apiClient             *api.Client
+	gqlClient             graphql.Client
+	flapsClient           *flaps.Client
+	io                    *iostreams.IOStreams
+	colorize              *iostreams.ColorScheme
+	app                   *api.AppCompact
+	appConfig             *appconfig.Config
+	processConfigs        map[string]*appconfig.ProcessConfig
+	img                   *imgsrc.DeploymentImage
+	machineSet            machine.MachineSet
+	releaseCommandMachine machine.MachineSet
+	releaseCommand        []string
+	volumeDestination     string
+	volumes               []api.Volume
+	strategy              string
+	releaseId             string
+	releaseVersion        int
+	skipHealthChecks      bool
+	restartOnly           bool
+	waitTimeout           time.Duration
+	leaseTimeout          time.Duration
+	leaseDelayBetween     time.Duration
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
@@ -89,9 +85,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	err = appConfig.Validate()
 	if err != nil {
 		return nil, err
-	}
-	if len(appConfig.Statics) > 0 {
-		return nil, fmt.Errorf("error [statics] are not yet supported when deploying to machines; remove the [statics] section from fly.toml")
 	}
 	if args.AppCompact == nil {
 		return nil, fmt.Errorf("BUG: args.AppCompact should be set when calling this method")
@@ -115,8 +108,9 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if leaseTimeout == 0 {
 		leaseTimeout = DefaultLeaseTtl
 	}
+	leaseDelayBetween := (leaseTimeout - 1*time.Second) / 3
 	if waitTimeout != DefaultWaitTimeout || leaseTimeout != DefaultLeaseTtl || args.WaitTimeout == 0 || args.LeaseTimeout == 0 {
-		terminal.Infof("Using wait timeout: %s and lease timeout: %s\n", waitTimeout, leaseTimeout)
+		terminal.Infof("Using wait timeout: %s lease timeout: %s delay between lease refreshes: %s\n", waitTimeout, leaseTimeout, leaseDelayBetween)
 	}
 	processConfigs, err := appConfig.GetProcessConfigs()
 	if err != nil {
@@ -125,21 +119,21 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	io := iostreams.FromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 	md := &machineDeployment{
-		apiClient:                  apiClient,
-		gqlClient:                  apiClient.GenqClient,
-		flapsClient:                flapsClient,
-		io:                         io,
-		colorize:                   io.ColorScheme(),
-		app:                        args.AppCompact,
-		appConfig:                  appConfig,
-		processConfigs:             processConfigs,
-		img:                        args.DeploymentImage,
-		autoConfirmAppsV2Migration: args.AutoConfirmMigration,
-		skipHealthChecks:           args.SkipHealthChecks,
-		restartOnly:                args.RestartOnly,
-		waitTimeout:                waitTimeout,
-		leaseTimeout:               leaseTimeout,
-		releaseCommand:             releaseCmd,
+		apiClient:         apiClient,
+		gqlClient:         apiClient.GenqClient,
+		flapsClient:       flapsClient,
+		io:                io,
+		colorize:          io.ColorScheme(),
+		app:               args.AppCompact,
+		appConfig:         appConfig,
+		processConfigs:    processConfigs,
+		img:               args.DeploymentImage,
+		skipHealthChecks:  args.SkipHealthChecks,
+		restartOnly:       args.RestartOnly,
+		waitTimeout:       waitTimeout,
+		leaseTimeout:      leaseTimeout,
+		leaseDelayBetween: leaseDelayBetween,
+		releaseCommand:    releaseCmd,
 	}
 	err = md.setStrategy(args.Strategy)
 	if err != nil {
@@ -233,12 +227,13 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	md.machineSet.StartBackgroundLeaseRefresh(ctx, md.leaseTimeout, md.leaseDelayBetween)
 
 	// FIXME: handle deploy strategy: rolling, immediate, canary, bluegreen
 
 	fmt.Fprintf(md.io.Out, "Deploying %s app with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
 	for _, m := range md.machineSet.GetMachines() {
-		launchInput := md.resolveUpdatedMachineConfig(m.Machine())
+		launchInput := md.resolveUpdatedMachineConfig(m.Machine(), false)
 
 		fmt.Fprintf(md.io.ErrOut, "  Updating %s\n", md.colorize.Bold(m.FormattedMachineId()))
 		err := m.Update(ctx, *launchInput)
@@ -278,7 +273,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 
 func (md *machineDeployment) createOneMachine(ctx context.Context) error {
 	fmt.Fprintf(md.io.Out, "No machines in %s app, launching one new machine\n", md.colorize.Bold(md.app.Name))
-	launchInput := md.resolveUpdatedMachineConfig(nil)
+	launchInput := md.resolveUpdatedMachineConfig(nil, false)
 	newMachineRaw, err := md.flapsClient.Launch(ctx, *launchInput)
 	newMachine := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
 	if err != nil {
@@ -317,48 +312,21 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 
 	// migrate non-platform machines into fly platform
 	if len(machines) == 0 {
-		terminal.Debug("Found no machines that are part of Fly Apps Platform. Check for other machines...")
-		machines, err = md.flapsClient.ListActive(ctx)
+		terminal.Debug("Found no machines that are part of Fly Apps Platform. Checking for active machines...")
+		activeMachines, err := md.flapsClient.ListActive(ctx)
 		if err != nil {
 			return err
 		}
-		if len(machines) > 0 {
-			rows := make([][]string, 0)
-			for _, machine := range machines {
-				var volName string
-				if machine.Config != nil && len(machine.Config.Mounts) > 0 {
-					volName = machine.Config.Mounts[0].Volume
-				}
-
-				rows = append(rows, []string{
-					machine.ID,
-					machine.Name,
-					machine.State,
-					machine.Region,
-					machine.ImageRefWithVersion(),
-					machine.PrivateIP,
-					volName,
-					machine.CreatedAt,
-					machine.UpdatedAt,
-				})
-			}
-			terminal.Warnf("Found %d machines that are not part of the Fly Apps Platform:\n", len(machines))
-			_ = render.Table(iostreams.FromContext(ctx).Out, fmt.Sprintf("%s machines", md.app.Name), rows, "ID", "Name", "State", "Region", "Image", "IP Address", "Volume", "Created", "Last Updated")
-			if !md.autoConfirmAppsV2Migration {
-				switch confirmed, err := prompt.Confirmf(ctx, "Migrate %d existing machines into Fly Apps Platform?", len(machines)); {
-				case err == nil:
-					if !confirmed {
-						terminal.Info("Skipping machines migration to Fly Apps Platform and the deployment")
-						md.machineSet = machine.NewMachineSet(md.flapsClient, md.io, nil)
-						return nil
-					}
-				case prompt.IsNonInteractive(err):
-					return prompt.NonInteractiveError("not running interactively, use --auto-confirm flag to confirm")
-				default:
-					return err
-				}
-			}
-			terminal.Infof("Migrating %d machines to the Fly Apps Platform\n", len(machines))
+		if len(activeMachines) > 0 {
+			return fmt.Errorf(
+				"found %d machines that are unmanaged. `fly deploy` only updates machines with %s=%s in their metadata. Use `fly machine list` to list machines and `fly machine update --metadata %s=%s` to update individual machines with the metadata. Once done, `fly deploy` will update machines with the metadata based on your %s app configuration",
+				len(activeMachines),
+				api.MachineConfigMetadataKeyFlyPlatformVersion,
+				api.MachineFlyPlatformVersion2,
+				api.MachineConfigMetadataKeyFlyPlatformVersion,
+				api.MachineFlyPlatformVersion2,
+				appconfig.DefaultConfigFileName,
+			)
 		}
 	}
 
@@ -373,24 +341,15 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 
 func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context) error {
 	if md.releaseCommandMachine.IsEmpty() {
-		err := md.createReleaseCommandMachine(ctx)
-		if err != nil {
-			return err
-		}
+		return md.createReleaseCommandMachine(ctx)
 	} else {
-		err := md.updateReleaseCommandMachine(ctx)
-		if err != nil {
-			return err
-		}
+		return md.updateReleaseCommandMachine(ctx)
 	}
-	return nil
 }
 
 func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *api.LaunchMachineInput) *api.LaunchMachineInput {
 	launchInput.Config.Init.Cmd = md.releaseCommand
 	launchInput.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = api.MachineProcessGroupFlyAppReleaseCommand
-	launchInput.Config.Services = nil
-	launchInput.Config.Checks = nil
 	launchInput.Config.Restart = api.MachineRestart{
 		Policy: api.MachineRestartPolicyNo,
 	}
@@ -409,8 +368,7 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 	if len(md.releaseCommand) == 0 || !md.releaseCommandMachine.IsEmpty() {
 		return nil
 	}
-	launchInput := md.resolveUpdatedMachineConfig(nil)
-	launchInput = md.configureLaunchInputForReleaseCommand(launchInput)
+	launchInput := md.resolveUpdatedMachineConfig(nil, true)
 	releaseCmdMachine, err := md.flapsClient.Launch(ctx, *launchInput)
 	if err != nil {
 		return fmt.Errorf("error creating a release_command machine: %w", err)
@@ -433,8 +391,7 @@ func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) er
 	if err != nil {
 		return err
 	}
-	updatedConfig := md.resolveUpdatedMachineConfig(releaseCmdMachine.Machine())
-	updatedConfig = md.configureLaunchInputForReleaseCommand(updatedConfig)
+	updatedConfig := md.resolveUpdatedMachineConfig(releaseCmdMachine.Machine(), true)
 	err = md.releaseCommandMachine.AcquireLeases(ctx, md.leaseTimeout)
 	defer func() {
 		_ = md.releaseCommandMachine.ReleaseLeases(ctx)
@@ -575,49 +532,61 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 	return nil
 }
 
-func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Machine) *api.LaunchMachineInput {
+func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Machine, forReleaseCommand bool) *api.LaunchMachineInput {
 	if origMachineRaw == nil {
 		origMachineRaw = &api.Machine{
+			Region: md.appConfig.PrimaryRegion,
 			Config: &api.MachineConfig{},
 		}
 	}
-	machineConf := &api.MachineConfig{}
-	if md.restartOnly {
-		machineConf = origMachineRaw.Config
-	}
+
 	launchInput := &api.LaunchMachineInput{
 		ID:      origMachineRaw.ID,
 		AppID:   md.app.Name,
 		OrgSlug: md.app.Organization.ID,
-		Config:  machineConf,
+		Config:  lo.Ternary(md.restartOnly, origMachineRaw.Config, &api.MachineConfig{}),
 		Region:  origMachineRaw.Region,
 	}
+
 	launchInput.Config.Metadata = md.defaultMachineMetadata()
-	if origMachineRaw.Config.Metadata != nil {
-		for k, v := range origMachineRaw.Config.Metadata {
-			if !isFlyAppsPlatformMetadata(k) {
-				launchInput.Config.Metadata[k] = v
-			}
+	for k, v := range origMachineRaw.Config.Metadata {
+		if !isFlyAppsPlatformMetadata(k) {
+			launchInput.Config.Metadata[k] = v
 		}
 	}
+
+	// Stop here If the machine is restarting
 	if md.restartOnly {
 		return launchInput
 	}
 
 	launchInput.Config.Image = md.img.Tag
-	launchInput.Config.Metrics = md.appConfig.Metrics
 	launchInput.Config.Restart = origMachineRaw.Config.Restart
-	launchInput.Config.Env = make(map[string]string)
-	for k, v := range md.appConfig.Env {
-		launchInput.Config.Env[k] = v
-	}
+	launchInput.Config.Guest = origMachineRaw.Config.Guest
+	launchInput.Config.Init = origMachineRaw.Config.Init
+	launchInput.Config.Env = lo.Assign(md.appConfig.Env)
+
 	if launchInput.Config.Env["PRIMARY_REGION"] == "" && origMachineRaw.Config.Env["PRIMARY_REGION"] != "" {
 		launchInput.Config.Env["PRIMARY_REGION"] = origMachineRaw.Config.Env["PRIMARY_REGION"]
 	}
 
-	if origMachineRaw.Config.Mounts != nil {
-		launchInput.Config.Mounts = origMachineRaw.Config.Mounts
-	} else if md.appConfig.Mounts != nil {
+	// Stop here If the machine is for release command
+	if forReleaseCommand {
+		return md.configureLaunchInputForReleaseCommand(launchInput)
+	}
+
+	// Anything below this point doesn't apply to machines created to run ReleaseCommand
+	launchInput.Config.Metrics = md.appConfig.Metrics
+
+	for _, s := range md.appConfig.Statics {
+		launchInput.Config.Statics = append(launchInput.Config.Statics, &api.Static{
+			GuestPath: s.GuestPath,
+			UrlPrefix: s.UrlPrefix,
+		})
+	}
+
+	launchInput.Config.Mounts = origMachineRaw.Config.Mounts
+	if launchInput.Config.Mounts == nil && md.appConfig.Mounts != nil {
 		launchInput.Config.Mounts = []api.MachineMount{{
 			Path:   md.volumeDestination,
 			Volume: md.volumes[0].ID,
@@ -629,19 +598,17 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 		terminal.Warnf("Updating the mount path for volume %s on machine %s from %s to %s due to fly.toml [mounts] destination value\n", currentMount.Volume, origMachineRaw.ID, currentMount.Path, md.volumeDestination)
 		launchInput.Config.Mounts[0].Path = md.volumeDestination
 	}
-	if origMachineRaw.Config.Guest != nil {
-		launchInput.Config.Guest = origMachineRaw.Config.Guest
-	}
-	launchInput.Config.Init = origMachineRaw.Config.Init
-	processGroup := origMachineRaw.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
+
+	processGroup := launchInput.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
 	if processGroup == "" {
 		processGroup = api.MachineProcessGroupApp
 	}
 	if processConfig, ok := md.processConfigs[processGroup]; ok {
 		launchInput.Config.Services = processConfig.Services
-		launchInput.Config.Init.Cmd = processConfig.Cmd
 		launchInput.Config.Checks = processConfig.Checks
+		launchInput.Config.Init.Cmd = lo.Ternary(len(processConfig.Cmd) > 0, processConfig.Cmd, nil)
 	}
+
 	return launchInput
 }
 
@@ -701,10 +668,10 @@ func (md *machineDeployment) logClearLinesAbove(count int) {
 	}
 }
 
-func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion string) (cfg *appv2.Config, err error) {
+func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion string) (cfg *appconfig.Config, err error) {
 	client := client.FromContext(ctx).API()
-	appNameFromContext := appv2.NameFromContext(ctx)
-	if cfg = appv2.ConfigFromContext(ctx); cfg == nil {
+	appNameFromContext := appconfig.NameFromContext(ctx)
+	if cfg = appconfig.ConfigFromContext(ctx); cfg == nil {
 		logger := logger.FromContext(ctx)
 		logger.Debug("no local app config detected for machines deploy; fetching from backend ...")
 
@@ -719,7 +686,7 @@ func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, p
 			return nil, err
 		}
 
-		cfg, err = appv2.FromDefinition(&apiConfig.Definition)
+		cfg, err = appconfig.FromDefinition(&apiConfig.Definition)
 		if err != nil {
 			return nil, err
 		}
@@ -736,6 +703,7 @@ func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, p
 		cfg.SetEnvVariables(parsedEnv)
 	}
 
+	// deleting this block will result in machines not being deployed in the user selected region
 	if primaryRegion != "" {
 		cfg.PrimaryRegion = primaryRegion
 	}

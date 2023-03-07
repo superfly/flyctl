@@ -11,8 +11,10 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/cavaliergopher/grab/v3"
 	"github.com/logrusorgru/aurora"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
@@ -21,8 +23,7 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/app"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
@@ -91,7 +92,14 @@ func New() (cmd *cobra.Command) {
 func run(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 	client := client.FromContext(ctx).API()
+	colorize := io.ColorScheme()
 	workingDir := flag.GetString(ctx, "path")
+
+	deployArgs := deploy.DeployWithConfigArgs{
+		ForceNomad:    flag.GetBool(ctx, "force-nomad"),
+		ForceMachines: flag.GetBool(ctx, "force-machines"),
+		ForceYes:      flag.GetBool(ctx, "now"),
+	}
 
 	// Determine the working directory
 	if absDir, err := filepath.Abs(workingDir); err == nil {
@@ -99,11 +107,11 @@ func run(ctx context.Context) (err error) {
 	}
 
 	var importedConfig bool
-	appConfig := app.NewConfig()
+	appConfig := appconfig.NewConfig()
 
 	configFilePath := filepath.Join(workingDir, "fly.toml")
 	if exists, _ := flyctl.ConfigFileExistsAtPath(configFilePath); exists {
-		cfg, err := app.LoadConfig(ctx, configFilePath, "nomad")
+		cfg, err := appconfig.LoadConfig(configFilePath)
 		if err != nil {
 			return err
 		}
@@ -114,13 +122,8 @@ func run(ctx context.Context) (err error) {
 				return err
 			} else if deployExisting {
 				fmt.Fprintln(io.Out, "App is not running, deploy...")
-				ctx = app.WithName(ctx, cfg.AppName)
-				ctx = appv2.WithName(ctx, cfg.AppName)
-				return deploy.DeployWithConfig(ctx, cfg, deploy.DeployWithConfigArgs{
-					ForceNomad:    flag.GetBool(ctx, "force-nomad"),
-					ForceMachines: flag.GetBool(ctx, "force-machines"),
-					ForceYes:      flag.GetBool(ctx, "now"),
-				})
+				ctx = appconfig.WithName(ctx, cfg.AppName)
+				return deploy.DeployWithConfig(ctx, cfg, deployArgs)
 			}
 		} else {
 			fmt.Fprintln(io.Out, "An existing fly.toml file was found")
@@ -158,13 +161,32 @@ func run(ctx context.Context) (err error) {
 
 	if img := flag.GetString(ctx, "image"); img != "" {
 		fmt.Fprintln(io.Out, "Using image", img)
-		appConfig.Build = &app.Build{
+		appConfig.Build = &appconfig.Build{
 			Image: img,
 		}
 	} else if dockerfile := flag.GetString(ctx, "dockerfile"); dockerfile != "" {
-		fmt.Fprintln(io.Out, "Using dockerfile", dockerfile)
-		appConfig.Build = &app.Build{
-			Dockerfile: dockerfile,
+		if strings.HasPrefix(dockerfile, "http://") || strings.HasPrefix(dockerfile, "https://") {
+			fmt.Fprintln(io.Out, "Downloading dockerfile", dockerfile)
+			resp, err := grab.Get("Dockerfile", dockerfile)
+			if err != nil {
+				return err
+			} else {
+				appConfig.Build = &appconfig.Build{
+					Dockerfile: resp.Filename,
+				}
+
+				// scan Dockerfile for port
+				if si, err := scanner.Scan(workingDir, config); err != nil {
+					return err
+				} else {
+					srcInfo = si
+				}
+			}
+		} else {
+			fmt.Fprintln(io.Out, "Using dockerfile", dockerfile)
+			appConfig.Build = &appconfig.Build{
+				Dockerfile: dockerfile,
+			}
 		}
 	} else {
 		fmt.Fprintln(io.Out, "Scanning source code")
@@ -196,7 +218,7 @@ func run(ctx context.Context) (err error) {
 					fmt.Fprintln(io.Out, "\tBuildpacks:", strings.Join(srcInfo.Buildpacks, " "))
 				}
 
-				appConfig.Build = &app.Build{
+				appConfig.Build = &appconfig.Build{
 					Builder:    srcInfo.Builder,
 					Buildpacks: srcInfo.Buildpacks,
 				}
@@ -264,20 +286,30 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
+	shouldUseMachines, err := shouldAppUseMachinesPlatform(ctx, client, org.Slug)
+	if err != nil {
+		return err
+	}
+
 	input := api.CreateAppInput{
 		Name:            appConfig.AppName,
 		OrganizationID:  org.ID,
 		PreferredRegion: &region.Code,
+		Machines:        shouldUseMachines,
 	}
 
 	createdApp, err := client.CreateApp(ctx, input)
 	if err != nil {
 		return err
 	}
-	ctx = app.WithName(ctx, createdApp.Name)
-	ctx = appv2.WithName(ctx, createdApp.Name)
+	ctx = appconfig.WithName(ctx, createdApp.Name)
 	if !importedConfig {
-		appConfig.Definition = createdApp.Config.Definition
+		newCfg, err := appconfig.FromDefinition(&createdApp.Config.Definition)
+		if err != nil {
+			return fmt.Errorf("Launch failed to get new app configuration: %w", err)
+		}
+		newCfg.Build = appConfig.Build
+		appConfig = newCfg
 	}
 
 	appConfig.AppName = createdApp.Name
@@ -350,13 +382,68 @@ func run(ctx context.Context) (err error) {
 	if !(srcInfo == nil || srcInfo.SkipDatabase || flag.GetBool(ctx, "no-deploy") || flag.GetBool(ctx, "now")) {
 		confirmPg, err := prompt.Confirm(ctx, "Would you like to set up a Postgresql database now?")
 		if confirmPg && err == nil {
-			LaunchPostgres(ctx, appConfig.AppName, org, region)
+			db_app_name := fmt.Sprintf("%s-db", appConfig.AppName)
+			should_attach_db := false
+
+			if apps, err := client.GetApps(ctx, nil); err == nil {
+				for _, app := range apps {
+					if app.Name == db_app_name {
+						msg := fmt.Sprintf("We found an existing Postgresql database with the name %s. Would you like to attach it to your app?", app.Name)
+						confirmAttachPg, err := prompt.Confirm(ctx, msg)
+
+						if confirmAttachPg && err == nil {
+							should_attach_db = true
+						}
+
+					}
+				}
+			}
+
 			options["postgresql"] = true
+
+			if should_attach_db {
+				// If we try to attach to a PG cluster with the usual username
+				// format, we'll get an error (since that username already exists)
+				// by generating a new username with a sufficiently random number
+				// (in this case, the nanon second that the database is being attached)
+				current_time := time.Now().Nanosecond()
+				db_user := fmt.Sprintf("%s-%d", db_app_name, current_time)
+
+				err = postgres.AttachCluster(ctx, postgres.AttachParams{
+					PgAppName: db_app_name,
+					AppName:   appConfig.AppName,
+					DbUser:    db_user,
+				})
+
+				if err != nil {
+					msg := `Failed attaching %s to the Postgres cluster %s: %w.\nTry attaching manually with 'fly postgres attach --app %s %s'\n`
+					fmt.Fprintf(io.Out, msg, appConfig.AppName, db_app_name, err, appConfig.AppName, db_app_name)
+
+				} else {
+					fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", db_app_name, appConfig.AppName)
+				}
+
+			} else {
+				err := LaunchPostgres(ctx, appConfig.AppName, org, region)
+				if err != nil {
+					const msg = "Error creating Postgresql database. Be warned that this may affect deploys"
+					fmt.Fprintln(io.Out, colorize.Red(msg))
+
+				}
+
+			}
+
 		}
 
 		confirmRedis, err := prompt.Confirm(ctx, "Would you like to set up an Upstash Redis database now?")
 		if confirmRedis && err == nil {
-			LaunchRedis(ctx, appConfig.AppName, org, region)
+			err := LaunchRedis(ctx, appConfig.AppName, org, region)
+			if err != nil {
+				const msg = "Error creating Redis database. Be warned that this may affect deploys"
+				fmt.Fprintln(io.Out, colorize.Red(msg))
+
+			}
+
 			options["redis"] = true
 		}
 
@@ -413,9 +500,9 @@ func run(ctx context.Context) (err error) {
 		}
 
 		if len(srcInfo.Statics) > 0 {
-			var appStatics []app.Static
+			var appStatics []appconfig.Static
 			for _, s := range srcInfo.Statics {
-				appStatics = append(appStatics, app.Static{
+				appStatics = append(appStatics, appconfig.Static{
 					GuestPath: s.GuestPath,
 					UrlPrefix: s.UrlPrefix,
 				})
@@ -424,9 +511,9 @@ func run(ctx context.Context) (err error) {
 		}
 
 		if len(srcInfo.Volumes) > 0 {
-			var appVolumes []app.Volume
+			var appVolumes []appconfig.Volume
 			for _, v := range srcInfo.Volumes {
-				appVolumes = append(appVolumes, app.Volume{
+				appVolumes = append(appVolumes, appconfig.Volume{
 					Source:      v.Source,
 					Destination: v.Destination,
 				})
@@ -463,7 +550,7 @@ func run(ctx context.Context) (err error) {
 
 		if len(srcInfo.BuildArgs) > 0 {
 			if appConfig.Build == nil {
-				appConfig.Build = &app.Build{}
+				appConfig.Build = &appconfig.Build{}
 			}
 			appConfig.Build.Args = srcInfo.BuildArgs
 		}
@@ -473,46 +560,40 @@ func run(ctx context.Context) (err error) {
 		appConfig.SetInternalPort(n)
 	}
 
-	// Finally, write the config
+	// Finally, determine whether we're using Machines and write the config
+	if deployArgs.ForceMachines {
+		if err := appConfig.SetMachinesPlatform(); err != nil {
+			return fmt.Errorf("Can not use configuration for Apps V2, check fly.toml: %w", err)
+		}
+		appConfig.PrimaryRegion = region.Code
+	}
+
 	if err := appConfig.WriteToDisk(ctx, configFilePath); err != nil {
 		return err
 	}
 
-	ctx = app.WithConfig(ctx, appConfig)
+	ctx = appconfig.WithConfig(ctx, appConfig)
 
 	if srcInfo == nil {
 		return nil
 	}
 
-	deployArgs := deploy.DeployWithConfigArgs{
-		ForceNomad:    flag.GetBool(ctx, "force-nomad"),
-		ForceMachines: flag.GetBool(ctx, "force-machines"),
-		ForceYes:      flag.GetBool(ctx, "now"),
-	}
-	var v2AppConfig *appv2.Config
-	if deployArgs.ForceMachines {
-		v2AppConfig, err = appv2.LoadConfig(configFilePath)
-		if err != nil {
-			return fmt.Errorf("invalid config: %w", err)
-		}
-		ctx = appv2.WithConfig(ctx, v2AppConfig)
-	}
 	if deployArgs.ForceMachines && !deployArgs.ForceYes {
-		if !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !flag.GetBool(ctx, "auto-confirm") && v2AppConfig.HasNonHttpAndHttpsStandardServices() {
-			hasUdpService := v2AppConfig.HasUdpService()
+		if !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !flag.GetBool(ctx, "auto-confirm") && appConfig.HasNonHttpAndHttpsStandardServices() {
+			hasUdpService := appConfig.HasUdpService()
 			ipStuffStr := "a dedicated ipv4 address"
 			if !hasUdpService {
 				ipStuffStr = "dedicated ipv4 and ipv6 addresses"
 			}
 			confirmDedicatedIp, err := prompt.Confirmf(ctx, "Would you like to allocate %s now?", ipStuffStr)
 			if confirmDedicatedIp && err == nil {
-				v4Dedicated, err := client.AllocateIPAddress(ctx, v2AppConfig.AppName, "v4", "", nil, "")
+				v4Dedicated, err := client.AllocateIPAddress(ctx, appConfig.AppName, "v4", "", nil, "")
 				if err != nil {
 					return err
 				}
 				fmt.Fprintf(io.Out, "Allocated dedicated ipv4: %s\n", v4Dedicated.Address)
 				if !hasUdpService {
-					v6Dedicated, err := client.AllocateIPAddress(ctx, v2AppConfig.AppName, "v6", "", nil, "")
+					v6Dedicated, err := client.AllocateIPAddress(ctx, appConfig.AppName, "v6", "", nil, "")
 					if err != nil {
 						return err
 					}
@@ -559,6 +640,19 @@ func run(ctx context.Context) (err error) {
 	}
 
 	return nil
+}
+
+func shouldAppUseMachinesPlatform(ctx context.Context, apiClient *api.Client, orgSlug string) (bool, error) {
+	if flag.GetBool(ctx, "force-machines") {
+		return true, nil
+	} else if flag.GetBool(ctx, "force-nomad") {
+		return false, nil
+	}
+	orgDefault, err := apiClient.GetAppsV2DefaultOnForOrg(ctx, orgSlug)
+	if err != nil {
+		return false, err
+	}
+	return orgDefault, nil
 }
 
 func execInitCommand(ctx context.Context, command scanner.InitCommand) (err error) {
@@ -772,7 +866,7 @@ func determineDockerIgnore(ctx context.Context, workingDir string) (err error) {
 	return
 }
 
-func LaunchPostgres(ctx context.Context, appName string, org *api.Organization, region *api.Region) {
+func LaunchPostgres(ctx context.Context, appName string, org *api.Organization, region *api.Region) error {
 	io := iostreams.FromContext(ctx)
 	clusterAppName := appName + "-db"
 	err := postgres.CreateCluster(ctx, org, region,
@@ -784,24 +878,27 @@ func LaunchPostgres(ctx context.Context, appName string, org *api.Organization, 
 		})
 
 	if err != nil {
-		fmt.Fprintf(io.Out, "Failed creating the Postgres cluster %s: %s", clusterAppName, err)
+		fmt.Fprintf(io.Out, "Failed creating the Postgres cluster %s: %s\n", clusterAppName, err)
 	} else {
 		err = postgres.AttachCluster(ctx, postgres.AttachParams{
 			PgAppName: clusterAppName,
 			AppName:   appName,
+			SuperUser: true,
 		})
 
 		if err != nil {
-			msg := `Failed attaching %s to the Postgres cluster %s: %w.\nTry attaching manually with 'fly postgres attach --app %s %s'`
+			msg := `Failed attaching %s to the Postgres cluster %s: %w.\nTry attaching manually with 'fly postgres attach --app %s %s'\n`
 			fmt.Fprintf(io.Out, msg, appName, clusterAppName, err, appName, clusterAppName)
 
 		} else {
 			fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", clusterAppName, appName)
 		}
 	}
+
+	return err
 }
 
-func LaunchRedis(ctx context.Context, appName string, org *api.Organization, region *api.Region) {
+func LaunchRedis(ctx context.Context, appName string, org *api.Organization, region *api.Region) error {
 	name := appName + "-redis"
 	db, err := redis.Create(ctx, org, name, region, "", true, false)
 
@@ -810,4 +907,6 @@ func LaunchRedis(ctx context.Context, appName string, org *api.Organization, reg
 	} else {
 		redis.AttachDatabase(ctx, db, appName)
 	}
+
+	return err
 }

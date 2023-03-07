@@ -24,7 +24,6 @@ var (
 	volumePath     = "/data"
 	duration10s, _ = time.ParseDuration("10s")
 	duration15s, _ = time.ParseDuration("15s")
-	duration1m, _  = time.ParseDuration("1m")
 	checkPathPg    = "/flycheck/pg"
 	checkPathRole  = "/flycheck/role"
 	checkPathVm    = "/flycheck/vm"
@@ -115,6 +114,12 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			machineConf.Image = imageRef
 		}
 
+		concurrency := &api.MachineServiceConcurrency{
+			Type:      "connections",
+			HardLimit: 1000,
+			SoftLimit: 1000,
+		}
+
 		if config.Manager == ReplicationManager {
 			var bouncerPort int = 5432
 			var pgPort int = 5433
@@ -131,7 +136,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 							ForceHttps: false,
 						},
 					},
-					Concurrency: nil,
+					Concurrency: concurrency,
 				},
 				{
 					Protocol:     "tcp",
@@ -145,7 +150,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 							ForceHttps: false,
 						},
 					},
-					Concurrency: nil,
+					Concurrency: concurrency,
 				},
 			}
 		}
@@ -224,7 +229,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	connStr := fmt.Sprintf("postgres://postgres:%s@%s.internal:5432\n", secrets["OPERATOR_PASSWORD"], config.AppName)
 
 	if config.Manager == ReplicationManager && addr != nil {
-		connStr = fmt.Sprintf("postgres://postgres:%s@[%s]:5432\n", secrets["OPERATOR_PASSWORD"], addr.Address)
+		connStr = fmt.Sprintf("postgres://postgres:%s@%s.flycast:5432\n", secrets["OPERATOR_PASSWORD"], config.AppName)
 	}
 
 	fmt.Fprintf(io.Out, "Postgres cluster %s created\n", config.AppName)
@@ -291,7 +296,7 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 			Port:     api.Pointer(5500),
 			Type:     api.Pointer("http"),
 			HTTPPath: &checkPathVm,
-			Interval: &api.Duration{Duration: duration1m},
+			Interval: &api.Duration{Duration: duration15s},
 			Timeout:  &api.Duration{Duration: duration10s},
 		},
 	}

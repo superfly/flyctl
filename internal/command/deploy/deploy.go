@@ -15,13 +15,13 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/internal/app"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/state"
 
 	"github.com/superfly/flyctl/client"
@@ -64,7 +64,7 @@ var CommonFlags = flag.Set{
 	},
 	flag.Int{
 		Name:        "lease-timeout",
-		Description: "Seconds to lease individual machines while running deployment. All machines are leased at the beginning and released at the end, so this needs to be as long as the entire deployment. flyctl releases leases in most cases.",
+		Description: "Seconds to lease individual machines while running deployment. All machines are leased at the beginning and released at the end. The lease is refreshed periodically for this same time, which is why it is short. flyctl releases leases in most cases.",
 		Default:     int(DefaultLeaseTtl.Seconds()),
 	},
 	flag.Bool{
@@ -124,27 +124,29 @@ type DeployWithConfigArgs struct {
 	ForceYes      bool
 }
 
-func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWithConfigArgs) (err error) {
+func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args DeployWithConfigArgs) (err error) {
 	apiClient := client.FromContext(ctx).API()
-	appNameFromContext := app.NameFromContext(ctx)
+	appNameFromContext := appconfig.NameFromContext(ctx)
 	appCompact, err := apiClient.GetAppCompact(ctx, appNameFromContext)
 	if err != nil {
 		return err
 	}
-	deployToMachines, err := useMachines(appConfig, appCompact, args)
+	deployToMachines, err := useMachines(ctx, appConfig, appCompact, args, apiClient)
 	if err != nil {
 		return err
+	}
+
+	if deployToMachines {
+		err := appConfig.EnsureV2Config()
+		if err != nil {
+			return fmt.Errorf("Can't deploy an invalid app config: %s", err)
+		}
 	}
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
 	img, err := determineImage(ctx, appConfig)
 	if err != nil {
 		return fmt.Errorf("failed to fetch an image or build from source: %w", err)
-	}
-
-	// Assign an empty map if nil so later assignments won't fail
-	if appConfig.Env == nil {
-		appConfig.Env = map[string]string{}
 	}
 
 	if flag.GetBuildOnly(ctx) {
@@ -154,31 +156,36 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 	var release *api.Release
 	var releaseCommand *api.ReleaseCommand
 
+	// Assign an empty map if nil so later assignments won't fail
 	if appConfig.PrimaryRegion != "" && appConfig.Env["PRIMARY_REGION"] == "" {
-		appConfig.Env["PRIMARY_REGION"] = appConfig.PrimaryRegion
+		appConfig.SetEnvVariable("PRIMARY_REGION", appConfig.PrimaryRegion)
 	}
 
 	if deployToMachines {
-		ctx, err = command.LoadAppV2ConfigIfPresent(ctx)
-		if err != nil {
-			return fmt.Errorf("error loading appv2 config: %w", err)
+		primaryRegion := appConfig.PrimaryRegion
+		if flag.GetString(ctx, flag.RegionName) != "" {
+			primaryRegion = flag.GetString(ctx, flag.RegionName)
 		}
 		md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
-			AppCompact:           appCompact,
-			DeploymentImage:      img,
-			Strategy:             flag.GetString(ctx, "strategy"),
-			EnvFromFlags:         flag.GetStringSlice(ctx, "env"),
-			PrimaryRegionFlag:    flag.GetString(ctx, flag.RegionName),
-			AutoConfirmMigration: flag.GetBool(ctx, "auto-confirm"),
-			BuildOnly:            flag.GetBuildOnly(ctx),
-			SkipHealthChecks:     flag.GetDetach(ctx),
-			WaitTimeout:          time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
-			LeaseTimeout:         time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
+			AppCompact:        appCompact,
+			DeploymentImage:   img,
+			Strategy:          flag.GetString(ctx, "strategy"),
+			EnvFromFlags:      flag.GetStringSlice(ctx, "env"),
+			PrimaryRegionFlag: primaryRegion,
+			BuildOnly:         flag.GetBuildOnly(ctx),
+			SkipHealthChecks:  flag.GetDetach(ctx),
+			WaitTimeout:       time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
+			LeaseTimeout:      time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
 		})
 		if err != nil {
+			sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
 			return err
 		}
-		return md.DeployMachinesApp(ctx)
+		err = md.DeployMachinesApp(ctx)
+		if err != nil {
+			sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
+		}
+		return err
 	}
 
 	release, releaseCommand, err = createRelease(ctx, appConfig, img)
@@ -204,7 +211,7 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 			return err
 		}
 
-		release, err = apiClient.GetAppRelease(ctx, appConfig.AppName, release.ID)
+		release, err = apiClient.GetAppReleaseNomad(ctx, appConfig.AppName, release.ID)
 		if err != nil {
 			return err
 		}
@@ -222,34 +229,30 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 	return err
 }
 
-func useMachines(appConfig *app.Config, appCompact *api.AppCompact, args DeployWithConfigArgs) (bool, error) {
+func useMachines(ctx context.Context, appConfig *appconfig.Config, appCompact *api.AppCompact, args DeployWithConfigArgs, apiClient *api.Client) (bool, error) {
+	appsV2DefaultOn, _ := apiClient.GetAppsV2DefaultOnForOrg(ctx, appCompact.Organization.Slug)
 	switch {
-	case appCompact.PlatformVersion == appv2.AppsV2Platform:
+	case !appCompact.Deployed && args.ForceNomad:
+		return false, nil
+	case !appCompact.Deployed && args.ForceMachines:
+		return true, nil
+	case !appCompact.Deployed && appCompact.PlatformVersion == appconfig.MachinesPlatform:
 		return true, nil
 	case appCompact.Deployed:
-		return appCompact.PlatformVersion == appv2.AppsV2Platform, nil
-	case args.ForceNomad:
-		return false, nil
-	case args.ForceMachines:
-		return true, nil
-	case len(appConfig.Statics) > 0:
-		// statics are not supported in Apps v2 yet
-		return false, nil
+		return appCompact.PlatformVersion == appconfig.MachinesPlatform, nil
 	case args.ForceYes:
-		// if running automated, stay on nomad platform for now
-		return false, nil
+		return appsV2DefaultOn, nil
 	default:
-		// choose nomad for now if not otherwise specified
-		return false, nil
+		return appsV2DefaultOn, nil
 	}
 }
 
 // determineAppConfig fetches the app config from a local file, or in its absence, from the API
-func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
+func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) {
 	tb := render.NewTextBlock(ctx, "Verifying app config")
 	client := client.FromContext(ctx).API()
-	appNameFromContext := app.NameFromContext(ctx)
-	if cfg = app.ConfigFromContext(ctx); cfg == nil {
+	appNameFromContext := appconfig.NameFromContext(ctx)
+	if cfg = appconfig.ConfigFromContext(ctx); cfg == nil {
 		logger := logger.FromContext(ctx)
 		logger.Debug("no local app config detected; fetching from backend ...")
 
@@ -264,21 +267,25 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 			return nil, err
 		}
 
-		cfg = &app.Config{
-			Definition: apiConfig.Definition,
+		cfg, err = appconfig.FromDefinition(&apiConfig.Definition)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to convert definition into config: %w", err)
 		}
 
 		cfg.AppName = basicApp.Name
-		cfg.SetPlatformVersion(basicApp.PlatformVersion)
+
+		if err := cfg.SetPlatformVersion(basicApp.PlatformVersion); err != nil {
+			return cfg, err
+		}
 	} else {
-		parsedCfg, err := client.ParseConfig(ctx, appNameFromContext, cfg.Definition)
+		parsedCfg, err := client.ParseConfig(ctx, appNameFromContext, cfg.SanitizedDefinition())
 		if err != nil {
 			return nil, err
 		}
 		if !parsedCfg.Valid {
 			fmt.Println()
 			if len(parsedCfg.Errors) > 0 {
-				tb.Printf("\nConfiguration errors in %s:\n\n", cfg.Path)
+				tb.Printf("\nConfiguration errors in %s:\n\n", cfg.ConfigFilePath())
 			}
 			for _, e := range parsedCfg.Errors {
 				tb.Println("   ", aurora.Red("✘").String(), e)
@@ -314,7 +321,7 @@ func determineAppConfig(ctx context.Context) (cfg *app.Config, err error) {
 
 // determineImage picks the deployment strategy, builds the image and returns a
 // DeploymentImage struct
-func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.DeploymentImage, err error) {
+func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgsrc.DeploymentImage, err error) {
 	tb := render.NewTextBlock(ctx, "Building image")
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), flag.GetBool(ctx, "nixpacks"))
 
@@ -345,7 +352,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 
 	build := appConfig.Build
 	if build == nil {
-		build = new(app.Build)
+		build = new(appconfig.Build)
 	}
 
 	// We're building from source
@@ -408,7 +415,7 @@ func determineImage(ctx context.Context, appConfig *app.Config) (img *imgsrc.Dep
 
 // resolveDockerfilePath returns the absolute path to the Dockerfile
 // if one was specified in the app config or a command line argument
-func resolveDockerfilePath(ctx context.Context, appConfig *app.Config) (path string, err error) {
+func resolveDockerfilePath(ctx context.Context, appConfig *appconfig.Config) (path string, err error) {
 	defer func() {
 		if err == nil && path != "" {
 			path, err = filepath.Abs(path)
@@ -416,7 +423,7 @@ func resolveDockerfilePath(ctx context.Context, appConfig *app.Config) (path str
 	}()
 
 	if path = appConfig.Dockerfile(); path != "" {
-		path = filepath.Join(filepath.Dir(appConfig.Path), path)
+		path = filepath.Join(filepath.Dir(appConfig.ConfigFilePath()), path)
 	} else {
 		path = flag.GetString(ctx, "dockerfile")
 	}
@@ -426,7 +433,7 @@ func resolveDockerfilePath(ctx context.Context, appConfig *app.Config) (path str
 
 // resolveIgnorefilePath returns the absolute path to the Dockerfile
 // if one was specified in the app config or a command line argument
-func resolveIgnorefilePath(ctx context.Context, appConfig *app.Config) (path string, err error) {
+func resolveIgnorefilePath(ctx context.Context, appConfig *appconfig.Config) (path string, err error) {
 	defer func() {
 		if err == nil && path != "" {
 			path, err = filepath.Abs(path)
@@ -434,7 +441,7 @@ func resolveIgnorefilePath(ctx context.Context, appConfig *app.Config) (path str
 	}()
 
 	if path = appConfig.Ignorefile(); path != "" {
-		path = filepath.Join(filepath.Dir(appConfig.Path), path)
+		path = filepath.Join(filepath.Dir(appConfig.ConfigFilePath()), path)
 	} else {
 		path = flag.GetString(ctx, "ignorefile")
 	}
@@ -459,7 +466,7 @@ func mergeBuildArgs(ctx context.Context, args map[string]string) (map[string]str
 	return args, nil
 }
 
-func fetchImageRef(ctx context.Context, cfg *app.Config) (ref string, err error) {
+func fetchImageRef(ctx context.Context, cfg *appconfig.Config) (ref string, err error) {
 	if ref = flag.GetString(ctx, "image"); ref != "" {
 		return
 	}
@@ -473,7 +480,7 @@ func fetchImageRef(ctx context.Context, cfg *app.Config) (ref string, err error)
 	return ref, nil
 }
 
-func createRelease(ctx context.Context, appConfig *app.Config, img *imgsrc.DeploymentImage) (*api.Release, *api.ReleaseCommand, error) {
+func createRelease(ctx context.Context, appConfig *appconfig.Config, img *imgsrc.DeploymentImage) (*api.Release, *api.ReleaseCommand, error) {
 	tb := render.NewTextBlock(ctx, "Creating release")
 
 	input := api.DeployImageInput{
@@ -486,9 +493,7 @@ func createRelease(ctx context.Context, appConfig *app.Config, img *imgsrc.Deplo
 		input.Strategy = api.StringPointer(strings.ReplaceAll(strings.ToUpper(val), "-", "_"))
 	}
 
-	if len(appConfig.Definition) > 0 {
-		input.Definition = api.DefinitionPtr(appConfig.Definition)
-	}
+	input.Definition = api.DefinitionPtr(appConfig.SanitizedDefinition())
 
 	// Start deployment of the determined image
 	client := client.FromContext(ctx).API()

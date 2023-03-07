@@ -9,7 +9,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flypg"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/config"
@@ -61,7 +61,7 @@ func newListUsers() *cobra.Command {
 func runListUsers(ctx context.Context) error {
 	var (
 		client  = client.FromContext(ctx).API()
-		appName = app.NameFromContext(ctx)
+		appName = appconfig.NameFromContext(ctx)
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)

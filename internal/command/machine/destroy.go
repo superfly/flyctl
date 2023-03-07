@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
@@ -48,11 +48,11 @@ func newDestroy() *cobra.Command {
 
 func runMachineDestroy(ctx context.Context) (err error) {
 	var (
-		appName   = app.NameFromContext(ctx)
+		appName   = appconfig.NameFromContext(ctx)
 		out       = iostreams.FromContext(ctx).Out
 		machineID = flag.FirstArg(ctx)
 		input     = api.RemoveMachineInput{
-			AppID: app.NameFromContext(ctx),
+			AppID: appconfig.NameFromContext(ctx),
 			ID:    machineID,
 			Kill:  flag.GetBool(ctx, "force"),
 		}
