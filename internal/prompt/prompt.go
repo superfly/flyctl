@@ -468,7 +468,11 @@ func SelectVMSize(ctx context.Context, vmSizes []api.VMSize) (vmSize *api.VMSize
 	options := []string{}
 
 	for _, vmSize := range vmSizes {
-		options = append(options, fmt.Sprintf("%s - %d", vmSize.Name, vmSize.MemoryMB))
+		if vmSize.MemoryMB < 1024 {
+			options = append(options, fmt.Sprintf("%s - CPU Kind: %s, vCPUs: %0.0f Memory: %dMB", vmSize.Name, strings.Title(vmSize.CPUClass), vmSize.CPUCores, vmSize.MemoryMB))
+		} else {
+			options = append(options, fmt.Sprintf("%s - CPU Kind: %s, vCPUs: %0.0f, Memory: %0.0fGB", vmSize.Name, strings.Title(vmSize.CPUClass), vmSize.CPUCores, vmSize.MemoryGB))
+		}
 	}
 
 	var index int
