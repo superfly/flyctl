@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
@@ -44,7 +45,24 @@ func runDestroy(ctx context.Context) error {
 	)
 
 	if !flag.GetYes(ctx) {
-		const msg = "Deleting a volume is not reversible."
+		var err error
+
+		// fetch the volume so we can get the associated app
+		var volume *api.Volume
+		if volume, err = client.GetVolume(ctx, volID); err != nil {
+			return err
+		}
+
+		// fetch the set of volumes for this app. If > 2 we skip the prompt
+		var volumes []api.Volume
+		if volumes, err = client.GetVolumes(ctx, volume.App.Name); err != nil {
+			return err
+		}
+
+		var msg = "Deleting a volume is not reversible."
+		if len(volumes) <= 2 {
+			msg = fmt.Sprintf("Warning! Individual volumes are pinned to individual hosts. You should create two or more volumes per application. Deleting this volume will leave you with %d volume(s) for this application, and it is not reversible.", len(volumes)-1)
+		}
 		fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 
 		switch confirmed, err := prompt.Confirm(ctx, "Are you sure you want to destroy this volume?"); {
