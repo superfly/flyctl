@@ -74,7 +74,7 @@ func unmarshalTOML(buf []byte) (*Config, error) {
 	cfg, err := applyPatches(cfgMap)
 	// In case of parsing error fallback to Nomad only compatibility
 	if err != nil {
-		cfg = &Config{parseError: err}
+		cfg = &Config{v2UnmarshalError: err}
 		if name, ok := (rawDefinition["app"]).(string); ok {
 			cfg.AppName = name
 		}

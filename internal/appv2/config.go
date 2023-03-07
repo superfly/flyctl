@@ -52,7 +52,7 @@ type Config struct {
 
 	// Set when it fails to unmarshal fly.toml into Config
 	// Don't hard fail because RawDefinition still holds the app configuration for Nomad apps
-	parseError error
+	v2UnmarshalError error
 }
 
 type Deploy struct {

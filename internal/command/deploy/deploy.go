@@ -136,15 +136,17 @@ func DeployWithConfig(ctx context.Context, appConfig *appv2.Config, args DeployW
 		return err
 	}
 
+	if deployToMachines {
+		err := appConfig.EnsureV2Config()
+		if err != nil {
+			return fmt.Errorf("Can't deploy an invalid app config: %s", err)
+		}
+	}
+
 	// Fetch an image ref or build from source to get the final image reference to deploy
 	img, err := determineImage(ctx, appConfig)
 	if err != nil {
 		return fmt.Errorf("failed to fetch an image or build from source: %w", err)
-	}
-
-	// Assign an empty map if nil so later assignments won't fail
-	if appConfig.Env == nil {
-		appConfig.Env = map[string]string{}
 	}
 
 	if flag.GetBuildOnly(ctx) {
@@ -154,8 +156,9 @@ func DeployWithConfig(ctx context.Context, appConfig *appv2.Config, args DeployW
 	var release *api.Release
 	var releaseCommand *api.ReleaseCommand
 
+	// Assign an empty map if nil so later assignments won't fail
 	if appConfig.PrimaryRegion != "" && appConfig.Env["PRIMARY_REGION"] == "" {
-		appConfig.Env["PRIMARY_REGION"] = appConfig.PrimaryRegion
+		appConfig.SetEnvVariable("PRIMARY_REGION", appConfig.PrimaryRegion)
 	}
 
 	if deployToMachines {

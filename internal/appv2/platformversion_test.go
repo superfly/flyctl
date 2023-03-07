@@ -12,7 +12,7 @@ func TestSetMachinesPlatform(t *testing.T) {
 	assert.NoError(t, cfg.SetMachinesPlatform())
 	assert.NoError(t, cfg.SetPlatformVersion(MachinesPlatform))
 
-	cfg.parseError = fmt.Errorf("Failed to parse fly.toml")
+	cfg.v2UnmarshalError = fmt.Errorf("Failed to parse fly.toml")
 	assert.Error(t, cfg.SetMachinesPlatform())
 	assert.Error(t, cfg.SetPlatformVersion(MachinesPlatform))
 }

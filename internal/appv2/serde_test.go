@@ -52,10 +52,10 @@ func TestLoadTOMLAppConfigInvalidV2(t *testing.T) {
 	const path = "./testdata/always-invalid-v2.toml"
 	cfg, err := LoadConfig(path)
 	assert.NoError(t, err)
-	assert.Error(t, cfg.parseError)
+	assert.Error(t, cfg.v2UnmarshalError)
 	assert.Equal(t, &Config{
-		configFilePath: "./testdata/always-invalid-v2.toml",
-		parseError:     fmt.Errorf("Unknown type for service concurrency: int64"),
+		configFilePath:   "./testdata/always-invalid-v2.toml",
+		v2UnmarshalError: fmt.Errorf("Unknown type for service concurrency: int64"),
 
 		AppName: "unsupported-format",
 		Build: &Build{
