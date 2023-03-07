@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/state"
 
 	"github.com/superfly/flyctl/client"
@@ -179,9 +180,14 @@ func DeployWithConfig(ctx context.Context, appConfig *app.Config, args DeployWit
 			LeaseTimeout:      time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
 		})
 		if err != nil {
+			sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
 			return err
 		}
-		return md.DeployMachinesApp(ctx)
+		err = md.DeployMachinesApp(ctx)
+		if err != nil {
+			sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
+		}
+		return err
 	}
 
 	release, releaseCommand, err = createRelease(ctx, appConfig, img)
