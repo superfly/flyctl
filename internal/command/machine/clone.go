@@ -31,7 +31,7 @@ func newClone() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runMachineClone,
 		command.RequireSession,
-		command.LoadAppNameIfPresent,
+		command.RequireAppName,
 		command.LoadAppConfigIfPresent,
 	)
 

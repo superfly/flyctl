@@ -21,7 +21,7 @@ func newSet() (cmd *cobra.Command) {
 		usage = "set [flags] NAME=VALUE NAME=VALUE ..."
 	)
 
-	cmd = command.New(usage, short, long, runSet, command.RequireSession, command.LoadAppNameIfPresent)
+	cmd = command.New(usage, short, long, runSet, command.RequireSession, command.RequireAppName)
 
 	flag.Add(cmd,
 		sharedFlags,

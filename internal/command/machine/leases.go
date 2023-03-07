@@ -49,7 +49,7 @@ func newLeaseView() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runLeaseView,
 		command.RequireSession,
-		command.LoadAppNameIfPresent,
+		command.RequireAppName,
 	)
 
 	// at least one arg is required but we can accept a list of machine ids
@@ -73,7 +73,7 @@ func newLeaseClear() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runLeaseClear,
 		command.RequireSession,
-		command.LoadAppNameIfPresent,
+		command.RequireAppName,
 	)
 
 	// at least one arg is required but we can accept a list of machine ids

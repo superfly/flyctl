@@ -20,7 +20,7 @@ func newImport() (cmd *cobra.Command) {
 		usage = "import [flags]"
 	)
 
-	cmd = command.New(usage, short, long, runImport, command.RequireSession, command.LoadAppNameIfPresent)
+	cmd = command.New(usage, short, long, runImport, command.RequireSession, command.RequireAppName)
 
 	flag.Add(cmd,
 		sharedFlags,
