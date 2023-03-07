@@ -298,7 +298,12 @@ func run(ctx context.Context) (err error) {
 	}
 	ctx = appv2.WithName(ctx, createdApp.Name)
 	if !importedConfig {
-		appConfig.RawDefinition = createdApp.Config.Definition
+		newCfg, err := appv2.FromDefinition(&createdApp.Config.Definition)
+		if err != nil {
+			return fmt.Errorf("Launch failed to get new app configuration: %w", err)
+		}
+		newCfg.Build = appConfig.Build
+		appConfig = newCfg
 	}
 
 	appConfig.AppName = createdApp.Name
@@ -550,27 +555,15 @@ func run(ctx context.Context) (err error) {
 	}
 
 	// Finally, determine whether we're using Machines and write the config
-	var v2AppConfig *appv2.Config
 	if deployArgs.ForceMachines {
-
-		v2AppConfig, err = appv2.FromDefinition(api.DefinitionPtr(appConfig.RawDefinition))
-		if err != nil {
-			return fmt.Errorf("invalid config: %w", err)
+		if err := appConfig.SetMachinesPlatform(); err != nil {
+			return fmt.Errorf("Can not use configuration for Apps V2, check fly.toml: %w", err)
 		}
-		v2AppConfig.AppName = appConfig.AppName
-
 		appConfig.PrimaryRegion = region.Code
-		v2AppConfig.PrimaryRegion = region.Code
+	}
 
-		if err := v2AppConfig.WriteToDisk(ctx, configFilePath); err != nil {
-			return err
-		}
-
-		ctx = appv2.WithConfig(ctx, v2AppConfig)
-	} else {
-		if err := appConfig.WriteToDisk(ctx, configFilePath); err != nil {
-			return err
-		}
+	if err := appConfig.WriteToDisk(ctx, configFilePath); err != nil {
+		return err
 	}
 
 	ctx = appv2.WithConfig(ctx, appConfig)
@@ -580,21 +573,21 @@ func run(ctx context.Context) (err error) {
 	}
 
 	if deployArgs.ForceMachines && !deployArgs.ForceYes {
-		if !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !flag.GetBool(ctx, "auto-confirm") && v2AppConfig.HasNonHttpAndHttpsStandardServices() {
-			hasUdpService := v2AppConfig.HasUdpService()
+		if !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !flag.GetBool(ctx, "auto-confirm") && appConfig.HasNonHttpAndHttpsStandardServices() {
+			hasUdpService := appConfig.HasUdpService()
 			ipStuffStr := "a dedicated ipv4 address"
 			if !hasUdpService {
 				ipStuffStr = "dedicated ipv4 and ipv6 addresses"
 			}
 			confirmDedicatedIp, err := prompt.Confirmf(ctx, "Would you like to allocate %s now?", ipStuffStr)
 			if confirmDedicatedIp && err == nil {
-				v4Dedicated, err := client.AllocateIPAddress(ctx, v2AppConfig.AppName, "v4", "", nil, "")
+				v4Dedicated, err := client.AllocateIPAddress(ctx, appConfig.AppName, "v4", "", nil, "")
 				if err != nil {
 					return err
 				}
 				fmt.Fprintf(io.Out, "Allocated dedicated ipv4: %s\n", v4Dedicated.Address)
 				if !hasUdpService {
-					v6Dedicated, err := client.AllocateIPAddress(ctx, v2AppConfig.AppName, "v6", "", nil, "")
+					v6Dedicated, err := client.AllocateIPAddress(ctx, appConfig.AppName, "v6", "", nil, "")
 					if err != nil {
 						return err
 					}
