@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/appv2"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
@@ -313,9 +314,20 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 	// migrate non-platform machines into fly platform
 	if len(machines) == 0 {
 		terminal.Debug("Found no machines that are part of Fly Apps Platform. Checking for active machines...")
-		machines, err = md.flapsClient.ListActive(ctx)
+		activeMachines, err := md.flapsClient.ListActive(ctx)
 		if err != nil {
 			return err
+		}
+		if len(activeMachines) > 0 {
+			return fmt.Errorf(
+				"found %d machines that are unmanaged. `fly deploy` only updates machines with %s=%s in their metadata. Use `fly machine list` to find the machines and `fly machine update --metadata %s=%s` to update individual machines with the metadata. Once done, `fly deploy` will update machines with the metadata based on your %s app configuration",
+				len(activeMachines),
+				api.MachineConfigMetadataKeyFlyPlatformVersion,
+				api.MachineFlyPlatformVersion2,
+				api.MachineConfigMetadataKeyFlyPlatformVersion,
+				api.MachineFlyPlatformVersion2,
+				app.DefaultConfigFileName,
+			)
 		}
 	}
 
