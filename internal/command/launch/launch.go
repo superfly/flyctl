@@ -290,6 +290,7 @@ func run(ctx context.Context) (err error) {
 		Name:            appConfig.AppName,
 		OrganizationID:  org.ID,
 		PreferredRegion: &region.Code,
+		Machines:        deployArgs.ForceMachines,
 	}
 
 	createdApp, err := client.CreateApp(ctx, input)
