@@ -286,11 +286,16 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
+	shouldUseMachines, err := shouldAppUseMachinesPlatform(ctx, client, org.Slug)
+	if err != nil {
+		return err
+	}
+
 	input := api.CreateAppInput{
 		Name:            appConfig.AppName,
 		OrganizationID:  org.ID,
 		PreferredRegion: &region.Code,
-		Machines:        deployArgs.ForceMachines,
+		Machines:        shouldUseMachines,
 	}
 
 	createdApp, err := client.CreateApp(ctx, input)
@@ -635,6 +640,19 @@ func run(ctx context.Context) (err error) {
 	}
 
 	return nil
+}
+
+func shouldAppUseMachinesPlatform(ctx context.Context, apiClient *api.Client, orgSlug string) (bool, error) {
+	if flag.GetBool(ctx, "force-machines") {
+		return true, nil
+	} else if flag.GetBool(ctx, "force-nomad") {
+		return false, nil
+	}
+	orgDefault, err := apiClient.GetAppsV2DefaultOnForOrg(ctx, orgSlug)
+	if err != nil {
+		return false, err
+	}
+	return orgDefault, nil
 }
 
 func execInitCommand(ctx context.Context, command scanner.InitCommand) (err error) {

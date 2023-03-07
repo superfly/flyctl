@@ -51,6 +51,11 @@ may be fetched with 'fly config save -a <app_name>'`
 			Name:        "machines",
 			Description: "Use the machines platform",
 		},
+		flag.Bool{
+			Name:        "nomad",
+			Description: "Use the nomad platform",
+			Default:     false,
+		},
 		flag.Org(),
 	)
 
@@ -65,6 +70,7 @@ func RunCreate(ctx context.Context) (err error) {
 		aName         = flag.FirstArg(ctx)
 		fName         = flag.GetString(ctx, "name")
 		fGenerateName = flag.GetBool(ctx, "generate-name")
+		apiClient     = client.FromContext(ctx).API()
 	)
 
 	var name string
@@ -91,19 +97,22 @@ func RunCreate(ctx context.Context) (err error) {
 		return
 	}
 
+	shouldUseMachines, err := shouldAppUseMachinesPlatform(ctx, apiClient, org.Slug)
+	if err != nil {
+		return err
+	}
+
 	input := api.CreateAppInput{
 		Name:           name,
 		OrganizationID: org.ID,
-		Machines:       flag.GetBool(ctx, "machines"),
+		Machines:       shouldUseMachines,
 	}
 
 	if v := flag.GetString(ctx, "network"); v != "" {
 		input.Network = api.StringPointer(v)
 	}
 
-	app, err := client.FromContext(ctx).
-		API().
-		CreateApp(ctx, input)
+	app, err := apiClient.CreateApp(ctx, input)
 
 	if err == nil {
 		if cfg.JSONOutput {
@@ -113,4 +122,17 @@ func RunCreate(ctx context.Context) (err error) {
 	}
 
 	return err
+}
+
+func shouldAppUseMachinesPlatform(ctx context.Context, apiClient *api.Client, orgSlug string) (bool, error) {
+	if flag.GetBool(ctx, "machines") {
+		return true, nil
+	} else if flag.GetBool(ctx, "nomad") {
+		return false, nil
+	}
+	orgDefault, err := apiClient.GetAppsV2DefaultOnForOrg(ctx, orgSlug)
+	if err != nil {
+		return false, err
+	}
+	return orgDefault, nil
 }
