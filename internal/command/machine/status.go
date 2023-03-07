@@ -99,7 +99,7 @@ func runMachineStatus(ctx context.Context) (err error) {
 		},
 	}
 
-	var cols []string = []string{"ID", "Instance ID", "State", "Image", "Name", "Private IP", "Region", "Process Group", "CPU Kind", "CPUs", "Memory", "Created", "Updated", "Command"}
+	var cols []string = []string{"ID", "Instance ID", "State", "Image", "Name", "Private IP", "Region", "Process Group", "CPU Kind", "vCPUs", "Memory", "Created", "Updated", "Command"}
 
 	if len(machine.Config.Mounts) > 0 {
 		cols = append(cols, "Volume")
