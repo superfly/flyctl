@@ -1,4 +1,4 @@
-package appv2
+package appconfig
 
 import (
 	"github.com/pelletier/go-toml"

@@ -12,7 +12,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -46,7 +46,7 @@ func runShow(ctx context.Context) (err error) {
 	var (
 		client  = client.FromContext(ctx).API()
 		io      = iostreams.FromContext(ctx)
-		appName = appv2.NameFromContext(ctx)
+		appName = appconfig.NameFromContext(ctx)
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)

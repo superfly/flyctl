@@ -18,7 +18,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
@@ -453,7 +453,7 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 	logger := logger.FromContext(ctx)
 
 	for _, path := range appConfigFilePaths(ctx) {
-		switch cfg, err := appv2.LoadConfig(path); {
+		switch cfg, err := appconfig.LoadConfig(path); {
 		case err == nil:
 			logger.Debugf("app config loaded from %s", path)
 
@@ -466,7 +466,7 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 				}
 			}
 
-			return appv2.WithConfig(ctx, cfg), nil // we loaded a configuration file
+			return appconfig.WithConfig(ctx, cfg), nil // we loaded a configuration file
 		case errors.Is(err, fs.ErrNotExist):
 			logger.Debugf("no app config found at %s; skipped.", path)
 			continue
@@ -496,13 +496,13 @@ func determinePlatform(ctx context.Context, appName string) (string, error) {
 // specified a command-line path to a config file.
 func appConfigFilePaths(ctx context.Context) (paths []string) {
 	if p := flag.GetAppConfigFilePath(ctx); p != "" {
-		paths = append(paths, p, filepath.Join(p, appv2.DefaultConfigFileName))
+		paths = append(paths, p, filepath.Join(p, appconfig.DefaultConfigFileName))
 
 		return
 	}
 
 	wd := state.WorkingDirectory(ctx)
-	paths = append(paths, filepath.Join(wd, appv2.DefaultConfigFileName))
+	paths = append(paths, filepath.Join(wd, appconfig.DefaultConfigFileName))
 
 	return
 }
@@ -523,7 +523,7 @@ func RequireAppName(ctx context.Context) (context.Context, error) {
 		// if there's no flag present, first consult with the environment
 		if name = env.First("FLY_APP"); name == "" {
 			// and then with the config file (if any)
-			if cfg := appv2.ConfigFromContext(ctx); cfg != nil {
+			if cfg := appconfig.ConfigFromContext(ctx); cfg != nil {
 				name = cfg.AppName
 			}
 		}
@@ -533,7 +533,7 @@ func RequireAppName(ctx context.Context) (context.Context, error) {
 		return nil, errRequireAppName
 	}
 
-	return appv2.WithName(ctx, name), nil
+	return appconfig.WithName(ctx, name), nil
 }
 
 // LoadAppNameIfPresent is a Preparer which adds app name if the user has used --app or there appConfig
@@ -542,7 +542,7 @@ func LoadAppNameIfPresent(ctx context.Context) (context.Context, error) {
 	localCtx, err := RequireAppName(ctx)
 
 	if errors.Is(err, errRequireAppName) {
-		return appv2.WithName(ctx, ""), nil
+		return appconfig.WithName(ctx, ""), nil
 	}
 
 	return localCtx, err

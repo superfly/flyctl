@@ -21,7 +21,7 @@ import (
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
@@ -175,7 +175,7 @@ func newRun() *cobra.Command {
 
 func runMachineRun(ctx context.Context) error {
 	var (
-		appName  = appv2.NameFromContext(ctx)
+		appName  = appconfig.NameFromContext(ctx)
 		client   = client.FromContext(ctx).API()
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
@@ -351,7 +351,7 @@ func determineImage(ctx context.Context, appName string, imageOrPath string) (im
 	var (
 		client = client.FromContext(ctx).API()
 		io     = iostreams.FromContext(ctx)
-		cfg    = appv2.ConfigFromContext(ctx)
+		cfg    = appconfig.ConfigFromContext(ctx)
 	)
 
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-nixpacks"))
@@ -469,7 +469,7 @@ func determineMounts(ctx context.Context, mounts []api.MachineMount, region stri
 }
 
 func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]api.Volume, error) {
-	appName := appv2.NameFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
 	apiclient := client.FromContext(ctx).API()
 
 	if regionCode == "" {

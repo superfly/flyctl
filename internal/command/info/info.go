@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 
@@ -40,7 +40,7 @@ func New() *cobra.Command {
 func runInfo(ctx context.Context) error {
 	var (
 		client  = client.FromContext(ctx).API()
-		appName = appv2.NameFromContext(ctx)
+		appName = appconfig.NameFromContext(ctx)
 	)
 
 	appInfo, err := client.GetAppInfo(ctx, appName)

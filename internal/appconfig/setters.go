@@ -1,4 +1,4 @@
-package appv2
+package appconfig
 
 // ** IMPORTANT **
 // The main purpose of the functions in this file is to serve as a compatibility layer between

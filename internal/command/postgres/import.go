@@ -13,7 +13,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/ssh"
@@ -80,7 +80,7 @@ func runImport(ctx context.Context) error {
 	var (
 		io      = iostreams.FromContext(ctx)
 		client  = client.FromContext(ctx).API()
-		appName = appv2.NameFromContext(ctx)
+		appName = appconfig.NameFromContext(ctx)
 
 		sourceURI = flag.FirstArg(ctx)
 		machSize  = flag.GetString(ctx, "vm-size")

@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
@@ -154,7 +154,7 @@ func TestAppsV2ConfigSave_ProcessGroups(t *testing.T) {
 		err            error
 		f              = testlib.NewTestEnvFromEnv(t)
 		appName        = f.CreateRandomAppMachines()
-		configFilePath = filepath.Join(f.WorkDir(), appv2.DefaultConfigFileName)
+		configFilePath = filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
 	)
 	f.Fly("m run -a %s --env ENV=preflight --  nginx nginx -g 'daemon off;'", appName)
 	f.Fly("m run -a %s --env ENV=preflight --  nginx nginx -g 'daemon off;'", appName)
@@ -179,7 +179,7 @@ func TestAppsV2ConfigSave_OneMachineNoAppConfig(t *testing.T) {
 		err            error
 		f              = testlib.NewTestEnvFromEnv(t)
 		appName        = f.CreateRandomAppMachines()
-		configFilePath = filepath.Join(f.WorkDir(), appv2.DefaultConfigFileName)
+		configFilePath = filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
 	)
 	f.Fly("m run -a %s --env ENV=preflight --  nginx tail -F /dev/null", appName)
 	if _, err := os.Stat(configFilePath); !errors.Is(err, os.ErrNotExist) {
@@ -203,7 +203,7 @@ func TestAppsV2ConfigSave_PostgresSingleNode(t *testing.T) {
 		err            error
 		f              = testlib.NewTestEnvFromEnv(t)
 		appName        = f.CreateRandomAppName()
-		configFilePath = filepath.Join(f.WorkDir(), appv2.DefaultConfigFileName)
+		configFilePath = filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
 	)
 	f.Fly("pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1", f.OrgSlug(), appName, f.PrimaryRegion())
 	f.Fly("status -a %s", appName)
@@ -247,7 +247,7 @@ func TestAppsV2ConfigSave_PostgresHA(t *testing.T) {
 		err            error
 		f              = testlib.NewTestEnvFromEnv(t)
 		appName        = f.CreateRandomAppName()
-		configFilePath = filepath.Join(f.WorkDir(), appv2.DefaultConfigFileName)
+		configFilePath = filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
 	)
 	f.Fly("pg create --org %s --name %s --region %s --initial-cluster-size 3 --vm-size shared-cpu-1x --volume-size 1", f.OrgSlug(), appName, f.PrimaryRegion())
 	f.Fly("status -a %s", appName)

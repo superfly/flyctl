@@ -23,7 +23,7 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
@@ -107,11 +107,11 @@ func run(ctx context.Context) (err error) {
 	}
 
 	var importedConfig bool
-	appConfig := appv2.NewConfig()
+	appConfig := appconfig.NewConfig()
 
 	configFilePath := filepath.Join(workingDir, "fly.toml")
 	if exists, _ := flyctl.ConfigFileExistsAtPath(configFilePath); exists {
-		cfg, err := appv2.LoadConfig(configFilePath)
+		cfg, err := appconfig.LoadConfig(configFilePath)
 		if err != nil {
 			return err
 		}
@@ -122,7 +122,7 @@ func run(ctx context.Context) (err error) {
 				return err
 			} else if deployExisting {
 				fmt.Fprintln(io.Out, "App is not running, deploy...")
-				ctx = appv2.WithName(ctx, cfg.AppName)
+				ctx = appconfig.WithName(ctx, cfg.AppName)
 				return deploy.DeployWithConfig(ctx, cfg, deployArgs)
 			}
 		} else {
@@ -161,7 +161,7 @@ func run(ctx context.Context) (err error) {
 
 	if img := flag.GetString(ctx, "image"); img != "" {
 		fmt.Fprintln(io.Out, "Using image", img)
-		appConfig.Build = &appv2.Build{
+		appConfig.Build = &appconfig.Build{
 			Image: img,
 		}
 	} else if dockerfile := flag.GetString(ctx, "dockerfile"); dockerfile != "" {
@@ -171,7 +171,7 @@ func run(ctx context.Context) (err error) {
 			if err != nil {
 				return err
 			} else {
-				appConfig.Build = &appv2.Build{
+				appConfig.Build = &appconfig.Build{
 					Dockerfile: resp.Filename,
 				}
 
@@ -184,7 +184,7 @@ func run(ctx context.Context) (err error) {
 			}
 		} else {
 			fmt.Fprintln(io.Out, "Using dockerfile", dockerfile)
-			appConfig.Build = &appv2.Build{
+			appConfig.Build = &appconfig.Build{
 				Dockerfile: dockerfile,
 			}
 		}
@@ -218,7 +218,7 @@ func run(ctx context.Context) (err error) {
 					fmt.Fprintln(io.Out, "\tBuildpacks:", strings.Join(srcInfo.Buildpacks, " "))
 				}
 
-				appConfig.Build = &appv2.Build{
+				appConfig.Build = &appconfig.Build{
 					Builder:    srcInfo.Builder,
 					Buildpacks: srcInfo.Buildpacks,
 				}
@@ -297,9 +297,9 @@ func run(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	ctx = appv2.WithName(ctx, createdApp.Name)
+	ctx = appconfig.WithName(ctx, createdApp.Name)
 	if !importedConfig {
-		newCfg, err := appv2.FromDefinition(&createdApp.Config.Definition)
+		newCfg, err := appconfig.FromDefinition(&createdApp.Config.Definition)
 		if err != nil {
 			return fmt.Errorf("Launch failed to get new app configuration: %w", err)
 		}
@@ -495,9 +495,9 @@ func run(ctx context.Context) (err error) {
 		}
 
 		if len(srcInfo.Statics) > 0 {
-			var appStatics []appv2.Static
+			var appStatics []appconfig.Static
 			for _, s := range srcInfo.Statics {
-				appStatics = append(appStatics, appv2.Static{
+				appStatics = append(appStatics, appconfig.Static{
 					GuestPath: s.GuestPath,
 					UrlPrefix: s.UrlPrefix,
 				})
@@ -506,9 +506,9 @@ func run(ctx context.Context) (err error) {
 		}
 
 		if len(srcInfo.Volumes) > 0 {
-			var appVolumes []appv2.Volume
+			var appVolumes []appconfig.Volume
 			for _, v := range srcInfo.Volumes {
-				appVolumes = append(appVolumes, appv2.Volume{
+				appVolumes = append(appVolumes, appconfig.Volume{
 					Source:      v.Source,
 					Destination: v.Destination,
 				})
@@ -545,7 +545,7 @@ func run(ctx context.Context) (err error) {
 
 		if len(srcInfo.BuildArgs) > 0 {
 			if appConfig.Build == nil {
-				appConfig.Build = &appv2.Build{}
+				appConfig.Build = &appconfig.Build{}
 			}
 			appConfig.Build.Args = srcInfo.BuildArgs
 		}
@@ -567,7 +567,7 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	ctx = appv2.WithConfig(ctx, appConfig)
+	ctx = appconfig.WithConfig(ctx, appConfig)
 
 	if srcInfo == nil {
 		return nil

@@ -8,7 +8,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -48,7 +48,7 @@ func newList() *cobra.Command {
 
 func runMachineList(ctx context.Context) (err error) {
 	var (
-		appName = appv2.NameFromContext(ctx)
+		appName = appconfig.NameFromContext(ctx)
 		client  = client.FromContext(ctx).API()
 		io      = iostreams.FromContext(ctx)
 		silence = flag.GetBool(ctx, "quiet")

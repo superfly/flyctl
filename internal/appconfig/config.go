@@ -1,10 +1,8 @@
 // Package app implements functionality related to reading and writing app
 // configuration files.
-package appv2
+package appconfig
 
-import (
-	"github.com/superfly/flyctl/api"
-)
+import "github.com/superfly/flyctl/api"
 
 const (
 	// DefaultConfigFileName denotes the default application configuration file name.

@@ -8,7 +8,7 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
@@ -20,7 +20,7 @@ func updateImageForNomad(ctx context.Context) error {
 	var (
 		client  = client.FromContext(ctx).API()
 		io      = iostreams.FromContext(ctx)
-		appName = appv2.NameFromContext(ctx)
+		appName = appconfig.NameFromContext(ctx)
 
 		autoConfirm = flag.GetBool(ctx, "yes")
 	)

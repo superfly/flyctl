@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
@@ -181,7 +181,7 @@ func run(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "Changed to new app directory %s\n", createdApp.Name)
 
 	// Generate an app config to write to fly.toml
-	appConfig := appv2.NewConfig()
+	appConfig := appconfig.NewConfig()
 
 	appConfig.RawDefinition = createdApp.Config.Definition
 	procfile := ""

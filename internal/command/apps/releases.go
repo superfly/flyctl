@@ -10,7 +10,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmd/presenters"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -48,7 +48,7 @@ including type, when, success/fail and which user triggered the release.
 
 func runReleases(ctx context.Context) error {
 	var (
-		appName  = appv2.NameFromContext(ctx)
+		appName  = appconfig.NameFromContext(ctx)
 		client   = client.FromContext(ctx).API()
 		releases []api.Release
 	)

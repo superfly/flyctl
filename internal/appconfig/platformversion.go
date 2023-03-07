@@ -1,8 +1,6 @@
-package appv2
+package appconfig
 
-import (
-	"fmt"
-)
+import "fmt"
 
 func (c *Config) EnsureV2Config() error {
 	return c.v2UnmarshalError

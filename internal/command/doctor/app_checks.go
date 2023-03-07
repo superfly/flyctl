@@ -14,7 +14,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/state"
@@ -29,12 +29,12 @@ type AppChecker struct {
 	ctx        context.Context
 	app        *api.AppCompact
 	workDir    string
-	appConfig  *appv2.Config
+	appConfig  *appconfig.Config
 	apiClient  *api.Client
 }
 
 func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorScheme) *AppChecker {
-	appName := appv2.NameFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
 	if appName == "" {
 		if !jsonOutput {
 			fmt.Println("No app provided; skipping app specific checks")
@@ -75,7 +75,7 @@ func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorS
 	}
 
 	ac.app = appCompact
-	ac.appConfig = appv2.ConfigFromContext(ctx)
+	ac.appConfig = appconfig.ConfigFromContext(ctx)
 	return ac
 }
 
@@ -98,7 +98,7 @@ func (ac *AppChecker) checkAll() map[string]string {
 	ac.checkDnsRecords(ipAddresses)
 
 	relPath, err := filepath.Rel(ac.workDir, ac.appConfig.ConfigFilePath())
-	if err == nil && relPath == appv2.DefaultConfigFileName {
+	if err == nil && relPath == appconfig.DefaultConfigFileName {
 		ac.lprint(nil, "\nBuild checks for %s:\n", ac.app.Name)
 		contextSize := ac.checkDockerContext()
 		// only show longer .dockerignore message when context size > 50MB

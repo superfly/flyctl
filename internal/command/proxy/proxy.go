@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -49,7 +49,7 @@ func New() *cobra.Command {
 
 func run(ctx context.Context) (err error) {
 	client := client.FromContext(ctx).API()
-	appName := appv2.NameFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
 	orgSlug := flag.GetString(ctx, "org")
 	args := flag.Args(ctx)
 	promptInstance := flag.GetBool(ctx, "select")

@@ -12,7 +12,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 )
@@ -44,7 +44,7 @@ to the root URL of the deployed application.
 }
 
 func runOpen(ctx context.Context) error {
-	appName := appv2.NameFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
 
 	app, err := client.FromContext(ctx).API().GetAppCompact(ctx, appName)
 	if err != nil {

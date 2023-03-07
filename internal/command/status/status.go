@@ -20,7 +20,7 @@ import (
 	"github.com/superfly/flyctl/api"
 
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -91,7 +91,7 @@ func runOnce(ctx context.Context) error {
 
 func once(ctx context.Context, out io.Writer) (err error) {
 	var (
-		appName    = appv2.NameFromContext(ctx)
+		appName    = appconfig.NameFromContext(ctx)
 		all        = flag.GetBool(ctx, "all")
 		client     = client.FromContext(ctx).API()
 		jsonOutput = config.FromContext(ctx).JSONOutput
@@ -199,7 +199,7 @@ func runWatch(ctx context.Context) (err error) {
 		return
 	}
 
-	appName := appv2.NameFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
 
 	var buf bytes.Buffer
 

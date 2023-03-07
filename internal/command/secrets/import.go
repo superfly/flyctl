@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 )
@@ -31,7 +31,7 @@ func newImport() (cmd *cobra.Command) {
 
 func runImport(ctx context.Context) (err error) {
 	client := client.FromContext(ctx).API()
-	appName := appv2.NameFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return
