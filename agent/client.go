@@ -434,10 +434,9 @@ func compareAndChooseResults(gqlResult instancesResult, agentResult *Instances, 
 		captureError(fmt.Errorf("gql error looking up: %s %s: %v", orgSlug, appName, gqlResult.Err), "agentclient-instances", orgSlug, appName)
 		return agentResult, nil
 	} else if agentErr != nil {
-		captureError(fmt.Errorf("dns error looking up: %s %s: %v\n", orgSlug, appName, agentErr), "agentclient-instances", orgSlug, appName)
+		captureError(fmt.Errorf("dns error looking up: %s %s: %v", orgSlug, appName, agentErr), "agentclient-instances", orgSlug, appName)
 		return gqlResult.Instances, nil
 	} else if !arrayEqual(gqlResult.Instances.Addresses, agentResult.Addresses) {
-		captureError(fmt.Errorf("gql and dns lookup results were different for: %s %s: gqlResult: %v dnsResult: %v\n", orgSlug, appName, gqlResult.Instances.Addresses, agentResult.Addresses), "agentclient-instances", orgSlug, appName)
 		return gqlResult.Instances, nil
 	} else {
 		return gqlResult.Instances, nil
