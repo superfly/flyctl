@@ -159,10 +159,6 @@ func DeployWithConfig(ctx context.Context, appConfig *appv2.Config, args DeployW
 	}
 
 	if deployToMachines {
-		ctx, err = command.LoadAppV2ConfigIfPresent(ctx)
-		if err != nil {
-			return fmt.Errorf("error loading appv2 config: %w", err)
-		}
 		primaryRegion := appConfig.PrimaryRegion
 		if flag.GetString(ctx, flag.RegionName) != "" {
 			primaryRegion = flag.GetString(ctx, flag.RegionName)

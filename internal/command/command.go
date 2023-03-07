@@ -491,26 +491,6 @@ func determinePlatform(ctx context.Context, appName string) (string, error) {
 	return basicApp.PlatformVersion, nil
 }
 
-func LoadAppV2ConfigIfPresent(ctx context.Context) (context.Context, error) {
-	logger := logger.FromContext(ctx)
-
-	for _, path := range appConfigFilePaths(ctx) {
-		switch cfg, err := appv2.LoadConfig(path); {
-		case err == nil:
-			logger.Debugf("appv2 config loaded from %s", path)
-			return appv2.WithConfig(ctx, cfg), nil // we loaded a configuration file
-		case errors.Is(err, fs.ErrNotExist):
-			logger.Debugf("no appv2 config found at %s; skipped.", path)
-
-			continue
-		default:
-			return nil, fmt.Errorf("failed loading appv2 config from %s: %w", path, err)
-		}
-	}
-
-	return ctx, nil
-}
-
 // appConfigFilePaths returns the possible paths at which we may find a fly.toml
 // in order of preference. it takes into consideration whether the user has
 // specified a command-line path to a config file.
