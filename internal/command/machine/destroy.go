@@ -17,7 +17,7 @@ import (
 
 func newDestroy() *cobra.Command {
 	const (
-		short = "Destroy a Fly machine"
+		short = "Destroy a Fly machine. This command requires a machine to be in a stopped state unless the force flag is used."
 		long  = short + "\n"
 
 		usage = "destroy <id>"
@@ -37,7 +37,7 @@ func newDestroy() *cobra.Command {
 		flag.Bool{
 			Name:        "force",
 			Shorthand:   "f",
-			Description: "force kill machine if it's running",
+			Description: "force kill machine regardless of current state",
 		},
 	)
 
