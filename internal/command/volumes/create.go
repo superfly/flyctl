@@ -60,6 +60,7 @@ sets the size as the number of gigabytes the volume will consume.`
 			Name:        "snapshot-id",
 			Description: "Create volume from a specified snapshot",
 		},
+		flag.Yes(),
 	)
 
 	return cmd
@@ -77,6 +78,36 @@ func runCreate(ctx context.Context) error {
 	app, err := client.GetAppBasic(ctx, appName)
 	if err != nil {
 		return err
+	}
+
+	// If the Yes flag has been supplied we skip the warning entirely, so no
+	// need to query for the set of volumes
+	if !flag.GetYes(ctx) {
+		// fetch the set of volumes for this app. If > 0 we skip the prompt
+		var volumes []api.Volume
+		if volumes, err = client.GetVolumes(ctx, appName); err != nil {
+			return err
+		}
+
+		if len(volumes) == 0 {
+			var confirmed bool
+			io := iostreams.FromContext(ctx)
+			colorize := io.ColorScheme()
+
+			const msg = "Warning! Individual volumes are pinned to individual hosts. You should create two or more volumes per application. You will have downtime if you only create one."
+			fmt.Fprintln(io.ErrOut, colorize.Red(msg))
+
+			switch confirmed, err = prompt.Confirm(ctx, "Do you still want to use the volumes feature?"); {
+			case err == nil:
+				if !confirmed {
+					return nil
+				}
+			case prompt.IsNonInteractive(err):
+				return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+			default:
+				return err
+			}
+		}
 	}
 
 	var region *api.Region
