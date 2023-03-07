@@ -320,7 +320,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		}
 		if len(activeMachines) > 0 {
 			return fmt.Errorf(
-				"found %d machines that are unmanaged. `fly deploy` only updates machines with %s=%s in their metadata. Use `fly machine list` to find the machines and `fly machine update --metadata %s=%s` to update individual machines with the metadata. Once done, `fly deploy` will update machines with the metadata based on your %s app configuration",
+				"found %d machines that are unmanaged. `fly deploy` only updates machines with %s=%s in their metadata. Use `fly machine list` to list machines and `fly machine update --metadata %s=%s` to update individual machines with the metadata. Once done, `fly deploy` will update machines with the metadata based on your %s app configuration",
 				len(activeMachines),
 				api.MachineConfigMetadataKeyFlyPlatformVersion,
 				api.MachineFlyPlatformVersion2,
