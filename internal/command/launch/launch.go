@@ -163,9 +163,7 @@ func run(ctx context.Context) (err error) {
 
 	if img := flag.GetString(ctx, "image"); img != "" {
 		fmt.Fprintln(io.Out, "Using image", img)
-		appConfig.Build = &app.Build{
-			Image: img,
-		}
+		appConfig.SetBuildImage(img)
 	} else if dockerfile := flag.GetString(ctx, "dockerfile"); dockerfile != "" {
 		if strings.HasPrefix(dockerfile, "http://") || strings.HasPrefix(dockerfile, "https://") {
 			fmt.Fprintln(io.Out, "Downloading dockerfile", dockerfile)
@@ -555,6 +553,9 @@ func run(ctx context.Context) (err error) {
 
 	if n := flag.GetInt(ctx, "internal-port"); n > 0 {
 		appConfig.SetInternalPort(n)
+	}
+	if img := flag.GetString(ctx, "image"); img != "" && appConfig.GetBuildImage() == "" {
+		appConfig.SetBuildImage(img)
 	}
 
 	// Finally, determine whether we're using Machines and write the config

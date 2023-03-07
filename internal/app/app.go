@@ -662,3 +662,30 @@ func (c *Config) SetStatics(statics []Static) {
 func (c *Config) SetVolumes(volumes []Volume) {
 	c.Definition["mounts"] = volumes
 }
+
+func (c *Config) GetBuildImage() string {
+	if buildInterface, present := c.Definition["build"]; !present {
+		return ""
+	} else if buildMap, ok := buildInterface.(map[string]interface{}); !ok {
+		return ""
+	} else if imageInterface, present := buildMap["image"]; !present {
+		return ""
+	} else if image, ok := imageInterface.(string); !ok {
+		return ""
+	} else {
+		return image
+	}
+}
+
+func (c *Config) SetBuildImage(img string) {
+	if c.Build == nil {
+		c.Build = &Build{}
+	}
+	c.Build.Image = img
+	if _, present := c.Definition["build"]; !present {
+		c.Definition["build"] = map[string]interface{}{}
+	}
+	if buildMap, ok := c.Definition["build"].(map[string]interface{}); ok {
+		buildMap["image"] = img
+	}
+}
