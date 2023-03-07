@@ -31,6 +31,10 @@ func newAllocatev4() *cobra.Command {
 			Description: "Allocates a shared IPv4",
 			Default:     false,
 		},
+		flag.Bool{
+			Name:        "yes",
+			Description: "Auto-confirm IPv4 allocation",
+		},
 		flag.App(),
 		flag.AppConfig(),
 		flag.Region(),
@@ -72,14 +76,16 @@ func runAllocateIPAddressV4(ctx context.Context) error {
 	if flag.GetBool(ctx, "shared") {
 		addrType = "shared_v4"
 	}
-	confirmIPV4, err := prompt.Confirm(ctx, "Looks like you're accessing a paid feature. Dedicated IPv4 addresses now costs $2/mo. Are you ok with this?")
-	if err != nil {
-		return fmt.Errorf("IPv4 cannot be configured. %w", err)
+	if !flag.GetBool(ctx, "yes") {
+		confirmIPV4, err := prompt.Confirm(ctx, "Looks like you're accessing a paid feature. Dedicated IPv4 addresses now costs $2/mo. Are you ok with this?")
+		if err != nil {
+			return fmt.Errorf("IPv4 cannot be configured. %w", err)
+		}
+		if !confirmIPV4 {
+			return nil
+		}
 	}
-	if confirmIPV4 {
-		return runAllocateIPAddress(ctx, addrType, nil, "")
-	}
-	return nil
+	return runAllocateIPAddress(ctx, addrType, nil, "")
 }
 
 func runAllocateIPAddressV6(ctx context.Context) (err error) {
