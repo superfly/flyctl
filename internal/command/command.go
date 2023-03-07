@@ -455,8 +455,17 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 	for _, path := range appConfigFilePaths(ctx) {
 		switch cfg, err := appv2.LoadConfig(path); {
 		case err == nil:
-			cfg.DeterminePlatform(ctx)
 			logger.Debugf("app config loaded from %s", path)
+
+			// Query Web API for platform version
+			platformVersion, _ := determinePlatform(ctx, cfg.AppName)
+			if platformVersion != "" {
+				err := cfg.SetPlatformVersion(platformVersion)
+				if err != nil {
+					logger.Warnf("WARNING the config file at '%s' is not valid: %s", path, err)
+				}
+			}
+
 			return appv2.WithConfig(ctx, cfg), nil // we loaded a configuration file
 		case errors.Is(err, fs.ErrNotExist):
 			logger.Debugf("no app config found at %s; skipped.", path)
@@ -467,6 +476,19 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 	}
 
 	return ctx, nil
+}
+
+func determinePlatform(ctx context.Context, appName string) (string, error) {
+	client := client.FromContext(ctx)
+	if appName == "" {
+		return "", fmt.Errorf("Can't determine platform without an application name")
+	}
+
+	basicApp, err := client.API().GetAppBasic(ctx, appName)
+	if err != nil {
+		return "", err
+	}
+	return basicApp.PlatformVersion, nil
 }
 
 func LoadAppV2ConfigIfPresent(ctx context.Context) (context.Context, error) {

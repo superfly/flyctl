@@ -26,3 +26,9 @@ func TestSetNomadPlatform(t *testing.T) {
 	assert.NoError(t, cfg.SetNomadPlatform())
 	assert.NoError(t, cfg.SetPlatformVersion(NomadPlatform))
 }
+
+func TestSetPlatformVersion(t *testing.T) {
+	cfg := NewConfig()
+	assert.Error(t, cfg.SetPlatformVersion(""))
+	assert.Error(t, cfg.SetPlatformVersion("thenewkidsontheblock"))
+}
