@@ -236,10 +236,10 @@ func useMachines(ctx context.Context, appConfig *appconfig.Config, appCompact *a
 		return false, nil
 	case !appCompact.Deployed && args.ForceMachines:
 		return true, nil
-	case !appCompact.Deployed && appCompact.PlatformVersion == appv2.MachinesPlatform:
+	case !appCompact.Deployed && appCompact.PlatformVersion == appconfig.MachinesPlatform:
 		return true, nil
 	case appCompact.Deployed:
-		return appCompact.PlatformVersion == appv2.MachinesPlatform, nil
+		return appCompact.PlatformVersion == appconfig.MachinesPlatform, nil
 	case args.ForceYes:
 		return appsV2DefaultOn, nil
 	default:
