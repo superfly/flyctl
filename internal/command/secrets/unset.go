@@ -17,7 +17,7 @@ func newUnset() (cmd *cobra.Command) {
 		usage = "unset [flags] NAME NAME ..."
 	)
 
-	cmd = command.New(usage, short, long, runUnset, command.RequireSession, command.LoadAppNameIfPresent)
+	cmd = command.New(usage, short, long, runUnset, command.RequireSession, command.RequireAppName)
 
 	flag.Add(cmd,
 		sharedFlags,
