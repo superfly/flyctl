@@ -8,17 +8,30 @@ import (
 )
 
 // SetMachinesPlatform informs the TOML marshaller that this config is for the machines platform
-func (c *Config) SetMachinesPlatform() {
+func (c *Config) SetMachinesPlatform() error {
+	if c.parseError != nil {
+		return c.parseError
+	}
 	c.platformVersion = MachinesPlatform
+	return nil
 }
 
 // SetNomadPlatform informs the TOML marshaller that this config is for the nomad platform
-func (c *Config) SetNomadPlatform() {
+func (c *Config) SetNomadPlatform() error {
+	if len(c.RawDefinition) == 0 {
+		return fmt.Errorf("Can't set platformVersion to Nomad on an empty RawDefinition")
+	}
 	c.platformVersion = NomadPlatform
+	return nil
 }
 
-func (c *Config) SetPlatformVersion(platform string) {
-	c.platformVersion = platform
+func (c *Config) SetPlatformVersion(platform string) error {
+	switch platform {
+	case MachinesPlatform:
+		return c.SetMachinesPlatform()
+	default:
+		return c.SetNomadPlatform()
+	}
 }
 
 // ForMachines is true when the config is intended for the machines platform
