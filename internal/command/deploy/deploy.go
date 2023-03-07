@@ -268,12 +268,16 @@ func determineAppConfig(ctx context.Context) (cfg *appv2.Config, err error) {
 			return nil, err
 		}
 
-		cfg = &appv2.Config{
-			RawDefinition: apiConfig.Definition,
+		cfg, err = appv2.FromDefinition(&apiConfig.Definition)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to convert definition into config: %w", err)
 		}
 
 		cfg.AppName = basicApp.Name
-		cfg.SetPlatformVersion(basicApp.PlatformVersion)
+
+		if err := cfg.SetPlatformVersion(basicApp.PlatformVersion); err != nil {
+			return cfg, err
+		}
 	} else {
 		parsedCfg, err := client.ParseConfig(ctx, appNameFromContext, cfg.SanitizedDefinition())
 		if err != nil {
