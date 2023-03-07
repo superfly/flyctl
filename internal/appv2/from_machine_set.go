@@ -57,6 +57,7 @@ func FromAppAndMachineSet(ctx context.Context, appCompact *api.AppCompact, machi
 	finalWarningMsgs := lo.Filter(warnings, func(w string, _ int) bool {
 		return strings.TrimSpace(w) != ""
 	})
+	mostCommonConfig.SetMachinesPlatform()
 	return mostCommonConfig, strings.Join(finalWarningMsgs, "\n"), nil
 }
 
@@ -188,7 +189,6 @@ func processGroupsFromMachineSet(ms machine.MachineSet) (*processGroupInfo, stri
 
 	if ms.IsEmpty() {
 		return nil, "No machines configured for this app"
-
 	}
 
 	for _, m := range ms.GetMachines() {

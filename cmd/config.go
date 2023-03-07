@@ -73,10 +73,12 @@ func runShowConfig(cmdCtx *cmdctx.CmdContext) error {
 		if err != nil {
 			return err
 		}
-
 		cmdCtx.WriteJSON(appConfig)
 	default:
-		return fmt.Errorf("likely a bug, unknown platform version %s for app %s", appCompact.PlatformVersion, appCompact.Name)
+		if !appCompact.Deployed {
+			return fmt.Errorf("Undeployed app '%s' has no platform version set", appCompact.Name)
+		}
+		return fmt.Errorf("likely a bug, unknown platform version '%s' for app '%s'. ", appCompact.PlatformVersion, appCompact.Name)
 	}
 
 	return nil
@@ -114,14 +116,14 @@ func runSaveConfig(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 	switch appCompact.PlatformVersion {
-	case "nomad":
+	case appv2.NomadPlatform:
 		serverCfg, err := apiClient.GetConfig(ctx, cmdCtx.AppName)
 		if err != nil {
 			return err
 		}
 		cmdCtx.AppConfig.Definition = serverCfg.Definition
 		return writeAppConfig(cmdCtx.ConfigFile, cmdCtx.AppConfig)
-	case "machines":
+	case appv2.MachinesPlatform:
 		return saveAppV2Config(ctx, apiClient, appCompact, cmdCtx.ConfigFile)
 	default:
 		return fmt.Errorf("likely a bug, unknown platform version %s for app %s", appCompact.PlatformVersion, appCompact.Name)
@@ -231,7 +233,6 @@ func writeAppV2Config(ctx context.Context, path string, appConfig *appv2.Config)
 	if err != nil {
 		return fmt.Errorf("failed to write config to %s with error: %w", path, err)
 	}
-	fmt.Println("Wrote config file", helpers.PathRelativeToCWD(path))
 	return nil
 }
 
@@ -282,5 +283,8 @@ func getAppV2ConfigFromReleases(ctx context.Context, apiClient *api.Client, appN
 	if err != nil {
 		return nil, fmt.Errorf("error creating appv2 Config from api definition: %w", err)
 	}
-	return appConfig, nil
+	if err := appConfig.SetMachinesPlatform(); err != nil {
+		return nil, err
+	}
+	return appConfig, err
 }
