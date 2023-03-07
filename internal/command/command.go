@@ -450,8 +450,13 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 // configuration file from the path the user has selected via command line args
 // or the current working directory.
 func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
-	logger := logger.FromContext(ctx)
+	// Shortcut to avoid unmarshaling and querying Web when
+	// LoadAppConfigIfPresent is chained with RequireAppName
+	if cfg := appconfig.ConfigFromContext(ctx); cfg != nil {
+		return ctx, nil
+	}
 
+	logger := logger.FromContext(ctx)
 	for _, path := range appConfigFilePaths(ctx) {
 		switch cfg, err := appconfig.LoadConfig(path); {
 		case err == nil:
