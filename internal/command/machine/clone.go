@@ -274,12 +274,7 @@ func getAppConfig(ctx context.Context, appName string) (*appconfig.Config, error
 		return cfg, nil
 	}
 
-	definition, err := cfg.ToDefinition()
-	if err != nil {
-		return nil, err
-	}
-
-	parsedCfg, err := apiClient.ParseConfig(ctx, appName, *definition)
+	parsedCfg, err := apiClient.ParseConfig(ctx, appName, cfg.SanitizedDefinition())
 	if err != nil {
 		return nil, err
 	}
