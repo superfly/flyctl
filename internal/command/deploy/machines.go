@@ -15,7 +15,6 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/gql"
-	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/appv2"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
@@ -326,7 +325,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 				api.MachineFlyPlatformVersion2,
 				api.MachineConfigMetadataKeyFlyPlatformVersion,
 				api.MachineFlyPlatformVersion2,
-				app.DefaultConfigFileName,
+				appv2.DefaultConfigFileName,
 			)
 		}
 	}
