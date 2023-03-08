@@ -1,0 +1,32 @@
+query GetAddOn($name: String) {
+	addOn(name: $name) {
+		id
+		name
+		publicUrl
+		privateIp
+		password
+		token
+		primaryRegion
+		readRegions
+		options
+		organization {
+			slug
+			paidPlan
+		}
+		addOnPlan {
+			id
+			name
+			displayName
+		}
+	}
+}
+
+mutation CreateAddOn($organizationId: ID!, $primaryRegion: String, $name: String, $planId: ID, $readRegions: [String!], $options: JSON!) {
+	createAddOn(input: {organizationId: $organizationId, type: redis, name: $name, planId: $planId, primaryRegion: $primaryRegion,
+			readRegions: $readRegions, options: $options}) {
+		addOn {
+			name
+			publicUrl
+		}
+	}
+}

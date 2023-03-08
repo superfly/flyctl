@@ -2,6 +2,7 @@
 # https://github.com/Khan/genqlient/blob/main/docs/genqlient.yaml
 schema: gql/schema.graphql
 operations:
+  - gql/genqclient.graphql
   - agent/**.go
   - api/**.go
   - cmd/config.go

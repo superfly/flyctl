@@ -572,6 +572,8 @@ type GetAddOnAddOn struct {
 	PrivateIp string `json:"privateIp"`
 	// Password for the add-on
 	Password string `json:"password"`
+	// Token for the add-on
+	Token string `json:"token"`
 	// Region where the primary instance is deployed
 	PrimaryRegion string `json:"primaryRegion"`
 	// Regions where replica instances are deployed
@@ -598,6 +600,9 @@ func (v *GetAddOnAddOn) GetPrivateIp() string { return v.PrivateIp }
 
 // GetPassword returns GetAddOnAddOn.Password, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetPassword() string { return v.Password }
+
+// GetToken returns GetAddOnAddOn.Token, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOn) GetToken() string { return v.Token }
 
 // GetPrimaryRegion returns GetAddOnAddOn.PrimaryRegion, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetPrimaryRegion() string { return v.PrimaryRegion }
@@ -1315,7 +1320,7 @@ func CreateAddOn(
 	req := &graphql.Request{
 		OpName: "CreateAddOn",
 		Query: `
-mutation CreateAddOn ($organizationId: ID!, $primaryRegion: String!, $name: String, $planId: ID!, $readRegions: [String!], $options: JSON!) {
+mutation CreateAddOn ($organizationId: ID!, $primaryRegion: String, $name: String, $planId: ID, $readRegions: [String!], $options: JSON!) {
 	createAddOn(input: {organizationId:$organizationId,type:redis,name:$name,planId:$planId,primaryRegion:$primaryRegion,readRegions:$readRegions,options:$options}) {
 		addOn {
 			name
@@ -1428,6 +1433,7 @@ query GetAddOn ($name: String) {
 		publicUrl
 		privateIp
 		password
+		token
 		primaryRegion
 		readRegions
 		options

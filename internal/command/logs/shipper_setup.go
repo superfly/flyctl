@@ -10,31 +10,26 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
-	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func newShip() *cobra.Command {
+func newShipperSetup() (cmd *cobra.Command) {
 
 	const (
-		short = "Ship logs to an external provider"
+		short = "Set up a log shipper VM"
 		long  = short + "\n"
-		usage = "ship"
 	)
 
-	cmd := command.New(usage, short, long, runShip, command.RequireSession)
-
-	flag.Add(cmd)
-
-	cmd.Args = cobra.MaximumNArgs(1)
+	cmd = command.New("setup", short, long, runLaunch, command.RequireSession)
 
 	return cmd
 }
 
-func runShip(ctx context.Context) (err error) {
+func runLaunch(ctx context.Context) (err error) {
 	client := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
 	selectedOrg, err := orgs.OrgFromFirstArgOrSelect(ctx)
@@ -66,8 +61,24 @@ func runShip(ctx context.Context) (err error) {
 
 	fmt.Fprintf(io.ErrOut, "Setting up secrets for %s\n", app.Name)
 
+	response, err := gql.GetAddOn(ctx, client.GenqClient, appName)
+	var token string
+
+	if err != nil {
+		response, err := gql.CreateAddOn(ctx, client.GenqClient, selectedOrg.ID, "", appName, "", nil, api.AddOnOptions{})
+
+		if err != nil {
+			return err
+		}
+
+		token = response.CreateAddOn.AddOn.Name
+	} else {
+		token = response.AddOn.Token
+	}
+
 	_, err = client.SetSecrets(ctx, appName, map[string]string{
-		"ACCESS_TOKEN": flyctl.GetAPIToken(),
+		"ACCESS_TOKEN":  flyctl.GetAPIToken(),
+		"LOGTAIL_TOKEN": token,
 	})
 
 	if err != nil {

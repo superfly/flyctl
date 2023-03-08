@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"syscall"
 	"time"
+
+	"github.com/superfly/flyctl/gql"
 )
 
 // Query - Master query which encapsulates all possible returned structures
@@ -1336,10 +1338,7 @@ type Logger interface {
 	Debug(v ...interface{})
 	Debugf(format string, v ...interface{})
 }
-type AddOn struct {
-	PublicUrl     string
-	Name          string
-	ID            string
-	PrimaryRegion string
-	Organization  *OrganizationBasic
-}
+
+// Alias unwieldy types from GraphQL generated code
+type AddOn = gql.CreateAddOnCreateAddOnCreateAddOnPayloadAddOn
+type AddOnOptions map[string]interface{}
