@@ -124,7 +124,7 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 
 	// Restarting replicas
 	for _, replica := range replicas {
-		if err = mach.Restart(ctx, replica, input); err != nil {
+		if err = mach.Restart(ctx, replica, input, replica.LeaseNonce); err != nil {
 			return err
 		}
 	}
@@ -151,7 +151,7 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 		}
 	}
 
-	if err = mach.Restart(ctx, leader, input); err != nil {
+	if err = mach.Restart(ctx, leader, input, leader.LeaseNonce); err != nil {
 		return err
 	}
 
