@@ -170,7 +170,7 @@ func newRun() *cobra.Command {
 		},
 		flag.String{
 			Name:        "restart",
-			Description: "Configure restart policy, for a machine",
+			Description: "Configure restart policy, for a machine. Options include `no`, `always` and `on-fail`. Default is set to always",
 		},
 		sharedFlags,
 	)
@@ -726,15 +726,14 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		machineConf.Init.Entrypoint = splitted
 	}
 
-	if restart := flag.GetString(ctx, "restart"); restart != "" {
-		switch flag.GetString(ctx, "restart") {
-		case "always":
-			machineConf.Restart.Policy = api.MachineRestartPolicyAlways
-		case "failure":
-			machineConf.Restart.Policy = api.MachineRestartPolicyOnFailure
-		default:
-			machineConf.Restart.Policy = api.MachineRestartPolicyNo
-		}
+	// default restart policy to always unless otherwise specified
+	switch flag.GetString(ctx, "restart") {
+	case "no":
+		machineConf.Restart.Policy = api.MachineRestartPolicyNo
+	case "on-fail":
+		machineConf.Restart.Policy = api.MachineRestartPolicyOnFailure
+	default:
+		machineConf.Restart.Policy = api.MachineRestartPolicyAlways
 	}
 
 	// `machine update` and `machine run` both use `determineMachineConfig`` to populate
