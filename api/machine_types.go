@@ -81,8 +81,16 @@ func (m *Machine) IsActive() bool {
 	return m.State != MachineStateDestroyed && m.State != MachineStateDestroying
 }
 
+func (m *Machine) ProcessGroup() string {
+
+	if m.Config == nil {
+		return ""
+	}
+	return m.Config.ProcessGroup()
+}
+
 func (m *Machine) HasProcessGroup(desired string) bool {
-	return m.Config != nil && m.Config.Metadata[MachineConfigMetadataKeyFlyProcessGroup] == desired
+	return m.Config != nil && m.ProcessGroup() == desired
 }
 
 func (m *Machine) ImageVersion() string {
@@ -389,6 +397,27 @@ type MachineConfig struct {
 	DNS                     *DNSConfig              `json:"dns,omitempty"`
 	Statics                 []*Static               `json:"statics,omitempty"`
 	DisableMachineAutostart bool                    `json:"disable_machine_autostart,omitempty"`
+}
+
+func (c *MachineConfig) ProcessGroup() string {
+	// backwards compatible process_group getter.
+	// from poking around, "fly_process_group" used to be called "process_group"
+	// and since it's a metadata value, it's like a screenshot.
+	// so we have 3 scenarios
+	// - machines with only 'process_group'
+	// - machines with both 'process_group' and 'fly_process_group'
+	// - machines with only 'fly_process_group'
+
+	if c.Metadata == nil {
+		return ""
+	}
+
+	flyProcessGroup := c.Metadata[MachineConfigMetadataKeyFlyProcessGroup]
+	if flyProcessGroup != "" {
+		return flyProcessGroup
+	}
+
+	return c.Metadata["process_group"]
 }
 
 type Static struct {

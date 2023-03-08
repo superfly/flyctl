@@ -66,3 +66,57 @@ func TestIsReleaseCommandMachine(t *testing.T) {
 	}
 
 }
+
+func TestGetProcessGroup(t *testing.T) {
+
+	type testcase struct {
+		name     string
+		machine  *Machine
+		expected string
+	}
+
+	cases := []testcase{
+		{
+			name:     "machine with only 'process_group'",
+			expected: "web",
+			machine: &Machine{
+
+				Config: &MachineConfig{
+					Metadata: map[string]string{
+						"process_group": "web",
+					},
+				},
+			},
+		},
+		{
+			name:     "machine with both 'process_group' & 'fly_process_group'",
+			expected: "app",
+			machine: &Machine{
+
+				Config: &MachineConfig{
+					Metadata: map[string]string{
+						"process_group":     "web",
+						"fly_process_group": "app",
+					},
+				},
+			},
+		},
+		{
+			name:     "machine with only 'fly_process_group'",
+			expected: "web",
+			machine: &Machine{
+
+				Config: &MachineConfig{
+					Metadata: map[string]string{
+						"fly_process_group": "web",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		require.Equal(t, tc.expected, tc.machine.ProcessGroup(), tc.name)
+	}
+
+}

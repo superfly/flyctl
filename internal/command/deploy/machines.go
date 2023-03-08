@@ -229,7 +229,7 @@ func (md *machineDeployment) resolveProcessGroupMachineChanges() ProcessGroupMac
 
 	for _, leasableMachine := range md.machineSet.GetMachines() {
 		mach := leasableMachine.Machine()
-		machGroup := mach.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
+		machGroup := mach.ProcessGroup()
 		groupMatch := ""
 		for name := range md.processConfigs {
 			if machGroup == name {
@@ -603,7 +603,7 @@ func (md *machineDeployment) validateProcessesConfig() error {
 func (md *machineDeployment) validateVolumeConfig() error {
 	for _, m := range md.machineSet.GetMachines() {
 		mid := m.Machine().ID
-		if m.Machine().Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] == api.MachineProcessGroupFlyAppReleaseCommand {
+		if m.Machine().ProcessGroup() == api.MachineProcessGroupFlyAppReleaseCommand {
 			continue
 		}
 		mountsConfig := m.Machine().Config.Mounts
@@ -738,10 +738,7 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 		launchInput.Config.Mounts[0].Path = md.volumeDestination
 	}
 
-	processGroup := launchInput.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
-	if processGroup == "" {
-		processGroup = api.MachineProcessGroupApp
-	}
+	processGroup := launchInput.Config.ProcessGroup()
 	if processConfig, ok := md.processConfigs[processGroup]; ok {
 		launchInput.Config.Services = processConfig.Services
 		launchInput.Config.Checks = processConfig.Checks

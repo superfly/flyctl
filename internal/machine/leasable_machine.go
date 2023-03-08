@@ -86,7 +86,7 @@ func (lm *leasableMachine) FormattedMachineId() string {
 	if lm.Machine().Config.Metadata == nil {
 		return res
 	}
-	procGroup := lm.Machine().Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
+	procGroup := lm.Machine().ProcessGroup()
 	if procGroup == "" || lm.Machine().IsFlyAppsReleaseCommand() {
 		return res
 	}
