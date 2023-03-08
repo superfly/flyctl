@@ -63,7 +63,6 @@ type machineDeployment struct {
 	io                    *iostreams.IOStreams
 	colorize              *iostreams.ColorScheme
 	app                   *api.AppCompact
-	prevAppConfig         *appconfig.Config
 	appConfig             *appconfig.Config
 	processConfigs        map[string]*appconfig.ProcessConfig
 	img                   *imgsrc.DeploymentImage
@@ -436,39 +435,6 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		}
 	}
 
-	fmt.Fprintf(md.io.ErrOut, "  Finished deploying\n")
-	return nil
-}
-
-func (md *machineDeployment) createOneMachine(ctx context.Context) error {
-	fmt.Fprintf(md.io.Out, "No machines in %s app, launching one new machine\n", md.colorize.Bold(md.app.Name))
-	launchInput := md.resolveUpdatedMachineConfig(nil, false)
-	newMachineRaw, err := md.flapsClient.Launch(ctx, *launchInput)
-	newMachine := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
-	if err != nil {
-		return fmt.Errorf("error creating a new machine machine: %w", err)
-	}
-	// FIXME: dry this up with release commands and non-empty update
-	fmt.Fprintf(md.io.ErrOut, "  Created release_command machine %s\n", md.colorize.Bold(newMachineRaw.ID))
-	if md.strategy != "immediate" {
-		err := newMachine.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout)
-		if err != nil {
-			return err
-		}
-	}
-	if md.strategy != "immediate" && !md.skipHealthChecks {
-		err := newMachine.WaitForHealthchecksToPass(ctx, md.waitTimeout)
-		// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
-		if err != nil {
-			return err
-		} else {
-			md.logClearLinesAbove(1)
-			fmt.Fprintf(md.io.ErrOut, "  Machine %s update finished: %s\n",
-				md.colorize.Bold(newMachine.FormattedMachineId()),
-				md.colorize.Green("success"),
-			)
-		}
-	}
 	fmt.Fprintf(md.io.ErrOut, "  Finished deploying\n")
 	return nil
 }
