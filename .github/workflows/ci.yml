@@ -140,6 +140,7 @@ jobs:
           name: checksums
           path: dist/checksums.txt
   sync_docs:
+    needs: release
     runs-on: ubuntu-latest
     if: ${{ github.ref == 'refs/heads/master' }}
     steps:
