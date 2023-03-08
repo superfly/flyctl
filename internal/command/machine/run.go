@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/briandowns/spinner"
 	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
 	"github.com/pkg/errors"
@@ -130,6 +131,8 @@ var sharedFlags = flag.Set{
 		Description: "Do not register the machine's 6PN IP with the intenral DNS system",
 	},
 }
+
+var s = spinner.New(spinner.CharSets[9], 100*time.Millisecond)
 
 func newRun() *cobra.Command {
 	const (
@@ -273,9 +276,11 @@ func runMachineRun(ctx context.Context) error {
 	fmt.Fprintf(io.Out, " Instance ID: %s\n", instanceID)
 	fmt.Fprintf(io.Out, " State: %s\n", state)
 
-	fmt.Fprintf(io.Out, "\n Attempting to start machine...\n")
+	fmt.Fprintf(io.Out, "\n Attempting to start machine...\n\n")
+	s.Start()
 	// wait for machine to be started
 	if err := mach.WaitForStartOrStop(ctx, machine, "start", time.Minute*5); err != nil {
+		s.Stop()
 		return err
 	}
 
