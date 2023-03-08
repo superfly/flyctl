@@ -267,9 +267,6 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 		}
 
 		cfg.AppName = appCompact.Name
-		if err := cfg.SetPlatformVersion(appCompact.PlatformVersion); err != nil {
-			return cfg, err
-		}
 
 	} else {
 		err, _ = cfg.Validate(ctx)
