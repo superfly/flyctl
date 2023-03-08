@@ -208,7 +208,12 @@ func (f *Client) Stop(ctx context.Context, in api.StopMachineInput) (err error) 
 	return
 }
 
-func (f *Client) Restart(ctx context.Context, in api.RestartMachineInput) (err error) {
+func (f *Client) Restart(ctx context.Context, in api.RestartMachineInput, nonce string) (err error) {
+	headers := make(map[string][]string)
+	if nonce != "" {
+		headers[NonceHeader] = []string{nonce}
+	}
+
 	restartEndpoint := fmt.Sprintf("/%s/restart?force_stop=%t", in.ID, in.ForceStop)
 
 	if in.Timeout != 0 {
@@ -219,7 +224,7 @@ func (f *Client) Restart(ctx context.Context, in api.RestartMachineInput) (err e
 		restartEndpoint += fmt.Sprintf("&signal=%s", in.Signal)
 	}
 
-	if err := f.sendRequest(ctx, http.MethodPost, restartEndpoint, nil, nil, nil); err != nil {
+	if err := f.sendRequest(ctx, http.MethodPost, restartEndpoint, nil, nil, headers); err != nil {
 		return fmt.Errorf("failed to restart VM %s: %w", in.ID, err)
 	}
 	return

@@ -122,7 +122,7 @@ func runMachineRestart(ctx context.Context) error {
 
 	// Restart each machine
 	for _, machine := range machines {
-		if err := mach.Restart(ctx, machine, input); err != nil {
+		if err := mach.Restart(ctx, machine, input, machine.LeaseNonce); err != nil {
 			return fmt.Errorf("failed to restart machine %s: %w", machine.ID, err)
 		}
 	}
