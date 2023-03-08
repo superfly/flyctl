@@ -2,7 +2,6 @@ package ips
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -77,12 +76,15 @@ func runAllocateIPAddressV4(ctx context.Context) error {
 		addrType = "shared_v4"
 	}
 	if !flag.GetBool(ctx, "yes") {
-		confirmIPV4, err := prompt.Confirm(ctx, "Looks like you're accessing a paid feature. Dedicated IPv4 addresses now costs $2/mo. Are you ok with this?")
-		if err != nil {
-			return fmt.Errorf("IPv4 cannot be configured. %w", err)
-		}
-		if !confirmIPV4 {
-			return nil
+		switch confirmed, err := prompt.Confirm(ctx, "Looks like you're accessing a paid feature. Dedicated IPv4 addresses now costs $2/mo. Are you ok with this?"); {
+		case err == nil:
+			if !confirmed {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+		default:
+			return err
 		}
 	}
 	return runAllocateIPAddress(ctx, addrType, nil, "")
