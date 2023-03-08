@@ -332,11 +332,12 @@ func (lm *leasableMachine) refreshLeaseUntilCanceled(ctx context.Context, durati
 }
 
 func (lm *leasableMachine) ReleaseLease(ctx context.Context) error {
-	defer lm.resetLease()
-	if !lm.HasLease() {
+	nonce := lm.leaseNonce
+	lm.resetLease()
+	if nonce == "" {
 		return nil
 	}
-	err := lm.flapsClient.ReleaseLease(ctx, lm.machine.ID, lm.leaseNonce)
+	err := lm.flapsClient.ReleaseLease(ctx, lm.machine.ID, nonce)
 	if err != nil {
 		terminal.Warnf("failed to release lease for machine %s: %v\n", lm.machine.ID, err)
 		return err

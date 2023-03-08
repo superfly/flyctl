@@ -3,6 +3,8 @@ package deploy
 import (
 	"context"
 	"fmt"
+	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
+	machcmd "github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
@@ -33,9 +36,16 @@ type MachineDeployment interface {
 	DeployMachinesApp(context.Context) error
 }
 
+type ProcessGroupMachineDiff struct {
+	machinesToRemove      []machine.LeasableMachine
+	groupsToRemove        map[string]int
+	groupsNeedingMachines map[string]*appconfig.ProcessConfig
+}
+
 type MachineDeploymentArgs struct {
 	AppCompact        *api.AppCompact
 	DeploymentImage   *imgsrc.DeploymentImage
+	ProcessConfigs    *map[string]*appconfig.ProcessConfig
 	Strategy          string
 	EnvFromFlags      []string
 	PrimaryRegionFlag string
@@ -53,6 +63,7 @@ type machineDeployment struct {
 	io                    *iostreams.IOStreams
 	colorize              *iostreams.ColorScheme
 	app                   *api.AppCompact
+	prevAppConfig         *appconfig.Config
 	appConfig             *appconfig.Config
 	processConfigs        map[string]*appconfig.ProcessConfig
 	img                   *imgsrc.DeploymentImage
@@ -147,10 +158,12 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err != nil {
 		return nil, err
 	}
+	/* // TODO(ali): Remove this
 	err = md.validateProcessesConfig()
 	if err != nil {
 		return nil, err
 	}
+	*/
 	err = md.validateVolumeConfig()
 	if err != nil {
 		return nil, err
@@ -207,6 +220,125 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
 	return nil
 }
 
+func (md *machineDeployment) resolveProcessGroupMachineChanges(ctx context.Context) ProcessGroupMachineDiff {
+
+	output := ProcessGroupMachineDiff{
+		groupsToRemove:        map[string]int{},
+		groupsNeedingMachines: map[string]*appconfig.ProcessConfig{},
+	}
+
+	groupHasMachine := map[string]bool{}
+
+	for _, leasableMachine := range md.machineSet.GetMachines() {
+		mach := leasableMachine.Machine()
+		machGroup := mach.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
+		groupMatch := ""
+		for name := range md.processConfigs {
+			if machGroup == name {
+				groupMatch = machGroup
+				break
+			}
+		}
+		if groupMatch == "" {
+			output.groupsToRemove[groupMatch] += 1
+			output.machinesToRemove = append(output.machinesToRemove, leasableMachine)
+		} else {
+			groupHasMachine[groupMatch] = true
+		}
+	}
+
+	for name, val := range md.processConfigs {
+		if hasMach, ok := groupHasMachine[name]; !ok || !hasMach {
+			output.groupsNeedingMachines[name] = val
+		}
+	}
+
+	return output
+}
+
+func (md *machineDeployment) promptConfirmProcessGroupChanges(ctx context.Context, diff ProcessGroupMachineDiff) (bool, error) {
+
+	var (
+		io                 = iostreams.FromContext(ctx)
+		colorize           = io.ColorScheme()
+		willAddMachines    = len(diff.groupsNeedingMachines) != 0
+		willRemoveMachines = diff.machinesToRemove != nil
+	)
+
+	if willAddMachines || willRemoveMachines {
+		fmt.Fprintln(io.Out, "Process groups have changed. This will:")
+	}
+	if willRemoveMachines {
+		bullet := colorize.Red("*")
+		for grp, numMach := range diff.groupsToRemove {
+			pluralS := lo.Ternary(numMach == 1, "", "s")
+			fmt.Fprintf(io.Out, " %s remove %d \"%s\" machine%s\n", bullet, numMach, grp, pluralS)
+		}
+	}
+	if willAddMachines {
+		bullet := colorize.Green("*")
+
+		for name := range diff.groupsNeedingMachines {
+			fmt.Fprintf(io.Out, " %s create 1 \"%s\" machine\n", bullet, name)
+		}
+	}
+
+	if !flag.GetBool(ctx, flag.NowName) {
+
+		switch confirmed, err := prompt.Confirm(ctx, "Accept these changes? "); {
+		case err == nil:
+			return confirmed, nil
+		case prompt.IsNonInteractive(err):
+			return false, prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+		default:
+			return false, err
+		}
+	}
+	return true, nil
+}
+
+func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName string, group *appconfig.ProcessConfig) error {
+	fmt.Fprintf(md.io.Out, "No machines in group '%s', launching one new machine\n", md.colorize.Bold(groupName))
+	machBase := &api.Machine{
+		Region: md.appConfig.PrimaryRegion,
+		Config: &api.MachineConfig{
+			Metadata: map[string]string{
+				api.MachineConfigMetadataKeyFlyProcessGroup: groupName,
+			},
+		},
+	}
+	launchInput := md.resolveUpdatedMachineConfig(machBase, false)
+	newMachineRaw, err := md.flapsClient.Launch(ctx, *launchInput)
+	newMachine := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
+	if err != nil {
+		return fmt.Errorf("error creating a new machine machine: %w", err)
+	}
+
+	// FIXME: dry this up with release commands and non-empty update
+	fmt.Fprintf(md.io.ErrOut, "  Created release_command machine %s\n", md.colorize.Bold(newMachineRaw.ID))
+	if md.strategy != "immediate" {
+		err := newMachine.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout)
+		if err != nil {
+			return err
+		}
+	}
+	if md.strategy != "immediate" && !md.skipHealthChecks {
+		err := newMachine.WaitForHealthchecksToPass(ctx, md.waitTimeout)
+		// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
+		if err != nil {
+			return err
+		} else {
+			md.logClearLinesAbove(1)
+			fmt.Fprintf(md.io.ErrOut, "  Machine %s update finished: %s\n",
+				md.colorize.Bold(newMachine.FormattedMachineId()),
+				md.colorize.Green("success"),
+			)
+		}
+	}
+	fmt.Fprintf(md.io.ErrOut, "  Finished deploying\n")
+	return nil
+}
+
 func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	err := md.runReleaseCommand(ctx)
 	if err != nil {
@@ -214,7 +346,12 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	}
 
 	if md.machineSet.IsEmpty() {
-		return md.createOneMachine(ctx)
+		for name, config := range md.processConfigs {
+			if err := md.spawnMachineInGroup(ctx, name, config); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 
 	err = md.machineSet.AcquireLeases(ctx, md.leaseTimeout)
@@ -228,6 +365,38 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		return err
 	}
 	md.machineSet.StartBackgroundLeaseRefresh(ctx, md.leaseTimeout, md.leaseDelayBetween)
+
+	processGroupMachineDiff := md.resolveProcessGroupMachineChanges(ctx)
+
+	cont, err := md.promptConfirmProcessGroupChanges(ctx, processGroupMachineDiff)
+	if err != nil {
+		return err
+	}
+	if !cont {
+		// TODO(ali): is this happening too late to properly abort?
+		fmt.Fprintln(md.io.Out, "Aborted.")
+		return nil
+	}
+
+	// TODO(ali): Why do I have to do this?
+	ctx = flaps.NewContext(ctx, md.flapsClient)
+
+	// Destroy machines that don't fit the current process groups
+	if err := md.machineSet.RemoveMachines(ctx, processGroupMachineDiff.machinesToRemove); err != nil {
+		return err
+	}
+	for _, mach := range processGroupMachineDiff.machinesToRemove {
+		if err := machcmd.Destroy(ctx, md.app, mach.Machine().ID, true); err != nil {
+			return err
+		}
+	}
+
+	// Create machines for new process groups
+	for name, cfg := range processGroupMachineDiff.groupsNeedingMachines {
+		if err := md.spawnMachineInGroup(ctx, name, cfg); err != nil {
+			return err
+		}
+	}
 
 	// FIXME: handle deploy strategy: rolling, immediate, canary, bluegreen
 
@@ -423,6 +592,8 @@ func (md *machineDeployment) setVolumeConfig(ctx context.Context) error {
 	return nil
 }
 
+// TODO(ali): remove this
+/*
 func (md *machineDeployment) validateProcessesConfig() error {
 	appConfigProcessesExist := md.appConfig.Processes != nil && len(md.appConfig.Processes) > 0
 	appConfigProcessesStr := ""
@@ -461,6 +632,7 @@ func (md *machineDeployment) validateProcessesConfig() error {
 	}
 	return nil
 }
+*/
 
 func (md *machineDeployment) validateVolumeConfig() error {
 	for _, m := range md.machineSet.GetMachines() {
