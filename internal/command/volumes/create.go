@@ -89,7 +89,14 @@ func runCreate(ctx context.Context) error {
 			return err
 		}
 
-		if len(volumes) == 0 {
+		var matches int32
+		for _, volume := range volumes {
+			if volume.Name == volumeName {
+				matches++
+			}
+		}
+
+		if matches == 0 {
 			var confirmed bool
 			io := iostreams.FromContext(ctx)
 			colorize := io.ColorScheme()

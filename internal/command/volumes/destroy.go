@@ -59,9 +59,16 @@ func runDestroy(ctx context.Context) error {
 			return err
 		}
 
+		var matches int32
+		for _, v := range volumes {
+			if v.Name == volume.Name {
+				matches++
+			}
+		}
+
 		var msg = "Deleting a volume is not reversible."
-		if len(volumes) <= 2 {
-			msg = fmt.Sprintf("Warning! Individual volumes are pinned to individual hosts. You should create two or more volumes per application. Deleting this volume will leave you with %d volume(s) for this application, and it is not reversible.", len(volumes)-1)
+		if matches <= 2 {
+			msg = fmt.Sprintf("Warning! Individual volumes are pinned to individual hosts. You should create two or more volumes per application. Deleting this volume will leave you with %d volume(s) for this application, and it is not reversible.", matches-1)
 		}
 		fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 
