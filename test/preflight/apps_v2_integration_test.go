@@ -35,7 +35,7 @@ func TestAppsV2Example(t *testing.T) {
 	require.Contains(f, result.StdOut().String(), fmt.Sprintf("Created app %s in organization %s", appName, f.OrgSlug()))
 	require.Contains(f, result.StdOut().String(), "Wrote config file fly.toml")
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(10 * time.Second)
 	f.Fly("status")
 
 	lastStatusCode := -1

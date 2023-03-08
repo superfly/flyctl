@@ -61,6 +61,7 @@ func initViper() {
 	}
 
 	viper.SetDefault(ConfigAPIBaseURL, "https://api.fly.io")
+	viper.SetDefault(ConfigFlapsBaseUrl, "https://api.machines.dev")
 	viper.SetDefault(ConfigRegistryHost, "registry.fly.io")
 
 	viper.BindEnv(ConfigVerboseOutput, "VERBOSE")
