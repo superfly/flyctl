@@ -264,20 +264,21 @@ func (md *machineDeployment) promptConfirmProcessGroupChanges(ctx context.Contex
 	)
 
 	if willAddMachines || willRemoveMachines {
-		fmt.Fprintln(io.Out, "Process groups have changed. This will:")
+		fmt.Fprintln(io.ErrOut, "Process groups have changed. This will:")
 	}
+	// TODO(ali): Figure out why the bullets aren't colored
 	if willRemoveMachines {
 		bullet := colorize.Red("*")
 		for grp, numMach := range diff.groupsToRemove {
 			pluralS := lo.Ternary(numMach == 1, "", "s")
-			fmt.Fprintf(io.Out, " %s remove %d \"%s\" machine%s\n", bullet, numMach, grp, pluralS)
+			fmt.Fprintf(io.ErrOut, " %s remove %d \"%s\" machine%s\n", bullet, numMach, grp, pluralS)
 		}
 	}
 	if willAddMachines {
 		bullet := colorize.Green("*")
 
 		for name := range diff.groupsNeedingMachines {
-			fmt.Fprintf(io.Out, " %s create 1 \"%s\" machine\n", bullet, name)
+			fmt.Fprintf(io.ErrOut, " %s create 1 \"%s\" machine\n", bullet, name)
 		}
 	}
 
