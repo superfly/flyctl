@@ -281,7 +281,7 @@ func (f *Client) ListActive(ctx context.Context) ([]*api.Machine, error) {
 	}
 
 	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
-		return !m.HasProcessGroup(api.MachineProcessGroupFlyAppReleaseCommand) && m.IsActive()
+		return !m.IsReleaseCommandMachine() && m.IsActive()
 	})
 
 	return machines, nil

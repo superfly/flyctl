@@ -74,7 +74,7 @@ func (m *Machine) IsFlyAppsPlatform() bool {
 }
 
 func (m *Machine) IsFlyAppsReleaseCommand() bool {
-	return m.IsFlyAppsPlatform() && m.HasProcessGroup(MachineProcessGroupFlyAppReleaseCommand)
+	return m.IsFlyAppsPlatform() && m.IsReleaseCommandMachine()
 }
 
 func (m *Machine) IsActive() bool {
@@ -135,6 +135,10 @@ func (m *Machine) GetLatestEventOfTypeAfterType(latestEventType, firstEventType 
 		}
 	}
 	return nil
+}
+
+func (m *Machine) IsReleaseCommandMachine() bool {
+	return m.HasProcessGroup(MachineProcessGroupFlyAppReleaseCommand) || m.Config.Metadata["process_group"] == "release_command"
 }
 
 type MachineImageRef struct {
