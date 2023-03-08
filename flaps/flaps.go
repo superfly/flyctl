@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -22,7 +23,6 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -40,13 +40,17 @@ type Client struct {
 }
 
 func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
-	cfg := config.FromContext(ctx)
-	if strings.TrimSpace(strings.ToLower(cfg.FlapsBaseURL)) == "peer" {
+	// FIXME: do this once we setup config for `fly config ...` commands, and then use cfg.FlapsBaseURL below
+	// cfg := config.FromContext(ctx)
+	flapsBaseURL := os.Getenv("FLY_FLAPS_BASE_URL")
+	if strings.TrimSpace(strings.ToLower(flapsBaseURL)) == "peer" {
 		return newWithUsermodeWireguard(ctx, app)
+	} else if flapsBaseURL == "" {
+		flapsBaseURL = "https://api.machines.dev"
 	}
-	flapsUrl, err := url.Parse(cfg.FlapsBaseURL)
+	flapsUrl, err := url.Parse(flapsBaseURL)
 	if err != nil {
-		return nil, fmt.Errorf("invalid FLAPS_BASE_URL '%s' with error: %w", cfg.FlapsBaseURL, err)
+		return nil, fmt.Errorf("invalid FLY_FLAPS_BASE_URL '%s' with error: %w", flapsBaseURL, err)
 	}
 	logger := logger.MaybeFromContext(ctx)
 	httpClient, err := api.NewHTTPClient(logger, http.DefaultTransport)
