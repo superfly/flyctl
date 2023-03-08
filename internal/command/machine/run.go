@@ -165,6 +165,10 @@ func newRun() *cobra.Command {
 			Name:        "rm",
 			Description: "Automatically remove the machine when it exits",
 		},
+		flag.String{
+			Name:        "restart",
+			Description: "Configure restart policy, for a machine",
+		},
 		sharedFlags,
 	)
 
@@ -714,6 +718,17 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 			return machineConf, errors.Wrap(err, "invalid entrypoint")
 		}
 		machineConf.Init.Entrypoint = splitted
+	}
+
+	if restart := flag.GetString(ctx, "restart"); restart != "" {
+		switch flag.GetString(ctx, "restart") {
+		case "always":
+			machineConf.Restart.Policy = api.MachineRestartPolicyAlways
+		case "failure":
+			machineConf.Restart.Policy = api.MachineRestartPolicyOnFailure
+		default:
+			machineConf.Restart.Policy = api.MachineRestartPolicyNo
+		}
 	}
 
 	// `machine update` and `machine run` both use `determineMachineConfig`` to populate
