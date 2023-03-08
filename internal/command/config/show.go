@@ -23,6 +23,7 @@ in JSON format. The configuration data is retrieved from the Fly service.`
 		command.RequireAppName,
 	)
 	cmd.Args = cobra.NoArgs
+	cmd.Aliases = []string{"display"}
 	flag.Add(cmd, flag.App(), flag.AppConfig())
 	return
 }
