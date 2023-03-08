@@ -18,6 +18,10 @@ func (cfg *Config) Validate(ctx context.Context) (err error) {
 	apiClient := client.FromContext(ctx).API()
 	appCompact, err := apiClient.GetAppCompact(ctx, appNameFromContext)
 
+	if err != nil {
+		return err
+	}
+
 	if appCompact.PlatformVersion == MachinesPlatform {
 		return cfg.validateLocally()
 
