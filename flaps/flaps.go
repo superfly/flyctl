@@ -224,7 +224,7 @@ func (f *Client) Restart(ctx context.Context, in api.RestartMachineInput, nonce 
 		restartEndpoint += fmt.Sprintf("&signal=%s", in.Signal)
 	}
 
-	if err := f.sendRequest(ctx, http.MethodPost, restartEndpoint, nil, nil, nil); err != nil {
+	if err := f.sendRequest(ctx, http.MethodPost, restartEndpoint, nil, nil, headers); err != nil {
 		return fmt.Errorf("failed to restart VM %s: %w", in.ID, err)
 	}
 	return
