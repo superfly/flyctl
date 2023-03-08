@@ -8,6 +8,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newValidate() (cmd *cobra.Command) {
@@ -26,10 +27,12 @@ ensure it is correct and meaningful to the platform.`
 }
 
 func runValidate(ctx context.Context) error {
+	io := iostreams.FromContext(ctx)
+
 	cfg := appconfig.ConfigFromContext(ctx)
 	err, extra_info := cfg.Validate(ctx)
 
-	fmt.Println(extra_info)
+	fmt.Fprintln(io.Out, extra_info)
 
 	return err
 

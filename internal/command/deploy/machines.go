@@ -674,12 +674,10 @@ func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, p
 		logger := logger.FromContext(ctx)
 		logger.Debug("no local app config detected for machines deploy; fetching from backend ...")
 
-		cfg, err := appconfig.FromRemoteApp(ctx, appNameFromContext)
+		cfg, err = appconfig.FromRemoteApp(ctx, appNameFromContext)
 		if err != nil {
 			return nil, err
 		}
-
-		cfg.AppName = appNameFromContext
 	}
 
 	if len(envFromFlags) > 0 {

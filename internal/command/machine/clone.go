@@ -262,15 +262,7 @@ func getAppConfig(ctx context.Context, appName string) (*appconfig.Config, error
 		return cfg, nil
 	}
 
-	client := client.FromContext(ctx)
-	appBasic, err := client.API().GetAppBasic(ctx, appName)
-	if err != nil {
-		return nil, err
-	}
-
-	cfg.AppName = appBasic.Name
-
-	err, _ = cfg.Validate(ctx)
+	err, _ := cfg.Validate(ctx)
 	if err != nil {
 		return nil, err
 	}

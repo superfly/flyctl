@@ -33,6 +33,7 @@ func FromRemoteApp(ctx context.Context, appName string) (*Config, error) {
 		if err := cfg.SetNomadPlatform(); err != nil {
 			return nil, err
 		}
+		cfg.AppName = appName
 		return cfg, nil
 	case MachinesPlatform:
 		cfg, err := getAppV2ConfigFromReleases(ctx, apiClient, appCompact.Name)
@@ -45,6 +46,7 @@ func FromRemoteApp(ctx context.Context, appName string) (*Config, error) {
 		if err := cfg.SetMachinesPlatform(); err != nil {
 			return nil, err
 		}
+		cfg.AppName = appName
 		return cfg, nil
 	default:
 		if !appCompact.Deployed {

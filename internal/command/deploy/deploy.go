@@ -249,24 +249,15 @@ func useMachines(ctx context.Context, appConfig *appconfig.Config, appCompact *a
 // determineAppConfig fetches the app config from a local file, or in its absence, from the API
 func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) {
 	tb := render.NewTextBlock(ctx, "Verifying app config")
-	client := client.FromContext(ctx).API()
 	appNameFromContext := appconfig.NameFromContext(ctx)
 	if cfg = appconfig.ConfigFromContext(ctx); cfg == nil {
 		logger := logger.FromContext(ctx)
 		logger.Debug("no local app config detected; fetching from backend ...")
 
-		var appCompact *api.AppCompact
-		appCompact, err = client.GetAppCompact(ctx, appNameFromContext)
-		if err != nil {
-			return
-		}
-
 		cfg, err = appconfig.FromRemoteApp(ctx, appNameFromContext)
 		if err != nil {
 			return
 		}
-
-		cfg.AppName = appCompact.Name
 
 	} else {
 		err, _ = cfg.Validate(ctx)
