@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/google/shlex"
-	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -274,22 +273,9 @@ func getAppConfig(ctx context.Context, appName string) (*appconfig.Config, error
 		return cfg, nil
 	}
 
-	parsedCfg, err := apiClient.ParseConfig(ctx, appName, cfg.SanitizedDefinition())
+	err := cfg.Validate(ctx)
 	if err != nil {
 		return nil, err
-	}
-
-	// FIXME: ignore this for machines... (flyctl needs a validator for machines)
-	if !parsedCfg.Valid {
-		fmt.Println()
-		if len(parsedCfg.Errors) > 0 {
-			terminal.Errorf("\nConfiguration errors in %s:\n\n", cfg.ConfigFilePath())
-		}
-		for _, e := range parsedCfg.Errors {
-			terminal.Errorf("   %s\n", e)
-		}
-		fmt.Println()
-		return nil, errors.New("error app configuration is not valid")
 	}
 
 	return cfg, nil

@@ -9,10 +9,8 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/cmd"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/api"
@@ -263,61 +261,20 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 			return
 		}
 
-		var appName string
-		var platformVersion string
-
-		if appCompact.PlatformVersion == appconfig.MachinesPlatform {
-			cfg, err = cmd.GetRemoteAppV2Config(ctx, client, appCompact)
-			if err != nil {
-				return
-			}
-
-			appName = appCompact.Name
-			platformVersion = appCompact.PlatformVersion
-
-		} else {
-			var apiConfig *api.AppConfig
-			if apiConfig, err = client.GetConfig(ctx, appNameFromContext); err != nil {
-				err = fmt.Errorf("failed fetching existing app config: %w", err)
-				return
-			}
-
-			basicApp, err := client.GetAppBasic(ctx, appNameFromContext)
-			if err != nil {
-				return nil, err
-			}
-
-			cfg, err = appconfig.FromDefinition(&apiConfig.Definition)
-			if err != nil {
-				return nil, fmt.Errorf("Failed to convert definition into config: %w", err)
-			}
-
-			appName = basicApp.Name
-			platformVersion = basicApp.PlatformVersion
-
+		cfg, err = appconfig.FromRemoteApp(ctx, appNameFromContext)
+		if err != nil {
+			return
 		}
 
-		cfg.AppName = appName
-
-		if err := cfg.SetPlatformVersion(platformVersion); err != nil {
+		cfg.AppName = appCompact.Name
+		if err := cfg.SetPlatformVersion(appCompact.PlatformVersion); err != nil {
 			return cfg, err
 		}
 
 	} else {
-		parsedCfg, err := client.ParseConfig(ctx, appNameFromContext, cfg.SanitizedDefinition())
+		err = cfg.Validate(ctx)
 		if err != nil {
-			return nil, err
-		}
-		if !parsedCfg.Valid {
-			fmt.Println()
-			if len(parsedCfg.Errors) > 0 {
-				tb.Printf("\nConfiguration errors in %s:\n\n", cfg.ConfigFilePath())
-			}
-			for _, e := range parsedCfg.Errors {
-				tb.Println("   ", aurora.Red("✘").String(), e)
-			}
-			fmt.Println()
-			return nil, errors.New("App configuration is not valid")
+			return
 		}
 	}
 
