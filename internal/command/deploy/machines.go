@@ -45,7 +45,6 @@ type ProcessGroupMachineDiff struct {
 type MachineDeploymentArgs struct {
 	AppCompact        *api.AppCompact
 	DeploymentImage   *imgsrc.DeploymentImage
-	ProcessConfigs    *map[string]*appconfig.ProcessConfig
 	Strategy          string
 	EnvFromFlags      []string
 	PrimaryRegionFlag string
@@ -219,7 +218,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
 	return nil
 }
 
-func (md *machineDeployment) resolveProcessGroupMachineChanges(ctx context.Context) ProcessGroupMachineDiff {
+func (md *machineDeployment) resolveProcessGroupMachineChanges() ProcessGroupMachineDiff {
 
 	output := ProcessGroupMachineDiff{
 		groupsToRemove:        map[string]int{},
@@ -296,7 +295,7 @@ func (md *machineDeployment) promptConfirmProcessGroupChanges(ctx context.Contex
 	return true, nil
 }
 
-func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName string, group *appconfig.ProcessConfig) error {
+func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName string) error {
 	fmt.Fprintf(md.io.Out, "No machines in group '%s', launching one new machine\n", md.colorize.Bold(groupName))
 	machBase := &api.Machine{
 		Region: md.appConfig.PrimaryRegion,
@@ -345,8 +344,8 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	}
 
 	if md.machineSet.IsEmpty() {
-		for name, config := range md.processConfigs {
-			if err := md.spawnMachineInGroup(ctx, name, config); err != nil {
+		for name := range md.processConfigs {
+			if err := md.spawnMachineInGroup(ctx, name); err != nil {
 				return err
 			}
 		}
@@ -365,7 +364,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	}
 	md.machineSet.StartBackgroundLeaseRefresh(ctx, md.leaseTimeout, md.leaseDelayBetween)
 
-	processGroupMachineDiff := md.resolveProcessGroupMachineChanges(ctx)
+	processGroupMachineDiff := md.resolveProcessGroupMachineChanges()
 
 	cont, err := md.promptConfirmProcessGroupChanges(ctx, processGroupMachineDiff)
 	if err != nil {
@@ -391,8 +390,8 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	}
 
 	// Create machines for new process groups
-	for name, cfg := range processGroupMachineDiff.groupsNeedingMachines {
-		if err := md.spawnMachineInGroup(ctx, name, cfg); err != nil {
+	for name := range processGroupMachineDiff.groupsNeedingMachines {
+		if err := md.spawnMachineInGroup(ctx, name); err != nil {
 			return err
 		}
 	}

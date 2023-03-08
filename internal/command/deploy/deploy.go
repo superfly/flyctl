@@ -166,15 +166,9 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 			primaryRegion = flag.GetString(ctx, flag.RegionName)
 		}
 
-		processConfigs, err := appConfig.GetProcessConfigs()
-		if err != nil {
-			return err
-		}
-
 		md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 			AppCompact:        appCompact,
 			DeploymentImage:   img,
-			ProcessConfigs:    &processConfigs,
 			Strategy:          flag.GetString(ctx, "strategy"),
 			EnvFromFlags:      flag.GetStringSlice(ctx, "env"),
 			PrimaryRegionFlag: primaryRegion,
