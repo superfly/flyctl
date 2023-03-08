@@ -12,6 +12,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/cmd"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/api"
@@ -256,27 +257,52 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 		logger := logger.FromContext(ctx)
 		logger.Debug("no local app config detected; fetching from backend ...")
 
-		var apiConfig *api.AppConfig
-		if apiConfig, err = client.GetConfig(ctx, appNameFromContext); err != nil {
-			err = fmt.Errorf("failed fetching existing app config: %w", err)
+		var appCompact *api.AppCompact
+		appCompact, err = client.GetAppCompact(ctx, appNameFromContext)
+		if err != nil {
 			return
 		}
 
-		basicApp, err := client.GetAppBasic(ctx, appNameFromContext)
-		if err != nil {
-			return nil, err
+		var appName string
+		var platformVersion string
+
+		if appCompact.PlatformVersion == appconfig.MachinesPlatform {
+			cfg, err = cmd.GetRemoteAppV2Config(ctx, client, appCompact)
+			if err != nil {
+				return
+			}
+
+			appName = appCompact.Name
+			platformVersion = appCompact.PlatformVersion
+
+		} else {
+			var apiConfig *api.AppConfig
+			if apiConfig, err = client.GetConfig(ctx, appNameFromContext); err != nil {
+				err = fmt.Errorf("failed fetching existing app config: %w", err)
+				return
+			}
+
+			basicApp, err := client.GetAppBasic(ctx, appNameFromContext)
+			if err != nil {
+				return nil, err
+			}
+
+			cfg, err = appconfig.FromDefinition(&apiConfig.Definition)
+			if err != nil {
+				return nil, fmt.Errorf("Failed to convert definition into config: %w", err)
+			}
+
+			appName = basicApp.Name
+			platformVersion = basicApp.PlatformVersion
+
 		}
 
-		cfg, err = appconfig.FromDefinition(&apiConfig.Definition)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to convert definition into config: %w", err)
-		}
+		cfg.AppName = appName
 
-		cfg.AppName = basicApp.Name
-
-		if err := cfg.SetPlatformVersion(basicApp.PlatformVersion); err != nil {
+		if err := cfg.SetPlatformVersion(platformVersion); err != nil {
 			return cfg, err
 		}
+
 	} else {
 		parsedCfg, err := client.ParseConfig(ctx, appNameFromContext, cfg.SanitizedDefinition())
 		if err != nil {
