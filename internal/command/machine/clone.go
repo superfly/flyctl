@@ -250,26 +250,15 @@ func runMachineClone(ctx context.Context) (err error) {
 }
 
 func getAppConfig(ctx context.Context, appName string) (*appconfig.Config, error) {
-	apiClient := client.FromContext(ctx).API()
 	cfg := appconfig.ConfigFromContext(ctx)
 	if cfg == nil {
 		terminal.Debug("no local app config detected; fetching from backend ...")
 
-		apiConfig, err := apiClient.GetConfig(ctx, appName)
+		cfg, err := appconfig.FromRemoteApp(ctx, appName)
 		if err != nil {
 			return nil, fmt.Errorf("failed fetching existing app config: %w", err)
 		}
 
-		basicApp, err := apiClient.GetAppBasic(ctx, appName)
-		if err != nil {
-			return nil, err
-		}
-
-		cfg, err := appconfig.FromDefinition(&apiConfig.Definition)
-		if err != nil {
-			return nil, err
-		}
-		cfg.AppName = basicApp.Name
 		return cfg, nil
 	}
 
