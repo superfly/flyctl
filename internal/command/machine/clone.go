@@ -262,7 +262,7 @@ func getAppConfig(ctx context.Context, appName string) (*appconfig.Config, error
 		return cfg, nil
 	}
 
-	err := cfg.Validate(ctx)
+	err, _ := cfg.Validate(ctx)
 	if err != nil {
 		return nil, err
 	}

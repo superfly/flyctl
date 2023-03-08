@@ -8,43 +8,65 @@ import (
 	"strings"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/terminal"
+	"github.com/superfly/flyctl/iostreams"
 )
 
-func (cfg *Config) Validate(ctx context.Context) (err error) {
-	appNameFromContext := NameFromContext(ctx)
-
+func (cfg *Config) Validate(ctx context.Context) (err error, error_info string) {
+	io := iostreams.FromContext(ctx)
+	appName := NameFromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
-	appCompact, err := apiClient.GetAppCompact(ctx, appNameFromContext)
 
-	if err != nil {
-		return err
+	if cfg == nil {
+		return errors.New("App config file not found"), ""
 	}
 
-	if appCompact.PlatformVersion == MachinesPlatform {
-		return cfg.validateLocally()
+	platformVersion := NomadPlatform
+	app, err := apiClient.GetAppBasic(ctx, appName)
+	switch {
+	case err == nil:
+		platformVersion = app.PlatformVersion
+	case strings.Contains(err.Error(), "Could not find App"):
+		fmt.Fprintf(io.Out, "WARNING: Failed to fetch platform version: %s\n", err)
+	default:
+		return err, ""
+	}
 
-	} else {
-		parsedCfg, err := apiClient.ParseConfig(ctx, appNameFromContext, cfg.SanitizedDefinition())
+	fmt.Fprintf(io.Out, "Validating %s (%s)\n", cfg.ConfigFilePath(), platformVersion)
+
+	switch platformVersion {
+	case MachinesPlatform:
+		err := cfg.EnsureV2Config()
+		var extra_info string
+		if err == nil {
+			extra_info = fmt.Sprintf("%s Configuration is valid\n", aurora.Green("✓"))
+			return nil, extra_info
+		} else {
+			extra_info = fmt.Sprintf("\n   %s%s\n", aurora.Red("✘"), err)
+			return errors.New("App configuration is not valid"), extra_info
+		}
+	case NomadPlatform:
+		serverCfg, err := apiClient.ValidateConfig(ctx, appName, cfg.SanitizedDefinition())
 		if err != nil {
-			return err
+			return err, ""
 		}
 
-		if !parsedCfg.Valid {
-			fmt.Println()
-			if len(parsedCfg.Errors) > 0 {
-				terminal.Errorf("\nConfiguration errors in %s:\n\n", cfg.ConfigFilePath())
+		if serverCfg.Valid {
+			extra_info := fmt.Sprintf("%s Configuration is valid\n", aurora.Green("✓"))
+			return nil, extra_info
+		} else {
+			extra_info := "\n"
+			for _, errStr := range serverCfg.Errors {
+				extra_info += fmt.Sprintf("   %s%s\n", aurora.Red("✘"), errStr)
 			}
-			for _, e := range parsedCfg.Errors {
-				terminal.Errorf("   %s\n", e)
-			}
-			fmt.Println()
-			return errors.New("error app configuration is not valid")
+			extra_info += "\n"
+			return errors.New("App configuration is not valid"), extra_info
 		}
-
+	default:
+		return fmt.Errorf("Unknown platform version '%s' for app '%s'", platformVersion, appName), ""
 	}
-	return nil
+
 }
 
 func (c *Config) validateLocally() (err error) {

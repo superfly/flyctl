@@ -82,7 +82,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err != nil {
 		return nil, err
 	}
-	err = appConfig.Validate(ctx)
+	err, _ = appConfig.Validate(ctx)
 	if err != nil {
 		return nil, err
 	}
