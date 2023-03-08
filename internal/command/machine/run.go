@@ -273,6 +273,7 @@ func runMachineRun(ctx context.Context) error {
 	fmt.Fprintf(io.Out, " Instance ID: %s\n", instanceID)
 	fmt.Fprintf(io.Out, " State: %s\n", state)
 
+	fmt.Fprintf(io.Out, "\n Attempting to start machine...\n")
 	// wait for machine to be started
 	if err := mach.WaitForStartOrStop(ctx, machine, "start", time.Minute*5); err != nil {
 		return err
