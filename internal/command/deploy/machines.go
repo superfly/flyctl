@@ -3,8 +3,6 @@ package deploy
 import (
 	"context"
 	"fmt"
-	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/prompt"
 	"strconv"
 	"strings"
 	"time"
@@ -254,7 +252,7 @@ func (md *machineDeployment) resolveProcessGroupMachineChanges() ProcessGroupMac
 	return output
 }
 
-func (md *machineDeployment) promptConfirmProcessGroupChanges(ctx context.Context, diff ProcessGroupMachineDiff) (bool, error) {
+func (md *machineDeployment) warnAboutProcessGroupChanges(ctx context.Context, diff ProcessGroupMachineDiff) {
 
 	var (
 		io                 = iostreams.FromContext(ctx)
@@ -282,18 +280,6 @@ func (md *machineDeployment) promptConfirmProcessGroupChanges(ctx context.Contex
 		}
 	}
 
-	if !flag.GetBool(ctx, flag.NowName) {
-
-		switch confirmed, err := prompt.Confirm(ctx, "Accept these changes? "); {
-		case err == nil:
-			return confirmed, nil
-		case prompt.IsNonInteractive(err):
-			return false, prompt.NonInteractiveError("yes flag must be specified when not running interactively")
-		default:
-			return false, err
-		}
-	}
-	return true, nil
 }
 
 func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName string) error {
@@ -367,15 +353,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 
 	processGroupMachineDiff := md.resolveProcessGroupMachineChanges()
 
-	cont, err := md.promptConfirmProcessGroupChanges(ctx, processGroupMachineDiff)
-	if err != nil {
-		return err
-	}
-	if !cont {
-		// TODO(ali): is this happening too late to properly abort?
-		fmt.Fprintln(md.io.Out, "Aborted.")
-		return nil
-	}
+	md.warnAboutProcessGroupChanges(ctx, processGroupMachineDiff)
 
 	// TODO(ali): Why do I have to do this?
 	ctx = flaps.NewContext(ctx, md.flapsClient)
