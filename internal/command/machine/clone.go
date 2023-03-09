@@ -135,6 +135,10 @@ func runMachineClone(ctx context.Context) (err error) {
 		if targetProcessGroup == api.MachineProcessGroupFlyAppReleaseCommand {
 			return fmt.Errorf("invalid process group %s, %s is reserved for internal use", targetProcessGroup, api.MachineProcessGroupFlyAppReleaseCommand)
 		}
+		if targetConfig.Metadata == nil {
+			targetConfig.Metadata = make(map[string]string)
+		}
+
 		targetConfig.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = targetProcessGroup
 		terminal.Infof("Setting process group to %s for new machine and updating cmd, services, and checks\n", targetProcessGroup)
 		targetConfig.Init.Cmd = processConfig.Cmd
