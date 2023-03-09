@@ -627,10 +627,13 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 		Region:  origMachineRaw.Region,
 	}
 
-	if !md.restartOnly {
-		launchInput.Config.Metadata = md.defaultMachineMetadata()
-		for k, v := range origMachineRaw.Config.Metadata {
-			if !isFlyAppsPlatformMetadata(k) {
+	defaultMetadata := md.defaultMachineMetadata()
+	if launchInput.Config.Metadata == nil {
+		launchInput.Config.Metadata = defaultMetadata
+	} else {
+		for k, v := range defaultMetadata {
+			_, has := launchInput.Config.Metadata[k]
+			if !has || isFlyAppsPlatformMetadata(k) {
 				launchInput.Config.Metadata[k] = v
 			}
 		}

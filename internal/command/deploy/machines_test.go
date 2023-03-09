@@ -313,3 +313,43 @@ func Test_resultUpdateMachineConfig_restartOnly(t *testing.T) {
 		},
 	}, md.resolveUpdatedMachineConfig(origMachine, false))
 }
+
+// Test machineDeployment.restartOnlyProcessGroup
+func Test_resultUpdateMachineConfig_restartOnlyProcessGroup(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		Env: map[string]string{
+			"Ignore": "me",
+		},
+		Mounts: &appconfig.Volume{
+			Source:      "data",
+			Destination: "/data",
+		},
+	})
+	assert.NoError(t, err)
+	md.restartOnly = true
+	md.img.Tag = "SHOULD-NOT-USE-THIS-TAG"
+
+	origMachine := &api.Machine{
+		ID: "OrigID",
+		Config: &api.MachineConfig{
+			Image: "instead-use/the-redmoon",
+			Metadata: map[string]string{
+				"fly_process_group": "awesome-group",
+			},
+		},
+	}
+
+	assert.Equal(t, &api.LaunchMachineInput{
+		ID:      "OrigID",
+		OrgSlug: "my-dangling-org",
+		Config: &api.MachineConfig{
+			Image: "instead-use/the-redmoon",
+			Metadata: map[string]string{
+				"fly_platform_version": "v2",
+				"fly_process_group":    "awesome-group",
+				"fly_release_id":       "",
+				"fly_release_version":  "0",
+			},
+		},
+	}, md.resolveUpdatedMachineConfig(origMachine, false))
+}
