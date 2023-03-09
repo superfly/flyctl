@@ -17,8 +17,8 @@ import (
 
 func newScaleShow() *cobra.Command {
 	const (
-		short = ""
-		long  = ""
+		short = "Show current resources"
+		long  = `Show current VM size and counts`
 	)
 	cmd := command.New("show", short, long, runScaleShow,
 		command.RequireSession,

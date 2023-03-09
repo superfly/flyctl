@@ -13,8 +13,17 @@ import (
 
 func newScaleVm() *cobra.Command {
 	const (
-		short = ""
-		long  = ""
+		short = "Change an app's VM to a named size (eg. shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x...)"
+		long  = `Change an application's VM size to one of the named VM sizes.
+
+For a full list of supported sizes use the command 'flyctl platform vm-sizes'
+
+Memory size can be set with --memory=number-of-MB
+e.g. flyctl scale vm shared-cpu-1x --memory=2048
+
+For dedicated vms, this should be a multiple of 1024MB.
+For shared vms, this can be 256MB or a a multiple of 1024MB.
+For pricing, see https://fly.io/docs/about/pricing/`
 	)
 	cmd := command.New("vm", short, long, runScaleVM,
 		command.RequireSession,

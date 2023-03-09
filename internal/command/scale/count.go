@@ -15,8 +15,10 @@ import (
 
 func newScaleCount() *cobra.Command {
 	const (
-		short = ""
-		long  = ""
+		short = "Change an app's VM count to the given value"
+		long  = `Change an app's VM count to the given value.
+
+For pricing, see https://fly.io/docs/about/pricing/`
 	)
 	cmd := command.New("count", short, long, runScaleCount,
 		command.RequireSession,

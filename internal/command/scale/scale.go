@@ -13,8 +13,8 @@ import (
 
 func New() *cobra.Command {
 	const (
-		short = ""
-		long  = ""
+		short = "Scale app resources"
+		long  = `Scale application resources`
 	)
 	cmd := command.New("scale", short, long, nil)
 	cmd.AddCommand(

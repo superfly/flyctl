@@ -15,8 +15,8 @@ import (
 
 func newScaleMemory() *cobra.Command {
 	const (
-		short = ""
-		long  = ""
+		short = "Set VM memory"
+		long  = `Set VM memory to a number of megabytes`
 	)
 	cmd := command.New("memory", short, long, runScaleMemory,
 		command.RequireSession,
