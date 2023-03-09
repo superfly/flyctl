@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -100,7 +101,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err != nil {
 		return nil, err
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
 	var releaseCmd []string
 	if appConfig.Deploy != nil {
 		releaseCmd, err = shlex.Split(appConfig.Deploy.ReleaseCommand)
@@ -264,7 +264,7 @@ func (md *machineDeployment) warnAboutProcessGroupChanges(ctx context.Context, d
 		bullet := colorize.Red("*")
 		for grp, numMach := range diff.groupsToRemove {
 			pluralS := lo.Ternary(numMach == 1, "", "s")
-			fmt.Fprintf(io.ErrOut, " %s remove %d \"%s\" machine%s\n", bullet, numMach, grp, pluralS)
+			fmt.Fprintf(io.ErrOut, " %s destroy %d \"%s\" machine%s\n", bullet, numMach, grp, pluralS)
 		}
 	}
 	if willAddMachines {
@@ -320,6 +320,8 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 }
 
 func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
+	ctx = flaps.NewContext(ctx, md.flapsClient)
+
 	err := md.runReleaseCommand(ctx)
 	if err != nil {
 		return fmt.Errorf("release command failed - aborting deployment. %w", err)
@@ -347,6 +349,17 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	md.machineSet.StartBackgroundLeaseRefresh(ctx, md.leaseTimeout, md.leaseDelayBetween)
 
 	processGroupMachineDiff := md.resolveProcessGroupChanges()
+
+	// If restartOnly is set, that means we're *re*deploying a configuration.
+	// It also probably means that we're in a context (like setting secrets) where
+	// creating or destroying machines would be unexpected.
+	if md.restartOnly {
+		removingMachines := len(processGroupMachineDiff.machinesToRemove) != 0
+		addingMachines := len(processGroupMachineDiff.groupsNeedingMachines) != 0
+		if removingMachines || addingMachines {
+			return errors.New("your app's machines don't match the remote configuration.\n[!] running 'fly deploy' would probably help")
+		}
+	}
 
 	md.warnAboutProcessGroupChanges(ctx, processGroupMachineDiff)
 
@@ -614,10 +627,12 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 		Region:  origMachineRaw.Region,
 	}
 
-	launchInput.Config.Metadata = md.defaultMachineMetadata()
-	for k, v := range origMachineRaw.Config.Metadata {
-		if !isFlyAppsPlatformMetadata(k) {
-			launchInput.Config.Metadata[k] = v
+	if !md.restartOnly {
+		launchInput.Config.Metadata = md.defaultMachineMetadata()
+		for k, v := range origMachineRaw.Config.Metadata {
+			if !isFlyAppsPlatformMetadata(k) {
+				launchInput.Config.Metadata[k] = v
+			}
 		}
 	}
 
