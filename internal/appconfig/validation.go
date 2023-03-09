@@ -57,6 +57,8 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 			extra_info += "\n"
 			return errors.New("App configuration is not valid"), extra_info
 		}
+	case "":
+		return nil, ""
 	default:
 		return fmt.Errorf("Unknown platform version '%s' for app '%s'", platformVersion, appName), extra_info
 	}
