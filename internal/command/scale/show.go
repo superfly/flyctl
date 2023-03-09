@@ -113,7 +113,7 @@ func printVMResources(ctx context.Context, vmSize api.VMSize, count string, maxP
 		return
 	}
 
-	fmt.Printf("VM Resources for %s\n", appName)
+	fmt.Fprintf(io.Out, "VM Resources for %s\n", appName)
 
 	if len(processGroups) <= 1 {
 		fmt.Fprintf(io.Out, "%15s: %s\n", "VM Size", vmSize.Name)
@@ -125,7 +125,7 @@ func printVMResources(ctx context.Context, vmSize api.VMSize, count string, maxP
 
 	if len(processGroups) > 1 {
 		for _, pg := range processGroups {
-			fmt.Printf("\nProcess group %s\n", pg.Name)
+			fmt.Fprintf(io.Out, "\nProcess group %s\n", pg.Name)
 			fmt.Fprintf(io.Out, "%15s: %s\n", "VM Size", pg.VMSize.Name)
 			fmt.Fprintf(io.Out, "%15s: %s\n", "VM Memory", formatMemory(*pg.VMSize))
 			fmt.Fprintf(io.Out, "%15s: %s\n", "Max Per Region", strconv.Itoa(pg.MaxPerRegion))

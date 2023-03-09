@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newScaleCount() *cobra.Command {
@@ -36,6 +37,7 @@ For pricing, see https://fly.io/docs/about/pricing/`
 }
 
 func runScaleCount(ctx context.Context) error {
+	io := iostreams.FromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 	appConfig := appconfig.ConfigFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
@@ -81,14 +83,12 @@ func runScaleCount(ctx context.Context) error {
 
 	if len(warnings) > 0 {
 		for _, warning := range warnings {
-			fmt.Println("Warning:", warning)
+			fmt.Fprintln(io.Out, "Warning:", warning)
 		}
-		fmt.Println()
+		fmt.Fprintln(io.Out)
 	}
 
 	msg := countMessage(counts)
-
-	fmt.Printf("Count changed to %s\n", msg)
-
+	fmt.Fprintf(io.Out, "Count changed to %s\n", msg)
 	return nil
 }

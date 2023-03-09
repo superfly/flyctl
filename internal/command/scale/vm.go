@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newScaleVm() *cobra.Command {
@@ -42,6 +43,7 @@ For pricing, see https://fly.io/docs/about/pricing/`
 }
 
 func runScaleVM(ctx context.Context) error {
+	io := iostreams.FromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 	appName := appconfig.NameFromContext(ctx)
 	sizeName := flag.FirstArg(ctx)
@@ -54,11 +56,11 @@ func runScaleVM(ctx context.Context) error {
 	}
 
 	if group == "" {
-		fmt.Println("Scaled VM Type to\n", size.Name)
+		fmt.Fprintln(io.Out, "Scaled VM Type to\n", size.Name)
 	} else {
-		fmt.Printf("Scaled VM Type for \"%s\" to %s\n", group, size.Name)
+		fmt.Fprintf(io.Out, "Scaled VM Type for \"%s\" to %s\n", group, size.Name)
 	}
-	fmt.Printf("%15s: %s\n", "CPU Cores", formatCores(size))
-	fmt.Printf("%15s: %s\n", "Memory", formatMemory(size))
+	fmt.Fprintf(io.Out, "%15s: %s\n", "CPU Cores", formatCores(size))
+	fmt.Fprintf(io.Out, "%15s: %s\n", "Memory", formatMemory(size))
 	return nil
 }

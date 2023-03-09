@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newScaleMemory() *cobra.Command {
@@ -34,6 +35,7 @@ func newScaleMemory() *cobra.Command {
 }
 
 func runScaleMemory(ctx context.Context) error {
+	io := iostreams.FromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 	appName := appconfig.NameFromContext(ctx)
 	group := flag.GetString(ctx, "group")
@@ -54,9 +56,9 @@ func runScaleMemory(ctx context.Context) error {
 		return err
 	}
 
-	fmt.Println("Scaled VM Memory size to", formatMemory(size))
-	fmt.Printf("%15s: %s\n", "CPU Cores", formatCores(size))
-	fmt.Printf("%15s: %s\n", "Memory", formatMemory(size))
+	fmt.Fprintln(io.Out, "Scaled VM Memory size to", formatMemory(size))
+	fmt.Fprintf(io.Out, "%15s: %s\n", "CPU Cores", formatCores(size))
+	fmt.Fprintf(io.Out, "%15s: %s\n", "Memory", formatMemory(size))
 
 	return nil
 }
