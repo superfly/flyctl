@@ -44,7 +44,12 @@ func runMachineStop(ctx context.Context) (err error) {
 		args = flag.Args(ctx)
 	)
 
-	for _, machineID := range args {
+	machineIDs, ctx, err := selectManyMachineIDs(ctx, args)
+	if err != nil {
+		return err
+	}
+
+	for _, machineID := range machineIDs {
 		fmt.Fprintf(io.Out, "Sending kill signal to machine %s...\n", machineID)
 
 		if err = Stop(ctx, machineID); err != nil {
@@ -65,21 +70,11 @@ func Stop(ctx context.Context, machineID string) (err error) {
 		Filters: &api.Filters{},
 	}
 
-	app, err := appFromMachineOrName(ctx, machineID, appName)
-	if err != nil {
-		return fmt.Errorf("could not get app: %w", err)
-	}
-
-	flapsClient, err := flaps.New(ctx, app)
-	if err != nil {
-		return fmt.Errorf("could not make flaps client: %w", err)
-	}
-
-	err = flapsClient.Stop(ctx, machineStopInput)
+	err = flaps.FromContext(ctx).Stop(ctx, machineStopInput)
 	if err != nil {
 		switch {
-		case strings.Contains(err.Error(), "not found") && appName != "":
-			return fmt.Errorf("machine %s was not found in app %s", machineID, appName)
+		case strings.Contains(err.Error(), "not found"):
+			return fmt.Errorf("machine %s was not found in app '%s'", machineID, appName)
 		default:
 			return fmt.Errorf("could not stop machine %s: %w", machineStopInput.ID, err)
 		}

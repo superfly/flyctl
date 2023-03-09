@@ -89,26 +89,14 @@ func runMachineClone(ctx context.Context) (err error) {
 
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
-		help := newClone().Help()
-
-		if help != nil {
-			fmt.Println(help)
-		}
-
-		fmt.Println()
-
 		return err
 	}
-	flapsClient, err := flaps.New(ctx, app)
-	if err != nil {
-		return fmt.Errorf("could not make flaps client: %w", err)
-	}
-	ctx = flaps.NewContext(ctx, flapsClient)
 
-	source, err := flapsClient.Get(ctx, machineID)
+	source, ctx, err := selectOneMachineFromApp(ctx, machineID, app)
 	if err != nil {
 		return err
 	}
+	flapsClient := flaps.FromContext(ctx)
 
 	region := flag.GetString(ctx, "region")
 	if region == "" {

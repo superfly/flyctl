@@ -10,8 +10,6 @@ import (
 	"github.com/alecthomas/chroma/quick"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
@@ -69,31 +67,10 @@ func getProcessGroup(m *api.Machine) string {
 func runMachineStatus(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 
-	var (
-		appName   = appconfig.NameFromContext(ctx)
-		machineID = flag.FirstArg(ctx)
-	)
-
-	app, err := appFromMachineOrName(ctx, machineID, appName)
+	machineID := flag.FirstArg(ctx)
+	machine, ctx, err := selectOneMachine(ctx, machineID)
 	if err != nil {
 		return err
-	}
-
-	flapsClient, err := flaps.New(ctx, app)
-	if err != nil {
-		return fmt.Errorf("could not make flaps client: %w", err)
-	}
-
-	machine, err := flapsClient.Get(ctx, machineID)
-	if err != nil {
-		switch {
-		case strings.Contains(err.Error(), "status"):
-			return fmt.Errorf("retrieve machine failed %s", err)
-		case strings.Contains(err.Error(), "not found") && appName != "":
-			return fmt.Errorf("machine %s was not found in app %s", machineID, appName)
-		default:
-			return fmt.Errorf("machine %s could not be retrieved", machineID)
-		}
 	}
 
 	fmt.Fprintf(io.Out, "Machine ID: %s\n", machine.ID)
