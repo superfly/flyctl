@@ -100,6 +100,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err != nil {
 		return nil, err
 	}
+	ctx = flaps.NewContext(ctx, flapsClient)
 	var releaseCmd []string
 	if appConfig.Deploy != nil {
 		releaseCmd, err = shlex.Split(appConfig.Deploy.ReleaseCommand)
@@ -348,9 +349,6 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	processGroupMachineDiff := md.resolveProcessGroupChanges()
 
 	md.warnAboutProcessGroupChanges(ctx, processGroupMachineDiff)
-
-	// TODO(ali): Why do I have to do this?
-	ctx = flaps.NewContext(ctx, md.flapsClient)
 
 	// Destroy machines that don't fit the current process groups
 	if err := md.machineSet.RemoveMachines(ctx, processGroupMachineDiff.machinesToRemove); err != nil {
