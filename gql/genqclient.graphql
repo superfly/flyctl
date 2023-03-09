@@ -21,8 +21,8 @@ query GetAddOn($name: String) {
 	}
 }
 
-mutation CreateAddOn($organizationId: ID!, $primaryRegion: String, $name: String, $planId: ID, $readRegions: [String!], $options: JSON!) {
-	createAddOn(input: {organizationId: $organizationId, type: redis, name: $name, planId: $planId, primaryRegion: $primaryRegion,
+mutation CreateAddOn($organizationId: ID!, $primaryRegion: String, $name: String, $planId: ID, $readRegions: [String!], $addOnType: AddOnType!, $options: JSON!) {
+	createAddOn(input: {organizationId: $organizationId, type: $addOnType, name: $name, planId: $planId, primaryRegion: $primaryRegion,
 			readRegions: $readRegions, options: $options}) {
 		addOn {
 			name

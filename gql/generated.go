@@ -1116,6 +1116,7 @@ type __CreateAddOnInput struct {
 	Name           string      `json:"name"`
 	PlanId         string      `json:"planId"`
 	ReadRegions    []string    `json:"readRegions"`
+	AddOnType      AddOnType   `json:"addOnType"`
 	Options        interface{} `json:"options"`
 }
 
@@ -1133,6 +1134,9 @@ func (v *__CreateAddOnInput) GetPlanId() string { return v.PlanId }
 
 // GetReadRegions returns __CreateAddOnInput.ReadRegions, and is useful for accessing the field via an interface.
 func (v *__CreateAddOnInput) GetReadRegions() []string { return v.ReadRegions }
+
+// GetAddOnType returns __CreateAddOnInput.AddOnType, and is useful for accessing the field via an interface.
+func (v *__CreateAddOnInput) GetAddOnType() AddOnType { return v.AddOnType }
 
 // GetOptions returns __CreateAddOnInput.Options, and is useful for accessing the field via an interface.
 func (v *__CreateAddOnInput) GetOptions() interface{} { return v.Options }
@@ -1315,13 +1319,14 @@ func CreateAddOn(
 	name string,
 	planId string,
 	readRegions []string,
+	addOnType AddOnType,
 	options interface{},
 ) (*CreateAddOnResponse, error) {
 	req := &graphql.Request{
 		OpName: "CreateAddOn",
 		Query: `
-mutation CreateAddOn ($organizationId: ID!, $primaryRegion: String, $name: String, $planId: ID, $readRegions: [String!], $options: JSON!) {
-	createAddOn(input: {organizationId:$organizationId,type:redis,name:$name,planId:$planId,primaryRegion:$primaryRegion,readRegions:$readRegions,options:$options}) {
+mutation CreateAddOn ($organizationId: ID!, $primaryRegion: String, $name: String, $planId: ID, $readRegions: [String!], $addOnType: AddOnType!, $options: JSON!) {
+	createAddOn(input: {organizationId:$organizationId,type:$addOnType,name:$name,planId:$planId,primaryRegion:$primaryRegion,readRegions:$readRegions,options:$options}) {
 		addOn {
 			name
 			publicUrl
@@ -1335,6 +1340,7 @@ mutation CreateAddOn ($organizationId: ID!, $primaryRegion: String, $name: Strin
 			Name:           name,
 			PlanId:         planId,
 			ReadRegions:    readRegions,
+			AddOnType:      addOnType,
 			Options:        options,
 		},
 	}

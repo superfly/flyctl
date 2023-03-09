@@ -24,12 +24,12 @@ func newShipperSetup() (cmd *cobra.Command) {
 		long  = short + "\n"
 	)
 
-	cmd = command.New("setup", short, long, runLaunch, command.RequireSession)
+	cmd = command.New("setup", short, long, runSetup, command.RequireSession)
 
 	return cmd
 }
 
-func runLaunch(ctx context.Context) (err error) {
+func runSetup(ctx context.Context) (err error) {
 	client := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
 	selectedOrg, err := orgs.OrgFromFirstArgOrSelect(ctx)
@@ -49,23 +49,27 @@ func runLaunch(ctx context.Context) (err error) {
 			Name:           appName,
 			OrganizationID: selectedOrg.ID,
 			Machines:       true,
+			AppRoleID:      "log_shipper",
 		}
 
 		createdApp, err := client.CreateApp(ctx, input)
-		app = client.AppToCompact(createdApp)
 
 		if err != nil {
 			return err
 		}
-	}
 
-	fmt.Fprintf(io.ErrOut, "Setting up secrets for %s\n", app.Name)
+		app = client.AppToCompact(createdApp)
+
+	}
 
 	response, err := gql.GetAddOn(ctx, client.GenqClient, appName)
 	var token string
 
 	if err != nil {
-		response, err := gql.CreateAddOn(ctx, client.GenqClient, selectedOrg.ID, "", appName, "", nil, api.AddOnOptions{})
+
+		fmt.Fprintf(io.ErrOut, "Provisioning log shipper VM as the app named %s\n", app.Name)
+
+		response, err := gql.CreateAddOn(ctx, client.GenqClient, selectedOrg.ID, "", appName, "", nil, "logtail", api.AddOnOptions{})
 
 		if err != nil {
 			return err
@@ -75,6 +79,8 @@ func runLaunch(ctx context.Context) (err error) {
 	} else {
 		token = response.AddOn.Token
 	}
+
+	fmt.Fprintf(io.ErrOut, "Setting up secrets for %s\n", app.Name)
 
 	_, err = client.SetSecrets(ctx, appName, map[string]string{
 		"ACCESS_TOKEN":  flyctl.GetAPIToken(),

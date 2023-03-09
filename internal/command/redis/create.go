@@ -209,7 +209,7 @@ func ProvisionDatabase(ctx context.Context, org *api.Organization, config RedisC
 		options["eviction"] = true
 	}
 
-	response, err := gql.CreateAddOn(ctx, client, org.ID, config.PrimaryRegion.Code, config.Name, config.PlanId, readRegionCodes, options)
+	response, err := gql.CreateAddOn(ctx, client, org.ID, config.PrimaryRegion.Code, config.Name, config.PlanId, readRegionCodes, "upstash_redis", options)
 	if err != nil {
 		return
 	}
