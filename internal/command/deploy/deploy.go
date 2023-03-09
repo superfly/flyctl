@@ -259,11 +259,6 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 			return
 		}
 
-	} else {
-		err, _ = cfg.Validate(ctx)
-		if err != nil {
-			return
-		}
 	}
 
 	if env := flag.GetStringSlice(ctx, "env"); len(env) > 0 {
@@ -281,9 +276,13 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 	}
 
 	// Always prefer the app name passed via --app
-
 	if appNameFromContext != "" {
 		cfg.AppName = appNameFromContext
+	}
+
+	err, _ = cfg.Validate(ctx)
+	if err != nil {
+		return
 	}
 
 	tb.Done("Verified app config")
