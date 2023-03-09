@@ -32,7 +32,7 @@ func TestAppsV2Example(t *testing.T) {
 
 	result = f.Fly("launch --org %s --name %s --region %s --image nginx --force-machines --internal-port 80 --now --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
 	require.Contains(f, result.StdOut().String(), "Using image nginx")
-	require.Contains(f, result.StdOut().String(), fmt.Sprintf("Created app %s in organization %s", appName, f.OrgSlug()))
+	require.Contains(f, result.StdOut().String(), fmt.Sprintf("Created app '%s' in organization '%s'", appName, f.OrgSlug()))
 	require.Contains(f, result.StdOut().String(), "Wrote config file fly.toml")
 
 	time.Sleep(10 * time.Second)
