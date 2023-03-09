@@ -154,12 +154,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err != nil {
 		return nil, err
 	}
-	/* // TODO(ali): Remove this
-	err = md.validateProcessesConfig()
-	if err != nil {
-		return nil, err
-	}
-	*/
 	err = md.validateVolumeConfig()
 	if err != nil {
 		return nil, err
@@ -535,48 +529,6 @@ func (md *machineDeployment) setVolumeConfig(ctx context.Context) error {
 	}
 	return nil
 }
-
-// TODO(ali): remove this
-/*
-func (md *machineDeployment) validateProcessesConfig() error {
-	appConfigProcessesExist := md.appConfig.Processes != nil && len(md.appConfig.Processes) > 0
-	appConfigProcessesStr := ""
-	first := true
-	for procGroupName := range md.appConfig.Processes {
-		if !first {
-			appConfigProcessesStr += ", "
-		} else {
-			first = false
-		}
-		appConfigProcessesStr += procGroupName
-	}
-	for _, m := range md.machineSet.GetMachines() {
-		mid := m.Machine().ID
-		machineProcGroup := m.Machine().Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
-		machineProcGroupPresent := machineProcGroup != ""
-		if machineProcGroup == api.MachineProcessGroupFlyAppReleaseCommand {
-			continue
-		}
-		// we put the api.MachineProcessGroupApp process group on machine by default
-		if !appConfigProcessesExist && machineProcGroup == api.MachineProcessGroupApp {
-			continue
-		}
-		if !machineProcGroupPresent && appConfigProcessesExist {
-			return fmt.Errorf("error machine %s does not have a process group and should have one from app configuration: %s", mid, appConfigProcessesStr)
-		}
-		if machineProcGroupPresent && !appConfigProcessesExist {
-			return fmt.Errorf("error machine %s has process group '%s' and no processes are defined in app config; add [processes] to fly.toml or remove the process group from this machine", mid, machineProcGroup)
-		}
-		if machineProcGroupPresent {
-			_, appConfigProcGroupPresent := md.appConfig.Processes[machineProcGroup]
-			if !appConfigProcGroupPresent {
-				return fmt.Errorf("error machine %s has process group '%s', which is missing from the processes in the app config: %s", mid, machineProcGroup, appConfigProcessesStr)
-			}
-		}
-	}
-	return nil
-}
-*/
 
 func (md *machineDeployment) validateVolumeConfig() error {
 	for _, m := range md.machineSet.GetMachines() {
