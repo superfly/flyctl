@@ -2,10 +2,13 @@ package config
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
@@ -27,7 +30,19 @@ retrieved from the Fly service and saved in TOML format.`
 }
 
 func runSave(ctx context.Context) error {
-	appName := appconfig.NameFromContext(ctx)
+	var (
+		err       error
+		appName   = appconfig.NameFromContext(ctx)
+		apiClient = client.FromContext(ctx).API()
+	)
+	appCompact, err := apiClient.GetAppCompact(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("error getting app with name %s: %w", appName, err)
+	}
+	ctx, err = apps.BuildContext(ctx, appCompact)
+	if err != nil {
+		return err
+	}
 	cfg, err := appconfig.FromRemoteApp(ctx, appName)
 	if err != nil {
 		return err
