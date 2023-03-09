@@ -82,7 +82,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err != nil {
 		return nil, err
 	}
-	err = appConfig.Validate()
+	err, _ = appConfig.Validate(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -669,28 +669,15 @@ func (md *machineDeployment) logClearLinesAbove(count int) {
 }
 
 func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion string) (cfg *appconfig.Config, err error) {
-	client := client.FromContext(ctx).API()
 	appNameFromContext := appconfig.NameFromContext(ctx)
 	if cfg = appconfig.ConfigFromContext(ctx); cfg == nil {
 		logger := logger.FromContext(ctx)
 		logger.Debug("no local app config detected for machines deploy; fetching from backend ...")
 
-		var apiConfig *api.AppConfig
-		if apiConfig, err = client.GetConfig(ctx, appNameFromContext); err != nil {
-			err = fmt.Errorf("failed fetching existing app config: %w", err)
-			return
-		}
-
-		basicApp, err := client.GetAppBasic(ctx, appNameFromContext)
+		cfg, err = appconfig.FromRemoteApp(ctx, appNameFromContext)
 		if err != nil {
 			return nil, err
 		}
-
-		cfg, err = appconfig.FromDefinition(&apiConfig.Definition)
-		if err != nil {
-			return nil, err
-		}
-		cfg.AppName = basicApp.Name
 	}
 
 	if len(envFromFlags) > 0 {
