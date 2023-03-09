@@ -60,7 +60,7 @@ func runScaleCount(ctx context.Context) error {
 		for _, arg := range args {
 			parts := strings.Split(arg, "=")
 			if len(parts) != 2 {
-				return fmt.Errorf("%s is not a valid process=count option", arg)
+				return fmt.Errorf("'%s' is not a valid process=count option", arg)
 			}
 			count, err := strconv.Atoi(parts[1])
 			if err != nil {
@@ -88,7 +88,6 @@ func runScaleCount(ctx context.Context) error {
 		fmt.Fprintln(io.Out)
 	}
 
-	msg := countMessage(counts)
-	fmt.Fprintf(io.Out, "Count changed to %s\n", msg)
+	fmt.Fprintf(io.Out, "Count changed to %s\n", countMessage(counts))
 	return nil
 }

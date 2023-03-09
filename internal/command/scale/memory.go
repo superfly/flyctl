@@ -56,14 +56,13 @@ func runScaleMemory(ctx context.Context) error {
 		return err
 	}
 
-	fmt.Fprintln(io.Out, "Scaled VM Memory size to", formatMemory(size))
+	fmt.Fprintf(io.Out, "Scaled VM Memory size to %s\n", formatMemory(size))
 	fmt.Fprintf(io.Out, "%15s: %s\n", "CPU Cores", formatCores(size))
 	fmt.Fprintf(io.Out, "%15s: %s\n", "Memory", formatMemory(size))
 
 	return nil
 }
 
-// TODO: Move these funcs (also in presenters.VMSizes into presentation package)
 func formatCores(size api.VMSize) string {
 	if size.CPUCores < 1.0 {
 		return fmt.Sprintf("%.2f", size.CPUCores)

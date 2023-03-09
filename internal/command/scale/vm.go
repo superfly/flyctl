@@ -56,9 +56,9 @@ func runScaleVM(ctx context.Context) error {
 	}
 
 	if group == "" {
-		fmt.Fprintln(io.Out, "Scaled VM Type to\n", size.Name)
+		fmt.Fprintf(io.Out, "Scaled VM Type to '%s'\n", size.Name)
 	} else {
-		fmt.Fprintf(io.Out, "Scaled VM Type for \"%s\" to %s\n", group, size.Name)
+		fmt.Fprintf(io.Out, "Scaled VM Type for '%s' to '%s'\n", group, size.Name)
 	}
 	fmt.Fprintf(io.Out, "%15s: %s\n", "CPU Cores", formatCores(size))
 	fmt.Fprintf(io.Out, "%15s: %s\n", "Memory", formatMemory(size))

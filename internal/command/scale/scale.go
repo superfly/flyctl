@@ -34,7 +34,7 @@ func failOnMachinesApp(ctx context.Context) (context.Context, error) {
 	if err != nil {
 		return nil, err
 	} else if app.PlatformVersion == appconfig.MachinesPlatform {
-		return nil, fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine update instead")
+		return nil, fmt.Errorf("This command doesn't support V2 apps yet, use `fly machines update` and `fly machines clone` instead")
 	}
 
 	return ctx, nil
