@@ -10,6 +10,8 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -31,13 +33,40 @@ const headerFlyRequestId = "fly-request-id"
 
 type Client struct {
 	app        *api.AppCompact
-	peerIP     string
+	baseUrl    *url.URL
 	authToken  string
 	httpClient *http.Client
 	userAgent  string
 }
 
 func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
+	// FIXME: do this once we setup config for `fly config ...` commands, and then use cfg.FlapsBaseURL below
+	// cfg := config.FromContext(ctx)
+	flapsBaseURL := os.Getenv("FLY_FLAPS_BASE_URL")
+	if strings.TrimSpace(strings.ToLower(flapsBaseURL)) == "peer" {
+		return newWithUsermodeWireguard(ctx, app)
+	} else if flapsBaseURL == "" {
+		flapsBaseURL = "https://api.machines.dev"
+	}
+	flapsUrl, err := url.Parse(flapsBaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid FLY_FLAPS_BASE_URL '%s' with error: %w", flapsBaseURL, err)
+	}
+	logger := logger.MaybeFromContext(ctx)
+	httpClient, err := api.NewHTTPClient(logger, http.DefaultTransport)
+	if err != nil {
+		return nil, fmt.Errorf("flaps: can't setup HTTP client to %s: %w", flapsUrl.String(), err)
+	}
+	return &Client{
+		app:        app,
+		baseUrl:    flapsUrl,
+		authToken:  flyctl.GetAPIToken(),
+		httpClient: httpClient,
+		userAgent:  strings.TrimSpace(fmt.Sprintf("fly-cli/%s", buildinfo.Version())),
+	}, nil
+}
+
+func newWithUsermodeWireguard(ctx context.Context, app *api.AppCompact) (*Client, error) {
 	logger := logger.MaybeFromContext(ctx)
 
 	client := client.FromContext(ctx).API()
@@ -62,9 +91,15 @@ func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
 		return nil, fmt.Errorf("flaps: can't setup HTTP client for %s: %w", app.Organization.Slug, err)
 	}
 
+	flapsBaseUrlString := fmt.Sprintf("http://[%s]:4280", resolvePeerIP(dialer.State().Peer.Peerip))
+	flapsBaseUrl, err := url.Parse(flapsBaseUrlString)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse flaps url '%s' with error: %w", flapsBaseUrlString, err)
+	}
+
 	return &Client{
 		app:        app,
-		peerIP:     resolvePeerIP(dialer.State().Peer.Peerip),
+		baseUrl:    flapsBaseUrl,
 		authToken:  flyctl.GetAPIToken(),
 		httpClient: httpClient,
 		userAgent:  strings.TrimSpace(fmt.Sprintf("fly-cli/%s", buildinfo.Version())),
@@ -173,7 +208,12 @@ func (f *Client) Stop(ctx context.Context, in api.StopMachineInput) (err error) 
 	return
 }
 
-func (f *Client) Restart(ctx context.Context, in api.RestartMachineInput) (err error) {
+func (f *Client) Restart(ctx context.Context, in api.RestartMachineInput, nonce string) (err error) {
+	headers := make(map[string][]string)
+	if nonce != "" {
+		headers[NonceHeader] = []string{nonce}
+	}
+
 	restartEndpoint := fmt.Sprintf("/%s/restart?force_stop=%t", in.ID, in.ForceStop)
 
 	if in.Timeout != 0 {
@@ -184,7 +224,7 @@ func (f *Client) Restart(ctx context.Context, in api.RestartMachineInput) (err e
 		restartEndpoint += fmt.Sprintf("&signal=%s", in.Signal)
 	}
 
-	if err := f.sendRequest(ctx, http.MethodPost, restartEndpoint, nil, nil, nil); err != nil {
+	if err := f.sendRequest(ctx, http.MethodPost, restartEndpoint, nil, nil, headers); err != nil {
 		return fmt.Errorf("failed to restart VM %s: %w", in.ID, err)
 	}
 	return
@@ -246,7 +286,7 @@ func (f *Client) ListActive(ctx context.Context) ([]*api.Machine, error) {
 	}
 
 	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
-		return !m.HasProcessGroup(api.MachineProcessGroupFlyAppReleaseCommand) && m.IsActive()
+		return !m.IsReleaseCommandMachine() && m.IsActive()
 	})
 
 	return machines, nil
@@ -400,17 +440,26 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 	return nil
 }
 
+func (f *Client) urlFromBaseUrl(pathAndQueryString string) (*url.URL, error) {
+	newUrl := *f.baseUrl // this does a copy: https://github.com/golang/go/issues/38351#issue-597797864
+	newPath, err := url.Parse(pathAndQueryString)
+	if err != nil {
+		return nil, fmt.Errorf("failed parsing flaps path '%s' with error: %w", pathAndQueryString, err)
+	}
+	return newUrl.ResolveReference(&url.URL{Path: newPath.Path, RawQuery: newPath.RawQuery}), nil
+}
+
 func (f *Client) NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error) {
-	var (
-		body   io.Reader
-		peerIP = f.peerIP
-	)
+	var body io.Reader
 
 	if headers == nil {
 		headers = make(map[string][]string)
 	}
 
-	targetEndpoint := fmt.Sprintf("http://[%s]:4280/v1/apps/%s/machines%s", peerIP, f.app.Name, path)
+	targetEndpoint, err := f.urlFromBaseUrl(fmt.Sprintf("/v1/apps/%s/machines%s", f.app.Name, path))
+	if err != nil {
+		return nil, err
+	}
 
 	if in != nil {
 		b, err := json.Marshal(in)
@@ -421,7 +470,7 @@ func (f *Client) NewRequest(ctx context.Context, method, path string, in interfa
 		body = bytes.NewReader(b)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, targetEndpoint, body)
+	req, err := http.NewRequestWithContext(ctx, method, targetEndpoint.String(), body)
 	if err != nil {
 		return nil, fmt.Errorf("could not create new request, %w", err)
 	}

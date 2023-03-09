@@ -9,6 +9,7 @@ import (
 
 	"github.com/alecthomas/chroma/quick"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -44,6 +45,25 @@ func newStatus() *cobra.Command {
 	)
 
 	return cmd
+}
+
+func getProcessGroup(m *api.Machine) string {
+	// backwards compatible process_group getter.
+	// from poking around, "fly_process_group" used to be called "process_group"
+	// and since it's a metadata value, it's like a screenshot.
+	// so we have 3 scenarios
+	// - machines with only 'process_group'
+	// - machines with both 'process_group' and 'fly_process_group'
+	// - machines with only 'fly_process_group'
+
+	processGroup := m.Config.Metadata["process_group"]
+	flyProcessGroup := m.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
+
+	if flyProcessGroup != "" {
+		return flyProcessGroup
+	}
+
+	return processGroup
 }
 
 func runMachineStatus(ctx context.Context) (err error) {
@@ -89,16 +109,17 @@ func runMachineStatus(ctx context.Context) (err error) {
 			machine.Name,
 			machine.PrivateIP,
 			machine.Region,
-			machine.Config.Metadata["process_group"],
-			fmt.Sprint(machine.Config.Guest.MemoryMB),
+			getProcessGroup(machine),
+			fmt.Sprint(machine.Config.Guest.CPUKind),
 			fmt.Sprint(machine.Config.Guest.CPUs),
+			fmt.Sprint(machine.Config.Guest.MemoryMB),
 			machine.CreatedAt,
 			machine.UpdatedAt,
 			strings.Join(machine.Config.Init.Cmd, " "),
 		},
 	}
 
-	var cols []string = []string{"ID", "Instance ID", "State", "Image", "Name", "Private IP", "Region", "Process Group", "Memory", "CPUs", "Created", "Updated", "Command"}
+	var cols []string = []string{"ID", "Instance ID", "State", "Image", "Name", "Private IP", "Region", "Process Group", "CPU Kind", "vCPUs", "Memory", "Created", "Updated", "Command"}
 
 	if len(machine.Config.Mounts) > 0 {
 		cols = append(cols, "Volume")

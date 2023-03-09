@@ -23,7 +23,7 @@ actual value of the secret is only available to the application.`
 		usage = "list [flags]"
 	)
 
-	cmd = command.New(usage, short, long, runList, command.RequireSession, command.LoadAppNameIfPresent)
+	cmd = command.New(usage, short, long, runList, command.RequireSession, command.RequireAppName)
 
 	flag.Add(cmd,
 		flag.App(),

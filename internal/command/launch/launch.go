@@ -1,40 +1,25 @@
 package launch
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"fmt"
-	"io/fs"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/cavaliergopher/grab/v3"
 	"github.com/logrusorgru/aurora"
-	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/flypg"
-	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
-	"github.com/superfly/flyctl/internal/command/postgres"
-	"github.com/superfly/flyctl/internal/command/redis"
-	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
-	"github.com/superfly/flyctl/terminal"
 	"github.com/superfly/graphql"
 )
 
@@ -92,7 +77,6 @@ func New() (cmd *cobra.Command) {
 func run(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 	client := client.FromContext(ctx).API()
-	colorize := io.ColorScheme()
 	workingDir := flag.GetString(ctx, "path")
 
 	deployArgs := deploy.DeployWithConfigArgs{
@@ -109,8 +93,8 @@ func run(ctx context.Context) (err error) {
 	var importedConfig bool
 	appConfig := appconfig.NewConfig()
 
-	configFilePath := filepath.Join(workingDir, "fly.toml")
-	if exists, _ := flyctl.ConfigFileExistsAtPath(configFilePath); exists {
+	configFilePath := filepath.Join(workingDir, appconfig.DefaultConfigFileName)
+	if exists, _ := appconfig.ConfigFileExistsAtPath(configFilePath); exists {
 		cfg, err := appconfig.LoadConfig(configFilePath)
 		if err != nil {
 			return err
@@ -226,35 +210,6 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
-	if srcInfo != nil {
-		for _, f := range srcInfo.Files {
-			path := filepath.Join(workingDir, f.Path)
-			if helpers.FileExists(path) {
-				if flag.GetBool(ctx, "now") {
-					fmt.Fprintf(io.Out, "You specified --now, so not overwriting %s\n", path)
-					continue
-				}
-				confirm, err := prompt.ConfirmOverwrite(ctx, path)
-				if !confirm || err != nil {
-					continue
-				}
-			}
-
-			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-				return err
-			}
-
-			perms := 0o600
-			if strings.Contains(string(f.Contents), "#!") {
-				perms = 0o700
-			}
-
-			if err := os.WriteFile(path, f.Contents, fs.FileMode(perms)); err != nil {
-				return err
-			}
-		}
-	}
-
 	if !flag.GetBool(ctx, "generate-name") {
 		if appName := flag.GetString(ctx, "name"); appName == "" {
 			// Prompt the user for the app name
@@ -285,300 +240,97 @@ func run(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+	appConfig.PrimaryRegion = region.Code
 
-	shouldUseMachines, err := shouldAppUseMachinesPlatform(ctx, client, org.Slug)
+	shouldUseMachines, err := shouldAppUseMachinesPlatform(ctx, org.Slug)
 	if err != nil {
 		return err
+	}
+
+	if shouldUseMachines && importedConfig {
+		// Check imported fly.toml is a valid V2 config before creating the app
+		if err := appConfig.SetMachinesPlatform(); err != nil {
+			return fmt.Errorf("Can not use configuration for Apps V2, check fly.toml: %w", err)
+		}
 	}
 
 	input := api.CreateAppInput{
 		Name:            appConfig.AppName,
 		OrganizationID:  org.ID,
-		PreferredRegion: &region.Code,
+		PreferredRegion: &appConfig.PrimaryRegion,
 		Machines:        shouldUseMachines,
 	}
 
-	createdApp, err := client.CreateApp(ctx, input)
-	if err != nil {
+	if createdApp, err := client.CreateApp(ctx, input); err != nil {
 		return err
-	}
-	ctx = appconfig.WithName(ctx, createdApp.Name)
-	if !importedConfig {
+	} else if !importedConfig {
+		// Use the default configuration template suggested by Web
 		newCfg, err := appconfig.FromDefinition(&createdApp.Config.Definition)
 		if err != nil {
 			return fmt.Errorf("Launch failed to get new app configuration: %w", err)
 		}
+		newCfg.AppName = createdApp.Name
 		newCfg.Build = appConfig.Build
+		newCfg.PrimaryRegion = appConfig.PrimaryRegion
 		appConfig = newCfg
+	} else {
+		appConfig.AppName = createdApp.Name
 	}
 
-	appConfig.AppName = createdApp.Name
+	fmt.Fprintf(io.Out, "Created app '%s' in organization '%s'\n", appConfig.AppName, org.Slug)
+	fmt.Fprintf(io.Out, "Admin URL: https://fly.io/apps/%s\n", appConfig.AppName)
+	fmt.Fprintf(io.Out, "Hostname: %s.fly.dev\n", appConfig.AppName)
 
-	fmt.Fprintf(io.Out, "Created app %s in organization %s\n", createdApp.Name, org.Slug)
-
-	adminLink := fmt.Sprintf("https://fly.io/apps/%s", createdApp.Name)
-	appLink := fmt.Sprintf("%s.fly.dev", createdApp.Name)
-	fmt.Fprintf(io.Out, "Admin URL: %s\nHostname: %s\n", adminLink, appLink)
-
+	// If files are requested by the launch scanner, create them.
+	if err := createSourceInfoFiles(ctx, srcInfo, workingDir); err != nil {
+		return err
+	}
 	// If secrets are requested by the launch scanner, ask the user to input them
-	if srcInfo != nil && len(srcInfo.Secrets) > 0 {
-		secrets := make(map[string]string)
-		for _, secret := range srcInfo.Secrets {
-			val := ""
-			// If a secret should be a random default, just generate it without displaying
-			// Otherwise, prompt to type it in
-			if secret.Generate != nil {
-				if val, err = secret.Generate(); err != nil {
-					return fmt.Errorf("could not generate random string: %w", err)
-				}
-			} else if secret.Value != "" {
-				val = secret.Value
-			} else {
-				prompt := fmt.Sprintf("Set secret %s:", secret.Key)
-				surveyInput := &survey.Input{Message: prompt, Help: secret.Help}
-				survey.AskOne(surveyInput, &val)
-			}
-
-			if val != "" {
-				secrets[secret.Key] = val
-			}
-		}
-
-		if len(secrets) > 0 {
-			_, err := client.SetSecrets(ctx, appConfig.AppName, secrets)
-			if err != nil {
-				return err
-			}
-			fmt.Fprintf(io.Out, "Set secrets on %s: %s\n", appConfig.AppName, strings.Join(lo.Keys(secrets), ", "))
-		}
+	if err := createSecrets(ctx, srcInfo, appConfig.AppName); err != nil {
+		return err
 	}
-
 	// If volumes are requested by the launch scanner, create them
-	if srcInfo != nil && len(srcInfo.Volumes) > 0 {
-		for _, vol := range srcInfo.Volumes {
-			appID, err := client.GetAppID(ctx, appConfig.AppName)
-			if err != nil {
-				return err
-			}
-
-			volume, err := client.CreateVolume(ctx, api.CreateVolumeInput{
-				AppID:     appID,
-				Name:      vol.Source,
-				Region:    region.Code,
-				SizeGb:    1,
-				Encrypted: true,
-			})
-
-			if err != nil {
-				return err
-			} else {
-				fmt.Fprintf(io.Out, "Created a %dGB volume %s in the %s region\n", volume.SizeGb, volume.ID, region.Code)
-			}
-
-		}
+	if err := createVolumes(ctx, srcInfo, appConfig.AppName, region.Code); err != nil {
+		return err
 	}
-
-	options := make(map[string]bool)
-	if !(srcInfo == nil || srcInfo.SkipDatabase || flag.GetBool(ctx, "no-deploy") || flag.GetBool(ctx, "now")) {
-		confirmPg, err := prompt.Confirm(ctx, "Would you like to set up a Postgresql database now?")
-		if confirmPg && err == nil {
-			db_app_name := fmt.Sprintf("%s-db", appConfig.AppName)
-			should_attach_db := false
-
-			if apps, err := client.GetApps(ctx, nil); err == nil {
-				for _, app := range apps {
-					if app.Name == db_app_name {
-						msg := fmt.Sprintf("We found an existing Postgresql database with the name %s. Would you like to attach it to your app?", app.Name)
-						confirmAttachPg, err := prompt.Confirm(ctx, msg)
-
-						if confirmAttachPg && err == nil {
-							should_attach_db = true
-						}
-
-					}
-				}
-			}
-
-			options["postgresql"] = true
-
-			if should_attach_db {
-				// If we try to attach to a PG cluster with the usual username
-				// format, we'll get an error (since that username already exists)
-				// by generating a new username with a sufficiently random number
-				// (in this case, the nanon second that the database is being attached)
-				current_time := time.Now().Nanosecond()
-				db_user := fmt.Sprintf("%s-%d", db_app_name, current_time)
-
-				err = postgres.AttachCluster(ctx, postgres.AttachParams{
-					PgAppName: db_app_name,
-					AppName:   appConfig.AppName,
-					DbUser:    db_user,
-				})
-
-				if err != nil {
-					msg := `Failed attaching %s to the Postgres cluster %s: %w.\nTry attaching manually with 'fly postgres attach --app %s %s'\n`
-					fmt.Fprintf(io.Out, msg, appConfig.AppName, db_app_name, err, appConfig.AppName, db_app_name)
-
-				} else {
-					fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", db_app_name, appConfig.AppName)
-				}
-
-			} else {
-				err := LaunchPostgres(ctx, appConfig.AppName, org, region)
-				if err != nil {
-					const msg = "Error creating Postgresql database. Be warned that this may affect deploys"
-					fmt.Fprintln(io.Out, colorize.Red(msg))
-
-				}
-
-			}
-
-		}
-
-		confirmRedis, err := prompt.Confirm(ctx, "Would you like to set up an Upstash Redis database now?")
-		if confirmRedis && err == nil {
-			err := LaunchRedis(ctx, appConfig.AppName, org, region)
-			if err != nil {
-				const msg = "Error creating Redis database. Be warned that this may affect deploys"
-				fmt.Fprintln(io.Out, colorize.Red(msg))
-
-			}
-
-			options["redis"] = true
-		}
-
-		// Run any initialization commands required for Postgres if it was installed
-		if confirmPg && len(srcInfo.PostgresInitCommands) > 0 {
-			for _, cmd := range srcInfo.PostgresInitCommands {
-				if cmd.Condition {
-					if err := execInitCommand(ctx, cmd); err != nil {
-						return err
-					}
-				}
-			}
-		}
+	// If database are requested by the launch scanner, create them
+	options, err := createDatabases(ctx, srcInfo, appConfig.AppName, region, org)
+	if err != nil {
+		return err
 	}
-
 	// Invoke Callback, if any
-	if srcInfo != nil && srcInfo.Callback != nil {
-		if err = srcInfo.Callback(srcInfo, options); err != nil {
-			return err
-		}
+	if err := runCallback(ctx, srcInfo, options); err != nil {
+		return err
 	}
 	// Run any initialization commands
-	if srcInfo != nil && len(srcInfo.InitCommands) > 0 {
-		for _, cmd := range srcInfo.InitCommands {
-			if err := execInitCommand(ctx, cmd); err != nil {
-				return err
-			}
-		}
+	if err := runInitCommands(ctx, srcInfo); err != nil {
+		return err
+	}
+	// Complete the appConfig
+	if err := setAppconfigFromSrcinfo(ctx, srcInfo, appConfig); err != nil {
+		return err
 	}
 
 	// Attempt to create a .dockerignore from .gitignore
 	determineDockerIgnore(ctx, workingDir)
 
-	// Complete the appConfig
-	if srcInfo != nil {
-		if srcInfo.Port > 0 {
-			appConfig.SetInternalPort(srcInfo.Port)
-		}
-
-		if srcInfo.HttpCheckPath != "" {
-			appConfig.SetHttpCheck(srcInfo.HttpCheckPath)
-		}
-
-		if srcInfo.Concurrency != nil {
-			appConfig.SetConcurrency(srcInfo.Concurrency["soft_limit"], srcInfo.Concurrency["hard_limit"])
-		}
-
-		for envName, envVal := range srcInfo.Env {
-			if envVal == "APP_FQDN" {
-				appConfig.SetEnvVariable(envName, appConfig.AppName+".fly.dev")
-			} else {
-				appConfig.SetEnvVariable(envName, envVal)
-			}
-		}
-
-		if len(srcInfo.Statics) > 0 {
-			var appStatics []appconfig.Static
-			for _, s := range srcInfo.Statics {
-				appStatics = append(appStatics, appconfig.Static{
-					GuestPath: s.GuestPath,
-					UrlPrefix: s.UrlPrefix,
-				})
-			}
-			appConfig.SetStatics(appStatics)
-		}
-
-		if len(srcInfo.Volumes) > 0 {
-			var appVolumes []appconfig.Volume
-			for _, v := range srcInfo.Volumes {
-				appVolumes = append(appVolumes, appconfig.Volume{
-					Source:      v.Source,
-					Destination: v.Destination,
-				})
-			}
-			appConfig.SetVolumes(appVolumes)
-		}
-
-		for procName, procCommand := range srcInfo.Processes {
-			appConfig.SetProcess(procName, procCommand)
-		}
-
-		if srcInfo.ReleaseCmd != "" {
-			appConfig.SetReleaseCommand(srcInfo.ReleaseCmd)
-		}
-
-		if srcInfo.DockerCommand != "" {
-			appConfig.SetDockerCommand(srcInfo.DockerCommand)
-		}
-
-		if srcInfo.DockerEntrypoint != "" {
-			appConfig.SetDockerEntrypoint(srcInfo.DockerEntrypoint)
-		}
-
-		if srcInfo.KillSignal != "" {
-			appConfig.SetKillSignal(srcInfo.KillSignal)
-		}
-
-		// Append any requested Dockerfile entries
-		if len(srcInfo.DockerfileAppendix) > 0 {
-			if err := appendDockerfileAppendix(srcInfo.DockerfileAppendix); err != nil {
-				return fmt.Errorf("failed appending Dockerfile appendix: %w", err)
-			}
-		}
-
-		if len(srcInfo.BuildArgs) > 0 {
-			if appConfig.Build == nil {
-				appConfig.Build = &appconfig.Build{}
-			}
-			appConfig.Build.Args = srcInfo.BuildArgs
-		}
-	}
-
+	// Override internal port if requested using --internal-port flag
 	if n := flag.GetInt(ctx, "internal-port"); n > 0 {
 		appConfig.SetInternalPort(n)
 	}
-
-	// Finally, determine whether we're using Machines and write the config
-	if deployArgs.ForceMachines {
-		if err := appConfig.SetMachinesPlatform(); err != nil {
-			return fmt.Errorf("Can not use configuration for Apps V2, check fly.toml: %w", err)
-		}
-		appConfig.PrimaryRegion = region.Code
-	}
-
+	// Finally write application configuration to fly.toml
 	if err := appConfig.WriteToDisk(ctx, configFilePath); err != nil {
 		return err
 	}
-
-	ctx = appconfig.WithConfig(ctx, appConfig)
 
 	if srcInfo == nil {
 		return nil
 	}
 
-	if deployArgs.ForceMachines && !deployArgs.ForceYes {
+	ctx = appconfig.WithName(ctx, appConfig.AppName)
+	ctx = appconfig.WithConfig(ctx, appConfig)
+
+	if shouldUseMachines && !deployArgs.ForceYes {
 		if !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !flag.GetBool(ctx, "auto-confirm") && appConfig.HasNonHttpAndHttpsStandardServices() {
 			hasUdpService := appConfig.HasUdpService()
 			ipStuffStr := "a dedicated ipv4 address"
@@ -642,7 +394,8 @@ func run(ctx context.Context) (err error) {
 	return nil
 }
 
-func shouldAppUseMachinesPlatform(ctx context.Context, apiClient *api.Client, orgSlug string) (bool, error) {
+func shouldAppUseMachinesPlatform(ctx context.Context, orgSlug string) (bool, error) {
+	apiClient := client.FromContext(ctx).API()
 	if flag.GetBool(ctx, "force-machines") {
 		return true, nil
 	} else if flag.GetBool(ctx, "force-nomad") {
@@ -653,65 +406,6 @@ func shouldAppUseMachinesPlatform(ctx context.Context, apiClient *api.Client, or
 		return false, err
 	}
 	return orgDefault, nil
-}
-
-func execInitCommand(ctx context.Context, command scanner.InitCommand) (err error) {
-	io := iostreams.FromContext(ctx)
-
-	binary, err := exec.LookPath(command.Command)
-	if err != nil {
-		return fmt.Errorf("%s not found in $PATH - make sure app dependencies are installed and try again", command.Command)
-	}
-	fmt.Fprintln(io.Out, command.Description)
-	// Run a requested generator command, for example to generate a Dockerfile
-	cmd := exec.CommandContext(ctx, binary, command.Args...)
-
-	if err = cmd.Start(); err != nil {
-		return err
-	}
-
-	if err = cmd.Wait(); err != nil {
-		err = fmt.Errorf("failed running %s: %w ", cmd.String(), err)
-	}
-	return err
-}
-
-func appendDockerfileAppendix(appendix []string) (err error) {
-	const dockerfilePath = "Dockerfile"
-
-	var b bytes.Buffer
-	b.WriteString("\n# Appended by flyctl\n")
-
-	for _, value := range appendix {
-		_, _ = b.WriteString(value)
-		_ = b.WriteByte('\n')
-	}
-
-	var unlock filemu.UnlockFunc
-
-	if unlock, err = filemu.Lock(context.Background(), dockerfilePath); err != nil {
-		return
-	}
-	defer func() {
-		if e := unlock(); err == nil {
-			err = e
-		}
-	}()
-
-	var f *os.File
-	// TODO: we don't flush
-	if f, err = os.OpenFile(dockerfilePath, os.O_APPEND|os.O_WRONLY, 0o600); err != nil {
-		return
-	}
-	defer func() {
-		if e := f.Close(); err == nil {
-			err = e
-		}
-	}()
-
-	_, err = b.WriteTo(f)
-
-	return
 }
 
 func shouldDeployExistingApp(ctx context.Context, appName string) (bool, error) {
@@ -735,178 +429,4 @@ func shouldDeployExistingApp(ctx context.Context, appName string) (bool, error) 
 	}
 
 	return true, nil
-}
-
-func createDockerignoreFromGitignores(root string, gitIgnores []string) (string, error) {
-	dockerIgnore := filepath.Join(root, ".dockerignore")
-	f, err := os.Create(dockerIgnore)
-	if err != nil {
-		return "", err
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			terminal.Debugf("error closing %s file after writing: %v\n", dockerIgnore, err)
-		}
-	}()
-
-	firstHeaderWritten := false
-	foundFlyDotToml := false
-	linebreak := []byte("\n")
-	for _, gitIgnore := range gitIgnores {
-		gitF, err := os.Open(gitIgnore)
-		defer func() {
-			if err := gitF.Close(); err != nil {
-				terminal.Debugf("error closing %s file after reading: %v\n", gitIgnore, err)
-			}
-		}()
-		if err != nil {
-			terminal.Debugf("error opening %s file: %v\n", gitIgnore, err)
-			continue
-		}
-		relDir, err := filepath.Rel(root, filepath.Dir(gitIgnore))
-		if err != nil {
-			terminal.Debugf("error finding relative directory of %s relative to root %s: %v\n", gitIgnore, root, err)
-			continue
-		}
-		relFile, err := filepath.Rel(root, gitIgnore)
-		if err != nil {
-			terminal.Debugf("error finding relative file of %s relative to root %s: %v\n", gitIgnore, root, err)
-			continue
-		}
-
-		headerWritten := false
-		scanner := bufio.NewScanner(gitF)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if !headerWritten {
-				if !firstHeaderWritten {
-					firstHeaderWritten = true
-				} else {
-					f.Write(linebreak)
-				}
-				_, err := f.WriteString(fmt.Sprintf("# flyctl launch added from %s\n", relFile))
-				if err != nil {
-					return "", err
-				}
-				headerWritten = true
-			}
-			var dockerIgnoreLine string
-			if strings.TrimSpace(line) == "" {
-				dockerIgnoreLine = ""
-			} else if strings.HasPrefix(line, "#") {
-				dockerIgnoreLine = line
-			} else if strings.HasPrefix(line, "!/") {
-				dockerIgnoreLine = fmt.Sprintf("!%s", filepath.Join(relDir, line[2:]))
-			} else if strings.HasPrefix(line, "!") {
-				dockerIgnoreLine = fmt.Sprintf("!%s", filepath.Join(relDir, "**", line[1:]))
-			} else if strings.HasPrefix(line, "/") {
-				dockerIgnoreLine = filepath.Join(relDir, line[1:])
-			} else {
-				dockerIgnoreLine = filepath.Join(relDir, "**", line)
-			}
-			if strings.Contains(dockerIgnoreLine, "fly.toml") {
-				foundFlyDotToml = true
-			}
-			if _, err := f.WriteString(dockerIgnoreLine); err != nil {
-				return "", err
-			}
-			if _, err := f.Write(linebreak); err != nil {
-				return "", err
-			}
-		}
-	}
-
-	if !foundFlyDotToml {
-		if _, err := f.WriteString("fly.toml"); err != nil {
-			return "", err
-		}
-		if _, err := f.Write(linebreak); err != nil {
-			return "", err
-		}
-	}
-
-	return dockerIgnore, nil
-}
-
-func determineDockerIgnore(ctx context.Context, workingDir string) (err error) {
-	io := iostreams.FromContext(ctx)
-	dockerIgnore := ".dockerignore"
-	gitIgnore := ".gitignore"
-	allGitIgnores := scanner.FindGitignores(workingDir)
-	createDockerignoreFromGitignore := false
-
-	// An existing .dockerignore should always be used instead of .gitignore
-	if helpers.FileExists(dockerIgnore) {
-		terminal.Debugf("Found %s file. Will use when deploying to Fly.\n", dockerIgnore)
-		return
-	}
-
-	// If we find .gitignore files, determine whether they should be converted to .dockerignore
-	if len(allGitIgnores) > 0 {
-
-		if flag.GetBool(ctx, "dockerignore-from-gitignore") {
-			createDockerignoreFromGitignore = true
-		} else {
-			confirm, err := prompt.Confirm(ctx, fmt.Sprintf("Create %s from %d %s files?", dockerIgnore, len(allGitIgnores), gitIgnore))
-			if confirm && err == nil {
-				createDockerignoreFromGitignore = true
-			}
-		}
-
-		if createDockerignoreFromGitignore {
-			createdDockerIgnore, err := createDockerignoreFromGitignores(workingDir, allGitIgnores)
-			if err != nil {
-				terminal.Warnf("Error creating %s from %d %s files: %v\n", dockerIgnore, len(allGitIgnores), gitIgnore, err)
-			} else {
-				fmt.Fprintf(io.Out, "Created %s from %d %s files.\n", createdDockerIgnore, len(allGitIgnores), gitIgnore)
-			}
-			return nil
-		}
-	}
-	return
-}
-
-func LaunchPostgres(ctx context.Context, appName string, org *api.Organization, region *api.Region) error {
-	io := iostreams.FromContext(ctx)
-	clusterAppName := appName + "-db"
-	err := postgres.CreateCluster(ctx, org, region,
-		&postgres.ClusterParams{
-			PostgresConfiguration: postgres.PostgresConfiguration{
-				Name: clusterAppName,
-			},
-			Manager: flypg.ReplicationManager,
-		})
-
-	if err != nil {
-		fmt.Fprintf(io.Out, "Failed creating the Postgres cluster %s: %s\n", clusterAppName, err)
-	} else {
-		err = postgres.AttachCluster(ctx, postgres.AttachParams{
-			PgAppName: clusterAppName,
-			AppName:   appName,
-			SuperUser: true,
-		})
-
-		if err != nil {
-			msg := `Failed attaching %s to the Postgres cluster %s: %w.\nTry attaching manually with 'fly postgres attach --app %s %s'\n`
-			fmt.Fprintf(io.Out, msg, appName, clusterAppName, err, appName, clusterAppName)
-
-		} else {
-			fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", clusterAppName, appName)
-		}
-	}
-
-	return err
-}
-
-func LaunchRedis(ctx context.Context, appName string, org *api.Organization, region *api.Region) error {
-	name := appName + "-redis"
-	db, err := redis.Create(ctx, org, name, region, "", true, false)
-
-	if err != nil {
-		fmt.Println(fmt.Errorf("%w", err))
-	} else {
-		redis.AttachDatabase(ctx, db, appName)
-	}
-
-	return err
 }

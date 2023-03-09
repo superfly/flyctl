@@ -61,7 +61,7 @@ func newCreate() *cobra.Command {
 			Description: "Creates the volume with the contents of the snapshot",
 		},
 		flag.String{
-			Name:   "image-ref",
+			Name:        "image-ref",
 			Description: "Specify a non-default base image for the Postgres app",
 		},
 		flag.Bool{
@@ -370,6 +370,41 @@ func MachineVMSizes() []api.VMSize {
 			CPUCores: 8,
 			MemoryMB: 16384,
 			MemoryGB: 16,
+		},
+		{
+			Name:     "performance-1x",
+			CPUClass: "performance",
+			CPUCores: 1,
+			MemoryMB: 2048,
+			MemoryGB: 2,
+		},
+		{
+			Name:     "performance-2x",
+			CPUClass: "performance",
+			CPUCores: 2,
+			MemoryMB: 4096,
+			MemoryGB: 4,
+		},
+		{
+			Name:     "performance-4x",
+			CPUClass: "performance",
+			CPUCores: 4,
+			MemoryMB: 8192,
+			MemoryGB: 8,
+		},
+		{
+			Name:     "performance-8x",
+			CPUClass: "performance",
+			CPUCores: 8,
+			MemoryMB: 16384,
+			MemoryGB: 16,
+		},
+		{
+			Name:     "performance-16x",
+			CPUClass: "performance",
+			CPUCores: 16,
+			MemoryMB: 32768,
+			MemoryGB: 32,
 		},
 	}
 }

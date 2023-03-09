@@ -181,9 +181,11 @@ func run(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "Changed to new app directory %s\n", createdApp.Name)
 
 	// Generate an app config to write to fly.toml
-	appConfig := appconfig.NewConfig()
+	appConfig, err := appconfig.FromDefinition(&createdApp.Config.Definition)
+	if err != nil {
+		return fmt.Errorf("failed to get new app configuration: %w", err)
+	}
 
-	appConfig.RawDefinition = createdApp.Config.Definition
 	procfile := ""
 
 	// Add each process to a Procfile and fly.toml
@@ -215,6 +217,8 @@ func run(ctx context.Context) error {
 	fmt.Fprintln(io.Out, "Dockerfile created")
 
 	appConfig.AppName = createdApp.Name
+	ctx = appconfig.WithName(ctx, appConfig.AppName)
+	ctx = appconfig.WithConfig(ctx, appConfig)
 
 	// Write the app config
 	if err = appConfig.WriteToDisk(ctx, "fly.toml"); err != nil {

@@ -108,7 +108,7 @@ func runMachinesRestart(ctx context.Context, app *api.AppCompact) error {
 	}
 
 	for _, m := range machines {
-		if err := machine.Restart(ctx, m, input); err != nil {
+		if err := machine.Restart(ctx, m, input, m.LeaseNonce); err != nil {
 			return err
 		}
 	}

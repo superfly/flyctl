@@ -19,7 +19,7 @@ func ListActive(ctx context.Context) ([]*api.Machine, error) {
 	}
 
 	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
-		return m.Config != nil && m.Config.Metadata["process_group"] != "release_command" && m.State != "destroyed"
+		return m.Config != nil && !m.IsReleaseCommandMachine() && m.State != "destroyed"
 	})
 
 	return machines, nil

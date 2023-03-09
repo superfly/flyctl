@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/auth"
 	"github.com/superfly/flyctl/internal/command/checks"
+	"github.com/superfly/flyctl/internal/command/config"
 	"github.com/superfly/flyctl/internal/command/create"
 	"github.com/superfly/flyctl/internal/command/curl"
 	"github.com/superfly/flyctl/internal/command/deploy"
@@ -165,6 +166,7 @@ func New() *cobra.Command {
 		jobs.New(),
 		turboku.New(),
 		services.New(),
+		config.New(),
 	}
 
 	// if os.Getenv("DEV") != "" {
