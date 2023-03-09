@@ -34,7 +34,7 @@ type MachineDeployment interface {
 	DeployMachinesApp(context.Context) error
 }
 
-type ProcessGroupMachineDiff struct {
+type ProcessGroupsDiff struct {
 	machinesToRemove      []machine.LeasableMachine
 	groupsToRemove        map[string]int
 	groupsNeedingMachines map[string]*appconfig.ProcessConfig
@@ -216,9 +216,9 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
 	return nil
 }
 
-func (md *machineDeployment) resolveProcessGroupMachineChanges() ProcessGroupMachineDiff {
+func (md *machineDeployment) resolveProcessGroupChanges() ProcessGroupsDiff {
 
-	output := ProcessGroupMachineDiff{
+	output := ProcessGroupsDiff{
 		groupsToRemove:        map[string]int{},
 		groupsNeedingMachines: map[string]*appconfig.ProcessConfig{},
 	}
@@ -252,7 +252,7 @@ func (md *machineDeployment) resolveProcessGroupMachineChanges() ProcessGroupMac
 	return output
 }
 
-func (md *machineDeployment) warnAboutProcessGroupChanges(ctx context.Context, diff ProcessGroupMachineDiff) {
+func (md *machineDeployment) warnAboutProcessGroupChanges(ctx context.Context, diff ProcessGroupsDiff) {
 
 	var (
 		io                 = iostreams.FromContext(ctx)
@@ -351,7 +351,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	}
 	md.machineSet.StartBackgroundLeaseRefresh(ctx, md.leaseTimeout, md.leaseDelayBetween)
 
-	processGroupMachineDiff := md.resolveProcessGroupMachineChanges()
+	processGroupMachineDiff := md.resolveProcessGroupChanges()
 
 	md.warnAboutProcessGroupChanges(ctx, processGroupMachineDiff)
 
