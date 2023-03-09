@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command"
@@ -78,6 +79,7 @@ func run(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 	client := client.FromContext(ctx).API()
 	workingDir := flag.GetString(ctx, "path")
+	cfg := appconfig.ConfigFromContext(ctx)
 
 	deployArgs := deploy.DeployWithConfigArgs{
 		ForceNomad:    flag.GetBool(ctx, "force-nomad"),
@@ -90,21 +92,16 @@ func run(ctx context.Context) (err error) {
 		workingDir = absDir
 	}
 
-	var importedConfig bool
-	appConfig := appconfig.NewConfig()
-
 	configFilePath := filepath.Join(workingDir, appconfig.DefaultConfigFileName)
-	if exists, _ := appconfig.ConfigFileExistsAtPath(configFilePath); exists {
-		cfg, err := appconfig.LoadConfig(configFilePath)
-		if err != nil {
-			return err
-		}
+	importedConfig, appConfig := false, appconfig.NewConfig()
 
+	// a fly toml already exists
+	if cfg != nil {
 		if cfg.AppName != "" {
 			fmt.Fprintln(io.Out, "An existing fly.toml file was found for app", cfg.AppName)
-			if deployExisting, err := shouldDeployExistingApp(ctx, cfg.AppName); err != nil {
+			if running, err := isAppRunning(ctx, cfg); err != nil {
 				return err
-			} else if deployExisting {
+			} else if !running {
 				fmt.Fprintln(io.Out, "App is not running, deploy...")
 				ctx = appconfig.WithName(ctx, cfg.AppName)
 				return deploy.DeployWithConfig(ctx, cfg, deployArgs)
@@ -408,9 +405,9 @@ func shouldAppUseMachinesPlatform(ctx context.Context, orgSlug string) (bool, er
 	return orgDefault, nil
 }
 
-func shouldDeployExistingApp(ctx context.Context, appName string) (bool, error) {
+func isAppRunning(ctx context.Context, cfg *appconfig.Config) (bool, error) {
 	client := client.FromContext(ctx).API()
-	status, err := client.GetAppStatus(ctx, appName, false)
+	status, err := client.GetAppStatus(ctx, cfg.AppName, false)
 	if err != nil {
 		if api.IsNotFoundError(err) || graphql.IsNotFoundError(err) {
 			return false, nil
@@ -419,14 +416,43 @@ func shouldDeployExistingApp(ctx context.Context, appName string) (bool, error) 
 	}
 
 	if !status.Deployed {
-		return true, nil
+		return false, nil
+	}
+
+	if cfg.ForMachines() {
+		flapsClient, err := flaps.New(ctx, &api.AppCompact{
+			Name: cfg.AppName,
+		})
+		if err != nil {
+			return false, err
+		}
+
+		machines, err := flapsClient.ListActive(ctx)
+		if err != nil {
+			return false, err
+		}
+
+		return areMachinesRunning(machines), nil
 	}
 
 	for _, a := range status.Allocations {
 		if a.Healthy {
-			return false, nil
+			return true, nil
 		}
 	}
 
-	return true, nil
+	return false, nil
+}
+
+func areMachinesRunning(machines []*api.Machine) bool {
+	// check if at least one machine under the app is running
+	// https://flyio.slack.com/archives/C02PD4DUL2J/p1678373588059119?thread_ts=1678373365.178239&cid=C02PD4DUL2J
+	for _, m := range machines {
+		for _, c := range m.Checks {
+			if c.Status == "passing" && m.State == "started" {
+				return true
+			}
+		}
+	}
+	return false
 }
