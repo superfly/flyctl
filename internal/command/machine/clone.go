@@ -99,10 +99,6 @@ func runMachineClone(ctx context.Context) (err error) {
 
 		return err
 	}
-	appConfig, err := getAppConfig(ctx, appName)
-	if err != nil {
-		return fmt.Errorf("failed to get app config: %w", err)
-	}
 	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
 		return fmt.Errorf("could not make flaps client: %w", err)
@@ -123,6 +119,11 @@ func runMachineClone(ctx context.Context) (err error) {
 
 	targetConfig := source.Config
 	if targetProcessGroup := flag.GetString(ctx, "process-group"); targetProcessGroup != "" {
+		appConfig, err := getAppConfig(ctx, appName)
+		if err != nil {
+			return fmt.Errorf("failed to get app config: %w", err)
+		}
+
 		allProcessConfigs, err := appConfig.GetProcessConfigs()
 		if err != nil {
 			return err
