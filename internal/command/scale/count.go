@@ -21,7 +21,7 @@ func newScaleCount() *cobra.Command {
 
 For pricing, see https://fly.io/docs/about/pricing/`
 	)
-	cmd := command.New("count", short, long, runScaleCount,
+	cmd := command.New("count [count]", short, long, runScaleCount,
 		command.RequireSession,
 		command.RequireAppName,
 		failOnMachinesApp,
@@ -32,7 +32,6 @@ For pricing, see https://fly.io/docs/about/pricing/`
 		flag.AppConfig(),
 		flag.Int{Name: "max-per-region", Description: "Max number of VMs per region", Default: -1},
 	)
-	cmd.AddCommand()
 	return cmd
 }
 

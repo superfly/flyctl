@@ -30,7 +30,6 @@ func newScaleShow() *cobra.Command {
 		flag.App(),
 		flag.AppConfig(),
 	)
-	cmd.AddCommand()
 	return cmd
 }
 

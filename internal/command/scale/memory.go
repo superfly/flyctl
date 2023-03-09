@@ -19,7 +19,7 @@ func newScaleMemory() *cobra.Command {
 		short = "Set VM memory"
 		long  = `Set VM memory to a number of megabytes`
 	)
-	cmd := command.New("memory", short, long, runScaleMemory,
+	cmd := command.New("memory [memoryMB]", short, long, runScaleMemory,
 		command.RequireSession,
 		command.RequireAppName,
 		failOnMachinesApp,
@@ -30,7 +30,6 @@ func newScaleMemory() *cobra.Command {
 		flag.AppConfig(),
 		flag.String{Name: "group", Description: "The process group to apply the VM size to", Default: ""},
 	)
-	cmd.AddCommand()
 	return cmd
 }
 

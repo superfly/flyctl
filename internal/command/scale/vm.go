@@ -26,7 +26,7 @@ For dedicated vms, this should be a multiple of 1024MB.
 For shared vms, this can be 256MB or a a multiple of 1024MB.
 For pricing, see https://fly.io/docs/about/pricing/`
 	)
-	cmd := command.New("vm", short, long, runScaleVM,
+	cmd := command.New("vm [size]", short, long, runScaleVM,
 		command.RequireSession,
 		command.RequireAppName,
 		failOnMachinesApp,
@@ -38,7 +38,6 @@ For pricing, see https://fly.io/docs/about/pricing/`
 		flag.Int{Name: "memory", Description: "Memory in MB for the VM", Default: 0},
 		flag.String{Name: "group", Description: "The process group to apply the VM size to", Default: ""},
 	)
-	cmd.AddCommand()
 	return cmd
 }
 
