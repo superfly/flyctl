@@ -732,8 +732,12 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		machineConf.Restart.Policy = api.MachineRestartPolicyNo
 	case "on-fail":
 		machineConf.Restart.Policy = api.MachineRestartPolicyOnFailure
-	default:
+	case "always":
 		machineConf.Restart.Policy = api.MachineRestartPolicyAlways
+	case "":
+		machineConf.Restart.Policy = api.MachineRestartPolicyAlways
+	default:
+		return machineConf, errors.New("invalid restart provided")
 	}
 
 	// `machine update` and `machine run` both use `determineMachineConfig`` to populate
