@@ -389,6 +389,7 @@ type MachineConfig struct {
 	DNS                     *DNSConfig              `json:"dns,omitempty"`
 	Statics                 []*Static               `json:"statics,omitempty"`
 	DisableMachineAutostart bool                    `json:"disable_machine_autostart,omitempty"`
+	EnableMachineAutostop   bool                    `json:"enable_machine_autostop,omitempty"`
 }
 
 type Static struct {
