@@ -501,7 +501,7 @@ func (md *machineDeployment) setStrategy(passedInStrategy string) error {
 	return nil
 }
 
-func CreateReleaseInBackend(ctx context.Context, client *api.Client, app *appv2.Config, strategy, image string) (*gql.MachinesCreateReleaseResponse, error) {
+func CreateReleaseInBackend(ctx context.Context, client *api.Client, app *appconfig.Config, strategy, image string) (*gql.MachinesCreateReleaseResponse, error) {
 	_ = `# @genqlient
 	mutation MachinesCreateRelease($input:CreateReleaseInput!) {
 		createRelease(input:$input) {

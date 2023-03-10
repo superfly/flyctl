@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/appv2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/deploy"
 
 	"github.com/superfly/flyctl/api"
@@ -123,7 +123,7 @@ func runMachinesRestart(ctx context.Context, app *api.AppCompact) error {
 		return fmt.Errorf("failed fetching existing app config: %w", err)
 	}
 
-	cfg, err := appv2.FromDefinition(&apiConfig.Definition)
+	cfg, err := appconfig.FromDefinition(&apiConfig.Definition)
 	if err != nil {
 		return err
 	}
