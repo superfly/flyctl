@@ -109,6 +109,8 @@ func runMachineList(ctx context.Context) (err error) {
 				volName = machine.Config.Mounts[0].Volume
 			}
 
+			fmt.Println(machine.Config.DisableMachineAutostart)
+
 			appPlatform := ""
 			machineProcessGroup := ""
 

@@ -129,6 +129,11 @@ var sharedFlags = flag.Set{
 		Name:        "skip-dns-registration",
 		Description: "Do not register the machine's 6PN IP with the intenral DNS system",
 	},
+	flag.Bool{
+		Name:        "autostart",
+		Description: "Automatically start a stopped machine when a network request is received",
+		Default:     true,
+	},
 }
 
 func newRun() *cobra.Command {
@@ -737,6 +742,7 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		return machineConf, err
 	}
 	machineConf.Image = img.Tag
+	machineConf.DisableMachineAutostart = !flag.GetBool(ctx, "autostart")
 
 	return machineConf, nil
 }
