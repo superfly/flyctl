@@ -71,6 +71,28 @@ func TestAppsV2Example(t *testing.T) {
 		f.Fatalf("could find or convert id key to string from %s, stdout: %s firstMachine: %v", result.CmdString(), result.StdOut().String(), firstMachine)
 	}
 
+	// By default, autostart should be enabled
+	config := firstMachine["config"].(map[string]interface{})
+	// If disable_machine_autostart is set to false (the default value), it won't show up in the config
+	if autostart_disabled, ok := config["disable_machine_autostart"]; ok {
+		// If for some reason it does exist, then check that its set to false
+		require.Equal(t, false, autostart_disabled.(bool), "autostart was enabled")
+	}
+
+	// Make sure disabling it works
+	f.Fly("m update %s --autostart=false -y", firstMachineId)
+
+	result = f.Fly("m list --json")
+	err = json.Unmarshal(result.StdOut().Bytes(), &machList)
+	if err != nil {
+		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
+	}
+	firstMachine = machList[0]
+
+	config = firstMachine["config"].(map[string]interface{})
+	autostart_disabled := config["disable_machine_autostart"].(bool)
+	require.Equal(t, true, autostart_disabled, "autostart was not disabled")
+
 	secondReg := f.PrimaryRegion()
 	if len(f.OtherRegions()) > 0 {
 		secondReg = f.OtherRegions()[0]
@@ -147,6 +169,43 @@ ENV BUILT_BY_DOCKERFILE=true
 	// migrate existing app with machines
 
 	// statics
+}
+
+func TestAppsV2ConfigChanges(t *testing.T) {
+	var (
+		err            error
+		f              = testlib.NewTestEnvFromEnv(t)
+		appName        = f.CreateRandomAppName()
+		configFilePath = filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
+	)
+
+	f.Fly("launch --org %s --name %s --region %s --image nginx --force-machines --internal-port 7777 --now --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
+
+	f.Fly("config save -a %s -y", appName)
+	configFileBytes, err := os.ReadFile(configFilePath)
+	if err != nil {
+		f.Fatalf("error trying to read %s after running fly config save: %v", configFilePath, err)
+	}
+
+	newConfigFile := strings.Replace(string(configFileBytes), "internal_port = 7777", "internal_port = 9999", 1)
+	err = os.WriteFile(configFilePath, []byte(newConfigFile), 0666)
+	if err != nil {
+		f.Fatalf("error trying to write to fly.toml: %s", err)
+	}
+
+	f.Fly("deploy --force-machines")
+
+	result := f.Fly("config show -a %s", appName)
+	require.Contains(f, result.StdOut().String(), `"internal_port": 9999`)
+
+	f.Fly("config save -a %s -y", appName)
+	configFileBytes, err = os.ReadFile(configFilePath)
+	if err != nil {
+		f.Fatalf("error trying to read %s after running fly config save: %v", configFilePath, err)
+	}
+
+	require.Contains(f, string(configFileBytes), "internal_port = 9999")
+
 }
 
 func TestAppsV2ConfigSave_ProcessGroups(t *testing.T) {
@@ -240,6 +299,36 @@ func TestAppsV2ConfigSave_PostgresSingleNode(t *testing.T) {
     interval = "15s"
     timeout = "10s"
     path = "/flycheck/vm"`)
+
+}
+
+func TestAppsV2_PostgresNoMachines(t *testing.T) {
+	var (
+		err     error
+		f       = testlib.NewTestEnvFromEnv(t)
+		appName = f.CreateRandomAppName()
+	)
+
+	f.Fly("pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1", f.OrgSlug(), appName, f.PrimaryRegion())
+
+	// Remove the app's only machine, then run `status`
+	result := f.Fly("m list --json -a %s", appName)
+	var machList []map[string]any
+	err = json.Unmarshal(result.StdOut().Bytes(), &machList)
+	if err != nil {
+		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
+	}
+	require.Equal(t, 1, len(machList), "expected exactly 1 machine after launch")
+	firstMachine := machList[0]
+	firstMachineId, ok := firstMachine["id"].(string)
+	if !ok {
+		f.Fatalf("could find or convert id key to string from %s, stdout: %s firstMachine: %v", result.CmdString(), result.StdOut().String(), firstMachine)
+	}
+
+	f.Fly("m destroy %s -a %s --force", firstMachineId, appName)
+	result = f.Fly("status -a %s", appName)
+
+	require.Contains(f, result.StdOut().String(), "No machines are available on this app")
 }
 
 func TestAppsV2ConfigSave_PostgresHA(t *testing.T) {
