@@ -124,7 +124,7 @@ export FLY_PREFLIGHT_TEST_FLY_FLYCTL_BINARY_PATH="../bin/flyctl"
 
 Some recommendations:
 * Do not use your "personal" org, create an new org (i.e. `flyctl-tests-YOURNAME`)
-  Ask for 100% comp at https://flyio.discourse.team/t/employee-accounts-how-to-prevent-charges/526/95
+  Ask for 100% comp for employees at https://flyio.discourse.team/t/employee-accounts-how-to-prevent-charges/526/95
 * Set 2 regions, ideally not your closest region because it leads
   to false positives when --region or primary region handling is buggy.
 	Run `fly platform regions` for valid ids
