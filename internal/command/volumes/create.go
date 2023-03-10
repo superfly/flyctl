@@ -101,7 +101,7 @@ func runCreate(ctx context.Context) error {
 			io := iostreams.FromContext(ctx)
 			colorize := io.ColorScheme()
 
-			const msg = "Warning! Individual volumes are pinned to individual hosts. You should create two or more volumes per application. You will have downtime if you only create one."
+			const msg = "Warning! Individual volumes are pinned to individual hosts. You should create two or more volumes per application. You will have downtime if you only create one. If you proceed, make sure to create a second volume with fly volume create --require-unique-zone to ensure a second volume exists on a separate worker"
 			fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 
 			switch confirmed, err = prompt.Confirm(ctx, "Do you still want to use the volumes feature?"); {
