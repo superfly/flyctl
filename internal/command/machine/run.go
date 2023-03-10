@@ -750,8 +750,8 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 	// checking if `len(machineConf.Init.Cmd) == 0` and is already set, in which case we're being
 	// called from `run`.
 	// Otherwise, pull the command from the first positional argument.
-	if cmd := flag.Args(ctx)[1:]; len(cmd) > 0 && len(machineConf.Init.Cmd) == 0 {
-		machineConf.Init.Cmd = cmd
+	if len(flag.Args(ctx)) > 1 && len(machineConf.Init.Cmd) == 0 {
+		machineConf.Init.Cmd = flag.Args(ctx)[1:]
 	}
 
 	machineConf.Mounts, err = determineMounts(ctx, machineConf.Mounts, region)

@@ -31,25 +31,38 @@ func newMachineExec() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		selectFlag,
 		flag.Int{
 			Name:        "timeout",
 			Description: "Timeout in seconds",
 		},
 	)
 
-	cmd.Args = cobra.ExactArgs(2)
+	cmd.Args = cobra.RangeArgs(1, 2)
 
 	return cmd
 }
 
 func runMachineExec(ctx context.Context) (err error) {
 	var (
-		machineID = flag.FirstArg(ctx)
-		io        = iostreams.FromContext(ctx)
-		config    = config.FromContext(ctx)
+		args   = flag.Args(ctx)
+		io     = iostreams.FromContext(ctx)
+		config = config.FromContext(ctx)
+
+		machineID     string
+		haveMachineID bool
+		command       string
 	)
 
-	current, ctx, err := selectOneMachine(ctx, nil, machineID)
+	if len(args) == 2 {
+		machineID = args[0]
+		haveMachineID = true
+		command = args[1]
+	} else {
+		command = args[0]
+	}
+
+	current, ctx, err := selectOneMachine(ctx, nil, machineID, haveMachineID)
 	if err != nil {
 		return err
 	}
@@ -58,7 +71,7 @@ func runMachineExec(ctx context.Context) (err error) {
 	var timeout = flag.GetInt(ctx, "timeout")
 
 	in := &api.MachineExecRequest{
-		Cmd:     flag.Args(ctx)[1],
+		Cmd:     command,
 		Timeout: timeout,
 	}
 

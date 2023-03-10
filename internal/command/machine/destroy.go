@@ -34,6 +34,7 @@ This command requires a machine to be in a stopped state unless the force flag i
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		selectFlag,
 		flag.Bool{
 			Name:        "force",
 			Shorthand:   "f",
@@ -41,19 +42,20 @@ This command requires a machine to be in a stopped state unless the force flag i
 		},
 	)
 
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.RangeArgs(0, 1)
 
 	return cmd
 }
 
 func runMachineDestroy(ctx context.Context) (err error) {
 	var (
-		out       = iostreams.FromContext(ctx).Out
-		machineID = flag.FirstArg(ctx)
-		force     = flag.GetBool(ctx, "force")
+		out   = iostreams.FromContext(ctx).Out
+		force = flag.GetBool(ctx, "force")
 	)
 
-	current, ctx, err := selectOneMachine(ctx, nil, machineID)
+	machineID := flag.FirstArg(ctx)
+	haveMachineID := len(flag.Args(ctx)) > 0
+	current, ctx, err := selectOneMachine(ctx, nil, machineID, haveMachineID)
 	if err != nil {
 		return err
 	}

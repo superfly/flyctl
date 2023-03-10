@@ -28,12 +28,13 @@ func newStatus() *cobra.Command {
 		command.LoadAppNameIfPresent,
 	)
 
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.RangeArgs(0, 1)
 
 	flag.Add(
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		selectFlag,
 		flag.Bool{
 			Name:        "display-config",
 			Description: "Display the machine config as JSON",
@@ -48,7 +49,8 @@ func runMachineStatus(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 
 	machineID := flag.FirstArg(ctx)
-	machine, ctx, err := selectOneMachine(ctx, nil, machineID)
+	haveMachineID := len(flag.Args(ctx)) > 0
+	machine, ctx, err := selectOneMachine(ctx, nil, machineID, haveMachineID)
 	if err != nil {
 		return err
 	}
