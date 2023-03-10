@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
@@ -32,7 +33,7 @@ invitation to join (if not, see orgs revoke).
 
 func runRemove(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
-	selectedOrg, err := OrgFromFirstArgOrSelect(ctx)
+	selectedOrg, err := OrgFromFirstArgOrSelect(ctx, api.AdminOnly)
 	if err != nil {
 		return nil
 	}
