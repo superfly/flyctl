@@ -113,7 +113,7 @@ func captureError(err error, app *api.AppCompact) {
 
 	sentry.CaptureException(err,
 		sentry.WithTag("feature", "ssh-console"),
-		sentry.WithContexts(map[string]interface{}{
+		sentry.WithContexts(map[string]sentry.Context{
 			"app": map[string]interface{}{
 				"name": app.Name,
 			},
