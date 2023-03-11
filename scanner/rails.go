@@ -14,7 +14,14 @@ import (
 var healthcheck_channel = make(chan string)
 
 func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
-	if !checksPass(sourceDir, dirContains("Gemfile", "rails")) {
+	// `bundle init` will create a file with a commented out rails gem,
+	// so checking for that can produce a false positive.  Look for
+	// Rails three other ways...
+	rails := checksPass(sourceDir+"/bin", fileExists("rails")) ||
+		checksPass(sourceDir, dirContains("config.ru", "Rails")) ||
+		checksPass(sourceDir, dirContains("Gemfile.lock", "rails"))
+
+	if !rails {
 		return nil, nil
 	}
 
