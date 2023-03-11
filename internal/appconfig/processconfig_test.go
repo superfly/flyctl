@@ -6,6 +6,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestGetDefaultProcessName_Nil(t *testing.T) {
+	var cfg *Config
+	assert.Equal(t, "app", cfg.GetDefaultProcessName())
+}
+
 func TestGetDefaultProcessName_Default(t *testing.T) {
 	cfg, err := LoadConfig("./testdata/processes-none.toml")
 	assert.NoError(t, err)

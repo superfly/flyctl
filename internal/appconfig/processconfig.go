@@ -86,20 +86,26 @@ func (c *Config) GetProcessConfigs() (map[string]*ProcessConfig, error) {
 }
 
 func (c *Config) GetDefaultProcessName() string {
-	if c.platformVersion == MachinesPlatform {
+	switch {
+	case c == nil:
+		return api.MachineProcessGroupApp
+	case c.platformVersion == MachinesPlatform:
 		if len(c.Processes) == 0 {
 			return api.MachineProcessGroupApp
 		}
 		return lo.Keys(c.Processes)[0]
-	}
-	// Else fallback to RawDefinition for Nomad
-	if raw, ok := c.RawDefinition["processes"]; ok {
-		switch cast := raw.(type) {
+	case c.platformVersion == "":
+		fallthrough
+	case c.platformVersion == NomadPlatform:
+		switch cast := c.RawDefinition["processes"].(type) {
 		case map[string]any:
 			return lo.Keys(cast)[0]
 		case map[string]string:
 			return lo.Keys(cast)[0]
+		default:
+			return api.MachineProcessGroupApp
 		}
+	default:
+		return api.MachineProcessGroupApp
 	}
-	return api.MachineProcessGroupApp
 }
