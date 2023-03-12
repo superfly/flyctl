@@ -17,7 +17,7 @@ import (
 
 func newDestroy() *cobra.Command {
 	const (
-		short = "Destroy a Fly machine"
+		short = "Destroy a Fly machine. This command requires a machine to be in a stopped state unless the force flag is used."
 		long  = short + "\n"
 
 		usage = "destroy <id>"
@@ -37,7 +37,7 @@ func newDestroy() *cobra.Command {
 		flag.Bool{
 			Name:        "force",
 			Shorthand:   "f",
-			Description: "force kill machine if it's running",
+			Description: "force kill machine regardless of current state",
 		},
 	)
 
@@ -85,12 +85,16 @@ func runMachineDestroy(ctx context.Context) (err error) {
 		return fmt.Errorf("could not retrieve machine %s", machineID)
 	}
 
-	switch current.State {
-	case "destroyed":
-		return fmt.Errorf("machine %s has already been destroyed", machineID)
-	case "started":
-		if !input.Kill {
-			return fmt.Errorf("machine %s currently started, either stop first or use --force flag", machineID)
+	if current.State != "stopped" {
+		switch current.State {
+		case "destroyed":
+			return fmt.Errorf("machine %s has already been destroyed", machineID)
+		case "started":
+			if !input.Kill {
+				return fmt.Errorf("machine %s currently started, either stop first or use --force flag", machineID)
+			}
+		default:
+			return fmt.Errorf("machine %s is in a %s state and cannot be destroyed since it is not stopped, either stop first or use --force flag", machineID, current.State)
 		}
 	}
 	fmt.Fprintf(out, "machine %s was found and is currently in %s state, attempting to destroy...\n", machineID, current.State)

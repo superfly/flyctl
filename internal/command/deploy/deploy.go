@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/iostreams"
@@ -250,49 +249,16 @@ func useMachines(ctx context.Context, appConfig *appconfig.Config, appCompact *a
 // determineAppConfig fetches the app config from a local file, or in its absence, from the API
 func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) {
 	tb := render.NewTextBlock(ctx, "Verifying app config")
-	client := client.FromContext(ctx).API()
 	appNameFromContext := appconfig.NameFromContext(ctx)
 	if cfg = appconfig.ConfigFromContext(ctx); cfg == nil {
 		logger := logger.FromContext(ctx)
 		logger.Debug("no local app config detected; fetching from backend ...")
 
-		var apiConfig *api.AppConfig
-		if apiConfig, err = client.GetConfig(ctx, appNameFromContext); err != nil {
-			err = fmt.Errorf("failed fetching existing app config: %w", err)
+		cfg, err = appconfig.FromRemoteApp(ctx, appNameFromContext)
+		if err != nil {
 			return
 		}
 
-		basicApp, err := client.GetAppBasic(ctx, appNameFromContext)
-		if err != nil {
-			return nil, err
-		}
-
-		cfg, err = appconfig.FromDefinition(&apiConfig.Definition)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to convert definition into config: %w", err)
-		}
-
-		cfg.AppName = basicApp.Name
-
-		if err := cfg.SetPlatformVersion(basicApp.PlatformVersion); err != nil {
-			return cfg, err
-		}
-	} else {
-		parsedCfg, err := client.ParseConfig(ctx, appNameFromContext, cfg.SanitizedDefinition())
-		if err != nil {
-			return nil, err
-		}
-		if !parsedCfg.Valid {
-			fmt.Println()
-			if len(parsedCfg.Errors) > 0 {
-				tb.Printf("\nConfiguration errors in %s:\n\n", cfg.ConfigFilePath())
-			}
-			for _, e := range parsedCfg.Errors {
-				tb.Println("   ", aurora.Red("✘").String(), e)
-			}
-			fmt.Println()
-			return nil, errors.New("App configuration is not valid")
-		}
 	}
 
 	if env := flag.GetStringSlice(ctx, "env"); len(env) > 0 {
@@ -310,9 +276,13 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 	}
 
 	// Always prefer the app name passed via --app
-
 	if appNameFromContext != "" {
 		cfg.AppName = appNameFromContext
+	}
+
+	err, _ = cfg.Validate(ctx)
+	if err != nil {
+		return
 	}
 
 	tb.Done("Verified app config")

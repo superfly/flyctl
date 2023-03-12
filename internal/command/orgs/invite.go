@@ -19,7 +19,7 @@ import (
 func newInvite() *cobra.Command {
 	const (
 		long = `Invite a user, by email, to join organization. The invitation will be
-sent, and the user will be pending until they respond. See also orgs revoke.
+sent, and the user will be pending until they respond.
 `
 		short = "Invite user (by email) to organization"
 		usage = "invite [slug] [email]"
@@ -36,7 +36,7 @@ sent, and the user will be pending until they respond. See also orgs revoke.
 func runInvite(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
 
-	org, err := OrgFromFirstArgOrSelect(ctx)
+	org, err := OrgFromFirstArgOrSelect(ctx, api.AdminOnly)
 	if err != nil {
 		return nil
 	}

@@ -189,11 +189,16 @@ func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Ma
 		client   = client.FromContext(ctx).API()
 	)
 
-	if postgres.IsFlex(machines[0]) {
-		yes, note := isQuorumMet(machines)
-		if !yes {
-			fmt.Fprintf(io.Out, colorize.Yellow(note))
+	if len(machines) > 0 {
+		if postgres.IsFlex(machines[0]) {
+			yes, note := isQuorumMet(machines)
+			if !yes {
+				fmt.Fprintf(io.Out, colorize.Yellow(note))
+			}
 		}
+	} else {
+		fmt.Fprintf(io.Out, "No machines are available on this app %s\n", app.Name)
+		return
 	}
 
 	// Tracks latest eligible version

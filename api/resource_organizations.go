@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/graphql"
 )
 
 type OrganizationType string
@@ -14,10 +15,22 @@ const (
 	OrganizationTypeShared   OrganizationType = "SHARED"
 )
 
-func (client *Client) GetOrganizations(ctx context.Context) ([]Organization, error) {
+type organizationFilter struct {
+	admin bool
+}
+
+func (f *organizationFilter) apply(req *graphql.Request) {
+	req.Var("admin", f.admin)
+}
+
+type OrganizationFilter func(*organizationFilter)
+
+var AdminOnly OrganizationFilter = func(f *organizationFilter) { f.admin = true }
+
+func (client *Client) GetOrganizations(ctx context.Context, filters ...OrganizationFilter) ([]Organization, error) {
 	q := `
-		query {
-			organizations {
+		query($admin: Boolean!) {
+			organizations(admin: $admin) {
 				nodes {
 					id
 					slug
@@ -29,7 +42,13 @@ func (client *Client) GetOrganizations(ctx context.Context) ([]Organization, err
 		}
 	`
 
+	filter := new(organizationFilter)
+	for _, f := range filters {
+		f(filter)
+	}
+
 	req := client.NewRequest(q)
+	filter.apply(req)
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
