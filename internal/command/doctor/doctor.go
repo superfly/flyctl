@@ -167,7 +167,10 @@ followed by 'flyctl agent restart', and we'll run WireGuard over HTTPS.
 	// App specific checks below here
 	// ------------------------------------------------------------
 
-	appChecker := NewAppChecker(ctx, isJson, color)
+	appChecker, err := NewAppChecker(ctx, isJson, color)
+	if err != nil {
+		return err
+	}
 	if appChecker == nil {
 		return nil
 	}
