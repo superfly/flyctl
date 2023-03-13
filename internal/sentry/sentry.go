@@ -17,6 +17,9 @@ import (
 
 var initError error // set during init
 
+// Re-export an alias here for use convenience
+type Context = sentry.Context
+
 func init() {
 	opts := sentry.ClientOptions{
 		Dsn: "https://89fa584dc19b47a6952dd94bf72dbab4@sentry.io/4492967",
@@ -47,13 +50,13 @@ func WithExtra(key string, val interface{}) CaptureOption {
 	}
 }
 
-func WithContext(key string, val interface{}) CaptureOption {
+func WithContext(key string, val sentry.Context) CaptureOption {
 	return func(scope *sentry.Scope) {
 		scope.SetContext(key, val)
 	}
 }
 
-func WithContexts(contexts map[string]interface{}) CaptureOption {
+func WithContexts(contexts map[string]sentry.Context) CaptureOption {
 	return func(scope *sentry.Scope) {
 		scope.SetContexts(contexts)
 	}
@@ -105,7 +108,7 @@ func CaptureExceptionWithAppInfo(err error, featureName string, appCompact *api.
 		err,
 		WithTag("feature", featureName),
 		WithTag("app-platform-version", appCompact.PlatformVersion),
-		WithContexts(map[string]interface{}{
+		WithContexts(map[string]sentry.Context{
 			"app": map[string]interface{}{
 				"name": appCompact.Name,
 			},
