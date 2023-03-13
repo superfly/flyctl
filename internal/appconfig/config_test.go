@@ -34,9 +34,7 @@ func TestConfigDockerGetters(t *testing.T) {
 	assert.Equal(t, validCfg.Dockerfile(), "some_dockerfile")
 	assert.Equal(t, validCfg.Ignorefile(), "some_ignore_file")
 	assert.Equal(t, validCfg.DockerBuildTarget(), "some_build_target")
-}
 
-func TestNilConfigDockerGetters(t *testing.T) {
 	var nilCfg *Config
 
 	assert.Equal(t, nilCfg.Dockerfile(), "")
