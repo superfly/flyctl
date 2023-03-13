@@ -393,7 +393,7 @@ func TestAppsV2Config_ParseExperimental(t *testing.T) {
 		f.Fatalf("Failed to write config: %s", err)
 	}
 
-	result := f.Fly("launch --force-machines --local-only --name %s --region ord --copy-config", appName)
+	result := f.Fly("launch --force-machines --name %s --region ord --copy-config", appName)
 	stdout := result.StdOut().String()
 	require.Contains(f, stdout, "Created app")
 	require.Contains(f, stdout, "Wrote config file fly.toml")
