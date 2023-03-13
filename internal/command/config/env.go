@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -44,6 +45,16 @@ func runEnv(ctx context.Context) error {
 		return []string{s.Name, s.Digest, s.CreatedAt.Format("2006-01-02T15:04:05")}
 	})
 	if err := render.Table(io.Out, "Secrets", secretRows, "Name", "Digest", "Created At"); err != nil {
+		return err
+	}
+
+	app, err := apiClient.GetAppCompact(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("failed to get app: %s", err)
+	}
+
+	ctx, err = apps.BuildContext(ctx, app)
+	if err != nil {
 		return err
 	}
 
