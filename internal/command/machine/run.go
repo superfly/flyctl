@@ -383,7 +383,10 @@ func determineImage(ctx context.Context, appName string, imageOrPath string) (im
 			NoCache:    flag.GetBool(ctx, "no-build-cache"),
 		}
 
-		dockerfilePath := cfg.Dockerfile()
+		dockerfilePath := ""
+		if cfg != nil {
+			dockerfilePath = cfg.Dockerfile()
+		}
 
 		// dockerfile passed through flags takes precedence over the one set in config
 		if flag.GetString(ctx, "dockerfile") != "" {
