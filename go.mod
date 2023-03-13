@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.5
-	github.com/BurntSushi/toml v1.2.0
+	github.com/BurntSushi/toml v1.2.1
 	github.com/Khan/genqlient v0.5.0
 	github.com/alecthomas/chroma v0.10.0
 	github.com/avast/retry-go/v4 v4.2.0
