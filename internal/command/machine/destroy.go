@@ -64,7 +64,6 @@ func runMachineDestroy(ctx context.Context) (err error) {
 
 		if help != nil {
 			fmt.Println(help)
-
 		}
 
 		fmt.Println()
@@ -85,15 +84,17 @@ func runMachineDestroy(ctx context.Context) (err error) {
 		return fmt.Errorf("could not retrieve machine %s", machineID)
 	}
 
-	if current.State != "stopped" {
-		switch current.State {
-		case "destroyed":
-			return fmt.Errorf("machine %s has already been destroyed", machineID)
-		case "started":
-			if !input.Kill {
-				return fmt.Errorf("machine %s currently started, either stop first or use --force flag", machineID)
-			}
-		default:
+	switch current.State {
+	case "stopped":
+		break
+	case "destroyed":
+		return fmt.Errorf("machine %s has already been destroyed", machineID)
+	case "started":
+		if !input.Kill {
+			return fmt.Errorf("machine %s currently started, either stop first or use --force flag", machineID)
+		}
+	default:
+		if !input.Kill {
 			return fmt.Errorf("machine %s is in a %s state and cannot be destroyed since it is not stopped, either stop first or use --force flag", machineID, current.State)
 		}
 	}
