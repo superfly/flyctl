@@ -25,15 +25,20 @@ retrieved from the Fly service and saved in TOML format.`
 		command.RequireAppName,
 	)
 	cmd.Args = cobra.NoArgs
-	flag.Add(cmd, flag.App(), flag.AppConfig())
+	flag.Add(cmd,
+		flag.App(),
+		flag.AppConfig(),
+		flag.Yes(),
+	)
 	return
 }
 
 func runSave(ctx context.Context) error {
 	var (
-		err       error
-		appName   = appconfig.NameFromContext(ctx)
-		apiClient = client.FromContext(ctx).API()
+		err         error
+		appName     = appconfig.NameFromContext(ctx)
+		apiClient   = client.FromContext(ctx).API()
+		autoConfirm = flag.GetBool(ctx, "yes")
 	)
 	appCompact, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
@@ -54,7 +59,7 @@ func runSave(ctx context.Context) error {
 		return err
 	}
 
-	if exists, _ := appconfig.ConfigFileExistsAtPath(configfilename); exists {
+	if exists, _ := appconfig.ConfigFileExistsAtPath(configfilename); exists && !autoConfirm {
 		confirmation, err := prompt.Confirmf(ctx,
 			"An existing configuration file has been found\nOverwrite file '%s'", configfilename)
 		if err != nil {
