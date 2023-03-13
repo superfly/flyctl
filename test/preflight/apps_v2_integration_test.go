@@ -374,3 +374,28 @@ func TestAppsV2ConfigSave_PostgresHA(t *testing.T) {
     timeout = "10s"
     path = "/flycheck/vm"`)
 }
+
+func TestAppsV2Config_ParseExperimental(t *testing.T) {
+	var (
+		err            error
+		f              = testlib.NewTestEnvFromEnv(t)
+		appName        = f.CreateRandomAppName()
+		configFilePath = filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
+	)
+
+	config := `
+	[experimental]
+	  auto_rollback = true
+	`
+
+	err = os.WriteFile(configFilePath, []byte(config), 0644)
+	if err != nil {
+		f.Fatalf("Failed to write config: %s", err)
+	}
+
+	result := f.Fly("launch --force-machines --local-only --name %s --region ord --copy-config", appName)
+	stdout := result.StdOut().String()
+	require.Contains(f, stdout, "Created app")
+	require.Contains(f, stdout, "Wrote config file fly.toml")
+
+}
