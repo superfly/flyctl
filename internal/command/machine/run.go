@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/briandowns/spinner"
 	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
 	"github.com/pkg/errors"
@@ -17,10 +18,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
@@ -136,6 +137,8 @@ var sharedFlags = flag.Set{
 	},
 }
 
+var s = spinner.New(spinner.CharSets[9], 100*time.Millisecond)
+
 func newRun() *cobra.Command {
 	const (
 		short = "Run a machine"
@@ -169,6 +172,10 @@ func newRun() *cobra.Command {
 		flag.Bool{
 			Name:        "rm",
 			Description: "Automatically remove the machine when it exits",
+		},
+		flag.String{
+			Name:        "restart",
+			Description: "Configure restart policy, for a machine. Options include `no`, `always` and `on-fail`. Default is set to always",
 		},
 		sharedFlags,
 	)
@@ -274,8 +281,11 @@ func runMachineRun(ctx context.Context) error {
 	fmt.Fprintf(io.Out, " Instance ID: %s\n", instanceID)
 	fmt.Fprintf(io.Out, " State: %s\n", state)
 
+	fmt.Fprintf(io.Out, "\n Attempting to start machine...\n\n")
+	s.Start()
 	// wait for machine to be started
 	if err := mach.WaitForStartOrStop(ctx, machine, "start", time.Minute*5); err != nil {
+		s.Stop()
 		return err
 	}
 
@@ -719,6 +729,20 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 			return machineConf, errors.Wrap(err, "invalid entrypoint")
 		}
 		machineConf.Init.Entrypoint = splitted
+	}
+
+	// default restart policy to always unless otherwise specified
+	switch flag.GetString(ctx, "restart") {
+	case "no":
+		machineConf.Restart.Policy = api.MachineRestartPolicyNo
+	case "on-fail":
+		machineConf.Restart.Policy = api.MachineRestartPolicyOnFailure
+	case "always":
+		machineConf.Restart.Policy = api.MachineRestartPolicyAlways
+	case "":
+		machineConf.Restart.Policy = api.MachineRestartPolicyAlways
+	default:
+		return machineConf, errors.New("invalid restart provided")
 	}
 
 	// `machine update` and `machine run` both use `determineMachineConfig`` to populate
