@@ -3,11 +3,9 @@ package machine
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
@@ -48,7 +46,6 @@ func runMachineKill(ctx context.Context) (err error) {
 		return err
 	}
 	flapsClient := flaps.FromContext(ctx)
-	appName := appconfig.NameFromContext(ctx)
 
 	if current.State == "destroyed" {
 		return fmt.Errorf("machine %s has already been destroyed", current.ID)
@@ -57,12 +54,10 @@ func runMachineKill(ctx context.Context) (err error) {
 
 	err = flapsClient.Kill(ctx, current.ID)
 	if err != nil {
-		switch {
-		case strings.Contains(err.Error(), "not found"):
-			return fmt.Errorf("could not find machine %s in app %s to kill", current.ID, appName)
-		default:
-			return fmt.Errorf("could not kill machine %s: %w", current.ID, err)
+		if err := rewriteMachineNotFoundErrors(ctx, err, current.ID); err != nil {
+			return err
 		}
+		return fmt.Errorf("could not kill machine %s: %w", current.ID, err)
 	}
 
 	fmt.Fprintln(io.Out, "kill signal has been sent")

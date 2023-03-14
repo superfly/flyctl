@@ -3,12 +3,10 @@ package machine
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
@@ -61,10 +59,6 @@ func runMachineStop(ctx context.Context) (err error) {
 }
 
 func Stop(ctx context.Context, machineID string) (err error) {
-	var (
-		appName = appconfig.NameFromContext(ctx)
-	)
-
 	machineStopInput := api.StopMachineInput{
 		ID:      machineID,
 		Filters: &api.Filters{},
@@ -72,12 +66,10 @@ func Stop(ctx context.Context, machineID string) (err error) {
 
 	err = flaps.FromContext(ctx).Stop(ctx, machineStopInput)
 	if err != nil {
-		switch {
-		case strings.Contains(err.Error(), "not found"):
-			return fmt.Errorf("machine %s was not found in app '%s'", machineID, appName)
-		default:
-			return fmt.Errorf("could not stop machine %s: %w", machineStopInput.ID, err)
+		if err := rewriteMachineNotFoundErrors(ctx, err, machineID); err != nil {
+			return err
 		}
+		return fmt.Errorf("could not stop machine %s: %w", machineID, err)
 	}
 
 	return

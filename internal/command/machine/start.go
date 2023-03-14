@@ -3,11 +3,9 @@ package machine
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
@@ -58,18 +56,12 @@ func runMachineStart(ctx context.Context) (err error) {
 }
 
 func Start(ctx context.Context, machineID string) (err error) {
-	var (
-		appName = appconfig.NameFromContext(ctx)
-	)
-
 	machine, err := flaps.FromContext(ctx).Start(ctx, machineID)
 	if err != nil {
-		switch {
-		case strings.Contains(err.Error(), "not found"):
-			return fmt.Errorf("machine %s was not found in app '%s'", machineID, appName)
-		default:
-			return fmt.Errorf("could not start machine %s: %w", machineID, err)
+		if err := rewriteMachineNotFoundErrors(ctx, err, machineID); err != nil {
+			return err
 		}
+		return fmt.Errorf("could not start machine %s: %w", machineID, err)
 	}
 
 	if machine.Status == "error" {
