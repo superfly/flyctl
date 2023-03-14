@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -46,6 +47,17 @@ func runEnv(ctx context.Context) error {
 	if err := render.Table(io.Out, "Secrets", secretRows, "Name", "Digest", "Created At"); err != nil {
 		return err
 	}
+
+	app, err := apiClient.GetAppCompact(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("failed to get app: %w", err)
+	}
+
+	flapsClient, err := flaps.New(ctx, app)
+	if err != nil {
+		return err
+	}
+	ctx = flaps.NewContext(ctx, flapsClient)
 
 	cfg, err := appconfig.FromRemoteApp(ctx, appName)
 	if err != nil {
