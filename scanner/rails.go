@@ -146,6 +146,20 @@ func RailsCallback(srcInfo *SourceInfo, options map[string]bool) error {
 		if err := cmd.Run(); err != nil {
 			return errors.Wrap(err, "Failed to generate Dockefile")
 		}
+	} else {
+		if options["postgresql"] && !strings.Contains(string(gemfile), "pg") {
+			cmd := exec.Command("bundle", "add", "pg")
+			if err := cmd.Run(); err != nil {
+				return errors.Wrap(err, "Failed to install pg gem")
+			}
+		}
+
+		if options["redis"] && !strings.Contains(string(gemfile), "redis") {
+			cmd := exec.Command("bundle", "add", "redis")
+			if err := cmd.Run(); err != nil {
+				return errors.Wrap(err, "Failed to install redis gem")
+			}
+		}
 	}
 
 	// read dockerfile
