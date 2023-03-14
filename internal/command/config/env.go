@@ -8,9 +8,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -53,10 +53,11 @@ func runEnv(ctx context.Context) error {
 		return fmt.Errorf("failed to get app: %s", err)
 	}
 
-	ctx, err = apps.BuildContext(ctx, app)
+	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
 		return err
 	}
+	ctx = flaps.NewContext(ctx, flapsClient)
 
 	cfg, err := appconfig.FromRemoteApp(ctx, appName)
 	if err != nil {
