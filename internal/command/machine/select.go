@@ -2,7 +2,6 @@ package machine
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -12,20 +11,8 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 )
 
-func selectOneMachine(ctx context.Context, machineID string) (*api.Machine, context.Context, error) {
-	return selectOneMachineImpl(ctx, machineID, nil)
-}
-
-func selectOneMachineFromApp(ctx context.Context, machineID string, app *api.AppCompact) (*api.Machine, context.Context, error) {
-	if app == nil {
-		return nil, nil, errors.New("tried to select a machine from a nil app; this is a bug")
-	}
-	return selectOneMachineImpl(ctx, machineID, app)
-}
-
-func selectOneMachineImpl(ctx context.Context, machineID string, app *api.AppCompact) (*api.Machine, context.Context, error) {
+func selectOneMachine(ctx context.Context, app *api.AppCompact, machineID string) (*api.Machine, context.Context, error) {
 	var err error
-
 	if app != nil {
 		ctx, err = buildContextFromApp(ctx, app)
 	} else {

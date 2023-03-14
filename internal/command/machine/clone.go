@@ -92,7 +92,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		return err
 	}
 
-	source, ctx, err := selectOneMachineFromApp(ctx, machineID, app)
+	source, ctx, err := selectOneMachine(ctx, app, machineID)
 	if err != nil {
 		return err
 	}

@@ -52,7 +52,7 @@ func runMachineDestroy(ctx context.Context) (err error) {
 		force     = flag.GetBool(ctx, "force")
 	)
 
-	current, ctx, err := selectOneMachine(ctx, machineID)
+	current, ctx, err := selectOneMachine(ctx, nil, machineID)
 	if err != nil {
 		return err
 	}

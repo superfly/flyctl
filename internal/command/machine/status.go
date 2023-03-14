@@ -68,7 +68,7 @@ func runMachineStatus(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 
 	machineID := flag.FirstArg(ctx)
-	machine, ctx, err := selectOneMachine(ctx, machineID)
+	machine, ctx, err := selectOneMachine(ctx, nil, machineID)
 	if err != nil {
 		return err
 	}

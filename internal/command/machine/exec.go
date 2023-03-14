@@ -49,7 +49,7 @@ func runMachineExec(ctx context.Context) (err error) {
 		config    = config.FromContext(ctx)
 	)
 
-	current, ctx, err := selectOneMachine(ctx, machineID)
+	current, ctx, err := selectOneMachine(ctx, nil, machineID)
 	if err != nil {
 		return err
 	}

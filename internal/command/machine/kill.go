@@ -41,7 +41,7 @@ func runMachineKill(ctx context.Context) (err error) {
 		io        = iostreams.FromContext(ctx)
 	)
 
-	current, ctx, err := selectOneMachine(ctx, machineID)
+	current, ctx, err := selectOneMachine(ctx, nil, machineID)
 	if err != nil {
 		return err
 	}

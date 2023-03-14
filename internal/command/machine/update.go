@@ -63,7 +63,7 @@ func runUpdate(ctx context.Context) (err error) {
 		dockerfile       = flag.GetString(ctx, flag.Dockerfile().Name)
 	)
 
-	machine, ctx, err := selectOneMachine(ctx, machineID)
+	machine, ctx, err := selectOneMachine(ctx, nil, machineID)
 	if err != nil {
 		return err
 	}
