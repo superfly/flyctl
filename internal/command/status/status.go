@@ -99,7 +99,7 @@ func once(ctx context.Context, out io.Writer) (err error) {
 
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
-		return fmt.Errorf("failed to get app: %s", err)
+		return fmt.Errorf("failed to get app: %w", err)
 	}
 
 	platformVersion := app.PlatformVersion

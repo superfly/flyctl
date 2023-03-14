@@ -24,7 +24,7 @@ func runAppCheckList(ctx context.Context) error {
 
 	app, err := web.GetAppCompact(ctx, appName)
 	if err != nil {
-		return fmt.Errorf("failed to get app: %s", err)
+		return fmt.Errorf("failed to get app: %w", err)
 	}
 
 	if app.PlatformVersion == "machines" {

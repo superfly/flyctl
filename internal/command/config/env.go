@@ -50,7 +50,7 @@ func runEnv(ctx context.Context) error {
 
 	app, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
-		return fmt.Errorf("failed to get app: %s", err)
+		return fmt.Errorf("failed to get app: %w", err)
 	}
 
 	flapsClient, err := flaps.New(ctx, app)
