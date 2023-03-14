@@ -218,9 +218,19 @@ type AddOnProvider {
 
 enum AddOnType {
   """
-  A Redis database
+  A Logtail log receiver
+  """
+  logtail
+
+  """
+  An Upstash Redis database
   """
   redis
+
+  """
+  An Upstash Redis database
+  """
+  upstash_redis
 }
 
 """
@@ -315,7 +325,7 @@ input AllocateIPAddressInput {
   clientMutationId: String
 
   """
-  The target network name in the specified organizanation
+  The target network name in the specified organization
   """
   network: String
 
@@ -3250,7 +3260,7 @@ type DNSPortal implements Node {
   createdAt: ISO8601DateTime!
   id: ID!
   name: String!
-  organiztion: Organization!
+  organization: Organization!
   primaryColor: String!
   returnUrl: String
   returnUrlText: String

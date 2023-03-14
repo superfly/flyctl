@@ -11,8 +11,12 @@ import (
 type AddOnType string
 
 const (
-	// A Redis database
+	// A Logtail log receiver
+	AddOnTypeLogtail AddOnType = "logtail"
+	// An Upstash Redis database
 	AddOnTypeRedis AddOnType = "redis"
+	// An Upstash Redis database
+	AddOnTypeUpstashRedis AddOnType = "upstash_redis"
 )
 
 // AgentGetInstancesApp includes the requested fields of the GraphQL type App.
