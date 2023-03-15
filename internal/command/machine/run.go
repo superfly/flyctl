@@ -258,7 +258,7 @@ func runMachineRun(ctx context.Context) error {
 		return fmt.Errorf("to update an existing machine, use 'flyctl machine update'")
 	}
 
-	machineConf, err = determineMachineConfig(ctx, *machineConf, app, flag.FirstArg(ctx), input.Region)
+	machineConf, err = determineMachineConfig(ctx, *machineConf, app.Name, flag.FirstArg(ctx), input.Region)
 	if err != nil {
 		return err
 	}
@@ -620,7 +620,7 @@ func selectAppName(ctx context.Context) (name string, err error) {
 	return
 }
 
-func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, imageOrPath string, region string) (*api.MachineConfig, error) {
+func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, appName string, imageOrPath string, region string) (*api.MachineConfig, error) {
 	machineConf, err := mach.CloneConfig(initialMachineConf)
 	if err != nil {
 		return nil, err
@@ -761,7 +761,7 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		return machineConf, err
 	}
 
-	img, err := determineImage(ctx, app.Name, imageOrPath)
+	img, err := determineImage(ctx, appName, imageOrPath)
 	if err != nil {
 		return machineConf, err
 	}

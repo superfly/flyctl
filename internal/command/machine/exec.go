@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -45,34 +44,16 @@ func newMachineExec() *cobra.Command {
 
 func runMachineExec(ctx context.Context) (err error) {
 	var (
-		appName   = appconfig.NameFromContext(ctx)
 		machineID = flag.FirstArg(ctx)
 		io        = iostreams.FromContext(ctx)
 		config    = config.FromContext(ctx)
 	)
 
-	app, err := appFromMachineOrName(ctx, machineID, appName)
+	current, ctx, err := selectOneMachine(ctx, nil, machineID)
 	if err != nil {
-		help := newMachineExec().Help()
-
-		if help != nil {
-			fmt.Println(help)
-
-		}
-
-		fmt.Println()
 		return err
 	}
-
-	flapsClient, err := flaps.New(ctx, app)
-	if err != nil {
-		return fmt.Errorf("could not make flaps client: %w", err)
-	}
-
-	current, err := flapsClient.Get(ctx, machineID)
-	if err != nil {
-		return fmt.Errorf("could not retrieve machine %s", machineID)
-	}
+	flapsClient := flaps.FromContext(ctx)
 
 	var timeout = flag.GetInt(ctx, "timeout")
 
@@ -83,7 +64,7 @@ func runMachineExec(ctx context.Context) (err error) {
 
 	out, err := flapsClient.Exec(ctx, current.ID, in)
 	if err != nil {
-		return fmt.Errorf("could not exec command on machine %s: %w", machineID, err)
+		return fmt.Errorf("could not exec command on machine %s: %w", current.ID, err)
 	}
 
 	if config.JSONOutput {
