@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/superfly/flyctl/api"
@@ -155,7 +156,7 @@ func promptForOneMachine(ctx context.Context) (*api.Machine, error) {
 		return nil, fmt.Errorf("could not get a list of machines: %w", err)
 	}
 
-	options := buildOptions(machines)
+	options := sortAndBuildOptions(machines)
 	var selection int
 	if err := prompt.Select(ctx, &selection, "Select a machine:", "", options...); err != nil {
 		return nil, fmt.Errorf("could not prompt for machine: %w", err)
@@ -169,7 +170,7 @@ func promptForManyMachines(ctx context.Context) ([]*api.Machine, error) {
 		return nil, fmt.Errorf("could not get a list of machines: %w", err)
 	}
 
-	options := buildOptions(machines)
+	options := sortAndBuildOptions(machines)
 	var selections []int
 	if err := prompt.MultiSelect(ctx, &selections, "Select machines:", nil, options...); err != nil {
 		return nil, fmt.Errorf("could not prompt for machine: %w", err)
@@ -182,11 +183,16 @@ func promptForManyMachines(ctx context.Context) ([]*api.Machine, error) {
 	return selectedMachines, nil
 }
 
-func buildOptions(machines []*api.Machine) (options []string) {
+func sortAndBuildOptions(machines []*api.Machine) []string {
+	sort.Slice(machines, func(i, j int) bool {
+		return machines[i].ID < machines[j].ID
+	})
+
+	options := []string{}
 	for _, machine := range machines {
 		options = append(options, fmt.Sprintf("%s %s (%s)", machine.ID, machine.Name, machine.State))
 	}
-	return
+	return options
 }
 
 func rewriteMachineNotFoundErrors(ctx context.Context, err error, machineID string) error {
