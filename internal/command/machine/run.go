@@ -284,8 +284,9 @@ func runMachineRun(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "\n Attempting to start machine...\n\n")
 	s.Start()
 	// wait for machine to be started
-	if err := mach.WaitForStartOrStop(ctx, machine, "start", time.Minute*5); err != nil {
-		s.Stop()
+	err = mach.WaitForStartOrStop(ctx, machine, "start", time.Minute*5)
+	s.Stop()
+	if err != nil {
 		return err
 	}
 
