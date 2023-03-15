@@ -63,6 +63,10 @@ RUN if [ -f "vite.config.js" ]; then \
     if [ -f "yarn.lock" ]; then \
         yarn install --frozen-lockfile; \
         yarn $ASSET_CMD; \
+    elif [ -f "pnpm-lock.yaml" ]; then \
+        corepack enable && corepack prepare pnpm@latest-7 --activate; \
+        pnpm install --frozen-lockfile; \
+        pnpm run $ASSET_CMD; \
     elif [ -f "package-lock.json" ]; then \
         npm ci --no-audit; \
         npm run $ASSET_CMD; \
