@@ -190,7 +190,11 @@ func sortAndBuildOptions(machines []*api.Machine) []string {
 
 	options := []string{}
 	for _, machine := range machines {
-		options = append(options, fmt.Sprintf("%s %s (%s)", machine.ID, machine.Name, machine.State))
+		details := machine.State
+		if group := machine.ProcessGroup(); group != "" {
+			details += fmt.Sprintf(", process group '%s'", group)
+		}
+		options = append(options, fmt.Sprintf("%s %s (%s)", machine.ID, machine.Name, details))
 	}
 	return options
 }
