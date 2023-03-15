@@ -94,6 +94,7 @@ func run(ctx context.Context) (err error) {
 	appConfig := appconfig.NewConfig()
 
 	configFilePath := filepath.Join(workingDir, appconfig.DefaultConfigFileName)
+	copyConfig := false
 	if exists, _ := appconfig.ConfigFileExistsAtPath(configFilePath); exists {
 		cfg, err := appconfig.LoadConfig(configFilePath)
 		if err != nil {
@@ -113,7 +114,6 @@ func run(ctx context.Context) (err error) {
 			fmt.Fprintln(io.Out, "An existing fly.toml file was found")
 		}
 
-		copyConfig := false
 		if flag.GetBool(ctx, "copy-config") {
 			copyConfig = true
 		} else {
@@ -318,9 +318,12 @@ func run(ctx context.Context) (err error) {
 	if n := flag.GetInt(ctx, "internal-port"); n > 0 {
 		appConfig.SetInternalPort(n)
 	}
-	// Finally write application configuration to fly.toml
-	if err := appConfig.WriteToDisk(ctx, configFilePath); err != nil {
-		return err
+
+	// Finally write application configuration to fly.toml if it wasn't copied.
+	if !copyConfig {
+		if err := appConfig.WriteToDisk(ctx, configFilePath); err != nil {
+			return err
+		}
 	}
 
 	if srcInfo == nil {
