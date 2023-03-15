@@ -53,8 +53,11 @@ func runSave(ctx context.Context) error {
 		return err
 	}
 
-	cwd := state.WorkingDirectory(ctx)
-	configfilename, err := appconfig.ResolveConfigFileFromPath(cwd)
+	path := state.WorkingDirectory(ctx)
+	if flag.IsSpecified(ctx, "config") {
+		path = flag.GetString(ctx, "config")
+	}
+	configfilename, err := appconfig.ResolveConfigFileFromPath(path)
 	if err != nil {
 		return err
 	}
