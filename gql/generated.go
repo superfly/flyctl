@@ -353,6 +353,8 @@ type CreateAddOnCreateAddOnCreateAddOnPayloadAddOn struct {
 	Name string `json:"name"`
 	// Public URL for this service
 	PublicUrl string `json:"publicUrl"`
+	// Single sign-on link to the add-on dashboard
+	SsoLink string `json:"ssoLink"`
 }
 
 // GetName returns CreateAddOnCreateAddOnCreateAddOnPayloadAddOn.Name, and is useful for accessing the field via an interface.
@@ -360,6 +362,9 @@ func (v *CreateAddOnCreateAddOnCreateAddOnPayloadAddOn) GetName() string { retur
 
 // GetPublicUrl returns CreateAddOnCreateAddOnCreateAddOnPayloadAddOn.PublicUrl, and is useful for accessing the field via an interface.
 func (v *CreateAddOnCreateAddOnCreateAddOnPayloadAddOn) GetPublicUrl() string { return v.PublicUrl }
+
+// GetSsoLink returns CreateAddOnCreateAddOnCreateAddOnPayloadAddOn.SsoLink, and is useful for accessing the field via an interface.
+func (v *CreateAddOnCreateAddOnCreateAddOnPayloadAddOn) GetSsoLink() string { return v.SsoLink }
 
 // CreateAddOnResponse is returned by CreateAddOn on success.
 type CreateAddOnResponse struct {
@@ -584,6 +589,8 @@ type GetAddOnAddOn struct {
 	ReadRegions []string `json:"readRegions"`
 	// Add-on options
 	Options interface{} `json:"options"`
+	// Single sign-on link to the add-on dashboard
+	SsoLink string `json:"ssoLink"`
 	// Organization that owns this service
 	Organization GetAddOnAddOnOrganization `json:"organization"`
 	// The add-on plan
@@ -616,6 +623,9 @@ func (v *GetAddOnAddOn) GetReadRegions() []string { return v.ReadRegions }
 
 // GetOptions returns GetAddOnAddOn.Options, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetOptions() interface{} { return v.Options }
+
+// GetSsoLink returns GetAddOnAddOn.SsoLink, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOn) GetSsoLink() string { return v.SsoLink }
 
 // GetOrganization returns GetAddOnAddOn.Organization, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetOrganization() GetAddOnAddOnOrganization { return v.Organization }
@@ -697,6 +707,56 @@ type GetAddOnResponse struct {
 
 // GetAddOn returns GetAddOnResponse.AddOn, and is useful for accessing the field via an interface.
 func (v *GetAddOnResponse) GetAddOn() GetAddOnAddOn { return v.AddOn }
+
+// GetAppApp includes the requested fields of the GraphQL type App.
+type GetAppApp struct {
+	// Unique application ID
+	Id string `json:"id"`
+	// The unique application name
+	Name string `json:"name"`
+	// Fly platform version
+	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
+	// Organization that owns this app
+	Organization GetAppAppOrganization `json:"organization"`
+}
+
+// GetId returns GetAppApp.Id, and is useful for accessing the field via an interface.
+func (v *GetAppApp) GetId() string { return v.Id }
+
+// GetName returns GetAppApp.Name, and is useful for accessing the field via an interface.
+func (v *GetAppApp) GetName() string { return v.Name }
+
+// GetPlatformVersion returns GetAppApp.PlatformVersion, and is useful for accessing the field via an interface.
+func (v *GetAppApp) GetPlatformVersion() PlatformVersionEnum { return v.PlatformVersion }
+
+// GetOrganization returns GetAppApp.Organization, and is useful for accessing the field via an interface.
+func (v *GetAppApp) GetOrganization() GetAppAppOrganization { return v.Organization }
+
+// GetAppAppOrganization includes the requested fields of the GraphQL type Organization.
+type GetAppAppOrganization struct {
+	Id string `json:"id"`
+	// Unique organization slug
+	Slug     string `json:"slug"`
+	PaidPlan bool   `json:"paidPlan"`
+}
+
+// GetId returns GetAppAppOrganization.Id, and is useful for accessing the field via an interface.
+func (v *GetAppAppOrganization) GetId() string { return v.Id }
+
+// GetSlug returns GetAppAppOrganization.Slug, and is useful for accessing the field via an interface.
+func (v *GetAppAppOrganization) GetSlug() string { return v.Slug }
+
+// GetPaidPlan returns GetAppAppOrganization.PaidPlan, and is useful for accessing the field via an interface.
+func (v *GetAppAppOrganization) GetPaidPlan() bool { return v.PaidPlan }
+
+// GetAppResponse is returned by GetApp on success.
+type GetAppResponse struct {
+	// Find an app by name
+	App GetAppApp `json:"app"`
+}
+
+// GetApp returns GetAppResponse.App, and is useful for accessing the field via an interface.
+func (v *GetAppResponse) GetApp() GetAppApp { return v.App }
 
 // GetOrgSettingsOrganization includes the requested fields of the GraphQL type Organization.
 type GetOrgSettingsOrganization struct {
@@ -926,6 +986,15 @@ type MachinesCreateReleaseResponse struct {
 func (v *MachinesCreateReleaseResponse) GetCreateRelease() MachinesCreateReleaseCreateReleaseCreateReleasePayload {
 	return v.CreateRelease
 }
+
+type PlatformVersionEnum string
+
+const (
+	// App with only machines
+	PlatformVersionEnumMachines PlatformVersionEnum = "machines"
+	// Nomad managed application
+	PlatformVersionEnumNomad PlatformVersionEnum = "nomad"
+)
 
 // ResetAddOnPasswordResetAddOnPasswordResetAddOnPasswordPayload includes the requested fields of the GraphQL type ResetAddOnPasswordPayload.
 // The GraphQL type's documentation follows.
@@ -1177,6 +1246,14 @@ type __GetAddOnProviderInput struct {
 // GetName returns __GetAddOnProviderInput.Name, and is useful for accessing the field via an interface.
 func (v *__GetAddOnProviderInput) GetName() string { return v.Name }
 
+// __GetAppInput is used internally by genqlient
+type __GetAppInput struct {
+	Name string `json:"name"`
+}
+
+// GetName returns __GetAppInput.Name, and is useful for accessing the field via an interface.
+func (v *__GetAppInput) GetName() string { return v.Name }
+
 // __GetOrgSettingsInput is used internally by genqlient
 type __GetOrgSettingsInput struct {
 	OrgSlug string `json:"orgSlug"`
@@ -1334,6 +1411,7 @@ mutation CreateAddOn ($organizationId: ID!, $primaryRegion: String, $name: Strin
 		addOn {
 			name
 			publicUrl
+			ssoLink
 		}
 	}
 }
@@ -1447,6 +1525,7 @@ query GetAddOn ($name: String) {
 		primaryRegion
 		readRegions
 		options
+		ssoLink
 		organization {
 			slug
 			paidPlan
@@ -1502,6 +1581,45 @@ query GetAddOnProvider ($name: String!) {
 	var err error
 
 	var data GetAddOnProviderResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
+func GetApp(
+	ctx context.Context,
+	client graphql.Client,
+	name string,
+) (*GetAppResponse, error) {
+	req := &graphql.Request{
+		OpName: "GetApp",
+		Query: `
+query GetApp ($name: String!) {
+	app(name: $name) {
+		id
+		name
+		platformVersion
+		organization {
+			id
+			slug
+			paidPlan
+		}
+	}
+}
+`,
+		Variables: &__GetAppInput{
+			Name: name,
+		},
+	}
+	var err error
+
+	var data GetAppResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(

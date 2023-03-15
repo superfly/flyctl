@@ -29,6 +29,10 @@ func newShipperSetup() (cmd *cobra.Command) {
 	return cmd
 }
 
+func shipperAppName(orgSlug string) string {
+	return orgSlug + "-auto-log-shipper"
+}
+
 func runSetup(ctx context.Context) (err error) {
 	client := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
@@ -38,7 +42,7 @@ func runSetup(ctx context.Context) (err error) {
 		return err
 	}
 
-	appName := selectedOrg.Slug + "-auto-log-shipper"
+	appName := shipperAppName(selectedOrg.Slug)
 
 	var app *api.AppCompact
 

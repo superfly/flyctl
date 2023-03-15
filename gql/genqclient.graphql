@@ -9,6 +9,7 @@ query GetAddOn($name: String) {
 		primaryRegion
 		readRegions
 		options
+		ssoLink
 		organization {
 			slug
 			paidPlan
@@ -27,6 +28,28 @@ mutation CreateAddOn($organizationId: ID!, $primaryRegion: String, $name: String
 		addOn {
 			name
 			publicUrl
+			ssoLink
+		}
+	}
+}
+
+query GetOrganization($slug: String!) {
+	organization(slug: $slug) {
+		id
+		name
+		addOnSsoLink
+	}
+}
+
+query GetApp($name: String!) {
+	app(name: $name) {
+		id
+		name
+		platformVersion
+		organization {
+			id
+			slug
+			paidPlan
 		}
 	}
 }

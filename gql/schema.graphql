@@ -114,6 +114,11 @@ type AddOn implements Node {
   readRegions: [String!]
 
   """
+  Single sign-on link to the add-on dashboard
+  """
+  ssoLink: String
+
+  """
   Redis database statistics
   """
   stats: JSON
