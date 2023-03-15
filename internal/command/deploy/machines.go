@@ -368,7 +368,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		return err
 	}
 	for _, mach := range processGroupMachineDiff.machinesToRemove {
-		if err := machcmd.Destroy(ctx, md.app, mach.Machine().ID, true); err != nil {
+		if err := machcmd.Destroy(ctx, md.app, mach.Machine(), true); err != nil {
 			return err
 		}
 	}

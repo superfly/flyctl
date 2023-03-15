@@ -9,8 +9,6 @@ import (
 
 	"github.com/alecthomas/chroma/quick"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
