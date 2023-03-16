@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/shlex"
 	"github.com/stretchr/testify/require"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -214,6 +215,17 @@ func (f *FlyctlTestEnv) CreateRandomAppMachines() string {
 	appName := f.CreateRandomAppName()
 	f.Fly("apps create %s --org %s --machines", appName, f.orgSlug).AssertSuccessfulExit()
 	return appName
+}
+
+func (f *FlyctlTestEnv) MachinesList(appName string) []api.Machine {
+	cmdResult := f.Fly("machines list --app %s --json", appName)
+	cmdResult.AssertSuccessfulExit()
+	var machList []api.Machine
+	err := json.Unmarshal(cmdResult.stdOut.Bytes(), &machList)
+	if err != nil {
+		f.t.Fatalf("failed to unmarshal machines list json for app %s:\n%s", appName, cmdResult.stdOut.String())
+	}
+	return machList
 }
 
 // implement the testing.TB interface, so we can print history of flyctl command and output when failing

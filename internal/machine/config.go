@@ -8,8 +8,10 @@ import (
 	"strings"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/jinzhu/copier"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -53,19 +55,22 @@ func ConfirmConfigChanges(ctx context.Context, machine *api.Machine, targetConfi
 	return true, nil
 }
 
-func CloneConfig(orig api.MachineConfig) (*api.MachineConfig, error) {
+// CloneConfig deep-copies a MachineConfig.
+// If CloneConfig is called on a nil config, nil is returned.
+func CloneConfig(orig *api.MachineConfig) *api.MachineConfig {
+	if orig == nil {
+		return nil
+	}
 	config := &api.MachineConfig{}
-
-	data, err := json.Marshal(orig)
+	err := copier.CopyWithOption(config, orig, copier.Option{IgnoreEmpty: true, DeepCopy: true})
+	// note(ali): I'm not too worried about eating these potential errors.
+	//            copier only returns an error if the structure is invalid, or if the item to copy is nil.
+	//            https://github.com/jinzhu/copier/blob/20cee7e229707f8e3fd10f8ed21f3e6c08ca9463/errors.go
 	if err != nil {
-		return nil, err
+		sentry.CaptureException(fmt.Errorf("failed to clone machine config: %w", err))
+		panic("failed to deep-copy machine config. this is a bug!")
 	}
-
-	if err := json.Unmarshal(data, config); err != nil {
-		return nil, err
-	}
-
-	return config, err
+	return config
 }
 
 func configCompare(ctx context.Context, original api.MachineConfig, new api.MachineConfig) string {

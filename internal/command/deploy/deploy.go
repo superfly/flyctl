@@ -165,6 +165,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 		if flag.GetString(ctx, flag.RegionName) != "" {
 			primaryRegion = flag.GetString(ctx, flag.RegionName)
 		}
+
 		md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 			AppCompact:        appCompact,
 			DeploymentImage:   img,

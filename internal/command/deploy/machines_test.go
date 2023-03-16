@@ -27,7 +27,7 @@ func stabMachineDeployment(appConfig *appconfig.Config) (*machineDeployment, err
 	return md, err
 }
 
-func Test_resultUpdateMachineConfig_Basic(t *testing.T) {
+func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
 		AppName: "my-cool-app",
 		Env: map[string]string{
@@ -58,7 +58,7 @@ func Test_resultUpdateMachineConfig_Basic(t *testing.T) {
 
 // Test any LaunchMachineInput field that must not be set on a machine
 // used to run release command.
-func Test_resultUpdateMachineConfig_ReleaseCommand(t *testing.T) {
+func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
 		AppName: "my-cool-app",
 		Env: map[string]string{
@@ -212,7 +212,7 @@ func Test_resultUpdateMachineConfig_ReleaseCommand(t *testing.T) {
 }
 
 // Test Mounts
-func Test_resultUpdateMachineConfig_Mounts(t *testing.T) {
+func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
 		Mounts: &appconfig.Volume{
 			Source:      "data",
@@ -278,7 +278,7 @@ func Test_resultUpdateMachineConfig_Mounts(t *testing.T) {
 }
 
 // Test machineDeployment.restartOnly
-func Test_resultUpdateMachineConfig_restartOnly(t *testing.T) {
+func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
 		Env: map[string]string{
 			"Ignore": "me",
@@ -309,6 +309,51 @@ func Test_resultUpdateMachineConfig_restartOnly(t *testing.T) {
 				"fly_process_group":    "app",
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
+			},
+		},
+	}, md.resolveUpdatedMachineConfig(origMachine, false))
+}
+
+// Test machineDeployment.restartOnlyProcessGroup
+func Test_resolveUpdatedMachineConfig_restartOnlyProcessGroup(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		Env: map[string]string{
+			"Ignore": "me",
+		},
+		Mounts: &appconfig.Volume{
+			Source:      "data",
+			Destination: "/data",
+		},
+	})
+	md.releaseVersion = 2
+	assert.NoError(t, err)
+	md.restartOnly = true
+	md.img.Tag = "SHOULD-NOT-USE-THIS-TAG"
+
+	origMachine := &api.Machine{
+		ID: "OrigID",
+		Config: &api.MachineConfig{
+			Image: "instead-use/the-redmoon",
+			Metadata: map[string]string{
+				"fly_process_group":   "awesome-group",
+				"fly_release_version": "1",
+				// The app isn't managed postgres, so this
+				// should end up stripped out.
+				"fly-managed-postgres": "true",
+			},
+		},
+	}
+
+	assert.Equal(t, &api.LaunchMachineInput{
+		ID:      "OrigID",
+		OrgSlug: "my-dangling-org",
+		Config: &api.MachineConfig{
+			Image: "instead-use/the-redmoon",
+			Metadata: map[string]string{
+				"fly_platform_version": "v2",
+				"fly_process_group":    "awesome-group",
+				"fly_release_id":       "",
+				"fly_release_version":  "2",
 			},
 		},
 	}, md.resolveUpdatedMachineConfig(origMachine, false))

@@ -16,6 +16,7 @@ import (
 type MachineSet interface {
 	AcquireLeases(context.Context, time.Duration) error
 	ReleaseLeases(context.Context) error
+	RemoveMachines(ctx context.Context, machines []LeasableMachine) error
 	StartBackgroundLeaseRefresh(context.Context, time.Duration, time.Duration)
 	IsEmpty() bool
 	GetMachines() []LeasableMachine
@@ -71,6 +72,32 @@ func (ms *machineSet) AcquireLeases(ctx context.Context, duration time.Duration)
 		return fmt.Errorf("error acquiring leases on all machines")
 	}
 	return nil
+}
+
+func (ms *machineSet) RemoveMachines(ctx context.Context, machines []LeasableMachine) error {
+
+	// Rewrite machines array to exclude the ones we just released.
+	i := 0
+	tempMachines := make([]LeasableMachine, len(ms.machines)-len(machines))
+
+	for _, oldMach := range ms.machines {
+		ok := true
+		for _, removedMach := range machines {
+			if oldMach.Machine().ID == removedMach.Machine().ID {
+				ok = false
+				break
+			}
+		}
+		if ok {
+			tempMachines[i] = oldMach
+			i++
+		}
+	}
+
+	ms.machines = tempMachines
+
+	subset := machineSet{machines: machines}
+	return subset.ReleaseLeases(ctx)
 }
 
 func (ms *machineSet) ReleaseLeases(ctx context.Context) error {

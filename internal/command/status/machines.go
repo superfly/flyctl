@@ -25,7 +25,7 @@ func getFromMetadata(m *api.Machine, key string) string {
 }
 
 func getProcessgroup(m *api.Machine) string {
-	name := getFromMetadata(m, api.MachineConfigMetadataKeyFlyProcessGroup)
+	name := m.ProcessGroup()
 
 	if name != "" {
 		return name

@@ -16,9 +16,10 @@ import (
 
 func newDestroy() *cobra.Command {
 	const (
-		short = "Destroy a Fly machine. This command requires a machine to be in a stopped state unless the force flag is used."
-		long  = short + "\n"
-
+		short = "Destroy a Fly machine."
+		long  = `Destroy a Fly machine.
+This command requires a machine to be in a stopped state unless the force flag is used.
+`
 		usage = "destroy <id>"
 	)
 
@@ -56,7 +57,6 @@ func runMachineDestroy(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	flapsClient := flaps.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
 	// This is used for the deletion hook below.
@@ -66,39 +66,56 @@ func runMachineDestroy(ctx context.Context) (err error) {
 		return fmt.Errorf("could not get app '%s': %w", appName, err)
 	}
 
-	switch current.State {
-	case "stopped":
-		break
-	case "destroyed":
-		return fmt.Errorf("machine %s has already been destroyed", current.ID)
-	case "started":
-		if !force {
-			return fmt.Errorf("machine %s currently started, either stop first or use --force flag", current.ID)
-		}
-	default:
-		if !force {
-			return fmt.Errorf("machine %s is in a %s state and cannot be destroyed since it is not stopped, either stop first or use --force flag", current.ID, current.State)
-		}
-	}
-	fmt.Fprintf(out, "machine %s was found and is currently in %s state, attempting to destroy...\n", current.ID, current.State)
-
-	input := api.RemoveMachineInput{
-		AppID: appName,
-		ID:    current.ID,
-		Kill:  force,
-	}
-	err = flapsClient.Destroy(ctx, input)
+	err = Destroy(ctx, app, current, force)
 	if err != nil {
-		if err := rewriteMachineNotFoundErrors(ctx, err, current.ID); err != nil {
-			return err
-		}
-		return fmt.Errorf("could not destroy machine %s: %w", current.ID, err)
+		return err
 	}
-
-	// Best effort post-deletion hook.
-	runOnDeletionHook(ctx, app, current)
 
 	fmt.Fprintf(out, "%s has been destroyed\n", current.ID)
 
-	return
+	return nil
+}
+
+func Destroy(ctx context.Context, app *api.AppCompact, machine *api.Machine, force bool) error {
+
+	var (
+		out         = iostreams.FromContext(ctx).Out
+		flapsClient = flaps.FromContext(ctx)
+		appName     = app.Name
+
+		input = api.RemoveMachineInput{
+			AppID: appName,
+			ID:    machine.ID,
+			Kill:  force,
+		}
+	)
+
+	switch machine.State {
+	case "stopped":
+		break
+	case "destroyed":
+		return fmt.Errorf("machine %s has already been destroyed", machine.ID)
+	case "started":
+		if !force {
+			return fmt.Errorf("machine %s currently started, either stop first or use --force flag", machine.ID)
+		}
+	default:
+		if !force {
+			return fmt.Errorf("machine %s is in a %s state and cannot be destroyed since it is not stopped, either stop first or use --force flag", machine.ID, machine.State)
+		}
+	}
+	fmt.Fprintf(out, "machine %s was found and is currently in %s state, attempting to destroy...\n", machine.ID, machine.State)
+
+	err := flapsClient.Destroy(ctx, input)
+	if err != nil {
+		if err := rewriteMachineNotFoundErrors(ctx, err, machine.ID); err != nil {
+			return err
+		}
+		return fmt.Errorf("could not destroy machine %s: %w", machine.ID, err)
+	}
+
+	// Best effort post-deletion hook.
+	runOnDeletionHook(ctx, app, machine)
+
+	return nil
 }
