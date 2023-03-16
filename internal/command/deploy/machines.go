@@ -617,12 +617,16 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 			Config: &api.MachineConfig{},
 		}
 	}
+	newConfig := machine.CloneConfig(origMachineRaw.Config)
+	if newConfig.Metadata == nil {
+		newConfig.Metadata = map[string]string{}
+	}
 
 	launchInput := &api.LaunchMachineInput{
 		ID:      origMachineRaw.ID,
 		AppID:   md.app.Name,
 		OrgSlug: md.app.Organization.ID,
-		Config:  origMachineRaw.Config,
+		Config:  newConfig,
 		Region:  origMachineRaw.Region,
 	}
 
