@@ -652,11 +652,7 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 		return launchInput
 	}
 
-	launchInput.Config.DisableMachineAutostart = origMachineRaw.Config.DisableMachineAutostart
 	launchInput.Config.Image = md.img.Tag
-	launchInput.Config.Restart = origMachineRaw.Config.Restart
-	launchInput.Config.Guest = origMachineRaw.Config.Guest
-	launchInput.Config.Init = origMachineRaw.Config.Init
 	launchInput.Config.Env = lo.Assign(md.appConfig.Env)
 
 	if launchInput.Config.Env["PRIMARY_REGION"] == "" && origMachineRaw.Config.Env["PRIMARY_REGION"] != "" {
