@@ -622,10 +622,7 @@ func selectAppName(ctx context.Context) (name string, err error) {
 }
 
 func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, appName string, imageOrPath string, region string) (*api.MachineConfig, error) {
-	machineConf, err := mach.CloneConfig(initialMachineConf)
-	if err != nil {
-		return nil, err
-	}
+	machineConf := mach.CloneConfig(&initialMachineConf)
 
 	if guestSize := flag.GetString(ctx, "size"); guestSize != "" {
 		guest, ok := api.MachinePresets[guestSize]
