@@ -93,7 +93,7 @@ func SSHConnect(p *SSHParams, addr string) error {
 
 	cert, pk, err := singleUseSSHCertificate(p.Ctx, p.Org)
 	if err != nil {
-		return fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh establish`)", err)
+		return fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh issue`)", err)
 	}
 
 	pemkey := ssh.MarshalED25519PrivateKey(pk, "single-use certificate")
