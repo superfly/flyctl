@@ -617,43 +617,32 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 			Config: &api.MachineConfig{},
 		}
 	}
-	newConfig := machine.CloneConfig(origMachineRaw.Config)
 
 	launchInput := &api.LaunchMachineInput{
 		ID:      origMachineRaw.ID,
 		AppID:   md.app.Name,
 		OrgSlug: md.app.Organization.ID,
-		Config:  newConfig,
+		Config:  machine.CloneConfig(origMachineRaw.Config),
 		Region:  origMachineRaw.Region,
 	}
 
-	launchInput.Config.Statics = nil
 	if launchInput.Config.Metadata == nil {
 		launchInput.Config.Metadata = map[string]string{}
 	}
 
-	// Remove any platform metadata (such as release version)
-	// This way, when we're patching the config with defaults,
-	// we'll also end up overriding the platform metadata.
-	for k := range launchInput.Config.Metadata {
-		if isFlyAppsPlatformMetadata(k) {
-			delete(launchInput.Config.Metadata, k)
-		}
-	}
-	// Patch any holes in the config with defaults
-	defaultMetadata := md.defaultMachineMetadata()
-	for k, v := range defaultMetadata {
-		_, has := launchInput.Config.Metadata[k]
-		if !has {
-			launchInput.Config.Metadata[k] = v
-		}
-	}
+	launchInput.Config.Metadata = lo.Assign(
+		md.defaultMachineMetadata(),
+		lo.OmitBy(launchInput.Config.Metadata, func(k, v string) bool {
+			return isFlyAppsPlatformMetadata(k)
+		}),
+	)
 
 	// Stop here If the machine is restarting
 	if md.restartOnly {
 		return launchInput
 	}
 
+	launchInput.Config.Statics = nil
 	launchInput.Config.Image = md.img.Tag
 	launchInput.Config.Env = lo.Assign(md.appConfig.Env)
 
