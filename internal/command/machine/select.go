@@ -180,6 +180,9 @@ func promptForManyMachines(ctx context.Context) ([]*api.Machine, error) {
 	for _, selection := range selections {
 		selectedMachines = append(selectedMachines, machines[selection])
 	}
+	if len(selectedMachines) == 0 {
+		return nil, errors.New("no machines selected")
+	}
 	return selectedMachines, nil
 }
 
