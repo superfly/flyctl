@@ -19,7 +19,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	// Rails three other ways...
 	rails := checksPass(sourceDir+"/bin", fileExists("rails")) ||
 		checksPass(sourceDir, dirContains("config.ru", "Rails")) ||
-		checksPass(sourceDir, dirContains("Gemfile.lock", "rails"))
+		checksPass(sourceDir, dirContains("Gemfile.lock", " rails "))
 
 	if !rails {
 		return nil, nil
