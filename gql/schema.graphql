@@ -6955,6 +6955,11 @@ type Organization implements Node {
   Email for paid plan support if available
   """
   paidSupportEmail: String
+
+  """
+  Unmodified unique org slug
+  """
+  rawSlug: String!
   remoteBuilderApp: App
   remoteBuilderImage: String!
   settings: JSON

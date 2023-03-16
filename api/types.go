@@ -540,6 +540,7 @@ type Organization struct {
 	RemoteBuilderImage string
 	RemoteBuilderApp   *App
 	Slug               string
+	RawSlug            string
 	Type               string
 	PaidPlan           bool
 
@@ -593,6 +594,7 @@ func (o *Organization) GetSlug() string {
 type OrganizationBasic struct {
 	ID       string
 	Slug     string
+	RawSlug  string
 	PaidPlan bool
 }
 

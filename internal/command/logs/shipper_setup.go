@@ -11,8 +11,9 @@ import (
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/orgs"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -24,78 +25,101 @@ func newShipperSetup() (cmd *cobra.Command) {
 		long  = short + "\n"
 	)
 
-	cmd = command.New("setup", short, long, runSetup, command.RequireSession)
-
+	cmd = command.New("setup", short, long, runSetup, command.RequireSession, command.RequireAppName)
+	flag.Add(cmd,
+		flag.App(),
+		flag.AppConfig(),
+	)
 	return cmd
 }
 
-func shipperAppName(orgSlug string) string {
-	return orgSlug + "-auto-log-shipper"
-}
-
 func runSetup(ctx context.Context) (err error) {
-	client := client.FromContext(ctx).API()
+	client := client.FromContext(ctx).API().GenqClient
 	io := iostreams.FromContext(ctx)
-	selectedOrg, err := orgs.OrgFromFirstArgOrSelect(ctx)
+	appName := appconfig.NameFromContext(ctx)
+	var shipperApp gql.AppData
+	var logtailToken string
 
 	if err != nil {
 		return err
 	}
 
-	appName := shipperAppName(selectedOrg.Slug)
-
-	var app *api.AppCompact
-
-	app, err = client.GetAppCompact(ctx, appName)
+	// Fetch the target organization from the app
+	appNameResponse, err := gql.GetApp(ctx, client, appName)
 
 	if err != nil {
-		input := api.CreateAppInput{
-			Name:           appName,
-			OrganizationID: selectedOrg.ID,
-			Machines:       true,
-			AppRoleID:      "log_shipper",
-		}
-
-		createdApp, err := client.CreateApp(ctx, input)
-
-		if err != nil {
-			return err
-		}
-
-		app = client.AppToCompact(createdApp)
-
+		return err
 	}
 
-	response, err := gql.GetAddOn(ctx, client.GenqClient, appName)
-	var token string
+	targetOrg := appNameResponse.App.AppData.Organization
+	appsResult, err := gql.GetAppsByRole(ctx, client, "log-shipper")
 
 	if err != nil {
+		return err
+	}
 
-		fmt.Fprintf(io.ErrOut, "Provisioning log shipper VM as the app named %s\n", app.Name)
-
-		response, err := gql.CreateAddOn(ctx, client.GenqClient, selectedOrg.ID, "", appName, "", nil, "logtail", api.AddOnOptions{})
-
-		if err != nil {
-			return err
-		}
-
-		token = response.CreateAddOn.AddOn.Name
+	if len(appsResult.Apps.Nodes) > 0 {
+		shipperApp = appsResult.Apps.Nodes[0].AppData
+		fmt.Fprintf(io.ErrOut, "Log shipper already provisioned as app %s\n", shipperApp.Name)
 	} else {
-		token = response.AddOn.Token
+		input := gql.DefaultCreateAppInput()
+		input.Machines = true
+		input.OrganizationId = targetOrg.Id
+		input.AppRoleId = "log-shipper"
+
+		createdAppResult, err := gql.CreateApp(ctx, client, input)
+
+		if err != nil {
+			return err
+		}
+
+		shipperApp = createdAppResult.CreateApp.App.AppData
+		fmt.Fprintf(io.ErrOut, "Provisioning a log shipper VM in the app named %s\n", shipperApp.Name)
 	}
 
-	fmt.Fprintf(io.ErrOut, "Setting up secrets for %s\n", app.Name)
+	// Fetch or create the org-specific Logtail integration
 
-	_, err = client.SetSecrets(ctx, appName, map[string]string{
-		"ACCESS_TOKEN":  flyctl.GetAPIToken(),
-		"LOGTAIL_TOKEN": token,
-	})
+	addOnName := targetOrg.RawSlug + "-log-shipper"
+
+	getAddOnResponse, err := gql.GetAddOn(ctx, client, addOnName)
+
+	if err != nil {
+		createAddOnResponse, err := gql.CreateAddOn(ctx, client, targetOrg.Id, "", addOnName, "", nil, "logtail", api.AddOnOptions{})
+
+		if err != nil {
+			return err
+		}
+
+		logtailToken = createAddOnResponse.CreateAddOn.AddOn.Token
+
+	} else {
+		logtailToken = getAddOnResponse.AddOn.Token
+	}
+
+	fmt.Fprintf(io.ErrOut, "Setting ACCESS_TOKEN and LOGTAIL_TOKEN secrets on %s\n", shipperApp.Name)
+
+	fmt.Printf("%+v", shipperApp)
+	secrets := gql.SetSecretsInput{
+		AppId: shipperApp.Id,
+		Secrets: []gql.SecretInput{
+			{
+				Key:   "ACCESS_TOKEN",
+				Value: flyctl.GetAPIToken(),
+			},
+			{
+				Key:   "LOGTAIL_TOKEN",
+				Value: logtailToken,
+			},
+		},
+	}
+
+	_, err = gql.SetSecrets(ctx, client, secrets)
 
 	if err != nil {
 		return err
 	}
 
-	flapsClient, err := flaps.New(ctx, app)
+	flapsClient, err := flaps.New(ctx, api.GqlAppForFlaps(shipperApp))
 
 	if err != nil {
 		return err
@@ -112,7 +136,7 @@ func runSetup(ctx context.Context) (err error) {
 	machines, err := flapsClient.List(ctx, "")
 
 	launchInput := api.LaunchMachineInput{
-		AppID:  app.Name,
+		AppID:  shipperApp.Name,
 		Name:   "log-shipper",
 		Config: machineConf,
 	}
@@ -128,16 +152,17 @@ func runSetup(ctx context.Context) (err error) {
 		return
 	}
 
-	region, err := client.GetNearestRegion(ctx)
+	regionResponse, err := gql.GetNearestRegion(ctx, client)
 
 	if err != nil {
 		return err
 	}
 
-	launchInput.Region = region.Code
+	launchInput.Region = regionResponse.NearestRegion.Code
 
 	machine, err := flapsClient.Launch(ctx, launchInput)
 
-	fmt.Fprintf(io.Out, "Launched machine %s\n", machine.ID)
-	return err
+	fmt.Fprintf(io.Out, "Launched machine %s\n in the %s region", machine.ID, launchInput.Region)
+
+	return
 }

@@ -44,15 +44,11 @@ func runDashboard(ctx context.Context) (err error) {
 		return err
 	}
 
-	addOnResult, err := gql.GetAddOn(ctx, client, shipperAppName(appResult.App.Organization.Slug))
+	addOnResult, err := gql.GetAddOn(ctx, client, appName)
 
 	if err != nil {
-		if gql.IsErrorNotFound(err) {
-			fmt.Fprintf(io.ErrOut, "You haven't setup a logging integration for %s. See 'flyctl logs shipper'.", appName)
-			return nil
-		} else {
-			return err
-		}
+		fmt.Fprintf(io.ErrOut, "You haven't added a logging integration for the %s organization. Set one up with 'flyctl logs shipper setup %s'.\n", appResult.App.Organization.Slug, appResult.App.Organization.Slug)
+		return nil
 	}
 
 	url := addOnResult.AddOn.SsoLink

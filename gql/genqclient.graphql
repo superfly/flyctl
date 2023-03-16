@@ -29,6 +29,22 @@ mutation CreateAddOn($organizationId: ID!, $primaryRegion: String, $name: String
 			name
 			publicUrl
 			ssoLink
+			token
+		}
+	}
+}
+
+mutation CreateApp($input: CreateAppInput!) {
+	createApp(input: $input) {
+		app {
+			...AppData
+			config {
+				definition
+			}
+			regions {
+					name
+					code
+			}
 		}
 	}
 }
@@ -37,19 +53,59 @@ query GetOrganization($slug: String!) {
 	organization(slug: $slug) {
 		id
 		name
+		slug
 		addOnSsoLink
 	}
 }
 
 query GetApp($name: String!) {
 	app(name: $name) {
-		id
-		name
-		platformVersion
-		organization {
-			id
-			slug
-			paidPlan
+		...AppData
+	}
+}
+
+query GetAppsByRole($role: String!) {
+	apps(role: $role) {
+		nodes {
+		...AppData
 		}
+	}
+}
+
+fragment AppData on App {
+	id
+	name
+	platformVersion
+	organization {
+		id
+		slug
+		rawSlug
+		paidPlan
+	}
+}
+
+mutation SetSecrets($input: SetSecretsInput!) {
+	setSecrets(input: $input) {
+		release {
+			id
+			version
+			reason
+			description
+			user {
+				id
+				email
+				name
+			}
+			evaluationId
+			createdAt
+		}
+	}
+}
+
+query GetNearestRegion{
+	nearestRegion {
+		code
+		name
+		gatewayAvailable
 	}
 }
