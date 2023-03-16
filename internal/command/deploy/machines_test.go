@@ -27,7 +27,7 @@ func stabMachineDeployment(appConfig *appconfig.Config) (*machineDeployment, err
 	return md, err
 }
 
-func Test_resultUpdateMachineConfig_Basic(t *testing.T) {
+func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
 		AppName: "my-cool-app",
 		Env: map[string]string{
@@ -58,7 +58,7 @@ func Test_resultUpdateMachineConfig_Basic(t *testing.T) {
 
 // Test any LaunchMachineInput field that must not be set on a machine
 // used to run release command.
-func Test_resultUpdateMachineConfig_ReleaseCommand(t *testing.T) {
+func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
 		AppName: "my-cool-app",
 		Env: map[string]string{
@@ -212,7 +212,7 @@ func Test_resultUpdateMachineConfig_ReleaseCommand(t *testing.T) {
 }
 
 // Test Mounts
-func Test_resultUpdateMachineConfig_Mounts(t *testing.T) {
+func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
 		Mounts: &appconfig.Volume{
 			Source:      "data",
@@ -278,7 +278,7 @@ func Test_resultUpdateMachineConfig_Mounts(t *testing.T) {
 }
 
 // Test machineDeployment.restartOnly
-func Test_resultUpdateMachineConfig_restartOnly(t *testing.T) {
+func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
 		Env: map[string]string{
 			"Ignore": "me",
@@ -315,7 +315,7 @@ func Test_resultUpdateMachineConfig_restartOnly(t *testing.T) {
 }
 
 // Test machineDeployment.restartOnlyProcessGroup
-func Test_resultUpdateMachineConfig_restartOnlyProcessGroup(t *testing.T) {
+func Test_resolveUpdatedMachineConfig_restartOnlyProcessGroup(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
 		Env: map[string]string{
 			"Ignore": "me",

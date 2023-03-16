@@ -274,7 +274,6 @@ func (md *machineDeployment) warnAboutProcessGroupChanges(ctx context.Context, d
 			fmt.Fprintf(io.ErrOut, " %s create 1 \"%s\" machine\n", bullet, name)
 		}
 	}
-
 }
 
 func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName string) error {
