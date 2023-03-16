@@ -41,7 +41,7 @@ func runScaleCount(ctx context.Context) error {
 	appConfig := appconfig.ConfigFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
-	defaultGroupName := appConfig.GetDefaultProcessName()
+	defaultGroupName := appConfig.DefaultProcessName()
 	groups := map[string]int{}
 
 	args := flag.Args(ctx)

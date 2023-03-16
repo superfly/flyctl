@@ -6,6 +6,7 @@ import (
 	"github.com/google/shlex"
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
+	"golang.org/x/exp/slices"
 )
 
 type ProcessConfig struct {
@@ -85,23 +86,39 @@ func (c *Config) GetProcessConfigs() (map[string]*ProcessConfig, error) {
 	return res, nil
 }
 
-func (c *Config) GetDefaultProcessName() string {
+// DefaultProcessName returns:
+// * "app" when no processes are defined
+// * "app" if present in the processes map
+// * The first process name in ascending lexicographical order
+func (c *Config) DefaultProcessName() string {
 	switch {
 	case c == nil:
 		return api.MachineProcessGroupApp
 	case c.platformVersion == MachinesPlatform:
-		if len(c.Processes) == 0 {
+		if _, ok := c.Processes[api.MachineProcessGroupApp]; ok || len(c.Processes) == 0 {
 			return api.MachineProcessGroupApp
 		}
-		return lo.Keys(c.Processes)[0]
+		keys := lo.Keys(c.Processes)
+		slices.Sort(keys)
+		return keys[0]
 	case c.platformVersion == "":
 		fallthrough
 	case c.platformVersion == NomadPlatform:
 		switch cast := c.RawDefinition["processes"].(type) {
 		case map[string]any:
-			return lo.Keys(cast)[0]
+			keys := lo.Keys(cast)
+			if _, ok := cast[api.MachineProcessGroupApp]; ok || len(keys) == 0 {
+				return api.MachineProcessGroupApp
+			}
+			slices.Sort(keys)
+			return keys[0]
 		case map[string]string:
-			return lo.Keys(cast)[0]
+			keys := lo.Keys(cast)
+			if _, ok := cast[api.MachineProcessGroupApp]; ok || len(keys) == 0 {
+				return api.MachineProcessGroupApp
+			}
+			slices.Sort(keys)
+			return keys[0]
 		default:
 			return api.MachineProcessGroupApp
 		}
