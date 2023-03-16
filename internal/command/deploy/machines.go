@@ -622,7 +622,7 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 		ID:      origMachineRaw.ID,
 		AppID:   md.app.Name,
 		OrgSlug: md.app.Organization.ID,
-		Config:  lo.Ternary(md.restartOnly, origMachineRaw.Config, &api.MachineConfig{}),
+		Config:  origMachineRaw.Config,
 		Region:  origMachineRaw.Region,
 	}
 
