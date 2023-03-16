@@ -10,11 +10,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
@@ -393,9 +396,192 @@ func TestAppsV2Config_ParseExperimental(t *testing.T) {
 		f.Fatalf("Failed to write config: %s", err)
 	}
 
-	result := f.Fly("launch --force-machines --name %s --region ord --copy-config", appName)
+	result := f.Fly("launch --force-machines --name %s --region ord --copy-config --org %s", appName, f.OrgSlug())
 	stdout := result.StdOut().String()
 	require.Contains(f, stdout, "Created app")
 	require.Contains(f, stdout, "Wrote config file fly.toml")
+
+}
+
+func TestAppsV2Config_ProcessGroups(t *testing.T) {
+	var (
+		f              = testlib.NewTestEnvFromEnv(t)
+		appName        = f.CreateRandomAppMachines()
+		configFilePath = filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
+	)
+
+	// High level view:
+	//  1. Create an app with no process groups
+	//     • expected: one "app" machine
+	//  2. Deploy with two process groups ("web", "bar_web")
+	//     • expected: one "web" machine and one "bar_web" machine
+	//  3. Clone the "bar_web" machine. This is to ensure that all
+	//     machines in a group are destroyed. If possible, this machine
+	//     is spawned in a different region from the others, as well.
+	//     • expected: one "web" machine, two "bar_web" machines
+	//  4. Deploy with one process group ("web")
+	//     • expected: one "web" machine
+	//  3. Set a secret. This checks the 'restartOnly' deploy cycle.
+	//     We set update the machine with a custom metadata entry, as well,
+	//     to verify that these are preserved across deploys.
+	//     • expected: one "web" machine
+
+	deployToml := func(toml string) {
+		toml = "app = \"" + appName + "\"\n" + toml
+		err := os.WriteFile(configFilePath, []byte(toml), 0666)
+		if err != nil {
+			f.Fatalf("error trying to write %s: %v", configFilePath, err)
+		}
+		f.Fly("deploy --now --image nginx").AssertSuccessfulExit()
+	}
+
+	expectMachinesInGroups := func(machines []api.Machine, expected map[string]int) {
+		found := map[string]int{}
+		for _, m := range machines {
+			if m.Config == nil || m.Config.Metadata == nil {
+				f.Fatalf("invalid configuration for machine %s, expected config.metadata != nil", m.ID)
+			}
+			// When apps machines are deployed, blank process groups should be canonicalized to
+			// "app". If they are blank or unset, this is an error state.
+			group := "[unspecified]"
+			if val, ok := m.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]; ok {
+				group = val
+			}
+			found[group]++
+		}
+		if !reflect.DeepEqual(expected, found) {
+			err := "groups mismatch:\n"
+			for _, group := range []struct {
+				name   string
+				values map[string]int
+			}{
+				{name: "expected", values: expected},
+				{name: "found", values: found},
+			} {
+				err += " " + group.name + ":\n"
+				for groupName, numMachines := range group.values {
+					err += fmt.Sprintf("  %s: %d\n", groupName, numMachines)
+				}
+				err += "\n"
+			}
+			f.Fatal(err)
+		}
+	}
+
+	// Step 1: No process groups defined, should make one "app" machine
+
+	deployToml(`
+[[services]]
+  http_checks = []
+  internal_port = 8080
+  protocol = "tcp"
+  script_checks = []
+`)
+
+	machines := f.MachinesList(appName)
+
+	expectMachinesInGroups(machines, map[string]int{
+		"app": 1,
+	})
+
+	// Step 2: Process groups "web" and "bar_web" defined.
+	//         Should create two new machines for these apps, in the default region,
+	//         and destroy the existing machine in the "app" group.
+
+	deployToml(`
+[processes]
+web = "nginx -g 'daemon off;'"
+bar_web = "bash -c /sleep_forever.sh"
+
+[[services]]
+  processes = ["web"] # this service only applies to the web process
+  http_checks = []
+  internal_port = 8080
+  protocol = "tcp"
+  script_checks = []
+`)
+
+	machines = f.MachinesList(appName)
+
+	expectMachinesInGroups(machines, map[string]int{
+		"web":     1,
+		"bar_web": 1,
+	})
+
+	webMachId := ""
+	barWebMachId := ""
+	for _, m := range machines {
+		group := m.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
+		switch group {
+		case "web":
+			webMachId = m.ID
+			break
+		case "bar_web":
+			barWebMachId = m.ID
+			break
+		}
+	}
+	// This should never be empty; we verified it above in expectMachinesInGroups
+	// If you're going to be paranoid anywhere, though, it should be in tests.
+	assert.NotEmpty(t, webMachId, "could not find 'web' machine. this is a bug in the test.")
+
+	// Step 3: Clone "bar_web" to ensure that all machines get destroyed.
+	secondaryRegion := f.PrimaryRegion()
+	if len(f.OtherRegions()) > 0 {
+		secondaryRegion = f.OtherRegions()[0]
+	}
+	f.Fly("m clone %s --region %s", barWebMachId, secondaryRegion)
+	f.Fly("machine update %s -m ABCD=EFGH -y", webMachId).AssertSuccessfulExit()
+
+	// Step 4: Process group "web" defined.
+	//         Should destroy the "bar_web" machines, and keep the same "web" machine.
+
+	deployToml(`
+[processes]
+web = "nginx -g 'daemon off;'"
+
+[[services]]
+  processes = ["web"] # this service only applies to the web process
+  http_checks = []
+  internal_port = 8080
+  protocol = "tcp"
+  script_checks = []
+`)
+	machines = f.MachinesList(appName)
+
+	expectMachinesInGroups(machines, map[string]int{
+		"web": 1,
+	})
+
+	// Step 5: Set secrets, to ensure that machine data is kept during a 'restartOnly' deploy.
+	f.Fly("machine update %s -m CUSTOM=META -y", webMachId).AssertSuccessfulExit()
+	f.Fly("secrets set 'SOME=MY_SECRET_TEST_STRING' -a %s", appName).AssertSuccessfulExit()
+
+	machines = f.MachinesList(appName)
+
+	expectMachinesInGroups(machines, map[string]int{
+		"web": 1,
+	})
+
+	// TODO: Is this assumption sound? Are deploys guaranteed to maintain machine IDs?
+	idMatchFound := false
+	for _, m := range machines {
+		if m.ID == webMachId {
+			idMatchFound = true
+			// Quick check to make sure the rest of the config is there.
+			cmd := m.Config.Init.Cmd
+			if len(cmd) <= 0 || cmd[0] != "nginx" {
+				t.Fatalf(`Expected command "nginx -g 'daemon off;'", got "%s".`, strings.Join(cmd, " "))
+			}
+			val, ok := m.Config.Metadata["CUSTOM"]
+			assert.Equal(t, ok, true, "Expected machine to have metadata['CUSTOM']")
+			assert.Equal(t, val, "META", "Expected metadata['CUSTOM'] == 'META', got '%s'", val)
+			val, ok = m.Config.Metadata["ABCD"]
+			assert.Equal(t, ok, true, "Expected machine to have metadata['ABCD']")
+			assert.Equal(t, val, "EFGH", "Expected metadata['ABCD'] == 'EFGH', got '%s'", val)
+			break
+		}
+	}
+	assert.Equal(t, idMatchFound, true, "could not find 'web' machine with matching machine ID")
 
 }
