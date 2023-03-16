@@ -137,7 +137,7 @@ var sharedFlags = flag.Set{
 	},
 	flag.String{
 		Name:        "restart",
-		Description: "Configure restart policy, for a machine. Options include `no`, `always` and `on-fail`. Default is set to always",
+		Description: "Configure restart policy, for a machine. Options include 'no', 'always' and 'on-fail'. Default is set to always",
 	},
 }
 
