@@ -205,7 +205,6 @@ func TestAppsV2ConfigChanges(t *testing.T) {
 	}
 
 	require.Contains(f, string(configFileBytes), "internal_port = 9999")
-
 }
 
 func TestAppsV2ConfigSave_ProcessGroups(t *testing.T) {
@@ -299,7 +298,6 @@ func TestAppsV2ConfigSave_PostgresSingleNode(t *testing.T) {
     interval = "15s"
     timeout = "10s"
     path = "/flycheck/vm"`)
-
 }
 
 func TestAppsV2_PostgresNoMachines(t *testing.T) {
@@ -393,9 +391,8 @@ func TestAppsV2Config_ParseExperimental(t *testing.T) {
 		f.Fatalf("Failed to write config: %s", err)
 	}
 
-	result := f.Fly("launch --force-machines --name %s --region ord --copy-config", appName)
+	result := f.Fly("launch --force-machines --name %s --region ord --copy-config --org %s", appName, f.OrgSlug())
 	stdout := result.StdOut().String()
 	require.Contains(f, stdout, "Created app")
 	require.Contains(f, stdout, "Wrote config file fly.toml")
-
 }
