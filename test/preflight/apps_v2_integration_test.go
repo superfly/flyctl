@@ -491,7 +491,7 @@ func TestAppsV2Config_ProcessGroups(t *testing.T) {
 	deployToml(`
 [processes]
 web = "nginx -g 'daemon off;'"
-bar_web = "bash -c /sleep_forever.sh"
+bar_web = "bash -c 'while true; do sleep 10; done'"
 
 [[services]]
   processes = ["web"] # this service only applies to the web process
