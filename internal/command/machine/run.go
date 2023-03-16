@@ -741,7 +741,10 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 	case "always":
 		machineConf.Restart.Policy = api.MachineRestartPolicyAlways
 	case "":
-		machineConf.Restart.Policy = api.MachineRestartPolicyAlways
+		// Apply the default only if it's not already set.
+		if machineConf.Restart.Policy == "" {
+			machineConf.Restart.Policy = api.MachineRestartPolicyAlways
+		}
 	default:
 		return machineConf, errors.New("invalid restart provided")
 	}
