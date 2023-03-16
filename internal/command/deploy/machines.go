@@ -618,9 +618,6 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 		}
 	}
 	newConfig := machine.CloneConfig(origMachineRaw.Config)
-	if newConfig.Metadata == nil {
-		newConfig.Metadata = map[string]string{}
-	}
 
 	launchInput := &api.LaunchMachineInput{
 		ID:      origMachineRaw.ID,
@@ -630,20 +627,25 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 		Region:  origMachineRaw.Region,
 	}
 
-	defaultMetadata := md.defaultMachineMetadata()
+	launchInput.Config.Statics = nil
 	if launchInput.Config.Metadata == nil {
-		launchInput.Config.Metadata = defaultMetadata
-	} else {
-		for k := range launchInput.Config.Metadata {
-			if isFlyAppsPlatformMetadata(k) {
-				delete(launchInput.Config.Metadata, k)
-			}
+		launchInput.Config.Metadata = map[string]string{}
+	}
+
+	// Remove any platform metadata (such as release version)
+	// This way, when we're patching the config with defaults,
+	// we'll also end up overriding the platform metadata.
+	for k := range launchInput.Config.Metadata {
+		if isFlyAppsPlatformMetadata(k) {
+			delete(launchInput.Config.Metadata, k)
 		}
-		for k, v := range defaultMetadata {
-			_, has := launchInput.Config.Metadata[k]
-			if !has {
-				launchInput.Config.Metadata[k] = v
-			}
+	}
+	// Patch any holes in the config with defaults
+	defaultMetadata := md.defaultMachineMetadata()
+	for k, v := range defaultMetadata {
+		_, has := launchInput.Config.Metadata[k]
+		if !has {
+			launchInput.Config.Metadata[k] = v
 		}
 	}
 
@@ -661,6 +663,8 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 
 	// Stop here If the machine is for release command
 	if forReleaseCommand {
+		launchInput.Config.Metrics = nil
+		launchInput.Config.Mounts = nil
 		return md.configureLaunchInputForReleaseCommand(launchInput)
 	}
 
@@ -674,7 +678,6 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 		})
 	}
 
-	launchInput.Config.Mounts = origMachineRaw.Config.Mounts
 	if launchInput.Config.Mounts == nil && md.appConfig.Mounts != nil {
 		launchInput.Config.Mounts = []api.MachineMount{{
 			Path:   md.volumeDestination,
