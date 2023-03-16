@@ -135,6 +135,10 @@ var sharedFlags = flag.Set{
 		Description: "Automatically start a stopped machine when a network request is received",
 		Default:     true,
 	},
+	flag.String{
+		Name:        "restart",
+		Description: "Configure restart policy, for a machine. Options include 'no', 'always' and 'on-fail'. Default is set to always",
+	},
 }
 
 var s = spinner.New(spinner.CharSets[9], 100*time.Millisecond)
@@ -172,10 +176,6 @@ func newRun() *cobra.Command {
 		flag.Bool{
 			Name:        "rm",
 			Description: "Automatically remove the machine when it exits",
-		},
-		flag.String{
-			Name:        "restart",
-			Description: "Configure restart policy, for a machine. Options include `no`, `always` and `on-fail`. Default is set to always",
 		},
 		sharedFlags,
 	)
@@ -738,7 +738,10 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 	case "always":
 		machineConf.Restart.Policy = api.MachineRestartPolicyAlways
 	case "":
-		machineConf.Restart.Policy = api.MachineRestartPolicyAlways
+		// Apply the default only if it's not already set.
+		if machineConf.Restart.Policy == "" {
+			machineConf.Restart.Policy = api.MachineRestartPolicyAlways
+		}
 	default:
 		return machineConf, errors.New("invalid restart provided")
 	}
