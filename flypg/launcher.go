@@ -50,6 +50,7 @@ type CreateClusterInput struct {
 	VMSize             *api.VMSize
 	SnapshotID         *string
 	Manager            string
+	Autostart          bool
 }
 
 func NewLauncher(client *api.Client) *Launcher {
@@ -187,6 +188,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			Volume: vol.ID,
 			Path:   volumePath,
 		})
+		machineConf.DisableMachineAutostart = !config.Autostart
 
 		launchInput := api.LaunchMachineInput{
 			AppID:   app.ID,
