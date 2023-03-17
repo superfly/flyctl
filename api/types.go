@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"syscall"
 	"time"
-
-	"github.com/superfly/flyctl/gql"
 )
 
 // Query - Master query which encapsulates all possible returned structures
@@ -29,12 +27,6 @@ type Query struct {
 	Organizations        struct {
 		Nodes []Organization
 	}
-
-	AddOns struct {
-		Nodes []AddOn
-	}
-
-	AddOn *AddOn
 
 	Organization *Organization
 	// PersonalOrganizations PersonalOrganizations
@@ -103,8 +95,6 @@ type Query struct {
 	}
 
 	DeleteCertificate DeleteCertificatePayload
-
-	DeleteAddOn DeleteAddOnPayload
 
 	CheckCertificate struct {
 		App         *App
@@ -222,8 +212,6 @@ type Query struct {
 	UpdateRemoteBuilder struct {
 		Organization Organization
 	}
-
-	ProvisionAddOn ProvisionAddOnPayload
 }
 
 type CreatedWireGuardPeer struct {
@@ -391,16 +379,6 @@ type Volume struct {
 
 func (v *Volume) IsAttached() bool {
 	return v.AttachedAllocation != nil || v.AttachedMachine != nil
-}
-
-type ProvisionAddOnInput struct {
-	OrganizationId string `json:"organizationId"`
-	Region         string `json:"region"`
-	Type           string `json:"type"`
-}
-
-type ProvisionAddOnPayload struct {
-	Service AddOn
 }
 
 type CreateVolumeInput struct {
@@ -848,10 +826,6 @@ type HostnameCheck struct {
 type DeleteCertificatePayload struct {
 	App         App
 	Certificate AppCertificate
-}
-
-type DeleteAddOnPayload struct {
-	ID string
 }
 
 type DeployImageInput struct {
@@ -1340,7 +1314,3 @@ type Logger interface {
 	Debug(v ...interface{})
 	Debugf(format string, v ...interface{})
 }
-
-// Alias unwieldy types from GraphQL generated code
-type AddOn = gql.CreateAddOnCreateAddOnCreateAddOnPayloadAddOn
-type AddOnOptions map[string]interface{}

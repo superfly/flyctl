@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func AttachDatabase(ctx context.Context, db *api.AddOn, appName string) (err error) {
+func AttachDatabase(ctx context.Context, db *gql.AddOn, appName string) (err error) {
 	client := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
 	s := map[string]string{}

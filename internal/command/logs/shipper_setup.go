@@ -9,7 +9,6 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -84,7 +83,7 @@ func runSetup(ctx context.Context) (err error) {
 	getAddOnResponse, err := gql.GetAddOn(ctx, client, addOnName)
 
 	if err != nil {
-		createAddOnResponse, err := gql.CreateAddOn(ctx, client, targetOrg.Id, "", addOnName, "", nil, "logtail", api.AddOnOptions{})
+		createAddOnResponse, err := gql.CreateAddOn(ctx, client, targetOrg.Id, "", addOnName, "", nil, "logtail", gql.AddOnOptions{})
 
 		if err != nil {
 			return err
@@ -95,6 +94,8 @@ func runSetup(ctx context.Context) (err error) {
 	} else {
 		logtailToken = getAddOnResponse.AddOn.Token
 	}
+	// Fetch a macaroon token whose access is limited to reading app logs
+	tokenResponse, err := gql.CreateLimitedAccessToken(ctx, client, targetOrg.Slug+"-logs", targetOrg.Id, "read_organization_apps", &gql.LimitedAccessTokenOptions{})
 
 	fmt.Fprintf(io.ErrOut, "Setting ACCESS_TOKEN and LOGTAIL_TOKEN secrets on %s\n", shipperApp.Name)
 
@@ -103,7 +104,7 @@ func runSetup(ctx context.Context) (err error) {
 		Secrets: []gql.SecretInput{
 			{
 				Key:   "ACCESS_TOKEN",
-				Value: flyctl.GetAPIToken(),
+				Value: tokenResponse.CreateLimitedAccessToken.LimitedAccessToken.Token,
 			},
 			{
 				Key:   "LOGTAIL_TOKEN",

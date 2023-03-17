@@ -105,7 +105,7 @@ func runCreate(ctx context.Context) (err error) {
 	return err
 }
 
-func Create(ctx context.Context, org *api.Organization, name string, region *api.Region, planFlag string, disallowReplicas bool, enableEviction bool) (addOn *api.AddOn, err error) {
+func Create(ctx context.Context, org *api.Organization, name string, region *api.Region, planFlag string, disallowReplicas bool, enableEviction bool) (addOn *gql.AddOn, err error) {
 	var (
 		io       = iostreams.FromContext(ctx)
 		client   = client.FromContext(ctx).API().GenqClient
@@ -194,7 +194,7 @@ type RedisConfiguration struct {
 	Eviction      bool
 }
 
-func ProvisionDatabase(ctx context.Context, org *api.Organization, config RedisConfiguration) (addOn *api.AddOn, err error) {
+func ProvisionDatabase(ctx context.Context, org *api.Organization, config RedisConfiguration) (addOn *gql.AddOn, err error) {
 	client := client.FromContext(ctx).API().GenqClient
 
 	var readRegionCodes []string
@@ -203,7 +203,7 @@ func ProvisionDatabase(ctx context.Context, org *api.Organization, config RedisC
 		readRegionCodes = append(readRegionCodes, region.Code)
 	}
 
-	options := api.AddOnOptions{}
+	options := gql.AddOnOptions{}
 
 	if config.Eviction {
 		options["eviction"] = true
