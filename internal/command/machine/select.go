@@ -173,7 +173,7 @@ func promptForManyMachines(ctx context.Context) ([]*api.Machine, error) {
 	options := sortAndBuildOptions(machines)
 	var selections []int
 	if err := prompt.MultiSelect(ctx, &selections, "Select machines:", nil, options...); err != nil {
-		return nil, fmt.Errorf("could not prompt for machine: %w", err)
+		return nil, fmt.Errorf("could not prompt for machines: %w", err)
 	}
 
 	var selectedMachines []*api.Machine
