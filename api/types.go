@@ -591,6 +591,7 @@ func (o *Organization) GetSlug() string {
 
 type OrganizationBasic struct {
 	ID       string
+	Name     string
 	Slug     string
 	PaidPlan bool
 }
