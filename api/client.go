@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	genq "github.com/Khan/genqlient/graphql"
+	_ "github.com/superfly/flyctl/gql"
 	"github.com/superfly/graphql"
 )
 
