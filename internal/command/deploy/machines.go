@@ -231,7 +231,7 @@ func (md *machineDeployment) resolveProcessGroupChanges() ProcessGroupsDiff {
 			}
 		}
 		if groupMatch == "" {
-			output.groupsToRemove[groupMatch] += 1
+			output.groupsToRemove[machGroup] += 1
 			output.machinesToRemove = append(output.machinesToRemove, leasableMachine)
 		} else {
 			groupHasMachine[groupMatch] = true
@@ -277,6 +277,10 @@ func (md *machineDeployment) warnAboutProcessGroupChanges(ctx context.Context, d
 }
 
 func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName string) error {
+	if groupName == "" {
+		// If the group is unspecified, it should have been translated to "app" by this point
+		panic("spawnMachineInGroup requires a non-empty group name. this is a bug!")
+	}
 	fmt.Fprintf(md.io.Out, "No machines in group '%s', launching one new machine\n", md.colorize.Bold(groupName))
 	machBase := &api.Machine{
 		Region: md.appConfig.PrimaryRegion,
