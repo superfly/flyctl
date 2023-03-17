@@ -231,7 +231,7 @@ func (md *machineDeployment) resolveProcessGroupChanges() ProcessGroupsDiff {
 			}
 		}
 		if groupMatch == "" {
-			output.groupsToRemove[groupMatch] += 1
+			output.groupsToRemove[machGroup] += 1
 			output.machinesToRemove = append(output.machinesToRemove, leasableMachine)
 		} else {
 			groupHasMachine[groupMatch] = true
@@ -257,26 +257,30 @@ func (md *machineDeployment) warnAboutProcessGroupChanges(ctx context.Context, d
 	)
 
 	if willAddMachines || willRemoveMachines {
-		fmt.Fprintln(io.ErrOut, "Process groups have changed. This will:")
+		fmt.Fprintln(io.Out, "Process groups have changed. This will:")
 	}
-	// TODO(ali): Figure out why the bullets aren't colored
+
 	if willRemoveMachines {
 		bullet := colorize.Red("*")
 		for grp, numMach := range diff.groupsToRemove {
 			pluralS := lo.Ternary(numMach == 1, "", "s")
-			fmt.Fprintf(io.ErrOut, " %s destroy %d \"%s\" machine%s\n", bullet, numMach, grp, pluralS)
+			fmt.Fprintf(io.Out, " %s destroy %d \"%s\" machine%s\n", bullet, numMach, grp, pluralS)
 		}
 	}
 	if willAddMachines {
 		bullet := colorize.Green("*")
 
 		for name := range diff.groupsNeedingMachines {
-			fmt.Fprintf(io.ErrOut, " %s create 1 \"%s\" machine\n", bullet, name)
+			fmt.Fprintf(io.Out, " %s create 1 \"%s\" machine\n", bullet, name)
 		}
 	}
 }
 
 func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName string) error {
+	if groupName == "" {
+		// If the group is unspecified, it should have been translated to "app" by this point
+		panic("spawnMachineInGroup requires a non-empty group name. this is a bug!")
+	}
 	fmt.Fprintf(md.io.Out, "No machines in group '%s', launching one new machine\n", md.colorize.Bold(groupName))
 	machBase := &api.Machine{
 		Region: md.appConfig.PrimaryRegion,
@@ -327,6 +331,11 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	}
 
 	if md.machineSet.IsEmpty() {
+		processGroupMachineDiff := ProcessGroupsDiff{
+			groupsToRemove:        map[string]int{},
+			groupsNeedingMachines: md.processConfigs,
+		}
+		md.warnAboutProcessGroupChanges(ctx, processGroupMachineDiff)
 		for name := range md.processConfigs {
 			if err := md.spawnMachineInGroup(ctx, name); err != nil {
 				return err

@@ -405,6 +405,7 @@ func TestAppsV2Config_ProcessGroups(t *testing.T) {
 		f              = testlib.NewTestEnvFromEnv(t)
 		appName        = f.CreateRandomAppMachines()
 		configFilePath = filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
+		deployOut      *testlib.FlyctlResult
 	)
 
 	// High level view:
@@ -423,13 +424,15 @@ func TestAppsV2Config_ProcessGroups(t *testing.T) {
 	//     to verify that these are preserved across deploys.
 	//     • expected: one "web" machine
 
-	deployToml := func(toml string) {
+	deployToml := func(toml string) *testlib.FlyctlResult {
 		toml = "app = \"" + appName + "\"\n" + toml
 		err := os.WriteFile(configFilePath, []byte(toml), 0666)
 		if err != nil {
 			f.Fatalf("error trying to write %s: %v", configFilePath, err)
 		}
-		f.Fly("deploy --now --image nginx").AssertSuccessfulExit()
+		cmd := f.Fly("deploy --now --image nginx")
+		cmd.AssertSuccessfulExit()
+		return cmd
 	}
 
 	expectMachinesInGroups := func(machines []api.Machine, expected map[string]int) {
@@ -467,13 +470,14 @@ func TestAppsV2Config_ProcessGroups(t *testing.T) {
 
 	// Step 1: No process groups defined, should make one "app" machine
 
-	deployToml(`
+	deployOut = deployToml(`
 [[services]]
   http_checks = []
   internal_port = 8080
   protocol = "tcp"
   script_checks = []
 `)
+	require.Contains(t, deployOut.StdOut().String(), `create 1 "app" machine`)
 
 	machines := f.MachinesList(appName)
 
@@ -485,7 +489,7 @@ func TestAppsV2Config_ProcessGroups(t *testing.T) {
 	//         Should create two new machines for these apps, in the default region,
 	//         and destroy the existing machine in the "app" group.
 
-	deployToml(`
+	deployOut = deployToml(`
 [processes]
 web = "nginx -g 'daemon off;'"
 bar_web = "bash -c 'while true; do sleep 10; done'"
@@ -497,6 +501,10 @@ bar_web = "bash -c 'while true; do sleep 10; done'"
   protocol = "tcp"
   script_checks = []
 `)
+	stdout := deployOut.StdOut().String()
+	require.Contains(t, stdout, `destroy 1 "app" machine`)
+	require.Contains(t, stdout, `create 1 "web" machine`)
+	require.Contains(t, stdout, `create 1 "bar_web" machine`)
 
 	machines = f.MachinesList(appName)
 
@@ -533,7 +541,7 @@ bar_web = "bash -c 'while true; do sleep 10; done'"
 	// Step 4: Process group "web" defined.
 	//         Should destroy the "bar_web" machines, and keep the same "web" machine.
 
-	deployToml(`
+	deployOut = deployToml(`
 [processes]
 web = "nginx -g 'daemon off;'"
 
@@ -544,6 +552,7 @@ web = "nginx -g 'daemon off;'"
   protocol = "tcp"
   script_checks = []
 `)
+	require.Contains(t, deployOut.StdOut().String(), `destroy 2 "bar_web" machines`)
 	machines = f.MachinesList(appName)
 
 	expectMachinesInGroups(machines, map[string]int{
