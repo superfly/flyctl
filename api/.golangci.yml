@@ -1,0 +1,58 @@
+linters:
+  disable-all: true
+  enable:
+    # - gofumpt
+    - goimports
+    - gomodguard
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unconvert
+    - unused
+  fast: true
+
+# options for analysis running
+run:
+  issues-exit-code: 1
+  tests: true
+
+# output configuration options
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+  uniq-by-line: true
+
+# all available settings of specific linters
+linters-settings:
+  gofumpt:
+    module-path: github.com/superfly/flyctl/api
+
+  errcheck:
+    # report about not checking of errors in type assetions: `a := b.(MyStruct)`;
+    # default is false: such cases aren't reported by default.
+    check-type-assertions: true
+
+    # report about assignment of errors to blank identifier: `num, _ := strconv.Atoi(numStr)`;
+    # default is false: such cases aren't reported by default.
+    check-blank: false
+
+    # [deprecated] comma-separated list of pairs of the form pkg:regex
+    # the regex is used to ignore names within pkg. (default "fmt:.*").
+    # see https://github.com/kisielk/errcheck#the-deprecated-method for details
+    ignore: fmt:.*,io/ioutil:^Read.*,io:Close
+
+  gomodguard:
+    allowed:
+      modules:
+        - github.com/Khan/genqlient
+        - github.com/PuerkitoBio/rehttp
+        - github.com/superfly/graphql
+      domains:
+        - golang.org
+
+    blocked:
+      modules:
+        - github.com/superfly/flyctl:
+            reason: "`api` can not depend on flyctl project because it pulls tons of dependencies"
