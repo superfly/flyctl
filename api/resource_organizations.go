@@ -347,11 +347,7 @@ func (c *Client) GetAppsV2DefaultOnForOrg(ctx context.Context, orgSlug string) (
 		return false, err
 	}
 
-	settingsMap, err := InterfaceToMapOfStringInterface(resp.Organization.Settings)
-	if err != nil {
-		return false, fmt.Errorf("failed to convert settings from to map with string keys error: %w original interface: %v", err, resp.Organization.Settings)
-	}
-	if val, present := settingsMap[appsV2DefaultOnSettingsKey]; !present {
+	if val, present := resp.Organization.Settings[appsV2DefaultOnSettingsKey]; !present {
 		return false, nil
 	} else if appsV2DefaultOn, ok := val.(bool); !ok {
 		return false, fmt.Errorf("failed to convert '%v' to boolean value for %s org setting", val, appsV2DefaultOnSettingsKey)
