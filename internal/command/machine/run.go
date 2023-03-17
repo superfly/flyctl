@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -625,30 +624,10 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 	machineConf := mach.CloneConfig(&initialMachineConf)
 
 	if guestSize := flag.GetString(ctx, "size"); guestSize != "" {
-		guest, ok := api.MachinePresets[guestSize]
-
-		if !ok {
-			var machine_type string
-
-			if strings.HasPrefix(guestSize, "shared") {
-				machine_type = "shared"
-			} else if strings.HasPrefix(guestSize, "performance") {
-				machine_type = "performance"
-			} else {
-				return machineConf, fmt.Errorf("invalid machine preset requested, '%s', expected to start with 'shared' or 'performance'", guestSize)
-			}
-
-			validSizes := []string{}
-			for size := range api.MachinePresets {
-				if strings.HasPrefix(size, machine_type) {
-					validSizes = append(validSizes, size)
-				}
-			}
-			sort.Strings(validSizes)
-			return machineConf, fmt.Errorf("invalid machine size requested, '%s', available:\n%s", guestSize, strings.Join(validSizes, "\n"))
+		err := machineConf.Guest.SetSize(guestSize)
+		if err != nil {
+			return nil, err
 		}
-		guest.KernelArgs = machineConf.Guest.KernelArgs
-		machineConf.Guest = guest
 	}
 
 	// Potential overrides for Guest

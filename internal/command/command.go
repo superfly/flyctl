@@ -301,13 +301,14 @@ func initTaskManager(ctx context.Context) (context.Context, error) {
 	return task.NewContext(ctx, tm), nil
 }
 
-func CheckPlatform(apiClient *api.Client, ctx context.Context, appName string) (bool, error) {
-	app, err := apiClient.GetApp(ctx, appName)
+func IsMachinesPlatform(ctx context.Context, appName string) (bool, error) {
+	apiClient := client.FromContext(ctx).API()
+	app, err := apiClient.GetAppBasic(ctx, appName)
 	if err != nil {
 		return false, fmt.Errorf("failed to retrieve app: %w", err)
 	}
 
-	return app.PlatformVersion == "machines", nil
+	return app.PlatformVersion == appconfig.MachinesPlatform, nil
 }
 
 func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
