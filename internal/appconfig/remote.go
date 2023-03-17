@@ -90,16 +90,18 @@ func getAppV2ConfigFromReleases(ctx context.Context, apiClient *api.Client, appN
 	if err != nil {
 		return nil, err
 	}
+
 	configDefinition := resp.App.CurrentReleaseUnprocessed.ConfigDefinition
 	if configDefinition == nil {
 		return nil, nil
 	}
-	configMapDefinition, err := api.InterfaceToMapOfStringInterface(configDefinition)
-	if err != nil {
-		return nil, fmt.Errorf("likely a bug, could not convert config definition to api definition error: %w", err)
+
+	configMapDefinition, ok := configDefinition.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("likely a bug, could not convert config definition of type %T to api map[string]any", configDefinition)
 	}
-	apiDefinition := api.DefinitionPtr(configMapDefinition)
-	appConfig, err := FromDefinition(apiDefinition)
+
+	appConfig, err := FromDefinition(api.DefinitionPtr(configMapDefinition))
 	if err != nil {
 		return nil, fmt.Errorf("error creating appv2 Config from api definition: %w", err)
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/graphql"
 )
 
@@ -300,9 +299,7 @@ func (c *Client) DeleteOrganizationMembership(ctx context.Context, orgId, userId
 }
 
 func (c *Client) UpdateRemoteBuilder(ctx context.Context, orgName string, image string) (*Organization, error) {
-
 	org, err := c.GetOrganizationBySlug(ctx, orgName)
-
 	if err != nil {
 		return nil, err
 	}
@@ -335,22 +332,22 @@ func (c *Client) UpdateRemoteBuilder(ctx context.Context, orgName string, image 
 const appsV2DefaultOnSettingsKey = "apps_v2_default_on"
 
 func (c *Client) GetAppsV2DefaultOnForOrg(ctx context.Context, orgSlug string) (bool, error) {
-	_ = `# @genqlient
-	query GetOrgSettings($orgSlug:String!) {
-		organization(slug:$orgSlug) {
+	query := `
+	query($slug: String!) {
+		organization(slug: $slug) {
 			settings
 		}
 	}
 	`
-	resp, err := gql.GetOrgSettings(ctx, c.GenqClient, orgSlug)
+	req := c.NewRequest(query)
+	req.Var("slug", orgSlug)
+
+	resp, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return false, err
 	}
-	settingsMap, err := InterfaceToMapOfStringInterface(resp.Organization.Settings)
-	if err != nil {
-		return false, fmt.Errorf("failed to convert settings from to map with string keys error: %w original interface: %v", err, resp.Organization.Settings)
-	}
-	if val, present := settingsMap[appsV2DefaultOnSettingsKey]; !present {
+
+	if val, present := resp.Organization.Settings[appsV2DefaultOnSettingsKey]; !present {
 		return false, nil
 	} else if appsV2DefaultOn, ok := val.(bool); !ok {
 		return false, fmt.Errorf("failed to convert '%v' to boolean value for %s org setting", val, appsV2DefaultOnSettingsKey)
