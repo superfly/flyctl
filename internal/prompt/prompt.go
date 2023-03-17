@@ -261,7 +261,7 @@ func sortedRegions(ctx context.Context, excludedRegionCodes []string) ([]api.Reg
 
 	if len(excludedRegionCodes) > 0 {
 		regions = lo.Filter(regions, func(r api.Region, _ int) bool {
-			return !lo.Contains[string](excludedRegionCodes, r.Code)
+			return !lo.Contains(excludedRegionCodes, r.Code)
 		})
 	}
 
@@ -485,10 +485,12 @@ func SelectVMSize(ctx context.Context, vmSizes []api.VMSize) (vmSize *api.VMSize
 
 func SelectAppName(ctx context.Context) (name string, err error) {
 	const msg = "Choose an app name (leave blank to generate one):"
+	return SelectAppNameWithMsg(ctx, msg)
+}
 
+func SelectAppNameWithMsg(ctx context.Context, msg string) (name string, err error) {
 	if err = String(ctx, &name, msg, "", false); IsNonInteractive(err) {
 		err = NonInteractiveError("name argument or flag must be specified when not running interactively")
 	}
-
 	return
 }

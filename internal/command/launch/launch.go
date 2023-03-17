@@ -78,6 +78,12 @@ func run(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 	client := client.FromContext(ctx).API()
 	workingDir := flag.GetString(ctx, "path")
+	existingConfig := appconfig.ConfigFromContext(ctx)
+	generateName := flag.GetBool(ctx, "generate-name")
+	copyConfig := flag.GetBool(ctx, "copy-config")
+	name := strings.TrimSpace(flag.GetString(ctx, "name"))
+	appConfig := appconfig.NewConfig()
+	launchIntoExistingApp := false
 
 	deployArgs := deploy.DeployWithConfigArgs{
 		ForceNomad:    flag.GetBool(ctx, "force-nomad"),
@@ -90,42 +96,26 @@ func run(ctx context.Context) (err error) {
 		workingDir = absDir
 	}
 
-	var importedConfig bool
-	appConfig := appconfig.NewConfig()
-
 	configFilePath := filepath.Join(workingDir, appconfig.DefaultConfigFileName)
-	if exists, _ := appconfig.ConfigFileExistsAtPath(configFilePath); exists {
-		cfg, err := appconfig.LoadConfig(configFilePath)
-		if err != nil {
-			return err
-		}
 
-		if cfg.AppName != "" {
-			fmt.Fprintln(io.Out, "An existing fly.toml file was found for app", cfg.AppName)
-			if deployExisting, err := shouldDeployExistingApp(ctx, cfg.AppName); err != nil {
-				return err
-			} else if deployExisting {
-				fmt.Fprintln(io.Out, "App is not running, deploy...")
-				ctx = appconfig.WithName(ctx, cfg.AppName)
-				return deploy.DeployWithConfig(ctx, cfg, deployArgs)
-			}
+	if existingConfig != nil {
+		if existingConfig.AppName != "" {
+			fmt.Fprintln(io.Out, "An existing fly.toml file was found for app", existingConfig.AppName)
 		} else {
 			fmt.Fprintln(io.Out, "An existing fly.toml file was found")
 		}
 
-		copyConfig := false
-		if flag.GetBool(ctx, "copy-config") {
-			copyConfig = true
-		} else {
+		if !copyConfig {
 			copy, err := prompt.Confirm(ctx, "Would you like to copy its configuration to the new app?")
-			if copy && err == nil {
-				copyConfig = true
+			if err != nil {
+				return err
 			}
+
+			copyConfig = copy
 		}
 
 		if copyConfig {
-			appConfig = cfg
-			importedConfig = true
+			appConfig = existingConfig
 		}
 	}
 
@@ -210,25 +200,59 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
-	if !flag.GetBool(ctx, "generate-name") {
-		if appName := flag.GetString(ctx, "name"); appName == "" {
-			// Prompt the user for the app name
-			if inputName, err := prompt.SelectAppName(ctx); err != nil {
+	if generateName {
+		appConfig.AppName = ""
+	}
+
+	if name != "" {
+		appConfig.AppName = name
+	}
+
+	if !generateName && name == "" {
+		inputName, err := promptForAppName(ctx, appConfig)
+		if err != nil {
+			return err
+		}
+		appConfig.AppName = inputName
+	}
+
+	var org *api.Organization
+	if appConfig.AppName != "" {
+		exists, app, err := appExists(ctx, appConfig)
+		if err != nil {
+			return err
+		}
+
+		if exists {
+			msg := fmt.Sprintf("App %s already exists, do you want to launch into that app?", appConfig.AppName)
+			launchIntoExistingApp, err = prompt.Confirm(ctx, msg)
+			if err != nil {
 				return err
-			} else {
-				appConfig.AppName = inputName
 			}
-		} else {
-			appConfig.AppName = appName
+			if !launchIntoExistingApp {
+				return nil
+			}
+
+			org = &api.Organization{
+				ID:       app.Organization.ID,
+				Name:     app.Organization.Name,
+				Slug:     app.Organization.Slug,
+				PaidPlan: app.Organization.PaidPlan,
+			}
+
+		}
+
+	}
+
+	if !launchIntoExistingApp {
+		// Prompt for an org
+		// TODO: determine if eager remote builder is still required here
+		org, err = prompt.Org(ctx)
+		if err != nil {
+			return
 		}
 	}
 
-	// Prompt for an org
-	// TODO: determine if eager remote builder is still required here
-	org, err := prompt.Org(ctx)
-	if err != nil {
-		return
-	}
 	// If we potentially are deploying, launch a remote builder to prepare for deployment.
 	if !flag.GetBool(ctx, "no-deploy") {
 		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, client, org.Slug)
@@ -247,37 +271,42 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	if shouldUseMachines && importedConfig {
+	if shouldUseMachines && copyConfig {
 		// Check imported fly.toml is a valid V2 config before creating the app
 		if err := appConfig.SetMachinesPlatform(); err != nil {
 			return fmt.Errorf("Can not use configuration for Apps V2, check fly.toml: %w", err)
 		}
 	}
 
-	input := api.CreateAppInput{
-		Name:            appConfig.AppName,
-		OrganizationID:  org.ID,
-		PreferredRegion: &appConfig.PrimaryRegion,
-		Machines:        shouldUseMachines,
-	}
-
-	if createdApp, err := client.CreateApp(ctx, input); err != nil {
-		return err
-	} else if !importedConfig {
-		// Use the default configuration template suggested by Web
-		newCfg, err := appconfig.FromDefinition(&createdApp.Config.Definition)
-		if err != nil {
-			return fmt.Errorf("Launch failed to get new app configuration: %w", err)
+	if !launchIntoExistingApp {
+		input := api.CreateAppInput{
+			Name:            appConfig.AppName,
+			OrganizationID:  org.ID,
+			PreferredRegion: &appConfig.PrimaryRegion,
+			Machines:        shouldUseMachines,
 		}
-		newCfg.AppName = createdApp.Name
-		newCfg.Build = appConfig.Build
-		newCfg.PrimaryRegion = appConfig.PrimaryRegion
-		appConfig = newCfg
-	} else {
-		appConfig.AppName = createdApp.Name
+
+		createdApp, err := client.CreateApp(ctx, input)
+		if err != nil {
+			return err
+		}
+
+		if !copyConfig {
+			// Use the default configuration template suggested by Web
+			newCfg, err := appconfig.FromDefinition(&createdApp.Config.Definition)
+			if err != nil {
+				return fmt.Errorf("Launch failed to get new app configuration: %w", err)
+			}
+			newCfg.AppName = createdApp.Name
+			newCfg.Build = appConfig.Build
+			newCfg.PrimaryRegion = appConfig.PrimaryRegion
+			appConfig = newCfg
+		} else {
+			appConfig.AppName = createdApp.Name
+		}
+		fmt.Fprintf(io.Out, "Created app '%s' in organization '%s'\n", appConfig.AppName, org.Slug)
 	}
 
-	fmt.Fprintf(io.Out, "Created app '%s' in organization '%s'\n", appConfig.AppName, org.Slug)
 	fmt.Fprintf(io.Out, "Admin URL: https://fly.io/apps/%s\n", appConfig.AppName)
 	fmt.Fprintf(io.Out, "Hostname: %s.fly.dev\n", appConfig.AppName)
 
@@ -408,25 +437,34 @@ func shouldAppUseMachinesPlatform(ctx context.Context, orgSlug string) (bool, er
 	return orgDefault, nil
 }
 
-func shouldDeployExistingApp(ctx context.Context, appName string) (bool, error) {
+func appExists(ctx context.Context, cfg *appconfig.Config) (bool, *api.AppBasic, error) {
 	client := client.FromContext(ctx).API()
-	status, err := client.GetAppStatus(ctx, appName, false)
+	app, err := client.GetAppBasic(ctx, cfg.AppName)
 	if err != nil {
 		if api.IsNotFoundError(err) || graphql.IsNotFoundError(err) {
-			return false, nil
+			return false, nil, nil
 		}
-		return false, err
+		return false, nil, err
 	}
 
-	if !status.Deployed {
-		return true, nil
+	return true, app, nil
+}
+
+func promptForAppName(ctx context.Context, cfg *appconfig.Config) (name string, err error) {
+	if cfg.AppName == "" {
+		return prompt.SelectAppName(ctx)
 	}
 
-	for _, a := range status.Allocations {
-		if a.Healthy {
-			return false, nil
-		}
+	msg := fmt.Sprintf("Choose an app name (leaving blank will default to '%s')", cfg.AppName)
+	name, err = prompt.SelectAppNameWithMsg(ctx, msg)
+	if err != nil {
+		return name, err
 	}
 
-	return true, nil
+	// default to cfg.name if user doesn't enter any name after copying the configuration
+	if name == "" {
+		name = cfg.AppName
+	}
+
+	return
 }
