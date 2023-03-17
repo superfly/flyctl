@@ -540,6 +540,7 @@ type Organization struct {
 	Slug               string
 	Type               string
 	PaidPlan           bool
+	Settings           map[string]any
 
 	Domains struct {
 		Nodes *[]*Domain
