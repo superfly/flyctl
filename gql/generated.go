@@ -1786,11 +1786,15 @@ func (v *__GetAppInput) GetName() string { return v.Name }
 
 // __GetAppsByRoleInput is used internally by genqlient
 type __GetAppsByRoleInput struct {
-	Role string `json:"role"`
+	Role           string `json:"role"`
+	OrganizationId string `json:"organizationId"`
 }
 
 // GetRole returns __GetAppsByRoleInput.Role, and is useful for accessing the field via an interface.
 func (v *__GetAppsByRoleInput) GetRole() string { return v.Role }
+
+// GetOrganizationId returns __GetAppsByRoleInput.OrganizationId, and is useful for accessing the field via an interface.
+func (v *__GetAppsByRoleInput) GetOrganizationId() string { return v.OrganizationId }
 
 // __GetOrgSettingsInput is used internally by genqlient
 type __GetOrgSettingsInput struct {
@@ -2238,12 +2242,13 @@ func GetAppsByRole(
 	ctx context.Context,
 	client graphql.Client,
 	role string,
+	organizationId string,
 ) (*GetAppsByRoleResponse, error) {
 	req := &graphql.Request{
 		OpName: "GetAppsByRole",
 		Query: `
-query GetAppsByRole ($role: String!) {
-	apps(role: $role) {
+query GetAppsByRole ($role: String!, $organizationId: ID!) {
+	apps(role: $role, organizationId: $organizationId) {
 		nodes {
 			... AppData
 		}
@@ -2262,7 +2267,8 @@ fragment AppData on App {
 }
 `,
 		Variables: &__GetAppsByRoleInput{
-			Role: role,
+			Role:           role,
+			OrganizationId: organizationId,
 		},
 	}
 	var err error

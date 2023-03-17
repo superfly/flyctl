@@ -7507,6 +7507,7 @@ type Queries {
     Returns the last _n_ elements from the list.
     """
     last: Int
+    organizationId: ID
     platform: String
     role: String
     type: String @deprecated(reason: "will be removed")

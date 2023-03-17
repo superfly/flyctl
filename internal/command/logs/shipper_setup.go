@@ -52,7 +52,7 @@ func runSetup(ctx context.Context) (err error) {
 	}
 
 	targetOrg := appNameResponse.App.AppData.Organization
-	appsResult, err := gql.GetAppsByRole(ctx, client, "log-shipper")
+	appsResult, err := gql.GetAppsByRole(ctx, client, "log-shipper", targetOrg.Id)
 
 	if err != nil {
 		return err
@@ -98,7 +98,6 @@ func runSetup(ctx context.Context) (err error) {
 
 	fmt.Fprintf(io.ErrOut, "Setting ACCESS_TOKEN and LOGTAIL_TOKEN secrets on %s\n", shipperApp.Name)
 
-	fmt.Printf("%+v", shipperApp)
 	secrets := gql.SetSecretsInput{
 		AppId: shipperApp.Id,
 		Secrets: []gql.SecretInput{

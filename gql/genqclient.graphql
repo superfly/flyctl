@@ -64,8 +64,8 @@ query GetApp($name: String!) {
 	}
 }
 
-query GetAppsByRole($role: String!) {
-	apps(role: $role) {
+query GetAppsByRole($role: String!, $organizationId: ID!) {
+	apps(role: $role, organizationId: $organizationId) {
 		nodes {
 		...AppData
 		}
