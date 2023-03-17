@@ -69,7 +69,7 @@ func (c *Client) Run(req *graphql.Request) (Query, error) {
 
 // RunWithContext - Runs a GraphQL request within a Go context
 func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Query, error) {
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
+	req.Header.Set("Authorization", AuthorizationHeader(c.accessToken))
 	req.Header.Set("User-Agent", c.userAgent)
 	if c.trace != "" {
 		req.Header.Set("Fly-Force-Trace", c.trace)
@@ -150,7 +150,7 @@ type Transport struct {
 }
 
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.Header.Add("Authorization", "Bearer "+t.Token)
+	req.Header.Add("Authorization", AuthorizationHeader(t.Token))
 	if t.EnableDebugTrace {
 		req.Header.Add("Fly-Force-Trace", "true")
 	}

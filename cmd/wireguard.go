@@ -535,7 +535,7 @@ func tokenRequest(method, path, token string, data interface{}) (*http.Response,
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Add("Authorization", "Bearer "+token)
+	req.Header.Add("Authorization", api.AuthorizationHeader(token))
 	req.Header.Add("Content-Type", "application/json")
 
 	return (&http.Client{}).Do(req)

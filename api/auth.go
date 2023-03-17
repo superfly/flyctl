@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 // CLISessionAuth holds access information
@@ -71,4 +72,13 @@ func GetAccessTokenForCLISession(ctx context.Context, id string) (token string, 
 	}
 
 	return
+}
+
+const flyv1Scheme = "FlyV1"
+
+func AuthorizationHeader(token string) string {
+	if scheme, _, ok := strings.Cut(token, " "); ok && scheme == flyv1Scheme {
+		return token
+	}
+	return fmt.Sprintf("Bearer %s", token)
 }

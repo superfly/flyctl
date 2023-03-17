@@ -502,7 +502,7 @@ func (f *Client) NewRequest(ctx context.Context, method, path string, in interfa
 	}
 	req.Header = headers
 
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", f.authToken))
+	req.Header.Add("Authorization", api.AuthorizationHeader(f.authToken))
 
 	return req, nil
 }
