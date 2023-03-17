@@ -303,6 +303,51 @@ func TestAppsV2ConfigSave_PostgresSingleNode(t *testing.T) {
     path = "/flycheck/vm"`)
 }
 
+func TestAppsV2_PostgresAutostart(t *testing.T) {
+	var (
+		err     error
+		f       = testlib.NewTestEnvFromEnv(t)
+		appName = f.CreateRandomAppName()
+	)
+
+	f.Fly("pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1", f.OrgSlug(), appName, f.PrimaryRegion())
+
+	var machList []map[string]any
+
+	result := f.Fly("m list --json -a %s", appName)
+	err = json.Unmarshal(result.StdOut().Bytes(), &machList)
+	if err != nil {
+		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
+	}
+	require.Equal(t, 1, len(machList), "expected exactly 1 machine after launch")
+	firstMachine := machList[0]
+
+	config := firstMachine["config"].(map[string]interface{})
+	if autostart_disabled, ok := config["disable_machine_autostart"]; ok {
+		require.Equal(t, true, autostart_disabled.(bool), "autostart was enabled")
+	} else {
+		f.Fatalf("autostart wasn't disabled")
+	}
+
+	appName = f.CreateRandomAppName()
+
+	f.Fly("pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1 --autostart", f.OrgSlug(), appName, f.PrimaryRegion())
+
+	result = f.Fly("m list --json -a %s", appName)
+	err = json.Unmarshal(result.StdOut().Bytes(), &machList)
+	if err != nil {
+		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
+	}
+	require.Equal(t, 1, len(machList), "expected exactly 1 machine after launch")
+	firstMachine = machList[0]
+
+	config = firstMachine["config"].(map[string]interface{})
+
+	if autostart_disabled, ok := config["disable_machine_autostart"]; ok {
+		require.Equal(t, false, autostart_disabled.(bool), "autostart was enabled")
+	}
+}
+
 func TestAppsV2_PostgresNoMachines(t *testing.T) {
 	var (
 		err     error
