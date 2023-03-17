@@ -97,6 +97,10 @@ func runSetup(ctx context.Context) (err error) {
 	// Fetch a macaroon token whose access is limited to reading app logs
 	tokenResponse, err := gql.CreateLimitedAccessToken(ctx, client, targetOrg.Slug+"-logs", targetOrg.Id, "read_organization_apps", &gql.LimitedAccessTokenOptions{})
 
+	if err != nil {
+		return
+	}
+
 	fmt.Fprintf(io.ErrOut, "Setting ACCESS_TOKEN and LOGTAIL_TOKEN secrets on %s\n", shipperApp.Name)
 
 	secrets := gql.SetSecretsInput{
@@ -109,6 +113,10 @@ func runSetup(ctx context.Context) (err error) {
 			{
 				Key:   "LOGTAIL_TOKEN",
 				Value: logtailToken,
+			},
+			{
+				Key:   "ORG",
+				Value: targetOrg.Id,
 			},
 		},
 	}
