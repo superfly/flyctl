@@ -6,10 +6,11 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
 )
 
 func newAllocatev4() *cobra.Command {
@@ -28,6 +29,10 @@ func newAllocatev4() *cobra.Command {
 			Name:        "shared",
 			Description: "Allocates a shared IPv4",
 			Default:     false,
+		},
+		flag.Bool{
+			Name:        "yes",
+			Description: "Auto-confirm IPv4 allocation",
 		},
 		flag.App(),
 		flag.AppConfig(),
@@ -70,6 +75,18 @@ func runAllocateIPAddressV4(ctx context.Context) error {
 	if flag.GetBool(ctx, "shared") {
 		addrType = "shared_v4"
 	}
+	if !flag.GetBool(ctx, "yes") {
+		switch confirmed, err := prompt.Confirm(ctx, "Looks like you're accessing a paid feature. Dedicated IPv4 addresses now costs $2/mo. Are you ok with this?"); {
+		case err == nil:
+			if !confirmed {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+		default:
+			return err
+		}
+	}
 	return runAllocateIPAddress(ctx, addrType, nil, "")
 }
 
@@ -97,7 +114,7 @@ func runAllocateIPAddressV6(ctx context.Context) (err error) {
 func runAllocateIPAddress(ctx context.Context, addrType string, org *api.Organization, network string) (err error) {
 	client := client.FromContext(ctx).API()
 
-	appName := app.NameFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
 
 	if addrType == "shared_v4" {
 		ip, err := client.AllocateSharedIPAddress(ctx, appName)

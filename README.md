@@ -107,3 +107,21 @@ If you have write access to this repo, you can ship a prerelease or full release
 or
 
 `scripts/bump_version.sh`
+
+
+## Running preflight tests
+
+Copy `.direnv/preflight-example` to `.direnv/preflight` and edit following these guidelines:
+
+* Grab your auth token from `~/.fly/config.yml`
+* Do not use your "personal" org, create an new org (i.e. `flyctl-tests-YOURNAME`)
+  Ask for 100% comp for employees at https://flyio.discourse.team/t/employee-accounts-how-to-prevent-charges/526/95
+* Set 2 regions, ideally not your closest region because it leads
+  to false positives when --region or primary region handling is buggy.
+	Run `fly platform regions` for valid ids
+
+Finally run the tests:
+
+	make preflight-test
+
+Oh, add more preflight tests at `tests/preflight/*`

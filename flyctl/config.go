@@ -7,6 +7,7 @@ import (
 const (
 	ConfigAPIToken        = "access_token"
 	ConfigAPIBaseURL      = "api_base_url"
+	ConfigFlapsBaseUrl    = "flaps_base_url"
 	ConfigAppName         = "app"
 	ConfigVerboseOutput   = "verbose"
 	ConfigJSONOutput      = "json"

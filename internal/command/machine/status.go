@@ -9,8 +9,6 @@ import (
 
 	"github.com/alecthomas/chroma/quick"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
@@ -49,31 +47,10 @@ func newStatus() *cobra.Command {
 func runMachineStatus(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 
-	var (
-		appName   = app.NameFromContext(ctx)
-		machineID = flag.FirstArg(ctx)
-	)
-
-	app, err := appFromMachineOrName(ctx, machineID, appName)
+	machineID := flag.FirstArg(ctx)
+	machine, ctx, err := selectOneMachine(ctx, nil, machineID)
 	if err != nil {
 		return err
-	}
-
-	flapsClient, err := flaps.New(ctx, app)
-	if err != nil {
-		return fmt.Errorf("could not make flaps client: %w", err)
-	}
-
-	machine, err := flapsClient.Get(ctx, machineID)
-	if err != nil {
-		switch {
-		case strings.Contains(err.Error(), "status"):
-			return fmt.Errorf("retrieve machine failed %s", err)
-		case strings.Contains(err.Error(), "not found") && appName != "":
-			return fmt.Errorf("machine %s was not found in app %s", machineID, appName)
-		default:
-			return fmt.Errorf("machine %s could not be retrieved", machineID)
-		}
 	}
 
 	fmt.Fprintf(io.Out, "Machine ID: %s\n", machine.ID)
@@ -89,16 +66,17 @@ func runMachineStatus(ctx context.Context) (err error) {
 			machine.Name,
 			machine.PrivateIP,
 			machine.Region,
-			machine.Config.Metadata["process_group"],
-			fmt.Sprint(machine.Config.Guest.MemoryMB),
+			machine.ProcessGroup(),
+			fmt.Sprint(machine.Config.Guest.CPUKind),
 			fmt.Sprint(machine.Config.Guest.CPUs),
+			fmt.Sprint(machine.Config.Guest.MemoryMB),
 			machine.CreatedAt,
 			machine.UpdatedAt,
 			strings.Join(machine.Config.Init.Cmd, " "),
 		},
 	}
 
-	var cols []string = []string{"ID", "Instance ID", "State", "Image", "Name", "Private IP", "Region", "Process Group", "Memory", "CPUs", "Created", "Updated", "Command"}
+	var cols []string = []string{"ID", "Instance ID", "State", "Image", "Name", "Private IP", "Region", "Process Group", "CPU Kind", "vCPUs", "Memory", "Created", "Updated", "Command"}
 
 	if len(machine.Config.Mounts) > 0 {
 		cols = append(cols, "Volume")

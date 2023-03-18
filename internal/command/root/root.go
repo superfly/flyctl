@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/auth"
 	"github.com/superfly/flyctl/internal/command/checks"
+	"github.com/superfly/flyctl/internal/command/config"
 	"github.com/superfly/flyctl/internal/command/create"
 	"github.com/superfly/flyctl/internal/command/curl"
 	"github.com/superfly/flyctl/internal/command/deploy"
@@ -40,7 +41,9 @@ import (
 	"github.com/superfly/flyctl/internal/command/releases"
 	"github.com/superfly/flyctl/internal/command/restart"
 	"github.com/superfly/flyctl/internal/command/resume"
+	"github.com/superfly/flyctl/internal/command/scale"
 	"github.com/superfly/flyctl/internal/command/secrets"
+	"github.com/superfly/flyctl/internal/command/services"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/command/status"
 	"github.com/superfly/flyctl/internal/command/suspend"
@@ -163,6 +166,9 @@ func New() *cobra.Command {
 		info.New(),
 		jobs.New(),
 		turboku.New(),
+		services.New(),
+		config.New(),
+		scale.New(),
 	}
 
 	// if os.Getenv("DEV") != "" {

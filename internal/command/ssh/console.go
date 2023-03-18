@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"time"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/docker/docker/pkg/ioutils"
@@ -17,7 +18,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/sentry"
@@ -118,7 +119,7 @@ func captureError(err error, app *api.AppCompact) {
 
 	sentry.CaptureException(err,
 		sentry.WithTag("feature", "ssh-console"),
-		sentry.WithContexts(map[string]interface{}{
+		sentry.WithContexts(map[string]sentry.Context{
 			"app": map[string]interface{}{
 				"name": app.Name,
 			},
@@ -160,7 +161,7 @@ func bringUp(ctx context.Context, client *api.Client, app *api.AppCompact) (*age
 
 func runConsole(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
-	appName := app.NameFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
 
 	if !quiet(ctx) {
 		terminal.Debugf("Retrieving app info for %s\n", appName)
@@ -211,6 +212,14 @@ func runConsole(ctx context.Context) error {
 		Mode:   "xterm",
 	}
 
+	currentStdin, currentStdout, currentStderr, err := setupConsole()
+	defer func() error {
+		if err := cleanupConsole(currentStdin, currentStdout, currentStderr); err != nil {
+			return err
+		}
+		return nil
+	}()
+
 	if err := sshc.Shell(params.Ctx, term, params.Cmd); err != nil {
 		captureError(err, app)
 		return errors.Wrap(err, "ssh shell")
@@ -224,7 +233,7 @@ func sshConnect(p *SSHParams, addr string) (*ssh.Client, error) {
 
 	cert, pk, err := singleUseSSHCertificate(p.Ctx, p.Org)
 	if err != nil {
-		return nil, fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh establish`)", err)
+		return nil, fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh issue`)", err)
 	}
 
 	pemkey := ssh.MarshalED25519PrivateKey(pk, "single-use certificate")
@@ -315,7 +324,7 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 				return "", err
 			}
 
-			err = flapsClient.Wait(ctx, selectedMachine, "started")
+			err = flapsClient.Wait(ctx, selectedMachine, "started", 60*time.Second)
 
 			if err != nil {
 				return "", err

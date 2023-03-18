@@ -11,8 +11,17 @@ import (
 	"github.com/pkg/errors"
 )
 
+var healthcheck_channel = make(chan string)
+
 func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
-	if !checksPass(sourceDir, dirContains("Gemfile", "rails")) {
+	// `bundle init` will create a file with a commented out rails gem,
+	// so checking for that can produce a false positive.  Look for
+	// Rails three other ways...
+	rails := checksPass(sourceDir+"/bin", fileExists("rails")) ||
+		checksPass(sourceDir, dirContains("config.ru", "Rails")) ||
+		checksPass(sourceDir, dirContains("Gemfile.lock", " rails "))
+
+	if !rails {
 		return nil, nil
 	}
 
@@ -64,6 +73,18 @@ https://fly.io/docs/rails/getting-started/dockerfiles/.
 Once ready: run 'fly deploy' to deploy your Rails app.
 `
 
+	// fetch healthcheck route in a separate thread
+	go func() {
+		out, err := exec.Command("ruby", "./bin/rails", "runner",
+			"puts Rails.application.routes.url_helpers.rails_health_check_path").Output()
+
+		if err == nil {
+			healthcheck_channel <- strings.TrimSpace(string(out))
+		} else {
+			healthcheck_channel <- ""
+		}
+	}()
+
 	return s, nil
 }
 
@@ -93,6 +114,16 @@ func RailsCallback(srcInfo *SourceInfo, options map[string]bool) error {
 		}
 	}
 
+	// ensure Gemfile.lock includes the x86_64-linux platform
+	if out, err := exec.Command("bundle", "platform").Output(); err == nil {
+		if !strings.Contains(string(out), "x86_64-linux") {
+			cmd := exec.Command("bundle", "lock", "--add-platform", "x86_64-linux")
+			if err := cmd.Run(); err != nil {
+				return errors.Wrap(err, "Failed to add x86_64-linux platform, exiting")
+			}
+		}
+	}
+
 	// generate Dockerfile if it doesn't already exist
 	_, err = os.Stat("Dockerfile")
 	if errors.Is(err, fs.ErrNotExist) {
@@ -114,6 +145,20 @@ func RailsCallback(srcInfo *SourceInfo, options map[string]bool) error {
 
 		if err := cmd.Run(); err != nil {
 			return errors.Wrap(err, "Failed to generate Dockefile")
+		}
+	} else {
+		if options["postgresql"] && !strings.Contains(string(gemfile), "pg") {
+			cmd := exec.Command("bundle", "add", "pg")
+			if err := cmd.Run(); err != nil {
+				return errors.Wrap(err, "Failed to install pg gem")
+			}
+		}
+
+		if options["redis"] && !strings.Contains(string(gemfile), "redis") {
+			cmd := exec.Command("bundle", "add", "redis")
+			if err := cmd.Run(); err != nil {
+				return errors.Wrap(err, "Failed to install redis gem")
+			}
 		}
 	}
 
@@ -139,7 +184,7 @@ func RailsCallback(srcInfo *SourceInfo, options map[string]bool) error {
 	srcInfo.Port = port
 
 	// extract workdir
-	workdir := "/rails"
+	workdir := "$"
 	re = regexp.MustCompile(`(?m).*^WORKDIR\s+(?P<dir>/\S+)`)
 	m = re.FindStringSubmatch(string(dockerfile))
 
@@ -149,12 +194,18 @@ func RailsCallback(srcInfo *SourceInfo, options map[string]bool) error {
 		}
 	}
 
-	srcInfo.Statics = []Static{
-		{
-			GuestPath: workdir + "/public",
-			UrlPrefix: "/",
-		},
+	// add Statics if workdir is found and doesn't contain a variable reference
+	if !strings.Contains(workdir, "$") {
+		srcInfo.Statics = []Static{
+			{
+				GuestPath: workdir + "/public",
+				UrlPrefix: "/",
+			},
+		}
 	}
+
+	// add HealthCheck (if found)
+	srcInfo.HttpCheckPath = <-healthcheck_channel
 
 	return nil
 }

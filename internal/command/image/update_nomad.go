@@ -8,7 +8,7 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
@@ -20,7 +20,7 @@ func updateImageForNomad(ctx context.Context) error {
 	var (
 		client  = client.FromContext(ctx).API()
 		io      = iostreams.FromContext(ctx)
-		appName = app.NameFromContext(ctx)
+		appName = appconfig.NameFromContext(ctx)
 
 		autoConfirm = flag.GetBool(ctx, "yes")
 	)
@@ -41,8 +41,8 @@ func updateImageForNomad(ctx context.Context) error {
 	cI := app.ImageDetails
 	lI := app.LatestImageDetails
 
-	current := cI.ImageRef()
-	target := lI.ImageRef()
+	current := cI.FullImageRef()
+	target := lI.FullImageRef()
 
 	if cI.Version != "" {
 		current = fmt.Sprintf("%s %s", current, cI.Version)
@@ -67,7 +67,7 @@ func updateImageForNomad(ctx context.Context) error {
 
 	input := api.DeployImageInput{
 		AppID:    appName,
-		Image:    lI.ImageRef(),
+		Image:    lI.FullImageRef(),
 		Strategy: api.StringPointer("ROLLING"),
 	}
 
@@ -101,7 +101,7 @@ func updateImageForNomad(ctx context.Context) error {
 			return err
 		}
 
-		release, err = client.GetAppRelease(ctx, appName, release.ID)
+		release, err = client.GetAppReleaseNomad(ctx, appName, release.ID)
 		if err != nil {
 			return err
 		}

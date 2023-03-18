@@ -7,10 +7,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
+	"time"
 
+	"github.com/google/go-querystring/query"
 	"github.com/samber/lo"
 
 	"github.com/superfly/flyctl/agent"
@@ -19,19 +24,75 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/terminal"
 )
 
 var NonceHeader = "fly-machine-lease-nonce"
 
+const headerFlyRequestId = "fly-request-id"
+
 type Client struct {
-	app        *api.AppCompact
-	peerIP     string
+	appName    string
+	baseUrl    *url.URL
 	authToken  string
 	httpClient *http.Client
 	userAgent  string
 }
 
 func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
+	return newFromAppOrAppName(ctx, app, app.Name)
+}
+
+func NewFromAppName(ctx context.Context, appName string) (*Client, error) {
+	return newFromAppOrAppName(ctx, nil, appName)
+}
+
+func newFromAppOrAppName(ctx context.Context, app *api.AppCompact, appName string) (*Client, error) {
+	if app != nil {
+		appName = app.Name
+	}
+
+	// FIXME: do this once we setup config for `fly config ...` commands, and then use cfg.FlapsBaseURL below
+	// cfg := config.FromContext(ctx)
+	var err error
+	flapsBaseURL := os.Getenv("FLY_FLAPS_BASE_URL")
+	if strings.TrimSpace(strings.ToLower(flapsBaseURL)) == "peer" {
+		app, err = resolveApp(ctx, app, appName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get app '%s': %w", appName, err)
+		}
+		return newWithUsermodeWireguard(ctx, app)
+	} else if flapsBaseURL == "" {
+		flapsBaseURL = "https://api.machines.dev"
+	}
+	flapsUrl, err := url.Parse(flapsBaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid FLY_FLAPS_BASE_URL '%s' with error: %w", flapsBaseURL, err)
+	}
+	logger := logger.MaybeFromContext(ctx)
+	httpClient, err := api.NewHTTPClient(logger, http.DefaultTransport)
+	if err != nil {
+		return nil, fmt.Errorf("flaps: can't setup HTTP client to %s: %w", flapsUrl.String(), err)
+	}
+	return &Client{
+		appName:    appName,
+		baseUrl:    flapsUrl,
+		authToken:  flyctl.GetAPIToken(),
+		httpClient: httpClient,
+		userAgent:  strings.TrimSpace(fmt.Sprintf("fly-cli/%s", buildinfo.Version())),
+	}, nil
+}
+
+func resolveApp(ctx context.Context, app *api.AppCompact, appName string) (*api.AppCompact, error) {
+	var err error
+	if app == nil {
+		client := client.FromContext(ctx).API()
+		app, err = client.GetAppCompact(ctx, appName)
+	}
+	return app, err
+}
+
+func newWithUsermodeWireguard(ctx context.Context, app *api.AppCompact) (*Client, error) {
 	logger := logger.MaybeFromContext(ctx)
 
 	client := client.FromContext(ctx).API()
@@ -56,9 +117,15 @@ func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
 		return nil, fmt.Errorf("flaps: can't setup HTTP client for %s: %w", app.Organization.Slug, err)
 	}
 
+	flapsBaseUrlString := fmt.Sprintf("http://[%s]:4280", resolvePeerIP(dialer.State().Peer.Peerip))
+	flapsBaseUrl, err := url.Parse(flapsBaseUrlString)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse flaps url '%s' with error: %w", flapsBaseUrlString, err)
+	}
+
 	return &Client{
-		app:        app,
-		peerIP:     resolvePeerIP(dialer.State().Peer.Peerip),
+		appName:    app.Name,
+		baseUrl:    flapsBaseUrl,
 		authToken:  flyctl.GetAPIToken(),
 		httpClient: httpClient,
 		userAgent:  strings.TrimSpace(fmt.Sprintf("fly-cli/%s", buildinfo.Version())),
@@ -118,26 +185,40 @@ func (f *Client) Start(ctx context.Context, machineID string) (*api.MachineStart
 	return out, nil
 }
 
-func (f *Client) Wait(ctx context.Context, machine *api.Machine, state string) (err error) {
+type waitQuerystring struct {
+	InstanceId     string `url:"instance_id,omitempty"`
+	TimeoutSeconds int    `url:"timeout,omitempty"`
+	State          string `url:"state,omitempty"`
+}
+
+const proxyTimeoutThreshold = 60 * time.Second
+
+func (f *Client) Wait(ctx context.Context, machine *api.Machine, state string, timeout time.Duration) (err error) {
 	waitEndpoint := fmt.Sprintf("/%s/wait", machine.ID)
-
-	version := machine.InstanceID
-
-	if machine.Version != "" {
-		version = machine.Version
-	}
-	if version != "" {
-		waitEndpoint += fmt.Sprintf("?instance_id=%s&timeout=30", version)
-	} else {
-		waitEndpoint += "?timeout=30"
-	}
-
 	if state == "" {
 		state = "started"
 	}
-
-	waitEndpoint += fmt.Sprintf("&state=%s", state)
-
+	version := machine.InstanceID
+	if machine.Version != "" {
+		version = machine.Version
+	}
+	if timeout > proxyTimeoutThreshold {
+		timeout = proxyTimeoutThreshold
+	}
+	if timeout < 1*time.Second {
+		timeout = 1 * time.Second
+	}
+	timeoutSeconds := int(timeout.Seconds())
+	waitQs := waitQuerystring{
+		InstanceId:     version,
+		TimeoutSeconds: timeoutSeconds,
+		State:          state,
+	}
+	qsVals, err := query.Values(waitQs)
+	if err != nil {
+		return fmt.Errorf("error making query string for wait request: %w", err)
+	}
+	waitEndpoint += fmt.Sprintf("?%s", qsVals.Encode())
 	if err := f.sendRequest(ctx, http.MethodGet, waitEndpoint, nil, nil, nil); err != nil {
 		return fmt.Errorf("failed to wait for VM %s in %s state: %w", machine.ID, state, err)
 	}
@@ -153,7 +234,12 @@ func (f *Client) Stop(ctx context.Context, in api.StopMachineInput) (err error) 
 	return
 }
 
-func (f *Client) Restart(ctx context.Context, in api.RestartMachineInput) (err error) {
+func (f *Client) Restart(ctx context.Context, in api.RestartMachineInput, nonce string) (err error) {
+	headers := make(map[string][]string)
+	if nonce != "" {
+		headers[NonceHeader] = []string{nonce}
+	}
+
 	restartEndpoint := fmt.Sprintf("/%s/restart?force_stop=%t", in.ID, in.ForceStop)
 
 	if in.Timeout != 0 {
@@ -164,7 +250,7 @@ func (f *Client) Restart(ctx context.Context, in api.RestartMachineInput) (err e
 		restartEndpoint += fmt.Sprintf("&signal=%s", in.Signal)
 	}
 
-	if err := f.sendRequest(ctx, http.MethodPost, restartEndpoint, nil, nil, nil); err != nil {
+	if err := f.sendRequest(ctx, http.MethodPost, restartEndpoint, nil, nil, headers); err != nil {
 		return fmt.Errorf("failed to restart VM %s: %w", in.ID, err)
 	}
 	return
@@ -226,10 +312,29 @@ func (f *Client) ListActive(ctx context.Context) ([]*api.Machine, error) {
 	}
 
 	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
-		return m.Config != nil && m.Config.Metadata["process_group"] != "release_command" && m.State != "destroyed"
+		return !m.IsReleaseCommandMachine() && m.IsActive()
 	})
 
 	return machines, nil
+}
+
+// returns apps that are part of the fly apps platform that are not destroyed
+func (f *Client) ListFlyAppsMachines(ctx context.Context) ([]*api.Machine, *api.Machine, error) {
+	allMachines := make([]*api.Machine, 0)
+	err := f.sendRequest(ctx, http.MethodGet, "", nil, &allMachines, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list VMs: %w", err)
+	}
+	var releaseCmdMachine *api.Machine
+	machines := make([]*api.Machine, 0)
+	for _, m := range allMachines {
+		if m.IsFlyAppsPlatform() && m.IsActive() && !m.IsFlyAppsReleaseCommand() {
+			machines = append(machines, m)
+		} else if m.IsFlyAppsReleaseCommand() {
+			releaseCmdMachine = m
+		}
+	}
+	return machines, releaseCmdMachine, nil
 }
 
 func (f *Client) Destroy(ctx context.Context, input api.RemoveMachineInput) (err error) {
@@ -279,6 +384,23 @@ func (f *Client) AcquireLease(ctx context.Context, machineID string, ttl *int) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to get lease on VM %s: %w", machineID, err)
 	}
+	terminal.Debugf("got lease on machine %s: %v\n", machineID, out)
+	return out, nil
+}
+
+func (f *Client) RefreshLease(ctx context.Context, machineID string, ttl *int, nonce string) (*api.MachineLease, error) {
+	endpoint := fmt.Sprintf("/%s/lease", machineID)
+	if ttl != nil {
+		endpoint += fmt.Sprintf("?ttl=%d", *ttl)
+	}
+	headers := make(map[string][]string)
+	headers[NonceHeader] = []string{nonce}
+	out := new(api.MachineLease)
+	err := f.sendRequest(ctx, http.MethodPost, endpoint, nil, out, headers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get lease on VM %s: %w", machineID, err)
+	}
+	terminal.Debugf("got lease on machine %s: %v\n", machineID, out)
 	return out, nil
 }
 
@@ -317,10 +439,24 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		err := resp.Body.Close()
+		if err != nil {
+			terminal.Debugf("error closing response body: %v\n", err)
+		}
+	}()
 
 	if resp.StatusCode > 299 {
-		return handleAPIError(resp)
+		responseBody, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			responseBody = make([]byte, 0)
+		}
+		return &FlapsError{
+			OriginalError:      handleAPIError(resp.StatusCode, responseBody),
+			ResponseStatusCode: resp.StatusCode,
+			ResponseBody:       responseBody,
+			FlyRequestId:       resp.Header.Get(headerFlyRequestId),
+		}
 	}
 	if out != nil {
 		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
@@ -330,17 +466,26 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 	return nil
 }
 
+func (f *Client) urlFromBaseUrl(pathAndQueryString string) (*url.URL, error) {
+	newUrl := *f.baseUrl // this does a copy: https://github.com/golang/go/issues/38351#issue-597797864
+	newPath, err := url.Parse(pathAndQueryString)
+	if err != nil {
+		return nil, fmt.Errorf("failed parsing flaps path '%s' with error: %w", pathAndQueryString, err)
+	}
+	return newUrl.ResolveReference(&url.URL{Path: newPath.Path, RawQuery: newPath.RawQuery}), nil
+}
+
 func (f *Client) NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error) {
-	var (
-		body   io.Reader
-		peerIP = f.peerIP
-	)
+	var body io.Reader
 
 	if headers == nil {
 		headers = make(map[string][]string)
 	}
 
-	targetEndpoint := fmt.Sprintf("http://[%s]:4280/v1/apps/%s/machines%s", peerIP, f.app.Name, path)
+	targetEndpoint, err := f.urlFromBaseUrl(fmt.Sprintf("/v1/apps/%s/machines%s", f.appName, path))
+	if err != nil {
+		return nil, err
+	}
 
 	if in != nil {
 		b, err := json.Marshal(in)
@@ -351,7 +496,7 @@ func (f *Client) NewRequest(ctx context.Context, method, path string, in interfa
 		body = bytes.NewReader(b)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, targetEndpoint, body)
+	req, err := http.NewRequestWithContext(ctx, method, targetEndpoint.String(), body)
 	if err != nil {
 		return nil, fmt.Errorf("could not create new request, %w", err)
 	}
@@ -362,17 +507,17 @@ func (f *Client) NewRequest(ctx context.Context, method, path string, in interfa
 	return req, nil
 }
 
-func handleAPIError(resp *http.Response) error {
-	switch resp.StatusCode / 100 {
+func handleAPIError(statusCode int, responseBody []byte) error {
+	switch statusCode / 100 {
 	case 1, 3:
-		return fmt.Errorf("API returned unexpected status, %d", resp.StatusCode)
+		return fmt.Errorf("API returned unexpected status, %d", statusCode)
 	case 4, 5:
 		apiErr := struct {
 			Error   string `json:"error"`
 			Message string `json:"message,omitempty"`
 		}{}
-		if err := json.NewDecoder(resp.Body).Decode(&apiErr); err != nil {
-			return fmt.Errorf("request returned non-2xx status, %d", resp.StatusCode)
+		if err := json.Unmarshal(responseBody, &apiErr); err != nil {
+			return fmt.Errorf("request returned non-2xx status, %d", statusCode)
 		}
 		if apiErr.Message != "" {
 			return fmt.Errorf("%s", apiErr.Message)

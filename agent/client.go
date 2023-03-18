@@ -20,18 +20,17 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/superfly/flyctl/agent/internal/proto"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/gql"
-	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/terminal"
-	"github.com/superfly/flyctl/wg"
-
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/wireguard"
+	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/terminal"
+	"github.com/superfly/flyctl/wg"
 )
 
 // Establish starts the daemon, if necessary, and returns a client to it.
@@ -434,10 +433,9 @@ func compareAndChooseResults(gqlResult instancesResult, agentResult *Instances, 
 		captureError(fmt.Errorf("gql error looking up: %s %s: %v", orgSlug, appName, gqlResult.Err), "agentclient-instances", orgSlug, appName)
 		return agentResult, nil
 	} else if agentErr != nil {
-		captureError(fmt.Errorf("dns error looking up: %s %s: %v\n", orgSlug, appName, agentErr), "agentclient-instances", orgSlug, appName)
+		captureError(fmt.Errorf("dns error looking up: %s %s: %v", orgSlug, appName, agentErr), "agentclient-instances", orgSlug, appName)
 		return gqlResult.Instances, nil
 	} else if !arrayEqual(gqlResult.Instances.Addresses, agentResult.Addresses) {
-		captureError(fmt.Errorf("gql and dns lookup results were different for: %s %s: gqlResult: %v dnsResult: %v\n", orgSlug, appName, gqlResult.Instances.Addresses, agentResult.Addresses), "agentclient-instances", orgSlug, appName)
 		return gqlResult.Instances, nil
 	} else {
 		return gqlResult.Instances, nil
@@ -451,7 +449,7 @@ func captureError(err error, feature, orgSlug, appName string) {
 	terminal.Debugf("error: %v\n", err)
 	sentry.CaptureException(err,
 		sentry.WithTag("feature", feature),
-		sentry.WithContexts(map[string]interface{}{
+		sentry.WithContexts(map[string]sentry.Context{
 			"app": map[string]interface{}{
 				"name": appName,
 			},

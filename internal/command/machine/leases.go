@@ -8,11 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/app"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
@@ -90,34 +87,16 @@ func newLeaseClear() *cobra.Command {
 
 func runLeaseView(ctx context.Context) (err error) {
 	var (
-		io      = iostreams.FromContext(ctx)
-		args    = flag.Args(ctx)
-		cfg     = config.FromContext(ctx)
-		appName = app.NameFromContext(ctx)
-		client  = client.FromContext(ctx).API()
+		io   = iostreams.FromContext(ctx)
+		args = flag.Args(ctx)
+		cfg  = config.FromContext(ctx)
 	)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	machines, ctx, err := selectManyMachines(ctx, args)
 	if err != nil {
-		return fmt.Errorf("could not get app: %w", err)
+		return err
 	}
-
-	ctx, err = apps.BuildContext(ctx, app)
-	if err != nil {
-		return
-	}
-
 	flapsClient := flaps.FromContext(ctx)
-
-	var machines []*api.Machine
-	// Resolve machines
-	for _, machineID := range args {
-		machine, err := flapsClient.Get(ctx, machineID)
-		if err != nil {
-			return fmt.Errorf("could not get machine %s: %w", machineID, err)
-		}
-		machines = append(machines, machine)
-	}
 
 	var leases = make(map[string]*api.MachineLease)
 
@@ -166,25 +145,17 @@ func runLeaseView(ctx context.Context) (err error) {
 
 func runLeaseClear(ctx context.Context) (err error) {
 	var (
-		io      = iostreams.FromContext(ctx)
-		args    = flag.Args(ctx)
-		appName = app.NameFromContext(ctx)
-		client  = client.FromContext(ctx).API()
+		io   = iostreams.FromContext(ctx)
+		args = flag.Args(ctx)
 	)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	machineIDs, ctx, err := selectManyMachineIDs(ctx, args)
 	if err != nil {
-		return fmt.Errorf("could not get app: %w", err)
+		return err
 	}
-
-	ctx, err = apps.BuildContext(ctx, app)
-	if err != nil {
-		return
-	}
-
 	flapsClient := flaps.FromContext(ctx)
 
-	for _, machineID := range args {
+	for _, machineID := range machineIDs {
 		lease, err := flapsClient.FindLease(ctx, machineID)
 		if err != nil {
 			if strings.Contains(err.Error(), " lease not found") {

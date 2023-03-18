@@ -12,6 +12,7 @@ import (
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/orgs/appsv2"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/sort"
@@ -38,6 +39,7 @@ Organization admins can also invite or remove users from Organizations.
 		newRemove(),
 		newCreate(),
 		newDelete(),
+		appsv2.New(),
 	)
 
 	return orgs
@@ -61,7 +63,7 @@ func emailFromSecondArgOrPrompt(ctx context.Context) (email string, err error) {
 
 var errSlugArgMustBeSpecified = prompt.NonInteractiveError("slug argument must be specified when not running interactively")
 
-func slugFromFirstArgOrSelect(ctx context.Context) (slug string, err error) {
+func slugFromFirstArgOrSelect(ctx context.Context, filters ...api.OrganizationFilter) (slug string, err error) {
 	if slug = flag.FirstArg(ctx); slug != "" {
 		return
 	}
@@ -76,7 +78,7 @@ func slugFromFirstArgOrSelect(ctx context.Context) (slug string, err error) {
 	client := client.FromContext(ctx).API()
 
 	var orgs []api.Organization
-	if orgs, err = client.GetOrganizations(ctx); err != nil {
+	if orgs, err = client.GetOrganizations(ctx, filters...); err != nil {
 		return
 	}
 	sort.OrganizationsByTypeAndName(orgs)
@@ -84,15 +86,15 @@ func slugFromFirstArgOrSelect(ctx context.Context) (slug string, err error) {
 	var org *api.Organization
 	if org, err = prompt.SelectOrg(ctx, orgs); prompt.IsNonInteractive(err) {
 		err = errSlugArgMustBeSpecified
-	} else {
+	} else if err == nil {
 		slug = org.Slug
 	}
 
 	return
 }
 
-func OrgFromFirstArgOrSelect(ctx context.Context) (*api.Organization, error) {
-	slug, err := slugFromFirstArgOrSelect(ctx)
+func OrgFromFirstArgOrSelect(ctx context.Context, filters ...api.OrganizationFilter) (*api.Organization, error) {
+	slug, err := slugFromFirstArgOrSelect(ctx, filters...)
 	if err != nil {
 		return nil, err
 	}

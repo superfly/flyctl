@@ -10,6 +10,7 @@ import (
 // can be expanded on as needed.
 var pgSettings = map[string]string{
 	"wal-level":                  "wal_level",
+	"max-wal-senders":            "max_wal_senders",
 	"max-connections":            "max_connections",
 	"shared-buffers":             "shared_buffers",
 	"log-statement":              "log_statement",

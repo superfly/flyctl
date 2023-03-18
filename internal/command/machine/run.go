@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/briandowns/spinner"
 	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
 	"github.com/pkg/errors"
@@ -17,11 +18,11 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
@@ -125,7 +126,22 @@ var sharedFlags = flag.Set{
 		Name:        "schedule",
 		Description: `Schedule a machine run at hourly, daily and monthly intervals`,
 	},
+	flag.Bool{
+		Name:        "skip-dns-registration",
+		Description: "Do not register the machine's 6PN IP with the intenral DNS system",
+	},
+	flag.Bool{
+		Name:        "autostart",
+		Description: "Automatically start a stopped machine when a network request is received",
+		Default:     true,
+	},
+	flag.String{
+		Name:        "restart",
+		Description: "Configure restart policy, for a machine. Options include 'no', 'always' and 'on-fail'. Default is set to always",
+	},
 }
+
+var s = spinner.New(spinner.CharSets[9], 100*time.Millisecond)
 
 func newRun() *cobra.Command {
 	const (
@@ -157,6 +173,10 @@ func newRun() *cobra.Command {
 			Name:        "org",
 			Description: `The organization that will own the app`,
 		},
+		flag.Bool{
+			Name:        "rm",
+			Description: "Automatically remove the machine when it exits",
+		},
 		sharedFlags,
 	)
 
@@ -167,7 +187,7 @@ func newRun() *cobra.Command {
 
 func runMachineRun(ctx context.Context) error {
 	var (
-		appName  = app.NameFromContext(ctx)
+		appName  = appconfig.NameFromContext(ctx)
 		client   = client.FromContext(ctx).API()
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
@@ -180,13 +200,24 @@ func runMachineRun(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+
+		if app == nil {
+			return nil
+		}
+
 	} else {
 		app, err = client.GetAppCompact(ctx, appName)
 		if err != nil && strings.Contains(err.Error(), "Could not find App") {
 			app, err = createApp(ctx, fmt.Sprintf("App '%s' does not exist, would you like to create it?", appName), appName, client)
+
+			if err != nil {
+				return err
+			}
+
 			if app == nil {
 				return nil
 			}
+
 		}
 		if err != nil {
 			return err
@@ -199,6 +230,10 @@ func runMachineRun(ctx context.Context) error {
 			CPUs:       1,
 			MemoryMB:   256,
 			KernelArgs: flag.GetStringSlice(ctx, "kernel-arg"),
+		},
+		AutoDestroy: flag.GetBool(ctx, "rm"),
+		DNS: &api.DNSConfig{
+			SkipRegistration: flag.GetBool(ctx, "skip-dns-registration"),
 		},
 	}
 
@@ -223,7 +258,7 @@ func runMachineRun(ctx context.Context) error {
 		return fmt.Errorf("to update an existing machine, use 'flyctl machine update'")
 	}
 
-	machineConf, err = determineMachineConfig(ctx, *machineConf, app, flag.FirstArg(ctx), input.Region)
+	machineConf, err = determineMachineConfig(ctx, *machineConf, app.Name, flag.FirstArg(ctx), input.Region)
 	if err != nil {
 		return err
 	}
@@ -246,8 +281,12 @@ func runMachineRun(ctx context.Context) error {
 	fmt.Fprintf(io.Out, " Instance ID: %s\n", instanceID)
 	fmt.Fprintf(io.Out, " State: %s\n", state)
 
+	fmt.Fprintf(io.Out, "\n Attempting to start machine...\n\n")
+	s.Start()
 	// wait for machine to be started
-	if err := mach.WaitForStartOrStop(ctx, machine, "start", time.Minute*5); err != nil {
+	err = mach.WaitForStartOrStop(ctx, machine, "start", time.Minute*5)
+	s.Stop()
+	if err != nil {
 		return err
 	}
 
@@ -328,6 +367,7 @@ func determineImage(ctx context.Context, appName string, imageOrPath string) (im
 	var (
 		client = client.FromContext(ctx).API()
 		io     = iostreams.FromContext(ctx)
+		cfg    = appconfig.ConfigFromContext(ctx)
 	)
 
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-nixpacks"))
@@ -343,7 +383,15 @@ func determineImage(ctx context.Context, appName string, imageOrPath string) (im
 			Target:     flag.GetString(ctx, "build-target"),
 			NoCache:    flag.GetBool(ctx, "no-build-cache"),
 		}
-		if dockerfilePath := flag.GetString(ctx, "dockerfile"); dockerfilePath != "" {
+
+		dockerfilePath := cfg.Dockerfile()
+
+		// dockerfile passed through flags takes precedence over the one set in config
+		if flag.GetString(ctx, "dockerfile") != "" {
+			dockerfilePath = flag.GetString(ctx, "dockerfile")
+		}
+
+		if dockerfilePath != "" {
 			dockerfilePath, err := filepath.Abs(dockerfilePath)
 			if err != nil {
 				return nil, err
@@ -437,7 +485,7 @@ func determineMounts(ctx context.Context, mounts []api.MachineMount, region stri
 }
 
 func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]api.Volume, error) {
-	appName := app.NameFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
 	apiclient := client.FromContext(ctx).API()
 
 	if regionCode == "" {
@@ -507,7 +555,7 @@ func determineServices(ctx context.Context) ([]api.MachineService, error) {
 	return machineServices, nil
 }
 
-func parsePorts(input string) (port, start_port, end_port *int32, internal_port int, err error) {
+func parsePorts(input string) (port, start_port, end_port *int, internal_port int, err error) {
 	split := strings.Split(input, ":")
 	if len(split) == 1 {
 		var external_port int
@@ -517,8 +565,7 @@ func parsePorts(input string) (port, start_port, end_port *int32, internal_port 
 			return
 		}
 
-		p := int32(external_port)
-		port = &p
+		port = api.IntPointer(external_port)
 	} else if len(split) == 2 {
 		internal_port, err = strconv.Atoi(split[1])
 		if err != nil {
@@ -535,8 +582,7 @@ func parsePorts(input string) (port, start_port, end_port *int32, internal_port 
 				return
 			}
 
-			p := int32(external_port)
-			port = &p
+			port = api.IntPointer(external_port)
 		} else if len(external_split) == 2 {
 			var start int
 			start, err = strconv.Atoi(external_split[0])
@@ -545,8 +591,7 @@ func parsePorts(input string) (port, start_port, end_port *int32, internal_port 
 				return
 			}
 
-			s := int32(start)
-			start_port = &s
+			start_port = api.IntPointer(start)
 
 			var end int
 			end, err = strconv.Atoi(external_split[0])
@@ -555,8 +600,7 @@ func parsePorts(input string) (port, start_port, end_port *int32, internal_port 
 				return
 			}
 
-			e := int32(end)
-			end_port = &e
+			end_port = api.IntPointer(end)
 		} else {
 			err = errors.New("external port must be at most 2 elements (port, or range start-end)")
 		}
@@ -577,18 +621,26 @@ func selectAppName(ctx context.Context) (name string, err error) {
 	return
 }
 
-func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, imageOrPath string, region string) (*api.MachineConfig, error) {
-	machineConf, err := mach.CloneConfig(initialMachineConf)
-	if err != nil {
-		return nil, err
-	}
+func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, appName string, imageOrPath string, region string) (*api.MachineConfig, error) {
+	machineConf := mach.CloneConfig(&initialMachineConf)
 
 	if guestSize := flag.GetString(ctx, "size"); guestSize != "" {
 		guest, ok := api.MachinePresets[guestSize]
+
 		if !ok {
+			var machine_type string
+
+			if strings.HasPrefix(guestSize, "shared") {
+				machine_type = "shared"
+			} else if strings.HasPrefix(guestSize, "performance") {
+				machine_type = "performance"
+			} else {
+				return machineConf, fmt.Errorf("invalid machine preset requested, '%s', expected to start with 'shared' or 'performance'", guestSize)
+			}
+
 			validSizes := []string{}
 			for size := range api.MachinePresets {
-				if strings.HasPrefix(size, "shared") {
+				if strings.HasPrefix(size, machine_type) {
 					validSizes = append(validSizes, size)
 				}
 			}
@@ -602,10 +654,14 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 	// Potential overrides for Guest
 	if cpus := flag.GetInt(ctx, "cpus"); cpus != 0 {
 		machineConf.Guest.CPUs = cpus
+	} else if flag.IsSpecified(ctx, "cpus") {
+		return nil, fmt.Errorf("cannot have zero cpus")
 	}
 
 	if memory := flag.GetInt(ctx, "memory"); memory != 0 {
 		machineConf.Guest.MemoryMB = memory
+	} else if flag.IsSpecified(ctx, "memory") {
+		return nil, fmt.Errorf("memory cannot be zero")
 	}
 
 	if len(flag.GetStringSlice(ctx, "kernel-arg")) != 0 {
@@ -627,6 +683,20 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 
 	if flag.GetString(ctx, "schedule") != "" {
 		machineConf.Schedule = flag.GetString(ctx, "schedule")
+	}
+
+	if command := flag.GetString(ctx, "command"); command != "" {
+		split, err := shlex.Split(command)
+		if err != nil {
+			return machineConf, errors.Wrap(err, "invalid command")
+		}
+		machineConf.Init.Cmd = split
+	}
+
+	if machineConf.DNS == nil {
+		machineConf.DNS = &api.DNSConfig{
+			SkipRegistration: flag.GetBool(ctx, "skip-dns-registration"),
+		}
 	}
 
 	// Metadata
@@ -659,7 +729,31 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		machineConf.Init.Entrypoint = splitted
 	}
 
-	if cmd := flag.Args(ctx)[1:]; len(cmd) > 0 {
+	// default restart policy to always unless otherwise specified
+	switch flag.GetString(ctx, "restart") {
+	case "no":
+		machineConf.Restart.Policy = api.MachineRestartPolicyNo
+	case "on-fail":
+		machineConf.Restart.Policy = api.MachineRestartPolicyOnFailure
+	case "always":
+		machineConf.Restart.Policy = api.MachineRestartPolicyAlways
+	case "":
+		// Apply the default only if it's not already set.
+		if machineConf.Restart.Policy == "" {
+			machineConf.Restart.Policy = api.MachineRestartPolicyAlways
+		}
+	default:
+		return machineConf, errors.New("invalid restart provided")
+	}
+
+	// `machine update` and `machine run` both use `determineMachineConfig`` to populate
+	// `machineConf`, but `update` uses `-a` to set an app while `run` uses the
+	// first argument.
+	// Since these are mutually exclusive, we distinguish between them by
+	// checking if `len(machineConf.Init.Cmd) == 0` and is already set, in which case we're being
+	// called from `run`.
+	// Otherwise, pull the command from the first positional argument.
+	if cmd := flag.Args(ctx)[1:]; len(cmd) > 0 && len(machineConf.Init.Cmd) == 0 {
 		machineConf.Init.Cmd = cmd
 	}
 
@@ -668,11 +762,12 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		return machineConf, err
 	}
 
-	img, err := determineImage(ctx, app.Name, imageOrPath)
+	img, err := determineImage(ctx, appName, imageOrPath)
 	if err != nil {
 		return machineConf, err
 	}
 	machineConf.Image = img.Tag
+	machineConf.DisableMachineAutostart = !flag.GetBool(ctx, "autostart")
 
 	return machineConf, nil
 }

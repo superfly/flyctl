@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
@@ -39,7 +39,7 @@ func newStatus() *cobra.Command {
 func runStatus(ctx context.Context) (err error) {
 	var (
 		io       = iostreams.FromContext(ctx)
-		appName  = app.NameFromContext(ctx)
+		appName  = appconfig.NameFromContext(ctx)
 		client   = client.FromContext(ctx).API()
 		logLimit = 25
 	)
@@ -54,9 +54,14 @@ func runStatus(ctx context.Context) (err error) {
 		return fmt.Errorf("it looks like your app is running on v2 of our platform, and does not support this legacy command: try running fly machine status instead")
 	}
 
-	alloc, err := client.GetAllocationStatus(ctx, appName, flag.FirstArg(ctx), logLimit)
+	allocID := flag.FirstArg(ctx)
+	alloc, err := client.GetAllocationStatus(ctx, appName, allocID, logLimit)
 	if err != nil {
 		return fmt.Errorf("failed to fetch allocation status: %w", err)
+	}
+
+	if alloc == nil {
+		return fmt.Errorf("allocation '%s' was not found in app '%s'", allocID, appName)
 	}
 
 	if err = render.AllocationStatus(io.Out, "Instance", alloc); err != nil {

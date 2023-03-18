@@ -12,7 +12,7 @@ import (
 
 func New() *cobra.Command {
 	const (
-		long  = `The APPS RESTART command will perform a rolling restart against all running VM's`
+		long  = `This command has been removed. Use 'fly apps restart' instead.`
 		short = "Restart an application"
 		usage = "restart [APPNAME]"
 	)
@@ -21,6 +21,7 @@ func New() *cobra.Command {
 		command.RequireSession,
 	)
 	cmd.Args = cobra.RangeArgs(0, 1)
+	cmd.Hidden = true
 
 	flag.Add(cmd,
 		flag.Bool{

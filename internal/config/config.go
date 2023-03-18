@@ -16,6 +16,7 @@ const (
 
 	envKeyPrefix          = "FLY_"
 	apiBaseURLEnvKey      = envKeyPrefix + "API_BASE_URL"
+	flapsBaseURLEnvKey    = envKeyPrefix + "FLAPS_BASE_URL"
 	AccessTokenEnvKey     = envKeyPrefix + "ACCESS_TOKEN"
 	AccessTokenFileKey    = "access_token"
 	WireGuardStateFileKey = "wire_guard_state"
@@ -30,6 +31,7 @@ const (
 	localOnlyEnvKey       = envKeyPrefix + "LOCAL_ONLY"
 
 	defaultAPIBaseURL   = "https://api.fly.io"
+	defaultFlapsBaseURL = "https://api.machines.dev"
 	defaultRegistryHost = "registry.fly.io"
 )
 
@@ -41,6 +43,9 @@ type Config struct {
 
 	// APIBaseURL denotes the base URL of the API.
 	APIBaseURL string
+
+	// FlapsBaseURL denotes base URL for FLAPS (also known as the Machines API).
+	FlapsBaseURL string
 
 	// RegistryHost denotes the docker registry host.
 	RegistryHost string
@@ -71,6 +76,7 @@ type Config struct {
 func New() *Config {
 	return &Config{
 		APIBaseURL:   defaultAPIBaseURL,
+		FlapsBaseURL: defaultFlapsBaseURL,
 		RegistryHost: defaultRegistryHost,
 	}
 }
@@ -99,6 +105,7 @@ func (cfg *Config) ApplyEnv() {
 	cfg.Region = env.FirstOrDefault(cfg.Region, regionEnvKey)
 	cfg.RegistryHost = env.FirstOrDefault(cfg.RegistryHost, registryHostEnvKey)
 	cfg.APIBaseURL = env.FirstOrDefault(cfg.APIBaseURL, apiBaseURLEnvKey)
+	cfg.FlapsBaseURL = env.FirstOrDefault(cfg.FlapsBaseURL, flapsBaseURLEnvKey)
 }
 
 // ApplyFile sets the properties of cfg which may be set via configuration file

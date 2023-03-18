@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/hashicorp/go-version"
 	"github.com/spf13/cobra"
@@ -37,6 +38,7 @@ func New() *cobra.Command {
 		newFailover(),
 		newNomadToMachines(),
 		newAddFlycast(),
+		newImport(),
 	)
 
 	return cmd
@@ -84,6 +86,11 @@ func hasRequiredVersionOnNomad(app *api.AppCompact, cluster, standalone string) 
 }
 
 func hasRequiredVersionOnMachines(machines []*api.Machine, cluster, flex, standalone string) error {
+	_, dev := os.LookupEnv("FLY_DEV")
+	if dev {
+		return nil
+	}
+
 	for _, machine := range machines {
 		// Validate image version to ensure it's compatible with this feature.
 		if machine.ImageVersion() == "" || machine.ImageVersion() == "unknown" {
@@ -119,7 +126,7 @@ func hasRequiredVersionOnMachines(machines []*api.Machine, cluster, flex, standa
 			}
 		}
 
-		if machine.ImageRepository() == "flyio/postgres-flex" {
+		if IsFlex(machine) {
 			requiredVersion, err = version.NewVersion(flex)
 			if err != nil {
 				return err
@@ -139,6 +146,17 @@ func hasRequiredVersionOnMachines(machines []*api.Machine, cluster, flex, standa
 
 	}
 	return nil
+}
+
+func IsFlex(machine *api.Machine) bool {
+	switch {
+	case machine == nil || len(machine.ImageRef.Labels) == 0:
+		return false
+	case machine.ImageRef.Labels["fly.pg-manager"] == "repmgr":
+		return true
+	default:
+		return false
+	}
 }
 
 func machinesNodeRoles(ctx context.Context, machines []*api.Machine) (leader *api.Machine, replicas []*api.Machine) {

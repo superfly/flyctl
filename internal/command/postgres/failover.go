@@ -11,7 +11,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/flypg"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
@@ -49,7 +49,7 @@ func runFailover(ctx context.Context) (err error) {
 
 		io      = iostreams.FromContext(ctx)
 		client  = client.FromContext(ctx).API()
-		appName = app.NameFromContext(ctx)
+		appName = appconfig.NameFromContext(ctx)
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -90,8 +90,8 @@ func runFailover(ctx context.Context) (err error) {
 		return err
 	}
 
-	if leader.ImageRef.Repository == "flyio/postgres-flex" {
-		return fmt.Errorf("the 'flyio/postgres-flex' image does not currently support manual failovers")
+	if IsFlex(leader) {
+		return fmt.Errorf("This feature is not availble at this time. To issue a manual failover, please see: https://github.com/fly-apps/postgres-flex/blob/master/docs/manual_failovers.md")
 	}
 
 	flapsClient := flaps.FromContext(ctx)

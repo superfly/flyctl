@@ -10,7 +10,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmd/presenters"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -47,9 +47,23 @@ including type, when, success/fail and which user triggered the release.
 }
 
 func runReleases(ctx context.Context) error {
-	appName := app.NameFromContext(ctx)
+	var (
+		appName  = appconfig.NameFromContext(ctx)
+		client   = client.FromContext(ctx).API()
+		releases []api.Release
+	)
 
-	releases, err := client.FromContext(ctx).API().GetAppReleases(ctx, appName, 25)
+	app, err := client.GetAppCompact(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
+	}
+
+	if app.PlatformVersion == "machines" {
+		releases, err = client.GetAppReleasesMachines(ctx, appName, 25)
+	} else {
+		releases, err = client.GetAppReleasesNomad(ctx, appName, 25)
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed retrieving app releases %s: %w", appName, err)
 	}

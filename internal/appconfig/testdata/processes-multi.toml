@@ -1,0 +1,7 @@
+# Use this file to test processconfig.go
+app = "foo"
+
+[processes]
+zzz = "/zzzz"
+bar = "/app/bar"
+foo = "/app/foo"

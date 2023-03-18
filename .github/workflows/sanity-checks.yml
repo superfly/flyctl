@@ -1,4 +1,4 @@
-name: pre-commit
+name: Sanity Checks
 
 on:
   pull_request:
@@ -18,5 +18,16 @@ jobs:
           extra_args: --all-files --hook-stage=manual
       - uses: golangci/golangci-lint-action@master
         with:
-          version: v1.49.0
-      - run: go mod download
+          version: v1.51.2
+
+  lint-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+        with:
+          go-version-file: "api/go.mod"
+      - uses: golangci/golangci-lint-action@master
+        with:
+          version: v1.51.2
+          working-directory: "api"

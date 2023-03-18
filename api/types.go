@@ -254,16 +254,11 @@ type IssuedCertificate struct {
 
 type Definition map[string]interface{}
 
-type MachineInit struct {
-	Exec       []string `json:"exec"`
-	Entrypoint []string `json:"entrypoint"`
-	Cmd        []string `json:"cmd"`
-	Tty        bool     `json:"tty"`
-}
-
 func DefinitionPtr(in map[string]interface{}) *Definition {
-	x := Definition(in)
-	return &x
+	if len(in) > 0 {
+		return Pointer(Definition(in))
+	}
+	return nil
 }
 
 type ImageVersion struct {
@@ -275,11 +270,19 @@ type ImageVersion struct {
 }
 
 func (img *ImageVersion) FullImageRef() string {
-	return fmt.Sprintf("%s/%s:%s", img.Registry, img.Repository, img.Tag)
-}
+	imgStr := fmt.Sprintf("%s/%s", img.Registry, img.Repository)
+	tag := img.Tag
+	digest := img.Digest
 
-func (img *ImageVersion) ImageRef() string {
-	return fmt.Sprintf("%s:%s", img.Repository, img.Tag)
+	if tag != "" && digest != "" {
+		imgStr = fmt.Sprintf("%s:%s@%s", imgStr, tag, digest)
+	} else if digest != "" {
+		imgStr = fmt.Sprintf("%s@%s", imgStr, digest)
+	} else if tag != "" {
+		imgStr = fmt.Sprintf("%s:%s", imgStr, tag)
+	}
+
+	return imgStr
 }
 
 type App struct {
@@ -536,7 +539,10 @@ type Organization struct {
 	RemoteBuilderApp   *App
 	Slug               string
 	Type               string
-	Domains            struct {
+	PaidPlan           bool
+	Settings           map[string]any
+
+	Domains struct {
 		Nodes *[]*Domain
 		Edges *[]*struct {
 			Cursor *string
@@ -584,8 +590,10 @@ func (o *Organization) GetSlug() string {
 }
 
 type OrganizationBasic struct {
-	ID   string
-	Slug string
+	ID       string
+	Name     string
+	Slug     string
+	PaidPlan bool
 }
 
 func (o *OrganizationBasic) GetID() string {
@@ -972,6 +980,7 @@ type Region struct {
 	Latitude         float32
 	Longitude        float32
 	GatewayAvailable bool
+	RequiresPaidPlan bool
 }
 
 type AutoscalingConfig struct {

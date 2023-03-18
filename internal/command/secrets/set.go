@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -21,7 +21,7 @@ func newSet() (cmd *cobra.Command) {
 		usage = "set [flags] NAME=VALUE NAME=VALUE ..."
 	)
 
-	cmd = command.New(usage, short, long, runSet, command.RequireSession, command.LoadAppNameIfPresent)
+	cmd = command.New(usage, short, long, runSet, command.RequireSession, command.RequireAppName)
 
 	flag.Add(cmd,
 		sharedFlags,
@@ -34,7 +34,7 @@ func newSet() (cmd *cobra.Command) {
 
 func runSet(ctx context.Context) (err error) {
 	client := client.FromContext(ctx).API()
-	appName := app.NameFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err

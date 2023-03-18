@@ -28,7 +28,7 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 		},
 		Statics: []Static{
 			{
-				GuestPath: "/app/public",
+				GuestPath: "/code/static",
 				UrlPrefix: "/static/",
 			},
 		},
@@ -37,21 +37,13 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 
 	// check if requirements.txt has a postgres dependency
 	if checksPass(sourceDir, dirContains("requirements.txt", "psycopg2")) {
-		s.InitCommands = []InitCommand{
-			{
-				// python makemigrations
-				Command:     "python",
-				Args:        []string{"manage.py", "makemigrations"},
-				Description: "Creating database migrations",
-			},
-		}
 		s.ReleaseCmd = "python manage.py migrate"
 
-		if !checksPass(sourceDir, dirContains("requirements.txt", "database_url")) {
+		if !checksPass(sourceDir, dirContains("requirements.txt", "django-environ", "dj-database-url")) {
 			s.DeployDocs = `
 Your Django app is almost ready to deploy!
 
-We recommend using the database_url(pip install dj-database-url) to parse the DATABASE_URL from os.environ['DATABASE_URL']
+We recommend using the django-environ(pip install django-environ) or dj-database-url(pip install dj-database-url) to parse the DATABASE_URL from os.environ['DATABASE_URL']
 
 For detailed documentation, see https://fly.dev/docs/django/
 		`

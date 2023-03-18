@@ -1,0 +1,10 @@
+# Use this file to test processconfig.go
+app = "foo"
+
+# "app" is the default process because it is present
+[processes]
+aaa = "/run1"
+ass = "/run2"
+app = "/run2"
+bbb = "/run3"
+abc = "/run1"

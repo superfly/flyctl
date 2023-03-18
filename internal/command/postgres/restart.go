@@ -3,14 +3,13 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flypg"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
@@ -50,7 +49,7 @@ func newRestart() *cobra.Command {
 
 func runRestart(ctx context.Context) error {
 	var (
-		appName = app.NameFromContext(ctx)
+		appName = appconfig.NameFromContext(ctx)
 		client  = client.FromContext(ctx).API()
 	)
 
@@ -101,11 +100,8 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 		return err
 	}
 
-	_, dev := os.LookupEnv("FLY_DEV")
-	if !dev {
-		if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
-			return err
-		}
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
+		return err
 	}
 
 	leader, replicas := machinesNodeRoles(ctx, machines)
@@ -117,7 +113,7 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 	}
 
 	manager := flypg.StolonManager
-	if leader.ImageRef.Repository == "flyio/postgres-flex" {
+	if IsFlex(leader) {
 		manager = flypg.ReplicationManager
 	}
 
@@ -128,7 +124,7 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 
 	// Restarting replicas
 	for _, replica := range replicas {
-		if err = mach.Restart(ctx, replica, input); err != nil {
+		if err = mach.Restart(ctx, replica, input, replica.LeaseNonce); err != nil {
 			return err
 		}
 	}
@@ -155,7 +151,7 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 		}
 	}
 
-	if err = mach.Restart(ctx, leader, input); err != nil {
+	if err = mach.Restart(ctx, leader, input, leader.LeaseNonce); err != nil {
 		return err
 	}
 

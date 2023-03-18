@@ -3,7 +3,10 @@
 schema: gql/schema.graphql
 operations:
   - agent/**.go
+  - api/**.go
+  - internal/appconfig/*.go
   - internal/command/**/*.go
+  - internal/command/**/**/*.go
   - internal/build/imgsrc/*.go
 bindings:
   JSON:

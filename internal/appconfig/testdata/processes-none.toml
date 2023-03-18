@@ -1,0 +1,4 @@
+# Use this file to test processconfig.go
+app = "foo"
+
+[processes]

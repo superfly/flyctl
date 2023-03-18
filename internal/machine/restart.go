@@ -19,13 +19,13 @@ func RollingRestart(ctx context.Context, input *api.RestartMachineInput) error {
 	}
 
 	for _, m := range machines {
-		Restart(ctx, m, input)
+		Restart(ctx, m, input, m.LeaseNonce)
 	}
 
 	return nil
 }
 
-func Restart(ctx context.Context, m *api.Machine, input *api.RestartMachineInput) error {
+func Restart(ctx context.Context, m *api.Machine, input *api.RestartMachineInput, nonce string) error {
 	var (
 		flapsClient = flaps.FromContext(ctx)
 		io          = iostreams.FromContext(ctx)
@@ -34,7 +34,7 @@ func Restart(ctx context.Context, m *api.Machine, input *api.RestartMachineInput
 
 	fmt.Fprintf(io.Out, "Restarting machine %s\n", colorize.Bold(m.ID))
 	input.ID = m.ID
-	if err := flapsClient.Restart(ctx, *input); err != nil {
+	if err := flapsClient.Restart(ctx, *input, nonce); err != nil {
 		return fmt.Errorf("could not stop machine %s: %w", input.ID, err)
 	}
 

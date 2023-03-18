@@ -4,22 +4,22 @@ go 1.19
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.5
-	github.com/BurntSushi/toml v1.1.1-0.20220529222432-dcb2346503b4
+	github.com/BurntSushi/toml v1.2.1
 	github.com/Khan/genqlient v0.5.0
 	github.com/alecthomas/chroma v0.10.0
 	github.com/avast/retry-go/v4 v4.2.0
 	github.com/azazeal/pause v1.0.6
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/briandowns/spinner v1.19.0
+	github.com/briandowns/spinner v1.23.0
 	github.com/buildpacks/pack v0.21.0
+	github.com/cavaliergopher/grab/v3 v3.0.1
 	github.com/chzyer/readline v1.5.1
 	github.com/cli/safeexec v1.0.0
 	github.com/containerd/console v1.0.2
 	github.com/docker/docker v20.10.8+incompatible
 	github.com/dustin/go-humanize v1.0.0
 	github.com/ejcx/sshcert v1.0.1
-	github.com/getsentry/sentry-go v0.12.0
-	github.com/go-playground/validator/v10 v10.11.0
+	github.com/getsentry/sentry-go v0.19.0
 	github.com/gofrs/flock v0.8.0
 	github.com/google/go-cmp v0.5.9
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
@@ -27,6 +27,7 @@ require (
 	github.com/hashicorp/go-version v1.3.0
 	github.com/heroku/heroku-go/v5 v5.4.0
 	github.com/inancgumus/screen v0.0.0-20190314163918-06e984b86ed3
+	github.com/jinzhu/copier v0.3.5
 	github.com/jpillora/backoff v1.0.0
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/mattn/go-colorable v0.1.13
@@ -53,8 +54,9 @@ require (
 	github.com/stretchr/testify v1.8.0
 	github.com/superfly/flyctl/api v0.0.0-20220708073423-b6d7c3cf5161
 	github.com/superfly/graphql v0.2.3
-	github.com/vektah/gqlparser/v2 v2.4.5
+	github.com/vektah/gqlparser/v2 v2.4.8
 	golang.org/x/crypto v0.5.0
+	golang.org/x/exp v0.0.0-20220303212507-bbda1eaf7a17
 	golang.org/x/net v0.5.0
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
 	golang.org/x/term v0.4.0
@@ -69,14 +71,13 @@ require (
 	github.com/alexflint/go-arg v1.4.2 // indirect
 	github.com/alexflint/go-scalar v1.0.0 // indirect
 	github.com/dlclark/regexp2 v1.4.0 // indirect
-	github.com/go-playground/locales v0.14.0 // indirect
-	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/google/btree v1.0.1 // indirect
 	github.com/kr/fs v0.1.0 // indirect
-	github.com/leodido/go-urn v1.2.1 // indirect
-	golang.org/x/exp v0.0.0-20220303212507-bbda1eaf7a17 // indirect
+	github.com/kr/pretty v0.3.0 // indirect
+	github.com/rogpeppe/go-internal v1.8.0 // indirect
 	golang.org/x/tools v0.1.12 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20211104114900-415007cec224 // indirect
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gvisor.dev/gvisor v0.0.0-20220817001344-846276b3dbc5 // indirect
 )
 
@@ -112,10 +113,9 @@ require (
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
-	github.com/golang/snappy v0.0.4-0.20210608040537-544b4180ac70 // indirect
 	github.com/google/go-containerregistry v0.6.0 // indirect
-	github.com/google/go-querystring v1.0.0 // indirect
-	github.com/google/uuid v1.2.0 // indirect
+	github.com/google/go-querystring v1.0.0
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
@@ -125,7 +125,7 @@ require (
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kevinburke/ssh_config v0.0.0-20190725054713-01f96b0aa0cd // indirect
-	github.com/klauspost/compress v1.13.4 // indirect
+	github.com/klauspost/compress v1.15.11 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/magiconair/properties v1.8.5 // indirect
 	github.com/mattn/go-runewidth v0.0.10 // indirect
@@ -148,7 +148,7 @@ require (
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/sabhiram/go-gitignore v0.0.0-20201211074657-223ce5d391b0 // indirect
 	github.com/sergi/go-diff v1.1.0 // indirect
-	github.com/sirupsen/logrus v1.8.1 // indirect
+	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/spf13/afero v1.6.0 // indirect
 	github.com/spf13/cast v1.3.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
@@ -170,10 +170,10 @@ require (
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/sys v0.4.0
 	golang.org/x/text v0.6.0 // indirect
-	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
+	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af
 	google.golang.org/genproto v0.0.0-20210722135532-667f2b7c528f // indirect
-	google.golang.org/protobuf v1.27.1 // indirect
-	gopkg.in/ini.v1 v1.62.0 // indirect
+	google.golang.org/protobuf v1.28.1 // indirect
+	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/src-d/go-billy.v4 v4.3.2 // indirect
 	gopkg.in/src-d/go-git.v4 v4.13.1 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect

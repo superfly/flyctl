@@ -14,11 +14,11 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
+	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/terminal"
 )
 
 type AppChecker struct {
@@ -28,17 +28,27 @@ type AppChecker struct {
 	ctx        context.Context
 	app        *api.AppCompact
 	workDir    string
-	appConfig  *app.Config
+	appConfig  *appconfig.Config
 	apiClient  *api.Client
 }
 
-func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorScheme) *AppChecker {
-	appName := app.NameFromContext(ctx)
+func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorScheme) (*AppChecker, error) {
+	appName := appconfig.NameFromContext(ctx)
 	if appName == "" {
 		if !jsonOutput {
 			fmt.Println("No app provided; skipping app specific checks")
 		}
-		return nil
+		return nil, nil
+	}
+
+	apiClient := client.FromContext(ctx).API()
+	appCompact, err := apiClient.GetAppCompact(ctx, appName)
+	if err != nil {
+		return nil, err
+	}
+	ctx, err = apps.BuildContext(ctx, appCompact)
+	if err != nil {
+		return nil, err
 	}
 
 	ac := &AppChecker{
@@ -46,28 +56,28 @@ func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorS
 		checks:     make(map[string]string),
 		color:      color,
 		ctx:        ctx,
-		apiClient:  client.FromContext(ctx).API(),
+		apiClient:  apiClient,
 		workDir:    state.WorkingDirectory(ctx),
 		app:        nil,
 		appConfig:  nil,
 	}
 
-	appCompact, err := ac.apiClient.GetAppCompact(ctx, appName)
-	if err != nil {
-		if !jsonOutput {
-			terminal.Debugf("API error looking up app with name %s: %v\n", appName, err)
-		}
-		return nil
-	}
-
 	if !appCompact.Deployed && appCompact.PlatformVersion != "machines" {
 		ac.lprint(color.Yellow, "%s app has not been deployed yet. Skipping app checks. Deploy using `flyctl deploy`.\n", appName)
-		return nil
+		return nil, nil
 	}
 
 	ac.app = appCompact
-	ac.appConfig = app.ConfigFromContext(ctx)
-	return ac
+	ac.appConfig = appconfig.ConfigFromContext(ctx)
+
+	if ac.appConfig == nil {
+		ac.appConfig, err = appconfig.FromRemoteApp(ctx, ac.app.Name)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return ac, nil
 }
 
 func (ac *AppChecker) lprint(color func(string) string, fmtstr string, args ...interface{}) {
@@ -88,8 +98,8 @@ func (ac *AppChecker) checkAll() map[string]string {
 	ipAddresses := ac.checkIpsAllocated()
 	ac.checkDnsRecords(ipAddresses)
 
-	relPath, err := filepath.Rel(ac.workDir, ac.appConfig.Path)
-	if err == nil && relPath == app.DefaultConfigFileName {
+	relPath, err := filepath.Rel(ac.workDir, ac.appConfig.ConfigFilePath())
+	if err == nil && relPath == appconfig.DefaultConfigFileName {
 		ac.lprint(nil, "\nBuild checks for %s:\n", ac.app.Name)
 		contextSize := ac.checkDockerContext()
 		// only show longer .dockerignore message when context size > 50MB
@@ -269,7 +279,7 @@ func (ac *AppChecker) checkDockerContext() int {
 	var dockerfile string
 	var err error
 	if dockerfile = ac.appConfig.Dockerfile(); dockerfile != "" {
-		dockerfile = filepath.Join(filepath.Dir(ac.appConfig.Path), dockerfile)
+		dockerfile = filepath.Join(filepath.Dir(ac.appConfig.ConfigFilePath()), dockerfile)
 	}
 	if dockerfile != "" {
 		dockerfile, err = filepath.Abs(dockerfile)

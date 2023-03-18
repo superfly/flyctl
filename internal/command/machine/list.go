@@ -5,9 +5,10 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -25,7 +26,7 @@ func newList() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runMachineList,
 		command.RequireSession,
-		command.LoadAppNameIfPresent,
+		command.RequireAppName,
 	)
 
 	cmd.Aliases = []string{"ls"}
@@ -47,7 +48,7 @@ func newList() *cobra.Command {
 
 func runMachineList(ctx context.Context) (err error) {
 	var (
-		appName = app.NameFromContext(ctx)
+		appName = appconfig.NameFromContext(ctx)
 		client  = client.FromContext(ctx).API()
 		io      = iostreams.FromContext(ctx)
 		silence = flag.GetBool(ctx, "quiet")
@@ -78,7 +79,9 @@ func runMachineList(ctx context.Context) (err error) {
 	}
 
 	if len(machines) == 0 {
-		fmt.Fprintf(io.Out, "No machines are available on this app %s\n", appName)
+		if !silence {
+			fmt.Fprintf(io.Out, "No machines are available on this app %s\n", appName)
+		}
 		return nil
 	}
 
@@ -89,17 +92,37 @@ func runMachineList(ctx context.Context) (err error) {
 	rows := [][]string{}
 
 	listOfMachinesLink := io.CreateLink("View them in the UI here", fmt.Sprintf("https://fly.io/apps/%s/machines/", appName))
-	fmt.Fprintf(io.Out, "%d machines have been retrieved from app %s.\n%s\n\n", len(machines), appName, listOfMachinesLink)
+
+	if !silence {
+		fmt.Fprintf(io.Out, "%d machines have been retrieved from app %s.\n%s\n\n", len(machines), appName, listOfMachinesLink)
+
+	}
 	if silence {
 		for _, machine := range machines {
 			rows = append(rows, []string{machine.ID})
 		}
-		_ = render.Table(io.Out, appName, rows, "ID")
+		_ = render.Table(io.Out, "", rows)
 	} else {
 		for _, machine := range machines {
 			var volName string
 			if machine.Config != nil && len(machine.Config.Mounts) > 0 {
 				volName = machine.Config.Mounts[0].Volume
+			}
+
+			appPlatform := ""
+			machineProcessGroup := ""
+
+			if machine.Config != nil {
+				if platformVersion, ok := machine.Config.Metadata[api.MachineConfigMetadataKeyFlyPlatformVersion]; ok {
+					appPlatform = platformVersion
+
+				}
+
+				if processGroup := machine.ProcessGroup(); processGroup != "" {
+					machineProcessGroup = processGroup
+
+				}
+
 			}
 
 			rows = append(rows, []string{
@@ -112,10 +135,13 @@ func runMachineList(ctx context.Context) (err error) {
 				volName,
 				machine.CreatedAt,
 				machine.UpdatedAt,
+				appPlatform,
+				machineProcessGroup,
 			})
+
 		}
 
-		_ = render.Table(io.Out, appName, rows, "ID", "Name", "State", "Region", "Image", "IP Address", "Volume", "Created", "Last Updated")
+		_ = render.Table(io.Out, appName, rows, "ID", "Name", "State", "Region", "Image", "IP Address", "Volume", "Created", "Last Updated", "App Platform", "Process Group")
 	}
 	return nil
 }

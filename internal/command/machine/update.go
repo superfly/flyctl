@@ -7,12 +7,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/watch"
@@ -23,7 +21,7 @@ func newUpdate() *cobra.Command {
 		short = "Update a machine"
 		long  = short + "\n"
 
-		usage = "update [machine_id]"
+		usage = "update <machine_id>"
 	)
 
 	cmd := command.New(usage, short, long, runUpdate,
@@ -41,6 +39,11 @@ func newUpdate() *cobra.Command {
 			Description: "Updates machine without waiting for health checks.",
 			Default:     false,
 		},
+		flag.String{
+			Name:        "command",
+			Shorthand:   "C",
+			Description: "Command to run",
+		},
 	)
 
 	cmd.Args = cobra.ExactArgs(1)
@@ -50,36 +53,21 @@ func newUpdate() *cobra.Command {
 
 func runUpdate(ctx context.Context) (err error) {
 	var (
-		appName  = app.NameFromContext(ctx)
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
 
 		machineID        = flag.FirstArg(ctx)
 		autoConfirm      = flag.GetBool(ctx, "yes")
 		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
+		image            = flag.GetString(ctx, "image")
+		dockerfile       = flag.GetString(ctx, flag.Dockerfile().Name)
 	)
 
-	app, err := appFromMachineOrName(ctx, machineID, appName)
-	if err != nil {
-		return fmt.Errorf("could not make flaps client: %w", err)
-	}
-
-	ctx, err = apps.BuildContext(ctx, app)
+	machine, ctx, err := selectOneMachine(ctx, nil, machineID)
 	if err != nil {
 		return err
 	}
-
-	flapsClient, err := flaps.New(ctx, app)
-	if err != nil {
-		return fmt.Errorf("could not make flaps client: %w", err)
-	}
-
-	// Get machine
-
-	machine, err := flapsClient.Get(ctx, machineID)
-	if err != nil {
-		return err
-	}
+	appName := appconfig.NameFromContext(ctx)
 
 	// Acquire lease
 	machine, releaseLeaseFunc, err := mach.AcquireLease(ctx, machine)
@@ -88,18 +76,22 @@ func runUpdate(ctx context.Context) (err error) {
 		return err
 	}
 
-	// Resolve image
-	imageOrPath := machine.Config.Image
-	image := flag.GetString(ctx, flag.ImageName)
-	dockerfile := flag.GetString(ctx, flag.Dockerfile().Name)
-	if len(image) > 0 {
+	var imageOrPath string
+
+	if image != "" {
 		imageOrPath = image
-	} else if len(dockerfile) > 0 {
-		imageOrPath = "." // cwd
+	} else if dockerfile != "" {
+		imageOrPath = "."
+	} else {
+		imageOrPath = machine.FullImageRef()
+	}
+
+	if imageOrPath == "" {
+		return fmt.Errorf("failed to resolve machine image")
 	}
 
 	// Identify configuration changes
-	machineConf, err := determineMachineConfig(ctx, *machine.Config, app, imageOrPath, machine.Region)
+	machineConf, err := determineMachineConfig(ctx, *machine.Config, appName, imageOrPath, machine.Region)
 	if err != nil {
 		return err
 	}
@@ -119,7 +111,7 @@ func runUpdate(ctx context.Context) (err error) {
 	// Perform update
 	input := &api.LaunchMachineInput{
 		ID:               machine.ID,
-		AppID:            app.Name,
+		AppID:            appName,
 		Name:             machine.Name,
 		Region:           machine.Region,
 		Config:           machineConf,
@@ -138,7 +130,7 @@ func runUpdate(ctx context.Context) (err error) {
 		fmt.Fprintln(io.Out)
 	}
 
-	fmt.Fprintf(io.Out, "\nMonitor machine status here:\nhttps://fly.io/apps/%s/machines/%s\n", app.Name, machine.ID)
+	fmt.Fprintf(io.Out, "\nMonitor machine status here:\nhttps://fly.io/apps/%s/machines/%s\n", appName, machine.ID)
 
 	return nil
 }

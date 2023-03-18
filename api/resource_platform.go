@@ -11,6 +11,7 @@ func (c *Client) PlatformRegions(ctx context.Context) ([]Region, *Region, error)
 					name
 					code
 					gatewayAvailable
+					requiresPaidPlan
 				}
 			}
 		}
@@ -47,6 +48,7 @@ func (c *Client) PlatformRegionsAll(ctx context.Context) ([]Region, error) {
 					latitude
 					longitude
 					gatewayAvailable
+					requiresPlan
 				}
 			}
 		}

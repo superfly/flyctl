@@ -6,9 +6,11 @@ import (
 	"fmt"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -60,18 +62,37 @@ func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Rel
 		return
 	}
 
-	if app.PlatformVersion == "machines" {
-
-		if flag.GetBool(ctx, "detach") {
-			fmt.Fprint(out, "The --detach option isn't available for Machine apps")
-		}
-
-		return deploy.DeployMachinesApp(ctx, app, "rolling", api.MachineConfig{}, nil)
-	}
-
 	if !app.Deployed {
 		fmt.Fprint(out, "Secrets are staged for the first deployment")
 		return
+	}
+
+	if app.PlatformVersion == "machines" {
+		// It would be confusing for setting secrets to deploy the current fly.toml file.
+		// Instead, we always grab the currently deployed app config
+		cfg, err := appconfig.FromRemoteApp(ctx, app.Name)
+		if err != nil {
+			return err
+		}
+		ctx = appconfig.WithConfig(ctx, cfg)
+
+		if err != nil {
+			return fmt.Errorf("error loading appv2 config: %w", err)
+		}
+		md, err := deploy.NewMachineDeployment(ctx, deploy.MachineDeploymentArgs{
+			AppCompact:       app,
+			RestartOnly:      true,
+			SkipHealthChecks: flag.GetBool(ctx, "detach"),
+		})
+		if err != nil {
+			sentry.CaptureExceptionWithAppInfo(err, "secrets", app)
+			return err
+		}
+		err = md.DeployMachinesApp(ctx)
+		if err != nil {
+			sentry.CaptureExceptionWithAppInfo(err, "secrets", app)
+		}
+		return err
 	}
 
 	fmt.Fprintf(out, "Release v%d created\n", release.Version)

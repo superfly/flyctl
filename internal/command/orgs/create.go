@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
@@ -28,6 +29,13 @@ organization later.
 	cmd := command.New(usage, short, long, runCreate,
 		command.RequireSession)
 
+	flag.Add(cmd,
+		flag.Bool{
+			Name:        "apps-v2-default-on",
+			Description: "Configure this org to use apps v2 by default for new apps",
+			Default:     false,
+		},
+	)
 	cmd.Args = cobra.MaximumNArgs(1)
 
 	return cmd
@@ -41,7 +49,12 @@ func runCreate(ctx context.Context) error {
 
 	client := client.FromContext(ctx).API()
 
-	org, err := client.CreateOrganization(ctx, name)
+	var org *api.Organization
+	if flag.GetBool(ctx, "apps-v2-default-on") {
+		org, err = client.CreateOrganizationWithAppsV2DefaultOn(ctx, name)
+	} else {
+		org, err = client.CreateOrganization(ctx, name)
+	}
 	if err != nil {
 		return fmt.Errorf("failed creating organization: %w", err)
 	}

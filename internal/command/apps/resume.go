@@ -25,7 +25,7 @@ meaning there will be one running instance once restarted. Use SCALE SET MIN= to
 the number of configured instances.
 `
 		short = "Resume an application"
-		usage = "resume [APPNAME]"
+		usage = "resume <APPNAME>"
 	)
 
 	resume := command.New(usage, short, long, RunResume,

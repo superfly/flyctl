@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
@@ -13,7 +12,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flypg"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
@@ -47,7 +46,7 @@ func newConfigShow() (cmd *cobra.Command) {
 func runConfigShow(ctx context.Context) error {
 	var (
 		client  = client.FromContext(ctx).API()
-		appName = app.NameFromContext(ctx)
+		appName = appconfig.NameFromContext(ctx)
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -91,11 +90,8 @@ func runMachineConfigShow(ctx context.Context, app *api.AppCompact) (err error) 
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	_, dev := os.LookupEnv("FLY_DEV")
-	if !dev {
-		if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
-			return err
-		}
+	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
+		return err
 	}
 
 	leader, err := pickLeader(ctx, machines)
@@ -104,7 +100,7 @@ func runMachineConfigShow(ctx context.Context, app *api.AppCompact) (err error) 
 	}
 
 	manager := flypg.StolonManager
-	if leader.ImageRef.Repository == "flyio/postgres-flex" {
+	if IsFlex(leader) {
 		manager = flypg.ReplicationManager
 	}
 

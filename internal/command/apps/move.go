@@ -22,7 +22,7 @@ func newMove() *cobra.Command {
 organization the current user belongs to.
 `
 		short = "Move an app to another organization"
-		usage = "move [APPNAME]"
+		usage = "move <APPNAME>"
 	)
 
 	move := command.New(usage, short, long, RunMove,

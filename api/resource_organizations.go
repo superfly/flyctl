@@ -1,6 +1,11 @@
 package api
 
-import "context"
+import (
+	"context"
+	"fmt"
+
+	"github.com/superfly/graphql"
+)
 
 type OrganizationType string
 
@@ -9,21 +14,40 @@ const (
 	OrganizationTypeShared   OrganizationType = "SHARED"
 )
 
-func (client *Client) GetOrganizations(ctx context.Context) ([]Organization, error) {
+type organizationFilter struct {
+	admin bool
+}
+
+func (f *organizationFilter) apply(req *graphql.Request) {
+	req.Var("admin", f.admin)
+}
+
+type OrganizationFilter func(*organizationFilter)
+
+var AdminOnly OrganizationFilter = func(f *organizationFilter) { f.admin = true }
+
+func (client *Client) GetOrganizations(ctx context.Context, filters ...OrganizationFilter) ([]Organization, error) {
 	q := `
-		query {
-			organizations {
+		query($admin: Boolean!) {
+			organizations(admin: $admin) {
 				nodes {
 					id
 					slug
 					name
 					type
+					paidPlan
 				}
 			}
 		}
 	`
 
+	filter := new(organizationFilter)
+	for _, f := range filters {
+		f(filter)
+	}
+
 	req := client.NewRequest(q)
+	filter.apply(req)
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -158,6 +182,36 @@ func (c *Client) CreateOrganization(ctx context.Context, organizationname string
 	return &data.CreateOrganization.Organization, nil
 }
 
+func (c *Client) CreateOrganizationWithAppsV2DefaultOn(ctx context.Context, organizationname string) (*Organization, error) {
+	query := `
+		mutation($input: CreateOrganizationInput!) {
+			createOrganization(input: $input) {
+			    organization {
+					id
+					name
+					slug
+					type
+					viewerRole
+				  }
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("input", map[string]interface{}{
+		"name":            organizationname,
+		"appsV2DefaultOn": true,
+	})
+
+	data, err := c.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.CreateOrganization.Organization, nil
+}
+
 func (c *Client) DeleteOrganization(ctx context.Context, id string) (deletedid string, err error) {
 	query := `
 	mutation($input: DeleteOrganizationInput!) {
@@ -245,9 +299,7 @@ func (c *Client) DeleteOrganizationMembership(ctx context.Context, orgId, userId
 }
 
 func (c *Client) UpdateRemoteBuilder(ctx context.Context, orgName string, image string) (*Organization, error) {
-
 	org, err := c.GetOrganizationBySlug(ctx, orgName)
-
 	if err != nil {
 		return nil, err
 	}
@@ -275,4 +327,31 @@ func (c *Client) UpdateRemoteBuilder(ctx context.Context, orgName string, image 
 	}
 
 	return &data.UpdateRemoteBuilder.Organization, nil
+}
+
+const appsV2DefaultOnSettingsKey = "apps_v2_default_on"
+
+func (c *Client) GetAppsV2DefaultOnForOrg(ctx context.Context, orgSlug string) (bool, error) {
+	query := `
+	query($slug: String!) {
+		organization(slug: $slug) {
+			settings
+		}
+	}
+	`
+	req := c.NewRequest(query)
+	req.Var("slug", orgSlug)
+
+	resp, err := c.RunWithContext(ctx, req)
+	if err != nil {
+		return false, err
+	}
+
+	if val, present := resp.Organization.Settings[appsV2DefaultOnSettingsKey]; !present {
+		return false, nil
+	} else if appsV2DefaultOn, ok := val.(bool); !ok {
+		return false, fmt.Errorf("failed to convert '%v' to boolean value for %s org setting", val, appsV2DefaultOnSettingsKey)
+	} else {
+		return appsV2DefaultOn, nil
+	}
 }

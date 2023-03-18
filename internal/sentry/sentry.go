@@ -11,10 +11,14 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/logrusorgru/aurora"
 
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/buildinfo"
 )
 
 var initError error // set during init
+
+// Re-export an alias here for use convenience
+type Context = sentry.Context
 
 func init() {
 	opts := sentry.ClientOptions{
@@ -46,13 +50,13 @@ func WithExtra(key string, val interface{}) CaptureOption {
 	}
 }
 
-func WithContext(key string, val interface{}) CaptureOption {
+func WithContext(key string, val sentry.Context) CaptureOption {
 	return func(scope *sentry.Scope) {
 		scope.SetContext(key, val)
 	}
 }
 
-func WithContexts(contexts map[string]interface{}) CaptureOption {
+func WithContexts(contexts map[string]sentry.Context) CaptureOption {
 	return func(scope *sentry.Scope) {
 		scope.SetContexts(contexts)
 	}
@@ -90,6 +94,29 @@ func CaptureMessage(msg string, opts ...CaptureOption) {
 
 		_ = sentry.CaptureMessage(msg)
 	})
+}
+
+func CaptureExceptionWithAppInfo(err error, featureName string, appCompact *api.AppCompact) {
+	if appCompact == nil {
+		CaptureException(
+			err,
+			WithTag("feature", featureName),
+		)
+		return
+	}
+	CaptureException(
+		err,
+		WithTag("feature", featureName),
+		WithTag("app-platform-version", appCompact.PlatformVersion),
+		WithContexts(map[string]sentry.Context{
+			"app": map[string]interface{}{
+				"name": appCompact.Name,
+			},
+			"organization": map[string]interface{}{
+				"slug": appCompact.Organization.Slug,
+			},
+		}),
+	)
 }
 
 // Recover records the given panic to sentry.

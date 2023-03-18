@@ -9,7 +9,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flypg"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
@@ -22,7 +22,7 @@ func newDetach() *cobra.Command {
 	const (
 		short = "Detach a postgres cluster from an app"
 		long  = short + "\n"
-		usage = "detach [POSTGRES APP]"
+		usage = "detach <POSTGRES APP>"
 	)
 
 	cmd := command.New(usage, short, long, runDetach,
@@ -45,7 +45,7 @@ func runDetach(ctx context.Context) error {
 		client = client.FromContext(ctx).API()
 
 		pgAppName = flag.FirstArg(ctx)
-		appName   = app.NameFromContext(ctx)
+		appName   = appconfig.NameFromContext(ctx)
 	)
 
 	pgApp, err := client.GetAppCompact(ctx, pgAppName)
@@ -99,7 +99,6 @@ func runMachineDetach(ctx context.Context, app *api.AppCompact, pgApp *api.AppCo
 	}
 
 	return detachAppFromPostgres(ctx, leader.PrivateIP, app, pgApp)
-
 }
 
 func runNomadDetach(ctx context.Context, app *api.AppCompact, pgApp *api.AppCompact) error {

@@ -18,7 +18,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 )
@@ -72,7 +72,7 @@ func run(ctx context.Context) error {
 	orgSlug := flag.GetOrg(ctx)
 
 	if orgSlug == "" {
-		appName := app.NameFromContext(ctx)
+		appName := appconfig.NameFromContext(ctx)
 
 		app, err := client.GetAppBasic(ctx, appName)
 		if err != nil {

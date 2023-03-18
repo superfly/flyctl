@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/jpillora/backoff"
@@ -34,16 +36,25 @@ func WaitForStartOrStop(ctx context.Context, machine *api.Machine, action string
 		Jitter: false,
 	}
 	for {
-		err := flapsClient.Wait(waitCtx, machine, waitOnAction)
-		switch {
-		case errors.Is(err, context.Canceled):
-			return err
-		case errors.Is(err, context.DeadlineExceeded):
-			return fmt.Errorf("timeout reached waiting for machine to %s %w", waitOnAction, err)
-		case err != nil:
-			time.Sleep(b.Duration())
-			continue
+		err := flapsClient.Wait(waitCtx, machine, waitOnAction, 60*time.Second)
+		if err == nil {
+			return nil
 		}
-		return nil
+
+		switch {
+		case errors.Is(waitCtx.Err(), context.Canceled):
+			return err
+		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
+			return fmt.Errorf("timeout reached waiting for machine to %s %w", waitOnAction, err)
+		default:
+			var flapsErr *flaps.FlapsError
+			if strings.Contains(err.Error(), "machine failed to reach desired state") && machine.Config.Restart.Policy == api.MachineRestartPolicyNo {
+				return fmt.Errorf("machine failed to reach desired start state, and restart policy was set to %s restart", machine.Config.Restart.Policy)
+			}
+			if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode == http.StatusBadRequest {
+				return fmt.Errorf("failed waiting for machine: %w", err)
+			}
+			time.Sleep(b.Duration())
+		}
 	}
 }

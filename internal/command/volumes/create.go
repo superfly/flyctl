@@ -10,7 +10,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/app"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -71,17 +71,17 @@ func runCreate(ctx context.Context) error {
 		client = client.FromContext(ctx).API()
 
 		volumeName = flag.FirstArg(ctx)
-		appName    = app.NameFromContext(ctx)
+		appName    = appconfig.NameFromContext(ctx)
 	)
 
-	appID, err := client.GetAppID(ctx, appName)
+	app, err := client.GetAppBasic(ctx, appName)
 	if err != nil {
 		return err
 	}
 
 	var region *api.Region
 
-	if region, err = prompt.Region(ctx, prompt.RegionParams{
+	if region, err = prompt.Region(ctx, !app.Organization.PaidPlan, prompt.RegionParams{
 		Message: "",
 	}); err != nil {
 		return err
@@ -93,7 +93,7 @@ func runCreate(ctx context.Context) error {
 	}
 
 	input := api.CreateVolumeInput{
-		AppID:             appID,
+		AppID:             app.ID,
 		Name:              volumeName,
 		Region:            region.Code,
 		SizeGb:            flag.GetInt(ctx, "size"),
