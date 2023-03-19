@@ -29,7 +29,7 @@ func fileContains(path string, pattern string) bool {
 		return false
 	}
 
-	defer file.Close()
+	defer file.Close() //skipcq: GO-S2307
 
 	scanner := bufio.NewScanner(file)
 
