@@ -61,46 +61,26 @@ func TestAppsV2Example(t *testing.T) {
 		f.Fatalf("GET %s never returned 200 OK response after %d tries; last status code was: %d", appUrl, attempts, lastStatusCode)
 	}
 
-	result = f.Fly("m list --json")
-	var machList []map[string]any
-	err = json.Unmarshal(result.StdOut().Bytes(), &machList)
-	if err != nil {
-		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
-	}
-	require.Equal(t, 1, len(machList), "expected exactly 1 machine after launch")
+	machList := f.MachinesList(appName)
+	require.Equal(t, len(machList), 1, "There should be exactly one machine")
 	firstMachine := machList[0]
-	firstMachineId, ok := firstMachine["id"].(string)
-	if !ok {
-		f.Fatalf("could find or convert id key to string from %s, stdout: %s firstMachine: %v", result.CmdString(), result.StdOut().String(), firstMachine)
-	}
 
-	// By default, autostart should be enabled
-	config := firstMachine["config"].(map[string]interface{})
-	// If disable_machine_autostart is set to false (the default value), it won't show up in the config
-	if autostart_disabled, ok := config["disable_machine_autostart"]; ok {
-		// If for some reason it does exist, then check that its set to false
-		require.Equal(t, false, autostart_disabled.(bool), "autostart was enabled")
-	}
+	require.Equal(t, firstMachine.Config.DisableMachineAutostart, false, "autostart_disabled should be false")
 
 	// Make sure disabling it works
-	f.Fly("m update %s --autostart=false -y", firstMachineId)
+	f.Fly("m update %s --autostart=false -y", firstMachine.ID)
 
-	result = f.Fly("m list --json")
-	err = json.Unmarshal(result.StdOut().Bytes(), &machList)
-	if err != nil {
-		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
-	}
+	machList = f.MachinesList(appName)
+	require.Equal(t, len(machList), 1, "There should be exactly one machine")
 	firstMachine = machList[0]
 
-	config = firstMachine["config"].(map[string]interface{})
-	autostart_disabled := config["disable_machine_autostart"].(bool)
-	require.Equal(t, true, autostart_disabled, "autostart was not disabled")
+	require.Equal(t, firstMachine.Config.DisableMachineAutostart, true, "autostart_disabled should be set to true")
 
 	secondReg := f.PrimaryRegion()
 	if len(f.OtherRegions()) > 0 {
 		secondReg = f.OtherRegions()[0]
 	}
-	f.Fly("m clone --region %s %s", secondReg, firstMachineId)
+	f.Fly("m clone --region %s %s", secondReg, firstMachine.ID)
 
 	result = f.Fly("status")
 	require.Equal(f, 2, strings.Count(result.StdOut().String(), "started"), "expected 2 machines to be started after cloning the original, instead %s showed: %s", result.CmdString(), result.StdOut().String())
@@ -109,7 +89,7 @@ func TestAppsV2Example(t *testing.T) {
 	if len(f.OtherRegions()) > 1 {
 		thirdReg = f.OtherRegions()[1]
 	}
-	f.Fly("m clone --region %s %s", thirdReg, firstMachineId)
+	f.Fly("m clone --region %s %s", thirdReg, firstMachine.ID)
 
 	result = f.Fly("status")
 	require.Equal(f, 3, strings.Count(result.StdOut().String(), "started"), "expected 3 machines to be started after cloning the original, instead %s showed: %s", result.CmdString(), result.StdOut().String())
@@ -301,6 +281,51 @@ func TestAppsV2ConfigSave_PostgresSingleNode(t *testing.T) {
     interval = "15s"
     timeout = "10s"
     path = "/flycheck/vm"`)
+}
+
+func TestAppsV2_PostgresAutostart(t *testing.T) {
+	var (
+		err     error
+		f       = testlib.NewTestEnvFromEnv(t)
+		appName = f.CreateRandomAppName()
+	)
+
+	f.Fly("pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1", f.OrgSlug(), appName, f.PrimaryRegion())
+
+	var machList []map[string]any
+
+	result := f.Fly("m list --json -a %s", appName)
+	err = json.Unmarshal(result.StdOut().Bytes(), &machList)
+	if err != nil {
+		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
+	}
+	require.Equal(t, 1, len(machList), "expected exactly 1 machine after launch")
+	firstMachine := machList[0]
+
+	config := firstMachine["config"].(map[string]interface{})
+	if autostart_disabled, ok := config["disable_machine_autostart"]; ok {
+		require.Equal(t, true, autostart_disabled.(bool), "autostart was enabled")
+	} else {
+		f.Fatalf("autostart wasn't disabled")
+	}
+
+	appName = f.CreateRandomAppName()
+
+	f.Fly("pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1 --autostart", f.OrgSlug(), appName, f.PrimaryRegion())
+
+	result = f.Fly("m list --json -a %s", appName)
+	err = json.Unmarshal(result.StdOut().Bytes(), &machList)
+	if err != nil {
+		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
+	}
+	require.Equal(t, 1, len(machList), "expected exactly 1 machine after launch")
+	firstMachine = machList[0]
+
+	config = firstMachine["config"].(map[string]interface{})
+
+	if autostart_disabled, ok := config["disable_machine_autostart"]; ok {
+		require.Equal(t, false, autostart_disabled.(bool), "autostart was enabled")
+	}
 }
 
 func TestAppsV2_PostgresNoMachines(t *testing.T) {
