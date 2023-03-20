@@ -34,7 +34,6 @@ func (client *Client) GetOrganizations(ctx context.Context, filters ...Organizat
 				nodes {
 					id
 					slug
-					rawSlug
 					name
 					type
 					paidPlan
@@ -66,7 +65,6 @@ func (client *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*
 				id
 				internalNumericId
 				slug
-				rawSlug
 				name
 				type
 			}
@@ -121,7 +119,6 @@ func (client *Client) GetDetailedOrganizationBySlug(ctx context.Context, slug st
 		organizationdetails: organization(slug: $slug) {
 		  id
 		  slug
-			rawSlug
 		  name
 		  type
 		  viewerRole
