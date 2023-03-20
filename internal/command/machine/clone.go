@@ -196,7 +196,7 @@ func runMachineClone(ctx context.Context) (err error) {
 				fmt.Fprintf(out, "Volume '%s' will start empty\n", colorize.Bold(mnt.Name))
 			default:
 				snapshotID = &snapID
-				fmt.Fprintf(io.Out, "Creating new volume from snapshot: %s", colorize.Bold(*snapshotID))
+				fmt.Fprintf(io.Out, "Creating new volume from snapshot: %s\n", colorize.Bold(*snapshotID))
 			}
 
 			volInput := api.CreateVolumeInput{
