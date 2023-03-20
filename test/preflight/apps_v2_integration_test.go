@@ -62,6 +62,7 @@ func TestAppsV2Example(t *testing.T) {
 	}
 
 	machList := f.MachinesList(appName)
+	require.Equal(t, len(machList), 1, "There should be exactly one machine")
 	firstMachine := machList[0]
 
 	require.Equal(t, firstMachine.Config.DisableMachineAutostart, false, "autostart_disabled should be false")
@@ -70,6 +71,7 @@ func TestAppsV2Example(t *testing.T) {
 	f.Fly("m update %s --autostart=false -y", firstMachine.ID)
 
 	machList = f.MachinesList(appName)
+	require.Equal(t, len(machList), 1, "There should be exactly one machine")
 	firstMachine = machList[0]
 
 	require.Equal(t, firstMachine.Config.DisableMachineAutostart, true, "autostart_disabled should be set to true")
