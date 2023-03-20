@@ -50,7 +50,8 @@ func runSetup(ctx context.Context) (err error) {
 		return err
 	}
 
-	targetOrg := appNameResponse.App.AppData.Organization
+	targetApp := appNameResponse.App.AppData
+	targetOrg := targetApp.Organization
 	appsResult, err := gql.GetAppsByRole(ctx, client, "log-shipper", targetOrg.Id)
 
 	if err != nil {
@@ -95,20 +96,24 @@ func runSetup(ctx context.Context) (err error) {
 		logtailToken = getAddOnResponse.AddOn.Token
 	}
 	// Fetch a macaroon token whose access is limited to reading app logs
-	tokenResponse, err := gql.CreateLimitedAccessToken(ctx, client, targetOrg.Slug+"-logs", targetOrg.Id, "read_organization_apps", &gql.LimitedAccessTokenOptions{})
+	tokenResponse, err := gql.CreateLimitedAccessToken(ctx, client, targetOrg.Slug+"-logs", targetOrg.Id, "read_organization_apps", &gql.LimitedAccessTokenOptions{
+		"app_id": targetApp.Name,
+	})
 
 	if err != nil {
 		return
 	}
 
-	fmt.Fprintf(io.ErrOut, "Setting ACCESS_TOKEN and LOGTAIL_TOKEN secrets on %s\n", shipperApp.Name)
+	fmt.Fprintf(io.ErrOut, "Setting ORG, ACCESS_TOKEN and LOGTAIL_TOKEN secrets on %s\n", shipperApp.Name)
 
 	secrets := gql.SetSecretsInput{
-		AppId: shipperApp.Id,
+		AppId:      shipperApp.Id,
+		ReplaceAll: true,
 		Secrets: []gql.SecretInput{
 			{
 				Key:   "ACCESS_TOKEN",
-				Value: tokenResponse.CreateLimitedAccessToken.LimitedAccessToken.Token,
+				Value: tokenResponse.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader,
+				// Value: flyctl.GetAPIToken(),
 			},
 			{
 				Key:   "LOGTAIL_TOKEN",
@@ -116,11 +121,14 @@ func runSetup(ctx context.Context) (err error) {
 			},
 			{
 				Key:   "ORG",
-				Value: targetOrg.Id,
+				Value: targetOrg.RawSlug,
+			},
+			{
+				Key:   "VECTOR_WATCH_CONFIG",
+				Value: "1",
 			},
 		},
 	}
-
 	_, err = gql.SetSecrets(ctx, client, secrets)
 
 	if err != nil {
@@ -151,6 +159,7 @@ func runSetup(ctx context.Context) (err error) {
 
 	// We already have a log shipper VM, so just update it in-place to pick up any new secrets
 	if len(machines) > 0 {
+		fmt.Fprintf(io.Out, "Restarting machine %s\n", machines[0].ID)
 		machine := machine.NewLeasableMachine(flapsClient, io, machines[0])
 		machine.AcquireLease(ctx, time.Second*5)
 		launchInput.ID = machines[0].ID

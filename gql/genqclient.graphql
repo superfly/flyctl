@@ -114,6 +114,7 @@ mutation CreateLimitedAccessToken($name: String!, $organizationId: ID!, $profile
 	createLimitedAccessToken(input: {name: $name, organizationId: $organizationId, profile: $profile, profileParams: $profileParams}) {
 		limitedAccessToken {
 			token
+			tokenHeader
 		}
 	}
 }
