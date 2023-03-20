@@ -60,7 +60,7 @@ func GetAccessTokenForCLISession(ctx context.Context, id string) (string, error)
 	case http.StatusOK:
 		var auth CLISessionAuth
 		if err = json.NewDecoder(res.Body).Decode(&auth); err != nil {
-			return "", err
+			return "", fmt.Errorf("Failed to decode auth token, please try again: %w", err)
 		}
 		return auth.AccessToken, nil
 	case http.StatusNotFound:
