@@ -34,6 +34,7 @@ func newUpdate() *cobra.Command {
 		flag.Image(),
 		sharedFlags,
 		flag.Yes(),
+		selectFlag,
 		flag.Bool{
 			Name:        "skip-health-checks",
 			Description: "Updates machine without waiting for health checks.",
@@ -46,7 +47,7 @@ func newUpdate() *cobra.Command {
 		},
 	)
 
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.RangeArgs(0, 1)
 
 	return cmd
 }
@@ -56,14 +57,15 @@ func runUpdate(ctx context.Context) (err error) {
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
 
-		machineID        = flag.FirstArg(ctx)
 		autoConfirm      = flag.GetBool(ctx, "yes")
 		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
 		image            = flag.GetString(ctx, "image")
 		dockerfile       = flag.GetString(ctx, flag.Dockerfile().Name)
 	)
 
-	machine, ctx, err := selectOneMachine(ctx, nil, machineID)
+	machineID := flag.FirstArg(ctx)
+	haveMachineID := len(flag.Args(ctx)) > 0
+	machine, ctx, err := selectOneMachine(ctx, nil, machineID, haveMachineID)
 	if err != nil {
 		return err
 	}

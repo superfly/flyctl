@@ -49,13 +49,13 @@ func newLeaseView() *cobra.Command {
 		command.LoadAppNameIfPresent,
 	)
 
-	// at least one arg is required but we can accept a list of machine ids
-	cmd.Args = cobra.MinimumNArgs(1)
+	cmd.Args = cobra.ArbitraryArgs
 
 	flag.Add(
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		selectFlag,
 	)
 
 	return cmd
@@ -73,13 +73,13 @@ func newLeaseClear() *cobra.Command {
 		command.LoadAppNameIfPresent,
 	)
 
-	// at least one arg is required but we can accept a list of machine ids
-	cmd.Args = cobra.MinimumNArgs(1)
+	cmd.Args = cobra.ArbitraryArgs
 
 	flag.Add(
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		selectFlag,
 	)
 
 	return cmd

@@ -24,24 +24,24 @@ func newKill() *cobra.Command {
 		command.LoadAppNameIfPresent,
 	)
 
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.RangeArgs(0, 1)
 
 	flag.Add(
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		selectFlag,
 	)
 
 	return cmd
 }
 
 func runMachineKill(ctx context.Context) (err error) {
-	var (
-		machineID = flag.FirstArg(ctx)
-		io        = iostreams.FromContext(ctx)
-	)
+	io := iostreams.FromContext(ctx)
 
-	current, ctx, err := selectOneMachine(ctx, nil, machineID)
+	machineID := flag.FirstArg(ctx)
+	haveMachineID := len(flag.Args(ctx)) > 0
+	current, ctx, err := selectOneMachine(ctx, nil, machineID, haveMachineID)
 	if err != nil {
 		return err
 	}
