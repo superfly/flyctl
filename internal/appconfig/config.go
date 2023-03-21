@@ -147,3 +147,11 @@ func (c *Config) DockerBuildTarget() string {
 	}
 	return c.Build.DockerBuildTarget
 }
+
+func (c *Config) MountsDestination() string {
+	if c.Mounts == nil {
+		return ""
+	} else {
+		return c.Mounts.Destination
+	}
+}
