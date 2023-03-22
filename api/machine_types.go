@@ -425,8 +425,8 @@ type MachineServiceConcurrency struct {
 }
 
 type MachineFlyProxy struct {
-	AutostartMachine bool `json:"autostart_machine,omitempty"`
-	AutostopMachine  bool `json:"autostop_machine,omitempty"`
+	AutostartMachine bool `json:"autostart_machine"`
+	AutostopMachine  bool `json:"autostop_machine"`
 }
 
 type MachineConfig struct {
