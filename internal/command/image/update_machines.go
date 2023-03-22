@@ -33,11 +33,7 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) error {
 
 	// Loop through machines and compare/confirm changes.
 	for _, machine := range machines {
-		machineConf, err := mach.CloneConfig(*machine.Config)
-		if err != nil {
-			return err
-		}
-
+		machineConf := mach.CloneConfig(machine.Config)
 		machineConf.Image = machine.FullImageRef()
 
 		image, err := resolveImage(ctx, *machine)
@@ -119,10 +115,7 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 
 		role := machineRole(machine)
 
-		machineConf, err := mach.CloneConfig(*machine.Config)
-		if err != nil {
-			return err
-		}
+		machineConf := mach.CloneConfig(machine.Config)
 
 		image, err := resolveImage(ctx, *machine)
 		if err != nil {

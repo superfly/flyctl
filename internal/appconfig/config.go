@@ -128,21 +128,21 @@ func (c *Config) HasUdpService() bool {
 }
 
 func (c *Config) Dockerfile() string {
-	if c.Build == nil {
+	if c == nil || c.Build == nil {
 		return ""
 	}
 	return c.Build.Dockerfile
 }
 
 func (c *Config) Ignorefile() string {
-	if c.Build == nil {
+	if c == nil || c.Build == nil {
 		return ""
 	}
 	return c.Build.Ignorefile
 }
 
 func (c *Config) DockerBuildTarget() string {
-	if c.Build == nil {
+	if c == nil || c.Build == nil {
 		return ""
 	}
 	return c.Build.DockerBuildTarget

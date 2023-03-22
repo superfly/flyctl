@@ -172,7 +172,6 @@ func (r *Resolver) createImageBuild(ctx context.Context, strategies []imageResol
 }
 
 func (r *Resolver) createBuild(ctx context.Context, strategies []imageBuilder, opts ImageOptions) (*build, error) {
-
 	strategiesAvailable := make([]string, 0)
 	for _, s := range strategies {
 		strategiesAvailable = append(strategiesAvailable, s.Name())
@@ -223,7 +222,7 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 		if !isAppNotFoundErr {
 			sentry.CaptureException(err,
 				sentry.WithTag("feature", "build-api-create-build"),
-				sentry.WithContexts(map[string]interface{}{
+				sentry.WithContexts(map[string]sentry.Context{
 					"app": map[string]interface{}{
 						"name": input.AppName,
 					},
@@ -291,6 +290,7 @@ func (b *build) SetBuilderMetaPart1(remote bool, remoteAppName string, remoteMac
 	b.BuilderMeta.RemoteAppName = remoteAppName
 	b.BuilderMeta.RemoteMachineId = remoteMachineId
 }
+
 func (b *build) SetBuilderMetaPart2(buildkitEnabled bool, dockerVersion string, platform string) {
 	b.BuilderMeta.BuildkitEnabled = buildkitEnabled
 	b.BuilderMeta.DockerVersion = dockerVersion
@@ -313,36 +313,47 @@ func (b *build) ResetTimings() {
 func (b *build) BuildAndPushStart() {
 	b.StartTimes.BuildAndPushMs = time.Now().UnixMilli()
 }
+
 func (b *build) BuildAndPushFinish() {
 	b.Timings.BuildAndPushMs = time.Now().UnixMilli() - b.StartTimes.BuildAndPushMs
 }
+
 func (b *build) BuilderInitStart() {
 	b.StartTimes.BuilderInitMs = time.Now().UnixMilli()
 }
+
 func (b *build) BuilderInitFinish() {
 	b.Timings.BuilderInitMs = time.Now().UnixMilli() - b.StartTimes.BuilderInitMs
 }
+
 func (b *build) BuildStart() {
 	b.StartTimes.BuildMs = time.Now().UnixMilli()
 }
+
 func (b *build) BuildFinish() {
 	b.Timings.BuildMs = time.Now().UnixMilli() - b.StartTimes.BuildMs
 }
+
 func (b *build) ContextBuildStart() {
 	b.StartTimes.ContextBuildMs = time.Now().UnixMilli()
 }
+
 func (b *build) ContextBuildFinish() {
 	b.Timings.ContextBuildMs = time.Now().UnixMilli() - b.StartTimes.ContextBuildMs
 }
+
 func (b *build) ImageBuildStart() {
 	b.StartTimes.ImageBuildMs = time.Now().UnixMilli()
 }
+
 func (b *build) ImageBuildFinish() {
 	b.Timings.ImageBuildMs = time.Now().UnixMilli() - b.StartTimes.ImageBuildMs
 }
+
 func (b *build) PushStart() {
 	b.StartTimes.PushMs = time.Now().UnixMilli()
 }
+
 func (b *build) PushFinish() {
 	b.Timings.PushMs = time.Now().UnixMilli() - b.StartTimes.PushMs
 }
@@ -420,7 +431,7 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 		terminal.Warnf("failed to finish build in graphql: %v\n", err)
 		sentry.CaptureException(err,
 			sentry.WithTag("feature", "build-api-finish-build"),
-			sentry.WithContexts(map[string]interface{}{
+			sentry.WithContexts(map[string]sentry.Context{
 				"app": map[string]interface{}{
 					"name": r.dockerFactory.appName,
 				},

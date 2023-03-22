@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 // CLISessionAuth holds access information
@@ -43,32 +44,38 @@ func StartCLISessionWebAuth(machineName string, signup bool) (CLISessionAuth, er
 }
 
 // GetAccessTokenForCLISession Obtains the access token for the session
-func GetAccessTokenForCLISession(ctx context.Context, id string) (token string, err error) {
+func GetAccessTokenForCLISession(ctx context.Context, id string) (string, error) {
 	url := fmt.Sprintf("%s/api/v1/cli_sessions/%s", baseURL, id)
-
-	var req *http.Request
-	if req, err = http.NewRequestWithContext(ctx, http.MethodGet, url, nil); err != nil {
-		return
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
 	}
 
-	var res *http.Response
-	if res, err = http.DefaultClient.Do(req); err != nil {
-		return
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
 	}
 	defer res.Body.Close()
 
 	switch res.StatusCode {
-	default:
-		err = ErrUnknown
-	case http.StatusNotFound:
-		err = ErrNotFound
 	case http.StatusOK:
 		var auth CLISessionAuth
-
-		if err = json.NewDecoder(res.Body).Decode(&auth); err == nil {
-			token = auth.AccessToken
+		if err = json.NewDecoder(res.Body).Decode(&auth); err != nil {
+			return "", fmt.Errorf("Failed to decode auth token, please try again: %w", err)
 		}
+		return auth.AccessToken, nil
+	case http.StatusNotFound:
+		return "", ErrNotFound
+	default:
+		return "", ErrUnknown
 	}
+}
 
-	return
+const flyv1Scheme = "FlyV1"
+
+func AuthorizationHeader(token string) string {
+	if scheme, _, ok := strings.Cut(token, " "); ok && scheme == flyv1Scheme {
+		return token
+	}
+	return fmt.Sprintf("Bearer %s", token)
 }

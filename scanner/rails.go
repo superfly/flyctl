@@ -14,7 +14,14 @@ import (
 var healthcheck_channel = make(chan string)
 
 func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
-	if !checksPass(sourceDir, dirContains("Gemfile", "rails")) {
+	// `bundle init` will create a file with a commented out rails gem,
+	// so checking for that can produce a false positive.  Look for
+	// Rails three other ways...
+	rails := checksPass(sourceDir+"/bin", fileExists("rails")) ||
+		checksPass(sourceDir, dirContains("config.ru", "Rails")) ||
+		checksPass(sourceDir, dirContains("Gemfile.lock", " rails "))
+
+	if !rails {
 		return nil, nil
 	}
 
@@ -138,6 +145,20 @@ func RailsCallback(srcInfo *SourceInfo, options map[string]bool) error {
 
 		if err := cmd.Run(); err != nil {
 			return errors.Wrap(err, "Failed to generate Dockefile")
+		}
+	} else {
+		if options["postgresql"] && !strings.Contains(string(gemfile), "pg") {
+			cmd := exec.Command("bundle", "add", "pg")
+			if err := cmd.Run(); err != nil {
+				return errors.Wrap(err, "Failed to install pg gem")
+			}
+		}
+
+		if options["redis"] && !strings.Contains(string(gemfile), "redis") {
+			cmd := exec.Command("bundle", "add", "redis")
+			if err := cmd.Run(); err != nil {
+				return errors.Wrap(err, "Failed to install redis gem")
+			}
 		}
 	}
 

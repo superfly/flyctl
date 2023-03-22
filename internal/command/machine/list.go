@@ -118,7 +118,7 @@ func runMachineList(ctx context.Context) (err error) {
 
 				}
 
-				if processGroup, ok := machine.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]; ok {
+				if processGroup := machine.ProcessGroup(); processGroup != "" {
 					machineProcessGroup = processGroup
 
 				}

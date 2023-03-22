@@ -521,6 +521,7 @@ type Organization struct {
 	RawSlug            string
 	Type               string
 	PaidPlan           bool
+	Settings           map[string]any
 
 	Domains struct {
 		Nodes *[]*Domain
@@ -571,6 +572,7 @@ func (o *Organization) GetSlug() string {
 
 type OrganizationBasic struct {
 	ID       string
+	Name     string
 	Slug     string
 	RawSlug  string
 	PaidPlan bool

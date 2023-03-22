@@ -2,12 +2,9 @@ package api
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestIsReleaseCommandMachine(t *testing.T) {
-
 	type testcase struct {
 		name     string
 		machine  Machine
@@ -62,7 +59,61 @@ func TestIsReleaseCommandMachine(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		require.Equal(t, tc.expected, tc.machine.IsReleaseCommandMachine(), tc.name)
+		result := tc.machine.IsReleaseCommandMachine()
+		if result != tc.expected {
+			t.Errorf("%s, got '%v', want '%v'", tc.name, result, tc.expected)
+		}
+	}
+}
+
+func TestGetProcessGroup(t *testing.T) {
+	type testcase struct {
+		name     string
+		machine  *Machine
+		expected string
 	}
 
+	cases := []testcase{
+		{
+			name:     "machine with only 'process_group'",
+			expected: "web",
+			machine: &Machine{
+				Config: &MachineConfig{
+					Metadata: map[string]string{
+						"process_group": "web",
+					},
+				},
+			},
+		},
+		{
+			name:     "machine with both 'process_group' & 'fly_process_group'",
+			expected: "app",
+			machine: &Machine{
+				Config: &MachineConfig{
+					Metadata: map[string]string{
+						"process_group":     "web",
+						"fly_process_group": "app",
+					},
+				},
+			},
+		},
+		{
+			name:     "machine with only 'fly_process_group'",
+			expected: "web",
+			machine: &Machine{
+				Config: &MachineConfig{
+					Metadata: map[string]string{
+						"fly_process_group": "web",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		result := tc.machine.ProcessGroup()
+		if result != tc.expected {
+			t.Errorf("%s, got '%v', want '%v'", tc.name, result, tc.expected)
+		}
+	}
 }

@@ -113,7 +113,7 @@ func captureError(err error, app *api.AppCompact) {
 
 	sentry.CaptureException(err,
 		sentry.WithTag("feature", "ssh-console"),
-		sentry.WithContexts(map[string]interface{}{
+		sentry.WithContexts(map[string]sentry.Context{
 			"app": map[string]interface{}{
 				"name": app.Name,
 			},
@@ -226,7 +226,7 @@ func sshConnect(p *SSHParams, addr string) (*ssh.Client, error) {
 
 	cert, pk, err := singleUseSSHCertificate(p.Ctx, p.Org)
 	if err != nil {
-		return nil, fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh establish`)", err)
+		return nil, fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh issue`)", err)
 	}
 
 	pemkey := ssh.MarshalED25519PrivateKey(pk, "single-use certificate")

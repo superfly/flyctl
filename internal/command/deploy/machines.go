@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
+	machcmd "github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
@@ -31,6 +33,12 @@ const (
 
 type MachineDeployment interface {
 	DeployMachinesApp(context.Context) error
+}
+
+type ProcessGroupsDiff struct {
+	machinesToRemove      []machine.LeasableMachine
+	groupsToRemove        map[string]int
+	groupsNeedingMachines map[string]*appconfig.ProcessConfig
 }
 
 type MachineDeploymentArgs struct {
@@ -147,10 +155,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err != nil {
 		return nil, err
 	}
-	err = md.validateProcessesConfig()
-	if err != nil {
-		return nil, err
-	}
 	err = md.validateVolumeConfig()
 	if err != nil {
 		return nil, err
@@ -207,14 +211,137 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
 	return nil
 }
 
+func (md *machineDeployment) resolveProcessGroupChanges() ProcessGroupsDiff {
+
+	output := ProcessGroupsDiff{
+		groupsToRemove:        map[string]int{},
+		groupsNeedingMachines: map[string]*appconfig.ProcessConfig{},
+	}
+
+	groupHasMachine := map[string]bool{}
+
+	for _, leasableMachine := range md.machineSet.GetMachines() {
+		mach := leasableMachine.Machine()
+		machGroup := mach.ProcessGroup()
+		groupMatch := ""
+		for name := range md.processConfigs {
+			if machGroup == name {
+				groupMatch = machGroup
+				break
+			}
+		}
+		if groupMatch == "" {
+			output.groupsToRemove[machGroup] += 1
+			output.machinesToRemove = append(output.machinesToRemove, leasableMachine)
+		} else {
+			groupHasMachine[groupMatch] = true
+		}
+	}
+
+	for name, val := range md.processConfigs {
+		if hasMach, ok := groupHasMachine[name]; !ok || !hasMach {
+			output.groupsNeedingMachines[name] = val
+		}
+	}
+
+	return output
+}
+
+func (md *machineDeployment) warnAboutProcessGroupChanges(ctx context.Context, diff ProcessGroupsDiff) {
+
+	var (
+		io                 = iostreams.FromContext(ctx)
+		colorize           = io.ColorScheme()
+		willAddMachines    = len(diff.groupsNeedingMachines) != 0
+		willRemoveMachines = diff.machinesToRemove != nil
+	)
+
+	if willAddMachines || willRemoveMachines {
+		fmt.Fprintln(io.Out, "Process groups have changed. This will:")
+	}
+
+	if willRemoveMachines {
+		bullet := colorize.Red("*")
+		for grp, numMach := range diff.groupsToRemove {
+			pluralS := lo.Ternary(numMach == 1, "", "s")
+			fmt.Fprintf(io.Out, " %s destroy %d \"%s\" machine%s\n", bullet, numMach, grp, pluralS)
+		}
+	}
+	if willAddMachines {
+		bullet := colorize.Green("*")
+
+		for name := range diff.groupsNeedingMachines {
+			fmt.Fprintf(io.Out, " %s create 1 \"%s\" machine\n", bullet, name)
+		}
+	}
+}
+
+func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName string) error {
+	if groupName == "" {
+		// If the group is unspecified, it should have been translated to "app" by this point
+		panic("spawnMachineInGroup requires a non-empty group name. this is a bug!")
+	}
+	fmt.Fprintf(md.io.Out, "No machines in group '%s', launching one new machine\n", md.colorize.Bold(groupName))
+	machBase := &api.Machine{
+		Region: md.appConfig.PrimaryRegion,
+		Config: &api.MachineConfig{
+			Metadata: map[string]string{
+				api.MachineConfigMetadataKeyFlyProcessGroup: groupName,
+			},
+		},
+	}
+	launchInput := md.resolveUpdatedMachineConfig(machBase, false)
+	newMachineRaw, err := md.flapsClient.Launch(ctx, *launchInput)
+	newMachine := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
+	if err != nil {
+		return fmt.Errorf("error creating a new machine machine: %w", err)
+	}
+
+	// FIXME: dry this up with release commands and non-empty update
+	fmt.Fprintf(md.io.ErrOut, "  Created release_command machine %s\n", md.colorize.Bold(newMachineRaw.ID))
+	if md.strategy != "immediate" {
+		err := newMachine.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout)
+		if err != nil {
+			return err
+		}
+	}
+	if md.strategy != "immediate" && !md.skipHealthChecks {
+		err := newMachine.WaitForHealthchecksToPass(ctx, md.waitTimeout)
+		// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
+		if err != nil {
+			return err
+		} else {
+			md.logClearLinesAbove(1)
+			fmt.Fprintf(md.io.ErrOut, "  Machine %s update finished: %s\n",
+				md.colorize.Bold(newMachine.FormattedMachineId()),
+				md.colorize.Green("success"),
+			)
+		}
+	}
+	fmt.Fprintf(md.io.ErrOut, "  Finished deploying\n")
+	return nil
+}
+
 func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
+	ctx = flaps.NewContext(ctx, md.flapsClient)
+
 	err := md.runReleaseCommand(ctx)
 	if err != nil {
 		return fmt.Errorf("release command failed - aborting deployment. %w", err)
 	}
 
 	if md.machineSet.IsEmpty() {
-		return md.createOneMachine(ctx)
+		processGroupMachineDiff := ProcessGroupsDiff{
+			groupsToRemove:        map[string]int{},
+			groupsNeedingMachines: md.processConfigs,
+		}
+		md.warnAboutProcessGroupChanges(ctx, processGroupMachineDiff)
+		for name := range md.processConfigs {
+			if err := md.spawnMachineInGroup(ctx, name); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 
 	err = md.machineSet.AcquireLeases(ctx, md.leaseTimeout)
@@ -228,6 +355,38 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		return err
 	}
 	md.machineSet.StartBackgroundLeaseRefresh(ctx, md.leaseTimeout, md.leaseDelayBetween)
+
+	processGroupMachineDiff := md.resolveProcessGroupChanges()
+
+	// If restartOnly is set, that means we're *re*deploying a configuration.
+	// It also probably means that we're in a context (like setting secrets) where
+	// creating or destroying machines would be unexpected.
+	if md.restartOnly {
+		removingMachines := len(processGroupMachineDiff.machinesToRemove) != 0
+		addingMachines := len(processGroupMachineDiff.groupsNeedingMachines) != 0
+		if removingMachines || addingMachines {
+			return errors.New("your app's machines don't match the remote configuration.\n[!] running 'fly deploy' would probably help")
+		}
+	}
+
+	md.warnAboutProcessGroupChanges(ctx, processGroupMachineDiff)
+
+	// Destroy machines that don't fit the current process groups
+	if err := md.machineSet.RemoveMachines(ctx, processGroupMachineDiff.machinesToRemove); err != nil {
+		return err
+	}
+	for _, mach := range processGroupMachineDiff.machinesToRemove {
+		if err := machcmd.Destroy(ctx, md.app, mach.Machine(), true); err != nil {
+			return err
+		}
+	}
+
+	// Create machines for new process groups
+	for name := range processGroupMachineDiff.groupsNeedingMachines {
+		if err := md.spawnMachineInGroup(ctx, name); err != nil {
+			return err
+		}
+	}
 
 	// FIXME: handle deploy strategy: rolling, immediate, canary, bluegreen
 
@@ -267,39 +426,6 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		}
 	}
 
-	fmt.Fprintf(md.io.ErrOut, "  Finished deploying\n")
-	return nil
-}
-
-func (md *machineDeployment) createOneMachine(ctx context.Context) error {
-	fmt.Fprintf(md.io.Out, "No machines in %s app, launching one new machine\n", md.colorize.Bold(md.app.Name))
-	launchInput := md.resolveUpdatedMachineConfig(nil, false)
-	newMachineRaw, err := md.flapsClient.Launch(ctx, *launchInput)
-	newMachine := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
-	if err != nil {
-		return fmt.Errorf("error creating a new machine machine: %w", err)
-	}
-	// FIXME: dry this up with release commands and non-empty update
-	fmt.Fprintf(md.io.ErrOut, "  Created release_command machine %s\n", md.colorize.Bold(newMachineRaw.ID))
-	if md.strategy != "immediate" {
-		err := newMachine.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout)
-		if err != nil {
-			return err
-		}
-	}
-	if md.strategy != "immediate" && !md.skipHealthChecks {
-		err := newMachine.WaitForHealthchecksToPass(ctx, md.waitTimeout)
-		// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
-		if err != nil {
-			return err
-		} else {
-			md.logClearLinesAbove(1)
-			fmt.Fprintf(md.io.ErrOut, "  Machine %s update finished: %s\n",
-				md.colorize.Bold(newMachine.FormattedMachineId()),
-				md.colorize.Green("success"),
-			)
-		}
-	}
 	fmt.Fprintf(md.io.ErrOut, "  Finished deploying\n")
 	return nil
 }
@@ -423,49 +549,10 @@ func (md *machineDeployment) setVolumeConfig(ctx context.Context) error {
 	return nil
 }
 
-func (md *machineDeployment) validateProcessesConfig() error {
-	appConfigProcessesExist := md.appConfig.Processes != nil && len(md.appConfig.Processes) > 0
-	appConfigProcessesStr := ""
-	first := true
-	for procGroupName := range md.appConfig.Processes {
-		if !first {
-			appConfigProcessesStr += ", "
-		} else {
-			first = false
-		}
-		appConfigProcessesStr += procGroupName
-	}
-	for _, m := range md.machineSet.GetMachines() {
-		mid := m.Machine().ID
-		machineProcGroup := m.Machine().Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
-		machineProcGroupPresent := machineProcGroup != ""
-		if machineProcGroup == api.MachineProcessGroupFlyAppReleaseCommand {
-			continue
-		}
-		// we put the api.MachineProcessGroupApp process group on machine by default
-		if !appConfigProcessesExist && machineProcGroup == api.MachineProcessGroupApp {
-			continue
-		}
-		if !machineProcGroupPresent && appConfigProcessesExist {
-			return fmt.Errorf("error machine %s does not have a process group and should have one from app configuration: %s", mid, appConfigProcessesStr)
-		}
-		if machineProcGroupPresent && !appConfigProcessesExist {
-			return fmt.Errorf("error machine %s has process group '%s' and no processes are defined in app config; add [processes] to fly.toml or remove the process group from this machine", mid, machineProcGroup)
-		}
-		if machineProcGroupPresent {
-			_, appConfigProcGroupPresent := md.appConfig.Processes[machineProcGroup]
-			if !appConfigProcGroupPresent {
-				return fmt.Errorf("error machine %s has process group '%s', which is missing from the processes in the app config: %s", mid, machineProcGroup, appConfigProcessesStr)
-			}
-		}
-	}
-	return nil
-}
-
 func (md *machineDeployment) validateVolumeConfig() error {
 	for _, m := range md.machineSet.GetMachines() {
 		mid := m.Machine().ID
-		if m.Machine().Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] == api.MachineProcessGroupFlyAppReleaseCommand {
+		if m.Machine().ProcessGroup() == api.MachineProcessGroupFlyAppReleaseCommand {
 			continue
 		}
 		mountsConfig := m.Machine().Config.Mounts
@@ -544,27 +631,28 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 		ID:      origMachineRaw.ID,
 		AppID:   md.app.Name,
 		OrgSlug: md.app.Organization.ID,
-		Config:  lo.Ternary(md.restartOnly, origMachineRaw.Config, &api.MachineConfig{}),
+		Config:  machine.CloneConfig(origMachineRaw.Config),
 		Region:  origMachineRaw.Region,
 	}
 
-	launchInput.Config.Metadata = md.defaultMachineMetadata()
-	for k, v := range origMachineRaw.Config.Metadata {
-		if !isFlyAppsPlatformMetadata(k) {
-			launchInput.Config.Metadata[k] = v
-		}
+	if launchInput.Config.Metadata == nil {
+		launchInput.Config.Metadata = map[string]string{}
 	}
+
+	launchInput.Config.Metadata = lo.Assign(
+		md.defaultMachineMetadata(),
+		lo.OmitBy(launchInput.Config.Metadata, func(k, v string) bool {
+			return isFlyAppsPlatformMetadata(k)
+		}),
+	)
 
 	// Stop here If the machine is restarting
 	if md.restartOnly {
 		return launchInput
 	}
 
-	launchInput.Config.DisableMachineAutostart = origMachineRaw.Config.DisableMachineAutostart
+	launchInput.Config.Statics = nil
 	launchInput.Config.Image = md.img.Tag
-	launchInput.Config.Restart = origMachineRaw.Config.Restart
-	launchInput.Config.Guest = origMachineRaw.Config.Guest
-	launchInput.Config.Init = origMachineRaw.Config.Init
 	launchInput.Config.Env = lo.Assign(md.appConfig.Env)
 
 	if launchInput.Config.Env["PRIMARY_REGION"] == "" && origMachineRaw.Config.Env["PRIMARY_REGION"] != "" {
@@ -573,6 +661,8 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 
 	// Stop here If the machine is for release command
 	if forReleaseCommand {
+		launchInput.Config.Metrics = nil
+		launchInput.Config.Mounts = nil
 		return md.configureLaunchInputForReleaseCommand(launchInput)
 	}
 
@@ -586,7 +676,6 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 		})
 	}
 
-	launchInput.Config.Mounts = origMachineRaw.Config.Mounts
 	if launchInput.Config.Mounts == nil && md.appConfig.Mounts != nil {
 		launchInput.Config.Mounts = []api.MachineMount{{
 			Path:   md.volumeDestination,
@@ -600,10 +689,7 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 		launchInput.Config.Mounts[0].Path = md.volumeDestination
 	}
 
-	processGroup := launchInput.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
-	if processGroup == "" {
-		processGroup = api.MachineProcessGroupApp
-	}
+	processGroup := launchInput.Config.ProcessGroup()
 	if processConfig, ok := md.processConfigs[processGroup]; ok {
 		launchInput.Config.Services = processConfig.Services
 		launchInput.Config.Checks = processConfig.Checks

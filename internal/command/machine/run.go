@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/briandowns/spinner"
 	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
 	"github.com/pkg/errors"
@@ -17,10 +18,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
@@ -134,7 +135,13 @@ var sharedFlags = flag.Set{
 		Description: "Automatically start a stopped machine when a network request is received",
 		Default:     true,
 	},
+	flag.String{
+		Name:        "restart",
+		Description: "Configure restart policy, for a machine. Options include 'no', 'always' and 'on-fail'. Default is set to always",
+	},
 }
+
+var s = spinner.New(spinner.CharSets[9], 100*time.Millisecond)
 
 func newRun() *cobra.Command {
 	const (
@@ -251,7 +258,7 @@ func runMachineRun(ctx context.Context) error {
 		return fmt.Errorf("to update an existing machine, use 'flyctl machine update'")
 	}
 
-	machineConf, err = determineMachineConfig(ctx, *machineConf, app, flag.FirstArg(ctx), input.Region)
+	machineConf, err = determineMachineConfig(ctx, *machineConf, app.Name, flag.FirstArg(ctx), input.Region)
 	if err != nil {
 		return err
 	}
@@ -274,8 +281,12 @@ func runMachineRun(ctx context.Context) error {
 	fmt.Fprintf(io.Out, " Instance ID: %s\n", instanceID)
 	fmt.Fprintf(io.Out, " State: %s\n", state)
 
+	fmt.Fprintf(io.Out, "\n Attempting to start machine...\n\n")
+	s.Start()
 	// wait for machine to be started
-	if err := mach.WaitForStartOrStop(ctx, machine, "start", time.Minute*5); err != nil {
+	err = mach.WaitForStartOrStop(ctx, machine, "start", time.Minute*5)
+	s.Stop()
+	if err != nil {
 		return err
 	}
 
@@ -610,11 +621,8 @@ func selectAppName(ctx context.Context) (name string, err error) {
 	return
 }
 
-func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, app *api.AppCompact, imageOrPath string, region string) (*api.MachineConfig, error) {
-	machineConf, err := mach.CloneConfig(initialMachineConf)
-	if err != nil {
-		return nil, err
-	}
+func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, appName string, imageOrPath string, region string) (*api.MachineConfig, error) {
+	machineConf := mach.CloneConfig(&initialMachineConf)
 
 	if guestSize := flag.GetString(ctx, "size"); guestSize != "" {
 		guest, ok := api.MachinePresets[guestSize]
@@ -721,6 +729,23 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		machineConf.Init.Entrypoint = splitted
 	}
 
+	// default restart policy to always unless otherwise specified
+	switch flag.GetString(ctx, "restart") {
+	case "no":
+		machineConf.Restart.Policy = api.MachineRestartPolicyNo
+	case "on-fail":
+		machineConf.Restart.Policy = api.MachineRestartPolicyOnFailure
+	case "always":
+		machineConf.Restart.Policy = api.MachineRestartPolicyAlways
+	case "":
+		// Apply the default only if it's not already set.
+		if machineConf.Restart.Policy == "" {
+			machineConf.Restart.Policy = api.MachineRestartPolicyAlways
+		}
+	default:
+		return machineConf, errors.New("invalid restart provided")
+	}
+
 	// `machine update` and `machine run` both use `determineMachineConfig`` to populate
 	// `machineConf`, but `update` uses `-a` to set an app while `run` uses the
 	// first argument.
@@ -728,8 +753,8 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 	// checking if `len(machineConf.Init.Cmd) == 0` and is already set, in which case we're being
 	// called from `run`.
 	// Otherwise, pull the command from the first positional argument.
-	if cmd := flag.Args(ctx)[1:]; len(cmd) > 0 && len(machineConf.Init.Cmd) == 0 {
-		machineConf.Init.Cmd = cmd
+	if len(flag.Args(ctx)) > 1 && len(machineConf.Init.Cmd) == 0 {
+		machineConf.Init.Cmd = flag.Args(ctx)[1:]
 	}
 
 	machineConf.Mounts, err = determineMounts(ctx, machineConf.Mounts, region)
@@ -737,7 +762,7 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		return machineConf, err
 	}
 
-	img, err := determineImage(ctx, app.Name, imageOrPath)
+	img, err := determineImage(ctx, appName, imageOrPath)
 	if err != nil {
 		return machineConf, err
 	}

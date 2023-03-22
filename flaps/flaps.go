@@ -32,7 +32,7 @@ var NonceHeader = "fly-machine-lease-nonce"
 const headerFlyRequestId = "fly-request-id"
 
 type Client struct {
-	app        *api.AppCompact
+	appName    string
 	baseUrl    *url.URL
 	authToken  string
 	httpClient *http.Client
@@ -40,10 +40,27 @@ type Client struct {
 }
 
 func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
+	return newFromAppOrAppName(ctx, app, app.Name)
+}
+
+func NewFromAppName(ctx context.Context, appName string) (*Client, error) {
+	return newFromAppOrAppName(ctx, nil, appName)
+}
+
+func newFromAppOrAppName(ctx context.Context, app *api.AppCompact, appName string) (*Client, error) {
+	if app != nil {
+		appName = app.Name
+	}
+
 	// FIXME: do this once we setup config for `fly config ...` commands, and then use cfg.FlapsBaseURL below
 	// cfg := config.FromContext(ctx)
+	var err error
 	flapsBaseURL := os.Getenv("FLY_FLAPS_BASE_URL")
 	if strings.TrimSpace(strings.ToLower(flapsBaseURL)) == "peer" {
+		app, err = resolveApp(ctx, app, appName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get app '%s': %w", appName, err)
+		}
 		return newWithUsermodeWireguard(ctx, app)
 	} else if flapsBaseURL == "" {
 		flapsBaseURL = "https://api.machines.dev"
@@ -58,12 +75,21 @@ func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
 		return nil, fmt.Errorf("flaps: can't setup HTTP client to %s: %w", flapsUrl.String(), err)
 	}
 	return &Client{
-		app:        app,
+		appName:    appName,
 		baseUrl:    flapsUrl,
 		authToken:  flyctl.GetAPIToken(),
 		httpClient: httpClient,
 		userAgent:  strings.TrimSpace(fmt.Sprintf("fly-cli/%s", buildinfo.Version())),
 	}, nil
+}
+
+func resolveApp(ctx context.Context, app *api.AppCompact, appName string) (*api.AppCompact, error) {
+	var err error
+	if app == nil {
+		client := client.FromContext(ctx).API()
+		app, err = client.GetAppCompact(ctx, appName)
+	}
+	return app, err
 }
 
 func newWithUsermodeWireguard(ctx context.Context, app *api.AppCompact) (*Client, error) {
@@ -98,7 +124,7 @@ func newWithUsermodeWireguard(ctx context.Context, app *api.AppCompact) (*Client
 	}
 
 	return &Client{
-		app:        app,
+		appName:    app.Name,
 		baseUrl:    flapsBaseUrl,
 		authToken:  flyctl.GetAPIToken(),
 		httpClient: httpClient,
@@ -456,7 +482,7 @@ func (f *Client) NewRequest(ctx context.Context, method, path string, in interfa
 		headers = make(map[string][]string)
 	}
 
-	targetEndpoint, err := f.urlFromBaseUrl(fmt.Sprintf("/v1/apps/%s/machines%s", f.app.Name, path))
+	targetEndpoint, err := f.urlFromBaseUrl(fmt.Sprintf("/v1/apps/%s/machines%s", f.appName, path))
 	if err != nil {
 		return nil, err
 	}
@@ -476,7 +502,7 @@ func (f *Client) NewRequest(ctx context.Context, method, path string, in interfa
 	}
 	req.Header = headers
 
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", f.authToken))
+	req.Header.Add("Authorization", api.AuthorizationHeader(f.authToken))
 
 	return req, nil
 }

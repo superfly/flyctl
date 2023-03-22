@@ -21,6 +21,30 @@ elif [[ $(git status --porcelain -b | grep -e "ahead" -e "behind") != "" ]]; the
   exit 1
 fi
 
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+if [[ "$BRANCH" != "master" && "$BRANCH" != "main" ]]; then
+    read -p "You are pushing from a branch ('$BRANCH'), are you sure? " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[^Yy]$ ]]; then
+        echo Aborting.
+        exit 1
+    fi
+else
+  # This check is pretty naive, so it doesn't seem to work if you're releasing from a branch.
+  git fetch
+  if [[ "$(git rev-parse HEAD 2>&1)" != "$(git rev-parse '@{u}' 2>&1)" ]]; then
+    echo "There are upstream commits that won't be included in this release."
+    echo "You probably want to exit, run 'git pull', then release."
+    echo
+    read -p "Release anyway? " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[^Yy]$ ]]; then
+        echo Aborting.
+        exit 1
+    fi
+  fi
+fi
+
 dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 previous_version="$("$dir"/../scripts/version.sh -s)"

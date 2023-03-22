@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -32,58 +31,53 @@ func newMachineExec() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		selectFlag,
 		flag.Int{
 			Name:        "timeout",
 			Description: "Timeout in seconds",
 		},
 	)
 
-	cmd.Args = cobra.ExactArgs(2)
+	cmd.Args = cobra.RangeArgs(1, 2)
 
 	return cmd
 }
 
 func runMachineExec(ctx context.Context) (err error) {
 	var (
-		appName   = appconfig.NameFromContext(ctx)
-		machineID = flag.FirstArg(ctx)
-		io        = iostreams.FromContext(ctx)
-		config    = config.FromContext(ctx)
+		args   = flag.Args(ctx)
+		io     = iostreams.FromContext(ctx)
+		config = config.FromContext(ctx)
+
+		machineID     string
+		haveMachineID bool
+		command       string
 	)
 
-	app, err := appFromMachineOrName(ctx, machineID, appName)
+	if len(args) == 2 {
+		machineID = args[0]
+		haveMachineID = true
+		command = args[1]
+	} else {
+		command = args[0]
+	}
+
+	current, ctx, err := selectOneMachine(ctx, nil, machineID, haveMachineID)
 	if err != nil {
-		help := newMachineExec().Help()
-
-		if help != nil {
-			fmt.Println(help)
-
-		}
-
-		fmt.Println()
 		return err
 	}
-
-	flapsClient, err := flaps.New(ctx, app)
-	if err != nil {
-		return fmt.Errorf("could not make flaps client: %w", err)
-	}
-
-	current, err := flapsClient.Get(ctx, machineID)
-	if err != nil {
-		return fmt.Errorf("could not retrieve machine %s", machineID)
-	}
+	flapsClient := flaps.FromContext(ctx)
 
 	var timeout = flag.GetInt(ctx, "timeout")
 
 	in := &api.MachineExecRequest{
-		Cmd:     flag.Args(ctx)[1],
+		Cmd:     command,
 		Timeout: timeout,
 	}
 
 	out, err := flapsClient.Exec(ctx, current.ID, in)
 	if err != nil {
-		return fmt.Errorf("could not exec command on machine %s: %w", machineID, err)
+		return fmt.Errorf("could not exec command on machine %s: %w", current.ID, err)
 	}
 
 	if config.JSONOutput {

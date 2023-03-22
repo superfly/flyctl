@@ -7,12 +7,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/watch"
@@ -36,6 +34,7 @@ func newUpdate() *cobra.Command {
 		flag.Image(),
 		sharedFlags,
 		flag.Yes(),
+		selectFlag,
 		flag.Bool{
 			Name:        "skip-health-checks",
 			Description: "Updates machine without waiting for health checks.",
@@ -48,45 +47,29 @@ func newUpdate() *cobra.Command {
 		},
 	)
 
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.RangeArgs(0, 1)
 
 	return cmd
 }
 
 func runUpdate(ctx context.Context) (err error) {
 	var (
-		appName  = appconfig.NameFromContext(ctx)
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
 
-		machineID        = flag.FirstArg(ctx)
 		autoConfirm      = flag.GetBool(ctx, "yes")
 		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
 		image            = flag.GetString(ctx, "image")
 		dockerfile       = flag.GetString(ctx, flag.Dockerfile().Name)
 	)
 
-	app, err := appFromMachineOrName(ctx, machineID, appName)
-	if err != nil {
-		return fmt.Errorf("could not make flaps client: %w", err)
-	}
-
-	ctx, err = apps.BuildContext(ctx, app)
+	machineID := flag.FirstArg(ctx)
+	haveMachineID := len(flag.Args(ctx)) > 0
+	machine, ctx, err := selectOneMachine(ctx, nil, machineID, haveMachineID)
 	if err != nil {
 		return err
 	}
-
-	flapsClient, err := flaps.New(ctx, app)
-	if err != nil {
-		return fmt.Errorf("could not make flaps client: %w", err)
-	}
-
-	// Get machine
-
-	machine, err := flapsClient.Get(ctx, machineID)
-	if err != nil {
-		return err
-	}
+	appName := appconfig.NameFromContext(ctx)
 
 	// Acquire lease
 	machine, releaseLeaseFunc, err := mach.AcquireLease(ctx, machine)
@@ -110,7 +93,7 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 
 	// Identify configuration changes
-	machineConf, err := determineMachineConfig(ctx, *machine.Config, app, imageOrPath, machine.Region)
+	machineConf, err := determineMachineConfig(ctx, *machine.Config, appName, imageOrPath, machine.Region)
 	if err != nil {
 		return err
 	}
@@ -130,7 +113,7 @@ func runUpdate(ctx context.Context) (err error) {
 	// Perform update
 	input := &api.LaunchMachineInput{
 		ID:               machine.ID,
-		AppID:            app.Name,
+		AppID:            appName,
 		Name:             machine.Name,
 		Region:           machine.Region,
 		Config:           machineConf,
@@ -149,7 +132,7 @@ func runUpdate(ctx context.Context) (err error) {
 		fmt.Fprintln(io.Out)
 	}
 
-	fmt.Fprintf(io.Out, "\nMonitor machine status here:\nhttps://fly.io/apps/%s/machines/%s\n", app.Name, machine.ID)
+	fmt.Fprintf(io.Out, "\nMonitor machine status here:\nhttps://fly.io/apps/%s/machines/%s\n", appName, machine.ID)
 
 	return nil
 }

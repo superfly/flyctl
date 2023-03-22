@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command"
@@ -165,6 +166,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 		if flag.GetString(ctx, flag.RegionName) != "" {
 			primaryRegion = flag.GetString(ctx, flag.RegionName)
 		}
+
 		md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 			AppCompact:        appCompact,
 			DeploymentImage:   img,
@@ -253,6 +255,13 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 	if cfg = appconfig.ConfigFromContext(ctx); cfg == nil {
 		logger := logger.FromContext(ctx)
 		logger.Debug("no local app config detected; fetching from backend ...")
+
+		var flapsClient *flaps.Client
+		flapsClient, err = flaps.NewFromAppName(ctx, appNameFromContext)
+		if err != nil {
+			return nil, fmt.Errorf("could not create flaps client: %w", err)
+		}
+		ctx = flaps.NewContext(ctx, flapsClient)
 
 		cfg, err = appconfig.FromRemoteApp(ctx, appNameFromContext)
 		if err != nil {

@@ -1185,23 +1185,6 @@ func (v *GetNearestRegionResponse) GetNearestRegion() GetNearestRegionNearestReg
 	return v.NearestRegion
 }
 
-// GetOrgSettingsOrganization includes the requested fields of the GraphQL type Organization.
-type GetOrgSettingsOrganization struct {
-	Settings interface{} `json:"settings"`
-}
-
-// GetSettings returns GetOrgSettingsOrganization.Settings, and is useful for accessing the field via an interface.
-func (v *GetOrgSettingsOrganization) GetSettings() interface{} { return v.Settings }
-
-// GetOrgSettingsResponse is returned by GetOrgSettings on success.
-type GetOrgSettingsResponse struct {
-	// Find an organization by ID
-	Organization GetOrgSettingsOrganization `json:"organization"`
-}
-
-// GetOrganization returns GetOrgSettingsResponse.Organization, and is useful for accessing the field via an interface.
-func (v *GetOrgSettingsResponse) GetOrganization() GetOrgSettingsOrganization { return v.Organization }
-
 // GetOrganizationOrganization includes the requested fields of the GraphQL type Organization.
 type GetOrganizationOrganization struct {
 	Id string `json:"id"`
@@ -1855,14 +1838,6 @@ func (v *__GetAppsByRoleInput) GetRole() string { return v.Role }
 // GetOrganizationId returns __GetAppsByRoleInput.OrganizationId, and is useful for accessing the field via an interface.
 func (v *__GetAppsByRoleInput) GetOrganizationId() string { return v.OrganizationId }
 
-// __GetOrgSettingsInput is used internally by genqlient
-type __GetOrgSettingsInput struct {
-	OrgSlug string `json:"orgSlug"`
-}
-
-// GetOrgSlug returns __GetOrgSettingsInput.OrgSlug, and is useful for accessing the field via an interface.
-func (v *__GetOrgSettingsInput) GetOrgSlug() string { return v.OrgSlug }
-
 // __GetOrganizationInput is used internally by genqlient
 type __GetOrganizationInput struct {
 	Slug string `json:"slug"`
@@ -2404,38 +2379,6 @@ query GetNearestRegion {
 	var err error
 
 	var data GetNearestRegionResponse
-	resp := &graphql.Response{Data: &data}
-
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
-	)
-
-	return &data, err
-}
-
-func GetOrgSettings(
-	ctx context.Context,
-	client graphql.Client,
-	orgSlug string,
-) (*GetOrgSettingsResponse, error) {
-	req := &graphql.Request{
-		OpName: "GetOrgSettings",
-		Query: `
-query GetOrgSettings ($orgSlug: String!) {
-	organization(slug: $orgSlug) {
-		settings
-	}
-}
-`,
-		Variables: &__GetOrgSettingsInput{
-			OrgSlug: orgSlug,
-		},
-	}
-	var err error
-
-	var data GetOrgSettingsResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(

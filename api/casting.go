@@ -1,7 +1,5 @@
 package api
 
-import "encoding/json"
-
 // IntPointer - Returns a pointer to an int
 func IntPointer(val int) *int {
 	return &val
@@ -20,17 +18,4 @@ func StringPointer(val string) *string {
 // Pointer - Returns a pointer to a any type
 func Pointer[T any](val T) *T {
 	return &val
-}
-
-func InterfaceToMapOfStringInterface(val interface{}) (map[string]interface{}, error) {
-	jsonString, err := json.Marshal(val)
-	if err != nil {
-		return nil, err
-	}
-	var outputMap map[string]interface{}
-	err = json.Unmarshal(jsonString, &outputMap)
-	if err != nil {
-		return nil, err
-	}
-	return outputMap, nil
 }

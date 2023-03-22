@@ -149,11 +149,14 @@ func hasRequiredVersionOnMachines(machines []*api.Machine, cluster, flex, standa
 }
 
 func IsFlex(machine *api.Machine) bool {
-	if machine.ImageRef.Labels["fly.pg-manager"] == "repmgr" {
+	switch {
+	case machine == nil || len(machine.ImageRef.Labels) == 0:
+		return false
+	case machine.ImageRef.Labels["fly.pg-manager"] == "repmgr":
 		return true
+	default:
+		return false
 	}
-
-	return false
 }
 
 func machinesNodeRoles(ctx context.Context, machines []*api.Machine) (leader *api.Machine, replicas []*api.Machine) {

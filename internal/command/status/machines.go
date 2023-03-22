@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/command/postgres"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -24,7 +25,7 @@ func getFromMetadata(m *api.Machine, key string) string {
 }
 
 func getProcessgroup(m *api.Machine) string {
-	name := getFromMetadata(m, api.MachineConfigMetadataKeyFlyProcessGroup)
+	name := m.ProcessGroup()
 
 	if name != "" {
 		return name
@@ -69,10 +70,12 @@ func getImage(machines []*api.Machine) (string, error) {
 
 func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 	var (
-		io       = iostreams.FromContext(ctx)
-		colorize = io.ColorScheme()
-		client   = client.FromContext(ctx).API()
+		io         = iostreams.FromContext(ctx)
+		colorize   = io.ColorScheme()
+		client     = client.FromContext(ctx).API()
+		jsonOutput = config.FromContext(ctx).JSONOutput
 	)
+
 	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
 		return err
@@ -86,6 +89,10 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 	sort.Slice(machines, func(i, j int) bool {
 		return machines[i].ID < machines[j].ID
 	})
+
+	if jsonOutput {
+		return renderMachineJSONStatus(ctx, app, machines)
+	}
 
 	if app.IsPostgresApp() {
 		return renderPGStatus(ctx, app, machines)
@@ -180,6 +187,58 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 
 	return nil
 
+}
+
+func renderMachineJSONStatus(ctx context.Context, app *api.AppCompact, machines []*api.Machine) error {
+	var (
+		out    = iostreams.FromContext(ctx).Out
+		client = client.FromContext(ctx).API()
+	)
+
+	versionQuery := `
+		query ($appName: String!) {
+			app(name:$appName) {
+				currentRelease:currentReleaseUnprocessed {
+					version
+				}
+			}
+		}
+	`
+	req := client.NewRequest(versionQuery)
+	req.Var("appName", app.Name)
+	resp, err := client.RunWithContext(ctx, req)
+	if err != nil {
+		return fmt.Errorf("could not get current release for app '%s': %w", app.Name, err)
+	}
+	version := 0
+	if resp.App.CurrentRelease != nil {
+		version = resp.App.CurrentRelease.Version
+	}
+
+	machinesToShow := []*api.Machine{}
+	if app.IsPostgresApp() {
+		machinesToShow = machines
+	} else {
+		for _, machine := range machines {
+			if machine.IsAppsV2() {
+				machinesToShow = append(machinesToShow, machine)
+			}
+		}
+	}
+
+	status := map[string]any{
+		"ID":              app.ID,
+		"Name":            app.Name,
+		"Deployed":        app.Deployed,
+		"Status":          app.Status,
+		"Hostname":        app.Hostname,
+		"Version":         version,
+		"AppURL":          app.AppURL,
+		"Organization":    app.Organization,
+		"PlatformVersion": app.PlatformVersion,
+		"Machines":        machinesToShow,
+	}
+	return render.JSON(out, status)
 }
 
 func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Machine) (err error) {
