@@ -136,7 +136,7 @@ func runSetup(ctx context.Context) (err error) {
 		return err
 	}
 
-	flapsClient, err := flaps.New(ctx, api.GqlAppForFlaps(shipperApp))
+	flapsClient, err := flaps.New(ctx, gql.AppForFlaps(shipperApp))
 
 	if err != nil {
 		return err

@@ -2,8 +2,6 @@ package api
 
 import (
 	"context"
-
-	"github.com/superfly/flyctl/gql"
 )
 
 func (client *Client) GetApps(ctx context.Context, role *string) ([]App, error) {
@@ -188,16 +186,6 @@ func (client *Client) GetAppCompact(ctx context.Context, appName string) (*AppCo
 	}
 
 	return &data.AppCompact, nil
-}
-
-// GqlAppForFlaps converts the genqclient AppFragment to an AppCompact suitable for flaps, which only needs two fields
-func GqlAppForFlaps(app gql.AppData) *AppCompact {
-	return &AppCompact{
-		Name: app.Name,
-		Organization: &OrganizationBasic{
-			Slug: app.Organization.Slug,
-		},
-	}
 }
 
 func (client *Client) AppToCompact(app *App) *AppCompact {
