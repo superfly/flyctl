@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 func fileExists(filenames ...string) checkFn {
@@ -28,13 +29,25 @@ func fileContains(path string, pattern string) bool {
 		return false
 	}
 
-	defer file.Close()
+	defer file.Close() //skipcq: GO-S2307
 
 	scanner := bufio.NewScanner(file)
 
+	// Unicode is a complex subject, but if we assume that the pattern is only
+	// looking for strings expressible in ASCII, a lot of simplifications can
+	// be made.  Most encodings express strings containing only valid ASCII
+	// characters the same.  The only encodings that matter that don't are
+	// UTF-16, which will add null bytes, either before or after each
+	// character.  Since UTF-16 is rare except on Windows, we do a scan to see
+	// if we need to allocate a new string.
+	re := regexp.MustCompile(pattern)
 	for scanner.Scan() {
-		re := regexp.MustCompile(pattern)
-		if re.MatchString(scanner.Text()) {
+		text := scanner.Text()
+		if strings.Contains(text, "\u0000") {
+			text = strings.ReplaceAll(text, "\u0000", "")
+		}
+
+		if re.MatchString(text) {
 			return true
 		}
 	}
