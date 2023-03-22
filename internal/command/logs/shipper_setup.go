@@ -52,6 +52,8 @@ func runSetup(ctx context.Context) (err error) {
 
 	targetApp := appNameResponse.App.AppData
 	targetOrg := targetApp.Organization
+	addOnName := targetOrg.RawSlug + "-log-shipper"
+
 	appsResult, err := gql.GetAppsByRole(ctx, client, "log-shipper", targetOrg.Id)
 
 	if err != nil {
@@ -66,6 +68,7 @@ func runSetup(ctx context.Context) (err error) {
 		input.Machines = true
 		input.OrganizationId = targetOrg.Id
 		input.AppRoleId = "log-shipper"
+		input.Name = addOnName
 
 		createdAppResult, err := gql.CreateApp(ctx, client, input)
 
@@ -78,8 +81,6 @@ func runSetup(ctx context.Context) (err error) {
 	}
 
 	// Fetch or create the org-specific Logtail integration
-
-	addOnName := targetOrg.RawSlug + "-log-shipper"
 
 	getAddOnResponse, err := gql.GetAddOn(ctx, client, addOnName)
 
