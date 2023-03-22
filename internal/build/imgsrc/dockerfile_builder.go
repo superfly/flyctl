@@ -257,7 +257,7 @@ func runClassicBuild(ctx context.Context, streams *iostreams.IOStreams, docker *
 	if err != nil {
 		return "", errors.Wrap(err, "error building with docker")
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	idCallback := func(m jsonmessage.JSONMessage) {
 		var aux types.BuildResult
@@ -316,7 +316,7 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 		if err != nil {
 			return err
 		}
-		defer response.Body.Close()
+		defer func() { _ = response.Body.Close() }()
 		return nil
 	})
 
@@ -342,7 +342,7 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 			if err != nil {
 				return err
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 
 			done := make(chan struct{})
 			defer close(done)
@@ -419,7 +419,7 @@ func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostre
 	if err != nil {
 		return errors.Wrap(err, "error pushing image to registry")
 	}
-	defer pushResp.Close()
+	defer func() { _ = pushResp.Close() }()
 
 	err = jsonmessage.DisplayJSONMessagesStream(pushResp, streams.ErrOut, streams.StderrFd(), streams.IsStderrTTY(), nil)
 	if err != nil {
