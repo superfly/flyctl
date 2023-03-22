@@ -31,6 +31,11 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 		return err, extra_info
 	}
 
+	buildStrats := cfg.buildStrategies()
+	if len(buildStrats) > 1 {
+		return fmt.Errorf("More than one build configuration found: [%s]", strings.Join(buildStrats, ", ")), extra_info
+	}
+
 	switch platformVersion {
 	case MachinesPlatform:
 		err := cfg.EnsureV2Config()
@@ -63,4 +68,31 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 		return fmt.Errorf("Unknown platform version '%s' for app '%s'", platformVersion, appName), extra_info
 	}
 
+}
+
+func (cfg *Config) buildStrategies() []string {
+	strategies := []string{}
+
+	if cfg.Build == nil {
+		return strategies
+	}
+
+	if cfg.Build.Image != "" {
+		strategies = append(strategies, fmt.Sprintf("the \"%s\" docker image", cfg.Build.Image))
+	}
+	if cfg.Build.Builder != "" || len(cfg.Build.Buildpacks) > 0 {
+		strategies = append(strategies, "a buildpack")
+	}
+	if cfg.Build.Dockerfile != "" || cfg.Build.DockerBuildTarget != "" {
+		if cfg.Build.Dockerfile != "" {
+			strategies = append(strategies, fmt.Sprintf("the \"%s\" dockerfile", cfg.Build.Dockerfile))
+		} else {
+			strategies = append(strategies, "a dockerfile")
+		}
+	}
+	if cfg.Build.Builtin != "" {
+		strategies = append(strategies, fmt.Sprintf("the \"%s\" builtin image", cfg.Build.Builtin))
+	}
+
+	return strategies
 }

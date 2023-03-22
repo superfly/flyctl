@@ -71,7 +71,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		}
 		dockerfile = opts.DockerfilePath
 	} else {
-		dockerfile = ResolveDockerfile(opts.WorkingDir)
+		dockerfile = resolveDockerfile(opts.WorkingDir)
 	}
 
 	if dockerfile == "" {
