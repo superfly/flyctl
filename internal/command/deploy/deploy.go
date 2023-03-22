@@ -28,6 +28,7 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/watch"
+	"github.com/superfly/flyctl/terminal"
 )
 
 var CommonFlags = flag.Set{
@@ -307,12 +308,13 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 	client := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
 
+	if err := findConflictingBuildOptions(ctx, appConfig, daemonType); err != nil {
+		terminal.Warn(err)
+	}
+
 	resolver := imgsrc.NewResolver(daemonType, client, appConfig.AppName, io)
 
-	var imageRef string
-	if imageRef, err = fetchImageRef(ctx, appConfig); err != nil {
-		return
-	}
+	imageRef := fetchImageRef(ctx, appConfig)
 
 	// we're using a pre-built Docker image
 	if imageRef != "" {
@@ -445,18 +447,18 @@ func mergeBuildArgs(ctx context.Context, args map[string]string) (map[string]str
 	return args, nil
 }
 
-func fetchImageRef(ctx context.Context, cfg *appconfig.Config) (ref string, err error) {
-	if ref = flag.GetString(ctx, "image"); ref != "" {
-		return
+func fetchImageRef(ctx context.Context, cfg *appconfig.Config) string {
+	if ref := flag.GetString(ctx, "image"); ref != "" {
+		return ref
 	}
 
 	if cfg != nil && cfg.Build != nil {
-		if ref = cfg.Build.Image; ref != "" {
-			return
+		if ref := cfg.Build.Image; ref != "" {
+			return ref
 		}
 	}
 
-	return ref, nil
+	return ""
 }
 
 func createRelease(ctx context.Context, appConfig *appconfig.Config, img *imgsrc.DeploymentImage) (*api.Release, *api.ReleaseCommand, error) {
@@ -483,4 +485,45 @@ func createRelease(ctx context.Context, appConfig *appconfig.Config, img *imgsrc
 	}
 
 	return release, releaseCommand, err
+}
+
+func findConflictingBuildOptions(ctx context.Context, appConfig *appconfig.Config, daemonType imgsrc.DockerDaemonType) error {
+	build := appConfig.Build
+	if build == nil {
+		build = new(appconfig.Build)
+	}
+
+	imageRef := fetchImageRef(ctx, appConfig)
+	buildpack := build.Builder
+	builtin := build.Builtin
+	dockerfile, _ := resolveDockerfilePath(ctx, appConfig)
+	if dockerfile == "" {
+		dockerfile = imgsrc.ResolveDockerfile(state.WorkingDirectory(ctx))
+	}
+
+	strategies := []string{}
+
+	// These must be in the same order that we try when building
+	if imageRef != "" {
+		strategies = append(strategies, fmt.Sprintf("the \"%s\" docker image", imageRef))
+	}
+	if daemonType.UseNixpacks() {
+		strategies = append(strategies, "nixpacks")
+	}
+	if buildpack != "" {
+		strategies = append(strategies, "a buildpack")
+	}
+	if dockerfile != "" {
+		strategies = append(strategies, fmt.Sprintf("the \"%s\" dockerfile", dockerfile))
+	}
+	if builtin != "" {
+		strategies = append(strategies, fmt.Sprintf("the \"%s\" builtin image", builtin))
+	}
+
+	if len(strategies) > 1 {
+		lastIndex := len(strategies) - 1
+		return fmt.Errorf("found multiple ways to build this app: %s and %s. Using %s.", strings.Join(strategies[:lastIndex], ", "), strategies[lastIndex], strategies[0])
+	}
+
+	return nil
 }
