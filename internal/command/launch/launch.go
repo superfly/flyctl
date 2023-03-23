@@ -347,6 +347,12 @@ func run(ctx context.Context) (err error) {
 	if n := flag.GetInt(ctx, "internal-port"); n > 0 {
 		appConfig.SetInternalPort(n)
 	}
+
+	// remove auto-rollback from machine fly.tomls
+	if shouldUseMachines {
+		appConfig.Experimental = nil
+	}
+
 	// Finally write application configuration to fly.toml
 	if err := appConfig.WriteToDisk(ctx, configFilePath); err != nil {
 		return err
