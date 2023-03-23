@@ -31,7 +31,7 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 		return err, extra_info
 	}
 
-	buildStrats := cfg.buildStrategies()
+	buildStrats := cfg.BuildStrategies()
 	if len(buildStrats) > 1 {
 		return fmt.Errorf("More than one build configuration found: [%s]", strings.Join(buildStrats, ", ")), extra_info
 	}
@@ -70,7 +70,7 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 
 }
 
-func (cfg *Config) buildStrategies() []string {
+func (cfg *Config) BuildStrategies() []string {
 	strategies := []string{}
 
 	if cfg.Build == nil {
