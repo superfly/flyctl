@@ -80,45 +80,14 @@ func runCreate(ctx context.Context) error {
 		return err
 	}
 
-	// If the Yes flag has been supplied we skip the warning entirely, so no
-	// need to query for the set of volumes
-	if !flag.GetYes(ctx) {
-		// fetch the set of volumes for this app. If > 0 we skip the prompt
-		var volumes []api.Volume
-		if volumes, err = client.GetVolumes(ctx, appName); err != nil {
-			return err
-		}
-
-		var matches int32
-		for _, volume := range volumes {
-			if volume.Name == volumeName {
-				matches++
-			}
-		}
-
-		if matches == 0 {
-			var confirmed bool
-			io := iostreams.FromContext(ctx)
-			colorize := io.ColorScheme()
-
-			const msg = "Warning! Individual volumes are pinned to individual hosts. You should create two or more volumes per application. You will have downtime if you only create one. If you proceed, make sure to create a second volume with fly volume create --require-unique-zone to ensure a second volume exists on a separate worker"
-			fmt.Fprintln(io.ErrOut, colorize.Red(msg))
-
-			switch confirmed, err = prompt.Confirm(ctx, "Do you still want to use the volumes feature?"); {
-			case err == nil:
-				if !confirmed {
-					return nil
-				}
-			case prompt.IsNonInteractive(err):
-				return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
-			default:
-				return err
-			}
-		}
+	var confirm bool
+	if confirm, err = confirmVolumeCreate(ctx, appName); err != nil {
+		return err
+	} else if !confirm {
+		return nil
 	}
 
 	var region *api.Region
-
 	if region, err = prompt.Region(ctx, !app.Organization.PaidPlan, prompt.RegionParams{
 		Message: "",
 	}); err != nil {
@@ -152,4 +121,43 @@ func runCreate(ctx context.Context) error {
 	}
 
 	return printVolume(out, volume)
+}
+
+func confirmVolumeCreate(ctx context.Context, appName string) (bool, error) {
+	var volumeName = flag.FirstArg(ctx)
+
+	// If the Yes flag has been supplied we skip the warning entirely, so no
+	// need to query for the set of volumes
+	if !flag.GetYes(ctx) {
+		var (
+			err     error
+			matches int32
+		)
+		if matches, err = countVolumesMatchingName(ctx, appName, volumeName); err != nil {
+			return false, err
+		}
+
+		// If this is the only volume with this name for this app, warn users that they'll need to create more
+		if matches == 0 {
+			var confirmed bool
+			io := iostreams.FromContext(ctx)
+			colorize := io.ColorScheme()
+
+			const msg = "Warning! Individual volumes are pinned to individual hosts. You should create two or more volumes per application. You will have downtime if you only create one. Learn more at https://fly.io/docs/reference/volumes/"
+			fmt.Fprintln(io.ErrOut, colorize.Red(msg))
+
+			switch confirmed, err = prompt.Confirm(ctx, "Do you still want to use the volumes feature?"); {
+			case err == nil:
+				if !confirmed {
+					return false, nil
+				}
+			case prompt.IsNonInteractive(err):
+				return false, prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+			default:
+				return false, err
+			}
+		}
+	}
+
+	return true, nil
 }
