@@ -122,7 +122,9 @@ func run(ctx context.Context) (err error) {
 	fmt.Fprintln(io.Out, "Creating app in", workingDir)
 
 	srcInfo := new(scanner.SourceInfo)
-	config := new(scanner.ScannerConfig)
+	config := &scanner.ScannerConfig{
+		ExistingPort: appConfig.GetInternalPort(),
+	}
 
 	// Detect if --copy-config and --now flags are set. If so, limited set of
 	// fly.toml file updates. Helpful for deploying PRs when the project is
