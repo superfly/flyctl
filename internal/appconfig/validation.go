@@ -38,19 +38,13 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 		extra_info += fmt.Sprintf("Platform: %s\n", platformVersion)
 	}
 
-	buildStrats := cfg.BuildStrategies()
-	if len(buildStrats) > 1 {
-		// TODO: validate that most users are not affected by this and/or fixing this, then make it fail validation
-		msg := fmt.Sprintf("%s more than one build configuration found: [%s]", aurora.Yellow("WARN"), strings.Join(buildStrats, ", "))
-		extra_info += msg + "\n"
-		sentry.CaptureException(errors.New(msg))
-	}
-
 	switch platformVersion {
 	case MachinesPlatform:
-		return cfg.ValidateForMachinesPlatform(ctx)
+		platErr, platExtra := cfg.ValidateForMachinesPlatform(ctx)
+		return platErr, extra_info + platExtra
 	case NomadPlatform:
-		return cfg.ValidateForNomadPlatform(ctx)
+		platErr, platExtra := cfg.ValidateForNomadPlatform(ctx)
+		return platErr, extra_info + platExtra
 	case "":
 		return nil, ""
 	default:
@@ -60,6 +54,7 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 }
 
 func (cfg *Config) ValidateForMachinesPlatform(ctx context.Context) (err error, extra_info string) {
+	extra_info += cfg.validateBuildStrategies()
 	err = cfg.EnsureV2Config()
 	if err == nil {
 		extra_info += fmt.Sprintf("%s Configuration is valid\n", aurora.Green("✓"))
@@ -71,6 +66,7 @@ func (cfg *Config) ValidateForMachinesPlatform(ctx context.Context) (err error, 
 }
 
 func (cfg *Config) ValidateForNomadPlatform(ctx context.Context) (err error, extra_info string) {
+	extra_info += cfg.validateBuildStrategies()
 	appName := NameFromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 	serverCfg, err := apiClient.ValidateConfig(ctx, appName, cfg.SanitizedDefinition())
@@ -88,6 +84,17 @@ func (cfg *Config) ValidateForNomadPlatform(ctx context.Context) (err error, ext
 		extra_info += "\n"
 		return errors.New("App configuration is not valid"), extra_info
 	}
+}
+
+func (cfg *Config) validateBuildStrategies() (extraInfo string) {
+	buildStrats := cfg.BuildStrategies()
+	if len(buildStrats) > 1 {
+		// TODO: validate that most users are not affected by this and/or fixing this, then make it fail validation
+		msg := fmt.Sprintf("%s more than one build configuration found: [%s]", aurora.Yellow("WARN"), strings.Join(buildStrats, ", "))
+		extraInfo += msg + "\n"
+		sentry.CaptureException(errors.New(msg))
+	}
+	return
 }
 
 func (cfg *Config) BuildStrategies() []string {
