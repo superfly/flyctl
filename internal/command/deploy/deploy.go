@@ -292,7 +292,7 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 
 	err, extraInfo := cfg.Validate(ctx)
 	if extraInfo != "" {
-		terminal.Info(extraInfo)
+		fmt.Print(extraInfo)
 	}
 	if err != nil {
 		return
