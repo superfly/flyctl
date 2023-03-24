@@ -55,6 +55,11 @@ func initConfigDir() error {
 	return nil
 }
 
+// viper keys that shouldn't be loaded from the environment
+var noEnvKeys = map[string]bool{
+	ConfigAPIToken: true,
+}
+
 func initViper() {
 	if err := loadConfig(); err != nil {
 		fmt.Println("Error loading config", err)
@@ -68,7 +73,13 @@ func initViper() {
 	viper.BindEnv(ConfigGQLErrorLogging, "GQLErrorLogging")
 
 	viper.SetEnvPrefix("FLY")
-	viper.AutomaticEnv()
+
+	for _, key := range viper.AllKeys() {
+		if noEnvKeys[key] {
+			continue
+		}
+		viper.BindEnv(key)
+	}
 
 	api.SetBaseURL(viper.GetString(ConfigAPIBaseURL))
 	api.SetErrorLog(viper.GetBool(ConfigGQLErrorLogging))

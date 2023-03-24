@@ -129,9 +129,9 @@ func run(ctx context.Context) (err error) {
 		Autostart:             flag.GetBool(ctx, "autostart"),
 	}
 
-	params.Manager = flypg.StolonManager
-	if flag.GetBool(ctx, "flex") {
-		params.Manager = flypg.ReplicationManager
+	params.Manager = flypg.ReplicationManager
+	if flag.GetBool(ctx, "stolon") {
+		params.Manager = flypg.StolonManager
 	}
 
 	return CreateCluster(ctx, org, region, params)
