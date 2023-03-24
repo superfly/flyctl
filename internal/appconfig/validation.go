@@ -8,6 +8,7 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/internal/sentry"
 )
 
 func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) {
@@ -33,7 +34,7 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 
 	buildStrats := cfg.BuildStrategies()
 	if len(buildStrats) > 1 {
-		return fmt.Errorf("More than one build configuration found: [%s]", strings.Join(buildStrats, ", ")), extra_info
+		sentry.CaptureException(fmt.Errorf("More than one build configuration found: [%s]", strings.Join(buildStrats, ", ")))
 	}
 
 	switch platformVersion {
