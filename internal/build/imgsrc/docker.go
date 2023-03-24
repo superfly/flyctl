@@ -456,8 +456,8 @@ func newCacheTag(appName string) string {
 	return fmt.Sprintf("%s/%s:%s", registry, appName, "cache")
 }
 
-// resolveDockerfile - Resolve the location of the dockerfile, allowing for upper and lowercase naming
-func resolveDockerfile(cwd string) string {
+// ResolveDockerfile - Resolve the location of the dockerfile, allowing for upper and lowercase naming
+func ResolveDockerfile(cwd string) string {
 	dockerfilePath := filepath.Join(cwd, "Dockerfile")
 	if helpers.FileExists(dockerfilePath) {
 		return dockerfilePath

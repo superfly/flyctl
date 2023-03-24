@@ -8,6 +8,7 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/internal/sentry"
 )
 
 func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) {
@@ -18,17 +19,31 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 		return errors.New("App config file not found"), ""
 	}
 
-	platformVersion := NomadPlatform
-	extra_info = fmt.Sprintf("Validating %s (%s)\n", cfg.ConfigFilePath(), platformVersion)
+	extra_info = fmt.Sprintf("Validating %s\n", cfg.ConfigFilePath())
 
-	app, err := apiClient.GetAppBasic(ctx, appName)
-	switch {
-	case err == nil:
-		platformVersion = app.PlatformVersion
-	case strings.Contains(err.Error(), "Could not find App"):
-		extra_info += fmt.Sprintf("WARNING: Failed to fetch platform version: %s\n", err)
-	default:
-		return err, extra_info
+	platformVersion := cfg.platformVersion
+	if platformVersion == "" {
+		app, err := apiClient.GetAppBasic(ctx, appName)
+		switch {
+		case err == nil:
+			platformVersion = app.PlatformVersion
+			extra_info += fmt.Sprintf("Platform: %s\n", platformVersion)
+		case strings.Contains(err.Error(), "Could not find App"):
+			platformVersion = NomadPlatform
+			extra_info += fmt.Sprintf("WARNING: Failed to fetch platform version: %s\n", err)
+		default:
+			return err, extra_info
+		}
+	} else {
+		extra_info += fmt.Sprintf("Platform: %s\n", platformVersion)
+	}
+
+	buildStrats := cfg.BuildStrategies()
+	if len(buildStrats) > 1 {
+		// TODO: validate that most users are not affected by this and/or fixing this, then make it fail validation
+		msg := fmt.Sprintf("%s more than one build configuration found: [%s]", aurora.Yellow("WARN"), strings.Join(buildStrats, ", "))
+		extra_info += msg + "\n"
+		sentry.CaptureException(errors.New(msg))
 	}
 
 	switch platformVersion {
@@ -63,4 +78,31 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 		return fmt.Errorf("Unknown platform version '%s' for app '%s'", platformVersion, appName), extra_info
 	}
 
+}
+
+func (cfg *Config) BuildStrategies() []string {
+	strategies := []string{}
+
+	if cfg == nil || cfg.Build == nil {
+		return strategies
+	}
+
+	if cfg.Build.Image != "" {
+		strategies = append(strategies, fmt.Sprintf("the \"%s\" docker image", cfg.Build.Image))
+	}
+	if cfg.Build.Builder != "" || len(cfg.Build.Buildpacks) > 0 {
+		strategies = append(strategies, "a buildpack")
+	}
+	if cfg.Build.Dockerfile != "" || cfg.Build.DockerBuildTarget != "" {
+		if cfg.Build.Dockerfile != "" {
+			strategies = append(strategies, fmt.Sprintf("the \"%s\" dockerfile", cfg.Build.Dockerfile))
+		} else {
+			strategies = append(strategies, "a dockerfile")
+		}
+	}
+	if cfg.Build.Builtin != "" {
+		strategies = append(strategies, fmt.Sprintf("the \"%s\" builtin image", cfg.Build.Builtin))
+	}
+
+	return strategies
 }
