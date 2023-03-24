@@ -67,38 +67,41 @@ func confirmVolumeDelete(ctx context.Context, volID string) (bool, error) {
 		client   = client.FromContext(ctx).API()
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
+
+		err error
 	)
-	if !flag.GetYes(ctx) {
-		var err error
 
-		// fetch the volume so we can get the associated app
-		var volume *api.Volume
-		if volume, err = client.GetVolume(ctx, volID); err != nil {
-			return false, err
-		}
+	if flag.GetYes(ctx) {
+		return true, nil
+	}
 
-		// fetch the set of volumes for this app. If > 0 we skip the prompt
-		var matches int32
-		if matches, err = countVolumesMatchingName(ctx, volume.App.Name, volume.Name); err != nil {
-			return false, err
-		}
+	// fetch the volume so we can get the associated app
+	var volume *api.Volume
+	if volume, err = client.GetVolume(ctx, volID); err != nil {
+		return false, err
+	}
 
-		var msg = "Deleting a volume is not reversible."
-		if matches <= 2 {
-			msg = fmt.Sprintf("Warning! Individual volumes are pinned to individual hosts. You should create two or more volumes per application. Deleting this volume will leave you with %d volume(s) for this application, and it is not reversible.  Learn more at https://fly.io/docs/reference/volumes/", matches-1)
-		}
-		fmt.Fprintln(io.ErrOut, colorize.Red(msg))
+	// fetch the set of volumes for this app. If > 0 we skip the prompt
+	var matches int32
+	if matches, err = countVolumesMatchingName(ctx, volume.App.Name, volume.Name); err != nil {
+		return false, err
+	}
 
-		switch confirmed, err := prompt.Confirm(ctx, "Are you sure you want to destroy this volume?"); {
-		case err == nil:
-			if !confirmed {
-				return false, nil
-			}
-		case prompt.IsNonInteractive(err):
-			return false, prompt.NonInteractiveError("yes flag must be specified when not running interactively")
-		default:
-			return false, err
+	var msg = "Deleting a volume is not reversible."
+	if matches <= 2 {
+		msg = fmt.Sprintf("Warning! Individual volumes are pinned to individual hosts. You should create two or more volumes per application. Deleting this volume will leave you with %d volume(s) for this application, and it is not reversible.  Learn more at https://fly.io/docs/reference/volumes/", matches-1)
+	}
+	fmt.Fprintln(io.ErrOut, colorize.Red(msg))
+
+	switch confirmed, err := prompt.Confirm(ctx, "Are you sure you want to destroy this volume?"); {
+	case err == nil:
+		if !confirmed {
+			return false, nil
 		}
+	case prompt.IsNonInteractive(err):
+		return false, prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+	default:
+		return false, err
 	}
 
 	return true, nil
