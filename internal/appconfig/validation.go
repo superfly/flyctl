@@ -34,7 +34,10 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 
 	buildStrats := cfg.BuildStrategies()
 	if len(buildStrats) > 1 {
-		sentry.CaptureException(fmt.Errorf("More than one build configuration found: [%s]", strings.Join(buildStrats, ", ")))
+		// TODO: validate that most users are not affected by this and/or fixing this, then make it fail validation
+		msg := fmt.Sprintf("%s more than one build configuration found: [%s]", aurora.Yellow("WARN"), strings.Join(buildStrats, ", "))
+		extra_info += msg + "\n"
+		sentry.CaptureException(errors.New(msg))
 	}
 
 	switch platformVersion {

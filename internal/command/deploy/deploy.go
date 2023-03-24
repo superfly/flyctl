@@ -290,7 +290,10 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 		cfg.AppName = appNameFromContext
 	}
 
-	err, _ = cfg.Validate(ctx)
+	err, extraInfo := cfg.Validate(ctx)
+	if extraInfo != "" {
+		terminal.Info(extraInfo)
+	}
 	if err != nil {
 		return
 	}
