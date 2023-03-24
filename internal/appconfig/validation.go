@@ -19,7 +19,7 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 		return errors.New("App config file not found"), ""
 	}
 
-	platformVersion := NomadPlatform
+	platformVersion := cfg.platformVersion
 	extra_info = fmt.Sprintf("Validating %s (%s)\n", cfg.ConfigFilePath(), platformVersion)
 
 	app, err := apiClient.GetAppBasic(ctx, appName)
