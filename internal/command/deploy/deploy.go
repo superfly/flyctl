@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
@@ -289,7 +290,10 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 		cfg.AppName = appNameFromContext
 	}
 
-	err, _ = cfg.Validate(ctx)
+	err, extraInfo := cfg.Validate(ctx)
+	if extraInfo != "" {
+		fmt.Print(extraInfo)
+	}
 	if err != nil {
 		return
 	}
@@ -306,6 +310,14 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 
 	client := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
+
+	if len(appConfig.BuildStrategies()) > 0 {
+		foundDF := imgsrc.ResolveDockerfile(state.WorkingDirectory(ctx))
+		configDF, _ := resolveDockerfilePath(ctx, appConfig)
+		if foundDF != "" && foundDF != configDF {
+			terminal.Warnf("Ignoring %s due to config\n", foundDF)
+		}
+	}
 
 	resolver := imgsrc.NewResolver(daemonType, client, appConfig.AppName, io)
 
