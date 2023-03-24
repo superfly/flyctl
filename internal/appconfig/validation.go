@@ -48,36 +48,46 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 
 	switch platformVersion {
 	case MachinesPlatform:
-		err := cfg.EnsureV2Config()
-		if err == nil {
-			extra_info += fmt.Sprintf("%s Configuration is valid\n", aurora.Green("✓"))
-			return nil, extra_info
-		} else {
-			extra_info += fmt.Sprintf("\n   %s%s\n", aurora.Red("✘"), err)
-			return errors.New("App configuration is not valid"), extra_info
-		}
+		return cfg.ValidateForMachinesPlatform(ctx)
 	case NomadPlatform:
-		serverCfg, err := apiClient.ValidateConfig(ctx, appName, cfg.SanitizedDefinition())
-		if err != nil {
-			return err, extra_info
-		}
-
-		if serverCfg.Valid {
-			extra_info += fmt.Sprintf("%s Configuration is valid\n", aurora.Green("✓"))
-			return nil, extra_info
-		} else {
-			for _, errStr := range serverCfg.Errors {
-				extra_info += fmt.Sprintf("   %s%s\n", aurora.Red("✘"), errStr)
-			}
-			extra_info += "\n"
-			return errors.New("App configuration is not valid"), extra_info
-		}
+		return cfg.ValidateForNomadPlatform(ctx)
 	case "":
 		return nil, ""
 	default:
 		return fmt.Errorf("Unknown platform version '%s' for app '%s'", platformVersion, appName), extra_info
 	}
 
+}
+
+func (cfg *Config) ValidateForMachinesPlatform(ctx context.Context) (err error, extra_info string) {
+	err = cfg.EnsureV2Config()
+	if err == nil {
+		extra_info += fmt.Sprintf("%s Configuration is valid\n", aurora.Green("✓"))
+		return nil, extra_info
+	} else {
+		extra_info += fmt.Sprintf("\n   %s%s\n", aurora.Red("✘"), err)
+		return errors.New("App configuration is not valid"), extra_info
+	}
+}
+
+func (cfg *Config) ValidateForNomadPlatform(ctx context.Context) (err error, extra_info string) {
+	appName := NameFromContext(ctx)
+	apiClient := client.FromContext(ctx).API()
+	serverCfg, err := apiClient.ValidateConfig(ctx, appName, cfg.SanitizedDefinition())
+	if err != nil {
+		return err, extra_info
+	}
+
+	if serverCfg.Valid {
+		extra_info += fmt.Sprintf("%s Configuration is valid\n", aurora.Green("✓"))
+		return nil, extra_info
+	} else {
+		for _, errStr := range serverCfg.Errors {
+			extra_info += fmt.Sprintf("   %s%s\n", aurora.Red("✘"), errStr)
+		}
+		extra_info += "\n"
+		return errors.New("App configuration is not valid"), extra_info
+	}
 }
 
 func (cfg *Config) BuildStrategies() []string {
