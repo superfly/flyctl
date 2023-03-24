@@ -42,6 +42,19 @@ func TestConfigDockerGetters(t *testing.T) {
 	assert.Equal(t, nilCfg.DockerBuildTarget(), "")
 }
 
+func TestNilBuildStrategy(t *testing.T) {
+	var nilCfg *Config
+	assert.Equal(t, 0, len(nilCfg.BuildStrategies()))
+}
+
+func TestDefaultBuildStrategy(t *testing.T) {
+	cfg := Config{
+		Build: &Build{},
+	}
+
+	assert.Equal(t, 0, len(cfg.BuildStrategies()))
+}
+
 func TestOneBuildStrategy(t *testing.T) {
 	cfg := Config{
 		Build: &Build{

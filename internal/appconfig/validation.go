@@ -19,17 +19,20 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 		return errors.New("App config file not found"), ""
 	}
 
-	platformVersion := cfg.platformVersion
-	extra_info = fmt.Sprintf("Validating %s (%s)\n", cfg.ConfigFilePath(), platformVersion)
+	extra_info = fmt.Sprintf("Validating %s\n", cfg.ConfigFilePath())
 
-	app, err := apiClient.GetAppBasic(ctx, appName)
-	switch {
-	case err == nil:
-		platformVersion = app.PlatformVersion
-	case strings.Contains(err.Error(), "Could not find App"):
-		extra_info += fmt.Sprintf("WARNING: Failed to fetch platform version: %s\n", err)
-	default:
-		return err, extra_info
+	platformVersion := cfg.platformVersion
+	if platformVersion == "" {
+		app, err := apiClient.GetAppBasic(ctx, appName)
+		switch {
+		case err == nil:
+			platformVersion = app.PlatformVersion
+		case strings.Contains(err.Error(), "Could not find App"):
+			platformVersion = NomadPlatform
+			extra_info += fmt.Sprintf("WARNING: Failed to fetch platform version: %s\n", err)
+		default:
+			return err, extra_info
+		}
 	}
 
 	buildStrats := cfg.BuildStrategies()
@@ -77,7 +80,7 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 func (cfg *Config) BuildStrategies() []string {
 	strategies := []string{}
 
-	if cfg.Build == nil {
+	if cfg == nil || cfg.Build == nil {
 		return strategies
 	}
 
