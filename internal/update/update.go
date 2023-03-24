@@ -156,15 +156,18 @@ func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease bool)
 	ok := false
 
 	if runtime.GOOS != "windows" {
-		shellToUse, ok = os.LookupEnv("SHELL")
+		if _, err := os.Stat("/bin/sh"); os.IsNotExist(err) {
+			shellToUse, ok = os.LookupEnv("SHELL")
+		} else {
+			shellToUse = "/bin/sh"
+			ok = true
+		}
 	}
 
 	if !ok {
 		if runtime.GOOS == "windows" {
 			shellToUse = "powershell.exe"
 			switchToUse = "-Command"
-		} else {
-			shellToUse = "/bin/bash"
 		}
 	}
 	fmt.Println(shellToUse, switchToUse)
