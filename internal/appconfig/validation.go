@@ -27,12 +27,15 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 		switch {
 		case err == nil:
 			platformVersion = app.PlatformVersion
+			extra_info += fmt.Sprintf("Platform: %s\n", platformVersion)
 		case strings.Contains(err.Error(), "Could not find App"):
 			platformVersion = NomadPlatform
 			extra_info += fmt.Sprintf("WARNING: Failed to fetch platform version: %s\n", err)
 		default:
 			return err, extra_info
 		}
+	} else {
+		extra_info += fmt.Sprintf("Platform: %s\n", platformVersion)
 	}
 
 	buildStrats := cfg.BuildStrategies()
