@@ -74,6 +74,13 @@ func (cfg *Config) ValidateForNomadPlatform(ctx context.Context) (err error, ext
 		return err, extra_info
 	}
 
+	if _, haveHTTPService := cfg.RawDefinition["http_service"]; haveHTTPService {
+		// TODO: eventually make this fail validation
+		msg := fmt.Sprintf("%s the http_service section is ignored for Nomad apps", aurora.Yellow("WARN"))
+		extra_info += msg + "\n"
+		sentry.CaptureException(errors.New(msg))
+	}
+
 	if serverCfg.Valid {
 		extra_info += fmt.Sprintf("%s Configuration is valid\n", aurora.Green("✓"))
 		return nil, extra_info
