@@ -2,6 +2,7 @@ package volumes
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/volumes/snapshots"
@@ -25,7 +27,7 @@ func New() *cobra.Command {
 
 	cmd := command.New(usage, short, long, nil)
 
-	cmd.Aliases = []string{"volume","vol"}
+	cmd.Aliases = []string{"volume", "vol"}
 
 	cmd.AddCommand(
 		newCreate(),
@@ -54,4 +56,26 @@ func printVolume(w io.Writer, vol *api.Volume) error {
 	_, err := buf.WriteTo(w)
 
 	return err
+}
+
+func countVolumesMatchingName(ctx context.Context, appName string, volumeName string) (int32, error) {
+	var (
+		volumes []api.Volume
+		err     error
+
+		client = client.FromContext(ctx).API()
+	)
+
+	if volumes, err = client.GetVolumes(ctx, appName); err != nil {
+		return 0, err
+	}
+
+	var matches int32
+	for _, volume := range volumes {
+		if volume.Name == volumeName {
+			matches++
+		}
+	}
+
+	return matches, nil
 }
