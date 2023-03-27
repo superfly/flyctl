@@ -549,6 +549,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	time.AfterFunc(maxTime, func() { done.Stop() })
 
 	go func() {
+		defer dockerClient.Close()
 		pulse := time.NewTicker(pulseInterval)
 		defer pulse.Stop()
 		defer done.Stop()
