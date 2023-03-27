@@ -11,6 +11,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/internal/hashset"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -92,7 +93,7 @@ func fromAppAndOneMachine(appCompact *api.AppCompact, m machine.LeasableMachine,
 		warningMsg     string
 		primaryRegion  string
 		statics        []Static
-		mounts         *Volume
+		mounts         []Volume
 		topLevelChecks map[string]*ToplevelCheck
 	)
 	for k, v := range m.Machine().Config.Env {
@@ -108,8 +109,12 @@ func fromAppAndOneMachine(appCompact *api.AppCompact, m machine.LeasableMachine,
 		})
 	}
 	if len(m.Machine().Config.Mounts) > 0 {
-		mounts = &Volume{
-			Destination: m.Machine().Config.Mounts[0].Path,
+		mnt := m.Machine().Config.Mounts[0]
+		mounts = []Volume{
+			{
+				Destination: mnt.Path,
+				Source:      mnt.Name,
+			},
 		}
 	}
 	if len(m.Machine().Config.Mounts) > 1 {
@@ -185,6 +190,7 @@ func processGroupsFromMachineSet(ms machine.MachineSet) (*processGroupInfo, stri
 		processGroups  = &processGroupInfo{}
 		counter        = newFreqCounter[machine.LeasableMachine]()
 		serviceCounter = newFreqCounter[machine.LeasableMachine]()
+		volumeCounter  = newFreqCounter[machine.LeasableMachine]()
 	)
 
 	if ms.IsEmpty() {
@@ -224,6 +230,10 @@ Commands they are running:
 		if err != nil {
 			terminal.Errorf("Failure processing machines: %v (skipping config for machine %s)\n", err, m.Machine().ID)
 		}
+		err = volumeCounter.Capture(m.Machine().Config.Mounts, m)
+		if err != nil {
+			terminal.Errorf("Failure processing machines: %v (skipping config for machine %s)\n", err, m.Machine().ID)
+		}
 	}
 	serviceReport := serviceCounter.Report()
 	processes := lo.Keys(processGroups.processes)
@@ -235,25 +245,55 @@ Commands they are running:
 		for _, m := range serviceReport.otherValues {
 			otherMachineIds = append(otherMachineIds, m.Machine().ID)
 		}
-		otherServices := make(map[string]struct{})
+		otherServices := hashset.New[string](0)
 		for _, m := range serviceReport.otherValues {
 			for _, s := range m.Machine().Config.Services {
 				for _, p := range s.Ports {
 					if *p.Port > 0 {
-						otherServices[fmt.Sprintf("    %s:%d -> %d\n", s.Protocol, *p.Port, s.InternalPort)] = struct{}{}
+						otherServices.Insert(fmt.Sprintf("    %s:%d -> %d\n", s.Protocol, *p.Port, s.InternalPort))
 					} else if *p.StartPort > 0 {
-						otherServices[fmt.Sprintf("    %s:%d-%d -> %d\n", s.Protocol, *p.StartPort, *p.EndPort, s.InternalPort)] = struct{}{}
+						otherServices.Insert(fmt.Sprintf("    %s:%d-%d -> %d\n", s.Protocol, *p.StartPort, *p.EndPort, s.InternalPort))
 					}
 				}
 			}
 		}
-		otherServicesString := strings.Join(lo.Keys(otherServices), "")
+		otherServicesString := strings.Join(otherServices.Keys(), "")
 		warningMsg += warning("services", `Found different services on some other machines. Consider adding [[services]] block to fly.toml to support them.
 For more info please see: https://fly.io/docs/reference/configuration/#the-services-sections
 Machine IDs with different services: %s
 Other services:
 %s
 `, strings.Join(otherMachineIds, ", "), otherServicesString)
+		warningMsg += "\n"
+	}
+
+	// TODO(ali): is this anywhere near correct?
+	volumeReport := volumeCounter.Report()
+	for _, mount := range volumeReport.mostCommonValues[0].Machine().Config.Mounts {
+		processGroups.volumes = append(processGroups.volumes, Volume{
+			Source:      mount.Name,
+			Destination: mount.Path,
+			Processes:   processes,
+		})
+	}
+	if len(volumeReport.otherValues) > 0 {
+		var otherMachineIds []string
+		for _, m := range volumeReport.otherValues {
+			otherMachineIds = append(otherMachineIds, m.Machine().ID)
+		}
+		otherMounts := hashset.New[string](0)
+		for _, m := range volumeReport.otherValues {
+			for _, mount := range m.Machine().Config.Mounts {
+				otherMounts.Insert(fmt.Sprintf("    %s -> '%s'\n", mount.Name, mount.Path))
+			}
+		}
+		otherMountsString := strings.Join(otherMounts.Keys(), "")
+		warningMsg += warning("mounts", `Found different mounts on some other machines. Consider adding [[mounts]] block to fly.toml to support them.
+For more info please see: https://fly.io/docs/reference/configuration/#the-mounts-section
+Machine IDs with different mounts: %s
+Other mounts:
+%s
+`, strings.Join(otherMachineIds, ", "), otherMountsString)
 		warningMsg += "\n"
 	}
 
@@ -333,6 +373,7 @@ type report[T any] struct {
 type processGroupInfo struct {
 	processes map[string]string
 	services  []Service
+	volumes   []Volume
 }
 
 func warning(section, msg string, vals ...interface{}) string {

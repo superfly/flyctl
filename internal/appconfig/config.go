@@ -20,7 +20,7 @@ func NewConfig() *Config {
 }
 
 // Config wraps the properties of app configuration.
-// NOTE: If you any new setting here, please also add a value for it at testdata/rull-reference.toml
+// NOTE: If you any new setting here, please also add a value for it at testdata/full-reference.toml
 type Config struct {
 	AppName       string                    `toml:"app,omitempty" json:"app,omitempty"`
 	KillSignal    string                    `toml:"kill_signal,omitempty" json:"kill_signal,omitempty"`
@@ -33,7 +33,7 @@ type Config struct {
 	HttpService   *HTTPService              `toml:"http_service,omitempty" json:"http_service,omitempty"`
 	Metrics       *api.MachineMetrics       `toml:"metrics,omitempty" json:"metrics,omitempty"`
 	Statics       []Static                  `toml:"statics,omitempty" json:"statics,omitempty"`
-	Mounts        *Volume                   `toml:"mounts,omitempty" json:"mounts,omitempty"`
+	Mounts        []Volume                  `toml:"mounts,omitempty" json:"mounts,omitempty"` // TODO(ali): Does is break anything that this is plural now?
 	Processes     map[string]string         `toml:"processes,omitempty" json:"processes,omitempty"`
 	Checks        map[string]*ToplevelCheck `toml:"checks,omitempty" json:"checks,omitempty"`
 	Services      []Service                 `toml:"services,omitempty" json:"services,omitempty"`
@@ -64,8 +64,9 @@ type Static struct {
 }
 
 type Volume struct {
-	Source      string `toml:"source,omitempty" json:"source,omitempty"`
-	Destination string `toml:"destination" json:"destination,omitempty"`
+	Source      string   `toml:"source,omitempty" json:"source,omitempty"`
+	Destination string   `toml:"destination" json:"destination,omitempty"`
+	Processes   []string `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
 type VM struct {

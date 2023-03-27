@@ -11,6 +11,11 @@ primary_region = "sea"
   enable_consul = true
   enable_etcd = true
 
+[processes]
+  app = "echo app"
+  web = "echo web"
+  some_job = "echo some job"
+
 [build]
   builder = "dockerfile"
   image = "foo/fighter"
@@ -53,9 +58,15 @@ primary_region = "sea"
   guest_path = "/path/to/statics"
   url_prefix = "/static-assets"
 
-[mounts]
+[[mounts]]
   source = "data"
   destination = "/data"
+  processes = ["app", "web"]
+
+[[mounts]]
+  source = "data-job"
+  destination = "/jobdata"
+  processes = ["some_job"]
 
 [processes]
   web = "run web"

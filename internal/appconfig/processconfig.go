@@ -12,7 +12,9 @@ import (
 type ProcessConfig struct {
 	Cmd      []string
 	Services []api.MachineService
-	Checks   map[string]api.MachineCheck
+	// TODO(ali): Should this support multiple mounts?
+	Mounts *Volume
+	Checks map[string]api.MachineCheck
 }
 
 func (c *Config) GetProcessConfigs() (map[string]*ProcessConfig, error) {
@@ -22,6 +24,7 @@ func (c *Config) GetProcessConfigs() (map[string]*ProcessConfig, error) {
 	if processCount == 0 {
 		configProcesses[api.MachineProcessGroupApp] = ""
 	}
+	// TODO(ali): Sort this so it's deterministic.
 	defaultProcessName := lo.Keys(configProcesses)[0]
 
 	for processName, cmdStr := range configProcesses {
@@ -37,6 +40,7 @@ func (c *Config) GetProcessConfigs() (map[string]*ProcessConfig, error) {
 			Cmd:      cmd,
 			Services: make([]api.MachineService, 0),
 			Checks:   make(map[string]api.MachineCheck),
+			Mounts:   nil,
 		}
 	}
 
@@ -80,6 +84,39 @@ func (c *Config) GetProcessConfigs() (map[string]*ProcessConfig, error) {
 						"processes are defined with that name; update fly.toml [processes] to include a %s process", processName, processName)
 				}
 				pc.Services = append(pc.Services, *service.toMachineService())
+			}
+		}
+	}
+
+	for _, mount := range c.Mounts {
+		switch {
+		case len(mount.Processes) == 0 && processCount > 0:
+			return nil, fmt.Errorf("error mount has no processes set and app has %d processes defined;"+
+				"update fly.toml to set processes for each mount", processCount)
+		case len(mount.Processes) == 0 || processCount == 0:
+			processName := defaultProcessName
+			pc, present := res[processName]
+			if processCount > 0 && !present {
+				return nil, fmt.Errorf("error mount specifies '%s' as one of its processes, but no "+
+					"processes are defined with that name; update fly.toml [processes] to include a %s process", processName, processName)
+			}
+			if pc.Mounts != nil {
+				return nil, fmt.Errorf("error multiple mounts in the same process group are not currently supported\n"+
+					"group '%s' already mounts volume '%s', cannot mount '%s'", processName, pc.Mounts.Source, mount.Source)
+			}
+			pc.Mounts = &mount
+		default:
+			for _, processName := range mount.Processes {
+				pc, present := res[processName]
+				if !present {
+					return nil, fmt.Errorf("error mount specifies '%s' as one of its processes, but no "+
+						"processes are defined with that name; update fly.toml [processes] to include a %s process", processName, processName)
+				}
+				if pc.Mounts != nil {
+					return nil, fmt.Errorf("error multiple mounts in the same process group are not currently supported\n"+
+						"group '%s' already mounts volume '%s', cannot mount '%s'", processName, pc.Mounts.Source, mount.Source)
+				}
+				pc.Mounts = &mount
 			}
 		}
 	}

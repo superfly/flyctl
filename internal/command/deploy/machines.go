@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
+	"github.com/superfly/flyctl/internal/hashset"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
@@ -36,9 +37,14 @@ type MachineDeployment interface {
 }
 
 type ProcessGroupsDiff struct {
-	machinesToRemove      []machine.LeasableMachine
-	groupsToRemove        map[string]int
-	groupsNeedingMachines map[string]*appconfig.ProcessConfig
+	machinesToRemove       []machine.LeasableMachine
+	removedMachinesInGroup map[string]int
+	groupsNeedingMachines  map[string]*appconfig.ProcessConfig
+}
+
+type MovedMachine struct {
+	machine machine.LeasableMachine
+	region  string
 }
 
 type MachineDeploymentArgs struct {
@@ -67,7 +73,6 @@ type machineDeployment struct {
 	machineSet            machine.MachineSet
 	releaseCommandMachine machine.MachineSet
 	releaseCommand        []string
-	volumeDestination     string
 	volumes               []api.Volume
 	strategy              string
 	releaseId             string
@@ -214,11 +219,11 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
 func (md *machineDeployment) resolveProcessGroupChanges() ProcessGroupsDiff {
 
 	output := ProcessGroupsDiff{
-		groupsToRemove:        map[string]int{},
-		groupsNeedingMachines: map[string]*appconfig.ProcessConfig{},
+		removedMachinesInGroup: map[string]int{},
+		groupsNeedingMachines:  map[string]*appconfig.ProcessConfig{},
 	}
 
-	groupHasMachine := map[string]bool{}
+	groupsWithMachines := hashset.New[string](0)
 
 	for _, leasableMachine := range md.machineSet.GetMachines() {
 		mach := leasableMachine.Machine()
@@ -231,15 +236,15 @@ func (md *machineDeployment) resolveProcessGroupChanges() ProcessGroupsDiff {
 			}
 		}
 		if groupMatch == "" {
-			output.groupsToRemove[machGroup] += 1
+			output.removedMachinesInGroup[machGroup] += 1
 			output.machinesToRemove = append(output.machinesToRemove, leasableMachine)
 		} else {
-			groupHasMachine[groupMatch] = true
+			groupsWithMachines.Insert(groupMatch)
 		}
 	}
 
 	for name, val := range md.processConfigs {
-		if hasMach, ok := groupHasMachine[name]; !ok || !hasMach {
+		if !groupsWithMachines.Contains(name) {
 			output.groupsNeedingMachines[name] = val
 		}
 	}
@@ -262,7 +267,7 @@ func (md *machineDeployment) warnAboutProcessGroupChanges(ctx context.Context, d
 
 	if willRemoveMachines {
 		bullet := colorize.Red("*")
-		for grp, numMach := range diff.groupsToRemove {
+		for grp, numMach := range diff.removedMachinesInGroup {
 			pluralS := lo.Ternary(numMach == 1, "", "s")
 			fmt.Fprintf(io.Out, " %s destroy %d \"%s\" machine%s\n", bullet, numMach, grp, pluralS)
 		}
@@ -274,6 +279,23 @@ func (md *machineDeployment) warnAboutProcessGroupChanges(ctx context.Context, d
 			fmt.Fprintf(io.Out, " %s create 1 \"%s\" machine\n", bullet, name)
 		}
 	}
+}
+
+func (md *machineDeployment) launchInputForGroup(group string) *api.LaunchMachineInput {
+	if group == "" {
+		// If the group is unspecified, it should have been translated to "app" by this point
+		panic("launchInputForGroup requires a non-empty group name. this is a bug!")
+	}
+	machBase := &api.Machine{
+		Region: md.appConfig.PrimaryRegion,
+		Config: &api.MachineConfig{
+			Metadata: map[string]string{
+				api.MachineConfigMetadataKeyFlyProcessGroup: group,
+			},
+		},
+	}
+	return md.resolveUpdatedMachineConfig(machBase, false)
+
 }
 
 func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName string) error {
@@ -291,6 +313,11 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 		},
 	}
 	launchInput := md.resolveUpdatedMachineConfig(machBase, false)
+
+	return md.launch(ctx, launchInput)
+}
+
+func (md *machineDeployment) launch(ctx context.Context, launchInput *api.LaunchMachineInput) error {
 	newMachineRaw, err := md.flapsClient.Launch(ctx, *launchInput)
 	newMachine := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
 	if err != nil {
@@ -332,8 +359,8 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 
 	if md.machineSet.IsEmpty() {
 		processGroupMachineDiff := ProcessGroupsDiff{
-			groupsToRemove:        map[string]int{},
-			groupsNeedingMachines: md.processConfigs,
+			removedMachinesInGroup: map[string]int{},
+			groupsNeedingMachines:  md.processConfigs,
 		}
 		md.warnAboutProcessGroupChanges(ctx, processGroupMachineDiff)
 		for name := range md.processConfigs {
@@ -371,6 +398,8 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 
 	md.warnAboutProcessGroupChanges(ctx, processGroupMachineDiff)
 
+	movedMachines, err := md.resolveFinalMachines(processGroupMachineDiff, false)
+
 	// Destroy machines that don't fit the current process groups
 	if err := md.machineSet.RemoveMachines(ctx, processGroupMachineDiff.machinesToRemove); err != nil {
 		return err
@@ -384,6 +413,26 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	// Create machines for new process groups
 	for name := range processGroupMachineDiff.groupsNeedingMachines {
 		if err := md.spawnMachineInGroup(ctx, name); err != nil {
+			return err
+		}
+	}
+
+	// Move machines that had to be relocated to access volumes
+	// TODO(ali): This means that machine IDs are no longer stable when an app uses volumes.
+	//            I believe there's something in the works to handle this better.
+	err = md.machineSet.RemoveMachines(ctx, lo.Map(movedMachines, func(m MovedMachine, _ int) machine.LeasableMachine {
+		return m.machine
+	}))
+	if err != nil {
+		return err
+	}
+	for _, m := range movedMachines {
+		mach := m.machine.Machine()
+		mach.ID = ""
+		mach.Region = m.region
+		launchInput := md.resolveUpdatedMachineConfig(mach, false)
+		err = md.launch(ctx, launchInput)
+		if err != nil {
 			return err
 		}
 	}
@@ -537,40 +586,250 @@ func (md *machineDeployment) setVolumeConfig(ctx context.Context) error {
 		return nil
 	}
 
-	md.volumeDestination = md.appConfig.Mounts.Destination
-
 	if volumes, err := md.apiClient.GetVolumes(ctx, md.app.Name); err != nil {
 		return fmt.Errorf("Error fetching application volumes: %w", err)
 	} else {
+
+		usedVolumes := hashset.New[string](len(md.appConfig.Mounts))
+		for _, m := range md.appConfig.Mounts {
+			usedVolumes.Insert(m.Source)
+		}
+
 		md.volumes = lo.Filter(volumes, func(v api.Volume, _ int) bool {
-			return v.Name == md.appConfig.Mounts.Source && v.AttachedAllocation == nil && v.AttachedMachine == nil
+			return usedVolumes.Contains(v.Name) && v.AttachedAllocation == nil && v.AttachedMachine == nil
 		})
 	}
 	return nil
 }
 
-func (md *machineDeployment) validateVolumeConfig() error {
-	for _, m := range md.machineSet.GetMachines() {
-		mid := m.Machine().ID
-		if m.Machine().ProcessGroup() == api.MachineProcessGroupFlyAppReleaseCommand {
-			continue
+// After process groups have been determined and everything,
+// build the final configurations of each machine.
+func (md *machineDeployment) resolveFinalMachines(groupDiff ProcessGroupsDiff, dryRun bool) ([]MovedMachine, error) {
+
+	type StagedMachine struct {
+		liveMach     machine.LeasableMachine
+		launchInput  *api.LaunchMachineInput
+		region       string
+		mountedVolId string
+		process      string
+		mountCfg     *appconfig.Volume
+	}
+
+	type Vol struct {
+		wrapped api.Volume
+		used    bool
+	}
+
+	var (
+		stagedMachines []*StagedMachine
+		errorMsg       string
+		movedMachines  []MovedMachine
+	)
+
+	// This function does a *lot* of validation, so when possible we try
+	// to queue multiple error messages.
+	queueErr := func(format string, a ...any) {
+		msg := fmt.Sprintf(format, a)
+		errorMsg += "\n * " + msg
+	}
+
+	volumes := lo.Map(md.volumes, func(vol api.Volume, i int) *Vol {
+		return &Vol{
+			wrapped: vol,
+			used:    false,
 		}
-		mountsConfig := m.Machine().Config.Mounts
-		if len(mountsConfig) > 1 {
-			return fmt.Errorf("error machine %s has %d mounts and expected 1", mid, len(mountsConfig))
+	})
+
+	findVol := func(predicate func(vol *api.Volume) bool) *Vol {
+		vol, _ := lo.Find(volumes, func(vol *Vol) bool {
+			return !vol.used && predicate(&vol.wrapped)
+		})
+		return vol
+	}
+
+	linkVolToMach := func(vol *Vol, mach *StagedMachine) {
+		var cfg *api.MachineConfig
+		if mach.liveMach != nil {
+			cfg = mach.liveMach.Machine().Config
 		}
-		if md.volumeDestination == "" && len(mountsConfig) != 0 {
-			return fmt.Errorf("error machine %s has a volume mounted and app config does not specify a volume; remove the volume from the machine or add a [mounts] configuration to fly.toml", mid)
+		if mach.launchInput != nil {
+			cfg = mach.launchInput.Config
 		}
-		if md.volumeDestination != "" && len(mountsConfig) == 0 {
-			return fmt.Errorf("error machine %s does not have a volume configured and fly.toml expects one with destination %s; remove the [mounts] configuration in fly.toml or use the machines API to add a volume to this machine", mid, md.volumeDestination)
+		if cfg == nil {
+			// TODO(ali): add sentry logging, just in case
+			panic("linkVolToMach: cfg is nil. this is a bug!")
+		}
+		if !dryRun {
+			cfg.Mounts = []api.MachineMount{
+				{
+					Path:   md.processConfigs[cfg.ProcessGroup()].Mounts.Destination,
+					Volume: vol.wrapped.ID,
+				},
+			}
+		}
+		mach.mountedVolId = vol.wrapped.ID
+		vol.used = true
+	}
+
+	volumeNamesByGroup := map[string]string{}
+	for name, cfg := range md.processConfigs {
+		if cfg.Mounts != nil {
+			volumeNamesByGroup[name] = cfg.Mounts.Source
 		}
 	}
 
-	if md.machineSet.IsEmpty() && md.volumeDestination != "" && len(md.volumes) == 0 {
-		return fmt.Errorf("error new machine requires an unattached volume named '%s' on mount destination '%s'",
-			md.appConfig.Mounts.Source, md.volumeDestination)
+	// TODO(ali): This entire block relies on a flawed assumption.
+	//            m.Region == v.Region does *not* mean that they are on the same server.
+	//            We probably need more granular server identification to do this correctly (?)
+
+	// For each existing machine, do the following:
+	// 1. Validate that its config has everything an "app" machine should have.
+	//    This is just checking that it has all the data we need to
+	//    process here, like a region and a process group.
+	// 2. Get the existing volume, if there is one.
+	// 3. If there is an existing volume mount, ensure that the referenced volume's name
+	//    matches the current configuration.
+	//     * If so, flag the volume as used.
+	//     * If not, unlink the volume from the machine.
+	for _, m := range md.machineSet.GetMachines() {
+		mach := m.Machine()
+		mid := mach.ID
+		group := mach.ProcessGroup()
+		if group == api.MachineProcessGroupFlyAppReleaseCommand {
+			continue
+		}
+
+		cfg, ok := md.processConfigs[group]
+		if !ok {
+			continue
+		}
+		if mach.Region == "" {
+			return nil, fmt.Errorf("machine '%s' has no region. this is likely a bug", mid)
+		}
+
+		// Find our mounted volume
+		mountedVol := ""
+		switch len(mach.Config.Mounts) {
+		case 0:
+			break
+		case 1:
+			mountedVol = mach.Config.Mounts[0].Volume
+		default:
+			queueErr("machine '%s' has %d mounts. appsv2 currently supports only one mount", mid, len(mach.Config.Mounts))
+		}
+
+		// Are we supposed to still have this volume?
+		// If so, mark it as `used`.
+		// Otherwise, remove it from the config.
+		if mountedVol != "" {
+			vol := findVol(func(v *api.Volume) bool {
+				return v.ID == mountedVol
+			})
+			if vol == nil {
+				// Unrecoverable, because trying to continue would have confusing ripple-effects
+				// and end up hinting the wrong solution to the user.
+				return nil, fmt.Errorf("could not find volume ID '%s' for machine '%s'", mountedVol, mach.ID)
+			} else {
+				shouldHaveVol := false
+				if name, ok := volumeNamesByGroup[mach.ProcessGroup()]; ok {
+					if vol.wrapped.Name == name && vol.wrapped.Region == mach.Region {
+						shouldHaveVol = true
+					}
+				}
+				if !shouldHaveVol {
+					mountedVol = ""
+					if !dryRun {
+						mach.Config.Mounts = nil
+					}
+				}
+			}
+		}
+
+		stagedMachines = append(stagedMachines, &StagedMachine{
+			region:       mach.Region,
+			liveMach:     m,
+			mountedVolId: mountedVol,
+			process:      mach.ProcessGroup(),
+			mountCfg:     cfg.Mounts,
+		})
 	}
+
+	for groupName := range groupDiff.groupsNeedingMachines {
+
+		cfg := md.launchInputForGroup(groupName)
+
+		stagedMachines = append(stagedMachines, &StagedMachine{
+			launchInput: cfg,
+			process:     groupName,
+			mountCfg:    md.processConfigs[cfg.Config.ProcessGroup()].Mounts,
+		})
+	}
+
+	// For each machine without a volume, try to find a volume in the same region.
+	for _, mach := range stagedMachines {
+		if mach.mountedVolId != "" {
+			continue
+		}
+		vol := findVol(func(v *api.Volume) bool {
+			return v.Region == mach.region && v.Name == mach.mountCfg.Source
+		})
+		if vol != nil {
+			linkVolToMach(vol, mach)
+		}
+	}
+
+	// For each machine still with no volume, try to find a region that
+	// has a volume, and "move" the machine to that region.
+	for _, mach := range stagedMachines {
+		if mach.mountedVolId != "" {
+			continue
+		}
+		vol := findVol(func(v *api.Volume) bool {
+			return v.Name == mach.mountCfg.Source
+		})
+		if vol == nil {
+			machName := ""
+			if mach.liveMach != nil {
+				machName = fmt.Sprintf("machine '%s'", mach.liveMach.Machine().ID)
+			} else {
+				machName = fmt.Sprintf("staged machine in group '%s'", mach.launchInput.Config.ProcessGroup())
+			}
+			queueErr("failed to find volume '%s' for %s", mach.mountCfg.Source, machName)
+		} else {
+			linkVolToMach(vol, mach)
+			if !dryRun {
+				if mach.liveMach != nil {
+					movedMachines = append(movedMachines, MovedMachine{
+						machine: mach.liveMach,
+						region:  vol.wrapped.Region,
+					})
+				} else {
+					mach.launchInput.Region = vol.wrapped.Region
+				}
+			}
+		}
+	}
+
+	if errorMsg != "" {
+		return nil, errors.New("failed to resolve new machine state:" + errorMsg)
+	}
+
+	return movedMachines, nil
+}
+
+func (md *machineDeployment) validateVolumeConfig() error {
+
+	// Note: this is susceptible to TOCTOU because the machines aren't currently leased.
+	// This should be fine, though, because this is just a check/warning.
+	// Later on, when machines are leased, invalid states will still be checked,
+	// the messages just won't be as pretty and might happen halfway through an update.
+	processGroupMachineDiff := md.resolveProcessGroupChanges()
+
+	_, err := md.resolveFinalMachines(processGroupMachineDiff, true)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -674,19 +933,6 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 			GuestPath: s.GuestPath,
 			UrlPrefix: s.UrlPrefix,
 		})
-	}
-
-	if launchInput.Config.Mounts == nil && md.appConfig.Mounts != nil {
-		launchInput.Config.Mounts = []api.MachineMount{{
-			Path:   md.volumeDestination,
-			Volume: md.volumes[0].ID,
-		}}
-	}
-
-	if len(launchInput.Config.Mounts) == 1 && launchInput.Config.Mounts[0].Path != md.volumeDestination {
-		currentMount := launchInput.Config.Mounts[0]
-		terminal.Warnf("Updating the mount path for volume %s on machine %s from %s to %s due to fly.toml [mounts] destination value\n", currentMount.Volume, origMachineRaw.ID, currentMount.Path, md.volumeDestination)
-		launchInput.Config.Mounts[0].Path = md.volumeDestination
 	}
 
 	processGroup := launchInput.Config.ProcessGroup()
