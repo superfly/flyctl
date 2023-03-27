@@ -41,6 +41,7 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 		build.BuildFinish()
 		return nil, "", err
 	}
+	defer docker.Close()
 
 	serverInfo, err := docker.Info(ctx)
 	if err != nil {

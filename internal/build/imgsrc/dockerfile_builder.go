@@ -87,6 +87,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		build.BuilderInitFinish()
 		return nil, "", errors.Wrap(err, "error connecting to docker")
 	}
+	defer docker.Close()
 
 	build.BuilderInitFinish()
 	defer clearDeploymentTags(ctx, docker, opts.Tag)

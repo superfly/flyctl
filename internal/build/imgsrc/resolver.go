@@ -499,6 +499,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) chan<- interface{} {
 	time.AfterFunc(maxTime, func() { close(done) })
 
 	go func() {
+		defer dockerClient.Close()
 		pulse := time.NewTicker(pulseInterval)
 		defer close(done)
 		for {

@@ -116,6 +116,7 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 		build.BuildFinish()
 		return nil, "", err
 	}
+	defer docker.Close()
 
 	dockerHost := docker.DaemonHost()
 
