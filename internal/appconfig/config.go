@@ -148,7 +148,11 @@ func (c *Config) DockerBuildTarget() string {
 	return c.Build.DockerBuildTarget
 }
 
-func (c Config) GetInternalPort() int {
+func (c Config) InternalPort() int {
+	if c.HttpService != nil {
+		return c.HttpService.InternalPort
+	}
+
 	if len(c.Services) > 0 {
 		return c.Services[0].InternalPort
 	}

@@ -123,7 +123,7 @@ func run(ctx context.Context) (err error) {
 
 	srcInfo := new(scanner.SourceInfo)
 	config := &scanner.ScannerConfig{
-		ExistingPort: appConfig.GetInternalPort(),
+		ExistingPort: appConfig.InternalPort(),
 	}
 
 	// Detect if --copy-config and --now flags are set. If so, limited set of
