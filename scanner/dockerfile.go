@@ -9,6 +9,8 @@ import (
 
 const defaultPort = 8080
 
+var portRegex = regexp.MustCompile(`(?m)^EXPOSE\s+(?P<port>\d+)`)
+
 func configureDockerfile (sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("Dockerfile")) {
 		return nil, nil
@@ -28,10 +30,9 @@ func configureDockerfile (sourceDir string, config *ScannerConfig) (*SourceInfo,
 		return s, nil
 	}
 
-	re := regexp.MustCompile(`(?m)^EXPOSE\s+(?P<port>\d+)`)
-	m := re.FindStringSubmatch(string(dockerfile))
+	m := portRegex.FindStringSubmatch(string(dockerfile))
 
-	for i, name := range re.SubexpNames() {
+	for i, name := range portRegex.SubexpNames() {
 		if len(m) > 0 && name == "port" {
 			portFromDockerfile, err = strconv.Atoi(m[i])
 			if err != nil {
