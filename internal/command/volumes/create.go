@@ -146,14 +146,10 @@ func confirmVolumeCreate(ctx context.Context, appName string) (bool, error) {
 
 	switch confirmed, err := prompt.Confirm(ctx, "Do you still want to use the volumes feature?"); {
 	case err == nil:
-		if !confirmed {
-			return false, nil
-		}
+		return confirmed, nil
 	case prompt.IsNonInteractive(err):
 		return false, prompt.NonInteractiveError("yes flag must be specified when not running interactively")
 	default:
 		return false, err
 	}
-
-	return true, nil
 }

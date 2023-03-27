@@ -41,12 +41,9 @@ func runDestroy(ctx context.Context) error {
 		io     = iostreams.FromContext(ctx)
 		client = client.FromContext(ctx).API()
 		volID  = flag.FirstArg(ctx)
-
-		confirm bool
-		err     error
 	)
 
-	if confirm, err = confirmVolumeDelete(ctx, volID); err != nil {
+	if confirm, err := confirmVolumeDelete(ctx, volID); err != nil {
 		return err
 	} else if !confirm {
 		return nil
@@ -95,14 +92,10 @@ func confirmVolumeDelete(ctx context.Context, volID string) (bool, error) {
 
 	switch confirmed, err := prompt.Confirm(ctx, "Are you sure you want to destroy this volume?"); {
 	case err == nil:
-		if !confirmed {
-			return false, nil
-		}
+		return confirmed, nil
 	case prompt.IsNonInteractive(err):
 		return false, prompt.NonInteractiveError("yes flag must be specified when not running interactively")
 	default:
 		return false, err
 	}
-
-	return true, nil
 }
