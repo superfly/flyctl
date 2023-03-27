@@ -271,9 +271,24 @@ func (m *v2PlatformMigrator) validateProcessGroupsOnAllocs(ctx context.Context) 
 }
 
 func (m *v2PlatformMigrator) lockAppForMigration(ctx context.Context) error {
-	// FIXME: implement
-	// m.appLock =
-	return fmt.Errorf("not yet :-(")
+	_ = `# @genqlient
+	mutation LockApp($input:LockAppInput!) {
+        lockApp(input:$input) {
+			lockId
+			expiration
+        }
+	}
+	`
+	input := gql.LockAppInput{
+		AppId: m.appConfig.AppName,
+	}
+	resp, err := gql.LockApp(ctx, m.gqlClient, input)
+	if err != nil {
+		return err
+	}
+
+	m.appLock = resp.LockApp.LockId
+	return nil
 }
 
 func (m *v2PlatformMigrator) createRelease(ctx context.Context) error {
@@ -329,8 +344,22 @@ func (m *v2PlatformMigrator) createMachines(ctx context.Context) error {
 }
 
 func (m *v2PlatformMigrator) unlockApp(ctx context.Context) error {
-	// FIXME: implement
-	return fmt.Errorf("not yet :-(")
+	_ = `# @genqlient
+	mutation UnlockApp($input:UnlockAppInput!) {
+		unlockApp(input:$input) {
+			app { id }
+		}
+	}
+	`
+	input := gql.UnlockAppInput{
+		AppId:  m.appConfig.AppName,
+		LockId: m.appLock,
+	}
+	_, err := gql.UnlockApp(ctx, m.gqlClient, input)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (m *v2PlatformMigrator) deployApp(ctx context.Context) error {
