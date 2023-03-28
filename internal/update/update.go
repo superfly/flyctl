@@ -3,6 +3,7 @@ package update
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -156,12 +157,15 @@ func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease bool)
 	ok := false
 
 	if runtime.GOOS != "windows" {
-		if _, err := os.Stat("/bin/sh"); os.IsNotExist(err) {
-			shellToUse, ok = os.LookupEnv("SHELL")
-		} else {
-			shellToUse = "/bin/sh"
-			ok = true
+		var err error
+		shellToUse, err = exec.LookPath("/bin/sh")
+		if errors.Is(err, exec.ErrDot) {
+			err = nil
 		}
+		if err != nil {
+			return err
+		}
+		ok = true
 	}
 
 	if !ok {
