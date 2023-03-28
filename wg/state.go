@@ -5,6 +5,8 @@ import (
 	"net"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/terminal"
+	"golang.zx2c4.com/wireguard/device"
 )
 
 type WireGuardState struct {
@@ -56,6 +58,14 @@ func (s *WireGuardState) TunnelConfig() *Config {
 	wgl := IPNet(*lnet)
 	wgr := IPNet(*rnet)
 
+	var wgLogLevel int
+	switch terminal.DefaultLogger.GetLogLevel() {
+	case terminal.LevelDebug:
+		wgLogLevel = device.LogLevelVerbose
+	case terminal.LevelInfo | terminal.LevelWarn | terminal.LevelError:
+		wgLogLevel = device.LogLevelError
+	}
+
 	return &Config{
 		LocalPrivateKey: skey,
 		LocalNetwork:    &wgl,
@@ -63,6 +73,6 @@ func (s *WireGuardState) TunnelConfig() *Config {
 		RemoteNetwork:   &wgr,
 		Endpoint:        s.Peer.Endpointip + ":51820",
 		DNS:             dns,
-		// LogLevel:        9999999,
+		LogLevel:        wgLogLevel,
 	}
 }
