@@ -325,8 +325,23 @@ func (m *v2PlatformMigrator) scaleNomadToZero(ctx context.Context) error {
 }
 
 func (m *v2PlatformMigrator) updateAppPlatformVersion(ctx context.Context) error {
-	// FIXME: implement
-	return fmt.Errorf("not yet :-(")
+	_ = `# @genqlient
+	mutation SetPlatformVersion($input:SetPlatformVersionInput!) {
+		setPlatformVersion(input:$input) {
+			app { id }
+		}
+	}
+	`
+	input := gql.SetPlatformVersionInput{
+		AppId:           m.appConfig.AppName,
+		PlatformVersion: "machines",
+		LockId:          m.appLock,
+	}
+	_, err := gql.SetPlatformVersion(ctx, m.gqlClient, input)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (m *v2PlatformMigrator) createMachines(ctx context.Context) error {
