@@ -33,9 +33,9 @@ func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) 
 		// Check that there's a valid number of CPUs
 		validNumCpus, ok := cpusPerKind[input.Config.Guest.CPUKind]
 		if !ok {
-			return fmt.Errorf("invalid config: invalid CPU kind '%s'. Valid values are %v\n"+viewMoreMsg, input.Config.Guest.CPUKind, maps.Keys(cpusPerKind))
+			return fmt.Errorf("invalid config: invalid CPU kind '%s'. Valid values are %v\n%s", input.Config.Guest.CPUKind, maps.Keys(cpusPerKind), viewMoreMsg)
 		} else if !slices.Contains(validNumCpus, input.Config.Guest.CPUs) {
-			return fmt.Errorf("invalid config: invalid number of CPUs for %s guest. Valid numbers are %v\n"+viewMoreMsg, input.Config.Guest.CPUKind, validNumCpus)
+			return fmt.Errorf("invalid config: invalid number of CPUs for %s guest. Valid numbers are %v\n%s", input.Config.Guest.CPUKind, validNumCpus, viewMoreMsg)
 		}
 
 		if input.Config.Guest.CPUKind == "shared" && input.Config.Guest.MemoryMB%256 != 0 {
@@ -43,13 +43,13 @@ func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) 
 			if suggestion == 0 {
 				suggestion = 256
 			}
-			return fmt.Errorf("invalid config: invalid memory size %d; must be in 256 MiB increment (%d would work)\n"+viewMoreMsg, input.Config.Guest.MemoryMB, suggestion)
+			return fmt.Errorf("invalid config: invalid memory size %d; must be in 256 MiB increment (%d would work)\n%s", input.Config.Guest.MemoryMB, suggestion, viewMoreMsg)
 		} else if input.Config.Guest.CPUKind == "performance" && input.Config.Guest.MemoryMB%1024 != 0 {
 			suggestion := input.Config.Guest.MemoryMB - (input.Config.Guest.MemoryMB % 1024)
 			if suggestion == 0 {
 				suggestion = 1024
 			}
-			return fmt.Errorf("invalid config: invalid memory size %d; must be in 1024 MiB increment (%d would work)\n"+viewMoreMsg, input.Config.Guest.MemoryMB, suggestion)
+			return fmt.Errorf("invalid config: invalid memory size %d; must be in 1024 MiB increment (%d would work)\n%s", input.Config.Guest.MemoryMB, suggestion, viewMoreMsg)
 		}
 
 		// Check memory sizes
@@ -62,7 +62,7 @@ func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) 
 		}
 
 		if min_memory_size > input.Config.Guest.MemoryMB {
-			return fmt.Errorf("invalid config: for machines with %d CPUs, the minimum amount of memory is %d MiB\n"+viewMoreMsg, input.Config.Guest.CPUs, min_memory_size)
+			return fmt.Errorf("invalid config: for machines with %d CPUs, the minimum amount of memory is %d MiB\n%s", input.Config.Guest.CPUs, min_memory_size, viewMoreMsg)
 		}
 
 		var maxMemory int
@@ -74,7 +74,7 @@ func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) 
 		}
 
 		if input.Config.Guest.MemoryMB > maxMemory {
-			return fmt.Errorf("invalid config: for machines with %d CPUs, the maximum amount of memory is %d MiB\n"+viewMoreMsg, input.Config.Guest.CPUs, maxMemory)
+			return fmt.Errorf("invalid config: for machines with %d CPUs, the maximum amount of memory is %d MiB\n%s", input.Config.Guest.CPUs, maxMemory, viewMoreMsg)
 		}
 
 	}
