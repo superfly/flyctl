@@ -163,28 +163,39 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 
 func (m *v2PlatformMigrator) Migrate(ctx context.Context) error {
 	var err error
+	fmt.Fprintf(m.io.ErrOut, "Locking %s app to prevent changes during migration\n", m.appCompact.Name)
 	err = m.lockAppForMigration(ctx)
 	if err != nil {
 		return err
 	}
 	defer func() {
+		fmt.Fprintf(m.io.ErrOut, "Unlocking %s app to allow changes\n", m.appCompact.Name)
 		err = m.unlockApp(ctx)
 		if err != nil {
 			fmt.Fprintf(m.io.ErrOut, "Failed to unlock app %s: %v\n", m.appCompact.Name, err)
 		}
 	}()
-	err = m.createRelease(ctx)
-	if err != nil {
-		return err
-	}
+
+	fmt.Fprintf(m.io.ErrOut, "Scaling the %s app to zero VMs, which will cause temporary downtime\n", m.appCompact.Name)
 	err = m.scaleNomadToZero(ctx)
 	if err != nil {
 		return err
 	}
+
+	fmt.Fprintf(m.io.ErrOut, "Updating %s app platform platform type from V1 to V2\n", m.appCompact.Name)
 	err = m.updateAppPlatformVersion(ctx)
 	if err != nil {
 		return err
 	}
+
+	fmt.Fprintf(m.io.ErrOut, "Creating a release of %s to track this migration\n", m.appCompact.Name)
+	err = m.createRelease(ctx)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(m.io.ErrOut, "Booting up new V2 VMs\n", m.appCompact.Name)
+
 	err = m.createMachines(ctx)
 	if err != nil {
 		return err
@@ -208,10 +219,6 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) error {
 	}
 	m.newMachines.ReleaseLeases(ctx)
 	err = m.deployApp(ctx)
-	if err != nil {
-		return err
-	}
-	err = m.cleanUpOldNomad(ctx)
 	if err != nil {
 		return err
 	}
@@ -305,7 +312,7 @@ func (m *v2PlatformMigrator) createRelease(ctx context.Context) error {
 	input := gql.CreateReleaseInput{
 		AppId:           m.appConfig.AppName,
 		PlatformVersion: "machines",
-		Strategy:        gql.DeploymentStrategy(strings.ToUpper("migrate-to-v2")),
+		Strategy:        gql.DeploymentStrategy(strings.ToUpper("simple")),
 		Definition:      m.appConfig,
 		Image:           m.img,
 	}
