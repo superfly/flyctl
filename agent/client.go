@@ -620,24 +620,35 @@ func (d *dialer) DialContext(ctx context.Context, network, addr string) (conn ne
 		}
 	}()
 
-	timeout := strconv.FormatInt(int64(d.timeout), 10)
-	if err = proto.Write(conn, "connect", d.slug, addr, timeout); err != nil {
-		return
-	}
+	c := make(chan error, 1)
+	go func() {
+		timeout := strconv.FormatInt(int64(d.timeout), 10)
+		if err := proto.Write(conn, "connect", d.slug, addr, timeout); err != nil {
+			c <- err
+			return
+		}
 
-	var data []byte
-	if data, err = proto.Read(conn); err != nil {
-		return
-	}
+		data, err := proto.Read(conn)
+		if err != nil {
+			c <- err
+			return
+		}
 
-	switch {
-	default:
-		err = errInvalidResponse(data)
-	case string(data) == "ok":
-	case isError(data):
-		err = extractError(data)
-	}
+		switch {
+		default:
+			c <- errInvalidResponse(data)
+		case string(data) == "ok":
+			close(c)
+		case isError(data):
+			c <- extractError(data)
+		}
+	}()
 
+	select {
+	case <-ctx.Done():
+		err = ctx.Err()
+	case err = <-c:
+	}
 	return
 }
 

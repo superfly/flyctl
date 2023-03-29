@@ -155,3 +155,14 @@ func (c *Config) MountsDestination() string {
 		return c.Mounts.Destination
 	}
 }
+
+func (c Config) InternalPort() int {
+	if c.HttpService != nil {
+		return c.HttpService.InternalPort
+	}
+
+	if len(c.Services) > 0 {
+		return c.Services[0].InternalPort
+	}
+	return 0
+}
