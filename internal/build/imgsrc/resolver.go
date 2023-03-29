@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -61,6 +62,11 @@ type DeploymentImage struct {
 type Resolver struct {
 	dockerFactory *dockerClientFactory
 	apiClient     *api.Client
+}
+
+type StopSignal struct {
+	Chan chan struct{}
+	once sync.Once
 }
 
 // limit stored logs to 4KB; take suffix if longer
@@ -458,7 +464,7 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 
 // For remote builders send a periodic heartbeat during build to ensure machine stays alive
 // This is a noop for local builders
-func (r *Resolver) StartHeartbeat(ctx context.Context) chan<- interface{} {
+func (r *Resolver) StartHeartbeat(ctx context.Context) *StopSignal {
 	if !r.dockerFactory.remote {
 		return nil
 	}
@@ -495,15 +501,15 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) chan<- interface{} {
 	pulseInterval := 30 * time.Second
 	maxTime := 1 * time.Hour
 
-	done := make(chan interface{})
-	time.AfterFunc(maxTime, func() { close(done) })
+	done := StopSignal{Chan: make(chan struct{})}
+	time.AfterFunc(maxTime, func() { done.Stop() })
 
 	go func() {
 		pulse := time.NewTicker(pulseInterval)
-		defer close(done)
+		defer done.Stop()
 		for {
 			select {
-			case <-done:
+			case <-done.Chan:
 				return
 			case <-ctx.Done():
 				return
@@ -518,7 +524,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) chan<- interface{} {
 			}
 		}
 	}()
-	return done
+	return &done
 }
 
 func getHeartbeatUrl(dockerClient *dockerclient.Client) (string, error) {
@@ -535,10 +541,13 @@ func getHeartbeatUrl(dockerClient *dockerclient.Client) (string, error) {
 	return parsed.String(), nil
 }
 
-func (r *Resolver) StopHeartbeat(heartbeat chan<- interface{}) {
-	if heartbeat != nil {
-		heartbeat <- struct{}{}
+func (s *StopSignal) Stop() {
+	if s == nil {
+		return
 	}
+	s.once.Do(func() {
+		close(s.Chan)
+	})
 }
 
 func NewResolver(daemonType DockerDaemonType, apiClient *api.Client, appName string, iostreams *iostreams.IOStreams) *Resolver {
