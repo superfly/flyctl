@@ -9281,6 +9281,11 @@ input SetVMCountInput {
   Counts for VM groups
   """
   groupCounts: [VMCountInput!]!
+
+  """
+  Unique lock ID
+  """
+  lockId: ID
 }
 
 """

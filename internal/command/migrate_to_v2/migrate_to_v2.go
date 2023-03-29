@@ -194,7 +194,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) error {
 		return err
 	}
 
-	fmt.Fprintf(m.io.ErrOut, "Booting up new V2 VMs\n", m.appCompact.Name)
+	fmt.Fprintf(m.io.ErrOut, "Booting up new V2 VMs in the %s app\n", m.appCompact.Name)
 
 	err = m.createMachines(ctx)
 	if err != nil {
@@ -326,9 +326,23 @@ func (m *v2PlatformMigrator) createRelease(ctx context.Context) error {
 }
 
 func (m *v2PlatformMigrator) scaleNomadToZero(ctx context.Context) error {
-	// FIXME: implement
+
+	input := gql.SetVMCountInput{
+		AppId:  m.appConfig.AppName,
+		LockId: m.appLock,
+		GroupCounts: []gql.VMCountInput{
+			{
+				Group: "app",
+				Count: 0,
+			},
+		},
+	}
+
+	_, err := gql.SetNomadVMCount(ctx, m.gqlClient, input)
+
 	// FIXME: have a busy wait loop, maybe with a timeout?, for waiting for the allocs to go to zero
-	return fmt.Errorf("not yet :-(")
+
+	return err
 }
 
 func (m *v2PlatformMigrator) updateAppPlatformVersion(ctx context.Context) error {
