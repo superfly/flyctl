@@ -42,7 +42,6 @@ func runMachinesScaleShow(ctx context.Context) error {
 	rows := make([][]string, 0, len(machineGroups))
 	for groupName, machines := range machineGroups {
 		guest := machines[0].Config.Guest
-		regions := formatRegions(machines)
 
 		rows = append(rows, []string{
 			groupName,
@@ -50,7 +49,7 @@ func runMachinesScaleShow(ctx context.Context) error {
 			guest.CPUKind,
 			fmt.Sprintf("%d", guest.CPUs),
 			fmt.Sprintf("%d MB", guest.MemoryMB),
-			strings.Join(regions, ","),
+			formatRegions(machines),
 		})
 	}
 
@@ -60,7 +59,7 @@ func runMachinesScaleShow(ctx context.Context) error {
 	return nil
 }
 
-func formatRegions(machines []*api.Machine) []string {
+func formatRegions(machines []*api.Machine) string {
 	regions := lo.Map(
 		lo.Entries(lo.CountValues(lo.Map(machines, func(m *api.Machine, _ int) string {
 			return m.Region
@@ -73,5 +72,5 @@ func formatRegions(machines []*api.Machine) []string {
 		},
 	)
 	slices.Sort(regions)
-	return regions
+	return strings.Join(regions, ",")
 }
