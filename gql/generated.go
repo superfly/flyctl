@@ -1772,6 +1772,7 @@ type __CreateLimitedAccessTokenInput struct {
 	OrganizationId string      `json:"organizationId"`
 	Profile        string      `json:"profile"`
 	ProfileParams  interface{} `json:"profileParams"`
+	Expiry         string      `json:"expiry"`
 }
 
 // GetName returns __CreateLimitedAccessTokenInput.Name, and is useful for accessing the field via an interface.
@@ -1785,6 +1786,9 @@ func (v *__CreateLimitedAccessTokenInput) GetProfile() string { return v.Profile
 
 // GetProfileParams returns __CreateLimitedAccessTokenInput.ProfileParams, and is useful for accessing the field via an interface.
 func (v *__CreateLimitedAccessTokenInput) GetProfileParams() interface{} { return v.ProfileParams }
+
+// GetExpiry returns __CreateLimitedAccessTokenInput.Expiry, and is useful for accessing the field via an interface.
+func (v *__CreateLimitedAccessTokenInput) GetExpiry() string { return v.Expiry }
 
 // __DeleteAddOnInput is used internally by genqlient
 type __DeleteAddOnInput struct {
@@ -2084,12 +2088,13 @@ func CreateLimitedAccessToken(
 	organizationId string,
 	profile string,
 	profileParams interface{},
+	expiry string,
 ) (*CreateLimitedAccessTokenResponse, error) {
 	req := &graphql.Request{
 		OpName: "CreateLimitedAccessToken",
 		Query: `
-mutation CreateLimitedAccessToken ($name: String!, $organizationId: ID!, $profile: String!, $profileParams: JSON) {
-	createLimitedAccessToken(input: {name:$name,organizationId:$organizationId,profile:$profile,profileParams:$profileParams}) {
+mutation CreateLimitedAccessToken ($name: String!, $organizationId: ID!, $profile: String!, $profileParams: JSON, $expiry: String!) {
+	createLimitedAccessToken(input: {name:$name,organizationId:$organizationId,profile:$profile,profileParams:$profileParams,expiry:$expiry}) {
 		limitedAccessToken {
 			token
 			tokenHeader
@@ -2102,6 +2107,7 @@ mutation CreateLimitedAccessToken ($name: String!, $organizationId: ID!, $profil
 			OrganizationId: organizationId,
 			Profile:        profile,
 			ProfileParams:  profileParams,
+			Expiry:         expiry,
 		},
 	}
 	var err error

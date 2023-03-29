@@ -3,6 +3,7 @@ package flag
 
 import (
 	"context"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -161,6 +162,30 @@ func (ss StringSlice) addTo(cmd *cobra.Command) {
 
 	f := flags.Lookup(ss.Name)
 	f.Hidden = ss.Hidden
+}
+
+// Duration wraps the set of duration flags.
+type Duration struct {
+	Name        string
+	Shorthand   string
+	Description string
+	Default     time.Duration
+	ConfName    string
+	EnvName     string
+	Hidden      bool
+}
+
+func (d Duration) addTo(cmd *cobra.Command) {
+	flags := cmd.Flags()
+
+	if d.Shorthand != "" {
+		_ = flags.DurationP(d.Name, d.Shorthand, d.Default, d.Description)
+	} else {
+		_ = flags.Duration(d.Name, d.Default, d.Description)
+	}
+
+	f := flags.Lookup(d.Name)
+	f.Hidden = d.Hidden
 }
 
 // Org returns an org string flag.
