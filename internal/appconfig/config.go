@@ -149,11 +149,10 @@ func (c *Config) DockerBuildTarget() string {
 }
 
 func (c *Config) MountsDestination() string {
-	if c.Mounts == nil {
+	if c == nil || c.Mounts == nil {
 		return ""
-	} else {
-		return c.Mounts.Destination
-	}
+	} 
+	return c.Mounts.Destination
 }
 
 func (c Config) InternalPort() int {
