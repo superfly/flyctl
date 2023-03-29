@@ -2,6 +2,7 @@ package flag
 
 import (
 	"context"
+	"time"
 
 	"github.com/spf13/pflag"
 )
@@ -57,6 +58,15 @@ func GetInt(ctx context.Context, name string) int {
 func GetStringSlice(ctx context.Context, name string) []string {
 	if v, err := FromContext(ctx).GetStringSlice(name); err != nil {
 		return []string{}
+	} else {
+		return v
+	}
+}
+
+// GetDuration returns the value of the named duration flag ctx carries.
+func GetDuration(ctx context.Context, name string) time.Duration {
+	if v, err := FromContext(ctx).GetDuration(name); err != nil {
+		return 0
 	} else {
 		return v
 	}
