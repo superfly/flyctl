@@ -13,12 +13,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-type tableRow struct {
-	Group string
-	Count int
-	Guest *api.MachineGuest
-}
-
 func runMachinesScaleShow(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
@@ -51,12 +45,12 @@ func runMachinesScaleShow(ctx context.Context) error {
 			fmt.Sprintf("%d", len(machines)),
 			guest.CPUKind,
 			fmt.Sprintf("%d", guest.CPUs),
-			fmt.Sprintf("%d", guest.MemoryMB),
+			fmt.Sprintf("%d MB", guest.MemoryMB),
 		})
 	}
 
 	fmt.Fprintf(io.Out, "VM Resources for app: %s\n\n", appName)
-	render.Table(io.Out, "Groups", rows, "Name", "Count", "Kind", "CPUs", "Memory MB")
+	render.Table(io.Out, "Groups", rows, "Name", "Count", "Kind", "CPUs", "Memory")
 
 	return nil
 }
