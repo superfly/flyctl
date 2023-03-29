@@ -168,13 +168,14 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	unlocked := false
 	defer func() {
+		if unlocked {
+			return
+		}
 		fmt.Fprintf(m.io.ErrOut, "Unlocking %s app to allow changes\n", m.appCompact.Name)
 		err = m.unlockApp(ctx)
 		if err == nil {
-			return
-		}
-		if strings.Contains(strings.ToLower(err.Error()), "application is not currently locked") {
 			return
 		}
 		if err != nil {
@@ -223,6 +224,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	unlocked = true
 	m.newMachines.ReleaseLeases(ctx)
 	err = m.deployApp(ctx)
 	if err != nil {
