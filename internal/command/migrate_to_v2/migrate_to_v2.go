@@ -171,6 +171,12 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) error {
 	defer func() {
 		fmt.Fprintf(m.io.ErrOut, "Unlocking %s app to allow changes\n", m.appCompact.Name)
 		err = m.unlockApp(ctx)
+		if err == nil {
+			return
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "application is not currently locked") {
+			return
+		}
 		if err != nil {
 			fmt.Fprintf(m.io.ErrOut, "Failed to unlock app %s: %v\n", m.appCompact.Name, err)
 		}
