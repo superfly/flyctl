@@ -151,7 +151,7 @@ func (c *Config) DockerBuildTarget() string {
 func (c *Config) MountsDestination() string {
 	if c == nil || c.Mounts == nil {
 		return ""
-	} 
+	}
 	return c.Mounts.Destination
 }
 
