@@ -338,12 +338,19 @@ func (m *v2PlatformMigrator) scaleNomadToZero(ctx context.Context) error {
 	input := gql.SetVMCountInput{
 		AppId:  m.appConfig.AppName,
 		LockId: m.appLock,
-		GroupCounts: []gql.VMCountInput{
-			{
-				Group: "app",
-				Count: 0,
-			},
-		},
+	}
+
+	groups := m.appFull.ProcessGroups
+	if len(groups) == 0 {
+		groups = []api.ProcessGroup{{Name: "app"}}
+	}
+
+	for _, group := range groups {
+		input.GroupCounts = append(input.GroupCounts, gql.VMCountInput{
+			Group:        group.Name,
+			Count:        0,
+			MaxPerRegion: 0,
+		})
 	}
 
 	_, err := gql.SetNomadVMCount(ctx, m.gqlClient, input)
