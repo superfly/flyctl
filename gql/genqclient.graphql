@@ -110,8 +110,8 @@ query GetNearestRegion{
 	}
 }
 
-mutation CreateLimitedAccessToken($name: String!, $organizationId: ID!, $profile: String!, $profileParams: JSON) {
-	createLimitedAccessToken(input: {name: $name, organizationId: $organizationId, profile: $profile, profileParams: $profileParams}) {
+mutation CreateLimitedAccessToken($name: String!, $organizationId: ID!, $profile: String!, $profileParams: JSON, $expiry: String!) {
+	createLimitedAccessToken(input: {name: $name, organizationId: $organizationId, profile: $profile, profileParams: $profileParams, expiry: $expiry}) {
 		limitedAccessToken {
 			token
 			tokenHeader

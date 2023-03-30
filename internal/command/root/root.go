@@ -48,6 +48,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/command/status"
 	"github.com/superfly/flyctl/internal/command/suspend"
+	"github.com/superfly/flyctl/internal/command/tokens"
 	"github.com/superfly/flyctl/internal/command/turboku"
 	"github.com/superfly/flyctl/internal/command/version"
 	"github.com/superfly/flyctl/internal/command/vm"
@@ -171,6 +172,7 @@ func New() *cobra.Command {
 		config.New(),
 		scale.New(),
 		migrate_to_v2.New(),
+		tokens.New(),
 	}
 
 	// if os.Getenv("DEV") != "" {

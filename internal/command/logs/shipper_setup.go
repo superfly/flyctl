@@ -99,7 +99,7 @@ func runSetup(ctx context.Context) (err error) {
 	// Fetch a macaroon token whose access is limited to reading app logs
 	tokenResponse, err := gql.CreateLimitedAccessToken(ctx, client, targetOrg.Slug+"-logs", targetOrg.Id, "read_organization_apps", &gql.LimitedAccessTokenOptions{
 		"app_id": targetApp.Name,
-	})
+	}, "")
 
 	if err != nil {
 		return
