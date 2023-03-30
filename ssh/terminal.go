@@ -26,12 +26,6 @@ type FdReader interface {
 	Fd() uintptr
 }
 
-// FdWriteCloser is an io.WriteCloser with an Fd function
-type FdWriteCloser interface {
-	io.WriteCloser
-	Fd() uintptr
-}
-
 type Terminal struct {
 	Stdin  io.Reader
 	Stdout io.WriteCloser
