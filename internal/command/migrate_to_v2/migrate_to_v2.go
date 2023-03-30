@@ -353,20 +353,25 @@ func (m *v2PlatformMigrator) scaleNomadToZero(ctx context.Context) error {
 		AppId:  m.appConfig.AppName,
 		LockId: m.appLock,
 	}
+	var processes []string
 
-	for _, alloc := range m.oldAllocs {
-		input.GroupCounts = append(input.GroupCounts, gql.VMCountInput{
-			Group:        alloc.TaskName,
-			Count:        0,
-			MaxPerRegion: 0,
-		})
+	if len(m.oldAllocs) > 0 {
+		for _, alloc := range m.oldAllocs {
+			processes = append(processes, alloc.TaskName)
+		}
+
+		for _, process := range processes {
+			input.GroupCounts = append(input.GroupCounts, gql.VMCountInput{
+				Group:        process,
+				Count:        0,
+				MaxPerRegion: 0,
+			})
+		}
+		_, err := gql.SetNomadVMCount(ctx, m.gqlClient, input)
+		if err != nil {
+			return err
+		}
 	}
-
-	_, err := gql.SetNomadVMCount(ctx, m.gqlClient, input)
-	if err != nil {
-		return err
-	}
-
 	return m.waitForAllocsZero(ctx)
 }
 
@@ -533,6 +538,7 @@ func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus
 	}
 
 	processConfig := m.processConfigs[alloc.TaskName]
+	launchInput.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = alloc.TaskName
 	launchInput.Config.Services = processConfig.Services
 	launchInput.Config.Checks = processConfig.Checks
 	launchInput.Config.Init.Cmd = lo.Ternary(len(processConfig.Cmd) > 0, processConfig.Cmd, nil)
