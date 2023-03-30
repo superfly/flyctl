@@ -273,13 +273,6 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	if shouldUseMachines && copyConfig {
-		// Check imported fly.toml is a valid V2 config before creating the app
-		if err := appConfig.SetMachinesPlatform(); err != nil {
-			return fmt.Errorf("Can not use configuration for Apps V2, check fly.toml: %w", err)
-		}
-	}
-
 	if !launchIntoExistingApp {
 		input := api.CreateAppInput{
 			Name:            appConfig.AppName,
@@ -307,6 +300,22 @@ func run(ctx context.Context) (err error) {
 			appConfig.AppName = createdApp.Name
 		}
 		fmt.Fprintf(io.Out, "Created app '%s' in organization '%s'\n", appConfig.AppName, org.Slug)
+	}
+
+	if shouldUseMachines {
+		// Check imported fly.toml is a valid V2 config before creating the app
+		if err := appConfig.SetMachinesPlatform(); err != nil {
+			return fmt.Errorf("Can not use configuration for Apps V2, check fly.toml: %w", err)
+		}
+
+		// remove auto-rollback from machine fly.tomls
+		appConfig.Experimental = nil
+
+		// set default process group
+		// instead of using "", get the entrypoint.sh from the image and stash it there. eg. "nginx -g daemon off" for nginx images
+		if len(appConfig.Processes) == 0 {
+			appConfig.SetProcess(appConfig.DefaultProcessName(), "")
+		}
 	}
 
 	fmt.Fprintf(io.Out, "Admin URL: https://fly.io/apps/%s\n", appConfig.AppName)
@@ -348,11 +357,6 @@ func run(ctx context.Context) (err error) {
 	// Override internal port if requested using --internal-port flag
 	if n := flag.GetInt(ctx, "internal-port"); n > 0 {
 		appConfig.SetInternalPort(n)
-	}
-
-	// remove auto-rollback from machine fly.tomls
-	if shouldUseMachines {
-		appConfig.Experimental = nil
 	}
 
 	// Finally write application configuration to fly.toml

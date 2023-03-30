@@ -113,6 +113,9 @@ func (c *Config) marshalTOML(w io.Writer) error {
 	if c.HttpService != nil {
 		rawData["http_service"] = c.HttpService
 	}
+	if len(c.Processes) > 0 {
+		rawData["processes"] = c.Processes
+	}
 
 	if len(rawData) > 0 {
 		// roundtrip through json encoder to convert float64 numbers to json.Number, otherwise numbers are floats in toml
