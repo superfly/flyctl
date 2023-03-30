@@ -10,6 +10,8 @@ func (c *Client) PlatformRegions(ctx context.Context) ([]Region, *Region, error)
 				regions {
 					name
 					code
+					latitude
+					longitude
 					gatewayAvailable
 					requiresPaidPlan
 				}
