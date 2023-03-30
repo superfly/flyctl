@@ -60,6 +60,10 @@ func stdArgsSSH(cmd *cobra.Command) {
 			Shorthand:   "A",
 			Description: "Address of VM to connect to",
 		},
+		flag.Bool{
+			Name:        "pty",
+			Description: "Allocate a pseudo-terminal (default: on when no command is provided)",
+		},
 	)
 }
 
@@ -188,6 +192,16 @@ func runConsole(ctx context.Context) error {
 		Stderr: ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
 	}
 
+	// TODO: eventually remove the exception for sh and bash.
+	allocPTY := params.Cmd == "" || flag.GetBool(ctx, "pty")
+	if !allocPTY && (params.Cmd == "sh" || params.Cmd == "/bin/sh" || params.Cmd == "bash" || params.Cmd == "/bin/bash") {
+		terminal.Warn(
+			"Allocating a pseudo-terminal since the command provided is a shell. " +
+				"This behavior will change in the future; please use --pty explicitly if this is what you want.",
+		)
+		allocPTY = true
+	}
+
 	if quiet(ctx) {
 		params.DisableSpinner = true
 	}
@@ -202,7 +216,7 @@ func runConsole(ctx context.Context) error {
 		Stdin:    params.Stdin,
 		Stdout:   params.Stdout,
 		Stderr:   params.Stderr,
-		AllocPTY: true,
+		AllocPTY: allocPTY,
 		TermEnv:  "xterm",
 	}
 
