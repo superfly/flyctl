@@ -15,7 +15,7 @@ require (
 	github.com/cavaliergopher/grab/v3 v3.0.1
 	github.com/chzyer/readline v1.5.1
 	github.com/cli/safeexec v1.0.0
-	github.com/containerd/console v1.0.2
+	github.com/containerd/console v1.0.3
 	github.com/docker/docker v20.10.8+incompatible
 	github.com/dustin/go-humanize v1.0.0
 	github.com/ejcx/sshcert v1.0.1
@@ -71,7 +71,6 @@ require (
 	github.com/agnivade/levenshtein v1.1.1 // indirect
 	github.com/alexflint/go-arg v1.4.2 // indirect
 	github.com/alexflint/go-scalar v1.0.0 // indirect
-	github.com/bits-and-blooms/bitset v1.2.0 // indirect
 	github.com/dlclark/regexp2 v1.4.0 // indirect
 	github.com/google/btree v1.0.1 // indirect
 	github.com/kr/fs v0.1.0 // indirect
@@ -135,14 +134,14 @@ require (
 	github.com/mitchellh/ioprogress v0.0.0-20180201004757-6a23b12fa88e // indirect
 	github.com/mitchellh/mapstructure v1.4.1 // indirect
 	github.com/moby/sys/mount v0.2.0 // indirect
-	github.com/moby/sys/mountinfo v0.4.1 // indirect
+	github.com/moby/sys/mountinfo v0.5.0 // indirect
 	github.com/nats-io/nats-server/v2 v2.7.4 // indirect
 	github.com/nats-io/nkeys v0.3.0 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.2 // indirect
-	github.com/opencontainers/runc v1.0.2 // indirect
-	github.com/opencontainers/selinux v1.8.2 // indirect
+	github.com/opencontainers/runc v1.1.5 // indirect
+	github.com/opencontainers/selinux v1.10.0 // indirect
 	github.com/pborman/uuid v1.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/r3labs/diff v1.1.0
