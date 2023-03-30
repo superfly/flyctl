@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"runtime"
+	"sync"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
@@ -70,11 +71,14 @@ func (t *Terminal) attach(ctx context.Context, sess *ssh.Session, cmd string) er
 		return err
 	}
 
+	var closeStdin sync.Once
 	stdin, err := sess.StdinPipe()
 	if err != nil {
 		return err
 	}
-	defer stdin.Close()
+	defer closeStdin.Do(func() {
+		stdin.Close()
+	})
 
 	stdout, err := sess.StdoutPipe()
 	if err != nil {
@@ -86,7 +90,12 @@ func (t *Terminal) attach(ctx context.Context, sess *ssh.Session, cmd string) er
 		return err
 	}
 
-	go io.Copy(stdin, t.Stdin)
+	go func() {
+		defer closeStdin.Do(func() {
+			stdin.Close()
+		})
+		io.Copy(stdin, t.Stdin)
+	}()
 	go io.Copy(t.Stdout, stdout)
 	go io.Copy(t.Stderr, stderr)
 
