@@ -171,7 +171,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 func (m *v2PlatformMigrator) Migrate(ctx context.Context) error {
 	var err error
 
-	tb := render.NewTextBlock(ctx, "Migrating app %s app to the V2 platform")
+	tb := render.NewTextBlock(ctx, fmt.Sprintf("Migrating %s to the V2 platform", m.appCompact.Name))
 
 	tb.Detail("Locking app to prevent changes during the migration")
 	err = m.lockAppForMigration(ctx)
