@@ -94,6 +94,7 @@ type v2PlatformMigrator struct {
 	oldAllocs         []*api.AllocationStatus
 	newMachinesInput  []*api.LaunchMachineInput
 	newMachines       machine.MachineSet
+	canAvoidDowntime  bool
 }
 
 func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigrator, error) {
@@ -156,6 +157,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		processConfigs:    processConfigs,
 		img:               img,
 		oldAllocs:         allocs,
+		canAvoidDowntime:  true,
 	}
 	err = migrator.validate(ctx)
 	if err != nil {
@@ -193,16 +195,18 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) error {
 		}
 	}()
 
-	tb.Detail("Scaling down to zero VMs. This will cause temporary downtime until new VMs come up.")
+	if !m.canAvoidDowntime {
+		tb.Detail("Scaling down to zero VMs. This will cause temporary downtime until new VMs come up.")
 
-	err = m.scaleNomadToZero(ctx)
-	if err != nil {
-		return err
+		err = m.scaleNomadToZero(ctx)
+		if err != nil {
+			return err
+		}
 	}
 
-	tb.Detail("Updating the app platform platform type from V1 to V2")
+	tb.Detail("Enabling machine creation on app")
 
-	err = m.updateAppPlatformVersion(ctx)
+	err = m.updateAppPlatformVersion(ctx, "detached")
 	if err != nil {
 		return err
 	}
@@ -243,6 +247,23 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	if m.canAvoidDowntime {
+		tb.Detail("Scaling down to zero nomad VMs now that machines are running.")
+
+		err = m.scaleNomadToZero(ctx)
+		if err != nil {
+			return err
+		}
+	}
+
+	tb.Detail("Updating the app platform platform type from V1 to V2")
+
+	err = m.updateAppPlatformVersion(ctx, "machines")
+	if err != nil {
+		return err
+	}
+
 	tb.Done("Done")
 	return nil
 }
@@ -278,6 +299,8 @@ func (m *v2PlatformMigrator) validateScaling(ctx context.Context) error {
 
 func (m *v2PlatformMigrator) validateVolumes(ctx context.Context) error {
 	// FIXME: for now we fail if there are volumes... remove this once we figure out volumes
+	// When we can migrate apps with volumes, you probably want to set `m.canAvoidDowntime`
+	// to false when the app has volumes.
 	if m.appConfig.Mounts != nil {
 		return fmt.Errorf("cannot migrate app %s with [mounts] configuration, yet; watch https://community.fly.io for announcements about volume support with migrations", m.appCompact.Name)
 	}
@@ -407,7 +430,7 @@ func (m *v2PlatformMigrator) waitForAllocsZero(ctx context.Context) error {
 	}
 }
 
-func (m *v2PlatformMigrator) updateAppPlatformVersion(ctx context.Context) error {
+func (m *v2PlatformMigrator) updateAppPlatformVersion(ctx context.Context, platform string) error {
 	_ = `# @genqlient
 	mutation SetPlatformVersion($input:SetPlatformVersionInput!) {
 		setPlatformVersion(input:$input) {
@@ -417,7 +440,7 @@ func (m *v2PlatformMigrator) updateAppPlatformVersion(ctx context.Context) error
 	`
 	input := gql.SetPlatformVersionInput{
 		AppId:           m.appConfig.AppName,
-		PlatformVersion: "machines",
+		PlatformVersion: platform,
 		LockId:          m.appLock,
 	}
 	_, err := gql.SetPlatformVersion(ctx, m.gqlClient, input)
