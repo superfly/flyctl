@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -169,7 +170,10 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 
 func (m *v2PlatformMigrator) Migrate(ctx context.Context) error {
 	var err error
-	fmt.Fprintf(m.io.ErrOut, "Locking %s app to prevent changes during migration\n", m.appCompact.Name)
+
+	tb := render.NewTextBlock(ctx, "Migrating app %s app to the V2 platform")
+
+	tb.Detail("Locking app to prevent changes during the migration")
 	err = m.lockAppForMigration(ctx)
 	if err != nil {
 		return err
@@ -179,7 +183,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) error {
 		if unlocked {
 			return
 		}
-		fmt.Fprintf(m.io.ErrOut, "Unlocking %s app to allow changes\n", m.appCompact.Name)
+		tb.Detail("Unlocking app to allow changes")
 		err = m.unlockApp(ctx)
 		if err == nil {
 			return
@@ -189,25 +193,28 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) error {
 		}
 	}()
 
-	fmt.Fprintf(m.io.ErrOut, "Scaling the %s app to zero VMs, which will cause temporary downtime\n", m.appCompact.Name)
+	tb.Detail("Scaling down to zero VMs. This will cause temporary downtime until new VMs come up.")
+
 	err = m.scaleNomadToZero(ctx)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(m.io.ErrOut, "Updating %s app platform platform type from V1 to V2\n", m.appCompact.Name)
+	tb.Detail("Updating the app platform platform type from V1 to V2")
+
 	err = m.updateAppPlatformVersion(ctx)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(m.io.ErrOut, "Creating a release of %s to track this migration\n", m.appCompact.Name)
+	tb.Detail("Creating an app release to register this migration")
+
 	err = m.createRelease(ctx)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(m.io.ErrOut, "Booting up new V2 VMs in the %s app\n", m.appCompact.Name)
+	tb.Detail("Booting up a new V2 VM")
 
 	err = m.createMachines(ctx)
 	if err != nil {
@@ -236,6 +243,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	tb.Done("Done")
 	return nil
 }
 
