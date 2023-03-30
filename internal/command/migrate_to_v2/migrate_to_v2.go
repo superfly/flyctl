@@ -113,6 +113,9 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	if err != nil {
 		return nil, err
 	}
+	if appFull.PlatformVersion == "machines" {
+		return nil, fmt.Errorf("the app '%s' is already on the apps v2 platform", appName)
+	}
 	appConfig, err := determineAppConfigForMachines(ctx)
 	if err != nil {
 		return nil, err
