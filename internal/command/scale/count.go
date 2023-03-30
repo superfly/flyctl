@@ -6,11 +6,15 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -24,7 +28,6 @@ For pricing, see https://fly.io/docs/about/pricing/`
 	cmd := command.New("count [count]", short, long, runScaleCount,
 		command.RequireSession,
 		command.RequireAppName,
-		failOnMachinesApp,
 	)
 	cmd.Args = cobra.MinimumNArgs(1)
 	flag.Add(cmd,
@@ -36,15 +39,31 @@ For pricing, see https://fly.io/docs/about/pricing/`
 }
 
 func runScaleCount(ctx context.Context) error {
-	io := iostreams.FromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
 	appConfig := appconfig.ConfigFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
-	defaultGroupName := appConfig.DefaultProcessName()
-	groups := map[string]int{}
-
 	args := flag.Args(ctx)
+	defaultGroupName := appConfig.DefaultProcessName()
+
+	groups, err := parseGroupCounts(args, defaultGroupName)
+	if err != nil {
+		return err
+	}
+
+	maxPerRegion := flag.GetInt(ctx, "max-per-region")
+
+	isV2, err := command.IsMachinesPlatform(ctx, appName)
+	if err != nil {
+		return err
+	}
+	if isV2 {
+		return runMachinesScaleCount(ctx, appName, groups, maxPerRegion)
+	}
+	return runNomadScaleCount(ctx, appName, groups, maxPerRegion)
+}
+
+func parseGroupCounts(args []string, defaultGroupName string) (map[string]int, error) {
+	groups := make(map[string]int)
 
 	// single numeric arg: fly scale count 3
 	if len(args) == 1 {
@@ -59,23 +78,30 @@ func runScaleCount(ctx context.Context) error {
 		for _, arg := range args {
 			parts := strings.Split(arg, "=")
 			if len(parts) != 2 {
-				return fmt.Errorf("'%s' is not a valid process=count option", arg)
+				return nil, fmt.Errorf("'%s' is not a valid process=count option", arg)
 			}
 			count, err := strconv.Atoi(parts[1])
 			if err != nil {
-				return err
+				return nil, err
 			}
 
 			groups[parts[0]] = count
 		}
 	}
 
-	var maxPerRegion *int
-	if v := flag.GetInt(ctx, "max-per-region"); v >= 0 {
-		maxPerRegion = &v
+	return groups, nil
+}
+
+func runNomadScaleCount(ctx context.Context, appName string, groups map[string]int, maxPerRegion int) error {
+	io := iostreams.FromContext(ctx)
+	apiClient := client.FromContext(ctx).API()
+
+	var maxPerRegionPtr *int
+	if maxPerRegion >= 0 {
+		maxPerRegionPtr = &maxPerRegion
 	}
 
-	counts, warnings, err := apiClient.SetAppVMCount(ctx, appName, groups, maxPerRegion)
+	counts, warnings, err := apiClient.SetAppVMCount(ctx, appName, groups, maxPerRegionPtr)
 	if err != nil {
 		return err
 	}
@@ -88,5 +114,74 @@ func runScaleCount(ctx context.Context) error {
 	}
 
 	fmt.Fprintf(io.Out, "Count changed to %s\n", countMessage(counts))
+	return nil
+}
+
+type groupDiff struct {
+	Name            string
+	CurrentCount    int
+	CurrentMachines []*api.Machine
+
+	ExpectedCount    int
+	MachinesToAdd    []*api.MachineConfig
+	MachinesToDelete []*api.Machine
+}
+
+func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCounts map[string]int, maxPerRegion int) error {
+	io := iostreams.FromContext(ctx)
+
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	if err != nil {
+		return err
+	}
+	ctx = flaps.NewContext(ctx, flapsClient)
+
+	// appConfig, err := appconfig.FromRemoteApp(ctx, appName)
+	// if err != nil {
+	// 	return err
+	// }
+
+	machines, err := mach.ListActive(ctx)
+	if err != nil {
+		return err
+	}
+
+	machines, releaseFunc, err := mach.AcquireLeases(ctx, machines)
+	defer releaseFunc(ctx, machines)
+	if err != nil {
+		return err
+	}
+
+	machineGroups := lo.GroupBy(
+		lo.Filter(machines, func(m *api.Machine, _ int) bool {
+			return m.IsFlyAppsPlatform()
+		}),
+		func(m *api.Machine) string {
+			return m.ProcessGroup()
+		},
+	)
+
+	diff := []*groupDiff{}
+
+	// seenGroups := make(map[string]bool)
+	for groupName, groupedMachines := range machineGroups {
+		expected, ok := expectedGroupCounts[groupName]
+		if !ok {
+			// Ignore the group if it is not expected to change or already at expected count
+			continue
+		}
+		delta := expected - len(groupedMachines)
+		diff = append(diff, &groupDiff{
+			Name: groupName,
+		})
+
+		switch {
+		case delta < 0:
+			fmt.Fprintf(io.Out, "Removing %d machines in progress group\n", delta)
+		default:
+			//
+		}
+	}
+
 	return nil
 }
