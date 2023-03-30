@@ -129,10 +129,11 @@ func SSHConnect(p *SSHParams, addr string) error {
 	}
 
 	sessIO := &ssh.SessionIO{
-		Stdin:   p.Stdin,
-		Stdout:  p.Stdout,
-		Stderr:  p.Stderr,
-		TermEnv: "xterm",
+		Stdin:    p.Stdin,
+		Stdout:   p.Stdout,
+		Stderr:   p.Stderr,
+		AllocPTY: true,
+		TermEnv:  "xterm",
 	}
 
 	if err := sshClient.Shell(context.Background(), sessIO, p.Cmd); err != nil {

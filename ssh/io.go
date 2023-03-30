@@ -32,7 +32,8 @@ type SessionIO struct {
 	Stdout io.WriteCloser
 	Stderr io.WriteCloser
 
-	TermEnv string
+	AllocPTY bool
+	TermEnv  string
 }
 
 func getFd(reader io.Reader) (fd int, ok bool) {
@@ -46,29 +47,31 @@ func getFd(reader io.Reader) (fd int, ok bool) {
 }
 
 func (s *SessionIO) attach(ctx context.Context, sess *ssh.Session, cmd string) error {
-	width, height := DefaultWidth, DefaultHeight
-	if fd, ok := getFd(s.Stdin); ok {
-		state, err := term.MakeRaw(fd)
-		if err != nil {
-			return err
-		}
-		defer term.Restore(fd, state)
-
-		// BUG(tqbf): this is a temporary hack to work around a windows
-		// terminal handling problem that is probably trivial to fix, but
-		// winch isn't handled yet there anyways
-		if runtime.GOOS != "windows" {
-			width, height, err = term.GetSize(fd)
+	if s.AllocPTY {
+		width, height := DefaultWidth, DefaultHeight
+		if fd, ok := getFd(s.Stdin); ok {
+			state, err := term.MakeRaw(fd)
 			if err != nil {
 				return err
 			}
+			defer term.Restore(fd, state)
 
-			go watchWindowSize(ctx, fd, sess)
+			// BUG(tqbf): this is a temporary hack to work around a windows
+			// terminal handling problem that is probably trivial to fix, but
+			// winch isn't handled yet there anyways
+			if runtime.GOOS != "windows" {
+				width, height, err = term.GetSize(fd)
+				if err != nil {
+					return err
+				}
+
+				go watchWindowSize(ctx, fd, sess)
+			}
 		}
-	}
 
-	if err := sess.RequestPty(s.TermEnv, height, width, modes); err != nil {
-		return err
+		if err := sess.RequestPty(s.TermEnv, height, width, modes); err != nil {
+			return err
+		}
 	}
 
 	var closeStdin sync.Once
