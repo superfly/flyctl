@@ -2,12 +2,15 @@ package migrate_to_v2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/briandowns/spinner"
+	"github.com/jpillora/backoff"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -354,10 +357,43 @@ func (m *v2PlatformMigrator) scaleNomadToZero(ctx context.Context) error {
 	}
 
 	_, err := gql.SetNomadVMCount(ctx, m.gqlClient, input)
+	if err != nil {
+		return err
+	}
 
-	// FIXME: have a busy wait loop, maybe with a timeout?, for waiting for the allocs to go to zero
+	return m.waitForAllocsZero(ctx)
+}
 
-	return err
+func (m *v2PlatformMigrator) waitForAllocsZero(ctx context.Context) error {
+
+	s := spinner.New(spinner.CharSets[9], 200*time.Millisecond)
+	s.Writer = m.io.ErrOut
+	s.Prefix = fmt.Sprintf("Waiting for nomad allocs for '%s' to be destroyed ", m.appCompact.Name)
+	s.Start()
+	defer s.Stop()
+
+	timeout := time.After(1 * time.Hour)
+	b := &backoff.Backoff{
+		Min:    2 * time.Second,
+		Max:    5 * time.Minute,
+		Factor: 1.2,
+		Jitter: true,
+	}
+	for {
+		select {
+		case <-time.After(b.Duration()):
+			// TODO: Should showCompleted be true or false?
+			currentAllocs, err := m.apiClient.GetAllocations(ctx, m.appCompact.Name, false)
+			if err != nil {
+				return err
+			}
+			if len(currentAllocs) == 0 {
+				return nil
+			}
+		case <-timeout:
+			return errors.New("nomad allocs never reached zero, timed out")
+		}
+	}
 }
 
 func (m *v2PlatformMigrator) updateAppPlatformVersion(ctx context.Context) error {
