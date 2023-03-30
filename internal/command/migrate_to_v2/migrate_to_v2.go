@@ -354,14 +354,9 @@ func (m *v2PlatformMigrator) scaleNomadToZero(ctx context.Context) error {
 		LockId: m.appLock,
 	}
 
-	groups := m.appFull.ProcessGroups
-	if len(groups) == 0 {
-		groups = []api.ProcessGroup{{Name: "app"}}
-	}
-
-	for _, group := range groups {
+	for _, alloc := range m.oldAllocs {
 		input.GroupCounts = append(input.GroupCounts, gql.VMCountInput{
-			Group:        group.Name,
+			Group:        alloc.TaskName,
 			Count:        0,
 			MaxPerRegion: 0,
 		})
@@ -536,6 +531,7 @@ func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus
 			Volume: vol.ID,
 		}}
 	}
+
 	processConfig := m.processConfigs[alloc.TaskName]
 	launchInput.Config.Services = processConfig.Services
 	launchInput.Config.Checks = processConfig.Checks
