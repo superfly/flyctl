@@ -92,9 +92,18 @@ type v2PlatformMigrator struct {
 	releaseId         string
 	releaseVersion    int
 	oldAllocs         []*api.AllocationStatus
+	oldVmCounts       map[string]int
 	newMachinesInput  []*api.LaunchMachineInput
 	newMachines       machine.MachineSet
 	canAvoidDowntime  bool
+	recovery          recoveryState
+}
+
+type recoveryState struct {
+	machinesCreated bool
+	appLocked       bool
+	scaledToZero    bool
+	platformVersion string
 }
 
 func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigrator, error) {
@@ -158,6 +167,9 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		img:               img,
 		oldAllocs:         allocs,
 		canAvoidDowntime:  true,
+		recovery: recoveryState{
+			platformVersion: appFull.PlatformVersion,
+		},
 	}
 	err = migrator.validate(ctx)
 	if err != nil {
@@ -167,33 +179,74 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	if err != nil {
 		return nil, err
 	}
+	migrator.resolveProcessGroups(ctx)
 	return migrator, nil
 }
 
-func (m *v2PlatformMigrator) Migrate(ctx context.Context) error {
+func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock) error {
 	var err error
 
+	tb.Detail("(!) An error has occurred. Attempting to rollback changes...")
+
+	finalPlatformVersion := ""
+
+	if m.recovery.machinesCreated {
+		// TODO: Unsure how to recover here.
+	}
+	if m.recovery.scaledToZero && !m.recovery.machinesCreated && len(m.oldAllocs) > 0 {
+		// Restore nomad allocs
+		tb.Detail("Restoring nomad allocs to their previous state")
+
+		finalPlatformVersion = "nomad"
+
+		input := gql.SetVMCountInput{
+			AppId: m.appConfig.AppName,
+			GroupCounts: lo.MapToSlice(m.oldVmCounts, func(name string, count int) gql.VMCountInput {
+				return gql.VMCountInput{Group: name, Count: count}
+			}),
+			LockId: lo.Ternary(m.recovery.appLocked, m.appLock, ""),
+		}
+
+		_, err := gql.SetNomadVMCount(ctx, m.gqlClient, input)
+		if err != nil {
+			return err
+		}
+	}
+	if m.recovery.appLocked {
+		err = m.unlockApp(ctx)
+		if err != nil {
+			return err
+		}
+	}
+	if m.recovery.platformVersion != finalPlatformVersion && finalPlatformVersion != "" {
+
+		err = m.updateAppPlatformVersion(ctx, finalPlatformVersion)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
+
 	tb := render.NewTextBlock(ctx, fmt.Sprintf("Migrating %s to the V2 platform", m.appCompact.Name))
+
+	m.recovery.platformVersion = m.appFull.PlatformVersion
+
+	defer func() {
+		if err != nil {
+			if recoveryErr := m.rollback(ctx, tb); recoveryErr != nil {
+				fmt.Fprintf(m.io.ErrOut, "failed while rolling back application: %v\n", recoveryErr)
+			}
+		}
+	}()
 
 	tb.Detail("Locking app to prevent changes during the migration")
 	err = m.lockAppForMigration(ctx)
 	if err != nil {
 		return err
 	}
-	unlocked := false
-	defer func() {
-		if unlocked {
-			return
-		}
-		tb.Detail("Unlocking app to allow changes")
-		err = m.unlockApp(ctx)
-		if err == nil {
-			return
-		}
-		if err != nil {
-			fmt.Fprintf(m.io.ErrOut, "Failed to unlock app %s: %v\n", m.appCompact.Name, err)
-		}
-	}()
 
 	if !m.canAvoidDowntime {
 		tb.Detail("Scaling down to zero VMs. This will cause temporary downtime until new VMs come up.")
@@ -241,7 +294,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	unlocked = true
+
 	m.newMachines.ReleaseLeases(ctx)
 	err = m.deployApp(ctx)
 	if err != nil {
@@ -340,6 +393,7 @@ func (m *v2PlatformMigrator) lockAppForMigration(ctx context.Context) error {
 	}
 
 	m.appLock = resp.LockApp.LockId
+	m.recovery.appLocked = true
 	return nil
 }
 
@@ -370,32 +424,38 @@ func (m *v2PlatformMigrator) createRelease(ctx context.Context) error {
 	return nil
 }
 
+func (m *v2PlatformMigrator) resolveProcessGroups(ctx context.Context) {
+
+	m.oldVmCounts = map[string]int{}
+	for _, alloc := range m.oldAllocs {
+		m.oldVmCounts[alloc.TaskName] += 1
+	}
+}
+
 func (m *v2PlatformMigrator) scaleNomadToZero(ctx context.Context) error {
 
 	input := gql.SetVMCountInput{
 		AppId:  m.appConfig.AppName,
 		LockId: m.appLock,
+		GroupCounts: lo.MapToSlice(m.oldVmCounts, func(name string, count int) gql.VMCountInput {
+			return gql.VMCountInput{Group: name, Count: 0}
+		}),
 	}
-	var processes []string
 
-	if len(m.oldAllocs) > 0 {
-		for _, alloc := range m.oldAllocs {
-			processes = append(processes, alloc.TaskName)
-		}
+	if len(input.GroupCounts) > 0 {
 
-		for _, process := range processes {
-			input.GroupCounts = append(input.GroupCounts, gql.VMCountInput{
-				Group:        process,
-				Count:        0,
-				MaxPerRegion: 0,
-			})
-		}
 		_, err := gql.SetNomadVMCount(ctx, m.gqlClient, input)
 		if err != nil {
 			return err
 		}
 	}
-	return m.waitForAllocsZero(ctx)
+	err := m.waitForAllocsZero(ctx)
+	if err != nil {
+		return err
+	}
+
+	m.recovery.scaledToZero = true
+	return nil
 }
 
 func (m *v2PlatformMigrator) waitForAllocsZero(ctx context.Context) error {
@@ -447,6 +507,7 @@ func (m *v2PlatformMigrator) updateAppPlatformVersion(ctx context.Context, platf
 	if err != nil {
 		return err
 	}
+	m.recovery.platformVersion = platform
 	return nil
 }
 
@@ -461,6 +522,7 @@ func (m *v2PlatformMigrator) createMachines(ctx context.Context) error {
 		newlyCreatedMachines = append(newlyCreatedMachines, newMachine)
 	}
 	m.newMachines = machine.NewMachineSet(m.flapsClient, m.io, newlyCreatedMachines)
+	m.recovery.machinesCreated = true
 	return nil
 }
 
@@ -480,6 +542,7 @@ func (m *v2PlatformMigrator) unlockApp(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	m.recovery.appLocked = false
 	return nil
 }
 
