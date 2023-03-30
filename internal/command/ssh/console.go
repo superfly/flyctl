@@ -199,10 +199,10 @@ func runConsole(ctx context.Context) error {
 	}
 
 	sessIO := &ssh.SessionIO{
-		Stdin:  params.Stdin,
-		Stdout: params.Stdout,
-		Stderr: params.Stderr,
-		Mode:   "xterm",
+		Stdin:   params.Stdin,
+		Stdout:  params.Stdout,
+		Stderr:  params.Stderr,
+		TermEnv: "xterm",
 	}
 
 	currentStdin, currentStdout, currentStderr, err := setupConsole()

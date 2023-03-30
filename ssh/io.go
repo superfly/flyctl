@@ -32,7 +32,7 @@ type SessionIO struct {
 	Stdout io.WriteCloser
 	Stderr io.WriteCloser
 
-	Mode string
+	TermEnv string
 }
 
 func getFd(reader io.Reader) (fd int, ok bool) {
@@ -67,7 +67,7 @@ func (s *SessionIO) attach(ctx context.Context, sess *ssh.Session, cmd string) e
 		}
 	}
 
-	if err := sess.RequestPty(s.Mode, height, width, modes); err != nil {
+	if err := sess.RequestPty(s.TermEnv, height, width, modes); err != nil {
 		return err
 	}
 
