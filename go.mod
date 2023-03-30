@@ -169,7 +169,7 @@ require (
 	go.opentelemetry.io/proto/otlp v0.9.0 // indirect
 	golang.org/x/mod v0.6.0 // indirect
 	golang.org/x/sys v0.5.1-0.20230222185716-a3b23cc77e89
-	golang.org/x/text v0.7.0 // indirect
+	golang.org/x/text v0.7.0
 	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af
 	google.golang.org/genproto v0.0.0-20210722135532-667f2b7c528f // indirect
 	google.golang.org/protobuf v1.28.1 // indirect

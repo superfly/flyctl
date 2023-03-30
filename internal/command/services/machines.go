@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command/apps"
@@ -12,6 +13,8 @@ import (
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 func ShowMachineServiceInfo(ctx context.Context, app *api.AppInfo) error {
@@ -45,31 +48,57 @@ func ShowMachineServiceInfo(ctx context.Context, app *api.AppInfo) error {
 		return nil
 	}
 
-	services := [][]string{}
+	serviceList := [][]string{}
+	serviceToRegion := map[string][]string{}
+	serviceToProcessGroup := map[string][]string{}
+	serviceToMachines := map[string]int{}
 
-	for _, service := range machines[0].Config.Services {
-		for i, port := range service.Ports {
-			protocol := service.Protocol
-			if i > 0 {
-				protocol = ""
-			}
+	services := map[string]struct{}{}
 
-			handlers := []string{}
-			for _, handler := range port.Handlers {
-				handlers = append(handlers, strings.ToUpper(handler))
-			}
+	for _, machine := range machines {
+		for _, service := range machine.Config.Services {
+			for _, port := range service.Ports {
+				protocol := service.Protocol
 
-			fields := []string{
-				strings.ToUpper(protocol),
-				fmt.Sprintf("%d => %d [%s]", *port.Port, service.InternalPort, strings.Join(handlers, ",")),
-				strings.Title(fmt.Sprint(port.ForceHTTPS)),
+				handlers := []string{}
+				for _, handler := range port.Handlers {
+					handlers = append(handlers, strings.ToUpper(handler))
+				}
+
+				ports := fmt.Sprintf("%d => %d", *port.Port, service.InternalPort)
+				https := cases.Title(language.English, cases.Compact).String(fmt.Sprint(port.ForceHTTPS))
+				h := strings.Join(handlers, ",")
+
+				key := getServiceKey(protocol, ports, https, h)
+
+				services[key] = struct{}{}
+
+				serviceToMachines[key]++
+				serviceToRegion[key] = append(serviceToRegion[key], machine.Region)
+				serviceToProcessGroup[key] = append(serviceToProcessGroup[key], machine.ProcessGroup())
 			}
-			services = append(services, fields)
 		}
-
 	}
 
-	_ = render.Table(io.Out, "Services", services, "Protocol", "Ports", "Force HTTPS")
+	for service := range services {
+		components := strings.Split(service, "-")
+
+		protocol := strings.ToUpper(components[0])
+		ports := strings.ToUpper(components[1])
+		https := components[2]
+		handlers := fmt.Sprintf("[%s]", strings.ToUpper(components[3]))
+		processGroup := strings.Join(lo.Uniq(serviceToProcessGroup[service]), ",")
+		regions := strings.Join(lo.Uniq(serviceToRegion[service]), ",")
+		machineCount := fmt.Sprint(serviceToMachines[service])
+
+		serviceList = append(serviceList, []string{protocol, ports, handlers, https, processGroup, regions, machineCount})
+	}
+
+	_ = render.Table(io.Out, "Services", serviceList, "Protocol", "Ports", "Handlers", "Force HTTPS", "Process Group", "Regions", "Machines")
 
 	return nil
+}
+
+func getServiceKey(protocol, ports, forcehttps, handlers string) string {
+	return fmt.Sprintf("%s-%s-%s-%s", protocol, ports, forcehttps, handlers)
 }
