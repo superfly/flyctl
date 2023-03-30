@@ -52,11 +52,10 @@ type StatusPage struct {
 }
 type Client struct {
 	baseUrl    *url.URL
-	authToken  string
 	httpClient *http.Client
 }
 
-func createClient(rawUrl string, ctx context.Context) (*Client, error) {
+func createClient(ctx context.Context, rawUrl string) (*Client, error) {
 	cleanedURL, _ := url.Parse(rawUrl)
 	logger := logger.MaybeFromContext(ctx)
 	httpClient, err := api.NewHTTPClient(logger, http.DefaultTransport)
@@ -66,7 +65,6 @@ func createClient(rawUrl string, ctx context.Context) (*Client, error) {
 
 	return &Client{
 		baseUrl:    cleanedURL,
-		authToken:  "",
 		httpClient: httpClient,
 	}, nil
 }
@@ -75,9 +73,8 @@ func runStatus(ctx context.Context) error {
 	const url = "https://status.fly.io"
 	var cfg = config.FromContext(ctx)
 
-	// check if json flag
 	if cfg.JSONOutput {
-		client, _ := createClient(url, ctx)
+		client, _ := createClient(ctx, url)
 		req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/%s", client.baseUrl, "api/v2/status.json"), nil)
 		if err != nil {
 			log.Fatal(err)
@@ -95,7 +92,6 @@ func runStatus(ctx context.Context) error {
 		}
 
 		var result = StatusPage{}
-
 		if err = json.NewDecoder(res.Body).Decode(&result); err != nil {
 			fmt.Println(err)
 			return nil
