@@ -296,6 +296,12 @@ func run(ctx context.Context) (err error) {
 			newCfg.Build = appConfig.Build
 			newCfg.PrimaryRegion = appConfig.PrimaryRegion
 			appConfig = newCfg
+
+			// remove auto-rollback from machine fly.tomls
+			if shouldUseMachines {
+				appConfig.Experimental = nil
+			}
+
 		} else {
 			appConfig.AppName = createdApp.Name
 		}
