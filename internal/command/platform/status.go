@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -22,15 +23,13 @@ import (
 
 func newStatus() (cmd *cobra.Command) {
 	const (
-		long = `Show current Fly platform status in a browser
+		long = `Show current Fly platform status in a browser or via json with the json flag
 `
-		short = "Show current platform status"
+		short = "Show current platform status with an optional filter for maintenance or incidents in json mode (eg. incidents, maintenance)"
 	)
 
-	cmd = command.New("status", short, long, runStatus)
-
-	cmd.Args = cobra.NoArgs
-
+	cmd = command.New("status [kind](optional)", short, long, runStatus)
+	cmd.Args = cobra.MaximumNArgs(1)
 	return
 }
 
@@ -44,6 +43,26 @@ type Page struct {
 type Status struct {
 	Description string `json:"description,omitempty"`
 	Indicator   string `json:"indicator,omitempty"`
+}
+
+type incidentUpdates struct {
+	Body      string    `json:"body,omitempty"`
+	Status    string    `json:"status,omitempty"`
+	CreatedAt time.Time `json:"created_at,omitempty"`
+	UpdatedAt time.Time `json:"updated_at,omitempty"`
+}
+
+type Incident struct {
+	ID              string          `json:"id,omitempty"`
+	Name            string          `json:"name,omitempty"`
+	Status          string          `json:"status,omitempty"`
+	CreatedAt       time.Time       `json:"port,omitempty"`
+	Impact          string          `json:"impact,omitempty"`
+	MonitoringAt    time.Time       `json:"monitoring_at,omitempty"`
+	PageID          string          `json:"page_id,omitempty"`
+	ResolvedAt      time.Time       `json:"resolved_at,omitempty"`
+	UpdatedAt       time.Time       `json:"updated_at,omitempty"`
+	IncidentUpdates incidentUpdates `json:"incident_updates,omitempty"`
 }
 
 type StatusPage struct {
@@ -71,11 +90,24 @@ func createClient(ctx context.Context, rawUrl string) (*Client, error) {
 
 func runStatus(ctx context.Context) error {
 	const url = "https://status.fly.io"
-	var cfg = config.FromContext(ctx)
+	var (
+		cfg               = config.FromContext(ctx)
+		getStatusEndpoint string
+		getStatusKind     = flag.FirstArg(ctx)
+	)
+
+	switch getStatusKind {
+	case "incidents":
+		getStatusEndpoint = "api/v2/incidents/unresolved.json"
+	case "maintenance":
+		getStatusEndpoint = "api/v2/scheduled-maintenances/active.json"
+	default:
+		getStatusEndpoint = "api/v2/status.json"
+	}
 
 	if cfg.JSONOutput {
 		client, _ := createClient(ctx, url)
-		req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/%s", client.baseUrl, "api/v2/status.json"), nil)
+		req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/%s", client.baseUrl, getStatusEndpoint), nil)
 		if err != nil {
 			log.Fatal(err)
 		}
