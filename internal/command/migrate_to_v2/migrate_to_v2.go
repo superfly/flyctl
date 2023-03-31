@@ -499,11 +499,6 @@ func (m *v2PlatformMigrator) deployApp(ctx context.Context) error {
 	return nil
 }
 
-func (m *v2PlatformMigrator) cleanUpOldNomad(ctx context.Context) error {
-	// FIXME: implement
-	return fmt.Errorf("not yet :-(")
-}
-
 func (m *v2PlatformMigrator) defaultMachineMetadata() map[string]string {
 	res := map[string]string{
 		api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
