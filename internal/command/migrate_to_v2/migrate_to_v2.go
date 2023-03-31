@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/Khan/genqlient/graphql"
 	"github.com/briandowns/spinner"
 	"github.com/jpillora/backoff"
@@ -49,8 +50,7 @@ func newMigrateToV2() *cobra.Command {
 	)
 	cmd.Hidden = true // FIXME: remove this when we're ready to announce
 	cmd.Args = cobra.NoArgs
-	flag.Add(
-		cmd,
+	flag.Add(cmd,
 		flag.Yes(),
 		flag.App(),
 		flag.AppConfig(),
@@ -68,6 +68,15 @@ func runMigrateToV2(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if !flag.GetYes(ctx) {
+		confirm, err := migrator.ConfirmChanges(ctx)
+		if err != nil {
+			return err
+		}
+		if !confirm {
+			return nil
+		}
+	}
 	err = migrator.Migrate(ctx)
 	if err != nil {
 		return err
@@ -76,6 +85,7 @@ func runMigrateToV2(ctx context.Context) error {
 }
 
 type V2PlatformMigrator interface {
+	ConfirmChanges(ctx context.Context) (bool, error)
 	Migrate(ctx context.Context) error
 }
 
@@ -696,6 +706,53 @@ func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus
 	launchInput.Config.Checks = processConfig.Checks
 	launchInput.Config.Init.Cmd = lo.Ternary(len(processConfig.Cmd) > 0, processConfig.Cmd, nil)
 	return launchInput
+}
+
+func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
+
+	numAllocs := len(m.oldAllocs)
+
+	fmt.Fprintf(m.io.Out, "This migration process will do the following, in order:\n")
+	fmt.Fprintf(m.io.Out, " * Lock your application, preventing changes during the migration\n")
+
+	printAllocs := func(msgSuffix string) {
+		fmt.Fprintf(m.io.Out, " * Remove legacy VMs %s\n", msgSuffix)
+		if numAllocs > 0 {
+			s := "s"
+			if numAllocs == 1 {
+				s = ""
+			}
+			fmt.Fprintf(m.io.Out, "   * Remove %d alloc%s\n", numAllocs, s)
+		}
+	}
+
+	if !m.canAvoidDowntime {
+		printAllocs("")
+	}
+
+	fmt.Fprintf(m.io.Out, " * Create machines, copying the configuration of each existing VM\n")
+	for name, count := range m.oldVmCounts {
+		s := "s"
+		if count == 1 {
+			s = ""
+		}
+		fmt.Fprintf(m.io.Out, "   * Create %d \"%s\" machine%s\n", count, name, s)
+	}
+
+	if m.canAvoidDowntime {
+		printAllocs("after health checks pass for the new machines")
+	}
+
+	fmt.Fprintf(m.io.Out, " * Set the application platform version to \"machines\"\n")
+	fmt.Fprintf(m.io.Out, " * Unlock your application\n")
+
+	confirm := false
+	prompt := &survey.Confirm{
+		Message: fmt.Sprintf("Would you like to continue?"),
+	}
+	err := survey.AskOne(prompt, &confirm)
+
+	return confirm, err
 }
 
 func determineAppConfigForMachines(ctx context.Context) (*appconfig.Config, error) {
