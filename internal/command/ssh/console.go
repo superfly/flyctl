@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -217,7 +218,7 @@ func runConsole(ctx context.Context) error {
 		Stdout:   params.Stdout,
 		Stderr:   params.Stderr,
 		AllocPTY: allocPTY,
-		TermEnv:  "xterm",
+		TermEnv:  determineTermEnv(),
 	}
 
 	currentStdin, currentStdout, currentStderr, err := setupConsole()
@@ -401,4 +402,39 @@ func addrForNomad(ctx context.Context, agentclient *agent.Client, app *api.AppCo
 		return "", fmt.Errorf("no instances found for %s", app.Name)
 	}
 	return instances.Addresses[0], nil
+}
+
+const defaultTermEnv = "xterm"
+
+func determineTermEnv() string {
+	switch runtime.GOOS {
+	case "aix":
+		return determineTermEnvFromLocalEnv()
+	case "darwin":
+		return determineTermEnvFromLocalEnv()
+	case "dragonfly":
+		return determineTermEnvFromLocalEnv()
+	case "freebsd":
+		return determineTermEnvFromLocalEnv()
+	case "illumos":
+		return determineTermEnvFromLocalEnv()
+	case "linux":
+		return determineTermEnvFromLocalEnv()
+	case "netbsd":
+		return determineTermEnvFromLocalEnv()
+	case "openbsd":
+		return determineTermEnvFromLocalEnv()
+	case "solaris":
+		return determineTermEnvFromLocalEnv()
+	default:
+		return defaultTermEnv
+	}
+}
+
+func determineTermEnvFromLocalEnv() string {
+	if term := os.Getenv("TERM"); term != "" {
+		return term
+	} else {
+		return defaultTermEnv
+	}
 }
