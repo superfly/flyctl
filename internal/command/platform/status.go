@@ -121,7 +121,7 @@ func runStatus(ctx context.Context) error {
 			return fmt.Errorf("failed to retrieve status: %w", err)
 		}
 
-		var result = StatusPage{}
+		var result = map[string]any{}
 		if err = json.NewDecoder(res.Body).Decode(&result); err != nil {
 			fmt.Println(err)
 			return nil
