@@ -106,15 +106,13 @@ func runStatus(ctx context.Context) error {
 	}
 
 	if cfg.JSONOutput {
-		client, _ := createClient(ctx, url)
-		req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/%s", client.baseUrl, getStatusEndpoint), nil)
+		httpClient, err := api.NewHTTPClient(logger.MaybeFromContext(ctx), http.DefaultTransport)
 		if err != nil {
-			log.Fatal(err)
+		    return err
 		}
-		var res *http.Response
-
-		if res, err = client.httpClient.Do(req); err != nil {
-			return err
+		res, err := httpClient.Get(url+getStatusEndpoint)
+		if err != nil {
+		    return err
 		}
 		defer res.Body.Close()
 
