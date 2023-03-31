@@ -425,8 +425,8 @@ type MachineServiceConcurrency struct {
 }
 
 type MachineFlyProxy struct {
-	AutostartMachine bool `json:"autostart_machine"`
-	AutostopMachine  bool `json:"autostop_machine"`
+	AutostartMachine *bool `json:"autostart_machine,omitempty"`
+	AutostopMachine  *bool `json:"autostop_machine,omitempty"`
 }
 
 type MachineConfig struct {
@@ -446,7 +446,7 @@ type MachineConfig struct {
 	AutoDestroy             bool                    `json:"auto_destroy,omitempty"`
 	DNS                     *DNSConfig              `json:"dns,omitempty"`
 	Statics                 []*Static               `json:"statics,omitempty"`
-	DisableMachineAutostart bool                    `json:"disable_machine_autostart,omitempty"`
+	DisableMachineAutostart *bool                    `json:"disable_machine_autostart,omitempty"`
 	FlyProxy                *MachineFlyProxy        `json:"fly_proxy,omitempty"`
 }
 
