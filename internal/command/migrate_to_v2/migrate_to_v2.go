@@ -105,7 +105,7 @@ type v2PlatformMigrator struct {
 }
 
 type recoveryState struct {
-	machinesCreated bool
+	machinesCreated []*api.Machine
 	appLocked       bool
 	scaledToZero    bool
 	platformVersion string
@@ -189,16 +189,22 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 }
 
 func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock) error {
-	var err error
 
-	finalPlatformVersion := "nomad"
+	if len(m.recovery.machinesCreated) > 0 {
+		for _, mach := range m.recovery.machinesCreated {
 
-	fmt.Printf("Recovery info: %v\n", m.recovery)
-
-	if m.recovery.machinesCreated {
-		// TODO: Unsure how to recover here.
+			input := api.RemoveMachineInput{
+				AppID: m.appFull.Name,
+				ID:    mach.ID,
+				Kill:  true,
+			}
+			err := m.flapsClient.Destroy(ctx, input)
+			if err != nil {
+				return err
+			}
+		}
 	}
-	if m.recovery.scaledToZero && !m.recovery.machinesCreated && len(m.oldAllocs) > 0 {
+	if m.recovery.scaledToZero && len(m.oldAllocs) > 0 {
 		// Restore nomad allocs
 		tb.Detail("Restoring nomad allocs to their previous state")
 
@@ -217,15 +223,15 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 	}
 	if m.recovery.appLocked {
 		tb.Detail("Unlocking application")
-		err = m.unlockApp(ctx)
+		err := m.unlockApp(ctx)
 		if err != nil {
 			return err
 		}
 	}
-	if m.recovery.platformVersion != finalPlatformVersion {
+	if m.recovery.platformVersion != "nomad" {
 
-		tb.Detailf("Setting platform version to '%s'", finalPlatformVersion)
-		err = m.updateAppPlatformVersion(ctx, finalPlatformVersion)
+		tb.Detailf("Setting platform version to 'nomad'")
+		err := m.updateAppPlatformVersion(ctx, "nomad")
 		if err != nil {
 			return err
 		}
@@ -574,6 +580,10 @@ func (m *v2PlatformMigrator) updateAppPlatformVersion(ctx context.Context, platf
 
 func (m *v2PlatformMigrator) createMachines(ctx context.Context) error {
 	var newlyCreatedMachines []*api.Machine
+	defer func() {
+		m.recovery.machinesCreated = newlyCreatedMachines
+	}()
+
 	for _, machineInput := range m.newMachinesInput {
 		newMachine, err := m.flapsClient.Launch(ctx, *machineInput)
 		if err != nil {
@@ -583,7 +593,6 @@ func (m *v2PlatformMigrator) createMachines(ctx context.Context) error {
 		newlyCreatedMachines = append(newlyCreatedMachines, newMachine)
 	}
 	m.newMachines = machine.NewMachineSet(m.flapsClient, m.io, newlyCreatedMachines)
-	m.recovery.machinesCreated = true
 	return nil
 }
 
