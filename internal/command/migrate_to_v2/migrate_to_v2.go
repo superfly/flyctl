@@ -52,6 +52,8 @@ func newMigrateToV2() *cobra.Command {
 	flag.Add(
 		cmd,
 		flag.Yes(),
+		flag.App(),
+		flag.AppConfig(),
 	)
 	return cmd
 }
