@@ -4,8 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"os/signal"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -186,9 +191,9 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock) error {
 	var err error
 
-	tb.Detail("(!) An error has occurred. Attempting to rollback changes...")
+	finalPlatformVersion := "nomad"
 
-	finalPlatformVersion := ""
+	fmt.Printf("Recovery info: %v\n", m.recovery)
 
 	if m.recovery.machinesCreated {
 		// TODO: Unsure how to recover here.
@@ -196,8 +201,6 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 	if m.recovery.scaledToZero && !m.recovery.machinesCreated && len(m.oldAllocs) > 0 {
 		// Restore nomad allocs
 		tb.Detail("Restoring nomad allocs to their previous state")
-
-		finalPlatformVersion = "nomad"
 
 		input := gql.SetVMCountInput{
 			AppId: m.appConfig.AppName,
@@ -213,18 +216,21 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 		}
 	}
 	if m.recovery.appLocked {
+		tb.Detail("Unlocking application")
 		err = m.unlockApp(ctx)
 		if err != nil {
 			return err
 		}
 	}
-	if m.recovery.platformVersion != finalPlatformVersion && finalPlatformVersion != "" {
+	if m.recovery.platformVersion != finalPlatformVersion {
 
+		tb.Detailf("Setting platform version to '%s'", finalPlatformVersion)
 		err = m.updateAppPlatformVersion(ctx, finalPlatformVersion)
 		if err != nil {
 			return err
 		}
 	}
+	tb.Detail("Successfully recovered")
 	return nil
 }
 
@@ -234,18 +240,49 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 
 	m.recovery.platformVersion = m.appFull.PlatformVersion
 
+	abortedErr := errors.New("migration aborted by user")
 	defer func() {
 		if err != nil {
-			if recoveryErr := m.rollback(ctx, tb); recoveryErr != nil {
+			header := ""
+			if err == abortedErr {
+				header = "(!) Received abort signal, restoring application to stable state..."
+			} else {
+				header = "(!) An error has occurred. Attempting to rollback changes..."
+			}
+			recoveryBlock := render.NewTextBlock(ctx, header)
+			if recoveryErr := m.rollback(ctx, recoveryBlock); recoveryErr != nil {
 				fmt.Fprintf(m.io.ErrOut, "failed while rolling back application: %v\n", recoveryErr)
 			}
 		}
 	}()
 
+	aborted := atomic.Bool{}
+	// Hook into Ctrl+C so that aborting the migration
+	// leaves the app in a stable, unlocked, non-detached state
+	{
+		signalCh := make(chan os.Signal)
+		abortSignals := []os.Signal{os.Interrupt}
+		if runtime.GOOS != "windows" {
+			abortSignals = append(abortSignals, syscall.SIGTERM)
+		}
+		// Prevent ctx from being cancelled, we need it to do recovery operations
+		signal.Reset(abortSignals...)
+		signal.Notify(signalCh, abortSignals...)
+		go func() {
+			<-signalCh
+			// most terminals print ^C, this makes things easier to read.
+			fmt.Fprintf(m.io.ErrOut, "\n")
+			aborted.Store(true)
+		}()
+	}
+
 	tb.Detail("Locking app to prevent changes during the migration")
 	err = m.lockAppForMigration(ctx)
 	if err != nil {
 		return err
+	}
+	if aborted.Load() {
+		return abortedErr
 	}
 
 	if !m.canAvoidDowntime {
@@ -256,12 +293,18 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 			return err
 		}
 	}
+	if aborted.Load() {
+		return abortedErr
+	}
 
 	tb.Detail("Enabling machine creation on app")
 
 	err = m.updateAppPlatformVersion(ctx, "detached")
 	if err != nil {
 		return err
+	}
+	if aborted.Load() {
+		return abortedErr
 	}
 
 	tb.Detail("Creating an app release to register this migration")
@@ -270,12 +313,18 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+	if aborted.Load() {
+		return abortedErr
+	}
 
 	tb.Detail("Booting up a new V2 VM")
 
 	err = m.createMachines(ctx)
 	if err != nil {
 		return err
+	}
+	if aborted.Load() {
+		return abortedErr
 	}
 
 	err = m.newMachines.AcquireLeases(ctx, m.leaseTimeout)
@@ -288,17 +337,26 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+	if aborted.Load() {
+		return abortedErr
+	}
 	m.newMachines.StartBackgroundLeaseRefresh(ctx, m.leaseTimeout, m.leaseDelayBetween)
 
 	err = m.unlockApp(ctx)
 	if err != nil {
 		return err
 	}
+	if aborted.Load() {
+		return abortedErr
+	}
 
 	m.newMachines.ReleaseLeases(ctx)
 	err = m.deployApp(ctx)
 	if err != nil {
 		return err
+	}
+	if aborted.Load() {
+		return abortedErr
 	}
 
 	if m.canAvoidDowntime {
@@ -307,6 +365,9 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 		err = m.scaleNomadToZero(ctx)
 		if err != nil {
 			return err
+		}
+		if aborted.Load() {
+			return abortedErr
 		}
 	}
 
