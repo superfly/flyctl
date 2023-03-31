@@ -143,3 +143,17 @@ func TestMachineGuest_SetSize(t *testing.T) {
 		}
 	}
 }
+
+func TestMachineGuest_ToSize(t *testing.T) {
+	for want, guest := range MachinePresets {
+		got := guest.ToSize()
+		if want != got {
+			t.Errorf("want '%s', got '%s'", want, got)
+		}
+	}
+
+	got := (&MachineGuest{}).ToSize()
+	if got != "unknown" {
+		t.Errorf("want 'unknown', got '%s'", got)
+	}
+}
