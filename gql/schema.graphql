@@ -7420,6 +7420,11 @@ type PauseAppPayload {
 
 enum PlatformVersionEnum {
   """
+  App in migration between nomad and machines
+  """
+  detached
+
+  """
   App with only machines
   """
   machines

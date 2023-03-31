@@ -11,6 +11,7 @@ const (
 	// the API
 	MachinesPlatform = "machines"
 	NomadPlatform    = "nomad"
+	DetachedPlatform = "detached"
 )
 
 func NewConfig() *Config {

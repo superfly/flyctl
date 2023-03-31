@@ -1485,6 +1485,8 @@ func (v *MigrateMachinesCreateReleaseResponse) GetCreateRelease() MigrateMachine
 type PlatformVersionEnum string
 
 const (
+	// App in migration between nomad and machines
+	PlatformVersionEnumDetached PlatformVersionEnum = "detached"
 	// App with only machines
 	PlatformVersionEnumMachines PlatformVersionEnum = "machines"
 	// Nomad managed application

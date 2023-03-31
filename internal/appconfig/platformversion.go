@@ -15,6 +15,15 @@ func (c *Config) SetMachinesPlatform() error {
 	return nil
 }
 
+// SetMachinesPlatform informs the TOML marshaller that this config is for the machines platform
+func (c *Config) SetDetachedPlatform() error {
+	if c.v2UnmarshalError != nil {
+		return c.v2UnmarshalError
+	}
+	c.platformVersion = DetachedPlatform
+	return nil
+}
+
 // SetNomadPlatform informs the TOML marshaller that this config is for the nomad platform
 func (c *Config) SetNomadPlatform() error {
 	if len(c.RawDefinition) == 0 {
@@ -30,6 +39,8 @@ func (c *Config) SetPlatformVersion(platform string) error {
 		return c.SetMachinesPlatform()
 	case NomadPlatform:
 		return c.SetNomadPlatform()
+	case DetachedPlatform:
+		return c.SetDetachedPlatform()
 	case "":
 		return fmt.Errorf("Empty value as platform version")
 	default:
