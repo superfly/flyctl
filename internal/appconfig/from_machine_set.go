@@ -128,22 +128,17 @@ fly.toml only supports one mount per machine at this time. These mounts will be 
 			topLevelChecks[checkName] = topLevelCheckFromMachineCheck(machineCheck)
 		}
 	}
-	return &Config{
-		AppName:       appCompact.Name,
-		KillSignal:    "SIGINT",
-		KillTimeout:   5,
-		PrimaryRegion: primaryRegion,
-		Experimental:  nil,
-		Build:         nil,
-		Deploy:        nil,
-		Env:           m.Machine().Config.Env,
-		Metrics:       m.Machine().Config.Metrics,
-		Statics:       statics,
-		Mounts:        mounts,
-		Processes:     processGroups.processes,
-		Checks:        topLevelChecks,
-		Services:      processGroups.services,
-	}, warningMsg
+	cfg := NewConfig()
+	cfg.AppName = appCompact.Name
+	cfg.PrimaryRegion = primaryRegion
+	cfg.Env = m.Machine().Config.Env
+	cfg.Metrics = m.Machine().Config.Metrics
+	cfg.Statics = statics
+	cfg.Mounts = mounts
+	cfg.Processes = processGroups.processes
+	cfg.Checks = topLevelChecks
+	cfg.Services = processGroups.services
+	return cfg, warningMsg
 }
 
 const specialCharsToQuote = "!\"#$&'()*,;<=>?[]\\^`{}|~"

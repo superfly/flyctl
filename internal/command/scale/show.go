@@ -23,7 +23,6 @@ func newScaleShow() *cobra.Command {
 	cmd := command.New("show", short, long, runScaleShow,
 		command.RequireSession,
 		command.RequireAppName,
-		failOnMachinesApp,
 	)
 	cmd.Args = cobra.NoArgs
 	flag.Add(cmd,
@@ -34,6 +33,19 @@ func newScaleShow() *cobra.Command {
 }
 
 func runScaleShow(ctx context.Context) error {
+	appName := appconfig.NameFromContext(ctx)
+
+	isV2, err := command.IsMachinesPlatform(ctx, appName)
+	if err != nil {
+		return err
+	}
+	if isV2 {
+		return runMachinesScaleShow(ctx)
+	}
+	return runNomadScaleShow(ctx)
+}
+
+func runNomadScaleShow(ctx context.Context) error {
 	apiClient := client.FromContext(ctx).API()
 	appName := appconfig.NameFromContext(ctx)
 

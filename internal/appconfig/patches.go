@@ -27,7 +27,7 @@ func applyPatches(cfgMap map[string]any) (*Config, error) {
 }
 
 func mapToConfig(cfgMap map[string]any) (*Config, error) {
-	cfg := &Config{}
+	cfg := NewConfig()
 	newbuf, err := json.Marshal(cfgMap)
 	if err != nil {
 		return cfg, err

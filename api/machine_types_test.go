@@ -117,3 +117,43 @@ func TestGetProcessGroup(t *testing.T) {
 		}
 	}
 }
+
+func TestMachineGuest_SetSize(t *testing.T) {
+	var guest MachineGuest
+
+	if err := guest.SetSize("unknown"); err == nil {
+		t.Error("want error for invalid kind")
+	}
+
+	if err := guest.SetSize("shared-cpu-3x"); err == nil {
+		t.Error("want error for invalid preset name")
+	}
+
+	if err := guest.SetSize("performance-4x"); err != nil {
+		t.Errorf("got error for valid preset name: %v", err)
+	} else {
+		if guest.CPUs != 4 {
+			t.Errorf("Expected 4 cpus, got: %v", guest.CPUs)
+		}
+		if guest.CPUKind != "performance" {
+			t.Errorf("Expected performance cpu kind, got: %v", guest.CPUKind)
+		}
+		if guest.MemoryMB != 8192 {
+			t.Errorf("Expected 8192 MB of memory , got: %v", guest.MemoryMB)
+		}
+	}
+}
+
+func TestMachineGuest_ToSize(t *testing.T) {
+	for want, guest := range MachinePresets {
+		got := guest.ToSize()
+		if want != got {
+			t.Errorf("want '%s', got '%s'", want, got)
+		}
+	}
+
+	got := (&MachineGuest{}).ToSize()
+	if got != "unknown" {
+		t.Errorf("want 'unknown', got '%s'", got)
+	}
+}
