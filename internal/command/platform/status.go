@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/skratchdot/open-golang/open"
@@ -21,6 +20,8 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
+const url = "https://status.fly.io"
+
 func newStatus() (cmd *cobra.Command) {
 	const (
 		long = `Show current Fly platform status in a browser or via json with the json flag
@@ -28,7 +29,7 @@ func newStatus() (cmd *cobra.Command) {
 		short = "Show current platform status with an optional filter for maintenance or incidents in json mode (eg. incidents, maintenance)"
 	)
 
-	cmd = command.New("status [kind](optional)", short, long, runStatus)
+	cmd = command.New("status [kind]", short, long, runStatus)
 	cmd.Args = cobra.MaximumNArgs(1)
 	return
 }
@@ -89,7 +90,6 @@ func createClient(ctx context.Context, rawUrl string) (*Client, error) {
 }
 
 func runStatus(ctx context.Context) error {
-	const url = "https://status.fly.io"
 	var (
 		cfg               = config.FromContext(ctx)
 		getStatusEndpoint string
@@ -114,7 +114,7 @@ func runStatus(ctx context.Context) error {
 		if err != nil {
 		    return err
 		}
-		defer res.Body.Close()
+		defer res.Body.Close() //skipcq: GO-S2307
 
 		if res.StatusCode != 200 {
 			err = api.ErrorFromResp(res)
@@ -123,7 +123,6 @@ func runStatus(ctx context.Context) error {
 
 		var result = map[string]any{}
 		if err = json.NewDecoder(res.Body).Decode(&result); err != nil {
-			fmt.Println(err)
 			return nil
 		}
 		out := iostreams.FromContext(ctx).Out
