@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -95,6 +96,7 @@ type v2PlatformMigrator struct {
 	newMachinesInput  []*api.LaunchMachineInput
 	newMachines       machine.MachineSet
 	canAvoidDowntime  bool
+	unlocked          bool
 }
 
 func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigrator, error) {
@@ -170,29 +172,35 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	return migrator, nil
 }
 
+func (m *v2PlatformMigrator) unlock(ctx context.Context, tb *render.TextBlock) {
+	if m.unlocked {
+		return
+	}
+	tb.Detail("Unlocking app to allow changes")
+	err := m.unlockApp(ctx)
+	if err != nil {
+		fmt.Fprintf(m.io.ErrOut, "Failed to unlock app %s: %v\n", m.appCompact.Name, err)
+	}
+}
+
 func (m *v2PlatformMigrator) Migrate(ctx context.Context) error {
+	tb := render.NewTextBlock(ctx, fmt.Sprintf("Migrating %s to the V2 platform", m.appCompact.Name))
+
 	var err error
 
-	tb := render.NewTextBlock(ctx, fmt.Sprintf("Migrating %s to the V2 platform", m.appCompact.Name))
+	go func() {
+		<-ctx.Done()
+		m.unlock(context.Background(), tb)
+		os.Exit(0)
+	}()
 
 	tb.Detail("Locking app to prevent changes during the migration")
 	err = m.lockAppForMigration(ctx)
 	if err != nil {
 		return err
 	}
-	unlocked := false
 	defer func() {
-		if unlocked {
-			return
-		}
-		tb.Detail("Unlocking app to allow changes")
-		err = m.unlockApp(ctx)
-		if err == nil {
-			return
-		}
-		if err != nil {
-			fmt.Fprintf(m.io.ErrOut, "Failed to unlock app %s: %v\n", m.appCompact.Name, err)
-		}
+		m.unlock(ctx, tb)
 	}()
 
 	if !m.canAvoidDowntime {
@@ -241,7 +249,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	unlocked = true
+	m.unlocked = true
 	m.newMachines.ReleaseLeases(ctx)
 	err = m.deployApp(ctx)
 	if err != nil {
