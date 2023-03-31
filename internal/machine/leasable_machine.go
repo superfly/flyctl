@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"golang.org/x/exp/maps"
 )
 
 type LeasableMachine interface {
@@ -180,14 +181,18 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 }
 
 func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeout time.Duration) error {
-	if lm.machine.Config.Checks == nil {
+	if len(lm.Machine().Checks) == 0 {
 		return nil
 	}
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	checkDefs := maps.Values(lm.Machine().Config.Checks)
+	for _, s := range lm.Machine().Config.Services {
+		checkDefs = append(checkDefs, s.Checks...)
+	}
 	shortestInterval := 120 * time.Second
-	for _, c := range lm.Machine().Config.Checks {
+	for _, c := range checkDefs {
 		if c.Interval != nil && c.Interval.Duration < shortestInterval {
 			shortestInterval = c.Interval.Duration
 		}
