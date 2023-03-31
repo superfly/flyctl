@@ -266,7 +266,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	// Hook into Ctrl+C so that aborting the migration
 	// leaves the app in a stable, unlocked, non-detached state
 	{
-		signalCh := make(chan os.Signal)
+		signalCh := make(chan os.Signal, 1)
 		abortSignals := []os.Signal{os.Interrupt}
 		if runtime.GOOS != "windows" {
 			abortSignals = append(abortSignals, syscall.SIGTERM)
