@@ -9,7 +9,16 @@ import (
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 )
+
+const viewMoreMsg = "View more information here: https://fly.io/docs/about/pricing/#machines"
+
+var cpusPerKind = map[string][]int{
+	"shared":      {1, 2, 4, 6, 8},
+	"performance": {1, 2, 4, 6, 8, 10, 12, 14, 16},
+}
 
 func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) error {
 	var (
@@ -22,29 +31,11 @@ func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) 
 
 	if input != nil && input.Config != nil && input.Config.Guest != nil {
 		// Check that there's a valid number of CPUs
-		var validNumCpus []int
-
-		if input.Config.Guest.CPUKind == "shared" {
-			validNumCpus = append(validNumCpus, 1, 2, 4, 6, 8)
-
-		} else if input.Config.Guest.CPUKind == "performance" {
-			validNumCpus = append(validNumCpus, 1, 2, 4, 6, 8, 10, 12, 14, 16)
-
-		}
-
-		validCpuNum := false
-
-		for _, num := range validNumCpus {
-			if num == input.Config.Guest.CPUs {
-				validCpuNum = true
-				break
-
-			}
-		}
-
-		if !validCpuNum {
-			return fmt.Errorf("invalid config: invalid number of CPUs for %s guest. Valid numbers are %v\nView more information here: https://fly.io/docs/about/pricing/#machines", input.Config.Guest.CPUKind, validNumCpus)
-
+		validNumCpus, ok := cpusPerKind[input.Config.Guest.CPUKind]
+		if !ok {
+			return fmt.Errorf("invalid config: invalid CPU kind '%s'. Valid values are %v\n%s", input.Config.Guest.CPUKind, maps.Keys(cpusPerKind), viewMoreMsg)
+		} else if !slices.Contains(validNumCpus, input.Config.Guest.CPUs) {
+			return fmt.Errorf("invalid config: invalid number of CPUs for %s guest. Valid numbers are %v\n%s", input.Config.Guest.CPUKind, validNumCpus, viewMoreMsg)
 		}
 
 		if input.Config.Guest.CPUKind == "shared" && input.Config.Guest.MemoryMB%256 != 0 {
@@ -52,13 +43,13 @@ func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) 
 			if suggestion == 0 {
 				suggestion = 256
 			}
-			return fmt.Errorf("invalid config: invalid memory size %d; must be in 256 MiB increment (%d would work)\nView more information here: https://fly.io/docs/about/pricing/#machines", input.Config.Guest.MemoryMB, suggestion)
+			return fmt.Errorf("invalid config: invalid memory size %d; must be in 256 MiB increment (%d would work)\n%s", input.Config.Guest.MemoryMB, suggestion, viewMoreMsg)
 		} else if input.Config.Guest.CPUKind == "performance" && input.Config.Guest.MemoryMB%1024 != 0 {
 			suggestion := input.Config.Guest.MemoryMB - (input.Config.Guest.MemoryMB % 1024)
 			if suggestion == 0 {
 				suggestion = 1024
 			}
-			return fmt.Errorf("invalid config: invalid memory size %d; must be in 1024 MiB increment (%d would work)\nView more information here: https://fly.io/docs/about/pricing/#machines", input.Config.Guest.MemoryMB, suggestion)
+			return fmt.Errorf("invalid config: invalid memory size %d; must be in 1024 MiB increment (%d would work)\n%s", input.Config.Guest.MemoryMB, suggestion, viewMoreMsg)
 		}
 
 		// Check memory sizes
@@ -71,8 +62,7 @@ func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) 
 		}
 
 		if min_memory_size > input.Config.Guest.MemoryMB {
-			return fmt.Errorf("invalid config: for machines with %d CPUs, the minimum amount of memory is %d MiB\nView more information here: https://fly.io/docs/about/pricing/#machines", input.Config.Guest.CPUs, min_memory_size)
-
+			return fmt.Errorf("invalid config: for machines with %d CPUs, the minimum amount of memory is %d MiB\n%s", input.Config.Guest.CPUs, min_memory_size, viewMoreMsg)
 		}
 
 		var maxMemory int
@@ -84,8 +74,7 @@ func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) 
 		}
 
 		if input.Config.Guest.MemoryMB > maxMemory {
-			return fmt.Errorf("invalid config: for machines with %d CPUs, the maximum amount of memory is %d MiB\nView more information here: https://fly.io/docs/about/pricing/#machines", input.Config.Guest.CPUs, maxMemory)
-
+			return fmt.Errorf("invalid config: for machines with %d CPUs, the maximum amount of memory is %d MiB\n%s", input.Config.Guest.CPUs, maxMemory, viewMoreMsg)
 		}
 
 	}

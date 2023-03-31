@@ -2,6 +2,8 @@ package api
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -82,7 +84,6 @@ func (m *Machine) IsActive() bool {
 }
 
 func (m *Machine) ProcessGroup() string {
-
 	if m.Config == nil {
 		return ""
 	}
@@ -255,6 +256,50 @@ type MachineGuest struct {
 	MemoryMB int    `json:"memory_mb,omitempty"`
 
 	KernelArgs []string `json:"kernel_args,omitempty"`
+}
+
+func (mg *MachineGuest) SetSize(size string) error {
+	guest, ok := MachinePresets[size]
+	if !ok {
+		var machine_type string
+
+		if strings.HasPrefix(size, "shared") {
+			machine_type = "shared"
+		} else if strings.HasPrefix(size, "performance") {
+			machine_type = "performance"
+		} else {
+			return fmt.Errorf("invalid machine preset requested, '%s', expected to start with 'shared' or 'performance'", size)
+		}
+
+		validSizes := []string{}
+		for size := range MachinePresets {
+			if strings.HasPrefix(size, machine_type) {
+				validSizes = append(validSizes, size)
+			}
+		}
+		sort.Strings(validSizes)
+		return fmt.Errorf("'%s' is an invalid machine size, choose one of: %v", size, validSizes)
+	}
+
+	mg.CPUs = guest.CPUs
+	mg.CPUKind = guest.CPUKind
+	mg.MemoryMB = guest.MemoryMB
+	return nil
+}
+
+// ToSize converts Guest into VMSize on a best effort way
+func (mg *MachineGuest) ToSize() string {
+	if mg == nil {
+		return ""
+	}
+	switch mg.CPUKind {
+	case "shared":
+		return fmt.Sprintf("shared-cpu-%dx", mg.CPUs)
+	case "performance":
+		return fmt.Sprintf("performance-%dx", mg.CPUs)
+	default:
+		return "unknown"
+	}
 }
 
 const (

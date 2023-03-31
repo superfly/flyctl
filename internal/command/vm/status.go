@@ -45,7 +45,7 @@ func runStatus(ctx context.Context) (err error) {
 	)
 
 	// vm status is not supported for machines
-	isMachine, err := command.CheckPlatform(client, ctx, appName)
+	isMachine, err := command.IsMachinesPlatform(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed to check platform version %w", err)
 	}
