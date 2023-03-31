@@ -6,15 +6,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -114,74 +110,5 @@ func runNomadScaleCount(ctx context.Context, appName string, groups map[string]i
 	}
 
 	fmt.Fprintf(io.Out, "Count changed to %s\n", countMessage(counts))
-	return nil
-}
-
-type groupDiff struct {
-	Name            string
-	CurrentCount    int
-	CurrentMachines []*api.Machine
-
-	ExpectedCount    int
-	MachinesToAdd    []*api.MachineConfig
-	MachinesToDelete []*api.Machine
-}
-
-func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCounts map[string]int, maxPerRegion int) error {
-	io := iostreams.FromContext(ctx)
-
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
-	if err != nil {
-		return err
-	}
-	ctx = flaps.NewContext(ctx, flapsClient)
-
-	// appConfig, err := appconfig.FromRemoteApp(ctx, appName)
-	// if err != nil {
-	// 	return err
-	// }
-
-	machines, err := mach.ListActive(ctx)
-	if err != nil {
-		return err
-	}
-
-	machines, releaseFunc, err := mach.AcquireLeases(ctx, machines)
-	defer releaseFunc(ctx, machines)
-	if err != nil {
-		return err
-	}
-
-	machineGroups := lo.GroupBy(
-		lo.Filter(machines, func(m *api.Machine, _ int) bool {
-			return m.IsFlyAppsPlatform()
-		}),
-		func(m *api.Machine) string {
-			return m.ProcessGroup()
-		},
-	)
-
-	diff := []*groupDiff{}
-
-	// seenGroups := make(map[string]bool)
-	for groupName, groupedMachines := range machineGroups {
-		expected, ok := expectedGroupCounts[groupName]
-		if !ok {
-			// Ignore the group if it is not expected to change or already at expected count
-			continue
-		}
-		delta := expected - len(groupedMachines)
-		diff = append(diff, &groupDiff{
-			Name: groupName,
-		})
-
-		switch {
-		case delta < 0:
-			fmt.Fprintf(io.Out, "Removing %d machines in progress group\n", delta)
-		default:
-			//
-		}
-	}
-
 	return nil
 }
