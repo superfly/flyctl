@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
-	"time"
 
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
@@ -32,61 +30,6 @@ func newStatus() (cmd *cobra.Command) {
 	cmd = command.New("status [kind]", short, long, runStatus)
 	cmd.Args = cobra.MaximumNArgs(1)
 	return
-}
-
-type Page struct {
-	ID        string    `json:"id,omitempty"`
-	Name      string    `json:"name,omitempty"`
-	Url       string    `json:"url,omitempty"`
-	UpdatedAt time.Time `json:"updated_at,omitempty"`
-}
-
-type Status struct {
-	Description string `json:"description,omitempty"`
-	Indicator   string `json:"indicator,omitempty"`
-}
-
-type incidentUpdates struct {
-	Body      string    `json:"body,omitempty"`
-	Status    string    `json:"status,omitempty"`
-	CreatedAt time.Time `json:"created_at,omitempty"`
-	UpdatedAt time.Time `json:"updated_at,omitempty"`
-}
-
-type Incident struct {
-	ID              string          `json:"id,omitempty"`
-	Name            string          `json:"name,omitempty"`
-	Status          string          `json:"status,omitempty"`
-	CreatedAt       time.Time       `json:"port,omitempty"`
-	Impact          string          `json:"impact,omitempty"`
-	MonitoringAt    time.Time       `json:"monitoring_at,omitempty"`
-	PageID          string          `json:"page_id,omitempty"`
-	ResolvedAt      time.Time       `json:"resolved_at,omitempty"`
-	UpdatedAt       time.Time       `json:"updated_at,omitempty"`
-	IncidentUpdates incidentUpdates `json:"incident_updates,omitempty"`
-}
-
-type StatusPage struct {
-	Status Status
-	Page   Page
-}
-type Client struct {
-	baseUrl    *url.URL
-	httpClient *http.Client
-}
-
-func createClient(ctx context.Context, rawUrl string) (*Client, error) {
-	cleanedURL, _ := url.Parse(rawUrl)
-	logger := logger.MaybeFromContext(ctx)
-	httpClient, err := api.NewHTTPClient(logger, http.DefaultTransport)
-	if err != nil {
-		return nil, fmt.Errorf("can't setup HTTP client to %s: %w", rawUrl, err)
-	}
-
-	return &Client{
-		baseUrl:    cleanedURL,
-		httpClient: httpClient,
-	}, nil
 }
 
 func runStatus(ctx context.Context) error {
