@@ -604,7 +604,6 @@ func (m *v2PlatformMigrator) waitForAllocsZero(ctx context.Context) error {
 	for {
 		select {
 		case <-time.After(b.Duration()):
-			// TODO: Should showCompleted be true or false?
 			currentAllocs, err := m.apiClient.GetAllocations(ctx, m.appCompact.Name, false)
 			if err != nil {
 				return err
