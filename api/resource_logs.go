@@ -41,7 +41,7 @@ func (c *Client) GetAppLogs(ctx context.Context, appName, token, region, instanc
 	if res, err = c.httpClient.Do(req); err != nil {
 		return
 	}
-	defer res.Body.Close()
+	defer res.Body.Close() //skipcq: GO-S2307
 
 	if res.StatusCode != 200 {
 		err = ErrorFromResp(res)
