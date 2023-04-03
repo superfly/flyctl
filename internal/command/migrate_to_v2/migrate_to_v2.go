@@ -28,6 +28,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/iostreams"
@@ -199,6 +200,10 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		},
 	}
 	err = migrator.validate(ctx)
+	if err != nil {
+		return nil, err
+	}
+	err = migrator.determinePrimaryRegion(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -724,6 +729,29 @@ func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus
 	launchInput.Config.Checks = processConfig.Checks
 	launchInput.Config.Init.Cmd = lo.Ternary(len(processConfig.Cmd) > 0, processConfig.Cmd, nil)
 	return launchInput, nil
+}
+
+func (m *v2PlatformMigrator) determinePrimaryRegion(ctx context.Context) error {
+
+	if val, ok := m.appConfig.Env["PRIMARY_REGION"]; ok {
+		m.appConfig.PrimaryRegion = val
+		return nil
+	}
+
+	// TODO: If this ends up used by postgres migrations, it might be nice to have
+	//       the prompt here reflect the special role `primary_region` plays for postgres apps
+
+	region, err := prompt.Region(ctx, !m.appFull.Organization.PaidPlan, prompt.RegionParams{
+		Message: "Choose the primary region for this app:",
+	})
+	if err != nil {
+		return err
+	}
+	if region == nil {
+		return errors.New("no region provided")
+	}
+	m.appConfig.PrimaryRegion = region.Code
+	return nil
 }
 
 func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
