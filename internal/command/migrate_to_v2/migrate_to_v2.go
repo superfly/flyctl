@@ -31,6 +31,7 @@ import (
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/sentry"
+	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -102,6 +103,7 @@ type v2PlatformMigrator struct {
 	appCompact        *api.AppCompact
 	appFull           *api.App
 	appConfig         *appconfig.Config
+	configPath        string
 	autoscaleConfig   *api.AutoscalingConfig
 	volumeDestination string
 	processConfigs    map[string]*appconfig.ProcessConfig
@@ -119,10 +121,11 @@ type v2PlatformMigrator struct {
 }
 
 type recoveryState struct {
-	machinesCreated []*api.Machine
-	appLocked       bool
-	scaledToZero    bool
-	platformVersion string
+	machinesCreated        []*api.Machine
+	appLocked              bool
+	scaledToZero           bool
+	platformVersion        string
+	onlyPromptToConfigSave bool
 }
 
 func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigrator, error) {
@@ -211,6 +214,10 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	if err != nil {
 		return nil, err
 	}
+	err = migrator.determineConfigPath(ctx)
+	if err != nil {
+		return nil, err
+	}
 	migrator.resolveProcessGroups(ctx)
 	return migrator, nil
 }
@@ -288,6 +295,13 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	abortedErr := errors.New("migration aborted by user")
 	defer func() {
 		if err != nil {
+
+			if m.recovery.onlyPromptToConfigSave {
+				fmt.Fprintf(m.io.ErrOut, "Failed to save application config to disk, but migration was successful.\n")
+				fmt.Fprintf(m.io.ErrOut, "Please run `fly config save` before further interacting with your app via flyctl.\n")
+				return
+			}
+
 			header := ""
 			if err == abortedErr {
 				header = "(!) Received abort signal, restoring application to stable state..."
@@ -419,6 +433,14 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	tb.Detail("Updating the app platform platform type from V1 to V2")
 
 	err = m.updateAppPlatformVersion(ctx, "machines")
+	if err != nil {
+		return err
+	}
+
+	tb.Detail("Saving new configuration")
+
+	m.recovery.onlyPromptToConfigSave = true
+	err = m.appConfig.WriteToDisk(ctx, m.configPath)
 	if err != nil {
 		return err
 	}
@@ -766,6 +788,20 @@ func (m *v2PlatformMigrator) determinePrimaryRegion(ctx context.Context) error {
 	return nil
 }
 
+func (m *v2PlatformMigrator) determineConfigPath(ctx context.Context) error {
+	path := state.WorkingDirectory(ctx)
+	if flag.IsSpecified(ctx, "config") {
+		path = flag.GetString(ctx, "config")
+	}
+	configPath, err := appconfig.ResolveConfigFileFromPath(path)
+	if err != nil {
+		return err
+	}
+
+	m.configPath = configPath
+	return nil
+}
+
 func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 
 	numAllocs := len(m.oldAllocs)
@@ -803,6 +839,11 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 
 	fmt.Fprintf(m.io.Out, " * Set the application platform version to \"machines\"\n")
 	fmt.Fprintf(m.io.Out, " * Unlock your application\n")
+	if exists, _ := appconfig.ConfigFileExistsAtPath(m.configPath); exists {
+		fmt.Fprintf(m.io.Out, " * Overwrite the config file at '%s'\n", m.configPath)
+	} else {
+		fmt.Fprintf(m.io.Out, " * Save the app's config file to '%s'\n", m.configPath)
+	}
 
 	confirm := false
 	prompt := &survey.Confirm{
