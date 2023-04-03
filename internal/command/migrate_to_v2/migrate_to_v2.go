@@ -804,7 +804,7 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 
 	confirm := false
 	prompt := &survey.Confirm{
-		Message: fmt.Sprintf("Would you like to continue?"),
+		Message: "Would you like to continue?",
 	}
 	err := survey.AskOne(prompt, &confirm)
 
