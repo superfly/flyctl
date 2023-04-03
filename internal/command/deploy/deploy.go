@@ -25,11 +25,11 @@ import (
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/internal/watch"
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/logger"
-	"github.com/superfly/flyctl/internal/watch"
 )
 
 var CommonFlags = flag.Set{
@@ -114,8 +114,6 @@ func run(ctx context.Context) error {
 	}
 
 	fmt.Println("\nYou're currently deploying a single instance of your app")
-	fmt.Println("\nFor high availability, it is recommended to deploy more than one instance of an app")
-	fmt.Println("\nDeploy another instance of your app by running the `fly scale vm` command on successful deploy")
 	fmt.Println("")
 
 	isProd, err := prompt.Confirm(ctx, "Is this app meant for production?")
@@ -239,6 +237,11 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 	}
 
 	err = watch.Deployment(ctx, appConfig.AppName, release.EvaluationID)
+
+	fmt.Println("\nYou deployed a single instance of your app.")
+	fmt.Println("\nFor high availability, it is recommended to deploy more than one instance of your app.")
+	fmt.Println("\nDeploy another instance of your app by running the `fly scale vm` command")
+	fmt.Println("")
 
 	return err
 }
