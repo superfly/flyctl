@@ -116,7 +116,8 @@ func NewTextBlock(ctx context.Context, v ...interface{}) (tb *TextBlock) {
 	colorize := io.ColorScheme()
 
 	tb = &TextBlock{
-		out: iostreams.FromContext(ctx).ErrOut,
+		out:      iostreams.FromContext(ctx).ErrOut,
+		colorize: colorize,
 	}
 
 	if len(v) > 0 {
@@ -127,7 +128,8 @@ func NewTextBlock(ctx context.Context, v ...interface{}) (tb *TextBlock) {
 }
 
 type TextBlock struct {
-	out io.Writer
+	out      io.Writer
+	colorize *iostreams.ColorScheme
 }
 
 func (tb *TextBlock) Print(v ...interface{}) {
@@ -144,7 +146,7 @@ func (tb *TextBlock) Printf(format string, v ...interface{}) {
 
 // Detail prints to the output ctx carries. It behaves similarly to log.Print.
 func (tb *TextBlock) Detail(v ...interface{}) {
-	tb.Println(aurora.Faint(fmt.Sprint(v...)))
+	tb.Println("> ", fmt.Sprint(v...))
 }
 
 // Detailf prints to the output ctx carries. It behaves similarly to log.Printf.
@@ -157,7 +159,7 @@ func (tb *TextBlock) Overwrite() {
 }
 
 func (tb *TextBlock) Done(v ...interface{}) {
-	tb.Println(aurora.Gray(20, "--> "+fmt.Sprint(v...)))
+	tb.Println(tb.colorize.Green("--> " + fmt.Sprint(v...)))
 }
 
 func (tb *TextBlock) Donef(format string, v ...interface{}) {

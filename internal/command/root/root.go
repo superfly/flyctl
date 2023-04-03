@@ -29,6 +29,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/launch"
 	"github.com/superfly/flyctl/internal/command/logs"
 	"github.com/superfly/flyctl/internal/command/machine"
+	"github.com/superfly/flyctl/internal/command/migrate_to_v2"
 	"github.com/superfly/flyctl/internal/command/monitor"
 	"github.com/superfly/flyctl/internal/command/move"
 	"github.com/superfly/flyctl/internal/command/open"
@@ -170,6 +171,7 @@ func New() *cobra.Command {
 		services.New(),
 		config.New(),
 		scale.New(),
+		migrate_to_v2.New(),
 		tokens.New(),
 	}
 
