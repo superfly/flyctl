@@ -109,6 +109,7 @@ type v2PlatformMigrator struct {
 	releaseId         string
 	releaseVersion    int
 	oldAllocs         []*api.AllocationStatus
+	machineGuest      *api.MachineGuest
 	oldVmCounts       map[string]int
 	newMachinesInput  []*api.LaunchMachineInput
 	newMachines       machine.MachineSet
@@ -165,6 +166,14 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	if err != nil {
 		return nil, err
 	}
+	vmSize, _, _, err := apiClient.AppVMResources(ctx, appName)
+	if err != nil {
+		return nil, err
+	}
+	machineGuest, err := determineVmSpecs(vmSize)
+	if err != nil {
+		return nil, err
+	}
 	leaseTimeout := 13 * time.Second
 	leaseDelayBetween := (leaseTimeout - 1*time.Second) / 3
 	migrator := &v2PlatformMigrator{
@@ -183,6 +192,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		processConfigs:    processConfigs,
 		img:               img,
 		oldAllocs:         allocs,
+		machineGuest:      machineGuest,
 		canAvoidDowntime:  true,
 		recovery: recoveryState{
 			platformVersion: appFull.PlatformVersion,
@@ -658,26 +668,34 @@ func (m *v2PlatformMigrator) defaultMachineMetadata() map[string]string {
 }
 
 func (m *v2PlatformMigrator) prepMachinesToCreate(ctx context.Context) error {
-	m.newMachinesInput = m.resolveMachinesFromAllocs()
+	var err error
+	m.newMachinesInput, err = m.resolveMachinesFromAllocs()
 	// FIXME: add extra machines that are stopped by default, based on scaling/autoscaling config for the app
-	return nil
+	return err
 }
 
-func (m *v2PlatformMigrator) resolveMachinesFromAllocs() []*api.LaunchMachineInput {
+func (m *v2PlatformMigrator) resolveMachinesFromAllocs() ([]*api.LaunchMachineInput, error) {
 	var res []*api.LaunchMachineInput
 	for _, alloc := range m.oldAllocs {
-		res = append(res, m.resolveMachineFromAlloc(alloc))
+		mach, err := m.resolveMachineFromAlloc(alloc)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, mach)
 	}
-	return res
+	return res, nil
 }
 
-func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus) *api.LaunchMachineInput {
+func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus) (*api.LaunchMachineInput, error) {
 	launchInput := &api.LaunchMachineInput{
 		AppID:   m.appFull.Name,
 		OrgSlug: m.appFull.Organization.ID,
 		Region:  alloc.Region,
 		Config:  &api.MachineConfig{},
 	}
+
+	launchInput.Config.Guest = m.machineGuest
+
 	launchInput.Config.Metadata = m.defaultMachineMetadata()
 	launchInput.Config.Image = m.img
 	launchInput.Config.Env = lo.Assign(m.appConfig.Env)
@@ -705,7 +723,7 @@ func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus
 	launchInput.Config.Services = processConfig.Services
 	launchInput.Config.Checks = processConfig.Checks
 	launchInput.Config.Init.Cmd = lo.Ternary(len(processConfig.Cmd) > 0, processConfig.Cmd, nil)
-	return launchInput
+	return launchInput, nil
 }
 
 func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
@@ -771,4 +789,18 @@ func determineAppConfigForMachines(ctx context.Context) (*appconfig.Config, erro
 		cfg.AppName = appNameFromContext
 	}
 	return cfg, nil
+}
+
+func determineVmSpecs(vmSize api.VMSize) (*api.MachineGuest, error) {
+
+	preset := strings.Replace(vmSize.Name, "dedicated-cpu", "performance", 1)
+
+	guest := &api.MachineGuest{}
+	err := guest.SetSize(preset)
+
+	if err != nil {
+		return nil, fmt.Errorf("nomad VM definition incompatible with machines API: %w", err)
+	}
+
+	return guest, nil
 }
