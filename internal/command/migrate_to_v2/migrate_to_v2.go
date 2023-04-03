@@ -225,9 +225,18 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 				fmt.Fprintf(m.io.ErrOut, "failed to unlock app: %v\n", err)
 			}
 		}
+		// HACK: machines apps use the suspended state to describe an app with no machines.
+		//       this means something different in nomad-land, so we resume just in case this got set.
+		_, err := m.apiClient.ResumeApp(ctx, m.appCompact.Name)
+		if err != nil {
+			if !strings.Contains(err.Error(), "not suspended") {
+				fmt.Fprintf(m.io.ErrOut, "failed to unsuspend app: %v\n", err)
+			}
+		}
 	}()
 
 	if len(m.recovery.machinesCreated) > 0 {
+		tb.Detailf("Removing machines")
 		for _, mach := range m.recovery.machinesCreated {
 
 			input := api.RemoveMachineInput{
@@ -246,14 +255,6 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 		tb.Detailf("Setting platform version to 'nomad'")
 		err := m.updateAppPlatformVersion(ctx, "nomad")
 		if err != nil {
-			return err
-		}
-	}
-	// HACK: machines apps use the suspended state to describe an app with no machines.
-	//       this means something different in nomad-land, so we resume just in case this got set.
-	_, err := m.apiClient.ResumeApp(ctx, m.appCompact.Name)
-	if err != nil {
-		if !strings.Contains(err.Error(), "not suspended") {
 			return err
 		}
 	}
@@ -361,7 +362,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 		return abortedErr
 	}
 
-	tb.Detail("Booting up a new V2 VM")
+	tb.Detail("Starting machines")
 
 	err = m.createMachines(ctx)
 	if err != nil {
