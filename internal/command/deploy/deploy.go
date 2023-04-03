@@ -118,11 +118,11 @@ func run(ctx context.Context) error {
 	fmt.Println("\nDeploy another instance of your app by running the `fly scale vm` command on successful deploy")
 	fmt.Println("")
 
-	environment, err := prompt.SelectProdOrStaging(ctx)
+	isProd, err := prompt.Confirm(ctx, "Is this app meant for production?")
 	if err != nil {
 		return err
 	}
-	appConfig.DeployEnv = environment
+	appConfig.IsProd = isProd
 
 	return DeployWithConfig(ctx, appConfig, DeployWithConfigArgs{
 		ForceNomad:    flag.GetBool(ctx, "force-nomad"),
