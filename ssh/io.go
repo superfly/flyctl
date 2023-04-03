@@ -27,7 +27,7 @@ type FdReader interface {
 	Fd() uintptr
 }
 
-type Terminal struct {
+type SessionIO struct {
 	Stdin  io.Reader
 	Stdout io.WriteCloser
 	Stderr io.WriteCloser
@@ -45,9 +45,9 @@ func getFd(reader io.Reader) (fd int, ok bool) {
 	return fd, term.IsTerminal(fd)
 }
 
-func (t *Terminal) attach(ctx context.Context, sess *ssh.Session, cmd string) error {
+func (s *SessionIO) attach(ctx context.Context, sess *ssh.Session, cmd string) error {
 	width, height := DefaultWidth, DefaultHeight
-	if fd, ok := getFd(t.Stdin); ok {
+	if fd, ok := getFd(s.Stdin); ok {
 		state, err := term.MakeRaw(fd)
 		if err != nil {
 			return err
@@ -67,7 +67,7 @@ func (t *Terminal) attach(ctx context.Context, sess *ssh.Session, cmd string) er
 		}
 	}
 
-	if err := sess.RequestPty(t.Mode, height, width, modes); err != nil {
+	if err := sess.RequestPty(s.Mode, height, width, modes); err != nil {
 		return err
 	}
 
@@ -94,10 +94,10 @@ func (t *Terminal) attach(ctx context.Context, sess *ssh.Session, cmd string) er
 		defer closeStdin.Do(func() {
 			stdin.Close()
 		})
-		io.Copy(stdin, t.Stdin)
+		io.Copy(stdin, s.Stdin)
 	}()
-	go io.Copy(t.Stdout, stdout)
-	go io.Copy(t.Stderr, stderr)
+	go io.Copy(s.Stdout, stdout)
+	go io.Copy(s.Stderr, stderr)
 
 	if cmd == "" {
 		err = sess.Shell()

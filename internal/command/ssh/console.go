@@ -198,7 +198,7 @@ func runConsole(ctx context.Context) error {
 		return err
 	}
 
-	term := &ssh.Terminal{
+	sessIO := &ssh.SessionIO{
 		Stdin:  params.Stdin,
 		Stdout: params.Stdout,
 		Stderr: params.Stderr,
@@ -213,7 +213,7 @@ func runConsole(ctx context.Context) error {
 		return nil
 	}()
 
-	if err := sshc.Shell(params.Ctx, term, params.Cmd); err != nil {
+	if err := sshc.Shell(params.Ctx, sessIO, params.Cmd); err != nil {
 		captureError(err, app)
 		return errors.Wrap(err, "ssh shell")
 	}
