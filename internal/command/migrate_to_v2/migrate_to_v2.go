@@ -217,6 +217,16 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 
 func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock) error {
 
+	defer func() {
+		if m.recovery.appLocked {
+			tb.Detail("Unlocking application")
+			err := m.unlockApp(ctx)
+			if err != nil {
+				fmt.Fprintf(m.io.ErrOut, "failed to unlock app: %v\n", err)
+			}
+		}
+	}()
+
 	if len(m.recovery.machinesCreated) > 0 {
 		for _, mach := range m.recovery.machinesCreated {
 
