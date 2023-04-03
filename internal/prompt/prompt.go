@@ -494,3 +494,14 @@ func SelectAppNameWithMsg(ctx context.Context, msg string) (name string, err err
 	}
 	return
 }
+
+func SelectProdOrStaging(ctx context.Context) (env string, err error) {
+	var options []string
+	var index int
+	var environment string
+	options = []string{"production", "staging"}
+	if err = Select(ctx, &index, "Select deploy environment:", "", options...); err == nil {
+		environment = options[index]
+	}
+	return environment, nil
+}

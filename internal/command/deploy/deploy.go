@@ -21,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/state"
@@ -111,6 +112,17 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	fmt.Println("\nYou're currently deploying a single instance of your app")
+	fmt.Println("\nFor high availability, it is recommended to deploy more than one instance of an app")
+	fmt.Println("\nDeploy another instance of your app by running the `fly scale vm` command on successful deploy")
+	fmt.Println("")
+
+	environment, err := prompt.SelectProdOrStaging(ctx)
+	if err != nil {
+		return err
+	}
+	appConfig.DeployEnv = environment
 
 	return DeployWithConfig(ctx, appConfig, DeployWithConfigArgs{
 		ForceNomad:    flag.GetBool(ctx, "force-nomad"),

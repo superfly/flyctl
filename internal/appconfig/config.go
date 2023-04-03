@@ -29,6 +29,7 @@ type Config struct {
 	Experimental  *Experimental             `toml:"experimental,omitempty" json:"experimental,omitempty"`
 	Build         *Build                    `toml:"build,omitempty" json:"build,omitempty"`
 	Deploy        *Deploy                   `toml:"deploy, omitempty" json:"deploy,omitempty"`
+	DeployEnv     string                    `toml:"deploy_env, omitempty" json:"deploy_env,omitempty"`
 	Env           map[string]string         `toml:"env,omitempty" json:"env,omitempty"`
 	HttpService   *HTTPService              `toml:"http_service,omitempty" json:"http_service,omitempty"`
 	Metrics       *api.MachineMetrics       `toml:"metrics,omitempty" json:"metrics,omitempty"`
