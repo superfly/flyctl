@@ -45,6 +45,12 @@ else
   fi
 fi
 
+if [[ "$prerel" == "prerel" && "$BRANCH" != "prerelease" ]]; then
+  echo "❌ Sorry, you can only cut a pre-release on the 'prelease' branch"
+  echo "Run 'git checkout prerelease && git pull origin prerelease' and try again."
+  exit 1
+fi
+
 dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 previous_version="$("$dir"/../scripts/version.sh -s)"
