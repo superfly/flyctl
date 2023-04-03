@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/skratchdot/open-golang/open"
@@ -20,7 +20,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-const url = "https://status.fly.io"
+const StatusURL = "https://status.fly.io/"
 
 func newStatus() (cmd *cobra.Command) {
 	const (
@@ -97,22 +97,28 @@ func runStatus(ctx context.Context) error {
 	)
 
 	switch getStatusKind {
+	case "brief":
+		getStatusEndpoint = "api/v2/status.json"
+	case "summary":
+		getStatusEndpoint = "api/v2/summary.json"
 	case "incidents":
 		getStatusEndpoint = "api/v2/incidents/unresolved.json"
 	case "maintenance":
 		getStatusEndpoint = "api/v2/scheduled-maintenances/active.json"
-	default:
+	case "":
 		getStatusEndpoint = "api/v2/status.json"
+	default:
+		return fmt.Errorf("status subcommand must be empty or of type brief, summary, incidents, maintenance")
 	}
 
 	if cfg.JSONOutput {
 		httpClient, err := api.NewHTTPClient(logger.MaybeFromContext(ctx), http.DefaultTransport)
 		if err != nil {
-		    return err
+			return err
 		}
-		res, err := httpClient.Get(url+getStatusEndpoint)
+		res, err := httpClient.Get(StatusURL + getStatusEndpoint)
 		if err != nil {
-		    return err
+			return err
 		}
 		defer res.Body.Close() //skipcq: GO-S2307
 
@@ -130,10 +136,10 @@ func runStatus(ctx context.Context) error {
 	}
 
 	w := iostreams.FromContext(ctx).ErrOut
-	fmt.Fprintf(w, "opening %s ...\n", url)
+	fmt.Fprintf(w, "opening %s ...\n", StatusURL)
 
-	if err := open.Run(url); err != nil {
-		return fmt.Errorf("failed opening %s: %w", url, err)
+	if err := open.Run(StatusURL); err != nil {
+		return fmt.Errorf("failed opening %s: %w", StatusURL, err)
 	}
 
 	return nil
