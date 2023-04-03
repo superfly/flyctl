@@ -2,6 +2,7 @@ package ssh
 
 import (
 	"context"
+	"errors"
 	"io"
 	"runtime"
 	"sync"
@@ -102,14 +103,23 @@ func (s *SessionIO) attach(ctx context.Context, sess *ssh.Session, cmd string) e
 	go io.Copy(s.Stdout, stdout)
 	go io.Copy(s.Stderr, stderr)
 
-	if cmd == "" {
-		err = sess.Shell()
-	} else {
-		err = sess.Run(cmd)
-	}
-	if err != nil && err != io.EOF {
-		return err
-	}
+	cmdC := make(chan error, 1)
+	go func() {
+		defer close(cmdC)
+		if cmd == "" {
+			err = sess.Shell()
+		} else {
+			err = sess.Run(cmd)
+		}
+		if err != nil && err != io.EOF {
+			cmdC <- err
+		}
+	}()
 
-	return nil
+	select {
+	case err := <-cmdC:
+		return err
+	case <-ctx.Done():
+		return errors.New("session forcibly closed; the remote process may still be running")
+	}
 }
