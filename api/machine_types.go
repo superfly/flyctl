@@ -446,7 +446,7 @@ type MachineConfig struct {
 	AutoDestroy             bool                    `json:"auto_destroy,omitempty"`
 	DNS                     *DNSConfig              `json:"dns,omitempty"`
 	Statics                 []*Static               `json:"statics,omitempty"`
-	DisableMachineAutostart *bool                    `json:"disable_machine_autostart,omitempty"`
+	DisableMachineAutostart *bool                   `json:"disable_machine_autostart,omitempty"`
 	FlyProxy                *MachineFlyProxy        `json:"fly_proxy,omitempty"`
 }
 

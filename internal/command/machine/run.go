@@ -746,7 +746,7 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		return machineConf, err
 	}
 	machineConf.Image = img.Tag
-	machineConf.DisableMachineAutostart = !flag.GetBool(ctx, "autostart")
+	*machineConf.DisableMachineAutostart = !flag.GetBool(ctx, "autostart")
 
 	return machineConf, nil
 }
