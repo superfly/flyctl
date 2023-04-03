@@ -241,6 +241,22 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 			}
 		}
 	}
+	if m.recovery.platformVersion != "nomad" {
+
+		tb.Detailf("Setting platform version to 'nomad'")
+		err := m.updateAppPlatformVersion(ctx, "nomad")
+		if err != nil {
+			return err
+		}
+	}
+	// HACK: machines apps use the suspended state to describe an app with no machines.
+	//       this means something different in nomad-land, so we resume just in case this got set.
+	_, err := m.apiClient.ResumeApp(ctx, m.appCompact.Name)
+	if err != nil {
+		if !strings.Contains(err.Error(), "not suspended") {
+			return err
+		}
+	}
 	if m.recovery.scaledToZero && len(m.oldAllocs) > 0 {
 		// Restore nomad allocs
 		tb.Detail("Restoring nomad allocs to their previous state")
@@ -254,21 +270,6 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 		}
 
 		_, err := gql.SetNomadVMCount(ctx, m.gqlClient, input)
-		if err != nil {
-			return err
-		}
-	}
-	if m.recovery.appLocked {
-		tb.Detail("Unlocking application")
-		err := m.unlockApp(ctx)
-		if err != nil {
-			return err
-		}
-	}
-	if m.recovery.platformVersion != "nomad" {
-
-		tb.Detailf("Setting platform version to 'nomad'")
-		err := m.updateAppPlatformVersion(ctx, "nomad")
 		if err != nil {
 			return err
 		}
