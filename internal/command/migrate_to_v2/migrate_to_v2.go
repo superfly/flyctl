@@ -839,6 +839,7 @@ func determineVmSpecs(vmSize api.VMSize) (*api.MachineGuest, error) {
 	if err != nil {
 		return nil, fmt.Errorf("nomad VM definition incompatible with machines API: %w", err)
 	}
+	guest.MemoryMB = vmSize.MemoryMB
 
 	return guest, nil
 }
