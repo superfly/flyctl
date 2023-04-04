@@ -14,13 +14,15 @@ func New() *cobra.Command {
 
 	cmd := command.New(usage, short, long, nil)
 
-	hiddenDeploy := newDeploy()
-	hiddenDeploy.Hidden = true
+	hiddenAliases := []*cobra.Command{
+		newDeploy(),
+		newLogs(),
+	}
+	for _, ha := range hiddenAliases {
+		ha.Hidden = true
+	}
 
-	cmd.AddCommand(
-		newCreate(),
-		hiddenDeploy,
-	)
+	cmd.AddCommand(append(hiddenAliases, newCreate())...)
 
 	return cmd
 }
