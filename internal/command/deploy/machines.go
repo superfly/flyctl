@@ -17,7 +17,6 @@ import (
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/logger"
@@ -43,7 +42,7 @@ type ProcessGroupsDiff struct {
 
 type MachineDeploymentArgs struct {
 	AppCompact        *api.AppCompact
-	DeploymentImage   *imgsrc.DeploymentImage
+	DeploymentImage   string
 	Strategy          string
 	EnvFromFlags      []string
 	PrimaryRegionFlag string
@@ -63,7 +62,7 @@ type machineDeployment struct {
 	app                   *api.AppCompact
 	appConfig             *appconfig.Config
 	processConfigs        map[string]*appconfig.ProcessConfig
-	img                   *imgsrc.DeploymentImage
+	img                   string
 	machineSet            machine.MachineSet
 	releaseCommandMachine machine.MachineSet
 	releaseCommand        []string
@@ -80,10 +79,10 @@ type machineDeployment struct {
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
-	if !args.RestartOnly && args.DeploymentImage == nil {
+	if !args.RestartOnly && args.DeploymentImage == "" {
 		return nil, fmt.Errorf("BUG: machines deployment created without specifying the image")
 	}
-	if args.RestartOnly && args.DeploymentImage != nil {
+	if args.RestartOnly && args.DeploymentImage != "" {
 		return nil, fmt.Errorf("BUG: restartOnly machines deployment created and specified an image")
 	}
 	appConfig, err := determineAppConfigForMachines(ctx, args.EnvFromFlags, args.PrimaryRegionFlag)
@@ -148,6 +147,10 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		return nil, err
 	}
 	err = md.setMachinesForDeployment(ctx)
+	if err != nil {
+		return nil, err
+	}
+	err = md.setImg(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -574,6 +577,44 @@ func (md *machineDeployment) validateVolumeConfig() error {
 	return nil
 }
 
+func (md *machineDeployment) setImg(ctx context.Context) error {
+	if md.img != "" {
+		return nil
+	}
+	latestImg, err := md.latestImage(ctx)
+	if err == nil {
+		md.img = latestImg
+		return nil
+	}
+	if !md.machineSet.IsEmpty() {
+		md.img = md.machineSet.GetMachines()[0].Machine().Config.Image
+		return nil
+	}
+	return fmt.Errorf("could not find image to use for deployment; backend error was: %w", err)
+}
+
+func (md *machineDeployment) latestImage(ctx context.Context) (string, error) {
+	_ = `# @genqlient
+	       query FlyctlDeployGetLatestImage($appName:String!) {
+	               app(name:$appName) {
+	                       currentReleaseUnprocessed {
+	                               id
+	                               version
+	                               imageRef
+	                       }
+	               }
+	       }
+	      `
+	resp, err := gql.FlyctlDeployGetLatestImage(ctx, md.gqlClient, md.app.Name)
+	if err != nil {
+		return "", err
+	}
+	if resp.App.CurrentReleaseUnprocessed.ImageRef == "" {
+		return "", fmt.Errorf("current release not found for app %s", md.app.Name)
+	}
+	return resp.App.CurrentReleaseUnprocessed.ImageRef, nil
+}
+
 func (md *machineDeployment) setStrategy(passedInStrategy string) error {
 	if passedInStrategy != "" {
 		md.strategy = passedInStrategy
@@ -604,11 +645,7 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 		PlatformVersion: "machines",
 		Strategy:        gql.DeploymentStrategy(strings.ToUpper(md.strategy)),
 		Definition:      md.appConfig,
-	}
-	if !md.restartOnly {
-		input.Image = md.img.Tag
-	} else if !md.machineSet.IsEmpty() {
-		input.Image = md.machineSet.GetMachines()[0].Machine().Config.Image
+		Image:           md.img,
 	}
 	resp, err := gql.MachinesCreateRelease(ctx, md.gqlClient, input)
 	if err != nil {
@@ -652,7 +689,7 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 	}
 
 	launchInput.Config.Statics = nil
-	launchInput.Config.Image = md.img.Tag
+	launchInput.Config.Image = md.img
 	launchInput.Config.Env = lo.Assign(md.appConfig.Env)
 
 	if launchInput.Config.Env["PRIMARY_REGION"] == "" && origMachineRaw.Config.Env["PRIMARY_REGION"] != "" {
