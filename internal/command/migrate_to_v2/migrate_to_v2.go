@@ -56,6 +56,10 @@ func newMigrateToV2() *cobra.Command {
 		flag.Yes(),
 		flag.App(),
 		flag.AppConfig(),
+		flag.String{
+			Name:        "primary-region",
+			Description: "Specify primary region if one is not set in fly.toml",
+		},
 	)
 	return cmd
 }
@@ -765,7 +769,10 @@ func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus
 }
 
 func (m *v2PlatformMigrator) determinePrimaryRegion(ctx context.Context) error {
-
+	if fromFlag := flag.GetString(ctx, "primary-region"); fromFlag != "" {
+		m.appConfig.PrimaryRegion = fromFlag
+		return nil
+	}
 	if val, ok := m.appConfig.Env["PRIMARY_REGION"]; ok {
 		m.appConfig.PrimaryRegion = val
 		return nil
