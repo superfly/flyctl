@@ -218,8 +218,6 @@ func updateFlexConfig(ctx context.Context, app *api.AppCompact, leaderIP string)
 		return false, err
 	}
 
-	fmt.Printf("Changes: %+v\n", changes)
-
 	fmt.Fprintln(io.Out, "Performing update...")
 	leaderClient := flypg.NewFromInstance(leaderIP, dialer)
 
