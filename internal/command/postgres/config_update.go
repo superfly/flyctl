@@ -56,7 +56,7 @@ func newConfigUpdate() (cmd *cobra.Command) {
 			Description: "Maximum number of concurrent connections from standby servers or streaming backup clients. (0 disables replication)",
 		},
 		flag.String{
-			Name:        "max_replication_slots",
+			Name:        "max-replication-slots",
 			Description: "Specifies the maximum number of replication slots. This should typically match max_wal_senders.",
 		},
 		flag.String{
@@ -217,6 +217,8 @@ func updateFlexConfig(ctx context.Context, app *api.AppCompact, leaderIP string)
 	if err != nil {
 		return false, err
 	}
+
+	fmt.Printf("Changes: %+v\n", changes)
 
 	fmt.Fprintln(io.Out, "Performing update...")
 	leaderClient := flypg.NewFromInstance(leaderIP, dialer)

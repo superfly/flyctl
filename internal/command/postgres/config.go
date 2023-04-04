@@ -11,12 +11,12 @@ import (
 var pgSettings = map[string]string{
 	"wal-level":                  "wal_level",
 	"max-wal-senders":            "max_wal_senders",
+	"max-replication-slots":      "max_replication_slots",
 	"max-connections":            "max_connections",
 	"shared-buffers":             "shared_buffers",
 	"log-statement":              "log_statement",
 	"log-min-duration-statement": "log_min_duration_statement",
 	"shared-preload-libraries":   "shared_preload_libraries",
-	"max-replication-slots":      "max_replication_slots",
 }
 
 func newConfig() (cmd *cobra.Command) {
