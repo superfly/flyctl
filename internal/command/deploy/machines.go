@@ -256,9 +256,11 @@ func (md *machineDeployment) warnAboutProcessGroupChanges(ctx context.Context, d
 		willRemoveMachines = diff.machinesToRemove != nil
 	)
 
-	if willAddMachines || willRemoveMachines {
-		fmt.Fprintln(io.Out, "Process groups have changed. This will:")
+	if !willAddMachines && !willRemoveMachines {
+		return
 	}
+
+	fmt.Fprintln(io.Out, "Process groups have changed. This will:")
 
 	if willRemoveMachines {
 		bullet := colorize.Red("*")
@@ -274,6 +276,7 @@ func (md *machineDeployment) warnAboutProcessGroupChanges(ctx context.Context, d
 			fmt.Fprintf(io.Out, " %s create 1 \"%s\" machine\n", bullet, name)
 		}
 	}
+	fmt.Fprint(io.Out, "\n")
 }
 
 func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName string) error {
@@ -318,7 +321,6 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 			)
 		}
 	}
-	fmt.Fprintf(md.io.ErrOut, "  Finished deploying\n")
 	return nil
 }
 
@@ -387,10 +389,11 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 			return err
 		}
 	}
+	fmt.Fprintf(md.io.ErrOut, "Finished launching new machines\n")
 
 	// FIXME: handle deploy strategy: rolling, immediate, canary, bluegreen
 
-	fmt.Fprintf(md.io.Out, "Deploying %s app with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
+	fmt.Fprintf(md.io.Out, "Updating existing machines in '%s' with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
 	for _, m := range md.machineSet.GetMachines() {
 		launchInput := md.resolveUpdatedMachineConfig(m.Machine(), false)
 
