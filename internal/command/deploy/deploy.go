@@ -119,6 +119,14 @@ func run(ctx context.Context) error {
 		return err
 	}
 
+	err, extra_info := appConfig.Validate(ctx)
+	if err != nil {
+		return err
+	}
+	if strings.Contains(extra_info, "Could not find App") {
+		return fmt.Errorf("app config is missing app name, did you include this in the fly.toml file or via -a?")
+	}
+
 	return DeployWithConfig(ctx, appConfig, DeployWithConfigArgs{
 		ForceNomad:    flag.GetBool(ctx, "force-nomad"),
 		ForceMachines: flag.GetBool(ctx, "force-machines"),
