@@ -1,6 +1,8 @@
 package api
 
-import "context"
+import (
+	"context"
+)
 
 func (c *Client) ConfigureRegions(ctx context.Context, input ConfigureRegionsInput) ([]Region, []Region, error) {
 	query := `
@@ -30,17 +32,23 @@ func (c *Client) ConfigureRegions(ctx context.Context, input ConfigureRegionsInp
 	return data.ConfigureRegions.Regions, data.ConfigureRegions.BackupRegions, nil
 }
 
-func (c *Client) ListAppRegions(ctx context.Context, appName string) ([]Region, []Region, error) {
+func (c *Client) ListAppRegions(ctx context.Context, appName string) ([]Region, []Region, []ProcessGroup, error) {
 	query := `
 		query ($appName: String!) {
 			app(name: $appName) {
 				regions{
+					processGroup
 					code
 					name
 				}
 				backupRegions{
+					processGroup
 					code
 					name
+				}
+				processGroups{
+					name
+					regions
 				}
 			}
 		}
@@ -52,10 +60,10 @@ func (c *Client) ListAppRegions(ctx context.Context, appName string) ([]Region, 
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return *data.App.Regions, *data.App.BackupRegions, nil
+	return *data.App.Regions, *data.App.BackupRegions, data.App.ProcessGroups, nil
 }
 
 func (c *Client) GetNearestRegion(ctx context.Context) (*Region, error) {

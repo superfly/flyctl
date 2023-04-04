@@ -40,7 +40,7 @@ func runPrivateIPAddressesList(ctx context.Context) error {
 		return err
 	}
 
-	_, backupRegions, err := client.ListAppRegions(ctx, appName)
+	_, backupRegions, _, err := client.ListAppRegions(ctx, appName)
 	if err != nil {
 		return err
 	}

@@ -67,7 +67,7 @@ func runRegionsAdd(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	printRegions(cmdCtx, regions, backupRegions)
+	printRegions(cmdCtx, regions, backupRegions, nil)
 
 	return nil
 }
@@ -87,7 +87,7 @@ func runRegionsRemove(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	printRegions(cmdCtx, regions, backupRegions)
+	printRegions(cmdCtx, regions, backupRegions, nil)
 
 	return nil
 }
@@ -99,7 +99,7 @@ func runRegionsSet(cmdCtx *cmdctx.CmdContext) error {
 	delList := make([]string, 0)
 
 	// Get the Region List
-	regions, _, err := cmdCtx.Client.API().ListAppRegions(ctx, cmdCtx.AppName)
+	regions, _, _, err := cmdCtx.Client.API().ListAppRegions(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
@@ -132,7 +132,7 @@ func runRegionsSet(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	printRegions(cmdCtx, newregions, backupRegions)
+	printRegions(cmdCtx, newregions, backupRegions, nil)
 
 	return nil
 }
@@ -140,12 +140,12 @@ func runRegionsSet(cmdCtx *cmdctx.CmdContext) error {
 func runRegionsList(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 
-	regions, backupRegions, err := cmdCtx.Client.API().ListAppRegions(ctx, cmdCtx.AppName)
+	regions, backupRegions, pgRegions, err := cmdCtx.Client.API().ListAppRegions(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
 
-	printRegions(cmdCtx, regions, backupRegions)
+	printRegions(cmdCtx, regions, backupRegions, pgRegions)
 
 	return nil
 }
@@ -163,20 +163,21 @@ func runBackupRegionsSet(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	printRegions(cmdCtx, regions, backupRegions)
+	printRegions(cmdCtx, regions, backupRegions, nil)
 
 	return nil
 }
 
-func printRegions(ctx *cmdctx.CmdContext, regions []api.Region, backupRegions []api.Region) {
+func printRegions(ctx *cmdctx.CmdContext, regions []api.Region, backupRegions []api.Region, processGroups []api.ProcessGroup) {
 	if ctx.OutputJSON() {
-
 		data := struct {
 			Regions       []api.Region
 			BackupRegions []api.Region
+			// TODO: pg regions
 		}{
 			Regions:       regions,
 			BackupRegions: backupRegions,
+			// TODO: pg regions
 		}
 		ctx.WriteJSON(data)
 
@@ -184,6 +185,17 @@ func printRegions(ctx *cmdctx.CmdContext, regions []api.Region, backupRegions []
 	}
 
 	verbose := ctx.GlobalConfig.GetBool("verbose")
+
+	if len(processGroups) > 0 {
+		for _, pg := range processGroups {
+			ctx.Statusf("processGroupRegions", cmdctx.STITLE, "[%s] Region Pool:\n", pg.Name)
+
+			for _, r := range pg.Regions {
+				ctx.Status("processGroupRegions", cmdctx.SINFO, r)
+			}
+		}
+		return
+	}
 
 	if verbose {
 		ctx.Status("regions", cmdctx.STITLE, "Current Region Pool:")

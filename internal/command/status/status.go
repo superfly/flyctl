@@ -117,7 +117,7 @@ func once(ctx context.Context, out io.Writer) (err error) {
 	}
 	var backupRegions []api.Region
 	if status.Deployed && !jsonOutput {
-		if _, backupRegions, err = client.ListAppRegions(ctx, appName); err != nil {
+		if _, backupRegions, _, err = client.ListAppRegions(ctx, appName); err != nil {
 			return fmt.Errorf("failed retrieving backup regions for %s: %w", appName, err)
 		}
 	}
