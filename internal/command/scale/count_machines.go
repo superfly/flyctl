@@ -34,14 +34,10 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 		return err
 	}
 
-	machines, err := mach.ListActive(ctx)
+	machines, err := mach.AppV2ListActive(ctx)
 	if err != nil {
 		return err
 	}
-	// Only machines that are part of apps-v2 platform
-	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
-		return m.IsFlyAppsPlatform()
-	})
 
 	var regions []string
 	if v := flag.GetRegion(ctx); v != "" {

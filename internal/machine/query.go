@@ -22,3 +22,15 @@ func ListActive(ctx context.Context) ([]*api.Machine, error) {
 
 	return machines, nil
 }
+
+// AppV2ListActive lists machines that are part of v2 apps platform
+func AppV2ListActive(ctx context.Context) ([]*api.Machine, error) {
+	machines, err := ListActive(ctx)
+	if err != nil {
+		return nil, err
+	}
+	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
+		return m.IsFlyAppsPlatform()
+	})
+	return machines, nil
+}
