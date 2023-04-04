@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/internal/build/imgsrc"
 )
 
 func stabMachineDeployment(appConfig *appconfig.Config) (*machineDeployment, error) {
@@ -17,9 +16,7 @@ func stabMachineDeployment(appConfig *appconfig.Config) (*machineDeployment, err
 				ID: "my-dangling-org",
 			},
 		},
-		img: &imgsrc.DeploymentImage{
-			Tag: "super/balloon",
-		},
+		img:       "super/balloon",
 		appConfig: appConfig,
 	}
 	var err error
@@ -290,7 +287,7 @@ func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	md.restartOnly = true
-	md.img.Tag = "SHOULD-NOT-USE-THIS-TAG"
+	md.img = "SHOULD-NOT-USE-THIS-TAG"
 
 	origMachine := &api.Machine{
 		ID: "OrigID",
@@ -328,7 +325,7 @@ func Test_resolveUpdatedMachineConfig_restartOnlyProcessGroup(t *testing.T) {
 	md.releaseVersion = 2
 	assert.NoError(t, err)
 	md.restartOnly = true
-	md.img.Tag = "SHOULD-NOT-USE-THIS-TAG"
+	md.img = "SHOULD-NOT-USE-THIS-TAG"
 
 	origMachine := &api.Machine{
 		ID: "OrigID",
