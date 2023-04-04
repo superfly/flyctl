@@ -4,24 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
+	"github.com/briandowns/spinner"
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
 
-type groupDiff struct {
-	Name            string
-	CurrentCount    int
-	CurrentMachines []*api.Machine
-
-	ExpectedCount    int
-	MachinesToAdd    []*api.MachineConfig
-	MachinesToDelete []*api.Machine
-}
+var spinnerChar = spinner.New(spinner.CharSets[9], 100*time.Millisecond)
 
 func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCounts map[string]int, maxPerRegion int) error {
 	io := iostreams.FromContext(ctx)
@@ -58,11 +54,89 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 		return err
 	}
 
+	if len(actions) == 0 {
+		fmt.Fprintf(io.Out, "App already scaled to desired state. No need for changes\n")
+		return nil
+	}
+
+	fmt.Fprintf(io.Out, "App is going to be scaled according to this plan:\n")
+
+	defaultGuest := machines[0].Config.Guest
 	for _, action := range actions {
-		fmt.Fprintf(io.Out, "group:%s region:%s delta:%d size:%s\n", action.GroupName, action.Region, action.Delta, action.MachineConfig.Guest.ToSize())
+		size := defaultGuest.ToSize()
+		if action.MachineConfig != nil {
+			size = action.MachineConfig.Guest.ToSize()
+		}
+		fmt.Fprintf(io.Out, "%+4d machines for group '%s'\t on region '%s' with size '%s'\n", action.Delta, action.GroupName, action.Region, size)
+	}
+
+	if !flag.GetYes(ctx) {
+		switch confirmed, err := prompt.Confirmf(ctx, "Scale app %s?", appName); {
+		case err == nil:
+			if !confirmed {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+		default:
+			return err
+		}
+	}
+
+	for _, action := range actions {
+		switch {
+		case action.Delta > 0:
+			for i := 0; i < action.Delta; i++ {
+				m, err := launchMachine(ctx, action)
+				if err != nil {
+					return err
+				}
+				fmt.Fprintf(io.Out, "Created %s group:%s region:%s size:%s\n", m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize())
+			}
+		case action.Delta < 0:
+			for i := 0; i > action.Delta; i-- {
+				m := action.Machines[-i]
+				err := destroyMachine(ctx, m)
+				if err != nil {
+					return err
+				}
+				fmt.Fprintf(io.Out, "Destroyed %s group:%s region:%s size:%s\n", m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize())
+			}
+		}
 	}
 
 	return nil
+}
+
+func launchMachine(ctx context.Context, action *planItem) (*api.Machine, error) {
+	appName := appconfig.NameFromContext(ctx)
+	flapsClient := flaps.FromContext(ctx)
+
+	input := api.LaunchMachineInput{
+		AppID:  appName,
+		Region: action.Region,
+		Config: action.MachineConfig,
+	}
+
+	m, err := flapsClient.Launch(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("could not launch machine: %w", err)
+	}
+
+	return m, nil
+}
+
+func destroyMachine(ctx context.Context, machine *api.Machine) error {
+	appName := appconfig.NameFromContext(ctx)
+	flapsClient := flaps.FromContext(ctx)
+
+	input := api.RemoveMachineInput{
+		AppID: appName,
+		ID:    machine.ID,
+		Kill:  true,
+	}
+
+	return flapsClient.Destroy(ctx, input, machine.LeaseNonce)
 }
 
 type planItem struct {
@@ -125,10 +199,9 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 
 		for regionName, delta := range regionDiffs {
 			actions = append(actions, &planItem{
-				GroupName:     groupName,
-				Region:        regionName,
-				Delta:         delta,
-				MachineConfig: machines[0].Config,
+				GroupName: groupName,
+				Region:    regionName,
+				Delta:     delta,
 			})
 		}
 	}

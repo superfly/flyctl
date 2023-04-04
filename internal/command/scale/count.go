@@ -29,6 +29,7 @@ For pricing, see https://fly.io/docs/about/pricing/`
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Yes(),
 		flag.Int{Name: "max-per-region", Description: "Max number of VMs per region", Default: -1},
 	)
 	return cmd
