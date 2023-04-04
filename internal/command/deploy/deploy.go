@@ -124,7 +124,7 @@ func run(ctx context.Context) error {
 		return err
 	}
 	if strings.Contains(extra_info, "Could not find App") {
-		return fmt.Errorf("app config is missing app name, did you include this in the fly.toml file or via -a?")
+		return fmt.Errorf("app config has an incorrect app name, did you create the app or misspell it in the fly.toml file or via -a?")
 	}
 
 	return DeployWithConfig(ctx, appConfig, DeployWithConfigArgs{

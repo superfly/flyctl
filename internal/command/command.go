@@ -536,7 +536,8 @@ func RequireAppName(ctx context.Context) (context.Context, error) {
 	}
 
 	if name == "" {
-		return nil, errRequireAppName
+		err := fmt.Errorf("we found a fly.toml file but it looks like the app has not been created, did you create this app with fly apps create?", buildinfo.Name())
+		return nil, err
 	}
 
 	return appconfig.WithName(ctx, name), nil
