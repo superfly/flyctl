@@ -98,6 +98,7 @@ func runUpdate(ctx context.Context) (err error) {
 		appName:            appName,
 		imageOrPath:        imageOrPath,
 		region:             machine.Region,
+		updating:           true,
 	})
 	if err != nil {
 		return err

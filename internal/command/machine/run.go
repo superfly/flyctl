@@ -262,6 +262,7 @@ func runMachineRun(ctx context.Context) error {
 		appName:            app.Name,
 		imageOrPath:        flag.FirstArg(ctx),
 		region:             input.Region,
+		updating:           false,
 	})
 	if err != nil {
 		return err
@@ -630,6 +631,7 @@ type determineMachineConfigInput struct {
 	appName            string
 	imageOrPath        string
 	region             string
+	updating           bool
 }
 
 func determineMachineConfig(ctx context.Context, input *determineMachineConfigInput) (*api.MachineConfig, error) {
@@ -676,12 +678,18 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		machineConf.Schedule = flag.GetString(ctx, "schedule")
 	}
 
-	if command := flag.GetString(ctx, "command"); command != "" {
-		split, err := shlex.Split(command)
-		if err != nil {
-			return machineConf, errors.Wrap(err, "invalid command")
+	if input.updating {
+		// Called from `update`. Command is specified by flag.
+		if command := flag.GetString(ctx, "command"); command != "" {
+			split, err := shlex.Split(command)
+			if err != nil {
+				return machineConf, errors.Wrap(err, "invalid command")
+			}
+			machineConf.Init.Cmd = split
 		}
-		machineConf.Init.Cmd = split
+	} else {
+		// Called from `run`. Command is specified by arguments.
+		machineConf.Init.Cmd = flag.Args(ctx)[1:]
 	}
 
 	if machineConf.DNS == nil {
@@ -735,17 +743,6 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		}
 	default:
 		return machineConf, errors.New("invalid restart provided")
-	}
-
-	// `machine update` and `machine run` both use `determineMachineConfig`` to populate
-	// `machineConf`, but `update` uses `-a` to set an app while `run` uses the
-	// first argument.
-	// Since these are mutually exclusive, we distinguish between them by
-	// checking if `len(machineConf.Init.Cmd) == 0` and is already set, in which case we're being
-	// called from `run`.
-	// Otherwise, pull the command from the first positional argument.
-	if len(flag.Args(ctx)) > 1 && len(machineConf.Init.Cmd) == 0 {
-		machineConf.Init.Cmd = flag.Args(ctx)[1:]
 	}
 
 	machineConf.Mounts, err = determineMounts(ctx, machineConf.Mounts, input.region)
