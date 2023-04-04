@@ -65,7 +65,8 @@ func TestAppsV2Example(t *testing.T) {
 	require.Equal(t, len(machList), 1, "There should be exactly one machine")
 	firstMachine := machList[0]
 
-	require.Equal(t, firstMachine.Config.DisableMachineAutostart, false, "autostart_disabled should be false")
+	var nilBoolPointer *bool = nil
+	require.Equal(t, firstMachine.Config.DisableMachineAutostart, nilBoolPointer, "autostart_disabled should be nil")
 
 	// Make sure disabling it works
 	f.Fly("m update %s --autostart=false -y", firstMachine.ID)
@@ -74,7 +75,7 @@ func TestAppsV2Example(t *testing.T) {
 	require.Equal(t, len(machList), 1, "There should be exactly one machine")
 	firstMachine = machList[0]
 
-	require.Equal(t, firstMachine.Config.DisableMachineAutostart, true, "autostart_disabled should be set to true")
+	require.Equal(t, firstMachine.Config.DisableMachineAutostart, api.Pointer(true), "autostart_disabled should be set to true")
 
 	secondReg := f.PrimaryRegion()
 	if len(f.OtherRegions()) > 0 {
