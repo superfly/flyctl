@@ -188,7 +188,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			Volume: vol.ID,
 			Path:   volumePath,
 		})
-		machineConf.DisableMachineAutostart = !config.Autostart
+		machineConf.DisableMachineAutostart = api.Pointer(!config.Autostart)
 
 		launchInput := api.LaunchMachineInput{
 			AppID:   app.ID,
