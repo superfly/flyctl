@@ -5,9 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
-	"github.com/briandowns/spinner"
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
@@ -17,8 +15,6 @@ import (
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
-
-var spinnerChar = spinner.New(spinner.CharSets[9], 100*time.Millisecond)
 
 func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCounts map[string]int, maxPerRegion int) error {
 	io := iostreams.FromContext(ctx)
