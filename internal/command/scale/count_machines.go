@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -32,7 +33,6 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 	if err != nil {
 		return err
 	}
-	regions := []string{appConfig.PrimaryRegion}
 
 	machines, err := mach.ListActive(ctx)
 	if err != nil {
@@ -42,6 +42,20 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
 		return m.IsFlyAppsPlatform()
 	})
+
+	var regions []string
+	if v := flag.GetRegion(ctx); v != "" {
+		regions = strings.Split(v, ",")
+	}
+	if len(regions) == 0 {
+		if len(machines) == 0 {
+			regions = []string{appConfig.PrimaryRegion}
+		} else {
+			regions = lo.Uniq(lo.Map(machines, func(m *api.Machine, _ int) string {
+				return m.Region
+			}))
+		}
+	}
 
 	machines, releaseFunc, err := mach.AcquireLeases(ctx, machines)
 	defer releaseFunc(ctx, machines)
@@ -59,7 +73,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 		return nil
 	}
 
-	fmt.Fprintf(io.Out, "App is going to be scaled according to this plan:\n")
+	fmt.Fprintf(io.Out, "App '%s' is going to be scaled according to this plan:\n", appName)
 
 	defaultGuest := machines[0].Config.Guest
 	for _, action := range actions {
@@ -67,7 +81,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 		if action.MachineConfig != nil {
 			size = action.MachineConfig.Guest.ToSize()
 		}
-		fmt.Fprintf(io.Out, "%+4d machines for group '%s'\t on region '%s' with size '%s'\n", action.Delta, action.GroupName, action.Region, size)
+		fmt.Fprintf(io.Out, "%+4d machines for group '%s' on region '%s' with size '%s'\n", action.Delta, action.GroupName, action.Region, size)
 	}
 
 	if !flag.GetYes(ctx) {
