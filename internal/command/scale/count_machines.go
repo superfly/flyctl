@@ -83,6 +83,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 		}
 	}
 
+	fmt.Fprintf(io.Out, "Executing scale plan\n")
 	for _, action := range actions {
 		switch {
 		case action.Delta > 0:
@@ -91,7 +92,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 				if err != nil {
 					return err
 				}
-				fmt.Fprintf(io.Out, "Created %s group:%s region:%s size:%s\n", m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize())
+				fmt.Fprintf(io.Out, "  Created %s group:%s region:%s size:%s\n", m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize())
 			}
 		case action.Delta < 0:
 			for i := 0; i > action.Delta; i-- {
@@ -100,7 +101,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 				if err != nil {
 					return err
 				}
-				fmt.Fprintf(io.Out, "Destroyed %s group:%s region:%s size:%s\n", m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize())
+				fmt.Fprintf(io.Out, "  Destroyed %s group:%s region:%s size:%s\n", m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize())
 			}
 		}
 	}
