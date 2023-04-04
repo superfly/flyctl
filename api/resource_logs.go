@@ -35,13 +35,18 @@ func (c *Client) GetAppLogs(ctx context.Context, appName, token, region, instanc
 		return
 	}
 
+	req.Header.Set("Authorization", AuthorizationHeader(c.accessToken))
+	if c.trace != "" {
+		req.Header.Set("Fly-Force-Trace", c.trace)
+	}
+
 	var result getLogsResponse
 
 	var res *http.Response
 	if res, err = c.httpClient.Do(req); err != nil {
 		return
 	}
-	defer res.Body.Close() //skipcq: GO-S2307
+	defer res.Body.Close()
 
 	if res.StatusCode != 200 {
 		err = ErrorFromResp(res)
