@@ -16,6 +16,7 @@ var pgSettings = map[string]string{
 	"log-statement":              "log_statement",
 	"log-min-duration-statement": "log_min_duration_statement",
 	"shared-preload-libraries":   "shared_preload_libraries",
+	"max-replication-slots":      "max_replication_slots",
 }
 
 func newConfig() (cmd *cobra.Command) {
