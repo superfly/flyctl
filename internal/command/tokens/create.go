@@ -35,7 +35,7 @@ func newCreate() *cobra.Command {
 func newDeploy() *cobra.Command {
 	const (
 		short = "Create deploy tokens"
-		long  = "Create an API token limited to managing a single app and its resources. Also available as TOKENS DEPLOY"
+		long  = "Create an API token limited to managing a single app and its resources. Also available as TOKENS DEPLOY. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical."
 		usage = "deploy"
 	)
 
@@ -56,7 +56,7 @@ func newDeploy() *cobra.Command {
 			Name:        "expiry",
 			Shorthand:   "x",
 			Description: "The duration that the token will be valid",
-			Default:     time.Hour,
+			Default:     time.Hour * 24 * 365 * 20,
 		},
 	)
 
