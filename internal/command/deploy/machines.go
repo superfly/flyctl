@@ -389,7 +389,9 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 			return err
 		}
 	}
-	fmt.Fprintf(md.io.ErrOut, "Finished launching new machines\n")
+	if len(processGroupMachineDiff.groupsNeedingMachines) > 0 {
+		fmt.Fprintf(md.io.ErrOut, "Finished launching new machines\n")
+	}
 
 	// FIXME: handle deploy strategy: rolling, immediate, canary, bluegreen
 
