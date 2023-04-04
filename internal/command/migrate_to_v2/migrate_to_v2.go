@@ -292,6 +292,8 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 
 func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 
+	ctx = flaps.NewContext(ctx, m.flapsClient)
+
 	tb := render.NewTextBlock(ctx, fmt.Sprintf("Migrating %s to the V2 platform", m.appCompact.Name))
 
 	m.recovery.platformVersion = m.appFull.PlatformVersion
@@ -655,6 +657,12 @@ func (m *v2PlatformMigrator) createMachines(ctx context.Context) error {
 			return fmt.Errorf("failed creating a machine in region %s: %w", machineInput.Region, err)
 		}
 		newlyCreatedMachines = append(newlyCreatedMachines, newMachine)
+	}
+	for _, mach := range newlyCreatedMachines {
+		err := machine.WaitForStartOrStop(ctx, mach, "start", time.Minute*5)
+		if err != nil {
+			return err
+		}
 	}
 	m.newMachines = machine.NewMachineSet(m.flapsClient, m.io, newlyCreatedMachines)
 	return nil
