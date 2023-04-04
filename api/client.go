@@ -150,10 +150,10 @@ type Transport struct {
 }
 
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.Header.Add("Authorization", AuthorizationHeader(t.Token))
+	req.Header.Set("Authorization", AuthorizationHeader(t.Token))
 	req.Header.Set("User-Agent", t.UserAgent)
 	if t.EnableDebugTrace {
-		req.Header.Add("Fly-Force-Trace", "true")
+		req.Header.Set("Fly-Force-Trace", "true")
 	}
 	return t.UnderlyingTransport.RoundTrip(req)
 }
