@@ -38,11 +38,14 @@ func runMachinesScaleShow(ctx context.Context) error {
 			return m.ProcessGroup()
 		},
 	)
+	// Deterministic output sorted by group name
+	groupNames := lo.Keys(machineGroups)
+	slices.Sort(groupNames)
 
 	rows := make([][]string, 0, len(machineGroups))
-	for groupName, machines := range machineGroups {
+	for _, groupName := range groupNames {
+		machines := machineGroups[groupName]
 		guest := machines[0].Config.Guest
-
 		rows = append(rows, []string{
 			groupName,
 			fmt.Sprintf("%d", len(machines)),
