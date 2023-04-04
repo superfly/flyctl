@@ -16,7 +16,7 @@ require (
 	github.com/chzyer/readline v1.5.1
 	github.com/cli/safeexec v1.0.0
 	github.com/containerd/console v1.0.3
-	github.com/docker/docker v20.10.8+incompatible
+	github.com/docker/docker v20.10.24+incompatible
 	github.com/dustin/go-humanize v1.0.0
 	github.com/ejcx/sshcert v1.0.1
 	github.com/getsentry/sentry-go v0.19.0
