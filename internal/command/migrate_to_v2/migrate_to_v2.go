@@ -50,7 +50,6 @@ func newMigrateToV2() *cobra.Command {
 		usage, short, long, runMigrateToV2,
 		command.RequireSession, command.RequireAppName,
 	)
-	cmd.Hidden = true // FIXME: remove this when we're ready to announce
 	cmd.Args = cobra.NoArgs
 	flag.Add(cmd,
 		flag.Yes(),
