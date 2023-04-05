@@ -652,7 +652,6 @@ func (m *v2PlatformMigrator) createMachines(ctx context.Context) error {
 	for _, machineInput := range m.newMachinesInput {
 		newMachine, err := m.flapsClient.Launch(ctx, *machineInput)
 		if err != nil {
-			// FIXME: release app lock,
 			return fmt.Errorf("failed creating a machine in region %s: %w", machineInput.Region, err)
 		}
 		newlyCreatedMachines = append(newlyCreatedMachines, newMachine)
