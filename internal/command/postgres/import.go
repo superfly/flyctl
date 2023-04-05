@@ -203,7 +203,7 @@ func runImport(ctx context.Context) error {
 
 	// Destroy machine
 	fmt.Fprintf(io.Out, "%s has been destroyed\n", machine.ID)
-	if err := flapsClient.Destroy(ctx, api.RemoveMachineInput{ID: machine.ID, AppID: app.ID}); err != nil {
+	if err := flapsClient.Destroy(ctx, api.RemoveMachineInput{ID: machine.ID, AppID: app.ID}, machine.LeaseNonce); err != nil {
 		return fmt.Errorf("failed to destroy machine %s: %s", machine.ID, err)
 	}
 
