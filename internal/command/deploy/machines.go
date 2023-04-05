@@ -489,6 +489,14 @@ func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context
 	}
 }
 
+func defaultReleaseMachineGuest() *api.MachineGuest {
+	guest := api.MachineGuest{}
+	if err := guest.SetSize("shared-cpu-2x"); err != nil {
+		panic(err)
+	}
+	return &guest
+}
+
 func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *api.LaunchMachineInput) *api.LaunchMachineInput {
 	launchInput.Config.Init.Cmd = md.releaseCommand
 	launchInput.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = api.MachineProcessGroupFlyAppReleaseCommand
@@ -506,35 +514,43 @@ func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *
 	if launchInput.Config.Guest == nil {
 		launchInput.Config.Guest = &api.MachineGuest{}
 	}
-	desiredMem := 256
+	// The pointer dereferences around the MachineGuest logic are awkward, but it's done this way
+	// to ensure that the struct gets copied - that way, if something touches the relcmd machine,
+	// it doesn't affect the machine it stole its config from
+	desiredGuest := *defaultReleaseMachineGuest()
 	if !md.machineSet.IsEmpty() {
-		leastRamInGroup := func(group string) int {
-			leastRam := 0
+
+		// Given a process group, return the MachineGuest with the most ram
+		maxRamInGroup := func(group string) *api.MachineGuest {
+			var (
+				maxRam = 0
+				guest  *api.MachineGuest
+			)
 			for _, lm := range md.machineSet.GetMachines() {
 				mach := lm.Machine()
 				if mach.Config != nil && mach.Config.Env != nil && mach.ProcessGroup() == group && mach.Config.Guest != nil {
-					if mach.Config.Guest.MemoryMB < leastRam || leastRam == 0 {
-						leastRam = mach.Config.Guest.MemoryMB
+					if mach.Config.Guest.MemoryMB > maxRam {
+						guest = mach.Config.Guest
 					}
 				}
 			}
-			return leastRam
+			return guest
 		}
 
-		if leastRamApp := leastRamInGroup("app"); leastRamApp != 0 {
-			desiredMem = leastRamApp
+		if maxRamInMachs := maxRamInGroup("app"); maxRamInMachs != nil {
+			desiredGuest = *maxRamInMachs
 		} else {
 			// No "main" app, sort lexicographically and just pick the first group
 			pgNames := lo.Keys(md.processConfigs)
 			if len(pgNames) > 0 {
 				slices.Sort(pgNames)
-				if leastRamApp = leastRamInGroup(pgNames[0]); leastRamApp != 0 {
-					desiredMem = leastRamApp
+				if maxRamInMachs = maxRamInGroup(pgNames[0]); maxRamInMachs != nil {
+					desiredGuest = *maxRamInMachs
 				}
 			}
 		}
 	}
-	launchInput.Config.Guest.MemoryMB = desiredMem
+	launchInput.Config.Guest = &desiredGuest
 	return launchInput
 }
 

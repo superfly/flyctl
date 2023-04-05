@@ -163,9 +163,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			DNS: &api.DNSConfig{
 				SkipRegistration: true,
 			},
-			Guest: &api.MachineGuest{
-				MemoryMB: 256,
-			},
+			Guest: defaultReleaseMachineGuest(),
 		},
 	}, md.resolveUpdatedMachineConfig(nil, true))
 
@@ -209,9 +207,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			DNS: &api.DNSConfig{
 				SkipRegistration: true,
 			},
-			Guest: &api.MachineGuest{
-				MemoryMB: 256,
-			},
+			Guest: defaultReleaseMachineGuest(),
 		},
 	}, md.resolveUpdatedMachineConfig(origMachine, true))
 }
