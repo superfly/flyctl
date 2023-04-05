@@ -171,7 +171,7 @@ func (c *Client) LegacyStolonDBUid(ctx context.Context) (*string, error) {
 func (c *Client) LegacyEnableReadonly(ctx context.Context) error {
 	endpoint := "/commands/admin/readonly/enable"
 
-	if err := c.Do(ctx, http.MethodGet, endpoint, nil, nil); err != nil {
+	if err := c.Do(ctx, http.MethodPost, endpoint, nil, nil); err != nil {
 		return err
 	}
 	return nil
@@ -179,7 +179,7 @@ func (c *Client) LegacyEnableReadonly(ctx context.Context) error {
 func (c *Client) LegacyDisableReadonly(ctx context.Context) error {
 	endpoint := "/commands/admin/readonly/disable"
 
-	if err := c.Do(ctx, http.MethodGet, endpoint, nil, nil); err != nil {
+	if err := c.Do(ctx, http.MethodPost, endpoint, nil, nil); err != nil {
 		return err
 	}
 	return nil

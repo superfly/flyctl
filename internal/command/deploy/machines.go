@@ -52,6 +52,7 @@ type MachineDeploymentArgs struct {
 	RestartOnly       bool
 	WaitTimeout       time.Duration
 	LeaseTimeout      time.Duration
+	NewVolumeName     string
 }
 
 type machineDeployment struct {
@@ -89,6 +90,9 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	appConfig, err := determineAppConfigForMachines(ctx, args.EnvFromFlags, args.PrimaryRegionFlag)
 	if err != nil {
 		return nil, err
+	}
+	if args.NewVolumeName != "" {
+		appConfig.Mounts.Source = args.NewVolumeName
 	}
 	err, _ = appConfig.Validate(ctx)
 	if err != nil {
