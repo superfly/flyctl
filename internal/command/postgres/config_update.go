@@ -56,6 +56,10 @@ func newConfigUpdate() (cmd *cobra.Command) {
 			Description: "Maximum number of concurrent connections from standby servers or streaming backup clients. (0 disables replication)",
 		},
 		flag.String{
+			Name:        "max-replication-slots",
+			Description: "Specifies the maximum number of replication slots. This should typically match max_wal_senders.",
+		},
+		flag.String{
 			Name:        "log-statement",
 			Description: "Sets the type of statements logged. (none, ddl, mod, all)",
 		},
