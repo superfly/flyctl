@@ -61,7 +61,7 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 
 	s.BuildArgs = map[string]string{
 		"PHP_VERSION":  phpVersion,
-		"NODE_VERSION": "14",
+		"NODE_VERSION": "18",
 	}
 
 	return s, nil
