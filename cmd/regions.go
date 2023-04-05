@@ -168,16 +168,30 @@ func runBackupRegionsSet(cmdCtx *cmdctx.CmdContext) error {
 	return nil
 }
 
+type printableProcessGroup struct {
+	Name    string
+	Regions []string
+}
+
 func printRegions(ctx *cmdctx.CmdContext, regions []api.Region, backupRegions []api.Region, processGroups []api.ProcessGroup) {
 	if ctx.OutputJSON() {
+		jsonPg := []printableProcessGroup{}
+		for _, pg := range processGroups {
+			jsonPg = append(jsonPg, printableProcessGroup{
+				Name:    pg.Name,
+				Regions: pg.Regions,
+			})
+		}
+
+		// only show pg if there's more than one
 		data := struct {
-			Regions       []api.Region
-			BackupRegions []api.Region
-			// TODO: pg regions
+			Regions             []api.Region
+			BackupRegions       []api.Region
+			ProcessGroupRegions []printableProcessGroup
 		}{
-			Regions:       regions,
-			BackupRegions: backupRegions,
-			// TODO: pg regions
+			Regions:             regions,
+			BackupRegions:       backupRegions,
+			ProcessGroupRegions: jsonPg,
 		}
 		ctx.WriteJSON(data)
 
