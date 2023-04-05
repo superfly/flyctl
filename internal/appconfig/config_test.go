@@ -1,7 +1,6 @@
 package appconfig
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,11 +12,9 @@ func TestGetAndSetEnvVariables(t *testing.T) {
 	cfg.SetEnvVariable("C", "D")
 	assert.Equal(t, map[string]string{"A": "B", "C": "D"}, cfg.Env)
 
-	buf := &bytes.Buffer{}
-	if err := cfg.marshalTOML(buf); err != nil {
-		assert.NoError(t, err)
-	}
-	cfg2, err := unmarshalTOML(buf.Bytes())
+	bytes, err := cfg.marshalTOML()
+	assert.NoError(t, err)
+	cfg2, err := unmarshalTOML(bytes)
 	assert.NoError(t, err)
 	assert.Equal(t, cfg.Env, cfg2.Env)
 }
@@ -79,7 +76,6 @@ func TestManyBuildStrategies(t *testing.T) {
 }
 
 func TestConfigPortGetter(t *testing.T) {
-
 	type testcase struct {
 		name         string
 		config       Config
@@ -129,5 +125,4 @@ func TestConfigPortGetter(t *testing.T) {
 			assert.Equal(t, tc.expectedPort, tc.config.InternalPort())
 		})
 	}
-
 }
