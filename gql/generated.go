@@ -837,6 +837,47 @@ type FlyctlConfigCurrentReleaseResponse struct {
 // GetApp returns FlyctlConfigCurrentReleaseResponse.App, and is useful for accessing the field via an interface.
 func (v *FlyctlConfigCurrentReleaseResponse) GetApp() FlyctlConfigCurrentReleaseApp { return v.App }
 
+// FlyctlDeployGetLatestImageApp includes the requested fields of the GraphQL type App.
+type FlyctlDeployGetLatestImageApp struct {
+	// The latest release of this application, without any config processing
+	CurrentReleaseUnprocessed FlyctlDeployGetLatestImageAppCurrentReleaseUnprocessed `json:"currentReleaseUnprocessed"`
+}
+
+// GetCurrentReleaseUnprocessed returns FlyctlDeployGetLatestImageApp.CurrentReleaseUnprocessed, and is useful for accessing the field via an interface.
+func (v *FlyctlDeployGetLatestImageApp) GetCurrentReleaseUnprocessed() FlyctlDeployGetLatestImageAppCurrentReleaseUnprocessed {
+	return v.CurrentReleaseUnprocessed
+}
+
+// FlyctlDeployGetLatestImageAppCurrentReleaseUnprocessed includes the requested fields of the GraphQL type ReleaseUnprocessed.
+type FlyctlDeployGetLatestImageAppCurrentReleaseUnprocessed struct {
+	// Unique ID
+	Id string `json:"id"`
+	// The version of the release
+	Version int `json:"version"`
+	// Docker image URI
+	ImageRef string `json:"imageRef"`
+}
+
+// GetId returns FlyctlDeployGetLatestImageAppCurrentReleaseUnprocessed.Id, and is useful for accessing the field via an interface.
+func (v *FlyctlDeployGetLatestImageAppCurrentReleaseUnprocessed) GetId() string { return v.Id }
+
+// GetVersion returns FlyctlDeployGetLatestImageAppCurrentReleaseUnprocessed.Version, and is useful for accessing the field via an interface.
+func (v *FlyctlDeployGetLatestImageAppCurrentReleaseUnprocessed) GetVersion() int { return v.Version }
+
+// GetImageRef returns FlyctlDeployGetLatestImageAppCurrentReleaseUnprocessed.ImageRef, and is useful for accessing the field via an interface.
+func (v *FlyctlDeployGetLatestImageAppCurrentReleaseUnprocessed) GetImageRef() string {
+	return v.ImageRef
+}
+
+// FlyctlDeployGetLatestImageResponse is returned by FlyctlDeployGetLatestImage on success.
+type FlyctlDeployGetLatestImageResponse struct {
+	// Find an app by name
+	App FlyctlDeployGetLatestImageApp `json:"app"`
+}
+
+// GetApp returns FlyctlDeployGetLatestImageResponse.App, and is useful for accessing the field via an interface.
+func (v *FlyctlDeployGetLatestImageResponse) GetApp() FlyctlDeployGetLatestImageApp { return v.App }
+
 // GetAddOnAddOn includes the requested fields of the GraphQL type AddOn.
 type GetAddOnAddOn struct {
 	Id string `json:"id"`
@@ -1800,6 +1841,14 @@ type __FlyctlConfigCurrentReleaseInput struct {
 // GetAppName returns __FlyctlConfigCurrentReleaseInput.AppName, and is useful for accessing the field via an interface.
 func (v *__FlyctlConfigCurrentReleaseInput) GetAppName() string { return v.AppName }
 
+// __FlyctlDeployGetLatestImageInput is used internally by genqlient
+type __FlyctlDeployGetLatestImageInput struct {
+	AppName string `json:"appName"`
+}
+
+// GetAppName returns __FlyctlDeployGetLatestImageInput.AppName, and is useful for accessing the field via an interface.
+func (v *__FlyctlDeployGetLatestImageInput) GetAppName() string { return v.AppName }
+
 // __GetAddOnInput is used internally by genqlient
 type __GetAddOnInput struct {
 	Name string `json:"name"`
@@ -2172,6 +2221,42 @@ query FlyctlConfigCurrentRelease ($appName: String!) {
 	var err error
 
 	var data FlyctlConfigCurrentReleaseResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
+func FlyctlDeployGetLatestImage(
+	ctx context.Context,
+	client graphql.Client,
+	appName string,
+) (*FlyctlDeployGetLatestImageResponse, error) {
+	req := &graphql.Request{
+		OpName: "FlyctlDeployGetLatestImage",
+		Query: `
+query FlyctlDeployGetLatestImage ($appName: String!) {
+	app(name: $appName) {
+		currentReleaseUnprocessed {
+			id
+			version
+			imageRef
+		}
+	}
+}
+`,
+		Variables: &__FlyctlDeployGetLatestImageInput{
+			AppName: appName,
+		},
+	}
+	var err error
+
+	var data FlyctlDeployGetLatestImageResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(
