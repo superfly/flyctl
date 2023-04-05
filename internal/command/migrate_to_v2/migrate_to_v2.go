@@ -226,7 +226,6 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 }
 
 func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock) error {
-
 	defer func() {
 		if m.recovery.appLocked {
 			tb.Detail("Unlocking application")
@@ -254,7 +253,7 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 				ID:    mach.ID,
 				Kill:  true,
 			}
-			err := m.flapsClient.Destroy(ctx, input)
+			err := m.flapsClient.Destroy(ctx, input, mach.LeaseNonce)
 			if err != nil {
 				return err
 			}
@@ -290,7 +289,6 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 }
 
 func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
-
 	ctx = flaps.NewContext(ctx, m.flapsClient)
 
 	tb := render.NewTextBlock(ctx, fmt.Sprintf("Migrating %s to the V2 platform", m.appCompact.Name))
@@ -558,7 +556,6 @@ func (m *v2PlatformMigrator) createRelease(ctx context.Context) error {
 }
 
 func (m *v2PlatformMigrator) resolveProcessGroups(ctx context.Context) {
-
 	m.oldVmCounts = map[string]int{}
 	for _, alloc := range m.oldAllocs {
 		m.oldVmCounts[alloc.TaskName] += 1
@@ -566,7 +563,6 @@ func (m *v2PlatformMigrator) resolveProcessGroups(ctx context.Context) {
 }
 
 func (m *v2PlatformMigrator) scaleNomadToZero(ctx context.Context) error {
-
 	input := gql.SetVMCountInput{
 		AppId:  m.appConfig.AppName,
 		LockId: m.appLock,
@@ -592,7 +588,6 @@ func (m *v2PlatformMigrator) scaleNomadToZero(ctx context.Context) error {
 }
 
 func (m *v2PlatformMigrator) waitForAllocsZero(ctx context.Context) error {
-
 	s := spinner.New(spinner.CharSets[9], 200*time.Millisecond)
 	s.Writer = m.io.ErrOut
 	s.Prefix = fmt.Sprintf("Waiting for nomad allocs for '%s' to be destroyed ", m.appCompact.Name)
@@ -815,7 +810,6 @@ func (m *v2PlatformMigrator) determineConfigPath(ctx context.Context) error {
 }
 
 func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
-
 	numAllocs := len(m.oldAllocs)
 
 	fmt.Fprintf(m.io.Out, "This migration process will do the following, in order:\n")
@@ -885,12 +879,10 @@ func determineAppConfigForMachines(ctx context.Context) (*appconfig.Config, erro
 }
 
 func determineVmSpecs(vmSize api.VMSize) (*api.MachineGuest, error) {
-
 	preset := strings.Replace(vmSize.Name, "dedicated-cpu", "performance", 1)
 
 	guest := &api.MachineGuest{}
 	err := guest.SetSize(preset)
-
 	if err != nil {
 		return nil, fmt.Errorf("nomad VM definition incompatible with machines API: %w", err)
 	}
