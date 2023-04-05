@@ -68,6 +68,22 @@ type FindUserResponse struct {
 	Result PostgresUser
 }
 
+type ReplicationStat struct {
+	Name string `json:"name"`
+	Diff int    `json:"diff"`
+}
+type ReplicationStatsResponse struct {
+	Result []ReplicationStat
+}
+
+type StolonDBUidResponse struct {
+	Result string
+}
+
+type ReadonlyResponse struct {
+	Result bool
+}
+
 type RestartResponse struct {
 	Result string
 }

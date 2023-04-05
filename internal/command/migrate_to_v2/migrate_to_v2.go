@@ -4,6 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/superfly/flyctl/agent"
+	"github.com/superfly/flyctl/flypg"
+	"github.com/superfly/flyctl/internal/command/apps"
+	"github.com/superfly/flyctl/internal/watch"
 	"os"
 	"os/signal"
 	"runtime"
@@ -64,6 +68,7 @@ func runMigrateToV2(ctx context.Context) error {
 
 		appName = appconfig.NameFromContext(ctx)
 	)
+
 	migrator, err := NewV2PlatformMigrator(ctx, appName)
 	if err != nil {
 		return err
@@ -87,6 +92,11 @@ func runMigrateToV2(ctx context.Context) error {
 type V2PlatformMigrator interface {
 	ConfirmChanges(ctx context.Context) (bool, error)
 	Migrate(ctx context.Context) error
+}
+
+type NewVolume struct {
+	vol             *api.Volume
+	previousAllocId string
 }
 
 // FIXME: a lot of stuff is shared with MachineDeployment... might be useful to consolidate the shared stuff into another library/package/something
@@ -114,6 +124,10 @@ type v2PlatformMigrator struct {
 	newMachines       machine.MachineSet
 	canAvoidDowntime  bool
 	recovery          recoveryState
+	isPostgres        bool
+	createdVolumes    []*NewVolume
+	primaryRegion     string
+	pgLeader          string
 }
 
 type recoveryState struct {
@@ -130,6 +144,10 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		colorize  = io.ColorScheme()
 	)
 	appCompact, err := apiClient.GetAppCompact(ctx, appName)
+	if err != nil {
+		return nil, err
+	}
+	ctx, err = apps.BuildContext(ctx, appCompact)
 	if err != nil {
 		return nil, err
 	}
@@ -184,6 +202,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		img:               img,
 		oldAllocs:         allocs,
 		canAvoidDowntime:  true,
+		isPostgres:        appCompact.IsPostgresApp(),
 		recovery: recoveryState{
 			platformVersion: appFull.PlatformVersion,
 		},
@@ -294,6 +313,14 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 		}()
 	}
 
+	if m.isPostgres {
+		tb.Detail("Upgrading postgres image")
+		err := m.updateNomadImage(ctx)
+		if err != nil {
+			return err
+		}
+	}
+
 	tb.Detail("Locking app to prevent changes during the migration")
 	err = m.lockAppForMigration(ctx)
 	if err != nil {
@@ -301,6 +328,11 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	}
 	if aborted.Load() {
 		return abortedErr
+	}
+
+	err = m.setNomadPgReadonly(ctx)
+	if err != nil {
+		return err
 	}
 
 	if !m.canAvoidDowntime {
@@ -360,6 +392,18 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	}
 	m.newMachines.StartBackgroundLeaseRefresh(ctx, m.leaseTimeout, m.leaseDelayBetween)
 
+	inRegionDbs := m.inRegionMachines()
+
+	dbUIDs, err := m.getPgDBUids(ctx, inRegionDbs)
+	if err != nil {
+		return err
+	}
+
+	err = m.waitForPGSync(ctx, dbUIDs)
+	if err != nil {
+		return err
+	}
+
 	err = m.unlockApp(ctx)
 	if err != nil {
 		return err
@@ -398,6 +442,250 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 
 	tb.Done("Done")
 	return nil
+}
+
+func (m *v2PlatformMigrator) updateNomadImage(ctx context.Context) error {
+	app, err := m.apiClient.GetImageInfo(ctx, m.appCompact.Name)
+	if err != nil {
+		return fmt.Errorf("failed to get image info: %w", err)
+	}
+
+	if !app.ImageVersionTrackingEnabled {
+		return errors.New("image is not eligible for automated image updates")
+	}
+
+	if !app.ImageUpgradeAvailable {
+		return nil
+	}
+
+	cI := app.ImageDetails
+	lI := app.LatestImageDetails
+
+	current := cI.FullImageRef()
+	target := lI.FullImageRef()
+
+	if cI.Version != "" {
+		current = fmt.Sprintf("%s %s", current, cI.Version)
+	}
+
+	if lI.Version != "" {
+		target = fmt.Sprintf("%s %s", target, lI.Version)
+	}
+
+	input := api.DeployImageInput{
+		AppID:    m.appCompact.Name,
+		Image:    lI.FullImageRef(),
+		Strategy: api.StringPointer("ROLLING"),
+	}
+
+	// Set the deployment strategy
+	if val := flag.GetString(ctx, "strategy"); val != "" {
+		input.Strategy = api.StringPointer(strings.ReplaceAll(strings.ToUpper(val), "-", "_"))
+	}
+
+	release, releaseCommand, err := m.apiClient.DeployImage(ctx, input)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(m.io.Out, "Release v%d created\n", release.Version)
+	if releaseCommand != nil {
+		fmt.Fprintln(m.io.Out, "Release command detected: this new release will not be available until the command succeeds.")
+	}
+
+	fmt.Fprintln(m.io.Out)
+
+	if releaseCommand != nil {
+		// TODO: don't use text block here
+		tb := render.NewTextBlock(ctx, fmt.Sprintf("Release command detected: %s\n", releaseCommand.Command))
+		tb.Done("This release will not be available until the release command succeeds.")
+
+		if err := watch.ReleaseCommand(ctx, m.appCompact.Name, releaseCommand.ID); err != nil {
+			return err
+		}
+
+		release, err = m.apiClient.GetAppReleaseNomad(ctx, m.appCompact.Name, release.ID)
+		if err != nil {
+			return err
+		}
+	}
+	return watch.Deployment(ctx, m.appCompact.Name, release.EvaluationID)
+}
+
+func (m *v2PlatformMigrator) migratePgVolumes(ctx context.Context) error {
+	app := m.appFull
+	regionsToVols := map[string][]api.Volume{}
+	if len(app.Allocations) <= 0 {
+		return errors.New("can't migrate an app with no allocations")
+	}
+	// Find all volumes
+	for _, vol := range app.Volumes.Nodes {
+		if _, ok := regionsToVols[vol.Region]; ok {
+			regionsToVols[vol.Region] = append(regionsToVols[vol.Region], vol)
+		} else {
+			regionsToVols[vol.Region] = []api.Volume{vol}
+		}
+	}
+
+	var newVols []*NewVolume
+	for region, vols := range regionsToVols {
+		fmt.Fprintf(m.io.Out, "Creatings %d new volume(s) in '%s'", len(vols), region)
+		for _, vol := range vols {
+			// TODO: make use of https://github.com/superfly/nomad-firecracker/pull/1013
+			input := api.CreateVolumeInput{
+				AppID:     app.ID,
+				Name:      fmt.Sprintf("%s_machines", vol.Name),
+				Region:    region,
+				SizeGb:    vol.SizeGb,
+				Encrypted: vol.Encrypted,
+			}
+			if len(vol.Snapshots.Nodes) > 0 {
+				//TODO(dov) figure out if this assumption about ordering is correct
+				input.SnapshotID = &vol.Snapshots.Nodes[len(vol.Snapshots.Nodes)-1].ID
+			}
+			newVol, err := m.apiClient.CreateVolume(ctx, input)
+			if err != nil {
+				return err
+			}
+			newVols = append(newVols, &NewVolume{
+				vol:             newVol,
+				previousAllocId: vol.AttachedAllocation.ID,
+			})
+		}
+	}
+	m.createdVolumes = newVols
+	return nil
+}
+
+func leaderIpFromNomadInstances(ctx context.Context, addrs []string) (string, error) {
+	dialer := agent.DialerFromContext(ctx)
+	for _, addr := range addrs {
+		pgclient := flypg.NewFromInstance(addr, dialer)
+		role, err := pgclient.NodeRole(ctx)
+		if err != nil {
+			return "", fmt.Errorf("can't get role for %s: %w", addr, err)
+		}
+
+		if role == "leader" || role == "primary" {
+			return addr, nil
+		}
+	}
+	return "", fmt.Errorf("no instances found with leader role")
+}
+
+func (m *v2PlatformMigrator) setNomadPgReadonly(ctx context.Context) error {
+	dialer := agent.DialerFromContext(ctx)
+	agentclient, err := agent.Establish(ctx, m.apiClient)
+	if err != nil {
+		return err
+	}
+
+	pgInstances, err := agentclient.Instances(ctx, m.appCompact.Organization.Slug, m.appCompact.Name)
+	if err != nil {
+		return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", m.appCompact.Name, err)
+	}
+
+	if len(pgInstances.Addresses) == 0 {
+		return fmt.Errorf("no 6pn ips found for %s app", m.appCompact.Name)
+	}
+
+	leaderIP, err := leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
+	if err != nil {
+		return err
+	}
+
+	pgclient := flypg.NewFromInstance(leaderIP, dialer)
+
+	err = pgclient.LegacyEnableReadonly(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *v2PlatformMigrator) inRegionMachines() []*api.Machine {
+	var machines []*api.Machine
+	for _, machine := range m.newMachines.GetMachines() {
+		if machine.Machine().Region == m.primaryRegion {
+			machines = append(machines, machine.Machine())
+		}
+	}
+	return machines
+}
+
+func (m *v2PlatformMigrator) getPgDBUids(ctx context.Context, dbs []*api.Machine) ([]string, error) {
+	var uids []string
+	dialer := agent.DialerFromContext(ctx)
+	for _, machine := range dbs {
+		pgclient := flypg.NewFromInstance(machine.PrivateIP, dialer)
+		uid, err := pgclient.LegacyStolonDBUid(ctx)
+		if err != nil {
+			return nil, err
+		}
+		uids = append(uids, *uid)
+	}
+	return uids, nil
+}
+
+func (m *v2PlatformMigrator) checkPgSync(ctx context.Context, dbuids []string) (*bool, error) {
+	dialer := agent.DialerFromContext(ctx)
+	agentclient, err := agent.Establish(ctx, m.apiClient)
+	if err != nil {
+		return nil, err
+	}
+
+	pgInstances, err := agentclient.Instances(ctx, m.appCompact.Organization.Slug, m.appCompact.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lookup 6pn ip for %s app: %v", m.appCompact.Name, err)
+	}
+
+	if len(pgInstances.Addresses) == 0 {
+		return nil, fmt.Errorf("no 6pn ips found for %s app", m.appCompact.Name)
+	}
+
+	leaderIP, err := leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
+	if err != nil {
+		return nil, err
+	}
+
+	pgclient := flypg.NewFromInstance(leaderIP, dialer)
+
+	stats, err := pgclient.LegacyStolonReplicationStats(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	res := false
+	for _, stat := range stats {
+		id := strings.Split(stat.Name, "_")[1]
+		for _, dbuid := range dbuids {
+			if id == dbuid {
+				res = true
+				return &res, nil
+			}
+		}
+	}
+	return &res, nil
+}
+
+func (m *v2PlatformMigrator) waitForPGSync(ctx context.Context, dbuids []string) error {
+	timeout := time.After(20 * time.Minute)
+	ticker := time.Tick(5 * time.Second)
+	for {
+		select {
+		case <-timeout:
+			return errors.New("timed out waiting for sync")
+		case <-ticker:
+			out, err := m.checkPgSync(ctx, dbuids)
+			if err != nil {
+				return err
+			}
+			if *out {
+				return nil
+			}
+		}
+	}
 }
 
 func (m *v2PlatformMigrator) validate(ctx context.Context) error {
@@ -671,6 +959,15 @@ func (m *v2PlatformMigrator) resolveMachinesFromAllocs() []*api.LaunchMachineInp
 	return res
 }
 
+func (m *v2PlatformMigrator) volumeForPrevAlloc(id string) (bool, *api.Volume) {
+	for _, vol := range m.createdVolumes {
+		if vol.previousAllocId == id {
+			return true, vol.vol
+		}
+	}
+	return false, nil
+}
+
 func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus) *api.LaunchMachineInput {
 	launchInput := &api.LaunchMachineInput{
 		AppID:   m.appFull.Name,
@@ -682,6 +979,7 @@ func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus
 	launchInput.Config.Image = m.img
 	launchInput.Config.Env = lo.Assign(m.appConfig.Env)
 	if m.appConfig.PrimaryRegion != "" {
+		m.primaryRegion = m.appConfig.PrimaryRegion
 		launchInput.Config.Env["PRIMARY_REGION"] = m.appConfig.PrimaryRegion
 	}
 	launchInput.Config.Metrics = m.appConfig.Metrics
@@ -691,13 +989,22 @@ func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus
 			UrlPrefix: s.UrlPrefix,
 		})
 	}
-	// FIXME: we should probably error out if there are more than 1 vols attached
-	if len(alloc.AttachedVolumes.Nodes) == 1 {
-		vol := alloc.AttachedVolumes.Nodes[0]
+	if exists, vol := m.volumeForPrevAlloc(alloc.ID); exists {
 		launchInput.Config.Mounts = []api.MachineMount{{
 			Path:   m.volumeDestination,
 			Volume: vol.ID,
 		}}
+	} else if m.isPostgres {
+		// FIXME(dov): error if we are a postgres without a volume
+	} else {
+		// FIXME: we should probably error out if there are more than 1 vols attached
+		if len(alloc.AttachedVolumes.Nodes) == 1 {
+			vol := alloc.AttachedVolumes.Nodes[0]
+			launchInput.Config.Mounts = []api.MachineMount{{
+				Path:   m.volumeDestination,
+				Volume: vol.ID,
+			}}
+		}
 	}
 
 	processConfig := m.processConfigs[alloc.TaskName]
@@ -713,6 +1020,9 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 	numAllocs := len(m.oldAllocs)
 
 	fmt.Fprintf(m.io.Out, "This migration process will do the following, in order:\n")
+	if m.isPostgres {
+		fmt.Fprintf(m.io.Out, " * Update your postgres app to the latest supported image version\n")
+	}
 	fmt.Fprintf(m.io.Out, " * Lock your application, preventing changes during the migration\n")
 
 	printAllocs := func(msgSuffix string) {
@@ -737,6 +1047,10 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 			s = ""
 		}
 		fmt.Fprintf(m.io.Out, "   * Create %d \"%s\" machine%s\n", count, name, s)
+	}
+
+	if m.isPostgres {
+		fmt.Fprintf(m.io.Out, " * Wait for at least one new in-region PG replica to become synced\n")
 	}
 
 	if m.canAvoidDowntime {

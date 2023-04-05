@@ -148,6 +148,43 @@ func (c *Client) legacyNodeRole(ctx context.Context) (string, error) {
 	return out, nil
 }
 
+func (c *Client) LegacyStolonReplicationStats(ctx context.Context) ([]ReplicationStat, error) {
+	endpoint := "/commands/admin/replicationstats"
+
+	out := new(ReplicationStatsResponse)
+
+	if err := c.Do(ctx, http.MethodGet, endpoint, nil, out); err != nil {
+		return nil, err
+	}
+	return out.Result, nil
+}
+func (c *Client) LegacyStolonDBUid(ctx context.Context) (*string, error) {
+	endpoint := "/commands/admin/dbuid"
+
+	out := new(StolonDBUidResponse)
+
+	if err := c.Do(ctx, http.MethodGet, endpoint, nil, out); err != nil {
+		return nil, err
+	}
+	return &out.Result, nil
+}
+func (c *Client) LegacyEnableReadonly(ctx context.Context) error {
+	endpoint := "/commands/admin/readonly/enable"
+
+	if err := c.Do(ctx, http.MethodGet, endpoint, nil, nil); err != nil {
+		return err
+	}
+	return nil
+}
+func (c *Client) LegacyDisableReadonly(ctx context.Context) error {
+	endpoint := "/commands/admin/readonly/disable"
+
+	if err := c.Do(ctx, http.MethodGet, endpoint, nil, nil); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Client) RestartNodePG(ctx context.Context) error {
 	endpoint := "/commands/admin/restart"
 
