@@ -19,7 +19,6 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
-	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
@@ -108,12 +107,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		if err != nil {
 			return nil, err
 		}
-	}
-	releaseCmdMemory := flag.GetInt(ctx, "release-command-memory")
-	if releaseCmdMemory == 0 {
-		return nil, fmt.Errorf("release-command-memory cannot be zero")
-	} else if releaseCmdMemory < 0 {
-		return nil, fmt.Errorf("release-command-memory must be a positive integer")
 	}
 	waitTimeout := args.WaitTimeout
 	if waitTimeout == 0 {
