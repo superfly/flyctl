@@ -575,3 +575,23 @@ web = "nginx -g 'daemon off;'"
 	require.Equal(t, idMatchFound, true, "could not find 'web' machine with matching machine ID")
 
 }
+
+func TestAppsV2MigrateToV2(t *testing.T) {
+	var (
+		err     error
+		f       = testlib.NewTestEnvFromEnv(t)
+		appName = f.CreateRandomAppName()
+	)
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --force-nomad --image nginx", f.OrgSlug(), appName, f.PrimaryRegion())
+	time.Sleep(3 * time.Second)
+	f.Fly("migrate-to-v2 --primary-region %s --yes", f.PrimaryRegion())
+	result := f.Fly("status --json")
+
+	var statusMap map[string]any
+	err = json.Unmarshal(result.StdOut().Bytes(), &statusMap)
+	if err != nil {
+		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
+	}
+	platformVersion, _ := statusMap["PlatformVersion"].(string)
+	require.Equal(f, "machines", platformVersion)
+}
