@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -108,51 +107,10 @@ ENV BUILT_BY_DOCKERFILE=true
 	dockerfilePath := filepath.Join(f.WorkDir(), "Dockerfile")
 	err = os.WriteFile(dockerfilePath, []byte(dockerfileContent), 0644)
 	if err != nil {
-		t.Fatalf("failed to write dockerfile at %s error: %v", dockerfilePath, err)
+		f.Fatalf("failed to write dockerfile at %s error: %v", dockerfilePath, err)
 	}
 
 	f.Fly("deploy")
-
-	// FIXME: test the rest of the example:
-
-	// fly deploy
-
-	// mounts
-	// [mounts]
-	// destination = "/my/new/director
-
-	// scaling
-	// fly machine stop   9080524f610e87
-	// fly machine remove 9080524f610e87
-	// fly machine remove --force 0e286039f42e86
-	// fly machine update --memory 1024 21781973f03e89
-	// fly machine update --cpus 2 21781973f03e89
-
-	// processes
-	// fly machine update --metadata fly_process_group=app 21781973f03e89
-	// fly machine update --metadata fly_process_group=app 9e784925ad9683
-	// fly machine update --metadata fly_process_group=worker 148ed21a031189
-	// fly deploy
-	// [processes]
-	//   app = "nginx -g 'daemon off;'"
-	//   worker = "tail -F /dev/null" # not a very useful worker!
-	// [[services]]
-	//   processes = ["app"]
-	// fly machine clone --region gru 21781973f03e89
-	// fly machine clone --process-group worker 21781973f03e89
-
-	// call with --detach
-
-	// release commands
-	// failure mode:
-	// fly machine clone --clear-auto-destroy --clear-cmd MACHINE_ID
-
-	// restart app
-	// fly apps restart APP_NAME
-
-	// migrate existing app with machines
-
-	// statics
 }
 
 func TestAppsV2ConfigChanges(t *testing.T) {
@@ -554,7 +512,7 @@ bar_web = "bash -c 'while true; do sleep 10; done'"
 	}
 	// This should never be empty; we verified it above in expectMachinesInGroups
 	// If you're going to be paranoid anywhere, though, it should be in tests.
-	assert.NotEmpty(t, webMachId, "could not find 'web' machine. this is a bug in the test.")
+	require.NotEmpty(t, webMachId, "could not find 'web' machine. this is a bug in the test.")
 
 	// Step 3: Clone "bar_web" to ensure that all machines get destroyed.
 	secondaryRegion := f.PrimaryRegion()
@@ -603,17 +561,17 @@ web = "nginx -g 'daemon off;'"
 			// Quick check to make sure the rest of the config is there.
 			cmd := m.Config.Init.Cmd
 			if len(cmd) <= 0 || cmd[0] != "nginx" {
-				t.Fatalf(`Expected command "nginx -g 'daemon off;'", got "%s".`, strings.Join(cmd, " "))
+				f.Fatalf(`Expected command "nginx -g 'daemon off;'", got "%s".`, strings.Join(cmd, " "))
 			}
 			val, ok := m.Config.Metadata["CUSTOM"]
-			assert.Equal(t, ok, true, "Expected machine to have metadata['CUSTOM']")
-			assert.Equal(t, val, "META", "Expected metadata['CUSTOM'] == 'META', got '%s'", val)
+			require.Equal(t, ok, true, "Expected machine to have metadata['CUSTOM']")
+			require.Equal(t, val, "META", "Expected metadata['CUSTOM'] == 'META', got '%s'", val)
 			val, ok = m.Config.Metadata["ABCD"]
-			assert.Equal(t, ok, true, "Expected machine to have metadata['ABCD']")
-			assert.Equal(t, val, "EFGH", "Expected metadata['ABCD'] == 'EFGH', got '%s'", val)
+			require.Equal(t, ok, true, "Expected machine to have metadata['ABCD']")
+			require.Equal(t, val, "EFGH", "Expected metadata['ABCD'] == 'EFGH', got '%s'", val)
 			break
 		}
 	}
-	assert.Equal(t, idMatchFound, true, "could not find 'web' machine with matching machine ID")
+	require.Equal(t, idMatchFound, true, "could not find 'web' machine with matching machine ID")
 
 }
