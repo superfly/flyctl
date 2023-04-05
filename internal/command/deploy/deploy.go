@@ -68,11 +68,6 @@ var CommonFlags = flag.Set{
 		Description: "Seconds to lease individual machines while running deployment. All machines are leased at the beginning and released at the end. The lease is refreshed periodically for this same time, which is why it is short. flyctl releases leases in most cases.",
 		Default:     int(DefaultLeaseTtl.Seconds()),
 	},
-	flag.Int{
-		Name:        "release-command-memory",
-		Description: "Set release command machine memory to a number of megabytes",
-		Default:     DefaultReleaseCommandMemoryMb,
-	},
 	flag.Bool{
 		Name:        "force-nomad",
 		Description: "Use the Apps v1 platform built with Nomad",

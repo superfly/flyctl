@@ -24,12 +24,12 @@ import (
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"golang.org/x/exp/slices"
 )
 
 const (
-	DefaultWaitTimeout            = 120 * time.Second
-	DefaultLeaseTtl               = 13 * time.Second
-	DefaultReleaseCommandMemoryMb = 256
+	DefaultWaitTimeout = 120 * time.Second
+	DefaultLeaseTtl    = 13 * time.Second
 )
 
 type MachineDeployment interface {
@@ -68,7 +68,6 @@ type machineDeployment struct {
 	machineSet            machine.MachineSet
 	releaseCommandMachine machine.MachineSet
 	releaseCommand        []string
-	releaseCommandMemory  int
 	volumeDestination     string
 	volumes               []api.Volume
 	strategy              string
@@ -135,22 +134,21 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	io := iostreams.FromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 	md := &machineDeployment{
-		apiClient:            apiClient,
-		gqlClient:            apiClient.GenqClient,
-		flapsClient:          flapsClient,
-		io:                   io,
-		colorize:             io.ColorScheme(),
-		app:                  args.AppCompact,
-		appConfig:            appConfig,
-		processConfigs:       processConfigs,
-		img:                  args.DeploymentImage,
-		skipHealthChecks:     args.SkipHealthChecks,
-		restartOnly:          args.RestartOnly,
-		waitTimeout:          waitTimeout,
-		leaseTimeout:         leaseTimeout,
-		leaseDelayBetween:    leaseDelayBetween,
-		releaseCommand:       releaseCmd,
-		releaseCommandMemory: releaseCmdMemory,
+		apiClient:         apiClient,
+		gqlClient:         apiClient.GenqClient,
+		flapsClient:       flapsClient,
+		io:                io,
+		colorize:          io.ColorScheme(),
+		app:               args.AppCompact,
+		appConfig:         appConfig,
+		processConfigs:    processConfigs,
+		img:               args.DeploymentImage,
+		skipHealthChecks:  args.SkipHealthChecks,
+		restartOnly:       args.RestartOnly,
+		waitTimeout:       waitTimeout,
+		leaseTimeout:      leaseTimeout,
+		leaseDelayBetween: leaseDelayBetween,
+		releaseCommand:    releaseCmd,
 	}
 	err = md.setStrategy(args.Strategy)
 	if err != nil {
@@ -508,7 +506,35 @@ func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *
 	if launchInput.Config.Guest == nil {
 		launchInput.Config.Guest = &api.MachineGuest{}
 	}
-	launchInput.Config.Guest.MemoryMB = md.releaseCommandMemory
+	desiredMem := 256
+	if !md.machineSet.IsEmpty() {
+		leastRamInGroup := func(group string) int {
+			leastRam := 0
+			for _, lm := range md.machineSet.GetMachines() {
+				mach := lm.Machine()
+				if mach.Config != nil && mach.Config.Env != nil && mach.ProcessGroup() == group && mach.Config.Guest != nil {
+					if mach.Config.Guest.MemoryMB < leastRam || leastRam == 0 {
+						leastRam = mach.Config.Guest.MemoryMB
+					}
+				}
+			}
+			return leastRam
+		}
+
+		if leastRamApp := leastRamInGroup("app"); leastRamApp != 0 {
+			desiredMem = leastRamApp
+		} else {
+			// No "main" app, sort lexicographically and just pick the first group
+			pgNames := lo.Keys(md.processConfigs)
+			if len(pgNames) > 0 {
+				slices.Sort(pgNames)
+				if leastRamApp = leastRamInGroup(pgNames[0]); leastRamApp != 0 {
+					desiredMem = leastRamApp
+				}
+			}
+		}
+	}
+	launchInput.Config.Guest.MemoryMB = desiredMem
 	return launchInput
 }
 
