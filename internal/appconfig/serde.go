@@ -91,7 +91,7 @@ func (c *Config) MarshalJSON() ([]byte, error) {
 // NOTES:
 //   * It can't be called `MarshalTOML` because toml libraries don't support marshaler interface on root values
 //   * Needs to reimplements most of MarshalJSON to enforce order of fields
-//   * Instead of this, you usually need one WriteTo(), WriteToFile() or WriteToDsik()
+//   * Instead of this, you usually need one WriteTo(), WriteToFile() or WriteToDisk()
 //
 func (c *Config) marshalTOML() ([]byte, error) {
 	var b bytes.Buffer
