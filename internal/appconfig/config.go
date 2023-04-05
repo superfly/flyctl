@@ -11,6 +11,7 @@ const (
 	// the API
 	MachinesPlatform = "machines"
 	NomadPlatform    = "nomad"
+	DetachedPlatform = "detached"
 )
 
 func NewConfig() *Config {
@@ -146,6 +147,13 @@ func (c *Config) DockerBuildTarget() string {
 		return ""
 	}
 	return c.Build.DockerBuildTarget
+}
+
+func (c *Config) MountsDestination() string {
+	if c == nil || c.Mounts == nil {
+		return ""
+	}
+	return c.Mounts.Destination
 }
 
 func (c Config) InternalPort() int {

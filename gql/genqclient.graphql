@@ -117,3 +117,13 @@ mutation CreateLimitedAccessToken($name: String!, $organizationId: ID!, $profile
 		}
 	}
 }
+
+mutation SetNomadVMCount($input: SetVMCountInput!) {
+	setVmCount(input: $input) {
+		taskGroupCounts {
+			name
+			count
+		}
+		warnings
+	}
+}
