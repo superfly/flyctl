@@ -177,7 +177,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 
 		md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 			AppCompact:        appCompact,
-			DeploymentImage:   img,
+			DeploymentImage:   img.Tag,
 			Strategy:          flag.GetString(ctx, "strategy"),
 			EnvFromFlags:      flag.GetStringSlice(ctx, "env"),
 			PrimaryRegionFlag: primaryRegion,
