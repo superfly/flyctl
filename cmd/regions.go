@@ -67,7 +67,7 @@ func runRegionsAdd(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	printRegions(cmdCtx, regions, backupRegions, nil)
+	printRegions(cmdCtx, api.RegionList{Regions: regions, BackupRegions: backupRegions})
 
 	return nil
 }
@@ -87,7 +87,7 @@ func runRegionsRemove(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	printRegions(cmdCtx, regions, backupRegions, nil)
+	printRegions(cmdCtx, api.RegionList{Regions: regions, BackupRegions: backupRegions})
 
 	return nil
 }
@@ -99,14 +99,14 @@ func runRegionsSet(cmdCtx *cmdctx.CmdContext) error {
 	delList := make([]string, 0)
 
 	// Get the Region List
-	regions, _, _, err := cmdCtx.Client.API().ListAppRegions(ctx, cmdCtx.AppName)
+	regions, err := cmdCtx.Client.API().ListAppRegions(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
 
 	addList = append(addList, cmdCtx.Args...)
 
-	for _, er := range regions {
+	for _, er := range regions.Regions {
 		found := false
 		for _, r := range cmdCtx.Args {
 			if r == er.Code {
@@ -132,7 +132,7 @@ func runRegionsSet(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	printRegions(cmdCtx, newregions, backupRegions, nil)
+	printRegions(cmdCtx, api.RegionList{Regions: newregions, BackupRegions: backupRegions})
 
 	return nil
 }
@@ -140,12 +140,12 @@ func runRegionsSet(cmdCtx *cmdctx.CmdContext) error {
 func runRegionsList(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 
-	regions, backupRegions, pgRegions, err := cmdCtx.Client.API().ListAppRegions(ctx, cmdCtx.AppName)
+	regions, err := cmdCtx.Client.API().ListAppRegions(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
 
-	printRegions(cmdCtx, regions, backupRegions, pgRegions)
+	printRegions(cmdCtx, regions)
 
 	return nil
 }
@@ -163,7 +163,7 @@ func runBackupRegionsSet(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	printRegions(cmdCtx, regions, backupRegions, nil)
+	printRegions(cmdCtx, api.RegionList{Regions: regions, BackupRegions: backupRegions})
 
 	return nil
 }
@@ -173,10 +173,44 @@ type printableProcessGroup struct {
 	Regions []string
 }
 
-func printRegions(ctx *cmdctx.CmdContext, regions []api.Region, backupRegions []api.Region, processGroups []api.ProcessGroup) {
+func printRegions(ctx *cmdctx.CmdContext, regions api.RegionList) {
+	if regions.PlatformVersion == "nomad" {
+		printNomadRegions(ctx, regions)
+	}
+
 	if ctx.OutputJSON() {
 		jsonPg := []printableProcessGroup{}
-		for _, pg := range processGroups {
+		for group, regionlist := range regions.MachineRegions {
+			jsonPg = append(jsonPg, printableProcessGroup{
+				Name:    group,
+				Regions: regionlist,
+			})
+		}
+
+		// only show pg if there's more than one
+		data := struct {
+			ProcessGroupRegions []printableProcessGroup
+		}{
+			ProcessGroupRegions: jsonPg,
+		}
+		ctx.WriteJSON(data)
+
+		return
+	}
+
+	for group, regionlist := range regions.MachineRegions {
+		ctx.Statusf("regions", cmdctx.STITLE, "Regions [%s]:\n", group)
+
+		for _, r := range regionlist {
+			ctx.Status("regions", cmdctx.SINFO, r)
+		}
+	}
+}
+
+func printNomadRegions(ctx *cmdctx.CmdContext, regions api.RegionList) {
+	if ctx.OutputJSON() {
+		jsonPg := []printableProcessGroup{}
+		for _, pg := range regions.ProcessGroups {
 			jsonPg = append(jsonPg, printableProcessGroup{
 				Name:    pg.Name,
 				Regions: pg.Regions,
@@ -189,8 +223,8 @@ func printRegions(ctx *cmdctx.CmdContext, regions []api.Region, backupRegions []
 			BackupRegions       []api.Region
 			ProcessGroupRegions []printableProcessGroup
 		}{
-			Regions:             regions,
-			BackupRegions:       backupRegions,
+			Regions:             regions.Regions,
+			BackupRegions:       regions.BackupRegions,
 			ProcessGroupRegions: jsonPg,
 		}
 		ctx.WriteJSON(data)
@@ -200,8 +234,8 @@ func printRegions(ctx *cmdctx.CmdContext, regions []api.Region, backupRegions []
 
 	verbose := ctx.GlobalConfig.GetBool("verbose")
 
-	if len(processGroups) > 0 {
-		for _, pg := range processGroups {
+	if len(regions.ProcessGroups) > 1 {
+		for _, pg := range regions.ProcessGroups {
 			ctx.Statusf("processGroupRegions", cmdctx.STITLE, "[%s] Region Pool:\n", pg.Name)
 
 			for _, r := range pg.Regions {
@@ -217,7 +251,7 @@ func printRegions(ctx *cmdctx.CmdContext, regions []api.Region, backupRegions []
 		ctx.Status("regions", cmdctx.STITLE, "Region Pool: ")
 	}
 
-	for _, r := range regions {
+	for _, r := range regions.Regions {
 		if verbose {
 			ctx.Statusf("regions", cmdctx.SINFO, "  %s  %s\n", r.Code, r.Name)
 		} else {
@@ -231,7 +265,7 @@ func printRegions(ctx *cmdctx.CmdContext, regions []api.Region, backupRegions []
 		ctx.Status("backupRegions", cmdctx.STITLE, "Backup Region: ")
 	}
 
-	for _, r := range backupRegions {
+	for _, r := range regions.BackupRegions {
 		if verbose {
 			ctx.Statusf("backupRegions", cmdctx.SINFO, "  %s  %s\n", r.Code, r.Name)
 		} else {

@@ -40,7 +40,7 @@ func runPrivateIPAddressesList(ctx context.Context) error {
 		return err
 	}
 
-	_, backupRegions, _, err := client.ListAppRegions(ctx, appName)
+	regions, err := client.ListAppRegions(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -51,6 +51,6 @@ func runPrivateIPAddressesList(ctx context.Context) error {
 		return nil
 	}
 
-	renderPrivateTable(ctx, appstatus.Allocations, backupRegions)
+	renderPrivateTable(ctx, appstatus.Allocations, regions.BackupRegions)
 	return nil
 }

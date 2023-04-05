@@ -340,6 +340,9 @@ type App struct {
 	ImageDetails                ImageVersion
 	LatestImageDetails          ImageVersion
 
+	// TODO: seems wrong
+	Machines struct{ Nodes []GqlMachine }
+
 	PlatformVersion string
 }
 
