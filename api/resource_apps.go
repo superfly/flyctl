@@ -5,46 +5,51 @@ import (
 )
 
 func (client *Client) GetApps(ctx context.Context, role *string) ([]App, error) {
-	query := `
-		query($role: String) {
-			apps(type: "container", first: 400, role: $role) {
-				nodes {
-					id
-					name
-					deployed
-					hostname
-					platformVersion
-					organization {
-						slug
-					}
-					currentRelease {
-						createdAt
-						status
+	more := true
+	apps := []App{}
+	var cursor string
 
-					}
-					status
-				}
-			}
+	for more {
+		var appPage []App
+		var err error
+
+		appPage, more, cursor, err = client.getAppsPage(ctx, nil, role, &cursor)
+		if err != nil {
+			return nil, err
 		}
-		`
-
-	req := client.NewRequest(query)
-	if role != nil {
-		req.Var("role", *role)
+		apps = append(apps, appPage...)
 	}
 
-	data, err := client.RunWithContext(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	return data.Apps.Nodes, nil
+	return apps, nil
 }
 
 func (client *Client) GetAppsForOrganization(ctx context.Context, orgID string) ([]App, error) {
+	more := true
+	apps := []App{}
+	var cursor string
+
+	for more {
+		var appPage []App
+		var err error
+
+		appPage, more, cursor, err = client.getAppsPage(ctx, &orgID, nil, &cursor)
+		if err != nil {
+			return nil, err
+		}
+		apps = append(apps, appPage...)
+	}
+
+	return apps, nil
+}
+
+func (client *Client) getAppsPage(ctx context.Context, orgID *string, role *string, after *string) ([]App, bool, string, error) {
 	query := `
-		query($org: ID) {
-			apps(type: "container", first: 400, organizationId: $org) {
+		query($org: ID, $role: String, $after: String) {
+			apps(type: "container", first: 200, after: $after, organizationId: $org, role: $role) {
+				pageInfo {
+					hasNextPage
+					endCursor
+				}
 				nodes {
 					id
 					name
@@ -57,7 +62,6 @@ func (client *Client) GetAppsForOrganization(ctx context.Context, orgID string) 
 					currentRelease {
 						createdAt
 						status
-
 					}
 					status
 				}
@@ -66,14 +70,22 @@ func (client *Client) GetAppsForOrganization(ctx context.Context, orgID string) 
 		`
 
 	req := client.NewRequest(query)
-	req.Var("org", orgID)
+	if orgID != nil {
+		req.Var("org", *orgID)
+	}
+	if role != nil {
+		req.Var("role", *role)
+	}
+	if after != nil {
+		req.Var("after", *after)
+	}
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
-		return nil, err
+		return nil, false, "", err
 	}
 
-	return data.Apps.Nodes, nil
+	return data.Apps.Nodes, data.Apps.PageInfo.HasNextPage, data.Apps.PageInfo.EndCursor, nil
 }
 
 func (client *Client) GetAppID(ctx context.Context, appName string) (string, error) {
