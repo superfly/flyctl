@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
@@ -495,6 +496,31 @@ func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *
 	if _, present := launchInput.Config.Env["RELEASE_COMMAND"]; !present {
 		launchInput.Config.Env["RELEASE_COMMAND"] = "1"
 	}
+	if launchInput.Config.Guest == nil {
+		launchInput.Config.Guest = &api.MachineGuest{}
+	}
+
+	desiredGuest := helpers.Clone(api.MachinePresets["shared-cpu-2x"])
+	if !md.machineSet.IsEmpty() {
+		group := md.appConfig.DefaultProcessName()
+		ram := func(m *api.Machine) int {
+			if m != nil && m.Config != nil && m.Config.Guest != nil {
+				return m.Config.Guest.MemoryMB
+			}
+			return 0
+		}
+		maxRamMach := lo.Reduce(md.machineSet.GetMachines(), func(prevBest *api.Machine, lm machine.LeasableMachine, _ int) *api.Machine {
+			mach := lm.Machine()
+			if mach.ProcessGroup() != group {
+				return prevBest
+			}
+			return lo.Ternary(ram(mach) > ram(prevBest), mach, prevBest)
+		}, nil)
+		if maxRamMach != nil {
+			desiredGuest = maxRamMach.Config.Guest
+		}
+	}
+	launchInput.Config.Guest = helpers.Clone(desiredGuest)
 	return launchInput
 }
 

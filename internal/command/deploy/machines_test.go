@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/machine"
 )
 
 func stabMachineDeployment(appConfig *appconfig.Config) (*machineDeployment, error) {
@@ -16,8 +17,9 @@ func stabMachineDeployment(appConfig *appconfig.Config) (*machineDeployment, err
 				ID: "my-dangling-org",
 			},
 		},
-		img:       "super/balloon",
-		appConfig: appConfig,
+		img:        "super/balloon",
+		appConfig:  appConfig,
+		machineSet: machine.NewMachineSet(nil, nil, nil),
 	}
 	var err error
 	md.processConfigs, err = md.appConfig.GetProcessConfigs()
@@ -161,6 +163,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			DNS: &api.DNSConfig{
 				SkipRegistration: true,
 			},
+			Guest: api.MachinePresets["shared-cpu-2x"],
 		},
 	}, md.resolveUpdatedMachineConfig(nil, true))
 
@@ -204,6 +207,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			DNS: &api.DNSConfig{
 				SkipRegistration: true,
 			},
+			Guest: api.MachinePresets["shared-cpu-2x"],
 		},
 	}, md.resolveUpdatedMachineConfig(origMachine, true))
 }
