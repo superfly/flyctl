@@ -257,7 +257,12 @@ func runMachineRun(ctx context.Context) error {
 		return fmt.Errorf("to update an existing machine, use 'flyctl machine update'")
 	}
 
-	machineConf, err = determineMachineConfig(ctx, *machineConf, app.Name, flag.FirstArg(ctx), input.Region)
+	machineConf, err = determineMachineConfig(ctx, &determineMachineConfigInput{
+		initialMachineConf: *machineConf,
+		appName:            app.Name,
+		imageOrPath:        flag.FirstArg(ctx),
+		region:             input.Region,
+	})
 	if err != nil {
 		return err
 	}
@@ -620,8 +625,15 @@ func selectAppName(ctx context.Context) (name string, err error) {
 	return
 }
 
-func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, appName string, imageOrPath string, region string) (*api.MachineConfig, error) {
-	machineConf := mach.CloneConfig(&initialMachineConf)
+type determineMachineConfigInput struct {
+	initialMachineConf api.MachineConfig
+	appName            string
+	imageOrPath        string
+	region             string
+}
+
+func determineMachineConfig(ctx context.Context, input *determineMachineConfigInput) (*api.MachineConfig, error) {
+	machineConf := mach.CloneConfig(&input.initialMachineConf)
 
 	if guestSize := flag.GetString(ctx, "size"); guestSize != "" {
 		err := machineConf.Guest.SetSize(guestSize)
@@ -736,12 +748,12 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		machineConf.Init.Cmd = flag.Args(ctx)[1:]
 	}
 
-	machineConf.Mounts, err = determineMounts(ctx, machineConf.Mounts, region)
+	machineConf.Mounts, err = determineMounts(ctx, machineConf.Mounts, input.region)
 	if err != nil {
 		return machineConf, err
 	}
 
-	img, err := determineImage(ctx, appName, imageOrPath)
+	img, err := determineImage(ctx, input.appName, input.imageOrPath)
 	if err != nil {
 		return machineConf, err
 	}
