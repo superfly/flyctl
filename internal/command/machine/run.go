@@ -737,8 +737,11 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 	case "always":
 		machineConf.Restart.Policy = api.MachineRestartPolicyAlways
 	case "":
-		// Apply the default only if this is a new machine.
-		if !input.updating {
+		if flag.IsSpecified(ctx, "restart") {
+			// An empty policy was explicitly requested.
+			machineConf.Restart.Policy = ""
+		} else if !input.updating {
+			// This is a new machine; apply the default.
 			machineConf.Restart.Policy = api.MachineRestartPolicyAlways
 		}
 	default:
