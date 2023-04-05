@@ -236,7 +236,7 @@ func printNomadRegions(ctx *cmdctx.CmdContext, regions api.RegionList) {
 
 	if len(regions.ProcessGroups) > 1 {
 		for _, pg := range regions.ProcessGroups {
-			ctx.Statusf("processGroupRegions", cmdctx.STITLE, "[%s] Region Pool:\n", pg.Name)
+			ctx.Statusf("processGroupRegions", cmdctx.STITLE, "Region Pool [%s]:\n", pg.Name)
 
 			for _, r := range pg.Regions {
 				ctx.Status("processGroupRegions", cmdctx.SINFO, r)
