@@ -41,6 +41,41 @@ func (client *Client) GetApps(ctx context.Context, role *string) ([]App, error) 
 	return data.Apps.Nodes, nil
 }
 
+func (client *Client) GetAppsForOrganization(ctx context.Context, orgID string) ([]App, error) {
+	query := `
+		query($org: ID) {
+			apps(type: "container", first: 400, organizationId: $org) {
+				nodes {
+					id
+					name
+					deployed
+					hostname
+					platformVersion
+					organization {
+						slug
+					}
+					currentRelease {
+						createdAt
+						status
+
+					}
+					status
+				}
+			}
+		}
+		`
+
+	req := client.NewRequest(query)
+	req.Var("org", orgID)
+
+	data, err := client.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.Apps.Nodes, nil
+}
+
 func (client *Client) GetAppID(ctx context.Context, appName string) (string, error) {
 	query := `
 		query ($appName: String!) {

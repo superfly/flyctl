@@ -2,6 +2,7 @@ package apps
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/render"
 )
@@ -25,17 +27,31 @@ be shown with its name, owner and when it was last deployed.
 		short = "List applications"
 	)
 
-	return command.New("list", short, long, runList,
+	cmd := command.New("list", short, long, runList,
 		command.RequireSession,
 	)
+
+	flag.Add(cmd, flag.Org())
+
+	return cmd
 }
 
 func runList(ctx context.Context) (err error) {
-	cfg := config.FromContext(ctx)
 	client := client.FromContext(ctx)
+	cfg := config.FromContext(ctx)
+	org, err := getOrg(ctx)
+	if err != nil {
+		return fmt.Errorf("error getting organization: %w", err)
+	}
 
 	var apps []api.App
-	if apps, err = client.API().GetApps(ctx, nil); err != nil {
+	if org != nil {
+		apps, err = client.API().GetAppsForOrganization(ctx, org.ID)
+	} else {
+		apps, err = client.API().GetApps(ctx, nil)
+	}
+
+	if err != nil {
 		return
 	}
 
@@ -65,4 +81,15 @@ func runList(ctx context.Context) (err error) {
 	_ = render.Table(out, "", rows, "Name", "Owner", "Status", "Platform", "Latest Deploy")
 
 	return
+}
+
+func getOrg(ctx context.Context) (*api.Organization, error) {
+	client := client.FromContext(ctx).API()
+	orgName := flag.GetString(ctx, flag.OrgName)
+
+	if orgName == "" {
+		return nil, nil
+	}
+
+	return client.GetOrganizationBySlug(ctx, orgName)
 }
