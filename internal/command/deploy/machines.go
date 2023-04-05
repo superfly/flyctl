@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
@@ -506,10 +507,8 @@ func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *
 	if launchInput.Config.Guest == nil {
 		launchInput.Config.Guest = &api.MachineGuest{}
 	}
-	// The pointer dereferences around the MachineGuest logic are awkward, but it's done this way
-	// to ensure that the struct gets copied - that way, if something touches the relcmd machine,
-	// it doesn't affect the machine it stole its config from
-	desiredGuest := *defaultReleaseMachineGuest()
+
+	desiredGuest := defaultReleaseMachineGuest()
 	if !md.machineSet.IsEmpty() {
 		group := md.appConfig.DefaultProcessName()
 		ram := func(m *api.Machine) int {
@@ -526,10 +525,10 @@ func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *
 			return lo.Ternary(ram(mach) > ram(prevBest), mach, prevBest)
 		}, nil)
 		if maxRamMach != nil {
-			desiredGuest = *maxRamMach.Config.Guest
+			desiredGuest = maxRamMach.Config.Guest
 		}
 	}
-	launchInput.Config.Guest = &desiredGuest
+	launchInput.Config.Guest = helpers.Clone(desiredGuest)
 	return launchInput
 }
 

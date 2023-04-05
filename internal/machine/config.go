@@ -8,10 +8,9 @@ import (
 	"strings"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/jinzhu/copier"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -61,16 +60,7 @@ func CloneConfig(orig *api.MachineConfig) *api.MachineConfig {
 	if orig == nil {
 		return nil
 	}
-	config := &api.MachineConfig{}
-	err := copier.CopyWithOption(config, orig, copier.Option{IgnoreEmpty: true, DeepCopy: true})
-	// note(ali): I'm not too worried about eating these potential errors.
-	//            copier only returns an error if the structure is invalid, or if the item to copy is nil.
-	//            https://github.com/jinzhu/copier/blob/20cee7e229707f8e3fd10f8ed21f3e6c08ca9463/errors.go
-	if err != nil {
-		sentry.CaptureException(fmt.Errorf("failed to clone machine config: %w", err))
-		panic("failed to deep-copy machine config. this is a bug!")
-	}
-	return config
+	return helpers.Clone(orig)
 }
 
 func configCompare(ctx context.Context, original api.MachineConfig, new api.MachineConfig) string {
