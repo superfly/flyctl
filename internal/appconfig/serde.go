@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/samber/lo"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -32,7 +33,16 @@ func LoadConfig(path string) (cfg *Config, err error) {
 }
 
 func (c *Config) WriteTo(w io.Writer) error {
-	return c.marshalTOML(w)
+	b, err := c.marshalTOML()
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(w, "# fly.toml file generated for %s on %s\n\n", c.AppName, time.Now().Format(time.RFC3339))
+	if err != nil {
+		return err
+	}
+	_, err = bytes.NewBuffer(b).WriteTo(w)
+	return err
 }
 
 func (c *Config) WriteToFile(filename string) (err error) {
@@ -50,7 +60,7 @@ func (c *Config) WriteToFile(filename string) (err error) {
 		}
 	}()
 
-	err = c.marshalTOML(file)
+	err = c.WriteTo(file)
 	return
 }
 
@@ -59,6 +69,87 @@ func (c *Config) WriteToDisk(ctx context.Context, path string) (err error) {
 	err = c.WriteToFile(path)
 	fmt.Fprintf(io.Out, "Wrote config file %s\n", helpers.PathRelativeToCWD(path))
 	return
+}
+
+// MarshalJSON implements the json.Marshaler interface
+func (c *Config) MarshalJSON() ([]byte, error) {
+	type noMarshalConfig Config
+	if c.platformVersion == MachinesPlatform {
+		return json.Marshal((*noMarshalConfig)(c))
+	}
+
+	sections, err := c.rawSections()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(lo.Assign(sections...))
+}
+
+// marshalTOML serializes the configuration to TOML format
+// NOTES:
+//   * It can't be called `MarshalTOML` because toml libraries don't support marshaler interface on root values
+//   * Needs to reimplements most of MarshalJSON to enforce order of fields
+//   * Instead of this, you usually need one WriteTo(), WriteToFile() or WriteToDsik()
+//
+func (c *Config) marshalTOML() ([]byte, error) {
+	var b bytes.Buffer
+	encoder := toml.NewEncoder(&b)
+
+	// For machines apps, encode and write directly, bypassing custom marshalling
+	if c.platformVersion == MachinesPlatform {
+		err := encoder.Encode(c)
+		return b.Bytes(), err
+	}
+
+	// FallBack for Nomad apps
+	sections, err := c.rawSections()
+	if err != nil {
+		return nil, err
+	}
+	for _, section := range sections {
+		if err := encoder.Encode(section); err != nil {
+			return nil, err
+		}
+	}
+	return b.Bytes(), nil
+}
+
+// rawSections returns configuration parts in serialization order for Nomad apps
+func (c *Config) rawSections() ([]map[string]any, error) {
+	// Write app name first to be sure it will be there at the top
+	sections := []map[string]any{
+		{"app": c.AppName},
+	}
+
+	rawData := c.SanitizedDefinition()
+	// Restore sections removed by SanitizedDefinition
+	if c.Build != nil {
+		rawData["build"] = c.Build
+	}
+	if c.PrimaryRegion != "" {
+		rawData["primary_region"] = c.PrimaryRegion
+	}
+	if c.HttpService != nil {
+		rawData["http_service"] = c.HttpService
+	}
+
+	if len(rawData) > 0 {
+		// roundtrip through json encoder to convert float64 numbers to json.Number,
+		// otherwise numbers are floats in toml
+		var buf bytes.Buffer
+		if err := json.NewEncoder(&buf).Encode(rawData); err != nil {
+			return nil, err
+		}
+
+		d := json.NewDecoder(&buf)
+		d.UseNumber()
+		if err := d.Decode(&rawData); err != nil {
+			return nil, err
+		}
+		sections = append(sections, rawData)
+	}
+
+	return sections, nil
 }
 
 func unmarshalTOML(buf []byte) (*Config, error) {
@@ -87,66 +178,6 @@ func unmarshalTOML(buf []byte) (*Config, error) {
 
 	cfg.RawDefinition = rawDefinition
 	return cfg, nil
-}
-
-func (c *Config) marshalTOML(w io.Writer) error {
-	var b bytes.Buffer
-	encoder := toml.NewEncoder(&b)
-
-	fmt.Fprintf(w, "# fly.toml file generated for %s on %s\n\n", c.AppName, time.Now().Format(time.RFC3339))
-
-	// For machines apps, encode and write directly, bypassing custom marshalling
-	if c.platformVersion == MachinesPlatform {
-		encoder.Encode(&c)
-		_, err := b.WriteTo(w)
-		return err
-	}
-
-	// Write app name first to be sure it will be there at the top
-	rawData := map[string]any{"app": c.AppName}
-	if err := encoder.Encode(rawData); err != nil {
-		return err
-	}
-
-	rawData = c.SanitizedDefinition()
-	// Restore sections removed by SanitizedDefinition
-	rawData["build"] = c.Build
-	if c.PrimaryRegion != "" {
-		rawData["primary_region"] = c.PrimaryRegion
-	}
-	if c.HttpService != nil {
-		rawData["http_service"] = c.HttpService
-	}
-
-	if len(rawData) > 0 {
-		// roundtrip through json encoder to convert float64 numbers to json.Number, otherwise numbers are floats in toml
-		var buf bytes.Buffer
-		if err := json.NewEncoder(&buf).Encode(rawData); err != nil {
-			return err
-		}
-
-		d := json.NewDecoder(&buf)
-		d.UseNumber()
-		if err := d.Decode(&rawData); err != nil {
-			return err
-		}
-
-		if err := encoder.Encode(rawData); err != nil {
-			return err
-		}
-	}
-
-	_, err := b.WriteTo(w)
-	return err
-}
-
-func (c *Config) toTOMLString() (string, error) {
-	var b bytes.Buffer
-	if err := toml.NewEncoder(&b).Encode(c); err != nil {
-		return "", err
-	} else {
-		return b.String(), nil
-	}
 }
 
 // Fallback method when we fail to parse fly.toml into Config

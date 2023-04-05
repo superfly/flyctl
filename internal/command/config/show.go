@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -49,5 +50,10 @@ func runShow(ctx context.Context) error {
 		return err
 	}
 
-	return cfg.WriteTo(io.Out)
+	b, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(io.Out, string(b))
+	return nil
 }

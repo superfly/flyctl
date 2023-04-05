@@ -30,11 +30,11 @@ func FromAppAndMachineSet(ctx context.Context, appCompact *api.AppCompact, machi
 	for _, m := range machines.GetMachines() {
 		appConfig, machineWarning := fromAppAndOneMachine(appCompact, m, processGroups)
 		warnings = append(warnings, machineWarning)
-		tomlString, err := appConfig.toTOMLString()
+		tomlString, err := appConfig.marshalTOML()
 		if err != nil {
 			warnings = append(warnings, warning("parse error", "error marshalling synthesized app config to fly.toml file for machine %s", m.Machine().ID))
 		} else {
-			tomlCounter.Capture(tomlString, &machineConfigPair{
+			tomlCounter.Capture(string(tomlString), &machineConfigPair{
 				appConfig: appConfig,
 				machine:   m,
 			})
@@ -47,10 +47,10 @@ func FromAppAndMachineSet(ctx context.Context, appCompact *api.AppCompact, machi
 	mostCommonConfig := report.mostCommonValues[0].appConfig
 	if len(report.others) > 0 {
 		for _, other := range report.otherValues {
-			otherToml, err := other.appConfig.toTOMLString()
+			otherToml, err := other.appConfig.marshalTOML()
 			if err == nil {
 				warnings = append(warnings, warning("fly.toml", `Machine %s currently has a config that will change with the new fly.toml. This is what will change:
-%s`, other.machine.Machine().ID, prettyDiff(otherToml, report.mostCommon, colorize)))
+%s`, other.machine.Machine().ID, prettyDiff(string(otherToml), report.mostCommon, colorize)))
 			}
 		}
 	}
