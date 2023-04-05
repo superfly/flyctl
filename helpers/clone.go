@@ -29,11 +29,12 @@ func CloneFallible[T any](v T) (T, error) {
 
 		var nilT T
 
-		vPtr := reflectedValue.Interface()
-		cloned := reflect.New(reflect.Indirect(reflectedValue).Type())
-		if cloned.Interface() == nil {
+		if reflectedValue.IsNil() {
 			return nilT, nil
 		}
+
+		vPtr := reflectedValue.Interface()
+		cloned := reflect.New(reflect.Indirect(reflectedValue).Type())
 		err := copier.CopyWithOption(cloned.Interface(), vPtr, copier.Option{IgnoreEmpty: true, DeepCopy: true})
 		if err != nil {
 			return nilT, err
