@@ -27,8 +27,9 @@ import (
 )
 
 const (
-	DefaultWaitTimeout = 120 * time.Second
-	DefaultLeaseTtl    = 13 * time.Second
+	DefaultWaitTimeout            = 120 * time.Second
+	DefaultLeaseTtl               = 13 * time.Second
+	DefaultReleaseCommandMemoryMb = 256
 )
 
 type MachineDeployment interface {
@@ -503,6 +504,9 @@ func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *
 	}
 	if _, present := launchInput.Config.Env["RELEASE_COMMAND"]; !present {
 		launchInput.Config.Env["RELEASE_COMMAND"] = "1"
+	}
+	if launchInput.Config.Guest == nil {
+		launchInput.Config.Guest = &api.MachineGuest{}
 	}
 	launchInput.Config.Guest.MemoryMB = md.releaseCommandMemory
 	return launchInput

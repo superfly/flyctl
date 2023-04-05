@@ -16,8 +16,9 @@ func stabMachineDeployment(appConfig *appconfig.Config) (*machineDeployment, err
 				ID: "my-dangling-org",
 			},
 		},
-		img:       "super/balloon",
-		appConfig: appConfig,
+		img:                  "super/balloon",
+		appConfig:            appConfig,
+		releaseCommandMemory: 891,
 	}
 	var err error
 	md.processConfigs, err = md.appConfig.GetProcessConfigs()
@@ -161,6 +162,9 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			DNS: &api.DNSConfig{
 				SkipRegistration: true,
 			},
+			Guest: &api.MachineGuest{
+				MemoryMB: 891,
+			},
 		},
 	}, md.resolveUpdatedMachineConfig(nil, true))
 
@@ -203,6 +207,9 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			AutoDestroy: true,
 			DNS: &api.DNSConfig{
 				SkipRegistration: true,
+			},
+			Guest: &api.MachineGuest{
+				MemoryMB: 891,
 			},
 		},
 	}, md.resolveUpdatedMachineConfig(origMachine, true))

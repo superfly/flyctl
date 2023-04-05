@@ -71,7 +71,7 @@ var CommonFlags = flag.Set{
 	flag.Int{
 		Name:        "release-command-memory",
 		Description: "Set release command machine memory to a number of megabytes",
-		Default:     256,
+		Default:     DefaultReleaseCommandMemoryMb,
 	},
 	flag.Bool{
 		Name:        "force-nomad",
