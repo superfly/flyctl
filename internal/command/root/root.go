@@ -29,6 +29,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/launch"
 	"github.com/superfly/flyctl/internal/command/logs"
 	"github.com/superfly/flyctl/internal/command/machine"
+	"github.com/superfly/flyctl/internal/command/migrate_to_v2"
 	"github.com/superfly/flyctl/internal/command/monitor"
 	"github.com/superfly/flyctl/internal/command/move"
 	"github.com/superfly/flyctl/internal/command/open"
@@ -47,6 +48,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/command/status"
 	"github.com/superfly/flyctl/internal/command/suspend"
+	"github.com/superfly/flyctl/internal/command/tokens"
 	"github.com/superfly/flyctl/internal/command/turboku"
 	"github.com/superfly/flyctl/internal/command/version"
 	"github.com/superfly/flyctl/internal/command/vm"
@@ -169,6 +171,8 @@ func New() *cobra.Command {
 		services.New(),
 		config.New(),
 		scale.New(),
+		migrate_to_v2.New(),
+		tokens.New(),
 	}
 
 	// if os.Getenv("DEV") != "" {

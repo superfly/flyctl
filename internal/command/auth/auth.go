@@ -68,14 +68,12 @@ func runWebLogin(ctx context.Context, signup bool) error {
 
 	token, err := waitForCLISession(ctx, logger, io.ErrOut, auth.ID)
 	switch {
-	case err == nil:
-		break
 	case errors.Is(err, context.DeadlineExceeded):
 		return errors.New("Login expired, please try again")
+	case err != nil:
+		return err
 	case token == "":
 		return errors.New("failed to log in, please try again")
-	default:
-		return err
 	}
 
 	if err := persistAccessToken(ctx, token); err != nil {

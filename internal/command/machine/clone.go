@@ -34,12 +34,13 @@ func newClone() *cobra.Command {
 		command.LoadAppConfigIfPresent,
 	)
 
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.RangeArgs(0, 1)
 
 	flag.Add(
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		selectFlag,
 		flag.String{
 			Name:        "region",
 			Description: "Target region for the new machine",
@@ -79,12 +80,11 @@ func newClone() *cobra.Command {
 
 func runMachineClone(ctx context.Context) (err error) {
 	var (
-		machineID = flag.FirstArg(ctx)
-		out       = iostreams.FromContext(ctx).Out
-		appName   = appconfig.NameFromContext(ctx)
-		io        = iostreams.FromContext(ctx)
-		colorize  = io.ColorScheme()
-		client    = client.FromContext(ctx).API()
+		out      = iostreams.FromContext(ctx).Out
+		appName  = appconfig.NameFromContext(ctx)
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
+		client   = client.FromContext(ctx).API()
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -92,7 +92,9 @@ func runMachineClone(ctx context.Context) (err error) {
 		return err
 	}
 
-	source, ctx, err := selectOneMachine(ctx, app, machineID)
+	machineID := flag.FirstArg(ctx)
+	haveMachineID := len(flag.Args(ctx)) > 0
+	source, ctx, err := selectOneMachine(ctx, app, machineID, haveMachineID)
 	if err != nil {
 		return err
 	}
@@ -184,7 +186,7 @@ func runMachineClone(ctx context.Context) (err error) {
 				fmt.Fprintf(out, "Volume '%s' will start empty\n", colorize.Bold(mnt.Name))
 			default:
 				snapshotID = &snapID
-				fmt.Fprintf(io.Out, "Creating new volume from snapshot: %s", colorize.Bold(*snapshotID))
+				fmt.Fprintf(io.Out, "Creating new volume from snapshot: %s\n", colorize.Bold(*snapshotID))
 			}
 
 			volInput := api.CreateVolumeInput{

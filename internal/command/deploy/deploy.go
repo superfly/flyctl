@@ -12,8 +12,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command"
@@ -105,6 +107,13 @@ func New() (cmd *cobra.Command) {
 }
 
 func run(ctx context.Context) error {
+	appName := appconfig.NameFromContext(ctx)
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("could not create flaps client: %w", err)
+	}
+	ctx = flaps.NewContext(ctx, flapsClient)
+
 	appConfig, err := determineAppConfig(ctx)
 	if err != nil {
 		return err
@@ -168,7 +177,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 
 		md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 			AppCompact:        appCompact,
-			DeploymentImage:   img,
+			DeploymentImage:   img.Tag,
 			Strategy:          flag.GetString(ctx, "strategy"),
 			EnvFromFlags:      flag.GetStringSlice(ctx, "env"),
 			PrimaryRegionFlag: primaryRegion,
@@ -249,25 +258,22 @@ func useMachines(ctx context.Context, appConfig *appconfig.Config, appCompact *a
 
 // determineAppConfig fetches the app config from a local file, or in its absence, from the API
 func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) {
+	io := iostreams.FromContext(ctx)
 	tb := render.NewTextBlock(ctx, "Verifying app config")
-	appNameFromContext := appconfig.NameFromContext(ctx)
-	if cfg = appconfig.ConfigFromContext(ctx); cfg == nil {
-		logger := logger.FromContext(ctx)
-		logger.Debug("no local app config detected; fetching from backend ...")
+	appName := appconfig.NameFromContext(ctx)
 
-		cfg, err = appconfig.FromRemoteApp(ctx, appNameFromContext)
+	if cfg = appconfig.ConfigFromContext(ctx); cfg == nil {
+		cfg, err = appconfig.FromRemoteApp(ctx, appName)
 		if err != nil {
-			return
+			return nil, err
 		}
 
 	}
 
 	if env := flag.GetStringSlice(ctx, "env"); len(env) > 0 {
-		var parsedEnv map[string]string
-		if parsedEnv, err = cmdutil.ParseKVStringsToMap(env); err != nil {
-			err = fmt.Errorf("failed parsing environment: %w", err)
-
-			return
+		parsedEnv, err := cmdutil.ParseKVStringsToMap(env)
+		if err != nil {
+			return nil, fmt.Errorf("failed parsing environment: %w", err)
 		}
 		cfg.SetEnvVariables(parsedEnv)
 	}
@@ -277,17 +283,20 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 	}
 
 	// Always prefer the app name passed via --app
-	if appNameFromContext != "" {
-		cfg.AppName = appNameFromContext
+	if appName != "" {
+		cfg.AppName = appName
 	}
 
-	err, _ = cfg.Validate(ctx)
+	err, extraInfo := cfg.Validate(ctx)
+	if extraInfo != "" {
+		fmt.Fprintf(io.Out, extraInfo)
+	}
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	tb.Done("Verified app config")
-	return
+	return cfg, nil
 }
 
 // determineImage picks the deployment strategy, builds the image and returns a
@@ -298,6 +307,14 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 
 	client := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
+
+	if len(appConfig.BuildStrategies()) > 0 {
+		foundDF := imgsrc.ResolveDockerfile(state.WorkingDirectory(ctx))
+		configDF, _ := resolveDockerfilePath(ctx, appConfig)
+		if foundDF != "" && foundDF != configDF {
+			terminal.Warnf("Ignoring %s due to config\n", foundDF)
+		}
+	}
 
 	resolver := imgsrc.NewResolver(daemonType, client, appConfig.AppName, io)
 
@@ -371,7 +388,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 
 	// finally, build the image
 	heartbeat := resolver.StartHeartbeat(ctx)
-	defer resolver.StopHeartbeat(heartbeat)
+	defer heartbeat.Stop()
 	if img, err = resolver.BuildImage(ctx, io, opts); err == nil && img == nil {
 		err = errors.New("no image specified")
 	}

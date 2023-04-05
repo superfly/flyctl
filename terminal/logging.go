@@ -42,6 +42,10 @@ func (l *Logger) SetLogLevel(lvl LogLevel) {
 	l.level = lvl
 }
 
+func (l *Logger) GetLogLevel() LogLevel {
+	return l.level
+}
+
 func Debug(v ...interface{}) {
 	DefaultLogger.Debug(v...)
 }

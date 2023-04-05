@@ -41,3 +41,93 @@ func TestConfigDockerGetters(t *testing.T) {
 	assert.Equal(t, nilCfg.Ignorefile(), "")
 	assert.Equal(t, nilCfg.DockerBuildTarget(), "")
 }
+
+func TestNilBuildStrategy(t *testing.T) {
+	var nilCfg *Config
+	assert.Equal(t, 0, len(nilCfg.BuildStrategies()))
+}
+
+func TestDefaultBuildStrategy(t *testing.T) {
+	cfg := Config{
+		Build: &Build{},
+	}
+
+	assert.Equal(t, 0, len(cfg.BuildStrategies()))
+}
+
+func TestOneBuildStrategy(t *testing.T) {
+	cfg := Config{
+		Build: &Build{
+			Builder: "heroku/buildpacks:20",
+		},
+	}
+
+	assert.Equal(t, 1, len(cfg.BuildStrategies()))
+}
+
+func TestManyBuildStrategies(t *testing.T) {
+	cfg := Config{
+		Build: &Build{
+			Dockerfile: "my-df",
+			Builder:    "heroku/buildpacks:20",
+			Builtin:    "node",
+			Image:      "nginx",
+		},
+	}
+
+	assert.Equal(t, 4, len(cfg.BuildStrategies()))
+}
+
+func TestConfigPortGetter(t *testing.T) {
+
+	type testcase struct {
+		name         string
+		config       Config
+		expectedPort int
+	}
+
+	testcases := []testcase{
+		{
+			name:         "no port set in services",
+			expectedPort: 0,
+			config:       Config{},
+		},
+		{
+			name:         "port set in services",
+			expectedPort: 1000,
+			config: Config{
+				Services: []Service{{InternalPort: 1000}},
+			},
+		},
+		{
+			name:         "port set in services and http services",
+			expectedPort: 3000,
+			config: Config{
+				HttpService: &HTTPService{
+					InternalPort: 3000,
+				},
+				Services: []Service{
+					{
+						InternalPort: 1000,
+					},
+				},
+			},
+		},
+		{
+			name:         "port set in http services",
+			expectedPort: 9876,
+			config: Config{
+				HttpService: &HTTPService{
+					InternalPort: 9876,
+				},
+			},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expectedPort, tc.config.InternalPort())
+		})
+	}
+
+}

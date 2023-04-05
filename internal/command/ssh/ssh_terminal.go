@@ -132,14 +132,15 @@ func SSHConnect(p *SSHParams, addr string) error {
 		endSpin()
 	}
 
-	term := &ssh.Terminal{
-		Stdin:  p.Stdin,
-		Stdout: p.Stdout,
-		Stderr: p.Stderr,
-		Mode:   "xterm",
+	sessIO := &ssh.SessionIO{
+		Stdin:    p.Stdin,
+		Stdout:   p.Stdout,
+		Stderr:   p.Stderr,
+		AllocPTY: true,
+		TermEnv:  "xterm",
 	}
 
-	if err := sshClient.Shell(context.Background(), term, p.Cmd); err != nil {
+	if err := sshClient.Shell(context.Background(), sessIO, p.Cmd); err != nil {
 		return errors.Wrap(err, "ssh shell")
 	}
 

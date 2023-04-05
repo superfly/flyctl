@@ -39,7 +39,7 @@ linters:
 
 # options for analysis running
 run:
-  go: "1.19"
+  go: "1.20"
 
   # default concurrency is a available CPU number
   concurrency: 4

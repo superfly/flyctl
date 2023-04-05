@@ -25,12 +25,13 @@ func newStop() *cobra.Command {
 		command.LoadAppNameIfPresent,
 	)
 
-	cmd.Args = cobra.MinimumNArgs(1)
+	cmd.Args = cobra.ArbitraryArgs
 
 	flag.Add(
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		selectFlag,
 	)
 
 	return cmd

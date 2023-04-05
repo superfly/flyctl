@@ -1,33 +1,20 @@
 FROM debian:bullseye as builder
 
+ENV PATH=/usr/local/node/bin:$PATH
 ARG NODE_VERSION={{ .nodeVersion }}
 {{ if .yarn -}}
 ARG YARN_VERSION={{ .yarnVersion }}
 {{ end }}
-RUN apt-get update; apt install -y curl python-is-python3 pkg-config build-essential
-RUN curl https://get.volta.sh | bash
-ENV VOLTA_HOME /root/.volta
-ENV PATH /root/.volta/bin:$PATH
+RUN apt-get update; apt install -y curl python-is-python3 pkg-config build-essential && \
+    curl -sL https://github.com/nodenv/node-build/archive/master.tar.gz | tar xz -C /tmp/ && \
+    /tmp/node-build-master/bin/node-build "${NODE_VERSION}" /usr/local/node && \
 {{ if .yarn -}}
-RUN volta install node@${NODE_VERSION} yarn@${YARN_VERSION}
-{{ else -}}
-RUN volta install node@${NODE_VERSION}
-{{ end }}
-#######################################################################
+    npm install -g yarn@$YARN_VERSION && \
+{{ end -}}
+    rm -rf /tmp/node-build-master
 
 RUN mkdir /app
 WORKDIR /app
-
-{{ if .yarn -}}
-# Yarn will not install any package listed in "devDependencies" when NODE_ENV is set to "production"
-# to install all modules: "yarn install --production=false"
-# Ref: https://classic.yarnpkg.com/lang/en/docs/cli/install/#toc-yarn-install-production-true-false
-{{ else -}}
-# NPM will not install any package listed in "devDependencies" when NODE_ENV is set to "production",
-# to install all modules: "npm install --production=false".
-# Ref: https://docs.npmjs.com/cli/v9/commands/npm-install#description
-{{ end }}
-ENV NODE_ENV production
 
 COPY . .
 
@@ -35,16 +22,17 @@ COPY . .
 RUN {{ .packager }} install && {{ .packager }} run build
 {{ else -}}
 RUN {{ .packager }} install
-{{ end -}}
-FROM debian:bullseye
+{{ end }}
+
+FROM debian:bullseye-slim
 
 LABEL fly_launch_runtime="nodejs"
 
-COPY --from=builder /root/.volta /root/.volta
+COPY --from=builder /usr/local/node /usr/local/node
 COPY --from=builder /app /app
 
 WORKDIR /app
 ENV NODE_ENV production
-ENV PATH /root/.volta/bin:$PATH
+ENV PATH /usr/local/node/bin:$PATH
 
 CMD [ "{{ .packager }}", "run", "start" ]

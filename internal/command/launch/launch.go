@@ -122,7 +122,9 @@ func run(ctx context.Context) (err error) {
 	fmt.Fprintln(io.Out, "Creating app in", workingDir)
 
 	srcInfo := new(scanner.SourceInfo)
-	config := new(scanner.ScannerConfig)
+	config := &scanner.ScannerConfig{
+		ExistingPort: appConfig.InternalPort(),
+	}
 
 	// Detect if --copy-config and --now flags are set. If so, limited set of
 	// fly.toml file updates. Helpful for deploying PRs when the project is
@@ -347,6 +349,12 @@ func run(ctx context.Context) (err error) {
 	if n := flag.GetInt(ctx, "internal-port"); n > 0 {
 		appConfig.SetInternalPort(n)
 	}
+
+	// remove auto-rollback from machine fly.tomls
+	if shouldUseMachines {
+		appConfig.Experimental = nil
+	}
+
 	// Finally write application configuration to fly.toml
 	if err := appConfig.WriteToDisk(ctx, configFilePath); err != nil {
 		return err

@@ -71,7 +71,8 @@ type Volume struct {
 	Destination string `toml:"destination" json:"destination"`
 }
 type ScannerConfig struct {
-	Mode string
+	Mode         string
+	ExistingPort int
 }
 
 func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {

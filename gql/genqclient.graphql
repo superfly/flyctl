@@ -1,0 +1,129 @@
+query GetAddOn($name: String) {
+	addOn(name: $name) {
+		id
+		name
+		publicUrl
+		privateIp
+		password
+		token
+		primaryRegion
+		readRegions
+		options
+		ssoLink
+		organization {
+			slug
+			paidPlan
+		}
+		addOnPlan {
+			id
+			name
+			displayName
+		}
+	}
+}
+
+mutation CreateAddOn($organizationId: ID!, $primaryRegion: String, $name: String, $planId: ID, $readRegions: [String!], $addOnType: AddOnType!, $options: JSON!) {
+	createAddOn(input: {organizationId: $organizationId, type: $addOnType, name: $name, planId: $planId, primaryRegion: $primaryRegion,
+			readRegions: $readRegions, options: $options}) {
+		addOn {
+			name
+			publicUrl
+			ssoLink
+			token
+		}
+	}
+}
+
+mutation CreateApp($input: CreateAppInput!) {
+	createApp(input: $input) {
+		app {
+			...AppData
+			config {
+				definition
+			}
+			regions {
+					name
+					code
+			}
+		}
+	}
+}
+
+query GetOrganization($slug: String!) {
+	organization(slug: $slug) {
+		id
+		name
+		slug
+		addOnSsoLink
+	}
+}
+
+query GetApp($name: String!) {
+	app(name: $name) {
+		...AppData
+	}
+}
+
+query GetAppsByRole($role: String!, $organizationId: ID!) {
+	apps(role: $role, organizationId: $organizationId) {
+		nodes {
+		...AppData
+		}
+	}
+}
+
+fragment AppData on App {
+	id
+	name
+	platformVersion
+	organization {
+		id
+		slug
+		rawSlug
+		paidPlan
+	}
+}
+
+mutation SetSecrets($input: SetSecretsInput!) {
+	setSecrets(input: $input) {
+		release {
+			id
+			version
+			reason
+			description
+			user {
+				id
+				email
+				name
+			}
+			evaluationId
+			createdAt
+		}
+	}
+}
+
+query GetNearestRegion{
+	nearestRegion {
+		code
+		name
+		gatewayAvailable
+	}
+}
+
+mutation CreateLimitedAccessToken($name: String!, $organizationId: ID!, $profile: String!, $profileParams: JSON, $expiry: String!) {
+	createLimitedAccessToken(input: {name: $name, organizationId: $organizationId, profile: $profile, profileParams: $profileParams, expiry: $expiry}) {
+		limitedAccessToken {
+			tokenHeader
+		}
+	}
+}
+
+mutation SetNomadVMCount($input: SetVMCountInput!) {
+	setVmCount(input: $input) {
+		taskGroupCounts {
+			name
+			count
+		}
+		warnings
+	}
+}

@@ -35,19 +35,14 @@ func runDashboard(ctx context.Context) (err error) {
 		client = client.FromContext(ctx).API().GenqClient
 	)
 
-	_ = `# @genqlient
-	query GetOrganization($slug: String!) {
-		organization(slug: $slug) {
-			id
-			name
-			addOnSsoLink
-		}
-	}
-	`
-
 	orgSlug := flag.FirstArg(ctx)
 
 	result, err := gql.GetOrganization(ctx, client, orgSlug)
+
+	if err != nil {
+		return err
+	}
+
 	url := result.Organization.AddOnSsoLink
 	fmt.Fprintf(io.Out, "Opening %s ...\n", url)
 

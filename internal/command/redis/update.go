@@ -41,29 +41,6 @@ func runUpdate(ctx context.Context) (err error) {
 
 	id := flag.FirstArg(ctx)
 
-	_ = `# @genqlient
-	query GetAddOn($name: String) {
-		addOn(name: $name) {
-			id
-			name
-			publicUrl
-			privateIp
-			password
-			primaryRegion
-			readRegions
-			options
-			organization {
-				slug
-				paidPlan
-			}
-			addOnPlan {
-				id
-				name
-				displayName
-			}
-		}
-	}
-`
 	response, err := gql.GetAddOn(ctx, client, id)
 	if err != nil {
 		return

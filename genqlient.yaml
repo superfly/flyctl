@@ -2,6 +2,7 @@
 # https://github.com/Khan/genqlient/blob/main/docs/genqlient.yaml
 schema: gql/schema.graphql
 operations:
+  - gql/genqclient.graphql
   - agent/**.go
   - api/**.go
   - internal/appconfig/*.go
@@ -13,4 +14,6 @@ bindings:
     type: interface{}
   BigInt:
     type: int64
+  ISO8601DateTime:
+    type: time.Time
 generated: gql/generated.go

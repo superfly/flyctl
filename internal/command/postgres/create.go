@@ -74,6 +74,11 @@ func newCreate() *cobra.Command {
 			Description: "Create a postgres cluster that's managed by Repmgr",
 			Default:     true,
 		},
+		flag.Bool{
+			Name:        "autostart",
+			Description: "Automatically start a stopped Postgres app when a network request is received",
+			Default:     false,
+		},
 	)
 
 	return cmd
@@ -121,11 +126,12 @@ func run(ctx context.Context) (err error) {
 		SnapshotID:            flag.GetString(ctx, "snapshot-id"),
 		Detach:                flag.GetDetach(ctx),
 		Manager:               flypg.StolonManager,
+		Autostart:             flag.GetBool(ctx, "autostart"),
 	}
 
-	params.Manager = flypg.StolonManager
-	if flag.GetBool(ctx, "flex") {
-		params.Manager = flypg.ReplicationManager
+	params.Manager = flypg.ReplicationManager
+	if flag.GetBool(ctx, "stolon") {
+		params.Manager = flypg.StolonManager
 	}
 
 	return CreateCluster(ctx, org, region, params)
@@ -144,6 +150,7 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 		ImageRef:     params.ImageRef,
 		Region:       region.Code,
 		Manager:      params.Manager,
+		Autostart:    params.Autostart,
 	}
 
 	customConfig := params.DiskGb != 0 || params.VMSize != "" || params.InitialClusterSize != 0
@@ -205,6 +212,7 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 			}
 		}
 		input.VolumeSize = api.IntPointer(params.DiskGb)
+		input.Autostart = params.Autostart
 	} else {
 		// Resolve configuration from pre-defined configuration.
 		vmSize, err := resolveVMSize(ctx, config.VMSize)
@@ -216,6 +224,7 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 		input.VolumeSize = api.IntPointer(config.DiskGb)
 		input.InitialClusterSize = config.InitialClusterSize
 		input.ImageRef = params.ImageRef
+		input.Autostart = params.Autostart
 	}
 
 	if params.Password != "" {
@@ -264,6 +273,7 @@ type ClusterParams struct {
 	SnapshotID string
 	Detach     bool
 	Manager    string
+	Autostart  bool
 }
 
 func postgresConfigurations(manager string) []PostgresConfiguration {

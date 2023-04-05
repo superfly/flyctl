@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
@@ -68,6 +69,12 @@ func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Rel
 	}
 
 	if app.PlatformVersion == "machines" {
+		flapsClient, err := flaps.New(ctx, app)
+		if err != nil {
+			return fmt.Errorf("could not create flaps client: %w", err)
+		}
+		ctx = flaps.NewContext(ctx, flapsClient)
+
 		// It would be confusing for setting secrets to deploy the current fly.toml file.
 		// Instead, we always grab the currently deployed app config
 		cfg, err := appconfig.FromRemoteApp(ctx, app.Name)

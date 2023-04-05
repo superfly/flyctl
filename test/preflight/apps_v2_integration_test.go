@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -61,46 +60,27 @@ func TestAppsV2Example(t *testing.T) {
 		f.Fatalf("GET %s never returned 200 OK response after %d tries; last status code was: %d", appUrl, attempts, lastStatusCode)
 	}
 
-	result = f.Fly("m list --json")
-	var machList []map[string]any
-	err = json.Unmarshal(result.StdOut().Bytes(), &machList)
-	if err != nil {
-		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
-	}
-	require.Equal(t, 1, len(machList), "expected exactly 1 machine after launch")
+	machList := f.MachinesList(appName)
+	require.Equal(t, len(machList), 1, "There should be exactly one machine")
 	firstMachine := machList[0]
-	firstMachineId, ok := firstMachine["id"].(string)
-	if !ok {
-		f.Fatalf("could find or convert id key to string from %s, stdout: %s firstMachine: %v", result.CmdString(), result.StdOut().String(), firstMachine)
-	}
 
-	// By default, autostart should be enabled
-	config := firstMachine["config"].(map[string]interface{})
-	// If disable_machine_autostart is set to false (the default value), it won't show up in the config
-	if autostart_disabled, ok := config["disable_machine_autostart"]; ok {
-		// If for some reason it does exist, then check that its set to false
-		require.Equal(t, false, autostart_disabled.(bool), "autostart was enabled")
-	}
+	var nilBoolPointer *bool = nil
+	require.Equal(t, firstMachine.Config.DisableMachineAutostart, nilBoolPointer, "autostart_disabled should be nil")
 
 	// Make sure disabling it works
-	f.Fly("m update %s --autostart=false -y", firstMachineId)
+	f.Fly("m update %s --autostart=false -y", firstMachine.ID)
 
-	result = f.Fly("m list --json")
-	err = json.Unmarshal(result.StdOut().Bytes(), &machList)
-	if err != nil {
-		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
-	}
+	machList = f.MachinesList(appName)
+	require.Equal(t, len(machList), 1, "There should be exactly one machine")
 	firstMachine = machList[0]
 
-	config = firstMachine["config"].(map[string]interface{})
-	autostart_disabled := config["disable_machine_autostart"].(bool)
-	require.Equal(t, true, autostart_disabled, "autostart was not disabled")
+	require.Equal(t, firstMachine.Config.DisableMachineAutostart, api.Pointer(true), "autostart_disabled should be set to true")
 
 	secondReg := f.PrimaryRegion()
 	if len(f.OtherRegions()) > 0 {
 		secondReg = f.OtherRegions()[0]
 	}
-	f.Fly("m clone --region %s %s", secondReg, firstMachineId)
+	f.Fly("m clone --region %s %s", secondReg, firstMachine.ID)
 
 	result = f.Fly("status")
 	require.Equal(f, 2, strings.Count(result.StdOut().String(), "started"), "expected 2 machines to be started after cloning the original, instead %s showed: %s", result.CmdString(), result.StdOut().String())
@@ -109,7 +89,7 @@ func TestAppsV2Example(t *testing.T) {
 	if len(f.OtherRegions()) > 1 {
 		thirdReg = f.OtherRegions()[1]
 	}
-	f.Fly("m clone --region %s %s", thirdReg, firstMachineId)
+	f.Fly("m clone --region %s %s", thirdReg, firstMachine.ID)
 
 	result = f.Fly("status")
 	require.Equal(f, 3, strings.Count(result.StdOut().String(), "started"), "expected 3 machines to be started after cloning the original, instead %s showed: %s", result.CmdString(), result.StdOut().String())
@@ -127,51 +107,10 @@ ENV BUILT_BY_DOCKERFILE=true
 	dockerfilePath := filepath.Join(f.WorkDir(), "Dockerfile")
 	err = os.WriteFile(dockerfilePath, []byte(dockerfileContent), 0644)
 	if err != nil {
-		t.Fatalf("failed to write dockerfile at %s error: %v", dockerfilePath, err)
+		f.Fatalf("failed to write dockerfile at %s error: %v", dockerfilePath, err)
 	}
 
 	f.Fly("deploy")
-
-	// FIXME: test the rest of the example:
-
-	// fly deploy
-
-	// mounts
-	// [mounts]
-	// destination = "/my/new/director
-
-	// scaling
-	// fly machine stop   9080524f610e87
-	// fly machine remove 9080524f610e87
-	// fly machine remove --force 0e286039f42e86
-	// fly machine update --memory 1024 21781973f03e89
-	// fly machine update --cpus 2 21781973f03e89
-
-	// processes
-	// fly machine update --metadata fly_process_group=app 21781973f03e89
-	// fly machine update --metadata fly_process_group=app 9e784925ad9683
-	// fly machine update --metadata fly_process_group=worker 148ed21a031189
-	// fly deploy
-	// [processes]
-	//   app = "nginx -g 'daemon off;'"
-	//   worker = "tail -F /dev/null" # not a very useful worker!
-	// [[services]]
-	//   processes = ["app"]
-	// fly machine clone --region gru 21781973f03e89
-	// fly machine clone --process-group worker 21781973f03e89
-
-	// call with --detach
-
-	// release commands
-	// failure mode:
-	// fly machine clone --clear-auto-destroy --clear-cmd MACHINE_ID
-
-	// restart app
-	// fly apps restart APP_NAME
-
-	// migrate existing app with machines
-
-	// statics
 }
 
 func TestAppsV2ConfigChanges(t *testing.T) {
@@ -301,6 +240,51 @@ func TestAppsV2ConfigSave_PostgresSingleNode(t *testing.T) {
     interval = "15s"
     timeout = "10s"
     path = "/flycheck/vm"`)
+}
+
+func TestAppsV2_PostgresAutostart(t *testing.T) {
+	var (
+		err     error
+		f       = testlib.NewTestEnvFromEnv(t)
+		appName = f.CreateRandomAppName()
+	)
+
+	f.Fly("pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1", f.OrgSlug(), appName, f.PrimaryRegion())
+
+	var machList []map[string]any
+
+	result := f.Fly("m list --json -a %s", appName)
+	err = json.Unmarshal(result.StdOut().Bytes(), &machList)
+	if err != nil {
+		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
+	}
+	require.Equal(t, 1, len(machList), "expected exactly 1 machine after launch")
+	firstMachine := machList[0]
+
+	config := firstMachine["config"].(map[string]interface{})
+	if autostart_disabled, ok := config["disable_machine_autostart"]; ok {
+		require.Equal(t, true, autostart_disabled.(bool), "autostart was enabled")
+	} else {
+		f.Fatalf("autostart wasn't disabled")
+	}
+
+	appName = f.CreateRandomAppName()
+
+	f.Fly("pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1 --autostart", f.OrgSlug(), appName, f.PrimaryRegion())
+
+	result = f.Fly("m list --json -a %s", appName)
+	err = json.Unmarshal(result.StdOut().Bytes(), &machList)
+	if err != nil {
+		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
+	}
+	require.Equal(t, 1, len(machList), "expected exactly 1 machine after launch")
+	firstMachine = machList[0]
+
+	config = firstMachine["config"].(map[string]interface{})
+
+	if autostart_disabled, ok := config["disable_machine_autostart"]; ok {
+		require.Equal(t, false, autostart_disabled.(bool), "autostart was enabled")
+	}
 }
 
 func TestAppsV2_PostgresNoMachines(t *testing.T) {
@@ -528,7 +512,7 @@ bar_web = "bash -c 'while true; do sleep 10; done'"
 	}
 	// This should never be empty; we verified it above in expectMachinesInGroups
 	// If you're going to be paranoid anywhere, though, it should be in tests.
-	assert.NotEmpty(t, webMachId, "could not find 'web' machine. this is a bug in the test.")
+	require.NotEmpty(t, webMachId, "could not find 'web' machine. this is a bug in the test.")
 
 	// Step 3: Clone "bar_web" to ensure that all machines get destroyed.
 	secondaryRegion := f.PrimaryRegion()
@@ -577,17 +561,37 @@ web = "nginx -g 'daemon off;'"
 			// Quick check to make sure the rest of the config is there.
 			cmd := m.Config.Init.Cmd
 			if len(cmd) <= 0 || cmd[0] != "nginx" {
-				t.Fatalf(`Expected command "nginx -g 'daemon off;'", got "%s".`, strings.Join(cmd, " "))
+				f.Fatalf(`Expected command "nginx -g 'daemon off;'", got "%s".`, strings.Join(cmd, " "))
 			}
 			val, ok := m.Config.Metadata["CUSTOM"]
-			assert.Equal(t, ok, true, "Expected machine to have metadata['CUSTOM']")
-			assert.Equal(t, val, "META", "Expected metadata['CUSTOM'] == 'META', got '%s'", val)
+			require.Equal(t, ok, true, "Expected machine to have metadata['CUSTOM']")
+			require.Equal(t, val, "META", "Expected metadata['CUSTOM'] == 'META', got '%s'", val)
 			val, ok = m.Config.Metadata["ABCD"]
-			assert.Equal(t, ok, true, "Expected machine to have metadata['ABCD']")
-			assert.Equal(t, val, "EFGH", "Expected metadata['ABCD'] == 'EFGH', got '%s'", val)
+			require.Equal(t, ok, true, "Expected machine to have metadata['ABCD']")
+			require.Equal(t, val, "EFGH", "Expected metadata['ABCD'] == 'EFGH', got '%s'", val)
 			break
 		}
 	}
-	assert.Equal(t, idMatchFound, true, "could not find 'web' machine with matching machine ID")
+	require.Equal(t, idMatchFound, true, "could not find 'web' machine with matching machine ID")
 
+}
+
+func TestAppsV2MigrateToV2(t *testing.T) {
+	var (
+		err     error
+		f       = testlib.NewTestEnvFromEnv(t)
+		appName = f.CreateRandomAppName()
+	)
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --force-nomad --image nginx", f.OrgSlug(), appName, f.PrimaryRegion())
+	time.Sleep(3 * time.Second)
+	f.Fly("migrate-to-v2 --primary-region %s --yes", f.PrimaryRegion())
+	result := f.Fly("status --json")
+
+	var statusMap map[string]any
+	err = json.Unmarshal(result.StdOut().Bytes(), &statusMap)
+	if err != nil {
+		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
+	}
+	platformVersion, _ := statusMap["PlatformVersion"].(string)
+	require.Equal(f, "machines", platformVersion)
 }
