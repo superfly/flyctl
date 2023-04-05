@@ -10,10 +10,11 @@ import (
 
 // Clone clones a structure.
 //   - this will panic if the structure is not serializable
-//   - See DeepCopyFallible
+//   - See CloneFallible
 func Clone[T any](v T) T {
 	ret, err := CloneFallible(v)
-	// Reference: https://github.com/jinzhu/copier/blob/20cee7e229707f8e3fd10f8ed21f3e6c08ca9463/errors.go
+	// Reference for what errors can be returned:
+	// https://github.com/jinzhu/copier/blob/20cee7e229707f8e3fd10f8ed21f3e6c08ca9463/errors.go
 	if err != nil {
 		typename := fmt.Sprintf("%T", v)
 		sentry.CaptureException(fmt.Errorf("failed to clone '%s': %w", typename, err))
