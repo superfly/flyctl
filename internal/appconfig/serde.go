@@ -31,6 +31,10 @@ func LoadConfig(path string) (cfg *Config, err error) {
 	return cfg, nil
 }
 
+func (c *Config) WriteTo(w io.Writer) error {
+	return c.marshalTOML(w)
+}
+
 func (c *Config) WriteToFile(filename string) (err error) {
 	if err = helpers.MkdirAll(filename); err != nil {
 		return
