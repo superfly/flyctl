@@ -482,14 +482,6 @@ func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context
 	}
 }
 
-func defaultReleaseMachineGuest() *api.MachineGuest {
-	guest := api.MachineGuest{}
-	if err := guest.SetSize("shared-cpu-2x"); err != nil {
-		panic(err)
-	}
-	return &guest
-}
-
 func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *api.LaunchMachineInput) *api.LaunchMachineInput {
 	launchInput.Config.Init.Cmd = md.releaseCommand
 	launchInput.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = api.MachineProcessGroupFlyAppReleaseCommand
@@ -508,7 +500,7 @@ func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *
 		launchInput.Config.Guest = &api.MachineGuest{}
 	}
 
-	desiredGuest := defaultReleaseMachineGuest()
+	desiredGuest := helpers.Clone(api.MachinePresets["shared-cpu-2x"])
 	if !md.machineSet.IsEmpty() {
 		group := md.appConfig.DefaultProcessName()
 		ram := func(m *api.Machine) int {

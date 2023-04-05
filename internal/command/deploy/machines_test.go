@@ -163,7 +163,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			DNS: &api.DNSConfig{
 				SkipRegistration: true,
 			},
-			Guest: defaultReleaseMachineGuest(),
+			Guest: api.MachinePresets["shared-cpu-2x"],
 		},
 	}, md.resolveUpdatedMachineConfig(nil, true))
 
@@ -207,7 +207,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			DNS: &api.DNSConfig{
 				SkipRegistration: true,
 			},
-			Guest: defaultReleaseMachineGuest(),
+			Guest: api.MachinePresets["shared-cpu-2x"],
 		},
 	}, md.resolveUpdatedMachineConfig(origMachine, true))
 }
