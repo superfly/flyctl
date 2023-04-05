@@ -23,7 +23,6 @@ import (
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
-	"golang.org/x/exp/slices"
 )
 
 const (
@@ -512,35 +511,22 @@ func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *
 	// it doesn't affect the machine it stole its config from
 	desiredGuest := *defaultReleaseMachineGuest()
 	if !md.machineSet.IsEmpty() {
-
-		// Given a process group, return the MachineGuest with the most ram
-		maxRamInGroup := func(group string) *api.MachineGuest {
-			var (
-				maxRam = 0
-				guest  *api.MachineGuest
-			)
-			for _, lm := range md.machineSet.GetMachines() {
-				mach := lm.Machine()
-				if mach.Config != nil && mach.Config.Env != nil && mach.ProcessGroup() == group && mach.Config.Guest != nil {
-					if mach.Config.Guest.MemoryMB > maxRam {
-						guest = mach.Config.Guest
-					}
-				}
+		group := md.appConfig.DefaultProcessName()
+		ram := func(m *api.Machine) int {
+			if m != nil && m.Config != nil && m.Config.Guest != nil {
+				return m.Config.Guest.MemoryMB
 			}
-			return guest
+			return 0
 		}
-
-		if maxRamInMachs := maxRamInGroup("app"); maxRamInMachs != nil {
-			desiredGuest = *maxRamInMachs
-		} else {
-			// No "main" app, sort lexicographically and just pick the first group
-			pgNames := lo.Keys(md.processConfigs)
-			if len(pgNames) > 0 {
-				slices.Sort(pgNames)
-				if maxRamInMachs = maxRamInGroup(pgNames[0]); maxRamInMachs != nil {
-					desiredGuest = *maxRamInMachs
-				}
+		maxRamMach := lo.Reduce(md.machineSet.GetMachines(), func(prevBest *api.Machine, lm machine.LeasableMachine, _ int) *api.Machine {
+			mach := lm.Machine()
+			if mach.ProcessGroup() != group {
+				return prevBest
 			}
+			return lo.Ternary(ram(mach) > ram(prevBest), mach, prevBest)
+		}, nil)
+		if maxRamMach != nil {
+			desiredGuest = *maxRamMach.Config.Guest
 		}
 	}
 	launchInput.Config.Guest = &desiredGuest
