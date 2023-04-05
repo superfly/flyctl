@@ -73,16 +73,18 @@ func (c *Config) WriteToDisk(ctx context.Context, path string) (err error) {
 
 // MarshalJSON implements the json.Marshaler interface
 func (c *Config) MarshalJSON() ([]byte, error) {
-	type noMarshalConfig Config
-	if c.platformVersion == MachinesPlatform {
-		return json.Marshal((*noMarshalConfig)(c))
+	switch {
+	case c == nil:
+		return json.Marshal(nil)
+	case c.platformVersion == MachinesPlatform:
+		return json.Marshal(*c)
+	default:
+		sections, err := c.rawSections()
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(lo.Assign(sections...))
 	}
-
-	sections, err := c.rawSections()
-	if err != nil {
-		return nil, err
-	}
-	return json.Marshal(lo.Assign(sections...))
 }
 
 // marshalTOML serializes the configuration to TOML format
@@ -95,20 +97,23 @@ func (c *Config) marshalTOML() ([]byte, error) {
 	var b bytes.Buffer
 	encoder := toml.NewEncoder(&b)
 
-	// For machines apps, encode and write directly, bypassing custom marshalling
-	if c.platformVersion == MachinesPlatform {
-		err := encoder.Encode(c)
-		return b.Bytes(), err
-	}
-
-	// FallBack for Nomad apps
-	sections, err := c.rawSections()
-	if err != nil {
-		return nil, err
-	}
-	for _, section := range sections {
-		if err := encoder.Encode(section); err != nil {
+	switch {
+	case c == nil:
+		break
+	case c.platformVersion == MachinesPlatform:
+		if err := encoder.Encode(c); err != nil {
 			return nil, err
+		}
+	default:
+		// FallBack for Nomad apps
+		sections, err := c.rawSections()
+		if err != nil {
+			return nil, err
+		}
+		for _, section := range sections {
+			if err := encoder.Encode(section); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return b.Bytes(), nil
