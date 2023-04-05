@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
@@ -66,6 +67,7 @@ type machineDeployment struct {
 	machineSet            machine.MachineSet
 	releaseCommandMachine machine.MachineSet
 	releaseCommand        []string
+	releaseCommandMemory  int
 	volumeDestination     string
 	volumes               []api.Volume
 	strategy              string
@@ -107,6 +109,12 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 			return nil, err
 		}
 	}
+	releaseCmdMemory := flag.GetInt(ctx, "release-command-memory")
+	if releaseCmdMemory == 0 {
+		return nil, fmt.Errorf("release-command-memory cannot be zero")
+	} else if releaseCmdMemory < 0 {
+		return nil, fmt.Errorf("release-command-memory must be a positive integer")
+	}
 	waitTimeout := args.WaitTimeout
 	if waitTimeout == 0 {
 		waitTimeout = DefaultWaitTimeout
@@ -126,21 +134,22 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	io := iostreams.FromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 	md := &machineDeployment{
-		apiClient:         apiClient,
-		gqlClient:         apiClient.GenqClient,
-		flapsClient:       flapsClient,
-		io:                io,
-		colorize:          io.ColorScheme(),
-		app:               args.AppCompact,
-		appConfig:         appConfig,
-		processConfigs:    processConfigs,
-		img:               args.DeploymentImage,
-		skipHealthChecks:  args.SkipHealthChecks,
-		restartOnly:       args.RestartOnly,
-		waitTimeout:       waitTimeout,
-		leaseTimeout:      leaseTimeout,
-		leaseDelayBetween: leaseDelayBetween,
-		releaseCommand:    releaseCmd,
+		apiClient:            apiClient,
+		gqlClient:            apiClient.GenqClient,
+		flapsClient:          flapsClient,
+		io:                   io,
+		colorize:             io.ColorScheme(),
+		app:                  args.AppCompact,
+		appConfig:            appConfig,
+		processConfigs:       processConfigs,
+		img:                  args.DeploymentImage,
+		skipHealthChecks:     args.SkipHealthChecks,
+		restartOnly:          args.RestartOnly,
+		waitTimeout:          waitTimeout,
+		leaseTimeout:         leaseTimeout,
+		leaseDelayBetween:    leaseDelayBetween,
+		releaseCommand:       releaseCmd,
+		releaseCommandMemory: releaseCmdMemory,
 	}
 	err = md.setStrategy(args.Strategy)
 	if err != nil {
@@ -495,6 +504,7 @@ func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *
 	if _, present := launchInput.Config.Env["RELEASE_COMMAND"]; !present {
 		launchInput.Config.Env["RELEASE_COMMAND"] = "1"
 	}
+	launchInput.Config.Guest.MemoryMB = md.releaseCommandMemory
 	return launchInput
 }
 
