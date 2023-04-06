@@ -95,23 +95,8 @@ func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) er
 
 func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *api.LaunchMachineInput) *api.LaunchMachineInput {
 	launchInput.Config.Init.Cmd = md.releaseCommand
-	launchInput.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = api.MachineProcessGroupFlyAppReleaseCommand
-	launchInput.Config.Restart = api.MachineRestart{
-		Policy: api.MachineRestartPolicyNo,
-	}
-	launchInput.Config.AutoDestroy = true
-	launchInput.Config.DNS = &api.DNSConfig{SkipRegistration: true}
-	if md.appConfig.PrimaryRegion != "" {
-		launchInput.Region = md.appConfig.PrimaryRegion
-	}
-	if _, present := launchInput.Config.Env["RELEASE_COMMAND"]; !present {
-		launchInput.Config.Env["RELEASE_COMMAND"] = "1"
-	}
-	if launchInput.Config.Guest == nil {
-		launchInput.Config.Guest = &api.MachineGuest{}
-	}
 
-	desiredGuest := helpers.Clone(api.MachinePresets["shared-cpu-2x"])
+	desiredGuest := api.MachinePresets["shared-cpu-2x"]
 	if !md.machineSet.IsEmpty() {
 		group := md.appConfig.DefaultProcessName()
 		ram := func(m *api.Machine) int {
@@ -120,6 +105,7 @@ func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *
 			}
 			return 0
 		}
+
 		maxRamMach := lo.Reduce(md.machineSet.GetMachines(), func(prevBest *api.Machine, lm machine.LeasableMachine, _ int) *api.Machine {
 			mach := lm.Machine()
 			if mach.ProcessGroup() != group {
