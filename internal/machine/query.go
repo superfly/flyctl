@@ -9,9 +9,7 @@ import (
 )
 
 func ListActive(ctx context.Context) ([]*api.Machine, error) {
-	var (
-		flapsClient = flaps.FromContext(ctx)
-	)
+	flapsClient := flaps.FromContext(ctx)
 
 	machines, err := flapsClient.List(ctx, "")
 	if err != nil {
@@ -19,9 +17,8 @@ func ListActive(ctx context.Context) ([]*api.Machine, error) {
 	}
 
 	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
-		return m.Config != nil && !m.IsReleaseCommandMachine() && m.State != "destroyed"
+		return m.Config != nil && m.IsActive() && !m.IsReleaseCommandMachine()
 	})
 
 	return machines, nil
-
 }
