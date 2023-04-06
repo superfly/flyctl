@@ -2,7 +2,13 @@
 // configuration files.
 package appconfig
 
-import "github.com/superfly/flyctl/api"
+import (
+	"strings"
+
+	"github.com/samber/lo"
+	"github.com/superfly/flyctl/api"
+	"golang.org/x/exp/slices"
+)
 
 const (
 	// DefaultConfigFileName denotes the default application configuration file name.
@@ -156,7 +162,7 @@ func (c *Config) MountsDestination() string {
 	return c.Mounts.Destination
 }
 
-func (c Config) InternalPort() int {
+func (c *Config) InternalPort() int {
 	if c.HttpService != nil {
 		return c.HttpService.InternalPort
 	}
@@ -165,4 +171,22 @@ func (c Config) InternalPort() int {
 		return c.Services[0].InternalPort
 	}
 	return 0
+}
+
+// ProcessNames lists each key of c.Processes, sorted lexicographically
+// If c.Processes == nil, returns ["app"]
+func (c *Config) ProcessNames() []string {
+	if len(c.Processes) == 0 {
+		return []string{"app"}
+	}
+	keys := lo.Keys(c.Processes)
+	slices.Sort(keys)
+	return keys
+}
+
+// FormatProcessNames formats the process group list like `['foo', 'bar']`
+func (c *Config) FormatProcessNames() string {
+	return "[" + strings.Join(lo.Map(c.ProcessNames(), func(s string, _ int) string {
+		return "'" + s + "'"
+	}), ", ") + "]"
 }
