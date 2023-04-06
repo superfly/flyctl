@@ -13,6 +13,7 @@ import (
 
 	genq "github.com/Khan/genqlient/graphql"
 	"github.com/superfly/graphql"
+	"golang.org/x/exp/slices"
 )
 
 var (
@@ -36,24 +37,28 @@ type Client struct {
 	client      *graphql.Client
 	GenqClient  genq.Client
 	accessToken string
-	userAgent   string
-	trace       string
 	logger      Logger
 }
 
 // NewClient - creates a new Client, takes an access token
 func NewClient(accessToken, name, version string, logger Logger) *Client {
-	httpClient, _ := NewHTTPClient(logger, http.DefaultTransport)
+	transport := &Transport{
+		UnderlyingTransport: http.DefaultTransport,
+		Token:               accessToken,
+		Ctx:                 context.Background(),
+		EnableDebugTrace:    !slices.Contains([]string{"", "0", "false"}, os.Getenv("FLY_FORCE_TRACE")),
+		UserAgent:           fmt.Sprintf("%s/%s", name, version),
+	}
+
+	httpClient, _ := NewHTTPClient(logger, transport)
 
 	url := fmt.Sprintf("%s/graphql", baseURL)
 
 	client := graphql.NewClient(url, graphql.WithHTTPClient(httpClient))
 
-	genqHttpClient, _ := NewHTTPClient(logger, &Transport{UnderlyingTransport: http.DefaultTransport, Token: accessToken, Ctx: context.Background()})
-	genqClient := genq.NewClient(url, genqHttpClient)
+	genqClient := genq.NewClient(url, httpClient)
 
-	userAgent := fmt.Sprintf("%s/%s", name, version)
-	return &Client{httpClient, client, genqClient, accessToken, userAgent, os.Getenv("FLY_FORCE_TRACE"), logger}
+	return &Client{httpClient, client, genqClient, accessToken, logger}
 }
 
 // NewRequest - creates a new GraphQL request
@@ -69,12 +74,6 @@ func (c *Client) Run(req *graphql.Request) (Query, error) {
 
 // RunWithContext - Runs a GraphQL request within a Go context
 func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Query, error) {
-	req.Header.Set("Authorization", AuthorizationHeader(c.accessToken))
-	req.Header.Set("User-Agent", c.userAgent)
-	if c.trace != "" {
-		req.Header.Set("Fly-Force-Trace", c.trace)
-	}
-
 	var resp Query
 	err := c.client.Run(ctx, req, &resp)
 
@@ -144,15 +143,17 @@ func GetAccessToken(ctx context.Context, email, password, otp string) (token str
 
 type Transport struct {
 	UnderlyingTransport http.RoundTripper
+	UserAgent           string
 	Token               string
 	Ctx                 context.Context
 	EnableDebugTrace    bool
 }
 
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.Header.Add("Authorization", AuthorizationHeader(t.Token))
+	req.Header.Set("Authorization", AuthorizationHeader(t.Token))
+	req.Header.Set("User-Agent", t.UserAgent)
 	if t.EnableDebugTrace {
-		req.Header.Add("Fly-Force-Trace", "true")
+		req.Header.Set("Fly-Force-Trace", "true")
 	}
 	return t.UnderlyingTransport.RoundTrip(req)
 }

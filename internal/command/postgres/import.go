@@ -177,14 +177,15 @@ func runImport(ctx context.Context) error {
 
 	// Initiate migration process
 	err = ssh.SSHConnect(&ssh.SSHParams{
-		Ctx:    ctx,
-		Org:    app.Organization,
-		Dialer: agent.DialerFromContext(ctx),
-		App:    app.Name,
-		Cmd:    resolveImportCommand(ctx),
-		Stdin:  os.Stdin,
-		Stdout: ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
-		Stderr: ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
+		Ctx:      ctx,
+		Org:      app.Organization,
+		Dialer:   agent.DialerFromContext(ctx),
+		App:      app.Name,
+		Username: ssh.DefaultSshUsername,
+		Cmd:      resolveImportCommand(ctx),
+		Stdin:    os.Stdin,
+		Stdout:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
+		Stderr:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
 	}, machine.PrivateIP)
 	if err != nil {
 		return fmt.Errorf("failed to run ssh: %s", err)
@@ -203,7 +204,7 @@ func runImport(ctx context.Context) error {
 
 	// Destroy machine
 	fmt.Fprintf(io.Out, "%s has been destroyed\n", machine.ID)
-	if err := flapsClient.Destroy(ctx, api.RemoveMachineInput{ID: machine.ID, AppID: app.ID}); err != nil {
+	if err := flapsClient.Destroy(ctx, api.RemoveMachineInput{ID: machine.ID, AppID: app.ID}, machine.LeaseNonce); err != nil {
 		return fmt.Errorf("failed to destroy machine %s: %s", machine.ID, err)
 	}
 

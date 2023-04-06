@@ -31,26 +31,29 @@ in JSON format. The configuration data is retrieved from the Fly service.`
 }
 
 func runShow(ctx context.Context) error {
-	var (
-		err       error
-		appName   = appconfig.NameFromContext(ctx)
-		apiClient = client.FromContext(ctx).API()
-	)
+	io := iostreams.FromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
+	apiClient := client.FromContext(ctx).API()
+
 	appCompact, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("error getting app with name %s: %w", appName, err)
 	}
+
 	ctx, err = apps.BuildContext(ctx, appCompact)
 	if err != nil {
 		return err
 	}
+
 	cfg, err := appconfig.FromRemoteApp(ctx, appName)
 	if err != nil {
 		return err
 	}
 
-	out := iostreams.FromContext(ctx).Out
-	buf, _ := json.MarshalIndent(cfg, "", "    ")
-	fmt.Fprintln(out, string(buf))
+	b, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(io.Out, string(b))
 	return nil
 }

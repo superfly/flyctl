@@ -107,9 +107,24 @@ func New() (cmd *cobra.Command) {
 }
 
 func run(ctx context.Context) error {
+	appName := appconfig.NameFromContext(ctx)
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("could not create flaps client: %w", err)
+	}
+	ctx = flaps.NewContext(ctx, flapsClient)
+
 	appConfig, err := determineAppConfig(ctx)
 	if err != nil {
 		return err
+	}
+
+	err, extra_info := appConfig.Validate(ctx)
+	if err != nil {
+		return err
+	}
+	if strings.Contains(extra_info, "Could not find App") {
+		return fmt.Errorf("the app name %s could not be found, did you create the app or misspell it in the fly.toml file or via -a?", appConfig.AppName)
 	}
 
 	return DeployWithConfig(ctx, appConfig, DeployWithConfigArgs{
@@ -170,7 +185,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 
 		md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 			AppCompact:        appCompact,
-			DeploymentImage:   img,
+			DeploymentImage:   img.Tag,
 			Strategy:          flag.GetString(ctx, "strategy"),
 			EnvFromFlags:      flag.GetStringSlice(ctx, "env"),
 			PrimaryRegionFlag: primaryRegion,
@@ -251,32 +266,22 @@ func useMachines(ctx context.Context, appConfig *appconfig.Config, appCompact *a
 
 // determineAppConfig fetches the app config from a local file, or in its absence, from the API
 func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) {
+	io := iostreams.FromContext(ctx)
 	tb := render.NewTextBlock(ctx, "Verifying app config")
-	appNameFromContext := appconfig.NameFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
+
 	if cfg = appconfig.ConfigFromContext(ctx); cfg == nil {
-		logger := logger.FromContext(ctx)
-		logger.Debug("no local app config detected; fetching from backend ...")
-
-		var flapsClient *flaps.Client
-		flapsClient, err = flaps.NewFromAppName(ctx, appNameFromContext)
+		cfg, err = appconfig.FromRemoteApp(ctx, appName)
 		if err != nil {
-			return nil, fmt.Errorf("could not create flaps client: %w", err)
-		}
-		ctx = flaps.NewContext(ctx, flapsClient)
-
-		cfg, err = appconfig.FromRemoteApp(ctx, appNameFromContext)
-		if err != nil {
-			return
+			return nil, err
 		}
 
 	}
 
 	if env := flag.GetStringSlice(ctx, "env"); len(env) > 0 {
-		var parsedEnv map[string]string
-		if parsedEnv, err = cmdutil.ParseKVStringsToMap(env); err != nil {
-			err = fmt.Errorf("failed parsing environment: %w", err)
-
-			return
+		parsedEnv, err := cmdutil.ParseKVStringsToMap(env)
+		if err != nil {
+			return nil, fmt.Errorf("failed parsing environment: %w", err)
 		}
 		cfg.SetEnvVariables(parsedEnv)
 	}
@@ -286,20 +291,20 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 	}
 
 	// Always prefer the app name passed via --app
-	if appNameFromContext != "" {
-		cfg.AppName = appNameFromContext
+	if appName != "" {
+		cfg.AppName = appName
 	}
 
 	err, extraInfo := cfg.Validate(ctx)
 	if extraInfo != "" {
-		fmt.Print(extraInfo)
+		fmt.Fprintf(io.Out, extraInfo)
 	}
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	tb.Done("Verified app config")
-	return
+	return cfg, nil
 }
 
 // determineImage picks the deployment strategy, builds the image and returns a

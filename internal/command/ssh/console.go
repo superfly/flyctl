@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -59,6 +60,16 @@ func stdArgsSSH(cmd *cobra.Command) {
 			Name:        "address",
 			Shorthand:   "A",
 			Description: "Address of VM to connect to",
+		},
+		flag.Bool{
+			Name:        "pty",
+			Description: "Allocate a pseudo-terminal (default: on when no command is provided)",
+		},
+		flag.String{
+			Name:        "user",
+			Shorthand:   "u",
+			Description: "Unix username to connect as",
+			Default:     DefaultSshUsername,
 		},
 	)
 }
@@ -178,14 +189,25 @@ func runConsole(ctx context.Context) error {
 
 	// BUG(tqbf): many of these are no longer really params
 	params := &SSHParams{
-		Ctx:    ctx,
-		Org:    app.Organization,
-		Dialer: dialer,
-		App:    appName,
-		Cmd:    flag.GetString(ctx, "command"),
-		Stdin:  os.Stdin,
-		Stdout: ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
-		Stderr: ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
+		Ctx:      ctx,
+		Org:      app.Organization,
+		Dialer:   dialer,
+		App:      appName,
+		Username: flag.GetString(ctx, "user"),
+		Cmd:      flag.GetString(ctx, "command"),
+		Stdin:    os.Stdin,
+		Stdout:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
+		Stderr:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
+	}
+
+	// TODO: eventually remove the exception for sh and bash.
+	allocPTY := params.Cmd == "" || flag.GetBool(ctx, "pty")
+	if !allocPTY && (params.Cmd == "sh" || params.Cmd == "/bin/sh" || params.Cmd == "bash" || params.Cmd == "/bin/bash") {
+		terminal.Warn(
+			"Allocating a pseudo-terminal since the command provided is a shell. " +
+				"This behavior will change in the future; please use --pty explicitly if this is what you want.",
+		)
+		allocPTY = true
 	}
 
 	if quiet(ctx) {
@@ -198,11 +220,12 @@ func runConsole(ctx context.Context) error {
 		return err
 	}
 
-	term := &ssh.Terminal{
-		Stdin:  params.Stdin,
-		Stdout: params.Stdout,
-		Stderr: params.Stderr,
-		Mode:   "xterm",
+	sessIO := &ssh.SessionIO{
+		Stdin:    params.Stdin,
+		Stdout:   params.Stdout,
+		Stderr:   params.Stderr,
+		AllocPTY: allocPTY,
+		TermEnv:  determineTermEnv(),
 	}
 
 	currentStdin, currentStdout, currentStderr, err := setupConsole()
@@ -213,7 +236,7 @@ func runConsole(ctx context.Context) error {
 		return nil
 	}()
 
-	if err := sshc.Shell(params.Ctx, term, params.Cmd); err != nil {
+	if err := sshc.Shell(params.Ctx, sessIO, params.Cmd); err != nil {
 		captureError(err, app)
 		return errors.Wrap(err, "ssh shell")
 	}
@@ -235,7 +258,7 @@ func sshConnect(p *SSHParams, addr string) (*ssh.Client, error) {
 
 	sshClient := &ssh.Client{
 		Addr: net.JoinHostPort(addr, "22"),
-		User: "root",
+		User: p.Username,
 
 		Dial: p.Dialer.DialContext,
 
@@ -386,4 +409,39 @@ func addrForNomad(ctx context.Context, agentclient *agent.Client, app *api.AppCo
 		return "", fmt.Errorf("no instances found for %s", app.Name)
 	}
 	return instances.Addresses[0], nil
+}
+
+const defaultTermEnv = "xterm"
+
+func determineTermEnv() string {
+	switch runtime.GOOS {
+	case "aix":
+		return determineTermEnvFromLocalEnv()
+	case "darwin":
+		return determineTermEnvFromLocalEnv()
+	case "dragonfly":
+		return determineTermEnvFromLocalEnv()
+	case "freebsd":
+		return determineTermEnvFromLocalEnv()
+	case "illumos":
+		return determineTermEnvFromLocalEnv()
+	case "linux":
+		return determineTermEnvFromLocalEnv()
+	case "netbsd":
+		return determineTermEnvFromLocalEnv()
+	case "openbsd":
+		return determineTermEnvFromLocalEnv()
+	case "solaris":
+		return determineTermEnvFromLocalEnv()
+	default:
+		return defaultTermEnv
+	}
+}
+
+func determineTermEnvFromLocalEnv() string {
+	if term := os.Getenv("TERM"); term != "" {
+		return term
+	} else {
+		return defaultTermEnv
+	}
 }

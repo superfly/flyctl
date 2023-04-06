@@ -257,7 +257,13 @@ func runMachineRun(ctx context.Context) error {
 		return fmt.Errorf("to update an existing machine, use 'flyctl machine update'")
 	}
 
-	machineConf, err = determineMachineConfig(ctx, *machineConf, app.Name, flag.FirstArg(ctx), input.Region)
+	machineConf, err = determineMachineConfig(ctx, &determineMachineConfigInput{
+		initialMachineConf: *machineConf,
+		appName:            app.Name,
+		imageOrPath:        flag.FirstArg(ctx),
+		region:             input.Region,
+		updating:           false,
+	})
 	if err != nil {
 		return err
 	}
@@ -620,8 +626,16 @@ func selectAppName(ctx context.Context) (name string, err error) {
 	return
 }
 
-func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineConfig, appName string, imageOrPath string, region string) (*api.MachineConfig, error) {
-	machineConf := mach.CloneConfig(&initialMachineConf)
+type determineMachineConfigInput struct {
+	initialMachineConf api.MachineConfig
+	appName            string
+	imageOrPath        string
+	region             string
+	updating           bool
+}
+
+func determineMachineConfig(ctx context.Context, input *determineMachineConfigInput) (*api.MachineConfig, error) {
+	machineConf := mach.CloneConfig(&input.initialMachineConf)
 
 	if guestSize := flag.GetString(ctx, "size"); guestSize != "" {
 		err := machineConf.Guest.SetSize(guestSize)
@@ -664,12 +678,18 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 		machineConf.Schedule = flag.GetString(ctx, "schedule")
 	}
 
-	if command := flag.GetString(ctx, "command"); command != "" {
-		split, err := shlex.Split(command)
-		if err != nil {
-			return machineConf, errors.Wrap(err, "invalid command")
+	if input.updating {
+		// Called from `update`. Command is specified by flag.
+		if command := flag.GetString(ctx, "command"); command != "" {
+			split, err := shlex.Split(command)
+			if err != nil {
+				return machineConf, errors.Wrap(err, "invalid command")
+			}
+			machineConf.Init.Cmd = split
 		}
-		machineConf.Init.Cmd = split
+	} else {
+		// Called from `run`. Command is specified by arguments.
+		machineConf.Init.Cmd = flag.Args(ctx)[1:]
 	}
 
 	if machineConf.DNS == nil {
@@ -717,36 +737,28 @@ func determineMachineConfig(ctx context.Context, initialMachineConf api.MachineC
 	case "always":
 		machineConf.Restart.Policy = api.MachineRestartPolicyAlways
 	case "":
-		// Apply the default only if it's not already set.
-		if machineConf.Restart.Policy == "" {
+		if flag.IsSpecified(ctx, "restart") {
+			// An empty policy was explicitly requested.
+			machineConf.Restart.Policy = ""
+		} else if !input.updating {
+			// This is a new machine; apply the default.
 			machineConf.Restart.Policy = api.MachineRestartPolicyAlways
 		}
 	default:
 		return machineConf, errors.New("invalid restart provided")
 	}
 
-	// `machine update` and `machine run` both use `determineMachineConfig`` to populate
-	// `machineConf`, but `update` uses `-a` to set an app while `run` uses the
-	// first argument.
-	// Since these are mutually exclusive, we distinguish between them by
-	// checking if `len(machineConf.Init.Cmd) == 0` and is already set, in which case we're being
-	// called from `run`.
-	// Otherwise, pull the command from the first positional argument.
-	if len(flag.Args(ctx)) > 1 && len(machineConf.Init.Cmd) == 0 {
-		machineConf.Init.Cmd = flag.Args(ctx)[1:]
-	}
-
-	machineConf.Mounts, err = determineMounts(ctx, machineConf.Mounts, region)
+	machineConf.Mounts, err = determineMounts(ctx, machineConf.Mounts, input.region)
 	if err != nil {
 		return machineConf, err
 	}
 
-	img, err := determineImage(ctx, appName, imageOrPath)
+	img, err := determineImage(ctx, input.appName, input.imageOrPath)
 	if err != nil {
 		return machineConf, err
 	}
 	machineConf.Image = img.Tag
-	machineConf.DisableMachineAutostart = !flag.GetBool(ctx, "autostart")
+	machineConf.DisableMachineAutostart = api.Pointer(!flag.GetBool(ctx, "autostart"))
 
 	return machineConf, nil
 }

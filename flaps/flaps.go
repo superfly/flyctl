@@ -337,10 +337,15 @@ func (f *Client) ListFlyAppsMachines(ctx context.Context) ([]*api.Machine, *api.
 	return machines, releaseCmdMachine, nil
 }
 
-func (f *Client) Destroy(ctx context.Context, input api.RemoveMachineInput) (err error) {
+func (f *Client) Destroy(ctx context.Context, input api.RemoveMachineInput, nonce string) (err error) {
+	headers := make(map[string][]string)
+	if nonce != "" {
+		headers[NonceHeader] = []string{nonce}
+	}
+
 	destroyEndpoint := fmt.Sprintf("/%s?kill=%t", input.ID, input.Kill)
 
-	if err := f.sendRequest(ctx, http.MethodDelete, destroyEndpoint, nil, nil, nil); err != nil {
+	if err := f.sendRequest(ctx, http.MethodDelete, destroyEndpoint, nil, nil, headers); err != nil {
 		return fmt.Errorf("failed to destroy VM %s: %w", input.ID, err)
 	}
 

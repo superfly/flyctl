@@ -46,10 +46,13 @@ func spin(in, out string) context.CancelFunc {
 	return cancel
 }
 
+const DefaultSshUsername = "root"
+
 type SSHParams struct {
 	Ctx            context.Context
 	Org            api.OrganizationImpl
 	App            string
+	Username       string
 	Dialer         agent.Dialer
 	Cmd            string
 	Stdin          io.Reader
@@ -58,7 +61,7 @@ type SSHParams struct {
 	DisableSpinner bool
 }
 
-func RunSSHCommand(ctx context.Context, app *api.AppCompact, dialer agent.Dialer, addr string, cmd string) ([]byte, error) {
+func RunSSHCommand(ctx context.Context, app *api.AppCompact, dialer agent.Dialer, addr string, cmd string, username string) ([]byte, error) {
 	var inBuf bytes.Buffer
 	var errBuf bytes.Buffer
 	var outBuf bytes.Buffer
@@ -71,6 +74,7 @@ func RunSSHCommand(ctx context.Context, app *api.AppCompact, dialer agent.Dialer
 		Org:            app.Organization,
 		Dialer:         dialer,
 		App:            app.Name,
+		Username:       username,
 		Cmd:            cmd,
 		Stdin:          inReader,
 		Stdout:         stdoutWriter,
@@ -102,7 +106,7 @@ func SSHConnect(p *SSHParams, addr string) error {
 
 	sshClient := &ssh.Client{
 		Addr: net.JoinHostPort(addr, "22"),
-		User: "root",
+		User: p.Username,
 
 		Dial: p.Dialer.DialContext,
 
@@ -128,14 +132,15 @@ func SSHConnect(p *SSHParams, addr string) error {
 		endSpin()
 	}
 
-	term := &ssh.Terminal{
-		Stdin:  p.Stdin,
-		Stdout: p.Stdout,
-		Stderr: p.Stderr,
-		Mode:   "xterm",
+	sessIO := &ssh.SessionIO{
+		Stdin:    p.Stdin,
+		Stdout:   p.Stdout,
+		Stderr:   p.Stderr,
+		AllocPTY: true,
+		TermEnv:  "xterm",
 	}
 
-	if err := sshClient.Shell(context.Background(), term, p.Cmd); err != nil {
+	if err := sshClient.Shell(context.Background(), sessIO, p.Cmd); err != nil {
 		return errors.Wrap(err, "ssh shell")
 	}
 
@@ -151,7 +156,7 @@ func singleUseSSHCertificate(ctx context.Context, org api.OrganizationImpl) (*ap
 		return nil, nil, err
 	}
 
-	icert, err := client.IssueSSHCertificate(ctx, org, []string{"root", "fly"}, nil, &hours, pub)
+	icert, err := client.IssueSSHCertificate(ctx, org, []string{DefaultSshUsername, "fly"}, nil, &hours, pub)
 	if err != nil {
 		return nil, nil, err
 	}

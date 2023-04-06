@@ -2,7 +2,9 @@
 // configuration files.
 package appconfig
 
-import "github.com/superfly/flyctl/api"
+import (
+	"github.com/superfly/flyctl/api"
+)
 
 const (
 	// DefaultConfigFileName denotes the default application configuration file name.
@@ -156,7 +158,7 @@ func (c *Config) MountsDestination() string {
 	return c.Mounts.Destination
 }
 
-func (c Config) InternalPort() int {
+func (c *Config) InternalPort() int {
 	if c.HttpService != nil {
 		return c.HttpService.InternalPort
 	}

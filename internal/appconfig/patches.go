@@ -15,6 +15,7 @@ var configPatches = []patchFuncType{
 	patchServices,
 	patchProcesses,
 	patchExperimental,
+	patchTopLevelChecks,
 	patchMounts,
 }
 
@@ -138,6 +139,32 @@ func patchMounts(cfg map[string]any) (map[string]any, error) {
 	return cfg, nil
 }
 
+func patchTopLevelChecks(cfg map[string]any) (map[string]any, error) {
+	raw, ok := cfg["checks"]
+	if !ok {
+		return cfg, nil
+	}
+
+	cast, ok := raw.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("'checks' section of unknown type: %T", cast)
+	}
+
+	for k, rawCheck := range cast {
+		castCheck, ok := rawCheck.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("'checks' section of unknown type: %T", castCheck)
+		}
+
+		check, err := _patchCheck(castCheck)
+		if err != nil {
+			return nil, err
+		}
+		cast[k] = check
+	}
+	return cfg, nil
+}
+
 func patchServices(cfg map[string]any) (map[string]any, error) {
 	if raw, ok := cfg["services"]; ok {
 		services, err := ensureArrayOfMap(raw)
@@ -243,21 +270,37 @@ func _patchChecks(rawChecks any) ([]map[string]any, error) {
 		return nil, err
 	}
 
-	for idx, check := range checks {
-		for _, attr := range []string{"interval", "timeout"} {
-			if v, ok := check[attr]; ok {
-				switch cast := v.(type) {
-				case string:
-					// Nothing to do here
-				case int64:
-					// Convert milliseconds to microseconds as expected by api.ParseDuration
-					check[attr] = time.Duration(cast) * time.Millisecond
-				}
-			}
+	for idx, rawCheck := range checks {
+		check, err := _patchCheck(rawCheck)
+		if err != nil {
+			return nil, err
 		}
 		checks[idx] = check
 	}
 	return checks, nil
+}
+
+func _patchCheck(check map[string]any) (map[string]any, error) {
+	for _, attr := range []string{"interval", "timeout"} {
+		if v, ok := check[attr]; ok {
+			switch cast := v.(type) {
+			case string:
+				// Nothing to do here
+			case int64:
+				// Convert milliseconds to microseconds as expected by api.ParseDuration
+				check[attr] = time.Duration(cast) * time.Millisecond
+			}
+		}
+	}
+	if v, ok := check["headers"]; ok {
+		switch cast := v.(type) {
+		case []any:
+			if len(cast) == 0 {
+				delete(check, "headers")
+			}
+		}
+	}
+	return check, nil
 }
 
 func castToInt(num any) (int, error) {

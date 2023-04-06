@@ -230,6 +230,34 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 	}, cfg)
 }
 
+func TestLoadTOMLAppConfigOldChecksFormat(t *testing.T) {
+	const path = "./testdata/old-pg-checks.toml"
+	cfg, err := LoadConfig(path)
+	assert.NoError(t, err)
+	assert.Equal(t, &Config{
+		configFilePath: "./testdata/old-pg-checks.toml",
+		AppName:        "foo",
+		Checks: map[string]*ToplevelCheck{
+			"pg": {
+				Port:     api.Pointer(5500),
+				Type:     api.Pointer("http"),
+				HTTPPath: api.Pointer("/flycheck/pg"),
+			},
+		},
+		RawDefinition: map[string]any{
+			"app": "foo",
+			"checks": map[string]any{
+				"pg": map[string]any{
+					"type":    "http",
+					"port":    int64(5500),
+					"path":    "/flycheck/pg",
+					"headers": []any{},
+				},
+			},
+		},
+	}, cfg)
+}
+
 func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 	const path = "./testdata/full-reference.toml"
 	cfg, err := LoadConfig(path)

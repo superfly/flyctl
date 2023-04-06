@@ -32,8 +32,10 @@ import (
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/sentry"
+	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -52,12 +54,15 @@ func newMigrateToV2() *cobra.Command {
 		usage, short, long, runMigrateToV2,
 		command.RequireSession, command.RequireAppName,
 	)
-	cmd.Hidden = true // FIXME: remove this when we're ready to announce
 	cmd.Args = cobra.NoArgs
 	flag.Add(cmd,
 		flag.Yes(),
 		flag.App(),
 		flag.AppConfig(),
+		flag.String{
+			Name:        "primary-region",
+			Description: "Specify primary region if one is not set in fly.toml",
+		},
 	)
 	return cmd
 }
@@ -112,41 +117,45 @@ type NewVolume struct {
 
 // FIXME: a lot of stuff is shared with MachineDeployment... might be useful to consolidate the shared stuff into another library/package/something
 type v2PlatformMigrator struct {
-	apiClient         *api.Client
-	flapsClient       *flaps.Client
-	gqlClient         graphql.Client
-	io                *iostreams.IOStreams
-	colorize          *iostreams.ColorScheme
-	leaseTimeout      time.Duration
-	leaseDelayBetween time.Duration
-	appCompact        *api.AppCompact
-	appFull           *api.App
-	appConfig         *appconfig.Config
-	autoscaleConfig   *api.AutoscalingConfig
-	volumeDestination string
-	processConfigs    map[string]*appconfig.ProcessConfig
-	img               string
-	appLock           string
-	releaseId         string
-	releaseVersion    int
-	oldAllocs         []*api.AllocationStatus
-	oldVmCounts       map[string]int
-	newMachinesInput  []*api.LaunchMachineInput
-	newMachines       machine.MachineSet
-	canAvoidDowntime  bool
-	recovery          recoveryState
-	isPostgres        bool
-	createdVolumes    []*NewVolume
-	primaryRegion     string
-	pgLeader          string
-	pgConsulUrl       string
+	apiClient               *api.Client
+	flapsClient             *flaps.Client
+	gqlClient               graphql.Client
+	io                      *iostreams.IOStreams
+	colorize                *iostreams.ColorScheme
+	leaseTimeout            time.Duration
+	leaseDelayBetween       time.Duration
+	appCompact              *api.AppCompact
+	appFull                 *api.App
+	appConfig               *appconfig.Config
+	configPath              string
+	autoscaleConfig         *api.AutoscalingConfig
+	volumeDestination       string
+	processConfigs          map[string]*appconfig.ProcessConfig
+	formattedProcessConfigs string
+	img                     string
+	appLock                 string
+	releaseId               string
+	releaseVersion          int
+	oldAllocs               []*api.AllocationStatus
+	machineGuest            *api.MachineGuest
+	oldVmCounts             map[string]int
+	newMachinesInput        []*api.LaunchMachineInput
+	newMachines             machine.MachineSet
+	canAvoidDowntime        bool
+	recovery                recoveryState
+	isPostgres              bool
+	createdVolumes          []*NewVolume
+	primaryRegion           string
+	pgLeader                string
+	pgConsulUrl             string
 }
 
 type recoveryState struct {
-	machinesCreated []*api.Machine
-	appLocked       bool
-	scaledToZero    bool
-	platformVersion string
+	machinesCreated        []*api.Machine
+	appLocked              bool
+	scaledToZero           bool
+	platformVersion        string
+	onlyPromptToConfigSave bool
 }
 
 func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigrator, error) {
@@ -175,6 +184,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		return nil, err
 	}
 	processConfigs, err := appConfig.GetProcessConfigs()
+	formattedProcessConfigs := appConfig.FormatProcessNames()
 	if err != nil {
 		return nil, err
 	}
@@ -191,26 +201,36 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	if err != nil {
 		return nil, err
 	}
+	vmSize, _, _, err := apiClient.AppVMResources(ctx, appName)
+	if err != nil {
+		return nil, err
+	}
+	machineGuest, err := determineVmSpecs(vmSize)
+	if err != nil {
+		return nil, err
+	}
 	leaseTimeout := 13 * time.Second
 	leaseDelayBetween := (leaseTimeout - 1*time.Second) / 3
 	migrator := &v2PlatformMigrator{
-		apiClient:         apiClient,
-		flapsClient:       flapsClient,
-		gqlClient:         apiClient.GenqClient,
-		io:                io,
-		colorize:          colorize,
-		leaseTimeout:      leaseTimeout,
-		leaseDelayBetween: leaseDelayBetween,
-		appCompact:        appCompact,
-		appFull:           appFull,
-		appConfig:         appConfig,
-		autoscaleConfig:   autoscaleConfig,
-		volumeDestination: appConfig.MountsDestination(),
-		processConfigs:    processConfigs,
-		img:               img,
-		oldAllocs:         allocs,
-		canAvoidDowntime:  true,
-		isPostgres:        appCompact.IsPostgresApp(),
+		apiClient:               apiClient,
+		flapsClient:             flapsClient,
+		gqlClient:               apiClient.GenqClient,
+		io:                      io,
+		colorize:                colorize,
+		leaseTimeout:            leaseTimeout,
+		leaseDelayBetween:       leaseDelayBetween,
+		appCompact:              appCompact,
+		appFull:                 appFull,
+		appConfig:               appConfig,
+		autoscaleConfig:         autoscaleConfig,
+		volumeDestination:       appConfig.MountsDestination(),
+		processConfigs:          processConfigs,
+		formattedProcessConfigs: formattedProcessConfigs,
+		img:                     img,
+		oldAllocs:               allocs,
+		machineGuest:            machineGuest,
+		canAvoidDowntime:        true,
+		isPostgres:              appCompact.IsPostgresApp(),
 		recovery: recoveryState{
 			platformVersion: appFull.PlatformVersion,
 		},
@@ -230,7 +250,15 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	if err != nil {
 		return nil, err
 	}
+	err = migrator.determinePrimaryRegion(ctx)
+	if err != nil {
+		return nil, err
+	}
 	err = migrator.prepMachinesToCreate(ctx)
+	if err != nil {
+		return nil, err
+	}
+	err = migrator.determineConfigPath(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -239,8 +267,26 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 }
 
 func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock) error {
+	defer func() {
+		if m.recovery.appLocked {
+			tb.Detail("Unlocking application")
+			err := m.unlockApp(ctx)
+			if err != nil {
+				fmt.Fprintf(m.io.ErrOut, "failed to unlock app: %v\n", err)
+			}
+		}
+		// HACK: machines apps use the suspended state to describe an app with no machines.
+		//       this means something different in nomad-land, so we resume just in case this got set.
+		_, err := m.apiClient.ResumeApp(ctx, m.appCompact.Name)
+		if err != nil {
+			if !strings.Contains(err.Error(), "not suspended") {
+				fmt.Fprintf(m.io.ErrOut, "failed to unsuspend app: %v\n", err)
+			}
+		}
+	}()
 
 	if len(m.recovery.machinesCreated) > 0 {
+		tb.Detailf("Removing machines")
 		for _, mach := range m.recovery.machinesCreated {
 
 			input := api.RemoveMachineInput{
@@ -248,7 +294,7 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 				ID:    mach.ID,
 				Kill:  true,
 			}
-			err := m.flapsClient.Destroy(ctx, input)
+			err := m.flapsClient.Destroy(ctx, input, mach.LeaseNonce)
 			if err != nil {
 				return err
 			}
@@ -260,6 +306,14 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 			if err != nil {
 				return err
 			}
+		}
+	}
+	if m.recovery.platformVersion != "nomad" {
+
+		tb.Detailf("Setting platform version to 'nomad'")
+		err := m.updateAppPlatformVersion(ctx, "nomad")
+		if err != nil {
+			return err
 		}
 	}
 	if m.recovery.scaledToZero && len(m.oldAllocs) > 0 {
@@ -279,26 +333,12 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 			return err
 		}
 	}
-	if m.recovery.appLocked {
-		tb.Detail("Unlocking application")
-		err := m.unlockApp(ctx)
-		if err != nil {
-			return err
-		}
-	}
-	if m.recovery.platformVersion != "nomad" {
-
-		tb.Detailf("Setting platform version to 'nomad'")
-		err := m.updateAppPlatformVersion(ctx, "nomad")
-		if err != nil {
-			return err
-		}
-	}
 	tb.Detail("Successfully recovered")
 	return nil
 }
 
 func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
+	ctx = flaps.NewContext(ctx, m.flapsClient)
 
 	tb := render.NewTextBlock(ctx, fmt.Sprintf("Migrating %s to the V2 platform", m.appCompact.Name))
 
@@ -307,6 +347,13 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	abortedErr := errors.New("migration aborted by user")
 	defer func() {
 		if err != nil {
+
+			if m.recovery.onlyPromptToConfigSave {
+				fmt.Fprintf(m.io.ErrOut, "Failed to save application config to disk, but migration was successful.\n")
+				fmt.Fprintf(m.io.ErrOut, "Please run `fly config save` before further interacting with your app via flyctl.\n")
+				return
+			}
+
 			header := ""
 			if err == abortedErr {
 				header = "(!) Received abort signal, restoring application to stable state..."
@@ -402,7 +449,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 		return abortedErr
 	}
 
-	tb.Detail("Booting up a new V2 VM")
+	tb.Detail("Starting machines")
 
 	err = m.createMachines(ctx)
 	if err != nil {
@@ -483,6 +530,14 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	tb.Detail("Updating the app platform platform type from V1 to V2")
 
 	err = m.updateAppPlatformVersion(ctx, "machines")
+	if err != nil {
+		return err
+	}
+
+	tb.Detail("Saving new configuration")
+
+	m.recovery.onlyPromptToConfigSave = true
+	err = m.appConfig.WriteToDisk(ctx, m.configPath)
 	if err != nil {
 		return err
 	}
@@ -819,10 +874,9 @@ func (m *v2PlatformMigrator) validateVolumes(ctx context.Context) error {
 }
 
 func (m *v2PlatformMigrator) validateProcessGroupsOnAllocs(ctx context.Context) error {
-	knownProcGroupsStr := strings.Join(lo.Keys(m.processConfigs), ", ")
 	for _, a := range m.oldAllocs {
 		if _, exists := m.processConfigs[a.TaskName]; !exists {
-			return fmt.Errorf("alloc %s has process group '%s' that is not present in app configuration fly.toml; known process groups are: %s", a.IDShort, a.TaskName, knownProcGroupsStr)
+			return fmt.Errorf("alloc %s has process group '%s' that is not present in app configuration fly.toml; known process groups are: %s", a.IDShort, a.TaskName, m.formattedProcessConfigs)
 		}
 	}
 	return nil
@@ -878,7 +932,6 @@ func (m *v2PlatformMigrator) createRelease(ctx context.Context) error {
 }
 
 func (m *v2PlatformMigrator) resolveProcessGroups(ctx context.Context) {
-
 	m.oldVmCounts = map[string]int{}
 	for _, alloc := range m.oldAllocs {
 		m.oldVmCounts[alloc.TaskName] += 1
@@ -886,7 +939,6 @@ func (m *v2PlatformMigrator) resolveProcessGroups(ctx context.Context) {
 }
 
 func (m *v2PlatformMigrator) scaleNomadToZero(ctx context.Context) error {
-
 	input := gql.SetVMCountInput{
 		AppId:  m.appConfig.AppName,
 		LockId: m.appLock,
@@ -912,7 +964,6 @@ func (m *v2PlatformMigrator) scaleNomadToZero(ctx context.Context) error {
 }
 
 func (m *v2PlatformMigrator) waitForAllocsZero(ctx context.Context) error {
-
 	s := spinner.New(spinner.CharSets[9], 200*time.Millisecond)
 	s.Writer = m.io.ErrOut
 	s.Prefix = fmt.Sprintf("Waiting for nomad allocs for '%s' to be destroyed ", m.appCompact.Name)
@@ -929,7 +980,6 @@ func (m *v2PlatformMigrator) waitForAllocsZero(ctx context.Context) error {
 	for {
 		select {
 		case <-time.After(b.Duration()):
-			// TODO: Should showCompleted be true or false?
 			currentAllocs, err := m.apiClient.GetAllocations(ctx, m.appCompact.Name, false)
 			if err != nil {
 				return err
@@ -980,10 +1030,15 @@ func (m *v2PlatformMigrator) createMachines(ctx context.Context) error {
 		}
 		newMachine, err := m.flapsClient.Launch(ctx, *machineInput)
 		if err != nil {
-			// FIXME: release app lock,
 			return fmt.Errorf("failed creating a machine in region %s: %w", machineInput.Region, err)
 		}
 		newlyCreatedMachines = append(newlyCreatedMachines, newMachine)
+	}
+	for _, mach := range newlyCreatedMachines {
+		err := machine.WaitForStartOrStop(ctx, mach, "start", time.Minute*5)
+		if err != nil {
+			return err
+		}
 	}
 	m.newMachines = machine.NewMachineSet(m.flapsClient, m.io, newlyCreatedMachines)
 	return nil
@@ -1043,17 +1098,22 @@ func (m *v2PlatformMigrator) defaultMachineMetadata() map[string]string {
 }
 
 func (m *v2PlatformMigrator) prepMachinesToCreate(ctx context.Context) error {
-	m.newMachinesInput = m.resolveMachinesFromAllocs()
+	var err error
+	m.newMachinesInput, err = m.resolveMachinesFromAllocs()
 	// FIXME: add extra machines that are stopped by default, based on scaling/autoscaling config for the app
-	return nil
+	return err
 }
 
-func (m *v2PlatformMigrator) resolveMachinesFromAllocs() []*api.LaunchMachineInput {
+func (m *v2PlatformMigrator) resolveMachinesFromAllocs() ([]*api.LaunchMachineInput, error) {
 	var res []*api.LaunchMachineInput
 	for _, alloc := range m.oldAllocs {
-		res = append(res, m.resolveMachineFromAlloc(alloc))
+		mach, err := m.resolveMachineFromAlloc(alloc)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, mach)
 	}
-	return res
+	return res, nil
 }
 
 func (m *v2PlatformMigrator) volumeForPrevAlloc(id string) (bool, *api.Volume) {
@@ -1065,13 +1125,16 @@ func (m *v2PlatformMigrator) volumeForPrevAlloc(id string) (bool, *api.Volume) {
 	return false, nil
 }
 
-func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus) *api.LaunchMachineInput {
+func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus) (*api.LaunchMachineInput, error) {
 	launchInput := &api.LaunchMachineInput{
 		AppID:   m.appFull.Name,
 		OrgSlug: m.appFull.Organization.ID,
 		Region:  alloc.Region,
 		Config:  &api.MachineConfig{},
 	}
+
+	launchInput.Config.Guest = m.machineGuest
+
 	launchInput.Config.Metadata = m.defaultMachineMetadata()
 	launchInput.Config.Image = m.img
 	launchInput.Config.Env = lo.Assign(m.appConfig.Env)
@@ -1105,12 +1168,50 @@ func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus
 	launchInput.Config.Services = processConfig.Services
 	launchInput.Config.Checks = processConfig.Checks
 	launchInput.Config.Init.Cmd = lo.Ternary(len(processConfig.Cmd) > 0, processConfig.Cmd, nil)
-	//fmt.Printf("%#v\n\n", launchInput.Config)
-	return launchInput
+	return launchInput, nil
+}
+
+func (m *v2PlatformMigrator) determinePrimaryRegion(ctx context.Context) error {
+	if fromFlag := flag.GetString(ctx, "primary-region"); fromFlag != "" {
+		m.appConfig.PrimaryRegion = fromFlag
+		return nil
+	}
+	if val, ok := m.appConfig.Env["PRIMARY_REGION"]; ok {
+		m.appConfig.PrimaryRegion = val
+		return nil
+	}
+
+	// TODO: If this ends up used by postgres migrations, it might be nice to have
+	//       the prompt here reflect the special role `primary_region` plays for postgres apps
+
+	region, err := prompt.Region(ctx, !m.appFull.Organization.PaidPlan, prompt.RegionParams{
+		Message: "Choose the primary region for this app:",
+	})
+	if err != nil {
+		return err
+	}
+	if region == nil {
+		return errors.New("no region provided")
+	}
+	m.appConfig.PrimaryRegion = region.Code
+	return nil
+}
+
+func (m *v2PlatformMigrator) determineConfigPath(ctx context.Context) error {
+	path := state.WorkingDirectory(ctx)
+	if flag.IsSpecified(ctx, "config") {
+		path = flag.GetString(ctx, "config")
+	}
+	configPath, err := appconfig.ResolveConfigFileFromPath(path)
+	if err != nil {
+		return err
+	}
+
+	m.configPath = configPath
+	return nil
 }
 
 func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
-
 	numAllocs := len(m.oldAllocs)
 
 	fmt.Fprintf(m.io.Out, "This migration process will do the following, in order:\n")
@@ -1154,10 +1255,15 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 
 	fmt.Fprintf(m.io.Out, " * Set the application platform version to \"machines\"\n")
 	fmt.Fprintf(m.io.Out, " * Unlock your application\n")
+	if exists, _ := appconfig.ConfigFileExistsAtPath(m.configPath); exists {
+		fmt.Fprintf(m.io.Out, " * Overwrite the config file at '%s'\n", m.configPath)
+	} else {
+		fmt.Fprintf(m.io.Out, " * Save the app's config file to '%s'\n", m.configPath)
+	}
 
 	confirm := false
 	prompt := &survey.Confirm{
-		Message: fmt.Sprintf("Would you like to continue?"),
+		Message: "Would you like to continue?",
 	}
 	err := survey.AskOne(prompt, &confirm)
 
@@ -1180,4 +1286,17 @@ func determineAppConfigForMachines(ctx context.Context) (*appconfig.Config, erro
 		cfg.AppName = appNameFromContext
 	}
 	return cfg, nil
+}
+
+func determineVmSpecs(vmSize api.VMSize) (*api.MachineGuest, error) {
+	preset := strings.Replace(vmSize.Name, "dedicated-cpu", "performance", 1)
+
+	guest := &api.MachineGuest{}
+	err := guest.SetSize(preset)
+	if err != nil {
+		return nil, fmt.Errorf("nomad VM definition incompatible with machines API: %w", err)
+	}
+	guest.MemoryMB = vmSize.MemoryMB
+
+	return guest, nil
 }

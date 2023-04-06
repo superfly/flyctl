@@ -79,7 +79,6 @@ func runMachineDestroy(ctx context.Context) (err error) {
 }
 
 func Destroy(ctx context.Context, app *api.AppCompact, machine *api.Machine, force bool) error {
-
 	var (
 		out         = iostreams.FromContext(ctx).Out
 		flapsClient = flaps.FromContext(ctx)
@@ -108,7 +107,7 @@ func Destroy(ctx context.Context, app *api.AppCompact, machine *api.Machine, for
 	}
 	fmt.Fprintf(out, "machine %s was found and is currently in %s state, attempting to destroy...\n", machine.ID, machine.State)
 
-	err := flapsClient.Destroy(ctx, input)
+	err := flapsClient.Destroy(ctx, input, machine.LeaseNonce)
 	if err != nil {
 		if err := rewriteMachineNotFoundErrors(ctx, err, machine.ID); err != nil {
 			return err

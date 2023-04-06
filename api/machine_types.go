@@ -424,6 +424,11 @@ type MachineServiceConcurrency struct {
 	SoftLimit int    `json:"soft_limit,omitempty" toml:"soft_limit,omitempty"`
 }
 
+type MachineFlyProxy struct {
+	AutostartMachine *bool `json:"autostart_machine,omitempty"`
+	AutostopMachine  *bool `json:"autostop_machine,omitempty"`
+}
+
 type MachineConfig struct {
 	Env                     map[string]string       `json:"env,omitempty"`
 	Init                    MachineInit             `json:"init,omitempty"`
@@ -441,7 +446,8 @@ type MachineConfig struct {
 	AutoDestroy             bool                    `json:"auto_destroy,omitempty"`
 	DNS                     *DNSConfig              `json:"dns,omitempty"`
 	Statics                 []*Static               `json:"statics,omitempty"`
-	DisableMachineAutostart bool                    `json:"disable_machine_autostart,omitempty"`
+	DisableMachineAutostart *bool                   `json:"disable_machine_autostart,omitempty"`
+	FlyProxy                *MachineFlyProxy        `json:"fly_proxy,omitempty"`
 }
 
 func (c *MachineConfig) ProcessGroup() string {

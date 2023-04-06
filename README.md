@@ -108,20 +108,32 @@ or
 
 `scripts/bump_version.sh`
 
-
 ## Running preflight tests
+
+A preflight suite of integration tests is located under the test/preflight/ directory. It uses a flyctl binary and runs real user scenarios, including deploying apps and dbs, and validates expected behavior.
+
+**Warning**: Real apps will be deployed that cost real money. The test fixture does its best to destroy resources it creates, but sometimes it may fail to delete a resource.
+
+The easiest way to run the preflight tests is:
 
 Copy `.direnv/preflight-example` to `.direnv/preflight` and edit following these guidelines:
 
 * Grab your auth token from `~/.fly/config.yml`
 * Do not use your "personal" org, create an new org (i.e. `flyctl-tests-YOURNAME`)
-  Ask for 100% comp for employees at https://flyio.discourse.team/t/employee-accounts-how-to-prevent-charges/526/95
 * Set 2 regions, ideally not your closest region because it leads
   to false positives when --region or primary region handling is buggy.
-	Run `fly platform regions` for valid ids
+	Run `fly platform regions` for valid ids.
 
 Finally run the tests:
 
 	make preflight-test
+
+That builds a flyctl binary (just like running `make`), then runs the preflight tests against that binary.
+
+To run a single test:
+
+```
+make preflight-test T=TestAppsV2Example
+```
 
 Oh, add more preflight tests at `tests/preflight/*`

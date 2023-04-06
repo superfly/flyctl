@@ -11,6 +11,10 @@ type Query struct {
 	Errors Errors
 
 	Apps struct {
+		PageInfo struct {
+			HasNextPage bool
+			EndCursor   string
+		}
 		Nodes []App
 	}
 	App                  App
