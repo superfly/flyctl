@@ -3,6 +3,7 @@ package apps
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -67,6 +68,10 @@ func runReleases(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed retrieving app releases %s: %w", appName, err)
 	}
+
+	sort.Slice(releases, func(i, j int) bool {
+		return releases[i].Version > releases[j].Version
+	})
 
 	out := iostreams.FromContext(ctx).Out
 	if config.FromContext(ctx).JSONOutput {
