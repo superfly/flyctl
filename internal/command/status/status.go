@@ -115,9 +115,9 @@ func once(ctx context.Context, out io.Writer) (err error) {
 
 		return
 	}
-	var regions api.RegionList
+	var backupRegions []api.Region
 	if status.Deployed && !jsonOutput {
-		if regions, err = client.ListAppRegions(ctx, appName); err != nil {
+		if _, backupRegions, err = client.ListAppRegions(ctx, appName); err != nil {
 			return fmt.Errorf("failed retrieving backup regions for %s: %w", appName, err)
 		}
 	}
@@ -157,7 +157,7 @@ func once(ctx context.Context, out io.Writer) (err error) {
 		}
 	}
 
-	err = render.AllocationStatuses(out, "Instances", regions.BackupRegions, status.Allocations...)
+	err = render.AllocationStatuses(out, "Instances", backupRegions, status.Allocations...)
 
 	return
 }

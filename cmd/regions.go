@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"strings"
+
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/flaps"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/docstrings"
@@ -67,7 +70,7 @@ func runRegionsAdd(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	printRegions(cmdCtx, api.RegionList{Regions: regions, BackupRegions: backupRegions})
+	printRegions(cmdCtx, regions, backupRegions)
 
 	return nil
 }
@@ -87,7 +90,7 @@ func runRegionsRemove(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	printRegions(cmdCtx, api.RegionList{Regions: regions, BackupRegions: backupRegions})
+	printRegions(cmdCtx, regions, backupRegions)
 
 	return nil
 }
@@ -99,14 +102,14 @@ func runRegionsSet(cmdCtx *cmdctx.CmdContext) error {
 	delList := make([]string, 0)
 
 	// Get the Region List
-	regions, err := cmdCtx.Client.API().ListAppRegions(ctx, cmdCtx.AppName)
+	regions, _, err := cmdCtx.Client.API().ListAppRegions(ctx, cmdCtx.AppName)
 	if err != nil {
 		return err
 	}
 
 	addList = append(addList, cmdCtx.Args...)
 
-	for _, er := range regions.Regions {
+	for _, er := range regions {
 		found := false
 		for _, r := range cmdCtx.Args {
 			if r == er.Code {
@@ -132,7 +135,7 @@ func runRegionsSet(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	printRegions(cmdCtx, api.RegionList{Regions: newregions, BackupRegions: backupRegions})
+	printRegions(cmdCtx, newregions, backupRegions)
 
 	return nil
 }
@@ -140,13 +143,51 @@ func runRegionsSet(cmdCtx *cmdctx.CmdContext) error {
 func runRegionsList(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 
-	regions, err := cmdCtx.Client.API().ListAppRegions(ctx, cmdCtx.AppName)
+	app, err := cmdCtx.Client.API().GetAppCompact(ctx, cmdCtx.AppName)
+
 	if err != nil {
 		return err
 	}
 
-	printRegions(cmdCtx, regions)
+	if app.PlatformVersion == "nomad" {
+		regions, backupRegions, err := cmdCtx.Client.API().ListAppRegions(ctx, cmdCtx.AppName)
+		if err != nil {
+			return err
+		}
 
+		printRegions(cmdCtx, regions, backupRegions)
+
+		return nil
+	}
+
+	flapsClient, err := flaps.NewFromAppName(ctx, cmdCtx.AppName)
+
+	if err != nil {
+		return err
+	}
+
+	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	machineRegionsMap := make(map[string]map[string]bool)
+	for _, machine := range machines {
+		if machineRegionsMap[machine.Config.ProcessGroup()] == nil {
+			machineRegionsMap[machine.Config.ProcessGroup()] = make(map[string]bool)
+		}
+		machineRegionsMap[machine.Config.ProcessGroup()][machine.Region] = true
+	}
+
+	machineRegions := make(map[string][]string)
+	for group, regions := range machineRegionsMap {
+		for region := range regions {
+			machineRegions[group] = append(machineRegions[group], region)
+		}
+	}
+
+	printApssV2Regions(cmdCtx, machineRegions)
 	return nil
 }
 
@@ -163,7 +204,7 @@ func runBackupRegionsSet(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	printRegions(cmdCtx, api.RegionList{Regions: regions, BackupRegions: backupRegions})
+	printRegions(cmdCtx, regions, backupRegions)
 
 	return nil
 }
@@ -173,14 +214,10 @@ type printableProcessGroup struct {
 	Regions []string
 }
 
-func printRegions(ctx *cmdctx.CmdContext, regions api.RegionList) {
-	if regions.PlatformVersion == "nomad" {
-		printNomadRegions(ctx, regions)
-	}
-
+func printApssV2Regions(ctx *cmdctx.CmdContext, machineRegions map[string][]string) {
 	if ctx.OutputJSON() {
 		jsonPg := []printableProcessGroup{}
-		for group, regionlist := range regions.MachineRegions {
+		for group, regionlist := range machineRegions {
 			jsonPg = append(jsonPg, printableProcessGroup{
 				Name:    group,
 				Regions: regionlist,
@@ -198,34 +235,21 @@ func printRegions(ctx *cmdctx.CmdContext, regions api.RegionList) {
 		return
 	}
 
-	for group, regionlist := range regions.MachineRegions {
-		ctx.Statusf("regions", cmdctx.STITLE, "Regions [%s]:\n", group)
-
-		for _, r := range regionlist {
-			ctx.Status("regions", cmdctx.SINFO, r)
-		}
+	for group, regionlist := range machineRegions {
+		ctx.Statusf("regions", cmdctx.STITLE, "Regions [%s]: ", group)
+		ctx.Status("regions", cmdctx.SINFO, strings.Join(regionlist, ", "))
 	}
 }
 
-func printNomadRegions(ctx *cmdctx.CmdContext, regions api.RegionList) {
+func printRegions(ctx *cmdctx.CmdContext, regions []api.Region, backupRegions []api.Region) {
 	if ctx.OutputJSON() {
-		jsonPg := []printableProcessGroup{}
-		for _, pg := range regions.ProcessGroups {
-			jsonPg = append(jsonPg, printableProcessGroup{
-				Name:    pg.Name,
-				Regions: pg.Regions,
-			})
-		}
-
 		// only show pg if there's more than one
 		data := struct {
-			Regions             []api.Region
-			BackupRegions       []api.Region
-			ProcessGroupRegions []printableProcessGroup
+			Regions       []api.Region
+			BackupRegions []api.Region
 		}{
-			Regions:             regions.Regions,
-			BackupRegions:       regions.BackupRegions,
-			ProcessGroupRegions: jsonPg,
+			Regions:       regions,
+			BackupRegions: backupRegions,
 		}
 		ctx.WriteJSON(data)
 
@@ -234,24 +258,13 @@ func printNomadRegions(ctx *cmdctx.CmdContext, regions api.RegionList) {
 
 	verbose := ctx.GlobalConfig.GetBool("verbose")
 
-	if len(regions.ProcessGroups) > 1 {
-		for _, pg := range regions.ProcessGroups {
-			ctx.Statusf("processGroupRegions", cmdctx.STITLE, "Region Pool [%s]:\n", pg.Name)
-
-			for _, r := range pg.Regions {
-				ctx.Status("processGroupRegions", cmdctx.SINFO, r)
-			}
-		}
-		return
-	}
-
 	if verbose {
 		ctx.Status("regions", cmdctx.STITLE, "Current Region Pool:")
 	} else {
 		ctx.Status("regions", cmdctx.STITLE, "Region Pool: ")
 	}
 
-	for _, r := range regions.Regions {
+	for _, r := range regions {
 		if verbose {
 			ctx.Statusf("regions", cmdctx.SINFO, "  %s  %s\n", r.Code, r.Name)
 		} else {
@@ -265,7 +278,7 @@ func printNomadRegions(ctx *cmdctx.CmdContext, regions api.RegionList) {
 		ctx.Status("backupRegions", cmdctx.STITLE, "Backup Region: ")
 	}
 
-	for _, r := range regions.BackupRegions {
+	for _, r := range backupRegions {
 		if verbose {
 			ctx.Statusf("backupRegions", cmdctx.SINFO, "  %s  %s\n", r.Code, r.Name)
 		} else {

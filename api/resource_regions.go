@@ -1,8 +1,6 @@
 package api
 
-import (
-	"context"
-)
+import "context"
 
 func (c *Client) ConfigureRegions(ctx context.Context, input ConfigureRegionsInput) ([]Region, []Region, error) {
 	query := `
@@ -32,15 +30,7 @@ func (c *Client) ConfigureRegions(ctx context.Context, input ConfigureRegionsInp
 	return data.ConfigureRegions.Regions, data.ConfigureRegions.BackupRegions, nil
 }
 
-type RegionList struct {
-	PlatformVersion string
-	Regions         []Region
-	BackupRegions   []Region
-	ProcessGroups   []ProcessGroup
-	MachineRegions  map[string][]string
-}
-
-func (c *Client) ListAppRegions(ctx context.Context, appName string) (RegionList, error) {
+func (c *Client) ListAppRegions(ctx context.Context, appName string) ([]Region, []Region, error) {
 	query := `
 		query ($appName: String!) {
 			app(name: $appName) {
@@ -52,17 +42,6 @@ func (c *Client) ListAppRegions(ctx context.Context, appName string) (RegionList
 					code
 					name
 				}
-				processGroups{
-					name
-					regions
-				}
-				platformVersion
-				machines {
-					nodes {
-						config
-						region
-					}
-				}
 			}
 		}
 	`
@@ -73,28 +52,10 @@ func (c *Client) ListAppRegions(ctx context.Context, appName string) (RegionList
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
-		return RegionList{}, err
+		return nil, nil, err
 	}
 
-	if data.App.PlatformVersion == "nomad" {
-		return RegionList{
-			PlatformVersion: data.App.PlatformVersion,
-			Regions:         *data.App.Regions,
-			BackupRegions:   *data.App.BackupRegions,
-			ProcessGroups:   data.App.ProcessGroups,
-		}, nil
-	}
-
-	regionList := RegionList{
-		PlatformVersion: data.App.PlatformVersion,
-		MachineRegions:  make(map[string][]string),
-	}
-
-	for _, node := range data.App.Machines.Nodes {
-		regionList.MachineRegions[node.Config.ProcessGroup()] = append(regionList.MachineRegions[node.Config.ProcessGroup()], node.Region)
-	}
-
-	return regionList, nil
+	return *data.App.Regions, *data.App.BackupRegions, nil
 }
 
 func (c *Client) GetNearestRegion(ctx context.Context) (*Region, error) {
