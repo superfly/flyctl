@@ -588,9 +588,38 @@ func (md *machineDeployment) launchInputForRestart(origMachineRaw *api.Machine) 
 	}
 }
 
+func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *api.Machine) *api.LaunchMachineInput {
+	if origMachineRaw == nil {
+		origMachineRaw = &api.Machine{
+			Region: md.appConfig.PrimaryRegion,
+		}
+	}
+	// We can ignore the error because ToReleaseMachineConfig fails only
+	// if it can't split the command and we test that at initialization
+	mConfig, _ := md.appConfig.ToReleaseMachineConfig()
+	md.setMachineReleaseData(mConfig)
+
+	return &api.LaunchMachineInput{
+		ID:      origMachineRaw.ID,
+		AppID:   md.app.Name,
+		OrgSlug: md.app.Organization.ID,
+		Config:  mConfig,
+		Region:  origMachineRaw.Region,
+	}
+}
+
+func (md *machineDeployment) setMachineReleaseData(mConfig *api.MachineConfig) {
+	mConfig.Image = md.img
+	mConfig.Metadata = md.computeMachineConfigMetadata(mConfig)
+}
+
 func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Machine, forReleaseCommand bool) *api.LaunchMachineInput {
 	if md.restartOnly {
 		return md.launchInputForRestart(origMachineRaw)
+	}
+	if forReleaseCommand {
+		launchInput := md.launchInputForReleaseCommand(origMachineRaw)
+		return md.configureLaunchInputForReleaseCommand(launchInput)
 	}
 
 	if origMachineRaw == nil {
@@ -608,20 +637,10 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 		Region:  origMachineRaw.Region,
 	}
 
-	launchInput.Config.Metadata = md.computeMachineConfigMetadata(launchInput.Config)
-	launchInput.Config.Statics = nil
-	launchInput.Config.Image = md.img
+	md.setMachineReleaseData(launchInput.Config)
 	launchInput.Config.Env = lo.Assign(md.appConfig.Env)
-
-	if launchInput.Config.Env["PRIMARY_REGION"] == "" && origMachineRaw.Config.Env["PRIMARY_REGION"] != "" {
-		launchInput.Config.Env["PRIMARY_REGION"] = origMachineRaw.Config.Env["PRIMARY_REGION"]
-	}
-
-	// Stop here If the machine is for release command
-	if forReleaseCommand {
-		launchInput.Config.Metrics = nil
-		launchInput.Config.Mounts = nil
-		return md.configureLaunchInputForReleaseCommand(launchInput)
+	if md.appConfig.PrimaryRegion != "" {
+		launchInput.Config.Env["PRIMARY_REGION"] = md.appConfig.PrimaryRegion
 	}
 
 	// Anything below this point doesn't apply to machines created to run ReleaseCommand
