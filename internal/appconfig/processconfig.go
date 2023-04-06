@@ -2,6 +2,7 @@ package appconfig
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/google/shlex"
 	"github.com/samber/lo"
@@ -22,7 +23,7 @@ func (c *Config) GetProcessConfigs() (map[string]*ProcessConfig, error) {
 	if processCount == 0 {
 		configProcesses[api.MachineProcessGroupApp] = ""
 	}
-	defaultProcessName := lo.Keys(configProcesses)[0]
+	defaultProcessName := c.DefaultProcessName()
 
 	for processName, cmdStr := range configProcesses {
 		cmd := make([]string, 0)
@@ -86,43 +87,63 @@ func (c *Config) GetProcessConfigs() (map[string]*ProcessConfig, error) {
 	return res, nil
 }
 
+// ProcessNames lists each key of c.Processes, sorted lexicographically
+// If c.Processes == nil, returns ["app"]
+func (c *Config) ProcessNames() []string {
+	onlyApp := []string{api.MachineProcessGroupApp}
+	switch {
+	case c == nil:
+		return onlyApp
+	case c.platformVersion == MachinesPlatform:
+		if len(c.Processes) == 0 {
+			return onlyApp
+		}
+		keys := lo.Keys(c.Processes)
+		slices.Sort(keys)
+		return keys
+	case c.platformVersion == "":
+		fallthrough
+	case c.platformVersion == DetachedPlatform:
+		fallthrough
+	case c.platformVersion == NomadPlatform:
+		switch cast := c.RawDefinition["processes"].(type) {
+		case map[string]any:
+			if len(cast) == 0 {
+				return onlyApp
+			}
+			keys := lo.Keys(cast)
+			slices.Sort(keys)
+			return keys
+		case map[string]string:
+			if len(cast) == 0 {
+				return onlyApp
+			}
+			keys := lo.Keys(cast)
+			slices.Sort(keys)
+			return keys
+		default:
+			return onlyApp
+		}
+	default:
+		return onlyApp
+	}
+}
+
+// FormatProcessNames formats the process group list like `['foo', 'bar']`
+func (c *Config) FormatProcessNames() string {
+	return "[" + strings.Join(lo.Map(c.ProcessNames(), func(s string, _ int) string {
+		return "'" + s + "'"
+	}), ", ") + "]"
+}
+
 // DefaultProcessName returns:
 // * "app" when no processes are defined
 // * "app" if present in the processes map
 // * The first process name in ascending lexicographical order
 func (c *Config) DefaultProcessName() string {
-	switch {
-	case c == nil:
-		return api.MachineProcessGroupApp
-	case c.platformVersion == MachinesPlatform:
-		if _, ok := c.Processes[api.MachineProcessGroupApp]; ok || len(c.Processes) == 0 {
-			return api.MachineProcessGroupApp
-		}
-		keys := lo.Keys(c.Processes)
-		slices.Sort(keys)
-		return keys[0]
-	case c.platformVersion == "":
-		fallthrough
-	case c.platformVersion == NomadPlatform:
-		switch cast := c.RawDefinition["processes"].(type) {
-		case map[string]any:
-			keys := lo.Keys(cast)
-			if _, ok := cast[api.MachineProcessGroupApp]; ok || len(keys) == 0 {
-				return api.MachineProcessGroupApp
-			}
-			slices.Sort(keys)
-			return keys[0]
-		case map[string]string:
-			keys := lo.Keys(cast)
-			if _, ok := cast[api.MachineProcessGroupApp]; ok || len(keys) == 0 {
-				return api.MachineProcessGroupApp
-			}
-			slices.Sort(keys)
-			return keys[0]
-		default:
-			return api.MachineProcessGroupApp
-		}
-	default:
+	processNames := c.ProcessNames()
+	if slices.Contains(processNames, api.MachineProcessGroupApp) {
 		return api.MachineProcessGroupApp
 	}
+	return c.ProcessNames()[0]
 }
