@@ -64,7 +64,6 @@ type machineDeployment struct {
 	img                   string
 	machineSet            machine.MachineSet
 	releaseCommandMachine machine.MachineSet
-	releaseCommand        []string
 	volumeDestination     string
 	volumes               []api.Volume
 	strategy              string
@@ -99,9 +98,8 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err != nil {
 		return nil, err
 	}
-	var releaseCmd []string
 	if appConfig.Deploy != nil {
-		releaseCmd, err = shlex.Split(appConfig.Deploy.ReleaseCommand)
+		_, err = shlex.Split(appConfig.Deploy.ReleaseCommand)
 		if err != nil {
 			return nil, err
 		}
@@ -139,7 +137,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		waitTimeout:       waitTimeout,
 		leaseTimeout:      leaseTimeout,
 		leaseDelayBetween: leaseDelayBetween,
-		releaseCommand:    releaseCmd,
 	}
 	err = md.setStrategy(args.Strategy)
 	if err != nil {

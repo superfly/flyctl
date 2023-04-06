@@ -69,7 +69,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			Path: "/prometheus",
 		},
 		Deploy: &appconfig.Deploy{
-			ReleaseCommand: "echo foo",
+			ReleaseCommand: "touch sky",
 		},
 		Mounts: &appconfig.Volume{
 			Source:      "data",
@@ -93,7 +93,6 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 	assert.NoError(t, err)
 	md.volumes = []api.Volume{{ID: "vol_12345"}}
 	md.volumeDestination = "/data"
-	md.releaseCommand = []string{"touch", "sky"}
 
 	// New app machine
 	assert.Equal(t, &api.LaunchMachineInput{

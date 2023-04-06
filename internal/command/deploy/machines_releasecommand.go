@@ -13,9 +13,10 @@ import (
 )
 
 func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
-	if len(md.releaseCommand) == 0 {
+	if md.appConfig.Deploy == nil || md.appConfig.Deploy.ReleaseCommand == "" {
 		return nil
 	}
+
 	io := iostreams.FromContext(ctx)
 	fmt.Fprintf(io.ErrOut, "Running %s release_command: %s\n",
 		md.colorize.Bold(md.app.Name),
@@ -94,8 +95,6 @@ func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) er
 }
 
 func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *api.LaunchMachineInput) *api.LaunchMachineInput {
-	launchInput.Config.Init.Cmd = md.releaseCommand
-
 	desiredGuest := api.MachinePresets["shared-cpu-2x"]
 	if !md.machineSet.IsEmpty() {
 		group := md.appConfig.DefaultProcessName()
