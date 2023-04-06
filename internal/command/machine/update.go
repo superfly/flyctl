@@ -45,6 +45,10 @@ func newUpdate() *cobra.Command {
 			Shorthand:   "C",
 			Description: "Command to run",
 		},
+		flag.String{
+			Name:        "mount-point",
+			Description: "New volume mount point",
+		},
 	)
 
 	cmd.Args = cobra.RangeArgs(0, 1)
@@ -96,6 +100,13 @@ func runUpdate(ctx context.Context) (err error) {
 	machineConf, err := determineMachineConfig(ctx, *machine.Config, appName, imageOrPath, machine.Region)
 	if err != nil {
 		return err
+	}
+
+	if mp := flag.GetString(ctx, "mount-point"); mp != "" {
+		if len(machineConf.Mounts) != 1 {
+			return fmt.Errorf("Machine doesn't have a volume attached")
+		}
+		machineConf.Mounts[0].Path = mp
 	}
 
 	// Prompt user to confirm changes
