@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/shlex"
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/sentry"
@@ -50,19 +51,19 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 	default:
 		return fmt.Errorf("Unknown platform version '%s' for app '%s'", platformVersion, appName), extra_info
 	}
-
 }
 
 func (cfg *Config) ValidateForMachinesPlatform(ctx context.Context) (err error, extra_info string) {
 	extra_info += cfg.validateBuildStrategies()
+	extra_info += cfg.validateDeploySection()
 	err = cfg.EnsureV2Config()
-	if err == nil {
-		extra_info += fmt.Sprintf("%s Configuration is valid\n", aurora.Green("✓"))
-		return nil, extra_info
-	} else {
+	if err != nil {
 		extra_info += fmt.Sprintf("\n   %s%s\n", aurora.Red("✘"), err)
 		return errors.New("App configuration is not valid"), extra_info
 	}
+
+	extra_info += fmt.Sprintf("%s Configuration is valid\n", aurora.Green("✓"))
+	return nil, extra_info
 }
 
 func (cfg *Config) ValidateForNomadPlatform(ctx context.Context) (err error, extra_info string) {
@@ -129,4 +130,14 @@ func (cfg *Config) BuildStrategies() []string {
 	}
 
 	return strategies
+}
+
+func (cfg *Config) validateDeploySection() (extraInfo string) {
+	if cfg.Deploy != nil {
+		_, err := shlex.Split(cfg.Deploy.ReleaseCommand)
+		if err != nil {
+			extraInfo += fmt.Sprintf("Can't shell split release command: '%s'", cfg.Deploy.ReleaseCommand)
+		}
+	}
+	return
 }
