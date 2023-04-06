@@ -21,7 +21,8 @@ func FromRemoteApp(ctx context.Context, appName string) (*Config, error) {
 	}
 
 	switch appCompact.PlatformVersion {
-	case NomadPlatform:
+	// Need a more elegant way to find out what side of detached we are on
+	case NomadPlatform, "detached":
 		serverCfg, err := apiClient.GetConfig(ctx, appName)
 		if err != nil {
 			return nil, err
