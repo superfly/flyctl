@@ -129,9 +129,8 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			}},
 			Checks: map[string]api.MachineCheck{
 				"alive": {
-					Port:        api.Pointer(8080),
-					Type:        api.Pointer("tcp"),
-					HTTPHeaders: []api.MachineHTTPHeader{},
+					Port: api.Pointer(8080),
+					Type: api.Pointer("tcp"),
 				},
 			},
 		},
