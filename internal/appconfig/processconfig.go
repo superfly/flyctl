@@ -89,18 +89,14 @@ func (c *Config) GetProcessConfigs() (map[string]*ProcessConfig, error) {
 
 // ProcessNames lists each key of c.Processes, sorted lexicographically
 // If c.Processes == nil, returns ["app"]
-func (c *Config) ProcessNames() []string {
-	onlyApp := []string{api.MachineProcessGroupApp}
+func (c *Config) ProcessNames() (names []string) {
 	switch {
 	case c == nil:
-		return onlyApp
+		break
 	case c.platformVersion == MachinesPlatform:
-		if len(c.Processes) == 0 {
-			return onlyApp
+		if len(c.Processes) != 0 {
+			names = lo.Keys(c.Processes)
 		}
-		keys := lo.Keys(c.Processes)
-		slices.Sort(keys)
-		return keys
 	case c.platformVersion == "":
 		fallthrough
 	case c.platformVersion == DetachedPlatform:
@@ -108,25 +104,21 @@ func (c *Config) ProcessNames() []string {
 	case c.platformVersion == NomadPlatform:
 		switch cast := c.RawDefinition["processes"].(type) {
 		case map[string]any:
-			if len(cast) == 0 {
-				return onlyApp
+			if len(cast) != 0 {
+				names = lo.Keys(cast)
 			}
-			keys := lo.Keys(cast)
-			slices.Sort(keys)
-			return keys
 		case map[string]string:
-			if len(cast) == 0 {
-				return onlyApp
+			if len(cast) != 0 {
+				names = lo.Keys(cast)
 			}
-			keys := lo.Keys(cast)
-			slices.Sort(keys)
-			return keys
-		default:
-			return onlyApp
 		}
-	default:
-		return onlyApp
 	}
+
+	slices.Sort(names)
+	if len(names) == 0 {
+		names = []string{api.MachineProcessGroupApp}
+	}
+	return names
 }
 
 // FormatProcessNames formats the process group list like `['foo', 'bar']`
