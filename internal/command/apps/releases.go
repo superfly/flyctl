@@ -78,10 +78,51 @@ func runReleases(ctx context.Context) error {
 		return render.JSON(out, releases)
 	}
 
+	var (
+		rows    [][]string
+		headers []string
+	)
+	if app.PlatformVersion == "machines" {
+		rows, headers = formatMachinesReleases(releases, flag.GetBool(ctx, "image"))
+	} else {
+		rows, headers = formatNomadReleases(releases, flag.GetBool(ctx, "image"))
+	}
+	return render.Table(out, "", rows, headers...)
+}
+
+func formatMachinesReleases(releases []api.Release, image bool) ([][]string, []string) {
 	var rows [][]string
-
 	for _, release := range releases {
+		row := []string{
+			fmt.Sprintf("v%d", release.Version),
+			release.Status,
+			release.Description,
+			release.User.Email,
+			presenters.FormatRelativeTime(release.CreatedAt),
+		}
+		if image {
+			row = append(row, release.ImageRef)
+		}
+		rows = append(rows, row)
+	}
 
+	headers := []string{
+		"Version",
+		"Status",
+		"Description",
+		"User",
+		"Date",
+	}
+	if image {
+		headers = append(headers, "Docker Image")
+	}
+
+	return rows, headers
+}
+
+func formatNomadReleases(releases []api.Release, image bool) ([][]string, []string) {
+	var rows [][]string
+	for _, release := range releases {
 		row := []string{
 			fmt.Sprintf("v%d", release.Version),
 			fmt.Sprintf("%t", release.Stable),
@@ -91,14 +132,12 @@ func runReleases(ctx context.Context) error {
 			release.User.Email,
 			presenters.FormatRelativeTime(release.CreatedAt),
 		}
-
-		if flag.GetBool(ctx, "image") {
+		if image {
 			row = append(row, release.ImageRef)
 		}
-
 		rows = append(rows, row)
-
 	}
+
 	headers := []string{
 		"Version",
 		"Stable",
@@ -108,12 +147,11 @@ func runReleases(ctx context.Context) error {
 		"User",
 		"Date",
 	}
-
-	if flag.GetBool(ctx, "image") {
+	if image {
 		headers = append(headers, "Docker Image")
 	}
 
-	return render.Table(out, "", rows, headers...)
+	return rows, headers
 }
 
 func formatReleaseReason(reason string) string {
