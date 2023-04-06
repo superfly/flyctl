@@ -216,7 +216,6 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
 }
 
 func (md *machineDeployment) resolveProcessGroupChanges() ProcessGroupsDiff {
-
 	output := ProcessGroupsDiff{
 		groupsToRemove:        map[string]int{},
 		groupsNeedingMachines: map[string]*appconfig.ProcessConfig{},
@@ -252,7 +251,6 @@ func (md *machineDeployment) resolveProcessGroupChanges() ProcessGroupsDiff {
 }
 
 func (md *machineDeployment) warnAboutProcessGroupChanges(ctx context.Context, diff ProcessGroupsDiff) {
-
 	var (
 		io                 = iostreams.FromContext(ctx)
 		colorize           = io.ColorScheme()
@@ -761,7 +759,7 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 	if processConfig, ok := md.processConfigs[processGroup]; ok {
 		launchInput.Config.Services = processConfig.Services
 		launchInput.Config.Checks = processConfig.Checks
-		launchInput.Config.Init.Cmd = lo.Ternary(len(processConfig.Cmd) > 0, processConfig.Cmd, nil)
+		launchInput.Config.Init.Cmd = processConfig.Cmd
 	}
 
 	return launchInput
