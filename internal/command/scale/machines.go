@@ -28,6 +28,9 @@ func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB in
 		if err != nil {
 			return nil, err
 		}
+		if len(appConfig.Processes) > 1 {
+			return nil, fmt.Errorf("scaling an app with multiple process groups requires specifying a group with '--group <name>'\n * this app has the following process groups: %v", appConfig.FormatProcessNames())
+		}
 		group = appConfig.DefaultProcessName()
 	}
 

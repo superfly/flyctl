@@ -96,31 +96,32 @@ type V2PlatformMigrator interface {
 
 // FIXME: a lot of stuff is shared with MachineDeployment... might be useful to consolidate the shared stuff into another library/package/something
 type v2PlatformMigrator struct {
-	apiClient         *api.Client
-	flapsClient       *flaps.Client
-	gqlClient         graphql.Client
-	io                *iostreams.IOStreams
-	colorize          *iostreams.ColorScheme
-	leaseTimeout      time.Duration
-	leaseDelayBetween time.Duration
-	appCompact        *api.AppCompact
-	appFull           *api.App
-	appConfig         *appconfig.Config
-	configPath        string
-	autoscaleConfig   *api.AutoscalingConfig
-	volumeDestination string
-	processConfigs    map[string]*appconfig.ProcessConfig
-	img               string
-	appLock           string
-	releaseId         string
-	releaseVersion    int
-	oldAllocs         []*api.AllocationStatus
-	machineGuest      *api.MachineGuest
-	oldVmCounts       map[string]int
-	newMachinesInput  []*api.LaunchMachineInput
-	newMachines       machine.MachineSet
-	canAvoidDowntime  bool
-	recovery          recoveryState
+	apiClient               *api.Client
+	flapsClient             *flaps.Client
+	gqlClient               graphql.Client
+	io                      *iostreams.IOStreams
+	colorize                *iostreams.ColorScheme
+	leaseTimeout            time.Duration
+	leaseDelayBetween       time.Duration
+	appCompact              *api.AppCompact
+	appFull                 *api.App
+	appConfig               *appconfig.Config
+	configPath              string
+	autoscaleConfig         *api.AutoscalingConfig
+	volumeDestination       string
+	processConfigs          map[string]*appconfig.ProcessConfig
+	formattedProcessConfigs string
+	img                     string
+	appLock                 string
+	releaseId               string
+	releaseVersion          int
+	oldAllocs               []*api.AllocationStatus
+	machineGuest            *api.MachineGuest
+	oldVmCounts             map[string]int
+	newMachinesInput        []*api.LaunchMachineInput
+	newMachines             machine.MachineSet
+	canAvoidDowntime        bool
+	recovery                recoveryState
 }
 
 type recoveryState struct {
@@ -157,6 +158,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		return nil, err
 	}
 	processConfigs, err := appConfig.GetProcessConfigs()
+	formattedProcessConfigs := appConfig.FormatProcessNames()
 	if err != nil {
 		return nil, err
 	}
@@ -184,23 +186,24 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	leaseTimeout := 13 * time.Second
 	leaseDelayBetween := (leaseTimeout - 1*time.Second) / 3
 	migrator := &v2PlatformMigrator{
-		apiClient:         apiClient,
-		flapsClient:       flapsClient,
-		gqlClient:         apiClient.GenqClient,
-		io:                io,
-		colorize:          colorize,
-		leaseTimeout:      leaseTimeout,
-		leaseDelayBetween: leaseDelayBetween,
-		appCompact:        appCompact,
-		appFull:           appFull,
-		appConfig:         appConfig,
-		autoscaleConfig:   autoscaleConfig,
-		volumeDestination: appConfig.MountsDestination(),
-		processConfigs:    processConfigs,
-		img:               img,
-		oldAllocs:         allocs,
-		machineGuest:      machineGuest,
-		canAvoidDowntime:  true,
+		apiClient:               apiClient,
+		flapsClient:             flapsClient,
+		gqlClient:               apiClient.GenqClient,
+		io:                      io,
+		colorize:                colorize,
+		leaseTimeout:            leaseTimeout,
+		leaseDelayBetween:       leaseDelayBetween,
+		appCompact:              appCompact,
+		appFull:                 appFull,
+		appConfig:               appConfig,
+		autoscaleConfig:         autoscaleConfig,
+		volumeDestination:       appConfig.MountsDestination(),
+		processConfigs:          processConfigs,
+		formattedProcessConfigs: formattedProcessConfigs,
+		img:                     img,
+		oldAllocs:               allocs,
+		machineGuest:            machineGuest,
+		canAvoidDowntime:        true,
 		recovery: recoveryState{
 			platformVersion: appFull.PlatformVersion,
 		},
@@ -497,10 +500,9 @@ func (m *v2PlatformMigrator) validateVolumes(ctx context.Context) error {
 }
 
 func (m *v2PlatformMigrator) validateProcessGroupsOnAllocs(ctx context.Context) error {
-	knownProcGroupsStr := strings.Join(lo.Keys(m.processConfigs), ", ")
 	for _, a := range m.oldAllocs {
 		if _, exists := m.processConfigs[a.TaskName]; !exists {
-			return fmt.Errorf("alloc %s has process group '%s' that is not present in app configuration fly.toml; known process groups are: %s", a.IDShort, a.TaskName, knownProcGroupsStr)
+			return fmt.Errorf("alloc %s has process group '%s' that is not present in app configuration fly.toml; known process groups are: %s", a.IDShort, a.TaskName, m.formattedProcessConfigs)
 		}
 	}
 	return nil
