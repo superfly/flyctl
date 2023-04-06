@@ -226,10 +226,10 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		}
 		migrator.pgConsulUrl = consul.ConsulURL
 	}
-	//err = migrator.validate(ctx)
-	//if err != nil {
-	//	return nil, err
-	//}
+	err = migrator.validate(ctx)
+	if err != nil {
+		return nil, err
+	}
 	err = migrator.prepMachinesToCreate(ctx)
 	if err != nil {
 		return nil, err
@@ -341,15 +341,13 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 		}()
 	}
 
-	//if m.isPostgres {
-	//	tb.Detail("Upgrading postgres image")
-	//	err := m.updateNomadImage(ctx)
-	//	if err != nil {
-	//		return err
-	//	}
-	//}
-
 	if m.isPostgres {
+		tb.Detail("Upgrading postgres image")
+		err := m.updateNomadPostgresImage(ctx)
+		if err != nil {
+			return err
+		}
+
 		tb.Detail("Setting postgres primary to readonly")
 		err = m.setNomadPgReadonly(ctx)
 		if err != nil {
@@ -449,6 +447,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	if m.isPostgres {
 		inRegionDbs := m.inRegionMachines()
 
+		tb.Detail("Waiting for new potential primaries to become healthy")
 		err = m.waitForHealthyPgs(ctx)
 		if err != nil {
 			return err
@@ -461,7 +460,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 			return err
 		}
 
-		tb.Detailf("We are checking the following DB UIDs %+v", dbUIDs)
+		tb.Detailf("We are checking to see if the following DB UIDs are synced %+v", dbUIDs)
 
 		err = m.waitForPGSync(ctx, dbUIDs)
 		if err != nil {
@@ -492,7 +491,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	return nil
 }
 
-func (m *v2PlatformMigrator) updateNomadImage(ctx context.Context) error {
+func (m *v2PlatformMigrator) updateNomadPostgresImage(ctx context.Context) error {
 	app, err := m.apiClient.GetImageInfo(ctx, m.appCompact.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get image info: %w", err)
@@ -1117,6 +1116,7 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 	fmt.Fprintf(m.io.Out, "This migration process will do the following, in order:\n")
 	if m.isPostgres {
 		fmt.Fprintf(m.io.Out, " * Update your postgres app to the latest supported image version\n")
+		fmt.Fprintf(m.io.Out, " * Create volumes for new PG replicas to use\n")
 	}
 	fmt.Fprintf(m.io.Out, " * Lock your application, preventing changes during the migration\n")
 
