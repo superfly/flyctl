@@ -45,6 +45,10 @@ func (ms *machineSet) GetMachines() []LeasableMachine {
 }
 
 func (ms *machineSet) AcquireLeases(ctx context.Context, duration time.Duration) error {
+	if len(ms.machines) == 0 {
+		return nil
+	}
+
 	results := make(chan error, len(ms.machines))
 	var wg sync.WaitGroup
 	for _, m := range ms.machines {
@@ -75,7 +79,6 @@ func (ms *machineSet) AcquireLeases(ctx context.Context, duration time.Duration)
 }
 
 func (ms *machineSet) RemoveMachines(ctx context.Context, machines []LeasableMachine) error {
-
 	// Rewrite machines array to exclude the ones we just released.
 	i := 0
 	tempMachines := make([]LeasableMachine, len(ms.machines)-len(machines))
@@ -101,6 +104,10 @@ func (ms *machineSet) RemoveMachines(ctx context.Context, machines []LeasableMac
 }
 
 func (ms *machineSet) ReleaseLeases(ctx context.Context) error {
+	if len(ms.machines) == 0 {
+		return nil
+	}
+
 	// when context is canceled, take 500ms to attempt to release the leases
 	contextWasAlreadyCanceled := errors.Is(ctx.Err(), context.Canceled)
 	if contextWasAlreadyCanceled {

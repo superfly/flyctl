@@ -85,6 +85,7 @@ func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) er
 		return err
 	}
 	defer md.releaseCommandMachine.ReleaseLeases(ctx) // skipcq: GO-S2307
+	md.releaseCommandMachine.StartBackgroundLeaseRefresh(ctx, md.leaseTimeout, md.leaseDelayBetween)
 
 	launchInput := md.launchInputForReleaseCommand(releaseCmdMachine.Machine())
 	if err := releaseCmdMachine.Update(ctx, *launchInput); err != nil {
