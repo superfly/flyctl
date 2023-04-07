@@ -432,15 +432,14 @@ type MachineFlyProxy struct {
 type MachineConfig struct {
 	// This group are fields controlable from fly.toml
 	// If you add anything here, ensure appconfig.Config.ToMachine() sets them
-	Env       map[string]string       `json:"env,omitempty"`
-	Init      MachineInit             `json:"init,omitempty"`
-	Processes []MachineProcess        `json:"processes,omitempty"`
-	Metadata  map[string]string       `json:"metadata,omitempty"`
-	Mounts    []MachineMount          `json:"mounts,omitempty"`
-	Services  []MachineService        `json:"services,omitempty"`
-	Metrics   *MachineMetrics         `json:"metrics,omitempty"`
-	Checks    map[string]MachineCheck `json:"checks,omitempty"`
-	Statics   []*Static               `json:"statics,omitempty"`
+	Env      map[string]string       `json:"env,omitempty"`
+	Init     MachineInit             `json:"init,omitempty"`
+	Metadata map[string]string       `json:"metadata,omitempty"`
+	Mounts   []MachineMount          `json:"mounts,omitempty"`
+	Services []MachineService        `json:"services,omitempty"`
+	Metrics  *MachineMetrics         `json:"metrics,omitempty"`
+	Checks   map[string]MachineCheck `json:"checks,omitempty"`
+	Statics  []*Static               `json:"statics,omitempty"`
 
 	// Set by deploy or fly machines commands
 	Image string `json:"image,omitempty"`
@@ -453,6 +452,7 @@ type MachineConfig struct {
 	Guest       *MachineGuest    `json:"guest,omitempty"`
 	DNS         *DNSConfig       `json:"dns,omitempty"`
 	FlyProxy    *MachineFlyProxy `json:"fly_proxy,omitempty"`
+	Processes   []MachineProcess `json:"processes,omitempty"`
 
 	// Deprecated: use Guest instead
 	VMSize string `json:"size,omitempty"`

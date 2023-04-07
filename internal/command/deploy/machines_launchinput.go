@@ -55,6 +55,7 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) *
 	mConfig.Guest = helpers.Clone(origMachineRaw.Config.Guest)
 	mConfig.DNS = helpers.Clone(origMachineRaw.Config.DNS)
 	mConfig.FlyProxy = helpers.Clone(origMachineRaw.Config.FlyProxy)
+	mConfig.Processes = helpers.Clone(origMachineRaw.Config.Processes)
 
 	// Keep existing metadata not overridden by fresh machine config
 	for k, v := range origMachineRaw.Config.Metadata {
