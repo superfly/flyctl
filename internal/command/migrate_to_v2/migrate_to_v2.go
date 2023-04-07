@@ -307,6 +307,13 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 			}
 		}
 	}
+	if m.isPostgres {
+		tb.Detailf("Disabling readonly")
+		err := m.setNomadPgReadonly(ctx, true)
+		if err != nil {
+			return err
+		}
+	}
 	if m.recovery.platformVersion != "nomad" {
 
 		tb.Detailf("Setting platform version to 'nomad'")
@@ -395,7 +402,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 		}
 
 		tb.Detail("Setting postgres primary to readonly")
-		err = m.setNomadPgReadonly(ctx)
+		err = m.setNomadPgReadonly(ctx, true)
 		if err != nil {
 			return err
 		}
@@ -512,11 +519,6 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
-
-		err = m.bounceHaproxy(ctx)
-		if err != nil {
-			return err
-		}
 	}
 
 	if m.canAvoidDowntime {
@@ -528,6 +530,14 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 		}
 		if aborted.Load() {
 			return abortedErr
+		}
+	}
+
+	if m.isPostgres {
+		tb.Detail("Waiting for election so we can disable readonly")
+		err = m.waitForElection(ctx)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -647,7 +657,29 @@ func (m *v2PlatformMigrator) migratePgVolumes(ctx context.Context) error {
 	return nil
 }
 
-func leaderIpFromNomadInstances(ctx context.Context, addrs []string) (string, error) {
+func (m *v2PlatformMigrator) waitForElection(ctx context.Context) error {
+	s := spinner.New(spinner.CharSets[9], 200*time.Millisecond)
+	s.Writer = m.io.ErrOut
+	s.Prefix = "Waiting for leader to be elected so we can disable readonly"
+	s.Start()
+
+	defer s.Stop()
+
+	timeout := time.After(20 * time.Minute)
+	ticker := time.Tick(10 * time.Second)
+	for {
+		select {
+		case <-ticker:
+			err := m.disableReadonly(ctx)
+			if err == nil {
+				return nil
+			}
+		case <-timeout:
+			return errors.New("pgs never got healthy, timing out")
+		}
+	}
+}
+func leaderIpFromInstances(ctx context.Context, addrs []string) (string, error) {
 	dialer := agent.DialerFromContext(ctx)
 	for _, addr := range addrs {
 		pgclient := flypg.NewFromInstance(addr, dialer)
@@ -663,7 +695,7 @@ func leaderIpFromNomadInstances(ctx context.Context, addrs []string) (string, er
 	return "", fmt.Errorf("no instances found with leader role")
 }
 
-func (m *v2PlatformMigrator) setNomadPgReadonly(ctx context.Context) error {
+func (m *v2PlatformMigrator) setNomadPgReadonly(ctx context.Context, enable bool) error {
 	dialer := agent.DialerFromContext(ctx)
 	agentclient, err := agent.Establish(ctx, m.apiClient)
 	if err != nil {
@@ -679,24 +711,59 @@ func (m *v2PlatformMigrator) setNomadPgReadonly(ctx context.Context) error {
 		return fmt.Errorf("no 6pn ips found for %s app", m.appCompact.Name)
 	}
 
-	leaderIP, err := leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
+	leaderIP, err := leaderIpFromInstances(ctx, pgInstances.Addresses)
 	if err != nil {
 		return err
 	}
 
 	pgclient := flypg.NewFromInstance(leaderIP, dialer)
 
-	err = pgclient.LegacyEnableReadonly(ctx)
+	if enable {
+		err = pgclient.LegacyEnableReadonly(ctx)
+	} else {
+		err = pgclient.LegacyDisableReadonly(ctx)
+	}
 	if err != nil {
 		return err
 	}
 
 	for _, instance := range pgInstances.Addresses {
+		if instance == leaderIP {
+			continue
+		}
 		pgclient = flypg.NewFromInstance(instance, dialer)
 		err = pgclient.LegacyBounceHaproxy(ctx)
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (m *v2PlatformMigrator) disableReadonly(ctx context.Context) error {
+	dialer := agent.DialerFromContext(ctx)
+
+	var addrs []string
+	for _, machine := range m.newMachines.GetMachines() {
+		addrs = append(addrs, machine.Machine().PrivateIP)
+	}
+
+	leaderIP, err := leaderIpFromInstances(ctx, addrs)
+	if err != nil {
+		return err
+	}
+
+	pgclient := flypg.NewFromInstance(leaderIP, dialer)
+
+	err = pgclient.LegacyDisableReadonly(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = m.bounceHaproxy(ctx, leaderIP)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -718,7 +785,7 @@ func (m *v2PlatformMigrator) validatePgSettings(ctx context.Context) error {
 		return fmt.Errorf("no 6pn ips found for %s app", m.appCompact.Name)
 	}
 
-	leaderIP, err := leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
+	leaderIP, err := leaderIpFromInstances(ctx, pgInstances.Addresses)
 	if err != nil {
 		return err
 	}
@@ -744,9 +811,12 @@ func (m *v2PlatformMigrator) validatePgSettings(ctx context.Context) error {
 	return nil
 }
 
-func (m *v2PlatformMigrator) bounceHaproxy(ctx context.Context) error {
+func (m *v2PlatformMigrator) bounceHaproxy(ctx context.Context, leader string) error {
 	dialer := agent.DialerFromContext(ctx)
 	for _, machine := range m.newMachines.GetMachines() {
+		if machine.Machine().PrivateIP == leader {
+			continue
+		}
 		pgclient := flypg.NewFromInstance(machine.Machine().PrivateIP, dialer)
 		err := pgclient.LegacyBounceHaproxy(ctx)
 		if err != nil {
@@ -796,7 +866,7 @@ func (m *v2PlatformMigrator) checkPgSync(ctx context.Context, dbuids []string) (
 		return nil, fmt.Errorf("no 6pn ips found for %s app", m.appCompact.Name)
 	}
 
-	leaderIP, err := leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
+	leaderIP, err := leaderIpFromInstances(ctx, pgInstances.Addresses)
 	if err != nil {
 		return nil, err
 	}

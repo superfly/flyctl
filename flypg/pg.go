@@ -170,7 +170,7 @@ func (c *Client) LegacyStolonDBUid(ctx context.Context) (*string, error) {
 }
 
 func (c *Client) LegacyBounceHaproxy(ctx context.Context) error {
-	endpoint := "/commands/admin/haproxy/bounce"
+	endpoint := "/commands/admin/haproxy/restart"
 
 	if err := c.Do(ctx, http.MethodPost, endpoint, nil, nil); err != nil {
 		return err
