@@ -7,23 +7,23 @@ import (
 )
 
 type child struct {
-	name string
+	Name string
 }
 
 type cloneable struct {
-	a string
-	b int
-	c float32
-	d child
+	A string
+	B int
+	C float32
+	D child
 }
 
 func TestClone(t *testing.T) {
 	cloneMe := cloneable{
-		a: "abcd",
-		b: 123,
-		c: 1.5,
-		d: child{
-			name: "aname",
+		A: "abcd",
+		B: 123,
+		C: 1.5,
+		D: child{
+			Name: "aname",
 		},
 	}
 
@@ -43,4 +43,26 @@ func TestClone(t *testing.T) {
 	clonedNil := Clone(clonedPtr)
 
 	assert.Empty(t, clonedNil)
+}
+
+func TestClonePointer(t *testing.T) {
+
+	type child struct {
+		S string
+	}
+	type cloned struct {
+		Ch *child
+	}
+
+	c := cloned{
+		Ch: &child{
+			S: "hello",
+		},
+	}
+
+	clonedObj := Clone(c)
+
+	c.Ch.S = "modified"
+
+	assert.NotEqualValues(t, c.Ch.S, clonedObj.Ch.S)
 }
