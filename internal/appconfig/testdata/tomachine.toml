@@ -12,7 +12,7 @@ primary_region = "mia"
   path = "/metrics"
 
 [http_service]
-  interal_port = 8080
+  internal_port = 8080
   force_https = true
 
 [checks.listening]

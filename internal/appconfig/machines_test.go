@@ -21,7 +21,7 @@ func TestToMachineConfig(t *testing.T) {
 		Services: []api.MachineService{
 			{
 				Protocol:     "tcp",
-				InternalPort: 0,
+				InternalPort: 8080,
 				Ports: []api.MachinePort{
 					{
 						Port:       api.Pointer(80),
