@@ -149,3 +149,46 @@ func Test_launchInputFor_onMounts(t *testing.T) {
 	assert.Equal(t, "", li.ID)
 	assert.Empty(t, li.Config.Mounts)
 }
+
+// Test updating a machine propagates fields not in fly.toml control
+func Test_launchInputForUpdate_keepUnmanagedFields(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		AppName:       "my-cool-app",
+		PrimaryRegion: "scl",
+	})
+	require.NoError(t, err)
+	md.releaseId = "release_id"
+	md.releaseVersion = 3
+
+	origMachineRaw := &api.Machine{
+		ID:     "ab1234567890",
+		Region: "ord",
+		Config: &api.MachineConfig{
+			Schedule:    "24/7",
+			AutoDestroy: true,
+			Restart: api.MachineRestart{
+				Policy: api.MachineRestartPolicyNo,
+			},
+			Guest: &api.MachineGuest{
+				CPUKind: "other",
+			},
+			DNS: &api.DNSConfig{
+				SkipRegistration: true,
+			},
+			FlyProxy: &api.MachineFlyProxy{
+				AutostartMachine: api.Pointer(true),
+				AutostopMachine:  api.Pointer(true),
+			},
+		},
+	}
+
+	li := md.launchInputForRestart(origMachineRaw)
+	assert.Equal(t, "ab1234567890", li.ID)
+	assert.Equal(t, "ord", li.Region)
+	assert.Equal(t, "24/7", li.Config.Schedule)
+	assert.Equal(t, true, li.Config.AutoDestroy)
+	assert.Equal(t, api.MachineRestart{Policy: api.MachineRestartPolicyNo}, li.Config.Restart)
+	assert.Equal(t, &api.MachineGuest{CPUKind: "other"}, li.Config.Guest)
+	assert.Equal(t, &api.DNSConfig{SkipRegistration: true}, li.Config.DNS)
+	assert.Equal(t, &api.MachineFlyProxy{AutostartMachine: api.Pointer(true), AutostopMachine: api.Pointer(true)}, li.Config.FlyProxy)
+}

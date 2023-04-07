@@ -430,24 +430,34 @@ type MachineFlyProxy struct {
 }
 
 type MachineConfig struct {
-	Env                     map[string]string       `json:"env,omitempty"`
-	Init                    MachineInit             `json:"init,omitempty"`
-	Processes               []MachineProcess        `json:"processes,omitempty"`
-	Image                   string                  `json:"image,omitempty"`
-	Metadata                map[string]string       `json:"metadata,omitempty"`
-	Mounts                  []MachineMount          `json:"mounts,omitempty"`
-	Restart                 MachineRestart          `json:"restart,omitempty"`
-	Services                []MachineService        `json:"services,omitempty"`
-	VMSize                  string                  `json:"size,omitempty"`
-	Guest                   *MachineGuest           `json:"guest,omitempty"`
-	Metrics                 *MachineMetrics         `json:"metrics,omitempty"`
-	Schedule                string                  `json:"schedule,omitempty"`
-	Checks                  map[string]MachineCheck `json:"checks,omitempty"`
-	AutoDestroy             bool                    `json:"auto_destroy,omitempty"`
-	DNS                     *DNSConfig              `json:"dns,omitempty"`
-	Statics                 []*Static               `json:"statics,omitempty"`
-	DisableMachineAutostart *bool                   `json:"disable_machine_autostart,omitempty"`
-	FlyProxy                *MachineFlyProxy        `json:"fly_proxy,omitempty"`
+	// This group are fields controlable from fly.toml
+	// If you add anything here, ensure appconfig.Config.ToMachine() sets them
+	Env       map[string]string       `json:"env,omitempty"`
+	Init      MachineInit             `json:"init,omitempty"`
+	Processes []MachineProcess        `json:"processes,omitempty"`
+	Metadata  map[string]string       `json:"metadata,omitempty"`
+	Mounts    []MachineMount          `json:"mounts,omitempty"`
+	Services  []MachineService        `json:"services,omitempty"`
+	Metrics   *MachineMetrics         `json:"metrics,omitempty"`
+	Checks    map[string]MachineCheck `json:"checks,omitempty"`
+	Statics   []*Static               `json:"statics,omitempty"`
+
+	// Set by deploy or fly machines commands
+	Image string `json:"image,omitempty"`
+
+	// These can only be set or updated using `fly machines run|update` commands
+	// Deploy must preserve them, if you anything here, ensure it is propagated on re-redeploys
+	Schedule    string           `json:"schedule,omitempty"`
+	AutoDestroy bool             `json:"auto_destroy,omitempty"`
+	Restart     MachineRestart   `json:"restart,omitempty"`
+	Guest       *MachineGuest    `json:"guest,omitempty"`
+	DNS         *DNSConfig       `json:"dns,omitempty"`
+	FlyProxy    *MachineFlyProxy `json:"fly_proxy,omitempty"`
+
+	// Deprecated: use Guest instead
+	VMSize string `json:"size,omitempty"`
+	// Deprecated: use FlyProxy.AutostartMachine instead
+	DisableMachineAutostart *bool `json:"disable_machine_autostart,omitempty"`
 }
 
 func (c *MachineConfig) ProcessGroup() string {

@@ -47,8 +47,14 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) *
 
 	// Ignore the error because by this point we already check the processGroup exists
 	mConfig, _ := md.appConfig.ToMachineConfig(processGroup)
-	mConfig.Guest = helpers.Clone(origMachineRaw.Config.Guest)
 	md.setMachineReleaseData(mConfig)
+	// Keep fields that can't be controlled from fly.toml
+	mConfig.Schedule = origMachineRaw.Config.Schedule
+	mConfig.AutoDestroy = origMachineRaw.Config.AutoDestroy
+	mConfig.Restart = helpers.Clone(origMachineRaw.Config.Restart)
+	mConfig.Guest = helpers.Clone(origMachineRaw.Config.Guest)
+	mConfig.DNS = helpers.Clone(origMachineRaw.Config.DNS)
+	mConfig.FlyProxy = helpers.Clone(origMachineRaw.Config.FlyProxy)
 
 	// Keep existing metadata not overridden by fresh machine config
 	for k, v := range origMachineRaw.Config.Metadata {
