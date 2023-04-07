@@ -24,7 +24,6 @@ func (md *machineDeployment) launchInputForRestart(origMachineRaw *api.Machine) 
 	if origMachineRaw == nil {
 		return nil
 	}
-
 	Config := machine.CloneConfig(origMachineRaw.Config)
 	Config.Metadata = md.computeMachineConfigMetadata(Config)
 
@@ -52,6 +51,13 @@ func (md *machineDeployment) launchInputForUpdateOrNew(origMachineRaw *api.Machi
 	mConfig, _ := md.appConfig.ToMachineConfig(processGroup)
 	mConfig.Guest = helpers.Clone(origMachineRaw.Config.Guest)
 	md.setMachineReleaseData(mConfig)
+
+	// Keep existing metadata not overridden by fresh machine config
+	for k, v := range origMachineRaw.Config.Metadata {
+		if _, exists := mConfig.Metadata[k]; !exists && !isFlyAppsPlatformMetadata(k) {
+			mConfig.Metadata[k] = v
+		}
+	}
 
 	// Mounts needs special treatment:
 	//   * Volumes attached to existings machines can't be swapped by other volumes
