@@ -80,3 +80,72 @@ func Test_launchInputFor_Basic(t *testing.T) {
 	li = md.launchInputForUpdate(origMachineRaw)
 	assert.Equal(t, want, li)
 }
+
+// Test Mounts
+func Test_launchInputFor_onMounts(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		Mounts: &appconfig.Volume{Source: "data", Destination: "/data"},
+	})
+	assert.NoError(t, err)
+	md.volumes = []api.Volume{{ID: "vol_12345", Name: "data"}}
+
+	// New machine must get a volume attached
+	li := md.launchInputForLaunch("", nil)
+	require.NotEmpty(t, li.Config.Mounts)
+	assert.Equal(t, api.MachineMount{Volume: "vol_12345", Path: "/data", Name: "data"}, li.Config.Mounts[0])
+
+	// The machine already has a volume that matches fly.toml [mounts] section
+	li = md.launchInputForUpdate(&api.Machine{
+		ID: "ab1234567890",
+		Config: &api.MachineConfig{
+			Mounts: []api.MachineMount{{Volume: "vol_attached", Path: "/data", Name: "data"}},
+		},
+	})
+	require.NotEmpty(t, li.Config.Mounts)
+	assert.Equal(t, "ab1234567890", li.ID)
+	assert.Equal(t, api.MachineMount{Volume: "vol_attached", Path: "/data", Name: "data"}, li.Config.Mounts[0])
+
+	// Update a machine with volume attached on a different path
+	li = md.launchInputForUpdate(&api.Machine{
+		ID: "ab1234567890",
+		Config: &api.MachineConfig{
+			Mounts: []api.MachineMount{{Volume: "vol_attached", Path: "/update-me", Name: "data"}},
+		},
+	})
+	require.NotEmpty(t, li.Config.Mounts)
+	assert.Equal(t, "ab1234567890", li.ID)
+	assert.Equal(t, api.MachineMount{Volume: "vol_attached", Path: "/data", Name: "data"}, li.Config.Mounts[0])
+
+	// Updating a machine with an existing unnamed mount must keep the original mount as much as possible
+	li = md.launchInputForUpdate(&api.Machine{
+		ID: "ab1234567890",
+		Config: &api.MachineConfig{
+			Mounts: []api.MachineMount{{Volume: "vol_attached", Path: "/keep-me"}},
+		},
+	})
+	require.NotEmpty(t, li.Config.Mounts)
+	assert.Equal(t, "ab1234567890", li.ID)
+	assert.Equal(t, api.MachineMount{Volume: "vol_attached", Path: "/keep-me"}, li.Config.Mounts[0])
+
+	// Updating a machine whose volume name doesn't match fly.toml's mount section must replace the machine altogether
+	li = md.launchInputForUpdate(&api.Machine{
+		ID: "ab1234567890",
+		Config: &api.MachineConfig{
+			Mounts: []api.MachineMount{{Volume: "vol_attached", Path: "/replace-me", Name: "replace-me"}},
+		},
+	})
+	require.NotEmpty(t, li.Config.Mounts)
+	assert.Equal(t, "", li.ID)
+	assert.Equal(t, api.MachineMount{Volume: "vol_12345", Path: "/data", Name: "data"}, li.Config.Mounts[0])
+
+	// Updating a machine with an attached volume should trigger a replacement if fly.toml doesn't define one.
+	md.appConfig.Mounts = nil
+	li = md.launchInputForUpdate(&api.Machine{
+		ID: "ab1234567890",
+		Config: &api.MachineConfig{
+			Mounts: []api.MachineMount{{Volume: "vol_attached", Path: "/replace-me", Name: "replace-me"}},
+		},
+	})
+	assert.Equal(t, "", li.ID)
+	assert.Empty(t, li.Config.Mounts)
+}

@@ -59,31 +59,46 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) *
 
 	// Mounts needs special treatment:
 	//   * Volumes attached to existings machines can't be swapped by other volumes
-	//   * The only possible operation is to update its destination mount path
+	//   * The only allowed in-place operation is to update its destination mount path
 	//   * The other option is to force a machine replacement to remove or attach a different volume
 	mMounts := mConfig.Mounts
 	oMounts := origMachineRaw.Config.Mounts
 	if len(oMounts) != 0 {
 		switch {
 		case len(mMounts) == 0:
-			terminal.Warnf("Machine %s has a volume attached but fly.toml doesn't have a [mounts] section\n", mID)
+			// The mounts section was removed from fly.toml
 			mID = "" // Forces machine replacement
-		case mMounts[0].Name != oMounts[0].Name && oMounts[0].Name != "":
+			terminal.Warnf("Machine %s has a volume attached but fly.toml doesn't have a [mounts] section\n", mID)
+		case oMounts[0].Name == "":
+			// It's rare but can happen, we don't know the mounted volume name
+			// so can't be sure it matches the mounts defined in fly.toml, in this
+			// case assume we want to retain existing mount
+			mMounts[0] = oMounts[0]
+		case mMounts[0].Name != oMounts[0].Name:
+			// The expected volume name for the machine and fly.toml are out sync
+			// As we can't change the volume for a running machine, the only
+			// way is to destroy the current machine and launch a new one with the new volume attached
 			terminal.Warnf("Machine %s has volume '%s' attached but fly.toml have a different name: '%s'\n", mID, oMounts[0].Name, mMounts[0].Name)
 			mMounts[0].Volume = md.volumes[0].ID
 			mID = "" // Forces machine replacement
 		case mMounts[0].Path != oMounts[0].Path:
+			// The volume is the same but its mount path changed. Not a big deal.
 			terminal.Warnf(
 				"Updating the mount path for volume %s on machine %s from %s to %s due to fly.toml [mounts] destination value\n",
 				oMounts[0].Volume, mID, oMounts[0].Path, mMounts[0].Path,
 			)
+			// Copy the volume id over because path is already correct
 			mMounts[0].Volume = oMounts[0].Volume
 		default:
+			// In any other case retain the existing machine mounts
 			mMounts[0] = oMounts[0]
 		}
 	} else if len(mMounts) != 0 {
-		mMounts[0].Volume = md.volumes[0].ID
+		// Replace the machine because [mounts] section was added to fly.toml
+		// and it is not possible to attach a volume to an existing machine.
+		// The volume could be in a different zone than the machine.
 		mID = "" // Forces machine replacement
+		mMounts[0].Volume = md.volumes[0].ID
 	}
 
 	return &api.LaunchMachineInput{
