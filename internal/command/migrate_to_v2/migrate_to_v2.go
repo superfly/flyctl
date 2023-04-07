@@ -513,6 +513,11 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
+
+		err = m.bounceHaproxy(ctx)
+		if err != nil {
+			return err
+		}
 	}
 
 	if m.canAvoidDowntime {
@@ -703,6 +708,26 @@ func (m *v2PlatformMigrator) setNomadPgReadonly(ctx context.Context) error {
 		return err
 	}
 
+	for _, instance := range pgInstances.Addresses {
+		pgclient = flypg.NewFromInstance(instance, dialer)
+		err = pgclient.LegacyBounceHaproxy(ctx)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (m *v2PlatformMigrator) bounceHaproxy(ctx context.Context) error {
+	dialer := agent.DialerFromContext(ctx)
+	for _, machine := range m.newMachines.GetMachines() {
+		pgclient := flypg.NewFromInstance(machine.Machine().PrivateIP, dialer)
+		err := pgclient.LegacyBounceHaproxy(ctx)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

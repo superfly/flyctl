@@ -168,6 +168,15 @@ func (c *Client) LegacyStolonDBUid(ctx context.Context) (*string, error) {
 	}
 	return &out.Result, nil
 }
+
+func (c *Client) LegacyBounceHaproxy(ctx context.Context) error {
+	endpoint := "/commands/admin/haproxy/bounce"
+
+	if err := c.Do(ctx, http.MethodPost, endpoint, nil, nil); err != nil {
+		return err
+	}
+	return nil
+}
 func (c *Client) LegacyEnableReadonly(ctx context.Context) error {
 	endpoint := "/commands/admin/readonly/enable"
 
