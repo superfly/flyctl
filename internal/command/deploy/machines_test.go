@@ -49,8 +49,6 @@ func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
 			},
-			Services: []api.MachineService{},
-			Checks:   map[string]api.MachineCheck{},
 		},
 	}, md.launchInputForLaunch("", nil))
 }
@@ -232,9 +230,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
 			},
-			Env:      map[string]string{},
-			Services: []api.MachineService{},
-			Checks:   map[string]api.MachineCheck{},
+			Env: map[string]string{},
 			Mounts: []api.MachineMount{{
 				Volume: "vol_12345",
 				Path:   "/data",
@@ -265,9 +261,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
 			},
-			Env:      map[string]string{},
-			Services: []api.MachineService{},
-			Checks:   map[string]api.MachineCheck{},
+			Env: map[string]string{},
 			Mounts: []api.MachineMount{{
 				Volume: "vol_alreadyattached",
 				Path:   "/data",
