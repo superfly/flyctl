@@ -62,7 +62,6 @@ type machineDeployment struct {
 	img                   string
 	machineSet            machine.MachineSet
 	releaseCommandMachine machine.MachineSet
-	volumeDestination     string
 	volumes               []api.Volume
 	strategy              string
 	releaseId             string
@@ -207,8 +206,6 @@ func (md *machineDeployment) setVolumeConfig(ctx context.Context) error {
 		return nil
 	}
 
-	md.volumeDestination = md.appConfig.Mounts.Destination
-
 	volumes, err := md.apiClient.GetVolumes(ctx, md.app.Name)
 	if err != nil {
 		return fmt.Errorf("Error fetching application volumes: %w", err)
@@ -221,26 +218,28 @@ func (md *machineDeployment) setVolumeConfig(ctx context.Context) error {
 }
 
 func (md *machineDeployment) validateVolumeConfig() error {
+	volumeDestination := ""
+	if md.appConfig.Mounts != nil {
+		volumeDestination = md.appConfig.Mounts.Destination
+	}
+
 	for _, m := range md.machineSet.GetMachines() {
 		mid := m.Machine().ID
-		if m.Machine().ProcessGroup() == api.MachineProcessGroupFlyAppReleaseCommand {
-			continue
-		}
 		mountsConfig := m.Machine().Config.Mounts
 		if len(mountsConfig) > 1 {
 			return fmt.Errorf("error machine %s has %d mounts and expected 1", mid, len(mountsConfig))
 		}
-		if md.volumeDestination == "" && len(mountsConfig) != 0 {
+		if volumeDestination == "" && len(mountsConfig) != 0 {
 			return fmt.Errorf("error machine %s has a volume mounted and app config does not specify a volume; remove the volume from the machine or add a [mounts] configuration to fly.toml", mid)
 		}
-		if md.volumeDestination != "" && len(mountsConfig) == 0 {
-			return fmt.Errorf("error machine %s does not have a volume configured and fly.toml expects one with destination %s; remove the [mounts] configuration in fly.toml or use the machines API to add a volume to this machine", mid, md.volumeDestination)
+		if volumeDestination != "" && len(mountsConfig) == 0 {
+			return fmt.Errorf("error machine %s does not have a volume configured and fly.toml expects one with destination %s; remove the [mounts] configuration in fly.toml or use the machines API to add a volume to this machine", mid, volumeDestination)
 		}
 	}
 
-	if md.machineSet.IsEmpty() && md.volumeDestination != "" && len(md.volumes) == 0 {
+	if md.machineSet.IsEmpty() && volumeDestination != "" && len(md.volumes) == 0 {
 		return fmt.Errorf("error new machine requires an unattached volume named '%s' on mount destination '%s'",
-			md.appConfig.Mounts.Source, md.volumeDestination)
+			md.appConfig.Mounts.Source, volumeDestination)
 	}
 	return nil
 }
