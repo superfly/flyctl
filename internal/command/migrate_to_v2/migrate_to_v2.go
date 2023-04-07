@@ -803,8 +803,8 @@ func (m *v2PlatformMigrator) validatePgSettings(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			if atoi < len(pgInstances.Addresses)*2+1 {
-				return fmt.Errorf("max_wal_senders and max_replication_slots need to be set to at least %d", len(pgInstances.Addresses)*2+1)
+			if atoi < len(m.oldAllocs)*2+1 {
+				return fmt.Errorf("max_wal_senders and max_replication_slots need to be set to at least %d", len(m.oldAllocs)*2+1)
 			}
 		}
 	}
