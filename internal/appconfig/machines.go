@@ -24,9 +24,7 @@ func (c *Config) ToMachineConfig(processGroup string) (*api.MachineConfig, error
 	}
 
 	machineConfig := &api.MachineConfig{
-		Metrics:  c.Metrics,
-		Services: processConfig.Services,
-		Checks:   processConfig.Checks,
+		Metrics: c.Metrics,
 		Init: api.MachineInit{
 			Cmd: processConfig.Cmd,
 		},
@@ -35,6 +33,13 @@ func (c *Config) ToMachineConfig(processGroup string) (*api.MachineConfig, error
 			api.MachineConfigMetadataKeyFlyProcessGroup:    processGroup,
 		},
 		Env: lo.Assign(c.Env),
+	}
+
+	if len(processConfig.Services) > 0 {
+		machineConfig.Services = processConfig.Services
+	}
+	if len(processConfig.Checks) > 0 {
+		machineConfig.Checks = processConfig.Checks
 	}
 
 	if c.PrimaryRegion != "" {

@@ -39,8 +39,6 @@ func Test_launchInputFor_Basic(t *testing.T) {
 				"fly_release_id":       "release_id",
 				"fly_release_version":  "3",
 			},
-			Services: []api.MachineService{},
-			Checks:   map[string]api.MachineCheck{},
 		},
 	}
 	li := md.launchInputForLaunch("", nil)
