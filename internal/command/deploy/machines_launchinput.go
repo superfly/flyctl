@@ -10,19 +10,6 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Machine, forReleaseCommand bool) *api.LaunchMachineInput {
-	switch {
-	case md.restartOnly:
-		return md.launchInputForRestart(origMachineRaw)
-	case forReleaseCommand:
-		return md.launchInputForReleaseCommand(origMachineRaw)
-	case origMachineRaw == nil:
-		return md.launchInputForLaunch("", nil)
-	default:
-		return md.launchInputForUpdate(origMachineRaw)
-	}
-}
-
 func (md *machineDeployment) launchInputForRestart(origMachineRaw *api.Machine) *api.LaunchMachineInput {
 	Config := machine.CloneConfig(origMachineRaw.Config)
 	Config.Metadata = md.computeMachineConfigMetadata(Config)

@@ -52,7 +52,7 @@ func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
 			Services: []api.MachineService{},
 			Checks:   map[string]api.MachineCheck{},
 		},
-	}, md.resolveUpdatedMachineConfig(nil, false))
+	}, md.launchInputForLaunch("", nil))
 }
 
 // Test any LaunchMachineInput field that must not be set on a machine
@@ -133,7 +133,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 				},
 			},
 		},
-	}, md.resolveUpdatedMachineConfig(nil, false))
+	}, md.launchInputForLaunch("", nil))
 
 	// New release command machine
 	assert.Equal(t, &api.LaunchMachineInput{
@@ -163,7 +163,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			},
 			Guest: api.MachinePresets["shared-cpu-2x"],
 		},
-	}, md.resolveUpdatedMachineConfig(nil, true))
+	}, md.launchInputForReleaseCommand(nil))
 
 	// Update existing release command machine
 	origMachine := &api.Machine{
@@ -207,7 +207,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			},
 			Guest: api.MachinePresets["shared-cpu-2x"],
 		},
-	}, md.resolveUpdatedMachineConfig(origMachine, true))
+	}, md.launchInputForReleaseCommand(origMachine))
 }
 
 // Test Mounts
@@ -242,7 +242,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 			}},
 		},
 	},
-		md.resolveUpdatedMachineConfig(nil, false),
+		md.launchInputForLaunch("", nil),
 	)
 
 	origMachine := &api.Machine{
@@ -273,7 +273,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 				Path:   "/data",
 			}},
 		},
-	}, md.resolveUpdatedMachineConfig(origMachine, false))
+	}, md.launchInputForUpdate(origMachine))
 }
 
 // Test machineDeployment.restartOnly
@@ -288,7 +288,6 @@ func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 		},
 	})
 	assert.NoError(t, err)
-	md.restartOnly = true
 	md.img = "SHOULD-NOT-USE-THIS-TAG"
 
 	origMachine := &api.Machine{
@@ -310,7 +309,7 @@ func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 				"fly_release_version":  "0",
 			},
 		},
-	}, md.resolveUpdatedMachineConfig(origMachine, false))
+	}, md.launchInputForRestart(origMachine))
 }
 
 // Test machineDeployment.restartOnlyProcessGroup
@@ -326,7 +325,6 @@ func Test_resolveUpdatedMachineConfig_restartOnlyProcessGroup(t *testing.T) {
 	})
 	md.releaseVersion = 2
 	assert.NoError(t, err)
-	md.restartOnly = true
 	md.img = "SHOULD-NOT-USE-THIS-TAG"
 
 	origMachine := &api.Machine{
@@ -355,5 +353,5 @@ func Test_resolveUpdatedMachineConfig_restartOnlyProcessGroup(t *testing.T) {
 				"fly_release_version":  "2",
 			},
 		},
-	}, md.resolveUpdatedMachineConfig(origMachine, false))
+	}, md.launchInputForRestart(origMachine))
 }
