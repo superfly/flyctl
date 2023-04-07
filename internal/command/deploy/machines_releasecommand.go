@@ -62,11 +62,12 @@ func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context
 }
 
 func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) error {
-	launchInput := md.resolveUpdatedMachineConfig(nil, true)
+	launchInput := md.launchInputForReleaseCommand(nil)
 	releaseCmdMachine, err := md.flapsClient.Launch(ctx, *launchInput)
 	if err != nil {
 		return fmt.Errorf("error creating a release_command machine: %w", err)
 	}
+
 	fmt.Fprintf(md.io.ErrOut, "  Created release_command machine %s\n", md.colorize.Bold(releaseCmdMachine.ID))
 	md.releaseCommandMachine = machine.NewMachineSet(md.flapsClient, md.io, []*api.Machine{releaseCmdMachine})
 	return nil
@@ -75,22 +76,21 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) error {
 	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
 	fmt.Fprintf(md.io.ErrOut, "  Updating release_command machine %s\n", md.colorize.Bold(releaseCmdMachine.Machine().ID))
-	err := releaseCmdMachine.WaitForState(ctx, api.MachineStateStopped, md.waitTimeout)
-	if err != nil {
+
+	if err := releaseCmdMachine.WaitForState(ctx, api.MachineStateStopped, md.waitTimeout); err != nil {
 		return err
 	}
-	updatedConfig := md.resolveUpdatedMachineConfig(releaseCmdMachine.Machine(), true)
-	err = md.releaseCommandMachine.AcquireLeases(ctx, md.leaseTimeout)
-	defer func() {
-		_ = md.releaseCommandMachine.ReleaseLeases(ctx)
-	}()
-	if err != nil {
+
+	if err := md.releaseCommandMachine.AcquireLeases(ctx, md.leaseTimeout); err != nil {
 		return err
 	}
-	err = releaseCmdMachine.Update(ctx, *updatedConfig)
-	if err != nil {
+	defer md.releaseCommandMachine.ReleaseLeases(ctx) // skipcq: GO-S2307
+
+	launchInput := md.launchInputForReleaseCommand(releaseCmdMachine.Machine())
+	if err := releaseCmdMachine.Update(ctx, *launchInput); err != nil {
 		return fmt.Errorf("error updating release_command machine: %w", err)
 	}
+
 	return nil
 }
 

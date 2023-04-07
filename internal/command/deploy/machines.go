@@ -242,15 +242,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 		panic("spawnMachineInGroup requires a non-empty group name. this is a bug!")
 	}
 	fmt.Fprintf(md.io.Out, "No machines in group '%s', launching one new machine\n", md.colorize.Bold(groupName))
-	machBase := &api.Machine{
-		Region: md.appConfig.PrimaryRegion,
-		Config: &api.MachineConfig{
-			Metadata: map[string]string{
-				api.MachineConfigMetadataKeyFlyProcessGroup: groupName,
-			},
-		},
-	}
-	launchInput := md.resolveUpdatedMachineConfig(machBase, false)
+	launchInput := md.launchInputForUpdateOrNew(nil, groupName)
 	newMachineRaw, err := md.flapsClient.Launch(ctx, *launchInput)
 	newMachine := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
 	if err != nil {
@@ -300,7 +292,15 @@ func (md *machineDeployment) restartMachinesApp(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return md.updateExistingMachines(ctx, md.machineSet.GetMachines())
+
+	machineUpdateEntries := lo.Map(md.machineSet.GetMachines(), func(lm machine.LeasableMachine, _ int) *machineUpdateEntry {
+		return &machineUpdateEntry{
+			leasableMachine: lm,
+			launchInput:     md.launchInputForUpdateOrNew(lm.Machine(), ""),
+		}
+	})
+
+	return md.updateExistingMachines(ctx, machineUpdateEntries)
 }
 
 func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
@@ -358,17 +358,30 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 		fmt.Fprintf(md.io.ErrOut, "Finished launching new machines\n")
 	}
 
-	return md.updateExistingMachines(ctx, md.machineSet.GetMachines())
+	machineUpdateEntries := lo.Map(md.machineSet.GetMachines(), func(lm machine.LeasableMachine, _ int) *machineUpdateEntry {
+		return &machineUpdateEntry{
+			leasableMachine: lm,
+			launchInput:     md.launchInputForUpdateOrNew(lm.Machine(), ""),
+		}
+	})
+
+	return md.updateExistingMachines(ctx, machineUpdateEntries)
 }
 
-func (md *machineDeployment) updateExistingMachines(ctx context.Context, machines []machine.LeasableMachine) error {
+type machineUpdateEntry struct {
+	leasableMachine machine.LeasableMachine
+	launchInput     *api.LaunchMachineInput
+}
+
+func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateEntries []*machineUpdateEntry) error {
 	// FIXME: handle deploy strategy: rolling, immediate, canary, bluegreen
 	fmt.Fprintf(md.io.Out, "Updating existing machines in '%s' with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
-	for _, m := range machines {
-		launchInput := md.resolveUpdatedMachineConfig(m.Machine(), false)
+	for _, e := range updateEntries {
+		lm := e.leasableMachine
+		launchInput := e.launchInput
 
-		fmt.Fprintf(md.io.ErrOut, "  Updating %s\n", md.colorize.Bold(m.FormattedMachineId()))
-		err := m.Update(ctx, *launchInput)
+		fmt.Fprintf(md.io.ErrOut, "  Updating %s\n", md.colorize.Bold(lm.FormattedMachineId()))
+		err := lm.Update(ctx, *launchInput)
 		if err != nil {
 			if md.strategy != "immediate" {
 				return err
@@ -378,21 +391,21 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, machine
 		}
 
 		if md.strategy != "immediate" {
-			err := m.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout)
+			err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout)
 			if err != nil {
 				return err
 			}
 		}
 
 		if md.strategy != "immediate" && !md.skipHealthChecks {
-			err := m.WaitForHealthchecksToPass(ctx, md.waitTimeout)
+			err := lm.WaitForHealthchecksToPass(ctx, md.waitTimeout)
 			// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
 			if err != nil {
 				return err
 			} else {
 				md.logClearLinesAbove(1)
 				fmt.Fprintf(md.io.ErrOut, "  Machine %s update finished: %s\n",
-					md.colorize.Bold(m.FormattedMachineId()),
+					md.colorize.Bold(lm.FormattedMachineId()),
 					md.colorize.Green("success"),
 				)
 			}
