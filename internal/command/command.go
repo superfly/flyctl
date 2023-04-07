@@ -349,7 +349,41 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
+// shouldIgnore allows a preparer to disable itself for specific commands
+// E.g. `shouldIgnore([][]string{{"version", "update"}, {"machine", "status"}})`
+// would return true for "fly version update" and "fly machine status"
+func shouldIgnore(ctx context.Context, cmds [][]string) bool {
+	cmd := FromContext(ctx)
+	for _, ignoredCmd := range cmds {
+		match := true
+		currentCmd := cmd
+		// The shape of the ignoredCmd slice is something like ["version", "update"],
+		// but we're walking up the tree from the end, so we have to iterate that in reverse
+		for i := len(ignoredCmd) - 1; i >= 0; i-- {
+			if !currentCmd.HasParent() || currentCmd.Use != ignoredCmd[i] {
+				match = false
+				break
+			}
+			currentCmd = currentCmd.Parent()
+		}
+		// Ensure that we have the root node, so that a filter on ["y"] wouldn't be tripped by "fly x y"
+		if match {
+			if !currentCmd.HasParent() {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func promptToUpdate(ctx context.Context) (context.Context, error) {
+
+	if shouldIgnore(ctx, [][]string{
+		{"version", "update"},
+	}) {
+		return ctx, nil
+	}
+
 	if !update.Check() {
 		return ctx, nil
 	}
