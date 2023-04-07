@@ -146,7 +146,6 @@ type v2PlatformMigrator struct {
 	isPostgres              bool
 	createdVolumes          []*NewVolume
 	primaryRegion           string
-	pgLeader                string
 	pgConsulUrl             string
 }
 
@@ -565,19 +564,7 @@ func (m *v2PlatformMigrator) updateNomadPostgresImage(ctx context.Context) error
 		return nil
 	}
 
-	cI := app.ImageDetails
 	lI := app.LatestImageDetails
-
-	current := cI.FullImageRef()
-	target := lI.FullImageRef()
-
-	if cI.Version != "" {
-		current = fmt.Sprintf("%s %s", current, cI.Version)
-	}
-
-	if lI.Version != "" {
-		target = fmt.Sprintf("%s %s", target, lI.Version)
-	}
 
 	input := api.DeployImageInput{
 		AppID:    m.appCompact.Name,
@@ -627,11 +614,7 @@ func (m *v2PlatformMigrator) migratePgVolumes(ctx context.Context) error {
 		if strings.Contains(vol.Name, "machines") {
 			continue
 		}
-		if _, ok := regionsToVols[vol.Region]; ok {
-			regionsToVols[vol.Region] = append(regionsToVols[vol.Region], vol)
-		} else {
-			regionsToVols[vol.Region] = []api.Volume{vol}
-		}
+		regionsToVols[vol.Region] = append(regionsToVols[vol.Region], vol)
 	}
 
 	var newVols []*NewVolume
