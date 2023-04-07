@@ -12,6 +12,12 @@ import (
 	"github.com/superfly/flyctl/internal/machine"
 )
 
+type ProcessGroupsDiff struct {
+	machinesToRemove      []machine.LeasableMachine
+	groupsToRemove        map[string]int
+	groupsNeedingMachines map[string]*appconfig.ProcessConfig
+}
+
 func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	ctx = flaps.NewContext(ctx, md.flapsClient)
 	if md.restartOnly {

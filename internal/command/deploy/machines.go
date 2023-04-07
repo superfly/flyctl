@@ -31,12 +31,6 @@ type MachineDeployment interface {
 	DeployMachinesApp(context.Context) error
 }
 
-type ProcessGroupsDiff struct {
-	machinesToRemove      []machine.LeasableMachine
-	groupsToRemove        map[string]int
-	groupsNeedingMachines map[string]*appconfig.ProcessConfig
-}
-
 type MachineDeploymentArgs struct {
 	AppCompact        *api.AppCompact
 	DeploymentImage   string
