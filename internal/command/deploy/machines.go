@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
@@ -446,13 +447,14 @@ func (md *machineDeployment) setVolumeConfig(ctx context.Context) error {
 
 	md.volumeDestination = md.appConfig.Mounts.Destination
 
-	if volumes, err := md.apiClient.GetVolumes(ctx, md.app.Name); err != nil {
+	volumes, err := md.apiClient.GetVolumes(ctx, md.app.Name)
+	if err != nil {
 		return fmt.Errorf("Error fetching application volumes: %w", err)
-	} else {
-		md.volumes = lo.Filter(volumes, func(v api.Volume, _ int) bool {
-			return v.Name == md.appConfig.Mounts.Source && v.AttachedAllocation == nil && v.AttachedMachine == nil
-		})
 	}
+
+	md.volumes = lo.Filter(volumes, func(v api.Volume, _ int) bool {
+		return v.Name == md.appConfig.Mounts.Source && v.AttachedAllocation == nil && v.AttachedMachine == nil
+	})
 	return nil
 }
 
@@ -585,26 +587,6 @@ func (md *machineDeployment) launchInputForRestart(origMachineRaw *api.Machine) 
 	}
 }
 
-func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *api.Machine) *api.LaunchMachineInput {
-	if origMachineRaw == nil {
-		origMachineRaw = &api.Machine{
-			Region: md.appConfig.PrimaryRegion,
-		}
-	}
-	// We can ignore the error because ToReleaseMachineConfig fails only
-	// if it can't split the command and we test that at initialization
-	mConfig, _ := md.appConfig.ToReleaseMachineConfig()
-	md.setMachineReleaseData(mConfig)
-
-	return &api.LaunchMachineInput{
-		ID:      origMachineRaw.ID,
-		AppID:   md.app.Name,
-		OrgSlug: md.app.Organization.ID,
-		Config:  mConfig,
-		Region:  origMachineRaw.Region,
-	}
-}
-
 func (md *machineDeployment) setMachineReleaseData(mConfig *api.MachineConfig) {
 	mConfig.Image = md.img
 	mConfig.Metadata = md.computeMachineConfigMetadata(mConfig)
@@ -615,62 +597,52 @@ func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Mac
 		return md.launchInputForRestart(origMachineRaw)
 	}
 	if forReleaseCommand {
-		launchInput := md.launchInputForReleaseCommand(origMachineRaw)
-		return md.configureLaunchInputForReleaseCommand(launchInput)
+		return md.launchInputForReleaseCommand(origMachineRaw)
 	}
+	return md.launchInputForUpdateOrNew(origMachineRaw, "")
+}
 
+func (md *machineDeployment) launchInputForUpdateOrNew(origMachineRaw *api.Machine, processGroup string) *api.LaunchMachineInput {
+	// If machine exists we have to respect its ID, Region and Process Group
 	if origMachineRaw == nil {
 		origMachineRaw = &api.Machine{
 			Region: md.appConfig.PrimaryRegion,
 			Config: &api.MachineConfig{},
 		}
+	} else if processGroup == "" {
+		processGroup = origMachineRaw.Config.ProcessGroup()
 	}
 
-	launchInput := &api.LaunchMachineInput{
+	// Ignore the error because by this point we already check the processGroup exists
+	mConfig, _ := md.appConfig.ToMachineConfig(processGroup)
+	mConfig.Guest = helpers.Clone(origMachineRaw.Config.Guest)
+	md.setMachineReleaseData(mConfig)
+
+	// Mounts needs special treatment:
+	//   * Volumes attached to existings machines can't be swapped by other volumes
+	//   * The only possible operation is to update its destination mount path
+	if len(origMachineRaw.Config.Mounts) != 0 {
+		origMount := origMachineRaw.Config.Mounts[0]
+		if len(mConfig.Mounts) == 0 {
+			terminal.Warnf("Machine %s has a volume attached but fly.toml doesn't have a [mounts] section\n", origMachineRaw.ID)
+		} else if len(mConfig.Mounts) != 0 && mConfig.Mounts[0].Path != origMount.Path {
+			terminal.Warnf(
+				"Updating the mount path for volume %s on machine %s from %s to %s due to fly.toml [mounts] destination value\n",
+				origMount.Volume, origMachineRaw.ID, origMount.Path, mConfig.Mounts[0].Path,
+			)
+		}
+		mConfig.Mounts = origMachineRaw.Config.Mounts
+	} else if len(mConfig.Mounts) != 0 {
+		mConfig.Mounts[0].Volume = md.volumes[0].ID
+	}
+
+	return &api.LaunchMachineInput{
 		ID:      origMachineRaw.ID,
 		AppID:   md.app.Name,
 		OrgSlug: md.app.Organization.ID,
-		Config:  machine.CloneConfig(origMachineRaw.Config),
 		Region:  origMachineRaw.Region,
+		Config:  mConfig,
 	}
-
-	md.setMachineReleaseData(launchInput.Config)
-	launchInput.Config.Env = lo.Assign(md.appConfig.Env)
-	if md.appConfig.PrimaryRegion != "" {
-		launchInput.Config.Env["PRIMARY_REGION"] = md.appConfig.PrimaryRegion
-	}
-
-	// Anything below this point doesn't apply to machines created to run ReleaseCommand
-	launchInput.Config.Metrics = md.appConfig.Metrics
-
-	for _, s := range md.appConfig.Statics {
-		launchInput.Config.Statics = append(launchInput.Config.Statics, &api.Static{
-			GuestPath: s.GuestPath,
-			UrlPrefix: s.UrlPrefix,
-		})
-	}
-
-	if launchInput.Config.Mounts == nil && md.appConfig.Mounts != nil {
-		launchInput.Config.Mounts = []api.MachineMount{{
-			Path:   md.volumeDestination,
-			Volume: md.volumes[0].ID,
-		}}
-	}
-
-	if len(launchInput.Config.Mounts) == 1 && launchInput.Config.Mounts[0].Path != md.volumeDestination {
-		currentMount := launchInput.Config.Mounts[0]
-		terminal.Warnf("Updating the mount path for volume %s on machine %s from %s to %s due to fly.toml [mounts] destination value\n", currentMount.Volume, origMachineRaw.ID, currentMount.Path, md.volumeDestination)
-		launchInput.Config.Mounts[0].Path = md.volumeDestination
-	}
-
-	processGroup := launchInput.Config.ProcessGroup()
-	if processConfig, ok := md.processConfigs[processGroup]; ok {
-		launchInput.Config.Services = processConfig.Services
-		launchInput.Config.Checks = processConfig.Checks
-		launchInput.Config.Init.Cmd = processConfig.Cmd
-	}
-
-	return launchInput
 }
 
 func (md *machineDeployment) defaultMachineMetadata() map[string]string {

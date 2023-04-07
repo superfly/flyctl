@@ -94,7 +94,28 @@ func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) er
 	return nil
 }
 
-func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *api.LaunchMachineInput) *api.LaunchMachineInput {
+func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *api.Machine) *api.LaunchMachineInput {
+	if origMachineRaw == nil {
+		origMachineRaw = &api.Machine{
+			Region: md.appConfig.PrimaryRegion,
+		}
+	}
+	// We can ignore the error because ToReleaseMachineConfig fails only
+	// if it can't split the command and we test that at initialization
+	mConfig, _ := md.appConfig.ToReleaseMachineConfig()
+	mConfig.Guest = md.inferReleaseCommandGuest()
+	md.setMachineReleaseData(mConfig)
+
+	return &api.LaunchMachineInput{
+		ID:      origMachineRaw.ID,
+		AppID:   md.app.Name,
+		OrgSlug: md.app.Organization.ID,
+		Config:  mConfig,
+		Region:  origMachineRaw.Region,
+	}
+}
+
+func (md *machineDeployment) inferReleaseCommandGuest() *api.MachineGuest {
 	desiredGuest := api.MachinePresets["shared-cpu-2x"]
 	if !md.machineSet.IsEmpty() {
 		group := md.appConfig.DefaultProcessName()
@@ -116,6 +137,5 @@ func (md *machineDeployment) configureLaunchInputForReleaseCommand(launchInput *
 			desiredGuest = maxRamMach.Config.Guest
 		}
 	}
-	launchInput.Config.Guest = helpers.Clone(desiredGuest)
-	return launchInput
+	return helpers.Clone(desiredGuest)
 }

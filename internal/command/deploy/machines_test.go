@@ -92,7 +92,6 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	md.volumes = []api.Volume{{ID: "vol_12345"}}
-	md.volumeDestination = "/data"
 
 	// New app machine
 	assert.Equal(t, &api.LaunchMachineInput{
@@ -114,6 +113,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 				Path: "/prometheus",
 			},
 			Mounts: []api.MachineMount{{
+				Name:   "data",
 				Volume: "vol_12345",
 				Path:   "/data",
 			}},
@@ -219,7 +219,6 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 		},
 	})
 	assert.NoError(t, err)
-	md.volumeDestination = "/data"
 	md.volumes = []api.Volume{{ID: "vol_12345"}}
 
 	// New app machine
@@ -239,6 +238,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 			Mounts: []api.MachineMount{{
 				Volume: "vol_12345",
 				Path:   "/data",
+				Name:   "data",
 			}},
 		},
 	},
