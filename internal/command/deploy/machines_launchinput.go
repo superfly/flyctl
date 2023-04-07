@@ -11,19 +11,19 @@ import (
 )
 
 func (md *machineDeployment) resolveUpdatedMachineConfig(origMachineRaw *api.Machine, forReleaseCommand bool) *api.LaunchMachineInput {
-	if md.restartOnly {
+	switch {
+	case md.restartOnly:
 		return md.launchInputForRestart(origMachineRaw)
-	}
-	if forReleaseCommand {
+	case forReleaseCommand:
 		return md.launchInputForReleaseCommand(origMachineRaw)
+	case origMachineRaw == nil:
+		return md.launchInputForLaunch("", nil)
+	default:
+		return md.launchInputForUpdate(origMachineRaw)
 	}
-	return md.launchInputForUpdateOrNew(origMachineRaw, "")
 }
 
 func (md *machineDeployment) launchInputForRestart(origMachineRaw *api.Machine) *api.LaunchMachineInput {
-	if origMachineRaw == nil {
-		return nil
-	}
 	Config := machine.CloneConfig(origMachineRaw.Config)
 	Config.Metadata = md.computeMachineConfigMetadata(Config)
 
@@ -36,16 +36,27 @@ func (md *machineDeployment) launchInputForRestart(origMachineRaw *api.Machine) 
 	}
 }
 
-func (md *machineDeployment) launchInputForUpdateOrNew(origMachineRaw *api.Machine, processGroup string) *api.LaunchMachineInput {
-	// If machine exists we have to respect its ID, Region and Process Group
-	if origMachineRaw == nil {
-		origMachineRaw = &api.Machine{
-			Region: md.appConfig.PrimaryRegion,
-			Config: &api.MachineConfig{},
-		}
-	} else if processGroup == "" {
-		processGroup = origMachineRaw.Config.ProcessGroup()
+func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *api.MachineGuest) *api.LaunchMachineInput {
+	// Ignore the error because by this point we already check the processGroup exists
+	mConfig, _ := md.appConfig.ToMachineConfig(processGroup)
+	mConfig.Guest = guest
+	md.setMachineReleaseData(mConfig)
+
+	if len(mConfig.Mounts) != 0 {
+		mConfig.Mounts[0].Volume = md.volumes[0].ID
 	}
+
+	return &api.LaunchMachineInput{
+		AppID:   md.app.Name,
+		OrgSlug: md.app.Organization.ID,
+		Region:  md.appConfig.PrimaryRegion,
+		Config:  mConfig,
+	}
+}
+
+func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) *api.LaunchMachineInput {
+	mID := origMachineRaw.ID
+	processGroup := origMachineRaw.Config.ProcessGroup()
 
 	// Ignore the error because by this point we already check the processGroup exists
 	mConfig, _ := md.appConfig.ToMachineConfig(processGroup)
@@ -62,24 +73,34 @@ func (md *machineDeployment) launchInputForUpdateOrNew(origMachineRaw *api.Machi
 	// Mounts needs special treatment:
 	//   * Volumes attached to existings machines can't be swapped by other volumes
 	//   * The only possible operation is to update its destination mount path
-	if len(origMachineRaw.Config.Mounts) != 0 {
-		origMount := &(origMachineRaw.Config.Mounts[0])
-		if len(mConfig.Mounts) == 0 {
-			terminal.Warnf("Machine %s has a volume attached but fly.toml doesn't have a [mounts] section\n", origMachineRaw.ID)
-		} else if cfgMount := &(mConfig.Mounts[0]); cfgMount.Path != origMount.Path {
+	//   * The other option is to force a machine replacement to remove or attach a different volume
+	mMounts := mConfig.Mounts
+	oMounts := origMachineRaw.Config.Mounts
+	if len(oMounts) != 0 {
+		switch {
+		case len(mMounts) == 0:
+			terminal.Warnf("Machine %s has a volume attached but fly.toml doesn't have a [mounts] section\n", mID)
+			mID = "" // Forces machine replacement
+		case mMounts[0].Name != oMounts[0].Name && oMounts[0].Name != "":
+			terminal.Warnf("Machine %s has volume '%s' attached but fly.toml have a different name: '%s'\n", mID, oMounts[0].Name, mMounts[0].Name)
+			mMounts[0].Volume = md.volumes[0].ID
+			mID = "" // Forces machine replacement
+		case mMounts[0].Path != oMounts[0].Path:
 			terminal.Warnf(
 				"Updating the mount path for volume %s on machine %s from %s to %s due to fly.toml [mounts] destination value\n",
-				origMount.Volume, origMachineRaw.ID, origMount.Path, cfgMount.Path,
+				oMounts[0].Volume, mID, oMounts[0].Path, mMounts[0].Path,
 			)
-			origMount.Path = cfgMount.Path
+			mMounts[0].Volume = oMounts[0].Volume
+		default:
+			mMounts[0] = oMounts[0]
 		}
-		mConfig.Mounts = origMachineRaw.Config.Mounts
-	} else if len(mConfig.Mounts) != 0 {
-		mConfig.Mounts[0].Volume = md.volumes[0].ID
+	} else if len(mMounts) != 0 {
+		mMounts[0].Volume = md.volumes[0].ID
+		mID = "" // Forces machine replacement
 	}
 
 	return &api.LaunchMachineInput{
-		ID:      origMachineRaw.ID,
+		ID:      mID,
 		AppID:   md.app.Name,
 		OrgSlug: md.app.Organization.ID,
 		Region:  origMachineRaw.Region,

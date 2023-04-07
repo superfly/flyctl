@@ -35,10 +35,7 @@ func (md *machineDeployment) restartMachinesApp(ctx context.Context) error {
 	md.machineSet.StartBackgroundLeaseRefresh(ctx, md.leaseTimeout, md.leaseDelayBetween)
 
 	machineUpdateEntries := lo.Map(md.machineSet.GetMachines(), func(lm machine.LeasableMachine, _ int) *machineUpdateEntry {
-		return &machineUpdateEntry{
-			leasableMachine: lm,
-			launchInput:     md.launchInputForRestart(lm.Machine()),
-		}
+		return &machineUpdateEntry{leasableMachine: lm, launchInput: md.launchInputForRestart(lm.Machine())}
 	})
 
 	return md.updateExistingMachines(ctx, machineUpdateEntries)
@@ -82,10 +79,7 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 	}
 
 	machineUpdateEntries := lo.Map(md.machineSet.GetMachines(), func(lm machine.LeasableMachine, _ int) *machineUpdateEntry {
-		return &machineUpdateEntry{
-			leasableMachine: lm,
-			launchInput:     md.launchInputForUpdateOrNew(lm.Machine(), ""),
-		}
+		return &machineUpdateEntry{leasableMachine: lm, launchInput: md.launchInputForUpdate(lm.Machine())}
 	})
 
 	return md.updateExistingMachines(ctx, machineUpdateEntries)
@@ -103,35 +97,57 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 		lm := e.leasableMachine
 		launchInput := e.launchInput
 
-		fmt.Fprintf(md.io.ErrOut, "  Updating %s\n", md.colorize.Bold(lm.FormattedMachineId()))
-		err := lm.Update(ctx, *launchInput)
-		if err != nil {
-			if md.strategy != "immediate" {
-				return err
-			} else {
-				fmt.Printf("Continuing after error: %s\n", err)
+		if launchInput.ID != lm.Machine().ID {
+			// If IDs don't match, destroy the original machine and launch a new one
+			// This can be the case for machines that changes its volumes or any other immutable config
+			fmt.Fprintf(md.io.ErrOut, "  Replacing %s by new machine\n", md.colorize.Bold(lm.FormattedMachineId()))
+			if err := lm.Destroy(ctx, true); err != nil {
+				if md.strategy != "immediate" {
+					return err
+				}
+				fmt.Fprintf(md.io.ErrOut, "Continuing after error: %s\n", err)
 			}
-		}
 
-		if md.strategy != "immediate" {
-			err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout)
+			newMachineRaw, err := md.flapsClient.Launch(ctx, *launchInput)
 			if err != nil {
-				return err
+				if md.strategy != "immediate" {
+					return err
+				}
+				fmt.Fprintf(md.io.ErrOut, "Continuing after error: %s\n", err)
+				continue
+			}
+
+			lm = machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
+			fmt.Fprintf(md.io.ErrOut, "  Created machine %s\n", md.colorize.Bold(lm.FormattedMachineId()))
+
+		} else {
+			fmt.Fprintf(md.io.ErrOut, "  Updating %s\n", md.colorize.Bold(lm.FormattedMachineId()))
+			if err := lm.Update(ctx, *launchInput); err != nil {
+				if md.strategy != "immediate" {
+					return err
+				}
+				fmt.Fprintf(md.io.ErrOut, "Continuing after error: %s\n", err)
 			}
 		}
 
-		if md.strategy != "immediate" && !md.skipHealthChecks {
-			err := lm.WaitForHealthchecksToPass(ctx, md.waitTimeout)
+		if md.strategy == "immediate" {
+			continue
+		}
+
+		if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout); err != nil {
+			return err
+		}
+
+		if !md.skipHealthChecks {
+			if err := lm.WaitForHealthchecksToPass(ctx, md.waitTimeout); err != nil {
+				return err
+			}
 			// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
-			if err != nil {
-				return err
-			} else {
-				md.logClearLinesAbove(1)
-				fmt.Fprintf(md.io.ErrOut, "  Machine %s update finished: %s\n",
-					md.colorize.Bold(lm.FormattedMachineId()),
-					md.colorize.Green("success"),
-				)
-			}
+			md.logClearLinesAbove(1)
+			fmt.Fprintf(md.io.ErrOut, "  Machine %s update finished: %s\n",
+				md.colorize.Bold(lm.FormattedMachineId()),
+				md.colorize.Green("success"),
+			)
 		}
 	}
 
@@ -145,12 +161,14 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 		panic("spawnMachineInGroup requires a non-empty group name. this is a bug!")
 	}
 	fmt.Fprintf(md.io.Out, "No machines in group '%s', launching one new machine\n", md.colorize.Bold(groupName))
-	launchInput := md.launchInputForUpdateOrNew(nil, groupName)
+	launchInput := md.launchInputForLaunch(groupName, nil)
+
 	newMachineRaw, err := md.flapsClient.Launch(ctx, *launchInput)
-	newMachine := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
 	if err != nil {
 		return fmt.Errorf("error creating a new machine machine: %w", err)
 	}
+
+	newMachine := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
 
 	// FIXME: dry this up with release commands and non-empty update
 	fmt.Fprintf(md.io.ErrOut, "  Created release_command machine %s\n", md.colorize.Bold(newMachineRaw.ID))
