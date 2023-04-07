@@ -26,7 +26,7 @@ func (c *Config) GetProcessConfigs() (map[string]*ProcessConfig, error) {
 	defaultProcessName := c.DefaultProcessName()
 
 	for processName, cmdStr := range configProcesses {
-		cmd := make([]string, 0)
+		var cmd []string
 		if cmdStr != "" {
 			var err error
 			cmd, err = shlex.Split(cmdStr)

@@ -61,13 +61,15 @@ func (chk *ToplevelCheck) toMachineCheck() (*api.MachineCheck, error) {
 		HTTPPath:          chk.HTTPPath,
 		HTTPProtocol:      chk.HTTPProtocol,
 		HTTPSkipTLSVerify: chk.HTTPTLSSkipVerify,
-		HTTPHeaders: lo.MapToSlice(
-			chk.HTTPHeaders, func(k string, v string) api.MachineHTTPHeader {
-				return api.MachineHTTPHeader{Name: k, Values: []string{v}}
-			}),
 	}
 	if chk.HTTPMethod != nil {
 		res.HTTPMethod = api.Pointer(strings.ToUpper(*chk.HTTPMethod))
+	}
+	if len(chk.HTTPHeaders) > 0 {
+		res.HTTPHeaders = lo.MapToSlice(
+			chk.HTTPHeaders, func(k string, v string) api.MachineHTTPHeader {
+				return api.MachineHTTPHeader{Name: k, Values: []string{v}}
+			})
 	}
 	return res, nil
 }
