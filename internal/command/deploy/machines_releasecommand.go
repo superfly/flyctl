@@ -9,7 +9,6 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/machine"
-	"github.com/superfly/flyctl/iostreams"
 )
 
 func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
@@ -17,8 +16,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
 		return nil
 	}
 
-	io := iostreams.FromContext(ctx)
-	fmt.Fprintf(io.ErrOut, "Running %s release_command: %s\n",
+	fmt.Fprintf(md.io.ErrOut, "Running %s release_command: %s\n",
 		md.colorize.Bold(md.app.Name),
 		md.appConfig.Deploy.ReleaseCommand,
 	)

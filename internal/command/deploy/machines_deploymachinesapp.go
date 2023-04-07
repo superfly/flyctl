@@ -10,7 +10,6 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/machine"
-	"github.com/superfly/flyctl/iostreams"
 )
 
 func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
@@ -207,32 +206,27 @@ func (md *machineDeployment) resolveProcessGroupChanges() ProcessGroupsDiff {
 }
 
 func (md *machineDeployment) warnAboutProcessGroupChanges(ctx context.Context, diff ProcessGroupsDiff) {
-	var (
-		io                 = iostreams.FromContext(ctx)
-		colorize           = io.ColorScheme()
-		willAddMachines    = len(diff.groupsNeedingMachines) != 0
-		willRemoveMachines = diff.machinesToRemove != nil
-	)
+	willAddMachines := len(diff.groupsNeedingMachines) != 0
+	willRemoveMachines := diff.machinesToRemove != nil
 
 	if !willAddMachines && !willRemoveMachines {
 		return
 	}
 
-	fmt.Fprintln(io.Out, "Process groups have changed. This will:")
+	fmt.Fprintln(md.io.Out, "Process groups have changed. This will:")
 
 	if willRemoveMachines {
-		bullet := colorize.Red("*")
+		bullet := md.colorize.Red("*")
 		for grp, numMach := range diff.groupsToRemove {
 			pluralS := lo.Ternary(numMach == 1, "", "s")
-			fmt.Fprintf(io.Out, " %s destroy %d \"%s\" machine%s\n", bullet, numMach, grp, pluralS)
+			fmt.Fprintf(md.io.Out, " %s destroy %d \"%s\" machine%s\n", bullet, numMach, grp, pluralS)
 		}
 	}
 	if willAddMachines {
-		bullet := colorize.Green("*")
-
+		bullet := md.colorize.Green("*")
 		for name := range diff.groupsNeedingMachines {
-			fmt.Fprintf(io.Out, " %s create 1 \"%s\" machine\n", bullet, name)
+			fmt.Fprintf(md.io.Out, " %s create 1 \"%s\" machine\n", bullet, name)
 		}
 	}
-	fmt.Fprint(io.Out, "\n")
+	fmt.Fprint(md.io.Out, "\n")
 }
