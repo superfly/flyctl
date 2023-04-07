@@ -29,10 +29,16 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 	if err != nil {
 		return err
 	}
+	ctx = appconfig.WithConfig(ctx, appConfig)
 
 	machines, err := mach.AppV2ListActive(ctx)
 	if err != nil {
 		return err
+	}
+
+	if len(machines) == 0 {
+		fmt.Fprintf(io.Out, "There are not active machines for this app. Did you ever `fly deploy`? if not, do it now\n")
+		return fmt.Errorf("Impossible to scale the app when there aren't running machines for this app")
 	}
 
 	var regions []string
@@ -55,7 +61,9 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 		return err
 	}
 
-	actions, err := computeActions(machines, expectedGroupCounts, regions, maxPerRegion)
+	defaults := newDefaults(appConfig, machines)
+
+	actions, err := computeActions(machines, expectedGroupCounts, regions, maxPerRegion, defaults)
 	if err != nil {
 		return err
 	}
@@ -67,9 +75,8 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 
 	fmt.Fprintf(io.Out, "App '%s' is going to be scaled according to this plan:\n", appName)
 
-	defaultGuest := machines[0].Config.Guest
 	for _, action := range actions {
-		size := defaultGuest.ToSize()
+		size := ""
 		if action.MachineConfig != nil {
 			size = action.MachineConfig.Guest.ToSize()
 		}
@@ -154,7 +161,7 @@ type planItem struct {
 	MachineConfig *api.MachineConfig
 }
 
-func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int, regions []string, maxPerRegion int) ([]*planItem, error) {
+func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int, regions []string, maxPerRegion int, defaults *defaultValues) ([]*planItem, error) {
 	actions := make([]*planItem, 0)
 	seenGroups := make(map[string]bool)
 	machineGroups := lo.GroupBy(machines, func(m *api.Machine) string {
@@ -199,6 +206,11 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 			continue
 		}
 
+		mConfig, err := defaults.ToMachineConfig(groupName)
+		if err != nil {
+			return nil, err
+		}
+
 		regionDiffs, err := convergeGroupCounts(expected, nil, regions, maxPerRegion)
 		if err != nil {
 			return nil, err
@@ -206,9 +218,10 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 
 		for regionName, delta := range regionDiffs {
 			actions = append(actions, &planItem{
-				GroupName: groupName,
-				Region:    regionName,
-				Delta:     delta,
+				GroupName:     groupName,
+				Region:        regionName,
+				Delta:         delta,
+				MachineConfig: mConfig,
 			})
 		}
 	}
