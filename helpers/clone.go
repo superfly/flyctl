@@ -1,14 +1,14 @@
 package helpers
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 
-	"github.com/jinzhu/copier"
 	"github.com/superfly/flyctl/internal/sentry"
 )
 
-// Clone clones a structure.
+// Clone clones *public fields* in a structure.
 //   - this will panic if the structure is not serializable
 //   - See CloneFallible
 func Clone[T any](v T) T {
@@ -23,6 +23,22 @@ func Clone[T any](v T) T {
 	return ret
 }
 
+func deepCopy(from any, into any) error {
+	// For some reason, this does not properly DeepCopy.
+	// The test TestClonePointer would fail using this library.
+	// return copier.CopyWithOption(into, from, copier.Option{IgnoreEmpty: true, DeepCopy: true})
+
+	// Unfortunately, this _does_ deep copy, but this only copies public fields.
+	jsonStr, err := json.Marshal(from)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(jsonStr, into)
+}
+
+// CloneFallible clones *public fields* in a structure.
+//   - returns an error if the structure is not serializable
+//   - See Clone
 func CloneFallible[T any](v T) (T, error) {
 	reflectedValue := reflect.ValueOf(v)
 	if reflectedValue.Kind() == reflect.Ptr {
@@ -33,9 +49,8 @@ func CloneFallible[T any](v T) (T, error) {
 			return nilT, nil
 		}
 
-		vPtr := reflectedValue.Interface()
 		cloned := reflect.New(reflect.Indirect(reflectedValue).Type())
-		err := copier.CopyWithOption(cloned.Interface(), vPtr, copier.Option{IgnoreEmpty: true, DeepCopy: true})
+		err := deepCopy(v, cloned.Interface())
 		if err != nil {
 			return nilT, err
 		}
@@ -47,7 +62,7 @@ func CloneFallible[T any](v T) (T, error) {
 		return ret, nil
 	} else {
 		var cloned T
-		err := copier.CopyWithOption(&cloned, v, copier.Option{IgnoreEmpty: true, DeepCopy: true})
+		err := deepCopy(v, &cloned)
 		return cloned, err
 	}
 }
