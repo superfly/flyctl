@@ -719,6 +719,48 @@ func (m *v2PlatformMigrator) setNomadPgReadonly(ctx context.Context) error {
 	return nil
 }
 
+func (m *v2PlatformMigrator) validatePgSettings(ctx context.Context) error {
+	dialer := agent.DialerFromContext(ctx)
+	agentclient, err := agent.Establish(ctx, m.apiClient)
+	if err != nil {
+		return err
+	}
+
+	pgInstances, err := agentclient.Instances(ctx, m.appFull.Organization.Slug, m.appFull.Name)
+	if err != nil {
+		return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", m.appCompact.Name, err)
+	}
+
+	if len(pgInstances.Addresses) == 0 {
+		return fmt.Errorf("no 6pn ips found for %s app", m.appCompact.Name)
+	}
+
+	leaderIP, err := leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
+	if err != nil {
+		return err
+	}
+
+	pgclient := flypg.NewFromInstance(leaderIP, dialer)
+
+	settings, err := pgclient.ViewSettings(ctx, []string{"max_wal_senders", "max_replication_slots"}, "stolon")
+	if err != nil {
+		return err
+	}
+
+	for _, setting := range settings.Settings {
+		if setting.Name == "max_wal_senders" || setting.Name == "max_replication_slots" {
+			atoi, err := strconv.Atoi(setting.Setting)
+			if err != nil {
+				return err
+			}
+			if atoi < len(pgInstances.Addresses)*2+1 {
+				return fmt.Errorf("max_wal_senders and max_replication_slots need to be set to at least %d", len(pgInstances.Addresses)*2+1)
+			}
+		}
+	}
+	return nil
+}
+
 func (m *v2PlatformMigrator) bounceHaproxy(ctx context.Context) error {
 	dialer := agent.DialerFromContext(ctx)
 	for _, machine := range m.newMachines.GetMachines() {
@@ -868,6 +910,12 @@ func (m *v2PlatformMigrator) validate(ctx context.Context) error {
 	err = m.validateProcessGroupsOnAllocs(ctx)
 	if err != nil {
 		return err
+	}
+	if m.isPostgres {
+		err = m.validatePgSettings(ctx)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
