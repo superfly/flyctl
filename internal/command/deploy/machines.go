@@ -300,9 +300,7 @@ func (md *machineDeployment) restartMachinesApp(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	md.machineSet.StartBackgroundLeaseRefresh(ctx, md.leaseTimeout, md.leaseDelayBetween)
-
-	return md.updateExistingMachines(ctx)
+	return md.updateExistingMachines(ctx, md.machineSet.GetMachines())
 }
 
 func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
@@ -360,13 +358,13 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 		fmt.Fprintf(md.io.ErrOut, "Finished launching new machines\n")
 	}
 
-	return md.updateExistingMachines(ctx)
+	return md.updateExistingMachines(ctx, md.machineSet.GetMachines())
 }
 
-func (md *machineDeployment) updateExistingMachines(ctx context.Context) error {
+func (md *machineDeployment) updateExistingMachines(ctx context.Context, machines []machine.LeasableMachine) error {
 	// FIXME: handle deploy strategy: rolling, immediate, canary, bluegreen
 	fmt.Fprintf(md.io.Out, "Updating existing machines in '%s' with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
-	for _, m := range md.machineSet.GetMachines() {
+	for _, m := range machines {
 		launchInput := md.resolveUpdatedMachineConfig(m.Machine(), false)
 
 		fmt.Fprintf(md.io.ErrOut, "  Updating %s\n", md.colorize.Bold(m.FormattedMachineId()))
