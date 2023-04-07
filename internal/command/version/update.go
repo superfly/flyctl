@@ -46,5 +46,10 @@ func runUpdate(ctx context.Context) error {
 	}
 
 	io := iostreams.FromContext(ctx)
-	return update.UpgradeInPlace(ctx, io, release.Prerelease)
+
+	if err = update.UpgradeInPlace(ctx, io, release.Prerelease); err != nil {
+		return err
+	}
+	fmt.Fprintf(io.Out, "Updated flyctl v%s -> v%s\n", buildinfo.Version(), latest)
+	return nil
 }
