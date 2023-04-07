@@ -316,6 +316,27 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 	return nil
 }
 
+func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status string) error {
+	_ = `# @genqlient
+	mutation MachinesUpdateRelease($input:UpdateReleaseInput!) {
+		updateRelease(input:$input) {
+			release {
+				id
+			}
+		}
+	}
+	`
+	input := gql.UpdateReleaseInput{
+		ReleaseId: md.releaseId,
+		Status:    status,
+	}
+	_, err := gql.MachinesUpdateRelease(ctx, md.gqlClient, input)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context) error {
 	// Deploy only if the app hasn't been deployed and have defined services
 	if md.app.Deployed || !md.machineSet.IsEmpty() || (md.appConfig.HttpService == nil && len(md.appConfig.Services) == 0) {
