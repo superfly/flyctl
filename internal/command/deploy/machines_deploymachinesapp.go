@@ -26,9 +26,9 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	return md.deployMachinesApp(ctx)
 }
 
+// restartMachinesApp only restarts existing machines but updates their release metadata
 func (md *machineDeployment) restartMachinesApp(ctx context.Context) error {
-	err := md.machineSet.AcquireLeases(ctx, md.leaseTimeout)
-	if err != nil {
+	if err := md.machineSet.AcquireLeases(ctx, md.leaseTimeout); err != nil {
 		return err
 	}
 	defer md.machineSet.ReleaseLeases(ctx) // skipcq: GO-S2307
@@ -41,9 +41,13 @@ func (md *machineDeployment) restartMachinesApp(ctx context.Context) error {
 	return md.updateExistingMachines(ctx, machineUpdateEntries)
 }
 
+// deployMachinesApp executes the following flow:
+//   * Run release command
+//   * Remove spare machines from removed groups
+//   * Launch new machines on new groups
+//   * Update existing machines
 func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
-	err := md.runReleaseCommand(ctx)
-	if err != nil {
+	if err := md.runReleaseCommand(ctx); err != nil {
 		return fmt.Errorf("release command failed - aborting deployment. %w", err)
 	}
 
