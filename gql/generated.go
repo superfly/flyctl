@@ -89,10 +89,14 @@ func (v *AgentGetInstancesAppMachinesMachineConnection) GetNodes() []AgentGetIns
 
 // AgentGetInstancesAppMachinesMachineConnectionNodesMachine includes the requested fields of the GraphQL type Machine.
 type AgentGetInstancesAppMachinesMachineConnectionNodesMachine struct {
+	State  string                                                                          `json:"state"`
 	Id     string                                                                          `json:"id"`
 	Region string                                                                          `json:"region"`
 	Ips    AgentGetInstancesAppMachinesMachineConnectionNodesMachineIpsMachineIPConnection `json:"ips"`
 }
+
+// GetState returns AgentGetInstancesAppMachinesMachineConnectionNodesMachine.State, and is useful for accessing the field via an interface.
+func (v *AgentGetInstancesAppMachinesMachineConnectionNodesMachine) GetState() string { return v.State }
 
 // GetId returns AgentGetInstancesAppMachinesMachineConnectionNodesMachine.Id, and is useful for accessing the field via an interface.
 func (v *AgentGetInstancesAppMachinesMachineConnectionNodesMachine) GetId() string { return v.Id }
@@ -2305,6 +2309,7 @@ query AgentGetInstances ($appName: String!) {
 		}
 		machines {
 			nodes {
+				state
 				id
 				region
 				ips {
