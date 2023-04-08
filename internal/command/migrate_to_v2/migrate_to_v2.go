@@ -1153,7 +1153,7 @@ func (m *v2PlatformMigrator) createMachines(ctx context.Context) error {
 		if exists, vol := m.volumeForPrevAlloc(machineInput.Config.Metadata["prevAlloc"]); exists {
 			machineInput.Config.Mounts = []api.MachineMount{{
 				Name:   "pg_data_machines",
-				Path:   m.volumeDestination,
+				Path:   "/data",
 				Volume: vol.ID,
 			}}
 		}
