@@ -631,6 +631,9 @@ func (m *v2PlatformMigrator) migratePgVolumes(ctx context.Context) error {
 	for region, vols := range regionsToVols {
 		fmt.Fprintf(m.io.Out, "Creatings %d new volume(s) in '%s'", len(vols), region)
 		for _, vol := range vols {
+			if vol.AttachedAllocation == nil {
+				continue
+			}
 			// TODO: make use of https://github.com/superfly/nomad-firecracker/pull/1013
 			input := api.CreateVolumeInput{
 				AppID:     app.ID,
