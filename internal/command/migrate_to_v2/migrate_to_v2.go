@@ -629,7 +629,7 @@ func (m *v2PlatformMigrator) migratePgVolumes(ctx context.Context) error {
 
 	var newVols []*NewVolume
 	for region, vols := range regionsToVols {
-		fmt.Fprintf(m.io.Out, "Creatings %d new volume(s) in '%s'", len(vols), region)
+		fmt.Fprintf(m.io.Out, "Creatings %d new volume(s) in '%s'\n", len(vols), region)
 		for _, vol := range vols {
 			if vol.AttachedAllocation == nil {
 				continue

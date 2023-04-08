@@ -91,7 +91,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err != nil {
 		return nil, err
 	}
-	if args.NewVolumeName != "" {
+	if args.NewVolumeName != "" && appConfig.Mounts != nil {
 		appConfig.Mounts.Source = args.NewVolumeName
 	}
 	err, _ = appConfig.Validate(ctx)
