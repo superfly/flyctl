@@ -63,23 +63,27 @@ func CloneConfig(orig *api.MachineConfig) *api.MachineConfig {
 	return helpers.Clone(orig)
 }
 
+var cmpOptions = cmp.Options{
+	cmp.FilterValues(
+		func(x, y []byte) bool { return json.Valid(x) && json.Valid(y) },
+		cmp.Transformer("parseJSON",
+			func(in []byte) (out string) {
+				return string(in)
+			})),
+}
+
 func configCompare(ctx context.Context, original api.MachineConfig, new api.MachineConfig) string {
-	var (
-		io       = iostreams.FromContext(ctx)
-		colorize = io.ColorScheme()
-	)
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
 
-	origBytes, _ := json.MarshalIndent(original, "", "\t")
-	newBytes, _ := json.MarshalIndent(new, "", "\t")
+	origBytes, _ := json.MarshalIndent(original, "", "  ")
+	newBytes, _ := json.MarshalIndent(new, "", "  ")
 
-	transformJSON := cmp.FilterValues(func(x, y []byte) bool {
-		return json.Valid(x) && json.Valid(y)
-	}, cmp.Transformer("parseJSON", func(in []byte) (out string) {
-		out = string(in)
-		return out
-	}))
+	if cmp.Equal(origBytes, newBytes, cmpOptions) {
+		return ""
+	}
 
-	diff := cmp.Diff(origBytes, newBytes, transformJSON)
+	diff := cmp.Diff(origBytes, newBytes, cmpOptions)
 	diffSlice := strings.Split(diff, "\n")
 
 	var str string
@@ -106,6 +110,6 @@ func configCompare(ctx context.Context, original api.MachineConfig, new api.Mach
 	if len(match) > 0 {
 		return strings.Trim(match[1], "\n")
 	}
-
-	return ""
+	// We know the objects are different, if we can't cleanup return the best we have got
+	return str
 }
