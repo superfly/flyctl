@@ -96,10 +96,6 @@ func (m *v2PlatformMigrator) migratePgVolumes(ctx context.Context) error {
 				SizeGb:    vol.SizeGb,
 				Encrypted: vol.Encrypted,
 			}
-			if len(vol.Snapshots.Nodes) > 0 {
-				//TODO(dov) figure out if this assumption about ordering is correct
-				input.SnapshotID = &vol.Snapshots.Nodes[len(vol.Snapshots.Nodes)-1].ID
-			}
 			newVol, err := m.apiClient.CreateVolume(ctx, input)
 			if err != nil {
 				return err
