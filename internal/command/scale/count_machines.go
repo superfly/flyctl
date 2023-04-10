@@ -37,8 +37,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 	}
 
 	if len(machines) == 0 {
-		fmt.Fprintf(io.Out, "There are not active machines for this app. Did you ever `fly deploy`? if not, do it now\n")
-		return fmt.Errorf("Impossible to scale the app when there aren't running machines for this app")
+		return fmt.Errorf("there are no active machines for this app. Run `fly deploy` to create one and rerun this command")
 	}
 
 	var regions []string
