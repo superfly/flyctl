@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -101,17 +100,17 @@ func Stop(ctx context.Context, machineID string, signal string, timeout int) (er
 	return
 }
 
-var signalSyscallMap = map[string]syscall.Signal{
-	"SIGABRT": syscall.SIGABRT,
-	"SIGALRM": syscall.SIGALRM,
-	"SIGFPE":  syscall.SIGFPE,
-	"SIGILL":  syscall.SIGILL,
-	"SIGINT":  syscall.SIGINT,
-	"SIGKILL": syscall.SIGKILL,
-	"SIGPIPE": syscall.SIGPIPE,
-	"SIGQUIT": syscall.SIGQUIT,
-	"SIGSEGV": syscall.SIGSEGV,
-	"SIGTERM": syscall.SIGTERM,
-	"SIGTRAP": syscall.SIGTRAP,
-	"SIGUSR1": syscall.SIGUSR1,
+var signalSyscallMap = map[string]struct{}{
+	"SIGABRT": {},
+	"SIGALRM": {},
+	"SIGFPE":  {},
+	"SIGILL":  {},
+	"SIGINT":  {},
+	"SIGKILL": {},
+	"SIGPIPE": {},
+	"SIGQUIT": {},
+	"SIGSEGV": {},
+	"SIGTERM": {},
+	"SIGTRAP": {},
+	"SIGUSR1": {},
 }
