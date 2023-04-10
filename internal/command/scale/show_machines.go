@@ -9,7 +9,6 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
-	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 	"golang.org/x/exp/slices"
@@ -25,19 +24,15 @@ func runMachinesScaleShow(ctx context.Context) error {
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
 
-	machines, err := mach.ListActive(ctx)
+	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
 	if err != nil {
 		return err
 	}
 
-	machineGroups := lo.GroupBy(
-		lo.Filter(machines, func(m *api.Machine, _ int) bool {
-			return m.IsFlyAppsPlatform()
-		}),
-		func(m *api.Machine) string {
-			return m.ProcessGroup()
-		},
-	)
+	machineGroups := lo.GroupBy(machines, func(m *api.Machine) string {
+		return m.ProcessGroup()
+	})
+
 	// Deterministic output sorted by group name
 	groupNames := lo.Keys(machineGroups)
 	slices.Sort(groupNames)
