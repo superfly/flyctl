@@ -490,6 +490,7 @@ func gqlGetInstances(ctx context.Context, orgSlug, appName string) instancesResu
 			}
 			machines {
 				nodes {
+                    state
 					id
 					region
 					ips {
@@ -524,6 +525,9 @@ func gqlGetInstances(ctx context.Context, orgSlug, appName string) instancesResu
 		}
 	}
 	for _, machine := range resp.App.Machines.Nodes {
+		if machine.State != "started" {
+			continue
+		}
 		for _, machineIp := range machine.Ips.Nodes {
 			if machineIp.Kind == "privatenet" && machineIp.Family == "v6" {
 				ip := net.ParseIP(machineIp.Ip)

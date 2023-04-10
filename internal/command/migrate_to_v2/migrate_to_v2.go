@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/superfly/flyctl/internal/command/apps"
 	"os"
 	"os/signal"
 	"runtime"
@@ -67,8 +68,20 @@ func runMigrateToV2(ctx context.Context) error {
 	var (
 		err error
 
-		appName = appconfig.NameFromContext(ctx)
+		appName   = appconfig.NameFromContext(ctx)
+		apiClient = client.FromContext(ctx).API()
 	)
+
+	appCompact, err := apiClient.GetAppCompact(ctx, appName)
+	if err != nil {
+		return err
+	}
+
+	ctx, err = apps.BuildContext(ctx, appCompact)
+	if err != nil {
+		return err
+	}
+
 	migrator, err := NewV2PlatformMigrator(ctx, appName)
 	if err != nil {
 		return err
@@ -92,6 +105,11 @@ func runMigrateToV2(ctx context.Context) error {
 type V2PlatformMigrator interface {
 	ConfirmChanges(ctx context.Context) (bool, error)
 	Migrate(ctx context.Context) error
+}
+
+type NewVolume struct {
+	vol             *api.Volume
+	previousAllocId string
 }
 
 // FIXME: a lot of stuff is shared with MachineDeployment... might be useful to consolidate the shared stuff into another library/package/something
@@ -122,6 +140,9 @@ type v2PlatformMigrator struct {
 	newMachines             machine.MachineSet
 	canAvoidDowntime        bool
 	recovery                recoveryState
+	isPostgres              bool
+	createdVolumes          []*NewVolume
+	pgConsulUrl             string
 }
 
 type recoveryState struct {
@@ -204,9 +225,17 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		oldAllocs:               allocs,
 		machineGuest:            machineGuest,
 		canAvoidDowntime:        true,
+		isPostgres:              appCompact.IsPostgresApp(),
 		recovery: recoveryState{
 			platformVersion: appFull.PlatformVersion,
 		},
+	}
+	if migrator.isPostgres {
+		consul, err := apiClient.EnablePostgresConsul(ctx, appCompact.Name)
+		if err != nil {
+			return nil, err
+		}
+		migrator.pgConsulUrl = consul.ConsulURL
 	}
 	err = migrator.validate(ctx)
 	if err != nil {
@@ -262,6 +291,21 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 			}
 		}
 	}
+	if len(m.createdVolumes) > 0 {
+		for _, vol := range m.createdVolumes {
+			_, err := m.apiClient.DeleteVolume(ctx, vol.vol.ID)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	if m.isPostgres {
+		tb.Detailf("Disabling readonly")
+		err := m.setNomadPgReadonly(ctx, true)
+		if err != nil {
+			return err
+		}
+	}
 	if m.recovery.platformVersion != "nomad" {
 
 		tb.Detailf("Setting platform version to 'nomad'")
@@ -302,7 +346,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	defer func() {
 		if err != nil {
 
-			if m.recovery.onlyPromptToConfigSave {
+			if m.recovery.onlyPromptToConfigSave && !m.isPostgres {
 				fmt.Fprintf(m.io.ErrOut, "Failed to save application config to disk, but migration was successful.\n")
 				fmt.Fprintf(m.io.ErrOut, "Please run `fly config save` before further interacting with your app via flyctl.\n")
 				return
@@ -314,6 +358,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 			} else {
 				header = "(!) An error has occurred. Attempting to rollback changes..."
 			}
+			fmt.Fprintf(m.io.ErrOut, "failed while migrating: %v\n", err)
 			recoveryBlock := render.NewTextBlock(ctx, header)
 			if recoveryErr := m.rollback(ctx, recoveryBlock); recoveryErr != nil {
 				fmt.Fprintf(m.io.ErrOut, "failed while rolling back application: %v\n", recoveryErr)
@@ -339,6 +384,26 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 			fmt.Fprintf(m.io.ErrOut, "\n")
 			aborted.Store(true)
 		}()
+	}
+
+	if m.isPostgres {
+		tb.Detail("Upgrading postgres image")
+		err := m.updateNomadPostgresImage(ctx)
+		if err != nil {
+			return err
+		}
+
+		tb.Detail("Setting postgres primary to readonly")
+		err = m.setNomadPgReadonly(ctx, true)
+		if err != nil {
+			return err
+		}
+
+		tb.Detail("Creating new postgres volumes")
+		err = m.migratePgVolumes(ctx)
+		if err != nil {
+			return err
+		}
 	}
 
 	tb.Detail("Locking app to prevent changes during the migration")
@@ -424,6 +489,30 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 		return abortedErr
 	}
 
+	if m.isPostgres {
+		inRegionDbs := m.inRegionMachines()
+
+		tb.Detail("Waiting for new potential primaries to become healthy")
+		err = m.waitForHealthyPgs(ctx)
+		if err != nil {
+			return err
+		}
+
+		var dbUIDs []string
+		tb.Detail("Collecting info about the new pg cluster")
+		dbUIDs, err = m.getPgDBUids(ctx, inRegionDbs)
+		if err != nil {
+			return err
+		}
+
+		tb.Detailf("We are checking to see if the following DB UIDs are synced %+v", dbUIDs)
+
+		err = m.waitForPGSync(ctx, dbUIDs)
+		if err != nil {
+			return err
+		}
+	}
+
 	if m.canAvoidDowntime {
 		tb.Detail("Scaling down to zero nomad VMs now that machines are running.")
 
@@ -436,6 +525,14 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 		}
 	}
 
+	if m.isPostgres {
+		tb.Detail("Waiting for election so we can disable readonly")
+		err = m.waitForElection(ctx)
+		if err != nil {
+			return err
+		}
+	}
+
 	tb.Detail("Updating the app platform platform type from V1 to V2")
 
 	err = m.updateAppPlatformVersion(ctx, "machines")
@@ -445,20 +542,33 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 
 	tb.Detail("Saving new configuration")
 
-	m.recovery.onlyPromptToConfigSave = true
-	err = m.appConfig.WriteToDisk(ctx, m.configPath)
-	if err != nil {
-		return err
+	if !m.isPostgres {
+		m.recovery.onlyPromptToConfigSave = true
+		err = m.appConfig.WriteToDisk(ctx, m.configPath)
+		if err != nil {
+			return err
+		}
 	}
 
 	tb.Done("Done")
 	return nil
 }
 
+func (m *v2PlatformMigrator) inRegionMachines() []*api.Machine {
+	var machines []*api.Machine
+	for _, machine := range m.newMachines.GetMachines() {
+		if machine.Machine().Region == m.appConfig.PrimaryRegion {
+			machines = append(machines, machine.Machine())
+		}
+	}
+	return machines
+}
+
 func (m *v2PlatformMigrator) validate(ctx context.Context) error {
 	var err error
-	err, _ = m.appConfig.ValidateForMachinesPlatform(ctx)
+	err, extraInfo := m.appConfig.ValidateForMachinesPlatform(ctx)
 	if err != nil {
+		fmt.Println(extraInfo)
 		return fmt.Errorf("failed to validate config for Apps V2 platform: %w", err)
 	}
 	err = m.validateScaling(ctx)
@@ -472,6 +582,12 @@ func (m *v2PlatformMigrator) validate(ctx context.Context) error {
 	err = m.validateProcessGroupsOnAllocs(ctx)
 	if err != nil {
 		return err
+	}
+	if m.isPostgres {
+		err = m.validatePgSettings(ctx)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -488,6 +604,9 @@ func (m *v2PlatformMigrator) validateVolumes(ctx context.Context) error {
 	// FIXME: for now we fail if there are volumes... remove this once we figure out volumes
 	// When we can migrate apps with volumes, you probably want to set `m.canAvoidDowntime`
 	// to false when the app has volumes.
+	if m.isPostgres {
+		return nil
+	}
 	if m.appConfig.Mounts != nil {
 		return fmt.Errorf("cannot migrate app %s with [mounts] configuration, yet; watch https://community.fly.io for announcements about volume support with migrations", m.appCompact.Name)
 	}
@@ -647,6 +766,13 @@ func (m *v2PlatformMigrator) createMachines(ctx context.Context) error {
 	}()
 
 	for _, machineInput := range m.newMachinesInput {
+		if exists, vol := m.volumeForPrevAlloc(machineInput.Config.Metadata["prevAlloc"]); exists {
+			machineInput.Config.Mounts = []api.MachineMount{{
+				Name:   "pg_data_machines",
+				Path:   "/data",
+				Volume: vol.ID,
+			}}
+		}
 		newMachine, err := m.flapsClient.Launch(ctx, *machineInput)
 		if err != nil {
 			return fmt.Errorf("failed creating a machine in region %s: %w", machineInput.Region, err)
@@ -684,10 +810,14 @@ func (m *v2PlatformMigrator) unlockApp(ctx context.Context) error {
 }
 
 func (m *v2PlatformMigrator) deployApp(ctx context.Context) error {
-	md, err := deploy.NewMachineDeployment(ctx, deploy.MachineDeploymentArgs{
+	input := deploy.MachineDeploymentArgs{
 		AppCompact:  m.appCompact,
 		RestartOnly: true,
-	})
+	}
+	if m.isPostgres {
+		input.NewVolumeName = "pg_data_machines"
+	}
+	md, err := deploy.NewMachineDeployment(ctx, input)
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(err, "migrate-to-v2", m.appCompact)
 		return err
@@ -731,6 +861,15 @@ func (m *v2PlatformMigrator) resolveMachinesFromAllocs() ([]*api.LaunchMachineIn
 	return res, nil
 }
 
+func (m *v2PlatformMigrator) volumeForPrevAlloc(id string) (bool, *api.Volume) {
+	for _, vol := range m.createdVolumes {
+		if vol.previousAllocId == id {
+			return true, vol.vol
+		}
+	}
+	return false, nil
+}
+
 func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus) (*api.LaunchMachineInput, error) {
 	launchInput := &api.LaunchMachineInput{
 		AppID:   m.appFull.Name,
@@ -744,6 +883,9 @@ func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus
 	launchInput.Config.Metadata = m.defaultMachineMetadata()
 	launchInput.Config.Image = m.img
 	launchInput.Config.Env = lo.Assign(m.appConfig.Env)
+	if m.isPostgres {
+		launchInput.Config.Env["FLY_CONSUL_URL"] = m.pgConsulUrl
+	}
 	if m.appConfig.PrimaryRegion != "" {
 		launchInput.Config.Env["PRIMARY_REGION"] = m.appConfig.PrimaryRegion
 	}
@@ -754,17 +896,20 @@ func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus
 			UrlPrefix: s.UrlPrefix,
 		})
 	}
-	// FIXME: we should probably error out if there are more than 1 vols attached
-	if len(alloc.AttachedVolumes.Nodes) == 1 {
-		vol := alloc.AttachedVolumes.Nodes[0]
-		launchInput.Config.Mounts = []api.MachineMount{{
-			Path:   m.volumeDestination,
-			Volume: vol.ID,
-		}}
+	if !m.isPostgres {
+		// FIXME: we should probably error out if there are more than 1 vols attached
+		if len(alloc.AttachedVolumes.Nodes) == 1 {
+			vol := alloc.AttachedVolumes.Nodes[0]
+			launchInput.Config.Mounts = []api.MachineMount{{
+				Path:   m.volumeDestination,
+				Volume: vol.ID,
+			}}
+		}
 	}
 
 	processConfig := m.processConfigs[alloc.TaskName]
 	launchInput.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = alloc.TaskName
+	launchInput.Config.Metadata["prevAlloc"] = alloc.ID
 	launchInput.Config.Services = processConfig.Services
 	launchInput.Config.Checks = processConfig.Checks
 	launchInput.Config.Init.Cmd = lo.Ternary(len(processConfig.Cmd) > 0, processConfig.Cmd, nil)
@@ -776,6 +921,7 @@ func (m *v2PlatformMigrator) determinePrimaryRegion(ctx context.Context) error {
 		m.appConfig.PrimaryRegion = fromFlag
 		return nil
 	}
+	fmt.Println(m.appConfig.Env)
 	if val, ok := m.appConfig.Env["PRIMARY_REGION"]; ok {
 		m.appConfig.PrimaryRegion = val
 		return nil
@@ -815,6 +961,10 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 	numAllocs := len(m.oldAllocs)
 
 	fmt.Fprintf(m.io.Out, "This migration process will do the following, in order:\n")
+	if m.isPostgres {
+		fmt.Fprintf(m.io.Out, " * Update your postgres app to the latest supported image version\n")
+		fmt.Fprintf(m.io.Out, " * Create volumes for new PG replicas to use\n")
+	}
 	fmt.Fprintf(m.io.Out, " * Lock your application, preventing changes during the migration\n")
 
 	printAllocs := func(msgSuffix string) {
@@ -841,16 +991,23 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 		fmt.Fprintf(m.io.Out, "   * Create %d \"%s\" machine%s\n", count, name, s)
 	}
 
+	if m.isPostgres {
+		fmt.Fprintf(m.io.Out, " * Wait for at least one new in-region PG replica to become synced\n")
+	}
+
 	if m.canAvoidDowntime {
 		printAllocs("after health checks pass for the new machines")
 	}
 
 	fmt.Fprintf(m.io.Out, " * Set the application platform version to \"machines\"\n")
 	fmt.Fprintf(m.io.Out, " * Unlock your application\n")
-	if exists, _ := appconfig.ConfigFileExistsAtPath(m.configPath); exists {
-		fmt.Fprintf(m.io.Out, " * Overwrite the config file at '%s'\n", m.configPath)
-	} else {
-		fmt.Fprintf(m.io.Out, " * Save the app's config file to '%s'\n", m.configPath)
+
+	if !m.isPostgres {
+		if exists, _ := appconfig.ConfigFileExistsAtPath(m.configPath); exists {
+			fmt.Fprintf(m.io.Out, " * Overwrite the config file at '%s'\n", m.configPath)
+		} else {
+			fmt.Fprintf(m.io.Out, " * Save the app's config file to '%s'\n", m.configPath)
+		}
 	}
 
 	confirm := false
@@ -866,13 +1023,10 @@ func determineAppConfigForMachines(ctx context.Context) (*appconfig.Config, erro
 	var (
 		err                error
 		appNameFromContext = appconfig.NameFromContext(ctx)
-		cfg                = appconfig.ConfigFromContext(ctx)
 	)
-	if cfg == nil {
-		cfg, err = appconfig.FromRemoteApp(ctx, appNameFromContext)
-		if err != nil {
-			return nil, err
-		}
+	cfg, err := appconfig.FromRemoteApp(ctx, appNameFromContext)
+	if err != nil {
+		return nil, err
 	}
 	if appNameFromContext != "" {
 		cfg.AppName = appNameFromContext

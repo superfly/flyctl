@@ -155,6 +155,17 @@ func (client *Client) GetApp(ctx context.Context, appName string) (*App, error) 
 					repository
 					version
 				}
+				volumes {
+				    nodes {
+					    id
+					    sizeGb
+					    name
+						region
+					    attachedAllocation {
+                           id
+					    }
+				    }
+				}
 				machines{
 					nodes {
 						id
