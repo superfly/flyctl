@@ -225,10 +225,15 @@ func (f *Client) Wait(ctx context.Context, machine *api.Machine, state string, t
 	return
 }
 
-func (f *Client) Stop(ctx context.Context, in api.StopMachineInput) (err error) {
+func (f *Client) Stop(ctx context.Context, in api.StopMachineInput, nonce string) (err error) {
 	stopEndpoint := fmt.Sprintf("/%s/stop", in.ID)
 
-	if err := f.sendRequest(ctx, http.MethodPost, stopEndpoint, nil, nil, nil); err != nil {
+	headers := make(map[string][]string)
+	if nonce != "" {
+		headers[NonceHeader] = []string{nonce}
+	}
+
+	if err := f.sendRequest(ctx, http.MethodPost, stopEndpoint, in, nil, headers); err != nil {
 		return fmt.Errorf("failed to stop VM %s: %w", in.ID, err)
 	}
 	return

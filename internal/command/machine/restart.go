@@ -67,7 +67,7 @@ func runMachineRestart(ctx context.Context) error {
 
 	// Resolve flags
 	input := &api.RestartMachineInput{
-		Timeout:          time.Duration(timeout),
+		Timeout:          time.Duration(timeout) * time.Second,
 		ForceStop:        flag.GetBool(ctx, "force"),
 		SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),
 	}

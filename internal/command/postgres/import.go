@@ -192,7 +192,7 @@ func runImport(ctx context.Context) error {
 	}
 
 	// Stop Machine
-	if err := flapsClient.Stop(ctx, api.StopMachineInput{ID: machine.ID}); err != nil {
+	if err := flapsClient.Stop(ctx, api.StopMachineInput{ID: machine.ID}, machine.LeaseNonce); err != nil {
 		return err
 	}
 

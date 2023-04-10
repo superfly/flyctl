@@ -200,10 +200,9 @@ type MachineExitEvent struct {
 }
 
 type StopMachineInput struct {
-	ID      string        `json:"id,omitempty"`
-	Signal  Signal        `json:"signal,omitempty"`
-	Timeout time.Duration `json:"timeout,omitempty"`
-	Filters *Filters      `json:"filters,omitempty"`
+	ID      string   `json:"id,omitempty"`
+	Signal  string   `json:"signal,omitempty"`
+	Timeout Duration `json:"timeout,omitempty"`
 }
 
 type RestartMachineInput struct {
