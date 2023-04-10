@@ -182,12 +182,7 @@ func patchServices(cfg map[string]any) (map[string]any, error) {
 				newServices = append(newServices, service)
 			}
 		}
-
-		if len(services) > 0 {
-			cfg["services"] = newServices
-		} else {
-			delete(cfg, "services")
-		}
+		cfg["services"] = newServices
 	}
 	return cfg, nil
 }
