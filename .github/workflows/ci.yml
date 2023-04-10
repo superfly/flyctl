@@ -1,8 +1,4 @@
 name: CI
-env:
-  # Increment this to bust the build cache
-  CACHE_VERSION: 2
-  GO_VERSION: 1.20.x
 on:
   push:
   workflow_dispatch:
@@ -12,63 +8,32 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch' }}
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v4
         with:
-          go-version: ${{ env.GO_VERSION }}
-      - uses: actions/cache@v2
-        with:
-          # In order:
-          # * Module download cache
-          # * Build cache (Linux)
-          # * Build cache (Mac)
-          # * Build cache (Windows)
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-            ~/Library/Caches/go-build
-            %LocalAppData%\go-build
-          key: ${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ steps.go-version.outputs.version }}-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ env.CACHE_VERSION }}-${{ runner.os }}-go
+          go-version-file: "go.mod"
+          check-latest: true
       - name: "Place wintun.dll"
         run: cp deps/wintun/bin/amd64/wintun.dll ./
       - name: build
-        uses: goreleaser/goreleaser-action@v2
+        uses: goreleaser/goreleaser-action@v4
         with:
           version: latest
           args: build --rm-dist --snapshot
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v4
         with:
-          go-version: ${{ env.GO_VERSION }}
-      - name: Get go version
-        id: go-version
-        run: echo "::set-output name=version::$(go env GOVERSION)"
-      - uses: actions/cache@v2
-        with:
-          # In order:
-          # * Module download cache
-          # * Build cache (Linux)
-          # * Build cache (Mac)
-          # * Build cache (Windows)
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-            ~/Library/Caches/go-build
-            %LocalAppData%\go-build
-          key: ${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ steps.go-version.outputs.version }}-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ env.CACHE_VERSION }}-${{ runner.os }}-go
+          go-version-file: "go.mod"
+          check-latest: true
       - name: go mod download
         run: go mod download
       - name: go mod verify
         run: go mod verify
       - name: generate command strings
-        run: go generate ./...
+        run: go generate ./... && git diff --exit-code
       - name: "Place wintun.dll"
         run: cp deps/wintun/bin/amd64/wintun.dll ./
       - name: Run tests
@@ -79,36 +44,19 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, 'dev-')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v4
         with:
-          go-version: ${{ env.GO_VERSION }}
-      - name: Get go version
-        id: go-version
-        run: echo "::set-output name=version::$(go env GOVERSION)"
+          go-version-file: "go.mod"
+          check-latest: true
       - name: Docker Login
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
         run: |
           echo "${DOCKER_PASSWORD}" | docker login --username "${DOCKER_USERNAME}" --password-stdin
-      - uses: actions/cache@v2
-        with:
-          # In order:
-          # * Module download cache
-          # * Build cache (Linux)
-          # * Build cache (Mac)
-          # * Build cache (Windows)
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-            ~/Library/Caches/go-build
-            %LocalAppData%\go-build
-          key: ${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ steps.go-version.outputs.version }}-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ env.CACHE_VERSION }}-${{ runner.os }}-go
       - name: Place wintun.dll
         run: cp -r deps/wintun/bin/amd64/wintun.dll ./
       - name: generate release notes
@@ -116,7 +64,7 @@ jobs:
           mkdir -p ./tmp
           ./scripts/changelog.sh > ./tmp/changelog.txt
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v2
+        uses: goreleaser/goreleaser-action@v4
         with:
           version: latest
           args: release --rm-dist --release-notes=./tmp/changelog.txt
@@ -127,55 +75,41 @@ jobs:
         with:
           name: checksums
           path: dist/checksums.txt
+
   sync_docs:
     needs: release
     runs-on: ubuntu-latest
     if: ${{ github.ref == 'refs/heads/master' }}
     steps:
       - name: Checkout flyctl
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Checkout docs
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: superfly/docs
           token: ${{ secrets.DOCS_GITHUB_TOKEN }}
           path: docs
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v4
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: "go.mod"
+          check-latest: true
       - name: Publish CLI docs
         id: publish-cli-docs
         env:
           GITHUB_TOKEN: ${{ secrets.DOCS_GITHUB_TOKEN }}
         run: scripts/publish_docs.sh ${{ github.ref_name }}
+
   dev_release:
     if: startsWith(github.ref, 'refs/tags/v') && contains(github.ref, 'dev-')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v4
         with:
-          go-version: ${{ env.GO_VERSION }}
-      - name: Get go version
-        id: go-version
-        run: echo "::set-output name=version::$(go env GOVERSION)"
-      - uses: actions/cache@v2
-        with:
-          # In order:
-          # * Module download cache
-          # * Build cache (Linux)
-          # * Build cache (Mac)
-          # * Build cache (Windows)
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-            ~/Library/Caches/go-build
-            %LocalAppData%\go-build
-          key: ${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ steps.go-version.outputs.version }}-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ env.CACHE_VERSION }}-${{ runner.os }}-go
+          go-version-file: "go.mod"
+          check-latest: true
       - name: Place wintun.dll
         run: cp -r deps/wintun/bin/amd64/wintun.dll ./
       - name: generate release notes
@@ -183,7 +117,7 @@ jobs:
           mkdir -p ./tmp
           ./scripts/changelog.sh > ./tmp/changelog.txt
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v2
+        uses: goreleaser/goreleaser-action@v4
         with:
           version: latest
           args: release --config .goreleaser.dev.yml --rm-dist --release-notes=./tmp/changelog.txt
@@ -194,13 +128,14 @@ jobs:
         with:
           name: checksums
           path: dist/checksums.txt
+
   aur-publish:
     name: Build & publish to AUR
     needs: release
     if: ${{ !contains(github.ref, 'pre') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Download checksums
         uses: actions/download-artifact@v2.0.8
         with:
