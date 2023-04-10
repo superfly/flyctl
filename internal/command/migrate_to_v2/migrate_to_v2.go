@@ -145,7 +145,6 @@ type v2PlatformMigrator struct {
 	recovery                recoveryState
 	isPostgres              bool
 	createdVolumes          []*NewVolume
-	primaryRegion           string
 	pgConsulUrl             string
 }
 
@@ -233,10 +232,6 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		recovery: recoveryState{
 			platformVersion: appFull.PlatformVersion,
 		},
-		primaryRegion: appConfig.PrimaryRegion,
-	}
-	if region, ok := migrator.appConfig.Env["PRIMARY_REGION"]; ok {
-		migrator.primaryRegion = region
 	}
 	if migrator.isPostgres {
 		consul, err := apiClient.EnablePostgresConsul(ctx, appCompact.Name)
@@ -354,7 +349,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	defer func() {
 		if err != nil {
 
-			if m.recovery.onlyPromptToConfigSave {
+			if m.recovery.onlyPromptToConfigSave && !m.isPostgres {
 				fmt.Fprintf(m.io.ErrOut, "Failed to save application config to disk, but migration was successful.\n")
 				fmt.Fprintf(m.io.ErrOut, "Please run `fly config save` before further interacting with your app via flyctl.\n")
 				return
@@ -550,10 +545,12 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 
 	tb.Detail("Saving new configuration")
 
-	m.recovery.onlyPromptToConfigSave = true
-	err = m.appConfig.WriteToDisk(ctx, m.configPath)
-	if err != nil {
-		return err
+	if !m.isPostgres {
+		m.recovery.onlyPromptToConfigSave = true
+		err = m.appConfig.WriteToDisk(ctx, m.configPath)
+		if err != nil {
+			return err
+		}
 	}
 
 	tb.Done("Done")
@@ -621,7 +618,7 @@ func (m *v2PlatformMigrator) migratePgVolumes(ctx context.Context) error {
 	regionsToVols := map[string][]api.Volume{}
 	// Find all volumes
 	for _, vol := range app.Volumes.Nodes {
-		if strings.Contains(vol.Name, "machines") {
+		if strings.Contains(vol.Name, "machines") || vol.AttachedAllocation == nil {
 			continue
 		}
 		regionsToVols[vol.Region] = append(regionsToVols[vol.Region], vol)
@@ -631,9 +628,6 @@ func (m *v2PlatformMigrator) migratePgVolumes(ctx context.Context) error {
 	for region, vols := range regionsToVols {
 		fmt.Fprintf(m.io.Out, "Creatings %d new volume(s) in '%s'\n", len(vols), region)
 		for _, vol := range vols {
-			if vol.AttachedAllocation == nil {
-				continue
-			}
 			// TODO: make use of https://github.com/superfly/nomad-firecracker/pull/1013
 			input := api.CreateVolumeInput{
 				AppID:     app.ID,
@@ -832,7 +826,7 @@ func (m *v2PlatformMigrator) bounceHaproxy(ctx context.Context, leader string) e
 func (m *v2PlatformMigrator) inRegionMachines() []*api.Machine {
 	var machines []*api.Machine
 	for _, machine := range m.newMachines.GetMachines() {
-		if machine.Machine().Region == m.primaryRegion {
+		if machine.Machine().Region == m.appConfig.PrimaryRegion {
 			machines = append(machines, machine.Machine())
 		}
 	}
@@ -926,7 +920,7 @@ func (m *v2PlatformMigrator) waitForHealthyPgs(ctx context.Context) error {
 func (m *v2PlatformMigrator) waitForPGSync(ctx context.Context, dbuids []string) error {
 	s := spinner.New(spinner.CharSets[9], 200*time.Millisecond)
 	s.Writer = m.io.ErrOut
-	s.Prefix = fmt.Sprintf("Waiting for at least one in region (%s) replica to be synced", m.primaryRegion)
+	s.Prefix = fmt.Sprintf("Waiting for at least one in region (%s) replica to be synced", m.appConfig.PrimaryRegion)
 	s.Start()
 
 	defer s.Stop()
@@ -1305,6 +1299,7 @@ func (m *v2PlatformMigrator) determinePrimaryRegion(ctx context.Context) error {
 		m.appConfig.PrimaryRegion = fromFlag
 		return nil
 	}
+	fmt.Println(m.appConfig.Env)
 	if val, ok := m.appConfig.Env["PRIMARY_REGION"]; ok {
 		m.appConfig.PrimaryRegion = val
 		return nil
@@ -1403,13 +1398,10 @@ func determineAppConfigForMachines(ctx context.Context) (*appconfig.Config, erro
 	var (
 		err                error
 		appNameFromContext = appconfig.NameFromContext(ctx)
-		cfg                = appconfig.ConfigFromContext(ctx)
 	)
-	if cfg == nil {
-		cfg, err = appconfig.FromRemoteApp(ctx, appNameFromContext)
-		if err != nil {
-			return nil, err
-		}
+	cfg, err := appconfig.FromRemoteApp(ctx, appNameFromContext)
+	if err != nil {
+		return nil, err
 	}
 	if appNameFromContext != "" {
 		cfg.AppName = appNameFromContext

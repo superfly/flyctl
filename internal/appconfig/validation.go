@@ -45,7 +45,7 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 	case NomadPlatform:
 		platErr, platExtra := cfg.ValidateForNomadPlatform(ctx)
 		return platErr, extra_info + platExtra
-	case "", "detached":
+	case "", DetachedPlatform:
 		return nil, ""
 	default:
 		return fmt.Errorf("Unknown platform version '%s' for app '%s'", platformVersion, appName), extra_info
