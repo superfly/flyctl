@@ -367,31 +367,6 @@ func run(ctx context.Context) (err error) {
 	ctx = appconfig.WithName(ctx, appConfig.AppName)
 	ctx = appconfig.WithConfig(ctx, appConfig)
 
-	if shouldUseMachines && !deployArgs.ForceYes {
-		if !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "now") && !flag.GetBool(ctx, "auto-confirm") && appConfig.HasNonHttpAndHttpsStandardServices() {
-			hasUdpService := appConfig.HasUdpService()
-			ipStuffStr := "a dedicated ipv4 address"
-			if !hasUdpService {
-				ipStuffStr = "dedicated ipv4 and ipv6 addresses"
-			}
-			confirmDedicatedIp, err := prompt.Confirmf(ctx, "Would you like to allocate %s now?", ipStuffStr)
-			if confirmDedicatedIp && err == nil {
-				v4Dedicated, err := client.AllocateIPAddress(ctx, appConfig.AppName, "v4", "", nil, "")
-				if err != nil {
-					return err
-				}
-				fmt.Fprintf(io.Out, "Allocated dedicated ipv4: %s\n", v4Dedicated.Address)
-				if !hasUdpService {
-					v6Dedicated, err := client.AllocateIPAddress(ctx, appConfig.AppName, "v6", "", nil, "")
-					if err != nil {
-						return err
-					}
-					fmt.Fprintf(io.Out, "Allocated dedicated ipv6: %s\n", v6Dedicated.Address)
-				}
-			}
-		}
-	}
-
 	// Notices from a launcher about its behavior that should always be displayed
 	if srcInfo.Notice != "" {
 		fmt.Fprintln(io.Out, srcInfo.Notice)

@@ -1,0 +1,4 @@
+app = "foo"
+
+# A service without any key must be ignored
+[[services]]

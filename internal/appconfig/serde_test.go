@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/api"
 )
 
@@ -12,7 +13,7 @@ func TestLoadTOMLAppConfigWithAppName(t *testing.T) {
 	const path = "./testdata/app-name.toml"
 
 	p, err := LoadConfig(path)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, p.AppName, "test-app")
 }
 
@@ -20,7 +21,7 @@ func TestLoadTOMLAppConfigWithBuilderName(t *testing.T) {
 	const path = "./testdata/build.toml"
 
 	p, err := LoadConfig(path)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, p.Build.Builder, "builder/name")
 }
 
@@ -28,7 +29,7 @@ func TestLoadTOMLAppConfigWithImage(t *testing.T) {
 	const path = "./testdata/image.toml"
 
 	p, err := LoadConfig(path)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, p.Build.Image, "image/name")
 }
 
@@ -36,7 +37,7 @@ func TestLoadTOMLAppConfigWithDockerfile(t *testing.T) {
 	const path = "./testdata/docker.toml"
 
 	p, err := LoadConfig(path)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, p.Build.Dockerfile, "./Dockerfile")
 }
 
@@ -44,14 +45,22 @@ func TestLoadTOMLAppConfigWithBuilderNameAndArgs(t *testing.T) {
 	const path = "./testdata/build-with-args.toml"
 
 	p, err := LoadConfig(path)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, p.Build.Args, map[string]string{"A": "B", "C": "D"})
+}
+
+func TestLoadTOMLAppConfigWithEmptyService(t *testing.T) {
+	const path = "./testdata/services-emptysection.toml"
+
+	p, err := LoadConfig(path)
+	require.NoError(t, err)
+	assert.Nil(t, p.Services)
 }
 
 func TestLoadTOMLAppConfigInvalidV2(t *testing.T) {
 	const path = "./testdata/always-invalid-v2.toml"
 	cfg, err := LoadConfig(path)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Error(t, cfg.v2UnmarshalError)
 	assert.Equal(t, &Config{
 		configFilePath:   "./testdata/always-invalid-v2.toml",
@@ -107,7 +116,7 @@ func TestLoadTOMLAppConfigInvalidV2(t *testing.T) {
 func TestLoadTOMLAppConfigExperimental(t *testing.T) {
 	const path = "./testdata/experimental-alt.toml"
 	cfg, err := LoadConfig(path)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, &Config{
 		configFilePath: "./testdata/experimental-alt.toml",
 		AppName:        "foo",
@@ -130,7 +139,7 @@ func TestLoadTOMLAppConfigExperimental(t *testing.T) {
 func TestLoadTOMLAppConfigMountsArray(t *testing.T) {
 	const path = "./testdata/mounts-array.toml"
 	cfg, err := LoadConfig(path)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, &Config{
 		configFilePath: "./testdata/mounts-array.toml",
 		AppName:        "foo",
@@ -151,7 +160,7 @@ func TestLoadTOMLAppConfigMountsArray(t *testing.T) {
 func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 	const path = "./testdata/old-format.toml"
 	cfg, err := LoadConfig(path)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, &Config{
 		configFilePath: "./testdata/old-format.toml",
 		AppName:        "foo",
@@ -233,7 +242,7 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 func TestLoadTOMLAppConfigOldChecksFormat(t *testing.T) {
 	const path = "./testdata/old-pg-checks.toml"
 	cfg, err := LoadConfig(path)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, &Config{
 		configFilePath: "./testdata/old-pg-checks.toml",
 		AppName:        "foo",
@@ -261,7 +270,7 @@ func TestLoadTOMLAppConfigOldChecksFormat(t *testing.T) {
 func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 	const path = "./testdata/full-reference.toml"
 	cfg, err := LoadConfig(path)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Nullify cfg.RawDefinition because it won't mutate per test in TestLoadTOMLAppConfigOldFormat
 	cfg.RawDefinition = nil

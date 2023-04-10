@@ -172,14 +172,17 @@ func patchServices(cfg map[string]any) (map[string]any, error) {
 			return nil, fmt.Errorf("Error processing services: %w", err)
 		}
 
-		for idx, service := range services {
+		var newServices []map[string]any
+		for _, service := range services {
 			service, err := _patchService(service)
 			if err != nil {
 				return nil, err
 			}
-			services[idx] = service
+			if len(service) != 0 {
+				newServices = append(newServices, service)
+			}
 		}
-		cfg["services"] = services
+		cfg["services"] = newServices
 	}
 	return cfg, nil
 }
