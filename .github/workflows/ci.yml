@@ -31,6 +31,9 @@ jobs:
         with:
           go-version-file: "go.mod"
           check-latest: true
+      - name: Get go version
+        id: go-version
+        run: echo "name=version::$(go env GOVERSION)" >> $GITHUB_OUTPUT
       - name: go mod download
         run: go mod download
       - name: go mod verify
@@ -54,6 +57,9 @@ jobs:
         with:
           go-version-file: "go.mod"
           check-latest: true
+      - name: Get go version
+        id: go-version
+        run: echo "name=version::$(go env GOVERSION)" >> $GITHUB_OUTPUT
       - name: Docker Login
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -113,6 +119,9 @@ jobs:
         with:
           go-version-file: "go.mod"
           check-latest: true
+      - name: Get go version
+        id: go-version
+        run: echo "name=version::$(go env GOVERSION)" >> $GITHUB_OUTPUT
       - name: Place wintun.dll
         run: cp -r deps/wintun/bin/amd64/wintun.dll ./
       - name: generate release notes
