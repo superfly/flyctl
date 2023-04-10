@@ -18,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -306,7 +307,7 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 	}
 	`
 	input := gql.CreateReleaseInput{
-		AppId:           md.appConfig.AppName,
+		AppId:           md.app.Name,
 		PlatformVersion: "machines",
 		Strategy:        gql.DeploymentStrategy(strings.ToUpper(md.strategy)),
 		Definition:      md.appConfig,
@@ -322,23 +323,54 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 }
 
 func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context) error {
-	if md.app.Deployed || !md.machineSet.IsEmpty() {
+	// Deploy only if the app hasn't been deployed and have defined services
+	if md.app.Deployed || !md.machineSet.IsEmpty() || (md.appConfig.HttpService == nil && len(md.appConfig.Services) == 0) {
 		return nil
 	}
-	if md.appConfig.HttpService != nil || len(md.appConfig.Services) > 0 {
-		ipAddrs, err := md.apiClient.GetIPAddresses(ctx, md.app.Name)
-		if err != nil {
-			return fmt.Errorf("error detecting ip addresses allocated to %s app: %w", md.app.Name, err)
+
+	// Do not touch IPs if there are already allocated
+	ipAddrs, err := md.apiClient.GetIPAddresses(ctx, md.app.Name)
+	if err != nil {
+		return fmt.Errorf("error detecting ip addresses allocated to %s app: %w", md.app.Name, err)
+	}
+	if len(ipAddrs) > 0 {
+		return nil
+	}
+
+	switch md.appConfig.HasNonHttpAndHttpsStandardServices() {
+	case true:
+		hasUdpService := md.appConfig.HasUdpService()
+
+		ipStuffStr := "a dedicated ipv4 address"
+		if !hasUdpService {
+			ipStuffStr = "dedicated ipv4 and ipv6 addresses"
 		}
-		if len(ipAddrs) > 0 {
-			return nil
+
+		confirmDedicatedIp, err := prompt.Confirmf(ctx, "Would you like to allocate %s now?", ipStuffStr)
+		if confirmDedicatedIp && err == nil {
+			v4Dedicated, err := md.apiClient.AllocateIPAddress(ctx, md.app.Name, "v4", "", nil, "")
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(md.io.Out, "Allocated dedicated ipv4: %s\n", v4Dedicated.Address)
+
+			if !hasUdpService {
+				v6Dedicated, err := md.apiClient.AllocateIPAddress(ctx, md.app.Name, "v6", "", nil, "")
+				if err != nil {
+					return err
+				}
+				fmt.Fprintf(md.io.Out, "Allocated dedicated ipv6: %s\n", v6Dedicated.Address)
+			}
 		}
+
+	case false:
 		fmt.Fprintf(md.io.Out, "Provisioning ips for %s\n", md.colorize.Bold(md.app.Name))
 		v6Addr, err := md.apiClient.AllocateIPAddress(ctx, md.app.Name, "v6", "", nil, "")
 		if err != nil {
 			return fmt.Errorf("error allocating ipv6 after detecting first deploy and presence of services: %w", err)
 		}
 		fmt.Fprintf(md.io.Out, "  Dedicated ipv6: %s\n", v6Addr.Address)
+
 		v4Shared, err := md.apiClient.AllocateSharedIPAddress(ctx, md.app.Name)
 		if err != nil {
 			return fmt.Errorf("error allocating shared ipv4 after detecting first deploy and presence of services: %w", err)
@@ -346,6 +378,7 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context) erro
 		fmt.Fprintf(md.io.Out, "  Shared ipv4: %s\n", v4Shared)
 		fmt.Fprintf(md.io.Out, "  Add a dedicated ipv4 with: fly ips allocate-v4\n")
 	}
+
 	return nil
 }
 
