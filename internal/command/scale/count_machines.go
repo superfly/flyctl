@@ -31,7 +31,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 	}
 	ctx = appconfig.WithConfig(ctx, appConfig)
 
-	machines, err := mach.AppV2ListActive(ctx)
+	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
 	if err != nil {
 		return err
 	}

@@ -9,7 +9,6 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
-	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 	"golang.org/x/exp/slices"
@@ -25,7 +24,7 @@ func runMachinesScaleShow(ctx context.Context) error {
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
 
-	machines, err := mach.AppV2ListActive(ctx)
+	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
 	if err != nil {
 		return err
 	}
