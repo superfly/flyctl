@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"strings"
+
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/flaps"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/docstrings"
@@ -140,13 +143,51 @@ func runRegionsSet(cmdCtx *cmdctx.CmdContext) error {
 func runRegionsList(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 
-	regions, backupRegions, err := cmdCtx.Client.API().ListAppRegions(ctx, cmdCtx.AppName)
+	app, err := cmdCtx.Client.API().GetAppCompact(ctx, cmdCtx.AppName)
+
 	if err != nil {
 		return err
 	}
 
-	printRegions(cmdCtx, regions, backupRegions)
+	if app.PlatformVersion == "nomad" {
+		regions, backupRegions, err := cmdCtx.Client.API().ListAppRegions(ctx, cmdCtx.AppName)
+		if err != nil {
+			return err
+		}
 
+		printRegions(cmdCtx, regions, backupRegions)
+
+		return nil
+	}
+
+	flapsClient, err := flaps.NewFromAppName(ctx, cmdCtx.AppName)
+
+	if err != nil {
+		return err
+	}
+
+	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	machineRegionsMap := make(map[string]map[string]bool)
+	for _, machine := range machines {
+		if machineRegionsMap[machine.Config.ProcessGroup()] == nil {
+			machineRegionsMap[machine.Config.ProcessGroup()] = make(map[string]bool)
+		}
+		machineRegionsMap[machine.Config.ProcessGroup()][machine.Region] = true
+	}
+
+	machineRegions := make(map[string][]string)
+	for group, regions := range machineRegionsMap {
+		for region := range regions {
+			machineRegions[group] = append(machineRegions[group], region)
+		}
+	}
+
+	printApssV2Regions(cmdCtx, machineRegions)
 	return nil
 }
 
@@ -168,9 +209,41 @@ func runBackupRegionsSet(cmdCtx *cmdctx.CmdContext) error {
 	return nil
 }
 
+type printableProcessGroup struct {
+	Name    string
+	Regions []string
+}
+
+func printApssV2Regions(ctx *cmdctx.CmdContext, machineRegions map[string][]string) {
+	if ctx.OutputJSON() {
+		jsonPg := []printableProcessGroup{}
+		for group, regionlist := range machineRegions {
+			jsonPg = append(jsonPg, printableProcessGroup{
+				Name:    group,
+				Regions: regionlist,
+			})
+		}
+
+		// only show pg if there's more than one
+		data := struct {
+			ProcessGroupRegions []printableProcessGroup
+		}{
+			ProcessGroupRegions: jsonPg,
+		}
+		ctx.WriteJSON(data)
+
+		return
+	}
+
+	for group, regionlist := range machineRegions {
+		ctx.Statusf("regions", cmdctx.STITLE, "Regions [%s]: ", group)
+		ctx.Status("regions", cmdctx.SINFO, strings.Join(regionlist, ", "))
+	}
+}
+
 func printRegions(ctx *cmdctx.CmdContext, regions []api.Region, backupRegions []api.Region) {
 	if ctx.OutputJSON() {
-
+		// only show pg if there's more than one
 		data := struct {
 			Regions       []api.Region
 			BackupRegions []api.Region
