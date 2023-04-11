@@ -20,12 +20,12 @@ jobs:
         with:
           repository: ${{ github.repository }}
           excludes: prerelease, draft
+      - run: 'echo "Using release: ${{ steps.latest_release.outputs.release }}"'
       - uses: dawidd6/action-homebrew-bump-formula@v3
         with:
           token: ${{ secrets.FLYIO_FLYCTL_BOT_GITHUB_TOKEN }}
           formula: flyctl
-          tag: ${{ steps.latest_release.outputs.version }}
-          revision: ${{ steps.latest_release.outputs.sha }}
+          tag: ${{ steps.latest_release.outputs.release }}
           force: false
       - name: Check for slack secret
         if: ${{ failure() }}
