@@ -154,6 +154,12 @@ func runMachineClone(ctx context.Context) (err error) {
 		fmt.Fprintf(io.Out, "Auto destroy enabled and will destroy machine on exit. Use --clear-auto-destroy to remove this setting.\n")
 	}
 
+	if volID := flag.GetString(ctx, "attach-volume"); volID != "" {
+		if len(source.Config.Mounts) != 1 {
+			return fmt.Errorf("Can't attach the volume as the source machine doesn't have any volumes configured")
+		}
+	}
+
 	for _, mnt := range source.Config.Mounts {
 		var vol *api.Volume
 		if volID := flag.GetString(ctx, "attach-volume"); volID != "" {

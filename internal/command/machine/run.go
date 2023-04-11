@@ -60,11 +60,6 @@ var sharedFlags = flag.Set{
 		Shorthand:   "e",
 		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
 	},
-	flag.StringSlice{
-		Name:        "volume",
-		Shorthand:   "v",
-		Description: "Volumes to mount in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
-	},
 	flag.String{
 		Name:        "entrypoint",
 		Description: "ENTRYPOINT replacement",
@@ -175,6 +170,11 @@ func newRun() *cobra.Command {
 		flag.Bool{
 			Name:        "rm",
 			Description: "Automatically remove the machine when it exits",
+		},
+		flag.StringSlice{
+			Name:        "volume",
+			Shorthand:   "v",
+			Description: "Volumes to mount in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
 		},
 		sharedFlags,
 	)
