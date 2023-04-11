@@ -164,7 +164,7 @@ func runSetup(ctx context.Context) (err error) {
 	}
 
 	cmd := []string{"/add-logger.sh", targetApp.Name, "logtail", "'" + tokenResponse.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader + "'", logtailToken}
-	fmt.Println(tokenResponse.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader)
+
 	request := &api.MachineExecRequest{
 		Cmd: strings.Join(cmd, " "),
 	}
