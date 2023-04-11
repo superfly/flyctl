@@ -20,6 +20,7 @@ jobs:
         with:
           repository: ${{ github.repository }}
           excludes: prerelease, draft
+          token: ${{ secrets.FLYIO_FLYCTL_BOT_GITHUB_TOKEN }}
       - run: 'echo "Using release: ${{ steps.latest_release.outputs.release }}"'
       - uses: dawidd6/action-homebrew-bump-formula@v3
         with:
