@@ -78,7 +78,7 @@ func RunCreate(ctx context.Context) (err error) {
 	var name string
 	switch {
 	case aName != "" && fName != "" && areNamesClashing([]string{aName, fName, ctxName}):
-		err = fmt.Errorf("app names specified %s, %s %s, only one may be specified",
+		err = fmt.Errorf("app names specified via command argument %s, via flag %s and via fly.toml %s. Only one may be specified",
 			aName, fName, ctxName)
 
 		return
