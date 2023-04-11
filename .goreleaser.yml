@@ -20,6 +20,7 @@ builds:
       - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{ .Date }}
       - -X github.com/superfly/flyctl/internal/buildinfo.version={{ .Version }}
       - -X github.com/superfly/flyctl/internal/buildinfo.commit={{ .ShortCommit }}
+
   - id: windows
     env:
       - CGO_ENABLED=0
@@ -36,21 +37,27 @@ builds:
 
 archives:
   - id: windows
-    replacements:
-      windows: Windows
-      amd64: x86_64
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version}}_
+      {{- if eq .OS "windows" }}Windows
+      {{- else }}{{ .OS }}{{- end }}
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{- end }}
     builds:
       - windows
     files:
       - wintun.dll
     wrap_in_directory: false
     format: zip
+
   - id: default
-    replacements:
-      darwin: macOS
-      linux: Linux
-      windows: Windows
-      amd64: x86_64
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version}}_
+      {{- if eq .OS "darwin" }}macOS
+      {{- else if eq .OS "linux" }}Linux
+      {{- else }}{{ .OS }}{{- end }}
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{- end }}
     builds:
       - default
     files: [only-the-binary*]
