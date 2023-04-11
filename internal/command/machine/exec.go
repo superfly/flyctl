@@ -84,12 +84,15 @@ func runMachineExec(ctx context.Context) (err error) {
 		return render.JSON(io.Out, out)
 	}
 
-	fmt.Fprintf(io.Out, "Exit code: %d\n", out.ExitCode)
+	if out.ExitCode != 0 {
+		fmt.Fprintf(io.Out, "Exit code: %d\n", out.ExitCode)
+	}
+
 	switch {
 	case out.StdOut != nil:
-		fmt.Fprintf(io.Out, "Stdout: %s\n", *out.StdOut)
+		fmt.Fprint(io.Out, *out.StdOut)
 	case out.StdErr != nil:
-		fmt.Fprintf(io.Out, "Stderr: %s\n", *out.StdErr)
+		fmt.Fprint(io.ErrOut, *out.StdErr)
 	}
 
 	return
