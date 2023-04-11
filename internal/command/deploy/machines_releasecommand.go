@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/machine"
 )
@@ -43,8 +45,18 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
 		return fmt.Errorf("error get release_command machine %s exit code: %w", releaseCmdMachine.Machine().ID, err)
 	}
 	if exitCode != 0 {
-		fmt.Fprintf(md.io.ErrOut, "Error release_command failed running on machine %s with exit code %s. Check the logs at: https://fly.io/apps/%s/monitoring\n",
-			md.colorize.Bold(releaseCmdMachine.Machine().ID), md.colorize.Red(strconv.Itoa(exitCode)), md.app.Name)
+		time.Sleep(2 * time.Second) // Wait 2 secs to be sure logs have reached OpenSearch
+		fmt.Fprintf(md.io.ErrOut, "Error release_command failed running on machine %s with exit code %s.\n",
+			md.colorize.Bold(releaseCmdMachine.Machine().ID), md.colorize.Red(strconv.Itoa(exitCode)))
+		fmt.Fprintf(md.io.ErrOut, "Check its logs: here's the last 100 lines below, or run 'fly logs -i %s':\n",
+			releaseCmdMachine.Machine().ID)
+		releaseCmdLogs, _, err := client.FromContext(ctx).API().GetAppLogs(ctx, md.app.Name, "", md.appConfig.PrimaryRegion, releaseCmdMachine.Machine().ID)
+		if err != nil {
+			return fmt.Errorf("error getting release_command logs: %w", err)
+		}
+		for _, l := range releaseCmdLogs {
+			fmt.Fprintf(md.io.ErrOut, "  %s\n", l.Message)
+		}
 		return fmt.Errorf("error release_command machine %s exited with non-zero status of %d", releaseCmdMachine.Machine().ID, exitCode)
 	}
 	md.logClearLinesAbove(1)
