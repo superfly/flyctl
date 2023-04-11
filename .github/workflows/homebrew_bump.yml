@@ -35,19 +35,19 @@ jobs:
           fi
       - run: 'echo "VERSION_STATUS=${{ steps.version_compare.outputs.VERSION_STATUS }}"'
       - uses: dawidd6/action-homebrew-bump-formula@v3
-        if: ${{ steps.version_compare.outputs.VERSION_STATUS == "update_needed" }}
+        if: ${{ steps.version_compare.outputs.VERSION_STATUS == 'update_needed' }}
         with:
           token: ${{ secrets.FLYIO_FLYCTL_BOT_GITHUB_TOKEN }}
           formula: flyctl
           tag: ${{ steps.latest_release.outputs.release }}
           force: false
       - name: Check for slack secret
-        if: ${{ failure() && steps.version_compare.outputs.VERSION_STATUS == "update_needed" }}
+        if: ${{ failure() && steps.version_compare.outputs.VERSION_STATUS == 'update_needed' }}
         env:
           SLACK_WEBHOOK_EXISTS: ${{ secrets.HOMEBREW_SLACK_WEBHOOK_URL != '' }}
         run: if [ ${{ env.SLACK_WEBHOOK_EXISTS }} != "true" ] ; then echo "No webhook url :-(" ; fi
       - name: Post failure to slack
-        if: ${{ failure() && steps.version_compare.outputs.VERSION_STATUS == "update_needed" }}
+        if: ${{ failure() && steps.version_compare.outputs.VERSION_STATUS == 'update_needed' }}
         uses: slackapi/slack-github-action@007b2c3c751a190b6f0f040e47ed024deaa72844
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.HOMEBREW_SLACK_WEBHOOK_URL }}
