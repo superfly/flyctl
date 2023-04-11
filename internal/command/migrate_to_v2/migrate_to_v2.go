@@ -13,9 +13,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/superfly/flyctl/internal/command/apps"
-	"golang.org/x/exp/slices"
-
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/Khan/genqlient/graphql"
 	"github.com/briandowns/spinner"
@@ -28,6 +25,7 @@ import (
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/machine"
@@ -129,6 +127,7 @@ type v2PlatformMigrator struct {
 	configPath              string
 	autoscaleConfig         *api.AutoscalingConfig
 	volumeDestination       string
+	processConfigs          map[string]*appconfig.ProcessConfig
 	formattedProcessConfigs string
 	img                     string
 	appLock                 string
@@ -179,6 +178,11 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	if err != nil {
 		return nil, err
 	}
+	processConfigs, err := appConfig.GetProcessConfigs()
+	formattedProcessConfigs := appConfig.FormatProcessNames()
+	if err != nil {
+		return nil, err
+	}
 	autoscaleConfig, err := apiClient.AppAutoscalingConfig(ctx, appName)
 	if err != nil {
 		return nil, err
@@ -215,7 +219,8 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		appConfig:               appConfig,
 		autoscaleConfig:         autoscaleConfig,
 		volumeDestination:       appConfig.MountsDestination(),
-		formattedProcessConfigs: appConfig.FormatProcessNames(),
+		processConfigs:          processConfigs,
+		formattedProcessConfigs: formattedProcessConfigs,
 		img:                     img,
 		oldAllocs:               allocs,
 		machineGuest:            machineGuest,
@@ -614,9 +619,8 @@ func (m *v2PlatformMigrator) validateVolumes(ctx context.Context) error {
 }
 
 func (m *v2PlatformMigrator) validateProcessGroupsOnAllocs(ctx context.Context) error {
-	validGroupNames := m.appConfig.ProcessNames()
 	for _, a := range m.oldAllocs {
-		if !slices.Contains(validGroupNames, a.TaskName) {
+		if _, exists := m.processConfigs[a.TaskName]; !exists {
 			return fmt.Errorf("alloc %s has process group '%s' that is not present in app configuration fly.toml; known process groups are: %s", a.IDShort, a.TaskName, m.formattedProcessConfigs)
 		}
 	}
@@ -825,6 +829,19 @@ func (m *v2PlatformMigrator) deployApp(ctx context.Context) error {
 	return nil
 }
 
+func (m *v2PlatformMigrator) defaultMachineMetadata() map[string]string {
+	res := map[string]string{
+		api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
+		api.MachineConfigMetadataKeyFlyReleaseId:       m.releaseId,
+		api.MachineConfigMetadataKeyFlyReleaseVersion:  strconv.Itoa(m.releaseVersion),
+		api.MachineConfigMetadataKeyFlyProcessGroup:    api.MachineProcessGroupApp,
+	}
+	if m.appCompact.IsPostgresApp() {
+		res[api.MachineConfigMetadataKeyFlyManagedPostgres] = "true"
+	}
+	return res
+}
+
 func (m *v2PlatformMigrator) prepMachinesToCreate(ctx context.Context) error {
 	var err error
 	m.newMachinesInput, err = m.resolveMachinesFromAllocs()
@@ -844,13 +861,28 @@ func (m *v2PlatformMigrator) resolveMachinesFromAllocs() ([]*api.LaunchMachineIn
 	return res, nil
 }
 
-func (m *v2PlatformMigrator) volumeForPrevAlloc(id string) (bool, *api.Volume) {
-	for _, vol := range m.createdVolumes {
-		if vol.previousAllocId == id {
-			return true, vol.vol
+func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
+
+	for _, vol := range m.appFull.Volumes.Nodes {
+		// TODO(ali): Should we migrate _all_ volumes, or just the ones used currently?
+
+		// TODO(ali): Fork vol, machines_only=true
+
+		allocId := ""
+		if alloc := vol.AttachedAllocation; alloc != nil {
+			allocId = alloc.ID
 		}
+		path := m.nomadVolPath(&vol)
+		if path == "" && allocId != "" {
+			return fmt.Errorf("volume %s[%s] is mounted on alloc %s, but has no mountpoint", vol.Name, vol.ID, allocId)
+		}
+		m.createdVolumes = append(m.createdVolumes, &NewVolume{
+			vol:             nil, // TODO
+			previousAllocId: allocId,
+			mountPoint:      path,
+		})
 	}
-	return false, nil
+	return nil
 }
 
 func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus) (*api.LaunchMachineInput, error) {
@@ -859,32 +891,16 @@ func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus
 		return nil, err
 	}
 
+	mConfig.Mounts = nil
 	mConfig.Guest = m.machineGuest
 	mConfig.Image = m.img
 	mConfig.Metadata[api.MachineConfigMetadataKeyFlyReleaseId] = m.releaseId
 	mConfig.Metadata[api.MachineConfigMetadataKeyFlyReleaseVersion] = strconv.Itoa(m.releaseVersion)
-	mConfig.Metadata["prevAlloc"] = alloc.ID
+	mConfig.Metadata[api.MachineConfigMetadataKeyFlyPreviousAlloc] = alloc.ID
 
 	if m.isPostgres {
 		mConfig.Env["FLY_CONSUL_URL"] = m.pgConsulUrl
 		mConfig.Metadata[api.MachineConfigMetadataKeyFlyManagedPostgres] = "true"
-	}
-
-	mConfig.Mounts = nil
-	if len(mConfig.Mounts) > 0 {
-		switch {
-		case m.isPostgres:
-			mConfig.Mounts = nil
-		case len(alloc.AttachedVolumes.Nodes) > 1:
-			fmt.Fprintf(m.io.Out, "WARNING: alloc '%s' has more than one volume attached, using only the first\n", alloc.ID)
-			fallthrough
-		case len(alloc.AttachedVolumes.Nodes) > 0:
-			// FIXME: we should probably error out if there are more than 1 vols attached
-			vol := alloc.AttachedVolumes.Nodes[0]
-			mConfig.Mounts[0].Volume = vol.ID
-		default:
-			return nil, fmt.Errorf("application config has a [mounts] section but nomad alloc has no volume attached")
-		}
 	}
 
 	launchInput := &api.LaunchMachineInput{

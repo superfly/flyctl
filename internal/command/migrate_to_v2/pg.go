@@ -4,6 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/briandowns/spinner"
 	"github.com/jpillora/backoff"
 	"github.com/superfly/flyctl/agent"
@@ -12,9 +16,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/watch"
-	"strconv"
-	"strings"
-	"time"
 )
 
 func (m *v2PlatformMigrator) updateNomadPostgresImage(ctx context.Context) error {
@@ -103,6 +104,7 @@ func (m *v2PlatformMigrator) migratePgVolumes(ctx context.Context) error {
 			newVols = append(newVols, &NewVolume{
 				vol:             newVol,
 				previousAllocId: vol.AttachedAllocation.ID,
+				mountPoint:      "/data",
 			})
 		}
 	}
