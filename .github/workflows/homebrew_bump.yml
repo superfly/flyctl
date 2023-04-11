@@ -14,7 +14,7 @@ jobs:
     name: Bump Homebrew formula
     runs-on: macos-latest
     steps:
-      # Temporarily disabled: https://github.com/superfly/flyctl/issues/2044
+      - run: 'echo "ERROR: temporarily disabled see: https://github.com/superfly/flyctl/issues/2044" ; false'
       # - uses: dawidd6/action-homebrew-bump-formula@v3
       #   with:
       #     token: ${{ secrets.FLYIO_FLYCTL_BOT_GITHUB_TOKEN }}
