@@ -117,14 +117,6 @@ func runSetup(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	machineConf := &api.MachineConfig{
-		Guest: &api.MachineGuest{
-			CPUKind:  "shared",
-			CPUs:     1,
-			MemoryMB: 256,
-		},
-		Image: "flyio/log-shipper:auto-d5a96e6",
-	}
 
 	machines, err := flapsClient.List(ctx, "")
 
@@ -132,17 +124,27 @@ func runSetup(ctx context.Context) (err error) {
 		return err
 	}
 
-	launchInput := api.LaunchMachineInput{
-		AppID:  shipperApp.Name,
-		Name:   "log-shipper",
-		Config: machineConf,
-	}
-
 	var machine *api.Machine
 
 	if len(machines) > 0 {
 		machine = machines[0]
+
 	} else {
+
+		machineConf := &api.MachineConfig{
+			Guest: &api.MachineGuest{
+				CPUKind:  "shared",
+				CPUs:     1,
+				MemoryMB: 256,
+			},
+			Image: "flyio/log-shipper:auto-d5a96e6",
+		}
+
+		launchInput := api.LaunchMachineInput{
+			AppID:  shipperApp.Name,
+			Name:   "log-shipper",
+			Config: machineConf,
+		}
 
 		regionResponse, err := gql.GetNearestRegion(ctx, client)
 
