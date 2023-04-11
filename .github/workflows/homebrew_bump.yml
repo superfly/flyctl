@@ -26,6 +26,7 @@ jobs:
       - id: version_compare
         run: |
           set -exo pipefail
+          brew update
           cur_brew_version=$(brew info flyctl --json --quiet | jq -r '.[0].versions.stable')
           version_comp=$(./scripts/semver compare ${{ steps.latest_release.outputs.release }} ${cur_brew_version})
           if [ "${version_comp}" = "1" ] ; then
