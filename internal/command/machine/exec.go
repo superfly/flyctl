@@ -88,10 +88,10 @@ func runMachineExec(ctx context.Context) (err error) {
 		fmt.Fprintf(io.Out, "Exit code: %d\n", out.ExitCode)
 	}
 
-	switch {
-	case out.StdOut != "":
+	if out.StdOut != "" {
 		fmt.Fprint(io.Out, out.StdOut)
-	case out.StdErr != "":
+	}
+	if out.StdErr != "" {
 		fmt.Fprint(io.ErrOut, out.StdErr)
 	}
 
