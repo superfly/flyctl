@@ -21,20 +21,33 @@ jobs:
           repository: ${{ github.repository }}
           excludes: prerelease, draft
           token: ${{ secrets.FLYIO_FLYCTL_BOT_GITHUB_TOKEN }}
-      - run: 'echo "Using release: ${{ steps.latest_release.outputs.release }}"'
+      - run: 'echo "Latest release: ${{ steps.latest_release.outputs.release }}"'
+      - uses: actions/checkout@v3
+      - id: version_compare
+        run: |
+          set -exo pipefail
+          cur_brew_version=$(brew info flyctl --json --quiet | jq -r '.[0].versions.stable')
+          version_comp=$(./scripts/semver ${{ steps.latest_release.outputs.release }} ${cur_brew_version})
+          if [ "${version_comp}" = "1" ] ; then
+            echo "VERSION_STATUS=update_needed" >> "$GITHUB_OUTPUT"
+          else
+            echo "VERSION_STATUS=no_change" >> "$GITHUB_OUTPUT"
+          fi
+      - run: 'echo "VERSION_STATUS=${{ steps.version_compare.outputs.VERSION_STATUS }}"'
       - uses: dawidd6/action-homebrew-bump-formula@v3
+        if: ${{ steps.version_compare.outputs.VERSION_STATUS == "update_needed" }}
         with:
           token: ${{ secrets.FLYIO_FLYCTL_BOT_GITHUB_TOKEN }}
           formula: flyctl
           tag: ${{ steps.latest_release.outputs.release }}
           force: false
       - name: Check for slack secret
-        if: ${{ failure() }}
+        if: ${{ failure() && steps.version_compare.outputs.VERSION_STATUS == "update_needed" }}
         env:
           SLACK_WEBHOOK_EXISTS: ${{ secrets.HOMEBREW_SLACK_WEBHOOK_URL != '' }}
         run: if [ ${{ env.SLACK_WEBHOOK_EXISTS }} != "true" ] ; then echo "No webhook url :-(" ; fi
       - name: Post failure to slack
-        if: ${{ failure() }}
+        if: ${{ failure() && steps.version_compare.outputs.VERSION_STATUS == "update_needed" }}
         uses: slackapi/slack-github-action@007b2c3c751a190b6f0f040e47ed024deaa72844
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.HOMEBREW_SLACK_WEBHOOK_URL }}
