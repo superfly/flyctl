@@ -127,7 +127,7 @@ func run(ctx context.Context) error {
 	}
 	if strings.Contains(extra_info, "Could not find App") {
 		confirmation, err := prompt.Confirm(ctx,
-			fmt.Sprintf("the app name %s could not be found, do you want to create an app with that name?", appName))
+			fmt.Sprintf("the app name %s could not be found, do you want to create a new app with that name?", appName))
 		if err != nil {
 			return err
 		}
