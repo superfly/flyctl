@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -71,6 +72,7 @@ func RunCreate(ctx context.Context) (err error) {
 		fName         = flag.GetString(ctx, "name")
 		fGenerateName = flag.GetBool(ctx, "generate-name")
 		apiClient     = client.FromContext(ctx).API()
+		ctxName       = appconfig.NameFromContext(ctx)
 	)
 
 	var name string
@@ -80,6 +82,8 @@ func RunCreate(ctx context.Context) (err error) {
 			aName, fName)
 
 		return
+	case ctxName != "":
+		name = ctxName
 	case aName != "":
 		name = aName
 	case fName != "":
