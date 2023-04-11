@@ -2,6 +2,13 @@ name: Homebrew Bump Formula
 on:
   schedule:
     - cron: '23 17 * * *'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Brief reason for running this workflow manually
+        required: false
+        default: not specified by user
+        type: string
 
 jobs:
   homebrew:
