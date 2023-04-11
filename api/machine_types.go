@@ -540,7 +540,7 @@ type MachineExecRequest struct {
 }
 
 type MachineExecResponse struct {
-	ExitCode int32   `json:"exit_code,omitempty"`
-	StdOut   *string `json:"stdout,omitempty"`
-	StdErr   *string `json:"stderr,omitempty"`
+	ExitCode int32  `json:"exit_code,omitempty"`
+	StdOut   string `json:"stdout,omitempty"`
+	StdErr   string `json:"stderr,omitempty"`
 }
