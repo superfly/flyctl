@@ -27,7 +27,7 @@ jobs:
         run: |
           set -exo pipefail
           cur_brew_version=$(brew info flyctl --json --quiet | jq -r '.[0].versions.stable')
-          version_comp=$(./scripts/semver ${{ steps.latest_release.outputs.release }} ${cur_brew_version})
+          version_comp=$(./scripts/semver compare ${{ steps.latest_release.outputs.release }} ${cur_brew_version})
           if [ "${version_comp}" = "1" ] ; then
             echo "VERSION_STATUS=update_needed" >> "$GITHUB_OUTPUT"
           else
