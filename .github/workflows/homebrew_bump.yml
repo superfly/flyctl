@@ -1,26 +1,25 @@
 name: Homebrew Bump Formula
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        required: true
-        description: "flyctl release version"
-      sha:
-        required: true
-        description: "flyctl release git SHA"
+  schedule:
+    - cron: '23 17 * * *'
 
 jobs:
   homebrew:
     name: Bump Homebrew formula
     runs-on: macos-latest
     steps:
+      - id: latest_release
+        uses: pozetroninc/github-action-get-latest-release@v0.7.0
+        with:
+          repository: ${{ github.repository }}
+          excludes: prerelease, draft
       - uses: dawidd6/action-homebrew-bump-formula@v3
         with:
           token: ${{ secrets.FLYIO_FLYCTL_BOT_GITHUB_TOKEN }}
           formula: flyctl
-          tag: ${{ github.event.inputs.version }}
-          revision: ${{ github.event.inputs.sha }}
-          force: true
+          tag: ${{ steps.latest_release.outputs.version }}
+          revision: ${{ steps.latest_release.outputs.sha }}
+          force: false
       - name: Check for slack secret
         if: ${{ failure() }}
         env:
