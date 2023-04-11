@@ -8,7 +8,6 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/machine"
 )
@@ -50,7 +49,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
 			md.colorize.Bold(releaseCmdMachine.Machine().ID), md.colorize.Red(strconv.Itoa(exitCode)))
 		fmt.Fprintf(md.io.ErrOut, "Check its logs: here's the last 100 lines below, or run 'fly logs -i %s':\n",
 			releaseCmdMachine.Machine().ID)
-		releaseCmdLogs, _, err := client.FromContext(ctx).API().GetAppLogs(ctx, md.app.Name, "", md.appConfig.PrimaryRegion, releaseCmdMachine.Machine().ID)
+		releaseCmdLogs, _, err := md.apiClient.GetAppLogs(ctx, md.app.Name, "", md.appConfig.PrimaryRegion, releaseCmdMachine.Machine().ID)
 		if err != nil {
 			return fmt.Errorf("error getting release_command logs: %w", err)
 		}
