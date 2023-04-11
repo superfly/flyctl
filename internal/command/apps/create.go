@@ -77,9 +77,9 @@ func RunCreate(ctx context.Context) (err error) {
 
 	var name string
 	switch {
-	case aName != "" && fName != "" && aName != fName:
-		err = fmt.Errorf("two app names specified %s and %s, only one may be specified",
-			aName, fName)
+	case aName != "" && fName != "" && areNamesClashing([]string{aName, fName, ctxName}):
+		err = fmt.Errorf("app names specified %s, %s %s, only one may be specified",
+			aName, fName, ctxName)
 
 		return
 	case ctxName != "":
@@ -126,6 +126,16 @@ func RunCreate(ctx context.Context) (err error) {
 	}
 
 	return err
+}
+
+func areNamesClashing(a []string) bool {
+	keys := make(map[string]bool)
+	for _, name := range a {
+		if _, ok := keys[name]; !ok {
+			keys[name] = true
+		}
+	}
+	return len(keys) != len(a)
 }
 
 func shouldAppUseMachinesPlatform(ctx context.Context, apiClient *api.Client, orgSlug string) (bool, error) {
