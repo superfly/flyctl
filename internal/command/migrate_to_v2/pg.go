@@ -125,7 +125,7 @@ func (m *v2PlatformMigrator) waitForElection(ctx context.Context) error {
 	for {
 		select {
 		case <-ticker:
-			err := m.disableReadonly(ctx)
+			err := m.disablePgReadonly(ctx)
 			if err == nil {
 				return nil
 			}
@@ -196,7 +196,7 @@ func (m *v2PlatformMigrator) setNomadPgReadonly(ctx context.Context, enable bool
 	return nil
 }
 
-func (m *v2PlatformMigrator) disableReadonly(ctx context.Context) error {
+func (m *v2PlatformMigrator) disablePgReadonly(ctx context.Context) error {
 	dialer := agent.DialerFromContext(ctx)
 
 	var addrs []string
