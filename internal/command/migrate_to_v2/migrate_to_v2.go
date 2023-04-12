@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -15,8 +14,6 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/Khan/genqlient/graphql"
-	"github.com/briandowns/spinner"
-	"github.com/jpillora/backoff"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -35,6 +32,7 @@ import (
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"golang.org/x/exp/slices"
 )
 
 func New() *cobra.Command {
@@ -110,6 +108,7 @@ type V2PlatformMigrator interface {
 type NewVolume struct {
 	vol             *api.Volume
 	previousAllocId string
+	mountPoint      string
 }
 
 // FIXME: a lot of stuff is shared with MachineDeployment... might be useful to consolidate the shared stuff into another library/package/something
@@ -126,8 +125,6 @@ type v2PlatformMigrator struct {
 	appConfig               *appconfig.Config
 	configPath              string
 	autoscaleConfig         *api.AutoscalingConfig
-	volumeDestination       string
-	processConfigs          map[string]*appconfig.ProcessConfig
 	formattedProcessConfigs string
 	img                     string
 	appLock                 string
@@ -138,10 +135,10 @@ type v2PlatformMigrator struct {
 	oldVmCounts             map[string]int
 	newMachinesInput        []*api.LaunchMachineInput
 	newMachines             machine.MachineSet
-	canAvoidDowntime        bool
 	recovery                recoveryState
-	isPostgres              bool
+	usesForkedVolumes       bool
 	createdVolumes          []*NewVolume
+	isPostgres              bool
 	pgConsulUrl             string
 }
 
@@ -149,6 +146,7 @@ type recoveryState struct {
 	machinesCreated        []*api.Machine
 	appLocked              bool
 	scaledToZero           bool
+	nomadVolsReadOnly      bool
 	platformVersion        string
 	onlyPromptToConfigSave bool
 }
@@ -178,7 +176,6 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	if err != nil {
 		return nil, err
 	}
-	processConfigs, err := appConfig.GetProcessConfigs()
 	formattedProcessConfigs := appConfig.FormatProcessNames()
 	if err != nil {
 		return nil, err
@@ -218,13 +215,10 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		appFull:                 appFull,
 		appConfig:               appConfig,
 		autoscaleConfig:         autoscaleConfig,
-		volumeDestination:       appConfig.MountsDestination(),
-		processConfigs:          processConfigs,
 		formattedProcessConfigs: formattedProcessConfigs,
 		img:                     img,
 		oldAllocs:               allocs,
 		machineGuest:            machineGuest,
-		canAvoidDowntime:        true,
 		isPostgres:              appCompact.IsPostgresApp(),
 		recovery: recoveryState{
 			platformVersion: appFull.PlatformVersion,
@@ -302,6 +296,13 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 	if m.isPostgres {
 		tb.Detailf("Disabling readonly")
 		err := m.setNomadPgReadonly(ctx, true)
+		if err != nil {
+			return err
+		}
+	}
+	if m.recovery.nomadVolsReadOnly {
+		tb.Detailf("Resetting nomad app volumes as read/write")
+		err := m.rollbackVolumesReadOnly(ctx)
 		if err != nil {
 			return err
 		}
@@ -407,7 +408,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	}
 
 	tb.Detail("Locking app to prevent changes during the migration")
-	err = m.lockAppForMigration(ctx)
+	err = m.lockApp(ctx)
 	if err != nil {
 		return err
 	}
@@ -415,7 +416,18 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 		return abortedErr
 	}
 
-	if !m.canAvoidDowntime {
+	if !m.isPostgres {
+		tb.Detail("Making snapshots of volumes for the new machines")
+		err = m.migrateAppVolumes(ctx)
+		if err != nil {
+			return err
+		}
+		if aborted.Load() {
+			return abortedErr
+		}
+	}
+
+	if m.requiresDowntime() {
 		tb.Detail("Scaling down to zero VMs. This will cause temporary downtime until new VMs come up.")
 
 		err = m.scaleNomadToZero(ctx)
@@ -445,6 +457,17 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	}
 	if aborted.Load() {
 		return abortedErr
+	}
+
+	tb.Detail("Marking nomad app volumes as read-only")
+
+	if m.usesForkedVolumes {
+		if err = m.markVolumesAsReadOnly(ctx); err != nil {
+			return err
+		}
+		if aborted.Load() {
+			return abortedErr
+		}
 	}
 
 	tb.Detail("Starting machines")
@@ -513,7 +536,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 		}
 	}
 
-	if m.canAvoidDowntime {
+	if !m.requiresDowntime() {
 		tb.Detail("Scaling down to zero nomad VMs now that machines are running.")
 
 		err = m.scaleNomadToZero(ctx)
@@ -555,13 +578,12 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 }
 
 func (m *v2PlatformMigrator) inRegionMachines() []*api.Machine {
-	var machines []*api.Machine
-	for _, machine := range m.newMachines.GetMachines() {
-		if machine.Machine().Region == m.appConfig.PrimaryRegion {
-			machines = append(machines, machine.Machine())
+	return lo.FilterMap(m.newMachines.GetMachines(), func(mach machine.LeasableMachine, _ int) (*api.Machine, bool) {
+		if mach.Machine().Region == m.appConfig.PrimaryRegion {
+			return mach.Machine(), true
 		}
-	}
-	return machines
+		return nil, false
+	})
 }
 
 func (m *v2PlatformMigrator) validate(ctx context.Context) error {
@@ -600,52 +622,13 @@ func (m *v2PlatformMigrator) validateScaling(ctx context.Context) error {
 	return nil
 }
 
-func (m *v2PlatformMigrator) validateVolumes(ctx context.Context) error {
-	// FIXME: for now we fail if there are volumes... remove this once we figure out volumes
-	// When we can migrate apps with volumes, you probably want to set `m.canAvoidDowntime`
-	// to false when the app has volumes.
-	if m.isPostgres {
-		return nil
-	}
-	if m.appConfig.Mounts != nil {
-		return fmt.Errorf("cannot migrate app %s with [mounts] configuration, yet; watch https://community.fly.io for announcements about volume support with migrations", m.appCompact.Name)
-	}
-	for _, a := range m.oldAllocs {
-		if len(a.AttachedVolumes.Nodes) > 0 {
-			return fmt.Errorf("cannot migrate app %s because alloc %s has a volume attached; watch https://community.fly.io for announcements about volume support with migrations", m.appCompact.Name, a.IDShort)
-		}
-	}
-	return nil
-}
-
 func (m *v2PlatformMigrator) validateProcessGroupsOnAllocs(ctx context.Context) error {
+	validGroupNames := m.appConfig.ProcessNames()
 	for _, a := range m.oldAllocs {
-		if _, exists := m.processConfigs[a.TaskName]; !exists {
+		if !slices.Contains(validGroupNames, a.TaskName) {
 			return fmt.Errorf("alloc %s has process group '%s' that is not present in app configuration fly.toml; known process groups are: %s", a.IDShort, a.TaskName, m.formattedProcessConfigs)
 		}
 	}
-	return nil
-}
-
-func (m *v2PlatformMigrator) lockAppForMigration(ctx context.Context) error {
-	_ = `# @genqlient
-	mutation LockApp($input:LockAppInput!) {
-        lockApp(input:$input) {
-			lockId
-			expiration
-        }
-	}
-	`
-	input := gql.LockAppInput{
-		AppId: m.appConfig.AppName,
-	}
-	resp, err := gql.LockApp(ctx, m.gqlClient, input)
-	if err != nil {
-		return err
-	}
-
-	m.appLock = resp.LockApp.LockId
-	m.recovery.appLocked = true
 	return nil
 }
 
@@ -683,61 +666,6 @@ func (m *v2PlatformMigrator) resolveProcessGroups(ctx context.Context) {
 	}
 }
 
-func (m *v2PlatformMigrator) scaleNomadToZero(ctx context.Context) error {
-	input := gql.SetVMCountInput{
-		AppId:  m.appConfig.AppName,
-		LockId: m.appLock,
-		GroupCounts: lo.MapToSlice(m.oldVmCounts, func(name string, count int) gql.VMCountInput {
-			return gql.VMCountInput{Group: name, Count: 0}
-		}),
-	}
-
-	if len(input.GroupCounts) > 0 {
-
-		_, err := gql.SetNomadVMCount(ctx, m.gqlClient, input)
-		if err != nil {
-			return err
-		}
-	}
-	err := m.waitForAllocsZero(ctx)
-	if err != nil {
-		return err
-	}
-
-	m.recovery.scaledToZero = true
-	return nil
-}
-
-func (m *v2PlatformMigrator) waitForAllocsZero(ctx context.Context) error {
-	s := spinner.New(spinner.CharSets[9], 200*time.Millisecond)
-	s.Writer = m.io.ErrOut
-	s.Prefix = fmt.Sprintf("Waiting for nomad allocs for '%s' to be destroyed ", m.appCompact.Name)
-	s.Start()
-	defer s.Stop()
-
-	timeout := time.After(1 * time.Hour)
-	b := &backoff.Backoff{
-		Min:    2 * time.Second,
-		Max:    5 * time.Minute,
-		Factor: 1.2,
-		Jitter: true,
-	}
-	for {
-		select {
-		case <-time.After(b.Duration()):
-			currentAllocs, err := m.apiClient.GetAllocations(ctx, m.appCompact.Name, false)
-			if err != nil {
-				return err
-			}
-			if len(currentAllocs) == 0 {
-				return nil
-			}
-		case <-timeout:
-			return errors.New("nomad allocs never reached zero, timed out")
-		}
-	}
-}
-
 func (m *v2PlatformMigrator) updateAppPlatformVersion(ctx context.Context, platform string) error {
 	_ = `# @genqlient
 	mutation SetPlatformVersion($input:SetPlatformVersionInput!) {
@@ -756,56 +684,6 @@ func (m *v2PlatformMigrator) updateAppPlatformVersion(ctx context.Context, platf
 		return err
 	}
 	m.recovery.platformVersion = platform
-	return nil
-}
-
-func (m *v2PlatformMigrator) createMachines(ctx context.Context) error {
-	var newlyCreatedMachines []*api.Machine
-	defer func() {
-		m.recovery.machinesCreated = newlyCreatedMachines
-	}()
-
-	for _, machineInput := range m.newMachinesInput {
-		if exists, vol := m.volumeForPrevAlloc(machineInput.Config.Metadata["prevAlloc"]); exists {
-			machineInput.Config.Mounts = []api.MachineMount{{
-				Name:   "pg_data_machines",
-				Path:   "/data",
-				Volume: vol.ID,
-			}}
-		}
-		newMachine, err := m.flapsClient.Launch(ctx, *machineInput)
-		if err != nil {
-			return fmt.Errorf("failed creating a machine in region %s: %w", machineInput.Region, err)
-		}
-		newlyCreatedMachines = append(newlyCreatedMachines, newMachine)
-	}
-	for _, mach := range newlyCreatedMachines {
-		err := machine.WaitForStartOrStop(ctx, mach, "start", time.Minute*5)
-		if err != nil {
-			return err
-		}
-	}
-	m.newMachines = machine.NewMachineSet(m.flapsClient, m.io, newlyCreatedMachines)
-	return nil
-}
-
-func (m *v2PlatformMigrator) unlockApp(ctx context.Context) error {
-	_ = `# @genqlient
-	mutation UnlockApp($input:UnlockAppInput!) {
-		unlockApp(input:$input) {
-			app { id }
-		}
-	}
-	`
-	input := gql.UnlockAppInput{
-		AppId:  m.appConfig.AppName,
-		LockId: m.appLock,
-	}
-	_, err := gql.UnlockApp(ctx, m.gqlClient, input)
-	if err != nil {
-		return err
-	}
-	m.recovery.appLocked = false
 	return nil
 }
 
@@ -829,88 +707,8 @@ func (m *v2PlatformMigrator) deployApp(ctx context.Context) error {
 	return nil
 }
 
-func (m *v2PlatformMigrator) defaultMachineMetadata() map[string]string {
-	res := map[string]string{
-		api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
-		api.MachineConfigMetadataKeyFlyReleaseId:       m.releaseId,
-		api.MachineConfigMetadataKeyFlyReleaseVersion:  strconv.Itoa(m.releaseVersion),
-		api.MachineConfigMetadataKeyFlyProcessGroup:    api.MachineProcessGroupApp,
-	}
-	if m.appCompact.IsPostgresApp() {
-		res[api.MachineConfigMetadataKeyFlyManagedPostgres] = "true"
-	}
-	return res
-}
-
-func (m *v2PlatformMigrator) prepMachinesToCreate(ctx context.Context) error {
-	var err error
-	m.newMachinesInput, err = m.resolveMachinesFromAllocs()
-	// FIXME: add extra machines that are stopped by default, based on scaling/autoscaling config for the app
-	return err
-}
-
-func (m *v2PlatformMigrator) resolveMachinesFromAllocs() ([]*api.LaunchMachineInput, error) {
-	var res []*api.LaunchMachineInput
-	for _, alloc := range m.oldAllocs {
-		mach, err := m.resolveMachineFromAlloc(alloc)
-		if err != nil {
-			return nil, err
-		}
-		res = append(res, mach)
-	}
-	return res, nil
-}
-
-func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
-
-	for _, vol := range m.appFull.Volumes.Nodes {
-		// TODO(ali): Should we migrate _all_ volumes, or just the ones used currently?
-
-		// TODO(ali): Fork vol, machines_only=true
-
-		allocId := ""
-		if alloc := vol.AttachedAllocation; alloc != nil {
-			allocId = alloc.ID
-		}
-		path := m.nomadVolPath(&vol)
-		if path == "" && allocId != "" {
-			return fmt.Errorf("volume %s[%s] is mounted on alloc %s, but has no mountpoint", vol.Name, vol.ID, allocId)
-		}
-		m.createdVolumes = append(m.createdVolumes, &NewVolume{
-			vol:             nil, // TODO
-			previousAllocId: allocId,
-			mountPoint:      path,
-		})
-	}
-	return nil
-}
-
-func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus) (*api.LaunchMachineInput, error) {
-	mConfig, err := m.appConfig.ToMachineConfig(alloc.TaskName, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	mConfig.Mounts = nil
-	mConfig.Guest = m.machineGuest
-	mConfig.Image = m.img
-	mConfig.Metadata[api.MachineConfigMetadataKeyFlyReleaseId] = m.releaseId
-	mConfig.Metadata[api.MachineConfigMetadataKeyFlyReleaseVersion] = strconv.Itoa(m.releaseVersion)
-	mConfig.Metadata[api.MachineConfigMetadataKeyFlyPreviousAlloc] = alloc.ID
-
-	if m.isPostgres {
-		mConfig.Env["FLY_CONSUL_URL"] = m.pgConsulUrl
-		mConfig.Metadata[api.MachineConfigMetadataKeyFlyManagedPostgres] = "true"
-	}
-
-	launchInput := &api.LaunchMachineInput{
-		AppID:   m.appFull.Name,
-		OrgSlug: m.appFull.Organization.ID,
-		Region:  alloc.Region,
-		Config:  mConfig,
-	}
-
-	return launchInput, nil
+func (m *v2PlatformMigrator) requiresDowntime() bool {
+	return m.usesForkedVolumes
 }
 
 func (m *v2PlatformMigrator) determinePrimaryRegion(ctx context.Context) error {
@@ -975,8 +773,12 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 		}
 	}
 
-	if !m.canAvoidDowntime {
+	if m.requiresDowntime() {
 		printAllocs("")
+		fmt.Fprintf(m.io.Out, "   * NOTE: This will cause a short downtime.\n")
+	}
+	if m.usesForkedVolumes {
+		fmt.Fprintf(m.io.Out, " * Create clones of each volume in use, for the new machines\n")
 	}
 
 	fmt.Fprintf(m.io.Out, " * Create machines, copying the configuration of each existing VM\n")
@@ -992,7 +794,7 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 		fmt.Fprintf(m.io.Out, " * Wait for at least one new in-region PG replica to become synced\n")
 	}
 
-	if m.canAvoidDowntime {
+	if !m.requiresDowntime() {
 		printAllocs("after health checks pass for the new machines")
 	}
 
