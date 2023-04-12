@@ -21,6 +21,7 @@ type ToplevelCheck struct {
 	HTTPProtocol      *string           `json:"protocol,omitempty" toml:"protocol,omitempty"`
 	HTTPTLSSkipVerify *bool             `json:"tls_skip_verify,omitempty" toml:"tls_skip_verify,omitempty"`
 	HTTPHeaders       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
+	Processes         []string          `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
 func topLevelCheckFromMachineCheck(mc api.MachineCheck) *ToplevelCheck {

@@ -54,7 +54,6 @@ type machineDeployment struct {
 	colorize              *iostreams.ColorScheme
 	app                   *api.AppCompact
 	appConfig             *appconfig.Config
-	processConfigs        map[string]*appconfig.ProcessConfig
 	img                   string
 	machineSet            machine.MachineSet
 	releaseCommandMachine machine.MachineSet
@@ -112,10 +111,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if waitTimeout != DefaultWaitTimeout || leaseTimeout != DefaultLeaseTtl || args.WaitTimeout == 0 || args.LeaseTimeout == 0 {
 		terminal.Infof("Using wait timeout: %s lease timeout: %s delay between lease refreshes: %s\n", waitTimeout, leaseTimeout, leaseDelayBetween)
 	}
-	processConfigs, err := appConfig.GetProcessConfigs()
-	if err != nil {
-		return nil, err
-	}
 	io := iostreams.FromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 	md := &machineDeployment{
@@ -126,7 +121,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		colorize:          io.ColorScheme(),
 		app:               args.AppCompact,
 		appConfig:         appConfig,
-		processConfigs:    processConfigs,
 		img:               args.DeploymentImage,
 		skipHealthChecks:  args.SkipHealthChecks,
 		restartOnly:       args.RestartOnly,

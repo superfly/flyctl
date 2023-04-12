@@ -8,15 +8,15 @@ import (
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/appconfig"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/machine"
+	"golang.org/x/exp/slices"
 )
 
 type ProcessGroupsDiff struct {
 	machinesToRemove      []machine.LeasableMachine
 	groupsToRemove        map[string]int
-	groupsNeedingMachines map[string]*appconfig.ProcessConfig
+	groupsNeedingMachines map[string]bool
 }
 
 func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
@@ -83,9 +83,14 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 		fmt.Fprintf(md.io.ErrOut, "Finished launching new machines\n")
 	}
 
-	machineUpdateEntries := lo.Map(md.machineSet.GetMachines(), func(lm machine.LeasableMachine, _ int) *machineUpdateEntry {
-		return &machineUpdateEntry{leasableMachine: lm, launchInput: md.launchInputForUpdate(lm.Machine())}
-	})
+	var machineUpdateEntries []*machineUpdateEntry
+	for _, lm := range md.machineSet.GetMachines() {
+		li, err := md.launchInputForUpdate(lm.Machine())
+		if err != nil {
+			return fmt.Errorf("failed to update machine configuration for %s: %w", lm.FormattedMachineId(), err)
+		}
+		machineUpdateEntries = append(machineUpdateEntries, &machineUpdateEntry{leasableMachine: lm, launchInput: li})
+	}
 
 	return md.updateExistingMachines(ctx, machineUpdateEntries)
 }
@@ -166,7 +171,10 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 		panic("spawnMachineInGroup requires a non-empty group name. this is a bug!")
 	}
 	fmt.Fprintf(md.io.Out, "No machines in group '%s', launching one new machine\n", md.colorize.Bold(groupName))
-	launchInput := md.launchInputForLaunch(groupName, nil)
+	launchInput, err := md.launchInputForLaunch(groupName, nil)
+	if err != nil {
+		return fmt.Errorf("error creating machine configuration: %w", err)
+	}
 
 	newMachineRaw, err := md.flapsClient.Launch(ctx, *launchInput)
 	if err != nil {
@@ -206,32 +214,25 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 func (md *machineDeployment) resolveProcessGroupChanges() ProcessGroupsDiff {
 	output := ProcessGroupsDiff{
 		groupsToRemove:        map[string]int{},
-		groupsNeedingMachines: map[string]*appconfig.ProcessConfig{},
+		groupsNeedingMachines: map[string]bool{},
 	}
 
+	groupsInConfig := md.appConfig.ProcessNames()
 	groupHasMachine := map[string]bool{}
 
 	for _, leasableMachine := range md.machineSet.GetMachines() {
-		mach := leasableMachine.Machine()
-		machGroup := mach.ProcessGroup()
-		groupMatch := ""
-		for name := range md.processConfigs {
-			if machGroup == name {
-				groupMatch = machGroup
-				break
-			}
-		}
-		if groupMatch == "" {
-			output.groupsToRemove[machGroup] += 1
-			output.machinesToRemove = append(output.machinesToRemove, leasableMachine)
+		name := leasableMachine.Machine().ProcessGroup()
+		if slices.Contains(groupsInConfig, name) {
+			groupHasMachine[name] = true
 		} else {
-			groupHasMachine[groupMatch] = true
+			output.groupsToRemove[name] += 1
+			output.machinesToRemove = append(output.machinesToRemove, leasableMachine)
 		}
 	}
 
-	for name, val := range md.processConfigs {
+	for _, name := range groupsInConfig {
 		if ok := groupHasMachine[name]; !ok {
-			output.groupsNeedingMachines[name] = val
+			output.groupsNeedingMachines[name] = true
 		}
 	}
 

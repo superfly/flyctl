@@ -19,20 +19,19 @@ type Service struct {
 }
 
 type ServiceTCPCheck struct {
-	Interval *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
-	Timeout  *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
-
-	// GracePeriod and RestartLimit are only supported on V1 Apps
-	GracePeriod  *api.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
-	RestartLimit int           `toml:"restart_limit,omitempty" json:"restart_limit,omitempty"`
+	Interval    *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
+	Timeout     *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
+	GracePeriod *api.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
+	// RestartLimit is only supported on V1 Apps
+	RestartLimit int `toml:"restart_limit,omitempty" json:"restart_limit,omitempty"`
 }
 
 type ServiceHTTPCheck struct {
-	Interval *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
-	Timeout  *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
-	// GracePeriod and RestartLimit are only supported on V1 Apps
-	GracePeriod  *api.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
-	RestartLimit int           `toml:"restart_limit,omitempty" json:"restart_limit,omitempty"`
+	Interval    *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
+	Timeout     *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
+	GracePeriod *api.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
+	// RestartLimit is only supported on V1 Apps
+	RestartLimit int `toml:"restart_limit,omitempty" json:"restart_limit,omitempty"`
 
 	// HTTP Specifics
 	HTTPMethod        *string           `json:"method,omitempty" toml:"method,omitempty"`
@@ -40,6 +39,91 @@ type ServiceHTTPCheck struct {
 	HTTPProtocol      *string           `json:"protocol,omitempty" toml:"protocol,omitempty"`
 	HTTPTLSSkipVerify *bool             `json:"tls_skip_verify,omitempty" toml:"tls_skip_verify,omitempty"`
 	HTTPHeaders       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
+}
+
+type HTTPService struct {
+	InternalPort int                            `json:"internal_port,omitempty" toml:"internal_port" validate:"required,numeric"`
+	ForceHttps   bool                           `toml:"force_https" json:"force_https,omitempty"`
+	Concurrency  *api.MachineServiceConcurrency `toml:"concurrency,omitempty" json:"concurrency,omitempty"`
+	Processes    []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
+}
+
+func (s *HTTPService) ToService() *Service {
+	return &Service{
+		Protocol:     "tcp",
+		InternalPort: s.InternalPort,
+		Concurrency:  s.Concurrency,
+		Processes:    s.Processes,
+		Ports: []api.MachinePort{{
+			Port:       api.IntPointer(80),
+			Handlers:   []string{"http"},
+			ForceHttps: s.ForceHttps,
+		}, {
+			Port:     api.IntPointer(443),
+			Handlers: []string{"http", "tls"},
+		}},
+		TCPChecks:  nil,
+		HTTPChecks: nil,
+	}
+}
+
+func (c *Config) AllServices() (services []Service) {
+	if c.HttpService != nil {
+		services = append(services, *c.HttpService.ToService())
+	}
+	services = append(services, c.Services...)
+	return services
+}
+
+func (svc *Service) toMachineService() *api.MachineService {
+	s := &api.MachineService{
+		Protocol:     svc.Protocol,
+		InternalPort: svc.InternalPort,
+		Ports:        svc.Ports,
+		Concurrency:  svc.Concurrency,
+	}
+
+	for _, tc := range svc.TCPChecks {
+		s.Checks = append(s.Checks, *tc.toMachineCheck())
+	}
+	for _, hc := range svc.HTTPChecks {
+		s.Checks = append(s.Checks, *hc.toMachineCheck())
+	}
+	return s
+}
+
+func (chk *ServiceHTTPCheck) toMachineCheck() *api.MachineCheck {
+	return &api.MachineCheck{
+		Type:              api.Pointer("http"),
+		Interval:          chk.Interval,
+		Timeout:           chk.Timeout,
+		GracePeriod:       chk.GracePeriod,
+		HTTPMethod:        chk.HTTPMethod,
+		HTTPPath:          chk.HTTPPath,
+		HTTPProtocol:      chk.HTTPProtocol,
+		HTTPSkipTLSVerify: chk.HTTPTLSSkipVerify,
+		HTTPHeaders: lo.MapToSlice(
+			chk.HTTPHeaders, func(k string, v string) api.MachineHTTPHeader {
+				return api.MachineHTTPHeader{Name: k, Values: []string{v}}
+			}),
+	}
+}
+
+func (chk *ServiceHTTPCheck) String(port int) string {
+	return fmt.Sprintf("http-%d-%v", port, chk.HTTPMethod)
+}
+
+func (chk *ServiceTCPCheck) toMachineCheck() *api.MachineCheck {
+	return &api.MachineCheck{
+		Type:        api.Pointer("tcp"),
+		Interval:    chk.Interval,
+		Timeout:     chk.Timeout,
+		GracePeriod: chk.GracePeriod,
+	}
+}
+
+func (chk *ServiceTCPCheck) String(port int) string {
+	return fmt.Sprintf("tcp-%d", port)
 }
 
 func serviceFromMachineService(ms api.MachineService, processes []string) *Service {
@@ -98,55 +182,4 @@ func httpCheckFromMachineCheck(mc api.MachineCheck) *ServiceHTTPCheck {
 		HTTPTLSSkipVerify: mc.HTTPSkipTLSVerify,
 		HTTPHeaders:       headers,
 	}
-}
-
-func (svc *Service) toMachineService() *api.MachineService {
-	checks := make([]api.MachineCheck, 0, len(svc.TCPChecks)+len(svc.HTTPChecks))
-	for _, tc := range svc.TCPChecks {
-		checks = append(checks, *tc.toMachineCheck())
-	}
-	for _, hc := range svc.HTTPChecks {
-		checks = append(checks, *hc.toMachineCheck())
-	}
-	return &api.MachineService{
-		Protocol:     svc.Protocol,
-		InternalPort: svc.InternalPort,
-		Ports:        svc.Ports,
-		Concurrency:  svc.Concurrency,
-		Checks:       checks,
-	}
-}
-
-func (chk *ServiceHTTPCheck) toMachineCheck() *api.MachineCheck {
-	return &api.MachineCheck{
-		Type:              api.Pointer("http"),
-		Interval:          chk.Interval,
-		Timeout:           chk.Timeout,
-		GracePeriod:       chk.GracePeriod,
-		HTTPMethod:        chk.HTTPMethod,
-		HTTPPath:          chk.HTTPPath,
-		HTTPProtocol:      chk.HTTPProtocol,
-		HTTPSkipTLSVerify: chk.HTTPTLSSkipVerify,
-		HTTPHeaders: lo.MapToSlice(
-			chk.HTTPHeaders, func(k string, v string) api.MachineHTTPHeader {
-				return api.MachineHTTPHeader{Name: k, Values: []string{v}}
-			}),
-	}
-}
-
-func (chk *ServiceHTTPCheck) String(port int) string {
-	return fmt.Sprintf("http-%d-%v", port, chk.HTTPMethod)
-}
-
-func (chk *ServiceTCPCheck) toMachineCheck() *api.MachineCheck {
-	return &api.MachineCheck{
-		Type:        api.Pointer("tcp"),
-		Interval:    chk.Interval,
-		Timeout:     chk.Timeout,
-		GracePeriod: chk.GracePeriod,
-	}
-}
-
-func (chk *ServiceTCPCheck) String(port int) string {
-	return fmt.Sprintf("tcp-%d", port)
 }

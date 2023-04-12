@@ -11,6 +11,7 @@ func TestProcessNames(t *testing.T) {
 	testcases := []struct {
 		name               string
 		filepath           string
+		config             *Config
 		defaultProcessName string
 		processNames       []string
 		format             string
@@ -20,6 +21,20 @@ func TestProcessNames(t *testing.T) {
 			defaultProcessName: "app",
 			processNames:       []string{"app"},
 			format:             "['app']",
+		},
+		{
+			name:               "Test empty config",
+			config:             &Config{},
+			defaultProcessName: "app",
+			processNames:       []string{"app"},
+			format:             "['app']",
+		},
+		{
+			name:               "empty config with non standard default group name",
+			config:             &Config{defaultGroupName: "foo"},
+			defaultProcessName: "foo",
+			processNames:       []string{"foo"},
+			format:             "['foo']",
 		},
 		{
 			name:               "Test one process named 'web'",
@@ -46,9 +61,9 @@ func TestProcessNames(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			var cfg *Config
-			var err error
+			cfg := tc.config
 			if tc.filepath != "" {
+				var err error
 				cfg, err = LoadConfig(tc.filepath)
 				require.NoError(t, err)
 			}
@@ -63,19 +78,23 @@ func TestProcessNames(t *testing.T) {
 			}
 
 			// Test for machines
-			assert.NoError(t, cfg.SetMachinesPlatform())
+			require.NoError(t, cfg.SetMachinesPlatform())
 			assert.Equal(t, tc.defaultProcessName, cfg.DefaultProcessName())
 			assert.Equal(t, tc.processNames, cfg.ProcessNames())
 			assert.Equal(t, tc.format, cfg.FormatProcessNames())
 
+			if cfg.RawDefinition == nil {
+				return
+			}
+
 			// Test for detached
-			assert.NoError(t, cfg.SetDetachedPlatform())
+			require.NoError(t, cfg.SetDetachedPlatform())
 			assert.Equal(t, tc.defaultProcessName, cfg.DefaultProcessName())
 			assert.Equal(t, tc.processNames, cfg.ProcessNames())
 			assert.Equal(t, tc.format, cfg.FormatProcessNames())
 
 			// Test for nomad
-			assert.NoError(t, cfg.SetNomadPlatform())
+			require.NoError(t, cfg.SetNomadPlatform())
 			assert.Equal(t, tc.defaultProcessName, cfg.DefaultProcessName())
 			assert.Equal(t, tc.processNames, cfg.ProcessNames())
 			assert.Equal(t, tc.format, cfg.FormatProcessNames())

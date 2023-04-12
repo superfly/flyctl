@@ -1,66 +1,17 @@
 package appconfig
 
 import (
-	"fmt"
-
 	"github.com/google/shlex"
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 )
 
 func (c *Config) ToMachineConfig(processGroup string) (*api.MachineConfig, error) {
-	if processGroup == "" {
-		processGroup = c.DefaultProcessName()
-	}
-
-	processConfigs, err := c.GetProcessConfigs()
+	fc, err := c.Flatten(processGroup)
 	if err != nil {
 		return nil, err
 	}
-
-	processConfig, ok := processConfigs[processGroup]
-	if !ok {
-		return nil, fmt.Errorf("unknown process group: %s", processGroup)
-	}
-
-	machineConfig := &api.MachineConfig{
-		Metrics: c.Metrics,
-		Init: api.MachineInit{
-			Cmd: processConfig.Cmd,
-		},
-		Metadata: map[string]string{
-			api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
-			api.MachineConfigMetadataKeyFlyProcessGroup:    processGroup,
-		},
-		Env: lo.Assign(c.Env),
-	}
-
-	if len(processConfig.Services) > 0 {
-		machineConfig.Services = processConfig.Services
-	}
-	if len(processConfig.Checks) > 0 {
-		machineConfig.Checks = processConfig.Checks
-	}
-
-	if c.PrimaryRegion != "" {
-		machineConfig.Env["PRIMARY_REGION"] = c.PrimaryRegion
-	}
-
-	for _, s := range c.Statics {
-		machineConfig.Statics = append(machineConfig.Statics, &api.Static{
-			GuestPath: s.GuestPath,
-			UrlPrefix: s.UrlPrefix,
-		})
-	}
-
-	if c.Mounts != nil {
-		machineConfig.Mounts = []api.MachineMount{{
-			Path: c.Mounts.Destination,
-			Name: c.Mounts.Source,
-		}}
-	}
-
-	return machineConfig, nil
+	return fc.defaultMachineConfig()
 }
 
 func (c *Config) ToReleaseMachineConfig() (*api.MachineConfig, error) {
@@ -90,6 +41,62 @@ func (c *Config) ToReleaseMachineConfig() (*api.MachineConfig, error) {
 	machineConfig.Env["RELEASE_COMMAND"] = "1"
 	if c.PrimaryRegion != "" {
 		machineConfig.Env["PRIMARY_REGION"] = c.PrimaryRegion
+	}
+
+	return machineConfig, nil
+}
+
+func (c *Config) defaultMachineConfig() (*api.MachineConfig, error) {
+	processGroup := c.DefaultProcessName()
+
+	cmd, err := c.InitCmd(processGroup)
+	if err != nil {
+		return nil, err
+	}
+
+	machineConfig := &api.MachineConfig{
+		Metrics: c.Metrics,
+		Init:    api.MachineInit{Cmd: cmd},
+		Metadata: map[string]string{
+			api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
+			api.MachineConfigMetadataKeyFlyProcessGroup:    processGroup,
+		},
+		Env: lo.Assign(c.Env),
+	}
+
+	if services := c.AllServices(); len(services) > 0 {
+		machineConfig.Services = lo.Map(services, func(s Service, _ int) api.MachineService {
+			return *s.toMachineService()
+		})
+	}
+
+	if len(c.Checks) > 0 {
+		machineConfig.Checks = map[string]api.MachineCheck{}
+		for checkName, check := range c.Checks {
+			machineCheck, err := check.toMachineCheck()
+			if err != nil {
+				return nil, err
+			}
+			machineConfig.Checks[checkName] = *machineCheck
+		}
+	}
+
+	if c.PrimaryRegion != "" {
+		machineConfig.Env["PRIMARY_REGION"] = c.PrimaryRegion
+	}
+
+	for _, s := range c.Statics {
+		machineConfig.Statics = append(machineConfig.Statics, &api.Static{
+			GuestPath: s.GuestPath,
+			UrlPrefix: s.UrlPrefix,
+		})
+	}
+
+	if c.Mounts != nil {
+		machineConfig.Mounts = []api.MachineMount{{
+			Path: c.Mounts.Destination,
+			Name: c.Mounts.Source,
+		}}
 	}
 
 	return machineConfig, nil

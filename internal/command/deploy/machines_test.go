@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/machine"
@@ -21,9 +22,7 @@ func stabMachineDeployment(appConfig *appconfig.Config) (*machineDeployment, err
 		appConfig:  appConfig,
 		machineSet: machine.NewMachineSet(nil, nil, nil),
 	}
-	var err error
-	md.processConfigs, err = md.appConfig.GetProcessConfigs()
-	return md, err
+	return md, nil
 }
 
 func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
@@ -34,7 +33,9 @@ func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
 			"OTHER":          "value",
 		},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
+	li, err := md.launchInputForLaunch("", nil)
+	require.NoError(t, err)
 	assert.Equal(t, &api.LaunchMachineInput{
 		OrgSlug: "my-dangling-org",
 		Config: &api.MachineConfig{
@@ -50,7 +51,7 @@ func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
 				"fly_release_version":  "0",
 			},
 		},
-	}, md.launchInputForLaunch("", nil))
+	}, li)
 }
 
 // Test any LaunchMachineInput field that must not be set on a machine
@@ -88,10 +89,12 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			InternalPort: 8080,
 		}},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	md.volumes = []api.Volume{{ID: "vol_12345"}}
 
 	// New app machine
+	li, err := md.launchInputForLaunch("", nil)
+	require.NoError(t, err)
 	assert.Equal(t, &api.LaunchMachineInput{
 		OrgSlug: "my-dangling-org",
 		Config: &api.MachineConfig{
@@ -122,7 +125,6 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			Services: []api.MachineService{{
 				Protocol:     "tcp",
 				InternalPort: 8080,
-				Checks:       []api.MachineCheck{},
 			}},
 			Checks: map[string]api.MachineCheck{
 				"alive": {
@@ -131,7 +133,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 				},
 			},
 		},
-	}, md.launchInputForLaunch("", nil))
+	}, li)
 
 	// New release command machine
 	assert.Equal(t, &api.LaunchMachineInput{
@@ -216,10 +218,12 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 			Destination: "/data",
 		},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	md.volumes = []api.Volume{{ID: "vol_12345"}}
 
 	// New app machine
+	li, err := md.launchInputForLaunch("", nil)
+	require.NoError(t, err)
 	assert.Equal(t, &api.LaunchMachineInput{
 		OrgSlug: "my-dangling-org",
 		Config: &api.MachineConfig{
@@ -237,9 +241,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 				Name:   "data",
 			}},
 		},
-	},
-		md.launchInputForLaunch("", nil),
-	)
+	}, li)
 
 	origMachine := &api.Machine{
 		Config: &api.MachineConfig{
@@ -251,6 +253,8 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 	}
 
 	// Reuse app machine
+	li, err = md.launchInputForUpdate(origMachine)
+	require.NoError(t, err)
 	assert.Equal(t, &api.LaunchMachineInput{
 		OrgSlug: "my-dangling-org",
 		Config: &api.MachineConfig{
@@ -267,7 +271,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 				Path:   "/data",
 			}},
 		},
-	}, md.launchInputForUpdate(origMachine))
+	}, li)
 }
 
 // Test machineDeployment.restartOnly

@@ -23,9 +23,12 @@ func (md *machineDeployment) launchInputForRestart(origMachineRaw *api.Machine) 
 	}
 }
 
-func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *api.MachineGuest) *api.LaunchMachineInput {
+func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *api.MachineGuest) (*api.LaunchMachineInput, error) {
 	// Ignore the error because by this point we already check the processGroup exists
-	mConfig, _ := md.appConfig.ToMachineConfig(processGroup)
+	mConfig, err := md.appConfig.ToMachineConfig(processGroup)
+	if err != nil {
+		return nil, err
+	}
 	mConfig.Guest = guest
 	md.setMachineReleaseData(mConfig)
 
@@ -38,15 +41,18 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *ap
 		OrgSlug: md.app.Organization.ID,
 		Region:  md.appConfig.PrimaryRegion,
 		Config:  mConfig,
-	}
+	}, nil
 }
 
-func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) *api.LaunchMachineInput {
+func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (*api.LaunchMachineInput, error) {
 	mID := origMachineRaw.ID
 	processGroup := origMachineRaw.Config.ProcessGroup()
 
 	// Ignore the error because by this point we already check the processGroup exists
-	mConfig, _ := md.appConfig.ToMachineConfig(processGroup)
+	mConfig, err := md.appConfig.ToMachineConfig(processGroup)
+	if err != nil {
+		return nil, err
+	}
 	md.setMachineReleaseData(mConfig)
 	// Keep fields that can't be controlled from fly.toml
 	mConfig.Schedule = origMachineRaw.Config.Schedule
@@ -116,7 +122,7 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) *
 		OrgSlug: md.app.Organization.ID,
 		Region:  origMachineRaw.Region,
 		Config:  mConfig,
-	}
+	}, nil
 }
 
 func (md *machineDeployment) defaultMachineMetadata() map[string]string {

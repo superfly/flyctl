@@ -3,6 +3,8 @@
 package appconfig
 
 import (
+	"fmt"
+
 	"github.com/superfly/flyctl/api"
 )
 
@@ -18,7 +20,8 @@ const (
 
 func NewConfig() *Config {
 	return &Config{
-		RawDefinition: map[string]any{},
+		RawDefinition:    map[string]any{},
+		defaultGroupName: api.MachineProcessGroupApp,
 	}
 }
 
@@ -54,6 +57,9 @@ type Config struct {
 	// Set when it fails to unmarshal fly.toml into Config
 	// Don't hard fail because RawDefinition still holds the app configuration for Nomad apps
 	v2UnmarshalError error
+
+	// The default group name to refer to (used with flatten configs)
+	defaultGroupName string
 }
 
 type Deploy struct {
@@ -69,11 +75,6 @@ type Static struct {
 type Volume struct {
 	Source      string `toml:"source,omitempty" json:"source,omitempty"`
 	Destination string `toml:"destination" json:"destination,omitempty"`
-}
-
-type VM struct {
-	CpuCount int `toml:"cpu_count,omitempty" json:"cpu_count,omitempty"`
-	Memory   int `toml:"memory,omitempty" json:"memory,omitempty"`
 }
 
 type Build struct {
@@ -167,4 +168,31 @@ func (c *Config) InternalPort() int {
 		return c.Services[0].InternalPort
 	}
 	return 0
+}
+
+func (cfg *Config) BuildStrategies() []string {
+	strategies := []string{}
+
+	if cfg == nil || cfg.Build == nil {
+		return strategies
+	}
+
+	if cfg.Build.Image != "" {
+		strategies = append(strategies, fmt.Sprintf("the \"%s\" docker image", cfg.Build.Image))
+	}
+	if cfg.Build.Builder != "" || len(cfg.Build.Buildpacks) > 0 {
+		strategies = append(strategies, "a buildpack")
+	}
+	if cfg.Build.Dockerfile != "" || cfg.Build.DockerBuildTarget != "" {
+		if cfg.Build.Dockerfile != "" {
+			strategies = append(strategies, fmt.Sprintf("the \"%s\" dockerfile", cfg.Build.Dockerfile))
+		} else {
+			strategies = append(strategies, "a dockerfile")
+		}
+	}
+	if cfg.Build.Builtin != "" {
+		strategies = append(strategies, fmt.Sprintf("the \"%s\" builtin image", cfg.Build.Builtin))
+	}
+
+	return strategies
 }

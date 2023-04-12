@@ -118,8 +118,9 @@ func TestLoadTOMLAppConfigExperimental(t *testing.T) {
 	cfg, err := LoadConfig(path)
 	require.NoError(t, err)
 	assert.Equal(t, &Config{
-		configFilePath: "./testdata/experimental-alt.toml",
-		AppName:        "foo",
+		configFilePath:   "./testdata/experimental-alt.toml",
+		defaultGroupName: "app",
+		AppName:          "foo",
 		Experimental: &Experimental{
 			Cmd:        []string{"cmd"},
 			Entrypoint: []string{"entrypoint"},
@@ -141,8 +142,9 @@ func TestLoadTOMLAppConfigMountsArray(t *testing.T) {
 	cfg, err := LoadConfig(path)
 	require.NoError(t, err)
 	assert.Equal(t, &Config{
-		configFilePath: "./testdata/mounts-array.toml",
-		AppName:        "foo",
+		configFilePath:   "./testdata/mounts-array.toml",
+		defaultGroupName: "app",
+		AppName:          "foo",
 		Mounts: &Volume{
 			Source:      "pg_data",
 			Destination: "/data",
@@ -162,8 +164,9 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 	cfg, err := LoadConfig(path)
 	require.NoError(t, err)
 	assert.Equal(t, &Config{
-		configFilePath: "./testdata/old-format.toml",
-		AppName:        "foo",
+		configFilePath:   "./testdata/old-format.toml",
+		defaultGroupName: "app",
+		AppName:          "foo",
 		Env: map[string]string{
 			"FOO": "STRING",
 			"BAR": "123",
@@ -244,8 +247,9 @@ func TestLoadTOMLAppConfigOldChecksFormat(t *testing.T) {
 	cfg, err := LoadConfig(path)
 	require.NoError(t, err)
 	assert.Equal(t, &Config{
-		configFilePath: "./testdata/old-pg-checks.toml",
-		AppName:        "foo",
+		configFilePath:   "./testdata/old-pg-checks.toml",
+		defaultGroupName: "app",
+		AppName:          "foo",
 		Checks: map[string]*ToplevelCheck{
 			"pg": {
 				Port:     api.Pointer(5500),
@@ -276,11 +280,12 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 	cfg.RawDefinition = nil
 
 	assert.Equal(t, &Config{
-		configFilePath: "./testdata/full-reference.toml",
-		AppName:        "foo",
-		KillSignal:     "SIGTERM",
-		KillTimeout:    3,
-		PrimaryRegion:  "sea",
+		configFilePath:   "./testdata/full-reference.toml",
+		defaultGroupName: "app",
+		AppName:          "foo",
+		KillSignal:       "SIGTERM",
+		KillTimeout:      3,
+		PrimaryRegion:    "sea",
 		Experimental: &Experimental{
 			Cmd:          []string{"cmd"},
 			Entrypoint:   []string{"entrypoint"},
