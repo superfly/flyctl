@@ -36,6 +36,7 @@ func newList() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.JSONOutput(),
 		flag.Bool{
 			Name:        "quiet",
 			Shorthand:   "q",

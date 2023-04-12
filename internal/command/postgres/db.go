@@ -31,6 +31,7 @@ func newDb() *cobra.Command {
 		newListDbs(),
 	)
 
+	flag.Add(cmd, flag.JSONOutput())
 	return cmd
 }
 

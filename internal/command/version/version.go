@@ -44,6 +44,7 @@ number and build date.`
 		newUpdate(),
 	)
 
+	flag.Add(version, flag.JSONOutput())
 	return version
 }
 

@@ -38,6 +38,7 @@ including type, when, success/fail and which user triggered the release.
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.JSONOutput(),
 		flag.Bool{
 			Name:        "image",
 			Description: "Display the Docker image reference of the release",

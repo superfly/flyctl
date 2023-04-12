@@ -28,6 +28,7 @@ number to operate. This can be found through the volumes list command`
 	)
 	cmd.Args = cobra.ExactArgs(1)
 
+	flag.Add(cmd, flag.JSONOutput())
 	return
 }
 

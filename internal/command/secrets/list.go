@@ -28,6 +28,7 @@ actual value of the secret is only available to the application.`
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.JSONOutput(),
 	)
 
 	return cmd

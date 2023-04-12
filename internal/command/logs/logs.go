@@ -46,6 +46,7 @@ to all instances running in a specific region using the --region/-r flag.
 		flag.App(),
 		flag.AppConfig(),
 		flag.Region(),
+		flag.JSONOutput(),
 		flag.String{
 			Name:        "instance",
 			Shorthand:   "i",

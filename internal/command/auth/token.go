@@ -10,6 +10,7 @@ import (
 
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 )
 
@@ -22,8 +23,11 @@ independent of flyctl.
 		short = "Show the current auth token"
 	)
 
-	return command.New("token", short, long, runAuthToken,
+	cmd := command.New("token", short, long, runAuthToken,
 		command.RequireSession)
+
+	flag.Add(cmd, flag.JSONOutput())
+	return cmd
 }
 
 func runAuthToken(ctx context.Context) error {

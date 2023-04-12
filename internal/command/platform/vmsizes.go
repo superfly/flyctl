@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -28,6 +29,7 @@ func newVMSizes() (cmd *cobra.Command) {
 
 	cmd.Args = cobra.NoArgs
 
+	flag.Add(cmd, flag.JSONOutput())
 	return
 }
 

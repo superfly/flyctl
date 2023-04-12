@@ -40,10 +40,6 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 	err = viper.BindPFlag(flyctl.ConfigVerboseOutput, rootCmd.PersistentFlags().Lookup("verbose"))
 	checkErr(err)
 
-	rootCmd.PersistentFlags().BoolP("json", "j", false, "json output")
-	err = viper.BindPFlag(flyctl.ConfigJSONOutput, rootCmd.PersistentFlags().Lookup("json"))
-	checkErr(err)
-
 	rootCmd.PersistentFlags().String("builtinsfile", "", "Load builtins from named file")
 	err = viper.BindPFlag(flyctl.ConfigBuiltinsfile, rootCmd.PersistentFlags().Lookup("builtinsfile"))
 	checkErr(err)

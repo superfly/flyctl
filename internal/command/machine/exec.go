@@ -31,6 +31,7 @@ func newMachineExec() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.JSONOutput(),
 		selectFlag,
 		flag.Int{
 			Name:        "timeout",

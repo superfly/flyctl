@@ -46,6 +46,7 @@ currently allocated.
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.JSONOutput(),
 		flag.Bool{
 			Name:        "all",
 			Description: "Show completed instances",

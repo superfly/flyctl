@@ -38,6 +38,7 @@ organization later.
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
 
+	flag.Add(cmd, flag.JSONOutput())
 	return cmd
 }
 

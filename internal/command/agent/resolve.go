@@ -28,6 +28,7 @@ func newResolve() (cmd *cobra.Command) {
 
 	cmd.Args = cobra.ExactArgs(2)
 
+	flag.Add(cmd, flag.JSONOutput())
 	return
 }
 

@@ -50,6 +50,7 @@ func newExtend() *cobra.Command {
 		},
 	)
 
+	flag.Add(cmd, flag.JSONOutput())
 	return cmd
 }
 
