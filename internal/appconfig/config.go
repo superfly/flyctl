@@ -18,7 +18,8 @@ const (
 
 func NewConfig() *Config {
 	return &Config{
-		RawDefinition: map[string]any{},
+		RawDefinition:    map[string]any{},
+		defaultGroupName: api.MachineProcessGroupApp,
 	}
 }
 
@@ -54,6 +55,9 @@ type Config struct {
 	// Set when it fails to unmarshal fly.toml into Config
 	// Don't hard fail because RawDefinition still holds the app configuration for Nomad apps
 	v2UnmarshalError error
+
+	// The default group name to refer to (used with flatten configs)
+	defaultGroupName string
 }
 
 type Deploy struct {

@@ -7,6 +7,7 @@ import (
 	"github.com/google/shlex"
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/helpers"
 	"golang.org/x/exp/slices"
 )
 
@@ -116,7 +117,7 @@ func (c *Config) ProcessNames() (names []string) {
 
 	slices.Sort(names)
 	if len(names) == 0 {
-		names = []string{api.MachineProcessGroupApp}
+		names = []string{c.defaultGroupName}
 	}
 	return names
 }
@@ -134,8 +135,73 @@ func (c *Config) FormatProcessNames() string {
 // * The first process name in ascending lexicographical order
 func (c *Config) DefaultProcessName() string {
 	processNames := c.ProcessNames()
-	if slices.Contains(processNames, api.MachineProcessGroupApp) {
-		return api.MachineProcessGroupApp
+	if slices.Contains(processNames, c.defaultGroupName) {
+		return c.defaultGroupName
 	}
 	return c.ProcessNames()[0]
+}
+
+func (c *Config) Flatten(groupName string) (*Config, error) {
+	if err := c.EnsureV2Config(); err != nil {
+		return nil, fmt.Errorf("can not flatten an invalid v2 application config: %w", err)
+	}
+
+	defaultGroupName := c.DefaultProcessName()
+	if groupName == "" {
+		groupName = defaultGroupName
+	}
+	matchesGroup := func(x string) bool {
+		switch {
+		case x == groupName:
+			return true
+		case x == "" && groupName == defaultGroupName:
+			return true
+		default:
+			return false
+		}
+	}
+	matchesGroups := func(xs []string) bool {
+		if len(xs) == 0 {
+			return matchesGroup("")
+		}
+		for _, x := range xs {
+			if matchesGroup(x) {
+				return true
+			}
+		}
+		return false
+	}
+
+	dst := helpers.Clone(c)
+	dst.platformVersion = c.platformVersion
+	dst.configFilePath = "--flatten--"
+	dst.defaultGroupName = groupName
+
+	// [processes]
+	dst.Processes = nil
+	for name, cmdStr := range c.Processes {
+		if !matchesGroup(name) {
+			continue
+		}
+		dst.Processes = map[string]string{dst.defaultGroupName: cmdStr}
+		break
+	}
+
+	// [checks]
+	dst.Checks = lo.PickBy(c.Checks, func(_ string, check *ToplevelCheck) bool {
+		return matchesGroups(check.Processes)
+	})
+
+	// [[http_service]]
+	dst.HttpService = nil
+	if c.HttpService != nil && matchesGroups(c.HttpService.Processes) {
+		dst.HttpService = c.HttpService
+	}
+
+	// [[services]]
+	dst.Services = lo.Filter(c.Services, func(s Service, _ int) bool {
+		return matchesGroups(s.Processes)
+	})
+
+	return dst, nil
 }

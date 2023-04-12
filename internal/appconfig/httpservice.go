@@ -10,6 +10,7 @@ type HTTPService struct {
 	InternalPort int                            `json:"internal_port,omitempty" toml:"internal_port" validate:"required,numeric"`
 	ForceHttps   bool                           `toml:"force_https" json:"force_https,omitempty"`
 	Concurrency  *api.MachineServiceConcurrency `toml:"concurrency,omitempty" json:"concurrency,omitempty"`
+	Processes    []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
 func (svc *HTTPService) toMachineService() *api.MachineService {
