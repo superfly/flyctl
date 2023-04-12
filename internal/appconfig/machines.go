@@ -21,7 +21,7 @@ func (c *Config) ToReleaseMachineConfig() (*api.MachineConfig, error) {
 		return nil, err
 	}
 
-	machineConfig := &api.MachineConfig{
+	mConfig := &api.MachineConfig{
 		Init: api.MachineInit{
 			Cmd: releaseCmd,
 		},
@@ -39,12 +39,12 @@ func (c *Config) ToReleaseMachineConfig() (*api.MachineConfig, error) {
 		Env: lo.Assign(c.Env),
 	}
 
-	machineConfig.Env["RELEASE_COMMAND"] = "1"
+	mConfig.Env["RELEASE_COMMAND"] = "1"
 	if c.PrimaryRegion != "" {
-		machineConfig.Env["PRIMARY_REGION"] = c.PrimaryRegion
+		mConfig.Env["PRIMARY_REGION"] = c.PrimaryRegion
 	}
 
-	return machineConfig, nil
+	return mConfig, nil
 }
 
 //
@@ -56,6 +56,7 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 		mConfig = helpers.Clone(src)
 	}
 
+	// Metrics
 	mConfig.Metrics = c.Metrics
 
 	// Init
@@ -66,11 +67,10 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 	mConfig.Init.Cmd = cmd
 
 	// Metadata
-	if mConfig.Metadata == nil {
-		mConfig.Metadata = map[string]string{}
-	}
-	mConfig.Metadata[api.MachineConfigMetadataKeyFlyPlatformVersion] = api.MachineFlyPlatformVersion2
-	mConfig.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = processGroup
+	mConfig.Metadata = lo.Assign(mConfig.Metadata, map[string]string{
+		api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
+		api.MachineConfigMetadataKeyFlyProcessGroup:    processGroup,
+	})
 
 	// Services
 	mConfig.Services = nil
