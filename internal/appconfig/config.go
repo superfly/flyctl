@@ -77,11 +77,6 @@ type Volume struct {
 	Destination string `toml:"destination" json:"destination,omitempty"`
 }
 
-type VM struct {
-	CpuCount int `toml:"cpu_count,omitempty" json:"cpu_count,omitempty"`
-	Memory   int `toml:"memory,omitempty" json:"memory,omitempty"`
-}
-
 type Build struct {
 	Builder           string            `toml:"builder,omitempty" json:"builder,omitempty"`
 	Args              map[string]string `toml:"args,omitempty" json:"args,omitempty"`
