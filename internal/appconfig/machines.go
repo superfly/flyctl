@@ -1,41 +1,52 @@
 package appconfig
 
 import (
-	"fmt"
-
 	"github.com/google/shlex"
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 )
 
-func (c *Config) InitCmd(groupName string) ([]string, error) {
-	if groupName == "" {
-		groupName = c.DefaultProcessName()
-	}
-	cmdStr, ok := c.Processes[groupName]
-	if !ok {
-		return nil, nil
-	}
-	if cmdStr == "" {
-		return nil, nil
-	}
-
-	cmd, err := shlex.Split(cmdStr)
+func (c *Config) ToMachineConfig(processGroup string) (*api.MachineConfig, error) {
+	fc, err := c.Flatten(processGroup)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse command for %s process group: %w", groupName, err)
+		return nil, err
 	}
-	return cmd, nil
+	return fc.defaultMachineConfig()
 }
 
-func (c *Config) AllServices() (services []Service) {
-	if c.HttpService != nil {
-		services = append(services, *c.HttpService.ToService())
+func (c *Config) ToReleaseMachineConfig() (*api.MachineConfig, error) {
+	releaseCmd, err := shlex.Split(c.Deploy.ReleaseCommand)
+	if err != nil {
+		return nil, err
 	}
-	services = append(services, c.Services...)
-	return services
+
+	machineConfig := &api.MachineConfig{
+		Init: api.MachineInit{
+			Cmd: releaseCmd,
+		},
+		Restart: api.MachineRestart{
+			Policy: api.MachineRestartPolicyNo,
+		},
+		AutoDestroy: true,
+		DNS: &api.DNSConfig{
+			SkipRegistration: true,
+		},
+		Metadata: map[string]string{
+			api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
+			api.MachineConfigMetadataKeyFlyProcessGroup:    api.MachineProcessGroupFlyAppReleaseCommand,
+		},
+		Env: lo.Assign(c.Env),
+	}
+
+	machineConfig.Env["RELEASE_COMMAND"] = "1"
+	if c.PrimaryRegion != "" {
+		machineConfig.Env["PRIMARY_REGION"] = c.PrimaryRegion
+	}
+
+	return machineConfig, nil
 }
 
-func (c *Config) DefaultMachineConfig() (*api.MachineConfig, error) {
+func (c *Config) defaultMachineConfig() (*api.MachineConfig, error) {
 	processGroup := c.DefaultProcessName()
 
 	cmd, err := c.InitCmd(processGroup)
@@ -86,46 +97,6 @@ func (c *Config) DefaultMachineConfig() (*api.MachineConfig, error) {
 			Path: c.Mounts.Destination,
 			Name: c.Mounts.Source,
 		}}
-	}
-
-	return machineConfig, nil
-}
-
-func (c *Config) ToMachineConfig(processGroup string) (*api.MachineConfig, error) {
-	fc, err := c.Flatten(processGroup)
-	if err != nil {
-		return nil, err
-	}
-	return fc.DefaultMachineConfig()
-}
-
-func (c *Config) ToReleaseMachineConfig() (*api.MachineConfig, error) {
-	releaseCmd, err := shlex.Split(c.Deploy.ReleaseCommand)
-	if err != nil {
-		return nil, err
-	}
-
-	machineConfig := &api.MachineConfig{
-		Init: api.MachineInit{
-			Cmd: releaseCmd,
-		},
-		Restart: api.MachineRestart{
-			Policy: api.MachineRestartPolicyNo,
-		},
-		AutoDestroy: true,
-		DNS: &api.DNSConfig{
-			SkipRegistration: true,
-		},
-		Metadata: map[string]string{
-			api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
-			api.MachineConfigMetadataKeyFlyProcessGroup:    api.MachineProcessGroupFlyAppReleaseCommand,
-		},
-		Env: lo.Assign(c.Env),
-	}
-
-	machineConfig.Env["RELEASE_COMMAND"] = "1"
-	if c.PrimaryRegion != "" {
-		machineConfig.Env["PRIMARY_REGION"] = c.PrimaryRegion
 	}
 
 	return machineConfig, nil

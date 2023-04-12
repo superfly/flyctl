@@ -19,20 +19,19 @@ type Service struct {
 }
 
 type ServiceTCPCheck struct {
-	Interval *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
-	Timeout  *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
-
-	// GracePeriod and RestartLimit are only supported on V1 Apps
-	GracePeriod  *api.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
-	RestartLimit int           `toml:"restart_limit,omitempty" json:"restart_limit,omitempty"`
+	Interval    *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
+	Timeout     *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
+	GracePeriod *api.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
+	// RestartLimit is only supported on V1 Apps
+	RestartLimit int `toml:"restart_limit,omitempty" json:"restart_limit,omitempty"`
 }
 
 type ServiceHTTPCheck struct {
-	Interval *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
-	Timeout  *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
-	// GracePeriod and RestartLimit are only supported on V1 Apps
-	GracePeriod  *api.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
-	RestartLimit int           `toml:"restart_limit,omitempty" json:"restart_limit,omitempty"`
+	Interval    *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
+	Timeout     *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
+	GracePeriod *api.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
+	// RestartLimit is only supported on V1 Apps
+	RestartLimit int `toml:"restart_limit,omitempty" json:"restart_limit,omitempty"`
 
 	// HTTP Specifics
 	HTTPMethod        *string           `json:"method,omitempty" toml:"method,omitempty"`
@@ -42,30 +41,38 @@ type ServiceHTTPCheck struct {
 	HTTPHeaders       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
 }
 
-func serviceFromMachineService(ms api.MachineService, processes []string) *Service {
-	var (
-		tcpChecks  []*ServiceTCPCheck
-		httpChecks []*ServiceHTTPCheck
-	)
-	for _, check := range ms.Checks {
-		switch *check.Type {
-		case "tcp":
-			tcpChecks = append(tcpChecks, tcpCheckFromMachineCheck(check))
-		case "http":
-			httpChecks = append(httpChecks, httpCheckFromMachineCheck(check))
-		default:
-			sentry.CaptureException(fmt.Errorf("unknown check type '%s' when converting from machine service", *check.Type))
-		}
-	}
+type HTTPService struct {
+	InternalPort int                            `json:"internal_port,omitempty" toml:"internal_port" validate:"required,numeric"`
+	ForceHttps   bool                           `toml:"force_https" json:"force_https,omitempty"`
+	Concurrency  *api.MachineServiceConcurrency `toml:"concurrency,omitempty" json:"concurrency,omitempty"`
+	Processes    []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
+}
+
+func (s *HTTPService) ToService() *Service {
 	return &Service{
-		Protocol:     ms.Protocol,
-		InternalPort: ms.InternalPort,
-		Ports:        ms.Ports,
-		Concurrency:  ms.Concurrency,
-		TCPChecks:    tcpChecks,
-		HTTPChecks:   httpChecks,
-		Processes:    processes,
+		Protocol:     "tcp",
+		InternalPort: s.InternalPort,
+		Concurrency:  s.Concurrency,
+		Processes:    s.Processes,
+		Ports: []api.MachinePort{{
+			Port:       api.IntPointer(80),
+			Handlers:   []string{"http"},
+			ForceHttps: s.ForceHttps,
+		}, {
+			Port:     api.IntPointer(443),
+			Handlers: []string{"http", "tls"},
+		}},
+		TCPChecks:  nil,
+		HTTPChecks: nil,
 	}
+}
+
+func (c *Config) AllServices() (services []Service) {
+	if c.HttpService != nil {
+		services = append(services, *c.HttpService.ToService())
+	}
+	services = append(services, c.Services...)
+	return services
 }
 
 func tcpCheckFromMachineCheck(mc api.MachineCheck) *ServiceTCPCheck {
@@ -149,4 +156,30 @@ func (chk *ServiceTCPCheck) toMachineCheck() *api.MachineCheck {
 
 func (chk *ServiceTCPCheck) String(port int) string {
 	return fmt.Sprintf("tcp-%d", port)
+}
+
+func serviceFromMachineService(ms api.MachineService, processes []string) *Service {
+	var (
+		tcpChecks  []*ServiceTCPCheck
+		httpChecks []*ServiceHTTPCheck
+	)
+	for _, check := range ms.Checks {
+		switch *check.Type {
+		case "tcp":
+			tcpChecks = append(tcpChecks, tcpCheckFromMachineCheck(check))
+		case "http":
+			httpChecks = append(httpChecks, httpCheckFromMachineCheck(check))
+		default:
+			sentry.CaptureException(fmt.Errorf("unknown check type '%s' when converting from machine service", *check.Type))
+		}
+	}
+	return &Service{
+		Protocol:     ms.Protocol,
+		InternalPort: ms.InternalPort,
+		Ports:        ms.Ports,
+		Concurrency:  ms.Concurrency,
+		TCPChecks:    tcpChecks,
+		HTTPChecks:   httpChecks,
+		Processes:    processes,
+	}
 }
