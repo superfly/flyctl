@@ -1,5 +1,6 @@
 #!/bin/sh
 
 set -ex
-npx prisma migrate deploy
+# Uncomment if using Prisma
+# npx prisma migrate deploy
 npm run start
