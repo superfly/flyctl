@@ -378,7 +378,8 @@ func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 
 func promptToUpdate(ctx context.Context) (context.Context, error) {
 
-	if shouldIgnore(ctx, [][]string{
+	cfg := config.FromContext(ctx)
+	if cfg.JSONOutput || shouldIgnore(ctx, [][]string{
 		{"version", "update"},
 	}) {
 		return ctx, nil
