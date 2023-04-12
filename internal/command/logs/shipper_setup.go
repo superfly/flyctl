@@ -3,7 +3,7 @@ package logs
 import (
 	"context"
 	"fmt"
-	"time"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -13,7 +13,6 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -52,7 +51,6 @@ func runSetup(ctx context.Context) (err error) {
 
 	targetApp := appNameResponse.App.AppData
 	targetOrg := targetApp.Organization
-	addOnName := targetOrg.RawSlug + "-log-shipper"
 
 	appsResult, err := gql.GetAppsByRole(ctx, client, "log-shipper", targetOrg.Id)
 
@@ -68,7 +66,7 @@ func runSetup(ctx context.Context) (err error) {
 		input.Machines = true
 		input.OrganizationId = targetOrg.Id
 		input.AppRoleId = "log-shipper"
-		input.Name = addOnName
+		input.Name = targetOrg.RawSlug + "-log-shipper"
 
 		createdAppResult, err := gql.CreateApp(ctx, client, input)
 
@@ -80,12 +78,21 @@ func runSetup(ctx context.Context) (err error) {
 		fmt.Fprintf(io.ErrOut, "Provisioning a log shipper VM in the app named %s\n", shipperApp.Name)
 	}
 
-	// Fetch or create the org-specific Logtail integration
+	// Fetch or create the Logtail integration for the app
 
+	var addOnName = appName + "-log-shipper"
 	getAddOnResponse, err := gql.GetAddOn(ctx, client, addOnName)
 
 	if err != nil {
-		createAddOnResponse, err := gql.CreateAddOn(ctx, client, targetOrg.Id, "", addOnName, "", nil, "logtail", gql.AddOnOptions{})
+
+		input := gql.CreateAddOnInput{
+			OrganizationId: targetOrg.Id,
+			Name:           addOnName,
+			AppId:          targetApp.Id,
+			Type:           "logtail",
+		}
+
+		createAddOnResponse, err := gql.CreateAddOn(ctx, client, input)
 
 		if err != nil {
 			return err
@@ -96,44 +103,13 @@ func runSetup(ctx context.Context) (err error) {
 	} else {
 		logtailToken = getAddOnResponse.AddOn.Token
 	}
-	// Fetch a macaroon token whose access is limited to reading app logs
-	tokenResponse, err := gql.CreateLimitedAccessToken(ctx, client, targetOrg.Slug+"-logs", targetOrg.Id, "read_organization_apps", &gql.LimitedAccessTokenOptions{
-		"app_id": targetApp.Name,
+	// Fetch a macaroon token whose access is limited to reading this app's logs
+	tokenResponse, err := gql.CreateLimitedAccessToken(ctx, client, appName+"-logs", targetOrg.Id, "read_organization_apps", &gql.LimitedAccessTokenOptions{
+		"app_ids": []string{targetApp.Name},
 	}, "")
 
 	if err != nil {
 		return
-	}
-
-	fmt.Fprintf(io.ErrOut, "Setting ORG, ACCESS_TOKEN and LOGTAIL_TOKEN secrets on %s\n", shipperApp.Name)
-
-	secrets := gql.SetSecretsInput{
-		AppId:      shipperApp.Id,
-		ReplaceAll: true,
-		Secrets: []gql.SecretInput{
-			{
-				Key:   "ACCESS_TOKEN",
-				Value: tokenResponse.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader,
-				// Value: flyctl.GetAPIToken(),
-			},
-			{
-				Key:   "LOGTAIL_TOKEN",
-				Value: logtailToken,
-			},
-			{
-				Key:   "ORG",
-				Value: targetOrg.RawSlug,
-			},
-			{
-				Key:   "VECTOR_WATCH_CONFIG",
-				Value: "1",
-			},
-		},
-	}
-	_, err = gql.SetSecrets(ctx, client, secrets)
-
-	if err != nil {
-		return err
 	}
 
 	flapsClient, err := flaps.New(ctx, gql.AppForFlaps(shipperApp))
@@ -141,46 +117,63 @@ func runSetup(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	machineConf := &api.MachineConfig{
-		Guest: &api.MachineGuest{
-			CPUKind:  "shared",
-			CPUs:     1,
-			MemoryMB: 256,
-		},
-		Image: "flyio/log-shipper",
-	}
 
 	machines, err := flapsClient.List(ctx, "")
-
-	launchInput := api.LaunchMachineInput{
-		AppID:  shipperApp.Name,
-		Name:   "log-shipper",
-		Config: machineConf,
-	}
-
-	// We already have a log shipper VM, so just update it in-place to pick up any new secrets
-	if len(machines) > 0 {
-		fmt.Fprintf(io.Out, "Restarting machine %s\n", machines[0].ID)
-		machine := machine.NewLeasableMachine(flapsClient, io, machines[0])
-		machine.AcquireLease(ctx, time.Second*5)
-		launchInput.ID = machines[0].ID
-		launchInput.Config = machines[0].Config
-		machine.Update(ctx, launchInput)
-		machine.ReleaseLease(ctx)
-		return
-	}
-
-	regionResponse, err := gql.GetNearestRegion(ctx, client)
 
 	if err != nil {
 		return err
 	}
 
-	launchInput.Region = regionResponse.NearestRegion.Code
+	var machine *api.Machine
 
-	machine, err := flapsClient.Launch(ctx, launchInput)
+	if len(machines) > 0 {
+		machine = machines[0]
 
-	fmt.Fprintf(io.Out, "Launched machine %s\n in the %s region", machine.ID, launchInput.Region)
+	} else {
 
+		machineConf := &api.MachineConfig{
+			Guest: &api.MachineGuest{
+				CPUKind:  "shared",
+				CPUs:     1,
+				MemoryMB: 256,
+			},
+			Image: "flyio/log-shipper:auto-d5a96e6",
+		}
+
+		launchInput := api.LaunchMachineInput{
+			AppID:  shipperApp.Name,
+			Name:   "log-shipper",
+			Config: machineConf,
+		}
+
+		regionResponse, err := gql.GetNearestRegion(ctx, client)
+
+		if err != nil {
+			return err
+		}
+
+		launchInput.Region = regionResponse.NearestRegion.Code
+
+		machine, err := flapsClient.Launch(ctx, launchInput)
+
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(io.Out, "Launched log shipper VM %s\n in the %s region", machine.ID, launchInput.Region)
+	}
+
+	cmd := []string{"/add-logger.sh", targetApp.Name, "logtail", "'" + tokenResponse.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader + "'", logtailToken}
+
+	request := &api.MachineExecRequest{
+		Cmd: strings.Join(cmd, " "),
+	}
+
+	response, err := flapsClient.Exec(ctx, machine.ID, request)
+
+	if err != nil {
+		fmt.Fprintf(io.ErrOut, response.StdErr)
+		return err
+	}
 	return
 }

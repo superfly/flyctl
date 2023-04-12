@@ -44,7 +44,7 @@ func runDashboard(ctx context.Context) (err error) {
 		return err
 	}
 
-	addOnResult, err := gql.GetAddOn(ctx, client, appResult.App.Organization.RawSlug+"-log-shipper")
+	addOnResult, err := gql.GetAddOn(ctx, client, appResult.App.Name+"-log-shipper")
 
 	if err != nil {
 		fmt.Fprintf(io.ErrOut, "You haven't added a logging integration for the %s organization. Set one up with 'flyctl logs shipper setup %s'.\n", appResult.App.Organization.Slug, appResult.App.Organization.Slug)

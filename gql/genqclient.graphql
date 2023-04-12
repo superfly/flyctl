@@ -22,9 +22,8 @@ query GetAddOn($name: String) {
 	}
 }
 
-mutation CreateAddOn($organizationId: ID!, $primaryRegion: String, $name: String, $planId: ID, $readRegions: [String!], $addOnType: AddOnType!, $options: JSON!) {
-	createAddOn(input: {organizationId: $organizationId, type: $addOnType, name: $name, planId: $planId, primaryRegion: $primaryRegion,
-			readRegions: $readRegions, options: $options}) {
+mutation CreateAddOn($input: CreateAddOnInput!) {
+	createAddOn(input: $input) {
 		addOn {
 			name
 			publicUrl
