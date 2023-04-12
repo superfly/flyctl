@@ -110,3 +110,78 @@ func TestToReleaseMachineConfig(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, want, got)
 }
+
+func TestToMachineConfig_multiProcessGroups(t *testing.T) {
+	cfg, err := LoadConfig("./testdata/tomachine-processgroups.toml")
+	require.NoError(t, err)
+
+	testcases := []struct {
+		name      string
+		groupName string
+		want      *api.MachineConfig
+	}{
+		{
+			name:      "default empty process group",
+			groupName: "app",
+			want: &api.MachineConfig{
+				Init: api.MachineInit{
+					Cmd: []string{"run-nginx"},
+				},
+				Services: []api.MachineService{
+					{
+						Protocol:     "tcp",
+						InternalPort: 8080,
+						Ports: []api.MachinePort{
+							{Port: api.Pointer(80), Handlers: []string{"http"}},
+							{Port: api.Pointer(443), Handlers: []string{"http", "tls"}},
+						},
+					},
+					{Protocol: "tcp", InternalPort: 1111},
+				},
+				Checks: map[string]api.MachineCheck{
+					"listening": {Port: api.Pointer(8080), Type: api.Pointer("tcp")},
+				},
+			},
+		},
+		{
+			name:      "vpn process group",
+			groupName: "vpn",
+			want: &api.MachineConfig{
+				Init: api.MachineInit{
+					Cmd: []string{"run-tailscale"},
+				},
+				Services: []api.MachineService{
+					{Protocol: "udp", InternalPort: 9999},
+					{Protocol: "tcp", InternalPort: 1111},
+				},
+			},
+		},
+		{
+			name:      "foo process group",
+			groupName: "foo",
+			want: &api.MachineConfig{
+				Init: api.MachineInit{
+					Cmd: []string{"keep", "me", "alive"},
+				},
+				Services: []api.MachineService{
+					{Protocol: "tcp", InternalPort: 1111},
+				},
+				Checks: map[string]api.MachineCheck{
+					"listening": {Port: api.Pointer(8080), Type: api.Pointer("tcp")},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := cfg.ToMachineConfig(tc.groupName)
+			require.NoError(t, err)
+			// We only care about fields that change for different process groups
+			assert.Equal(t, tc.groupName, got.Metadata["fly_process_group"])
+			assert.Equal(t, tc.want.Init, got.Init)
+			assert.Equal(t, tc.want.Services, got.Services)
+			assert.Equal(t, tc.want.Checks, got.Checks)
+		})
+	}
+}
