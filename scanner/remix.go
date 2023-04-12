@@ -19,6 +19,7 @@ func configureRemix(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		s.Files = templates("templates/remix_prisma")
 		s.DockerCommand = "start_with_migrations.sh"
 		s.DockerEntrypoint = "sh"
+		s.SkipDatabase = true
 		s.Volumes = []Volume{
 			{
 				Source:      "data",
