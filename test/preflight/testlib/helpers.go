@@ -71,7 +71,7 @@ func randomName(t testingTWrapper, prefix string) string {
 // https://github.com/golang/go/issues/6895#issuecomment-66088946
 func socketSafeTempDir(t testing.TB) string {
 	tempDir := t.TempDir()
-	maxLen := 104 - len(filepath.Join(".fly", "fly-agent.sock"))
+	maxLen := 103 - len(filepath.Join(".fly", "fly-agent.sock"))
 	if len(tempDir) < maxLen {
 		return tempDir
 	}
