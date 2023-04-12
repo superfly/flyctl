@@ -3,9 +3,11 @@ package logs
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -34,9 +36,18 @@ func runUnship(ctx context.Context) (err error) {
 	var (
 		out    = iostreams.FromContext(ctx).Out
 		client = client.FromContext(ctx).API().GenqClient
+		io     = iostreams.FromContext(ctx)
 	)
 
 	appName := appconfig.NameFromContext(ctx)
+	appNameResponse, err := gql.GetApp(ctx, client, appName)
+
+	if err != nil {
+		return err
+	}
+
+	targetApp := appNameResponse.App.AppData
+	targetOrg := targetApp.Organization
 
 	_, err = gql.DeleteAddOn(ctx, client, appName+"-log-shipper")
 
@@ -44,7 +55,24 @@ func runUnship(ctx context.Context) (err error) {
 		return
 	}
 
-	fmt.Fprintf(out, "Logs for %s are no longer being shipped, but older logs are still preserved in Logtail.\n", appName)
+	flapsClient, machine, err := EnsureShipperMachine(ctx, targetOrg)
 
+	if err != nil {
+		return
+	}
+
+	cmd := []string{"/remove-logger.sh", targetApp.Name, "logtail"}
+
+	request := &api.MachineExecRequest{
+		Cmd: strings.Join(cmd, " "),
+	}
+
+	response, err := flapsClient.Exec(ctx, machine.ID, request)
+
+	if err != nil {
+		fmt.Fprintf(io.ErrOut, response.StdErr)
+		return err
+	}
+	fmt.Fprintf(out, "Logs for %s are no longer being shipped, but older logs are still preserved in Logtail.\n", appName)
 	return
 }

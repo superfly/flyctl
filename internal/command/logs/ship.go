@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -89,7 +90,7 @@ func runSetup(ctx context.Context) (err error) {
 		return
 	}
 
-	flapsClient, machine, err := shipperMachine(ctx, targetOrg)
+	flapsClient, machine, err := EnsureShipperMachine(ctx, targetOrg)
 
 	if err != nil {
 		return
@@ -97,10 +98,12 @@ func runSetup(ctx context.Context) (err error) {
 
 	cmd := []string{"/add-logger.sh", targetApp.Name, "logtail", "'" + tokenResponse.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader + "'", logtailToken}
 
+	fmt.Fprintf(io.Out, "Add logger source to log shipper VM %s\n", machine.ID)
 	request := &api.MachineExecRequest{
 		Cmd: strings.Join(cmd, " "),
 	}
 
+	flapsClient.Wait(ctx, machine, "started", time.Second*5)
 	response, err := flapsClient.Exec(ctx, machine.ID, request)
 
 	if err != nil {
@@ -110,7 +113,7 @@ func runSetup(ctx context.Context) (err error) {
 	return
 }
 
-func shipperMachine(ctx context.Context, targetOrg gql.AppDataOrganization) (flapsClient *flaps.Client, machine *api.Machine, err error) {
+func EnsureShipperMachine(ctx context.Context, targetOrg gql.AppDataOrganization) (flapsClient *flaps.Client, machine *api.Machine, err error) {
 
 	client := client.FromContext(ctx).API().GenqClient
 	io := iostreams.FromContext(ctx)
@@ -125,7 +128,6 @@ func shipperMachine(ctx context.Context, targetOrg gql.AppDataOrganization) (fla
 
 	if len(appsResult.Apps.Nodes) > 0 {
 		shipperApp = appsResult.Apps.Nodes[0].AppData
-		fmt.Fprintf(io.ErrOut, "Log shipper already provisioned as app %s\n", shipperApp.Name)
 	} else {
 		input := gql.DefaultCreateAppInput()
 		input.Machines = true
@@ -169,7 +171,7 @@ func shipperMachine(ctx context.Context, targetOrg gql.AppDataOrganization) (fla
 				CPUs:     1,
 				MemoryMB: 256,
 			},
-			Image: "flyio/log-shipper:auto-d5a96e6",
+			Image: "flyio/log-shipper:auto-a14aa63",
 		}
 
 		launchInput := api.LaunchMachineInput{
