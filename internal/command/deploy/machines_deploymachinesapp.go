@@ -82,9 +82,14 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 		fmt.Fprintf(md.io.ErrOut, "Finished launching new machines\n")
 	}
 
-	machineUpdateEntries := lo.Map(md.machineSet.GetMachines(), func(lm machine.LeasableMachine, _ int) *machineUpdateEntry {
-		return &machineUpdateEntry{leasableMachine: lm, launchInput: md.launchInputForUpdate(lm.Machine())}
-	})
+	var machineUpdateEntries []*machineUpdateEntry
+	for _, lm := range md.machineSet.GetMachines() {
+		li, err := md.launchInputForUpdate(lm.Machine())
+		if err != nil {
+			return fmt.Errorf("failed to update machine configuration for %s: %w", lm.FormattedMachineId(), err)
+		}
+		machineUpdateEntries = append(machineUpdateEntries, &machineUpdateEntry{leasableMachine: lm, launchInput: li})
+	}
 
 	return md.updateExistingMachines(ctx, machineUpdateEntries)
 }
@@ -165,7 +170,10 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 		panic("spawnMachineInGroup requires a non-empty group name. this is a bug!")
 	}
 	fmt.Fprintf(md.io.Out, "No machines in group '%s', launching one new machine\n", md.colorize.Bold(groupName))
-	launchInput := md.launchInputForLaunch(groupName, nil)
+	launchInput, err := md.launchInputForLaunch(groupName, nil)
+	if err != nil {
+		return fmt.Errorf("error creating machine configuration: %w", err)
+	}
 
 	newMachineRaw, err := md.flapsClient.Launch(ctx, *launchInput)
 	if err != nil {

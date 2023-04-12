@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/machine"
@@ -248,6 +249,8 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 	}
 
 	// Reuse app machine
+	li, err := md.launchInputForUpdate(origMachine)
+	require.NoError(err)
 	assert.Equal(t, &api.LaunchMachineInput{
 		OrgSlug: "my-dangling-org",
 		Config: &api.MachineConfig{
@@ -264,7 +267,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 				Path:   "/data",
 			}},
 		},
-	}, md.launchInputForUpdate(origMachine))
+	}, li)
 }
 
 // Test machineDeployment.restartOnly
