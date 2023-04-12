@@ -2,12 +2,15 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/machine"
 )
@@ -27,13 +30,9 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
 	}
 	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
 	// FIXME: consolidate this wait stuff with deploy waits? Especially once we improve the outpu
-	err = releaseCmdMachine.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout)
+	err = md.waitForReleaseCommandToFinish(ctx, releaseCmdMachine)
 	if err != nil {
-		return fmt.Errorf("error waiting for release_command machine %s to start: %w", releaseCmdMachine.Machine().ID, err)
-	}
-	err = releaseCmdMachine.WaitForState(ctx, api.MachineStateDestroyed, md.waitTimeout)
-	if err != nil {
-		return fmt.Errorf("error waiting for release_command machine %s to finish running: %w", releaseCmdMachine.Machine().ID, err)
+		return err
 	}
 	lastExitEvent, err := releaseCmdMachine.WaitForEventTypeAfterType(ctx, "exit", "start", md.waitTimeout)
 	if err != nil {
@@ -148,4 +147,21 @@ func (md *machineDeployment) inferReleaseCommandGuest() *api.MachineGuest {
 		}
 	}
 	return helpers.Clone(desiredGuest)
+}
+
+func (md *machineDeployment) waitForReleaseCommandToFinish(ctx context.Context, releaseCmdMachine machine.LeasableMachine) error {
+	err := releaseCmdMachine.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout)
+	if err != nil {
+		var flapsErr *flaps.FlapsError
+		if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode == http.StatusNotFound {
+			// The machine exited and was destroyed quickly.
+			return nil
+		}
+		return fmt.Errorf("error waiting for release_command machine %s to start: %w", releaseCmdMachine.Machine().ID, err)
+	}
+	err = releaseCmdMachine.WaitForState(ctx, api.MachineStateDestroyed, md.waitTimeout)
+	if err != nil {
+		return fmt.Errorf("error waiting for release_command machine %s to finish running: %w", releaseCmdMachine.Machine().ID, err)
+	}
+	return nil
 }
