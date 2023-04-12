@@ -54,6 +54,8 @@ func TestToMachineConfig(t *testing.T) {
 		FlyProxy:    &api.MachineFlyProxy{AutostopMachine: api.Pointer(true)},
 		Env:         map[string]string{"removed": "by-update"},
 		Mounts:      []api.MachineMount{{Name: "removed", Path: "/by/update"}},
+		Metadata:    map[string]string{"retain": "propagated"},
+		Init:        api.MachineInit{Cmd: []string{"removed", "by", "update"}},
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, want.Env, got.Env)
@@ -65,6 +67,48 @@ func TestToMachineConfig(t *testing.T) {
 	assert.Equal(t, api.MachineRestart{Policy: "poke"}, got.Restart)
 	assert.Equal(t, &api.DNSConfig{SkipRegistration: true}, got.DNS)
 	assert.Equal(t, &api.MachineFlyProxy{AutostopMachine: api.Pointer(true)}, got.FlyProxy)
+	assert.Equal(t, "propagated", got.Metadata["retain"])
+	assert.Empty(t, got.Init.Cmd)
+}
+
+func TestToMachineConfig_nullifyManagedFields(t *testing.T) {
+	cfg := NewConfig()
+
+	src := &api.MachineConfig{
+		Env: map[string]string{"FOO": "BAR", "PRIMARY_REGION": "mia"},
+		Services: []api.MachineService{
+			{
+				Protocol:     "tcp",
+				InternalPort: 8080,
+				Ports: []api.MachinePort{
+					{Port: api.Pointer(80), Handlers: []string{"http"}, ForceHttps: true},
+					{Port: api.Pointer(443), Handlers: []string{"http", "tls"}, ForceHttps: false},
+				},
+			},
+		},
+		Metrics: &api.MachineMetrics{Port: 9999, Path: "/metrics"},
+		Statics: []*api.Static{{GuestPath: "/guest/path", UrlPrefix: "/url/prefix"}},
+		Mounts:  []api.MachineMount{{Name: "data", Path: "/data"}},
+		Checks: map[string]api.MachineCheck{
+			"listening": {Port: api.Pointer(8080), Type: api.Pointer("tcp")},
+			"status": {
+				Port:     api.Pointer(8080),
+				Type:     api.Pointer("http"),
+				Interval: mustParseDuration("10s"),
+				Timeout:  mustParseDuration("1s"),
+				HTTPPath: api.Pointer("/status"),
+			},
+		},
+	}
+
+	got, err := cfg.ToMachineConfig("", src)
+	require.NoError(t, err)
+	assert.Empty(t, got.Env)
+	assert.Empty(t, got.Metrics)
+	assert.Empty(t, got.Services)
+	assert.Empty(t, got.Checks)
+	assert.Empty(t, got.Mounts)
+	assert.Empty(t, got.Statics)
 }
 
 func TestToReleaseMachineConfig(t *testing.T) {
