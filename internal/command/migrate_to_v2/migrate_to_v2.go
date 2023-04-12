@@ -854,7 +854,7 @@ func (m *v2PlatformMigrator) volumeForPrevAlloc(id string) (bool, *api.Volume) {
 }
 
 func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus) (*api.LaunchMachineInput, error) {
-	mConfig, err := m.appConfig.ToMachineConfig(alloc.TaskName)
+	mConfig, err := m.appConfig.ToMachineConfig(alloc.TaskName, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -5,14 +5,13 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/terminal"
 )
 
 func (md *machineDeployment) launchInputForRestart(origMachineRaw *api.Machine) *api.LaunchMachineInput {
 	Config := machine.CloneConfig(origMachineRaw.Config)
-	Config.Metadata = md.computeMachineConfigMetadata(Config)
+	md.setMachineReleaseData(Config)
 
 	return &api.LaunchMachineInput{
 		ID:      origMachineRaw.ID,
@@ -24,12 +23,12 @@ func (md *machineDeployment) launchInputForRestart(origMachineRaw *api.Machine) 
 }
 
 func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *api.MachineGuest) (*api.LaunchMachineInput, error) {
-	// Ignore the error because by this point we already check the processGroup exists
-	mConfig, err := md.appConfig.ToMachineConfig(processGroup)
+	mConfig, err := md.appConfig.ToMachineConfig(processGroup, nil)
 	if err != nil {
 		return nil, err
 	}
 	mConfig.Guest = guest
+	mConfig.Image = md.img
 	md.setMachineReleaseData(mConfig)
 
 	if len(mConfig.Mounts) != 0 {
@@ -48,29 +47,12 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 	mID := origMachineRaw.ID
 	processGroup := origMachineRaw.Config.ProcessGroup()
 
-	// Ignore the error because by this point we already check the processGroup exists
-	mConfig, err := md.appConfig.ToMachineConfig(processGroup)
+	mConfig, err := md.appConfig.ToMachineConfig(processGroup, origMachineRaw.Config)
 	if err != nil {
 		return nil, err
 	}
+	mConfig.Image = md.img
 	md.setMachineReleaseData(mConfig)
-	// Keep fields that can't be controlled from fly.toml
-	mConfig.Schedule = origMachineRaw.Config.Schedule
-	mConfig.AutoDestroy = origMachineRaw.Config.AutoDestroy
-	mConfig.Restart = helpers.Clone(origMachineRaw.Config.Restart)
-	mConfig.Guest = helpers.Clone(origMachineRaw.Config.Guest)
-	mConfig.DNS = helpers.Clone(origMachineRaw.Config.DNS)
-	mConfig.FlyProxy = helpers.Clone(origMachineRaw.Config.FlyProxy)
-	if len(origMachineRaw.Config.Processes) > 0 {
-		mConfig.Processes = helpers.Clone(origMachineRaw.Config.Processes)
-	}
-
-	// Keep existing metadata not overridden by fresh machine config
-	for k, v := range origMachineRaw.Config.Metadata {
-		if _, exists := mConfig.Metadata[k]; !exists && !isFlyAppsPlatformMetadata(k) {
-			mConfig.Metadata[k] = v
-		}
-	}
 
 	// Mounts needs special treatment:
 	//   * Volumes attached to existings machines can't be swapped by other volumes
@@ -125,35 +107,27 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 	}, nil
 }
 
-func (md *machineDeployment) defaultMachineMetadata() map[string]string {
-	res := map[string]string{
-		api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
-		api.MachineConfigMetadataKeyFlyReleaseId:       md.releaseId,
-		api.MachineConfigMetadataKeyFlyReleaseVersion:  strconv.Itoa(md.releaseVersion),
-		api.MachineConfigMetadataKeyFlyProcessGroup:    api.MachineProcessGroupApp,
-	}
-	if md.app.IsPostgresApp() {
-		res[api.MachineConfigMetadataKeyFlyManagedPostgres] = "true"
-	}
-	return res
-}
-
-func isFlyAppsPlatformMetadata(key string) bool {
-	return key == api.MachineConfigMetadataKeyFlyPlatformVersion ||
-		key == api.MachineConfigMetadataKeyFlyReleaseId ||
-		key == api.MachineConfigMetadataKeyFlyReleaseVersion ||
-		key == api.MachineConfigMetadataKeyFlyManagedPostgres
-}
-
-func (md *machineDeployment) computeMachineConfigMetadata(config *api.MachineConfig) map[string]string {
-	return lo.Assign(
-		md.defaultMachineMetadata(),
-		lo.OmitBy(config.Metadata, func(k, v string) bool {
-			return isFlyAppsPlatformMetadata(k)
-		}))
-}
-
 func (md *machineDeployment) setMachineReleaseData(mConfig *api.MachineConfig) {
-	mConfig.Image = md.img
-	mConfig.Metadata = md.computeMachineConfigMetadata(mConfig)
+	mConfig.Metadata = lo.Assign(mConfig.Metadata, map[string]string{
+		api.MachineConfigMetadataKeyFlyReleaseId:      md.releaseId,
+		api.MachineConfigMetadataKeyFlyReleaseVersion: strconv.Itoa(md.releaseVersion),
+	})
+
+	// These defaults should come from appConfig.ToMachineConfig() and set on launch;
+	// leave them here for the moment becase very old machines may not have them
+	// and we want to set in case of simple app restarts
+	if _, ok := mConfig.Metadata[api.MachineConfigMetadataKeyFlyPlatformVersion]; !ok {
+		mConfig.Metadata[api.MachineConfigMetadataKeyFlyPlatformVersion] = api.MachineFlyPlatformVersion2
+	}
+	if _, ok := mConfig.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]; !ok {
+		mConfig.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = api.MachineProcessGroupApp
+	}
+
+	// FIXME: Move this as extra metadata read from a machineDeployment argument
+	// It is not clear we have to cleanup the postgres metadata
+	if md.app.IsPostgresApp() {
+		mConfig.Metadata[api.MachineConfigMetadataKeyFlyManagedPostgres] = "true"
+	} else {
+		delete(mConfig.Metadata, api.MachineConfigMetadataKeyFlyManagedPostgres)
+	}
 }

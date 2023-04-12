@@ -72,7 +72,7 @@ func TestToMachineConfig(t *testing.T) {
 		},
 	}
 
-	got, err := cfg.ToMachineConfig("")
+	got, err := cfg.ToMachineConfig("", nil)
 	assert.NoError(t, err)
 	assert.Equal(t, want, got)
 }
@@ -175,7 +175,7 @@ func TestToMachineConfig_multiProcessGroups(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := cfg.ToMachineConfig(tc.groupName)
+			got, err := cfg.ToMachineConfig(tc.groupName, nil)
 			require.NoError(t, err)
 			// We only care about fields that change for different process groups
 			assert.Equal(t, tc.groupName, got.Metadata["fly_process_group"])

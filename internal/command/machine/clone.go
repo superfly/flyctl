@@ -128,7 +128,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		targetConfig.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = targetProcessGroup
 
 		terminal.Infof("Setting process group to %s for new machine and updating cmd, services, and checks\n", targetProcessGroup)
-		mConfig, err := appConfig.ToMachineConfig(targetProcessGroup)
+		mConfig, err := appConfig.ToMachineConfig(targetProcessGroup, nil)
 		if err != nil {
 			return fmt.Errorf("failed to get process group config: %w", err)
 		}

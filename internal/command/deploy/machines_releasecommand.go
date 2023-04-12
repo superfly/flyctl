@@ -114,6 +114,7 @@ func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *api.Ma
 	// if it can't split the command and we test that at initialization
 	mConfig, _ := md.appConfig.ToReleaseMachineConfig()
 	mConfig.Guest = md.inferReleaseCommandGuest()
+	mConfig.Image = md.img
 	md.setMachineReleaseData(mConfig)
 
 	return &api.LaunchMachineInput{
