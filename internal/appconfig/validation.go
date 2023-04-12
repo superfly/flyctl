@@ -91,8 +91,10 @@ func (cfg *Config) ValidateForMachinesPlatform(ctx context.Context) (err error, 
 	validators := []func() (string, error){
 		cfg.validateBuildStrategies,
 		cfg.validateDeploySection,
+		cfg.validateChecksSection,
 		cfg.validateServicesSection,
 		cfg.validateProcessesSection,
+		cfg.validateMachineConversion,
 	}
 
 	for _, vFunc := range validators {
@@ -129,9 +131,19 @@ func (cfg *Config) validateBuildStrategies() (extraInfo string, err error) {
 
 func (cfg *Config) validateDeploySection() (extraInfo string, err error) {
 	if cfg.Deploy != nil {
-		_, err := shlex.Split(cfg.Deploy.ReleaseCommand)
-		if err != nil {
+		if _, vErr := shlex.Split(cfg.Deploy.ReleaseCommand); vErr != nil {
 			extraInfo += fmt.Sprintf("Can't shell split release command: '%s'\n", cfg.Deploy.ReleaseCommand)
+			err = ValidationError
+		}
+	}
+	return
+}
+
+func (cfg *Config) validateChecksSection() (extraInfo string, err error) {
+	for name, check := range cfg.Checks {
+		if _, vErr := check.toMachineCheck(); vErr != nil {
+			extraInfo += fmt.Sprintf("Can't process top level check '%s': %s\n", name, vErr)
+			err = ValidationError
 		}
 	}
 	return
@@ -184,4 +196,14 @@ func (cfg *Config) validateProcessesSection() (extraInfo string, err error) {
 	}
 
 	return extraInfo, err
+}
+
+func (cfg *Config) validateMachineConversion() (extraInfo string, err error) {
+	for _, name := range cfg.ProcessNames() {
+		if _, vErr := cfg.ToMachineConfig(name); err != nil {
+			extraInfo += fmt.Sprintf("Converting to machine in process group '%s' will fail because of: %s", name, vErr)
+			err = ValidationError
+		}
+	}
+	return
 }

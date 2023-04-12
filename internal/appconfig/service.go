@@ -75,38 +75,6 @@ func (c *Config) AllServices() (services []Service) {
 	return services
 }
 
-func tcpCheckFromMachineCheck(mc api.MachineCheck) *ServiceTCPCheck {
-	return &ServiceTCPCheck{
-		Interval:     mc.Interval,
-		Timeout:      mc.Timeout,
-		GracePeriod:  nil,
-		RestartLimit: 0,
-	}
-}
-
-func httpCheckFromMachineCheck(mc api.MachineCheck) *ServiceHTTPCheck {
-	headers := make(map[string]string)
-	for _, h := range mc.HTTPHeaders {
-		if len(h.Values) > 0 {
-			headers[h.Name] = h.Values[0]
-		}
-		if len(h.Values) > 1 {
-			sentry.CaptureException(fmt.Errorf("bug: more than one header value provided by MachineCheck, but can only support one value for fly.toml"))
-		}
-	}
-	return &ServiceHTTPCheck{
-		Interval:          mc.Interval,
-		Timeout:           mc.Timeout,
-		GracePeriod:       nil,
-		RestartLimit:      0,
-		HTTPMethod:        mc.HTTPMethod,
-		HTTPPath:          mc.HTTPPath,
-		HTTPProtocol:      mc.HTTPProtocol,
-		HTTPTLSSkipVerify: mc.HTTPSkipTLSVerify,
-		HTTPHeaders:       headers,
-	}
-}
-
 func (svc *Service) toMachineService() *api.MachineService {
 	s := &api.MachineService{
 		Protocol:     svc.Protocol,
@@ -181,5 +149,37 @@ func serviceFromMachineService(ms api.MachineService, processes []string) *Servi
 		TCPChecks:    tcpChecks,
 		HTTPChecks:   httpChecks,
 		Processes:    processes,
+	}
+}
+
+func tcpCheckFromMachineCheck(mc api.MachineCheck) *ServiceTCPCheck {
+	return &ServiceTCPCheck{
+		Interval:     mc.Interval,
+		Timeout:      mc.Timeout,
+		GracePeriod:  nil,
+		RestartLimit: 0,
+	}
+}
+
+func httpCheckFromMachineCheck(mc api.MachineCheck) *ServiceHTTPCheck {
+	headers := make(map[string]string)
+	for _, h := range mc.HTTPHeaders {
+		if len(h.Values) > 0 {
+			headers[h.Name] = h.Values[0]
+		}
+		if len(h.Values) > 1 {
+			sentry.CaptureException(fmt.Errorf("bug: more than one header value provided by MachineCheck, but can only support one value for fly.toml"))
+		}
+	}
+	return &ServiceHTTPCheck{
+		Interval:          mc.Interval,
+		Timeout:           mc.Timeout,
+		GracePeriod:       nil,
+		RestartLimit:      0,
+		HTTPMethod:        mc.HTTPMethod,
+		HTTPPath:          mc.HTTPPath,
+		HTTPProtocol:      mc.HTTPProtocol,
+		HTTPTLSSkipVerify: mc.HTTPSkipTLSVerify,
+		HTTPHeaders:       headers,
 	}
 }
