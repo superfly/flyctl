@@ -13,55 +13,23 @@ func TestToMachineConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	want := &api.MachineConfig{
-		Env: map[string]string{
-			"FOO":            "BAR",
-			"PRIMARY_REGION": "mia",
-		},
-
+		Env: map[string]string{"FOO": "BAR", "PRIMARY_REGION": "mia"},
 		Services: []api.MachineService{
 			{
 				Protocol:     "tcp",
 				InternalPort: 8080,
 				Ports: []api.MachinePort{
-					{
-						Port:       api.Pointer(80),
-						Handlers:   []string{"http"},
-						ForceHttps: true,
-					},
-					{
-						Port:       api.Pointer(443),
-						Handlers:   []string{"http", "tls"},
-						ForceHttps: false,
-					},
+					{Port: api.Pointer(80), Handlers: []string{"http"}, ForceHttps: true},
+					{Port: api.Pointer(443), Handlers: []string{"http", "tls"}, ForceHttps: false},
 				},
 			},
 		},
-
-		Metadata: map[string]string{
-			"fly_platform_version": "v2",
-			"fly_process_group":    "app",
-		},
-
-		Metrics: &api.MachineMetrics{
-			Port: 9999,
-			Path: "/metrics",
-		},
-
-		Statics: []*api.Static{{
-			GuestPath: "/guest/path",
-			UrlPrefix: "/url/prefix",
-		}},
-
-		Mounts: []api.MachineMount{{
-			Name: "data",
-			Path: "/data",
-		}},
-
+		Metadata: map[string]string{"fly_platform_version": "v2", "fly_process_group": "app"},
+		Metrics:  &api.MachineMetrics{Port: 9999, Path: "/metrics"},
+		Statics:  []*api.Static{{GuestPath: "/guest/path", UrlPrefix: "/url/prefix"}},
+		Mounts:   []api.MachineMount{{Name: "data", Path: "/data"}},
 		Checks: map[string]api.MachineCheck{
-			"listening": {
-				Port: api.Pointer(8080),
-				Type: api.Pointer("tcp"),
-			},
+			"listening": {Port: api.Pointer(8080), Type: api.Pointer("tcp")},
 			"status": {
 				Port:     api.Pointer(8080),
 				Type:     api.Pointer("http"),
@@ -75,6 +43,28 @@ func TestToMachineConfig(t *testing.T) {
 	got, err := cfg.ToMachineConfig("", nil)
 	assert.NoError(t, err)
 	assert.Equal(t, want, got)
+
+	// Update a machine config
+	got, err = cfg.ToMachineConfig("", &api.MachineConfig{
+		Guest:       &api.MachineGuest{CPUs: 3},
+		Schedule:    "24/7",
+		AutoDestroy: true,
+		Restart:     api.MachineRestart{Policy: "poke"},
+		DNS:         &api.DNSConfig{SkipRegistration: true},
+		FlyProxy:    &api.MachineFlyProxy{AutostopMachine: api.Pointer(true)},
+		Env:         map[string]string{"removed": "by-update"},
+		Mounts:      []api.MachineMount{{Name: "removed", Path: "/by/update"}},
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, want.Env, got.Env)
+	assert.Equal(t, want.Services, got.Services)
+	assert.Equal(t, want.Checks, got.Checks)
+	assert.Equal(t, &api.MachineGuest{CPUs: 3}, got.Guest)
+	assert.Equal(t, "24/7", got.Schedule)
+	assert.Equal(t, true, got.AutoDestroy)
+	assert.Equal(t, api.MachineRestart{Policy: "poke"}, got.Restart)
+	assert.Equal(t, &api.DNSConfig{SkipRegistration: true}, got.DNS)
+	assert.Equal(t, &api.MachineFlyProxy{AutostopMachine: api.Pointer(true)}, got.FlyProxy)
 }
 
 func TestToReleaseMachineConfig(t *testing.T) {
@@ -82,28 +72,12 @@ func TestToReleaseMachineConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	want := &api.MachineConfig{
-		Init: api.MachineInit{
-			Cmd: []string{"migrate-db"},
-		},
-
-		Env: map[string]string{
-			"FOO":             "BAR",
-			"PRIMARY_REGION":  "mia",
-			"RELEASE_COMMAND": "1",
-		},
-
-		Metadata: map[string]string{
-			"fly_platform_version": "v2",
-			"fly_process_group":    "fly_app_release_command",
-		},
-
+		Init:        api.MachineInit{Cmd: []string{"migrate-db"}},
+		Env:         map[string]string{"FOO": "BAR", "PRIMARY_REGION": "mia", "RELEASE_COMMAND": "1"},
+		Metadata:    map[string]string{"fly_platform_version": "v2", "fly_process_group": "fly_app_release_command"},
 		AutoDestroy: true,
-		Restart: api.MachineRestart{
-			Policy: api.MachineRestartPolicyNo,
-		},
-		DNS: &api.DNSConfig{
-			SkipRegistration: true,
-		},
+		Restart:     api.MachineRestart{Policy: api.MachineRestartPolicyNo},
+		DNS:         &api.DNSConfig{SkipRegistration: true},
 	}
 
 	got, err := cfg.ToReleaseMachineConfig()
@@ -124,9 +98,7 @@ func TestToMachineConfig_multiProcessGroups(t *testing.T) {
 			name:      "default empty process group",
 			groupName: "app",
 			want: &api.MachineConfig{
-				Init: api.MachineInit{
-					Cmd: []string{"run-nginx"},
-				},
+				Init: api.MachineInit{Cmd: []string{"run-nginx"}},
 				Services: []api.MachineService{
 					{
 						Protocol:     "tcp",
@@ -147,9 +119,7 @@ func TestToMachineConfig_multiProcessGroups(t *testing.T) {
 			name:      "vpn process group",
 			groupName: "vpn",
 			want: &api.MachineConfig{
-				Init: api.MachineInit{
-					Cmd: []string{"run-tailscale"},
-				},
+				Init: api.MachineInit{Cmd: []string{"run-tailscale"}},
 				Services: []api.MachineService{
 					{Protocol: "udp", InternalPort: 9999},
 					{Protocol: "tcp", InternalPort: 1111},
@@ -160,9 +130,7 @@ func TestToMachineConfig_multiProcessGroups(t *testing.T) {
 			name:      "foo process group",
 			groupName: "foo",
 			want: &api.MachineConfig{
-				Init: api.MachineInit{
-					Cmd: []string{"keep", "me", "alive"},
-				},
+				Init: api.MachineInit{Cmd: []string{"keep", "me", "alive"}},
 				Services: []api.MachineService{
 					{Protocol: "tcp", InternalPort: 1111},
 				},
