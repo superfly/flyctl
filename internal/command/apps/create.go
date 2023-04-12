@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/iostreams"
 
+	"github.com/samber/lo"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -77,7 +78,7 @@ func RunCreate(ctx context.Context) (err error) {
 
 	var name string
 	switch {
-	case aName != "" && fName != "" && areNamesClashing([]string{aName, fName, ctxName}):
+	case len(lo.Compact([]string{aName, fName, ctxName})) != 1 && areNamesClashing([]string{aName, fName, ctxName}):
 		err = fmt.Errorf("app names specified via command argument %s, via flag %s and via fly.toml %s. Only one may be specified",
 			aName, fName, ctxName)
 
