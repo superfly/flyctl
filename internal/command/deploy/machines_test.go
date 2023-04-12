@@ -122,7 +122,6 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			Services: []api.MachineService{{
 				Protocol:     "tcp",
 				InternalPort: 8080,
-				Checks:       []api.MachineCheck{},
 			}},
 			Checks: map[string]api.MachineCheck{
 				"alive": {

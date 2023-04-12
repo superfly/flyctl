@@ -101,20 +101,20 @@ func httpCheckFromMachineCheck(mc api.MachineCheck) *ServiceHTTPCheck {
 }
 
 func (svc *Service) toMachineService() *api.MachineService {
-	checks := make([]api.MachineCheck, 0, len(svc.TCPChecks)+len(svc.HTTPChecks))
-	for _, tc := range svc.TCPChecks {
-		checks = append(checks, *tc.toMachineCheck())
-	}
-	for _, hc := range svc.HTTPChecks {
-		checks = append(checks, *hc.toMachineCheck())
-	}
-	return &api.MachineService{
+	s := &api.MachineService{
 		Protocol:     svc.Protocol,
 		InternalPort: svc.InternalPort,
 		Ports:        svc.Ports,
 		Concurrency:  svc.Concurrency,
-		Checks:       checks,
 	}
+
+	for _, tc := range svc.TCPChecks {
+		s.Checks = append(s.Checks, *tc.toMachineCheck())
+	}
+	for _, hc := range svc.HTTPChecks {
+		s.Checks = append(s.Checks, *hc.toMachineCheck())
+	}
+	return s
 }
 
 func (chk *ServiceHTTPCheck) toMachineCheck() *api.MachineCheck {

@@ -93,7 +93,7 @@ func (c *Config) GetProcessConfigs() (map[string]*ProcessConfig, error) {
 func (c *Config) ProcessNames() (names []string) {
 	switch {
 	case c == nil:
-		break
+		return []string{api.MachineProcessGroupApp}
 	case c.platformVersion == MachinesPlatform:
 		if len(c.Processes) != 0 {
 			names = lo.Keys(c.Processes)
@@ -115,11 +115,17 @@ func (c *Config) ProcessNames() (names []string) {
 		}
 	}
 
-	slices.Sort(names)
-	if len(names) == 0 {
-		names = []string{c.defaultGroupName}
+	switch {
+	case len(names) == 1:
+		return names
+	case len(names) > 1:
+		slices.Sort(names)
+		return names
+	case c.defaultGroupName != "":
+		return []string{c.defaultGroupName}
+	default:
+		return []string{api.MachineProcessGroupApp}
 	}
-	return names
 }
 
 // FormatProcessNames formats the process group list like `['foo', 'bar']`
@@ -134,15 +140,24 @@ func (c *Config) FormatProcessNames() string {
 // * "app" if present in the processes map
 // * The first process name in ascending lexicographical order
 func (c *Config) DefaultProcessName() string {
+	if c == nil {
+		return api.MachineProcessGroupApp
+	}
+
+	defaultGroupName := c.defaultGroupName
+	if defaultGroupName == "" {
+		defaultGroupName = api.MachineProcessGroupApp
+	}
+
 	processNames := c.ProcessNames()
-	if slices.Contains(processNames, c.defaultGroupName) {
-		return c.defaultGroupName
+	if slices.Contains(processNames, defaultGroupName) {
+		return defaultGroupName
 	}
 	return c.ProcessNames()[0]
 }
 
 func (c *Config) Flatten(groupName string) (*Config, error) {
-	if err := c.EnsureV2Config(); err != nil {
+	if err := c.SetMachinesPlatform(); err != nil {
 		return nil, fmt.Errorf("can not flatten an invalid v2 application config: %w", err)
 	}
 

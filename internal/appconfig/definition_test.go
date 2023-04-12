@@ -107,6 +107,7 @@ func TestFromDefinition(t *testing.T) {
 				},
 			},
 		},
+		defaultGroupName: "app",
 		RawDefinition: map[string]any{
 			"env": map[string]any{},
 			"experimental": map[string]any{

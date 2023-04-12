@@ -8,26 +8,46 @@ import (
 	"github.com/superfly/flyctl/api"
 )
 
-func (c *Config) ToMachineConfig(processGroup string) (*api.MachineConfig, error) {
-	if processGroup == "" {
-		processGroup = c.DefaultProcessName()
+func (c *Config) InitCmd(groupName string) ([]string, error) {
+	if groupName == "" {
+		groupName = c.DefaultProcessName()
+	}
+	cmdStr, ok := c.Processes[groupName]
+	if !ok {
+		return nil, nil
+	}
+	if cmdStr == "" {
+		return nil, nil
 	}
 
-	processConfigs, err := c.GetProcessConfigs()
+	cmd, err := shlex.Split(cmdStr)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse command for %s process group: %w", groupName, err)
+	}
+	return cmd, nil
+}
+
+func (c *Config) AllServices() ([]Service, error) {
+	var services []Service
+
+	if c.HttpService != nil {
+		services = append(services, *c.HttpService.ToService())
+	}
+	services = append(services, c.Services...)
+	return services, nil
+}
+
+func (c *Config) DefaultMachineConfig() (*api.MachineConfig, error) {
+	processGroup := c.DefaultProcessName()
+
+	cmd, err := c.InitCmd(processGroup)
 	if err != nil {
 		return nil, err
 	}
 
-	processConfig, ok := processConfigs[processGroup]
-	if !ok {
-		return nil, fmt.Errorf("unknown process group: %s", processGroup)
-	}
-
 	machineConfig := &api.MachineConfig{
 		Metrics: c.Metrics,
-		Init: api.MachineInit{
-			Cmd: processConfig.Cmd,
-		},
+		Init:    api.MachineInit{Cmd: cmd},
 		Metadata: map[string]string{
 			api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
 			api.MachineConfigMetadataKeyFlyProcessGroup:    processGroup,
@@ -35,11 +55,23 @@ func (c *Config) ToMachineConfig(processGroup string) (*api.MachineConfig, error
 		Env: lo.Assign(c.Env),
 	}
 
-	if len(processConfig.Services) > 0 {
-		machineConfig.Services = processConfig.Services
+	if services, err := c.AllServices(); err != nil {
+		return nil, err
+	} else if len(services) > 0 {
+		machineConfig.Services = lo.Map(services, func(s Service, _ int) api.MachineService {
+			return *s.toMachineService()
+		})
 	}
-	if len(processConfig.Checks) > 0 {
-		machineConfig.Checks = processConfig.Checks
+
+	if len(c.Checks) > 0 {
+		machineConfig.Checks = map[string]api.MachineCheck{}
+		for checkName, check := range c.Checks {
+			machineCheck, err := check.toMachineCheck()
+			if err != nil {
+				return nil, err
+			}
+			machineConfig.Checks[checkName] = *machineCheck
+		}
 	}
 
 	if c.PrimaryRegion != "" {
@@ -61,6 +93,15 @@ func (c *Config) ToMachineConfig(processGroup string) (*api.MachineConfig, error
 	}
 
 	return machineConfig, nil
+}
+
+func (c *Config) ToMachineConfig(processGroup string) (*api.MachineConfig, error) {
+	fc, err := c.Flatten(processGroup)
+	if err != nil {
+		return nil, err
+	}
+
+	return fc.DefaultMachineConfig()
 }
 
 func (c *Config) ToReleaseMachineConfig() (*api.MachineConfig, error) {

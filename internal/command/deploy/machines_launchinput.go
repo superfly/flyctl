@@ -25,7 +25,10 @@ func (md *machineDeployment) launchInputForRestart(origMachineRaw *api.Machine) 
 
 func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *api.MachineGuest) *api.LaunchMachineInput {
 	// Ignore the error because by this point we already check the processGroup exists
-	mConfig, _ := md.appConfig.ToMachineConfig(processGroup)
+	mConfig, err := md.appConfig.ToMachineConfig(processGroup)
+	if err != nil {
+		panic(err)
+	}
 	mConfig.Guest = guest
 	md.setMachineReleaseData(mConfig)
 
@@ -46,7 +49,10 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) *
 	processGroup := origMachineRaw.Config.ProcessGroup()
 
 	// Ignore the error because by this point we already check the processGroup exists
-	mConfig, _ := md.appConfig.ToMachineConfig(processGroup)
+	mConfig, err := md.appConfig.ToMachineConfig(processGroup)
+	if err != nil {
+		panic(err)
+	}
 	md.setMachineReleaseData(mConfig)
 	// Keep fields that can't be controlled from fly.toml
 	mConfig.Schedule = origMachineRaw.Config.Schedule

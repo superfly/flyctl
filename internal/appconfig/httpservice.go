@@ -13,6 +13,25 @@ type HTTPService struct {
 	Processes    []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
+func (svc *HTTPService) ToService() *Service {
+	return &Service{
+		Protocol:     "tcp",
+		InternalPort: svc.InternalPort,
+		Concurrency:  svc.Concurrency,
+		Processes:    svc.Processes,
+		Ports: []api.MachinePort{{
+			Port:       api.IntPointer(80),
+			Handlers:   []string{"http"},
+			ForceHttps: svc.ForceHttps,
+		}, {
+			Port:     api.IntPointer(443),
+			Handlers: []string{"http", "tls"},
+		}},
+		TCPChecks:  nil,
+		HTTPChecks: nil,
+	}
+}
+
 func (svc *HTTPService) toMachineService() *api.MachineService {
 	concurrency := svc.Concurrency
 	if concurrency != nil {
