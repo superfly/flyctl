@@ -825,19 +825,6 @@ func (m *v2PlatformMigrator) deployApp(ctx context.Context) error {
 	return nil
 }
 
-func (m *v2PlatformMigrator) defaultMachineMetadata() map[string]string {
-	res := map[string]string{
-		api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
-		api.MachineConfigMetadataKeyFlyReleaseId:       m.releaseId,
-		api.MachineConfigMetadataKeyFlyReleaseVersion:  strconv.Itoa(m.releaseVersion),
-		api.MachineConfigMetadataKeyFlyProcessGroup:    api.MachineProcessGroupApp,
-	}
-	if m.appCompact.IsPostgresApp() {
-		res[api.MachineConfigMetadataKeyFlyManagedPostgres] = "true"
-	}
-	return res
-}
-
 func (m *v2PlatformMigrator) prepMachinesToCreate(ctx context.Context) error {
 	var err error
 	m.newMachinesInput, err = m.resolveMachinesFromAllocs()
