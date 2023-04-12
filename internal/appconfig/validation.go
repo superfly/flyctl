@@ -10,7 +10,10 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/sentry"
+	"golang.org/x/exp/slices"
 )
+
+var ValidationError = errors.New("invalid app configuration")
 
 func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) {
 	appName := NameFromContext(ctx)
@@ -53,21 +56,11 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 	}
 }
 
-func (cfg *Config) ValidateForMachinesPlatform(ctx context.Context) (err error, extra_info string) {
-	extra_info += cfg.validateBuildStrategies()
-	extra_info += cfg.validateDeploySection()
-	err = cfg.EnsureV2Config()
-	if err != nil {
-		extra_info += fmt.Sprintf("\n   %s%s\n", aurora.Red("✘"), err)
-		return errors.New("App configuration is not valid"), extra_info
+func (cfg *Config) ValidateForNomadPlatform(ctx context.Context) (err error, extra_info string) {
+	if extra, _ := cfg.validateBuildStrategies(); extra != "" {
+		extra_info += extra
 	}
 
-	extra_info += fmt.Sprintf("%s Configuration is valid\n", aurora.Green("✓"))
-	return nil, extra_info
-}
-
-func (cfg *Config) ValidateForNomadPlatform(ctx context.Context) (err error, extra_info string) {
-	extra_info += cfg.validateBuildStrategies()
 	appName := NameFromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 	serverCfg, err := apiClient.ValidateConfig(ctx, appName, cfg.SanitizedDefinition())
@@ -94,7 +87,36 @@ func (cfg *Config) ValidateForNomadPlatform(ctx context.Context) (err error, ext
 	}
 }
 
-func (cfg *Config) validateBuildStrategies() (extraInfo string) {
+func (cfg *Config) ValidateForMachinesPlatform(ctx context.Context) (err error, extra_info string) {
+	validators := []func() (string, error){
+		cfg.validateBuildStrategies,
+		cfg.validateDeploySection,
+		cfg.validateServicesSection,
+		cfg.validateProcessesSection,
+	}
+
+	for _, vFunc := range validators {
+		info, vErr := vFunc()
+		extra_info += info
+		if vErr != nil {
+			err = vErr
+		}
+	}
+
+	if vErr := cfg.EnsureV2Config(); vErr != nil {
+		err = vErr
+	}
+
+	if err != nil {
+		extra_info += fmt.Sprintf("\n   %s%s\n", aurora.Red("✘"), err)
+		return errors.New("App configuration is not valid"), extra_info
+	}
+
+	extra_info += fmt.Sprintf("%s Configuration is valid\n", aurora.Green("✓"))
+	return nil, extra_info
+}
+
+func (cfg *Config) validateBuildStrategies() (extraInfo string, err error) {
 	buildStrats := cfg.BuildStrategies()
 	if len(buildStrats) > 1 {
 		// TODO: validate that most users are not affected by this and/or fixing this, then make it fail validation
@@ -105,39 +127,61 @@ func (cfg *Config) validateBuildStrategies() (extraInfo string) {
 	return
 }
 
-func (cfg *Config) BuildStrategies() []string {
-	strategies := []string{}
-
-	if cfg == nil || cfg.Build == nil {
-		return strategies
-	}
-
-	if cfg.Build.Image != "" {
-		strategies = append(strategies, fmt.Sprintf("the \"%s\" docker image", cfg.Build.Image))
-	}
-	if cfg.Build.Builder != "" || len(cfg.Build.Buildpacks) > 0 {
-		strategies = append(strategies, "a buildpack")
-	}
-	if cfg.Build.Dockerfile != "" || cfg.Build.DockerBuildTarget != "" {
-		if cfg.Build.Dockerfile != "" {
-			strategies = append(strategies, fmt.Sprintf("the \"%s\" dockerfile", cfg.Build.Dockerfile))
-		} else {
-			strategies = append(strategies, "a dockerfile")
-		}
-	}
-	if cfg.Build.Builtin != "" {
-		strategies = append(strategies, fmt.Sprintf("the \"%s\" builtin image", cfg.Build.Builtin))
-	}
-
-	return strategies
-}
-
-func (cfg *Config) validateDeploySection() (extraInfo string) {
+func (cfg *Config) validateDeploySection() (extraInfo string, err error) {
 	if cfg.Deploy != nil {
 		_, err := shlex.Split(cfg.Deploy.ReleaseCommand)
 		if err != nil {
-			extraInfo += fmt.Sprintf("Can't shell split release command: '%s'", cfg.Deploy.ReleaseCommand)
+			extraInfo += fmt.Sprintf("Can't shell split release command: '%s'\n", cfg.Deploy.ReleaseCommand)
 		}
 	}
 	return
+}
+
+func (cfg *Config) validateServicesSection() (extraInfo string, err error) {
+	validGroupNames := cfg.ProcessNames()
+	// The following is different than len(validGroupNames) because
+	// it can be zero when there is no [processes] section
+	processCount := len(cfg.Processes)
+
+	for _, service := range cfg.AllServices() {
+		switch {
+		case len(service.Processes) == 0 && processCount > 0:
+			extraInfo += fmt.Sprintf(
+				"Service has no processes set but app has %d processes defined; update fly.toml to set processes for each service\n",
+				processCount,
+			)
+			err = ValidationError
+		default:
+			for _, processName := range service.Processes {
+				if !slices.Contains(validGroupNames, processName) {
+					extraInfo += fmt.Sprintf(
+						"Service specifies '%s' as one of its processes, but no processes are defined with that name; "+
+							"update fly.toml [processes] to add '%s' process or remove it from service's processes list\n",
+						processName, processName,
+					)
+					err = ValidationError
+				}
+			}
+		}
+	}
+	return extraInfo, err
+}
+
+func (cfg *Config) validateProcessesSection() (extraInfo string, err error) {
+	for processName, cmdStr := range cfg.Processes {
+		if cmdStr == "" {
+			continue
+		}
+
+		_, vErr := shlex.Split(cmdStr)
+		if vErr != nil {
+			extraInfo += fmt.Sprintf(
+				"Could not parse command for '%s' process group; check [processes] section: %s\n",
+				processName, vErr,
+			)
+			err = ValidationError
+		}
+	}
+
+	return extraInfo, err
 }

@@ -27,14 +27,12 @@ func (c *Config) InitCmd(groupName string) ([]string, error) {
 	return cmd, nil
 }
 
-func (c *Config) AllServices() ([]Service, error) {
-	var services []Service
-
+func (c *Config) AllServices() (services []Service) {
 	if c.HttpService != nil {
 		services = append(services, *c.HttpService.ToService())
 	}
 	services = append(services, c.Services...)
-	return services, nil
+	return services
 }
 
 func (c *Config) DefaultMachineConfig() (*api.MachineConfig, error) {
@@ -55,9 +53,7 @@ func (c *Config) DefaultMachineConfig() (*api.MachineConfig, error) {
 		Env: lo.Assign(c.Env),
 	}
 
-	if services, err := c.AllServices(); err != nil {
-		return nil, err
-	} else if len(services) > 0 {
+	if services := c.AllServices(); len(services) > 0 {
 		machineConfig.Services = lo.Map(services, func(s Service, _ int) api.MachineService {
 			return *s.toMachineService()
 		})

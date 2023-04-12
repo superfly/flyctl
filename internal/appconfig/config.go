@@ -3,6 +3,8 @@
 package appconfig
 
 import (
+	"fmt"
+
 	"github.com/superfly/flyctl/api"
 )
 
@@ -171,4 +173,31 @@ func (c *Config) InternalPort() int {
 		return c.Services[0].InternalPort
 	}
 	return 0
+}
+
+func (cfg *Config) BuildStrategies() []string {
+	strategies := []string{}
+
+	if cfg == nil || cfg.Build == nil {
+		return strategies
+	}
+
+	if cfg.Build.Image != "" {
+		strategies = append(strategies, fmt.Sprintf("the \"%s\" docker image", cfg.Build.Image))
+	}
+	if cfg.Build.Builder != "" || len(cfg.Build.Buildpacks) > 0 {
+		strategies = append(strategies, "a buildpack")
+	}
+	if cfg.Build.Dockerfile != "" || cfg.Build.DockerBuildTarget != "" {
+		if cfg.Build.Dockerfile != "" {
+			strategies = append(strategies, fmt.Sprintf("the \"%s\" dockerfile", cfg.Build.Dockerfile))
+		} else {
+			strategies = append(strategies, "a dockerfile")
+		}
+	}
+	if cfg.Build.Builtin != "" {
+		strategies = append(strategies, fmt.Sprintf("the \"%s\" builtin image", cfg.Build.Builtin))
+	}
+
+	return strategies
 }
