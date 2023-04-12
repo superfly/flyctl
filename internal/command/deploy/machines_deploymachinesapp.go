@@ -3,6 +3,7 @@ package deploy
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
@@ -42,10 +43,10 @@ func (md *machineDeployment) restartMachinesApp(ctx context.Context) error {
 }
 
 // deployMachinesApp executes the following flow:
-//   * Run release command
-//   * Remove spare machines from removed groups
-//   * Launch new machines on new groups
-//   * Update existing machines
+//   - Run release command
+//   - Remove spare machines from removed groups
+//   - Launch new machines on new groups
+//   - Update existing machines
 func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 	if err := md.runReleaseCommand(ctx); err != nil {
 		return fmt.Errorf("release command failed - aborting deployment. %w", err)
@@ -169,7 +170,11 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 
 	newMachineRaw, err := md.flapsClient.Launch(ctx, *launchInput)
 	if err != nil {
-		return fmt.Errorf("error creating a new machine machine: %w", err)
+		relCmdWarning := ""
+		if strings.Contains(err.Error(), "please add a payment method") && !md.releaseCommandMachine.IsEmpty() {
+			relCmdWarning = "\nPlease note that release commands run in their own ephemeral machine, and therefore count towards the machine limit."
+		}
+		return fmt.Errorf("error creating a new machine: %w%s", err, relCmdWarning)
 	}
 
 	newMachine := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
