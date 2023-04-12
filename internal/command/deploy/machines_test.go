@@ -33,7 +33,9 @@ func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
 			"OTHER":          "value",
 		},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
+	li, err := md.launchInputForLaunch("", nil)
+	require.NoError(t, err)
 	assert.Equal(t, &api.LaunchMachineInput{
 		OrgSlug: "my-dangling-org",
 		Config: &api.MachineConfig{
@@ -49,7 +51,7 @@ func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
 				"fly_release_version":  "0",
 			},
 		},
-	}, md.launchInputForLaunch("", nil))
+	}, li)
 }
 
 // Test any LaunchMachineInput field that must not be set on a machine
@@ -87,10 +89,12 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			InternalPort: 8080,
 		}},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	md.volumes = []api.Volume{{ID: "vol_12345"}}
 
 	// New app machine
+	li, err := md.launchInputForLaunch("", nil)
+	require.NoError(t, err)
 	assert.Equal(t, &api.LaunchMachineInput{
 		OrgSlug: "my-dangling-org",
 		Config: &api.MachineConfig{
@@ -129,7 +133,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 				},
 			},
 		},
-	}, md.launchInputForLaunch("", nil))
+	}, li)
 
 	// New release command machine
 	assert.Equal(t, &api.LaunchMachineInput{
@@ -214,10 +218,12 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 			Destination: "/data",
 		},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	md.volumes = []api.Volume{{ID: "vol_12345"}}
 
 	// New app machine
+	li, err := md.launchInputForLaunch("", nil)
+	require.NoError(t, err)
 	assert.Equal(t, &api.LaunchMachineInput{
 		OrgSlug: "my-dangling-org",
 		Config: &api.MachineConfig{
@@ -235,9 +241,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 				Name:   "data",
 			}},
 		},
-	},
-		md.launchInputForLaunch("", nil),
-	)
+	}, li)
 
 	origMachine := &api.Machine{
 		Config: &api.MachineConfig{
@@ -249,8 +253,8 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 	}
 
 	// Reuse app machine
-	li, err := md.launchInputForUpdate(origMachine)
-	require.NoError(err)
+	li, err = md.launchInputForUpdate(origMachine)
+	require.NoError(t, err)
 	assert.Equal(t, &api.LaunchMachineInput{
 		OrgSlug: "my-dangling-org",
 		Config: &api.MachineConfig{
