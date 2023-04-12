@@ -100,7 +100,6 @@ func (c *Config) ToMachineConfig(processGroup string) (*api.MachineConfig, error
 	if err != nil {
 		return nil, err
 	}
-
 	return fc.DefaultMachineConfig()
 }
 

@@ -18,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"golang.org/x/exp/slices"
 )
 
 func newClone() *cobra.Command {
@@ -114,26 +115,26 @@ func runMachineClone(ctx context.Context) (err error) {
 			return fmt.Errorf("failed to get app config: %w", err)
 		}
 
-		allProcessConfigs, err := appConfig.GetProcessConfigs()
-		if err != nil {
-			return err
-		}
-		processConfig, present := allProcessConfigs[targetProcessGroup]
-		if !present {
+		if !slices.Contains(appConfig.ProcessNames(), targetProcessGroup) {
 			return fmt.Errorf("process group %s is not present in app configuration, add a [processes] section to fly.toml", targetProcessGroup)
 		}
 		if targetProcessGroup == api.MachineProcessGroupFlyAppReleaseCommand {
 			return fmt.Errorf("invalid process group %s, %s is reserved for internal use", targetProcessGroup, api.MachineProcessGroupFlyAppReleaseCommand)
 		}
+
 		if targetConfig.Metadata == nil {
 			targetConfig.Metadata = make(map[string]string)
 		}
-
 		targetConfig.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = targetProcessGroup
+
 		terminal.Infof("Setting process group to %s for new machine and updating cmd, services, and checks\n", targetProcessGroup)
-		targetConfig.Init.Cmd = processConfig.Cmd
-		targetConfig.Services = processConfig.Services
-		targetConfig.Checks = processConfig.Checks
+		mConfig, err := appConfig.ToMachineConfig(targetProcessGroup)
+		if err != nil {
+			return fmt.Errorf("failed to get process group config: %w", err)
+		}
+		targetConfig.Init.Cmd = mConfig.Init.Cmd
+		targetConfig.Services = mConfig.Services
+		targetConfig.Checks = mConfig.Checks
 	}
 
 	targetConfig.Image = source.FullImageRef()

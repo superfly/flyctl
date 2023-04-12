@@ -7,15 +7,15 @@ import (
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/appconfig"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/machine"
+	"golang.org/x/exp/slices"
 )
 
 type ProcessGroupsDiff struct {
 	machinesToRemove      []machine.LeasableMachine
 	groupsToRemove        map[string]int
-	groupsNeedingMachines map[string]*appconfig.ProcessConfig
+	groupsNeedingMachines map[string]bool
 }
 
 func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
@@ -201,32 +201,25 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 func (md *machineDeployment) resolveProcessGroupChanges() ProcessGroupsDiff {
 	output := ProcessGroupsDiff{
 		groupsToRemove:        map[string]int{},
-		groupsNeedingMachines: map[string]*appconfig.ProcessConfig{},
+		groupsNeedingMachines: map[string]bool{},
 	}
 
+	groupsInConfig := md.appConfig.ProcessNames()
 	groupHasMachine := map[string]bool{}
 
 	for _, leasableMachine := range md.machineSet.GetMachines() {
-		mach := leasableMachine.Machine()
-		machGroup := mach.ProcessGroup()
-		groupMatch := ""
-		for name := range md.processConfigs {
-			if machGroup == name {
-				groupMatch = machGroup
-				break
-			}
-		}
-		if groupMatch == "" {
-			output.groupsToRemove[machGroup] += 1
-			output.machinesToRemove = append(output.machinesToRemove, leasableMachine)
+		name := leasableMachine.Machine().ProcessGroup()
+		if slices.Contains(groupsInConfig, name) {
+			groupHasMachine[name] = true
 		} else {
-			groupHasMachine[groupMatch] = true
+			output.groupsToRemove[name] += 1
+			output.machinesToRemove = append(output.machinesToRemove, leasableMachine)
 		}
 	}
 
-	for name, val := range md.processConfigs {
+	for _, name := range groupsInConfig {
 		if ok := groupHasMachine[name]; !ok {
-			output.groupsNeedingMachines[name] = val
+			output.groupsNeedingMachines[name] = true
 		}
 	}
 

@@ -21,9 +21,7 @@ func stabMachineDeployment(appConfig *appconfig.Config) (*machineDeployment, err
 		appConfig:  appConfig,
 		machineSet: machine.NewMachineSet(nil, nil, nil),
 	}
-	var err error
-	md.processConfigs, err = md.appConfig.GetProcessConfigs()
-	return md, err
+	return md, nil
 }
 
 func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
