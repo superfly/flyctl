@@ -106,12 +106,10 @@ func run(ctx context.Context) (err error) {
 		}
 
 		if !copyConfig {
-			copy, err := prompt.Confirm(ctx, "Would you like to copy its configuration to the new app?")
+			copyConfig, err = prompt.Confirm(ctx, "Would you like to copy its configuration to the new app?")
 			if err != nil {
 				return err
 			}
-
-			copyConfig = copy
 		}
 
 		if copyConfig {
