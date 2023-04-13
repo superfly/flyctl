@@ -248,7 +248,6 @@ func (c *Config) SetVolumes(volumes []Volume) {
 	}
 }
 
-// TODO(ali): Test this
 func (c *Config) Volumes() []Volume {
 	if mounts, ok := c.RawDefinition["mounts"]; ok {
 		if arr, ok := mounts.([]Volume); ok {
