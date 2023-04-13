@@ -4125,6 +4125,11 @@ input DeleteVolumeInput {
   clientMutationId: String
 
   """
+  Unique lock ID
+  """
+  lockId: ID
+
+  """
   The node ID of the volume
   """
   volumeId: ID!
@@ -4921,7 +4926,7 @@ input ForkVolumeInput {
   """
   Volume name
   """
-  name: String!
+  name: String
 
   """
   The volume to fork

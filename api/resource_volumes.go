@@ -124,7 +124,7 @@ func (c *Client) ExtendVolume(ctx context.Context, input ExtendVolumeInput) (*Vo
 	return &data.ExtendVolume.Volume, nil
 }
 
-func (c *Client) DeleteVolume(ctx context.Context, volID string) (App *App, err error) {
+func (c *Client) DeleteVolume(ctx context.Context, volID string, lockId string) (App *App, err error) {
 	query := `
 		mutation($input: DeleteVolumeInput!) {
 			deleteVolume(input: $input) {
@@ -135,7 +135,10 @@ func (c *Client) DeleteVolume(ctx context.Context, volID string) (App *App, err 
 		}
 	`
 
-	input := DeleteVolumeInput{VolumeID: volID}
+	input := DeleteVolumeInput{
+		VolumeID: volID,
+		LockID:   lockId,
+	}
 
 	req := c.NewRequest(query)
 
