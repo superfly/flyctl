@@ -163,10 +163,11 @@ func TestToDefinition(t *testing.T) {
 	definition, err := cfg.ToDefinition()
 	assert.NoError(t, err)
 	assert.Equal(t, &api.Definition{
-		"app":            "foo",
-		"primary_region": "sea",
-		"kill_signal":    "SIGTERM",
-		"kill_timeout":   "3s",
+		"app":             "foo",
+		"primary_region":  "sea",
+		"kill_signal":     "SIGTERM",
+		"kill_timeout":    "3s",
+		"console_command": "/bin/bash",
 
 		"build": map[string]any{
 			"builder":      "dockerfile",

@@ -2,6 +2,7 @@ app = "foo"
 kill_signal = "SIGTERM"
 kill_timeout = "3s"
 primary_region = "sea"
+console_command = "/bin/bash"
 
 [experimental]
   cmd = ["cmd"]
