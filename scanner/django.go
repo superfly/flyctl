@@ -6,14 +6,13 @@ import (
 
 // setup django with a postgres database
 func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
-	if !checksPass(sourceDir, dirContains("requirements.txt", "(?i)Django")) {
+	if !checksPass(sourceDir, dirContains("requirements.txt", "(?i)Django")) && !checksPass(sourceDir, dirContains("Pipfile", "(?i)Django")) && !checksPass(sourceDir, dirContains("pyproject.toml", "(?i)Django")) {
 		return nil, nil
 	}
 
 	s := &SourceInfo{
 		Family: "Django",
 		Port:   8000,
-		Files:  templates("templates/django"),
 		Env: map[string]string{
 			"PORT": "8000",
 		},
@@ -35,8 +34,20 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 		SkipDeploy: true,
 	}
 
-	// check if requirements.txt has a postgres dependency
-	if checksPass(sourceDir, dirContains("requirements.txt", "psycopg2")) {
+	vars := make(map[string]interface{})
+
+    if checksPass(sourceDir, fileExists("Pipfile")) {
+	    vars["pipenv"] = true
+    } else if checksPass(sourceDir, fileExists("pyproject.toml")) {
+	    vars["poetry"] = true
+	} else if checksPass(sourceDir, fileExists("requirements.txt")) {
+	    vars["venv"] = true
+	}
+
+	s.Files = templatesExecute("templates/django", vars)
+
+	// check if project has a postgres dependency
+	if checksPass(sourceDir, dirContains("requirements.txt", "psycopg2")) || checksPass(sourceDir, dirContains("Pipfile", "psycopg2")) || checksPass(sourceDir, dirContains("pyproject.toml", "psycopg2")) {
 		s.ReleaseCmd = "python manage.py migrate"
 
 		if !checksPass(sourceDir, dirContains("requirements.txt", "django-environ", "dj-database-url")) {
