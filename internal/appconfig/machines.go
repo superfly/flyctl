@@ -47,7 +47,7 @@ func (c *Config) ToReleaseMachineConfig() (*api.MachineConfig, error) {
 	return mConfig, nil
 }
 
-//
+// updateMachineConfig applies configuration options from the optional MachineConfig passed in, then the base config, into a new MachineConfig
 func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig, error) {
 	processGroup := c.DefaultProcessName()
 
