@@ -3,7 +3,6 @@ package ssh
 import (
 	"context"
 	"fmt"
-	"net"
 	"os"
 	"runtime"
 	"time"
@@ -135,35 +134,6 @@ func captureError(err error, app *api.AppCompact) {
 	)
 }
 
-func bringUp(ctx context.Context, client *api.Client, app *api.AppCompact) (*agent.Client, agent.Dialer, error) {
-	io := iostreams.FromContext(ctx)
-
-	agentclient, err := agent.Establish(ctx, client)
-	if err != nil {
-		captureError(err, app)
-		return nil, nil, errors.Wrap(err, "can't establish agent")
-	}
-
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
-	if err != nil {
-		captureError(err, app)
-		return nil, nil, fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
-	}
-
-	if !quiet(ctx) {
-		io.StartProgressIndicatorMsg("Connecting to tunnel")
-	}
-	if err := agentclient.WaitForTunnel(ctx, app.Organization.Slug); err != nil {
-		captureError(err, app)
-		return nil, nil, errors.Wrapf(err, "tunnel unavailable")
-	}
-	if !quiet(ctx) {
-		io.StopProgressIndicator()
-	}
-
-	return agentclient, dialer, nil
-}
-
 func runConsole(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
 	appName := appconfig.NameFromContext(ctx)
@@ -177,7 +147,7 @@ func runConsole(ctx context.Context) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	agentclient, dialer, err := bringUp(ctx, client, app)
+	agentclient, dialer, err := BringUpAgent(ctx, client, app, quiet(ctx))
 	if err != nil {
 		return err
 	}
@@ -187,22 +157,10 @@ func runConsole(ctx context.Context) error {
 		return err
 	}
 
-	// BUG(tqbf): many of these are no longer really params
-	params := &SSHParams{
-		Ctx:      ctx,
-		Org:      app.Organization,
-		Dialer:   dialer,
-		App:      appName,
-		Username: flag.GetString(ctx, "user"),
-		Cmd:      flag.GetString(ctx, "command"),
-		Stdin:    os.Stdin,
-		Stdout:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
-		Stderr:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
-	}
-
 	// TODO: eventually remove the exception for sh and bash.
-	allocPTY := params.Cmd == "" || flag.GetBool(ctx, "pty")
-	if !allocPTY && (params.Cmd == "sh" || params.Cmd == "/bin/sh" || params.Cmd == "bash" || params.Cmd == "/bin/bash") {
+	cmd := flag.GetString(ctx, "command")
+	allocPTY := cmd == "" || flag.GetBool(ctx, "pty")
+	if !allocPTY && (cmd == "sh" || cmd == "/bin/sh" || cmd == "bash" || cmd == "/bin/bash") {
 		terminal.Warn(
 			"Allocating a pseudo-terminal since the command provided is a shell. " +
 				"This behavior will change in the future; please use --pty explicitly if this is what you want.",
@@ -210,20 +168,23 @@ func runConsole(ctx context.Context) error {
 		allocPTY = true
 	}
 
-	if quiet(ctx) {
-		params.DisableSpinner = true
+	params := &ConnectParams{
+		Ctx:            ctx,
+		Org:            app.Organization,
+		Dialer:         dialer,
+		Username:       flag.GetString(ctx, "user"),
+		DisableSpinner: quiet(ctx),
 	}
-
-	sshc, err := sshConnect(params, addr)
+	sshc, err := Connect(params, addr)
 	if err != nil {
 		captureError(err, app)
 		return err
 	}
 
 	sessIO := &ssh.SessionIO{
-		Stdin:    params.Stdin,
-		Stdout:   params.Stdout,
-		Stderr:   params.Stderr,
+		Stdin:    os.Stdin,
+		Stdout:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
+		Stderr:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
 		AllocPTY: allocPTY,
 		TermEnv:  determineTermEnv(),
 	}
@@ -236,54 +197,12 @@ func runConsole(ctx context.Context) error {
 		return nil
 	}()
 
-	if err := sshc.Shell(params.Ctx, sessIO, params.Cmd); err != nil {
+	if err := sshc.Shell(ctx, sessIO, cmd); err != nil {
 		captureError(err, app)
 		return errors.Wrap(err, "ssh shell")
 	}
 
 	return err
-}
-
-func sshConnect(p *SSHParams, addr string) (*ssh.Client, error) {
-	terminal.Debugf("Fetching certificate for %s\n", addr)
-
-	cert, pk, err := singleUseSSHCertificate(p.Ctx, p.Org)
-	if err != nil {
-		return nil, fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh issue`)", err)
-	}
-
-	pemkey := ssh.MarshalED25519PrivateKey(pk, "single-use certificate")
-
-	terminal.Debugf("Keys for %s configured; connecting...\n", addr)
-
-	sshClient := &ssh.Client{
-		Addr: net.JoinHostPort(addr, "22"),
-		User: p.Username,
-
-		Dial: p.Dialer.DialContext,
-
-		Certificate: cert.Certificate,
-		PrivateKey:  string(pemkey),
-	}
-
-	var endSpin context.CancelFunc
-	if !p.DisableSpinner {
-		endSpin = spin(fmt.Sprintf("Connecting to %s...", addr),
-			fmt.Sprintf("Connecting to %s... complete\n", addr))
-		defer endSpin()
-	}
-
-	if err := sshClient.Connect(p.Ctx); err != nil {
-		return nil, errors.Wrap(err, "error connecting to SSH server")
-	}
-
-	terminal.Debugf("Connection completed.\n", addr)
-
-	if !p.DisableSpinner {
-		endSpin()
-	}
-
-	return sshClient, nil
 }
 
 func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (addr string, err error) {
