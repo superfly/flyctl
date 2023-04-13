@@ -4,11 +4,8 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"regexp"
 	"strings"
 
-	"github.com/cavaliergopher/grab/v3"
-	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
@@ -78,9 +75,6 @@ func run(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 	client := client.FromContext(ctx).API()
 	workingDir := flag.GetString(ctx, "path")
-	generateName := flag.GetBool(ctx, "generate-name")
-	name := strings.TrimSpace(flag.GetString(ctx, "name"))
-	launchIntoExistingApp := false
 
 	deployArgs := deploy.DeployWithConfigArgs{
 		ForceNomad:    flag.GetBool(ctx, "force-nomad"),
@@ -100,105 +94,20 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	srcInfo := new(scanner.SourceInfo)
-	config := &scanner.ScannerConfig{
-		ExistingPort: appConfig.InternalPort(),
+	var srcInfo *scanner.SourceInfo
+	srcInfo, appConfig.Build, err = determineSourceInfo(ctx, appConfig, copyConfig, workingDir)
+	if err != nil {
+		return err
 	}
 
-	// Detect if --copy-config and --now flags are set. If so, limited set of
-	// fly.toml file updates. Helpful for deploying PRs when the project is
-	// already setup and we only need fly.toml config changes.
-	if flag.GetBool(ctx, "copy-config") && flag.GetBool(ctx, "now") {
-		config.Mode = "clone"
-	} else {
-		config.Mode = "launch"
-	}
-
-	if img := flag.GetString(ctx, "image"); img != "" {
-		fmt.Fprintln(io.Out, "Using image", img)
-		appConfig.Build = &appconfig.Build{
-			Image: img,
-		}
-	} else if dockerfile := flag.GetString(ctx, "dockerfile"); dockerfile != "" {
-		if strings.HasPrefix(dockerfile, "http://") || strings.HasPrefix(dockerfile, "https://") {
-			fmt.Fprintln(io.Out, "Downloading dockerfile", dockerfile)
-			resp, err := grab.Get("Dockerfile", dockerfile)
-			if err != nil {
-				return err
-			} else {
-				appConfig.Build = &appconfig.Build{
-					Dockerfile: resp.Filename,
-				}
-
-				// scan Dockerfile for port
-				if si, err := scanner.Scan(workingDir, config); err != nil {
-					return err
-				} else {
-					srcInfo = si
-				}
-			}
-		} else {
-			fmt.Fprintln(io.Out, "Using dockerfile", dockerfile)
-			appConfig.Build = &appconfig.Build{
-				Dockerfile: dockerfile,
-			}
-		}
-	} else {
-		fmt.Fprintln(io.Out, "Scanning source code")
-		if si, err := scanner.Scan(workingDir, config); err != nil {
-			return err
-		} else {
-			srcInfo = si
-		}
-
-		if srcInfo == nil {
-			fmt.Fprintln(io.Out, aurora.Green("Could not find a Dockerfile, nor detect a runtime or framework from source code. Continuing with a blank app."))
-		} else {
-			var article string = "a"
-			if matched, _ := regexp.MatchString(`^[aeiou]`, strings.ToLower(srcInfo.Family)); matched {
-				article += "n"
-			}
-
-			appType := srcInfo.Family
-			if srcInfo.Version != "" {
-				appType = appType + " " + srcInfo.Version
-			}
-
-			fmt.Fprintf(io.Out, "Detected %s %s app\n", article, aurora.Green(appType))
-
-			if srcInfo.Builder != "" {
-				fmt.Fprintln(io.Out, "Using the following build configuration:")
-				fmt.Fprintln(io.Out, "\tBuilder:", srcInfo.Builder)
-				if srcInfo.Buildpacks != nil && len(srcInfo.Buildpacks) > 0 {
-					fmt.Fprintln(io.Out, "\tBuildpacks:", strings.Join(srcInfo.Buildpacks, " "))
-				}
-
-				appConfig.Build = &appconfig.Build{
-					Builder:    srcInfo.Builder,
-					Buildpacks: srcInfo.Buildpacks,
-				}
-			}
-		}
-	}
-
-	if generateName {
-		appConfig.AppName = ""
-	}
-
-	if name != "" {
-		appConfig.AppName = name
-	}
-
-	if !generateName && name == "" {
-		inputName, err := promptForAppName(ctx, appConfig)
-		if err != nil {
-			return err
-		}
-		appConfig.AppName = inputName
+	appConfig.AppName, err = determineAppName(ctx, appConfig)
+	if err != nil {
+		return err
 	}
 
 	var org *api.Organization
-	existingAppPlatform := ""
+	var existingAppPlatform string
+	var launchIntoExistingApp bool
 
 	if appConfig.AppName != "" {
 		exists, app, err := appExists(ctx, appConfig)
@@ -216,7 +125,11 @@ func run(ctx context.Context) (err error) {
 				return nil
 			}
 
+			if app.PlatformVersion == appconfig.NomadPlatform && !copyConfig {
+				return fmt.Errorf("Reusing an Nomad app but not importing an existing fly.toml is not supported")
+			}
 			existingAppPlatform = app.PlatformVersion
+
 			org = &api.Organization{
 				ID:       app.Organization.ID,
 				Name:     app.Organization.Name,
@@ -261,13 +174,8 @@ func run(ctx context.Context) (err error) {
 	}
 
 	switch {
-	// Reuse app and local fly.toml
-	case launchIntoExistingApp && copyConfig:
-		// Placeholder
+	// App exists and it is not importing existing fly.toml
 	case launchIntoExistingApp && !copyConfig:
-		if !shouldUseMachines {
-			return fmt.Errorf("Reusing the app but copying an existing fly.toml is only possible for V2 apps")
-		}
 		appConfig, err = freshV2Config(appConfig.AppName, appConfig)
 		if err != nil {
 			return err
@@ -487,4 +395,22 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 	}
 
 	return appconfig.NewConfig(), false, nil
+}
+
+func determineAppName(ctx context.Context, appConfig *appconfig.Config) (string, error) {
+	generateName := flag.GetBool(ctx, "generate-name")
+	if generateName {
+		return "", nil
+	}
+
+	name := strings.TrimSpace(flag.GetString(ctx, "name"))
+	if name != "" {
+		return name, nil
+	}
+
+	if !generateName && name == "" {
+		return promptForAppName(ctx, appConfig)
+	}
+
+	return appConfig.AppName, nil
 }
