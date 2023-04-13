@@ -70,7 +70,7 @@ func newDefaults(appConfig *appconfig.Config, machines []*api.Machine) *defaultV
 }
 
 func (d *defaultValues) ToMachineConfig(groupName string) (*api.MachineConfig, error) {
-	mc, err := d.appConfig.ToMachineConfig(groupName)
+	mc, err := d.appConfig.ToMachineConfig(groupName, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -200,7 +200,7 @@ func (cfg *Config) validateProcessesSection() (extraInfo string, err error) {
 
 func (cfg *Config) validateMachineConversion() (extraInfo string, err error) {
 	for _, name := range cfg.ProcessNames() {
-		if _, vErr := cfg.ToMachineConfig(name); err != nil {
+		if _, vErr := cfg.ToMachineConfig(name, nil); err != nil {
 			extraInfo += fmt.Sprintf("Converting to machine in process group '%s' will fail because of: %s", name, vErr)
 			err = ValidationError
 		}
