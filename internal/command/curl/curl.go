@@ -41,6 +41,7 @@ func New() (cmd *cobra.Command) {
 
 	cmd.Args = cobra.ExactArgs(1)
 
+	flag.Add(cmd, flag.JSONOutput())
 	return
 }
 

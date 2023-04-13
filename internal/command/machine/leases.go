@@ -55,6 +55,7 @@ func newLeaseView() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.JSONOutput(),
 		selectFlag,
 	)
 

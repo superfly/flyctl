@@ -31,6 +31,7 @@ be shown with its name, owner and when it was last deployed.
 		command.RequireSession,
 	)
 
+	flag.Add(cmd, flag.JSONOutput())
 	flag.Add(cmd, flag.Org())
 
 	return cmd

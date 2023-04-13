@@ -63,6 +63,7 @@ sets the size as the number of gigabytes the volume will consume.`
 		flag.Yes(),
 	)
 
+	flag.Add(cmd, flag.JSONOutput())
 	return cmd
 }
 

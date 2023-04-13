@@ -46,6 +46,7 @@ func newDeploy() *cobra.Command {
 
 	flag.Add(cmd,
 		flag.App(),
+		flag.JSONOutput(),
 		flag.String{
 			Name:        "name",
 			Shorthand:   "n",

@@ -26,6 +26,7 @@ func newLog() *cobra.Command {
 	cmd := command.New(usage, short, long, runLog, command.RequireSession)
 
 	flag.Add(cmd,
+		flag.JSONOutput(),
 		flag.Org(),
 	)
 

@@ -83,7 +83,6 @@ func New() *cobra.Command {
 			fs := root.PersistentFlags()
 
 			_ = fs.StringP(flag.AccessTokenName, "t", "", "Fly API Access Token")
-			_ = fs.BoolP(flag.JSONOutputName, "j", false, "JSON output")
 			_ = fs.BoolP(flag.VerboseName, "v", false, "Verbose output")
 
 			root.AddCommand(

@@ -39,6 +39,7 @@ func newInstance() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.JSONOutput(),
 	)
 
 	return

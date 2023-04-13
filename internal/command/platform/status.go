@@ -29,6 +29,7 @@ func newStatus() (cmd *cobra.Command) {
 
 	cmd = command.New("status [kind]", short, long, runStatus)
 	cmd.Args = cobra.MaximumNArgs(1)
+	flag.Add(cmd, flag.JSONOutput())
 	return
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 )
 
@@ -22,8 +23,10 @@ authenticated and in use.
 		short = "Show the currently authenticated user"
 	)
 
-	return command.New("whoami", long, short, runWhoAmI,
+	cmd := command.New("whoami", long, short, runWhoAmI,
 		command.RequireSession)
+	flag.Add(cmd, flag.JSONOutput())
+	return cmd
 }
 
 func runWhoAmI(ctx context.Context) error {

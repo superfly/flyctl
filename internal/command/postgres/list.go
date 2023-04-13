@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -24,6 +25,7 @@ func newList() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runList)
 
+	flag.Add(cmd, flag.JSONOutput())
 	return cmd
 }
 

@@ -27,6 +27,7 @@ func newList() *cobra.Command {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.JSONOutput(),
 	)
 	return cmd
 }

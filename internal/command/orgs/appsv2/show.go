@@ -21,6 +21,7 @@ func newShow() *cobra.Command {
 		command.RequireSession,
 	)
 	cmd.Args = cobra.ExactArgs(1)
+	flag.Add(cmd, flag.JSONOutput())
 	return cmd
 }
 

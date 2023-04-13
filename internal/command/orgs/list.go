@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 )
 
@@ -21,9 +22,12 @@ func newList() *cobra.Command {
 		short = "Lists organizations for current user"
 	)
 
-	return command.New("list", short, long, runList,
+	cmd := command.New("list", short, long, runList,
 		command.RequireSession,
 	)
+
+	flag.Add(cmd, flag.JSONOutput())
+	return cmd
 }
 
 func runList(ctx context.Context) error {

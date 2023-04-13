@@ -59,6 +59,7 @@ may be fetched with 'fly config save -a <app_name>'`
 		flag.Org(),
 	)
 
+	flag.Add(cmd, flag.JSONOutput())
 	return cmd
 }
 
