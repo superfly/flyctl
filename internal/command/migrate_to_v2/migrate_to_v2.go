@@ -36,9 +36,6 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-// TODO(ali): Remove everything mentioning downtime if it turns out
-//            that we don't need it.
-
 func New() *cobra.Command {
 	return newMigrateToV2()
 }
@@ -150,7 +147,6 @@ type recoveryState struct {
 	machinesCreated        []*api.Machine
 	appLocked              bool
 	scaledToZero           bool
-	nomadVolsReadOnly      bool
 	platformVersion        string
 	onlyPromptToConfigSave bool
 	originalConfig         *appconfig.Config
@@ -292,6 +288,7 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 		}
 	}
 	if len(m.createdVolumes) > 0 {
+		tb.Detailf("Removing migration-created volumes")
 		for _, vol := range m.createdVolumes {
 			_, err := m.apiClient.DeleteVolume(ctx, vol.vol.ID)
 			if err != nil {
@@ -302,13 +299,6 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 	if m.isPostgres {
 		tb.Detailf("Disabling readonly")
 		err := m.setNomadPgReadonly(ctx, true)
-		if err != nil {
-			return err
-		}
-	}
-	if m.recovery.nomadVolsReadOnly {
-		tb.Detailf("Resetting nomad app volumes as read/write")
-		err := m.rollbackVolumesReadOnly(ctx)
 		if err != nil {
 			return err
 		}
@@ -472,17 +462,6 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 		return abortedErr
 	}
 
-	tb.Detail("Marking nomad app volumes as read-only")
-
-	if m.usesForkedVolumes {
-		if err = m.markVolumesAsReadOnly(ctx); err != nil {
-			return err
-		}
-		if aborted.Load() {
-			return abortedErr
-		}
-	}
-
 	tb.Detail("Starting machines")
 
 	err = m.createMachines(ctx)
@@ -550,7 +529,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	}
 
 	if !m.requiresDowntime() {
-		tb.Detail("Scaling down to zero nomad VMs now that machines are running.")
+		tb.Detail("Scaling nomad VMs down to zero now that machines are running.")
 
 		err = m.scaleNomadToZero(ctx)
 		if err != nil {
@@ -730,7 +709,7 @@ func (m *v2PlatformMigrator) rollbackDeploy(ctx context.Context) error {
 }
 
 func (m *v2PlatformMigrator) requiresDowntime() bool {
-	return false // m.usesForkedVolumes TODO(ali): Cleanup
+	return m.usesForkedVolumes
 }
 
 func (m *v2PlatformMigrator) determinePrimaryRegion(ctx context.Context) error {
@@ -738,7 +717,7 @@ func (m *v2PlatformMigrator) determinePrimaryRegion(ctx context.Context) error {
 		m.appConfig.PrimaryRegion = fromFlag
 		return nil
 	}
-	fmt.Println(m.appConfig.Env)
+
 	if val, ok := m.appConfig.Env["PRIMARY_REGION"]; ok {
 		m.appConfig.PrimaryRegion = val
 		return nil
@@ -801,6 +780,7 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 	}
 	if m.usesForkedVolumes {
 		fmt.Fprintf(m.io.Out, " * Create clones of each volume in use, for the new machines\n")
+		fmt.Fprintf(m.io.Out, "   * These cloned volumes will have the suffix '%s' appended to their names\n", forkedVolSuffix)
 	}
 
 	fmt.Fprintf(m.io.Out, " * Create machines, copying the configuration of each existing VM\n")

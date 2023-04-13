@@ -9,10 +9,15 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 )
 
+const (
+	forkedVolSuffix = "_machines"
+)
+
 func (m *v2PlatformMigrator) validateVolumes(ctx context.Context) error {
 	if m.isPostgres {
 		return nil
 	}
+	m.usesForkedVolumes = len(m.appConfig.Volumes()) != 0
 	if len(m.appConfig.Volumes()) > 1 {
 		return fmt.Errorf("cannot migrate app %s because it uses multiple [[mounts]], which are not yet supported on Apps V2.\nwatch https://community.fly.io for announcements about multiple volume mounts for Apps V2", m.appFull.Name)
 	}
@@ -76,26 +81,19 @@ func (m *v2PlatformMigrator) nomadVolPath(v *api.Volume) string {
 		return ""
 	}
 
+	// The config has already been patched to use the v2 volume names,
+	// so we have to account for that here
+	name := nomadVolNameToV2VolName(v.Name)
+
 	// TODO(ali): Do process group-specific volumes change the logic here?
 	for _, mount := range m.appConfig.Volumes() {
-		if mount.Source == v.Name {
+		if mount.Source == name {
 			return mount.Destination
 		}
 	}
 	return ""
 }
 
-func (m *v2PlatformMigrator) markVolumesAsReadOnly(ctx context.Context) error {
-	m.recovery.nomadVolsReadOnly = true
-	panic("stub")
-	return nil
-}
-
-func (m *v2PlatformMigrator) rollbackVolumesReadOnly(ctx context.Context) error {
-	panic("stub")
-	return nil
-}
-
 func nomadVolNameToV2VolName(name string) string {
-	return name + "_machines"
+	return name + forkedVolSuffix
 }

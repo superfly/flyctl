@@ -595,3 +595,54 @@ func TestAppsV2MigrateToV2(t *testing.T) {
 	platformVersion, _ := statusMap["PlatformVersion"].(string)
 	require.Equal(f, "machines", platformVersion)
 }
+
+// This test takes forever. I'm sorry.
+func TestAppsV2MigrateToV2_Volumes(t *testing.T) {
+	var (
+		err     error
+		f       = testlib.NewTestEnvFromEnv(t)
+		appName = f.CreateRandomAppName()
+	)
+	// No spaces or quotes, this is sent unescaped to bash :x
+	successStr := "myvolumehasloaded"
+
+	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --force-nomad --image nginx", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("vol create -y --app %s -s 2 --region %s vol_test", appName, f.PrimaryRegion())
+	{
+		toml, err := os.ReadFile("fly.toml")
+		if err != nil {
+			f.Fatalf("failed to read fly.toml: %s\n", err)
+		}
+		tomlStr := string(toml) + "\n[[mounts]]\n  source = \"vol_test\"\n  destination = \"/vol\"\n"
+		if err = os.WriteFile("fly.toml", []byte(tomlStr), 0644); err != nil {
+			f.Fatalf("failed to write fly.toml: %s\n", err)
+		}
+	}
+
+	assertHasFlag := func() {
+		output := f.Fly("ssh console -q -C 'cat /vol/flag.txt'")
+		output.AssertSuccessfulExit()
+		outStr := string(output.StdOut().Bytes())
+
+		require.Contains(t, outStr, successStr)
+	}
+
+	f.Fly("deploy --now")
+	f.Fly("ssh console -C \"bash -c 'echo %s > /vol/flag.txt && sync'\"", successStr)
+
+	assertHasFlag()
+
+	time.Sleep(3 * time.Second)
+	f.Fly("migrate-to-v2 --primary-region %s --yes", f.PrimaryRegion())
+	result := f.Fly("status --json")
+
+	var statusMap map[string]any
+	err = json.Unmarshal(result.StdOut().Bytes(), &statusMap)
+	if err != nil {
+		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
+	}
+	platformVersion, _ := statusMap["PlatformVersion"].(string)
+	require.Equal(f, "machines", platformVersion)
+
+	assertHasFlag()
+}
