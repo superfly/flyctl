@@ -11,17 +11,14 @@ func (m *v2PlatformMigrator) validateVolumes(ctx context.Context) error {
 	if m.isPostgres {
 		return nil
 	}
-	if m.appConfig.Mounts != nil {
-		// TODO(ali): Validate this according to AppsV2 rules
-		// return fmt.Errorf("cannot migrate app %s with [mounts] configuration, yet; watch https://community.fly.io for announcements about volume support with migrations", m.appCompact.Name)
+	if len(m.appConfig.Volumes()) > 1 {
+		return fmt.Errorf("cannot migrate app %s because it uses multiple [[mounts]], which are not yet supported on Apps V2.\nwatch https://community.fly.io for announcements about multiple volume mounts for Apps V2", m.appFull.Name)
 	}
 	for _, a := range m.oldAllocs {
 		if len(a.AttachedVolumes.Nodes) > 1 {
 			return fmt.Errorf("cannot migrate app %s because alloc %s has multiple volume attached", m.appCompact.Name, a.IDShort)
 		}
 	}
-	// TODO(ali): Prohibit migration for apps with process group-dependent volume configurations
-	// return fmt.Errorf("cannot migrate app %s because apps v2 does not yet support process group-specific mounts; watch https://community.fly.io for announcements about support for this feature", m.appCompact.Name, a.IDShort)
 	return nil
 }
 
