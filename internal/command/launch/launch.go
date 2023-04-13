@@ -259,13 +259,13 @@ func run(ctx context.Context) (err error) {
 		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, client, org.Slug)
 	}
 
-	region, err := prompt.Region(ctx, !org.PaidPlan, prompt.RegionParams{
-		Message: "Choose a region for deployment:",
-	})
+	region, err := computeRegionToUse(ctx, appConfig, org.PaidPlan)
 	if err != nil {
 		return err
 	}
+	// Do not change PrimaryRegion after this line
 	appConfig.PrimaryRegion = region.Code
+	fmt.Fprintf(io.Out, "App will use '%s' region as primary\n", appConfig.PrimaryRegion)
 
 	shouldUseMachines, err := shouldAppUseMachinesPlatform(ctx, org.Slug, existingAppPlatform)
 	if err != nil {
@@ -333,7 +333,7 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 	// If volumes are requested by the launch scanner, create them
-	if err := createVolumes(ctx, srcInfo, appConfig.AppName, region.Code); err != nil {
+	if err := createVolumes(ctx, srcInfo, appConfig.AppName, appConfig.PrimaryRegion); err != nil {
 		return err
 	}
 	// If database are requested by the launch scanner, create them
