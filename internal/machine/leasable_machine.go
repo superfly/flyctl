@@ -158,11 +158,11 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 	lm.logStatusWaiting(desiredState)
 	for {
 		err := lm.flapsClient.Wait(waitCtx, lm.Machine(), desiredState, timeout)
-		destroyedMachineNotFoundResponse := false
+		notFoundResponse := false
 		if err != nil {
 			var flapsErr *flaps.FlapsError
 			if errors.As(err, &flapsErr) {
-				destroyedMachineNotFoundResponse = desiredState == api.MachineStateDestroyed && flapsErr.ResponseStatusCode == http.StatusNotFound
+				notFoundResponse = flapsErr.ResponseStatusCode == http.StatusNotFound
 			}
 		}
 		switch {
@@ -170,7 +170,9 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 			return err
 		case errors.Is(err, context.DeadlineExceeded):
 			return fmt.Errorf("timeout reached waiting for machine to %s %w", desiredState, err)
-		case !destroyedMachineNotFoundResponse && err != nil:
+		case notFoundResponse && desiredState != api.MachineStateDestroyed:
+			return err
+		case !notFoundResponse && err != nil:
 			time.Sleep(b.Duration())
 			continue
 		}
