@@ -51,6 +51,7 @@ func (m *v2PlatformMigrator) unlockApp(ctx context.Context) error {
 		return err
 	}
 	m.recovery.appLocked = false
+	m.appLock = ""
 	return nil
 }
 

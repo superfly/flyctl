@@ -413,6 +413,7 @@ type ExtendVolumePayload struct {
 
 type DeleteVolumeInput struct {
 	VolumeID string `json:"volumeId"`
+	LockID   string `json:"lockId,omitempty"`
 }
 
 type DeleteVolumePayload struct {

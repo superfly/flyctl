@@ -49,7 +49,7 @@ func runDestroy(ctx context.Context) error {
 		return nil
 	}
 
-	data, err := client.DeleteVolume(ctx, volID)
+	data, err := client.DeleteVolume(ctx, volID, "")
 	if err != nil {
 		return fmt.Errorf("failed destroying volume: %w", err)
 	}
