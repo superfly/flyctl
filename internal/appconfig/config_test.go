@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/superfly/flyctl/helpers"
 )
 
 func TestGetAndSetEnvVariables(t *testing.T) {
@@ -125,4 +126,41 @@ func TestConfigPortGetter(t *testing.T) {
 			assert.Equal(t, tc.expectedPort, tc.config.InternalPort())
 		})
 	}
+}
+
+// This can't go in helpers/clone_test.go because of an import cycle
+func TestCloneAppconfig(t *testing.T) {
+
+	config := &Config{
+		AppName: "testcfg",
+		RawDefinition: map[string]any{
+			"mounts": []Volume{
+				{
+					Source:      "src-raw",
+					Destination: "dst-raw",
+				},
+				{
+					Source:      "src2",
+					Destination: "dst2",
+				},
+			},
+		},
+		Mounts: &Volume{
+			Source:      "src",
+			Destination: "dst",
+		},
+		HttpService: &HTTPService{
+			InternalPort: 100,
+		},
+		defaultGroupName: "some-group",
+	}
+
+	cloned := helpers.Clone(config)
+
+	assert.Equal(t, config, cloned)
+
+	config.HttpService.InternalPort = 50
+
+	assert.Equal(t, 100, cloned.HttpService.InternalPort,
+		"expected deep copy, but cloned object was modified by change to original config")
 }
