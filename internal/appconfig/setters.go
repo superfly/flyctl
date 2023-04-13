@@ -40,7 +40,7 @@ func (c *Config) SetHttpCheck(path string) {
 		if c.Checks == nil {
 			c.Checks = make(map[string]*ToplevelCheck)
 		}
-		c.Checks["http-check"] = &ToplevelCheck{
+		c.Checks["status"] = &ToplevelCheck{
 			Port:              api.Pointer(c.HttpService.InternalPort),
 			Type:              api.Pointer("http"),
 			HTTPMethod:        api.StringPointer("GET"),

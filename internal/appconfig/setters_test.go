@@ -76,7 +76,7 @@ func TestSettersWithHTTPService(t *testing.T) {
 		},
 	})
 	assert.Equal(t, cfg.Checks, map[string]*ToplevelCheck{
-		"http-check": {
+		"status": {
 			Port:              api.Pointer(1234),
 			Type:              api.Pointer("http"),
 			Interval:          mustParseDuration("10s"),

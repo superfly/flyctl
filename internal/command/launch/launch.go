@@ -281,15 +281,26 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
-	if !launchIntoExistingApp {
-		input := api.CreateAppInput{
+	switch {
+	// Reuse app and local fly.toml
+	case launchIntoExistingApp && copyConfig:
+		// Placeholder
+	case launchIntoExistingApp && !copyConfig:
+		if !shouldUseMachines {
+			return fmt.Errorf("Reusing the app but copying an existing fly.toml is only possible for V2 apps")
+		}
+		appConfig, err = freshV2Config(appConfig.AppName, appConfig)
+		if err != nil {
+			return err
+		}
+	// App doesn't exist, just create a new app
+	case !launchIntoExistingApp:
+		createdApp, err := client.CreateApp(ctx, api.CreateAppInput{
 			Name:            appConfig.AppName,
 			OrganizationID:  org.ID,
 			PreferredRegion: &appConfig.PrimaryRegion,
 			Machines:        shouldUseMachines,
-		}
-
-		createdApp, err := client.CreateApp(ctx, input)
+		})
 		if err != nil {
 			return err
 		}
@@ -298,27 +309,15 @@ func run(ctx context.Context) (err error) {
 		case copyConfig:
 			appConfig.AppName = createdApp.Name
 		case shouldUseMachines:
-			newCfg := appconfig.NewConfig()
-			newCfg.AppName = createdApp.Name
-			newCfg.Build = appConfig.Build
-			newCfg.PrimaryRegion = appConfig.PrimaryRegion
-			newCfg.HttpService = &appconfig.HTTPService{InternalPort: 8080, ForceHttps: true}
-			appConfig = newCfg
-			if err := appConfig.SetMachinesPlatform(); err != nil {
-				return err
+			appConfig, err = freshV2Config(createdApp.Name, appConfig)
+			if err != nil {
+				return fmt.Errorf("failed to create new V2 app configuration: %w", err)
 			}
 		default:
 			// Use the default configuration template suggested by Web
-			newCfg, err := appconfig.FromDefinition(&createdApp.Config.Definition)
+			appConfig, err = freshV1Config(createdApp.Name, appConfig, &createdApp.Config.Definition)
 			if err != nil {
-				return fmt.Errorf("Launch failed to get new app configuration: %w", err)
-			}
-			newCfg.AppName = createdApp.Name
-			newCfg.Build = appConfig.Build
-			newCfg.PrimaryRegion = appConfig.PrimaryRegion
-			appConfig = newCfg
-			if err := appConfig.SetNomadPlatform(); err != nil {
-				return err
+				return fmt.Errorf("failed to get new configuration: %w", err)
 			}
 		}
 		fmt.Fprintf(io.Out, "Created app '%s' in organization '%s'\n", appConfig.AppName, org.Slug)
