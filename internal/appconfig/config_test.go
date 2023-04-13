@@ -149,10 +149,18 @@ func TestCloneAppconfig(t *testing.T) {
 			Source:      "src",
 			Destination: "dst",
 		},
+		HttpService: &HTTPService{
+			InternalPort: 100,
+		},
 		defaultGroupName: "some-group",
 	}
 
 	cloned := helpers.Clone(config)
 
 	assert.Equal(t, config, cloned)
+
+	config.HttpService.InternalPort = 50
+
+	assert.Equal(t, 100, cloned.HttpService.InternalPort,
+		"expected deep copy, but cloned object was modified by change to original config")
 }
