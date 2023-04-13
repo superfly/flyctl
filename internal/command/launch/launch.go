@@ -414,18 +414,31 @@ func run(ctx context.Context) (err error) {
 }
 
 func shouldAppUseMachinesPlatform(ctx context.Context, orgSlug, existingAppPlatform string) (bool, error) {
+	forceMachines := flag.GetBool(ctx, "force-machines")
+	forceNomad := flag.GetBool(ctx, "force-nomad")
+
 	// Keep if we are reusing an app and it has platform version set
 	if existingAppPlatform != "" {
-		return existingAppPlatform == appconfig.MachinesPlatform, nil
+		isV2 := existingAppPlatform == appconfig.MachinesPlatform
+		switch {
+		case forceMachines && !isV2:
+			return false, fmt.Errorf("--force-machines won't work for existing app in nomad platform")
+		case forceNomad && isV2:
+			return false, fmt.Errorf("--force-nomad won't work for existing app in machines platform")
+		default:
+			return isV2, nil
+		}
 	}
+
 	// Otherwise looks for CLI flags and organization defaults
-	apiClient := client.FromContext(ctx).API()
-	if flag.GetBool(ctx, "force-machines") {
+	if forceMachines {
 		return true, nil
-	} else if flag.GetBool(ctx, "force-nomad") {
+	} else if forceNomad {
 		return false, nil
 	}
+
 	// Query the organization looking for default platform version to use
+	apiClient := client.FromContext(ctx).API()
 	orgDefault, err := apiClient.GetAppsV2DefaultOnForOrg(ctx, orgSlug)
 	if err != nil {
 		return false, err
