@@ -38,7 +38,6 @@ type MachineDeploymentArgs struct {
 	Strategy          string
 	EnvFromFlags      []string
 	PrimaryRegionFlag string
-	BuildOnly         bool
 	SkipHealthChecks  bool
 	RestartOnly       bool
 	WaitTimeout       time.Duration
