@@ -70,8 +70,8 @@ func TestFromDefinition(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, &Config{
-		KillSignal:  "SIGINT",
-		KillTimeout: 5,
+		KillSignal:  api.Pointer("SIGINT"),
+		KillTimeout: api.Pointer(5),
 		Experimental: &Experimental{
 			AutoRollback: true,
 		},

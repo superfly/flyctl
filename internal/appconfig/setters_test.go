@@ -251,6 +251,6 @@ func TestSetVolumes(t *testing.T) {
 func TestSetKillSignal(t *testing.T) {
 	cfg := NewConfig()
 	cfg.SetKillSignal("TERM")
-	assert.Equal(t, cfg.KillSignal, "TERM")
+	assert.Equal(t, cfg.KillSignal, api.Pointer("TERM"))
 	assert.Equal(t, cfg.RawDefinition, map[string]any{"kill_signal": "TERM"})
 }
