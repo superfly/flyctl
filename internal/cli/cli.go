@@ -30,6 +30,7 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	cmd.SetOut(io.Out)
 	cmd.SetErr(io.ErrOut)
 	cmd.SetArgs(args)
+	cmd.SilenceErrors = true
 
 	cs := io.ColorScheme()
 
@@ -39,17 +40,15 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	case errors.Is(err, context.Canceled), errors.Is(err, terminal.InterruptErr):
 		return 127
 	case errors.Is(err, context.DeadlineExceeded):
-		printError(io.ErrOut, cs, err)
-
+		printError(io.ErrOut, cs, cmd, err)
 		return 126
 	case isUnchangedError(err):
 		// This means the deployment was a noop, which is noteworthy but not something we should
 		// fail CI on. Print a warning and exit 0. Remove this once we're fully on Machines!
-		printError(io.ErrOut, cs, err)
+		printError(io.ErrOut, cs, cmd, err)
 		return 0
 	default:
-		printError(io.ErrOut, cs, err)
-
+		printError(io.ErrOut, cs, cmd, err)
 		return 1
 	}
 }
@@ -65,10 +64,10 @@ func isUnchangedError(err error) bool {
 	return false
 }
 
-func printError(w io.Writer, cs *iostreams.ColorScheme, err error) {
+func printError(w io.Writer, cs *iostreams.ColorScheme, cmd *cobra.Command, err error) {
 	var b bytes.Buffer
 
-	fmt.Fprintln(&b, cs.Red("Error"), err)
+	fmt.Fprintln(&b, cs.Red("Error:"), err)
 	fmt.Fprintln(&b)
 
 	description := flyerr.GetErrorDescription(err)
@@ -84,6 +83,8 @@ func printError(w io.Writer, cs *iostreams.ColorScheme, err error) {
 
 		fmt.Fprintf(&b, "\n%s", suggestion)
 	}
+
+	fmt.Fprintf(&b, "Run '%v --help' for usage.\n", cmd.CommandPath())
 	fmt.Fprintln(&b)
 
 	_, _ = b.WriteTo(w)
