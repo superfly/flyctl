@@ -1,14 +1,15 @@
 package helpers
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 
+	"github.com/jinzhu/copier"
 	"github.com/superfly/flyctl/internal/sentry"
 )
 
 // Clone clones *public fields* in a structure.
+// Private fields may or may not be copied, and private pointers may or may not point into the original object.
 //   - this will panic if the structure is not serializable
 //   - See CloneFallible
 func Clone[T any](v T) T {
@@ -23,20 +24,14 @@ func Clone[T any](v T) T {
 	return ret
 }
 
+// deepCopy is a little helper so that the implementation can be easily swapped out
+// If from is type T, into should be *T and non-nil
 func deepCopy(from any, into any) error {
-	// For some reason, this does not properly DeepCopy.
-	// The test TestClonePointer would fail using this library.
-	// return copier.CopyWithOption(into, from, copier.Option{IgnoreEmpty: true, DeepCopy: true})
-
-	// Unfortunately, this _does_ deep copy, but this only copies public fields.
-	jsonStr, err := json.Marshal(from)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(jsonStr, into)
+	return copier.CopyWithOption(into, from, copier.Option{IgnoreEmpty: true, DeepCopy: true})
 }
 
 // CloneFallible clones *public fields* in a structure.
+// Private fields may or may not be copied, and private pointers may or may not point into the original object.
 //   - returns an error if the structure is not serializable
 //   - See Clone
 func CloneFallible[T any](v T) (T, error) {
