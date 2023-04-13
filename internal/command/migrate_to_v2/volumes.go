@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/internal/appconfig"
 )
 
 func (m *v2PlatformMigrator) validateVolumes(ctx context.Context) error {
@@ -24,13 +26,29 @@ func (m *v2PlatformMigrator) validateVolumes(ctx context.Context) error {
 
 func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
 
+	// NOTE: appconfig.Volume doesn't support the rare "processes" key on mounts
+	//       this is extremely rarely used, and seemingly undocumented,
+	//       but because of this rollback stores a copy of the old appconfig now
+	//       and deploys the original config if something goes wrong.
+	//       That said, once an app gets moved to V2, that mapping gets wiped.
+	// (not an issue now, because we don't even support multiple volumes on v2,
+	//  but it's worth documenting here nonetheless)
+	m.appConfig.SetVolumes(lo.Map(m.appConfig.Volumes(), func(v appconfig.Volume, _ int) appconfig.Volume {
+		v.Source = nomadVolNameToV2VolName(v.Source)
+		return v
+	}))
+
 	for _, vol := range m.appFull.Volumes.Nodes {
 		// TODO(ali): Should we migrate _all_ volumes, or just the ones used currently?
 
 		newVol, err := m.apiClient.ForkVolume(ctx, api.ForkVolumeInput{
-			AppID:        m.appFull.ID,
-			VolumeID:     vol.ID,
-			MachinesOnly: true,
+			AppID:          m.appFull.ID,
+			SourceVolumeID: vol.ID,
+			MachinesOnly:   true,
+			// TODO(ali): Do we want to rename their volumes?
+			//            Currently, this adds a `_machines` suffix to the names
+			Name:   nomadVolNameToV2VolName(vol.Name),
+			LockID: m.appLock,
 		})
 		if err != nil {
 			return err

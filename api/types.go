@@ -420,9 +420,11 @@ type DeleteVolumePayload struct {
 }
 
 type ForkVolumeInput struct {
-	AppID        string `json:"appId"`
-	VolumeID     string `json:"sourceVolId"`
-	MachinesOnly bool   `json:"machinesOnly,omitempty"`
+	AppID          string `json:"appId"`
+	SourceVolumeID string `json:"sourceVolId"`
+	Name           string `json:"name,omitempty"`
+	MachinesOnly   bool   `json:"machinesOnly,omitempty"`
+	LockID         string `json:"lockId,omitempty"`
 }
 
 type ForkVolumePayload struct {

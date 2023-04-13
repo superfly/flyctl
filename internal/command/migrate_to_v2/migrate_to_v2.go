@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
@@ -152,6 +153,7 @@ type recoveryState struct {
 	nomadVolsReadOnly      bool
 	platformVersion        string
 	onlyPromptToConfigSave bool
+	originalConfig         *appconfig.Config
 }
 
 func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigrator, error) {
@@ -225,6 +227,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		isPostgres:              appCompact.IsPostgresApp(),
 		recovery: recoveryState{
 			platformVersion: appFull.PlatformVersion,
+			originalConfig:  helpers.Clone(appConfig),
 		},
 	}
 	if migrator.isPostgres {
@@ -318,6 +321,13 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 			return err
 		}
 	}
+
+	tb.Detailf("Deploying original nomad app config")
+	err := m.rollbackDeploy(ctx)
+	if err != nil {
+		return err
+	}
+
 	if m.recovery.scaledToZero && len(m.oldAllocs) > 0 {
 		// Restore nomad allocs
 		tb.Detail("Restoring nomad allocs to their previous state")
@@ -708,6 +718,15 @@ func (m *v2PlatformMigrator) deployApp(ctx context.Context) error {
 		sentry.CaptureExceptionWithAppInfo(err, "migrate-to-v2", m.appCompact)
 	}
 	return nil
+}
+
+// rollbackDeploy attempts to deploy the original app config, so that we don't end up
+// having nomad allocs trying (fruitlessly) to reference machines volumes
+func (m *v2PlatformMigrator) rollbackDeploy(ctx context.Context) error {
+	return deploy.DeployWithConfig(ctx, m.recovery.originalConfig, deploy.DeployWithConfigArgs{
+		ForceYes:   true,
+		ForceNomad: true,
+	})
 }
 
 func (m *v2PlatformMigrator) requiresDowntime() bool {
