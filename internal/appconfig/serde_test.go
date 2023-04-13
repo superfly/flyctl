@@ -283,8 +283,8 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		configFilePath:   "./testdata/full-reference.toml",
 		defaultGroupName: "app",
 		AppName:          "foo",
-		KillSignal:       "SIGTERM",
-		KillTimeout:      3,
+		KillSignal:       api.Pointer("SIGTERM"),
+		KillTimeout:      api.Pointer(3),
 		PrimaryRegion:    "sea",
 		Experimental: &Experimental{
 			Cmd:          []string{"cmd"},

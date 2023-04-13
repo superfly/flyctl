@@ -155,7 +155,9 @@ func (c *Config) v1SetDockerCommand(cmd string) {
 
 func (c *Config) SetKillSignal(signal string) {
 	c.RawDefinition["kill_signal"] = signal
-	c.KillSignal = signal
+	if signal != "" {
+		c.KillSignal = &signal
+	}
 }
 
 func (c *Config) SetDockerEntrypoint(entrypoint string) {

@@ -29,8 +29,8 @@ func NewConfig() *Config {
 // NOTE: If you any new setting here, please also add a value for it at testdata/rull-reference.toml
 type Config struct {
 	AppName       string                    `toml:"app,omitempty" json:"app,omitempty"`
-	KillSignal    string                    `toml:"kill_signal,omitempty" json:"kill_signal,omitempty"`
-	KillTimeout   int                       `toml:"kill_timeout,omitempty" json:"kill_timeout,omitempty"`
+	KillSignal    *string                   `toml:"kill_signal,omitempty" json:"kill_signal,omitempty"`
+	KillTimeout   *int                      `toml:"kill_timeout,omitempty" json:"kill_timeout,omitempty"`
 	PrimaryRegion string                    `toml:"primary_region,omitempty" json:"primary_region,omitempty"`
 	Experimental  *Experimental             `toml:"experimental,omitempty" json:"experimental,omitempty"`
 	Build         *Build                    `toml:"build,omitempty" json:"build,omitempty"`
