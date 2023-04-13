@@ -176,6 +176,7 @@ type Query struct {
 	CreateVolume CreateVolumePayload
 	DeleteVolume DeleteVolumePayload
 	ExtendVolume ExtendVolumePayload
+	ForkVolume   ForkVolumePayload
 
 	AddWireGuardPeer              CreatedWireGuardPeer
 	EstablishSSHKey               SSHCertificate
@@ -416,6 +417,17 @@ type DeleteVolumeInput struct {
 
 type DeleteVolumePayload struct {
 	App App
+}
+
+type ForkVolumeInput struct {
+	AppID        string `json:"appId"`
+	VolumeID     string `json:"sourceVolId"`
+	MachinesOnly bool   `json:"machinesOnly,omitempty"`
+}
+
+type ForkVolumePayload struct {
+	App    App
+	Volume Volume
 }
 
 type AppCertsCompact struct {

@@ -35,6 +35,9 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+// TODO(ali): Remove everything mentioning downtime if it turns out
+//            that we don't need it.
+
 func New() *cobra.Command {
 	return newMigrateToV2()
 }
@@ -708,7 +711,7 @@ func (m *v2PlatformMigrator) deployApp(ctx context.Context) error {
 }
 
 func (m *v2PlatformMigrator) requiresDowntime() bool {
-	return m.usesForkedVolumes
+	return false // m.usesForkedVolumes TODO(ali): Cleanup
 }
 
 func (m *v2PlatformMigrator) determinePrimaryRegion(ctx context.Context) error {
