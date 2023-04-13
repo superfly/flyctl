@@ -80,6 +80,9 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 			// As we can't change the volume for a running machine, the only
 			// way is to destroy the current machine and launch a new one with the new volume attached
 			terminal.Warnf("Machine %s has volume '%s' attached but fly.toml have a different name: '%s'\n", mID, oMounts[0].Name, mMounts[0].Name)
+			if len(md.volumes) == 0 {
+				return nil, fmt.Errorf("machine in group '%s' needs an unattached volume named '%s'", processGroup, mMounts[0].Name)
+			}
 			mMounts[0].Volume = md.volumes[0].ID
 			mID = "" // Forces machine replacement
 		case mMounts[0].Path != oMounts[0].Path:
@@ -98,8 +101,11 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 		// Replace the machine because [mounts] section was added to fly.toml
 		// and it is not possible to attach a volume to an existing machine.
 		// The volume could be in a different zone than the machine.
-		mID = "" // Forces machine replacement
+		if len(md.volumes) == 0 {
+			return nil, fmt.Errorf("machine in group '%s' needs an unattached volume named '%s'", processGroup, mMounts[0].Name)
+		}
 		mMounts[0].Volume = md.volumes[0].ID
+		mID = "" // Forces machine replacement
 	}
 
 	return &api.LaunchMachineInput{
