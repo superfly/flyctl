@@ -78,11 +78,8 @@ func run(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 	client := client.FromContext(ctx).API()
 	workingDir := flag.GetString(ctx, "path")
-	existingConfig := appconfig.ConfigFromContext(ctx)
 	generateName := flag.GetBool(ctx, "generate-name")
-	copyConfig := flag.GetBool(ctx, "copy-config")
 	name := strings.TrimSpace(flag.GetString(ctx, "name"))
-	appConfig := appconfig.NewConfig()
 	launchIntoExistingApp := false
 
 	deployArgs := deploy.DeployWithConfigArgs{
@@ -95,29 +92,13 @@ func run(ctx context.Context) (err error) {
 	if absDir, err := filepath.Abs(workingDir); err == nil {
 		workingDir = absDir
 	}
-
 	configFilePath := filepath.Join(workingDir, appconfig.DefaultConfigFileName)
-
-	if existingConfig != nil {
-		if existingConfig.AppName != "" {
-			fmt.Fprintln(io.Out, "An existing fly.toml file was found for app", existingConfig.AppName)
-		} else {
-			fmt.Fprintln(io.Out, "An existing fly.toml file was found")
-		}
-
-		if !copyConfig {
-			copyConfig, err = prompt.Confirm(ctx, "Would you like to copy its configuration to the new app?")
-			if err != nil {
-				return err
-			}
-		}
-
-		if copyConfig {
-			appConfig = existingConfig
-		}
-	}
-
 	fmt.Fprintln(io.Out, "Creating app in", workingDir)
+
+	appConfig, copyConfig, err := determineBaseAppConfig(ctx)
+	if err != nil {
+		return err
+	}
 
 	srcInfo := new(scanner.SourceInfo)
 	config := &scanner.ScannerConfig{
@@ -476,4 +457,34 @@ func promptForAppName(ctx context.Context, cfg *appconfig.Config) (name string, 
 	}
 
 	return
+}
+
+// determineBaseAppConfig looks for existing app config, ask to reuse or returns an empty config
+func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error) {
+	io := iostreams.FromContext(ctx)
+
+	existingConfig := appconfig.ConfigFromContext(ctx)
+	if existingConfig != nil {
+
+		if existingConfig.AppName != "" {
+			fmt.Fprintln(io.Out, "An existing fly.toml file was found for app", existingConfig.AppName)
+		} else {
+			fmt.Fprintln(io.Out, "An existing fly.toml file was found")
+		}
+
+		copyConfig := flag.GetBool(ctx, "copy-config")
+		if !copyConfig && !flag.IsSpecified(ctx, "copy-config") {
+			var err error
+			copyConfig, err = prompt.Confirm(ctx, "Would you like to copy its configuration to the new app?")
+			if err != nil {
+				return nil, false, err
+			}
+		}
+
+		if copyConfig {
+			return existingConfig, true, nil
+		}
+	}
+
+	return appconfig.NewConfig(), false, nil
 }
