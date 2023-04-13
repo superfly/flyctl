@@ -39,8 +39,8 @@ archives:
   - id: windows
     name_template: >-
       {{ .ProjectName }}_{{ .Version}}_
-      {{- if eq .OS "windows" }}Windows
-      {{- else }}{{ .OS }}{{- end }}
+      {{- if eq .Os "windows" }}Windows
+      {{- else }}{{ .Os }}{{- end }}
       {{- if eq .Arch "amd64" }}x86_64
       {{- else }}{{ .Arch }}{{- end }}
     builds:
@@ -53,9 +53,9 @@ archives:
   - id: default
     name_template: >-
       {{ .ProjectName }}_{{ .Version}}_
-      {{- if eq .OS "darwin" }}macOS
-      {{- else if eq .OS "linux" }}Linux
-      {{- else }}{{ .OS }}{{- end }}
+      {{- if eq .Os "darwin" }}macOS
+      {{- else if eq .Os "linux" }}Linux
+      {{- else }}{{ .Os }}{{- end }}
       {{- if eq .Arch "amd64" }}x86_64
       {{- else }}{{ .Arch }}{{- end }}
     builds:
