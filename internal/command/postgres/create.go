@@ -173,6 +173,14 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 		}
 		config = &postgresConfigurations(input.Manager)[selected]
 
+		if input.Manager == flypg.ReplicationManager && config.VMSize == "shared-cpu-1x" {
+			confirm, err := prompt.Confirm(ctx, "Scale single node pg to zero after one hour?")
+			if err != nil {
+				return err
+			}
+			input.ScaleToZero = confirm
+		}
+
 		if config.VMSize == "" {
 			// User has opted into choosing a custom configuration.
 			customConfig = true

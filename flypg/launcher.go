@@ -51,6 +51,7 @@ type CreateClusterInput struct {
 	SnapshotID         *string
 	Manager            string
 	Autostart          bool
+	ScaleToZero        bool
 }
 
 func NewLauncher(client *api.Client) *Launcher {
@@ -266,6 +267,11 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 		"PRIMARY_REGION": config.Region,
 	}
 
+	if config.ScaleToZero {
+		//TODO make this configurable
+		machineConfig.Env["FLY_SCALE_TO_ZERO"] = "1h"
+	}
+
 	// Set VM resources
 	machineConfig.Guest = &api.MachineGuest{
 		CPUKind:  config.VMSize.CPUClass,
@@ -312,6 +318,11 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 
 	// Restart policy
 	machineConfig.Restart.Policy = api.MachineRestartPolicyAlways
+
+	if config.ScaleToZero {
+		machineConfig.Restart.Policy = api.MachineRestartPolicyOnFailure
+		machineConfig.Restart.MaxRetries = 50
+	}
 
 	return &machineConfig
 }
