@@ -312,7 +312,7 @@ func requireAppName(cmd *Command) Initializer {
 			if ctx.AppConfig.AppName != "" && ctx.AppConfig.AppName != ctx.AppName {
 				terminal.Warnf("app flag '%s' does not match app name in config file '%s'\n", ctx.AppName, ctx.AppConfig.AppName)
 
-				if !confirm(fmt.Sprintf("Continue using '%s'", ctx.AppName)) {
+				if !ctx.Config.GetBool("yes") && !confirm(fmt.Sprintf("Continue using '%s'", ctx.AppName)) {
 					return flyerr.ErrAbort
 				}
 			}

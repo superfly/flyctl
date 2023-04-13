@@ -26,6 +26,7 @@ func newRegionsCommand(client *client.Client) *Command {
 		Description: "The process group to add the region to",
 		Default:     "",
 	})
+	addCmd.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "accept all confirmations"})
 
 	removeStrings := docstrings.Get("regions.remove")
 	removeCmd := BuildCommandKS(cmd, runRegionsRemove, removeStrings, client, requireSession, requireAppName)
@@ -35,6 +36,7 @@ func newRegionsCommand(client *client.Client) *Command {
 		Description: "The process group to remove the region from",
 		Default:     "",
 	})
+	removeCmd.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "accept all confirmations"})
 
 	setStrings := docstrings.Get("regions.set")
 	setCmd := BuildCommandKS(cmd, runRegionsSet, setStrings, client, requireSession, requireAppName)
@@ -44,10 +46,12 @@ func newRegionsCommand(client *client.Client) *Command {
 		Description: "The process group to set regions for",
 		Default:     "",
 	})
+	setCmd.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "accept all confirmations"})
 
 	setBackupStrings := docstrings.Get("regions.backup")
 	setBackupCmd := BuildCommand(cmd, runBackupRegionsSet, setBackupStrings.Usage, setBackupStrings.Short, setBackupStrings.Long, client, requireSession, requireAppName)
 	setBackupCmd.Args = cobra.MinimumNArgs(1)
+	setBackupCmd.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "accept all confirmations"})
 
 	listStrings := docstrings.Get("regions.list")
 	BuildCommand(cmd, runRegionsList, listStrings.Usage, listStrings.Short, listStrings.Long, client, requireSession, requireAppName)
