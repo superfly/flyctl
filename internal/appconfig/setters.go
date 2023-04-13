@@ -16,7 +16,10 @@ import (
 
 func (c *Config) SetInternalPort(port int) {
 	c.v1SetInternalPort(port)
-	if len(c.Services) > 0 {
+	switch {
+	case c.HttpService != nil:
+		c.HttpService.InternalPort = port
+	case len(c.Services) > 0:
 		c.Services[0].InternalPort = port
 	}
 }
@@ -32,7 +35,23 @@ func (c *Config) v1SetInternalPort(port int) {
 
 func (c *Config) SetHttpCheck(path string) {
 	c.v1SetHttpCheck(path)
-	if len(c.Services) > 0 {
+	switch {
+	case c.HttpService != nil:
+		if c.Checks == nil {
+			c.Checks = make(map[string]*ToplevelCheck)
+		}
+		c.Checks["http-check"] = &ToplevelCheck{
+			Port:              api.Pointer(c.HttpService.InternalPort),
+			Type:              api.Pointer("http"),
+			HTTPMethod:        api.StringPointer("GET"),
+			HTTPPath:          api.StringPointer(path),
+			HTTPProtocol:      api.StringPointer("http"),
+			HTTPTLSSkipVerify: api.BoolPointer(false),
+			Interval:          &api.Duration{Duration: 10 * time.Second},
+			Timeout:           &api.Duration{Duration: 2 * time.Second},
+			GracePeriod:       &api.Duration{Duration: 5 * time.Second},
+		}
+	case len(c.Services) > 0:
 		service := &c.Services[0]
 		service.HTTPChecks = append(service.HTTPChecks, &ServiceHTTPCheck{
 			HTTPMethod:        api.StringPointer("GET"),
@@ -67,14 +86,17 @@ func (c *Config) v1SetHttpCheck(path string) {
 
 func (c *Config) SetConcurrency(soft int, hard int) {
 	c.v1SetConcurrency(soft, hard)
-	if len(c.Services) > 0 {
+	concurrency := &api.MachineServiceConcurrency{
+		Type:      "connections",
+		HardLimit: hard,
+		SoftLimit: soft,
+	}
+	switch {
+	case c.HttpService != nil:
+		c.HttpService.Concurrency = concurrency
+	case len(c.Services) > 0:
 		service := &c.Services[0]
-		if service.Concurrency == nil {
-			service.Concurrency = &api.MachineServiceConcurrency{}
-		}
-		service.Concurrency.Type = "connections"
-		service.Concurrency.HardLimit = hard
-		service.Concurrency.SoftLimit = soft
+		service.Concurrency = concurrency
 	}
 }
 

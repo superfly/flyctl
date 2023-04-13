@@ -219,6 +219,8 @@ func run(ctx context.Context) (err error) {
 	}
 
 	var org *api.Organization
+	existingAppPlatform := ""
+
 	if appConfig.AppName != "" {
 		exists, app, err := appExists(ctx, appConfig)
 		if err != nil {
@@ -235,20 +237,18 @@ func run(ctx context.Context) (err error) {
 				return nil
 			}
 
+			existingAppPlatform = app.PlatformVersion
 			org = &api.Organization{
 				ID:       app.Organization.ID,
 				Name:     app.Organization.Name,
 				Slug:     app.Organization.Slug,
 				PaidPlan: app.Organization.PaidPlan,
 			}
-
 		}
-
 	}
 
-	if !launchIntoExistingApp {
-		// Prompt for an org
-		// TODO: determine if eager remote builder is still required here
+	// Prompt for an org
+	if org == nil {
 		org, err = prompt.Org(ctx)
 		if err != nil {
 			return
@@ -257,6 +257,7 @@ func run(ctx context.Context) (err error) {
 
 	// If we potentially are deploying, launch a remote builder to prepare for deployment.
 	if !flag.GetBool(ctx, "no-deploy") {
+		// TODO: determine if eager remote builder is still required here
 		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, client, org.Slug)
 	}
 
@@ -268,12 +269,12 @@ func run(ctx context.Context) (err error) {
 	}
 	appConfig.PrimaryRegion = region.Code
 
-	shouldUseMachines, err := shouldAppUseMachinesPlatform(ctx, org.Slug)
+	shouldUseMachines, err := shouldAppUseMachinesPlatform(ctx, org.Slug, existingAppPlatform)
 	if err != nil {
 		return err
 	}
 
-	if shouldUseMachines && copyConfig {
+	if copyConfig && shouldUseMachines {
 		// Check imported fly.toml is a valid V2 config before creating the app
 		if err := appConfig.SetMachinesPlatform(); err != nil {
 			return fmt.Errorf("Can not use configuration for Apps V2, check fly.toml: %w", err)
@@ -293,7 +294,20 @@ func run(ctx context.Context) (err error) {
 			return err
 		}
 
-		if !copyConfig {
+		switch {
+		case copyConfig:
+			appConfig.AppName = createdApp.Name
+		case shouldUseMachines:
+			newCfg := appconfig.NewConfig()
+			newCfg.AppName = createdApp.Name
+			newCfg.Build = appConfig.Build
+			newCfg.PrimaryRegion = appConfig.PrimaryRegion
+			newCfg.HttpService = &appconfig.HTTPService{InternalPort: 8080, ForceHttps: true}
+			appConfig = newCfg
+			if err := appConfig.SetMachinesPlatform(); err != nil {
+				return err
+			}
+		default:
 			// Use the default configuration template suggested by Web
 			newCfg, err := appconfig.FromDefinition(&createdApp.Config.Definition)
 			if err != nil {
@@ -303,8 +317,9 @@ func run(ctx context.Context) (err error) {
 			newCfg.Build = appConfig.Build
 			newCfg.PrimaryRegion = appConfig.PrimaryRegion
 			appConfig = newCfg
-		} else {
-			appConfig.AppName = createdApp.Name
+			if err := appConfig.SetNomadPlatform(); err != nil {
+				return err
+			}
 		}
 		fmt.Fprintf(io.Out, "Created app '%s' in organization '%s'\n", appConfig.AppName, org.Slug)
 	}
@@ -348,11 +363,6 @@ func run(ctx context.Context) (err error) {
 	// Override internal port if requested using --internal-port flag
 	if n := flag.GetInt(ctx, "internal-port"); n > 0 {
 		appConfig.SetInternalPort(n)
-	}
-
-	// remove auto-rollback from machine fly.tomls
-	if shouldUseMachines {
-		appConfig.Experimental = nil
 	}
 
 	// Finally write application configuration to fly.toml
@@ -406,13 +416,19 @@ func run(ctx context.Context) (err error) {
 	return nil
 }
 
-func shouldAppUseMachinesPlatform(ctx context.Context, orgSlug string) (bool, error) {
+func shouldAppUseMachinesPlatform(ctx context.Context, orgSlug, existingAppPlatform string) (bool, error) {
+	// Keep if we are reusing an app and it has platform version set
+	if existingAppPlatform != "" {
+		return existingAppPlatform == appconfig.MachinesPlatform, nil
+	}
+	// Otherwise looks for CLI flags and organization defaults
 	apiClient := client.FromContext(ctx).API()
 	if flag.GetBool(ctx, "force-machines") {
 		return true, nil
 	} else if flag.GetBool(ctx, "force-nomad") {
 		return false, nil
 	}
+	// Query the organization looking for default platform version to use
 	orgDefault, err := apiClient.GetAppsV2DefaultOnForOrg(ctx, orgSlug)
 	if err != nil {
 		return false, err

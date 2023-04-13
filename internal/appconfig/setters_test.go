@@ -58,6 +58,39 @@ func TestSettersWithService(t *testing.T) {
 	})
 }
 
+func TestSettersWithHTTPService(t *testing.T) {
+	cfg, err := LoadConfig("./testdata/setters-httpservice.toml")
+	require.NoError(t, err)
+
+	cfg.SetInternalPort(1234)
+	cfg.SetHttpCheck("/status")
+	cfg.SetConcurrency(12, 34)
+
+	assert.Empty(t, cfg.Services)
+	assert.Equal(t, cfg.HttpService, &HTTPService{
+		InternalPort: 1234,
+		Concurrency: &api.MachineServiceConcurrency{
+			Type:      "connections",
+			HardLimit: 34,
+			SoftLimit: 12,
+		},
+	})
+	assert.Equal(t, cfg.Checks, map[string]*ToplevelCheck{
+		"http-check": {
+			Port:              api.Pointer(1234),
+			Type:              api.Pointer("http"),
+			Interval:          mustParseDuration("10s"),
+			Timeout:           mustParseDuration("2s"),
+			GracePeriod:       mustParseDuration("5s"),
+			HTTPMethod:        api.Pointer("GET"),
+			HTTPPath:          api.Pointer("/status"),
+			HTTPProtocol:      api.Pointer("http"),
+			HTTPTLSSkipVerify: api.Pointer(false),
+		},
+	})
+	// No need to test RawDefinition because http_service is machines only
+}
+
 func TestSettersWithouServices(t *testing.T) {
 	cfg := NewConfig()
 	cfg.SetInternalPort(1234)
