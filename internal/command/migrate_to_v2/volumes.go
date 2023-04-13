@@ -30,7 +30,14 @@ func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
 	for _, vol := range m.appFull.Volumes.Nodes {
 		// TODO(ali): Should we migrate _all_ volumes, or just the ones used currently?
 
-		// TODO(ali): Fork vol, machines_only=true
+		newVol, err := m.apiClient.ForkVolume(ctx, api.ForkVolumeInput{
+			AppID:        m.appFull.ID,
+			VolumeID:     vol.ID,
+			MachinesOnly: true,
+		})
+		if err != nil {
+			return err
+		}
 
 		allocId := ""
 		if alloc := vol.AttachedAllocation; alloc != nil {
@@ -41,7 +48,7 @@ func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
 			return fmt.Errorf("volume %s[%s] is mounted on alloc %s, but has no mountpoint", vol.Name, vol.ID, allocId)
 		}
 		m.createdVolumes = append(m.createdVolumes, &NewVolume{
-			vol:             nil, // TODO
+			vol:             newVol,
 			previousAllocId: allocId,
 			mountPoint:      path,
 		})
@@ -65,10 +72,12 @@ func (m *v2PlatformMigrator) nomadVolPath(v *api.Volume) string {
 
 func (m *v2PlatformMigrator) markVolumesAsReadOnly(ctx context.Context) error {
 	m.recovery.nomadVolsReadOnly = true
+	panic("stub")
 	return nil
 }
 
 func (m *v2PlatformMigrator) rollbackVolumesReadOnly(ctx context.Context) error {
+	panic("stub")
 	return nil
 }
 
