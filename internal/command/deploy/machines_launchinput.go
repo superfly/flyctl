@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/samber/lo"
@@ -32,6 +33,9 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *ap
 	md.setMachineReleaseData(mConfig)
 
 	if len(mConfig.Mounts) != 0 {
+		if len(md.volumes) == 0 {
+			return nil, fmt.Errorf("New machine in group '%s' needs an unattached volume named '%s'", processGroup, mConfig.Mounts[0].Name)
+		}
 		mConfig.Mounts[0].Volume = md.volumes[0].ID
 	}
 
