@@ -87,7 +87,7 @@ func (m *v2PlatformMigrator) nomadVolPath(v *api.Volume) string {
 	// so we have to account for that here
 	name := nomadVolNameToV2VolName(v.Name)
 
-	// TODO(ali): Do process group-specific volumes change the logic here?
+	// TODO(ali): Process group-specific volumes likely change the logic here
 	for _, mount := range m.appConfig.Volumes() {
 		if mount.Source == name {
 			return mount.Destination

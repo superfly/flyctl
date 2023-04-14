@@ -71,7 +71,7 @@ func (m *v2PlatformMigrator) createMachines(ctx context.Context) error {
 			return v.previousAllocId == machineInput.Config.Metadata[api.MachineConfigMetadataKeyFlyPreviousAlloc]
 		}); ok {
 			machineInput.Config.Mounts = []api.MachineMount{{
-				Name:   nv.vol.Name, // TODO: Ask @dov if changing this to use volume name instead of pg_data_machines is OK
+				Name:   nv.vol.Name,
 				Path:   nv.mountPoint,
 				Volume: nv.vol.ID,
 			}}
