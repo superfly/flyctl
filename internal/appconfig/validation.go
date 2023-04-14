@@ -95,6 +95,7 @@ func (cfg *Config) ValidateForMachinesPlatform(ctx context.Context) (err error, 
 		cfg.validateServicesSection,
 		cfg.validateProcessesSection,
 		cfg.validateMachineConversion,
+		cfg.validateConsoleCommand,
 	}
 
 	for _, vFunc := range validators {
@@ -216,6 +217,14 @@ func (cfg *Config) validateMachineConversion() (extraInfo string, err error) {
 			extraInfo += fmt.Sprintf("Converting to machine in process group '%s' will fail because of: %s", name, vErr)
 			err = ValidationError
 		}
+	}
+	return
+}
+
+func (cfg *Config) validateConsoleCommand() (extraInfo string, err error) {
+	if _, vErr := shlex.Split(cfg.ConsoleCommand); vErr != nil {
+		extraInfo += fmt.Sprintf("Can't shell split console command: '%s'\n", cfg.ConsoleCommand)
+		err = ValidationError
 	}
 	return
 }
