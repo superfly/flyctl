@@ -7,6 +7,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -72,6 +73,7 @@ func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
 			previousAllocId: allocId,
 			mountPoint:      path,
 		})
+		m.replacedVolumes[vol.Name]++
 	}
 	return nil
 }
@@ -92,6 +94,20 @@ func (m *v2PlatformMigrator) nomadVolPath(v *api.Volume) string {
 		}
 	}
 	return ""
+}
+
+func (m *v2PlatformMigrator) printReplacedVolumes() {
+	if len(m.replacedVolumes) == 0 {
+		return
+	}
+	fmt.Fprintf(m.io.Out, "The following volumes have been migrated to new volumes, and are no longer needed:\n")
+	keys := lo.Keys(m.replacedVolumes)
+	slices.Sort(keys)
+	for _, name := range keys {
+		num := m.replacedVolumes[name]
+		s := lo.Ternary(num == 1, "", "s")
+		fmt.Fprintf(m.io.Out, " * %d volume%s named '%s' [replaced by '%s']\n", num, s, name, nomadVolNameToV2VolName(name))
+	}
 }
 
 func nomadVolNameToV2VolName(name string) string {
