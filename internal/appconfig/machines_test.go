@@ -229,4 +229,10 @@ func TestToMachineConfig_defaultV2flytoml(t *testing.T) {
 	got, err := cfg.ToMachineConfig("", nil)
 	assert.NoError(t, err)
 	assert.Equal(t, want, got)
+
+	// A toplevel check without internal port must fail if there is no http service to relate to
+	cfg.HTTPService = nil
+	got, err = cfg.ToMachineConfig("", nil)
+	assert.Nil(t, got)
+	assert.ErrorContains(t, err, "has no internal port set")
 }

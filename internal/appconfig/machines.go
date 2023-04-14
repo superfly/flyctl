@@ -94,7 +94,7 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 			if machineCheck.Port == nil {
 				if c.HTTPService == nil {
 					return nil, fmt.Errorf(
-						"Check '%s' for group '%s' has not internal port set and there is no http_service to default to",
+						"Check '%s' for group '%s' has no internal port set and there is no http_service to refer to",
 						processGroup, checkName,
 					)
 				}
