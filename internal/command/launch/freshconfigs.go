@@ -22,7 +22,7 @@ func freshV2Config(appName string, srcCfg *appconfig.Config) (*appconfig.Config,
 	}
 	newCfg.Checks = map[string]*appconfig.ToplevelCheck{
 		"alive": {
-			Type:        "tcp",
+			Type:        api.Pointer("tcp"),
 			Timeout:     v2CheckTimeout,
 			Interval:    v2CheckInterval,
 			GracePeriod: v2GracePeriod,

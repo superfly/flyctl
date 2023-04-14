@@ -1,6 +1,8 @@
 package appconfig
 
 import (
+	"fmt"
+
 	"github.com/google/shlex"
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
@@ -88,6 +90,15 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 			machineCheck, err := check.toMachineCheck()
 			if err != nil {
 				return nil, err
+			}
+			if machineCheck.Port == nil {
+				if c.HTTPService == nil {
+					return nil, fmt.Errorf(
+						"Check '%s' for group '%s' has not internal port set and there is no http_service to default to",
+						processGroup, checkName,
+					)
+				}
+				machineCheck.Port = &c.HTTPService.InternalPort
 			}
 			mConfig.Checks[checkName] = *machineCheck
 		}
