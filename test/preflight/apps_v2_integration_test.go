@@ -110,7 +110,7 @@ ENV BUILT_BY_DOCKERFILE=true
 		f.Fatalf("failed to write dockerfile at %s error: %v", dockerfilePath, err)
 	}
 
-	f.Fly("deploy")
+	f.Fly("deploy --detach")
 }
 
 func TestAppsV2ConfigChanges(t *testing.T) {
@@ -121,7 +121,7 @@ func TestAppsV2ConfigChanges(t *testing.T) {
 		configFilePath = filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
 	)
 
-	f.Fly("launch --org %s --name %s --region %s --image nginx --force-machines --internal-port 80 --now --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --org %s --name %s --region %s --image nginx --force-machines --internal-port 80 --detach --now --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
 
 	f.Fly("config save -a %s -y", appName)
 	configFileBytes, err := os.ReadFile(configFilePath)
@@ -135,7 +135,7 @@ func TestAppsV2ConfigChanges(t *testing.T) {
 		f.Fatalf("error trying to write to fly.toml: %s", err)
 	}
 
-	f.Fly("deploy")
+	f.Fly("deploy --detach")
 
 	result := f.Fly("config show -a %s", appName)
 	require.Contains(f, result.StdOut().String(), `"internal_port": 80`)
@@ -378,7 +378,7 @@ func TestAppsV2Config_ParseExperimental(t *testing.T) {
 		f.Fatalf("Failed to write config: %s", err)
 	}
 
-	result := f.Fly("launch --force-machines --name %s --region ord --copy-config --org %s", appName, f.OrgSlug())
+	result := f.Fly("launch --no-deploy --force-machines --name %s --region ord --copy-config --org %s", appName, f.OrgSlug())
 	stdout := result.StdOut().String()
 	require.Contains(f, stdout, "Created app")
 	require.Contains(f, stdout, "Wrote config file fly.toml")
@@ -414,7 +414,7 @@ func TestAppsV2Config_ProcessGroups(t *testing.T) {
 		if err != nil {
 			f.Fatalf("error trying to write %s: %v", configFilePath, err)
 		}
-		cmd := f.Fly("deploy --now --image nginx")
+		cmd := f.Fly("deploy --detach --now --image nginx")
 		cmd.AssertSuccessfulExit()
 		return cmd
 	}
@@ -626,7 +626,7 @@ func TestAppsV2MigrateToV2_Volumes(t *testing.T) {
 		require.Contains(t, outStr, successStr)
 	}
 
-	f.Fly("deploy --now")
+	f.Fly("deploy --detach --now")
 	f.Fly("ssh console -C \"bash -c 'echo %s > /vol/flag.txt && sync'\"", successStr)
 
 	assertHasFlag()
