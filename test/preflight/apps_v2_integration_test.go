@@ -632,7 +632,7 @@ func TestAppsV2MigrateToV2_Volumes(t *testing.T) {
 
 	assertHasFlag()
 
-	time.Sleep(3 * time.Second)
+	time.Sleep(6 * time.Second)
 	f.Fly("migrate-to-v2 --primary-region %s --yes --experimental-volume-migration", f.PrimaryRegion())
 	result := f.Fly("status --json")
 
