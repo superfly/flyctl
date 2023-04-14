@@ -138,6 +138,7 @@ type v2PlatformMigrator struct {
 	recovery                recoveryState
 	usesForkedVolumes       bool
 	createdVolumes          []*NewVolume
+	replacedVolumes         map[string]int
 	isPostgres              bool
 	pgConsulUrl             string
 }
@@ -219,6 +220,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		oldAllocs:               allocs,
 		machineGuest:            machineGuest,
 		isPostgres:              appCompact.IsPostgresApp(),
+		replacedVolumes:         map[string]int{},
 		recovery: recoveryState{
 			platformVersion: appFull.PlatformVersion,
 		},
@@ -557,6 +559,8 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	}
 
 	tb.Done("Done")
+	m.printReplacedVolumes()
+
 	return nil
 }
 
@@ -758,11 +762,14 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 
 	if m.requiresDowntime() {
 		printAllocs("")
-		fmt.Fprintf(m.io.Out, "   * NOTE: This will cause a short downtime.\n")
+		colorize := m.io.ColorScheme()
+		fmt.Fprintf(m.io.Out, "   * %s: Because your app uses volumes, there will be a short downtime during migration while your machines start up.\n", colorize.Bold(colorize.Yellow("NOTE")))
 	}
 	if m.usesForkedVolumes {
 		fmt.Fprintf(m.io.Out, " * Create clones of each volume in use, for the new machines\n")
 		fmt.Fprintf(m.io.Out, "   * These cloned volumes will have the suffix '%s' appended to their names\n", forkedVolSuffix)
+		fmt.Fprintf(m.io.Out, "   * Please note that your old volumes will not be removed.\n")
+		fmt.Fprintf(m.io.Out, "     (you can do this manually, after making sure the migration was a success)\n")
 	}
 
 	fmt.Fprintf(m.io.Out, " * Create machines, copying the configuration of each existing VM\n")
