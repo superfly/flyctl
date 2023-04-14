@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/flaps"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/exp/slices"
 )
 
@@ -21,10 +22,30 @@ type ProcessGroupsDiff struct {
 
 func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	ctx = flaps.NewContext(ctx, md.flapsClient)
-	if md.restartOnly {
-		return md.restartMachinesApp(ctx)
+
+	if err := md.updateReleaseInBackend(ctx, "running"); err != nil {
+		return fmt.Errorf("failed to set release status to 'running': %w", err)
 	}
-	return md.deployMachinesApp(ctx)
+
+	var err error
+	if md.restartOnly {
+		err = md.restartMachinesApp(ctx)
+	} else {
+		err = md.deployMachinesApp(ctx)
+	}
+	status := "complete"
+	if err != nil {
+		status = "failed"
+	}
+
+	if updateErr := md.updateReleaseInBackend(ctx, status); updateErr != nil {
+		if err == nil {
+			err = fmt.Errorf("failed to set final release status: %w", updateErr)
+		} else {
+			terminal.Warnf("failed to set final release status after deployment failure: %v\n", updateErr)
+		}
+	}
+	return err
 }
 
 // restartMachinesApp only restarts existing machines but updates their release metadata
