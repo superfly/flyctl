@@ -53,3 +53,23 @@ func (d *Duration) ParseDuration(v any) error {
 	}
 	return nil
 }
+
+// Compile parses a duration and returns, if successful, a Duration object.
+func ParseDuration(v any) (*Duration, error) {
+	d := &Duration{}
+	if err := d.ParseDuration(v); err != nil {
+		return nil, err
+	}
+	return d, nil
+}
+
+// MustParseDuration is like ParseDuration but panics if the expression cannot be parsed.
+// It simplifies safe initialization of global variables holding durations
+// Same idea than regexp.MustCompile
+func MustParseDuration(v any) *Duration {
+	d, err := ParseDuration(v)
+	if err != nil {
+		panic(err)
+	}
+	return d
+}

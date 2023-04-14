@@ -33,8 +33,8 @@ func TestToMachineConfig(t *testing.T) {
 			"status": {
 				Port:     api.Pointer(8080),
 				Type:     api.Pointer("http"),
-				Interval: mustParseDuration("10s"),
-				Timeout:  mustParseDuration("1s"),
+				Interval: api.MustParseDuration("10s"),
+				Timeout:  api.MustParseDuration("1s"),
 				HTTPPath: api.Pointer("/status"),
 			},
 		},
@@ -94,8 +94,8 @@ func TestToMachineConfig_nullifyManagedFields(t *testing.T) {
 			"status": {
 				Port:     api.Pointer(8080),
 				Type:     api.Pointer("http"),
-				Interval: mustParseDuration("10s"),
-				Timeout:  mustParseDuration("1s"),
+				Interval: api.MustParseDuration("10s"),
+				Timeout:  api.MustParseDuration("1s"),
 				HTTPPath: api.Pointer("/status"),
 			},
 		},

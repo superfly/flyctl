@@ -191,22 +191,22 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 				},
 				TCPChecks: []*ServiceTCPCheck{
 					{
-						Interval: mustParseDuration("10s"),
-						Timeout:  mustParseDuration("2s"),
+						Interval: api.MustParseDuration("10s"),
+						Timeout:  api.MustParseDuration("2s"),
 					},
 					{
-						Interval: mustParseDuration("20s"),
-						Timeout:  mustParseDuration("3s"),
+						Interval: api.MustParseDuration("20s"),
+						Timeout:  api.MustParseDuration("3s"),
 					},
 				},
 				HTTPChecks: []*ServiceHTTPCheck{
 					{
-						Interval: mustParseDuration("30s"),
-						Timeout:  mustParseDuration("4s"),
+						Interval: api.MustParseDuration("30s"),
+						Timeout:  api.MustParseDuration("4s"),
 					},
 					{
-						Interval: mustParseDuration("20s"),
-						Timeout:  mustParseDuration("3s"),
+						Interval: api.MustParseDuration("20s"),
+						Timeout:  api.MustParseDuration("3s"),
 					},
 				},
 			},
@@ -359,9 +359,9 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			"status": {
 				Port:              api.Pointer(2020),
 				Type:              api.Pointer("http"),
-				Interval:          mustParseDuration("10s"),
-				Timeout:           mustParseDuration("2s"),
-				GracePeriod:       mustParseDuration("27s"),
+				Interval:          api.MustParseDuration("10s"),
+				Timeout:           api.MustParseDuration("2s"),
+				GracePeriod:       api.MustParseDuration("27s"),
 				HTTPMethod:        api.Pointer("GET"),
 				HTTPPath:          api.Pointer("/status"),
 				HTTPProtocol:      api.Pointer("https"),
@@ -397,18 +397,18 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 
 				TCPChecks: []*ServiceTCPCheck{
 					{
-						Interval:     mustParseDuration("21s"),
-						Timeout:      mustParseDuration("4s"),
-						GracePeriod:  mustParseDuration("1s"),
+						Interval:     api.MustParseDuration("21s"),
+						Timeout:      api.MustParseDuration("4s"),
+						GracePeriod:  api.MustParseDuration("1s"),
 						RestartLimit: 3,
 					},
 				},
 
 				HTTPChecks: []*ServiceHTTPCheck{
 					{
-						Interval:          mustParseDuration("81s"),
-						Timeout:           mustParseDuration("7s"),
-						GracePeriod:       mustParseDuration("2s"),
+						Interval:          api.MustParseDuration("81s"),
+						Timeout:           api.MustParseDuration("7s"),
+						GracePeriod:       api.MustParseDuration("2s"),
 						RestartLimit:      4,
 						HTTPMethod:        api.Pointer("GET"),
 						HTTPPath:          api.Pointer("/"),
@@ -419,8 +419,8 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 						},
 					},
 					{
-						Interval:   mustParseDuration("33s"),
-						Timeout:    mustParseDuration("10s"),
+						Interval:   api.MustParseDuration("33s"),
+						Timeout:    api.MustParseDuration("10s"),
 						HTTPMethod: api.Pointer("POST"),
 						HTTPPath:   api.Pointer("/check2"),
 					},
@@ -428,12 +428,4 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			},
 		},
 	}, cfg)
-}
-
-func mustParseDuration(v any) *api.Duration {
-	d := &api.Duration{}
-	if err := d.ParseDuration(v); err != nil {
-		panic(err)
-	}
-	return d
 }
