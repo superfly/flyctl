@@ -152,13 +152,6 @@ func (c *Config) DockerBuildTarget() string {
 	return c.Build.DockerBuildTarget
 }
 
-func (c *Config) MountsDestination() string {
-	if c == nil || c.Mounts == nil {
-		return ""
-	}
-	return c.Mounts.Destination
-}
-
 func (c *Config) InternalPort() int {
 	if c.HttpService != nil {
 		return c.HttpService.InternalPort
@@ -195,4 +188,16 @@ func (cfg *Config) BuildStrategies() []string {
 	}
 
 	return strategies
+}
+
+func (c *Config) Volumes() []Volume {
+	if mounts, ok := c.RawDefinition["mounts"]; ok {
+		if arr, ok := mounts.([]Volume); ok {
+			return arr
+		}
+	}
+	if c.Mounts != nil {
+		return []Volume{*c.Mounts}
+	}
+	return nil
 }

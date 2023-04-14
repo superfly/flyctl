@@ -124,7 +124,7 @@ func (c *Client) ExtendVolume(ctx context.Context, input ExtendVolumeInput) (*Vo
 	return &data.ExtendVolume.Volume, nil
 }
 
-func (c *Client) DeleteVolume(ctx context.Context, volID string) (App *App, err error) {
+func (c *Client) DeleteVolume(ctx context.Context, volID string, lockId string) (App *App, err error) {
 	query := `
 		mutation($input: DeleteVolumeInput!) {
 			deleteVolume(input: $input) {
@@ -135,7 +135,10 @@ func (c *Client) DeleteVolume(ctx context.Context, volID string) (App *App, err 
 		}
 	`
 
-	input := DeleteVolumeInput{VolumeID: volID}
+	input := DeleteVolumeInput{
+		VolumeID: volID,
+		LockID:   lockId,
+	}
 
 	req := c.NewRequest(query)
 
@@ -147,6 +150,43 @@ func (c *Client) DeleteVolume(ctx context.Context, volID string) (App *App, err 
 	}
 
 	return &data.DeleteVolume.App, nil
+}
+
+func (c *Client) ForkVolume(ctx context.Context, input ForkVolumeInput) (*Volume, error) {
+	query := `
+		mutation($input: ForkVolumeInput!) {
+			forkVolume(input: $input) {
+				app {
+					name
+				}
+				volume {
+					id
+					name
+					app{
+						name
+					}
+					region
+					sizeGb
+					encrypted
+					createdAt
+					host {
+						id
+					}
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+
+	req.Var("input", input)
+
+	data, err := c.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data.ForkVolume.Volume, nil
 }
 
 func (c *Client) GetVolume(ctx context.Context, volID string) (Volume *Volume, err error) {
