@@ -166,9 +166,9 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 			}
 		}
 		switch {
-		case errors.Is(err, context.Canceled):
+		case errors.Is(waitCtx.Err(), context.Canceled):
 			return err
-		case errors.Is(err, context.DeadlineExceeded):
+		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
 			return fmt.Errorf("timeout reached waiting for machine to %s %w", desiredState, err)
 		case notFoundResponse && desiredState != api.MachineStateDestroyed:
 			return err
@@ -210,9 +210,9 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 	for {
 		updateMachine, err := lm.flapsClient.Get(waitCtx, lm.Machine().ID)
 		switch {
-		case errors.Is(err, context.Canceled):
+		case errors.Is(waitCtx.Err(), context.Canceled):
 			return err
-		case errors.Is(err, context.DeadlineExceeded):
+		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
 			return fmt.Errorf("timeout reached waiting for healthchecks to pass for machine %s %w", lm.Machine().ID, err)
 		case err != nil:
 			return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
@@ -249,9 +249,9 @@ func (lm *leasableMachine) WaitForEventTypeAfterType(ctx context.Context, eventT
 	for {
 		updateMachine, err := lm.flapsClient.Get(waitCtx, lm.Machine().ID)
 		switch {
-		case errors.Is(err, context.Canceled):
+		case errors.Is(waitCtx.Err(), context.Canceled):
 			return nil, err
-		case errors.Is(err, context.DeadlineExceeded):
+		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
 			return nil, fmt.Errorf("timeout reached waiting for healthchecks to pass for machine %s %w", lm.Machine().ID, err)
 		case err != nil:
 			return nil, fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
