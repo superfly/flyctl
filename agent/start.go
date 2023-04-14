@@ -35,7 +35,11 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 		return nil, err
 	}
 
-	cmd := exec.Command(os.Args[0], "agent", "run", logFile)
+	flyctl, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.Command(flyctl, "agent", "run", logFile)
 
 	env := os.Environ()
 	env = append(env, "FLY_NO_UPDATE_CHECK=1")
