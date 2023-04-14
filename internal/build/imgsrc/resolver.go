@@ -3,6 +3,7 @@ package imgsrc
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -462,40 +463,65 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 	}, nil
 }
 
+func heartbeat(client *dockerclient.Client, req *http.Request) error {
+	resp, err := client.HTTPClient().Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close() //skipcq: GO-S2307
+
+	if 200 <= resp.StatusCode && resp.StatusCode < 300 {
+		return nil
+	}
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("%s (http: %d)", err, resp.StatusCode)
+	}
+
+	return fmt.Errorf("%s (http: %d)", b, resp.StatusCode)
+}
+
 // For remote builders send a periodic heartbeat during build to ensure machine stays alive
 // This is a noop for local builders
-func (r *Resolver) StartHeartbeat(ctx context.Context) *StopSignal {
+func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	if !r.dockerFactory.remote {
-		return nil
+		return nil, nil
 	}
 
 	errMsg := "Failed to start remote builder heartbeat: %v\n"
 	dockerClient, err := r.dockerFactory.buildFn(ctx, nil)
 	if err != nil {
 		terminal.Warnf(errMsg, err)
-		return nil
+		return nil, nil
 	}
 	heartbeatUrl, err := getHeartbeatUrl(dockerClient)
 	if err != nil {
 		terminal.Warnf(errMsg, err)
-		return nil
+		return nil, nil
 	}
 	heartbeatReq, err := http.NewRequestWithContext(ctx, http.MethodGet, heartbeatUrl, http.NoBody)
 	if err != nil {
 		terminal.Warnf(errMsg, err)
-		return nil
+		return nil, nil
 	}
 	heartbeatReq.SetBasicAuth(r.dockerFactory.appName, flyctl.GetAPIToken())
 	heartbeatReq.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Version().String()))
 
 	terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)
+
+	err = heartbeat(dockerClient, heartbeatReq)
+	if err != nil {
+		return nil, err
+	}
+
 	resp, err := dockerClient.HTTPClient().Do(heartbeatReq)
 	if err != nil {
 		terminal.Debugf("Remote builder heartbeat pulse failed, not going to run heartbeat: %v\n", err)
-		return nil
+		return nil, nil
 	} else if resp.StatusCode != http.StatusAccepted {
 		terminal.Debugf("Unexpected remote builder heartbeat response, not going to run heartbeat: %s\n", resp.Status)
-		return nil
+		return nil, nil
 	}
 
 	pulseInterval := 30 * time.Second
@@ -506,7 +532,9 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) *StopSignal {
 
 	go func() {
 		pulse := time.NewTicker(pulseInterval)
+		defer pulse.Stop()
 		defer done.Stop()
+
 		for {
 			select {
 			case <-done.Chan:
@@ -515,16 +543,14 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) *StopSignal {
 				return
 			case <-pulse.C:
 				terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)
-				resp, err := dockerClient.HTTPClient().Do(heartbeatReq)
+				err := heartbeat(dockerClient, heartbeatReq)
 				if err != nil {
 					terminal.Debugf("Remote builder heartbeat pulse failed: %v\n", err)
-				} else {
-					terminal.Debugf("Remote builder heartbeat response: %s\n", resp.Status)
 				}
 			}
 		}
 	}()
-	return &done
+	return &done, nil
 }
 
 func getHeartbeatUrl(dockerClient *dockerclient.Client) (string, error) {
