@@ -85,7 +85,7 @@ func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) er
 	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
 	fmt.Fprintf(md.io.ErrOut, "  Updating release_command machine %s\n", md.colorize.Bold(releaseCmdMachine.Machine().ID))
 
-	if err := releaseCmdMachine.WaitForState(ctx, api.MachineStateStopped, md.waitTimeout); err != nil {
+	if err := releaseCmdMachine.WaitForState(ctx, api.MachineStateStopped, md.waitTimeout, ""); err != nil {
 		return err
 	}
 
@@ -151,7 +151,7 @@ func (md *machineDeployment) inferReleaseCommandGuest() *api.MachineGuest {
 }
 
 func (md *machineDeployment) waitForReleaseCommandToFinish(ctx context.Context, releaseCmdMachine machine.LeasableMachine) error {
-	err := releaseCmdMachine.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout)
+	err := releaseCmdMachine.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, "")
 	if err != nil {
 		var flapsErr *flaps.FlapsError
 		if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode == http.StatusNotFound {
@@ -160,7 +160,7 @@ func (md *machineDeployment) waitForReleaseCommandToFinish(ctx context.Context, 
 		}
 		return fmt.Errorf("error waiting for release_command machine %s to start: %w", releaseCmdMachine.Machine().ID, err)
 	}
-	err = releaseCmdMachine.WaitForState(ctx, api.MachineStateDestroyed, md.waitTimeout)
+	err = releaseCmdMachine.WaitForState(ctx, api.MachineStateDestroyed, md.waitTimeout, "")
 	if err != nil {
 		return fmt.Errorf("error waiting for release_command machine %s to finish running: %w", releaseCmdMachine.Machine().ID, err)
 	}
