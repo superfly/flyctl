@@ -247,15 +247,3 @@ func (c *Config) SetVolumes(volumes []Volume) {
 		}
 	}
 }
-
-func (c *Config) Volumes() []Volume {
-	if mounts, ok := c.RawDefinition["mounts"]; ok {
-		if arr, ok := mounts.([]Volume); ok {
-			return arr
-		}
-	}
-	if c.Mounts != nil {
-		return []Volume{*c.Mounts}
-	}
-	return nil
-}
