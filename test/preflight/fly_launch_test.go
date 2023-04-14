@@ -35,7 +35,14 @@ func TestFlyLaunch_case01(t *testing.T) {
 		"primary_region": f.PrimaryRegion(),
 		"build":          map[string]any{"image": "nginx"},
 		"http_service":   map[string]any{"force_https": true, "internal_port": int64(8080)},
-		"kill_timeout":   int64(0),
+		"checks": map[string]any{
+			"alive": map[string]any{
+				"type":         "tcp",
+				"interval":     "15s",
+				"timeout":      "2s",
+				"grace_period": "5s",
+			},
+		},
 	}
 	require.EqualValues(f, want, toml)
 
@@ -135,7 +142,6 @@ func TestFlyLaunch_case03(t *testing.T) {
 		"checks": map[string]any{
 			"status": map[string]any{"type": "tcp", "port": int64(5500)},
 		},
-		"kill_timeout": int64(0),
 	}
 	require.EqualValues(f, want, toml)
 
