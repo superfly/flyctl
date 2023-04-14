@@ -57,6 +57,11 @@ func New() (cmd *cobra.Command) {
 			Default:     false,
 		},
 		flag.Bool{
+			Name:        "reuse-app",
+			Description: "Continue even if app name clashes with an existent app",
+			Default:     false,
+		},
+		flag.Bool{
 			Name:        "dockerignore-from-gitignore",
 			Description: "If a .dockerignore does not exist, create one from .gitignore files",
 			Default:     false,
@@ -116,13 +121,16 @@ func run(ctx context.Context) (err error) {
 		}
 
 		if exists {
-			msg := fmt.Sprintf("App %s already exists, do you want to launch into that app?", appConfig.AppName)
-			launchIntoExistingApp, err = prompt.Confirm(ctx, msg)
-			if err != nil {
-				return err
-			}
-			if !launchIntoExistingApp {
-				return nil
+			launchIntoExistingApp = flag.GetBool(ctx, "reuse-app")
+			if !flag.IsSpecified(ctx, "reuse-app") {
+				msg := fmt.Sprintf("App %s already exists, do you want to launch into that app?", appConfig.AppName)
+				launchIntoExistingApp, err = prompt.Confirm(ctx, msg)
+				if err != nil {
+					return err
+				}
+				if !launchIntoExistingApp {
+					return nil
+				}
 			}
 
 			if app.PlatformVersion == appconfig.NomadPlatform && !copyConfig {
@@ -381,10 +389,13 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 		}
 
 		copyConfig := flag.GetBool(ctx, "copy-config")
-		if !copyConfig && !flag.IsSpecified(ctx, "copy-config") {
+		if !flag.IsSpecified(ctx, "copy-config") {
 			var err error
 			copyConfig, err = prompt.Confirm(ctx, "Would you like to copy its configuration to the new app?")
-			if err != nil {
+			switch {
+			case prompt.IsNonInteractive(err) && !flag.GetBool(ctx, "auto-confirm"):
+				return nil, false, err
+			case err != nil:
 				return nil, false, err
 			}
 		}

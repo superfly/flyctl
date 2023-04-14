@@ -228,6 +228,23 @@ func (f *FlyctlTestEnv) MachinesList(appName string) []api.Machine {
 	return machList
 }
 
+func (f *FlyctlResult) WriteFlyToml(format string, vals ...any) {
+	filepath = os.Join(f.WorkDir(), "fly.toml")
+	toml := fmt.Sprintf(format, vals...)
+	if err := os.WriteFile(filepath, []byte(toml), 0666); err != nil {
+		f.Fatalf("error trying to write %s: %v", filepath, err)
+	}
+}
+
+func (f *FlyctlResult) ReadFlyToml(format string, vals ...any) string {
+	filepath = os.Join(f.WorkDir(), "fly.toml")
+	data, err := os.ReadFile(filepath)
+	if err != nil {
+		f.Fatalf("error trying to read %s: %v", filepath, err)
+	}
+	return string(data)
+}
+
 // implement the testing.TB interface, so we can print history of flyctl command and output when failing
 func (f *FlyctlTestEnv) Cleanup(cleanupFunc func()) {
 	f.t.Cleanup(cleanupFunc)
