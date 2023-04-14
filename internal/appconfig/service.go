@@ -43,7 +43,7 @@ type ServiceHTTPCheck struct {
 
 type HTTPService struct {
 	InternalPort int                            `json:"internal_port,omitempty" toml:"internal_port" validate:"required,numeric"`
-	ForceHttps   bool                           `toml:"force_https" json:"force_https,omitempty"`
+	ForceHTTPS   bool                           `toml:"force_https" json:"force_https,omitempty"`
 	Concurrency  *api.MachineServiceConcurrency `toml:"concurrency,omitempty" json:"concurrency,omitempty"`
 	Processes    []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
 }
@@ -57,7 +57,7 @@ func (s *HTTPService) ToService() *Service {
 		Ports: []api.MachinePort{{
 			Port:       api.IntPointer(80),
 			Handlers:   []string{"http"},
-			ForceHttps: s.ForceHttps,
+			ForceHttps: s.ForceHTTPS,
 		}, {
 			Port:     api.IntPointer(443),
 			Handlers: []string{"http", "tls"},
@@ -68,8 +68,8 @@ func (s *HTTPService) ToService() *Service {
 }
 
 func (c *Config) AllServices() (services []Service) {
-	if c.HttpService != nil {
-		services = append(services, *c.HttpService.ToService())
+	if c.HTTPService != nil {
+		services = append(services, *c.HTTPService.ToService())
 	}
 	services = append(services, c.Services...)
 	return services

@@ -38,7 +38,6 @@ type MachineDeploymentArgs struct {
 	Strategy          string
 	EnvFromFlags      []string
 	PrimaryRegionFlag string
-	BuildOnly         bool
 	SkipHealthChecks  bool
 	RestartOnly       bool
 	WaitTimeout       time.Duration
@@ -338,8 +337,8 @@ func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status 
 }
 
 func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context) error {
-	// Deploy only if the app hasn't been deployed and have defined services
-	if md.app.Deployed || !md.machineSet.IsEmpty() || (md.appConfig.HttpService == nil && len(md.appConfig.Services) == 0) {
+	// Provision only if the app hasn't been deployed and have defined services
+	if md.app.Deployed || !md.machineSet.IsEmpty() || len(md.appConfig.AllServices()) == 0 {
 		return nil
 	}
 

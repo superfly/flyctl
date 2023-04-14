@@ -33,8 +33,8 @@ func TestToMachineConfig(t *testing.T) {
 			"status": {
 				Port:     api.Pointer(8080),
 				Type:     api.Pointer("http"),
-				Interval: mustParseDuration("10s"),
-				Timeout:  mustParseDuration("1s"),
+				Interval: api.MustParseDuration("10s"),
+				Timeout:  api.MustParseDuration("1s"),
 				HTTPPath: api.Pointer("/status"),
 			},
 		},
@@ -94,8 +94,8 @@ func TestToMachineConfig_nullifyManagedFields(t *testing.T) {
 			"status": {
 				Port:     api.Pointer(8080),
 				Type:     api.Pointer("http"),
-				Interval: mustParseDuration("10s"),
-				Timeout:  mustParseDuration("1s"),
+				Interval: api.MustParseDuration("10s"),
+				Timeout:  api.MustParseDuration("1s"),
 				HTTPPath: api.Pointer("/status"),
 			},
 		},
@@ -196,4 +196,43 @@ func TestToMachineConfig_multiProcessGroups(t *testing.T) {
 			assert.Equal(t, tc.want.Checks, got.Checks)
 		})
 	}
+}
+
+func TestToMachineConfig_defaultV2flytoml(t *testing.T) {
+	cfg, err := LoadConfig("./testdata/tomachine-default-for-new-apps.toml")
+	require.NoError(t, err)
+
+	want := &api.MachineConfig{
+		Env: map[string]string{"PRIMARY_REGION": "ord"},
+		Services: []api.MachineService{
+			{
+				Protocol:     "tcp",
+				InternalPort: 8080,
+				Ports: []api.MachinePort{
+					{Port: api.Pointer(80), Handlers: []string{"http"}, ForceHttps: true},
+					{Port: api.Pointer(443), Handlers: []string{"http", "tls"}, ForceHttps: false},
+				},
+			},
+		},
+		Metadata: map[string]string{"fly_platform_version": "v2", "fly_process_group": "app"},
+		Checks: map[string]api.MachineCheck{
+			"alive": {
+				Port:        api.Pointer(8080),
+				Type:        api.Pointer("tcp"),
+				Interval:    api.MustParseDuration("15s"),
+				Timeout:     api.MustParseDuration("2s"),
+				GracePeriod: api.MustParseDuration("5s"),
+			},
+		},
+	}
+
+	got, err := cfg.ToMachineConfig("", nil)
+	assert.NoError(t, err)
+	assert.Equal(t, want, got)
+
+	// A toplevel check without internal port must fail if there is no http service to relate to
+	cfg.HTTPService = nil
+	got, err = cfg.ToMachineConfig("", nil)
+	assert.Nil(t, got)
+	assert.ErrorContains(t, err, "has no internal port set")
 }

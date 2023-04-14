@@ -131,9 +131,9 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 	})
 
 	// [[http_service]]
-	dst.HttpService = nil
-	if c.HttpService != nil && matchesGroups(c.HttpService.Processes) {
-		dst.HttpService = c.HttpService
+	dst.HTTPService = nil
+	if c.HTTPService != nil && matchesGroups(c.HTTPService.Processes) {
+		dst.HTTPService = c.HTTPService
 	}
 
 	// [[services]]

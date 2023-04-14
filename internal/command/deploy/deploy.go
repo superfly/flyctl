@@ -2,28 +2,22 @@ package deploy
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/sentry"
-	"github.com/superfly/flyctl/internal/state"
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/cmdutil"
@@ -141,22 +135,11 @@ type DeployWithConfigArgs struct {
 }
 
 func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args DeployWithConfigArgs) (err error) {
+	appName := appconfig.NameFromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
-	appNameFromContext := appconfig.NameFromContext(ctx)
-	appCompact, err := apiClient.GetAppCompact(ctx, appNameFromContext)
+	appCompact, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
-	}
-	deployToMachines, err := useMachines(ctx, appConfig, appCompact, args, apiClient)
-	if err != nil {
-		return err
-	}
-
-	if deployToMachines {
-		err := appConfig.EnsureV2Config()
-		if err != nil {
-			return fmt.Errorf("Can't deploy an invalid app config: %s", err)
-		}
 	}
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
@@ -169,43 +152,59 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 		return nil
 	}
 
-	var release *api.Release
-	var releaseCommand *api.ReleaseCommand
+	switch isV2App, err := useMachines(ctx, appConfig, appCompact, args, apiClient); {
+	case err != nil:
+		return err
+	case isV2App:
+		if err := appConfig.EnsureV2Config(); err != nil {
+			return fmt.Errorf("Can't deploy an invalid v2 app config: %s", err)
+		}
+		return deployToMachines(ctx, appConfig, appCompact, img)
+	default:
+		return deployToNomad(ctx, appConfig, appCompact, img)
+	}
+}
 
+func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompact *api.AppCompact, img *imgsrc.DeploymentImage) error {
+	primaryRegion := appConfig.PrimaryRegion
+	if flag.GetString(ctx, flag.RegionName) != "" {
+		primaryRegion = flag.GetString(ctx, flag.RegionName)
+	}
+
+	// It's important to push the appConfig into the context because MachineDeployment
+	// will fetch it from there
+	ctx = appconfig.WithConfig(ctx, appConfig)
+
+	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
+		AppCompact:        appCompact,
+		DeploymentImage:   img.Tag,
+		Strategy:          flag.GetString(ctx, "strategy"),
+		EnvFromFlags:      flag.GetStringSlice(ctx, "env"),
+		PrimaryRegionFlag: primaryRegion,
+		SkipHealthChecks:  flag.GetDetach(ctx),
+		WaitTimeout:       time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
+		LeaseTimeout:      time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
+	})
+	if err != nil {
+		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
+		return err
+	}
+
+	err = md.DeployMachinesApp(ctx)
+	if err != nil {
+		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
+	}
+	return err
+}
+
+func deployToNomad(ctx context.Context, appConfig *appconfig.Config, appCompact *api.AppCompact, img *imgsrc.DeploymentImage) error {
+	apiClient := client.FromContext(ctx).API()
 	// Assign an empty map if nil so later assignments won't fail
 	if appConfig.PrimaryRegion != "" && appConfig.Env["PRIMARY_REGION"] == "" {
 		appConfig.SetEnvVariable("PRIMARY_REGION", appConfig.PrimaryRegion)
 	}
 
-	if deployToMachines {
-		primaryRegion := appConfig.PrimaryRegion
-		if flag.GetString(ctx, flag.RegionName) != "" {
-			primaryRegion = flag.GetString(ctx, flag.RegionName)
-		}
-
-		md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
-			AppCompact:        appCompact,
-			DeploymentImage:   img.Tag,
-			Strategy:          flag.GetString(ctx, "strategy"),
-			EnvFromFlags:      flag.GetStringSlice(ctx, "env"),
-			PrimaryRegionFlag: primaryRegion,
-			BuildOnly:         flag.GetBuildOnly(ctx),
-			SkipHealthChecks:  flag.GetDetach(ctx),
-			WaitTimeout:       time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
-			LeaseTimeout:      time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
-		})
-		if err != nil {
-			sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
-			return err
-		}
-		err = md.DeployMachinesApp(ctx)
-		if err != nil {
-			sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
-		}
-		return err
-	}
-
-	release, releaseCommand, err = createRelease(ctx, appConfig, img)
+	release, releaseCommand, err := createRelease(ctx, appConfig, img)
 	if err != nil {
 		return err
 	}
@@ -241,9 +240,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 		return nil
 	}
 
-	err = watch.Deployment(ctx, appConfig.AppName, release.EvaluationID)
-
-	return err
+	return watch.Deployment(ctx, appConfig.AppName, release.EvaluationID)
 }
 
 func useMachines(ctx context.Context, appConfig *appconfig.Config, appCompact *api.AppCompact, args DeployWithConfigArgs, apiClient *api.Client) (bool, error) {
@@ -305,175 +302,6 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 
 	tb.Done("Verified app config")
 	return cfg, nil
-}
-
-// determineImage picks the deployment strategy, builds the image and returns a
-// DeploymentImage struct
-func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgsrc.DeploymentImage, err error) {
-	tb := render.NewTextBlock(ctx, "Building image")
-	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), flag.GetBool(ctx, "nixpacks"))
-
-	client := client.FromContext(ctx).API()
-	io := iostreams.FromContext(ctx)
-
-	if len(appConfig.BuildStrategies()) > 0 {
-		foundDF := imgsrc.ResolveDockerfile(state.WorkingDirectory(ctx))
-		configDF, _ := resolveDockerfilePath(ctx, appConfig)
-		if foundDF != "" && foundDF != configDF {
-			terminal.Warnf("Ignoring %s due to config\n", foundDF)
-		}
-	}
-
-	resolver := imgsrc.NewResolver(daemonType, client, appConfig.AppName, io)
-
-	var imageRef string
-	if imageRef, err = fetchImageRef(ctx, appConfig); err != nil {
-		return
-	}
-
-	// we're using a pre-built Docker image
-	if imageRef != "" {
-		opts := imgsrc.RefOptions{
-			AppName:    appConfig.AppName,
-			WorkingDir: state.WorkingDirectory(ctx),
-			Publish:    !flag.GetBuildOnly(ctx),
-			ImageRef:   imageRef,
-			ImageLabel: flag.GetString(ctx, "image-label"),
-		}
-
-		img, err = resolver.ResolveReference(ctx, io, opts)
-
-		return
-	}
-
-	build := appConfig.Build
-	if build == nil {
-		build = new(appconfig.Build)
-	}
-
-	// We're building from source
-	opts := imgsrc.ImageOptions{
-		AppName:         appConfig.AppName,
-		WorkingDir:      state.WorkingDirectory(ctx),
-		Publish:         flag.GetBool(ctx, "push") || !flag.GetBuildOnly(ctx),
-		ImageLabel:      flag.GetString(ctx, "image-label"),
-		NoCache:         flag.GetBool(ctx, "no-cache"),
-		BuiltIn:         build.Builtin,
-		BuiltInSettings: build.Settings,
-		Builder:         build.Builder,
-		Buildpacks:      build.Buildpacks,
-	}
-
-	cliBuildSecrets, err := cmdutil.ParseKVStringsToMap(flag.GetStringSlice(ctx, "build-secret"))
-	if err != nil {
-		return
-	}
-
-	if cliBuildSecrets != nil {
-		opts.BuildSecrets = cliBuildSecrets
-	}
-
-	var buildArgs map[string]string
-	if buildArgs, err = mergeBuildArgs(ctx, build.Args); err != nil {
-		return
-	}
-
-	opts.BuildArgs = buildArgs
-
-	if opts.DockerfilePath, err = resolveDockerfilePath(ctx, appConfig); err != nil {
-		return
-	}
-
-	if opts.IgnorefilePath, err = resolveIgnorefilePath(ctx, appConfig); err != nil {
-		return
-	}
-
-	if target := appConfig.DockerBuildTarget(); target != "" {
-		opts.Target = target
-	} else if target := flag.GetString(ctx, "build-target"); target != "" {
-		opts.Target = target
-	}
-
-	// finally, build the image
-	heartbeat := resolver.StartHeartbeat(ctx)
-	defer heartbeat.Stop()
-	if img, err = resolver.BuildImage(ctx, io, opts); err == nil && img == nil {
-		err = errors.New("no image specified")
-	}
-
-	if err == nil {
-		tb.Printf("image: %s\n", img.Tag)
-		tb.Printf("image size: %s\n", humanize.Bytes(uint64(img.Size)))
-	}
-
-	return
-}
-
-// resolveDockerfilePath returns the absolute path to the Dockerfile
-// if one was specified in the app config or a command line argument
-func resolveDockerfilePath(ctx context.Context, appConfig *appconfig.Config) (path string, err error) {
-	defer func() {
-		if err == nil && path != "" {
-			path, err = filepath.Abs(path)
-		}
-	}()
-
-	if path = appConfig.Dockerfile(); path != "" {
-		path = filepath.Join(filepath.Dir(appConfig.ConfigFilePath()), path)
-	} else {
-		path = flag.GetString(ctx, "dockerfile")
-	}
-
-	return
-}
-
-// resolveIgnorefilePath returns the absolute path to the Dockerfile
-// if one was specified in the app config or a command line argument
-func resolveIgnorefilePath(ctx context.Context, appConfig *appconfig.Config) (path string, err error) {
-	defer func() {
-		if err == nil && path != "" {
-			path, err = filepath.Abs(path)
-		}
-	}()
-
-	if path = appConfig.Ignorefile(); path != "" {
-		path = filepath.Join(filepath.Dir(appConfig.ConfigFilePath()), path)
-	} else {
-		path = flag.GetString(ctx, "ignorefile")
-	}
-
-	return
-}
-
-func mergeBuildArgs(ctx context.Context, args map[string]string) (map[string]string, error) {
-	if args == nil {
-		args = make(map[string]string)
-	}
-
-	// set additional Docker build args from the command line, overriding similar ones from the config
-	cliBuildArgs, err := cmdutil.ParseKVStringsToMap(flag.GetStringSlice(ctx, "build-arg"))
-	if err != nil {
-		return nil, fmt.Errorf("invalid build args: %w", err)
-	}
-
-	for k, v := range cliBuildArgs {
-		args[k] = v
-	}
-	return args, nil
-}
-
-func fetchImageRef(ctx context.Context, cfg *appconfig.Config) (ref string, err error) {
-	if ref = flag.GetString(ctx, "image"); ref != "" {
-		return
-	}
-
-	if cfg != nil && cfg.Build != nil {
-		if ref = cfg.Build.Image; ref != "" {
-			return
-		}
-	}
-
-	return ref, nil
 }
 
 func createRelease(ctx context.Context, appConfig *appconfig.Config, img *imgsrc.DeploymentImage) (*api.Release, *api.ReleaseCommand, error) {
