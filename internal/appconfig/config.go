@@ -73,8 +73,9 @@ type Static struct {
 }
 
 type Mount struct {
-	Source      string `toml:"source,omitempty" json:"source,omitempty"`
-	Destination string `toml:"destination" json:"destination,omitempty"`
+	Source      string   `toml:"source,omitempty" json:"source,omitempty"`
+	Destination string   `toml:"destination" json:"destination,omitempty"`
+	Processes   []string `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
 type Build struct {

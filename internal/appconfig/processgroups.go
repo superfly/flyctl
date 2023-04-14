@@ -141,6 +141,11 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 		return matchesGroups(s.Processes)
 	})
 
+	// [[Mounts]]
+	dst.Mounts = lo.Filter(c.Mounts, func(x Mount, _ int) bool {
+		return matchesGroups(x.Processes)
+	})
+
 	return dst, nil
 }
 
