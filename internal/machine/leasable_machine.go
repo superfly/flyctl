@@ -26,8 +26,8 @@ type LeasableMachine interface {
 	Update(context.Context, api.LaunchMachineInput) error
 	Start(context.Context) error
 	Destroy(context.Context, bool) error
-	WaitForState(context.Context, string, time.Duration) error
-	WaitForHealthchecksToPass(context.Context, time.Duration) error
+	WaitForState(context.Context, string, time.Duration, string) error
+	WaitForHealthchecksToPass(context.Context, time.Duration, string) error
 	WaitForEventTypeAfterType(context.Context, string, string, time.Duration) (*api.MachineEvent, error)
 	FormattedMachineId() string
 }
@@ -102,8 +102,12 @@ func (lm *leasableMachine) logClearLinesAbove(count int) {
 	}
 }
 
-func (lm *leasableMachine) logStatusWaiting(desired string) {
-	fmt.Fprintf(lm.io.ErrOut, "  Waiting for %s to have state: %s\n",
+func (lm *leasableMachine) logStatusWaiting(desired, prefix string) {
+	if prefix != "" {
+		prefix += " "
+	}
+	fmt.Fprintf(lm.io.ErrOut, "  %sWaiting for %s to have state: %s\n",
+		prefix,
 		lm.colorize.Bold(lm.FormattedMachineId()),
 		lm.colorize.Yellow(desired),
 	)
@@ -116,7 +120,7 @@ func (lm *leasableMachine) logStatusFinished(current string) {
 	)
 }
 
-func (lm *leasableMachine) logHealthCheckStatus(status *api.HealthCheckStatus) {
+func (lm *leasableMachine) logHealthCheckStatus(status *api.HealthCheckStatus, prefix string) {
 	if status == nil {
 		return
 	}
@@ -124,7 +128,11 @@ func (lm *leasableMachine) logHealthCheckStatus(status *api.HealthCheckStatus) {
 	if status.Passing != status.Total {
 		resColor = lm.colorize.Yellow
 	}
-	fmt.Fprintf(lm.io.ErrOut, "  Waiting for %s to become healthy: %s\n",
+	if prefix != "" {
+		prefix += " "
+	}
+	fmt.Fprintf(lm.io.ErrOut, "  %sWaiting for %s to become healthy: %s\n",
+		prefix,
 		lm.colorize.Bold(lm.FormattedMachineId()),
 		resColor(fmt.Sprintf("%d/%d", status.Passing, status.Total)),
 	)
@@ -137,7 +145,7 @@ func (lm *leasableMachine) Start(ctx context.Context) error {
 	if lm.HasLease() {
 		return fmt.Errorf("error cannot start machine %s because it has a lease", lm.machine.ID)
 	}
-	lm.logStatusWaiting(api.MachineStateStarted)
+	lm.logStatusWaiting(api.MachineStateStarted, "")
 	_, err := lm.flapsClient.Start(ctx, lm.machine.ID)
 	if err != nil {
 		return err
@@ -145,7 +153,7 @@ func (lm *leasableMachine) Start(ctx context.Context) error {
 	return nil
 }
 
-func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string, timeout time.Duration) error {
+func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string, timeout time.Duration, logPrefix string) error {
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	b := &backoff.Backoff{
@@ -155,7 +163,7 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 		Jitter: true,
 	}
 	lm.logClearLinesAbove(1)
-	lm.logStatusWaiting(desiredState)
+	lm.logStatusWaiting(desiredState, logPrefix)
 	for {
 		err := lm.flapsClient.Wait(waitCtx, lm.Machine(), desiredState, timeout)
 		notFoundResponse := false
@@ -182,7 +190,7 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 	}
 }
 
-func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeout time.Duration) error {
+func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeout time.Duration, logPrefix string) error {
 	if len(lm.Machine().Checks) == 0 {
 		return nil
 	}
@@ -219,14 +227,14 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 		case !updateMachine.HealthCheckStatus().AllPassing():
 			if !printedFirst || lm.io.IsInteractive() {
 				lm.logClearLinesAbove(1)
-				lm.logHealthCheckStatus(updateMachine.HealthCheckStatus())
+				lm.logHealthCheckStatus(updateMachine.HealthCheckStatus(), logPrefix)
 				printedFirst = true
 			}
 			time.Sleep(b.Duration())
 			continue
 		}
 		lm.logClearLinesAbove(1)
-		lm.logHealthCheckStatus(updateMachine.HealthCheckStatus())
+		lm.logHealthCheckStatus(updateMachine.HealthCheckStatus(), logPrefix)
 		return nil
 	}
 }
