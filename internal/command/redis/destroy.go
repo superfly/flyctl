@@ -63,14 +63,6 @@ func runDestroy(ctx context.Context) (err error) {
 
 	name := flag.FirstArg(ctx)
 
-	_ = `# @genqlient
-  mutation DeleteAddOn($name: String) {
-		deleteAddOn(input: {name: $name}) {
-			deletedAddOnName
-		}
-  }
-	`
-
 	_, err = gql.DeleteAddOn(ctx, client, name)
 
 	if err != nil {

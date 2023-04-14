@@ -126,3 +126,9 @@ mutation SetNomadVMCount($input: SetVMCountInput!) {
 		warnings
 	}
 }
+
+mutation DeleteAddOn($name: String) {
+	deleteAddOn(input: {name: $name}) {
+		deletedAddOnName
+	}
+}
