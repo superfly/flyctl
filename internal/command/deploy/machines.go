@@ -78,8 +78,8 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err != nil {
 		return nil, err
 	}
-	if args.NewVolumeName != "" && appConfig.Mounts != nil {
-		appConfig.Mounts.Source = args.NewVolumeName
+	if args.NewVolumeName != "" && len(appConfig.Mounts) > 0 {
+		appConfig.Mounts[0].Source = args.NewVolumeName
 	}
 	err, _ = appConfig.Validate(ctx)
 	if err != nil {
@@ -194,7 +194,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 }
 
 func (md *machineDeployment) setVolumeConfig(ctx context.Context) error {
-	if md.appConfig.Mounts == nil {
+	if len(md.appConfig.Mounts) == 0 {
 		return nil
 	}
 
@@ -204,15 +204,15 @@ func (md *machineDeployment) setVolumeConfig(ctx context.Context) error {
 	}
 
 	md.volumes = lo.Filter(volumes, func(v api.Volume, _ int) bool {
-		return v.Name == md.appConfig.Mounts.Source && v.AttachedAllocation == nil && v.AttachedMachine == nil
+		return v.Name == md.appConfig.Mounts[0].Source && v.AttachedAllocation == nil && v.AttachedMachine == nil
 	})
 	return nil
 }
 
 func (md *machineDeployment) validateVolumeConfig() error {
 	volumeDestination := ""
-	if md.appConfig.Mounts != nil {
-		volumeDestination = md.appConfig.Mounts.Destination
+	if len(md.appConfig.Mounts) != 0 {
+		volumeDestination = md.appConfig.Mounts[0].Destination
 	}
 
 	for _, m := range md.machineSet.GetMachines() {
@@ -231,7 +231,7 @@ func (md *machineDeployment) validateVolumeConfig() error {
 
 	if md.machineSet.IsEmpty() && volumeDestination != "" && len(md.volumes) == 0 {
 		return fmt.Errorf("error new machine requires an unattached volume named '%s' on mount destination '%s'",
-			md.appConfig.Mounts.Source, volumeDestination)
+			md.appConfig.Mounts[0].Source, volumeDestination)
 	}
 	return nil
 }

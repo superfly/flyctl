@@ -119,23 +119,17 @@ func patchExperimental(cfg map[string]any) (map[string]any, error) {
 }
 
 func patchMounts(cfg map[string]any) (map[string]any, error) {
-	if mount, ok := cfg["mount"]; ok {
-		cfg["mounts"] = mount
-		delete(cfg, "mount")
-	}
-
-	if raw, ok := cfg["mounts"]; ok {
-		mounts, err := ensureArrayOfMap(raw)
-		if err != nil {
-			return nil, fmt.Errorf("Error processing mounts: %w", err)
-		}
-		if len(mounts) > 0 {
-			cfg["mounts"] = mounts[0]
-		} else {
-			delete(cfg, "mounts")
+	var mounts []map[string]any
+	for _, k := range []string{"mount", "mounts"} {
+		if raw, ok := cfg[k]; ok {
+			cast, err := ensureArrayOfMap(raw)
+			if err != nil {
+				return nil, fmt.Errorf("Error processing mounts: %w", err)
+			}
+			mounts = append(mounts, cast...)
 		}
 	}
-
+	cfg["mounts"] = mounts
 	return cfg, nil
 }
 

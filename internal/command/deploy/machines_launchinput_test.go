@@ -84,7 +84,7 @@ func Test_launchInputFor_Basic(t *testing.T) {
 // Test Mounts
 func Test_launchInputFor_onMounts(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
-		Mounts: &appconfig.Mount{Source: "data", Destination: "/data"},
+		Mounts: []appconfig.Mount{{Source: "data", Destination: "/data"}},
 	})
 	assert.NoError(t, err)
 	md.volumes = []api.Volume{{ID: "vol_12345", Name: "data"}}

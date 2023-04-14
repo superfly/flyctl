@@ -92,7 +92,7 @@ func fromAppAndOneMachine(appCompact *api.AppCompact, m machine.LeasableMachine,
 		warningMsg     string
 		primaryRegion  string
 		statics        []Static
-		mounts         *Mount
+		mounts         []Mount
 		topLevelChecks map[string]*ToplevelCheck
 	)
 	for k, v := range m.Machine().Config.Env {
@@ -108,10 +108,10 @@ func fromAppAndOneMachine(appCompact *api.AppCompact, m machine.LeasableMachine,
 		})
 	}
 	if len(m.Machine().Config.Mounts) > 0 {
-		mounts = &Mount{
-			Destination: m.Machine().Config.Mounts[0].Path,
-		}
+		mount := m.Machine().Config.Mounts[0]
+		mounts = append(mounts, Mount{Source: mount.Name, Destination: mount.Path})
 	}
+
 	if len(m.Machine().Config.Mounts) > 1 {
 		var otherMounts string
 		for _, mnt := range m.Machine().Config.Mounts {

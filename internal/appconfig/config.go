@@ -39,7 +39,7 @@ type Config struct {
 	HTTPService   *HTTPService              `toml:"http_service,omitempty" json:"http_service,omitempty"`
 	Metrics       *api.MachineMetrics       `toml:"metrics,omitempty" json:"metrics,omitempty"`
 	Statics       []Static                  `toml:"statics,omitempty" json:"statics,omitempty"`
-	Mounts        *Mount                    `toml:"mounts,omitempty" json:"mounts,omitempty"`
+	Mounts        []Mount                   `toml:"mounts,omitempty" json:"mounts,omitempty"`
 	Processes     map[string]string         `toml:"processes,omitempty" json:"processes,omitempty"`
 	Checks        map[string]*ToplevelCheck `toml:"checks,omitempty" json:"checks,omitempty"`
 	Services      []Service                 `toml:"services,omitempty" json:"services,omitempty"`
@@ -196,8 +196,5 @@ func (c *Config) Volumes() []Mount {
 			return arr
 		}
 	}
-	if c.Mounts != nil {
-		return []Mount{*c.Mounts}
-	}
-	return nil
+	return c.Mounts
 }

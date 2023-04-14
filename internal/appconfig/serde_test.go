@@ -145,10 +145,10 @@ func TestLoadTOMLAppConfigMountsArray(t *testing.T) {
 		configFilePath:   "./testdata/mounts-array.toml",
 		defaultGroupName: "app",
 		AppName:          "foo",
-		Mounts: &Mount{
+		Mounts: []Mount{{
 			Source:      "pg_data",
 			Destination: "/data",
-		},
+		}},
 		RawDefinition: map[string]any{
 			"app": "foo",
 			"mounts": []map[string]any{{
@@ -171,10 +171,10 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 			"FOO": "STRING",
 			"BAR": "123",
 		},
-		Mounts: &Mount{
+		Mounts: []Mount{{
 			Source:      "data",
 			Destination: "/data",
-		},
+		}},
 		Services: []Service{
 			{
 				InternalPort: 8080,
@@ -345,10 +345,10 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			},
 		},
 
-		Mounts: &Mount{
+		Mounts: []Mount{{
 			Source:      "data",
 			Destination: "/data",
-		},
+		}},
 
 		Processes: map[string]string{
 			"web":  "run web",

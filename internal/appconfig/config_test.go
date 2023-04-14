@@ -144,10 +144,10 @@ func TestCloneAppconfig(t *testing.T) {
 				},
 			},
 		},
-		Mounts: &Mount{
+		Mounts: []Mount{{
 			Source:      "src",
 			Destination: "dst",
-		},
+		}},
 		HTTPService: &HTTPService{
 			InternalPort: 100,
 		},
