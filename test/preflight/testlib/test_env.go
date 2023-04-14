@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 
+	"github.com/BurntSushi/toml"
 	"github.com/google/shlex"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/api"
@@ -38,6 +40,10 @@ func (f *FlyctlTestEnv) WorkDir() string {
 
 func (f *FlyctlTestEnv) PrimaryRegion() string {
 	return f.primaryRegion
+}
+
+func (f *FlyctlTestEnv) SecondaryRegion() string {
+	return f.otherRegions[0]
 }
 
 func (f *FlyctlTestEnv) OtherRegions() []string {
@@ -228,21 +234,33 @@ func (f *FlyctlTestEnv) MachinesList(appName string) []api.Machine {
 	return machList
 }
 
-func (f *FlyctlResult) WriteFlyToml(format string, vals ...any) {
-	filepath = os.Join(f.WorkDir(), "fly.toml")
-	toml := fmt.Sprintf(format, vals...)
-	if err := os.WriteFile(filepath, []byte(toml), 0666); err != nil {
-		f.Fatalf("error trying to write %s: %v", filepath, err)
+func (f *FlyctlTestEnv) WriteFile(path string, format string, vals ...any) {
+	fn := filepath.Join(f.WorkDir(), path)
+	content := fmt.Sprintf(format, vals...)
+	if err := os.WriteFile(fn, []byte(content), 0666); err != nil {
+		f.Fatalf("error writing to %s: %v", path, err)
 	}
 }
 
-func (f *FlyctlResult) ReadFlyToml(format string, vals ...any) string {
-	filepath = os.Join(f.WorkDir(), "fly.toml")
-	data, err := os.ReadFile(filepath)
+func (f *FlyctlTestEnv) ReadFile(path string) string {
+	fn := filepath.Join(f.WorkDir(), path)
+	content, err := os.ReadFile(fn)
 	if err != nil {
-		f.Fatalf("error trying to read %s: %v", filepath, err)
+		f.Fatalf("error reading from %s: %v", path, err)
 	}
-	return string(data)
+	return string(content)
+}
+
+func (f *FlyctlTestEnv) WriteFlyToml(format string, vals ...any) {
+	f.WriteFile("fly.toml", format, vals...)
+}
+
+func (f *FlyctlTestEnv) UnmarshalFlyToml() (res map[string]any) {
+	data := f.ReadFile("fly.toml")
+	if err := toml.Unmarshal([]byte(data), &res); err != nil {
+		f.Fatalf("error parsing fly.toml: %v", err)
+	}
+	return
 }
 
 // implement the testing.TB interface, so we can print history of flyctl command and output when failing

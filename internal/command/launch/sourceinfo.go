@@ -60,6 +60,11 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 		return srcInfo, build, nil
 	}
 
+	if strategies := appConfig.BuildStrategies(); len(strategies) > 0 {
+		fmt.Fprintf(io.Out, "Using build strategies '%s'. Remove [build] from fly.toml to force a rescan", aurora.Yellow(strategies))
+		return srcInfo, appConfig.Build, nil
+	}
+
 	fmt.Fprintln(io.Out, "Scanning source code")
 	srcInfo, err = scanner.Scan(workingDir, scannerConfig)
 	if err != nil {

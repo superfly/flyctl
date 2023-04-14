@@ -133,9 +133,6 @@ func run(ctx context.Context) (err error) {
 				}
 			}
 
-			if app.PlatformVersion == appconfig.NomadPlatform && !copyConfig {
-				return fmt.Errorf("Reusing an Nomad app but not importing an existing fly.toml is not supported")
-			}
 			existingAppPlatform = app.PlatformVersion
 
 			org = &api.Organization{
@@ -419,9 +416,12 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config) (string,
 		return name, nil
 	}
 
-	if !generateName && name == "" {
-		return promptForAppName(ctx, appConfig)
+	switch name, err := promptForAppName(ctx, appConfig); {
+	case prompt.IsNonInteractive(err):
+		return "", fmt.Errorf("--name or --generate-name flags must be specified when not running interactively")
+	case err != nil:
+		return "", err
+	default:
+		return name, nil
 	}
-
-	return appConfig.AppName, nil
 }
