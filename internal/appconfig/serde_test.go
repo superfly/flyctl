@@ -145,7 +145,7 @@ func TestLoadTOMLAppConfigMountsArray(t *testing.T) {
 		configFilePath:   "./testdata/mounts-array.toml",
 		defaultGroupName: "app",
 		AppName:          "foo",
-		Mounts: &Volume{
+		Mounts: &Mount{
 			Source:      "pg_data",
 			Destination: "/data",
 		},
@@ -171,7 +171,7 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 			"FOO": "STRING",
 			"BAR": "123",
 		},
-		Mounts: &Volume{
+		Mounts: &Mount{
 			Source:      "data",
 			Destination: "/data",
 		},
@@ -345,7 +345,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			},
 		},
 
-		Mounts: &Volume{
+		Mounts: &Mount{
 			Source:      "data",
 			Destination: "/data",
 		},

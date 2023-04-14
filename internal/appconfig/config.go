@@ -39,7 +39,7 @@ type Config struct {
 	HTTPService   *HTTPService              `toml:"http_service,omitempty" json:"http_service,omitempty"`
 	Metrics       *api.MachineMetrics       `toml:"metrics,omitempty" json:"metrics,omitempty"`
 	Statics       []Static                  `toml:"statics,omitempty" json:"statics,omitempty"`
-	Mounts        *Volume                   `toml:"mounts,omitempty" json:"mounts,omitempty"`
+	Mounts        *Mount                    `toml:"mounts,omitempty" json:"mounts,omitempty"`
 	Processes     map[string]string         `toml:"processes,omitempty" json:"processes,omitempty"`
 	Checks        map[string]*ToplevelCheck `toml:"checks,omitempty" json:"checks,omitempty"`
 	Services      []Service                 `toml:"services,omitempty" json:"services,omitempty"`
@@ -72,7 +72,7 @@ type Static struct {
 	UrlPrefix string `toml:"url_prefix" json:"url_prefix,omitempty" validate:"required"`
 }
 
-type Volume struct {
+type Mount struct {
 	Source      string `toml:"source,omitempty" json:"source,omitempty"`
 	Destination string `toml:"destination" json:"destination,omitempty"`
 }
@@ -190,14 +190,14 @@ func (cfg *Config) BuildStrategies() []string {
 	return strategies
 }
 
-func (c *Config) Volumes() []Volume {
+func (c *Config) Volumes() []Mount {
 	if mounts, ok := c.RawDefinition["mounts"]; ok {
-		if arr, ok := mounts.([]Volume); ok {
+		if arr, ok := mounts.([]Mount); ok {
 			return arr
 		}
 	}
 	if c.Mounts != nil {
-		return []Volume{*c.Mounts}
+		return []Mount{*c.Mounts}
 	}
 	return nil
 }

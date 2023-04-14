@@ -92,7 +92,7 @@ func fromAppAndOneMachine(appCompact *api.AppCompact, m machine.LeasableMachine,
 		warningMsg     string
 		primaryRegion  string
 		statics        []Static
-		mounts         *Volume
+		mounts         *Mount
 		topLevelChecks map[string]*ToplevelCheck
 	)
 	for k, v := range m.Machine().Config.Env {
@@ -108,7 +108,7 @@ func fromAppAndOneMachine(appCompact *api.AppCompact, m machine.LeasableMachine,
 		})
 	}
 	if len(m.Machine().Config.Mounts) > 0 {
-		mounts = &Volume{
+		mounts = &Mount{
 			Destination: m.Machine().Config.Mounts[0].Path,
 		}
 	}

@@ -38,7 +38,6 @@ for updates, watch https://community.fly.io for announcements about volume migra
 }
 
 func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
-
 	// NOTE: appconfig.Volume doesn't support the rare "processes" key on mounts
 	//       this is extremely rarely used, and seemingly undocumented,
 	//       but because of this rollback stores a copy of the old appconfig now
@@ -46,7 +45,7 @@ func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
 	//       That said, once an app gets moved to V2, that mapping gets wiped.
 	// (not an issue now, because we don't even support multiple volumes on v2,
 	//  but it's worth documenting here nonetheless)
-	m.appConfig.SetVolumes(lo.Map(m.appConfig.Volumes(), func(v appconfig.Volume, _ int) appconfig.Volume {
+	m.appConfig.SetVolumes(lo.Map(m.appConfig.Volumes(), func(v appconfig.Mount, _ int) appconfig.Mount {
 		v.Source = nomadVolNameToV2VolName(v.Source)
 		return v
 	}))

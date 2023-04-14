@@ -70,7 +70,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 		Deploy: &appconfig.Deploy{
 			ReleaseCommand: "touch sky",
 		},
-		Mounts: &appconfig.Volume{
+		Mounts: &appconfig.Mount{
 			Source:      "data",
 			Destination: "/data",
 		},
@@ -213,7 +213,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 // Test Mounts
 func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
-		Mounts: &appconfig.Volume{
+		Mounts: &appconfig.Mount{
 			Source:      "data",
 			Destination: "/data",
 		},
@@ -280,7 +280,7 @@ func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 		Env: map[string]string{
 			"Ignore": "me",
 		},
-		Mounts: &appconfig.Volume{
+		Mounts: &appconfig.Mount{
 			Source:      "data",
 			Destination: "/data",
 		},
@@ -316,7 +316,7 @@ func Test_resolveUpdatedMachineConfig_restartOnlyProcessGroup(t *testing.T) {
 		Env: map[string]string{
 			"Ignore": "me",
 		},
-		Mounts: &appconfig.Volume{
+		Mounts: &appconfig.Mount{
 			Source:      "data",
 			Destination: "/data",
 		},
