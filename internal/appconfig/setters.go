@@ -17,8 +17,8 @@ import (
 func (c *Config) SetInternalPort(port int) {
 	c.v1SetInternalPort(port)
 	switch {
-	case c.HttpService != nil:
-		c.HttpService.InternalPort = port
+	case c.HTTPService != nil:
+		c.HTTPService.InternalPort = port
 	case len(c.Services) > 0:
 		c.Services[0].InternalPort = port
 	}
@@ -36,12 +36,12 @@ func (c *Config) v1SetInternalPort(port int) {
 func (c *Config) SetHttpCheck(path string) {
 	c.v1SetHttpCheck(path)
 	switch {
-	case c.HttpService != nil:
+	case c.HTTPService != nil:
 		if c.Checks == nil {
 			c.Checks = make(map[string]*ToplevelCheck)
 		}
 		c.Checks["status"] = &ToplevelCheck{
-			Port:              api.Pointer(c.HttpService.InternalPort),
+			Port:              api.Pointer(c.HTTPService.InternalPort),
 			Type:              api.Pointer("http"),
 			HTTPMethod:        api.StringPointer("GET"),
 			HTTPPath:          api.StringPointer(path),
@@ -92,8 +92,8 @@ func (c *Config) SetConcurrency(soft int, hard int) {
 		SoftLimit: soft,
 	}
 	switch {
-	case c.HttpService != nil:
-		c.HttpService.Concurrency = concurrency
+	case c.HTTPService != nil:
+		c.HTTPService.Concurrency = concurrency
 	case len(c.Services) > 0:
 		service := &c.Services[0]
 		service.Concurrency = concurrency

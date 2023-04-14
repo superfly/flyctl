@@ -328,9 +328,9 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			Path: "/metrics",
 		},
 
-		HttpService: &HTTPService{
+		HTTPService: &HTTPService{
 			InternalPort: 8080,
-			ForceHttps:   true,
+			ForceHTTPS:   true,
 			Concurrency: &api.MachineServiceConcurrency{
 				Type:      "donuts",
 				HardLimit: 10,

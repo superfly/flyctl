@@ -100,7 +100,7 @@ func TestConfigPortGetter(t *testing.T) {
 			name:         "port set in services and http services",
 			expectedPort: 3000,
 			config: Config{
-				HttpService: &HTTPService{
+				HTTPService: &HTTPService{
 					InternalPort: 3000,
 				},
 				Services: []Service{
@@ -114,7 +114,7 @@ func TestConfigPortGetter(t *testing.T) {
 			name:         "port set in http services",
 			expectedPort: 9876,
 			config: Config{
-				HttpService: &HTTPService{
+				HTTPService: &HTTPService{
 					InternalPort: 9876,
 				},
 			},
@@ -130,7 +130,6 @@ func TestConfigPortGetter(t *testing.T) {
 
 // This can't go in helpers/clone_test.go because of an import cycle
 func TestCloneAppconfig(t *testing.T) {
-
 	config := &Config{
 		AppName: "testcfg",
 		RawDefinition: map[string]any{
@@ -149,7 +148,7 @@ func TestCloneAppconfig(t *testing.T) {
 			Source:      "src",
 			Destination: "dst",
 		},
-		HttpService: &HTTPService{
+		HTTPService: &HTTPService{
 			InternalPort: 100,
 		},
 		defaultGroupName: "some-group",
@@ -159,8 +158,8 @@ func TestCloneAppconfig(t *testing.T) {
 
 	assert.Equal(t, config, cloned)
 
-	config.HttpService.InternalPort = 50
+	config.HTTPService.InternalPort = 50
 
-	assert.Equal(t, 100, cloned.HttpService.InternalPort,
+	assert.Equal(t, 100, cloned.HTTPService.InternalPort,
 		"expected deep copy, but cloned object was modified by change to original config")
 }

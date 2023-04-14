@@ -134,8 +134,8 @@ func (c *Config) rawSections() ([]map[string]any, error) {
 	if c.PrimaryRegion != "" {
 		rawData["primary_region"] = c.PrimaryRegion
 	}
-	if c.HttpService != nil {
-		rawData["http_service"] = c.HttpService
+	if c.HTTPService != nil {
+		rawData["http_service"] = c.HTTPService
 	}
 
 	if len(rawData) > 0 {

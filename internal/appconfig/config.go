@@ -36,7 +36,7 @@ type Config struct {
 	Build         *Build                    `toml:"build,omitempty" json:"build,omitempty"`
 	Deploy        *Deploy                   `toml:"deploy, omitempty" json:"deploy,omitempty"`
 	Env           map[string]string         `toml:"env,omitempty" json:"env,omitempty"`
-	HttpService   *HTTPService              `toml:"http_service,omitempty" json:"http_service,omitempty"`
+	HTTPService   *HTTPService              `toml:"http_service,omitempty" json:"http_service,omitempty"`
 	Metrics       *api.MachineMetrics       `toml:"metrics,omitempty" json:"metrics,omitempty"`
 	Statics       []Static                  `toml:"statics,omitempty" json:"statics,omitempty"`
 	Mounts        *Volume                   `toml:"mounts,omitempty" json:"mounts,omitempty"`
@@ -153,8 +153,8 @@ func (c *Config) DockerBuildTarget() string {
 }
 
 func (c *Config) InternalPort() int {
-	if c.HttpService != nil {
-		return c.HttpService.InternalPort
+	if c.HTTPService != nil {
+		return c.HTTPService.InternalPort
 	}
 
 	if len(c.Services) > 0 {

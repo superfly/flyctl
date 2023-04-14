@@ -67,7 +67,7 @@ func TestSettersWithHTTPService(t *testing.T) {
 	cfg.SetConcurrency(12, 34)
 
 	assert.Empty(t, cfg.Services)
-	assert.Equal(t, cfg.HttpService, &HTTPService{
+	assert.Equal(t, cfg.HTTPService, &HTTPService{
 		InternalPort: 1234,
 		Concurrency: &api.MachineServiceConcurrency{
 			Type:      "connections",
@@ -97,7 +97,7 @@ func TestSettersWithouServices(t *testing.T) {
 	cfg.SetHttpCheck("/status")
 	cfg.SetConcurrency(12, 34)
 	assert.Nil(t, cfg.Services, nil)
-	assert.Nil(t, cfg.HttpService, nil)
+	assert.Nil(t, cfg.HTTPService, nil)
 	assert.Equal(t, cfg.RawDefinition, map[string]any{})
 }
 

@@ -339,7 +339,7 @@ func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status 
 
 func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context) error {
 	// Deploy only if the app hasn't been deployed and have defined services
-	if md.app.Deployed || !md.machineSet.IsEmpty() || (md.appConfig.HttpService == nil && len(md.appConfig.Services) == 0) {
+	if md.app.Deployed || !md.machineSet.IsEmpty() || (md.appConfig.HTTPService == nil && len(md.appConfig.Services) == 0) {
 		return nil
 	}
 

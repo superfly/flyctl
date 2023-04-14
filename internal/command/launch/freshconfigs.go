@@ -10,7 +10,7 @@ func freshV2Config(appName string, srcCfg *appconfig.Config) (*appconfig.Config,
 	newCfg.AppName = appName
 	newCfg.Build = srcCfg.Build
 	newCfg.PrimaryRegion = srcCfg.PrimaryRegion
-	newCfg.HttpService = &appconfig.HTTPService{InternalPort: 8080, ForceHttps: true}
+	newCfg.HTTPService = &appconfig.HTTPService{InternalPort: 8080, ForceHTTPS: true}
 
 	if err := newCfg.SetMachinesPlatform(); err != nil {
 		return nil, err
