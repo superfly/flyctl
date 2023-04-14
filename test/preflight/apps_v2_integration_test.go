@@ -121,7 +121,7 @@ func TestAppsV2ConfigChanges(t *testing.T) {
 		configFilePath = filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
 	)
 
-	f.Fly("launch --org %s --name %s --region %s --image nginx --force-machines --internal-port 7777 --now --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --org %s --name %s --region %s --image nginx --force-machines --internal-port 80 --now --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
 
 	f.Fly("config save -a %s -y", appName)
 	configFileBytes, err := os.ReadFile(configFilePath)
@@ -129,16 +129,16 @@ func TestAppsV2ConfigChanges(t *testing.T) {
 		f.Fatalf("error trying to read %s after running fly config save: %v", configFilePath, err)
 	}
 
-	newConfigFile := strings.Replace(string(configFileBytes), "internal_port = 7777", "internal_port = 9999", 1)
+	newConfigFile := strings.Replace(string(configFileBytes), `grace_period = "5s"`, `grace_period = "3s"`, 1)
 	err = os.WriteFile(configFilePath, []byte(newConfigFile), 0666)
 	if err != nil {
 		f.Fatalf("error trying to write to fly.toml: %s", err)
 	}
 
-	f.Fly("deploy --force-machines")
+	f.Fly("deploy")
 
 	result := f.Fly("config show -a %s", appName)
-	require.Contains(f, result.StdOut().String(), `"internal_port": 9999`)
+	require.Contains(f, result.StdOut().String(), `"internal_port": 80`)
 
 	f.Fly("config save -a %s -y", appName)
 	configFileBytes, err = os.ReadFile(configFilePath)
@@ -146,7 +146,7 @@ func TestAppsV2ConfigChanges(t *testing.T) {
 		f.Fatalf("error trying to read %s after running fly config save: %v", configFilePath, err)
 	}
 
-	require.Contains(f, string(configFileBytes), "internal_port = 9999")
+	require.Contains(f, string(configFileBytes), `grace_period = "3s"`)
 }
 
 func TestAppsV2ConfigSave_ProcessGroups(t *testing.T) {
@@ -573,7 +573,6 @@ web = "nginx -g 'daemon off;'"
 		}
 	}
 	require.Equal(t, idMatchFound, true, "could not find 'web' machine with matching machine ID")
-
 }
 
 func TestAppsV2MigrateToV2(t *testing.T) {
