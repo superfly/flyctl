@@ -54,6 +54,11 @@ func newMigrateToV2() *cobra.Command {
 		flag.Yes(),
 		flag.App(),
 		flag.AppConfig(),
+		flag.Bool{
+			// Note: This is referenced in a preflight test, make sure to remove that when removing this flag!
+			Name:        "experimental-volume-migration",
+			Description: "Migrate apps with volumes. Causes brief downtime. Experimental feature, use at your own risk!",
+		},
 		flag.String{
 			Name:        "primary-region",
 			Description: "Specify primary region if one is not set in fly.toml",

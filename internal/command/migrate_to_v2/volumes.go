@@ -7,6 +7,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/flag"
 	"golang.org/x/exp/slices"
 )
 
@@ -18,8 +19,14 @@ func (m *v2PlatformMigrator) validateVolumes(ctx context.Context) error {
 	if m.isPostgres {
 		return nil
 	}
-	m.usesForkedVolumes = len(m.appConfig.Volumes()) != 0
-	if len(m.appConfig.Volumes()) > 1 {
+	numMounts := len(m.appConfig.Volumes())
+	if numMounts > 0 && !flag.GetBool(ctx, "experimental-volume-migration") {
+		return fmt.Errorf(`migration for apps with volumes is experimental, and gated behind the --experimental-volume-migration flag
+please do not use this on important/production apps yet
+for updates, watch https://community.fly.io for announcements about volume migrations becoming stable`)
+	}
+	m.usesForkedVolumes = numMounts != 0
+	if numMounts > 1 {
 		return fmt.Errorf("cannot migrate app %s because it uses multiple [[mounts]], which are not yet supported on Apps V2.\nwatch https://community.fly.io for announcements about multiple volume mounts for Apps V2", m.appFull.Name)
 	}
 	for _, a := range m.oldAllocs {
