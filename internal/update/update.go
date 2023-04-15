@@ -50,7 +50,7 @@ func LatestRelease(ctx context.Context, channel string) (*Release, error) {
 	updateUrl := fmt.Sprintf("https://api.fly.io/app/flyctl_releases/%s/%s/%s", runtime.GOOS, runtime.GOARCH, channel)
 
 	// If running under homebrew, use the homebrew API to get the latest release
-	if isUnderHomebrew() {
+	if IsUnderHomebrew() {
 		return latestHomebrewRelease(ctx, channel)
 	}
 
@@ -102,9 +102,9 @@ func latestHomebrewRelease(ctx context.Context, channel string) (*Release, error
 	}, nil
 }
 
-// isUnderHomebrew reports whether the fly binary was found under the Homebrew
+// IsUnderHomebrew reports whether the fly binary was found under the Homebrew
 // prefix.
-func isUnderHomebrew() bool {
+func IsUnderHomebrew() bool {
 	flyBinary, err := os.Executable()
 	if err != nil {
 		return false
@@ -125,7 +125,7 @@ func isUnderHomebrew() bool {
 }
 
 func updateCommand(prerelease bool) string {
-	if isUnderHomebrew() {
+	if IsUnderHomebrew() {
 		return "brew upgrade flyctl"
 	}
 
