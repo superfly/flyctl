@@ -254,3 +254,15 @@ func TestFlyLaunch_case07(t *testing.T) {
 
 	f.Fly("launch --now --copy-config -o %s --name %s --region %s --force-machines", f.OrgSlug(), appName, f.PrimaryRegion())
 }
+
+// test --vm-size sets the machine guest on first deploy
+func TestFlyLaunch_case08(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+
+	f.Fly("launch --detach --now -o %s --name %s --region %s --force-machines --image nginx --vm-size shared-cpu-4x", f.OrgSlug(), appName, f.PrimaryRegion())
+
+	ml := f.MachinesList(appName)
+	require.Equal(f, 1, len(ml))
+	require.Equal(f, "shared-cpu-4x", ml[0].Config.Guest.ToSize())
+}
