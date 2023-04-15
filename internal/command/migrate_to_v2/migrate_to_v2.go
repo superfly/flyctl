@@ -685,7 +685,10 @@ func (m *v2PlatformMigrator) deployApp(ctx context.Context) error {
 		RestartOnly: true,
 	}
 	if m.isPostgres {
-		input.NewVolumeName = "pg_data_machines"
+		appConfig := appconfig.ConfigFromContext(ctx)
+		if len(appConfig.Mounts) > 0 {
+			appConfig.Mounts[0].Source = "pg_data_machines"
+		}
 	}
 	md, err := deploy.NewMachineDeployment(ctx, input)
 	if err != nil {
