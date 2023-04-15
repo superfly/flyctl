@@ -37,7 +37,6 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *ap
 	if len(mConfig.Mounts) > 0 {
 		mount0 := &mConfig.Mounts[0]
 		if len(md.volumes[mount0.Name]) == 0 {
-			fmt.Println(md.volumes)
 			return nil, fmt.Errorf("New machine in group '%s' needs an unattached volume named '%s'", processGroup, mount0.Name)
 		}
 		mount0.Volume = md.volumes[mount0.Name][0].ID
