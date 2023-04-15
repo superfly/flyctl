@@ -109,10 +109,10 @@ func run(ctx context.Context) error {
 	ctx = flaps.NewContext(ctx, flapsClient)
 
 	appConfig, err := determineAppConfig(ctx)
-	switch {
-	case strings.Contains(err.Error(), "Could not find App"):
-		return fmt.Errorf("the app name %s could not be found, did you create the app or misspell it in the fly.toml file or via -a?", appName)
-	case err != nil:
+	if err != nil {
+		if strings.Contains(err.Error(), "Could not find App") {
+			return fmt.Errorf("the app name %s could not be found, did you create the app or misspell it in the fly.toml file or via -a?", appName)
+		}
 		return err
 	}
 
