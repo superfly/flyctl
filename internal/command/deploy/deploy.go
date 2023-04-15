@@ -166,13 +166,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 }
 
 func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompact *api.AppCompact, img *imgsrc.DeploymentImage) error {
-	primaryRegion := appConfig.PrimaryRegion
-	if flag.GetString(ctx, flag.RegionName) != "" {
-		primaryRegion = flag.GetString(ctx, flag.RegionName)
-	}
-
-	// It's important to push the appConfig into the context because MachineDeployment
-	// will fetch it from there
+	// It's important to push appConfig into context because MachineDeployment will fetch it from there
 	ctx = appconfig.WithConfig(ctx, appConfig)
 
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
@@ -180,7 +174,7 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 		DeploymentImage:   img.Tag,
 		Strategy:          flag.GetString(ctx, "strategy"),
 		EnvFromFlags:      flag.GetStringSlice(ctx, "env"),
-		PrimaryRegionFlag: primaryRegion,
+		PrimaryRegionFlag: appConfig.PrimaryRegion,
 		SkipHealthChecks:  flag.GetDetach(ctx),
 		WaitTimeout:       time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
 		LeaseTimeout:      time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
@@ -283,8 +277,8 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 		cfg.SetEnvVariables(parsedEnv)
 	}
 
-	if regionCode := flag.GetString(ctx, flag.RegionName); regionCode != "" {
-		cfg.PrimaryRegion = regionCode
+	if v := flag.GetRegion(ctx); v != "" {
+		cfg.PrimaryRegion = v
 	}
 
 	// Always prefer the app name passed via --app
