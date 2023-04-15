@@ -72,6 +72,10 @@ var CommonFlags = flag.Set{
 		Description: "Use the Apps v2 platform built with Machines",
 		Default:     false,
 	},
+	flag.String{
+		Name:        "vm-size",
+		Description: `The VM size to use when deploying for the first time. See "fly platform vm-sizes" for valid values`,
+	},
 }
 
 func New() (cmd *cobra.Command) {
@@ -173,6 +177,7 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 		SkipHealthChecks:  flag.GetDetach(ctx),
 		WaitTimeout:       time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
 		LeaseTimeout:      time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
+		VMSize:            flag.GetString(ctx, "vm-size"),
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
