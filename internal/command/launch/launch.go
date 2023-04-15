@@ -6,11 +6,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
+	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
@@ -254,6 +256,16 @@ func run(ctx context.Context) (err error) {
 	// Override internal port if requested using --internal-port flag
 	if n := flag.GetInt(ctx, "internal-port"); n > 0 {
 		appConfig.SetInternalPort(n)
+	}
+
+	env := flag.GetStringSlice(ctx, "env")
+	if len(env) > 0 {
+		vars, err := cmdutil.ParseKVStringsToMap(env)
+		if err != nil {
+			return errors.Wrap(err, "parsing --env flags")
+		}
+
+		appConfig.SetEnvVariables(vars)
 	}
 
 	// Finally write application configuration to fly.toml
