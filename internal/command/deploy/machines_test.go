@@ -90,7 +90,10 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 		}},
 	})
 	require.NoError(t, err)
-	md.volumes = []api.Volume{{ID: "vol_12345"}}
+
+	md.volumes = map[string][]api.Volume{
+		"data": {{ID: "vol_12345"}},
+	}
 
 	// New app machine
 	li, err := md.launchInputForLaunch("", nil)
@@ -219,7 +222,9 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 		}},
 	})
 	require.NoError(t, err)
-	md.volumes = []api.Volume{{ID: "vol_12345"}}
+	md.volumes = map[string][]api.Volume{
+		"data": {{ID: "vol_12345"}},
+	}
 
 	// New app machine
 	li, err := md.launchInputForLaunch("", nil)

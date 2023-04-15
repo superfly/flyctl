@@ -56,7 +56,7 @@ type machineDeployment struct {
 	img                   string
 	machineSet            machine.MachineSet
 	releaseCommandMachine machine.MachineSet
-	volumes               []api.Volume
+	volumes               map[string][]api.Volume
 	strategy              string
 	releaseId             string
 	releaseVersion        int
@@ -65,6 +65,7 @@ type machineDeployment struct {
 	waitTimeout           time.Duration
 	leaseTimeout          time.Duration
 	leaseDelayBetween     time.Duration
+	isFirstDeploy         bool
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
@@ -135,6 +136,9 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err != nil {
 		return nil, err
 	}
+	if err := md.setFirstDeploy(ctx); err != nil {
+		return nil, err
+	}
 	err = md.setImg(ctx)
 	if err != nil {
 		return nil, err
@@ -156,6 +160,11 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		return nil, err
 	}
 	return md, nil
+}
+
+func (md *machineDeployment) setFirstDeploy(ctx context.Context) error {
+	md.isFirstDeploy = !md.app.Deployed || md.machineSet.IsEmpty()
+	return nil
 }
 
 func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error {
@@ -203,36 +212,83 @@ func (md *machineDeployment) setVolumeConfig(ctx context.Context) error {
 		return fmt.Errorf("Error fetching application volumes: %w", err)
 	}
 
-	md.volumes = lo.Filter(volumes, func(v api.Volume, _ int) bool {
-		return v.Name == md.appConfig.Mounts[0].Source && v.AttachedAllocation == nil && v.AttachedMachine == nil
+	unattached := lo.Filter(volumes, func(v api.Volume, _ int) bool {
+		return v.AttachedAllocation == nil && v.AttachedMachine == nil
+	})
+
+	md.volumes = lo.GroupBy(unattached, func(v api.Volume) string {
+		return v.Name
 	})
 	return nil
 }
 
 func (md *machineDeployment) validateVolumeConfig() error {
-	volumeDestination := ""
-	if len(md.appConfig.Mounts) != 0 {
-		volumeDestination = md.appConfig.Mounts[0].Destination
+	machineGroups := lo.GroupBy(
+		lo.Map(md.machineSet.GetMachines(), func(lm machine.LeasableMachine, _ int) *api.Machine {
+			return lm.Machine()
+		}),
+		func(m *api.Machine) string {
+			return m.ProcessGroup()
+		})
+
+	for _, groupName := range md.appConfig.ProcessNames() {
+		groupConfig, err := md.appConfig.Flatten(groupName)
+		if err != nil {
+			return err
+		}
+
+		switch ms := machineGroups[groupName]; len(ms) > 0 {
+		case true:
+			// For groups with machines, check the attached volumes match expected mounts
+			var mntSrc, mntDst string
+			if len(groupConfig.Mounts) > 0 {
+				mntSrc = groupConfig.Mounts[0].Source
+				mntDst = groupConfig.Mounts[0].Destination
+			}
+
+			for _, m := range ms {
+				if mntDst == "" && len(m.Config.Mounts) != 0 {
+					// TODO: Detaching a volume from a machine is possible, but it usually means a missconfiguration.
+					// We should show a warning and ask the user for confirmation and let it happen instead of failing here.
+					return fmt.Errorf(
+						"machine %s [%s] has a volume mounted but app config does not specify a volume; "+
+							"remove the volume from the machine or add a [mounts] section to fly.toml",
+						m.ID, groupName,
+					)
+				}
+
+				if mntDst != "" && len(m.Config.Mounts) == 0 {
+					// TODO: Attaching a volume to an existing machine is not possible, but it could replace the machine
+					// by another running on the same zone than the volume.
+					return fmt.Errorf(
+						"machine %s [%s] does not have a volume configured and fly.toml expects one with destination %s; "+
+							"remove the [mounts] configuration in fly.toml or use the machines API to add a volume to this machine",
+						m.ID, groupName, mntDst,
+					)
+				}
+
+				if mms := m.Config.Mounts; len(mms) > 0 && mntSrc != "" && mms[0].Name != "" && mntSrc != mms[0].Name {
+					// TODO: Changed the attached volume to an existing machine is not possible, but it could replace the machine
+					// by another running on the same zone than the new volume.
+					return fmt.Errorf(
+						"machine %s [%s] can't update the attached volume %s with name '%s' by '%s'",
+						m.ID, groupName, mntSrc, mms[0].Volume, mms[0].Name,
+					)
+				}
+			}
+
+		case false:
+			// Check if there are unattached volumes for new groups with mounts
+			for _, m := range groupConfig.Mounts {
+				if vs := md.volumes[m.Source]; len(vs) == 0 {
+					return fmt.Errorf(
+						"creating a new machine in group '%s' requires an unattached '%s' volume. Create it with `fly volume create %s`",
+						groupName, m.Source, m.Source)
+				}
+			}
+		}
 	}
 
-	for _, m := range md.machineSet.GetMachines() {
-		mid := m.Machine().ID
-		mountsConfig := m.Machine().Config.Mounts
-		if len(mountsConfig) > 1 {
-			return fmt.Errorf("error machine %s has %d mounts and expected 1", mid, len(mountsConfig))
-		}
-		if volumeDestination == "" && len(mountsConfig) != 0 {
-			return fmt.Errorf("error machine %s has a volume mounted and app config does not specify a volume; remove the volume from the machine or add a [mounts] configuration to fly.toml", mid)
-		}
-		if volumeDestination != "" && len(mountsConfig) == 0 {
-			return fmt.Errorf("error machine %s does not have a volume configured and fly.toml expects one with destination %s; remove the [mounts] configuration in fly.toml or use the machines API to add a volume to this machine", mid, volumeDestination)
-		}
-	}
-
-	if md.machineSet.IsEmpty() && volumeDestination != "" && len(md.volumes) == 0 {
-		return fmt.Errorf("error new machine requires an unattached volume named '%s' on mount destination '%s'",
-			md.appConfig.Mounts[0].Source, volumeDestination)
-	}
 	return nil
 }
 
@@ -338,7 +394,7 @@ func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status 
 
 func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context) error {
 	// Provision only if the app hasn't been deployed and have defined services
-	if md.app.Deployed || !md.machineSet.IsEmpty() || len(md.appConfig.AllServices()) == 0 {
+	if !md.isFirstDeploy || len(md.appConfig.AllServices()) == 0 {
 		return nil
 	}
 

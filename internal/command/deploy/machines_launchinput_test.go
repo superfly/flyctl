@@ -87,7 +87,9 @@ func Test_launchInputFor_onMounts(t *testing.T) {
 		Mounts: []appconfig.Mount{{Source: "data", Destination: "/data"}},
 	})
 	assert.NoError(t, err)
-	md.volumes = []api.Volume{{ID: "vol_12345", Name: "data"}}
+	md.volumes = map[string][]api.Volume{
+		"data": {{ID: "vol_12345", Name: "data"}},
+	}
 
 	// New machine must get a volume attached
 	li, err := md.launchInputForLaunch("", nil)
