@@ -263,11 +263,5 @@ func (c *Config) SetStatics(statics []Static) {
 
 func (c *Config) SetMounts(volumes []Mount) {
 	c.RawDefinition["mounts"] = volumes
-	// FIXME: "mounts" section is confusing, it is plural but only allows one mount
-	if len(volumes) > 0 {
-		c.Mounts = []Mount{{
-			Source:      volumes[0].Source,
-			Destination: volumes[0].Destination,
-		}}
-	}
+	c.Mounts = volumes
 }
