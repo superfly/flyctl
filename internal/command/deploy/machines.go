@@ -40,6 +40,7 @@ type MachineDeploymentArgs struct {
 	RestartOnly       bool
 	WaitTimeout       time.Duration
 	LeaseTimeout      time.Duration
+	VMSize            string
 }
 
 type machineDeployment struct {
@@ -63,6 +64,7 @@ type machineDeployment struct {
 	leaseTimeout          time.Duration
 	leaseDelayBetween     time.Duration
 	isFirstDeploy         bool
+	machineGuest          *api.MachineGuest
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
@@ -122,12 +124,13 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		leaseTimeout:      leaseTimeout,
 		leaseDelayBetween: leaseDelayBetween,
 	}
-	err = md.setStrategy(args.Strategy)
-	if err != nil {
+	if err := md.setStrategy(args.Strategy); err != nil {
 		return nil, err
 	}
-	err = md.setMachinesForDeployment(ctx)
-	if err != nil {
+	if err := md.setMachineGuest(args.VMSize); err != nil {
+		return nil, err
+	}
+	if err := md.setMachinesForDeployment(ctx); err != nil {
 		return nil, err
 	}
 	if err := md.setFirstDeploy(ctx); err != nil {
@@ -136,20 +139,16 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err := md.provisionFirstDeploy(ctx); err != nil {
 		return nil, err
 	}
-	err = md.setImg(ctx)
-	if err != nil {
+	if err := md.setImg(ctx); err != nil {
 		return nil, err
 	}
-	err = md.setVolumeConfig(ctx)
-	if err != nil {
+	if err := md.setVolumeConfig(ctx); err != nil {
 		return nil, err
 	}
-	err = md.validateVolumeConfig()
-	if err != nil {
+	if err := md.validateVolumeConfig(); err != nil {
 		return nil, err
 	}
-	err = md.createReleaseInBackend(ctx)
-	if err != nil {
+	if err = md.createReleaseInBackend(ctx); err != nil {
 		return nil, err
 	}
 	return md, nil
@@ -321,6 +320,11 @@ func (md *machineDeployment) latestImage(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("current release not found for app %s", md.app.Name)
 	}
 	return resp.App.CurrentReleaseUnprocessed.ImageRef, nil
+}
+
+func (md *machineDeployment) setMachineGuest(vmSize string) error {
+	md.machineGuest = &api.MachineGuest{}
+	return md.machineGuest.SetSize(vmSize)
 }
 
 func (md *machineDeployment) setStrategy(passedInStrategy string) error {

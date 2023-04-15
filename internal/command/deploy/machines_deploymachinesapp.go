@@ -204,7 +204,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 		panic("spawnMachineInGroup requires a non-empty group name. this is a bug!")
 	}
 	fmt.Fprintf(md.io.Out, "No machines in group '%s', launching one new machine\n", md.colorize.Bold(groupName))
-	launchInput, err := md.launchInputForLaunch(groupName, nil)
+	launchInput, err := md.launchInputForLaunch(groupName, md.machineGuest)
 	if err != nil {
 		return fmt.Errorf("error creating machine configuration: %w", err)
 	}
