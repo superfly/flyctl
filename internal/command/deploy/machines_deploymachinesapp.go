@@ -11,6 +11,7 @@ import (
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/terminal"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 )
 
@@ -95,13 +96,19 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 	}
 
 	// Create machines for new process groups
-	if len(processGroupMachineDiff.groupsNeedingMachines) > 0 {
-		i := 0
-		for name := range processGroupMachineDiff.groupsNeedingMachines {
-			if err := md.spawnMachineInGroup(ctx, name, i, len(processGroupMachineDiff.groupsNeedingMachines)); err != nil {
+	if total := len(processGroupMachineDiff.groupsNeedingMachines); total > 0 {
+		for idx, name := range maps.Keys(processGroupMachineDiff.groupsNeedingMachines) {
+			fmt.Fprintf(md.io.Out, "No machines in group %s, launching one new machine\n", md.colorize.Bold(name))
+			machineID, err := md.spawnMachineInGroup(ctx, name, idx, total, "")
+			if err != nil {
 				return err
 			}
-			i++
+
+			fmt.Fprintf(md.io.Out, "Creating a standby machine for %s\n", md.colorize.Bold(machineID))
+			if _, err := md.spawnMachineInGroup(ctx, name, idx, total, machineID); err != nil {
+				return err
+			}
+
 		}
 		fmt.Fprintf(md.io.ErrOut, "Finished launching new machines\n")
 	}
@@ -198,15 +205,14 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 	return nil
 }
 
-func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName string, i, total int) error {
-	if groupName == "" {
-		// If the group is unspecified, it should have been translated to "app" by this point
-		panic("spawnMachineInGroup requires a non-empty group name. this is a bug!")
-	}
-	fmt.Fprintf(md.io.Out, "No machines in group '%s', launching one new machine\n", md.colorize.Bold(groupName))
+func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName string, i, total int, standbyFor string) (string, error) {
 	launchInput, err := md.launchInputForLaunch(groupName, md.machineGuest)
 	if err != nil {
-		return fmt.Errorf("error creating machine configuration: %w", err)
+		return "", fmt.Errorf("error creating machine configuration: %w", err)
+	}
+
+	if standbyFor != "" {
+		launchInput.Config.Standbys = []string{standbyFor}
 	}
 
 	newMachineRaw, err := md.flapsClient.Launch(ctx, *launchInput)
@@ -215,35 +221,42 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 		if strings.Contains(err.Error(), "please add a payment method") && !md.releaseCommandMachine.IsEmpty() {
 			relCmdWarning = "\nPlease note that release commands run in their own ephemeral machine, and therefore count towards the machine limit."
 		}
-		return fmt.Errorf("error creating a new machine: %w%s", err, relCmdWarning)
+		return "", fmt.Errorf("error creating a new machine: %w%s", err, relCmdWarning)
 	}
 
-	newMachine := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
+	lm := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
+	fmt.Fprintf(md.io.ErrOut, "  Machine %s was created\n", md.colorize.Bold(lm.FormattedMachineId()))
 
+	// Don't wait for Standby machines, they are created but not started
+	if standbyFor != "" {
+		return newMachineRaw.ID, nil
+	}
+
+	// Roll up as fast as possible when using immediate strategy
+	if md.strategy == "immediate" {
+		return newMachineRaw.ID, nil
+	}
+
+	// Otherwise wait for the machine to start
 	indexStr := formatIndex(i, total)
+	if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr); err != nil {
+		return "", err
+	}
 
-	// FIXME: dry this up with release commands and non-empty update
-	fmt.Fprintf(md.io.ErrOut, "  Created release_command machine %s\n", md.colorize.Bold(newMachineRaw.ID))
-	if md.strategy != "immediate" {
-		err := newMachine.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr)
-		if err != nil {
-			return err
+	// And wait (or not) for successful health checks
+	if !md.skipHealthChecks {
+		if err := lm.WaitForHealthchecksToPass(ctx, md.waitTimeout, indexStr); err != nil {
+			return "", err
 		}
+
+		md.logClearLinesAbove(1)
+		fmt.Fprintf(md.io.ErrOut, "  Machine %s update finished: %s\n",
+			md.colorize.Bold(lm.FormattedMachineId()),
+			md.colorize.Green("success"),
+		)
 	}
-	if md.strategy != "immediate" && !md.skipHealthChecks {
-		err := newMachine.WaitForHealthchecksToPass(ctx, md.waitTimeout, indexStr)
-		// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
-		if err != nil {
-			return err
-		} else {
-			md.logClearLinesAbove(1)
-			fmt.Fprintf(md.io.ErrOut, "  Machine %s update finished: %s\n",
-				md.colorize.Bold(newMachine.FormattedMachineId()),
-				md.colorize.Green("success"),
-			)
-		}
-	}
-	return nil
+
+	return newMachineRaw.ID, nil
 }
 
 func (md *machineDeployment) resolveProcessGroupChanges() ProcessGroupsDiff {

@@ -21,6 +21,7 @@ const (
 	MachineStateDestroying                     = "destroying"
 	MachineStateStarted                        = "started"
 	MachineStateStopped                        = "stopped"
+	MachineStateCreated                        = "created"
 )
 
 type Machine struct {
@@ -443,6 +444,10 @@ type MachineConfig struct {
 	Metrics  *MachineMetrics         `json:"metrics,omitempty"`
 	Checks   map[string]MachineCheck `json:"checks,omitempty"`
 	Statics  []*Static               `json:"statics,omitempty"`
+
+	// Standbys enable a machine to be a standby for another. In the event of a hardware failure,
+	// the standby machine will be started.
+	Standbys []string `json:"standbys,omitempty"`
 
 	// Set by fly deploy or fly machines commands
 	Image string `json:"image,omitempty"`
