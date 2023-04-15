@@ -45,7 +45,7 @@ func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
 	//       That said, once an app gets moved to V2, that mapping gets wiped.
 	// (not an issue now, because we don't even support multiple volumes on v2,
 	//  but it's worth documenting here nonetheless)
-	m.appConfig.SetVolumes(lo.Map(m.appConfig.Volumes(), func(v appconfig.Mount, _ int) appconfig.Mount {
+	m.appConfig.SetMounts(lo.Map(m.appConfig.Volumes(), func(v appconfig.Mount, _ int) appconfig.Mount {
 		v.Source = nomadVolNameToV2VolName(v.Source)
 		return v
 	}))

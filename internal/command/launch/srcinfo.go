@@ -261,7 +261,7 @@ func setAppconfigFromSrcinfo(ctx context.Context, srcInfo *scanner.SourceInfo, a
 				Destination: v.Destination,
 			})
 		}
-		appConfig.SetVolumes(appVolumes)
+		appConfig.SetMounts(appVolumes)
 	}
 
 	for procName, procCommand := range srcInfo.Processes {
