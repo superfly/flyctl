@@ -393,16 +393,10 @@ func (md *machineDeployment) logClearLinesAbove(count int) {
 	}
 }
 
-func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion string) (cfg *appconfig.Config, err error) {
-	appNameFromContext := appconfig.NameFromContext(ctx)
-	if cfg = appconfig.ConfigFromContext(ctx); cfg == nil {
-		logger := logger.FromContext(ctx)
-		logger.Debug("no local app config detected for machines deploy; fetching from backend ...")
-
-		cfg, err = appconfig.FromRemoteApp(ctx, appNameFromContext)
-		if err != nil {
-			return nil, err
-		}
+func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion string) (*appconfig.Config, error) {
+	appConfig := appconfig.ConfigFromContext(ctx)
+	if appConfig == nil {
+		return nil, fmt.Errorf("BUG: application configuration must come in the context, be sure to pass it before calling NewMachineDeployment")
 	}
 
 	if len(envFromFlags) > 0 {
@@ -412,18 +406,18 @@ func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, p
 
 			return
 		}
-		cfg.SetEnvVariables(parsedEnv)
+		appConfig.SetEnvVariables(parsedEnv)
 	}
 
 	// deleting this block will result in machines not being deployed in the user selected region
 	if primaryRegion != "" {
-		cfg.PrimaryRegion = primaryRegion
+		appConfig.PrimaryRegion = primaryRegion
 	}
 
 	// Always prefer the app name passed via --app
-
-	if appNameFromContext != "" {
-		cfg.AppName = appNameFromContext
+	appName := appconfig.NameFromContext(ctx)
+	if appName != "" {
+		appConfig.AppName = appName
 	}
 
 	return
