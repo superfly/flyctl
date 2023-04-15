@@ -410,7 +410,7 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 		}
 
 		for _, m := range groupConfig.Mounts {
-			fmt.Fprintf(md.io.Out, "Creating volume '%s' for process group '%s'\n", m.Source, groupName)
+			fmt.Fprintf(md.io.Out, "Creating 1GB volume '%s' for process group '%s'. See `fly vol extend` to increase its size\n", m.Source, groupName)
 
 			input := api.CreateVolumeInput{
 				AppID:     md.app.ID,
