@@ -252,6 +252,5 @@ func TestFlyLaunch_case07(t *testing.T) {
 	processes = ["other"]
 `)
 
-	f.Fly("version")
 	f.Fly("launch --now --copy-config -o %s --name %s --region %s --force-machines", f.OrgSlug(), appName, f.PrimaryRegion())
 }
