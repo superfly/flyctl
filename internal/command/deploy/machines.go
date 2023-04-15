@@ -323,6 +323,9 @@ func (md *machineDeployment) latestImage(ctx context.Context) (string, error) {
 }
 
 func (md *machineDeployment) setMachineGuest(vmSize string) error {
+	if vmSize == "" {
+		return nil
+	}
 	md.machineGuest = &api.MachineGuest{}
 	return md.machineGuest.SetSize(vmSize)
 }
