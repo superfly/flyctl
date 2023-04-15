@@ -254,14 +254,14 @@ func setAppconfigFromSrcinfo(ctx context.Context, srcInfo *scanner.SourceInfo, a
 	}
 
 	if len(srcInfo.Volumes) > 0 {
-		var appVolumes []appconfig.Volume
+		var appVolumes []appconfig.Mount
 		for _, v := range srcInfo.Volumes {
-			appVolumes = append(appVolumes, appconfig.Volume{
+			appVolumes = append(appVolumes, appconfig.Mount{
 				Source:      v.Source,
 				Destination: v.Destination,
 			})
 		}
-		appConfig.SetVolumes(appVolumes)
+		appConfig.SetMounts(appVolumes)
 	}
 
 	for procName, procCommand := range srcInfo.Processes {

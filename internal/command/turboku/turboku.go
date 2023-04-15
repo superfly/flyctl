@@ -217,6 +217,7 @@ func run(ctx context.Context) error {
 	fmt.Fprintln(io.Out, "Dockerfile created")
 
 	appConfig.AppName = createdApp.Name
+	appConfig.PrimaryRegion = regionCode
 	ctx = appconfig.WithName(ctx, appConfig.AppName)
 	ctx = appconfig.WithConfig(ctx, appConfig)
 

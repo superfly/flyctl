@@ -685,8 +685,12 @@ func (m *v2PlatformMigrator) deployApp(ctx context.Context) error {
 		RestartOnly: true,
 	}
 	if m.isPostgres {
-		input.NewVolumeName = "pg_data_machines"
+		if len(m.appConfig.Mounts) > 0 {
+			m.appConfig.Mounts[0].Source = "pg_data_machines"
+		}
 	}
+	// Feed appConfig into the context so MachineDeployment can reuse it
+	ctx = appconfig.WithConfig(ctx, m.appConfig)
 	md, err := deploy.NewMachineDeployment(ctx, input)
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(err, "migrate-to-v2", m.appCompact)
@@ -815,10 +819,7 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 }
 
 func determineAppConfigForMachines(ctx context.Context) (*appconfig.Config, error) {
-	var (
-		err                error
-		appNameFromContext = appconfig.NameFromContext(ctx)
-	)
+	appNameFromContext := appconfig.NameFromContext(ctx)
 	cfg, err := appconfig.FromRemoteApp(ctx, appNameFromContext)
 	if err != nil {
 		return nil, err

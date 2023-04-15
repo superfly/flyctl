@@ -70,10 +70,10 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 		Deploy: &appconfig.Deploy{
 			ReleaseCommand: "touch sky",
 		},
-		Mounts: &appconfig.Volume{
+		Mounts: []appconfig.Mount{{
 			Source:      "data",
 			Destination: "/data",
-		},
+		}},
 		Checks: map[string]*appconfig.ToplevelCheck{
 			"alive": {
 				Port: api.Pointer(8080),
@@ -90,7 +90,10 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 		}},
 	})
 	require.NoError(t, err)
-	md.volumes = []api.Volume{{ID: "vol_12345"}}
+
+	md.volumes = map[string][]api.Volume{
+		"data": {{ID: "vol_12345"}},
+	}
 
 	// New app machine
 	li, err := md.launchInputForLaunch("", nil)
@@ -213,13 +216,15 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 // Test Mounts
 func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
-		Mounts: &appconfig.Volume{
+		Mounts: []appconfig.Mount{{
 			Source:      "data",
 			Destination: "/data",
-		},
+		}},
 	})
 	require.NoError(t, err)
-	md.volumes = []api.Volume{{ID: "vol_12345"}}
+	md.volumes = map[string][]api.Volume{
+		"data": {{ID: "vol_12345"}},
+	}
 
 	// New app machine
 	li, err := md.launchInputForLaunch("", nil)
@@ -280,10 +285,10 @@ func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 		Env: map[string]string{
 			"Ignore": "me",
 		},
-		Mounts: &appconfig.Volume{
+		Mounts: []appconfig.Mount{{
 			Source:      "data",
 			Destination: "/data",
-		},
+		}},
 	})
 	assert.NoError(t, err)
 	md.img = "SHOULD-NOT-USE-THIS-TAG"
@@ -316,10 +321,10 @@ func Test_resolveUpdatedMachineConfig_restartOnlyProcessGroup(t *testing.T) {
 		Env: map[string]string{
 			"Ignore": "me",
 		},
-		Mounts: &appconfig.Volume{
+		Mounts: []appconfig.Mount{{
 			Source:      "data",
 			Destination: "/data",
-		},
+		}},
 	})
 	md.releaseVersion = 2
 	assert.NoError(t, err)

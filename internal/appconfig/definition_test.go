@@ -220,10 +220,10 @@ func TestToDefinition(t *testing.T) {
 				"url_prefix": "/static-assets",
 			},
 		},
-		"mounts": map[string]any{
+		"mounts": []map[string]any{{
 			"source":      "data",
 			"destination": "/data",
-		},
+		}},
 		"processes": map[string]any{
 			"web":  "run web",
 			"task": "task all day",

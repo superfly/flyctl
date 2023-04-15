@@ -1,0 +1,15 @@
+app = "foo"
+
+[processes]
+  app = ""
+  back = "back"
+  hola = "hi!"
+
+[[mounts]]
+  source = "data"
+  destination = "/data"
+
+[[mounts]]
+  source = "trash"
+  destination = "/trash"
+  processes = ["back"]

@@ -133,7 +133,7 @@ func TestCloneAppconfig(t *testing.T) {
 	config := &Config{
 		AppName: "testcfg",
 		RawDefinition: map[string]any{
-			"mounts": []Volume{
+			"mounts": []Mount{
 				{
 					Source:      "src-raw",
 					Destination: "dst-raw",
@@ -144,10 +144,10 @@ func TestCloneAppconfig(t *testing.T) {
 				},
 			},
 		},
-		Mounts: &Volume{
+		Mounts: []Mount{{
 			Source:      "src",
 			Destination: "dst",
-		},
+		}},
 		HTTPService: &HTTPService{
 			InternalPort: 100,
 		},

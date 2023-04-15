@@ -239,10 +239,10 @@ func TestSetStatics(t *testing.T) {
 
 func TestSetVolumes(t *testing.T) {
 	cfg := NewConfig()
-	cfg.SetVolumes([]Volume{{Source: "data", Destination: "/data"}})
-	assert.Equal(t, cfg.Mounts, &Volume{Source: "data", Destination: "/data"})
+	cfg.SetMounts([]Mount{{Source: "data", Destination: "/data"}})
+	assert.Equal(t, cfg.Mounts, []Mount{{Source: "data", Destination: "/data"}})
 	assert.Equal(t, cfg.RawDefinition, map[string]any{
-		"mounts": []Volume{
+		"mounts": []Mount{
 			{Source: "data", Destination: "/data"},
 		},
 	})

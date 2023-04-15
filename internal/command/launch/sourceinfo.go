@@ -61,7 +61,7 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 	}
 
 	if strategies := appConfig.BuildStrategies(); len(strategies) > 0 {
-		fmt.Fprintf(io.Out, "Using build strategies '%s'. Remove [build] from fly.toml to force a rescan", aurora.Yellow(strategies))
+		fmt.Fprintf(io.Out, "Using build strategies '%s'. Remove [build] from fly.toml to force a rescan\n", aurora.Yellow(strategies))
 		return srcInfo, appConfig.Build, nil
 	}
 

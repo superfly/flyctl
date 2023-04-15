@@ -236,3 +236,24 @@ func TestToMachineConfig_defaultV2flytoml(t *testing.T) {
 	assert.Nil(t, got)
 	assert.ErrorContains(t, err, "has no internal port set")
 }
+
+func TestToReleaseMachineConfig_processGroupsAndMounts(t *testing.T) {
+	cfg, err := LoadConfig("./testdata/tomachine-mounts.toml")
+	require.NoError(t, err)
+
+	got, err := cfg.ToMachineConfig("", nil)
+	require.NoError(t, err)
+	assert.Equal(t, []api.MachineMount{{Name: "data", Path: "/data"}}, got.Mounts)
+
+	got, err = cfg.ToMachineConfig("app", nil)
+	require.NoError(t, err)
+	assert.Equal(t, []api.MachineMount{{Name: "data", Path: "/data"}}, got.Mounts)
+
+	got, err = cfg.ToMachineConfig("back", nil)
+	require.NoError(t, err)
+	assert.Equal(t, []api.MachineMount{{Name: "trash", Path: "/trash"}}, got.Mounts)
+
+	got, err = cfg.ToMachineConfig("hola", nil)
+	require.NoError(t, err)
+	assert.Empty(t, got.Mounts)
+}

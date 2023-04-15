@@ -121,11 +121,11 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 
 	// Mounts
 	mConfig.Mounts = nil
-	if c.Mounts != nil {
-		mConfig.Mounts = []api.MachineMount{{
-			Path: c.Mounts.Destination,
-			Name: c.Mounts.Source,
-		}}
+	for _, m := range c.Mounts {
+		mConfig.Mounts = append(mConfig.Mounts, api.MachineMount{
+			Path: m.Destination,
+			Name: m.Source,
+		})
 	}
 
 	return mConfig, nil

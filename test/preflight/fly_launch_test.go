@@ -226,3 +226,31 @@ primary_region = "%s"
 	})
 	require.NotEqual(f, appName3, toml["app"])
 }
+
+// test volumes are created on first launch
+func TestFlyLaunch_case07(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+
+	f.WriteFlyToml(`
+[build]
+  image = "nginx"
+
+[processes]
+	app = ""
+	other = "sleep inf"
+	backend = "sleep 1h"
+
+[[mounts]]
+  source = "data"
+	destination = "/data"
+	processes = ["app"]
+
+[[mounts]]
+  source = "trashbin"
+	destination = "/data"
+	processes = ["other"]
+`)
+
+	f.Fly("launch --now --copy-config -o %s --name %s --region %s --force-machines", f.OrgSlug(), appName, f.PrimaryRegion())
+}
