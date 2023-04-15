@@ -9,6 +9,17 @@ During the transition, note that where you see `flyctl` as a command it can be r
 
 ## Using a Package Manager
 
+#### [Winget](https://learn.microsoft.com/en-us/windows/package-manager/) (Windows)
+
+```powershell
+winget install flyctl
+```
+To upgrade to the latest version:
+
+```powershell
+winget upgrade flyctl
+```
+
 #### [Homebrew](https://brew.sh) (macOS, Linux, WSL)
 
 ```bash
