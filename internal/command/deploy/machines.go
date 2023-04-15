@@ -143,15 +143,19 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err != nil {
 		return nil, err
 	}
+	err = md.provisionIpsOnFirstDeploy(ctx)
+	if err != nil {
+		return nil, err
+	}
+	err = md.provisionVolumesOnFirstDeploy(ctx)
+	if err != nil {
+		return nil, err
+	}
 	err = md.setVolumeConfig(ctx)
 	if err != nil {
 		return nil, err
 	}
 	err = md.validateVolumeConfig()
-	if err != nil {
-		return nil, err
-	}
-	err = md.provisionIpsOnFirstDeploy(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -392,8 +396,41 @@ func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status 
 	return nil
 }
 
+func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) error {
+	// Provision only if the app hasn't been deployed and have mounts defined
+	if !md.isFirstDeploy || len(md.appConfig.Mounts) == 0 {
+		return nil
+	}
+
+	// The logic here is to provision one volume per process group that needs it only on the primary region
+	for _, groupName := range md.appConfig.ProcessNames() {
+		groupConfig, err := md.appConfig.Flatten(groupName)
+		if err != nil {
+			return err
+		}
+
+		for _, m := range groupConfig.Mounts {
+			fmt.Fprintf(md.io.Out, "Creating volume '%s' for process group '%s'\n", m.Source, groupName)
+
+			input := api.CreateVolumeInput{
+				AppID:     md.app.ID,
+				Name:      m.Source,
+				Region:    groupConfig.PrimaryRegion,
+				SizeGb:    1,
+				Encrypted: true,
+			}
+
+			_, err := md.apiClient.CreateVolume(ctx, input)
+			if err != nil {
+				return fmt.Errorf("failed creating volume: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
 func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context) error {
-	// Provision only if the app hasn't been deployed and have defined services
+	// Provision only if the app hasn't been deployed and have services defined
 	if !md.isFirstDeploy || len(md.appConfig.AllServices()) == 0 {
 		return nil
 	}
