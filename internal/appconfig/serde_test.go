@@ -57,6 +57,23 @@ func TestLoadTOMLAppConfigWithEmptyService(t *testing.T) {
 	assert.Nil(t, p.Services)
 }
 
+func TestLoadTOMLAppConfig_servicesWithProcesses(t *testing.T) {
+	const path = "./testdata/services-processes.toml"
+
+	p, err := LoadConfig(path)
+	require.NoError(t, err)
+	assert.Equal(t, &HTTPService{
+		InternalPort: 8080,
+		Processes:    []string{"web"},
+	}, p.HTTPService)
+
+	assert.Equal(t, []Service{{
+		Protocol:     "tcp",
+		InternalPort: 9999,
+		Processes:    []string{"web", "other"},
+	}}, p.Services)
+}
+
 func TestLoadTOMLAppConfigInvalidV2(t *testing.T) {
 	const path = "./testdata/always-invalid-v2.toml"
 	cfg, err := LoadConfig(path)

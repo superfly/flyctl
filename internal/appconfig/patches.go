@@ -14,6 +14,7 @@ var configPatches = []patchFuncType{
 	patchEnv,
 	patchServices,
 	patchProcesses,
+	patchHTTPService,
 	patchExperimental,
 	patchTopLevelChecks,
 	patchMounts,
@@ -130,6 +131,24 @@ func patchMounts(cfg map[string]any) (map[string]any, error) {
 		}
 	}
 	cfg["mounts"] = mounts
+	return cfg, nil
+}
+
+func patchHTTPService(cfg map[string]any) (map[string]any, error) {
+	raw, ok := cfg["http_service"]
+	if !ok {
+		return cfg, nil
+	}
+
+	cast, ok := raw.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("http_service section of unknown type: %T", raw)
+	}
+
+	if err := _patchProcessesField(cast); err != nil {
+		return nil, err
+	}
+	cfg["http_service"] = cast
 	return cfg, nil
 }
 
@@ -255,7 +274,10 @@ func _patchService(service map[string]any) (map[string]any, error) {
 		}
 
 		service["internal_port"] = internal_port
+	}
 
+	if err := _patchProcessesField(service); err != nil {
+		return nil, err
 	}
 
 	return service, nil
@@ -298,6 +320,21 @@ func _patchCheck(check map[string]any) (map[string]any, error) {
 		}
 	}
 	return check, nil
+}
+
+func _patchProcessesField(in map[string]any) error {
+	rawProcesses, ok := in["processes"]
+	if !ok {
+		return nil
+	}
+
+	n, err := stringOrSliceToSlice(rawProcesses, "processes")
+	if err != nil {
+		return err
+	}
+
+	in["processes"] = n
+	return nil
 }
 
 func castToInt(num any) (int, error) {

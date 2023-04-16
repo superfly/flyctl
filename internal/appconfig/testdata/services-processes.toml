@@ -1,0 +1,14 @@
+app = "foo"
+
+[processes]
+  web = "run web"
+  other = "run other"
+
+[http_service]
+  internal_port = 8080
+  processes = "web"
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 9999
+  processes = ["web", "other"]
