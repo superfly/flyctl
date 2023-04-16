@@ -454,6 +454,11 @@ type MachineConfig struct {
 	FlyProxy    *MachineFlyProxy `json:"fly_proxy,omitempty"`
 	Processes   []MachineProcess `json:"processes,omitempty"`
 
+	// Not used by flyctl yet
+	// Standbys enable a machine to be a standby for another. In the event of a hardware failure,
+	// the standby machine will be started.
+	Standbys []string `json:"standbys,omitempty"`
+
 	// Deprecated: use Guest instead
 	VMSize string `json:"size,omitempty"`
 	// Deprecated: use FlyProxy.AutostartMachine instead
