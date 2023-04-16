@@ -11,6 +11,7 @@ import (
 type Service struct {
 	Protocol     string                         `json:"protocol,omitempty" toml:"protocol"`
 	InternalPort int                            `json:"internal_port,omitempty" toml:"internal_port"`
+	Autoscaled   *bool                          `json:"autoscaled,omitempty" toml:"autoscaled,omitempty"`
 	Ports        []api.MachinePort              `json:"ports,omitempty" toml:"ports"`
 	Concurrency  *api.MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
 	TCPChecks    []*ServiceTCPCheck             `json:"tcp_checks,omitempty" toml:"tcp_checks,omitempty"`
@@ -44,6 +45,7 @@ type ServiceHTTPCheck struct {
 type HTTPService struct {
 	InternalPort int                            `json:"internal_port,omitempty" toml:"internal_port" validate:"required,numeric"`
 	ForceHTTPS   bool                           `toml:"force_https" json:"force_https,omitempty"`
+	Autoscaled   *bool                          `json:"autoscaled,omitempty" toml:"autoscaled,omitempty"`
 	Concurrency  *api.MachineServiceConcurrency `toml:"concurrency,omitempty" json:"concurrency,omitempty"`
 	Processes    []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
 }
@@ -62,8 +64,7 @@ func (s *HTTPService) ToService() *Service {
 			Port:     api.IntPointer(443),
 			Handlers: []string{"http", "tls"},
 		}},
-		TCPChecks:  nil,
-		HTTPChecks: nil,
+		Autoscaled: s.Autoscaled,
 	}
 }
 
@@ -81,6 +82,8 @@ func (svc *Service) toMachineService() *api.MachineService {
 		InternalPort: svc.InternalPort,
 		Ports:        svc.Ports,
 		Concurrency:  svc.Concurrency,
+		Autostart:    svc.Autoscaled,
+		Autostop:     svc.Autoscaled,
 	}
 
 	for _, tc := range svc.TCPChecks {

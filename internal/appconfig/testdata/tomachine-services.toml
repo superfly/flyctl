@@ -1,0 +1,21 @@
+app = "foo"
+primary_region = "scl"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  autoscaled = true
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 9999
+  autoscaled = true
+
+[[services]]
+  protocol = "udp"
+  internal_port = 1000
+  autoscaled = false
+
+[[services]]
+  protocol = "udp"
+  internal_port = 2000

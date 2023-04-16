@@ -51,7 +51,6 @@ func TestToMachineConfig(t *testing.T) {
 		AutoDestroy: true,
 		Restart:     api.MachineRestart{Policy: "poke"},
 		DNS:         &api.DNSConfig{SkipRegistration: true},
-		FlyProxy:    &api.MachineFlyProxy{AutostopMachine: api.Pointer(true)},
 		Env:         map[string]string{"removed": "by-update"},
 		Mounts:      []api.MachineMount{{Name: "removed", Path: "/by/update"}},
 		Metadata:    map[string]string{"retain": "propagated"},
@@ -66,7 +65,6 @@ func TestToMachineConfig(t *testing.T) {
 	assert.Equal(t, true, got.AutoDestroy)
 	assert.Equal(t, api.MachineRestart{Policy: "poke"}, got.Restart)
 	assert.Equal(t, &api.DNSConfig{SkipRegistration: true}, got.DNS)
-	assert.Equal(t, &api.MachineFlyProxy{AutostopMachine: api.Pointer(true)}, got.FlyProxy)
 	assert.Equal(t, "propagated", got.Metadata["retain"])
 	assert.Empty(t, got.Init.Cmd)
 }
@@ -256,4 +254,42 @@ func TestToReleaseMachineConfig_processGroupsAndMounts(t *testing.T) {
 	got, err = cfg.ToMachineConfig("hola", nil)
 	require.NoError(t, err)
 	assert.Empty(t, got.Mounts)
+}
+
+func TestToMachineConfig_services(t *testing.T) {
+	cfg, err := LoadConfig("./testdata/tomachine-services.toml")
+	require.NoError(t, err)
+
+	want := []api.MachineService{
+		{
+			Protocol:     "tcp",
+			InternalPort: 8080,
+			Autostart:    api.Pointer(true),
+			Autostop:     api.Pointer(true),
+			Ports: []api.MachinePort{
+				{Port: api.Pointer(80), Handlers: []string{"http"}, ForceHttps: true},
+				{Port: api.Pointer(443), Handlers: []string{"http", "tls"}, ForceHttps: false},
+			},
+		},
+		{
+			Protocol:     "tcp",
+			InternalPort: 9999,
+			Autostart:    api.Pointer(true),
+			Autostop:     api.Pointer(true),
+		},
+		{
+			Protocol:     "udp",
+			InternalPort: 1000,
+			Autostart:    api.Pointer(false),
+			Autostop:     api.Pointer(false),
+		},
+		{
+			Protocol:     "udp",
+			InternalPort: 2000,
+		},
+	}
+
+	got, err := cfg.ToMachineConfig("", nil)
+	assert.NoError(t, err)
+	assert.Equal(t, want, got.Services)
 }
