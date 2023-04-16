@@ -29,9 +29,10 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 	s := &SourceInfo{
 		Family: "NodeJS",
 		Port:   8080,
-		Env: map[string]string{
-			"PORT": "8080",
-		},
+	}
+
+	env := map[string]string{
+		"PORT": "8080",
 	}
 
 	if remix {
@@ -80,7 +81,21 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 	vars["remix"] = remix
 	vars["prisma"] = prisma
 
+	vars["runtime"] = s.Family
+
 	files := templatesExecute("templates/node", vars)
+
+	if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "sqlite")) {
+		env["DATABASE_URL"] = "file:/data/sqlite.db"
+		s.SkipDatabase = true
+		s.Volumes = []Volume{
+			{
+				Source:      "data",
+				Destination: "/data",
+			},
+		}
+		s.Notice = "\nThis launch configuration uses SQLite on a single, dedicated volume. It will not scale beyond a single VM. Look into 'fly postgres' for a more robust production database. \n"
+	}
 
 	// only include migration script if this app uses prisma
 	s.Files = make([]SourceFile, 0)
@@ -124,6 +139,8 @@ need help, please post on https://community.fly.io.
 
 Now: run 'fly deploy' to deploy your Node app.
 `
+
+	s.Env = env
 
 	return s, nil
 }

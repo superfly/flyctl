@@ -31,7 +31,7 @@ RUN {{ .packager }} install
 
 FROM debian:bullseye-slim
 
-LABEL fly_launch_runtime="nodejs"
+LABEL fly_launch_runtime="{{ .runtime }}"
 
 COPY --from=builder /usr/local/node /usr/local/node
 COPY --from=builder /app /app
@@ -44,7 +44,7 @@ ENV PATH /usr/local/node/bin:$PATH
 RUN yarn install --production
 {{ else -}}
 RUN npm prune --production
-{{ end -}
+{{ end -}}
 
 {{ if .prisma -}}
 CMD [ "sh", "start_with_migrations.sh" ]
