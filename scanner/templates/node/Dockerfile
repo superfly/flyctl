@@ -16,6 +16,11 @@ RUN apt-get update; apt install -y curl python-is-python3 pkg-config build-essen
 RUN mkdir /app
 WORKDIR /app
 
+{{ if .prisma -}}
+ADD prisma .
+RUN npx prisma generate
+
+{{ end -}}
 COPY . .
 
 {{ if .build -}}
@@ -35,4 +40,14 @@ WORKDIR /app
 ENV NODE_ENV production
 ENV PATH /usr/local/node/bin:$PATH
 
+{{ if .yarn -}}
+RUN yarn install --production
+{{ else -}}
+RUN npm prune --production
+{{ end -}
+
+{{ if .prisma -}}
+CMD [ "sh", "start_with_migrations.sh" ]
+{{ else -}}
 CMD [ "{{ .packager }}", "run", "start" ]
+{{ end -}}

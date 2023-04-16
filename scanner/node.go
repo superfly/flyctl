@@ -12,6 +12,9 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 		return nil, nil
 	}
 
+	remix := checksPass(sourceDir, dirContains("package.json", "remix"))
+	prisma := checksPass(sourceDir, dirContains("package.json", "prisma"))
+
 	data, err := os.ReadFile("package.json")
 	if err != nil {
 		return nil, nil
@@ -31,12 +34,12 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 		},
 	}
 
-	scripts, ok := result["scripts"].(map[string]interface{})
+	if remix {
+		s.Family = "Remix"
+	}
 
-	if !ok || scripts["start"] == nil {
-		// cowardly fall back to heroku buildpacks
-		s.Builder = "heroku/buildpacks:20"
-		return s, nil
+	if prisma {
+		s.Family += "/Prisma"
 	}
 
 	vars := make(map[string]interface{})
@@ -71,20 +74,50 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 		vars["packager"] = "yarn"
 	}
 
-	vars["build"] = scripts["build"] != nil
-
 	vars["nodeVersion"] = nodeVersion
 	vars["yarnVersion"] = yarnVersion
 
-	s.Files = templatesExecute("templates/node", vars)
+	vars["remix"] = remix
+	vars["prisma"] = prisma
+
+	files := templatesExecute("templates/node", vars)
+
+	// only include migration script if this app uses prisma
+	s.Files = make([]SourceFile, 0)
+	for _, file := range files {
+		if prisma || file.Path != "start_with_migrations.sh" {
+			s.Files = append(s.Files, file)
+		}
+	}
 
 	s.SkipDeploy = true
-	s.DeployDocs = `
+
+	scripts, ok := result["scripts"].(map[string]interface{})
+
+	vars["build"] = scripts["build"] != nil
+
+	if !ok || scripts["start"] == nil {
+		s.DeployDocs = `
+Your Node app doesn't define a start script in package.json.  You will need
+to add one before you deploy.  Also be sure to set your listen port
+to 8080 using code similar to the following:
+
+    const port = process.env.PORT || "8080";
+`
+	} else if remix {
+		s.DeployDocs = `
+Your Remix app is prepared for deployment.
+`
+	} else {
+		s.DeployDocs = `
 Your Node app is prepared for deployment.  Be sure to set your listen port
 to 8080 using code similar to the following:
 
     const port = process.env.PORT || "8080";
+`
+	}
 
+	s.DeployDocs += `
 If you need custom packages installed, or have problems with your deployment
 build, you may need to edit the Dockerfile for app-specific changes. If you
 need help, please post on https://community.fly.io.
