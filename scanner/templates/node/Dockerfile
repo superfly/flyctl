@@ -5,13 +5,13 @@ ARG NODE_VERSION={{ .nodeVersion }}
 {{ if .yarn -}}
 ARG YARN_VERSION={{ .yarnVersion }}
 {{ end }}
-RUN apt-get update; apt install -y curl python-is-python3 pkg-config build-essential && \
+RUN apt-get update; apt install -y curl python-is-python3 pkg-config build-essential {{ if .prisma }}openssl {{ end }}&& \
     curl -sL https://github.com/nodenv/node-build/archive/master.tar.gz | tar xz -C /tmp/ && \
     /tmp/node-build-master/bin/node-build "${NODE_VERSION}" /usr/local/node && \
 {{ if .yarn -}}
     npm install -g yarn@$YARN_VERSION && \
 {{ end -}}
-    rm -rf /tmp/node-build-master
+    rm -rf /tmp/node-build-master /var/lib/apt/lists /var/cache/apt/archives
 
 RUN mkdir /app
 WORKDIR /app
