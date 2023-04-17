@@ -4,6 +4,7 @@ package appconfig
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/superfly/flyctl/api"
 )
@@ -112,9 +113,9 @@ func (c *Config) HasNonHttpAndHttpsStandardServices() bool {
 			for _, p := range service.Ports {
 				if p.HasNonHttpPorts() {
 					return true
-				} else if p.ContainsPort(80) && (len(p.Handlers) != 1 || p.Handlers[0] != "http") {
+				} else if p.ContainsPort(80) && !reflect.DeepEqual(p.Handlers, []string{"http"}) {
 					return true
-				} else if p.ContainsPort(443) && (len(p.Handlers) != 2 || p.Handlers[0] != "tls" || p.Handlers[1] != "http") {
+				} else if p.ContainsPort(443) && !(reflect.DeepEqual(p.Handlers, []string{"http", "tls"}) || reflect.DeepEqual(p.Handlers, []string{"tls", "http"})) {
 					return true
 				}
 			}
