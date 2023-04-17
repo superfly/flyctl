@@ -42,6 +42,7 @@ func (c *Config) ToReleaseMachineConfig() (*api.MachineConfig, error) {
 	}
 
 	mConfig.Env["RELEASE_COMMAND"] = "1"
+	mConfig.Env["FLY_PROCESS_GROUP"] = api.MachineProcessGroupFlyAppReleaseCommand
 	if c.PrimaryRegion != "" {
 		mConfig.Env["PRIMARY_REGION"] = c.PrimaryRegion
 	}
@@ -51,6 +52,7 @@ func (c *Config) ToReleaseMachineConfig() (*api.MachineConfig, error) {
 
 // updateMachineConfig applies configuration options from the optional MachineConfig passed in, then the base config, into a new MachineConfig
 func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig, error) {
+	// For flattened app configs there is only one proces name and it is the group it was flattened for
 	processGroup := c.DefaultProcessName()
 
 	mConfig := &api.MachineConfig{}
@@ -106,6 +108,7 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 
 	// Env
 	mConfig.Env = lo.Assign(c.Env)
+	mConfig.Env["FLY_PROCESS_GROUP"] = processGroup
 	if c.PrimaryRegion != "" {
 		mConfig.Env["PRIMARY_REGION"] = c.PrimaryRegion
 	}
