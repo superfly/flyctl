@@ -106,7 +106,7 @@ func once(ctx context.Context, out io.Writer) (err error) {
 	platformVersion := app.PlatformVersion
 
 	if platformVersion == "machines" {
-		err = renderMachineStatus(ctx, app)
+		err = renderMachineStatus(ctx, app, out)
 		return
 	}
 
@@ -222,6 +222,11 @@ func runWatch(ctx context.Context) (err error) {
 		))
 
 		pause.For(ctx, time.Duration(sleep)*time.Second)
+	}
+
+	// Interrupted with Ctrl-C
+	if errors.Is(ctx.Err(), context.Canceled) {
+		err = nil
 	}
 
 	return
