@@ -2,6 +2,8 @@ package scanner
 
 import (
 	"github.com/superfly/flyctl/helpers"
+	"os"
+	"path/filepath"
 )
 
 // setup django with a postgres database
@@ -44,7 +46,29 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 	    vars["venv"] = true
 	}
 
-	s.Files = templatesExecute("templates/django", vars)
+    fileName := "wsgi.py"
+    root := "."
+
+    // Walk the directory tree and search for the wsgi.py file
+    var filePath string
+    err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+        if err != nil {
+            return err
+        }
+        if !info.IsDir() && info.Name() == fileName {
+            filePath = path
+        }
+        return nil
+    })
+
+    if err != nil || filePath == "" {
+        vars["wsgiFound"] = false;
+    } else {
+        vars["wsgiFound"] = true;
+        vars["wsgiName"] = filepath.Base(filepath.Dir(filePath));
+    }
+
+    s.Files = templatesExecute("templates/django", vars)
 
 	// check if project has a postgres dependency
 	if checksPass(sourceDir, dirContains("requirements.txt", "psycopg2")) || checksPass(sourceDir, dirContains("Pipfile", "psycopg2")) || checksPass(sourceDir, dirContains("pyproject.toml", "psycopg2")) {
