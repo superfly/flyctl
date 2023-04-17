@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
 )
 
@@ -162,4 +163,45 @@ func TestCloneAppconfig(t *testing.T) {
 
 	assert.Equal(t, 100, cloned.HTTPService.InternalPort,
 		"expected deep copy, but cloned object was modified by change to original config")
+}
+
+func TestHasNonHttpAndHttpsStandardServices(t *testing.T) {
+	port80 := 80
+	port443 := 443
+
+	cfg1 := NewConfig()
+	cfg1.Services = []Service{{Protocol: "tcp", Ports: []api.MachinePort{
+		{Port: &port80, Handlers: []string{"http"}},
+	}}}
+	assert.False(t, cfg1.HasNonHttpAndHttpsStandardServices())
+
+	cfg2 := NewConfig()
+	cfg2.Services = []Service{{Protocol: "tcp", Ports: []api.MachinePort{
+		{Port: &port443, Handlers: []string{"tls", "http"}},
+	}}}
+	assert.False(t, cfg2.HasNonHttpAndHttpsStandardServices())
+
+	cfg3 := NewConfig()
+	cfg3.Services = []Service{{Protocol: "tcp", Ports: []api.MachinePort{
+		{Port: &port443, Handlers: []string{"http", "tls"}},
+	}}}
+	assert.False(t, cfg3.HasNonHttpAndHttpsStandardServices())
+
+	cfg4 := NewConfig()
+	cfg4.Services = []Service{{Protocol: "tcp", Ports: []api.MachinePort{
+		{Port: &port443, Handlers: []string{"tls", "weird"}},
+	}}}
+	assert.True(t, cfg4.HasNonHttpAndHttpsStandardServices())
+
+	cfg5 := NewConfig()
+	cfg5.Services = []Service{{Protocol: "tcp", Ports: []api.MachinePort{
+		{Port: &port443, Handlers: []string{"tls"}},
+	}}}
+	assert.True(t, cfg5.HasNonHttpAndHttpsStandardServices())
+
+	cfg6 := NewConfig()
+	cfg6.Services = []Service{{Protocol: "udp", Ports: []api.MachinePort{
+		{Port: &port443, Handlers: []string{"tls", "http"}},
+	}}}
+	assert.True(t, cfg6.HasNonHttpAndHttpsStandardServices())
 }
