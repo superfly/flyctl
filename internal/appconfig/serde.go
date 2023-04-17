@@ -15,6 +15,12 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
+const flytomlHeader = `# fly.toml file generated for %s on %s\n\n", c.AppName, time.Now().Format(time.RFC3339))
+#
+# See https://fly.io/docs/reference/configuration/ for reference documentation about this file
+#
+`
+
 // LoadConfig loads the app config at the given path.
 func LoadConfig(path string) (cfg *Config, err error) {
 	buf, err := os.ReadFile(path)
@@ -37,7 +43,7 @@ func (c *Config) WriteTo(w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(w, "# fly.toml file generated for %s on %s\n\n", c.AppName, time.Now().Format(time.RFC3339))
+	_, err = fmt.Fprintf(w, flytomlHeader, c.AppName, time.Now().Format(time.RFC3339))
 	if err != nil {
 		return err
 	}
