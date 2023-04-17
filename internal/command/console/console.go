@@ -149,7 +149,7 @@ func runConsole(ctx context.Context) error {
 
 func selectMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfig.Config) (*api.Machine, bool, error) {
 	if flag.GetBool(ctx, "select") {
-		return promptForMachine(ctx)
+		return promptForMachine(ctx, app, appConfig)
 	} else if flag.IsSpecified(ctx, "machine") {
 		return getMachineByID(ctx)
 	} else {
@@ -157,7 +157,7 @@ func selectMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfi
 	}
 }
 
-func promptForMachine(ctx context.Context) (*api.Machine, bool, error) {
+func promptForMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfig.Config) (*api.Machine, bool, error) {
 	if flag.IsSpecified(ctx, "machine") {
 		return nil, false, errors.New("--machine can't be used with -s/--select")
 	}
@@ -174,7 +174,7 @@ func promptForMachine(ctx context.Context) (*api.Machine, bool, error) {
 		return nil, false, errors.New("no machines are available")
 	}
 
-	options := []string{}
+	options := []string{"create an ephemeral shared-cpu-1x machine"}
 	for _, machine := range machines {
 		options = append(options, fmt.Sprintf("%s: %s %s %s", machine.Region, machine.ID, machine.PrivateIP, machine.Name))
 	}
@@ -183,7 +183,11 @@ func promptForMachine(ctx context.Context) (*api.Machine, bool, error) {
 	if err := prompt.Select(ctx, &index, "Select a machine:", "", options...); err != nil {
 		return nil, false, fmt.Errorf("failed to prompt for a machine: %w", err)
 	}
-	return machines[index], false, nil
+	if index == 0 {
+		return makeEphemeralRunnerMachine(ctx, app, appConfig)
+	} else {
+		return machines[index-1], false, nil
+	}
 }
 
 func getMachineByID(ctx context.Context) (*api.Machine, bool, error) {
