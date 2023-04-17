@@ -17,7 +17,7 @@ import (
 
 const flytomlHeader = `# fly.toml file generated for %s on %s\n\n", c.AppName, time.Now().Format(time.RFC3339))
 #
-# See https://fly.io/docs/reference/configuration/ for reference documentation about this file
+# See https://fly.io/docs/reference/configuration/ for  information about how to use this file.
 #
 `
 
