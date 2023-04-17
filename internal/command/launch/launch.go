@@ -173,6 +173,15 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
+	var envVars map[string]string = nil
+	envFlags := flag.GetStringSlice(ctx, "env")
+	if len(envFlags) > 0 {
+		envVars, err = cmdutil.ParseKVStringsToMap(envFlags)
+		if err != nil {
+			return errors.Wrap(err, "parsing --env flags")
+		}
+	}
+
 	if copyConfig && shouldUseMachines {
 		// Check imported fly.toml is a valid V2 config before creating the app
 		if err := appConfig.SetMachinesPlatform(); err != nil {
@@ -220,6 +229,9 @@ func run(ctx context.Context) (err error) {
 	fmt.Fprintf(io.Out, "Admin URL: https://fly.io/apps/%s\n", appConfig.AppName)
 	fmt.Fprintf(io.Out, "Hostname: %s.fly.dev\n", appConfig.AppName)
 
+	if envVars != nil {
+		appConfig.SetEnvVariables(envVars)
+	}
 	// If files are requested by the launch scanner, create them.
 	if err := createSourceInfoFiles(ctx, srcInfo, workingDir); err != nil {
 		return err
@@ -256,16 +268,6 @@ func run(ctx context.Context) (err error) {
 	// Override internal port if requested using --internal-port flag
 	if n := flag.GetInt(ctx, "internal-port"); n > 0 {
 		appConfig.SetInternalPort(n)
-	}
-
-	env := flag.GetStringSlice(ctx, "env")
-	if len(env) > 0 {
-		vars, err := cmdutil.ParseKVStringsToMap(env)
-		if err != nil {
-			return errors.Wrap(err, "parsing --env flags")
-		}
-
-		appConfig.SetEnvVariables(vars)
 	}
 
 	// Finally write application configuration to fly.toml
