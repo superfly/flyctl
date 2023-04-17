@@ -191,12 +191,3 @@ func (cfg *Config) BuildStrategies() []string {
 
 	return strategies
 }
-
-func (c *Config) Volumes() []Mount {
-	if mounts, ok := c.RawDefinition["mounts"]; ok {
-		if arr, ok := mounts.([]Mount); ok {
-			return arr
-		}
-	}
-	return c.Mounts
-}

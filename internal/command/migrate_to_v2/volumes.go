@@ -19,7 +19,7 @@ func (m *v2PlatformMigrator) validateVolumes(ctx context.Context) error {
 	if m.isPostgres {
 		return nil
 	}
-	numMounts := len(m.appConfig.Volumes())
+	numMounts := len(m.appConfig.Mounts)
 	if numMounts > 0 && !flag.GetBool(ctx, "experimental-volume-migration") {
 		return fmt.Errorf(`migration for apps with volumes is experimental, and gated behind the --experimental-volume-migration flag
 please do not use this on important/production apps yet
@@ -45,7 +45,7 @@ func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
 	//       That said, once an app gets moved to V2, that mapping gets wiped.
 	// (not an issue now, because we don't even support multiple volumes on v2,
 	//  but it's worth documenting here nonetheless)
-	m.appConfig.SetMounts(lo.Map(m.appConfig.Volumes(), func(v appconfig.Mount, _ int) appconfig.Mount {
+	m.appConfig.SetMounts(lo.Map(m.appConfig.Mounts, func(v appconfig.Mount, _ int) appconfig.Mount {
 		v.Source = nomadVolNameToV2VolName(v.Source)
 		return v
 	}))
@@ -94,7 +94,7 @@ func (m *v2PlatformMigrator) nomadVolPath(v *api.Volume) string {
 	name := nomadVolNameToV2VolName(v.Name)
 
 	// TODO(ali): Process group-specific volumes likely change the logic here
-	for _, mount := range m.appConfig.Volumes() {
+	for _, mount := range m.appConfig.Mounts {
 		if mount.Source == name {
 			return mount.Destination
 		}
