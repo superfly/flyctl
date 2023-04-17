@@ -419,6 +419,8 @@ type TlsOptions struct {
 type MachineService struct {
 	Protocol     string                     `json:"protocol,omitempty" toml:"protocol,omitempty"`
 	InternalPort int                        `json:"internal_port,omitempty" toml:"internal_port,omitempty"`
+	Autostop     *bool                      `json:"autostop,omitempty"`
+	Autostart    *bool                      `json:"autostart,omitempty"`
 	Ports        []MachinePort              `json:"ports,omitempty" toml:"ports,omitempty"`
 	Checks       []MachineCheck             `json:"checks,omitempty" toml:"checks,omitempty"`
 	Concurrency  *MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
@@ -428,11 +430,6 @@ type MachineServiceConcurrency struct {
 	Type      string `json:"type,omitempty" toml:"type,omitempty"`
 	HardLimit int    `json:"hard_limit,omitempty" toml:"hard_limit,omitempty"`
 	SoftLimit int    `json:"soft_limit,omitempty" toml:"soft_limit,omitempty"`
-}
-
-type MachineFlyProxy struct {
-	AutostartMachine *bool `json:"autostart_machine,omitempty"`
-	AutostopMachine  *bool `json:"autostop_machine,omitempty"`
 }
 
 type MachineConfig struct {
@@ -457,7 +454,6 @@ type MachineConfig struct {
 	Restart     MachineRestart   `json:"restart,omitempty"`
 	Guest       *MachineGuest    `json:"guest,omitempty"`
 	DNS         *DNSConfig       `json:"dns,omitempty"`
-	FlyProxy    *MachineFlyProxy `json:"fly_proxy,omitempty"`
 	Processes   []MachineProcess `json:"processes,omitempty"`
 
 	// Not used by flyctl yet
@@ -467,7 +463,7 @@ type MachineConfig struct {
 
 	// Deprecated: use Guest instead
 	VMSize string `json:"size,omitempty"`
-	// Deprecated: use FlyProxy.AutostartMachine instead
+	// Deprecated: use Service.Autostart instead
 	DisableMachineAutostart *bool `json:"disable_machine_autostart,omitempty"`
 }
 

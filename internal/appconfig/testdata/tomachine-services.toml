@@ -1,0 +1,34 @@
+app = "foo"
+primary_region = "scl"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_start_machines = true
+  auto_stop_machines = true
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 1000
+  auto_start_machines = true
+  auto_stop_machines = true
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 1001
+  auto_start_machines = false
+  auto_stop_machines = false
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 1002
+  auto_start_machines = false
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 1003
+  auto_stop_machines = true
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 1004

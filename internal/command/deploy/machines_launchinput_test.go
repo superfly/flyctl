@@ -183,10 +183,6 @@ func Test_launchInputForUpdate_keepUnmanagedFields(t *testing.T) {
 			DNS: &api.DNSConfig{
 				SkipRegistration: true,
 			},
-			FlyProxy: &api.MachineFlyProxy{
-				AutostartMachine: api.Pointer(true),
-				AutostopMachine:  api.Pointer(true),
-			},
 			Processes: []api.MachineProcess{{
 				CmdOverride: []string{"foo"},
 			}},
@@ -201,7 +197,6 @@ func Test_launchInputForUpdate_keepUnmanagedFields(t *testing.T) {
 	assert.Equal(t, api.MachineRestart{Policy: api.MachineRestartPolicyNo}, li.Config.Restart)
 	assert.Equal(t, &api.MachineGuest{CPUKind: "other"}, li.Config.Guest)
 	assert.Equal(t, &api.DNSConfig{SkipRegistration: true}, li.Config.DNS)
-	assert.Equal(t, &api.MachineFlyProxy{AutostartMachine: api.Pointer(true), AutostopMachine: api.Pointer(true)}, li.Config.FlyProxy)
 	assert.Equal(t, []api.MachineProcess{{CmdOverride: []string{"foo"}}}, li.Config.Processes)
 
 	li = md.launchInputForRestart(origMachineRaw)
@@ -212,6 +207,5 @@ func Test_launchInputForUpdate_keepUnmanagedFields(t *testing.T) {
 	assert.Equal(t, api.MachineRestart{Policy: api.MachineRestartPolicyNo}, li.Config.Restart)
 	assert.Equal(t, &api.MachineGuest{CPUKind: "other"}, li.Config.Guest)
 	assert.Equal(t, &api.DNSConfig{SkipRegistration: true}, li.Config.DNS)
-	assert.Equal(t, &api.MachineFlyProxy{AutostartMachine: api.Pointer(true), AutostopMachine: api.Pointer(true)}, li.Config.FlyProxy)
 	assert.Equal(t, []api.MachineProcess{{CmdOverride: []string{"foo"}}}, li.Config.Processes)
 }
