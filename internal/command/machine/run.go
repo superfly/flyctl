@@ -129,6 +129,11 @@ var sharedFlags = flag.Set{
 		Description: "Automatically start a stopped machine when a network request is received",
 		Default:     true,
 	},
+	flag.Bool{
+		Name:        "autostop",
+		Description: "Automatically stop a machine when there aren't network requests for it",
+		Default:     true,
+	},
 	flag.String{
 		Name:        "restart",
 		Description: "Configure restart policy, for a machine. Options include 'no', 'always' and 'on-fail'. Default is set to always",
@@ -759,8 +764,22 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 	}
 	machineConf.Image = img.Tag
 
-	if flag.IsSpecified(ctx, "autostart") {
-		machineConf.DisableMachineAutostart = api.Pointer(!flag.GetBool(ctx, "autostart"))
+	// Service updates
+	for idx := range machineConf.Services {
+		s := &machineConf.Services[idx]
+		// Use the chance to port the deprecated field
+		if machineConf.DisableMachineAutostart != nil {
+			s.Autostart = api.Pointer(!(*machineConf.DisableMachineAutostart))
+			machineConf.DisableMachineAutostart = nil
+		}
+
+		if flag.IsSpecified(ctx, "autostop") {
+			s.Autostop = api.Pointer(flag.GetBool(ctx, "autostop"))
+		}
+
+		if flag.IsSpecified(ctx, "autostart") {
+			s.Autostart = api.Pointer(flag.GetBool(ctx, "autostart"))
+		}
 	}
 
 	return machineConf, nil
