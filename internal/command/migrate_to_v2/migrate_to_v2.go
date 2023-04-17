@@ -417,7 +417,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 		return abortedErr
 	}
 
-	if !m.isPostgres {
+	if !m.isPostgres && m.usesForkedVolumes {
 		tb.Detail("Making snapshots of volumes for the new machines")
 		err = m.migrateAppVolumes(ctx)
 		if err != nil {
