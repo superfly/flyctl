@@ -286,6 +286,8 @@ func TestToMachineConfig_services(t *testing.T) {
 		{
 			Protocol:     "udp",
 			InternalPort: 2000,
+			Autostart:    nil,
+			Autostop:     nil,
 		},
 	}
 
