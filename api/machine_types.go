@@ -445,10 +445,6 @@ type MachineConfig struct {
 	Checks   map[string]MachineCheck `json:"checks,omitempty"`
 	Statics  []*Static               `json:"statics,omitempty"`
 
-	// Standbys enable a machine to be a standby for another. In the event of a hardware failure,
-	// the standby machine will be started.
-	Standbys []string `json:"standbys,omitempty"`
-
 	// Set by fly deploy or fly machines commands
 	Image string `json:"image,omitempty"`
 
@@ -461,7 +457,6 @@ type MachineConfig struct {
 	DNS         *DNSConfig       `json:"dns,omitempty"`
 	Processes   []MachineProcess `json:"processes,omitempty"`
 
-	// Not used by flyctl yet
 	// Standbys enable a machine to be a standby for another. In the event of a hardware failure,
 	// the standby machine will be started.
 	Standbys []string `json:"standbys,omitempty"`
