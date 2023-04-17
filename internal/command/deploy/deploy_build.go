@@ -107,8 +107,12 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 	}
 
 	// finally, build the image
-	heartbeat := resolver.StartHeartbeat(ctx)
+	heartbeat, err := resolver.StartHeartbeat(ctx)
+	if err != nil {
+		return nil, err
+	}
 	defer heartbeat.Stop()
+
 	if img, err = resolver.BuildImage(ctx, io, opts); err == nil && img == nil {
 		err = errors.New("no image specified")
 	}
