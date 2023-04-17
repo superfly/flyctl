@@ -1,15 +1,29 @@
-ARG NODE_VERSION={{ .nodeVersion }}
+# syntax = docker/dockerfile:1
 
-FROM node:${NODE_VERSION}-slim as builder
+ARG NODE_VERSION={{ .nodeVersion }}
+FROM node:${NODE_VERSION}-slim as base
+
+LABEL fly_launch_runtime="{{ .runtime }}"
+
+ENV NODE_ENV production
 
 {{ if .yarn -}}
 ARG YARN_VERSION={{ .yarnVersion }}
-{{ end -}}
-RUN apt-get update; apt install -y curl python-is-python3 pkg-config build-essential {{ if .prisma }}openssl {{ end }}{{ if .yarn -}} && \
-    npm install -g yarn@$YARN_VERSION{{ end }}
+RUN npm install -g yarn@$YARN_VERSION
 
+{{ end -}}
 RUN mkdir /app
 WORKDIR /app
+
+
+FROM base as build
+
+RUN apt-get update; && \
+    apt install -y python-is-python3 pkg-config build-essential {{ 
+    if .prisma }}openssl {{ end }}
+
+COPY {{ .package_files }} .
+RUN {{ .packager }} install --production=false
 
 {{ if .prisma -}}
 ADD prisma .
@@ -17,24 +31,17 @@ RUN npx prisma generate
 
 {{ end -}}
 COPY . .
-
 {{ if .build -}}
-RUN {{ .packager }} install && {{ .packager }} run build
-{{ else -}}
-RUN {{ .packager }} install
+    
+RUN {{ .packager }} run build
 {{ end }}
 
-FROM node:${NODE_VERSION}-slim
-
-LABEL fly_launch_runtime="{{ .runtime }}"
+FROM base
 
 COPY --from=builder /app /app
 
-WORKDIR /app
-ENV NODE_ENV production
-
 {{ if .yarn -}}
-RUN yarn install --production
+RUN yarn install --production=true
 {{ else -}}
 RUN npm prune --production
 {{ end -}}

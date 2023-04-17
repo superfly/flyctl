@@ -66,17 +66,26 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 		yarnVersion = strings.TrimSpace(string(out))
 	}
 
+	package_files := []string{"package.json"}
+
 	_, err = os.Stat("yarn.lock")
 	vars["yarn"] = !os.IsNotExist(err)
 
 	if os.IsNotExist(err) {
 		vars["packager"] = "npm"
+
+		_, err = os.Stat("package-lock.json")
+		if !os.IsNotExist(err) {
+			package_files = append(package_files, "package-lock.json")
+		}
 	} else {
 		vars["packager"] = "yarn"
+		package_files = append(package_files, "yarn.lock")
 	}
 
 	vars["nodeVersion"] = nodeVersion
 	vars["yarnVersion"] = yarnVersion
+	vars["package_files"] = strings.Join(package_files, " ")
 
 	vars["remix"] = remix
 	vars["prisma"] = prisma
