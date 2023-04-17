@@ -185,6 +185,14 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		}
 	}
 
+	for _, m := range machines {
+		if m.Config != nil && m.Config.Metadata != nil {
+			if m.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] == "" {
+				m.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = api.MachineProcessGroupApp
+			}
+		}
+	}
+
 	md.machineSet = machine.NewMachineSet(md.flapsClient, md.io, machines)
 	var releaseCmdSet []*api.Machine
 	if releaseCmdMachine != nil {
