@@ -122,7 +122,7 @@ var sharedFlags = flag.Set{
 	},
 	flag.Bool{
 		Name:        "skip-dns-registration",
-		Description: "Do not register the machine's 6PN IP with the intenral DNS system",
+		Description: "Do not register the machine's 6PN IP with the internal DNS system",
 	},
 	flag.Bool{
 		Name:        "autostart",
