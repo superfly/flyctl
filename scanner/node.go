@@ -94,7 +94,7 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 				Destination: "/data",
 			},
 		}
-		s.Notice = "\nThis launch configuration uses SQLite on a single, dedicated volume. It will not scale beyond a single VM. Look into 'fly postgres' for a more robust production database. \n"
+		s.Notice = "\nThis launch configuration uses SQLite on a single, dedicated volume. It will not scale beyond a single VM. Look into 'fly postgres' for a more robust production database."
 	}
 
 	// only include migration script if this app uses prisma

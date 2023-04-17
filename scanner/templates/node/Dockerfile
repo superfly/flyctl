@@ -1,17 +1,12 @@
-FROM debian:bullseye as builder
-
-ENV PATH=/usr/local/node/bin:$PATH
 ARG NODE_VERSION={{ .nodeVersion }}
+
+FROM node:${NODE_VERSION}-slim as builder
+
 {{ if .yarn -}}
 ARG YARN_VERSION={{ .yarnVersion }}
-{{ end }}
-RUN apt-get update; apt install -y curl python-is-python3 pkg-config build-essential {{ if .prisma }}openssl {{ end }}&& \
-    curl -sL https://github.com/nodenv/node-build/archive/master.tar.gz | tar xz -C /tmp/ && \
-    /tmp/node-build-master/bin/node-build "${NODE_VERSION}" /usr/local/node && \
-{{ if .yarn -}}
-    npm install -g yarn@$YARN_VERSION && \
 {{ end -}}
-    rm -rf /tmp/node-build-master /var/lib/apt/lists /var/cache/apt/archives
+RUN apt-get update; apt install -y curl python-is-python3 pkg-config build-essential {{ if .prisma }}openssl {{ end }}{{ if .yarn -}} && \
+    npm install -g yarn@$YARN_VERSION{{ end }}
 
 RUN mkdir /app
 WORKDIR /app
@@ -29,16 +24,14 @@ RUN {{ .packager }} install && {{ .packager }} run build
 RUN {{ .packager }} install
 {{ end }}
 
-FROM debian:bullseye-slim
+FROM node:${NODE_VERSION}-slim
 
 LABEL fly_launch_runtime="{{ .runtime }}"
 
-COPY --from=builder /usr/local/node /usr/local/node
 COPY --from=builder /app /app
 
 WORKDIR /app
 ENV NODE_ENV production
-ENV PATH /usr/local/node/bin:$PATH
 
 {{ if .yarn -}}
 RUN yarn install --production
@@ -46,8 +39,8 @@ RUN yarn install --production
 RUN npm prune --production
 {{ end -}}
 
-{{ if .prisma -}}
+{{ if .prisma }}
 CMD [ "sh", "start_with_migrations.sh" ]
-{{ else -}}
+{{ else }}
 CMD [ "{{ .packager }}", "run", "start" ]
 {{ end -}}
