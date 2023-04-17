@@ -19,6 +19,7 @@ const flytomlHeader = `# fly.toml app configuration file generated for %s on %s
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
+
 `
 
 // LoadConfig loads the app config at the given path.
