@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/cli/safeexec"
+	"github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cmdutil"
@@ -50,7 +51,7 @@ func LatestRelease(ctx context.Context, channel string) (*Release, error) {
 	updateUrl := fmt.Sprintf("https://api.fly.io/app/flyctl_releases/%s/%s/%s", runtime.GOOS, runtime.GOARCH, channel)
 
 	// If running under homebrew, use the homebrew API to get the latest release
-	if isUnderHomebrew() {
+	if IsUnderHomebrew() {
 		return latestHomebrewRelease(ctx, channel)
 	}
 
@@ -64,7 +65,12 @@ func LatestRelease(ctx context.Context, channel string) (*Release, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		err := resp.Body.Close()
+		if err != nil {
+			terminal.Debugf("error closing response body: %s", err)
+		}
+	}()
 
 	var release Release
 	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
@@ -85,7 +91,12 @@ func latestHomebrewRelease(ctx context.Context, channel string) (*Release, error
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		err := resp.Body.Close()
+		if err != nil {
+			terminal.Debugf("error closing response body: %s", err)
+		}
+	}()
 
 	var brewResp struct {
 		Versions struct {
@@ -102,9 +113,9 @@ func latestHomebrewRelease(ctx context.Context, channel string) (*Release, error
 	}, nil
 }
 
-// isUnderHomebrew reports whether the fly binary was found under the Homebrew
+// IsUnderHomebrew reports whether the fly binary was found under the Homebrew
 // prefix.
-func isUnderHomebrew() bool {
+func IsUnderHomebrew() bool {
 	flyBinary, err := os.Executable()
 	if err != nil {
 		return false
@@ -125,7 +136,7 @@ func isUnderHomebrew() bool {
 }
 
 func updateCommand(prerelease bool) string {
-	if isUnderHomebrew() {
+	if IsUnderHomebrew() {
 		return "brew upgrade flyctl"
 	}
 

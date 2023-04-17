@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/blang/semver"
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -83,8 +84,55 @@ func printVersionUpdate(ctx context.Context, oldVersion semver.Version) error {
 	return nil
 }
 
+func getNewVersionHomebrew(ctx context.Context) (semver.Version, error) {
+
+	var ver semver.Version
+
+	newVersionJson, err := exec.CommandContext(ctx, "brew", "info", "flyctl", "--json").CombinedOutput()
+	if err != nil {
+		return ver, fmt.Errorf("failed to query version information from homebrew: %w", err)
+	}
+
+	var parsed []map[string]any
+	if err = json.Unmarshal(newVersionJson, &parsed); err != nil {
+		return ver, fmt.Errorf("failed to parse version output from brew: %w", err)
+	}
+
+	versions := lo.Map(parsed, func(def map[string]any, _ int) []*semver.Version {
+		if def["name"] != "flyctl" {
+			return nil
+		}
+		installed, ok := def["installed"].([]any)
+		if !ok {
+			return nil
+		}
+		return lo.FilterMap(installed, func(defAny any, _ int) (*semver.Version, bool) {
+			version, ok := defAny.(map[string]any)["version"].(string)
+			if !ok {
+				return nil, false
+			}
+			parsed, err := semver.ParseTolerant(version)
+			if err != nil {
+				return nil, false
+			}
+			return &parsed, true
+		})
+	})
+	versionsFlat := lo.Map(lo.Flatten(versions), func(v *semver.Version, _ int) semver.Version { return *v })
+	semver.Sort(versionsFlat)
+
+	if len(versionsFlat) == 0 {
+		return ver, errors.New("brew reports no installed flyctl version")
+	}
+	return versionsFlat[len(versionsFlat)-1], nil
+}
+
 // getNewVersion executes [os.Args[0], "version", "--json"] and parses the output into a semver.Version
 func getNewVersion(ctx context.Context) (semver.Version, error) {
+
+	if update.IsUnderHomebrew() {
+		return getNewVersionHomebrew(ctx)
+	}
 
 	var ver semver.Version
 
