@@ -188,7 +188,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 	for _, m := range machines {
 		if m.Config != nil && m.Config.Metadata != nil {
 			if m.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] == "" {
-				m.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = api.MachineProcessGroupApp
+				m.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = md.appConfig.DefaultProcessName()
 			}
 		}
 	}
