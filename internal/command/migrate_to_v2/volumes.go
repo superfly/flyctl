@@ -8,7 +8,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/internal/flag"
 	"golang.org/x/exp/slices"
 )
 
@@ -21,11 +20,6 @@ func (m *v2PlatformMigrator) validateVolumes(ctx context.Context) error {
 		return nil
 	}
 	numMounts := len(m.appConfig.Mounts)
-	if numMounts > 0 && !flag.GetBool(ctx, "experimental-volume-migration") {
-		return fmt.Errorf(`migration for apps with volumes is experimental, and gated behind the --experimental-volume-migration flag
-please do not use this on important/production apps yet
-for updates, watch https://community.fly.io for announcements about volume migrations becoming stable`)
-	}
 	m.usesForkedVolumes = numMounts != 0
 
 	volsPerProcess := map[string]int{}
