@@ -40,8 +40,9 @@ func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
 		OrgSlug: "my-dangling-org",
 		Config: &api.MachineConfig{
 			Env: map[string]string{
-				"PRIMARY_REGION": "scl",
-				"OTHER":          "value",
+				"PRIMARY_REGION":    "scl",
+				"OTHER":             "value",
+				"FLY_PROCESS_GROUP": "app",
 			},
 			Image: "super/balloon",
 			Metadata: map[string]string{
@@ -102,8 +103,9 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 		OrgSlug: "my-dangling-org",
 		Config: &api.MachineConfig{
 			Env: map[string]string{
-				"PRIMARY_REGION": "scl",
-				"OTHER":          "value",
+				"PRIMARY_REGION":    "scl",
+				"OTHER":             "value",
+				"FLY_PROCESS_GROUP": "app",
 			},
 			Image: "super/balloon",
 			Metadata: map[string]string{
@@ -146,9 +148,10 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 				Cmd: []string{"touch", "sky"},
 			},
 			Env: map[string]string{
-				"PRIMARY_REGION":  "scl",
-				"OTHER":           "value",
-				"RELEASE_COMMAND": "1",
+				"PRIMARY_REGION":    "scl",
+				"OTHER":             "value",
+				"RELEASE_COMMAND":   "1",
+				"FLY_PROCESS_GROUP": "fly_app_release_command",
 			},
 			Image: "super/balloon",
 			Metadata: map[string]string{
@@ -187,9 +190,10 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 		OrgSlug: "my-dangling-org",
 		Config: &api.MachineConfig{
 			Env: map[string]string{
-				"PRIMARY_REGION":  "scl",
-				"OTHER":           "value",
-				"RELEASE_COMMAND": "1",
+				"PRIMARY_REGION":    "scl",
+				"OTHER":             "value",
+				"RELEASE_COMMAND":   "1",
+				"FLY_PROCESS_GROUP": "fly_app_release_command",
 			},
 			Image: "super/balloon",
 			Metadata: map[string]string{
@@ -239,7 +243,9 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
 			},
-			Env: map[string]string{},
+			Env: map[string]string{
+				"FLY_PROCESS_GROUP": "app",
+			},
 			Mounts: []api.MachineMount{{
 				Volume: "vol_12345",
 				Path:   "/data",
@@ -270,7 +276,9 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
 			},
-			Env: map[string]string{},
+			Env: map[string]string{
+				"FLY_PROCESS_GROUP": "app",
+			},
 			Mounts: []api.MachineMount{{
 				Volume: "vol_alreadyattached",
 				Path:   "/data",
