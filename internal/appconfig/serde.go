@@ -15,7 +15,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-const flytomlHeader = `# fly.toml file generated for %s on %s\n\n", c.AppName, time.Now().Format(time.RFC3339))
+const flytomlHeader = `# fly.toml file generated for %s on %s
 #
 # See https://fly.io/docs/reference/configuration/ for  information about how to use this file.
 #
