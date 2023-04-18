@@ -8,7 +8,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/metrics"
-
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/api"
@@ -142,11 +141,6 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 		return err
 	}
 
-	metrics.Started("deploy")
-	defer func() {
-		metrics.Status("deploy", err != nil)
-	}()
-
 	// Fetch an image ref or build from source to get the final image reference to deploy
 	img, err := determineImage(ctx, appConfig)
 	if err != nil {
@@ -183,9 +177,14 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 	return err
 }
 
-func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompact *api.AppCompact, img *imgsrc.DeploymentImage) error {
+func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompact *api.AppCompact, img *imgsrc.DeploymentImage) (err error) {
 	// It's important to push appConfig into context because MachineDeployment will fetch it from there
 	ctx = appconfig.WithConfig(ctx, appConfig)
+
+	metrics.Started("deploy_machines")
+	defer func() {
+		metrics.Status("deploy_machines", err == nil)
+	}()
 
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 		AppCompact:        appCompact,
@@ -210,8 +209,14 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 	return err
 }
 
-func deployToNomad(ctx context.Context, appConfig *appconfig.Config, appCompact *api.AppCompact, img *imgsrc.DeploymentImage) error {
+func deployToNomad(ctx context.Context, appConfig *appconfig.Config, appCompact *api.AppCompact, img *imgsrc.DeploymentImage) (err error) {
 	apiClient := client.FromContext(ctx).API()
+
+	metrics.Started("deploy_nomad")
+	defer func() {
+		metrics.Status("deploy_nomad", err == nil)
+	}()
+
 	// Assign an empty map if nil so later assignments won't fail
 	if appConfig.PrimaryRegion != "" && appConfig.Env["PRIMARY_REGION"] == "" {
 		appConfig.SetEnvVariable("PRIMARY_REGION", appConfig.PrimaryRegion)

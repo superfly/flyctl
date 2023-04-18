@@ -92,7 +92,7 @@ func run(ctx context.Context) (err error) {
 
 	metrics.Started("launch")
 	defer func() {
-		metrics.Status("launch", err != nil)
+		metrics.Status("launch", err == nil)
 	}()
 
 	// Determine the working directory
