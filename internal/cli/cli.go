@@ -50,8 +50,7 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	default:
 		printError(io.ErrOut, cs, cmd, err)
 
-		var _, _, e = cmd.Find(args)
-
+		_, _, e := cmd.Find(args)
 		if e != nil {
 			fmt.Printf("Run '%v --help' for usage.\n", cmd.CommandPath())
 			fmt.Println()
