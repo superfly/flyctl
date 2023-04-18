@@ -50,6 +50,13 @@ func sendImpl(metricSlug, jsonValue string) error {
 	return nil
 }
 
+func Started(metricSlug string) {
+	SendNoData(metricSlug + "/started")
+}
+func Status(metricSlug string, success bool) {
+	Send(metricSlug+"/status", map[string]bool{"success": success})
+}
+
 func Send[T any](metricSlug string, value T) {
 	ensureConnection()
 
