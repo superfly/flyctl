@@ -1,18 +1,31 @@
 package metrics
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"strings"
+	"sync/atomic"
+	"time"
 )
 
 const (
 	metricsToken = "abcd"
+	timeout      = 4 * time.Second
 )
 
+var timedOut = atomic.Bool{}
+
 func sendImpl(metricSlug, jsonValue string) error {
+
+	if timedOut.Load() {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
 	reader := strings.NewReader(jsonValue)
 
@@ -20,7 +33,7 @@ func sendImpl(metricSlug, jsonValue string) error {
 	if envHostname := os.Getenv("FLYCTL_METRICS_HOST"); envHostname != "" {
 		hostname = envHostname
 	}
-	req, err := http.NewRequest("post", "https://"+hostname+"/v1/"+metricSlug, reader)
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://"+hostname+"/v1/"+metricSlug, reader)
 	if err != nil {
 		return err
 	}
@@ -32,6 +45,10 @@ func sendImpl(metricSlug, jsonValue string) error {
 			_ = resp.Body.Close()
 		}
 	}()
+	if ctx.Err() == context.DeadlineExceeded {
+		timedOut.Store(true)
+		return nil
+	}
 	if err != nil {
 		return err
 	}
