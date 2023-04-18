@@ -2,8 +2,10 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
@@ -33,8 +35,18 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	} else {
 		err = md.deployMachinesApp(ctx)
 	}
-	status := "complete"
-	if err != nil {
+
+	var status string
+	switch {
+	case err == nil:
+		status = "complete"
+	case errors.Is(err, context.Canceled):
+		// Provide an extra second to try to update the release status.
+		status = "interrupted"
+		var cancel func()
+		ctx, cancel = context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+	default:
 		status = "failed"
 	}
 
