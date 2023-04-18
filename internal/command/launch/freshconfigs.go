@@ -17,10 +17,8 @@ func freshV2Config(appName string, srcCfg *appconfig.Config) (*appconfig.Config,
 	newCfg.Build = srcCfg.Build
 	newCfg.PrimaryRegion = srcCfg.PrimaryRegion
 	newCfg.HTTPService = &appconfig.HTTPService{
-		InternalPort:      8080,
-		ForceHTTPS:        true,
-		AutoStartMachines: api.Pointer(true),
-		AutoStopMachines:  api.Pointer(true),
+		InternalPort: 8080,
+		ForceHTTPS:   true,
 	}
 	newCfg.Checks = map[string]*appconfig.ToplevelCheck{
 		"alive": {
