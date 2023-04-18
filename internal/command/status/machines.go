@@ -3,6 +3,7 @@ package status
 import (
 	"context"
 	"fmt"
+	"io"
 	"sort"
 	"strconv"
 	"strings"
@@ -68,7 +69,7 @@ func getImage(machines []*api.Machine) (string, error) {
 	return latestImage, nil
 }
 
-func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
+func renderMachineStatus(ctx context.Context, out io.Writer, app *api.AppCompact) error {
 	var (
 		io         = iostreams.FromContext(ctx)
 		colorize   = io.ColorScheme()
@@ -135,7 +136,8 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 			msgs = append(msgs, msg)
 		}
 
-		fmt.Fprintln(io.Out, colorize.Yellow(strings.Join(msgs, "")))
+		fmt.Fprintln(out, colorize.Yellow(strings.Join(msgs, "")))
+		// TODO: receive an error output writer as an argument
 		fmt.Fprintln(io.ErrOut, colorize.Yellow("Run `flyctl image update` to migrate to the latest image version."))
 	}
 
@@ -156,7 +158,7 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 	}
 
 	obj := [][]string{{app.Name, app.Organization.Slug, app.Hostname, image, app.PlatformVersion}}
-	if err := render.VerticalTable(io.Out, "App", obj, "Name", "Owner", "Hostname", "Image", "Platform"); err != nil {
+	if err := render.VerticalTable(out, "App", obj, "Name", "Owner", "Hostname", "Image", "Platform"); err != nil {
 		return err
 	}
 
@@ -174,7 +176,7 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 			})
 		}
 
-		err := render.Table(io.Out, "Machines", rows, "ID", "Process", "Version", "Region", "State", "Health Checks", "Last Updated")
+		err := render.Table(out, "Machines", rows, "ID", "Process", "Version", "Region", "State", "Health Checks", "Last Updated")
 		if err != nil {
 			return err
 		}
@@ -182,6 +184,7 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 
 	if len(unmanaged) > 0 {
 		msg := fmt.Sprintf("Found machines that aren't part of the Fly Apps Platform, run %s to see them.\n", io.ColorScheme().Yellow("fly machines list"))
+		// TODO: receive an error output writer as an argument
 		fmt.Fprint(io.ErrOut, msg)
 	}
 

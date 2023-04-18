@@ -106,7 +106,7 @@ func once(ctx context.Context, out io.Writer) (err error) {
 	platformVersion := app.PlatformVersion
 
 	if platformVersion == "machines" {
-		err = renderMachineStatus(ctx, app)
+		err = renderMachineStatus(ctx, out, app)
 		return
 	}
 
