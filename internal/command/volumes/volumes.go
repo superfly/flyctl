@@ -35,6 +35,7 @@ func New() *cobra.Command {
 		newDestroy(),
 		newExtend(),
 		newShow(),
+		newFork(),
 		snapshots.New(),
 	)
 
