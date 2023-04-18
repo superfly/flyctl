@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
@@ -88,6 +89,11 @@ func run(ctx context.Context) (err error) {
 		ForceMachines: flag.GetBool(ctx, "force-machines"),
 		ForceYes:      flag.GetBool(ctx, "now"),
 	}
+
+	metrics.Started("launch")
+	defer func() {
+		metrics.Status("launch", err != nil)
+	}()
 
 	// Determine the working directory
 	if absDir, err := filepath.Abs(workingDir); err == nil {
