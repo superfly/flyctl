@@ -142,9 +142,9 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 		return err
 	}
 
-	_ = metrics.SendNoData("deploy/started")
+	metrics.SendNoData("deploy/started")
 	defer func() {
-		_ = metrics.Send("deploy/status", map[string]bool{"success": err != nil})
+		metrics.Send("deploy/status", map[string]bool{"success": err != nil})
 	}()
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
