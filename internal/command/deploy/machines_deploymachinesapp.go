@@ -97,6 +97,8 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 
 	// Create machines for new process groups
 	if total := len(processGroupMachineDiff.groupsNeedingMachines); total > 0 {
+		groupsWithAutostopEnabled := make(map[string]bool)
+
 		for idx, name := range maps.Keys(processGroupMachineDiff.groupsNeedingMachines) {
 			fmt.Fprintf(md.io.Out, "No machines in group %s, launching one new machine\n", md.colorize.Bold(name))
 			machineID, err := md.spawnMachineInGroup(ctx, name, idx, total, nil)
@@ -108,6 +110,15 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
+
+			if services := groupConfig.AllServices(); len(services) > 0 {
+				for _, s := range services {
+					if s.AutoStopMachines != nil && *s.AutoStopMachines == true {
+						groupsWithAutostopEnabled[name] = true
+					}
+				}
+			}
+
 			if len(groupConfig.Mounts) > 0 {
 				// Don't do any HA magic for stateful groups
 				continue
@@ -128,6 +139,12 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 			}
 		}
 		fmt.Fprintf(md.io.ErrOut, "Finished launching new machines\n")
+
+		if len(groupsWithAutostopEnabled) > 0 {
+			fmt.Fprintf(md.io.Out, "\n%s Machines for services with 'auto_stop_machines = true' will be stopped when idle\n\n",
+				md.colorize.Yellow("NOTE:"),
+			)
+		}
 	}
 
 	var machineUpdateEntries []*machineUpdateEntry
