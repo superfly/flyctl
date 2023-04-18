@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/metrics"
 
 	"github.com/superfly/flyctl/iostreams"
 
@@ -140,6 +141,11 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 	if err != nil {
 		return err
 	}
+
+	_ = metrics.SendNoData("deploy/started")
+	defer func() {
+		_ = metrics.Send("deploy/status", map[string]bool{"success": err != nil})
+	}()
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
 	img, err := determineImage(ctx, appConfig)
