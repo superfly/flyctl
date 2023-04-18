@@ -13,7 +13,7 @@ func TestToMachineConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	want := &api.MachineConfig{
-		Env: map[string]string{"FOO": "BAR", "PRIMARY_REGION": "mia"},
+		Env: map[string]string{"FOO": "BAR", "PRIMARY_REGION": "mia", "FLY_PROCESS_GROUP": "app"},
 		Services: []api.MachineService{
 			{
 				Protocol:     "tcp",
@@ -101,7 +101,7 @@ func TestToMachineConfig_nullifyManagedFields(t *testing.T) {
 
 	got, err := cfg.ToMachineConfig("", src)
 	require.NoError(t, err)
-	assert.Empty(t, got.Env)
+	assert.Equal(t, map[string]string{"FLY_PROCESS_GROUP": "app"}, got.Env)
 	assert.Empty(t, got.Metrics)
 	assert.Empty(t, got.Services)
 	assert.Empty(t, got.Checks)
@@ -115,7 +115,7 @@ func TestToReleaseMachineConfig(t *testing.T) {
 
 	want := &api.MachineConfig{
 		Init:        api.MachineInit{Cmd: []string{"migrate-db"}},
-		Env:         map[string]string{"FOO": "BAR", "PRIMARY_REGION": "mia", "RELEASE_COMMAND": "1"},
+		Env:         map[string]string{"FOO": "BAR", "PRIMARY_REGION": "mia", "RELEASE_COMMAND": "1", "FLY_PROCESS_GROUP": "fly_app_release_command"},
 		Metadata:    map[string]string{"fly_platform_version": "v2", "fly_process_group": "fly_app_release_command"},
 		AutoDestroy: true,
 		Restart:     api.MachineRestart{Policy: api.MachineRestartPolicyNo},
@@ -201,7 +201,7 @@ func TestToMachineConfig_defaultV2flytoml(t *testing.T) {
 	require.NoError(t, err)
 
 	want := &api.MachineConfig{
-		Env: map[string]string{"PRIMARY_REGION": "ord"},
+		Env: map[string]string{"PRIMARY_REGION": "ord", "FLY_PROCESS_GROUP": "app"},
 		Services: []api.MachineService{
 			{
 				Protocol:     "tcp",

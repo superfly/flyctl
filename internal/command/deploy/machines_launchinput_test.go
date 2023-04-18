@@ -29,8 +29,9 @@ func Test_launchInputFor_Basic(t *testing.T) {
 		Region:  "scl",
 		Config: &api.MachineConfig{
 			Env: map[string]string{
-				"PRIMARY_REGION": "scl",
-				"OTHER":          "value",
+				"PRIMARY_REGION":    "scl",
+				"OTHER":             "value",
+				"FLY_PROCESS_GROUP": "app",
 			},
 			Image: "super/balloon",
 			Metadata: map[string]string{
