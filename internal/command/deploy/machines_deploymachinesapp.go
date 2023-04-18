@@ -196,6 +196,17 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 			}
 		}
 
+		// Don't wait for Standby machines, they are updated but not started
+		if len(launchInput.Config.Standbys) > 0 {
+			md.logClearLinesAbove(1)
+			fmt.Fprintf(md.io.ErrOut, "  %s Machine %s update finished: %s\n",
+				indexStr,
+				md.colorize.Bold(lm.FormattedMachineId()),
+				md.colorize.Green("success"),
+			)
+			continue
+		}
+
 		if md.strategy == "immediate" {
 			continue
 		}

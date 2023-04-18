@@ -120,11 +120,12 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 	}
 
 	return &api.LaunchMachineInput{
-		ID:      mID,
-		AppID:   md.app.Name,
-		OrgSlug: md.app.Organization.ID,
-		Region:  origMachineRaw.Region,
-		Config:  mConfig,
+		ID:         mID,
+		AppID:      md.app.Name,
+		OrgSlug:    md.app.Organization.ID,
+		Region:     origMachineRaw.Region,
+		Config:     mConfig,
+		SkipLaunch: len(mConfig.Standbys) > 0,
 	}, nil
 }
 
