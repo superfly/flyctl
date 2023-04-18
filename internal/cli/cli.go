@@ -49,6 +49,14 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 		return 0
 	default:
 		printError(io.ErrOut, cs, cmd, err)
+
+		var _, _, e = cmd.Find(args)
+
+		if e != nil {
+			fmt.Printf("Run '%v --help' for usage.\n", cmd.CommandPath())
+			fmt.Println()
+		}
+
 		return 1
 	}
 }
@@ -83,9 +91,6 @@ func printError(w io.Writer, cs *iostreams.ColorScheme, cmd *cobra.Command, err 
 
 		fmt.Fprintf(&b, "\n%s", suggestion)
 	}
-
-	fmt.Fprintf(&b, "Run '%v --help' for usage.\n", cmd.CommandPath())
-	fmt.Fprintln(&b)
 
 	_, _ = b.WriteTo(w)
 }
