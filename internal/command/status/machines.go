@@ -3,6 +3,7 @@ package status
 import (
 	"context"
 	"fmt"
+	"io"
 	"sort"
 	"strconv"
 	"strings"
@@ -68,7 +69,7 @@ func getImage(machines []*api.Machine) (string, error) {
 	return latestImage, nil
 }
 
-func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
+func renderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer) error {
 	var (
 		io         = iostreams.FromContext(ctx)
 		colorize   = io.ColorScheme()
@@ -95,7 +96,7 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 	}
 
 	if app.IsPostgresApp() {
-		return renderPGStatus(ctx, app, machines)
+		return renderPGStatus(ctx, app, machines, out)
 	}
 
 	// Tracks latest eligible version
@@ -135,8 +136,8 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 			msgs = append(msgs, msg)
 		}
 
-		fmt.Fprintln(io.Out, colorize.Yellow(strings.Join(msgs, "")))
-		fmt.Fprintln(io.ErrOut, colorize.Yellow("Run `flyctl image update` to migrate to the latest image version."))
+		fmt.Fprintln(out, colorize.Yellow(strings.Join(msgs, "")))
+		fmt.Fprintln(out, colorize.Yellow("Run `flyctl image update` to migrate to the latest image version."))
 	}
 
 	managed, unmanaged := []*api.Machine{}, []*api.Machine{}
@@ -156,7 +157,7 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 	}
 
 	obj := [][]string{{app.Name, app.Organization.Slug, app.Hostname, image, app.PlatformVersion}}
-	if err := render.VerticalTable(io.Out, "App", obj, "Name", "Owner", "Hostname", "Image", "Platform"); err != nil {
+	if err := render.VerticalTable(out, "App", obj, "Name", "Owner", "Hostname", "Image", "Platform"); err != nil {
 		return err
 	}
 
@@ -174,7 +175,7 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 			})
 		}
 
-		err := render.Table(io.Out, "Machines", rows, "ID", "Process", "Version", "Region", "State", "Health Checks", "Last Updated")
+		err := render.Table(out, "Machines", rows, "ID", "Process", "Version", "Region", "State", "Health Checks", "Last Updated")
 		if err != nil {
 			return err
 		}
@@ -182,7 +183,7 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact) error {
 
 	if len(unmanaged) > 0 {
 		msg := fmt.Sprintf("Found machines that aren't part of the Fly Apps Platform, run %s to see them.\n", io.ColorScheme().Yellow("fly machines list"))
-		fmt.Fprint(io.ErrOut, msg)
+		fmt.Fprint(out, msg)
 	}
 
 	return nil
@@ -241,7 +242,7 @@ func renderMachineJSONStatus(ctx context.Context, app *api.AppCompact, machines 
 	return render.JSON(out, status)
 }
 
-func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Machine) (err error) {
+func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Machine, out io.Writer) (err error) {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
@@ -252,11 +253,11 @@ func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Ma
 		if postgres.IsFlex(machines[0]) {
 			yes, note := isQuorumMet(machines)
 			if !yes {
-				fmt.Fprintf(io.Out, colorize.Yellow(note))
+				fmt.Fprintf(out, colorize.Yellow(note))
 			}
 		}
 	} else {
-		fmt.Fprintf(io.Out, "No machines are available on this app %s\n", app.Name)
+		fmt.Fprintf(out, "No machines are available on this app %s\n", app.Name)
 		return
 	}
 
@@ -300,8 +301,8 @@ func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Ma
 			msgs = append(msgs, msg)
 		}
 
-		fmt.Fprintln(io.ErrOut, colorize.Yellow(strings.Join(msgs, "")))
-		fmt.Fprintln(io.ErrOut, colorize.Yellow("Run `flyctl image update` to migrate to the latest image version."))
+		fmt.Fprintln(out, colorize.Yellow(strings.Join(msgs, "")))
+		fmt.Fprintln(out, colorize.Yellow("Run `flyctl image update` to migrate to the latest image version."))
 	}
 
 	rows := [][]string{}
@@ -329,7 +330,7 @@ func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Ma
 			machine.UpdatedAt,
 		})
 	}
-	return render.Table(io.Out, "", rows, "ID", "State", "Role", "Region", "Health checks", "Image", "Created", "Updated")
+	return render.Table(out, "", rows, "ID", "State", "Role", "Region", "Health checks", "Image", "Created", "Updated")
 }
 
 func isQuorumMet(machines []*api.Machine) (bool, string) {
