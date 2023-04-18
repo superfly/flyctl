@@ -13,10 +13,11 @@ func setupConsole() (uint32, uint32, uint32, error) {
 		currentStdinMode  uint32
 		currentStdoutMode uint32
 		currentStderrMode uint32
+		err               error
 	)
 
 	stdinFd := os.Stdin.Fd()
-	if currentStdinMode, err := winterm.GetConsoleMode(stdinFd); err == nil {
+	if currentStdinMode, err = winterm.GetConsoleMode(stdinFd); err == nil {
 		err := winterm.SetConsoleMode(stdinFd, currentStdinMode|winterm.ENABLE_VIRTUAL_TERMINAL_INPUT)
 		if err != nil {
 			return 0, 0, 0, err
@@ -26,7 +27,7 @@ func setupConsole() (uint32, uint32, uint32, error) {
 	}
 
 	stdoutFd := os.Stdout.Fd()
-	if currentStdoutMode, err := winterm.GetConsoleMode(stdoutFd); err == nil {
+	if currentStdoutMode, err = winterm.GetConsoleMode(stdoutFd); err == nil {
 		err := winterm.SetConsoleMode(stdoutFd, currentStdoutMode|winterm.ENABLE_VIRTUAL_TERMINAL_PROCESSING)
 		if err != nil {
 			return 0, 0, 0, err
@@ -36,7 +37,7 @@ func setupConsole() (uint32, uint32, uint32, error) {
 	}
 
 	stderrFd := os.Stderr.Fd()
-	if currentStderrMode, err := winterm.GetConsoleMode(stderrFd); err == nil {
+	if currentStderrMode, err = winterm.GetConsoleMode(stderrFd); err == nil {
 		err := winterm.SetConsoleMode(stderrFd, currentStderrMode|winterm.ENABLE_VIRTUAL_TERMINAL_PROCESSING)
 		if err != nil {
 			return 0, 0, 0, err
