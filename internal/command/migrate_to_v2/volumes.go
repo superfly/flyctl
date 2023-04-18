@@ -23,8 +23,12 @@ func (m *v2PlatformMigrator) validateVolumes(ctx context.Context) error {
 	m.usesForkedVolumes = numMounts != 0
 
 	volsPerProcess := map[string]int{}
-	for _, m := range m.appConfig.Mounts {
-		for _, p := range m.Processes {
+	for _, mount := range m.appConfig.Mounts {
+		processes := mount.Processes
+		if len(processes) == 0 {
+			processes = m.appConfig.ProcessNames()
+		}
+		for _, p := range processes {
 			volsPerProcess[p]++
 		}
 	}
@@ -53,9 +57,11 @@ func (m *v2PlatformMigrator) validateVolumes(ctx context.Context) error {
 }
 
 func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
-
 	m.appConfig.SetMounts(lo.Map(m.appConfig.Mounts, func(v appconfig.Mount, _ int) appconfig.Mount {
 		v.Source = nomadVolNameToV2VolName(v.Source)
+		if len(v.Processes) == 0 {
+			v.Processes = m.appConfig.ProcessNames()
+		}
 		return v
 	}))
 
@@ -102,8 +108,7 @@ func (m *v2PlatformMigrator) nomadVolPath(v *api.Volume, group string) string {
 	name := nomadVolNameToV2VolName(v.Name)
 
 	for _, mount := range m.appConfig.Mounts {
-		inGroup := len(mount.Processes) == 0 || lo.Contains(mount.Processes, group)
-		if mount.Source == name && inGroup {
+		if mount.Source == name && lo.Contains(mount.Processes, group) {
 			return mount.Destination
 		}
 	}
