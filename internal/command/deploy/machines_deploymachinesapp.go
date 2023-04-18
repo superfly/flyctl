@@ -99,16 +99,33 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 	if total := len(processGroupMachineDiff.groupsNeedingMachines); total > 0 {
 		for idx, name := range maps.Keys(processGroupMachineDiff.groupsNeedingMachines) {
 			fmt.Fprintf(md.io.Out, "No machines in group %s, launching one new machine\n", md.colorize.Bold(name))
-			machineID, err := md.spawnMachineInGroup(ctx, name, idx, total, "")
+			machineID, err := md.spawnMachineInGroup(ctx, name, idx, total, nil)
 			if err != nil {
 				return err
 			}
 
-			fmt.Fprintf(md.io.Out, "Creating a standby machine for %s\n", md.colorize.Bold(machineID))
-			if _, err := md.spawnMachineInGroup(ctx, name, idx, total, machineID); err != nil {
+			groupConfig, err := md.appConfig.Flatten(name)
+			if err != nil {
 				return err
 			}
+			if len(groupConfig.Mounts) > 0 {
+				// Don't do any HA magic for stateful groups
+				continue
+			}
 
+			switch len(groupConfig.AllServices()) == 0 {
+			case true:
+				fmt.Fprintf(md.io.Out, "Creating a standby machine for %s\n", md.colorize.Bold(machineID))
+				standbyFor := []string{machineID}
+				if _, err := md.spawnMachineInGroup(ctx, name, idx, total, standbyFor); err != nil {
+					return err
+				}
+			case false:
+				fmt.Fprintf(md.io.Out, "Creating a second machine for %s\n", md.colorize.Bold(machineID))
+				if _, err := md.spawnMachineInGroup(ctx, name, idx, total, nil); err != nil {
+					return err
+				}
+			}
 		}
 		fmt.Fprintf(md.io.ErrOut, "Finished launching new machines\n")
 	}
@@ -205,14 +222,10 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 	return nil
 }
 
-func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName string, i, total int, standbyFor string) (string, error) {
-	launchInput, err := md.launchInputForLaunch(groupName, md.machineGuest)
+func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName string, i, total int, standbyFor []string) (string, error) {
+	launchInput, err := md.launchInputForLaunch(groupName, md.machineGuest, standbyFor)
 	if err != nil {
 		return "", fmt.Errorf("error creating machine configuration: %w", err)
-	}
-
-	if standbyFor != "" {
-		launchInput.Config.Standbys = []string{standbyFor}
 	}
 
 	newMachineRaw, err := md.flapsClient.Launch(ctx, *launchInput)
@@ -228,7 +241,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 	fmt.Fprintf(md.io.ErrOut, "  Machine %s was created\n", md.colorize.Bold(lm.FormattedMachineId()))
 
 	// Don't wait for Standby machines, they are created but not started
-	if standbyFor != "" {
+	if len(launchInput.Config.Standbys) > 0 {
 		return newMachineRaw.ID, nil
 	}
 

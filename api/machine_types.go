@@ -524,12 +524,13 @@ type MachineStartResponse struct {
 }
 
 type LaunchMachineInput struct {
-	AppID   string         `json:"appId,omitempty"`
-	ID      string         `json:"id,omitempty"`
-	Name    string         `json:"name,omitempty"`
-	OrgSlug string         `json:"organizationId,omitempty"`
-	Region  string         `json:"region,omitempty"`
-	Config  *MachineConfig `json:"config,omitempty"`
+	AppID      string         `json:"appId,omitempty"`
+	ID         string         `json:"id,omitempty"`
+	Name       string         `json:"name,omitempty"`
+	OrgSlug    string         `json:"organizationId,omitempty"`
+	Region     string         `json:"region,omitempty"`
+	Config     *MachineConfig `json:"config,omitempty"`
+	SkipLaunch bool           `json:"skip_launch,omitempty"`
 	// Client side only
 	SkipHealthChecks bool
 }
