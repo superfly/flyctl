@@ -1,9 +1,10 @@
 package scanner
 
 import (
+	"fmt"
 	"github.com/mattn/go-zglob"
 	"github.com/superfly/flyctl/helpers"
-	"strings"
+	"path"
 )
 
 // setup django with a postgres database
@@ -48,10 +49,21 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 
     wsgis, err := zglob.Glob(`./**/wsgi.py`)
 
-    if err == nil || len(wsgis) == 1 {
-        wsgiPath := strings.Split(wsgis[0], "/")
+    if err == nil && len(wsgis) > 0 {
+        wsgiLen := len(wsgis)
+        dirPath, _ := path.Split(wsgis[wsgiLen-1])
+        dirName := path.Base(dirPath)
+        vars["wsgiName"] = dirName;
         vars["wsgiFound"] = true;
-        vars["wsgiName"] = wsgiPath[0];
+        if wsgiLen > 1 {
+            s.DeployDocs = fmt.Sprintf(`
+Multiple wsgi.py files were found!
+
+Before proceeding, make sure '%s' is the module containing a WSGI application object named 'application'.
+
+This module is used on Dockerfile to start the Gunicorn server process.
+`, dirPath)
+        }
     }
 
     s.Files = templatesExecute("templates/django", vars)
