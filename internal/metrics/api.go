@@ -6,25 +6,11 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
-)
-
-var (
-	connExists sync.Mutex
-	conn       *http.Client
 )
 
 const (
 	metricsToken = "abcd"
 )
-
-func ensureConnection() {
-	connExists.Lock()
-	defer connExists.Unlock()
-	if conn == nil {
-		conn = &http.Client{}
-	}
-}
 
 func sendImpl(metricSlug, jsonValue string) error {
 
@@ -40,7 +26,12 @@ func sendImpl(metricSlug, jsonValue string) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+metricsToken)
-	resp, err := conn.Do(req)
+	resp, err := http.DefaultClient.Do(req)
+	defer func() {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+	}()
 	if err != nil {
 		return err
 	}
@@ -58,7 +49,6 @@ func Status(metricSlug string, success bool) {
 }
 
 func Send[T any](metricSlug string, value T) {
-	ensureConnection()
 
 	valJson, err := json.Marshal(value)
 	if err != nil {
