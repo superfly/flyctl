@@ -158,10 +158,17 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 		if err := appConfig.EnsureV2Config(); err != nil {
 			return fmt.Errorf("Can't deploy an invalid v2 app config: %s", err)
 		}
-		return deployToMachines(ctx, appConfig, appCompact, img)
+		err = deployToMachines(ctx, appConfig, appCompact, img)
 	default:
-		return deployToNomad(ctx, appConfig, appCompact, img)
+		err = deployToNomad(ctx, appConfig, appCompact, img)
 	}
+
+	url, err := appConfig.URL()
+	if err == nil {
+		fmt.Println("Visit your newly deployed app at", url)
+	}
+
+	return err
 }
 
 func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompact *api.AppCompact, img *imgsrc.DeploymentImage) error {
