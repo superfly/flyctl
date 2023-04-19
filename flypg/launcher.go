@@ -161,7 +161,6 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		snapshot := config.SnapshotID
 		verb := "Provisioning"
 
-		// When a snapshot is specified, we only want to pass it into the first volume created.
 		if snapshot != nil {
 			verb = "Restoring"
 			if i > 0 {
@@ -174,23 +173,19 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		var vol *api.Volume
 
 		if config.ForkFrom != "" {
-			targetVolume, err := l.client.GetVolume(ctx, config.ForkFrom)
-			if err != nil {
-				return fmt.Errorf("unable to find fork target volume %s: %w", config.ForkFrom, err)
-			}
-
+			// Setting FLY_RESTORED_FROM will treat the provision as a restore.
 			machineConf.Env["FLY_RESTORED_FROM"] = config.ForkFrom
 
 			volInput := api.ForkVolumeInput{
 				AppID:          app.ID,
-				SourceVolumeID: targetVolume.ID,
+				SourceVolumeID: config.ForkFrom,
 				MachinesOnly:   true,
 				Name:           "pg_data",
 			}
 
 			vol, err = l.client.ForkVolume(ctx, volInput)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to fork volume: %w", err)
 			}
 		} else {
 			volInput := api.CreateVolumeInput{
@@ -205,7 +200,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 
 			vol, err = l.client.CreateVolume(ctx, volInput)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to create volume: %w", err)
 			}
 		}
 

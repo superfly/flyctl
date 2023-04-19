@@ -65,7 +65,7 @@ func newCreate() *cobra.Command {
 		},
 		flag.String{
 			Name:        "fork-from",
-			Description: "Specify an existing application name to seed from. A specific volume can be specified with the format: <app-name>:<vol-id>",
+			Description: "Specify a source Postgres application to fork from. Format: <app-name> or <app-name>:<volume-id>",
 		},
 		flag.String{
 			Name:        "image-ref",
@@ -109,22 +109,20 @@ func run(ctx context.Context) (err error) {
 	}
 
 	var org *api.Organization
-
 	org, err = prompt.Org(ctx)
 	if err != nil {
 		return
 	}
 
-	var region *api.Region
-
-	region, err = prompt.Region(ctx, !org.PaidPlan, prompt.RegionParams{
-		Message: "",
-	})
-	if err != nil {
-		return
+	params := &ClusterParams{
+		Password:   flag.GetString(ctx, "password"),
+		SnapshotID: flag.GetString(ctx, "snapshot-id"),
+		Detach:     flag.GetDetach(ctx),
+		Manager:    flypg.ReplicationManager,
+		Autostart:  flag.GetBool(ctx, "autostart"),
 	}
 
-	pgConfig := PostgresConfiguration{
+	pgConfig := &PostgresConfiguration{
 		Name:               appName,
 		VMSize:             flag.GetString(ctx, "vm-size"),
 		InitialClusterSize: flag.GetInt(ctx, "initial-cluster-size"),
@@ -132,46 +130,119 @@ func run(ctx context.Context) (err error) {
 		DiskGb:             flag.GetInt(ctx, "volume-size"),
 	}
 
-	params := &ClusterParams{
-		PostgresConfiguration: pgConfig,
-		Password:              flag.GetString(ctx, "password"),
-		SnapshotID:            flag.GetString(ctx, "snapshot-id"),
-		Detach:                flag.GetDetach(ctx),
-		Manager:               flypg.StolonManager,
-		Autostart:             flag.GetBool(ctx, "autostart"),
-	}
+	forkFrom := flag.GetString(ctx, "fork-from")
 
-	if flag.GetString(ctx, "fork-from") != "" {
+	if forkFrom != "" {
+		// Snapshot ID may not be specified with fork-from
 		if params.SnapshotID != "" {
 			return fmt.Errorf("cannot specify both --fork-from and --snapshot-id")
 		}
 
-		if params.PostgresConfiguration.InitialClusterSize > 1 {
-			fmt.Fprintf(io.Out, colorize.Yellow("Warning: --initial-cluster-size is ignored when forking from an existing cluster\n"))
-			params.PostgresConfiguration.InitialClusterSize = 1
+		// If initial-cluster-size is not specified, set it to 1
+		if pgConfig.InitialClusterSize == 0 {
+			pgConfig.InitialClusterSize = 1
 		}
 
-		vol, err := resolveForkFromTarget(ctx, client, flag.GetString(ctx, "fork-from"))
+		// Initial cluster size may not be greater than 1 with fork-from
+		if pgConfig.InitialClusterSize > 1 {
+			fmt.Fprintf(io.Out, colorize.Yellow("Warning: --initial-cluster-size is ignored when specifying --fork-from\n"))
+			pgConfig.InitialClusterSize = 1
+		}
+
+		// Check to see whether the fork-from value includes a volume ID
+		forkSlice := strings.Split(forkFrom, ":")
+		if len(forkSlice) > 2 {
+			return fmt.Errorf("invalid --fork-from format. See `fly pg create --help` for more information")
+		}
+
+		// Resolve specified fork-from app
+		forkApp, err := client.GetAppCompact(ctx, forkSlice[0])
+		if err != nil {
+			return fmt.Errorf("Failed to resolve the specified fork-from app %s: %w", forkSlice[0], err)
+		}
+
+		// Confirm fork-app is a postgres app
+		if !forkApp.IsPostgresApp() {
+			return fmt.Errorf("The fork-from app %q must be a postgres app", forkApp.Name)
+		}
+
+		ctx, err := apps.BuildContext(ctx, forkApp)
 		if err != nil {
 			return err
 		}
 
-		if vol == nil {
-			return fmt.Errorf("Unable to resolve volume from fork-from target: %s", flag.GetString(ctx, "fork-from"))
+		machines, err := mach.ListActive(ctx)
+		if err != nil {
+			return fmt.Errorf("Failed to list machines associated with %s: %w", forkApp.Name, err)
 		}
 
-		if vol.Region != region.Code {
-			return fmt.Errorf("The target region %q must match the region associated with the fork target: %q", region.Code, vol.Region)
+		// If the fork-from value includes a volume ID, use that. Otherwise, attempt to resolve the
+		// volume ID associated with the fork-from app's primary instance.
+		if len(forkSlice) == 2 {
+			params.ForkFrom = forkSlice[1]
+		} else {
+			volID, err := resolveForkFromVolume(ctx, machines)
+			if err != nil {
+				return err
+			}
+
+			params.ForkFrom = volID
 		}
 
-		fmt.Fprintf(io.Out, "Forking from volume %s\n", vol.ID)
+		// Resolve the volume
+		vol, err := client.GetVolume(ctx, params.ForkFrom)
+		if err != nil {
+			return fmt.Errorf("Failed to resolve the specified fork-from volume %s: %w", params.ForkFrom, err)
+		}
 
+		// Confirm that the volume is associated with the fork-from app
+		if vol.App.Name != forkApp.Name {
+			return fmt.Errorf("The volume %q specified must be associated with the fork-from app %q", vol.ID, forkApp.Name)
+		}
+
+		// If the region isn't specified, set the region of the fork target
+		reg := flag.GetString(ctx, "region")
+		if reg == "" {
+			reg = vol.Region
+			flag.SetString(ctx, "region", vol.Region)
+		}
+
+		// Confirm that the region matches the region of the fork target
+		if reg != "" && reg != vol.Region {
+			return fmt.Errorf("Target region %q must match the region of the fork volume target: %q", reg, vol.Region)
+		}
+
+		// If the volume size isn't specified, set the volume size of the fork target
+		if pgConfig.DiskGb == 0 {
+			pgConfig.DiskGb = vol.SizeGb
+		}
+
+		// Confirm that the volume size is greater than or equal to the fork target
+		if pgConfig.DiskGb < vol.SizeGb {
+			return fmt.Errorf("The target volume size %dGB must be greater than or equal to the volume fork target: %dGB", pgConfig.DiskGb, vol.SizeGb)
+		}
+
+		// Resolve the fork-from app manager
+		params.Manager = resolveForkFromManager(ctx, machines)
 		params.ForkFrom = vol.ID
 	}
 
-	params.Manager = flypg.ReplicationManager
-	if flag.GetBool(ctx, "stolon") {
-		params.Manager = flypg.StolonManager
+	params.PostgresConfiguration = *pgConfig
+
+	var region *api.Region
+	region, err = prompt.Region(ctx, !org.PaidPlan, prompt.RegionParams{
+		Message: "",
+	})
+	if err != nil {
+		return
+	}
+
+	// Set the default manager if not specified or already resolved
+	if params.Manager == "" {
+		params.Manager = flypg.ReplicationManager
+		if flag.GetBool(ctx, "stolon") {
+			params.Manager = flypg.StolonManager
+		}
 	}
 
 	return CreateCluster(ctx, org, region, params)
@@ -197,6 +268,8 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 	customConfig := params.DiskGb != 0 || params.VMSize != "" || params.InitialClusterSize != 0
 
 	var config *PostgresConfiguration
+
+	fmt.Printf("Pre-custom: %+v", params.PostgresConfiguration)
 
 	if !customConfig {
 		fmt.Fprintf(io.Out, "For pricing information visit: https://fly.io/docs/about/pricing/#postgresql-clusters")
@@ -228,9 +301,11 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 		}
 	}
 
+	fmt.Printf("%+v", params.PostgresConfiguration)
+
 	if customConfig {
 		// Resolve cluster size
-		if params.InitialClusterSize == 0 {
+		if params.PostgresConfiguration.InitialClusterSize == 0 {
 			clusterSizePrompt := "Initial cluster size"
 			defaultClusterSize := 2
 
@@ -244,7 +319,7 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 				return err
 			}
 		}
-		input.InitialClusterSize = params.InitialClusterSize
+		input.InitialClusterSize = params.PostgresConfiguration.InitialClusterSize
 
 		// Resolve VM size
 		vmSize, err := resolveVMSize(ctx, params.VMSize)
@@ -469,55 +544,14 @@ func MachineVMSizes() []api.VMSize {
 	}
 }
 
-func resolveForkFromTarget(ctx context.Context, client *api.Client, forkFrom string) (*api.Volume, error) {
-	var app *api.AppCompact
-	var volume *api.Volume
-	var err error
-
-	// Check to see whether the fork-from value includes a volume ID
-	forkSlice := strings.Split(forkFrom, ":")
-
-	if len(forkSlice) > 2 {
-		return nil, fmt.Errorf("invalid --fork-from format")
-	}
-
-	app, err = client.GetAppCompact(ctx, forkSlice[0])
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve from-from app %s: %w", forkSlice[0], err)
-	}
-
-	if len(forkSlice) == 2 {
-		volume, err = client.GetVolume(ctx, forkSlice[1])
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if !app.IsPostgresApp() {
-		return nil, fmt.Errorf("app %s is not a postgres app", app.Name)
-	}
-
-	// If volume was specified, we are done here
-	if volume != nil {
-		return volume, nil
-	}
-
-	ctx, err = apps.BuildContext(ctx, app)
-	if err != nil {
-		return nil, err
-	}
-
-	machines, err := mach.ListActive(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list machines on target app %s: %w", app.Name, err)
-	}
-
+func resolveForkFromVolume(ctx context.Context, machines []*api.Machine) (string, error) {
 	if len(machines) == 0 {
-		return nil, fmt.Errorf("No machines associated with %s, please manually specify the volume you wish to fork. See `fly pg create --help` for more information", app.Name)
+		return "", fmt.Errorf("No machines associated with fork-from target. See `fly pg create --help` for more information")
 	}
 
 	primaryRegion := machines[0].Config.Env["PRIMARY_REGION"]
 
+	// Attempt to resolve the volume associated with the primary machine
 	for _, m := range machines {
 		// Exclude machines that are not in the primary region
 		if m.Config.Env["PRIMARY_REGION"] != primaryRegion {
@@ -525,19 +559,30 @@ func resolveForkFromTarget(ctx context.Context, client *api.Client, forkFrom str
 		}
 
 		role := machineRole(m)
-		// Exclude machines that are not primary (flex) or leader (stolon)
+		// Exclude machines that are not the primary (flex) or leader (stolon)
 		if role != "primary" && role != "leader" {
 			continue
 		}
 
-		volID := m.Config.Mounts[0].Volume
-		vol, err := client.GetVolume(ctx, volID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resolve the volume associated with the leader %s: %w", volID, err)
-		}
-
-		return vol, nil
+		return m.Config.Mounts[0].Volume, nil
 	}
 
-	return nil, err
+	return "", fmt.Errorf("Failed to resolve the volume associated with the primary instance. See `fly pg create --help` for more information")
+}
+
+func resolveForkFromManager(ctx context.Context, machines []*api.Machine) string {
+	if flag.GetBool(ctx, "stolon") {
+		return flypg.StolonManager
+	}
+
+	// We can't resolve the manager type, so we'll default to repmgr
+	if len(machines) == 0 {
+		return flypg.ReplicationManager
+	}
+
+	if machines[0].ImageRef.Labels["fly.pg-manager"] == flypg.ReplicationManager {
+		return flypg.ReplicationManager
+	}
+
+	return flypg.StolonManager
 }
