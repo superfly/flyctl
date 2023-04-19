@@ -23,9 +23,11 @@ func newDomainsCommand(client *client.Client) *Command {
 	listStrings := docstrings.Get("domains.list")
 	listCmd := BuildCommandKS(cmd, runDomainsList, listStrings, client, requireSession)
 	listCmd.Args = cobra.MaximumNArgs(1)
+	listCmd.AddBoolFlag(BoolFlagOpts{Name: "json", Shorthand: "j", Description: "JSON output"})
 
 	showCmd := BuildCommandKS(cmd, runDomainsShow, docstrings.Get("domains.show"), client, requireSession)
 	showCmd.Args = cobra.ExactArgs(1)
+	showCmd.AddBoolFlag(BoolFlagOpts{Name: "json", Shorthand: "j", Description: "JSON output"})
 
 	addCmd := BuildCommandKS(cmd, runDomainsCreate, docstrings.Get("domains.add"), client, requireSession)
 	addCmd.Args = cobra.MaximumNArgs(2)

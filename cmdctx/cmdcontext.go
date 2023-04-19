@@ -231,5 +231,5 @@ func (commandContext *CmdContext) WriteJSON(myData interface{}) {
 }
 
 func (commandContext *CmdContext) OutputJSON() bool {
-	return commandContext.GlobalConfig.GetBool(flyctl.ConfigJSONOutput)
+	return commandContext.Config.GetBool("json")
 }

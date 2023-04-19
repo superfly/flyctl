@@ -35,7 +35,10 @@ func newWireGuardCommand(client *client.Client) *Command {
 		return BuildCommandKS(parent, fn, docstrings.Get(ds), client, requireSession)
 	}
 
-	child(cmd, runWireGuardList, "wireguard.list").Args = cobra.MaximumNArgs(1)
+	list := child(cmd, runWireGuardList, "wireguard.list")
+	list.Args = cobra.MaximumNArgs(1)
+	list.AddBoolFlag(BoolFlagOpts{Name: "json", Shorthand: "j", Description: "JSON output"})
+
 	child(cmd, runWireGuardCreate, "wireguard.create").Args = cobra.MaximumNArgs(4)
 	child(cmd, runWireGuardRemove, "wireguard.remove").Args = cobra.MaximumNArgs(2)
 	child(cmd, runWireGuardStat, "wireguard.status").Args = cobra.MaximumNArgs(2)
@@ -44,7 +47,10 @@ func newWireGuardCommand(client *client.Client) *Command {
 
 	tokens := child(cmd, nil, "wireguard.token")
 
-	child(tokens, runWireGuardTokenList, "wireguard.token.list").Args = cobra.MaximumNArgs(1)
+	tokensList := child(tokens, runWireGuardTokenList, "wireguard.token.list")
+	tokensList.Args = cobra.MaximumNArgs(1)
+	tokensList.AddBoolFlag(BoolFlagOpts{Name: "json", Shorthand: "j", Description: "JSON output"})
+
 	child(tokens, runWireGuardTokenCreate, "wireguard.token.create").Args = cobra.MaximumNArgs(2)
 	child(tokens, runWireGuardTokenDelete, "wireguard.token.delete").Args = cobra.MaximumNArgs(3)
 

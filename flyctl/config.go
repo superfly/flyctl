@@ -10,7 +10,6 @@ const (
 	ConfigFlapsBaseUrl    = "flaps_base_url"
 	ConfigAppName         = "app"
 	ConfigVerboseOutput   = "verbose"
-	ConfigJSONOutput      = "json"
 	ConfigBuiltinsfile    = "builtins_file"
 	ConfigGQLErrorLogging = "gqlerrorlogging"
 	ConfigInstaller       = "installer"
