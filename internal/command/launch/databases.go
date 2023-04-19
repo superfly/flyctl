@@ -32,7 +32,7 @@ func LaunchPostgres(ctx context.Context, appName string, org *api.Organization, 
 		})
 
 		if err != nil {
-			msg := `Failed attaching %s to the Postgres cluster %s: %w.\nTry attaching manually with 'fly postgres attach --app %s %s'\n`
+			msg := "Failed attaching %s to the Postgres cluster %s: %s.\nTry attaching manually with 'fly postgres attach --app %s %s'\n"
 			fmt.Fprintf(io.Out, msg, appName, clusterAppName, err, appName, clusterAppName)
 
 		} else {

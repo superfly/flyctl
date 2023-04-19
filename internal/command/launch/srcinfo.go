@@ -177,7 +177,7 @@ func createDatabases(ctx context.Context, srcInfo *scanner.SourceInfo, appName s
 			})
 
 			if err != nil {
-				msg := `Failed attaching %s to the Postgres cluster %s: %w.\nTry attaching manually with 'fly postgres attach --app %s %s'\n`
+				msg := "Failed attaching %s to the Postgres cluster %s: %s.\nTry attaching manually with 'fly postgres attach --app %s %s'\n"
 				fmt.Fprintf(io.Out, msg, appName, db_app_name, err, appName, db_app_name)
 			} else {
 				fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", db_app_name, appName)
