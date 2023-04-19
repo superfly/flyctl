@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
+	"golang.org/x/exp/slices"
 )
 
 func getFromMetadata(m *api.Machine, key string) string {
@@ -27,12 +28,14 @@ func getFromMetadata(m *api.Machine, key string) string {
 
 func getProcessgroup(m *api.Machine) string {
 	name := m.ProcessGroup()
-
-	if name != "" {
-		return name
+	if name == "" {
+		name = "<default>"
 	}
 
-	return "<default>"
+	if len(m.Config.Standbys) > 0 {
+		name += "†"
+	}
+	return name
 }
 
 func getReleaseVersion(m *api.Machine) string {
@@ -88,7 +91,7 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer
 	}
 
 	sort.Slice(machines, func(i, j int) bool {
-		return machines[i].ID < machines[j].ID
+		return machines[i].ID > machines[j].ID
 	})
 
 	if jsonOutput {
@@ -108,11 +111,10 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer
 		image := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
 
 		latestImage, err := client.GetLatestImageDetails(ctx, image)
-
-		if err != nil && strings.Contains(err.Error(), "Unknown repository") {
-			continue
-		}
 		if err != nil {
+			if strings.Contains(err.Error(), "Unknown repository") {
+				continue
+			}
 			return fmt.Errorf("unable to fetch latest image details for %s: %w", image, err)
 		}
 
@@ -148,7 +150,6 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer
 		} else {
 			unmanaged = append(unmanaged, machine)
 		}
-
 	}
 
 	image, err := getImage(managed)
@@ -162,11 +163,15 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer
 	}
 
 	if len(managed) > 0 {
+		hasStandbys := false
 		rows := [][]string{}
 		for _, machine := range managed {
+			if len(machine.Config.Standbys) > 0 {
+				hasStandbys = true
+			}
 			rows = append(rows, []string{
-				machine.ID,
 				getProcessgroup(machine),
+				machine.ID,
 				getReleaseVersion(machine),
 				machine.Region,
 				machine.State,
@@ -175,9 +180,17 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer
 			})
 		}
 
-		err := render.Table(out, "Machines", rows, "ID", "Process", "Version", "Region", "State", "Health Checks", "Last Updated")
+		sort.Slice(rows, func(i, j int) bool {
+			return slices.Compare(rows[i], rows[j]) < 0
+		})
+
+		err := render.Table(out, "Machines", rows, "Process", "ID", "Version", "Region", "State", "Checks", "Last Updated")
 		if err != nil {
 			return err
+		}
+
+		if hasStandbys {
+			fmt.Fprintf(out, "  † Standby machine (it will take over only in case of host hardware failure)\n")
 		}
 	}
 
@@ -187,7 +200,6 @@ func renderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer
 	}
 
 	return nil
-
 }
 
 func renderMachineJSONStatus(ctx context.Context, app *api.AppCompact, machines []*api.Machine) error {
@@ -330,7 +342,8 @@ func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Ma
 			machine.UpdatedAt,
 		})
 	}
-	return render.Table(out, "", rows, "ID", "State", "Role", "Region", "Health checks", "Image", "Created", "Updated")
+
+	return render.Table(out, "", rows, "ID", "State", "Role", "Region", "Checks", "Image", "Created", "Updated")
 }
 
 func isQuorumMet(machines []*api.Machine) (bool, string) {
