@@ -1,4 +1,4 @@
-#!/bin/sh -e
+#!/bin/bash -e
 
 # If running the web server then migrate existing database
 if [ "${*}" == "{{ .packager }} run start" ]; then

@@ -1,10 +1,13 @@
 package scanner
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/superfly/flyctl/helpers"
 )
 
 func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
@@ -102,6 +105,21 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 			},
 		}
 		s.Notice = "\nThis launch configuration uses SQLite on a single, dedicated volume. It will not scale beyond a single VM. Look into 'fly postgres' for a more robust production database."
+	}
+
+	if remix {
+		bytes, err := helpers.RandBytes(32)
+
+		if err == nil {
+			s.Secrets = []Secret{
+				{
+					Key:   "SESSION_SECRET",
+					Help:  "Secret key used to verify the integrity of signed cookies",
+					Value: hex.EncodeToString(bytes),
+				},
+			}
+
+		}
 	}
 
 	s.SkipDeploy = true
