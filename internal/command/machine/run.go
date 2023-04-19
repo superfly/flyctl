@@ -281,6 +281,7 @@ func runMachineRun(ctx context.Context) error {
 		return nil
 	}
 
+	input.SkipLaunch = len(machineConf.Standbys) > 0
 	input.Config = machineConf
 
 	machine, err := flapsClient.Launch(ctx, input)

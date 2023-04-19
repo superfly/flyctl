@@ -135,6 +135,7 @@ func runUpdate(ctx context.Context) (err error) {
 		Region:           machine.Region,
 		Config:           machineConf,
 		SkipHealthChecks: skipHealthChecks,
+		SkipLaunch:       len(machineConf.Standbys) > 0,
 	}
 	if err := mach.Update(ctx, machine, input); err != nil {
 		return err
