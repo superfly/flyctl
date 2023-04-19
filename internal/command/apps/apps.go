@@ -28,6 +28,7 @@ The LIST command will list all currently registered applications.
 	// TODO: list should also accept the --platform param
 
 	apps := command.New("apps", short, long, nil)
+	apps.Aliases = []string{"app"}
 
 	apps.AddCommand(
 		newList(),

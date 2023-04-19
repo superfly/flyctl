@@ -13,6 +13,7 @@ func New() *cobra.Command {
 	)
 
 	cmd := command.New("ips", short, long, nil)
+	cmd.Aliases = []string{"ip"}
 	cmd.AddCommand(
 		newList(),
 		newAllocatev4(),
