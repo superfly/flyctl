@@ -92,7 +92,6 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		configureElixir,
 		configurePython,
 		configureDeno,
-		configureRemix,
 		configureNuxt,
 		configureNextJs,
 		configureNode,
