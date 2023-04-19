@@ -22,7 +22,7 @@ FROM base as build
 
 # Install packages needed to build node modules
 RUN apt-get update -qq && \
-    apt install -y python-is-python3 pkg-config build-essential {{ 
+    apt-get install -y python-is-python3 pkg-config build-essential {{
     if .prisma }}openssl {{ end }}
 
 # Install node modules
@@ -39,7 +39,7 @@ RUN npx prisma generate
 COPY --link . .
 
 {{ if .build -}}
-# Build application    
+# Build application
 RUN {{ .packager }} run build
 
 {{ end -}}
