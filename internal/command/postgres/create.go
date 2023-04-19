@@ -3,13 +3,16 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -61,6 +64,10 @@ func newCreate() *cobra.Command {
 			Description: "Creates the volume with the contents of the snapshot",
 		},
 		flag.String{
+			Name:        "fork-from",
+			Description: "Specify an existing application name to seed from. A specific volume can be specified with the format: <app-name>:<vol-id>",
+		},
+		flag.String{
 			Name:        "image-ref",
 			Description: "Specify a non-default base image for the Postgres app",
 		},
@@ -88,7 +95,12 @@ func newCreate() *cobra.Command {
 // we pass the name, region and org to CreateCluster. Other flags that don't prompt may
 // be safely passed through from other commands.
 func run(ctx context.Context) (err error) {
-	appName := flag.GetString(ctx, "name")
+	var (
+		appName  = flag.GetString(ctx, "name")
+		client   = client.FromContext(ctx).API()
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
+	)
 
 	if appName == "" {
 		if appName, err = prompt.SelectAppName(ctx); err != nil {
@@ -129,6 +141,34 @@ func run(ctx context.Context) (err error) {
 		Autostart:             flag.GetBool(ctx, "autostart"),
 	}
 
+	if flag.GetString(ctx, "fork-from") != "" {
+		if params.SnapshotID != "" {
+			return fmt.Errorf("cannot specify both --fork-from and --snapshot-id")
+		}
+
+		if params.PostgresConfiguration.InitialClusterSize > 1 {
+			fmt.Fprintf(io.Out, colorize.Yellow("Warning: --initial-cluster-size is ignored when forking from an existing cluster\n"))
+			params.PostgresConfiguration.InitialClusterSize = 1
+		}
+
+		vol, err := resolveForkFromTarget(ctx, client, flag.GetString(ctx, "fork-from"))
+		if err != nil {
+			return err
+		}
+
+		if vol == nil {
+			return fmt.Errorf("Unable to resolve volume from fork-from target: %s", flag.GetString(ctx, "fork-from"))
+		}
+
+		if vol.Region != region.Code {
+			return fmt.Errorf("The target region %q must match the region associated with the fork target: %q", region.Code, vol.Region)
+		}
+
+		fmt.Fprintf(io.Out, "Forking from volume %s\n", vol.ID)
+
+		params.ForkFrom = vol.ID
+	}
+
 	params.Manager = flypg.ReplicationManager
 	if flag.GetBool(ctx, "stolon") {
 		params.Manager = flypg.StolonManager
@@ -151,6 +191,7 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 		Region:       region.Code,
 		Manager:      params.Manager,
 		Autostart:    params.Autostart,
+		ForkFrom:     params.ForkFrom,
 	}
 
 	customConfig := params.DiskGb != 0 || params.VMSize != "" || params.InitialClusterSize != 0
@@ -281,6 +322,7 @@ type ClusterParams struct {
 	SnapshotID string
 	Detach     bool
 	Manager    string
+	ForkFrom   string
 	Autostart  bool
 }
 
@@ -425,4 +467,77 @@ func MachineVMSizes() []api.VMSize {
 			MemoryGB: 32,
 		},
 	}
+}
+
+func resolveForkFromTarget(ctx context.Context, client *api.Client, forkFrom string) (*api.Volume, error) {
+	var app *api.AppCompact
+	var volume *api.Volume
+	var err error
+
+	// Check to see whether the fork-from value includes a volume ID
+	forkSlice := strings.Split(forkFrom, ":")
+
+	if len(forkSlice) > 2 {
+		return nil, fmt.Errorf("invalid --fork-from format")
+	}
+
+	app, err = client.GetAppCompact(ctx, forkSlice[0])
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve from-from app %s: %w", forkSlice[0], err)
+	}
+
+	if len(forkSlice) == 2 {
+		volume, err = client.GetVolume(ctx, forkSlice[1])
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if !app.IsPostgresApp() {
+		return nil, fmt.Errorf("app %s is not a postgres app", app.Name)
+	}
+
+	// If volume was specified, we are done here
+	if volume != nil {
+		return volume, nil
+	}
+
+	ctx, err = apps.BuildContext(ctx, app)
+	if err != nil {
+		return nil, err
+	}
+
+	machines, err := mach.ListActive(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list machines on target app %s: %w", app.Name, err)
+	}
+
+	if len(machines) == 0 {
+		return nil, fmt.Errorf("No machines associated with %s, please manually specify the volume you wish to fork. See `fly pg create --help` for more information", app.Name)
+	}
+
+	primaryRegion := machines[0].Config.Env["PRIMARY_REGION"]
+
+	for _, m := range machines {
+		// Exclude machines that are not in the primary region
+		if m.Config.Env["PRIMARY_REGION"] != primaryRegion {
+			continue
+		}
+
+		role := machineRole(m)
+		// Exclude machines that are not primary (flex) or leader (stolon)
+		if role != "primary" && role != "leader" {
+			continue
+		}
+
+		volID := m.Config.Mounts[0].Volume
+		vol, err := client.GetVolume(ctx, volID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve the volume associated with the leader %s: %w", volID, err)
+		}
+
+		return vol, nil
+	}
+
+	return nil, err
 }

@@ -52,6 +52,7 @@ type CreateClusterInput struct {
 	Manager            string
 	Autostart          bool
 	ScaleToZero        bool
+	ForkFrom           string
 }
 
 func NewLauncher(client *api.Client) *Launcher {
@@ -170,19 +171,42 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 
 		fmt.Fprintf(io.Out, "%s %d of %d machines with image %s\n", verb, i+1, config.InitialClusterSize, machineConf.Image)
 
-		volInput := api.CreateVolumeInput{
-			AppID:             app.ID,
-			Name:              volumeName,
-			Region:            config.Region,
-			SizeGb:            *config.VolumeSize,
-			Encrypted:         true,
-			RequireUniqueZone: false,
-			SnapshotID:        snapshot,
-		}
+		var vol *api.Volume
 
-		vol, err := l.client.CreateVolume(ctx, volInput)
-		if err != nil {
-			return err
+		if config.ForkFrom != "" {
+			targetVolume, err := l.client.GetVolume(ctx, config.ForkFrom)
+			if err != nil {
+				return fmt.Errorf("unable to find fork target volume %s: %w", config.ForkFrom, err)
+			}
+
+			machineConf.Env["FLY_RESTORED_FROM"] = config.ForkFrom
+
+			volInput := api.ForkVolumeInput{
+				AppID:          app.ID,
+				SourceVolumeID: targetVolume.ID,
+				MachinesOnly:   true,
+				Name:           "pg_data",
+			}
+
+			vol, err = l.client.ForkVolume(ctx, volInput)
+			if err != nil {
+				return err
+			}
+		} else {
+			volInput := api.CreateVolumeInput{
+				AppID:             app.ID,
+				Name:              volumeName,
+				Region:            config.Region,
+				SizeGb:            *config.VolumeSize,
+				Encrypted:         true,
+				RequireUniqueZone: false,
+				SnapshotID:        snapshot,
+			}
+
+			vol, err = l.client.CreateVolume(ctx, volInput)
+			if err != nil {
+				return err
+			}
 		}
 
 		machineConf.Mounts = append(machineConf.Mounts, api.MachineMount{
