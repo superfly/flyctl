@@ -111,29 +111,29 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 				return err
 			}
 
-			if services := groupConfig.AllServices(); len(services) > 0 {
-				for _, s := range services {
-					if s.AutoStopMachines != nil && *s.AutoStopMachines == true {
-						groupsWithAutostopEnabled[name] = true
-					}
+			services := groupConfig.AllServices()
+			for _, s := range services {
+				if s.AutoStopMachines != nil && *s.AutoStopMachines == true {
+					groupsWithAutostopEnabled[name] = true
 				}
 			}
 
-			if len(groupConfig.Mounts) > 0 {
-				// Don't do any HA magic for stateful groups
+			// We strive to provide a HA setup according to:
+			// - Create only 1 machine if the group has mounts
+			// - Create 2 machines for groups with services
+			// - Create 1 always-on and 1 standby machine for groups without services
+			switch {
+			case len(groupConfig.Mounts) > 0:
 				continue
-			}
-
-			switch len(groupConfig.AllServices()) == 0 {
-			case true:
+			case len(services) > 0:
+				fmt.Fprintf(md.io.Out, "Creating a second machine to increase service availability\n")
+				if _, err := md.spawnMachineInGroup(ctx, name, idx, total, nil); err != nil {
+					return err
+				}
+			default:
 				fmt.Fprintf(md.io.Out, "Creating a standby machine for %s\n", md.colorize.Bold(machineID))
 				standbyFor := []string{machineID}
 				if _, err := md.spawnMachineInGroup(ctx, name, idx, total, standbyFor); err != nil {
-					return err
-				}
-			case false:
-				fmt.Fprintf(md.io.Out, "Creating a second machine for %s\n", md.colorize.Bold(machineID))
-				if _, err := md.spawnMachineInGroup(ctx, name, idx, total, nil); err != nil {
 					return err
 				}
 			}
@@ -141,8 +141,12 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 		fmt.Fprintf(md.io.ErrOut, "Finished launching new machines\n")
 
 		if len(groupsWithAutostopEnabled) > 0 {
-			fmt.Fprintf(md.io.Out, "\n%s Machines for services with 'auto_stop_machines = true' will be stopped when idle\n\n",
+			groupNames := lo.Keys(groupsWithAutostopEnabled)
+			slices.Sort(groupNames)
+			fmt.Fprintf(md.io.Out,
+				"\n%s The machines for [%s] have services with 'auto_stop_machines = true' that will be stopped when idling\n\n",
 				md.colorize.Yellow("NOTE:"),
+				md.colorize.Bold(strings.Join(groupNames, ",")),
 			)
 		}
 	}
