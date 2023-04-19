@@ -23,7 +23,7 @@ func (md *machineDeployment) launchInputForRestart(origMachineRaw *api.Machine) 
 	}
 }
 
-func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *api.MachineGuest) (*api.LaunchMachineInput, error) {
+func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *api.MachineGuest, standbyFor []string) (*api.LaunchMachineInput, error) {
 	mConfig, err := md.appConfig.ToMachineConfig(processGroup, nil)
 	if err != nil {
 		return nil, err
@@ -42,11 +42,16 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *ap
 		mount0.Volume = md.volumes[mount0.Name][0].ID
 	}
 
+	if len(standbyFor) > 0 {
+		mConfig.Standbys = standbyFor
+	}
+
 	return &api.LaunchMachineInput{
-		AppID:   md.app.Name,
-		OrgSlug: md.app.Organization.ID,
-		Region:  md.appConfig.PrimaryRegion,
-		Config:  mConfig,
+		AppID:      md.app.Name,
+		OrgSlug:    md.app.Organization.ID,
+		Region:     md.appConfig.PrimaryRegion,
+		Config:     mConfig,
+		SkipLaunch: len(standbyFor) > 0,
 	}, nil
 }
 
@@ -115,11 +120,12 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 	}
 
 	return &api.LaunchMachineInput{
-		ID:      mID,
-		AppID:   md.app.Name,
-		OrgSlug: md.app.Organization.ID,
-		Region:  origMachineRaw.Region,
-		Config:  mConfig,
+		ID:         mID,
+		AppID:      md.app.Name,
+		OrgSlug:    md.app.Organization.ID,
+		Region:     origMachineRaw.Region,
+		Config:     mConfig,
+		SkipLaunch: len(mConfig.Standbys) > 0,
 	}, nil
 }
 

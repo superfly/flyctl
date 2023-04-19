@@ -21,6 +21,7 @@ const (
 	MachineStateDestroying                     = "destroying"
 	MachineStateStarted                        = "started"
 	MachineStateStopped                        = "stopped"
+	MachineStateCreated                        = "created"
 )
 
 type Machine struct {
@@ -456,7 +457,6 @@ type MachineConfig struct {
 	DNS         *DNSConfig       `json:"dns,omitempty"`
 	Processes   []MachineProcess `json:"processes,omitempty"`
 
-	// Not used by flyctl yet
 	// Standbys enable a machine to be a standby for another. In the event of a hardware failure,
 	// the standby machine will be started.
 	Standbys []string `json:"standbys,omitempty"`
@@ -524,12 +524,13 @@ type MachineStartResponse struct {
 }
 
 type LaunchMachineInput struct {
-	AppID   string         `json:"appId,omitempty"`
-	ID      string         `json:"id,omitempty"`
-	Name    string         `json:"name,omitempty"`
-	OrgSlug string         `json:"organizationId,omitempty"`
-	Region  string         `json:"region,omitempty"`
-	Config  *MachineConfig `json:"config,omitempty"`
+	AppID      string         `json:"appId,omitempty"`
+	ID         string         `json:"id,omitempty"`
+	Name       string         `json:"name,omitempty"`
+	OrgSlug    string         `json:"organizationId,omitempty"`
+	Region     string         `json:"region,omitempty"`
+	Config     *MachineConfig `json:"config,omitempty"`
+	SkipLaunch bool           `json:"skip_launch,omitempty"`
 	// Client side only
 	SkipHealthChecks bool
 }

@@ -13,10 +13,10 @@ func (md *machineDeployment) provisionFirstDeploy(ctx context.Context) error {
 		return nil
 	}
 	if err := md.provisionIpsOnFirstDeploy(ctx); err != nil {
-		return nil
+		fmt.Fprintf(md.io.ErrOut, "Failed to provision IP addresses, use `fly ips` commands to remmediate it. ERROR: %s", err)
 	}
 	if err := md.provisionVolumesOnFirstDeploy(ctx); err != nil {
-		return nil
+		return fmt.Errorf("failed to provision seed volumes: %w", err)
 	}
 	return nil
 }

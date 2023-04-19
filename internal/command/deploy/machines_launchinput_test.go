@@ -42,7 +42,7 @@ func Test_launchInputFor_Basic(t *testing.T) {
 			},
 		},
 	}
-	li, err := md.launchInputForLaunch("", nil)
+	li, err := md.launchInputForLaunch("", nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, want, li)
 
@@ -93,7 +93,7 @@ func Test_launchInputFor_onMounts(t *testing.T) {
 	}
 
 	// New machine must get a volume attached
-	li, err := md.launchInputForLaunch("", nil)
+	li, err := md.launchInputForLaunch("", nil, nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
 	assert.Equal(t, api.MachineMount{Volume: "vol_12345", Path: "/data", Name: "data"}, li.Config.Mounts[0])

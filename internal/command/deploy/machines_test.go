@@ -34,7 +34,7 @@ func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	li, err := md.launchInputForLaunch("", nil)
+	li, err := md.launchInputForLaunch("", nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, &api.LaunchMachineInput{
 		OrgSlug: "my-dangling-org",
@@ -97,7 +97,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 	}
 
 	// New app machine
-	li, err := md.launchInputForLaunch("", nil)
+	li, err := md.launchInputForLaunch("", nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, &api.LaunchMachineInput{
 		OrgSlug: "my-dangling-org",
@@ -231,7 +231,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 	}
 
 	// New app machine
-	li, err := md.launchInputForLaunch("", nil)
+	li, err := md.launchInputForLaunch("", nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, &api.LaunchMachineInput{
 		OrgSlug: "my-dangling-org",
