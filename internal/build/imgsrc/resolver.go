@@ -463,6 +463,15 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 	}, nil
 }
 
+type httpError struct {
+	StatusCode int
+	Body string
+}
+
+func (e httpError) Error() string {
+	return fmt.Sprintf("%s (http: %d)", e.Body, e.StatusCode)
+}
+
 func heartbeat(client *dockerclient.Client, req *http.Request) error {
 	resp, err := client.HTTPClient().Do(req)
 	if err != nil {
@@ -476,10 +485,10 @@ func heartbeat(client *dockerclient.Client, req *http.Request) error {
 
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("%s (http: %d)", err, resp.StatusCode)
+		return &httpError{StatusCode: resp.StatusCode, Body: err.Error()}
 	}
 
-	return fmt.Errorf("%s (http: %d)", b, resp.StatusCode)
+	return &httpError{StatusCode: resp.StatusCode, Body: string(b)}
 }
 
 // For remote builders send a periodic heartbeat during build to ensure machine stays alive
@@ -512,6 +521,15 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 
 	err = heartbeat(dockerClient, heartbeatReq)
 	if err != nil {
+		var h *httpError
+		if errors.As(err, &h) {
+			if h.StatusCode == http.StatusNotFound {
+				terminal.Debugf("This builder doesn't have the heartbeat endpoint %s\n", heartbeatUrl)
+				return nil, nil
+			}
+		} else {
+			terminal.Debugf("not http error: err = %+v", err)
+		}
 		return nil, err
 	}
 
