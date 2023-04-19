@@ -6,7 +6,9 @@ package preflight
 import (
 	"testing"
 
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
@@ -265,4 +267,53 @@ func TestFlyLaunch_case08(t *testing.T) {
 	ml := f.MachinesList(appName)
 	require.Equal(f, 1, len(ml))
 	require.Equal(f, "shared-cpu-4x", ml[0].Config.Guest.ToSize())
+}
+
+// test default HA setup
+func TestFlyLaunch_case09(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+
+	f.WriteFlyToml(`
+[build]
+  image = "nginx"
+
+[processes]
+	app = ""
+	task = "sleep inf"
+	disk = "sleep 1h"
+
+[[mounts]]
+  source = "disk"
+	destination = "/data"
+	processes = ["disk"]
+
+[http_service]
+	internal_port = 80
+	auto_start_machines = true
+	auto_stop_machines = true
+	processes = ["app"]
+`)
+
+	f.Fly("launch --now --copy-config -o %s --name %s --region %s --force-machines", f.OrgSlug(), appName, f.PrimaryRegion())
+	ml := f.MachinesList(appName)
+	require.Equal(f, 5, len(ml))
+	groups := lo.GroupBy(ml, func(m *api.Machine) string {
+		return m.ProcessGroup()
+	})
+
+	require.Equal(f, 3, len(groups))
+	require.Equal(f, 2, len(groups["app"]))
+	require.Equal(f, 2, len(groups["task"]))
+	require.Equal(f, 1, len(groups["disk"]))
+
+	isStandby := func(m *api.Machine) bool { return len(m.Config.Standbys) > 0 }
+	require.Equal(f, 0, lo.CountBy(groups["app"], isStandby))
+	require.Equal(f, 1, lo.CountBy(groups["task"], isStandby))
+	require.Equal(f, 0, lo.CountBy(groups["disk"], isStandby))
+
+	hasServices := func(m *api.Machine) bool { return len(m.Config.Services) > 0 }
+	require.Equal(f, 2, lo.CountBy(groups["app"], hasServices))
+	require.Equal(f, 0, lo.CountBy(groups["task"], hasServices))
+	require.Equal(f, 0, lo.CountBy(groups["disk"], hasServices))
 }
