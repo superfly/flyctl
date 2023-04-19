@@ -27,6 +27,7 @@ func newRegionsCommand(client *client.Client) *Command {
 		Default:     "",
 	})
 	addCmd.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "accept all confirmations"})
+	addCmd.AddBoolFlag(BoolFlagOpts{Name: "json", Shorthand: "j", Description: "JSON output"})
 
 	removeStrings := docstrings.Get("regions.remove")
 	removeCmd := BuildCommandKS(cmd, runRegionsRemove, removeStrings, client, requireSession, requireAppName)
@@ -37,6 +38,7 @@ func newRegionsCommand(client *client.Client) *Command {
 		Default:     "",
 	})
 	removeCmd.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "accept all confirmations"})
+	removeCmd.AddBoolFlag(BoolFlagOpts{Name: "json", Shorthand: "j", Description: "JSON output"})
 
 	setStrings := docstrings.Get("regions.set")
 	setCmd := BuildCommandKS(cmd, runRegionsSet, setStrings, client, requireSession, requireAppName)
@@ -47,14 +49,17 @@ func newRegionsCommand(client *client.Client) *Command {
 		Default:     "",
 	})
 	setCmd.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "accept all confirmations"})
+	setCmd.AddBoolFlag(BoolFlagOpts{Name: "json", Shorthand: "j", Description: "JSON output"})
 
 	setBackupStrings := docstrings.Get("regions.backup")
 	setBackupCmd := BuildCommand(cmd, runBackupRegionsSet, setBackupStrings.Usage, setBackupStrings.Short, setBackupStrings.Long, client, requireSession, requireAppName)
 	setBackupCmd.Args = cobra.MinimumNArgs(1)
 	setBackupCmd.AddBoolFlag(BoolFlagOpts{Name: "yes", Shorthand: "y", Description: "accept all confirmations"})
+	setBackupCmd.AddBoolFlag(BoolFlagOpts{Name: "json", Shorthand: "j", Description: "JSON output"})
 
 	listStrings := docstrings.Get("regions.list")
-	BuildCommand(cmd, runRegionsList, listStrings.Usage, listStrings.Short, listStrings.Long, client, requireSession, requireAppName)
+	listCmd := BuildCommand(cmd, runRegionsList, listStrings.Usage, listStrings.Short, listStrings.Long, client, requireSession, requireAppName)
+	listCmd.AddBoolFlag(BoolFlagOpts{Name: "json", Shorthand: "j", Description: "JSON output"})
 
 	return cmd
 }

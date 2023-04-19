@@ -31,7 +31,8 @@ func newCertificatesCommand(client *client.Client) *Command {
 	cmd := BuildCommandKS(nil, nil, certsStrings, client, requireAppName, requireSession)
 
 	certsListStrings := docstrings.Get("certs.list")
-	BuildCommandKS(cmd, runCertsList, certsListStrings, client, requireSession, requireAppName)
+	listCmd := BuildCommandKS(cmd, runCertsList, certsListStrings, client, requireSession, requireAppName)
+	listCmd.AddBoolFlag(BoolFlagOpts{Name: "json", Shorthand: "j", Description: "JSON output"})
 
 	certsCreateStrings := docstrings.Get("certs.add")
 	createCmd := BuildCommandKS(cmd, runCertAdd, certsCreateStrings, client, requireSession, requireAppName)
@@ -47,10 +48,12 @@ func newCertificatesCommand(client *client.Client) *Command {
 	certsShowStrings := docstrings.Get("certs.show")
 	show := BuildCommandKS(cmd, runCertShow, certsShowStrings, client, requireSession, requireAppName)
 	show.Command.Args = cobra.ExactArgs(1)
+	show.AddBoolFlag(BoolFlagOpts{Name: "json", Shorthand: "j", Description: "JSON output"})
 
 	certsCheckStrings := docstrings.Get("certs.check")
 	check := BuildCommandKS(cmd, runCertCheck, certsCheckStrings, client, requireSession, requireAppName)
 	check.Command.Args = cobra.ExactArgs(1)
+	check.AddBoolFlag(BoolFlagOpts{Name: "json", Shorthand: "j", Description: "JSON output"})
 
 	return cmd
 }

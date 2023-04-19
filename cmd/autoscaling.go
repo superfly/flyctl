@@ -24,13 +24,16 @@ func newAutoscaleCommand(client *client.Client) *Command {
 	disableCmdStrings := docstrings.Get("autoscale.disable")
 	disableCmd := BuildCommand(cmd, runDisableAutoscaling, disableCmdStrings.Usage, disableCmdStrings.Short, disableCmdStrings.Long, client, requireSession, requireAppName)
 	disableCmd.Args = cobra.RangeArgs(0, 2)
+	disableCmd.AddBoolFlag(BoolFlagOpts{Name: "json", Shorthand: "j", Description: "JSON output"})
 
 	setCmdStrings := docstrings.Get("autoscale.set")
 	setCmd := BuildCommand(cmd, runSetParams, setCmdStrings.Usage, setCmdStrings.Short, setCmdStrings.Long, client, requireSession, requireAppName)
 	setCmd.Args = cobra.RangeArgs(0, 2)
+	setCmd.AddBoolFlag(BoolFlagOpts{Name: "json", Shorthand: "j", Description: "JSON output"})
 
 	showCmdStrings := docstrings.Get("autoscale.show")
-	BuildCommand(cmd, runAutoscalingShow, showCmdStrings.Usage, showCmdStrings.Short, showCmdStrings.Long, client, requireSession, requireAppName)
+	showCmd := BuildCommand(cmd, runAutoscalingShow, showCmdStrings.Usage, showCmdStrings.Short, showCmdStrings.Long, client, requireSession, requireAppName)
+	showCmd.AddBoolFlag(BoolFlagOpts{Name: "json", Shorthand: "j", Description: "JSON output"})
 
 	return cmd
 }
