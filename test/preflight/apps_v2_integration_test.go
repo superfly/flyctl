@@ -419,7 +419,7 @@ func TestAppsV2Config_ProcessGroups(t *testing.T) {
 		return cmd
 	}
 
-	expectMachinesInGroups := func(machines []api.Machine, expected map[string]int) {
+	expectMachinesInGroups := func(machines []*api.Machine, expected map[string]int) {
 		found := map[string]int{}
 		for _, m := range machines {
 			if m.Config == nil || m.Config.Metadata == nil {
