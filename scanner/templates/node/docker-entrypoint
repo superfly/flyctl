@@ -1,0 +1,8 @@
+#!/bin/sh -e
+
+# If running the web server then migrate existing database
+if [ "${*}" == "{{ .packager }} run start" ]; then
+  npx prisma migrate deploy
+fi
+
+exec "${@}"

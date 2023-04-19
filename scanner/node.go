@@ -146,7 +146,7 @@ Now: run 'fly deploy' to deploy your Node app.
 	// only include migration script if this app uses prisma
 	s.Files = make([]SourceFile, 0)
 	for _, file := range files {
-		if prisma || file.Path != "start_with_migrations.sh" {
+		if prisma || file.Path != "docker-entrypoint" {
 			s.Files = append(s.Files, file)
 		}
 	}
