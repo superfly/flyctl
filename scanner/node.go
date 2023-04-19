@@ -20,8 +20,8 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 		return nil, nil
 	}
 
-	var result map[string]interface{}
-	err = json.Unmarshal(data, &result)
+	var packageJson map[string]interface{}
+	err = json.Unmarshal(data, &packageJson)
 	if err != nil {
 		return nil, nil
 	}
@@ -92,8 +92,6 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 
 	vars["runtime"] = s.Family
 
-	files := templatesExecute("templates/node", vars)
-
 	if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "sqlite")) {
 		env["DATABASE_URL"] = "file:/data/sqlite.db"
 		s.SkipDatabase = true
@@ -106,17 +104,11 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 		s.Notice = "\nThis launch configuration uses SQLite on a single, dedicated volume. It will not scale beyond a single VM. Look into 'fly postgres' for a more robust production database."
 	}
 
-	// only include migration script if this app uses prisma
-	s.Files = make([]SourceFile, 0)
-	for _, file := range files {
-		if prisma || file.Path != "start_with_migrations.sh" {
-			s.Files = append(s.Files, file)
-		}
-	}
-
 	s.SkipDeploy = true
 
-	scripts, ok := result["scripts"].(map[string]interface{})
+	vars["devDependencies"] = packageJson["devDependencies"] != nil
+
+	scripts, ok := packageJson["scripts"].(map[string]interface{})
 
 	vars["build"] = scripts["build"] != nil
 
@@ -148,6 +140,16 @@ need help, please post on https://community.fly.io.
 
 Now: run 'fly deploy' to deploy your Node app.
 `
+
+	files := templatesExecute("templates/node", vars)
+
+	// only include migration script if this app uses prisma
+	s.Files = make([]SourceFile, 0)
+	for _, file := range files {
+		if prisma || file.Path != "start_with_migrations.sh" {
+			s.Files = append(s.Files, file)
+		}
+	}
 
 	s.Env = env
 

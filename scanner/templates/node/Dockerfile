@@ -23,7 +23,7 @@ RUN apt-get update; && \
     if .prisma }}openssl {{ end }}
 
 COPY {{ .package_files }} .
-RUN {{ .packager }} install --production=false
+RUN {{ .packager }} install{{ if .devDependencies }} --production=false{{ end }}
 
 {{ if .prisma -}}
 ADD prisma .
@@ -34,20 +34,22 @@ COPY . .
 {{ if .build -}}
     
 RUN {{ .packager }} run build
-{{ end }}
-
-FROM base
-
-COPY --from=builder /app /app
+{{ end -}}
+{{ if .devDependencies -}}
 
 {{ if .yarn -}}
 RUN yarn install --production=true
 {{ else -}}
 RUN npm prune --production
 {{ end -}}
+{{ end }}
 
-{{ if .prisma }}
+FROM base
+
+COPY --from=build /app /app
+
+{{ if .prisma -}}
 CMD [ "sh", "start_with_migrations.sh" ]
-{{ else }}
+{{ else -}}
 CMD [ "{{ .packager }}", "run", "start" ]
 {{ end -}}
