@@ -59,8 +59,7 @@ func (c *Config) ToEphemeralRunnerMachineConfig() (*api.MachineConfig, error) {
 			// FIXME: this is an ugly hack, abusing Hallpass as a
 			// stand-in for `/bin/sleep infinity`, simply because it
 			// should always be available.
-			Cmd:        []string{"dummy", "to", "keep", "machine", "running"}, // just to clear the CMD; Hallpass ignores it
-			Entrypoint: []string{"/.fly/hallpass"},
+			Exec: []string{"/.fly/hallpass", "dummy", "to", "keep", "machine", "running"},
 		},
 		Restart: api.MachineRestart{
 			Policy: api.MachineRestartPolicyNo,
