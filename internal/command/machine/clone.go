@@ -74,6 +74,10 @@ func newClone() *cobra.Command {
 			Name:        "clear-auto-destroy",
 			Description: "Disable auto destroy setting on new machine",
 		},
+		flag.StringSlice{
+			Name:        "standby-for",
+			Description: "Comma separated list of machine ids to watch for",
+		},
 	)
 
 	return cmd
@@ -219,11 +223,22 @@ func runMachineClone(ctx context.Context) (err error) {
 		}
 	}
 
+	// Standby machine
+	skipLaunch := false
+	if standbys := flag.GetStringSlice(ctx, "standby-for"); len(standbys) > 0 {
+		if standbys[0] == "source" {
+			standbys[0] = source.ID
+		}
+		targetConfig.Standbys = standbys
+		skipLaunch = true
+	}
+
 	input := api.LaunchMachineInput{
-		AppID:  app.Name,
-		Name:   flag.GetString(ctx, "name"),
-		Region: region,
-		Config: targetConfig,
+		AppID:      app.Name,
+		Name:       flag.GetString(ctx, "name"),
+		Region:     region,
+		Config:     targetConfig,
+		SkipLaunch: skipLaunch,
 	}
 
 	fmt.Fprintf(out, "Provisioning a new machine with image %s...\n", source.Config.Image)
@@ -234,16 +249,19 @@ func runMachineClone(ctx context.Context) (err error) {
 	}
 
 	fmt.Fprintf(out, "  Machine %s has been created...\n", colorize.Bold(launchedMachine.ID))
-	fmt.Fprintf(out, "  Waiting for machine %s to start...\n", colorize.Bold(launchedMachine.ID))
 
-	// wait for a machine to be started
-	err = mach.WaitForStartOrStop(ctx, launchedMachine, "start", time.Minute*5)
-	if err != nil {
-		return err
-	}
+	if !skipLaunch {
+		fmt.Fprintf(out, "  Waiting for machine %s to start...\n", colorize.Bold(launchedMachine.ID))
 
-	if err = watch.MachinesChecks(ctx, []*api.Machine{launchedMachine}); err != nil {
-		return fmt.Errorf("error while watching health checks: %w", err)
+		// wait for a machine to be started
+		err = mach.WaitForStartOrStop(ctx, launchedMachine, "start", time.Minute*5)
+		if err != nil {
+			return err
+		}
+
+		if err = watch.MachinesChecks(ctx, []*api.Machine{launchedMachine}); err != nil {
+			return fmt.Errorf("error while watching health checks: %w", err)
+		}
 	}
 
 	fmt.Fprintf(out, "Machine has been successfully cloned!\n")
