@@ -181,9 +181,9 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 	// It's important to push appConfig into context because MachineDeployment will fetch it from there
 	ctx = appconfig.WithConfig(ctx, appConfig)
 
-	metrics.Started("deploy_machines")
+	metrics.Started(ctx, "deploy_machines")
 	defer func() {
-		metrics.Status("deploy_machines", err == nil)
+		metrics.Status(ctx, "deploy_machines", err == nil)
 	}()
 
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
@@ -212,9 +212,9 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 func deployToNomad(ctx context.Context, appConfig *appconfig.Config, appCompact *api.AppCompact, img *imgsrc.DeploymentImage) (err error) {
 	apiClient := client.FromContext(ctx).API()
 
-	metrics.Started("deploy_nomad")
+	metrics.Started(ctx, "deploy_nomad")
 	defer func() {
-		metrics.Status("deploy_nomad", err == nil)
+		metrics.Status(ctx, "deploy_nomad", err == nil)
 	}()
 
 	// Assign an empty map if nil so later assignments won't fail

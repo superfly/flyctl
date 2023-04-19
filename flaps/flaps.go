@@ -151,10 +151,10 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (ou
 
 	out = new(api.Machine)
 
-	metrics.Started("machine_launch")
-	sendUpdateMetrics := metrics.StartTiming("machine_launch")
+	metrics.Started(ctx, "machine_launch")
+	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_launch")
 	defer func() {
-		metrics.Status("machine_launch", err == nil)
+		metrics.Status(ctx, "machine_launch", err == nil)
 		if err == nil {
 			sendUpdateMetrics()
 		}
@@ -177,10 +177,10 @@ func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput, non
 	endpoint := fmt.Sprintf("/%s", builder.ID)
 	out = new(api.Machine)
 
-	metrics.Started("machine_update")
-	sendUpdateMetrics := metrics.StartTiming("machine_update")
+	metrics.Started(ctx, "machine_update")
+	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_update")
 	defer func() {
-		metrics.Status("machine_update", err == nil)
+		metrics.Status(ctx, "machine_update", err == nil)
 		if err == nil {
 			sendUpdateMetrics()
 		}
@@ -196,9 +196,9 @@ func (f *Client) Start(ctx context.Context, machineID string) (out *api.MachineS
 	startEndpoint := fmt.Sprintf("/%s/start", machineID)
 	out = new(api.MachineStartResponse)
 
-	metrics.Started("machine_start")
+	metrics.Started(ctx, "machine_start")
 	defer func() {
-		metrics.Status("machine_start", err == nil)
+		metrics.Status(ctx, "machine_start", err == nil)
 	}()
 
 	if err := f.sendRequest(ctx, http.MethodPost, startEndpoint, nil, out, nil); err != nil {

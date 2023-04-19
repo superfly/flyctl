@@ -100,7 +100,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 
 	if err != nil {
 		if dockerFactory.IsRemote() {
-			metrics.SendNoData("remote_builder_failure")
+			metrics.SendNoData(ctx, "remote_builder_failure")
 		}
 		return nil, "", err
 	}

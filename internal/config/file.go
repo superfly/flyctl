@@ -19,11 +19,20 @@ func SetAccessToken(path, token string) error {
 	})
 }
 
-// Clear clears the access token and wireguard-related keys of the configuration
+// SetMetricsToken sets the value of the metrics token at the configuration file
+// found at path.
+func SetMetricsToken(path, token string) error {
+	return set(path, map[string]interface{}{
+		MetricsTokenFileKey: token,
+	})
+}
+
+// Clear clears the access token, metrics token, and wireguard-related keys of the configuration
 // file found at path.
 func Clear(path string) (err error) {
 	return set(path, map[string]interface{}{
 		AccessTokenFileKey:    "",
+		MetricsTokenFileKey:   "",
 		WireGuardStateFileKey: map[string]interface{}{},
 	})
 }

@@ -110,7 +110,7 @@ func (*builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFacto
 	imageID, err = runClassicBuild(ctx, streams, docker, r, opts, "", buildArgs)
 	if err != nil {
 		if dockerFactory.IsRemote() {
-			metrics.SendNoData("remote_builder_failure")
+			metrics.SendNoData(ctx, "remote_builder_failure")
 		}
 		build.ImageBuildFinish()
 		build.BuildFinish()

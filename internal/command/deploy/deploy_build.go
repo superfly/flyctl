@@ -110,17 +110,17 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 	// finally, build the image
 	heartbeat, err := resolver.StartHeartbeat(ctx)
 	if err != nil {
-		metrics.SendNoData("remote_builder_failure")
+		metrics.SendNoData(ctx, "remote_builder_failure")
 		return nil, err
 	}
 	defer heartbeat.Stop()
 
-	metrics.Started("remote_build_image")
+	metrics.Started(ctx, "remote_build_image")
 
 	if img, err = resolver.BuildImage(ctx, io, opts); err == nil && img == nil {
 		err = errors.New("no image specified")
 	}
-	metrics.Status("remote_build_image", err == nil)
+	metrics.Status(ctx, "remote_build_image", err == nil)
 
 	if err == nil {
 		tb.Printf("image: %s\n", img.Tag)

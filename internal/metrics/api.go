@@ -5,20 +5,28 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/terminal"
 )
 
 const (
-	metricsToken = "abcd"
-	timeout      = 4 * time.Second
+	timeout = 4 * time.Second
 )
 
 var timedOut = atomic.Bool{}
 
-func sendImpl(metricSlug, jsonValue string) error {
+func sendImpl(parentCtx context.Context, metricSlug, jsonValue string) error {
+
+	token, err := getMetricsToken(parentCtx)
+	if err != nil {
+		return err
+	}
+
+	cfg := config.FromContext(parentCtx)
 
 	if timedOut.Load() {
 		return nil
@@ -29,16 +37,12 @@ func sendImpl(metricSlug, jsonValue string) error {
 
 	reader := strings.NewReader(jsonValue)
 
-	hostname := "flyctl-metrics.fly.dev"
-	if envHostname := os.Getenv("FLYCTL_METRICS_HOST"); envHostname != "" {
-		hostname = envHostname
-	}
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://"+hostname+"/v1/"+metricSlug, reader)
+	req, err := http.NewRequestWithContext(ctx, "POST", cfg.MetricsBaseURL+"/v1/"+metricSlug, reader)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+metricsToken)
+	req.Header.Set("Authorization", token)
 	resp, err := http.DefaultClient.Do(req)
 	defer func() {
 		if resp != nil {
@@ -58,35 +62,42 @@ func sendImpl(metricSlug, jsonValue string) error {
 	return nil
 }
 
-func Started(metricSlug string) {
-	SendNoData(metricSlug + "/started")
-}
-func Status(metricSlug string, success bool) {
-	Send(metricSlug+"/status", map[string]bool{"success": success})
+func handleErr(err error) {
+	if err == nil {
+		return
+	}
+	// TODO(ali): Should this ping sentry when it fails?
+	terminal.Debugf("metrics error: %v", err)
 }
 
-func Send[T any](metricSlug string, value T) {
+func Started(ctx context.Context, metricSlug string) {
+	SendNoData(ctx, metricSlug+"/started")
+}
+func Status(ctx context.Context, metricSlug string, success bool) {
+	Send(ctx, metricSlug+"/status", map[string]bool{"success": success})
+}
+
+func Send[T any](ctx context.Context, metricSlug string, value T) {
 
 	valJson, err := json.Marshal(value)
 	if err != nil {
 		return
 	}
-	SendJson(metricSlug, string(valJson))
+	SendJson(ctx, metricSlug, string(valJson))
 }
 
-func SendNoData(metricSlug string) {
+func SendNoData(ctx context.Context, metricSlug string) {
 
-	SendJson(metricSlug, "")
+	SendJson(ctx, metricSlug, "")
 }
 
-func SendJson(metricSlug, jsonValue string) {
-	// TODO(ali): Should this ping sentry when it fails?
-	_ = sendImpl(metricSlug, jsonValue)
+func SendJson(ctx context.Context, metricSlug, jsonValue string) {
+	handleErr(sendImpl(ctx, metricSlug, jsonValue))
 }
 
-func StartTiming(metricSlug string) func() {
+func StartTiming(ctx context.Context, metricSlug string) func() {
 	start := time.Now()
 	return func() {
-		Send(metricSlug+"/duration", map[string]float64{"duration_seconds": time.Since(start).Seconds()})
+		Send(ctx, metricSlug+"/duration", map[string]float64{"duration_seconds": time.Since(start).Seconds()})
 	}
 }

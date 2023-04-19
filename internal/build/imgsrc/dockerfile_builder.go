@@ -166,7 +166,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	}()
 	if err != nil {
 		if dockerFactory.IsRemote() {
-			metrics.SendNoData("remote_builder_failure")
+			metrics.SendNoData(ctx, "remote_builder_failure")
 		}
 		build.ImageBuildFinish()
 		build.BuildFinish()
@@ -188,7 +188,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	terminal.Debugf("buildkitEnabled", buildkitEnabled)
 	if err != nil {
 		if dockerFactory.IsRemote() {
-			metrics.SendNoData("remote_builder_failure")
+			metrics.SendNoData(ctx, "remote_builder_failure")
 		}
 		build.ImageBuildFinish()
 		build.BuildFinish()
@@ -199,7 +199,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		imageID, err = runBuildKitBuild(ctx, streams, docker, r, opts, relativedockerfilePath, buildArgs)
 		if err != nil {
 			if dockerFactory.IsRemote() {
-				metrics.SendNoData("remote_builder_failure")
+				metrics.SendNoData(ctx, "remote_builder_failure")
 			}
 			build.ImageBuildFinish()
 			build.BuildFinish()
@@ -209,7 +209,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		imageID, err = runClassicBuild(ctx, streams, docker, r, opts, relativedockerfilePath, buildArgs)
 		if err != nil {
 			if dockerFactory.IsRemote() {
-				metrics.SendNoData("remote_builder_failure")
+				metrics.SendNoData(ctx, "remote_builder_failure")
 			}
 			build.ImageBuildFinish()
 			build.BuildFinish()
@@ -428,13 +428,13 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 
 func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostreams.IOStreams, tag string) error {
 
-	metrics.Started("image_push")
-	sendImgPushMetrics := metrics.StartTiming("image_push/duration")
+	metrics.Started(ctx, "image_push")
+	sendImgPushMetrics := metrics.StartTiming(ctx, "image_push/duration")
 
 	pushResp, err := docker.ImagePush(ctx, tag, types.ImagePushOptions{
 		RegistryAuth: flyRegistryAuth(),
 	})
-	metrics.Status("image_push", err == nil)
+	metrics.Status(ctx, "image_push", err == nil)
 
 	if err != nil {
 		return errors.Wrap(err, "error pushing image to registry")

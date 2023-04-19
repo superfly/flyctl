@@ -90,9 +90,9 @@ func run(ctx context.Context) (err error) {
 		ForceYes:      flag.GetBool(ctx, "now"),
 	}
 
-	metrics.Started("launch")
+	metrics.Started(ctx, "launch")
 	defer func() {
-		metrics.Status("launch", err == nil)
+		metrics.Status(ctx, "launch", err == nil)
 	}()
 
 	// Determine the working directory
